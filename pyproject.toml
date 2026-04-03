@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "weles"
+version = "0.1.0"
+description = "Browser fingerprint spoofing for Playwright Firefox. JS-level stealth without custom browser binaries."
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.9"
+authors = [{name = "Wisent AI", email = "dev@wisent.ai"}]
+keywords = ["playwright", "fingerprint", "stealth", "browser", "automation"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Topic :: Internet :: WWW/HTTP :: Browsers",
+]
+dependencies = [
+    "playwright>=1.40",
+    "browserforge>=1.2",
+]
+
+[project.optional-dependencies]
+geoip = ["geoip2", "requests"]
+
+[project.urls]
+Homepage = "https://github.com/wisent-ai/weles"
+Repository = "https://github.com/wisent-ai/weles"
+
+[tool.setuptools.packages.find]
+include = ["weles*"]
+
+[tool.setuptools.package-data]
+weles = ["scripts/*.js"]
