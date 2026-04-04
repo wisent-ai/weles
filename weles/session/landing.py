@@ -45,17 +45,21 @@ def build_landing_html(domain, url, task, purpose="login"):
         purpose: "login" or "comparison" — adjusts messaging
     """
     if purpose == "login":
-        title = f"Session needed for {domain}"
-        subtitle = task
-        footer = ("Your session will be saved locally so you "
-                  "won&#39;t need to do this again.")
-        btn_text = f"Continue to {domain}"
+        title = f"Sign in to {domain}"
+        subtitle = (f"Wisent needs access to your {domain} account. "
+                    f"Please sign in once — your session will be "
+                    "remembered for future runs.")
+        step2 = f"Sign in to your {domain} account"
+        footer = "Your session is stored on this device only."
+        btn_text = f"Go to {domain}"
     else:
-        title = f"Traffic comparison for {domain}"
-        subtitle = (f"{task}. Your traffic will be compared against "
-                    "the automated run to identify detection differences.")
-        footer = "Traffic is captured locally for comparison only."
-        btn_text = f"Open {domain}"
+        title = f"Help Wisent learn from {domain}"
+        subtitle = (f"Wisent tried to automate {domain} but was blocked. "
+                    "Please do the same task manually so Wisent can "
+                    "learn what a real browser does differently.")
+        step2 = task if task else f"Use {domain} as you normally would"
+        footer = "All data stays on this device."
+        btn_text = f"Go to {domain}"
 
     return (
         '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">'
@@ -97,9 +101,9 @@ def build_landing_html(domain, url, task, purpose="login"):
         f"<h1>{title}</h1>"
         f'<p class="desc">{subtitle}</p>'
         '<ol class="steps">'
-        f'<li><span class="num">1</span>Click the button below</li>'
-        '<li><span class="num">2</span>Complete the task as you normally would</li>'
-        '<li><span class="num">3</span>Close this browser window when done</li>'
+        f'<li><span class="num">1</span>{btn_text}</li>'
+        f'<li><span class="num">2</span>{step2}</li>'
+        '<li><span class="num">3</span>Close this window when you&#39;re done</li>'
         "</ol>"
         f'<a class="btn" href="{url}">{btn_text}</a>'
         f'<p class="footer">{footer}</p>'
