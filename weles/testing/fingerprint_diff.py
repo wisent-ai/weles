@@ -92,48 +92,10 @@ def on_failure(
 
 
 def _create_landing_page(url: str, task_description: str, output_dir: str) -> str:
-    """Create a local HTML page explaining what the human should do."""
+    """Create a Wisent-branded landing page for traffic comparison."""
+    from ..session.landing import build_landing_html
     domain = url.split("//")[-1].split("/")[0]
-    html = (
-        '<!DOCTYPE html><html><head><meta charset="utf-8">'
-        "<title>Weles</title><style>"
-        "*{margin:0;padding:0;box-sizing:border-box}"
-        "body{font-family:-apple-system,system-ui,sans-serif;"
-        "background:#0a0a0a;color:#e5e5e5;height:100vh;"
-        "display:flex;align-items:center;justify-content:center}"
-        ".card{background:#161616;border:1px solid #2a2a2a;"
-        "border-radius:16px;padding:48px;max-width:480px;width:100%}"
-        ".logo{font-size:13px;letter-spacing:3px;text-transform:uppercase;"
-        "color:#666;margin-bottom:32px}"
-        "h1{font-size:22px;font-weight:500;color:#fff;margin-bottom:12px}"
-        ".desc{font-size:15px;color:#999;line-height:1.6;margin-bottom:32px}"
-        ".steps{list-style:none;margin-bottom:32px}"
-        ".steps li{padding:10px 0;border-bottom:1px solid #222;"
-        "font-size:14px;color:#bbb}"
-        ".steps li:last-child{border:none}"
-        ".num{display:inline-block;width:24px;height:24px;"
-        "background:#222;border-radius:50%;text-align:center;"
-        "line-height:24px;font-size:12px;color:#888;margin-right:12px}"
-        ".btn{display:block;width:100%;padding:14px;background:#fff;"
-        "color:#000;border:none;border-radius:8px;font-size:15px;"
-        "font-weight:500;cursor:pointer;text-align:center;"
-        "text-decoration:none;transition:opacity .2s}"
-        ".btn:hover{opacity:.85}"
-        ".footer{margin-top:24px;font-size:12px;color:#444;text-align:center}"
-        "</style></head><body><div class='card'>"
-        "<div class='logo'>weles</div>"
-        f"<h1>Traffic comparison for {domain}</h1>"
-        f'<p class="desc">{task_description}. Weles will compare your traffic '
-        "against the automated run to find detection differences.</p>"
-        '<ol class="steps">'
-        f'<li><span class="num">1</span>Click below to open {domain}</li>'
-        '<li><span class="num">2</span>Complete the task as you normally would</li>'
-        '<li><span class="num">3</span>Close this browser window when done</li>'
-        "</ol>"
-        f'<a class="btn" href="{url}">Open {domain}</a>'
-        '<p class="footer">Traffic is captured locally for comparison only.</p>'
-        "</div></body></html>"
-    )
+    html = build_landing_html(domain, url, task_description, purpose="comparison")
     path = os.path.join(output_dir, "weles_landing.html")
     with open(path, "w") as f:
         f.write(html)
