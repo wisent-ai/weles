@@ -57,6 +57,7 @@ async def AsyncNewBrowser(
     timezone_id: Optional[str] = None,
     headless: Optional[bool] = None,
     debug: Optional[bool] = None,
+    user_data_dir: Optional[str] = None,
     **launch_options,
 ) -> BrowserContext:
     """Launch Playwright Firefox or Chromium with fingerprint spoofing.
@@ -71,6 +72,8 @@ async def AsyncNewBrowser(
         timezone_id: Optional timezone ID.
         headless: Run headless (default False).
         debug: Print fingerprint config to stdout.
+        user_data_dir: Optional path for persistent browser context.
+            When set, cookies/localStorage/etc. persist across sessions.
         **launch_options: Extra args passed to browser.launch().
     """
     if os is None:
@@ -95,21 +98,6 @@ async def AsyncNewBrowser(
         headless = False
 
     is_chromium = browser == "chromium"
-
-    if is_chromium:
-        # Merge anti-detection args with any user-provided args
-        user_args = launch_options.pop("args", []) or []
-        merged_args = list(_CHROMIUM_ARGS) + [a for a in user_args if a not in _CHROMIUM_ARGS]
-        pw_browser = await playwright.chromium.launch(
-            headless=headless,
-            args=merged_args,
-            **launch_options,
-        )
-    else:
-        pw_browser = await playwright.firefox.launch(
-            headless=headless,
-            **launch_options,
-        )
 
     # Build context options from fingerprint
     nav = fp_config.get("navigator", {})
@@ -137,6 +125,48 @@ async def AsyncNewBrowser(
         ctx_opts["proxy"] = proxy
         if is_chromium:
             ctx_opts["ignore_https_errors"] = True
+
+    if user_data_dir is not None:
+        # Persistent context: merge launch options + context options into one call
+        persistent_kwargs: Dict[str, Any] = {
+            "headless": headless,
+            **ctx_opts,
+            **launch_options,
+        }
+
+        if is_chromium:
+            user_args = persistent_kwargs.pop("args", []) or []
+            merged_args = list(_CHROMIUM_ARGS) + [a for a in user_args if a not in _CHROMIUM_ARGS]
+            persistent_kwargs["args"] = merged_args
+            context = await playwright.chromium.launch_persistent_context(
+                user_data_dir, **persistent_kwargs
+            )
+        else:
+            context = await playwright.firefox.launch_persistent_context(
+                user_data_dir, **persistent_kwargs
+            )
+
+        await context.add_init_script(init_script)
+
+        # No separate browser object to close; just close the context
+        context._weles_browser = None
+        return context
+
+    # Non-persistent: launch browser then create context
+    if is_chromium:
+        # Merge anti-detection args with any user-provided args
+        user_args = launch_options.pop("args", []) or []
+        merged_args = list(_CHROMIUM_ARGS) + [a for a in user_args if a not in _CHROMIUM_ARGS]
+        pw_browser = await playwright.chromium.launch(
+            headless=headless,
+            args=merged_args,
+            **launch_options,
+        )
+    else:
+        pw_browser = await playwright.firefox.launch(
+            headless=headless,
+            **launch_options,
+        )
 
     context = await pw_browser.new_context(**ctx_opts)
     await context.add_init_script(init_script)
