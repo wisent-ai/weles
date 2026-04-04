@@ -19,14 +19,24 @@ def generate(
     os: Optional[Union[str, List[str]]] = None,
     screen: Optional[Screen] = None,
     window: Optional[Tuple[int, int]] = None,
+    browser: str = "firefox",
 ) -> Fingerprint:
-    """Generate a Firefox fingerprint via browserforge."""
+    """Generate a fingerprint via browserforge.
+
+    Args:
+        os: Target OS ("macos", "windows", "linux") or list to pick from.
+        screen: Optional screen constraints.
+        window: Optional window size tuple.
+        browser: "firefox" (default) or "chromium".
+    """
     if os is None:
         os = random.choice(["macos", "windows", "linux"])
     elif isinstance(os, list):
         os = random.choice(os)
     os = _OS_MAP.get(os, os)
-    gen = FingerprintGenerator(browser="firefox", os=os)
+    # browserforge uses "chrome" not "chromium"
+    bf_browser = "chrome" if browser == "chromium" else "firefox"
+    gen = FingerprintGenerator(browser=bf_browser, os=os)
     return gen.generate(screen=screen)
 
 
@@ -34,36 +44,61 @@ def to_config(
     fp: Fingerprint,
     target_os: str = "macos",
     config_overrides: Optional[Dict[str, Any]] = None,
+    browser: str = "firefox",
 ) -> Dict[str, Any]:
-    """Convert a browserforge Fingerprint to a JS-ready config dict."""
+    """Convert a browserforge Fingerprint to a JS-ready config dict.
+
+    Args:
+        fp: The generated Fingerprint object.
+        target_os: Target OS string.
+        config_overrides: Optional dict of overrides to deep-merge.
+        browser: "firefox" (default) or "chromium".
+    """
     nav = fp.navigator
     scr = fp.screen
+    is_chromium = browser == "chromium"
 
     ua = nav.userAgent
     platform = _PLATFORM_MAP.get(target_os, "MacIntel")
-    oscpu = _OSCPU_MAP.get(target_os, "Intel Mac OS X 10.15")
 
-    # Extract Firefox version from UA
-    ff_version = "135.0"
-    if "Firefox/" in ua:
-        ff_version = ua.split("Firefox/")[-1]
+    nav_config: Dict[str, Any] = {
+        "userAgent": ua,
+        "platform": platform,
+        "language": "en-US",
+        "languages": ["en-US"],
+        "hardwareConcurrency": nav.hardwareConcurrency or 8,
+        "maxTouchPoints": nav.maxTouchPoints or 0,
+        "doNotTrack": "unspecified",
+    }
+
+    if is_chromium:
+        # Chromium-specific navigator values
+        nav_config["appVersion"] = ua.replace("Mozilla/", "") if ua.startswith("Mozilla/") else ua
+        nav_config["vendor"] = "Google Inc."
+        nav_config["product"] = "Gecko"  # Chrome reports "Gecko" for product
+        nav_config["productSub"] = "20030107"
+        # Chromium has deviceMemory; pick a realistic value
+        nav_config["deviceMemory"] = random.choice([4, 8, 8, 16])
+        nav_config["pdfViewerEnabled"] = True
+        # Chromium does NOT expose oscpu or buildID
+    else:
+        # Firefox-specific navigator values
+        oscpu = _OSCPU_MAP.get(target_os, "Intel Mac OS X 10.15")
+        ff_version = "135.0"
+        if "Firefox/" in ua:
+            ff_version = ua.split("Firefox/")[-1]
+        nav_config["appVersion"] = nav.appVersion if hasattr(nav, "appVersion") else f"5.0 ({platform})"
+        nav_config["vendor"] = ""
+        nav_config["product"] = "Gecko"
+        nav_config["productSub"] = "20100101"
+        nav_config["oscpu"] = oscpu
+        nav_config["buildID"] = "20250203212511"
+
+    webgl_vendor = "Google Inc." if is_chromium else "Mozilla"
 
     config: Dict[str, Any] = {
-        "navigator": {
-            "userAgent": ua,
-            "appVersion": nav.appVersion if hasattr(nav, "appVersion") else f"5.0 ({platform})",
-            "platform": platform,
-            "vendor": "",
-            "product": "Gecko",
-            "productSub": "20100101",
-            "language": "en-US",
-            "languages": ["en-US"],
-            "hardwareConcurrency": nav.hardwareConcurrency or 8,
-            "maxTouchPoints": nav.maxTouchPoints or 0,
-            "oscpu": oscpu,
-            "buildID": "20250203212511",
-            "doNotTrack": "unspecified",
-        },
+        "browser": browser,  # Pass browser type to JS scripts
+        "navigator": nav_config,
         "screen": {
             "width": scr.width if scr else 1920,
             "height": scr.height if scr else 1080,
@@ -78,7 +113,7 @@ def to_config(
             "outerHeight": scr.height if scr else 1080,
         },
         "webgl": {
-            "vendor": "Mozilla",
+            "vendor": webgl_vendor,
             "renderer": _default_webgl_renderer(target_os),
             "unmaskedVendor": _default_webgl_unmasked_vendor(target_os),
             "unmaskedRenderer": _default_webgl_renderer(target_os),

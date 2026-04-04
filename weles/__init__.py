@@ -1,4 +1,4 @@
-"""Weles: Browser fingerprint spoofing for Playwright Firefox."""
+"""Weles: Browser fingerprint spoofing for Playwright (Firefox & Chromium)."""
 
 from .async_api import AsyncWeles, AsyncNewBrowser
 from .sync_api import Weles, NewBrowser
