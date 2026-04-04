@@ -46,17 +46,17 @@ def build_landing_html(domain, url, task, purpose="login"):
     """
     if purpose == "login":
         title = f"Sign in to {domain}"
-        subtitle = (f"Wisent needs access to your {domain} account. "
-                    f"Please sign in once — your session will be "
-                    "remembered for future runs.")
+        subtitle = (f"To automate tasks on {domain}, Weles needs a "
+                    "valid session. Once you sign in, your session "
+                    "will be saved so this is a one-time step.")
         step2 = f"Sign in to your {domain} account"
         footer = "Your session is stored on this device only."
         btn_text = f"Go to {domain}"
     else:
-        title = f"Help Wisent learn from {domain}"
-        subtitle = (f"Wisent tried to automate {domain} but was blocked. "
-                    "Please do the same task manually so Wisent can "
-                    "learn what a real browser does differently.")
+        title = f"Quick help needed for {domain}"
+        subtitle = (f"Weles was blocked while trying to access {domain}. "
+                    "Could you do the same task manually? Weles will "
+                    "compare the two runs to figure out what went wrong.")
         step2 = task if task else f"Use {domain} as you normally would"
         footer = "All data stays on this device."
         btn_text = f"Go to {domain}"
