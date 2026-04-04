@@ -42,19 +42,19 @@ class CDPPage:
         self._conn.on("Page.domContentEventFired", self._on_dc, session_id)
 
     async def _init(self):
-        await self._conn.send("Page.enable", session_id=self._sid)
-        await self._conn.send("Network.enable", session_id=self._sid)
-        tree = await self._conn.send("Page.getFrameTree", session_id=self._sid)
+        s = self._sid
+        await self._conn.send("Page.enable", session_id=s)
+        await self._conn.send("Network.enable", session_id=s)
+        tree = await self._conn.send("Page.getFrameTree", session_id=s)
         root = tree.get("frameTree", {}).get("frame", {})
         self._ft.set_main_frame(root.get("id", ""), root.get("url", ""))
+        self._conn.on("Network.responseReceived", lambda p: self._fire("response", p), s)
 
     def _on_load(self, p):
-        self._load_ev.set()
-        self._fire("load", p)
+        self._load_ev.set(); self._fire("load", p)
 
     def _on_dc(self, p):
-        self._dc_ev.set()
-        self._fire("domcontentloaded", p)
+        self._dc_ev.set(); self._fire("domcontentloaded", p)
 
     def _fire(self, name, data=None):
         for h in self._handlers.get(name, []):

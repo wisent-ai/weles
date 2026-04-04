@@ -67,6 +67,13 @@ class Capture:
         return page
 
     def _attach(self, page):
+        is_cdp = hasattr(page, '_sid')  # CDPPage has _sid, Playwright Page doesn't
+        if is_cdp:
+            self._attach_cdp(page)
+        else:
+            self._attach_playwright(page)
+
+    def _attach_playwright(self, page):
         page.on("console", lambda msg: self.console_log.append(
             f"[console.{msg.type}] {msg.text}"))
         page.on("pageerror", lambda err: self.console_log.append(
@@ -92,11 +99,40 @@ class Capture:
 
         page.on("response", lambda r: asyncio.ensure_future(_on_response(r)))
 
+    def _attach_cdp(self, page):
+        """Attach to CDPPage using its on() event system."""
+        log = self.console_log
+        bodies = self.response_bodies
+        filters = self._url_filters
+
+        def on_console(params):
+            ctype = params.get("type", "log")
+            args = params.get("args", [])
+            text = " ".join(a.get("value", str(a.get("description", ""))) for a in args)
+            log.append(f"[console.{ctype}] {text}")
+
+        def on_response(params):
+            resp = params.get("response", {})
+            url = resp.get("url", "")
+            if not any(f in url.lower() for f in filters):
+                return
+            bodies.append({
+                "url": url[:200],
+                "method": params.get("type", "GET"),
+                "status": resp.get("status", 0),
+                "request_body": None,
+                "response_body": None,
+            })
+
+        page.on("console", on_console)
+        page.on("response", on_response)
+
     async def capture_tls_fingerprint(self, page):
         """Visit browserleaks and save TLS fingerprint."""
         try:
-            resp = await page.goto(_TLS_FP_URL, wait_until="domcontentloaded", timeout=15000)
-            data = json.loads(await resp.text()) if resp else {}
+            await page.goto(_TLS_FP_URL, wait_until="domcontentloaded", timeout=15000)
+            raw = await page.evaluate("() => document.body.innerText")
+            data = json.loads(raw) if raw else {}
             path = _output_path("tls_fingerprint", "json")
             with open(path, "w") as f:
                 json.dump(data, f, indent=2)
