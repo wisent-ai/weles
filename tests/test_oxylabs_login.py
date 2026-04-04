@@ -13,16 +13,17 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from weles import CDPWeles, Capture, wait_cloudflare
+from weles import CDPWeles, Capture, wait_cloudflare, SessionStore
 from weles.cloudflare.challenge import _has_cf_frame
 from weles.traffic.capture import TrafficCapture
 
 
 async def oxylabs_login():
-    """Attempt Oxylabs login and run full diagnostics on failure."""
+    """Attempt Oxylabs login via stored cookies or human SSO, then diagnose."""
     output_dir = os.path.join(os.path.dirname(__file__), "..", "recordings")
     os.makedirs(output_dir, exist_ok=True)
 
+    sessions = SessionStore()
     auto_tc = TrafficCapture()
     auto_tc.start(port=8090)
 
@@ -34,36 +35,27 @@ async def oxylabs_login():
         cap = Capture(ctx)
         page = await cap.new_page()
 
+        # Inject stored cookies or acquire via human login
+        has_session = await sessions.ensure(
+            ctx, "oxylabs",
+            url="https://dashboard.oxylabs.io/",
+            task_description="Login to Oxylabs dashboard using Google SSO",
+        )
+        print(f"Session available: {has_session}")
+
         await page.goto("https://dashboard.oxylabs.io/", wait_until="load")
-        await page.wait_for_selector('input[name="username"]')
-        print("Login page loaded")
+        await page.wait_for_timeout(5000)
+        print(f"Page loaded: {page.url}")
 
-        await page.evaluate(
-            '()=>{document.querySelector("input[name=username]").focus()}'
-        )
-        await page.keyboard.type("lukasz.bartoszcze@gmail.com", delay=50)
-        await page.evaluate(
-            '()=>{document.querySelector("input[type=password]").focus()}'
-        )
-        await page.keyboard.type("Warszawa432!", delay=50)
-        await page.evaluate(
-            '()=>{'
-            'const b=[...document.querySelectorAll("button")]'
-            '.find(b=>b.textContent.includes("Log"));'
-            'if(b)b.click()}'
-        )
-        print("Credentials submitted")
+        # Handle CF challenge if present
+        if _has_cf_frame(page):
+            await wait_cloudflare(page, timeout_ms=30000, settle_ms=10000)
 
-        await wait_cloudflare(page, timeout_ms=30000, settle_ms=10000)
-
-        success = not _has_cf_frame(page)
-        body = await page.evaluate(
-            "()=>document.body.innerText.substring(0,100)"
-        )
-        if "security" in body.lower() or "verify" in body.lower():
-            success = False
-
-        print(f"Login success: {success}")
+        # Check if we reached the dashboard
+        body = await page.evaluate("()=>document.body.innerText.substring(0,200)")
+        success = any(w in body.lower() for w in ["overview", "usage", "traffic", "subscription"])
+        print(f"Dashboard loaded: {success}")
+        print(f"Body: {body[:150]}")
 
         auto_tc.stop()
         auto_tc.save(
@@ -74,7 +66,7 @@ async def oxylabs_login():
             "oxylabs_cdp",
             success=success,
             url="https://dashboard.oxylabs.io/",
-            task_description="Login to Oxylabs dashboard with email lukasz.bartoszcze@gmail.com and check the balance page",
+            task_description="Login to Oxylabs dashboard using Google SSO and navigate to the balance/usage page",
         )
 
         if result.get("diagnosis"):
