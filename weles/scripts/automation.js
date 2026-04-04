@@ -133,7 +133,6 @@ if (__weles.browser === 'chromium') {
   _plugins.item = function(i) { return _plugins[i]; };
   _plugins.namedItem = function(name) { return _plugins.find(function(p) { return p.name === name; }) || null; };
   _plugins.refresh = function() {};
-  Object.defineProperty(_plugins, 'length', { value: _plugins.length, enumerable: true });
 
   window.__welesDefine(Navigator.prototype, 'plugins', function() { return _plugins; });
 
@@ -152,7 +151,6 @@ if (__weles.browser === 'chromium') {
   });
   _allMimes.item = function(i) { return _allMimes[i]; };
   _allMimes.namedItem = function(name) { return _allMimes.find(function(m) { return m.type === name; }) || null; };
-  Object.defineProperty(_allMimes, 'length', { value: _allMimes.length, enumerable: true });
 
   window.__welesDefine(Navigator.prototype, 'mimeTypes', function() { return _allMimes; });
 
