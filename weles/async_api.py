@@ -60,6 +60,7 @@ async def AsyncNewBrowser(
     user_data_dir: Optional[str] = None,
     record_video: Optional[bool] = None,
     record_har: Optional[bool] = None,
+    exclude_scripts: Optional[list] = None,
     **launch_options,
 ) -> BrowserContext:
     """Launch Playwright Firefox or Chromium with fingerprint spoofing.
@@ -88,7 +89,7 @@ async def AsyncNewBrowser(
     fp_config = to_config(fp, target_os=target_os, config_overrides=config, browser=browser)
 
     # Build init script
-    init_script = build_init_script(fp_config)
+    init_script = build_init_script(fp_config, exclude=exclude_scripts)
 
     if debug:
         import json
