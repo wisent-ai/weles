@@ -1,14 +1,4 @@
-"""Browser telemetry: HAR, video, console, response bodies, fingerprint diagnostics.
-
-Usage:
-    from weles import AsyncWeles, Capture
-
-    async with AsyncWeles(os="macos") as ctx:
-        cap = Capture(ctx)
-        page = await cap.new_page()
-        # ... do stuff ...
-        await cap.save()  # writes all artifacts to disk
-"""
+"""Browser telemetry: video, console, response bodies, fingerprint diagnostics."""
 
 import asyncio
 import json
@@ -276,23 +266,26 @@ class Capture:
         except Exception as e:
             return f"Diagnosis failed: {e}"
 
-    async def finish(self, label="session"):
-        """Save artifacts, get video from page, run diagnose(). Returns diagnosis or None."""
+    async def finish(self, label="session", success=False, url=None):
+        """Save, diagnose, and on failure open real browser for traffic comparison."""
         paths = self.save(label=label)
-        video_path = None
+        video_path = await self._finalize_video()
+        result = {"paths": paths, "diagnosis": None, "traffic_diff": None}
+        if video_path:
+            result["diagnosis"] = self.diagnose(
+                video_path, paths.get("console"), paths.get("responses"))
+        if not success and url:
+            from .testing.fingerprint_diff import on_failure
+            if paths.get("responses"):
+                result["traffic_diff"] = on_failure(paths["responses"], url)
+        return result
+
+    async def _finalize_video(self):
         for page in self._pages:
-            # For CDPPage: stop screencast to finalize video before getting path
             sc = getattr(page, '_screencast', None)
             if sc and not sc._stopped:
                 await sc.stop()
             vp = await self.get_video_path(page)
             if vp:
-                video_path = vp
-                break
-        if not video_path:
-            return None
-        return self.diagnose(
-            video_path,
-            console_log_path=paths.get("console"),
-            responses_path=paths.get("responses"),
-        )
+                return vp
+        return None

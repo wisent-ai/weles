@@ -1,168 +1,148 @@
-"""Compare real browser vs CDPWeles traffic fingerprints.
+"""Auto-triggered traffic fingerprint comparison.
 
-Runs a single command that:
-1. Starts mitmproxy
-2. Opens a real browser — waits for you to do the task manually
-3. Saves that capture
-4. Runs CDPWeles doing the same task through the proxy
-5. Saves that capture
-6. Compares and reports what's different
+When a CDPWeles task fails, this module:
+1. Captures the failed automated run's traffic (already done via proxy)
+2. Opens a real browser with the same proxy for a human to succeed
+3. Watches for the human to complete (browser process exits)
+4. Compares automated vs human traffic fingerprints
+5. Reports what the automated browser does differently
 
-Usage:
-    from weles.testing import fingerprint_diff
-
-    diff = await fingerprint_diff(
-        task_fn=my_login_function,
-        url="https://dashboard.oxylabs.io/",
-    )
-    print(diff)
+This is called by Capture.finish() when the task reports failure.
 """
 
-import asyncio
 import json
 import os
 import subprocess
 import sys
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from ..traffic.capture import TrafficCapture
 from ..traffic.compare import compare_captures
 
 
-async def fingerprint_diff(
-    task_fn: Callable,
+def on_failure(
+    auto_capture_path: str,
     url: str,
     *,
-    os_name: str = "macos",
     real_browser: str = "Google Chrome",
     output_dir: str = "recordings/traffic_diff",
-    port_real: int = 8080,
-    port_auto: int = 8090,
-) -> Dict[str, Any]:
-    """Compare real browser vs CDPWeles traffic for the same site.
+    port: int = 8080,
+) -> Optional[Dict[str, Any]]:
+    """Triggered when an automated task fails. Opens real browser for comparison.
+
+    This is synchronous and blocking — it waits for the real browser process
+    to exit, which happens when the human closes the browser window.
 
     Args:
-        task_fn: Async function(page) that performs the task on CDPWeles.
-            Receives a CDPPage, should do the same actions you did manually.
-        url: The URL to navigate to. Shown to the user for the manual step.
-        os_name: OS for CDPWeles fingerprint generation.
-        real_browser: App name to open for the real browser step.
-        output_dir: Where to save captures and the diff report.
-        port_real: Proxy port for the real browser capture.
-        port_auto: Proxy port for the automated capture.
+        auto_capture_path: Path to the already-saved automated traffic capture.
+        url: URL to open in the real browser.
+        real_browser: App name for the real browser.
+        output_dir: Where to save the comparison report.
+        port: Proxy port for the real browser capture.
 
     Returns:
-        Dict with keys: real_capture, auto_capture, diff, report
+        Diff report dict, or None if capture failed.
     """
     os.makedirs(output_dir, exist_ok=True)
     real_path = os.path.join(output_dir, "real_capture.json")
-    auto_path = os.path.join(output_dir, "auto_capture.json")
     diff_path = os.path.join(output_dir, "diff_report.json")
 
-    # --- Step 1: Capture real browser traffic ---
-    print("=" * 60)
-    print("STEP 1: Real browser capture")
-    print("=" * 60)
-    real_tc = TrafficCapture()
-    real_tc.start(port=port_real)
+    # Start proxy for real browser
+    tc = TrafficCapture()
+    tc.start(port=port)
 
-    print(f"\nProxy running on {real_tc.proxy_url}")
-    print(f"Opening {real_browser}...")
+    # Launch real browser through proxy — this is a real unautomated browser
+    print(f"[weles] Task failed. Opening {real_browser} for human comparison.")
+    print(f"[weles] Do the same task manually, then close the browser.")
+    proc = _launch_real_browser(real_browser, tc.proxy_url, url)
 
-    _open_browser(real_browser, real_tc.proxy_url)
+    if not proc:
+        tc.stop()
+        return None
 
-    print(f"\nGo to: {url}")
-    print("Do the task manually (login, navigate, etc).")
-    print("Press Enter here when done...")
-    await _async_input()
+    # Wait for browser to exit (human closes it when done)
+    proc.wait()
+    print("[weles] Browser closed. Processing captures...")
 
-    real_tc.stop()
-    real_tc.save(real_path)
-    print(f"Real capture saved: {real_path}")
+    tc.stop()
+    tc.save(real_path)
 
-    # --- Step 2: Capture CDPWeles traffic ---
-    print()
-    print("=" * 60)
-    print("STEP 2: CDPWeles automated capture")
-    print("=" * 60)
-    auto_tc = TrafficCapture()
-    auto_tc.start(port=port_auto)
-
-    from ..cdp.browser.api import CDPWeles
-    async with CDPWeles(
-        os=os_name,
-        proxy={"server": auto_tc.proxy_url},
-    ) as ctx:
-        page = await ctx.new_page()
-        await task_fn(page)
-
-    auto_tc.stop()
-    auto_tc.save(auto_path)
-    print(f"Auto capture saved: {auto_path}")
-
-    # --- Step 3: Compare ---
-    print()
-    print("=" * 60)
-    print("STEP 3: Comparison")
-    print("=" * 60)
+    # Load both captures and compare
+    auto_data = TrafficCapture.load(auto_capture_path)
     real_data = TrafficCapture.load(real_path)
-    auto_data = TrafficCapture.load(auto_path)
+
+    if not auto_data or not real_data:
+        print("[weles] Missing capture data, cannot compare.")
+        return None
+
     diff = compare_captures(real_data, auto_data)
 
     with open(diff_path, "w") as f:
         json.dump(diff, f, indent=2)
-    print(f"Diff report saved: {diff_path}")
 
-    _print_diff(diff)
+    _print_report(diff)
 
     return {
         "real_capture": real_path,
-        "auto_capture": auto_path,
+        "auto_capture": auto_capture_path,
         "diff": diff,
         "diff_path": diff_path,
     }
 
 
-def _open_browser(app_name: str, proxy_url: str):
-    """Open a real browser with the proxy configured."""
-    if sys.platform == "darwin":
-        subprocess.Popen([
-            "open", "-a", app_name,
-            "--args",
-            f"--proxy-server={proxy_url}",
-            "--ignore-certificate-errors",
-        ])
-    elif sys.platform == "linux":
-        subprocess.Popen([
-            "google-chrome",
-            f"--proxy-server={proxy_url}",
-            "--ignore-certificate-errors",
-        ])
+def _launch_real_browser(app_name: str, proxy_url: str, url: str):
+    """Launch a real browser with proxy, navigating to URL. Returns Popen."""
+    try:
+        if sys.platform == "darwin":
+            return subprocess.Popen([
+                "open", "-W",  # -W waits for the app to close
+                "-a", app_name,
+                url,
+                "--args",
+                f"--proxy-server={proxy_url}",
+                "--ignore-certificate-errors",
+                "--no-first-run",
+                "--new-window",
+            ])
+        elif sys.platform == "linux":
+            return subprocess.Popen([
+                "google-chrome",
+                f"--proxy-server={proxy_url}",
+                "--ignore-certificate-errors",
+                "--no-first-run",
+                url,
+            ])
+    except FileNotFoundError:
+        print(f"[weles] Could not find {app_name}")
+    return None
 
 
-async def _async_input():
-    """Non-blocking input() that works in async context."""
-    loop = asyncio.get_event_loop()
-    await loop.run_in_executor(None, input)
-
-
-def _print_diff(diff: Dict[str, Any]):
-    """Print a human-readable summary of the diff."""
+def _print_report(diff: Dict[str, Any]):
+    """Print human-readable diff summary."""
     summary = diff.get("summary", {})
-    print(f"\nVerdict: {summary.get('verdict', '?')}")
-    print(f"Issues found: {summary.get('issue_count', '?')}")
+    print(f"\n{'=' * 60}")
+    print(f"TRAFFIC FINGERPRINT COMPARISON")
+    print(f"{'=' * 60}")
+    print(f"Verdict: {summary.get('verdict', '?')}")
+    print(f"Issues: {summary.get('issue_count', '?')}")
 
     for section in ["tls", "http2", "headers", "cookies", "request_ordering"]:
         data = diff.get(section, {})
-        issues = []
-        for key, val in data.items():
-            if isinstance(val, bool) and not val:
-                issues.append(key)
-            elif isinstance(val, list) and val:
-                issues.append(f"{key}: {val}")
-            elif isinstance(val, dict) and val:
-                issues.append(f"{key}: {list(val.keys())}")
+        issues = _extract_issues(data)
         if issues:
             print(f"\n[{section}]")
             for issue in issues:
                 print(f"  - {issue}")
+
+
+def _extract_issues(data: Dict[str, Any]) -> List[str]:
+    """Pull notable differences from a diff section."""
+    issues = []
+    for key, val in data.items():
+        if isinstance(val, bool) and not val:
+            issues.append(key)
+        elif isinstance(val, list) and val:
+            issues.append(f"{key}: {val}")
+        elif isinstance(val, dict) and val:
+            issues.append(f"{key}: {list(val.keys())}")
+    return issues
