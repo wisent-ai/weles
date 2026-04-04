@@ -45,20 +45,22 @@ def build_landing_html(domain, url, task, purpose="login"):
         purpose: "login" or "comparison" — adjusts messaging
     """
     if purpose == "login":
-        title = f"Sign in to {domain}"
-        subtitle = (f"To automate tasks on {domain}, Weles needs a "
-                    "valid session. Once you sign in, your session "
-                    "will be saved so this is a one-time step.")
-        step2 = f"Sign in to your {domain} account"
-        footer = "Your session is stored on this device only."
+        title = f"Could you help me sign in?"
+        subtitle = (f"Unfortunately, I wasn&#39;t able to sign in to "
+                    f"{domain} on my own. Could you please help me? "
+                    "Just sign in once and I&#39;ll remember your "
+                    "session for next time.")
+        step2 = f"Sign in to {domain}"
+        footer = "Your session is only stored on this device."
         btn_text = f"Go to {domain}"
     else:
-        title = f"Quick help needed for {domain}"
-        subtitle = (f"Weles was blocked while trying to access {domain}. "
-                    "Could you do the same task manually? Weles will "
-                    "compare the two runs to figure out what went wrong.")
+        title = "Could you help me with something?"
+        subtitle = (f"Unfortunately, I got blocked trying to access "
+                    f"{domain}. Could you please do the same thing "
+                    "manually? I&#39;ll watch and learn what I need "
+                    "to do differently.")
         step2 = task if task else f"Use {domain} as you normally would"
-        footer = "All data stays on this device."
+        footer = "Everything stays on this device."
         btn_text = f"Go to {domain}"
 
     return (
