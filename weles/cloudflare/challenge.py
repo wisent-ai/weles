@@ -3,7 +3,10 @@
 import asyncio
 from typing import Optional
 
-CF_KEYWORDS = ["just a moment", "verify you are human", "performing security"]
+CF_KEYWORDS = [
+    "just a moment", "verify you are human", "verifying you are human",
+    "performing security", "verification successful",
+]
 CF_IFRAME_HOST = "challenges.cloudflare.com"
 CF_MAX_CHECKS = 24
 CF_CHECK_INTERVAL = 3

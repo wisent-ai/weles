@@ -187,3 +187,76 @@ class Capture:
         if video:
             return await video.path()
         return None
+
+    @staticmethod
+    def diagnose(video_path, console_log_path=None, responses_path=None):
+        """Analyze a browser recording to determine why a task failed.
+
+        Extracts frames from the video, sends them to Claude Code CLI
+        for vision analysis, and returns a human-readable explanation.
+
+        Args:
+            video_path: Path to .webm recording.
+            console_log_path: Optional path to console log file.
+            responses_path: Optional path to response bodies JSON.
+
+        Returns:
+            str: Analysis of what happened and why it failed.
+        """
+        frames = Capture.extract_frames(video_path, fps="0.5")
+        if not frames:
+            return "No frames extracted from video."
+
+        # Build prompt with context
+        prompt_parts = [
+            "These images are sequential frames from a browser automation session.",
+            "Analyze each frame in order and explain:",
+            "1. What is happening at each step",
+            "2. Where exactly the task failed",
+            "3. Why it failed (based on what you see on screen)",
+            "4. Start your answer with: The task did not succeed due to",
+        ]
+
+        if console_log_path and os.path.exists(console_log_path):
+            with open(console_log_path) as f:
+                log = f.read()[:3000]
+            prompt_parts.append(f"\nConsole log:\n{log}")
+
+        if responses_path and os.path.exists(responses_path):
+            with open(responses_path) as f:
+                resps = json.load(f)
+            summary = []
+            for r in resps:
+                summary.append(f"{r.get('method','?')} {r['status']}: {r['url'][:80]}")
+            prompt_parts.append(f"\nNetwork responses:\n" + "\n".join(summary))
+
+        prompt = "\n".join(prompt_parts)
+
+        # Build claude CLI command with image reads
+        reads = ". ".join(f"Read the image file at {f}" for f in frames[:10])
+        full_prompt = f"{reads}. Then:\n\n{prompt}"
+
+        try:
+            proc = subprocess.run(
+                ["claude", "-p", "--output-format", "json"],
+                input=full_prompt,
+                capture_output=True,
+                text=True,
+            )
+            raw = proc.stdout.strip()
+            for line in raw.split("\n"):
+                if '"type":"result"' in line:
+                    try:
+                        parsed = json.loads(line)
+                        return parsed.get("result", raw)
+                    except json.JSONDecodeError:
+                        pass
+            try:
+                parsed = json.loads(raw)
+                return parsed.get("result", raw)
+            except json.JSONDecodeError:
+                return raw
+        except FileNotFoundError:
+            return "claude CLI not found. Install: npm install -g @anthropic-ai/claude-code"
+        except Exception as e:
+            return f"Diagnosis failed: {e}"
