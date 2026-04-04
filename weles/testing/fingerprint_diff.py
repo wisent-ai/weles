@@ -24,6 +24,7 @@ def on_failure(
     auto_capture_path: str,
     url: str,
     *,
+    task_description: str = "",
     real_browser: str = "Google Chrome",
     output_dir: str = "recordings/traffic_diff",
     port: int = 8080,
@@ -36,6 +37,7 @@ def on_failure(
     Args:
         auto_capture_path: Path to the already-saved automated traffic capture.
         url: URL to open in the real browser.
+        task_description: What the human should do (shown in the browser).
         real_browser: App name for the real browser.
         output_dir: Where to save the comparison report.
         port: Proxy port for the real browser capture.
@@ -47,14 +49,13 @@ def on_failure(
     real_path = os.path.join(output_dir, "real_capture.json")
     diff_path = os.path.join(output_dir, "diff_report.json")
 
-    # Start proxy for real browser
     tc = TrafficCapture()
     tc.start(port=port)
 
-    # Launch real browser through proxy — this is a real unautomated browser
-    print(f"[weles] Task failed. Opening {real_browser} for human comparison.")
-    print(f"[weles] Do the same task manually, then close the browser.")
-    proc = _launch_real_browser(real_browser, tc.proxy_url, url)
+    if not task_description:
+        task_description = f"Complete the task on {url}"
+    landing = _create_landing_page(url, task_description, output_dir)
+    proc = _launch_real_browser(real_browser, tc.proxy_url, landing)
 
     if not proc:
         tc.stop()
@@ -90,12 +91,33 @@ def on_failure(
     }
 
 
+def _create_landing_page(url: str, task_description: str, output_dir: str) -> str:
+    """Create a local HTML page explaining what the human should do."""
+    html = (
+        "<!DOCTYPE html><html><head><title>Weles - Human Verification</title>"
+        "<style>body{font-family:system-ui;max-width:600px;margin:80px auto;"
+        "padding:20px}h1{color:#333}p{font-size:18px;line-height:1.6}"
+        "a{color:#0066cc;font-size:20px}.note{color:#666;margin-top:40px}</style>"
+        "</head><body>"
+        "<h1>Weles needs your help</h1>"
+        f"<p><strong>Task:</strong> {task_description}</p>"
+        f'<p><a href="{url}">Open {url}</a></p>'
+        '<p class="note">When you are done, close this browser window. '
+        "Weles will compare your traffic against the automated run.</p>"
+        "</body></html>"
+    )
+    path = os.path.join(output_dir, "weles_landing.html")
+    with open(path, "w") as f:
+        f.write(html)
+    return "file://" + os.path.abspath(path)
+
+
 def _launch_real_browser(app_name: str, proxy_url: str, url: str):
     """Launch a real browser with proxy, navigating to URL. Returns Popen."""
     try:
         if sys.platform == "darwin":
             return subprocess.Popen([
-                "open", "-W",  # -W waits for the app to close
+                "open", "-W",
                 "-a", app_name,
                 url,
                 "--args",
@@ -113,7 +135,7 @@ def _launch_real_browser(app_name: str, proxy_url: str, url: str):
                 url,
             ])
     except FileNotFoundError:
-        print(f"[weles] Could not find {app_name}")
+        pass
     return None
 
 

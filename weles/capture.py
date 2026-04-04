@@ -266,7 +266,7 @@ class Capture:
         except Exception as e:
             return f"Diagnosis failed: {e}"
 
-    async def finish(self, label="session", success=False, url=None):
+    async def finish(self, label="session", success=False, url=None, task_description=""):
         """Save, diagnose, and on failure open real browser for traffic comparison."""
         paths = self.save(label=label)
         video_path = await self._finalize_video()
@@ -277,7 +277,8 @@ class Capture:
         if not success and url:
             from .testing.fingerprint_diff import on_failure
             if paths.get("responses"):
-                result["traffic_diff"] = on_failure(paths["responses"], url)
+                result["traffic_diff"] = on_failure(
+                    paths["responses"], url, task_description=task_description)
         return result
 
     async def _finalize_video(self):

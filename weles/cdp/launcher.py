@@ -138,6 +138,7 @@ def _build_launch_args(
         "--disable-blink-features=AutomationControlled",
         "--disable-infobars",
         "--no-sandbox",
+        "--ignore-certificate-errors",
     ]
 
     if headless:
