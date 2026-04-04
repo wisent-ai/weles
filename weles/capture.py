@@ -13,6 +13,7 @@ Usage:
 import asyncio
 import json
 import os
+import subprocess
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -151,3 +152,38 @@ class Capture:
             print(f"  Response bodies ({len(self.response_bodies)} entries): {p}")
             paths["responses"] = p
         return paths
+
+    @staticmethod
+    def extract_frames(video_path, fps="1", start=None, end=None):
+        """Extract frames from a browser recording video.
+
+        Args:
+            video_path: Path to .webm video file.
+            fps: Frames per second to extract (default "1").
+            start: Optional start time (e.g. "5" for 5 seconds in).
+            end: Optional end time.
+
+        Returns list of extracted frame paths.
+        """
+        out_dir = os.path.join(_recordings_dir(), "frames")
+        os.makedirs(out_dir, exist_ok=True)
+        for f in Path(out_dir).glob("frame_*.png"):
+            f.unlink()
+        cmd = ["ffmpeg", "-i", video_path]
+        if start:
+            cmd.extend(["-ss", str(start)])
+        if end:
+            cmd.extend(["-to", str(end)])
+        cmd.extend(["-vf", f"fps={fps}", os.path.join(out_dir, "frame_%04d.png")])
+        subprocess.run(cmd, capture_output=True)
+        frames = sorted(Path(out_dir).glob("frame_*.png"))
+        print(f"  Extracted {len(frames)} frames at {fps}fps to {out_dir}/")
+        return [str(f) for f in frames]
+
+    @staticmethod
+    async def get_video_path(page):
+        """Get the video file path for a page (after closing context)."""
+        video = page.video
+        if video:
+            return await video.path()
+        return None
