@@ -58,6 +58,8 @@ async def AsyncNewBrowser(
     headless: Optional[bool] = None,
     debug: Optional[bool] = None,
     user_data_dir: Optional[str] = None,
+    record_video: Optional[bool] = None,
+    record_har: Optional[bool] = None,
     **launch_options,
 ) -> BrowserContext:
     """Launch Playwright Firefox or Chromium with fingerprint spoofing.
@@ -73,7 +75,8 @@ async def AsyncNewBrowser(
         headless: Run headless (default False).
         debug: Print fingerprint config to stdout.
         user_data_dir: Optional path for persistent browser context.
-            When set, cookies/localStorage/etc. persist across sessions.
+        record_video: Record video of browser session.
+        record_har: Record HAR network log.
         **launch_options: Extra args passed to browser.launch().
     """
     if os is None:
@@ -125,6 +128,13 @@ async def AsyncNewBrowser(
         ctx_opts["proxy"] = proxy
         if is_chromium:
             ctx_opts["ignore_https_errors"] = True
+    if record_video:
+        from .capture import _recordings_dir, _output_path
+        ctx_opts["record_video_dir"] = _recordings_dir()
+    if record_har:
+        from .capture import _recordings_dir, _output_path
+        ctx_opts["record_har_path"] = _output_path("network", "har")
+        ctx_opts["record_har_content"] = "attach"
 
     if user_data_dir is not None:
         # Persistent context: merge launch options + context options into one call
