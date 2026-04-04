@@ -52,6 +52,7 @@ async def CDPNewBrowser(
     user_data_dir: Optional[str] = None,
     exclude_scripts: Optional[list] = None,
     chromium_path: Optional[str] = None,
+    record_video: Optional[Dict[str, Any]] = None,
     **launch_options,
 ):
     """Launch stealth Chromium with fingerprint spoofing via raw CDP."""
@@ -97,7 +98,7 @@ async def CDPNewBrowser(
     if locale:
         locale_str = locale if isinstance(locale, str) else locale[0]
 
-    ctx = CDPBrowserContext(conn, browser_context_id)
+    ctx = CDPBrowserContext(conn, browser_context_id, record_video=record_video)
     ctx.set_emulation(
         user_agent=nav.get("userAgent", ""),
         viewport_width=win.get("outerWidth", scr.get("width", 1920)),

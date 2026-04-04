@@ -2,5 +2,6 @@
 
 from .frame import CDPFrame, FrameTree
 from .page import CDPPage
+from .screencast import CDPScreencast, CDPVideo
 
-__all__ = ["CDPFrame", "CDPPage", "FrameTree"]
+__all__ = ["CDPFrame", "CDPPage", "CDPScreencast", "CDPVideo", "FrameTree"]

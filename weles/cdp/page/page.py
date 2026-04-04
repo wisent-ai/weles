@@ -10,6 +10,7 @@ import re
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Union
 
 from .frame import CDPFrame, FrameTree
+from .screencast import CDPScreencast
 
 if TYPE_CHECKING:
     from ..connection import CDPConnection
@@ -22,21 +23,20 @@ class CDPPage:
     """Page abstraction over a CDP target. Never sends Runtime.enable."""
 
     def __init__(self, connection: CDPConnection, target_id: str,
-                 session_id: str, context: Any = None):
-        self._conn = connection
-        self._target_id = target_id
-        self._sid = session_id
+                 session_id: str, context: Any = None,
+                 record_video: Optional[Dict[str, Any]] = None):
+        self._conn, self._target_id, self._sid = connection, target_id, session_id
         self._context = context
         self._ft = FrameTree(connection, session_id)
         self._init_scripts: List[str] = []
         self._routes: List[tuple] = []
         self._handlers: Dict[str, List[Callable]] = {}
-        self._load_ev = asyncio.Event()
-        self._dc_ev = asyncio.Event()
+        self._load_ev, self._dc_ev = asyncio.Event(), asyncio.Event()
         self._mouse: Optional[CDPMouse] = None
         self._kb: Optional[CDPKeyboard] = None
         self._viewport: Optional[Dict[str, int]] = None
-        self._video = None
+        self._video, self._record_video_opts = None, record_video
+        self._screencast: Optional[CDPScreencast] = None
         self._closed = False
         self._conn.on("Page.loadEventFired", self._on_load, session_id)
         self._conn.on("Page.domContentEventFired", self._on_dc, session_id)
@@ -49,6 +49,10 @@ class CDPPage:
         root = tree.get("frameTree", {}).get("frame", {})
         self._ft.set_main_frame(root.get("id", ""), root.get("url", ""))
         self._conn.on("Network.responseReceived", lambda p: self._fire("response", p), s)
+        if self._record_video_opts:
+            self._screencast = CDPScreencast(
+                self._conn, s, output_dir=self._record_video_opts.get("dir"))
+            await self._screencast.start()
 
     def _on_load(self, p):
         self._load_ev.set(); self._fire("load", p)
@@ -66,8 +70,7 @@ class CDPPage:
                 logger.exception("Page handler error: %s", name)
 
     @property
-    def context(self):
-        return self._context
+    def context(self): return self._context
 
     @property
     def url(self) -> str:
@@ -75,12 +78,10 @@ class CDPPage:
         return mf.url if mf else ""
 
     @property
-    def frames(self) -> List[CDPFrame]:
-        return self._ft.frames
+    def frames(self) -> List[CDPFrame]: return self._ft.frames
 
     @property
-    def main_frame(self) -> Optional[CDPFrame]:
-        return self._ft.main_frame
+    def main_frame(self) -> Optional[CDPFrame]: return self._ft.main_frame
 
     @property
     def mouse(self) -> CDPMouse:
@@ -98,11 +99,10 @@ class CDPPage:
 
     @property
     def video(self):
-        return self._video
+        return self._screencast.video if self._screencast else self._video
 
     @property
-    def viewport_size(self) -> Optional[Dict[str, int]]:
-        return self._viewport
+    def viewport_size(self) -> Optional[Dict[str, int]]: return self._viewport
 
     async def goto(self, url: str, *, wait_until: str = "load",
                    timeout: float = 30000) -> None:
@@ -183,8 +183,7 @@ class CDPPage:
     async def wait_for_timeout(self, ms: float):
         loop = asyncio.get_event_loop()
         fut = loop.create_future()
-        loop.call_later(ms / 1000, fut.set_result, None)
-        await fut
+        loop.call_later(ms / 1000, fut.set_result, None); await fut
 
     async def wait_for_selector(self, selector: str, *, state: str = "visible"):
         js = _sel_check(selector, state)
@@ -231,6 +230,8 @@ class CDPPage:
         if self._closed:
             return
         self._closed = True
+        if self._screencast:
+            await self._screencast.stop()
         try:
             await self._conn.send("Target.closeTarget", {"targetId": self._target_id})
         except Exception:

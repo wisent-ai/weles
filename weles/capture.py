@@ -191,16 +191,7 @@ class Capture:
 
     @staticmethod
     def extract_frames(video_path, fps="1", start=None, end=None):
-        """Extract frames from a browser recording video.
-
-        Args:
-            video_path: Path to .webm video file.
-            fps: Frames per second to extract (default "1").
-            start: Optional start time (e.g. "5" for 5 seconds in).
-            end: Optional end time.
-
-        Returns list of extracted frame paths.
-        """
+        """Extract frames from a .webm video. Returns list of frame paths."""
         out_dir = os.path.join(_recordings_dir(), "frames")
         os.makedirs(out_dir, exist_ok=True)
         for f in Path(out_dir).glob("frame_*.png"):
@@ -226,19 +217,7 @@ class Capture:
 
     @staticmethod
     def diagnose(video_path, console_log_path=None, responses_path=None):
-        """Analyze a browser recording to determine why a task failed.
-
-        Extracts frames from the video, sends them to Claude Code CLI
-        for vision analysis, and returns a human-readable explanation.
-
-        Args:
-            video_path: Path to .webm recording.
-            console_log_path: Optional path to console log file.
-            responses_path: Optional path to response bodies JSON.
-
-        Returns:
-            str: Analysis of what happened and why it failed.
-        """
+        """Analyze a recording via Claude CLI vision to explain why a task failed."""
         frames = Capture.extract_frames(video_path, fps="0.5")
         if not frames:
             return "No frames extracted from video."
@@ -296,3 +275,24 @@ class Capture:
             return "claude CLI not found. Install: npm install -g @anthropic-ai/claude-code"
         except Exception as e:
             return f"Diagnosis failed: {e}"
+
+    async def finish(self, label="session"):
+        """Save artifacts, get video from page, run diagnose(). Returns diagnosis or None."""
+        paths = self.save(label=label)
+        video_path = None
+        for page in self._pages:
+            # For CDPPage: stop screencast to finalize video before getting path
+            sc = getattr(page, '_screencast', None)
+            if sc and not sc._stopped:
+                await sc.stop()
+            vp = await self.get_video_path(page)
+            if vp:
+                video_path = vp
+                break
+        if not video_path:
+            return None
+        return self.diagnose(
+            video_path,
+            console_log_path=paths.get("console"),
+            responses_path=paths.get("responses"),
+        )

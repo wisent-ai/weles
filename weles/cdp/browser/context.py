@@ -22,12 +22,15 @@ class CDPBrowserContext:
         self,
         connection: CDPConnection,
         browser_context_id: str,
+        *,
+        record_video: Optional[Dict[str, Any]] = None,
     ):
         self._conn = connection
         self._context_id = browser_context_id
         self._pages: List[Any] = []  # List[CDPPage] — avoids circular import
         self._init_scripts: List[str] = []
         self._emulation: Dict[str, Any] = {}
+        self._record_video = record_video
         self._closed = False
 
     @property
@@ -94,7 +97,8 @@ class CDPBrowserContext:
         })
         session_id = attach["sessionId"]
 
-        page = CDPPage(self._conn, target_id, session_id, context=self)
+        page = CDPPage(self._conn, target_id, session_id, context=self,
+                       record_video=self._record_video)
         await page._init()
 
         # Apply emulation
