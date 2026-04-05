@@ -49,21 +49,20 @@ async def oxylabs_login():
         has_session = await sessions.inject(ctx, "oxylabs")
         print(f"Session injected: {has_session}")
 
-        await page.goto("https://dashboard.oxylabs.io/", wait_until="load")
+        await page.goto("https://dashboard.oxylabs.io/en/", wait_until="load")
         await page.wait_for_timeout(5000)
-        print(f"Page loaded: {page.url}")
+        url = page.url
+        print(f"Page loaded: {url}")
 
-        # Handle CF challenge if present
-        if _has_cf_frame(page):
-            await wait_cloudflare(page, timeout_ms=30000, settle_ms=10000)
+        body = await page.evaluate("()=>document.body.innerText.substring(0,300)")
+        print(f"Body: {body[:200]}")
 
-        # Check if we reached the dashboard
-        body = await page.evaluate("()=>document.body.innerText.substring(0,200)")
-        success = any(w in body.lower() for w in ["overview", "usage", "traffic", "subscription"])
-        print(f"Dashboard loaded: {success}")
-        print(f"Body: {body[:150]}")
-
-        print(f"\nDone. Success: {success}")
+        # Check cookies the browser actually has
+        cookies = await ctx.cookies()
+        cookie_names = [c["name"] for c in cookies]
+        print(f"Browser cookies: {len(cookies)}")
+        has_jwt = "JWT" in cookie_names
+        print(f"JWT cookie present: {has_jwt}")
 
 
 if __name__ == "__main__":
