@@ -68,7 +68,7 @@ async def oxylabs_login():
     # Step 2: Real browser run through mitmproxy
     print("\nNow opening real browser for comparison...")
     from weles.testing.fingerprint_diff import on_failure
-    diff_result = on_failure(
+    diff_result = await on_failure(
         auto_capture_path=auto_path,
         url="https://dashboard.oxylabs.io/en/",
         task_description="Navigate to dashboard.oxylabs.io/en/ while logged in",

@@ -20,12 +20,11 @@ from ..traffic.capture import TrafficCapture
 from ..traffic.compare import compare_captures
 
 
-def on_failure(
+async def on_failure(
     auto_capture_path: str,
     url: str,
     *,
     task_description: str = "",
-    real_browser: str = "Google Chrome",
     output_dir: str = "recordings/traffic_diff",
     port: int = 8080,
 ) -> Optional[Dict[str, Any]]:
@@ -55,12 +54,7 @@ def on_failure(
     if not task_description:
         task_description = f"Complete the task on {url}"
     landing = _create_landing_page(url, task_description, output_dir)
-
-    import asyncio
-    loop = asyncio.new_event_loop()
-    loop.run_until_complete(
-        _run_real_browser(landing, url, tc.proxy_url))
-    loop.close()
+    await _run_real_browser(landing, url, tc.proxy_url)
     print("[weles] Browser closed. Processing captures...")
 
     tc.stop()

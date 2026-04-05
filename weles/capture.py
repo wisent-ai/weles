@@ -277,7 +277,7 @@ class Capture:
         if not success and url:
             from .testing.fingerprint_diff import on_failure
             if paths.get("responses"):
-                result["traffic_diff"] = on_failure(
+                result["traffic_diff"] = await on_failure(
                     paths["responses"], url, task_description=task_description)
         return result
 
