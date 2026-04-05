@@ -88,36 +88,49 @@ class SessionStore:
                                  {"targetId": target_id, "flatten": True})
         sid = attach["sessionId"]
         await conn.send("Page.enable", session_id=sid)
+        await conn.send("Network.enable", session_id=sid)
 
-        # Wait for the browser process to exit (human closes it)
-        domain = url.split("//")[-1].split("/")[0]
-        try:
-            while proc.returncode is None:
-                # Poll every second via event loop
-                await asyncio.get_event_loop().run_in_executor(None, proc.poll)
-                if proc.returncode is not None:
-                    break
-                # Try to get cookies while browser is still open
+        # Watch for all tabs closing (human closes the browser)
+        closed = asyncio.Event()
+        open_targets = set()
+
+        async def _on_created(params):
+            open_targets.add(params.get("targetInfo", {}).get("targetId", ""))
+
+        async def _on_destroyed(params):
+            open_targets.discard(params.get("targetId", ""))
+            if not open_targets:
+                # Last tab closed — grab cookies before connection dies
                 try:
-                    result = await conn.send(
+                    r = await conn.send(
                         "Network.getCookies", {"urls": [url]}, session_id=sid)
-                    cookies = result.get("cookies", [])
-                    session_cookies = [c for c in cookies if c.get("value")]
-                    if session_cookies:
-                        formatted = [
-                            {"name": c["name"], "value": c["value"],
-                             "domain": c["domain"], "path": c["path"],
-                             "secure": c.get("secure", False),
-                             "httpOnly": c.get("httpOnly", False),
-                             "sameSite": "Lax"}
-                            for c in session_cookies
-                        ]
-                        self.save_cookies(label, formatted)
+                    self._save_cdp_cookies(label, r.get("cookies", []))
                 except Exception:
                     pass
+                closed.set()
+
+        conn.on("Target.targetCreated", _on_created)
+        conn.on("Target.targetDestroyed", _on_destroyed)
+        await conn.send("Target.setDiscoverTargets", {"discover": True})
+
+        # Get initial targets
+        targets = await conn.send("Target.getTargets", {})
+        for t in targets.get("targetInfos", []):
+            if t.get("type") == "page":
+                open_targets.add(t["targetId"])
+
+        # Poll cookies periodically while waiting for browser close
+        try:
+            while not closed.is_set():
+                try:
+                    r = await conn.send(
+                        "Network.getCookies", {"urls": [url]}, session_id=sid)
+                    self._save_cdp_cookies(label, r.get("cookies", []))
+                except Exception:
+                    break
                 loop = asyncio.get_event_loop()
                 fut = loop.create_future()
-                loop.call_later(1, fut.set_result, None)
+                loop.call_later(2, fut.set_result, None)
                 await fut
         except Exception:
             pass
@@ -129,6 +142,19 @@ class SessionStore:
             proc.terminate()
 
         return bool(self.load_cookies(label))
+
+    def _save_cdp_cookies(self, label, cookies):
+        session = [c for c in cookies if c.get("value")]
+        if session:
+            formatted = [
+                {"name": c["name"], "value": c["value"],
+                 "domain": c["domain"], "path": c["path"],
+                 "secure": c.get("secure", False),
+                 "httpOnly": c.get("httpOnly", False),
+                 "sameSite": "Lax"}
+                for c in session
+            ]
+            self.save_cookies(label, formatted)
 
     async def ensure(self, context, label: str, url: str,
                      task_description: str = "") -> bool:
