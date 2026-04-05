@@ -60,7 +60,7 @@ class SessionStore:
             self.save_cookies(label, cookies)
         return cookies
 
-    def acquire(self, label: str, url: str, task_description: str = "") -> bool:
+    async def acquire(self, label: str, url: str, task_description: str = "") -> bool:
         """Open a real browser for human login, capture cookies via CDP.
 
         Launches Chromium with remote debugging, shows the landing page,
@@ -69,12 +69,6 @@ class SessionStore:
 
         Returns True if cookies were captured.
         """
-        import asyncio
-        return asyncio.get_event_loop().run_until_complete(
-            self._acquire_async(label, url, task_description)
-        )
-
-    async def _acquire_async(self, label, url, task_description):
         import tempfile
         user_data = tempfile.mkdtemp(prefix="weles_acquire_")
         landing = self._create_landing(url, task_description or url, user_data)
@@ -148,7 +142,7 @@ class SessionStore:
         """
         if await self.inject(context, label):
             return True
-        acquired = self.acquire(label, url, task_description)
+        acquired = await self.acquire(label, url, task_description)
         if acquired:
             return await self.inject(context, label)
         return False
