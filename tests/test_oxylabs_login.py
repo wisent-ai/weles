@@ -24,7 +24,7 @@ async def oxylabs_login():
             print("No cookies captured.")
             return
 
-    async with CDPWeles(os="macos", headless=True) as ctx:
+    async with CDPWeles(os="macos", headless=False) as ctx:
         page = await ctx.new_page()
         await sessions.inject(ctx, "oxylabs")
         print("Cookies injected")
