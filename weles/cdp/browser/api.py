@@ -114,6 +114,22 @@ async def CDPNewBrowser(
         except Exception:
             locale_str = "en-US"
 
+    # Auto-attach to all targets and set UA override on each
+    ua_string = nav.get("userAgent", "")
+    if ua_string:
+        async def _on_attached(params):
+            sid = params.get("sessionId")
+            if sid:
+                try:
+                    await conn.send("Emulation.setUserAgentOverride",
+                                    {"userAgent": ua_string, "acceptLanguage": locale_str,
+                                     "platform": nav.get("platform", "")}, session_id=sid)
+                except Exception:
+                    pass
+        conn.on("Target.attachedToTarget", _on_attached)
+        await conn.send("Target.setAutoAttach",
+                        {"autoAttach": True, "waitForDebuggerOnStart": False, "flatten": True})
+
     ctx = CDPBrowserContext(conn, browser_context_id, record_video=record_video)
     ctx.set_emulation(
         user_agent=nav.get("userAgent", ""),

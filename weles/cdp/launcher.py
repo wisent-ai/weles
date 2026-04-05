@@ -142,8 +142,7 @@ def _build_launch_args(
     ]
 
     if headless:
-        args.append("--window-position=-9999,-9999")
-        args.append("--window-size=1,1")
+        args.append("--headless=new")
 
     temp_dir = None
     if user_data_dir:
