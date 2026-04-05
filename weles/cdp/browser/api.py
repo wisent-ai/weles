@@ -86,12 +86,12 @@ async def CDPNewBrowser(
         headless = False
     proxy_server = proxy.get("server") if proxy else None
     extra_args = launch_options.pop("args", []) or []
-        process, ws_url = await launch_chromium(
-            headless=headless, args=extra_args, user_data_dir=user_data_dir,
-            proxy_server=proxy_server, chromium_path=chromium_path)
-        await conn.connect(ws_url)
-        result = await conn.send("Target.createBrowserContext", {})
-        browser_context_id = result["browserContextId"]
+    process, ws_url = await launch_chromium(
+        headless=headless, args=extra_args, user_data_dir=user_data_dir,
+        proxy_server=proxy_server, chromium_path=chromium_path)
+    await conn.connect(ws_url)
+    result = await conn.send("Target.createBrowserContext", {})
+    browser_context_id = result["browserContextId"]
 
     nav = fp_config.get("navigator", {})
     scr = fp_config.get("screen", {})
