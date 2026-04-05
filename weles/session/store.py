@@ -139,7 +139,10 @@ class SessionStore:
                 await conn.close()
             except Exception:
                 pass
-            proc.terminate()
+            try:
+                proc.terminate()
+            except ProcessLookupError:
+                pass
 
         return bool(self.load_cookies(label))
 
