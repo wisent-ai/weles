@@ -1,37 +1,49 @@
-"""Test Oxylabs via Browserbase stealth browser with Playwright CDP."""
+"""Test Oxylabs balance check using weles session acquire + CDPWeles."""
 
 import asyncio
-import os
 import sys
+import os
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from browserbase import Browserbase
-from playwright.async_api import async_playwright
+from weles import CDPWeles, SessionStore
 
 
-async def test_browserbase_playwright():
-    """Connect Playwright to Browserbase and navigate to Oxylabs."""
-    print("=== BROWSERBASE + PLAYWRIGHT TEST ===")
+async def main():
+    sessions = SessionStore()
 
-    bb = Browserbase(api_key="bb_live_bBp5oBo1mQCPvVWYKkPyzoO0-H0")
-    session = bb.sessions.create(
-        project_id="360fe763-c175-45df-9e55-cac38400d535",
-    )
-    print(f"Session: {session.id}")
+    if not sessions.load_cookies("oxylabs"):
+        print("No cookies. Opening browser for login...")
+        acquired = await sessions.acquire(
+            "oxylabs",
+            url="https://dashboard.oxylabs.io/",
+            task_description="Login to Oxylabs using Google SSO",
+        )
+        if not acquired:
+            print("No cookies captured.")
+            return
 
-    async with async_playwright() as pw:
-        browser = await pw.chromium.connect_over_cdp(session.connect_url)
-        context = browser.contexts[0]
-        page = context.pages[0]
+    cookies = sessions.load_cookies("oxylabs")
+    print(f"Using {len(cookies)} stored cookies")
 
-        await page.goto("https://dashboard.oxylabs.io/en/")
-        await page.wait_for_load_state("networkidle")
+    async with CDPWeles(os="macos", headless=False) as ctx:
+        page = await ctx.new_page()
+        await sessions.inject(ctx, "oxylabs")
+        print("Cookies injected")
+
+        await page.goto("https://dashboard.oxylabs.io/en/", wait_until="load")
+
+        # Wait for page
+        for _ in range(5):
+            loop = asyncio.get_event_loop()
+            fut = loop.create_future()
+            loop.call_later(2, fut.set_result, None)
+            await fut
+
+        body = await page.evaluate("()=>document.body.innerText.substring(0, 500)")
         print(f"URL: {page.url}")
-
-        body = await page.inner_text("body")
         print(f"Body: {body[:300]}")
 
 
 if __name__ == "__main__":
-    asyncio.run(test_browserbase_playwright())
+    asyncio.run(main())
