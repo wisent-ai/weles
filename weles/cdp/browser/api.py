@@ -115,17 +115,15 @@ async def CDPNewBrowser(
             locale_str = "en-US"
 
     # Auto-attach to all targets and set UA override on each
+    import asyncio as _aio
     ua_string = nav.get("userAgent", "")
     if ua_string:
-        async def _on_attached(params):
+        def _on_attached(params):
             sid = params.get("sessionId")
             if sid:
-                try:
-                    await conn.send("Emulation.setUserAgentOverride",
-                                    {"userAgent": ua_string, "acceptLanguage": locale_str,
-                                     "platform": nav.get("platform", "")}, session_id=sid)
-                except Exception:
-                    pass
+                _aio.ensure_future(conn.send("Emulation.setUserAgentOverride",
+                    {"userAgent": ua_string, "acceptLanguage": locale_str,
+                     "platform": nav.get("platform", "")}, session_id=sid))
         conn.on("Target.attachedToTarget", _on_attached)
         await conn.send("Target.setAutoAttach",
                         {"autoAttach": True, "waitForDebuggerOnStart": False, "flatten": True})
