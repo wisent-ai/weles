@@ -13,18 +13,18 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from weles import CDPWeles, Capture, wait_cloudflare, SessionStore
-from weles.cloudflare.challenge import _has_cf_frame
+from weles import CDPWeles, SessionStore
+from weles.traffic.capture import TrafficCapture
+from weles.traffic.compare import compare_captures
 
 
 async def oxylabs_login():
-    """Attempt Oxylabs login via stored cookies or human SSO, then diagnose."""
-    output_dir = os.path.join(os.path.dirname(__file__), "..", "recordings")
+    """Attempt Oxylabs login, then compare traffic if blocked."""
+    output_dir = os.path.join(os.path.dirname(__file__), "..", "recordings", "traffic_diff")
     os.makedirs(output_dir, exist_ok=True)
 
     sessions = SessionStore()
 
-    # Acquire cookies first if we don't have them (opens real browser)
     if not sessions.load_cookies("oxylabs"):
         print("No stored session. Opening browser for login...")
         acquired = await sessions.acquire(
@@ -32,37 +32,60 @@ async def oxylabs_login():
             url="https://dashboard.oxylabs.io/",
             task_description="Login to Oxylabs dashboard using Google SSO",
         )
-        print(f"Cookies acquired: {acquired}")
         if not acquired:
             print("No cookies captured. Exiting.")
             return
 
-    # Now run the automated session with stored cookies
+    # Step 1: Automated run through mitmproxy
+    auto_tc = TrafficCapture()
+    auto_tc.start(port=9091)
+    print("Automated traffic capture started")
+
     async with CDPWeles(
         os="macos",
         headless=True,
+        proxy={"server": auto_tc.proxy_url},
     ) as ctx:
-        cap = Capture(ctx)
-        page = await cap.new_page()
-
-        # Inject stored cookies
-        has_session = await sessions.inject(ctx, "oxylabs")
-        print(f"Session injected: {has_session}")
+        page = await ctx.new_page()
+        await sessions.inject(ctx, "oxylabs")
+        print("Cookies injected")
 
         await page.goto("https://dashboard.oxylabs.io/en/", wait_until="load")
         await page.wait_for_timeout(5000)
-        url = page.url
-        print(f"Page loaded: {url}")
+        body = await page.evaluate("()=>document.body.innerText.substring(0,200)")
+        print(f"Automated result: {body[:150]}")
 
-        body = await page.evaluate("()=>document.body.innerText.substring(0,300)")
-        print(f"Body: {body[:200]}")
+    auto_tc.stop()
+    auto_path = os.path.join(output_dir, "auto_capture.json")
+    auto_tc.save(auto_path)
+    print(f"Automated capture saved: {auto_path}")
 
-        # Check cookies the browser actually has
-        cookies = await ctx.cookies()
-        cookie_names = [c["name"] for c in cookies]
-        print(f"Browser cookies: {len(cookies)}")
-        has_jwt = "JWT" in cookie_names
-        print(f"JWT cookie present: {has_jwt}")
+    success = "overview" in body.lower() or "usage" in body.lower()
+    if success:
+        print("Dashboard loaded successfully!")
+        return
+
+    # Step 2: Real browser run through mitmproxy
+    print("\nNow opening real browser for comparison...")
+    from weles.testing.fingerprint_diff import on_failure
+    diff_result = on_failure(
+        auto_capture_path=auto_path,
+        url="https://dashboard.oxylabs.io/en/",
+        task_description="Navigate to dashboard.oxylabs.io/en/ while logged in",
+        port=9092,
+    )
+    if diff_result:
+        diff = diff_result.get("diff", {})
+        summary = diff.get("summary", {})
+        print(f"\nVerdict: {summary.get('verdict')}")
+        print(f"Issues: {summary.get('issue_count')}")
+        for section in ["tls", "http2", "headers"]:
+            data = diff.get(section, {})
+            if data:
+                print(f"\n[{section}]")
+                for k, v in data.items():
+                    if v and v is not True:
+                        print(f"  {k}: {v}")
 
 
 if __name__ == "__main__":
