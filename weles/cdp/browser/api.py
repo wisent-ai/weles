@@ -33,12 +33,21 @@ class CDPWeles:
         return self._context
 
     async def __aexit__(self, *args):
-        if self._context:
-            await self._context.close()
-        if self._conn:
-            await self._conn.close()
-        if self._process:
-            self._process.terminate()
+        try:
+            if self._context:
+                await self._context.close()
+        except Exception:
+            pass
+        try:
+            if self._conn:
+                await self._conn.close()
+        except Exception:
+            pass
+        try:
+            if self._process:
+                self._process.terminate()
+        except ProcessLookupError:
+            pass
 
 
 async def CDPNewBrowser(
