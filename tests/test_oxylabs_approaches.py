@@ -26,15 +26,15 @@ async def main():
     cookies = sessions.load_cookies("oxylabs")
     print(f"Using {len(cookies)} stored cookies")
 
-    async with CDPWeles(os="macos", headless=False) as ctx:
+    patched = "/Users/zuzannadykiert/Desktop/Wisent/chromium-build/src/out/Weles/Chromium.app/Contents/MacOS/Chromium"
+
+    # Run patched Chromium headed (not headless) to eliminate headless signals
+    async with CDPWeles(os="macos", headless=False, chromium_path=patched) as ctx:
         page = await ctx.new_page()
-        await sessions.inject(ctx, "oxylabs")
-        print("Cookies injected")
 
         await page.goto("https://dashboard.oxylabs.io/en/", wait_until="load")
 
-        # Wait for page
-        for _ in range(5):
+        for _ in range(10):
             loop = asyncio.get_event_loop()
             fut = loop.create_future()
             loop.call_later(2, fut.set_result, None)
