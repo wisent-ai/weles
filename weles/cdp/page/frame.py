@@ -63,7 +63,7 @@ class CDPFrame:
             return self._isolated_context_id
         result = await self._conn.send("Page.createIsolatedWorld", {
             "frameId": self._frame_id,
-            "worldName": "__weles__",
+            "worldName": "",
             "grantUniveralAccess": True,
         }, session_id=self._session_id)
         self._isolated_context_id = result["executionContextId"]
