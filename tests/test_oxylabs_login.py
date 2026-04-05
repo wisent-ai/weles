@@ -44,6 +44,7 @@ async def oxylabs_login():
 
     async with CDPWeles(
         os="macos",
+        headless=True,
         record_video={"dir": output_dir},
         proxy={"server": auto_tc.proxy_url},
     ) as ctx:
