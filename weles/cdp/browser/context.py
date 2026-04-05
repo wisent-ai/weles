@@ -176,8 +176,14 @@ class CDPBrowserContext:
             return
         session_id = self._pages[0]._sid
         for cookie in cookies:
+            c = dict(cookie)
+            # CDP Network.setCookie needs url for secure cookies
+            if "url" not in c and "domain" in c:
+                scheme = "https" if c.get("secure") else "http"
+                domain = c["domain"].lstrip(".")
+                c["url"] = f"{scheme}://{domain}{c.get('path', '/')}"
             await self._conn.send(
-                "Network.setCookie", cookie, session_id=session_id,
+                "Network.setCookie", c, session_id=session_id,
             )
 
     async def clear_cookies(self) -> None:
