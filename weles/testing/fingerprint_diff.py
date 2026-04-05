@@ -55,14 +55,12 @@ def on_failure(
     if not task_description:
         task_description = f"Complete the task on {url}"
     landing = _create_landing_page(url, task_description, output_dir)
-    proc = _launch_real_browser(real_browser, tc.proxy_url, landing)
 
-    if not proc:
-        tc.stop()
-        return None
-
-    # Wait for browser to exit (human closes it when done)
-    proc.wait()
+    import asyncio
+    loop = asyncio.new_event_loop()
+    loop.run_until_complete(
+        _run_real_browser(landing, url, tc.proxy_url))
+    loop.close()
     print("[weles] Browser closed. Processing captures...")
 
     tc.stop()
@@ -102,31 +100,46 @@ def _create_landing_page(url: str, task_description: str, output_dir: str) -> st
     return "file://" + os.path.abspath(path)
 
 
-def _launch_real_browser(app_name: str, proxy_url: str, url: str):
-    """Launch a real browser with proxy, navigating to URL. Returns Popen."""
+async def _run_real_browser(landing_url: str, target_url: str, proxy_url: str):
+    """Launch Chromium via CDP, open landing page, wait for window close."""
+    import asyncio
+    import tempfile
+    from ..cdp.launcher import launch_chromium
+    from ..cdp.connection import CDPConnection
+
+    user_data = tempfile.mkdtemp(prefix="weles_compare_")
+    proc, ws_url = await launch_chromium(
+        headless=False, user_data_dir=user_data, proxy_server=proxy_url)
+    conn = CDPConnection()
+    await conn.connect(ws_url)
+
+    result = await conn.send("Target.createTarget", {"url": landing_url})
+    target_id = result["targetId"]
+    attach = await conn.send("Target.attachToTarget",
+                             {"targetId": target_id, "flatten": True})
+    sid = attach["sessionId"]
+    await conn.send("Page.enable", session_id=sid)
+
+    # Poll until connection drops (user closes browser)
     try:
-        if sys.platform == "darwin":
-            return subprocess.Popen([
-                "open", "-W",
-                "-a", app_name,
-                url,
-                "--args",
-                f"--proxy-server={proxy_url}",
-                "--ignore-certificate-errors",
-                "--no-first-run",
-                "--new-window",
-            ])
-        elif sys.platform == "linux":
-            return subprocess.Popen([
-                "google-chrome",
-                f"--proxy-server={proxy_url}",
-                "--ignore-certificate-errors",
-                "--no-first-run",
-                url,
-            ])
-    except FileNotFoundError:
+        while True:
+            await conn.send("Runtime.evaluate",
+                            {"expression": "1"}, session_id=sid)
+            loop = asyncio.get_event_loop()
+            fut = loop.create_future()
+            loop.call_later(2, fut.set_result, None)
+            await fut
+    except Exception:
         pass
-    return None
+    finally:
+        try:
+            await conn.close()
+        except Exception:
+            pass
+        try:
+            proc.terminate()
+        except ProcessLookupError:
+            pass
 
 
 def _print_report(diff: Dict[str, Any]):
