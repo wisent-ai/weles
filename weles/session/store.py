@@ -1,8 +1,8 @@
 """Cookie-based session caching, reuse, and auto-acquisition."""
 
+import asyncio
 import json
 import os
-import subprocess
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
