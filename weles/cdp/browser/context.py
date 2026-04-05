@@ -85,10 +85,10 @@ class CDPBrowserContext:
         """
         from ..page.page import CDPPage
 
-        result = await self._conn.send("Target.createTarget", {
-            "url": "about:blank",
-            "browserContextId": self._context_id,
-        })
+        create_params = {"url": "about:blank"}
+        if self._context_id != "default":
+            create_params["browserContextId"] = self._context_id
+        result = await self._conn.send("Target.createTarget", create_params)
         target_id = result["targetId"]
 
         attach = await self._conn.send("Target.attachToTarget", {

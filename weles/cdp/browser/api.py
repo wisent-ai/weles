@@ -17,6 +17,25 @@ from ..connection import CDPConnection
 from .context import CDPBrowserContext
 
 
+def _env(name):
+    """Read env var, checking .env.local files too."""
+    import os
+    val = os.environ.get(name, "")
+    if val:
+        return val
+    for p in [".env.local", "../.env.local", "../../.env.local"]:
+        try:
+            from pathlib import Path
+            env_file = Path(p)
+            if env_file.exists():
+                for line in env_file.read_text().splitlines():
+                    if line.startswith(name + "="):
+                        return line.split("=", 1)[1].strip().strip('"')
+        except Exception:
+            pass
+    return ""
+
+
 class CDPWeles:
     """Context manager: launches stealth Chromium via raw CDP (no Playwright)."""
 
@@ -53,6 +72,7 @@ class CDPWeles:
 async def CDPNewBrowser(
     *,
     os: Optional[Union[str, List[str]]] = None,
+    backend: str = "local",
     config: Optional[Dict[str, Any]] = None,
     proxy: Optional[Dict[str, str]] = None,
     locale: Optional[Union[str, List[str]]] = None,
@@ -64,7 +84,11 @@ async def CDPNewBrowser(
     record_video: Optional[Dict[str, Any]] = None,
     **launch_options,
 ):
-    """Launch stealth Chromium with fingerprint spoofing via raw CDP."""
+    """Launch stealth Chromium via raw CDP.
+
+    Args:
+        backend: "local" (default) or "browserbase" (cloud stealth browser).
+    """
     if os is None:
         os = "macos"
     target_os = os if isinstance(os, str) else os[0]
@@ -79,25 +103,36 @@ async def CDPNewBrowser(
         print("[weles-cdp] Fingerprint config:")
         print(json.dumps(fp_config, indent=2)[:2000])
 
-    if headless is None:
-        headless = False
-
-    proxy_server = proxy.get("server") if proxy else None
-    extra_args = launch_options.pop("args", []) or []
-
-    process, ws_url = await launch_chromium(
-        headless=headless,
-        args=extra_args,
-        user_data_dir=user_data_dir,
-        proxy_server=proxy_server,
-        chromium_path=chromium_path,
-    )
-
+    process = None
     conn = CDPConnection()
-    await conn.connect(ws_url)
 
-    result = await conn.send("Target.createBrowserContext", {})
-    browser_context_id = result["browserContextId"]
+    if backend == "browserbase":
+        import httpx
+        bb_key = _env("BROWSERBASE_API_KEY") or launch_options.get("browserbase_api_key", "")
+        bb_project = _env("BROWSERBASE_PROJECT_ID") or launch_options.get("browserbase_project_id", "")
+        if not bb_key or not bb_project:
+            raise RuntimeError(f"BROWSERBASE_API_KEY and BROWSERBASE_PROJECT_ID required. key={bool(bb_key)} project={bool(bb_project)}")
+        async with httpx.AsyncClient() as http:
+            r = await http.post("https://api.browserbase.com/v1/sessions",
+                headers={"x-bb-api-key": bb_key, "Content-Type": "application/json"},
+                json={"projectId": bb_project})
+            session = r.json()
+            print(f"[weles] Browserbase session keys: {list(session.keys())}")
+            session_id = session.get("id", "")
+            ws_url = f"wss://connect.browserbase.com?apiKey={bb_key}&sessionId={session_id}"
+        await conn.connect(ws_url)
+        browser_context_id = "default"
+    else:
+        if headless is None:
+            headless = False
+        proxy_server = proxy.get("server") if proxy else None
+        extra_args = launch_options.pop("args", []) or []
+        process, ws_url = await launch_chromium(
+            headless=headless, args=extra_args, user_data_dir=user_data_dir,
+            proxy_server=proxy_server, chromium_path=chromium_path)
+        await conn.connect(ws_url)
+        result = await conn.send("Target.createBrowserContext", {})
+        browser_context_id = result["browserContextId"]
 
     nav = fp_config.get("navigator", {})
     scr = fp_config.get("screen", {})
