@@ -103,9 +103,16 @@ async def CDPNewBrowser(
     scr = fp_config.get("screen", {})
     win = fp_config.get("window", {})
 
-    locale_str = "en-US"
     if locale:
         locale_str = locale if isinstance(locale, str) else locale[0]
+    else:
+        import locale as _loc
+        try:
+            sys_locale = _loc.getdefaultlocale()[0] or "en_US"
+            lang = sys_locale.replace("_", "-")
+            locale_str = f"{lang},{lang.split('-')[0]};q=0.9,en-US;q=0.8,en;q=0.7"
+        except Exception:
+            locale_str = "en-US"
 
     ctx = CDPBrowserContext(conn, browser_context_id, record_video=record_video)
     ctx.set_emulation(

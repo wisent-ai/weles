@@ -99,13 +99,13 @@ class CDPBrowserContext:
 
         page = CDPPage(self._conn, target_id, session_id, context=self,
                        record_video=self._record_video)
-        await page._init()
 
-        # Apply emulation
+        # Apply emulation BEFORE init to set UA before any requests
         await self._apply_emulation(page)
-
         for script in self._init_scripts:
             await page.add_init_script(script)
+
+        await page._init()
 
         self._pages.append(page)
         return page
