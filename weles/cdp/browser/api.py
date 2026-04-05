@@ -117,9 +117,10 @@ async def CDPNewBrowser(
                 headers={"x-bb-api-key": bb_key, "Content-Type": "application/json"},
                 json={"projectId": bb_project})
             session = r.json()
-            print(f"[weles] Browserbase session keys: {list(session.keys())}")
-            session_id = session.get("id", "")
-            ws_url = f"wss://connect.browserbase.com?apiKey={bb_key}&sessionId={session_id}"
+            ws_url = session.get("connectUrl", "")
+            if not ws_url:
+                sid = session.get("id", "")
+                ws_url = f"wss://connect.browserbase.com?apiKey={bb_key}&sessionId={sid}"
         await conn.connect(ws_url)
         browser_context_id = "default"
     else:
