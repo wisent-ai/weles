@@ -241,7 +241,7 @@ class CDPPage:
         self._init_scripts.append(script)
         await self._conn.send(
             "Page.addScriptToEvaluateOnNewDocument",
-            {"source": script},
+            {"source": script, "worldName": ""},
             session_id=self._sid,
         )
 
