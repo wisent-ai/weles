@@ -61,29 +61,80 @@ class SessionStore:
         return cookies
 
     def acquire(self, label: str, url: str, task_description: str = "") -> bool:
-        """Open a real browser for human login, capture cookies on close.
+        """Open a real browser for human login, capture cookies via CDP.
 
-        Opens Chrome/Chromium, navigates to the URL with an instruction
-        page, waits for the human to complete the task and close the
-        browser, then extracts cookies from the browser's profile.
+        Launches Chromium with remote debugging, shows the landing page,
+        waits for the human to navigate and login, then extracts cookies
+        via Network.getCookies before the browser closes.
 
         Returns True if cookies were captured.
         """
+        import asyncio
+        return asyncio.get_event_loop().run_until_complete(
+            self._acquire_async(label, url, task_description)
+        )
+
+    async def _acquire_async(self, label, url, task_description):
         import tempfile
         user_data = tempfile.mkdtemp(prefix="weles_acquire_")
-        landing = self._create_landing(url, task_description or f"Login to {url}", user_data)
+        landing = self._create_landing(url, task_description or url, user_data)
 
-        proc = self._launch_browser(landing, user_data)
-        if not proc:
-            return False
+        from ..cdp.launcher import launch_chromium
+        from ..cdp.connection import CDPConnection
 
-        proc.wait()
+        proc, ws_url = await launch_chromium(
+            headless=False, user_data_dir=user_data)
+        conn = CDPConnection()
+        await conn.connect(ws_url)
 
-        cookies = self._extract_from_profile(url, user_data)
-        if cookies:
-            self.save_cookies(label, cookies)
-            return True
-        return False
+        # Open landing page in a new tab
+        result = await conn.send("Target.createTarget", {"url": landing})
+        target_id = result["targetId"]
+        attach = await conn.send("Target.attachToTarget",
+                                 {"targetId": target_id, "flatten": True})
+        sid = attach["sessionId"]
+        await conn.send("Page.enable", session_id=sid)
+
+        # Wait for the browser process to exit (human closes it)
+        domain = url.split("//")[-1].split("/")[0]
+        try:
+            while proc.returncode is None:
+                # Poll every second via event loop
+                await asyncio.get_event_loop().run_in_executor(None, proc.poll)
+                if proc.returncode is not None:
+                    break
+                # Try to get cookies while browser is still open
+                try:
+                    result = await conn.send(
+                        "Network.getCookies", {"urls": [url]}, session_id=sid)
+                    cookies = result.get("cookies", [])
+                    session_cookies = [c for c in cookies if c.get("value")]
+                    if session_cookies:
+                        formatted = [
+                            {"name": c["name"], "value": c["value"],
+                             "domain": c["domain"], "path": c["path"],
+                             "secure": c.get("secure", False),
+                             "httpOnly": c.get("httpOnly", False),
+                             "sameSite": "Lax"}
+                            for c in session_cookies
+                        ]
+                        self.save_cookies(label, formatted)
+                except Exception:
+                    pass
+                loop = asyncio.get_event_loop()
+                fut = loop.create_future()
+                loop.call_later(1, fut.set_result, None)
+                await fut
+        except Exception:
+            pass
+        finally:
+            try:
+                await conn.close()
+            except Exception:
+                pass
+            proc.terminate()
+
+        return bool(self.load_cookies(label))
 
     async def ensure(self, context, label: str, url: str,
                      task_description: str = "") -> bool:
@@ -128,39 +179,3 @@ class SessionStore:
             f.write(html)
         return "file://" + os.path.abspath(path)
 
-    def _launch_browser(self, url: str, user_data_dir: str):
-        try:
-            if sys.platform == "darwin":
-                return subprocess.Popen([
-                    "open", "-W", "-n", "-a", "Google Chrome",
-                    "--args", f"--user-data-dir={user_data_dir}",
-                    "--no-first-run", "--new-window", url,
-                ])
-            return subprocess.Popen([
-                "google-chrome", f"--user-data-dir={user_data_dir}",
-                "--no-first-run", url,
-            ])
-        except FileNotFoundError:
-            return None
-
-    def _extract_from_profile(self, domain: str, user_data_dir: str):
-        """Read unencrypted cookies from a fresh Chrome profile's SQLite DB."""
-        import sqlite3
-        db = Path(user_data_dir) / "Default" / "Cookies"
-        if not db.exists():
-            return []
-        try:
-            conn = sqlite3.connect(f"file:{db}?mode=ro&nolock=1", uri=True)
-            rows = conn.execute(
-                "SELECT name, value, host_key, path, is_secure, is_httponly "
-                "FROM cookies WHERE host_key LIKE ?",
-                (f"%{domain}%",),
-            ).fetchall()
-            conn.close()
-            return [
-                {"name": n, "value": v, "domain": h, "path": p,
-                 "secure": bool(s), "httpOnly": bool(ho), "sameSite": "Lax"}
-                for n, v, h, p, s, ho in rows if v
-            ]
-        except Exception:
-            return []
