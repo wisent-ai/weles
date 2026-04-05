@@ -81,7 +81,7 @@ class SessionStore:
         conn = CDPConnection()
         await conn.connect(ws_url)
 
-        # Open landing page in a new tab
+        # Open landing page
         result = await conn.send("Target.createTarget", {"url": landing})
         target_id = result["targetId"]
         attach = await conn.send("Target.attachToTarget",
@@ -90,38 +90,13 @@ class SessionStore:
         await conn.send("Page.enable", session_id=sid)
         await conn.send("Network.enable", session_id=sid)
 
-        # Watch for all tabs closing (human closes the browser)
-        closed = asyncio.Event()
-        open_targets = set()
-
-        async def _on_created(params):
-            open_targets.add(params.get("targetInfo", {}).get("targetId", ""))
-
-        async def _on_destroyed(params):
-            open_targets.discard(params.get("targetId", ""))
-            if not open_targets:
-                # Last tab closed — grab cookies before connection dies
-                try:
-                    r = await conn.send(
-                        "Network.getCookies", {"urls": [url]}, session_id=sid)
-                    self._save_cdp_cookies(label, r.get("cookies", []))
-                except Exception:
-                    pass
-                closed.set()
-
-        conn.on("Target.targetCreated", _on_created)
-        conn.on("Target.targetDestroyed", _on_destroyed)
-        await conn.send("Target.setDiscoverTargets", {"discover": True})
-
-        # Get initial targets
-        targets = await conn.send("Target.getTargets", {})
-        for t in targets.get("targetInfos", []):
-            if t.get("type") == "page":
-                open_targets.add(t["targetId"])
-
-        # Poll cookies periodically while waiting for browser close
+        # Poll cookies until we get session cookies or connection drops.
+        # The human navigates from landing page to the target site,
+        # logs in, and cookies appear. We save them continuously.
+        # When the human closes the browser, the connection breaks
+        # and we exit the loop — but cookies are already saved.
         try:
-            while not closed.is_set():
+            while True:
                 try:
                     r = await conn.send(
                         "Network.getCookies", {"urls": [url]}, session_id=sid)

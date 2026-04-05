@@ -24,6 +24,21 @@ async def oxylabs_login():
     os.makedirs(output_dir, exist_ok=True)
 
     sessions = SessionStore()
+
+    # Acquire cookies first if we don't have them (opens real browser)
+    if not sessions.load_cookies("oxylabs"):
+        print("No stored session. Opening browser for login...")
+        acquired = await sessions.acquire(
+            "oxylabs",
+            url="https://dashboard.oxylabs.io/",
+            task_description="Login to Oxylabs dashboard using Google SSO",
+        )
+        print(f"Cookies acquired: {acquired}")
+        if not acquired:
+            print("No cookies captured. Exiting.")
+            return
+
+    # Now run the automated session with stored cookies
     auto_tc = TrafficCapture()
     auto_tc.start(port=8090)
 
@@ -35,13 +50,9 @@ async def oxylabs_login():
         cap = Capture(ctx)
         page = await cap.new_page()
 
-        # Inject stored cookies or acquire via human login
-        has_session = await sessions.ensure(
-            ctx, "oxylabs",
-            url="https://dashboard.oxylabs.io/",
-            task_description="Login to Oxylabs dashboard using Google SSO",
-        )
-        print(f"Session available: {has_session}")
+        # Inject stored cookies
+        has_session = await sessions.inject(ctx, "oxylabs")
+        print(f"Session injected: {has_session}")
 
         await page.goto("https://dashboard.oxylabs.io/", wait_until="load")
         await page.wait_for_timeout(5000)
