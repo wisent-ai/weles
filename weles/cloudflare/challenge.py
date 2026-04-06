@@ -1,117 +1,80 @@
-"""Cloudflare challenge detection and bypass using structural checks.
+"""Cloudflare challenge detection and bypass using vision.
 
-Detection is based on frame presence and cookies, not page text.
+Uses AI screenshot analysis to detect and interact with Cloudflare
+challenges, instead of fragile selectors or keyword matching.
 """
 
-from .config import CF_IFRAME_HOST, CF_CLEARANCE_COOKIE, CF_CHECK_INTERVAL_MS, CF_CLICK_XY
+import logging
 
+from .config import CF_CHECK_INTERVAL_MS
 
-def _has_cf_frame(page) -> bool:
-    """Check if a Cloudflare challenge iframe is present."""
-    return any(CF_IFRAME_HOST in (f.url or "") for f in page.frames)
-
-
-def _get_cf_frame(page):
-    """Return the Cloudflare challenge frame, or None."""
-    for f in page.frames:
-        if CF_IFRAME_HOST in (f.url or ""):
-            return f
-    return None
-
-
-async def _has_clearance(context) -> bool:
-    """Check if cf_clearance cookie exists."""
-    cookies = await context.cookies()
-    return any(c["name"] == CF_CLEARANCE_COOKIE for c in cookies)
-
-
-async def _click_turnstile(page):
-    """Click the Turnstile checkbox if the frame is present."""
-    cf_frame = _get_cf_frame(page)
-    if cf_frame:
-        try:
-            await cf_frame.locator("body").click(
-                position={"x": CF_CLICK_XY, "y": CF_CLICK_XY})
-        except Exception:
-            pass
+logger = logging.getLogger(__name__)
 
 
 async def wait_cloudflare(page, timeout_ms: int = 72000,
                           settle_ms: int = 5000) -> bool:
-    """Wait for Cloudflare challenge to resolve, clicking Turnstile if present.
+    """Wait for Cloudflare challenge to resolve, clicking via vision if needed.
 
-    Uses structural detection:
-    - Challenge present = challenges.cloudflare.com frame exists
-    - Challenge resolved = that frame disappears OR cf_clearance cookie set
+    Uses AI to detect the challenge and find click targets. Works regardless
+    of whether Turnstile renders as an iframe or inline widget.
 
-    First waits settle_ms for a CF frame to appear (the challenge page
-    may not have loaded its iframe yet). Then clicks and polls until
-    the frame disappears or timeout.
-
-    Returns True if no challenge appears or challenge clears within timeout.
+    Returns True if no challenge or challenge clears within timeout.
     """
-    # Wait for CF frame to appear (or confirm it won't)
-    settle_checks = settle_ms // CF_CHECK_INTERVAL_MS
-    for _ in range(max(settle_checks, 2)):
-        if _has_cf_frame(page):
-            break
-        await page.wait_for_timeout(CF_CHECK_INTERVAL_MS)
-    else:
-        return True  # No CF frame appeared — not challenged
+    from ..cdp.dom.vision import check_page, find_click_target
 
-    # CF frame is present — click and wait for it to resolve
+    await page.wait_for_timeout(settle_ms)
+
+    # First check: is there a challenge at all?
+    from ..cdp.dom.vision import ask_page
+    raw_answer = await ask_page(
+        page, "Is this a Cloudflare security verification or challenge page? Answer only YES or NO.")
+    is_cf = raw_answer.strip().upper().startswith("YES")
+    print(f"  [cloudflare] raw vision answer: {repr(raw_answer)}")
+    print(f"  [cloudflare] challenge detected: {is_cf}")
+
+    if not is_cf:
+        return True
+
+    # Find and click the verification target
+    target = await find_click_target(
+        page, "the checkbox or button to verify you are human")
+    print(f"  [cloudflare] click target: {target}")
+    if target:
+        await page.mouse.click(target["x"], target["y"])
+        print(f"  [cloudflare] clicked at ({target['x']}, {target['y']})")
+    else:
+        print("  [cloudflare] no click target found")
+
+    # Poll until challenge clears
     checks = timeout_ms // CF_CHECK_INTERVAL_MS
     for i in range(checks):
-        await _click_turnstile(page)
         await page.wait_for_timeout(CF_CHECK_INTERVAL_MS)
 
-        if not _has_cf_frame(page):
-            return True
+        still_cf = await check_page(
+            page, "Is this a Cloudflare security verification or challenge page?")
+        print(f"  [cloudflare] check {i+1}/{checks}: still challenged = {still_cf}")
 
-        try:
-            if await _has_clearance(page.context):
-                return True
-        except Exception:
-            pass
+        if not still_cf:
+            return True
 
     return False
 
 
 async def is_challenged(page) -> bool:
     """Check if the page is currently showing a Cloudflare challenge."""
-    return _has_cf_frame(page)
+    from ..cdp.dom.vision import check_page
+    return await check_page(
+        page, "Is this a Cloudflare security verification or challenge page?")
 
 
 async def bypass_cloudflare(page, solver=None, timeout_ms: int = 72000) -> bool:
-    """Full Cloudflare bypass: wait + click, then API solve if needed.
+    """Full Cloudflare bypass: vision-based detection and clicking.
 
     Args:
-        page: Playwright page
-        solver: Optional CaptchaSolver instance for API-based solving
-        timeout_ms: Max milliseconds to wait
+        page: Playwright or CDPPage instance.
+        solver: Optional CaptchaSolver for API-based solving.
+        timeout_ms: Max milliseconds to wait.
 
     Returns True if bypass succeeded.
     """
-    if await wait_cloudflare(page, timeout_ms=timeout_ms):
-        return True
-
-    if solver:
-        try:
-            from ..captcha.detect import detect_captcha
-            from ..captcha.inject import inject_turnstile
-            from ..captcha.autopass import try_turnstile_auto
-
-            if await try_turnstile_auto(page):
-                return True
-
-            ctype, sitekey = await detect_captcha(page)
-            if ctype == "turnstile" and sitekey:
-                token = await solver.solve_turnstile(sitekey, page.url)
-                if token:
-                    await inject_turnstile(page, token)
-                    await page.wait_for_timeout(CF_CHECK_INTERVAL_MS)
-                    return not _has_cf_frame(page)
-        except Exception:
-            pass
-
-    return False
+    return await wait_cloudflare(page, timeout_ms=timeout_ms)

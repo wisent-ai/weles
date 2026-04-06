@@ -156,14 +156,41 @@ class Capture:
         print(f"  Screenshot: {path}")
         return path
 
+    async def capture_dom(self, page, label="dom"):
+        """Capture the full DOM (outerHTML) including all iframes."""
+        try:
+            main_html = await page.evaluate("document.documentElement.outerHTML")
+            frames_html = {}
+            for frame in page.frames:
+                if frame.url and frame.url != page.url:
+                    try:
+                        html = await frame.evaluate("document.documentElement.outerHTML")
+                        frames_html[frame.url] = html
+                    except Exception:
+                        frames_html[frame.url] = None
+            dom = {
+                "url": page.url,
+                "main": main_html,
+                "frames": frames_html,
+            }
+            path = _output_path(label, "json")
+            with open(path, "w") as f:
+                json.dump(dom, f, indent=2)
+            print(f"  DOM snapshot ({len(frames_html)} iframes): {path}")
+            return path
+        except Exception as e:
+            print(f"  DOM capture failed: {e}")
+            return None
+
     async def run_diagnostics(self, page):
-        """Run TLS + environment capture in one call."""
+        """Run TLS + environment + DOM capture in one call."""
         tls = await self.capture_tls_fingerprint(page)
         env = await self.capture_environment(page)
-        return {"tls": tls, "environment": env}
+        dom = await self.capture_dom(page)
+        return {"tls": tls, "environment": env, "dom": dom}
 
-    def save(self, label="session"):
-        """Write console log and response bodies to disk."""
+    async def save(self, label="session", page=None):
+        """Write console log, response bodies, and DOM to disk."""
         paths = {}
         if self.console_log:
             p = _output_path(f"{label}_console", "log")
@@ -177,6 +204,10 @@ class Capture:
                 json.dump(self.response_bodies, f, indent=2)
             print(f"  Response bodies ({len(self.response_bodies)} entries): {p}")
             paths["responses"] = p
+        if page:
+            dom_path = await self.capture_dom(page, label=f"{label}_dom")
+            if dom_path:
+                paths["dom"] = dom_path
         return paths
 
     @staticmethod
@@ -206,7 +237,7 @@ class Capture:
         return None
 
     @staticmethod
-    def diagnose(video_path, console_log_path=None, responses_path=None):
+    def diagnose(video_path, console_log_path=None, responses_path=None, dom_path=None):
         """Analyze a recording via Claude CLI vision to explain why a task failed."""
         frames = Capture.extract_frames(video_path, fps="0.5")
         if not frames:
@@ -218,7 +249,7 @@ class Capture:
             "Analyze each frame in order and explain:",
             "1. What is happening at each step",
             "2. Where exactly the task failed",
-            "3. Why it failed (based on what you see on screen)",
+            "3. Why it failed (based on what you see on screen and the DOM)",
             "4. Start your answer with: The task did not succeed due to",
         ]
 
@@ -234,6 +265,15 @@ class Capture:
             for r in resps:
                 summary.append(f"{r.get('method','?')} {r['status']}: {r['url'][:80]}")
             prompt_parts.append(f"\nNetwork responses:\n" + "\n".join(summary))
+
+        if dom_path and os.path.exists(dom_path):
+            with open(dom_path) as f:
+                dom = json.load(f)
+            dom_summary = dom.get("main", "")[:5000]
+            prompt_parts.append(f"\nDOM snapshot (truncated):\n{dom_summary}")
+            iframe_urls = list(dom.get("frames", {}).keys())
+            if iframe_urls:
+                prompt_parts.append(f"\nIframes present: {iframe_urls}")
 
         prompt = "\n".join(prompt_parts)
 
@@ -266,14 +306,17 @@ class Capture:
         except Exception as e:
             return f"Diagnosis failed: {e}"
 
-    async def finish(self, label="session", success=False, url=None, task_description=""):
+    async def finish(self, label="session", success=False, url=None, task_description="", page=None):
         """Save, diagnose, and on failure open real browser for traffic comparison."""
-        paths = self.save(label=label)
+        if page is None and self._pages:
+            page = self._pages[-1]
+        paths = await self.save(label=label, page=page)
         video_path = await self._finalize_video()
         result = {"paths": paths, "diagnosis": None, "traffic_diff": None}
         if video_path:
             result["diagnosis"] = self.diagnose(
-                video_path, paths.get("console"), paths.get("responses"))
+                video_path, paths.get("console"), paths.get("responses"),
+                paths.get("dom"))
         if not success and url:
             from .testing.fingerprint_diff import on_failure
             if paths.get("responses"):
