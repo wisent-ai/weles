@@ -1,7 +1,6 @@
-"""CDP Page and Frame management sub-package."""
+"""CDP page abstraction."""
 
-from .frame import CDPFrame, FrameTree
 from .page import CDPPage
-from .screencast import CDPScreencast, CDPVideo
+from .frame import CDPFrame, FrameTree
 
-__all__ = ["CDPFrame", "CDPPage", "CDPScreencast", "CDPVideo", "FrameTree"]
+__all__ = ["CDPPage", "CDPFrame", "FrameTree"]

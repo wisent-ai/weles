@@ -71,6 +71,31 @@ async def identify_page(page) -> str:
     )
 
 
+async def find_click_target(page, description: str) -> Optional[dict]:
+    """Ask Claude to locate an element to click and return its coordinates.
+
+    Args:
+        page: A Playwright Page or CDPPage instance.
+        description: What to click (e.g. "the checkbox to verify you are human").
+
+    Returns:
+        {"x": int, "y": int} if found, None otherwise.
+    """
+    answer = await ask_page(
+        page,
+        f"I need to click: {description}. "
+        "Return the x,y pixel coordinates of where to click as JSON: "
+        '{{"x": <number>, "y": <number>}}. Only the JSON, nothing else.'
+    )
+    try:
+        data = json.loads(answer.strip())
+        if "x" in data and "y" in data:
+            return {"x": int(data["x"]), "y": int(data["y"])}
+    except (json.JSONDecodeError, ValueError, KeyError):
+        pass
+    return None
+
+
 async def _take_screenshot(page) -> Optional[bytes]:
     """Take a screenshot, handling both Playwright and CDPPage."""
     try:
@@ -92,9 +117,12 @@ async def _take_screenshot(page) -> Optional[bytes]:
 
 def _ask_claude(screenshot: bytes, question: str) -> str:
     """Send screenshot to Claude Code CLI and ask the question."""
-    with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as f:
+    # Save to a project-local path that Claude CLI can access
+    vision_dir = os.path.join(os.getcwd(), "recordings", "vision")
+    os.makedirs(vision_dir, exist_ok=True)
+    img_path = os.path.join(vision_dir, "vision_query.png")
+    with open(img_path, "wb") as f:
         f.write(screenshot)
-        img_path = f.name
 
     try:
         prompt = f"Read the image file at {img_path}. Then answer: {question}"
