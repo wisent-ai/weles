@@ -23,10 +23,11 @@ dependencies = [
     "websockets>=12.0",
 ]
 
-[project.optional-dependencies.playwright]
-playwright = ["playwright>=1.40"]
+
+
 
 [project.optional-dependencies]
+playwright = ["playwright>=1.40"]
 geoip = ["geoip2", "requests"]
 proxy = ["httpx>=0.24"]
 captcha = ["httpx>=0.24"]
