@@ -8,9 +8,12 @@ Usage:
         await page.goto("https://example.com")
 """
 
+import json as _json
+import tempfile
+
 from typing import Any, Dict, List, Optional, Union
 
-from ...fingerprint import generate, to_config
+from ...fingerprint import generate, to_config, to_cpp_config
 from ...scripts import build_init_script
 from ..launcher import launch_chromium
 from ..connection import CDPConnection
@@ -84,11 +87,19 @@ async def CDPNewBrowser(
 
     if headless is None:
         headless = False
+    # Write C++ fingerprint config for the custom Chromium build
+    cpp_config = to_cpp_config(fp_config)
+    fp_file = tempfile.NamedTemporaryFile(
+        prefix="weles-fp-", suffix=".json", delete=False, mode="w")
+    _json.dump(cpp_config, fp_file)
+    fp_file.close()
+
     proxy_server = proxy.get("server") if proxy else None
     extra_args = launch_options.pop("args", []) or []
     process, ws_url = await launch_chromium(
         headless=headless, args=extra_args, user_data_dir=user_data_dir,
-        proxy_server=proxy_server, chromium_path=chromium_path)
+        proxy_server=proxy_server, chromium_path=chromium_path,
+        fingerprint_config_path=fp_file.name)
     await conn.connect(ws_url)
     result = await conn.send("Target.createBrowserContext", {})
     browser_context_id = result["browserContextId"]
