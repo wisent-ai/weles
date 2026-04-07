@@ -1,5 +1,8 @@
 """Async API for Weles browser fingerprint spoofing."""
 
+import json as _json
+import os as _os
+import tempfile as _tempfile
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 from playwright.async_api import (
@@ -8,7 +11,7 @@ from playwright.async_api import (
     async_playwright,
 )
 
-from .fingerprint import generate, to_config
+from .fingerprint import generate, to_config, to_cpp_config
 from .scripts import build_init_script
 
 # Chromium launch args for anti-detection
@@ -103,6 +106,19 @@ async def AsyncNewBrowser(
 
     is_chromium = browser == "chromium"
 
+    # If using custom Chromium build (CHROMIUM_PATH set), write the C++
+    # fingerprint config and prepare to pass --weles-fingerprint flag.
+    weles_chromium_path = _os.environ.get("CHROMIUM_PATH", "")
+    weles_fp_args: List[str] = []
+    if is_chromium and weles_chromium_path and _os.path.isfile(weles_chromium_path):
+        cpp_config = to_cpp_config(fp_config, target_os=target_os)
+        fp_file = _tempfile.NamedTemporaryFile(
+            prefix="weles-fp-", suffix=".json", delete=False, mode="w")
+        _json.dump(cpp_config, fp_file)
+        fp_file.close()
+        weles_fp_args = [f"--weles-fingerprint={fp_file.name}"]
+        launch_options.setdefault("executable_path", weles_chromium_path)
+
     # Build context options from fingerprint
     nav = fp_config.get("navigator", {})
     scr = fp_config.get("screen", {})
@@ -147,7 +163,7 @@ async def AsyncNewBrowser(
 
         if is_chromium:
             user_args = persistent_kwargs.pop("args", []) or []
-            merged_args = list(_CHROMIUM_ARGS) + [a for a in user_args if a not in _CHROMIUM_ARGS]
+            merged_args = list(_CHROMIUM_ARGS) + weles_fp_args + [a for a in user_args if a not in _CHROMIUM_ARGS]
             persistent_kwargs["args"] = merged_args
             context = await playwright.chromium.launch_persistent_context(
                 user_data_dir, **persistent_kwargs
@@ -167,7 +183,7 @@ async def AsyncNewBrowser(
     if is_chromium:
         # Merge anti-detection args with any user-provided args
         user_args = launch_options.pop("args", []) or []
-        merged_args = list(_CHROMIUM_ARGS) + [a for a in user_args if a not in _CHROMIUM_ARGS]
+        merged_args = list(_CHROMIUM_ARGS) + weles_fp_args + [a for a in user_args if a not in _CHROMIUM_ARGS]
         pw_browser = await playwright.chromium.launch(
             headless=headless,
             args=merged_args,
