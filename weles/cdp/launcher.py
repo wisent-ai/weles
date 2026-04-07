@@ -69,6 +69,7 @@ async def launch_chromium(
     user_data_dir: Optional[str] = None,
     proxy_server: Optional[str] = None,
     chromium_path: Optional[str] = None,
+    fingerprint_config_path: Optional[str] = None,
 ) -> Tuple[asyncio.subprocess.Process, str]:
     """Launch Chromium and return (process, ws_url).
 
@@ -88,6 +89,8 @@ async def launch_chromium(
         cmd.append(f"--user-data-dir={tmp_dir}")
     if proxy_server:
         cmd.append(f"--proxy-server={proxy_server}")
+    if fingerprint_config_path:
+        cmd.append(f"--weles-fingerprint={fingerprint_config_path}")
 
     proc = await asyncio.create_subprocess_exec(
         *cmd,

@@ -59,9 +59,6 @@ def to_config(
     is_chromium = browser == "chromium"
 
     ua = nav.userAgent
-    # browserforge often generates outdated Chrome versions; ensure a recent one
-    if is_chromium:
-        ua = _ensure_modern_chrome_ua(ua, target_os)
     platform = _PLATFORM_MAP.get(target_os, "MacIntel")
 
     nav_config: Dict[str, Any] = {
@@ -132,41 +129,40 @@ def to_config(
     return config
 
 
-_CHROME_STABLE_VERSION = "135.0.7049.95"
-_CHROME_STABLE_MAJOR = "135"
+def to_cpp_config(config: Dict[str, Any]) -> Dict[str, Any]:
+    """Extract the subset of fingerprint config for the C++ Chromium patches.
 
-_MACOS_UA_TEMPLATE = (
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-    "AppleWebKit/537.36 (KHTML, like Gecko) "
-    "Chrome/{version} Safari/537.36"
-)
-_WINDOWS_UA_TEMPLATE = (
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-    "AppleWebKit/537.36 (KHTML, like Gecko) "
-    "Chrome/{version} Safari/537.36"
-)
-_LINUX_UA_TEMPLATE = (
-    "Mozilla/5.0 (X11; Linux x86_64) "
-    "AppleWebKit/537.36 (KHTML, like Gecko) "
-    "Chrome/{version} Safari/537.36"
-)
-
-
-def _ensure_modern_chrome_ua(ua: str, target_os: str) -> str:
-    """Replace outdated Chrome version in UA with a recent stable release."""
-    import re
-    match = re.search(r"Chrome/(\d+)", ua)
-    if match:
-        major = int(match.group(1))
-        if major >= 130:
-            return ua
-    templates = {
-        "macos": _MACOS_UA_TEMPLATE,
-        "windows": _WINDOWS_UA_TEMPLATE,
-        "linux": _LINUX_UA_TEMPLATE,
+    This is written to a JSON file and passed via --weles-fingerprint=<path>.
+    """
+    nav = config.get("navigator", {})
+    scr = config.get("screen", {})
+    webgl = config.get("webgl", {})
+    return {
+        "navigator": {
+            "userAgent": nav.get("userAgent"),
+            "platform": nav.get("platform"),
+            "vendor": nav.get("vendor"),
+            "productSub": nav.get("productSub"),
+            "language": nav.get("language"),
+            "languages": nav.get("languages"),
+            "hardwareConcurrency": nav.get("hardwareConcurrency"),
+            "deviceMemory": nav.get("deviceMemory"),
+            "doNotTrack": nav.get("doNotTrack"),
+        },
+        "screen": {
+            "width": scr.get("width"),
+            "height": scr.get("height"),
+            "availWidth": scr.get("availWidth"),
+            "availHeight": scr.get("availHeight"),
+            "colorDepth": scr.get("colorDepth"),
+        },
+        "webgl": {
+            "unmaskedVendor": webgl.get("unmaskedVendor"),
+            "unmaskedRenderer": webgl.get("unmaskedRenderer"),
+        },
+        "canvas": config.get("canvas", {}),
+        "audio": config.get("audio", {}),
     }
-    template = templates.get(target_os, _MACOS_UA_TEMPLATE)
-    return template.format(version=_CHROME_STABLE_VERSION)
 
 
 def _default_webgl_renderer(os: str) -> str:
