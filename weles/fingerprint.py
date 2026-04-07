@@ -1,6 +1,7 @@
 """Fingerprint generation and conversion to JS-ready config."""
 
 import random
+import re
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 from browserforge.fingerprints import Fingerprint, FingerprintGenerator, Screen
@@ -129,10 +130,49 @@ def to_config(
     return config
 
 
-def to_cpp_config(config: Dict[str, Any]) -> Dict[str, Any]:
+def _build_client_hints(nav: Dict[str, Any], target_os: str) -> Dict[str, Any]:
+    """Construct sec-ch-ua-* values matching the spoofed userAgent."""
+    ua = nav.get("userAgent", "")
+    chrome_ver_match = re.search(r"Chrome/(\d+\.\d+\.\d+\.\d+)", ua)
+    full_version = chrome_ver_match.group(1) if chrome_ver_match else "135.0.7049.95"
+    major = full_version.split(".")[0]
+
+    platform_map = {
+        "macos": ("macOS", "10.15.7"),
+        "windows": ("Windows", "15.0.0"),
+        "linux": ("Linux", "6.5.0"),
+    }
+    ch_platform, ch_platform_version = platform_map.get(target_os, ("macOS", "10.15.7"))
+
+    return {
+        "platform": ch_platform,
+        "platformVersion": ch_platform_version,
+        "architecture": "x86",
+        "bitness": "64",
+        "model": "",
+        "mobile": False,
+        "wow64": False,
+        "fullVersion": full_version,
+        "brandList": [
+            {"brand": "Not.A/Brand", "version": "8"},
+            {"brand": "Chromium", "version": major},
+            {"brand": "Google Chrome", "version": major},
+        ],
+        "brandFullVersionList": [
+            {"brand": "Not.A/Brand", "version": "8.0.0.0"},
+            {"brand": "Chromium", "version": full_version},
+            {"brand": "Google Chrome", "version": full_version},
+        ],
+    }
+
+
+def to_cpp_config(
+    config: Dict[str, Any], target_os: str = "macos"
+) -> Dict[str, Any]:
     """Extract the subset of fingerprint config for the C++ Chromium patches.
 
     This is written to a JSON file and passed via --weles-fingerprint=<path>.
+    Includes HTTP client hints (sec-ch-ua-*) so HTTP headers match navigator.*
     """
     nav = config.get("navigator", {})
     scr = config.get("screen", {})
@@ -162,6 +202,7 @@ def to_cpp_config(config: Dict[str, Any]) -> Dict[str, Any]:
         },
         "canvas": config.get("canvas", {}),
         "audio": config.get("audio", {}),
+        "clientHints": _build_client_hints(nav, target_os),
     }
 
 
