@@ -88,7 +88,7 @@ async def CDPNewBrowser(
     if headless is None:
         headless = False
     # Write C++ fingerprint config for the custom Chromium build
-    cpp_config = to_cpp_config(fp_config)
+    cpp_config = to_cpp_config(fp_config, target_os=target_os)
     fp_file = tempfile.NamedTemporaryFile(
         prefix="weles-fp-", suffix=".json", delete=False, mode="w")
     _json.dump(cpp_config, fp_file)
