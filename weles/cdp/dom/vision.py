@@ -196,11 +196,21 @@ async def find_click_target(page, description: str) -> Optional[dict]:
 
 
 async def _take_screenshot(page) -> Optional[bytes]:
-    """Take a screenshot, handling both Playwright and CDPPage."""
+    """Take a screenshot, handling both Playwright and CDPPage.
+
+    Forces CSS-pixel scale so the image dimensions match the
+    coordinate space accepted by mouse.click(); otherwise a HiDPI
+    deviceScaleFactor (e.g. 2 from a retina-spoofed fingerprint)
+    yields a screenshot at 2x the click space and every coordinate
+    Claude returns is offset.
+    """
     try:
         if hasattr(page, 'screenshot'):
-            # Playwright page
-            return await page.screenshot()
+            # Playwright page — pin to CSS pixels.
+            try:
+                return await page.screenshot(scale="css")
+            except TypeError:
+                return await page.screenshot()
         elif hasattr(page, '_conn'):
             # CDPPage — use CDP screenshot
             result = await page._conn.send(
