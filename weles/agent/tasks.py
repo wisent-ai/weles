@@ -122,9 +122,11 @@ class FetchAccountValue:
         bal = await self._attempt_with_existing_session()
         if bal is not None:
             return bal
+        # Cookies might be stale - clear them and retry once
         print(f"[task] {self.service}: first attempt returned None, "
-              "forcing fresh login and retrying")
-        return await self._attempt_with_fresh_login()
+              "clearing cookies and retrying")
+        self._clear_cookies()
+        return await self._attempt_with_existing_session()
 
     async def _replay_trajectory(self, traj: "Trajectory") -> Optional[float]:
         """Try to fetch the value using a cached trajectory.
@@ -166,10 +168,37 @@ class FetchAccountValue:
                 await page.context.add_cookies(cookies)
             await page.goto(self.url, wait_until="domcontentloaded")
             await wait_cloudflare(page)
+            if await self._is_login_page(page):
+                if not await self._login_inline(page):
+                    return None
             value = await self._extract_value(page)
             if value is not None:
                 await self._learn_trajectory(page, value)
             return value
+
+    async def _is_login_page(self, page) -> bool:
+        url_l = page.url.lower()
+        if "login" in url_l or "signin" in url_l or "sign-in" in url_l:
+            return True
+        return await vision.boolean(
+            page,
+            "Is this page showing a login form with username and "
+            "password fields, or a 'Sign in' / 'Log in' button as "
+            "the main call to action?",
+        )
+
+    async def _login_inline(self, page) -> bool:
+        username = os.environ.get(self.username_env, "")
+        password = os.environ.get(self.password_env, "")
+        if not username or not password:
+            print(f"[task] {self.service}: missing credentials in env "
+                  f"({self.username_env}, {self.password_env})")
+            return False
+        ok = await login.run(page, username, password)
+        if not ok:
+            return False
+        self._save_cookies(await page.context.cookies())
+        return True
 
     async def _learn_trajectory(self, page, value: float) -> None:
         """After a successful agentic discovery, ask vision once for a
@@ -194,30 +223,6 @@ class FetchAccountValue:
                       f"(url={page.url}, selector={selector!r})")
         except Exception as e:
             print(f"[task] {self.service}: could not learn trajectory: {e}")
-
-    async def _attempt_with_fresh_login(self) -> Optional[float]:
-        self._clear_cookies()
-        username = os.environ.get(self.username_env, "")
-        password = os.environ.get(self.password_env, "")
-        if not username or not password:
-            print(f"[task] {self.service}: missing credentials in env "
-                  f"({self.username_env}, {self.password_env})")
-            return None
-        async with _open_session(self.os_target) as page:
-            await page.goto(self.url, wait_until="domcontentloaded")
-            await wait_cloudflare(page)
-            if not await vision.boolean(
-                page,
-                "Is this page showing a login form with username and "
-                "password fields?",
-            ):
-                print(f"[task] {self.service}: expected a login form")
-                return None
-            ok = await login.run(page, username, password)
-            if not ok:
-                return None
-            self._save_cookies(await page.context.cookies())
-            return await self._extract_value(page)
 
     async def _extract_value(self, page) -> Optional[float]:
         return await discover.find_number(page, self.what, depth=self.depth)
