@@ -171,4 +171,13 @@ def _ask_claude(screenshot: bytes, question: str) -> str:
     except OSError:
         pass
 
+    # Bound vision dir size (default 500 MB, override via env var)
+    try:
+        from weles import prune_recordings
+        budget = int(os.environ.get("WELES_VISION_MAX_BYTES",
+                                    str(500 * 1024 * 1024)))
+        prune_recordings(vision_dir, budget)
+    except Exception:
+        pass
+
     return answer
