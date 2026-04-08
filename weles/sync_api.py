@@ -96,6 +96,12 @@ def NewBrowser(
     if headless is None:
         headless = False
 
+    # Default: record video of every session unless caller explicitly sets
+    # record_video=False or sets WELES_DISABLE_RECORDING=1.
+    if record_video is None:
+        import os as _os_check
+        record_video = _os_check.environ.get("WELES_DISABLE_RECORDING") != "1"
+
     is_chromium = browser == "chromium"
 
     # Build context options from fingerprint

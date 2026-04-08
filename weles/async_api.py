@@ -104,6 +104,11 @@ async def AsyncNewBrowser(
     if headless is None:
         headless = False
 
+    # Default: record video of every session unless caller explicitly sets
+    # record_video=False or sets WELES_DISABLE_RECORDING=1.
+    if record_video is None:
+        record_video = _os.environ.get("WELES_DISABLE_RECORDING") != "1"
+
     is_chromium = browser == "chromium"
 
     # If using custom Chromium build (CHROMIUM_PATH set), write the C++
