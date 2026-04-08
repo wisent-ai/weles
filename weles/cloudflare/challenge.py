@@ -1,7 +1,16 @@
-"""Cloudflare challenge detection and bypass using vision.
+"""Cloudflare challenge detection and bypass.
 
-Uses AI screenshot analysis to detect and interact with Cloudflare
-challenges, instead of fragile selectors or keyword matching.
+Strategy:
+1. Detect the challenge page by looking for the Turnstile script load.
+2. Wait for the Turnstile widget iframe to appear in the DOM.
+3. Click the iframe centre using human-like Bezier-curve mouse motion
+   (CDPMouse defaults). No vision/AI required for the click target.
+4. Poll for the challenge to clear (the "Performing security
+   verification" text disappears).
+
+The Turnstile widget always renders inside an iframe whose src starts
+with https://challenges.cloudflare.com/turnstile/. Clicking the
+centre of that iframe always lands on the checkbox.
 """
 
 import logging
@@ -10,53 +19,71 @@ from .config import CF_CHECK_INTERVAL_MS
 
 logger = logging.getLogger(__name__)
 
+_TURNSTILE_IFRAME_SEL = 'iframe[src*="challenges.cloudflare.com"]'
+_CF_VERIFICATION_TEXT = "performing security verification"
+
+
+async def _is_cf_challenge(page) -> bool:
+    """Check if the page text mentions Cloudflare verification."""
+    try:
+        body = await page.inner_text("body")
+        return _CF_VERIFICATION_TEXT in body.lower()
+    except Exception:
+        return False
+
 
 async def wait_cloudflare(page, timeout_ms: int = 72000,
-                          settle_ms: int = 5000) -> bool:
-    """Wait for Cloudflare challenge to resolve, clicking via vision if needed.
-
-    Uses AI to detect the challenge and find click targets. Works regardless
-    of whether Turnstile renders as an iframe or inline widget.
+                          settle_ms: int = 3000) -> bool:
+    """Wait for Cloudflare challenge to resolve, clicking the Turnstile
+    iframe via human mouse motion if a checkbox appears.
 
     Returns True if no challenge or challenge clears within timeout.
     """
-    from ..cdp.dom.vision import check_page, find_click_target
-
     await page.wait_for_timeout(settle_ms)
 
-    # First check: is there a challenge at all?
-    from ..cdp.dom.vision import ask_page
-    raw_answer = await ask_page(
-        page, "Is this a Cloudflare security verification or challenge page? Answer only YES or NO.")
-    is_cf = raw_answer.strip().upper().startswith("YES")
-    print(f"  [cloudflare] raw vision answer: {repr(raw_answer)}")
-    print(f"  [cloudflare] challenge detected: {is_cf}")
-
-    if not is_cf:
+    if not await _is_cf_challenge(page):
+        print("  [cloudflare] no challenge detected")
         return True
 
-    # Find and click the verification target
-    target = await find_click_target(
-        page, "the checkbox or button to verify you are human")
-    print(f"  [cloudflare] click target: {target}")
-    if target:
-        await page.mouse.click(target["x"], target["y"])
-        print(f"  [cloudflare] clicked at ({target['x']}, {target['y']})")
-    else:
-        print("  [cloudflare] no click target found")
+    print("  [cloudflare] challenge detected, waiting for Turnstile iframe")
 
-    # Poll until challenge clears
-    checks = timeout_ms // CF_CHECK_INTERVAL_MS
+    # Wait for the Turnstile widget iframe to render
+    try:
+        await page.wait_for_selector(
+            _TURNSTILE_IFRAME_SEL, timeout=timeout_ms,
+        )
+    except Exception:
+        print("  [cloudflare] no Turnstile iframe appeared (auto-pass mode)")
+        # Non-interactive interstitial - just wait for it to clear
+        return await _poll_until_clear(page, timeout_ms)
+
+    # Get the iframe bounding box and click its centre
+    iframe = await page.query_selector(_TURNSTILE_IFRAME_SEL)
+    if iframe:
+        box = await iframe.bounding_box()
+        if box:
+            # Click slightly left of centre where the checkbox sits
+            cx = box["x"] + 30
+            cy = box["y"] + box["height"] / 2
+            print(f"  [cloudflare] clicking Turnstile iframe at ({cx}, {cy})")
+            await page.mouse.click(cx, cy)
+        else:
+            print("  [cloudflare] iframe has no bounding box")
+    else:
+        print("  [cloudflare] iframe disappeared before click")
+
+    return await _poll_until_clear(page, timeout_ms)
+
+
+async def _poll_until_clear(page, timeout_ms: int) -> bool:
+    """Poll until the Cloudflare verification text disappears."""
+    checks = max(1, timeout_ms // CF_CHECK_INTERVAL_MS)
     for i in range(checks):
         await page.wait_for_timeout(CF_CHECK_INTERVAL_MS)
-
-        still_cf = await check_page(
-            page, "Is this a Cloudflare security verification or challenge page?")
+        still_cf = await _is_cf_challenge(page)
         print(f"  [cloudflare] check {i+1}/{checks}: still challenged = {still_cf}")
-
         if not still_cf:
             return True
-
     return False
 
 
