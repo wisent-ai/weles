@@ -52,20 +52,30 @@ async def run(page: Any, username: str, password: str,
         print("[login] could not find password field")
         return False
 
-    # Submit by pressing Enter on the focused password field — works on
-    # virtually every login form and avoids having to visually locate
-    # the submit button (which is commonly below the viewport fold).
+    # Try Enter first — works on most native HTML forms.
     await page.keyboard.press("Enter")
     print("[login] submitted form via Enter, waiting for navigation")
 
-    try:
-        await page.wait_for_function(
-            f"() => window.location.href !== {pre_login_url!r}",
-            timeout=post_login_timeout_ms,
-        )
-    except Exception:
-        print("[login] navigation timeout after submit")
-        return False
+    if not await _wait_navigation(page, pre_login_url, 8000):
+        # Form has a JS-only submit handler that ignores Enter. Scroll
+        # the bottom of the form into view and click the submit button
+        # via vision instead.
+        print("[login] Enter didn't navigate, scrolling and clicking submit")
+        try:
+            await page.evaluate("window.scrollBy(0, 600)")
+        except Exception:
+            pass
+        if not await vision.click(
+            page,
+            "the submit button of the login form (Log In, Sign In, "
+            "Continue, Submit, etc.)",
+        ):
+            print("[login] could not find submit button after scroll")
+            return False
+        if not await _wait_navigation(page, pre_login_url,
+                                      post_login_timeout_ms):
+            print("[login] navigation timeout after submit click")
+            return False
 
     await wait_cloudflare(page)
 
@@ -73,6 +83,18 @@ async def run(page: Any, username: str, password: str,
     success = "login" not in new_url.lower() and "signin" not in new_url.lower()
     print(f"[login] post-submit url={new_url} success={success}")
     return success
+
+
+async def _wait_navigation(page: Any, pre_url: str, timeout_ms: int) -> bool:
+    """Return True if the URL changes within timeout_ms."""
+    try:
+        await page.wait_for_function(
+            f"() => window.location.href !== {pre_url!r}",
+            timeout=timeout_ms,
+        )
+        return True
+    except Exception:
+        return False
 
 
 def _get_url(page: Any) -> str:
