@@ -102,10 +102,10 @@ class CDPLocator:
         await self._parent.mouse.click(x, y)
 
     async def fill(self, value: str, *, wait_ms: int = 30000) -> None:
-        """Clear the input and type a new value."""
+        """Clear the input and type a new value with human-like timing."""
         await self._ensure_visible(wait_ms)
         await self._eval(js.clear_input)
-        await self._parent.keyboard.insert_text(value)
+        await self._parent.keyboard.type(value)
 
     async def type(self, text: str, *, delay: float = 0) -> None:
         """Type text character by character after focusing the element."""

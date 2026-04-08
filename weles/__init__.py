@@ -21,6 +21,10 @@ __all__ = [
     "prune_recordings",
 ]
 
+# All weles input is human-like by default. Set WELES_INSTANT_INPUT=1 to
+# disable Bezier-curve mouse motion and per-character typing delays for
+# tests where speed matters more than realism.
+
 
 def prune_recordings(path: str, max_bytes: int) -> None:
     """Delete oldest files in `path` until total size is under `max_bytes`.
