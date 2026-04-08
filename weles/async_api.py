@@ -152,7 +152,16 @@ async def AsyncNewBrowser(
             ctx_opts["ignore_https_errors"] = True
     if record_video:
         from .capture import _recordings_dir, _output_path
-        ctx_opts["record_video_dir"] = _recordings_dir()
+        rec_dir = _recordings_dir()
+        ctx_opts["record_video_dir"] = rec_dir
+        # Bound recordings dir size (default 2 GB, override via env var)
+        try:
+            from . import prune_recordings
+            budget = int(_os.environ.get("WELES_RECORDINGS_MAX_BYTES",
+                                         str(2 * 1024 * 1024 * 1024)))
+            prune_recordings(rec_dir, budget)
+        except Exception:
+            pass
     if record_har:
         from .capture import _recordings_dir, _output_path
         ctx_opts["record_har_path"] = _output_path("network", "har")
