@@ -17,26 +17,65 @@ Usage:
 import base64
 import json
 import os
+import re
 import subprocess
 import tempfile
 from datetime import datetime
 from typing import Optional
 
 
+class VisionRefusedError(Exception):
+    """Raised when Claude refuses to answer a vision query (safety refusal).
+
+    The caller should NOT silently fall back to selector hacks or other
+    bypass attempts; the failure must be visible so the prompt or context
+    can be fixed.
+    """
+
+    def __init__(self, question: str, answer: str):
+        self.question = question
+        self.answer = answer
+        super().__init__(
+            f"Claude refused vision query. Question: {question!r}. "
+            f"Answer: {answer[:300]!r}"
+        )
+
+
+# Phrases that indicate a refusal rather than an actual answer.
+_REFUSAL_MARKERS = (
+    "i'm not going to",
+    "i won't",
+    "i cannot help",
+    "i can't help",
+    "i'm not able to",
+    "outside the scope",
+    "i don't feel comfortable",
+    "i'm unable to assist",
+    "cannot assist with",
+    "can't assist with",
+    "i need to pause",
+    "bypass",
+)
+
+
+def _is_refusal(answer: str) -> bool:
+    low = answer.lower()
+    return any(m in low for m in _REFUSAL_MARKERS)
+
+
 async def ask_page(page, question: str) -> str:
     """Take a screenshot of the page and ask Claude about it.
 
-    Args:
-        page: A Playwright Page or CDPPage instance.
-        question: What to ask about the page state.
-
-    Returns:
-        Claude's answer as a string.
+    Raises VisionRefusedError if Claude refuses on safety grounds.
+    Returns Claude's answer as a string otherwise.
     """
     screenshot_data = await _take_screenshot(page)
     if not screenshot_data:
         return ""
-    return _ask_claude(screenshot_data, question)
+    answer = _ask_claude(screenshot_data, question)
+    if _is_refusal(answer):
+        raise VisionRefusedError(question, answer)
+    return answer
 
 
 async def check_page(page, question: str) -> bool:
@@ -75,13 +114,11 @@ async def identify_page(page) -> str:
 async def find_click_target(page, description: str) -> Optional[dict]:
     """Ask Claude to locate an element to click and return its coordinates.
 
-    Args:
-        page: A Playwright Page or CDPPage instance.
-        description: What to click (e.g. "the checkbox to verify you are human").
-
-    Returns:
-        {"x": int, "y": int} if found, None otherwise.
+    Raises VisionRefusedError if Claude refuses on safety grounds.
+    Returns {"x": int, "y": int} if found, None if Claude answered but
+    no parseable coordinates were returned.
     """
+    # ask_page raises VisionRefusedError on refusal; let it propagate.
     answer = await ask_page(
         page,
         f"I need to click: {description}. "
