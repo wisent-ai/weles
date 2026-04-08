@@ -52,15 +52,11 @@ async def run(page: Any, username: str, password: str,
         print("[login] could not find password field")
         return False
 
-    if not await vision.click(
-        page,
-        "the submit button of the login form (Log In, Sign In, "
-        "Continue, Submit, etc.)",
-    ):
-        print("[login] could not find submit button")
-        return False
-
-    print("[login] submitted form, waiting for navigation")
+    # Submit by pressing Enter on the focused password field — works on
+    # virtually every login form and avoids having to visually locate
+    # the submit button (which is commonly below the viewport fold).
+    await page.keyboard.press("Enter")
+    print("[login] submitted form via Enter, waiting for navigation")
 
     try:
         await page.wait_for_function(
