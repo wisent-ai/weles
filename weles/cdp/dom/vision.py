@@ -19,6 +19,7 @@ import json
 import os
 import subprocess
 import tempfile
+from datetime import datetime
 from typing import Optional
 
 
@@ -116,14 +117,23 @@ async def _take_screenshot(page) -> Optional[bytes]:
 
 
 def _ask_claude(screenshot: bytes, question: str) -> str:
-    """Send screenshot to Claude Code CLI and ask the question."""
-    # Save to a project-local path that Claude CLI can access
-    vision_dir = os.path.join(os.getcwd(), "recordings", "vision")
+    """Send screenshot to Claude Code CLI and ask the question.
+
+    Each call writes a timestamped screenshot AND a sidecar .json with the
+    question + answer to recordings/vision/. Files are kept (never deleted)
+    so we can replay exactly what Claude saw and said for any past query.
+    """
+    vision_dir = os.environ.get("WELES_VISION_DIR") or os.path.join(
+        os.getcwd(), "recordings", "vision")
     os.makedirs(vision_dir, exist_ok=True)
-    img_path = os.path.join(vision_dir, "vision_query.png")
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+    img_path = os.path.join(vision_dir, f"vision_{ts}.png")
+    log_path = os.path.join(vision_dir, f"vision_{ts}.json")
     with open(img_path, "wb") as f:
         f.write(screenshot)
 
+    answer = ""
+    error = None
     try:
         prompt = f"Read the image file at {img_path}. Then answer: {question}"
         proc = subprocess.run(
@@ -136,17 +146,29 @@ def _ask_claude(screenshot: bytes, question: str) -> str:
         for line in raw.split("\n"):
             if '"type":"result"' in line:
                 try:
-                    return json.loads(line).get("result", raw)
+                    answer = json.loads(line).get("result", raw)
+                    break
                 except json.JSONDecodeError:
                     pass
-        try:
-            return json.loads(raw).get("result", raw)
-        except json.JSONDecodeError:
-            return raw
-    except FileNotFoundError:
-        return ""
-    finally:
-        try:
-            os.unlink(img_path)
-        except OSError:
-            pass
+        if not answer:
+            try:
+                answer = json.loads(raw).get("result", raw)
+            except json.JSONDecodeError:
+                answer = raw
+    except FileNotFoundError as e:
+        error = str(e)
+        answer = ""
+
+    try:
+        with open(log_path, "w") as f:
+            json.dump({
+                "timestamp": ts,
+                "image": os.path.basename(img_path),
+                "question": question,
+                "answer": answer,
+                "error": error,
+            }, f, indent=2)
+    except OSError:
+        pass
+
+    return answer
