@@ -12,6 +12,8 @@ from .session import SessionStore
 from .testing import isolate_failure
 from .cdp import CDPWeles, CDPNewBrowser
 from .cdp.dom.vision import VisionRefusedError
+from . import agent
+from .agent import FetchAccountValue
 
 __version__ = "0.3.0"
 __all__ = [
@@ -20,6 +22,7 @@ __all__ = [
     "ProxyConfig", "ProxyPool", "CaptchaSolver", "detect_captcha",
     "solve_page_captcha", "wait_cloudflare", "bypass_cloudflare", "SessionStore",
     "VisionRefusedError",
+    "agent", "FetchAccountValue",
     "prune_recordings",
 ]
 
