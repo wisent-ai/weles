@@ -15,12 +15,64 @@ Example - fetching a proxy account balance with NO per-site code:
         what="the current account credit balance",
     ).run()
 """
+import json as _json
 import os
-from dataclasses import dataclass, field
+import re as _re
+from dataclasses import asdict, dataclass, field
+from datetime import datetime
+from pathlib import Path
 from typing import Optional
 
 from . import discover, login, vision
 from ..cloudflare import wait_cloudflare
+
+
+# Trajectory cache: persisted at ~/.weles/trajectories/<service>.json
+# (or $WELES_CACHE_DIR/trajectories/). Each entry stores the path the
+# agent learned during the first successful run, so subsequent calls
+# can replay the path with zero vision queries.
+
+def _cache_dir() -> Path:
+    base = os.environ.get("WELES_CACHE_DIR") or os.path.join(
+        os.path.expanduser("~"), ".weles")
+    p = Path(base) / "trajectories"
+    p.mkdir(parents=True, exist_ok=True)
+    return p
+
+
+@dataclass
+class Trajectory:
+    """A learned path for fetching a value from a service."""
+    service: str
+    final_url: str
+    selector: Optional[str] = None
+    regex: Optional[str] = None
+    last_success: Optional[str] = None
+    last_value: Optional[float] = None
+
+    @classmethod
+    def load(cls, service: str) -> Optional["Trajectory"]:
+        path = _cache_dir() / f"{service}.json"
+        try:
+            data = _json.loads(path.read_text())
+            return cls(**data)
+        except Exception:
+            return None
+
+    def save(self) -> None:
+        path = _cache_dir() / f"{self.service}.json"
+        try:
+            path.write_text(_json.dumps(asdict(self), indent=2))
+        except Exception:
+            pass
+
+    @staticmethod
+    def invalidate(service: str) -> None:
+        path = _cache_dir() / f"{service}.json"
+        try:
+            path.unlink()
+        except Exception:
+            pass
 
 
 @dataclass
@@ -46,13 +98,66 @@ class FetchAccountValue:
     depth: int = 4
 
     async def run(self) -> Optional[float]:
-        """Execute the task and return the value, or None on failure."""
+        """Execute the task and return the value, or None on failure.
+
+        First tries to replay a cached trajectory (zero vision calls
+        on the happy path). If that misses or fails, falls through to
+        agentic discovery and persists the learned trajectory for the
+        next call.
+        """
+        traj = Trajectory.load(self.service)
+        if traj is not None:
+            replay_value = await self._replay_trajectory(traj)
+            if replay_value is not None:
+                print(f"[task] {self.service}: cache replay hit, "
+                      f"value={replay_value}")
+                traj.last_value = replay_value
+                traj.last_success = datetime.utcnow().isoformat() + "Z"
+                traj.save()
+                return replay_value
+            print(f"[task] {self.service}: cache replay missed, "
+                  "invalidating and re-discovering")
+            Trajectory.invalidate(self.service)
+
         bal = await self._attempt_with_existing_session()
         if bal is not None:
             return bal
         print(f"[task] {self.service}: first attempt returned None, "
               "forcing fresh login and retrying")
         return await self._attempt_with_fresh_login()
+
+    async def _replay_trajectory(self, traj: "Trajectory") -> Optional[float]:
+        """Try to fetch the value using a cached trajectory.
+
+        Returns the float value or None if anything failed (in which
+        case the caller invalidates the cache and re-discovers).
+        """
+        cookies = self._load_cookies()
+        async with _open_session(self.os_target) as page:
+            try:
+                if cookies:
+                    await page.context.add_cookies(cookies)
+                await page.goto(traj.final_url, wait_until="domcontentloaded")
+                await wait_cloudflare(page)
+                if "login" in page.url.lower() or "signin" in page.url.lower():
+                    return None
+                if not traj.selector:
+                    return None
+                el = await page.query_selector(traj.selector)
+                if el is None:
+                    return None
+                text = (await el.inner_text() or "").strip()
+                if traj.regex:
+                    m = _re.search(traj.regex, text)
+                    if m:
+                        text = m.group(1) if m.groups() else m.group(0)
+                cleaned = _re.sub(r"[^\d.\-]", "", text)
+                if not cleaned:
+                    return None
+                return float(cleaned)
+            except Exception as e:
+                print(f"[task] {self.service}: replay error: {e}")
+                return None
 
     async def _attempt_with_existing_session(self) -> Optional[float]:
         cookies = self._load_cookies()
@@ -61,7 +166,34 @@ class FetchAccountValue:
                 await page.context.add_cookies(cookies)
             await page.goto(self.url, wait_until="domcontentloaded")
             await wait_cloudflare(page)
-            return await self._extract_value(page)
+            value = await self._extract_value(page)
+            if value is not None:
+                await self._learn_trajectory(page, value)
+            return value
+
+    async def _learn_trajectory(self, page, value: float) -> None:
+        """After a successful agentic discovery, ask vision once for a
+        stable CSS selector and persist the trajectory."""
+        try:
+            sel_answer = await vision.text(
+                page,
+                f"a CSS selector that uniquely identifies the element "
+                f"containing {self.what}",
+            )
+            selector = (sel_answer or "").strip().strip("`'\"")
+            if selector and len(selector) < 200:
+                Trajectory(
+                    service=self.service,
+                    final_url=page.url,
+                    selector=selector,
+                    regex=r"\$?\s*([0-9]+(?:\.[0-9]+)?)",
+                    last_success=datetime.utcnow().isoformat() + "Z",
+                    last_value=value,
+                ).save()
+                print(f"[task] {self.service}: trajectory cached "
+                      f"(url={page.url}, selector={selector!r})")
+        except Exception as e:
+            print(f"[task] {self.service}: could not learn trajectory: {e}")
 
     async def _attempt_with_fresh_login(self) -> Optional[float]:
         self._clear_cookies()
