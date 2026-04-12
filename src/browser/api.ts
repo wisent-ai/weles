@@ -1,7 +1,7 @@
 import { type ChildProcess } from 'node:child_process';
 import { CDPConnection } from '../cdp/connection.js';
 import { launchChromium } from '../cdp/launcher.js';
-import { generate, toConfig, type FingerprintConfig } from '../fingerprint.js';
+import { generate, toConfig, toCppConfig, type FingerprintConfig } from '../fingerprint.js';
 import { buildInitScript } from '../scripts/loader.js';
 import { CDPBrowserContext } from './context.js';
 
@@ -57,15 +57,22 @@ export class CDPWeles {
     // 2. Convert to config
     const config = toConfig(fp, targetOs, 'chromium');
 
-    // 3. Build init script
-    const initScript = buildInitScript(config, options.excludeScripts);
+    // 3. Build init script (skip for custom binary — C++ handles spoofing)
+    const isCustomBinary = !!(options.chromiumPath || process.env.CHROMIUM_PATH);
+    const initScript = isCustomBinary ? '' : buildInitScript(config, options.excludeScripts);
 
-    // 4. Launch chromium
+    // 4. Launch chromium — pass --weles-fingerprint for custom binary
+    const extraArgs: string[] = [];
+    if (isCustomBinary) {
+      const cppConfig = toCppConfig(config, targetOs);
+      extraArgs.push(`--weles-fingerprint=${JSON.stringify(cppConfig)}`);
+    }
     const { process: proc, wsUrl } = await launchChromium({
       headless: options.headless,
       chromiumPath: options.chromiumPath,
       userDataDir: options.userDataDir,
       proxyServer: options.proxy,
+      args: extraArgs,
     });
 
     // 5. Connect via CDP
@@ -80,18 +87,21 @@ export class CDPWeles {
       recordVideo: options.recordVideo,
     });
 
-    // 8. Set emulation from fingerprint config
+    // 8. Set emulation — skip UA/platform for custom binary (C++ handles it)
     context.setEmulation({
-      userAgent: config.navigator.userAgent,
-      viewportWidth: config.screen.width,
-      viewportHeight: config.screen.height,
+      userAgent: isCustomBinary ? '' : config.navigator.userAgent,
+      viewportWidth: config.window.outerWidth ?? 1920,
+      viewportHeight: (config.window.outerHeight ?? 1080) - 80,
       deviceScaleFactor: config.window.devicePixelRatio,
       acceptLanguage: locale,
-      platform: config.navigator.platform,
+      platform: isCustomBinary ? '' : config.navigator.platform,
     });
 
     // 9. Add init script
-    context.addInitScript(initScript);
+    if (initScript) context.addInitScript(initScript);
+
+    // 10. WebAuthn passkey stub (prevents passkey prompts on Google SSO)
+    context.addInitScript(`try{var _og=navigator.credentials.get.bind(navigator.credentials);navigator.credentials.get=function(o){return o&&o.publicKey?new Promise(function(){}):_og(o)}}catch(e){}`);
 
     return new CDPWeles(proc, connection, context);
   }

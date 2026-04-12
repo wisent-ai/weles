@@ -2,71 +2,31 @@ import { CDPConnection } from '../connection.js';
 import { CDPError, CDPNavigationError } from '../errors.js';
 import { CDPFrame, FrameTree } from './frame.js';
 import { CDPMouse, CDPKeyboard } from '../input.js';
+import { CDPScreencast } from './screencast.js';
 
 type EventHandler = (data?: any) => void;
-
-interface GotoOptions {
-  waitUntil?: 'load' | 'domcontentloaded';
-  timeout?: number;
-}
-
-interface ScreenshotOptions {
-  path?: string;
-  fullPage?: boolean;
-  format?: string;
-}
-
-interface WaitForSelectorOptions {
-  state?: 'visible' | 'attached' | 'detached' | 'hidden';
-  timeout?: number;
-}
 
 class _Route {
   readonly request: Record<string, any>;
   private _conn: CDPConnection;
-  private _sessionId: string;
-  private _requestId: string;
-
-  constructor(conn: CDPConnection, sessionId: string, params: any) {
-    this._conn = conn;
-    this._sessionId = sessionId;
-    this.request = params.request ?? {};
-    this._requestId = params.requestId ?? '';
+  private _sid: string;
+  private _rid: string;
+  constructor(conn: CDPConnection, sid: string, params: any) {
+    this._conn = conn; this._sid = sid;
+    this.request = params.request ?? {}; this._rid = params.requestId ?? '';
   }
-
-  async abort(reason = 'Failed'): Promise<void> {
-    await this._conn.send('Fetch.failRequest', {
-      requestId: this._requestId,
-      errorReason: reason,
-    }, this._sessionId);
+  async abort(reason = 'Failed') { await this._conn.send('Fetch.failRequest', { requestId: this._rid, errorReason: reason }, this._sid); }
+  async fulfill(o: { status?: number; headers?: Record<string, string>; body?: string } = {}) {
+    const h = Object.entries(o.headers ?? {}).map(([name, value]) => ({ name, value }));
+    await this._conn.send('Fetch.fulfillRequest', { requestId: this._rid, responseCode: o.status ?? 200, responseHeaders: h, body: Buffer.from(o.body ?? '').toString('base64') }, this._sid);
   }
-
-  async fulfill(options: { status?: number; headers?: Record<string, string>; body?: string } = {}): Promise<void> {
-    const { status = 200, headers = {}, body = '' } = options;
-    const h = Object.entries(headers).map(([name, value]) => ({ name, value }));
-    await this._conn.send('Fetch.fulfillRequest', {
-      requestId: this._requestId,
-      responseCode: status,
-      responseHeaders: h,
-      body: Buffer.from(body).toString('base64'),
-    }, this._sessionId);
-  }
-
-  async continue_(): Promise<void> {
-    await this._conn.send('Fetch.continueRequest', {
-      requestId: this._requestId,
-    }, this._sessionId);
-  }
+  async continue_() { await this._conn.send('Fetch.continueRequest', { requestId: this._rid }, this._sid); }
 }
 
 function selectorCheck(selector: string, state: string): string {
-  let base: string;
-  if (selector.startsWith('xpath=')) {
-    const xp = selector.slice(6);
-    base = `document.evaluate(${JSON.stringify(xp)},document,null,XPathResult.FIRST_ORDERED_NODE_TYPE,null).singleNodeValue`;
-  } else {
-    base = `document.querySelector(${JSON.stringify(selector)})`;
-  }
+  const base = selector.startsWith('xpath=')
+    ? `document.evaluate(${JSON.stringify(selector.slice(6))},document,null,XPathResult.FIRST_ORDERED_NODE_TYPE,null).singleNodeValue`
+    : `document.querySelector(${JSON.stringify(selector)})`;
   return state === 'detached' || state === 'hidden' ? `!(${base})` : `!!(${base})`;
 }
 
@@ -86,7 +46,7 @@ export class CDPPage {
   private _mouse: CDPMouse | null = null;
   private _keyboard: CDPKeyboard | null = null;
   private _recordVideo: any;
-  private _video: any = null;
+  private _screencast: CDPScreencast | null = null;
   private _closed = false;
 
   constructor(
@@ -135,7 +95,7 @@ export class CDPPage {
   }
 
   get video(): any {
-    return this._video;
+    return this._screencast?.video ?? null;
   }
 
   get mouse(): CDPMouse {
@@ -155,9 +115,14 @@ export class CDPPage {
     const root = tree?.frameTree?.frame ?? {};
     this._ft.setMainFrame(root.id ?? '', root.url ?? '');
     this._conn.on('Network.responseReceived', (p: any) => this._fire('response', p), this._sessionId);
+    if (this._recordVideo) {
+      const dir = typeof this._recordVideo === 'object' ? this._recordVideo.dir : undefined;
+      this._screencast = new CDPScreencast(this._conn, this._sessionId, { outputDir: dir });
+      await this._screencast.start();
+    }
   }
 
-  async goto(url: string, options?: GotoOptions): Promise<void> {
+  async goto(url: string, options?: { waitUntil?: 'load' | 'domcontentloaded'; timeout?: number }): Promise<void> {
     const waitUntil = options?.waitUntil ?? 'load';
     this._loadFired = false;
     this._dcFired = false;
@@ -194,20 +159,16 @@ export class CDPPage {
   async content(): Promise<string> {
     const mf = this._ft.mainFrame;
     if (!mf) throw new CDPError('No main frame');
-    const r = await this._conn.send('Page.getResourceContent', {
-      frameId: mf.frameId,
-      url: this.url,
-    }, this._sessionId);
+    const r = await this._conn.send('Page.getResourceContent', { frameId: mf.frameId, url: this.url }, this._sessionId);
     return r?.content ?? '';
   }
-
   async title(): Promise<string> {
     const mf = this._ft.mainFrame;
     if (!mf) return '';
     return (await mf.evaluate('document.title')) ?? '';
   }
 
-  async screenshot(options?: ScreenshotOptions): Promise<Buffer> {
+  async screenshot(options?: { path?: string; fullPage?: boolean; format?: string }): Promise<Buffer> {
     const format = options?.format ?? 'png';
     const params: Record<string, any> = { format };
     if (options?.fullPage) {
@@ -234,7 +195,7 @@ export class CDPPage {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
-  async waitForSelector(selector: string, options?: WaitForSelectorOptions): Promise<void> {
+  async waitForSelector(selector: string, options?: { state?: string; timeout?: number }): Promise<void> {
     const state = options?.state ?? 'visible';
     const js = selectorCheck(selector, state);
     const mf = this._ft.mainFrame;
@@ -251,13 +212,18 @@ export class CDPPage {
   async waitForUrl(urlOrPattern: string | RegExp): Promise<void> {
     while (true) {
       const cur = this.url;
-      if (urlOrPattern instanceof RegExp) {
-        if (urlOrPattern.test(cur)) return;
-      } else {
-        if (cur.includes(urlOrPattern)) return;
-      }
+      if (urlOrPattern instanceof RegExp ? urlOrPattern.test(cur) : cur.includes(urlOrPattern)) return;
       await this.waitForTimeout(100);
     }
+  }
+
+  locator(selector: string): any {
+    const { CDPLocator } = require('../dom/locator.js');
+    return new CDPLocator(this.mainFrame, selector);
+  }
+
+  getByText(text: string, exact = false): any {
+    return this.locator(exact ? `xpath=//text()[.="${text}"]/parent::*` : `xpath=//text()[contains(.,"${text}")]/parent::*`);
   }
 
   async addInitScript(script: string): Promise<void> {
@@ -292,11 +258,8 @@ export class CDPPage {
   async close(): Promise<void> {
     if (this._closed) return;
     this._closed = true;
-    try {
-      await this._conn.send('Target.closeTarget', { targetId: this._targetId });
-    } catch {
-      // target may already be closed
-    }
+    if (this._screencast && !this._screencast._stopped) await this._screencast.stop().catch(() => {});
+    try { await this._conn.send('Target.closeTarget', { targetId: this._targetId }); } catch { /* closed */ }
   }
 
   private _fire(name: string, data?: any): void {

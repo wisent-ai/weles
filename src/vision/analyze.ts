@@ -1,20 +1,64 @@
-import { execSync } from 'node:child_process';
+import { execSync, spawnSync } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { pruneRecordings } from '../prune.js';
+import { parseXY, parseElements, filterElements, centerCrop } from './escalation.js';
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
 
 /** Minimal page interface — any object that exposes a CDP-compatible screenshot. */
 export interface ScreenshottablePage {
   screenshot?(options?: { type?: string }): Promise<Buffer>;
   /** Raw CDP send for pages backed by CDPConnection. */
   send?(method: string, params?: Record<string, any>): Promise<any>;
+  /** Optional evaluate for DOM context. */
+  evaluate?(expression: string): Promise<any>;
+}
+
+// ---------------------------------------------------------------------------
+// VisionRefusedError
+// ---------------------------------------------------------------------------
+
+const REFUSAL_MARKERS = [
+  "i'm not going to",
+  "i won't",
+  "i cannot help",
+  "i can't help",
+  "i'm not able to",
+  "outside the scope",
+  "i don't feel comfortable",
+  "i'm unable to assist",
+  "cannot assist with",
+  "can't assist with",
+  "i need to pause",
+  "bypass",
+];
+
+function isRefusal(answer: string): boolean {
+  const low = answer.toLowerCase();
+  return REFUSAL_MARKERS.some(m => low.includes(m));
+}
+
+export class VisionRefusedError extends Error {
+  question: string;
+  answer: string;
+  constructor(question: string, answer: string) {
+    super(`Claude refused vision query. Question: ${question.slice(0, 200)}. Answer: ${answer.slice(0, 300)}`);
+    this.question = question;
+    this.answer = answer;
+  }
 }
 
 // ---------------------------------------------------------------------------
 // Private helpers
 // ---------------------------------------------------------------------------
 
+const VISION_TIMEOUT_MS = 2 * 60 * 1000;
+
 function visionDir(): string {
-  const dir = join(process.cwd(), 'recordings', 'vision');
+  const dir = process.env.WELES_VISION_DIR ?? join(process.cwd(), 'recordings', 'vision');
   mkdirSync(dir, { recursive: true });
   return dir;
 }
@@ -36,27 +80,62 @@ async function takeScreenshot(page: ScreenshottablePage): Promise<Buffer | null>
   }
 }
 
-function askClaude(screenshot: Buffer, question: string): string {
-  const imgPath = join(visionDir(), 'vision_query.png');
+function askClaude(screenshot: Buffer, question: string, tier = 'tier_0_bare', domHtml = ''): string {
+  const dir = visionDir();
+  const ts = new Date().toISOString().replace(/[:.]/g, '_');
+  const imgPath = join(dir, `vision_${ts}_${tier}.png`);
+  const logPath = join(dir, `vision_${ts}_${tier}.json`);
   writeFileSync(imgPath, screenshot);
 
-  const prompt = `Read the image file at ${imgPath}. Then answer: ${question}`;
+  if (domHtml) {
+    try {
+      writeFileSync(join(dir, `vision_${ts}_${tier}.dom.html`), domHtml);
+    } catch { /* skip */ }
+  }
 
-  const raw = execSync(
-    `claude -p --output-format json ${JSON.stringify(prompt)}`,
-    {
+  let answer = '';
+  let error: string | null = null;
+  try {
+    const prompt = `Read the image file at ${imgPath}. Then answer: ${question}`;
+    const proc = spawnSync('claude', ['-p', '--output-format', 'json'], {
+      input: prompt,
       encoding: 'utf-8',
       maxBuffer: 10 * 1024 * 1024,
-      timeout: 120_000,
-    },
-  );
+      timeout: VISION_TIMEOUT_MS,
+    });
+    const raw = (proc.stdout ?? '').trim();
+    // Try streaming JSON lines format
+    for (const line of raw.split('\n')) {
+      if (line.includes('"type":"result"')) {
+        try { answer = JSON.parse(line).result ?? raw; break; } catch { /* skip */ }
+      }
+    }
+    if (!answer) {
+      try {
+        answer = JSON.parse(raw).result ?? raw;
+      } catch {
+        answer = raw;
+      }
+    }
+  } catch (e: any) {
+    error = String(e);
+    answer = '';
+  }
 
   try {
-    const parsed = JSON.parse(raw);
-    return String(parsed.result ?? parsed.content ?? parsed.text ?? raw).trim();
-  } catch {
-    return raw.trim();
-  }
+    writeFileSync(logPath, JSON.stringify({
+      timestamp: ts, tier, image: imgPath.split('/').pop(),
+      question, answer, error,
+    }, null, 2));
+  } catch { /* skip */ }
+
+  // Prune vision dir to stay under budget
+  try {
+    const budget = parseInt(process.env.WELES_VISION_MAX_BYTES ?? String(500 * 1024 * 1024), 10);
+    pruneRecordings(dir, budget);
+  } catch { /* skip */ }
+
+  return answer;
 }
 
 // ---------------------------------------------------------------------------
@@ -65,13 +144,31 @@ function askClaude(screenshot: Buffer, question: string): string {
 
 /**
  * Screenshot the page and ask Claude an open-ended question about it.
+ * Raises VisionRefusedError on safety refusal.
  */
-export async function askPage(page: ScreenshottablePage, question: string): Promise<string> {
-  const screenshot = await takeScreenshot(page);
+export async function askPage(
+  page: ScreenshottablePage,
+  question: string,
+  imageBytes?: Buffer | null,
+  tier = 'tier_0_bare',
+): Promise<string> {
+  const screenshot = imageBytes ?? await takeScreenshot(page);
   if (!screenshot) {
     throw new Error('Failed to capture screenshot from page');
   }
-  return askClaude(screenshot, question);
+  // Grab DOM context when available
+  let domHtml = '';
+  try {
+    if (typeof (page as any).evaluate === 'function') {
+      domHtml = await (page as any).evaluate('document.documentElement.outerHTML') ?? '';
+    }
+  } catch { /* skip */ }
+
+  const answer = askClaude(screenshot, question, tier, domHtml);
+  if (isRefusal(answer)) {
+    throw new VisionRefusedError(question, answer);
+  }
+  return answer;
 }
 
 /**
@@ -79,45 +176,98 @@ export async function askPage(page: ScreenshottablePage, question: string): Prom
  * with "YES".
  */
 export async function checkPage(page: ScreenshottablePage, question: string): Promise<boolean> {
-  const answer = await askPage(page, `Answer only YES or NO. ${question}`);
+  const answer = await askPage(page, `${question} Answer only YES or NO.`);
   return answer.toUpperCase().startsWith('YES');
 }
 
 /**
- * Identify the kind of page currently displayed (e.g. login_page, dashboard,
- * captcha_challenge, error_page, etc.).
+ * Identify the kind of page currently displayed.
  */
 export async function identifyPage(page: ScreenshottablePage): Promise<string> {
   return askPage(
     page,
-    'What type of page is this? Reply with one short label such as login_page, dashboard, captcha_challenge, error_page, search_results, form, landing_page, etc.',
+    'What type of page is this? Answer with exactly one of: '
+    + 'login_page, dashboard, captcha_challenge, error_page, '
+    + 'verification_required, signup_page, success_page, '
+    + 'loading, blocked, or unknown. Just the label, nothing else.',
   );
 }
 
 /**
- * Ask Claude to locate a UI element matching `description` and return its
- * coordinates.  Returns `null` when the element cannot be found.
+ * Locate a click target via vision with multi-tier escalation.
+ *
+ *   tier_0_bare      bare question on the full screenshot
+ *   tier_1_crop      same question on a centred crop (removes context)
+ *   tier_2_decompose enumerate all visible UI controls, filter by description
+ *
+ * Raises VisionRefusedError only if every tier refuses. Returns null
+ * if every tier answered but produced no parseable coordinates.
  */
 export async function findClickTarget(
   page: ScreenshottablePage,
   description: string,
 ): Promise<{ x: number; y: number } | null> {
-  const answer = await askPage(
-    page,
-    `Find the element that matches: "${description}". Return its center coordinates as JSON: {"x": <number>, "y": <number>}. If you cannot find it, reply with null.`,
-  );
+  const full = await takeScreenshot(page);
+  if (!full) return null;
 
+  const bareQ = (
+    `I need to click: ${description}. `
+    + 'Return the x,y pixel coordinates of where to click as JSON: '
+    + '{"x": <number>, "y": <number>}. Only the JSON, nothing else.'
+  );
+  const refusals: Array<[string, string]> = [];
+
+  // Tier 0 — bare question on full screenshot
   try {
-    const match = answer.match(/\{[\s\S]*?"x"\s*:\s*\d[\s\S]*?"y"\s*:\s*\d[\s\S]*?\}/);
-    if (match) {
-      const coords = JSON.parse(match[0]);
-      if (typeof coords.x === 'number' && typeof coords.y === 'number') {
-        return { x: coords.x, y: coords.y };
-      }
-    }
-  } catch {
-    // parse failure — element not found
+    const ans = await askPage(page, bareQ, full, 'tier_0_bare');
+    const result = parseXY(ans);
+    if (result) return result;
+  } catch (e) {
+    if (e instanceof VisionRefusedError) {
+      console.log('  [vision] tier_0_bare refused, escalating');
+      refusals.push(['tier_0_bare', String(e).slice(0, 300)]);
+    } else throw e;
   }
 
+  // Tier 1 — centre crop
+  const { cropped, offsetX, offsetY } = await centerCrop(full);
+  if (cropped) {
+    try {
+      const ans = await askPage(page, bareQ, cropped, 'tier_1_crop');
+      const result = parseXY(ans);
+      if (result) return { x: result.x + offsetX, y: result.y + offsetY };
+    } catch (e) {
+      if (e instanceof VisionRefusedError) {
+        console.log('  [vision] tier_1_crop refused, escalating');
+        refusals.push(['tier_1_crop', String(e).slice(0, 300)]);
+      } else throw e;
+    }
+  } else {
+    console.log('  [vision] tier_1_crop unavailable (no sharp); skipping');
+  }
+
+  // Tier 2 — decompose all UI controls
+  const decompQ = (
+    'List every interactive UI control visible in this image. '
+    + 'Return ONLY a JSON array, no prose, where each element has '
+    + '"label" (visible text or description), "x" (centre x in pixels), '
+    + '"y" (centre y in pixels). Example: '
+    + '[{"label": "Submit button", "x": 400, "y": 300}]'
+  );
+  try {
+    const ans = await askPage(page, decompQ, full, 'tier_2_decompose');
+    const elements = parseElements(ans);
+    const match = filterElements(elements, description);
+    if (match) return match;
+  } catch (e) {
+    if (e instanceof VisionRefusedError) {
+      console.log('  [vision] tier_2_decompose refused');
+      refusals.push(['tier_2_decompose', String(e).slice(0, 300)]);
+    } else throw e;
+  }
+
+  if (refusals.length === 3) {
+    throw new VisionRefusedError(description, `All 3 vision tiers refused: ${JSON.stringify(refusals)}`);
+  }
   return null;
 }

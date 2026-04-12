@@ -1,7 +1,7 @@
 import { checkPage, findClickTarget, type ScreenshottablePage } from '../vision/analyze.js';
 
 export interface CloudflareOptions {
-  /** Maximum time (ms) to wait for the challenge to clear. Default 30 000. */
+  /** Maximum time (ms) to wait for the challenge to clear. Default 72 000. */
   timeout?: number;
 }
 
@@ -35,7 +35,7 @@ export async function waitCloudflare(
   page: CFPage,
   options?: CloudflareOptions,
 ): Promise<boolean> {
-  const timeout = options?.timeout ?? 30_000;
+  const timeout = options?.timeout ?? 72_000;
 
   // Step 1 — detect CF challenge
   const challenged = await isChallenged(page);

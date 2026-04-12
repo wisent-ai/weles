@@ -168,6 +168,52 @@ export function toConfig(
   };
 }
 
+/**
+ * Convert a FingerprintConfig to the C++ config format for the custom Chromium
+ * binary's --weles-fingerprint=<json> flag. Includes client hints with
+ * "Google Chrome" brand for passing Google SSO.
+ */
+export function toCppConfig(config: FingerprintConfig, targetOs = 'macos'): Record<string, any> {
+  const nav = config.navigator;
+  const scr = config.screen;
+  const webgl = config.webgl;
+  let ua = nav.userAgent ?? '';
+  const realVersion = detectChromiumVersion();
+  if (ua && realVersion) ua = ua.replace(/Chrome\/\d+\.\d+\.\d+\.\d+/, `Chrome/${realVersion}`);
+  const languages = [...(nav.languages ?? ['en-US'])];
+  if (languages.length > 0) {
+    const base = languages[0].split('-')[0];
+    if (base && base !== languages[0] && !languages.includes(base)) languages.push(base);
+  }
+  const fullVersion = realVersion ?? CHROME_STABLE_VERSION;
+  const major = fullVersion.split('.')[0];
+  const platformMap: Record<string, [string, string]> = {
+    macos: ['macOS', '10.15.7'], windows: ['Windows', '15.0.0'], linux: ['Linux', '6.5.0'],
+  };
+  const [chPlatform, chPlatformVersion] = platformMap[targetOs] ?? platformMap.macos;
+  return {
+    navigator: { userAgent: ua, platform: nav.platform, vendor: nav.vendor ?? 'Google Inc.', productSub: nav.productSub ?? '20030107', language: nav.language ?? 'en-US', languages, hardwareConcurrency: nav.hardwareConcurrency, deviceMemory: nav.deviceMemory, doNotTrack: nav.doNotTrack ?? 'unspecified' },
+    screen: { width: scr.width, height: scr.height, availWidth: scr.availWidth, availHeight: scr.availHeight, colorDepth: scr.colorDepth },
+    webgl: { unmaskedVendor: webgl.unmaskedVendor, unmaskedRenderer: webgl.unmaskedRenderer },
+    canvas: config.canvas, audio: config.audio,
+    clientHints: { platform: chPlatform, platformVersion: chPlatformVersion, architecture: 'x86', bitness: '64', model: '', mobile: false, wow64: false, fullVersion,
+      brandList: [{ brand: 'Not.A/Brand', version: '8' }, { brand: 'Chromium', version: major }, { brand: 'Google Chrome', version: major }],
+      brandFullVersionList: [{ brand: 'Not.A/Brand', version: '8.0.0.0' }, { brand: 'Chromium', version: fullVersion }, { brand: 'Google Chrome', version: fullVersion }],
+    },
+  };
+}
+
+function detectChromiumVersion(): string | null {
+  const chromiumPath = process.env.CHROMIUM_PATH;
+  if (!chromiumPath) return null;
+  try {
+    const { execSync: exec } = require('node:child_process');
+    const out = exec(`${JSON.stringify(chromiumPath)} --version`, { encoding: 'utf-8' });
+    const match = (out as string).match(/(\d+\.\d+\.\d+\.\d+)/);
+    return match ? match[1] : null;
+  } catch { return null; }
+}
+
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
@@ -177,11 +223,15 @@ export function toConfig(
  * If Chrome/ major version is < 130, substitute a known-good template.
  */
 function ensureModernChromeUA(ua: string, targetOs: string): string {
+  const realVersion = detectChromiumVersion();
+  const version = realVersion ?? CHROME_STABLE_VERSION;
   const match = ua.match(/Chrome\/(\d+)/);
   if (match) {
     const major = parseInt(match[1], 10);
-    if (major >= 130) return ua;
+    if (major >= 130) {
+      return realVersion ? ua.replace(/Chrome\/\d+\.\d+\.\d+\.\d+/, `Chrome/${realVersion}`) : ua;
+    }
   }
   const template = UA_TEMPLATES[targetOs] ?? UA_TEMPLATES.macos;
-  return template.replace('{version}', CHROME_STABLE_VERSION);
+  return template.replace('{version}', version);
 }

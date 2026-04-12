@@ -94,17 +94,18 @@ export class CDPLocator {
     }, sessionId);
   }
 
-  /** Focus the element, clear its value, and set a new one. */
+  /** Focus the element, clear its value, and set a new one (React-compatible). */
   async fill(value: string): Promise<void> {
     const resolve = resolveElementJS(this._selector, this._index);
-    await this._frame.evaluate(`(() => {
+    await this._frame.evaluate(`((v) => {
       ${resolve}
       if (!el) throw new Error('Element not found');
       el.focus();
-      el.value = ${JSON.stringify(value)};
+      var setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+      setter.call(el, v);
       el.dispatchEvent(new Event('input', { bubbles: true }));
       el.dispatchEvent(new Event('change', { bubbles: true }));
-    })()`);
+    })`, value);
   }
 
   /** Focus the element and type each character via Input.dispatchKeyEvent. */
@@ -182,6 +183,27 @@ export class CDPLocator {
       var r = el.getBoundingClientRect();
       return { x: r.x, y: r.y, width: r.width, height: r.height };
     })()`);
+  }
+
+  /** Return the element's textContent. */
+  async textContent(): Promise<string | null> {
+    const resolve = resolveElementJS(this._selector, this._index);
+    return this._frame.evaluate(`(() => {
+      ${resolve}
+      return el ? el.textContent : null;
+    })()`);
+  }
+
+  /** Return the number of matching elements. */
+  async count(): Promise<number> {
+    if (this._selector.startsWith('xpath=')) {
+      const xpath = this._selector.slice('xpath='.length);
+      return this._frame.evaluate(`(() => {
+        var r = document.evaluate(${JSON.stringify(xpath)}, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
+        return r.snapshotLength;
+      })()`);
+    }
+    return this._frame.evaluate(`document.querySelectorAll(${JSON.stringify(this._selector)}).length`);
   }
 
   // -- Private helpers -----------------------------------------------------

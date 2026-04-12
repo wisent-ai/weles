@@ -1,5 +1,33 @@
 import { CDPConnection } from './connection.js';
 
+function _instantMode(): boolean {
+  return process.env.WELES_INSTANT_INPUT === '1';
+}
+
+function _bezierPath(
+  start: [number, number],
+  end: [number, number],
+  steps?: number,
+): Array<[number, number]> {
+  const [x0, y0] = start;
+  const [x3, y3] = end;
+  const dist = Math.hypot(x3 - x0, y3 - y0);
+  const n = steps ?? Math.max(15, Math.min(60, Math.floor(dist / 8)));
+  const cx1 = x0 + (x3 - x0) * (0.1 + Math.random() * 0.3) + (Math.random() * 60 - 30);
+  const cy1 = y0 + (y3 - y0) * (0.1 + Math.random() * 0.3) + (Math.random() * 60 - 30);
+  const cx2 = x0 + (x3 - x0) * (0.6 + Math.random() * 0.3) + (Math.random() * 60 - 30);
+  const cy2 = y0 + (y3 - y0) * (0.6 + Math.random() * 0.3) + (Math.random() * 60 - 30);
+  const points: Array<[number, number]> = [];
+  for (let i = 0; i <= n; i++) {
+    const t = i / n;
+    const u = 1 - t;
+    const x = u ** 3 * x0 + 3 * u ** 2 * t * cx1 + 3 * u * t ** 2 * cx2 + t ** 3 * x3;
+    const y = u ** 3 * y0 + 3 * u ** 2 * t * cy1 + 3 * u * t ** 2 * cy2 + t ** 3 * y3;
+    points.push([x, y]);
+  }
+  return points;
+}
+
 const KEY_DEFS: Record<string, [number, string, string]> = {
   Enter:      [13,  'Enter',       'Enter'],
   Tab:        [9,   'Tab',         'Tab'],
@@ -65,41 +93,72 @@ export class CDPMouse {
     this._sessionId = sessionId;
   }
 
-  async move(x: number, y: number, options?: { steps?: number }): Promise<void> {
-    const steps = options?.steps ?? 1;
-    const startX = this._x;
-    const startY = this._y;
-    for (let i = 1; i <= steps; i++) {
-      const ix = startX + (x - startX) * (i / steps);
-      const iy = startY + (y - startY) * (i / steps);
+  async move(x: number, y: number, options?: { steps?: number; instant?: boolean }): Promise<void> {
+    const instant = options?.instant ?? _instantMode();
+    if (instant) {
       await this._conn.send('Input.dispatchMouseEvent', {
-        type: 'mouseMoved',
-        x: ix,
-        y: iy,
+        type: 'mouseMoved', x, y,
       }, this._sessionId);
+      this._x = x;
+      this._y = y;
+      return;
+    }
+    const path = _bezierPath([this._x, this._y], [x, y], options?.steps);
+    for (const [ix, iy] of path) {
+      await this._conn.send('Input.dispatchMouseEvent', {
+        type: 'mouseMoved', x: ix, y: iy,
+      }, this._sessionId);
+      await delay(5 + Math.random() * 10);
     }
     this._x = x;
     this._y = y;
   }
 
-  async click(x: number, y: number, options?: { button?: string; clickCount?: number; delay?: number }): Promise<void> {
+  async click(x: number, y: number, options?: { button?: string; clickCount?: number; delay?: number; instant?: boolean }): Promise<void> {
     const button = options?.button ?? 'left';
     const clickCount = options?.clickCount ?? 1;
-    await this.move(x, y);
+    const instant = options?.instant ?? _instantMode();
+    // Jitter for human-like targeting
+    const jx = x + (Math.random() * 3 - 1.5);
+    const jy = y + (Math.random() * 3 - 1.5);
+    await this.move(jx, jy, { instant });
+    // Hover delay before pressing
+    if (!instant) await delay(100 + Math.random() * 200);
+    await this.down({ button, clickCount });
+    const pressDelay = options?.delay != null
+      ? options.delay
+      : (instant ? 0 : 50 + Math.random() * 100);
+    if (pressDelay > 0) await delay(pressDelay);
+    await this.up({ button, clickCount });
+  }
+
+  async down(options?: { button?: string; clickCount?: number }): Promise<void> {
     await this._conn.send('Input.dispatchMouseEvent', {
       type: 'mousePressed',
-      button,
+      button: options?.button ?? 'left',
       x: this._x,
       y: this._y,
-      clickCount,
+      clickCount: options?.clickCount ?? 1,
     }, this._sessionId);
-    if (options?.delay && options.delay > 0) await delay(options.delay);
+  }
+
+  async up(options?: { button?: string; clickCount?: number }): Promise<void> {
     await this._conn.send('Input.dispatchMouseEvent', {
       type: 'mouseReleased',
-      button,
+      button: options?.button ?? 'left',
       x: this._x,
       y: this._y,
-      clickCount,
+      clickCount: options?.clickCount ?? 1,
+    }, this._sessionId);
+  }
+
+  async wheel(deltaX = 0, deltaY = 0): Promise<void> {
+    await this._conn.send('Input.dispatchMouseEvent', {
+      type: 'mouseWheel',
+      x: this._x,
+      y: this._y,
+      deltaX,
+      deltaY,
     }, this._sessionId);
   }
 
@@ -151,21 +210,38 @@ export class CDPKeyboard {
     }, this._sessionId);
   }
 
-  async press(key: string, options?: { delay?: number }): Promise<void> {
+  async press(key: string, options?: { delay?: number; instant?: boolean }): Promise<void> {
+    const instant = options?.instant ?? _instantMode();
     await this.down(key);
-    if (options?.delay && options.delay > 0) await delay(options.delay);
+    const hold = options?.delay != null
+      ? options.delay
+      : (instant ? 0 : 40 + Math.random() * 80);
+    if (hold > 0) await delay(hold);
     await this.up(key);
   }
 
-  async type(text: string, options?: { delay?: number }): Promise<void> {
-    const d = options?.delay ?? 0;
+  async type(text: string, options?: { delay?: number; instant?: boolean }): Promise<void> {
+    const instant = options?.instant ?? _instantMode();
     for (const char of text) {
       if (char in KEY_DEFS) {
-        await this.press(char, { delay: d });
+        await this.press(char, { instant });
       } else {
-        await this._conn.send('Input.insertText', { text: char }, this._sessionId);
+        await this.insertText(char);
       }
-      if (d > 0) await delay(d);
+      if (instant) continue;
+      let gap: number;
+      if (options?.delay != null) {
+        gap = options.delay;
+      } else {
+        gap = 80 + Math.random() * 100; // 80-180ms baseline
+        if ('.;,!? '.includes(char)) gap += 50 + Math.random() * 150;
+        if (Math.random() < 0.04) gap += 200 + Math.random() * 400; // thinking pause
+      }
+      if (gap > 0) await delay(gap);
     }
+  }
+
+  async insertText(text: string): Promise<void> {
+    await this._conn.send('Input.insertText', { text }, this._sessionId);
   }
 }

@@ -105,12 +105,26 @@ export class CDPBrowserContext {
   }
 
   async addCookies(cookies: Array<Record<string, unknown>>): Promise<void> {
-    await this._connection.send('Network.setCookies', { cookies });
+    for (const cookie of cookies) {
+      const c = { ...cookie };
+      if (!c.url && c.domain) {
+        const scheme = c.secure ? 'https' : 'http';
+        const domain = String(c.domain).replace(/^\./, '');
+        c.url = `${scheme}://${domain}${c.path ?? '/'}`;
+      }
+      await this._connection.send('Network.setCookie', c);
+    }
   }
 
-  async cookies(): Promise<Array<Record<string, unknown>>> {
-    const { cookies } = await this._connection.send('Network.getCookies', {});
+  async cookies(urls?: string[]): Promise<Array<Record<string, unknown>>> {
+    const params: Record<string, any> = {};
+    if (urls) params.urls = urls;
+    const { cookies } = await this._connection.send('Network.getCookies', params);
     return cookies;
+  }
+
+  async clearCookies(): Promise<void> {
+    await this._connection.send('Network.clearBrowserCookies', {});
   }
 
   async close(): Promise<void> {
