@@ -17,7 +17,7 @@ export class CDPConnection {
 
   async connect(wsUrl: string): Promise<void> {
     return new Promise((resolve, reject) => {
-      const ws = new WebSocket(wsUrl);
+      const ws = new WebSocket(wsUrl, { maxPayload: 64 * 1024 * 1024 });
 
       ws.on('open', () => {
         this._ws = ws;

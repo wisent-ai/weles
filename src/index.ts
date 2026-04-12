@@ -8,9 +8,10 @@ export { setUserAgent, setViewport } from './cdp/emulation.js';
 export { CDPLocator } from './cdp/dom/locator.js';
 export { CDPBrowserContext } from './browser/context.js';
 export { CDPWeles, cdpNewBrowser } from './browser/api.js';
-export { generate, toConfig } from './fingerprint.js';
+export { generate, toConfig, toCppConfig } from './fingerprint.js';
 export { buildInitScript } from './scripts/loader.js';
-export { askPage, checkPage, identifyPage, findClickTarget } from './vision/analyze.js';
+export { askPage, checkPage, identifyPage, findClickTarget, VisionRefusedError } from './vision/analyze.js';
+export { pruneRecordings } from './prune.js';
 export { waitCloudflare, bypassCloudflare, isChallenged } from './cloudflare/challenge.js';
 export { Capture } from './capture/capture.js';
 export { SessionStore } from './session/store.js';
@@ -18,3 +19,5 @@ export { ProxyPool, proxyUrl, toPlaywright, parseProxyUrl } from './proxy/config
 export type { ProxyConfig } from './proxy/config.js';
 export { humanMove, humanClick } from './human/mouse.js';
 export { humanType } from './human/keyboard.js';
+export { runTask, Trajectory, REGISTRY, execute, AgentFailure, dispatch, TOOLS } from './agent/index.js';
+export type { ToolCall, LoopResult } from './agent/index.js';
