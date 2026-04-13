@@ -16,6 +16,7 @@ export interface LaunchOptions {
 export interface LaunchResult {
   process: ChildProcess;
   wsUrl: string;
+  proxyAuth?: { username: string; password: string };
 }
 
 const chromiumDefaults = {
@@ -97,8 +98,19 @@ export async function launchChromium(options: LaunchOptions = {}): Promise<Launc
 
   launchArgs.push(`--user-data-dir=${userDataDir}`);
 
+  let proxyAuth: { username: string; password: string } | undefined;
   if (options.proxyServer) {
-    launchArgs.push(`--proxy-server=${options.proxyServer}`);
+    try {
+      const pu = new URL(options.proxyServer);
+      if (pu.username) {
+        proxyAuth = { username: decodeURIComponent(pu.username), password: decodeURIComponent(pu.password) };
+        launchArgs.push(`--proxy-server=${pu.protocol}//${pu.host}`);
+      } else {
+        launchArgs.push(`--proxy-server=${options.proxyServer}`);
+      }
+    } catch {
+      launchArgs.push(`--proxy-server=${options.proxyServer}`);
+    }
   }
 
   if (options.args) {
@@ -147,5 +159,5 @@ export async function launchChromium(options: LaunchOptions = {}): Promise<Launc
     });
   });
 
-  return { process: child, wsUrl };
+  return { process: child, wsUrl, proxyAuth };
 }

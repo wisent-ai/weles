@@ -5,16 +5,21 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc",
-    "dev": "tsc --watch"
+    "dev": "tsc --watch",
+    "test": "vitest run --exclude tests/trajectories.test.ts",
+    "test:watch": "vitest --exclude tests/trajectories.test.ts",
+    "test:trajectories": "vitest run tests/trajectories.test.ts",
+    "test:all": "vitest run"
   },
   "dependencies": {
-    "ws": "^8.18.0",
     "fingerprint-generator": "^2.1.0",
-    "header-generator": "^2.1.0"
+    "header-generator": "^2.1.0",
+    "ws": "^8.18.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
     "@types/ws": "^8.5.0",
-    "typescript": "^5.7.0"
+    "typescript": "^5.7.0",
+    "vitest": "^4.1.4"
   }
 }

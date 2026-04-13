@@ -62,18 +62,19 @@ interface TaskConfig {
   navUrl?: string;
   captchaSitekey?: string;
   requiresTarget?: boolean;
+  noProxy?: boolean;
 }
 
 export const REGISTRY: Record<string, TaskConfig> = {
   // Service dashboards
-  'oxylabs_balance': { url: 'https://dashboard.oxylabs.io', navUrl: 'https://dashboard.oxylabs.io/en/overview/MP/statistics', what: 'the traffic usage shown as X GB / Y GB', loginMethod: 'google_sso' },
-  'brightdata_balance': { url: 'https://brightdata.com/cp', what: 'the current account credit balance in USD', loginMethod: 'google_sso' },
-  'capmonster_cloud_balance': { url: 'https://dash.capmonster.cloud', what: 'the current account balance in USD', loginMethod: 'google_sso' },
-  'anticaptcha_balance': { url: 'https://anti-captcha.com/clients', what: 'the current account balance in USD', loginMethod: 'google_sso' },
-  'packetstream_balance': { url: 'https://app.packetstream.io', what: 'the current account balance in USD', loginMethod: 'email_password' },
-  'capsolver_balance': { url: 'https://dashboard.capsolver.com', what: 'the current account balance in USD', loginMethod: 'email_password' },
-  'twocaptcha_balance': { url: 'https://2captcha.com', what: 'the current account balance in USD', loginMethod: 'email_password' },
-  'pingproxies_balance': { url: 'https://dashboard.pingproxies.com', what: 'the current account balance or remaining traffic', loginMethod: 'email_password' },
+  'oxylabs_balance': { url: 'https://dashboard.oxylabs.io', navUrl: 'https://dashboard.oxylabs.io/en/overview/MP/statistics', what: 'the traffic usage shown as X GB / Y GB', loginMethod: 'google_sso', noProxy: true },
+  'brightdata_balance': { url: 'https://brightdata.com/cp', what: 'the current account credit balance in USD', loginMethod: 'google_sso', noProxy: true },
+  'capmonster_cloud_balance': { url: 'https://dash.capmonster.cloud', what: 'the current account balance in USD', loginMethod: 'google_sso', noProxy: true },
+  'anticaptcha_balance': { url: 'https://anti-captcha.com/clients', what: 'the current account balance in USD', loginMethod: 'google_sso', noProxy: true },
+  'packetstream_balance': { url: 'https://app.packetstream.io', what: 'the current account balance in USD', loginMethod: 'email_password', noProxy: true },
+  'capsolver_balance': { url: 'https://dashboard.capsolver.com', what: 'the current account balance in USD', loginMethod: 'email_password', noProxy: true },
+  'twocaptcha_balance': { url: 'https://2captcha.com', what: 'the current account balance in USD', loginMethod: 'email_password', noProxy: true },
+  'pingproxies_balance': { url: 'https://dashboard.pingproxies.com', what: 'the current account balance or remaining traffic', loginMethod: 'email_password', noProxy: true },
   // Registration
   'reddit_register': { url: 'https://www.reddit.com/register', what: 'the newly created username', loginMethod: 'none', captchaSitekey: '6LfirrMoAAAAAHZOipvza4kpp_VtTwLNuXVwURNQ' },
   'instagram_register': { url: 'https://www.instagram.com/accounts/emailsignup/', what: 'the newly created username', loginMethod: 'none' },
@@ -106,7 +107,7 @@ export const REGISTRY: Record<string, TaskConfig> = {
 // Goal builder
 // ---------------------------------------------------------------------------
 
-function buildGoal(config: TaskConfig, usernameEnv: string, passwordEnv: string): string {
+function buildGoal(config: TaskConfig, usernameEnv: string, passwordEnv: string, target?: string): string {
   const nav = config.navUrl ? ` After login, navigate() to ${config.navUrl}.` : '';
   if (config.loginMethod === 'none') {
     const [service] = Object.entries(REGISTRY).find(([, v]) => v === config) ?? ['unknown'];
@@ -115,7 +116,8 @@ function buildGoal(config: TaskConfig, usernameEnv: string, passwordEnv: string)
     return `Open ${config.url}. Create account: generate_identity(platform='${service.split('_')[0]}').${cap} focus(selector='email'), type_text(value=$${platform}_NEW_EMAIL). check_email for verification codes. done(value=username) when complete.`;
   }
   const sso = config.loginMethod === 'google_sso' ? " Use 'Sign in with Google'." : '';
-  return `Open ${config.url}. Log in: $${usernameEnv} / $${passwordEnv}.${sso}${nav} Read ${config.what}. done() with value.`;
+  const tgt = target ? ` Target: ${target}.` : '';
+  return `Open ${config.url}. Log in: $${usernameEnv} / $${passwordEnv}.${sso}${nav}${tgt} Read ${config.what}. done() with value.`;
 }
 
 // ---------------------------------------------------------------------------
@@ -154,9 +156,10 @@ async function loadCredentials(service: string, usernameEnv: string, passwordEnv
 // Task runner
 // ---------------------------------------------------------------------------
 
-export async function runTask(key: string): Promise<any> {
+export async function runTask(key: string, target?: string): Promise<any> {
   const config = REGISTRY[key];
   if (!config) throw new Error(`Unknown task: ${key}. Available: ${Object.keys(REGISTRY).join(', ')}`);
+  if (config.requiresTarget && !target) throw new Error(`Task ${key} requires a target`);
 
   const service = key.split('_')[0];
   const usernameEnv = `${service.toUpperCase()}_EMAIL`;
@@ -164,7 +167,7 @@ export async function runTask(key: string): Promise<any> {
 
   await loadCredentials(service, usernameEnv, passwordEnv);
 
-  const goal = buildGoal(config, usernameEnv, passwordEnv);
+  const goal = buildGoal(config, usernameEnv, passwordEnv, target);
   const traj = Trajectory.load(key);
   const replay = traj?.toolCalls as ToolCall[] | undefined;
   const sessions = new SessionStore();
@@ -180,21 +183,31 @@ export async function runTask(key: string): Promise<any> {
     if (u && p) { proxy = (fmt as any)(u, p); break; }
   }
 
+  const useProxy = config.noProxy ? undefined : proxy;
+  console.log(`[task] ${key}: launching browser (proxy=${useProxy ? 'yes' : 'none'})...`);
   const weles = await CDPWeles.launch({
     headless: false,
     recordVideo: true,
     chromiumPath: process.env.CHROMIUM_PATH,
-    proxy,
+    proxy: useProxy,
   });
+  console.log(`[task] ${key}: browser launched`);
 
   try {
     const ctx = weles.context;
     const page = await ctx.newPage();
+    console.log(`[task] ${key}: page created`);
 
     // Inject saved cookies
     await sessions.inject(ctx as any, key);
 
-    await page.goto(config.url, { waitUntil: 'domcontentloaded' });
+    console.log(`[task] ${key}: navigating to ${config.url}`);
+    try {
+      await page.goto(config.url, { waitUntil: 'domcontentloaded' });
+    } catch (navErr: any) {
+      console.log(`[task] ${key}: initial navigation error (continuing): ${navErr.message}`);
+    }
+    console.log(`[task] ${key}: navigated, url=${page.url}`);
 
     const result = await execute(page, goal, {
       envHints: { username_env: usernameEnv, password_env: passwordEnv },
@@ -208,9 +221,10 @@ export async function runTask(key: string): Promise<any> {
     await sessions.capture(ctx as any, key);
 
     return result.value;
-  } catch (e) {
+  } catch (e: any) {
+    console.log(`[task] ${key}: error: ${e.message}`);
+    if (e.stack) console.log(e.stack.split('\n').slice(0, 5).join('\n'));
     if (e instanceof AgentFailure) {
-      console.log(`[task] ${key}: agent failure: ${e.message}`);
       Trajectory.invalidate(key);
     }
     return null;

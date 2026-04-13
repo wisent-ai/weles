@@ -12,12 +12,14 @@ export interface EmulationSettings {
 
 export interface BrowserContextOptions {
   recordVideo?: boolean;
+  proxyAuth?: { username: string; password: string };
 }
 
 export class CDPBrowserContext {
   private _connection: CDPConnection;
   private _browserContextId: string;
   private _recordVideo: boolean;
+  private _proxyAuth?: { username: string; password: string };
   private _pages: CDPPage[] = [];
   private _initScripts: string[] = [];
   _emulation: EmulationSettings = {
@@ -37,6 +39,7 @@ export class CDPBrowserContext {
     this._connection = connection;
     this._browserContextId = browserContextId;
     this._recordVideo = options?.recordVideo ?? false;
+    this._proxyAuth = options?.proxyAuth;
   }
 
   setEmulation(options: Partial<EmulationSettings>): void {
@@ -64,6 +67,8 @@ export class CDPBrowserContext {
       targetId,
       flatten: true,
     });
+
+    // Proxy auth: handled at browser context creation level
 
     // Create the CDPPage and initialise it
     const page = new CDPPage(this._connection, targetId, sessionId, this);

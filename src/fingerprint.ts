@@ -206,9 +206,20 @@ export function toCppConfig(config: FingerprintConfig, targetOs = 'macos'): Reco
 function detectChromiumVersion(): string | null {
   const chromiumPath = process.env.CHROMIUM_PATH;
   if (!chromiumPath) return null;
+  // Read version from Info.plist for macOS .app bundles (--version hangs)
+  if (chromiumPath.includes('.app/')) {
+    try {
+      const { readFileSync } = require('node:fs');
+      const plistDir = chromiumPath.replace(/\/Contents\/MacOS\/.*$/, '/Contents/Info.plist');
+      const plist = readFileSync(plistDir, 'utf-8');
+      const match = plist.match(/<key>CFBundleShortVersionString<\/key>\s*<string>(\d+\.\d+\.\d+\.\d+)<\/string>/);
+      return match ? match[1] : null;
+    } catch { return null; }
+  }
+  // Linux/other: safe to call --version since the process exits normally
   try {
     const { execSync: exec } = require('node:child_process');
-    const out = exec(`${JSON.stringify(chromiumPath)} --version`, { encoding: 'utf-8' });
+    const out = exec(`${JSON.stringify(chromiumPath)} --version 2>&1 || true`, { encoding: 'utf-8' });
     const match = (out as string).match(/(\d+\.\d+\.\d+\.\d+)/);
     return match ? match[1] : null;
   } catch { return null; }
