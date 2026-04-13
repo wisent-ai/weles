@@ -1,0 +1,42 @@
+// Shared TRAJECTORIES config — imported by individual test files and run_all.mjs
+
+const SSO = `Click "Sign in with Google". On Google page, fill email with $SVC_EMAIL, click Next. Fill password with $SVC_PASSWORD, click Next. If passkey prompt, click "Try another way" then "Enter your password". Wait 5 seconds after login.`;
+const LOGIN = `Fill username/email with $SVC_EMAIL and password with $SVC_PASSWORD. Click Log In or Sign In. Wait for redirect.`;
+const REG_DISCORD = `generate_identity(platform="discord"). Fill Email with $DISCORD_NEW_EMAIL. Fill "Display Name" with $DISCORD_NEW_USERNAME. Fill Username with $DISCORD_NEW_USERNAME. Fill Password with $DISCORD_NEW_PASSWORD. For Date of Birth use select_option(target="month",value="January"), select_option(target="day",value="1"), select_option(target="year",value="1995"). Click "Create Account". If captcha, solve_captcha(sitekey="auto"). If email verification, check_email(email=$DISCORD_NEW_EMAIL,sender="discord"). done(value=$DISCORD_NEW_USERNAME).`;
+const REG_REDDIT = `generate_identity(platform="reddit"). Fill email with $REDDIT_NEW_EMAIL. Click Continue. If captcha, solve_captcha(sitekey="6LfirrMoAAAAAHZOipvza4kpp_VtTwLNuXVwURNQ"). check_email(email=$REDDIT_NEW_EMAIL,sender="reddit") for code. Fill code. Set username $REDDIT_NEW_USERNAME and password $REDDIT_NEW_PASSWORD. After registration if onboarding questions appear, immediately done(value=$REDDIT_NEW_USERNAME).`;
+const REG_TWITTER = `generate_identity(platform="twitter"). Fill name with "Wisent User". Click Next. Fill email with $TWITTER_NEW_EMAIL. Click Next. For birthdate use select_option. Click Next. check_email(email=$TWITTER_NEW_EMAIL,sender="x.com") for code. Fill code. Set password $TWITTER_NEW_PASSWORD. done(value=$TWITTER_NEW_USERNAME).`;
+const REG_TIKTOK = `generate_identity(platform="tiktok"). Click "Use phone or email". Click "Sign up with email". For birthday use select_option(target="month",value="January"), select_option(target="day",value="1"), select_option(target="year",value="1995"). Fill email with $TIKTOK_NEW_EMAIL. Fill password with $TIKTOK_NEW_PASSWORD. Click "Send code". check_email(email=$TIKTOK_NEW_EMAIL,sender="tiktok") for code. Fill code. Click Next. done(value=$TIKTOK_NEW_USERNAME).`;
+const REG_INSTAGRAM = `generate_identity(platform="instagram"). Fill "Mobile Number or Email" with $INSTAGRAM_NEW_EMAIL. Fill "Full Name" with "Wisent User". Fill Username with $INSTAGRAM_NEW_USERNAME. Fill Password with $INSTAGRAM_NEW_PASSWORD. Click "Sign up". If birthday, select January 1 1995. done(value=$INSTAGRAM_NEW_USERNAME).`;
+
+export const TRAJECTORIES = [
+  { name: 'reddit_register', url: 'https://www.reddit.com/register', goal: REG_REDDIT },
+  { name: 'discord_register', url: 'https://discord.com/register', goal: REG_DISCORD, waitLoad: true },
+  { name: 'twitter_register', url: 'https://x.com/i/flow/signup', goal: REG_TWITTER },
+  { name: 'tiktok_register', url: 'https://www.tiktok.com/signup', goal: REG_TIKTOK },
+  { name: 'instagram_register', url: 'https://www.instagram.com/accounts/emailsignup/', goal: REG_INSTAGRAM },
+  { name: 'reddit_login', url: 'https://www.reddit.com/login', goal: `${LOGIN} done(value="logged in as "+read("what is my username")).`, emailEnv: 'REDDIT_EMAIL', passEnv: 'REDDIT_PASSWORD' },
+  { name: 'discord_login', url: 'https://discord.com/login', goal: `${LOGIN} done(value="logged in").`, emailEnv: 'DISCORD_EMAIL', passEnv: 'DISCORD_PASSWORD', waitLoad: true },
+  { name: 'twitter_login', url: 'https://x.com/login', goal: `${LOGIN} done(value="logged in").`, emailEnv: 'TWITTER_EMAIL', passEnv: 'TWITTER_PASSWORD' },
+  { name: 'instagram_login', url: 'https://www.instagram.com/accounts/login/', goal: `${LOGIN} done(value="logged in").`, emailEnv: 'INSTAGRAM_EMAIL', passEnv: 'INSTAGRAM_PASSWORD' },
+  { name: 'tiktok_login', url: 'https://www.tiktok.com/login', goal: `${LOGIN} done(value="logged in").`, emailEnv: 'TIKTOK_EMAIL', passEnv: 'TIKTOK_PASSWORD' },
+  { name: 'github_login', url: 'https://github.com/login', goal: `${LOGIN} done(value="logged in").`, emailEnv: 'GITHUB_EMAIL', passEnv: 'GITHUB_PASSWORD' },
+  { name: 'linkedin_login', url: 'https://www.linkedin.com/login', goal: `${LOGIN} done(value="logged in").`, emailEnv: 'LINKEDIN_EMAIL', passEnv: 'LINKEDIN_PASSWORD' },
+  { name: 'oxylabs_balance', url: 'https://dashboard.oxylabs.io', goal: `${SSO} Read any traffic or balance data. done(value=<data>). Do NOT navigate().`, emailEnv: 'OXYLABS_EMAIL', passEnv: 'OXYLABS_PASSWORD' },
+  { name: 'brightdata_balance', url: 'https://brightdata.com/cp', goal: `${SSO} Read any balance or credit data. done(value=<data>). Do NOT navigate().`, emailEnv: 'OXYLABS_EMAIL', passEnv: 'OXYLABS_PASSWORD' },
+  { name: 'anticaptcha_balance', url: 'https://anti-captcha.com/clients', goal: `${SSO} Read any balance data. done(value=<data>). Do NOT navigate().`, emailEnv: 'OXYLABS_EMAIL', passEnv: 'OXYLABS_PASSWORD' },
+  { name: 'capmonster_balance', url: 'https://dash.capmonster.cloud', goal: `${SSO} Read any balance data. done(value=<data>). Do NOT navigate().`, emailEnv: 'OXYLABS_EMAIL', passEnv: 'OXYLABS_PASSWORD' },
+  { name: 'packetstream_balance', url: 'https://app.packetstream.io', goal: `${LOGIN} Read any balance or credit data. done(value=<data>).`, emailEnv: 'PACKETSTREAM_EMAIL', passEnv: 'PACKETSTREAM_PASSWORD' },
+  { name: 'reddit_upvote', url: 'https://www.reddit.com/login', goal: `${LOGIN} Then navigate to https://www.reddit.com/r/test/. Find any post and click the upvote button. done(value="upvoted").`, emailEnv: 'REDDIT_EMAIL', passEnv: 'REDDIT_PASSWORD' },
+  { name: 'reddit_comment', url: 'https://www.reddit.com/login', goal: `${LOGIN} Then navigate to https://www.reddit.com/r/test/. Open any post. Write a comment "Hello from weles agent" and submit. done(value="commented").`, emailEnv: 'REDDIT_EMAIL', passEnv: 'REDDIT_PASSWORD' },
+  { name: 'instagram_follow', url: 'https://www.instagram.com/accounts/login/', goal: `${LOGIN} Then navigate to https://www.instagram.com/wisent.ai/. Click "Follow". done(value="followed wisent.ai").`, emailEnv: 'INSTAGRAM_EMAIL', passEnv: 'INSTAGRAM_PASSWORD' },
+  { name: 'instagram_like', url: 'https://www.instagram.com/accounts/login/', goal: `${LOGIN} Then navigate to https://www.instagram.com/wisent.ai/. Find any post and click the heart/like button. done(value="liked").`, emailEnv: 'INSTAGRAM_EMAIL', passEnv: 'INSTAGRAM_PASSWORD' },
+  { name: 'twitter_follow', url: 'https://x.com/login', goal: `${LOGIN} Then navigate to https://x.com/elonmusk. Click "Follow". done(value="followed @elonmusk").`, emailEnv: 'TWITTER_EMAIL', passEnv: 'TWITTER_PASSWORD' },
+  { name: 'twitter_like', url: 'https://x.com/login', goal: `${LOGIN} Then find any tweet and click the heart/like button. done(value="liked").`, emailEnv: 'TWITTER_EMAIL', passEnv: 'TWITTER_PASSWORD' },
+  { name: 'twitter_dm', url: 'https://x.com/login', goal: `${LOGIN} Then navigate to https://x.com/messages. Start a new message to @wisent_ai. Type "Hello from weles agent" and send. done(value="DM sent").`, emailEnv: 'TWITTER_EMAIL', passEnv: 'TWITTER_PASSWORD' },
+  { name: 'tiktok_follow', url: 'https://www.tiktok.com/login', goal: `${LOGIN} Then navigate to https://www.tiktok.com/@tiktok. Click "Follow". done(value="followed @tiktok").`, emailEnv: 'TIKTOK_EMAIL', passEnv: 'TIKTOK_PASSWORD' },
+  { name: 'tiktok_like', url: 'https://www.tiktok.com/login', goal: `${LOGIN} Then find any video and click the heart/like button. done(value="liked").`, emailEnv: 'TIKTOK_EMAIL', passEnv: 'TIKTOK_PASSWORD' },
+  { name: 'github_star', url: 'https://github.com/login', goal: `${LOGIN} Then navigate to https://github.com/anthropics/claude-code. Click "Star". done(value="starred anthropics/claude-code").`, emailEnv: 'GITHUB_EMAIL', passEnv: 'GITHUB_PASSWORD' },
+  { name: 'github_follow', url: 'https://github.com/login', goal: `${LOGIN} Then navigate to https://github.com/lbartoszcze. Click "Follow". done(value="followed lbartoszcze").`, emailEnv: 'GITHUB_EMAIL', passEnv: 'GITHUB_PASSWORD' },
+];
+
+export default { TRAJECTORIES };
