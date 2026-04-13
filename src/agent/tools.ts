@@ -53,6 +53,29 @@ async function fill(page: CDPPage, args: ToolArgs): Promise<string> {
   const coords = await findClickTarget(asVision(page), target);
   if (!coords) return 'no-field-found';
   await page.mouse.click(coords.x, coords.y);
+  await new Promise(r => setTimeout(r, 300));
+  // Check if an input is focused — if not, find nearest input and focus it via JS
+  const hasFocus = await page.evaluate(`(() => {
+    const a = document.activeElement;
+    return a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.isContentEditable);
+  })()`);
+  if (!hasFocus) {
+    // Try to find an input near the click target by text matching
+    const words = target.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+    await page.evaluate(`((words) => {
+      const inputs = document.querySelectorAll('input, textarea');
+      for (const inp of inputs) {
+        const ctx = (inp.placeholder + ' ' + inp.name + ' ' + (inp.labels?.[0]?.textContent ?? '') + ' ' + (inp.getAttribute('aria-label') ?? '')).toLowerCase();
+        if (words.some(w => ctx.includes(w))) { inp.focus(); inp.click(); return; }
+      }
+      if (inputs.length > 0) inputs[0].focus();
+    })`, words);
+    await new Promise(r => setTimeout(r, 200));
+  }
+  // Select all existing content then type new value
+  await page.keyboard.down('Control');
+  await page.keyboard.press('a');
+  await page.keyboard.up('Control');
   await page.keyboard.type(value);
   return `filled ${value.length} chars`;
 }

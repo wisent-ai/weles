@@ -55,58 +55,51 @@ export class CDPBrowserContext {
     this._initScripts.push(script);
   }
 
-  async newPage(): Promise<CDPPage> {
-    // Create a new target within this browser context
-    const { targetId } = await this._connection.send('Target.createTarget', {
-      url: 'about:blank',
-      browserContextId: this._browserContextId,
-    });
-
-    // Attach to the target to get a session
-    const { sessionId } = await this._connection.send('Target.attachToTarget', {
-      targetId,
-      flatten: true,
-    });
-
-    // Proxy auth: handled at browser context creation level
-
-    // Create the CDPPage and initialise it
+  private async _initPage(targetId: string, sessionId: string): Promise<CDPPage> {
     const page = new CDPPage(this._connection, targetId, sessionId, this);
     await page.init();
-
-    // Apply emulation settings
-    await this._connection.send(
-      'Emulation.setUserAgentOverride',
-      {
-        userAgent: this._emulation.userAgent,
-        acceptLanguage: this._emulation.acceptLanguage,
-        platform: this._emulation.platform,
-      },
-      sessionId,
-    );
-
-    await this._connection.send(
-      'Emulation.setDeviceMetricsOverride',
-      {
-        width: this._emulation.viewportWidth,
-        height: this._emulation.viewportHeight,
-        deviceScaleFactor: this._emulation.deviceScaleFactor,
-        mobile: false,
-      },
-      sessionId,
-    );
-
-    // Inject all queued init scripts
+    await this._connection.send('Emulation.setUserAgentOverride', {
+      userAgent: this._emulation.userAgent, acceptLanguage: this._emulation.acceptLanguage, platform: this._emulation.platform,
+    }, sessionId);
+    await this._connection.send('Emulation.setDeviceMetricsOverride', {
+      width: this._emulation.viewportWidth, height: this._emulation.viewportHeight,
+      deviceScaleFactor: this._emulation.deviceScaleFactor, mobile: false,
+    }, sessionId);
     for (const script of this._initScripts) {
-      await this._connection.send(
-        'Page.addScriptToEvaluateOnNewDocument',
-        { source: script },
-        sessionId,
-      );
+      await this._connection.send('Page.addScriptToEvaluateOnNewDocument', { source: script }, sessionId);
     }
-
     this._pages.push(page);
     return page;
+  }
+
+  async newPage(): Promise<CDPPage> {
+    const { targetId } = await this._connection.send('Target.createTarget', {
+      url: 'about:blank', browserContextId: this._browserContextId,
+    });
+    const { sessionId } = await this._connection.send('Target.attachToTarget', { targetId, flatten: true });
+    const page = await this._initPage(targetId, sessionId);
+    // Auto-attach to popups opened from this page
+    await this._connection.send('Target.setAutoAttach', {
+      autoAttach: true, waitForDebuggerOnStart: false, flatten: true,
+    }, sessionId);
+    this._connection.on('Target.attachedToTarget', (params: any) => {
+      const info = params.targetInfo ?? {};
+      if (info.type === 'page' && info.browserContextId === this._browserContextId) {
+        this._initPage(info.targetId, params.sessionId).catch(() => {});
+      }
+    }, sessionId);
+    return page;
+  }
+
+  /** Wait for a popup page to appear (e.g. Google SSO). Returns the newest page. */
+  async waitForPopup(ms = 10000): Promise<CDPPage | null> {
+    const start = Date.now();
+    const initial = this._pages.length;
+    while (Date.now() - start < ms) {
+      if (this._pages.length > initial) return this._pages[this._pages.length - 1];
+      await new Promise(r => setTimeout(r, 200));
+    }
+    return null;
   }
 
   async addCookies(cookies: Array<Record<string, unknown>>): Promise<void> {

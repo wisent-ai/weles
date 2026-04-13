@@ -212,6 +212,7 @@ export async function runTask(key: string, target?: string): Promise<any> {
     const result = await execute(page, goal, {
       envHints: { username_env: usernameEnv, password_env: passwordEnv },
       replay,
+      context: ctx,
     });
 
     // Save trajectory on success
