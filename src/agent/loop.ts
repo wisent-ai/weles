@@ -44,6 +44,7 @@ Tools:
   scroll(direction, amount) Scroll up/down by pixels.
   wait(seconds)            Pause.
   read(question)           Ask a question about the current page.
+  select_option(target, value) Select an option from a dropdown/select by label. Use for date pickers, country selectors, etc.
   solve_captcha(sitekey)   Solve reCAPTCHA on current page via API.
   check_email(email, sender) Poll for verification code sent to email.
   generate_identity(platform) Generate random username/email/password.
@@ -154,10 +155,11 @@ export async function execute(
     } else {
       let screenshot: Buffer;
       try {
-        screenshot = await page.screenshot({ scale: 'css' });
+        screenshot = await page.screenshot({ scale: 'css', animations: 'disabled' });
       } catch {
         page = getActivePage(page);
-        screenshot = await page.screenshot({ scale: 'css' });
+        try { screenshot = await page.screenshot({ scale: 'css', animations: 'disabled' }); }
+        catch { screenshot = Buffer.from(''); }
       }
       const imgPath = join(visionDir(), `loop_step${step}.png`);
       writeFileSync(imgPath, screenshot);
