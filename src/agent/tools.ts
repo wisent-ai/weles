@@ -193,36 +193,25 @@ async function solveCaptcha(page: CDPPage, args: ToolArgs): Promise<string> {
 }
 
 async function checkEmail(page: CDPPage, args: ToolArgs): Promise<string> {
-  const targetEmail = resolveEnv(args.email ?? '');
-  const senderFilter: string = (args.sender ?? '').toLowerCase();
-  const apiKey = process.env.RESEND_RECEIVING_API_KEY ?? '';
-  if (!apiKey) return 'error: RESEND_RECEIVING_API_KEY not set';
-
+  const email = resolveEnv(args.email ?? '').toLowerCase();
+  const sender = (args.sender ?? '').toLowerCase();
+  const key = process.env.RESEND_RECEIVING_API_KEY ?? '';
+  if (!key) return 'error: RESEND_RECEIVING_API_KEY not set';
   try {
-    for (let attempt = 0; attempt < 30; attempt++) {
-      const res = await fetch('https://api.resend.com/emails/receiving?limit=10', {
-        headers: { Authorization: `Bearer ${apiKey}` },
-      });
-      const data = await res.json() as any;
-      for (const em of data.data ?? []) {
-        const toAddrs: string[] = (em.to ?? []).map((t: any) =>
-          typeof t === 'string' ? t : t.email ?? '');
-        if (!toAddrs.some((a: string) => a.toLowerCase() === targetEmail.toLowerCase())) continue;
-        if (senderFilter && !(em.from ?? '').toLowerCase().includes(senderFilter)) continue;
-        const detailRes = await fetch(`https://api.resend.com/emails/receiving/${em.id}`, {
-          headers: { Authorization: `Bearer ${apiKey}` },
-        });
-        const detail = await detailRes.json() as any;
-        const body = `${detail.subject ?? ''} ${detail.text ?? ''} ${detail.html ?? ''}`;
-        const codes = body.match(/\b\d{5,6}\b/g);
+    for (let i = 0; i < 30; i++) {
+      const r = await fetch('https://api.resend.com/emails/receiving?limit=10', { headers: { Authorization: `Bearer ${key}` } });
+      for (const em of ((await r.json()) as any).data ?? []) {
+        const to = (em.to ?? []).map((t: any) => (typeof t === 'string' ? t : t.email ?? '').toLowerCase());
+        if (!to.includes(email)) continue;
+        if (sender && !(em.from ?? '').toLowerCase().includes(sender)) continue;
+        const d = await (await fetch(`https://api.resend.com/emails/receiving/${em.id}`, { headers: { Authorization: `Bearer ${key}` } })).json() as any;
+        const codes = `${d.subject ?? ''} ${d.text ?? ''} ${d.html ?? ''}`.match(/\b\d{5,6}\b/g);
         if (codes) return `code: ${codes[0]}`;
       }
       await new Promise(r => setTimeout(r, 10000));
     }
     return 'no code received';
-  } catch (e: any) {
-    return `error: ${e.message}`;
-  }
+  } catch (e: any) { return `error: ${e.message}`; }
 }
 
 async function generateIdentity(page: CDPPage, args: ToolArgs): Promise<string> {
@@ -247,9 +236,32 @@ async function generateIdentity(page: CDPPage, args: ToolArgs): Promise<string> 
 // Registry
 // ---------------------------------------------------------------------------
 
+async function selectOption(page: CDPPage, args: ToolArgs): Promise<string> {
+  const target: string = args.target ?? '';
+  const value: string = args.value ?? '';
+  const valLow = JSON.stringify(value.toLowerCase());
+  // Native <select>
+  const native = await page.evaluate(`(() => { var v=${valLow};
+    var selects = document.querySelectorAll('select');
+    for (var i=0;i<selects.length;i++) { var s=selects[i];
+      for (var j=0;j<s.options.length;j++) { if (s.options[j].text.toLowerCase().indexOf(v)>=0) { s.selectedIndex=j; s.dispatchEvent(new Event('change',{bubbles:true})); return s.options[j].text; }}}
+    return null; })()`);
+  if (native) return `selected: ${native}`;
+  // Custom div dropdowns (Discord etc.) — click by index: month=0, day=1, year=2
+  const idx: number = ({month:0,day:1,year:2} as Record<string,number>)[target.toLowerCase()] ?? -1;
+  if (idx >= 0) {
+    await page.evaluate(`(() => { var d=document.querySelectorAll('[class*="select"],[class*="Select"],[class*="dropdown"],[class*="Dropdown"]'); if(d[${idx}]) d[${idx}].click(); })()`);
+    await new Promise(r => setTimeout(r, 500));
+    const clicked = await page.evaluate(`(() => { var v=${valLow}; var items=document.querySelectorAll('[role="option"],[class*="option"],[class*="Option"],li');
+      for(var i=0;i<items.length;i++) { if(items[i].textContent.trim().toLowerCase().indexOf(v)>=0) { items[i].click(); return items[i].textContent.trim(); }} return null; })()`);
+    if (clicked) return `selected: ${clicked}`;
+  }
+  return 'no-select-found';
+}
+
 export const TOOLS: Record<string, ToolFn> = {
   click, fill, focus, type_text: typeText, press_key: pressKey,
-  navigate, scroll, wait, read,
+  navigate, scroll, wait, read, select_option: selectOption,
   solve_captcha: solveCaptcha, check_email: checkEmail,
   generate_identity: generateIdentity,
 };
