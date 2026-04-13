@@ -138,6 +138,15 @@ export class FrameTree {
 
 export function wrapExpression(expression: string, arg?: any): string {
   const s = expression.trim();
+  // Already a complete IIFE like (() => {...})() or (function(){...})() — return as-is
+  if (s.startsWith('(') && s.endsWith(')')) {
+    const inner = s.slice(1);
+    let depth = 1;
+    for (let i = 0; i < inner.length; i++) {
+      if (inner[i] === '(') depth++;
+      else if (inner[i] === ')') { depth--; if (depth === 0 && i < inner.length - 1) return s; }
+    }
+  }
   if (s.startsWith('(') || s.startsWith('function') || s.startsWith('async') || s.includes('=>')) {
     const serialized = arg !== undefined ? JSON.stringify(arg) : '';
     return `(${s})(${serialized})`;

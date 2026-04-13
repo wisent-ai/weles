@@ -126,23 +126,51 @@ function buildState(page: CDPPage, history: ToolCall[], envHints: Record<string,
 export async function execute(
   page: CDPPage,
   goal: string,
-  options?: { envHints?: Record<string, string>; replay?: ToolCall[] },
+  options?: { envHints?: Record<string, string>; replay?: ToolCall[]; context?: any },
 ): Promise<LoopResult> {
   const history: ToolCall[] = [];
   const envHints = options?.envHints ?? {};
   let replay = options?.replay ?? null;
+  let activePage = page;
 
   for (let step = 0; step < MAX_ITERATIONS; step++) {
+    // Auto-switch to newest page if a popup appeared (Google SSO, etc.)
+    if (options?.context?.pages) {
+      const pages = options.context.pages as CDPPage[];
+      if (pages.length > 1) {
+        const newest = pages[pages.length - 1];
+        if (newest !== activePage) {
+          console.log(`[loop] popup detected, switching to page ${pages.length} (${newest.url})`);
+          activePage = newest;
+        }
+      } else if (pages.length === 1 && activePage !== pages[0]) {
+        // Popup closed, back to main page
+        console.log(`[loop] popup closed, switching back to main page`);
+        activePage = pages[0];
+      }
+    }
+
     let decision: Record<string, any>;
 
     if (replay && step < replay.length && !['read', 'done'].includes(replay[step].tool)) {
       decision = replay[step];
       console.log(`[loop] step ${step} REPLAY: ${decision.tool} ${JSON.stringify(decision.args)}`);
     } else {
-      const screenshot = await page.screenshot();
+      let screenshot: Buffer;
+      try {
+        screenshot = await activePage.screenshot();
+      } catch {
+        // Page might have closed (popup closed after SSO) — switch back
+        if (options?.context?.pages?.length) {
+          activePage = options.context.pages[0];
+          screenshot = await activePage.screenshot();
+        } else {
+          throw new AgentFailure('All pages closed', history);
+        }
+      }
       const imgPath = join(visionDir(), `loop_step${step}.png`);
       writeFileSync(imgPath, screenshot);
-      const state = buildState(page, history, envHints);
+      const state = buildState(activePage, history, envHints);
       decision = askLlm(goal, state, imgPath, step);
     }
 
@@ -166,7 +194,7 @@ export async function execute(
     }
 
     try {
-      call.result = await dispatch(page, call.tool, call.args);
+      call.result = await dispatch(activePage, call.tool, call.args);
       console.log(`[loop] step ${step} result: ${call.result?.slice(0, 100)}`);
     } catch (e: any) {
       call.error = String(e).slice(0, 500);
