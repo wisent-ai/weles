@@ -3,7 +3,7 @@
  * Screenshot → claude -p → parse JSON → dispatch tool → repeat.
  */
 
-import { execSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { CDPPage } from '../cdp/page/page.js';
@@ -84,12 +84,15 @@ function askLlm(goal: string, state: string, screenshotPath: string, step: numbe
 
   let raw = '';
   try {
-    raw = execSync('claude -p --output-format json', {
+    const proc = spawnSync('claude', ['-p', '--output-format', 'json'], {
       input: prompt,
       encoding: 'utf-8',
       maxBuffer: 10 * 1024 * 1024,
-    }).trim();
-
+    });
+    raw = (proc.stdout ?? '').trim();
+    if (!raw && proc.stderr) {
+      console.log(`[loop] claude stderr: ${proc.stderr.slice(0, 200)}`);
+    }
     for (const line of raw.split('\n')) {
       if (line.includes('"type":"result"')) {
         try { raw = JSON.parse(line).result ?? raw; break; } catch { /* skip */ }
@@ -178,3 +181,5 @@ export async function execute(
 
   throw new AgentFailure(`max iterations (${MAX_ITERATIONS}) exceeded`, history);
 }
+
+export { parseJsonFrom };

@@ -7,13 +7,8 @@ import { execSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import type { CDPPage } from '../cdp/page/page.js';
 import { findClickTarget, askPage, type ScreenshottablePage } from '../vision/analyze.js';
-import { humanClick, type MousePage } from '../human/mouse.js';
-import { humanType, type KeyboardPage } from '../human/keyboard.js';
 
-// CDPPage is compatible but TS needs explicit cast for screenshot signature
 const asVision = (p: CDPPage) => p as unknown as ScreenshottablePage;
-const asMouse = (p: CDPPage) => p as unknown as MousePage;
-const asKeyboard = (p: CDPPage) => p as unknown as KeyboardPage;
 
 export type ToolArgs = Record<string, any>;
 export type ToolFn = (page: CDPPage, args: ToolArgs) => Promise<string>;
@@ -47,26 +42,9 @@ async function click(page: CDPPage, args: ToolArgs): Promise<string> {
     }
     return 'no-target-found';
   }
-  await humanClick(asMouse(page), coords.x, coords.y);
-  await new Promise(r => setTimeout(r, 1000));
-  const changed = page.url !== preUrl;
-  if (!changed) {
-    // Vision click didn't advance — try Playwright-style button click via JS
-    for (const word of [target, ...target.split(' ')]) {
-      if (word.length < 3) continue;
-      try {
-        const clicked = await page.evaluate(`(() => {
-          const btn = Array.from(document.querySelectorAll('button, a, [role="button"]'))
-            .find(el => el.textContent.trim().toLowerCase().includes(${JSON.stringify(word.toLowerCase())}));
-          if (btn) { btn.click(); return true; }
-          return false;
-        })()`);
-        if (clicked) return 'clicked via text';
-      } catch { /* skip */ }
-    }
-    return 'clicked but page unchanged';
-  }
-  return 'clicked';
+  await page.mouse.click(coords.x, coords.y);
+  await new Promise(r => setTimeout(r, 1500));
+  return page.url !== preUrl ? 'clicked, page navigated' : 'clicked';
 }
 
 async function fill(page: CDPPage, args: ToolArgs): Promise<string> {
@@ -74,8 +52,8 @@ async function fill(page: CDPPage, args: ToolArgs): Promise<string> {
   const value = resolveEnv(args.value ?? '');
   const coords = await findClickTarget(asVision(page), target);
   if (!coords) return 'no-field-found';
-  await humanClick(asMouse(page), coords.x, coords.y);
-  await humanType(asKeyboard(page), value);
+  await page.mouse.click(coords.x, coords.y);
+  await page.keyboard.type(value);
   return `filled ${value.length} chars`;
 }
 
@@ -258,3 +236,5 @@ export async function dispatch(page: CDPPage, tool: string, args: ToolArgs): Pro
   if (!fn) return `unknown tool: ${tool}`;
   return fn(page, args);
 }
+
+export { resolveEnv };

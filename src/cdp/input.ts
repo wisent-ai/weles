@@ -245,3 +245,5 @@ export class CDPKeyboard {
     await this._conn.send('Input.insertText', { text }, this._sessionId);
   }
 }
+
+export { _bezierPath as bezierPath, _instantMode as instantMode };

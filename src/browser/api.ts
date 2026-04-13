@@ -1,4 +1,6 @@
 import { type ChildProcess } from 'node:child_process';
+import { createServer, request as httpRequest, type Server } from 'node:http';
+import { connect } from 'node:net';
 import { CDPConnection } from '../cdp/connection.js';
 import { launchChromium } from '../cdp/launcher.js';
 import { generate, toConfig, toCppConfig, type FingerprintConfig } from '../fingerprint.js';
@@ -36,15 +38,13 @@ export class CDPWeles {
   private _process: ChildProcess;
   private _connection: CDPConnection;
   private _context: CDPBrowserContext;
+  private _localProxy?: Server;
 
-  private constructor(
-    proc: ChildProcess,
-    connection: CDPConnection,
-    context: CDPBrowserContext,
-  ) {
+  private constructor(proc: ChildProcess, connection: CDPConnection, context: CDPBrowserContext, localProxy?: Server) {
     this._process = proc;
     this._connection = connection;
     this._context = context;
+    this._localProxy = localProxy;
   }
 
   static async launch(options: WelesLaunchOptions = {}): Promise<CDPWeles> {
@@ -61,7 +61,44 @@ export class CDPWeles {
     const isCustomBinary = !!(options.chromiumPath || process.env.CHROMIUM_PATH);
     const initScript = isCustomBinary ? '' : buildInitScript(config, options.excludeScripts);
 
-    // 4. Launch chromium — pass --weles-fingerprint for custom binary
+    // 4. Proxy: if URL has auth, start a local forwarder so Chrome gets no-auth URL
+    let proxyForChrome: string | undefined;
+    let localProxy: Server | undefined;
+    if (options.proxy) {
+      try {
+        const pu = new URL(options.proxy);
+        if (pu.username) {
+          const upstream = { host: pu.hostname, port: Number(pu.port), auth: `${decodeURIComponent(pu.username)}:${decodeURIComponent(pu.password)}` };
+          const srv = createServer((req, res) => {
+            const opts = { host: upstream.host, port: upstream.port, path: req.url, method: req.method, headers: { ...req.headers, 'Proxy-Authorization': `Basic ${Buffer.from(upstream.auth).toString('base64')}` } };
+            const proxy = httpRequest(opts, (pRes) => { res.writeHead(pRes.statusCode ?? 502, pRes.headers); pRes.pipe(res); });
+            req.pipe(proxy);
+            proxy.on('error', () => res.destroy());
+          });
+          srv.on('connect', (req, clientSocket, head) => {
+            const [host, port] = (req.url ?? '').split(':');
+            const authHeader = `Basic ${Buffer.from(upstream.auth).toString('base64')}`;
+            const connReq = `CONNECT ${req.url} HTTP/1.1\r\nHost: ${req.url}\r\nProxy-Authorization: ${authHeader}\r\n\r\n`;
+            const upSocket = connect(upstream.port, upstream.host, () => { upSocket.write(connReq); upSocket.write(head); });
+            upSocket.on('error', () => clientSocket.destroy());
+            clientSocket.on('error', () => upSocket.destroy());
+            let gotResponse = false;
+            upSocket.on('data', (chunk: Buffer) => {
+              if (!gotResponse) { gotResponse = true; const s = chunk.toString(); if (s.includes('200')) { clientSocket.write('HTTP/1.1 200 Connection Established\r\n\r\n'); const rest = chunk.subarray(s.indexOf('\r\n\r\n') + 4); if (rest.length) clientSocket.write(rest); upSocket.pipe(clientSocket); clientSocket.pipe(upSocket); } else { clientSocket.destroy(); upSocket.destroy(); } } });
+          });
+          await new Promise<void>(r => srv.listen(0, '127.0.0.1', r));
+          const addr = srv.address() as { port: number };
+          proxyForChrome = `http://127.0.0.1:${addr.port}`;
+          localProxy = srv;
+        } else {
+          proxyForChrome = options.proxy;
+        }
+      } catch {
+        proxyForChrome = options.proxy;
+      }
+    }
+
+    // 5. Launch chromium — pass --weles-fingerprint for custom binary
     const extraArgs: string[] = [];
     if (isCustomBinary) {
       const cppConfig = toCppConfig(config, targetOs);
@@ -71,15 +108,15 @@ export class CDPWeles {
       headless: options.headless,
       chromiumPath: options.chromiumPath,
       userDataDir: options.userDataDir,
-      proxyServer: options.proxy,
+      proxyServer: proxyForChrome,
       args: extraArgs,
     });
 
-    // 5. Connect via CDP
+    // 6. Connect via CDP
     const connection = new CDPConnection();
     await connection.connect(wsUrl);
 
-    // 6. Create browser context
+    // 7. Create browser context
     const { browserContextId } = await connection.send('Target.createBrowserContext', {});
 
     // 7. Create CDPBrowserContext
@@ -103,7 +140,7 @@ export class CDPWeles {
     // 10. WebAuthn passkey stub (prevents passkey prompts on Google SSO)
     context.addInitScript(`try{var _og=navigator.credentials.get.bind(navigator.credentials);navigator.credentials.get=function(o){return o&&o.publicKey?new Promise(function(){}):_og(o)}}catch(e){}`);
 
-    return new CDPWeles(proc, connection, context);
+    return new CDPWeles(proc, connection, context, localProxy);
   }
 
   get context(): CDPBrowserContext {
@@ -127,6 +164,11 @@ export class CDPWeles {
       this._process.kill();
     } catch {
       // process may already be terminated
+    }
+
+    if (this._localProxy) {
+      this._localProxy.close();
+      this._localProxy = undefined;
     }
   }
 }
