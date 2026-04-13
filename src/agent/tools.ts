@@ -71,11 +71,12 @@ async function fill(page: CDPPage, args: ToolArgs): Promise<string> {
   for (const sel of selectors) {
     try { const el = page.locator?.(sel)?.first?.(); if (el && await el.isVisible()) { await el.fill(value); return `filled ${value.length} chars`; } } catch { /* skip */ }
   }
-  // Vision click + keyboard.type
+  // Vision click + select all + keyboard.type (clear existing content)
   const coords = await findClickTarget(asVision(page), target);
   if (!coords) return 'no-field-found';
   await page.mouse.click(coords.x, coords.y);
   await new Promise(r => setTimeout(r, 300));
+  await page.keyboard.press('Meta+a').catch(() => page.keyboard.press('Control+a').catch(() => {}));
   await page.keyboard.type(value, { delay: 50 });
   return `filled ${value.length} chars`;
 }
