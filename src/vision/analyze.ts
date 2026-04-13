@@ -66,7 +66,11 @@ function visionDir(): string {
 async function takeScreenshot(page: ScreenshottablePage): Promise<Buffer | null> {
   try {
     if (typeof page.screenshot === 'function') {
-      return await page.screenshot({ type: 'png' });
+      try {
+        return await (page as any).screenshot({ type: 'png', scale: 'css' });
+      } catch {
+        return await page.screenshot({ type: 'png' });
+      }
     }
     if (typeof page.send === 'function') {
       const result = await page.send('Page.captureScreenshot', { format: 'png' });
@@ -210,6 +214,25 @@ export async function findClickTarget(
   const full = await takeScreenshot(page);
   if (!full) return null;
 
+  // Resize screenshot to known width so Claude's coordinates are predictable.
+  // Claude internally resizes large images; by controlling the size ourselves
+  // we ensure the coordinates match.
+  const VISION_WIDTH = 768;
+  let resized = full;
+  let scaleX = 1, scaleY = 1;
+  try {
+    const sharp = (await import('sharp')).default;
+    const meta = await sharp(full).metadata();
+    const origW = meta.width ?? 1920;
+    const origH = meta.height ?? 1080;
+    if (origW > VISION_WIDTH) {
+      const newH = Math.round(origH * VISION_WIDTH / origW);
+      resized = await sharp(full).resize(VISION_WIDTH, newH).png().toBuffer();
+      scaleX = origW / VISION_WIDTH;
+      scaleY = origH / newH;
+    }
+  } catch { /* use original */ }
+
   const bareQ = (
     `I need to click: ${description}. `
     + 'Return the x,y pixel coordinates of where to click as JSON: '
@@ -217,11 +240,15 @@ export async function findClickTarget(
   );
   const refusals: Array<[string, string]> = [];
 
-  // Tier 0 — bare question on full screenshot
+  function scaleResult(r: { x: number; y: number }): { x: number; y: number } {
+    return { x: Math.round(r.x * scaleX), y: Math.round(r.y * scaleY) };
+  }
+
+  // Tier 0 — bare question on resized screenshot
   try {
-    const ans = await askPage(page, bareQ, full, 'tier_0_bare');
+    const ans = await askPage(page, bareQ, resized, 'tier_0_bare');
     const result = parseXY(ans);
-    if (result) return result;
+    if (result) return scaleResult(result);
   } catch (e) {
     if (e instanceof VisionRefusedError) {
       console.log('  [vision] tier_0_bare refused, escalating');
@@ -229,13 +256,13 @@ export async function findClickTarget(
     } else throw e;
   }
 
-  // Tier 1 — centre crop
-  const { cropped, offsetX, offsetY } = await centerCrop(full);
+  // Tier 1 — centre crop of resized image
+  const { cropped, offsetX, offsetY } = await centerCrop(resized);
   if (cropped) {
     try {
       const ans = await askPage(page, bareQ, cropped, 'tier_1_crop');
       const result = parseXY(ans);
-      if (result) return { x: result.x + offsetX, y: result.y + offsetY };
+      if (result) return scaleResult({ x: result.x + offsetX, y: result.y + offsetY });
     } catch (e) {
       if (e instanceof VisionRefusedError) {
         console.log('  [vision] tier_1_crop refused, escalating');
@@ -255,10 +282,10 @@ export async function findClickTarget(
     + '[{"label": "Submit button", "x": 400, "y": 300}]'
   );
   try {
-    const ans = await askPage(page, decompQ, full, 'tier_2_decompose');
+    const ans = await askPage(page, decompQ, resized, 'tier_2_decompose');
     const elements = parseElements(ans);
     const match = filterElements(elements, description);
-    if (match) return match;
+    if (match) return scaleResult(match);
   } catch (e) {
     if (e instanceof VisionRefusedError) {
       console.log('  [vision] tier_2_decompose refused');

@@ -10,11 +10,9 @@ import * as vision from './vision.js';
 import { waitCloudflare } from '../cloudflare/challenge.js';
 
 function getUrl(page: any): string {
-  const url = page.url;
-  if (typeof url === 'function') {
-    try { return url(); } catch { return ''; }
-  }
-  return url || '';
+  try { return page.url(); } catch { /* skip */ }
+  try { return page.url; } catch { /* skip */ }
+  return '';
 }
 
 async function waitNavigation(page: any, preUrl: string, timeoutMs: number): Promise<boolean> {
