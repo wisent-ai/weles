@@ -268,11 +268,24 @@ async function selectOption(page: CDPPage, args: ToolArgs): Promise<string> {
   return 'no-select-found';
 }
 
+async function jsClick(page: CDPPage, args: ToolArgs): Promise<string> {
+  const sel = JSON.stringify(args.selector ?? ''), txt = JSON.stringify((args.text ?? '').toLowerCase());
+  const result = await page.evaluate(`(() => {
+    function F(r,s){var a=Array.from(r.querySelectorAll(s));r.querySelectorAll('*').forEach(function(e){if(e.shadowRoot)a=a.concat(F(e.shadowRoot,s))});return a}
+    var s=${sel},t=${txt};
+    if(s){try{var e=F(document,s)[0];if(e){e.click();return 'clicked: '+s}}catch(e){}}
+    if(t){var els=F(document,'button,a,[role="button"],[class*="vote"],[class*="like"],[class*="star"],[class*="follow"]');
+      for(var i=0;i<els.length;i++){var x=((els[i].textContent||'')+(els[i].getAttribute('aria-label')||'')).toLowerCase();
+        if(x.indexOf(t)>=0){els[i].click();return 'clicked: '+(els[i].getAttribute('aria-label')||els[i].textContent||'').trim().slice(0,40)}}}
+    return null})()`);
+  return result || 'no-element-found';
+}
+
 export const TOOLS: Record<string, ToolFn> = {
   click, fill, focus, type_text: typeText, press_key: pressKey,
   navigate, scroll, wait, read, select_option: selectOption,
-  solve_captcha: solveCaptcha, check_email: checkEmail,
-  generate_identity: generateIdentity,
+  js_click: jsClick, solve_captcha: solveCaptcha,
+  check_email: checkEmail, generate_identity: generateIdentity,
 };
 
 export async function dispatch(page: CDPPage, tool: string, args: ToolArgs): Promise<string> {

@@ -44,7 +44,8 @@ Tools:
   scroll(direction, amount) Scroll up/down by pixels.
   wait(seconds)            Pause.
   read(question)           Ask a question about the current page.
-  select_option(target, value) Select an option from a dropdown/select by label. Use for date pickers, country selectors, etc.
+  select_option(target, value) Select dropdown option. Use for date pickers.
+  js_click(selector, text)   Click element by CSS selector or text match. Use for small buttons (upvote, star, like, follow) that vision can't find.
   solve_captcha(sitekey)   Solve reCAPTCHA on current page via API.
   check_email(email, sender) Poll for verification code sent to email.
   generate_identity(platform) Generate random username/email/password.
