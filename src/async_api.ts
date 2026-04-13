@@ -72,14 +72,26 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
   const launchOpts: Record<string, any> = { headless };
   const args = [...CHROMIUM_ARGS];
 
-  if (isChromium && chromiumPath && existsSync(chromiumPath)) {
+  const isCustomBinary = isChromium && chromiumPath && existsSync(chromiumPath);
+
+  if (isCustomBinary) {
+    // Custom Chromium: C++ handles all spoofing. NO JS init scripts, NO userAgent/screen overrides.
+    // Matches Python _open_session exactly: only --weles-fingerprint + WebAuthn stub.
     launchOpts.executablePath = chromiumPath;
     const cppConfig = toCppConfig(fpConfig, targetOs);
-    const fpFile = join(mkdtempSync(join(tmpdir(), 'weles-fp-')), 'config.json');
-    writeFileSync(fpFile, JSON.stringify(cppConfig));
-    args.push(`--weles-fingerprint=${fpFile}`);
+    args.push(`--weles-fingerprint=${JSON.stringify(cppConfig)}`);
+    launchOpts.args = args;
+    launchOpts.ignoreDefaultArgs = ['--enable-automation', '--enable-unsafe-swiftshader'];
+    const pwBrowser = await chromium.launch(launchOpts);
+    const context = await pwBrowser.newContext({ viewport: { width: 1920, height: 1080 } });
+    // WebAuthn passkey stub only
+    await context.addInitScript(`try{var _og=navigator.credentials.get.bind(navigator.credentials);navigator.credentials.get=function(o){return o&&o.publicKey?new Promise(function(){}):_og(o)}}catch(e){}`);
+    const origClose = context.close.bind(context);
+    (context as any).close = async () => { await origClose(); await pwBrowser.close(); };
+    return context;
   }
 
+  // Stock Playwright: use full fingerprint spoofing via JS init scripts
   let pwBrowser: Browser;
   if (isChromium) {
     launchOpts.args = args;
