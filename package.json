@@ -12,6 +12,7 @@
     "test:all": "vitest run"
   },
   "dependencies": {
+    "cloakbrowser": "^0.3.24",
     "fingerprint-generator": "^2.1.0",
     "header-generator": "^2.1.0",
     "playwright": "^1.59.1",
