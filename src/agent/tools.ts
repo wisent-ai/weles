@@ -114,8 +114,14 @@ async function pressKey(page: CDPPage, args: ToolArgs): Promise<string> {
 }
 
 async function navigate(page: CDPPage, args: ToolArgs): Promise<string> {
-  await page.goto(args.url ?? '', { waitUntil: 'domcontentloaded' });
-  return `navigated to ${page.url}`;
+  // Use main page for navigation (popup may be closed/crashed)
+  let target = page;
+  try {
+    const pages = page.context?.().pages?.() ?? [];
+    if (pages.length > 0) target = pages[0];
+  } catch { /* skip */ }
+  await target.goto(args.url ?? '', { waitUntil: 'domcontentloaded' });
+  return `navigated to ${getUrl(target)}`;
 }
 
 async function scroll(page: CDPPage, args: ToolArgs): Promise<string> {
