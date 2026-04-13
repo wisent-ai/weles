@@ -248,11 +248,14 @@ export class CDPPage {
 
   on(event: string, handler: EventHandler): void {
     const list = this._handlers.get(event);
-    if (list) {
-      list.push(handler);
-    } else {
-      this._handlers.set(event, [handler]);
-    }
+    if (list) { list.push(handler); } else { this._handlers.set(event, [handler]); }
+    this._conn.on(event, handler, this._sessionId);
+  }
+
+  off(event: string, handler: EventHandler): void {
+    const list = this._handlers.get(event);
+    if (list) { const idx = list.indexOf(handler); if (idx >= 0) list.splice(idx, 1); }
+    this._conn.off(event, handler, this._sessionId);
   }
 
   async close(): Promise<void> {

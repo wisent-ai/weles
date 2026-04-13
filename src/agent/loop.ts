@@ -45,6 +45,7 @@ Tools:
   wait(seconds)            Pause.
   read(question)           Ask a question about the current page.
   solve_captcha(sitekey)   Solve reCAPTCHA on current page via API.
+  solve_cloudflare()       Wait for Cloudflare challenge to clear. Use when you see "Verifying" or Cloudflare screen.
   check_email(email, sender) Poll for verification code sent to email.
   generate_identity(platform) Generate random username/email/password.
   done(value)              Terminal — you have the answer.
