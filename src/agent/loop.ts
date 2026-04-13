@@ -132,14 +132,26 @@ export async function execute(
   const envHints = options?.envHints ?? {};
   let replay = options?.replay ?? null;
 
+  function getActivePage(p: any): any {
+    try { if (p.isClosed?.() && p.context?.().pages?.().length) return p.context().pages()[0]; } catch { /* skip */ }
+    return p;
+  }
+
   for (let step = 0; step < MAX_ITERATIONS; step++) {
+    page = getActivePage(page);
     let decision: Record<string, any>;
 
     if (replay && step < replay.length && !['read', 'done'].includes(replay[step].tool)) {
       decision = replay[step];
       console.log(`[loop] step ${step} REPLAY: ${decision.tool} ${JSON.stringify(decision.args)}`);
     } else {
-      const screenshot = await page.screenshot();
+      let screenshot: Buffer;
+      try {
+        screenshot = await page.screenshot({ scale: 'css' });
+      } catch {
+        page = getActivePage(page);
+        screenshot = await page.screenshot({ scale: 'css' });
+      }
       const imgPath = join(visionDir(), `loop_step${step}.png`);
       writeFileSync(imgPath, screenshot);
       const state = buildState(page, history, envHints);
@@ -171,11 +183,20 @@ export async function execute(
     } catch (e: any) {
       call.error = String(e).slice(0, 500);
       console.log(`[loop] step ${step} error: ${call.error}`);
-      if (replay && call.error.toLowerCase().includes('closed')) {
-        replay = null;
-        console.log('[loop] replay aborted, switching to LLM');
+      if (call.error.toLowerCase().includes('closed')) {
+        page = getActivePage(page);
+        if (replay) { replay = null; console.log('[loop] replay aborted, switching to LLM'); }
       }
     }
+    // Detect popup (Google SSO opens in new window)
+    try {
+      const pages = page.context?.().pages?.() ?? [];
+      if (pages.length > 1 && pages[pages.length - 1] !== page) {
+        page = pages[pages.length - 1];
+        console.log(`[loop] popup detected: ${(typeof page.url === 'function' ? page.url() : page.url) ?? ''}`.slice(0, 120));
+        await new Promise(r => setTimeout(r, 2000));
+      }
+    } catch { /* skip */ }
     history.push(call);
   }
 

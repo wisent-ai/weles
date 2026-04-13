@@ -47,20 +47,19 @@ async function click(page: CDPPage, args: ToolArgs): Promise<string> {
   await page.mouse.click(coords.x, coords.y);
   await new Promise(r => setTimeout(r, 1500));
   if (getUrl(page) !== preUrl) return 'clicked, page navigated';
-  // JS text match click for React buttons
-  const words = target.toLowerCase().split(/\s+/).filter((w: string) => w.length > 2);
-  for (const word of words) {
-    try {
-      const ok = await page.evaluate(`(() => {
-        var els = document.querySelectorAll('button, a, [role="button"], input[type="submit"]');
-        for (var i = 0; i < els.length; i++) {
-          if (els[i].textContent.trim().toLowerCase().indexOf(${JSON.stringify(word)}) >= 0) { els[i].click(); return true; }
-        }
-        return false;
-      })()`);
-      if (ok) { await new Promise(r => setTimeout(r, 1500)); return 'clicked via JS'; }
-    } catch { /* skip */ }
-  }
+  // JS text match click — match full target phrase first, then longest substrings
+  const targetLow = target.toLowerCase();
+  try {
+    const ok = await page.evaluate(`(() => {
+      var target = ${JSON.stringify(targetLow)};
+      var els = document.querySelectorAll('button, a, [role="button"], input[type="submit"]');
+      for (var i = 0; i < els.length; i++) {
+        if (els[i].textContent.trim().toLowerCase().indexOf(target) >= 0) { els[i].click(); return true; }
+      }
+      return false;
+    })()`);
+    if (ok) { await new Promise(r => setTimeout(r, 1500)); return 'clicked via JS'; }
+  } catch { /* skip */ }
   return 'clicked';
 }
 
