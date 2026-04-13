@@ -17,7 +17,13 @@ async function runOne(t) {
   }
   let ctx;
   try {
-    ctx = await AsyncNewBrowser({ os: 'macos', browser: 'chromium', headless: false });
+    const opts = { os: 'macos', browser: 'chromium', headless: false };
+    if (process.env.PROXY_URL) {
+      const u = new URL(process.env.PROXY_URL);
+      opts.proxy = { server: `${u.protocol}//${u.hostname}:${u.port}` };
+      if (u.username) { opts.proxy.username = decodeURIComponent(u.username); opts.proxy.password = decodeURIComponent(u.password || ''); }
+    }
+    ctx = await AsyncNewBrowser(opts);
     const page = ctx.pages()[0] || await ctx.newPage();
     await page.goto(t.url, { waitUntil: t.waitLoad ? 'load' : 'domcontentloaded' });
     await page.waitForTimeout(t.waitLoad ? 5000 : 3000);
