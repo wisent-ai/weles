@@ -1,9 +1,15 @@
-import { runTask } from './dist/agent/tasks.js';
+import { FetchAccountValue } from './dist/agent/tasks.js';
+
 async function main() {
-  console.log('Starting oxylabs_balance...');
-  const result = await runTask('oxylabs_balance');
-  console.log('Result:', result);
-  process.exit(result ? 0 : 1);
+  const balance = await new FetchAccountValue({
+    service: 'oxylabs',
+    url: 'https://dashboard.oxylabs.io',
+    what: 'the current account credit balance or traffic usage',
+    usernameEnv: 'OXYLABS_EMAIL',
+    passwordEnv: 'OXYLABS_PASSWORD',
+  }).run();
+  console.log('Result:', balance);
+  process.exit(balance !== null ? 0 : 1);
 }
 main().catch(e => { console.error('Error:', e.message); process.exit(1); });
 setTimeout(() => { console.log('TIMEOUT 5min'); process.exit(2); }, 300000);

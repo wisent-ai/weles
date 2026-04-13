@@ -1,83 +1,62 @@
-import { checkPage, findClickTarget, type ScreenshottablePage } from '../vision/analyze.js';
-
-export interface CloudflareOptions {
-  /** Maximum time (ms) to wait for the challenge to clear. Default 72 000. */
-  timeout?: number;
-}
-
-/** Minimal page interface expected by the Cloudflare module. */
-export interface CFPage extends ScreenshottablePage {
-  mouse: { click(x: number, y: number): Promise<void> };
-  /** CDP event subscription scoped to the page's session. */
-  on(event: string, cb: (params: any) => void): void;
-  off(event: string, cb: (params: any) => void): void;
-  url?(): string;
-}
-
 /**
- * Quick check: is the page currently showing a Cloudflare challenge?
- */
-export async function isChallenged(page: CFPage): Promise<boolean> {
-  return checkPage(page, 'Is this page showing a Cloudflare challenge or verification screen?');
-}
-
-/**
- * Event-driven Cloudflare bypass.
+ * Cloudflare challenge detection and bypass — 1:1 port of weles/cloudflare/challenge.py
  *
- * 1. Screenshot the page to detect a Cloudflare challenge.
- * 2. If no challenge is found, return `true` immediately.
- * 3. Locate the "Verify you are human" checkbox via vision and click it.
- * 4. Wait for a `Page.frameNavigated` event on the main frame (URL change)
- *    which signals the challenge has been cleared.
- * 5. Return `true` if navigated within the timeout, `false` otherwise.
+ * Uses Claude vision to detect the challenge and locate the verification
+ * checkbox. The click is dispatched through CDPMouse with Bezier curves.
  */
-export async function waitCloudflare(
-  page: CFPage,
-  options?: CloudflareOptions,
-): Promise<boolean> {
-  const timeout = options?.timeout ?? 72_000;
 
-  // Step 1 — detect CF challenge
-  const challenged = await isChallenged(page);
-  if (!challenged) {
-    return true;
-  }
+import { askPage, checkPage, findClickTarget, type ScreenshottablePage } from '../vision/analyze.js';
 
-  // Step 2 — find and click the verify checkbox
-  const target = await findClickTarget(page, 'Cloudflare verify / challenge checkbox');
-  if (target) {
+const CF_CHECK_INTERVAL_MS = 3000;
+
+export async function waitCloudflare(page: any, timeoutMs = 72000, settleMs = 5000): Promise<boolean> {
+  await page.waitForTimeout(settleMs);
+
+  const rawAnswer = await askPage(
+    page as ScreenshottablePage,
+    'Is this a Cloudflare security verification or challenge page? Answer only YES or NO.',
+  );
+  const isCf = rawAnswer.trim().toUpperCase().startsWith('YES');
+  console.log(`  [cloudflare] raw vision answer: ${JSON.stringify(rawAnswer)}`);
+  console.log(`  [cloudflare] challenge detected: ${isCf}`);
+
+  if (!isCf) return true;
+
+  const target = await findClickTarget(
+    page as ScreenshottablePage,
+    'the checkbox or button to verify you are human',
+  );
+  console.log(`  [cloudflare] click target: ${JSON.stringify(target)}`);
+  if (!target) {
+    console.log('  [cloudflare] no click target found - challenge in auto-pass mode');
+  } else {
     await page.mouse.click(target.x, target.y);
+    console.log(`  [cloudflare] clicked at (${target.x}, ${target.y})`);
   }
 
-  // Step 3 — wait for navigation (challenge cleared) or timeout
-  const navigated = await new Promise<boolean>((resolve) => {
-    const timer = setTimeout(() => {
-      page.off('Page.frameNavigated', onNavigated);
-      resolve(false);
-    }, timeout);
+  const checks = Math.floor(timeoutMs / CF_CHECK_INTERVAL_MS);
+  for (let i = 0; i < checks; i++) {
+    await page.waitForTimeout(CF_CHECK_INTERVAL_MS);
+    const stillCf = await checkPage(
+      page as ScreenshottablePage,
+      'Is this a Cloudflare security verification or challenge page?',
+    );
+    console.log(`  [cloudflare] check ${i + 1}/${checks}: still challenged = ${stillCf}`);
+    if (!stillCf) return true;
+  }
 
-    function onNavigated(params: any) {
-      // Only care about main-frame navigations (no parentId).
-      const frame = params.frame ?? params;
-      if (frame.parentId) return;
-
-      clearTimeout(timer);
-      page.off('Page.frameNavigated', onNavigated);
-      resolve(true);
-    }
-
-    page.on('Page.frameNavigated', onNavigated);
-  });
-
-  return navigated;
+  return false;
 }
 
-/**
- * Convenience wrapper — identical to `waitCloudflare`.
- */
-export async function bypassCloudflare(
-  page: CFPage,
-  options?: CloudflareOptions,
-): Promise<boolean> {
-  return waitCloudflare(page, options);
+export async function isChallenged(page: any): Promise<boolean> {
+  return checkPage(
+    page as ScreenshottablePage,
+    'Is this a Cloudflare security verification or challenge page?',
+  );
 }
+
+export async function bypassCloudflare(page: any, timeoutMs = 72000): Promise<boolean> {
+  return waitCloudflare(page, timeoutMs);
+}
+
+export type { ScreenshottablePage as CFPage };

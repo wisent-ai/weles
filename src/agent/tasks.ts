@@ -1,243 +1,244 @@
 /**
- * Task runner, trajectory cache, and registry.
+ * Declarative Task runner — 1:1 port of weles/agent/tasks.py
+ *
+ * FetchAccountValue: which account, where to start, what to extract.
+ * Runner handles browser lifecycle, cookies, Cloudflare, login, discovery.
  */
 
-import { readFileSync, writeFileSync, mkdirSync, existsSync, unlinkSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
-import { CDPWeles } from '../browser/api.js';
+import * as discover from './discover.js';
+import * as login from './login.js';
+import * as vision from './vision.js';
+import { waitCloudflare } from '../cloudflare/challenge.js';
 import { SessionStore } from '../session/store.js';
-import { waitCloudflare, type CFPage } from '../cloudflare/challenge.js';
-import { execute, AgentFailure, type ToolCall, type LoopResult } from './loop.js';
 
 // ---------------------------------------------------------------------------
 // Trajectory cache
 // ---------------------------------------------------------------------------
 
-function trajDir(): string {
-  const dir = join(process.env.WELES_CACHE_DIR ?? join(homedir(), '.weles'), 'trajectories');
+function cacheDir(): string {
+  const base = process.env.WELES_CACHE_DIR ?? join(homedir(), '.weles');
+  const dir = join(base, 'trajectories');
   mkdirSync(dir, { recursive: true });
   return dir;
 }
 
 export class Trajectory {
   service: string;
-  toolCalls: Array<{ tool: string; args: Record<string, any> }>;
-  lastValue?: any;
-  lastSuccess?: string;
+  finalUrl: string;
+  selector: string | null;
+  regex: string | null;
+  lastSuccess: string | null;
+  lastValue: number | null;
 
-  constructor(service: string, toolCalls: any[], lastValue?: any) {
-    this.service = service;
-    this.toolCalls = toolCalls;
-    this.lastValue = lastValue;
-    this.lastSuccess = new Date().toISOString();
+  constructor(data: Partial<Trajectory> & { service: string; finalUrl: string }) {
+    this.service = data.service;
+    this.finalUrl = data.finalUrl;
+    this.selector = data.selector ?? null;
+    this.regex = data.regex ?? null;
+    this.lastSuccess = data.lastSuccess ?? null;
+    this.lastValue = data.lastValue ?? null;
   }
 
   static load(service: string): Trajectory | null {
-    const path = join(trajDir(), `${service}.json`);
     try {
-      const data = JSON.parse(readFileSync(path, 'utf-8'));
-      return Object.assign(new Trajectory(data.service, data.toolCalls), data);
+      const raw = readFileSync(join(cacheDir(), `${service}.json`), 'utf-8');
+      return new Trajectory(JSON.parse(raw));
     } catch { return null; }
   }
 
   save(): void {
-    const path = join(trajDir(), `${this.service}.json`);
-    writeFileSync(path, JSON.stringify(this, null, 2));
+    try {
+      writeFileSync(join(cacheDir(), `${this.service}.json`), JSON.stringify(this, null, 2));
+    } catch { /* skip */ }
   }
 
   static invalidate(service: string): void {
-    const path = join(trajDir(), `${service}.json`);
-    try { unlinkSync(path); } catch { /* skip */ }
+    try { unlinkSync(join(cacheDir(), `${service}.json`)); } catch { /* skip */ }
   }
 }
 
 // ---------------------------------------------------------------------------
-// Registry
+// FetchAccountValue
 // ---------------------------------------------------------------------------
 
-interface TaskConfig {
+export interface FetchAccountValueConfig {
+  service: string;
   url: string;
   what: string;
-  loginMethod: 'google_sso' | 'email_password' | 'none';
-  navUrl?: string;
-  captchaSitekey?: string;
-  requiresTarget?: boolean;
-  noProxy?: boolean;
+  usernameEnv: string;
+  passwordEnv: string;
+  osTarget?: string;
+  depth?: number;
 }
 
-export const REGISTRY: Record<string, TaskConfig> = {
-  // Service dashboards
-  'oxylabs_balance': { url: 'https://dashboard.oxylabs.io', navUrl: 'https://dashboard.oxylabs.io/en/overview/MP/statistics', what: 'the traffic usage shown as X GB / Y GB', loginMethod: 'google_sso', noProxy: true },
-  'brightdata_balance': { url: 'https://brightdata.com/cp', what: 'the current account credit balance in USD', loginMethod: 'google_sso', noProxy: true },
-  'capmonster_cloud_balance': { url: 'https://dash.capmonster.cloud', what: 'the current account balance in USD', loginMethod: 'google_sso', noProxy: true },
-  'anticaptcha_balance': { url: 'https://anti-captcha.com/clients', what: 'the current account balance in USD', loginMethod: 'google_sso', noProxy: true },
-  'packetstream_balance': { url: 'https://app.packetstream.io', what: 'the current account balance in USD', loginMethod: 'email_password', noProxy: true },
-  'capsolver_balance': { url: 'https://dashboard.capsolver.com', what: 'the current account balance in USD', loginMethod: 'email_password', noProxy: true },
-  'twocaptcha_balance': { url: 'https://2captcha.com', what: 'the current account balance in USD', loginMethod: 'email_password', noProxy: true },
-  'pingproxies_balance': { url: 'https://dashboard.pingproxies.com', what: 'the current account balance or remaining traffic', loginMethod: 'email_password', noProxy: true },
-  // Registration
-  'reddit_register': { url: 'https://www.reddit.com/register', what: 'the newly created username', loginMethod: 'none', captchaSitekey: '6LfirrMoAAAAAHZOipvza4kpp_VtTwLNuXVwURNQ' },
-  'instagram_register': { url: 'https://www.instagram.com/accounts/emailsignup/', what: 'the newly created username', loginMethod: 'none' },
-  'twitter_register': { url: 'https://x.com/i/flow/signup', what: 'the newly created username', loginMethod: 'none' },
-  'tiktok_register': { url: 'https://www.tiktok.com/signup', what: 'the newly created username', loginMethod: 'none' },
-  'discord_register': { url: 'https://discord.com/register', what: 'the newly created username', loginMethod: 'none' },
-  // Login
-  'reddit_login': { url: 'https://www.reddit.com/login', what: 'confirmation that login succeeded', loginMethod: 'email_password' },
-  'instagram_login': { url: 'https://www.instagram.com/accounts/login/', what: 'confirmation that login succeeded', loginMethod: 'email_password' },
-  'twitter_login': { url: 'https://x.com/login', what: 'confirmation that login succeeded', loginMethod: 'email_password' },
-  'tiktok_login': { url: 'https://www.tiktok.com/login', what: 'confirmation that login succeeded', loginMethod: 'email_password' },
-  'github_login': { url: 'https://github.com/login', what: 'confirmation that login succeeded', loginMethod: 'email_password' },
-  'discord_login': { url: 'https://discord.com/login', what: 'confirmation that login succeeded', loginMethod: 'email_password' },
-  'linkedin_login': { url: 'https://www.linkedin.com/login', what: 'confirmation that login succeeded', loginMethod: 'email_password' },
-  // Social actions
-  'reddit_upvote': { url: 'https://www.reddit.com', what: 'confirmation that the upvote was applied', loginMethod: 'email_password', requiresTarget: true },
-  'reddit_comment': { url: 'https://www.reddit.com', what: 'confirmation that the comment was posted', loginMethod: 'email_password', requiresTarget: true },
-  'instagram_follow': { url: 'https://www.instagram.com', what: 'confirmation that the follow was applied', loginMethod: 'email_password', requiresTarget: true },
-  'instagram_like': { url: 'https://www.instagram.com', what: 'confirmation that the like was applied', loginMethod: 'email_password', requiresTarget: true },
-  'twitter_follow': { url: 'https://x.com', what: 'confirmation that the follow was applied', loginMethod: 'email_password', requiresTarget: true },
-  'twitter_like': { url: 'https://x.com', what: 'confirmation that the like was applied', loginMethod: 'email_password', requiresTarget: true },
-  'twitter_dm': { url: 'https://x.com/messages', what: 'confirmation that the DM was sent', loginMethod: 'email_password', requiresTarget: true },
-  'tiktok_follow': { url: 'https://www.tiktok.com', what: 'confirmation that the follow was applied', loginMethod: 'email_password', requiresTarget: true },
-  'tiktok_like': { url: 'https://www.tiktok.com', what: 'confirmation that the like was applied', loginMethod: 'email_password', requiresTarget: true },
-  'github_star_repo': { url: 'https://github.com', what: 'confirmation that the repo was starred', loginMethod: 'email_password', requiresTarget: true },
-  'github_follow': { url: 'https://github.com', what: 'confirmation that the follow was applied', loginMethod: 'email_password', requiresTarget: true },
-};
+export class FetchAccountValue {
+  service: string;
+  url: string;
+  what: string;
+  usernameEnv: string;
+  passwordEnv: string;
+  osTarget: string;
+  depth: number;
 
-// ---------------------------------------------------------------------------
-// Goal builder
-// ---------------------------------------------------------------------------
-
-function buildGoal(config: TaskConfig, usernameEnv: string, passwordEnv: string, target?: string): string {
-  const nav = config.navUrl ? ` After login, navigate() to ${config.navUrl}.` : '';
-  if (config.loginMethod === 'none') {
-    const [service] = Object.entries(REGISTRY).find(([, v]) => v === config) ?? ['unknown'];
-    const platform = service.split('_')[0].toUpperCase();
-    const cap = config.captchaSitekey ? ` solve_captcha(sitekey='${config.captchaSitekey}') BEFORE every Continue.` : '';
-    return `Open ${config.url}. Create account: generate_identity(platform='${service.split('_')[0]}').${cap} focus(selector='email'), type_text(value=$${platform}_NEW_EMAIL). check_email for verification codes. done(value=username) when complete.`;
-  }
-  const tgt = target ? ` Target: ${target}.` : '';
-  const cf = ' If you see Cloudflare verification, use solve_cloudflare().';
-  return `Open ${config.url}. Log in with email/password: fill the email field with $${usernameEnv}, fill the password field with $${passwordEnv}, then click the login button.${nav}${cf}${tgt} Read ${config.what}. done() with value.`;
-}
-
-// ---------------------------------------------------------------------------
-// Credential loading
-// ---------------------------------------------------------------------------
-
-async function loadCredentials(service: string, usernameEnv: string, passwordEnv: string): Promise<void> {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!supabaseUrl || !supabaseKey) return;
-
-  const headers = { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` };
-  // Try service_credentials
-  try {
-    const res = await fetch(`${supabaseUrl}/rest/v1/service_credentials?id=eq.${service}&select=login_email,login_password`, { headers });
-    const rows = await res.json() as any[];
-    if (rows?.[0]?.login_email) {
-      process.env[usernameEnv] = rows[0].login_email;
-      if (rows[0].login_password) process.env[passwordEnv] = rows[0].login_password;
-      return;
-    }
-  } catch { /* skip */ }
-  // Try social_accounts
-  try {
-    const res = await fetch(`${supabaseUrl}/rest/v1/social_accounts?platform=eq.${service}&status=eq.active&select=username,metadata&limit=1&order=created_at.desc`, { headers });
-    const rows = await res.json() as any[];
-    if (rows?.[0]) {
-      const m = rows[0].metadata ?? {};
-      process.env[usernameEnv] = rows[0].username ?? '';
-      if (m.password) process.env[passwordEnv] = m.password;
-    }
-  } catch { /* skip */ }
-}
-
-// ---------------------------------------------------------------------------
-// Task runner
-// ---------------------------------------------------------------------------
-
-export async function runTask(key: string, target?: string): Promise<any> {
-  const config = REGISTRY[key];
-  if (!config) throw new Error(`Unknown task: ${key}. Available: ${Object.keys(REGISTRY).join(', ')}`);
-  if (config.requiresTarget && !target) throw new Error(`Task ${key} requires a target`);
-
-  const service = key.split('_')[0];
-  const usernameEnv = `${service.toUpperCase()}_EMAIL`;
-  const passwordEnv = `${service.toUpperCase()}_PASSWORD`;
-
-  await loadCredentials(service, usernameEnv, passwordEnv);
-
-  const goal = buildGoal(config, usernameEnv, passwordEnv, target);
-  const traj = Trajectory.load(key);
-  const replay = traj?.toolCalls as ToolCall[] | undefined;
-  const sessions = new SessionStore();
-
-  // Auto-detect proxy from env vars (Oxylabs > PacketStream > Pingproxies)
-  let proxy: string | undefined;
-  for (const [uEnv, pEnv, host, port, fmt] of [
-    ['OXYLABS_USERNAME', 'OXYLABS_PASSWORD', 'pr.oxylabs.io', '7777', (u: string, p: string) => `http://customer-${u}-cc-US:${p}@pr.oxylabs.io:7777`],
-    ['PACKETSTREAM_USERNAME', 'PACKETSTREAM_PASSWORD', 'proxy.packetstream.io', '31112', (u: string, p: string) => `http://${u}:${p}_country-US@proxy.packetstream.io:31112`],
-    ['PINGPROXIES_USERNAME', 'PINGPROXIES_PASSWORD', 'residential.pingproxies.com', '8000', (u: string, p: string) => `http://${u}_c_us:${p}@residential.pingproxies.com:8000`],
-  ] as const) {
-    const u = process.env[uEnv], p = process.env[pEnv];
-    if (u && p) { proxy = (fmt as any)(u, p); break; }
+  constructor(config: FetchAccountValueConfig) {
+    this.service = config.service;
+    this.url = config.url;
+    this.what = config.what;
+    this.usernameEnv = config.usernameEnv;
+    this.passwordEnv = config.passwordEnv;
+    this.osTarget = config.osTarget ?? 'macos';
+    this.depth = config.depth ?? 4;
   }
 
-  const useProxy = config.noProxy ? undefined : proxy;
-  console.log(`[task] ${key}: launching browser (proxy=${useProxy ? 'yes' : 'none'})...`);
-  const weles = await CDPWeles.launch({
+  async run(): Promise<number | null> {
+    const traj = Trajectory.load(this.service);
+    if (traj) {
+      const replayValue = await this._replayTrajectory(traj);
+      if (replayValue !== null) {
+        console.log(`[task] ${this.service}: cache replay hit, value=${replayValue}`);
+        traj.lastValue = replayValue;
+        traj.lastSuccess = new Date().toISOString();
+        traj.save();
+        return replayValue;
+      }
+      console.log(`[task] ${this.service}: cache replay missed, invalidating`);
+      Trajectory.invalidate(this.service);
+    }
+
+    const bal = await this._attemptWithExistingSession();
+    if (bal !== null) return bal;
+    console.log(`[task] ${this.service}: first attempt returned null, clearing cookies`);
+    this._clearCookies();
+    return this._attemptWithExistingSession();
+  }
+
+  private async _replayTrajectory(traj: Trajectory): Promise<number | null> {
+    const cookies = this._loadCookies();
+    const page = await openSession(this.osTarget);
+    try {
+      if (cookies) await page.context().addCookies(cookies);
+      await page.goto(traj.finalUrl, { waitUntil: 'domcontentloaded' });
+      await waitCloudflare(page);
+      if (page.url().toLowerCase().includes('login') || page.url().toLowerCase().includes('signin')) return null;
+      if (!traj.selector) return null;
+      const el = await page.querySelector(traj.selector);
+      if (!el) return null;
+      let text = ((await el.innerText()) ?? '').trim();
+      if (traj.regex) {
+        const m = text.match(new RegExp(traj.regex));
+        if (m) text = m[1] ?? m[0];
+      }
+      const cleaned = text.replace(/[^\d.\-]/g, '');
+      if (!cleaned) return null;
+      return parseFloat(cleaned);
+    } catch (e: any) {
+      console.log(`[task] ${this.service}: replay error: ${e.message}`);
+      return null;
+    } finally {
+      await closeSession(page);
+    }
+  }
+
+  private async _attemptWithExistingSession(): Promise<number | null> {
+    const cookies = this._loadCookies();
+    const page = await openSession(this.osTarget);
+    try {
+      if (cookies) await page.context().addCookies(cookies);
+      await page.goto(this.url, { waitUntil: 'domcontentloaded' });
+      await waitCloudflare(page);
+      if (await this._isLoginPage(page)) {
+        if (!await this._loginInline(page)) return null;
+      }
+      const value = await this._extractValue(page);
+      if (value !== null) await this._learnTrajectory(page, value);
+      return value;
+    } catch (e: any) {
+      console.log(`[task] ${this.service}: attempt error: ${e.message}`);
+      return null;
+    } finally {
+      await closeSession(page);
+    }
+  }
+
+  private async _isLoginPage(page: any): Promise<boolean> {
+    const url = page.url().toLowerCase();
+    if (url.includes('login') || url.includes('signin') || url.includes('sign-in')) return true;
+    return vision.boolean(page,
+      'Is this page showing a login form with username and '
+      + 'password fields, or a "Sign in" / "Log in" button as '
+      + 'the main call to action?');
+  }
+
+  private async _loginInline(page: any): Promise<boolean> {
+    const username = process.env[this.usernameEnv] ?? '';
+    const password = process.env[this.passwordEnv] ?? '';
+    if (!username || !password) {
+      console.log(`[task] ${this.service}: missing credentials (${this.usernameEnv}, ${this.passwordEnv})`);
+      return false;
+    }
+    const ok = await login.run(page, username, password);
+    if (!ok) return false;
+    this._saveCookies(await page.context().cookies());
+    return true;
+  }
+
+  private async _learnTrajectory(page: any, value: number): Promise<void> {
+    try {
+      const selAnswer = await vision.text(page,
+        `a CSS selector that uniquely identifies the element containing ${this.what}`);
+      const selector = (selAnswer ?? '').trim().replace(/^[`'"]+|[`'"]+$/g, '');
+      if (selector && selector.length < 200) {
+        new Trajectory({
+          service: this.service,
+          finalUrl: page.url(),
+          selector,
+          regex: '\\$?\\s*([0-9]+(?:\\.[0-9]+)?)',
+          lastSuccess: new Date().toISOString(),
+          lastValue: value,
+        }).save();
+        console.log(`[task] ${this.service}: trajectory cached (url=${page.url()}, selector=${JSON.stringify(selector)})`);
+      }
+    } catch (e: any) {
+      console.log(`[task] ${this.service}: could not learn trajectory: ${e.message}`);
+    }
+  }
+
+  private async _extractValue(page: any): Promise<number | null> {
+    return discover.findNumber(page, this.what, this.depth);
+  }
+
+  private _loadCookies(): any[] | null {
+    try { return new SessionStore().loadCookies(this.service); } catch { return null; }
+  }
+
+  private _saveCookies(cookies: any[]): void {
+    try { new SessionStore().saveCookies(this.service, cookies); } catch { /* skip */ }
+  }
+
+  private _clearCookies(): void {
+    try { new SessionStore().saveCookies(this.service, []); } catch { /* skip */ }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Session management — uses Playwright (same as Python _open_session)
+// ---------------------------------------------------------------------------
+
+let _pwInstance: any = null;
+
+async function openSession(osTarget: string): Promise<any> {
+  const { chromium } = await import('playwright');
+  _pwInstance = _pwInstance ?? await (await import('playwright')).chromium.launch({
     headless: false,
-    recordVideo: true,
-    chromiumPath: process.env.CHROMIUM_PATH,
-    proxy: useProxy,
+    args: ['--no-sandbox', '--disable-blink-features=AutomationControlled'],
   });
-  console.log(`[task] ${key}: browser launched`);
+  const context = await _pwInstance.newContext({ viewport: { width: 1920, height: 1080 } });
+  return await context.newPage();
+}
 
-  try {
-    const ctx = weles.context;
-    const page = await ctx.newPage();
-    console.log(`[task] ${key}: page created`);
-
-    // Inject saved cookies
-    await sessions.inject(ctx as any, key);
-
-    console.log(`[task] ${key}: navigating to ${config.url}`);
-    try {
-      await page.goto(config.url, { waitUntil: 'domcontentloaded' });
-    } catch (navErr: any) {
-      console.log(`[task] ${key}: initial navigation error (continuing): ${navErr.message}`);
-    }
-    console.log(`[task] ${key}: navigated, url=${page.url}`);
-
-    // Auto-handle Cloudflare if it appears after navigation
-    await page.waitForTimeout(2000);
-    try {
-      const cleared = await waitCloudflare(page as unknown as CFPage);
-      if (cleared) console.log(`[task] ${key}: cloudflare cleared`);
-    } catch { /* no cloudflare or failed — agent will handle */ }
-
-    const result = await execute(page, goal, {
-      envHints: { username_env: usernameEnv, password_env: passwordEnv },
-      replay,
-      context: ctx,
-    });
-
-    // Save trajectory on success
-    new Trajectory(key, result.history.map(c => ({ tool: c.tool, args: c.args })), result.value).save();
-
-    // Save cookies
-    await sessions.capture(ctx as any, key);
-
-    return result.value;
-  } catch (e: any) {
-    console.log(`[task] ${key}: error: ${e.message}`);
-    if (e.stack) console.log(e.stack.split('\n').slice(0, 5).join('\n'));
-    if (e instanceof AgentFailure) {
-      Trajectory.invalidate(key);
-    }
-    return null;
-  } finally {
-    await weles.close();
-  }
+async function closeSession(page: any): Promise<void> {
+  try { await page.context().close(); } catch { /* skip */ }
 }
