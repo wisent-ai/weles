@@ -159,6 +159,7 @@ export async function execute(
         screenshot = await page.screenshot({ scale: 'css', animations: 'disabled' });
       } catch {
         page = getActivePage(page);
+        try { await page.waitForLoadState?.('domcontentloaded'); } catch { /* skip */ }
         try { screenshot = await page.screenshot({ scale: 'css', animations: 'disabled' }); }
         catch { screenshot = Buffer.from(''); }
       }
