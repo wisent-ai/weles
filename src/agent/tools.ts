@@ -253,13 +253,21 @@ async function selectOption(page: CDPPage, args: ToolArgs): Promise<string> {
       for (var j=0;j<s.options.length;j++) { if (s.options[j].text.toLowerCase().indexOf(v)>=0) { s.selectedIndex=j; s.dispatchEvent(new Event('change',{bubbles:true})); return s.options[j].text; }}}
     return null; })()`);
   if (native) return `selected: ${native}`;
-  // Custom div dropdowns (Discord etc.) — click by index: month=0, day=1, year=2
-  const idx: number = ({month:0,day:1,year:2} as Record<string,number>)[target.toLowerCase()] ?? -1;
-  if (idx >= 0) {
-    await page.evaluate(`(() => { var d=document.querySelectorAll('[class*="select"],[class*="Select"],[class*="dropdown"],[class*="Dropdown"]'); if(d[${idx}]) d[${idx}].click(); })()`);
+  // Custom div dropdowns — find by label text matching target
+  const tgtLow = JSON.stringify(target.toLowerCase());
+  const opened = await page.evaluate(`(() => { var tgt=${tgtLow};
+    var els=document.querySelectorAll('[class*="select"],[class*="Select"],[class*="dropdown"],[class*="Dropdown"]');
+    for(var i=0;i<els.length;i++) { var t=els[i].textContent.trim().toLowerCase();
+      if(t.indexOf(tgt)===0 || t===tgt) { els[i].click(); return true; }}
+    return false; })()`);
+  if (opened) {
     await new Promise(r => setTimeout(r, 500));
     const clicked = await page.evaluate(`(() => { var v=${valLow}; var items=document.querySelectorAll('[role="option"],[class*="option"],[class*="Option"],li');
-      for(var i=0;i<items.length;i++) { if(items[i].textContent.trim().toLowerCase().indexOf(v)>=0) { items[i].click(); return items[i].textContent.trim(); }} return null; })()`);
+      for(var i=0;i<items.length;i++) { var t=items[i].textContent.trim().toLowerCase();
+        if(t===v && items[i].children.length===0) { items[i].click(); return items[i].textContent.trim(); }}
+      for(var i=0;i<items.length;i++) { var t=items[i].textContent.trim().toLowerCase();
+        if(t.indexOf(v)>=0 && items[i].children.length===0) { items[i].click(); return items[i].textContent.trim(); }}
+      return null; })()`);
     if (clicked) return `selected: ${clicked}`;
   }
   return 'no-select-found';
