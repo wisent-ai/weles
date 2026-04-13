@@ -197,8 +197,8 @@ export function toCppConfig(config: FingerprintConfig, targetOs = 'macos'): Reco
     webgl: { unmaskedVendor: webgl.unmaskedVendor, unmaskedRenderer: webgl.unmaskedRenderer },
     canvas: config.canvas, audio: config.audio,
     clientHints: { platform: chPlatform, platformVersion: chPlatformVersion, architecture: 'x86', bitness: '64', model: '', mobile: false, wow64: false, fullVersion,
-      brandList: [{ brand: 'Not.A/Brand', version: '8' }, { brand: 'Chromium', version: major }, { brand: 'Google Chrome', version: major }],
-      brandFullVersionList: [{ brand: 'Not.A/Brand', version: '8.0.0.0' }, { brand: 'Chromium', version: fullVersion }, { brand: 'Google Chrome', version: fullVersion }],
+      brandList: [{ brand: 'Not.A/Brand', version: '8' }, { brand: 'Chromium', version: major }],
+      brandFullVersionList: [{ brand: 'Not.A/Brand', version: '8.0.0.0' }, { brand: 'Chromium', version: fullVersion }],
     },
   };
 }
