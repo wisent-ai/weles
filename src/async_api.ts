@@ -4,10 +4,9 @@
  * Launches Playwright with custom Chromium binary + fingerprint spoofing.
  */
 
-import { existsSync, writeFileSync } from 'node:fs';
+import { existsSync, writeFileSync, mkdtempSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { mkdtempSync } from 'node:fs';
 import { chromium, firefox, type BrowserContext, type Browser } from 'playwright';
 import { generate, toConfig, toCppConfig } from './fingerprint.js';
 import { buildInitScript } from './scripts/loader.js';
@@ -75,16 +74,18 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
   const isCustomBinary = isChromium && chromiumPath && existsSync(chromiumPath);
 
   if (isCustomBinary) {
-    // Custom Chromium: C++ handles all spoofing. NO JS init scripts, NO userAgent/screen overrides.
-    // Matches Python _open_session exactly: only --weles-fingerprint + WebAuthn stub.
+    // Custom Chromium: C++ handles fingerprint spoofing via --weles-fingerprint flag.
+    // Match Python async_api.py: write config to temp file, add init scripts, set full context opts.
     launchOpts.executablePath = chromiumPath;
     const cppConfig = toCppConfig(fpConfig, targetOs);
-    args.push(`--weles-fingerprint=${JSON.stringify(cppConfig)}`);
+    const fpDir = mkdtempSync(join(tmpdir(), 'weles-fp-'));
+    const fpFile = join(fpDir, 'config.json');
+    writeFileSync(fpFile, JSON.stringify(cppConfig));
+    args.push(`--weles-fingerprint=${fpFile}`);
     launchOpts.args = args;
     launchOpts.ignoreDefaultArgs = ['--enable-automation', '--enable-unsafe-swiftshader'];
     const pwBrowser = await chromium.launch(launchOpts);
     const context = await pwBrowser.newContext({ viewport: { width: 1920, height: 1080 } });
-    // WebAuthn passkey stub only
     await context.addInitScript(`try{var _og=navigator.credentials.get.bind(navigator.credentials);navigator.credentials.get=function(o){return o&&o.publicKey?new Promise(function(){}):_og(o)}}catch(e){}`);
     const origClose = context.close.bind(context);
     (context as any).close = async () => { await origClose(); await pwBrowser.close(); };
