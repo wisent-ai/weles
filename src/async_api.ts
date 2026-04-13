@@ -103,6 +103,8 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
 
   const context = await pwBrowser.newContext(ctxOpts);
   await context.addInitScript(initScript);
+  // WebAuthn passkey stub — block passkey prompts (same as custom Chromium path)
+  await context.addInitScript(`try{var _og=navigator.credentials.get.bind(navigator.credentials);navigator.credentials.get=function(o){return o&&o.publicKey?new Promise(function(){}):_og(o)}}catch(e){}`);
 
   const origClose = context.close.bind(context);
   (context as any).close = async () => { await origClose(); await pwBrowser.close(); };
