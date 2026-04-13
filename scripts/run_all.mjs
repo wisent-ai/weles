@@ -25,6 +25,13 @@ async function runOne(t) {
     }
     ctx = await AsyncNewBrowser(opts);
     const page = ctx.pages()[0] || await ctx.newPage();
+    // Inject cookies before navigating (cookie-first login)
+    if (process.env.COOKIES_JSON) {
+      try {
+        const cookies = JSON.parse(process.env.COOKIES_JSON).filter(c => c.name && c.value && c.domain);
+        if (cookies.length) { await ctx.addCookies(cookies); console.log(`[${t.name}] Injected ${cookies.length} cookies`); }
+      } catch (e) { console.log(`[${t.name}] Cookie inject failed: ${e.message}`); }
+    }
     await page.goto(t.url, { waitUntil: t.waitLoad ? 'load' : 'domcontentloaded' });
     await page.waitForTimeout(t.waitLoad ? 5000 : 3000);
     const result = await execute(page, `Open ${t.url}. ${t.goal}`, {
