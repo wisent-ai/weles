@@ -110,9 +110,7 @@ async function focus(page: CDPPage, args: ToolArgs): Promise<string> {
 
 async function typeText(page: CDPPage, args: ToolArgs): Promise<string> {
   const value = resolveEnv(args.value ?? '');
-  await page.keyboard.press('Control+a');
-  await new Promise(r => setTimeout(r, 100));
-  await page.keyboard.type(value);
+  await page.keyboard.type(value, { delay: 30 });
   return `typed ${value.length} chars`;
 }
 
