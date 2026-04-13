@@ -2,13 +2,13 @@ import { AsyncNewBrowser } from '../dist/async_api.js';
 import { execute } from '../dist/agent/loop.js';
 
 // Goal imported from scripts/run_all.mjs — run with:
-//   node scripts/run_all.mjs reddit_register
+//   node scripts/run_all.mjs instagram_login
 // This file wraps the same goal as a standalone test.
 
 async function main() {
   const { default: { TRAJECTORIES } } = await import('../scripts/run_all_export.mjs');
-  const t = TRAJECTORIES.find(t => t.name === 'reddit_register');
-  if (!t) { console.error('Trajectory not found: reddit_register'); process.exit(1); }
+  const t = TRAJECTORIES.find(t => t.name === 'instagram_login');
+  if (!t) { console.error('Trajectory not found: instagram_login'); process.exit(1); }
 
   if (t.emailEnv) {
     process.env.SVC_EMAIL = process.env[t.emailEnv] || '';
