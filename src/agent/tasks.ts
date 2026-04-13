@@ -224,19 +224,33 @@ export class FetchAccountValue {
 }
 
 // ---------------------------------------------------------------------------
-// Session management — uses Playwright (same as Python _open_session)
+// Session management — uses AsyncNewBrowser (same as Python _open_session)
 // ---------------------------------------------------------------------------
 
-let _pwInstance: any = null;
+function _getProxy(): { server: string; username: string; password: string } | undefined {
+  const providers: Array<[string, string, string, (u: string, p: string) => [string, string]]> = [
+    ['OXYLABS_USERNAME', 'OXYLABS_PASSWORD', 'http://pr.oxylabs.io:7777', (u, p) => [`customer-${u}-cc-US`, p]],
+    ['PINGPROXIES_USERNAME', 'PINGPROXIES_PASSWORD', 'http://residential.pingproxies.com:8000', (u, p) => [`${u}_c_us`, p]],
+    ['PACKETSTREAM_USERNAME', 'PACKETSTREAM_PASSWORD', 'http://proxy.packetstream.io:31112', (u, p) => [u, `${p}_country-US`]],
+  ];
+  for (const [uEnv, pEnv, server, build] of providers) {
+    const u = process.env[uEnv], p = process.env[pEnv];
+    if (u && p) { const [user, pass] = build(u, p); return { server, username: user, password: pass }; }
+  }
+  return undefined;
+}
 
 async function openSession(osTarget: string): Promise<any> {
-  const { chromium } = await import('playwright');
-  _pwInstance = _pwInstance ?? await (await import('playwright')).chromium.launch({
+  const { AsyncNewBrowser } = await import('../async_api.js');
+  const proxy = _getProxy();
+  const context = await AsyncNewBrowser({
+    os: osTarget,
+    browser: 'chromium',
     headless: false,
-    args: ['--no-sandbox', '--disable-blink-features=AutomationControlled'],
+    proxy,
   });
-  const context = await _pwInstance.newContext({ viewport: { width: 1920, height: 1080 } });
-  return await context.newPage();
+  const page = context.pages()[0] ?? await context.newPage();
+  return page;
 }
 
 async function closeSession(page: any): Promise<void> {
