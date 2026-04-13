@@ -7,6 +7,7 @@ import { execSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import type { CDPPage } from '../cdp/page/page.js';
 import { findClickTarget, askPage, type ScreenshottablePage } from '../vision/analyze.js';
+import { waitCloudflare, type CFPage } from '../cloudflare/challenge.js';
 
 const asVision = (p: CDPPage) => p as unknown as ScreenshottablePage;
 
@@ -243,6 +244,12 @@ async function generateIdentity(page: CDPPage, args: ToolArgs): Promise<string> 
   return `generated: username=${username} email=${email} (use $${key}_NEW_PASSWORD for password)`;
 }
 
+async function solveCloudflare(page: CDPPage, args: ToolArgs): Promise<string> {
+  const cfPage = page as unknown as CFPage;
+  const cleared = await waitCloudflare(cfPage);
+  return cleared ? 'cloudflare cleared' : 'cloudflare not cleared';
+}
+
 // ---------------------------------------------------------------------------
 // Registry
 // ---------------------------------------------------------------------------
@@ -250,8 +257,8 @@ async function generateIdentity(page: CDPPage, args: ToolArgs): Promise<string> 
 export const TOOLS: Record<string, ToolFn> = {
   click, fill, focus, type_text: typeText, press_key: pressKey,
   navigate, scroll, wait, read,
-  solve_captcha: solveCaptcha, check_email: checkEmail,
-  generate_identity: generateIdentity,
+  solve_captcha: solveCaptcha, solve_cloudflare: solveCloudflare,
+  check_email: checkEmail, generate_identity: generateIdentity,
 };
 
 export async function dispatch(page: CDPPage, tool: string, args: ToolArgs): Promise<string> {
