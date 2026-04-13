@@ -1,0 +1,56 @@
+{
+  "tested_at": "2026-04-13",
+  "pass": [
+    { "name": "oxylabs_balance", "result": "Traffic available: 4.86 GB, Pay as you go", "method": "Google SSO → dashboard" },
+    { "name": "brightdata_balance", "result": "Balance: $55, Active, Pay as you go", "method": "Google SSO → billing page" },
+    { "name": "anticaptcha_balance", "result": "Account balance: $8.6k", "method": "Google SSO → dashboard" },
+    { "name": "capmonster_balance", "result": "Balance: $0.00", "method": "Google SSO → dashboard" },
+    { "name": "reddit_register", "result": "superbear342", "method": "email → captcha → verify code → username/password" },
+    { "name": "github_login", "result": "logged in", "method": "email/password → Sign in" },
+    { "name": "github_follow", "result": "followed lbartoszcze", "method": "login → navigate → click Follow" },
+    { "name": "reddit_login", "result": "logged in as young_fox_7", "method": "username/password → Log In → homepage" }
+  ],
+  "fail_captcha": [
+    { "name": "discord_register", "reason": "hCaptcha after Create Account — no solver", "form_fill": "PASS", "dropdowns": "PASS" },
+    { "name": "discord_login", "reason": "hCaptcha after Log In — no solver", "form_fill": "PASS" },
+    { "name": "tiktok_login", "reason": "drag puzzle CAPTCHA after Log In — no solver", "form_fill": "PASS" }
+  ],
+  "fail_credentials": [
+    { "name": "instagram_login", "reason": "credentials rejected (hc7xo3abndy8@wisentmedia.com)", "form_fill": "PASS" },
+    { "name": "packetstream_balance", "reason": "Invalid credentials (lbartoszcze)", "form_fill": "PASS" },
+    { "name": "reddit_login_slow_cloud", "reason": "password rejected for slow_cloud (stale)", "form_fill": "PASS" }
+  ],
+  "fail_platform_block": [
+    { "name": "instagram_register", "reason": "We couldn't create your account — wisentmedia.com email domain blocked", "form_fill": "PASS", "dropdowns": "PASS" },
+    { "name": "twitter_register", "reason": "backend loading spinner indefinitely after submit — email domain or rate limit", "form_fill": "PASS", "dropdowns": "PASS" },
+    { "name": "linkedin_login", "reason": "email verification checkpoint — LinkedIn emails never arrive at Resend", "form_fill": "PASS" }
+  ],
+  "fail_browser": [
+    { "name": "twitter_login", "reason": "Custom Chromium crashes on x.com (page.waitForTimeout: Target page closed)", "form_fill": "N/A" },
+    { "name": "github_star", "reason": "vision cannot find Star button on repo page, then page crashes", "form_fill": "PASS", "login": "PASS", "navigate": "PASS" }
+  ],
+  "fail_partial": [
+    { "name": "tiktok_register", "reason": "Next button disabled after verification code entry — all prior steps work", "form_fill": "PASS", "dropdowns": "PASS", "email_verify": "PASS (code: 351552)" }
+  ],
+  "not_tested": [
+    { "name": "reddit_upvote", "reason": "depends on reddit_login (now working)" },
+    { "name": "reddit_comment", "reason": "depends on reddit_login (now working)" },
+    { "name": "instagram_follow", "reason": "depends on instagram_login (credentials rejected)" },
+    { "name": "instagram_like", "reason": "depends on instagram_login (credentials rejected)" },
+    { "name": "twitter_follow", "reason": "depends on twitter_login (browser crash)" },
+    { "name": "twitter_like", "reason": "depends on twitter_login (browser crash)" },
+    { "name": "twitter_dm", "reason": "depends on twitter_login (browser crash)" },
+    { "name": "tiktok_follow", "reason": "depends on tiktok_login (captcha)" },
+    { "name": "tiktok_like", "reason": "depends on tiktok_login (captcha)" }
+  ],
+  "summary": {
+    "total": 28,
+    "pass": 8,
+    "fail_captcha": 3,
+    "fail_credentials": 3,
+    "fail_platform_block": 3,
+    "fail_browser": 2,
+    "fail_partial": 1,
+    "not_tested": 9
+  }
+}
