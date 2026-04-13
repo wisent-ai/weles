@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { CDPWeles } from '../browser/api.js';
 import { SessionStore } from '../session/store.js';
+import { waitCloudflare, type CFPage } from '../cloudflare/challenge.js';
 import { execute, AgentFailure, type ToolCall, type LoopResult } from './loop.js';
 
 // ---------------------------------------------------------------------------
@@ -115,9 +116,9 @@ function buildGoal(config: TaskConfig, usernameEnv: string, passwordEnv: string,
     const cap = config.captchaSitekey ? ` solve_captcha(sitekey='${config.captchaSitekey}') BEFORE every Continue.` : '';
     return `Open ${config.url}. Create account: generate_identity(platform='${service.split('_')[0]}').${cap} focus(selector='email'), type_text(value=$${platform}_NEW_EMAIL). check_email for verification codes. done(value=username) when complete.`;
   }
-  const sso = config.loginMethod === 'google_sso' ? " Use 'Sign in with Google'." : '';
   const tgt = target ? ` Target: ${target}.` : '';
-  return `Open ${config.url}. Log in: $${usernameEnv} / $${passwordEnv}.${sso}${nav}${tgt} Read ${config.what}. done() with value.`;
+  const cf = ' If you see Cloudflare verification, use solve_cloudflare().';
+  return `Open ${config.url}. Log in with email/password: fill the email field with $${usernameEnv}, fill the password field with $${passwordEnv}, then click the login button.${nav}${cf}${tgt} Read ${config.what}. done() with value.`;
 }
 
 // ---------------------------------------------------------------------------
@@ -208,6 +209,13 @@ export async function runTask(key: string, target?: string): Promise<any> {
       console.log(`[task] ${key}: initial navigation error (continuing): ${navErr.message}`);
     }
     console.log(`[task] ${key}: navigated, url=${page.url}`);
+
+    // Auto-handle Cloudflare if it appears after navigation
+    await page.waitForTimeout(2000);
+    try {
+      const cleared = await waitCloudflare(page as unknown as CFPage);
+      if (cleared) console.log(`[task] ${key}: cloudflare cleared`);
+    } catch { /* no cloudflare or failed — agent will handle */ }
 
     const result = await execute(page, goal, {
       envHints: { username_env: usernameEnv, password_env: passwordEnv },

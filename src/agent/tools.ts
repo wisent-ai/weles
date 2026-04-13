@@ -45,39 +45,54 @@ async function click(page: CDPPage, args: ToolArgs): Promise<string> {
   }
   await page.mouse.click(coords.x, coords.y);
   await new Promise(r => setTimeout(r, 1500));
-  return page.url !== preUrl ? 'clicked, page navigated' : 'clicked';
+  if (page.url !== preUrl) return 'clicked, page navigated';
+  // CDP mouse click may miss React/Vue onClick — try JS text match click
+  const words = target.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+  for (const word of words) {
+    try {
+      const ok = await page.evaluate(`(() => {
+        var els = document.querySelectorAll('button, a, [role="button"], input[type="submit"]');
+        for (var i = 0; i < els.length; i++) {
+          if (els[i].textContent.trim().toLowerCase().indexOf(${JSON.stringify(word)}) >= 0) { els[i].click(); return true; }
+        }
+        return false;
+      })()`);
+      if (ok) { await new Promise(r => setTimeout(r, 1500)); return 'clicked via JS'; }
+    } catch { /* skip */ }
+  }
+  return 'clicked';
 }
 
 async function fill(page: CDPPage, args: ToolArgs): Promise<string> {
   const target: string = args.target ?? '';
   const value = resolveEnv(args.value ?? '');
-  const coords = await findClickTarget(asVision(page), target);
-  if (!coords) return 'no-field-found';
-  await page.mouse.click(coords.x, coords.y);
-  await new Promise(r => setTimeout(r, 300));
-  // Check if an input is focused — if not, find nearest input and focus it via JS
-  const hasFocus = await page.evaluate(`(() => {
-    const a = document.activeElement;
-    return a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.isContentEditable);
-  })()`);
-  if (!hasFocus) {
-    // Try to find an input near the click target by text matching
-    const words = target.toLowerCase().split(/\s+/).filter(w => w.length > 2);
-    await page.evaluate(`((words) => {
-      const inputs = document.querySelectorAll('input, textarea');
-      for (const inp of inputs) {
-        const ctx = (inp.placeholder + ' ' + inp.name + ' ' + (inp.labels?.[0]?.textContent ?? '') + ' ' + (inp.getAttribute('aria-label') ?? '')).toLowerCase();
-        if (words.some(w => ctx.includes(w))) { inp.focus(); inp.click(); return; }
+  // Find and focus the input field by matching target text against field attributes
+  const words = target.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+  const focused = await page.evaluate(`((words) => {
+    var inputs = document.querySelectorAll('input, textarea');
+    for (var i = 0; i < inputs.length; i++) {
+      var inp = inputs[i];
+      var ctx = (inp.placeholder + ' ' + inp.name + ' ' + inp.type + ' ' + (inp.getAttribute('aria-label') || '')).toLowerCase();
+      var labels = inp.labels; if (labels && labels.length) ctx += ' ' + labels[0].textContent.toLowerCase();
+      if (words.some(function(w) { return ctx.indexOf(w) >= 0; })) {
+        inp.focus(); inp.click();
+        var setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+        setter.call(inp, '');
+        inp.dispatchEvent(new Event('input', {bubbles: true}));
+        return inp.name || inp.type || 'found';
       }
-      if (inputs.length > 0) inputs[0].focus();
-    })`, words);
-    await new Promise(r => setTimeout(r, 200));
+    }
+    return null;
+  })`, words);
+  if (!focused) {
+    // Vision click as last resort
+    const coords = await findClickTarget(asVision(page), target);
+    if (!coords) return 'no-field-found';
+    await page.mouse.click(coords.x, coords.y);
+    await new Promise(r => setTimeout(r, 300));
   }
-  // Select all existing content then type new value
-  await page.keyboard.down('Control');
-  await page.keyboard.press('a');
-  await page.keyboard.up('Control');
-  await page.keyboard.type(value);
+  // Use insertText for reliable bulk input (keyboard.type drops chars)
+  await page.keyboard.insertText(value);
   return `filled ${value.length} chars`;
 }
 
