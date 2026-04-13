@@ -19,7 +19,9 @@ export { ProxyPool, proxyUrl, toPlaywright, parseProxyUrl } from './proxy/config
 export type { ProxyConfig } from './proxy/config.js';
 export { humanMove, humanClick } from './human/mouse.js';
 export { humanType } from './human/keyboard.js';
-export { FetchAccountValue, Trajectory } from './agent/index.js';
+export { FetchAccountValue, Trajectory, execute, AgentFailure, dispatch, TOOLS } from './agent/index.js';
+export type { ToolCall, LoopResult } from './agent/loop.js';
+export { AsyncNewBrowser, AsyncWeles } from './async_api.js';
 export * as vision from './agent/vision.js';
 export * as agentLogin from './agent/login.js';
 export * as discover from './agent/discover.js';
