@@ -32,11 +32,22 @@ const TRAJECTORIES = [
   { name: 'anticaptcha_balance', url: 'https://anti-captcha.com/clients', goal: `${SSO} Read any balance data. done(value=<data>). Do NOT navigate().`, emailEnv: 'OXYLABS_EMAIL', passEnv: 'OXYLABS_PASSWORD' },
   { name: 'capmonster_balance', url: 'https://dash.capmonster.cloud', goal: `${SSO} Read any balance data. done(value=<data>). Do NOT navigate().`, emailEnv: 'OXYLABS_EMAIL', passEnv: 'OXYLABS_PASSWORD' },
 
+  // --- DASHBOARD BALANCE (email/password) ---
+  { name: 'packetstream_balance', url: 'https://app.packetstream.io', goal: `${LOGIN} Read any balance or credit data. done(value=<data>).`, emailEnv: 'PACKETSTREAM_EMAIL', passEnv: 'PACKETSTREAM_PASSWORD' },
+
   // --- SOCIAL ACTIONS ---
-  { name: 'reddit_upvote', url: 'https://www.reddit.com/r/test/comments/1a2b3c/', goal: `${LOGIN} Navigate to https://www.reddit.com/r/test/. Find any post and click the upvote button. done(value="upvoted").`, emailEnv: 'REDDIT_EMAIL', passEnv: 'REDDIT_PASSWORD' },
-  { name: 'instagram_follow', url: 'https://www.instagram.com/accounts/login/', goal: `${LOGIN} Navigate to https://www.instagram.com/wisent.ai/. Click "Follow". done(value="followed wisent.ai").`, emailEnv: 'INSTAGRAM_EMAIL', passEnv: 'INSTAGRAM_PASSWORD' },
-  { name: 'twitter_follow', url: 'https://x.com/login', goal: `${LOGIN} Navigate to https://x.com/elonmusk. Click "Follow". done(value="followed @elonmusk").`, emailEnv: 'TWITTER_EMAIL', passEnv: 'TWITTER_PASSWORD' },
-  { name: 'github_star', url: 'https://github.com/login', goal: `${LOGIN} Navigate to https://github.com/anthropics/claude-code. Click "Star". done(value="starred anthropics/claude-code").`, emailEnv: 'GITHUB_EMAIL', passEnv: 'GITHUB_PASSWORD' },
+  { name: 'reddit_upvote', url: 'https://www.reddit.com/login', goal: `${LOGIN} Then navigate to https://www.reddit.com/r/test/. Find any post and click the upvote button. done(value="upvoted").`, emailEnv: 'REDDIT_EMAIL', passEnv: 'REDDIT_PASSWORD' },
+  { name: 'reddit_comment', url: 'https://www.reddit.com/login', goal: `${LOGIN} Then navigate to https://www.reddit.com/r/test/. Open any post. Write a comment "Hello from weles agent" and submit. done(value="commented").`, emailEnv: 'REDDIT_EMAIL', passEnv: 'REDDIT_PASSWORD' },
+  { name: 'instagram_follow', url: 'https://www.instagram.com/accounts/login/', goal: `${LOGIN} Then navigate to https://www.instagram.com/wisent.ai/. Click "Follow". done(value="followed wisent.ai").`, emailEnv: 'INSTAGRAM_EMAIL', passEnv: 'INSTAGRAM_PASSWORD' },
+  { name: 'instagram_like', url: 'https://www.instagram.com/accounts/login/', goal: `${LOGIN} Then navigate to https://www.instagram.com/wisent.ai/. Find any post and click the heart/like button. done(value="liked").`, emailEnv: 'INSTAGRAM_EMAIL', passEnv: 'INSTAGRAM_PASSWORD' },
+  { name: 'twitter_follow', url: 'https://x.com/login', goal: `${LOGIN} Then navigate to https://x.com/elonmusk. Click "Follow". done(value="followed @elonmusk").`, emailEnv: 'TWITTER_EMAIL', passEnv: 'TWITTER_PASSWORD' },
+  { name: 'twitter_like', url: 'https://x.com/login', goal: `${LOGIN} Then find any tweet and click the heart/like button. done(value="liked").`, emailEnv: 'TWITTER_EMAIL', passEnv: 'TWITTER_PASSWORD' },
+  { name: 'twitter_dm', url: 'https://x.com/login', goal: `${LOGIN} Then navigate to https://x.com/messages. Start a new message to @wisent_ai. Type "Hello from weles agent" and send. done(value="DM sent").`, emailEnv: 'TWITTER_EMAIL', passEnv: 'TWITTER_PASSWORD' },
+  { name: 'tiktok_follow', url: 'https://www.tiktok.com/login', goal: `${LOGIN} Then navigate to https://www.tiktok.com/@tiktok. Click "Follow". done(value="followed @tiktok").`, emailEnv: 'TIKTOK_EMAIL', passEnv: 'TIKTOK_PASSWORD' },
+  { name: 'tiktok_like', url: 'https://www.tiktok.com/login', goal: `${LOGIN} Then find any video and click the heart/like button. done(value="liked").`, emailEnv: 'TIKTOK_EMAIL', passEnv: 'TIKTOK_PASSWORD' },
+  { name: 'github_star', url: 'https://github.com/login', goal: `${LOGIN} Then navigate to https://github.com/anthropics/claude-code. Click "Star". done(value="starred anthropics/claude-code").`, emailEnv: 'GITHUB_EMAIL', passEnv: 'GITHUB_PASSWORD' },
+  { name: 'github_follow', url: 'https://github.com/login', goal: `${LOGIN} Then navigate to https://github.com/lbartoszcze. Click "Follow". done(value="followed lbartoszcze").`, emailEnv: 'GITHUB_EMAIL', passEnv: 'GITHUB_PASSWORD' },
+  { name: 'linkedin_login', url: 'https://www.linkedin.com/login', goal: `${LOGIN} done(value="logged in").`, emailEnv: 'LINKEDIN_EMAIL', passEnv: 'LINKEDIN_PASSWORD' },
 ];
 
 // Allow running specific trajectory: node scripts/run_all.mjs reddit_register
