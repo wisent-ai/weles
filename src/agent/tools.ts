@@ -66,6 +66,12 @@ async function click(page: CDPPage, args: ToolArgs): Promise<string> {
 async function fill(page: CDPPage, args: ToolArgs): Promise<string> {
   const target: string = args.target ?? '';
   const value = resolveEnv(args.value ?? '');
+  // Try Playwright locator.fill() first (handles React state)
+  const selectors = [`input[name*="${target.toLowerCase().replace(/\s+/g,'')}"]`, `input[placeholder*="${target}" i]`, `input[aria-label*="${target}" i]`, `input[type="${target.toLowerCase()}"]`];
+  for (const sel of selectors) {
+    try { const el = page.locator?.(sel)?.first?.(); if (el && await el.isVisible()) { await el.fill(value); return `filled ${value.length} chars`; } } catch { /* skip */ }
+  }
+  // Vision click + keyboard.type
   const coords = await findClickTarget(asVision(page), target);
   if (!coords) return 'no-field-found';
   await page.mouse.click(coords.x, coords.y);
