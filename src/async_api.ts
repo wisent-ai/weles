@@ -85,6 +85,7 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
   let pwBrowser: Browser;
   if (isChromium) {
     launchOpts.args = extraArgs;
+    launchOpts.ignoreDefaultArgs = ['--enable-automation', '--enable-unsafe-swiftshader'];
     pwBrowser = await chromium.launch(launchOpts);
   } else {
     pwBrowser = await firefox.launch(launchOpts);
