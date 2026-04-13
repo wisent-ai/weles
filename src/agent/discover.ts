@@ -7,6 +7,7 @@
  */
 
 import * as vision from './vision.js';
+import { waitCloudflare } from '../cloudflare/challenge.js';
 
 const DEFAULT_DEPTH = 4;
 
@@ -16,6 +17,7 @@ export async function findNumber(
   depth = DEFAULT_DEPTH,
 ): Promise<number | null> {
   for (let step = 0; step < depth; step++) {
+    await waitCloudflare(page);
     const value = await vision.number(page, what);
     if (value !== null) {
       console.log(`[discover] found '${what}' = ${value} at depth ${step}`);
