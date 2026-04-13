@@ -1,7 +1,7 @@
 import { AsyncNewBrowser } from './dist/async_api.js';
 import { execute } from './dist/agent/loop.js';
 
-const GOAL = `Open https://dashboard.oxylabs.io. Click "Sign in with Google" to start Google SSO. On the Google login page, fill email with $OXYLABS_DASH_EMAIL, click Next. Fill password with $OXYLABS_DASH_PASSWORD, click Next. If passkey prompt appears, click "Try another way" or "Enter your password". After login, navigate to the billing or usage page and read the credit balance or traffic usage. done(value=balance).`;
+const GOAL = `Open https://dashboard.oxylabs.io. Click "Sign in with Google" to start Google SSO. On the Google login page, fill email with $OXYLABS_DASH_EMAIL, click Next. Fill password with $OXYLABS_DASH_PASSWORD, click Next. If passkey prompt appears, click "Try another way" then "Enter your password". After submitting password, wait 5 seconds for redirect. Once on the Oxylabs dashboard, read any traffic usage, balance, or spending data visible on the page. done(value=<whatever balance or usage data you see>). Do NOT use navigate(). If the first page after login shows traffic available, use that.`;
 
 async function main() {
   process.env.OXYLABS_DASH_EMAIL = process.env.OXYLABS_EMAIL;

@@ -132,8 +132,15 @@ export async function execute(
   const envHints = options?.envHints ?? {};
   let replay = options?.replay ?? null;
 
+  const mainPage = page; // Store reference to original main page
   function getActivePage(p: any): any {
-    try { if (p.isClosed?.() && p.context?.().pages?.().length) return p.context().pages()[0]; } catch { /* skip */ }
+    try {
+      const pages = p.context?.().pages?.() ?? [];
+      // If current page is closed, return first open page
+      if (p.isClosed?.()) return pages.find((pg: any) => !pg.isClosed?.()) ?? mainPage;
+      // If we're on a popup (pages.length > 1) and it's not the main page, check if we should switch back
+      if (pages.length === 1 && pages[0] !== p) return pages[0]; // Popup closed, back to main
+    } catch { /* skip */ }
     return p;
   }
 
