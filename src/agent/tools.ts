@@ -66,17 +66,21 @@ async function click(page: CDPPage, args: ToolArgs): Promise<string> {
 async function fill(page: CDPPage, args: ToolArgs): Promise<string> {
   const target: string = args.target ?? '';
   const value = resolveEnv(args.value ?? '');
-  // Try Playwright locator.fill() — extract keywords from target for flexible matching
   const kws = target.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(w => w.length > 2);
-  const sels = kws.flatMap(k => [`input[name*="${k}"]`, `input[placeholder*="${k}" i]`, `input[aria-label*="${k}" i]`]);
-  sels.push(`input[type="${target.toLowerCase().replace(/\s+/g,'')}"]`);
+  // Playwright locator.fill() — inputs, textareas, and contenteditable
+  const tags = ['input', 'textarea', '[contenteditable]'];
+  const sels = kws.flatMap(k => tags.flatMap(t => [`${t}[name*="${k}"]`, `${t}[placeholder*="${k}" i]`, `${t}[aria-label*="${k}" i]`]));
   for (const sel of sels) {
     try { const el = page.locator?.(sel)?.first?.(); if (el && await el.isVisible()) { await el.fill(value); return `filled ${value.length} chars`; } } catch { /* skip */ }
   }
-  // Vision click + select all + keyboard.type (clear existing content)
-  const coords = await findClickTarget(asVision(page), target);
-  if (!coords) return 'no-field-found';
-  await page.mouse.click(coords.x, coords.y);
+  // Coordinate click on elements with matching placeholder (shadow DOM web components)
+  const tgtJson = JSON.stringify(target.toLowerCase());
+  const coords = await page.evaluate(`(()=>{var t=${tgtJson};var els=document.querySelectorAll('*');for(var i=0;i<els.length;i++){var r=els[i].getBoundingClientRect();var ph=(els[i].getAttribute('placeholder')||'').toLowerCase();if(r.width>50&&r.height>10&&r.x>0&&ph&&ph.indexOf(t)>=0)return{x:r.x+r.width/2,y:r.y+r.height/2}}return null})()`);
+  if (coords) { await page.mouse.click(coords.x, coords.y); await new Promise(r => setTimeout(r, 500)); await page.keyboard.type(value, { delay: 30 }); return `filled ${value.length} chars`; }
+  // Vision click + keyboard.type
+  const vc = await findClickTarget(asVision(page), target);
+  if (!vc) return 'no-field-found';
+  await page.mouse.click(vc.x, vc.y);
   await new Promise(r => setTimeout(r, 300));
   await page.keyboard.press('Meta+a').catch(() => page.keyboard.press('Control+a').catch(() => {}));
   await page.keyboard.type(value, { delay: 50 });
