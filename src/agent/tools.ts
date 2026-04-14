@@ -270,15 +270,13 @@ async function selectOption(page: CDPPage, args: ToolArgs): Promise<string> {
 
 async function jsClick(page: CDPPage, args: ToolArgs): Promise<string> {
   const sel = JSON.stringify(args.selector ?? ''), txt = JSON.stringify((args.text ?? '').toLowerCase());
-  const result = await page.evaluate(`(() => {
-    function F(r,s){var a=Array.from(r.querySelectorAll(s));r.querySelectorAll('*').forEach(function(e){if(e.shadowRoot)a=a.concat(F(e.shadowRoot,s))});return a}
-    var s=${sel},t=${txt};
-    if(s){try{var e=F(document,s)[0];if(e){e.click();return 'clicked: '+s}}catch(e){}}
-    if(t){var els=F(document,'button,a,[role="button"],[class*="vote"],[class*="like"],[class*="star"],[class*="follow"]');
-      for(var i=0;i<els.length;i++){var x=((els[i].textContent||'')+(els[i].getAttribute('aria-label')||'')).toLowerCase();
-        if(x.indexOf(t)>=0){els[i].click();return 'clicked: '+(els[i].getAttribute('aria-label')||els[i].textContent||'').trim().slice(0,40)}}}
-    return null})()`);
-  return result || 'no-element-found';
+  // 1. Shadow DOM deep search first (Reddit vote buttons have no text/aria)
+  const sr = await page.evaluate(`(()=>{var t=${txt};function F(r){var a=[];r.querySelectorAll('*').forEach(function(e){if(e.shadowRoot){var sr=e.shadowRoot;a=a.concat(Array.from(sr.querySelectorAll('[data-post-click-location] button')));a=a.concat(F(sr))}});return a}var bs=F(document);if(t&&t.indexOf('upvote')>=0&&bs.length>0){bs[0].click();return'clicked upvote (shadow)'}if(t&&t.indexOf('downvote')>=0&&bs.length>1){bs[1].click();return'clicked downvote (shadow)'}return null})()`);
+  if (sr) return sr;
+  // 2. Regular DOM: selector match, then text match
+  const r = await page.evaluate(`(()=>{function F(r,s){var a=Array.from(r.querySelectorAll(s));r.querySelectorAll('*').forEach(function(e){if(e.shadowRoot)a=a.concat(F(e.shadowRoot,s))});return a}var s=${sel},t=${txt};if(s){try{var e=F(document,s)[0];if(e){e.click();return'clicked: '+s}}catch(e){}}if(t){var els=F(document,'button,a,[role="button"],[class*="vote"],[class*="like"],[class*="star"],[class*="follow"]');for(var i=0;i<els.length;i++){var x=((els[i].textContent||'')+(els[i].getAttribute('aria-label')||'')).toLowerCase();if(x.indexOf(t)>=0){els[i].click();return'clicked: '+(els[i].getAttribute('aria-label')||els[i].textContent||'').trim().slice(0,40)}}}return null})()`);
+  if (r) return r;
+  return 'no-element-found';
 }
 
 export const TOOLS: Record<string, ToolFn> = {
