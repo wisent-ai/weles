@@ -9,6 +9,7 @@ import { join } from 'node:path';
 type CDPPage = any; // Works with both Playwright Page and CDPPage
 import { dispatch } from './tools.js';
 import { Capture } from '../capture/capture.js';
+import { loadFlow, saveFlow, replayFlow, type FlowStep } from '../session/flows.js';
 
 const MAX_ITERATIONS = 50;
 
@@ -129,12 +130,24 @@ function buildState(page: CDPPage, history: ToolCall[], envHints: Record<string,
 export async function execute(
   page: CDPPage,
   goal: string,
-  options?: { envHints?: Record<string, string>; replay?: ToolCall[] },
+  options?: { envHints?: Record<string, string>; replay?: ToolCall[]; flowName?: string },
 ): Promise<LoopResult> {
   const history: ToolCall[] = [];
   const envHints = options?.envHints ?? {};
   let replay = options?.replay ?? null;
   const capture = new Capture({ newPage: async () => page } as any);
+  const flowName = options?.flowName;
+
+  // Try replaying a saved flow before using the LLM
+  if (flowName && !replay) {
+    const saved = loadFlow(flowName);
+    if (saved) {
+      console.log(`[loop] Replaying saved flow: ${flowName} (${saved.steps.length} steps)`);
+      const result = await replayFlow(saved, (tool, args) => dispatch(page, tool, args));
+      if (result.success) return { value: result.value, history: saved.steps as any };
+      console.log(`[loop] Replay failed at step ${result.failedAtStep}, switching to LLM`);
+    }
+  }
 
   const mainPage = page; // Store reference to original main page
   function getActivePage(p: any): any {
@@ -183,6 +196,12 @@ export async function execute(
     if (call.tool === 'done') {
       call.result = 'done';
       history.push(call);
+      // Save successful flow for future replay
+      if (flowName) {
+        const steps = history.map(h => ({ tool: h.tool, args: h.args, result: h.result }));
+        saveFlow(flowName, steps);
+        console.log(`[loop] Flow saved: ${flowName} (${steps.length} steps)`);
+      }
       return { value: call.args.value, history };
     }
     if (call.tool === 'give_up') {
