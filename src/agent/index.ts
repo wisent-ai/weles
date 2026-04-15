@@ -5,7 +5,7 @@
 // Tool-use loop (screenshot → claude -p → dispatch → repeat)
 export { execute, AgentFailure, parseJsonFrom } from './loop.js';
 export type { ToolCall, LoopResult } from './loop.js';
-export { dispatch, TOOLS, resolveEnv } from './tools.js';
+export { dispatch } from './tools.js';
 
 // Declarative task API
 export { FetchAccountValue, Trajectory } from './tasks.js';

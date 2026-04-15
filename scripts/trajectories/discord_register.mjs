@@ -1,21 +1,14 @@
 import { WSession } from '../../dist/session/wsession.js';
 import { execute } from '../../dist/agent/loop.js';
-import { TRAJECTORIES } from '../run_all_export.mjs';
 
-const t = TRAJECTORIES.find(t => t.name === 'discord_register');
-if (!t) { console.error('Trajectory not found: discord_register'); process.exit(1); }
-if (t.emailEnv) {
-  process.env.SVC_EMAIL = process.env[t.emailEnv] || '';
-  process.env.SVC_PASSWORD = process.env[t.passEnv] || '';
-  if (!process.env.SVC_EMAIL) { console.log('SKIP — set ' + t.emailEnv); process.exit(0); }
-}
-const s = await WSession.start({ label: 'discord_register', proxy: process.env.PROXY_URL || undefined });
+const URL = 'https://discord.com/register';
+const GOAL = `generate_identity(platform="discord"). Fill Email with $DISCORD_NEW_EMAIL. Fill "Display Name" with $DISCORD_NEW_USERNAME. Fill Username with $DISCORD_NEW_USERNAME. Fill Password with $DISCORD_NEW_PASSWORD. For Date of Birth use select_option(target="month",value="January"), select_option(target="day",value="1"), select_option(target="year",value="1995"). Click "Create Account". If captcha, solve_captcha(sitekey="auto"). If email verification, check_email(email=$DISCORD_NEW_EMAIL,sender="discord"). done(value=$DISCORD_NEW_USERNAME).`;
+
+const s = await WSession.start({ label: 'discord_register', proxy: process.env.PROXY_URL || 'residential' });
 try {
-  await s.goto(t.url);
-  const result = await execute(s.page, `Open ${t.url}. ${t.goal}`, {
-    envHints: t.emailEnv ? { SVC_EMAIL: process.env.SVC_EMAIL, SVC_PASSWORD: '***' } : {},
-    flowName: 'discord_register',
-  });
+  await s.goto(URL);
+  await s.wait(3);
+  const result = await execute(s, `Open ${URL}. ${GOAL}`, { flowName: 'discord_register' });
   console.log('PASS:', result.value);
 } catch (e) {
   console.log('FAIL:', e.message?.slice(0, 200));

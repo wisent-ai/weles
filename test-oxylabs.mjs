@@ -12,7 +12,7 @@ process.env.SVC_PASSWORD = process.env.OXYLABS_PASSWORD || '';
 const s = await WSession.start({ label: 'oxylabs_balance', proxy: process.env.PROXY_URL || undefined });
 try {
   await s.goto(t.url);
-  const result = await execute(s.page, `Open ${t.url}. ${t.goal}`, {
+  const result = await execute(s, `Open ${t.url}. ${t.goal}`, {
     envHints: { SVC_EMAIL: process.env.SVC_EMAIL, SVC_PASSWORD: '***' },
     flowName: 'oxylabs_balance',
   });

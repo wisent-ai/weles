@@ -1,19 +1,18 @@
 import { WSession } from '../../dist/session/wsession.js';
 import { execute } from '../../dist/agent/loop.js';
-import { TRAJECTORIES } from '../run_all_export.mjs';
 
-const t = TRAJECTORIES.find(t => t.name === 'linkedin_login');
-if (!t) { console.error('Trajectory not found: linkedin_login'); process.exit(1); }
-if (t.emailEnv) {
-  process.env.SVC_EMAIL = process.env[t.emailEnv] || '';
-  process.env.SVC_PASSWORD = process.env[t.passEnv] || '';
-  if (!process.env.SVC_EMAIL) { console.log('SKIP — set ' + t.emailEnv); process.exit(0); }
-}
+const URL = 'https://www.linkedin.com/login';
+const GOAL = `Fill "session_key" with $SVC_EMAIL. Fill "session_password" with $SVC_PASSWORD. Click "Sign in". Wait 5 seconds. If captcha, solve_captcha(). done(value="logged in").`;
+
+if (!process.env.LINKEDIN_EMAIL) { console.log('SKIP — set LINKEDIN_EMAIL'); process.exit(0); }
+process.env.SVC_EMAIL = process.env.LINKEDIN_EMAIL;
+process.env.SVC_PASSWORD = process.env.LINKEDIN_PASSWORD;
+
 const s = await WSession.start({ label: 'linkedin_login', proxy: process.env.PROXY_URL || undefined });
 try {
-  await s.goto(t.url);
-  const result = await execute(s.page, `Open ${t.url}. ${t.goal}`, {
-    envHints: t.emailEnv ? { SVC_EMAIL: process.env.SVC_EMAIL, SVC_PASSWORD: '***' } : {},
+  await s.goto(URL);
+  const result = await execute(s, `Open ${URL}. ${GOAL}`, {
+    envHints: { SVC_EMAIL: process.env.SVC_EMAIL, SVC_PASSWORD: '***' },
     flowName: 'linkedin_login',
   });
   console.log('PASS:', result.value);
