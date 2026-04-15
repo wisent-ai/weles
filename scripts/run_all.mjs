@@ -1,4 +1,4 @@
-import { AsyncNewBrowser } from '../dist/async_api.js';
+import { WSession } from '../dist/session/wsession.js';
 import { execute } from '../dist/agent/loop.js';
 import { writeFileSync } from 'node:fs';
 import { TRAJECTORIES } from './run_all_export.mjs';
@@ -15,27 +15,17 @@ async function runOne(t) {
       return { name: t.name, status: 'skip', reason: `missing ${t.emailEnv}` };
     }
   }
-  let ctx;
+  let session;
   try {
-    const opts = { os: 'macos', browser: 'chromium', headless: false };
-    if (process.env.PROXY_URL) {
-      const u = new URL(process.env.PROXY_URL);
-      opts.proxy = { server: `${u.protocol}//${u.hostname}:${u.port}` };
-      if (u.username) { opts.proxy.username = decodeURIComponent(u.username); opts.proxy.password = decodeURIComponent(u.password || ''); }
-    }
-    ctx = await AsyncNewBrowser(opts);
-    const page = ctx.pages()[0] || await ctx.newPage();
-    // Inject cookies before navigating (cookie-first login)
-    if (process.env.COOKIES_JSON) {
-      try {
-        const cookies = JSON.parse(process.env.COOKIES_JSON).filter(c => c.name && c.value && c.domain);
-        if (cookies.length) { await ctx.addCookies(cookies); console.log(`[${t.name}] Injected ${cookies.length} cookies`); }
-      } catch (e) { console.log(`[${t.name}] Cookie inject failed: ${e.message}`); }
-    }
-    await page.goto(t.url, { waitUntil: t.waitLoad ? 'load' : 'domcontentloaded' });
-    await page.waitForTimeout(t.waitLoad ? 5000 : 3000);
-    const result = await execute(page, `Open ${t.url}. ${t.goal}`, {
+    session = await WSession.start({
+      label: t.name,
+      proxy: process.env.PROXY_URL || undefined,
+    });
+    await session.goto(t.url);
+    // Agent discovers or replays the flow
+    const result = await execute(session.page, `Open ${t.url}. ${t.goal}`, {
       envHints: t.emailEnv ? { SVC_EMAIL: process.env.SVC_EMAIL, SVC_PASSWORD: '***' } : {},
+      flowName: t.name,
     });
     console.log(`[${t.name}] PASS: ${JSON.stringify(result.value).slice(0, 200)}`);
     return { name: t.name, status: 'pass', value: result.value };
@@ -43,7 +33,7 @@ async function runOne(t) {
     console.log(`[${t.name}] FAIL: ${e.message.slice(0, 200)}`);
     return { name: t.name, status: 'fail', error: e.message.slice(0, 500) };
   } finally {
-    try { if (ctx) await ctx.close(); } catch {}
+    try { if (session) await session.close(); } catch {}
   }
 }
 
