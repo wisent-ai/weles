@@ -1,16 +1,14 @@
 /**
- * reCAPTCHA v2 Enterprise image challenge solver using Claude vision.
- * Port of account-api-build/skills/captcha/recaptcha/_recaptcha_challenge.py
+ * reCAPTCHA v2 Enterprise image challenge solver.
+ * Uses CapSolver API for tile classification, with Claude vision as secondary.
  */
-
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 type Page = any;
-const MAX_ATTEMPTS = 8;
+const MAX_ATTEMPTS = 15;
 
-// reCAPTCHA category codes for CapSolver API
 const CATEGORY_CODES: Record<string, string> = {
   taxi: '/m/0pg52', taxis: '/m/0pg52', bus: '/m/01bjv', buses: '/m/01bjv',
   'school bus': '/m/02yvhj', motorcycle: '/m/04_sv', motorcycles: '/m/04_sv',
@@ -19,50 +17,18 @@ const CATEGORY_CODES: Record<string, string> = {
   bicycle: '/m/0199g', bicycles: '/m/0199g', 'parking meter': '/m/015qbp', 'parking meters': '/m/015qbp',
   car: '/m/0k4j', cars: '/m/0k4j', bridge: '/m/015kr', bridges: '/m/015kr',
   boat: '/m/019jd', boats: '/m/019jd', 'palm tree': '/m/0cdl1', 'palm trees': '/m/0cdl1',
-  mountain: '/m/09d_r', mountains: '/m/09d_r', hill: '/m/09d_r', hills: '/m/09d_r',
-  'mountains or hills': '/m/09d_r', 'fire hydrant': '/m/01pns0', 'fire hydrants': '/m/01pns0',
+  mountain: '/m/09d_r', mountains: '/m/09d_r', 'mountains or hills': '/m/09d_r',
+  'fire hydrant': '/m/01pns0', 'fire hydrants': '/m/01pns0',
   stair: '/m/01lynh', stairs: '/m/01lynh',
 };
 
 function instructionToCode(instruction: string): string | null {
-  // Extract object name: "Select all images with\ncars\nClick verify..." → "cars"
   const lines = instruction.split('\n').map(l => l.trim()).filter(Boolean);
-  // Object name is typically the second line (after "Select all images with")
   for (const line of lines) {
     const clean = line.toLowerCase().replace(/^a\s+/, '');
     if (CATEGORY_CODES[clean]) return CATEGORY_CODES[clean];
   }
-  // Try full text extraction
-  const text = instruction.toLowerCase().replace(/select all (images|squares) with\s*/i, '').replace(/\n.*/s, '').replace(/^a\s+/, '').trim();
-  return CATEGORY_CODES[text] ?? null;
-}
-
-function buildPrompt(instruction: string, gridSize: number): string {
-  const grid = gridSize === 3 ? '1 2 3\n4 5 6\n7 8 9' : '1  2  3  4\n5  6  7  8\n9  10 11 12\n13 14 15 16';
-  return `You are solving a reCAPTCHA image challenge. Look at the image grid and identify which squares contain the target object.
-
-TARGET OBJECT: "${instruction}"
-
-The grid is numbered like this (left-to-right, top-to-bottom):
-${grid}
-
-CRITICAL RULES FOR HIGH ACCURACY:
-1. INCLUDE any square where you can see ANY part of the target object, even tiny portions
-2. Objects often span multiple squares - select ALL squares the object touches
-3. Look carefully at edges and corners of each square
-4. Common objects and what to look for:
-   - Bicycles: wheels, handlebars, frames, pedals - include ALL squares with any bike part
-   - Cars: Include entire vehicle even if wheels are in different squares
-   - Buses: Large vehicles - usually span 4-6 squares horizontally
-   - Traffic lights: Include the entire pole AND the signal head
-   - Crosswalks: White stripes on road - select ALL squares with visible stripes
-   - Fire hydrants: Red/yellow objects on sidewalks
-   - Stairs: Steps going up or down, indoor or outdoor
-5. When instruction says "click verify once there are none left" and you see NO targets, return []
-6. BE THOROUGH: Missing a square fails the challenge. Extra squares are okay.
-
-RESPOND WITH ONLY A VALID JSON ARRAY. Examples: [1,4,7] or [2,5,6,9] or []
-No explanations. No markdown. No text before or after the array.`;
+  return null;
 }
 
 function parsePositions(raw: string): number[] | null {
@@ -72,164 +38,148 @@ function parsePositions(raw: string): number[] | null {
 }
 
 function findBframe(page: Page) {
-  for (const f of page.frames()) {
-    const url = f.url?.() ?? '';
-    if (url.includes('/bframe')) return f;
-  }
+  for (const f of page.frames()) { if ((f.url?.() ?? '').includes('/bframe')) return f; }
   return null;
 }
 
 function findAnchorFrame(page: Page) {
-  for (const f of page.frames()) {
-    if ((f.url?.() ?? '').includes('/anchor')) return f;
-  }
+  for (const f of page.frames()) { if ((f.url?.() ?? '').includes('/anchor')) return f; }
+  return null;
+}
+
+async function classifyGrid(bframe: any, instruction: string): Promise<number[] | null> {
+  const capsolverKey = process.env.CAPSOLVER_API_KEY ?? '';
+  const questionCode = instructionToCode(instruction);
+  if (!capsolverKey || !questionCode) return null;
+  const gridImgB64 = await bframe.evaluate(`(() => {
+    const img = document.querySelector('.rc-image-tile-wrapper img, table.rc-imageselect-table img');
+    if (!img) return null;
+    const c = document.createElement('canvas'); c.width = img.naturalWidth||img.width; c.height = img.naturalHeight||img.height;
+    c.getContext('2d').drawImage(img, 0, 0); return c.toDataURL('image/jpeg', 0.9).split(',')[1];
+  })()`).catch(() => null);
+  if (!gridImgB64) return null;
+  console.log(`[recaptcha] CapSolver: code=${questionCode}, img=${(gridImgB64.length/1024).toFixed(0)}KB`);
+  const data = await (await fetch('https://api.capsolver.com/createTask', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ clientKey: capsolverKey, task: { type: 'ReCaptchaV2Classification', image: gridImgB64, question: questionCode } }),
+  })).json() as any;
+  if (data.solution?.objects) return (data.solution.objects as number[]).map(i => i + 1);
+  console.log(`[recaptcha] CapSolver: ${data.errorDescription || 'no objects'}`);
   return null;
 }
 
 export async function solveRecaptchaV2(page: Page): Promise<boolean> {
-  console.log('[recaptcha] Looking for reCAPTCHA iframes...');
-  console.log('[recaptcha] All frame URLs:', page.frames().map((f: any) => f.url?.()?.slice(0, 80)));
+  console.log('[recaptcha] Starting solver...');
 
-  // Check if bframe has a loaded challenge (not just present but with content)
+  // Click checkbox if image challenge not already open
   const existingBframe = findBframe(page);
-  let bframeReady = false;
-  if (existingBframe) {
-    const hasGrid = await existingBframe.evaluate(`(() => !!document.querySelector('table.rc-imageselect-table, .rc-imageselect-desc'))()`).catch(() => false);
-    bframeReady = !!hasGrid;
-  }
-  if (!bframeReady) {
-    // Click checkbox via frameLocator chain (pierces nested iframes)
+  const hasGrid = existingBframe ? await existingBframe.evaluate(`(() => !!document.querySelector('.rc-imageselect-desc'))()`).catch(() => false) : false;
+  if (!hasGrid) {
     try {
       const ci = page.frameLocator('iframe[src*="captchaInternal"]');
-      const rc = ci.frameLocator('iframe[src*="anchor"]').first();
-      await rc.locator('#recaptcha-anchor').click();
+      await ci.frameLocator('iframe[src*="anchor"]').first().locator('#recaptcha-anchor').click();
       console.log('[recaptcha] Clicked checkbox');
-    } catch (e: any) { console.log('[recaptcha] Checkbox click failed:', e.message?.slice(0, 100)); return false; }
-
-    // Check auto-pass
-    const anchorFrame = findAnchorFrame(page);
-    if (anchorFrame) {
-      const checked = await anchorFrame.evaluate(`(() => { const c = document.querySelector('.recaptcha-checkbox'); return c?.getAttribute('aria-checked') === 'true'; })()`).catch(() => false);
+    } catch (e: any) { console.log('[recaptcha] Checkbox failed:', e.message?.slice(0, 60)); return false; }
+    const af = findAnchorFrame(page);
+    if (af) {
+      const checked = await af.evaluate(`(() => document.querySelector('.recaptcha-checkbox')?.getAttribute('aria-checked') === 'true')()`).catch(() => false);
       if (checked) { console.log('[recaptcha] Auto-passed!'); return true; }
     }
-    // Wait for bframe
     await page.waitForEvent('frameattached').catch(() => {});
-  } else {
-    console.log('[recaptcha] Image challenge already visible, skipping checkbox');
   }
-  console.log('[recaptcha] Frames after checkbox:', page.frames().map((f: any) => f.url?.()?.slice(0, 80)));
+
+  // Use frameLocator chain for clicking (trusted events through nested iframes)
+  const ci = page.frameLocator('iframe[src*="captchaInternal"]');
+  const bf = ci.frameLocator('iframe[src*="bframe"]').first();
 
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-    const bframe = findBframe(page);
-    if (!bframe) { console.log('[recaptcha] No bframe, waiting...'); await page.waitForEvent('frameattached').catch(() => {}); continue; }
+    let bframe = findBframe(page);
+    if (!bframe) {
+      // Page may have navigated to new checkpoint — wait for it to load
+      console.log('[recaptcha] No bframe, waiting for page load...');
+      await page.waitForLoadState('domcontentloaded').catch(() => {});
+      // Re-click checkbox on new checkpoint page
+      try {
+        const ci2 = page.frameLocator('iframe[src*="captchaInternal"]');
+        await ci2.frameLocator('iframe[src*="anchor"]').first().locator('#recaptcha-anchor').click();
+        console.log('[recaptcha] Re-clicked checkbox');
+        await page.waitForEvent('frameattached').catch(() => {});
+      } catch {}
+      bframe = findBframe(page);
+      if (!bframe) { console.log('[recaptcha] Still no bframe'); continue; }
+    }
 
-    // Wait for grid to render inside bframe
-    await bframe.waitForSelector('table.rc-imageselect-table, table.rc-imageselect-table-33, table.rc-imageselect-table-44').catch(() => {});
+    await bframe.waitForSelector('.rc-imageselect-desc, .rc-imageselect-desc-no-canonical').catch(() => {});
+    const instruction = await bframe.evaluate(`(() => { const el = document.querySelector('.rc-imageselect-desc, .rc-imageselect-desc-no-canonical'); return el?.innerText ?? ''; })()`).catch(() => '');
+    if (!instruction) { console.log('[recaptcha] Empty instruction, waiting...'); await page.waitForEvent('framenavigated').catch(() => {}); continue; }
 
-    const instruction = await bframe.evaluate(`(() => { const el = document.querySelector('.rc-imageselect-desc, .rc-imageselect-desc-no-canonical, .rc-imageselect-desc-wrapper'); return el ? el.innerText : ''; })()`).catch(() => '');
-    console.log(`[recaptcha] Attempt ${attempt + 1}/${MAX_ATTEMPTS}: "${instruction.slice(0, 80)}"`);
-    if (!instruction) { console.log('[recaptcha] Empty instruction — bframe not loaded, retrying...'); await page.waitForEvent('framenavigated').catch(() => {}); continue; }
-
-    const gridInfo = await bframe.evaluate(`(() => { const t = document.querySelector('table.rc-imageselect-table, table.rc-imageselect-table-33, table.rc-imageselect-table-44'); if (!t) return null; const rows = t.querySelectorAll('tr'); return { rows: rows.length, cols: rows[0]?.querySelectorAll('td').length || 0 }; })()`).catch(() => null);
+    const gridInfo = await bframe.evaluate(`(() => { const t = document.querySelector('table.rc-imageselect-table, table.rc-imageselect-table-33, table.rc-imageselect-table-44'); if (!t) return null; const rows = t.querySelectorAll('tr'); return { cols: rows[0]?.querySelectorAll('td').length || 3 }; })()`).catch(() => null);
     const gridSize = gridInfo?.cols || 3;
+    console.log(`[recaptcha] Attempt ${attempt+1}: "${instruction.replace(/\n/g,' ').slice(0,60)}" grid=${gridSize}`);
 
-    // Screenshot the page — the captcha grid is visible as an overlay
-    const screenshot = await page.screenshot();
-    const imgPath = join(process.cwd(), 'recordings', 'vision', `captcha_attempt${attempt}.png`);
-    writeFileSync(imgPath, screenshot);
-    console.log(`[recaptcha] Screenshot: ${screenshot.length} bytes`);
+    // Save screenshot for debugging
+    writeFileSync(join(process.cwd(), 'recordings', 'vision', `captcha_attempt${attempt}.png`), await page.screenshot().catch(() => Buffer.from('')));
 
-    // Extract just the grid image from bframe for CapSolver
-    const capsolverKey = process.env.CAPSOLVER_API_KEY ?? '';
-    let positions: number[] | null = null;
-    const questionCode = instructionToCode(instruction);
-    if (capsolverKey && questionCode) {
-      try {
-        // Get the grid image as base64 from inside bframe
-        const gridImgB64 = await bframe.evaluate(`(() => {
-          const img = document.querySelector('.rc-image-tile-wrapper img, .rc-imageselect-challenge img, table.rc-imageselect-table img');
-          if (!img) return null;
-          const canvas = document.createElement('canvas');
-          canvas.width = img.naturalWidth || img.width;
-          canvas.height = img.naturalHeight || img.height;
-          canvas.getContext('2d').drawImage(img, 0, 0);
-          return canvas.toDataURL('image/jpeg', 0.9).split(',')[1];
-        })()`).catch(() => null);
-        if (gridImgB64) {
-          console.log(`[recaptcha] CapSolver: code=${questionCode}, img=${(gridImgB64.length/1024).toFixed(0)}KB`);
-          const data = await (await fetch('https://api.capsolver.com/createTask', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ clientKey: capsolverKey, task: { type: 'ReCaptchaV2Classification', image: gridImgB64, question: questionCode } }),
-          })).json() as any;
-          console.log(`[recaptcha] CapSolver response: ${JSON.stringify(data).slice(0, 300)}`);
-          if (data.solution?.objects) {
-            positions = (data.solution.objects as number[]).map(i => i + 1);
-            console.log(`[recaptcha] CapSolver solved: ${JSON.stringify(positions)}`);
-          }
-        } else { console.log('[recaptcha] Could not extract grid image from bframe'); }
-      } catch (e: any) { console.log(`[recaptcha] CapSolver error: ${e.message?.slice(0, 80)}`); }
-    }
-    // Claude vision as secondary
+    // Classify tiles
+    let positions = await classifyGrid(bframe, instruction);
+    if (positions) console.log(`[recaptcha] CapSolver: ${JSON.stringify(positions)}`);
     if (!positions) {
-      const prompt = buildPrompt(instruction, gridSize);
-      const cliPrompt = `Read the captcha image at ${imgPath}.\n\n${prompt}`;
-      let answer = '';
+      // Claude secondary
+      const imgPath = join(process.cwd(), 'recordings', 'vision', `captcha_attempt${attempt}.png`);
+      const grid = gridSize === 3 ? '1 2 3\n4 5 6\n7 8 9' : '1  2  3  4\n5  6  7  8\n9  10 11 12\n13 14 15 16';
+      const prompt = `Read ${imgPath}.\n\nreCAPTCHA: "${instruction.replace(/\n/g,' ')}"\nGrid: ${grid}\nReturn ONLY JSON array of matching positions. Example: [1,4,7]`;
       try {
-        const proc = spawnSync('claude', ['-p', '--output-format', 'json'], { input: cliPrompt, encoding: 'utf-8', maxBuffer: 5 * 1024 * 1024 });
-        answer = (proc.stdout ?? '').trim();
-        for (const line of answer.split('\n')) { try { const j = JSON.parse(line); if (j.result) { answer = j.result; break; } } catch { /* skip */ } }
-      } catch (e: any) { console.log(`[recaptcha] Claude error: ${e.message?.slice(0, 80)}`); }
-      positions = parsePositions(answer);
+        const proc = spawnSync('claude', ['-p', '--output-format', 'json'], { input: prompt, encoding: 'utf-8', maxBuffer: 5*1024*1024 });
+        let ans = (proc.stdout ?? '').trim();
+        for (const line of ans.split('\n')) { try { const j = JSON.parse(line); if (j.result) { ans = j.result; break; } } catch {} }
+        positions = parsePositions(ans);
+        if (positions) console.log(`[recaptcha] Claude: ${JSON.stringify(positions)}`);
+      } catch {}
     }
-    console.log(`[recaptcha] Claude selected: ${JSON.stringify(positions)}`);
-    if (!positions) continue;
+    if (!positions || positions.length === 0) { console.log('[recaptcha] No positions, clicking verify...'); }
 
-    // Click tiles directly inside bframe via dispatchEvent (proper mouse events)
-    for (const pos of positions) {
+    // Click tiles via ElementHandle.click() — trusted events through nested iframes
+    for (const pos of (positions ?? [])) {
       const row = Math.floor((pos - 1) / gridSize) + 1;
       const col = (pos - 1) % gridSize + 1;
-      const tilePos = await bframe.evaluate(`(() => { const t = document.querySelector('table.rc-imageselect-table, table.rc-imageselect-table-33, table.rc-imageselect-table-44'); const td = t?.querySelector('tr:nth-child(${row}) td:nth-child(${col})'); if (!td) return null; const r = td.getBoundingClientRect(); return { x: r.x + r.width/2, y: r.y + r.height/2 }; })()`).catch(() => null);
-      // Click via Playwright frame locator (generates trusted mouse events)
-      try {
-        await bframe.locator(`table.rc-imageselect-table tr:nth-child(${row}) td:nth-child(${col})`).click();
-        console.log(`[recaptcha] Clicked tile ${pos} (locator)`);
-      } catch {
-        await bframe.evaluate(`(() => { const t = document.querySelector('table.rc-imageselect-table, table.rc-imageselect-table-33, table.rc-imageselect-table-44'); const td = t?.querySelector('tr:nth-child(${row}) td:nth-child(${col})'); if (td) td.click(); })()`).catch(() => {});
-        console.log(`[recaptcha] Clicked tile ${pos} (JS)`);
-      }
+      const sel = `table tr:nth-child(${row}) td:nth-child(${col})`;
+      const el = await bframe.$(sel);
+      if (el) {
+        await el.click();
+        console.log(`[recaptcha] Tile ${pos} clicked`);
+      } else { console.log(`[recaptcha] Tile ${pos} not found`); }
+      await page.waitForTimeout(300 + Math.floor(Math.random() * 400));
     }
+    await page.waitForTimeout(500);
 
-    // Click verify via absolute coordinates
-    const verifyPos = await bframe.evaluate(`(() => { const b = document.querySelector('#recaptcha-verify-button'); if (!b) return null; const r = b.getBoundingClientRect(); return { x: r.x + r.width/2, y: r.y + r.height/2 }; })()`).catch(() => null);
-    try { await bframe.locator('#recaptcha-verify-button').click(); }
-    catch { await bframe.evaluate(`(() => { const b = document.querySelector('#recaptcha-verify-button'); if (b) b.click(); })()`).catch(() => {}); }
-    console.log('[recaptcha] Clicked verify');
+    // Click verify via ElementHandle
+    const verifyEl = await bframe.$('#recaptcha-verify-button');
+    if (verifyEl) { await verifyEl.click(); console.log('[recaptcha] Verify clicked'); }
+    else { await bframe.evaluate(`(() => document.querySelector('#recaptcha-verify-button')?.click())()`).catch(() => {}); console.log('[recaptcha] Verify JS'); }
 
-    // Wait for result — navigation means captcha was solved
+    // Wait for result — context destroyed = page navigated = solved
     try {
       await bframe.waitForFunction(`() => {
         const err = document.querySelector('.rc-imageselect-error-select-more, .rc-imageselect-incorrect-response');
-        const newChallenge = document.querySelector('.rc-imageselect-desc');
-        return (err && err.offsetParent !== null) || newChallenge;
+        return (err && err.offsetParent !== null) || document.querySelector('.rc-imageselect-desc');
       }`);
     } catch (e: any) {
-      // "Execution context destroyed" = page navigated = captcha likely solved
-      if (e.message?.includes('context') || e.message?.includes('destroy') || e.message?.includes('navigation')) {
-        console.log(`[recaptcha] Page navigated after verify — captcha solved!`);
-        return true;
+      if (e.message?.includes('context') || e.message?.includes('destroy') || e.message?.includes('navig')) {
+        console.log('[recaptcha] Page navigated — SOLVED!'); return true;
       }
     }
 
-    // Check solved via checkbox
+    // Check checkbox
     try {
       const af = findAnchorFrame(page);
       if (af) {
-        const solved = await af.evaluate(`(() => { const c = document.querySelector('.recaptcha-checkbox'); return c?.getAttribute('aria-checked') === 'true'; })()`).catch(() => false);
-        if (solved) { console.log(`[recaptcha] Solved in ${attempt + 1} attempts!`); return true; }
+        const solved = await af.evaluate(`(() => document.querySelector('.recaptcha-checkbox')?.getAttribute('aria-checked') === 'true')()`).catch(() => false);
+        if (solved) { console.log(`[recaptcha] Solved in ${attempt+1} attempts!`); return true; }
       }
-      const error = await bframe.evaluate(`(() => { const e = document.querySelector('.rc-imageselect-error-select-more, .rc-imageselect-incorrect-response'); return e?.offsetParent !== null ? e.textContent : null; })()`).catch(() => null);
-      if (error) console.log(`[recaptcha] Error: ${error}`);
-    } catch { console.log('[recaptcha] Context lost — checking if solved...'); return true; }
+    } catch { console.log('[recaptcha] Context lost — likely solved'); return true; }
+
+    const err = await bframe.evaluate(`(() => { const e = document.querySelector('.rc-imageselect-error-select-more, .rc-imageselect-incorrect-response'); return e?.offsetParent ? e.textContent : null; })()`).catch(() => null);
+    if (err) console.log(`[recaptcha] Error: ${err}`);
   }
   console.log('[recaptcha] Failed after max attempts');
   return false;
