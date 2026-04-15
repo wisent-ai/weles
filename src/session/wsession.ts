@@ -98,6 +98,13 @@ export class WSession {
     return r ? `selected: ${r}` : 'no-select-found';
   }
 
+  async scroll(direction: string, amount?: number): Promise<string> {
+    const delta = (direction === 'up' ? -(amount ?? 400) : (amount ?? 400));
+    await this.page.evaluate(`window.scrollBy(0, ${delta})`);
+    return `scrolled ${direction} ${amount ?? 400}`;
+  }
+
+  async wait(seconds: number): Promise<string> { await new Promise(r => setTimeout(r, seconds * 1000)); return `waited ${seconds}s`; }
   async read(question: string): Promise<string> { return await askPage(asV(this.page), question) ?? 'NONE'; }
   async solveCaptcha(): Promise<string> { return (await solvePageCaptcha(this.page, this._solver)) ? 'captcha solved' : 'captcha failed'; }
 
