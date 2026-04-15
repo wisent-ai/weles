@@ -32,6 +32,36 @@ try {
   console.log('URL after login:', page.url());
   if (page.url().includes('checkpoint') || page.url().includes('challenge')) {
     console.log('Checkpoint detected, solving reCAPTCHA with CapSolver API...');
+    // Dump bframe image DOM before solving
+    const bframe = page.frames().find(f => f.url()?.includes('/bframe'));
+    if (bframe) {
+      // Click checkbox first
+      try {
+        const ci = page.frameLocator('iframe[src*="captchaInternal"]');
+        await ci.frameLocator('iframe[src*="anchor"]').first().locator('#recaptcha-anchor').click();
+        await page.waitForEvent('frameattached').catch(() => {});
+        await page.waitForTimeout(3000);
+      } catch {}
+      const bf2 = page.frames().find(f => f.url()?.includes('/bframe'));
+      if (bf2) {
+        const imgInfo = await bf2.evaluate(`(() => {
+          const imgs = document.querySelectorAll('img');
+          const result = [];
+          for (const img of imgs) { result.push({ src: img.src?.slice(0,80), w: img.naturalWidth, h: img.naturalHeight, cls: img.className?.slice(0,40) }); }
+          const tds = document.querySelectorAll('table td');
+          return { imgCount: imgs.length, tdCount: tds.length, imgs: result.slice(0,20) };
+        })()`).catch(() => null);
+        console.log('BFRAME IMAGE DOM:', JSON.stringify(imgInfo, null, 2));
+        // Save the image we're extracting
+        const gridImgB64 = await bf2.evaluate(`(() => {
+          const img = document.querySelector('.rc-image-tile-wrapper img, table.rc-imageselect-table img');
+          if (!img) return null;
+          const c = document.createElement('canvas'); c.width = img.naturalWidth||img.width; c.height = img.naturalHeight||img.height;
+          c.getContext('2d').drawImage(img, 0, 0); return c.toDataURL('image/png').split(',')[1];
+        })()`).catch(() => null);
+        if (gridImgB64) { writeFileSync('recordings/extracted_grid.png', Buffer.from(gridImgB64, 'base64')); console.log('Saved extracted grid image'); }
+      }
+    }
     const solved = await solveRecaptchaV2(page);
     console.log('Captcha result:', solved);
     if (solved) {

@@ -7,6 +7,7 @@ import { randomBytes } from 'node:crypto';
 type CDPPage = any; // Works with both Playwright Page and CDPPage
 import { findClickTarget, askPage, type ScreenshottablePage } from '../vision/analyze.js';
 import { humanClick } from '../human/mouse.js';
+import { solvePageCaptcha } from '../captcha/detect.js';
 
 const asVision = (p: CDPPage) => p as unknown as ScreenshottablePage;
 
@@ -149,52 +150,9 @@ async function read(page: CDPPage, args: ToolArgs): Promise<string> {
   return `read: ${answer || 'NONE'}`;
 }
 
-async function solveCaptcha(page: CDPPage, args: ToolArgs): Promise<string> {
-  const sitekey: string = args.sitekey ?? '';
-  const action: string = args.action ?? 'register';
-  const apiKey = process.env.ANTICAPTCHA_API_KEY ?? '';
-  if (!apiKey || !sitekey) return 'error: no ANTICAPTCHA_API_KEY or sitekey';
-
-  try {
-    const task = {
-      type: 'RecaptchaV3TaskProxyless',
-      websiteURL: page.url,
-      websiteKey: sitekey,
-      isEnterprise: true,
-      minScore: 0.7,
-      pageAction: action,
-    };
-    const submitRes = await fetch('https://api.anti-captcha.com/createTask', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ clientKey: apiKey, task }),
-    });
-    const submitData = await submitRes.json() as any;
-    if (submitData.errorId > 0) return `error: ${submitData.errorDescription}`;
-    const taskId = submitData.taskId;
-
-    for (let i = 0; i < 60; i++) {
-      await new Promise(r => setTimeout(r, 5000));
-      const pollRes = await fetch('https://api.anti-captcha.com/getTaskResult', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clientKey: apiKey, taskId }),
-      });
-      const pollData = await pollRes.json() as any;
-      if (pollData.status === 'ready') {
-        const token = pollData.solution.gRecaptchaResponse;
-        await page.evaluate(`((t) => {
-          if (window.grecaptcha && window.grecaptcha.enterprise)
-            window.grecaptcha.enterprise.execute = () => Promise.resolve(t);
-        })`, token);
-        return `solved (${token.length} chars)`;
-      }
-      if (pollData.errorId > 0) return `error: ${pollData.errorDescription}`;
-    }
-    return 'error: captcha timed out';
-  } catch (e: any) {
-    return `error: ${e.message}`;
-  }
+async function solveCaptcha(page: CDPPage, _args: ToolArgs): Promise<string> {
+  const solved = await solvePageCaptcha(page);
+  return solved ? 'captcha solved' : 'captcha failed';
 }
 
 async function checkEmail(page: CDPPage, args: ToolArgs): Promise<string> {
