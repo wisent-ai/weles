@@ -25,7 +25,15 @@ const CATEGORY_CODES: Record<string, string> = {
 };
 
 function instructionToCode(instruction: string): string | null {
-  const text = instruction.toLowerCase().replace(/select all (images|squares) with\s*/i, '').replace(/\n/g, ' ').replace(/a\s+/g, '').trim();
+  // Extract object name: "Select all images with\ncars\nClick verify..." → "cars"
+  const lines = instruction.split('\n').map(l => l.trim()).filter(Boolean);
+  // Object name is typically the second line (after "Select all images with")
+  for (const line of lines) {
+    const clean = line.toLowerCase().replace(/^a\s+/, '');
+    if (CATEGORY_CODES[clean]) return CATEGORY_CODES[clean];
+  }
+  // Try full text extraction
+  const text = instruction.toLowerCase().replace(/select all (images|squares) with\s*/i, '').replace(/\n.*/s, '').replace(/^a\s+/, '').trim();
   return CATEGORY_CODES[text] ?? null;
 }
 
@@ -131,27 +139,25 @@ export async function solveRecaptchaV2(page: Page): Promise<boolean> {
     writeFileSync(imgPath, screenshot);
     console.log(`[recaptcha] Screenshot: ${screenshot.length} bytes`);
 
-    // Use CapSolver API for image classification, or Claude vision as secondary
+    // Solve via CapSolver AI (instant, ~1-2s per attempt)
     const capsolverKey = process.env.CAPSOLVER_API_KEY ?? '';
     const imgB64 = screenshot.toString('base64');
     let positions: number[] | null = null;
     const questionCode = instructionToCode(instruction);
-    console.log(`[recaptcha] CapSolver key=${capsolverKey ? 'set' : 'unset'}, code=${questionCode}, instruction="${instruction.replace(/\n/g,' ').slice(0,50)}"`);
     if (capsolverKey && questionCode) {
       try {
-        console.log(`[recaptcha] CapSolver: code=${questionCode} for "${instruction.slice(0, 40)}"`);
-        const res = await fetch('https://api.capsolver.com/createTask', {
+        console.log(`[recaptcha] CapSolver: code=${questionCode}`);
+        const data = await (await fetch('https://api.capsolver.com/createTask', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ clientKey: capsolverKey, task: { type: 'ReCaptchaV2Classification', image: imgB64, question: questionCode } }),
-        });
-        const data = await res.json() as any;
-        console.log(`[recaptcha] CapSolver response: ${JSON.stringify(data).slice(0, 200)}`);
+        })).json() as any;
         if (data.solution?.objects) {
-          // objects is array of indices (0-based) of matching tiles
           positions = (data.solution.objects as number[]).map(i => i + 1);
+          console.log(`[recaptcha] CapSolver solved: ${JSON.stringify(positions)}`);
         } else if (data.errorDescription) console.log(`[recaptcha] CapSolver error: ${data.errorDescription}`);
-      } catch (e: any) { console.log(`[recaptcha] CapSolver API error: ${e.message?.slice(0, 80)}`); }
+      } catch (e: any) { console.log(`[recaptcha] CapSolver error: ${e.message?.slice(0, 80)}`); }
     }
+    // Claude vision as secondary
     if (!positions) {
       const prompt = buildPrompt(instruction, gridSize);
       const cliPrompt = `Read the captcha image at ${imgPath}.\n\n${prompt}`;

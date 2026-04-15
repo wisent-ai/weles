@@ -12,23 +12,15 @@ const page = ctx.pages()[0] || await ctx.newPage();
 try {
   await page.goto('https://www.linkedin.com/login', { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(3000);
-  // Click email field by coordinates, type, tab to password, type, enter
-  const emailBox = await page.evaluate(`(() => {
-    const els = document.querySelectorAll('input');
-    for (const el of els) {
-      if (el.type === 'hidden') continue;
-      const r = el.getBoundingClientRect();
-      if (r.width > 100 && r.height > 20) return { x: r.x + r.width/2, y: r.y + r.height/2 };
-    }
-    return null;
-  })()`);
-  if (emailBox) {
-    await page.mouse.click(emailBox.x, emailBox.y);
-    await page.keyboard.type(process.env.LI_EMAIL || '', { delay: 30 });
-    await page.keyboard.press('Tab');
-    await page.keyboard.type(process.env.LI_PASS || '', { delay: 30 });
-    await page.keyboard.press('Enter');
-  } else { console.log('No email input found'); }
+  // Try multiple approaches to fill the login form
+  try { await page.fill('input#username', process.env.LI_EMAIL || ''); await page.fill('input#password', process.env.LI_PASS || ''); }
+  catch { try { await page.fill('input#session_key', process.env.LI_EMAIL || ''); await page.fill('input#session_password', process.env.LI_PASS || ''); }
+  catch {
+    // Coordinate-based: click first visible text input, type, tab, type
+    const box = await page.evaluate(`(() => { for (const el of document.querySelectorAll('input')) { if (el.type==='hidden'||el.type==='checkbox') continue; const r=el.getBoundingClientRect(); if (r.width>100&&r.height>20) return {x:r.x+r.width/2,y:r.y+r.height/2}; } return null; })()`);
+    if (box) { await page.mouse.click(box.x, box.y); await page.keyboard.type(process.env.LI_EMAIL||'',{delay:30}); await page.keyboard.press('Tab'); await page.keyboard.type(process.env.LI_PASS||'',{delay:30}); }
+  }}
+  await page.locator('button[type="submit"]').first().click().catch(() => page.keyboard.press('Enter'));
   await page.waitForTimeout(5000);
   console.log('URL after login:', page.url());
   if (page.url().includes('checkpoint') || page.url().includes('challenge')) {
