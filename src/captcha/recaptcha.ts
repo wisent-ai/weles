@@ -47,10 +47,7 @@ function findAnchorFrame(page: Page) {
   return null;
 }
 
-async function classifyGrid(bframe: any, instruction: string): Promise<number[] | null> {
-  const capsolverKey = process.env.CAPSOLVER_API_KEY ?? '';
-  const questionCode = instructionToCode(instruction);
-  if (!capsolverKey || !questionCode) return null;
+async function classifyGrid(bframe: any, instruction: string, gridSize: number): Promise<number[] | null> {
   const gridImgB64 = await bframe.evaluate(`(() => {
     const img = document.querySelector('.rc-image-tile-wrapper img, table.rc-imageselect-table img');
     if (!img) return null;
@@ -58,13 +55,37 @@ async function classifyGrid(bframe: any, instruction: string): Promise<number[] 
     c.getContext('2d').drawImage(img, 0, 0); return c.toDataURL('image/jpeg', 0.9).split(',')[1];
   })()`).catch(() => null);
   if (!gridImgB64) return null;
-  console.log(`[recaptcha] CapSolver: code=${questionCode}, img=${(gridImgB64.length/1024).toFixed(0)}KB`);
-  const data = await (await fetch('https://api.capsolver.com/createTask', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ clientKey: capsolverKey, task: { type: 'ReCaptchaV2Classification', image: gridImgB64, question: questionCode } }),
-  })).json() as any;
-  if (data.solution?.objects) return (data.solution.objects as number[]).map(i => i + 1);
-  console.log(`[recaptcha] CapSolver: ${data.errorDescription || 'no objects'}`);
+  // 2captcha GridTask — human workers, ~95% accuracy, ~10-15s
+  const apiKey = process.env.TWOCAPTCHA_API_KEY ?? '';
+  if (apiKey) {
+    const comment = instruction.replace(/\n/g, ' ').trim();
+    console.log(`[recaptcha] 2captcha: "${comment.slice(0,50)}" ${gridSize}x${gridSize}`);
+    const createRes = await (await fetch('https://api.2captcha.com/createTask', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ clientKey: apiKey, task: { type: 'GridTask', body: gridImgB64, comment, rows: gridSize, columns: gridSize } }),
+    })).json() as any;
+    if (createRes.taskId) {
+      for (let i = 0; i < 20; i++) {
+        await new Promise(r => setTimeout(r, 3000));
+        const res = await (await fetch('https://api.2captcha.com/getTaskResult', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ clientKey: apiKey, taskId: createRes.taskId }),
+        })).json() as any;
+        if (res.status === 'ready') { console.log(`[recaptcha] 2captcha: ${JSON.stringify(res.solution?.click)}`); return res.solution?.click ?? null; }
+        if (res.errorId) { console.log(`[recaptcha] 2captcha error: ${res.errorDescription}`); break; }
+      }
+    } else { console.log(`[recaptcha] 2captcha create error: ${createRes.errorDescription}`); }
+  }
+  // CapSolver as secondary (instant AI)
+  const capsolverKey = process.env.CAPSOLVER_API_KEY ?? '';
+  const questionCode = instructionToCode(instruction);
+  if (capsolverKey && questionCode) {
+    const data = await (await fetch('https://api.capsolver.com/createTask', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ clientKey: capsolverKey, task: { type: 'ReCaptchaV2Classification', image: gridImgB64, question: questionCode } }),
+    })).json() as any;
+    if (data.solution?.objects) { const p = (data.solution.objects as number[]).map(i => i + 1); console.log(`[recaptcha] CapSolver: ${JSON.stringify(p)}`); return p; }
+  }
   return null;
 }
 
@@ -93,6 +114,7 @@ export async function solveRecaptchaV2(page: Page): Promise<boolean> {
   const bf = ci.frameLocator('iframe[src*="bframe"]').first();
 
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    try { // Catch frame detach/navigation as success
     let bframe = findBframe(page);
     if (!bframe) {
       // Page may have navigated to new checkpoint — wait for it to load
@@ -121,7 +143,7 @@ export async function solveRecaptchaV2(page: Page): Promise<boolean> {
     writeFileSync(join(process.cwd(), 'recordings', 'vision', `captcha_attempt${attempt}.png`), await page.screenshot().catch(() => Buffer.from('')));
 
     // Classify tiles
-    let positions = await classifyGrid(bframe, instruction);
+    let positions = await classifyGrid(bframe, instruction, gridSize);
     if (positions) console.log(`[recaptcha] CapSolver: ${JSON.stringify(positions)}`);
     if (!positions) {
       // Claude secondary
@@ -136,25 +158,32 @@ export async function solveRecaptchaV2(page: Page): Promise<boolean> {
         if (positions) console.log(`[recaptcha] Claude: ${JSON.stringify(positions)}`);
       } catch {}
     }
-    if (!positions || positions.length === 0) { console.log('[recaptcha] No positions, clicking verify...'); }
-
-    // Click tiles via ElementHandle.click() — trusted events through nested iframes
-    for (const pos of (positions ?? [])) {
-      const row = Math.floor((pos - 1) / gridSize) + 1;
-      const col = (pos - 1) % gridSize + 1;
-      const sel = `table tr:nth-child(${row}) td:nth-child(${col})`;
-      const el = await bframe.$(sel);
-      if (el) {
-        await el.click();
-        console.log(`[recaptcha] Tile ${pos} clicked`);
-      } else { console.log(`[recaptcha] Tile ${pos} not found`); }
-      await page.waitForTimeout(300 + Math.floor(Math.random() * 400));
+    // Click tiles, then handle dynamic replacement ("click verify once none left")
+    const isDynamic = instruction.toLowerCase().includes('none left') || instruction.toLowerCase().includes('verify once');
+    let clickRound = 0;
+    let clickFailed = false;
+    while (positions && positions.length > 0 && !clickFailed) {
+      for (const pos of positions) {
+        const row = Math.floor((pos - 1) / gridSize) + 1;
+        const col = (pos - 1) % gridSize + 1;
+        const el = await bframe.$(`table tr:nth-child(${row}) td:nth-child(${col})`);
+        if (el) {
+          try { await el.click({ force: true }); console.log(`[recaptcha] Tile ${pos}`); }
+          catch { console.log(`[recaptcha] Tile ${pos} stalled — clicking verify`); clickFailed = true; break; }
+        }
+        await page.waitForTimeout(300 + Math.floor(Math.random() * 300));
+      }
+      if (!isDynamic || clickRound >= 5 || clickFailed) break;
+      await page.waitForTimeout(2000);
+      positions = await classifyGrid(bframe, instruction, gridSize);
+      console.log(`[recaptcha] Round ${clickRound+2}: ${JSON.stringify(positions)}`);
+      clickRound++;
     }
     await page.waitForTimeout(500);
 
-    // Click verify via ElementHandle
+    // Click verify
     const verifyEl = await bframe.$('#recaptcha-verify-button');
-    if (verifyEl) { await verifyEl.click(); console.log('[recaptcha] Verify clicked'); }
+    if (verifyEl) { await verifyEl.click({ force: true }); console.log('[recaptcha] Verify clicked'); }
     else { await bframe.evaluate(`(() => document.querySelector('#recaptcha-verify-button')?.click())()`).catch(() => {}); console.log('[recaptcha] Verify JS'); }
 
     // Wait for result — context destroyed = page navigated = solved
@@ -164,7 +193,7 @@ export async function solveRecaptchaV2(page: Page): Promise<boolean> {
         return (err && err.offsetParent !== null) || document.querySelector('.rc-imageselect-desc');
       }`);
     } catch (e: any) {
-      if (e.message?.includes('context') || e.message?.includes('destroy') || e.message?.includes('navig')) {
+      if (e.message?.includes('context') || e.message?.includes('destroy') || e.message?.includes('navig') || e.message?.includes('detach')) {
         console.log('[recaptcha] Page navigated — SOLVED!'); return true;
       }
     }
@@ -180,6 +209,12 @@ export async function solveRecaptchaV2(page: Page): Promise<boolean> {
 
     const err = await bframe.evaluate(`(() => { const e = document.querySelector('.rc-imageselect-error-select-more, .rc-imageselect-incorrect-response'); return e?.offsetParent ? e.textContent : null; })()`).catch(() => null);
     if (err) console.log(`[recaptcha] Error: ${err}`);
+    } catch (loopErr: any) {
+      if (loopErr.message?.includes('detach') || loopErr.message?.includes('context') || loopErr.message?.includes('destroy')) {
+        console.log('[recaptcha] Frame detached — SOLVED!'); return true;
+      }
+      console.log(`[recaptcha] Loop error: ${loopErr.message?.slice(0, 80)}`);
+    }
   }
   console.log('[recaptcha] Failed after max attempts');
   return false;
