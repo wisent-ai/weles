@@ -13,6 +13,10 @@ import { waitCloudflare } from '../cloudflare/challenge.js';
 import { solvePageCaptcha } from '../captcha/detect.js';
 import { CaptchaSolver } from '../captcha/solver.js';
 import { generateIdentity as genId, type Identity } from '../utils/identity.js';
+import { writeFileSync, mkdirSync } from 'node:fs';
+import { join } from 'node:path';
+
+function recordingsDir(): string { const d = join(process.cwd(), 'recordings'); mkdirSync(d, { recursive: true }); return d; }
 
 export interface WSessionOptions {
   label?: string;
@@ -45,9 +49,26 @@ export class WSession {
   private _solver: CaptchaSolver;
   private _env: Record<string, string> = {};
 
+  private _step = 0;
   private constructor(ctx: BrowserContext, page: any, label: string, cap: Capture) {
     this.ctx = ctx; this.page = page; this.label = label; this._cap = cap;
     this._store = new SessionStore(); this._solver = new CaptchaSolver();
+  }
+
+  private async _action<T>(name: string, fn: () => Promise<T>): Promise<T> {
+    const n = String(this._step++).padStart(3, '0');
+    const label = `${n}_${name.replace(/[^a-z0-9]/gi, '_').slice(0, 30)}`;
+    await this._cap.screenshot(this.page, `before_${label}`).catch(() => {});
+    try {
+      const result = await fn();
+      await this._cap.screenshot(this.page, `after_${label}`).catch(() => {});
+      return result;
+    } catch (e) {
+      await this._cap.screenshot(this.page, `error_${label}`).catch(() => {});
+      const html = await this.page.content?.().catch(() => null);
+      if (html) writeFileSync(join(recordingsDir(), `error_${label}_dom.html`), html);
+      throw e;
+    }
   }
 
   static async start(opts: WSessionOptions = {}): Promise<WSession> {
@@ -62,21 +83,24 @@ export class WSession {
   }
 
   async goto(url: string): Promise<string> {
-    await this.page.goto(url, { waitUntil: 'domcontentloaded' });
-    await waitCloudflare(asV(this.page)).catch(() => {});
-    await this._cap.screenshot(this.page, 'goto');
-    return `navigated to ${this.page.url?.() ?? url}`;
+    return this._action(`goto_${url.split('/').pop()?.slice(0,20)}`, async () => {
+      await this.page.goto(url, { waitUntil: 'domcontentloaded' });
+      await waitCloudflare(asV(this.page)).catch(() => {});
+      return `navigated to ${this.page.url?.() ?? url}`;
+    });
   }
 
   async click(target: string): Promise<string> {
-    const coords = await findClickTarget(asV(this.page), target);
-    if (coords) { await humanClick(this.page, coords.x, coords.y); await this._cap.screenshot(this.page, 'click'); return `clicked ${target}`; }
-    const r = await this.page.evaluate(`(()=>{function F(r,s){var a=Array.from(r.querySelectorAll(s));r.querySelectorAll('*').forEach(function(e){if(e.shadowRoot)a=a.concat(F(e.shadowRoot,s))});return a}var t=${JSON.stringify(target.toLowerCase())};var sr=F(document,'[data-post-click-location] button');if(t.indexOf('upvote')>=0&&sr.length>0){sr[0].click();return'clicked upvote (shadow)'}var bs=F(document,'button,a,[role="button"]');for(var i=0;i<bs.length;i++){var x=((bs[i].textContent||'')+(bs[i].getAttribute('aria-label')||'')).toLowerCase();if(x.indexOf(t)>=0){bs[i].click();return'clicked: '+x.slice(0,40)}}return null})()`).catch(() => null);
-    if (r) { await this._cap.screenshot(this.page, 'click'); return r; }
-    return 'no-target-found';
+    return this._action(`click_${target}`, async () => {
+      const coords = await findClickTarget(asV(this.page), target);
+      if (coords) { await humanClick(this.page, coords.x, coords.y); return `clicked ${target}`; }
+      const r = await this.page.evaluate(`(()=>{function F(r,s){var a=Array.from(r.querySelectorAll(s));r.querySelectorAll('*').forEach(function(e){if(e.shadowRoot)a=a.concat(F(e.shadowRoot,s))});return a}var t=${JSON.stringify(target.toLowerCase())};var sr=F(document,'[data-post-click-location] button');if(t.indexOf('upvote')>=0&&sr.length>0){sr[0].click();return'clicked upvote (shadow)'}var bs=F(document,'button,a,[role="button"]');for(var i=0;i<bs.length;i++){var x=((bs[i].textContent||'')+(bs[i].getAttribute('aria-label')||'')).toLowerCase();if(x.indexOf(t)>=0){bs[i].click();return'clicked: '+x.slice(0,40)}}return null})()`).catch(() => null);
+      return r ?? 'no-target-found';
+    });
   }
 
   async fill(target: string, value: string): Promise<string> {
+    return this._action(`fill_${target}`, async () => {
     const v = this._resolveEnv(value);
     const kws = target.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(w => w.length > 2);
     const sels = kws.flatMap(k => ['input','textarea','[contenteditable]'].flatMap(t => [`${t}[name*="${k}"]`,`${t}[placeholder*="${k}" i]`,`${t}[aria-label*="${k}" i]`]));
@@ -87,9 +111,10 @@ export class WSession {
     const vc = await findClickTarget(asV(this.page), target);
     if (vc) { await humanClick(this.page, vc.x, vc.y); await this.page.keyboard.press('Meta+a').catch(() => {}); await this.page.keyboard.type(v, { delay: 30 }); return 'filled'; }
     return 'no-field-found';
+    });
   }
 
-  async type(value: string): Promise<string> { await this.page.keyboard.type(this._resolveEnv(value), { delay: 30 }); return 'typed'; }
+  async type(value: string): Promise<string> { return this._action('type', async () => { await this.page.keyboard.type(this._resolveEnv(value), { delay: 30 }); return 'typed'; }); }
   async press(key: string): Promise<string> { await this.page.keyboard.press(key); return `pressed ${key}`; }
 
   async select(target: string, value: string): Promise<string> {
@@ -106,7 +131,7 @@ export class WSession {
 
   async wait(seconds: number): Promise<string> { await new Promise(r => setTimeout(r, seconds * 1000)); return `waited ${seconds}s`; }
   async read(question: string): Promise<string> { return await askPage(asV(this.page), question) ?? 'NONE'; }
-  async solveCaptcha(): Promise<string> { return (await solvePageCaptcha(this.page, this._solver)) ? 'captcha solved' : 'captcha failed'; }
+  async solveCaptcha(): Promise<string> { return this._action('solveCaptcha', async () => (await solvePageCaptcha(this.page, this._solver)) ? 'captcha solved' : 'captcha failed'); }
 
   async checkEmail(email: string, sender: string): Promise<string> {
     const key = process.env.RESEND_RECEIVING_API_KEY ?? '';
