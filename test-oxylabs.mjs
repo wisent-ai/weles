@@ -12,15 +12,21 @@ const page = ctx.pages()[0] || await ctx.newPage();
 try {
   await page.goto('https://www.linkedin.com/login', { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(3000);
-  // Fill via evaluate + dispatchEvent (React-compatible, bypasses Playwright visibility checks)
-  await page.evaluate(`(() => {
-    const inputs = Array.from(document.querySelectorAll('input')).filter(e => e.type !== 'hidden' && e.type !== 'checkbox' && e.getBoundingClientRect().width > 100);
-    if (inputs.length >= 2) {
-      const setVal = (el, val) => { const proto = Object.getPrototypeOf(el); const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set; if (setter) setter.call(el, val); el.dispatchEvent(new Event('input', {bubbles:true})); el.dispatchEvent(new Event('change', {bubbles:true})); };
-      setVal(inputs[0], '${process.env.LI_EMAIL}');
-      setVal(inputs[1], '${process.env.LI_PASS}');
-    }
-  })()`);
+  // Fill login — try multiple approaches until one works
+  for (let loginAttempt = 0; loginAttempt < 3; loginAttempt++) {
+    // Try 1: Playwright fill with known selectors
+    try { await page.fill('input#username', process.env.LI_EMAIL || '', {strict: false}); await page.fill('input#password', process.env.LI_PASS || '', {strict: false}); break; } catch {}
+    try { await page.fill('input#session_key', process.env.LI_EMAIL || '', {strict: false}); await page.fill('input#session_password', process.env.LI_PASS || '', {strict: false}); break; } catch {}
+    // Try 2: React setter via evaluate
+    const filled = await page.evaluate(`(() => {
+      const inputs = Array.from(document.querySelectorAll('input')).filter(e => e.type !== 'hidden' && e.type !== 'checkbox' && e.getBoundingClientRect().width > 100);
+      if (inputs.length < 2) return false;
+      const set = (el, v) => { const s = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), 'value')?.set; if(s) s.call(el,v); el.dispatchEvent(new Event('input',{bubbles:true})); el.dispatchEvent(new Event('change',{bubbles:true})); };
+      set(inputs[0], '${process.env.LI_EMAIL}'); set(inputs[1], '${process.env.LI_PASS}'); return true;
+    })()`);
+    if (filled) break;
+    await page.waitForTimeout(2000);
+  }
   await page.locator('button[type="submit"]').first().click().catch(() => page.keyboard.press('Enter'));
   await page.waitForTimeout(5000);
   console.log('URL after login:', page.url());
