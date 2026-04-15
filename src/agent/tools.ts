@@ -235,11 +235,25 @@ async function jsClick(page: CDPPage, args: ToolArgs): Promise<string> {
   return 'no-element-found';
 }
 
+async function saveAccount(page: CDPPage, args: ToolArgs): Promise<string> {
+  const platform = args.platform ?? '', username = args.username ?? '', email = args.email ?? '', password = args.password ?? '';
+  const name = args.name ?? '';
+  const url = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
+  if (!url || !key) return 'error: no SUPABASE credentials';
+  const cookies = typeof page.context === 'function' ? await page.context().cookies().catch(() => []) : [];
+  const res = await fetch(`${url}/rest/v1/social_accounts`, {
+    method: 'POST', headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ platform, username, metadata: { email: resolveEnv(email), password: resolveEnv(password), name, status: 'created', created_via: 'weles', cookies }, is_active: true, created_by: 'weles' }),
+  });
+  return res.ok ? `saved ${platform}/${username}` : `error: ${res.status}`;
+}
+
 export const TOOLS: Record<string, ToolFn> = {
   click, fill, focus, type_text: typeText, press_key: pressKey,
   navigate, scroll, wait, read, select_option: selectOption,
   js_click: jsClick, solve_captcha: solveCaptcha,
-  check_email: checkEmail, generate_identity: generateIdentity,
+  check_email: checkEmail, generate_identity: generateIdentity, save_account: saveAccount,
 };
 
 export async function dispatch(page: CDPPage, tool: string, args: ToolArgs): Promise<string> {
