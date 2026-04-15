@@ -12,7 +12,7 @@ import { humanClick } from '../human/mouse.js';
 import { waitCloudflare } from '../cloudflare/challenge.js';
 import { solvePageCaptcha } from '../captcha/detect.js';
 import { CaptchaSolver } from '../captcha/solver.js';
-import { randomBytes } from 'node:crypto';
+import { generateIdentity as genId, type Identity } from '../utils/identity.js';
 
 export interface WSessionOptions {
   label?: string;
@@ -127,15 +127,15 @@ export class WSession {
     return 'no code received';
   }
 
-  async generateIdentity(platform: string): Promise<{ username: string; email: string; password: string }> {
-    const adj = ['bright','swift','epic','cool','mega','ultra','hyper','super','clever','happy'];
-    const noun = ['wolf','eagle','shark','bear','dragon','phoenix','hawk','lion','fox','tiger'];
-    const u = `${adj[Math.floor(Math.random()*10)]}${noun[Math.floor(Math.random()*10)]}${Math.floor(Math.random()*9000)+100}`;
-    const d = process.env.AGENT_DOMAIN ?? 'wisentmedia.com';
-    const e = `${u}@${d}`, p = randomBytes(12).toString('base64url').slice(0,16);
+  async generateIdentity(platform: string): Promise<Identity> {
+    const id = await genId(platform);
     const k = platform.toUpperCase();
-    this._env[`${k}_NEW_USERNAME`] = u; this._env[`${k}_NEW_EMAIL`] = e; this._env[`${k}_NEW_PASSWORD`] = p;
-    return { username: u, email: e, password: p };
+    this._env[`${k}_NEW_USERNAME`] = id.username;
+    this._env[`${k}_NEW_EMAIL`] = id.email;
+    this._env[`${k}_NEW_PASSWORD`] = id.password;
+    this._env[`${k}_NEW_FIRSTNAME`] = id.firstName;
+    this._env[`${k}_NEW_LASTNAME`] = id.lastName;
+    return id;
   }
 
   async saveCookies(): Promise<string> { if (!this.label) return 'no label'; await this._store.capturePlaywright(this.ctx, this.label); return 'cookies saved'; }

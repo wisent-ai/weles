@@ -50,7 +50,7 @@ Tools:
   js_click(selector, text)   Click element by CSS selector or text match. Use for small buttons (upvote, star, like, follow) that vision can't find.
   solve_captcha(sitekey)   Solve reCAPTCHA on current page via API.
   check_email(email, sender) Poll for verification code sent to email.
-  generate_identity(platform) Generate random username/email/password.
+  generate_identity(platform) Generate random identity: username/email/password/firstName/lastName/DOB.
   done(value)              Terminal — you have the answer.
   give_up(reason)          Terminal — you cannot proceed.
 
