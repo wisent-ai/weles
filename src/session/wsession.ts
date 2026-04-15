@@ -141,7 +141,42 @@ export class WSession {
   async saveCookies(): Promise<string> { if (!this.label) return 'no label'; await this._store.capturePlaywright(this.ctx, this.label); return 'cookies saved'; }
   async needsLogin(): Promise<boolean> { return await checkPage(asV(this.page), 'Is this a login page?'); }
   async screenshot(label: string): Promise<string> { return await this._cap.screenshot(this.page, label); }
+
+  /** Save created account to Supabase social_accounts table. */
+  async saveAccount(platform: string, data: { username: string; email: string; password: string; name?: string; status?: string }): Promise<string> {
+    const url = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SERVICE_KEY ?? '';
+    if (!url || !key) return 'error: no SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY';
+    const cookies = await this.ctx.cookies().catch(() => []);
+    const row = {
+      platform,
+      username: data.username,
+      display_name: data.name,
+      profile_url: profileUrl(platform, data.username, data.name),
+      metadata: { email: data.email, password: data.password, status: data.status ?? 'created', created_via: 'weles', cookies, cookies_updated_at: new Date().toISOString() },
+      is_active: true,
+      created_by: 'weles',
+    };
+    const res = await fetch(`${url}/rest/v1/social_accounts`, {
+      method: 'POST',
+      headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', Prefer: 'return=representation' },
+      body: JSON.stringify(row),
+    });
+    if (!res.ok) return `error: ${res.status} ${await res.text().catch(() => '')}`;
+    return `account saved: ${platform}/${data.username}`;
+  }
+
   async close(): Promise<void> { await this._cap.save('session', this.page).catch(() => {}); await this.ctx.close(); }
 
   private _resolveEnv(v: string): string { return v.replace(/\$\{?([A-Z_][A-Z0-9_]*)\}?/g, (_, k) => this._env[k] ?? process.env[k] ?? v); }
+}
+
+function profileUrl(platform: string, username: string, name?: string): string {
+  const urls: Record<string, string> = {
+    reddit: `https://reddit.com/u/${username}`, tiktok: `https://tiktok.com/@${username}`,
+    github: `https://github.com/${username}`, discord: `https://discord.com/users/${username}`,
+    linkedin: `https://linkedin.com/in/${(name ?? username).toLowerCase().replace(/\s+/g, '-')}`,
+    instagram: `https://instagram.com/${username}`, twitter: `https://x.com/${username}`,
+  };
+  return urls[platform] ?? '';
 }

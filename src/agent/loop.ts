@@ -51,6 +51,7 @@ Tools:
   solve_captcha(sitekey)   Solve reCAPTCHA on current page via API.
   check_email(email, sender) Poll for verification code sent to email.
   generate_identity(platform) Generate random identity: username/email/password/firstName/lastName/DOB.
+  save_account(platform, username, email, password, name) Save account to database after registration.
   done(value)              Terminal — you have the answer.
   give_up(reason)          Terminal — you cannot proceed.
 
