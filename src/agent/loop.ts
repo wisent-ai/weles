@@ -8,6 +8,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 type CDPPage = any; // Works with both Playwright Page and CDPPage
 import { dispatch } from './tools.js';
+import { Capture } from '../capture/capture.js';
 
 const MAX_ITERATIONS = 50;
 
@@ -133,6 +134,7 @@ export async function execute(
   const history: ToolCall[] = [];
   const envHints = options?.envHints ?? {};
   let replay = options?.replay ?? null;
+  const capture = new Capture({ newPage: async () => page } as any);
 
   const mainPage = page; // Store reference to original main page
   function getActivePage(p: any): any {
@@ -163,8 +165,9 @@ export async function execute(
         try { screenshot = await page.screenshot({ scale: 'css', animations: 'disabled' }); }
         catch { screenshot = Buffer.from(''); }
       }
-      const imgPath = join(visionDir(), `loop_step${step}.png`);
-      writeFileSync(imgPath, screenshot);
+      const imgPath = await capture.screenshot(page, `loop_step${step}`).catch(() => {
+        const p = join(visionDir(), `loop_step${step}.png`); writeFileSync(p, screenshot); return p;
+      });
       const state = buildState(page, history, envHints);
       decision = askLlm(goal, state, imgPath, step);
     }
@@ -211,6 +214,7 @@ export async function execute(
     history.push(call);
   }
 
+  await capture.save('agent_loop', page).catch(() => {});
   throw new AgentFailure(`max iterations (${MAX_ITERATIONS}) exceeded`, history);
 }
 

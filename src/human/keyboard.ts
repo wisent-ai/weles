@@ -2,16 +2,10 @@
 // Human-like keyboard input
 // ---------------------------------------------------------------------------
 
+import { randomBetween, waitMs } from '../utils/timing.js';
+
 export interface KeyboardPage {
   send(method: string, params?: Record<string, any>): Promise<any>;
-}
-
-function waitMs(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function randomBetween(min: number, max: number): number {
-  return min + Math.random() * (max - min);
 }
 
 /**

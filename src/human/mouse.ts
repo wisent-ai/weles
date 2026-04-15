@@ -2,34 +2,14 @@
 // Human-like mouse movement using Bezier curves
 // ---------------------------------------------------------------------------
 
+import { cubicBezier } from '../utils/bezier.js';
+import { randomBetween, waitMs } from '../utils/timing.js';
+
 export interface MousePage {
   mouse: {
     move(x: number, y: number): Promise<void>;
     click(x: number, y: number): Promise<void>;
   };
-}
-
-// ---------------------------------------------------------------------------
-// Bezier math
-// ---------------------------------------------------------------------------
-
-function cubicBezier(
-  p0: number,
-  p1: number,
-  p2: number,
-  p3: number,
-  t: number,
-): number {
-  const u = 1 - t;
-  return u * u * u * p0 + 3 * u * u * t * p1 + 3 * u * t * t * p2 + t * t * t * p3;
-}
-
-function randomBetween(min: number, max: number): number {
-  return min + Math.random() * (max - min);
-}
-
-function waitMs(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 // ---------------------------------------------------------------------------

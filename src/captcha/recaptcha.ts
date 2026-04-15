@@ -2,9 +2,9 @@
  * reCAPTCHA v2 Enterprise image challenge solver.
  * Uses CapSolver API for tile classification, with Claude vision as secondary.
  */
-import { writeFileSync } from 'node:fs';
+import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { askPage, type ScreenshottablePage } from '../vision/analyze.js';
 
 type Page = any;
 const MAX_ATTEMPTS = 15;
@@ -55,6 +55,10 @@ async function classifyGrid(bframe: any, instruction: string, gridSize: number):
     c.getContext('2d').drawImage(img, 0, 0); return c.toDataURL('image/jpeg', 0.9).split(',')[1];
   })()`).catch(() => null);
   if (!gridImgB64) return null;
+  // Save extracted grid for diagnostic comparison with displayed grid
+  const diagDir = join(process.cwd(), 'recordings', 'vision');
+  mkdirSync(diagDir, { recursive: true });
+  writeFileSync(join(diagDir, 'extracted_grid_latest.png'), Buffer.from(gridImgB64, 'base64'));
   // 2captcha GridTask — human workers, ~95% accuracy, ~10-15s
   const apiKey = process.env.TWOCAPTCHA_API_KEY ?? '';
   if (apiKey) {
@@ -139,24 +143,22 @@ export async function solveRecaptchaV2(page: Page): Promise<boolean> {
     const gridSize = gridInfo?.cols || 3;
     console.log(`[recaptcha] Attempt ${attempt+1}: "${instruction.replace(/\n/g,' ').slice(0,60)}" grid=${gridSize}`);
 
-    // Save screenshot for debugging
-    writeFileSync(join(process.cwd(), 'recordings', 'vision', `captcha_attempt${attempt}.png`), await page.screenshot().catch(() => Buffer.from('')));
+    // Save diagnostics: page screenshot + extracted grid image for comparison
+    const diagDir = join(process.cwd(), 'recordings', 'vision');
+    mkdirSync(diagDir, { recursive: true });
+    const pageScreenshot = await page.screenshot().catch(() => Buffer.from(''));
+    writeFileSync(join(diagDir, `captcha_attempt${attempt}_page.png`), pageScreenshot);
 
-    // Classify tiles
+    // Classify tiles via 2captcha/CapSolver (uses extracted grid image from bframe)
     let positions = await classifyGrid(bframe, instruction, gridSize);
-    if (positions) console.log(`[recaptcha] CapSolver: ${JSON.stringify(positions)}`);
+    if (positions) console.log(`[recaptcha] Solver: ${JSON.stringify(positions)}`);
+    // Claude vision secondary — uses shared askPage() from vision/analyze.ts
     if (!positions) {
-      // Claude secondary
-      const imgPath = join(process.cwd(), 'recordings', 'vision', `captcha_attempt${attempt}.png`);
       const grid = gridSize === 3 ? '1 2 3\n4 5 6\n7 8 9' : '1  2  3  4\n5  6  7  8\n9  10 11 12\n13 14 15 16';
-      const prompt = `Read ${imgPath}.\n\nreCAPTCHA: "${instruction.replace(/\n/g,' ')}"\nGrid: ${grid}\nReturn ONLY JSON array of matching positions. Example: [1,4,7]`;
-      try {
-        const proc = spawnSync('claude', ['-p', '--output-format', 'json'], { input: prompt, encoding: 'utf-8', maxBuffer: 5*1024*1024 });
-        let ans = (proc.stdout ?? '').trim();
-        for (const line of ans.split('\n')) { try { const j = JSON.parse(line); if (j.result) { ans = j.result; break; } } catch {} }
-        positions = parsePositions(ans);
-        if (positions) console.log(`[recaptcha] Claude: ${JSON.stringify(positions)}`);
-      } catch {}
+      const prompt = `reCAPTCHA: "${instruction.replace(/\n/g,' ')}"\nGrid: ${grid}\nReturn ONLY JSON array of positions. Example: [1,4,7]`;
+      const answer = await askPage(page as unknown as ScreenshottablePage, prompt, pageScreenshot).catch(() => '');
+      positions = parsePositions(answer);
+      if (positions) console.log(`[recaptcha] Claude: ${JSON.stringify(positions)}`);
     }
     // Click tiles, then handle dynamic replacement ("click verify once none left")
     const isDynamic = instruction.toLowerCase().includes('none left') || instruction.toLowerCase().includes('verify once');

@@ -3,10 +3,10 @@
  * Tools are general-purpose. The LLM decides the sequence. No page-specific logic.
  */
 
-import { execSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 type CDPPage = any; // Works with both Playwright Page and CDPPage
 import { findClickTarget, askPage, type ScreenshottablePage } from '../vision/analyze.js';
+import { humanClick } from '../human/mouse.js';
 
 const asVision = (p: CDPPage) => p as unknown as ScreenshottablePage;
 
@@ -44,7 +44,7 @@ async function click(page: CDPPage, args: ToolArgs): Promise<string> {
     }
     return 'no-target-found';
   }
-  await page.mouse.click(coords.x, coords.y);
+  await humanClick(page, coords.x, coords.y);
   await new Promise(r => setTimeout(r, 1500));
   if (getUrl(page) !== preUrl) return 'clicked, page navigated';
   // JS text match click — match full target phrase first, then longest substrings
