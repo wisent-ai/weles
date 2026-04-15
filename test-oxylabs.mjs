@@ -12,14 +12,15 @@ const page = ctx.pages()[0] || await ctx.newPage();
 try {
   await page.goto('https://www.linkedin.com/login', { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(3000);
-  // Try multiple approaches to fill the login form
-  try { await page.fill('input#username', process.env.LI_EMAIL || ''); await page.fill('input#password', process.env.LI_PASS || ''); }
-  catch { try { await page.fill('input#session_key', process.env.LI_EMAIL || ''); await page.fill('input#session_password', process.env.LI_PASS || ''); }
-  catch {
-    // Coordinate-based: click first visible text input, type, tab, type
-    const box = await page.evaluate(`(() => { for (const el of document.querySelectorAll('input')) { if (el.type==='hidden'||el.type==='checkbox') continue; const r=el.getBoundingClientRect(); if (r.width>100&&r.height>20) return {x:r.x+r.width/2,y:r.y+r.height/2}; } return null; })()`);
-    if (box) { await page.mouse.click(box.x, box.y); await page.keyboard.type(process.env.LI_EMAIL||'',{delay:30}); await page.keyboard.press('Tab'); await page.keyboard.type(process.env.LI_PASS||'',{delay:30}); }
-  }}
+  // Fill via evaluate + dispatchEvent (React-compatible, bypasses Playwright visibility checks)
+  await page.evaluate(`(() => {
+    const inputs = Array.from(document.querySelectorAll('input')).filter(e => e.type !== 'hidden' && e.type !== 'checkbox' && e.getBoundingClientRect().width > 100);
+    if (inputs.length >= 2) {
+      const setVal = (el, val) => { const proto = Object.getPrototypeOf(el); const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set; if (setter) setter.call(el, val); el.dispatchEvent(new Event('input', {bubbles:true})); el.dispatchEvent(new Event('change', {bubbles:true})); };
+      setVal(inputs[0], '${process.env.LI_EMAIL}');
+      setVal(inputs[1], '${process.env.LI_PASS}');
+    }
+  })()`);
   await page.locator('button[type="submit"]').first().click().catch(() => page.keyboard.press('Enter'));
   await page.waitForTimeout(5000);
   console.log('URL after login:', page.url());
