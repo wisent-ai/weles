@@ -3,11 +3,11 @@
  * Tools are general-purpose. The LLM decides the sequence. No page-specific logic.
  */
 
-import { randomBytes } from 'node:crypto';
 type CDPPage = any; // Works with both Playwright Page and CDPPage
 import { findClickTarget, askPage, type ScreenshottablePage } from '../vision/analyze.js';
 import { humanClick } from '../human/mouse.js';
 import { solvePageCaptcha } from '../captcha/detect.js';
+import { generateIdentity as genId } from '../utils/identity.js';
 
 const asVision = (p: CDPPage) => p as unknown as ScreenshottablePage;
 
@@ -179,20 +179,14 @@ async function checkEmail(page: CDPPage, args: ToolArgs): Promise<string> {
 
 async function generateIdentity(page: CDPPage, args: ToolArgs): Promise<string> {
   const platform: string = args.platform ?? 'reddit';
-  const adjectives = ['bright', 'swift', 'epic', 'cool', 'mega', 'ultra', 'hyper', 'super', 'clever', 'happy'];
-  const nouns = ['wolf', 'eagle', 'shark', 'bear', 'dragon', 'phoenix', 'hawk', 'lion', 'fox', 'tiger'];
-  const adj = adjectives[Math.floor(Math.random() * adjectives.length)];
-  const noun = nouns[Math.floor(Math.random() * nouns.length)];
-  const num = Math.floor(Math.random() * 9000) + 100;
-  const username = `${adj}${noun}${num}`;
-  const domain = process.env.AGENT_DOMAIN ?? 'wisentmedia.com';
-  const email = `${username}@${domain}`;
-  const password = randomBytes(12).toString('base64url').slice(0, 16);
+  const id = await genId(platform);
   const key = platform.toUpperCase();
-  _envStore[`${key}_NEW_USERNAME`] = username;
-  _envStore[`${key}_NEW_EMAIL`] = email;
-  _envStore[`${key}_NEW_PASSWORD`] = password;
-  return `generated: username=${username} email=${email} (use $${key}_NEW_PASSWORD for password)`;
+  _envStore[`${key}_NEW_USERNAME`] = id.username;
+  _envStore[`${key}_NEW_EMAIL`] = id.email;
+  _envStore[`${key}_NEW_PASSWORD`] = id.password;
+  _envStore[`${key}_NEW_FIRSTNAME`] = id.firstName;
+  _envStore[`${key}_NEW_LASTNAME`] = id.lastName;
+  return `generated: username=${id.username} email=${id.email} name=${id.firstName} ${id.lastName}`;
 }
 
 // ---------------------------------------------------------------------------

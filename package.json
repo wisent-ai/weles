@@ -12,6 +12,7 @@
     "test:all": "vitest run"
   },
   "dependencies": {
+    "@faker-js/faker": "^10.4.0",
     "cloakbrowser": "^0.3.24",
     "fingerprint-generator": "^2.1.0",
     "header-generator": "^2.1.0",

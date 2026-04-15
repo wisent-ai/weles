@@ -1,7 +1,7 @@
 [
   {
-    "name": "reddit_upvote",
-    "status": "pass",
-    "value": "upvoted"
+    "name": "linkedin_register",
+    "status": "fail",
+    "error": "Browser session crashed and cannot be recovered. Multiple navigation attempts failed with 'Target page, context or browser has been closed' errors, and the screenshot is empty."
   }
 ]
