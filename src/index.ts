@@ -22,6 +22,8 @@ export { humanType } from './human/keyboard.js';
 export { FetchAccountValue, Trajectory, execute, AgentFailure, dispatch, TOOLS } from './agent/index.js';
 export type { ToolCall, LoopResult } from './agent/loop.js';
 export { AsyncNewBrowser, AsyncWeles } from './async_api.js';
+export { WSession } from './session/wsession.js';
+export { loadFlow, saveFlow, replayFlow } from './session/flows.js';
 export { CaptchaSolver } from './captcha/solver.js';
 export { detectCaptcha, solvePageCaptcha } from './captcha/detect.js';
 export { solveRecaptchaV2 } from './captcha/recaptcha.js';
