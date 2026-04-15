@@ -36,13 +36,19 @@ try {
     const solved = await solveRecaptchaV2(page);
     console.log('Captcha result:', solved);
     if (solved) {
-      try { await page.locator('button[type="submit"]').first().click(); } catch {}
-      await page.waitForTimeout(5000);
+      // After captcha solved, page may have already navigated. Try clicking submit if still on checkpoint.
+      try {
+        if (page.url().includes('checkpoint')) {
+          await page.locator('button[type="submit"]').first().click();
+        }
+      } catch {}
+      try { await page.waitForLoadState('domcontentloaded'); } catch {}
     }
   }
-  console.log('Final URL:', page.url());
-  writeFileSync('recordings/linkedin_test.png', await page.screenshot());
-  open('recordings/linkedin_test.png');
+  try {
+    console.log('Final URL:', page.url());
+    writeFileSync('recordings/linkedin_test.png', await page.screenshot());
+  } catch { console.log('Could not capture final screenshot (page may have navigated)'); }
 } catch (e) {
   console.log('ERROR:', e.message.slice(0, 300));
 } finally {
