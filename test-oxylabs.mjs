@@ -12,12 +12,23 @@ const page = ctx.pages()[0] || await ctx.newPage();
 try {
   await page.goto('https://www.linkedin.com/login', { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(3000);
-  // Use evaluate + keyboard (Playwright fill() times out on LinkedIn's custom inputs)
-  await page.evaluate(`document.querySelector('input[type="text"], input:not([type="hidden"])').focus()`);
-  await page.keyboard.type(process.env.LI_EMAIL || '', { delay: 30 });
-  await page.keyboard.press('Tab');
-  await page.keyboard.type(process.env.LI_PASS || '', { delay: 30 });
-  await page.keyboard.press('Enter');
+  // Click email field by coordinates, type, tab to password, type, enter
+  const emailBox = await page.evaluate(`(() => {
+    const els = document.querySelectorAll('input');
+    for (const el of els) {
+      if (el.type === 'hidden') continue;
+      const r = el.getBoundingClientRect();
+      if (r.width > 100 && r.height > 20) return { x: r.x + r.width/2, y: r.y + r.height/2 };
+    }
+    return null;
+  })()`);
+  if (emailBox) {
+    await page.mouse.click(emailBox.x, emailBox.y);
+    await page.keyboard.type(process.env.LI_EMAIL || '', { delay: 30 });
+    await page.keyboard.press('Tab');
+    await page.keyboard.type(process.env.LI_PASS || '', { delay: 30 });
+    await page.keyboard.press('Enter');
+  } else { console.log('No email input found'); }
   await page.waitForTimeout(5000);
   console.log('URL after login:', page.url());
   if (page.url().includes('checkpoint') || page.url().includes('challenge')) {

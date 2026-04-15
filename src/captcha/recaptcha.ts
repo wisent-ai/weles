@@ -82,8 +82,13 @@ export async function solveRecaptchaV2(page: Page): Promise<boolean> {
   console.log('[recaptcha] Looking for reCAPTCHA iframes...');
   console.log('[recaptcha] All frame URLs:', page.frames().map((f: any) => f.url?.()?.slice(0, 80)));
 
-  // Check if bframe (image challenge) is already visible
-  let bframeReady = !!findBframe(page);
+  // Check if bframe has a loaded challenge (not just present but with content)
+  const existingBframe = findBframe(page);
+  let bframeReady = false;
+  if (existingBframe) {
+    const hasGrid = await existingBframe.evaluate(`(() => !!document.querySelector('table.rc-imageselect-table, .rc-imageselect-desc'))()`).catch(() => false);
+    bframeReady = !!hasGrid;
+  }
   if (!bframeReady) {
     // Click checkbox via frameLocator chain (pierces nested iframes)
     try {
@@ -115,30 +120,13 @@ export async function solveRecaptchaV2(page: Page): Promise<boolean> {
 
     const instruction = await bframe.evaluate(`(() => { const el = document.querySelector('.rc-imageselect-desc, .rc-imageselect-desc-no-canonical, .rc-imageselect-desc-wrapper'); return el ? el.innerText : ''; })()`).catch(() => '');
     console.log(`[recaptcha] Attempt ${attempt + 1}/${MAX_ATTEMPTS}: "${instruction.slice(0, 80)}"`);
+    if (!instruction) { console.log('[recaptcha] Empty instruction — bframe not loaded, retrying...'); await page.waitForEvent('framenavigated').catch(() => {}); continue; }
 
     const gridInfo = await bframe.evaluate(`(() => { const t = document.querySelector('table.rc-imageselect-table, table.rc-imageselect-table-33, table.rc-imageselect-table-44'); if (!t) return null; const rows = t.querySelectorAll('tr'); return { rows: rows.length, cols: rows[0]?.querySelectorAll('td').length || 0 }; })()`).catch(() => null);
     const gridSize = gridInfo?.cols || 3;
 
-    // Screenshot just the bframe challenge popup (it's a separate floating iframe)
-    let screenshot: Buffer;
-    try {
-      // The bframe renders as a separate overlay iframe on the main page
-      const allIframes = await page.$$('iframe');
-      let bframeEl = null;
-      for (const iframe of allIframes) {
-        const src = await iframe.getAttribute('src').catch(() => '') ?? '';
-        if (src.includes('/bframe')) { bframeEl = iframe; break; }
-      }
-      // Also check inside captchaInternal for nested bframe
-      if (!bframeEl) {
-        const ciFrame = page.frames().find((f: any) => (f.url?.() ?? '').includes('captchaInternal'));
-        if (ciFrame) { bframeEl = await ciFrame.$('iframe[src*="bframe"]'); }
-      }
-      if (bframeEl) {
-        screenshot = await bframeEl.screenshot();
-        console.log(`[recaptcha] Bframe element screenshot: ${screenshot.length} bytes`);
-      } else { screenshot = await page.screenshot(); console.log('[recaptcha] Using full page screenshot'); }
-    } catch { screenshot = await page.screenshot(); }
+    // Screenshot the page — the captcha grid is visible as an overlay
+    const screenshot = await page.screenshot();
     const imgPath = join(process.cwd(), 'recordings', 'vision', `captcha_attempt${attempt}.png`);
     writeFileSync(imgPath, screenshot);
     console.log(`[recaptcha] Screenshot: ${screenshot.length} bytes`);
