@@ -1,21 +1,13 @@
 import { WSession } from '../../dist/session/wsession.js';
 import { execute } from '../../dist/agent/loop.js';
-import { TRAJECTORIES } from '../run_all_export.mjs';
 
-const t = TRAJECTORIES.find(t => t.name === 'instagram_register');
-if (!t) { console.error('Trajectory not found: instagram_register'); process.exit(1); }
-if (t.emailEnv) {
-  process.env.SVC_EMAIL = process.env[t.emailEnv] || '';
-  process.env.SVC_PASSWORD = process.env[t.passEnv] || '';
-  if (!process.env.SVC_EMAIL) { console.log('SKIP — set ' + t.emailEnv); process.exit(0); }
-}
-const s = await WSession.start({ label: 'instagram_register', proxy: process.env.PROXY_URL || undefined });
+const URL = 'https://www.instagram.com/accounts/emailsignup/';
+const GOAL = `generate_identity(platform="instagram"). Fill "Mobile Number or Email" with $INSTAGRAM_NEW_EMAIL. Fill "Full Name" with "Wisent User". Fill Username with $INSTAGRAM_NEW_USERNAME. Fill Password with $INSTAGRAM_NEW_PASSWORD. Click "Sign up". If birthday, select January 1 1995. done(value=$INSTAGRAM_NEW_USERNAME).`;
+
+const s = await WSession.start({ label: 'instagram_register', proxy: process.env.PROXY_URL || 'residential' });
 try {
-  await s.goto(t.url);
-  const result = await execute(s.page, `Open ${t.url}. ${t.goal}`, {
-    envHints: t.emailEnv ? { SVC_EMAIL: process.env.SVC_EMAIL, SVC_PASSWORD: '***' } : {},
-    flowName: 'instagram_register',
-  });
+  await s.goto(URL);
+  const result = await execute(s, `Open ${URL}. ${GOAL}`, { flowName: 'instagram_register' });
   console.log('PASS:', result.value);
 } catch (e) {
   console.log('FAIL:', e.message?.slice(0, 200));

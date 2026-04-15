@@ -6,7 +6,7 @@
 import { spawnSync } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-type CDPPage = any; // Works with both Playwright Page and CDPPage
+import type { WSession } from '../session/wsession.js';
 import { dispatch } from './tools.js';
 import { Capture } from '../capture/capture.js';
 import { loadFlow, saveFlow, replayFlow, type FlowStep } from '../session/flows.js';
@@ -117,7 +117,7 @@ function askLlm(goal: string, state: string, screenshotPath: string, step: numbe
   return decision;
 }
 
-function buildState(page: CDPPage, history: ToolCall[], envHints: Record<string, string>): string {
+function buildState(page: any, history: ToolCall[], envHints: Record<string, string>): string {
   const url = (typeof page.url === 'function' ? page.url() : page.url) ?? '';
   const recent = history.slice(-10);
   const hLines = recent.map((h, i) => {
@@ -129,13 +129,14 @@ function buildState(page: CDPPage, history: ToolCall[], envHints: Record<string,
 }
 
 export async function execute(
-  page: CDPPage,
+  session: WSession,
   goal: string,
   options?: { envHints?: Record<string, string>; replay?: ToolCall[]; flowName?: string },
 ): Promise<LoopResult> {
   const history: ToolCall[] = [];
   const envHints = options?.envHints ?? {};
   let replay = options?.replay ?? null;
+  const page = session.page;
   const capture = new Capture({ newPage: async () => page } as any);
   const flowName = options?.flowName;
 
@@ -144,8 +145,11 @@ export async function execute(
     const saved = loadFlow(flowName);
     if (saved) {
       console.log(`[loop] Replaying saved flow: ${flowName} (${saved.steps.length} steps)`);
-      const result = await replayFlow(saved, (tool, args) => dispatch(page, tool, args));
-      if (result.success) return { value: result.value, history: saved.steps as any };
+      const result = await replayFlow(saved, (tool, args) => dispatch(session, tool, args));
+      if (result.success) {
+        const v = typeof result.value === 'string' ? session.resolveEnv(result.value) : result.value;
+        return { value: v, history: saved.steps as any };
+      }
       console.log(`[loop] Replay failed at step ${result.failedAtStep}, switching to LLM`);
     }
   }
@@ -154,16 +158,15 @@ export async function execute(
   function getActivePage(p: any): any {
     try {
       const pages = p.context?.().pages?.() ?? [];
-      // If current page is closed, return first open page
       if (p.isClosed?.()) return pages.find((pg: any) => !pg.isClosed?.()) ?? mainPage;
-      // If we're on a popup (pages.length > 1) and it's not the main page, check if we should switch back
-      if (pages.length === 1 && pages[0] !== p) return pages[0]; // Popup closed, back to main
+      if (pages.length === 1 && pages[0] !== p) return pages[0];
     } catch { /* skip */ }
     return p;
   }
 
+  let activePage = page;
   for (let step = 0; step < MAX_ITERATIONS; step++) {
-    page = getActivePage(page);
+    activePage = getActivePage(activePage);
     let decision: Record<string, any>;
 
     if (replay && step < replay.length && !['read', 'done'].includes(replay[step].tool)) {
@@ -172,17 +175,17 @@ export async function execute(
     } else {
       let screenshot: Buffer;
       try {
-        screenshot = await page.screenshot({ scale: 'css', animations: 'disabled' });
+        screenshot = await activePage.screenshot({ scale: 'css', animations: 'disabled' });
       } catch {
-        page = getActivePage(page);
-        try { await page.waitForLoadState?.('domcontentloaded'); } catch { /* skip */ }
-        try { screenshot = await page.screenshot({ scale: 'css', animations: 'disabled' }); }
+        activePage = getActivePage(activePage);
+        try { await activePage.waitForLoadState?.('domcontentloaded'); } catch { /* skip */ }
+        try { screenshot = await activePage.screenshot({ scale: 'css', animations: 'disabled' }); }
         catch { screenshot = Buffer.from(''); }
       }
-      const imgPath = await capture.screenshot(page, `loop_step${step}`).catch(() => {
+      const imgPath = await capture.screenshot(activePage, `loop_step${step}`).catch(() => {
         const p = join(visionDir(), `loop_step${step}.png`); writeFileSync(p, screenshot); return p;
       });
-      const state = buildState(page, history, envHints);
+      const state = buildState(activePage, history, envHints);
       decision = askLlm(goal, state, imgPath, step);
     }
 
@@ -197,13 +200,13 @@ export async function execute(
     if (call.tool === 'done') {
       call.result = 'done';
       history.push(call);
-      // Save successful flow for future replay
       if (flowName) {
         const steps = history.map(h => ({ tool: h.tool, args: h.args, result: h.result }));
         saveFlow(flowName, steps);
         console.log(`[loop] Flow saved: ${flowName} (${steps.length} steps)`);
       }
-      return { value: call.args.value, history };
+      const resolved = typeof call.args.value === 'string' ? session.resolveEnv(call.args.value) : call.args.value;
+      return { value: resolved, history };
     }
     if (call.tool === 'give_up') {
       call.result = 'give_up';
@@ -212,29 +215,29 @@ export async function execute(
     }
 
     try {
-      call.result = await dispatch(page, call.tool, call.args);
+      call.result = await dispatch(session, call.tool, call.args);
       console.log(`[loop] step ${step} result: ${call.result?.slice(0, 100)}`);
     } catch (e: any) {
       call.error = String(e).slice(0, 500);
       console.log(`[loop] step ${step} error: ${call.error}`);
       if (call.error.toLowerCase().includes('closed')) {
-        page = getActivePage(page);
+        activePage = getActivePage(activePage);
         if (replay) { replay = null; console.log('[loop] replay aborted, switching to LLM'); }
       }
     }
     // Detect popup (Google SSO opens in new window)
     try {
-      const pages = page.context?.().pages?.() ?? [];
-      if (pages.length > 1 && pages[pages.length - 1] !== page) {
-        page = pages[pages.length - 1];
-        console.log(`[loop] popup detected: ${(typeof page.url === 'function' ? page.url() : page.url) ?? ''}`.slice(0, 120));
+      const pages = activePage.context?.().pages?.() ?? [];
+      if (pages.length > 1 && pages[pages.length - 1] !== activePage) {
+        activePage = pages[pages.length - 1];
+        console.log(`[loop] popup detected: ${(typeof activePage.url === 'function' ? activePage.url() : activePage.url) ?? ''}`.slice(0, 120));
         await new Promise(r => setTimeout(r, 2000));
       }
     } catch { /* skip */ }
     history.push(call);
   }
 
-  await capture.save('agent_loop', page).catch(() => {});
+  await capture.save('agent_loop', activePage).catch(() => {});
   throw new AgentFailure(`max iterations (${MAX_ITERATIONS}) exceeded`, history);
 }
 

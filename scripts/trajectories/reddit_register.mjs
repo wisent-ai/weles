@@ -1,21 +1,13 @@
 import { WSession } from '../../dist/session/wsession.js';
 import { execute } from '../../dist/agent/loop.js';
-import { TRAJECTORIES } from '../run_all_export.mjs';
 
-const t = TRAJECTORIES.find(t => t.name === 'reddit_register');
-if (!t) { console.error('Trajectory not found: reddit_register'); process.exit(1); }
-if (t.emailEnv) {
-  process.env.SVC_EMAIL = process.env[t.emailEnv] || '';
-  process.env.SVC_PASSWORD = process.env[t.passEnv] || '';
-  if (!process.env.SVC_EMAIL) { console.log('SKIP — set ' + t.emailEnv); process.exit(0); }
-}
-const s = await WSession.start({ label: 'reddit_register', proxy: process.env.PROXY_URL || undefined });
+const URL = 'https://www.reddit.com/register';
+const GOAL = `generate_identity(platform="reddit"). Fill email with $REDDIT_NEW_EMAIL. Click Continue. If captcha, solve_captcha(sitekey="6LfirrMoAAAAAHZOipvza4kpp_VtTwLNuXVwURNQ"). check_email(email=$REDDIT_NEW_EMAIL,sender="reddit") for code. Fill code. Set username $REDDIT_NEW_USERNAME and password $REDDIT_NEW_PASSWORD. After registration if onboarding questions appear, immediately done(value=$REDDIT_NEW_USERNAME).`;
+
+const s = await WSession.start({ label: 'reddit_register', proxy: process.env.PROXY_URL || 'residential' });
 try {
-  await s.goto(t.url);
-  const result = await execute(s.page, `Open ${t.url}. ${t.goal}`, {
-    envHints: t.emailEnv ? { SVC_EMAIL: process.env.SVC_EMAIL, SVC_PASSWORD: '***' } : {},
-    flowName: 'reddit_register',
-  });
+  await s.goto(URL);
+  const result = await execute(s, `Open ${URL}. ${GOAL}`, { flowName: 'reddit_register' });
   console.log('PASS:', result.value);
 } catch (e) {
   console.log('FAIL:', e.message?.slice(0, 200));

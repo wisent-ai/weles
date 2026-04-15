@@ -19,7 +19,7 @@ export { ProxyPool, proxyUrl, toPlaywright, parseProxyUrl } from './proxy/config
 export type { ProxyConfig } from './proxy/config.js';
 export { humanMove, humanClick } from './human/mouse.js';
 export { humanType } from './human/keyboard.js';
-export { FetchAccountValue, Trajectory, execute, AgentFailure, dispatch, TOOLS } from './agent/index.js';
+export { FetchAccountValue, Trajectory, execute, AgentFailure, dispatch } from './agent/index.js';
 export type { ToolCall, LoopResult } from './agent/loop.js';
 export { AsyncNewBrowser, AsyncWeles } from './async_api.js';
 export { WSession } from './session/wsession.js';
