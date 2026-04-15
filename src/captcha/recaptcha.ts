@@ -184,21 +184,16 @@ export async function solveRecaptchaV2(page: Page): Promise<boolean> {
     console.log(`[recaptcha] Claude selected: ${JSON.stringify(positions)}`);
     if (!positions) continue;
 
-    // Click tiles via page.mouse at absolute coordinates (proper mouse events)
-    // Find the bframe element handle for bounding box offset
-    let clickFrameEl = null;
-    for (const iframe of await page.$$('iframe')) {
-      if (((await iframe.getAttribute('src').catch(() => '')) ?? '').includes('/bframe')) { clickFrameEl = iframe; break; }
-    }
-    const ciBox = clickFrameEl ? await clickFrameEl.boundingBox() : null;
+    // Click tiles directly inside bframe via dispatchEvent (proper mouse events)
     for (const pos of positions) {
       const row = Math.floor((pos - 1) / gridSize) + 1;
       const col = (pos - 1) % gridSize + 1;
       const tilePos = await bframe.evaluate(`(() => { const t = document.querySelector('table.rc-imageselect-table, table.rc-imageselect-table-33, table.rc-imageselect-table-44'); const td = t?.querySelector('tr:nth-child(${row}) td:nth-child(${col})'); if (!td) return null; const r = td.getBoundingClientRect(); return { x: r.x + r.width/2, y: r.y + r.height/2 }; })()`).catch(() => null);
-      if (tilePos && ciBox) {
-        await page.mouse.click(ciBox.x + tilePos.x, ciBox.y + tilePos.y);
-        console.log(`[recaptcha] Clicked tile ${pos} at (${(ciBox.x + tilePos.x).toFixed(0)}, ${(ciBox.y + tilePos.y).toFixed(0)})`);
-      } else {
+      // Click via Playwright frame locator (generates trusted mouse events)
+      try {
+        await bframe.locator(`table.rc-imageselect-table tr:nth-child(${row}) td:nth-child(${col})`).click();
+        console.log(`[recaptcha] Clicked tile ${pos} (locator)`);
+      } catch {
         await bframe.evaluate(`(() => { const t = document.querySelector('table.rc-imageselect-table, table.rc-imageselect-table-33, table.rc-imageselect-table-44'); const td = t?.querySelector('tr:nth-child(${row}) td:nth-child(${col})'); if (td) td.click(); })()`).catch(() => {});
         console.log(`[recaptcha] Clicked tile ${pos} (JS)`);
       }
@@ -206,8 +201,8 @@ export async function solveRecaptchaV2(page: Page): Promise<boolean> {
 
     // Click verify via absolute coordinates
     const verifyPos = await bframe.evaluate(`(() => { const b = document.querySelector('#recaptcha-verify-button'); if (!b) return null; const r = b.getBoundingClientRect(); return { x: r.x + r.width/2, y: r.y + r.height/2 }; })()`).catch(() => null);
-    if (verifyPos && ciBox) { await page.mouse.click(ciBox.x + verifyPos.x, ciBox.y + verifyPos.y); }
-    else { await bframe.evaluate(`(() => { const b = document.querySelector('#recaptcha-verify-button'); if (b) b.click(); })()`).catch(() => {}); }
+    try { await bframe.locator('#recaptcha-verify-button').click(); }
+    catch { await bframe.evaluate(`(() => { const b = document.querySelector('#recaptcha-verify-button'); if (b) b.click(); })()`).catch(() => {}); }
     console.log('[recaptcha] Clicked verify');
 
     // Wait for result — navigation means captcha was solved
