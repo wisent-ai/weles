@@ -139,22 +139,34 @@ export async function solveRecaptchaV2(page: Page): Promise<boolean> {
     writeFileSync(imgPath, screenshot);
     console.log(`[recaptcha] Screenshot: ${screenshot.length} bytes`);
 
-    // Solve via CapSolver AI (instant, ~1-2s per attempt)
+    // Extract just the grid image from bframe for CapSolver
     const capsolverKey = process.env.CAPSOLVER_API_KEY ?? '';
-    const imgB64 = screenshot.toString('base64');
     let positions: number[] | null = null;
     const questionCode = instructionToCode(instruction);
     if (capsolverKey && questionCode) {
       try {
-        console.log(`[recaptcha] CapSolver: code=${questionCode}`);
-        const data = await (await fetch('https://api.capsolver.com/createTask', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ clientKey: capsolverKey, task: { type: 'ReCaptchaV2Classification', image: imgB64, question: questionCode } }),
-        })).json() as any;
-        if (data.solution?.objects) {
-          positions = (data.solution.objects as number[]).map(i => i + 1);
-          console.log(`[recaptcha] CapSolver solved: ${JSON.stringify(positions)}`);
-        } else if (data.errorDescription) console.log(`[recaptcha] CapSolver error: ${data.errorDescription}`);
+        // Get the grid image as base64 from inside bframe
+        const gridImgB64 = await bframe.evaluate(`(() => {
+          const img = document.querySelector('.rc-image-tile-wrapper img, .rc-imageselect-challenge img, table.rc-imageselect-table img');
+          if (!img) return null;
+          const canvas = document.createElement('canvas');
+          canvas.width = img.naturalWidth || img.width;
+          canvas.height = img.naturalHeight || img.height;
+          canvas.getContext('2d').drawImage(img, 0, 0);
+          return canvas.toDataURL('image/jpeg', 0.9).split(',')[1];
+        })()`).catch(() => null);
+        if (gridImgB64) {
+          console.log(`[recaptcha] CapSolver: code=${questionCode}, img=${(gridImgB64.length/1024).toFixed(0)}KB`);
+          const data = await (await fetch('https://api.capsolver.com/createTask', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ clientKey: capsolverKey, task: { type: 'ReCaptchaV2Classification', image: gridImgB64, question: questionCode } }),
+          })).json() as any;
+          console.log(`[recaptcha] CapSolver response: ${JSON.stringify(data).slice(0, 300)}`);
+          if (data.solution?.objects) {
+            positions = (data.solution.objects as number[]).map(i => i + 1);
+            console.log(`[recaptcha] CapSolver solved: ${JSON.stringify(positions)}`);
+          }
+        } else { console.log('[recaptcha] Could not extract grid image from bframe'); }
       } catch (e: any) { console.log(`[recaptcha] CapSolver error: ${e.message?.slice(0, 80)}`); }
     }
     // Claude vision as secondary
