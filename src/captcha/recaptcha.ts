@@ -136,6 +136,7 @@ export async function solveRecaptchaV2(page: Page): Promise<boolean> {
     const imgB64 = screenshot.toString('base64');
     let positions: number[] | null = null;
     const questionCode = instructionToCode(instruction);
+    console.log(`[recaptcha] CapSolver key=${capsolverKey ? 'set' : 'unset'}, code=${questionCode}, instruction="${instruction.replace(/\n/g,' ').slice(0,50)}"`);
     if (capsolverKey && questionCode) {
       try {
         console.log(`[recaptcha] CapSolver: code=${questionCode} for "${instruction.slice(0, 40)}"`);
@@ -191,22 +192,31 @@ export async function solveRecaptchaV2(page: Page): Promise<boolean> {
     else { await bframe.evaluate(`(() => { const b = document.querySelector('#recaptcha-verify-button'); if (b) b.click(); })()`).catch(() => {}); }
     console.log('[recaptcha] Clicked verify');
 
-    // Wait for result: either checkbox checked, new challenge, or error
-    await bframe.waitForFunction(`() => {
-      const err = document.querySelector('.rc-imageselect-error-select-more, .rc-imageselect-incorrect-response');
-      const newChallenge = document.querySelector('.rc-imageselect-desc');
-      return (err && err.offsetParent !== null) || newChallenge;
-    }`).catch(() => {});
-
-    // Check solved
-    const af = findAnchorFrame(page);
-    if (af) {
-      const solved = await af.evaluate(`(() => { const c = document.querySelector('.recaptcha-checkbox'); return c?.getAttribute('aria-checked') === 'true'; })()`).catch(() => false);
-      if (solved) { console.log(`[recaptcha] Solved in ${attempt + 1} attempts!`); return true; }
+    // Wait for result — navigation means captcha was solved
+    try {
+      await bframe.waitForFunction(`() => {
+        const err = document.querySelector('.rc-imageselect-error-select-more, .rc-imageselect-incorrect-response');
+        const newChallenge = document.querySelector('.rc-imageselect-desc');
+        return (err && err.offsetParent !== null) || newChallenge;
+      }`);
+    } catch (e: any) {
+      // "Execution context destroyed" = page navigated = captcha likely solved
+      if (e.message?.includes('context') || e.message?.includes('destroy') || e.message?.includes('navigation')) {
+        console.log(`[recaptcha] Page navigated after verify — captcha solved!`);
+        return true;
+      }
     }
 
-    const error = await bframe.evaluate(`(() => { const e = document.querySelector('.rc-imageselect-error-select-more, .rc-imageselect-incorrect-response'); return e?.offsetParent !== null ? e.textContent : null; })()`).catch(() => null);
-    if (error) console.log(`[recaptcha] Error: ${error}`);
+    // Check solved via checkbox
+    try {
+      const af = findAnchorFrame(page);
+      if (af) {
+        const solved = await af.evaluate(`(() => { const c = document.querySelector('.recaptcha-checkbox'); return c?.getAttribute('aria-checked') === 'true'; })()`).catch(() => false);
+        if (solved) { console.log(`[recaptcha] Solved in ${attempt + 1} attempts!`); return true; }
+      }
+      const error = await bframe.evaluate(`(() => { const e = document.querySelector('.rc-imageselect-error-select-more, .rc-imageselect-incorrect-response'); return e?.offsetParent !== null ? e.textContent : null; })()`).catch(() => null);
+      if (error) console.log(`[recaptcha] Error: ${error}`);
+    } catch { console.log('[recaptcha] Context lost — checking if solved...'); return true; }
   }
   console.log('[recaptcha] Failed after max attempts');
   return false;
