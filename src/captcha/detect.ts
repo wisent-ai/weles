@@ -35,6 +35,12 @@ export async function detectCaptcha(page: Page): Promise<CaptchaInfo | null> {
 
 /** Detect captcha, solve it, and inject the token. Session is optional — provides intercepted API data. */
 export async function solvePageCaptcha(page: Page, solver?: CaptchaSolver, session?: any): Promise<boolean> {
+  // Check intercepted API captcha data first (Discord pattern: API returns 400 with captcha before iframe loads)
+  if (session?.captchaResponse?.captcha_sitekey && session?.captchaFormData) {
+    console.log(`[captcha] Found intercepted captcha data, using enterprise solver`);
+    const s = solver ?? new CaptchaSolver();
+    return solveHcaptchaEnterprise(page, session.captchaResponse.captcha_sitekey, s, session);
+  }
   const info = await detectCaptcha(page);
   if (!info) return true;
   const s = solver ?? new CaptchaSolver();
