@@ -58,9 +58,10 @@ export async function getEmailApiKey(): Promise<string | undefined> {
 }
 
 interface SocialAccount {
+  id?: string;
   platform: string;
   username: string;
-  metadata: { email?: string; password?: string; cookies?: any[]; status?: string };
+  metadata: { email?: string; password?: string; cookies?: any[]; status?: string; proxy?: any };
 }
 
 /** Get an active social account for a platform from the social_accounts table. */
@@ -69,7 +70,7 @@ export async function getSocialAccount(platform: string): Promise<SocialAccount 
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
   if (!supabaseUrl || !supabaseKey) return null;
   const res = await fetch(
-    `${supabaseUrl}/rest/v1/social_accounts?platform=eq.${platform}&is_active=eq.true&select=platform,username,metadata&order=created_at.desc&limit=1`,
+    `${supabaseUrl}/rest/v1/social_accounts?platform=eq.${platform}&is_active=eq.true&select=id,platform,username,metadata&order=created_at.desc&limit=1`,
     { headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` } },
   );
   if (!res.ok) return null;
