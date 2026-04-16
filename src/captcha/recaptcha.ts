@@ -60,7 +60,9 @@ async function classifyGrid(bframe: any, instruction: string, gridSize: number):
   mkdirSync(diagDir, { recursive: true });
   writeFileSync(join(diagDir, 'extracted_grid_latest.png'), Buffer.from(gridImgB64, 'base64'));
   // 2captcha GridTask — human workers, ~95% accuracy, ~10-15s
-  const apiKey = process.env.TWOCAPTCHA_API_KEY ?? '';
+  const { getCaptchaCredentials: getCreds } = await import('../utils/credentials.js');
+  const creds = await getCreds();
+  const apiKey = creds.twocaptcha ?? '';
   if (apiKey) {
     const comment = instruction.replace(/\n/g, ' ').trim();
     console.log(`[recaptcha] 2captcha: "${comment.slice(0,50)}" ${gridSize}x${gridSize}`);
@@ -81,7 +83,7 @@ async function classifyGrid(bframe: any, instruction: string, gridSize: number):
     } else { console.log(`[recaptcha] 2captcha create error: ${createRes.errorDescription}`); }
   }
   // CapSolver as secondary (instant AI)
-  const capsolverKey = process.env.CAPSOLVER_API_KEY ?? '';
+  const capsolverKey = creds.capsolver ?? '';
   const questionCode = instructionToCode(instruction);
   if (capsolverKey && questionCode) {
     const data = await (await fetch('https://api.capsolver.com/createTask', {

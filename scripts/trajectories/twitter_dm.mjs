@@ -1,12 +1,15 @@
+import { getSocialAccount } from '../../dist/utils/credentials.js';
 import { WSession } from '../../dist/session/wsession.js';
 import { execute } from '../../dist/agent/loop.js';
 
 const URL = 'https://x.com/i/flow/login';
 const GOAL = `Fill username/email with $SVC_EMAIL. Click Next. Fill password with $SVC_PASSWORD. Click "Log in". Wait for redirect. navigate(url="https://x.com/messages"). Wait 5 seconds. Start a new message to @wisent_ai. Type "Hello from weles agent" and send. done(value="DM sent").`;
 
-if (!process.env.TWITTER_EMAIL) { console.log('SKIP — set TWITTER_EMAIL'); process.exit(0); }
-process.env.SVC_EMAIL = process.env.TWITTER_EMAIL;
-process.env.SVC_PASSWORD = process.env.TWITTER_PASSWORD;
+const acct = await getSocialAccount('twitter');
+if (!acct) { console.log('FAIL: no active twitter account in DB'); process.exit(1); }
+process.env.SVC_EMAIL = acct.metadata.email ?? acct.username;
+process.env.SVC_PASSWORD = acct.metadata.password ?? '';
+console.log(`[trajectory] Using account: ${acct.username}`);
 
 const s = await WSession.start({ label: 'twitter_dm', proxy: process.env.PROXY_URL || undefined });
 try {

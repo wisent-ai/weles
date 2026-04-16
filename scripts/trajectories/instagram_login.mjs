@@ -1,12 +1,15 @@
+import { getSocialAccount } from '../../dist/utils/credentials.js';
 import { WSession } from '../../dist/session/wsession.js';
 import { execute } from '../../dist/agent/loop.js';
 
 const URL = 'https://www.instagram.com/accounts/login/';
 const GOAL = `fill(target="username",value=$SVC_EMAIL). fill(target="password",value=$SVC_PASSWORD). js_click(selector="button[type='submit']",text="Log in"). Wait 5 seconds. If email verification code required, check_email(email=$SVC_EMAIL,sender="instagram") for code, fill the code, click Confirm. If error "incorrect", give_up(reason="invalid credentials"). done(value="logged in").`;
 
-if (!process.env.INSTAGRAM_EMAIL) { console.log('SKIP — set INSTAGRAM_EMAIL'); process.exit(0); }
-process.env.SVC_EMAIL = process.env.INSTAGRAM_EMAIL;
-process.env.SVC_PASSWORD = process.env.INSTAGRAM_PASSWORD;
+const acct = await getSocialAccount('instagram');
+if (!acct) { console.log('FAIL: no active instagram account in DB'); process.exit(1); }
+process.env.SVC_EMAIL = acct.metadata.email ?? acct.username;
+process.env.SVC_PASSWORD = acct.metadata.password ?? '';
+console.log(`[trajectory] Using account: ${acct.username}`);
 
 const s = await WSession.start({ label: 'instagram_login', proxy: process.env.PROXY_URL || undefined });
 try {

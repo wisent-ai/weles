@@ -1,12 +1,15 @@
+import { getSocialAccount } from '../../dist/utils/credentials.js';
 import { WSession } from '../../dist/session/wsession.js';
 import { execute } from '../../dist/agent/loop.js';
 
 const URL = 'https://www.instagram.com/wisent.ai/';
 const GOAL = `Wait 3 seconds. If not logged in, give_up(reason="not logged in, inject cookies"). Click "Follow" button. done(value="followed wisent.ai").`;
 
-if (!process.env.INSTAGRAM_EMAIL) { console.log('SKIP — set INSTAGRAM_EMAIL'); process.exit(0); }
-process.env.SVC_EMAIL = process.env.INSTAGRAM_EMAIL;
-process.env.SVC_PASSWORD = process.env.INSTAGRAM_PASSWORD;
+const acct = await getSocialAccount('instagram');
+if (!acct) { console.log('FAIL: no active instagram account in DB'); process.exit(1); }
+process.env.SVC_EMAIL = acct.metadata.email ?? acct.username;
+process.env.SVC_PASSWORD = acct.metadata.password ?? '';
+console.log(`[trajectory] Using account: ${acct.username}`);
 
 const s = await WSession.start({ label: 'instagram_follow', proxy: process.env.PROXY_URL || undefined });
 try {

@@ -11,7 +11,7 @@ import { dispatch } from './tools.js';
 import { Capture } from '../capture/capture.js';
 import { loadFlow, saveFlow, replayFlow, type FlowStep } from '../session/flows.js';
 
-const MAX_ITERATIONS = 50;
+const MAX_ITERATIONS = 20;
 
 export interface ToolCall {
   tool: string;
@@ -61,8 +61,8 @@ Reply with ONLY a JSON object:
 Credentials: use $VAR placeholders in fill/type_text values (e.g. $REDDIT_NEW_EMAIL).
 If a step fails, try something different. Do not repeat the same failing action.`;
 
-function visionDir(): string {
-  const dir = join(process.cwd(), 'recordings', 'vision');
+function visionDir(label?: string): string {
+  const dir = join(process.cwd(), 'recordings', ...(label ? [label, 'vision'] : ['vision']));
   mkdirSync(dir, { recursive: true });
   return dir;
 }
@@ -82,8 +82,8 @@ function parseJsonFrom(raw: string): Record<string, any> {
   return { tool: 'give_up', args: { reason: `unparseable LLM output: ${raw.slice(0, 200)}` } };
 }
 
-function askLlm(goal: string, state: string, screenshotPath: string, step: number): Record<string, any> {
-  const dir = visionDir();
+function askLlm(goal: string, state: string, screenshotPath: string, step: number, label?: string): Record<string, any> {
+  const dir = visionDir(label);
   const imgBlock = screenshotPath ? `Read the current screenshot at ${screenshotPath}.\n\n` : '';
   const prompt = `${SYSTEM_PROMPT}\n\nGOAL: ${goal}\n\n${state}\n${imgBlock}Respond with ONLY the JSON object.`;
 
@@ -131,7 +131,7 @@ function buildState(page: any, history: ToolCall[], envHints: Record<string, str
 export async function execute(
   session: WSession,
   goal: string,
-  options?: { envHints?: Record<string, string>; replay?: ToolCall[]; flowName?: string },
+  options?: { envHints?: Record<string, string>; replay?: ToolCall[]; flowName?: string; maxSteps?: number },
 ): Promise<LoopResult> {
   const history: ToolCall[] = [];
   const envHints = options?.envHints ?? {};
@@ -165,7 +165,8 @@ export async function execute(
   }
 
   let activePage = page;
-  for (let step = 0; step < MAX_ITERATIONS; step++) {
+  const maxSteps = options?.maxSteps ?? MAX_ITERATIONS;
+  for (let step = 0; step < maxSteps; step++) {
     activePage = getActivePage(activePage);
     let decision: Record<string, any>;
 
@@ -183,10 +184,10 @@ export async function execute(
         catch { screenshot = Buffer.from(''); }
       }
       const imgPath = await capture.screenshot(activePage, `loop_step${step}`).catch(() => {
-        const p = join(visionDir(), `loop_step${step}.png`); writeFileSync(p, screenshot); return p;
+        const p = join(visionDir(session.label), `loop_step${step}.png`); writeFileSync(p, screenshot); return p;
       });
       const state = buildState(activePage, history, envHints);
-      decision = askLlm(goal, state, imgPath, step);
+      decision = askLlm(goal, state, imgPath, step, session.label);
     }
 
     const call: ToolCall = {
@@ -238,7 +239,7 @@ export async function execute(
   }
 
   await capture.save('agent_loop', activePage).catch(() => {});
-  throw new AgentFailure(`max iterations (${MAX_ITERATIONS}) exceeded`, history);
+  throw new AgentFailure(`max iterations (${maxSteps}) exceeded`, history);
 }
 
 export { parseJsonFrom };

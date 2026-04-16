@@ -1,12 +1,15 @@
+import { getSocialAccount } from '../../dist/utils/credentials.js';
 import { WSession } from '../../dist/session/wsession.js';
 import { execute } from '../../dist/agent/loop.js';
 
 const URL = 'https://www.tiktok.com/login/phone-or-email/email';
 const GOAL = `Fill email with $SVC_EMAIL. Fill password with $SVC_PASSWORD. Click "Log in". Wait for redirect. navigate(url="https://www.tiktok.com/@tiktok"). Wait 5 seconds. Click "Follow". done(value="followed @tiktok").`;
 
-if (!process.env.TIKTOK_EMAIL) { console.log('SKIP — set TIKTOK_EMAIL'); process.exit(0); }
-process.env.SVC_EMAIL = process.env.TIKTOK_EMAIL;
-process.env.SVC_PASSWORD = process.env.TIKTOK_PASSWORD;
+const acct = await getSocialAccount('tiktok');
+if (!acct) { console.log('FAIL: no active tiktok account in DB'); process.exit(1); }
+process.env.SVC_EMAIL = acct.metadata.email ?? acct.username;
+process.env.SVC_PASSWORD = acct.metadata.password ?? '';
+console.log(`[trajectory] Using account: ${acct.username}`);
 
 const s = await WSession.start({ label: 'tiktok_follow', proxy: process.env.PROXY_URL || undefined });
 try {

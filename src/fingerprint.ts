@@ -66,6 +66,7 @@ export function generate(options?: GenerateOptions): any {
 
   const generatorOpts: Record<string, any> = {
     browsers: [browser === 'chromium' ? 'chrome' : browser],
+    browserListQuery: 'last 5 chrome versions',
   };
 
   if (os) {
@@ -123,7 +124,7 @@ export function toConfig(
     platform,
     language: 'en-US',
     languages: ['en-US'],
-    hardwareConcurrency: nav.hardwareConcurrency ?? 8,
+    hardwareConcurrency: Math.min(nav.hardwareConcurrency ?? 8, 16),
     maxTouchPoints: nav.maxTouchPoints ?? 0,
     doNotTrack: 'unspecified',
   };
@@ -180,6 +181,8 @@ export function toCppConfig(config: FingerprintConfig, targetOs = 'macos'): Reco
   let ua = nav.userAgent ?? '';
   const realVersion = detectChromiumVersion();
   if (ua && realVersion) ua = ua.replace(/Chrome\/\d+\.\d+\.\d+\.\d+/, `Chrome/${realVersion}`);
+  // Strip anything after Safari/537.36 (removes LarkUrl, HeadlessChrome, etc)
+  ua = ua.replace(/(Safari\/537\.36).*$/, '$1');
   const languages = [...(nav.languages ?? ['en-US'])];
   if (languages.length > 0) {
     const base = languages[0].split('-')[0];
@@ -236,13 +239,7 @@ function detectChromiumVersion(): string | null {
 function ensureModernChromeUA(ua: string, targetOs: string): string {
   const realVersion = detectChromiumVersion();
   const version = realVersion ?? CHROME_STABLE_VERSION;
-  const match = ua.match(/Chrome\/(\d+)/);
-  if (match) {
-    const major = parseInt(match[1], 10);
-    if (major >= 130) {
-      return realVersion ? ua.replace(/Chrome\/\d+\.\d+\.\d+\.\d+/, `Chrome/${realVersion}`) : ua;
-    }
-  }
+  // Always use the real binary version in a clean template
   const template = UA_TEMPLATES[targetOs] ?? UA_TEMPLATES.macos;
   return template.replace('{version}', version);
 }
