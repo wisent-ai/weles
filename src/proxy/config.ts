@@ -134,8 +134,11 @@ export async function resolveProxy(proxy: string): Promise<{ server: string; use
     else if (name.includes('packetstream')) stickyPass = `${password}_country-US_session-${sessId}`;
     else if (name.includes('iproyal')) stickyPass = `${password}_country-us_session-${sessId}`;
     else if (name.includes('pingproxies')) stickyUser = `${username}_c_us_s_${sessId}`;
-    console.log(`[proxy] Using: ${p.display_name} (${p.proxy_host}:${p.proxy_port}, $${p.balance_usd}, sticky=${sessId})`);
-    return { server: `http://${p.proxy_host}:${p.proxy_port}`, username: stickyUser, password: stickyPass };
+    // Resolve hostname to IP once so browser and captcha service use the same gateway
+    let host = p.proxy_host;
+    try { const dns = await import('node:dns'); host = await new Promise<string>((res, rej) => dns.lookup(p.proxy_host, (e: any, a: string) => e ? rej(e) : res(a))); } catch {}
+    console.log(`[proxy] Using: ${p.display_name} (${host}:${p.proxy_port}, $${p.balance_usd}, sticky=${sessId})`);
+    return { server: `http://${host}:${p.proxy_port}`, username: stickyUser, password: stickyPass };
   }
 
   console.log(`[proxy] No working provider found for type="${proxy}"`);
