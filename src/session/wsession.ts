@@ -139,7 +139,7 @@ export class WSession {
     const v = this._resolveEnv(value);
     const kws = target.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(w => w.length > 2);
     const sels = kws.flatMap(k => ['input','textarea','[contenteditable]'].flatMap(t => [`${t}[name*="${k}"]`,`${t}[placeholder*="${k}" i]`,`${t}[aria-label*="${k}" i]`]));
-    for (const sel of sels) { try { const el = this.page.locator?.(sel)?.first?.(); if (el && await el.isVisible()) { await el.click(); await this.page.keyboard.press('Meta+a').catch(() => {}); await humanType(this.page, v); return 'filled'; } } catch {} }
+    for (const sel of sels) { try { const el = this.page.locator?.(sel)?.first?.(); if (el && await el.isVisible()) { await el.click(); await el.fill(v); return 'filled'; } } catch {} }
     const tgt = JSON.stringify(target.toLowerCase());
     const c = await this.page.evaluate(`(()=>{var t=${tgt};for(var el of document.querySelectorAll('*')){var r=el.getBoundingClientRect();var ph=(el.getAttribute('placeholder')||'').toLowerCase();if(r.width>50&&r.height>10&&r.x>0&&ph&&ph.indexOf(t)>=0)return{x:r.x+r.width/2,y:r.y+r.height/2}}return null})()`).catch(() => null);
     if (c) { await humanClick(this.page, c.x, c.y); await this.page.keyboard.press('Meta+a').catch(() => {}); await humanType(this.page, v); return 'filled'; }
@@ -247,7 +247,7 @@ export class WSession {
       username,
       display_name: name,
       profile_url: profileUrl(platform, username, name),
-      metadata: { email, password, status: data.status ?? 'created', created_via: 'weles', cookies, cookies_updated_at: new Date().toISOString() },
+      metadata: { email, password, status: data.status ?? 'created', created_via: 'weles', cookies, cookies_updated_at: new Date().toISOString(), proxy: this.proxyConfig ?? null },
       is_active: true,
       created_by: 'weles',
     };

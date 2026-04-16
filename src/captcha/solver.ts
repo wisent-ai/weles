@@ -141,14 +141,33 @@ export class CaptchaSolver {
     console.log(`[captcha:solver] solveFuncaptcha pkey=${publicKey.slice(0, 12)} subdomain=${subdomain?.slice(0, 30)} blob=${!!blob}`);
     if (this._creds.anticaptcha) {
       const task: Record<string, any> = { type: 'FunCaptchaTaskProxyless', websiteURL: url, websitePublicKey: publicKey };
-      if (subdomain) task.funcaptchaApiJSSubdomain = subdomain.replace(/^https?:\/\//, '');
+      if (subdomain) task.funcaptchaApiJSSubdomain = subdomain.replace(/^https?:\/\//, '').replace('iframe.arkoselabs.com', 'client-api.arkoselabs.com');
       if (blob) task.data = JSON.stringify({ blob });
       const token = await apiSolve('https://api.anti-captcha.com', this._creds.anticaptcha, task);
       if (token) { console.log('[captcha:solver] FunCaptcha solved via anticaptcha'); return token; }
     }
+    if (this._creds.twocaptcha) {
+      const sd = subdomain ? subdomain.replace(/^https?:\/\//, '').replace('iframe.arkoselabs.com', 'client-api.arkoselabs.com') : '';
+      const surl = sd ? `https://${sd}` : '';
+      const params = new URLSearchParams({ key: this._creds.twocaptcha, method: 'funcaptcha', publickey: publicKey, pageurl: url, json: '1' });
+      if (surl) params.set('surl', surl);
+      if (blob) params.set('data[blob]', blob);
+      console.log(`[captcha:api] 2captcha funcaptcha surl=${surl.slice(0, 40)}`);
+      const cr = await (await fetch('https://2captcha.com/in.php?' + params.toString())).json().catch(() => ({})) as any;
+      if (cr.status === 1 && cr.request) {
+        const tid = cr.request;
+        console.log(`[captcha:api] 2captcha taskId=${tid}`);
+        for (let i = 0; i < 60; i++) {
+          await new Promise(r => setTimeout(r, 5000));
+          const res = await (await fetch(`https://2captcha.com/res.php?key=${this._creds.twocaptcha}&action=get&id=${tid}&json=1`)).json().catch(() => ({})) as any;
+          if (res.status === 1) { console.log(`[captcha:api] 2captcha solved`); return res.request; }
+          if (res.request !== 'CAPCHA_NOT_READY') { console.log(`[captcha:api] 2captcha error: ${res.request}`); break; }
+        }
+      } else { console.log(`[captcha:api] 2captcha create error: ${cr.request ?? cr.error_text ?? JSON.stringify(cr)}`); }
+    }
     if (this._creds.capsolver) {
       const task: Record<string, any> = { type: 'FunCaptchaTaskProxyLess', websiteURL: url, websitePublicKey: publicKey };
-      if (subdomain) { const s = subdomain.startsWith('http') ? subdomain : `https://${subdomain}`; task.funcaptchaApiJSSubdomain = s; }
+      if (subdomain) { let s = subdomain.startsWith('http') ? subdomain : `https://${subdomain}`; s = s.replace('iframe.arkoselabs.com', 'client-api.arkoselabs.com'); task.funcaptchaApiJSSubdomain = s; }
       if (blob) task.data = JSON.stringify({ blob });
       const token = await apiSolve('https://api.capsolver.com', this._creds.capsolver, task);
       if (token) { console.log('[captcha:solver] FunCaptcha solved via capsolver'); return token; }
