@@ -96,32 +96,42 @@ try {
         }
         if (!token) { console.log(`[test] ${svc.name}: no token`); continue; }
         console.log(`[test] ${svc.name} token: ${token.slice(0, 30)}...`);
-        // Inject token: set textarea AND call hcaptcha's internal onPass callback
-        const injected = await s.page.evaluate(`(()=>{
-          var token = ${JSON.stringify(token)};
-          // 1. Set the hidden textarea
+        // Patch fetch to inject solved captcha_key into the next /auth/register request
+        await s.page.evaluate(`(()=>{
+          window.__welesToken = ${JSON.stringify(token)};
+          if (!window.__welesFetchPatched) {
+            window.__welesFetchPatched = true;
+            var _f = window.fetch;
+            window.fetch = function(url, opts) {
+              if (typeof url === 'string' && url.includes('/auth/register') && opts && opts.body) {
+                try {
+                  var body = JSON.parse(opts.body);
+                  if (window.__welesToken) {
+                    body.captcha_key = window.__welesToken;
+                    opts.body = JSON.stringify(body);
+                    console.log('[weles] Injected captcha_key into register request');
+                    window.__welesToken = null;
+                  }
+                } catch(e) {}
+              }
+              return _f.apply(this, arguments);
+            };
+          }
+        })()`).catch(() => {});
+        // Now trigger hCaptcha to "complete" — set textarea and call the callback
+        await s.page.evaluate(`(()=>{
           var ta = document.querySelector('textarea[name="h-captcha-response"]');
-          if (ta) ta.value = token;
-          // 2. Find hcaptcha widget config and call the registered callback
+          if (ta) ta.value = ${JSON.stringify(token)};
+          // Find and call hcaptcha's registered callback
           if (window.hcaptcha) {
-            // hcaptcha stores widgets internally — enumerate to find the callback
-            var ids = Object.keys(window.hcaptcha._state || {});
-            if (!ids.length && hcaptcha.getAllIds) ids = hcaptcha.getAllIds();
+            var ids = hcaptcha.getAllIds ? hcaptcha.getAllIds() : [];
             for (var id of ids) {
-              var w = (window.hcaptcha._state || {})[id];
-              if (w && w.onPass) { w.onPass(token); return 'onPass'; }
-              if (w && w.config && w.config.callback) { w.config.callback(token); return 'config.callback'; }
-            }
-            // Try the global hcaptcha object methods
-            if (hcaptcha._events) {
-              var pass = hcaptcha._events.pass || hcaptcha._events.verified;
-              if (pass) { pass.forEach(function(fn) { fn(token); }); return 'events.pass'; }
+              try { var r = hcaptcha.getResponse(id); if (!r) hcaptcha.execute(id); } catch(e) {}
             }
           }
-          return 'textarea-only';
-        })()`).catch(e => `error: ${e.message?.slice(0, 80)}`);
-        console.log(`[test] ${svc.name} injection result: ${injected}`);
-        await s.wait(8);
+        })()`).catch(() => {});
+        console.log(`[test] ${svc.name} fetch patched + hcaptcha triggered, waiting...`);
+        await s.wait(10);
         // Check if registration succeeded by looking at URL or intercepted response
         const postUrl = s.page.url?.() ?? '';
         const postCaptcha = s.captchaResponse;
