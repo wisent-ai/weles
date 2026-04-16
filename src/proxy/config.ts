@@ -126,8 +126,16 @@ export async function resolveProxy(proxy: string): Promise<{ server: string; use
       console.log(`[proxy] Skipping ${p.display_name}: missing env ${envUser}/${envPass}`);
       continue;
     }
-    console.log(`[proxy] Using: ${p.display_name} (${p.proxy_host}:${p.proxy_port}, $${p.balance_usd})`);
-    return { server: `http://${p.proxy_host}:${p.proxy_port}`, username, password };
+    // Apply sticky session format per provider
+    const sessId = Math.floor(Math.random() * 9000000 + 1000000);
+    const name = p.display_name.toLowerCase();
+    let stickyUser = username, stickyPass = password;
+    if (name.includes('oxylabs')) stickyUser = `customer-${username}-cc-us-sessid-${sessId}`;
+    else if (name.includes('packetstream')) stickyPass = `${password}_country-US_session-${sessId}`;
+    else if (name.includes('iproyal')) stickyPass = `${password}_country-us_session-${sessId}`;
+    else if (name.includes('pingproxies')) stickyUser = `${username}_c_us_s_${sessId}`;
+    console.log(`[proxy] Using: ${p.display_name} (${p.proxy_host}:${p.proxy_port}, $${p.balance_usd}, sticky=${sessId})`);
+    return { server: `http://${p.proxy_host}:${p.proxy_port}`, username: stickyUser, password: stickyPass };
   }
 
   console.log(`[proxy] No working provider found for type="${proxy}"`);

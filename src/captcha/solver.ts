@@ -16,22 +16,26 @@ interface CaptchaCredentials {
 }
 
 async function apiSolve(apiUrl: string, clientKey: string, task: Record<string, any>): Promise<string | null> {
+  const svc = apiUrl.replace('https://api.', '').replace('.com', '');
+  console.log(`[captcha:api] ${svc} createTask type=${task.type} enterprise=${task.isEnterprise} proxy=${!!task.proxyAddress}`);
   const createRes = await (await fetch(apiUrl + '/createTask', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ clientKey, task }),
   })).json() as any;
-  if (createRes.errorId) return null;
+  if (createRes.errorId) { console.log(`[captcha:api] ${svc} createTask error: ${createRes.errorCode} ${createRes.errorDescription}`); return null; }
   const taskId = createRes.taskId;
-  if (!taskId) return null;
+  if (!taskId) { console.log(`[captcha:api] ${svc} no taskId in response`); return null; }
+  console.log(`[captcha:api] ${svc} taskId=${taskId}`);
   for (let i = 0; i < 60; i++) {
     await new Promise(r => setTimeout(r, 5000));
     const res = await (await fetch(apiUrl + '/getTaskResult', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ clientKey, taskId }),
     })).json() as any;
-    if (res.status === 'ready') return res.solution?.gRecaptchaResponse ?? res.solution?.token ?? null;
-    if (res.errorId) return null;
+    if (res.status === 'ready') { const t = res.solution?.gRecaptchaResponse ?? res.solution?.token ?? null; console.log(`[captcha:api] ${svc} solved, token=${t?.slice(0, 20)}...`); return t; }
+    if (res.errorId) { console.log(`[captcha:api] ${svc} result error: ${res.errorCode} ${res.errorDescription}`); return null; }
   }
+  console.log(`[captcha:api] ${svc} timed out after 60 polls`);
   return null;
 }
 
