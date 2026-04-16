@@ -50,13 +50,11 @@ function recordingsDir(...segments: string[]): string {
 
 export class Capture {
   private _context: CDPBrowserContext;
-
+  private _outDir?: string;
   consoleLogs: string[] = [];
   responseBodies: ResponseRecord[] = [];
-
-  constructor(context: CDPBrowserContext) {
-    this._context = context;
-  }
+  constructor(context: CDPBrowserContext, outputDir?: string) { this._context = context; this._outDir = outputDir; }
+  private _dir(...segs: string[]): string { const d = join(this._outDir ?? join(process.cwd(), 'recordings'), ...segs); mkdirSync(d, { recursive: true }); return d; }
 
   // -----------------------------------------------------------------------
   // Page creation with automatic logging
@@ -112,7 +110,7 @@ export class Capture {
   // -----------------------------------------------------------------------
 
   async screenshot(page: CDPPage, label: string): Promise<string> {
-    const dir = recordingsDir();
+    const dir = this._dir();
     const filename = `${label}_${timestamp()}.png`;
     const filePath = join(dir, filename);
 
@@ -141,7 +139,7 @@ export class Capture {
       // Also grab outer HTML for convenience
       const htmlResult = await page.send('DOM.getOuterHTML', { nodeId: root.nodeId });
 
-      const dir = recordingsDir();
+      const dir = this._dir();
       const filename = `${label}_dom_${timestamp()}.json`;
       const filePath = join(dir, filename);
 
@@ -181,7 +179,7 @@ export class Capture {
 
     const value = evalResult?.result?.value ?? null;
 
-    const dir = recordingsDir();
+    const dir = this._dir();
     const filename = `environment_${timestamp()}.json`;
     const filePath = join(dir, filename);
     writeFileSync(filePath, JSON.stringify(value, null, 2));
@@ -194,7 +192,7 @@ export class Capture {
   // -----------------------------------------------------------------------
 
   async save(label: string, page?: CDPPage): Promise<Record<string, string>> {
-    const dir = recordingsDir();
+    const dir = this._dir();
     const ts = timestamp();
     const paths: Record<string, string> = {};
 
@@ -229,7 +227,7 @@ export class Capture {
     responsesPath?: string,
     domPath?: string,
   ): string {
-    const framesDir = recordingsDir('diagnosis_frames');
+    const framesDir = this._dir('diagnosis_frames');
 
     // Extract frames from video via ffmpeg (1 frame per second)
     try {
@@ -293,9 +291,7 @@ export class Capture {
       diagnosis = this.diagnose(options.videoPath, paths.console, paths.responses, paths.dom);
     }
 
-    // Simple traffic diff: responses that returned non-2xx status
     const trafficDiff = this.responseBodies.filter((r) => r.status < 200 || r.status >= 300);
-
     return { paths, diagnosis, trafficDiff };
   }
 }

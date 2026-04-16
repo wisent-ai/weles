@@ -27,6 +27,8 @@ export async function dispatch(session: WSession, tool: string, args: ToolArgs):
       const id = await session.generateIdentity(args.platform ?? 'reddit');
       return `generated: username=${id.username} email=${id.email} name=${id.firstName} ${id.lastName}`;
     }
+    case 'check_sms':   return session.checkSms(args.service ?? '', args.country ?? 'UK');
+    case 'poll_sms_code': return session.pollSmsCode();
     case 'save_account': return session.saveAccount(args.platform ?? '', {
       username: args.username ?? '', email: args.email ?? '', password: args.password ?? '', name: args.name,
     });

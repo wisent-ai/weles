@@ -74,8 +74,6 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
   const isCustomBinary = isChromium && chromiumPath && existsSync(chromiumPath);
 
   if (isCustomBinary) {
-    // Custom Chromium: C++ handles fingerprint spoofing via --weles-fingerprint flag.
-    // Match Python async_api.py: write config to temp file, add init scripts, set full context opts.
     launchOpts.executablePath = chromiumPath;
     const cppConfig = toCppConfig(fpConfig, targetOs);
     const fpDir = mkdtempSync(join(tmpdir(), 'weles-fp-'));
@@ -84,9 +82,33 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
     args.push(`--weles-fingerprint=${fpFile}`);
     launchOpts.args = args;
     launchOpts.ignoreDefaultArgs = ['--enable-automation', '--enable-unsafe-swiftshader'];
+    console.log(`[async_api] Launching custom Chromium: ${chromiumPath}`);
+    console.log(`[async_api] headless=${headless} proxy=${!!options.proxy} recordVideo=${recordVideo}`);
+    console.log(`[async_api] fingerprint config: ${fpFile}`);
     const pwBrowser = await chromium.launch(launchOpts);
-    const context = await pwBrowser.newContext({ viewport: { width: 1920, height: 1080 } });
+    const pid = (pwBrowser as any).process?.()?.pid;
+    console.log(`[async_api] Browser launched, PID=${pid}`);
+
+    // Capture Chromium stderr for crash/error diagnostics
+    const proc = (pwBrowser as any).process?.();
+    if (proc?.stderr) {
+      proc.stderr.on('data', (chunk: Buffer) => {
+        const line = chunk.toString().trim();
+        if (line) console.log(`[chromium:stderr] ${line.slice(0, 1000)}`);
+      });
+    }
+
+    // Custom Chromium handles userAgent/screen via C++ — only pass viewport, proxy, recordVideo
+    const customCtxOpts: Record<string, any> = { viewport: { width: 1920, height: 1080 } };
+    if (ctxOpts.proxy) { customCtxOpts.proxy = ctxOpts.proxy; customCtxOpts.ignoreHTTPSErrors = true; }
+    if (ctxOpts.recordVideo) customCtxOpts.recordVideo = ctxOpts.recordVideo;
+    console.log(`[async_api] Context opts: ${JSON.stringify(customCtxOpts, (k, v) => k === 'password' ? '***' : v)}`);
+    const context = await pwBrowser.newContext(customCtxOpts);
+    context.setDefaultNavigationTimeout(0);
+    console.log(`[async_api] Context created`);
     await context.addInitScript(`try{var _og=navigator.credentials.get.bind(navigator.credentials);navigator.credentials.get=function(o){return o&&o.publicKey?new Promise(function(){}):_og(o)}}catch(e){}`);
+    // Intercept fetch to capture captcha data from API responses (Discord/hCaptcha Enterprise pattern)
+    await context.addInitScript(`try{var _of=window.fetch;window.fetch=function(){var u=arguments[0],o=arguments[1]||{};if(typeof u==='string'&&u.includes('/auth/register')&&o.method==='POST'){try{window.__weles_form_data=JSON.parse(o.body)}catch(e){}try{var h=o.headers||{};window.__weles_extra_headers={};for(var k in h){if(k.startsWith('x-'))window.__weles_extra_headers[k]=h[k]}}catch(e){}}return _of.apply(this,arguments).then(function(r){if(typeof u==='string'&&u.includes('/auth/register')&&r.status>=400){r.clone().json().then(function(d){if(d.captcha_key!==undefined)window.__weles_captcha_response=d}).catch(function(){})}return r})}}catch(e){}`);
     const origClose = context.close.bind(context);
     (context as any).close = async () => { await origClose(); await pwBrowser.close(); };
     return context;
@@ -103,9 +125,11 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
   }
 
   const context = await pwBrowser.newContext(ctxOpts);
+  context.setDefaultNavigationTimeout(0);
   await context.addInitScript(initScript);
   // WebAuthn passkey stub — block passkey prompts (same as custom Chromium path)
   await context.addInitScript(`try{var _og=navigator.credentials.get.bind(navigator.credentials);navigator.credentials.get=function(o){return o&&o.publicKey?new Promise(function(){}):_og(o)}}catch(e){}`);
+  await context.addInitScript(`try{var _of=window.fetch;window.fetch=function(){var u=arguments[0],o=arguments[1]||{};if(typeof u==='string'&&u.includes('/auth/register')&&o.method==='POST'){try{window.__weles_form_data=JSON.parse(o.body)}catch(e){}try{var h=o.headers||{};window.__weles_extra_headers={};for(var k in h){if(k.startsWith('x-'))window.__weles_extra_headers[k]=h[k]}}catch(e){}}return _of.apply(this,arguments).then(function(r){if(typeof u==='string'&&u.includes('/auth/register')&&r.status>=400){r.clone().json().then(function(d){if(d.captcha_key!==undefined)window.__weles_captcha_response=d}).catch(function(){})}return r})}}catch(e){}`);
 
   const origClose = context.close.bind(context);
   (context as any).close = async () => { await origClose(); await pwBrowser.close(); };

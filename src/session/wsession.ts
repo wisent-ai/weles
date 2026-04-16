@@ -9,14 +9,19 @@ import { SessionStore } from './store.js';
 import { Capture } from '../capture/capture.js';
 import { findClickTarget, askPage, checkPage, type ScreenshottablePage } from '../vision/analyze.js';
 import { humanClick } from '../human/mouse.js';
+import { humanType } from '../human/keyboard.js';
+import { selectOption } from '../human/select.js';
 import { waitCloudflare } from '../cloudflare/challenge.js';
 import { solvePageCaptcha } from '../captcha/detect.js';
 import { CaptchaSolver } from '../captcha/solver.js';
 import { generateIdentity as genId, type Identity } from '../utils/identity.js';
+import { getNumber, pollCode, type SmsNumber } from '../utils/sms.js';
 import { writeFileSync, mkdirSync, copyFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { resolveProxy } from '../proxy/config.js';
+import { getEmailApiKey } from '../utils/credentials.js';
 
-function recordingsDir(): string { const d = join(process.cwd(), 'recordings'); mkdirSync(d, { recursive: true }); return d; }
+function recordingsDir(label?: string): string { const d = join(process.cwd(), 'recordings', ...(label ? [label] : [])); mkdirSync(d, { recursive: true }); return d; }
 
 function findCustomChromium(): string | undefined {
   const candidates = [
@@ -37,17 +42,6 @@ export interface WSessionOptions {
 
 const asV = (p: any) => p as unknown as ScreenshottablePage;
 
-function resolveProxy(proxy: string): { server: string; username?: string; password?: string } | undefined {
-  if (!proxy || proxy === 'none' || proxy === 'direct') return undefined;
-  const shortcuts: Record<string, string> = {
-    residential: `http://${process.env.PINGPROXIES_USERNAME}_c_US:${process.env.PINGPROXIES_PASSWORD}@residential.pingproxies.com:8000`,
-    datacenter: `http://${process.env.PACKETSTREAM_USERNAME}:${process.env.PACKETSTREAM_PASSWORD}@proxy.packetstream.io:31112`,
-    mobile: `http://${process.env.OXYLABS_MOBILE_USERNAME}:${process.env.OXYLABS_MOBILE_PASSWORD}@us-pr.oxylabs.io:30000`,
-  };
-  const url = shortcuts[proxy] ?? proxy;
-  const u = new URL(url);
-  return { server: `${u.protocol}//${u.hostname}:${u.port}`, username: decodeURIComponent(u.username), password: decodeURIComponent(u.password) };
-}
 
 export class WSession {
   readonly page: any;
@@ -59,22 +53,47 @@ export class WSession {
   private _env: Record<string, string> = {};
 
   private _step = 0;
+  captchaResponse: any = null;
+  captchaFormData: any = null;
+  captchaHeaders: Record<string, string> = {};
+  proxyConfig: { server: string; username?: string; password?: string } | undefined;
+  private _smsOrder: SmsNumber | null = null;
+
   private constructor(ctx: BrowserContext, page: any, label: string, cap: Capture) {
     this.ctx = ctx; this.page = page; this.label = label; this._cap = cap;
     this._store = new SessionStore(); this._solver = new CaptchaSolver();
+    // Intercept API responses to capture captcha data (Discord hCaptcha Enterprise)
+    page.on?.('request', (req: any) => { try {
+      if (req.url().includes('/auth/register') && req.method() === 'POST') {
+        this.captchaFormData = JSON.parse(req.postData() ?? '{}');
+        const h = req.headers(); this.captchaHeaders = {};
+        for (const k of Object.keys(h)) { if (k.startsWith('x-')) this.captchaHeaders[k] = h[k]; }
+      }
+    } catch {} });
+    page.on?.('response', async (res: any) => { try {
+      if (res.url().includes('/auth/register') && res.status() >= 400) {
+        const d = await res.json(); if (d.captcha_key !== undefined) { this.captchaResponse = d; console.log(`[wsession] Captured captcha data: sitekey=${d.captcha_sitekey?.slice(0, 12)}`); }
+      }
+    } catch {} });
   }
 
   private async _action<T>(name: string, fn: () => Promise<T>): Promise<T> {
     const n = String(this._step++).padStart(3, '0');
     const label = `${n}_${name.replace(/[^a-z0-9]/gi, '_').slice(0, 30)}`;
+    const url = (typeof this.page.url === 'function' ? this.page.url() : '') ?? '';
+    const closed = this.page.isClosed?.() ?? false;
+    const vs = this.page.viewportSize?.() ?? {};
+    console.log(`[wsession] ${label} START url=${url.slice(0, 80)} closed=${closed} viewport=${vs.width}x${vs.height}`);
     await this._cap.screenshot(this.page, `before_${label}`).catch(() => {});
     await this._saveDom(`before_${label}`);
     try {
       const result = await fn();
+      console.log(`[wsession] ${label} OK result=${String(result).slice(0, 100)}`);
       await this._cap.screenshot(this.page, `after_${label}`).catch(() => {});
       await this._saveDom(`after_${label}`);
       return result;
-    } catch (e) {
+    } catch (e: any) {
+      console.log(`[wsession] ${label} ERROR ${e.message?.slice(0, 300)}`);
       await this._cap.screenshot(this.page, `error_${label}`).catch(() => {});
       await this._saveDom(`error_${label}`);
       throw e;
@@ -83,21 +102,25 @@ export class WSession {
 
   private async _saveDom(label: string): Promise<void> {
     const html = await this.page.content?.().catch(() => null);
-    if (html) writeFileSync(join(recordingsDir(), `${label}_dom.html`), html);
+    if (html) writeFileSync(join(recordingsDir(this.label || undefined), `${label}_dom.html`), html);
   }
 
   static async start(opts: WSessionOptions = {}): Promise<WSession> {
     const label = opts.label ?? '';
+    console.log(`[wsession] start() label=${label} headless=${opts.headless} proxy=${opts.proxy} record=${opts.record}`);
     const bOpts: AsyncNewBrowserOptions = { os: 'macos', browser: 'chromium', headless: opts.headless ?? false, recordVideo: opts.record ?? true };
     const chromiumPath = opts.chromiumPath ?? process.env.CHROMIUM_PATH ?? findCustomChromium();
     if (!chromiumPath) throw new Error('Custom Chromium not found. Set CHROMIUM_PATH or install to a known location.');
+    console.log(`[wsession] chromiumPath=${chromiumPath}`);
     bOpts.chromiumPath = chromiumPath;
-    if (opts.proxy) bOpts.proxy = resolveProxy(opts.proxy);
+    if (opts.proxy) bOpts.proxy = await resolveProxy(opts.proxy);
     const ctx = await AsyncNewBrowser(bOpts);
     const page = ctx.pages()[0] || await ctx.newPage();
-    const cap = new Capture({ newPage: async () => page } as any);
+    const cap = new Capture({ newPage: async () => page } as any, label ? recordingsDir(label) : undefined);
     if (label) { const s = new SessionStore(); await s.injectPlaywright(ctx, label).catch(() => {}); }
-    return new WSession(ctx, page, label, cap);
+    const ws = new WSession(ctx, page, label, cap);
+    ws.proxyConfig = bOpts.proxy;
+    return ws;
   }
 
   async goto(url: string): Promise<string> {
@@ -112,8 +135,10 @@ export class WSession {
     return this._action(`click_${target}`, async () => {
       const coords = await findClickTarget(asV(this.page), target);
       if (coords) { await humanClick(this.page, coords.x, coords.y); return `clicked ${target}`; }
-      const r = await this.page.evaluate(`(()=>{function F(r,s){var a=Array.from(r.querySelectorAll(s));r.querySelectorAll('*').forEach(function(e){if(e.shadowRoot)a=a.concat(F(e.shadowRoot,s))});return a}var t=${JSON.stringify(target.toLowerCase())};var sr=F(document,'[data-post-click-location] button');if(t.indexOf('upvote')>=0&&sr.length>0){sr[0].click();return'clicked upvote (shadow)'}var bs=F(document,'button,a,[role="button"]');for(var i=0;i<bs.length;i++){var x=((bs[i].textContent||'')+(bs[i].getAttribute('aria-label')||'')).toLowerCase();if(x.indexOf(t)>=0){bs[i].click();return'clicked: '+x.slice(0,40)}}return null})()`).catch(() => null);
-      return r ?? 'no-target-found';
+      // Find element coordinates by text match, then humanClick on them
+      const c = await this.page.evaluate(`(()=>{function F(r,s){var a=Array.from(r.querySelectorAll(s));r.querySelectorAll('*').forEach(function(e){if(e.shadowRoot)a=a.concat(F(e.shadowRoot,s))});return a}var t=${JSON.stringify(target.toLowerCase())};var sr=F(document,'[data-post-click-location] button');if(t.indexOf('upvote')>=0&&sr.length>0){var r=sr[0].getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2,desc:'upvote (shadow)'}}var bs=F(document,'button,a,[role="button"],label,input[type="checkbox"],[role="checkbox"]');for(var i=0;i<bs.length;i++){var el=bs[i];var x=((el.textContent||'')+(el.getAttribute('aria-label')||'')).toLowerCase();if(x.indexOf(t)>=0){var cb=el.querySelector('input[type="checkbox"]')||el;var r=cb.getBoundingClientRect();if(r.width<1){r=el.getBoundingClientRect()}return{x:r.x+r.width/2,y:r.y+r.height/2,desc:x.slice(0,40)}}}return null})()`).catch(() => null);
+      if (c) { await humanClick(this.page, c.x, c.y); return `clicked ${c.desc ?? target}`; }
+      return 'no-target-found';
     });
   }
 
@@ -122,12 +147,12 @@ export class WSession {
     const v = this._resolveEnv(value);
     const kws = target.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(w => w.length > 2);
     const sels = kws.flatMap(k => ['input','textarea','[contenteditable]'].flatMap(t => [`${t}[name*="${k}"]`,`${t}[placeholder*="${k}" i]`,`${t}[aria-label*="${k}" i]`]));
-    for (const sel of sels) { try { const el = this.page.locator?.(sel)?.first?.(); if (el && await el.isVisible()) { await el.fill(v); return 'filled'; } } catch {} }
+    for (const sel of sels) { try { const el = this.page.locator?.(sel)?.first?.(); if (el && await el.isVisible()) { await el.click(); await this.page.keyboard.press('Meta+a').catch(() => {}); await humanType(this.page, v); return 'filled'; } } catch {} }
     const tgt = JSON.stringify(target.toLowerCase());
     const c = await this.page.evaluate(`(()=>{var t=${tgt};for(var el of document.querySelectorAll('*')){var r=el.getBoundingClientRect();var ph=(el.getAttribute('placeholder')||'').toLowerCase();if(r.width>50&&r.height>10&&r.x>0&&ph&&ph.indexOf(t)>=0)return{x:r.x+r.width/2,y:r.y+r.height/2}}return null})()`).catch(() => null);
-    if (c) { await humanClick(this.page, c.x, c.y); await this.page.keyboard.type(v, { delay: 30 }); return 'filled'; }
+    if (c) { await humanClick(this.page, c.x, c.y); await this.page.keyboard.press('Meta+a').catch(() => {}); await humanType(this.page, v); return 'filled'; }
     const vc = await findClickTarget(asV(this.page), target);
-    if (vc) { await humanClick(this.page, vc.x, vc.y); await this.page.keyboard.press('Meta+a').catch(() => {}); await this.page.keyboard.type(v, { delay: 30 }); return 'filled'; }
+    if (vc) { await humanClick(this.page, vc.x, vc.y); await this.page.keyboard.press('Meta+a').catch(() => {}); await humanType(this.page, v); return 'filled'; }
     return 'no-field-found';
     });
   }
@@ -135,14 +160,9 @@ export class WSession {
   async focus(selector: string): Promise<string> {
     return this._action(`focus_${selector}`, async () => {
       const simple = selector.split(' ').pop()?.toLowerCase().replace(/['"[\]]/g, '') ?? '';
-      const candidates = [selector, `input[name="${selector}"]`, `input[type="${selector}"]`, `input[placeholder*="${selector}" i]`];
-      if (simple && simple !== selector) candidates.push(`input[name="${simple}"]`, `input[placeholder*="${simple}" i]`);
-      for (const sel of candidates) {
-        try {
-          const found = await this.page.evaluate(`(() => { const el = document.querySelector(${JSON.stringify(sel)}); if (el) { el.focus(); el.click(); return true; } return false; })()`);
-          if (found) return `focused: ${sel}`;
-        } catch { /* skip */ }
-      }
+      const sels = [selector, `input[name="${selector}"]`, `input[type="${selector}"]`, `input[placeholder*="${selector}" i]`];
+      if (simple && simple !== selector) sels.push(`input[name="${simple}"]`, `input[placeholder*="${simple}" i]`);
+      for (const s of sels) { try { const b = await this.page.locator?.(s)?.first?.()?.boundingBox?.(); if (b) { await humanClick(this.page, b.x + b.width / 2, b.y + b.height / 2); return `focused: ${s}`; } } catch {} }
       return 'no-element-found';
     });
   }
@@ -159,24 +179,13 @@ export class WSession {
     });
   }
 
-  async type(value: string): Promise<string> { return this._action('type', async () => { await this.page.keyboard.type(this._resolveEnv(value), { delay: 30 }); return 'typed'; }); }
+  async type(value: string): Promise<string> { return this._action('type', async () => { await humanType(this.page, this._resolveEnv(value)); return 'typed'; }); }
   async press(key: string): Promise<string> { return this._action(`press_${key}`, async () => { await this.page.keyboard.press(key); return `pressed ${key}`; }); }
 
   async select(target: string, value: string): Promise<string> {
     return this._action(`select_${target}_${value}`, async () => {
-      const vl = JSON.stringify(value.toLowerCase());
-      // Native <select>
-      const native = await this.page.evaluate(`(()=>{var v=${vl};var ss=document.querySelectorAll('select');for(var i=0;i<ss.length;i++){var s=ss[i];for(var j=0;j<s.options.length;j++){if(s.options[j].text.toLowerCase().indexOf(v)>=0){s.selectedIndex=j;s.dispatchEvent(new Event('change',{bubbles:true}));return s.options[j].text}}}return null})()`).catch(() => null);
-      if (native) return `selected: ${native}`;
-      // Custom div dropdowns
-      const tgtLow = JSON.stringify(target.toLowerCase());
-      const opened = await this.page.evaluate(`(()=>{var tgt=${tgtLow};var els=document.querySelectorAll('[class*="select"],[class*="Select"],[class*="dropdown"],[class*="Dropdown"]');for(var i=0;i<els.length;i++){var t=els[i].textContent.trim().toLowerCase();if(t.indexOf(tgt)===0||t===tgt){els[i].click();return true}}return false})()`).catch(() => false);
-      if (opened) {
-        await new Promise(r => setTimeout(r, 500));
-        const clicked = await this.page.evaluate(`(()=>{var v=${vl};var items=document.querySelectorAll('[role="option"],[class*="option"],[class*="Option"],li');for(var i=0;i<items.length;i++){var t=items[i].textContent.trim().toLowerCase();if(t===v&&items[i].children.length===0){items[i].click();return items[i].textContent.trim()}}for(var i=0;i<items.length;i++){var t=items[i].textContent.trim().toLowerCase();if(t.indexOf(v)>=0&&items[i].children.length===0){items[i].click();return items[i].textContent.trim()}}return null})()`).catch(() => null);
-        if (clicked) return `selected: ${clicked}`;
-      }
-      return 'no-select-found';
+      const result = await selectOption(this.page, target, this._resolveEnv(value));
+      return result ? `selected: ${result}` : 'no-select-found';
     });
   }
 
@@ -190,10 +199,10 @@ export class WSession {
 
   async wait(seconds: number): Promise<string> { await new Promise(r => setTimeout(r, seconds * 1000)); return `waited ${seconds}s`; }
   async read(question: string): Promise<string> { return await askPage(asV(this.page), question) ?? 'NONE'; }
-  async solveCaptcha(): Promise<string> { return this._action('solveCaptcha', async () => (await solvePageCaptcha(this.page, this._solver)) ? 'captcha solved' : 'captcha failed'); }
+  async solveCaptcha(): Promise<string> { return this._action('solveCaptcha', async () => (await solvePageCaptcha(this.page, this._solver, this)) ? 'captcha solved' : 'captcha failed'); }
 
   async checkEmail(email: string, sender: string): Promise<string> {
-    const key = process.env.RESEND_RECEIVING_API_KEY ?? '';
+    const key = await getEmailApiKey() ?? '';
     if (!key) return 'error: no RESEND_RECEIVING_API_KEY';
     const addr = this._resolveEnv(email).toLowerCase();
     for (let i = 0; i < 30; i++) {
@@ -211,6 +220,8 @@ export class WSession {
     return 'no code received';
   }
 
+  async checkSms(service: string, country = 'UK'): Promise<string> { this._smsOrder = await getNumber(service, country); if (!this._smsOrder) return 'error: no SMS number available'; this._env[`${service.toUpperCase()}_NEW_PHONE`] = this._smsOrder.phone; return `phone: ${this._smsOrder.phone}`; }
+  async pollSmsCode(): Promise<string> { if (!this._smsOrder) return 'error: no SMS order'; return (await pollCode(this._smsOrder.orderId, this._smsOrder.provider)) ?? 'no code received'; }
   async generateIdentity(platform: string): Promise<Identity> {
     const id = await genId(platform);
     const k = platform.toUpperCase();
@@ -219,6 +230,9 @@ export class WSession {
     this._env[`${k}_NEW_PASSWORD`] = id.password;
     this._env[`${k}_NEW_FIRSTNAME`] = id.firstName;
     this._env[`${k}_NEW_LASTNAME`] = id.lastName;
+    this._env[`${k}_NEW_BIRTHMONTH`] = id.birthMonth;
+    this._env[`${k}_NEW_BIRTHDAY`] = id.birthDay;
+    this._env[`${k}_NEW_BIRTHYEAR`] = id.birthYear;
     return id;
   }
 
@@ -255,18 +269,20 @@ export class WSession {
   }
 
   async close(): Promise<void> {
+    console.log(`[wsession] close() label=${this.label}`);
     await this._cap.save('session', this.page).catch(() => {});
     const video = this.page.video?.();
-    const dest = join(recordingsDir(), `${this.label || 'session'}_${new Date().toISOString().replace(/[:.]/g, '-')}.webm`);
-    // Close page first to finalize video, then save with label, then close context
-    await this.page.close().catch(() => {});
+    const dest = join(recordingsDir(this.label || undefined), `${this.label || 'session'}_${new Date().toISOString().replace(/[:.]/g, '-')}.webm`);
+    console.log(`[wsession] close() video=${!!video} dest=${dest}`);
+    await this.page.close().catch((e: any) => console.log(`[wsession] page.close error: ${e.message?.slice(0, 200)}`));
     if (video) {
-      await video.saveAs(dest).catch(() => {
-        // Direct file copy if saveAs fails after page close
-        try { const src = video.path?.() as string | undefined; if (src) copyFileSync(src, dest); } catch {}
+      await video.saveAs(dest).catch((e: any) => {
+        console.log(`[wsession] video.saveAs error: ${e.message?.slice(0, 200)}`);
+        try { const src = video.path?.() as string | undefined; if (src) { copyFileSync(src, dest); console.log(`[wsession] video copied from ${src}`); } } catch {}
       });
     }
-    await this.ctx.close().catch(() => {});
+    await this.ctx.close().catch((e: any) => console.log(`[wsession] ctx.close error: ${e.message?.slice(0, 200)}`));
+    console.log(`[wsession] close() done`);
   }
 
   resolveEnv(v: string): string { return v.replace(/\$\{?([A-Z_][A-Z0-9_]*)\}?/g, (_, k) => this._env[k] ?? process.env[k] ?? v); }
