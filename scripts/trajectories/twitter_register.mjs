@@ -1,7 +1,7 @@
 import { WSession } from '../../dist/session/wsession.js';
 import { chromium } from 'playwright';
 
-const URL = 'https://x.com/i/flow/signup';
+const URL = 'https://x.com/i/flow/signup?lang=en';
 const MAX_RETRIES = 5;
 const USE_BRIGHTDATA = !!process.env.BRIGHTDATA_BROWSER_WS;
 const proxy = USE_BRIGHTDATA ? 'none' : (process.env.PROXY_URL || 'none');
@@ -35,7 +35,8 @@ async function signup(s) {
   const name = `${id.firstName} ${id.lastName}`;
   console.log(`[tw] identity: ${id.username} / ${id.email}`);
 
-  // Navigate
+  // Set language to English before navigating
+  await s.ctx.addCookies([{ name: 'lang', value: 'en', domain: '.x.com', path: '/' }]).catch(() => {});
   await s.goto(URL);
   await sleep(5);
 

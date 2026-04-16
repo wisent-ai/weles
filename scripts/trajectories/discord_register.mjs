@@ -96,24 +96,31 @@ try {
         }
         if (!token) { console.log(`[test] ${svc.name}: no token`); continue; }
         console.log(`[test] ${svc.name} token: ${token.slice(0, 30)}...`);
-        // Inject token by sending postMessage FROM the hcaptcha iframe (correct origin)
-        let injected = false;
-        const frames = s.page.frames?.() ?? [];
-        for (const frame of frames) {
-          if (frame.url().includes('hcaptcha.com')) {
-            try {
-              await frame.evaluate(`window.parent.postMessage({source:'hcaptcha',label:'challenge-closed',id:'0',response:${JSON.stringify(token)}},'*')`);
-              console.log(`[test] postMessage sent from hcaptcha frame: ${frame.url().slice(0, 50)}`);
-              injected = true; break;
-            } catch (e) { console.log(`[test] Frame eval failed: ${e.message?.slice(0, 80)}`); }
+        // Inject token: set textarea AND call hcaptcha's internal onPass callback
+        const injected = await s.page.evaluate(`(()=>{
+          var token = ${JSON.stringify(token)};
+          // 1. Set the hidden textarea
+          var ta = document.querySelector('textarea[name="h-captcha-response"]');
+          if (ta) ta.value = token;
+          // 2. Find hcaptcha widget config and call the registered callback
+          if (window.hcaptcha) {
+            // hcaptcha stores widgets internally — enumerate to find the callback
+            var ids = Object.keys(window.hcaptcha._state || {});
+            if (!ids.length && hcaptcha.getAllIds) ids = hcaptcha.getAllIds();
+            for (var id of ids) {
+              var w = (window.hcaptcha._state || {})[id];
+              if (w && w.onPass) { w.onPass(token); return 'onPass'; }
+              if (w && w.config && w.config.callback) { w.config.callback(token); return 'config.callback'; }
+            }
+            // Try the global hcaptcha object methods
+            if (hcaptcha._events) {
+              var pass = hcaptcha._events.pass || hcaptcha._events.verified;
+              if (pass) { pass.forEach(function(fn) { fn(token); }); return 'events.pass'; }
+            }
           }
-        }
-        if (!injected) {
-          // Set textarea value as last resort
-          await s.page.evaluate(`(()=>{var ta=document.querySelector('textarea[name="h-captcha-response"]');if(ta)ta.value=${JSON.stringify(token)}})()`).catch(() => {});
-          console.log('[test] Set textarea value (no frame access)');
-        }
-        console.log(`[test] ${svc.name} injected=${injected}, waiting for Discord to process...`);
+          return 'textarea-only';
+        })()`).catch(e => `error: ${e.message?.slice(0, 80)}`);
+        console.log(`[test] ${svc.name} injection result: ${injected}`);
         await s.wait(8);
         // Check if registration succeeded by looking at URL or intercepted response
         const postUrl = s.page.url?.() ?? '';

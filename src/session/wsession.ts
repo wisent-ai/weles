@@ -104,7 +104,7 @@ export class WSession {
     console.log(`[wsession] start() label=${label} cdp=${!!cdp} proxy=${opts.proxy}`);
     if (cdp) {
       const browser = await chromium.connectOverCDP(cdp);
-      const ctx = browser.contexts()[0] || await browser.newContext(); const page = ctx.pages()[0] || await ctx.newPage();
+      const ctx = browser.contexts()[0] || await browser.newContext({ locale: 'en-US' }); const page = ctx.pages()[0] || await ctx.newPage();
       return new WSession(ctx, page, label, new Capture({ newPage: async () => page } as any, label ? recordingsDir(label) : undefined));
     }
     const bOpts: AsyncNewBrowserOptions = { os: 'macos', browser: 'chromium', headless: opts.headless ?? false, recordVideo: opts.record ?? true };
