@@ -118,19 +118,57 @@ try {
             };
           }
         })()`).catch(() => {});
-        // Now trigger hCaptcha to "complete" — set textarea and call the callback
-        await s.page.evaluate(`(()=>{
-          var ta = document.querySelector('textarea[name="h-captcha-response"]');
-          if (ta) ta.value = ${JSON.stringify(token)};
-          // Find and call hcaptcha's registered callback
-          if (window.hcaptcha) {
-            var ids = hcaptcha.getAllIds ? hcaptcha.getAllIds() : [];
-            for (var id of ids) {
-              try { var r = hcaptcha.getResponse(id); if (!r) hcaptcha.execute(id); } catch(e) {}
+        // Dump hcaptcha state to find the callback, then call it
+        const hcState = await s.page.evaluate(`(()=>{
+          if (!window.hcaptcha) return 'no hcaptcha';
+          var info = { methods: Object.keys(hcaptcha).filter(k=>typeof hcaptcha[k]==='function'), ids: hcaptcha.getAllIds?.() ?? [] };
+          // Look for internal state/config with callbacks
+          for (var k of Object.getOwnPropertyNames(hcaptcha)) {
+            var v = hcaptcha[k];
+            if (v && typeof v === 'object' && !Array.isArray(v)) {
+              info[k] = Object.keys(v).slice(0, 20);
             }
           }
-        })()`).catch(() => {});
-        console.log(`[test] ${svc.name} fetch patched + hcaptcha triggered, waiting...`);
+          // Check the render containers for data attributes
+          var containers = document.querySelectorAll('[data-hcaptcha-widget-id]');
+          info.containers = containers.length;
+          // Try to find React fiber with callback
+          var captchaEl = document.querySelector('[class*="captcha"]');
+          if (captchaEl) {
+            var fiberKey = Object.keys(captchaEl).find(k => k.startsWith('__reactFiber') || k.startsWith('__reactInternalInstance'));
+            if (fiberKey) info.hasFiber = true;
+          }
+          return JSON.stringify(info);
+        })()`).catch(e => `error: ${e.message?.slice(0, 80)}`);
+        console.log(`[test] hcaptcha state: ${hcState}`);
+        // Try calling the callback via React fiber
+        const callbackResult = await s.page.evaluate(`(()=>{
+          // Walk React fiber tree to find captcha callback
+          function findCallback(el) {
+            if (!el) return null;
+            var fk = Object.keys(el).find(k => k.startsWith('__reactFiber') || k.startsWith('__reactInternalInstance'));
+            if (!fk) return null;
+            var fiber = el[fk];
+            while (fiber) {
+              var props = fiber.memoizedProps || fiber.pendingProps || {};
+              if (props.onVerify) return props.onVerify;
+              if (props.callback) return props.callback;
+              if (props.onSuccess) return props.onSuccess;
+              fiber = fiber.return;
+            }
+            return null;
+          }
+          var captchaEls = document.querySelectorAll('[class*="captcha"], [class*="Captcha"]');
+          for (var el of captchaEls) {
+            var cb = findCallback(el);
+            if (cb) { cb(${JSON.stringify(token)}); return 'react-callback'; }
+          }
+          // Also try modal overlay
+          var modal = document.querySelector('[class*="modal"], [class*="Modal"]');
+          if (modal) { var cb = findCallback(modal); if (cb) { cb(${JSON.stringify(token)}); return 'modal-callback'; } }
+          return 'no-callback-found';
+        })()`).catch(e => `error: ${e.message?.slice(0, 80)}`);
+        console.log(`[test] ${svc.name} callback result: ${callbackResult}`);
         await s.wait(10);
         // Check if registration succeeded by looking at URL or intercepted response
         const postUrl = s.page.url?.() ?? '';
