@@ -33,9 +33,13 @@ try {
   // Intercept Arkose/FunCaptcha public_key + blob (context-level catches iframe requests)
   const captcha = { blob: null, pkey: null, apiSub: null };
   const seenArkoseUrls = [];
+  const seenGithubPosts = [];
   s.ctx.on('request', (req) => {
     try {
       const u = req.url();
+      if (req.method() === 'POST' && u.includes('github.com') && !u.includes('analytics') && !u.includes('_metric')) {
+        seenGithubPosts.push(`${u.slice(0, 120)} body=${(req.postData() ?? '').slice(0, 150)}`);
+      }
       if (u.includes('arkoselabs.com') || u.includes('octocaptcha.com')) {
         seenArkoseUrls.push(u.slice(0, 150));
         if (u.includes('arkoselabs.com/fc/gt2/public_key')) {
@@ -59,9 +63,20 @@ try {
   await s.wait(5);
   console.log(`[register] Signup page: ${s.page.url?.()}`);
 
-  await s.fill('Email', '$GITHUB_NEW_EMAIL'); await s.wait(1);
-  await s.fill('Password', '$GITHUB_NEW_PASSWORD'); await s.wait(1);
-  await s.fill('Username', '$GITHUB_NEW_USERNAME'); await s.wait(3);
+  // Direct JS value setter bypasses the Chromium CDP "password typing not allowed" block
+  const fillField = async (selector, value) => s.page.evaluate(`(({ sel, val }) => {
+    const el = document.querySelector(sel);
+    if (!el) return { ok: false, reason: 'not-found' };
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+    setter.call(el, val);
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+    el.dispatchEvent(new Event('blur', { bubbles: true }));
+    return { ok: true, id: el.id, name: el.name };
+  })(${JSON.stringify({ sel: selector, val: s.resolveEnv(value) })})`);
+  console.log(`[register] Fill email: ${JSON.stringify(await fillField('#email', '$GITHUB_NEW_EMAIL'))}`); await s.wait(1);
+  console.log(`[register] Fill password: ${JSON.stringify(await fillField('#password', '$GITHUB_NEW_PASSWORD'))}`); await s.wait(1);
+  console.log(`[register] Fill username: ${JSON.stringify(await fillField('#login', '$GITHUB_NEW_USERNAME'))}`); await s.wait(3);
 
   // Country: check if auto-selected (usually from proxy IP). Only click dropdown if needed.
   const countryState = await s.page.evaluate(`(() => { const btn = document.querySelector('#country-dropdown-panel-button, button.country-select-button'); return { text: btn?.innerText?.trim().slice(0, 60) ?? '', found: !!btn }; })()`).catch(() => ({ found: false }));
@@ -131,30 +146,40 @@ try {
     await s.wait(1);
   }
 
-  // If nothing happened, force iframe to load by copying data-src → src (bypasses autocheck gate)
-  if (!captcha.blob) {
+  // Only force iframe load if no arkose traffic seen (i.e., click didn't trigger naturally)
+  if (seenArkoseUrls.length === 0) {
     const forced = await s.page.evaluate(`(() => {
       const f = document.querySelector('iframe.js-octocaptcha-frame');
       if (!f) return { ok: false, reason: 'no-frame' };
       const ds = f.getAttribute('data-src');
-      const sr = f.getAttribute('src');
-      if (!ds) return { ok: false, reason: 'no-data-src', src: sr };
-      if (sr && sr.length > 10) return { ok: true, reason: 'already-loaded', src: sr };
-      f.setAttribute('src', ds);
-      // Also make the container visible so Arkose JS has layout
-      const parent = document.querySelector('.js-octocaptcha-parent, [data-view-component="true"]');
-      if (parent && parent.hidden) parent.hidden = false;
-      return { ok: true, reason: 'forced', dataSrc: ds.slice(0, 80) };
-    })()`).catch(e => ({ ok: false, reason: 'eval-error', error: e.message?.slice(0, 100) }));
-    console.log(`[register] Force iframe load: ${JSON.stringify(forced)}`);
-    // Wait again for blob capture
-    for (let i = 0; i < 25 && !captcha.blob; i++) {
-      if (i % 5 === 0) console.log(`[register] Waiting post-force... ${i}s (arkose urls: ${seenArkoseUrls.length}, pkey=${captcha.pkey ? 'Y' : 'N'}, blob=${captcha.blob ? 'Y' : 'N'})`);
-      await s.wait(1);
-    }
+      if (f.getAttribute('src')?.length > 10) return { ok: true, reason: 'already-loaded' };
+      if (ds) { f.setAttribute('src', ds); return { ok: true, reason: 'forced' }; }
+      return { ok: false, reason: 'no-data-src' };
+    })()`).catch(e => ({ ok: false, reason: 'eval-error' }));
+    console.log(`[register] Force iframe: ${JSON.stringify(forced)}`);
   }
-  console.log(`[register] Arkose URLs intercepted (${seenArkoseUrls.length}):`);
+  // Send the ack postMessage required by octocaptcha (require_ack=true) so it loads the inner Arkose widget
+  await s.wait(3);
+  const ackRes = await s.page.evaluate(`(() => {
+    const f = document.querySelector('iframe.js-octocaptcha-frame');
+    if (!f?.contentWindow) return { ok: false, reason: 'no-content-window' };
+    const ackMessages = [{ type: 'ack', acked: true }, 'ack', { event: 'ack' }, { type: 'octocaptcha:ack' }];
+    for (const msg of ackMessages) {
+      try { f.contentWindow.postMessage(msg, 'https://octocaptcha.com'); } catch {}
+      try { f.contentWindow.postMessage(msg, '*'); } catch {}
+    }
+    return { ok: true, sent: ackMessages.length };
+  })()`).catch(e => ({ ok: false, error: e.message?.slice(0, 100) }));
+  console.log(`[register] postMessage ack: ${JSON.stringify(ackRes)}`);
+
+  for (let i = 0; i < 60 && !captcha.blob; i++) {
+    if (i % 10 === 0) console.log(`[register] Waiting Arkose widget... ${i}s (urls: ${seenArkoseUrls.length})`);
+    await s.wait(1);
+  }
+  console.log(`[register] Arkose URLs (${seenArkoseUrls.length}):`);
   for (const u of seenArkoseUrls.slice(0, 15)) console.log(`  - ${u}`);
+  console.log(`[register] GitHub POSTs during flow (${seenGithubPosts.length}):`);
+  for (const p of seenGithubPosts.slice(0, 15)) console.log(`  - ${p}`);
 
   // DOM-based extraction of pkey from iframe (data-src becomes src after load)
   if (!captcha.pkey) {
