@@ -91,24 +91,47 @@ try {
         }
         if (!token) { console.log(`[test] ${svc.name}: no token`); continue; }
         console.log(`[test] ${svc.name} token: ${token.slice(0, 30)}...`);
-        // Resubmit
-        formData.captcha_key = token;
-        if (captchaData.captcha_rqtoken) formData.captcha_rqtoken = captchaData.captcha_rqtoken;
-        const hdrs = { 'Content-Type': 'application/json', ...headers };
-        const result = await s.page.evaluate(`(async()=>{var r=await fetch('/api/v9/auth/register',{method:'POST',headers:${JSON.stringify(hdrs)},body:${JSON.stringify(JSON.stringify(formData))}});var d=await r.json().catch(()=>({}));return{status:r.status,data:d}})()`).catch(e => ({ error: e.message }));
-        console.log(`[test] ${svc.name} resubmit: status=${result?.status} response=${JSON.stringify(result?.data).slice(0, 200)}`);
-        if (result?.status >= 200 && result?.status < 300) {
-          console.log(`[test] SUCCESS with ${svc.name}! token=${result?.data?.token?.slice(0, 30)}`);
+        // Inject token into hCaptcha and trigger Discord's verification callback
+        const injected = await s.page.evaluate(`(()=>{
+          var ta=document.querySelector('textarea[name="h-captcha-response"]');
+          if(ta){ta.value=${JSON.stringify(token)};ta.dispatchEvent(new Event('input',{bubbles:true}))}
+          // Find hCaptcha widget and call its internal callback
+          if(window.hcaptcha){
+            var ids=hcaptcha.getAllIds?.();
+            if(ids&&ids.length>0){
+              var resp=hcaptcha.getResponse(ids[0]);
+              if(!resp){
+                // Force set the response and trigger callback
+                var w=hcaptcha._getInternalState?.(ids[0]);
+                if(w&&w.onPass)w.onPass(${JSON.stringify(token)});
+              }
+            }
+          }
+          // Also try postMessage to hcaptcha iframe with the solved token
+          window.postMessage(JSON.stringify({source:'hcaptcha',label:'challenge-complete',id:'0',response:${JSON.stringify(token)}}),'*');
+          return !!ta;
+        })()`).catch(() => false);
+        console.log(`[test] ${svc.name} injected=${injected}, waiting for Discord to process...`);
+        await s.wait(8);
+        // Check if registration succeeded by looking at URL or intercepted response
+        const postUrl = s.page.url?.() ?? '';
+        const postCaptcha = s.captchaResponse;
+        console.log(`[test] After inject: url=${postUrl.slice(0, 60)} captchaResponse=${!!postCaptcha}`);
+        if (postUrl.includes('/channels') || postUrl.includes('/app') || postUrl.includes('/login')) {
+          console.log(`[test] SUCCESS with ${svc.name}! Navigated to ${postUrl.slice(0, 60)}`);
           registered = true;
-          if (result?.data?.token) {
-            const authToken = result.data.token;
-            console.log(`[test] Auth token: ${authToken.slice(0, 30)}...`);
-            // Verify email: poll Resend for Discord verification email, extract link, follow redirects for token
+          // Get auth token from localStorage (Discord SPA stores it after successful registration)
+          const authToken = await s.page.evaluate('try{return JSON.parse(localStorage.getItem("token"))}catch(e){return null}').catch(() => null);
+          console.log(`[test] Auth token from localStorage: ${authToken?.slice(0, 30) ?? 'none'}`);
+          if (authToken) {
+            // Verify email in-browser: set token in localStorage, navigate to verify link
             const emailAddr = s.resolveEnv('$DISCORD_NEW_EMAIL');
-            console.log(`[test] Polling for verification email to ${emailAddr}...`);
-            let emailToken = null;
+            console.log(`[test] Setting auth token and polling for verify email to ${emailAddr}...`);
+            // Set token so browser is "logged in"
+            await s.page.evaluate(`localStorage.setItem("token", JSON.stringify(${JSON.stringify(authToken)}))`).catch(() => {});
             const resendKey = process.env.RESEND_RECEIVING_API_KEY;
-            for (let poll = 0; poll < 15 && !emailToken; poll++) {
+            let verified = false;
+            for (let poll = 0; poll < 15 && !verified; poll++) {
               await s.wait(5);
               const emails = await (await fetch('https://api.resend.com/emails/receiving?limit=5', { headers: { Authorization: `Bearer ${resendKey}` } })).json();
               for (const em of emails.data || []) {
@@ -117,54 +140,26 @@ try {
                 const full = await (await fetch(`https://api.resend.com/emails/receiving/${em.id}`, { headers: { Authorization: `Bearer ${resendKey}` } })).json();
                 const links = (full.html || '').match(/https:\/\/click\.discord\.com[^\s"]+/g);
                 if (!links?.length) continue;
-                // Follow redirects to find the verify token
+                // Find the link that redirects to /verify#token= (2nd link in the email, not the 1st)
+                let verifyLink = null;
                 for (const link of links) {
-                  try {
-                    const resp = await fetch(link, { redirect: 'manual' });
-                    let loc = resp.headers.get('location') || '';
-                    for (let hop = 0; hop < 5 && loc; hop++) {
-                      if (loc.includes('token=')) { emailToken = new globalThis.URL(loc).searchParams.get('token') || loc.match(/token=([^&]+)/)?.[1]; break; }
-                      const r2 = await fetch(loc, { redirect: 'manual' });
-                      loc = r2.headers.get('location') || '';
-                    }
-                    if (emailToken) break;
-                  } catch {}
+                  try { const r = await fetch(link, { redirect: 'manual' }); const loc = r.headers.get('location') || ''; if (loc.includes('/verify')) { verifyLink = loc; break; } } catch {}
                 }
-                if (emailToken) break;
+                if (!verifyLink) verifyLink = links[1] || links[0];
+                console.log(`[test] Verify URL: ${(typeof verifyLink === 'string' ? verifyLink : '').slice(0, 80)}...`);
+                await s.goto(verifyLink);
+                await s.wait(5);
+                console.log(`[test] After verify link: ${s.page.url?.()}`);
+                // Navigate to channels to confirm
+                await s.goto('https://discord.com/channels/@me');
+                await s.wait(10);
+                const finalUrl = s.page.url?.() ?? '';
+                console.log(`[test] Final URL: ${finalUrl}`);
+                verified = finalUrl.includes('/channels');
+                break;
               }
             }
-            if (emailToken) {
-              console.log(`[test] Email token: ${emailToken.slice(0, 20)}...`);
-              // Call Discord verify API — may need captcha
-              let verifyRes = await s.page.evaluate(`(async()=>{var r=await fetch('/api/v9/auth/verify',{method:'POST',headers:{'Authorization':${JSON.stringify(authToken)},'Content-Type':'application/json'},body:JSON.stringify({token:${JSON.stringify(emailToken)},captcha_key:null})});return{status:r.status,data:await r.json().catch(()=>({}))};})()`).catch(e => ({ error: e.message }));
-              console.log(`[test] Verify API: status=${verifyRes?.status} response=${JSON.stringify(verifyRes?.data).slice(0, 200)}`);
-              // If captcha required on verify, solve it
-              if (verifyRes?.data?.captcha_key && verifyRes?.data?.captcha_sitekey) {
-                console.log('[test] Verify needs captcha, solving...');
-                for (const svc of services) {
-                  const apiKey = process.env[svc.envKey];
-                  if (!apiKey) continue;
-                  const vTask = { type: proxy ? 'HCaptchaTask' : 'HCaptchaTaskProxyless', websiteURL: 'https://discord.com/verify', websiteKey: verifyRes.data.captcha_sitekey, isEnterprise: true, enterprisePayload: { rqdata: verifyRes.data.captcha_rqdata }, userAgent: ua, ...proxyFields };
-                  const vCreate = await (await fetch(svc.url + '/createTask', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clientKey: apiKey, task: vTask }) })).json();
-                  if (vCreate.errorId) { console.log(`[test] ${svc.name} verify error: ${vCreate.errorCode}`); continue; }
-                  let vToken = null;
-                  for (let i = 0; i < 60; i++) { await new Promise(r => setTimeout(r, 5000)); const vr = await (await fetch(svc.url + '/getTaskResult', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clientKey: apiKey, taskId: vCreate.taskId }) })).json(); if (vr.status === 'ready') { vToken = vr.solution?.gRecaptchaResponse ?? vr.solution?.token; break; } if (vr.errorId) break; }
-                  if (!vToken) { console.log(`[test] ${svc.name} verify captcha failed`); continue; }
-                  console.log(`[test] ${svc.name} verify captcha solved`);
-                  verifyRes = await s.page.evaluate(`(async()=>{var r=await fetch('/api/v9/auth/verify',{method:'POST',headers:{'Authorization':${JSON.stringify(authToken)},'Content-Type':'application/json'},body:JSON.stringify({token:${JSON.stringify(emailToken)},captcha_key:${JSON.stringify(vToken)}${verifyRes.data.captcha_rqtoken ? `,captcha_rqtoken:${JSON.stringify(verifyRes.data.captcha_rqtoken)}` : ''}})});return{status:r.status,data:await r.json().catch(()=>({}))};})()`).catch(e => ({ error: e.message }));
-                  console.log(`[test] Verify+captcha: status=${verifyRes?.status} response=${JSON.stringify(verifyRes?.data).slice(0, 200)}`);
-                  if (verifyRes?.status === 200) break;
-                }
-              }
-              const finalToken = verifyRes?.data?.token || authToken;
-              // Navigate to Discord home with verified token
-              await s.page.evaluate(`localStorage.setItem("token", JSON.stringify(${JSON.stringify(finalToken)}))`).catch(() => {});
-              await s.goto('https://discord.com/channels/@me');
-              await s.wait(10);
-              console.log(`[test] Final URL: ${s.page.url?.()}`);
-            } else {
-              console.log('[test] No email verification token found');
-            }
+            if (!verified) console.log('[test] Email verification did not complete');
           }
           break;
         }

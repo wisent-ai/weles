@@ -4,6 +4,7 @@
  */
 
 import { randomBytes } from 'node:crypto';
+import { pickDomain } from './email/domain.js';
 
 // faker is ESM-only, use dynamic import
 let _faker: any = null;
@@ -28,7 +29,7 @@ export async function generateIdentity(platform: string): Promise<Identity> {
   const firstName = faker.person.firstName();
   const lastName = faker.person.lastName();
   const username = faker.internet.username({ firstName, lastName }).toLowerCase().replace(/[^a-z0-9]/g, '') + faker.number.int({ min: 100, max: 9999 });
-  const domain = process.env.AGENT_DOMAIN ?? 'wisentmedia.com';
+  const domain = await pickDomain();
   const email = `${username}@${domain}`;
   const password = randomBytes(12).toString('base64url').slice(0, 16);
   const birthDate = faker.date.birthdate({ min: 22, max: 35, mode: 'age' });

@@ -79,44 +79,49 @@ async function signup(s) {
   await s.select('Year', id.birthYear);
   await sleep(1);
 
-  // Click through wizard: Next → Customise → Sign up → Authenticate
-  for (let i = 0; i < 8; i++) {
-    await sleep(3);
-    const t = await readPage(s);
-    const preview = t.slice(0, 100).replace(/\n/g, ' ');
-    console.log(`[tw] wizard step ${i}: ${preview}`);
+  // Click Next on form and wait for page to change
+  await s.page.evaluate(`(() => { var b = document.querySelector('[data-testid="ocfSignupNextLink"]'); if (b) b.click(); })()`).catch(() => {});
+  console.log('[tw] clicked Next, waiting for page change...');
 
-    // Arkose captcha detected — extract data from iframe src and solve directly
+  // Poll until we leave the form page or hit a known state
+  for (let w = 0; w < 30; w++) {
+    await sleep(2);
+    const t = await readPage(s);
+    const preview = t.slice(0, 80).replace(/\n/g, ' ');
+    if (w % 5 === 0) console.log(`[tw] waiting ${w}: ${preview}`);
+
+    // Arkose captcha — solve it
     if (t.includes('arkose_iframe_present') && s._lastArkose?.publicKey) {
       const ark = s._lastArkose;
-      console.log(`[tw] Arkose detected: pkey=${ark.publicKey.slice(0, 12)} blob=${!!ark.blob}`);
+      console.log(`[tw] Arkose detected: pkey=${ark.publicKey.slice(0, 12)}`);
       const { CaptchaSolver } = await import('../../dist/captcha/solver.js');
       const solver = new CaptchaSolver();
       const token = await solver.solveFuncaptcha(ark.publicKey, 'https://x.com/i/flow/signup', ark.subdomain, ark.blob);
       if (token) {
-        console.log(`[tw] Arkose solved, injecting token`);
-        await s.page.evaluate(`window.postMessage({eventId:"challenge-complete",payload:{sessionToken:${JSON.stringify(token)}}},"*")`).catch(() => {});
+        console.log(`[tw] Arkose solved, injecting token from inside iframe`);
+        // Must post from INSIDE the arkose iframe — parent.postMessage from iframe to parent
+        const arkoseFrame = s.page.frame?.('arkoseFrame') ?? s.page.frames?.().find(f => f.url?.()?.includes('arkoselabs'));
+        if (arkoseFrame) {
+          await arkoseFrame.evaluate(`parent.postMessage(JSON.stringify({eventId:"challenge-complete",payload:{sessionToken:${JSON.stringify(token)}}}),"*")`).catch(e => console.log(`[tw] iframe inject error: ${e.message?.slice(0, 100)}`));
+        } else {
+          console.log('[tw] arkose iframe not found, trying parent postMessage');
+          await s.page.evaluate(`window.postMessage({eventId:"challenge-complete",payload:{sessionToken:${JSON.stringify(token)}}},"*")`).catch(() => {});
+        }
         await sleep(8);
-        continue;
-      }
-      console.log('[tw] Arkose solve failed');
-      throw new Error('arkose_solve_failed');
+      } else { throw new Error('arkose_solve_failed'); }
+      continue;
     }
-
-    // Past captcha — verification or password
-    if (t.includes('verification') || t.includes('code') || t.includes('password')) break;
-
-    // Homepage means flow was lost
-    if (t.includes('happening now') || t.includes('join today')) {
-      if (i > 2) { console.log('[tw] flow lost to homepage'); throw new Error('flow_lost'); }
+    if (t.includes('sent you a code') || t.includes('verification')) break;
+    if (t.includes('customise') || t.includes('customize')) {
+      await s.page.evaluate(`(() => { var b = document.querySelector('[data-testid="ocfSignupNextLink"]'); if (b) b.click(); })()`).catch(() => {});
+      continue;
     }
-
-    // Click Next (modal button) or fall back to data-testid
-    const clicked = await s.click('Next');
-    if (clicked === 'no-target-found') {
-      await s.page.evaluate(`(() => { var b = document.querySelector('[data-testid="LoginForm_Login_Button"]'); if (b) b.click(); })()`).catch(() => {});
+    if (t.includes('authenticate')) {
+      await s.click('Authenticate');
+      continue;
     }
-    await sleep(2);
+    if (t.includes('happening now') && t.includes('join today') && w > 5) { throw new Error('flow_lost'); }
+    if (t.includes('password')) break;
   }
 
   // Email or phone verification
