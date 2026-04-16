@@ -1,4 +1,5 @@
 import { WSession } from '../../../dist/session/wsession.js';
+import { solveFunCaptcha } from './_funcaptcha.mjs';
 
 const URL = 'https://github.com/signup';
 
@@ -62,11 +63,8 @@ try {
   await s.fill('Password', '$GITHUB_NEW_PASSWORD'); await s.wait(1);
   await s.fill('Username', '$GITHUB_NEW_USERNAME'); await s.wait(3);
 
-  // Country: check if already selected (auto-detected from proxy IP). If not, open dropdown + click US
-  const countryState = await s.page.evaluate(`(() => {
-    const btn = document.querySelector('#country-dropdown-panel-button, button.country-select-button');
-    return { text: btn?.innerText?.trim().slice(0, 60) ?? '', found: !!btn };
-  })()`).catch(() => ({ found: false }));
+  // Country: check if auto-selected (usually from proxy IP). Only click dropdown if needed.
+  const countryState = await s.page.evaluate(`(() => { const btn = document.querySelector('#country-dropdown-panel-button, button.country-select-button'); return { text: btn?.innerText?.trim().slice(0, 60) ?? '', found: !!btn }; })()`).catch(() => ({ found: false }));
   console.log(`[register] Country button: ${JSON.stringify(countryState)}`);
   if (countryState.found && !/united states|^us$/i.test(countryState.text)) {
     try {
@@ -127,10 +125,33 @@ try {
   console.log(`[register] Create account click: ${JSON.stringify(clicked)}`);
   await s.screenshot('after_create_account_click').catch(() => {});
 
-  // Wait for captcha iframe to materialize — longer window, log progress
-  for (let i = 0; i < 60 && !(captcha.pkey && captcha.blob); i++) {
-    if (i % 10 === 0) console.log(`[register] Waiting captcha... ${i}s (arkose urls seen: ${seenArkoseUrls.length}, pkey=${captcha.pkey ? 'Y' : 'N'}, blob=${captcha.blob ? 'Y' : 'N'})`);
+  // Wait for captcha iframe to load on its own (from click)
+  for (let i = 0; i < 20 && !(captcha.pkey && captcha.blob); i++) {
+    if (i % 5 === 0) console.log(`[register] Waiting captcha... ${i}s (arkose urls: ${seenArkoseUrls.length}, pkey=${captcha.pkey ? 'Y' : 'N'}, blob=${captcha.blob ? 'Y' : 'N'})`);
     await s.wait(1);
+  }
+
+  // If nothing happened, force iframe to load by copying data-src → src (bypasses autocheck gate)
+  if (!captcha.blob) {
+    const forced = await s.page.evaluate(`(() => {
+      const f = document.querySelector('iframe.js-octocaptcha-frame');
+      if (!f) return { ok: false, reason: 'no-frame' };
+      const ds = f.getAttribute('data-src');
+      const sr = f.getAttribute('src');
+      if (!ds) return { ok: false, reason: 'no-data-src', src: sr };
+      if (sr && sr.length > 10) return { ok: true, reason: 'already-loaded', src: sr };
+      f.setAttribute('src', ds);
+      // Also make the container visible so Arkose JS has layout
+      const parent = document.querySelector('.js-octocaptcha-parent, [data-view-component="true"]');
+      if (parent && parent.hidden) parent.hidden = false;
+      return { ok: true, reason: 'forced', dataSrc: ds.slice(0, 80) };
+    })()`).catch(e => ({ ok: false, reason: 'eval-error', error: e.message?.slice(0, 100) }));
+    console.log(`[register] Force iframe load: ${JSON.stringify(forced)}`);
+    // Wait again for blob capture
+    for (let i = 0; i < 25 && !captcha.blob; i++) {
+      if (i % 5 === 0) console.log(`[register] Waiting post-force... ${i}s (arkose urls: ${seenArkoseUrls.length}, pkey=${captcha.pkey ? 'Y' : 'N'}, blob=${captcha.blob ? 'Y' : 'N'})`);
+      await s.wait(1);
+    }
   }
   console.log(`[register] Arkose URLs intercepted (${seenArkoseUrls.length}):`);
   for (const u of seenArkoseUrls.slice(0, 15)) console.log(`  - ${u}`);
@@ -156,44 +177,16 @@ try {
   if (!captcha.apiSub) captcha.apiSub = 'github-api.arkoselabs.com';
   console.log(`[register] Captcha: pkey=${captcha.pkey?.slice(0, 20)} blob=${captcha.blob?.slice(0, 30) ?? 'none'} sub=${captcha.apiSub}`);
 
-  const proxy = s.proxyConfig;
   const ua = await s.page.evaluate('navigator.userAgent').catch(() => '');
-  const proxyFields = {};
-  if (proxy) {
-    const u = new globalThis.URL(proxy.server);
-    let gwIp = u.hostname;
-    try { const dns = await import('node:dns'); gwIp = await new Promise((res, rej) => dns.lookup(u.hostname, (e, a) => e ? rej(e) : res(a))); } catch {}
-    Object.assign(proxyFields, { proxyType: 'http', proxyAddress: gwIp, proxyPort: parseInt(u.port, 10), proxyLogin: proxy.username, proxyPassword: proxy.password });
-  }
-  const taskType = proxy ? 'FunCaptchaTask' : 'FunCaptchaTaskProxyless';
-  const services = [
-    { name: 'anticaptcha', url: 'https://api.anti-captcha.com', envKey: 'ANTICAPTCHA_API_KEY' },
-    { name: 'capsolver', url: 'https://api.capsolver.com', envKey: 'CAPSOLVER_API_KEY' },
-    { name: '2captcha', url: 'https://api.2captcha.com', envKey: 'TWOCAPTCHA_API_KEY' },
-  ];
+  // Browser keep-alive during long solve — pings page every 3s so Chromium doesn't kill the context
+  let keepAliveAbort = false;
+  const keepAlive = (async () => { while (!keepAliveAbort) { await new Promise(r => setTimeout(r, 3000)); try { await s.page.evaluate('Date.now()'); } catch {} } })();
+
+  const { token } = await solveFunCaptcha({ websiteURL: URL, publicKey: captcha.pkey, apiSub: captcha.apiSub, blob: captcha.blob, userAgent: ua });
+  keepAliveAbort = true; await keepAlive.catch(() => {});
 
   let solved = false;
-  for (const svc of services) {
-    const apiKey = process.env[svc.envKey];
-    if (!apiKey) { console.log(`[register] Skipping ${svc.name}: no key`); continue; }
-    console.log(`[register] Trying ${svc.name}...`);
-    const task = { type: taskType, websiteURL: URL, websitePublicKey: captcha.pkey,
-      funcaptchaApiJSSubdomain: captcha.apiSub ?? 'github-api.arkoselabs.com', userAgent: ua, ...proxyFields };
-    if (captcha.blob) task.data = JSON.stringify({ blob: captcha.blob });
-
-    const cr = await (await fetch(svc.url + '/createTask', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clientKey: apiKey, task }) })).json();
-    if (cr.errorId) { console.log(`[register] ${svc.name} create error: ${cr.errorCode} ${cr.errorDescription?.slice(0, 80)}`); continue; }
-    console.log(`[register] ${svc.name} taskId=${cr.taskId}`);
-    let token = null;
-    for (let i = 0; i < 60; i++) {
-      await new Promise(r => setTimeout(r, 5000));
-      const res = await (await fetch(svc.url + '/getTaskResult', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clientKey: apiKey, taskId: cr.taskId }) })).json();
-      if (res.status === 'ready') { token = res.solution?.token ?? res.solution?.gRecaptchaResponse; break; }
-      if (res.errorId) { console.log(`[register] ${svc.name} error: ${res.errorCode}`); break; }
-    }
-    if (!token) { console.log(`[register] ${svc.name}: no token`); continue; }
-    console.log(`[register] ${svc.name} token: ${token.slice(0, 30)}...`);
-
+  if (token) {
     const inject = await s.page.evaluate(`(tk => {
       const inputs = document.querySelectorAll('input[name="octocaptcha-token"], input.js-octocaptcha-token');
       const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
@@ -206,23 +199,20 @@ try {
       const form = document.querySelector('form.js-octocaptcha-parent, form[data-octo-click-hmac]');
       if (form) { form.requestSubmit?.(); return { injected: inputs.length, clicked: 'form' }; }
       return { injected: inputs.length, clicked: false };
-    })(${JSON.stringify(token)})`).catch(e => ({ error: e.message }));
+    })(${JSON.stringify(token)})`).catch(e => ({ error: e.message?.slice(0, 150) }));
     console.log(`[register] Token injection: ${JSON.stringify(inject)}`);
-
     await s.wait(5);
     const url2 = s.page.url?.() ?? '';
     if (url2.includes('signup_emailsent') || url2.includes('verify') || url2.includes('launch-code')) {
-      console.log(`[register] Captcha accepted at ${url2}`);
-      solved = true; break;
+      console.log(`[register] Captcha accepted at ${url2}`); solved = true;
+    } else {
+      const err = await s.page.evaluate("(() => { const e=document.querySelector('.flash-error,[role=\"alert\"]'); return e?e.innerText.trim().slice(0,200):null; })()").catch(() => null);
+      if (err) console.log(`[register] Post-injection error: ${err}`);
     }
-    const err = await s.page.evaluate("(() => { const e=document.querySelector('.flash-error,[role=\"alert\"]'); return e?e.innerText.trim().slice(0,200):null; })()").catch(() => null);
-    if (err) console.log(`[register] ${svc.name} error: ${err}`);
   }
-
   if (!solved) {
     await s.saveAccount('github', { username: id.username, email: id.email, password: id.password, status: 'captcha_blocked' });
-    console.log(`FAIL: captcha blocked — account saved status=captcha_blocked: ${id.username}`);
-    process.exit(1);
+    console.log(`FAIL: captcha blocked — saved status=captcha_blocked: ${id.username}`); process.exit(1);
   }
 
   // Email OTP

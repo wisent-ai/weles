@@ -3,7 +3,7 @@
  * Every method uses shared modules. Agent tools map 1:1 to these methods.
  */
 
-import { type BrowserContext } from 'playwright';
+import { type BrowserContext, chromium } from 'playwright';
 import { AsyncNewBrowser, type AsyncNewBrowserOptions } from '../async_api.js';
 import { SessionStore } from './store.js';
 import { Capture } from '../capture/capture.js';
@@ -38,6 +38,7 @@ export interface WSessionOptions {
   chromiumPath?: string;
   headless?: boolean;
   record?: boolean;
+  cdpEndpoint?: string;
 }
 
 const asV = (p: any) => p as unknown as ScreenshottablePage;
@@ -99,20 +100,23 @@ export class WSession {
 
   static async start(opts: WSessionOptions = {}): Promise<WSession> {
     const label = opts.label ?? '';
-    console.log(`[wsession] start() label=${label} headless=${opts.headless} proxy=${opts.proxy} record=${opts.record}`);
+    const cdp = opts.cdpEndpoint ?? process.env.BRIGHTDATA_BROWSER_WS;
+    console.log(`[wsession] start() label=${label} cdp=${!!cdp} proxy=${opts.proxy}`);
+    if (cdp) {
+      const browser = await chromium.connectOverCDP(cdp);
+      const ctx = browser.contexts()[0] || await browser.newContext(); const page = ctx.pages()[0] || await ctx.newPage();
+      return new WSession(ctx, page, label, new Capture({ newPage: async () => page } as any, label ? recordingsDir(label) : undefined));
+    }
     const bOpts: AsyncNewBrowserOptions = { os: 'macos', browser: 'chromium', headless: opts.headless ?? false, recordVideo: opts.record ?? true };
     const chromiumPath = opts.chromiumPath ?? process.env.CHROMIUM_PATH ?? findCustomChromium();
     if (!chromiumPath) throw new Error('Custom Chromium not found. Set CHROMIUM_PATH or install to a known location.');
-    console.log(`[wsession] chromiumPath=${chromiumPath}`);
     bOpts.chromiumPath = chromiumPath;
     if (opts.proxy) bOpts.proxy = await resolveProxy(opts.proxy);
     const ctx = await AsyncNewBrowser(bOpts);
     const page = ctx.pages()[0] || await ctx.newPage();
     const cap = new Capture({ newPage: async () => page } as any, label ? recordingsDir(label) : undefined);
     if (label) { const s = new SessionStore(); await s.injectPlaywright(ctx, label).catch(() => {}); }
-    const ws = new WSession(ctx, page, label, cap);
-    ws.proxyConfig = bOpts.proxy;
-    return ws;
+    const ws = new WSession(ctx, page, label, cap); ws.proxyConfig = bOpts.proxy; return ws;
   }
 
   async goto(url: string): Promise<string> {
@@ -139,7 +143,7 @@ export class WSession {
     const v = this._resolveEnv(value);
     const kws = target.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(w => w.length > 2);
     const sels = kws.flatMap(k => ['input','textarea','[contenteditable]'].flatMap(t => [`${t}[name*="${k}"]`,`${t}[placeholder*="${k}" i]`,`${t}[aria-label*="${k}" i]`]));
-    for (const sel of sels) { try { const el = this.page.locator?.(sel)?.first?.(); if (el && await el.isVisible()) { await el.click(); await el.fill(v); return 'filled'; } } catch {} }
+    for (const sel of sels) { try { const el = this.page.locator?.(sel)?.first?.(); if (el && await el.isVisible()) { await el.fill(v); return 'filled'; } } catch {} }
     const tgt = JSON.stringify(target.toLowerCase());
     const c = await this.page.evaluate(`(()=>{var t=${tgt};for(var el of document.querySelectorAll('*')){var r=el.getBoundingClientRect();var ph=(el.getAttribute('placeholder')||'').toLowerCase();if(r.width>50&&r.height>10&&r.x>0&&ph&&ph.indexOf(t)>=0)return{x:r.x+r.width/2,y:r.y+r.height/2}}return null})()`).catch(() => null);
     if (c) { await humanClick(this.page, c.x, c.y); await this.page.keyboard.press('Meta+a').catch(() => {}); await humanType(this.page, v); return 'filled'; }
