@@ -2,20 +2,30 @@ import { WSession } from '../../dist/session/wsession.js';
 
 const URL = 'https://x.com/i/flow/signup';
 const MAX_RETRIES = 5;
-const proxy = process.env.PROXY_URL || 'residential';
+const proxy = process.env.PROXY_URL || 'none';
 const sleep = (s) => new Promise(r => setTimeout(r, s * 1000));
 
-const SKIP_BUTTONS = ['Skip for now', 'Skip', 'Not now', 'Next'];
+const SKIP_BUTTONS = ['Skip for now', 'Not now', 'Next', 'Skip'];
 
-// Read page text AND check for Arkose iframe (which is cross-origin, invisible to innerText)
+// Read page text, check for Arkose iframe, and extract its data if present
 async function readPage(s) {
-  return (await s.page.evaluate(`(() => {
+  const result = await s.page.evaluate(`(() => {
     var t = (document.body?.innerText ?? '').substring(0, 2000);
     var modal = document.querySelector('[role="dialog"]');
     if (modal) t = modal.innerText.substring(0, 1000) + '\\n' + t;
-    if (document.querySelector('iframe#arkoseFrame, iframe[src*="arkoselabs"]')) t = 'ARKOSE_IFRAME_PRESENT\\n' + t;
-    return t;
-  })()`).catch(() => '')).toLowerCase();
+    var ark = document.querySelector('iframe#arkoseFrame, iframe[src*="arkoselabs"]');
+    var arkData = null;
+    if (ark) {
+      t = 'ARKOSE_IFRAME_PRESENT\\n' + t;
+      var src = ark.getAttribute('src') || '';
+      var pk = (src.match(/\\/([A-F0-9-]{36})\\//)||[])[1] || '';
+      var bl = (src.match(/[?&]data=([^&]+)/)||[])[1] || '';
+      arkData = { publicKey: pk, blob: decodeURIComponent(bl), subdomain: (new URL(src)).origin };
+    }
+    return { text: t, arkose: arkData };
+  })()`).catch(() => ({ text: '', arkose: null }));
+  s._lastArkose = result.arkose;
+  return result.text.toLowerCase();
 }
 
 async function signup(s) {
@@ -76,13 +86,21 @@ async function signup(s) {
     const preview = t.slice(0, 100).replace(/\n/g, ' ');
     console.log(`[tw] wizard step ${i}: ${preview}`);
 
-    // Arkose captcha detected via iframe
-    if (t.includes('arkose_iframe_present')) {
-      console.log('[tw] Arkose iframe detected, solving FunCaptcha...');
-      const solved = await s.solveCaptcha();
-      console.log(`[tw] captcha result: ${solved}`);
-      await sleep(5);
-      break;
+    // Arkose captcha detected — extract data from iframe src and solve directly
+    if (t.includes('arkose_iframe_present') && s._lastArkose?.publicKey) {
+      const ark = s._lastArkose;
+      console.log(`[tw] Arkose detected: pkey=${ark.publicKey.slice(0, 12)} blob=${!!ark.blob}`);
+      const { CaptchaSolver } = await import('../../dist/captcha/solver.js');
+      const solver = new CaptchaSolver();
+      const token = await solver.solveFuncaptcha(ark.publicKey, 'https://x.com/i/flow/signup', ark.subdomain, ark.blob);
+      if (token) {
+        console.log(`[tw] Arkose solved, injecting token`);
+        await s.page.evaluate(`window.postMessage({eventId:"challenge-complete",payload:{sessionToken:${JSON.stringify(token)}}},"*")`).catch(() => {});
+        await sleep(8);
+        continue;
+      }
+      console.log('[tw] Arkose solve failed');
+      throw new Error('arkose_solve_failed');
     }
 
     // Past captcha — verification or password
@@ -93,9 +111,11 @@ async function signup(s) {
       if (i > 2) { console.log('[tw] flow lost to homepage'); throw new Error('flow_lost'); }
     }
 
-    // Click Sign up or Next
-    const clicked = await s.click('Sign up');
-    if (clicked === 'no-target-found') await s.click('Next');
+    // Click Next (modal button) or fall back to data-testid
+    const clicked = await s.click('Next');
+    if (clicked === 'no-target-found') {
+      await s.page.evaluate(`(() => { var b = document.querySelector('[data-testid="LoginForm_Login_Button"]'); if (b) b.click(); })()`).catch(() => {});
+    }
     await sleep(2);
   }
 
@@ -115,26 +135,47 @@ async function signup(s) {
     }
     await sleep(1);
     await s.click('Next');
-    await sleep(3);
+    await sleep(5);
+
+    // Check for "unable to confirm you're human" error
+    const afterCode = await readPage(s);
+    console.log(`[tw] after code submit: ${afterCode.slice(0, 80).replace(/\n/g, ' ')}`);
+    if (afterCode.includes('unable to confirm') || afterCode.includes('not a robot')) {
+      console.log('[tw] captcha failed server-side, retrying...');
+      throw new Error('captcha_server_reject');
+    }
   }
 
-  // Password
+  // Password — wait for page to render after verification
+  await sleep(3);
   const text4 = await readPage(s);
+  console.log(`[tw] password check: ${text4.slice(0, 80).replace(/\n/g, ' ')}`);
   if (text4.includes('password') || text4.includes('at least')) {
     await s.fill('Password', id.password);
     await sleep(1);
-    await s.click('Next');
-    await sleep(3);
+    // The "Sign up" button is inside the modal — use data-testid or press Enter
+    await s.page.evaluate(`(() => { var b = document.querySelector('[data-testid="SignupButton"], [data-testid="LoginForm_Login_Button"]'); if (b) b.click(); })()`).catch(() => {});
+    await s.press('Enter').catch(() => {});
+    await sleep(5);
   }
 
-  // Skip onboarding
-  for (let i = 0; i < 5; i++) {
+  // Skip onboarding until home feed
+  for (let i = 0; i < 15; i++) {
+    const url = s.page.url?.() ?? '';
     const t = await readPage(s);
-    if (t.includes('home') || t.includes('what\'s happening')) break;
+    console.log(`[tw] onboarding ${i}: url=${url.slice(-30)} text=${t.slice(0, 60).replace(/\n/g, ' ')}`);
+    if (url.includes('/home') || t.includes('what\'s happening') || t.includes('post something') || t.includes('for you')) break;
+    // Detect logged-out homepage (dead end)
+    if (url === 'https://x.com/' && t.includes('happening now') && t.includes('join today')) { await s.goto('https://x.com/home'); await sleep(3); break; }
     for (const btn of SKIP_BUTTONS) {
       const r = await s.click(btn);
       if (r !== 'no-target-found') { await sleep(2); break; }
     }
+  }
+  // Navigate to home if still stuck in flow
+  if (!(s.page.url?.() ?? '').includes('/home')) {
+    await s.goto('https://x.com/home');
+    await sleep(3);
   }
 
   // Verify success: check for auth cookies

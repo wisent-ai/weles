@@ -56,25 +56,17 @@ export class WSession {
   captchaResponse: any = null;
   captchaFormData: any = null;
   captchaHeaders: Record<string, string> = {};
+  captchaEndpoint: string = '';
   proxyConfig: { server: string; username?: string; password?: string } | undefined;
   private _smsOrder: SmsNumber | null = null;
 
   private constructor(ctx: BrowserContext, page: any, label: string, cap: Capture) {
     this.ctx = ctx; this.page = page; this.label = label; this._cap = cap;
     this._store = new SessionStore(); this._solver = new CaptchaSolver();
-    // Intercept API responses to capture captcha data (Discord hCaptcha Enterprise)
-    page.on?.('request', (req: any) => { try {
-      if (req.url().includes('/auth/register') && req.method() === 'POST') {
-        this.captchaFormData = JSON.parse(req.postData() ?? '{}');
-        const h = req.headers(); this.captchaHeaders = {};
-        for (const k of Object.keys(h)) { if (k.startsWith('x-')) this.captchaHeaders[k] = h[k]; }
-      }
-    } catch {} });
-    page.on?.('response', async (res: any) => { try {
-      if (res.url().includes('/auth/register') && res.status() >= 400) {
-        const d = await res.json(); if (d.captcha_key !== undefined) { this.captchaResponse = d; console.log(`[wsession] Captured captcha data: sitekey=${d.captcha_sitekey?.slice(0, 12)}`); }
-      }
-    } catch {} });
+    // Intercept API responses to capture captcha data (Discord register + login)
+    const authPaths = ['/auth/register', '/auth/login'];
+    page.on?.('request', (req: any) => { try { const u = req.url(); if (authPaths.some(p => u.includes(p)) && req.method() === 'POST') { this.captchaFormData = JSON.parse(req.postData() ?? '{}'); this.captchaEndpoint = u; const h = req.headers(); this.captchaHeaders = {}; for (const k of Object.keys(h)) { if (k.startsWith('x-')) this.captchaHeaders[k] = h[k]; } } } catch {} });
+    page.on?.('response', async (res: any) => { try { const u = res.url(); if (authPaths.some(p => u.includes(p)) && res.status() >= 400) { const d = await res.json(); if (d.captcha_key !== undefined) { this.captchaResponse = d; console.log(`[wsession] Captured captcha data: sitekey=${d.captcha_sitekey?.slice(0, 12)}`); } } } catch {} });
   }
 
   private async _action<T>(name: string, fn: () => Promise<T>): Promise<T> {

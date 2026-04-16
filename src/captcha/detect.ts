@@ -35,7 +35,14 @@ export async function detectCaptcha(page: Page): Promise<CaptchaInfo | null> {
 
 /** Detect captcha, solve it, and inject the token. Session is optional — provides intercepted API data. */
 export async function solvePageCaptcha(page: Page, solver?: CaptchaSolver, session?: any): Promise<boolean> {
-  // Check intercepted API captcha data first (Discord pattern: API returns 400 with captcha before iframe loads)
+  // Check MutationObserver-captured Arkose data first (Twitter pattern: iframe appears and disappears quickly)
+  const arkose = await page.evaluate?.('window.__arkoseData')?.catch(() => null);
+  if (arkose?.publicKey) {
+    console.log(`[captcha] MutationObserver captured Arkose: pkey=${arkose.publicKey.slice(0, 12)} blob=${!!arkose.blob}`);
+    const s = solver ?? new CaptchaSolver();
+    return solveFuncaptchaOnPage(page, arkose.publicKey, arkose.blob, arkose.subdomain, s);
+  }
+  // Check intercepted API captcha data (Discord pattern: API returns 400 with captcha before iframe loads)
   if (session?.captchaResponse?.captcha_sitekey && session?.captchaFormData) {
     console.log(`[captcha] Found intercepted captcha data, using enterprise solver`);
     const s = solver ?? new CaptchaSolver();
@@ -84,7 +91,8 @@ async function solveHcaptchaEnterprise(page: Page, sitekey: string, solver: Capt
     if (captchaData.captcha_rqtoken) formData.captcha_rqtoken = captchaData.captcha_rqtoken;
     const hdrs = JSON.stringify({ 'Content-Type': 'application/json', ...extraHeaders });
     const body = JSON.stringify(formData);
-    const result = await page.evaluate(`(async()=>{var r=await fetch('/api/v9/auth/register',{method:'POST',headers:${hdrs},body:${JSON.stringify(body)}});var d=await r.json().catch(()=>({}));return{status:r.status,data:d}})()`).catch((e: any) => ({ error: e.message }));
+    const endpoint = session?.captchaEndpoint || '/api/v9/auth/register';
+    const result = await page.evaluate(`(async()=>{var r=await fetch(${JSON.stringify(endpoint)},{method:'POST',headers:${hdrs},body:${JSON.stringify(body)}});var d=await r.json().catch(()=>({}));return{status:r.status,data:d}})()`).catch((e: any) => ({ error: e.message }));
     console.log(`[captcha] Resubmit: ${JSON.stringify(result).slice(0, 200)}`);
     if (result?.status >= 200 && result?.status < 300) return true;
     if (result?.data?.captcha_key) {
