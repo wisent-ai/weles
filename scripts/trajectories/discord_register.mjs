@@ -24,12 +24,17 @@ try {
     await s.select('day', '$DISCORD_NEW_BIRTHDAY');
     await s.select('year', '$DISCORD_NEW_BIRTHYEAR');
     await s.wait(1);
-    const terms = s.page.locator('text=I have read and agree');
-    if (await terms.isVisible().catch(() => false)) { await terms.click(); console.log('[test] Terms clicked'); }
+    // Click terms checkbox — target the checkboxOption wrapper, not just the text
+    const termsClicked = await s.page.locator('[class*="checkboxOption"]').click().catch(() => 'missed');
+    if (termsClicked !== 'missed') console.log('[test] Terms checkbox clicked');
+    else { await s.page.locator('text=I have read and agree').click().catch(() => {}); console.log('[test] Terms text clicked'); }
     await s.wait(1);
+    // Verify button is enabled before trying to submit
+    const btnDisabled = await s.page.locator('button[type="submit"]').isDisabled().catch(() => true);
+    console.log(`[test] Submit button disabled=${btnDisabled}`);
     // Retry submit until captcha data is intercepted
     for (let attempt = 0; attempt < 5; attempt++) {
-      await s.page.locator('button[type="submit"]').click().catch(() => {});
+      await s.page.locator('button[type="submit"]').click({ force: true }).catch(() => {});
       await s.wait(2);
       if (s.captchaResponse) { console.log('[test] Form submitted (captcha intercepted)'); break; }
       await s.page.evaluate('document.querySelector("form")?.requestSubmit()').catch(() => {});
@@ -91,26 +96,23 @@ try {
         }
         if (!token) { console.log(`[test] ${svc.name}: no token`); continue; }
         console.log(`[test] ${svc.name} token: ${token.slice(0, 30)}...`);
-        // Inject token into hCaptcha and trigger Discord's verification callback
-        const injected = await s.page.evaluate(`(()=>{
-          var ta=document.querySelector('textarea[name="h-captcha-response"]');
-          if(ta){ta.value=${JSON.stringify(token)};ta.dispatchEvent(new Event('input',{bubbles:true}))}
-          // Find hCaptcha widget and call its internal callback
-          if(window.hcaptcha){
-            var ids=hcaptcha.getAllIds?.();
-            if(ids&&ids.length>0){
-              var resp=hcaptcha.getResponse(ids[0]);
-              if(!resp){
-                // Force set the response and trigger callback
-                var w=hcaptcha._getInternalState?.(ids[0]);
-                if(w&&w.onPass)w.onPass(${JSON.stringify(token)});
-              }
-            }
+        // Inject token by sending postMessage FROM the hcaptcha iframe (correct origin)
+        let injected = false;
+        const frames = s.page.frames?.() ?? [];
+        for (const frame of frames) {
+          if (frame.url().includes('hcaptcha.com')) {
+            try {
+              await frame.evaluate(`window.parent.postMessage({source:'hcaptcha',label:'challenge-closed',id:'0',response:${JSON.stringify(token)}},'*')`);
+              console.log(`[test] postMessage sent from hcaptcha frame: ${frame.url().slice(0, 50)}`);
+              injected = true; break;
+            } catch (e) { console.log(`[test] Frame eval failed: ${e.message?.slice(0, 80)}`); }
           }
-          // Also try postMessage to hcaptcha iframe with the solved token
-          window.postMessage(JSON.stringify({source:'hcaptcha',label:'challenge-complete',id:'0',response:${JSON.stringify(token)}}),'*');
-          return !!ta;
-        })()`).catch(() => false);
+        }
+        if (!injected) {
+          // Set textarea value as last resort
+          await s.page.evaluate(`(()=>{var ta=document.querySelector('textarea[name="h-captcha-response"]');if(ta)ta.value=${JSON.stringify(token)}})()`).catch(() => {});
+          console.log('[test] Set textarea value (no frame access)');
+        }
         console.log(`[test] ${svc.name} injected=${injected}, waiting for Discord to process...`);
         await s.wait(8);
         // Check if registration succeeded by looking at URL or intercepted response

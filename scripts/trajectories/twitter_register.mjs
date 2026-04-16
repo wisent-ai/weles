@@ -1,8 +1,10 @@
 import { WSession } from '../../dist/session/wsession.js';
+import { chromium } from 'playwright';
 
 const URL = 'https://x.com/i/flow/signup';
 const MAX_RETRIES = 5;
-const proxy = process.env.PROXY_URL || 'none';
+const USE_BRIGHTDATA = !!process.env.BRIGHTDATA_BROWSER_WS;
+const proxy = USE_BRIGHTDATA ? 'none' : (process.env.PROXY_URL || 'none');
 const sleep = (s) => new Promise(r => setTimeout(r, s * 1000));
 
 const SKIP_BUTTONS = ['Skip for now', 'Not now', 'Next', 'Skip'];
