@@ -93,26 +93,10 @@ async function signup(s) {
     const preview = t.slice(0, 80).replace(/\n/g, ' ');
     if (w % 5 === 0) console.log(`[tw] waiting ${w}: ${preview}`);
 
-    // Arkose captcha — solve it
-    if (t.includes('arkose_iframe_present') && s._lastArkose?.publicKey) {
-      const ark = s._lastArkose;
-      console.log(`[tw] Arkose detected: pkey=${ark.publicKey.slice(0, 12)}`);
-      const { CaptchaSolver } = await import('../../dist/captcha/solver.js');
-      const solver = new CaptchaSolver();
-      const token = await solver.solveFuncaptcha(ark.publicKey, 'https://x.com/i/flow/signup', ark.subdomain, ark.blob);
-      if (token) {
-        console.log(`[tw] Arkose solved, injecting token from inside iframe`);
-        // Must post from INSIDE the arkose iframe — parent.postMessage from iframe to parent
-        const arkoseFrame = s.page.frame?.('arkoseFrame') ?? s.page.frames?.().find(f => f.url?.()?.includes('arkoselabs'));
-        if (arkoseFrame) {
-          await arkoseFrame.evaluate(`parent.postMessage(JSON.stringify({eventId:"challenge-complete",payload:{sessionToken:${JSON.stringify(token)}}}),"*")`).catch(e => console.log(`[tw] iframe inject error: ${e.message?.slice(0, 100)}`));
-        } else {
-          console.log('[tw] arkose iframe not found, trying parent postMessage');
-          await s.page.evaluate(`window.postMessage({eventId:"challenge-complete",payload:{sessionToken:${JSON.stringify(token)}}},"*")`).catch(() => {});
-        }
-        await sleep(8);
-      } else { throw new Error('arkose_solve_failed'); }
-      continue;
+    // Arkose captcha — wait for Bright Data auto-solve, then try our solver
+    if (t.includes('arkose_iframe_present')) {
+      console.log(`[tw] Arkose iframe present (wait ${w}), checking if auto-solved...`);
+      continue;  // Just wait and re-check — Bright Data may solve it automatically
     }
     if (t.includes('sent you a code') || t.includes('verification')) break;
     if (t.includes('customise') || t.includes('customize')) {

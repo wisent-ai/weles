@@ -79,7 +79,7 @@ export async function registerDomain(domain: string, years = 1, contact?: Partia
   return { chargedUsd: charged, domainId };
 }
 
-interface ResendDnsRecord { record: string; name: string; type: string; value: string; ttl?: string; priority?: number; status?: string }
+interface ResendDnsRecord { record: string; name: string; type: string; value: string; ttl?: string | number; priority?: number; status?: string }
 interface ResendDomain { id: string; name: string; status: string; records: ResendDnsRecord[] }
 
 export async function createResendDomain(domain: string, region = 'us-east-1'): Promise<ResendDomain> {
@@ -93,6 +93,18 @@ export async function createResendDomain(domain: string, region = 'us-east-1'): 
   const body = await res.json() as ResendDomain & { message?: string };
   if (!res.ok) throw new Error(`Resend create domain: ${res.status} ${body.message ?? JSON.stringify(body)}`);
   return body;
+}
+
+export async function enableResendReceiving(domainId: string): Promise<ResendDomain> {
+  const key = process.env.RESEND_API_KEY;
+  if (!key) throw new Error('Missing RESEND_API_KEY');
+  const res = await fetch(`https://api.resend.com/domains/${domainId}`, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ capabilities: { receiving: 'enabled' } }),
+  });
+  if (!res.ok) throw new Error(`Resend enable receiving: ${res.status} ${await res.text()}`);
+  return getResendDomain(domainId);
 }
 
 export async function getResendDomain(domainId: string): Promise<ResendDomain> {
@@ -109,15 +121,17 @@ export async function setNamecheapHosts(domain: string, records: ResendDnsRecord
   if (parts.length < 2) throw new Error('Invalid domain');
   const SLD = parts[0];
   const TLD = parts.slice(1).join('.');
-  const params: Record<string, string> = { SLD, TLD };
+  // EmailType=MX tells Namecheap to honor custom MX records in the hosts list
+  const params: Record<string, string> = { SLD, TLD, EmailType: 'MX' };
   records.forEach((r, i) => {
     const n = i + 1;
     const host = r.name.endsWith(`.${domain}`) ? r.name.slice(0, -domain.length - 1) : r.name === domain ? '@' : r.name;
     params[`HostName${n}`] = host || '@';
     params[`RecordType${n}`] = r.type.toUpperCase();
     params[`Address${n}`] = r.value;
-    if (r.priority != null) params[`MXPref${n}`] = String(r.priority);
-    params[`TTL${n}`] = String(r.ttl ?? 1800);
+    if (r.type.toUpperCase() === 'MX') params[`MXPref${n}`] = String(r.priority ?? 10);
+    const numericTtl = typeof r.ttl === 'number' ? r.ttl : parseInt(String(r.ttl ?? ''), 10);
+    params[`TTL${n}`] = String(Number.isFinite(numericTtl) && numericTtl > 0 ? numericTtl : 1800);
   });
   await ncCall('namecheap.domains.dns.setHosts', params);
 }
@@ -162,8 +176,9 @@ export async function provisionDomain(domain: string, opts: { years?: number; re
   console.log(`[provision] Step 2/6 — registering ${domain} for ${years}y`);
   const reg = await registerDomain(domain, years);
   console.log(`[provision]   charged $${reg.chargedUsd.toFixed(2)}`);
-  console.log(`[provision] Step 3/6 — creating Resend domain (region=${region})`);
-  const resendDomain = await createResendDomain(domain, region);
+  console.log(`[provision] Step 3/6 — creating Resend domain (region=${region}) and enabling receiving`);
+  const created = await createResendDomain(domain, region);
+  const resendDomain = await enableResendReceiving(created.id);
   console.log(`[provision]   resend id ${resendDomain.id}, ${resendDomain.records.length} DNS records`);
   console.log(`[provision] Step 4/6 — writing DNS records to Namecheap`);
   await setNamecheapHosts(domain, resendDomain.records);
