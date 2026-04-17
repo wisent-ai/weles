@@ -101,7 +101,6 @@ export async function pollCode(orderId: string, provider: 'juicysms' | 'smsactiv
     if (elapsed % 15 === 0) console.log(`[sms] waiting for code... (${elapsed}s / ${waitSecs}s)`);
     await new Promise(r => setTimeout(r, 5000));
   }
-  console.log(`[sms] poll timed out after ${waitSecs}s, cancelling order ${orderId}`);
   await cancelOrder(orderId, provider);
   return null;
 }

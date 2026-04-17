@@ -3,7 +3,7 @@ import { WSession } from '../../dist/session/wsession.js';
 const URL = 'https://www.instagram.com/accounts/emailsignup/';
 const MAX_RETRIES = 5;
 const USE_BRIGHTDATA = !!process.env.BRIGHTDATA_BROWSER_WS;
-const proxy = USE_BRIGHTDATA ? 'none' : (process.env.PROXY_URL || 'none');
+const proxy = USE_BRIGHTDATA ? 'none' : (process.env.PROXY_URL || 'residential');
 const sleep = (s) => new Promise(r => setTimeout(r, s * 1000));
 
 async function readPage(s) {
@@ -15,6 +15,8 @@ async function readPage(s) {
 
 async function signup(s) {
   const id = await s.generateIdentity('instagram');
+  id.email = `${id.username}@wisentmedia.com`;
+  s._env['INSTAGRAM_NEW_EMAIL'] = id.email;
   const name = `${id.firstName} ${id.lastName}`;
   console.log(`[ig] identity: ${id.username} / ${id.email}`);
 
@@ -56,8 +58,14 @@ async function signup(s) {
     await sleep(5);
   }
 
-  // Email verification code
-  const t3 = await readPage(s);
+  // Wait for confirmation code page to appear
+  let t3 = '';
+  for (let w = 0; w < 15; w++) {
+    await sleep(2);
+    t3 = await readPage(s);
+    if (t3.includes('confirmation') || t3.includes('code') || t3.includes('verify') || t3.includes('enter the') || t3.includes('phone') || t3.includes('mobile')) break;
+    if (w % 5 === 0) console.log(`[ig] waiting for code page ${w}: ${t3.slice(0, 60).replace(/\n/g, ' ')}`);
+  }
   console.log(`[ig] after signup: ${t3.slice(0, 80).replace(/\n/g, ' ')}`);
   if (t3.includes('confirmation') || t3.includes('code') || t3.includes('verify') || t3.includes('enter the')) {
     console.log('[ig] email verification...');
@@ -101,11 +109,13 @@ async function signup(s) {
       console.log(`[ig] SMS: ${phone}`);
       if (phone.startsWith('error')) { console.log('[ig] no SMS number, skipping'); continue; }
       const phoneNum = s.resolveEnv('$INSTAGRAM_NEW_PHONE');
-      // Strip country prefix — Instagram's form already has a country selector (US +1)
-      const localNum = phoneNum.replace(/^\+1/, '').replace(/^\+44/, '').replace(/^\+31/, '').replace(/^\+49/, '');
-      console.log(`[ig] phone local: ${localNum} (from ${phoneNum})`);
-      // JS fill for phone input (avoid crash)
-      await s.page.evaluate(`((ph) => { var inp = document.querySelector('input[type="tel"], input[name="phone"]'); if (!inp) { var inputs = Array.from(document.querySelectorAll('input[type="text"]')); inp = inputs.find(i => !i.disabled && !i.value && i.offsetParent); } if (inp) { var set = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set; set.call(inp, ph); inp.dispatchEvent(new Event('input', {bubbles:true})); inp.dispatchEvent(new Event('change', {bubbles:true})); } })("${localNum}")`).catch(() => {});
+      // Strip +1 prefix — Instagram form already has US +1 selected
+      const digits = phoneNum.replace(/^\+1/, '').replace(/\D/g, '');
+      console.log(`[ig] phone digits: ${digits}`);
+      // Focus input and type digits
+      await s.page.evaluate(`(() => { var inp = document.querySelector('input[type="tel"]'); if (!inp) { var inputs = Array.from(document.querySelectorAll('input')); inp = inputs.find(i => !i.disabled && i.offsetParent && i.type !== 'hidden'); } if (inp) { inp.focus(); inp.click(); } })()`).catch(() => {});
+      await sleep(1);
+      await s.page.keyboard.type(digits, { delay: 50 }).catch(() => {});
       await sleep(2);
       await s.page.evaluate(`(() => { var btns = document.querySelectorAll('[role="button"]'); for (var b of btns) { var t = b.textContent.trim(); if (t === 'Send Code' || t === 'Send code' || t === 'Next' || t === 'Continue') { b.click(); return; } } })()`).catch(() => {});
       await sleep(10);
