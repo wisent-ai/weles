@@ -30,12 +30,35 @@ if (!ticker) {
   process.exit(1);
 }
 
+// Every path below was extracted live from the authenticated UW sidebar
+// via scripts/trajectories/unusualwhales/_probe_urls.mjs. Do not add a
+// page here without verifying it appears in the <a href> list that probe
+// emits, otherwise the scrape will hit a 404.
 const PAGE_URLS = {
   overview: (t) => `https://unusualwhales.com/stock/${t}/overview`,
-  flow: (t) => `https://unusualwhales.com/stock/${t}/flow-overview`,
-  darkpool: (t) => `https://unusualwhales.com/stock/${t}/dark-pool`,
+  chart: (t) => `https://unusualwhales.com/stock/${t}/chart`,
+  flow_alerts: (t) => `https://unusualwhales.com/stock/${t}/flow-alerts`,
+  flow_history: (t) => `https://unusualwhales.com/stock/${t}/options-flow-history`,
+  flow_overview: (t) => `https://unusualwhales.com/stock/${t}/flow-overview`,
+  net_premium: (t) => `https://unusualwhales.com/stock/${t}/net-premium`,
+  nope: (t) => `https://unusualwhales.com/stock/${t}/nope`,
+  darkpool: (t) => `https://unusualwhales.com/stock/${t}/darkpool`,
   greeks: (t) => `https://unusualwhales.com/stock/${t}/greeks`,
+  greek_exposure: (t) => `https://unusualwhales.com/stock/${t}/greek-exposure`,
   chains: (t) => `https://unusualwhales.com/stock/${t}/option-chains`,
+  oi_changes: (t) => `https://unusualwhales.com/stock/${t}/open-interest-changes`,
+  options_charting: (t) => `https://unusualwhales.com/stock/${t}/options-charting`,
+  volatility: (t) => `https://unusualwhales.com/stock/${t}/volatility`,
+  insiders: (t) => `https://unusualwhales.com/stock/${t}/insiders`,
+  institutions: (t) => `https://unusualwhales.com/stock/${t}/institutions`,
+  shorts: (t) => `https://unusualwhales.com/stock/${t}/shorts`,
+  analysts: (t) => `https://unusualwhales.com/stock/${t}/analysts`,
+  earnings: (t) => `https://unusualwhales.com/stock/${t}/earnings`,
+  dividends: (t) => `https://unusualwhales.com/stock/${t}/dividends`,
+  financials: (t) => `https://unusualwhales.com/stock/${t}/financials`,
+  risk: (t) => `https://unusualwhales.com/stock/${t}/risk`,
+  seasonality: (t) => `https://unusualwhales.com/stock/${t}/seasonality`,
+  stock_talk: (t) => `https://unusualwhales.com/stock/${t}/stock-talk`,
 };
 if (!PAGE_URLS[page]) {
   console.error(`FAIL: unknown page '${page}', must be one of: ${Object.keys(PAGE_URLS).join(', ')}`);

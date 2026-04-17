@@ -1,7 +1,5 @@
-// Probe which unusualwhales.com/stock/<TICKER>/<PATH> URLs exist and serve
-// authenticated content. Logs in once, navigates to each candidate, reports a
-// JSON array to stdout so we can prune PAGE_URLS in scrape.mjs.
-// Usage: node scripts/trajectories/unusualwhales/_probe_urls.mjs --ticker ORCL
+// Extract every internal URL from the authenticated UW sidebar/page.
+// Usage: node scripts/trajectories/unusualwhales/_probe_urls.mjs [--ticker ORCL]
 
 console.log = (...a) => process.stderr.write(a.map(String).join(' ') + '\n');
 const { WSession } = await import('../../../dist/session/wsession.js');
@@ -15,21 +13,6 @@ const ticker = (args.ticker || 'ORCL').toUpperCase();
 const email = process.env.UW_EMAIL;
 const password = process.env.UW_PASSWORD;
 if (!email || !password) { console.error('FAIL: creds'); process.exit(1); }
-
-const paths = [
-  'overview',
-  'flow-overview',
-  'dark-pool',
-  'greeks',
-  'chains',
-  'insider',
-  'congress',
-  'volatility',
-  'short-interest',
-  'news',
-  'fundamentals',
-  'analysts',
-];
 
 const s = await WSession.start({ label: `uw_probe_${ticker}`, proxy: process.env.PROXY_URL || 'oxylabs' });
 
@@ -52,37 +35,81 @@ async function login() {
   throw new Error('login did not redirect');
 }
 
-async function probe(path) {
-  const url = `https://unusualwhales.com/stock/${ticker}/${path}`;
-  await s.goto(url);
-  let len = 0;
-  for (let i = 0; i < 20; i++) {
-    len = await s.page.evaluate('document.body?.innerText?.length || 0').catch(() => 0);
-    if (len > 500) break;
-    await s.wait(1);
-  }
-  await s.wait(2);
-  const info = await s.page.evaluate(`(() => ({
-    finalUrl: location.pathname + location.search,
-    title: document.title,
-    bodyLen: (document.body?.innerText || '').length,
-    has404: /404|not found|page not found/i.test(document.body?.innerText || ''),
-    hasSignIn: /Sign In/.test(document.body?.innerText || ''),
-    heading: document.querySelector('h1, h2')?.innerText?.trim() || null,
-  }))()`).catch((e) => ({ err: e.message }));
-  return { path, url, ...info };
+async function collectLinks() {
+  return await s.page.evaluate(`(() => {
+    const out = [];
+    for (const a of document.querySelectorAll('a[href]')) {
+      const href = a.getAttribute('href') || '';
+      if (!href.startsWith('/') && !href.startsWith('https://unusualwhales.com')) continue;
+      const path = href.replace(/^https:\\/\\/unusualwhales\\.com/, '');
+      if (!path || path === '/') continue;
+      const text = (a.innerText || a.getAttribute('aria-label') || '').trim().slice(0, 80);
+      out.push({ path, text });
+    }
+    return out;
+  })()`);
 }
 
 try {
   await login();
   await s.wait(3);
-  const results = [];
-  for (const p of paths) {
-    const r = await probe(p);
-    console.error(`[probe] ${p}: finalUrl=${r.finalUrl} bodyLen=${r.bodyLen} has404=${r.has404} heading=${JSON.stringify(r.heading)}`);
-    results.push(r);
+
+  // 1) Sidebar links from the authenticated home page (flow/overview)
+  // Expand every collapsed sidebar category so their children become visible.
+  const expandCats = `(() => {
+    const items = Array.from(document.querySelectorAll('[class*="sidebar"] [role="button"], [class*="sidebar"] button, [class*="Sidebar"] [role="button"], [class*="Sidebar"] button, nav [role="button"], nav button'));
+    const clicked = [];
+    for (const el of items) {
+      const t = (el.innerText || '').trim();
+      if (!t || t.length > 40) continue;
+      try { el.click(); clicked.push(t); } catch (_) {}
+    }
+    return clicked;
+  })()`;
+  const expandedHome = await s.page.evaluate(expandCats).catch(() => []);
+  console.error(`[probe] expanded ${expandedHome.length} sidebar items on home`);
+  await s.wait(2);
+  const homeLinks = await collectLinks();
+
+  // Also capture every visible nav/sidebar element text so we know which
+  // labels exist even if they're buttons, not anchors.
+  const navLabels = await s.page.evaluate(`(() => {
+    const seen = new Set();
+    for (const el of document.querySelectorAll('a, button, [role="button"], [role="link"], [role="tab"], [role="menuitem"]')) {
+      const t = (el.innerText || '').trim();
+      if (t && t.length > 0 && t.length < 50) seen.add(t);
+    }
+    return Array.from(seen);
+  })()`).catch(() => []);
+
+  // 2) Links from the stock-specific page (to catch any ticker-scoped routes)
+  await s.goto(`https://unusualwhales.com/stock/${ticker}/overview`);
+  for (let i = 0; i < 20; i++) {
+    const len = await s.page.evaluate('document.body?.innerText?.length || 0').catch(() => 0);
+    if (len > 500) break;
+    await s.wait(1);
   }
-  process.stdout.write(JSON.stringify({ ticker, results }, null, 2) + '\n');
+  await s.wait(3);
+  await s.page.evaluate(expandCats).catch(() => []);
+  await s.wait(2);
+  const stockLinks = await collectLinks();
+
+  // Deduplicate, keep text
+  const seen = new Map();
+  for (const l of [...homeLinks, ...stockLinks]) {
+    if (!seen.has(l.path)) seen.set(l.path, l.text);
+  }
+  const all = Array.from(seen.entries()).map(([path, text]) => ({ path, text }));
+
+  // Bucket by top-level segment
+  const buckets = {};
+  for (const l of all) {
+    const top = l.path.split('?')[0].split('/').filter(Boolean)[0] || '';
+    if (!buckets[top]) buckets[top] = [];
+    buckets[top].push(l);
+  }
+
+  process.stdout.write(JSON.stringify({ ticker, total: all.length, buckets, all, navLabels }, null, 2) + '\n');
 } catch (e) {
   console.error(`FAIL: ${e.message}`);
   process.exit(1);
