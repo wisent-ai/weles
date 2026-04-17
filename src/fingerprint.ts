@@ -4,7 +4,7 @@ import { FingerprintGenerator } from 'fingerprint-generator';
 // Constants
 // ---------------------------------------------------------------------------
 
-const CHROME_STABLE_VERSION = '135.0.7049.95';
+const CHROME_STABLE_VERSION = '147.0.6112.40';
 
 const PLATFORM_MAP: Record<string, string> = {
   macos: 'MacIntel',
@@ -34,15 +34,15 @@ const UA_TEMPLATES: Record<string, string> = {
 };
 
 const WEBGL_RENDERERS: Record<string, string> = {
-  macos: 'Apple M1, or similar',
-  windows: 'ANGLE (Intel, Intel(R) UHD Graphics Direct3D11 vs_5_0 ps_5_0)',
-  linux: 'Mesa Intel(R) UHD Graphics 630',
+  macos: 'ANGLE (Apple, ANGLE Metal Renderer: Apple M1, Unspecified Version)',
+  windows: 'ANGLE (Intel, Intel(R) UHD Graphics 620 (0x00005917) Direct3D11 vs_5_0 ps_5_0, D3D11)',
+  linux: 'Mesa Intel(R) UHD Graphics 630 (CFL GT2)',
 };
 
 const WEBGL_UNMASKED_VENDORS: Record<string, string> = {
-  macos: 'Apple',
+  macos: 'Google Inc. (Apple)',
   windows: 'Google Inc. (Intel)',
-  linux: 'Intel',
+  linux: 'Intel Open Source Technology Center',
 };
 
 // ---------------------------------------------------------------------------
@@ -117,7 +117,6 @@ export function toConfig(
   }
 
   const platform = PLATFORM_MAP[targetOs] ?? 'MacIntel';
-  const deviceMemory = [4, 8, 8, 16][Math.floor(Math.random() * 4)];
 
   const navConfig: Record<string, any> = {
     userAgent: ua,
@@ -126,7 +125,7 @@ export function toConfig(
     languages: ['en-US'],
     hardwareConcurrency: Math.min(nav.hardwareConcurrency ?? 8, 16),
     maxTouchPoints: nav.maxTouchPoints ?? 0,
-    doNotTrack: 'unspecified',
+    doNotTrack: null,
   };
 
   if (isChromium) {
@@ -136,7 +135,6 @@ export function toConfig(
     navConfig.vendor = 'Google Inc.';
     navConfig.product = 'Gecko';
     navConfig.productSub = '20030107';
-    navConfig.deviceMemory = deviceMemory;
     navConfig.pdfViewerEnabled = true;
   }
 
@@ -149,14 +147,16 @@ export function toConfig(
       width: scr.width ?? 1920,
       height: scr.height ?? 1080,
       availWidth: scr.availWidth ?? scr.width ?? 1920,
-      availHeight: scr.availHeight ?? (scr.height ? scr.height - 25 : 1055),
-      colorDepth: scr.colorDepth ?? 24,
-      pixelDepth: scr.pixelDepth ?? 24,
+      availHeight: scr.availHeight ?? (scr.height ? scr.height - 40 : 1040),
+      colorDepth: 24,
+      pixelDepth: 24,
     },
     window: {
       devicePixelRatio: scr.devicePixelRatio ?? 1,
-      outerWidth: scr.width ?? 1920,
-      outerHeight: scr.height ?? 1080,
+      outerWidth: (scr.width ?? 1920) + 2,
+      outerHeight: (scr.height ?? 1080) + 80,
+      screenX: 10,
+      screenY: 10,
     },
     webgl: {
       vendor: webglVendor,
@@ -195,7 +195,7 @@ export function toCppConfig(config: FingerprintConfig, targetOs = 'macos'): Reco
   };
   const [chPlatform, chPlatformVersion] = platformMap[targetOs] ?? platformMap.macos;
   return {
-    navigator: { userAgent: ua, platform: nav.platform, vendor: nav.vendor ?? 'Google Inc.', productSub: nav.productSub ?? '20030107', language: nav.language ?? 'en-US', languages, hardwareConcurrency: nav.hardwareConcurrency, deviceMemory: nav.deviceMemory, doNotTrack: nav.doNotTrack ?? 'unspecified' },
+    navigator: { userAgent: ua, platform: nav.platform, vendor: nav.vendor ?? 'Google Inc.', productSub: nav.productSub ?? '20030107', language: nav.language ?? 'en-US', languages, hardwareConcurrency: nav.hardwareConcurrency, deviceMemory: nav.deviceMemory, doNotTrack: nav.doNotTrack ?? null },
     screen: { width: scr.width, height: scr.height, availWidth: scr.availWidth, availHeight: scr.availHeight, colorDepth: scr.colorDepth },
     webgl: { unmaskedVendor: webgl.unmaskedVendor, unmaskedRenderer: webgl.unmaskedRenderer },
     canvas: config.canvas, audio: config.audio,
