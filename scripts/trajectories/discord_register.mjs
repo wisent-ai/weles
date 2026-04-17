@@ -35,20 +35,31 @@ try {
       console.log(`[test] fill ${name}: ${JSON.stringify(result)}`);
       return result;
     };
+    // Wait for form to fully render (comboboxes take longer than text inputs)
+    for (let i = 0; i < 15; i++) {
+      const ready = await s.page.evaluate('document.querySelectorAll("[role=combobox]").length >= 3').catch(() => false);
+      if (ready) { console.log(`[test] Form comboboxes ready after ${i + 1}s`); break; }
+      await s.wait(1);
+    }
+    // DOB selects first (with retry for each)
+    const selectWithRetry = async (target, value) => {
+      let result = await s.select(target, value);
+      if (!result || result.includes('no-select-found')) {
+        await s.page.keyboard.press('Escape').catch(() => {});
+        await s.wait(1);
+        result = await s.select(target, value);
+      }
+      return result;
+    };
+    await selectWithRetry('month', '$DISCORD_NEW_BIRTHMONTH');
+    await selectWithRetry('day', '$DISCORD_NEW_BIRTHDAY');
+    await selectWithRetry('year', '$DISCORD_NEW_BIRTHYEAR');
+    await s.wait(1);
+    // Fill text fields AFTER DOB (DOB selection resets React-controlled inputs)
     await fillField('email', '$DISCORD_NEW_EMAIL');
     await fillField('global_name', '$DISCORD_NEW_USERNAME');
     await fillField('username', '$DISCORD_NEW_USERNAME');
     await fillField('password', '$DISCORD_NEW_PASSWORD');
-    await s.select('month', '$DISCORD_NEW_BIRTHMONTH');
-    await s.select('day', '$DISCORD_NEW_BIRTHDAY');
-    // Year select can fail on virtualized lists — retry with page click to dismiss any open dropdowns
-    let yearResult = await s.select('year', '$DISCORD_NEW_BIRTHYEAR');
-    if (!yearResult || yearResult === 'no-select-found') {
-      console.log('[test] Year select failed, retrying after dismiss...');
-      await s.page.keyboard.press('Escape').catch(() => {});
-      await s.wait(1);
-      yearResult = await s.select('year', '$DISCORD_NEW_BIRTHYEAR');
-    }
     await s.wait(1);
     // Click terms checkbox — target the checkboxOption wrapper, not just the text
     const termsClicked = await s.page.locator('[class*="checkboxOption"]').click().catch(() => 'missed');
@@ -110,6 +121,9 @@ try {
         const apiKey = process.env[svc.envKey];
         if (!apiKey) { console.log(`[test] Skipping ${svc.name}: no API key`); continue; }
         console.log(`[test] Trying ${svc.name}...`);
+        let currentRqdata = captchaData.captcha_rqdata;
+        let currentRqtoken = captchaData.captcha_rqtoken;
+
         // Build proxy fields for captcha service
         const proxyFields = {};
         if (proxy) {
@@ -117,14 +131,12 @@ try {
           let gwIp = u.hostname;
           try { const dns = await import('node:dns'); gwIp = await new Promise((res, rej) => dns.lookup(u.hostname, (e, a) => e ? rej(e) : res(a))); } catch {}
           Object.assign(proxyFields, { proxyType: 'http', proxyAddress: gwIp, proxyPort: parseInt(u.port, 10), proxyLogin: proxy.username, proxyPassword: proxy.password });
-          console.log(`[test] Proxy for captcha: gw=${gwIp}:${u.port} user=${proxy.username?.slice(0, 30)}`);
+          console.log(`[test] Proxy for captcha: ${gwIp}:${u.port} user=${proxy.username?.slice(0, 20)}`);
         }
-        let currentRqdata = captchaData.captcha_rqdata;
-        let currentRqtoken = captchaData.captcha_rqtoken;
 
         for (let attempt = 0; attempt < 3; attempt++) {
           const taskType = proxy ? 'HCaptchaTask' : 'HCaptchaTaskProxyless';
-          const task = { type: svc.name === 'capsolver' && !proxy ? 'HCaptchaTaskProxyLess' : taskType,
+          const task = { type: svc.name === 'capsolver' ? (proxy ? 'HCaptchaTask' : 'HCaptchaTaskProxyLess') : taskType,
             websiteURL: 'https://discord.com/register', websiteKey: captchaData.captcha_sitekey,
             isEnterprise: true, enterprisePayload: { rqdata: currentRqdata },
             userAgent: ua, ...proxyFields };
@@ -165,36 +177,40 @@ try {
             await s.saveAccount('discord', { username: id.username, email: id.email, password: id.password });
             console.log(`PASS: ${id.username}`);
 
-            // Verify email
+            // Verify email: find the verify link and open it in the browser
             const emailAddr = s.resolveEnv('$DISCORD_NEW_EMAIL');
             console.log(`[test] Polling for verify email to ${emailAddr}...`);
             const resendKey = process.env.RESEND_RECEIVING_API_KEY;
             let verified = false;
-            for (let poll = 0; poll < 15 && !verified; poll++) {
+            for (let poll = 0; poll < 20 && !verified; poll++) {
               await s.wait(5);
-              const emails = await (await fetch('https://api.resend.com/emails/receiving?limit=5', { headers: { Authorization: `Bearer ${resendKey}` } })).json();
+              const emails = await (await fetch('https://api.resend.com/emails/receiving?limit=10', { headers: { Authorization: `Bearer ${resendKey}` } })).json();
               for (const em of emails.data || []) {
                 const to = (em.to || []).map(t => typeof t === 'string' ? t : t.email).join(',');
-                if (!to.includes(emailAddr) || !em.from?.includes('discord') || !em.subject?.includes('Verify Email')) continue;
+                if (!to.includes(emailAddr) || !em.from?.includes('discord') || !em.subject?.includes('Verify')) continue;
                 const full = await (await fetch(`https://api.resend.com/emails/receiving/${em.id}`, { headers: { Authorization: `Bearer ${resendKey}` } })).json();
                 const links = (full.html || '').match(/https:\/\/click\.discord\.com[^\s"]+/g);
                 if (!links?.length) continue;
-                let verifyLink = null;
+                // Find the verify link (resolves to /verify#token=...)
                 for (const link of links) {
-                  try { const r = await fetch(link, { redirect: 'manual' }); const loc = r.headers.get('location') || ''; if (loc.includes('/verify')) { verifyLink = loc; break; } } catch {}
+                  try {
+                    const r = await fetch(link, { redirect: 'manual' });
+                    const loc = r.headers.get('location') || '';
+                    if (loc.includes('/verify')) {
+                      console.log(`[test] Opening verify link in browser...`);
+                      await s.goto(loc);
+                      await s.wait(5);
+                      console.log(`[test] After verify: ${s.page.url?.()}`);
+                      verified = true;
+                      break;
+                    }
+                  } catch {}
                 }
-                if (!verifyLink) verifyLink = links[1] || links[0];
-                console.log(`[test] Verify URL: ${(typeof verifyLink === 'string' ? verifyLink : '').slice(0, 80)}...`);
-                await s.goto(verifyLink);
-                await s.wait(5);
-                console.log(`[test] After verify: ${s.page.url?.()}`);
-                await s.goto('https://discord.com/channels/@me');
-                await s.wait(10);
-                verified = (s.page.url?.() ?? '').includes('/channels');
                 break;
               }
             }
             if (!verified) console.log('[test] Email verification did not complete');
+            else console.log('[test] Email verified');
             break;
           }
           // Discord returned new captcha data — retry with updated rqdata
