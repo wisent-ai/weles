@@ -34,6 +34,23 @@ if (process.env.TIKTOK_HARDCODED !== '1') {
       password = `Wisent${rnd}!Xy`;
       console.log(`[test] attempt ${retry + 1}: identity=${id.username} <${id.email}> bday=${id.birthMonth}/${id.birthDay}/${id.birthYear}`);
 
+      // Log TikTok API requests + responses so we can see what send_code actually sends/returns
+      const interesting = (u) => /send_code|check_code|passport|register|captcha|verifyfp/.test(u || '');
+      s.page.on('request', (req) => {
+        const u = req.url();
+        if (!interesting(u)) return;
+        const body = (() => { try { return req.postData() || ''; } catch { return ''; } })();
+        console.log(`[req] ${req.method()} ${u.slice(0, 110)} body=${body.slice(0, 200)}`);
+      });
+      s.page.on('response', async (resp) => {
+        const u = resp.url();
+        if (!interesting(u)) return;
+        let body = '';
+        try { body = (await resp.text()).slice(0, 400); } catch {}
+        const hdrLen = resp.headers()['content-length'] ?? '?';
+        console.log(`[res] ${resp.status()} len=${hdrLen} ${u.slice(0, 100)} | ${body.replace(/\s+/g, ' ').slice(0, 300)}`);
+      });
+
       await s.goto(URL);
       await s.wait(3);
 
@@ -49,16 +66,27 @@ if (process.env.TIKTOK_HARDCODED !== '1') {
         } catch {}
       }
 
-      // Click "Use phone or email"
-      const r1 = await s.click('Use phone or email');
-      if (r1 === 'no-target-found') { console.log(`[test] attempt ${retry + 1}: channel selection failed`); continue; }
-      await s.wait(2);
-
-      // Click "Sign up with email" (switch from /phone to /email tab)
+      // Click "Use phone or email" — retry until URL advances past /signup
+      for (let cs = 0; cs < 4; cs++) {
+        const urlBefore = s.page.url?.() ?? '';
+        if (urlBefore.includes('/phone-or-email')) break;
+        await s.click('Use phone or email');
+        await s.wait(3);
+      }
       const urlAfterChannel = s.page.url?.() ?? '';
-      if (!urlAfterChannel.includes('/email')) {
+      if (!urlAfterChannel.includes('/phone-or-email')) {
+        console.log(`[test] attempt ${retry + 1}: stuck at ${urlAfterChannel}`); continue;
+      }
+
+      // Click "Sign up with email" if still on /phone page
+      for (let cs = 0; cs < 3; cs++) {
+        const u = s.page.url?.() ?? '';
+        if (u.includes('/email')) break;
         await s.click('Sign up with email');
         await s.wait(2);
+      }
+      if (!(s.page.url?.() ?? '').includes('/email')) {
+        console.log(`[test] attempt ${retry + 1}: couldn't switch to email tab`); continue;
       }
 
       // Select birthday
@@ -67,15 +95,58 @@ if (process.env.TIKTOK_HARDCODED !== '1') {
       await s.select('year', id.birthYear);
       await s.wait(1);
 
-      // Fill email and password (literal values — avoid env substitution)
+      // Plain Playwright fill — local Chromium has no password-typing block,
+      // and Playwright's fill fires the exact InputEvent sequence React expects.
       await s.fill('Email', id.email);
       await s.fill('Password', password);
+      await s.wait(1);
+      // Tab out of password to trigger blur-based validation, then re-check state.
+      await s.page.keyboard.press('Tab').catch(() => {});
+      await s.wait(1);
+      const verify = await s.page.evaluate(`(() => {
+        const inputs = Array.from(document.querySelectorAll('input'));
+        const email = inputs.find(i => (i.placeholder || '').toLowerCase().includes('email'));
+        const pw = inputs.find(i => (i.placeholder || '').toLowerCase().includes('password'));
+        const sendBtn = document.querySelector('[data-e2e="send-code-button"]');
+        const errors = Array.from(document.querySelectorAll('[class*="error"], [class*="Error"], [class*="tip"], [class*="Tip"]'))
+          .map(e => (e.textContent || '').trim()).filter(t => t && t.length < 200);
+        const pageText = (document.body.innerText || '').slice(0, 500);
+        return {
+          emailLen: email?.value?.length,
+          pwLen: pw?.value?.length,
+          sendDisabled: sendBtn?.disabled,
+          sendAriaDisabled: sendBtn?.getAttribute('aria-disabled'),
+          errors: errors.slice(0, 8),
+          bodyExcerpt: pageText,
+        };
+      })()`).catch((e) => ({ error: e.message }));
+      console.log(`[test] fill verify: ${JSON.stringify(verify)}`);
+      const fillField = async (placeholder, val) => s.page.evaluate(`(({ ph, val }) => {
+        const inputs = Array.from(document.querySelectorAll('input'));
+        const el = inputs.find(i => (i.placeholder || '').toLowerCase().includes(ph.toLowerCase()));
+        if (!el) return { ok: false, reason: 'not-found' };
+        const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+        setter.call(el, val);
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+        return { ok: true, len: val.length };
+      })(${JSON.stringify({ ph: placeholder, val })})`);
       await s.wait(2);
 
-      // Click "Send code" using humanClick (same as the successful LLM-agent path)
-      await s.click('Send code');
-      console.log('[test] Clicked Send code');
-      await s.wait(3);
+      // Click "Send code" via locator.click — fires real MouseEvent + triggers React handlers.
+      // Only click if the button is actually enabled right now (Tab may have just enabled it).
+      const sendBefore = await s.page.evaluate(`(() => {
+        const btn = document.querySelector('[data-e2e="send-code-button"]');
+        return { present: !!btn, disabled: btn?.disabled, aria: btn?.getAttribute('aria-disabled') };
+      })()`).catch(() => ({}));
+      console.log(`[test] send button before click: ${JSON.stringify(sendBefore)}`);
+      if (sendBefore.disabled === false) {
+        try { await s.page.locator('[data-e2e="send-code-button"]').click(); console.log('[test] locator.click Send code'); }
+        catch (e) { console.log(`[test] locator.click failed: ${e.message?.slice(0, 100)}`); }
+      } else {
+        console.log('[test] Send button disabled — skipping click');
+      }
+      await s.wait(5);
 
       // Probe for captcha
       const probe = await s.page.evaluate(`(() => {
@@ -109,8 +180,10 @@ if (process.env.TIKTOK_HARDCODED !== '1') {
       }
       console.log(`[test] Got code: ${code}`);
 
-      // Fill code and click Next
-      await s.fill('code', code);
+      // Fill code (use JS bypass for consistency)
+      const codeResult = await fillField('6-digit code', code);
+      console.log(`[test] fill code: ${JSON.stringify(codeResult)}`);
+      if (!codeResult.ok) await s.fill('code', code); // fall through to legacy fill
       await s.wait(1);
       await s.click('Next');
       await s.wait(5);
