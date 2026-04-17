@@ -84,8 +84,18 @@ async function signup(s) {
     const t = await readPage(s);
     console.log(`[ig] onboarding ${i}: url=${url.slice(-30)} text=${t.slice(0, 60).replace(/\n/g, ' ')}`);
     if (url.includes('/explore') || url.includes('/direct') || url.includes('/accounts/onetap') || t.includes('suggested for you')) break;
-    // Phone verification — check BEFORE captcha (both pages share /suspended/ URL)
-    if (t.includes('mobile number') || t.includes('phone number') || t.includes('enter your mobile')) {
+    // Password reset page — dead end, account wasn't created properly
+    if (url.includes('/password/reset') || t.includes('find your account')) {
+      console.log('[ig] redirected to password reset — account not created');
+      throw new Error('password_reset_redirect');
+    }
+    // Selfie verification — can't bypass, must retry
+    if (t.includes('verification selfie') || t.includes('upload a photo that clearly')) {
+      console.log('[ig] selfie verification required — cannot automate, retrying');
+      throw new Error('selfie_required');
+    }
+    // Phone verification — only on /suspended/ page, NOT on password reset
+    if ((t.includes('mobile number') || t.includes('enter your mobile')) && url.includes('/suspended') && !t.includes('find your account')) {
       console.log('[ig] phone verification required');
       const phone = await s.checkSms('instagram', 'US');
       console.log(`[ig] SMS: ${phone}`);
@@ -146,8 +156,10 @@ async function signup(s) {
     await sleep(2);
   }
 
-  // Verify success: check for auth cookies
+  // Verify success: check URL and auth cookies
   if (s.page.isClosed?.()) throw new Error('page_closed');
+  const finalUrl = s.page.url?.() ?? '';
+  if (finalUrl.includes('/suspended')) throw new Error('account_suspended');
   const cookies = await s.ctx.cookies().catch(() => []);
   const authCookies = cookies.filter(c => c.domain?.includes('instagram.com') && (c.name === 'sessionid' || c.name === 'csrftoken'));
   if (authCookies.length < 2) {
