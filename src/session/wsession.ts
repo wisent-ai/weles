@@ -16,6 +16,7 @@ import { waitCloudflare } from '../cloudflare/challenge.js';
 import { solvePageCaptcha } from '../captcha/detect.js';
 import { CaptchaSolver } from '../captcha/solver.js';
 import { generateIdentity as genId, type Identity } from '../utils/identity.js';
+import { markSignupSuccess } from '../utils/email/domain.js';
 import { getNumber, pollCode, type SmsNumber } from '../utils/sms.js';
 import { writeFileSync, mkdirSync, copyFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
@@ -46,7 +47,6 @@ export interface WSessionOptions {
 }
 
 const asV = (p: any) => p as unknown as ScreenshottablePage;
-
 
 export class WSession {
   readonly page: any;
@@ -265,7 +265,7 @@ export class WSession {
       body: JSON.stringify(row),
     });
     if (!res.ok) return `error: ${res.status} ${await res.text().catch(() => '')}`;
-    return `account saved: ${platform}/${username}`;
+    await markSignupSuccess(email).catch(() => {}); return `account saved: ${platform}/${username}`;
   }
 
   async close(): Promise<void> {
