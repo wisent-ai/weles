@@ -16,38 +16,86 @@ try {
       if (mounted) { console.log(`[test] SPA mounted after ${i + 1}s`); break; }
       await s.wait(1);
     }
-    await s.fill('Email', '$DISCORD_NEW_EMAIL');
-    await s.fill('Display Name', '$DISCORD_NEW_USERNAME');
-    await s.fill('Username', '$DISCORD_NEW_USERNAME');
-    await s.fill('Password', '$DISCORD_NEW_PASSWORD');
+    // Fill via JS value setter + React events (more reliable than el.fill for Discord SPA)
+    const fillField = async (name, val) => {
+      const resolved = s.resolveEnv(val);
+      const result = await s.page.evaluate(`(({ name, val }) => {
+        const el = document.querySelector('input[name="' + name + '"]');
+        if (!el) return { ok: false, reason: 'not-found' };
+        el.focus();
+        const originalType = el.type;
+        if (originalType === 'password') el.type = 'text';
+        const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+        setter.call(el, val);
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+        if (originalType === 'password') el.type = originalType;
+        return { ok: true, len: val.length };
+      })(${JSON.stringify({ name, val: resolved })})`);
+      console.log(`[test] fill ${name}: ${JSON.stringify(result)}`);
+      return result;
+    };
+    await fillField('email', '$DISCORD_NEW_EMAIL');
+    await fillField('global_name', '$DISCORD_NEW_USERNAME');
+    await fillField('username', '$DISCORD_NEW_USERNAME');
+    await fillField('password', '$DISCORD_NEW_PASSWORD');
     await s.select('month', '$DISCORD_NEW_BIRTHMONTH');
     await s.select('day', '$DISCORD_NEW_BIRTHDAY');
-    await s.select('year', '$DISCORD_NEW_BIRTHYEAR');
+    // Year select can fail on virtualized lists — retry with page click to dismiss any open dropdowns
+    let yearResult = await s.select('year', '$DISCORD_NEW_BIRTHYEAR');
+    if (!yearResult || yearResult === 'no-select-found') {
+      console.log('[test] Year select failed, retrying after dismiss...');
+      await s.page.keyboard.press('Escape').catch(() => {});
+      await s.wait(1);
+      yearResult = await s.select('year', '$DISCORD_NEW_BIRTHYEAR');
+    }
     await s.wait(1);
     // Click terms checkbox — target the checkboxOption wrapper, not just the text
     const termsClicked = await s.page.locator('[class*="checkboxOption"]').click().catch(() => 'missed');
     if (termsClicked !== 'missed') console.log('[test] Terms checkbox clicked');
     else { await s.page.locator('text=I have read and agree').click().catch(() => {}); console.log('[test] Terms text clicked'); }
     await s.wait(1);
-    // Verify button is enabled before trying to submit
-    const btnDisabled = await s.page.locator('button[type="submit"]').isDisabled().catch(() => true);
-    console.log(`[test] Submit button disabled=${btnDisabled}`);
+    // Check form state before submit
+    const formState = await s.page.evaluate(`(() => {
+      var inputs = Array.from(document.querySelectorAll('input'));
+      var vals = inputs.map(i => ({ name: i.name || i.type || i.placeholder, value: i.value?.slice(0, 20), type: i.type }));
+      var form = document.querySelector('form');
+      var btn = document.querySelector('button[type="submit"]');
+      return { inputs: vals, hasForm: !!form, formAction: form?.action, btnDisabled: btn?.disabled, btnText: btn?.textContent?.trim() };
+    })()`).catch(() => ({}));
+    console.log(`[test] Form state: ${JSON.stringify(formState)}`);
+    const btnDisabled = formState.btnDisabled ?? true;
+    if (btnDisabled) { console.log('FAIL: submit button disabled — form validation failed'); process.exit(1); }
     // Retry submit until captcha data is intercepted
-    for (let attempt = 0; attempt < 5; attempt++) {
-      await s.page.locator('button[type="submit"]').click({ force: true }).catch(() => {});
+    for (let attempt = 0; attempt < 8; attempt++) {
+      // Try multiple click strategies
+      await s.page.locator('button[type="submit"]').click().catch(() => {});
       await s.wait(2);
-      if (s.captchaResponse) { console.log('[test] Form submitted (captcha intercepted)'); break; }
+      if (s.captchaResponse) { console.log('[test] Form submitted (captcha intercepted via locator click)'); break; }
+      await s.page.evaluate('document.querySelector("button[type=submit]")?.click()').catch(() => {});
+      await s.wait(2);
+      if (s.captchaResponse) { console.log('[test] Form submitted (captcha intercepted via JS click)'); break; }
       await s.page.evaluate('document.querySelector("form")?.requestSubmit()').catch(() => {});
       await s.wait(2);
       if (s.captchaResponse) { console.log('[test] Form submitted via requestSubmit'); break; }
-      console.log(`[test] Submit attempt ${attempt + 1} — no captcha response yet`);
+      // Also try clicking "Create Account" text directly
+      await s.click('Create Account').catch(() => {});
+      await s.wait(2);
+      if (s.captchaResponse) { console.log('[test] Form submitted via s.click("Create Account")'); break; }
+      // Check for hCaptcha iframe or error messages
+      const pageState = await s.page.evaluate(`(() => {
+        var hc = document.querySelector('iframe[src*="hcaptcha"]');
+        var errs = Array.from(document.querySelectorAll('[class*="error"], [class*="Error"]')).map(e => e.textContent?.trim()).filter(Boolean).slice(0, 3);
+        var btnText = document.querySelector('button[type="submit"]')?.textContent;
+        return { hcaptcha: !!hc, errors: errs, btnText, url: location.href };
+      })()`).catch(() => ({}));
+      console.log(`[test] Submit attempt ${attempt + 1} — no captcha response. state=${JSON.stringify(pageState)}`);
     }
     await s.wait(3);
 
-    // Try each captcha service until Discord accepts the token
+    // Solve captcha and submit via direct API (same approach as discord_login.mjs)
     const captchaData = s.captchaResponse;
     const formData = s.captchaFormData;
-    const headers = s.captchaHeaders;
     if (captchaData && formData) {
       const ua = await s.page.evaluate('navigator.userAgent').catch(() => '');
       const proxy = s.proxyConfig;
@@ -62,130 +110,64 @@ try {
         const apiKey = process.env[svc.envKey];
         if (!apiKey) { console.log(`[test] Skipping ${svc.name}: no API key`); continue; }
         console.log(`[test] Trying ${svc.name}...`);
-        // Build task
+        // Build proxy fields for captcha service
         const proxyFields = {};
         if (proxy) {
           const u = new globalThis.URL(proxy.server);
-          // Resolve gateway hostname once — must match the IP browser connected to
           let gwIp = u.hostname;
           try { const dns = await import('node:dns'); gwIp = await new Promise((res, rej) => dns.lookup(u.hostname, (e, a) => e ? rej(e) : res(a))); } catch {}
           Object.assign(proxyFields, { proxyType: 'http', proxyAddress: gwIp, proxyPort: parseInt(u.port, 10), proxyLogin: proxy.username, proxyPassword: proxy.password });
           console.log(`[test] Proxy for captcha: gw=${gwIp}:${u.port} user=${proxy.username?.slice(0, 30)}`);
         }
-        const taskType = proxy ? 'HCaptchaTask' : 'HCaptchaTaskProxyless';
-        const task = { type: svc.name === 'capsolver' && !proxy ? 'HCaptchaTaskProxyLess' : taskType,
-          websiteURL: 'https://discord.com/register', websiteKey: captchaData.captcha_sitekey,
-          isEnterprise: true, enterprisePayload: { rqdata: captchaData.captcha_rqdata },
-          userAgent: ua, ...proxyFields };
-        // Solve
-        const createRes = await (await fetch(svc.url + '/createTask', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ clientKey: apiKey, task }),
-        })).json();
-        if (createRes.errorId) { console.log(`[test] ${svc.name} create error: ${createRes.errorCode}`); continue; }
-        console.log(`[test] ${svc.name} taskId=${createRes.taskId}`);
-        let token = null;
-        for (let i = 0; i < 60; i++) {
-          await new Promise(r => setTimeout(r, 5000));
-          const res = await (await fetch(svc.url + '/getTaskResult', {
+        let currentRqdata = captchaData.captcha_rqdata;
+        let currentRqtoken = captchaData.captcha_rqtoken;
+
+        for (let attempt = 0; attempt < 3; attempt++) {
+          const taskType = proxy ? 'HCaptchaTask' : 'HCaptchaTaskProxyless';
+          const task = { type: svc.name === 'capsolver' && !proxy ? 'HCaptchaTaskProxyLess' : taskType,
+            websiteURL: 'https://discord.com/register', websiteKey: captchaData.captcha_sitekey,
+            isEnterprise: true, enterprisePayload: { rqdata: currentRqdata },
+            userAgent: ua, ...proxyFields };
+          const createRes = await (await fetch(svc.url + '/createTask', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ clientKey: apiKey, taskId: createRes.taskId }),
+            body: JSON.stringify({ clientKey: apiKey, task }),
           })).json();
-          if (res.status === 'ready') { token = res.solution?.gRecaptchaResponse ?? res.solution?.token; break; }
-          if (res.errorId) { console.log(`[test] ${svc.name} error: ${res.errorCode}`); break; }
-        }
-        if (!token) { console.log(`[test] ${svc.name}: no token`); continue; }
-        console.log(`[test] ${svc.name} token: ${token.slice(0, 30)}...`);
-        // Patch fetch to inject solved captcha_key into the next /auth/register request
-        await s.page.evaluate(`(()=>{
-          window.__welesToken = ${JSON.stringify(token)};
-          if (!window.__welesFetchPatched) {
-            window.__welesFetchPatched = true;
-            var _f = window.fetch;
-            window.fetch = function(url, opts) {
-              if (typeof url === 'string' && url.includes('/auth/register') && opts && opts.body) {
-                try {
-                  var body = JSON.parse(opts.body);
-                  if (window.__welesToken) {
-                    body.captcha_key = window.__welesToken;
-                    opts.body = JSON.stringify(body);
-                    console.log('[weles] Injected captcha_key into register request');
-                    window.__welesToken = null;
-                  }
-                } catch(e) {}
-              }
-              return _f.apply(this, arguments);
-            };
+          if (createRes.errorId) { console.log(`[test] ${svc.name} error: ${createRes.errorCode}`); break; }
+          console.log(`[test] ${svc.name} attempt ${attempt + 1} solving...`);
+          let token = null;
+          for (let i = 0; i < 60; i++) {
+            await new Promise(r => setTimeout(r, 5000));
+            const res = await (await fetch(svc.url + '/getTaskResult', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ clientKey: apiKey, taskId: createRes.taskId }),
+            })).json();
+            if (res.status === 'ready') { token = res.solution?.gRecaptchaResponse ?? res.solution?.token; break; }
+            if (res.errorId) { console.log(`[test] ${svc.name} error: ${res.errorCode}`); break; }
           }
-        })()`).catch(() => {});
-        // Dump hcaptcha state to find the callback, then call it
-        const hcState = await s.page.evaluate(`(()=>{
-          if (!window.hcaptcha) return 'no hcaptcha';
-          var info = { methods: Object.keys(hcaptcha).filter(k=>typeof hcaptcha[k]==='function'), ids: hcaptcha.getAllIds?.() ?? [] };
-          // Look for internal state/config with callbacks
-          for (var k of Object.getOwnPropertyNames(hcaptcha)) {
-            var v = hcaptcha[k];
-            if (v && typeof v === 'object' && !Array.isArray(v)) {
-              info[k] = Object.keys(v).slice(0, 20);
-            }
-          }
-          // Check the render containers for data attributes
-          var containers = document.querySelectorAll('[data-hcaptcha-widget-id]');
-          info.containers = containers.length;
-          // Try to find React fiber with callback
-          var captchaEl = document.querySelector('[class*="captcha"]');
-          if (captchaEl) {
-            var fiberKey = Object.keys(captchaEl).find(k => k.startsWith('__reactFiber') || k.startsWith('__reactInternalInstance'));
-            if (fiberKey) info.hasFiber = true;
-          }
-          return JSON.stringify(info);
-        })()`).catch(e => `error: ${e.message?.slice(0, 80)}`);
-        console.log(`[test] hcaptcha state: ${hcState}`);
-        // Try calling the callback via React fiber
-        const callbackResult = await s.page.evaluate(`(()=>{
-          // Walk React fiber tree to find captcha callback
-          function findCallback(el) {
-            if (!el) return null;
-            var fk = Object.keys(el).find(k => k.startsWith('__reactFiber') || k.startsWith('__reactInternalInstance'));
-            if (!fk) return null;
-            var fiber = el[fk];
-            while (fiber) {
-              var props = fiber.memoizedProps || fiber.pendingProps || {};
-              if (props.onVerify) return props.onVerify;
-              if (props.callback) return props.callback;
-              if (props.onSuccess) return props.onSuccess;
-              fiber = fiber.return;
-            }
-            return null;
-          }
-          var captchaEls = document.querySelectorAll('[class*="captcha"], [class*="Captcha"]');
-          for (var el of captchaEls) {
-            var cb = findCallback(el);
-            if (cb) { cb(${JSON.stringify(token)}); return 'react-callback'; }
-          }
-          // Also try modal overlay
-          var modal = document.querySelector('[class*="modal"], [class*="Modal"]');
-          if (modal) { var cb = findCallback(modal); if (cb) { cb(${JSON.stringify(token)}); return 'modal-callback'; } }
-          return 'no-callback-found';
-        })()`).catch(e => `error: ${e.message?.slice(0, 80)}`);
-        console.log(`[test] ${svc.name} callback result: ${callbackResult}`);
-        await s.wait(10);
-        // Check if registration succeeded by looking at URL or intercepted response
-        const postUrl = s.page.url?.() ?? '';
-        const postCaptcha = s.captchaResponse;
-        console.log(`[test] After inject: url=${postUrl.slice(0, 60)} captchaResponse=${!!postCaptcha}`);
-        if (postUrl.includes('/channels') || postUrl.includes('/app') || postUrl.includes('/login')) {
-          console.log(`[test] SUCCESS with ${svc.name}! Navigated to ${postUrl.slice(0, 60)}`);
-          registered = true;
-          // Get auth token from localStorage (Discord SPA stores it after successful registration)
-          const authToken = await s.page.evaluate('try{return JSON.parse(localStorage.getItem("token"))}catch(e){return null}').catch(() => null);
-          console.log(`[test] Auth token from localStorage: ${authToken?.slice(0, 30) ?? 'none'}`);
-          if (authToken) {
-            // Verify email in-browser: set token in localStorage, navigate to verify link
-            const emailAddr = s.resolveEnv('$DISCORD_NEW_EMAIL');
-            console.log(`[test] Setting auth token and polling for verify email to ${emailAddr}...`);
-            // Set token so browser is "logged in"
+          if (!token) { console.log(`[test] ${svc.name}: no token`); break; }
+          console.log(`[test] ${svc.name} token: ${token.slice(0, 30)}...`);
+
+          // Submit directly via API (same pattern as discord_login.mjs)
+          formData.captcha_key = token;
+          if (currentRqtoken) formData.captcha_rqtoken = currentRqtoken;
+          const hdrs = JSON.stringify({ 'Content-Type': 'application/json', ...s.captchaHeaders });
+          const result = await s.page.evaluate(`(async()=>{var r=await fetch('/api/v9/auth/register',{method:'POST',headers:${hdrs},body:${JSON.stringify(JSON.stringify(formData))}});return{status:r.status,data:await r.json().catch(()=>({}))};})()`).catch(e => ({ error: e.message }));
+          console.log(`[test] ${svc.name} attempt ${attempt + 1}: status=${result?.status} response=${JSON.stringify(result?.data).slice(0, 200)}`);
+
+          if ((result?.status === 200 || result?.status === 201) && result?.data?.token) {
+            console.log(`[test] SUCCESS — auth token received`);
+            const authToken = result.data.token;
             await s.page.evaluate(`localStorage.setItem("token", JSON.stringify(${JSON.stringify(authToken)}))`).catch(() => {});
+            await s.goto('https://discord.com/channels/@me');
+            await s.wait(5);
+            console.log(`[test] Navigated to: ${s.page.url?.()}`);
+            registered = true;
+            await s.saveAccount('discord', { username: id.username, email: id.email, password: id.password });
+            console.log(`PASS: ${id.username}`);
+
+            // Verify email
+            const emailAddr = s.resolveEnv('$DISCORD_NEW_EMAIL');
+            console.log(`[test] Polling for verify email to ${emailAddr}...`);
             const resendKey = process.env.RESEND_RECEIVING_API_KEY;
             let verified = false;
             for (let poll = 0; poll < 15 && !verified; poll++) {
@@ -197,7 +179,6 @@ try {
                 const full = await (await fetch(`https://api.resend.com/emails/receiving/${em.id}`, { headers: { Authorization: `Bearer ${resendKey}` } })).json();
                 const links = (full.html || '').match(/https:\/\/click\.discord\.com[^\s"]+/g);
                 if (!links?.length) continue;
-                // Find the link that redirects to /verify#token= (2nd link in the email, not the 1st)
                 let verifyLink = null;
                 for (const link of links) {
                   try { const r = await fetch(link, { redirect: 'manual' }); const loc = r.headers.get('location') || ''; if (loc.includes('/verify')) { verifyLink = loc; break; } } catch {}
@@ -206,34 +187,32 @@ try {
                 console.log(`[test] Verify URL: ${(typeof verifyLink === 'string' ? verifyLink : '').slice(0, 80)}...`);
                 await s.goto(verifyLink);
                 await s.wait(5);
-                console.log(`[test] After verify link: ${s.page.url?.()}`);
-                // Navigate to channels to confirm
+                console.log(`[test] After verify: ${s.page.url?.()}`);
                 await s.goto('https://discord.com/channels/@me');
                 await s.wait(10);
-                const finalUrl = s.page.url?.() ?? '';
-                console.log(`[test] Final URL: ${finalUrl}`);
-                verified = finalUrl.includes('/channels');
+                verified = (s.page.url?.() ?? '').includes('/channels');
                 break;
               }
             }
             if (!verified) console.log('[test] Email verification did not complete');
+            break;
+          }
+          // Discord returned new captcha data — retry with updated rqdata
+          if (result?.data?.captcha_rqdata) {
+            currentRqdata = result.data.captcha_rqdata;
+            currentRqtoken = result.data.captcha_rqtoken;
+            console.log('[test] Updated captcha data, retrying...');
+            continue;
           }
           break;
         }
+        if (registered) break;
       }
-      if (!registered) console.log('[test] All services returned invalid-response');
+      if (!registered) { console.log('FAIL: all captcha attempts exhausted'); process.exit(1); }
     } else {
-      console.log('[test] No captcha data intercepted — captcha may not have appeared');
+      console.log('FAIL: no captcha data intercepted');
+      process.exit(1);
     }
-
-    await s.wait(5);
-    const email = await s.checkEmail('$DISCORD_NEW_EMAIL', 'discord');
-    if (email && email !== 'no code received') {
-      await s.fill('verification code', email);
-      await s.click('Submit');
-    }
-    await s.saveAccount('discord', { username: id.username, email: id.email, password: id.password });
-    console.log(`PASS: ${id.username}`);
   } else {
     await s.goto(URL);
     await s.wait(3);
