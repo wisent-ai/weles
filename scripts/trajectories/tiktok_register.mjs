@@ -1,5 +1,6 @@
 import { WSession } from '../../dist/session/wsession.js';
 import { execute } from '../../dist/agent/loop.js';
+import { generatePersona } from '../../dist/browser/persona.js';
 
 const URL = 'https://www.tiktok.com/signup';
 const GOAL = `generate_identity(platform="tiktok"). Click "Use phone or email". Click "Sign up with email". For birthday use select_option(target="month",value=$TIKTOK_NEW_BIRTHMONTH), select_option(target="day",value=$TIKTOK_NEW_BIRTHDAY), select_option(target="year",value=$TIKTOK_NEW_BIRTHYEAR). Fill email with $TIKTOK_NEW_EMAIL. Fill password with $TIKTOK_NEW_PASSWORD. Click "Send code". check_email(email=$TIKTOK_NEW_EMAIL,sender="tiktok") for code. Fill code. Click Next. done(value=$TIKTOK_NEW_USERNAME).`;
@@ -25,7 +26,7 @@ if (process.env.TIKTOK_HARDCODED !== '1') {
   for (let retry = 0; retry < 3; retry++) {
     if (s) { await s.close().catch(() => {}); s = null; }
 
-    s = await WSession.start({ label: 'tiktok_register', proxy: process.env.PROXY_URL || 'residential' });
+    s = await WSession.start({ label: 'tiktok_register', proxy: process.env.PROXY_URL || 'residential', persona: generatePersona({ country: 'US' }) });
     try {
       // Fresh identity per retry — don't reuse emails across failed runs
       id = await s.generateIdentity('tiktok');
@@ -34,21 +35,30 @@ if (process.env.TIKTOK_HARDCODED !== '1') {
       password = `Wisent${rnd}!Xy`;
       console.log(`[test] attempt ${retry + 1}: identity=${id.username} <${id.email}> bday=${id.birthMonth}/${id.birthDay}/${id.birthYear}`);
 
-      // Log TikTok API requests + responses so we can see what send_code actually sends/returns
-      const interesting = (u) => /send_code|check_code|passport|register|captcha|verifyfp/.test(u || '');
+      // Full request+response logging for interesting endpoints.
+      // Focus on /region/ since that's where brendawatsica had len=204 (with captcha_domain) and current has len=23.
+      const interesting = (u) => /send_code|check_code|passport\/web\/region|verification\/age|captcha/.test(u || '');
       s.page.on('request', (req) => {
         const u = req.url();
         if (!interesting(u)) return;
         const body = (() => { try { return req.postData() || ''; } catch { return ''; } })();
-        console.log(`[req] ${req.method()} ${u.slice(0, 110)} body=${body.slice(0, 200)}`);
+        const h = req.headers();
+        const ttHeaders = Object.keys(h).filter(k => /tt-|ticket|passport|csrf|x-ms|x-bogus|signature/i.test(k));
+        console.log(`[req] ${req.method()} ${u.slice(0, 140)}`);
+        if (ttHeaders.length) console.log(`[req-tt-hdrs] ${ttHeaders.map(k => k + '=' + (h[k] || '').slice(0, 120)).join(' | ')}`);
+        else console.log(`[req-tt-hdrs] NONE — header keys: ${Object.keys(h).join(',')}`);
+        if (body) console.log(`[req-body] ${body.slice(0, 400)}`);
       });
       s.page.on('response', async (resp) => {
         const u = resp.url();
         if (!interesting(u)) return;
         let body = '';
-        try { body = (await resp.text()).slice(0, 400); } catch {}
-        const hdrLen = resp.headers()['content-length'] ?? '?';
-        console.log(`[res] ${resp.status()} len=${hdrLen} ${u.slice(0, 100)} | ${body.replace(/\s+/g, ' ').slice(0, 300)}`);
+        try { body = (await resp.text()); } catch {}
+        const h = resp.headers();
+        const hdrJson = JSON.stringify(h);
+        console.log(`[res] ${resp.status()} ${u.slice(0, 140)}`);
+        console.log(`[res-body] ${body.slice(0, 500).replace(/\s+/g, ' ')}`);
+        console.log(`[res-hdrs] ${hdrJson.slice(0, 600)}`);
       });
 
       await s.goto(URL);
@@ -100,7 +110,7 @@ if (process.env.TIKTOK_HARDCODED !== '1') {
       await s.fill('Email', id.email);
       await s.fill('Password', password);
       await s.wait(1);
-      // Tab out of password to trigger blur-based validation, then re-check state.
+      // Tab out of password — fires React onBlur, dismisses "password must have..." error
       await s.page.keyboard.press('Tab').catch(() => {});
       await s.wait(1);
       const verify = await s.page.evaluate(`(() => {
@@ -133,20 +143,35 @@ if (process.env.TIKTOK_HARDCODED !== '1') {
       })(${JSON.stringify({ ph: placeholder, val })})`);
       await s.wait(2);
 
-      // Click "Send code" via locator.click — fires real MouseEvent + triggers React handlers.
-      // Only click if the button is actually enabled right now (Tab may have just enabled it).
-      const sendBefore = await s.page.evaluate(`(() => {
+      // Capture Send code button rect + install click listener so we can see what actually got clicked.
+      const sendInfo = await s.page.evaluate(`(() => {
         const btn = document.querySelector('[data-e2e="send-code-button"]');
-        return { present: !!btn, disabled: btn?.disabled, aria: btn?.getAttribute('aria-disabled') };
-      })()`).catch(() => ({}));
-      console.log(`[test] send button before click: ${JSON.stringify(sendBefore)}`);
-      if (sendBefore.disabled === false) {
-        try { await s.page.locator('[data-e2e="send-code-button"]').click(); console.log('[test] locator.click Send code'); }
-        catch (e) { console.log(`[test] locator.click failed: ${e.message?.slice(0, 100)}`); }
+        if (!btn) return { present: false };
+        const r = btn.getBoundingClientRect();
+        window.__wclick = [];
+        document.addEventListener('click', e => {
+          const el = e.target;
+          const r2 = el.getBoundingClientRect ? el.getBoundingClientRect() : {};
+          window.__wclick.push({
+            tag: el.tagName, text: (el.textContent || '').trim().slice(0, 40),
+            dataE2e: el.getAttribute && el.getAttribute('data-e2e'),
+            isTrusted: e.isTrusted, clientX: e.clientX, clientY: e.clientY,
+            targetRect: { x: r2.x, y: r2.y, w: r2.width, h: r2.height },
+          });
+        }, true);
+        return { present: true, disabled: btn.disabled, rect: { x: r.x, y: r.y, w: r.width, h: r.height }, center: { x: r.x + r.width/2, y: r.y + r.height/2 } };
+      })()`).catch((e) => ({ error: e.message }));
+      console.log(`[test] send button: ${JSON.stringify(sendInfo)}`);
+      if (sendInfo.disabled === false) {
+        const r = await s.click('Send code');
+        console.log(`[test] s.click('Send code') => ${r}`);
       } else {
-        console.log('[test] Send button disabled — skipping click');
+        console.log('[test] Send button disabled — skipping');
+        continue;
       }
       await s.wait(5);
+      const sendClicks = await s.page.evaluate(`JSON.stringify(window.__wclick || [])`).catch(() => '[]');
+      console.log(`[test] Send code clicks received: ${sendClicks}`);
 
       // Probe for captcha
       const probe = await s.page.evaluate(`(() => {
@@ -180,41 +205,91 @@ if (process.env.TIKTOK_HARDCODED !== '1') {
       }
       console.log(`[test] Got code: ${code}`);
 
-      // Fill code (use JS bypass for consistency)
+      // Fill code
       const codeResult = await fillField('6-digit code', code);
       console.log(`[test] fill code: ${JSON.stringify(codeResult)}`);
-      if (!codeResult.ok) await s.fill('code', code); // fall through to legacy fill
+      if (!codeResult.ok) await s.fill('code', code);
       await s.wait(1);
-      await s.click('Next');
-      await s.wait(5);
+      await s.page.keyboard.press('Tab').catch(() => {});
+      await s.wait(1);
 
-      const finalUrl = s.page.url?.() ?? '';
-      const pageText = await s.page.evaluate('document.body.innerText').catch(() => '');
-      const errorSnippet = (pageText || '').split('\n').filter(l => /error|invalid|incorrect|attempt|try again|captcha/i.test(l)).slice(0, 3).join(' | ');
-      console.log(`[test] After Next: url=${finalUrl}${errorSnippet ? ' | errors=' + errorSnippet : ''}`);
+      // Capture button position + install click listener BEFORE we click anything.
+      // This tells us exactly where the Next button sits and which element actually received the click.
+      const nextInfo = await s.page.evaluate(`(() => {
+        const btns = Array.from(document.querySelectorAll('button'));
+        const btn = btns.find(b => /^\\s*next\\s*$/i.test((b.textContent || '').trim()));
+        if (!btn) return { present: false };
+        const r = btn.getBoundingClientRect();
+        window.__wclick = [];
+        document.addEventListener('click', e => {
+          const el = e.target;
+          const r2 = el.getBoundingClientRect ? el.getBoundingClientRect() : {};
+          window.__wclick.push({
+            tag: el.tagName, text: (el.textContent || '').trim().slice(0, 40),
+            id: el.id, cls: (el.className || '').toString().slice(0, 60),
+            isTrusted: e.isTrusted, clientX: e.clientX, clientY: e.clientY,
+            targetRect: { x: r2.x, y: r2.y, w: r2.width, h: r2.height },
+          });
+        }, true);
+        return { present: true, disabled: btn.disabled, rect: { x: r.x, y: r.y, w: r.width, h: r.height }, center: { x: r.x + r.width/2, y: r.y + r.height/2 } };
+      })()`).catch((e) => ({ error: e.message }));
+      console.log(`[test] Next button: ${JSON.stringify(nextInfo)}`);
+
+      if (nextInfo.disabled === false) {
+        // Try humanClick via s.click (what worked for Send code)
+        const r = await s.click('Next');
+        console.log(`[test] s.click('Next') => ${r}`);
+      } else {
+        console.log('[test] Next disabled, cannot submit');
+        continue;
+      }
+      await s.wait(3);
+
+      const clickLog = await s.page.evaluate(`JSON.stringify(window.__wclick || [])`).catch(() => '[]');
+      console.log(`[test] clicks received: ${clickLog}`);
+
+      // Wait for URL change OR post-submit state (captcha / username page / onboarding / foryou)
+      let postUrl = s.page.url?.() ?? '';
+      for (let w = 0; w < 30; w++) {
+        await s.wait(2);
+        postUrl = s.page.url?.() ?? '';
+        const t = await s.page.evaluate('(document.body.innerText || "").slice(0, 600).toLowerCase()').catch(() => '');
+        if (/foryou|\/@|onboarding|interests|choose.*username|profile picture|turn on notifications/i.test(postUrl + ' ' + t)) {
+          console.log(`[test] post-next state found at wait ${w}: url=${postUrl}`); break;
+        }
+        if (/drag|puzzle|captcha|verify/i.test(t)) { console.log(`[test] captcha-like at wait ${w}: ${t.slice(0, 120)}`); break; }
+        if (/incorrect|invalid|attempts reached|try again later|account.*already/i.test(t)) { console.log(`[test] error at wait ${w}: ${t.slice(0, 200)}`); break; }
+      }
       await s.screenshot(`after_next_r${retry}`).catch(() => {});
 
-      // If "Max attempts" error, retry is unlikely to help (TikTok flagged session)
-      if (/attempts reached|try again later/i.test(errorSnippet)) {
-        console.log('[test] TikTok blocked with Max attempts — session flagged');
+      // Must leave the /signup/phone-or-email/email URL and land somewhere logged-in
+      // for the account to really exist.
+      if (postUrl.includes('/signup/phone-or-email/email')) {
+        console.log(`[test] attempt ${retry + 1}: stuck on signup page — Next didn't create account`);
         continue;
       }
 
-      // Username page (sometimes shown)
-      if (/\/username|create a username|set a username/i.test(finalUrl + ' ' + pageText)) {
-        await s.fill('Username', id.username);
+      // Optional username step
+      const pageText = await s.page.evaluate('document.body.innerText').catch(() => '');
+      if (/choose.*username|create a username|set a username/i.test(pageText)) {
+        console.log('[test] username prompt detected, filling');
+        await fillField('username', id.username).catch(() => s.fill('Username', id.username));
         await s.wait(1);
-        await s.click('Next');
-        await s.wait(3);
+        const unBtn = await s.page.evaluate(`(() => { const b = Array.from(document.querySelectorAll('button')).find(x => /next|continue|submit/i.test(x.textContent || '')); return { disabled: b?.disabled }; })()`).catch(() => ({}));
+        if (unBtn.disabled === false) await s.page.locator('button:has-text("Next"), button:has-text("Continue")').first().click().catch(() => {});
+        await s.wait(5);
       }
 
-      // Save account (anywhere that isn't an explicit error is considered success)
-      if (!errorSnippet) {
+      // Success: anywhere post-signup that looks logged-in
+      const finalUrl = s.page.url?.() ?? '';
+      const signedIn = /foryou|\/@|\/home|onboarding|interests/.test(finalUrl);
+      if (signedIn) {
         await s.saveAccount('tiktok', { username: id.username, email: id.email, password });
-        console.log(`PASS: ${id.username}`);
+        console.log(`PASS: ${id.username} (final url ${finalUrl})`);
         success = true;
         break;
       }
+      console.log(`[test] attempt ${retry + 1}: didn't reach logged-in state. finalUrl=${finalUrl}`);
     } catch (e) {
       console.log(`[test] attempt ${retry + 1} crashed: ${e.message?.slice(0, 120)}`);
     }

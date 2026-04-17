@@ -11,6 +11,7 @@ import { chromium, firefox, type BrowserContext, type Browser } from 'playwright
 import { generate, toConfig, toCppConfig } from './fingerprint.js';
 import { buildInitScript } from './scripts/loader.js';
 import { pruneRecordings } from './prune.js';
+import type { Persona } from './browser/persona.js';
 
 const CHROMIUM_ARGS = [
   '--disable-blink-features=AutomationControlled',
@@ -29,25 +30,47 @@ export interface AsyncNewBrowserOptions {
   recordVideo?: boolean;
   excludeScripts?: string[];
   chromiumPath?: string;
+  persona?: Persona;
 }
 
 export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Promise<BrowserContext> {
-  const targetOs = options.os ?? 'macos';
+  const persona = options.persona;
+  const targetOs = persona?.os ?? options.os ?? 'macos';
   const browserType = options.browser ?? 'chromium';
   const isChromium = browserType === 'chromium';
   const headless = options.headless ?? false;
 
   const fp = generate({ os: targetOs, browser: browserType });
   const fpConfig = toConfig(fp, targetOs, browserType);
+
+  // Persona overrides: apply coherent per-session fingerprint values.
+  if (persona) {
+    const n = fpConfig.navigator ?? {};
+    n.platform = persona.platform;
+    n.hardwareConcurrency = persona.hardwareConcurrency;
+    n.language = persona.language;
+    n.languages = [persona.language];
+    fpConfig.screen = { ...(fpConfig.screen ?? {}), width: persona.screen.width, height: persona.screen.height, availWidth: persona.screen.width, availHeight: persona.screen.height - 40, colorDepth: 24, pixelDepth: 24 };
+    fpConfig.window = { ...(fpConfig.window ?? {}), devicePixelRatio: persona.screen.dpr, outerWidth: persona.screen.width + 2, outerHeight: persona.screen.height + 80, screenX: 10, screenY: 10 };
+    fpConfig.webgl = { ...(fpConfig.webgl ?? {}), vendor: isChromium ? 'Google Inc.' : 'Mozilla', renderer: persona.gpu.renderer, unmaskedVendor: persona.gpu.vendor, unmaskedRenderer: persona.gpu.renderer };
+    (fpConfig.canvas as any) = { ...(fpConfig.canvas ?? {}), noiseSeed: persona.canvasSeed };
+  }
+
   const initScript = buildInitScript(fpConfig, options.excludeScripts);
 
   const nav = fpConfig.navigator ?? {};
 
+  const viewW = persona?.screen.width ?? 1920;
+  const viewH = persona?.screen.height ?? 1080;
+  const dpr = persona?.screen.dpr ?? 1;
+
   const ctxOpts: Record<string, any> = {
     userAgent: nav.userAgent,
-    viewport: { width: 1920, height: 1080 },
-    screen: { width: 1920, height: 1080 },
-    deviceScaleFactor: 1,
+    viewport: { width: viewW, height: viewH },
+    screen: { width: viewW, height: viewH },
+    deviceScaleFactor: dpr,
+    timezoneId: persona?.timezone,
+    locale: persona?.language,
   };
 
   if (options.locale) ctxOpts.locale = options.locale;
@@ -99,7 +122,9 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
     }
 
     // Custom Chromium handles userAgent/screen via C++ — only pass viewport, proxy, recordVideo
-    const customCtxOpts: Record<string, any> = { viewport: { width: 1920, height: 1080 } };
+    const customCtxOpts: Record<string, any> = { viewport: { width: viewW, height: viewH }, deviceScaleFactor: dpr };
+    if (persona?.timezone) customCtxOpts.timezoneId = persona.timezone;
+    if (persona?.language) customCtxOpts.locale = persona.language;
     if (ctxOpts.proxy) { customCtxOpts.proxy = ctxOpts.proxy; customCtxOpts.ignoreHTTPSErrors = true; }
     if (ctxOpts.recordVideo) customCtxOpts.recordVideo = ctxOpts.recordVideo;
     console.log(`[async_api] Context opts: ${JSON.stringify(customCtxOpts, (k, v) => k === 'password' ? '***' : v)}`);

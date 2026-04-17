@@ -5,6 +5,7 @@
 
 import { type BrowserContext, chromium } from 'playwright';
 import { AsyncNewBrowser, type AsyncNewBrowserOptions } from '../async_api.js';
+import type { Persona } from '../browser/persona.js';
 import { SessionStore } from './store.js';
 import { Capture } from '../capture/capture.js';
 import { findClickTarget, askPage, checkPage, type ScreenshottablePage } from '../vision/analyze.js';
@@ -39,6 +40,9 @@ export interface WSessionOptions {
   headless?: boolean;
   record?: boolean;
   cdpEndpoint?: string;
+  os?: string;
+  locale?: string;
+  persona?: Persona;
 }
 
 const asV = (p: any) => p as unknown as ScreenshottablePage;
@@ -107,7 +111,7 @@ export class WSession {
       const ctx = browser.contexts()[0] || await browser.newContext({ locale: 'en-US' }); const page = ctx.pages()[0] || await ctx.newPage();
       return new WSession(ctx, page, label, new Capture({ newPage: async () => page } as any, label ? recordingsDir(label) : undefined));
     }
-    const bOpts: AsyncNewBrowserOptions = { os: 'macos', browser: 'chromium', headless: opts.headless ?? false, recordVideo: opts.record ?? true };
+    const bOpts: AsyncNewBrowserOptions = { os: opts.persona?.os ?? opts.os ?? 'macos', browser: 'chromium', headless: opts.headless ?? false, recordVideo: opts.record ?? true, locale: opts.locale, persona: opts.persona };
     const chromiumPath = opts.chromiumPath ?? process.env.CHROMIUM_PATH ?? findCustomChromium();
     if (!chromiumPath) throw new Error('Custom Chromium not found. Set CHROMIUM_PATH or install to a known location.');
     bOpts.chromiumPath = chromiumPath;
