@@ -113,9 +113,21 @@ export async function resolveProxy(proxy: string): Promise<{ server: string; use
   const providers = await res.json() as Row[];
 
   const typeFilter = proxy.toLowerCase();
-  const filtered = typeFilter === 'residential' ? providers.filter(p => !p.display_name.toLowerCase().includes('mobile'))
+  let filtered = typeFilter === 'residential' ? providers.filter(p => !p.display_name.toLowerCase().includes('mobile'))
     : typeFilter === 'mobile' ? providers.filter(p => p.display_name.toLowerCase().includes('mobile'))
     : providers;
+
+  // Allow explicit provider name targeting (e.g. 'pingproxies', 'packetstream', 'oxylabs')
+  const KNOWN_PROVIDERS = ['oxylabs', 'packetstream', 'pingproxies', 'iproyal', 'brightdata'];
+  const explicit = KNOWN_PROVIDERS.find(n => typeFilter.includes(n));
+  if (explicit) filtered = filtered.filter(p => p.display_name.toLowerCase().includes(explicit));
+
+  // Shuffle so each call rotates across providers instead of always picking highest balance.
+  // Important for sites (e.g. TikTok) that rate-limit per-provider IP pool rather than per-IP.
+  for (let i = filtered.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [filtered[i], filtered[j]] = [filtered[j], filtered[i]];
+  }
 
   for (const p of filtered) {
     const envUser = p.api_key_env_var;
