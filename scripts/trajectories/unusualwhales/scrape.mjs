@@ -34,7 +34,8 @@ const PAGE_URLS = {
   overview: (t) => `https://unusualwhales.com/stock/${t}/overview`,
   flow: (t) => `https://unusualwhales.com/stock/${t}/flow-overview`,
   darkpool: (t) => `https://unusualwhales.com/stock/${t}/dark-pool`,
-  gex: (t) => `https://unusualwhales.com/stock/${t}/greek-exposure`,
+  greeks: (t) => `https://unusualwhales.com/stock/${t}/greeks`,
+  chains: (t) => `https://unusualwhales.com/stock/${t}/option-chains`,
 };
 if (!PAGE_URLS[page]) {
   console.error(`FAIL: unknown page '${page}', must be one of: ${Object.keys(PAGE_URLS).join(', ')}`);
