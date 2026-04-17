@@ -64,13 +64,17 @@ async function signup(s) {
     const code = await s.checkEmail(id.email, 'instagram');
     console.log(`[ig] email code: ${code}`);
     // Try regular input first, then individual digit inputs
-    // Fill code — find the only enabled text input on the page and use keyboard
-    await s.page.evaluate(`(() => { var inputs = document.querySelectorAll('input[type="text"]:not([disabled]), input:not([type]):not([disabled])'); for (var inp of inputs) { if (inp.offsetParent !== null) { inp.focus(); inp.click(); return; } } })()`).catch(() => {});
-    await sleep(1);
-    await s.page.keyboard.type(code, { delay: 50 }).catch(() => {});
+    // Fill code via React-compatible native setter + submit via Continue button
+    await s.page.evaluate(`((code) => { var inp = document.querySelector('input[maxlength="6"]'); if (!inp) { var inputs = Array.from(document.querySelectorAll('input[type="text"]')); inp = inputs.find(i => !i.disabled && !i.value && i.offsetParent); } if (inp) { var set = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set; set.call(inp, code); inp.dispatchEvent(new Event('input', {bubbles:true})); inp.dispatchEvent(new Event('change', {bubbles:true})); } })("${code}")`).catch(() => {});
     await sleep(2);
-    await s.page.evaluate(`(() => { var b = document.querySelector('button[type="button"]:not([disabled])'); var bs = document.querySelectorAll('button'); for (var btn of bs) { if (!btn.disabled && btn.textContent.trim() && btn.offsetParent) { btn.click(); return; } } })()`).catch(() => {});
-    await sleep(5);
+    // Click Continue (Instagram's submit button on code page)
+    await s.page.evaluate(`(() => { var btns = document.querySelectorAll('[role="button"]'); for (var b of btns) { var t = b.textContent.trim(); if (t === 'Continue' || t === 'Next' || t === 'Confirm') { b.click(); return; } } })()`).catch(() => {});
+    // Wait for page to transition away from code page
+    for (let w = 0; w < 15; w++) {
+      await sleep(2);
+      const tt = await readPage(s);
+      if (!tt.includes('confirmation code')) { console.log(`[ig] code accepted after ${w * 2}s`); break; }
+    }
   }
 
   // Handle "confirm you're human" captcha or skip onboarding
@@ -80,10 +84,33 @@ async function signup(s) {
     const t = await readPage(s);
     console.log(`[ig] onboarding ${i}: url=${url.slice(-30)} text=${t.slice(0, 60).replace(/\n/g, ' ')}`);
     if (url.includes('/explore') || url.includes('/direct') || url.includes('/accounts/onetap') || t.includes('suggested for you')) break;
+    // Phone verification — check BEFORE captcha (both pages share /suspended/ URL)
+    if (t.includes('mobile number') || t.includes('phone number') || t.includes('enter your mobile')) {
+      console.log('[ig] phone verification required');
+      const phone = await s.checkSms('instagram', 'UK');
+      console.log(`[ig] SMS: ${phone}`);
+      await s.fill('Phone', s.resolveEnv('$INSTAGRAM_NEW_PHONE')).catch(() => {});
+      await sleep(1);
+      await s.click('Next').catch(() => {});
+      await s.press('Enter').catch(() => {});
+      await sleep(10);
+      const smsCode = await s.pollSmsCode();
+      console.log(`[ig] SMS code: ${smsCode}`);
+      if (smsCode && smsCode !== 'no code received') {
+        await s.fill('code', smsCode).catch(() => {});
+        await s.fill('Confirmation', smsCode).catch(() => {});
+        await sleep(1);
+        await s.click('Next').catch(() => {});
+        await s.press('Enter').catch(() => {});
+        await sleep(5);
+      }
+      continue;
+    }
     // Image text captcha — screenshot the image, send to solver
     if (t.includes('confirm that you') || t.includes('enter the code from the image') || url.includes('/suspended')) {
       console.log('[ig] captcha page detected');
-      await s.click('Continue').catch(() => {});
+      // JS click to avoid mouse.move crash on Instagram's heavy page
+      await s.page.evaluate(`(() => { var btns = document.querySelectorAll('[role="button"]'); for (var b of btns) { if (b.textContent.trim() === 'Continue') { b.click(); return; } } })()`).catch(() => {});
       await sleep(3);
       const t2 = await readPage(s);
       if (t2.includes('enter the code from the image') || t2.includes('hear this code')) {
@@ -110,9 +137,8 @@ async function signup(s) {
       }
       continue;
     }
-    await s.click('Skip').catch(() => {});
-    await s.click('Not now').catch(() => {});
-    await s.click('Next').catch(() => {});
+    // JS clicks to avoid mouse.move crash
+    await s.page.evaluate(`(() => { var btns = document.querySelectorAll('[role="button"], a[role="button"]'); for (var b of btns) { var t = b.textContent.trim(); if (t === 'Skip' || t === 'Not now' || t === 'Not Now' || t === 'Next') { b.click(); return; } } })()`).catch(() => {});
     await sleep(2);
   }
 
