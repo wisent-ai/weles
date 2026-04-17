@@ -87,21 +87,25 @@ async function signup(s) {
     // Phone verification — check BEFORE captcha (both pages share /suspended/ URL)
     if (t.includes('mobile number') || t.includes('phone number') || t.includes('enter your mobile')) {
       console.log('[ig] phone verification required');
-      const phone = await s.checkSms('instagram', 'UK');
+      const phone = await s.checkSms('instagram', 'US');
       console.log(`[ig] SMS: ${phone}`);
-      await s.fill('Phone', s.resolveEnv('$INSTAGRAM_NEW_PHONE')).catch(() => {});
-      await sleep(1);
-      await s.click('Next').catch(() => {});
-      await s.press('Enter').catch(() => {});
+      if (phone.startsWith('error')) { console.log('[ig] no SMS number, skipping'); continue; }
+      const phoneNum = s.resolveEnv('$INSTAGRAM_NEW_PHONE');
+      // Strip country prefix — Instagram's form already has a country selector (US +1)
+      const localNum = phoneNum.replace(/^\+1/, '').replace(/^\+44/, '').replace(/^\+31/, '').replace(/^\+49/, '');
+      console.log(`[ig] phone local: ${localNum} (from ${phoneNum})`);
+      // JS fill for phone input (avoid crash)
+      await s.page.evaluate(`((ph) => { var inp = document.querySelector('input[type="tel"], input[name="phone"]'); if (!inp) { var inputs = Array.from(document.querySelectorAll('input[type="text"]')); inp = inputs.find(i => !i.disabled && !i.value && i.offsetParent); } if (inp) { var set = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set; set.call(inp, ph); inp.dispatchEvent(new Event('input', {bubbles:true})); inp.dispatchEvent(new Event('change', {bubbles:true})); } })("${localNum}")`).catch(() => {});
+      await sleep(2);
+      await s.page.evaluate(`(() => { var btns = document.querySelectorAll('[role="button"]'); for (var b of btns) { var t = b.textContent.trim(); if (t === 'Send Code' || t === 'Send code' || t === 'Next' || t === 'Continue') { b.click(); return; } } })()`).catch(() => {});
       await sleep(10);
       const smsCode = await s.pollSmsCode();
       console.log(`[ig] SMS code: ${smsCode}`);
-      if (smsCode && smsCode !== 'no code received') {
-        await s.fill('code', smsCode).catch(() => {});
-        await s.fill('Confirmation', smsCode).catch(() => {});
-        await sleep(1);
-        await s.click('Next').catch(() => {});
-        await s.press('Enter').catch(() => {});
+      if (smsCode && smsCode !== 'no code received' && !s.page.isClosed?.()) {
+        console.log(`[ig] filling SMS code ${smsCode}`);
+        await s.page.evaluate(`((code) => { var inp = document.querySelector('input[maxlength="6"]'); if (!inp) { var inputs = Array.from(document.querySelectorAll('input[type="text"]')); inp = inputs.find(i => !i.disabled && !i.value && i.offsetParent); } if (inp) { var set = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set; set.call(inp, code); inp.dispatchEvent(new Event('input', {bubbles:true})); inp.dispatchEvent(new Event('change', {bubbles:true})); } })("${smsCode}")`).catch(() => {});
+        await sleep(2);
+        await s.page.evaluate(`(() => { var btns = document.querySelectorAll('[role="button"]'); for (var b of btns) { var t = b.textContent.trim(); if (t === 'Next' || t === 'Continue' || t === 'Confirm') { b.click(); return; } } })()`).catch(() => {});
         await sleep(5);
       }
       continue;
