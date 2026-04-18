@@ -125,18 +125,30 @@ try {
         let currentRqtoken = captchaData.captcha_rqtoken;
 
         // Build proxy fields for captcha service
+        // Local proxies use CAPTCHA_PROXY_URL (public tunnel) if available, otherwise proxyless
         const proxyFields = {};
-        if (proxy) {
+        const isLocalProxy = proxy && (proxy.server.includes('127.0.0.1') || proxy.server.includes('localhost'));
+        const captchaProxyUrl = process.env.CAPTCHA_PROXY_URL;
+        let useProxy = false;
+        if (isLocalProxy && captchaProxyUrl) {
+          const cu = new globalThis.URL(captchaProxyUrl);
+          Object.assign(proxyFields, { proxyType: 'http', proxyAddress: cu.hostname, proxyPort: parseInt(cu.port, 10), proxyLogin: cu.username ? decodeURIComponent(cu.username) : undefined, proxyPassword: cu.password ? decodeURIComponent(cu.password) : undefined });
+          console.log(`[test] Captcha via tunnel proxy: ${cu.hostname}:${cu.port}`);
+          useProxy = true;
+        } else if (proxy && !isLocalProxy) {
           const u = new globalThis.URL(proxy.server);
           let gwIp = u.hostname;
           try { const dns = await import('node:dns'); gwIp = await new Promise((res, rej) => dns.lookup(u.hostname, (e, a) => e ? rej(e) : res(a))); } catch {}
           Object.assign(proxyFields, { proxyType: 'http', proxyAddress: gwIp, proxyPort: parseInt(u.port, 10), proxyLogin: proxy.username, proxyPassword: proxy.password });
           console.log(`[test] Proxy for captcha: ${gwIp}:${u.port} user=${proxy.username?.slice(0, 20)}`);
+          useProxy = true;
+        } else if (isLocalProxy) {
+          console.log(`[test] Local proxy, no CAPTCHA_PROXY_URL — solving proxyless`);
         }
 
         for (let attempt = 0; attempt < 3; attempt++) {
-          const taskType = proxy ? 'HCaptchaTask' : 'HCaptchaTaskProxyless';
-          const task = { type: svc.name === 'capsolver' ? (proxy ? 'HCaptchaTask' : 'HCaptchaTaskProxyLess') : taskType,
+          const taskType = useProxy ? 'HCaptchaTask' : 'HCaptchaTaskProxyless';
+          const task = { type: svc.name === 'capsolver' ? (useProxy ? 'HCaptchaTask' : 'HCaptchaTaskProxyLess') : taskType,
             websiteURL: 'https://discord.com/register', websiteKey: captchaData.captcha_sitekey,
             isEnterprise: true, enterprisePayload: { rqdata: currentRqdata },
             userAgent: ua, ...proxyFields };
