@@ -26,18 +26,18 @@ if (process.env.TIKTOK_HARDCODED !== '1') {
   for (let retry = 0; retry < 3; retry++) {
     if (s) { await s.close().catch(() => {}); s = null; }
 
-    s = await WSession.start({ label: 'tiktok_register', proxy: process.env.PROXY_URL || 'residential', persona: generatePersona({ country: 'US' }) });
+    s = await WSession.start({ label: 'tiktok_register', proxy: process.env.PROXY_URL || 'residential', persona: generatePersona({ country: 'US', browser: process.env.FORCE_BROWSER }) });
     try {
       // Fresh identity per retry — don't reuse emails across failed runs
       id = await s.generateIdentity('tiktok');
-      // Use a simple password pattern TikTok accepts: letters + numbers + special chars, ~14 chars
-      const rnd = Math.floor(Math.random() * 100000);
-      password = `Wisent${rnd}!Xy`;
+      // NO fixed prefix — TikTok decodes body; recurring prefix = counter key.
+      const pfx = String.fromCharCode(65+Math.floor(Math.random()*26)) + Array.from({length:7},()=>String.fromCharCode(97+Math.floor(Math.random()*26))).join('');
+      password = pfx + (100+Math.floor(Math.random()*900)) + '!@#$%&*'[Math.floor(Math.random()*7)];
       console.log(`[test] attempt ${retry + 1}: identity=${id.username} <${id.email}> bday=${id.birthMonth}/${id.birthDay}/${id.birthYear}`);
 
       // Full request+response logging for interesting endpoints.
       // Focus on /region/ since that's where brendawatsica had len=204 (with captcha_domain) and current has len=23.
-      const interesting = (u) => /send_code|check_code|passport\/web\/region|verification\/age|captcha/.test(u || '');
+      const interesting = (u) => /send_code|check_code|passport\/web\/region|passport\/web\/email|passport\/web\/user\/register|passport\/web\/register|verification\/age|captcha|verify/.test(u || '');
       s.page.on('request', (req) => {
         const u = req.url();
         if (!interesting(u)) return;
@@ -61,8 +61,8 @@ if (process.env.TIKTOK_HARDCODED !== '1') {
         console.log(`[res-hdrs] ${hdrJson.slice(0, 600)}`);
       });
 
-      await s.goto(URL);
-      await s.wait(3);
+      for (const u of ['https://www.tiktok.com/','https://www.tiktok.com/explore']) { await s.page.goto(u,{waitUntil:'domcontentloaded'}).catch(()=>{}); await s.wait(3); }
+      await s.goto(URL); await s.wait(3);
 
       // Verify page is alive
       const alive = await s.page.evaluate('document.querySelector("body") !== null').catch(() => false);

@@ -15,6 +15,7 @@
 
 export interface Persona {
   os: 'macos' | 'windows' | 'linux';
+  browser: 'chromium' | 'firefox' | 'webkit';
   chromeVersion: string;
   userAgentOs: string;
   platform: string;
@@ -101,9 +102,13 @@ function pick<T>(arr: T[]): T { return arr[Math.floor(Math.random() * arr.length
  * @param opts.os       Force a specific OS; by default sampled ~70% Windows,
  *                      25% macOS, 5% Linux to match real web traffic shape.
  */
-export function generatePersona(opts: { country?: string; os?: Persona['os'] } = {}): Persona {
+export function generatePersona(opts: { country?: string; os?: Persona['os']; browser?: Persona['browser'] } = {}): Persona {
   const r = Math.random();
   const os: Persona['os'] = opts.os ?? (r < 0.70 ? 'windows' : r < 0.95 ? 'macos' : 'linux');
+  // Browser rotation = TLS/HTTP2 fingerprint rotation. Chromium uses BoringSSL,
+  // Firefox uses NSS — different JA3/JA4. webkit rarely used but valid on macOS.
+  const br = Math.random();
+  const browser: Persona['browser'] = opts.browser ?? (br < 0.60 ? 'chromium' : 'firefox');
 
   const gpu = os === 'macos' ? pick(MACOS_GPUS) : os === 'windows' ? pick(WINDOWS_GPUS) : pick(LINUX_GPUS);
   const screen = os === 'macos' ? pick(MACOS_SCREENS) : os === 'windows' ? pick(WINDOWS_SCREENS) : pick(LINUX_SCREENS);
@@ -124,10 +129,10 @@ export function generatePersona(opts: { country?: string; os?: Persona['os'] } =
   const chromeVersion = pick(CHROME_VERSIONS);
 
   const rendererShort = gpu.renderer.match(/Apple M\d[^,)]*|UHD Graphics \d+|GTX \d+|RTX \d+|Radeon [A-Z]+ ?\d+|Iris[^,)]*/)?.[0] ?? 'GPU';
-  console.log(`[persona] os=${os} gpu=${rendererShort} screen=${screen.width}x${screen.height}@${screen.dpr} tz=${locale.tz} lang=${locale.lang}`);
+  console.log(`[persona] os=${os} browser=${browser} gpu=${rendererShort} screen=${screen.width}x${screen.height}@${screen.dpr} tz=${locale.tz} lang=${locale.lang}`);
 
   return {
-    os, chromeVersion, userAgentOs, platform, gpu, screen,
+    os, browser, chromeVersion, userAgentOs, platform, gpu, screen,
     hardwareConcurrency, audioSampleRate,
     timezone: locale.tz, language: locale.lang, canvasSeed,
   };

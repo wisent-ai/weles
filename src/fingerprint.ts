@@ -164,8 +164,13 @@ export function toConfig(
       unmaskedVendor: WEBGL_UNMASKED_VENDORS[targetOs] ?? WEBGL_UNMASKED_VENDORS.macos,
       unmaskedRenderer: WEBGL_RENDERERS[targetOs] ?? WEBGL_RENDERERS.macos,
     },
-    canvas: { noiseSeed: Math.floor(Math.random() * 2 ** 31) + 1 },
-    audio: { noiseSeed: Math.floor(Math.random() * 2 ** 31) + 1 },
+    // Canvas noise intentionally disabled: the LSB-flip noise (image_data_buffer.cc
+    // NoiseCanvasPixmap) was a 4x-sized, high-entropy data URL vs real Chrome 147
+    // on the same Mac. TikTok's mssdk compares canvas hashes to a Chrome baseline;
+    // our noised output never matches, which is itself the fingerprint. Off → the
+    // canvas renders identically to stock Chrome for this machine.
+    canvas: {},
+    audio: {},
   };
 }
 
@@ -180,7 +185,11 @@ export function toCppConfig(config: FingerprintConfig, targetOs = 'macos'): Reco
   const webgl = config.webgl;
   let ua = nav.userAgent ?? '';
   const realVersion = detectChromiumVersion();
-  if (ua && realVersion) ua = ua.replace(/Chrome\/\d+\.\d+\.\d+\.\d+/, `Chrome/${realVersion}`);
+  // UA Reduction: real Chrome 101+ reports Chrome/<major>.0.0.0 in navigator.userAgent,
+  // not the full four-part version. The full version is exposed only via client hints.
+  // Not following UA Reduction flags us against every real Chrome baseline.
+  const uaMajor = (realVersion ?? CHROME_STABLE_VERSION).split('.')[0];
+  ua = ua.replace(/Chrome\/\d+\.\d+\.\d+\.\d+/, `Chrome/${uaMajor}.0.0.0`);
   // Strip anything after Safari/537.36 (removes LarkUrl, HeadlessChrome, etc)
   ua = ua.replace(/(Safari\/537\.36).*$/, '$1');
   const languages = [...(nav.languages ?? ['en-US'])];
@@ -200,8 +209,11 @@ export function toCppConfig(config: FingerprintConfig, targetOs = 'macos'): Reco
     webgl: { unmaskedVendor: webgl.unmaskedVendor, unmaskedRenderer: webgl.unmaskedRenderer },
     canvas: config.canvas, audio: config.audio,
     clientHints: { platform: chPlatform, platformVersion: chPlatformVersion, architecture: 'x86', bitness: '64', model: '', mobile: false, wow64: false, fullVersion,
-      brandList: [{ brand: 'Not.A/Brand', version: '8' }, { brand: 'Chromium', version: major }],
-      brandFullVersionList: [{ brand: 'Not.A/Brand', version: '8.0.0.0' }, { brand: 'Chromium', version: fullVersion }],
+      // Real Chrome advertises THREE brands: Not.A/Brand, Chromium, Google Chrome
+      // (all with the same major version). Missing "Google Chrome" is a well-known
+      // tell that flags stock Chromium / automation browsers.
+      brandList: [{ brand: 'Not.A/Brand', version: '8' }, { brand: 'Chromium', version: major }, { brand: 'Google Chrome', version: major }],
+      brandFullVersionList: [{ brand: 'Not.A/Brand', version: '8.0.0.0' }, { brand: 'Chromium', version: fullVersion }, { brand: 'Google Chrome', version: fullVersion }],
     },
   };
 }

@@ -101,12 +101,21 @@ if (__weles.screen) {
 if (__weles.window) {
   const win = __weles.window;
   const define = window.__welesDefine;
-  for (const prop of ['outerWidth', 'outerHeight', 'screenX', 'screenY', 'devicePixelRatio']) {
+  const winProps = 'outerWidth outerHeight screenX screenY devicePixelRatio'.split(' ');
+  for (const prop of winProps) {
     if (win[prop] !== undefined) {
       const val = win[prop];
       define(window, prop, function() { return val; });
     }
   }
+  // Also spoof innerWidth/innerHeight so outerH - innerH = sane toolbar height.
+  // Without this, persona picks e.g. 2560x1600 (→ outerH = 1680) but the host Mac's
+  // physical display clamps actual window to 982px, so real innerHeight stays 982
+  // while spoofed outerHeight reports 1680. Inconsistent → fingerprint tell.
+  if (win.innerWidth !== undefined) { const v = win.innerWidth; define(window, 'innerWidth', function() { return v; }); }
+  else if (win.outerWidth !== undefined) { const v = win.outerWidth - 2; define(window, 'innerWidth', function() { return v; }); }
+  if (win.innerHeight !== undefined) { const v = win.innerHeight; define(window, 'innerHeight', function() { return v; }); }
+  else if (win.outerHeight !== undefined) { const v = win.outerHeight - 80; define(window, 'innerHeight', function() { return v; }); }
 }
 
 // --- Timezone ---

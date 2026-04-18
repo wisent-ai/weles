@@ -19,6 +19,13 @@ const CHROMIUM_ARGS = [
   '--no-sandbox',
   '--disable-setuid-sandbox',
   '--disable-infobars',
+  // HTTP/2, QUIC, TLS1.3 early data, DNS-HTTPS records, and HTTPS Upgrades
+  // are ALL enabled in real Chrome 147. Disabling them here — a past workaround
+  // for PacketStream proxies dropping h2 frames — emits distinctive fingerprints
+  // (ALPN without h2, missing TLS `application_settings` (17613) extension,
+  // akamaiH2 fingerprint absent). TikTok and Akamai both flag this. If a proxy
+  // provider breaks with h2, switch providers for that flow (Oxylabs residential
+  // + mobile tunnel HTTP/2 fine) rather than globally disabling it.
 ];
 
 export interface AsyncNewBrowserOptions {
@@ -36,7 +43,7 @@ export interface AsyncNewBrowserOptions {
 export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Promise<BrowserContext> {
   const persona = options.persona;
   const targetOs = persona?.os ?? options.os ?? 'macos';
-  const browserType = options.browser ?? 'chromium';
+  const browserType = persona?.browser ?? options.browser ?? 'chromium';
   const isChromium = browserType === 'chromium';
   const headless = options.headless ?? false;
 
@@ -53,7 +60,10 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
     fpConfig.screen = { ...(fpConfig.screen ?? {}), width: persona.screen.width, height: persona.screen.height, availWidth: persona.screen.width, availHeight: persona.screen.height - 40, colorDepth: 24, pixelDepth: 24 };
     fpConfig.window = { ...(fpConfig.window ?? {}), devicePixelRatio: persona.screen.dpr, outerWidth: persona.screen.width + 2, outerHeight: persona.screen.height + 80, screenX: 10, screenY: 10 };
     fpConfig.webgl = { ...(fpConfig.webgl ?? {}), vendor: isChromium ? 'Google Inc.' : 'Mozilla', renderer: persona.gpu.renderer, unmaskedVendor: persona.gpu.vendor, unmaskedRenderer: persona.gpu.renderer };
-    (fpConfig.canvas as any) = { ...(fpConfig.canvas ?? {}), noiseSeed: persona.canvasSeed };
+    // Canvas noise intentionally NOT applied — see fingerprint.ts. The LSB-flip
+    // makes our canvas data URL 4x the size of real Chrome for the same content,
+    // which TikTok mssdk flags. We leave canvas unmodified so the bitmap matches
+    // stock Chrome on this GPU.
   }
 
   const initScript = buildInitScript(fpConfig, options.excludeScripts);
@@ -103,23 +113,50 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
     const fpFile = join(fpDir, 'config.json');
     writeFileSync(fpFile, JSON.stringify(cppConfig));
     args.push(`--weles-fingerprint=${fpFile}`);
+    // Diagnostics opt-in via env (WELES_CHROMIUM_NETLOG=1 writes per-launch
+    // netlog + verbose stderr). Off by default — netlogs grow to 100+ MB and
+    // filled the disk during extended signup sessions.
+    const diagDir = join(process.cwd(), 'recordings');
+    let netLogPath = '';
+    if (process.env.WELES_CHROMIUM_NETLOG === '1') {
+      netLogPath = join(diagDir, `netlog_${Date.now()}_${Math.floor(Math.random() * 1e6)}.json`);
+      args.push('--enable-logging=stderr');
+      args.push('--v=1');
+      args.push('--vmodule=*/net/*=2,*/proxy*=2,*/http/*=2');
+      args.push(`--log-net-log=${netLogPath}`);
+      args.push('--net-log-capture-mode=Everything');
+    }
+    // Opt-in HTTP/1.1-only mode. Residential proxy relays (PacketStream,
+    // Oxylabs rotating) sometimes silently drop HTTP/2 frames inside a
+    // CONNECT tunnel — tunnel 200s fine, then the GET hangs 30-60s.
+    // Enable per-flow via WELES_DISABLE_HTTP2=1 when using a proxy that
+    // breaks h2. Keeps h2 on by default so TikTok's mssdk / Akamai h2
+    // fingerprints match stock Chrome.
+    if (process.env.WELES_DISABLE_HTTP2 === '1') {
+      args.push('--disable-http2');
+      args.push('--disable-quic');
+    }
     launchOpts.args = args;
-    launchOpts.ignoreDefaultArgs = ['--enable-automation', '--enable-unsafe-swiftshader'];
+    // Re-enable breakpad so crash dumps appear in ~/Library/Logs/DiagnosticReports.
+    // Playwright adds --disable-breakpad by default, which suppresses them entirely.
+    launchOpts.ignoreDefaultArgs = ['--enable-automation', '--enable-unsafe-swiftshader', '--disable-breakpad'];
     console.log(`[async_api] Launching custom Chromium: ${chromiumPath}`);
     console.log(`[async_api] headless=${headless} proxy=${!!options.proxy} recordVideo=${recordVideo}`);
     console.log(`[async_api] fingerprint config: ${fpFile}`);
+    if (netLogPath) console.log(`[async_api] netlog: ${netLogPath}`);
     const pwBrowser = await chromium.launch(launchOpts);
-    const pid = (pwBrowser as any).process?.()?.pid;
-    console.log(`[async_api] Browser launched, PID=${pid}`);
-
-    // Capture Chromium stderr for crash/error diagnostics
     const proc = (pwBrowser as any).process?.();
-    if (proc?.stderr) {
-      proc.stderr.on('data', (chunk: Buffer) => {
-        const line = chunk.toString().trim();
-        if (line) console.log(`[chromium:stderr] ${line.slice(0, 1000)}`);
-      });
+    const pid = proc?.pid;
+    console.log(`[async_api] Browser launched, PID=${pid} hasProc=${!!proc} hasStdout=${!!proc?.stdout} hasStderr=${!!proc?.stderr}`);
+
+    if (proc?.stderr) proc.stderr.on('data', (c: Buffer) => { const l = c.toString().trim(); if (l) console.log(`[chromium:stderr] ${l.slice(0, 1000)}`); });
+    if (proc?.stdout) proc.stdout.on('data', (c: Buffer) => { const l = c.toString().trim(); if (l) console.log(`[chromium:stdout] ${l.slice(0, 1000)}`); });
+    if (proc) {
+      proc.on('exit', (code: number | null, signal: string | null) => console.log(`[chromium:exit] code=${code} signal=${signal} pid=${pid}`));
+      proc.on('close', (code: number | null, signal: string | null) => console.log(`[chromium:close] code=${code} signal=${signal}${netLogPath ? ' netlog=' + netLogPath : ''}`));
+      proc.on('error', (err: Error) => console.log(`[chromium:error] ${err.message}`));
     }
+    pwBrowser.on('disconnected', () => console.log(`[chromium:disconnected] pwBrowser disconnected pid=${pid}`));
 
     // Custom Chromium handles userAgent/screen via C++ — only pass viewport, proxy, recordVideo
     const customCtxOpts: Record<string, any> = { viewport: { width: viewW, height: viewH }, deviceScaleFactor: dpr };
@@ -133,7 +170,11 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
     console.log(`[async_api] Context created`);
     await context.addInitScript(`try{var _og=navigator.credentials.get.bind(navigator.credentials);navigator.credentials.get=function(o){return o&&o.publicKey?new Promise(function(){}):_og(o)}}catch(e){}`);
     // Arkose: capture iframe data via MutationObserver
-    await context.addInitScript(`try{window.__arkoseData=null;new MutationObserver(function(m){m.forEach(function(r){r.addedNodes.forEach(function(n){if(n.tagName==='IFRAME'&&n.id==='arkoseFrame'){var s=n.getAttribute('src')||'';var pk=(s.match(/\\/([A-F0-9-]{36})\\//)||[])[1]||'';var bl=(s.match(/[?&]data=([^&]+)/)||[])[1]||'';window.__arkoseData={publicKey:pk,blob:decodeURIComponent(bl),subdomain:(new URL(s)).origin,ts:Date.now()};console.log('[arkose] captured pkey='+pk.slice(0,12))}})})}).observe(document.documentElement,{childList:true,subtree:true})}catch(e){}`);
+    // Arkose iframe-data observer. Do NOT pre-create window.__arkoseData — that
+    // shows up as an extra own-window property on every page, including about:blank
+    // and TikTok, and fingerprint diffs flag it. Only materialize the property when
+    // an Arkose iframe actually appears.
+    await context.addInitScript(`try{new MutationObserver(function(m){m.forEach(function(r){r.addedNodes.forEach(function(n){if(n.tagName==='IFRAME'&&n.id==='arkoseFrame'){var s=n.getAttribute('src')||'';var pk=(s.match(/\\/([A-F0-9-]{36})\\//)||[])[1]||'';var bl=(s.match(/[?&]data=([^&]+)/)||[])[1]||'';window.__arkoseData={publicKey:pk,blob:decodeURIComponent(bl),subdomain:(new URL(s)).origin,ts:Date.now()};console.log('[arkose] captured pkey='+pk.slice(0,12))}})})}).observe(document.documentElement,{childList:true,subtree:true})}catch(e){}`);
     // Intercept fetch to capture captcha data from API responses (Discord/hCaptcha Enterprise pattern)
     await context.addInitScript(`try{var _of=window.fetch;window.fetch=function(){var u=arguments[0],o=arguments[1]||{};if(typeof u==='string'&&u.includes('/auth/register')&&o.method==='POST'){try{window.__weles_form_data=JSON.parse(o.body)}catch(e){}try{var h=o.headers||{};window.__weles_extra_headers={};for(var k in h){if(k.startsWith('x-'))window.__weles_extra_headers[k]=h[k]}}catch(e){}}return _of.apply(this,arguments).then(function(r){if(typeof u==='string'&&u.includes('/auth/register')&&r.status>=400){r.clone().json().then(function(d){if(d.captcha_key!==undefined)window.__weles_captcha_response=d}).catch(function(){})}return r})}}catch(e){}`);
     const origClose = context.close.bind(context);
