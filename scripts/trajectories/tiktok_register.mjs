@@ -205,13 +205,11 @@ if (process.env.TIKTOK_HARDCODED !== '1') {
       }
       console.log(`[test] Got code: ${code}`);
 
-      // Fill code
-      const codeResult = await fillField('6-digit code', code);
-      console.log(`[test] fill code: ${JSON.stringify(codeResult)}`);
-      if (!codeResult.ok) await s.fill('code', code);
-      await s.wait(1);
-      await s.page.keyboard.press('Tab').catch(() => {});
-      await s.wait(1);
+      // Type code char-by-char w/ variable delays — one burst via DOM setter looks
+      // unlike real typing; React form sees each keystroke as separate input event.
+      await s.page.click('input[placeholder*="digit" i], input[name="code"]').catch(() => {});
+      for (const ch of code) { await s.page.keyboard.type(ch); await new Promise(r => setTimeout(r, 80 + Math.floor(Math.random() * 140))); }
+      await s.page.keyboard.press('Tab').catch(() => {}); await s.wait(1);
 
       // Capture button position + install click listener BEFORE we click anything.
       // This tells us exactly where the Next button sits and which element actually received the click.
