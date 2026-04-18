@@ -23,7 +23,7 @@ function supabaseEnv(): { url: string; key: string } | null {
   return { url, key };
 }
 
-const MAX_SIGNUPS_PER_DOMAIN = 10;
+const MAX_SIGNUPS_PER_DOMAIN = 999; // Temporarily raised for domain limit testing
 
 async function pickFromDb(): Promise<string | null> {
   const sb = supabaseEnv();

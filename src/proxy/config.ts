@@ -105,11 +105,11 @@ export async function resolveProxy(proxy: string): Promise<{ server: string; use
   }
 
   const res = await fetch(
-    `${supabaseUrl}/rest/v1/service_credentials?category=eq.proxy&proxy_host=not.is.null&balance_usd=gt.0&select=display_name,proxy_host,proxy_port,api_key_env_var,balance_usd&order=balance_usd.desc`,
+    `${supabaseUrl}/rest/v1/service_credentials?category=eq.proxy&proxy_host=not.is.null&balance_usd=gt.0&select=display_name,proxy_host,proxy_port,api_key_env_var,balance_usd,metadata&order=balance_usd.desc`,
     { headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` } },
   );
   if (!res.ok) { console.log(`[proxy] Failed to fetch providers: ${res.status}`); return undefined; }
-  type Row = { display_name: string; proxy_host: string; proxy_port: string; api_key_env_var: string; balance_usd: number };
+  type Row = { display_name: string; proxy_host: string; proxy_port: string; api_key_env_var: string; balance_usd: number; metadata?: { country?: string } };
   const providers = await res.json() as Row[];
 
   const typeFilter = proxy.toLowerCase();
@@ -138,14 +138,15 @@ export async function resolveProxy(proxy: string): Promise<{ server: string; use
       console.log(`[proxy] Skipping ${p.display_name}: missing env ${envUser}/${envPass}`);
       continue;
     }
-    // Apply sticky session format per provider
+    // Apply sticky session format per provider, using metadata.country if set
     const sessId = Math.floor(Math.random() * 9000000 + 1000000);
     const name = p.display_name.toLowerCase();
+    const cc = (p.metadata?.country ?? 'us').toLowerCase();
     let stickyUser = username, stickyPass = password;
-    if (name.includes('oxylabs')) stickyUser = `customer-${username}-cc-us-sessid-${sessId}`;
-    else if (name.includes('packetstream')) stickyPass = `${password}_country-US_session-${sessId}`;
-    else if (name.includes('iproyal')) stickyPass = `${password}_country-us_session-${sessId}`;
-    else if (name.includes('pingproxies')) stickyUser = `${username}_c_us_s_${sessId}`;
+    if (name.includes('oxylabs')) stickyUser = `customer-${username}-cc-${cc}-sessid-${sessId}`;
+    else if (name.includes('packetstream')) stickyPass = `${password}_country-${cc.toUpperCase()}_session-${sessId}`;
+    else if (name.includes('iproyal')) stickyPass = `${password}_country-${cc}_session-${sessId}`;
+    else if (name.includes('pingproxies')) stickyUser = `${username}_c_${cc}_s_${sessId}`;
     // Resolve hostname to IP once so browser and captcha service use the same gateway
     let host = p.proxy_host;
     try { const dns = await import('node:dns'); host = await new Promise<string>((res, rej) => dns.lookup(p.proxy_host, (e: any, a: string) => e ? rej(e) : res(a))); } catch {}
