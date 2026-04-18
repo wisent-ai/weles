@@ -92,7 +92,14 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
   const recordVideo = options.recordVideo ?? (process.env.WELES_DISABLE_RECORDING !== '1');
   if (recordVideo) {
     const recDir = join(process.cwd(), 'recordings');
-    ctxOpts.recordVideo = { dir: recDir };
+    // Cap recorded frame size independently of viewport. At 1920x1080 every
+    // Arkose canvas repaint sends ~2MB of RGBA through Playwright's pipe for
+    // webm encoding; under heavy puzzle animation this saturates the CDP
+    // channel and the session disconnects mid-solve. 1280x720 cuts per-frame
+    // payload by 55% (2.07M px -> 0.92M px) which keeps the channel responsive
+    // while still producing a legible recording. Override via WELES_VIDEO_SIZE=WxH.
+    const [vw, vh] = (process.env.WELES_VIDEO_SIZE ?? '1280x720').split('x').map(n => parseInt(n, 10));
+    ctxOpts.recordVideo = { dir: recDir, size: { width: vw || 1280, height: vh || 720 } };
     try {
       const budget = parseInt(process.env.WELES_RECORDINGS_MAX_BYTES ?? String(2 * 1024 * 1024 * 1024), 10);
       pruneRecordings(recDir, budget);
@@ -168,6 +175,13 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
     const context = await pwBrowser.newContext(customCtxOpts);
     context.setDefaultNavigationTimeout(0);
     console.log(`[async_api] Context created`);
+    // NOTE: NOT calling `context.addInitScript(initScript)` here. Adding the stock
+    // navigator/webgl/automation JS spoofs on TOP of weles's C++ spoofing caused
+    // a regression — TikTok went from blocking at /register_verify_login/ to
+    // blocking at /region/. The custom binary already spoofs everything those
+    // scripts touch (UA, platform, hw concurrency, screen, WebGL renderer, canvas
+    // seed), and adding a second JS layer introduces a detectable mismatch in
+    // property descriptors (native accessor vs JS function).
     await context.addInitScript(`try{var _og=navigator.credentials.get.bind(navigator.credentials);navigator.credentials.get=function(o){return o&&o.publicKey?new Promise(function(){}):_og(o)}}catch(e){}`);
     // Arkose: capture iframe data via MutationObserver
     // Arkose iframe-data observer. Do NOT pre-create window.__arkoseData — that
