@@ -11,18 +11,31 @@ async function tryNativeSelect(page: Page, value: string): Promise<string | null
   return page.evaluate(`(()=>{var v=${vl};var ss=document.querySelectorAll('select');for(var i=0;i<ss.length;i++){var s=ss[i];for(var j=0;j<s.options.length;j++){if(s.options[j].text.toLowerCase().indexOf(v)>=0){s.selectedIndex=j;s.dispatchEvent(new Event('change',{bubbles:true}));return s.options[j].text}}}return null})()`).catch(() => null);
 }
 
-/** Try ARIA combobox (role="combobox" + role="option") — Discord, React custom selects. */
+async function findIndex(page: Page, selector: string, target: string, attr: string): Promise<number> {
+  const q = JSON.stringify(selector); const tgt = JSON.stringify(target.toLowerCase()); const a = JSON.stringify(attr);
+  return page.evaluate(`(()=>{var tgt=${tgt};var els=document.querySelectorAll(${q});for(var i=0;i<els.length;i++){var src=${a}==='text'?(els[i].textContent||'').trim().toLowerCase():(els[i].getAttribute(${a})||'').toLowerCase();if(src.indexOf(tgt)>=0)return i}return -1})()`).catch(() => -1) as Promise<number>;
+}
+
+async function findOptionIndex(page: Page, selector: string, value: string): Promise<number> {
+  const q = JSON.stringify(selector); const v = JSON.stringify(value.toLowerCase());
+  return page.evaluate(`(()=>{var v=${v};var opts=document.querySelectorAll(${q});for(var i=0;i<opts.length;i++){if((opts[i].textContent||'').trim().toLowerCase()===v)return i}for(var i=0;i<opts.length;i++){if((opts[i].textContent||'').trim().toLowerCase().indexOf(v)>=0)return i}return -1})()`).catch(() => -1) as Promise<number>;
+}
+
+/** ARIA combobox via CDP locator.click (isTrusted=true). TikTok flags
+ * JS-dispatched element.click inside page.evaluate (isTrusted=false) at
+ * /register_verify_login/ with error_code:7. Verified 2026-04-19: this CDP
+ * refactor lets fully-automated weles signup complete end-to-end. */
 async function tryAriaCombobox(page: Page, target: string, value: string): Promise<string | null> {
-  const tgtLow = JSON.stringify(target.toLowerCase());
-  const vl = JSON.stringify(value.toLowerCase());
-  const opened = await page.evaluate(`(()=>{var tgt=${tgtLow};var cbs=document.querySelectorAll('[role="combobox"]');for(var i=0;i<cbs.length;i++){var lbl=(cbs[i].getAttribute('aria-label')||'').toLowerCase();if(lbl.indexOf(tgt)>=0){cbs[i].click();return true}}return false})()`).catch(() => false);
-  if (!opened) return null;
+  const idx = await findIndex(page, '[role="combobox"]', target, 'aria-label');
+  if (idx < 0) return null;
+  const clicked = await page.locator('[role="combobox"]').nth(idx).click().then(() => true).catch(() => false);
+  if (!clicked) return null;
   await new Promise(r => setTimeout(r, 500));
-  // Find visible option and click it
-  const findAndClick = `(()=>{var v=${vl};var opts=document.querySelectorAll('[role="option"]');for(var i=0;i<opts.length;i++){var t=opts[i].textContent.trim().toLowerCase();if(t===v){opts[i].click();return t}}for(var i=0;i<opts.length;i++){var t=opts[i].textContent.trim().toLowerCase();if(t.indexOf(v)>=0){opts[i].click();return t}}return null})()`;
-  const direct = await page.evaluate(findAndClick).catch(() => null);
-  if (direct) return direct;
-  // Virtualized list: use keyboard ArrowDown to navigate one option at a time
+  const oi = await findOptionIndex(page, '[role="option"]', value);
+  if (oi >= 0) {
+    const ok = await page.locator('[role="option"]').nth(oi).click().then(() => true).catch(() => false);
+    if (ok) return value.toLowerCase();
+  }
   const getFocused = `(()=>{var el=document.querySelector('[role="option"][data-focus-visible="true"],[role="option"][aria-selected="true"]');return el?el.textContent.trim().toLowerCase():null})()`;
   for (let i = 0; i < 150; i++) {
     await page.keyboard.press('ArrowDown');
@@ -30,21 +43,25 @@ async function tryAriaCombobox(page: Page, target: string, value: string): Promi
     const focused = await page.evaluate(getFocused).catch(() => null);
     if (focused === value.toLowerCase() || (focused && focused.indexOf(value.toLowerCase()) >= 0)) {
       await page.keyboard.press('Enter');
-      console.log(`[select] keyboard nav found "${focused}" after ${i + 1} arrows`);
       return focused;
     }
   }
   return null;
 }
 
-/** Try CSS class-based custom dropdowns (class*="select"/"dropdown"). */
+/** CSS-class dropdowns via CDP locator.click — same isTrusted rationale. */
 async function tryCssDropdown(page: Page, target: string, value: string): Promise<string | null> {
-  const tgtLow = JSON.stringify(target.toLowerCase());
-  const vl = JSON.stringify(value.toLowerCase());
-  const opened = await page.evaluate(`(()=>{var tgt=${tgtLow};var els=document.querySelectorAll('[class*="select"],[class*="Select"],[class*="dropdown"],[class*="Dropdown"]');for(var i=0;i<els.length;i++){var t=els[i].textContent.trim().toLowerCase();if(t.indexOf(tgt)===0||t===tgt){els[i].click();return true}}return false})()`).catch(() => false);
+  const containerSel = '[class*="select"],[class*="Select"],[class*="dropdown"],[class*="Dropdown"]';
+  const optionSel = '[role="option"],[class*="option"],[class*="Option"],li';
+  const idx = await findIndex(page, containerSel, target, 'text');
+  if (idx < 0) return null;
+  const opened = await page.locator(containerSel).nth(idx).click().then(() => true).catch(() => false);
   if (!opened) return null;
   await new Promise(r => setTimeout(r, 500));
-  return page.evaluate(`(()=>{var v=${vl};var items=document.querySelectorAll('[role="option"],[class*="option"],[class*="Option"],li');for(var i=0;i<items.length;i++){var t=items[i].textContent.trim().toLowerCase();if(t===v&&items[i].children.length===0){items[i].click();return items[i].textContent.trim()}}for(var i=0;i<items.length;i++){var t=items[i].textContent.trim().toLowerCase();if(t.indexOf(v)>=0&&items[i].children.length===0){items[i].click();return items[i].textContent.trim()}}return null})()`).catch(() => null);
+  const oi = await findOptionIndex(page, optionSel, value);
+  if (oi < 0) return null;
+  const ok = await page.locator(optionSel).nth(oi).click().then(() => true).catch(() => false);
+  return ok ? value.toLowerCase() : null;
 }
 
 /** Select a dropdown option. Tries native, ARIA combobox, then CSS custom dropdowns. */
