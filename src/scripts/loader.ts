@@ -3,7 +3,7 @@ import { join } from 'node:path';
 
 const SCRIPT_DIR = __dirname;
 
-const DEFAULT_SCRIPTS = ['automation.js', 'navigator.js', 'webgl.js'];
+const DEFAULT_SCRIPTS = ['automation.js', 'navigator.js', 'webgl.js', 'chrome147_stubs.js'];
 
 /**
  * Build a combined init script string that can be injected into a page
