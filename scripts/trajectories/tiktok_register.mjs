@@ -169,21 +169,12 @@ if (process.env.TIKTOK_HARDCODED !== '1') {
         console.log('[test] Send button disabled — skipping');
         continue;
       }
-      await s.wait(5);
-      const sendClicks = await s.page.evaluate(`JSON.stringify(window.__wclick || [])`).catch(() => '[]');
-      console.log(`[test] Send code clicks received: ${sendClicks}`);
-
-      // Probe for captcha
-      const probe = await s.page.evaluate(`(() => {
-        const t = document.body.innerText || '';
-        const indicators = [];
-        if (document.querySelector('.captcha-verify-container, .captcha_verify_container, [class*="captcha-"]')) indicators.push('captcha-container');
-        if (document.querySelector('iframe[src*="captcha"]')) indicators.push('captcha-iframe');
-        if (/drag|puzzle|rotate|slide/i.test(t)) indicators.push('captcha-text');
-        if (/too many|attempts|try again later/i.test(t)) indicators.push('rate-limit');
-        const hasResend = /Resend code/i.test(t);
-        return { indicators, hasResend, url: location.href };
-      })()`).catch(() => ({ error: true }));
+      // Captcha SDK init + silent-challenge solve before /send_code/ fires
+      // takes 8-20s after the click. Poll up to 25s for the "Resend code"
+      // countdown or a captcha/rate-limit indicator to appear.
+      let probe = { hasResend: false, indicators: [] };
+      const PROBE = `(() => { const t = document.body.innerText || ''; const i = []; if (document.querySelector('.captcha-verify-container, .captcha_verify_container, [class*="captcha-"]')) i.push('captcha-container'); if (document.querySelector('iframe[src*="captcha"]')) i.push('captcha-iframe'); if (/drag|puzzle|rotate|slide/i.test(t)) i.push('captcha-text'); if (/too many|attempts|try again later/i.test(t)) i.push('rate-limit'); return { indicators: i, hasResend: /Resend code/i.test(t), url: location.href }; })()`;
+      for (let pw = 0; pw < 12; pw++) { await s.wait(2); probe = await s.page.evaluate(PROBE).catch(() => ({ error: true })); if (probe.hasResend || probe.indicators?.length) break; }
       console.log(`[test] After Send code: ${JSON.stringify(probe)}`);
       await s.screenshot(`after_send_code_r${retry}`).catch(() => {});
 
