@@ -4,7 +4,7 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && cp src/scripts/*.js dist/scripts/ && mkdir -p dist/diagnostics && cp -f src/diagnostics/*.js dist/diagnostics/ 2>/dev/null; true",
     "dev": "tsc --watch",
     "test": "vitest run --exclude tests/trajectories.test.ts",
     "test:watch": "vitest --exclude tests/trajectories.test.ts",
@@ -16,7 +16,9 @@
     "cloakbrowser": "^0.3.24",
     "fingerprint-generator": "^2.1.0",
     "header-generator": "^2.1.0",
+    "jsqr": "^1.4.0",
     "playwright": "^1.59.1",
+    "pngjs": "^7.0.0",
     "sharp": "^0.34.5",
     "ws": "^8.18.0"
   },
