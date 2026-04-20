@@ -42,3 +42,6 @@ include = ["weles*"]
 
 [tool.setuptools.package-data]
 weles = ["scripts/*.js"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
