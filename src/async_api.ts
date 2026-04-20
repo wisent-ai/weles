@@ -4,7 +4,7 @@
  * Launches Playwright with custom Chromium binary + fingerprint spoofing.
  */
 
-import { existsSync, writeFileSync, mkdtempSync } from 'node:fs';
+import { existsSync, writeFileSync, mkdtempSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { chromium, firefox, type BrowserContext, type Browser } from 'playwright';
@@ -19,6 +19,10 @@ const CHROMIUM_ARGS = [
   '--no-sandbox',
   '--disable-setuid-sandbox',
   '--disable-infobars',
+  // Pin the window to a known screen position so native OS input drivers
+  // (scripts/trajectories/* using cliclick) can compute screen coordinates
+  // from CSS coordinates without needing AppleScript Accessibility perms.
+  '--window-position=0,0',
   // HTTP/2, QUIC, TLS1.3 early data, DNS-HTTPS records, and HTTPS Upgrades
   // are ALL enabled in real Chrome 147. Disabling them here — a past workaround
   // for PacketStream proxies dropping h2 frames — emits distinctive fingerprints
@@ -79,11 +83,13 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
     viewport: { width: viewW, height: viewH },
     screen: { width: viewW, height: viewH },
     deviceScaleFactor: dpr,
-    timezoneId: persona?.timezone,
-    locale: persona?.language,
+    // Do NOT set timezoneId or locale here — Playwright routes them through
+    // CDP Emulation.setTimezoneOverride / setLocaleOverride, which TikTok's
+    // mssdk detects. Measured 2026-04-18: weles with locale set in ctxOpts
+    // sends Accept-Language on every TikTok sub-request; real Chrome omits
+    // it on same-origin sub-requests because the ReduceAcceptLanguage feature
+    // is enabled by default. Pass --lang + TZ environment instead (see below).
   };
-
-  if (options.locale) ctxOpts.locale = options.locale;
   if (options.proxy) {
     ctxOpts.proxy = options.proxy;
     if (isChromium) ctxOpts.ignoreHTTPSErrors = true;
@@ -110,6 +116,12 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
   const chromiumPath = options.chromiumPath ?? process.env.CHROMIUM_PATH ?? '';
   const launchOpts: Record<string, any> = { headless };
   const args = [...CHROMIUM_ARGS];
+
+  // Pass language + timezone as binary-level signals instead of CDP emulation
+  // (removed from ctxOpts above). --lang sets Accept-Language the way real
+  // Chrome does; TZ env var is honored by the renderer for Date/Intl.
+  if (persona?.language) args.push(`--lang=${persona.language}`);
+  if (persona?.timezone) launchOpts.env = { ...process.env, TZ: persona.timezone };
 
   const isCustomBinary = isChromium && chromiumPath && existsSync(chromiumPath);
 
@@ -167,21 +179,35 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
 
     // Custom Chromium handles userAgent/screen via C++ — only pass viewport, proxy, recordVideo
     const customCtxOpts: Record<string, any> = { viewport: { width: viewW, height: viewH }, deviceScaleFactor: dpr };
-    if (persona?.timezone) customCtxOpts.timezoneId = persona.timezone;
-    if (persona?.language) customCtxOpts.locale = persona.language;
+    // Do NOT set timezoneId or locale here — see note above, Playwright routes
+    // them through CDP Emulation.setTimezoneOverride / setLocaleOverride which
+    // TikTok's mssdk detects. Timezone is passed via TZ env var on launch;
+    // language via --lang binary flag.
     if (ctxOpts.proxy) { customCtxOpts.proxy = ctxOpts.proxy; customCtxOpts.ignoreHTTPSErrors = true; }
     if (ctxOpts.recordVideo) customCtxOpts.recordVideo = ctxOpts.recordVideo;
     console.log(`[async_api] Context opts: ${JSON.stringify(customCtxOpts, (k, v) => k === 'password' ? '***' : v)}`);
     const context = await pwBrowser.newContext(customCtxOpts);
     context.setDefaultNavigationTimeout(0);
     console.log(`[async_api] Context created`);
-    // NOTE: NOT calling `context.addInitScript(initScript)` here. Adding the stock
-    // navigator/webgl/automation JS spoofs on TOP of weles's C++ spoofing caused
-    // a regression — TikTok went from blocking at /register_verify_login/ to
-    // blocking at /region/. The custom binary already spoofs everything those
-    // scripts touch (UA, platform, hw concurrency, screen, WebGL renderer, canvas
-    // seed), and adding a second JS layer introduces a detectable mismatch in
-    // property descriptors (native accessor vs JS function).
+    // NOTE: NOT calling `context.addInitScript(initScript)` — that would layer
+    // navigator.js/webgl.js/automation.js on top of weles's C++ spoofs and
+    // regress to blocking at /region/ instead of /register_verify_login/.
+    // But we DO inject the Chrome 147 API stubs — weles is Chromium 145 and
+    // lacks Sanitizer / AnimationTrigger / TimelineTrigger{,Range,RangeList}.
+    // TikTok's JS can `typeof window.Sanitizer !== 'undefined'` as a one-liner
+    // to detect pre-146 Chromium. Surgical stubs = no prototype overrides, no
+    // descriptor-mismatch signals — only adds missing globals.
+    try {
+      const stubPath = join(__dirname, 'scripts', 'chrome147_stubs.js');
+      await context.addInitScript(readFileSync(stubPath, 'utf-8'));
+    } catch (e) { console.log(`[async_api] stub script load failed: ${(e as Error).message}`); }
+    if (process.env.WELES_INSTRUMENT === '1') {
+      try {
+        const trapPath = join(__dirname, 'diagnostics', 'property_trap.js');
+        await context.addInitScript(readFileSync(trapPath, 'utf-8'));
+        console.log('[async_api] property-trap instrumentation installed (WELES_INSTRUMENT=1)');
+      } catch (e) { console.log(`[async_api] property-trap install failed: ${(e as Error).message}`); }
+    }
     await context.addInitScript(`try{var _og=navigator.credentials.get.bind(navigator.credentials);navigator.credentials.get=function(o){return o&&o.publicKey?new Promise(function(){}):_og(o)}}catch(e){}`);
     // Arkose: capture iframe data via MutationObserver
     // Arkose iframe-data observer. Do NOT pre-create window.__arkoseData — that
@@ -208,6 +234,24 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
 
   const context = await pwBrowser.newContext(ctxOpts);
   context.setDefaultNavigationTimeout(0);
+
+  // Strip Accept-Language on same-origin TikTok sub-requests. Real Chrome 147
+  // with ReduceAcceptLanguage (default on) omits this header on sub-requests;
+  // weles's binary emits it unconditionally and that's one of the signals
+  // webmssdk signs into x-mssdk-info, allowing TikTok to recognise the session
+  // as non-Chrome. Measured 2026-04-18 via side-by-side manual captures.
+  await context.route('**/*', async (route) => {
+    const req = route.request();
+    const url = req.url();
+    if (/tiktok\.com|tiktokv\.us|tiktokcdn|byteoversea|mssdk\./.test(url) && req.isNavigationRequest() === false) {
+      const headers = { ...req.headers() };
+      delete headers['accept-language'];
+      await route.continue({ headers });
+      return;
+    }
+    await route.continue();
+  });
+
   await context.addInitScript(initScript);
   // WebAuthn passkey stub — block passkey prompts (same as custom Chromium path)
   await context.addInitScript(`try{var _og=navigator.credentials.get.bind(navigator.credentials);navigator.credentials.get=function(o){return o&&o.publicKey?new Promise(function(){}):_og(o)}}catch(e){}`);

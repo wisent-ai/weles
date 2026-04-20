@@ -111,7 +111,7 @@ export class WSession {
       const ctx = browser.contexts()[0] || await browser.newContext({ locale: 'en-US' }); const page = ctx.pages()[0] || await ctx.newPage();
       return new WSession(ctx, page, label, new Capture({ newPage: async () => page } as any, label ? recordingsDir(label) : undefined));
     }
-    const bOpts: AsyncNewBrowserOptions = { os: opts.persona?.os ?? opts.os ?? 'macos', browser: 'chromium', headless: opts.headless ?? false, recordVideo: opts.record ?? true, locale: opts.locale, persona: opts.persona };
+    const bOpts: AsyncNewBrowserOptions = { os: opts.persona?.os ?? opts.os ?? 'macos', browser: 'chromium', headless: opts.headless ?? false, recordVideo: opts.record ?? (process.env.WELES_DISABLE_RECORDING !== '1'), locale: opts.locale, persona: opts.persona };
     const chromiumPath = opts.chromiumPath ?? process.env.CHROMIUM_PATH ?? findCustomChromium();
     if (!chromiumPath) throw new Error('Custom Chromium not found. Set CHROMIUM_PATH or install to a known location.');
     bOpts.chromiumPath = chromiumPath;
@@ -120,7 +120,9 @@ export class WSession {
     const page = ctx.pages()[0] || await ctx.newPage();
     const cap = new Capture({ newPage: async () => page } as any, label ? recordingsDir(label) : undefined);
     if (label) { const s = new SessionStore(); await s.injectPlaywright(ctx, label).catch(() => {}); }
-    const ws = new WSession(ctx, page, label, cap); ws.proxyConfig = bOpts.proxy; return ws;
+    const ws = new WSession(ctx, page, label, cap); ws.proxyConfig = bOpts.proxy;
+    if (process.env.WELES_INSTRUMENT === '1') { const dir = join(process.cwd(), '.work', 'inst'); mkdirSync(dir, { recursive: true }); const ts = new Date().toISOString().replace(/[:.]/g, '-'); const fn = join(dir, `${label || 'session'}_${ts}.json`); const accum = new Map(); const reqs: any[] = []; const netFilter = /github\.com|arkoselabs\.com|octocaptcha\.com/; ctx.on('request', (req) => { try { const u = req.url(); if (!netFilter.test(u)) return; let post = ''; try { post = req.postData()?.slice(0, 4000) || ''; } catch {} reqs.push({ t: Date.now(), phase: 'req', method: req.method(), url: u, headers: req.headers(), postData: post }); } catch {} }); ctx.on('response', async (resp) => { try { const u = resp.url(); if (!netFilter.test(u)) return; let body = ''; try { body = (await resp.text()).slice(0, 8000); } catch {} reqs.push({ t: Date.now(), phase: 'res', status: resp.status(), url: u, headers: resp.headers(), body }); } catch {} }); setInterval(async () => { try { for (const f of ws.page.frames()) { try { const j: string = await f.evaluate('(window.__inst_flush)?window.__inst_flush():"[]"'); const log = JSON.parse(j); if (!log.length) continue; const url = f.url(); const prev = accum.get(url); if (!prev || log.length > prev.log.length) accum.set(url, { url, log }); } catch {} } writeFileSync(fn, JSON.stringify({ accesses: [...accum.values()], requests: reqs })); } catch {} }, 5000); }
+    return ws;
   }
 
   async goto(url: string): Promise<string> {
@@ -271,16 +273,12 @@ export class WSession {
   async close(): Promise<void> {
     console.log(`[wsession] close() label=${this.label}`);
     await this._cap.save('session', this.page).catch(() => {});
+    if (process.env.WELES_INSTRUMENT === '1' && !this.page.isClosed?.()) { try { const j: string = await this.page.evaluate('(window.__inst_flush)?window.__inst_flush():"[]"'); const outDir = join(process.cwd(), '.work', 'inst'); mkdirSync(outDir, { recursive: true }); const fn = join(outDir, `${this.label || 'session'}_${new Date().toISOString().replace(/[:.]/g, '-')}.json`); writeFileSync(fn, j); console.log(`[wsession] dumped __inst ${j.length}ch -> ${fn}`); } catch (e: any) { console.log(`[wsession] __inst dump err: ${e.message?.slice(0,120)}`); } }
     const video = this.page.video?.();
     const dest = join(recordingsDir(this.label || undefined), `${this.label || 'session'}_${new Date().toISOString().replace(/[:.]/g, '-')}.webm`);
     console.log(`[wsession] close() video=${!!video} dest=${dest}`);
     await this.page.close().catch((e: any) => console.log(`[wsession] page.close error: ${e.message?.slice(0, 200)}`));
-    if (video) {
-      await video.saveAs(dest).catch((e: any) => {
-        console.log(`[wsession] video.saveAs error: ${e.message?.slice(0, 200)}`);
-        try { const src = video.path?.() as string | undefined; if (src) { copyFileSync(src, dest); console.log(`[wsession] video copied from ${src}`); } } catch {}
-      });
-    }
+    if (video) { await video.saveAs(dest).catch((e: any) => { console.log(`[wsession] video.saveAs error: ${e.message?.slice(0, 200)}`); try { const src = video.path?.() as string | undefined; if (src) { copyFileSync(src, dest); console.log(`[wsession] video copied from ${src}`); } } catch {} }); }
     await this.ctx.close().catch((e: any) => console.log(`[wsession] ctx.close error: ${e.message?.slice(0, 200)}`));
     console.log(`[wsession] close() done`);
   }

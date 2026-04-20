@@ -1,12 +1,17 @@
 import { WSession } from '../../../dist/session/wsession.js';
 import { solveFunCaptcha } from './_funcaptcha.mjs';
+import { solveAudioPuzzle } from './_audio_solver.mjs';
+import { solveRotationViaCoords } from './_coords_solver.mjs';
+import { humanClick, nextInterClickMs } from '../../../dist/human/mouse.js'; import { humanType } from '../../../dist/human/keyboard.js';
 
 const URL = 'https://github.com/signup';
 
 let s;
 for (let retry = 0; retry < 3; retry++) {
   try {
-    s = await WSession.start({ label: 'github_register', proxy: process.env.PROXY_URL || 'residential' });
+    // Windows profile matches Bright Data's clean fingerprint that bypassed Twitter Arkose (commit 36e4dff).
+    // en-US locale pins language + accept-language headers to match US proxy geolocation.
+    s = await WSession.start({ label: 'github_register', proxy: process.env.PROXY_URL || 'residential', os: 'windows', locale: 'en-US' });
     await s.goto('https://github.com/');
     let rendered = false;
     for (let i = 0; i < 15; i++) {
@@ -47,7 +52,7 @@ try {
           if (m) captcha.pkey = m[1];
           captcha.apiSub = new globalThis.URL(u).hostname;
           const body = req.postData() ?? '';
-          const b = body.match(/data%5Bblob%5D=([^&]+)/);
+          const b = body.match(/data%5Bblob%5D=([^&]+)/) ?? body.match(/data\[blob\]=([^&]+)/);
           if (b) captcha.blob = decodeURIComponent(b[1]);
         }
         if ((u.includes('arkoselabs.com/fc/gc') || u.includes('arkoselabs.com/fc/gfct')) && !captcha.pkey) {
@@ -63,20 +68,18 @@ try {
   await s.wait(5);
   console.log(`[register] Signup page: ${s.page.url?.()}`);
 
-  // Direct JS value setter bypasses the Chromium CDP "password typing not allowed" block
-  const fillField = async (selector, value) => s.page.evaluate(`(({ sel, val }) => {
-    const el = document.querySelector(sel);
-    if (!el) return { ok: false, reason: 'not-found' };
-    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
-    setter.call(el, val);
-    el.dispatchEvent(new Event('input', { bubbles: true }));
-    el.dispatchEvent(new Event('change', { bubbles: true }));
-    el.dispatchEvent(new Event('blur', { bubbles: true }));
-    return { ok: true, id: el.id, name: el.name };
-  })(${JSON.stringify({ sel: selector, val: s.resolveEnv(value) })})`);
-  console.log(`[register] Fill email: ${JSON.stringify(await fillField('#email', '$GITHUB_NEW_EMAIL'))}`); await s.wait(1);
-  console.log(`[register] Fill password: ${JSON.stringify(await fillField('#password', '$GITHUB_NEW_PASSWORD'))}`); await s.wait(1);
-  console.log(`[register] Fill username: ${JSON.stringify(await fillField('#login', '$GITHUB_NEW_USERNAME'))}`); await s.wait(3);
+  const fillField = async (selector, value) => {
+    const v = s.resolveEnv(value);
+    try { const bb = await s.page.locator(selector).first().boundingBox(); if (!bb) return { ok: false, reason: 'no-bbox' };
+      await humanClick(s.page, Math.round(bb.x + bb.width / 2), Math.round(bb.y + bb.height / 2));
+    } catch (e) { return { ok: false, reason: `click: ${e.message?.slice(0, 60)}` }; }
+    await humanType(s.page, v); await s.page.keyboard.press('Tab').catch(() => {}); return { ok: true };
+  };
+  const pause = () => new Promise(r => setTimeout(r, nextInterClickMs()));
+  const checkAlive = (tag, r) => { if (!r.ok && /closed|disconnect|Target/i.test(r.reason ?? '')) { console.log(`FAIL: browser died at ${tag} — ${r.reason}`); s.close().catch(()=>{}); process.exit(42); } };
+  const er = await fillField('#email', '$GITHUB_NEW_EMAIL'); console.log(`[register] Fill email: ${JSON.stringify(er)}`); checkAlive('email', er); await pause();
+  const pr = await fillField('#password', '$GITHUB_NEW_PASSWORD'); console.log(`[register] Fill password: ${JSON.stringify(pr)}`); checkAlive('password', pr); await pause();
+  const ur = await fillField('#login', '$GITHUB_NEW_USERNAME'); console.log(`[register] Fill username: ${JSON.stringify(ur)}`); checkAlive('username', ur); await pause();
 
   // Country: check if auto-selected (usually from proxy IP). Only click dropdown if needed.
   const countryState = await s.page.evaluate(`(() => { const btn = document.querySelector('#country-dropdown-panel-button, button.country-select-button'); return { text: btn?.innerText?.trim().slice(0, 60) ?? '', found: !!btn }; })()`).catch(() => ({ found: false }));
@@ -112,16 +115,16 @@ try {
     await s.wait(1);
   }
 
-  // Click "Create account" using Playwright locator (trusted event)
+  // Click "Create account" via humanClick (Bezier path, isTrusted=true)
   const createBtnSelector = 'button.js-octocaptcha-load-captcha, button[type="submit"]:has-text("Create account")';
   let clicked = { via: null };
   try {
     const btn = s.page.locator(createBtnSelector).first();
     if (await btn.isVisible().catch(() => false)) {
-      await btn.scrollIntoViewIfNeeded().catch(() => {});
-      await s.wait(0.5);
-      await btn.click();
-      clicked.via = 'locator';
+      await btn.scrollIntoViewIfNeeded().catch(() => {}); await s.wait(0.5);
+      const bb = await btn.boundingBox();
+      if (bb) { await humanClick(s.page, Math.round(bb.x + bb.width / 2), Math.round(bb.y + bb.height / 2)); clicked.via = 'humanClick'; }
+      else { await btn.click(); clicked.via = 'locator'; }
     } else {
       // Fall through: evaluate-based click
       const res = await s.page.evaluate(`(() => {
@@ -146,30 +149,14 @@ try {
     await s.wait(1);
   }
 
-  // Only force iframe load if no arkose traffic seen (i.e., click didn't trigger naturally)
+  // Force iframe load if no arkose traffic seen
   if (seenArkoseUrls.length === 0) {
-    const forced = await s.page.evaluate(`(() => {
-      const f = document.querySelector('iframe.js-octocaptcha-frame');
-      if (!f) return { ok: false, reason: 'no-frame' };
-      const ds = f.getAttribute('data-src');
-      if (f.getAttribute('src')?.length > 10) return { ok: true, reason: 'already-loaded' };
-      if (ds) { f.setAttribute('src', ds); return { ok: true, reason: 'forced' }; }
-      return { ok: false, reason: 'no-data-src' };
-    })()`).catch(e => ({ ok: false, reason: 'eval-error' }));
+    const forced = await s.page.evaluate(`(() => { const f = document.querySelector('iframe.js-octocaptcha-frame'); if (!f) return { ok: false, reason: 'no-frame' }; const ds = f.getAttribute('data-src'); if (f.getAttribute('src')?.length > 10) return { ok: true, reason: 'already-loaded' }; if (ds) { f.setAttribute('src', ds); return { ok: true, reason: 'forced' }; } return { ok: false, reason: 'no-data-src' }; })()`).catch(() => ({ ok: false, reason: 'eval-error' }));
     console.log(`[register] Force iframe: ${JSON.stringify(forced)}`);
   }
-  // Send the ack postMessage required by octocaptcha (require_ack=true) so it loads the inner Arkose widget
   await s.wait(3);
-  const ackRes = await s.page.evaluate(`(() => {
-    const f = document.querySelector('iframe.js-octocaptcha-frame');
-    if (!f?.contentWindow) return { ok: false, reason: 'no-content-window' };
-    const ackMessages = [{ type: 'ack', acked: true }, 'ack', { event: 'ack' }, { type: 'octocaptcha:ack' }];
-    for (const msg of ackMessages) {
-      try { f.contentWindow.postMessage(msg, 'https://octocaptcha.com'); } catch {}
-      try { f.contentWindow.postMessage(msg, '*'); } catch {}
-    }
-    return { ok: true, sent: ackMessages.length };
-  })()`).catch(e => ({ ok: false, error: e.message?.slice(0, 100) }));
+  // postMessage ack to octocaptcha iframe (require_ack=true) so inner Arkose widget loads
+  const ackRes = await s.page.evaluate(`(() => { const f = document.querySelector('iframe.js-octocaptcha-frame'); if (!f?.contentWindow) return { ok: false, reason: 'no-content-window' }; for (const msg of [{ type: 'ack', acked: true }, 'ack', { event: 'ack' }, { type: 'octocaptcha:ack' }]) { try { f.contentWindow.postMessage(msg, 'https://octocaptcha.com'); } catch {} try { f.contentWindow.postMessage(msg, '*'); } catch {} } return { ok: true }; })()`).catch(() => ({ ok: false }));
   console.log(`[register] postMessage ack: ${JSON.stringify(ackRes)}`);
 
   for (let i = 0; i < 60 && !captcha.blob; i++) {
@@ -180,6 +167,7 @@ try {
   for (const u of seenArkoseUrls.slice(0, 15)) console.log(`  - ${u}`);
   console.log(`[register] GitHub POSTs during flow (${seenGithubPosts.length}):`);
   for (const p of seenGithubPosts.slice(0, 15)) console.log(`  - ${p}`);
+  if (seenArkoseUrls.length < 15) { console.log(`IP_FLAGGED: only ${seenArkoseUrls.length} Arkose URLs (<15) — proxy burnt, rotate and retry`); await s.close().catch(()=>{}); process.exit(42); }
 
   // DOM-based extraction of pkey from iframe (data-src becomes src after load)
   if (!captcha.pkey) {
@@ -207,10 +195,28 @@ try {
   let keepAliveAbort = false;
   const keepAlive = (async () => { while (!keepAliveAbort) { await new Promise(r => setTimeout(r, 3000)); try { await s.page.evaluate('Date.now()'); } catch {} } })();
 
-  const { token } = await solveFunCaptcha({ websiteURL: URL, publicKey: captcha.pkey, apiSub: captcha.apiSub, blob: captcha.blob, userAgent: ua });
-  keepAliveAbort = true; await keepAlive.catch(() => {});
-
   let solved = false;
+  const isBD = !!process.env.BRIGHTDATA_BROWSER_WS;
+  // BD Browser API: invoke Captcha.waitForSolve CDP method (auto-solver must be explicitly triggered)
+  if (isBD) {
+    console.log('[register] BD: invoking Captcha.waitForSolve via CDP');
+    try {
+      const cdp = await s.ctx.newCDPSession(s.page);
+      const res = await cdp.send('Captcha.waitForSolve', { detectTimeout: 240000 });
+      console.log(`[register] BD CDP Captcha.waitForSolve: ${JSON.stringify(res)}`);
+      const u = s.page.url?.() ?? '';
+      if (res.status === 'solved' || /signup_emailsent|verif|launch-code|account_verif/.test(u)) { console.log(`[register] BD solved, url=${u}`); solved = true; }
+    } catch (e) { console.log(`[register] BD CDP error: ${e.message?.slice(0, 120)}`); }
+  }
+  if (!solved && !isBD) {
+    for (const fn of [solveAudioPuzzle, solveRotationViaCoords]) {
+      if (solved) break;
+      const ok = await fn(s.page).catch(() => false);
+      if (ok) { await s.wait(5); const u = s.page.url?.() ?? ''; if (/signup_emailsent|verif|launch-code|account_verif/.test(u)) solved = true; }
+    }
+  }
+  const token = solved ? null : (await solveFunCaptcha({ websiteURL: URL, publicKey: captcha.pkey, apiSub: captcha.apiSub, blob: captcha.blob, userAgent: ua, proxy: s.proxyConfig })).token;
+  keepAliveAbort = true; await keepAlive.catch(() => {});
   if (token) {
     const inject = await s.page.evaluate(`(tk => {
       const inputs = document.querySelectorAll('input[name="octocaptcha-token"], input.js-octocaptcha-token');
@@ -225,19 +231,22 @@ try {
       if (form) { form.requestSubmit?.(); return { injected: inputs.length, clicked: 'form' }; }
       return { injected: inputs.length, clicked: false };
     })(${JSON.stringify(token)})`).catch(e => ({ error: e.message?.slice(0, 150) }));
-    console.log(`[register] Token injection: ${JSON.stringify(inject)}`);
-    await s.wait(5);
-    const url2 = s.page.url?.() ?? '';
-    if (url2.includes('signup_emailsent') || url2.includes('verify') || url2.includes('launch-code')) {
-      console.log(`[register] Captcha accepted at ${url2}`); solved = true;
-    } else {
+    console.log(`[register] Token injection: ${JSON.stringify(inject)} region=${token.match(/r=([^|&]+)/)?.[1] ?? '?'}`);
+    // Wait up to 20s for URL to advance — GitHub validates the token server-side
+    // and the redirect can take several seconds even on a good token.
+    for (let w = 0; w < 20 && !solved; w++) {
+      await s.wait(1);
+      const u = s.page.url?.() ?? '';
+      if (/signup_emailsent|verif|launch-code|account_verif/.test(u)) { console.log(`[register] Captcha accepted at ${u} (after ${w}s)`); solved = true; }
+    }
+    if (!solved) {
       const err = await s.page.evaluate("(() => { const e=document.querySelector('.flash-error,[role=\"alert\"]'); return e?e.innerText.trim().slice(0,200):null; })()").catch(() => null);
       if (err) console.log(`[register] Post-injection error: ${err}`);
     }
   }
   if (!solved) {
     await s.saveAccount('github', { username: id.username, email: id.email, password: id.password, status: 'captcha_blocked' });
-    console.log(`FAIL: captcha blocked — saved status=captcha_blocked: ${id.username}`); process.exit(1);
+    console.log(`IP_FLAGGED: captcha blocked — saved status=captcha_blocked: ${id.username} — rotate and retry`); await s.close().catch(()=>{}); process.exit(42);
   }
 
   // Email OTP
@@ -281,8 +290,7 @@ try {
   await s.saveAccount('github', { username: id.username, email: id.email, password: id.password, status: verified ? 'verified' : 'needs_verification' });
   console.log(verified ? `PASS: ${id.username} (verified)` : `PARTIAL: ${id.username} at ${finalUrl}`);
 } catch (e) {
-  console.log('FAIL:', e.message?.slice(0, 200));
-  process.exit(1);
+  console.log('FAIL:', e.message?.slice(0, 200)); process.exit(/ERR_TUNNEL|ERR_TIMED_OUT|ERR_PROXY|ERR_CONNECTION/.test(e.message ?? '') ? 42 : 1);
 } finally {
   await s.close();
 }

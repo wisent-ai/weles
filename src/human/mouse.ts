@@ -1,9 +1,15 @@
 // ---------------------------------------------------------------------------
-// Human-like mouse movement using Bezier curves
+// Human-like mouse movement — distributions from empirical trace
+// (recordings/behavior_2026-04-18T19-26-02-154Z.jsonl):
+//   pointer velocity: p50=0.76 px/ms, p25=0.12 (stalls), p75=1.85, p95=4.82
+//   click-to-click gaps: rapid 187–213ms; deliberate 2961–10584ms
 // ---------------------------------------------------------------------------
 
 import { cubicBezier } from '../utils/bezier.js';
 import { randomBetween, waitMs } from '../utils/timing.js';
+import { traceAvailable, nextPointerStepMs, nextReactionMs, nextInterClickMs, getMoveTemplate } from './trace.js';
+
+export { nextInterClickMs };
 
 export interface MousePage {
   mouse: {
@@ -12,71 +18,131 @@ export interface MousePage {
   };
 }
 
-// ---------------------------------------------------------------------------
-// Public API
-// ---------------------------------------------------------------------------
+function sampleStepMs(): number {
+  if (traceAvailable()) return nextPointerStepMs();
+  const r = Math.random();
+  if (r < 0.25) return randomBetween(30, 120);
+  if (r < 0.75) return randomBetween(10, 30);
+  if (r < 0.95) return randomBetween(5, 12);
+  return randomBetween(2, 6);
+}
 
-/**
- * Move the mouse along a Bezier curve from (`startX`, `startY`) to (`x`, `y`)
- * with random control points and human-like timing jitter.
- *
- * If `startX` / `startY` are omitted, a random origin near the center of a
- * typical viewport is chosen.
- */
-export async function humanMove(
-  page: MousePage,
-  x: number,
-  y: number,
-  startX?: number,
-  startY?: number,
-  steps?: number,
-): Promise<void> {
+function sampleReactionMs(): number {
+  if (traceAvailable()) return nextReactionMs();
+  const r = Math.random();
+  if (r < 0.20) return randomBetween(180, 230);
+  if (r < 0.80) return randomBetween(100, 250);
+  return randomBetween(250, 500);
+}
+
+export async function humanIdlePause(kind: 'short' | 'deliberate' | 'long' = 'deliberate'): Promise<void> {
+  const ms = kind === 'short' ? randomBetween(180, 400)
+    : kind === 'long' ? randomBetween(5000, 11000)
+    : randomBetween(2500, 5500);
+  await waitMs(ms);
+}
+
+export async function humanMove(page: MousePage, x: number, y: number, startX?: number, startY?: number, steps?: number): Promise<void> {
   const sx = startX ?? randomBetween(200, 600);
   const sy = startY ?? randomBetween(150, 450);
-  const n = steps ?? Math.max(15, Math.floor(randomBetween(20, 45)));
-
-  // Random control points — offset from the straight line to give a curve
-  const dx = x - sx;
-  const dy = y - sy;
+  // Prefer a real pointer-segment template from the operator trace, denormalized
+  // A→B, each waypoint spatially jittered. Falls through to the Bezier generator
+  // when no trace segments are available.
+  const template = traceAvailable() ? getMoveTemplate(sx, sy, x, y) : [];
+  if (template.length) {
+    for (const p of template) {
+      await page.mouse.move(p.x, p.y);
+      await waitMs(Math.min(p.dt, 120));
+    }
+    await page.mouse.move(x, y);
+    return;
+  }
+  const n = steps ?? Math.max(20, Math.floor(randomBetween(30, 60)));
+  const dx = x - sx; const dy = y - sy;
   const cp1x = sx + dx * randomBetween(0.1, 0.4) + randomBetween(-80, 80);
   const cp1y = sy + dy * randomBetween(0.1, 0.4) + randomBetween(-80, 80);
   const cp2x = sx + dx * randomBetween(0.6, 0.9) + randomBetween(-60, 60);
   const cp2y = sy + dy * randomBetween(0.6, 0.9) + randomBetween(-60, 60);
-
   for (let i = 0; i <= n; i++) {
     const t = i / n;
-    const mx = cubicBezier(sx, cp1x, cp2x, x, t);
-    const my = cubicBezier(sy, cp1y, cp2y, y, t);
-    await page.mouse.move(Math.round(mx), Math.round(my));
-    // Variable timing — faster in the middle, slower at start / end
-    const basePause = 4 + 12 * (1 - 4 * (t - 0.5) * (t - 0.5));
-    await waitMs(basePause + randomBetween(0, 6));
+    await page.mouse.move(Math.round(cubicBezier(sx, cp1x, cp2x, x, t)), Math.round(cubicBezier(sy, cp1y, cp2y, y, t)));
+    await waitMs(sampleStepMs());
   }
-
-  // Final exact position
   await page.mouse.move(x, y);
 }
 
-/**
- * Move the mouse in a human-like arc to (`x`, `y`), add a small jitter,
- * then click.
- */
-export async function humanClick(
-  page: MousePage,
-  x: number,
-  y: number,
-  startX?: number,
-  startY?: number,
-): Promise<void> {
+export async function humanClick(page: MousePage, x: number, y: number, startX?: number, startY?: number): Promise<void> {
   await humanMove(page, x, y, startX, startY);
-
-  // Small jitter around the target — humans don't click the exact pixel
   const jx = x + randomBetween(-2, 2);
   const jy = y + randomBetween(-2, 2);
   await page.mouse.move(Math.round(jx), Math.round(jy));
-
-  // Brief pause before the click (reaction time)
-  await waitMs(randomBetween(40, 150));
-
+  await waitMs(sampleReactionMs());
   await page.mouse.click(Math.round(jx), Math.round(jy));
+}
+
+// Native macOS event emission via cliclick (CGEventPost-backed). CDP events
+// have isTrusted=true but differ from OS-queue events in shape (movementX/Y
+// deltas, device timestamps, subpixel coords); cliclick goes through the
+// actual system event queue. Requires cliclick installed + browser window
+// position via AppleScript for CSS-to-screen coord translation.
+import { execSync, spawnSync } from 'node:child_process';
+
+export interface NativeOffset { winX: number; winY: number; chromeY: number; }
+
+// Get the browser window's screen position + chrome (title+url+tabs) height
+// by evaluating window.screenX/Y/outerHeight/innerHeight in the page. This
+// works even without Accessibility permission and without `--window-position`.
+export async function getOffsetFromPage(page: any): Promise<NativeOffset> {
+  try {
+    const r = await page.evaluate(`(() => ({ sX: window.screenX, sY: window.screenY, iH: window.innerHeight, oH: window.outerHeight }))()`);
+    if (!r) return { winX: 0, winY: 0, chromeY: 80 };
+    // outerHeight-innerHeight is the ACCURATE chrome height, but Playwright
+    // launchPersistentContext sometimes ends up with outer==inner on macOS
+    // (reports content height as outer). Clamp to measured empirical 80px
+    // when the computed value is implausibly small.
+    const computed = (r.oH || 0) - (r.iH || 0);
+    // Empirical 89px on macOS Chromium — outerHeight-innerHeight returns 80
+     // but captured clientY is 9px off, consistent with chrome=89.
+    const chromeY = 89;
+    void computed;
+    return { winX: r.sX || 0, winY: r.sY || 0, chromeY };
+  } catch { return { winX: 0, winY: 0, chromeY: 85 }; }
+}
+
+export async function nativeClick(offset: NativeOffset, cssX: number, cssY: number): Promise<void> {
+  const sx = Math.round(offset.winX + cssX + randomBetween(-1, 1));
+  const sy = Math.round(offset.winY + offset.chromeY + cssY + randomBetween(-1, 1));
+  // Skip the Bezier approach + reaction pause — those gave the page 100-500ms
+  // to re-render and shift the button out from under the target coord.
+  // Direct click at computed position minimizes the probe-to-click window.
+  try {
+    spawnSync('cliclick', [`m:${sx},${sy}`, `c:${sx},${sy}`], { stdio: 'ignore' });
+  } catch { /* cliclick missing — caller should fall back */ }
+}
+
+export async function nativeType(text: string): Promise<void> {
+  for (const ch of text) {
+    try { spawnSync('cliclick', [`t:${ch}`], { stdio: 'ignore' }); } catch {}
+    await waitMs(randomBetween(80, 220));
+  }
+}
+
+export function getWindowOffset(processName = 'Chromium'): NativeOffset {
+  // Default: assume --window-position=0,0 in CHROMIUM_ARGS (browser pinned
+  // to screen top-left). macOS menu bar is 25px tall; Chromium title+url+tabs
+  // add ~85px. Total chromeY = 85. Override via env if unavailable.
+  const envX = parseInt(process.env.WELES_WIN_X ?? '0', 10);
+  const envY = parseInt(process.env.WELES_WIN_Y ?? '0', 10);
+  const envC = parseInt(process.env.WELES_CHROME_Y ?? '85', 10);
+  // If Accessibility permission is granted (uncommon for terminal/node), use
+  // AppleScript for precise coords. Otherwise use the pinned-position default.
+  try {
+    const pos = execSync(
+      `osascript -e 'tell application "System Events" to tell process "${processName}" to get position of window 1' 2>/dev/null`,
+      { encoding: 'utf8' },
+    ).trim();
+    const [winX, winY] = pos.split(',').map((s) => parseInt(s.trim(), 10));
+    if (!isNaN(winX) && !isNaN(winY)) return { winX, winY, chromeY: envC };
+  } catch {}
+  return { winX: envX, winY: envY, chromeY: envC };
 }
