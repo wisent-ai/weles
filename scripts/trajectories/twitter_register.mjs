@@ -145,8 +145,11 @@ async function signup(s) {
   if (text4.includes('password') || text4.includes('at least')) {
     await s.fill('Password', id.password);
     await sleep(1);
-    // The "Sign up" button is inside the modal — use data-testid or press Enter
-    await s.page.evaluate(`(() => { var b = document.querySelector('[data-testid="SignupButton"], [data-testid="LoginForm_Login_Button"]'); if (b) b.click(); })()`).catch(() => {});
+    // Route through Playwright locator.click → CDP dispatchMouseEvent → Blink
+    // SetTrusted(true). Previous page.evaluate(b.click()) produced isTrusted=false
+    // which Arkose-gated submits reject (same pattern as TikTok select.ts fix
+    // in commit ce369f6). Fall through to Enter key if neither selector matches.
+    await s.page.locator('[data-testid="SignupButton"], [data-testid="LoginForm_Login_Button"]').first().click().catch(() => {});
     await s.press('Enter').catch(() => {});
     await sleep(5);
   }
