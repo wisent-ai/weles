@@ -18,7 +18,7 @@ import { CaptchaSolver } from '../captcha/solver.js';
 import { generateIdentity as genId, type Identity } from '../utils/identity.js';
 import { markSignupSuccess } from '../utils/email/domain.js';
 import { getNumber, pollCode, type SmsNumber } from '../utils/sms.js';
-import { writeFileSync, mkdirSync, copyFileSync, existsSync } from 'node:fs';
+import { writeFileSync, mkdirSync, copyFileSync, existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolveProxy } from '../proxy/config.js';
 import { getEmailApiKey } from '../utils/credentials.js';
@@ -26,12 +26,11 @@ import { getEmailApiKey } from '../utils/credentials.js';
 function recordingsDir(label?: string): string { const d = join(process.cwd(), 'recordings', ...(label ? [label] : [])); mkdirSync(d, { recursive: true }); return d; }
 
 function findCustomChromium(): string | undefined {
-  const candidates = [
-    join(process.env.HOME ?? '', 'Documents/CodingProjects/Wisent/chromium-build/src/out/Weles/Chromium.app/Contents/MacOS/Chromium'),
-    '/opt/chromium/Chromium',
-  ];
-  for (const p of candidates) { if (existsSync(p)) return p; }
-  return undefined;
+  const home = process.env.HOME ?? '';
+  const installRoot = process.env.WELES_CHROMIUM_DIR ?? join(home, '.local/share/weles-chromium');
+  const prebuilt: string[] = [];
+  try { for (const v of readdirSync(installRoot).sort().reverse()) prebuilt.push(join(installRoot, v, 'Chromium.app/Contents/MacOS/Chromium'), join(installRoot, v, 'chromium/chrome')); } catch {}
+  for (const p of [...prebuilt, join(home, 'Documents/CodingProjects/Wisent/chromium-build/src/out/Weles/Chromium.app/Contents/MacOS/Chromium'), '/opt/chromium/Chromium', '/opt/chromium/chrome']) { if (existsSync(p)) return p; }
 }
 
 export interface WSessionOptions {
