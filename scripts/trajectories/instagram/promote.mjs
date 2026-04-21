@@ -5,6 +5,8 @@ await runAction({
   platform: 'instagram', action: 'promote',
   feedUrl: 'https://www.instagram.com/explore/',
   surfaceLabel: 'instagram explore',
+  resolveUserUrl: (u) => `https://www.instagram.com/${u.replace(/^@/, '')}/`,
+  resolveSearchUrl: (q) => `https://www.instagram.com/explore/tags/${encodeURIComponent(q.replace(/^#/, ''))}/`,
   pickPost: async (s) => {
     try {
       const caption = await s.page.evaluate(() => {
@@ -15,5 +17,6 @@ await runAction({
     } catch { return { postTitle: '', postBody: '' }; }
   },
   commentGoal: (text) => `Click the first post in the explore grid to open it. Find the comment input (placeholder "Add a comment..."). fill(target="add a comment", value=${JSON.stringify(text)}). Click Post to submit. done(value="promoted"). Do NOT navigate() beyond the post modal. Do NOT give_up.`,
+  targetedCommentGoal: (text) => `You are on a specific Instagram page (user profile, tag, or post). If there is a grid of posts, click the first one to open the post modal. Find the comment input (placeholder "Add a comment..."). fill(target="add a comment", value=${JSON.stringify(text)}). Click Post to submit. done(value="promoted"). Do NOT navigate() beyond the post modal. Do NOT give_up.`,
   banDetector: detectInstagramBanSignals,
 });
