@@ -23,6 +23,16 @@ const { proxyUrl, persona } = await resolveAccountSession(acct);
 const s = await WSession.start({ label: 'github_star', proxy: proxyUrl, persona });
 let ban = null;
 try {
+  // Inject the account's stored github.com cookies so the session is
+  // authenticated when we navigate to the repo. Without this, every star
+  // trajectory ran as an anonymous visitor and the new not_logged_in check
+  // tripped — even though the account had freshly-saved cookies in
+  // metadata.cookies from a prior github_login run.
+  const cookies = (acct.metadata?.cookies ?? []).filter(c => (c.domain ?? '').includes('github.com'));
+  if (cookies.length) {
+    await s.ctx.addCookies(cookies).catch(e => console.log(`[star] cookie add error: ${e.message?.slice(0, 80)}`));
+    console.log(`[star] Injected ${cookies.length} github.com cookies`);
+  }
   let url;
   if (repoUrl) url = repoUrl;
   else if (SEARCH_QUERY) url = `https://github.com/search?q=${encodeURIComponent(SEARCH_QUERY)}&type=repositories&s=stars&o=desc`;
