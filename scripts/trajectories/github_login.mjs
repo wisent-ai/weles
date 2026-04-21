@@ -9,12 +9,20 @@ if (!acct.metadata.password) { console.log(`FAIL: account ${acct.username} has n
 process.env.SVC_EMAIL = acct.metadata.email ?? acct.username;
 process.env.SVC_PASSWORD = acct.metadata.password;
 
+// GitHub login has no strong residential-IP requirement and repeatedly
+// returns ERR_EMPTY_RESPONSE on PacketStream residential — those IPs sit on
+// GitHub's abuse list. Default to the account's stored proxy if present,
+// otherwise PROXY_URL override, otherwise NO proxy (direct egress). Set
+// FORCE_RESIDENTIAL=1 to opt back into the old residential-picker behavior.
 const savedProxy = acct.metadata.proxy;
-let proxyUrl = process.env.PROXY_URL || 'residential';
+let proxyUrl = process.env.PROXY_URL
+  || (process.env.FORCE_RESIDENTIAL === '1' ? 'residential' : undefined);
 if (savedProxy?.server && savedProxy?.username) {
   const u = new globalThis.URL(savedProxy.server);
   proxyUrl = `${u.protocol}//${savedProxy.username}:${savedProxy.password}@${u.hostname}:${u.port}`;
   console.log(`[login] Using saved proxy: ${u.hostname}:${u.port} sessid=${savedProxy.username.match(/sessid-(\d+)/)?.[1]}`);
+} else if (proxyUrl === undefined) {
+  console.log(`[login] No proxy (direct egress from worker IP — GitHub accepts this)`);
 }
 console.log(`[login] Account: ${acct.username} (${process.env.SVC_EMAIL})`);
 
