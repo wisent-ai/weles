@@ -1,0 +1,18 @@
+[Unit]
+Description=Weles account action worker
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=lukaszbartoszcze
+WorkingDirectory=/home/lukaszbartoszcze/weles
+EnvironmentFile=/home/lukaszbartoszcze/weles/var/worker.env
+ExecStart=/usr/local/bin/weles-worker-launch
+Restart=on-failure
+RestartSec=10
+StandardOutput=append:/home/lukaszbartoszcze/weles/var/worker.log
+StandardError=append:/home/lukaszbartoszcze/weles/var/worker.log
+
+[Install]
+WantedBy=multi-user.target

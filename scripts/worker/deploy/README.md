@@ -1,0 +1,70 @@
+# Weles worker — VM deployment
+
+Runs `node scripts/worker/run.mjs` as a systemd service. Drains
+`account_action_logs` rows the content-platform campaign scheduler + lifecycle
+sim crons enqueue.
+
+## Host prerequisites
+
+- Ubuntu 22.04+ (or any systemd host)
+- Node.js 22+, git, gh (GitHub CLI), xvfb
+- A Chromium binary — either the custom weles Chromium (per-platform prebuilt
+  via `scripts/chromium/download.sh` when the Linux asset exists on the release)
+  or Playwright's bundled Chromium at
+  `~/.cache/ms-playwright/chromium-*/chrome-linux64/chrome`
+  (`npx playwright install chromium --with-deps`)
+
+## Clone + build
+
+```bash
+git clone https://<token>@github.com/wisent-ai/weles.git ~/weles
+cd ~/weles
+npm install
+npm run build
+```
+
+## Credentials (VM-local, not committed)
+
+```bash
+mkdir -p ~/weles/var
+cat > ~/weles/var/worker.env <<EOF
+SUPABASE_URL=https://<project>.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=sb_secret_...
+CRON_SECRET=<same value as content-platform Vercel env>
+CHROMIUM_PATH=/home/<user>/.cache/ms-playwright/chromium-1217/chrome-linux64/chrome
+LLM_GENERATE_URL=https://content.wisent.ai/api/llm/generate
+INSTANCE_ID=<hostname>-worker
+RECORDINGS_ROOT=/home/<user>/weles/recordings
+EOF
+chmod 600 ~/weles/var/worker.env
+```
+
+## Install the launch wrapper + unit
+
+```bash
+sudo install -m 0755 ~/weles/scripts/worker/deploy/launch.sh /usr/local/bin/weles-worker-launch
+sudo cp ~/weles/scripts/worker/deploy/systemd.service /etc/systemd/system/weles-worker.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now weles-worker
+```
+
+## Operate
+
+```bash
+sudo systemctl status weles-worker
+tail -f ~/weles/var/worker.log
+sudo systemctl restart weles-worker   # after git pull + npm run build
+```
+
+## Drain state
+
+```bash
+psql "$DATABASE_URL" -c "
+  SELECT status, COUNT(*) FROM account_action_logs
+  WHERE started_at > NOW() - INTERVAL '1 hour'
+  GROUP BY status ORDER BY 1;"
+```
+
+Worker claims the oldest `queued` rows first (ordered by `scheduled_at`). If
+the queue has older stale rows, they drain before new campaign items — flush
+with a `UPDATE ... SET status='cancelled'` if needed.
