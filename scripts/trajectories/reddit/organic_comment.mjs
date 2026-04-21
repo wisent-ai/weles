@@ -9,6 +9,7 @@
 import { getSocialAccount, resolveAccountSession } from '../../../dist/utils/credentials.js';
 import { WSession } from '../../../dist/session/wsession.js';
 import { execute } from '../../../dist/agent/loop.js';
+import { generateOrganicComment } from '../_shared/llm.mjs';
 import { detectRedditBanSignals } from '../../../dist/platforms/reddit/ban_signals.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -51,21 +52,10 @@ try {
   } catch (e) { console.log('[listing-parse]', e.message); }
   if (!postUrl) throw new Error('no eligible post found');
 
-  const llmResp = await fetch(process.env.LLM_API_URL || 'https://api.wisentmedia.com/api/llm/messages', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-5-20250929', max_tokens: 160,
-      system: [
-        { type: 'text', text: `You are ${character.name}. Bio: ${character.bio ?? ''}. Personality: ${character.personality ?? ''}. Niche: ${character.niche ?? ''}. You write like a real person — informal, lowercase-friendly, no marketing language. Don't start with "Wow"/"Great post". Don't sign your messages.`, cache_control: { type: 'ephemeral' } },
-        { type: 'text', text: 'Write a 1-2 sentence reaction to the post. Do not reference any products, brands, or services.' },
-      ],
-      messages: [{ role: 'user', content: `[r/${SUBREDDIT}] ${postTitle}\n\n${postBody.slice(0, 600)}` }],
-    }),
+  const commentText = await generateOrganicComment({
+    persona: { name: character.name, bio: character.bio, personality: character.personality, niche: character.niche },
+    post: { surface: `r/${SUBREDDIT}`, title: postTitle, body: postBody },
   });
-  if (!llmResp.ok) throw new Error(`LLM ${llmResp.status}: ${(await llmResp.text()).slice(0, 200)}`);
-  const llmData = await llmResp.json();
-  const commentText = (llmData.content?.find(b => b.type === 'text')?.text || '').trim();
-  if (!commentText) throw new Error('LLM returned empty content');
   console.log(`[comment-text] ${commentText.slice(0, 120)}...`);
 
   await s.goto(postUrl);
