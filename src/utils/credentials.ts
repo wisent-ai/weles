@@ -64,13 +64,24 @@ interface SocialAccount {
   metadata: { email?: string; password?: string; cookies?: any[]; status?: string; proxy?: any };
 }
 
-/** Get an active social account for a platform from the social_accounts table. */
+/**
+ * Get an active social account for a platform from the social_accounts table.
+ *
+ * When the worker spawns a trajectory it sets ACCOUNT_ID in env — that is the
+ * specific account the scheduler's claim landed on. Honor it so the trajectory
+ * acts on the queued-for account, not whatever `latest active` returns. Falls
+ * back to "most recent active" when ACCOUNT_ID is absent (manual invocations).
+ */
 export async function getSocialAccount(platform: string): Promise<SocialAccount | null> {
   const supabaseUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
   if (!supabaseUrl || !supabaseKey) return null;
+  const accountId = process.env.ACCOUNT_ID;
+  const query = accountId
+    ? `id=eq.${accountId}&platform=eq.${platform}&select=id,platform,username,metadata&limit=1`
+    : `platform=eq.${platform}&is_active=eq.true&select=id,platform,username,metadata&order=created_at.desc&limit=1`;
   const res = await fetch(
-    `${supabaseUrl}/rest/v1/social_accounts?platform=eq.${platform}&is_active=eq.true&select=id,platform,username,metadata&order=created_at.desc&limit=1`,
+    `${supabaseUrl}/rest/v1/social_accounts?${query}`,
     { headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` } },
   );
   if (!res.ok) return null;

@@ -140,7 +140,11 @@ function paramsToEnv(params: Record<string, unknown>, action: string, trajPath: 
 async function runTrajectory(row: ActionLogRow, path: string): Promise<{ exitCode: number; stderr: string }> {
   return new Promise((resolve) => {
     const child = spawn('node', [path], {
-      env: { ...process.env, ...paramsToEnv(row.params ?? {}, row.action, path) },
+      env: {
+        ...process.env,
+        ...paramsToEnv(row.params ?? {}, row.action, path),
+        ACCOUNT_ID: row.account_id,
+      },
       cwd: process.cwd(),
       stdio: ['ignore', 'inherit', 'pipe'],
     });
