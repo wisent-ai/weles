@@ -78,6 +78,7 @@ function resolveTrajectory(action: string, platform?: string): string | null {
     watch_through:         (p) => `scripts/trajectories/${p}/actions/watch_through.mjs`,
     bookmark:              (p) => `scripts/trajectories/${p}/actions/bookmark.mjs`,
     save:                  (p) => `scripts/trajectories/${p}/actions/save.mjs`,
+    reset_password:        (p) => p === 'github' ? 'scripts/trajectories/github/recover/reset_password.mjs' : `scripts/trajectories/${p}_reset_password.mjs`,
   };
   const router = routes[verb];
   return router ? router(plat) : null;
