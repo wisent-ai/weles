@@ -63,7 +63,7 @@ function resolveTrajectory(action: string, platform?: string): string | null {
     like:                  (p) => ['linkedin','tiktok','twitter','instagram'].includes(p) ? `scripts/trajectories/${p}/actions/like.mjs` : `scripts/trajectories/${p}_like.mjs`,
     follow:                (p) => (p === 'reddit' || p === 'tiktok' || p === 'twitter' || p === 'instagram' || p === 'github') ? `scripts/trajectories/${p}/actions/follow.mjs` : `scripts/trajectories/${p}_follow.mjs`,
     comment:               (p) => `scripts/trajectories/${p}_comment.mjs`,
-    upvote:                (p) => `scripts/trajectories/${p}_upvote.mjs`,
+    upvote:                (p) => p === 'reddit' ? 'scripts/trajectories/reddit/actions/upvote.mjs' : `scripts/trajectories/${p}_upvote.mjs`,
     dm:                    (p) => `scripts/trajectories/${p}_dm.mjs`,
     star:                  (p) => p === 'github' ? 'scripts/trajectories/github/star/run.mjs' : `scripts/trajectories/${p}_star.mjs`,
     // Platform-specific light-engagement verbs — nested under actions/ so the
