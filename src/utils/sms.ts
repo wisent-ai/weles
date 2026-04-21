@@ -34,30 +34,27 @@ function normalizePhone(raw: string, country: string): string {
 }
 
 export async function getNumber(service: string, country = 'UK'): Promise<SmsNumber | null> {
-  // Try JuicySMS first
+  // Try JuicySMS — only the requested country (caller handles rotation)
   const jKey = process.env.JUICYSMS_API_KEY;
   if (jKey) {
     const sid = SERVICE_IDS[service.toLowerCase()] ?? service;
-    const countries = [country, ...['US', 'UK', 'NL', 'DE'].filter(c => c !== country)];
-    for (const c of countries) {
-      const url = `${JUICY_BASE}/makeorder?key=${jKey}&serviceId=${sid}&country=${c}`;
-      const r = await fetch(url).catch(() => null);
-      const text = (await r?.text())?.trim() ?? '';
-      const m = text.match(/ORDER_ID_(\d+)_NUMBER_(\d+)/);
-      if (m) {
-        console.log(`[sms] juicysms: got ${m[2]} (order ${m[1]}, ${c})`);
-        return { phone: normalizePhone(m[2], c), orderId: m[1], provider: 'juicysms', country: c };
-      }
-      if (text.includes('OPEN_ORDER')) {
-        const oid = text.match(/(\d+)/)?.[1];
-        if (oid) { await fetch(`${JUICY_BASE}/cancelorder?key=${jKey}&orderId=${oid}`).catch(() => {}); }
-        const r2 = await fetch(url).catch(() => null);
-        const t2 = (await r2?.text())?.trim() ?? '';
-        const m2 = t2.match(/ORDER_ID_(\d+)_NUMBER_(\d+)/);
-        if (m2) return { phone: normalizePhone(m2[2], c), orderId: m2[1], provider: 'juicysms', country: c };
-      }
-      console.log(`[sms] juicysms (${c}): ${text.slice(0, 60)}`);
+    const url = `${JUICY_BASE}/makeorder?key=${jKey}&serviceId=${sid}&country=${country}`;
+    const r = await fetch(url).catch(() => null);
+    const text = (await r?.text())?.trim() ?? '';
+    const m = text.match(/ORDER_ID_(\d+)_NUMBER_(\d+)/);
+    if (m) {
+      console.log(`[sms] juicysms: got ${m[2]} (order ${m[1]}, ${country})`);
+      return { phone: normalizePhone(m[2], country), orderId: m[1], provider: 'juicysms', country };
     }
+    if (text.includes('OPEN_ORDER')) {
+      const oid = text.match(/(\d+)/)?.[1];
+      if (oid) { await fetch(`${JUICY_BASE}/cancelorder?key=${jKey}&orderId=${oid}`).catch(() => {}); }
+      const r2 = await fetch(url).catch(() => null);
+      const t2 = (await r2?.text())?.trim() ?? '';
+      const m2 = t2.match(/ORDER_ID_(\d+)_NUMBER_(\d+)/);
+      if (m2) return { phone: normalizePhone(m2[2], country), orderId: m2[1], provider: 'juicysms', country };
+    }
+    console.log(`[sms] juicysms (${country}): ${text.slice(0, 60)}`);
   }
   // Try sms-activate
   const saKey = process.env.SMSACTIVATE_API_KEY;
@@ -101,7 +98,10 @@ export async function pollCode(orderId: string, provider: 'juicysms' | 'smsactiv
     if (elapsed % 15 === 0) console.log(`[sms] waiting for code... (${elapsed}s / ${waitSecs}s)`);
     await new Promise(r => setTimeout(r, 5000));
   }
-  await cancelOrder(orderId, provider);
+  // Skip (not cancel) — prevents getting the same dead number again. Free if SMS wasn't delivered.
+  if (provider === 'juicysms') {
+    await fetch(`${JUICY_BASE}/skipnumber?key=${process.env.JUICYSMS_API_KEY}&orderId=${orderId}`).catch(() => {});
+  } else { await cancelOrder(orderId, provider); }
   return null;
 }
 

@@ -209,11 +209,14 @@ export function toCppConfig(config: FingerprintConfig, targetOs = 'macos'): Reco
     webgl: { unmaskedVendor: webgl.unmaskedVendor, unmaskedRenderer: webgl.unmaskedRenderer },
     canvas: config.canvas, audio: config.audio,
     clientHints: { platform: chPlatform, platformVersion: chPlatformVersion, architecture: 'x86', bitness: '64', model: '', mobile: false, wow64: false, fullVersion,
-      // Real Chrome advertises THREE brands: Not.A/Brand, Chromium, Google Chrome
-      // (all with the same major version). Missing "Google Chrome" is a well-known
-      // tell that flags stock Chromium / automation browsers.
-      brandList: [{ brand: 'Not.A/Brand', version: '8' }, { brand: 'Chromium', version: major }, { brand: 'Google Chrome', version: major }],
-      brandFullVersionList: [{ brand: 'Not.A/Brand', version: '8.0.0.0' }, { brand: 'Chromium', version: fullVersion }, { brand: 'Google Chrome', version: fullVersion }],
+      // Chrome's sec-ch-ua brand ORDER is produced by a deterministic
+      // version-keyed greasing algorithm. The empirical order for v147 (verified
+      // 2026-04-18 via side-by-side real Chrome capture) is
+      //   [Google Chrome, Not.A/Brand, Chromium]
+      // NOT alphabetical and NOT [Not.A/Brand, Chromium, Google Chrome] as this
+      // file previously hard-coded, which TikTok's mssdk detected as non-Chrome.
+      brandList: [{ brand: 'Google Chrome', version: major }, { brand: 'Not.A/Brand', version: '8' }, { brand: 'Chromium', version: major }],
+      brandFullVersionList: [{ brand: 'Google Chrome', version: fullVersion }, { brand: 'Not.A/Brand', version: '8.0.0.0' }, { brand: 'Chromium', version: fullVersion }],
     },
   };
 }
