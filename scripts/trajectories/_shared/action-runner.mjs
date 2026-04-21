@@ -74,8 +74,22 @@ export async function runAction(cfg) {
   const s = await WSession.start({ label, proxy: proxyUrl, persona });
   let banSignal = null;
   let resultValue = null;
+  // Resolve a specific target if the caller provided one. Precedence:
+  // TARGET_URL (full URL) > TARGET_USER (resolved per-platform) > SEARCH_QUERY
+  // (resolved to hashtag/search URL) > cfg.feedUrl default. Targeted mode
+  // uses cfg.targetedCommentGoal(text) if provided, otherwise cfg.commentGoal.
+  const TARGET_URL = process.env.TARGET_URL || '';
+  const TARGET_USER = process.env.TARGET_USER || '';
+  const SEARCH_QUERY = process.env.SEARCH_QUERY || '';
+  const REQUIRE_APPROVAL = process.env.REQUIRE_APPROVAL === '1';
+  const preapprovedText = process.env.SVC_TEXT || '';
+  let targetedMode = false;
+  let feed;
+  if (TARGET_URL) { feed = TARGET_URL; targetedMode = true; }
+  else if (TARGET_USER && cfg.resolveUserUrl) { feed = cfg.resolveUserUrl(TARGET_USER); targetedMode = true; }
+  else if (SEARCH_QUERY && cfg.resolveSearchUrl) { feed = cfg.resolveSearchUrl(SEARCH_QUERY); targetedMode = true; }
+  else feed = typeof cfg.feedUrl === 'function' ? cfg.feedUrl(acct.username) : cfg.feedUrl;
   try {
-    const feed = typeof cfg.feedUrl === 'function' ? cfg.feedUrl(acct.username) : cfg.feedUrl;
     await s.goto(feed);
 
     if (cfg.action === 'browse') {
@@ -85,19 +99,39 @@ export async function runAction(cfg) {
       }
       resultValue = `scrolled ${cfg.scrolls ?? 6}x`;
     } else {
-      // Comment / promote path — LLM generates text and agent loop submits.
       const surfaceLabel = typeof cfg.surfaceLabel === 'function' ? cfg.surfaceLabel(acct, feed) : (cfg.surfaceLabel ?? feed);
       const { postTitle, postBody } = await (cfg.pickPost?.(s) ?? Promise.resolve({ postTitle: '', postBody: '' }));
-      const text = await genComment({
-        character, product,
-        variant: (process.env.VARIANT || character?.promotion_config?.variant || 'mention').toLowerCase(),
-        surfaceLabel, postTitle, postBody,
-        maxTokens: cfg.action === 'promote' ? 240 : 160,
-      });
-      console.log(`[comment-text] ${text.slice(0, 140)}...`);
-      const goal = cfg.commentGoal(text);
-      const r = await execute(s, goal, { flowName: label });
-      resultValue = r.value;
+      let text = preapprovedText;
+      if (!text) {
+        text = await genComment({
+          character, product,
+          variant: (process.env.VARIANT || character?.promotion_config?.variant || 'mention').toLowerCase(),
+          surfaceLabel, postTitle, postBody,
+          maxTokens: cfg.action === 'promote' ? 240 : 160,
+        });
+        console.log(`[comment-text] ${text.slice(0, 140)}...`);
+      } else {
+        console.log(`[preapproved] using operator-reviewed text (${text.length} chars)`);
+      }
+      if (cfg.action === 'promote' && REQUIRE_APPROVAL && !preapprovedText) {
+        const dir = join(process.cwd(), 'recordings', label);
+        mkdirSync(dir, { recursive: true });
+        writeFileSync(join(dir, 'pending_review.json'), JSON.stringify({
+          account_id: acct.id, username: acct.username, action: label,
+          post_url: targetedMode ? feed : null, surface_label: surfaceLabel,
+          post_title: postTitle, post_body: (postBody || '').slice(0, 600),
+          character: character ? { name: character.name, niche: character.niche } : null,
+          product: product ? { name: product.name } : null,
+          variant: (process.env.VARIANT || character?.promotion_config?.variant || 'mention').toLowerCase(),
+          comment_text: text, ts: new Date().toISOString(),
+        }, null, 2));
+        console.log('PASS: pending_review (approval required, not submitted)');
+        resultValue = 'pending_review';
+      } else {
+        const goalFn = targetedMode && cfg.targetedCommentGoal ? cfg.targetedCommentGoal : cfg.commentGoal;
+        const r = await execute(s, goalFn(text), { flowName: label });
+        resultValue = r.value;
+      }
     }
     banSignal = await cfg.banDetector(s.page, s.capturedResponses).catch(() => null);
     console.log(`[ban-signal] ${banSignal?.signal}`);

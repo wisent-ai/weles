@@ -1,17 +1,8 @@
-/**
- * Poll account_action_logs, claim atomically, run the corresponding weles
- * trajectory as a subprocess, import the ban_signal.json, write results back.
- *
- * Handles every action name the lifecycle scheduler emits, plus the legacy
- * bundled action 'browse_and_engage' which routes to the platform's browse
- * trajectory. Replaces the cross-language Python-to-Node bridge that existed
- * when we had the Python AccountActions handle organic actions.
- *
- * No Playwright here — trajectory subprocesses own their own WSession +
- * Capture. This worker is pure orchestration (poll / claim / spawn / writeback).
- */
+// Worker: poll account_action_logs, claim atomically, spawn weles trajectory
+// subprocess, import ban_signal + pending_review if present, write back. Pure
+// orchestration — trajectories own their own WSession + Capture.
 import { spawn } from 'node:child_process';
-import { readFile, readdir } from 'node:fs/promises';
+import { readFile, readdir, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
 
 export interface ActionLogRow {
@@ -45,15 +36,28 @@ function resolveTrajectory(action: string, platform?: string): string | null {
   if (firstUnderscore < 0) return null;
   const plat = action.slice(0, firstUnderscore);
   const verb = action.slice(firstUnderscore + 1);
+  // Benign verbs (dwell / notifications / search / profile_view) all run the
+  // same universal file with PLATFORM + VERB env. Specialized verbs map to
+  // a specific trajectory file. Legacy flat register/login/like/etc. stay flat.
+  const benignPath = 'scripts/trajectories/_shared/benign.mjs';
   const routes: Record<string, (p: string) => string> = {
+    // Passive / benign (shared runner)
+    dwell:                 () => benignPath,
+    notifications:         () => benignPath,
+    search:                () => benignPath,
+    profile_view:          () => benignPath,
+    // Feed-scroll is close enough to dwell that the same runner works — each
+    // platform's browse.mjs may still exist for backwards compat; prefer it
+    // when present, otherwise fall through to benign.
     browse:                (p) => `scripts/trajectories/${p}/browse.mjs`,
+    // Health / organic comment / promote
     health:                (p) => p === 'github' ? 'scripts/trajectories/github/health/run.mjs' : `scripts/trajectories/${p}/health.mjs`,
     organic_comment:       (p) => `scripts/trajectories/${p}/organic_comment.mjs`,
     organic_reply:         (p) => `scripts/trajectories/${p}/organic_reply.mjs`,
     organic_message:       (p) => `scripts/trajectories/${p}/organic_message.mjs`,
     organic_issue_comment: (p) => `scripts/trajectories/${p}/actions/organic_issue_comment.mjs`,
     promote:               (p) => p === 'github' ? 'scripts/trajectories/github/actions/promote.mjs' : `scripts/trajectories/${p}/promote.mjs`,
-    // Legacy flat trajectories — <platform>_<verb>.mjs at the top level.
+    // Legacy flat trajectories — <platform>_<verb>.mjs at the top level
     register:              (p) => p === 'github' || p === 'youtube' ? `scripts/trajectories/${p}/register.mjs` : `scripts/trajectories/${p}_register.mjs`,
     login:                 (p) => `scripts/trajectories/${p}_login.mjs`,
     like:                  (p) => `scripts/trajectories/${p}_like.mjs`,
@@ -62,6 +66,18 @@ function resolveTrajectory(action: string, platform?: string): string | null {
     upvote:                (p) => `scripts/trajectories/${p}_upvote.mjs`,
     dm:                    (p) => `scripts/trajectories/${p}_dm.mjs`,
     star:                  (p) => `scripts/trajectories/${p}_star.mjs`,
+    // Platform-specific light-engagement verbs — nested under actions/ so the
+    // top-level platform folders stay at <=5 files.
+    connect:               (p) => `scripts/trajectories/${p}/actions/connect.mjs`,
+    endorse:               (p) => `scripts/trajectories/${p}/actions/endorse.mjs`,
+    react:                 (p) => `scripts/trajectories/${p}/actions/react.mjs`,
+    join_server:           (p) => `scripts/trajectories/${p}/actions/join_server.mjs`,
+    join_sub:              (p) => `scripts/trajectories/${p}/actions/join_sub.mjs`,
+    watch_repo:            (p) => `scripts/trajectories/${p}/actions/watch_repo.mjs`,
+    story_view:            (p) => `scripts/trajectories/${p}/actions/story_view.mjs`,
+    watch_through:         (p) => `scripts/trajectories/${p}/actions/watch_through.mjs`,
+    bookmark:              (p) => `scripts/trajectories/${p}/actions/bookmark.mjs`,
+    save:                  (p) => `scripts/trajectories/${p}/actions/save.mjs`,
   };
   const router = routes[verb];
   return router ? router(plat) : null;
@@ -94,8 +110,16 @@ async function claimOne(): Promise<ActionLogRow | null> {
   return null;
 }
 
-function paramsToEnv(params: Record<string, unknown>): Record<string, string> {
+function paramsToEnv(params: Record<string, unknown>, action: string, trajPath: string): Record<string, string> {
   const env: Record<string, string> = {};
+  // Benign runner dispatches on PLATFORM + VERB derived from the action name.
+  if (trajPath.endsWith('/_shared/benign.mjs')) {
+    const underscore = action.indexOf('_');
+    if (underscore > 0) {
+      env.PLATFORM = action.slice(0, underscore);
+      env.VERB = action.slice(underscore + 1);
+    }
+  }
   if (typeof params.subreddit === 'string') env.SUBREDDIT = params.subreddit;
   if (typeof params.product_id === 'string') env.PRODUCT_ID = params.product_id;
   if (typeof params.variant === 'string') env.VARIANT = params.variant;
@@ -103,13 +127,20 @@ function paramsToEnv(params: Record<string, unknown>): Record<string, string> {
   if (typeof params.server_channel_path === 'string') env.SERVER_CHANNEL_PATH = params.server_channel_path;
   if (typeof params.scrolls === 'number') env.SCROLL_COUNT = String(params.scrolls);
   if (typeof params.posts_to_browse === 'number') env.SCROLL_COUNT = String(params.posts_to_browse);
+  if (typeof params.search_query === 'string') env.SEARCH_QUERY = params.search_query;
+  if (typeof params.target_user === 'string') env.TARGET_USER = params.target_user;
+  if (typeof params.target_url === 'string') env.TARGET_URL = params.target_url;
+  if (typeof params.invite_url === 'string') env.INVITE_URL = params.invite_url;
+  if (typeof params.repo_url === 'string') env.REPO_URL = params.repo_url;
+  if (typeof params.text === 'string') env.SVC_TEXT = params.text;
+  if (params.require_approval === true) env.REQUIRE_APPROVAL = '1';
   return env;
 }
 
 async function runTrajectory(row: ActionLogRow, path: string): Promise<{ exitCode: number; stderr: string }> {
   return new Promise((resolve) => {
     const child = spawn('node', [path], {
-      env: { ...process.env, ...paramsToEnv(row.params ?? {}) },
+      env: { ...process.env, ...paramsToEnv(row.params ?? {}, row.action, path) },
       cwd: process.cwd(),
       stdio: ['ignore', 'inherit', 'pipe'],
     });
@@ -168,7 +199,7 @@ async function pauseAccount(accountId: string, hours = 24): Promise<void> {
   }).catch(() => {});
 }
 
-async function writeResult(jobId: string, status: 'completed' | 'failed', result: Record<string, unknown>, error?: string): Promise<void> {
+async function writeResult(jobId: string, status: 'completed' | 'failed' | 'pending_review', result: Record<string, unknown>, error?: string): Promise<void> {
   await fetch(`${SUPABASE_URL}/rest/v1/account_action_logs?id=eq.${jobId}`, {
     method: 'PATCH',
     headers: { ...headers(), Prefer: 'return=minimal' },
@@ -176,6 +207,16 @@ async function writeResult(jobId: string, status: 'completed' | 'failed', result
       status, result, error: error ?? null,
       completed_at: new Date().toISOString(),
     }),
+  }).catch(() => {});
+}
+
+async function closeCampaignItem(params: Record<string, unknown> | undefined, finalStatus: 'completed' | 'failed', error?: string): Promise<void> {
+  const itemId = params?.campaign_item_id as string | undefined;
+  if (!itemId) return;
+  await fetch(`${SUPABASE_URL}/rest/v1/campaign_items?id=eq.${itemId}`, {
+    method: 'PATCH',
+    headers: { ...headers(), Prefer: 'return=minimal' },
+    body: JSON.stringify({ status: finalStatus, error: error ?? null, completed_at: new Date().toISOString() }),
   }).catch(() => {});
 }
 
@@ -233,11 +274,20 @@ export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
       }).catch(() => {});
     }
   }
-  if (exitCode === 0) {
+  const pendingPath = join(RECORDINGS_ROOT, row.action, 'pending_review.json');
+  let pending: Record<string, unknown> | null = null;
+  try { pending = JSON.parse(await readFile(pendingPath, 'utf8')); await unlink(pendingPath); } catch { pending = null; }
+  if (exitCode === 0 && pending) {
+    result.pending_review = pending;
+    await writeResult(row.id, 'pending_review', result);
+    console.log(`[worker] ${row.id.slice(0, 8)} pending_review`);
+  } else if (exitCode === 0) {
     await writeResult(row.id, 'completed', result);
+    await closeCampaignItem(row.params, 'completed');
     console.log(`[worker] ${row.id.slice(0, 8)} completed signal=${(result.ban_signal as BanSignal).signal}`);
   } else {
     await writeResult(row.id, 'failed', result, stderr || `exit ${exitCode}`);
+    await closeCampaignItem(row.params, 'failed', stderr || `exit ${exitCode}`);
     console.log(`[worker] ${row.id.slice(0, 8)} failed exit=${exitCode}`);
   }
   return 'claimed';
