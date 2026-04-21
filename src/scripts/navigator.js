@@ -48,15 +48,21 @@ if (__weles.navigator) {
         {brand: 'Not_A Brand', version: '8'},
       ];
       const greasey = greaseyBrands[seed];
+      // Order must match real Chrome's navigator.userAgentData.brands:
+      // [Google Chrome, Not.A/Brand-variant, Chromium]. Measured 2026-04-18
+      // side-by-side with stock Chrome 147 on same Mac — Google Chrome is
+      // index 0, not index 2. TikTok's webmssdk reads brands[0].brand and
+      // signs it into x-mssdk-info; if brands[0] != "Google Chrome" the
+      // signature identifies the session as non-Chrome.
       const brands = [
+        {brand: 'Google Chrome', version: majorVersion},
         greasey,
         {brand: 'Chromium', version: majorVersion},
-        {brand: 'Google Chrome', version: majorVersion},
       ];
       const fullBrands = [
+        {brand: 'Google Chrome', version: fullVersion},
         {brand: greasey.brand, version: greasey.version + '.0.0.0'},
         {brand: 'Chromium', version: fullVersion},
-        {brand: 'Google Chrome', version: fullVersion},
       ];
       const platform = nav.platform || navigator.userAgentData.platform || '';
       const mobile = navigator.userAgentData.mobile || false;
@@ -148,4 +154,52 @@ if (false && typeof speechSynthesis !== 'undefined') (function installSpeechVoic
   window.__WELES_SPEECH_VOICES = voiceObjs.length;
   setTimeout(() => { try { speechSynthesis.dispatchEvent?.(new Event('voiceschanged')); } catch {} }, 0);
   } catch (e) { window.__WELES_SPEECH_ERR_TOP = String(e); }
+})();
+
+// --- HEVC codec support shim ---
+// Chromium (weles's base) does not ship HEVC — only Google Chrome's proprietary
+// build includes it. TikTok runs `MediaCapabilities.decodingInfo({video:{
+// contentType:'video/mp4; codecs="hev1.1.6.L93.B0"'}})` during signup and
+// observes `supported:false` on weles but `supported:true` on real Chrome 147
+// on Mac. Cached as `hevc_support_key_v4=0` in localStorage, which webmssdk
+// signs into x-mssdk-info. Spoof HEVC as supported to match real Chrome.
+// Measured 2026-04-18 side-by-side on same Mac.
+(function installHevcShim() {
+  try {
+    const isHevc = (s) => /\b(hev1|hvc1)\b/i.test(s || '');
+
+    if (typeof MediaSource !== 'undefined' && MediaSource.isTypeSupported) {
+      const orig = MediaSource.isTypeSupported.bind(MediaSource);
+      MediaSource.isTypeSupported = function(type) {
+        if (isHevc(type)) return true;
+        return orig(type);
+      };
+    }
+
+    if (typeof HTMLMediaElement !== 'undefined' && HTMLMediaElement.prototype.canPlayType) {
+      const origCpt = HTMLMediaElement.prototype.canPlayType;
+      HTMLMediaElement.prototype.canPlayType = function(type) {
+        if (isHevc(type)) return 'probably';
+        return origCpt.call(this, type);
+      };
+    }
+
+    if (navigator.mediaCapabilities && navigator.mediaCapabilities.decodingInfo) {
+      const origDec = navigator.mediaCapabilities.decodingInfo.bind(navigator.mediaCapabilities);
+      navigator.mediaCapabilities.decodingInfo = function(config) {
+        try {
+          const ct = config?.video?.contentType || config?.audio?.contentType || '';
+          if (isHevc(ct)) {
+            return Promise.resolve({
+              supported: true,
+              smooth: true,
+              powerEfficient: true,
+              configuration: config,
+            });
+          }
+        } catch {}
+        return origDec(config);
+      };
+    }
+  } catch (e) { window.__WELES_HEVC_ERR = String(e); }
 })();

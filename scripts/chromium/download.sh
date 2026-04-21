@@ -42,8 +42,8 @@ echo "[download-chromium] Fetching $ASSET from $REPO@$RELEASE_TAG" >&2
 
 if command -v gh >/dev/null 2>&1; then
   # gh release download uses -D (dir) + -p (pattern); there is no --output.
-  gh release download "$RELEASE_TAG" --repo "$REPO" --pattern "$ASSET" --dir "$TMP" --clobber >&2
-  gh release download "$RELEASE_TAG" --repo "$REPO" --pattern "${ASSET}.sha256" --dir "$TMP" --clobber >&2 || true
+  gh release download "$RELEASE_TAG" --repo "$REPO" --pattern "$ASSET" --dir "$TMP" >&2
+  gh release download "$RELEASE_TAG" --repo "$REPO" --pattern "${ASSET}.sha256" --dir "$TMP" >&2 || true
 else
   URL="https://github.com/$REPO/releases/download/$RELEASE_TAG/$ASSET"
   curl -fL --progress-bar "$URL" -o "$TMP/$ASSET" >&2

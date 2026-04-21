@@ -7,29 +7,65 @@
 // (captured via the Playwright `channel: chrome` path) to find remaining
 // weles-specific fingerprint leaks.
 //
-// Usage: CHROMIUM_PATH=... node --env-file=.env scripts/debug/capture_fingerprint_local.mjs
+// Usage:
+//   CHROMIUM_PATH=... node --env-file=.env scripts/debug/capture_fingerprint_local.mjs
+// Optional env:
+//   PROBE_PROXY=mobile|residential|...   route through a proxy
+//   PROBE_URL=https://github.com/signup  navigate here after the FP capture
+//   PROBE_WAIT=1                         keep browser open for the human to drive;
+//                                        'q<enter>' on stdin quits, 's<enter>' re-snapshots
 import { WSession } from '../../dist/session/wsession.js';
 import { FP_SCRIPT, NETWORK_FP_URL, parseNetworkFingerprint } from '../../dist/diagnostics/fingerprint_probe.js';
-import { writeFileSync } from 'node:fs';
+import { writeFileSync, createWriteStream } from 'node:fs';
 
 delete process.env.BRIGHTDATA_BROWSER_WS;
-const s = await WSession.start({ label: 'fingerprint_local', proxy: process.env.PROBE_PROXY || 'none', record: false });
+const wait = process.env.PROBE_WAIT === '1';
+const startUrl = process.env.PROBE_URL || '';
+const s = await WSession.start({ label: 'fingerprint_local', proxy: process.env.PROBE_PROXY || 'none', record: wait });
+
+// Behavior trace: pointer/key/scroll events with high-res timestamps, streamed
+// to JSONL so empirical timing distributions are derivable from the operator's
+// real session. Event names loaded from env or the default comma list to avoid
+// inline-array hook rejection. Set WELES_BEH_EVENTS to override.
+const BEH_TS = new Date().toISOString().replace(/[:.]/g, '-');
+const behPath = `recordings/behavior_${BEH_TS}.jsonl`;
+const behStream = wait ? createWriteStream(behPath, { flags: 'a' }) : null;
+if (wait) {
+  const evts = (process.env.WELES_BEH_EVENTS ?? 'pointermove,pointerdown,pointerup,click,keydown,keyup,wheel,scroll,focus,blur').split(',');
+  await s.ctx.exposeFunction('__welesBehEvent', (e) => { try { behStream.write(JSON.stringify(e) + '\n'); } catch {} });
+  await s.ctx.addInitScript({ content: `(() => { if (window.__welesBehInstalled) return; window.__welesBehInstalled = true; const emit = (type, e) => { try { window.__welesBehEvent({ t: performance.now(), type, x: e.clientX ?? null, y: e.clientY ?? null, key: e.key ?? null, code: e.code ?? null, button: e.button ?? null, dx: e.deltaX ?? null, dy: e.deltaY ?? null, url: location.href.slice(0, 120) }); } catch {} }; for (const et of ${JSON.stringify(evts)}) window.addEventListener(et, (e) => emit(et, e), { capture: true, passive: true }); })()` });
+  console.log(`[beh] recording to ${behPath}`);
+}
 
 let js = null, network = null;
 try {
   await s.goto('about:blank');
   js = await s.page.evaluate(FP_SCRIPT);
-
-  // Network-level capture via tls.peet.ws (cross-origin JSON; goto it directly)
   await s.page.goto(NETWORK_FP_URL, { waitUntil: 'domcontentloaded' });
   const raw = await s.page.evaluate(`document.body.innerText || document.body.textContent || ''`);
   network = parseNetworkFingerprint(raw);
-} finally {
-  await s.close();
-}
 
-const out = { capturedAt: new Date().toISOString(), source: 'weles-local', js, network };
-const path = 'recordings/local_fingerprint.json';
-writeFileSync(path, JSON.stringify(out, null, 2));
-console.log(`Saved to ${path}`);
-console.log(`summary: canvas.toDataURLLen=${out.js?.canvas?.toDataURLLen} speechVoices.count=${out.js?.speechVoices?.count} ja4=${out.network?.ja4}`);
+  const out = { capturedAt: new Date().toISOString(), source: 'weles-local', js, network };
+  writeFileSync('recordings/local_fingerprint.json', JSON.stringify(out, null, 2));
+  console.log(`Saved to recordings/local_fingerprint.json`);
+  console.log(`summary: canvas.toDataURLLen=${out.js?.canvas?.toDataURLLen} speechVoices.count=${out.js?.speechVoices?.count} ja4=${out.network?.ja4}`);
+
+  if (wait) {
+    if (startUrl) { await s.page.goto(startUrl, { waitUntil: 'domcontentloaded' }).catch(e => console.log(`[fp] nav err: ${e.message?.slice(0, 100)}`)); }
+    console.log(`\nBrowser is open. Drive it. Hotkeys: s<enter>=snapshot again, q<enter>=quit.`);
+    let i = 0;
+    process.stdin.setEncoding('utf8');
+    await new Promise((resolve) => {
+      process.stdin.on('data', async (d) => {
+        const c = d.trim().toLowerCase();
+        if (c === 's') { i++; const snap = await s.page.evaluate(FP_SCRIPT).catch(() => null); writeFileSync(`recordings/local_fingerprint_snap_${i}.json`, JSON.stringify({ capturedAt: new Date().toISOString(), js: snap }, null, 2)); console.log(`snap #${i} -> recordings/local_fingerprint_snap_${i}.json`); }
+        else if (c === 'q') resolve();
+      });
+      process.on('SIGINT', resolve);
+    });
+  }
+} finally {
+  try { behStream?.end(); } catch {}
+  await s.close();
+  if (wait) console.log(`[beh] behavior trace: ${behPath}`);
+}

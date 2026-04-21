@@ -21,20 +21,27 @@ const password = process.env.VL_PASSWORD;
 if (!email || !password) { console.error('FAIL: VL creds not set'); process.exit(1); }
 
 const today = new Date().toISOString().slice(0, 10);
+const startDate = args['start-date'] || today;
+const endDate = args['end-date'] || today;
+const minRs = args['min-rs'] || '0';
+const maxRank = args['max-rank'] || '-1';
+const minDollars = args['min-dollars'] || '100000';
+const maxDollars = args['max-dollars'] || '30000000000';
 const base = 'https://www.volumeleaders.com';
 
 // URLs use the exact query-parameter structure the VL sidebar produces,
-// with the Tickers field substituted for the requested symbol.
+// with the Tickers field substituted for the requested symbol. Date range
+// defaults to today but can be overridden via --start-date/--end-date.
 const PAGE_URLS = {
-  trades: (t) => `${base}/Trades?Tickers=${t}&StartDate=${today}&EndDate=${today}&MinVolume=0&MaxVolume=2000000000&Conditions=-1&VCD=0&RelativeSize=0&DarkPools=-1&Sweeps=-1&LatePrints=-1&SignaturePrints=-1&EvenShared=-1&SecurityTypeKey=-1&MinPrice=0&MaxPrice=100000&MinDollars=100000&MaxDollars=30000000000&TradeRank=-1&TradeRankSnapshot=-1&MarketCap=0&IncludePremarket=1&IncludeRTH=1&IncludeAH=1&IncludeOpening=1&IncludeClosing=1&IncludePhantom=1&IncludeOffsetting=1&SectorIndustry=&PresetSearchTemplateID=87&ViewMode=Automatic`,
-  clusters: (t) => `${base}/TradeClusters?Tickers=${t}&StartDate=${today}&EndDate=${today}&MinVolume=0&MaxVolume=2000000000&VCD=0&SecurityTypeKey=-1&RelativeSize=0&MinPrice=0&MaxPrice=100000&MinDollars=100000&MaxDollars=30000000000&TradeClusterRank=-1&SectorIndustry=&PresetSearchTemplateID=87&ViewMode=Automatic`,
-  cluster_bombs: (t) => `${base}/TradeClusterBombs?Tickers=${t}&StartDate=${today}&EndDate=${today}&MinVolume=0&MaxVolume=2000000000&VCD=0&RelativeSize=0&MinDollars=0&MaxDollars=30000000000&TradeClusterBombRank=-1&SectorIndustry=&ViewMode=Automatic`,
-  levels: (t) => `${base}/TradeLevels?Ticker=${t}&MinVolume=0&MaxVolume=2000000000&VCD=0&RelativeSize=0&MinPrice=0&MaxPrice=100000&MinDollars=100000&MaxDollars=30000000000&StartDate=${today}&EndDate=${today}&TradeLevelRank=-1&TradeLevelCount=50&ViewMode=Automatic`,
-  level_touches: (t) => `${base}/TradeLevelTouches?Tickers=${t}&MinVolume=0&MaxVolume=2000000000&VCD=0&RelativeSize=0&MinPrice=0&MaxPrice=100000&MinDollars=100000&MaxDollars=30000000000&StartDate=${today}&EndDate=${today}&TradeLevelRank=10&PresetSearchTemplateID=87&ViewMode=Automatic`,
-  chart: (t) => `${base}/Chart0?Ticker=${t}&StartDate=${today}&EndDate=${today}&MinVolume=0&MaxVolume=2000000000&MinDollars=100000&MaxDollars=30000000000&MinPrice=0&MaxPrice=100000&DarkPools=-1&Sweeps=-1&LatePrints=-1&SignaturePrints=-1&EvenShared=-1&SecurityTypeKey=-1&VolumeProfile=0&Levels=5&TradeCount=3&VCD=0&TradeRank=-1&IncludePremarket=1&IncludeRTH=1&IncludeAH=1&IncludeOpening=1&IncludeClosing=1&IncludePhantom=1&IncludeOffsetting=1&ViewMode=Automatic`,
-  institutional_volume: (t) => `${base}/InstitutionalVolume?Date=${today}&Tickers=${t}&PresetSearchTemplateID=87&ViewMode=Automatic`,
-  ah_institutional_volume: (t) => `${base}/AHInstitutionalVolume?Date=${today}&Tickers=${t}&PresetSearchTemplateID=87&ViewMode=Automatic`,
-  total_volume: (t) => `${base}/TotalVolume?Date=${today}&Tickers=${t}&PresetSearchTemplateID=87&ViewMode=Automatic`,
+  trades: (t) => `${base}/Trades?Tickers=${t}&StartDate=${startDate}&EndDate=${endDate}&MinVolume=0&MaxVolume=2000000000&Conditions=-1&VCD=0&RelativeSize=${minRs}&DarkPools=-1&Sweeps=-1&LatePrints=-1&SignaturePrints=-1&EvenShared=-1&SecurityTypeKey=-1&MinPrice=0&MaxPrice=100000&MinDollars=${minDollars}&MaxDollars=${maxDollars}&TradeRank=-1&TradeRankSnapshot=-1&MarketCap=0&IncludePremarket=1&IncludeRTH=1&IncludeAH=1&IncludeOpening=1&IncludeClosing=1&IncludePhantom=1&IncludeOffsetting=1&SectorIndustry=&PresetSearchTemplateID=87&ViewMode=Automatic`,
+  clusters: (t) => `${base}/TradeClusters?Tickers=${t}&StartDate=${startDate}&EndDate=${endDate}&MinVolume=0&MaxVolume=2000000000&VCD=0&SecurityTypeKey=-1&RelativeSize=${minRs}&MinPrice=0&MaxPrice=100000&MinDollars=${minDollars}&MaxDollars=${maxDollars}&TradeClusterRank=${maxRank}&SectorIndustry=&PresetSearchTemplateID=87&ViewMode=Automatic`,
+  cluster_bombs: (t) => `${base}/TradeClusterBombs?Tickers=${t}&StartDate=${startDate}&EndDate=${endDate}&MinVolume=0&MaxVolume=2000000000&VCD=0&RelativeSize=${minRs}&MinDollars=0&MaxDollars=30000000000&TradeClusterBombRank=-1&SectorIndustry=&ViewMode=Automatic`,
+  levels: (t) => `${base}/TradeLevels?Ticker=${t}&MinVolume=0&MaxVolume=2000000000&VCD=0&RelativeSize=${minRs}&MinPrice=0&MaxPrice=100000&MinDollars=${minDollars}&MaxDollars=${maxDollars}&StartDate=${startDate}&EndDate=${endDate}&TradeLevelRank=-1&TradeLevelCount=50&ViewMode=Automatic`,
+  level_touches: (t) => `${base}/TradeLevelTouches?Tickers=${t}&MinVolume=0&MaxVolume=2000000000&VCD=0&RelativeSize=${minRs}&MinPrice=0&MaxPrice=100000&MinDollars=${minDollars}&MaxDollars=${maxDollars}&StartDate=${startDate}&EndDate=${endDate}&TradeLevelRank=10&PresetSearchTemplateID=87&ViewMode=Automatic`,
+  chart: (t) => `${base}/Chart0?Ticker=${t}&StartDate=${startDate}&EndDate=${endDate}&MinVolume=0&MaxVolume=2000000000&MinDollars=${minDollars}&MaxDollars=${maxDollars}&MinPrice=0&MaxPrice=100000&DarkPools=-1&Sweeps=-1&LatePrints=-1&SignaturePrints=-1&EvenShared=-1&SecurityTypeKey=-1&VolumeProfile=0&Levels=5&TradeCount=3&VCD=0&TradeRank=-1&IncludePremarket=1&IncludeRTH=1&IncludeAH=1&IncludeOpening=1&IncludeClosing=1&IncludePhantom=1&IncludeOffsetting=1&ViewMode=Automatic`,
+  institutional_volume: (t) => `${base}/InstitutionalVolume?Date=${startDate}&Tickers=${t}&PresetSearchTemplateID=87&ViewMode=Automatic`,
+  ah_institutional_volume: (t) => `${base}/AHInstitutionalVolume?Date=${startDate}&Tickers=${t}&PresetSearchTemplateID=87&ViewMode=Automatic`,
+  total_volume: (t) => `${base}/TotalVolume?Date=${startDate}&Tickers=${t}&PresetSearchTemplateID=87&ViewMode=Automatic`,
   exhaustion: (_t) => `${base}/ExhaustionScore`,
 };
 if (!PAGE_URLS[pageKey]) {
@@ -99,7 +106,7 @@ try {
     const out = { url: location.href, title: document.title };
     out.tables = Array.from(document.querySelectorAll('table')).slice(0, 10).map(t => ({
       headers: Array.from(t.querySelectorAll('thead th, thead td')).map(h => h.innerText.trim()).slice(0, 20),
-      rows: Array.from(t.querySelectorAll('tbody tr')).slice(0, 100).map(r =>
+      rows: Array.from(t.querySelectorAll('tbody tr')).slice(0, 1000).map(r =>
         Array.from(r.querySelectorAll('td, th')).map(c => c.innerText.trim())
       ),
     }));

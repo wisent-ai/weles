@@ -25,6 +25,16 @@ for (let i = 2; i < process.argv.length; i += 2) {
 const ticker = (args.ticker || '').toUpperCase();
 const page = args.page || 'overview';
 const screenshotPath = args.screenshot;
+const startDate = args['start-date'] || '';
+const endDate = args['end-date'] || '';
+const qs = (() => {
+  const p = new URLSearchParams();
+  if (startDate) p.set('start_date', startDate);
+  if (endDate) p.set('end_date', endDate);
+  if (startDate && !endDate) p.set('end_date', startDate);
+  const s = p.toString();
+  return s ? `?${s}` : '';
+})();
 if (!ticker) {
   console.error('FAIL: --ticker required');
   process.exit(1);
@@ -35,14 +45,14 @@ if (!ticker) {
 // page here without verifying it appears in the <a href> list that probe
 // emits, otherwise the scrape will hit a 404.
 const PAGE_URLS = {
-  overview: (t) => `https://unusualwhales.com/stock/${t}/overview`,
-  chart: (t) => `https://unusualwhales.com/stock/${t}/chart`,
-  flow_alerts: (t) => `https://unusualwhales.com/stock/${t}/flow-alerts`,
-  flow_history: (t) => `https://unusualwhales.com/stock/${t}/options-flow-history`,
-  flow_overview: (t) => `https://unusualwhales.com/stock/${t}/flow-overview`,
-  net_premium: (t) => `https://unusualwhales.com/stock/${t}/net-premium`,
-  nope: (t) => `https://unusualwhales.com/stock/${t}/nope`,
-  darkpool: (t) => `https://unusualwhales.com/stock/${t}/darkpool`,
+  overview: (t) => `https://unusualwhales.com/stock/${t}/overview${qs}`,
+  chart: (t) => `https://unusualwhales.com/stock/${t}/chart${qs}`,
+  flow_alerts: (t) => `https://unusualwhales.com/stock/${t}/flow-alerts${qs}`,
+  flow_history: (t) => `https://unusualwhales.com/stock/${t}/options-flow-history${qs}`,
+  flow_overview: (t) => `https://unusualwhales.com/stock/${t}/flow-overview${qs}`,
+  net_premium: (t) => `https://unusualwhales.com/stock/${t}/net-premium${qs}`,
+  nope: (t) => `https://unusualwhales.com/stock/${t}/nope${qs}`,
+  darkpool: (t) => `https://unusualwhales.com/stock/${t}/darkpool${qs}`,
   greeks: (t) => `https://unusualwhales.com/stock/${t}/greeks`,
   greek_exposure: (t) => `https://unusualwhales.com/stock/${t}/greek-exposure`,
   chains: (t) => `https://unusualwhales.com/stock/${t}/option-chains`,

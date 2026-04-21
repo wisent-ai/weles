@@ -3,7 +3,10 @@ import { WSession } from '../../dist/session/wsession.js';
 const URL = 'https://www.instagram.com/accounts/emailsignup/';
 const MAX_RETRIES = 5;
 const USE_BRIGHTDATA = !!process.env.BRIGHTDATA_BROWSER_WS;
-const proxy = USE_BRIGHTDATA ? 'none' : (process.env.PROXY_URL || 'residential');
+// Build US Oxylabs proxy URL directly — DB metadata routes to Brazil for Discord, but Instagram needs US
+const oxyUser = process.env.OXYLABS_USERNAME;
+const oxyPass = process.env.OXYLABS_PASSWORD;
+const proxy = USE_BRIGHTDATA ? 'none' : (process.env.PROXY_URL || (oxyUser && oxyPass ? `http://customer-${oxyUser}-cc-us-sessid-${Math.floor(Math.random()*9999999)}:${oxyPass}@pr.oxylabs.io:7777` : 'none'));
 const sleep = (s) => new Promise(r => setTimeout(r, s * 1000));
 
 async function readPage(s) {
@@ -18,7 +21,14 @@ async function signup(s) {
   id.email = `${id.username}@wisentmedia.com`;
   s._env['INSTAGRAM_NEW_EMAIL'] = id.email;
   const name = `${id.firstName} ${id.lastName}`;
-  console.log(`[ig] identity: ${id.username} / ${id.email}`);
+
+  // Get a phone number for signup (skip email — wisentmedia.com codes are rejected)
+  let phone = await s.checkSms('instagram', 'US');
+  if (phone.startsWith('error')) phone = await s.checkSms('instagram', 'UK');
+  console.log(`[ig] identity: ${id.username} / phone=${phone}`);
+  if (phone.startsWith('error')) throw new Error('no_phone_number');
+  const phoneNum = s.resolveEnv('$INSTAGRAM_NEW_PHONE');
+  const digits = phoneNum.replace(/^\+\d{1,2}/, '').replace(/\D/g, '');
 
   // Navigate
   await s.goto(URL);
@@ -31,8 +41,8 @@ async function signup(s) {
     await sleep(2);
   }
 
-  // Fill signup form
-  await s.fill('emailOrPhone', id.email);
+  // Fill signup form with phone number
+  await s.fill('emailOrPhone', digits);
   await sleep(1);
   await s.fill('fullName', name);
   await sleep(1);
@@ -41,9 +51,13 @@ async function signup(s) {
   await s.fill('password', id.password);
   await sleep(1);
 
+  // Take screenshot before submit to verify form state
+  await s.page.screenshot({ path: `/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/recordings/ig_before_submit.png` }).catch(() => {});
   // Click Sign up
   await s.page.evaluate(`(() => { var b = document.querySelector('button[type="submit"]'); if (b) b.click(); })()`).catch(() => {});
   await sleep(5);
+  // Screenshot after submit
+  await s.page.screenshot({ path: `/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/recordings/ig_after_submit.png` }).catch(() => {});
 
   // Birthday page
   const t2 = await readPage(s);
@@ -58,35 +72,35 @@ async function signup(s) {
     await sleep(5);
   }
 
-  // Wait for confirmation code page to appear
+  // Wait for confirmation code page to appear (or any post-signup page)
   let t3 = '';
-  for (let w = 0; w < 15; w++) {
-    await sleep(2);
+  for (let w = 0; w < 30; w++) {
+    if (s.page.isClosed?.()) { console.log('[ig] page closed during wait'); throw new Error('page_closed'); }
+    await sleep(3);
     t3 = await readPage(s);
-    if (t3.includes('confirmation') || t3.includes('code') || t3.includes('verify') || t3.includes('enter the') || t3.includes('phone') || t3.includes('mobile')) break;
-    if (w % 5 === 0) console.log(`[ig] waiting for code page ${w}: ${t3.slice(0, 60).replace(/\n/g, ' ')}`);
+    const url = s.page.url?.() ?? '';
+    // Any of these indicate we've moved past the signup form
+    if (t3.includes('confirmation') || t3.includes('code') || t3.includes('verify') || t3.includes('enter the') || t3.includes('phone') || t3.includes('mobile') || t3.includes('suspended') || t3.includes('confirm that you')) break;
+    if (url.includes('/password/reset')) { console.log('[ig] redirected to password reset'); throw new Error('password_reset'); }
+    if (w % 5 === 0) console.log(`[ig] waiting for code page ${w}: url=${url.slice(-30)} text=${t3.slice(0, 60).replace(/\n/g, ' ')}`);
   }
-  console.log(`[ig] after signup: ${t3.slice(0, 80).replace(/\n/g, ' ')}`);
+  console.log(`[ig] after signup: ${t3.slice(0, 120).replace(/\n/g, ' ')}`);
+  let smsCode = '';
   if (t3.includes('confirmation') || t3.includes('code') || t3.includes('verify') || t3.includes('enter the')) {
-    console.log('[ig] email verification...');
-    const code = await s.checkEmail(id.email, 'instagram');
-    console.log(`[ig] email code: ${code}`);
-    // Try regular input first, then individual digit inputs
-    // Fill code via React-compatible native setter + submit via Continue button
-    await s.page.evaluate(`((code) => { var inp = document.querySelector('input[maxlength="6"]'); if (!inp) { var inputs = Array.from(document.querySelectorAll('input[type="text"]')); inp = inputs.find(i => !i.disabled && !i.value && i.offsetParent); } if (inp) { var set = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set; set.call(inp, code); inp.dispatchEvent(new Event('input', {bubbles:true})); inp.dispatchEvent(new Event('change', {bubbles:true})); } })("${code}")`).catch(() => {});
-    await sleep(2);
-    // Click Continue (Instagram's submit button on code page)
-    await s.page.evaluate(`(() => { var btns = document.querySelectorAll('[role="button"]'); for (var b of btns) { var t = b.textContent.trim(); if (t === 'Continue' || t === 'Next' || t === 'Confirm') { b.click(); return; } } })()`).catch(() => {});
-    // Wait for page to transition away from code page
-    for (let w = 0; w < 15; w++) {
-      await sleep(2);
-      const tt = await readPage(s);
-      if (!tt.includes('confirmation code')) { console.log(`[ig] code accepted after ${w * 2}s`); break; }
-    }
+    console.log('[ig] SMS verification — polling for code...');
+    smsCode = await s.pollSmsCode();
+    console.log(`[ig] SMS code: ${smsCode}`);
+    if (smsCode && smsCode !== 'no code received') {
+      await s.fill('Confirmation code', smsCode).catch(() => {});
+      await sleep(1);
+      await s.click('Continue').catch(() => {});
+      await sleep(5);
+      for (let w = 0; w < 10; w++) { await sleep(2); const tt = await readPage(s); if (!tt.includes('confirmation')) { console.log(`[ig] code accepted`); break; } }
+    } else { console.log('[ig] no SMS code — will retry with new number'); }
   }
 
   // Handle "confirm you're human" captcha or skip onboarding
-  for (let i = 0; i < 15; i++) {
+  for (let i = 0; i < 30; i++) {
     if (s.page.isClosed?.()) { console.log('[ig] page closed'); throw new Error('page_closed'); }
     const url = s.page.url?.() ?? '';
     const t = await readPage(s);
@@ -97,6 +111,16 @@ async function signup(s) {
       console.log('[ig] redirected to password reset — account not created');
       throw new Error('password_reset_redirect');
     }
+    // Still on confirmation code page — re-enter code and click Submit
+    if ((t.includes('confirmation code') || t.includes('enter the 6-digit')) && smsCode) {
+      await s.fill('Confirmation code', smsCode).catch(() => {});
+      await sleep(1);
+      await s.click('Continue').catch(() => {});
+      await sleep(5);
+      const pt = await readPage(s);
+      console.log(`[ig] code submit: ${pt.slice(0, 120).replace(/\n/g, ' ')}`);
+      continue;
+    }
     // Selfie verification — can't bypass, must retry
     if (t.includes('verification selfie') || t.includes('upload a photo that clearly')) {
       console.log('[ig] selfie verification required — cannot automate, retrying');
@@ -105,28 +129,54 @@ async function signup(s) {
     // Phone verification — only on /suspended/ page, NOT on password reset
     if ((t.includes('mobile number') || t.includes('enter your mobile')) && url.includes('/suspended') && !t.includes('find your account')) {
       console.log('[ig] phone verification required');
-      const phone = await s.checkSms('instagram', 'US');
-      console.log(`[ig] SMS: ${phone}`);
-      if (phone.startsWith('error')) { console.log('[ig] no SMS number, skipping'); continue; }
-      const phoneNum = s.resolveEnv('$INSTAGRAM_NEW_PHONE');
-      // Strip +1 prefix — Instagram form already has US +1 selected
-      const digits = phoneNum.replace(/^\+1/, '').replace(/\D/g, '');
-      console.log(`[ig] phone digits: ${digits}`);
-      // Focus input and type digits
-      await s.page.evaluate(`(() => { var inp = document.querySelector('input[type="tel"]'); if (!inp) { var inputs = Array.from(document.querySelectorAll('input')); inp = inputs.find(i => !i.disabled && i.offsetParent && i.type !== 'hidden'); } if (inp) { inp.focus(); inp.click(); } })()`).catch(() => {});
-      await sleep(1);
-      await s.page.keyboard.type(digits, { delay: 50 }).catch(() => {});
-      await sleep(2);
-      await s.page.evaluate(`(() => { var btns = document.querySelectorAll('[role="button"]'); for (var b of btns) { var t = b.textContent.trim(); if (t === 'Send Code' || t === 'Send code' || t === 'Next' || t === 'Continue') { b.click(); return; } } })()`).catch(() => {});
-      await sleep(10);
-      const smsCode = await s.pollSmsCode();
-      console.log(`[ig] SMS code: ${smsCode}`);
-      if (smsCode && smsCode !== 'no code received' && !s.page.isClosed?.()) {
-        console.log(`[ig] filling SMS code ${smsCode}`);
-        await s.page.evaluate(`((code) => { var inp = document.querySelector('input[maxlength="6"]'); if (!inp) { var inputs = Array.from(document.querySelectorAll('input[type="text"]')); inp = inputs.find(i => !i.disabled && !i.value && i.offsetParent); } if (inp) { var set = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set; set.call(inp, code); inp.dispatchEvent(new Event('input', {bubbles:true})); inp.dispatchEvent(new Event('change', {bubbles:true})); } })("${smsCode}")`).catch(() => {});
-        await sleep(2);
-        await s.page.evaluate(`(() => { var btns = document.querySelectorAll('[role="button"]'); for (var b of btns) { var t = b.textContent.trim(); if (t === 'Next' || t === 'Continue' || t === 'Confirm') { b.click(); return; } } })()`).catch(() => {});
+      // Keep trying different numbers until one delivers — alternate US/UK
+      for (let phoneAttempt = 0; ; phoneAttempt++) {
+        if (s.page.isClosed?.()) break;
+        const country = phoneAttempt % 2 === 0 ? 'US' : 'UK';
+        const phone = await s.checkSms('instagram', country);
+        console.log(`[ig] SMS attempt ${phoneAttempt + 1} (${country}): ${phone}`);
+        if (phone.startsWith('error')) { await sleep(5); continue; }
+        const phoneNum = s.resolveEnv('$INSTAGRAM_NEW_PHONE');
+        // Strip country prefix to get raw digits
+        const digits = phoneNum.replace(/^\+\d{1,2}/, '').replace(/\D/g, '');
+        console.log(`[ig] phone digits: ${digits} (country: ${country})`);
+        // If non-US country, try to change country selector
+        if (country !== 'US') {
+          // Instagram uses a custom dropdown — try clicking the country code area and selecting
+          await s.page.evaluate(`((cc) => {
+            var selects = document.querySelectorAll('select');
+            for (var sel of selects) {
+              for (var opt of sel.options) {
+                if (opt.value && opt.value.includes(cc === 'UK' ? '44' : cc === 'NL' ? '31' : cc === 'DE' ? '49' : '1')) {
+                  sel.value = opt.value;
+                  sel.dispatchEvent(new Event('change', {bubbles:true}));
+                  break;
+                }
+              }
+            }
+          })("${country}")`).catch(() => {});
+          await sleep(1);
+        }
+        // Clear and type phone
+        await s.page.evaluate(`(() => { var inp = document.querySelector('input[type="tel"]'); if (!inp) { var inputs = Array.from(document.querySelectorAll('input')); inp = inputs.find(i => !i.disabled && i.offsetParent && i.type !== 'hidden'); } if (inp) { inp.focus(); inp.click(); inp.value = ''; } })()`).catch(() => {});
+        await sleep(1);
+        await s.page.keyboard.type(digits, { delay: 50 }).catch(() => {});
+        await sleep(1);
+        await s.page.evaluate(`(() => { var btns = document.querySelectorAll('[role="button"]'); for (var b of btns) { var t = b.textContent.trim(); if (t === 'Send Code' || t === 'Send code' || t === 'Next' || t === 'Continue') { b.click(); return; } } })()`).catch(() => {});
         await sleep(5);
+        const smsCode = await s.pollSmsCode();
+        console.log(`[ig] SMS code: ${smsCode}`);
+        if (smsCode && smsCode !== 'no code received' && !s.page.isClosed?.()) {
+          console.log(`[ig] filling SMS code ${smsCode}`);
+          await s.page.evaluate(`((code) => { var inp = document.querySelector('input[maxlength="6"]'); if (!inp) { var inputs = Array.from(document.querySelectorAll('input[type="text"]')); inp = inputs.find(i => !i.disabled && !i.value && i.offsetParent); } if (inp) { var set = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set; set.call(inp, code); inp.dispatchEvent(new Event('input', {bubbles:true})); inp.dispatchEvent(new Event('change', {bubbles:true})); } })("${smsCode}")`).catch(() => {});
+          await sleep(2);
+          await s.page.evaluate(`(() => { var btns = document.querySelectorAll('[role="button"]'); for (var b of btns) { var t = b.textContent.trim(); if (t === 'Next' || t === 'Continue' || t === 'Confirm') { b.click(); return; } } })()`).catch(() => {});
+          await sleep(5);
+          break;
+        }
+        // Click back to re-enter a different number
+        await s.page.evaluate(`(() => { var back = document.querySelector('[aria-label="Back"], [aria-label="Go back"]'); if (back) back.click(); })()`).catch(() => {});
+        await sleep(3);
       }
       continue;
     }
@@ -139,10 +189,21 @@ async function signup(s) {
       const t2 = await readPage(s);
       if (t2.includes('enter the code from the image') || t2.includes('hear this code')) {
         console.log('[ig] solving image captcha...');
-        // Screenshot the captcha image element directly (cross-origin safe)
-        const imgEl = await s.page.$('img[src*="captcha"], img[src*="tfbimage"]').catch(() => null) ?? await s.page.$('img[width]').catch(() => null);
-        const imgB64 = imgEl ? (await imgEl.screenshot({ type: 'png' }).catch(() => null))?.toString('base64') : null;
-        if (imgB64 && imgB64.length > 100) {
+        // Find the captcha image — pick the largest visible <img> on the page
+        // The src*="captcha" selector sometimes matches tiny tracking pixels (400 chars base64)
+        const imgEl = await s.page.evaluateHandle(`(() => {
+          var imgs = Array.from(document.querySelectorAll('img'));
+          var best = null, bestArea = 0;
+          for (var img of imgs) {
+            if (!img.offsetParent) continue;
+            var w = img.naturalWidth || img.width || 0;
+            var h = img.naturalHeight || img.height || 0;
+            if (w * h > bestArea) { bestArea = w * h; best = img; }
+          }
+          return best;
+        })()`).catch(() => null);
+        const imgB64 = imgEl ? (await imgEl.asElement()?.screenshot({ type: 'png' }).catch(() => null))?.toString('base64') : null;
+        if (imgB64 && imgB64.length > 500) {
           console.log(`[ig] captcha image captured (${imgB64.length} chars base64)`);
           const key = process.env.TWOCAPTCHA_API_KEY;
           if (key) {
@@ -161,7 +222,9 @@ async function signup(s) {
       }
       continue;
     }
-    // JS clicks to avoid mouse.move crash
+    // Still on signup form — submission failed, bail early
+    if (t.includes('get started on instagram') && i > 3) throw new Error('signup_form_stuck');
+    // JS clicks to skip onboarding
     await s.page.evaluate(`(() => { var btns = document.querySelectorAll('[role="button"], a[role="button"]'); for (var b of btns) { var t = b.textContent.trim(); if (t === 'Skip' || t === 'Not now' || t === 'Not Now' || t === 'Next') { b.click(); return; } } })()`).catch(() => {});
     await sleep(2);
   }
@@ -180,7 +243,7 @@ async function signup(s) {
 
   // Save account
   const result = await s.saveAccount('instagram', {
-    username: id.username, email: id.email, password: id.password, name,
+    username: id.username, email: id.email, password: id.password, name, phone: phoneNum,
   });
   console.log(`[ig] ${result}`);
   return id.username;
