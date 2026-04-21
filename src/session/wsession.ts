@@ -63,6 +63,7 @@ export class WSession {
   captchaHeaders: Record<string, string> = {};
   captchaEndpoint: string = '';
   proxyConfig: { server: string; username?: string; password?: string } | undefined;
+  capturedResponses: Array<{ ts: number; method: string; url: string; status: number; headers: Record<string, string>; body: string }> = [];
   private _smsOrder: SmsNumber | null = null;
 
   private constructor(ctx: BrowserContext, page: any, label: string, cap: Capture) {
@@ -72,6 +73,7 @@ export class WSession {
     const authPaths = ['/auth/register', '/auth/login'];
     page.on?.('request', (req: any) => { try { const u = req.url(); if (authPaths.some(p => u.includes(p)) && req.method() === 'POST') { this.captchaFormData = JSON.parse(req.postData() ?? '{}'); this.captchaEndpoint = u; const h = req.headers(); this.captchaHeaders = {}; for (const k of Object.keys(h)) { if (k.startsWith('x-')) this.captchaHeaders[k] = h[k]; } } } catch {} });
     page.on?.('response', async (res: any) => { try { const u = res.url(); if (authPaths.some(p => u.includes(p)) && res.status() >= 400) { const d = await res.json(); if (d.captcha_key !== undefined) { this.captchaResponse = d; console.log(`[wsession] Captured captcha data: sitekey=${d.captcha_sitekey?.slice(0, 12)}`); } } } catch {} });
+    ctx.on?.('response', async (res: any) => { try { if (this.capturedResponses.length >= 500) this.capturedResponses.shift(); let body = ''; try { body = (await res.text()).slice(0, 8192); } catch {} this.capturedResponses.push({ ts: Date.now(), method: res.request()?.method?.() ?? 'GET', url: res.url(), status: res.status(), headers: res.headers(), body }); } catch {} });
   }
 
   private async _action<T>(name: string, fn: () => Promise<T>): Promise<T> {
@@ -267,12 +269,12 @@ export class WSession {
       body: JSON.stringify(row),
     });
     if (!res.ok) return `error: ${res.status} ${await res.text().catch(() => '')}`;
-    await markSignupSuccess(email).catch(() => {}); return `account saved: ${platform}/${username}`;
+    try { const r = await res.json(); writeFileSync(join(recordingsDir(this.label || undefined), 'account.json'), JSON.stringify(Array.isArray(r)?r[0]:r, null, 2)); } catch {} await markSignupSuccess(email).catch(() => {}); return `account saved: ${platform}/${username}`;
   }
 
   async close(): Promise<void> {
     console.log(`[wsession] close() label=${this.label}`);
-    await this._cap.save('session', this.page).catch(() => {});
+    await this._cap.save('session', this.page).catch(() => {}); try { writeFileSync(join(recordingsDir(this.label || undefined), 'network.ndjson'), this.capturedResponses.map(r => JSON.stringify(r)).join('\n')); } catch {}
     if (process.env.WELES_INSTRUMENT === '1' && !this.page.isClosed?.()) { try { const j: string = await this.page.evaluate('(window.__inst_flush)?window.__inst_flush():"[]"'); const outDir = join(process.cwd(), '.work', 'inst'); mkdirSync(outDir, { recursive: true }); const fn = join(outDir, `${this.label || 'session'}_${new Date().toISOString().replace(/[:.]/g, '-')}.json`); writeFileSync(fn, j); console.log(`[wsession] dumped __inst ${j.length}ch -> ${fn}`); } catch (e: any) { console.log(`[wsession] __inst dump err: ${e.message?.slice(0,120)}`); } }
     const video = this.page.video?.();
     const dest = join(recordingsDir(this.label || undefined), `${this.label || 'session'}_${new Date().toISOString().replace(/[:.]/g, '-')}.webm`);

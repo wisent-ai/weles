@@ -95,3 +95,49 @@ export async function getServiceLogin(displayName: string): Promise<{ email: str
 }
 
 export type { ServiceCredential, SocialAccount };
+
+// --- Per-account session identity: restore proxy + persona so register and
+// login look like the same device. Reuses ProxyConfig/proxyUrl from the shared
+// src/proxy/config.ts module (matching schema the Python signup side writes to
+// social_accounts.metadata.proxy). If the account has no persona yet (pre-V1
+// rows), generate one keyed to the stored proxy country and backfill metadata.
+import type { Persona } from '../browser/persona.js';
+import { generatePersona } from '../browser/persona.js';
+import { proxyUrl as buildProxyUrl, type ProxyConfig } from '../proxy/config.js';
+
+export interface AccountSession { proxyUrl?: string; persona?: Persona; }
+
+export async function resolveAccountSession(acct: SocialAccount): Promise<AccountSession> {
+  const meta = acct.metadata as any;
+  const out: AccountSession = {};
+  if (meta?.proxy?.host && meta?.proxy?.port) {
+    out.proxyUrl = buildProxyUrl(meta.proxy as ProxyConfig);
+  } else if (process.env.PROXY_URL) {
+    out.proxyUrl = process.env.PROXY_URL;
+  }
+  if (meta?.persona) {
+    out.persona = meta.persona as Persona;
+  } else {
+    out.persona = generatePersona({ country: meta?.proxy?.country });
+    await backfillPersona(acct, out.persona);
+  }
+  return out;
+}
+
+async function backfillPersona(acct: SocialAccount, persona: Persona): Promise<void> {
+  if (!acct.id) return;
+  const url = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
+  if (!url || !key) return;
+  // Supabase PATCH on a JSONB column replaces the whole value, so merge in Node.
+  const merged = { ...((acct.metadata ?? {}) as any), persona };
+  try {
+    await fetch(`${url}/rest/v1/social_accounts?id=eq.${acct.id}`, {
+      method: 'PATCH',
+      headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+      body: JSON.stringify({ metadata: merged }),
+    });
+  } catch (e) {
+    console.error('[identity] backfillPersona failed:', (e as Error).message);
+  }
+}
