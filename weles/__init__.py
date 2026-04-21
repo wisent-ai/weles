@@ -1,6 +1,26 @@
-"""Weles: Stealth browser automation with fingerprint spoofing."""
+"""Weles: Stealth browser automation with fingerprint spoofing.
+
+LEGACY — FROZEN. This Python package is no longer updated. The active
+implementation is the TypeScript package in the same repository (see
+../src/ and ../scripts/trajectories/). The Python tree remains only for
+a small set of operator utility scripts (content-platform balance-check,
+Google SSO probes, oxylabs native diagnostics). If you are building
+anything new, use the TypeScript worker + trajectory stack instead.
+
+See README.md in the repo root for the full two-implementation layout.
+"""
 
 import os as _os
+import warnings as _warnings
+
+if _os.environ.get("WELES_SILENCE_LEGACY_WARNING") != "1":
+    _warnings.warn(
+        "weles (Python) is the frozen legacy implementation. The active "
+        "stack is TypeScript — see ../src/ and ../scripts/trajectories/. "
+        "Set WELES_SILENCE_LEGACY_WARNING=1 to suppress.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
 
 from .async_api import AsyncWeles, AsyncNewBrowser
 from .sync_api import Weles, NewBrowser
