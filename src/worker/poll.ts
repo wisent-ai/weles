@@ -49,7 +49,7 @@ function resolveTrajectory(action: string, platform?: string): string | null {
     // Feed-scroll is close enough to dwell that the same runner works — each
     // platform's browse.mjs may still exist for backwards compat; prefer it
     // when present, otherwise fall through to benign.
-    browse:                (p) => `scripts/trajectories/${p}/browse.mjs`,
+    browse:                (p) => p === 'github' ? 'scripts/trajectories/github/actions/browse.mjs' : `scripts/trajectories/${p}/browse.mjs`,
     // Health / organic comment / promote
     health:                (p) => p === 'github' ? 'scripts/trajectories/github/health/run.mjs' : `scripts/trajectories/${p}/health.mjs`,
     organic_comment:       (p) => `scripts/trajectories/${p}/organic_comment.mjs`,
@@ -60,8 +60,8 @@ function resolveTrajectory(action: string, platform?: string): string | null {
     // Legacy flat trajectories — <platform>_<verb>.mjs at the top level
     register:              (p) => p === 'github' || p === 'youtube' ? `scripts/trajectories/${p}/register.mjs` : `scripts/trajectories/${p}_register.mjs`,
     login:                 (p) => `scripts/trajectories/${p}_login.mjs`,
-    like:                  (p) => `scripts/trajectories/${p}_like.mjs`,
-    follow:                (p) => `scripts/trajectories/${p}_follow.mjs`,
+    like:                  (p) => p === 'linkedin' ? 'scripts/trajectories/linkedin/actions/like.mjs' : `scripts/trajectories/${p}_like.mjs`,
+    follow:                (p) => p === 'reddit' ? 'scripts/trajectories/reddit/actions/follow.mjs' : `scripts/trajectories/${p}_follow.mjs`,
     comment:               (p) => `scripts/trajectories/${p}_comment.mjs`,
     upvote:                (p) => `scripts/trajectories/${p}_upvote.mjs`,
     dm:                    (p) => `scripts/trajectories/${p}_dm.mjs`,
