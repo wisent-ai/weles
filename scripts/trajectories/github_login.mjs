@@ -58,24 +58,44 @@ try {
     const hasAvatar = await s.page.evaluate('!!document.querySelector(\'[aria-label*="View profile"], summary img.avatar-user\')').catch(() => false);
     if (hasAvatar) { console.log(`PASS: cookie-first logged in — ${url1}`); process.exit(0); }
   }
-  console.log('[login] Cookie session not valid, falling back to password');
+  console.log('[login] Cookie session not valid, using password path');
 
+  // Clear the injected stale cookies. With them present, github.com/login
+  // treats us as partially-signed-in and redirects to the homepage, where
+  // the subsequent fill/submit hit unrelated elements (search box + the
+  // Submit-feedback widget) and produce false-positive "logged in" signals.
+  await s.ctx.clearCookies();
   await s.goto(URL);
   await s.wait(3);
+
+  // Confirm the login form actually loaded before filling. If we ended up
+  // anywhere other than /login or /session/*, something redirected and the
+  // form isn't present; bail with a specific error.
+  const urlAfterGoto = s.page.url?.() ?? '';
+  if (!urlAfterGoto.includes('/login') && !urlAfterGoto.includes('/session')) {
+    console.log(`FAIL: goto(${URL}) landed at ${urlAfterGoto} — login form not present`);
+    process.exit(1);
+  }
+
   await s.fill('Username or email', '$SVC_EMAIL');
   await s.wait(1);
   await s.fill('Password', '$SVC_PASSWORD');
   await s.wait(1);
 
-  // Submit — GitHub uses input[type=submit] in the login form
+  // Submit — match ONLY the login form's submit control (value~="Sign in")
+  // to avoid hitting unrelated submit buttons on other pages.
   const submitted = await s.page.evaluate(`(() => {
-    const btn = document.querySelector('input[type="submit"][value*="Sign in" i], button[type="submit"]');
+    const btn = document.querySelector('input[type="submit"][value*="Sign in" i], input[name="commit"][value*="Sign in" i]');
     if (btn) { btn.click(); return { clicked: true, tag: btn.tagName, value: btn.value || btn.innerText }; }
-    const form = document.querySelector('form[action*="session"]');
+    const form = document.querySelector('form[action*="/session"]');
     if (form) { form.requestSubmit?.(); return { clicked: 'form' }; }
     return { clicked: false };
   })()`);
   console.log(`[login] Submit: ${JSON.stringify(submitted)}`);
+  if (!submitted.clicked) {
+    console.log('FAIL: no Sign-in submit control found on login page');
+    process.exit(1);
+  }
 
   // Wait for redirect
   let url2 = '';
