@@ -61,11 +61,11 @@ function resolveTrajectory(action: string, platform?: string): string | null {
     register:              (p) => p === 'github' || p === 'youtube' ? `scripts/trajectories/${p}/register.mjs` : `scripts/trajectories/${p}_register.mjs`,
     login:                 (p) => `scripts/trajectories/${p}_login.mjs`,
     like:                  (p) => ['linkedin','tiktok','twitter','instagram'].includes(p) ? `scripts/trajectories/${p}/actions/like.mjs` : `scripts/trajectories/${p}_like.mjs`,
-    follow:                (p) => ['reddit','tiktok','twitter','instagram'].includes(p) ? `scripts/trajectories/${p}/actions/follow.mjs` : `scripts/trajectories/${p}_follow.mjs`,
+    follow:                (p) => (p === 'reddit' || p === 'tiktok' || p === 'twitter' || p === 'instagram' || p === 'github') ? `scripts/trajectories/${p}/actions/follow.mjs` : `scripts/trajectories/${p}_follow.mjs`,
     comment:               (p) => `scripts/trajectories/${p}_comment.mjs`,
     upvote:                (p) => `scripts/trajectories/${p}_upvote.mjs`,
     dm:                    (p) => `scripts/trajectories/${p}_dm.mjs`,
-    star:                  (p) => `scripts/trajectories/${p}_star.mjs`,
+    star:                  (p) => p === 'github' ? 'scripts/trajectories/github/star/run.mjs' : `scripts/trajectories/${p}_star.mjs`,
     // Platform-specific light-engagement verbs — nested under actions/ so the
     // top-level platform folders stay at <=5 files.
     connect:               (p) => `scripts/trajectories/${p}/actions/connect.mjs`,
