@@ -49,6 +49,26 @@ try {
   });
   if (loggedOut) throw new Error('not_logged_in: github shows Sign-in link; cookies are stale');
 
+  // Precise click on the star form's submit button before handing to the
+  // agent. GitHub renders the star action as
+  //   <form data-turbo="false" method="post" action="/owner/repo/star" ...>
+  //     <button type="submit" name="star" aria-label="Star this repository">
+  // An AI-planned "click Star button" has been flaky — it hits the visible
+  // text without triggering the form submit. This direct js_click is
+  // deterministic when cookies are valid.
+  const directClick = await s.page.evaluate(() => {
+    const forms = Array.from(document.querySelectorAll('form[action$="/star"]'));
+    for (const f of forms) {
+      const btn = f.querySelector('button[type="submit"]');
+      if (btn) { btn.click(); return { clicked: true, form: f.getAttribute('action') }; }
+    }
+    return { clicked: false };
+  });
+  console.log(`[star] direct form click: ${JSON.stringify(directClick)}`);
+  if (directClick.clicked) {
+    await s.page.waitForTimeout(2500);
+  }
+
   const goal = repoUrl
     ? `You are on a specific GitHub repo page. Find the Star button in the top-right of the repo header (next to Watch and Fork). Click it. Then VERIFY: read the page and confirm the button now says "Starred" (not "Star") AND/OR the count has incremented. If the button still says "Star", click it once more then re-verify. Only done(value="starred") after the button reads "Starred". If after two click attempts the button still reads "Star", give_up(reason="star_did_not_persist"). Do NOT navigate().`
     : `You are on a GitHub search results or trending page listing repos. Click the first repo title to open it. Then find the Star button in the top-right and click it. VERIFY: the button should now read "Starred". If still "Star", retry once. Only done(value="starred") after the button reads "Starred". Otherwise give_up(reason="star_did_not_persist").`;
