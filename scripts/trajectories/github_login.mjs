@@ -121,11 +121,18 @@ try {
     }
   }
 
-  // Verify logged in
-  const finalCookies = await s.ctx.cookies();
-  const hasSession = finalCookies.some(c => c.name === 'user_session' && c.value);
+  // Verify logged in. Cookie presence alone is NOT sufficient — we injected 14
+  // stale cookies at session start, so user_session will always be set even
+  // when the password path never actually authenticated. Navigate to a page
+  // that requires auth (user settings) and confirm the avatar renders, which
+  // only happens when the session is valid.
+  await s.goto('https://github.com/settings/profile');
+  await s.wait(3);
   const finalUrl = s.page.url?.() ?? '';
-  if (hasSession && !finalUrl.includes('/login') && !finalUrl.includes('/session')) {
+  const hasAvatar = await s.page.evaluate('!!document.querySelector(\'[aria-label*="View profile"], summary img.avatar-user\')').catch(() => false);
+  const isLoginPage = finalUrl.includes('/login') || finalUrl.includes('/session');
+  if (hasAvatar && !isLoginPage) {
+    const finalCookies = await s.ctx.cookies();
     console.log(`PASS: logged in as ${acct.username} — ${finalUrl}`);
     // Persist fresh cookies back to the account
     const url = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
