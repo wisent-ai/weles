@@ -165,8 +165,21 @@ try {
       }).catch(() => {});
     }
   } else {
-    const errText = await s.page.evaluate("(()=>{const e=document.querySelector('.flash-error,[role=\"alert\"]'); return e?e.innerText.trim().slice(0,200):null;})()").catch(() => null);
-    console.log(`FAIL: not logged in at ${finalUrl}${errText ? ` — ${errText}` : ''}`);
+    // Classify the failure so operators can triage. GitHub returns distinct
+    // signals for bad credentials vs anti-abuse vs device-verification gates,
+    // but they all funnel through /login eventually.
+    const diag = await s.page.evaluate(`(() => {
+      const flash = document.querySelector('.flash-error,[role="alert"]')?.innerText?.trim() || '';
+      const body = (document.body?.innerText || '').slice(0, 2000);
+      let reason = 'unknown';
+      if (/Incorrect username or password|incorrect email|Incorrect password/i.test(flash + body)) reason = 'invalid_credentials';
+      else if (/suspended|flagged|abuse/i.test(flash + body)) reason = 'account_suspended';
+      else if (/unusual activity|verify your device|verification code/i.test(flash + body)) reason = 'device_verification_required';
+      else if (/too many|try again later|rate limit/i.test(flash + body)) reason = 'rate_limited';
+      else if (/captcha|are you human|puzzle/i.test(flash + body)) reason = 'captcha_required';
+      return { reason, flash: flash.slice(0, 200), title: document.title };
+    })()`).catch(() => ({ reason: 'unknown', flash: '', title: '' }));
+    console.log(`FAIL: not logged in at ${finalUrl} — reason=${diag.reason} flash=${JSON.stringify(diag.flash)} title=${JSON.stringify(diag.title)}`);
     process.exit(1);
   }
 } catch (e) {
