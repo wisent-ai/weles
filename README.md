@@ -2,70 +2,80 @@
 
 Stealth browser automation: fingerprint spoofing + scheduler-driven trajectories for social-account automation.
 
-## Two implementations live in this repo
+## What this is
 
-This repository hosts **two independent implementations** of weles under one tree. Read the section that matches what you're doing before editing anything.
+TypeScript + Node package that drives a custom-patched Chromium binary to run per-action trajectories against social platforms. The worker polls Supabase's `account_action_logs`, claims rows atomically, and spawns one trajectory subprocess per row.
 
-### 1. TypeScript weles (active; this is what you want)
+- **Fingerprint defense**: C++ Chromium patches (canvas noise removal, UA reduction, brand list, ALPS, HEVC codec shim) applied in a separate repo (`../chromium-build/`). This repo consumes the built binary via `scripts/chromium/download.sh`.
+- **Runtime**: Playwright-driven Chromium, agent loop via Claude Code CLI, flow replay cache for faster repeat runs.
+- **Content-platform integration**: content-platform's `/api/cron/*-simulation` crons enqueue work; its `/api/cron/campaign-scheduler` drains operator-defined campaigns into the same queue; this worker drains the queue.
 
-- Location: `src/` + `scripts/` + `dist/`
-- Manifest: `package.json` (`"name": "weles"`, currently 0.4.x)
-- Backed by: **custom-patched Chromium** (built from the separate `chromium-build/` repo; prebuilt binary installed via `scripts/chromium/download.sh`)
-- Entry point: `scripts/worker/run.mjs` — the long-running worker process
-- Consumers:
-  - Production automation stack (polls `account_action_logs` in Supabase, claims rows, spawns trajectories)
-  - `scripts/trajectories/**/*.mjs` — per-action trajectories (`github_login.mjs`, `reddit/promote.mjs`, `tiktok/actions/follow.mjs`, etc.)
-  - content-platform's `/api/cron/campaign-scheduler` and `/api/cron/<platform>-simulation` routes enqueue work that this worker drains
-- Fingerprint defense: C++ Chromium patches (canvas noise removal, UA reduction, brand list, ALPS, HEVC codec shim) PLUS the JS-level spoofing the Python version pioneered
+## Install + build
 
-**Build:** `npm install && npm run build`
-**Run worker:** `node scripts/worker/run.mjs` (see `scripts/worker/deploy/README.md` for systemd)
+```bash
+npm install
+npm run build            # tsc → dist/
+bash scripts/chromium/download.sh   # installs the custom Chromium binary
+```
 
-### 2. Python weles (legacy; frozen)
+## Run
 
-- Location: `weles/` (Python package), `pyproject.toml` (0.3.x)
-- Backed by: **Playwright Firefox** + JS-level spoofing via `addInitScript()`
-- Last touched on 2026-04-08 — no longer updated
-- Replaced by the TypeScript implementation starting with commit `"Rewrite weles from Python to TypeScript"` (2026-04-05); parity reached with `"Bring TypeScript weles to full parity with Python version"` (2026-04-12)
-- Still imported by a small number of operator utilities:
-  - `content-platform/scripts/lib/balance-check/check-balances.py` (residential-IP balance scraping)
-  - `content-platform/scripts/oxylabs/native/*.py` (manual proxy diagnostics)
-  - `content-platform/recordings/*.py` (one-off Google SSO probes)
-  - `content-platform/scripts/chromium-arm64/test/probe_*.py`
-  - `backends/wisent-enterprise/scripts/vast/login_and_get_key.py`
-- These scripts are **manually-run utilities**, not part of the automation pipeline. Keep the Python tree in place until they're migrated.
+```bash
+# Foreground
+node scripts/worker/run.mjs
 
-If you're an agent coming in cold and you see `from weles import AsyncWeles` in some script, that's the Python (Firefox) API. If you're touching the automation pipeline — worker, trajectories, campaign-scheduler — you want the TypeScript API, none of which matches what the Python README example shows.
+# Or systemd — see scripts/worker/deploy/README.md for the unit + env file
+```
 
-## What each implementation spoofs
+Required env (see `scripts/worker/deploy/README.md` for the full list):
 
-Both versions spoof navigator, screen, WebGL, canvas, audio, timezone, and automation signals. The TypeScript version additionally patches at the C++ level (Chromium source tree) — enough fingerprint surface that TikTok signup reaches the 6-digit code step without error_code 7 (the original Python/Firefox version could not get past that gate).
+- `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`
+- `CRON_SECRET` (must match content-platform's)
+- `CHROMIUM_PATH` (where the custom binary lives)
+- `LLM_GENERATE_URL` (e.g. `https://content.wisent.ai/api/llm/generate`)
 
 ## Directory layout
 
 ```
 weles/
-├── src/                     # TypeScript implementation (active)
-│   ├── worker/poll.ts       # scheduler-driven work loop
-│   ├── session/wsession.ts  # Chromium launcher (picks up custom binary)
-│   ├── agent/loop.ts        # claude -p browser-automation agent
-│   ├── fingerprint.ts       # fingerprint config generator
-│   ├── platforms/           # per-platform ban-signal detectors
-│   ├── utils/credentials.ts # getSocialAccount, resolveAccountSession
+├── src/
+│   ├── worker/poll.ts         # scheduler-driven work loop (atomic claim from account_action_logs)
+│   ├── session/wsession.ts    # Chromium launcher; picks up the custom binary
+│   ├── async_api.ts           # Playwright setup + fingerprint injection
+│   ├── agent/loop.ts          # claude -p browser-automation agent + flow replay
+│   ├── fingerprint.ts         # fingerprint config generator
+│   ├── platforms/             # per-platform ban-signal detectors
+│   ├── utils/credentials.ts   # getSocialAccount(), resolveAccountSession()
 │   └── …
 ├── scripts/
-│   ├── worker/run.mjs       # systemd / foreground entry
-│   ├── worker/deploy/       # systemd unit + runbook
-│   ├── trajectories/        # per-action flows (164 .mjs files)
-│   └── chromium/download.sh # install prebuilt custom Chromium
-├── weles/                   # Python package (legacy, frozen)
-├── chromium-build/          # NOT HERE — separate repo at ../chromium-build
-├── dist/                    # tsc output, git-ignored
-├── package.json             # v0.4.x — the TypeScript package
-├── pyproject.toml           # v0.3.x — the Python package (legacy)
-└── README.md                # this file
+│   ├── worker/run.mjs         # systemd / foreground entry
+│   ├── worker/deploy/         # systemd unit + launch wrapper + runbook
+│   ├── trajectories/          # per-action flows (164 .mjs files)
+│   │   ├── _shared/           # action-runner, benign, llm helpers
+│   │   ├── github/            # github_login.mjs + github/star/, github/actions/
+│   │   ├── reddit/            # reddit/promote.mjs + reddit/actions/
+│   │   ├── tiktok/ instagram/ twitter/ linkedin/ discord/
+│   │   └── {platform}_{login|register|...}.mjs  # legacy flat smoke tests
+│   └── chromium/download.sh   # install prebuilt custom Chromium
+├── dist/                      # tsc output (git-ignored)
+├── package.json
+└── README.md
 ```
+
+## Fingerprint spoofing
+
+Chromium patches live in `../chromium-build/` (separate repo) and are applied as direct edits against upstream Chromium source — e.g. canvas noise removal in `third_party/blink/renderer/platform/graphics/image_data_buffer.cc`, a weles command-line switch in `chrome/common/switches.cc`. The TS side of weles passes a generated fingerprint config via `--weles-fingerprint=<path>.json` which the patched binary reads at startup.
+
+JS-level helpers in `src/scripts/` (injected via `addInitScript()`) fill gaps the C++ patches can't cover cleanly — notably the HEVC codec shim (`chrome147_stubs.js`) and the Sanitizer API stub.
 
 ## License
 
 MIT
+
+---
+
+### History note
+
+The `weles` repo briefly hosted a parallel Python implementation (Playwright Firefox + JS-level spoofing) alongside this TypeScript one. The Python tree was deleted after every consumer of it in the Wisent codebase was either ported or accepted as breakage — the TypeScript rewrite has been the production-automation path since early April 2026 (commit *"Rewrite weles from Python to TypeScript"*).
+
+If you hit a script elsewhere in the Wisent monorepo that does `from weles import AsyncWeles`, that script is broken until it's ported to shell out to this TypeScript package or rewritten.
