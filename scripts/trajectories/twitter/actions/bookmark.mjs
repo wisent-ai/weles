@@ -1,7 +1,7 @@
-import { getSocialAccount, resolveAccountSession } from '../../../dist/utils/credentials.js';
-import { WSession } from '../../../dist/session/wsession.js';
-import { execute } from '../../../dist/agent/loop.js';
-import { detectTwitterBanSignals } from '../../../dist/platforms/twitter/ban_signals.js';
+import { getSocialAccount, resolveAccountSession } from '../../../../dist/utils/credentials.js';
+import { WSession } from '../../../../dist/session/wsession.js';
+import { execute } from '../../../../dist/agent/loop.js';
+import { detectTwitterBanSignals } from '../../../../dist/platforms/twitter/ban_signals.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
