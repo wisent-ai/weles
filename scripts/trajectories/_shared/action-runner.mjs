@@ -16,6 +16,7 @@
 import { getSocialAccount, resolveAccountSession } from '../../../dist/utils/credentials.js';
 import { WSession } from '../../../dist/session/wsession.js';
 import { execute } from '../../../dist/agent/loop.js';
+import { generateOrganicComment, generatePromoteComment } from './llm.mjs';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -28,26 +29,13 @@ async function fetchSupabase(path) {
   return r.json();
 }
 
-async function genComment({ character, product, variant, surfaceLabel, postTitle, postBody, maxTokens }) {
-  const sys = [
-    { type: 'text', text: `You are ${character.name}. Bio: ${character.bio ?? ''}. Personality: ${character.personality ?? ''}. Niche: ${character.niche ?? ''}. You write like a real person — informal, lowercase-friendly, no marketing language. Don't start with "Wow"/"Great post". Don't sign your messages.`, cache_control: { type: 'ephemeral' } },
-    product
-      ? { type: 'text', text: `You use ${product.name} (${product.description ?? ''}). Write a 1-3 sentence comment relevant to the post that authentically reflects your experience. Do NOT sound like an advertisement. Do NOT use phrases like "highly recommend", "game changer", "you should try", or "perfect for". ${variant === 'link' ? 'If a link feels natural you may include a brief reference.' : 'Mention the product by name only.'}` }
-      : { type: 'text', text: 'Write a 1-2 sentence reaction to the post. Do not reference any products, brands, or services.' },
-  ];
-  const r = await fetch(process.env.LLM_API_URL || 'https://api.wisentmedia.com/api/llm/messages', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-5-20250929', max_tokens: maxTokens ?? 200,
-      system: sys,
-      messages: [{ role: 'user', content: `[${surfaceLabel}] ${postTitle}${postBody ? `\n\n${postBody.slice(0, 600)}` : ''}` }],
-    }),
-  });
-  if (!r.ok) throw new Error(`LLM ${r.status}: ${(await r.text()).slice(0, 200)}`);
-  const data = await r.json();
-  const text = (data.content?.find(b => b.type === 'text')?.text || '').trim();
-  if (!text) throw new Error('LLM returned empty content');
-  return text;
+async function genComment({ character, product, variant, surfaceLabel, postTitle, postBody }) {
+  const persona = { name: character.name, bio: character.bio, personality: character.personality, niche: character.niche };
+  const post = { surface: surfaceLabel, title: postTitle, body: postBody };
+  if (product) {
+    return generatePromoteComment({ persona, post, product: { name: product.name, description: product.description, variant } });
+  }
+  return generateOrganicComment({ persona, post });
 }
 
 export async function runAction(cfg) {
@@ -107,7 +95,6 @@ export async function runAction(cfg) {
           character, product,
           variant: (process.env.VARIANT || character?.promotion_config?.variant || 'mention').toLowerCase(),
           surfaceLabel, postTitle, postBody,
-          maxTokens: cfg.action === 'promote' ? 240 : 160,
         });
         console.log(`[comment-text] ${text.slice(0, 140)}...`);
       } else {

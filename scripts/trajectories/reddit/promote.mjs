@@ -11,6 +11,7 @@
 import { getSocialAccount, resolveAccountSession } from '../../../dist/utils/credentials.js';
 import { WSession } from '../../../dist/session/wsession.js';
 import { execute } from '../../../dist/agent/loop.js';
+import { generatePromoteComment } from '../_shared/llm.mjs';
 import { detectRedditBanSignals } from '../../../dist/platforms/reddit/ban_signals.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -77,26 +78,13 @@ try {
 
   const preapprovedText = process.env.SVC_TEXT || '';
 
-  const variantHint = VARIANT === 'link'
-    ? 'If a product link feels natural to the conversation, you may include a brief reference. Otherwise just name the product.'
-    : 'Mention the product by name only — do not include URLs unless the post explicitly asks for one.';
-
   let commentText = preapprovedText;
   if (!commentText) {
-    const llmResp = await fetch(process.env.LLM_API_URL || 'https://api.wisentmedia.com/api/llm/messages', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-5-20250929', max_tokens: 240,
-        system: [
-          { type: 'text', text: `You are ${character.name}. Bio: ${character.bio ?? ''}. Personality: ${character.personality ?? ''}. Niche: ${character.niche ?? ''}. You write like a real person — informal, lowercase-friendly, no marketing language. Don't start with "Wow"/"Great post". Don't sign your messages.`, cache_control: { type: 'ephemeral' } },
-          { type: 'text', text: `You use ${product.name} (${product.description ?? ''}). Write a 1-3 sentence comment relevant to the post that authentically reflects your experience with the product. Do NOT sound like an advertisement. Do NOT use phrases like "highly recommend", "game changer", "you should try", or "perfect for". One specific concrete detail beats five superlatives. ${variantHint}` },
-        ],
-        messages: [{ role: 'user', content: `[r/${SUBREDDIT}] ${postTitle}\n\n${postBody.slice(0, 600)}` }],
-      }),
+    commentText = await generatePromoteComment({
+      persona: { name: character.name, bio: character.bio, personality: character.personality, niche: character.niche },
+      post: { surface: `r/${SUBREDDIT}`, title: postTitle, body: postBody },
+      product: { name: product.name, description: product.description, variant: VARIANT },
     });
-    if (!llmResp.ok) throw new Error(`LLM ${llmResp.status}: ${(await llmResp.text()).slice(0, 200)}`);
-    commentText = ((await llmResp.json()).content?.find(b => b.type === 'text')?.text || '').trim();
-    if (!commentText) throw new Error('LLM returned empty content');
     console.log(`[comment-text] ${commentText.slice(0, 160)}...`);
   } else {
     console.log(`[preapproved] using operator-reviewed text (${commentText.length} chars)`);
