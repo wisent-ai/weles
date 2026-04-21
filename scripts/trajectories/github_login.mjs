@@ -9,20 +9,33 @@ if (!acct.metadata.password) { console.log(`FAIL: account ${acct.username} has n
 process.env.SVC_EMAIL = acct.metadata.email ?? acct.username;
 process.env.SVC_PASSWORD = acct.metadata.password;
 
-// GitHub login has no strong residential-IP requirement and repeatedly
-// returns ERR_EMPTY_RESPONSE on PacketStream residential — those IPs sit on
-// GitHub's abuse list. Default to the account's stored proxy if present,
-// otherwise PROXY_URL override, otherwise NO proxy (direct egress). Set
-// FORCE_RESIDENTIAL=1 to opt back into the old residential-picker behavior.
+// GitHub login: direct egress by default. Empirically, saved Oxylabs
+// Mobile BR proxies + PacketStream residential both get rejected by
+// GitHub's login endpoint (ERR_EMPTY_RESPONSE from PacketStream, post-
+// submit redirect back to /login from Oxylabs BR). Only the first
+// successful session-refresh we've seen across the fleet was on direct
+// egress (swiftwolf6387 via GCE IP).
+//
+// Override paths, in priority order:
+//   PROXY_URL         — explicit full URL wins
+//   FORCE_RESIDENTIAL — pick from provider rotation
+//   USE_SAVED_PROXY   — honor the account's metadata.proxy.server
+//   (default)         — no proxy, direct egress
 const savedProxy = acct.metadata.proxy;
-let proxyUrl = process.env.PROXY_URL
-  || (process.env.FORCE_RESIDENTIAL === '1' ? 'residential' : undefined);
-if (savedProxy?.server && savedProxy?.username) {
+let proxyUrl;
+if (process.env.PROXY_URL) {
+  proxyUrl = process.env.PROXY_URL;
+  console.log(`[login] Using PROXY_URL override`);
+} else if (process.env.FORCE_RESIDENTIAL === '1') {
+  proxyUrl = 'residential';
+  console.log(`[login] Using residential rotation (FORCE_RESIDENTIAL=1)`);
+} else if (process.env.USE_SAVED_PROXY === '1' && savedProxy?.server && savedProxy?.username) {
   const u = new globalThis.URL(savedProxy.server);
   proxyUrl = `${u.protocol}//${savedProxy.username}:${savedProxy.password}@${u.hostname}:${u.port}`;
-  console.log(`[login] Using saved proxy: ${u.hostname}:${u.port} sessid=${savedProxy.username.match(/sessid-(\d+)/)?.[1]}`);
-} else if (proxyUrl === undefined) {
-  console.log(`[login] No proxy (direct egress from worker IP — GitHub accepts this)`);
+  console.log(`[login] Using saved proxy: ${u.hostname}:${u.port} (USE_SAVED_PROXY=1)`);
+} else {
+  proxyUrl = undefined;
+  console.log(`[login] No proxy — direct egress (GitHub-friendly default; override with PROXY_URL, FORCE_RESIDENTIAL=1, or USE_SAVED_PROXY=1)`);
 }
 console.log(`[login] Account: ${acct.username} (${process.env.SVC_EMAIL})`);
 
