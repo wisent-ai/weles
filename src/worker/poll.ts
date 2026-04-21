@@ -60,8 +60,8 @@ function resolveTrajectory(action: string, platform?: string): string | null {
     // Legacy flat trajectories — <platform>_<verb>.mjs at the top level
     register:              (p) => p === 'github' || p === 'youtube' ? `scripts/trajectories/${p}/register.mjs` : `scripts/trajectories/${p}_register.mjs`,
     login:                 (p) => `scripts/trajectories/${p}_login.mjs`,
-    like:                  (p) => p === 'linkedin' ? 'scripts/trajectories/linkedin/actions/like.mjs' : `scripts/trajectories/${p}_like.mjs`,
-    follow:                (p) => p === 'reddit' ? 'scripts/trajectories/reddit/actions/follow.mjs' : `scripts/trajectories/${p}_follow.mjs`,
+    like:                  (p) => ['linkedin','tiktok','twitter','instagram'].includes(p) ? `scripts/trajectories/${p}/actions/like.mjs` : `scripts/trajectories/${p}_like.mjs`,
+    follow:                (p) => ['reddit','tiktok','twitter','instagram'].includes(p) ? `scripts/trajectories/${p}/actions/follow.mjs` : `scripts/trajectories/${p}_follow.mjs`,
     comment:               (p) => `scripts/trajectories/${p}_comment.mjs`,
     upvote:                (p) => `scripts/trajectories/${p}_upvote.mjs`,
     dm:                    (p) => `scripts/trajectories/${p}_dm.mjs`,
