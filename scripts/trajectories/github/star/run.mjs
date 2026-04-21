@@ -67,6 +67,19 @@ try {
   console.log(`[star] direct form click: ${JSON.stringify(directClick)}`);
   if (directClick.clicked) {
     await s.page.waitForTimeout(2500);
+    // If the Starred/Unstar form is now present, the star registered server-
+    // side and we don't need the agent loop. Confirm then skip straight to
+    // the final DOM check + done().
+    const alreadyStarred = await s.page.evaluate(() => {
+      return !!document.querySelector('form[action$="/unstar"]');
+    });
+    if (alreadyStarred) {
+      console.log('[star] direct click succeeded — repo shows unstar form; skipping agent loop');
+      const ban2 = await detectGitHubBanSignals(s.page, s.capturedResponses).catch(() => null);
+      console.log(`[ban-signal] ${ban2?.signal}  PASS: starred (direct)`);
+      await s.close();
+      process.exit(0);
+    }
   }
 
   const goal = repoUrl
