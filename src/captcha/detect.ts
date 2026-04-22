@@ -12,7 +12,7 @@ interface CaptchaInfo { type: string; sitekey: string; blob?: string; subdomain?
 export async function detectCaptcha(page: Page): Promise<CaptchaInfo | null> {
   for (let i = 0; i < 10; i++) {
     const info = await page.evaluate(`(() => {
-      var rc = document.querySelector('iframe[src*="recaptcha"], .g-recaptcha');
+      var rc = document.querySelector('iframe[src*="recaptcha"]') || document.querySelector('.g-recaptcha');
       if (rc) {
         var src = rc.getAttribute('src') || '';
         var key = src.match(/[?&]k=([^&]+)/)?.[1] || rc.getAttribute('data-sitekey') || '';

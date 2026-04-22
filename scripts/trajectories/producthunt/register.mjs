@@ -1,0 +1,267 @@
+import { WSession } from '../../../dist/session/wsession.js';
+import { CaptchaSolver } from '../../../dist/captcha/solver.js';
+
+// ProductHunt does not offer email/password signup — only OAuth via Twitter,
+// Google, Facebook, AngelList. This trajectory uses an existing Twitter account
+// from the social_accounts table (inject cookies → OAuth through → onboard).
+
+const URL = 'https://www.producthunt.com/';
+const MAX_RETRIES = 5;
+const USE_BRIGHTDATA = !!process.env.BRIGHTDATA_BROWSER_WS;
+const proxy = USE_BRIGHTDATA ? 'none' : (process.env.PROXY_URL || 'none');
+const sleep = (s) => new Promise(r => setTimeout(r, s * 1000));
+
+async function findUsableTwitterAccount() {
+  const supabaseUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
+  if (!supabaseUrl || !supabaseKey) return null;
+  const res = await fetch(
+    `${supabaseUrl}/rest/v1/social_accounts?platform=eq.twitter&is_active=eq.true&select=id,platform,username,metadata&order=created_at.desc&limit=20`,
+    { headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` } },
+  );
+  if (!res.ok) return null;
+  const rows = await res.json();
+  for (const a of rows) {
+    const hasCookies = Array.isArray(a.metadata?.cookies) && a.metadata.cookies.length >= 2;
+    const suspended = String(a.metadata?.status ?? '').toLowerCase().includes('suspend');
+    const locked = String(a.metadata?.status ?? '').toLowerCase().includes('lock');
+    if (hasCookies && !suspended && !locked) return a;
+  }
+  for (const a of rows) {
+    if (Array.isArray(a.metadata?.cookies) && a.metadata.cookies.length >= 2) return a;
+  }
+  return rows[0] ?? null;
+}
+
+async function readPage(s) {
+  return (await s.page.evaluate(`(() => {
+    var t = (document.body?.innerText ?? '').substring(0, 2000);
+    return t;
+  })()`).catch(() => '')).toLowerCase();
+}
+
+async function injectTwitterCookies(s, cookies) {
+  const normalized = cookies
+    .filter(c => c.name && c.value)
+    .map(c => ({
+      name: c.name,
+      value: c.value,
+      domain: c.domain?.startsWith('.') ? c.domain : (c.domain || '.x.com'),
+      path: c.path || '/',
+      secure: c.secure ?? true,
+      httpOnly: c.httpOnly ?? false,
+      sameSite: c.sameSite || 'Lax',
+      ...(c.expires && c.expires > 0 ? { expires: c.expires } : {}),
+    }));
+  // Mirror cookies onto twitter.com so the OAuth page works regardless of which
+  // host the Twitter session was originally scoped to.
+  const twitterCom = normalized.map(c => ({ ...c, domain: c.domain.replace('x.com', 'twitter.com') }));
+  await s.ctx.addCookies([...normalized, ...twitterCom]);
+  console.log(`[ph] injected ${normalized.length} x.com cookies + ${twitterCom.length} twitter.com cookies`);
+}
+
+async function signup(s) {
+  const twAccount = await findUsableTwitterAccount();
+  if (!twAccount) throw new Error('no_twitter_account_in_db');
+  const twCookies = twAccount.metadata?.cookies ?? [];
+  const twUsername = twAccount.username;
+  const twPassword = twAccount.metadata?.password;
+  const twEmail = twAccount.metadata?.email;
+  const twStatus = twAccount.metadata?.status ?? 'unknown';
+  console.log(`[ph] using twitter account: ${twUsername} status=${twStatus} (${twCookies.length} cookies)`);
+  if (twCookies.length < 2) throw new Error('twitter_account_missing_cookies');
+
+  await injectTwitterCookies(s, twCookies);
+
+  await s.goto(URL);
+  await sleep(4);
+
+  // Dismiss any cookie consent banner
+  const t0 = await readPage(s);
+  if (t0.includes('cookies') || t0.includes('cookie preferences') || t0.includes('accept')) {
+    const r1 = await s.click('Accept all').catch(() => 'no-target-found');
+    if (r1 === 'no-target-found') await s.click('Accept cookies').catch(() => {});
+    await sleep(2);
+    if (s.page.isClosed?.()) throw new Error('page_crashed_on_cookie_dismiss');
+  }
+
+  // Open the sign-up modal
+  await s.click('Sign up').catch(() => {});
+  await s.click('Get started').catch(() => {});
+  await sleep(3);
+
+  // Choose Twitter OAuth. ProductHunt typically labels it "Continue with Twitter"
+  // or "Continue with X".
+  const t1 = await readPage(s);
+  console.log(`[ph] signup modal: ${t1.slice(0, 120).replace(/\n/g, ' ')}`);
+  await s.click('Continue with Twitter').catch(() => {});
+  await s.click('Continue with X').catch(() => {});
+  await s.click('Sign up with Twitter').catch(() => {});
+  await sleep(6);
+
+  // If Twitter bounced us to the login page (cookies expired), re-authenticate
+  const url1 = s.page.url?.() ?? '';
+  const t2 = await readPage(s);
+  if ((url1.includes('twitter.com') || url1.includes('x.com')) &&
+      (t2.includes('sign in') || t2.includes('log in') || t2.includes('password'))) {
+    console.log('[ph] re-authenticating with twitter credentials');
+    if (!twPassword) throw new Error('twitter_cookies_expired_no_password');
+    await s.fill('username', twUsername).catch(() => {});
+    await s.fill('email', twEmail ?? twUsername).catch(() => {});
+    await sleep(1);
+    await s.click('Next').catch(() => {});
+    await sleep(2);
+    await s.fill('password', twPassword);
+    await sleep(1);
+    await s.click('Log in').catch(() => {});
+    await sleep(6);
+  }
+
+  // OAuth consent screen — ProductHunt asks for Twitter read access
+  for (let i = 0; i < 3; i++) {
+    const t = await readPage(s);
+    if (t.includes('authorize') || t.includes('authorize app') || t.includes('allow')) {
+      await s.click('Authorize app').catch(() => {});
+      await s.click('Authorize').catch(() => {});
+      await s.click('Allow').catch(() => {});
+      await sleep(4);
+    } else break;
+  }
+
+  // ProductHunt onboarding loop (name, email, interests, notifications)
+  for (let i = 0; i < 15; i++) {
+    if (s.page.isClosed?.()) throw new Error('page_crashed_during_onboarding');
+    const url = s.page.url?.() ?? '';
+    const t = await readPage(s);
+    console.log(`[ph] onboarding ${i}: url=${url.slice(-50)} text=${t.slice(0, 80).replace(/\n/g, ' ')}`);
+
+    if (url.includes('twitter.com/login') || url.includes('x.com/login')) {
+      throw new Error(`twitter_login_required: ${twUsername}`);
+    }
+
+    // ProductHunt gates OAuth sign-ups behind reCAPTCHA v2 at /my/captcha_verification
+    if (url.includes('/captcha_verification') || t.includes('please, complete') || t.includes('complete the captcha')) {
+      console.log('[ph] captcha verification page — extracting sitekey from iframe');
+      // Extract sitekey directly from the reCAPTCHA anchor iframe — robust to DOM-order quirks
+      const sitekey = await s.page.evaluate(`(() => {
+        var ifr = document.querySelector('iframe[src*="recaptcha/api2/anchor"]') || document.querySelector('iframe[src*="recaptcha"]');
+        if (!ifr) return null;
+        var m = (ifr.getAttribute('src') || '').match(/[?&]k=([^&]+)/);
+        return m ? m[1] : null;
+      })()`).catch(() => null);
+      console.log(`[ph] extracted sitekey: ${sitekey}`);
+      if (!sitekey) { await sleep(3); continue; }
+      const solver = new CaptchaSolver();
+      const token = await solver.solveRecaptchaV2(s.page, sitekey).catch((e) => { console.log(`[ph] solver threw: ${e.message?.slice(0, 200)}`); return null; });
+      if (!token || typeof token !== 'string') { console.log(`[ph] solver returned no token (${typeof token}: ${token})`); throw new Error('recaptcha_solver_no_token'); }
+      console.log(`[ph] got token: ${token.slice(0, 20)}...`);
+      const injected = await s.page.evaluate(`(() => {
+        var token = ${JSON.stringify(token)};
+        // Fill every g-recaptcha-response textarea (there may be several — one per widget)
+        document.querySelectorAll('textarea[name="g-recaptcha-response"], #g-recaptcha-response').forEach(function(ta) {
+          ta.value = token;
+          ta.dispatchEvent(new Event('change', { bubbles: true }));
+          ta.dispatchEvent(new Event('input', { bubbles: true }));
+        });
+        // Walk ___grecaptcha_cfg.clients recursively until we find a function-valued "callback"
+        var cbCount = 0;
+        function walk(o, depth) {
+          if (!o || typeof o !== 'object' || depth > 8) return;
+          for (var k in o) {
+            try {
+              var v = o[k];
+              if (k === 'callback' && typeof v === 'function') { v(token); cbCount++; }
+              else if (v && typeof v === 'object') walk(v, depth + 1);
+            } catch (e) {}
+          }
+        }
+        if (window.___grecaptcha_cfg && window.___grecaptcha_cfg.clients) walk(window.___grecaptcha_cfg.clients, 0);
+        return { cbCount: cbCount, textareas: document.querySelectorAll('textarea[name="g-recaptcha-response"]').length };
+      })()`).catch(() => null);
+      console.log(`[ph] injected token into ${injected?.textareas} textareas, fired ${injected?.cbCount} callbacks`);
+      await sleep(2);
+      // ProductHunt's actual submit button is "Verify me!" — and it stays disabled until the reCAPTCHA callback fires
+      await s.click('Verify me!').catch(() => {});
+      await s.page.evaluate(`(() => {
+        var b = document.querySelector('button[type="submit"]');
+        if (b) { b.disabled = false; b.classList.remove('cursor-not-allowed','opacity-50'); b.click(); return 'clicked'; }
+        return 'no-button';
+      })()`).catch(() => null).then((r) => console.log(`[ph] submit: ${r}`));
+      await sleep(6);
+      continue;
+    }
+
+    if (url.match(/producthunt\.com\/?$/) || url.includes('/home') || url.includes('/feed') || t.includes('welcome back')) {
+      console.log('[ph] reached main feed');
+      break;
+    }
+
+    if (t.includes('what should we call you') || t.includes('your name') || t.includes('display name')) {
+      await s.fill('name', `${twAccount.username}`).catch(() => {});
+      await s.click('Continue').catch(() => {});
+      await s.click('Next').catch(() => {});
+      await sleep(3);
+      continue;
+    }
+    if (t.includes('email') && (t.includes('confirm') || t.includes('verify') || t.includes('enter your email'))) {
+      if (twEmail) await s.fill('email', twEmail).catch(() => {});
+      await s.click('Continue').catch(() => {});
+      await s.click('Next').catch(() => {});
+      await sleep(3);
+      continue;
+    }
+    if (t.includes('interests') || t.includes('what topics') || t.includes('follow topics')) {
+      await s.click('Skip').catch(() => {});
+      await s.click('Continue').catch(() => {});
+      await s.click('Next').catch(() => {});
+      await sleep(3);
+      continue;
+    }
+    if (t.includes('notifications') || t.includes('enable notifications')) {
+      await s.click('Not now').catch(() => {});
+      await s.click('Skip').catch(() => {});
+      await sleep(2);
+      continue;
+    }
+    await s.click('Continue').catch(() => {});
+    await s.click('Next').catch(() => {});
+    await s.click('Done').catch(() => {});
+    await sleep(3);
+  }
+
+  const cookies = await s.ctx.cookies().catch(() => []);
+  const phAuth = cookies.filter(c =>
+    c.domain?.includes('producthunt.com') &&
+    (c.name === '_producthunt_session' || c.name === '_ph' || c.name.includes('session') || c.name.includes('auth'))
+  );
+  if (phAuth.length < 1) {
+    console.log(`[ph] no producthunt auth cookies. all: ${cookies.filter(c => c.domain?.includes('producthunt.com')).map(c => c.name).join(', ')}`);
+    throw new Error('no_producthunt_auth_cookies');
+  }
+  console.log(`[ph] auth cookies: ${phAuth.map(c => c.name).join(', ')}`);
+
+  const result = await s.saveAccount('producthunt', {
+    username: twUsername,
+    email: twEmail ?? `${twUsername}@wisentmedia.com`,
+    password: twPassword ?? 'linked_to_twitter',
+  });
+  console.log(`[ph] ${result}`);
+  return twUsername;
+}
+
+for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+  console.log(`\n=== ProductHunt signup attempt ${attempt}/${MAX_RETRIES} ===`);
+  const s = await WSession.start({ label: `producthunt_register_${attempt}`, proxy });
+  try {
+    const username = await signup(s);
+    console.log(`PASS: ${username}`);
+    await s.close();
+    process.exit(0);
+  } catch (e) {
+    console.log(`FAIL (attempt ${attempt}): ${e.message?.slice(0, 200)}`);
+    await s.close().catch(() => {});
+    if (attempt === MAX_RETRIES) { console.log('All attempts exhausted'); process.exit(1); }
+    console.log('Retrying in 3s...');
+    await sleep(3);
+  }
+}
