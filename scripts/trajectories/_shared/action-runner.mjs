@@ -65,6 +65,18 @@ export async function runAction(cfg) {
   const { proxyUrl, persona } = await resolveAccountSession(acct);
   const label = `${cfg.platform}_${cfg.action}`;
   const s = await WSession.start({ label, proxy: proxyUrl, persona });
+  // Cookie injection — required for any authenticated surface (compose,
+  // notifications, etc). Filters by the target-platform domain so Twitter
+  // cookies don't leak to a Reddit session etc. Same pattern as the
+  // github/star/run.mjs trajectory. Without this, Twitter/Reddit/etc.
+  // redirect to /login and the compose trajectory can't proceed.
+  const domainFor = { twitter: 'x.com', reddit: 'reddit.com', instagram: 'instagram.com', tiktok: 'tiktok.com', linkedin: 'linkedin.com', discord: 'discord.com', github: 'github.com' };
+  const wantedDomain = domainFor[cfg.platform];
+  const cookies = (acct.metadata?.cookies ?? []).filter(c => wantedDomain && (c.domain ?? '').includes(wantedDomain));
+  if (cookies.length) {
+    await s.ctx.addCookies(cookies).catch(e => console.log(`[${label}] cookie add err: ${e.message?.slice(0, 80)}`));
+    console.log(`[${label}] injected ${cookies.length} ${wantedDomain} cookies`);
+  }
   let banSignal = null;
   let resultValue = null;
   // Resolve a specific target if the caller provided one. Precedence:
