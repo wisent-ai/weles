@@ -1,21 +1,29 @@
 // Shared session helpers for ProductHunt trajectories.
-// findActiveAccount(platform)                -> account row from social_accounts
-// injectCookies(ctx, cookies, defaultDomain) -> populates BrowserContext cookies
-// loginViaTwitter(s)                          -> re-runs Twitter SSO + clears PH captcha
 //
 // PH gates fresh OAuth sessions through reCAPTCHA at /my/captcha_verification.
-// The weles custom Chromium passes Cloudflare's JS challenge but disconnects
-// when reCAPTCHA's iframe loads (same crash class as Instagram). So:
-//   1. Drive the OAuth click sequence in the weles browser (passes Cloudflare).
-//   2. As soon as we land on /captcha_verification, extract the sitekey within
-//      ~2s before the iframe finishes loading and the renderer dies.
-//   3. Navigate the page to about:blank to keep the renderer alive while
-//      AntiCaptcha solves.
-//   4. POST the captcha verification using ctx.request.post() — no browser
-//      rendering required. Try several POST shapes (Rails forms typically
-//      need authenticity_token + commit field; some apps accept JSON).
+// What looked like a "browser crash" was actually a Playwright CDP disconnect
+// triggered by WSession's heavy event interception + recordVideo during the
+// reCAPTCHA iframe's out-of-process render-target swap. A plain
+// chromium.launch() with the weles binary survives the captcha page fine.
+//
+// So loginViaTwitter() runs OAuth + captcha clear in a plain browser, then
+// hands the resulting captcha-cleared cookies back to the WSession context.
 
+import { chromium } from 'playwright';
+import { existsSync, writeFileSync, mkdtempSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { getCaptchaCredentials } from '../../../dist/utils/credentials.js';
+import { generate, toConfig, toCppConfig } from '../../../dist/fingerprint.js';
+
+const CHROMIUM_ARGS = [
+  '--disable-blink-features=AutomationControlled',
+  '--disable-dev-shm-usage',
+  '--no-sandbox',
+  '--disable-setuid-sandbox',
+  '--disable-infobars',
+  '--window-position=0,0',
+];
 
 const sleep = (sec) => new Promise(r => setTimeout(r, sec * 1000));
 
@@ -84,121 +92,88 @@ async function injectTwitterCookies(ctx, cookies) {
   await ctx.addCookies([...norm, ...twCom]);
 }
 
-// POST captcha verification from WITHIN the browser context (the page must
-// be on a safe same-origin URL, e.g. producthunt.com home). This way the
-// request uses the browser's real TLS fingerprint + Cloudflare cookies, which
-// playwright's Node-side ctx.request cannot replicate.
-async function postCaptchaVerificationInPage(page, captchaPath, token) {
-  return await page.evaluate(`(async () => {
-    var token = ${JSON.stringify(token)};
-    var path = ${JSON.stringify(captchaPath)};
-    var csrf = (document.cookie.match(/(?:^|; )csrf_token=([^;]+)/) || [])[1];
-    var attempts = [
-      { name: 'rails-form-redirect-follow',
-        opts: { method: 'POST', credentials: 'include',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'text/html', ...(csrf ? { 'X-CSRF-Token': decodeURIComponent(csrf) } : {}) },
-          body: new URLSearchParams({ 'g-recaptcha-response': token, ...(csrf ? { authenticity_token: decodeURIComponent(csrf) } : {}), commit: 'Verify me!' }).toString() } },
-    ];
-    var results = [];
-    for (var a of attempts) {
-      try {
-        var r = await fetch(path, { ...a.opts, redirect: 'follow' });
-        var bodyHead = '';
-        try { bodyHead = (await r.text()).slice(0, 600); } catch (e) {}
-        var redirectedTo = r.url;
-        results.push({ name: a.name, status: r.status, redirected: r.redirected, finalUrl: redirectedTo, body: bodyHead });
-        // Success means we actually redirected away from /captcha_verification
-        if (r.status >= 200 && r.status < 400 && !redirectedTo.includes('/captcha_verification')) {
-          return { success: true, results: results };
-        }
-      } catch (e) {
-        results.push({ name: a.name, error: (e.message || '').slice(0, 100) });
-      }
-    }
-    return { success: false, results: results };
-  })()`).catch((e) => ({ success: false, error: e.message?.slice(0, 100) }));
+function findWelesBinary() {
+  const home = process.env.HOME ?? '';
+  const candidates = [
+    join(home, '.local/share/weles-chromium/147.0.7727.108-weles.1/Chromium.app/Contents/MacOS/Chromium'),
+    join(home, 'Documents/CodingProjects/Wisent/chromium-build/src/out/Weles/Chromium.app/Contents/MacOS/Chromium'),
+    '/opt/chromium/Chromium',
+  ];
+  return candidates.find(p => existsSync(p));
 }
 
-export async function loginViaTwitter(s) {
-  console.log('[ph-session] performing Twitter SSO login via weles browser');
-  const tw = await findActiveAccount('twitter');
-  if (!tw) throw new Error('no_twitter_account');
-  const twCookies = tw.metadata?.cookies ?? [];
-  if (twCookies.length < 2) throw new Error('twitter_account_missing_cookies');
-  console.log(`[ph-session] using twitter account ${tw.username}`);
-  await injectTwitterCookies(s.ctx, twCookies);
+// Run the entire OAuth + captcha clear in a PLAIN playwright/weles browser
+// with the full weles fingerprint config (so Cloudflare passes), but no
+// WSession overhead (no recordVideo, no aggressive request listeners) so
+// the CDP connection survives PH's reCAPTCHA iframe load.
+// Returns the cleared producthunt cookies.
+async function clearCaptchaInPlainBrowser(ptCookies, twCookies) {
+  const executablePath = findWelesBinary();
+  if (!executablePath) throw new Error('weles_binary_not_found');
+  // Apply the same fingerprint stack as WSession: write toCppConfig to a temp
+  // file and pass via --weles-fingerprint=<path>. This is what makes weles
+  // pass Cloudflare on /auth/* endpoints.
+  const fp = generate('macos');
+  const fpConfig = toConfig(fp, 'macos', 'chromium');
+  const cppConfig = toCppConfig(fpConfig, 'macos');
+  const fpDir = mkdtempSync(join(tmpdir(), 'weles-fp-ph-'));
+  const fpFile = join(fpDir, 'config.json');
+  writeFileSync(fpFile, JSON.stringify(cppConfig));
+  const args = [...CHROMIUM_ARGS, `--weles-fingerprint=${fpFile}`];
+  console.log(`[ph-session] launching plain weles browser (fp=${fpFile})`);
+  const browser = await chromium.launch({
+    headless: false,
+    executablePath,
+    args,
+    ignoreDefaultArgs: ['--enable-automation', '--enable-unsafe-swiftshader', '--disable-breakpad'],
+  });
+  try {
+    const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+    await injectCookies(ctx, ptCookies, '.producthunt.com');
+    await injectTwitterCookies(ctx, twCookies);
+    const page = await ctx.newPage();
 
-  await s.goto('https://www.producthunt.com/');
-  await sleep(3);
-  await s.click('Sign in').catch(() => {});
-  await sleep(2);
-  await s.click('Sign in with X').catch(() => {});
-  await s.click('Continue with Twitter').catch(() => {});
-  await sleep(6);
-  for (let i = 0; i < 3; i++) {
-    const t = await s.page.evaluate(`(() => (document.body?.innerText ?? '').toLowerCase().substring(0, 1000))()`).catch(() => '');
-    if (t.includes('authorize') || (t.includes('allow') && t.includes('producthunt'))) {
-      await s.click('Authorize app').catch(() => {});
-      await s.click('Authorize').catch(() => {});
-      await s.click('Allow').catch(() => {});
-      await sleep(4);
-    } else break;
-  }
-  for (let i = 0; i < 20; i++) {
-    const u = s.page.url?.() ?? '';
-    if (u.includes('producthunt.com') && !u.includes('/auth/') && !u.includes('twitter.com') && !u.includes('x.com')) break;
-    await sleep(2);
-  }
+    await page.goto('https://www.producthunt.com/', { waitUntil: 'domcontentloaded' });
+    await sleep(3);
+    await page.locator('button:has-text("Sign in"), a:has-text("Sign in")').first().click().catch(() => {});
+    await sleep(3);
+    await page.locator('button:has-text("Sign in with X"), button:has-text("Continue with Twitter")').first().click().catch(() => {});
+    await sleep(8);
+    for (let i = 0; i < 3; i++) {
+      const t = await page.evaluate(`(() => (document.body?.innerText || '').toLowerCase().slice(0, 800))()`).catch(() => '');
+      if (t.includes('authorize') || (t.includes('allow') && t.includes('producthunt'))) {
+        await page.locator('button:has-text("Authorize"), input[value*="Authorize"]').first().click().catch(() => {});
+        await sleep(4);
+      } else break;
+    }
+    for (let i = 0; i < 20; i++) {
+      const u = page.url();
+      if (u.includes('producthunt.com') && !u.includes('/auth/') && !u.includes('twitter.com') && !u.includes('x.com')) break;
+      await sleep(2);
+    }
+    const u = page.url();
+    if (!u.includes('/captcha_verification')) {
+      console.log(`[ph-session] no captcha gate; landed at: ${u}`);
+      return await ctx.cookies('https://www.producthunt.com/');
+    }
 
-  for (let attempt = 0; attempt < 3; attempt++) {
-    const u = s.page.url?.() ?? '';
-    if (!u.includes('/captcha_verification')) return true;
-    console.log(`[ph-session] captcha gate (attempt ${attempt}/3)`);
-    await sleep(2);
-    const sitekey = await s.page.evaluate(`(() => {
-      var ifr = document.querySelector('iframe[src*="recaptcha/api2/anchor"]') || document.querySelector('iframe[src*="recaptcha"]');
+    console.log('[ph-session] on captcha page — solving + clicking Verify me!');
+    await page.waitForSelector('iframe[src*="recaptcha/api2/anchor"]').catch(() => {});
+    await sleep(3);
+    const sitekey = await page.evaluate(`(() => {
+      var ifr = document.querySelector('iframe[src*="recaptcha/api2/anchor"]');
       if (!ifr) return null;
       var m = (ifr.getAttribute('src') || '').match(/[?&]k=([^&]+)/);
       return m ? m[1] : null;
-    })()`).catch(() => null);
-    if (!sitekey) { await sleep(2); continue; }
+    })()`);
+    if (!sitekey) throw new Error('sitekey_not_extracted');
     console.log(`[ph-session] sitekey: ${sitekey}`);
-    const captchaUrl = u;
-    // Solve while ON the captcha page — race the renderer crash. AntiCaptcha
-    // v2 typically returns in ~30s; the weles crash usually happens at ~30-60s.
-    // Set up request interception so when we click "Verify me!" with the token
-    // injected, we capture the actual API URL PH's React app POSTs to.
-    const capturedRequests = [];
-    s.page.on('request', (req) => {
-      const url = req.url();
-      if (req.method() === 'POST' && (url.includes('producthunt.com') || url.includes('captcha'))) {
-        capturedRequests.push({ url, headers: req.headers(), body: req.postData()?.slice(0, 500) });
-      }
-    });
 
-    const token = await solveRecaptchaV2WithUrl(captchaUrl, sitekey).catch((e) => { console.log(`[ph-session] solver: ${e.message?.slice(0, 100)}`); return null; });
-    if (!token) throw new Error('recaptcha_no_token');
+    const token = await solveRecaptchaV2WithUrl(u, sitekey);
+    if (!token) throw new Error('anticaptcha_no_token');
     console.log(`[ph-session] token: ${token.slice(0, 20)}...`);
 
-    // Page may have crashed by now; check
-    if (s.page.isClosed?.()) {
-      console.log(`[ph-session] page crashed during solve; falling back to in-page POST after navigating to home`);
-      // Open a new page in the same context (cookies preserved), navigate to PH home (CF-friendly),
-      // then POST from that fresh page
-      const newPage = await s.ctx.newPage();
-      await newPage.goto('https://www.producthunt.com/').catch(() => {});
-      await sleep(2);
-      const captchaPath = new URL(captchaUrl).pathname + new URL(captchaUrl).search;
-      const result = await postCaptchaVerificationInPage(newPage, captchaPath, token);
-      console.log(`[ph-session] post-crash POST: ${JSON.stringify(result).slice(0, 300)}`);
-      await newPage.close().catch(() => {});
-      if (result.success) return true;
-      await sleep(3);
-      continue;
-    }
-
-    // Page still alive: inject token + fire callbacks + click "Verify me!" — captures the real request via interception
-    await s.page.evaluate(`(() => {
+    await page.evaluate(`(() => {
       var token = ${JSON.stringify(token)};
       document.querySelectorAll('textarea[name="g-recaptcha-response"], #g-recaptcha-response').forEach(function(ta) {
         ta.value = token;
@@ -210,18 +185,40 @@ export async function loginViaTwitter(s) {
       }
       if (window.___grecaptcha_cfg && window.___grecaptcha_cfg.clients) walk(window.___grecaptcha_cfg.clients, 0);
     })()`).catch(() => {});
-    await sleep(2);
-    await s.page.evaluate(`(() => {
+    await sleep(3);
+    await page.waitForFunction(`(() => {
       var b = Array.from(document.querySelectorAll('button[type="submit"]')).find(b => /verify me/i.test(b.textContent || ''));
-      if (b) { b.disabled = false; b.classList.remove('cursor-not-allowed','opacity-50'); b.click(); }
-    })()`).catch(() => {});
-    await sleep(8);
-    console.log(`[ph-session] captured POST requests: ${JSON.stringify(capturedRequests).slice(0, 600)}`);
-    const newUrl = s.page.url?.() ?? '';
-    if (!newUrl.includes('/captcha_verification')) {
-      console.log(`[ph-session] captcha cleared by in-page click, now at: ${newUrl}`);
-      return true;
+      return b && !b.disabled;
+    })`).catch(() => {});
+    await page.locator('button:has-text("Verify me!")').first().click().catch((e) => console.log(`[ph-session] verify click: ${e.message?.slice(0, 80)}`));
+
+    for (let i = 0; i < 15; i++) {
+      await sleep(2);
+      const newUrl = page.url();
+      if (!newUrl.includes('/captcha_verification')) {
+        console.log(`[ph-session] captcha cleared, now at: ${newUrl}`);
+        break;
+      }
     }
+    if (page.url().includes('/captcha_verification')) throw new Error('captcha_did_not_clear');
+    return await ctx.cookies('https://www.producthunt.com/');
+  } finally {
+    await browser.close().catch(() => {});
   }
-  throw new Error('captcha_gate_not_cleared');
+}
+
+export async function loginViaTwitter(s) {
+  const tw = await findActiveAccount('twitter');
+  if (!tw) throw new Error('no_twitter_account');
+  const twCookies = tw.metadata?.cookies ?? [];
+  if (twCookies.length < 2) throw new Error('twitter_account_missing_cookies');
+  const ph = await findActiveAccount('producthunt');
+  const ptCookies = ph?.metadata?.cookies ?? [];
+
+  const cleared = await clearCaptchaInPlainBrowser(ptCookies, twCookies);
+  await s.ctx.clearCookies({ domain: '.producthunt.com' }).catch(() => {});
+  await s.ctx.clearCookies({ domain: 'www.producthunt.com' }).catch(() => {});
+  await s.ctx.addCookies(cleared);
+  console.log(`[ph-session] re-injected ${cleared.length} cleared cookies into WSession`);
+  return true;
 }
