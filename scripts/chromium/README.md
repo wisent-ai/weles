@@ -30,11 +30,11 @@ This:
 
 ## Platforms
 
-| Platform | Asset | Status |
-|---|---|---|
-| macOS arm64 | `weles-chromium-147-macos-arm64.tar.gz` | ✅ published |
-| Linux x86_64 | `weles-chromium-147-linux-x86_64.tar.gz` | 🟡 building |
-| macOS x86_64 | — | not planned (use Rosetta) |
+| Platform | Asset | Size | Status |
+|---|---|---|---|
+| macOS arm64 | `weles-chromium-147-macos-arm64.tar.gz` | 170 MB | ✅ published |
+| Linux x86_64 | `weles-chromium-147-linux-x86_64.tar.gz` | 193 MB | ✅ published |
+| macOS x86_64 | — | — | not planned (use Rosetta) |
 
 ## Building from source
 
