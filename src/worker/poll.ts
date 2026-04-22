@@ -36,28 +36,20 @@ function resolveTrajectory(action: string, platform?: string): string | null {
   if (firstUnderscore < 0) return null;
   const plat = action.slice(0, firstUnderscore);
   const verb = action.slice(firstUnderscore + 1);
-  // Benign verbs (dwell / notifications / search / profile_view) all run the
-  // same universal file with PLATFORM + VERB env. Specialized verbs map to
-  // a specific trajectory file. Legacy flat register/login/like/etc. stay flat.
+  // Benign verbs (dwell/notifications/search/profile_view) share the universal runner with PLATFORM+VERB env; specialized verbs map to specific files; legacy flat <plat>_<verb>.mjs kept as-is.
   const benignPath = 'scripts/trajectories/_shared/benign.mjs';
   const routes: Record<string, (p: string) => string> = {
-    // Passive / benign (shared runner)
     dwell:                 () => benignPath,
     notifications:         () => benignPath,
     search:                () => benignPath,
     profile_view:          () => benignPath,
-    // Feed-scroll is close enough to dwell that the same runner works — each
-    // platform's browse.mjs may still exist for backwards compat; prefer it
-    // when present, otherwise fall through to benign.
     browse:                (p) => p === 'github' ? 'scripts/trajectories/github/actions/browse.mjs' : `scripts/trajectories/${p}/browse.mjs`,
-    // Health / organic comment / promote
     health:                (p) => p === 'github' ? 'scripts/trajectories/github/health/run.mjs' : `scripts/trajectories/${p}/health.mjs`,
     organic_comment:       (p) => `scripts/trajectories/${p}/organic_comment.mjs`,
     organic_reply:         (p) => `scripts/trajectories/${p}/organic_reply.mjs`,
     organic_message:       (p) => `scripts/trajectories/${p}/organic_message.mjs`,
     organic_issue_comment: (p) => `scripts/trajectories/${p}/actions/organic_issue_comment.mjs`,
     promote:               (p) => p === 'github' ? 'scripts/trajectories/github/actions/promote.mjs' : `scripts/trajectories/${p}/promote.mjs`,
-    // Legacy flat trajectories — <platform>_<verb>.mjs at the top level
     register:              (p) => p === 'github' || p === 'youtube' ? `scripts/trajectories/${p}/register.mjs` : `scripts/trajectories/${p}_register.mjs`,
     login:                 (p) => `scripts/trajectories/${p}_login.mjs`,
     like:                  (p) => ['linkedin','tiktok','twitter','instagram'].includes(p) ? `scripts/trajectories/${p}/actions/like.mjs` : `scripts/trajectories/${p}_like.mjs`,
@@ -66,8 +58,7 @@ function resolveTrajectory(action: string, platform?: string): string | null {
     upvote:                (p) => p === 'reddit' ? 'scripts/trajectories/reddit/actions/upvote.mjs' : `scripts/trajectories/${p}_upvote.mjs`,
     dm:                    (p) => `scripts/trajectories/${p}_dm.mjs`,
     star:                  (p) => p === 'github' ? 'scripts/trajectories/github/star/run.mjs' : `scripts/trajectories/${p}_star.mjs`,
-    // Platform-specific light-engagement verbs — nested under actions/ so the
-    // top-level platform folders stay at <=5 files.
+    create_repo: (p) => `scripts/trajectories/${p}/content/create_repo.mjs`, commit: (p) => `scripts/trajectories/${p}/content/commit.mjs`, fork: (p) => `scripts/trajectories/${p}/content/fork.mjs`, open_issue: (p) => `scripts/trajectories/${p}/content/open_issue.mjs`,
     connect:               (p) => `scripts/trajectories/${p}/actions/connect.mjs`,
     endorse:               (p) => `scripts/trajectories/${p}/actions/endorse.mjs`,
     react:                 (p) => `scripts/trajectories/${p}/actions/react.mjs`,
@@ -134,6 +125,7 @@ function paramsToEnv(params: Record<string, unknown>, action: string, trajPath: 
   if (typeof params.invite_url === 'string') env.INVITE_URL = params.invite_url;
   if (typeof params.repo_url === 'string') env.REPO_URL = params.repo_url;
   if (typeof params.text === 'string') env.SVC_TEXT = params.text;
+  for (const [k, ek] of [['repo_name','REPO_NAME'],['repo_desc','REPO_DESC'],['file_path','FILE_PATH'],['file_append','FILE_APPEND'],['commit_message','COMMIT_MESSAGE'],['issue_title','ISSUE_TITLE'],['issue_body','ISSUE_BODY']]) if (typeof params[k] === 'string') env[ek] = params[k];
   if (params.require_approval === true) env.REQUIRE_APPROVAL = '1';
   return env;
 }
