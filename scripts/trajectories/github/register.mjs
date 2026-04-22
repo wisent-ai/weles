@@ -215,7 +215,8 @@ try {
       if (ok) { await s.wait(5); const u = s.page.url?.() ?? ''; if (/signup_emailsent|verif|launch-code|account_verif/.test(u)) solved = true; }
     }
   }
-  const token = solved ? null : (await solveFunCaptcha({ websiteURL: URL, publicKey: captcha.pkey, apiSub: captcha.apiSub, blob: captcha.blob, userAgent: ua, proxy: s.proxyConfig })).token;
+  // External solvers (anticaptcha/2captcha) return UNSOLVABLE on Arkose basket puzzles — opt-in only.
+  const token = (solved || process.env.WELES_EXTERNAL_FUNCAPTCHA !== '1') ? null : (await solveFunCaptcha({ websiteURL: URL, publicKey: captcha.pkey, apiSub: captcha.apiSub, blob: captcha.blob, userAgent: ua, proxy: s.proxyConfig })).token;
   keepAliveAbort = true; await keepAlive.catch(() => {});
   if (token) {
     const inject = await s.page.evaluate(`(tk => {
