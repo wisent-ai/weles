@@ -43,10 +43,15 @@ export async function runAction(cfg) {
   if (!acct) { console.log(`FAIL: no active ${cfg.platform} account`); process.exit(1); }
 
   let character = null, product = null;
+  const preapprovedTextProbe = process.env.SVC_TEXT || '';
   if (cfg.action !== 'browse') {
     const rows = await fetchSupabase(`character_social_accounts?social_account_id=eq.${acct.id}&select=characters(name,bio,personality,niche,handle,promoted_product_id,promotion_config)&limit=1`);
     character = rows?.[0]?.characters ?? null;
-    if (!character) { console.log('FAIL: no character linked'); process.exit(1); }
+    // Accept a character-less post when SVC_TEXT is operator-supplied —
+    // lets the UI path be verified without a character+product in prod DB.
+    if (!character && !(preapprovedTextProbe && (cfg.action === 'post' || cfg.action === 'post_promote'))) {
+      console.log('FAIL: no character linked'); process.exit(1);
+    }
   }
   if (cfg.action === 'promote' || cfg.action === 'post_promote') {
     const productId = process.env.PRODUCT_ID || character?.promoted_product_id;
@@ -92,6 +97,7 @@ export async function runAction(cfg) {
       // the LLM weaves it in naturally instead of opening with brand.
       let text = preapprovedText;
       if (!text) {
+        if (!character) throw new Error('no character — cannot LLM-generate post without persona');
         const personaCtx = { name: character.name, bio: character.bio, personality: character.personality, niche: character.niche };
         text = await generatePost({ persona: personaCtx, surface: cfg.platform, product: product ?? undefined });
         console.log(`[post-text] ${text.slice(0, 140)}...`);
