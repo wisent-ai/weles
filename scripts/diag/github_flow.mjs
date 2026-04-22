@@ -59,6 +59,8 @@ const childEnv = {
   CAPMONSTERCLOUD_API_KEY: sub('CAPMONSTERCLOUD_API_KEY'),
   TWOCAPTCHA_API_KEY: sub('TWOCAPTCHA_API_KEY'),
   SADCAPTCHA_API_KEY: sub('SADCAPTCHA_API_KEY'),
+  GEMINI_API_KEY: sub('GEMINI_API_KEY'),
+  WELES_GEMINI_MODEL: sub('WELES_GEMINI_MODEL') || 'gemini-3.1-pro-preview',
 };
 
 function section(title) { console.log(`\n${'='.repeat(72)}\n>>> ${title}\n${'='.repeat(72)}`); }
