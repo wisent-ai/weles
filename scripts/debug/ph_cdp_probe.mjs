@@ -41,6 +41,23 @@ page.on('close', () => console.log('[probe] PAGE close'));
 console.log('[probe] navigating to captcha page');
 await page.goto('https://www.producthunt.com/my/captcha_verification', { waitUntil: 'domcontentloaded' }).catch(e => console.log('[probe] goto err:', e.message?.slice(0, 100)));
 
+// Optional concurrent fetch — simulates the AntiCaptcha solver poll loop
+// happening alongside the captcha page being open
+if (process.env.PROBE_FETCH === '1') {
+  console.log('[probe] starting concurrent fetch loop to anti-captcha.com');
+  (async () => {
+    for (let i = 0; i < 12; i++) {
+      try {
+        await fetch('https://api.anti-captcha.com/', { method: 'GET' });
+        console.log(`[probe-fetch] t=${i*5}s fetched`);
+      } catch (e) {
+        console.log(`[probe-fetch] t=${i*5}s err: ${e.message?.slice(0, 60)}`);
+      }
+      await new Promise(r => setTimeout(r, 5000));
+    }
+  })();
+}
+
 for (let i = 0; i < 30; i++) {
   await new Promise(r => setTimeout(r, 2000));
   try {
