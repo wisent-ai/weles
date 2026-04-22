@@ -107,7 +107,7 @@ function findWelesBinary() {
 // WSession overhead (no recordVideo, no aggressive request listeners) so
 // the CDP connection survives PH's reCAPTCHA iframe load.
 // Returns the cleared producthunt cookies.
-async function clearCaptchaInPlainBrowser(ptCookies, twCookies) {
+export async function clearCaptchaInPlainBrowser(ptCookies, twCookies) {
   const executablePath = findWelesBinary();
   if (!executablePath) throw new Error('weles_binary_not_found');
   // Apply the same fingerprint stack as WSession: write toCppConfig to a temp
@@ -152,9 +152,14 @@ async function clearCaptchaInPlainBrowser(ptCookies, twCookies) {
       await sleep(2);
     }
     const u = page.url();
+    // Snapshot cookies immediately after OAuth lands (before the browser has
+    // any chance to disconnect during subsequent steps)
+    let cookieSnapshot = [];
+    try { cookieSnapshot = await ctx.cookies('https://www.producthunt.com/'); } catch (e) { console.log(`[ph-session] cookie snapshot err: ${e.message?.slice(0, 80)}`); }
+    console.log(`[ph-session] snapshot ${cookieSnapshot.length} cookies after OAuth`);
     if (!u.includes('/captcha_verification')) {
       console.log(`[ph-session] no captcha gate; landed at: ${u}`);
-      return await ctx.cookies('https://www.producthunt.com/');
+      return cookieSnapshot.length > 0 ? cookieSnapshot : await ctx.cookies('https://www.producthunt.com/').catch(() => []);
     }
 
     console.log('[ph-session] on captcha page — solving + clicking Verify me!');
@@ -173,6 +178,17 @@ async function clearCaptchaInPlainBrowser(ptCookies, twCookies) {
     if (!token) throw new Error('anticaptcha_no_token');
     console.log(`[ph-session] token: ${token.slice(0, 20)}...`);
 
+    // Stay on the captcha page — the Referer matters for PH's anti-bot check.
+    // Install a request interceptor FIRST so when React fires the real click
+    // we capture its exact body (which we can replay if this path fails).
+    const captured = [];
+    page.on('request', (req) => {
+      if (req.method() === 'POST' && req.url().includes('/frontend/graphql')) {
+        captured.push({ headers: req.headers(), body: req.postData()?.slice(0, 2000) });
+      }
+    });
+
+    // Inject token + fire reCAPTCHA callback so React enables + clicks on our behalf
     await page.evaluate(`(() => {
       var token = ${JSON.stringify(token)};
       document.querySelectorAll('textarea[name="g-recaptcha-response"], #g-recaptcha-response').forEach(function(ta) {
@@ -185,22 +201,68 @@ async function clearCaptchaInPlainBrowser(ptCookies, twCookies) {
       }
       if (window.___grecaptcha_cfg && window.___grecaptcha_cfg.clients) walk(window.___grecaptcha_cfg.clients, 0);
     })()`).catch(() => {});
-    await sleep(3);
+    await sleep(2);
     await page.waitForFunction(`(() => {
       var b = Array.from(document.querySelectorAll('button[type="submit"]')).find(b => /verify me/i.test(b.textContent || ''));
       return b && !b.disabled;
     })`).catch(() => {});
     await page.locator('button:has-text("Verify me!")').first().click().catch((e) => console.log(`[ph-session] verify click: ${e.message?.slice(0, 80)}`));
+    await sleep(6);
 
-    for (let i = 0; i < 15; i++) {
-      await sleep(2);
+    if (captured.length > 0) {
+      console.log(`[ph-session] CAPTURED real submit:`);
+      for (const c of captured) {
+        console.log(`  headers: ${JSON.stringify(c.headers).slice(0, 400)}`);
+        console.log(`  body: ${c.body?.slice(0, 600)}`);
+      }
+    } else {
+      console.log('[ph-session] no real submit captured — falling back to manual fetch');
+    }
+
+    // Post-capture: did URL change away from captcha page?
+    for (let i = 0; i < 10; i++) {
       const newUrl = page.url();
       if (!newUrl.includes('/captcha_verification')) {
-        console.log(`[ph-session] captcha cleared, now at: ${newUrl}`);
-        break;
+        console.log(`[ph-session] captcha cleared via React click, now at: ${newUrl}`);
+        return await ctx.cookies('https://www.producthunt.com/');
       }
+      await sleep(2);
     }
-    if (page.url().includes('/captcha_verification')) throw new Error('captcha_did_not_clear');
+
+    // If click didn't clear, navigate to safe page and try manual fetch with captured headers
+    await page.goto('https://www.producthunt.com/', { waitUntil: 'domcontentloaded' }).catch(() => {});
+    await sleep(2);
+    const graphqlRes = await page.evaluate(`(async () => {
+      var query = 'mutation UserVerify($input: UserRecaptchaEnterInput!) { response: userRecaptchaEnter(input: $input) { node errors { field messages } } }';
+      var body = JSON.stringify([{
+        operationName: 'UserVerify',
+        query: query,
+        variables: { input: { gRecaptchaResponse: ${JSON.stringify(token)} } },
+      }]);
+      try {
+        var r = await fetch('/frontend/graphql', {
+          method: 'POST', credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': '*/*',
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-PH-Timezone': Intl.DateTimeFormat().resolvedOptions().timeZone,
+            'X-PH-Referer': 'https://www.producthunt.com/my/captcha_verification',
+          },
+          body: body,
+        });
+        var text = await r.text();
+        return { status: r.status, body: text.slice(0, 800) };
+      } catch (e) { return { error: (e.message || '').slice(0, 200) }; }
+    })()`).catch((e) => ({ error: e.message?.slice(0, 200) }));
+    console.log(`[ph-session] UserVerify mutation: ${JSON.stringify(graphqlRes)}`);
+
+    // Verify by navigating to a /my/* page
+    await page.goto('https://www.producthunt.com/my/details/edit', { waitUntil: 'domcontentloaded' }).catch(() => {});
+    await sleep(3);
+    const verifyUrl = page.url();
+    console.log(`[ph-session] post-mutation nav: ${verifyUrl}`);
+    if (verifyUrl.includes('/captcha_verification')) throw new Error('captcha_did_not_clear_after_graphql');
     return await ctx.cookies('https://www.producthunt.com/');
   } finally {
     await browser.close().catch(() => {});
