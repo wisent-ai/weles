@@ -53,7 +53,7 @@ try {
   console.log(`[commit] append: ${JSON.stringify(append)}`);
   await s.page.waitForTimeout(1500);
 
-  const goal = `You are on GitHub's file-edit page for ${FILE_PATH}. The file has been modified in the editor. Find and click the "Commit changes..." button (top right of the editor). In the modal that appears, the commit message input should be visible — clear it if needed and type exactly: ${COMMIT_MESSAGE}. Then click the green "Commit changes" button to confirm. done(value="committed"). Do NOT navigate(). Do NOT change the file content.`;
+  const goal = `You are on GitHub's file-edit page for ${FILE_PATH} in the target repo. Do the following in order:\n1. Click into the code editor (CodeMirror or contenteditable) and press End then Enter to go to a new line at the end.\n2. Type exactly this line: ${FILE_APPEND.trim()}\n3. Find and click the "Commit changes..." button (top right area of the editor toolbar).\n4. A modal titled "Propose changes" or "Commit changes" appears. Clear the default commit message if non-empty and type exactly: ${COMMIT_MESSAGE}\n5. Keep the "Commit directly to the main branch" option selected.\n6. Click the green "Commit changes" confirmation button in the modal.\nAfter the modal submits and the page navigates away from /edit/, done(value="committed"). Do NOT navigate() manually.`;
   await execute(s, goal, { flowName: 'github_commit' });
 
   for (let w = 0; w < 20; w++) {
