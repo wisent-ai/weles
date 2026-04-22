@@ -34,8 +34,8 @@ try {
   const is404 = await s.page.evaluate(() => /page not found/i.test(document.body.innerText || ''));
   if (is404) throw new Error(`repo_or_file_404: url=${s.page.url?.() ?? ''}`);
 
-  const goal = `You are on GitHub's file-edit page for ${FILE_PATH} in the target repo. Do the following in order:\n1. Click into the code editor (CodeMirror or contenteditable) and press End then Enter to go to a new line at the end.\n2. Type exactly this line: ${FILE_APPEND.trim()}\n3. Find and click the "Commit changes..." button (top right area of the editor toolbar).\n4. A modal titled "Propose changes" or "Commit changes" appears. Clear the default commit message if non-empty and type exactly: ${COMMIT_MESSAGE}\n5. Keep the "Commit directly to the main branch" option selected.\n6. Click the green "Commit changes" confirmation button in the modal.\nAfter the modal submits and the page navigates away from /edit/, done(value="committed"). Do NOT navigate() manually.`;
-  await execute(s, goal, { flowName: 'github_commit' });
+  const goal = `You are on GitHub's file-edit page for ${FILE_PATH} in the target repo. Do the following in order:\n1. Click into the code editor (CodeMirror or contenteditable) and press End then Enter to go to a new line at the end.\n2. Type exactly this line: ${FILE_APPEND.trim()}\n3. Find and click the "Commit changes..." button (top right area of the editor toolbar).\n4. A modal titled "Propose changes" or "Commit changes" appears. Clear the default commit message if non-empty (select-all + delete or triple-click + delete) THEN type exactly: ${COMMIT_MESSAGE}\n5. Keep the "Commit directly to the main branch" option selected.\n6. Click the green "Commit changes" confirmation button in the modal.\nAfter the modal submits and the page navigates away from /edit/, done(value="committed"). Do NOT navigate() manually.`;
+  await execute(s, goal, {}); // flow cache would freeze literal FILE_APPEND/COMMIT_MESSAGE; always replan
 
   for (let w = 0; w < 20; w++) {
     await s.page.waitForTimeout(1000);

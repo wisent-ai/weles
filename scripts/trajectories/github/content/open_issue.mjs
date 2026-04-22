@@ -57,7 +57,7 @@ try {
   await s.page.waitForTimeout(2000);
 
   const goal = `You are on GitHub's new-issue form for the repo. Do the following in order:\n1. Click the "Title" text input (top of the form) and if empty type exactly: ${ISSUE_TITLE}\n2. Click the body/description textarea (large area, labelled "Add your description here...") and if empty type exactly: ${ISSUE_BODY}\n3. Find the green "Submit new issue" button near the bottom and click it.\nAfter clicking Submit, done(value="submitted"). Do NOT navigate() manually. Do not rewrite text that is already present.`;
-  await execute(s, goal, { flowName: 'github_open_issue' });
+  await execute(s, goal, {}); // flow cache would freeze literal ISSUE_TITLE/ISSUE_BODY; always replan
 
   for (let w = 0; w < 20; w++) {
     await s.page.waitForTimeout(1000);
