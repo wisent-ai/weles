@@ -38,6 +38,41 @@ const page = await ctx.newPage();
 page.on('crash', () => console.log('[probe] PAGE crash'));
 page.on('close', () => console.log('[probe] PAGE close'));
 
+// PROBE_OAUTH=1 simulates the live-flow navigation history before sitting
+// on /captcha_verification: visit producthunt.com home, then /auth/twitter
+// (mimics OAuth start), then land on /captcha_verification. Tests whether
+// the navigation lineage is what causes the disconnect.
+if (process.env.PROBE_OAUTH === '1') {
+  console.log('[probe] simulating OAuth navigation history before captcha page');
+  await page.goto('https://www.producthunt.com/', { waitUntil: 'domcontentloaded' }).catch(() => {});
+  await new Promise(r => setTimeout(r, 2000));
+  await page.goto('https://www.producthunt.com/auth/twitter?origin=%2F', { waitUntil: 'domcontentloaded' }).catch(() => {});
+  await new Promise(r => setTimeout(r, 3000));
+}
+
+// PROBE_COOKIES=1 injects PH + Twitter cookies for the most-recent producthunt
+// account in the DB. Tests whether cookied (auth-recognized) requests trigger
+// PH to render the heavy captcha challenge iframe that idle requests don't.
+if (process.env.PROBE_COOKIES === '1') {
+  const supaUrl = process.env.SUPABASE_URL ?? '';
+  const supaKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
+  if (supaUrl && supaKey) {
+    for (const platform of ['producthunt', 'twitter']) {
+      const r = await fetch(`${supaUrl}/rest/v1/social_accounts?platform=eq.${platform}&is_active=eq.true&select=username,metadata&order=created_at.desc&limit=1`, { headers: { apikey: supaKey, Authorization: `Bearer ${supaKey}` } }).then(r => r.json());
+      const cs = r?.[0]?.metadata?.cookies ?? [];
+      console.log(`[probe] injecting ${cs.length} ${platform} cookies (acct=${r?.[0]?.username})`);
+      const norm = cs.filter(c => c.name && c.value).map(c => ({
+        name: c.name, value: c.value,
+        domain: c.domain || (platform === 'producthunt' ? '.producthunt.com' : '.x.com'),
+        path: c.path || '/', secure: c.secure ?? true,
+        httpOnly: c.httpOnly ?? false, sameSite: c.sameSite || 'Lax',
+        ...(c.expires && c.expires > 0 ? { expires: c.expires } : {}),
+      }));
+      await ctx.addCookies(norm).catch(e => console.log(`[probe] cookie inject err: ${e.message?.slice(0, 80)}`));
+    }
+  }
+}
+
 console.log('[probe] navigating to captcha page');
 await page.goto('https://www.producthunt.com/my/captcha_verification', { waitUntil: 'domcontentloaded' }).catch(e => console.log('[probe] goto err:', e.message?.slice(0, 100)));
 
