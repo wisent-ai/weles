@@ -59,6 +59,7 @@ function resolveTrajectory(action: string, platform?: string): string | null {
     dm:                    (p) => `scripts/trajectories/${p}_dm.mjs`,
     star:                  (p) => p === 'github' ? 'scripts/trajectories/github/star/run.mjs' : `scripts/trajectories/${p}_star.mjs`,
     create_repo: (p) => `scripts/trajectories/${p}/content/create_repo.mjs`, commit: (p) => `scripts/trajectories/${p}/content/commit.mjs`, fork: (p) => `scripts/trajectories/${p}/content/fork.mjs`, open_issue: (p) => `scripts/trajectories/${p}/content/open_issue.mjs`,
+    post: (p) => `scripts/trajectories/${p}/content/post.mjs`, post_promote: (p) => `scripts/trajectories/${p}/content/post.mjs`,
     connect:               (p) => `scripts/trajectories/${p}/actions/connect.mjs`,
     endorse:               (p) => `scripts/trajectories/${p}/actions/endorse.mjs`,
     react:                 (p) => `scripts/trajectories/${p}/actions/react.mjs`,
@@ -125,6 +126,7 @@ function paramsToEnv(params: Record<string, unknown>, action: string, trajPath: 
   if (typeof params.invite_url === 'string') env.INVITE_URL = params.invite_url;
   if (typeof params.repo_url === 'string') env.REPO_URL = params.repo_url;
   if (typeof params.text === 'string') env.SVC_TEXT = params.text;
+  if (action.endsWith('_post_promote')) env.POST_PROMOTE = '1';
   for (const [k, ek] of [['repo_name','REPO_NAME'],['repo_desc','REPO_DESC'],['file_path','FILE_PATH'],['file_append','FILE_APPEND'],['commit_message','COMMIT_MESSAGE'],['issue_title','ISSUE_TITLE'],['issue_body','ISSUE_BODY']]) if (typeof params[k] === 'string') env[ek] = params[k];
   if (params.require_approval === true) env.REQUIRE_APPROVAL = '1';
   return env;

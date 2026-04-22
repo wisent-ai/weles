@@ -16,7 +16,7 @@
 import { getSocialAccount, resolveAccountSession } from '../../../dist/utils/credentials.js';
 import { WSession } from '../../../dist/session/wsession.js';
 import { execute } from '../../../dist/agent/loop.js';
-import { generateOrganicComment, generatePromoteComment } from './llm.mjs';
+import { generateOrganicComment, generatePromoteComment, generatePost } from './llm.mjs';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -48,7 +48,7 @@ export async function runAction(cfg) {
     character = rows?.[0]?.characters ?? null;
     if (!character) { console.log('FAIL: no character linked'); process.exit(1); }
   }
-  if (cfg.action === 'promote') {
+  if (cfg.action === 'promote' || cfg.action === 'post_promote') {
     const productId = process.env.PRODUCT_ID || character?.promoted_product_id;
     if (!productId) { console.log('FAIL: no product configured'); process.exit(1); }
     const pr = await fetchSupabase(`products?id=eq.${productId}&select=name,description&limit=1`);
@@ -86,6 +86,32 @@ export async function runAction(cfg) {
         await s.page.waitForTimeout(900 + Math.floor(Math.random() * 1400));
       }
       resultValue = `scrolled ${cfg.scrolls ?? 6}x`;
+    } else if (cfg.action === 'post' || cfg.action === 'post_promote') {
+      // Original post: generate short content, drive the compose UI via agent.
+      // Product-mention version goes through generatePost with product set so
+      // the LLM weaves it in naturally instead of opening with brand.
+      let text = preapprovedText;
+      if (!text) {
+        const personaCtx = { name: character.name, bio: character.bio, personality: character.personality, niche: character.niche };
+        text = await generatePost({ persona: personaCtx, surface: cfg.platform, product: product ?? undefined });
+        console.log(`[post-text] ${text.slice(0, 140)}...`);
+      }
+      if (cfg.action === 'post_promote' && REQUIRE_APPROVAL && !preapprovedText) {
+        const dir = join(process.cwd(), 'recordings', label);
+        mkdirSync(dir, { recursive: true });
+        writeFileSync(join(dir, 'pending_review.json'), JSON.stringify({
+          account_id: acct.id, username: acct.username, action: label,
+          surface_label: typeof cfg.surfaceLabel === 'function' ? cfg.surfaceLabel(acct, feed) : cfg.surfaceLabel,
+          product: product ? { name: product.name } : null,
+          variant: (process.env.VARIANT || character?.promotion_config?.variant || 'mention').toLowerCase(),
+          post_text: text, ts: new Date().toISOString(),
+        }, null, 2));
+        console.log('PASS: pending_review (approval required, not posted)');
+        resultValue = 'pending_review';
+      } else {
+        const r = await execute(s, cfg.postGoal(text), {}); // no flow cache — text is per-tick
+        resultValue = r.value;
+      }
     } else {
       const surfaceLabel = typeof cfg.surfaceLabel === 'function' ? cfg.surfaceLabel(acct, feed) : (cfg.surfaceLabel ?? feed);
       const { postTitle, postBody } = await (cfg.pickPost?.(s) ?? Promise.resolve({ postTitle: '', postBody: '' }));

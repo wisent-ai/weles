@@ -39,3 +39,8 @@ export async function generateOrganicComment({ persona, post }) {
 export async function generatePromoteComment({ persona, post, product }) {
   return callGenerate({ task: 'promote', persona, post, product });
 }
+
+export async function generatePost({ persona, surface, product }) {
+  const task = product ? 'post_promote' : 'post';
+  return callGenerate({ task, persona, surface, product });
+}
