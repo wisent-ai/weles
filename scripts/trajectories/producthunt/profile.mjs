@@ -68,7 +68,9 @@ async function fillProfile() {
   if (cookies.length < 1) throw new Error('producthunt_account_missing_cookies');
 
   const proxy = process.env.PROXY_URL || 'none';
-  const s = await WSession.start({ label: 'producthunt_profile', proxy });
+  // record:false avoids the recordVideo overhead that contributes to CDP
+  // disconnects on heavy pages like PH's reCAPTCHA verification.
+  const s = await WSession.start({ label: 'producthunt_profile', proxy, record: false });
   const { ctx, page } = s;
   try {
     const inj = await injectCookies(ctx, cookies, '.producthunt.com');
