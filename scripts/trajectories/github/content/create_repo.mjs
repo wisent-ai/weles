@@ -32,7 +32,7 @@ try {
   if (loggedOut) throw new Error('not_logged_in: cookies stale');
 
   const goal = `You are on GitHub's new-repository form (/new). Do the following in order:\n1. Find the "Repository name" text input and type exactly: ${REPO_NAME}\n2. Find the "Description" text input and type exactly: ${REPO_DESC}\n3. ENSURE the "Add a README file" checkbox IS CHECKED. Use read(question="Is the 'Add a README file' checkbox currently checked?") to check state FIRST. Only click the checkbox if it is currently UNCHECKED. If it is already checked, do NOT click it (that would uncheck it).\n4. Find the green "Create repository" button at the bottom of the form and click it.\nAfter clicking Create, done(value="create_clicked"). Do NOT navigate() manually.`;
-  await execute(s, goal, { flowName: 'github_create_repo' });
+  await execute(s, goal, {}); // flow cache would freeze literal REPO_NAME/REPO_DESC; always replan
 
   for (let w = 0; w < 15; w++) {
     await s.page.waitForTimeout(1000);
