@@ -31,21 +31,7 @@ try {
   const loggedOut = await s.page.evaluate(() => !!document.querySelector('a[href="/login"]'));
   if (loggedOut) throw new Error('not_logged_in: cookies stale');
 
-  const prefill = await s.page.evaluate((data) => {
-    const name = document.querySelector('input[name="repository[name]"], input#repository_name');
-    const desc = document.querySelector('input[name="repository[description]"], input#repository_description');
-    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
-    if (!name) return { ok: false, reason: 'no_name_input' };
-    setter.call(name, data.name); name.dispatchEvent(new Event('input', { bubbles: true }));
-    if (desc) { setter.call(desc, data.desc); desc.dispatchEvent(new Event('input', { bubbles: true })); }
-    const readme = document.querySelector('input[name="repository[auto_init]"], input#repository_auto_init');
-    if (readme && !readme.checked) readme.click();
-    return { ok: true, name: name.value, hasDesc: !!desc };
-  }, { name: REPO_NAME, desc: REPO_DESC });
-  console.log(`[create_repo] prefill: ${JSON.stringify(prefill)}`);
-  await s.page.waitForTimeout(2000);
-
-  const goal = `You are on GitHub's new-repository form. The name "${REPO_NAME}", description, and Add-a-README checkbox are already filled in. Scroll to the bottom if needed and click the green "Create repository" button. done(value="create_clicked"). Do NOT navigate() and do NOT modify the filled fields.`;
+  const goal = `You are on GitHub's new-repository form (/new). Do the following in order:\n1. Find the "Repository name" text input and type exactly: ${REPO_NAME}\n2. Find the "Description" text input and type exactly: ${REPO_DESC}\n3. Find the "Add a README file" checkbox and check it (click if unchecked).\n4. Find the green "Create repository" button at the bottom of the form and click it.\nAfter clicking Create, done(value="create_clicked"). Do NOT navigate() manually.`;
   await execute(s, goal, { flowName: 'github_create_repo' });
 
   for (let w = 0; w < 15; w++) {
