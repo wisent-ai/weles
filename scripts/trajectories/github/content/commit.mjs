@@ -28,30 +28,11 @@ try {
   const cookies = (acct.metadata?.cookies ?? []).filter(c => (c.domain ?? '').includes('github.com'));
   if (cookies.length) await s.ctx.addCookies(cookies).catch(() => {});
   await s.goto(`${repoBase}/edit/main/${FILE_PATH}`);
-  await s.page.waitForTimeout(4000);
+  await s.page.waitForTimeout(5000);
   const loggedOut = await s.page.evaluate(() => !!document.querySelector('a[href="/login"]'));
   if (loggedOut) throw new Error('not_logged_in: cookies stale');
-
-  const isEditor = await s.page.evaluate(() => !!document.querySelector('.CodeMirror, [role="textbox"][contenteditable], .react-blob-edit-wrapper'));
-  if (!isEditor) throw new Error(`editor_not_loaded: url=${s.page.url?.() ?? ''}`);
-
-  const append = await s.page.evaluate((text) => {
-    const cm = document.querySelector('.CodeMirror');
-    if (cm && cm.CodeMirror) {
-      const end = cm.CodeMirror.getValue();
-      cm.CodeMirror.setValue(end + text);
-      return { via: 'codemirror', len: cm.CodeMirror.getValue().length };
-    }
-    const ta = document.querySelector('textarea[name="value"], textarea');
-    if (ta) {
-      const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set;
-      setter.call(ta, (ta.value || '') + text); ta.dispatchEvent(new Event('input', { bubbles: true }));
-      return { via: 'textarea', len: ta.value.length };
-    }
-    return { via: 'none' };
-  }, FILE_APPEND);
-  console.log(`[commit] append: ${JSON.stringify(append)}`);
-  await s.page.waitForTimeout(1500);
+  const is404 = await s.page.evaluate(() => /page not found/i.test(document.body.innerText || ''));
+  if (is404) throw new Error(`repo_or_file_404: url=${s.page.url?.() ?? ''}`);
 
   const goal = `You are on GitHub's file-edit page for ${FILE_PATH} in the target repo. Do the following in order:\n1. Click into the code editor (CodeMirror or contenteditable) and press End then Enter to go to a new line at the end.\n2. Type exactly this line: ${FILE_APPEND.trim()}\n3. Find and click the "Commit changes..." button (top right area of the editor toolbar).\n4. A modal titled "Propose changes" or "Commit changes" appears. Clear the default commit message if non-empty and type exactly: ${COMMIT_MESSAGE}\n5. Keep the "Commit directly to the main branch" option selected.\n6. Click the green "Commit changes" confirmation button in the modal.\nAfter the modal submits and the page navigates away from /edit/, done(value="committed"). Do NOT navigate() manually.`;
   await execute(s, goal, { flowName: 'github_commit' });
