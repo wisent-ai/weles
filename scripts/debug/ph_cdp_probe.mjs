@@ -38,10 +38,37 @@ const page = await ctx.newPage();
 page.on('crash', () => console.log('[probe] PAGE crash'));
 page.on('close', () => console.log('[probe] PAGE close'));
 
-// PROBE_OAUTH=1 simulates the live-flow navigation history before sitting
-// on /captcha_verification: visit producthunt.com home, then /auth/twitter
-// (mimics OAuth start), then land on /captcha_verification. Tests whether
-// the navigation lineage is what causes the disconnect.
+// PROBE_GRAPHQL=1 captures the headers PH's Apollo client sends on any
+// /frontend/graphql POST (visit homepage, wait for graphql requests to fire).
+if (process.env.PROBE_GRAPHQL === '1') {
+  let count = 0;
+  page.on('request', (req) => {
+    if (req.method() === 'POST' && req.url().includes('/frontend/graphql')) {
+      count++;
+      const h = req.headers();
+      console.log(`\n=== GraphQL POST #${count} ===\nURL: ${req.url()}\nHeaders:`);
+      for (const [k, v] of Object.entries(h)) {
+        if (!k.startsWith(':')) console.log(`  ${k}: ${String(v).slice(0, 200)}`);
+      }
+      const body = req.postData() || '';
+      try {
+        const parsed = JSON.parse(body);
+        if (Array.isArray(parsed)) {
+          console.log(`Body: BATCH of ${parsed.length} ops`);
+          parsed.slice(0, 3).forEach((op, i) => console.log(`  op[${i}]: ${op.operationName}`));
+        } else {
+          console.log(`Body operationName: ${parsed.operationName}`);
+        }
+      } catch (e) {}
+    }
+  });
+  await page.goto('https://www.producthunt.com/', { waitUntil: 'domcontentloaded' }).catch(() => {});
+  await new Promise(r => setTimeout(r, 10000));
+  console.log(`\n[probe] total graphql POSTs: ${count}`);
+  await browser.close();
+  process.exit(0);
+}
+
 if (process.env.PROBE_OAUTH === '1') {
   console.log('[probe] simulating OAuth navigation history before captcha page');
   await page.goto('https://www.producthunt.com/', { waitUntil: 'domcontentloaded' }).catch(() => {});
