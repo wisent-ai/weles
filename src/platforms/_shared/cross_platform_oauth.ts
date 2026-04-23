@@ -63,6 +63,23 @@ export async function injectProviderCookies(
   return all.length;
 }
 
+/**
+ * Click a deterministic OAuth-provider button by its accessible name — avoids
+ * the vision-based match in WSession.click, which at larger viewports has been
+ * misreading adjacent provider buttons (e.g. 2560x1600 PH signin modal hits
+ * "Sign in with Google" when asked for "Sign in with X"). Returns true on
+ * a confirmed click, false if no matching button/link was visible.
+ */
+export async function clickOAuthProviderButton(s: SessionLike, accessibleName: RegExp): Promise<boolean> {
+  const page = s.page;
+  for (const role of ['button', 'link']) {
+    const el = page.getByRole(role, { name: accessibleName }).first();
+    const visible = await el.isVisible().catch(() => false);
+    if (visible) { await el.click().catch(() => {}); return true; }
+  }
+  return false;
+}
+
 /** Click Authorize / Allow / Continue while still on an OAuth consent URL. Early-exits as soon as the URL leaves the /auth//oauth//authorize subtree. */
 export async function handleOAuthConsent(s: SessionLike, maxAttempts: number = 3): Promise<void> {
   for (let i = 0; i < maxAttempts; i++) {

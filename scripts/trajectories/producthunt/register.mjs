@@ -1,6 +1,6 @@
 import { WSession } from '../../../dist/session/wsession.js';
 import { CaptchaSolver } from '../../../dist/captcha/solver.js';
-import { injectProviderCookies, handleOAuthConsent } from '../../../dist/platforms/_shared/cross_platform_oauth.js';
+import { injectProviderCookies, handleOAuthConsent, clickOAuthProviderButton } from '../../../dist/platforms/_shared/cross_platform_oauth.js';
 
 // ProductHunt does not offer email/password signup — only OAuth via Twitter,
 // Google, Facebook, AngelList. This trajectory uses an existing Twitter account
@@ -72,13 +72,17 @@ async function signup(s) {
   await s.click('Get started').catch(() => {});
   await sleep(3);
 
-  // Choose Twitter OAuth. ProductHunt typically labels it "Continue with Twitter"
-  // or "Continue with X".
+  // Choose Twitter OAuth. Use accessible-name match so we don't misfire onto
+  // adjacent provider buttons (Google/Apple) at larger viewports.
   const t1 = await readPage(s);
   console.log(`[ph] signup modal: ${t1.slice(0, 120).replace(/\n/g, ' ')}`);
-  await s.click('Continue with Twitter').catch(() => {});
-  await s.click('Continue with X').catch(() => {});
-  await s.click('Sign up with Twitter').catch(() => {});
+  const twitterLabel = /^\s*(Sign in with X|Continue with X|Sign up with Twitter|Continue with Twitter)\s*$/i;
+  const clickedTw = await clickOAuthProviderButton(s, twitterLabel);
+  if (!clickedTw) {
+    await s.click('Continue with Twitter').catch(() => {});
+    await s.click('Continue with X').catch(() => {});
+    await s.click('Sign up with Twitter').catch(() => {});
+  }
   await sleep(6);
 
   // If Twitter bounced us to the login page (cookies expired), re-authenticate
