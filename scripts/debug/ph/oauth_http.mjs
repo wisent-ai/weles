@@ -1,9 +1,38 @@
 // Drive PH's Twitter OAuth via raw HTTP fetch — no browser rendering at all.
-// Captures the PH session cookie from Set-Cookie headers along the redirect
-// chain. Sidesteps the weles renderer crash entirely.
+// Workflow: (1) briefly launch weles browser to warm cf_clearance on PH's
+// domain, (2) capture those cookies, (3) drive the /auth/twitter redirect
+// chain via Node fetch with cf_clearance + matching user-agent + Twitter
+// cookies, (4) capture _producthunt_session_production from Set-Cookie.
+// This sidesteps the weles renderer crash on /my/captcha_verification.
+
+import { chromium } from 'playwright';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 
 const supaUrl = process.env.SUPABASE_URL ?? '';
 const supaKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
+const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36';
+
+async function warmCloudflare() {
+  const home = process.env.HOME ?? '';
+  const exe = [
+    join(home, '.local/share/weles-chromium/147.0.7727.108-weles.1/Chromium.app/Contents/MacOS/Chromium'),
+    join(home, 'Documents/CodingProjects/Wisent/chromium-build/src/out/Weles/Chromium.app/Contents/MacOS/Chromium'),
+  ].find(p => existsSync(p));
+  console.log('[warm] launching weles just to solve CF challenge on producthunt.com');
+  const browser = await chromium.launch({ headless: false, executablePath: exe });
+  try {
+    const ctx = await browser.newContext({ userAgent: UA });
+    const page = await ctx.newPage();
+    await page.goto('https://www.producthunt.com/', { waitUntil: 'domcontentloaded' });
+    await new Promise(r => setTimeout(r, 8000));
+    const cookies = await ctx.cookies('https://www.producthunt.com/');
+    console.log(`[warm] captured ${cookies.length} cookies (cf_clearance: ${cookies.find(c => c.name === 'cf_clearance') ? 'YES' : 'NO'})`);
+    return cookies;
+  } finally {
+    await browser.close().catch(() => {});
+  }
+}
 
 async function getAccount(platform) {
   const r = await fetch(`${supaUrl}/rest/v1/social_accounts?platform=eq.${platform}&is_active=eq.true&select=username,metadata&order=created_at.desc&limit=1`,
@@ -53,9 +82,13 @@ async function httpGet(url, jar, extraHeaders = {}) {
   const hostname = new URL(url).hostname;
   const cookie = cookieHeaderFor(hostname, jar);
   const headers = {
-    'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36',
+    'user-agent': UA,
     'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
     'accept-language': 'en-US,en;q=0.9',
+    'sec-ch-ua': '"Google Chrome";v="147", "Not.A/Brand";v="8", "Chromium";v="147"',
+    'sec-ch-ua-mobile': '?0',
+    'sec-ch-ua-platform': '"macOS"',
+    'upgrade-insecure-requests': '1',
     ...(cookie ? { cookie } : {}),
     ...extraHeaders,
   };
@@ -67,8 +100,10 @@ async function httpGet(url, jar, extraHeaders = {}) {
 
 const tw = await getAccount('twitter');
 const ph = await getAccount('producthunt');
-const jar = cookieJarFrom([...(ph?.metadata?.cookies ?? []), ...(tw?.metadata?.cookies ?? [])]);
-console.log(`[http] starting OAuth with tw=${tw?.username} ph=${ph?.username}`);
+// Warm CF clearance in weles browser first, then move those cookies into our jar
+const warmedCookies = await warmCloudflare();
+const jar = cookieJarFrom([...warmedCookies, ...(tw?.metadata?.cookies ?? [])]);
+console.log(`[http] starting OAuth with tw=${tw?.username} (warmed ${warmedCookies.length} PH cookies)`);
 console.log(`[http] jar domains: ${Object.keys(jar).join(', ')}`);
 
 let resp = await httpGet('https://www.producthunt.com/auth/twitter?origin=%2F&source_component=DesktopHeader', jar);
