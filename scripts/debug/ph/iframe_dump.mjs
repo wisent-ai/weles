@@ -5,7 +5,8 @@
 // hasRecaptcha=true.
 import { WSession } from '../../../dist/session/wsession.js';
 import { getSocialAccount, resolveAccountSession } from '../../../dist/utils/credentials.js';
-import { injectPHCookies, injectTwitterCookies } from '../../trajectories/producthunt/_session.mjs';
+import { injectPHCookies } from '../../trajectories/producthunt/_session.mjs';
+import { injectProviderCookies } from '../../../dist/platforms/_shared/cross_platform_oauth.js';
 
 const sleep = (s) => new Promise(r => setTimeout(r, s * 1000));
 
@@ -15,7 +16,7 @@ const opts = await resolveAccountSession(acct);
 const s = await WSession.start({ label: 'ph_iframe_dump', ...opts });
 
 try {
-  if (tw?.metadata?.cookies) await injectTwitterCookies(s, tw.metadata.cookies);
+  if (tw?.metadata?.cookies) await injectProviderCookies(s.ctx, 'twitter', tw.metadata.cookies);
   if (acct?.metadata?.cookies) await injectPHCookies(s, acct.metadata.cookies);
   await s.goto('https://www.producthunt.com/');
   await sleep(3);

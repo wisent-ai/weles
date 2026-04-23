@@ -1,5 +1,6 @@
 import { WSession } from '../../../dist/session/wsession.js';
 import { CaptchaSolver } from '../../../dist/captcha/solver.js';
+import { injectProviderCookies, handleOAuthConsent } from '../../../dist/platforms/_shared/cross_platform_oauth.js';
 
 // ProductHunt does not offer email/password signup — only OAuth via Twitter,
 // Google, Facebook, AngelList. This trajectory uses an existing Twitter account
@@ -40,26 +41,6 @@ async function readPage(s) {
   })()`).catch(() => '')).toLowerCase();
 }
 
-async function injectTwitterCookies(s, cookies) {
-  const normalized = cookies
-    .filter(c => c.name && c.value)
-    .map(c => ({
-      name: c.name,
-      value: c.value,
-      domain: c.domain?.startsWith('.') ? c.domain : (c.domain || '.x.com'),
-      path: c.path || '/',
-      secure: c.secure ?? true,
-      httpOnly: c.httpOnly ?? false,
-      sameSite: c.sameSite || 'Lax',
-      ...(c.expires && c.expires > 0 ? { expires: c.expires } : {}),
-    }));
-  // Mirror cookies onto twitter.com so the OAuth page works regardless of which
-  // host the Twitter session was originally scoped to.
-  const twitterCom = normalized.map(c => ({ ...c, domain: c.domain.replace('x.com', 'twitter.com') }));
-  await s.ctx.addCookies([...normalized, ...twitterCom]);
-  console.log(`[ph] injected ${normalized.length} x.com cookies + ${twitterCom.length} twitter.com cookies`);
-}
-
 async function signup(s) {
   const twAccount = await findUsableTwitterAccount();
   if (!twAccount) throw new Error('no_twitter_account_in_db');
@@ -71,7 +52,8 @@ async function signup(s) {
   console.log(`[ph] using twitter account: ${twUsername} status=${twStatus} (${twCookies.length} cookies)`);
   if (twCookies.length < 2) throw new Error('twitter_account_missing_cookies');
 
-  await injectTwitterCookies(s, twCookies);
+  const injected = await injectProviderCookies(s.ctx, 'twitter', twCookies);
+  console.log(`[ph] injected ${injected} twitter cookies (x.com + twitter.com)`);
 
   await s.goto(URL);
   await sleep(4);
@@ -118,15 +100,7 @@ async function signup(s) {
   }
 
   // OAuth consent screen — ProductHunt asks for Twitter read access
-  for (let i = 0; i < 3; i++) {
-    const t = await readPage(s);
-    if (t.includes('authorize') || t.includes('authorize app') || t.includes('allow')) {
-      await s.click('Authorize app').catch(() => {});
-      await s.click('Authorize').catch(() => {});
-      await s.click('Allow').catch(() => {});
-      await sleep(4);
-    } else break;
-  }
+  await handleOAuthConsent(s);
 
   // ProductHunt onboarding loop (name, email, interests, notifications)
   for (let i = 0; i < 15; i++) {
