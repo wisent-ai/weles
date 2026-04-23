@@ -276,10 +276,8 @@ export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
       }).catch(() => {});
     }
   }
-  // Upload artifacts on failure/unhealthy (bound storage volume).
-  if (exitCode !== 0 || banSignal?.healthy === false) {
-    await uploadArtifacts(row.action, row.id, runStart, { force: true }).then(a => { if (a) result.artifacts = a }).catch(() => {});
-  }
+  // Always upload so every run has recordings on the detail page.
+  await uploadArtifacts(row.action, row.id, runStart, { force: true }).then(a => { if (a) result.artifacts = a }).catch(() => {});
   const pendingPath = join(RECORDINGS_ROOT, row.action, 'pending_review.json');
   let pending: Record<string, unknown> | null = null;
   try { pending = JSON.parse(await readFile(pendingPath, 'utf8')); await unlink(pendingPath); } catch { pending = null; }
