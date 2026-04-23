@@ -4,6 +4,7 @@
 import { spawn } from 'node:child_process';
 import { readFile, readdir, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
+import { uploadArtifacts } from './upload-artifacts.js';
 
 export interface ActionLogRow {
   id: string;
@@ -248,6 +249,7 @@ export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
   }
   console.log(`[worker] claimed ${row.id.slice(0, 8)} action=${row.action} account=${row.account_id.slice(0, 8)} -> ${trajPath}`);
 
+  const runStart = new Date();
   const { exitCode, stderr } = await runTrajectory(row, trajPath);
   const banSignal = await readBanSignal(row.action, row.platform);
   const result: Record<string, unknown> = {};
@@ -273,6 +275,10 @@ export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
         body: JSON.stringify({ account_id: created.id }),
       }).catch(() => {});
     }
+  }
+  // Upload artifacts on failure/unhealthy (bound storage volume).
+  if (exitCode !== 0 || banSignal?.healthy === false) {
+    await uploadArtifacts(row.action, row.id, runStart, { force: true }).then(a => { if (a) result.artifacts = a }).catch(() => {});
   }
   const pendingPath = join(RECORDINGS_ROOT, row.action, 'pending_review.json');
   let pending: Record<string, unknown> | null = null;
