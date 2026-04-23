@@ -12,6 +12,7 @@ import {
   handleOAuthConsent,
   waitForNavBackTo,
   clearReCaptchaGate,
+  clickOAuthProviderButton,
 } from '../../../dist/platforms/_shared/cross_platform_oauth.js';
 
 const sleep = (sec) => new Promise(r => setTimeout(r, sec * 1000));
@@ -47,8 +48,14 @@ export async function loginViaTwitter(s) {
   await sleep(3);
   await s.click('Sign in').catch(() => {});
   await sleep(2);
-  await s.click('Sign in with X').catch(() => {});
-  await s.click('Continue with Twitter').catch(() => {});
+  // Deterministic accessible-name match — avoids vision misreading the adjacent
+  // Google/Apple buttons in the provider list at larger viewports.
+  const twitterLabel = /^\s*(Sign in with X|Continue with X|Sign up with Twitter|Continue with Twitter)\s*$/i;
+  const clickedTw = await clickOAuthProviderButton(s, twitterLabel);
+  if (!clickedTw) {
+    await s.click('Sign in with X').catch(() => {});
+    await s.click('Continue with Twitter').catch(() => {});
+  }
   await sleep(6);
 
   await handleOAuthConsent(s);
