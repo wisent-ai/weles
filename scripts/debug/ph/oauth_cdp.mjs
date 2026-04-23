@@ -22,18 +22,27 @@ const exe = [
 ].find(p => existsSync(p));
 
 const useStock = process.env.STOCK === '1';
-const browser = await chromium.launch(useStock ? { headless: false } : { headless: false, executablePath: exe });
+const launchOpts = useStock ? { headless: false } : { headless: false, executablePath: exe };
+launchOpts.args = ['--enable-logging=stderr', '--v=1', '--vmodule=*crash*=2,*render_process*=2,*cdp*=2'];
+if (process.env.PROXY_URL && process.env.PROXY_URL !== 'none') {
+  const { resolveProxy } = await import('../../../dist/proxy/config.js');
+  const p = await resolveProxy(process.env.PROXY_URL);
+  if (p) { launchOpts.proxy = p; launchOpts.ignoreHTTPSErrors = true; console.log(`[cdp] using proxy: ${p.server}`); }
+}
+const browser = await chromium.launch(launchOpts);
 console.log(`[cdp] launched ${useStock ? 'STOCK' : 'WELES'} chromium`);
+const proc = (browser)?.process?.();
+if (proc) {
+  proc.stderr?.on('data', c => {
+    const s = c.toString().trim();
+    if (s && (s.includes('Render') || s.includes('CRASH') || s.includes('GPU') || s.includes('SIG') || s.includes('abort') || s.includes('Check failed') || s.includes('DCHECK'))) {
+      console.log(`[STDERR] ${s.slice(0, 300)}`);
+    }
+  });
+  proc.on('exit', (code, sig) => console.log(`[PROC] exit code=${code} sig=${sig}`));
+}
 const ctx = await browser.newContext();
 
-// Block /my/captcha_verification navigation — the browser dies as soon as
-// it loads that page. The session cookie is set by the *response* that
-// REDIRECTS to it (from /auth/twitter/callback), so by the time we'd be
-// asked to render /captcha_verification, we already have the cookie.
-await ctx.route('**/my/captcha_verification**', route => {
-  console.log(`[cdp] BLOCKED nav to captcha_verification`);
-  route.abort();
-});
 
 const tw = await getAccount('twitter');
 const ph = await getAccount('producthunt');
@@ -91,11 +100,14 @@ console.log(`[cdp] Sign in with X click: ${c2}`);
 for (let i = 0; i < 30; i++) {
   await new Promise(r => setTimeout(r, 2000));
   const u = page.url();
-  console.log(`[cdp] oauth t=${i*2}s url=${u.slice(0, 80)}`);
+  if (i % 4 === 0) {
+    const body = await page.evaluate(`(() => (document.body?.innerText || '').slice(0, 300))()`).catch(() => '');
+    console.log(`[cdp] oauth t=${i*2}s url=${u.slice(0, 80)} body="${body.replace(/\n/g, ' | ').slice(0, 200)}"`);
+  }
   if (u.includes('producthunt.com') && !u.includes('/auth/') && !u.includes('twitter.com') && !u.includes('x.com')) break;
-  // Click authorize if Twitter shows it
   if (u.includes('twitter.com') || u.includes('x.com')) {
-    await page.locator('button:has-text("Authorize"), input[value="Authorize app"]').first().click().catch(() => {});
+    const clicked = await page.locator('button:has-text("Authorize"), input[value="Authorize app"], [data-testid="OAuth_Consent_Button"]').first().click().then(() => 'CLICKED-AUTHORIZE').catch(() => null);
+    if (clicked) console.log(`[cdp] ${clicked}`);
   }
 }
 console.log(`[cdp] final url: ${page.url()}`);
