@@ -68,6 +68,10 @@ Chromium patches live in `../chromium-build/` (separate repo) and are applied as
 
 JS-level helpers in `src/scripts/` (injected via `addInitScript()`) fill gaps the C++ patches can't cover cleanly — notably the HEVC codec shim (`chrome147_stubs.js`) and the Sanitizer API stub.
 
+## Roadmap
+
+- **Patch Firefox to the same fingerprint-defense standard as Chromium.** Today `src/browser/persona.ts` hard-pins `browser: 'chromium'` because the C++ patches in `../chromium-build/` (canvas noise removal, UA reduction, ALPS, HEVC codec shim, Playwright-identifier scrub, isTrusted click fix) exist for Chromium only. Playwright-managed Firefox ships as `~/Library/Caches/ms-playwright/firefox-*/firefox/Nightly.app` and gets just a handful of `context.addInitScript` helpers (WebAuthn stub, Arkose MutationObserver, register-captcha fetch interceptor) — JS-injected spoofing that any serious bot classifier defeats via iframe / worker / trusted-types probes. Scope: fork a Firefox build tree alongside `chromium-build/`, port the engine-level spoofing (canvas, WebGL, navigator surfaces), add a `firefox147_stubs.js` for whatever the Gecko/Chrome API gap ends up being, then flip the `persona.ts` rotation back on. Until then every new account is Chromium-only.
+
 ## License
 
 MIT

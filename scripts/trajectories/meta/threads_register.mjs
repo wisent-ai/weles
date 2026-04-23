@@ -1,4 +1,5 @@
 import { WSession } from '../../../dist/session/wsession.js';
+import { injectProviderCookies } from '../../../dist/platforms/_shared/cross_platform_oauth.js';
 
 async function findUsableInstagramAccount() {
   const supabaseUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
@@ -36,24 +37,6 @@ async function readPage(s) {
   })()`).catch(() => '')).toLowerCase();
 }
 
-async function injectInstagramCookies(s, cookies) {
-  const normalized = cookies
-    .filter(c => c.name && c.value)
-    .map(c => ({
-      name: c.name,
-      value: c.value,
-      domain: c.domain?.startsWith('.') ? c.domain : (c.domain || '.instagram.com'),
-      path: c.path || '/',
-      secure: c.secure ?? true,
-      httpOnly: c.httpOnly ?? false,
-      sameSite: c.sameSite || 'Lax',
-      ...(c.expires && c.expires > 0 ? { expires: c.expires } : {}),
-    }));
-  // Mirror cookies onto threads.net domain so Threads sees the authenticated IG session
-  const threadsCookies = normalized.map(c => ({ ...c, domain: c.domain.replace('instagram.com', 'threads.net') }));
-  await s.ctx.addCookies([...normalized, ...threadsCookies]);
-  console.log(`[threads] injected ${normalized.length} instagram cookies + ${threadsCookies.length} threads cookies`);
-}
 
 async function signup(s) {
   // 1. Fetch existing Instagram account with cookies from DB (skip suspended ones if possible)
@@ -69,7 +52,8 @@ async function signup(s) {
   if (igCookies.length < 2) throw new Error('instagram_account_missing_cookies');
 
   // 2. Inject cookies BEFORE navigation
-  await injectInstagramCookies(s, igCookies);
+  const injected = await injectProviderCookies(s.ctx, 'instagram', igCookies, { extraMirrorDomains: ['.threads.net'] });
+  console.log(`[threads] injected ${injected} instagram+threads cookies`);
 
   // 3. Navigate to Threads (redirects to threads.com)
   await s.goto(URL);
