@@ -24,6 +24,22 @@ const exe = [
 const useStock = process.env.STOCK === '1';
 const launchOpts = useStock ? { headless: false } : { headless: false, executablePath: exe };
 launchOpts.args = ['--enable-logging=stderr', '--v=1', '--vmodule=*crash*=2,*render_process*=2,*cdp*=2'];
+
+// Use weles's real fingerprint rotation — every run gets a fresh fingerprint
+if (!useStock) {
+  const { generate, toConfig, toCppConfig } = await import('../../../dist/fingerprint.js');
+  const { writeFileSync, mkdtempSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const fp = generate('macos');
+  const fpConfig = toConfig(fp, 'macos', 'chromium');
+  const cppConfig = toCppConfig(fpConfig, 'macos');
+  const fpDir = mkdtempSync(join(tmpdir(), 'weles-fp-probe-'));
+  const fpFile = join(fpDir, 'config.json');
+  writeFileSync(fpFile, JSON.stringify(cppConfig));
+  launchOpts.args.push(`--weles-fingerprint=${fpFile}`);
+  launchOpts.ignoreDefaultArgs = ['--enable-automation', '--enable-unsafe-swiftshader', '--disable-breakpad'];
+  console.log(`[cdp] FRESH fingerprint: ua=${cppConfig.navigator?.userAgent?.slice(0, 60)}... cpu=${cppConfig.navigator?.hardwareConcurrency}`);
+}
 if (process.env.PROXY_URL && process.env.PROXY_URL !== 'none') {
   const { resolveProxy } = await import('../../../dist/proxy/config.js');
   const p = await resolveProxy(process.env.PROXY_URL);
@@ -67,6 +83,17 @@ const page = await ctx.newPage();
 const cdp = await ctx.newCDPSession(page);
 await cdp.send('Network.enable');
 
+// Capture console + page errors so we can see what CF's challenge JS reports
+page.on('console', msg => {
+  const type = msg.type();
+  if (type === 'error' || type === 'warning') console.log(`[console:${type}] ${msg.text().slice(0, 300)}`);
+});
+page.on('pageerror', err => console.log(`[pageerror] ${err.message?.slice(0, 300)}`));
+cdp.on('Log.entryAdded', (e) => {
+  if (e.entry.level === 'error' || e.entry.level === 'warning') console.log(`[log:${e.entry.level}] ${e.entry.text?.slice(0, 300)}`);
+});
+await cdp.send('Log.enable');
+
 const requestUrlById = {};
 cdp.on('Network.requestWillBeSent', (e) => {
   requestUrlById[e.requestId] = e.request.url;
@@ -90,12 +117,28 @@ await new Promise(r => setTimeout(r, 5000));
 const c1 = await page.locator('button:has-text("Sign in"), a:has-text("Sign in")').first().click().then(() => 'clicked').catch(e => `err: ${e.message?.slice(0, 80)}`);
 console.log(`[cdp] Sign in click: ${c1}`);
 await new Promise(r => setTimeout(r, 5000));
-// Dump body excerpt after Sign in click to confirm modal
 const modalText = await page.evaluate(`(() => (document.body?.innerText || '').slice(0, 400))()`).catch(() => '');
 console.log(`[cdp] after Sign in: ${modalText.replace(/\n/g, ' | ').slice(0, 300)}`);
 
-const c2 = await page.locator('button:has-text("Sign in with X"), button:has-text("Sign in with Twitter"), a:has-text("Sign in with X"), a:has-text("Sign in with Twitter")').first().click().then(() => 'clicked').catch(e => `err: ${e.message?.slice(0, 80)}`);
-console.log(`[cdp] Sign in with X click: ${c2}`);
+// Find the modal + try multiple text variants; retry if first pass fails
+let c2 = 'not-yet';
+for (let attempt = 0; attempt < 3; attempt++) {
+  c2 = await page.evaluate(`(() => {
+    var els = Array.from(document.querySelectorAll('button, a'));
+    for (var el of els) {
+      var t = (el.textContent || '').trim();
+      if (/^Sign in with X$|^Continue with Twitter$|^Sign in with Twitter$/i.test(t)) {
+        el.scrollIntoView({ block: 'center' });
+        el.click();
+        return 'clicked-js: ' + t;
+      }
+    }
+    return 'button-not-found';
+  })()`).catch((e) => `err: ${e.message?.slice(0, 80)}`);
+  console.log(`[cdp] Sign in with X click (attempt ${attempt}): ${c2}`);
+  if (c2.startsWith('clicked')) break;
+  await new Promise(r => setTimeout(r, 3000));
+}
 // Wait up to 60s for OAuth round-trip (CF challenge + Twitter redirect + callback)
 for (let i = 0; i < 30; i++) {
   await new Promise(r => setTimeout(r, 2000));
