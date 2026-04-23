@@ -113,7 +113,29 @@ if (process.env.PROBE_FULL_OAUTH === '1') {
       await ctx.addCookies(norm.map(c => ({ ...c, domain: (c.domain || '').replace('x.com', 'twitter.com') }))).catch(() => {});
     }
   }
-  console.log('[probe] starting OAuth flow');
+  console.log('[probe] starting OAuth flow + set-cookie capture');
+  // Capture Set-Cookie headers from responses during the OAuth redirect chain.
+  // This hits at the network layer BEFORE the renderer processes HTML, so
+  // we get the PH session cookie even if the renderer crashes immediately after.
+  const capturedSetCookies = [];
+  page.on('response', async (resp) => {
+    try {
+      const url = resp.url();
+      if (!url.includes('producthunt.com')) return;
+      const setCookie = resp.headers()['set-cookie'] || resp.headersArray?.().filter(h => h.name?.toLowerCase() === 'set-cookie').map(h => h.value).join('\n') || '';
+      if (setCookie) {
+        capturedSetCookies.push({ url: url.slice(0, 80), status: resp.status(), setCookie: setCookie.slice(0, 1000) });
+        console.log(`[probe-sc] ${resp.status()} ${url.slice(0, 70)}: ${setCookie.slice(0, 200).replace(/\n/g, ' || ')}`);
+      }
+    } catch {}
+  });
+  process.on('exit', () => {
+    console.log(`\n[probe] TOTAL captured ${capturedSetCookies.length} producthunt Set-Cookie responses`);
+    for (const c of capturedSetCookies) {
+      const hasSession = c.setCookie.includes('_producthunt_session_production');
+      console.log(`  ${c.status} ${c.url}${hasSession ? ' *** HAS SESSION COOKIE ***' : ''}`);
+    }
+  });
   await page.goto('https://www.producthunt.com/', { waitUntil: 'domcontentloaded' });
   await new Promise(r => setTimeout(r, 3000));
   await page.locator('button:has-text("Sign in"), a:has-text("Sign in")').first().click().catch(() => {});
