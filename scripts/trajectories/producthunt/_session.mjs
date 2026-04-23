@@ -102,31 +102,19 @@ function findWelesBinary() {
   return candidates.find(p => existsSync(p));
 }
 
-// Run the entire OAuth + captcha clear in a PLAIN playwright/weles browser
-// with the full weles fingerprint config (so Cloudflare passes), but no
-// WSession overhead (no recordVideo, no aggressive request listeners) so
-// the CDP connection survives PH's reCAPTCHA iframe load.
-// Returns the cleared producthunt cookies.
+// Run the entire OAuth + captcha clear in STOCK playwright Chromium.
+// Bisected via scripts/debug/ph_cdp_probe.mjs: the weles patched binary
+// disconnects CDP immediately on PH's authenticated /captcha_verification
+// page (something in the C++ weles patches — not fingerprint config, since
+// disabling it doesn't help). Stock Chromium survives fine. PH doesn't run
+// fingerprint detection on /auth/twitter or /captcha_verification when
+// Twitter cookies are pre-injected, so the Cloudflare gate we saw earlier
+// without cookies doesn't fire here.
+// Returns the cleared producthunt cookies, which the caller injects into
+// the weles WSession for the actual /my/* admin action.
 export async function clearCaptchaInPlainBrowser(ptCookies, twCookies) {
-  const executablePath = findWelesBinary();
-  if (!executablePath) throw new Error('weles_binary_not_found');
-  // Apply the same fingerprint stack as WSession: write toCppConfig to a temp
-  // file and pass via --weles-fingerprint=<path>. This is what makes weles
-  // pass Cloudflare on /auth/* endpoints.
-  const fp = generate('macos');
-  const fpConfig = toConfig(fp, 'macos', 'chromium');
-  const cppConfig = toCppConfig(fpConfig, 'macos');
-  const fpDir = mkdtempSync(join(tmpdir(), 'weles-fp-ph-'));
-  const fpFile = join(fpDir, 'config.json');
-  writeFileSync(fpFile, JSON.stringify(cppConfig));
-  const args = [...CHROMIUM_ARGS, `--weles-fingerprint=${fpFile}`];
-  console.log(`[ph-session] launching plain weles browser (fp=${fpFile})`);
-  const browser = await chromium.launch({
-    headless: false,
-    executablePath,
-    args,
-    ignoreDefaultArgs: ['--enable-automation', '--enable-unsafe-swiftshader', '--disable-breakpad'],
-  });
+  console.log('[ph-session] launching STOCK Chromium for captcha clear (weles binary crashes here)');
+  const browser = await chromium.launch({ headless: false });
   try {
     const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
     await injectCookies(ctx, ptCookies, '.producthunt.com');
@@ -146,14 +134,21 @@ export async function clearCaptchaInPlainBrowser(ptCookies, twCookies) {
         await sleep(4);
       } else break;
     }
-    for (let i = 0; i < 20; i++) {
+    for (let i = 0; i < 30; i++) {
       const u = page.url();
+      console.log(`[ph-session] oauth wait t=${i*2}s url=${u.slice(0, 70)}`);
       if (u.includes('producthunt.com') && !u.includes('/auth/') && !u.includes('twitter.com') && !u.includes('x.com')) break;
+      // If stuck on twitter.com, look for "Authorize" / "Allow" button and click it
+      if (u.includes('twitter.com') || u.includes('x.com')) {
+        await page.locator('button:has-text("Authorize"), input[value="Authorize app"], button:has-text("Allow")').first().click().catch(() => {});
+      }
       await sleep(2);
     }
     const u = page.url();
-    // Snapshot cookies immediately after OAuth lands (before the browser has
-    // any chance to disconnect during subsequent steps)
+    if (u.includes('/auth/') || u.includes('twitter.com') || u.includes('x.com')) {
+      const bodyHead = await page.evaluate(`(() => (document.body?.innerText || '').slice(0, 400))()`).catch(() => '');
+      throw new Error(`oauth_incomplete: url=${u.slice(0, 80)} body=${bodyHead.slice(0, 100).replace(/\n/g, ' ')}`);
+    }
     let cookieSnapshot = [];
     try { cookieSnapshot = await ctx.cookies('https://www.producthunt.com/'); } catch (e) { console.log(`[ph-session] cookie snapshot err: ${e.message?.slice(0, 80)}`); }
     console.log(`[ph-session] snapshot ${cookieSnapshot.length} cookies after OAuth`);

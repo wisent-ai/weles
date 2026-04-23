@@ -1,10 +1,14 @@
 import { chromium } from 'playwright';
 
-const exe = process.env.HOME + '/Documents/CodingProjects/Wisent/chromium-build/src/out/Weles/Chromium.app/Contents/MacOS/Chromium';
 const mode = process.argv[2] || 'plain';
+const useStock = process.env.STOCK_CHROMIUM === '1';
+const exe = useStock
+  ? undefined  // playwright uses its bundled Chromium
+  : process.env.HOME + '/Documents/CodingProjects/Wisent/chromium-build/src/out/Weles/Chromium.app/Contents/MacOS/Chromium';
 
-const launchOpts = { headless: false, executablePath: exe };
-if (mode === 'args' || mode === 'fp') {
+const launchOpts = { headless: false };
+if (exe) launchOpts.executablePath = exe;
+if (mode === 'args' || mode === 'fp' || mode === 'fp-no-webgl' || mode === 'fp-only-nav') {
   launchOpts.args = [
     '--disable-blink-features=AutomationControlled',
     '--disable-dev-shm-usage',
@@ -15,7 +19,7 @@ if (mode === 'args' || mode === 'fp') {
   ];
   launchOpts.ignoreDefaultArgs = ['--enable-automation', '--enable-unsafe-swiftshader', '--disable-breakpad'];
 }
-if (mode === 'fp') {
+if (mode === 'fp' || mode === 'fp-no-webgl' || mode === 'fp-only-nav') {
   const { generate, toConfig, toCppConfig } = await import('../../dist/fingerprint.js');
   const { writeFileSync, mkdtempSync } = await import('node:fs');
   const { join } = await import('node:path');
@@ -23,11 +27,14 @@ if (mode === 'fp') {
   const fp = generate('macos');
   const fpConfig = toConfig(fp, 'macos', 'chromium');
   const cppConfig = toCppConfig(fpConfig, 'macos');
+  // Selective disables to bisect which patch breaks the authenticated captcha
+  if (mode === 'fp-no-webgl') delete cppConfig.webgl;
+  if (mode === 'fp-only-nav') { delete cppConfig.webgl; delete cppConfig.canvas; delete cppConfig.audio; delete cppConfig.screen; delete cppConfig.clientHints; }
   const fpDir = mkdtempSync(join(tmpdir(), 'weles-fp-probe-'));
   const fpFile = join(fpDir, 'config.json');
   writeFileSync(fpFile, JSON.stringify(cppConfig));
   launchOpts.args.push(`--weles-fingerprint=${fpFile}`);
-  console.log('[probe] fp config written:', fpFile);
+  console.log(`[probe] fp config (mode=${mode}) written:`, fpFile);
 }
 
 console.log(`[probe] mode=${mode} launching weles binary`);
@@ -67,6 +74,66 @@ if (process.env.PROBE_GRAPHQL === '1') {
   console.log(`\n[probe] total graphql POSTs: ${count}`);
   await browser.close();
   process.exit(0);
+}
+
+// PROBE_FULL_OAUTH=1 performs the complete OAuth flow that the live trajectory
+// does, then sits on the captcha page polling for disconnect. This tests
+// whether the live flow's specific OAuth click sequence (with injected
+// Twitter cookies) triggers the disconnect that the probe modes don't.
+// PROBE_BLOCK_BFRAME=1 blocks the heavy reCAPTCHA challenge iframe (bframe)
+// at the network layer, leaving only the lightweight anchor iframe. Tests
+// the hypothesis that the disconnect is triggered by bframe's GPU/WebGL use.
+if (process.env.PROBE_BLOCK_BFRAME === '1') {
+  await ctx.route('**/recaptcha/api2/bframe*', route => route.abort());
+  console.log('[probe] blocked recaptcha bframe');
+}
+if (process.env.PROBE_BLOCK_RECAPTCHA === '1') {
+  await ctx.route('**/recaptcha/**', route => route.abort());
+  await ctx.route('**/gstatic.com/**', route => route.abort());
+  console.log('[probe] blocked all recaptcha + gstatic');
+}
+
+if (process.env.PROBE_FULL_OAUTH === '1') {
+  const supaUrl = process.env.SUPABASE_URL ?? '';
+  const supaKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
+  for (const platform of ['twitter', 'producthunt']) {
+    const r = await fetch(`${supaUrl}/rest/v1/social_accounts?platform=eq.${platform}&is_active=eq.true&select=username,metadata&order=created_at.desc&limit=1`, { headers: { apikey: supaKey, Authorization: `Bearer ${supaKey}` } }).then(r => r.json());
+    const cs = r?.[0]?.metadata?.cookies ?? [];
+    console.log(`[probe] injecting ${cs.length} ${platform} cookies (acct=${r?.[0]?.username})`);
+    const norm = cs.filter(c => c.name && c.value).map(c => ({
+      name: c.name, value: c.value,
+      domain: c.domain || (platform === 'producthunt' ? '.producthunt.com' : '.x.com'),
+      path: c.path || '/', secure: c.secure ?? true,
+      httpOnly: c.httpOnly ?? false, sameSite: c.sameSite || 'Lax',
+      ...(c.expires && c.expires > 0 ? { expires: c.expires } : {}),
+    }));
+    await ctx.addCookies(norm).catch(() => {});
+    // Also mirror x.com cookies to twitter.com
+    if (platform === 'twitter') {
+      await ctx.addCookies(norm.map(c => ({ ...c, domain: (c.domain || '').replace('x.com', 'twitter.com') }))).catch(() => {});
+    }
+  }
+  console.log('[probe] starting OAuth flow');
+  await page.goto('https://www.producthunt.com/', { waitUntil: 'domcontentloaded' });
+  await new Promise(r => setTimeout(r, 3000));
+  await page.locator('button:has-text("Sign in"), a:has-text("Sign in")').first().click().catch(() => {});
+  await new Promise(r => setTimeout(r, 3000));
+  await page.locator('button:has-text("Sign in with X"), button:has-text("Continue with Twitter")').first().click().catch(() => {});
+  await new Promise(r => setTimeout(r, 8000));
+  for (let i = 0; i < 3; i++) {
+    const t = await page.evaluate(`(() => (document.body?.innerText || '').toLowerCase().slice(0, 800))()`).catch(() => '');
+    if (t.includes('authorize') || (t.includes('allow') && t.includes('producthunt'))) {
+      await page.locator('button:has-text("Authorize"), input[value*="Authorize"]').first().click().catch(() => {});
+      await new Promise(r => setTimeout(r, 4000));
+    } else break;
+  }
+  for (let i = 0; i < 15; i++) {
+    const u = page.url();
+    console.log(`[probe] oauth wait t=${i*2}s url=${u.slice(0, 70)}`);
+    if (u.includes('producthunt.com') && !u.includes('/auth/') && !u.includes('twitter.com') && !u.includes('x.com')) break;
+    await new Promise(r => setTimeout(r, 2000));
+  }
+  console.log(`[probe] landed at: ${page.url()} — now polling for disconnect`);
 }
 
 if (process.env.PROBE_OAUTH === '1') {
