@@ -202,12 +202,19 @@ export class WSession {
     const key = await getEmailApiKey() ?? '';
     if (!key) return 'error: no RESEND_RECEIVING_API_KEY';
     const addr = this._resolveEnv(email).toLowerCase();
+    // Only accept codes from emails received AFTER this trajectory started,
+    // minus a small grace window for clock skew + in-flight emails. Stale
+    // codes from a previous login attempt were being returned, Instagram
+    // rejecting them as expired; this scopes to "this run's" inbox.
+    const earliestAcceptMs = Date.now() - 90_000;
     for (let i = 0; i < 30; i++) {
       const r = await fetch('https://api.resend.com/emails/receiving?limit=10', { headers: { Authorization: `Bearer ${key}` } });
       for (const em of ((await r.json()) as any).data ?? []) {
         const to = (em.to ?? []).map((t: any) => (typeof t === 'string' ? t : t.email ?? '').toLowerCase());
         if (!to.includes(addr)) continue;
         if (sender && !(em.from ?? '').toLowerCase().includes(sender)) continue;
+        const emAt = em.created_at ? new Date(em.created_at).getTime() : 0;
+        if (emAt < earliestAcceptMs) continue;
         const d = await (await fetch(`https://api.resend.com/emails/receiving/${em.id}`, { headers: { Authorization: `Bearer ${key}` } })).json() as any;
         const codes = `${d.subject ?? ''} ${d.text ?? ''} ${d.html ?? ''}`.match(/\b\d{5,6}\b/g);
         if (codes) return codes[0];
