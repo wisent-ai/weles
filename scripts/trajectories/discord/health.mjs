@@ -11,6 +11,15 @@ await runHealthProbe({
   loggedInUrl: 'https://discord.com/channels/@me',
   loggedInRegex: /discord\.com\/(channels\/@me|login)/,
   banDetector: detectDiscordBanSignals,
+  // Discord's auth is a localStorage token, not a cookie. If discord_login
+  // persisted one into metadata.discord_token, inject it via an init script
+  // so it's set before channels/@me loads and the SPA doesn't redirect to
+  // /login.
+  beforeGoto: async (s, acct) => {
+    const token = acct.metadata?.discord_token;
+    if (typeof token !== 'string' || !token) return;
+    await s.ctx.addInitScript(`(() => { try { localStorage.setItem("token", ${JSON.stringify(JSON.stringify(token))}); } catch {} })()`);
+  },
   extractLoggedIn: (body, resp) => {
     // Discord serves channels/@me as 200 HTML to unauthed users too, then JS
     // redirects to /login. The captured response URL stays at channels/@me

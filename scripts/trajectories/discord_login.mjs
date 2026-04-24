@@ -149,6 +149,21 @@ try {
         if (result?.status === 200 && result?.data?.token) {
           console.log(`[login] SUCCESS — token received`);
           await s.page.evaluate(`localStorage.setItem("token", JSON.stringify(${JSON.stringify(result.data.token)}))`).catch(() => {});
+          // Persist the token into metadata.discord_token alongside cookies so
+          // the health probe (and future action trajectories) can re-inject it.
+          // Cookies alone don't auth Discord — the token lives in localStorage,
+          // and without it every /channels/@me nav bounces to /login.
+          if (acct.id && process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+            const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+            const url = process.env.SUPABASE_URL;
+            fetch(`${url}/rest/v1/social_accounts?id=eq.${acct.id}&select=metadata`, { headers: { apikey: key, Authorization: `Bearer ${key}` } })
+              .then(r => r.json())
+              .then(rows => fetch(`${url}/rest/v1/social_accounts?id=eq.${acct.id}`, {
+                method: 'PATCH',
+                headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+                body: JSON.stringify({ metadata: { ...(rows?.[0]?.metadata ?? {}), discord_token: result.data.token } }),
+              })).catch(() => {});
+          }
           await s.goto('https://discord.com/channels/@me');
           await s.wait(5);
           console.log(`PASS: logged in as ${acct.username} — ${s.page.url?.()}`);
