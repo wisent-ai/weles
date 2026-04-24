@@ -18,6 +18,7 @@ try {
   const result = await execute(s, `Open ${URL}. ${GOAL}`, {
     envHints: { SVC_EMAIL: process.env.SVC_EMAIL, SVC_PASSWORD: '***' },
     flowName: 'twitter_login',
+    maxSteps: 35,
   });
   console.log('PASS:', result.value);
 } catch (e) {
