@@ -22,6 +22,10 @@ const { proxyUrl, persona } = await resolveAccountSession(acct);
 const loggedIn = { url: null, status: null, body: null, signal: null };
 const sIn = await WSession.start({ label: 'reddit_health_in', proxy: proxyUrl, persona });
 try {
+  // Inject stored auth cookies so /api/me.json returns the user, not anon.
+  const stored = Array.isArray(acct.metadata?.cookies) ? acct.metadata.cookies : [];
+  const prepared = stored.filter((c) => c && c.name && c.value && (c.domain || c.url)).map((c) => ({ ...c, path: c.path || '/' }));
+  if (prepared.length > 0) await sIn.ctx.addCookies(prepared).catch(() => {});
   await sIn.goto('https://www.reddit.com/api/me.json');
   loggedIn.url = sIn.page.url();
   const meResp = sIn.capturedResponses.find(r => /\/api\/me\.json/.test(r.url));

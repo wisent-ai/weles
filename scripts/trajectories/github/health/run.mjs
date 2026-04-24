@@ -4,17 +4,27 @@
 import { runHealthProbe } from '../../_shared/health-runner.mjs';
 import { detectGitHubBanSignals } from '../../../../dist/platforms/github/ban_signals.js';
 
+// api.github.com rejects web session cookies — it wants a personal-access-token
+// Bearer header our accounts don't have. Probe github.com itself instead: the
+// /settings/profile page renders only for authed users (unauthed gets redirected
+// to /login), and the logged-out /<username> profile URL returns 200 (exists)
+// or 404 (doesn't/shadowbanned).
 await runHealthProbe({
   platform: 'github',
-  loggedInUrl: 'https://api.github.com/user',
-  loggedInRegex: /api\.github\.com\/user$/,
-  loggedOutUrl: (u) => `https://api.github.com/users/${encodeURIComponent(u)}`,
-  loggedOutRegex: /api\.github\.com\/users\/[^/]+$/,
+  loggedInUrl: 'https://github.com/settings/profile',
+  loggedInRegex: /github\.com\/(settings\/profile|login)/,
+  loggedOutUrl: (u) => `https://github.com/${encodeURIComponent(u)}`,
+  loggedOutRegex: /github\.com\/[^/?]+$/,
   banDetector: detectGitHubBanSignals,
-  extractLoggedIn: (body) => ({
-    ok: !!body?.login && !!body?.id,
-    karma: body?.followers ?? null,
-    is_suspended: !!body?.suspended_at,
-  }),
-  extractLoggedOut: (resp) => resp.status === 200 && !!resp.body?.login,
+  extractLoggedIn: (body, resp) => {
+    const finalUrl = resp?.url ?? '';
+    const html = typeof body === 'string' ? body : '';
+    const authed = /\/settings\/profile/.test(finalUrl) && !/\/login/.test(finalUrl) && /public profile|account settings|profile picture/i.test(html);
+    return {
+      ok: authed,
+      karma: null,
+      is_suspended: /account (has been )?suspended|flagged for review/i.test(html),
+    };
+  },
+  extractLoggedOut: (resp) => resp.status === 200 && typeof resp.body === 'string' && !/this is not the web page you are looking for/i.test(resp.body),
 });
