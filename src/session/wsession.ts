@@ -141,7 +141,7 @@ export class WSession {
 
   async fill(target: string, value: string): Promise<string> {
     return this._action(`fill_${target}`, async () => {
-    const v = this._resolveEnv(value);
+    const v = this.resolveEnv(value);
     const kws = target.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(w => w.length > 2);
     const sels = kws.flatMap(k => ['input','textarea','[contenteditable]'].flatMap(t => [`${t}[name*="${k}"]`,`${t}[placeholder*="${k}" i]`,`${t}[aria-label*="${k}" i]`]));
     for (const sel of sels) { try { const el = this.page.locator?.(sel)?.first?.(); if (el && await el.isVisible()) { await el.fill(v); return 'filled'; } } catch {} }
@@ -176,12 +176,13 @@ export class WSession {
     });
   }
 
-  async type(value: string): Promise<string> { return this._action('type', async () => { await humanType(this.page, this._resolveEnv(value)); return 'typed'; }); }
+  async clickSelector(selector: string): Promise<string> { return this._action(`clickSel_${selector.slice(0,30)}`, async () => { const loc = this.page.locator(selector).first(); if (!(await loc.count())) return 'no-element-found'; await loc.click(); return `clicked ${selector.slice(0,60)}`; }); }
+  async type(value: string): Promise<string> { return this._action('type', async () => { await humanType(this.page, this.resolveEnv(value)); return 'typed'; }); }
   async press(key: string): Promise<string> { return this._action(`press_${key}`, async () => { await this.page.keyboard.press(key); return `pressed ${key}`; }); }
 
   async select(target: string, value: string): Promise<string> {
     return this._action(`select_${target}_${value}`, async () => {
-      const result = await selectOption(this.page, target, this._resolveEnv(value));
+      const result = await selectOption(this.page, target, this.resolveEnv(value));
       return result ? `selected: ${result}` : 'no-select-found';
     });
   }
@@ -201,7 +202,7 @@ export class WSession {
   async checkEmail(email: string, sender: string): Promise<string> {
     const key = await getEmailApiKey() ?? '';
     if (!key) return 'error: no RESEND_RECEIVING_API_KEY';
-    const addr = this._resolveEnv(email).toLowerCase();
+    const addr = this.resolveEnv(email).toLowerCase();
     // Only accept codes from emails received AFTER this trajectory started,
     // minus a small grace window for clock skew + in-flight emails. Stale
     // codes from a previous login attempt were being returned, Instagram
@@ -249,10 +250,10 @@ export class WSession {
     const url = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SERVICE_KEY ?? '';
     if (!url || !key) return 'error: no SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY';
-    const username = this._resolveEnv(data.username);
-    const email = this._resolveEnv(data.email);
-    const password = this._resolveEnv(data.password);
-    const name = data.name ? this._resolveEnv(data.name) : undefined;
+    const username = this.resolveEnv(data.username);
+    const email = this.resolveEnv(data.email);
+    const password = this.resolveEnv(data.password);
+    const name = data.name ? this.resolveEnv(data.name) : undefined;
     const cookies = await this.ctx.cookies().catch(() => []);
     const row = {
       platform,
@@ -286,7 +287,6 @@ export class WSession {
   }
 
   resolveEnv(v: string): string { return v.replace(/\$\{?([A-Z_][A-Z0-9_]*)\}?/g, (_, k) => this._env[k] ?? process.env[k] ?? v); }
-  private _resolveEnv(v: string): string { return this.resolveEnv(v); }
 }
 
 function profileUrl(platform: string, username: string, name?: string): string {
