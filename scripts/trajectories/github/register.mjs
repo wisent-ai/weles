@@ -88,14 +88,11 @@ try {
     try {
       await s.page.locator('#country-dropdown-panel-button, button.country-select-button').first().click();
       await s.wait(1);
-      const optClicked = await s.page.evaluate(`(() => {
-        const opts = Array.from(document.querySelectorAll('[role="option"], li, button, a'));
-        for (const o of opts) {
-          const t = (o.innerText || o.textContent || '').trim();
-          if (/^united states/i.test(t) && !/virgin/i.test(t) && !/minor/i.test(t)) { o.click(); return { clicked: true, text: t.slice(0, 40) }; }
-        }
-        return { clicked: false };
-      })()`).catch(e => ({ error: e.message?.slice(0, 80) }));
+      // Pick the "United States" option via a trusted locator click. Re-check
+      // innerText to exclude 'Virgin' / 'Minor' variants (hasText is substring).
+      const all = await s.page.locator('[role="option"], li, button, a').filter({ hasText: /united states/i }).all().catch(() => []);
+      let optClicked = { clicked: false };
+      for (const el of all) { const t = ((await el.innerText().catch(() => '')) ?? '').trim(); if (/^united states/i.test(t) && !/virgin/i.test(t) && !/minor/i.test(t)) { await el.click().catch(() => {}); optClicked = { clicked: true, text: t.slice(0, 40) }; break; } }
       console.log(`[register] Country option click: ${JSON.stringify(optClicked)}`);
     } catch (e) { console.log(`[register] Country click error: ${e.message?.slice(0, 80)}`); }
   } else {
