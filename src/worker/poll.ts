@@ -2,7 +2,7 @@
 // subprocess, import ban_signal + pending_review if present, write back. Pure
 // orchestration — trajectories own their own WSession + Capture.
 import { spawn } from 'node:child_process';
-import { readFile, readdir, unlink } from 'node:fs/promises';
+import { readFile, readdir, unlink, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { uploadArtifacts } from './upload-artifacts.js';
 
@@ -164,12 +164,15 @@ async function importHealthSnapshot(accountId: string, platform: string): Promis
   const dir = join(RECORDINGS_ROOT, `${platform}_health`);
   let snapshot: any = null;
   try {
-    const files = (await readdir(dir)).filter((f) => f.endsWith('.json')).sort();
-    if (files.length === 0) return null;
-    const latest = files[files.length - 1];
-    const raw = await readFile(join(dir, latest), 'utf8');
-    snapshot = JSON.parse(raw);
-    if (snapshot.account_id !== accountId) return null;
+    // Scan newest-first (by mtime); pick the file matching accountId. Plain
+    // alphabetical sort picks a different account's file and returns null.
+    const files = (await readdir(dir)).filter((f) => f.endsWith('.json'));
+    const stats = await Promise.all(files.map(async (f) => ({ f, m: (await stat(join(dir, f))).mtimeMs })));
+    for (const { f } of stats.sort((a, b) => b.m - a.m)) {
+      const parsed = JSON.parse(await readFile(join(dir, f), 'utf8'));
+      if (parsed.account_id === accountId) { snapshot = parsed; break; }
+    }
+    if (!snapshot) return null;
   } catch { return null; }
   await fetch(`${SUPABASE_URL}/rest/v1/account_health_snapshots`, {
     method: 'POST',
