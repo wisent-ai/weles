@@ -15,6 +15,25 @@ console.log(`[trajectory] Using account: ${acct.username}`);
 const { proxyUrl, persona } = await resolveAccountSession(acct);
 const s = await WSession.start({ label: 'tiktok_login', proxy: proxyUrl, persona });
 
+async function captureCookies() {
+  if (!acct.id) return;
+  const supabaseUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
+  if (!supabaseUrl || !key) return;
+  try {
+    const cookies = await s.ctx.cookies();
+    const r = await fetch(`${supabaseUrl}/rest/v1/social_accounts?id=eq.${acct.id}&select=metadata`, { headers: { apikey: key, Authorization: `Bearer ${key}` } });
+    const rows = await r.json();
+    const merged = { ...(rows?.[0]?.metadata ?? {}), cookies };
+    await fetch(`${supabaseUrl}/rest/v1/social_accounts?id=eq.${acct.id}`, {
+      method: 'PATCH',
+      headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+      body: JSON.stringify({ metadata: merged }),
+    });
+    console.log(`[cookie-capture] refreshed ${cookies.length} cookies for account ${acct.id}`);
+  } catch (e) { console.log('[cookie-capture] err:', e.message); }
+}
+
 async function tryCookieFirstLogin() {
   const stored = Array.isArray(acct.metadata?.cookies) ? acct.metadata.cookies : [];
   if (stored.length === 0) return false;
@@ -65,6 +84,7 @@ try {
   const cookieOk = await tryCookieFirstLogin();
   if (cookieOk) {
     console.log('PASS: logged in (cookie-first)');
+    await captureCookies();
   } else {
     await s.goto(PASSWORD_URL);
     const result = await execute(s, `Open ${PASSWORD_URL}. ${GOAL}`, {
@@ -72,6 +92,7 @@ try {
       flowName: 'tiktok_login',
     });
     console.log('PASS:', result.value);
+    await captureCookies();
   }
 } catch (e) {
   console.log('FAIL:', e.message?.slice(0, 200));
