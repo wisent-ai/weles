@@ -131,11 +131,14 @@ Two paths to close the gap. Either is multi-session work.
   `executablePath: findCustomBrowser('firefox')` so Playwright drives
   the patched binary.
 
-  **Pre-staged for the next session:** `../firefox-build/juggler-upstream/rejects/`
-  contains the 11 `.rej` files + `apply.log` from a real `patch -p1 --fuzz=5`
-  application of `bootstrap.diff` on top of our tree. The 58 clean-applying
-  files are already modified in `mozilla-central/`; the 11 rejected hunks
-  are the only manual work. Re-running `patch` is not needed.
+  **In flight 2026-04-23:** `bootstrap.diff` applied with `patch -p1 --fuzz=5`
+  (58/69 files clean, 11 rejected hunks skipped — features Playwright added
+  against a newer/different upstream; non-critical for juggler protocol
+  itself). `juggler/` copied into `mozilla-central/juggler/`. weles patches
+  re-applied on top. `mach build` running against the juggler+weles tree.
+  Post-build: `firefox-build/scripts/post_build.sh` runs verify → release.sh
+  → upload weles.2 tarball → local install → `weles/scripts/firefox/integration_test.mjs`
+  (confirms WSession firefox path works end-to-end).
 - **P4.B** Swap the firefox driver. Firefox ships native WebDriver BiDi
   (via Marionette + RemoteAgent) in every build. Write a thin
   `src/session/firefox_bidi.ts` that speaks WebDriver BiDi over a WS
