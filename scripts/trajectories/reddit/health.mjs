@@ -88,4 +88,27 @@ writeFileSync(filePath, JSON.stringify(snapshot, null, 2));
 
 console.log(`[health] signal=${signal} karma=${inKarma} shadowbanned=${shadowbanned}`);
 console.log(`[health] snapshot -> ${filePath}`);
+
+// When Reddit's edge blocks our exit IP (ip_blocked signal), wipe the stored
+// proxy so the next probe/login rolls a fresh one. Without this, every retry
+// reuses the same burned IP and stays blocked.
+if (signal === 'ip_blocked' && acct.id) {
+  const supabaseUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
+  if (supabaseUrl && key) {
+    try {
+      const r = await fetch(`${supabaseUrl}/rest/v1/social_accounts?id=eq.${acct.id}&select=metadata`, { headers: { apikey: key, Authorization: `Bearer ${key}` } });
+      const rows = await r.json();
+      const meta = rows?.[0]?.metadata ?? {};
+      const { proxy: _drop, ...rest } = meta;
+      await fetch(`${supabaseUrl}/rest/v1/social_accounts?id=eq.${acct.id}`, {
+        method: 'PATCH',
+        headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+        body: JSON.stringify({ metadata: rest }),
+      });
+      console.log(`[proxy-rotate] cleared stored proxy for account ${acct.id} — next run will re-roll`);
+    } catch (e) { console.log('[proxy-rotate] err:', e.message); }
+  }
+}
+
 if (signal !== 'healthy') process.exitCode = 2;
