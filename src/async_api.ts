@@ -232,12 +232,18 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
     // Firefox parity P1.3: enforce fingerprint-relevant prefs at engine level
     // (iframe-safe; JS-only spoofing is not). resistFingerprinting MUST be off
     // or Firefox overrides our per-session navigator/screen/canvas config.
+    // Audited 2026-04-23 (scripts/firefox/prefs_audit.mjs) — the override/cap
+    // prefs below all stick on the rendered page.
     launchOpts.firefoxUserPrefs = {
       'privacy.resistFingerprinting': false,
       'privacy.fingerprintingProtection': false,
       'dom.webdriver.enabled': false,
       ...(persona?.language ? { 'intl.accept_languages': persona.language } : {}),
       ...(nav.userAgent ? { 'general.useragent.override': nav.userAgent } : {}),
+      ...(nav.platform ? { 'general.platform.override': nav.platform } : {}),
+      ...(nav.oscpu ? { 'general.oscpu.override': nav.oscpu } : {}),
+      ...(nav.appVersion ? { 'general.appversion.override': nav.appVersion } : {}),
+      ...(nav.hardwareConcurrency ? { 'dom.maxHardwareConcurrency': nav.hardwareConcurrency } : {}),
     };
     pwBrowser = await firefox.launch(launchOpts);
   }

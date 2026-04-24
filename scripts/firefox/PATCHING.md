@@ -47,18 +47,33 @@ Firefox does **not** get:
 - [x] **P1.5** Extend `scripts/debug/capture_fingerprint_local.mjs` to support firefox as the target browser. Pass `PROBE_BROWSER=firefox` to capture via Playwright-managed Firefox; output written to `recordings/local_fingerprint_{chromium,firefox}.json` for side-by-side diffing. Required plumbing the `browser` option through `WSessionOptions` and skipping the custom-Chromium resolver when `browser === 'firefox'`.
 - [x] **P1.6** Postinstall hook so the Playwright identifier scrub survives `npm install` / `npm ci`. `scripts/postinstall/playwright_scrub.mjs` renames the three `__playwright_*` identifiers to `__wpc_*_fb3e7a__` and deletes the `_setupGlobalListenersRemovalDetection` call site. Idempotent; preserves a `.bak` alongside the target. Wired into `package.json` `postinstall`.
 
-## Phase 2 — Engine-level Gecko patches (separate session, requires Firefox fork)
+## Phase 2 — Engine-level Gecko patches
 
-Multi-day effort. Requires cloning `mozilla-central` (or basing on Playwright's Firefox fork), installing `mach` + `rustup` + `cargo`, and a 4–8h initial build.
+Empirical audit in `scripts/firefox/prefs_audit.mjs` (run 2026-04-23) confirms
+that the overwhelming majority of "Chromium C++ patches" have Firefox pref
+equivalents that stick on the rendered page. The only real Gecko-fork patches
+left for Phase 2:
+
+### Pref-covered (no C++ patch — shipped via `firefoxUserPrefs` in `async_api.ts`)
+
+- `navigator.userAgent` → `general.useragent.override` ✓
+- `navigator.platform` → `general.platform.override` ✓
+- `navigator.oscpu` → `general.oscpu.override` ✓
+- `navigator.appVersion` → `general.appversion.override` ✓
+- `navigator.hardwareConcurrency` → `dom.maxHardwareConcurrency` ✓
+- `navigator.language` → `intl.accept_languages` (first entry seeds navigator.language in Gecko) ✓
+- Canvas bitmap — Firefox returns the raw buffer when `privacy.resistFingerprinting=false` (no `NoiseCanvasPixmap` analogue to remove) ✓
+- TLS fingerprint — Firefox NSS defaults match real Firefox ✓
+- Audio codec support — same as real Firefox ✓
+
+### Still requires a Gecko fork
 
 - [ ] **P2.1** Scaffold a `firefox-build/` sibling repo beside `chromium-build/` with a README capturing branch, build args, and output paths.
-- [ ] **P2.2** Port canvas-noise removal to Gecko. Candidate sites: `gfx/thebes/gfxPlatform.cpp` and `image/imgFrame.cpp` — Firefox does not implement `NoiseCanvasPixmap` but has its own resistFingerprinting canvas path (`CanvasUtils::IsImageExtractionAllowed`) that needs taming.
-- [ ] **P2.3** Port navigator overrides to `dom/base/Navigator.cpp` (userAgent, platform, hardwareConcurrency, language, languages, oscpu, buildID, vendor).
-- [ ] **P2.4** Port screen overrides to `dom/base/Screen.cpp` (width, height, availWidth, availHeight, colorDepth, pixelDepth, devicePixelRatio).
-- [ ] **P2.5** Port outer-window overrides to `dom/base/nsGlobalWindowOuter.cpp` (outerWidth, outerHeight, screenX, screenY).
-- [ ] **P2.6** Add a `--weles-fingerprint=<path>` command-line switch. Firefox generally drives config via `user.js` prefs — wire the JSON → pref mapping at startup instead of adding a brand-new switch if simpler.
-- [ ] **P2.7** Add a weles branding flag so the `CFBundleName` / `CFBundleDisplayName` no longer renders as `Nightly.app`; the existing `findCustomChromium` resolution ladder in `src/session/wsession.ts` will then pick the patched Firefox if installed at the expected path.
-- [ ] **P2.8** Release pipeline: build tarball, publish to GitHub Releases in `wisent-ai/weles-firefox` (parallel to the existing Chromium release), extend `scripts/chromium/download.sh` to also fetch the Firefox build.
+- [ ] **P2.2** `navigator.webdriver` at engine level. `dom.webdriver.enabled=false` is ignored when Playwright drives via juggler — it hardcodes `webdriver=true` in the Firefox binary. Needs either a patched juggler (drop the flag) or a C++ override in `dom/base/Navigator.cpp`.
+- [ ] **P2.3** WebGL vendor/renderer spoofing. `webgl.renderer-string-override` + `webgl.vendor-string-override` prefs exist but Firefox normalizes the values ("Apple Inc." is returned as "Apple"; "Apple M3" is coerced to "Apple M1, or similar"). Needs a patch in `dom/canvas/WebGLContext.cpp` to honor the raw pref string.
+- [ ] **P2.4** Screen overrides — `screen.width`, `screen.height`, `screen.availWidth`, `screen.availHeight`. No pref exists; needs a patch in `dom/base/Screen.cpp` that reads from a new `weles.screen.*` pref set or a JSON config.
+- [ ] **P2.5** Window-outer overrides — `window.outerWidth`, `window.outerHeight`, `window.screenX`, `window.screenY`. Needs a patch in `dom/base/nsGlobalWindowOuter.cpp`.
+- [ ] **P2.6** Release pipeline: patched Firefox tarball in `wisent-ai/weles-firefox` + a `scripts/firefox/download.sh` mirror of `scripts/chromium/download.sh`. Extend `src/session/wsession.ts::findCustomChromium` → `findCustomBrowser(browser)` so WSession resolves a patched Firefox binary the same way it resolves Chromium.
 
 ## Phase 3 — Validation + rotation flip
 
