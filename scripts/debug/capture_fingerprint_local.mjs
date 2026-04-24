@@ -21,7 +21,10 @@ import { writeFileSync, createWriteStream } from 'node:fs';
 delete process.env.BRIGHTDATA_BROWSER_WS;
 const wait = process.env.PROBE_WAIT === '1';
 const startUrl = process.env.PROBE_URL || '';
-const s = await WSession.start({ label: 'fingerprint_local', proxy: process.env.PROBE_PROXY || 'none', record: wait });
+// PROBE_BROWSER=firefox captures via Playwright-managed Firefox for the
+// Firefox-patching A/B. Default 'chromium' preserves existing behavior.
+const browser = process.env.PROBE_BROWSER || 'chromium';
+const s = await WSession.start({ label: `fingerprint_local_${browser}`, browser, proxy: process.env.PROBE_PROXY || 'none', record: wait });
 
 // Behavior trace: pointer/key/scroll events with high-res timestamps, streamed
 // to JSONL so empirical timing distributions are derivable from the operator's
@@ -45,9 +48,10 @@ try {
   const raw = await s.page.evaluate(`document.body.innerText || document.body.textContent || ''`);
   network = parseNetworkFingerprint(raw);
 
-  const out = { capturedAt: new Date().toISOString(), source: 'weles-local', js, network };
-  writeFileSync('recordings/local_fingerprint.json', JSON.stringify(out, null, 2));
-  console.log(`Saved to recordings/local_fingerprint.json`);
+  const out = { capturedAt: new Date().toISOString(), source: `weles-local-${browser}`, browser, js, network };
+  const outPath = `recordings/local_fingerprint_${browser}.json`;
+  writeFileSync(outPath, JSON.stringify(out, null, 2));
+  console.log(`Saved to ${outPath}`);
   console.log(`summary: canvas.toDataURLLen=${out.js?.canvas?.toDataURLLen} speechVoices.count=${out.js?.speechVoices?.count} ja4=${out.network?.ja4}`);
 
   if (wait) {
