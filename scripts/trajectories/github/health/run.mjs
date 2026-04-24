@@ -17,9 +17,13 @@ await runHealthProbe({
   loggedOutRegex: /github\.com\/[^/?]+$/,
   banDetector: detectGitHubBanSignals,
   extractLoggedIn: (body, resp) => {
+    // The captured body is a 2000-char HTML prefix, which is just the <head>
+    // on github.com — user-visible content like "Public profile" appears well
+    // past that. Instead rely on the final URL + HTTP status: unauthed gets
+    // a 302 to /login, authed renders /settings/profile with status 200.
     const finalUrl = resp?.url ?? '';
+    const authed = /\/settings\/profile/.test(finalUrl) && !/\/login/.test(finalUrl) && resp?.status === 200;
     const html = typeof body === 'string' ? body : '';
-    const authed = /\/settings\/profile/.test(finalUrl) && !/\/login/.test(finalUrl) && /public profile|account settings|profile picture/i.test(html);
     return {
       ok: authed,
       karma: null,
