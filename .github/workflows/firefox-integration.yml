@@ -74,6 +74,9 @@ jobs:
           echo "--- direct run (prints XPCOM diagnostics) ---"
           DYLD_PRINT_LIBRARIES_POST_LAUNCH=1 "$DIR/firefox" --version 2>&1 | head -20 || true
 
+      - name: Minimal Playwright launch (no weles wrapper)
+        run: node scripts/firefox/minimal_test.mjs
+
       - name: Run integration test
         run: |
           mkdir -p recordings
