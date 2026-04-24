@@ -1,5 +1,5 @@
-// Most-minimal: just launch, immediately close. No context, no page.
-// Narrows down whether the VMAPPLE runner chokes on launch itself.
+// Launch + newContext + newPage, but NO recordVideo option.
+// Narrows whether recordVideo is what's closing the context on VMAPPLE.
 import { firefox } from 'playwright';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
@@ -10,7 +10,12 @@ if (!existsSync(BIN)) { console.error(`FAIL: bin missing at ${BIN}`); process.ex
 console.log(`binary: ${BIN}`);
 
 const b = await firefox.launch({ executablePath: BIN, headless: true });
-console.log('launch: OK (got browser handle)');
-console.log('contexts before newContext:', b.contexts().length);
+console.log('launch: OK');
+const ctx = await b.newContext();
+console.log('newContext: OK');
+const page = await ctx.newPage();
+console.log('newPage: OK');
+await page.goto('about:blank');
+console.log('goto: OK');
 await b.close();
 console.log('close: OK');
