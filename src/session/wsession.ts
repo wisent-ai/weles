@@ -43,6 +43,7 @@ export interface WSessionOptions {
   os?: string;
   locale?: string;
   persona?: Persona;
+  browser?: string;
 }
 
 const asV = (p: any) => p as unknown as ScreenshottablePage;
@@ -112,10 +113,10 @@ export class WSession {
       const ctx = browser.contexts()[0] || await browser.newContext({ locale: 'en-US' }); const page = ctx.pages()[0] || await ctx.newPage();
       return new WSession(ctx, page, label, new Capture({ newPage: async () => page } as any, label ? recordingsDir(label) : undefined));
     }
-    const bOpts: AsyncNewBrowserOptions = { os: opts.persona?.os ?? opts.os ?? 'macos', browser: 'chromium', headless: opts.headless ?? false, recordVideo: opts.record ?? (process.env.WELES_DISABLE_RECORDING !== '1'), locale: opts.locale, persona: opts.persona };
-    const chromiumPath = opts.chromiumPath ?? process.env.CHROMIUM_PATH ?? findCustomChromium();
-    if (!chromiumPath) throw new Error('Custom Chromium not found. Set CHROMIUM_PATH or install to a known location.');
-    bOpts.chromiumPath = chromiumPath;
+    const bOpts: AsyncNewBrowserOptions = { os: opts.persona?.os ?? opts.os ?? 'macos', browser: opts.browser ?? opts.persona?.browser ?? 'chromium', headless: opts.headless ?? false, recordVideo: opts.record ?? (process.env.WELES_DISABLE_RECORDING !== '1'), locale: opts.locale, persona: opts.persona };
+    const cp = opts.chromiumPath ?? process.env.CHROMIUM_PATH ?? findCustomChromium();
+    if (bOpts.browser === 'chromium' && !cp) throw new Error('Custom Chromium not found. Set CHROMIUM_PATH or install to a known location.');
+    if (cp) bOpts.chromiumPath = cp;
     if (opts.proxy) bOpts.proxy = await resolveProxy(opts.proxy);
     const ctx = await AsyncNewBrowser(bOpts);
     const page = ctx.pages()[0] || await ctx.newPage();
