@@ -41,6 +41,26 @@ for (let retry = 0; retry < 3; retry++) {
   s = null;
 }
 if (!s) { console.log('FAIL: SPA never mounted after 3 attempts'); process.exit(1); }
+
+async function captureCookies() {
+  if (!acct.id) return;
+  const supabaseUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
+  if (!supabaseUrl || !key) return;
+  try {
+    const cookies = await s.ctx.cookies();
+    const r = await fetch(`${supabaseUrl}/rest/v1/social_accounts?id=eq.${acct.id}&select=metadata`, { headers: { apikey: key, Authorization: `Bearer ${key}` } });
+    const rows = await r.json();
+    const merged = { ...(rows?.[0]?.metadata ?? {}), cookies };
+    await fetch(`${supabaseUrl}/rest/v1/social_accounts?id=eq.${acct.id}`, {
+      method: 'PATCH',
+      headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+      body: JSON.stringify({ metadata: merged }),
+    });
+    console.log(`[cookie-capture] refreshed ${cookies.length} cookies for account ${acct.id}`);
+  } catch (e) { console.log('[cookie-capture] err:', e.message); }
+}
+
 try {
   // Wait for login form to render (SPA mount != form ready)
   for (let i = 0; i < 30; i++) {
@@ -132,6 +152,7 @@ try {
           await s.goto('https://discord.com/channels/@me');
           await s.wait(5);
           console.log(`PASS: logged in as ${acct.username} — ${s.page.url?.()}`);
+          await captureCookies();
           loggedIn = true; break;
         }
         if (result?.data?.captcha_rqdata) { currentRqdata = result.data.captcha_rqdata; currentRqtoken = result.data.captcha_rqtoken; console.log('[login] Updated captcha data, retrying...'); continue; }
@@ -208,6 +229,7 @@ try {
           const postUrl = s.page.url?.() ?? '';
           if (postUrl.includes('/channels')) {
             console.log(`PASS: logged in as ${acct.username} — ${postUrl}`);
+            await captureCookies();
             loggedIn = true; break;
           }
           console.log(`[login] After authorize re-submit: ${postUrl}, no captcha`);
@@ -220,7 +242,12 @@ try {
   } else {
     // No captcha — check if already logged in
     const url2 = s.page.url?.() ?? '';
-    console.log(url2.includes('/channels') ? 'PASS: logged in' : `FAIL: no captcha data, stuck at ${url2}`);
+    if (url2.includes('/channels')) {
+      console.log('PASS: logged in');
+      await captureCookies();
+    } else {
+      console.log(`FAIL: no captcha data, stuck at ${url2}`);
+    }
   }
 } catch (e) {
   console.log('FAIL:', e.message?.slice(0, 200));
