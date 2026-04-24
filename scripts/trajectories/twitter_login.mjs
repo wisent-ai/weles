@@ -15,6 +15,11 @@ const { proxyUrl, persona } = await resolveAccountSession(acct);
 const s = await WSession.start({ label: 'twitter_login', proxy: proxyUrl, persona });
 try {
   await s.goto(URL);
+  // Wait for the username input to render — x.com's login modal is an SPA
+  // that shows a blank white box for several seconds on slow residential
+  // proxies. Without this wait, the agent burns iterations observing
+  // loading states before it can fill the form.
+  await s.page.waitForSelector('input[autocomplete="username"], input[name="text"]').catch(() => {});
   const result = await execute(s, `Open ${URL}. ${GOAL}`, {
     envHints: { SVC_EMAIL: process.env.SVC_EMAIL, SVC_PASSWORD: '***' },
     flowName: 'twitter_login',
