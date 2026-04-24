@@ -82,8 +82,10 @@ async function signup(s) {
   await s.select('Year', id.birthYear);
   await sleep(1);
 
-  // Click Next on form and wait for page to change
-  await s.page.evaluate(`(() => { var b = document.querySelector('[data-testid="ocfSignupNextLink"]'); if (b) b.click(); })()`).catch(() => {});
+  // Click Next on form and wait for page to change. Use s.clickSelector so
+  // the event is isTrusted=true (the comment at password-submit below already
+  // flagged the evaluate-click pattern — same fix for this Next button).
+  await s.clickSelector('[data-testid="ocfSignupNextLink"]').catch(() => {});
   console.log('[tw] clicked Next, waiting for page change...');
 
   // Poll until we leave the form page or hit a known state
@@ -100,7 +102,7 @@ async function signup(s) {
     }
     if (t.includes('sent you a code') || t.includes('verification')) break;
     if (t.includes('customise') || t.includes('customize')) {
-      await s.page.evaluate(`(() => { var b = document.querySelector('[data-testid="ocfSignupNextLink"]'); if (b) b.click(); })()`).catch(() => {});
+      await s.clickSelector('[data-testid="ocfSignupNextLink"]').catch(() => {});
       continue;
     }
     if (t.includes('authenticate')) {
