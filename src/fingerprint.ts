@@ -251,6 +251,32 @@ function detectChromiumVersion(): string | null {
  * Replace an outdated Chrome version in the UA string with a modern one.
  * If Chrome/ major version is < 130, substitute a known-good template.
  */
+/**
+ * Map a FingerprintConfig to the weles.fingerprint.* prefs the patched
+ * Firefox reads (firefox-build/patches/0001 registers them). Stock Firefox
+ * ignores unknown prefs; patched Firefox short-circuits the native
+ * navigator/screen/window/webgl getters. Empty strings / zeros disable the
+ * override so partial configs are safe.
+ */
+export function toFirefoxWelesPrefs(config: FingerprintConfig): Record<string, any> {
+  const scr = config.screen ?? {};
+  const win = config.window ?? {};
+  const gl = config.webgl ?? {};
+  return {
+    'weles.fingerprint.webdriver.force': true,
+    'weles.fingerprint.webgl.vendor': gl.unmaskedVendor ?? gl.vendor ?? '',
+    'weles.fingerprint.webgl.renderer': gl.unmaskedRenderer ?? gl.renderer ?? '',
+    'weles.fingerprint.screen.width': scr.width ?? 0,
+    'weles.fingerprint.screen.height': scr.height ?? 0,
+    'weles.fingerprint.screen.avail_width': scr.availWidth ?? 0,
+    'weles.fingerprint.screen.avail_height': scr.availHeight ?? 0,
+    'weles.fingerprint.window.outer_width': win.outerWidth ?? 0,
+    'weles.fingerprint.window.outer_height': win.outerHeight ?? 0,
+    'weles.fingerprint.window.screen_x': win.screenX ?? 0,
+    'weles.fingerprint.window.screen_y': win.screenY ?? 0,
+  };
+}
+
 function ensureModernChromeUA(ua: string, targetOs: string): string {
   const realVersion = detectChromiumVersion();
   const version = realVersion ?? CHROME_STABLE_VERSION;
