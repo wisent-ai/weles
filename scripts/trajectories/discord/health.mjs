@@ -12,7 +12,11 @@ await runHealthProbe({
   loggedInRegex: /discord\.com\/(channels\/@me|login)/,
   banDetector: detectDiscordBanSignals,
   extractLoggedIn: (body, resp) => {
-    const finalUrl = resp?.url ?? '';
+    // Discord serves channels/@me as 200 HTML to unauthed users too, then JS
+    // redirects to /login. The captured response URL stays at channels/@me
+    // while the browser's final URL moves to /login. Use final_url from the
+    // ban detector (it comes from page.url() post-navigation).
+    const finalUrl = resp?.signal?.details?.final_url ?? resp?.url ?? '';
     const authed = /\/channels\/@me/.test(finalUrl) && !/\/login/.test(finalUrl);
     const html = typeof body === 'string' ? body : '';
     return {
