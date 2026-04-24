@@ -53,8 +53,11 @@ async function signup(s) {
 
   // Take screenshot before submit to verify form state
   await s.page.screenshot({ path: `/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/recordings/ig_before_submit.png` }).catch(() => {});
-  // Click Sign up
-  await s.page.evaluate(`(() => { var b = document.querySelector('button[type="submit"]'); if (b) b.click(); })()`).catch(() => {});
+  // Click Sign up — use s.clickSelector so the submit dispatches with
+  // isTrusted=true. Instagram's /api/v1/* rate_limited detector keys off
+  // feedback_required JSON that fires when the Sign-up click fails the
+  // isTrusted check; see docs/DETECTION_ANTIPATTERNS.md §1.
+  await s.clickSelector('button[type="submit"]').catch(() => {});
   await sleep(5);
   // Screenshot after submit
   await s.page.screenshot({ path: `/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/recordings/ig_after_submit.png` }).catch(() => {});
@@ -68,7 +71,10 @@ async function signup(s) {
     await s.select('Year', id.birthYear).catch(() => {});
     await sleep(1);
     await s.click('Next').catch(() => {});
-    await s.page.evaluate(`(() => { var b = document.querySelector('button[type="submit"], button.aOOlW'); if (b) b.click(); })()`).catch(() => {});
+    // Submit the birthday form via a trusted click (see §1 in the anti-
+    // patterns doc). button.aOOlW is Instagram's submit class when
+    // type=submit isn't present on the birthday variant of the form.
+    await s.clickSelector('button[type="submit"], button.aOOlW').catch(() => {});
     await sleep(5);
   }
 
