@@ -75,6 +75,6 @@ jobs:
           DYLD_PRINT_LIBRARIES_POST_LAUNCH=1 "$DIR/firefox" --version 2>&1 | head -20 || true
 
       - name: Run integration test
-        env:
-          WELES_DISABLE_RECORDING: "1"
-        run: node scripts/firefox/integration_test.mjs
+        run: |
+          mkdir -p recordings
+          node scripts/firefox/integration_test.mjs
