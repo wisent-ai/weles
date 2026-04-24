@@ -144,11 +144,17 @@ export async function resolveAccountSession(acct: SocialAccount): Promise<Accoun
   if (!cfg && process.env.PROXY_URL) {
     out.proxyUrl = process.env.PROXY_URL;
   } else if (!cfg) {
-    // No stored proxy at all. Pick one from service_credentials via resolveProxy,
-    // persist back to metadata so the same account gets a sticky-ish proxy on reuse.
+    // No stored proxy at all. Pick a provider deterministically from the
+    // account id so the fleet spreads across providers instead of every
+    // account exiting through the same Oxylabs BR /16. Same id always hashes
+    // to the same provider — keeps the account's exit-IP cohort stable.
+    const PROVIDERS = ['oxylabs', 'packetstream', 'pingproxies'];
+    let hash = 0;
+    for (const ch of (acct.id ?? acct.username ?? '')) hash = ((hash << 5) - hash + ch.charCodeAt(0)) | 0;
+    const provider = PROVIDERS[Math.abs(hash) % PROVIDERS.length];
     try {
       const mod = await import('../proxy/config.js');
-      const pw = await mod.resolveProxy('residential');
+      const pw = await mod.resolveProxy(`residential ${provider}`) ?? await mod.resolveProxy('residential');
       if (pw?.server) {
         const u = new URL(pw.server);
         cfg = {
