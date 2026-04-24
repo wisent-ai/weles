@@ -37,8 +37,8 @@ async function tryDirectPath() {
     challengeLocator.waitFor({ state: 'visible' }).then(() => 'challenge').catch(() => null),
   ]);
 
-  if (winner === 'challenge') {
-    await s.screenshot('direct_challenge_detected').catch(() => {});
+  if (winner !== 'password') {
+    await s.screenshot(winner === 'challenge' ? 'direct_challenge_detected' : 'direct_post_next_unknown').catch(() => {});
     return 'agent-required';
   }
 
