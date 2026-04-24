@@ -30,6 +30,9 @@ export async function runHealthProbe(cfg) {
     const stored = Array.isArray(acct.metadata?.cookies) ? acct.metadata.cookies : [];
     const prepared = stored.filter((c) => c && c.name && c.value && (c.domain || c.url)).map((c) => ({ ...c, path: c.path || '/' }));
     if (prepared.length > 0) await sIn.ctx.addCookies(prepared).catch(() => {});
+    // Optional per-platform hook — e.g. Discord injects its localStorage
+    // token via addInitScript since its auth doesn't live in cookies.
+    if (cfg.beforeGoto) await cfg.beforeGoto(sIn, acct).catch(() => {});
     const inUrl = typeof cfg.loggedInUrl === 'function' ? cfg.loggedInUrl(acct.username) : cfg.loggedInUrl;
     await sIn.goto(inUrl);
     const resp = sIn.capturedResponses.find(r => cfg.loggedInRegex.test(r.url));
