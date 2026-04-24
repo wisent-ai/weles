@@ -78,3 +78,12 @@ jobs:
         run: |
           mkdir -p recordings
           node scripts/firefox/integration_test.mjs
+
+      - name: Upload recordings on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: firefox-integration-recordings
+          path: |
+            recordings/**
+          retention-days: 14
