@@ -34,10 +34,11 @@ async function signup(s) {
   await s.goto(URL);
   await sleep(4);
 
-  // Dismiss cookie consent via JS click (avoids mouse.move crash)
+  // Dismiss cookie consent via s.jsClick (avoids mouse.move crash on
+  // Instagram's heavy page; the js-prefix atom marks intentional untrusted).
   const text = await readPage(s);
   if (text.includes('cookies') || text.includes('cookie')) {
-    await s.page.evaluate(`(() => { var bs = document.querySelectorAll('button'); for (var b of bs) { if (b.textContent.includes('Allow all') || b.textContent.includes('Allow essential')) { b.click(); return; } } })()`).catch(() => {});
+    await s.jsClick('button', 'Allow essential').catch(() => {});
     await sleep(2);
   }
 
@@ -163,12 +164,15 @@ async function signup(s) {
           })("${country}")`).catch(() => {});
           await sleep(1);
         }
-        // Clear and type phone
-        await s.page.evaluate(`(() => { var inp = document.querySelector('input[type="tel"]'); if (!inp) { var inputs = Array.from(document.querySelectorAll('input')); inp = inputs.find(i => !i.disabled && i.offsetParent && i.type !== 'hidden'); } if (inp) { inp.focus(); inp.click(); inp.value = ''; } })()`).catch(() => {});
+        // Clear and type phone via shared atoms
+        const telLoc = s.page.locator('input[type="tel"]').first();
+        if (await telLoc.count()) await telLoc.fill('').catch(() => {});
         await sleep(1);
         await s.page.keyboard.type(digits, { delay: 50 }).catch(() => {});
         await sleep(1);
-        await s.page.evaluate(`(() => { var btns = document.querySelectorAll('[role="button"]'); for (var b of btns) { var t = b.textContent.trim(); if (t === 'Send Code' || t === 'Send code' || t === 'Next' || t === 'Continue') { b.click(); return; } } })()`).catch(() => {});
+        // Instagram's heavy page crashes on mouse.move, so the Send Code /
+        // Next / Continue button goes via s.jsClick (named escape-hatch atom).
+        for (const t of ['send', 'continue', 'next']) { if (!/no-element-found/.test(await s.jsClick('[role="button"]', t).catch(() => 'no-element-found'))) break; }
         await sleep(5);
         const smsCode = await s.pollSmsCode();
         console.log(`[ig] SMS code: ${smsCode}`);
@@ -176,12 +180,13 @@ async function signup(s) {
           console.log(`[ig] filling SMS code ${smsCode}`);
           await s.page.evaluate(`((code) => { var inp = document.querySelector('input[maxlength="6"]'); if (!inp) { var inputs = Array.from(document.querySelectorAll('input[type="text"]')); inp = inputs.find(i => !i.disabled && !i.value && i.offsetParent); } if (inp) { var set = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set; set.call(inp, code); inp.dispatchEvent(new Event('input', {bubbles:true})); inp.dispatchEvent(new Event('change', {bubbles:true})); } })("${smsCode}")`).catch(() => {});
           await sleep(2);
-          await s.page.evaluate(`(() => { var btns = document.querySelectorAll('[role="button"]'); for (var b of btns) { var t = b.textContent.trim(); if (t === 'Next' || t === 'Continue' || t === 'Confirm') { b.click(); return; } } })()`).catch(() => {});
+          // Confirm SMS code (Next / Continue / Confirm) via s.jsClick
+          for (const t of ['confirm', 'continue', 'next']) { if (!/no-element-found/.test(await s.jsClick('[role="button"]', t).catch(() => 'no-element-found'))) break; }
           await sleep(5);
           break;
         }
-        // Click back to re-enter a different number
-        await s.page.evaluate(`(() => { var back = document.querySelector('[aria-label="Back"], [aria-label="Go back"]'); if (back) back.click(); })()`).catch(() => {});
+        // Back button to re-enter a different number
+        await s.jsClick('[aria-label="Back"], [aria-label="Go back"]').catch(() => {});
         await sleep(3);
       }
       continue;
@@ -189,8 +194,8 @@ async function signup(s) {
     // Image text captcha — screenshot the image, send to solver
     if (t.includes('confirm that you') || t.includes('enter the code from the image') || url.includes('/suspended')) {
       console.log('[ig] captcha page detected');
-      // JS click to avoid mouse.move crash on Instagram's heavy page
-      await s.page.evaluate(`(() => { var btns = document.querySelectorAll('[role="button"]'); for (var b of btns) { if (b.textContent.trim() === 'Continue') { b.click(); return; } } })()`).catch(() => {});
+      // s.jsClick to avoid mouse.move crash on Instagram's heavy page.
+      await s.jsClick('[role="button"]', 'continue').catch(() => {});
       await sleep(3);
       const t2 = await readPage(s);
       if (t2.includes('enter the code from the image') || t2.includes('hear this code')) {
@@ -230,8 +235,8 @@ async function signup(s) {
     }
     // Still on signup form — submission failed, bail early
     if (t.includes('get started on instagram') && i > 3) throw new Error('signup_form_stuck');
-    // JS clicks to skip onboarding
-    await s.page.evaluate(`(() => { var btns = document.querySelectorAll('[role="button"], a[role="button"]'); for (var b of btns) { var t = b.textContent.trim(); if (t === 'Skip' || t === 'Not now' || t === 'Not Now' || t === 'Next') { b.click(); return; } } })()`).catch(() => {});
+    // s.jsClick to skip onboarding (heavy page context).
+    for (const t of ['skip', 'not now', 'next']) { if (!/no-element-found/.test(await s.jsClick('[role="button"], a[role="button"]', t).catch(() => 'no-element-found'))) break; }
     await sleep(2);
   }
 
