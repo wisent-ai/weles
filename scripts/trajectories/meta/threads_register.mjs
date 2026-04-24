@@ -88,7 +88,7 @@ async function signup(s) {
     await sleep(1);
     await s.fill('password', igPassword);
     await sleep(1);
-    await s.page.evaluate(`(() => { var b = document.querySelector('button[type="submit"]'); if (b) b.click(); })()`).catch(() => {});
+    await s.clickSelector('button[type="submit"]').catch(() => {});
     await sleep(6);
   }
 

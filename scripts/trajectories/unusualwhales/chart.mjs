@@ -33,10 +33,11 @@ async function login() {
   const em = inputs.find(i => i.type === 'email' || i.name === 'email' || /email|address/i.test(i.ph || ''));
   const pw = inputs.find(i => i.type === 'password' || i.name === 'password');
   const sel = (i) => i.name ? `input[name="${i.name}"]` : `input[placeholder="${i.ph}"]`;
-  const fill = (se, v) => s.page.evaluate(`(({ sel, val }) => { const el = document.querySelector(sel); el.focus(); const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set; setter.call(el, val); el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); })(${JSON.stringify({ sel: se, val: v })})`);
-  await fill(sel(em), email); await s.wait(1);
-  await fill(sel(pw), password); await s.wait(1);
-  await s.page.evaluate(`(() => { const b = document.querySelector('button[type="submit"], input[type="submit"]'); if (b) b.click(); else document.querySelector('form')?.requestSubmit(); })()`);
+  await s.fillSelector(sel(em), email); await s.wait(1);
+  await s.fillSelector(sel(pw), password); await s.wait(1);
+  const submitLoc = s.page.locator('button[type="submit"], input[type="submit"]').first();
+  if (await submitLoc.count()) await submitLoc.click().catch(() => {});
+  else await s.page.evaluate('document.querySelector("form")?.requestSubmit()').catch(() => {});
   for (let i = 0; i < 30; i++) { await s.wait(2); if (!s.page.url().includes('/login')) return; }
   throw new Error('login did not redirect');
 }
@@ -53,15 +54,12 @@ try {
   }
   await s.wait(5);
 
-  // Click the tab by matching button text
-  const clicked = await s.page.evaluate(`(tabText => {
-    const candidates = Array.from(document.querySelectorAll('button, a, div[role="tab"], [class*="tab"]'));
-    const match = candidates.find(e => e.innerText.trim() === tabText);
-    if (!match) return { ok: false, count: candidates.length };
-    match.scrollIntoView({ block: 'center' });
-    match.click();
-    return { ok: true, tag: match.tagName };
-  })(${JSON.stringify(tab)})`);
+  // Click the tab by matching button text — use Playwright locator with
+  // exact-text filter so the click dispatches with isTrusted=true.
+  const tabLoc = s.page.locator('button, a, div[role="tab"], [class*="tab"]').filter({ hasText: new RegExp(`^${tab.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')}$`) }).first();
+  const tabCount = await tabLoc.count();
+  let clicked = { ok: false, count: tabCount };
+  if (tabCount) { await tabLoc.scrollIntoViewIfNeeded().catch(() => {}); await tabLoc.click().catch(() => {}); clicked = { ok: true, tag: 'locator' }; }
   console.error(`[chart] clicked tab "${tab}": ${JSON.stringify(clicked)}`);
   if (!clicked.ok) {
     console.error(`FAIL: tab "${tab}" not found in page (candidates=${clicked.count})`);

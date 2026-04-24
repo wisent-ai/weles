@@ -102,12 +102,13 @@ async function doLogin(sess) {
     process.exit(1);
   }
   const sel = (i) => i.name ? `input[name="${i.name}"]` : i.id ? `input[id="${i.id}"]` : `input[placeholder="${i.ph}"]`;
-  const fill = (s, v) => sess.page.evaluate(`(({ sel, val }) => { const el = document.querySelector(sel); if (!el) return false; el.focus(); const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; setter.call(el, val); el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); return true; })(${JSON.stringify({ sel: s, val: v })})`);
-  await fill(sel(emailIn), email);
+  await sess.fillSelector(sel(emailIn), email);
   await sess.wait(1);
-  await fill(sel(passIn), password);
+  await sess.fillSelector(sel(passIn), password);
   await sess.wait(1);
-  await sess.page.evaluate(`(() => { const b = document.querySelector('button[type="submit"], input[type="submit"]'); if (b) b.click(); else document.querySelector('form')?.requestSubmit(); })()`);
+  const submitLoc = sess.page.locator('button[type="submit"], input[type="submit"]').first();
+  if (await submitLoc.count()) await submitLoc.click().catch(() => {});
+  else await sess.page.evaluate('document.querySelector("form")?.requestSubmit()').catch(() => {});
   for (let i = 0; i < 30; i++) {
     await sess.wait(2);
     const u = sess.page.url();

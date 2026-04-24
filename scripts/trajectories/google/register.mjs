@@ -25,11 +25,8 @@ async function readPage(s) {
 
 async function clickNext(s) {
   await s.click('Next').catch(() => {});
-  await s.page.evaluate(`(() => {
-    var btns = Array.from(document.querySelectorAll('button, div[role="button"]'));
-    var next = btns.find(b => /^(next|weiter|suivant|siguiente)$/i.test(b.textContent?.trim() ?? ''));
-    if (next) next.click();
-  })()`).catch(() => {});
+  // Also try a locator-click on Next in one of the common locale strings.
+  await s.page.locator('button, div[role="button"]').filter({ hasText: /^(next|weiter|suivant|siguiente)$/i }).first().click().catch(() => {});
 }
 
 async function signup(s) {
