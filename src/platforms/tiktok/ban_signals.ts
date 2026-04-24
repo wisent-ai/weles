@@ -12,7 +12,11 @@ export async function detectTikTokBanSignals(
     },
     text: {
       suspended: [/account banned/i, /your account has been (permanently )?suspended/i],
-      rate_limited: [/maximum number of attempts reached/i, /try again later/i, /you can'?t perform this action/i],
+      // /try again later/i removed — it matched TikTok's generic "Sorry
+      // about that! Please try again later" error page which fires for
+      // every server hiccup, not rate-limiting. Keep only the specific
+      // rate-limit phrases the actual throttle page shows.
+      rate_limited: [/maximum number of attempts reached/i, /you can'?t perform this action/i, /you'?re doing that too much/i],
       checkpoint: [/login expired/i, /verify your account/i, /complete the verification/i],
     },
     responseBody: [

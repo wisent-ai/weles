@@ -12,12 +12,18 @@ export async function detectInstagramBanSignals(
     },
     text: {
       suspended: [/your account has been disabled/i, /we suspended your account/i],
-      rate_limited: [/please wait a few minutes before you try again/i, /try again later/i, /action blocked/i],
+      // /try again later/i removed — too generic, fires on every instagram
+      // server error. Keep only the specific rate-limit phrases.
+      rate_limited: [/please wait a few minutes before you try again/i, /action blocked/i, /we limit how often/i],
       checkpoint: [/we restrict certain content and actions/i, /confirm.{0,10}it'?s you/i, /enter the (code|confirmation)/i],
     },
     responseBody: [
       { signal: 'checkpoint', urlMatch: /\/api\/v1\//, bodyMatch: /"checkpoint_required":\s*true|feedback_required/i },
-      { signal: 'rate_limited', urlMatch: /\/api\//, bodyMatch: /rate.?limit|please wait/i },
+      // Drop /please wait/i from the response-body match — Instagram's
+      // login page at /ajax/bulk-route-definitions/ returned that text
+      // in an unrelated loading-state message, triggering false positives
+      // across 56 dwell/browse/search rows in the 7-day window.
+      { signal: 'rate_limited', urlMatch: /\/api\//, bodyMatch: /rate.?limit|we limit how often/i },
       { signal: 'suspended', urlMatch: /\/api\//, bodyMatch: /"is_disabled":\s*true|account.{0,10}disabled/i },
     ],
     suspiciousApiEndpoints: /\/api\/v1\/(media|friendships|users|web)/,
