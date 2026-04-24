@@ -86,6 +86,10 @@ export async function runHealthProbe(cfg) {
   writeFileSync(filePath, JSON.stringify(snapshot, null, 2));
   console.log(`[health:${cfg.platform}] signal=${signal} karma=${extracted.karma} shadowbanned=${shadowbanned}`);
   console.log(`[health:${cfg.platform}] snapshot -> ${filePath}`);
-  if (signal !== 'healthy') process.exitCode = 2;
+  // Exit 0 whenever we probed successfully and have an actionable signal —
+  // even 'suspended' / 'shadowbanned' / 'ip_blocked' are valid probe outcomes
+  // the dashboard needs as completed+signaled rows, not as 'failed'. Only
+  // exit 2 when the probe itself couldn't determine state.
+  if (signal === 'unknown') process.exitCode = 2;
   return snapshot;
 }

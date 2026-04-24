@@ -111,4 +111,7 @@ if (signal === 'ip_blocked' && acct.id) {
   }
 }
 
-if (signal !== 'healthy') process.exitCode = 2;
+// Exit 0 for every actionable signal — suspended / shadowbanned / ip_blocked
+// are valid probe outcomes the dashboard needs as completed rows. Only
+// exit 2 when the probe couldn't determine state.
+if (signal === 'unknown') process.exitCode = 2;
