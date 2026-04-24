@@ -41,7 +41,11 @@ jobs:
 
       - name: Download weles-firefox release
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # WELES_FIREFOX_TOKEN is a PAT with read:org + repo scopes on
+          # wisent-ai/weles-firefox (set via `gh secret set WELES_FIREFOX_TOKEN
+          # --body "$(gh auth token)" --repo wisent-ai/weles`). Default
+          # GITHUB_TOKEN is scoped to this repo and cannot see weles-firefox.
+          GH_TOKEN: ${{ secrets.WELES_FIREFOX_TOKEN || secrets.GITHUB_TOKEN }}
           TAG: ${{ github.event.inputs.tag || github.event.client_payload.tag }}
         run: |
           set -euo pipefail
