@@ -24,6 +24,12 @@ export async function runHealthProbe(cfg) {
   const loggedIn = { url: null, status: null, body: null, signal: null };
   const sIn = await WSession.start({ label: `${cfg.platform}_health_in`, proxy: proxyUrl, persona });
   try {
+    // Inject stored auth cookies so the "logged in" probe actually is authed.
+    // Without these the authed API endpoints 401 / redirect to authwall and
+    // every health probe reports 'unknown' even on a healthy account.
+    const stored = Array.isArray(acct.metadata?.cookies) ? acct.metadata.cookies : [];
+    const prepared = stored.filter((c) => c && c.name && c.value && (c.domain || c.url)).map((c) => ({ ...c, path: c.path || '/' }));
+    if (prepared.length > 0) await sIn.ctx.addCookies(prepared).catch(() => {});
     const inUrl = typeof cfg.loggedInUrl === 'function' ? cfg.loggedInUrl(acct.username) : cfg.loggedInUrl;
     await sIn.goto(inUrl);
     const resp = sIn.capturedResponses.find(r => cfg.loggedInRegex.test(r.url));
