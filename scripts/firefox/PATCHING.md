@@ -98,11 +98,38 @@ Two paths to close the gap. Either is multi-session work.
 
 - **P4.A** Port Playwright's juggler patches onto our tree. Playwright
   maintains the patch set at `microsoft/playwright/browser_patches/firefox/`
+  (cloned to `../firefox-build/juggler-upstream/playwright-repo/`)
   against a pinned `mozilla-firefox/firefox` release branch (currently
-  `4eb5a4f7`); we target `mozilla/gecko-dev@5836a062`. The patches will
-  need rebasing. Once applied, rebuild + re-run `verify.mjs` (expect
-  still-OK — juggler doesn't touch any surface we patch) + update
-  `async_api.ts` firefox branch to pass `executablePath: findCustomBrowser('firefox')`.
+  `4eb5a4f7`); we target `mozilla/gecko-dev@5836a062`. The upstream
+  structure is `juggler/` (the in-tree WebExtension + JSM) plus one
+  monolithic `patches/bootstrap.diff` (2694 lines touching 69 files).
+
+  Dry-run against our tree with `patch -p1 --dry-run --fuzz=5` (2026-04-23):
+  58 of 69 files apply with fuzz; 11 files need manual resolution
+  (11 hunks total across them). Conflict list — these are where Mozilla
+  refactored since Playwright's base was cut:
+
+  ```
+  docshell/base/BrowsingContext.h                              (1/6 hunks)
+  docshell/base/CanonicalBrowsingContext.cpp                   (1/2 hunks)
+  docshell/base/nsDocShell.cpp                                 (1/13 hunks)
+  dom/base/nsContentUtils.cpp                                  (2/4 hunks)
+  dom/html/HTMLInputElement.cpp                                (1/2 hunks)
+  dom/media/systemservices/video_engine/desktop_capture_impl.cc (1/7 hunks)
+  dom/webidl/Window.webidl                                     (1/1 hunks)
+  layout/style/GeckoBindings.h                                 (1/1 hunks)
+  netwerk/base/LoadInfo.cpp                                    (1/2 hunks)
+  widget/InProcessCompositorWidget.cpp                         (1/2 hunks)
+  widget/headless/HeadlessWidget.cpp                           (1/2 hunks)
+  ```
+
+  After resolving: also copy `../firefox-build/juggler-upstream/playwright-repo/browser_patches/firefox/juggler/` into `mozilla-central/juggler/` and
+  apply the `jar.mn` / `moz.build` entries from `bootstrap.diff`. Rebuild
+  (another 4–8 h cycle on this Mac), re-run `verify.mjs` against the
+  juggler-enabled binary (must stay 11/11 OK — juggler doesn't touch
+  any surface the weles patches override), then update
+  `src/async_api.ts` firefox branch to pass `executablePath:
+  findCustomBrowser('firefox')` so Playwright drives the patched binary.
 - **P4.B** Swap the firefox driver. Firefox ships native WebDriver BiDi
   (via Marionette + RemoteAgent) in every build. Write a thin
   `src/session/firefox_bidi.ts` that speaks WebDriver BiDi over a WS
