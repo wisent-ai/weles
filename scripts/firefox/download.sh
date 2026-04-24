@@ -14,7 +14,7 @@
 
 set -euo pipefail
 
-RELEASE_TAG="${WELES_FIREFOX_RELEASE:-firefox-142.0a1-weles.4}"
+RELEASE_TAG="${WELES_FIREFOX_RELEASE:-firefox-142.0a1-weles.5}"
 REPO="wisent-ai/weles-firefox"
 INSTALL_ROOT="${WELES_FIREFOX_DIR:-$HOME/.local/share/weles-firefox}"
 
