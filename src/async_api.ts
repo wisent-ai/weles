@@ -229,6 +229,16 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
     launchOpts.ignoreDefaultArgs = ['--enable-automation', '--enable-unsafe-swiftshader'];
     pwBrowser = await chromium.launch(launchOpts);
   } else {
+    // Firefox parity P1.3: enforce fingerprint-relevant prefs at engine level
+    // (iframe-safe; JS-only spoofing is not). resistFingerprinting MUST be off
+    // or Firefox overrides our per-session navigator/screen/canvas config.
+    launchOpts.firefoxUserPrefs = {
+      'privacy.resistFingerprinting': false,
+      'privacy.fingerprintingProtection': false,
+      'dom.webdriver.enabled': false,
+      ...(persona?.language ? { 'intl.accept_languages': persona.language } : {}),
+      ...(nav.userAgent ? { 'general.useragent.override': nav.userAgent } : {}),
+    };
     pwBrowser = await firefox.launch(launchOpts);
   }
 
