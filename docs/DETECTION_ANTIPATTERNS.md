@@ -221,29 +221,54 @@ that matters (submit buttons, login completion, engagement verbs, content
 creation), use the sanctioned primitives regardless of what the register
 file does.
 
-## Known remaining anti-pattern instances (as of 2026-04-24)
+## How to audit new trajectories
 
-Still to fix in routed action trajectories:
-- `scripts/trajectories/github/content/open_issue.mjs:40` — `blank.click()` for template picker
-- `scripts/trajectories/github/recover/reset_password.mjs:45, 82` — submit-button clicks
+```bash
+npm run lint-trust
+```
 
-Still present in routed register trajectories (lower priority, signup is
-less ML-scrutinized):
-- `twitter_register.mjs` — 2 ocfSignupNextLink click-inside-evaluate instances
-- `instagram_register.mjs` — 5 submit/Allow/Send-Code click-inside-evaluate instances
-- `discord_register.mjs:86` — submit button click-inside-evaluate
-- `github/register.mjs` — dropdown option + submit button click-inside-evaluate (2 instances)
+The script at `scripts/lint/check_trust.mjs` scans every `.mjs` under
+`scripts/trajectories/`, finds each `page.evaluate(...)` block via proper
+paren / bracket / string / template / comment tracking, and reports any
+`.click()` call inside that span. Also flags
+`dispatchEvent(new MouseEvent(...))` anywhere. Exits 2 on any hit so CI
+gates PRs. Does NOT flag `s.jsClick()`, `locator.click()`, `page.mouse`,
+`page.click`, or `dispatchEvent(new Event('input'|'change'))`.
 
-Not routed, so not currently burning accounts — but should be fixed before
-they're wired back in:
-- `scripts/trajectories/github_follow.mjs:66` — orphaned older github_follow
-- `scripts/trajectories/github_star.mjs:67` — orphaned older github_star
-- `scripts/trajectories/github_login.mjs:102, 145-146` — the top-level
-  github_login is routed (`${p}_login.mjs`), so these ARE burning
-- `scripts/trajectories/producthunt/comment.mjs:56` and `register.mjs:165`
-- `scripts/trajectories/apple/*`, `scripts/trajectories/google/*`,
-  `scripts/trajectories/unusualwhales/*`, `scripts/trajectories/volumeleaders/*`
-  (scraping trajectories, lower risk)
+## Known remaining anti-pattern instances (as of 2026-04-24, post-migration)
+
+**Routed trajectories — intentional, retained:**
+- `instagram_register.mjs` lines 40, 187 — author comment: "JS click to avoid
+  mouse.move crash on Instagram's heavy page". Migrating would regress the
+  workaround. Revisit once a throttled humanClick variant exists.
+- `instagram_register.mjs` line 161 — focus-click on an input (isTrusted
+  irrelevant for focus).
+- `instagram_register.mjs` lines 165, 173, 178, 228 — same heavy-page
+  context as 40/187 (Next / Continue / Back / Not-Now onboarding nav).
+- `github/register.mjs` line 131 — evaluate-based fill-in when the locator
+  didn't find the Create-account button. Branch rarely hits; migration
+  risk outweighs the fix.
+- `github/register.mjs` line 227 — inside the Arkose token-inject evaluate
+  block. The token inject + submit is tightly coupled; splitting it into a
+  page.evaluate for the inject and a separate locator.click could race
+  with GitHub's captcha handler.
+
+**Not routed — lower priority:**
+- `github_follow.mjs`, `github_star.mjs` (top-level orphans), `producthunt/*`,
+  `google/register`, `snapchat/register`, `meta/*_register` (not in router).
+- `apple/*`, `unusualwhales/*`, `volumeleaders/*`, `vast/*` — scraping
+  trajectories against financial / data sites, not social platforms with
+  spam ML.
+
+**Routed and fixed in the migration sweep (2026-04-24):**
+- `github/star/run.mjs:63` — form submit (commit da54dff)
+- `github_login.mjs:102` — Sign-in submit (commit af5b366)
+- `github/content/open_issue.mjs:40` — template picker (commit af5b366)
+- `github/recover/reset_password.mjs:45, 82` — reset + change submits (af5b366)
+- `twitter_register.mjs:86, 103` — ocfSignupNextLink x2 (commit f9db71f)
+- `instagram_register.mjs:57, 71` — sign-up + birthday-form submits (commit 5a9ad51)
+- `discord_register.mjs:86` — migrated to force-locator click
+- `github/register.mjs:95` — country dropdown option
 
 ## How to verify a new trajectory is clean
 

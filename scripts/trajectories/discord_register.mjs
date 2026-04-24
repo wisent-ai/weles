@@ -83,9 +83,12 @@ try {
       await s.page.locator('button[type="submit"]').click().catch(() => {});
       await s.wait(2);
       if (s.captchaResponse) { console.log('[test] Form submitted (captcha intercepted via locator click)'); break; }
-      await s.page.evaluate('document.querySelector("button[type=submit]")?.click()').catch(() => {});
+      // Second strategy: same selector but skip Playwright's actionability
+      // check (force). Still routes through CDP so it's a trusted click,
+      // just with the should-be-visible/should-be-enabled checks bypassed.
+      await s.page.locator('button[type="submit"]').click({ force: true }).catch(() => {});
       await s.wait(2);
-      if (s.captchaResponse) { console.log('[test] Form submitted (captcha intercepted via JS click)'); break; }
+      if (s.captchaResponse) { console.log('[test] Form submitted (captcha intercepted via force locator click)'); break; }
       await s.page.evaluate('document.querySelector("form")?.requestSubmit()').catch(() => {});
       await s.wait(2);
       if (s.captchaResponse) { console.log('[test] Form submitted via requestSubmit'); break; }
