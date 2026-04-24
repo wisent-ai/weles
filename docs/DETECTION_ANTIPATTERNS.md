@@ -167,47 +167,83 @@ every weles session a perfect stable counter key across proxies.
 `t13d1516h2_8daaf6152771_d8a2da3f94cd` on every session. If you see
 `t13d1515h1_...`, something reintroduced `--disable-http2`.
 
-## Sanctioned primitives — copy from the passing register flows
+## Sanctioned primitives
 
-Every currently-passing register trajectory only uses these four primitives.
-None of them go through `page.evaluate(... .click())`. If a new trajectory
-needs a primitive outside this list, that's the warning sign.
+These are the four primitives that route through CDP/Blink with
+`isTrusted: true`:
 
-| Primitive | File | Routes through |
+| Primitive | Routes through |
+| --- | --- |
+| `await s.goto(url)` | `WSession._action` → `page.goto` + cloudflare wait |
+| `await s.click(target)` | `_action` → `humanClick` → CDP mouse → `SetTrusted(true)` |
+| `await s.fill(field, value)` | `_action` → `humanType` per-character |
+| `await s.page.locator(sel).click()` | Playwright → CDP mouse → `SetTrusted(true)` |
+| `await s.page.mouse.click(x, y)` | Direct CDP mouse dispatch |
+| `await s.page.keyboard.type(s)` | CDP keyboard events |
+| `await execute(s, goal, opts)` | Agent loop, which internally uses the above |
+
+## Register flows — factual state, not aspirational
+
+I previously claimed the register trajectories were a clean gold-standard
+reference. They aren't. Every current register flow mixes sanctioned
+primitives with the anti-patterns above. Audited 2026-04-24:
+
+| Register file | Routed by worker? | `.click()` inside `page.evaluate`? |
 | --- | --- | --- |
-| `await s.goto(url)` | all | `WSession._action` → `page.goto` with cloudflare-challenge wait |
-| `await s.click(target)` | twitter/instagram/tiktok/github register | `_action` → `humanClick` → CDP mouse → `SetTrusted(true)` |
-| `await s.fill(field, value)` | twitter/instagram/tiktok register | `_action` → `humanType` with per-character delay |
-| `await s.page.locator(sel).click()` | discord_register, github/register | Playwright locator → CDP mouse → `SetTrusted(true)` |
-| `await execute(s, goal, opts)` | reddit_register, linkedin_register | Vision agent loop; internally calls the same four primitives |
+| `reddit_register.mjs` | yes | no (pure agent loop) |
+| `linkedin_register.mjs` | yes | no (pure agent loop) |
+| `twitter_register.mjs` | yes | **yes** — 2 ocfSignupNextLink clicks inside evaluate |
+| `instagram_register.mjs` | yes | **yes** — 5 submit/Allow/Send-Code clicks inside evaluate |
+| `tiktok_register.mjs` | yes | one `btn.click()` but on a Playwright locator (not DOM) — ok |
+| `discord_register.mjs` | yes | **yes** — line 86 `button[type=submit]?.click()` inside evaluate |
+| `github/register.mjs` | yes | **yes** — 2 instances (country dropdown `o.click()`, submit `btn.click()`) |
+| `youtube/register.mjs` | yes | no (pure agent loop, file has only `goto` + `execute`) |
+| `producthunt/register.mjs` | **no — not at the path the router expects** | — |
+| `google/register.mjs` | **no — not routed** | — |
+| `snapchat/register.mjs` | **no — not routed** | — |
+| `meta/facebook_register.mjs` | **no — not routed** | — |
+| `meta/threads_register.mjs` | **no — not routed** | — |
 
-Full set of register files — every one of these signs accounts that pass
-(or gets stuck at captchas, which is out of our control):
-
-- `scripts/trajectories/reddit_register.mjs` — agent-delegated
-- `scripts/trajectories/twitter_register.mjs` — explicit `s.click` / `s.fill` (see line 149 comment: "Previous page.evaluate(b.click()) produced isTrusted=false")
-- `scripts/trajectories/instagram_register.mjs` — explicit `s.fill` / `s.click`
-- `scripts/trajectories/tiktok_register.mjs` — explicit `s.click` / `s.fill`
-- `scripts/trajectories/linkedin_register.mjs` — agent-delegated
-- `scripts/trajectories/discord_register.mjs` — `s.page.locator(sel).click()`
-- `scripts/trajectories/producthunt_register.mjs` — explicit `s.fill` / `s.click`
-- `scripts/trajectories/github/register.mjs` — `s.page.locator` + explicit
-- `scripts/trajectories/youtube/register.mjs` — agent-delegated
-
-Routing rule (see `src/worker/poll.ts:54`):
-
+Router (src/worker/poll.ts:54):
 ```ts
 register: (p) => p === 'github' || p === 'youtube'
   ? `scripts/trajectories/${p}/register.mjs`
   : `scripts/trajectories/${p}_register.mjs`
 ```
 
-When adding a new action trajectory for a platform that has a passing
-register, copy the exact primitive style from that register file. If the
-register uses `s.click`, the action should use `s.click`. If the register
-uses the agent loop, the action should too. Divergence between the
-register-time and action-time humanization is itself a detection vector
-(#4 above: fingerprint/kinematics drift).
+The existing registers work **despite** their anti-patterns because:
+1. Many of the `.click()` targets are non-critical (cookie banners, dropdowns)
+2. Signup surfaces are less ML-scrutinized than engagement verbs — farms don't sign up fake accounts as fast as they star/follow/comment
+3. The accounts that passed signup often get shadowbanned later at action time (young_fox_7, swiftwolf6387) — which is exactly when the anti-pattern matters more
+
+So copying from register is NOT sufficient. When adding any interaction
+that matters (submit buttons, login completion, engagement verbs, content
+creation), use the sanctioned primitives regardless of what the register
+file does.
+
+## Known remaining anti-pattern instances (as of 2026-04-24)
+
+Still to fix in routed action trajectories:
+- `scripts/trajectories/github/content/open_issue.mjs:40` — `blank.click()` for template picker
+- `scripts/trajectories/github/recover/reset_password.mjs:45, 82` — submit-button clicks
+
+Still present in routed register trajectories (lower priority, signup is
+less ML-scrutinized):
+- `twitter_register.mjs` — 2 ocfSignupNextLink click-inside-evaluate instances
+- `instagram_register.mjs` — 5 submit/Allow/Send-Code click-inside-evaluate instances
+- `discord_register.mjs:86` — submit button click-inside-evaluate
+- `github/register.mjs` — dropdown option + submit button click-inside-evaluate (2 instances)
+
+Not routed, so not currently burning accounts — but should be fixed before
+they're wired back in:
+- `scripts/trajectories/github_follow.mjs:66` — orphaned older github_follow
+- `scripts/trajectories/github_star.mjs:67` — orphaned older github_star
+- `scripts/trajectories/github_login.mjs:102, 145-146` — the top-level
+  github_login is routed (`${p}_login.mjs`), so these ARE burning
+- `scripts/trajectories/producthunt/comment.mjs:56` and `register.mjs:165`
+- `scripts/trajectories/apple/*`, `scripts/trajectories/google/*`,
+  `scripts/trajectories/unusualwhales/*`, `scripts/trajectories/volumeleaders/*`
+  (scraping trajectories, lower risk)
 
 ## How to verify a new trajectory is clean
 
