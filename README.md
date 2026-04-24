@@ -68,9 +68,17 @@ Chromium patches live in `../chromium-build/` (separate repo) and are applied as
 
 JS-level helpers in `src/scripts/` (injected via `addInitScript()`) fill gaps the C++ patches can't cover cleanly — notably the HEVC codec shim (`chrome147_stubs.js`) and the Sanitizer API stub.
 
-## Roadmap
+## Firefox parity — shipped
 
-- **Patch Firefox to the same fingerprint-defense standard as Chromium.** Phase 1 landed (JS-level parity): browser-aware init scripts stop leaking Chrome-147 stubs onto Firefox sessions; `firefoxUserPrefs` drives five engine-level surfaces (platform/oscpu/appversion/hardwareConcurrency/UA) from the fingerprint config; Playwright identifier scrub is persistent across `npm install`; `capture_fingerprint_local.mjs PROBE_BROWSER=firefox` captures side-by-side for A/B. Phase 2 in progress (Gecko fork): `../firefox-build/` sibling repo holds five real `.patch` files (navigator.webdriver short-circuit, WebGL vendor/renderer de-sanitize, nsScreen + window-outer overrides) and the `build.sh` + `release.sh` + `verify.mjs` operator scripts. Build uses `gecko-dev@5836a062` plus the weles patches. Full details + phase-by-phase checklist in [scripts/firefox/PATCHING.md](scripts/firefox/PATCHING.md). Until the patched Firefox binary ships via `scripts/firefox/download.sh`, `src/browser/persona.ts` hard-pins `browser: 'chromium'`.
+As of `firefox-142.0a1-weles.4`, Firefox carries the same engine-level fingerprint defense stack as Chromium and is drivable end-to-end from weles trajectories via Playwright's juggler protocol.
+
+- **Binary**: `wisent-ai/weles-firefox` releases. Install via `bash scripts/firefox/download.sh` (defaults to the current tag, uses `gh release download` for private-repo auth).
+- **Gecko patches** live in `../firefox-build/patches/` against `gecko-dev@5836a062`: pref registration, `navigator.webdriver` short-circuit, WebGL vendor/renderer de-sanitize, `nsScreen` overrides, `window.outer*` overrides, plus one extra patch wiring `juggler-navigation-started-browser` through `CanonicalBrowsingContext::LoadURI(nsIURI*, ...)` so Playwright's `Page.navigate` works.
+- **Juggler** (Playwright's automation extension) is baked in at the matching version. `WSession.start({ browser: 'firefox' })` routes via `findCustomBrowser('firefox')` → `async_api.firefox.launch(executablePath, firefoxUserPrefs)` with the `weles.fingerprint.*` pref group that the patched binary reads.
+- **`persona.ts`** rotates 60/40 chromium/firefox. Both paths now have engine-level enforcement; JA4 rotation between BoringSSL and NSS is the side benefit.
+- **CI auto-probe**: `.github/workflows/firefox-integration.yml` verifies each new release against the trajectory driver. Manual-trigger only (macOS runner cost).
+
+Full phase-by-phase checklist in [scripts/firefox/PATCHING.md](scripts/firefox/PATCHING.md).
 
 ## License
 
