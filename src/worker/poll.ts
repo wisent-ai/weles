@@ -194,13 +194,11 @@ async function importCreatedAccount(action: string): Promise<{ id: string; usern
   try { return JSON.parse(await readFile(path, 'utf8')); } catch { return null; }
 }
 
-async function pauseAccount(accountId: string, hours = 24): Promise<void> {
-  const until = new Date(Date.now() + hours * 60 * 60 * 1000).toISOString();
-  await fetch(`${SUPABASE_URL}/rest/v1/social_accounts?id=eq.${accountId}`, {
-    method: 'PATCH',
-    headers: { ...headers(), Prefer: 'return=minimal' },
-    body: JSON.stringify({ paused_until: until }),
-  }).catch(() => {});
+async function pauseAccount(accountId: string, signal?: string, hours = 24): Promise<void> {
+  const hard = signal ? ['suspended', 'shadowbanned', 'ip_blocked'].includes(signal) : false;
+  const body: Record<string, unknown> = { paused_until: new Date(Date.now() + hours * 3600_000).toISOString() };
+  if (hard) { body.status = 'flagged'; body.is_active = false; }
+  await fetch(`${SUPABASE_URL}/rest/v1/social_accounts?id=eq.${accountId}`, { method: 'PATCH', headers: { ...headers(), Prefer: 'return=minimal' }, body: JSON.stringify(body) }).catch(() => {});
 }
 
 async function writeResult(jobId: string, status: 'completed' | 'failed' | 'pending_review', result: Record<string, unknown>, error?: string): Promise<void> {
@@ -258,7 +256,7 @@ export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
   const result: Record<string, unknown> = {};
   if (banSignal) {
     result.ban_signal = banSignal;
-    if (banSignal.healthy === false) await pauseAccount(row.account_id);
+    if (banSignal.healthy === false) await pauseAccount(row.account_id, banSignal.signal);
   } else {
     result.ban_signal = { healthy: exitCode === 0, signal: exitCode === 0 ? 'healthy' : 'unknown_error' };
   }
