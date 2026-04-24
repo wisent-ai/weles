@@ -260,9 +260,8 @@ export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
     result.ban_signal = { healthy: exitCode === 0, signal: exitCode === 0 ? 'healthy' : 'unknown_error' };
   }
   if (row.action.endsWith('_health')) {
-    const platform = row.action.slice(0, -'_health'.length);
-    const snap = await importHealthSnapshot(row.account_id, platform);
-    if (snap) result.health_snapshot = snap;
+    const snap = await importHealthSnapshot(row.account_id, row.action.slice(0, -'_health'.length));
+    if (snap) { result.health_snapshot = snap; result.ban_signal = { healthy: snap.signal === 'healthy', signal: snap.signal }; }
   }
   if (row.action.endsWith('_register')) {
     const created = await importCreatedAccount(row.action);
