@@ -49,21 +49,12 @@ try {
   });
   if (loggedOut) throw new Error('not_logged_in: github shows Sign-in link; cookies are stale');
 
-  // Precise click on the star form's submit button before handing to the
-  // agent. GitHub renders the star action as
-  //   <form data-turbo="false" method="post" action="/owner/repo/star" ...>
-  //     <button type="submit" name="star" aria-label="Star this repository">
-  // An AI-planned "click Star button" has been flaky — it hits the visible
-  // text without triggering the form submit. This direct js_click is
-  // deterministic when cookies are valid.
-  const directClick = await s.page.evaluate(() => {
-    const forms = Array.from(document.querySelectorAll('form[action$="/star"]'));
-    for (const f of forms) {
-      const btn = f.querySelector('button[type="submit"]');
-      if (btn) { btn.click(); return { clicked: true, form: f.getAttribute('action') }; }
-    }
-    return { clicked: false };
-  });
+  // Precise click on the star form's submit button. Previously we called
+  // btn.click() inside page.evaluate — that produces isTrusted=false which
+  // github's spam ML treats as a bot signal for engagement verbs (same
+  // anti-pattern ce369f6 fixed on TikTok). Use s.click() which routes
+  // through WSession → humanClick → CDP mouse, so SetTrusted(true) fires.
+  const directClick = await s.click('Star this repository').then(r => ({ clicked: !/no-target-found/.test(r), via: r }));
   console.log(`[star] direct form click: ${JSON.stringify(directClick)}`);
   if (directClick.clicked) {
     await s.page.waitForTimeout(2500);
