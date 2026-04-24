@@ -61,7 +61,7 @@ export async function runHealthProbe(cfg) {
     }
   }
 
-  const extracted = cfg.extractLoggedIn?.(loggedIn.body) ?? { ok: !!loggedIn.body, karma: null, is_suspended: false };
+  const extracted = cfg.extractLoggedIn?.(loggedIn.body, loggedIn) ?? { ok: !!loggedIn.body, karma: null, is_suspended: false };
   const outOk = cfg.extractLoggedOut
     ? cfg.extractLoggedOut(loggedOut)
     : (loggedOut.status === 200);
