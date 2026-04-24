@@ -7,6 +7,7 @@ import { WSession } from '../../dist/session/wsession.js';
 const s = await WSession.start({
   label: 'firefox_integration',
   browser: 'firefox',
+  headless: true,
   persona: { os: 'macos', browser: 'firefox', platform: 'MacIntel', language: 'en-US',
     timezone: 'America/New_York',
     screen: { width: 1920, height: 1080, dpr: 2 },
