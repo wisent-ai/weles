@@ -7,7 +7,11 @@ export async function detectLinkedInBanSignals(
 ): Promise<BanSignal> {
   return detectFromConfig(page, responses, {
     url: {
-      checkpoint: [/\/checkpoint\//, /\/uas\/login/, /\/check\/manage-account/],
+      // /uas/login is the default unauthed redirect — it means the session
+      // cookies expired, not that LinkedIn is challenging. Classifying it as
+      // 'checkpoint' drowned the real ban signals in expired-cookie noise.
+      // Real checkpoint URLs contain /checkpoint/ or /check/manage-account.
+      checkpoint: [/\/checkpoint\//, /\/check\/manage-account/],
       suspended: [/\/help\/linkedin\/answer.*restrict/, /\/restrict/],
     },
     text: {
