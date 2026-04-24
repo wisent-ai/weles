@@ -8,7 +8,7 @@ import { existsSync, writeFileSync, mkdtempSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { chromium, firefox, type BrowserContext, type Browser } from 'playwright';
-import { generate, toConfig, toCppConfig } from './fingerprint.js';
+import { generate, toConfig, toCppConfig, toFirefoxWelesPrefs } from './fingerprint.js';
 import { buildInitScript } from './scripts/loader.js';
 import { pruneRecordings } from './prune.js';
 import type { Persona } from './browser/persona.js';
@@ -244,6 +244,7 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
       ...(nav.oscpu ? { 'general.oscpu.override': nav.oscpu } : {}),
       ...(nav.appVersion ? { 'general.appversion.override': nav.appVersion } : {}),
       ...(nav.hardwareConcurrency ? { 'dom.maxHardwareConcurrency': nav.hardwareConcurrency } : {}),
+      ...toFirefoxWelesPrefs(fpConfig), // weles patched-Firefox keys; no-op on stock
     };
     pwBrowser = await firefox.launch(launchOpts);
   }
