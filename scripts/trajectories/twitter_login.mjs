@@ -14,6 +14,25 @@ console.log(`[trajectory] Using account: ${acct.username}`);
 const { proxyUrl, persona } = await resolveAccountSession(acct);
 const s = await WSession.start({ label: 'twitter_login', proxy: proxyUrl, persona });
 
+async function captureCookies() {
+  if (!acct.id) return;
+  const supabaseUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
+  if (!supabaseUrl || !key) return;
+  try {
+    const cookies = await s.ctx.cookies();
+    const r = await fetch(`${supabaseUrl}/rest/v1/social_accounts?id=eq.${acct.id}&select=metadata`, { headers: { apikey: key, Authorization: `Bearer ${key}` } });
+    const rows = await r.json();
+    const merged = { ...(rows?.[0]?.metadata ?? {}), cookies };
+    await fetch(`${supabaseUrl}/rest/v1/social_accounts?id=eq.${acct.id}`, {
+      method: 'PATCH',
+      headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+      body: JSON.stringify({ metadata: merged }),
+    });
+    console.log(`[cookie-capture] refreshed ${cookies.length} cookies for account ${acct.id}`);
+  } catch (e) { console.log('[cookie-capture] err:', e.message); }
+}
+
 async function tryCookieFirstLogin() {
   const stored = Array.isArray(acct.metadata?.cookies) ? acct.metadata.cookies : [];
   if (stored.length === 0) return false;
@@ -89,6 +108,7 @@ try {
   const cookieOk = await tryCookieFirstLogin();
   if (cookieOk) {
     console.log('PASS: logged in (cookie-first)');
+    await captureCookies();
   } else {
     await s.goto(LOGIN_URL);
     await new Promise((r) => setTimeout(r, 3000));
@@ -103,6 +123,7 @@ try {
 
     if (outcome === 'ok') {
       console.log('PASS: logged in (direct path)');
+      await captureCookies();
     } else {
       const result = await execute(s, `You are on x.com login flow. Username/email is $SVC_EMAIL, password is $SVC_PASSWORD. If you see a username/email input, fill it and click Next. If you see a "confirm it's you" challenge asking for phone/email/username, fill it with $SVC_EMAIL and click Next. If you see a password input, fill it with $SVC_PASSWORD and click Log in. If you see a 2FA/verification-code prompt, use check_email to retrieve the code and submit it. done(value="logged in") once x.com/home is loaded.`, {
         envHints: { SVC_EMAIL: process.env.SVC_EMAIL, SVC_PASSWORD: '***' },
@@ -110,6 +131,7 @@ try {
         maxSteps: 25,
       });
       console.log('PASS:', result.value);
+      await captureCookies();
     }
   }
 } catch (e) {
