@@ -19,12 +19,13 @@ import { detectTikTokBanSignals }    from '../../../dist/platforms/tiktok/ban_si
 import { detectLinkedInBanSignals }  from '../../../dist/platforms/linkedin/ban_signals.js';
 import { detectDiscordBanSignals }   from '../../../dist/platforms/discord/ban_signals.js';
 import { detectGitHubBanSignals }    from '../../../dist/platforms/github/ban_signals.js';
+import { detectProductHuntBanSignals } from '../../../dist/platforms/producthunt/ban_signals.js';
 
 const DETECTORS = {
   reddit: detectRedditBanSignals, twitter: detectTwitterBanSignals,
   instagram: detectInstagramBanSignals, tiktok: detectTikTokBanSignals,
   linkedin: detectLinkedInBanSignals, discord: detectDiscordBanSignals,
-  github: detectGitHubBanSignals,
+  github: detectGitHubBanSignals, producthunt: detectProductHuntBanSignals,
 };
 
 // Per (platform, verb) config. `url` is the landing URL (static or a function
@@ -67,12 +68,19 @@ const CONFIG = {
     dwell:         { url: 'https://discord.com/channels/@me',                  scrolls: 4,  dwellMs: [2000, 4000] },
     notifications: { url: 'https://discord.com/channels/@me',                  scrolls: 2,  dwellMs: [1500, 2500] },
     search:        { url: 'https://discord.com/channels/@me',                  scrolls: 2,  dwellMs: [1500, 2500] },
+    profile_view:  { url: 'https://discord.com/channels/@me',                  scrolls: 2,  dwellMs: [1500, 2500] },
   },
   github: {
     dwell:         { url: 'https://github.com/',                               scrolls: 6,  dwellMs: [2000, 3500] },
     notifications: { url: 'https://github.com/notifications',                  scrolls: 3,  dwellMs: [1500, 2500] },
     search:        { url: (_, q) => `https://github.com/search?q=${encodeURIComponent(q)}&type=repositories`, scrolls: 6, dwellMs: [1500, 2500] },
     profile_view:  { url: (u) => `https://github.com/${encodeURIComponent(u)}`, scrolls: 4, dwellMs: [1500, 2500] },
+  },
+  producthunt: {
+    dwell:         { url: 'https://www.producthunt.com/',                      scrolls: 6,  dwellMs: [2000, 3500] },
+    notifications: { url: 'https://www.producthunt.com/notifications',         scrolls: 2,  dwellMs: [1500, 2500] },
+    search:        { url: (_, q) => `https://www.producthunt.com/search?q=${encodeURIComponent(q)}`, scrolls: 5, dwellMs: [1500, 2500] },
+    profile_view:  { url: (u) => `https://www.producthunt.com/@${encodeURIComponent(u)}`, scrolls: 4, dwellMs: [1500, 2500] },
   },
 };
 
