@@ -62,6 +62,18 @@ jobs:
           ls "$INSTALL_DIR"
           echo "WELES_FIREFOX_RELEASE=$TAG" >> "$GITHUB_ENV"
 
+      - name: Diagnose binary
+        run: |
+          BIN="$HOME/.local/share/weles-firefox/${{ github.event.inputs.tag && github.event.inputs.tag || github.event.client_payload.tag }}"
+          BIN="${BIN#$HOME/.local/share/weles-firefox/firefox-}"
+          DIR="$HOME/.local/share/weles-firefox/${BIN}/Firefox.app/Contents/MacOS"
+          echo "--- uname ---"; uname -a
+          echo "--- codesign verify ---"; codesign --verify -v "$DIR/firefox" 2>&1 || true
+          echo "--- firefox arch ---"; file "$DIR/firefox"
+          echo "--- libxul arch ---"; file "$DIR/XUL" 2>/dev/null || file "$DIR/libxul.dylib" 2>/dev/null || true
+          echo "--- direct run (prints XPCOM diagnostics) ---"
+          DYLD_PRINT_LIBRARIES_POST_LAUNCH=1 "$DIR/firefox" --version 2>&1 | head -20 || true
+
       - name: Run integration test
         env:
           WELES_DISABLE_RECORDING: "1"
