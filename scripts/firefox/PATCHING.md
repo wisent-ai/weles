@@ -68,12 +68,12 @@ left for Phase 2:
 
 ### Still requires a Gecko fork
 
-- [ ] **P2.1** Scaffold a `firefox-build/` sibling repo beside `chromium-build/` with a README capturing branch, build args, and output paths.
+- [x] **P2.1** Scaffold `firefox-build/` sibling repo beside `chromium-build/` with a README capturing the mach build recipe, pinned commit slot, GN args, expected output path, and the five patch targets. Empty `patches/` directory tracked via `.gitkeep` ready for Phase-2 `.patch` files.
 - [ ] **P2.2** `navigator.webdriver` at engine level. `dom.webdriver.enabled=false` is ignored when Playwright drives via juggler — it hardcodes `webdriver=true` in the Firefox binary. Needs either a patched juggler (drop the flag) or a C++ override in `dom/base/Navigator.cpp`.
 - [ ] **P2.3** WebGL vendor/renderer spoofing. `webgl.renderer-string-override` + `webgl.vendor-string-override` prefs exist but Firefox normalizes the values ("Apple Inc." is returned as "Apple"; "Apple M3" is coerced to "Apple M1, or similar"). Needs a patch in `dom/canvas/WebGLContext.cpp` to honor the raw pref string.
 - [ ] **P2.4** Screen overrides — `screen.width`, `screen.height`, `screen.availWidth`, `screen.availHeight`. No pref exists; needs a patch in `dom/base/Screen.cpp` that reads from a new `weles.screen.*` pref set or a JSON config.
 - [ ] **P2.5** Window-outer overrides — `window.outerWidth`, `window.outerHeight`, `window.screenX`, `window.screenY`. Needs a patch in `dom/base/nsGlobalWindowOuter.cpp`.
-- [ ] **P2.6** Release pipeline: patched Firefox tarball in `wisent-ai/weles-firefox` + a `scripts/firefox/download.sh` mirror of `scripts/chromium/download.sh`. Extend `src/session/wsession.ts::findCustomChromium` → `findCustomBrowser(browser)` so WSession resolves a patched Firefox binary the same way it resolves Chromium.
+- [~] **P2.6** Release pipeline. **Consumer side shipped:** `findCustomChromium` extracted into `src/session/find_browser.ts` as `findCustomBrowser(browser)`; WSession now scans `~/.local/share/weles-firefox/` and `../firefox-build/obj-weles/dist/` when `browser === 'firefox'`. `scripts/firefox/download.sh` is in place mirroring the Chromium downloader (returns a clear exit-2 message until `WELES_FIREFOX_RELEASE` points at a real tarball). **Producer side TBD:** build + tarball + GitHub Release in `wisent-ai/weles-firefox` — happens once the P2.2–P2.5 patches land and the first full build succeeds.
 
 ## Phase 3 — Validation + rotation flip
 
