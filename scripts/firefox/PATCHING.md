@@ -124,12 +124,18 @@ Two paths to close the gap. Either is multi-session work.
   ```
 
   After resolving: also copy `../firefox-build/juggler-upstream/playwright-repo/browser_patches/firefox/juggler/` into `mozilla-central/juggler/` and
-  apply the `jar.mn` / `moz.build` entries from `bootstrap.diff`. Rebuild
-  (another 4–8 h cycle on this Mac), re-run `verify.mjs` against the
-  juggler-enabled binary (must stay 11/11 OK — juggler doesn't touch
-  any surface the weles patches override), then update
-  `src/async_api.ts` firefox branch to pass `executablePath:
-  findCustomBrowser('firefox')` so Playwright drives the patched binary.
+  apply the `jar.mn` / `moz.build` entries from `bootstrap.diff`. Rebuild,
+  re-run `verify.mjs` against the juggler-enabled binary (must stay
+  11/11 OK — juggler doesn't touch any surface the weles patches
+  override), then update `src/async_api.ts` firefox branch to pass
+  `executablePath: findCustomBrowser('firefox')` so Playwright drives
+  the patched binary.
+
+  **Pre-staged for the next session:** `../firefox-build/juggler-upstream/rejects/`
+  contains the 11 `.rej` files + `apply.log` from a real `patch -p1 --fuzz=5`
+  application of `bootstrap.diff` on top of our tree. The 58 clean-applying
+  files are already modified in `mozilla-central/`; the 11 rejected hunks
+  are the only manual work. Re-running `patch` is not needed.
 - **P4.B** Swap the firefox driver. Firefox ships native WebDriver BiDi
   (via Marionette + RemoteAgent) in every build. Write a thin
   `src/session/firefox_bidi.ts` that speaks WebDriver BiDi over a WS
