@@ -79,7 +79,13 @@ export async function detectRedditBanSignals(
     if (pat.test(bodyText)) return { healthy: false, signal: 'rate_limited', details: { ...details, matched_text: pat.source } };
   }
 
-  const hasCaptchaFrame = page.frames().some((f) => /recaptcha|hcaptcha|arkoselabs|funcaptcha/i.test(f.url()));
+  // A captcha IFRAME URL is a necessary but not sufficient signal — ad networks
+  // ship recaptcha.js / hcaptcha tracking pixels inside non-challenge iframes,
+  // so the URL alone flags routine browsing. Require a corresponding response
+  // status in the 200-400 range and that the URL path contains a challenge-
+  // specific segment (anchor, bframe, fc/gt/gc) rather than being a plain
+  // asset fetch.
+  const hasCaptchaFrame = page.frames().some((f) => /(recaptcha|hcaptcha|arkoselabs|funcaptcha)\/api2\/(anchor|bframe)|arkoselabs\.com\/.*\/fc\/gt|arkoselabs\.com\/.*\/fc\/gc/i.test(f.url()));
   if (hasCaptchaFrame) {
     return { healthy: false, signal: 'captcha_challenge', details: { ...details, captcha_iframe_present: true } };
   }
