@@ -167,6 +167,48 @@ every weles session a perfect stable counter key across proxies.
 `t13d1516h2_8daaf6152771_d8a2da3f94cd` on every session. If you see
 `t13d1515h1_...`, something reintroduced `--disable-http2`.
 
+## Sanctioned primitives — copy from the passing register flows
+
+Every currently-passing register trajectory only uses these four primitives.
+None of them go through `page.evaluate(... .click())`. If a new trajectory
+needs a primitive outside this list, that's the warning sign.
+
+| Primitive | File | Routes through |
+| --- | --- | --- |
+| `await s.goto(url)` | all | `WSession._action` → `page.goto` with cloudflare-challenge wait |
+| `await s.click(target)` | twitter/instagram/tiktok/github register | `_action` → `humanClick` → CDP mouse → `SetTrusted(true)` |
+| `await s.fill(field, value)` | twitter/instagram/tiktok register | `_action` → `humanType` with per-character delay |
+| `await s.page.locator(sel).click()` | discord_register, github/register | Playwright locator → CDP mouse → `SetTrusted(true)` |
+| `await execute(s, goal, opts)` | reddit_register, linkedin_register | Vision agent loop; internally calls the same four primitives |
+
+Full set of register files — every one of these signs accounts that pass
+(or gets stuck at captchas, which is out of our control):
+
+- `scripts/trajectories/reddit_register.mjs` — agent-delegated
+- `scripts/trajectories/twitter_register.mjs` — explicit `s.click` / `s.fill` (see line 149 comment: "Previous page.evaluate(b.click()) produced isTrusted=false")
+- `scripts/trajectories/instagram_register.mjs` — explicit `s.fill` / `s.click`
+- `scripts/trajectories/tiktok_register.mjs` — explicit `s.click` / `s.fill`
+- `scripts/trajectories/linkedin_register.mjs` — agent-delegated
+- `scripts/trajectories/discord_register.mjs` — `s.page.locator(sel).click()`
+- `scripts/trajectories/producthunt_register.mjs` — explicit `s.fill` / `s.click`
+- `scripts/trajectories/github/register.mjs` — `s.page.locator` + explicit
+- `scripts/trajectories/youtube/register.mjs` — agent-delegated
+
+Routing rule (see `src/worker/poll.ts:54`):
+
+```ts
+register: (p) => p === 'github' || p === 'youtube'
+  ? `scripts/trajectories/${p}/register.mjs`
+  : `scripts/trajectories/${p}_register.mjs`
+```
+
+When adding a new action trajectory for a platform that has a passing
+register, copy the exact primitive style from that register file. If the
+register uses `s.click`, the action should use `s.click`. If the register
+uses the agent loop, the action should too. Divergence between the
+register-time and action-time humanization is itself a detection vector
+(#4 above: fingerprint/kinematics drift).
+
 ## How to verify a new trajectory is clean
 
 ```bash
