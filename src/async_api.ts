@@ -11,6 +11,7 @@ import { chromium, firefox, type BrowserContext, type Browser } from 'playwright
 import { generate, toConfig, toCppConfig, toFirefoxWelesPrefs } from './fingerprint.js';
 import { buildInitScript } from './scripts/loader.js';
 import { pruneRecordings } from './prune.js';
+import { findCustomBrowser } from './session/find_browser.js';
 import type { Persona } from './browser/persona.js';
 
 const CHROMIUM_ARGS = [
@@ -229,23 +230,20 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
     launchOpts.ignoreDefaultArgs = ['--enable-automation', '--enable-unsafe-swiftshader'];
     pwBrowser = await chromium.launch(launchOpts);
   } else {
-    // Firefox parity P1.3: enforce fingerprint-relevant prefs at engine level
-    // (iframe-safe; JS-only spoofing is not). resistFingerprinting MUST be off
-    // or Firefox overrides our per-session navigator/screen/canvas config.
-    // Audited 2026-04-23 (scripts/firefox/prefs_audit.mjs) — the override/cap
-    // prefs below all stick on the rendered page.
-    launchOpts.firefoxUserPrefs = {
-      'privacy.resistFingerprinting': false,
-      'privacy.fingerprintingProtection': false,
-      'dom.webdriver.enabled': false,
-      ...(persona?.language ? { 'intl.accept_languages': persona.language } : {}),
-      ...(nav.userAgent ? { 'general.useragent.override': nav.userAgent } : {}),
-      ...(nav.platform ? { 'general.platform.override': nav.platform } : {}),
-      ...(nav.oscpu ? { 'general.oscpu.override': nav.oscpu } : {}),
-      ...(nav.appVersion ? { 'general.appversion.override': nav.appVersion } : {}),
-      ...(nav.hardwareConcurrency ? { 'dom.maxHardwareConcurrency': nav.hardwareConcurrency } : {}),
-      ...toFirefoxWelesPrefs(fpConfig), // weles patched-Firefox keys; no-op on stock
-    };
+    // Firefox parity: pref-level fingerprint enforcement (iframe-safe).
+    // general.*/dom.* honored by stock Firefox; weles.fingerprint.* only
+    // honored by the weles-patched binary (stock ignores unknown keys).
+    launchOpts.firefoxUserPrefs = Object.assign({
+      'privacy.resistFingerprinting': false, 'privacy.fingerprintingProtection': false, 'dom.webdriver.enabled': false,
+    }, persona?.language && { 'intl.accept_languages': persona.language },
+       nav.userAgent && { 'general.useragent.override': nav.userAgent },
+       nav.platform && { 'general.platform.override': nav.platform },
+       nav.oscpu && { 'general.oscpu.override': nav.oscpu },
+       nav.appVersion && { 'general.appversion.override': nav.appVersion },
+       nav.hardwareConcurrency && { 'dom.maxHardwareConcurrency': nav.hardwareConcurrency },
+       toFirefoxWelesPrefs(fpConfig));
+    const ffBin = findCustomBrowser('firefox');
+    if (ffBin) launchOpts.executablePath = ffBin;
     pwBrowser = await firefox.launch(launchOpts);
   }
 
