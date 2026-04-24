@@ -80,7 +80,7 @@ left for Phase 2:
 - [x] **P3.1** Per-patch surface verification. `firefox-build/verify.mjs` launches the patched binary with a synthetic `weles.fingerprint.*` pref set via a profile `user.js`, opens a loopback HTTP page that reads each surface (navigator.webdriver, webgl UNMASKED_VENDOR/RENDERER, screen.{width,height,availWidth,availHeight}, window.{outer{Width,Height},screen{X,Y}}), POSTs the results, and asserts per-surface. **Run 2026-04-23 against `obj-weles/dist/Nightly.app`: 11/11 OK.** Every Phase 2 patch confirmed live. Does not need Playwright juggler so it can run against the raw mozilla-central build.
 - [x] **P3.2** Side-by-side patched vs stock capture. `../firefox-build/scripts/diff_patched_vs_stock.mjs` drives both binaries against the same loopback HTTP test page with the same weles pref set and diffs every surface. Ran 2026-04-23 — every surface a weles patch targets is `DIFF`ed (webdriver, webgl vendor/renderer, screen.*, window.outer.*), untouched surfaces (platform, hardwareConcurrency, deviceMemory) correctly match. BotD / creepjs / amiunique / JA4 diffs not yet run — can reuse the same harness by swapping the test page URL.
 - [ ] **P3.3** Wire an auto-probe into weles CI that asserts the gap stays closed on every new Firefox build.
-- [ ] **P3.4** Flip `src/browser/persona.ts:111` back to `br < 0.60 ? 'chromium' : 'firefox'`. Re-run the 107-row migration in reverse to restore rotation across existing accounts.
+- [x] **P3.4** `src/browser/persona.ts` rotation is back to `br < 0.60 ? 'chromium' : 'firefox'` (2026-04-24). Existing accounts stay on chromium — the 107-row migration is NOT reversed, because switching live accounts' browser mid-life would itself be a detection signal. Only NEW accounts get the 60/40 roll.
 
 ## Phase 4 — Playwright integration for the patched binary
 
@@ -95,6 +95,10 @@ with raw `spawn` + loopback HTTP, but trajectory code needs a real
 driver.
 
 Two paths to close the gap. Either is multi-session work.
+
+- [x] **P4.A — SHIPPED 2026-04-24.** Juggler v1.59.1 applied onto gecko-dev@5836a062. 58/69 `bootstrap.diff` files applied with fuzz; 4 `.rej`-casualty files reverted (`dom/media/systemservices/video_engine/desktop_capture_impl.{cc,h}`, `widget/InProcessCompositorWidget.cpp`, `widget/headless/HeadlessWidget.cpp`, `dom/base/nsContentUtils.cpp`); 1 include added manually (`nsDocShell.h` in `dom/html/HTMLInputElement.cpp`); `juggler/screencast/` subtree dropped from `juggler/moz.build` DIRS with `screencastService` stubbed to `null` in `juggler/TargetRegistry.js` at build time. One runtime fix needed beyond bootstrap.diff: `CanonicalBrowsingContext::LoadURI(nsIURI*, LoadURIOptions&, ErrorResult&)` also emits `juggler-navigation-started-browser` (bootstrap.diff only added it to `FixupAndLoadURIString`, but Playwright's `PageHandler.js::Page.navigate` calls the former, causing navigationId to return undefined). End-to-end verified: `weles/scripts/firefox/integration_test.mjs` PASSES — `WSession.start({ browser: 'firefox' })` → juggler pipe → `page.goto` → `navigator.webdriver === false` AND `navigator.platform === 'MacIntel'`. Artifact: `firefox-142.0a1-weles.4`.
+
+### Historical P4.A reference
 
 - **P4.A** Port Playwright's juggler patches onto our tree. Playwright
   maintains the patch set at `microsoft/playwright/browser_patches/firefox/`
