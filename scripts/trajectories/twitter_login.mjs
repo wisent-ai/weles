@@ -1,4 +1,4 @@
-import { getSocialAccount } from '../../dist/utils/credentials.js';
+import { getSocialAccount, resolveAccountSession } from '../../dist/utils/credentials.js';
 import { WSession } from '../../dist/session/wsession.js';
 import { execute } from '../../dist/agent/loop.js';
 
@@ -11,7 +11,8 @@ process.env.SVC_EMAIL = acct.metadata.email ?? acct.username;
 process.env.SVC_PASSWORD = acct.metadata.password ?? '';
 console.log(`[trajectory] Using account: ${acct.username}`);
 
-const s = await WSession.start({ label: 'twitter_login', proxy: process.env.PROXY_URL || undefined });
+const { proxyUrl, persona } = await resolveAccountSession(acct);
+const s = await WSession.start({ label: 'twitter_login', proxy: proxyUrl, persona });
 try {
   await s.goto(URL);
   const result = await execute(s, `Open ${URL}. ${GOAL}`, {
