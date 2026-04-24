@@ -132,13 +132,23 @@ Two paths to close the gap. Either is multi-session work.
   the patched binary.
 
   **In flight 2026-04-23:** `bootstrap.diff` applied with `patch -p1 --fuzz=5`
-  (58/69 files clean, 11 rejected hunks skipped — features Playwright added
-  against a newer/different upstream; non-critical for juggler protocol
-  itself). `juggler/` copied into `mozilla-central/juggler/`. weles patches
-  re-applied on top. `mach build` running against the juggler+weles tree.
+  (58/69 files clean, 11 rejected hunks skipped). `juggler/` copied into
+  `mozilla-central/juggler/`. weles patches re-applied on top. Two compile
+  failures discovered + worked around mid-build:
+
+  1. `dom/media/systemservices/video_engine/desktop_capture_impl.{cc,h}` —
+     partial-apply broke `webrtc::CritScope` / `webrtc::RecursiveCriticalSection`
+     references (our newer Gecko has them in `rtc::`). **Reverted both files**
+     entirely — Playwright's screen-capture additions to desktop_capture aren't
+     needed for the juggler protocol.
+  2. `juggler/screencast/` subtree references the same renamed `webrtc::*`
+     types (`VideoCaptureModuleEx`, `VideoSinkInterface`, `RawFrameCallback`).
+     **Dropped `screencast` from `juggler/moz.build` `DIRS`** so the subtree
+     doesn't compile. Trajectory automation does not call `Page.startScreencast`,
+     so this loses no surface weles uses.
+
   Post-build: `firefox-build/scripts/post_build.sh` runs verify → release.sh
-  → upload weles.2 tarball → local install → `weles/scripts/firefox/integration_test.mjs`
-  (confirms WSession firefox path works end-to-end).
+  → upload weles.2 tarball → local install → `weles/scripts/firefox/integration_test.mjs`.
 - **P4.B** Swap the firefox driver. Firefox ships native WebDriver BiDi
   (via Marionette + RemoteAgent) in every build. Write a thin
   `src/session/firefox_bidi.ts` that speaks WebDriver BiDi over a WS
