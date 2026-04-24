@@ -12,40 +12,64 @@ console.log(`[trajectory] Using account: ${acct.username}`);
 
 const { proxyUrl, persona } = await resolveAccountSession(acct);
 const s = await WSession.start({ label: 'twitter_login', proxy: proxyUrl, persona });
-try {
-  await s.goto(URL);
 
-  // Happy path: drive the two-step login form directly via Playwright
-  // selectors. x.com's modal is SPA flake for the vision agent — it keeps
-  // observing a blank-ish loading state and burns iterations. Direct fills
-  // on the known input names deliver us straight to the redirect.
+async function tryDirectPath() {
+  // Drive the two-step login form directly via Playwright selectors. x.com's
+  // modal is SPA flake for the vision agent — it keeps observing a blank-ish
+  // loading state and burns iterations.
   const usernameSel = 'input[autocomplete="username"], input[name="text"]';
   const passwordSel = 'input[autocomplete="current-password"], input[name="password"]';
   const nextBtnSel = '[data-testid="LoginForm_Login_Button"], button:has-text("Next")';
   const loginBtnSel = '[data-testid="LoginForm_Login_Button"], button:has-text("Log in")';
 
   await s.page.waitForSelector(usernameSel);
+  await s.screenshot('direct_username_visible').catch(() => {});
   await s.page.fill(usernameSel, process.env.SVC_EMAIL);
   await s.page.click(nextBtnSel);
 
-  await s.page.waitForSelector(passwordSel);
+  // After Next, Twitter EITHER shows password OR a "verify it's you" challenge
+  // (enter phone/username to confirm). Race the two: whichever appears first
+  // decides our next action. If neither, we bail and hand off to the agent.
+  const passwordLocator = s.page.locator(passwordSel).first();
+  const challengeLocator = s.page.locator('input[data-testid="ocfEnterTextTextInput"]').first();
+  const winner = await Promise.race([
+    passwordLocator.waitFor({ state: 'visible' }).then(() => 'password').catch(() => null),
+    challengeLocator.waitFor({ state: 'visible' }).then(() => 'challenge').catch(() => null),
+  ]);
+
+  if (winner === 'challenge') {
+    await s.screenshot('direct_challenge_detected').catch(() => {});
+    return 'agent-required';
+  }
+
+  await s.screenshot('direct_password_visible').catch(() => {});
   await s.page.fill(passwordSel, process.env.SVC_PASSWORD);
   await s.page.click(loginBtnSel);
 
-  // Give the SPA a moment to redirect; success = URL lands on /home.
-  try {
-    await s.page.waitForURL(/x\.com\/(home|i\/flow\/login\/check)/);
-  } catch { /* may still be on checkpoint/2FA */ }
+  try { await s.page.waitForURL(/x\.com\/(home|i\/flow\/login\/check)/); } catch {}
+  await s.screenshot('direct_after_submit').catch(() => {});
+  return /x\.com\/home/.test(s.page.url()) ? 'ok' : 'agent-required';
+}
 
-  // If we're on /home, we're logged in. Otherwise hand off to the agent
-  // to handle the remaining challenge (2FA, captcha, suspicious-login).
-  if (/x\.com\/home/.test(s.page.url())) {
+try {
+  await s.goto(URL);
+  await s.page.waitForLoadState('networkidle').catch(() => {});
+
+  let outcome = 'agent-required';
+  try {
+    outcome = await tryDirectPath();
+  } catch (e) {
+    console.log(`[trajectory] direct path errored: ${e.message?.slice(0, 200)}`);
+    await s.screenshot('direct_errored').catch(() => {});
+  }
+
+  if (outcome === 'ok') {
     console.log('PASS: logged in (direct path)');
   } else {
-    const result = await execute(s, `Open ${URL}. Resolve the remaining login challenge (2FA / captcha / suspicious-login prompt) and land on the home feed. done(value="logged in") once x.com/home is loaded.`, {
+    const result = await execute(s, `You are on x.com login flow. Username/email is $SVC_EMAIL, password is $SVC_PASSWORD. If you see a username/email input, fill it and click Next. If you see a "confirm it's you" challenge asking for phone/email/username, fill it with $SVC_EMAIL and click Next. If you see a password input, fill it with $SVC_PASSWORD and click Log in. If you see a 2FA/verification-code prompt, use check_email to retrieve the code and submit it. done(value="logged in") once x.com/home is loaded.`, {
       envHints: { SVC_EMAIL: process.env.SVC_EMAIL, SVC_PASSWORD: '***' },
       flowName: 'twitter_login',
-      maxSteps: 20,
+      maxSteps: 25,
     });
     console.log('PASS:', result.value);
   }
