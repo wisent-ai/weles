@@ -10,9 +10,17 @@ import type { Page } from 'playwright';
 
 export interface BanSignal {
   healthy: boolean;
-  signal: 'healthy' | 'suspended' | 'rate_limited' | 'captcha_challenge' | 'checkpoint' | 'shadowban_suspected' | 'unknown_error';
+  signal: 'healthy' | 'suspended' | 'rate_limited' | 'captcha_challenge' | 'checkpoint' | 'shadowban_suspected' | 'ip_blocked' | 'unknown_error';
   details: Record<string, unknown>;
 }
+
+// Reddit's edge (Cloudflare/Kasada) serves a "You've been blocked by network security"
+// page when it has flagged the exit IP — not the account. Distinct from a user-level
+// suspension so the trajectory can rotate proxy instead of marking the account dead.
+const IP_BLOCKED_TEXT_PATTERNS = [
+  /you'?ve been blocked by network security/i,
+  /blocked by network security/i,
+];
 
 // URL patterns that almost always indicate the account (or request) is blocked.
 const SUSPENDED_URL_PATTERNS = [/\/suspended/i, /\/banned/i, /\/account-activity/i, /\/blocked/i];
@@ -58,6 +66,9 @@ export async function detectRedditBanSignals(
   } catch { /* noop */ }
   details.body_text_sample = bodyText.slice(0, 240);
 
+  for (const pat of IP_BLOCKED_TEXT_PATTERNS) {
+    if (pat.test(bodyText)) return { healthy: false, signal: 'ip_blocked', details: { ...details, matched_text: pat.source } };
+  }
   for (const pat of SUSPENDED_TEXT_PATTERNS) {
     if (pat.test(bodyText)) return { healthy: false, signal: 'suspended', details: { ...details, matched_text: pat.source } };
   }
