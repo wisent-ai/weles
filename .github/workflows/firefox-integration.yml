@@ -1,0 +1,60 @@
+name: firefox-integration
+
+# Phase 3.3 CI auto-probe. Validates a weles-firefox release end-to-end:
+# downloads the tarball, extracts to the install path, launches it via
+# WSession, asserts engine-level patches + firefoxUserPrefs are live.
+#
+# Manual trigger only to stay cost-conscious (macOS runners are pricey).
+# Usage: gh workflow run firefox-integration.yml -f tag=firefox-142.0a1-weles.4
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "weles-firefox release tag to verify"
+        required: true
+        default: "firefox-142.0a1-weles.4"
+  repository_dispatch:
+    types: [firefox-release-published]
+
+jobs:
+  integration:
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - name: Checkout weles
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: npm install
+        run: npm ci
+
+      - name: Build dist
+        run: npm run build
+
+      - name: Install Playwright browsers (Firefox bundled)
+        run: npx playwright install firefox
+
+      - name: Download weles-firefox release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.event.inputs.tag || github.event.client_payload.tag }}
+        run: |
+          set -euo pipefail
+          VERSION="${TAG#firefox-}"
+          INSTALL_DIR="$HOME/.local/share/weles-firefox/$VERSION"
+          mkdir -p "$INSTALL_DIR"
+          gh release download "$TAG" --repo wisent-ai/weles-firefox \
+            --pattern "weles-firefox-${VERSION}-macos-arm64.tar.gz" --dir /tmp
+          tar -xzf /tmp/weles-firefox-${VERSION}-macos-arm64.tar.gz -C "$INSTALL_DIR"
+          ls "$INSTALL_DIR"
+          echo "WELES_FIREFOX_RELEASE=$TAG" >> "$GITHUB_ENV"
+
+      - name: Run integration test
+        env:
+          WELES_DISABLE_RECORDING: "1"
+        run: node scripts/firefox/integration_test.mjs
