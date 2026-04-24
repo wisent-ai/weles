@@ -42,9 +42,10 @@ Firefox does **not** get:
 
 - [x] **P1.1** Stop injecting `chrome147_stubs.js` into Firefox. Make `buildInitScript(config, exclude?)` browser-aware so the Chrome-only stubs only load when `config.browser === 'chromium'`.
 - [x] **P1.2** Add `src/scripts/firefox_stubs.js` for Firefox-specific masks: scrub Playwright juggler-extension markers, defensively delete any Chrome-only globals that leaked in, assert Firefox-expected navigator surfaces (`oscpu`, `buildID`). Loaded when `config.browser !== 'chromium'`.
-- [ ] **P1.3** Wire `firefoxUserPrefs` from the fingerprint config into `firefox.launch(launchOpts)`. Cover at least: `intl.accept_languages`, `general.useragent.override` (if a Firefox UA is requested), `general.platform.override`, `privacy.resistFingerprinting` (off — it overrides our config), `dom.webdriver.enabled=false`.
-- [ ] **P1.4** Port the Playwright identifier scrub for Firefox's copy of `injectedScriptSource.js` (same file path under `playwright-core`; the sed pattern already applies).
+- [x] **P1.3** Wire `firefoxUserPrefs` from the fingerprint config into `firefox.launch(launchOpts)`. Shipped: `privacy.resistFingerprinting: false`, `privacy.fingerprintingProtection: false`, `dom.webdriver.enabled: false`, plus `intl.accept_languages` + `general.useragent.override` when a persona language / custom UA is configured. In `src/async_api.ts`.
+- [x] **P1.4** Playwright identifier scrub. `injectedScriptSource.js` is shared across Chromium and Firefox (single file in `playwright-core/lib/generated/`); the existing chromium scrub that renamed `__playwright_*` → `__wpc_*_fb3e7a__` applies to both. Firefox-specific `UTILITY_WORLD_NAME` in `ffPage.js` is a juggler protocol identifier — internal to the CDP/juggler handshake, not visible to the page's JS — so no rename needed. `firefox/stubs.js` additionally deletes leaked `window.__playwright*` / `window._playwright_*` keys at init time as defense in depth.
 - [ ] **P1.5** Extend `src/diagnostics/capture_fingerprint_local.mjs` to support firefox as the target browser so we can A/B against real Firefox Nightly.
+- [ ] **P1.6** Postinstall hook so the Playwright identifier scrub survives `npm install` / `npm ci`. Today it is applied manually per-checkout; node_modules is gitignored so reinstalling reverts the rename.
 
 ## Phase 2 — Engine-level Gecko patches (separate session, requires Firefox fork)
 
