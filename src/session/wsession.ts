@@ -3,8 +3,7 @@
  * Every method uses shared modules. Agent tools map 1:1 to these methods.
  */
 
-import { type BrowserContext, chromium } from 'playwright';
-import { AsyncNewBrowser, type AsyncNewBrowserOptions } from '../async_api.js';
+import { type BrowserContext, chromium } from 'playwright'; import { AsyncNewBrowser, type AsyncNewBrowserOptions } from '../async_api.js';
 import type { Persona } from '../browser/persona.js';
 import { SessionStore } from './store.js';
 import { Capture } from '../capture/capture.js';
@@ -24,6 +23,7 @@ import { resolveProxy } from '../proxy/config.js';
 import { getEmailApiKey } from '../utils/credentials.js';
 import { findCustomBrowser } from './find_browser.js';
 
+import './wsession_atoms.js';  // side-effect: installs shared atoms onto WSession.prototype
 function recordingsDir(label?: string): string { const d = join(process.cwd(), 'recordings', ...(label ? [label] : [])); mkdirSync(d, { recursive: true }); return d; }
 
 export interface WSessionOptions {
@@ -69,7 +69,7 @@ export class WSession {
     ctx.on?.('response', async (res: any) => { try { if (this.capturedResponses.length >= 500) this.capturedResponses.shift(); let body = ''; try { body = (await res.text()).slice(0, 8192); } catch {} this.capturedResponses.push({ ts: Date.now(), method: res.request()?.method?.() ?? 'GET', url: res.url(), status: res.status(), headers: res.headers(), body }); } catch {} });
   }
 
-  private async _action<T>(name: string, fn: () => Promise<T>): Promise<T> {
+  async runStep<T>(name: string, fn: () => Promise<T>): Promise<T> {
     const n = String(this._step++).padStart(3, '0');
     const label = `${n}_${name.replace(/[^a-z0-9]/gi, '_').slice(0, 30)}`;
     const url = (typeof this.page.url === 'function' ? this.page.url() : '') ?? '';
@@ -121,7 +121,7 @@ export class WSession {
   }
 
   async goto(url: string): Promise<string> {
-    return this._action(`goto_${url.split('/').pop()?.slice(0,20)}`, async () => {
+    return this.runStep(`goto_${url.split('/').pop()?.slice(0,20)}`, async () => {
       await this.page.goto(url, { waitUntil: 'domcontentloaded' });
       await waitCloudflare(asV(this.page)).catch(() => {});
       return `navigated to ${this.page.url?.() ?? url}`;
@@ -129,7 +129,7 @@ export class WSession {
   }
 
   async click(target: string): Promise<string> {
-    return this._action(`click_${target}`, async () => {
+    return this.runStep(`click_${target}`, async () => {
       const coords = await findClickTarget(asV(this.page), target);
       if (coords) { await humanClick(this.page, coords.x, coords.y); return `clicked ${target}`; }
       // Find element coordinates by text match, then humanClick on them
@@ -140,7 +140,7 @@ export class WSession {
   }
 
   async fill(target: string, value: string): Promise<string> {
-    return this._action(`fill_${target}`, async () => {
+    return this.runStep(`fill_${target}`, async () => {
     const v = this.resolveEnv(value);
     const kws = target.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(w => w.length > 2);
     const sels = kws.flatMap(k => ['input','textarea','[contenteditable]'].flatMap(t => [`${t}[name*="${k}"]`,`${t}[placeholder*="${k}" i]`,`${t}[aria-label*="${k}" i]`]));
@@ -155,7 +155,7 @@ export class WSession {
   }
 
   async focus(selector: string): Promise<string> {
-    return this._action(`focus_${selector}`, async () => {
+    return this.runStep(`focus_${selector}`, async () => {
       const simple = selector.split(' ').pop()?.toLowerCase().replace(/['"[\]]/g, '') ?? '';
       const sels = [selector, `input[name="${selector}"]`, `input[type="${selector}"]`, `input[placeholder*="${selector}" i]`];
       if (simple && simple !== selector) sels.push(`input[name="${simple}"]`, `input[placeholder*="${simple}" i]`);
@@ -165,7 +165,7 @@ export class WSession {
   }
 
   async jsClick(selector?: string, text?: string): Promise<string> {
-    return this._action(`jsClick_${text ?? selector}`, async () => {
+    return this.runStep(`jsClick_${text ?? selector}`, async () => {
       const sel = JSON.stringify(selector ?? ''), txt = JSON.stringify((text ?? '').toLowerCase());
       // Shadow DOM deep search (Reddit vote buttons)
       const sr = await this.page.evaluate(`(()=>{var t=${txt};function F(r){var a=[];r.querySelectorAll('*').forEach(function(e){if(e.shadowRoot){var sr=e.shadowRoot;a=a.concat(Array.from(sr.querySelectorAll('[data-post-click-location] button')));a=a.concat(F(sr))}});return a}var bs=F(document);if(t&&t.indexOf('upvote')>=0&&bs.length>0){bs[0].click();return'clicked upvote (shadow)'}if(t&&t.indexOf('downvote')>=0&&bs.length>1){bs[1].click();return'clicked downvote (shadow)'}return null})()`).catch(() => null);
@@ -176,19 +176,19 @@ export class WSession {
     });
   }
 
-  async clickSelector(selector: string): Promise<string> { return this._action(`clickSel_${selector.slice(0,30)}`, async () => { const loc = this.page.locator(selector).first(); if (!(await loc.count())) return 'no-element-found'; await loc.click(); return `clicked ${selector.slice(0,60)}`; }); }
-  async type(value: string): Promise<string> { return this._action('type', async () => { await humanType(this.page, this.resolveEnv(value)); return 'typed'; }); }
-  async press(key: string): Promise<string> { return this._action(`press_${key}`, async () => { await this.page.keyboard.press(key); return `pressed ${key}`; }); }
+  async clickSelector(selector: string): Promise<string> { return this.runStep(`clickSel_${selector.slice(0,30)}`, async () => { const loc = this.page.locator(selector).first(); if (!(await loc.count())) return 'no-element-found'; await loc.click(); return `clicked ${selector.slice(0,60)}`; }); }
+  async type(value: string): Promise<string> { return this.runStep('type', async () => { await humanType(this.page, this.resolveEnv(value)); return 'typed'; }); }
+  async press(key: string): Promise<string> { return this.runStep(`press_${key}`, async () => { await this.page.keyboard.press(key); return `pressed ${key}`; }); }
 
   async select(target: string, value: string): Promise<string> {
-    return this._action(`select_${target}_${value}`, async () => {
+    return this.runStep(`select_${target}_${value}`, async () => {
       const result = await selectOption(this.page, target, this.resolveEnv(value));
       return result ? `selected: ${result}` : 'no-select-found';
     });
   }
 
   async scroll(direction: string, amount?: number): Promise<string> {
-    return this._action(`scroll_${direction}`, async () => {
+    return this.runStep(`scroll_${direction}`, async () => {
       const delta = (direction === 'up' ? -(amount ?? 400) : (amount ?? 400));
       await this.page.evaluate(`window.scrollBy(0, ${delta})`);
       return `scrolled ${direction} ${amount ?? 400}`;
@@ -197,7 +197,7 @@ export class WSession {
 
   async wait(seconds: number): Promise<string> { await new Promise(r => setTimeout(r, seconds * 1000)); return `waited ${seconds}s`; }
   async read(question: string): Promise<string> { return await askPage(asV(this.page), question) ?? 'NONE'; }
-  async solveCaptcha(): Promise<string> { return this._action('solveCaptcha', async () => (await solvePageCaptcha(this.page, this._solver, this)) ? 'captcha solved' : 'captcha failed'); }
+  async solveCaptcha(): Promise<string> { return this.runStep('solveCaptcha', async () => (await solvePageCaptcha(this.page, this._solver, this)) ? 'captcha solved' : 'captcha failed'); }
 
   async checkEmail(email: string, sender: string): Promise<string> {
     const key = await getEmailApiKey() ?? '';
