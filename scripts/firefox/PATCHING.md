@@ -82,6 +82,34 @@ left for Phase 2:
 - [ ] **P3.3** Wire an auto-probe into weles CI that asserts the gap stays closed on every new Firefox build.
 - [ ] **P3.4** Flip `src/browser/persona.ts:111` back to `br < 0.60 ? 'chromium' : 'firefox'`. Re-run the 107-row migration in reverse to restore rotation across existing accounts.
 
+## Phase 4 — Playwright integration for the patched binary
+
+Blocker surfaced 2026-04-23: our patched Firefox 142.0a1 is a vanilla
+mozilla-central build plus the five weles patches. Playwright's
+`firefox.launch({ executablePath })` fails because Playwright's Firefox
+fork also carries the **juggler** extension (an in-tree WebExtension +
+C++ hook layer the Playwright client speaks to over the `-juggler-pipe`
+command-line switch). Upstream Firefox does not have juggler. `verify.mjs`
+and `diff_patched_vs_stock.mjs` work around this by driving the binary
+with raw `spawn` + loopback HTTP, but trajectory code needs a real
+driver.
+
+Two paths to close the gap. Either is multi-session work.
+
+- **P4.A** Port Playwright's juggler patches onto our tree. Playwright
+  maintains the patch set at `microsoft/playwright/browser_patches/firefox/`
+  against a pinned `mozilla-firefox/firefox` release branch (currently
+  `4eb5a4f7`); we target `mozilla/gecko-dev@5836a062`. The patches will
+  need rebasing. Once applied, rebuild + re-run `verify.mjs` (expect
+  still-OK — juggler doesn't touch any surface we patch) + update
+  `async_api.ts` firefox branch to pass `executablePath: findCustomBrowser('firefox')`.
+- **P4.B** Swap the firefox driver. Firefox ships native WebDriver BiDi
+  (via Marionette + RemoteAgent) in every build. Write a thin
+  `src/session/firefox_bidi.ts` that speaks WebDriver BiDi over a WS
+  and exposes the subset of `page.*` / `context.*` the trajectories
+  actually call. Cleaner and not Playwright-fork-maintenance, but
+  every trajectory's playwright method set has to be covered.
+
 ## Scope notes
 
 - "Parity" does not mean "identical to Chromium". It means the same *level* of defense: engine-level enforcement of every surface a bot classifier reads, with a documented JSON config driving it at launch.
