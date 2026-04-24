@@ -34,6 +34,26 @@ async function wipeStoredProxy(accountId) {
 
 const { proxyUrl, persona } = await resolveAccountSession(acct);
 const s = await WSession.start({ label: 'reddit_login', proxy: proxyUrl, persona });
+
+async function captureCookies() {
+  if (!acct.id) return;
+  const supabaseUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
+  if (!supabaseUrl || !key) return;
+  try {
+    const cookies = await s.ctx.cookies();
+    const r = await fetch(`${supabaseUrl}/rest/v1/social_accounts?id=eq.${acct.id}&select=metadata`, { headers: { apikey: key, Authorization: `Bearer ${key}` } });
+    const rows = await r.json();
+    const merged = { ...(rows?.[0]?.metadata ?? {}), cookies };
+    await fetch(`${supabaseUrl}/rest/v1/social_accounts?id=eq.${acct.id}`, {
+      method: 'PATCH',
+      headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+      body: JSON.stringify({ metadata: merged }),
+    });
+    console.log(`[cookie-capture] refreshed ${cookies.length} cookies for account ${acct.id}`);
+  } catch (e) { console.log('[cookie-capture] err:', e.message); }
+}
+
 let banSignal = null;
 try {
   await s.goto(URL);
@@ -56,6 +76,7 @@ try {
     banSignal = await detectRedditBanSignals(s.page, s.capturedResponses).catch((e) => ({ healthy: false, signal: 'unknown_error', details: { detector_error: e.message } }));
     console.log(`[ban-signal] ${banSignal.signal} (${JSON.stringify(banSignal.details).slice(0, 200)})`);
     if (banSignal?.signal === 'ip_blocked') await wipeStoredProxy(acct.id);
+    else if (banSignal?.signal === 'healthy') await captureCookies();
     console.log('PASS:', result.value);
   }
 } catch (e) {
