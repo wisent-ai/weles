@@ -121,18 +121,75 @@ export interface AccountSession { proxyUrl?: string; persona?: Persona; }
 export async function resolveAccountSession(acct: SocialAccount): Promise<AccountSession> {
   const meta = acct.metadata as any;
   const out: AccountSession = {};
+  let cfg: ProxyConfig | null = null;
+
   if (meta?.proxy?.host && meta?.proxy?.port) {
-    out.proxyUrl = buildProxyUrl(meta.proxy as ProxyConfig);
-  } else if (process.env.PROXY_URL) {
-    out.proxyUrl = process.env.PROXY_URL;
+    cfg = meta.proxy as ProxyConfig;
+  } else if (meta?.proxy?.server) {
+    // Legacy shape from the old Python signup path: { server, username, password }.
+    // Convert in place — parsed URL gives host/port/protocol.
+    try {
+      const u = new URL(meta.proxy.server as string);
+      cfg = {
+        host: u.hostname,
+        port: Number(u.port),
+        protocol: u.protocol.replace(/:$/, ''),
+        username: meta.proxy.username,
+        password: meta.proxy.password,
+      };
+      await backfillProxy(acct, cfg);
+    } catch { /* bad server url, fall through */ }
   }
+
+  if (!cfg && process.env.PROXY_URL) {
+    out.proxyUrl = process.env.PROXY_URL;
+  } else if (!cfg) {
+    // No stored proxy at all. Pick one from service_credentials via resolveProxy,
+    // persist back to metadata so the same account gets a sticky-ish proxy on reuse.
+    try {
+      const mod = await import('../proxy/config.js');
+      const pw = await mod.resolveProxy('residential');
+      if (pw?.server) {
+        const u = new URL(pw.server);
+        cfg = {
+          host: u.hostname,
+          port: Number(u.port),
+          protocol: u.protocol.replace(/:$/, ''),
+          username: pw.username,
+          password: pw.password,
+        };
+        await backfillProxy(acct, cfg);
+      }
+    } catch (e) {
+      console.error('[identity] dynamic proxy assignment failed:', (e as Error).message);
+    }
+  }
+
+  if (cfg) out.proxyUrl = buildProxyUrl(cfg);
   if (meta?.persona) {
     out.persona = meta.persona as Persona;
   } else {
-    out.persona = generatePersona({ country: meta?.proxy?.country });
+    out.persona = generatePersona({ country: cfg?.country ?? meta?.proxy?.country });
     await backfillPersona(acct, out.persona);
   }
   return out;
+}
+
+async function backfillProxy(acct: SocialAccount, cfg: ProxyConfig): Promise<void> {
+  if (!acct.id) return;
+  const url = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
+  if (!url || !key) return;
+  const merged = { ...((acct.metadata ?? {}) as any), proxy: cfg };
+  try {
+    await fetch(`${url}/rest/v1/social_accounts?id=eq.${acct.id}`, {
+      method: 'PATCH',
+      headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+      body: JSON.stringify({ metadata: merged }),
+    });
+  } catch (e) {
+    console.error('[identity] backfillProxy failed:', (e as Error).message);
+  }
 }
 
 async function backfillPersona(acct: SocialAccount, persona: Persona): Promise<void> {
