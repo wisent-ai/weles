@@ -53,7 +53,11 @@ async function tryDirectPath() {
 
 try {
   await s.goto(URL);
-  await s.page.waitForLoadState('networkidle').catch(() => {});
+  // Give the SPA modal ~3s to boot before probing selectors. We avoid
+  // waitForLoadState('networkidle') because weles sets context navigation
+  // timeout to 0 (async_api.ts:191) and x.com never reaches network idle
+  // — the call would hang indefinitely.
+  await new Promise((r) => setTimeout(r, 3000));
 
   let outcome = 'agent-required';
   try {
