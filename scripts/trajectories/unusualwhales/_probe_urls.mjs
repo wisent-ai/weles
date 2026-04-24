@@ -36,10 +36,11 @@ async function login() {
   const em = inputs.find(i => i.type === 'email' || i.name === 'email' || /email|address/i.test(i.ph || ''));
   const pw = inputs.find(i => i.type === 'password' || i.name === 'password');
   const sel = (i) => i.name ? `input[name="${i.name}"]` : `input[placeholder="${i.ph}"]`;
-  const fill = (se, v) => s.page.evaluate(`(({ sel, val }) => { const el = document.querySelector(sel); el.focus(); const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set; setter.call(el, val); el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); })(${JSON.stringify({ sel: se, val: v })})`);
-  await fill(sel(em), email); await s.wait(1);
-  await fill(sel(pw), password); await s.wait(1);
-  await s.page.evaluate(`(() => { const b = document.querySelector('button[type="submit"], input[type="submit"]'); if (b) b.click(); else document.querySelector('form')?.requestSubmit(); })()`);
+  await s.fillSelector(sel(em), email); await s.wait(1);
+  await s.fillSelector(sel(pw), password); await s.wait(1);
+  const submitLoc = s.page.locator('button[type="submit"], input[type="submit"]').first();
+  if (await submitLoc.count()) await submitLoc.click().catch(() => {});
+  else await s.page.evaluate('document.querySelector("form")?.requestSubmit()').catch(() => {});
   for (let i = 0; i < 30; i++) { await s.wait(2); if (!s.page.url().includes('/login')) return; }
   throw new Error('login did not redirect');
 }
@@ -178,10 +179,11 @@ if (mode === 'inventory') {
           const em = inputs.find(i => i.type === 'email' || i.name === 'email' || /email|address/i.test(i.ph || ''));
           const pw = inputs.find(i => i.type === 'password' || i.name === 'password');
           const buildSel = (i) => i.name ? `input[name="${i.name}"]` : `input[placeholder="${i.ph}"]`;
-          const fill2 = (se, v) => sess.page.evaluate(`(({ sel, val }) => { const el = document.querySelector(sel); el.focus(); const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set; setter.call(el, val); el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); })(${JSON.stringify({ sel: se, val: v })})`);
-          await fill2(buildSel(em), email); await sess.wait(1);
-          await fill2(buildSel(pw), password); await sess.wait(1);
-          await sess.page.evaluate(`(() => { const b = document.querySelector('button[type="submit"], input[type="submit"]'); if (b) b.click(); else document.querySelector('form')?.requestSubmit(); })()`);
+          await sess.fillSelector(buildSel(em), email); await sess.wait(1);
+          await sess.fillSelector(buildSel(pw), password); await sess.wait(1);
+          const submitLoc = sess.page.locator('button[type="submit"], input[type="submit"]').first();
+          if (await submitLoc.count()) await submitLoc.click().catch(() => {});
+          else await sess.page.evaluate('document.querySelector("form")?.requestSubmit()').catch(() => {});
           for (let i = 0; i < 30; i++) { await sess.wait(2); if (!sess.page.url().includes('/login')) return; }
           throw new Error('relogin failed');
         })();

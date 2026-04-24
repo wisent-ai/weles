@@ -59,17 +59,17 @@ try {
   console.log(`[follow] State: ${JSON.stringify(state)}`);
   if (state.unfollowVisible) { console.log(`PASS: already following ${TARGET}`); process.exit(0); }
 
-  // Click Follow — must click the VISIBLE input, not the hidden one
-  const clicked = await s.page.evaluate(`(() => {
-    const inputs = Array.from(document.querySelectorAll('input[type="submit"][value="Follow"]'));
-    for (const inp of inputs) {
-      if (inp.offsetParent !== null && !inp.closest('[hidden]')) { inp.click(); return { clicked: true, tag: 'input-visible' }; }
-    }
-    // If only a hidden Follow form exists, submit it directly
-    const form = document.querySelector('form[action*="/users/follow"]');
-    if (form) { form.removeAttribute('hidden'); form.requestSubmit?.(); return { clicked: true, tag: 'form-submit' }; }
-    return { clicked: false };
-  })()`);
+  // Click Follow — locator.click auto-waits for visible + enabled, which
+  // filters out any hidden duplicate Follow forms github ships.
+  const followLoc = s.page.locator('input[type="submit"][value="Follow"]:visible').first();
+  let clicked;
+  if (await followLoc.count()) {
+    await followLoc.click().catch(() => {});
+    clicked = { clicked: true, tag: 'input-visible' };
+  } else {
+    const formSubmit = await s.page.evaluate(`(() => { const f = document.querySelector('form[action*="/users/follow"]'); if (f) { f.removeAttribute('hidden'); f.requestSubmit?.(); return true; } return false; })()`).catch(() => false);
+    clicked = formSubmit ? { clicked: true, tag: 'form-submit' } : { clicked: false };
+  }
   console.log(`[follow] Click: ${JSON.stringify(clicked)}`);
   await s.wait(3);
 

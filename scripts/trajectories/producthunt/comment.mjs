@@ -50,12 +50,13 @@ async function postComment(s, acct) {
   const found = await s.page.evaluate(`(() => (document.body?.innerText || '').includes(${JSON.stringify(COMMENT_TEXT.slice(0, 60))}))()`).catch(() => false);
   if (found) return true;
 
-  // If the keybinding didn't submit, click a submit button by label
-  const btnClicked = await s.page.evaluate(() => {
-    const btn = Array.from(document.querySelectorAll('button')).find(b => /^(reply|send|submit)$/i.test((b.textContent || '').trim()) && !b.disabled);
-    if (btn) { btn.click(); return (btn.textContent || '').trim(); }
-    return null;
-  }).catch(() => null);
+  // Otherwise click a submit button by label via Playwright locator.
+  const submitBtn = s.page.locator('button').filter({ hasText: /^(reply|send|submit)$/i }).first();
+  let btnClicked = null;
+  if ((await submitBtn.count()) && !(await submitBtn.isDisabled().catch(() => true))) {
+    btnClicked = ((await submitBtn.innerText().catch(() => '')) ?? '').trim();
+    await submitBtn.click().catch(() => {});
+  }
   console.log(`[ph-comment] explicit submit button: ${btnClicked}`);
   await sleep(4);
 
