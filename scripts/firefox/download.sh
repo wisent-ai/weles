@@ -14,18 +14,9 @@
 
 set -euo pipefail
 
-RELEASE_TAG="${WELES_FIREFOX_RELEASE:-}"
+RELEASE_TAG="${WELES_FIREFOX_RELEASE:-firefox-142.0a1-weles.1}"
 REPO="wisent-ai/weles-firefox"
 INSTALL_ROOT="${WELES_FIREFOX_DIR:-$HOME/.local/share/weles-firefox}"
-
-if [[ -z "$RELEASE_TAG" ]]; then
-  echo "WELES_FIREFOX_RELEASE is not set and no default tag exists yet." >&2
-  echo "Phase 2 of scripts/firefox/PATCHING.md is not shipped." >&2
-  echo "weles WSession.start({ browser: 'firefox' }) falls through to Playwright's" >&2
-  echo "bundled Firefox with Phase-1 pref + stub + scrub parity; that is the" >&2
-  echo "current supported Firefox path." >&2
-  exit 2
-fi
 
 VERSION="${RELEASE_TAG#firefox-}"
 INSTALL_DIR="$INSTALL_ROOT/$VERSION"
@@ -51,9 +42,15 @@ mkdir -p "$INSTALL_DIR"
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 
-URL="https://github.com/$REPO/releases/download/$RELEASE_TAG/$ASSET"
-echo "downloading $URL ..." >&2
-curl -fSL -o "$TMP/$ASSET" "$URL"
+echo "downloading $ASSET from $REPO@$RELEASE_TAG ..." >&2
+# Prefer `gh release download` — handles auth for private repos + public.
+# Falls back to plain curl for environments without gh installed.
+if command -v gh >/dev/null 2>&1; then
+  ( cd "$TMP" && gh release download "$RELEASE_TAG" --repo "$REPO" --pattern "$ASSET" )
+else
+  URL="https://github.com/$REPO/releases/download/$RELEASE_TAG/$ASSET"
+  curl -fSL -o "$TMP/$ASSET" "$URL"
+fi
 tar -xzf "$TMP/$ASSET" -C "$INSTALL_DIR" --strip-components=0
 
 if [[ ! -x "$BIN" ]]; then
