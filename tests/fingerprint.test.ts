@@ -72,3 +72,36 @@ describe('toCppConfig', () => {
     expect(cpp.audio.noiseSeed).toBe(config.audio.noiseSeed);
   });
 });
+
+describe('toFirefoxWelesPrefs', () => {
+  it('emits exact pref names the patched Firefox reads', async () => {
+    const { toFirefoxWelesPrefs } = await import('../src/fingerprint.js');
+    const cfg = {
+      browser: 'firefox',
+      navigator: { userAgent: 'Mozilla/5.0 ...', platform: 'MacIntel' },
+      screen: { width: 2048, height: 1536, availWidth: 2048, availHeight: 1500, colorDepth: 24, pixelDepth: 24 },
+      window: { devicePixelRatio: 2, outerWidth: 2050, outerHeight: 1616, screenX: 42, screenY: 24 },
+      webgl: { vendor: 'Apple Inc.', renderer: 'Apple M3', unmaskedVendor: 'Apple Inc. (raw)', unmaskedRenderer: 'Apple M3 (raw)' },
+    };
+    const prefs = toFirefoxWelesPrefs(cfg as any);
+    // Names must match firefox-build/patches/0001-weles-prefs-register.patch
+    expect(prefs['weles.fingerprint.webdriver.force']).toBe(true);
+    expect(prefs['weles.fingerprint.webgl.vendor']).toBe('Apple Inc. (raw)');
+    expect(prefs['weles.fingerprint.webgl.renderer']).toBe('Apple M3 (raw)');
+    expect(prefs['weles.fingerprint.screen.width']).toBe(2048);
+    expect(prefs['weles.fingerprint.screen.height']).toBe(1536);
+    expect(prefs['weles.fingerprint.screen.avail_width']).toBe(2048);
+    expect(prefs['weles.fingerprint.screen.avail_height']).toBe(1500);
+    expect(prefs['weles.fingerprint.window.outer_width']).toBe(2050);
+    expect(prefs['weles.fingerprint.window.outer_height']).toBe(1616);
+    expect(prefs['weles.fingerprint.window.screen_x']).toBe(42);
+    expect(prefs['weles.fingerprint.window.screen_y']).toBe(24);
+  });
+  it('produces sentinel values for partial configs', async () => {
+    const { toFirefoxWelesPrefs } = await import('../src/fingerprint.js');
+    const prefs = toFirefoxWelesPrefs({ browser: 'firefox' } as any);
+    expect(prefs['weles.fingerprint.webgl.vendor']).toBe('');
+    expect(prefs['weles.fingerprint.screen.width']).toBe(0);
+    expect(prefs['weles.fingerprint.window.outer_width']).toBe(0);
+  });
+});
