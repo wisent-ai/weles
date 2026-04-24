@@ -36,7 +36,10 @@ async function login() {
   const fill = (sel, val) => s.page.evaluate(`(({ sel, val }) => { const el = document.querySelector(sel); if (!el) return false; el.focus(); const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; setter.call(el, val); el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); return true; })(${JSON.stringify({ sel, val })})`);
   await fill('input[name="Email"]', email); await s.wait(1);
   await fill('input[name="Password"]', password); await s.wait(1);
-  await s.page.evaluate(`(() => { const b = document.querySelector('button[type="submit"], input[type="submit"]'); if (b) b.click(); else document.querySelector('form')?.requestSubmit(); })()`);
+  // Shared-atom submit with form.requestSubmit as a secondary path
+  const submitLoc = s.page.locator('button[type="submit"], input[type="submit"]').first();
+  if (await submitLoc.count()) await submitLoc.click().catch(() => {});
+  else await s.page.evaluate('document.querySelector("form")?.requestSubmit()').catch(() => {});
   // Wait for redirect away from /Login
   for (let i = 0; i < 30; i++) {
     await s.wait(2);
