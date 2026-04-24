@@ -105,12 +105,13 @@ function pick<T>(arr: T[]): T { return arr[Math.floor(Math.random() * arr.length
 export function generatePersona(opts: { country?: string; os?: Persona['os']; browser?: Persona['browser'] } = {}): Persona {
   const r = Math.random();
   const os: Persona['os'] = opts.os ?? (r < 0.70 ? 'windows' : r < 0.95 ? 'macos' : 'linux');
-  // Browser rotation pinned to chromium: the weles fingerprint stack (C++ patches
-  // in chromium-build, chrome147_stubs.js injection, --weles-fingerprint config)
-  // exists only for Chromium. Playwright Firefox is stock + a few init scripts
-  // and is detectable on every surface the Chromium work fixes. Re-enable the
-  // rotation after the Firefox patching roadmap item lands (see README).
-  const browser: Persona['browser'] = opts.browser ?? 'chromium';
+  // 60/40 chromium/firefox. Both browsers now carry engine-level weles patches:
+  // chromium via chromium-build (canvas noise, UA reduction, ALPS, HEVC/audio
+  // shims); firefox via firefox-build (navigator.webdriver, webgl vendor/renderer
+  // de-sanitize, nsScreen + window-outer overrides, juggler integration).
+  // Rotation = TLS/HTTP2 fingerprint rotation (BoringSSL vs NSS → different JA4).
+  const br = Math.random();
+  const browser: Persona['browser'] = opts.browser ?? (br < 0.60 ? 'chromium' : 'firefox');
 
   const gpu = os === 'macos' ? pick(MACOS_GPUS) : os === 'windows' ? pick(WINDOWS_GPUS) : pick(LINUX_GPUS);
   const screen = os === 'macos' ? pick(MACOS_SCREENS) : os === 'windows' ? pick(WINDOWS_SCREENS) : pick(LINUX_SCREENS);
