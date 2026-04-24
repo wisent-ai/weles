@@ -96,14 +96,14 @@ try {
   await s.wait(1);
 
   // Submit — match ONLY the login form's submit control (value~="Sign in")
-  // to avoid hitting unrelated submit buttons on other pages.
-  const submitted = await s.page.evaluate(`(() => {
-    const btn = document.querySelector('input[type="submit"][value*="Sign in" i], input[name="commit"][value*="Sign in" i]');
-    if (btn) { btn.click(); return { clicked: true, tag: btn.tagName, value: btn.value || btn.innerText }; }
-    const form = document.querySelector('form[action*="/session"]');
-    if (form) { form.requestSubmit?.(); return { clicked: 'form' }; }
-    return { clicked: false };
-  })()`);
+  // to avoid hitting unrelated submit buttons on other pages. Use Playwright
+  // locator so the click routes through CDP with isTrusted=true (see
+  // docs/DETECTION_ANTIPATTERNS.md §1). Login submit is exactly the kind of
+  // event github's spam ML reads isTrusted on.
+  const submitLoc = s.page.locator('input[type="submit"][value*="Sign in" i], input[name="commit"][value*="Sign in" i]').first();
+  const submitted = await submitLoc.count() > 0
+    ? await submitLoc.click().then(() => ({ clicked: true, via: 'locator' })).catch((e) => ({ clicked: false, err: e.message?.slice(0, 100) }))
+    : { clicked: false };
   console.log(`[login] Submit: ${JSON.stringify(submitted)}`);
   if (!submitted.clicked) {
     console.log('FAIL: no Sign-in submit control found on login page');

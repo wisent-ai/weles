@@ -31,15 +31,15 @@ try {
   const loggedOut = await s.page.evaluate(() => !!document.querySelector('a[href="/login"]'));
   if (loggedOut) throw new Error('not_logged_in: cookies stale');
 
-  // Template picker — click "Open a blank issue" if present. GitHub renders it as
-  // an <a> with data-testid or text "Open a blank issue". If repo has no templates
+  // Template picker — click "Open a blank issue" if present. GitHub renders it
+  // as an <a> with text "Open a blank issue". If repo has no templates
   // /issues/new/choose 302s to /issues/new and we're already on the form.
-  const blankClicked = await s.page.evaluate(() => {
-    const links = Array.from(document.querySelectorAll('a'));
-    const blank = links.find(a => /open a blank issue/i.test(a.textContent || ''));
-    if (blank) { blank.click(); return { clicked: true }; }
-    return { clicked: false, onForm: !!document.querySelector('input[name="issue[title]"]') };
-  });
+  // Use Playwright locator click so the event hits github's spam ML with
+  // isTrusted=true (see docs/DETECTION_ANTIPATTERNS.md §1).
+  const blankLoc = s.page.locator('a:has-text("Open a blank issue")').first();
+  const hasBlank = (await blankLoc.count()) > 0;
+  if (hasBlank) await blankLoc.click().catch(() => {});
+  const blankClicked = { clicked: hasBlank, onForm: !!(await s.page.locator('input[name="issue[title]"]').count()) };
   console.log(`[open_issue] blank_picker: ${JSON.stringify(blankClicked)}`);
   await s.page.waitForTimeout(3000);
 
