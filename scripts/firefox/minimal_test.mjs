@@ -1,6 +1,5 @@
-// Minimal: just launch firefox via bare Playwright (no weles init scripts)
-// and go to about:blank. Isolates whether the weles 20KB addInitScript is
-// the cause of pipe-closed failures on CI.
+// Most-minimal: just launch, immediately close. No context, no page.
+// Narrows down whether the VMAPPLE runner chokes on launch itself.
 import { firefox } from 'playwright';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
@@ -11,8 +10,7 @@ if (!existsSync(BIN)) { console.error(`FAIL: bin missing at ${BIN}`); process.ex
 console.log(`binary: ${BIN}`);
 
 const b = await firefox.launch({ executablePath: BIN, headless: true });
-const ctx = await b.newContext();
-const page = await ctx.newPage();
-await page.goto('about:blank');
-console.log('minimal launch: OK');
+console.log('launch: OK (got browser handle)');
+console.log('contexts before newContext:', b.contexts().length);
 await b.close();
+console.log('close: OK');
