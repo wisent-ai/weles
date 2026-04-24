@@ -40,11 +40,11 @@ try {
   await s.wait(3);
   await s.fill('Email address', email);
   await s.wait(1);
-  const submit = await s.page.evaluate(`(() => {
-    const btn = document.querySelector('input[type="submit"], button[type="submit"]');
-    if (btn) { btn.click(); return { clicked: true, val: btn.value || btn.innerText }; }
-    return { clicked: false };
-  })()`);
+  // Use Playwright locator for isTrusted=true (see DETECTION_ANTIPATTERNS §1).
+  const submitLoc1 = s.page.locator('input[type="submit"], button[type="submit"]').first();
+  const submit = (await submitLoc1.count()) > 0
+    ? await submitLoc1.click().then(() => ({ clicked: true, via: 'locator' })).catch((e) => ({ clicked: false, err: e.message?.slice(0, 100) }))
+    : { clicked: false };
   console.log(`[reset] Submit reset request: ${JSON.stringify(submit)}`);
   if (!submit.clicked) throw new Error('no submit control on password_reset page');
 
@@ -77,11 +77,10 @@ try {
   await s.wait(1);
   await s.fill('Confirm new password', newPassword);
   await s.wait(1);
-  const submit2 = await s.page.evaluate(`(() => {
-    const btn = document.querySelector('input[type="submit"][value*="Change" i], button[type="submit"]');
-    if (btn) { btn.click(); return { clicked: true, val: btn.value || btn.innerText }; }
-    return { clicked: false };
-  })()`);
+  const submitLoc2 = s.page.locator('input[type="submit"][value*="Change" i], button[type="submit"]').first();
+  const submit2 = (await submitLoc2.count()) > 0
+    ? await submitLoc2.click().then(() => ({ clicked: true, via: 'locator' })).catch((e) => ({ clicked: false, err: e.message?.slice(0, 100) }))
+    : { clicked: false };
   console.log(`[reset] Submit new password: ${JSON.stringify(submit2)}`);
   if (!submit2.clicked) throw new Error('no submit control on password_reset/<token> page');
 
