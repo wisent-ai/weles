@@ -37,14 +37,22 @@ async function tryCookieFirstLogin() {
 
   await s.goto(FEED_URL);
   await s.page.waitForLoadState('domcontentloaded').catch(() => {});
+  // Give the TikTok SPA time to hydrate the nav rail + top bar before we
+  // probe for logged-in markers.
+  await new Promise((r) => setTimeout(r, 4000));
 
-  // Detect logged-in state. TikTok shows a user-avatar button + /foryou feed
-  // when authed; otherwise it redirects to /login or shows the login modal.
   const url = s.page.url();
-  const loginMarker = /\/login|\/passport|\/foryou\?lang=/i.test(url);
-  if (/\/foryou/.test(url) && !loginMarker) {
-    const hasProfileNav = await s.page.locator('[data-e2e="profile-icon"], a[href^="/@"]').first().isVisible().catch(() => false);
-    if (hasProfileNav) {
+  // If the browser was redirected to /login or /passport, the server rejected
+  // our cookies and we're not authed.
+  if (/\/login|\/passport/i.test(url)) {
+    await s.screenshot('cookie_first_redirected_to_login').catch(() => {});
+    return false;
+  }
+  // If we stayed on /foryou and there's no top-right "Log in" button visible,
+  // the cookies were accepted — the signed-in header hides that CTA entirely.
+  if (/\/foryou/.test(url)) {
+    const loginBtnVisible = await s.page.locator('button:has-text("Log in"), a:has-text("Log in"), [data-e2e="top-login-button"]').first().isVisible().catch(() => false);
+    if (!loginBtnVisible) {
       await s.screenshot('cookie_first_ok').catch(() => {});
       return true;
     }
