@@ -96,6 +96,19 @@ export async function runAction(cfg) {
   else feed = typeof cfg.feedUrl === 'function' ? cfg.feedUrl(acct.username) : cfg.feedUrl;
   try {
     await s.goto(feed);
+    // Auth check before doing any work — many trajectories run with stale cookies
+    // and silently land on the platform's /login page. Without this, organic_comment
+    // hits 'post.title required' from genComment, post hits 'no compose modal',
+    // promote/like/follow waste an LLM call. Detect the redirect-to-login state
+    // and emit a clean checkpoint signal instead.
+    try {
+      const finalUrl = s.page.url?.() ?? '';
+      const onAuthWall = /\/(login|signin|sessions\/new|uas\/login|checkpoint)\b/.test(finalUrl) || /\/login\?/.test(finalUrl);
+      if (onAuthWall && cfg.action !== 'browse') {
+        banSignal = { signal: 'checkpoint', healthy: false, details: { final_url: finalUrl, reason: 'redirected to platform login wall — stored cookies stale or session never authenticated' } };
+        throw new Error(`auth_wall: ${cfg.platform} session not authenticated — landed at ${finalUrl}`);
+      }
+    } catch (authErr) { if (banSignal?.signal === 'checkpoint') throw authErr; /* otherwise continue */ }
 
     if (cfg.action === 'browse') {
       for (let i = 0; i < (cfg.scrolls ?? 6); i++) {
