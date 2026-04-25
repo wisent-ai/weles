@@ -148,6 +148,12 @@ export function toConfig(
       height: scr.height ?? 1080,
       availWidth: scr.availWidth ?? scr.width ?? 1920,
       availHeight: scr.availHeight ?? (scr.height ? scr.height - 40 : 1040),
+      // availLeft/availTop are the desktop's offset for taskbar/menubar.
+      // Real Chrome on macOS exposes availTop=33 (menu bar) + availLeft=0;
+      // Windows is 0/0; Linux varies but usually 0/0. Their absence on weles
+      // is a fingerprint tell PerimeterX/Akamai check via 'availTop' in screen.
+      availLeft: scr.availLeft ?? 0,
+      availTop: scr.availTop ?? (targetOs === 'macos' ? 33 : 0),
       colorDepth: 24,
       pixelDepth: 24,
     },
