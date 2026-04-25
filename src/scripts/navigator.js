@@ -130,6 +130,43 @@ if (__weles.timezone && __weles.timezone.offset !== undefined) {
   Date.prototype.getTimezoneOffset = function() { return offset; };
 }
 
+// --- navigator.plugins: include 'PDF Viewer' first ---
+// PerimeterX bda diff (weles vs stock Chrome on linkedin.com/login) showed
+// weles emits [Chrome PDF Viewer, Chromium PDF Viewer, ...]; real Chrome
+// emits [PDF Viewer, Chrome PDF Viewer, Chromium PDF Viewer, ...]. PX serializes
+// the plugin name list into the encrypted bda payload.
+(function patchPlugins() {
+  if (typeof navigator === 'undefined' || typeof Plugin === 'undefined' || typeof PluginArray === 'undefined') return;
+  try {
+    const mt0 = { type: 'application/pdf', suffixes: 'pdf', description: 'Portable Document Format' };
+    const mt1 = { type: 'text/pdf',        suffixes: 'pdf', description: 'Portable Document Format' };
+    const names = 'PDF Viewer,Chrome PDF Viewer,Chromium PDF Viewer,Microsoft Edge PDF Viewer,WebKit built-in PDF'.split(',');
+    const plugins = names.map(name => {
+      const p = Object.create(Plugin.prototype);
+      Object.defineProperties(p, { name: { value: name, enumerable: true }, filename: { value: 'internal-pdf-viewer', enumerable: true }, description: { value: 'Portable Document Format', enumerable: true }, length: { value: 2, enumerable: true }, '0': { value: mt0, enumerable: true }, '1': { value: mt1, enumerable: true } });
+      return p;
+    });
+    const arr = Object.create(PluginArray.prototype);
+    plugins.forEach((p, i) => Object.defineProperty(arr, i, { value: p, enumerable: true }));
+    Object.defineProperty(arr, 'length', { value: plugins.length, enumerable: true });
+    Object.defineProperty(navigator, 'plugins', { get: function() { return arr; }, configurable: true, enumerable: true });
+  } catch { /* leave native */ }
+})();
+
+// --- navigator.connection downlink/effectiveType/rtt: realistic Chrome values ---
+// PX networkInfo block: weles reported downlink=1.75 (host's throttled estimate);
+// real Chrome reports 10. effectiveType + rtt + saveData lock to common values.
+(function patchConnection() {
+  if (typeof navigator === 'undefined' || !navigator.connection) return;
+  try {
+    const proto = Object.getPrototypeOf(navigator.connection);
+    Object.defineProperty(proto, 'downlink',      { get: function() { return 10; },    configurable: true });
+    Object.defineProperty(proto, 'effectiveType', { get: function() { return '4g'; },  configurable: true });
+    Object.defineProperty(proto, 'rtt',           { get: function() { return 50; },    configurable: true });
+    Object.defineProperty(proto, 'saveData',      { get: function() { return false; }, configurable: true });
+  } catch { /* leave native */ }
+})();
+
 // --- navigator.bluetooth / navigator.keyboard stubs ---
 // Real Chrome 147 exposes Web Bluetooth + Keyboard Lock APIs on navigator.
 // weles' chromium-build may compile without them depending on build flags;
@@ -176,32 +213,6 @@ if (__weles.navigator && __weles.navigator.language) {
     Intl.Collator.prototype.resolvedOptions = function() { const r = o.call(this); return { ...r, locale: wantedLocale }; };
   }
 }
-
-// --- SpeechSynthesis voices (disabled as A/B test) ---
-// Real Mac Chrome exposes ~68 system TTS voices via speechSynthesis.getVoices().
-// Zero voices on a real Mac is impossible. But after enabling this override
-// the signup regressed from "blocked at register_verify_login" to "blocked at
-// region" — possibly because our synthetic voice list doesn't match what
-// TikTok knows this machine should have. Toggle via WELES_SPOOF_SPEECH=1.
-if (false && typeof speechSynthesis !== 'undefined') (function installSpeechVoices() {
-  try {
-  if (typeof speechSynthesis === 'undefined') { window.__WELES_SPEECH_SKIP = 'no-speech'; return; }
-  const os = __weles?.clientHints?.platform;
-  window.__WELES_SPEECH_OS = os;
-  const macVoices = 'Daniel|en-GB|true|true,Albert|en-US|true|false,Alice|it-IT|true|false,Alva|sv-SE|true|false,Amélie|fr-CA|true|false,Amira|ms-MY|true|false,Anna|de-DE|true|false,Bad News|en-US|true|false,Bahh|en-US|true|false,Bells|en-US|true|false,Boing|en-US|true|false,Bubbles|en-US|true|false,Carmit|he-IL|true|false,Cellos|en-US|true|false,Damayanti|id-ID|true|false,Daria|bg-BG|true|false,Wobble|en-US|true|false,Eddy (German (Germany))|de-DE|true|false,Eddy (English (US))|en-US|true|false,Eddy (Spanish (Spain))|es-ES|true|false,Eddy (Spanish (Mexico))|es-MX|true|false,Eddy (Finnish (Finland))|fi-FI|true|false,Eddy (French (Canada))|fr-CA|true|false,Eddy (French (France))|fr-FR|true|false,Eddy (Italian (Italy))|it-IT|true|false,Eddy (Portuguese (Brazil))|pt-BR|true|false,Ellen|nl-BE|true|false,Flo (German (Germany))|de-DE|true|false,Flo (English (US))|en-US|true|false,Flo (Spanish (Spain))|es-ES|true|false,Flo (Spanish (Mexico))|es-MX|true|false,Fred|en-US|true|false,Good News|en-US|true|false,Grandma (German (Germany))|de-DE|true|false,Grandma (English (US))|en-US|true|false,Grandpa (German (Germany))|de-DE|true|false,Grandpa (English (US))|en-US|true|false,Jester|en-US|true|false,Ioana|ro-RO|true|false,Joana|pt-PT|true|false,Jorge|es-ES|true|false,Juan|es-MX|true|false,Kanya|th-TH|true|false,Karen|en-AU|true|false,Kathy|en-US|true|false,Kyoko|ja-JP|true|false,Lana|hr-HR|true|false,Laura|sk-SK|true|false,Lekha|hi-IN|true|false,Lesya|uk-UA|true|false,Linh|vi-VN|true|false,Luciana|pt-BR|true|false,Majed|ar|true|false,Tünde|hu-HU|true|false,Meijia|zh-TW|true|false,Melina|el-GR|true|false,Milena|ru-RU|true|false,Moira|en-IE|true|false,Mónica|es-ES|true|false,Montse|ca-ES|true|false,Nora|nb-NO|true|false,Organ|en-US|true|false,Paulina|es-MX|true|false,Superstar|en-US|true|false,Ralph|en-US|true|false,Reed (German (Germany))|de-DE|true|false,Reed (English (US))|en-US|true|false,Rishi|en-IN|true|false,Rocko (German (Germany))|de-DE|true|false,Rocko (English (US))|en-US|true|false,Samantha|en-US|true|false,Sandy (German (Germany))|de-DE|true|false,Sandy (English (US))|en-US|true|false,Sara|da-DK|true|false,Satu|fi-FI|true|false,Shelley (German (Germany))|de-DE|true|false,Shelley (English (US))|en-US|true|false,Sinji|zh-HK|true|false,Tessa|en-ZA|true|false,Thomas|fr-FR|true|false,Tingting|zh-CN|true|false,Trinoids|en-US|true|false,Whisper|en-US|true|false,Xander|nl-NL|true|false,Yelda|tr-TR|true|false,Yuna|ko-KR|true|false,Zarvox|en-US|true|false,Zosia|pl-PL|true|false,Zuzana|cs-CZ|true|false';
-  const winVoices = 'Microsoft David - English (United States)|en-US|true|true,Microsoft Mark - English (United States)|en-US|true|false,Microsoft Zira - English (United States)|en-US|true|false,Microsoft Hazel - English (Great Britain)|en-GB|true|false,Microsoft Helena - Spanish (Spain)|es-ES|true|false,Microsoft Hedda - German (Germany)|de-DE|true|false,Microsoft Hortense - French (France)|fr-FR|true|false,Microsoft Elsa - Italian (Italy)|it-IT|true|false,Microsoft Haruka - Japanese (Japan)|ja-JP|true|false,Microsoft Heami - Korean (Korea)|ko-KR|true|false,Microsoft Huihui - Chinese (Simplified, PRC)|zh-CN|true|false,Microsoft Tracy - Chinese (Traditional, Hong Kong SAR)|zh-HK|true|false,Microsoft Hanhan - Chinese (Traditional, Taiwan)|zh-TW|true|false,Microsoft Irina - Russian (Russia)|ru-RU|true|false,Microsoft Maria - Portuguese (Brazil)|pt-BR|true|false,Microsoft Heera - English (India)|en-IN|true|false';
-  const raw = os === 'macOS' ? macVoices : os === 'Windows' ? winVoices : macVoices;
-  const voices = raw.split(',').map(r => { const [name, lang, local, def] = r.split('|'); return { name, lang, localService: local === 'true', default: def === 'true', voiceURI: `com.apple.voice.compact.${lang}.${name.replace(/\s/g, '')}` }; });
-  const voiceObjs = voices.map(v => Object.freeze(v));
-  // Override on BOTH the prototype and the instance. Some DOM methods are defined
-  // non-writable on prototypes — direct instance assignment works; prototype needs
-  // defineProperty with configurable=true.
-  try { Object.defineProperty(SpeechSynthesis.prototype, 'getVoices', { value: function() { return voiceObjs; }, writable: true, configurable: true, enumerable: false }); } catch (e) { window.__WELES_SPEECH_ERR2 = String(e); }
-  try { speechSynthesis.getVoices = function() { return voiceObjs; }; } catch (e) { window.__WELES_SPEECH_ERR3 = String(e); }
-  window.__WELES_SPEECH_VOICES = voiceObjs.length;
-  setTimeout(() => { try { speechSynthesis.dispatchEvent?.(new Event('voiceschanged')); } catch {} }, 0);
-  } catch (e) { window.__WELES_SPEECH_ERR_TOP = String(e); }
-})();
 
 // --- HEVC codec support shim ---
 // Chromium (weles's base) does not ship HEVC — only Google Chrome's proprietary
