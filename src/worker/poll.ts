@@ -82,6 +82,8 @@ async function claimOne(): Promise<ActionLogRow | null> {
   const candidates = (await res.json()) as ActionLogRow[];
   for (const row of candidates) {
     if (!resolveTrajectory(row.action)) continue;
+    if (!row.account_id || !row.id) continue; // poison rows: legacy promote-cron sometimes emits orphans
+
     const claim = await fetch(
       `${SUPABASE_URL}/rest/v1/account_action_logs?id=eq.${row.id}&status=eq.queued`,
       {
