@@ -26,13 +26,8 @@ function headers(): Record<string, string> {
   return { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' };
 }
 
-// Action-name → trajectory path. Covers both new <platform>_<verb> names
-// and the legacy 'browse_and_engage' bundle (routed to <platform>/browse.mjs
-// using the row's platform column).
-function resolveTrajectory(action: string, platform?: string): string | null {
-  if (action === 'browse_and_engage' && platform) {
-    return `scripts/trajectories/${platform}/browse.mjs`;
-  }
+// Action-name → trajectory path. Maps <platform>_<verb> rows.
+function resolveTrajectory(action: string): string | null {
   const firstUnderscore = action.indexOf('_');
   if (firstUnderscore < 0) return null;
   const plat = action.slice(0, firstUnderscore);
@@ -86,7 +81,7 @@ async function claimOne(): Promise<ActionLogRow | null> {
   if (!res.ok) return null;
   const candidates = (await res.json()) as ActionLogRow[];
   for (const row of candidates) {
-    if (!resolveTrajectory(row.action, row.platform)) continue;
+    if (!resolveTrajectory(row.action)) continue;
     const claim = await fetch(
       `${SUPABASE_URL}/rest/v1/account_action_logs?id=eq.${row.id}&status=eq.queued`,
       {
@@ -151,9 +146,8 @@ async function runTrajectory(row: ActionLogRow, path: string): Promise<{ exitCod
   });
 }
 
-async function readBanSignal(action: string, platform?: string): Promise<BanSignal | null> {
-  const label = action === 'browse_and_engage' && platform ? `${platform}_browse` : action;
-  const path = join(RECORDINGS_ROOT, label, 'ban_signal.json');
+async function readBanSignal(action: string): Promise<BanSignal | null> {
+  const path = join(RECORDINGS_ROOT, action, 'ban_signal.json');
   try {
     const raw = await readFile(path, 'utf8');
     return JSON.parse(raw) as BanSignal;
@@ -243,7 +237,7 @@ export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
   if (!(await workersEnabled())) return 'idle';
   const row = await claimOne();
   if (!row) return 'idle';
-  const trajPath = resolveTrajectory(row.action, row.platform);
+  const trajPath = resolveTrajectory(row.action);
   if (!trajPath) {
     await writeResult(row.id, 'failed', {}, `no trajectory for action=${row.action}`);
     return 'claimed';
@@ -252,7 +246,7 @@ export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
 
   const runStart = new Date();
   const { exitCode, stderr } = await runTrajectory(row, trajPath);
-  const banSignal = await readBanSignal(row.action, row.platform);
+  const banSignal = await readBanSignal(row.action);
   const result: Record<string, unknown> = {};
   try { const m = JSON.parse(await readFile(join(RECORDINGS_ROOT, row.action, 'session_meta.json'), 'utf8')); result.session = { proxy_host: m.proxy_host, proxy_port: m.proxy_port, proxy_user: m.proxy_user }; } catch {}
   if (banSignal) {
