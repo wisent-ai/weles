@@ -23,7 +23,7 @@ import { resolveProxy } from '../proxy/config.js';
 import { getEmailApiKey } from '../utils/credentials.js';
 import { findCustomBrowser } from './find_browser.js';
 
-import './wsession_atoms.js';  // side-effect: installs shared atoms onto WSession.prototype
+import { installAtoms } from './wsession_atoms.js';  // installAtoms() is invoked at file end after WSession is declared
 function recordingsDir(label?: string): string { const d = join(process.cwd(), 'recordings', ...(label ? [label] : [])); mkdirSync(d, { recursive: true }); return d; }
 
 export interface WSessionOptions {
@@ -289,11 +289,8 @@ export class WSession {
 }
 
 function profileUrl(platform: string, username: string, name?: string): string {
-  const urls: Record<string, string> = {
-    reddit: `https://reddit.com/u/${username}`, tiktok: `https://tiktok.com/@${username}`,
-    github: `https://github.com/${username}`, discord: `https://discord.com/users/${username}`,
-    linkedin: `https://linkedin.com/in/${(name ?? username).toLowerCase().replace(/\s+/g, '-')}`,
-    instagram: `https://instagram.com/${username}`, twitter: `https://x.com/${username}`,
-  };
+  const urls: Record<string, string> = { reddit: `https://reddit.com/u/${username}`, tiktok: `https://tiktok.com/@${username}`, github: `https://github.com/${username}`, discord: `https://discord.com/users/${username}`, linkedin: `https://linkedin.com/in/${(name ?? username).toLowerCase().replace(/\s+/g, '-')}`, instagram: `https://instagram.com/${username}`, twitter: `https://x.com/${username}` };
   return urls[platform] ?? '';
 }
+
+installAtoms(WSession);

@@ -1,13 +1,13 @@
 /**
- * Shared interaction atoms on WSession. Added here via prototype augmentation
- * so wsession.ts stays under its 300-line cap. Each atom replaces a pattern
+ * Shared interaction atoms on WSession. Added via prototype augmentation so
+ * wsession.ts stays under its 300-line cap. Each atom replaces a pattern
  * duplicated 5+ times across trajectories (see docs/DETECTION_ANTIPATTERNS.md).
  *
- * Import this module for its side effect — importing installs the prototype
- * methods. wsession.ts imports it so every WSession instance has the atoms
- * available without the caller needing an explicit import.
+ * wsession.ts calls installAtoms(WSession) at the bottom of its module so
+ * the class is fully defined before prototype assignment runs. Side-effect
+ * import was the previous shape but breaks under CJS circular load.
  */
-import { WSession } from './wsession.js';
+import type { WSession } from './wsession.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -48,7 +48,8 @@ const LOGGED_OUT_SELECTORS: Record<string, string> = {
   default:   'a[href*="/login"], a[href*="/signin"], button:has-text("Log in"), button:has-text("Sign in")',
 };
 
-WSession.prototype.waitFor = function (selector, opts) {
+export function installAtoms(W: typeof import('./wsession.js').WSession): void {
+W.prototype.waitFor = function (selector, opts) {
   const state = opts?.state ?? 'visible';
   const timeout = opts?.timeoutMs ?? 30000;
   return this.runStep(`waitFor_${selector.slice(0, 30)}`, async () => {
@@ -57,7 +58,7 @@ WSession.prototype.waitFor = function (selector, opts) {
   });
 };
 
-WSession.prototype.fillSelector = function (css, value) {
+W.prototype.fillSelector = function (css, value) {
   return this.runStep(`fillSel_${css.slice(0, 30)}`, async () => {
     const v = (this as WSession).resolveEnv(value);
     const loc = (this as WSession).page.locator(css).first();
@@ -67,7 +68,7 @@ WSession.prototype.fillSelector = function (css, value) {
   });
 };
 
-WSession.prototype.writeBanSignal = function (banSignal, extras) {
+W.prototype.writeBanSignal = function (banSignal, extras) {
   const self = this as WSession;
   if (!self.label) return;
   const dir = join(process.cwd(), 'recordings', self.label);
@@ -80,7 +81,7 @@ WSession.prototype.writeBanSignal = function (banSignal, extras) {
   } catch { /* swallow — best-effort sidecar write */ }
 };
 
-WSession.prototype.dismissCookieBanner = async function (platform) {
+W.prototype.dismissCookieBanner = async function (platform) {
   const key = (platform ?? (this as WSession).label.split('_')[0]).toLowerCase();
   const texts = COOKIE_BANNER_TEXTS[key] ?? COOKIE_BANNER_TEXTS.default;
   for (const t of texts) {
@@ -90,7 +91,7 @@ WSession.prototype.dismissCookieBanner = async function (platform) {
   return 'no-banner-found';
 };
 
-WSession.prototype.dwell = async function (scrolls, dwellMsRange) {
+W.prototype.dwell = async function (scrolls, dwellMsRange) {
   const [minMs, maxMs] = dwellMsRange ?? [1500, 3500];
   return this.runStep(`dwell_${scrolls}x`, async () => {
     const self = this as WSession;
@@ -102,7 +103,7 @@ WSession.prototype.dwell = async function (scrolls, dwellMsRange) {
   });
 };
 
-WSession.prototype.patchAccount = async function (accountId, patch) {
+W.prototype.patchAccount = async function (accountId, patch) {
   const url = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
   if (!url || !key || !accountId) return false;
@@ -121,9 +122,10 @@ WSession.prototype.patchAccount = async function (accountId, patch) {
   } catch { return false; }
 };
 
-WSession.prototype.isLoggedOut = async function (platform) {
+W.prototype.isLoggedOut = async function (platform) {
   const key = (platform ?? (this as WSession).label.split('_')[0]).toLowerCase();
   const sel = LOGGED_OUT_SELECTORS[key] ?? LOGGED_OUT_SELECTORS.default;
   try { return (await (this as WSession).page.locator(sel).first().count()) > 0; }
   catch { return false; }
 };
+}
