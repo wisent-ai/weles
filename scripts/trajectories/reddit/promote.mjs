@@ -63,14 +63,16 @@ try {
     } catch (e) { console.log('[thread-parse]', e.message); }
   } else {
     // No explicit target — pick from the subreddit listing (organic path).
-    await s.goto(`https://www.reddit.com/r/${SUBREDDIT}/.json?limit=20`);
+    // Pull /new on aggregate subs since /popular surfaces only mega-threads.
+    const sortPath = SUBREDDIT === 'popular' || SUBREDDIT === 'all' ? `/r/${SUBREDDIT}/new` : `/r/${SUBREDDIT}`;
+    await s.goto(`https://www.reddit.com${sortPath}/.json?limit=50`);
     const listingResp = s.capturedResponses.find(r => /\/r\/.+\/\.json/.test(r.url));
     try {
       const data = JSON.parse(listingResp?.body ?? '{}');
       const candidates = (data?.data?.children ?? [])
         .map(c => c.data)
-        .filter(p => p && !p.locked && !p.archived && p.num_comments < 200 && p.num_comments > 2);
-      const pick = candidates[Math.floor(Math.random() * Math.min(candidates.length, 8))];
+        .filter(p => p && !p.locked && !p.archived && p.num_comments < 2000 && p.num_comments > 2);
+      const pick = candidates[Math.floor(Math.random() * Math.min(candidates.length, 12))];
       if (pick) { postUrl = `https://www.reddit.com${pick.permalink}`; postTitle = pick.title || ''; postBody = pick.selftext || ''; }
     } catch (e) { console.log('[listing-parse]', e.message); }
   }
