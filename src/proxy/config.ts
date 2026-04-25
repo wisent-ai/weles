@@ -89,7 +89,7 @@ export class ProxyPool {
  * Fetches available providers from the service_credentials Supabase table,
  * filters by balance > 0 and env var availability, returns the first working one.
  */
-export async function resolveProxy(proxy: string): Promise<{ server: string; username?: string; password?: string } | undefined> {
+export async function resolveProxy(proxy: string): Promise<{ server: string; username?: string; password?: string; country?: string } | undefined> {
   if (!proxy || proxy === 'none' || proxy === 'direct') return undefined;
 
   if (proxy.startsWith('http://') || proxy.startsWith('https://') || proxy.startsWith('socks')) {
@@ -155,7 +155,7 @@ export async function resolveProxy(proxy: string): Promise<{ server: string; use
       try { const dns = await import('node:dns'); host = await new Promise<string>((res, rej) => dns.lookup(p.proxy_host, (e: any, a: string) => e ? rej(e) : res(a))); } catch {}
       if (await isBurned(host)) continue;
       console.log(`[proxy] Using: ${p.display_name} (${host}:${p.proxy_port}, $${p.balance_usd}, sticky=${sessId})`);
-      return { server: `http://${host}:${p.proxy_port}`, username: stickyUser, password: stickyPass };
+      return { server: `http://${host}:${p.proxy_port}`, username: stickyUser, password: stickyPass, country: cc };
     }
   }
 

@@ -164,6 +164,7 @@ export async function resolveAccountSession(acct: SocialAccount): Promise<Accoun
           protocol: u.protocol.replace(/:$/, ''),
           username: pw.username,
           password: pw.password,
+          country: pw.country,
         };
         await backfillProxy(acct, cfg);
       }
