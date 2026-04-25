@@ -113,8 +113,15 @@ export async function resolveProxy(proxy: string): Promise<{ server: string; use
   const providers = await res.json() as Row[];
 
   const typeFilter = proxy.toLowerCase();
-  let filtered = typeFilter === 'residential' ? providers.filter(p => !p.display_name.toLowerCase().includes('mobile'))
-    : typeFilter === 'mobile' ? providers.filter(p => p.display_name.toLowerCase().includes('mobile'))
+  // Tokens after 'residential'/'mobile' may include a 2-letter country code
+  // ('residential us', 'residential br') to override the row's stored country.
+  // The Oxylabs Residential row defaults to 'br' for Discord — Reddit/LinkedIn
+  // need 'us'. Caller passes the country it wants instead of relying on the row.
+  const ccOverride = (typeFilter.match(/\b([a-z]{2})\b/g) ?? []).find(t => !['oxylabs', 'mobile', 'residential', 'datacenter', 'sticky'].includes(t) && /^[a-z]{2}$/.test(t));
+  const isResidential = /\bresidential\b/.test(typeFilter);
+  const isMobile = /\bmobile\b/.test(typeFilter);
+  let filtered = isResidential ? providers.filter(p => !p.display_name.toLowerCase().includes('mobile'))
+    : isMobile ? providers.filter(p => p.display_name.toLowerCase().includes('mobile'))
     : providers;
 
   // Allow explicit provider name targeting (e.g. 'pingproxies', 'packetstream', 'oxylabs')
@@ -140,7 +147,7 @@ export async function resolveProxy(proxy: string): Promise<{ server: string; use
     }
     const { isBurned } = await import('./burned.js');
     const name = p.display_name.toLowerCase();
-    const cc = (p.metadata?.country ?? 'us').toLowerCase();
+    const cc = (ccOverride ?? p.metadata?.country ?? 'us').toLowerCase();
     // Try up to 3 sticky sessions per provider — each fresh sessId may
     // resolve the residential gateway to a different exit IP. Skip any
     // host that is in the burned-IP registry.
