@@ -1,0 +1,34 @@
+name: build-check
+
+# Catches the class of regression that broke the entire fleet on
+# 5960e6f → 9319340 — wsession_atoms.ts mutated WSession.prototype at
+# top-level via a side-effect import that loaded before the class
+# declaration, so every dist/ module crashed at require() time but only
+# new processes saw it (long-running workers held the cached pre-regression
+# load). lint-modules walks every dist/ file and require()s it.
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  build-and-lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: npm ci
+        run: npm ci --ignore-scripts
+
+      - name: tsc + asset copy
+        run: npm run build
+
+      - name: every dist/ module load-check
+        run: npm run lint-modules
