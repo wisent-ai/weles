@@ -1,9 +1,11 @@
 import { getSocialAccount, resolveAccountSession } from '../../dist/utils/credentials.js';
 import { WSession } from '../../dist/session/wsession.js';
 import { execute } from '../../dist/agent/loop.js';
+import { writeFileSync, mkdirSync } from 'node:fs';
+import { join } from 'node:path';
 
 const URL = 'https://www.linkedin.com/login';
-const GOAL = `Fill "session_key" with $SVC_EMAIL. Fill "session_password" with $SVC_PASSWORD. Click "Sign in". Wait 5 seconds. If captcha, solve_captcha(). done(value="logged in").`;
+const GOAL = `Fill "session_key" with $SVC_EMAIL. Fill "session_password" with $SVC_PASSWORD. Click "Sign in". Wait 5 seconds. If captcha, solve_captcha(). If a "Verify your email" page appears requesting a verification code, check_email() to retrieve the 6-digit code from LinkedIn and fill it. done(value="logged in").`;
 
 const acct = await getSocialAccount('linkedin');
 if (!acct) { console.log('FAIL: no active linkedin account in DB'); process.exit(1); }
@@ -33,15 +35,34 @@ async function captureCookies() {
   } catch (e) { console.log('[cookie-capture] err:', e.message); }
 }
 
+function writeBan(signal, details) {
+  try {
+    const dir = join(process.cwd(), 'recordings', 'linkedin_login');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'ban_signal.json'), JSON.stringify({ account_id: acct.id, username: acct.username, action: 'linkedin_login', signal, healthy: signal === 'healthy', details: details ?? {}, ts: new Date().toISOString() }, null, 2));
+  } catch {}
+}
+
 try {
   await s.goto(URL);
   const result = await execute(s, `Open ${URL}. ${GOAL}`, {
     envHints: { SVC_EMAIL: process.env.SVC_EMAIL, SVC_PASSWORD: '***' },
     flowName: 'linkedin_login',
   });
-  console.log('PASS:', result.value);
+  console.log('agent done:', result.value);
   await captureCookies();
+  // Validate auth: agent's done() doesn't guarantee login worked. linkedin issues
+  // a captchaV2 checkpoint on flagged sessions and the agent loop happily declares
+  // success without solving it. Verify by checking li_at cookie + final URL.
+  const cookies = await s.ctx.cookies();
+  const liAt = cookies.find(c => c.name === 'li_at' && c.value);
+  const finalUrl = s.page.url?.() ?? '';
+  const onCheckpoint = /\/(checkpoint|uas\/login|login\/recovery)/.test(finalUrl) || /Security Verification/.test(await s.page.title?.().catch(() => '') ?? '');
+  if (liAt) { writeBan('healthy', { final_url: finalUrl }); console.log(`PASS: li_at cookie set — ${finalUrl}`); }
+  else if (onCheckpoint) { writeBan('checkpoint', { final_url: finalUrl, reason: 'linkedin issued captchaV2/email-verify gate; auto-solver did not clear it' }); console.log(`FAIL: linkedin checkpoint — ${finalUrl}`); process.exitCode = 1; }
+  else { writeBan('unknown_error', { final_url: finalUrl, reason: 'no li_at cookie present after agent done()' }); console.log(`FAIL: no li_at cookie — ${finalUrl}`); process.exitCode = 1; }
 } catch (e) {
+  writeBan('unknown_error', { error: e.message?.slice(0, 200) });
   console.log('FAIL:', e.message?.slice(0, 200));
   process.exit(1);
 } finally {
