@@ -154,17 +154,23 @@ if (__weles.timezone && __weles.timezone.offset !== undefined) {
 })();
 
 // --- navigator.connection downlink/effectiveType/rtt: realistic Chrome values ---
-// PX networkInfo block: weles reported downlink=1.75 (host's throttled estimate);
-// real Chrome reports 10. effectiveType + rtt + saveData lock to common values.
+// PX networkInfo block: weles reports the host's throttled estimate (downlink<2,
+// rtt 100-200); real Chrome on a normal connection reports downlink=10, rtt=50.
+// Override BOTH the NetworkInformation instance AND its prototype because some
+// code paths read getters off the instance directly (and because iframes get a
+// fresh NetworkInformation that inherits from the same prototype).
 (function patchConnection() {
   if (typeof navigator === 'undefined' || !navigator.connection) return;
-  try {
-    const proto = Object.getPrototypeOf(navigator.connection);
-    Object.defineProperty(proto, 'downlink',      { get: function() { return 10; },    configurable: true });
-    Object.defineProperty(proto, 'effectiveType', { get: function() { return '4g'; },  configurable: true });
-    Object.defineProperty(proto, 'rtt',           { get: function() { return 50; },    configurable: true });
-    Object.defineProperty(proto, 'saveData',      { get: function() { return false; }, configurable: true });
-  } catch { /* leave native */ }
+  const apply = (target) => {
+    try { Object.defineProperty(target, 'downlink',      { get: function() { return 10; },    configurable: true, enumerable: true }); } catch {}
+    try { Object.defineProperty(target, 'effectiveType', { get: function() { return '4g'; },  configurable: true, enumerable: true }); } catch {}
+    try { Object.defineProperty(target, 'rtt',           { get: function() { return 50; },    configurable: true, enumerable: true }); } catch {}
+    try { Object.defineProperty(target, 'saveData',      { get: function() { return false; }, configurable: true, enumerable: true }); } catch {}
+  };
+  apply(navigator.connection);
+  try { apply(Object.getPrototypeOf(navigator.connection)); } catch {}
+  // NetworkInformation prototype reachable via constructor too.
+  try { if (typeof NetworkInformation !== 'undefined') apply(NetworkInformation.prototype); } catch {}
 })();
 
 // --- navigator.bluetooth / navigator.keyboard stubs ---
