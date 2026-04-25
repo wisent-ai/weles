@@ -137,44 +137,14 @@ export class CaptchaSolver {
   }
 
   /**
-   * Solve a PerimeterX challenge (LinkedIn /checkpoint/challenge/captchaInternal,
-   * the slider-rotation puzzle). Returns cleared session cookies that bypass it
-   * — caller injects via ctx.addCookies + reloads. CapSolver only.
+   * PerimeterX (LinkedIn checkpointV2 slider) — no solver currently supports
+   * this. CapSolver's docs say "Coming Soon"; 2Captcha doesn't list it. Path
+   * forward is fingerprint-clean (avoid triggering the challenge) or BrightData
+   * Web Unlocker (paid, separate vendor integration). This stub stays so the
+   * caller doesn't crash on an undefined method.
    */
-  async solvePerimeterX(url: string, userAgent: string, cookies?: Array<{ name: string; value: string; domain?: string }>): Promise<Array<{ name: string; value: string; domain?: string; path?: string }> | null> {
-    await this._ensureInit();
-    if (!this._creds.capsolver) { console.log('[captcha:solver] PerimeterX requires capsolver credential'); return null; }
-    const cookieStr = (cookies ?? []).map(c => `${c.name}=${c.value}`).join('; ');
-    const task: Record<string, any> = { type: 'AntiPerimeterXTaskProxyLess', websiteURL: url, userAgent };
-    if (cookieStr) task.cookieInput = cookieStr;
-    console.log(`[captcha:solver] solvePerimeterX url=${url.slice(0, 60)} cookies=${cookies?.length ?? 0}`);
-    const apiUrl = 'https://api.capsolver.com';
-    const createRes = await (await fetch(apiUrl + '/createTask', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ clientKey: this._creds.capsolver, task }),
-    })).json() as any;
-    if (createRes.errorId) { console.log(`[captcha:api] capsolver createTask error: ${createRes.errorCode} ${createRes.errorDescription}`); return null; }
-    const taskId = createRes.taskId;
-    if (!taskId) return null;
-    for (let i = 0; i < 60; i++) {
-      await new Promise(r => setTimeout(r, 5000));
-      const res = await (await fetch(apiUrl + '/getTaskResult', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clientKey: this._creds.capsolver, taskId }),
-      })).json() as any;
-      if (res.status === 'ready') {
-        const sol = res.solution ?? {};
-        if (Array.isArray(sol.cookies) && sol.cookies.length) { console.log(`[captcha:solver] PerimeterX solved — ${sol.cookies.length} cookies`); return sol.cookies; }
-        const raw = sol.cookieOutput ?? sol.cookie ?? '';
-        if (typeof raw === 'string' && raw) {
-          const parsed = raw.split(';').map((p: string) => p.trim()).filter(Boolean).map((p: string) => { const [name, ...rest] = p.split('='); return { name: name.trim(), value: rest.join('=').trim(), domain: '.linkedin.com', path: '/' }; });
-          console.log(`[captcha:solver] PerimeterX solved — ${parsed.length} cookies parsed from string`);
-          return parsed;
-        }
-        return null;
-      }
-      if (res.errorId) { console.log(`[captcha:api] capsolver result error: ${res.errorCode} ${res.errorDescription}`); return null; }
-    }
+  async solvePerimeterX(_url: string, _userAgent: string, _cookies?: Array<{ name: string; value: string; domain?: string }>): Promise<null> {
+    console.log('[captcha:solver] PerimeterX: no API solver available (CapSolver/2Captcha do not support it)');
     return null;
   }
 
