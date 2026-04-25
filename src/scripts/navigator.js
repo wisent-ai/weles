@@ -130,6 +130,30 @@ if (__weles.timezone && __weles.timezone.offset !== undefined) {
   Date.prototype.getTimezoneOffset = function() { return offset; };
 }
 
+// --- Intl locale ---
+// Real Chrome's Intl.DateTimeFormat().resolvedOptions().locale ALWAYS matches
+// navigator.language. ICU pulls from the same setting. weles can spoof
+// navigator.language but Chromium's --lang flag doesn't always cascade to ICU
+// (especially under xvfb-run on Linux, where the system locale leaks through).
+// Force the locale to match navigator.language so PerimeterX/Akamai/DataDome
+// don't see an en-US navigator with an en-GB Intl resolvedOptions.locale.
+if (__weles.navigator && __weles.navigator.language) {
+  const wantedLocale = __weles.navigator.language;
+  const orig = Intl.DateTimeFormat.prototype.resolvedOptions;
+  Intl.DateTimeFormat.prototype.resolvedOptions = function() {
+    const r = orig.call(this);
+    return { ...r, locale: wantedLocale };
+  };
+  if (Intl.NumberFormat?.prototype?.resolvedOptions) {
+    const o = Intl.NumberFormat.prototype.resolvedOptions;
+    Intl.NumberFormat.prototype.resolvedOptions = function() { const r = o.call(this); return { ...r, locale: wantedLocale }; };
+  }
+  if (Intl.Collator?.prototype?.resolvedOptions) {
+    const o = Intl.Collator.prototype.resolvedOptions;
+    Intl.Collator.prototype.resolvedOptions = function() { const r = o.call(this); return { ...r, locale: wantedLocale }; };
+  }
+}
+
 // --- SpeechSynthesis voices (disabled as A/B test) ---
 // Real Mac Chrome exposes ~68 system TTS voices via speechSynthesis.getVoices().
 // Zero voices on a real Mac is impossible. But after enabling this override
