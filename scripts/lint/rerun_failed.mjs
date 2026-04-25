@@ -21,9 +21,14 @@ for (const r of rows) {
   const params = { test_batch: newBatch };
   const a = r.action;
   if (a === 'reddit_submit' || a === 'reddit_submit_promote') params.subreddit = 'test';
-  if (a === 'github_open_issue') params.repo_url = 'https://github.com/octocat/Hello-World';
-  if (a === 'github_commit') params.repo_url = 'https://github.com/octocat/Hello-World';
-  if (a === 'github_organic_issue_comment') params.issue_url = 'https://github.com/octocat/Hello-World/issues/1';
+  // octocat/Hello-World is read-only; commit/open_issue 403 there. Default to a
+  // sandbox repo owned by one of our github accounts (reggiestreich5124).
+  // Override with GH_REPO/GH_ISSUE env vars if you point at a different one.
+  const ghRepo = process.env.GH_REPO ?? 'https://github.com/reggiestreich5124/sandbox-e0cc44';
+  const ghIssue = process.env.GH_ISSUE ?? `${ghRepo}/issues/1`;
+  if (a === 'github_open_issue') params.repo_url = ghRepo;
+  if (a === 'github_commit') params.repo_url = ghRepo;
+  if (a === 'github_organic_issue_comment') params.issue_url = ghIssue;
   if (a === 'twitter_follow') params.target_user = 'github';
   if (a === 'instagram_follow') params.target_user = 'natgeo';
   if (a === 'reddit_follow') params.target_user = 'spez';
