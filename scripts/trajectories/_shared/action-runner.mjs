@@ -96,19 +96,24 @@ export async function runAction(cfg) {
   else feed = typeof cfg.feedUrl === 'function' ? cfg.feedUrl(acct.username) : cfg.feedUrl;
   try {
     await s.goto(feed);
-    // Auth check before doing any work — many trajectories run with stale cookies
-    // and silently land on the platform's /login page. Without this, organic_comment
-    // hits 'post.title required' from genComment, post hits 'no compose modal',
-    // promote/like/follow waste an LLM call. Detect the redirect-to-login state
-    // and emit a clean checkpoint signal instead.
+    // Proxy CONNECT failure: chromium serves chrome-error://chromewebdata/
+    // ("This site can't be reached / ERR_TUNNEL_CONNECTION_FAILED"). Without
+    // this branch the trajectory continues, the ban detector sees no ban
+    // pattern in the chrome-error body and reports signal=healthy, hiding
+    // proxy infra failures behind 'completed:healthy'. Emit a clean
+    // proxy_failed signal instead so rerun_failed.mjs can retry these.
     try {
       const finalUrl = s.page.url?.() ?? '';
+      if (finalUrl.startsWith('chrome-error://')) {
+        banSignal = { signal: 'proxy_failed', healthy: false, details: { final_url: finalUrl, reason: 'chrome-error: proxy CONNECT failed (likely tunnel/sticky-session issue)' } };
+        throw new Error(`proxy_failed: ${cfg.platform} navigation never left chrome-error — proxy CONNECT failed for ${feed}`);
+      }
       const onAuthWall = /\/(login|signin|sessions\/new|uas\/login|checkpoint)\b/.test(finalUrl) || /\/login\?/.test(finalUrl);
       if (onAuthWall && cfg.action !== 'browse') {
         banSignal = { signal: 'checkpoint', healthy: false, details: { final_url: finalUrl, reason: 'redirected to platform login wall — stored cookies stale or session never authenticated' } };
         throw new Error(`auth_wall: ${cfg.platform} session not authenticated — landed at ${finalUrl}`);
       }
-    } catch (authErr) { if (banSignal?.signal === 'checkpoint') throw authErr; /* otherwise continue */ }
+    } catch (authErr) { if (banSignal && (banSignal.signal === 'checkpoint' || banSignal.signal === 'proxy_failed')) throw authErr; /* otherwise continue */ }
 
     if (cfg.action === 'browse') {
       for (let i = 0; i < (cfg.scrolls ?? 6); i++) {
