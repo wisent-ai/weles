@@ -38,9 +38,21 @@ function secret() {
   return s;
 }
 
+// content-platform's image route returns output_url as a relative
+// /api/gcs-image?path=... path. fetch() in Node needs an absolute URL —
+// resolve against the LLM_GENERATE_URL host. Worker's secret is required for
+// /api/gcs-image since it's a protected route.
+function absolutizeMediaUrl(url) {
+  if (/^https?:\/\//.test(url)) return url;
+  const base = (process.env.LLM_GENERATE_URL || 'https://content.wisent.ai/api/llm/generate')
+    .replace(/\/api\/llm\/generate$/, '');
+  return `${base}${url.startsWith('/') ? url : `/${url}`}`;
+}
+
 async function downloadTo(url, ext) {
-  const r = await fetch(url);
-  if (!r.ok) throw new Error(`media download ${r.status} from ${url}`);
+  const absUrl = absolutizeMediaUrl(url);
+  const r = await fetch(absUrl, absUrl.includes('/api/') ? { headers: { 'x-cron-secret': secret() } } : {});
+  if (!r.ok) throw new Error(`media download ${r.status} from ${absUrl}`);
   const buf = Buffer.from(await r.arrayBuffer());
   const dir = join(tmpdir(), 'weles-media');
   mkdirSync(dir, { recursive: true });
