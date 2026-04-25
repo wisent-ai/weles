@@ -115,6 +115,7 @@ export type { ServiceCredential, SocialAccount };
 import type { Persona } from '../browser/persona.js';
 import { generatePersona } from '../browser/persona.js';
 import { proxyUrl as buildProxyUrl, type ProxyConfig } from '../proxy/config.js';
+import { isBurned } from '../proxy/burned.js';
 
 export interface AccountSession { proxyUrl?: string; persona?: Persona; }
 
@@ -123,7 +124,7 @@ export async function resolveAccountSession(acct: SocialAccount): Promise<Accoun
   const out: AccountSession = {};
   let cfg: ProxyConfig | null = null;
 
-  if (meta?.proxy?.host && meta?.proxy?.port) {
+  if (meta?.proxy?.host && meta?.proxy?.port && !(await isBurned(meta.proxy.host))) {
     cfg = meta.proxy as ProxyConfig;
   } else if (meta?.proxy?.server) {
     // Legacy shape from the old Python signup path: { server, username, password }.
