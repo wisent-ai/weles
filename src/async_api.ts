@@ -60,7 +60,7 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
     const n = fpConfig.navigator ?? {};
     n.platform = persona.platform;
     n.hardwareConcurrency = persona.hardwareConcurrency;
-    n.deviceMemory = persona.deviceMemory ?? 8;  // host RAM leak; Chrome caps at 8 per spec
+    if (persona.deviceMemory) n.deviceMemory = persona.deviceMemory;  // optional override; default = host RAM (matches real Chrome)
     n.language = persona.language;
     n.languages = [persona.language];
     fpConfig.screen = { ...(fpConfig.screen ?? {}), width: persona.screen.width, height: persona.screen.height, availWidth: persona.screen.width, availHeight: persona.screen.height - 40, colorDepth: 24, pixelDepth: 24 };
