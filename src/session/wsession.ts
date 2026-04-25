@@ -4,7 +4,7 @@
  */
 
 import { type BrowserContext, chromium } from 'playwright'; import { AsyncNewBrowser, type AsyncNewBrowserOptions } from '../async_api.js';
-import type { Persona } from '../browser/persona.js';
+import { type Persona, generatePersona } from '../browser/persona.js';
 import { SessionStore } from './store.js';
 import { Capture } from '../capture/capture.js';
 import { findClickTarget, askPage, checkPage, type ScreenshottablePage } from '../vision/analyze.js';
@@ -55,7 +55,8 @@ export class WSession {
   captchaFormData: any = null;
   captchaHeaders: Record<string, string> = {};
   captchaEndpoint: string = '';
-  proxyConfig: { server: string; username?: string; password?: string } | undefined;
+  proxyConfig: { server: string; username?: string; password?: string; country?: string } | undefined;
+  personaConfig: Persona | undefined;
   capturedResponses: Array<{ ts: number; method: string; url: string; status: number; headers: Record<string, string>; body: string }> = [];
   private _smsOrder: SmsNumber | null = null;
 
@@ -92,10 +93,7 @@ export class WSession {
     }
   }
 
-  private async _saveDom(label: string): Promise<void> {
-    const html = await this.page.content?.().catch(() => null);
-    if (html) writeFileSync(join(recordingsDir(this.label || undefined), `${label}_dom.html`), html);
-  }
+  private async _saveDom(label: string): Promise<void> { const html = await this.page.content?.().catch(() => null); if (html) writeFileSync(join(recordingsDir(this.label || undefined), `${label}_dom.html`), html); }
 
   static async start(opts: WSessionOptions = {}): Promise<WSession> {
     const label = opts.label ?? '';
@@ -106,16 +104,17 @@ export class WSession {
       const ctx = browser.contexts()[0] || await browser.newContext({ locale: 'en-US' }); const page = ctx.pages()[0] || await ctx.newPage();
       return new WSession(ctx, page, label, new Capture({ newPage: async () => page } as any, label ? recordingsDir(label) : undefined));
     }
-    const bOpts: AsyncNewBrowserOptions = { os: opts.persona?.os ?? opts.os ?? 'macos', browser: opts.browser ?? opts.persona?.browser ?? 'chromium', headless: opts.headless ?? false, recordVideo: opts.record ?? (process.env.WELES_DISABLE_RECORDING !== '1'), locale: opts.locale, persona: opts.persona };
+    const proxy = opts.proxy ? await resolveProxy(opts.proxy) : undefined;
+    const persona: Persona = opts.persona ?? generatePersona({ country: proxy?.country, os: opts.os as Persona['os'] | undefined, browser: opts.browser as Persona['browser'] | undefined });
+    const bOpts: AsyncNewBrowserOptions = { os: persona.os, browser: persona.browser, headless: opts.headless ?? false, recordVideo: opts.record ?? (process.env.WELES_DISABLE_RECORDING !== '1'), locale: opts.locale, persona, proxy };
     const cp = opts.chromiumPath ?? process.env.CHROMIUM_PATH ?? findCustomBrowser(bOpts.browser);
     if (bOpts.browser === 'chromium' && !cp) throw new Error('Custom Chromium not found. Set CHROMIUM_PATH or install to a known location.');
     if (cp && bOpts.browser === 'chromium') bOpts.chromiumPath = cp;
-    if (opts.proxy) bOpts.proxy = await resolveProxy(opts.proxy);
     const ctx = await AsyncNewBrowser(bOpts);
     const page = ctx.pages()[0] || await ctx.newPage();
     const cap = new Capture({ newPage: async () => page } as any, label ? recordingsDir(label) : undefined);
     if (label) { const s = new SessionStore(); await s.injectPlaywright(ctx, label).catch(() => {}); }
-    const ws = new WSession(ctx, page, label, cap); ws.proxyConfig = bOpts.proxy; if (label && bOpts.proxy?.server) { try { const u = new URL(bOpts.proxy.server); writeFileSync(join(recordingsDir(label), 'session_meta.json'), JSON.stringify({ proxy_host: u.hostname, proxy_port: u.port, proxy_user: bOpts.proxy.username?.slice(0, 80), proxy_full: bOpts.proxy.server, started_at: new Date().toISOString() }, null, 2)); } catch {} }
+    const ws = new WSession(ctx, page, label, cap); ws.proxyConfig = bOpts.proxy; ws.personaConfig = persona; if (label && bOpts.proxy?.server) { try { const u = new URL(bOpts.proxy.server); writeFileSync(join(recordingsDir(label), 'session_meta.json'), JSON.stringify({ proxy_host: u.hostname, proxy_port: u.port, proxy_user: bOpts.proxy.username?.slice(0, 80), proxy_full: bOpts.proxy.server, started_at: new Date().toISOString() }, null, 2)); } catch {} }
     if (process.env.WELES_INSTRUMENT === '1') { const dir = join(process.cwd(), '.work', 'inst'); mkdirSync(dir, { recursive: true }); const ts = new Date().toISOString().replace(/[:.]/g, '-'); const fn = join(dir, `${label || 'session'}_${ts}.json`); const accum = new Map(); const reqs: any[] = []; const netFilter = /github\.com|arkoselabs\.com|octocaptcha\.com/; ctx.on('request', (req) => { try { const u = req.url(); if (!netFilter.test(u)) return; let post = ''; try { post = req.postData()?.slice(0, 4000) || ''; } catch {} reqs.push({ t: Date.now(), phase: 'req', method: req.method(), url: u, headers: req.headers(), postData: post }); } catch {} }); ctx.on('response', async (resp) => { try { const u = resp.url(); if (!netFilter.test(u)) return; let body = ''; try { body = (await resp.text()).slice(0, 8000); } catch {} reqs.push({ t: Date.now(), phase: 'res', status: resp.status(), url: u, headers: resp.headers(), body }); } catch {} }); setInterval(async () => { try { for (const f of ws.page.frames()) { try { const j: string = await f.evaluate('(window.__inst_flush)?window.__inst_flush():"[]"'); const log = JSON.parse(j); if (!log.length) continue; const url = f.url(); const prev = accum.get(url); if (!prev || log.length > prev.log.length) accum.set(url, { url, log }); } catch {} } writeFileSync(fn, JSON.stringify({ accesses: [...accum.values()], requests: reqs })); } catch {} }, 5000); }
     return ws;
   }
@@ -260,7 +259,7 @@ export class WSession {
       username,
       display_name: name,
       profile_url: profileUrl(platform, username, name),
-      metadata: { email, password, status: data.status ?? 'created', created_via: 'weles', cookies, cookies_updated_at: new Date().toISOString(), proxy: this.proxyConfig ?? null },
+      metadata: { email, password, status: data.status ?? 'created', created_via: 'weles', cookies, cookies_updated_at: new Date().toISOString(), proxy: this.proxyConfig ?? null, persona: this.personaConfig ?? null },
       is_active: true,
       created_by: 'weles',
     };
