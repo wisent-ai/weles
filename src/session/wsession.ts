@@ -141,6 +141,10 @@ export class WSession {
   async fill(target: string, value: string): Promise<string> {
     return this.runStep(`fill_${target}`, async () => {
     const v = this.resolveEnv(value);
+    // Playwright's accessible-label resolver finds <label>Username or email</label>
+    // bound inputs even when the input's own name/placeholder/aria-label don't match
+    // the target keywords (e.g. github's <input name="login">). Try this first.
+    try { const lbl = this.page.getByLabel?.(target, { exact: false })?.first?.(); if (lbl && await lbl.isVisible({ timeout: 1500 }).catch(() => false)) { await lbl.fill(v); return 'filled'; } } catch {}
     const kws = target.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(w => w.length > 2);
     const sels = kws.flatMap(k => ['input','textarea','[contenteditable]'].flatMap(t => [`${t}[name*="${k}"]`,`${t}[placeholder*="${k}" i]`,`${t}[aria-label*="${k}" i]`]));
     for (const sel of sels) { try { const el = this.page.locator?.(sel)?.first?.(); if (el && await el.isVisible()) { await el.fill(v); return 'filled'; } } catch {} }
