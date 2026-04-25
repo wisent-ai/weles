@@ -254,6 +254,7 @@ export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
   const { exitCode, stderr } = await runTrajectory(row, trajPath);
   const banSignal = await readBanSignal(row.action, row.platform);
   const result: Record<string, unknown> = {};
+  try { const m = JSON.parse(await readFile(join(RECORDINGS_ROOT, row.action, 'session_meta.json'), 'utf8')); result.session = { proxy_host: m.proxy_host, proxy_port: m.proxy_port, proxy_user: m.proxy_user }; } catch {}
   if (banSignal) {
     result.ban_signal = banSignal;
     if (banSignal.healthy === false) await pauseAccount(row.account_id, banSignal.signal);
