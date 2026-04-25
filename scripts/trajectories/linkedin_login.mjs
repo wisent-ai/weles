@@ -1,6 +1,7 @@
 import { getSocialAccount, resolveAccountSession } from '../../dist/utils/credentials.js';
 import { WSession } from '../../dist/session/wsession.js';
 import { execute } from '../../dist/agent/loop.js';
+import { CaptchaSolver } from '../../dist/captcha/solver.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -50,16 +51,32 @@ try {
     flowName: 'linkedin_login',
   });
   console.log('agent done:', result.value);
+  // Validate auth + try CapSolver PerimeterX bypass on checkpoint pages.
+  let cookies = await s.ctx.cookies();
+  let liAt = cookies.find(c => c.name === 'li_at' && c.value);
+  let finalUrl = s.page.url?.() ?? '';
+  let title = await s.page.title?.().catch(() => '') ?? '';
+  let onCheckpoint = /\/(checkpoint|uas\/login|login\/recovery)/.test(finalUrl) || /Security Verification/.test(title);
+
+  if (!liAt && onCheckpoint) {
+    console.log(`[linkedin_login] on checkpoint — invoking CapSolver AntiPerimeterX`);
+    const ua = await s.page.evaluate(() => navigator.userAgent).catch(() => '');
+    const px = await new CaptchaSolver().solvePerimeterX(finalUrl, ua, cookies.filter(c => /linkedin\.com$/.test(c.domain ?? '')).map(c => ({ name: c.name, value: c.value, domain: c.domain })));
+    if (px && px.length) {
+      await s.ctx.addCookies(px.map(c => ({ ...c, domain: c.domain ?? '.linkedin.com', path: c.path ?? '/' }))).catch(e => console.log('[linkedin_login] addCookies err:', e.message));
+      await s.page.goto('https://www.linkedin.com/feed/', { waitUntil: 'domcontentloaded' }).catch(() => {});
+      await s.page.waitForTimeout(3000);
+      cookies = await s.ctx.cookies();
+      liAt = cookies.find(c => c.name === 'li_at' && c.value);
+      finalUrl = s.page.url?.() ?? '';
+      title = await s.page.title?.().catch(() => '') ?? '';
+      onCheckpoint = /\/(checkpoint|uas\/login|login\/recovery)/.test(finalUrl) || /Security Verification/.test(title);
+      console.log(`[linkedin_login] post-bypass: li_at=${!!liAt} url=${finalUrl}`);
+    }
+  }
   await captureCookies();
-  // Validate auth: agent's done() doesn't guarantee login worked. linkedin issues
-  // a captchaV2 checkpoint on flagged sessions and the agent loop happily declares
-  // success without solving it. Verify by checking li_at cookie + final URL.
-  const cookies = await s.ctx.cookies();
-  const liAt = cookies.find(c => c.name === 'li_at' && c.value);
-  const finalUrl = s.page.url?.() ?? '';
-  const onCheckpoint = /\/(checkpoint|uas\/login|login\/recovery)/.test(finalUrl) || /Security Verification/.test(await s.page.title?.().catch(() => '') ?? '');
   if (liAt) { writeBan('healthy', { final_url: finalUrl }); console.log(`PASS: li_at cookie set — ${finalUrl}`); }
-  else if (onCheckpoint) { writeBan('checkpoint', { final_url: finalUrl, reason: 'linkedin issued captchaV2/email-verify gate; auto-solver did not clear it' }); console.log(`FAIL: linkedin checkpoint — ${finalUrl}`); process.exitCode = 1; }
+  else if (onCheckpoint) { writeBan('checkpoint', { final_url: finalUrl, reason: 'linkedin issued captchaV2; CapSolver AntiPerimeterX did not return usable cookies' }); console.log(`FAIL: linkedin checkpoint — ${finalUrl}`); process.exitCode = 1; }
   else { writeBan('unknown_error', { final_url: finalUrl, reason: 'no li_at cookie present after agent done()' }); console.log(`FAIL: no li_at cookie — ${finalUrl}`); process.exitCode = 1; }
 } catch (e) {
   writeBan('unknown_error', { error: e.message?.slice(0, 200) });
