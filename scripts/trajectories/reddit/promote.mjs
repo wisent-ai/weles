@@ -47,6 +47,11 @@ const { proxyUrl, persona } = await resolveAccountSession(acct);
 const s = await WSession.start({ label: 'reddit_promote', proxy: proxyUrl, persona });
 let banSignal = null;
 try {
+  // Inject saved reddit cookies first — anonymous /r/X/new/.json hits reddit's
+  // JS-challenge wall on residential proxies. With session cookies the
+  // request reads as authed and the listing returns directly.
+  const cookies = (acct.metadata?.cookies ?? []).filter(c => (c.domain ?? '').includes('reddit.com'));
+  if (cookies.length) await s.ctx.addCookies(cookies).catch(() => {});
   let postUrl = null, postTitle = '', postBody = '';
 
   if (TARGET_URL) {

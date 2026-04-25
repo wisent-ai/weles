@@ -39,6 +39,10 @@ const { proxyUrl, persona } = await resolveAccountSession(acct);
 const s = await WSession.start({ label: 'reddit_organic_comment', proxy: proxyUrl, persona });
 let banSignal = null;
 try {
+  // Inject saved reddit cookies — anonymous .json fetches hit the JS-challenge
+  // wall on residential proxies. With session cookies the listing returns directly.
+  const cookies = (acct.metadata?.cookies ?? []).filter(c => (c.domain ?? '').includes('reddit.com'));
+  if (cookies.length) await s.ctx.addCookies(cookies).catch(() => {});
   // /r/popular surfaces mega-threads with thousands of comments. Pull /new for
   // fresher posts. Capture body via page.evaluate fetch (not capturedResponses,
   // which truncates to 8KB and breaks JSON.parse on listing payloads).
