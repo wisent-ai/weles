@@ -70,12 +70,17 @@ export async function runHealthProbe(cfg) {
   // logged-in probe is ok, treat as healthy; the shadowban check requires the
   // logged-out probe to have actually run.
   const skipLoggedOut = !cfg.loggedOutUrl;
-  const outOk = skipLoggedOut
+  // Proxy CONNECT can fail mid-probe (chrome-error://chromewebdata/, tunnel
+  // failed). loggedOut.status stays null AND loggedOut.error is set — that's
+  // an infra failure, not a shadowban. Only mark shadowbanned when we actually
+  // got a non-200 (e.g. 404 / blocked-page) response back.
+  const loggedOutErrored = !!loggedOut.error;
+  const outOk = skipLoggedOut || loggedOutErrored
     ? true
     : cfg.extractLoggedOut
       ? cfg.extractLoggedOut(loggedOut)
       : (loggedOut.status === 200);
-  const shadowbanned = !skipLoggedOut && extracted.ok && !outOk && (loggedOut.status === 404 || loggedOut.status == null);
+  const shadowbanned = !skipLoggedOut && !loggedOutErrored && extracted.ok && !outOk && (loggedOut.status === 404 || loggedOut.status == null);
 
   let signal;
   if (extracted.is_suspended) signal = 'suspended';
