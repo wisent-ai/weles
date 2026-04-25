@@ -130,6 +130,29 @@ if (__weles.timezone && __weles.timezone.offset !== undefined) {
   Date.prototype.getTimezoneOffset = function() { return offset; };
 }
 
+// --- navigator.bluetooth / navigator.keyboard stubs ---
+// Real Chrome 147 exposes Web Bluetooth + Keyboard Lock APIs on navigator.
+// weles' chromium-build may compile without them depending on build flags;
+// PerimeterX checks 'bluetooth' in navigator and 'keyboard' in navigator and
+// flags absence as bot. Expose minimal objects matching real-Chrome shape;
+// the methods are getter-only and never called by PX (it just probes presence).
+(function exposeBluetoothKeyboard() {
+  if (typeof navigator === 'undefined') return;
+  if (!('bluetooth' in navigator)) {
+    const bluetooth = Object.create(null);
+    Object.defineProperty(bluetooth, 'getAvailability', { value: function() { return Promise.resolve(false); }, configurable: false, enumerable: false });
+    Object.defineProperty(bluetooth, 'requestDevice', { value: function() { return Promise.reject(new DOMException('Web Bluetooth API globally disabled.', 'NotFoundError')); }, configurable: false, enumerable: false });
+    Object.defineProperty(navigator, 'bluetooth', { get: function() { return bluetooth; }, configurable: true, enumerable: true });
+  }
+  if (!('keyboard' in navigator)) {
+    const keyboard = Object.create(null);
+    Object.defineProperty(keyboard, 'getLayoutMap', { value: function() { return Promise.resolve(new Map()); }, configurable: false, enumerable: false });
+    Object.defineProperty(keyboard, 'lock', { value: function() { return Promise.resolve(undefined); }, configurable: false, enumerable: false });
+    Object.defineProperty(keyboard, 'unlock', { value: function() { return undefined; }, configurable: false, enumerable: false });
+    Object.defineProperty(navigator, 'keyboard', { get: function() { return keyboard; }, configurable: true, enumerable: true });
+  }
+})();
+
 // --- Intl locale ---
 // Real Chrome's Intl.DateTimeFormat().resolvedOptions().locale ALWAYS matches
 // navigator.language. ICU pulls from the same setting. weles can spoof
