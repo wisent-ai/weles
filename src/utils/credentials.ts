@@ -149,13 +149,17 @@ export async function resolveAccountSession(acct: SocialAccount): Promise<Accoun
     // account id so the fleet spreads across providers instead of every
     // account exiting through the same Oxylabs BR /16. Same id always hashes
     // to the same provider — keeps the account's exit-IP cohort stable.
+    // Country is platform-aware: Discord works on BR, LinkedIn/Reddit/Twitter
+    // need US (their bot-detection walls fire on Brazilian residential ranges).
     const PROVIDERS = ['oxylabs', 'packetstream', 'pingproxies'];
     let hash = 0;
     for (const ch of (acct.id ?? acct.username ?? '')) hash = ((hash << 5) - hash + ch.charCodeAt(0)) | 0;
     const provider = PROVIDERS[Math.abs(hash) % PROVIDERS.length];
+    const country = acct.platform === 'discord' ? '' : 'us';
     try {
       const mod = await import('../proxy/config.js');
-      const pw = await mod.resolveProxy(`residential ${provider}`) ?? await mod.resolveProxy('residential');
+      const filter = `residential ${provider} ${country}`.trim();
+      const pw = await mod.resolveProxy(filter) ?? await mod.resolveProxy(`residential ${country}`.trim()) ?? await mod.resolveProxy('residential');
       if (pw?.server) {
         const u = new URL(pw.server);
         cfg = {
