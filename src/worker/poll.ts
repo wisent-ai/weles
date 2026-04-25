@@ -35,39 +35,25 @@ function resolveTrajectory(action: string): string | null {
   // Benign verbs (dwell/notifications/search/profile_view) share the universal runner with PLATFORM+VERB env; specialized verbs map to specific files; legacy flat <plat>_<verb>.mjs kept as-is.
   const benignPath = 'scripts/trajectories/_shared/benign.mjs';
   const routes: Record<string, (p: string) => string> = {
-    dwell:                 () => benignPath,
-    notifications:         () => benignPath,
-    search:                () => benignPath,
-    profile_view:          () => benignPath,
-    browse:                (p) => p === 'github' ? 'scripts/trajectories/github/actions/browse.mjs' : `scripts/trajectories/${p}/browse.mjs`,
-    health:                (p) => p === 'github' ? 'scripts/trajectories/github/health/run.mjs' : `scripts/trajectories/${p}/health.mjs`,
-    organic_comment:       (p) => `scripts/trajectories/${p}/organic_comment.mjs`,
-    organic_reply:         (p) => `scripts/trajectories/${p}/organic_reply.mjs`,
-    organic_message:       (p) => `scripts/trajectories/${p}/organic_message.mjs`,
+    dwell: () => benignPath, notifications: () => benignPath, search: () => benignPath, profile_view: () => benignPath,
+    browse: (p) => p === 'github' ? 'scripts/trajectories/github/actions/browse.mjs' : `scripts/trajectories/${p}/browse.mjs`,
+    health: (p) => p === 'github' ? 'scripts/trajectories/github/health/run.mjs' : `scripts/trajectories/${p}/health.mjs`,
+    organic_comment: (p) => `scripts/trajectories/${p}/organic_comment.mjs`, organic_reply: (p) => `scripts/trajectories/${p}/organic_reply.mjs`, organic_message: (p) => `scripts/trajectories/${p}/organic_message.mjs`,
     organic_issue_comment: (p) => `scripts/trajectories/${p}/actions/organic_issue_comment.mjs`,
-    promote:               (p) => p === 'github' ? 'scripts/trajectories/github/actions/promote.mjs' : `scripts/trajectories/${p}/promote.mjs`,
-    register:              (p) => p === 'github' || p === 'youtube' ? `scripts/trajectories/${p}/register.mjs` : `scripts/trajectories/${p}_register.mjs`,
-    login:                 (p) => `scripts/trajectories/${p}_login.mjs`,
-    like:                  (p) => ['linkedin','tiktok','twitter','instagram'].includes(p) ? `scripts/trajectories/${p}/actions/like.mjs` : `scripts/trajectories/${p}_like.mjs`,
-    follow:                (p) => (p === 'reddit' || p === 'tiktok' || p === 'twitter' || p === 'instagram' || p === 'github') ? `scripts/trajectories/${p}/actions/follow.mjs` : `scripts/trajectories/${p}_follow.mjs`,
-    comment:               (p) => `scripts/trajectories/${p}_comment.mjs`,
-    upvote:                (p) => p === 'reddit' ? 'scripts/trajectories/reddit/actions/upvote.mjs' : `scripts/trajectories/${p}_upvote.mjs`,
-    dm:                    (p) => `scripts/trajectories/${p}_dm.mjs`,
-    star:                  (p) => p === 'github' ? 'scripts/trajectories/github/star/run.mjs' : `scripts/trajectories/${p}_star.mjs`,
+    promote: (p) => p === 'github' ? 'scripts/trajectories/github/actions/promote.mjs' : `scripts/trajectories/${p}/promote.mjs`,
+    register: (p) => p === 'github' || p === 'youtube' ? `scripts/trajectories/${p}/register.mjs` : `scripts/trajectories/${p}_register.mjs`,
+    login: (p) => `scripts/trajectories/${p}_login.mjs`, comment: (p) => `scripts/trajectories/${p}_comment.mjs`, dm: (p) => `scripts/trajectories/${p}_dm.mjs`,
+    like: (p) => ['linkedin','tiktok','twitter','instagram'].includes(p) ? `scripts/trajectories/${p}/actions/like.mjs` : `scripts/trajectories/${p}_like.mjs`,
+    follow: (p) => (p === 'reddit' || p === 'tiktok' || p === 'twitter' || p === 'instagram' || p === 'github') ? `scripts/trajectories/${p}/actions/follow.mjs` : `scripts/trajectories/${p}_follow.mjs`,
+    upvote: (p) => p === 'reddit' ? 'scripts/trajectories/reddit/actions/upvote.mjs' : `scripts/trajectories/${p}_upvote.mjs`,
+    star: (p) => p === 'github' ? 'scripts/trajectories/github/star/run.mjs' : `scripts/trajectories/${p}_star.mjs`,
     create_repo: (p) => `scripts/trajectories/${p}/content/create_repo.mjs`, commit: (p) => `scripts/trajectories/${p}/content/commit.mjs`, fork: (p) => `scripts/trajectories/${p}/content/fork.mjs`, open_issue: (p) => `scripts/trajectories/${p}/content/open_issue.mjs`,
-    post: (p) => `scripts/trajectories/${p}/content/post.mjs`, post_promote: (p) => `scripts/trajectories/${p}/content/post.mjs`,
-    submit: (p) => `scripts/trajectories/${p}/content/submit.mjs`, submit_promote: (p) => `scripts/trajectories/${p}/content/submit.mjs`,
-    connect:               (p) => `scripts/trajectories/${p}/actions/connect.mjs`,
-    endorse:               (p) => `scripts/trajectories/${p}/actions/endorse.mjs`,
-    react:                 (p) => `scripts/trajectories/${p}/actions/react.mjs`,
-    join_server:           (p) => `scripts/trajectories/${p}/actions/join_server.mjs`,
-    join_sub:              (p) => `scripts/trajectories/${p}/actions/join_sub.mjs`,
-    watch_repo:            (p) => `scripts/trajectories/${p}/actions/watch_repo.mjs`,
-    story_view:            (p) => `scripts/trajectories/${p}/actions/story_view.mjs`,
-    watch_through:         (p) => `scripts/trajectories/${p}/actions/watch_through.mjs`,
-    bookmark:              (p) => `scripts/trajectories/${p}/actions/bookmark.mjs`,
-    save:                  (p) => `scripts/trajectories/${p}/actions/save.mjs`,
-    reset_password:        (p) => p === 'github' ? 'scripts/trajectories/github/recover/reset_password.mjs' : `scripts/trajectories/${p}_reset_password.mjs`,
+    post: (p) => `scripts/trajectories/${p}/content/post.mjs`, post_promote: (p) => `scripts/trajectories/${p}/content/post.mjs`, submit: (p) => `scripts/trajectories/${p}/content/submit.mjs`, submit_promote: (p) => `scripts/trajectories/${p}/content/submit.mjs`,
+    connect: (p) => `scripts/trajectories/${p}/actions/connect.mjs`, endorse: (p) => `scripts/trajectories/${p}/actions/endorse.mjs`, react: (p) => `scripts/trajectories/${p}/actions/react.mjs`,
+    join_server: (p) => `scripts/trajectories/${p}/actions/join_server.mjs`, join_sub: (p) => `scripts/trajectories/${p}/actions/join_sub.mjs`, watch_repo: (p) => `scripts/trajectories/${p}/actions/watch_repo.mjs`,
+    story_view: (p) => `scripts/trajectories/${p}/actions/story_view.mjs`, watch_through: (p) => `scripts/trajectories/${p}/actions/watch_through.mjs`,
+    bookmark: (p) => `scripts/trajectories/${p}/actions/bookmark.mjs`, save: (p) => `scripts/trajectories/${p}/actions/save.mjs`,
+    reset_password: (p) => p === 'github' ? 'scripts/trajectories/github/recover/reset_password.mjs' : `scripts/trajectories/${p}_reset_password.mjs`,
   };
   const router = routes[verb];
   return router ? router(plat) : null;
@@ -80,9 +66,16 @@ async function claimOne(): Promise<ActionLogRow | null> {
   );
   if (!res.ok) return null;
   const candidates = (await res.json()) as ActionLogRow[];
+  // Per-account in-flight lock: each account has ONE stored sticky proxy session (Oxylabs sessid). Concurrent connections to one sticky session get refused with ERR_TUNNEL_CONNECTION_FAILED. Serialize per-account; deferred rows pick up next tick.
+  const inflightAccounts = new Set<string>();
+  if (candidates.length) {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/account_action_logs?select=account_id&status=eq.running`, { headers: headers() });
+    if (r.ok) for (const row of (await r.json()) as { account_id: string | null }[]) if (row.account_id) inflightAccounts.add(row.account_id);
+  }
   for (const row of candidates) {
     if (!resolveTrajectory(row.action)) continue;
     if (!row.account_id || !row.id) continue; // poison rows: legacy promote-cron sometimes emits orphans
+    if (inflightAccounts.has(row.account_id)) continue;
 
     const claim = await fetch(
       `${SUPABASE_URL}/rest/v1/account_action_logs?id=eq.${row.id}&status=eq.queued`,
