@@ -16,10 +16,12 @@ let ban = null;
 try {
   let author = TARGET_USER.replace(/^u\//, '');
   if (!author) {
-    await s.goto(`https://www.reddit.com/r/${SUBREDDIT}/.json?limit=20`);
-    const r = s.capturedResponses.find(r => /\/r\/.+\/\.json/.test(r.url));
+    // page.evaluate fetch — capturedResponses truncates to 8KB and breaks JSON.parse on listings.
+    const cookies = (acct.metadata?.cookies ?? []).filter(c => (c.domain ?? '').includes('reddit.com'));
+    if (cookies.length) await s.ctx.addCookies(cookies).catch(() => {});
+    await s.goto('https://www.reddit.com/');
+    const data = await s.page.evaluate(async (u) => { try { const r = await fetch(u, { credentials: 'include' }); if (!r.ok) return null; return await r.json(); } catch { return null; } }, `https://www.reddit.com/r/${SUBREDDIT}/new/.json?limit=50&raw_json=1`).catch(() => null);
     try {
-      const data = JSON.parse(r?.body ?? '{}');
       const pick = (data?.data?.children ?? []).map(c => c.data).filter(p => p && p.author && p.author !== '[deleted]')[0];
       if (pick) author = pick.author;
     } catch (e) { console.log('[listing-parse]', e.message); }
