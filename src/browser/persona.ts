@@ -22,12 +22,12 @@ export interface Persona {
   gpu: { vendor: string; renderer: string };
   screen: { width: number; height: number; dpr: number };
   hardwareConcurrency: number;
-  // Real Chrome quantizes navigator.deviceMemory to one of 0.25, 0.5, 1, 2, 4, 8
-  // and CAPS at 8 for privacy. The host machine's actual RAM (e.g. 32 GB on the
-  // dev box, 64 GB on the worker VM) leaks through if not overridden — and any
-  // value >8 is an instant bot tell because no real Chrome reports it.
-  // PerimeterX, Akamai Bot Manager, DataDome all key on this.
-  deviceMemory?: 4 | 8;
+  // navigator.deviceMemory: production capture (2026-04-25) showed real Chrome
+  // 147 reports the host machine's actual RAM (32 GB on a 32 GB Mac), NOT the
+  // W3C-spec cap of 8. The cap-at-8 patch was wrong — it made weles differ
+  // from real Chrome. Now optional; if undefined async_api lets the C++ build
+  // emit the host's real value, matching real Chrome behavior.
+  deviceMemory?: number;
   audioSampleRate: 44100 | 48000;
   timezone: string;
   language: string;
@@ -130,10 +130,6 @@ export function generatePersona(opts: { country?: string; os?: Persona['os']; br
   const coreOptions = os === 'macos' ? [4, 8, 10, 12] : os === 'windows' ? [4, 6, 8, 12, 16] : [4, 8];
   const hardwareConcurrency = pick(coreOptions);
   const audioSampleRate: 44100 | 48000 = os === 'windows' ? 44100 : 48000;
-  // 4 GB and 8 GB are the only realistic Chrome-spec values for residential
-  // hardware. 8 weighted higher because most users have 16+ GB but Chrome
-  // quantizes-and-caps to 8.
-  const deviceMemory: 4 | 8 = Math.random() < 0.7 ? 8 : 4;
 
   const country = (opts.country ?? 'US').toUpperCase();
   const locale = COUNTRY_LOCALE[country] ?? COUNTRY_LOCALE.US;
@@ -146,7 +142,7 @@ export function generatePersona(opts: { country?: string; os?: Persona['os']; br
 
   return {
     os, browser, chromeVersion, userAgentOs, platform, gpu, screen,
-    hardwareConcurrency, deviceMemory, audioSampleRate,
+    hardwareConcurrency, audioSampleRate,
     timezone: locale.tz, language: locale.lang, canvasSeed,
   };
 }
