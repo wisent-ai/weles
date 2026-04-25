@@ -65,10 +65,17 @@ export async function runHealthProbe(cfg) {
   }
 
   const extracted = cfg.extractLoggedIn?.(loggedIn.body, loggedIn) ?? { ok: !!loggedIn.body, karma: null, is_suspended: false };
-  const outOk = cfg.extractLoggedOut
-    ? cfg.extractLoggedOut(loggedOut)
-    : (loggedOut.status === 200);
-  const shadowbanned = extracted.ok && !outOk && (loggedOut.status === 404 || loggedOut.status == null);
+  // No loggedOutUrl configured (e.g. discord — no public profile pages) means
+  // we can't distinguish healthy from shadowbanned. Skip both checks: if the
+  // logged-in probe is ok, treat as healthy; the shadowban check requires the
+  // logged-out probe to have actually run.
+  const skipLoggedOut = !cfg.loggedOutUrl;
+  const outOk = skipLoggedOut
+    ? true
+    : cfg.extractLoggedOut
+      ? cfg.extractLoggedOut(loggedOut)
+      : (loggedOut.status === 200);
+  const shadowbanned = !skipLoggedOut && extracted.ok && !outOk && (loggedOut.status === 404 || loggedOut.status == null);
 
   let signal;
   if (extracted.is_suspended) signal = 'suspended';
