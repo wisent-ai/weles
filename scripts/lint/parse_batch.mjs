@@ -10,7 +10,7 @@ const all = paths.flatMap(p => JSON.parse(readFileSync(p, 'utf8')));
 function rank(r) {
   const sig = r.result?.ban_signal?.signal ?? 'n/a';
   if (r.status === 'completed' && sig === 'healthy') return 3;
-  if (r.status === 'completed' && /shadowbanned|suspended|ip_blocked|checkpoint|rate_limited|captcha_challenge|reset_failed/.test(sig)) return 2;
+  if (r.status === 'completed' && /shadowbanned|suspended|ip_blocked|checkpoint|rate_limited|captcha_challenge|reset_failed|proxy_failed/.test(sig)) return 2;
   if (r.status === 'completed') return 1;
   return 0;
 }
@@ -29,7 +29,7 @@ for (const r of rows) {
   const err = (r.error ?? '').slice(0, 80).replace(/\s+/g, ' ');
   let bucket;
   if (r.status === 'completed' && sig === 'healthy') { bucket = 'completed_healthy'; tally.completed_healthy++; }
-  else if (r.status === 'completed' && /shadowbanned|suspended|ip_blocked|checkpoint|rate_limited|captcha_challenge|reset_failed/.test(sig)) { bucket = 'completed_envblock'; tally.completed_envblock++; }
+  else if (r.status === 'completed' && /shadowbanned|suspended|ip_blocked|checkpoint|rate_limited|captcha_challenge|reset_failed|proxy_failed/.test(sig)) { bucket = 'completed_envblock'; tally.completed_envblock++; }
   else if (r.status === 'completed') { bucket = 'completed_unknown'; tally.completed_unknown++; }
   else if (sig === 'unknown_error' || sig === 'unknown') { bucket = 'failed_unknown'; tally.failed_unknown++; }
   else { bucket = 'failed_other'; tally.failed_other++; }
