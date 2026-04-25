@@ -63,12 +63,12 @@ try {
     } catch (e) { console.log('[thread-parse]', e.message); }
   } else {
     // No explicit target — pick from the subreddit listing (organic path).
-    // Pull /new on aggregate subs since /popular surfaces only mega-threads.
+    // Use page.evaluate fetch — capturedResponses truncates bodies to 8KB.
     const sortPath = SUBREDDIT === 'popular' || SUBREDDIT === 'all' ? `/r/${SUBREDDIT}/new` : `/r/${SUBREDDIT}`;
-    await s.goto(`https://www.reddit.com${sortPath}/.json?limit=50`);
-    const listingResp = s.capturedResponses.find(r => /\/r\/.+\/\.json/.test(r.url));
+    await s.goto('https://www.reddit.com/');
+    const listingUrl = `https://www.reddit.com${sortPath}/.json?limit=50&raw_json=1`;
+    const data = await s.page.evaluate(async (u) => { try { const r = await fetch(u, { credentials: 'include' }); if (!r.ok) return null; return await r.json(); } catch { return null; } }, listingUrl).catch(() => null);
     try {
-      const data = JSON.parse(listingResp?.body ?? '{}');
       const candidates = (data?.data?.children ?? [])
         .map(c => c.data)
         .filter(p => p && !p.locked && !p.archived && p.num_comments < 2000 && p.num_comments > 2);

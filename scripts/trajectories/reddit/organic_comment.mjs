@@ -40,15 +40,14 @@ const s = await WSession.start({ label: 'reddit_organic_comment', proxy: proxyUr
 let banSignal = null;
 try {
   // /r/popular surfaces mega-threads with thousands of comments. Pull /new for
-  // fresher posts that haven't accumulated, and use 'all' as default if SUBREDDIT
-  // didn't override. Relax filter to <2000 comments — only excludes the genuinely
-  // viral threads where a fresh comment will get buried instantly.
+  // fresher posts. Capture body via page.evaluate fetch (not capturedResponses,
+  // which truncates to 8KB and breaks JSON.parse on listing payloads).
   const sortPath = SUBREDDIT === 'popular' || SUBREDDIT === 'all' ? `/r/${SUBREDDIT}/new` : `/r/${SUBREDDIT}`;
-  await s.goto(`https://www.reddit.com${sortPath}/.json?limit=50`);
-  const listingResp = s.capturedResponses.find(r => /\/r\/.+\/\.json/.test(r.url));
+  await s.goto('https://www.reddit.com/');
+  const listingUrl = `https://www.reddit.com${sortPath}/.json?limit=50&raw_json=1`;
+  const data = await s.page.evaluate(async (u) => { try { const r = await fetch(u, { credentials: 'include' }); if (!r.ok) return null; return await r.json(); } catch { return null; } }, listingUrl).catch(() => null);
   let postUrl = null, postTitle = '', postBody = '';
   try {
-    const data = JSON.parse(listingResp?.body ?? '{}');
     const candidates = (data?.data?.children ?? [])
       .map(c => c.data)
       .filter(p => p && !p.locked && !p.archived && p.num_comments < 2000);
