@@ -138,20 +138,25 @@ export async function resolveProxy(proxy: string): Promise<{ server: string; use
       console.log(`[proxy] Skipping ${p.display_name}: missing env ${envUser}/${envPass}`);
       continue;
     }
-    // Apply sticky session format per provider, using metadata.country if set
-    const sessId = Math.floor(Math.random() * 9000000 + 1000000);
+    const { isBurned } = await import('./burned.js');
     const name = p.display_name.toLowerCase();
     const cc = (p.metadata?.country ?? 'us').toLowerCase();
-    let stickyUser = username, stickyPass = password;
-    if (name.includes('oxylabs')) stickyUser = `customer-${username}-cc-${cc}-sessid-${sessId}`;
-    else if (name.includes('packetstream')) stickyPass = `${password}_country-${cc.toUpperCase()}_session-${sessId}`;
-    else if (name.includes('iproyal')) stickyPass = `${password}_country-${cc}_session-${sessId}`;
-    else if (name.includes('pingproxies')) stickyUser = `${username}_c_${cc}_s_${sessId}`;
-    // Resolve hostname to IP once so browser and captcha service use the same gateway
-    let host = p.proxy_host;
-    try { const dns = await import('node:dns'); host = await new Promise<string>((res, rej) => dns.lookup(p.proxy_host, (e: any, a: string) => e ? rej(e) : res(a))); } catch {}
-    console.log(`[proxy] Using: ${p.display_name} (${host}:${p.proxy_port}, $${p.balance_usd}, sticky=${sessId})`);
-    return { server: `http://${host}:${p.proxy_port}`, username: stickyUser, password: stickyPass };
+    // Try up to 3 sticky sessions per provider — each fresh sessId may
+    // resolve the residential gateway to a different exit IP. Skip any
+    // host that is in the burned-IP registry.
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const sessId = Math.floor(Math.random() * 9000000 + 1000000);
+      let stickyUser = username, stickyPass = password;
+      if (name.includes('oxylabs')) stickyUser = `customer-${username}-cc-${cc}-sessid-${sessId}`;
+      else if (name.includes('packetstream')) stickyPass = `${password}_country-${cc.toUpperCase()}_session-${sessId}`;
+      else if (name.includes('iproyal')) stickyPass = `${password}_country-${cc}_session-${sessId}`;
+      else if (name.includes('pingproxies')) stickyUser = `${username}_c_${cc}_s_${sessId}`;
+      let host = p.proxy_host;
+      try { const dns = await import('node:dns'); host = await new Promise<string>((res, rej) => dns.lookup(p.proxy_host, (e: any, a: string) => e ? rej(e) : res(a))); } catch {}
+      if (await isBurned(host)) continue;
+      console.log(`[proxy] Using: ${p.display_name} (${host}:${p.proxy_port}, $${p.balance_usd}, sticky=${sessId})`);
+      return { server: `http://${host}:${p.proxy_port}`, username: stickyUser, password: stickyPass };
+    }
   }
 
   console.log(`[proxy] No working provider found for type="${proxy}"`);
