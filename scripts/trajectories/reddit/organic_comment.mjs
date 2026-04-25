@@ -39,15 +39,20 @@ const { proxyUrl, persona } = await resolveAccountSession(acct);
 const s = await WSession.start({ label: 'reddit_organic_comment', proxy: proxyUrl, persona });
 let banSignal = null;
 try {
-  await s.goto(`https://www.reddit.com/r/${SUBREDDIT}/.json?limit=20`);
+  // /r/popular surfaces mega-threads with thousands of comments. Pull /new for
+  // fresher posts that haven't accumulated, and use 'all' as default if SUBREDDIT
+  // didn't override. Relax filter to <2000 comments — only excludes the genuinely
+  // viral threads where a fresh comment will get buried instantly.
+  const sortPath = SUBREDDIT === 'popular' || SUBREDDIT === 'all' ? `/r/${SUBREDDIT}/new` : `/r/${SUBREDDIT}`;
+  await s.goto(`https://www.reddit.com${sortPath}/.json?limit=50`);
   const listingResp = s.capturedResponses.find(r => /\/r\/.+\/\.json/.test(r.url));
   let postUrl = null, postTitle = '', postBody = '';
   try {
     const data = JSON.parse(listingResp?.body ?? '{}');
     const candidates = (data?.data?.children ?? [])
       .map(c => c.data)
-      .filter(p => p && !p.locked && !p.archived && p.num_comments < 200);
-    const pick = candidates[Math.floor(Math.random() * Math.min(candidates.length, 8))];
+      .filter(p => p && !p.locked && !p.archived && p.num_comments < 2000);
+    const pick = candidates[Math.floor(Math.random() * Math.min(candidates.length, 12))];
     if (pick) { postUrl = `https://www.reddit.com${pick.permalink}`; postTitle = pick.title || ''; postBody = pick.selftext || ''; }
   } catch (e) { console.log('[listing-parse]', e.message); }
   if (!postUrl) throw new Error('no eligible post found');
