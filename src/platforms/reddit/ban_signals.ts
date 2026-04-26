@@ -75,6 +75,18 @@ export async function detectRedditBanSignals(
   for (const pat of CHECKPOINT_TEXT_PATTERNS) {
     if (pat.test(bodyText)) return { healthy: false, signal: 'checkpoint', details: { ...details, matched_text: pat.source } };
   }
+  // Logged-out detection on the reddit homepage: the SPA renders "Log In" /
+  // "Sign Up" / "Get App" / "Expand user menu" prominently when no session
+  // cookie. URL stays on reddit.com (no /login redirect), so URL-based
+  // checks miss it. Body sample with both "Log In" and ("Get App" or
+  // "Sign Up") near the top of innerText is a reliable logged-out signal.
+  // Only flag when on root or shallow path — subreddit pages also show
+  // "Log In" but with feed content, which is fine.
+  const onRedditRootish = /^https?:\/\/(www\.)?reddit\.com\/?(\?|$)/.test(url);
+  const sampleHead = bodyText.slice(0, 200);
+  if (onRedditRootish && /\bLog In\b/.test(sampleHead) && /\bGet App\b|\bSign Up\b/.test(sampleHead)) {
+    return { healthy: false, signal: 'checkpoint', details: { ...details, matched_text: 'reddit-homepage-logged-out', reason: 'reddit homepage rendered logged-out chrome (Log In + Get App in body)' } };
+  }
   for (const pat of RATE_LIMIT_TEXT_PATTERNS) {
     if (pat.test(bodyText)) return { healthy: false, signal: 'rate_limited', details: { ...details, matched_text: pat.source } };
   }
