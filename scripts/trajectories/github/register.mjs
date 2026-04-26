@@ -123,18 +123,15 @@ try {
       if (bb) { await humanClick(s.page, Math.round(bb.x + bb.width / 2), Math.round(bb.y + bb.height / 2)); clicked.via = 'humanClick'; }
       else { await btn.click(); clicked.via = 'locator'; }
     } else {
-      // Fall through: evaluate-based click
-      const res = await s.page.evaluate(`(() => {
-        for (const btn of Array.from(document.querySelectorAll('button'))) {
-          const t = btn.innerText.trim().toLowerCase();
-          if (t.includes('create account') && !t.includes('google') && !t.includes('apple')) {
-            btn.scrollIntoView({block:'center'}); btn.focus(); btn.click();
-            return { via: 'evaluate', text: btn.innerText.trim() };
-          }
-        }
-        return { via: null };
-      })()`);
-      clicked = res;
+      // Locator-based text match: 'button:has-text("Create account")' filtered
+      // to exclude OAuth variants. Avoids the evaluate-based btn.click() that
+      // produces isTrusted=false events (octocaptcha / arkose flag those).
+      const altLocator = s.page.locator('button:has-text("Create account"):not(:has-text("Google")):not(:has-text("Apple"))').first();
+      if (await altLocator.isVisible().catch(() => false)) {
+        await altLocator.scrollIntoViewIfNeeded().catch(() => {});
+        await altLocator.click().catch(() => {});
+        clicked = { via: 'locator-text', text: 'Create account' };
+      }
     }
   } catch (e) { console.log(`[register] Create click error: ${e.message?.slice(0, 100)}`); }
   console.log(`[register] Create account click: ${JSON.stringify(clicked)}`);
@@ -223,10 +220,14 @@ try {
       const cont = document.querySelector('[data-octocaptcha-token]');
       if (cont) cont.dataset.octocaptchaToken = tk;
       window.dispatchEvent(new CustomEvent('octocaptcha:solved', { detail: { token: tk } }));
-      const btn = document.querySelector('.js-octocaptcha-form-submit');
-      if (btn) { btn.click(); return { injected: inputs.length, clicked: true }; }
+      // Prefer form.requestSubmit() — routes through the form-submit pipeline
+      // without an isTrusted=false click event. Some bot classifiers read
+      // isTrusted on the submit-button click; for octocaptcha the token has
+      // already been validated server-side, but reqSubmit is still cleaner.
       const form = document.querySelector('form.js-octocaptcha-parent, form[data-octo-click-hmac]');
-      if (form) { form.requestSubmit?.(); return { injected: inputs.length, clicked: 'form' }; }
+      if (form && typeof form.requestSubmit === 'function') { form.requestSubmit(); return { injected: inputs.length, clicked: 'form-requestSubmit' }; }
+      const btn = document.querySelector('.js-octocaptcha-form-submit');
+      if (btn) { btn.click(); return { injected: inputs.length, clicked: 'btn-click-isTrusted-false' }; }
       return { injected: inputs.length, clicked: false };
     })(${JSON.stringify(token)})`).catch(e => ({ error: e.message?.slice(0, 150) }));
     console.log(`[register] Token injection: ${JSON.stringify(inject)} region=${token.match(/r=([^|&]+)/)?.[1] ?? '?'}`);
