@@ -248,7 +248,7 @@ export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
   if (banSignal) {
     result.ban_signal = banSignal;
     if (banSignal.healthy === false) await pauseAccount(row.account_id, banSignal.signal);
-    if (banSignal.signal === 'ip_blocked' && (result.session as any)?.proxy_host) { const { markBurned } = await import('../proxy/burned.js'); await markBurned((result.session as any).proxy_host, banSignal.signal, row.platform); }
+    if ((banSignal.signal === 'ip_blocked' || banSignal.signal === 'proxy_auth_failed') && (result.session as any)?.proxy_host) { const { markBurned } = await import('../proxy/burned.js'); await markBurned((result.session as any).proxy_host, banSignal.signal, row.platform); }
   } else {
     result.ban_signal = { healthy: exitCode === 0, signal: exitCode === 0 ? 'healthy' : 'unknown_error' };
   }
