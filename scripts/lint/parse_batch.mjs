@@ -9,11 +9,13 @@ const all = paths.flatMap(p => JSON.parse(readFileSync(p, 'utf8')));
 // Per-action best wins: completed+healthy > completed+envblock > failed
 function rank(r) {
   const sig = r.result?.ban_signal?.signal ?? 'n/a';
-  if (r.status === 'completed' && sig === 'healthy') return 4;
-  if (r.status === 'completed' && /shadowbanned|suspended|ip_blocked|checkpoint|rate_limited|captcha_challenge|reset_failed|proxy_failed/.test(sig)) return 3;
-  if (r.status === 'completed') return 2;
-  // Among failures, prefer ones with classified signals over the unknown_error
-  // worker default — they tell us more about WHY the trajectory failed.
+  if (r.status === 'completed' && sig === 'healthy') return 5;
+  if (r.status === 'completed' && /shadowbanned|suspended|ip_blocked|checkpoint|rate_limited|captcha_challenge|reset_failed|proxy_failed/.test(sig)) return 4;
+  if (r.status === 'completed') return 3;
+  // Among failures, prefer ones with platform-classified signals (proxy_failed,
+  // checkpoint, captcha, action_failed) over 'healthy' (page reached but no
+  // ban detected, least informative for a failure) over unknown_error.
+  if (/proxy_failed|checkpoint|captcha_challenge|action_failed|reset_failed|shadowbanned|suspended/.test(sig)) return 2;
   if (sig !== 'unknown' && sig !== 'unknown_error' && sig !== 'n/a') return 1;
   return 0;
 }
