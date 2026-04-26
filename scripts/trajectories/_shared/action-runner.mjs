@@ -140,6 +140,14 @@ export async function runAction(cfg) {
       }
     } catch (authErr) { if (banSignal && (banSignal.signal === 'checkpoint' || banSignal.signal === 'proxy_failed')) throw authErr; /* otherwise continue */ }
 
+    // SPA-loaded surfaces (Twitter timeline, Instagram feed, LinkedIn feed,
+    // Reddit comments) populate via XHR after the initial HTML loads. Without
+    // this wait, the agent loop runs immediately, sees an empty layout, and
+    // give_up()s — visible as exit-1 with only the goto screenshot in
+    // recordings (no agent-step screenshots). 3s gives the timeline + reply
+    // composer time to render before the agent's first action.
+    if (cfg.action !== 'browse') await s.page.waitForTimeout(3000).catch(() => {});
+
     if (cfg.action === 'browse') {
       for (let i = 0; i < (cfg.scrolls ?? 6); i++) {
         await s.page.evaluate(() => window.scrollBy(0, window.innerHeight * (0.6 + Math.random() * 0.6)));
