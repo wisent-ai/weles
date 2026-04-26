@@ -80,8 +80,19 @@ try {
   else if (finalUrl.startsWith('chrome-error://')) { writeBan('proxy_failed', { final_url: finalUrl, reason: 'chrome-error: proxy CONNECT failed before login completed' }); console.log(`FAIL: proxy_failed — ${finalUrl}`); process.exitCode = 1; }
   else { writeBan('action_failed', { final_url: finalUrl, reason: 'no li_at cookie present after agent done()' }); console.log(`FAIL: no li_at cookie — ${finalUrl}`); process.exitCode = 1; }
 } catch (e) {
-  writeBan('unknown_error', { error: e.message?.slice(0, 200) });
-  console.log('FAIL:', e.message?.slice(0, 200));
+  // Classify the catch-tail. ERR_HTTP_RESPONSE_CODE_FAILURE on /login means
+  // LinkedIn returned a 4xx/5xx at the page-load itself — fingerprint or IP
+  // is being blocked at the edge before any captcha screen even renders.
+  // chrome-error means proxy CONNECT failure. Both are platform-side blocks,
+  // not generic "unknown".
+  const finalUrl = s.page?.url?.() ?? '';
+  let sig = 'unknown_error';
+  const msg = e.message ?? '';
+  if (finalUrl.startsWith('chrome-error://')) sig = 'proxy_failed';
+  else if (/ERR_HTTP_RESPONSE_CODE_FAILURE|ERR_BLOCKED|net::ERR_/.test(msg)) sig = 'ip_blocked';
+  else if (/Timeout|net::ERR_TIMED_OUT/.test(msg)) sig = 'proxy_failed';
+  writeBan(sig, { final_url: finalUrl, error: msg.slice(0, 200) });
+  console.log('FAIL:', msg.slice(0, 200));
   process.exit(1);
 } finally {
   await s.close();
