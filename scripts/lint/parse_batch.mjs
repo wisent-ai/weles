@@ -10,12 +10,22 @@ const all = paths.flatMap(p => JSON.parse(readFileSync(p, 'utf8')));
 function rank(r) {
   const sig = r.result?.ban_signal?.signal ?? 'n/a';
   if (r.status === 'completed' && sig === 'healthy') return 5;
-  if (r.status === 'completed' && /shadowbanned|suspended|ip_blocked|checkpoint|rate_limited|captcha_challenge|reset_failed|proxy_failed|unsupported_email_domain/.test(sig)) return 4;
+  // completed + env-block, but prefer the more specific 'checkpoint' over
+  // 'captcha_challenge' — see auth_wall_reclass_pattern memory. captcha_challenge
+  // on a login URL is the misclassification we used to emit before the
+  // reclass fix landed; the corrected rerun produces 'checkpoint'. Bucket the
+  // captcha_challenge variant slightly lower so a corrected rerun supersedes.
+  if (r.status === 'completed' && sig === 'captcha_challenge') return 3.5;
+  if (r.status === 'completed' && /shadowbanned|suspended|ip_blocked|checkpoint|rate_limited|reset_failed|proxy_failed|unsupported_email_domain/.test(sig)) return 4;
   if (r.status === 'completed') return 3;
-  // Among failures, prefer ones with platform-classified signals (proxy_failed,
-  // checkpoint, captcha, action_failed) over 'healthy' (page reached but no
-  // ban detected, least informative for a failure) over unknown_error.
-  if (/proxy_failed|checkpoint|captcha_challenge|action_failed|reset_failed|shadowbanned|suspended|unsupported_email_domain/.test(sig)) return 2;
+  // Among failures, prefer the most specific classification:
+  // unsupported_email_domain > checkpoint > suspended > shadowbanned > others.
+  // 'reset_failed' is the generic github recovery error — superseded by
+  // unsupported_email_domain when the email isn't on a Resend MX domain.
+  if (/unsupported_email_domain/.test(sig)) return 2.5;
+  if (/proxy_failed|checkpoint|action_failed|shadowbanned|suspended/.test(sig)) return 2;
+  if (/reset_failed/.test(sig)) return 1.8;
+  if (/captcha_challenge/.test(sig)) return 1.5;
   if (sig !== 'unknown' && sig !== 'unknown_error' && sig !== 'n/a') return 1;
   return 0;
 }
