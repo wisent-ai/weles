@@ -1,16 +1,122 @@
+/**
+ * LinkedIn signup with reCAPTCHA Enterprise v3 pre-solving. Linkedin's signup
+ * flow uses INVISIBLE reCAPTCHA Enterprise v3 — no challenge popup, just
+ * background scoring on the form-submit endpoint. The classic solve_captcha
+ * agent tool only handles visible challenges; v3 needs explicit token
+ * injection BEFORE each form submit.
+ */
 import { WSession } from '../../dist/session/wsession.js';
+import { CaptchaSolver } from '../../dist/captcha/solver.js';
 import { execute } from '../../dist/agent/loop.js';
+import { writeFileSync, mkdirSync } from 'node:fs';
+import { join } from 'node:path';
+import { randomBytes } from 'node:crypto';
 
 const URL = 'https://www.linkedin.com/signup';
-const GOAL = `generate_identity(platform="linkedin"). Fill email with $LINKEDIN_NEW_EMAIL. Click "Agree & Join". Fill password with $LINKEDIN_NEW_PASSWORD. Click "Agree & Join". Fill "first-name" with $LINKEDIN_NEW_FIRSTNAME. Fill "last-name" with $LINKEDIN_NEW_LASTNAME. Click "Continue". If captcha, solve_captcha(). If email verification, check_email(email=$LINKEDIN_NEW_EMAIL,sender="linkedin") for code, fill the code, click Submit. save_account(platform="linkedin",username=$LINKEDIN_NEW_USERNAME,email=$LINKEDIN_NEW_EMAIL,password=$LINKEDIN_NEW_PASSWORD,name=$LINKEDIN_NEW_FIRSTNAME+" "+$LINKEDIN_NEW_LASTNAME). done(value=$LINKEDIN_NEW_USERNAME).`;
+const RECAPTCHA_SITEKEY = '6LcIy_MqAAAAAMKiupFSbmzW3xjGSlIfRzNWYMjC';
+const AGENT_DOMAIN = process.env.AGENT_DOMAIN;
+if (!AGENT_DOMAIN) { console.log('FAIL: AGENT_DOMAIN env not set'); process.exit(1); }
+
+async function getAndInjectRecaptcha(page, action) {
+  const solver = new CaptchaSolver();
+  const token = await solver.solveRecaptchaV3(RECAPTCHA_SITEKEY, URL, action);
+  if (!token) { console.log(`[recaptcha:${action}] solver returned null`); return null; }
+  const injected = await page.evaluate((tk) => {
+    const fields = Array.from(document.querySelectorAll('textarea[name="g-recaptcha-response"], input[name="g-recaptcha-response"]'));
+    for (const f of fields) {
+      const proto = f instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+      const setter = Object.getOwnPropertyDescriptor(proto, 'value').set;
+      setter.call(f, tk);
+      f.dispatchEvent(new Event('input', { bubbles: true }));
+      f.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    window.__weles_recaptcha_token = tk;
+    return fields.length;
+  }, token);
+  console.log(`[recaptcha:${action}] token=${token.slice(0, 16)}... injected into ${injected} field(s)`);
+  return token;
+}
+
+function genIdentity() {
+  const F = 'Garry,Katie,Logan,Maya,Owen,Riley,Sage,Tess,Wes,Zane'.split(',');
+  const L = 'Koepp,Bayer,Pratt,Quinn,Reeves,Stone,Vega,West,Yates,Cole'.split(',');
+  const first = F[Math.floor(Math.random() * F.length)];
+  const last = L[Math.floor(Math.random() * L.length)];
+  const handle = `${first.toLowerCase()}${last.toLowerCase()}${Math.floor(Math.random() * 9000 + 1000)}`;
+  const password = randomBytes(9).toString('base64').replace(/[+/=]/g, '') + '!A1';
+  const email = `${handle}@${AGENT_DOMAIN}`;
+  return { first, last, handle, email, password };
+}
+
+const id = genIdentity();
+console.log(`[register] identity: ${id.email} / ${id.first} ${id.last}`);
 
 const s = await WSession.start({ label: 'linkedin_register', proxy: process.env.PROXY_URL || 'residential' });
 try {
   await s.goto(URL);
-  const result = await execute(s, `Open ${URL}. ${GOAL}`, { flowName: 'linkedin_register' });
-  console.log('PASS:', result.value);
+  await s.page.waitForTimeout(2500);
+
+  const fillA = await s.page.evaluate((d) => {
+    const email = document.querySelector('input[name="email-address"], input[autocomplete="email"], input#email-address');
+    const pwd = document.querySelector('input[name="password"], input[autocomplete="new-password"], input#password');
+    if (!email || !pwd) return { ok: false, hasEmail: !!email, hasPwd: !!pwd };
+    const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+    set.call(email, d.email); email.dispatchEvent(new Event('input', { bubbles: true }));
+    set.call(pwd, d.password); pwd.dispatchEvent(new Event('input', { bubbles: true }));
+    return { ok: true };
+  }, id);
+  console.log(`[register] fill email+pwd: ${JSON.stringify(fillA)}`);
+  if (!fillA.ok) throw new Error(`email/password fields not found (hasEmail=${fillA.hasEmail} hasPwd=${fillA.hasPwd})`);
+
+  await getAndInjectRecaptcha(s.page, 'signup');
+  await s.page.waitForTimeout(500);
+
+  const submit1 = await s.page.locator('button[type="submit"]:has-text("Agree"), button[type="submit"]:has-text("Continue"), button#join-form-submit, button[data-tracking-control-name*="signup"]').first().click().then(() => true).catch(e => { console.log(`[register] submit1 err: ${e.message?.slice(0, 80)}`); return false; });
+  console.log(`[register] click Agree & Join: ${submit1}`);
+  if (!submit1) throw new Error('Agree & Join button not clickable');
+  await s.page.waitForTimeout(4000);
+
+  const fillB = await s.page.evaluate((d) => {
+    const first = document.querySelector('input[name="first-name"], input#first-name');
+    const last = document.querySelector('input[name="last-name"], input#last-name');
+    if (!first || !last) return { ok: false, url: location.href };
+    const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+    set.call(first, d.first); first.dispatchEvent(new Event('input', { bubbles: true }));
+    set.call(last, d.last); last.dispatchEvent(new Event('input', { bubbles: true }));
+    return { ok: true };
+  }, id);
+  console.log(`[register] fill first+last: ${JSON.stringify(fillB)}`);
+  if (fillB.ok) {
+    await getAndInjectRecaptcha(s.page, 'signup');
+    await s.page.waitForTimeout(500);
+    const submit2 = await s.page.locator('button[type="submit"]:has-text("Continue"), button#join-form-submit').first().click().then(() => true).catch(e => { console.log(`[register] submit2 err: ${e.message?.slice(0, 80)}`); return false; });
+    console.log(`[register] click Continue: ${submit2}`);
+    if (!submit2) throw new Error('Continue button not clickable');
+    await s.page.waitForTimeout(5000);
+  }
+
+  const verifyUrl = s.page.url();
+  console.log(`[register] post-name URL: ${verifyUrl}`);
+  process.env.LINKEDIN_NEW_EMAIL = id.email;
+  process.env.LINKEDIN_NEW_PASSWORD = id.password;
+  process.env.LINKEDIN_NEW_FIRSTNAME = id.first;
+  process.env.LINKEDIN_NEW_LASTNAME = id.last;
+  process.env.LINKEDIN_NEW_USERNAME = id.handle;
+  if (/verify|email-verification|email_verification|checkpoint/.test(verifyUrl)) {
+    const result = await execute(s, `On LinkedIn email verification page. check_email(email=${id.email},sender="linkedin") to retrieve the 6-digit verification code. fill(target="verification code field, pin input, or 6-digit code", value=<code>). Click Submit/Verify/Continue. Wait for redirect. save_account(platform="linkedin",username=${id.handle},email=${id.email},password=${id.password},name="${id.first} ${id.last}"). done(value=${id.handle}).`, { flowName: 'linkedin_register_verify' });
+    console.log(`PASS: ${result.value}`);
+  } else {
+    const result = await execute(s, `LinkedIn signup completed at URL ${verifyUrl}. save_account(platform="linkedin",username=${id.handle},email=${id.email},password=${id.password},name="${id.first} ${id.last}"). done(value=${id.handle}).`, { flowName: 'linkedin_register_save' });
+    console.log(`PASS: ${result.value}`);
+  }
+  try { mkdirSync(join(process.cwd(), 'recordings', 'linkedin_register'), { recursive: true }); writeFileSync(join(process.cwd(), 'recordings', 'linkedin_register', 'ban_signal.json'), JSON.stringify({ action: 'linkedin_register', signal: 'healthy', healthy: true, details: { username: id.handle, email: id.email, final_url: s.page.url() }, ts: new Date().toISOString() }, null, 2)); } catch {}
 } catch (e) {
-  console.log('FAIL:', e.message?.slice(0, 200));
+  const finalUrl = s.page.url?.() ?? '';
+  let sig = 'action_failed';
+  if (finalUrl.startsWith('chrome-error://')) sig = 'proxy_failed';
+  else if (/captcha|challenge|checkpoint/.test(finalUrl)) sig = 'captcha_challenge';
+  try { mkdirSync(join(process.cwd(), 'recordings', 'linkedin_register'), { recursive: true }); writeFileSync(join(process.cwd(), 'recordings', 'linkedin_register', 'ban_signal.json'), JSON.stringify({ action: 'linkedin_register', signal: sig, healthy: false, details: { final_url: finalUrl, error: e.message?.slice(0, 200), attempted_email: id.email }, ts: new Date().toISOString() }, null, 2)); } catch {}
+  console.log(`FAIL: ${e.message?.slice(0, 200)}`);
   process.exit(1);
 } finally {
   await s.close();
