@@ -11,7 +11,8 @@ import type { Page } from 'playwright';
 
 export type BanSignalKind =
   | 'healthy' | 'suspended' | 'rate_limited' | 'captcha_challenge'
-  | 'checkpoint' | 'shadowban_suspected' | 'unknown_error';
+  | 'checkpoint' | 'shadowban_suspected' | 'unknown_error'
+  | 'proxy_failed' | 'proxy_auth_failed' | 'ip_blocked';
 
 export interface BanSignal {
   healthy: boolean;
@@ -40,6 +41,23 @@ export async function detectFromConfig(
   const details: Record<string, unknown> = {};
   const url = page.url();
   details.final_url = url;
+
+  // 0. Chrome error page — proxy CONNECT or DNS failed. The page renders
+  //    chromium's system error rather than the requested URL. Classify by
+  //    body content: 407/Proxy Auth → proxy_auth_failed; HTTP 4xx → ip_blocked;
+  //    ERR_TUNNEL/timeout → proxy_failed. Without this branch every detector
+  //    returned 'healthy' on these pages because no platform-ban keywords
+  //    appear, masking proxy-side failures fleet-wide (Oxylabs traffic-limit
+  //    incident on 2026-04-26 was a 2-hour-long misdiagnosis driven by this).
+  if (url.startsWith('chrome-error://')) {
+    let chromeBody = '';
+    try { chromeBody = (await page.evaluate(() => document.body?.innerText ?? '').catch(() => '')) || ''; } catch { /* noop */ }
+    details.body_text_sample = chromeBody.slice(0, 240);
+    const sig: BanSignalKind = /HTTP ERROR 407|ERR_PROXY_AUTH/i.test(chromeBody) ? 'proxy_auth_failed' as BanSignalKind
+      : /HTTP ERROR 4|ERR_HTTP_RESPONSE_CODE/i.test(chromeBody) ? 'ip_blocked'
+      : 'proxy_failed' as BanSignalKind;
+    return { healthy: false, signal: sig, details };
+  }
 
   // 1. URL patterns
   for (const [sig, patterns] of Object.entries(cfg.url ?? {})) {
