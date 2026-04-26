@@ -41,10 +41,13 @@ try {
   await s.fill('Email address', email);
   await s.wait(1);
   // Use Playwright locator for isTrusted=true (see DETECTION_ANTIPATTERNS §1).
-  // Cascade through several selector forms then form-submit as last resort.
-  // GitHub recently wrapped the button inside a Turbo custom element; basic
-  // input/button[type=submit] selector now misses on first paint.
-  const SUBMIT_SELECTORS = 'input[type="submit"]|button[type="submit"]|button:has-text("Send password reset email")|button:has-text("Send a password reset")|input[name="commit"]|form[action*="password_reset"] button'.split('|');
+  // GitHub renders submit as `<input name="commit" type="submit" disabled>`
+  // gated by an octocaptcha class — the disabled attribute clears after the
+  // OctoCaptcha challenge succeeds (or after the email field gains focus +
+  // valid content depending on render flag). Wait for :not([disabled]) so we
+  // don't try to click while still disabled.
+  await s.page.locator('input[name="commit"]:not([disabled]), button[type="submit"]:not([disabled])').first().waitFor({ state: 'visible' }).catch(() => {});
+  const SUBMIT_SELECTORS = 'input[name="commit"]:not([disabled])|input[type="submit"]:not([disabled])|button[type="submit"]:not([disabled])|button:has-text("Send password reset email"):not([disabled])|input[name="commit"]|form[action*="password_reset"] button'.split('|');
   let submit = { clicked: false };
   for (const sel of SUBMIT_SELECTORS) {
     const loc = s.page.locator(sel).first();
