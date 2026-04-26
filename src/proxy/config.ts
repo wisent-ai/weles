@@ -89,7 +89,7 @@ export class ProxyPool {
  * Fetches available providers from the service_credentials Supabase table,
  * filters by balance > 0 and env var availability, returns the first working one.
  */
-export async function resolveProxy(proxy: string): Promise<{ server: string; username?: string; password?: string; country?: string } | undefined> {
+export async function resolveProxy(proxy: string, targetHost?: string): Promise<{ server: string; username?: string; password?: string; country?: string } | undefined> {
   if (!proxy || proxy === 'none' || proxy === 'direct') return undefined;
 
   if (proxy.startsWith('http://') || proxy.startsWith('https://') || proxy.startsWith('socks')) {
@@ -186,26 +186,28 @@ export async function resolveProxy(proxy: string): Promise<{ server: string; use
         try { const dns = await import('node:dns'); host = await new Promise<string>((res, rej) => dns.lookup(p.proxy_host, (e: any, a: string) => e ? rej(e) : res(a))); } catch {}
         if (await isBurned(host)) continue;
       }
-      // Pre-flight CONNECT test (~3s timeout): for residential providers
+      // Pre-flight CONNECT test (~4s timeout): for residential providers
       // (PacketStream especially) ~40% of sticky sessIds at peak hit relays
-      // that return 502 "selected relay is offline". Without this check, the
-      // trajectory wastes a full goto + browser launch on a dead session.
-      // Skipped if PROXY_SKIP_PREFLIGHT=1 is set (for environments where the
-      // outbound CONNECT to ifconfig.me / api.ipify.org is blocked).
+      // that return 502 "selected relay is offline" — and the relay can be
+      // up for one destination (api.ipify.org) and down for another (x.com).
+      // Test against the actual targetHost when caller provides one;
+      // otherwise fall back to api.ipify.org.
+      // Skipped if PROXY_SKIP_PREFLIGHT=1 is set (for environments where
+      // outbound CONNECT to the probe host is blocked).
       if (!process.env.PROXY_SKIP_PREFLIGHT) {
+        const probeHost = targetHost || 'api.ipify.org';
         try {
-          const probeUrl = 'https://api.ipify.org';
           const auth = Buffer.from(`${stickyUser}:${stickyPass}`).toString('base64');
           const net = await import('node:net');
           const ok = await new Promise<boolean>((resolve) => {
             const sock = net.connect({ host, port: Number(p.proxy_port) }, () => {
-              sock.write(`CONNECT api.ipify.org:443 HTTP/1.1\r\nHost: api.ipify.org:443\r\nProxy-Authorization: Basic ${auth}\r\n\r\n`);
+              sock.write(`CONNECT ${probeHost}:443 HTTP/1.1\r\nHost: ${probeHost}:443\r\nProxy-Authorization: Basic ${auth}\r\n\r\n`);
             });
             const timer = setTimeout(() => { sock.destroy(); resolve(false); }, 4000);
             sock.once('data', (d) => { clearTimeout(timer); sock.destroy(); resolve(/^HTTP\/1\.[01] 200/.test(d.toString())); });
             sock.once('error', () => { clearTimeout(timer); resolve(false); });
           });
-          if (!ok) { console.log(`[proxy] Pre-flight failed for ${p.display_name} sticky=${sessId} — retrying`); continue; }
+          if (!ok) { console.log(`[proxy] Pre-flight failed for ${p.display_name} sticky=${sessId} target=${probeHost} — retrying`); continue; }
         } catch { /* skip preflight on unexpected error, return as-is */ }
       }
       console.log(`[proxy] Using: ${p.display_name} (${host}:${p.proxy_port}, $${p.balance_usd}, sticky=${sessId})`);
