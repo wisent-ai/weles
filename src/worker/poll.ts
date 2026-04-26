@@ -66,10 +66,11 @@ async function claimOne(): Promise<ActionLogRow | null> {
   );
   if (!res.ok) return null;
   const candidates = (await res.json()) as ActionLogRow[];
-  // Per-account in-flight lock: each account has ONE stored sticky proxy session (Oxylabs sessid). Concurrent connections to one sticky session get refused with ERR_TUNNEL_CONNECTION_FAILED. Serialize per-account; deferred rows pick up next tick.
+  // Per-account in-flight lock: each account has ONE stored sticky proxy session (Oxylabs sessid). Concurrent connections to one sticky session get refused with ERR_TUNNEL_CONNECTION_FAILED. Serialize per-account; deferred rows pick up next tick. Ignore rows older than 30 min — those are stuck-poison from killed workers and should not block their account forever.
   const inflightAccounts = new Set<string>();
   if (candidates.length) {
-    const r = await fetch(`${SUPABASE_URL}/rest/v1/account_action_logs?select=account_id&status=eq.running`, { headers: headers() });
+    const cutoff = new Date(Date.now() - 30 * 60_000).toISOString();
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/account_action_logs?select=account_id,claimed_at&status=eq.running&claimed_at=gte.${cutoff}`, { headers: headers() });
     if (r.ok) for (const row of (await r.json()) as { account_id: string | null }[]) if (row.account_id) inflightAccounts.add(row.account_id);
   }
   for (const row of candidates) {
