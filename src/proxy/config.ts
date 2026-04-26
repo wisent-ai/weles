@@ -159,8 +159,23 @@ export async function resolveProxy(proxy: string): Promise<{ server: string; use
       else if (name.includes('iproyal')) stickyPass = `${password}_country-${cc}_session-${sessId}`;
       else if (name.includes('pingproxies')) stickyUser = `${username}_c_${cc}_s_${sessId}`;
       let host = p.proxy_host;
-      try { const dns = await import('node:dns'); host = await new Promise<string>((res, rej) => dns.lookup(p.proxy_host, (e: any, a: string) => e ? rej(e) : res(a))); } catch {}
-      if (await isBurned(host)) continue;
+      // proxy.packetstream.io etc. resolve to several load-balancer IPs;
+      // dns.lookup() returns whichever one the OS picked first, which may be
+      // burned even though a sibling IP isn't. Pull all A records, filter out
+      // burned hosts, pick a random survivor — keeps PacketStream usable when
+      // only some of its LB IPs are flagged.
+      try {
+        const dns = await import('node:dns');
+        const allIps: string[] = await new Promise<string[]>((res, rej) =>
+          dns.resolve4(p.proxy_host, (e: any, a: string[]) => e ? rej(e) : res(a)));
+        const live = [];
+        for (const ip of allIps) { if (!(await isBurned(ip))) live.push(ip); }
+        if (live.length === 0) continue;
+        host = live[Math.floor(Math.random() * live.length)];
+      } catch {
+        try { const dns = await import('node:dns'); host = await new Promise<string>((res, rej) => dns.lookup(p.proxy_host, (e: any, a: string) => e ? rej(e) : res(a))); } catch {}
+        if (await isBurned(host)) continue;
+      }
       console.log(`[proxy] Using: ${p.display_name} (${host}:${p.proxy_port}, $${p.balance_usd}, sticky=${sessId})`);
       return { server: `http://${host}:${p.proxy_port}`, username: stickyUser, password: stickyPass, country: cc };
     }
