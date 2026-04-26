@@ -20,6 +20,6 @@ await runAction({
       return { postTitle: title || '', postBody: body || '' };
     } catch { return { postTitle: '', postBody: '' }; }
   },
-  commentGoal: (text) => `Find the comment composer at the bottom of the issue page (placeholder "Leave a comment"). fill(target="Leave a comment", value=${JSON.stringify(text)}). Click Comment to submit. done(value="commented"). Do NOT navigate(). Do NOT give_up.`,
+  commentGoal: (text) => `On a GitHub issue page. Use js_click(selector="textarea#new_comment_field, textarea[name='comment[body]'], textarea[aria-label='Add a comment']") to focus the comment textarea. Wait 1 second. fill(target="Leave a comment", value=${JSON.stringify(text)}). js_click(selector="button:has-text('Comment'):not([disabled]), button[type='submit'][data-disable-with]:not([disabled])"). done(value="commented"). Do NOT navigate(). Do NOT give_up.`,
   banDetector: detectGitHubBanSignals,
 });
