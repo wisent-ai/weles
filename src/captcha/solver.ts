@@ -80,11 +80,28 @@ export class CaptchaSolver {
 
   async solveRecaptchaV3(sitekey: string, url: string, action?: string): Promise<string | null> {
     await this._ensureInit();
+    // Try CapSolver first — supports both ReCaptchaV3TaskProxyLess and the
+    // ReCaptchaV3EnterpriseTaskProxyLess variant that LinkedIn signup uses
+    // (sitekey 6LcIy_MqAA... is enterprise). CapSolver returns higher-score
+    // tokens (typically 0.9) than anticaptcha (typically 0.7).
+    if (this._creds.capsolver) {
+      const token = await apiSolve('https://api.capsolver.com', this._creds.capsolver, {
+        type: 'ReCaptchaV3EnterpriseTaskProxyLess', websiteURL: url, websiteKey: sitekey,
+        minScore: 0.7, pageAction: action ?? 'verify',
+      });
+      if (token) { console.log('[captcha:solver] ReCaptchaV3Enterprise solved via capsolver'); return token; }
+      const tokenV3 = await apiSolve('https://api.capsolver.com', this._creds.capsolver, {
+        type: 'ReCaptchaV3TaskProxyLess', websiteURL: url, websiteKey: sitekey,
+        minScore: 0.7, pageAction: action ?? 'verify',
+      });
+      if (tokenV3) { console.log('[captcha:solver] ReCaptchaV3 solved via capsolver'); return tokenV3; }
+    }
     if (this._creds.anticaptcha) {
-      return apiSolve('https://api.anti-captcha.com', this._creds.anticaptcha, {
+      const token = await apiSolve('https://api.anti-captcha.com', this._creds.anticaptcha, {
         type: 'RecaptchaV3TaskProxyless', websiteURL: url, websiteKey: sitekey,
         minScore: 0.7, pageAction: action ?? 'verify',
       });
+      if (token) { console.log('[captcha:solver] ReCaptchaV3 solved via anticaptcha'); return token; }
     }
     return null;
   }
