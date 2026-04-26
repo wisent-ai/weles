@@ -165,14 +165,11 @@ export async function resolveAccountSession(acct: SocialAccount): Promise<Accoun
   const out: AccountSession = {};
   let cfg: ProxyConfig | null = null;
 
-  // Direct egress for platforms that don't blacklist datacenter IPs at the
-  // edge. GitHub and Producthunt accept the VM's GCP IP without complaint.
-  // LinkedIn /login responds 200 from datacenter (verified 2026-04-26) —
-  // PerimeterX still scores fingerprint+behavior, but the upstream tunnel
-  // is removed as a failure mode (PacketStream relays were the bottleneck).
-  // Reddit/Twitter/Instagram/Discord/TikTok return 403 from datacenter and
-  // still need residential.
-  const DIRECT_EGRESS_OK = new Set(['github', 'producthunt', 'linkedin']);
+  // Direct egress for platforms with NO datacenter blacklist. GitHub and
+  // Producthunt accept VM IP. LinkedIn HEAD 200 from VM but actual load
+  // triggers PerimeterX immediately on datacenter — reverted 2026-04-26.
+  // Reddit/Twitter/Instagram/Discord/TikTok all 403 from datacenter.
+  const DIRECT_EGRESS_OK = new Set(['github', 'producthunt']);
   if (DIRECT_EGRESS_OK.has(acct.platform) && process.env.WELES_FORCE_PROXY !== '1') {
     if (meta?.persona) out.persona = meta.persona as Persona;
     return out;
