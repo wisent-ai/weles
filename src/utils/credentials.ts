@@ -157,6 +157,7 @@ import type { Persona } from '../browser/persona.js';
 import { generatePersona } from '../browser/persona.js';
 import { proxyUrl as buildProxyUrl, type ProxyConfig } from '../proxy/config.js';
 import { isBurned } from '../proxy/burned.js';
+import { refreshStickyIfDead } from '../proxy/sticky.js';
 
 export interface AccountSession { proxyUrl?: string; persona?: Persona; }
 
@@ -176,7 +177,8 @@ export async function resolveAccountSession(acct: SocialAccount): Promise<Accoun
   }
 
   if (meta?.proxy?.host && meta?.proxy?.port && !(await isBurned(meta.proxy.host))) {
-    cfg = meta.proxy as ProxyConfig;
+    const refreshed = await refreshStickyIfDead(meta.proxy as ProxyConfig);
+    if (refreshed) { cfg = refreshed; if (refreshed !== meta.proxy) await backfillProxy(acct, refreshed); }
   } else if (meta?.proxy?.server) {
     // Legacy shape from the old Python signup path: { server, username, password }.
     // Convert in place — parsed URL gives host/port/protocol.
