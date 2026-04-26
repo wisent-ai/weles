@@ -38,13 +38,18 @@ async function getAndInjectRecaptcha(page, action) {
 }
 
 async function solveV2Modal(page) {
-  // LinkedIn wraps reCAPTCHA v2 inside /checkpoint/challengeIframe/AQH... —
-  // Google's standard captchaInternal iframe selector doesn't match. Use
-  // CapSolver's ReCaptchaV2EnterpriseTaskProxyLess to get a token, then
-  // inject into the g-recaptcha-response textarea inside whichever frame
-  // LinkedIn used. Submit the challenge frame's form.
+  // LinkedIn's V2 checkbox modal uses a DIFFERENT sitekey than the V3 invisible
+  // tracker. Extract the V2 sitekey from the recaptcha iframe URL: it has
+  // pattern /recaptcha/(api2|enterprise)/anchor?ar=1&k=<SITEKEY>&...
+  // Fall back to V3 sitekey only if extraction fails.
+  let v2Sitekey = RECAPTCHA_SITEKEY;
+  for (const f of page.frames()) {
+    const m = (f.url() || '').match(/[?&]k=([0-9A-Za-z_-]+)/);
+    if (m && m[1] !== RECAPTCHA_SITEKEY) { v2Sitekey = m[1]; break; }
+  }
+  console.log(`[recaptcha:v2] using sitekey=${v2Sitekey.slice(0, 20)}...`);
   const solver = new CaptchaSolver();
-  const token = await solver.solveRecaptchaV2(page, RECAPTCHA_SITEKEY, { enterprise: true });
+  const token = await solver.solveRecaptchaV2(page, v2Sitekey, { enterprise: true });
   if (!token || token === false) { console.log('[recaptcha:v2] solver returned null/false'); return false; }
   const tokenStr = typeof token === 'string' ? token : '';
   if (!tokenStr) { console.log('[recaptcha:v2] solver returned non-string'); return false; }
@@ -81,7 +86,7 @@ function genIdentity() {
 const id = genIdentity();
 console.log(`[register] identity: ${id.email} / ${id.first} ${id.last}`);
 
-const s = await WSession.start({ label: 'linkedin_register', proxy: process.env.PROXY_URL || 'residential' });
+const s = await WSession.start({ label: 'linkedin_register', proxy: process.env.PROXY_URL || 'residential', targetHost: 'www.linkedin.com' });
 try {
   await s.goto(URL);
   await s.page.waitForTimeout(2500);
