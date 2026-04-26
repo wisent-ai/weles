@@ -211,12 +211,12 @@ export async function runAction(cfg) {
     console.log(`[ban-signal] ${banSignal?.signal}`);
     console.log(`PASS: ${resultValue}`);
   } catch (e) {
-    // Prefer signals attached to the error (proxy_failed, checkpoint from
-    // checkReachable; or platform-specific signals from detectXBanSignals).
-    // If neither produces a signal, default to action_failed so the row is
-    // attributable to a trajectory step rather than the misleading
-    // 'unknown_error' worker default.
-    banSignal = e.banSignal ?? await cfg.banDetector(s.page, s.capturedResponses).catch(() => null);
+    // Order of precedence: outer-scope banSignal (set by inner chrome-error /
+    // auth-wall checks before re-throwing) > error.banSignal (set by
+    // checkReachable in specialized trajectories) > platform ban detector >
+    // action_failed default. Pre-fix: outer catch overwrote the inner-set
+    // banSignal with the platform detector's verdict, hiding proxy_failed.
+    if (!banSignal) banSignal = e.banSignal ?? await cfg.banDetector(s.page, s.capturedResponses).catch(() => null);
     if (!banSignal) banSignal = { signal: 'action_failed', healthy: false, details: { final_url: s.page.url?.() ?? '', reason: e.message?.slice(0, 200) ?? 'no message' } };
     console.log(`[ban-signal] ${banSignal.signal}`);
     console.log('FAIL:', e.message?.slice(0, 200));
