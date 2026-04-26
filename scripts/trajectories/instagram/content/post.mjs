@@ -83,7 +83,11 @@ try {
   banSignal = await detectInstagramBanSignals(s.page, s.capturedResponses).catch(() => null);
   console.log(`[ban-signal] ${banSignal?.signal}  PASS: ${result.value}`);
 } catch (e) {
-  banSignal = await detectInstagramBanSignals(s.page, s.capturedResponses).catch(() => null);
+  // Prefer err.banSignal (set by checkReachable when goto landed on a login wall
+  // or chrome-error). Without this, the bare detectInstagramBanSignals returns
+  // 'healthy' for what's actually a cookies-stale checkpoint, hiding the real
+  // failure mode behind a misleading signal.
+  banSignal = e.banSignal ?? await detectInstagramBanSignals(s.page, s.capturedResponses).catch(() => null);
   console.log(`[ban-signal] ${banSignal?.signal}  FAIL: ${e.message?.slice(0, 200)}`);
   process.exitCode = 1;
 } finally {
