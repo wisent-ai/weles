@@ -127,15 +127,14 @@ function paramsToEnv(params: Record<string, unknown>, action: string, trajPath: 
 }
 
 async function runTrajectory(row: ActionLogRow, path: string): Promise<{ exitCode: number; stderr: string }> {
+  // Delete stale ban_signal.json from prior run — same recordings/<action>/
+  // dir is shared across runs, so a killed predecessor would otherwise be
+  // attributed to this row.
+  try { await (await import('node:fs/promises')).unlink(join(RECORDINGS_ROOT, row.action, 'ban_signal.json')).catch(() => {}); } catch { /* noop */ }
   return new Promise((resolve) => {
     const child = spawn('node', [path], {
-      env: {
-        ...process.env,
-        ...paramsToEnv(row.params ?? {}, row.action, path),
-        ACCOUNT_ID: row.account_id,
-      },
-      cwd: process.cwd(),
-      stdio: ['ignore', 'inherit', 'pipe'],
+      env: { ...process.env, ...paramsToEnv(row.params ?? {}, row.action, path), ACCOUNT_ID: row.account_id, ACTION_LOG_ID: row.id },
+      cwd: process.cwd(), stdio: ['ignore', 'inherit', 'pipe'],
     });
     let stderr = '';
     child.stderr.on('data', (chunk) => { stderr += chunk.toString(); });
