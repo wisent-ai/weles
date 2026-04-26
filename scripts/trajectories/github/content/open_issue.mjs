@@ -58,7 +58,11 @@ try {
   console.log(`[open_issue] fill: ${JSON.stringify(fill)}`);
   await s.page.waitForTimeout(2000);
 
-  const goal = `You are on GitHub's new-issue form for the repo. Do the following in order:\n1. Click the "Title" text input (top of the form) and if empty type exactly: ${ISSUE_TITLE}\n2. Click the body/description textarea (large area, labelled "Add your description here...") and if empty type exactly: ${ISSUE_BODY}\n3. Find the green "Submit new issue" button near the bottom and click it.\nAfter clicking Submit, done(value="submitted"). Do NOT navigate() manually. Do not rewrite text that is already present.`;
+  // Title + body were already filled programmatically above. Ask the agent only
+  // to click the submit button — explicit selector to avoid vision-based misses
+  // on GitHub's evolving form UI (the green button has both text variants:
+  // "Submit new issue" on classic and "Create" on the React-rewrite).
+  const goal = `You are on GitHub's new-issue form for the repo. The title and body are already filled. Use js_click(selector="button[type='submit']:has-text('Submit new issue'), button[type='submit']:has-text('Create'), button.btn-primary[type='submit']") to submit. Wait 5 seconds. done(value="submitted"). Do NOT navigate() manually. Do not refill any text.`;
   await execute(s, goal, {}); // flow cache would freeze literal ISSUE_TITLE/ISSUE_BODY; always replan
 
   for (let w = 0; w < 20; w++) {
