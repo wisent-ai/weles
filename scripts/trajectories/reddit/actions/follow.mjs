@@ -4,6 +4,7 @@ import { execute } from '../../../../dist/agent/loop.js';
 import { detectRedditBanSignals } from '../../../../dist/platforms/reddit/ban_signals.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { checkReachable } from '../../_shared/action-runner.mjs';
 
 const TARGET_USER = process.env.TARGET_USER || '';
 const SUBREDDIT   = process.env.SUBREDDIT   || 'popular';
@@ -20,6 +21,7 @@ try {
     const cookies = (acct.metadata?.cookies ?? []).filter(c => (c.domain ?? '').includes('reddit.com'));
     if (cookies.length) await s.ctx.addCookies(cookies).catch(() => {});
     await s.goto('https://www.reddit.com/');
+    checkReachable(s, 'reddit');
     const data = await s.page.evaluate(async (u) => { try { const r = await fetch(u, { credentials: 'include' }); if (!r.ok) return null; return await r.json(); } catch { return null; } }, `https://www.reddit.com/r/${SUBREDDIT}/new/.json?limit=50&raw_json=1`).catch(() => null);
     try {
       const pick = (data?.data?.children ?? []).map(c => c.data).filter(p => p && p.author && p.author !== '[deleted]')[0];
@@ -28,12 +30,13 @@ try {
     if (!author) throw new Error('no author found to follow');
   }
   await s.goto(`https://www.reddit.com/user/${encodeURIComponent(author)}/`);
+  checkReachable(s, 'reddit');
   await s.page.waitForTimeout(2000);
   const result = await execute(s, `You are on a reddit user profile. Find the Follow button in the profile header. js_click(text="Follow"). done(value="followed"). Do NOT navigate(). Do NOT give_up.`, { flowName: 'reddit_follow' });
   ban = await detectRedditBanSignals(s.page, s.capturedResponses).catch(() => null);
   console.log(`[ban-signal] ${ban?.signal}  PASS: ${result.value}`);
 } catch (e) {
-  ban = await detectRedditBanSignals(s.page, s.capturedResponses).catch(() => null);
+  ban = e.banSignal ?? await detectRedditBanSignals(s.page, s.capturedResponses).catch(() => null);
   console.log(`[ban-signal] ${ban?.signal}  FAIL: ${e.message?.slice(0, 200)}`);
   process.exitCode = 1;
 } finally {

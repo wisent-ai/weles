@@ -4,6 +4,7 @@ import { execute } from '../../../../dist/agent/loop.js';
 import { detectRedditBanSignals } from '../../../../dist/platforms/reddit/ban_signals.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { checkReachable } from '../../_shared/action-runner.mjs';
 
 const SUBREDDIT = (process.env.SUBREDDIT || 'popular').replace(/^r\//, '');
 const TARGET_URL = process.env.TARGET_URL || '';
@@ -16,6 +17,7 @@ let ban = null;
 try {
   const url = TARGET_URL || `https://www.reddit.com/r/${encodeURIComponent(SUBREDDIT)}/`;
   await s.goto(url);
+  checkReachable(s, 'reddit');
   await s.page.waitForTimeout(3000);
   const goal = TARGET_URL
     ? `You are on a specific reddit post. Find the upvote arrow (top of the vote column). Use js_click(text="upvote") to upvote it. done(value="upvoted"). Do NOT navigate(). Do NOT give_up.`
@@ -24,7 +26,7 @@ try {
   ban = await detectRedditBanSignals(s.page, s.capturedResponses).catch(() => null);
   console.log(`[ban-signal] ${ban?.signal}  PASS: ${result.value}`);
 } catch (e) {
-  ban = await detectRedditBanSignals(s.page, s.capturedResponses).catch(() => null);
+  ban = e.banSignal ?? await detectRedditBanSignals(s.page, s.capturedResponses).catch(() => null);
   console.log(`[ban-signal] ${ban?.signal}  FAIL: ${e.message?.slice(0, 200)}`);
   process.exitCode = 1;
 } finally {

@@ -4,6 +4,7 @@ import { execute } from '../../../../dist/agent/loop.js';
 import { detectTwitterBanSignals } from '../../../../dist/platforms/twitter/ban_signals.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { checkReachable } from '../../_shared/action-runner.mjs';
 
 const TARGET_URL  = process.env.TARGET_URL || '';
 const TARGET_USER = (process.env.TARGET_USER || '').replace(/^@/, '');
@@ -21,6 +22,7 @@ try {
   else if (SEARCH_QUERY) url = `https://x.com/hashtag/${encodeURIComponent(SEARCH_QUERY)}`;
   else url = 'https://x.com/home';
   await s.goto(url);
+  checkReachable(s, 'twitter');
   await s.page.waitForTimeout(3000);
   const goal = TARGET_URL
     ? `You are on a specific X/Twitter tweet. Click the heart icon in the tweet's action row to like it. done(value="liked"). Do NOT navigate(). Do NOT give_up.`
@@ -29,7 +31,7 @@ try {
   ban = await detectTwitterBanSignals(s.page, s.capturedResponses).catch(() => null);
   console.log(`[ban-signal] ${ban?.signal}  PASS: ${result.value}`);
 } catch (e) {
-  ban = await detectTwitterBanSignals(s.page, s.capturedResponses).catch(() => null);
+  ban = e.banSignal ?? await detectTwitterBanSignals(s.page, s.capturedResponses).catch(() => null);
   console.log(`[ban-signal] ${ban?.signal}  FAIL: ${e.message?.slice(0, 200)}`);
   process.exitCode = 1;
 } finally {

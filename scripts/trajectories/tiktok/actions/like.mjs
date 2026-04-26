@@ -4,6 +4,7 @@ import { execute } from '../../../../dist/agent/loop.js';
 import { detectTikTokBanSignals } from '../../../../dist/platforms/tiktok/ban_signals.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { checkReachable } from '../../_shared/action-runner.mjs';
 
 const TARGET_URL  = process.env.TARGET_URL || '';
 const TARGET_USER = (process.env.TARGET_USER || '').replace(/^@/, '');
@@ -21,6 +22,7 @@ try {
   else if (SEARCH_QUERY) url = `https://www.tiktok.com/tag/${encodeURIComponent(SEARCH_QUERY)}`;
   else url = 'https://www.tiktok.com/foryou';
   await s.goto(url);
+  checkReachable(s, 'tiktok');
   await s.page.waitForTimeout(4000);
   const goal = TARGET_URL
     ? `You are on a specific TikTok video. Click the heart icon on the right-hand action rail to like the video. done(value="liked"). Do NOT navigate(). Do NOT give_up.`
@@ -31,7 +33,7 @@ try {
   ban = await detectTikTokBanSignals(s.page, s.capturedResponses).catch(() => null);
   console.log(`[ban-signal] ${ban?.signal}  PASS: ${result.value}`);
 } catch (e) {
-  ban = await detectTikTokBanSignals(s.page, s.capturedResponses).catch(() => null);
+  ban = e.banSignal ?? await detectTikTokBanSignals(s.page, s.capturedResponses).catch(() => null);
   console.log(`[ban-signal] ${ban?.signal}  FAIL: ${e.message?.slice(0, 200)}`);
   process.exitCode = 1;
 } finally {

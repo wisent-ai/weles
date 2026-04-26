@@ -3,6 +3,7 @@ import { WSession } from '../../../../dist/session/wsession.js';
 import { detectTikTokBanSignals } from '../../../../dist/platforms/tiktok/ban_signals.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { checkReachable } from '../../_shared/action-runner.mjs';
 
 // Watch-through = sit on a single FYP video for its full duration plus one
 // replay, then advance. TikTok's recommender uses watch-through ratio as a
@@ -15,6 +16,7 @@ const s = await WSession.start({ label: 'tiktok_watch_through', proxy: proxyUrl,
 let ban = null;
 try {
   await s.goto('https://www.tiktok.com/foryou');
+  checkReachable(s, 'tiktok');
   await s.page.waitForTimeout(4000);
   // Sit on the first video for ~30s (avg TikTok length ~15s, so this is a
   // full watch + about one replay loop). Then advance twice with short dwell.
@@ -26,7 +28,7 @@ try {
   ban = await detectTikTokBanSignals(s.page, s.capturedResponses).catch(() => null);
   console.log(`[ban-signal] ${ban?.signal}  PASS: watched_through_3`);
 } catch (e) {
-  ban = await detectTikTokBanSignals(s.page, s.capturedResponses).catch(() => null);
+  ban = e.banSignal ?? await detectTikTokBanSignals(s.page, s.capturedResponses).catch(() => null);
   console.log(`[ban-signal] ${ban?.signal}  FAIL: ${e.message?.slice(0, 200)}`);
   process.exitCode = 1;
 } finally {

@@ -4,6 +4,7 @@ import { execute } from '../../../../dist/agent/loop.js';
 import { detectInstagramBanSignals } from '../../../../dist/platforms/instagram/ban_signals.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { checkReachable } from '../../_shared/action-runner.mjs';
 
 const TARGET_URL = process.env.TARGET_URL || '';
 
@@ -14,6 +15,7 @@ const s = await WSession.start({ label: 'instagram_save', proxy: proxyUrl, perso
 let ban = null;
 try {
   await s.goto(TARGET_URL || 'https://www.instagram.com/explore/');
+  checkReachable(s, 'instagram');
   await s.page.waitForTimeout(3500);
   const goal = TARGET_URL
     ? `You are on a specific Instagram post. Find the bookmark icon (ribbon shape) in the action row beneath the image. Click it. done(value="saved"). Do NOT navigate(). Do NOT give_up.`
@@ -22,7 +24,7 @@ try {
   ban = await detectInstagramBanSignals(s.page, s.capturedResponses).catch(() => null);
   console.log(`[ban-signal] ${ban?.signal}  PASS: ${result.value}`);
 } catch (e) {
-  ban = await detectInstagramBanSignals(s.page, s.capturedResponses).catch(() => null);
+  ban = e.banSignal ?? await detectInstagramBanSignals(s.page, s.capturedResponses).catch(() => null);
   console.log(`[ban-signal] ${ban?.signal}  FAIL: ${e.message?.slice(0, 200)}`);
   process.exitCode = 1;
 } finally {

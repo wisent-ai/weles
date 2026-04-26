@@ -4,6 +4,7 @@ import { execute } from '../../../../dist/agent/loop.js';
 import { detectLinkedInBanSignals } from '../../../../dist/platforms/linkedin/ban_signals.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { checkReachable } from '../../_shared/action-runner.mjs';
 
 const acct = await getSocialAccount('linkedin');
 if (!acct) { console.log('FAIL: no active linkedin account'); process.exit(1); }
@@ -12,12 +13,13 @@ const s = await WSession.start({ label: 'linkedin_endorse', proxy: proxyUrl, per
 let ban = null;
 try {
   await s.goto('https://www.linkedin.com/mynetwork/invite-connect/connections/');
+  checkReachable(s, 'linkedin');
   await s.page.waitForTimeout(2500);
   const result = await execute(s, `You are on LinkedIn's connections list. Click the first connection's profile. On their profile, scroll to the Skills section. Click the "+" icon next to any skill to endorse it. done(value="endorsed"). Do NOT give_up.`, { flowName: 'linkedin_endorse' });
   ban = await detectLinkedInBanSignals(s.page, s.capturedResponses).catch(() => null);
   console.log(`[ban-signal] ${ban?.signal}  PASS: ${result.value}`);
 } catch (e) {
-  ban = await detectLinkedInBanSignals(s.page, s.capturedResponses).catch(() => null);
+  ban = e.banSignal ?? await detectLinkedInBanSignals(s.page, s.capturedResponses).catch(() => null);
   console.log(`[ban-signal] ${ban?.signal}  FAIL: ${e.message?.slice(0, 200)}`);
   process.exitCode = 1;
 } finally {

@@ -4,6 +4,7 @@ import { execute } from '../../../../dist/agent/loop.js';
 import { detectGitHubBanSignals } from '../../../../dist/platforms/github/ban_signals.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { checkReachable } from '../../_shared/action-runner.mjs';
 
 const REPO_URL_RAW = process.env.REPO_URL || '';
 const TARGET_URL = process.env.TARGET_URL || '';
@@ -38,6 +39,7 @@ try {
   else if (SEARCH_QUERY) url = `https://github.com/search?q=${encodeURIComponent(SEARCH_QUERY)}&type=repositories&s=stars&o=desc`;
   else url = 'https://github.com/trending';
   await s.goto(url);
+  checkReachable(s, 'github');
   await s.page.waitForTimeout(2500);
 
   // Login precondition. GitHub shows the Sign-in header button when logged out;
@@ -92,7 +94,7 @@ try {
   ban = await detectGitHubBanSignals(s.page, s.capturedResponses).catch(() => null);
   console.log(`[ban-signal] ${ban?.signal}  PASS: ${result.value}`);
 } catch (e) {
-  ban = await detectGitHubBanSignals(s.page, s.capturedResponses).catch(() => null);
+  ban = e.banSignal ?? await detectGitHubBanSignals(s.page, s.capturedResponses).catch(() => null);
   console.log(`[ban-signal] ${ban?.signal}  FAIL: ${e.message?.slice(0, 200)}`);
   process.exitCode = 1;
 } finally {

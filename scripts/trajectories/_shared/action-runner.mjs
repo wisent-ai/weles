@@ -20,6 +20,22 @@ import { generateOrganicComment, generatePromoteComment, generatePost } from './
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
+// Re-exported assert used by the 27 specialized trajectories (linkedin/like, twitter/follow, instagram/save, github/star, etc) that don't go through runAction. Detects two failure modes that previously fell through to ban_signal:healthy: (1) chrome-error://chromewebdata/ from proxy CONNECT failure (Oxylabs sticky-session collision); (2) URL on a platform login wall (cookies stale). Throws a typed error with a structured banSignal so the caller's catch can persist it.
+const _AUTH_WALL = /\/(login|signin|sessions\/new|uas\/login|checkpoint)\b/;
+export function checkReachable(s, platform) {
+  const finalUrl = s.page.url?.() ?? '';
+  if (finalUrl.startsWith('chrome-error://')) {
+    const err = new Error(`proxy_failed: ${platform} navigation never left chrome-error — proxy CONNECT failed (likely tunnel/sticky-session collision)`);
+    err.banSignal = { signal: 'proxy_failed', healthy: false, details: { final_url: finalUrl, reason: 'chrome-error: proxy CONNECT failed' } };
+    throw err;
+  }
+  if (_AUTH_WALL.test(finalUrl) || /\/login\?/.test(finalUrl)) {
+    const err = new Error(`auth_wall: ${platform} session not authenticated — landed at ${finalUrl}`);
+    err.banSignal = { signal: 'checkpoint', healthy: false, details: { final_url: finalUrl, reason: 'redirected to platform login wall — stored cookies stale or session never authenticated' } };
+    throw err;
+  }
+}
+
 async function fetchSupabase(path) {
   const url = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
