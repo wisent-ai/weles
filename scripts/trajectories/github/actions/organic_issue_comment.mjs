@@ -4,8 +4,13 @@ import { detectGitHubBanSignals } from '../../../../dist/platforms/github/ban_si
 const ISSUE_URL = process.env.ISSUE_URL;
 if (!ISSUE_URL) { console.log('FAIL: ISSUE_URL required (e.g. https://github.com/org/repo/issues/123)'); process.exit(1); }
 
+// action name MUST match the action_action_logs.action so the worker
+// reads ban_signal.json from the right recordings/<label>/ directory.
+// Pre-fix: trajectory used action='organic_comment' → label github_organic_comment,
+// but worker action='github_organic_issue_comment' → reading wrong path,
+// causing every result to fall back to 'unknown_error'.
 await runAction({
-  platform: 'github', action: 'organic_comment',
+  platform: 'github', action: 'organic_issue_comment',
   feedUrl: ISSUE_URL,
   surfaceLabel: 'github issue',
   pickPost: async (s) => {
