@@ -6,7 +6,7 @@ import { detectDiscordBanSignals } from '../../../dist/platforms/discord/ban_sig
 // (e.g. "123456789/987654321" → /channels/<server>/<channel>).
 const channelPath = process.env.SERVER_CHANNEL_PATH || '@me';
 await runAction({
-  platform: 'discord', action: 'organic_comment',
+  platform: 'discord', action: 'organic_message',
   feedUrl: `https://discord.com/channels/${channelPath}`,
   surfaceLabel: 'discord channel',
   pickPost: async (s) => {
