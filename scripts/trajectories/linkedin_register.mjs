@@ -20,7 +20,7 @@ if (!AGENT_DOMAIN) { console.log('FAIL: AGENT_DOMAIN env not set'); process.exit
 async function getAndInjectRecaptcha(page, action) {
   const solver = new CaptchaSolver();
   const token = await solver.solveRecaptchaV3(RECAPTCHA_SITEKEY, URL, action);
-  if (!token) { console.log(`[recaptcha:${action}] solver returned null`); return null; }
+  if (!token) { console.log(`[recaptcha:${action}] v3 solver returned null`); return null; }
   const injected = await page.evaluate((tk) => {
     const fields = Array.from(document.querySelectorAll('textarea[name="g-recaptcha-response"], input[name="g-recaptcha-response"]'));
     for (const f of fields) {
@@ -33,8 +33,38 @@ async function getAndInjectRecaptcha(page, action) {
     window.__weles_recaptcha_token = tk;
     return fields.length;
   }, token);
-  console.log(`[recaptcha:${action}] token=${token.slice(0, 16)}... injected into ${injected} field(s)`);
+  console.log(`[recaptcha:v3 ${action}] token=${token.slice(0, 16)}... injected into ${injected} field(s)`);
   return token;
+}
+
+async function solveV2Modal(page) {
+  // LinkedIn wraps reCAPTCHA v2 inside /checkpoint/challengeIframe/AQH... —
+  // Google's standard captchaInternal iframe selector doesn't match. Use
+  // CapSolver's ReCaptchaV2EnterpriseTaskProxyLess to get a token, then
+  // inject into the g-recaptcha-response textarea inside whichever frame
+  // LinkedIn used. Submit the challenge frame's form.
+  const solver = new CaptchaSolver();
+  const token = await solver.solveRecaptchaV2(page, RECAPTCHA_SITEKEY, { enterprise: true });
+  if (!token || token === false) { console.log('[recaptcha:v2] solver returned null/false'); return false; }
+  const tokenStr = typeof token === 'string' ? token : '';
+  if (!tokenStr) { console.log('[recaptcha:v2] solver returned non-string'); return false; }
+  for (const f of [page.mainFrame(), ...page.frames()]) {
+    try {
+      const n = await f.evaluate((tk) => {
+        const fields = Array.from(document.querySelectorAll('textarea[name="g-recaptcha-response"], input[name="g-recaptcha-response"], textarea#g-recaptcha-response'));
+        for (const e of fields) {
+          const proto = e instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+          Object.getOwnPropertyDescriptor(proto, 'value').set.call(e, tk);
+          e.dispatchEvent(new Event('input', { bubbles: true }));
+          e.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        if (typeof window.___grecaptcha_cfg === 'object') { try { Object.values(window.___grecaptcha_cfg.clients ?? {}).forEach(c => { for (const k in c) if (typeof c[k]?.callback === 'function') c[k].callback(tk); }); } catch {} }
+        return fields.length;
+      }, tokenStr);
+      if (n > 0) console.log(`[recaptcha:v2] token injected into ${n} field(s) in frame=${f.url().slice(0, 60)}`);
+    } catch { /* frame may have detached */ }
+  }
+  return true;
 }
 
 function genIdentity() {
@@ -75,6 +105,21 @@ try {
   console.log(`[register] click Agree & Join: ${submit1}`);
   if (!submit1) throw new Error('Agree & Join button not clickable');
   await s.page.waitForTimeout(4000);
+
+  // After Agree & Join, LinkedIn often presents a v2 "I'm not a robot" modal.
+  // Detect it and solve via API token (v2 solver's frame chain doesn't match
+  // LinkedIn's challengeIframe wrapper, so we inject directly).
+  const hasV2 = await s.page.evaluate(() => !!document.querySelector('iframe[src*="recaptcha/api2"], iframe[src*="recaptcha/enterprise"], div.g-recaptcha[data-sitekey]') || Array.from(document.querySelectorAll('iframe')).some(f => /challengeIframe/.test(f.src ?? '')));
+  if (hasV2) {
+    console.log('[register] v2 modal detected — solving via API token');
+    const v2ok = await solveV2Modal(s.page);
+    if (v2ok) {
+      await s.page.waitForTimeout(2000);
+      const v2submit = await s.page.locator('button:has-text("Verify"), button:has-text("Continue"), button:has-text("Submit"), button[type="submit"]').last().click().then(() => true).catch(() => false);
+      console.log(`[register] v2 submit: ${v2submit}`);
+      await s.page.waitForTimeout(4000);
+    }
+  }
 
   const fillB = await s.page.evaluate((d) => {
     const first = document.querySelector('input[name="first-name"], input#first-name');
