@@ -260,16 +260,18 @@ export async function runAction(cfg) {
     // action_failed default. Pre-fix: outer catch overwrote the inner-set
     // banSignal with the platform detector's verdict, hiding proxy_failed.
     if (!banSignal) banSignal = e.banSignal ?? await cfg.banDetector(s.page, s.capturedResponses).catch(() => null);
-    // Override-or-set: if ban detector said 'healthy' or 'captcha_challenge'
-    // but the URL is on a known login wall, the page is actually unauthenticated
-    // (cookies stale). PerimeterX iframe on /uas/login isn't a real captcha
-    // challenge, it's a fingerprint-gated login wall. Same for LinkedIn's
-    // /login/ generic. Reclassify as 'checkpoint' so retry pipelines treat it
-    // as needing a login refresh instead of a captcha-solver attempt.
+    // Override-or-set reclass: same logic as the success path. Auth-wall →
+    // checkpoint; chrome-error://chromewebdata/ → proxy_auth_failed/ip_blocked/
+    // proxy_failed depending on body content. Healthy detector verdicts on
+    // these states are misleading.
     const finalUrlForReclass = s.page.url?.() ?? banSignal?.details?.final_url ?? '';
+    const bodySampleForReclass = banSignal?.details?.body_text_sample ?? '';
     const onAuthWallFinal = /\/(login|signin|sessions\/new|uas\/login|checkpoint|accounts\/login)\b/.test(finalUrlForReclass) || /\/login\?/.test(finalUrlForReclass);
     if (banSignal && onAuthWallFinal && (banSignal.signal === 'healthy' || banSignal.signal === 'captcha_challenge')) {
       banSignal = { signal: 'checkpoint', healthy: false, details: { final_url: finalUrlForReclass, reason: `reclassified from ${banSignal.signal} — landed on auth wall (cookies stale)`, prev_signal: banSignal.signal } };
+    } else if (banSignal && finalUrlForReclass.startsWith('chrome-error://') && (banSignal.signal === 'healthy' || banSignal.signal === 'unknown')) {
+      const sig2 = /HTTP ERROR 407|ERR_PROXY_AUTH/i.test(bodySampleForReclass) ? 'proxy_auth_failed' : /HTTP ERROR 4|ERR_HTTP_RESPONSE_CODE/i.test(bodySampleForReclass) ? 'ip_blocked' : 'proxy_failed';
+      banSignal = { signal: sig2, healthy: false, details: { final_url: finalUrlForReclass, reason: `reclassified from ${banSignal.signal} — chrome-error page (body: ${bodySampleForReclass.slice(0, 80)})`, prev_signal: banSignal.signal } };
     }
     if (!banSignal) banSignal = { signal: 'action_failed', healthy: false, details: { final_url: s.page.url?.() ?? '', reason: e.message?.slice(0, 200) ?? 'no message' } };
     console.log(`[ban-signal] ${banSignal.signal}`);
