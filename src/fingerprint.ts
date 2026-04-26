@@ -113,7 +113,8 @@ export function toConfig(
 
   let ua: string = nav.userAgent ?? '';
   if (isChromium) {
-    ua = ensureModernChromeUA(ua, targetOs);
+    // UA Reduction: Chrome 101+ exposes Chrome/<major>.0.0.0 (full version only via client hints). toCppConfig does this for C++; do it here too so __weles.navigator.userAgent the navigator.js bundle reads also matches real Chrome on cross-origin iframes (PX leak found 2026-04-25).
+    ua = ensureModernChromeUA(ua, targetOs).replace(/Chrome\/(\d+)\.\d+\.\d+\.\d+/, 'Chrome/$1.0.0.0');
   }
 
   const platform = PLATFORM_MAP[targetOs] ?? 'MacIntel';
