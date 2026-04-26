@@ -219,19 +219,21 @@ export async function resolveAccountSession(acct: SocialAccount): Promise<Accoun
     try {
       const mod = await import('../proxy/config.js');
       const filter = `residential ${provider} ${country}`.trim();
-      // OXY_BLOCKED platforms must avoid oxylabs in every secondary attempt
-      // too. Walk allowed providers explicitly; do NOT permit the broad
-      // `residential` filter which random-shuffles into oxylabs rows.
-      let pw = await mod.resolveProxy(filter);
+      // Platform host for pre-flight CONNECT validation against the actual
+      // destination (PacketStream relays can be up for one host and down
+      // for another — testing against ipify.org missed those gaps).
+      const PHOST: Record<string, string> = { twitter: 'x.com', linkedin: 'www.linkedin.com', instagram: 'www.instagram.com', reddit: 'www.reddit.com', tiktok: 'www.tiktok.com', discord: 'discord.com', github: 'github.com', producthunt: 'www.producthunt.com' };
+      const targetHost = PHOST[acct.platform];
+      let pw = await mod.resolveProxy(filter, targetHost);
       if (!pw) {
-        for (const altProvider of PROVIDERS) {
-          if (altProvider === provider) continue;
-          pw = await mod.resolveProxy(`residential ${altProvider} ${country}`.trim());
+        for (const alt of PROVIDERS) {
+          if (alt === provider) continue;
+          pw = await mod.resolveProxy(`residential ${alt} ${country}`.trim(), targetHost);
           if (pw) break;
         }
       }
       if (!pw && !OXY_BLOCKED.has(acct.platform)) {
-        pw = await mod.resolveProxy(`residential ${country}`.trim()) ?? await mod.resolveProxy('residential');
+        pw = await mod.resolveProxy(`residential ${country}`.trim(), targetHost) ?? await mod.resolveProxy('residential', targetHost);
       }
       if (pw?.server) {
         const u = new URL(pw.server);
