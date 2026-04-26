@@ -47,7 +47,7 @@ Tools:
   wait(seconds)            Pause.
   read(question)           Ask a question about the current page.
   select_option(target, value) Select dropdown option. Use for date pickers.
-  js_click(selector, text)   Click element by CSS selector or text match. Use for small buttons (upvote, star, like, follow) that vision can't find.
+  js_click(selector, text)   LAST RESORT click via selector or text. Prefer click(target) — js_click historically used a JS-evaluated el.click() which produces isTrusted=false events that bot classifiers (PerimeterX/Arkose/TikTok) reject. Use only when click(target) and focus()+press_key() can't reach the element (Reddit shadow-DOM vote buttons being the canonical case).
   solve_captcha(sitekey)   Solve reCAPTCHA on current page via API.
   check_email(email, sender) Poll for verification code sent to email.
   generate_identity(platform) Generate random identity: username/email/password/firstName/lastName/DOB.
