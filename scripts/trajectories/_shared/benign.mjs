@@ -128,19 +128,26 @@ try {
   // real story is cookies-stale. Override to checkpoint so retry pipelines
   // know to refresh the session, not invoke a captcha solver.
   const finalUrl = s.page.url?.() ?? banSignal?.details?.final_url ?? '';
+  const bodySample = banSignal?.details?.body_text_sample ?? '';
   const onAuthWall = /\/(login|signin|sessions\/new|uas\/login|checkpoint|accounts\/login)\b/.test(finalUrl) || /\/login\?/.test(finalUrl);
   if (banSignal && onAuthWall && (banSignal.signal === 'healthy' || banSignal.signal === 'captcha_challenge')) {
     banSignal = { signal: 'checkpoint', healthy: false, details: { final_url: finalUrl, reason: `reclassified from ${banSignal.signal} — page on auth wall after benign loop`, prev_signal: banSignal.signal } };
-    console.log(`[ban-signal] reclassified ${banSignal.details.prev_signal} → checkpoint`);
+  } else if (banSignal && finalUrl.startsWith('chrome-error://') && (banSignal.signal === 'healthy' || banSignal.signal === 'unknown')) {
+    const sig = /HTTP ERROR 407|ERR_PROXY_AUTH/i.test(bodySample) ? 'proxy_auth_failed' : /HTTP ERROR 4|ERR_HTTP_RESPONSE_CODE/i.test(bodySample) ? 'ip_blocked' : 'proxy_failed';
+    banSignal = { signal: sig, healthy: false, details: { final_url: finalUrl, reason: `reclassified from ${banSignal.signal} — chrome-error page (body: ${bodySample.slice(0, 80)})`, prev_signal: banSignal.signal } };
   }
   console.log(`[ban-signal] ${banSignal?.signal}`);
   console.log(`PASS: ${PLATFORM}_${VERB} ${verbCfg.scrolls}x scrolls`);
 } catch (e) {
   banSignal = await detector(s.page, s.capturedResponses).catch(() => null);
   const eFinalUrl = s.page.url?.() ?? banSignal?.details?.final_url ?? '';
+  const eBodySample = banSignal?.details?.body_text_sample ?? '';
   const eOnAuthWall = /\/(login|signin|sessions\/new|uas\/login|checkpoint|accounts\/login)\b/.test(eFinalUrl) || /\/login\?/.test(eFinalUrl);
   if (banSignal && eOnAuthWall && (banSignal.signal === 'healthy' || banSignal.signal === 'captcha_challenge')) {
     banSignal = { signal: 'checkpoint', healthy: false, details: { final_url: eFinalUrl, reason: `reclassified from ${banSignal.signal} — page on auth wall after benign loop crash`, prev_signal: banSignal.signal } };
+  } else if (banSignal && eFinalUrl.startsWith('chrome-error://') && (banSignal.signal === 'healthy' || banSignal.signal === 'unknown')) {
+    const sig = /HTTP ERROR 407|ERR_PROXY_AUTH/i.test(eBodySample) ? 'proxy_auth_failed' : /HTTP ERROR 4|ERR_HTTP_RESPONSE_CODE/i.test(eBodySample) ? 'ip_blocked' : 'proxy_failed';
+    banSignal = { signal: sig, healthy: false, details: { final_url: eFinalUrl, reason: `reclassified from ${banSignal.signal} — chrome-error page after benign crash`, prev_signal: banSignal.signal } };
   }
   if (banSignal) console.log(`[ban-signal] ${banSignal.signal}`);
   console.log('FAIL:', e.message?.slice(0, 200));
