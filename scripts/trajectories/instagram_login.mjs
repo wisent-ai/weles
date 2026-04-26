@@ -1,6 +1,8 @@
 import { getSocialAccount, resolveAccountSession } from '../../dist/utils/credentials.js';
 import { WSession } from '../../dist/session/wsession.js';
 import { execute } from '../../dist/agent/loop.js';
+import { writeFileSync, mkdirSync } from 'node:fs';
+import { join } from 'node:path';
 
 const URL = 'https://www.instagram.com/accounts/login/';
 const GOAL = `fill(target="username",value=$SVC_EMAIL). fill(target="password",value=$SVC_PASSWORD). js_click(selector="button[type='submit']",text="Log in"). Wait 5 seconds. If email verification code required, check_email(email=$SVC_EMAIL,sender="instagram") for code, fill the code, click Confirm. If error "incorrect", give_up(reason="invalid credentials"). done(value="logged in").`;
@@ -42,6 +44,22 @@ try {
   console.log('PASS:', result.value);
   await captureCookies();
 } catch (e) {
+  // Write a structured ban_signal so the worker doesn't fall back to
+  // 'unknown_error'. instagram_login often fails on the post-submit verify-
+  // email page; surface the final URL so the operator can see whether it
+  // hit a captcha, verify wall, or just timed out.
+  try {
+    const dir = join(process.cwd(), 'recordings', 'instagram_login');
+    mkdirSync(dir, { recursive: true });
+    const finalUrl = s.page?.url?.() ?? '';
+    const sig = /\/checkpoint|\/challenge|\/two_factor/.test(finalUrl) ? 'checkpoint' : 'action_failed';
+    writeFileSync(join(dir, 'ban_signal.json'), JSON.stringify({
+      account_id: acct.id, username: acct.username, action: 'instagram_login',
+      signal: sig, healthy: false,
+      details: { final_url: finalUrl, reason: e.message?.slice(0, 200) ?? 'no message' },
+      ts: new Date().toISOString(),
+    }, null, 2));
+  } catch {}
   console.log('FAIL:', e.message?.slice(0, 200));
   process.exit(1);
 } finally {
