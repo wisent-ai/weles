@@ -96,14 +96,17 @@ export class CaptchaSolver {
     // (sitekey 6LcIy_MqAA... is enterprise). CapSolver returns higher-score
     // tokens (typically 0.9) than anticaptcha (typically 0.7).
     if (this._creds.capsolver) {
+      // minScore 0.9 — LinkedIn signup correlates reCAPTCHA score with
+      // PerimeterX scoring; lower scores get silently rejected even if
+      // technically valid. CapSolver retries internally until threshold met.
       const token = await apiSolve('https://api.capsolver.com', this._creds.capsolver, {
         type: 'ReCaptchaV3EnterpriseTaskProxyLess', websiteURL: url, websiteKey: sitekey,
-        minScore: 0.7, pageAction: action ?? 'verify',
+        minScore: 0.9, pageAction: action ?? 'verify',
       });
       if (token) { console.log('[captcha:solver] ReCaptchaV3Enterprise solved via capsolver'); return token; }
       const tokenV3 = await apiSolve('https://api.capsolver.com', this._creds.capsolver, {
         type: 'ReCaptchaV3TaskProxyLess', websiteURL: url, websiteKey: sitekey,
-        minScore: 0.7, pageAction: action ?? 'verify',
+        minScore: 0.9, pageAction: action ?? 'verify',
       });
       if (tokenV3) { console.log('[captcha:solver] ReCaptchaV3 solved via capsolver'); return tokenV3; }
     }
