@@ -186,14 +186,13 @@ export async function resolveProxy(proxy: string, targetHost?: string): Promise<
         try { const dns = await import('node:dns'); host = await new Promise<string>((res, rej) => dns.lookup(p.proxy_host, (e: any, a: string) => e ? rej(e) : res(a))); } catch {}
         if (await isBurned(host)) continue;
       }
-      // Pre-flight CONNECT test (~4s timeout): for residential providers
-      // (PacketStream especially) ~40% of sticky sessIds at peak hit relays
-      // that return 502 "selected relay is offline" — and the relay can be
-      // up for one destination (api.ipify.org) and down for another (x.com).
-      // Test against the actual targetHost when caller provides one;
-      // otherwise fall back to api.ipify.org.
-      // Skipped if PROXY_SKIP_PREFLIGHT=1 is set (for environments where
-      // outbound CONNECT to the probe host is blocked).
+      // Pre-flight CONNECT test (~4s timeout): residential providers like
+      // PacketStream split exits across truly-residential ISPs (TELUS, Comcast)
+      // and IPXO marketplace blocks (NET-82-40-64-0-20 etc). Same provider,
+      // very different anti-bot scores. Sample the actual exit IP via fetch
+      // to api.ipify.org, whois it, and reject sticky sessions that exit
+      // through known proxy-marketplace ranges.
+      // Skipped if PROXY_SKIP_PREFLIGHT=1 is set.
       if (!process.env.PROXY_SKIP_PREFLIGHT) {
         const probeHost = targetHost || 'api.ipify.org';
         try {
@@ -208,6 +207,21 @@ export async function resolveProxy(proxy: string, targetHost?: string): Promise<
             sock.once('error', () => { clearTimeout(timer); resolve(false); });
           });
           if (!ok) { console.log(`[proxy] Pre-flight failed for ${p.display_name} sticky=${sessId} target=${probeHost} — retrying`); continue; }
+          // Sample exit IP and reject IPXO-marketplace cohorts. Same provider
+          // can split exits across real ISPs (TELUS) and IPXO (NET-82-40-...).
+          // PerimeterX/Arkose rate the latter as datacenter-equivalent.
+          // Only enforced when targetHost is on a captcha-protected platform.
+          if (process.env.PROXY_REQUIRE_RESIDENTIAL === '1' || /linkedin|twitter|x\.com/.test(targetHost ?? '')) {
+            try {
+              const { execSync } = await import('node:child_process');
+              const proxyAuth = `http://${encodeURIComponent(stickyUser)}:${encodeURIComponent(stickyPass)}@${host}:${p.proxy_port}`;
+              const exitIp = execSync(`curl -s --max-time 5 -x "${proxyAuth}" https://api.ipify.org`, { encoding: 'utf8' }).trim();
+              if (exitIp && /^[0-9.]+$/.test(exitIp)) {
+                if (/^82\.40\./.test(exitIp)) { console.log(`[proxy] Skipping IPXO exit ${exitIp} (sticky=${sessId})`); continue; }
+                console.log(`[proxy] Exit-IP validated: ${exitIp}`);
+              }
+            } catch { /* exit-IP probe failed; trust the CONNECT result */ }
+          }
         } catch { /* skip preflight on unexpected error, return as-is */ }
       }
       console.log(`[proxy] Using: ${p.display_name} (${host}:${p.proxy_port}, $${p.balance_usd}, sticky=${sessId})`);
