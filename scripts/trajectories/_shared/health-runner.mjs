@@ -102,6 +102,12 @@ export async function runHealthProbe(cfg) {
 
   let signal;
   if (extracted.is_suspended) signal = 'suspended';
+  // Cookies-stale check needs to win over captcha_challenge specifically.
+  // PerimeterX iframe loads on every /uas/login page, so loggedIn.signal
+  // will be captcha_challenge whenever LinkedIn's session is dead — that's
+  // a fingerprint-gated login wall (cookies stale), not a real challenge.
+  // Same on Discord (/login + Cloudflare hcaptcha widget).
+  else if (cookiesStale && loggedIn.signal?.signal === 'captcha_challenge') signal = 'checkpoint';
   else if (!extracted.ok && loggedIn.signal?.signal && loggedIn.signal.signal !== 'healthy') signal = loggedIn.signal.signal;
   else if (shadowbanned) signal = 'shadowbanned';
   else if (extracted.ok && outOk) signal = 'healthy';
