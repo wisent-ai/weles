@@ -40,6 +40,18 @@ export async function runDiag(cfg) {
   if (mode === 'weles') {
     const WELES_BIN = join(WELES_ROOT, '..', 'chromium-build', 'src', 'out', 'Weles', 'Chromium.app', 'Contents', 'MacOS', 'Chromium');
     const FP = process.env.WELES_FP || '/tmp/weles-human-fp.json';
+    // Auto-generate the fingerprint config if WELES_FP path doesn't exist yet.
+    // Without a real config the C++ binary uses raw Chromium defaults — which
+    // emits navigator.userAgentData.brands missing the 'Google Chrome' entry,
+    // a stable PerimeterX gating signal. Production trajectories pass this via
+    // browser/api.ts; the diag harness needs the same data.
+    if (!existsSync(FP)) {
+      const fpMod = await import(`file://${join(WELES_ROOT, 'dist', 'fingerprint.js')}`);
+      const cfg = fpMod.toConfig(fpMod.generate({}));
+      const cpp = fpMod.toCppConfig(cfg, 'macos');
+      writeFileSync(FP, JSON.stringify(cpp));
+      console.log(`[diag] auto-generated FP at ${FP}`);
+    }
     const STUBS = readFileSync(join(WELES_ROOT, 'dist', 'scripts', 'chrome147_stubs.js'), 'utf-8');
     console.log(`[diag] launching weles label=${label} fp=${FP} proxy=${!!proxyConfig}`);
     browser = await chromium.launchPersistentContext(`/tmp/weles-diag-${label}`, {
