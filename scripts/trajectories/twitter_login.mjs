@@ -135,6 +135,20 @@ try {
     }
   }
 } catch (e) {
+  // Write a structured ban_signal so the worker doesn't fall back to
+  // 'unknown_error'. Twitter login can fail at proxy CONNECT (chrome-error),
+  // at the suspended/locked landing page, or simply because the agent loop
+  // can't get through 2FA. Surface each cleanly.
+  try {
+    const dir = (await import('node:path')).join(process.cwd(), 'recordings', 'twitter_login');
+    (await import('node:fs')).mkdirSync(dir, { recursive: true });
+    const finalUrl = s.page?.url?.() ?? '';
+    let sig = 'action_failed';
+    if (finalUrl.startsWith('chrome-error://')) sig = 'proxy_failed';
+    else if (/account\/access|account_access/.test(finalUrl)) sig = 'suspended';
+    else if (/\/i\/flow\/login\/check|\/account\/locked|\/i\/flow\/(verify|access)/.test(finalUrl)) sig = 'checkpoint';
+    (await import('node:fs')).writeFileSync((await import('node:path')).join(dir, 'ban_signal.json'), JSON.stringify({ account_id: acct.id, username: acct.username, action: 'twitter_login', signal: sig, healthy: false, details: { final_url: finalUrl, reason: e.message?.slice(0, 200) ?? 'no message' }, ts: new Date().toISOString() }, null, 2));
+  } catch {}
   console.log('FAIL:', e.message?.slice(0, 200));
   process.exit(1);
 } finally {

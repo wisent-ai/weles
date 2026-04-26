@@ -196,6 +196,21 @@ try {
     process.exit(1);
   }
 } catch (e) {
+  // Structured ban_signal so the worker can route this row correctly. Three
+  // common failure tails: chrome-error proxy CONNECT, GitHub's account-locked
+  // landing, or an opaque agent give_up after the password page wouldn't
+  // accept submitted creds.
+  try {
+    const path = await import('node:path');
+    const fs = await import('node:fs');
+    const dir = path.join(process.cwd(), 'recordings', 'github_login');
+    fs.mkdirSync(dir, { recursive: true });
+    const finalUrl = s.page?.url?.() ?? '';
+    let sig = 'action_failed';
+    if (finalUrl.startsWith('chrome-error://')) sig = 'proxy_failed';
+    else if (/\/account_lockout|\/account\/locked|\/account_recovery|\/sessions\/two-factor|\/sessions\/verified-device/.test(finalUrl)) sig = 'checkpoint';
+    fs.writeFileSync(path.join(dir, 'ban_signal.json'), JSON.stringify({ account_id: acct.id, username: acct.username, action: 'github_login', signal: sig, healthy: false, details: { final_url: finalUrl, reason: e.message?.slice(0, 200) ?? 'no message' }, ts: new Date().toISOString() }, null, 2));
+  } catch {}
   console.log('FAIL:', e.message?.slice(0, 200));
   process.exit(1);
 } finally {

@@ -265,6 +265,21 @@ try {
     }
   }
 } catch (e) {
+  // Structured ban_signal so the worker doesn't fall back to 'unknown_error'.
+  // Discord login fails in three distinct shapes: chrome-error proxy CONNECT,
+  // hCaptcha widget appearance (login is gated until solved), or invalid
+  // creds → /login still showing. Emit the right one.
+  try {
+    const path = await import('node:path');
+    const fs = await import('node:fs');
+    const dir = path.join(process.cwd(), 'recordings', 'discord_login');
+    fs.mkdirSync(dir, { recursive: true });
+    const finalUrl = s?.page?.url?.() ?? '';
+    let sig = 'action_failed';
+    if (finalUrl.startsWith('chrome-error://')) sig = 'proxy_failed';
+    else if (/hcaptcha|captcha/i.test(e.message ?? '') || /\/login/.test(finalUrl)) sig = 'checkpoint';
+    fs.writeFileSync(path.join(dir, 'ban_signal.json'), JSON.stringify({ account_id: acct.id, username: acct.username, action: 'discord_login', signal: sig, healthy: false, details: { final_url: finalUrl, reason: e.message?.slice(0, 200) ?? 'no message' }, ts: new Date().toISOString() }, null, 2));
+  } catch {}
   console.log('FAIL:', e.message?.slice(0, 200));
   process.exit(1);
 } finally {

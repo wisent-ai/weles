@@ -95,6 +95,21 @@ try {
     await captureCookies();
   }
 } catch (e) {
+  // Structured ban_signal so the worker doesn't fall back to 'unknown_error'.
+  // TikTok login fails commonly at chrome-error proxy CONNECT, captcha widget
+  // (SadCaptcha-gated), or error_code:7 rate-limit on register_verify_login.
+  try {
+    const path = await import('node:path');
+    const fs = await import('node:fs');
+    const dir = path.join(process.cwd(), 'recordings', 'tiktok_login');
+    fs.mkdirSync(dir, { recursive: true });
+    const finalUrl = s?.page?.url?.() ?? '';
+    let sig = 'action_failed';
+    if (finalUrl.startsWith('chrome-error://')) sig = 'proxy_failed';
+    else if (/captcha|verify-app|app-download/i.test(e.message ?? '') || /\/login\/download-app|\/captcha/.test(finalUrl)) sig = 'captcha_challenge';
+    else if (/\/login/.test(finalUrl)) sig = 'checkpoint';
+    fs.writeFileSync(path.join(dir, 'ban_signal.json'), JSON.stringify({ account_id: acct.id, username: acct.username, action: 'tiktok_login', signal: sig, healthy: false, details: { final_url: finalUrl, reason: e.message?.slice(0, 200) ?? 'no message' }, ts: new Date().toISOString() }, null, 2));
+  } catch {}
   console.log('FAIL:', e.message?.slice(0, 200));
   process.exit(1);
 } finally {
