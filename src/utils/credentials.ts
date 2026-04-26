@@ -77,16 +77,57 @@ export async function getSocialAccount(platform: string): Promise<SocialAccount 
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
   if (!supabaseUrl || !supabaseKey) return null;
   const accountId = process.env.ACCOUNT_ID;
-  const query = accountId
-    ? `id=eq.${accountId}&platform=eq.${platform}&select=id,platform,username,metadata&limit=1`
-    : `platform=eq.${platform}&is_active=eq.true&select=id,platform,username,metadata&order=created_at.desc&limit=1`;
+  if (accountId) {
+    const res = await fetch(
+      `${supabaseUrl}/rest/v1/social_accounts?id=eq.${accountId}&platform=eq.${platform}&select=id,platform,username,metadata&limit=1`,
+      { headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` } },
+    );
+    if (!res.ok) return null;
+    const rows = await res.json() as SocialAccount[];
+    return rows[0] ?? null;
+  }
+  // Pick the most recently created active account whose cookies aren't known to
+  // be stale within the last 24h. The cookies_stale_at field is set by the
+  // action runner when a trajectory lands on a platform login wall — so subsequent
+  // routine ticks skip the dead account and pick a different one. After 24h
+  // we re-try (in case the human refreshed cookies out-of-band).
+  const cutoff = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
   const res = await fetch(
-    `${supabaseUrl}/rest/v1/social_accounts?${query}`,
+    `${supabaseUrl}/rest/v1/social_accounts?platform=eq.${platform}&is_active=eq.true&or=(metadata->>cookies_stale_at.is.null,metadata->>cookies_stale_at.lt.${cutoff})&select=id,platform,username,metadata&order=created_at.desc&limit=1`,
     { headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` } },
   );
   if (!res.ok) return null;
   const rows = await res.json() as SocialAccount[];
-  return rows[0] ?? null;
+  if (rows[0]) return rows[0];
+  // Last-resort: no fresh account exists for this platform. Use the most-recent
+  // one even if marked stale, so the trajectory at least runs and surfaces a
+  // useful checkpoint signal (rather than failing at "no active account").
+  const lastResortRes = await fetch(
+    `${supabaseUrl}/rest/v1/social_accounts?platform=eq.${platform}&is_active=eq.true&select=id,platform,username,metadata&order=created_at.desc&limit=1`,
+    { headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` } },
+  );
+  if (!lastResortRes.ok) return null;
+  const lastResortRows = await lastResortRes.json() as SocialAccount[];
+  return lastResortRows[0] ?? null;
+}
+
+/** Mark an account's cookies as stale so getSocialAccount skips it for 24h. */
+export async function markCookiesStale(accountId: string): Promise<void> {
+  if (!accountId) return;
+  const supabaseUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
+  if (!supabaseUrl || !supabaseKey) return;
+  try {
+    const r = await fetch(`${supabaseUrl}/rest/v1/social_accounts?id=eq.${accountId}&select=metadata`, { headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` } });
+    if (!r.ok) return;
+    const rows = await r.json() as { metadata: Record<string, unknown> | null }[];
+    const merged = { ...(rows[0]?.metadata ?? {}), cookies_stale_at: new Date().toISOString() };
+    await fetch(`${supabaseUrl}/rest/v1/social_accounts?id=eq.${accountId}`, {
+      method: 'PATCH',
+      headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+      body: JSON.stringify({ metadata: merged }),
+    });
+  } catch { /* noop */ }
 }
 
 /** Get service credentials for balance checks (login_email + login_password from DB). */

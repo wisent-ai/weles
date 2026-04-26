@@ -7,7 +7,7 @@
  * Every run writes recordings/<platform>_<verb>/ban_signal.json via the
  * platform's ban detector so the worker can detect silent bans.
  */
-import { getSocialAccount, resolveAccountSession } from '../../../dist/utils/credentials.js';
+import { getSocialAccount, resolveAccountSession, markCookiesStale } from '../../../dist/utils/credentials.js';
 import { WSession } from '../../../dist/session/wsession.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -152,6 +152,9 @@ try {
       mkdirSync(dir, { recursive: true });
       writeFileSync(join(dir, 'ban_signal.json'), JSON.stringify({ account_id: acct.id, username: acct.username, action: label, ...banSignal, ts: new Date().toISOString() }, null, 2));
     } catch (e) { console.log('[ban-signal] persist err:', e.message); }
+    if (banSignal.signal === 'checkpoint' && acct.id) {
+      await markCookiesStale(acct.id).catch((e) => console.log('[mark-stale] err:', e.message?.slice(0, 80)));
+    }
   }
   await s.close();
 }
