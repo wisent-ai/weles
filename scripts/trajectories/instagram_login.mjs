@@ -52,7 +52,15 @@ try {
     const dir = join(process.cwd(), 'recordings', 'instagram_login');
     mkdirSync(dir, { recursive: true });
     const finalUrl = s.page?.url?.() ?? '';
-    const sig = /\/checkpoint|\/challenge|\/two_factor/.test(finalUrl) ? 'checkpoint' : 'action_failed';
+    // Suspended/disabled is the cleanest classification for an instagram
+    // account that landed at /accounts/suspended/ or /accounts/disabled/ —
+    // the login itself worked, the account is banned. Falling through to
+    // 'action_failed' hides the actual state from rerun_failed.mjs which
+    // would then pointlessly retry.
+    let sig;
+    if (/\/accounts\/suspended|\/accounts\/disabled/.test(finalUrl)) sig = 'suspended';
+    else if (/\/checkpoint|\/challenge|\/two_factor/.test(finalUrl)) sig = 'checkpoint';
+    else sig = 'action_failed';
     writeFileSync(join(dir, 'ban_signal.json'), JSON.stringify({
       account_id: acct.id, username: acct.username, action: 'instagram_login',
       signal: sig, healthy: false,

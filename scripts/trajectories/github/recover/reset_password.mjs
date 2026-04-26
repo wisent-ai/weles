@@ -41,10 +41,25 @@ try {
   await s.fill('Email address', email);
   await s.wait(1);
   // Use Playwright locator for isTrusted=true (see DETECTION_ANTIPATTERNS §1).
-  const submitLoc1 = s.page.locator('input[type="submit"], button[type="submit"]').first();
-  const submit = (await submitLoc1.count()) > 0
-    ? await submitLoc1.click().then(() => ({ clicked: true, via: 'locator' })).catch((e) => ({ clicked: false, err: e.message?.slice(0, 100) }))
-    : { clicked: false };
+  // Cascade through several selector forms then form-submit as last resort.
+  // GitHub recently wrapped the button inside a Turbo custom element; basic
+  // input/button[type=submit] selector now misses on first paint.
+  const SUBMIT_SELECTORS = 'input[type="submit"]|button[type="submit"]|button:has-text("Send password reset email")|button:has-text("Send a password reset")|input[name="commit"]|form[action*="password_reset"] button'.split('|');
+  let submit = { clicked: false };
+  for (const sel of SUBMIT_SELECTORS) {
+    const loc = s.page.locator(sel).first();
+    if ((await loc.count().catch(() => 0)) > 0) {
+      const r = await loc.click().then(() => ({ clicked: true, via: sel })).catch((e) => ({ clicked: false, err: e.message?.slice(0, 100), tried: sel }));
+      if (r.clicked) { submit = r; break; }
+      submit = r;
+    }
+  }
+  if (!submit.clicked) {
+    // Submit the form directly via DOM. Routes a real form submit through
+    // Blink (not isTrusted=false synthetic click on button).
+    const formSubmitted = await s.page.evaluate(() => { const f = document.querySelector('form[action*="password_reset"], form'); if (f && typeof f.requestSubmit === 'function') { f.requestSubmit(); return true; } if (f) { f.submit(); return true; } return false; }).catch(() => false);
+    if (formSubmitted) submit = { clicked: true, via: 'form.requestSubmit' };
+  }
   console.log(`[reset] Submit reset request: ${JSON.stringify(submit)}`);
   if (!submit.clicked) throw new Error('no submit control on password_reset page');
 
