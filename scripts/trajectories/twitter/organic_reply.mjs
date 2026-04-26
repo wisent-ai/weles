@@ -17,6 +17,6 @@ await runAction({
       return { postTitle: pick.replace(/^"full_text":"/, '').replace(/"$/, '').slice(0, 280), postBody: '' };
     } catch { return { postTitle: '', postBody: '' }; }
   },
-  commentGoal: (text) => `Find a tweet on the home timeline. Click its Reply button. In the reply composer, fill(target="Post your reply", value=${JSON.stringify(text)}). Then click Reply to submit. done(value="replied"). Do NOT navigate() beyond the reply modal. Do NOT give_up.`,
+  commentGoal: (text) => `On x.com home timeline. Use js_click(selector="[data-testid='reply']") to open reply composer (Twitter Reply button has data-testid='reply' — direct selector beats vision). Wait 2 seconds. fill(target="Post your reply", value=${JSON.stringify(text)}). Then js_click(selector="[data-testid='tweetButton']") to submit. done(value="replied"). Do NOT navigate(). Do NOT give_up.`,
   banDetector: detectTwitterBanSignals,
 });
