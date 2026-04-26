@@ -176,11 +176,18 @@ try {
   process.env.LINKEDIN_NEW_FIRSTNAME = id.first;
   process.env.LINKEDIN_NEW_LASTNAME = id.last;
   process.env.LINKEDIN_NEW_USERNAME = id.handle;
+  // No flowName — each register run has a unique identity, so flow cache
+  // would replay save_account with stale args. Re-plan every run.
+  // Also reject /signup as a "success" — it means signup didn't actually
+  // complete (silent reCAPTCHA score rejection).
+  if (/^https?:\/\/www\.linkedin\.com\/signup\/?$/.test(verifyUrl) || verifyUrl.includes('/signup/api/')) {
+    throw new Error(`signup_did_not_complete: URL stayed at ${verifyUrl} — likely reCAPTCHA score too low or silent rejection`);
+  }
   if (/verify|email-verification|email_verification|checkpoint/.test(verifyUrl)) {
-    const result = await execute(s, `On LinkedIn email verification page. check_email(email=${id.email},sender="linkedin") to retrieve the 6-digit verification code. fill(target="verification code field, pin input, or 6-digit code", value=<code>). Click Submit/Verify/Continue. Wait for redirect. save_account(platform="linkedin",username=${id.handle},email=${id.email},password=${id.password},name="${id.first} ${id.last}"). done(value=${id.handle}).`, { flowName: 'linkedin_register_verify' });
+    const result = await execute(s, `On LinkedIn email verification page. check_email(email=${id.email},sender="linkedin") to retrieve the 6-digit verification code. fill(target="verification code field, pin input, or 6-digit code", value=<code>). Click Submit/Verify/Continue. Wait for redirect. save_account(platform="linkedin",username=${id.handle},email=${id.email},password=${id.password},name="${id.first} ${id.last}"). done(value=${id.handle}).`);
     console.log(`PASS: ${result.value}`);
   } else {
-    const result = await execute(s, `LinkedIn signup completed at URL ${verifyUrl}. save_account(platform="linkedin",username=${id.handle},email=${id.email},password=${id.password},name="${id.first} ${id.last}"). done(value=${id.handle}).`, { flowName: 'linkedin_register_save' });
+    const result = await execute(s, `LinkedIn signup completed at URL ${verifyUrl}. save_account(platform="linkedin",username=${id.handle},email=${id.email},password=${id.password},name="${id.first} ${id.last}"). done(value=${id.handle}).`);
     console.log(`PASS: ${result.value}`);
   }
   try { mkdirSync(join(process.cwd(), 'recordings', 'linkedin_register'), { recursive: true }); writeFileSync(join(process.cwd(), 'recordings', 'linkedin_register', 'ban_signal.json'), JSON.stringify({ action: 'linkedin_register', signal: 'healthy', healthy: true, details: { username: id.handle, email: id.email, final_url: s.page.url() }, ts: new Date().toISOString() }, null, 2)); } catch {}
