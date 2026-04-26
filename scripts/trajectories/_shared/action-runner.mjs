@@ -175,7 +175,7 @@ export async function runAction(cfg) {
       }
     } else {
       const surfaceLabel = typeof cfg.surfaceLabel === 'function' ? cfg.surfaceLabel(acct, feed) : (cfg.surfaceLabel ?? feed);
-      const { postTitle, postBody } = await (cfg.pickPost?.(s) ?? Promise.resolve({ postTitle: '', postBody: '' }));
+      const { postTitle, postBody } = await (cfg.pickPost?.(s).catch(e => { console.log(`[${label}] pickPost failed: ${e.message?.slice(0, 80)}`); return { postTitle: '', postBody: '' }; }) ?? Promise.resolve({ postTitle: '', postBody: '' }));
       let text = preapprovedText;
       if (!text) {
         text = await genComment({
