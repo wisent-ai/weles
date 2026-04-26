@@ -206,8 +206,11 @@ try {
     const dir = path.join(process.cwd(), 'recordings', 'github_login');
     fs.mkdirSync(dir, { recursive: true });
     const finalUrl = s.page?.url?.() ?? '';
+    const msg = e.message ?? '';
     let sig = 'action_failed';
-    if (finalUrl.startsWith('chrome-error://')) sig = 'proxy_failed';
+    if (/ERR_HTTP_RESPONSE_CODE_FAILURE|ERR_BLOCKED_BY_RESPONSE|ERR_BLOCKED_BY_CLIENT|ERR_BLOCKED_BY_ADMINISTRATOR/.test(msg)) sig = 'ip_blocked';
+    else if (/ERR_TUNNEL_CONNECTION_FAILED|ERR_PROXY_CONNECTION_FAILED/.test(msg)) sig = 'proxy_failed';
+    else if (finalUrl.startsWith('chrome-error://')) sig = 'proxy_failed';
     else if (/\/account_lockout|\/account\/locked|\/account_recovery|\/sessions\/two-factor|\/sessions\/verified-device/.test(finalUrl)) sig = 'checkpoint';
     fs.writeFileSync(path.join(dir, 'ban_signal.json'), JSON.stringify({ account_id: acct.id, username: acct.username, action: 'github_login', signal: sig, healthy: false, details: { final_url: finalUrl, reason: e.message?.slice(0, 200) ?? 'no message' }, ts: new Date().toISOString() }, null, 2));
   } catch {}
