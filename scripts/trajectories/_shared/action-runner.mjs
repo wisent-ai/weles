@@ -13,7 +13,7 @@
  * Reads character + product context from the DB as needed. Writes
  * recordings/<platform>_<action>/ban_signal.json.
  */
-import { getSocialAccount, resolveAccountSession } from '../../../dist/utils/credentials.js';
+import { getSocialAccount, resolveAccountSession, markCookiesStale } from '../../../dist/utils/credentials.js';
 import { WSession } from '../../../dist/session/wsession.js';
 import { execute } from '../../../dist/agent/loop.js';
 import { generateOrganicComment, generatePromoteComment, generatePost } from './llm.mjs';
@@ -281,6 +281,13 @@ export async function runAction(cfg) {
         mkdirSync(dir, { recursive: true });
         writeFileSync(join(dir, 'ban_signal.json'), JSON.stringify({ account_id: acct.id, username: acct.username, action: label, ...banSignal, ts: new Date().toISOString() }, null, 2));
       } catch (e) { console.log('[ban-signal] persist err:', e.message); }
+      // Cookies-stale → mark the account so getSocialAccount skips it for 24h
+      // and a different account is picked on the next routine tick. Without
+      // this, the same dead account gets retried over and over, drowning the
+      // queue and never letting healthy accounts run.
+      if (banSignal.signal === 'checkpoint' && acct.id) {
+        await markCookiesStale(acct.id).catch((e) => console.log('[mark-stale] err:', e.message?.slice(0, 80)));
+      }
     }
     await s.close();
   }
