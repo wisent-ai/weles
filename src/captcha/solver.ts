@@ -13,6 +13,7 @@ interface CaptchaCredentials {
   twocaptcha?: string;
   capsolver?: string;
   capmonster?: string;
+  nocaptcha?: string;
 }
 
 async function apiSolve(apiUrl: string, clientKey: string, task: Record<string, any>): Promise<string | null> {
@@ -53,6 +54,7 @@ export class CaptchaSolver {
       const db = await getCaptchaCredentials();
       this._creds = { ...db, ...this._creds };
     }
+    if (!this._creds.nocaptcha && process.env.NOCAPTCHA_API_KEY) this._creds.nocaptcha = process.env.NOCAPTCHA_API_KEY;
     this._initialized = true;
   }
 
@@ -168,15 +170,42 @@ export class CaptchaSolver {
   }
 
   /**
-   * PerimeterX (LinkedIn checkpointV2 slider) — no solver currently supports
-   * this. CapSolver's docs say "Coming Soon"; 2Captcha doesn't list it. Path
-   * forward is fingerprint-clean (avoid triggering the challenge) or BrightData
-   * Web Unlocker (paid, separate vendor integration). This stub stays so the
-   * caller doesn't crash on an undefined method.
+   * PerimeterX (HUMAN Security) — used by LinkedIn checkpointV2 / NewYorkTimes /
+   * Zillow. Solved via nocaptcha.io wanda/perimeterx/universal which returns the
+   * _px3/_pxde/pxcts cookies that satisfy the challenge. Set NOCAPTCHA_API_KEY
+   * (or service_credentials row 'NoCaptcha'). Returns Playwright-shaped cookies
+   * ready for ctx.addCookies(); caller then re-navigates and proceeds.
    */
-  async solvePerimeterX(_url: string, _userAgent: string, _cookies?: Array<{ name: string; value: string; domain?: string }>): Promise<null> {
-    console.log('[captcha:solver] PerimeterX: no API solver available (CapSolver/2Captcha do not support it)');
-    return null;
+  async solvePerimeterX(url: string, userAgent: string, cookies?: Array<{ name: string; value: string; domain?: string }>, proxy?: string): Promise<Array<{ name: string; value: string; domain: string; path: string }> | null> {
+    await this._ensureInit();
+    const token = this._creds.nocaptcha;
+    if (!token) { console.log('[captcha:solver] PerimeterX: no NOCAPTCHA_API_KEY set'); return null; }
+    const u = new URL(url);
+    const cookieMap: Record<string, string> = {};
+    for (const c of cookies ?? []) if (c?.name && c?.value) cookieMap[c.name] = c.value;
+    const body: Record<string, any> = { href: url, user_agent: userAgent, cookies: cookieMap };
+    if (proxy) {
+      const p = new URL(proxy);
+      body.proxy = p.username ? `${p.username}:${p.password}@${p.hostname}:${p.port}` : `${p.hostname}:${p.port}`;
+    }
+    console.log(`[captcha:api] nocaptcha PerimeterX solve href=${url.slice(0, 80)} proxy=${!!proxy}`);
+    try {
+      const r = await fetch('http://api.nocaptcha.io/api/wanda/perimeterx/universal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'User-Token': token },
+        body: JSON.stringify(body),
+      });
+      const j = await r.json() as any;
+      if (j?.status !== 1) { console.log(`[captcha:api] nocaptcha PerimeterX err status=${j?.status} msg=${j?.msg ?? j?.message ?? JSON.stringify(j).slice(0, 200)}`); return null; }
+      const out: Array<{ name: string; value: string; domain: string; path: string }> = [];
+      const dot = u.hostname.startsWith('www.') ? u.hostname.slice(3) : ('.' + u.hostname);
+      for (const [name, value] of Object.entries(j.data?.cookies ?? {})) out.push({ name, value: String(value), domain: dot, path: '/' });
+      console.log(`[captcha:solver] PerimeterX solved via nocaptcha (${out.length} cookies)`);
+      return out.length ? out : null;
+    } catch (e: any) {
+      console.log(`[captcha:api] nocaptcha PerimeterX fetch err: ${e.message?.slice(0, 100)}`);
+      return null;
+    }
   }
 
   async solveFuncaptcha(publicKey: string, url: string, subdomain?: string, blob?: string): Promise<string | null> {
