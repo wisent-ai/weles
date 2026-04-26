@@ -91,66 +91,89 @@ if (__weles.browser === 'chromium') {
     window.chrome = chrome;
   }
 
-  // 2. navigator.plugins — Chrome PDF plugins
-  const _pluginData = [
-    { name: 'Chrome PDF Plugin', description: 'Portable Document Format', filename: 'internal-pdf-viewer',
-      mimeTypes: [{ type: 'application/x-google-chrome-pdf', suffixes: 'pdf', description: 'Portable Document Format' }] },
-    { name: 'Chrome PDF Viewer', description: '', filename: 'mhjfbmdgcfjbbpaeojofohoefgiehjai',
-      mimeTypes: [{ type: 'application/pdf', suffixes: 'pdf', description: '' }] },
-    { name: 'Native Client', description: '', filename: 'internal-nacl-plugin',
-      mimeTypes: [
-        { type: 'application/x-nacl', suffixes: '', description: 'Native Client Executable' },
-        { type: 'application/x-pnacl', suffixes: '', description: 'Portable Native Client Executable' },
-      ] },
+  // 2. navigator.plugins — Chrome 147 ships 5 PDF-viewer plugin entries (no
+  // Native Client). Names + their mimeTypes set are aligned with navigator.js's
+  // patchPlugins so both code paths produce consistent counts on PerimeterX
+  // serialization.
+  const _PDF_PLUGIN_NAMES = 'PDF Viewer,Chrome PDF Viewer,Chromium PDF Viewer,Microsoft Edge PDF Viewer,WebKit built-in PDF'.split(',');
+  const _PDF_MTS = [
+    { type: 'application/pdf', suffixes: 'pdf', description: 'Portable Document Format' },
+    { type: 'text/pdf',        suffixes: 'pdf', description: 'Portable Document Format' },
   ];
+  const _pluginData = _PDF_PLUGIN_NAMES.map(function(n) {
+    return { name: n, description: 'Portable Document Format', filename: 'internal-pdf-viewer', mimeTypes: _PDF_MTS };
+  });
 
-  // Build realistic Plugin objects
+  // Build realistic Plugin objects. Real Chrome's Plugin instances expose
+  // name/description/filename/length on Plugin.prototype (non-enumerable).
+  // JSON.stringify on a real plugin gives {"0":{}, "1":{}} — only the indexed
+  // MimeType references show, and even those serialize empty because MimeType
+  // properties are also non-enumerable. Diff'd 2026-04-25 vs Chrome 147 on PX
+  // iframe: weles plugins were serializing with full metadata inline.
   function _makePlugin(data) {
     const p = {};
     Object.defineProperties(p, {
-      name: { value: data.name, enumerable: true },
-      description: { value: data.description, enumerable: true },
-      filename: { value: data.filename, enumerable: true },
-      length: { value: data.mimeTypes.length, enumerable: true },
+      name: { value: data.name, enumerable: false },
+      description: { value: data.description, enumerable: false },
+      filename: { value: data.filename, enumerable: false },
+      length: { value: data.mimeTypes.length, enumerable: false },
     });
     data.mimeTypes.forEach(function(mt, i) {
       const mimeObj = {};
       Object.defineProperties(mimeObj, {
-        type: { value: mt.type, enumerable: true },
-        suffixes: { value: mt.suffixes, enumerable: true },
-        description: { value: mt.description, enumerable: true },
-        enabledPlugin: { value: p, enumerable: true },
+        type: { value: mt.type, enumerable: false },
+        suffixes: { value: mt.suffixes, enumerable: false },
+        description: { value: mt.description, enumerable: false },
+        enabledPlugin: { value: p, enumerable: false },
       });
-      Object.defineProperty(p, i, { value: mimeObj, enumerable: false });
+      Object.defineProperty(p, i, { value: mimeObj, enumerable: true });
     });
-    p.item = function(i) { return p[i]; };
-    p.namedItem = function(name) { for (var j = 0; j < data.mimeTypes.length; j++) if (p[j] && p[j].type === name) return p[j]; return null; };
-    p[Symbol.iterator] = function*() { for (var j = 0; j < data.mimeTypes.length; j++) yield p[j]; };
+    Object.defineProperty(p, 'item', { value: function(i) { return p[i]; }, enumerable: false });
+    Object.defineProperty(p, 'namedItem', { value: function(name) { for (var j = 0; j < data.mimeTypes.length; j++) if (p[j] && p[j].type === name) return p[j]; return null; }, enumerable: false });
+    Object.defineProperty(p, Symbol.iterator, { value: function*() { for (var j = 0; j < data.mimeTypes.length; j++) yield p[j]; }, enumerable: false });
     return p;
   }
 
-  const _plugins = _pluginData.map(_makePlugin);
-  _plugins.item = function(i) { return _plugins[i]; };
-  _plugins.namedItem = function(name) { return _plugins.find(function(p) { return p.name === name; }) || null; };
-  _plugins.refresh = function() {};
+  // Real Chrome's navigator.plugins is a PluginArray (host object), not a JS Array.
+  // JSON.stringify on a PluginArray produces {"0":..., "1":..., ..., "refresh":fn}
+  // (an object with numeric-string keys), not [...] (an array). Pre-fix weles used
+  // _pluginData.map → real Array → serialized as [...]. Now wrap as a plain object
+  // with numeric-keyed plugins as enumerable + length+item/namedItem/refresh as non-
+  // enumerable, matching chrome's PluginArray serialization shape.
+  const _plugins = {};
+  _pluginData.forEach(function(pd, i) {
+    Object.defineProperty(_plugins, i, { value: _makePlugin(pd), enumerable: true });
+  });
+  Object.defineProperty(_plugins, 'length', { value: _pluginData.length, enumerable: false });
+  Object.defineProperty(_plugins, 'item', { value: function(i) { return _plugins[i]; }, enumerable: false });
+  Object.defineProperty(_plugins, 'namedItem', { value: function(name) { for (var j = 0; j < _pluginData.length; j++) if (_plugins[j] && _plugins[j].name === name) return _plugins[j]; return null; }, enumerable: false });
+  Object.defineProperty(_plugins, 'refresh', { value: function() {}, enumerable: false });
 
   window.__welesDefine(Navigator.prototype, 'plugins', function() { return _plugins; });
 
-  // 3. navigator.mimeTypes — matching mimeTypes for plugins
-  const _allMimes = [];
+  // 3. navigator.mimeTypes — DEDUPED across plugins. Real Chrome only lists
+  // each unique mime type once even when multiple plugins claim the same one
+  // (5 PDF-viewer plugins all share application/pdf + text/pdf → mimeTypes
+  // has 2 entries, not 10). Dedupe by .type.
+  const _allMimes = {};
+  let _mimeIdx = 0;
+  const _seenMimes = {};
   _pluginData.forEach(function(pd) {
     pd.mimeTypes.forEach(function(mt) {
+      if (_seenMimes[mt.type]) return;
+      _seenMimes[mt.type] = true;
       const mimeObj = {};
       Object.defineProperties(mimeObj, {
-        type: { value: mt.type, enumerable: true },
-        suffixes: { value: mt.suffixes, enumerable: true },
-        description: { value: mt.description, enumerable: true },
+        type: { value: mt.type, enumerable: false },
+        suffixes: { value: mt.suffixes, enumerable: false },
+        description: { value: mt.description, enumerable: false },
       });
-      _allMimes.push(mimeObj);
+      Object.defineProperty(_allMimes, _mimeIdx++, { value: mimeObj, enumerable: true });
     });
   });
-  _allMimes.item = function(i) { return _allMimes[i]; };
-  _allMimes.namedItem = function(name) { return _allMimes.find(function(m) { return m.type === name; }) || null; };
+  Object.defineProperty(_allMimes, 'length', { value: _mimeIdx, enumerable: false });
+  Object.defineProperty(_allMimes, 'item', { value: function(i) { return _allMimes[i]; }, enumerable: false });
+  Object.defineProperty(_allMimes, 'namedItem', { value: function(name) { for (var j = 0; j < _mimeIdx; j++) if (_allMimes[j] && _allMimes[j].type === name) return _allMimes[j]; return null; }, enumerable: false });
 
   window.__welesDefine(Navigator.prototype, 'mimeTypes', function() { return _allMimes; });
 
