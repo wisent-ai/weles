@@ -208,7 +208,20 @@ export async function resolveAccountSession(acct: SocialAccount): Promise<Accoun
     try {
       const mod = await import('../proxy/config.js');
       const filter = `residential ${provider} ${country}`.trim();
-      const pw = await mod.resolveProxy(filter) ?? await mod.resolveProxy(`residential ${country}`.trim()) ?? await mod.resolveProxy('residential');
+      // OXY_BLOCKED platforms must avoid oxylabs in every secondary attempt
+      // too. Walk allowed providers explicitly; do NOT permit the broad
+      // `residential` filter which random-shuffles into oxylabs rows.
+      let pw = await mod.resolveProxy(filter);
+      if (!pw) {
+        for (const altProvider of PROVIDERS) {
+          if (altProvider === provider) continue;
+          pw = await mod.resolveProxy(`residential ${altProvider} ${country}`.trim());
+          if (pw) break;
+        }
+      }
+      if (!pw && !OXY_BLOCKED.has(acct.platform)) {
+        pw = await mod.resolveProxy(`residential ${country}`.trim()) ?? await mod.resolveProxy('residential');
+      }
       if (pw?.server) {
         const u = new URL(pw.server);
         cfg = {
