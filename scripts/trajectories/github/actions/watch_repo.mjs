@@ -4,6 +4,7 @@ import { execute } from '../../../../dist/agent/loop.js';
 import { detectGitHubBanSignals } from '../../../../dist/platforms/github/ban_signals.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { checkReachable } from '../../_shared/action-runner.mjs';
 
 const REPO_URL_RAW = process.env.REPO_URL || process.env.TARGET_URL || '';
 const SEARCH_QUERY = process.env.SEARCH_QUERY || '';
@@ -27,6 +28,7 @@ try {
   else if (SEARCH_QUERY) url = `https://github.com/search?q=${encodeURIComponent(SEARCH_QUERY)}&type=repositories&s=stars&o=desc`;
   else url = 'https://github.com/trending';
   await s.goto(url);
+  checkReachable(s, 'github');
   await s.page.waitForTimeout(2500);
   const goal = repoUrl
     ? `You are on a GitHub repo page. Find the "Watch" dropdown near the top-right (next to Star and Fork). Click it. Click "All Activity" or "Participating and @mentions". done(value="watching"). Do NOT navigate(). Do NOT give_up.`
@@ -35,7 +37,7 @@ try {
   ban = await detectGitHubBanSignals(s.page, s.capturedResponses).catch(() => null);
   console.log(`[ban-signal] ${ban?.signal}  PASS: ${result.value}`);
 } catch (e) {
-  ban = await detectGitHubBanSignals(s.page, s.capturedResponses).catch(() => null);
+  ban = e.banSignal ?? await detectGitHubBanSignals(s.page, s.capturedResponses).catch(() => null);
   console.log(`[ban-signal] ${ban?.signal}  FAIL: ${e.message?.slice(0, 200)}`);
   process.exitCode = 1;
 } finally {

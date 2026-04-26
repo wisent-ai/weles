@@ -4,6 +4,7 @@ import { execute } from '../../../../dist/agent/loop.js';
 import { detectLinkedInBanSignals } from '../../../../dist/platforms/linkedin/ban_signals.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { checkReachable } from '../../_shared/action-runner.mjs';
 
 const acct = await getSocialAccount('linkedin');
 if (!acct) { console.log('FAIL: no active linkedin account'); process.exit(1); }
@@ -12,12 +13,13 @@ const s = await WSession.start({ label: 'linkedin_connect', proxy: proxyUrl, per
 let ban = null;
 try {
   await s.goto('https://www.linkedin.com/mynetwork/');
+  checkReachable(s, 'linkedin');
   await s.page.waitForTimeout(2500);
   const result = await execute(s, `You are on LinkedIn's My Network page. Find a People You May Know card and click its Connect button (not Follow). If a "Send without a note" dialog appears, click Send. done(value="connection_requested"). Do NOT give_up.`, { flowName: 'linkedin_connect' });
   ban = await detectLinkedInBanSignals(s.page, s.capturedResponses).catch(() => null);
   console.log(`[ban-signal] ${ban?.signal}  PASS: ${result.value}`);
 } catch (e) {
-  ban = await detectLinkedInBanSignals(s.page, s.capturedResponses).catch(() => null);
+  ban = e.banSignal ?? await detectLinkedInBanSignals(s.page, s.capturedResponses).catch(() => null);
   console.log(`[ban-signal] ${ban?.signal}  FAIL: ${e.message?.slice(0, 200)}`);
   process.exitCode = 1;
 } finally {

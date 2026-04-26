@@ -4,6 +4,7 @@ import { execute } from '../../../../dist/agent/loop.js';
 import { detectLinkedInBanSignals } from '../../../../dist/platforms/linkedin/ban_signals.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { checkReachable } from '../../_shared/action-runner.mjs';
 
 const TARGET_URL = process.env.TARGET_URL || '';
 
@@ -14,6 +15,7 @@ const s = await WSession.start({ label: 'linkedin_like', proxy: proxyUrl, person
 let ban = null;
 try {
   await s.goto(TARGET_URL || 'https://www.linkedin.com/feed/');
+  checkReachable(s, 'linkedin');
   await s.page.waitForTimeout(3000);
   const goal = TARGET_URL
     ? `You are on a specific LinkedIn post. Find the Like reaction button (thumbs-up icon) in the social action bar beneath the post. Click it (not Comment, not Share). done(value="liked"). Do NOT give_up.`
@@ -22,7 +24,7 @@ try {
   ban = await detectLinkedInBanSignals(s.page, s.capturedResponses).catch(() => null);
   console.log(`[ban-signal] ${ban?.signal}  PASS: ${result.value}`);
 } catch (e) {
-  ban = await detectLinkedInBanSignals(s.page, s.capturedResponses).catch(() => null);
+  ban = e.banSignal ?? await detectLinkedInBanSignals(s.page, s.capturedResponses).catch(() => null);
   console.log(`[ban-signal] ${ban?.signal}  FAIL: ${e.message?.slice(0, 200)}`);
   process.exitCode = 1;
 } finally {

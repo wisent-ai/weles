@@ -5,6 +5,7 @@ import { detectGitHubBanSignals } from '../../../../dist/platforms/github/ban_si
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { randomBytes } from 'node:crypto';
+import { checkReachable } from '../../_shared/action-runner.mjs';
 
 // Word pool used to generate organic-looking repo names when REPO_NAME isn't
 // supplied. Set WELES_GITHUB_REPO_WORDS to override (comma-separated) so the
@@ -27,6 +28,7 @@ try {
   const cookies = (acct.metadata?.cookies ?? []).filter(c => (c.domain ?? '').includes('github.com'));
   if (cookies.length) await s.ctx.addCookies(cookies).catch(() => {});
   await s.goto('https://github.com/new');
+  checkReachable(s, 'github');
   await s.page.waitForTimeout(3000);
   const loggedOut = await s.page.evaluate(() => !!document.querySelector('a[href="/login"]'));
   if (loggedOut) throw new Error('not_logged_in: cookies stale');
@@ -46,7 +48,7 @@ try {
   ban = await detectGitHubBanSignals(s.page, s.capturedResponses).catch(() => null);
   console.log(`[ban-signal] ${ban?.signal}  PASS: created ${acct.username}/${REPO_NAME}`);
 } catch (e) {
-  ban = await detectGitHubBanSignals(s.page, s.capturedResponses).catch(() => null);
+  ban = e.banSignal ?? await detectGitHubBanSignals(s.page, s.capturedResponses).catch(() => null);
   console.log(`[ban-signal] ${ban?.signal}  FAIL: ${e.message?.slice(0, 200)}`);
   process.exitCode = 1;
 } finally {

@@ -4,6 +4,7 @@ import { execute } from '../../../../dist/agent/loop.js';
 import { detectGitHubBanSignals } from '../../../../dist/platforms/github/ban_signals.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { checkReachable } from '../../_shared/action-runner.mjs';
 
 const REPO_URL = process.env.REPO_URL || '';
 const ISSUE_TITLE = (process.env.ISSUE_TITLE || 'question about usage').slice(0, 250);
@@ -27,6 +28,7 @@ try {
   const cookies = (acct.metadata?.cookies ?? []).filter(c => (c.domain ?? '').includes('github.com'));
   if (cookies.length) await s.ctx.addCookies(cookies).catch(() => {});
   await s.goto(`${repoBase}/issues/new/choose`);
+  checkReachable(s, 'github');
   await s.page.waitForTimeout(3500);
   const loggedOut = await s.page.evaluate(() => !!document.querySelector('a[href="/login"]'));
   if (loggedOut) throw new Error('not_logged_in: cookies stale');
@@ -69,7 +71,7 @@ try {
   ban = await detectGitHubBanSignals(s.page, s.capturedResponses).catch(() => null);
   console.log(`[ban-signal] ${ban?.signal}  PASS: opened ${finalUrl}`);
 } catch (e) {
-  ban = await detectGitHubBanSignals(s.page, s.capturedResponses).catch(() => null);
+  ban = e.banSignal ?? await detectGitHubBanSignals(s.page, s.capturedResponses).catch(() => null);
   console.log(`[ban-signal] ${ban?.signal}  FAIL: ${e.message?.slice(0, 200)}`);
   process.exitCode = 1;
 } finally {

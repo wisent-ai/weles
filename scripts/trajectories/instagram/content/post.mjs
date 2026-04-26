@@ -16,6 +16,7 @@ import { generatePost } from '../../_shared/llm.mjs';
 import { generateImageFile } from '../../_shared/media.mjs';
 import { writeFileSync, mkdirSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
+import { checkReachable } from '../../_shared/action-runner.mjs';
 
 const ACTION = process.env.POST_PROMOTE === '1' ? 'post_promote' : 'post';
 
@@ -63,6 +64,7 @@ try {
   const cookies = (acct.metadata?.cookies ?? []).filter(c => (c.domain ?? '').includes('instagram.com'));
   if (cookies.length) await s.ctx.addCookies(cookies).catch(() => {});
   await s.goto('https://www.instagram.com/');
+  checkReachable(s, 'instagram');
   await s.page.waitForTimeout(4000);
   const loggedOut = await s.page.evaluate(() => /\/accounts\/login/.test(location.pathname));
   if (loggedOut) throw new Error('not_logged_in: cookies stale — needs instagram_login refresh');

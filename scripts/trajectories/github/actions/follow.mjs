@@ -4,6 +4,7 @@ import { execute } from '../../../../dist/agent/loop.js';
 import { detectGitHubBanSignals } from '../../../../dist/platforms/github/ban_signals.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { checkReachable } from '../../_shared/action-runner.mjs';
 
 const TARGET_USER = (process.env.TARGET_USER || '').replace(/^@/, '');
 
@@ -15,6 +16,7 @@ let ban = null;
 try {
   const url = TARGET_USER ? `https://github.com/${encodeURIComponent(TARGET_USER)}` : 'https://github.com/explore';
   await s.goto(url);
+  checkReachable(s, 'github');
   await s.page.waitForTimeout(3000);
   const goal = TARGET_USER
     ? `You are on GitHub user profile ${TARGET_USER}. Find the Follow button near the top of the profile (below the avatar or in the header). Click it. done(value="followed ${TARGET_USER}"). Do NOT navigate(). Do NOT give_up.`
@@ -23,7 +25,7 @@ try {
   ban = await detectGitHubBanSignals(s.page, s.capturedResponses).catch(() => null);
   console.log(`[ban-signal] ${ban?.signal}  PASS: ${result.value}`);
 } catch (e) {
-  ban = await detectGitHubBanSignals(s.page, s.capturedResponses).catch(() => null);
+  ban = e.banSignal ?? await detectGitHubBanSignals(s.page, s.capturedResponses).catch(() => null);
   console.log(`[ban-signal] ${ban?.signal}  FAIL: ${e.message?.slice(0, 200)}`);
   process.exitCode = 1;
 } finally {
