@@ -39,6 +39,12 @@ export async function runHealthProbe(cfg) {
     if (resp) {
       loggedIn.url = resp.url; loggedIn.status = resp.status;
       try { loggedIn.body = JSON.parse(resp.body); } catch { loggedIn.body = resp.body?.slice(0, 2000) ?? null; }
+    } else {
+      // No matching captured response — fall back to the page's current URL.
+      // Discord SPA does client-side redirects (no HTTP response captured for /login).
+      // Without this, loggedIn.url stays null and the cookies-stale heuristic
+      // can't fire even when the page is clearly on a login wall.
+      try { loggedIn.url = sIn.page.url?.() ?? null; } catch { loggedIn.url = null; }
     }
     loggedIn.signal = await cfg.banDetector(sIn.page, sIn.capturedResponses).catch(() => null);
   } catch (e) {
