@@ -147,6 +147,21 @@ export async function runAction(cfg) {
     // recordings (no agent-step screenshots). 3s gives the timeline + reply
     // composer time to render before the agent's first action.
     if (cfg.action !== 'browse') await s.page.waitForTimeout(3000).catch(() => {});
+    // Re-check the URL after the SPA settle. LinkedIn's /feed/ returns 200 OK
+    // on stale cookies, then JS-redirects to /uas/login during the wait — the
+    // post-goto check at line 130 misses this. Without the re-check, the agent
+    // loop runs against the login page, fails to find Comment buttons,
+    // give_ups, and the linkedin ban detector returns 'healthy' (PerimeterX
+    // isn't in the default captcha frame regex), masking the cookies-stale
+    // failure mode behind 'completed:healthy'.
+    if (cfg.action !== 'browse') {
+      const settledUrl = s.page.url?.() ?? '';
+      const onAuthWallAfter = /\/(login|signin|sessions\/new|uas\/login|checkpoint|accounts\/login)\b/.test(settledUrl) || /\/login\?/.test(settledUrl);
+      if (onAuthWallAfter) {
+        banSignal = { signal: 'checkpoint', healthy: false, details: { final_url: settledUrl, reason: 'SPA-redirected to login wall during settle — stored cookies stale' } };
+        throw new Error(`auth_wall: ${cfg.platform} session redirected to login during SPA settle — landed at ${settledUrl}`);
+      }
+    }
 
     if (cfg.action === 'browse') {
       for (let i = 0; i < (cfg.scrolls ?? 6); i++) {
@@ -224,6 +239,17 @@ export async function runAction(cfg) {
       }
     }
     banSignal = await cfg.banDetector(s.page, s.capturedResponses).catch(() => null);
+    // Same auth-wall reclassification as the catch branch — agent might
+    // 'done(value="commented")' even when the page silently redirected to
+    // /uas/login (the agent's vision interprets PerimeterX iframe text or
+    // gives up cleanly). Don't let that masquerade as healthy or as
+    // captcha_challenge.
+    const successFinalUrl = s.page.url?.() ?? banSignal?.details?.final_url ?? '';
+    const successOnAuthWall = /\/(login|signin|sessions\/new|uas\/login|checkpoint|accounts\/login)\b/.test(successFinalUrl) || /\/login\?/.test(successFinalUrl);
+    if (banSignal && successOnAuthWall && (banSignal.signal === 'healthy' || banSignal.signal === 'captcha_challenge')) {
+      banSignal = { signal: 'checkpoint', healthy: false, details: { final_url: successFinalUrl, reason: `reclassified from ${banSignal.signal} — page on auth wall after agent loop`, prev_signal: banSignal.signal } };
+      console.log(`[ban-signal] reclassified ${banSignal.details.prev_signal} → checkpoint (auth wall: ${successFinalUrl})`);
+    }
     console.log(`[ban-signal] ${banSignal?.signal}`);
     console.log(`PASS: ${resultValue}`);
   } catch (e) {
@@ -233,6 +259,17 @@ export async function runAction(cfg) {
     // action_failed default. Pre-fix: outer catch overwrote the inner-set
     // banSignal with the platform detector's verdict, hiding proxy_failed.
     if (!banSignal) banSignal = e.banSignal ?? await cfg.banDetector(s.page, s.capturedResponses).catch(() => null);
+    // Override-or-set: if ban detector said 'healthy' or 'captcha_challenge'
+    // but the URL is on a known login wall, the page is actually unauthenticated
+    // (cookies stale). PerimeterX iframe on /uas/login isn't a real captcha
+    // challenge, it's a fingerprint-gated login wall. Same for LinkedIn's
+    // /login/ generic. Reclassify as 'checkpoint' so retry pipelines treat it
+    // as needing a login refresh instead of a captcha-solver attempt.
+    const finalUrlForReclass = s.page.url?.() ?? banSignal?.details?.final_url ?? '';
+    const onAuthWallFinal = /\/(login|signin|sessions\/new|uas\/login|checkpoint|accounts\/login)\b/.test(finalUrlForReclass) || /\/login\?/.test(finalUrlForReclass);
+    if (banSignal && onAuthWallFinal && (banSignal.signal === 'healthy' || banSignal.signal === 'captcha_challenge')) {
+      banSignal = { signal: 'checkpoint', healthy: false, details: { final_url: finalUrlForReclass, reason: `reclassified from ${banSignal.signal} — landed on auth wall (cookies stale)`, prev_signal: banSignal.signal } };
+    }
     if (!banSignal) banSignal = { signal: 'action_failed', healthy: false, details: { final_url: s.page.url?.() ?? '', reason: e.message?.slice(0, 200) ?? 'no message' } };
     console.log(`[ban-signal] ${banSignal.signal}`);
     console.log('FAIL:', e.message?.slice(0, 200));
