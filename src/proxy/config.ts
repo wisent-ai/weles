@@ -158,6 +158,11 @@ export async function resolveProxy(proxy: string): Promise<{ server: string; use
       else if (name.includes('packetstream')) stickyPass = `${password}_country-${cc.toUpperCase()}_session-${sessId}`;
       else if (name.includes('iproyal')) stickyPass = `${password}_country-${cc}_session-${sessId}`;
       else if (name.includes('pingproxies')) stickyUser = `${username}_c_${cc}_s_${sessId}`;
+      // Bright Data: zone-prefixed username, sticky session via -session- suffix.
+      // Username pattern: brd-customer-<customerId>-zone-<zoneName>-country-<cc>-session-<sessId>
+      // The customer + zone come from BRIGHTDATA_USERNAME (or stored row username).
+      // Without a zone-shaped username, this branch is a no-op.
+      else if (name.includes('bright')) stickyUser = `${username}-country-${cc}-session-${sessId}`;
       let host = p.proxy_host;
       // proxy.packetstream.io etc. resolve to several load-balancer IPs;
       // dns.lookup() returns whichever one the OS picked first, which may be
