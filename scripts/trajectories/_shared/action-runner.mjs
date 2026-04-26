@@ -22,12 +22,12 @@ import { join } from 'node:path';
 
 // Re-exported assert used by the 27 specialized trajectories (linkedin/like, twitter/follow, instagram/save, github/star, etc) that don't go through runAction. Detects three failure modes that previously fell through to ban_signal:healthy: (1) chrome-error://chromewebdata/ from proxy CONNECT failure; (2) URL on a platform login wall (cookies stale); (3) platform-specific logged-out redirect (twitter/?failedScript, instagram/accounts/login, etc). Throws a typed error with a structured banSignal so the caller's catch can persist it.
 const _AUTH_WALL = /\/(login|signin|sessions\/new|uas\/login|checkpoint|accounts\/login)\b/;
-// Per-platform logged-out redirect markers. Twitter (x.com) bounces unauthed to /?failedScript=vendor; reddit's www.reddit.com/login; instagram bounces to /accounts/login or shows the unauthed homepage at /?next=...; tiktok shows /login; discord goes to /login or /channels/@me but with empty SPA.
+// Per-platform logged-out redirect markers. Includes both /login-style URLs AND the bare-root redirect that platforms use when an unauthed session asks for a logged-in path. The bare-root is critical: when an unauthed twitter user goes to x.com/home, the server redirects to plain x.com/, no /login marker — pre-fix the trajectory continued and the ban detector returned 'healthy' on what was clearly a logged-out landing page.
 const _LOGGED_OUT_MARKERS = {
-  twitter:   /failedScript=|x\.com\/i\/flow\/login|x\.com\/login/,
-  instagram: /accounts\/login|instagram\.com\/\?(?:next|hl=)/,
+  twitter:   /failedScript=|x\.com\/i\/flow\/login|x\.com\/login|^https?:\/\/(www\.)?x\.com\/(\?|$)/,
+  instagram: /accounts\/login|instagram\.com\/\?(?:next|hl=)|^https?:\/\/(www\.)?instagram\.com\/(\?|$)/,
   reddit:    /reddit\.com\/login\b/,
-  tiktok:    /tiktok\.com\/login\b/,
+  tiktok:    /tiktok\.com\/login\b|^https?:\/\/(www\.)?tiktok\.com\/(\?|$)/,
   linkedin:  /linkedin\.com\/(uas\/)?login\b/,
 };
 export function checkReachable(s, platform) {
