@@ -165,6 +165,17 @@ export async function resolveAccountSession(acct: SocialAccount): Promise<Accoun
   const out: AccountSession = {};
   let cfg: ProxyConfig | null = null;
 
+  // Direct egress for platforms that don't blacklist datacenter IPs. GitHub
+  // and Producthunt accept the VM's GCP IP without complaint; routing them
+  // through unreliable residential proxies causes spurious tunnel failures.
+  // Discord/Instagram/LinkedIn/Reddit/TikTok/Twitter still need residential
+  // (datacenter IPs trigger their bot walls).
+  const DIRECT_EGRESS_OK = new Set(['github', 'producthunt']);
+  if (DIRECT_EGRESS_OK.has(acct.platform) && process.env.WELES_FORCE_PROXY !== '1') {
+    if (meta?.persona) out.persona = meta.persona as Persona;
+    return out;
+  }
+
   if (meta?.proxy?.host && meta?.proxy?.port && !(await isBurned(meta.proxy.host))) {
     cfg = meta.proxy as ProxyConfig;
   } else if (meta?.proxy?.server) {
