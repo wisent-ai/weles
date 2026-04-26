@@ -10,12 +10,12 @@ const all = paths.flatMap(p => JSON.parse(readFileSync(p, 'utf8')));
 function rank(r) {
   const sig = r.result?.ban_signal?.signal ?? 'n/a';
   if (r.status === 'completed' && sig === 'healthy') return 5;
-  if (r.status === 'completed' && /shadowbanned|suspended|ip_blocked|checkpoint|rate_limited|captcha_challenge|reset_failed|proxy_failed/.test(sig)) return 4;
+  if (r.status === 'completed' && /shadowbanned|suspended|ip_blocked|checkpoint|rate_limited|captcha_challenge|reset_failed|proxy_failed|unsupported_email_domain/.test(sig)) return 4;
   if (r.status === 'completed') return 3;
   // Among failures, prefer ones with platform-classified signals (proxy_failed,
   // checkpoint, captcha, action_failed) over 'healthy' (page reached but no
   // ban detected, least informative for a failure) over unknown_error.
-  if (/proxy_failed|checkpoint|captcha_challenge|action_failed|reset_failed|shadowbanned|suspended/.test(sig)) return 2;
+  if (/proxy_failed|checkpoint|captcha_challenge|action_failed|reset_failed|shadowbanned|suspended|unsupported_email_domain/.test(sig)) return 2;
   if (sig !== 'unknown' && sig !== 'unknown_error' && sig !== 'n/a') return 1;
   return 0;
 }
@@ -34,7 +34,7 @@ for (const r of rows) {
   const err = (r.error ?? '').slice(0, 80).replace(/\s+/g, ' ');
   let bucket;
   if (r.status === 'completed' && sig === 'healthy') { bucket = 'completed_healthy'; tally.completed_healthy++; }
-  else if (r.status === 'completed' && /shadowbanned|suspended|ip_blocked|checkpoint|rate_limited|captcha_challenge|reset_failed|proxy_failed/.test(sig)) { bucket = 'completed_envblock'; tally.completed_envblock++; }
+  else if (r.status === 'completed' && /shadowbanned|suspended|ip_blocked|checkpoint|rate_limited|captcha_challenge|reset_failed|proxy_failed|unsupported_email_domain/.test(sig)) { bucket = 'completed_envblock'; tally.completed_envblock++; }
   else if (r.status === 'completed') { bucket = 'completed_unknown'; tally.completed_unknown++; }
   else if (sig === 'unknown_error' || sig === 'unknown') { bucket = 'failed_unknown'; tally.failed_unknown++; }
   else { bucket = 'failed_other'; tally.failed_other++; }
