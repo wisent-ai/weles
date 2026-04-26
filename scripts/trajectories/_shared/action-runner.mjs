@@ -28,7 +28,7 @@ const _LOGGED_OUT_MARKERS = {
   instagram: /accounts\/login|instagram\.com\/\?(?:next|hl=)|^https?:\/\/(www\.)?instagram\.com\/(\?|$)/,
   reddit:    /reddit\.com\/login\b/,
   tiktok:    /tiktok\.com\/login\b|^https?:\/\/(www\.)?tiktok\.com\/(\?|$)/,
-  linkedin:  /linkedin\.com\/(uas\/)?login\b/,
+  linkedin:  /linkedin\.com\/(uas\/login|authwall|checkpoint)\b/,
 };
 export function checkReachable(s, platform) {
   const finalUrl = s.page.url?.() ?? '';
