@@ -51,6 +51,19 @@ export async function detectRedditBanSignals(
   const url = page.url();
   details.final_url = url;
 
+  // Chrome system error page — proxy CONNECT or DNS failed. Same handling as
+  // base detector (added 2026-04-26 after Oxylabs traffic-limit incident
+  // surfaced it as fleet-wide).
+  if (url.startsWith('chrome-error://')) {
+    let chromeBody = '';
+    try { chromeBody = (await page.evaluate(() => document.body?.innerText ?? '').catch(() => '')) || ''; } catch { /* noop */ }
+    details.body_text_sample = chromeBody.slice(0, 240);
+    const sig = /HTTP ERROR 407|ERR_PROXY_AUTH/i.test(chromeBody) ? 'proxy_auth_failed'
+      : /HTTP ERROR 4|ERR_HTTP_RESPONSE_CODE/i.test(chromeBody) ? 'ip_blocked'
+      : 'proxy_failed';
+    return { healthy: false, signal: sig as BanSignal['signal'], details };
+  }
+
   for (const pat of SUSPENDED_URL_PATTERNS) {
     if (pat.test(url)) return { healthy: false, signal: 'suspended', details: { ...details, matched_url: pat.source } };
   }
