@@ -239,16 +239,17 @@ export async function runAction(cfg) {
       }
     }
     banSignal = await cfg.banDetector(s.page, s.capturedResponses).catch(() => null);
-    // Same auth-wall reclassification as the catch branch — agent might
-    // 'done(value="commented")' even when the page silently redirected to
-    // /uas/login (the agent's vision interprets PerimeterX iframe text or
-    // gives up cleanly). Don't let that masquerade as healthy or as
-    // captcha_challenge.
+    // Reclass: agent's done() might land on auth-wall (LinkedIn /uas/login) or
+    // on chrome-error://chromewebdata/ (proxy CONNECT/auth failure). Ban detector
+    // returns 'healthy' for both because no platform-ban keywords are present.
     const successFinalUrl = s.page.url?.() ?? banSignal?.details?.final_url ?? '';
+    const successBody = banSignal?.details?.body_text_sample ?? '';
     const successOnAuthWall = /\/(login|signin|sessions\/new|uas\/login|checkpoint|accounts\/login)\b/.test(successFinalUrl) || /\/login\?/.test(successFinalUrl);
     if (banSignal && successOnAuthWall && (banSignal.signal === 'healthy' || banSignal.signal === 'captcha_challenge')) {
       banSignal = { signal: 'checkpoint', healthy: false, details: { final_url: successFinalUrl, reason: `reclassified from ${banSignal.signal} — page on auth wall after agent loop`, prev_signal: banSignal.signal } };
-      console.log(`[ban-signal] reclassified ${banSignal.details.prev_signal} → checkpoint (auth wall: ${successFinalUrl})`);
+    } else if (banSignal && successFinalUrl.startsWith('chrome-error://') && (banSignal.signal === 'healthy' || banSignal.signal === 'unknown')) {
+      const sig = /HTTP ERROR 407|ERR_PROXY_AUTH/i.test(successBody) ? 'proxy_auth_failed' : /HTTP ERROR 4|ERR_HTTP_RESPONSE_CODE/i.test(successBody) ? 'ip_blocked' : 'proxy_failed';
+      banSignal = { signal: sig, healthy: false, details: { final_url: successFinalUrl, reason: `reclassified from ${banSignal.signal} — chrome-error page (body: ${successBody.slice(0, 80)})`, prev_signal: banSignal.signal } };
     }
     console.log(`[ban-signal] ${banSignal?.signal}`);
     console.log(`PASS: ${resultValue}`);
