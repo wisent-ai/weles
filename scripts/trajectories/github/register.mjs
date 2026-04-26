@@ -220,15 +220,13 @@ try {
       const cont = document.querySelector('[data-octocaptcha-token]');
       if (cont) cont.dataset.octocaptchaToken = tk;
       window.dispatchEvent(new CustomEvent('octocaptcha:solved', { detail: { token: tk } }));
-      // Prefer form.requestSubmit() — routes through the form-submit pipeline
-      // without an isTrusted=false click event. Some bot classifiers read
-      // isTrusted on the submit-button click; for octocaptcha the token has
-      // already been validated server-side, but reqSubmit is still cleaner.
+      // Always form.requestSubmit() — routes through the form-submit pipeline
+      // without an isTrusted=false click event. requestSubmit is supported on
+      // Chromium 76+ (we run 147). No backup needed; if requestSubmit isn't
+      // available the trajectory should fail loudly.
       const form = document.querySelector('form.js-octocaptcha-parent, form[data-octo-click-hmac]');
       if (form && typeof form.requestSubmit === 'function') { form.requestSubmit(); return { injected: inputs.length, clicked: 'form-requestSubmit' }; }
-      const btn = document.querySelector('.js-octocaptcha-form-submit');
-      if (btn) { btn.click(); return { injected: inputs.length, clicked: 'btn-click-isTrusted-false' }; }
-      return { injected: inputs.length, clicked: false };
+      return { injected: inputs.length, clicked: false, reason: 'no form.requestSubmit available' };
     })(${JSON.stringify(token)})`).catch(e => ({ error: e.message?.slice(0, 150) }));
     console.log(`[register] Token injection: ${JSON.stringify(inject)} region=${token.match(/r=([^|&]+)/)?.[1] ?? '?'}`);
     // Wait up to 20s for URL to advance — GitHub validates the token server-side
