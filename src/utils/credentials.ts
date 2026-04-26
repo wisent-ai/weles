@@ -192,7 +192,14 @@ export async function resolveAccountSession(acct: SocialAccount): Promise<Accoun
     // to the same provider — keeps the account's exit-IP cohort stable.
     // Country is platform-aware: Discord works on BR, LinkedIn/Reddit/Twitter
     // need US (their bot-detection walls fire on Brazilian residential ranges).
-    const PROVIDERS = ['oxylabs', 'packetstream', 'pingproxies'];
+    // LinkedIn aggressively blocks Oxylabs residential exit IPs at the edge —
+    // every linkedin_login attempt against an Oxylabs IP returns
+    // ERR_HTTP_RESPONSE_CODE_FAILURE before the page even loads. PacketStream
+    // and PingProxies pools haven't been flagged the same way (yet). Force
+    // those for linkedin while keeping the deterministic hash for everyone else.
+    const PROVIDERS = acct.platform === 'linkedin'
+      ? ['packetstream', 'pingproxies']
+      : ['oxylabs', 'packetstream', 'pingproxies'];
     let hash = 0;
     for (const ch of (acct.id ?? acct.username ?? '')) hash = ((hash << 5) - hash + ch.charCodeAt(0)) | 0;
     const provider = PROVIDERS[Math.abs(hash) % PROVIDERS.length];
