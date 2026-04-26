@@ -140,14 +140,18 @@ try {
     await s.page.waitForTimeout(5000);
   }
 
-  // Wait for the post-signup redirect to /feed, /onboarding, or /checkpoint —
-  // the API endpoint /signup/api/cors/createAccount issues li_at via Set-Cookie
-  // on the next navigation. If we exit too early, cookies never reach the
-  // browser and the account is unusable.
-  for (let i = 0; i < 10; i++) {
+  // Wait for the post-signup redirect to /feed, /onboarding, or /checkpoint.
+  // /signup/api/cors/createAccount issues li_at via Set-Cookie on the next
+  // navigation; the redirect can take up to ~30s on the first signup. Check
+  // for li_at in the cookie jar directly — once it appears, the account is
+  // authenticated even if the URL hasn't fully resolved yet.
+  for (let i = 0; i < 30; i++) {
     const u = s.page.url();
-    if (/\/feed|\/onboarding|\/check|\/uas\/login|\/m\/welcome/.test(u)) break;
-    await s.page.waitForTimeout(1500);
+    const ck = await s.ctx.cookies().catch(() => []);
+    const haveLiAt = ck.some(c => c.name === 'li_at' && c.value);
+    if (haveLiAt || /\/feed|\/onboarding|\/check|\/m\/welcome/.test(u)) break;
+    if (/^https?:\/\/www\.linkedin\.com\/signup\/?$/.test(u)) break; // signup rejected, no point waiting
+    await s.page.waitForTimeout(2000);
   }
   // After redirect settles, persist cookies to social_accounts.metadata.cookies.
   try {
