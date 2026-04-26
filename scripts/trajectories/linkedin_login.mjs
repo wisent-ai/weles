@@ -1,17 +1,14 @@
 import { getSocialAccount, resolveAccountSession } from '../../dist/utils/credentials.js';
 import { WSession } from '../../dist/session/wsession.js';
-import { execute } from '../../dist/agent/loop.js';
 import { CaptchaSolver } from '../../dist/captcha/solver.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
-// Both /login and /uas/login return ERR_HTTP_RESPONSE_CODE_FAILURE (4xx/5xx
-// at the edge) from many proxy IPs when accessed directly — LinkedIn hardens
-// those paths against bot signals before any captcha. /feed/ accepts the
-// same proxies and 302-redirects unauthed sessions to /uas/login organically.
-// The login form is identical at the redirect target.
-const URL = 'https://www.linkedin.com/feed/';
-const GOAL = `Fill "Email or phone" with $SVC_EMAIL. Fill "Password" with $SVC_PASSWORD. Click "Sign in". Wait 5 seconds. If captcha, solve_captcha(). If a "Verify your email" page appears requesting a verification code, check_email() to retrieve the 6-digit code from LinkedIn and fill it. done(value="logged in").`;
+// Direct Playwright fill+click flow — bypasses the agent loop because the
+// agent's vision-based 'click' picks the wrong "Sign in" button (matches
+// "Sign in with Apple" SSO before the form's Sign in) and times out tearing
+// down the browser. /login serves the form directly without the /feed→/uas
+// redirect overhead.
 
 const acct = await getSocialAccount('linkedin');
 if (!acct) { console.log('FAIL: no active linkedin account in DB'); process.exit(1); }
@@ -50,12 +47,34 @@ function writeBan(signal, details) {
 }
 
 try {
-  await s.goto(URL);
-  const result = await execute(s, `Open ${URL}. ${GOAL}`, {
-    envHints: { SVC_EMAIL: process.env.SVC_EMAIL, SVC_PASSWORD: '***' },
-    flowName: 'linkedin_login',
-  });
-  console.log('agent done:', result.value);
+  await s.page.goto('https://www.linkedin.com/login', { waitUntil: 'domcontentloaded' });
+  await s.page.waitForTimeout(2500);
+  // Modern LinkedIn login: visible inputs use autocomplete="webauthn" (passkey
+  // hint) + current-password. Legacy #username / [name=session_key] selectors
+  // are gone. Two duplicate input copies exist — only the visible one accepts
+  // fill. Use pressSequentially (per-keystroke events) so React's controlled-
+  // input state updates; locator.fill sets DOM value but skips React onChange.
+  const usernameSel = 'input#username, input[name="session_key"], input[autocomplete="username"], input[type="text"][autocomplete="webauthn"], input[type="email"]';
+  const passwordSel = 'input#password, input[name="session_password"], input[type="password"][autocomplete="current-password"]';
+  const u = s.page.locator(usernameSel).filter({ visible: true }).first();
+  await u.waitFor({ state: 'visible' });
+  await u.click();
+  await u.pressSequentially(process.env.SVC_EMAIL, { delay: 25 });
+  const p = s.page.locator(passwordSel).filter({ visible: true }).first();
+  await p.click();
+  await p.pressSequentially(process.env.SVC_PASSWORD, { delay: 25 });
+  await s.page.waitForTimeout(400);
+  // The Sign in button is type="button" (no form wrapper) — exact:true filters
+  // out 'Sign in with Apple' / 'Sign in with Microsoft' SSO buttons.
+  await s.page.getByRole('button', { name: 'Sign in', exact: true }).first().click();
+  for (let i = 0; i < 12; i++) {
+    await s.page.waitForTimeout(1000);
+    if (!/^https?:\/\/www\.linkedin\.com\/login\/?$/.test(s.page.url())) break;
+  }
+  console.log(`[linkedin_login] post-submit url=${s.page.url()}`);
+  // Don't hand the challenge page to the agent — its solve_captcha tears down
+  // the browser on LinkedIn's PerimeterX-wrapped reCAPTCHA. Fall through to
+  // CapSolver AntiPerimeterX below (which handles checkpoint specifically).
   // Validate auth + try CapSolver PerimeterX bypass on checkpoint pages.
   let cookies = await s.ctx.cookies();
   let liAt = cookies.find(c => c.name === 'li_at' && c.value);
