@@ -167,17 +167,25 @@ if (__weles.browser === 'chromium') {
   }
 
   // 5. navigator.connection — NetworkInformation API
+  // Real Chrome on macOS exposes a NetworkInformation INSTANCE whose properties
+  // are getter-defined on the prototype, not own enumerable. JSON.stringify on
+  // such an instance returns '{}'. PerimeterX's li.protechts.net iframe reads
+  // it via JSON.stringify and previously saw weles emit the OVERRIDE values
+  // (downlink=10, rtt=50, effectiveType=4g) — a fingerprint tell. Now: define
+  // properties as non-enumerable so JSON.stringify shows '{}', and the values
+  // are still readable via direct access (effectiveType etc).
   if (!navigator.connection) {
     window.__welesDefine(Navigator.prototype, 'connection', function() {
-      return {
-        effectiveType: '4g',
-        rtt: 50,
-        downlink: 10,
-        saveData: false,
-        onchange: null,
-        addEventListener: function() {},
-        removeEventListener: function() {},
-      };
+      const conn = {};
+      const define = function(k, v) { Object.defineProperty(conn, k, { value: v, enumerable: false, configurable: true }); };
+      define('effectiveType', '4g');
+      define('rtt', 50);
+      define('downlink', 10);
+      define('saveData', false);
+      define('onchange', null);
+      define('addEventListener', function() {});
+      define('removeEventListener', function() {});
+      return conn;
     });
   }
 
