@@ -36,8 +36,19 @@ try {
   const is404 = await s.page.evaluate(() => /page not found/i.test(document.body.innerText || ''));
   if (is404) throw new Error(`repo_or_file_404: url=${s.page.url?.() ?? ''}`);
 
-  const goal = `You are on GitHub's file-edit page for ${FILE_PATH} in the target repo. Do the following in order:\n1. Click into the code editor (CodeMirror or contenteditable) and press End then Enter to go to a new line at the end.\n2. Type exactly this line: ${FILE_APPEND.trim()}\n3. Find and click the "Commit changes..." button (top right area of the editor toolbar).\n4. A modal titled "Propose changes" or "Commit changes" appears. Clear the default commit message if non-empty (select-all + delete or triple-click + delete) THEN type exactly: ${COMMIT_MESSAGE}\n5. Keep the "Commit directly to the main branch" option selected.\n6. Click the green "Commit changes" confirmation button in the modal.\nAfter the modal submits and the page navigates away from /edit/, done(value="committed"). Do NOT navigate() manually.`;
-  await execute(s, goal, {}); // flow cache would freeze literal FILE_APPEND/COMMIT_MESSAGE; always replan
+  // Programmatic CodeMirror append: click the editor, send End+Enter via
+  // keyboard, type the line. Direct DOM manipulation on CodeMirror would
+  // bypass GitHub's diff-tracking, so we stay with keyboard events.
+  await s.page.locator('.CodeMirror, [data-codemirror], textarea[name="value"], div[contenteditable="true"]').first().click().catch(() => {});
+  await s.page.keyboard.press('End').catch(() => {});
+  await s.page.keyboard.press('Enter').catch(() => {});
+  await s.page.keyboard.type(FILE_APPEND.trim(), { delay: 30 }).catch(() => {});
+  await s.page.waitForTimeout(1500);
+
+  // Open the Commit-changes modal via explicit selector — the toolbar button
+  // has a distinctive class/data-attr in both classic and React UIs.
+  const openModalGoal = `Click the "Commit changes..." button in the toolbar (top right of the editor). Use js_click(selector="button:has-text('Commit changes'):not([disabled]), button.btn-primary:has-text('Commit'), button[data-test-selector*='commit']") to open it. Wait 2 seconds for the modal to render. The modal title is "Commit changes" or "Propose changes". Then in the modal, clear the message field if it's pre-populated and type exactly: ${COMMIT_MESSAGE}. Keep "Commit directly to the main branch" selected. Then use js_click(selector="dialog button:has-text('Commit changes'):not([disabled]), .Box--overlay button.btn-primary:not([disabled])") to confirm. After the modal closes and URL changes from /edit/, done(value="committed"). Do NOT navigate() manually.`;
+  await execute(s, openModalGoal, {}); // flow cache would freeze literal COMMIT_MESSAGE; always replan
 
   for (let w = 0; w < 20; w++) {
     await s.page.waitForTimeout(1000);
