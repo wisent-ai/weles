@@ -1,8 +1,11 @@
 import { runAction } from '../_shared/action-runner.mjs';
 import { detectTwitterBanSignals } from '../../../dist/platforms/twitter/ban_signals.js';
 
+// action MUST match action_action_logs.action so worker reads ban_signal.json
+// from recordings/twitter_organic_reply/ — same label-mismatch class as the
+// github_organic_issue_comment fix.
 await runAction({
-  platform: 'twitter', action: 'organic_comment',
+  platform: 'twitter', action: 'organic_reply',
   feedUrl: 'https://x.com/home',
   surfaceLabel: 'x.com feed',
   pickPost: async (s) => {
