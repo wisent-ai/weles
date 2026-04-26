@@ -82,11 +82,19 @@ export async function runHealthProbe(cfg) {
       : (loggedOut.status === 200);
   const shadowbanned = !skipLoggedOut && !loggedOutErrored && extracted.ok && !outOk && (loggedOut.status === 404 || loggedOut.status == null);
 
+  // Detect cookies-stale: logged-in probe failed, loggedIn.url contains a
+  // login/auth-wall path. This happens when account cookies have expired
+  // or were never authed — distinct from real 'unknown' (no probe data).
+  // Pre-fix every cookie-expired account showed 'unknown' alongside genuine
+  // probe-failure cases — operator couldn't tell them apart.
+  const cookiesStale = !extracted.ok && (loggedIn.url || '').match(/\/(login|signin|sessions\/new|uas\/login|checkpoint|accounts\/login|authwall)\b/);
+
   let signal;
   if (extracted.is_suspended) signal = 'suspended';
   else if (!extracted.ok && loggedIn.signal?.signal && loggedIn.signal.signal !== 'healthy') signal = loggedIn.signal.signal;
   else if (shadowbanned) signal = 'shadowbanned';
   else if (extracted.ok && outOk) signal = 'healthy';
+  else if (cookiesStale) signal = 'checkpoint';
   else signal = 'unknown';
 
   const snapshot = {
