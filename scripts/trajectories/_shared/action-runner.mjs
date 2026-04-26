@@ -183,7 +183,15 @@ export async function runAction(cfg) {
       }
     } else {
       const surfaceLabel = typeof cfg.surfaceLabel === 'function' ? cfg.surfaceLabel(acct, feed) : (cfg.surfaceLabel ?? feed);
-      const { postTitle, postBody } = await (cfg.pickPost?.(s).catch(e => { console.log(`[${label}] pickPost failed: ${e.message?.slice(0, 80)}`); return { postTitle: '', postBody: '' }; }) ?? Promise.resolve({ postTitle: '', postBody: '' }));
+      const picked = await (cfg.pickPost?.(s).catch(e => { console.log(`[${label}] pickPost failed: ${e.message?.slice(0, 80)}`); return { postTitle: '', postBody: '' }; }) ?? Promise.resolve({ postTitle: '', postBody: '' }));
+      // pickPost returns empty when the captured-response body is truncated
+      // (8KB cap on Twitter/Reddit JSON), the regex misses, or the SPA hasn't
+      // loaded posts yet. The /api/llm/generate endpoint requires a non-empty
+      // post.title for comment/promote tasks (returns 400). Substitute a
+      // surface-aware placeholder so genComment doesn't 400 — the LLM still
+      // produces a generic on-topic comment from persona + surface alone.
+      const postTitle = picked.postTitle || `post on ${typeof surfaceLabel === 'function' ? surfaceLabel(acct, feed) : (surfaceLabel || cfg.platform)}`;
+      const postBody = picked.postBody || '';
       let text = preapprovedText;
       if (!text) {
         text = await genComment({
