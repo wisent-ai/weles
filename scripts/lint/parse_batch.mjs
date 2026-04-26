@@ -18,12 +18,19 @@ function rank(r) {
   if (r.status === 'completed' && sig === 'captcha_challenge') return 3.5;
   if (r.status === 'completed' && /shadowbanned|suspended|ip_blocked|checkpoint|rate_limited|reset_failed|proxy_failed|unsupported_email_domain/.test(sig)) return 4;
   if (r.status === 'completed') return 3;
-  // Among failures, prefer the most specific classification:
-  // unsupported_email_domain > checkpoint > suspended > shadowbanned > others.
-  // 'reset_failed' is the generic github recovery error — superseded by
-  // unsupported_email_domain when the email isn't on a Resend MX domain.
+  // Among failures, prefer the most specific classification. The ladder:
+  //   unsupported_email_domain (2.5) — most specific, account misconfig
+  //   suspended (2.4)                — account banned by platform
+  //   shadowbanned (2.3)             — account silently demoted
+  //   checkpoint / proxy_failed (2)  — recoverable, actionable signals
+  //   action_failed (1.9)            — generic agent loop failure
+  //   reset_failed (1.8)             — github-recovery generic error
+  //   captcha_challenge (1.5)        — likely auth-wall misclass; demoted
   if (/unsupported_email_domain/.test(sig)) return 2.5;
-  if (/proxy_failed|checkpoint|action_failed|shadowbanned|suspended/.test(sig)) return 2;
+  if (/suspended/.test(sig)) return 2.4;
+  if (/shadowbanned/.test(sig)) return 2.3;
+  if (/proxy_failed|checkpoint/.test(sig)) return 2;
+  if (/action_failed/.test(sig)) return 1.9;
   if (/reset_failed/.test(sig)) return 1.8;
   if (/captcha_challenge/.test(sig)) return 1.5;
   if (sig !== 'unknown' && sig !== 'unknown_error' && sig !== 'n/a') return 1;
