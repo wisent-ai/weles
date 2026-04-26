@@ -140,6 +140,35 @@ try {
     await s.page.waitForTimeout(5000);
   }
 
+  // Wait for the post-signup redirect to /feed, /onboarding, or /checkpoint —
+  // the API endpoint /signup/api/cors/createAccount issues li_at via Set-Cookie
+  // on the next navigation. If we exit too early, cookies never reach the
+  // browser and the account is unusable.
+  for (let i = 0; i < 10; i++) {
+    const u = s.page.url();
+    if (/\/feed|\/onboarding|\/check|\/uas\/login|\/m\/welcome/.test(u)) break;
+    await s.page.waitForTimeout(1500);
+  }
+  // After redirect settles, persist cookies to social_accounts.metadata.cookies.
+  try {
+    const cookies = await s.ctx.cookies();
+    const linkedinCookies = cookies.filter(c => /linkedin\.com/.test(c.domain ?? ''));
+    const liAt = linkedinCookies.find(c => c.name === 'li_at')?.value ?? '';
+    console.log(`[register] post-redirect URL=${s.page.url()} cookies=${linkedinCookies.length} li_at=${liAt ? 'yes' : 'no'}`);
+    if (liAt) {
+      const supabaseUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
+      const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
+      if (supabaseUrl && supabaseKey) {
+        const lookup = await fetch(`${supabaseUrl}/rest/v1/social_accounts?platform=eq.linkedin&username=eq.${id.handle}&select=id,metadata`, { headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` } });
+        const rows = await lookup.json();
+        if (rows[0]) {
+          const merged = { ...(rows[0].metadata ?? {}), cookies: linkedinCookies };
+          await fetch(`${supabaseUrl}/rest/v1/social_accounts?id=eq.${rows[0].id}`, { method: 'PATCH', headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' }, body: JSON.stringify({ metadata: merged }) });
+          console.log(`[register] persisted ${linkedinCookies.length} cookies (incl. li_at) to account ${rows[0].id}`);
+        }
+      }
+    }
+  } catch (cookieErr) { console.log(`[register] cookie persist err: ${cookieErr.message?.slice(0, 100)}`); }
   const verifyUrl = s.page.url();
   console.log(`[register] post-name URL: ${verifyUrl}`);
   process.env.LINKEDIN_NEW_EMAIL = id.email;
