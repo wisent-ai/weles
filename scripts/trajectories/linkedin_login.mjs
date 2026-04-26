@@ -11,7 +11,7 @@ import { join } from 'node:path';
 // same proxies and 302-redirects unauthed sessions to /uas/login organically.
 // The login form is identical at the redirect target.
 const URL = 'https://www.linkedin.com/feed/';
-const GOAL = `Fill "session_key" with $SVC_EMAIL. Fill "session_password" with $SVC_PASSWORD. Click "Sign in". Wait 5 seconds. If captcha, solve_captcha(). If a "Verify your email" page appears requesting a verification code, check_email() to retrieve the 6-digit code from LinkedIn and fill it. done(value="logged in").`;
+const GOAL = `Fill "Email or phone" with $SVC_EMAIL. Fill "Password" with $SVC_PASSWORD. Click "Sign in". Wait 5 seconds. If captcha, solve_captcha(). If a "Verify your email" page appears requesting a verification code, check_email() to retrieve the 6-digit code from LinkedIn and fill it. done(value="logged in").`;
 
 const acct = await getSocialAccount('linkedin');
 if (!acct) { console.log('FAIL: no active linkedin account in DB'); process.exit(1); }
