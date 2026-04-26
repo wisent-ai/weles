@@ -66,15 +66,26 @@ export class CaptchaSolver {
 
   async solveRecaptchaV2(page: Page, sitekey: string, options?: { enterprise?: boolean }): Promise<string | boolean | null> {
     await this._ensureInit();
-    // Image grid solving for Enterprise (LinkedIn etc)
-    if (options?.enterprise) return solveRecaptchaV2(page);
-    // Token mode
+    // CapSolver API token works for sites that wrap reCAPTCHA in their own
+    // iframes (LinkedIn's /checkpoint/challengeIframe/ vs Google's
+    // captchaInternal). Token mode bypasses the frame chain entirely.
+    if (this._creds.capsolver) {
+      const taskType = options?.enterprise ? 'ReCaptchaV2EnterpriseTaskProxyLess' : 'ReCaptchaV2TaskProxyLess';
+      const token = await apiSolve('https://api.capsolver.com', this._creds.capsolver, {
+        type: taskType, websiteURL: page.url?.() ?? '', websiteKey: sitekey,
+      });
+      if (token) { console.log(`[captcha:solver] ${taskType} solved via capsolver`); return token; }
+    }
     if (this._creds.anticaptcha) {
-      return apiSolve('https://api.anti-captcha.com', this._creds.anticaptcha, {
+      const token = await apiSolve('https://api.anti-captcha.com', this._creds.anticaptcha, {
         type: 'RecaptchaV2TaskProxyless', websiteURL: page.url?.() ?? '', websiteKey: sitekey,
         isEnterprise: !!options?.enterprise,
       });
+      if (token) { console.log(`[captcha:solver] V2 solved via anticaptcha`); return token; }
     }
+    // Image-grid path for cases where API solvers fail and Google's
+    // standard frame chain IS present (non-LinkedIn enterprise sites).
+    if (options?.enterprise) return solveRecaptchaV2(page);
     return null;
   }
 
