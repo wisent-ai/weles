@@ -212,15 +212,16 @@ export async function resolveProxy(proxy: string, targetHost?: string): Promise<
           // PerimeterX/Arkose rate the latter as datacenter-equivalent.
           // Only enforced when targetHost is on a captcha-protected platform.
           if (process.env.PROXY_REQUIRE_RESIDENTIAL === '1' || /linkedin|twitter|x\.com/.test(targetHost ?? '')) {
+            console.log(`[proxy] exit-ip filter active for target=${targetHost}`);
+            let exitIp = '';
             try {
               const { execSync } = await import('node:child_process');
               const proxyAuth = `http://${encodeURIComponent(stickyUser)}:${encodeURIComponent(stickyPass)}@${host}:${p.proxy_port}`;
-              const exitIp = execSync(`curl -s --max-time 5 -x "${proxyAuth}" https://api.ipify.org`, { encoding: 'utf8' }).trim();
-              if (exitIp && /^[0-9.]+$/.test(exitIp)) {
-                if (/^82\.40\./.test(exitIp)) { console.log(`[proxy] Skipping IPXO exit ${exitIp} (sticky=${sessId})`); continue; }
-                console.log(`[proxy] Exit-IP validated: ${exitIp}`);
-              }
-            } catch { /* exit-IP probe failed; trust the CONNECT result */ }
+              exitIp = execSync(`curl -s --max-time 6 -x "${proxyAuth}" https://api.ipify.org`, { encoding: 'utf8' }).trim();
+            } catch (e: any) { console.log(`[proxy] exit-ip probe err: ${e.message?.slice(0, 80)}`); }
+            console.log(`[proxy] sampled exit_ip="${exitIp}" sticky=${sessId}`);
+            if (exitIp && /^82\.40\./.test(exitIp)) { console.log(`[proxy] Skipping IPXO exit ${exitIp}`); continue; }
+            if (exitIp && /^[0-9.]+$/.test(exitIp)) console.log(`[proxy] Exit-IP validated: ${exitIp}`);
           }
         } catch { /* skip preflight on unexpected error, return as-is */ }
       }
