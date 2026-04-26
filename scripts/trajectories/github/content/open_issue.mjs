@@ -46,8 +46,12 @@ try {
   await s.page.waitForTimeout(3000);
 
   const fill = await s.page.evaluate((data) => {
-    const title = document.querySelector('input[name="issue[title]"], input#issue_title');
-    const body = document.querySelector('textarea[name="issue[body]"], textarea#issue_body');
+    // GitHub's React-based new-issue form uses different selectors than the
+    // classic Rails form. Try both: classic (input[name="issue[title]"])
+    // for older repos, then React (aria-label="Add a title", placeholder,
+    // textarea[name="description"]) for the modern Issues UI.
+    const title = document.querySelector('input[name="issue[title]"], input#issue_title, input[aria-label="Add a title"], input[placeholder="Title"]');
+    const body = document.querySelector('textarea[name="issue[body]"], textarea#issue_body, textarea[name="description"], textarea[aria-label="Markdown value"], textarea[placeholder*="description"]');
     const sText = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
     const sTextArea = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set;
     if (!title || !body) return { ok: false, hasTitle: !!title, hasBody: !!body };
@@ -59,10 +63,9 @@ try {
   await s.page.waitForTimeout(2000);
 
   // Title + body were already filled programmatically above. Ask the agent only
-  // to click the submit button — explicit selector to avoid vision-based misses
-  // on GitHub's evolving form UI (the green button has both text variants:
-  // "Submit new issue" on classic and "Create" on the React-rewrite).
-  const goal = `You are on GitHub's new-issue form for the repo. The title and body are already filled. Use js_click(selector="button[type='submit']:has-text('Submit new issue'), button[type='submit']:has-text('Create'), button.btn-primary[type='submit']") to submit. Wait 5 seconds. done(value="submitted"). Do NOT navigate() manually. Do not refill any text.`;
+  // to click the submit button — explicit selector across both classic and
+  // React UI variants. New form has `data-testid="create-issue-button"`.
+  const goal = `You are on GitHub's new-issue form for the repo. The title and body are already filled. Use js_click(selector="[data-testid='create-issue-button']:not([disabled]), button[type='submit']:has-text('Submit new issue'), button[type='submit']:has-text('Create'), button.btn-primary[type='submit']:not([disabled])") to submit. Wait 5 seconds. done(value="submitted"). Do NOT navigate() manually. Do not refill any text.`;
   await execute(s, goal, {}); // flow cache would freeze literal ISSUE_TITLE/ISSUE_BODY; always replan
 
   for (let w = 0; w < 20; w++) {
