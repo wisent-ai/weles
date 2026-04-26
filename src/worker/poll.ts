@@ -60,8 +60,9 @@ function resolveTrajectory(action: string): string | null {
 }
 
 async function claimOne(): Promise<ActionLogRow | null> {
+  // Lookahead 100 rows so the in-flight per-account lock can find a claimable row even when the first dozen queued items all belong to one in-flight account (common: a verification batch enqueues 10+ rows for one account; with limit=10 the worker would idle until those drained).
   const res = await fetch(
-    `${SUPABASE_URL}/rest/v1/account_action_logs?select=id,account_id,action,platform,params,status&status=eq.queued&or=(scheduled_at.is.null,scheduled_at.lte.now())&order=scheduled_at.asc.nullsfirst&limit=10`,
+    `${SUPABASE_URL}/rest/v1/account_action_logs?select=id,account_id,action,platform,params,status&status=eq.queued&or=(scheduled_at.is.null,scheduled_at.lte.now())&order=scheduled_at.asc.nullsfirst&limit=100`,
     { headers: headers() },
   );
   if (!res.ok) return null;
