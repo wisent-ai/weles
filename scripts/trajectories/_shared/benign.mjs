@@ -122,10 +122,26 @@ try {
     await s.page.waitForTimeout(minMs + Math.floor(Math.random() * (maxMs - minMs)));
   }
   banSignal = await detector(s.page, s.capturedResponses).catch(() => null);
+  // Reclassify the same way action-runner does — if the page is on the
+  // platform's login wall, the ban detector might say healthy or
+  // captcha_challenge (PerimeterX iframe loads on every login page) but the
+  // real story is cookies-stale. Override to checkpoint so retry pipelines
+  // know to refresh the session, not invoke a captcha solver.
+  const finalUrl = s.page.url?.() ?? banSignal?.details?.final_url ?? '';
+  const onAuthWall = /\/(login|signin|sessions\/new|uas\/login|checkpoint|accounts\/login)\b/.test(finalUrl) || /\/login\?/.test(finalUrl);
+  if (banSignal && onAuthWall && (banSignal.signal === 'healthy' || banSignal.signal === 'captcha_challenge')) {
+    banSignal = { signal: 'checkpoint', healthy: false, details: { final_url: finalUrl, reason: `reclassified from ${banSignal.signal} — page on auth wall after benign loop`, prev_signal: banSignal.signal } };
+    console.log(`[ban-signal] reclassified ${banSignal.details.prev_signal} → checkpoint`);
+  }
   console.log(`[ban-signal] ${banSignal?.signal}`);
   console.log(`PASS: ${PLATFORM}_${VERB} ${verbCfg.scrolls}x scrolls`);
 } catch (e) {
   banSignal = await detector(s.page, s.capturedResponses).catch(() => null);
+  const eFinalUrl = s.page.url?.() ?? banSignal?.details?.final_url ?? '';
+  const eOnAuthWall = /\/(login|signin|sessions\/new|uas\/login|checkpoint|accounts\/login)\b/.test(eFinalUrl) || /\/login\?/.test(eFinalUrl);
+  if (banSignal && eOnAuthWall && (banSignal.signal === 'healthy' || banSignal.signal === 'captcha_challenge')) {
+    banSignal = { signal: 'checkpoint', healthy: false, details: { final_url: eFinalUrl, reason: `reclassified from ${banSignal.signal} — page on auth wall after benign loop crash`, prev_signal: banSignal.signal } };
+  }
   if (banSignal) console.log(`[ban-signal] ${banSignal.signal}`);
   console.log('FAIL:', e.message?.slice(0, 200));
   process.exitCode = 1;
