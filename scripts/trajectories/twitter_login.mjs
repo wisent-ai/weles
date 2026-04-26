@@ -143,8 +143,15 @@ try {
     const dir = (await import('node:path')).join(process.cwd(), 'recordings', 'twitter_login');
     (await import('node:fs')).mkdirSync(dir, { recursive: true });
     const finalUrl = s.page?.url?.() ?? '';
+    const msg = e.message ?? '';
     let sig = 'action_failed';
-    if (finalUrl.startsWith('chrome-error://')) sig = 'proxy_failed';
+    // HTTP-level rejection beats chrome-error URL detection: ip_blocked is
+    // actionable (worker auto-burns the proxy host) while proxy_failed is
+    // ambiguous (could be tunnel failure or rejection). Pattern order matches
+    // the linkedin_login fix.
+    if (/ERR_HTTP_RESPONSE_CODE_FAILURE|ERR_BLOCKED_BY_RESPONSE|ERR_BLOCKED_BY_CLIENT|ERR_BLOCKED_BY_ADMINISTRATOR/.test(msg)) sig = 'ip_blocked';
+    else if (/ERR_TUNNEL_CONNECTION_FAILED|ERR_PROXY_CONNECTION_FAILED/.test(msg)) sig = 'proxy_failed';
+    else if (finalUrl.startsWith('chrome-error://')) sig = 'proxy_failed';
     else if (/account\/access|account_access/.test(finalUrl)) sig = 'suspended';
     else if (/\/i\/flow\/login\/check|\/account\/locked|\/i\/flow\/(verify|access)/.test(finalUrl)) sig = 'checkpoint';
     (await import('node:fs')).writeFileSync((await import('node:path')).join(dir, 'ban_signal.json'), JSON.stringify({ account_id: acct.id, username: acct.username, action: 'twitter_login', signal: sig, healthy: false, details: { final_url: finalUrl, reason: e.message?.slice(0, 200) ?? 'no message' }, ts: new Date().toISOString() }, null, 2));
