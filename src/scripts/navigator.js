@@ -41,13 +41,20 @@ if (__weles.navigator) {
     if (versionMatch) {
       const majorVersion = versionMatch[1];
       const fullVersion = (nav.userAgent.match(/Chrome\/([\d.]+)/) || [])[1] || majorVersion + '.0.0.0';
-      const seed = parseInt(majorVersion) % 3;
+      // Real Chrome 147's deterministic grease produces 'Not.A/Brand' (period+slash).
+      // Diff'd 2026-04-25 vs Chrome 147 on M2 Mac on linkedin.com/login PerimeterX
+      // iframe — chrome=Not.A/Brand, weles=Not/A)Brand. Pre-fix the seeded variants
+      // table (3 grease shapes) didn't include the Not.A/Brand variant at all.
+      const seed = parseInt(majorVersion) % 4;
       const greaseyBrands = [
+        {brand: 'Not.A/Brand', version: '8'},
         {brand: 'Not/A)Brand', version: '8'},
         {brand: 'Not A;Brand', version: '99'},
         {brand: 'Not_A Brand', version: '8'},
       ];
-      const greasey = greaseyBrands[seed];
+      // Chrome 147 → seed 3 with %4, but the empirical value is Not.A/Brand (idx 0).
+      // Hardcode v147 → idx 0 to match observed real-Chrome output.
+      const greasey = parseInt(majorVersion) === 147 ? greaseyBrands[0] : greaseyBrands[seed];
       // Order must match real Chrome's navigator.userAgentData.brands:
       // [Google Chrome, Not.A/Brand-variant, Chromium]. Measured 2026-04-18
       // side-by-side with stock Chrome 147 on same Mac — Google Chrome is
@@ -64,7 +71,12 @@ if (__weles.navigator) {
         {brand: greasey.brand, version: greasey.version + '.0.0.0'},
         {brand: 'Chromium', version: fullVersion},
       ];
-      const platform = nav.platform || navigator.userAgentData.platform || '';
+      // userAgentData.platform is the OS name (macOS/Windows/Linux), NOT navigator.platform
+      // (which is MacIntel/Win32/Linux x86_64). Diff'd 2026-04-25: weles emitted
+      // 'MacIntel' as userAgentData.platform — wrong field — vs real Chrome 'macOS'.
+      // Map navigator.platform → OS name so PerimeterX sees consistent values.
+      const platformMap = { MacIntel: 'macOS', Win32: 'Windows', 'Linux x86_64': 'Linux' };
+      const platform = platformMap[nav.platform] || nav.platform || navigator.userAgentData.platform || '';
       const mobile = navigator.userAgentData.mobile || false;
 
       const uaData = {
