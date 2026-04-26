@@ -10,6 +10,7 @@ import { getSocialAccount, resolveAccountSession } from '../../../dist/utils/cre
 import { WSession } from '../../../dist/session/wsession.js';
 import { execute } from '../../../dist/agent/loop.js';
 import { generateOrganicComment } from '../_shared/llm.mjs';
+import { checkReachable } from '../_shared/action-runner.mjs';
 import { detectRedditBanSignals } from '../../../dist/platforms/reddit/ban_signals.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -67,6 +68,7 @@ try {
   console.log(`[comment-text] ${commentText.slice(0, 120)}...`);
 
   await s.goto(postUrl);
+  checkReachable(s, 'reddit');
   const result = await execute(s, `You are on a reddit post. Find the comment textarea (placeholder "Add a comment" or "join the conversation"). fill(target="add a comment", value=${JSON.stringify(commentText)}). Then js_click(text="Comment") to submit. done(value="commented"). Do NOT navigate(). Do NOT give_up.`, { flowName: 'reddit_organic_comment' });
   banSignal = await detectRedditBanSignals(s.page, s.capturedResponses).catch(() => null);
   console.log(`[ban-signal] ${banSignal?.signal}`);
