@@ -20,8 +20,16 @@ import { generateOrganicComment, generatePromoteComment, generatePost } from './
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
-// Re-exported assert used by the 27 specialized trajectories (linkedin/like, twitter/follow, instagram/save, github/star, etc) that don't go through runAction. Detects two failure modes that previously fell through to ban_signal:healthy: (1) chrome-error://chromewebdata/ from proxy CONNECT failure (Oxylabs sticky-session collision); (2) URL on a platform login wall (cookies stale). Throws a typed error with a structured banSignal so the caller's catch can persist it.
-const _AUTH_WALL = /\/(login|signin|sessions\/new|uas\/login|checkpoint)\b/;
+// Re-exported assert used by the 27 specialized trajectories (linkedin/like, twitter/follow, instagram/save, github/star, etc) that don't go through runAction. Detects three failure modes that previously fell through to ban_signal:healthy: (1) chrome-error://chromewebdata/ from proxy CONNECT failure; (2) URL on a platform login wall (cookies stale); (3) platform-specific logged-out redirect (twitter/?failedScript, instagram/accounts/login, etc). Throws a typed error with a structured banSignal so the caller's catch can persist it.
+const _AUTH_WALL = /\/(login|signin|sessions\/new|uas\/login|checkpoint|accounts\/login)\b/;
+// Per-platform logged-out redirect markers. Twitter (x.com) bounces unauthed to /?failedScript=vendor; reddit's www.reddit.com/login; instagram bounces to /accounts/login or shows the unauthed homepage at /?next=...; tiktok shows /login; discord goes to /login or /channels/@me but with empty SPA.
+const _LOGGED_OUT_MARKERS = {
+  twitter:   /failedScript=|x\.com\/i\/flow\/login|x\.com\/login/,
+  instagram: /accounts\/login|instagram\.com\/\?(?:next|hl=)/,
+  reddit:    /reddit\.com\/login\b/,
+  tiktok:    /tiktok\.com\/login\b/,
+  linkedin:  /linkedin\.com\/(uas\/)?login\b/,
+};
 export function checkReachable(s, platform) {
   const finalUrl = s.page.url?.() ?? '';
   if (finalUrl.startsWith('chrome-error://')) {
@@ -29,7 +37,8 @@ export function checkReachable(s, platform) {
     err.banSignal = { signal: 'proxy_failed', healthy: false, details: { final_url: finalUrl, reason: 'chrome-error: proxy CONNECT failed' } };
     throw err;
   }
-  if (_AUTH_WALL.test(finalUrl) || /\/login\?/.test(finalUrl)) {
+  const platformMarker = _LOGGED_OUT_MARKERS[platform];
+  if (_AUTH_WALL.test(finalUrl) || /\/login\?/.test(finalUrl) || (platformMarker && platformMarker.test(finalUrl))) {
     const err = new Error(`auth_wall: ${platform} session not authenticated — landed at ${finalUrl}`);
     err.banSignal = { signal: 'checkpoint', healthy: false, details: { final_url: finalUrl, reason: 'redirected to platform login wall — stored cookies stale or session never authenticated' } };
     throw err;
