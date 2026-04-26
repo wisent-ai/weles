@@ -5,12 +5,12 @@ import { CaptchaSolver } from '../../dist/captcha/solver.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
-// /login returns ERR_HTTP_RESPONSE_CODE_FAILURE (4xx/5xx at edge) from
-// many proxy IPs — LinkedIn hardens /login against bot signals before any
-// captcha. /uas/login is the canonical post-redirect URL used by the
-// platform's own session-expiry flow and accepts the same fingerprints
-// that get rejected on /login. Same form fields, same submit endpoint.
-const URL = 'https://www.linkedin.com/uas/login';
+// Both /login and /uas/login return ERR_HTTP_RESPONSE_CODE_FAILURE (4xx/5xx
+// at the edge) from many proxy IPs when accessed directly — LinkedIn hardens
+// those paths against bot signals before any captcha. /feed/ accepts the
+// same proxies and 302-redirects unauthed sessions to /uas/login organically.
+// The login form is identical at the redirect target.
+const URL = 'https://www.linkedin.com/feed/';
 const GOAL = `Fill "session_key" with $SVC_EMAIL. Fill "session_password" with $SVC_PASSWORD. Click "Sign in". Wait 5 seconds. If captcha, solve_captcha(). If a "Verify your email" page appears requesting a verification code, check_email() to retrieve the 6-digit code from LinkedIn and fill it. done(value="logged in").`;
 
 const acct = await getSocialAccount('linkedin');
