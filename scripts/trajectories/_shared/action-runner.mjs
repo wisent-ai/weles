@@ -211,8 +211,14 @@ export async function runAction(cfg) {
     console.log(`[ban-signal] ${banSignal?.signal}`);
     console.log(`PASS: ${resultValue}`);
   } catch (e) {
-    banSignal = await cfg.banDetector(s.page, s.capturedResponses).catch(() => null);
-    if (banSignal) console.log(`[ban-signal] ${banSignal.signal}`);
+    // Prefer signals attached to the error (proxy_failed, checkpoint from
+    // checkReachable; or platform-specific signals from detectXBanSignals).
+    // If neither produces a signal, default to action_failed so the row is
+    // attributable to a trajectory step rather than the misleading
+    // 'unknown_error' worker default.
+    banSignal = e.banSignal ?? await cfg.banDetector(s.page, s.capturedResponses).catch(() => null);
+    if (!banSignal) banSignal = { signal: 'action_failed', healthy: false, details: { final_url: s.page.url?.() ?? '', reason: e.message?.slice(0, 200) ?? 'no message' } };
+    console.log(`[ban-signal] ${banSignal.signal}`);
     console.log('FAIL:', e.message?.slice(0, 200));
     process.exitCode = 1;
   } finally {
