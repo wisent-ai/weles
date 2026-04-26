@@ -93,8 +93,14 @@ try {
   const finalUrl = s.page?.url?.() ?? '';
   let sig = 'unknown_error';
   const msg = e.message ?? '';
-  if (finalUrl.startsWith('chrome-error://')) sig = 'proxy_failed';
-  else if (/ERR_HTTP_RESPONSE_CODE_FAILURE|ERR_BLOCKED|net::ERR_/.test(msg)) sig = 'ip_blocked';
+  // Order matters: HTTP-level rejections (4xx/5xx at edge) MUST classify
+  // as ip_blocked even though the URL ends up at chrome-error. The worker
+  // pool auto-markBurned only fires on ip_blocked, not proxy_failed —
+  // misclassifying as proxy_failed leaves the burned IP in rotation.
+  // ERR_TUNNEL_CONNECTION_FAILED is the actual proxy CONNECT failure.
+  if (/ERR_HTTP_RESPONSE_CODE_FAILURE|ERR_BLOCKED_BY_RESPONSE|ERR_BLOCKED_BY_CLIENT|ERR_BLOCKED_BY_ADMINISTRATOR/.test(msg)) sig = 'ip_blocked';
+  else if (/ERR_TUNNEL_CONNECTION_FAILED|ERR_PROXY_CONNECTION_FAILED/.test(msg)) sig = 'proxy_failed';
+  else if (finalUrl.startsWith('chrome-error://')) sig = 'proxy_failed';
   else if (/Timeout|net::ERR_TIMED_OUT/.test(msg)) sig = 'proxy_failed';
   writeBan(sig, { final_url: finalUrl, error: msg.slice(0, 200) });
   console.log('FAIL:', msg.slice(0, 200));
