@@ -22,6 +22,19 @@ if (!acct.metadata?.email) { console.log(`FAIL: account ${acct.username} has no 
 const email = acct.metadata.email;
 const resendKey = process.env.RESEND_RECEIVING_API_KEY;
 if (!resendKey) { console.log('FAIL: RESEND_RECEIVING_API_KEY not set'); process.exit(1); }
+// Reset emails go to Resend inbound MX which is bound to wisentmedia.com.
+// Any account whose email is on a different domain (e.g. throwaway domains
+// like hubbold730.com, mailcom, tutanota) cannot have its reset link claimed
+// here. Fail fast with a clear signal instead of polling 2 min for nothing.
+if (!/@wisentmedia\.com$/i.test(email)) {
+  try {
+    const dir = join(process.cwd(), 'recordings', 'github_reset_password');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'ban_signal.json'), JSON.stringify({ account_id: acct.id, username: acct.username, action: 'github_reset_password', healthy: false, signal: 'unsupported_email_domain', error: `email ${email} is not on wisentmedia.com — Resend inbound MX won't receive reset link`, ts: new Date().toISOString() }, null, 2));
+  } catch {}
+  console.log(`FAIL: account ${acct.username} email ${email} not on wisentmedia.com — cannot claim reset link via Resend`);
+  process.exit(1);
+}
 
 let proxyUrl;
 if (process.env.PROXY_URL) proxyUrl = process.env.PROXY_URL;
