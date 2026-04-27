@@ -97,17 +97,16 @@ try {
   const passResult = await fillField(passSel, process.env.SVC_PASSWORD);
   console.log(`[login] fill email(${emailSel}): ${JSON.stringify(emailResult)}, password(${passSel}): ${JSON.stringify(passResult)}`);
   await s.wait(1);
-  // Submit; bail early on /channels (direct login, no captcha).
+  // Submit; bail on /channels redirect, captcha intercept, OR platform ban.
+  const bail = () => { if (s.authBlocked) { console.log(`FAIL: account ${acct.username} ${s.authBlocked} (Discord-side ban)`); process.exit(1); } if ((s.page.url?.() ?? '').includes('/channels')) { console.log(`PASS: direct login — ${s.page.url()}`); captureCookies().then(() => process.exit(0)); return true; } return false; };
   for (let attempt = 0; attempt < 5; attempt++) {
     console.log(`[login] Submit attempt ${attempt + 1}`);
     await s.page.locator('button[type="submit"]').click().catch(e => console.log(`[login] click err: ${e.message?.slice(0, 80)}`));
     await s.wait(2);
-    if (s.captchaResponse) break;
-    if ((s.page.url?.() ?? '').includes('/channels')) { console.log(`PASS: direct login — ${s.page.url()}`); await captureCookies(); process.exit(0); }
+    if (s.captchaResponse || bail()) break;
     await s.page.evaluate('document.querySelector("form")?.requestSubmit()').catch(() => {});
     await s.wait(2);
-    if (s.captchaResponse) break;
-    if ((s.page.url?.() ?? '').includes('/channels')) { console.log(`PASS: direct login — ${s.page.url()}`); await captureCookies(); process.exit(0); }
+    if (s.captchaResponse || bail()) break;
   }
   // Solve captcha and resubmit via API (same as registration)
   const captchaData = s.captchaResponse;
