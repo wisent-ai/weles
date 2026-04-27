@@ -72,12 +72,27 @@ export async function humanMove(page: MousePage, x: number, y: number, startX?: 
 }
 
 export async function humanClick(page: MousePage, x: number, y: number, startX?: number, startY?: number): Promise<void> {
-  await humanMove(page, x, y, startX, startY);
-  const jx = x + randomBetween(-2, 2);
-  const jy = y + randomBetween(-2, 2);
-  await page.mouse.move(Math.round(jx), Math.round(jy));
-  await waitMs(sampleReactionMs());
-  await page.mouse.click(Math.round(jx), Math.round(jy));
+  try {
+    await humanMove(page, x, y, startX, startY);
+    const jx = x + randomBetween(-2, 2);
+    const jy = y + randomBetween(-2, 2);
+    await page.mouse.move(Math.round(jx), Math.round(jy));
+    await waitMs(sampleReactionMs());
+    await page.mouse.click(Math.round(jx), Math.round(jy));
+  } catch (e: any) {
+    // Some sites (Reddit signup with js_ch) install a dispatchMouseEvent shim
+    // that calls window.synthesizeMouseEvent — not exposed by the weles-patched
+    // Chromium binary. Try nativeClick (cliclick → CGEventPost, isTrusted=true)
+    // first; fall back to JS dispatchEvent (isTrusted=false) only if cliclick
+    // isn't installed or the OS-level click doesn't go through.
+    if (!/synthesizeMouseEvent|dispatchMouseEvent/i.test(e?.message ?? '')) throw e;
+    try {
+      const off = await getOffsetFromPage(page);
+      await nativeClick(off, x, y);
+      return;
+    } catch { /* fall through to JS dispatchEvent */ }
+    await (page as any).evaluate?.(`(({x,y})=>{var el=document.elementFromPoint(x,y);if(!el)return;['mousedown','mouseup','click'].forEach(t=>el.dispatchEvent(new MouseEvent(t,{bubbles:true,cancelable:true,clientX:x,clientY:y})))})(${JSON.stringify({x,y})})`);
+  }
 }
 
 // Native macOS event emission via cliclick (CGEventPost-backed). CDP events
