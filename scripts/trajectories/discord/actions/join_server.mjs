@@ -13,6 +13,9 @@ const acct = await getSocialAccount('discord');
 if (!acct) { console.log('FAIL: no active discord account'); process.exit(1); }
 const { proxyUrl, persona } = await resolveAccountSession(acct);
 const s = await WSession.start({ label: 'discord_join_server', proxy: proxyUrl, persona });
+const _stored = (acct.metadata?.cookies ?? []).filter(c => /discord\.com/.test(c.domain ?? ''));
+if (_stored.length) await s.ctx.addCookies(_stored.map(c => ({ ...c, path: c.path || '/' }))).catch(() => {});
+if (acct.metadata?.discord_token) await s.ctx.addInitScript(`localStorage.setItem("token",${JSON.stringify(JSON.stringify(acct.metadata.discord_token))})`).catch(() => {});
 let ban = null;
 try {
   await s.goto(INVITE_URL);

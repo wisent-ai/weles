@@ -10,6 +10,8 @@ const acct = await getSocialAccount('instagram');
 if (!acct) { console.log('FAIL: no active instagram account'); process.exit(1); }
 const { proxyUrl, persona } = await resolveAccountSession(acct);
 const s = await WSession.start({ label: 'instagram_story_view', proxy: proxyUrl, persona });
+const _stored = (acct.metadata?.cookies ?? []).filter(c => /instagram\.com/.test(c.domain ?? ''));
+if (_stored.length) await s.ctx.addCookies(_stored.map(c => ({ ...c, path: c.path || '/' }))).catch(() => {});
 let ban = null;
 try {
   await s.goto('https://www.instagram.com/');

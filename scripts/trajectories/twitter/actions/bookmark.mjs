@@ -12,6 +12,8 @@ const acct = await getSocialAccount('twitter');
 if (!acct) { console.log('FAIL: no active twitter account'); process.exit(1); }
 const { proxyUrl, persona } = await resolveAccountSession(acct);
 const s = await WSession.start({ label: 'twitter_bookmark', proxy: proxyUrl, persona });
+const _stored = (acct.metadata?.cookies ?? []).filter(c => /x\.com|twitter\.com/.test(c.domain ?? ''));
+if (_stored.length) await s.ctx.addCookies(_stored.map(c => ({ ...c, path: c.path || '/' }))).catch(() => {});
 let ban = null;
 try {
   await s.goto(TARGET_URL || 'https://x.com/home');
