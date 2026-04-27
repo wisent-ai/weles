@@ -13,6 +13,8 @@ const acct = await getSocialAccount('tiktok');
 if (!acct) { console.log('FAIL: no active tiktok account'); process.exit(1); }
 const { proxyUrl, persona } = await resolveAccountSession(acct);
 const s = await WSession.start({ label: 'tiktok_watch_through', proxy: proxyUrl, persona });
+const _stored = (acct.metadata?.cookies ?? []).filter(c => /tiktok\.com/.test(c.domain ?? ''));
+if (_stored.length) await s.ctx.addCookies(_stored.map(c => ({ ...c, path: c.path || '/' }))).catch(() => {});
 let ban = null;
 try {
   await s.goto('https://www.tiktok.com/foryou');

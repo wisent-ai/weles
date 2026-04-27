@@ -12,6 +12,8 @@ const acct = await getSocialAccount('github');
 if (!acct) { console.log('FAIL: no active github account'); process.exit(1); }
 const { proxyUrl, persona } = await resolveAccountSession(acct);
 const s = await WSession.start({ label: 'github_follow', proxy: proxyUrl, persona });
+const _stored = (acct.metadata?.cookies ?? []).filter(c => /github\.com/.test(c.domain ?? ''));
+if (_stored.length) await s.ctx.addCookies(_stored.map(c => ({ ...c, path: c.path || '/' }))).catch(() => {});
 let ban = null;
 try {
   const url = TARGET_USER ? `https://github.com/${encodeURIComponent(TARGET_USER)}` : 'https://github.com/explore';
