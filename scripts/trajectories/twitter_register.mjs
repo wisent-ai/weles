@@ -95,10 +95,26 @@ async function signup(s) {
     const preview = t.slice(0, 80).replace(/\n/g, ' ');
     if (w % 5 === 0) console.log(`[tw] waiting ${w}: ${preview}`);
 
-    // Arkose captcha — wait for Bright Data auto-solve, then try our solver
+    // Arkose captcha. If Bright Data Scraping Browser is connected, it
+    // auto-solves and the iframe disappears. Otherwise call CapSolver's
+    // FunCaptcha API ourselves and inject the token into the page.
     if (t.includes('arkose_iframe_present')) {
-      console.log(`[tw] Arkose iframe present (wait ${w}), checking if auto-solved...`);
-      continue;  // Just wait and re-check — Bright Data may solve it automatically
+      const ark = s._lastArkose;
+      if (!ark?.publicKey) { console.log(`[tw] Arkose detected but no publicKey extracted; waiting`); continue; }
+      console.log(`[tw] Arkose detected, solving via FunCaptcha API: pk=${ark.publicKey}`);
+      const { CaptchaSolver } = await import('../../dist/captcha/solver.js');
+      const token = await new CaptchaSolver().solveFuncaptcha(ark.publicKey, 'https://x.com/i/flow/signup', ark.subdomain, ark.blob).catch(e => { console.log(`[tw] solveFuncaptcha err: ${e.message}`); return null; });
+      if (!token) { console.log(`[tw] Arkose solve returned null; will retry`); continue; }
+      console.log(`[tw] Arkose token=${token.slice(0, 30)}... injecting`);
+      // Twitter's Arkose iframe posts the token via window.postMessage.
+      // Inject by calling window.parent.postMessage with the token shape Arkose expects.
+      await s.page.evaluate((tk) => {
+        window.postMessage(JSON.stringify({ eventId: 'challenge-complete', payload: { sessionToken: tk } }), '*');
+        const iframe = document.querySelector('iframe#arkoseFrame, iframe[src*="arkoselabs"]');
+        if (iframe?.contentWindow) iframe.contentWindow.postMessage(JSON.stringify({ eventId: 'challenge-complete', payload: { sessionToken: tk } }), '*');
+      }, token).catch(() => {});
+      await sleep(3);
+      continue;
     }
     if (t.includes('sent you a code') || t.includes('verification')) break;
     if (t.includes('customise') || t.includes('customize')) {
@@ -195,7 +211,9 @@ async function signup(s) {
 
 for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
   console.log(`\n=== Twitter signup attempt ${attempt}/${MAX_RETRIES} ===`);
-  const s = await WSession.start({ label: `twitter_register_${attempt}`, proxy });
+  // Force chromium — Firefox persona picks fail at fill() because the
+  // weles fill path uses CDP newCDPSession which is Chromium-only.
+  const s = await WSession.start({ label: `twitter_register_${attempt}`, proxy, browser: 'chromium' });
   try {
     const username = await signup(s);
     console.log(`PASS: ${username}`);
