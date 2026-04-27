@@ -69,15 +69,29 @@ try {
     console.log('FAIL: reddit edge blocked this exit IP; cleared stored proxy for next retry');
     process.exitCode = 1;
   } else {
-    const result = await execute(s, `Open ${URL}. ${GOAL}`, {
-      envHints: { SVC_EMAIL: process.env.SVC_EMAIL, SVC_PASSWORD: '***' },
-      flowName: 'reddit_login',
-    });
+    // Direct Playwright login. Reddit's modern login form is inside a
+    // <faceplate-form> web component — inputs live in shadow DOM, but Playwright
+    // pierces open shadow roots automatically. Selectors target the slotted
+    // <input> elements that bubble up: input#login-username, input#login-password.
+    await s.page.waitForTimeout(2000);
+    const userIn = s.page.locator('input#login-username, input[name="username"], input[autocomplete="username"]').filter({ visible: true }).first();
+    await userIn.waitFor({ state: 'visible' });
+    await userIn.click();
+    await userIn.pressSequentially(process.env.SVC_EMAIL, { delay: 25 });
+    const pwIn = s.page.locator('input#login-password, input[name="password"], input[type="password"]').filter({ visible: true }).first();
+    await pwIn.waitFor({ state: 'visible' });
+    await pwIn.click();
+    await pwIn.pressSequentially(process.env.SVC_PASSWORD, { delay: 25 });
+    await s.page.waitForTimeout(400);
+    // Press Enter on password field — Reddit's submit button may be in Shadow DOM
+    // (web component button) which Playwright can't reach. Enter triggers the form.
+    await pwIn.press('Enter');
+    for (let i = 0; i < 15; i++) { await s.page.waitForTimeout(1000); if (!/\/login/.test(s.page.url())) break; }
     banSignal = await detectRedditBanSignals(s.page, s.capturedResponses).catch((e) => ({ healthy: false, signal: 'unknown_error', details: { detector_error: e.message } }));
     console.log(`[ban-signal] ${banSignal.signal} (${JSON.stringify(banSignal.details).slice(0, 200)})`);
     if (banSignal?.signal === 'ip_blocked') await wipeStoredProxy(acct.id);
     else if (banSignal?.signal === 'healthy') await captureCookies();
-    console.log('PASS:', result.value);
+    console.log(`PASS: logged in (${s.page.url()})`);
   }
 } catch (e) {
   banSignal = await detectRedditBanSignals(s.page, s.capturedResponses).catch(() => null);
