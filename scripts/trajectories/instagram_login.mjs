@@ -36,12 +36,51 @@ async function captureCookies() {
 }
 
 try {
-  await s.goto(URL);
-  const result = await execute(s, `Open ${URL}. ${GOAL}`, {
-    envHints: { SVC_EMAIL: process.env.SVC_EMAIL, SVC_PASSWORD: '***' },
-    flowName: 'instagram_login',
-  });
-  console.log('PASS:', result.value);
+  // Cookie-first: inject sessionid, navigate to /, check we land on home
+  const stored = Array.isArray(acct.metadata?.cookies) ? acct.metadata.cookies : [];
+  const hasSessionId = stored.some(c => c?.name === 'sessionid' && c?.value);
+  if (hasSessionId) {
+    const prepared = stored.filter(c => c?.name && c?.value && (c.domain || c.url)).map(c => ({ ...c, path: c.path || '/' }));
+    await s.ctx.addCookies(prepared);
+    await s.page.goto('https://www.instagram.com/', { waitUntil: 'domcontentloaded' });
+    await s.page.waitForTimeout(3500);
+    const u = s.page.url();
+    if (/accounts\/suspended|accounts\/disabled/.test(u)) throw new Error(`suspended: account banned by instagram (${u})`);
+    if (!/accounts\/login|accounts\/onetap|challenge|checkpoint/.test(u)) {
+      console.log(`PASS: logged in (cookie-first) — ${u}`);
+      await captureCookies();
+      process.exit(0);
+    }
+    console.log(`[trajectory] cookie-first landed on ${u} — falling through to form login`);
+  }
+  // Direct Playwright form login. Instagram inputs use name=username/password.
+  await s.page.goto(URL, { waitUntil: 'domcontentloaded' });
+  await s.page.waitForTimeout(2500);
+  const userIn = s.page.locator('input[name="username"], input[aria-label*="username" i]').filter({ visible: true }).first();
+  const pwIn = s.page.locator('input[name="password"], input[type="password"]').filter({ visible: true }).first();
+  await userIn.waitFor({ state: 'visible' });
+  await userIn.click();
+  await userIn.pressSequentially(process.env.SVC_EMAIL, { delay: 25 });
+  await pwIn.click();
+  await pwIn.pressSequentially(process.env.SVC_PASSWORD, { delay: 25 });
+  await s.page.waitForTimeout(400);
+  await s.page.locator('button[type="submit"]').filter({ visible: true }).first().click();
+  for (let i = 0; i < 15; i++) {
+    await s.page.waitForTimeout(1000);
+    if (!/\/accounts\/login\/?$/.test(s.page.url())) break;
+  }
+  const finalUrl = s.page.url();
+  console.log(`[instagram_login] post-submit url=${finalUrl}`);
+  // Check for inline error text
+  const ERR_SEL = '#slfErrorAlert, [data-bloks-name*="Error"], [role="alert"]';
+  const err = await s.page.evaluate((sel) => Array.from(document.querySelectorAll(sel)).map(e => e.textContent?.trim()).filter(Boolean), ERR_SEL).catch(() => []);
+  if (err.length && /incorrect|wasn't recognised|wasn't recognized|password|wait a few minutes/i.test(err.join(' '))) {
+    throw new Error(`invalid_credentials_or_block: ${err.join(' | ').slice(0, 150)}`);
+  }
+  if (/\/accounts\/login/.test(finalUrl)) throw new Error('login form did not submit / no redirect');
+  if (/challenge|checkpoint|two_factor/.test(finalUrl)) throw new Error(`checkpoint at ${finalUrl}`);
+  if (/accounts\/suspended|accounts\/disabled/.test(finalUrl)) throw new Error(`suspended: ${finalUrl}`);
+  console.log(`PASS: logged in — ${finalUrl}`);
   await captureCookies();
 } catch (e) {
   // Write a structured ban_signal so the worker doesn't fall back to
