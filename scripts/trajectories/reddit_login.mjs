@@ -56,11 +56,26 @@ async function captureCookies() {
 
 let banSignal = null;
 try {
+  // Cookie-first: inject reddit_session and navigate to /home. If we land
+  // there without the /login redirect, login is already valid via cookies.
+  const stored = Array.isArray(acct.metadata?.cookies) ? acct.metadata.cookies : [];
+  const hasSession = stored.some(c => /reddit_session/.test(c?.name ?? ''));
+  if (hasSession) {
+    const prepared = stored.filter(c => c?.name && c?.value && (c.domain || c.url)).map(c => ({ ...c, path: c.path || '/' }));
+    await s.ctx.addCookies(prepared).catch(() => {});
+    await s.page.goto('https://www.reddit.com/', { waitUntil: 'domcontentloaded' });
+    await s.page.waitForTimeout(3000);
+    const u = s.page.url();
+    if (!/\/login/.test(u)) {
+      console.log(`PASS: logged in (cookie-first) — ${u}`);
+      banSignal = { signal: 'healthy', healthy: true, details: { url: u } };
+      await captureCookies();
+      await s.close();
+      process.exit(0);
+    }
+    console.log(`[reddit_login] cookie-first landed on ${u}, falling through to form login`);
+  }
   await s.goto(URL);
-
-  // Early exit on IP-level network-security block: Reddit's edge has flagged the
-  // exit IP. No point running the vision agent against a blocked page; wipe the
-  // stored proxy so the next retry rolls a fresh one.
   const earlySignal = await detectRedditBanSignals(s.page, s.capturedResponses).catch(() => null);
   if (earlySignal?.signal === 'ip_blocked') {
     banSignal = earlySignal;
