@@ -132,8 +132,9 @@ try {
       let currentRqtoken = captchaData.captcha_rqtoken;
       let loggedIn = false;
       for (let attempt = 0; attempt < 5; attempt++) {
-        const taskType = u ? 'HCaptchaTask' : 'HCaptchaTaskProxyless';
-        const task = { type: taskType, websiteURL: 'https://discord.com/login', websiteKey: captchaData.captcha_sitekey, isEnterprise: true, enterprisePayload: { rqdata: currentRqdata }, userAgent: ua, ...proxyFields };
+        const isCs = svc.name === 'capsolver';
+        const taskType = isCs ? (u ? 'HCaptchaEnterpriseTask' : 'HCaptchaEnterpriseTaskProxyLess') : (u ? 'HCaptchaTask' : 'HCaptchaTaskProxyless');
+        const task = { type: taskType, websiteURL: 'https://discord.com/login', websiteKey: captchaData.captcha_sitekey, enterprisePayload: { rqdata: currentRqdata }, userAgent: ua, ...proxyFields, ...(isCs ? {} : { isEnterprise: true }) };
         const cr = await (await fetch(svc.url + '/createTask', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clientKey: apiKey, task }) })).json();
         if (cr.errorId) { console.log(`[login] ${svc.name} error: ${cr.errorCode}`); break; }
         console.log(`[login] ${svc.name} attempt ${attempt + 1} solving...`);

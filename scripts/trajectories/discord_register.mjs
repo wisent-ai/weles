@@ -150,11 +150,16 @@ try {
         }
 
         for (let attempt = 0; attempt < 3; attempt++) {
-          const taskType = useProxy ? 'HCaptchaTask' : 'HCaptchaTaskProxyless';
-          const task = { type: svc.name === 'capsolver' ? (useProxy ? 'HCaptchaTask' : 'HCaptchaTaskProxyLess') : taskType,
+          const isCs = svc.name === 'capsolver';
+          // CapSolver requires HCaptchaEnterpriseTaskProxyLess for enterprise sites;
+          // anticaptcha uses HCaptchaTaskProxyless + isEnterprise:true.
+          const taskType = isCs
+            ? (useProxy ? 'HCaptchaEnterpriseTask' : 'HCaptchaEnterpriseTaskProxyLess')
+            : (useProxy ? 'HCaptchaTask' : 'HCaptchaTaskProxyless');
+          const task = { type: taskType,
             websiteURL: 'https://discord.com/register', websiteKey: captchaData.captcha_sitekey,
-            isEnterprise: true, enterprisePayload: { rqdata: currentRqdata },
-            userAgent: ua, ...proxyFields };
+            enterprisePayload: { rqdata: currentRqdata },
+            userAgent: ua, ...proxyFields, ...(isCs ? {} : { isEnterprise: true }) };
           const createRes = await (await fetch(svc.url + '/createTask', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ clientKey: apiKey, task }),

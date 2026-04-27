@@ -161,7 +161,10 @@ export class CaptchaSolver {
       if (token) { console.log('[captcha:solver] Solved via capmonster'); return token; }
     }
     if (this._creds.capsolver) {
-      const t = { ...baseTask, type: useProxy ? 'HCaptchaTask' : 'HCaptchaTaskProxyLess' };
+      // CapSolver: HCaptchaEnterpriseTaskProxyLess is its own task type;
+      // HCaptchaTaskProxyless + isEnterprise returns ERROR_INVALID_TASK_DATA.
+      const t: Record<string, any> = { ...baseTask, type: enterprise ? (useProxy ? 'HCaptchaEnterpriseTask' : 'HCaptchaEnterpriseTaskProxyLess') : (useProxy ? 'HCaptchaTask' : 'HCaptchaTaskProxyLess') };
+      delete t.isEnterprise;
       const token = await apiSolve('https://api.capsolver.com', this._creds.capsolver, t);
       if (token) { console.log('[captcha:solver] Solved via capsolver'); return token; }
     }
