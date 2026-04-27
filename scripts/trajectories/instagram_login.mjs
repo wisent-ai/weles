@@ -106,6 +106,12 @@ try {
       details: { final_url: finalUrl, reason: e.message?.slice(0, 200) ?? 'no message' },
       ts: new Date().toISOString(),
     }, null, 2));
+    // If the platform suspended the account, flip is_active=false so
+    // getSocialAccount stops picking it. Same pattern as discord_login.
+    if (sig === 'suspended') {
+      const { deactivateAccount } = await import('../../dist/account/state.js');
+      await deactivateAccount(acct.id, acct.metadata, 'INSTAGRAM_SUSPENDED');
+    }
   } catch {}
   console.log('FAIL:', e.message?.slice(0, 200));
   process.exit(1);
