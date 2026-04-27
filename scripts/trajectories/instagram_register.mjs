@@ -262,7 +262,7 @@ async function signup(s) {
 
 for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
   console.log(`\n=== Instagram signup attempt ${attempt}/${MAX_RETRIES} ===`);
-  const s = await WSession.start({ label: `instagram_register_${attempt}`, proxy });
+  const s = await WSession.start({ label: `instagram_register_${attempt}`, proxy, browser: 'chromium' });
   try {
     const username = await signup(s);
     console.log(`PASS: ${username}`);
