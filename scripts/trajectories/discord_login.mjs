@@ -68,10 +68,7 @@ try {
     if (hasInputs) { console.log(`[login] Form inputs appeared after ${i + 1}s`); break; }
     await s.wait(1);
   }
-  // Discover input names
-  const inputNames = await s.page.evaluate(`(() => {
-    return Array.from(document.querySelectorAll('input')).map(i => ({ name: i.name, type: i.type, ph: i.placeholder, aria: i.getAttribute('aria-label') }));
-  })()`).catch(() => []);
+  const inputNames = await s.page.evaluate(`Array.from(document.querySelectorAll('input')).map(i=>({name:i.name,type:i.type,ph:i.placeholder,aria:i.getAttribute('aria-label')}))`).catch(() => []);
   console.log(`[login] Inputs: ${JSON.stringify(inputNames)}`);
   // Use JS value setter (Playwright el.fill fails on Discord's React inputs)
   const fillField = async (selector, val) => {
@@ -100,15 +97,17 @@ try {
   const passResult = await fillField(passSel, process.env.SVC_PASSWORD);
   console.log(`[login] fill email(${emailSel}): ${JSON.stringify(emailResult)}, password(${passSel}): ${JSON.stringify(passResult)}`);
   await s.wait(1);
-  // Submit and wait for captcha interception
+  // Submit; bail early on /channels (direct login, no captcha).
   for (let attempt = 0; attempt < 5; attempt++) {
     console.log(`[login] Submit attempt ${attempt + 1}`);
-    await s.page.locator('button[type="submit"]').click().catch(e => console.log(`[login] locator click failed: ${e.message?.slice(0, 80)}`));
+    await s.page.locator('button[type="submit"]').click().catch(e => console.log(`[login] click err: ${e.message?.slice(0, 80)}`));
     await s.wait(2);
-    if (s.captchaResponse) { console.log('[login] Captcha intercepted after locator click'); break; }
-    await s.page.evaluate('document.querySelector("form")?.requestSubmit()').catch(e => console.log(`[login] requestSubmit failed: ${e.message?.slice(0, 80)}`));
+    if (s.captchaResponse) break;
+    if ((s.page.url?.() ?? '').includes('/channels')) { console.log(`PASS: direct login — ${s.page.url()}`); await captureCookies(); process.exit(0); }
+    await s.page.evaluate('document.querySelector("form")?.requestSubmit()').catch(() => {});
     await s.wait(2);
-    if (s.captchaResponse) { console.log('[login] Captcha intercepted after requestSubmit'); break; }
+    if (s.captchaResponse) break;
+    if ((s.page.url?.() ?? '').includes('/channels')) { console.log(`PASS: direct login — ${s.page.url()}`); await captureCookies(); process.exit(0); }
   }
   // Solve captcha and resubmit via API (same as registration)
   const captchaData = s.captchaResponse;
@@ -220,25 +219,35 @@ try {
             }
           }
           if (!verifyDone) { console.log('[login] No verify email found'); break; }
-          // Reload login page fresh, re-fill, re-submit to get new captcha
-          console.log('[login] IP authorized, reloading login page...');
-          await s.goto('https://discord.com/login');
-          for (let i = 0; i < 15; i++) {
-            if (await s.page.evaluate('document.querySelectorAll("input").length > 0').catch(() => false)) break;
-            await s.wait(1);
+          // After IP authorize, re-fire the /api/v9/auth/login XHR directly
+          // (same path the captcha-success branch uses) — avoids the s.goto()
+          // race that disconnected the browser when the authorize-ip tab closed.
+          console.log('[login] IP authorized, retrying login API directly...');
+          const retryResult = await s.page.evaluate(`(async()=>{var r=await fetch('/api/v9/auth/login',{method:'POST',headers:${hdrs},body:${JSON.stringify(JSON.stringify(formData))}});return{status:r.status,data:await r.json().catch(()=>({}))};})()`).catch(e => ({ error: e.message }));
+          console.log(`[login] post-authorize retry: status=${retryResult?.status} response=${(JSON.stringify(retryResult?.data) ?? '').slice(0, 200)}`);
+          if (retryResult?.status === 200 && retryResult?.data?.token) {
+            console.log(`[login] SUCCESS — token received after IP authorize`);
+            await s.page.evaluate(`localStorage.setItem("token", JSON.stringify(${JSON.stringify(retryResult.data.token)}))`).catch(() => {});
+            if (acct.id && process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+              const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+              const supaUrl = process.env.SUPABASE_URL;
+              const md = await (await fetch(`${supaUrl}/rest/v1/social_accounts?id=eq.${acct.id}&select=metadata`, { headers: { apikey: key, Authorization: `Bearer ${key}` } })).json();
+              await fetch(`${supaUrl}/rest/v1/social_accounts?id=eq.${acct.id}`, {
+                method: 'PATCH',
+                headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+                body: JSON.stringify({ metadata: { ...(md?.[0]?.metadata ?? {}), discord_token: retryResult.data.token } }),
+              }).catch(() => {});
+            }
+            await s.goto('https://discord.com/channels/@me').catch(() => {});
+            await s.wait(5);
+            console.log(`PASS: logged in as ${acct.username} — ${s.page.url?.()}`);
+            await captureCookies();
+            loggedIn = true; break;
           }
-          await fillField(emailSel, process.env.SVC_EMAIL);
-          await fillField(passSel, process.env.SVC_PASSWORD);
-          await s.wait(1);
-          s.captchaResponse = null;
-          s.captchaFormData = null;
-          await s.page.locator('button[type="submit"]').click().catch(() => {});
-          await s.wait(5);
-          if (s.captchaResponse) {
-            currentRqdata = s.captchaResponse.captcha_rqdata;
-            currentRqtoken = s.captchaResponse.captcha_rqtoken;
-            Object.assign(formData, s.captchaFormData);
-            console.log('[login] New captcha after authorize-ip, solving...');
+          if (retryResult?.data?.captcha_rqdata) {
+            currentRqdata = retryResult.data.captcha_rqdata;
+            currentRqtoken = retryResult.data.captcha_rqtoken;
+            console.log('[login] Captcha required after IP authorize, solving...');
             continue;
           }
           const postUrl = s.page.url?.() ?? '';
