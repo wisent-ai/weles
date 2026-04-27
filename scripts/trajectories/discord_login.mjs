@@ -120,7 +120,7 @@ try {
     let gwIp = u?.hostname;
     if (gwIp) { try { const dns = await import('node:dns'); gwIp = await new Promise((res, rej) => dns.lookup(gwIp, (e, a) => e ? rej(e) : res(a))); } catch {} }
     const proxyFields = u ? { proxyType: 'http', proxyAddress: gwIp, proxyPort: parseInt(u.port, 10), proxyLogin: proxy.username, proxyPassword: proxy.password } : {};
-    console.log(`[login] Proxy for captcha: ${gwIp}:${u?.port} user=${proxy.username?.slice(0, 30)}`);
+    console.log(`[login] Proxy for captcha: ${gwIp ?? 'none'}:${u?.port ?? '-'} user=${proxy?.username?.slice(0, 30) ?? '-'}`);
     const services = [
       { name: 'anticaptcha', url: 'https://api.anti-captcha.com', envKey: 'ANTICAPTCHA_API_KEY' },
       { name: 'capsolver', url: 'https://api.capsolver.com', envKey: 'CAPSOLVER_API_KEY' },
