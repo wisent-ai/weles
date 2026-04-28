@@ -119,15 +119,25 @@ export async function clearReCaptchaGate(s: SessionLike, solver: any, gateUrlSub
     await new Promise(r => setTimeout(r, 3000));
     const solved = await solvePageCaptcha(s.page, solver, s).catch(() => false);
     if (!solved) { await new Promise(r => setTimeout(r, 3000)); continue; }
+    // Try button click first (more reliable than requestSubmit on PH's React
+    // form), then form.requestSubmit, then a synthetic submit event.
     await s.page.evaluate(() => {
       const ta = document.getElementById('g-recaptcha-response') as HTMLTextAreaElement | null;
       if (!ta || !ta.value) return;
+      const btn = document.querySelector('button[type="submit"], input[type="submit"]') as HTMLElement | null;
+      if (btn) { btn.click(); return; }
       const form = document.querySelector('form') as HTMLFormElement | null;
       if (!form) return;
       if (typeof form.requestSubmit === 'function') form.requestSubmit();
       else form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
     }).catch(() => {});
     await new Promise(r => setTimeout(r, 6000));
+    if (!(s.page.url?.() ?? '').includes(gateUrlSubstring)) return true;
+    // Token's been written but the page didn't navigate. PH's verification
+    // sets a server cookie on solve — re-issuing a navigation to the homepage
+    // carries that cookie and lets the next request pass the gate.
+    await s.page.goto('https://www.producthunt.com/').catch(() => {});
+    await new Promise(r => setTimeout(r, 3000));
     if (!(s.page.url?.() ?? '').includes(gateUrlSubstring)) return true;
   }
   return false;
