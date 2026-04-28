@@ -36,7 +36,7 @@ const CHROMIUM_ARGS = [
 export interface AsyncNewBrowserOptions {
   os?: string;
   browser?: string;
-  proxy?: { server: string; username?: string; password?: string };
+  proxy?: { server: string; username?: string; password?: string; country?: string; exit_ip?: string; platform?: string };
   locale?: string;
   headless?: boolean;
   recordVideo?: boolean;

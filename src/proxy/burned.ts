@@ -50,10 +50,17 @@ async function save(value: BurnedValue): Promise<void> {
   } catch { /* best-effort */ }
 }
 
-export async function isBurned(host: string): Promise<boolean> {
+export async function isBurned(host: string, platform?: string): Promise<boolean> {
   if (!host) return false;
   const v = await load();
-  return !!v.hosts[host];
+  const entry = v.hosts[host];
+  if (!entry) return false;
+  // Per-platform scoping: a host blocked by Instagram isn't necessarily
+  // blocked by GitHub — preserve the host for other platforms instead of
+  // discarding it from the entire pool. When `platform` is omitted (e.g.
+  // legacy callers), keep the previous all-or-nothing behavior.
+  if (!platform) return true;
+  return entry.platforms.includes(platform);
 }
 
 export async function listBurned(): Promise<Record<string, BurnedEntry>> {
