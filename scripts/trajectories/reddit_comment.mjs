@@ -46,19 +46,40 @@ try {
     const btn = form.querySelector('button.save, button[type="submit"]');
     if (btn) btn.click();
   });
-  // Wait for the new comment to appear in the thread (Reddit redirects to the
-  // permalink of the new comment) — check URL change OR appearance of our
-  // posted text in the page.
-  let posted = false;
+  // The optimistic in-page check (body text appearing in page innerText) was
+  // returning true even when r/test's spam filter removed the comment server-
+  // side a few seconds after submit, so the trajectory printed PASS while
+  // the comment never made it to public listing. Two-step verification: (a)
+  // wait for body to appear locally (submit confirmed), (b) re-fetch the
+  // post listing JSON via fresh request and confirm the comment is in the
+  // public tree.
+  let postedLocally = false;
   for (let i = 0; i < 12; i++) {
     await s.page.waitForTimeout(1000);
     const has = await s.page.evaluate((body) => (document.body?.innerText ?? '').includes(body), COMMENT_BODY).catch(() => false);
-    if (has) { posted = true; break; }
+    if (has) { postedLocally = true; break; }
   }
   banSignal = await detectRedditBanSignals(s.page, s.capturedResponses).catch(() => null);
-  if (!posted) throw new Error(`comment did not appear after submit — body did not match in page text`);
+  if (!postedLocally) throw new Error(`submit did not confirm — body did not appear in page text`);
+  // Verify public visibility — fetch the post.json and walk for our body.
+  // Subreddit spam filters / rate limits can remove the comment within a few
+  // seconds of submit; without this re-check we'd PASS on a removed comment.
+  const jsonUrl = oldUrl.replace(/\/$/, '') + '.json?limit=500&sort=new';
+  let publiclyVisible = false;
+  for (let attempt = 0; attempt < 4 && !publiclyVisible; attempt++) {
+    await s.page.waitForTimeout(3000);
+    try {
+      const r = await fetch(jsonUrl, { headers: { 'User-Agent': 'weles-verify/1.0' } });
+      const txt = await r.text();
+      if (txt.includes(COMMENT_BODY)) publiclyVisible = true;
+    } catch { /* retry */ }
+  }
   console.log(`[ban-signal] ${banSignal?.signal}`);
-  console.log(`PASS: commented "${COMMENT_BODY}" on ${oldUrl}`);
+  if (!publiclyVisible) {
+    banSignal = banSignal ?? { signal: 'rate_limited', healthy: false };
+    throw new Error(`comment removed by subreddit filter — submit fired but body not in public listing after 12s (likely shadowbanned/auto-removed)`);
+  }
+  console.log(`PASS: commented "${COMMENT_BODY}" on ${oldUrl} (verified public)`);
 } catch (e) {
   banSignal = banSignal ?? await detectRedditBanSignals(s.page, s.capturedResponses).catch(() => null);
   if (banSignal) console.log(`[ban-signal] ${banSignal.signal}`);
