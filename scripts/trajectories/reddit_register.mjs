@@ -26,7 +26,13 @@ function genIdentity() {
 const id = genIdentity();
 console.log(`[register] identity: ${id.username} ${id.email}`);
 
-const s = await WSession.start({ label: 'reddit_register', proxy: process.env.PROXY_URL || 'residential', browser: 'chromium' });
+// PacketStream's residential range gets accounts insta-shadowbanned by
+// Reddit (account creates fine, then 404s within 60s). Force a non-
+// PacketStream provider when picking the proxy. Specific provider in
+// the filter triggers config.ts's KNOWN_PROVIDERS match — only providers
+// matching that name will be tried.
+const PROXY_FILTER = process.env.PROXY_URL || 'residential oxylabs us';
+const s = await WSession.start({ label: 'reddit_register', proxy: PROXY_FILTER, browser: 'chromium', targetHost: 'www.reddit.com' });
 try {
   await s.page.goto(URL, { waitUntil: 'domcontentloaded' });
   await s.page.waitForTimeout(3000);
