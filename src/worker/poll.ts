@@ -74,10 +74,13 @@ async function claimOne(): Promise<ActionLogRow | null> {
     const r = await fetch(`${SUPABASE_URL}/rest/v1/account_action_logs?select=account_id,claimed_at&status=eq.running&claimed_at=gte.${cutoff}`, { headers: headers() });
     if (r.ok) for (const row of (await r.json()) as { account_id: string | null }[]) if (row.account_id) inflightAccounts.add(row.account_id);
   }
+  const { staleCookieAccounts } = await import('./stale.js');
+  const staleAccounts = await staleCookieAccounts(candidates);
   for (const row of candidates) {
     if (!resolveTrajectory(row.action)) continue;
     if (!row.account_id || !row.id) continue; // poison rows: legacy promote-cron sometimes emits orphans
     if (inflightAccounts.has(row.account_id)) continue;
+    if (staleAccounts.has(row.account_id)) continue;
 
     const claim = await fetch(
       `${SUPABASE_URL}/rest/v1/account_action_logs?id=eq.${row.id}&status=eq.queued`,
