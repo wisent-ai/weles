@@ -96,9 +96,18 @@ try {
     // the login itself worked, the account is banned. Falling through to
     // 'action_failed' hides the actual state from rerun_failed.mjs which
     // would then pointlessly retry.
+    // Order matters: HTTP-level rejection (4xx/5xx at edge) lands the page on
+    // chrome-error://chromewebdata/ — same URL as a proxy CONNECT failure but
+    // categorically different. ip_blocked → worker.markBurned rotates the
+    // proxy host; action_failed leaves the burned IP in rotation. Match the
+    // linkedin_login / twitter_login classifier ordering.
+    const msg = e.message ?? '';
     let sig;
     if (/\/accounts\/suspended|\/accounts\/disabled/.test(finalUrl)) sig = 'suspended';
     else if (/\/checkpoint|\/challenge|\/two_factor/.test(finalUrl)) sig = 'checkpoint';
+    else if (/ERR_HTTP_RESPONSE_CODE_FAILURE|ERR_BLOCKED_BY_RESPONSE|ERR_BLOCKED_BY_CLIENT|ERR_BLOCKED_BY_ADMINISTRATOR/.test(msg)) sig = 'ip_blocked';
+    else if (/ERR_TUNNEL_CONNECTION_FAILED|ERR_PROXY_CONNECTION_FAILED/.test(msg)) sig = 'proxy_failed';
+    else if (finalUrl.startsWith('chrome-error://')) sig = 'proxy_failed';
     else sig = 'action_failed';
     writeFileSync(join(dir, 'ban_signal.json'), JSON.stringify({
       account_id: acct.id, username: acct.username, action: 'instagram_login',
