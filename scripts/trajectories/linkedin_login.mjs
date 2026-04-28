@@ -56,17 +56,23 @@ try {
   // input state updates; locator.fill sets DOM value but skips React onChange.
   const usernameSel = 'input#username, input[name="session_key"], input[autocomplete="username"], input[type="text"][autocomplete="webauthn"], input[type="email"]';
   const passwordSel = 'input#password, input[name="session_password"], input[type="password"][autocomplete="current-password"]';
-  const u = s.page.locator(usernameSel).filter({ visible: true }).first();
-  await u.waitFor({ state: 'visible' });
-  await u.click();
-  await u.pressSequentially(process.env.SVC_EMAIL, { delay: 25 });
-  const p = s.page.locator(passwordSel).filter({ visible: true }).first();
-  await p.click();
-  await p.pressSequentially(process.env.SVC_PASSWORD, { delay: 25 });
+  // Drive both inputs via JS focus + Playwright keyboard.type. locator.click
+  // on either input hangs the full default timeout (LinkedIn intercepts the
+  // click during scroll-into-view). JS focus directs keystrokes correctly
+  // without going through the click pipeline.
+  await s.page.locator(usernameSel).filter({ visible: true }).first().waitFor({ state: 'visible' });
+  await s.page.evaluate(() => document.querySelector('input#username, input[name="session_key"]')?.focus());
+  await s.page.keyboard.type(process.env.SVC_EMAIL ?? '', { delay: 25 });
+  await s.page.evaluate(() => document.querySelector('input#password, input[name="session_password"]')?.focus());
+  await s.page.keyboard.type(process.env.SVC_PASSWORD ?? '', { delay: 25 });
   await s.page.waitForTimeout(400);
-  // The Sign in button is type="button" (no form wrapper) — exact:true filters
-  // out 'Sign in with Apple' / 'Sign in with Microsoft' SSO buttons.
-  await s.page.getByRole('button', { name: 'Sign in', exact: true }).first().click();
+  // LinkedIn's submit is type='submit' inside a real <form> — locator.click
+  // hangs the full default click-timeout because the click event registers
+  // but Playwright's navigation-wait never resolves (LinkedIn returns the
+  // /uas/login-submit response that the SPA consumes in-place rather than
+  // navigating). Drive the form's native submit instead — the response
+  // listener captures the result and we re-read URL + cookies after.
+  await s.page.evaluate(() => { const f = document.querySelector('form.login__form, form[action*="login-submit"], form'); if (f && typeof f.requestSubmit === 'function') f.requestSubmit(); else if (f) f.submit(); }).catch(() => {});
   for (let i = 0; i < 12; i++) {
     await s.page.waitForTimeout(1000);
     if (!/^https?:\/\/www\.linkedin\.com\/login\/?$/.test(s.page.url())) break;
