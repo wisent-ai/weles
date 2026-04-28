@@ -89,7 +89,24 @@ export class ProxyPool {
  * Fetches available providers from the service_credentials Supabase table,
  * filters by balance > 0 and env var availability, returns the first working one.
  */
-export async function resolveProxy(proxy: string, targetHost?: string): Promise<{ server: string; username?: string; password?: string; country?: string } | undefined> {
+// Map a target host (the URL the trajectory is about to hit) to the platform
+// we burn against. e.g. www.instagram.com -> 'instagram', x.com -> 'twitter'.
+// Used so per-platform burn scoring matches the worker's row.platform.
+function platformFromTarget(host: string | undefined): string | undefined {
+  if (!host) return undefined;
+  const h = host.toLowerCase();
+  if (h.includes('instagram.com') || h.includes('threads.net')) return 'instagram';
+  if (h.includes('x.com') || h.includes('twitter.com')) return 'twitter';
+  if (h.includes('linkedin.com')) return 'linkedin';
+  if (h.includes('reddit.com')) return 'reddit';
+  if (h.includes('discord.com') || h.includes('discordapp.com')) return 'discord';
+  if (h.includes('github.com')) return 'github';
+  if (h.includes('tiktok.com')) return 'tiktok';
+  if (h.includes('producthunt.com')) return 'producthunt';
+  return undefined;
+}
+
+export async function resolveProxy(proxy: string, targetHost?: string): Promise<{ server: string; username?: string; password?: string; country?: string; exit_ip?: string; platform?: string } | undefined> {
   if (!proxy || proxy === 'none' || proxy === 'direct') return undefined;
 
   if (proxy.startsWith('http://') || proxy.startsWith('https://') || proxy.startsWith('socks')) {
@@ -193,8 +210,11 @@ export async function resolveProxy(proxy: string, targetHost?: string): Promise<
       // to api.ipify.org, whois it, and reject sticky sessions that exit
       // through known proxy-marketplace ranges.
       // Skipped if PROXY_SKIP_PREFLIGHT=1 is set.
+      let exitIp = '';
+      const platform = platformFromTarget(targetHost);
       if (!process.env.PROXY_SKIP_PREFLIGHT) {
         const probeHost = targetHost || 'api.ipify.org';
+        let preflightContinue = false;
         try {
           const auth = Buffer.from(`${stickyUser}:${stickyPass}`).toString('base64');
           const net = await import('node:net');
@@ -206,27 +226,32 @@ export async function resolveProxy(proxy: string, targetHost?: string): Promise<
             sock.once('data', (d) => { clearTimeout(timer); sock.destroy(); resolve(/^HTTP\/1\.[01] 200/.test(d.toString())); });
             sock.once('error', () => { clearTimeout(timer); resolve(false); });
           });
-          if (!ok) { console.log(`[proxy] Pre-flight failed for ${p.display_name} sticky=${sessId} target=${probeHost} — retrying`); continue; }
-          // Sample exit IP and reject IPXO-marketplace cohorts. Same provider
-          // can split exits across real ISPs (TELUS) and IPXO (NET-82-40-...).
-          // PerimeterX/Arkose rate the latter as datacenter-equivalent.
-          // Only enforced when targetHost is on a captcha-protected platform.
-          if (process.env.PROXY_REQUIRE_RESIDENTIAL === '1' || /linkedin|twitter|x\.com/.test(targetHost ?? '')) {
-            console.log(`[proxy] exit-ip filter active for target=${targetHost}`);
-            let exitIp = '';
+          if (!ok) { console.log(`[proxy] Pre-flight failed for ${p.display_name} sticky=${sessId} target=${probeHost} — retrying`); preflightContinue = true; }
+          else {
+            // Always sample the exit IP — it's the actual residential IP the
+            // platform sees. We need it to (a) burn the right thing on
+            // ip_blocked, (b) avoid handing out an exit already burned for
+            // this platform, (c) reject IPXO marketplace ranges that
+            // PerimeterX/Arkose flag as datacenter-equivalent.
             try {
               const { execSync } = await import('node:child_process');
               const proxyAuth = `http://${encodeURIComponent(stickyUser)}:${encodeURIComponent(stickyPass)}@${host}:${p.proxy_port}`;
               exitIp = execSync(`curl -s --max-time 6 -x "${proxyAuth}" https://api.ipify.org`, { encoding: 'utf8' }).trim();
             } catch (e: any) { console.log(`[proxy] exit-ip probe err: ${e.message?.slice(0, 80)}`); }
             console.log(`[proxy] sampled exit_ip="${exitIp}" sticky=${sessId}`);
-            if (exitIp && /^82\.40\./.test(exitIp)) { console.log(`[proxy] Skipping IPXO exit ${exitIp}`); continue; }
-            if (exitIp && /^[0-9.]+$/.test(exitIp)) console.log(`[proxy] Exit-IP validated: ${exitIp}`);
+            if (exitIp && /^82\.40\./.test(exitIp)) { console.log(`[proxy] Skipping IPXO exit ${exitIp}`); preflightContinue = true; }
+            // Per-platform burn scoping: skip exits already burned for this
+            // target. A reddit-blocked exit is still fine for github.
+            else if (exitIp && platform && (await isBurned(exitIp, platform))) {
+              console.log(`[proxy] Exit ${exitIp} already burned for ${platform} — rerolling sticky`);
+              preflightContinue = true;
+            }
           }
         } catch { /* skip preflight on unexpected error, return as-is */ }
+        if (preflightContinue) continue;
       }
-      console.log(`[proxy] Using: ${p.display_name} (${host}:${p.proxy_port}, $${p.balance_usd}, sticky=${sessId})`);
-      return { server: `http://${host}:${p.proxy_port}`, username: stickyUser, password: stickyPass, country: cc };
+      console.log(`[proxy] Using: ${p.display_name} (${host}:${p.proxy_port}, $${p.balance_usd}, sticky=${sessId}, exit=${exitIp || '?'})`);
+      return { server: `http://${host}:${p.proxy_port}`, username: stickyUser, password: stickyPass, country: cc, exit_ip: exitIp || undefined, platform };
     }
   }
 

@@ -253,11 +253,11 @@ export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
   const { exitCode, stderr } = await runTrajectory(row, trajPath);
   const banSignal = await readBanSignal(row.action);
   const result: Record<string, unknown> = {};
-  try { const m = JSON.parse(await readFile(join(RECORDINGS_ROOT, row.action, 'session_meta.json'), 'utf8')); result.session = { proxy_host: m.proxy_host, proxy_port: m.proxy_port, proxy_user: m.proxy_user }; } catch {}
+  try { const m = JSON.parse(await readFile(join(RECORDINGS_ROOT, row.action, 'session_meta.json'), 'utf8')); result.session = { proxy_host: m.proxy_host, proxy_port: m.proxy_port, proxy_user: m.proxy_user, exit_ip: m.exit_ip, platform: m.platform }; } catch {}
   if (banSignal) {
     result.ban_signal = banSignal;
     if (banSignal.healthy === false) await pauseAccount(row.account_id, banSignal.signal);
-    if ((banSignal.signal === 'ip_blocked' || banSignal.signal === 'proxy_auth_failed') && (result.session as any)?.proxy_host) { const { markBurned } = await import('../proxy/burned.js'); await markBurned((result.session as any).proxy_host, banSignal.signal, row.platform); }
+    if (banSignal.signal === 'ip_blocked' || banSignal.signal === 'proxy_auth_failed') { const s = result.session as any; const t = s?.exit_ip || s?.proxy_host; if (t) { const { markBurned } = await import('../proxy/burned.js'); await markBurned(t, banSignal.signal, row.platform); } }
   } else {
     result.ban_signal = { healthy: exitCode === 0, signal: exitCode === 0 ? 'healthy' : 'unknown_error' };
   }
