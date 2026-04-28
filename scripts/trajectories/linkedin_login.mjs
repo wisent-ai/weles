@@ -82,13 +82,13 @@ try {
   let title = await s.page.title?.().catch(() => '') ?? '';
   let onCheckpoint = /\/(checkpoint|uas\/login|login\/recovery)/.test(finalUrl) || /Security Verification/.test(title);
 
-  if (!liAt && onCheckpoint) {
-    console.log(`[linkedin_login] on checkpoint — invoking nocaptcha PerimeterX (with our proxy)`);
+  // Solve up to 3 times. nocaptcha's PerimeterX endpoint is probabilistic —
+  // first solve may yield cookies that LinkedIn rejects (px-cdn fingerprint
+  // mismatch), retry usually clears it. Cheap to retry: each call is one
+  // HTTPS round-trip to nocaptcha, no Chromium re-launch.
+  for (let solveAttempt = 0; solveAttempt < 3 && !liAt && onCheckpoint; solveAttempt++) {
+    console.log(`[linkedin_login] checkpoint solve attempt ${solveAttempt + 1}/3 (nocaptcha PerimeterX with our proxy)`);
     const ua = await s.page.evaluate(() => navigator.userAgent).catch(() => '');
-    // Pass our proxy URL so nocaptcha solves through OUR exit IP. Without
-    // this, the resulting cookies are IP-bound to nocaptcha's residential
-    // pool and LinkedIn invalidates them as soon as we navigate from our
-    // own IP. proxyUrl is the same string our session was launched with.
     const px = await new CaptchaSolver().solvePerimeterX(finalUrl, ua, cookies.filter(c => /linkedin\.com$/.test(c.domain ?? '')).map(c => ({ name: c.name, value: c.value, domain: c.domain })), proxyUrl);
     if (px && px.length) {
       await s.ctx.addCookies(px.map(c => ({ ...c, domain: c.domain ?? '.linkedin.com', path: c.path ?? '/' }))).catch(e => console.log('[linkedin_login] addCookies err:', e.message));
@@ -99,7 +99,10 @@ try {
       finalUrl = s.page.url?.() ?? '';
       title = await s.page.title?.().catch(() => '') ?? '';
       onCheckpoint = /\/(checkpoint|uas\/login|login\/recovery)/.test(finalUrl) || /Security Verification/.test(title);
-      console.log(`[linkedin_login] post-bypass: li_at=${!!liAt} url=${finalUrl}`);
+      console.log(`[linkedin_login] post-bypass attempt ${solveAttempt + 1}: li_at=${!!liAt} url=${finalUrl}`);
+      if (liAt) break;
+    } else {
+      console.log(`[linkedin_login] solver returned no cookies on attempt ${solveAttempt + 1}`);
     }
   }
   await captureCookies();
