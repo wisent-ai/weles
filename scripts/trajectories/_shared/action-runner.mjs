@@ -239,9 +239,7 @@ export async function runAction(cfg) {
       }
     }
     banSignal = await cfg.banDetector(s.page, s.capturedResponses).catch(() => null);
-    // Reclass: agent's done() might land on auth-wall (LinkedIn /uas/login) or
-    // on chrome-error://chromewebdata/ (proxy CONNECT/auth failure). Ban detector
-    // returns 'healthy' for both because no platform-ban keywords are present.
+    // Reclass: agent's done() might land on auth-wall or chrome-error — detector returns 'healthy' because no platform-ban keywords appear. Plus write-action verification (agent hallucinated done() but no API write fired).
     const successFinalUrl = s.page.url?.() ?? banSignal?.details?.final_url ?? '';
     const successBody = banSignal?.details?.body_text_sample ?? '';
     const successOnAuthWall = /\/(login|signin|sessions\/new|uas\/login|checkpoint|accounts\/login)\b/.test(successFinalUrl) || /\/login\?/.test(successFinalUrl);
@@ -250,6 +248,10 @@ export async function runAction(cfg) {
     } else if (banSignal && successFinalUrl.startsWith('chrome-error://') && (banSignal.signal === 'healthy' || banSignal.signal === 'unknown')) {
       const sig = /HTTP ERROR 407|ERR_PROXY_AUTH/i.test(successBody) ? 'proxy_auth_failed' : /HTTP ERROR 4|ERR_HTTP_RESPONSE_CODE/i.test(successBody) ? 'ip_blocked' : 'proxy_failed';
       banSignal = { signal: sig, healthy: false, details: { final_url: successFinalUrl, reason: `reclassified from ${banSignal.signal} — chrome-error page (body: ${successBody.slice(0, 80)})`, prev_signal: banSignal.signal } };
+    } else if (banSignal?.signal === 'healthy') {
+      const { verifyWriteAction } = await import('../../../dist/platforms/_shared/write_verify.js');
+      const v = verifyWriteAction(cfg.platform, cfg.action, s.capturedResponses);
+      if (v.applicable && !v.wrote) banSignal = { signal: 'action_failed', healthy: false, details: { final_url: successFinalUrl, reason: `agent done()='${resultValue}' but no ${cfg.platform} ${cfg.action} write API call captured`, prev_signal: 'healthy' } };
     }
     console.log(`[ban-signal] ${banSignal?.signal}`);
     console.log(`PASS: ${resultValue}`);
