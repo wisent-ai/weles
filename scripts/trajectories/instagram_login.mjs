@@ -108,6 +108,10 @@ try {
     else if (/ERR_HTTP_RESPONSE_CODE_FAILURE|ERR_BLOCKED_BY_RESPONSE|ERR_BLOCKED_BY_CLIENT|ERR_BLOCKED_BY_ADMINISTRATOR/.test(msg)) sig = 'ip_blocked';
     else if (/ERR_TUNNEL_CONNECTION_FAILED|ERR_PROXY_CONNECTION_FAILED/.test(msg)) sig = 'proxy_failed';
     else if (finalUrl.startsWith('chrome-error://')) sig = 'proxy_failed';
+    // Login form rendered but the trajectory threw before redirect (locator
+    // timeout, no form inputs, submit blocked). Still on instagram.com/login
+    // means cookies-stale: retrying the same path will hit the same wall.
+    else if (/instagram\.com\/(accounts\/login|$)/.test(finalUrl) || /locator.*Timeout|net::ERR_TIMED_OUT/.test(msg)) sig = 'checkpoint';
     else sig = 'action_failed';
     writeFileSync(join(dir, 'ban_signal.json'), JSON.stringify({
       account_id: acct.id, username: acct.username, action: 'instagram_login',
@@ -120,6 +124,9 @@ try {
     if (sig === 'suspended') {
       const { deactivateAccount } = await import('../../dist/account/state.js');
       await deactivateAccount(acct.id, acct.metadata, 'INSTAGRAM_SUSPENDED');
+    } else if (sig === 'checkpoint') {
+      const { markCookiesStale } = await import('../../dist/utils/credentials.js');
+      if (acct.id) await markCookiesStale(acct.id);
     }
   } catch {}
   console.log('FAIL:', e.message?.slice(0, 200));
