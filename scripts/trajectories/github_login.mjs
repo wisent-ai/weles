@@ -100,10 +100,22 @@ try {
   // locator so the click routes through CDP with isTrusted=true (see
   // docs/DETECTION_ANTIPATTERNS.md §1). Login submit is exactly the kind of
   // event github's spam ML reads isTrusted on.
-  const submitLoc = s.page.locator('input[type="submit"][value*="Sign in" i], input[name="commit"][value*="Sign in" i], button[type="submit"]:has-text("Sign in"), form[action*="/session"] button[type="submit"]').first();
-  const submitted = await submitLoc.count() > 0
-    ? await submitLoc.click().then(() => ({ clicked: true, via: 'locator' })).catch((e) => ({ clicked: false, err: e.message?.slice(0, 100) }))
-    : { clicked: false };
+  // Wait for any submit-type control. GitHub serves either classic
+  // <input type="submit" name="commit"> or React <button type="submit">.
+  // Avoid :has-text — Playwright's text-engine intermittently fails on
+  // GitHub's whitespace-padded button text.
+  await s.page.locator('input[type="submit"], button[type="submit"]').first().waitFor({ state: 'attached' });
+  const submitLoc = s.page.locator('input[type="submit"][value*="Sign in" i], input[name="commit"], form[action*="/session"] button[type="submit"], button[type="submit"]').first();
+  let submitted = { clicked: false };
+  if (await submitLoc.count() > 0) {
+    submitted = await submitLoc.click().then(() => ({ clicked: true, via: 'locator' })).catch((e) => ({ clicked: false, err: e.message?.slice(0, 100) }));
+    if (!submitted.clicked) {
+      // Locator.click hit Chromium synthesizeMouseEvent disconnect; submit form
+      // via JS instead. Form has action="/session" so requestSubmit triggers POST.
+      const jsOk = await s.page.evaluate(`(() => { const f = document.querySelector('form[action*="/session"]'); if (!f) return false; if (typeof f.requestSubmit === 'function') f.requestSubmit(); else f.submit(); return true; })()`).catch(() => false);
+      if (jsOk) submitted = { clicked: true, via: 'js-form-submit' };
+    }
+  }
   console.log(`[login] Submit: ${JSON.stringify(submitted)}`);
   if (!submitted.clicked) {
     console.log('FAIL: no Sign-in submit control found on login page');
