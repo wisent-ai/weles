@@ -189,11 +189,10 @@ async function importCreatedAccount(action: string): Promise<{ id: string; usern
 }
 
 async function pauseAccount(accountId: string, signal?: string, hours = 24): Promise<void> {
-  // ip_blocked / proxy_failed are proxy-level signals — the platform refused
-  // the EXIT IP, not the account itself. Burn the proxy, NOT the account.
-  // markBurned at the call site handles proxy rotation; here we just skip the
-  // pauseUntil so the account stays available for the next IP.
+  // ip_blocked/proxy_failed: proxy-level — burn the proxy, not the account.
+  // rate_limited: brief account-level throttle — 4h cooldown, not 24h.
   if (signal === 'ip_blocked' || signal === 'proxy_failed' || signal === 'proxy_auth_failed') return;
+  if (signal === 'rate_limited') hours = 4;
   const hard = signal ? ['suspended', 'shadowbanned'].includes(signal) : false;
   const body: Record<string, unknown> = { paused_until: new Date(Date.now() + hours * 3600_000).toISOString() };
   if (hard) { body.status = 'flagged'; body.is_active = false; }
