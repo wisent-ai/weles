@@ -32,12 +32,36 @@ try {
   await s.goto(url);
   checkReachable(s, 'github');
   await s.page.waitForTimeout(2500);
-  const goal = repoUrl
-    ? `You are on a GitHub repo page. Find the "Watch" dropdown near the top-right (next to Star and Fork). Click it. Click "All Activity" or "Participating and @mentions". done(value="watching"). Do NOT navigate(). Do NOT give_up.`
-    : `You are on a GitHub trending or search page. Click the first repo title to open it. Then find the "Watch" dropdown near the top-right and click it. Click "All Activity". done(value="watching"). Do NOT give_up.`;
-  const result = await execute(s, goal, { flowName: 'github_watch_repo' });
-  ban = await detectGitHubBanSignals(s.page, s.capturedResponses).catch(() => null);
-  console.log(`[ban-signal] ${ban?.signal}  PASS: ${result.value}`);
+  // Deterministic Playwright. Trending/search pages don't have a Watch
+  // button — first navigate into the first repo. Then click the Watch
+  // button (aria-label="Watch: ..."), pick "Participating and @mentions"
+  // from the dropdown.
+  if (!repoUrl) {
+    const firstRepoLink = s.page.locator('a[href^="/"]').filter({ hasText: /\// }).filter({ visible: true }).first();
+    await firstRepoLink.click();
+    await s.page.waitForLoadState('domcontentloaded');
+    await s.page.waitForTimeout(2000);
+  }
+  // GitHub watch button: aria-label starts with "Watch:" when not watching,
+  // text includes "(N)" subscriber count. Already-watching shows
+  // "Watch: <ActivityLevel> in repo" — short-circuit PASS.
+  const watchBtn = s.page.locator('button[aria-label^="Watch"]').filter({ visible: true }).first();
+  await watchBtn.waitFor({ state: 'visible' });
+  const ariaBefore = await watchBtn.getAttribute('aria-label');
+  if (/Watch: (Participating|All Activity|Custom)/.test(ariaBefore || '')) {
+    console.log(`PASS: already watching (${ariaBefore})`);
+    ban = await detectGitHubBanSignals(s.page, s.capturedResponses).catch(() => null);
+  } else {
+    await watchBtn.click();
+    await s.page.waitForTimeout(1500);
+    await s.page.locator('label, button').filter({ hasText: /Participating and @mentions/ }).filter({ visible: true }).first().click();
+    await s.page.waitForTimeout(2500);
+    const ariaAfter = await s.page.locator('button[aria-label^="Watch"]').first().getAttribute('aria-label').catch(() => null);
+    ban = await detectGitHubBanSignals(s.page, s.capturedResponses).catch(() => null);
+    if (/Watch: (Participating|All Activity|Custom)/.test(ariaAfter || '')) console.log(`PASS: now watching (${ariaAfter})`);
+    else { console.log(`FAIL: aria-label did not transition (before=${ariaBefore} after=${ariaAfter})`); throw new Error('watch did not register'); }
+  }
+  console.log(`[ban-signal] ${ban?.signal}`);
 } catch (e) {
   ban = e.banSignal ?? await detectGitHubBanSignals(s.page, s.capturedResponses).catch(() => null);
   console.log(`[ban-signal] ${ban?.signal}  FAIL: ${e.message?.slice(0, 200)}`);
