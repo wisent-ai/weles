@@ -26,7 +26,7 @@ function genIdentity() {
 const id = genIdentity();
 console.log(`[register] identity: ${id.username} ${id.email}`);
 
-const s = await WSession.start({ label: 'reddit_register', proxy: process.env.PROXY_URL || 'residential' });
+const s = await WSession.start({ label: 'reddit_register', proxy: process.env.PROXY_URL || 'residential', browser: 'chromium' });
 try {
   await s.page.goto(URL, { waitUntil: 'domcontentloaded' });
   await s.page.waitForTimeout(3000);
