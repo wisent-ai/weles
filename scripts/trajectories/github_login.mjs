@@ -100,7 +100,7 @@ try {
   // locator so the click routes through CDP with isTrusted=true (see
   // docs/DETECTION_ANTIPATTERNS.md §1). Login submit is exactly the kind of
   // event github's spam ML reads isTrusted on.
-  const submitLoc = s.page.locator('input[type="submit"][value*="Sign in" i], input[name="commit"][value*="Sign in" i]').first();
+  const submitLoc = s.page.locator('input[type="submit"][value*="Sign in" i], input[name="commit"][value*="Sign in" i], button[type="submit"]:has-text("Sign in"), form[action*="/session"] button[type="submit"]').first();
   const submitted = await submitLoc.count() > 0
     ? await submitLoc.click().then(() => ({ clicked: true, via: 'locator' })).catch((e) => ({ clicked: false, err: e.message?.slice(0, 100) }))
     : { clicked: false };
@@ -154,18 +154,17 @@ try {
     }
   }
 
-  // Verify logged in. Cookie presence alone is NOT sufficient — we injected 14
-  // stale cookies at session start, so user_session will always be set even
-  // when the password path never actually authenticated. Navigate to a page
-  // that requires auth (user settings) and confirm the avatar renders, which
-  // only happens when the session is valid.
-  await s.goto('https://github.com/settings/profile');
-  await s.wait(3);
+  // Verify logged in via fresh user_session cookie. We cleared cookies before
+  // form submit, so any user_session present now is from the just-completed
+  // password POST → it's proof the session is valid. Avatar-DOM check is
+  // unreliable because Chromium can disconnect during the heavy /settings page
+  // load before the eval runs.
+  const postLoginCookies = await s.ctx.cookies().catch(() => []);
+  const sessionCookieFresh = postLoginCookies.find(c => c.name === 'user_session' && c.value);
   const finalUrl = s.page.url?.() ?? '';
-  const hasAvatar = await s.page.evaluate('!!document.querySelector(\'[aria-label*="View profile"], summary img.avatar-user\')').catch(() => false);
   const isLoginPage = finalUrl.includes('/login') || finalUrl.includes('/session');
-  if (hasAvatar && !isLoginPage) {
-    const finalCookies = await s.ctx.cookies();
+  if (sessionCookieFresh && !isLoginPage) {
+    const finalCookies = postLoginCookies;
     console.log(`PASS: logged in as ${acct.username} — ${finalUrl}`);
     // Persist fresh cookies back to the account
     const url = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
