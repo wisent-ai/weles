@@ -32,7 +32,6 @@ function resolveTrajectory(action: string): string | null {
   if (firstUnderscore < 0) return null;
   const plat = action.slice(0, firstUnderscore);
   const verb = action.slice(firstUnderscore + 1);
-  // Benign verbs (dwell/notifications/search/profile_view) share the universal runner with PLATFORM+VERB env; specialized verbs map to specific files; legacy flat <plat>_<verb>.mjs kept as-is.
   const benignPath = 'scripts/trajectories/_shared/benign.mjs';
   const routes: Record<string, (p: string) => string> = {
     dwell: () => benignPath, notifications: () => benignPath, search: () => benignPath, profile_view: () => benignPath,
@@ -55,8 +54,8 @@ function resolveTrajectory(action: string): string | null {
     story_view: (p) => `scripts/trajectories/${p}/actions/story_view.mjs`, watch_through: (p) => `scripts/trajectories/${p}/actions/watch_through.mjs`,
     bookmark: (p) => `scripts/trajectories/${p}/actions/bookmark.mjs`, save: (p) => `scripts/trajectories/${p}/actions/save.mjs`,
     reset_password: (p) => p === 'github' ? 'scripts/trajectories/github/recover/reset_password.mjs' : `scripts/trajectories/${p}_reset_password.mjs`,
-    // Provider balance probes. iproyal lives under scripts/trajectories/iproyal/balance.mjs because the root folder hit the per-folder file cap; others remain at scripts/trajectories/${p}_balance.mjs (legacy layout).
     balance: (p) => p === 'iproyal' ? 'scripts/trajectories/iproyal/balance.mjs' : `scripts/trajectories/${p}_balance.mjs`,
+    topup: (p) => p === 'iproyal' ? 'scripts/trajectories/iproyal/topup.mjs' : (null as unknown as string),
   };
   const router = routes[verb];
   return router ? router(plat) : null;
