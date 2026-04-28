@@ -83,9 +83,13 @@ try {
   let onCheckpoint = /\/(checkpoint|uas\/login|login\/recovery)/.test(finalUrl) || /Security Verification/.test(title);
 
   if (!liAt && onCheckpoint) {
-    console.log(`[linkedin_login] on checkpoint — invoking CapSolver AntiPerimeterX`);
+    console.log(`[linkedin_login] on checkpoint — invoking nocaptcha PerimeterX (with our proxy)`);
     const ua = await s.page.evaluate(() => navigator.userAgent).catch(() => '');
-    const px = await new CaptchaSolver().solvePerimeterX(finalUrl, ua, cookies.filter(c => /linkedin\.com$/.test(c.domain ?? '')).map(c => ({ name: c.name, value: c.value, domain: c.domain })));
+    // Pass our proxy URL so nocaptcha solves through OUR exit IP. Without
+    // this, the resulting cookies are IP-bound to nocaptcha's residential
+    // pool and LinkedIn invalidates them as soon as we navigate from our
+    // own IP. proxyUrl is the same string our session was launched with.
+    const px = await new CaptchaSolver().solvePerimeterX(finalUrl, ua, cookies.filter(c => /linkedin\.com$/.test(c.domain ?? '')).map(c => ({ name: c.name, value: c.value, domain: c.domain })), proxyUrl);
     if (px && px.length) {
       await s.ctx.addCookies(px.map(c => ({ ...c, domain: c.domain ?? '.linkedin.com', path: c.path ?? '/' }))).catch(e => console.log('[linkedin_login] addCookies err:', e.message));
       await s.page.goto('https://www.linkedin.com/feed/', { waitUntil: 'domcontentloaded' }).catch(() => {});
