@@ -233,9 +233,9 @@ export async function resolveAccountSession(acct: SocialAccount): Promise<Accoun
           if (pw) break;
         }
       }
-      if (!pw && !OXY_BLOCKED.has(acct.platform)) {
-        pw = await mod.resolveProxy(`residential ${country}`.trim(), targetHost) ?? await mod.resolveProxy('residential', targetHost);
-      }
+      if (!pw && !OXY_BLOCKED.has(acct.platform)) pw = await mod.resolveProxy(`residential ${country}`.trim(), targetHost) ?? await mod.resolveProxy('residential', targetHost);
+      // Mobile carrier IPs are rarely on platform blocklists — fall here when residential is exhausted.
+      if (!pw) pw = await mod.resolveProxy(`mobile ${country}`.trim(), targetHost) ?? await mod.resolveProxy('mobile', targetHost);
       if (pw?.server) {
         const u = new URL(pw.server);
         cfg = {
