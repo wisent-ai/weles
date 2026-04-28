@@ -1,24 +1,45 @@
-import { getSocialAccount } from '../../dist/utils/credentials.js';
+import { getSocialAccount, resolveAccountSession } from '../../dist/utils/credentials.js';
 import { WSession } from '../../dist/session/wsession.js';
-import { execute } from '../../dist/agent/loop.js';
 
-const URL = 'https://www.instagram.com/wisent.ai/';
-const GOAL = `Wait 3 seconds. If not logged in, give_up(reason="not logged in, inject cookies"). Click on the first post thumbnail. Wait 2 seconds. Click the heart/like button. done(value="liked").`;
+const TARGET_URL = process.env.TARGET_URL || 'https://www.instagram.com/explore/';
 
 const acct = await getSocialAccount('instagram');
 if (!acct) { console.log('FAIL: no active instagram account in DB'); process.exit(1); }
-process.env.SVC_EMAIL = acct.metadata.email ?? acct.username;
-process.env.SVC_PASSWORD = acct.metadata.password ?? '';
 console.log(`[trajectory] Using account: ${acct.username}`);
 
-const s = await WSession.start({ label: 'instagram_like', proxy: process.env.PROXY_URL || undefined });
+const { proxyUrl, persona } = await resolveAccountSession(acct);
+const s = await WSession.start({ label: 'instagram_like', proxy: proxyUrl, persona });
+
 try {
-  await s.goto(URL);
-  const result = await execute(s, `Open ${URL}. ${GOAL}`, {
-    envHints: { SVC_EMAIL: process.env.SVC_EMAIL, SVC_PASSWORD: '***' },
-    flowName: 'instagram_like',
-  });
-  console.log('PASS:', result.value);
+  // Cookie-first auth.
+  const stored = (acct.metadata?.cookies ?? []).filter(c => /instagram\.com/.test(c.domain ?? ''));
+  if (!stored.length) { console.log('FAIL: no instagram cookies — login first'); process.exit(1); }
+  await s.ctx.addCookies(stored.map(c => ({ ...c, path: c.path || '/' })));
+
+  await s.page.goto(TARGET_URL, { waitUntil: 'domcontentloaded' });
+  await s.page.waitForTimeout(5000);
+  const url = s.page.url();
+  if (/\/accounts\/login/.test(url)) { console.log(`FAIL: cookies stale, redirected to login (${url})`); process.exit(1); }
+
+  // Open first post: clicking the first <a href*="/p/"> in the feed/explore.
+  const firstPost = s.page.locator('a[href*="/p/"]').filter({ visible: true }).first();
+  await firstPost.waitFor({ state: 'visible' });
+  await firstPost.click();
+  await s.page.waitForTimeout(4000);
+
+  // The like button on a post is <svg aria-label="Like"> wrapped in a clickable
+  // div role=button. After click aria-label becomes "Unlike". Filter to the
+  // primary like (post-level), not comment-level by picking the first visible.
+  const likeBtn = s.page.locator('div[role="button"]:has(svg[aria-label="Like"]), svg[aria-label="Like"]').filter({ visible: true }).first();
+  const unlikeBtn = s.page.locator('svg[aria-label="Unlike"]').filter({ visible: true }).first();
+  const alreadyLiked = await unlikeBtn.count().catch(() => 0);
+  if (alreadyLiked > 0) { console.log('PASS: already liked first post'); process.exit(0); }
+  await likeBtn.waitFor({ state: 'visible' });
+  await likeBtn.click();
+  await s.page.waitForTimeout(2500);
+  const after = await s.page.locator('svg[aria-label="Unlike"]').filter({ visible: true }).count().catch(() => 0);
+  if (after === 0) { console.log('FAIL: clicked Like but no transition to Unlike state'); process.exit(1); }
+  console.log('PASS: liked first post on explore');
 } catch (e) {
   console.log('FAIL:', e.message?.slice(0, 200));
   process.exit(1);
