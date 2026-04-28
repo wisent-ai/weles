@@ -121,8 +121,14 @@ export async function resolveProxy(proxy: string, targetHost?: string): Promise<
     return undefined;
   }
 
+  // Don't gate on balance_usd > 0. The balance is auto-refreshed by the
+  // *_balance.mjs trajectories which themselves break (Oxylabs dashboard
+  // captcha, etc.) — stale 0 balance kicks otherwise-working providers out
+  // of rotation. The credential filter (env vars present + proxy_host set)
+  // is the real liveness check; an empty balance trigger falls through
+  // when the provider 407s on auth.
   const res = await fetch(
-    `${supabaseUrl}/rest/v1/service_credentials?category=eq.proxy&proxy_host=not.is.null&balance_usd=gt.0&select=display_name,proxy_host,proxy_port,api_key_env_var,balance_usd,metadata&order=balance_usd.desc`,
+    `${supabaseUrl}/rest/v1/service_credentials?category=eq.proxy&proxy_host=not.is.null&select=display_name,proxy_host,proxy_port,api_key_env_var,balance_usd,metadata&order=balance_usd.desc.nullslast`,
     { headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` } },
   );
   if (!res.ok) { console.log(`[proxy] Failed to fetch providers: ${res.status}`); return undefined; }
