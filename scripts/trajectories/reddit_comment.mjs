@@ -76,19 +76,39 @@ try {
   }
   banSignal = await detectRedditBanSignals(s.page, s.capturedResponses).catch(() => null);
   if (!postedLocally) throw new Error(`submit did not confirm — body did not appear in page text`);
-  // Verify public visibility — fetch the post.json and walk for our body.
-  // Subreddit spam filters / rate limits can remove the comment within a few
-  // seconds of submit; without this re-check we'd PASS on a removed comment.
+  // Verify public visibility AND persistence. Reddit's anti-spam pattern for
+  // newly-created accounts: comment briefly appears in the public listing,
+  // then the account gets shadowbanned within ~30-60s and the comment +
+  // user profile both vanish. A 12s window catches the transient public
+  // phase and falsely declares PASS. Wait for the FULL shadowban window:
+  // sample the listing every 5s for 60s, AND require the account's about
+  // .json to still return 200 at the end. If account flips to 404 OR the
+  // body disappears from the listing during that window, the comment is
+  // not persistently public.
   const jsonUrl = oldUrl.replace(/\/$/, '') + '.json?limit=500&sort=new';
   let publiclyVisible = false;
-  for (let attempt = 0; attempt < 4 && !publiclyVisible; attempt++) {
-    await s.page.waitForTimeout(3000);
+  let stillVisibleAtEnd = false;
+  // Need realHandle from earlier pre-check; if unset, we can't sanity-check
+  // shadowban here. Re-read.
+  let handle = realHandle;
+  if (!handle) try { const me = await s.page.evaluate(async () => { const r = await fetch('/api/me.json', { credentials: 'include' }); const j = await r.json().catch(() => null); return j?.data?.name ?? null; }); handle = me; } catch { /* skip */ }
+  for (let attempt = 0; attempt < 12; attempt++) {
+    await s.page.waitForTimeout(5000);
     try {
       const r = await fetch(jsonUrl, { headers: { 'User-Agent': 'weles-verify/1.0' } });
       const txt = await r.text();
-      if (txt.includes(COMMENT_BODY)) publiclyVisible = true;
+      const has = txt.includes(COMMENT_BODY);
+      if (has) publiclyVisible = true;
+      stillVisibleAtEnd = has;
     } catch { /* retry */ }
   }
+  // Final shadowban check on the account itself.
+  if (handle) {
+    const finalStatus = await fetch(`https://old.reddit.com/user/${encodeURIComponent(handle)}/about.json`, { headers: { 'User-Agent': 'weles-verify/1.0' } }).then(r => r.status).catch(() => 0);
+    if (finalStatus === 404) { publiclyVisible = false; stillVisibleAtEnd = false; banSignal = { signal: 'shadowbanned', healthy: false, details: { real_handle: handle, reason: 'about.json 404 after submit — Reddit shadowbanned the account during the 60s window' } }; }
+  }
+  // Require persistence at the end of the window, not just transient visibility.
+  publiclyVisible = publiclyVisible && stillVisibleAtEnd;
   // Distinguish subreddit auto-filter (rate_limited, retryable on different
   // sub) from account-level shadowban (permanent). Reddit returns 404 on
   // /user/<handle>/about.json when the account is shadowbanned. Probe the
