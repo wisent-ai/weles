@@ -6,19 +6,24 @@
 interface CapturedResponse { url: string; status: number; }
 
 const WRITE_PATTERNS: Record<string, RegExp> = {
-  twitter: /\/i\/api\/graphql\/[^/]+\/(CreateTweet|CreateNoteTweet|CreateRetweet)/,
-  reddit: /\/svc\/shreddit\/(comment|submit)|\/api\/comment|\/api\/submit/,
-  instagram: /\/api\/v1\/media\/(\d+\/comment|configure|create)|\/graphql\/.+CreateComment/,
-  linkedin: /\/voyager\/api\/(graphql.*createComment|contentcreation\/normShares)/,
-  github: /\/issues\/\d+\/comments|\/repos\/[^/]+\/[^/]+\/issues|\/_render_node\//,
-  discord: /\/api\/v\d+\/channels\/\d+\/messages/,
-  producthunt: /\/frontend\/graphql.*(CreateComment|MakeComment)/,
+  twitter: /\/i\/api\/graphql\/[^/]+\/(CreateTweet|CreateNoteTweet|CreateRetweet|FavoriteTweet|UnfavoriteTweet|CreateRetweet|FollowUser|CreateBookmark)/,
+  reddit: /\/svc\/shreddit\/(comment|submit|vote|subscribe)|\/api\/(comment|submit|vote|subscribe)/,
+  instagram: /\/api\/v1\/media\/(\d+\/(comment|like|save)|configure|create)|\/graphql\/.+(CreateComment|LikeMedia|FollowUser)|\/api\/v1\/friendships\/(create|destroy)/,
+  linkedin: /\/voyager\/api\/(graphql.*(createComment|reactToEntity|inviteV2)|contentcreation\/normShares|relationships\/invitations|growth\/normalizedExpressionsCreation)/,
+  github: /\/issues\/\d+\/comments|\/repos\/[^/]+\/[^/]+\/issues|\/_render_node\/|\/(starred|subscriptions|following|user\/following)\//,
+  discord: /\/api\/v\d+\/channels\/\d+\/messages|\/api\/v\d+\/users\/@me\/relationships|\/api\/v\d+\/invites/,
+  producthunt: /\/frontend\/graphql.*(CreateComment|MakeComment|CreateVote|FollowUser)/,
 };
 
 const WRITE_ACTIONS = new Set([
   'promote', 'comment', 'reply', 'organic_reply', 'organic_comment',
   'submit', 'submit_promote', 'post', 'post_promote',
   'open_issue', 'organic_issue_comment', 'organic_message',
+  // Single-action verbs that DO mutate platform state but were missing
+  // — agent done() on these previously couldn't be verified.
+  'connect', 'endorse', 'react', 'follow', 'like', 'upvote', 'bookmark',
+  'star', 'fork', 'create_repo', 'commit', 'watch_repo', 'join_server',
+  'join_sub', 'react', 'add_friend',
 ]);
 
 export function isWriteAction(action: string): boolean {
