@@ -185,7 +185,12 @@ async function importCreatedAccount(action: string): Promise<{ id: string; usern
 }
 
 async function pauseAccount(accountId: string, signal?: string, hours = 24): Promise<void> {
-  const hard = signal ? ['suspended', 'shadowbanned', 'ip_blocked'].includes(signal) : false;
+  // ip_blocked / proxy_failed are proxy-level signals — the platform refused
+  // the EXIT IP, not the account itself. Burn the proxy, NOT the account.
+  // markBurned at the call site handles proxy rotation; here we just skip the
+  // pauseUntil so the account stays available for the next IP.
+  if (signal === 'ip_blocked' || signal === 'proxy_failed' || signal === 'proxy_auth_failed') return;
+  const hard = signal ? ['suspended', 'shadowbanned'].includes(signal) : false;
   const body: Record<string, unknown> = { paused_until: new Date(Date.now() + hours * 3600_000).toISOString() };
   if (hard) { body.status = 'flagged'; body.is_active = false; }
   await fetch(`${SUPABASE_URL}/rest/v1/social_accounts?id=eq.${accountId}`, { method: 'PATCH', headers: { ...headers(), Prefer: 'return=minimal' }, body: JSON.stringify(body) }).catch(() => {});
