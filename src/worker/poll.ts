@@ -55,6 +55,8 @@ function resolveTrajectory(action: string): string | null {
     story_view: (p) => `scripts/trajectories/${p}/actions/story_view.mjs`, watch_through: (p) => `scripts/trajectories/${p}/actions/watch_through.mjs`,
     bookmark: (p) => `scripts/trajectories/${p}/actions/bookmark.mjs`, save: (p) => `scripts/trajectories/${p}/actions/save.mjs`,
     reset_password: (p) => p === 'github' ? 'scripts/trajectories/github/recover/reset_password.mjs' : `scripts/trajectories/${p}_reset_password.mjs`,
+    // Provider balance probes. iproyal lives under scripts/trajectories/iproyal/balance.mjs because the root folder hit the per-folder file cap; others remain at scripts/trajectories/${p}_balance.mjs (legacy layout).
+    balance: (p) => p === 'iproyal' ? 'scripts/trajectories/iproyal/balance.mjs' : `scripts/trajectories/${p}_balance.mjs`,
   };
   const router = routes[verb];
   return router ? router(plat) : null;
