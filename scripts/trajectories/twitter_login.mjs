@@ -153,7 +153,10 @@ try {
     else if (/ERR_TUNNEL_CONNECTION_FAILED|ERR_PROXY_CONNECTION_FAILED/.test(msg)) sig = 'proxy_failed';
     else if (finalUrl.startsWith('chrome-error://')) sig = 'proxy_failed';
     else if (/account\/access|account_access/.test(finalUrl)) sig = 'suspended';
-    else if (/\/i\/flow\/login\/check|\/account\/locked|\/i\/flow\/(verify|access)/.test(finalUrl)) sig = 'checkpoint';
+    // Any /i/flow/login* (including bare /i/flow/login when the agent stalls
+    // on 2FA / arkose) is cookies-stale: the trajectory got the form rendered
+    // but couldn't push past auth. Same 24h skip as the explicit /check URL.
+    else if (/\/i\/flow\/login|\/account\/locked|\/i\/flow\/(verify|access)/.test(finalUrl)) sig = 'checkpoint';
     (await import('node:fs')).writeFileSync((await import('node:path')).join(dir, 'ban_signal.json'), JSON.stringify({ account_id: acct.id, username: acct.username, action: 'twitter_login', signal: sig, healthy: false, details: { final_url: finalUrl, reason: e.message?.slice(0, 200) ?? 'no message' }, ts: new Date().toISOString() }, null, 2));
     // suspended → deactivate row; checkpoint → mark cookies stale (24h skip).
     if (sig === 'suspended') { const { deactivateAccount } = await import('../../dist/account/state.js'); await deactivateAccount(acct.id, acct.metadata, 'TWITTER_SUSPENDED'); }

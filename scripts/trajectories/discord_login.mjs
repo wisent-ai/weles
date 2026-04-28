@@ -97,8 +97,9 @@ try {
   const passResult = await fillField(passSel, process.env.SVC_PASSWORD);
   console.log(`[login] fill email(${emailSel}): ${JSON.stringify(emailResult)}, password(${passSel}): ${JSON.stringify(passResult)}`);
   await s.wait(1);
-  const { deactivateAccount } = await import('../../dist/account/state.js');
-  const bail = () => { if (s.authBlocked) { deactivateAccount(acct.id, acct.metadata, s.authBlocked).then(() => { console.log(`FAIL: ${acct.username} ${s.authBlocked} (deactivated)`); process.exit(1); }); return true; } if ((s.page.url?.() ?? '').includes('/channels')) { console.log(`PASS: direct login — ${s.page.url()}`); captureCookies().then(() => process.exit(0)); return true; } return false; };
+  let deactivateAccount = async () => {};
+  try { ({ deactivateAccount } = await import('../../dist/account/state.js')); } catch (e) { console.log(`[login] state.js import failed: ${e.message?.slice(0, 100)}`); }
+  const bail = () => { try { if (s.authBlocked) { Promise.resolve(deactivateAccount(acct.id, acct.metadata, s.authBlocked)).then(() => { console.log(`FAIL: ${acct.username} ${s.authBlocked} (deactivated)`); process.exit(1); }).catch(() => process.exit(1)); return true; } if ((s.page?.url?.() ?? '').includes('/channels')) { console.log(`PASS: direct login — ${s.page.url()}`); captureCookies().then(() => process.exit(0)).catch(() => process.exit(0)); return true; } } catch (e) { console.log(`[login] bail err: ${e.message?.slice(0, 100)}`); } return false; };
   for (let attempt = 0; attempt < 5; attempt++) {
     console.log(`[login] Submit attempt ${attempt + 1}`);
     await s.page.locator('button[type="submit"]').click().catch(e => console.log(`[login] click err: ${e.message?.slice(0, 80)}`));

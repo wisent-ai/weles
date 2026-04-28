@@ -108,7 +108,10 @@ try {
   // checkpoint, so the routine cron stops draining the queue against a dead
   // login. Without this, the same account hits /login on every tick forever.
   else if (/^https:\/\/www\.linkedin\.com\/login(\/|\?|$)/.test(finalUrl)) { writeBan('checkpoint', { final_url: finalUrl, reason: 'submit returned to /login — credentials rejected or session_redirect loop' }); const { markCookiesStale } = await import('../../dist/utils/credentials.js'); if (acct.id) await markCookiesStale(acct.id); console.log(`FAIL: linkedin login bounced back — ${finalUrl} (cookies marked stale)`); process.exitCode = 1; }
-  else { writeBan('action_failed', { final_url: finalUrl, reason: 'no li_at cookie present after agent done()' }); console.log(`FAIL: no li_at cookie — ${finalUrl}`); process.exitCode = 1; }
+  // Default: form submitted, no checkpoint URL, no chrome-error, no li_at.
+  // The cookies the trajectory had don't authenticate any more — mark stale
+  // so the routine cron stops re-attempting against this dead account.
+  else { writeBan('checkpoint', { final_url: finalUrl, reason: 'no li_at cookie set after submit' }); const { markCookiesStale } = await import('../../dist/utils/credentials.js'); if (acct.id) await markCookiesStale(acct.id); console.log(`FAIL: no li_at cookie — ${finalUrl} (cookies marked stale)`); process.exitCode = 1; }
 } catch (e) {
   // Classify the catch-tail. ERR_HTTP_RESPONSE_CODE_FAILURE on /login means
   // LinkedIn returned a 4xx/5xx at the page-load itself — fingerprint or IP

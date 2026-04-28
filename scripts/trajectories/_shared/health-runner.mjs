@@ -111,7 +111,18 @@ export async function runHealthProbe(cfg) {
   else if (!extracted.ok && loggedIn.signal?.signal && loggedIn.signal.signal !== 'healthy') signal = loggedIn.signal.signal;
   else if (shadowbanned) signal = 'shadowbanned';
   else if (extracted.ok && outOk) signal = 'healthy';
+  // Trust the platform's banDetector when it returns healthy: extractLoggedIn
+  // may not parse every API response shape (LinkedIn 403 CSRF, Reddit 403
+  // anti-bot on logged-out probe, etc.) but the detector reads the same
+  // capturedResponses and is the authority on platform-side health.
+  else if (loggedIn.signal?.healthy === true) signal = 'healthy';
   else if (cookiesStale) signal = 'checkpoint';
+  // Total network failure: no response captured AND no detector signal.
+  // Classify as proxy_failed instead of opaque unknown so the dashboard
+  // gets an actionable signal.
+  else if (loggedIn.url == null && loggedIn.status == null && !loggedIn.signal) signal = 'proxy_failed';
+  else if (loggedIn.status === 429) signal = 'ratelimited';
+  else if (typeof loggedIn.status === 'number' && loggedIn.status >= 400 && loggedIn.status < 500) signal = 'edge_blocked';
   else signal = 'unknown';
 
   const snapshot = {
