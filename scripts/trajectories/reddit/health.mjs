@@ -40,10 +40,13 @@ try {
   await sIn.close();
 }
 
+// Reddit-assigned username may differ from email prefix; pull from me.json if
+// available (logged-in probe ran first), else fall back to acct.username.
+const realHandle = loggedIn.body?.data?.name ?? loggedIn.body?.name ?? acct.username;
 const loggedOut = { url: null, status: null, body: null };
 const sOut = await WSession.start({ label: 'reddit_health_out', proxy: proxyUrl });
 try {
-  await sOut.goto(`https://www.reddit.com/user/${encodeURIComponent(acct.username)}/about.json`);
+  await sOut.goto(`https://www.reddit.com/user/${encodeURIComponent(realHandle)}/about.json`);
   loggedOut.url = sOut.page.url();
   const aboutResp = sOut.capturedResponses.find(r => /\/user\/.+\/about\.json/.test(r.url));
   if (aboutResp) {
@@ -56,17 +59,25 @@ try {
   await sOut.close();
 }
 
-const inOk = loggedIn.body?.data?.name === acct.username || loggedIn.body?.name === acct.username;
+// Reddit auto-assigns usernames on signup (e.g. "Top_Flight5925tessqu") that
+// don't match the email prefix we stored. /api/me.json returning ANY populated
+// data.name proves cookies authed — that's the only signal we need for inOk.
+const meName = loggedIn.body?.data?.name ?? loggedIn.body?.name ?? null;
+const inOk = !!meName && (loggedIn.status === 200 || loggedIn.status == null);
 const inKarma = loggedIn.body?.data?.total_karma ?? loggedIn.body?.data?.link_karma ?? null;
 const inSuspended = loggedIn.body?.data?.is_suspended === true || loggedIn.body?.is_suspended === true;
-const outOk = loggedOut.status === 200 && (loggedOut.body?.data?.name === acct.username);
+// Reddit returns 403 on anonymous /user/<u>/about.json — that's anti-bot at
+// the edge, not shadowban evidence. Treat any non-200/non-404 as "couldn't
+// determine" so health stays 'healthy' when the logged-in probe authed cleanly.
+const outOk = loggedOut.status === 200 && !!loggedOut.body?.data?.name;
+const outIndeterminate = loggedOut.status !== 200 && loggedOut.status !== 404;
 const shadowbanned = inOk && !outOk && loggedOut.status === 404;
 
 let signal;
 if (inSuspended) signal = 'suspended';
 else if (!inOk && loggedIn.signal?.signal && loggedIn.signal.signal !== 'healthy') signal = loggedIn.signal.signal;
 else if (shadowbanned) signal = 'shadowbanned';
-else if (inOk && outOk) signal = 'healthy';
+else if (inOk && (outOk || outIndeterminate)) signal = 'healthy';
 else signal = 'unknown';
 
 const snapshot = {
