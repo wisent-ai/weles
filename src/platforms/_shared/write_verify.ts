@@ -12,6 +12,7 @@ const WRITE_PATTERNS: Record<string, RegExp> = {
   linkedin: /\/voyager\/api\/(graphql.*(createComment|reactToEntity|inviteV2)|contentcreation\/normShares|relationships\/invitations|growth\/normalizedExpressionsCreation)/,
   github: /\/issues\/\d+\/comments|\/repos\/[^/]+\/[^/]+\/issues|\/_render_node\/|\/(starred|subscriptions|following|user\/following)\//,
   discord: /\/api\/v\d+\/channels\/\d+\/messages|\/api\/v\d+\/users\/@me\/relationships|\/api\/v\d+\/invites/,
+  tiktok: /\/api\/(comment\/publish|commit\/follow_user|commit\/item\/digg|aweme\/v1\/comment\/publish|aweme\/v1\/commit\/user\/follow|video\/like\/save)/,
   producthunt: /\/frontend\/graphql.*(CreateComment|MakeComment|CreateVote|FollowUser)/,
 };
 
