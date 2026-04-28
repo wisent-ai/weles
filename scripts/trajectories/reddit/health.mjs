@@ -78,6 +78,14 @@ if (inSuspended) signal = 'suspended';
 else if (!inOk && loggedIn.signal?.signal && loggedIn.signal.signal !== 'healthy') signal = loggedIn.signal.signal;
 else if (shadowbanned) signal = 'shadowbanned';
 else if (inOk && (outOk || outIndeterminate)) signal = 'healthy';
+// Trust the banDetector when it returns healthy even if /api/me.json returned
+// an unexpected shape — the detector reads the same captured responses and
+// has platform-aware logic the local extractor doesn't.
+else if (loggedIn.signal?.healthy === true) signal = 'healthy';
+// No response captured + no detector signal = proxy CONNECT failed.
+else if (loggedIn.url == null && loggedIn.status == null && !loggedIn.signal) signal = 'proxy_failed';
+else if (loggedIn.status === 429) signal = 'ratelimited';
+else if (typeof loggedIn.status === 'number' && loggedIn.status >= 400 && loggedIn.status < 500) signal = 'edge_blocked';
 else signal = 'unknown';
 
 const snapshot = {
