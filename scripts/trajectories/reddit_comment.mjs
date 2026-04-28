@@ -25,6 +25,21 @@ let banSignal = null;
 try {
   const stored = (acct.metadata?.cookies ?? []).filter(c => /reddit\.com/.test(c.domain ?? ''));
   if (stored.length) await s.ctx.addCookies(stored.map(c => ({ ...c, path: c.path || '/' })));
+  // Pre-check: read our real handle and probe public about.json. If the
+  // account is shadowbanned (about.json → 404), comment will never become
+  // publicly visible regardless of where we post it. Bail early with the
+  // right signal instead of going through the whole submit-then-verify
+  // cycle and reporting rate_limited.
+  await s.page.goto('https://old.reddit.com/api/me.json', { waitUntil: 'domcontentloaded' });
+  await s.page.waitForTimeout(2000);
+  const realHandle = await s.page.evaluate(() => { try { return JSON.parse(document.body?.innerText ?? '{}')?.data?.name ?? null; } catch { return null; } });
+  if (realHandle) {
+    const publicStatus = await fetch(`https://old.reddit.com/user/${encodeURIComponent(realHandle)}/about.json`, { headers: { 'User-Agent': 'weles-verify/1.0' } }).then(r => r.status).catch(() => 0);
+    if (publicStatus === 404) {
+      banSignal = { signal: 'shadowbanned', healthy: false, details: { real_handle: realHandle, reason: 'about.json 404 — account shadowbanned by Reddit' } };
+      throw new Error(`account ${realHandle} is shadowbanned (about.json returns 404) — comment cannot become publicly visible`);
+    }
+  }
   await s.page.goto(oldUrl, { waitUntil: 'domcontentloaded' });
   await s.page.waitForTimeout(3000);
   const url = s.page.url();
@@ -74,11 +89,29 @@ try {
       if (txt.includes(COMMENT_BODY)) publiclyVisible = true;
     } catch { /* retry */ }
   }
-  console.log(`[ban-signal] ${banSignal?.signal}`);
+  // Distinguish subreddit auto-filter (rate_limited, retryable on different
+  // sub) from account-level shadowban (permanent). Reddit returns 404 on
+  // /user/<handle>/about.json when the account is shadowbanned. Probe the
+  // me.json from the session to read our real handle, then check public
+  // visibility — 404 means shadowbanned account.
   if (!publiclyVisible) {
+    let realHandle = null;
+    try {
+      const me = await s.page.evaluate(async () => {
+        const r = await fetch('/api/me.json', { credentials: 'include' });
+        const j = await r.json().catch(() => null);
+        return j?.data?.name ?? null;
+      });
+      realHandle = me;
+    } catch { /* skip */ }
+    if (realHandle) {
+      const publicCheck = await fetch(`https://old.reddit.com/user/${encodeURIComponent(realHandle)}/about.json`, { headers: { 'User-Agent': 'weles-verify/1.0' } }).then(r => r.status).catch(() => 0);
+      if (publicCheck === 404) banSignal = { signal: 'shadowbanned', healthy: false, details: { real_handle: realHandle, reason: 'about.json 404 — account shadowbanned by Reddit' } };
+    }
     banSignal = banSignal ?? { signal: 'rate_limited', healthy: false };
-    throw new Error(`comment removed by subreddit filter — submit fired but body not in public listing after 12s (likely shadowbanned/auto-removed)`);
   }
+  console.log(`[ban-signal] ${banSignal?.signal}`);
+  if (!publiclyVisible) throw new Error(`comment not publicly visible after 12s — ${banSignal.signal === 'shadowbanned' ? 'account shadowbanned by Reddit' : 'subreddit filter removed it'}`);
   console.log(`PASS: commented "${COMMENT_BODY}" on ${oldUrl} (verified public)`);
 } catch (e) {
   banSignal = banSignal ?? await detectRedditBanSignals(s.page, s.capturedResponses).catch(() => null);
