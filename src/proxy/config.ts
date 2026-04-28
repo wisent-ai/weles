@@ -179,7 +179,12 @@ export async function resolveProxy(proxy: string, targetHost?: string): Promise<
     // return 502 "relay offline" for ~40% of sessIds at peak. Trajectories
     // that hit a dead relay should classify as proxy_failed; auto-retry is
     // handled at the worker-pool level (rerun_failed.mjs).
-    for (let attempt = 0; attempt < 3; attempt++) {
+    // Bumped from 3 to 8: with per-platform exit-IP burn, hitting a burned
+    // sticky and rerolling is cheap (4s preflight per attempt, no Chromium
+    // launch). If a provider has half its pool burned for instagram, 3
+    // tries was too few — we'd false-fail the provider and move on while
+    // 5 of its other 7 sticky-session-id slots route to clean exits.
+    for (let attempt = 0; attempt < 8; attempt++) {
       const sessId = Math.floor(Math.random() * 9000000 + 1000000);
       let stickyUser = username, stickyPass = password;
       if (name.includes('oxylabs')) stickyUser = `customer-${username}-cc-${cc}-sessid-${sessId}`;
