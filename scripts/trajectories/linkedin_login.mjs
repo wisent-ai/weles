@@ -127,6 +127,10 @@ try {
   else if (/ERR_TUNNEL_CONNECTION_FAILED|ERR_PROXY_CONNECTION_FAILED/.test(msg)) sig = 'proxy_failed';
   else if (finalUrl.startsWith('chrome-error://')) sig = 'proxy_failed';
   else if (/Timeout|net::ERR_TIMED_OUT/.test(msg)) sig = 'proxy_failed';
+  // Image-selection (hCaptcha tile picker), or any /checkpoint/ landing →
+  // cookies-stale: solve_captcha can't drive these flows. Mark stale so the
+  // routine cron skips this account for 24h instead of looping.
+  else if (/\/(checkpoint|uas\/login|login\/recovery)/.test(finalUrl) || /image-selection|select.*buses|solve_captcha/i.test(msg)) { sig = 'checkpoint'; const { markCookiesStale } = await import('../../dist/utils/credentials.js'); if (acct.id) await markCookiesStale(acct.id); }
   writeBan(sig, { final_url: finalUrl, error: msg.slice(0, 200) });
   console.log('FAIL:', msg.slice(0, 200));
   process.exit(1);
