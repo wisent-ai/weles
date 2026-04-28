@@ -43,8 +43,9 @@ function resolveTrajectory(action: string): string | null {
     promote: (p) => p === 'github' ? 'scripts/trajectories/github/actions/promote.mjs' : `scripts/trajectories/${p}/promote.mjs`,
     register: (p) => p === 'github' || p === 'youtube' ? `scripts/trajectories/${p}/register.mjs` : `scripts/trajectories/${p}_register.mjs`,
     login: (p) => `scripts/trajectories/${p}_login.mjs`, comment: (p) => `scripts/trajectories/${p}_comment.mjs`, dm: (p) => `scripts/trajectories/${p}_dm.mjs`,
-    like: (p) => ['linkedin','tiktok','twitter','instagram'].includes(p) ? `scripts/trajectories/${p}/actions/like.mjs` : `scripts/trajectories/${p}_like.mjs`,
-    follow: (p) => (p === 'reddit' || p === 'tiktok' || p === 'twitter' || p === 'instagram' || p === 'github') ? `scripts/trajectories/${p}/actions/follow.mjs` : `scripts/trajectories/${p}_follow.mjs`,
+    // Twitter + Instagram have deterministic Playwright variants at the root; the platform/actions/ agent-loop variants hit max-iter on X's heart icon. Prefer root variants where the deterministic file exists.
+    like: (p) => p === 'twitter' || p === 'instagram' ? `scripts/trajectories/${p}_like.mjs` : (p === 'linkedin' || p === 'tiktok') ? `scripts/trajectories/${p}/actions/like.mjs` : `scripts/trajectories/${p}_like.mjs`,
+    follow: (p) => p === 'twitter' || p === 'instagram' ? `scripts/trajectories/${p}_follow.mjs` : (p === 'reddit' || p === 'tiktok' || p === 'github') ? `scripts/trajectories/${p}/actions/follow.mjs` : `scripts/trajectories/${p}_follow.mjs`,
     upvote: (p) => p === 'reddit' ? 'scripts/trajectories/reddit/actions/upvote.mjs' : `scripts/trajectories/${p}_upvote.mjs`,
     star: (p) => p === 'github' ? 'scripts/trajectories/github/star/run.mjs' : `scripts/trajectories/${p}_star.mjs`,
     create_repo: (p) => `scripts/trajectories/${p}/content/create_repo.mjs`, commit: (p) => `scripts/trajectories/${p}/content/commit.mjs`, fork: (p) => `scripts/trajectories/${p}/content/fork.mjs`, open_issue: (p) => `scripts/trajectories/${p}/content/open_issue.mjs`,
