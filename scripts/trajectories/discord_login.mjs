@@ -100,13 +100,11 @@ try {
   let deactivateAccount = async () => {};
   try { ({ deactivateAccount } = await import('../../dist/account/state.js')); } catch (e) { console.log(`[login] state.js import failed: ${e.message?.slice(0, 100)}`); }
   const bail = () => { try { if (s.authBlocked) { Promise.resolve(deactivateAccount(acct.id, acct.metadata, s.authBlocked)).then(() => { console.log(`FAIL: ${acct.username} ${s.authBlocked} (deactivated)`); process.exit(1); }).catch(() => process.exit(1)); return true; } if ((s.page?.url?.() ?? '').includes('/channels')) { console.log(`PASS: direct login — ${s.page.url()}`); captureCookies().then(() => process.exit(0)).catch(() => process.exit(0)); return true; } } catch (e) { console.log(`[login] bail err: ${e.message?.slice(0, 100)}`); } return false; };
+  // locator.click on Discord's submit hangs the full default timeout — click registers but its navigation promise never resolves. Skip locator.click; form.requestSubmit fires /api/v9/auth/login directly and populates captchaFormData on the response, which is what every downstream branch needs.
   for (let attempt = 0; attempt < 5; attempt++) {
     console.log(`[login] Submit attempt ${attempt + 1}`);
-    await s.page.locator('button[type="submit"]').click().catch(e => console.log(`[login] click err: ${e.message?.slice(0, 80)}`));
-    await s.wait(2);
-    if (s.captchaResponse || bail()) break;
     await s.page.evaluate('document.querySelector("form")?.requestSubmit()').catch(() => {});
-    await s.wait(2);
+    await s.wait(3);
     if (s.captchaResponse || bail()) break;
   }
   // Solve captcha and resubmit via API (same as registration)
