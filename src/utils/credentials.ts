@@ -1,8 +1,4 @@
-/**
- * Fetch service credentials from the service_credentials Supabase table.
- * Used by proxy, captcha, and email modules instead of hardcoded env var names.
- */
-
+// Fetch service credentials from service_credentials. Used by proxy/captcha/email modules.
 interface ServiceCredential {
   display_name: string;
   category: string;
@@ -111,22 +107,23 @@ export async function getSocialAccount(platform: string): Promise<SocialAccount 
   return lastResortRows[0] ?? null;
 }
 
-/** Mark an account's cookies as stale so getSocialAccount skips it for 24h. */
+/** Mark cookies stale + auto-enqueue {platform}_login to refresh. */
 export async function markCookiesStale(accountId: string): Promise<void> {
   if (!accountId) return;
   const supabaseUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
   if (!supabaseUrl || !supabaseKey) return;
   try {
-    const r = await fetch(`${supabaseUrl}/rest/v1/social_accounts?id=eq.${accountId}&select=metadata`, { headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` } });
+    const r = await fetch(`${supabaseUrl}/rest/v1/social_accounts?id=eq.${accountId}&select=metadata,platform`, { headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` } });
     if (!r.ok) return;
-    const rows = await r.json() as { metadata: Record<string, unknown> | null }[];
+    const rows = await r.json() as { metadata: Record<string, unknown> | null; platform?: string }[];
     const merged = { ...(rows[0]?.metadata ?? {}), cookies_stale_at: new Date().toISOString() };
-    await fetch(`${supabaseUrl}/rest/v1/social_accounts?id=eq.${accountId}`, {
-      method: 'PATCH',
-      headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
-      body: JSON.stringify({ metadata: merged }),
-    });
+    await fetch(`${supabaseUrl}/rest/v1/social_accounts?id=eq.${accountId}`, { method: 'PATCH', headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' }, body: JSON.stringify({ metadata: merged }) });
+    const plat = rows[0]?.platform;
+    if (!plat) return;
+    const since = new Date(Date.now() - 3600_000).toISOString();
+    const recent = await fetch(`${supabaseUrl}/rest/v1/account_action_logs?account_id=eq.${accountId}&action=eq.${plat}_login&scheduled_at=gte.${since}&select=id&limit=1`, { headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` } }).then(r => r.ok ? r.json() : []).catch(() => []);
+    if (Array.isArray(recent) && recent.length === 0) await fetch(`${supabaseUrl}/rest/v1/account_action_logs`, { method: 'POST', headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' }, body: JSON.stringify({ account_id: accountId, platform: plat, action: `${plat}_login`, status: 'queued', params: { reason: 'auto-recovery from cookies-stale' }, scheduled_at: new Date().toISOString() }) });
   } catch { /* noop */ }
 }
 
