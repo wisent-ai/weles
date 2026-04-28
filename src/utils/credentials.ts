@@ -210,9 +210,9 @@ export async function resolveAccountSession(acct: SocialAccount): Promise<Accoun
     // here so the resolver doesn't pick them in the first place.
     //   - oxylabs → linkedin, twitter: ERR_HTTP_RESPONSE_CODE_FAILURE at edge
     //   - packetstream → reddit: account shadowbanned within ~60s of register
-    const PROVIDER_PLATFORM_BLOCK: Record<string, string[]> = { oxylabs: ['linkedin', 'twitter'], packetstream: ['reddit'] };
+    const { isProviderBlockedForPlatform } = await import('../proxy/policy.js');
     const ALL_PROVIDERS = ['oxylabs', 'packetstream', 'pingproxies'];
-    const PROVIDERS = ALL_PROVIDERS.filter(p => !(PROVIDER_PLATFORM_BLOCK[p] ?? []).includes(acct.platform));
+    const PROVIDERS = ALL_PROVIDERS.filter(p => !isProviderBlockedForPlatform(p, acct.platform));
     const OXY_BLOCKED = new Set(['linkedin', 'twitter']); // legacy name kept for downstream conditional
     let hash = 0;
     for (const ch of (acct.id ?? acct.username ?? '')) hash = ((hash << 5) - hash + ch.charCodeAt(0)) | 0;

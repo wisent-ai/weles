@@ -111,7 +111,20 @@ export async function resolveProxy(proxy: string, targetHost?: string): Promise<
 
   if (proxy.startsWith('http://') || proxy.startsWith('https://') || proxy.startsWith('socks')) {
     const u = new URL(proxy);
-    return { server: `${u.protocol}//${u.hostname}:${u.port}`, username: decodeURIComponent(u.username), password: decodeURIComponent(u.password) };
+    // Toxicity policy enforcement on the URL-form path: a caller setting
+    // PROXY_URL=http://...@proxy.packetstream.io:... for a reddit target
+    // would otherwise bypass the per-account block table in credentials.ts.
+    // Derive the provider from the hostname and reject if it's blocked for
+    // the trajectory's target platform. (User explicitly demonstrated this
+    // bypass earlier this session — closing it here.)
+    const { providerFromHost, isProviderBlockedForPlatform } = await import('./policy.js');
+    const platformForBlock = platformFromTarget(targetHost);
+    const provFromUrl = providerFromHost(u.hostname);
+    if (isProviderBlockedForPlatform(provFromUrl, platformForBlock)) {
+      console.log(`[proxy] BLOCKED: PROXY_URL host=${u.hostname} maps to ${provFromUrl}, which is on the toxic list for ${platformForBlock} — refusing to hand out`);
+      return undefined;
+    }
+    return { server: `${u.protocol}//${u.hostname}:${u.port}`, username: decodeURIComponent(u.username), password: decodeURIComponent(u.password), platform: platformForBlock };
   }
 
   const supabaseUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
@@ -169,8 +182,16 @@ export async function resolveProxy(proxy: string, targetHost?: string): Promise<
       continue;
     }
     const { isBurned } = await import('./burned.js');
+    const { isProviderBlockedForPlatform } = await import('./policy.js');
     const name = p.display_name.toLowerCase();
     const cc = (ccOverride ?? p.metadata?.country ?? 'us').toLowerCase();
+    // DB-row policy enforcement: skip providers blocked for the target
+    // platform regardless of how the resolver got here.
+    const provKey = name.includes('packetstream') ? 'packetstream' : name.includes('pingproxies') ? 'pingproxies' : name.includes('oxylabs') ? 'oxylabs' : name.includes('iproyal') ? 'iproyal' : name.includes('bright') ? 'brightdata' : undefined;
+    if (isProviderBlockedForPlatform(provKey, platformFromTarget(targetHost))) {
+      console.log(`[proxy] BLOCKED: ${p.display_name} is on toxic list for ${platformFromTarget(targetHost)} — skipping`);
+      continue;
+    }
     // Try up to 3 sticky sessions per provider — each fresh sessId may
     // resolve the residential gateway to a different exit IP. Skip any
     // host that is in the burned-IP registry. Note: this loop only checks
@@ -207,12 +228,18 @@ export async function resolveProxy(proxy: string, targetHost?: string): Promise<
         const allIps: string[] = await new Promise<string[]>((res, rej) =>
           dns.resolve4(p.proxy_host, (e: any, a: string[]) => e ? rej(e) : res(a)));
         const live = [];
-        for (const ip of allIps) { if (!(await isBurned(ip))) live.push(ip); }
+        // Per-platform isBurned: legacy burns (registry entries written
+        // before 218e2dd) match LB IPs unconditionally with no platform tag,
+        // and would filter out PacketStream entirely on every platform.
+        // Pass the target platform so a burn is only respected for the same
+        // platform — pre-218e2dd entries with platforms=[] become inert.
+        const platformForBurn = platformFromTarget(targetHost);
+        for (const ip of allIps) { if (!(await isBurned(ip, platformForBurn))) live.push(ip); }
         if (live.length === 0) continue;
         host = live[Math.floor(Math.random() * live.length)];
       } catch {
         try { const dns = await import('node:dns'); host = await new Promise<string>((res, rej) => dns.lookup(p.proxy_host, (e: any, a: string) => e ? rej(e) : res(a))); } catch {}
-        if (await isBurned(host)) continue;
+        if (await isBurned(host, platformFromTarget(targetHost))) continue;
       }
       // Pre-flight CONNECT test (~4s timeout): residential providers like
       // PacketStream split exits across truly-residential ISPs (TELUS, Comcast)
