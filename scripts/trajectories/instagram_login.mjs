@@ -56,15 +56,21 @@ try {
   // Direct Playwright form login. Instagram inputs use name=username/password.
   await s.page.goto(URL, { waitUntil: 'domcontentloaded' });
   await s.page.waitForTimeout(2500);
-  const userIn = s.page.locator('input[name="username"], input[aria-label*="username" i]').filter({ visible: true }).first();
-  const pwIn = s.page.locator('input[name="password"], input[type="password"]').filter({ visible: true }).first();
+  // Instagram's actual selector names: email (not username) + pass (not
+  // password). Earlier 'username'/'password' selectors never matched and
+  // every login timed out at 30s before submit.
+  const userIn = s.page.locator('input[name="email"], input[name="username"], input[aria-label*="username" i], input[aria-label*="email" i]').filter({ visible: true }).first();
+  const pwIn = s.page.locator('input[name="pass"], input[name="password"], input[type="password"]').filter({ visible: true }).first();
   await userIn.waitFor({ state: 'visible' });
   await userIn.click();
   await userIn.pressSequentially(process.env.SVC_EMAIL, { delay: 25 });
   await pwIn.click();
   await pwIn.pressSequentially(process.env.SVC_PASSWORD, { delay: 25 });
   await s.page.waitForTimeout(400);
-  await s.page.locator('button[type="submit"]').filter({ visible: true }).first().click();
+  // Instagram's submit is a <div role="button"> with text "Log in" — there
+  // are no <button type="submit"> elements rendered. Match exact text "Log
+  // in" to avoid hitting "Log in with Facebook" instead.
+  await s.page.locator('div[role="button"]').filter({ hasText: /^\s*Log in\s*$/ }).filter({ visible: true }).first().click();
   for (let i = 0; i < 15; i++) {
     await s.page.waitForTimeout(1000);
     if (!/\/accounts\/login\/?$/.test(s.page.url())) break;
