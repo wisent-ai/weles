@@ -201,15 +201,19 @@ export async function resolveAccountSession(acct: SocialAccount): Promise<Accoun
     // to the same provider — keeps the account's exit-IP cohort stable.
     // Country is platform-aware: Discord works on BR, LinkedIn/Reddit/Twitter
     // need US (their bot-detection walls fire on Brazilian residential ranges).
-    // LinkedIn and Twitter aggressively block Oxylabs residential exit IPs at
-    // the edge — login attempts return ERR_HTTP_RESPONSE_CODE_FAILURE before
-    // the page even loads. PacketStream and PingProxies pools haven't been
-    // flagged the same way. Force non-Oxylabs for those platforms; keep the
-    // full deterministic hash for everyone else.
-    const OXY_BLOCKED = new Set(['linkedin', 'twitter']);
-    const PROVIDERS = OXY_BLOCKED.has(acct.platform)
-      ? ['packetstream', 'pingproxies']
-      : ['oxylabs', 'packetstream', 'pingproxies'];
+    // Provider-platform exclusion table. The exit-IP burn registry only fires
+    // on edge-level signals (ip_blocked / proxy_auth_failed); platform-side
+    // shadowbans that happen AFTER a successful connection (Reddit insta-
+    // shadowbans accounts created through PacketStream's residential pool,
+    // returns 200 + cookies, then 404s the user 30s later) never trigger
+    // markBurned. Hardcode the known-poisoned (provider, platform) combos
+    // here so the resolver doesn't pick them in the first place.
+    //   - oxylabs → linkedin, twitter: ERR_HTTP_RESPONSE_CODE_FAILURE at edge
+    //   - packetstream → reddit: account shadowbanned within ~60s of register
+    const PROVIDER_PLATFORM_BLOCK: Record<string, string[]> = { oxylabs: ['linkedin', 'twitter'], packetstream: ['reddit'] };
+    const ALL_PROVIDERS = ['oxylabs', 'packetstream', 'pingproxies'];
+    const PROVIDERS = ALL_PROVIDERS.filter(p => !(PROVIDER_PLATFORM_BLOCK[p] ?? []).includes(acct.platform));
+    const OXY_BLOCKED = new Set(['linkedin', 'twitter']); // legacy name kept for downstream conditional
     let hash = 0;
     for (const ch of (acct.id ?? acct.username ?? '')) hash = ((hash << 5) - hash + ch.charCodeAt(0)) | 0;
     const provider = PROVIDERS[Math.abs(hash) % PROVIDERS.length];
