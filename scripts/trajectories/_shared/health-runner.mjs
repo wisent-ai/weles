@@ -137,10 +137,25 @@ export async function runHealthProbe(cfg) {
   writeFileSync(filePath, JSON.stringify(snapshot, null, 2));
   console.log(`[health:${cfg.platform}] signal=${signal} karma=${extracted.karma} shadowbanned=${shadowbanned}`);
   console.log(`[health:${cfg.platform}] snapshot -> ${filePath}`);
-  // Exit 0 whenever we probed successfully and have an actionable signal —
-  // even 'suspended' / 'shadowbanned' / 'ip_blocked' are valid probe outcomes
-  // the dashboard needs as completed+signaled rows, not as 'failed'. Only
-  // exit 2 when the probe itself couldn't determine state.
+  // Self-heal: when the probe detects checkpoint (cookies stale), enqueue
+  // a {platform}_login row for THIS account so the next worker tick refreshes
+  // cookies. Without this, cookies-stale persists until a manual intervention
+  // — every subsequent routine probe re-reports checkpoint forever.
+  if (signal === 'checkpoint' && acct.id) {
+    try {
+      const url = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
+      const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
+      // Don't re-enqueue if a login was attempted for this account in the
+      // past hour — gives the previous attempt time to land before piling on.
+      const since = new Date(Date.now() - 3600_000).toISOString();
+      const r = await fetch(`${url}/rest/v1/account_action_logs?account_id=eq.${acct.id}&action=eq.${cfg.platform}_login&scheduled_at=gte.${since}&select=id&limit=1`, { headers: { apikey: key, Authorization: `Bearer ${key}` } });
+      const recent = await r.json().catch(() => []);
+      if (Array.isArray(recent) && recent.length === 0) {
+        await fetch(`${url}/rest/v1/account_action_logs`, { method: 'POST', headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' }, body: JSON.stringify({ account_id: acct.id, platform: cfg.platform, action: `${cfg.platform}_login`, status: 'queued', params: { reason: 'auto-recovery from checkpoint health signal' }, scheduled_at: new Date().toISOString() }) });
+        console.log(`[health:${cfg.platform}] auto-enqueued ${cfg.platform}_login for ${acct.username} (cookies stale → recover)`);
+      }
+    } catch (e) { console.log(`[health:${cfg.platform}] auto-recovery enqueue err: ${e.message?.slice(0, 100)}`); }
+  }
   if (signal === 'unknown') process.exitCode = 2;
   return snapshot;
 }
