@@ -7,7 +7,10 @@ export async function detectInstagramBanSignals(
 ): Promise<BanSignal> {
   return detectFromConfig(page, responses, {
     url: {
-      checkpoint: [/\/challenge\//, /\/auth_platform\//, /\/accounts\/disabled/],
+      // /accounts/login means cookies didn't take — action trajectories that
+      // land here interact with a logged-out shell and fail downstream while
+      // the detector has no platform-ban keyword to match. Mark as checkpoint.
+      checkpoint: [/\/challenge\//, /\/auth_platform\//, /\/accounts\/disabled/, /\/accounts\/login/, /\/accounts\/onetap/, /\/accounts\/emailsignup/],
       suspended: [/\/accounts\/suspended/, /\/error\/help/],
     },
     text: {

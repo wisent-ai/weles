@@ -8,12 +8,18 @@ export async function detectDiscordBanSignals(
   return detectFromConfig(page, responses, {
     url: {
       suspended: [/\/disabled/, /\/banned/],
-      checkpoint: [/\/verify/, /\/captcha/],
+      // /login (with or without redirect_to=...) means cookies didn't take —
+      // any action trajectory landing here is operating in a logged-out
+      // session and will fail downstream with the detector reporting healthy
+      // because no platform-ban keyword appears on the login page.
+      checkpoint: [/\/verify/, /\/captcha/, /discord\.com\/login(\?|$|\/)/, /discord\.com\/register(\?|$|\/)/],
     },
     text: {
       suspended: [/your account has been disabled/i, /this account is disabled/i],
       rate_limited: [/you are being rate limited/i, /too many requests/i],
-      checkpoint: [/please verify your account/i, /complete the captcha/i, /confirm.{0,10}email/i],
+      // The Discord login form's "Welcome back!" + "Email or Phone Number" is
+      // the cookies-stale tell when the URL pattern doesn't catch it.
+      checkpoint: [/please verify your account/i, /complete the captcha/i, /confirm.{0,10}email/i, /welcome back!.{0,40}we're so excited/i, /email or phone number/i],
     },
     responseBody: [
       { signal: 'captcha_challenge', urlMatch: /\/api\/v\d+\/auth\//, bodyMatch: /captcha_key|CAPTCHA_REQUIRED|CAPTCHA_INVALID/ },

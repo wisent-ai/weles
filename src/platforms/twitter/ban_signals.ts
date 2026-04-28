@@ -8,7 +8,11 @@ export async function detectTwitterBanSignals(
   return detectFromConfig(page, responses, {
     url: {
       suspended: [/\/account\/access/, /\/suspended/, /\/i\/flow\/account_compromised/],
-      checkpoint: [/\/i\/flow\/login_challenge/, /\/i\/flow\/verify/, /\/account\/verify/],
+      // Any /i/flow/login* (including bare /i/flow/login when the agent
+      // stalls on 2FA / arkose, or session_redirect bounce-back) is a
+      // logged-out wall — mark as checkpoint so action trajectories that
+      // land here are categorized as cookies-stale, not healthy.
+      checkpoint: [/\/i\/flow\/login_challenge/, /\/i\/flow\/login(\?|$|\/)/, /\/i\/flow\/verify/, /\/account\/verify/, /\/login(\?|$|\/)/, /\/i\/flow\/signup/],
     },
     text: {
       suspended: [/your account is suspended/i, /this account doesn'?t exist/i],
