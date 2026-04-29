@@ -1,133 +1,112 @@
 /**
- * Per-trajectory cost tracker. Trajectories accumulate per-service costs as
- * they call captcha/sms/proxy modules; on process exit the tracker writes a
- * cost.json file in recordings/<action>/ that the worker reads and PATCHes
- * into account_action_logs.{cost_usd,service_costs}.
+ * Per-trajectory cost tracker.
  *
- * Pricing source: each provider's public pricing page snapshots taken
- * 2026-04-29 plus values returned by the JuicySMS API at order time.
- * Prices are upper-bound estimates rounded to 4 decimals — a $0 in the DB
- * means no consumer has been wired yet, not that the action was free.
+ * Thin wrapper around @wisent/cost-tracker — the canonical pricing table
+ * and CostTracker class live there. This module preserves weles's original
+ * exit/file-flush behaviour so worker/poll.ts keeps reading
+ * `recordings/_costs/<ACTION_LOG_ID>.json` unchanged. Call sites in
+ * captcha/solver.ts, utils/sms.ts, and session/wsession.ts are unmodified.
+ *
+ * If COST_SUPABASE_URL + COST_SUPABASE_KEY are set, records are also written
+ * to the central cost_records table at flush time. When unset, only the
+ * local file is written.
  */
 
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
+import {
+  CostTracker as SharedCostTracker,
+  PRICES as SHARED_PRICES,
+  SupabaseSink,
+} from '@wisent/cost-tracker';
 
-// Per-task USD prices. Keys match the service name written into service_costs.
-export const PRICES = {
-  capsolver: {
-    recaptcha_v2: 0.0008, recaptcha_v3: 0.001, hcaptcha: 0.0008,
-    funcaptcha: 0.0015, turnstile: 0.0012, default: 0.001,
-  },
-  anticaptcha: {
-    recaptcha_v2: 0.001, recaptcha_v3: 0.001, hcaptcha: 0.001,
-    funcaptcha: 0.002, default: 0.001,
-  },
-  capmonster: {
-    recaptcha_v2: 0.0006, recaptcha_v3: 0.0006, hcaptcha: 0.0006,
-    funcaptcha: 0.0012, default: 0.0006,
-  },
-  twocaptcha: {
-    recaptcha_v2: 0.001, recaptcha_v3: 0.001, hcaptcha: 0.001,
-    funcaptcha: 0.0028, default: 0.001,
-  },
-  nocaptcha: { perimeterx: 0.005, default: 0.005 },
-  // SMS prices vary heavily by service. Caller passes the platform key when
-  // recording. JuicySMS API returns the actual price in the order response;
-  // prefer that value over the table when present.
-  juicysms: {
-    reddit: 0.20, twitter: 0.30, instagram: 0.50,
-    discord: 0.15, tiktok: 0.30, google: 0.30,
-    telegram: 0.15, whatsapp: 0.50, facebook: 0.30,
-    yahoo: 0.15, linkedin: 0.30, default: 0.30,
-  },
-  smsactivate: {
-    reddit: 0.15, twitter: 0.20, instagram: 0.30,
-    discord: 0.10, tiktok: 0.20, google: 0.20, default: 0.20,
-  },
-  // Per-GB residential proxy egress pricing (USD / GB). Datacenter / mobile
-  // override per provider — Oxylabs Mobile is $9/GB, Brightdata zone-dependent.
-  proxy_gb: {
-    brightdata: 8.40, oxylabs: 7.50, oxylabs_mobile: 9.00,
-    packetstream: 1.00, pingproxies: 1.50, iproyal: 7.00,
-    default: 5.00,
-  },
-} as const;
+// Re-export the canonical PRICES table for any in-repo code that read it.
+export const PRICES = SHARED_PRICES;
 
-class CostTracker {
-  private costs: Record<string, number> = {};
+class WelesCostTracker {
+  private inner: SharedCostTracker;
   private flushed = false;
 
-  record(service: string, usd: number): void {
-    if (!service || !Number.isFinite(usd) || usd <= 0) return;
-    this.costs[service] = (this.costs[service] ?? 0) + usd;
+  constructor() {
+    const supabaseUrl = process.env.COST_SUPABASE_URL ?? process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseKey = process.env.COST_SUPABASE_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const agent_id = process.env.ACTION_LOG_ID ?? `weles-${process.pid}`;
+    // We use 'memory' sink internally and add Supabase persistence ourselves
+    // in flush(); this lets us write the legacy recordings/_costs file and
+    // the central table in one shot.
+    this.inner = new SharedCostTracker({
+      agent_id,
+      reference_id: process.env.ACTION_LOG_ID,
+      sink: 'memory',
+      autoFlush: false,
+    });
+    // Save Supabase config for flush(). Don't fail if creds are missing —
+    // CI / dev environments without Supabase still get the local file.
+    if (supabaseUrl && supabaseKey) {
+      this._supabase = new SupabaseSink({ url: supabaseUrl, key: supabaseKey });
+    }
+    // Auto-flush on process exit.
+    process.on('beforeExit', () => { void this.flush(); });
+    process.on('SIGINT', () => { void this.flush().finally(() => process.exit(130)); });
+    process.on('SIGTERM', () => { void this.flush().finally(() => process.exit(143)); });
   }
 
-  recordCaptcha(service: keyof typeof PRICES, taskType: string, override?: number): void {
-    const table = (PRICES as any)[service] as Record<string, number> | undefined;
-    const price = override ?? table?.[taskType] ?? table?.default ?? 0.001;
-    this.record(service, price);
+  private _supabase: SupabaseSink | null = null;
+
+  // Legacy weles API surface — call sites in solver.ts, sms.ts, wsession.ts
+  // expect these exact method shapes.
+  record(service: string, usd: number): void {
+    if (!service || !Number.isFinite(usd) || usd <= 0) return;
+    this.inner.record({ service, usage_type: 'units', usage_amount: 1, cost_usd: usd });
+  }
+
+  recordCaptcha(service: keyof typeof SHARED_PRICES.captcha, taskType: string, override?: number): void {
+    this.inner.recordCaptcha(String(service), taskType, override);
   }
 
   recordSms(provider: 'juicysms' | 'smsactivate', service: string, override?: number): void {
-    const table = PRICES[provider] as Record<string, number>;
-    const price = override ?? table[service.toLowerCase()] ?? table.default;
-    this.record(provider, price);
+    this.inner.recordSms(provider, service, override);
   }
 
-  /**
-   * Record proxy egress. bytes is total bytes consumed via the upstream
-   * provider. provider matches the row key ('brightdata', 'oxylabs',
-   * 'packetstream', 'pingproxies', 'iproyal'). Cost is rounded to 4dp.
-   */
   recordProxyBytes(provider: string, bytes: number, isMobile = false): void {
     if (!provider || bytes <= 0) return;
-    const key = isMobile && provider === 'oxylabs' ? 'oxylabs_mobile' : provider;
-    const perGb = (PRICES.proxy_gb as Record<string, number>)[key] ?? PRICES.proxy_gb.default;
-    const gb = bytes / (1024 * 1024 * 1024);
-    const cost = Math.round(gb * perGb * 10000) / 10000;
-    if (cost > 0) this.record(`proxy_${provider}${isMobile ? '_mobile' : ''}`, cost);
+    this.inner.recordProxyBytes(provider, bytes, isMobile);
   }
 
-  total(): number {
-    return Math.round(Object.values(this.costs).reduce((a, b) => a + b, 0) * 10000) / 10000;
+  recordLlm(model: string, inputTokens: number, outputTokens: number, override?: number): void {
+    this.inner.recordLlm(model, inputTokens, outputTokens, override);
   }
+
+  total(): number { return this.inner.total(); }
 
   snapshot(): { cost_usd: number; service_costs: Record<string, number> } {
-    const service_costs: Record<string, number> = {};
-    for (const [k, v] of Object.entries(this.costs)) service_costs[k] = Math.round(v * 10000) / 10000;
-    return { cost_usd: this.total(), service_costs };
+    const s = this.inner.snapshot();
+    return { cost_usd: s.cost_usd, service_costs: s.service_costs };
   }
 
+  /** Writes recordings/_costs/<ACTION_LOG_ID>.json (legacy worker contract)
+   *  AND, if Supabase creds are set, posts records to cost_records. */
   async flush(): Promise<void> {
     if (this.flushed) return;
     this.flushed = true;
-    // Worker sets ACTION_LOG_ID + the trajectory file path is implied by
-    // recordings/<action>/. We don't have action name reliably from env, so
-    // write to a stable location keyed by ACTION_LOG_ID — worker matches by id.
+    const snap = this.inner.snapshot();
+    if (snap.records.length === 0) return;
+
     const id = process.env.ACTION_LOG_ID;
-    if (!id) return;
-    if (Object.keys(this.costs).length === 0) return;
-    const path = join(process.cwd(), 'recordings', '_costs', `${id}.json`);
-    try {
-      await mkdir(dirname(path), { recursive: true });
-      await writeFile(path, JSON.stringify(this.snapshot()));
-    } catch { /* noop — best-effort */ }
+    if (id) {
+      const path = join(process.cwd(), 'recordings', '_costs', `${id}.json`);
+      try {
+        await mkdir(dirname(path), { recursive: true });
+        await writeFile(path, JSON.stringify({ cost_usd: snap.cost_usd, service_costs: snap.service_costs }));
+      } catch { /* best-effort */ }
+    }
+
+    if (this._supabase) {
+      try { await this._supabase.write(snap.records); } catch (e: any) {
+        console.log(`[cost] Supabase flush err: ${e.message?.slice(0, 120)}`);
+      }
+    }
   }
 }
 
-export const costTracker = new CostTracker();
-
-// Auto-flush on process exit. beforeExit fires for normal exits (event loop
-// drained); exit fires synchronously and can't await, so we use beforeExit.
-let exitHooked = false;
-function ensureExitHook(): void {
-  if (exitHooked) return;
-  exitHooked = true;
-  process.on('beforeExit', () => { void costTracker.flush(); });
-  // SIGINT / SIGTERM — write best-effort sync version. We write through the
-  // async path; if the process is being killed we'll lose data, acceptable.
-  process.on('SIGINT', () => { void costTracker.flush().finally(() => process.exit(130)); });
-  process.on('SIGTERM', () => { void costTracker.flush().finally(() => process.exit(143)); });
-}
-ensureExitHook();
+export const costTracker = new WelesCostTracker();
