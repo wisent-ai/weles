@@ -163,7 +163,10 @@ export async function resolveProxy(proxy: string, targetHost?: string): Promise<
   // Allow explicit provider name targeting (e.g. 'pingproxies', 'packetstream', 'oxylabs')
   const KNOWN_PROVIDERS = ['oxylabs', 'packetstream', 'pingproxies', 'iproyal', 'brightdata'];
   const explicit = KNOWN_PROVIDERS.find(n => typeFilter.includes(n));
-  if (explicit) filtered = filtered.filter(p => p.display_name.toLowerCase().includes(explicit));
+  if (explicit) {
+    // Strip spaces / underscores from display_name so 'brightdata' matches 'Bright Data'.
+    filtered = filtered.filter(p => p.display_name.toLowerCase().replace(/[\s_-]+/g, '').includes(explicit));
+  }
 
   // Shuffle so each call rotates across providers instead of always picking highest balance.
   // Important for sites (e.g. TikTok) that rate-limit per-provider IP pool rather than per-IP.

@@ -174,8 +174,24 @@ export async function resolveAccountSession(acct: SocialAccount): Promise<Accoun
   }
 
   if (meta?.proxy?.host && meta?.proxy?.port && !(await isBurned(meta.proxy.host))) {
-    const refreshed = await refreshStickyIfDead(meta.proxy as ProxyConfig);
-    if (refreshed) { cfg = refreshed; if (refreshed !== meta.proxy) await backfillProxy(acct, refreshed); }
+    // Reject stored proxies whose hostname doesn't match a known residential
+    // provider AND whose username matches the legacy `lbartoszcze` weles relay
+    // pattern. Verified 2026-04-29 with brendawatsica187648: stored proxy
+    // 209.38.175.3:31112 (Digital Ocean datacenter, decommissioned weles
+    // relay) made TikTok serve a stripped-down page (no <button> elements
+    // rendered, page size 537 bytes). With dynamic provider selection
+    // (BrightData residential), the same trajectory rendered the full page
+    // and found the follow button. Same account, same session, same persona
+    // — only the proxy changed.
+    const { providerFromHost } = await import('../proxy/policy.js');
+    const storedProvider = providerFromHost(meta.proxy.host as string);
+    const isLegacyRelay = !storedProvider && (meta.proxy.username === 'lbartoszcze' || /^209\.38\./.test(meta.proxy.host as string));
+    if (isLegacyRelay) {
+      console.log(`[identity] dropping stored legacy/datacenter proxy ${meta.proxy.host}:${meta.proxy.port} — falling through to provider selection`);
+    } else {
+      const refreshed = await refreshStickyIfDead(meta.proxy as ProxyConfig);
+      if (refreshed) { cfg = refreshed; if (refreshed !== meta.proxy) await backfillProxy(acct, refreshed); }
+    }
   } else if (meta?.proxy?.server) {
     // Legacy shape from the old Python signup path: { server, username, password }.
     // Convert in place — parsed URL gives host/port/protocol.
@@ -211,7 +227,7 @@ export async function resolveAccountSession(acct: SocialAccount): Promise<Accoun
     //   - oxylabs → linkedin, twitter: ERR_HTTP_RESPONSE_CODE_FAILURE at edge
     //   - packetstream → reddit: account shadowbanned within ~60s of register
     const { isProviderBlockedForPlatform } = await import('../proxy/policy.js');
-    const ALL_PROVIDERS = ['oxylabs', 'packetstream', 'pingproxies'];
+    const ALL_PROVIDERS = ['oxylabs', 'packetstream', 'pingproxies', 'brightdata'];
     const PROVIDERS = ALL_PROVIDERS.filter(p => !isProviderBlockedForPlatform(p, acct.platform));
     const OXY_BLOCKED = new Set(['linkedin', 'twitter']); // legacy name kept for downstream conditional
     let hash = 0;

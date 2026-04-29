@@ -71,6 +71,35 @@ export async function humanMove(page: MousePage, x: number, y: number, startX?: 
   await page.mouse.move(x, y);
 }
 
+/**
+ * Locator-aware humanized click — the atom for "click this element".
+ *
+ * Resolves the element's bounding box, picks a small random offset inside it
+ * (humans don't always click dead-center), then dispatches a real Bezier-pathed
+ * mouse move + click. Falls back gracefully to the locator's native .click()
+ * if the bbox is unavailable (e.g. element off-screen / detached).
+ *
+ * Use this anywhere a trajectory needs to click an element. Do NOT call
+ * `locator.click()` directly (skips humanMove pre-trajectory) and do NOT
+ * call `page.evaluate(() => el.click())` (synthetic click, no mouse events
+ * reach the page — Reddit/Twitter/Instagram behavioral trackers flag
+ * accounts whose action click has no preceding pointer activity, which
+ * triggers post-action shadowbans even when the static fingerprint is clean).
+ */
+export async function humanClickLocator(page: any, locator: any): Promise<void> {
+  await locator.scrollIntoViewIfNeeded?.().catch(() => {});
+  const box = await locator.boundingBox?.().catch(() => null);
+  if (!box) {
+    await locator.click();
+    return;
+  }
+  const padX = Math.max(2, Math.floor(box.width * 0.15));
+  const padY = Math.max(2, Math.floor(box.height * 0.15));
+  const tx = box.x + padX + Math.floor(Math.random() * Math.max(1, box.width - padX * 2));
+  const ty = box.y + padY + Math.floor(Math.random() * Math.max(1, box.height - padY * 2));
+  await humanClick(page as MousePage, tx, ty);
+}
+
 export async function humanClick(page: MousePage, x: number, y: number, startX?: number, startY?: number): Promise<void> {
   try {
     await humanMove(page, x, y, startX, startY);
