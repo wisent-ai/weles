@@ -1,4 +1,37 @@
-// Capsolver topup. Inherits the login blocker from capsolver/balance.mjs —
-// Cloudflare Turnstile rejects our session at the Google SSO click.
-console.log('FAIL: Capsolver topup blocked at login. Cloudflare Turnstile validates server-side and rejects our session\'s click on the Google button. Resolve capsolver/balance.mjs first; this trajectory inherits the same blocker.');
-process.exit(1);
+// Capsolver topup via Google SSO popup + consent click. Dry-run by default.
+import { WSession } from '../../../dist/session/wsession.js';
+import { googleSso, getGoogleSsoCreds } from '../_shared/services/google_sso.mjs';
+import { topupOpts, dryRunExit } from '../_shared/services/topup_common.mjs';
+
+const { usd, confirm } = topupOpts();
+const login = await getGoogleSsoCreds();
+if (!login) { console.log('FAIL: no Google SSO creds'); process.exit(1); }
+
+const s = await WSession.start({ label: 'capsolver_topup', browser: 'chromium' });
+try {
+  await s.goto('https://dashboard.capsolver.com/passport/login');
+  await s.page.waitForTimeout(8000);
+  const popupPromise = s.page.waitForEvent('popup').catch(() => null);
+  await s.page.locator('button:has-text("Sign In With Google")').filter({ visible: true }).first().click();
+  const popup = await Promise.race([popupPromise, new Promise(r => setTimeout(() => r(null), 15000))]);
+  if (!popup) { console.log('FAIL: popup did not open'); process.exit(1); }
+  await popup.waitForLoadState('domcontentloaded').catch(() => {});
+  const ok = await googleSso(s, login, { originHost: 'capsolver.com', page: popup });
+  if (!ok) { console.log('FAIL: Google SSO did not complete'); process.exit(1); }
+
+  for (let i = 0; i < 60; i++) { await s.page.waitForTimeout(1000); if (!/\/passport\/login/.test(s.page.url())) break; }
+
+  // Capsolver's recharge page.
+  await s.page.goto('https://dashboard.capsolver.com/dashboard/recharge', { waitUntil: 'domcontentloaded' }).catch(() => {});
+  await s.page.waitForTimeout(5000);
+
+  const amtIn = s.page.locator('input[type="number"], input[name*="amount" i], input[inputmode="numeric"]').filter({ visible: true }).first();
+  if (await amtIn.isVisible().catch(() => false)) { await amtIn.click(); await amtIn.fill(String(usd)); console.log(`[trajectory] amount filled: $${usd}`); }
+
+  if (!confirm) { await dryRunExit(s, 'capsolver', usd); process.exit(0); }
+  console.log('FAIL: TOPUP_CONFIRM=1 not yet wired through Capsolver checkout. Stop here for safety.');
+  process.exit(1);
+} catch (e) {
+  console.log('FAIL:', e.message?.slice(0, 200));
+  process.exit(1);
+} finally { await s.close(); }
