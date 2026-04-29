@@ -24,9 +24,22 @@ try {
   const url = s.page.url();
   if (/\/i\/flow\/login/.test(url)) { console.log(`FAIL: cookies stale, redirected to login (${url})`); process.exit(1); }
 
-  // Twitter like button: data-testid="like" (unliked) or "unlike" (already liked)
-  const likeBtn = s.page.locator('[data-testid="like"]').filter({ visible: true }).first();
-  await likeBtn.waitFor({ state: 'visible' });
+  // The /home timeline can be empty for very-new accounts whose For-You
+  // algorithm hasn't been built yet — Twitter shows the compose box and
+  // sidebar but no cellInnerDiv tweets. Detect this and fall through to
+  // a populated profile timeline (elonmusk's). Verified 2026-04-29 with
+  // eddiekeeling2594: /home cellInnerDiv count=0, /elonmusk has 20+
+  // visible tweets within 5s.
+  let likeBtn = s.page.locator('[data-testid="like"]').filter({ visible: true }).first();
+  let hasLikeBtn = await likeBtn.waitFor({ state: 'visible', timeout: 8000 }).then(() => true).catch(() => false);
+  if (!hasLikeBtn) {
+    console.log('[trajectory] /home empty — falling to /elonmusk timeline');
+    await s.page.goto('https://x.com/elonmusk', { waitUntil: 'domcontentloaded' });
+    await s.page.waitForTimeout(4000);
+    likeBtn = s.page.locator('[data-testid="like"]').filter({ visible: true }).first();
+    hasLikeBtn = await likeBtn.waitFor({ state: 'visible', timeout: 30000 }).then(() => true).catch(() => false);
+    if (!hasLikeBtn) { console.log('FAIL: no like button visible on either /home or /elonmusk'); process.exit(1); }
+  }
   await likeBtn.scrollIntoViewIfNeeded();
   await humanClickLocator(s.page, likeBtn);
   await s.page.waitForTimeout(2000);
@@ -34,7 +47,7 @@ try {
   const unlikeBtn = s.page.locator('[data-testid="unlike"]').first();
   const ok = await unlikeBtn.isVisible().catch(() => false);
   if (!ok) { console.log('FAIL: clicked like but no unlike state — likely shadowbanned or rate-limited'); process.exit(1); }
-  console.log('PASS: liked first tweet on home timeline');
+  console.log('PASS: liked tweet');
 } catch (e) {
   console.log('FAIL:', e.message?.slice(0, 200));
   process.exit(1);
