@@ -5,6 +5,8 @@ import { detectGitHubBanSignals } from '../../../../dist/platforms/github/ban_si
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { checkReachable } from '../../_shared/action-runner.mjs';
+import { humanFill } from '../../../../dist/human/keyboard.js';
+import { humanClickLocator } from '../../../../dist/human/mouse.js';
 
 const REPO_URL = process.env.REPO_URL || '';
 const ISSUE_TITLE = (process.env.ISSUE_TITLE || 'question about usage').slice(0, 250);
@@ -40,26 +42,24 @@ try {
   // isTrusted=true (see docs/DETECTION_ANTIPATTERNS.md §1).
   const blankLoc = s.page.locator('a:has-text("Open a blank issue")').first();
   const hasBlank = (await blankLoc.count()) > 0;
-  if (hasBlank) await blankLoc.click().catch(() => {});
+  if (hasBlank) await humanClickLocator(s.page, blankLoc).catch(() => {});
   const blankClicked = { clicked: hasBlank, onForm: !!(await s.page.locator('input[name="issue[title]"]').count()) };
   console.log(`[open_issue] blank_picker: ${JSON.stringify(blankClicked)}`);
   await s.page.waitForTimeout(3000);
 
-  const fill = await s.page.evaluate((data) => {
-    // GitHub's React-based new-issue form uses different selectors than the
-    // classic Rails form. Try both: classic (input[name="issue[title]"])
-    // for older repos, then React (aria-label="Add a title", placeholder,
-    // textarea[name="description"]) for the modern Issues UI.
-    const title = document.querySelector('input[name="issue[title]"], input#issue_title, input[aria-label="Add a title"], input[placeholder="Title"]');
-    const body = document.querySelector('textarea[name="issue[body]"], textarea#issue_body, textarea[name="description"], textarea[aria-label="Markdown value"], textarea[placeholder*="description"]');
-    const sText = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
-    const sTextArea = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set;
-    if (!title || !body) return { ok: false, hasTitle: !!title, hasBody: !!body };
-    sText.call(title, data.title); title.dispatchEvent(new Event('input', { bubbles: true }));
-    sTextArea.call(body, data.body); body.dispatchEvent(new Event('input', { bubbles: true }));
-    return { ok: true, titleLen: title.value.length, bodyLen: body.value.length };
-  }, { title: ISSUE_TITLE, body: ISSUE_BODY });
-  console.log(`[open_issue] fill: ${JSON.stringify(fill)}`);
+  // Humanized title+body fill — bare descriptor.set + dispatch('input')
+  // bypassed all keystrokes which github's spam-ML reads.
+  const titleLoc = s.page.locator('input[name="issue[title]"], input#issue_title, input[aria-label="Add a title"], input[placeholder="Title"]').filter({ visible: true }).first();
+  const bodyLoc = s.page.locator('textarea[name="issue[body]"], textarea#issue_body, textarea[name="description"], textarea[aria-label="Markdown value"], textarea[placeholder*="description"]').filter({ visible: true }).first();
+  const hasTitle = await titleLoc.count();
+  const hasBody = await bodyLoc.count();
+  if (!hasTitle || !hasBody) {
+    console.log(`[open_issue] fill: ${JSON.stringify({ ok: false, hasTitle, hasBody })}`);
+    throw new Error('issue_form_not_found');
+  }
+  await humanFill(s.page, titleLoc, ISSUE_TITLE);
+  await humanFill(s.page, bodyLoc, ISSUE_BODY);
+  console.log(`[open_issue] fill: ok title=${ISSUE_TITLE.length}c body=${ISSUE_BODY.length}c`);
   await s.page.waitForTimeout(2000);
 
   // Title + body were already filled programmatically above. Ask the agent only

@@ -1,5 +1,6 @@
 import { getSocialAccount } from '../../dist/utils/credentials.js';
 import { WSession } from '../../dist/session/wsession.js';
+import { humanClickLocator } from '../../dist/human/mouse.js';
 
 const TARGET = process.env.GITHUB_STAR_TARGET ?? 'https://github.com/anthropics/claude-code';
 
@@ -63,7 +64,7 @@ try {
   const starLoc = s.page.locator('form[action$="/star"]:visible button[type="submit"]').first();
   let clicked;
   if (await starLoc.count()) {
-    await starLoc.click().catch(() => {});
+    await humanClickLocator(s.page, starLoc).catch(() => {});
     clicked = { clicked: true, via: 'form-button' };
   } else {
     const formSubmit = await s.page.evaluate(`(() => { const f = document.querySelector('form[action$="/star"]'); if (f) { f.requestSubmit?.(); return true; } return false; })()`).catch(() => false);

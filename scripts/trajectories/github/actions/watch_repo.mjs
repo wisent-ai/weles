@@ -5,6 +5,7 @@ import { detectGitHubBanSignals } from '../../../../dist/platforms/github/ban_si
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { checkReachable } from '../../_shared/action-runner.mjs';
+import { humanClickLocator } from '../../../../dist/human/mouse.js';
 
 const REPO_URL_RAW = process.env.REPO_URL || process.env.TARGET_URL || '';
 const SEARCH_QUERY = process.env.SEARCH_QUERY || '';
@@ -38,7 +39,7 @@ try {
   // from the dropdown.
   if (!repoUrl) {
     const firstRepoLink = s.page.locator('a[href^="/"]').filter({ hasText: /\// }).filter({ visible: true }).first();
-    await firstRepoLink.click();
+    await humanClickLocator(s.page, firstRepoLink);
     await s.page.waitForLoadState('domcontentloaded');
     await s.page.waitForTimeout(2000);
   }
@@ -52,9 +53,9 @@ try {
     console.log(`PASS: already watching (${ariaBefore})`);
     ban = await detectGitHubBanSignals(s.page, s.capturedResponses).catch(() => null);
   } else {
-    await watchBtn.click();
+    await humanClickLocator(s.page, watchBtn);
     await s.page.waitForTimeout(1500);
-    await s.page.locator('label, button').filter({ hasText: /Participating and @mentions/ }).filter({ visible: true }).first().click();
+    await humanClickLocator(s.page, s.page.locator('label, button').filter({ hasText: /Participating and @mentions/ }).filter({ visible: true }).first());
     await s.page.waitForTimeout(2500);
     const ariaAfter = await s.page.locator('button[aria-label^="Watch"]').first().getAttribute('aria-label').catch(() => null);
     ban = await detectGitHubBanSignals(s.page, s.capturedResponses).catch(() => null);

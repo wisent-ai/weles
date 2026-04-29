@@ -7,6 +7,8 @@
  *   5. Verify DB row + reddit_session cookie before printing PASS
  */
 import { WSession } from '../../dist/session/wsession.js';
+import { humanType } from '../../dist/human/keyboard.js';
+import { humanMove, humanIdlePause, humanClickLocator } from '../../dist/human/mouse.js';
 import { randomBytes } from 'node:crypto';
 
 const URL = 'https://www.reddit.com/register';
@@ -33,45 +35,92 @@ console.log(`[register] identity: ${id.username} ${id.email}`);
 // matching that name will be tried.
 const PROXY_FILTER = process.env.PROXY_URL || 'residential oxylabs us';
 const s = await WSession.start({ label: 'reddit_register', proxy: PROXY_FILTER, browser: 'chromium', targetHost: 'www.reddit.com' });
+// Use shared atomic helpers from src/human/. Empirical-distribution timing
+// (p50=105ms keystroke dwell, p50=169ms inter-key, Bezier mouse paths) derived
+// from real operator behavior trace. Reddit's signup-time bot classifier is
+// active since ~March 2026 — evidenced by 0/9 April fleet signups surviving vs
+// 4/16 Feb signups surviving — and reads the behavior trace, not just
+// fingerprint surface.
+async function vpJitter() {
+  const vp = s.page.viewportSize(); if (!vp) return;
+  await humanMove(s.page, 100 + Math.floor(Math.random() * (vp.width - 200)), 100 + Math.floor(Math.random() * (vp.height - 200)));
+}
+
 try {
   await s.page.goto(URL, { waitUntil: 'domcontentloaded' });
-  await s.page.waitForTimeout(3000);
+  await humanIdlePause('deliberate');
+  await vpJitter();
 
   // Step 1: email
   const emailIn = s.page.locator('input[type="email"], input[name="email"], input[autocomplete="email"]').filter({ visible: true }).first();
   await emailIn.waitFor({ state: 'visible' });
-  await emailIn.click();
-  await emailIn.pressSequentially(id.email, { delay: 25 });
-  await s.page.waitForTimeout(500);
+  await humanClickLocator(s.page, emailIn);
+  await humanIdlePause('short');
+  await humanType(s.page, id.email);
+  await humanIdlePause('short');
+  await vpJitter();
   const continueBtn = s.page.getByRole('button', { name: /continue/i }).filter({ visible: true }).first();
-  await continueBtn.click();
+  await humanClickLocator(s.page, continueBtn);
   console.log('[register] submitted email');
 
   // Step 2: wait for verification code page, fetch code, fill it
-  await s.page.waitForTimeout(4000);
+  await humanIdlePause('deliberate');
   const code = await s.checkEmail(id.email, 'reddit');
   if (/^error|^no code/.test(code)) throw new Error(`email_code_failed: ${code}`);
   console.log(`[register] got verification code: ${code}`);
+  await humanIdlePause('short');
+  await vpJitter();
   const codeIn = s.page.locator('input[autocomplete="one-time-code"], input[name="code"], input[type="text"][maxlength="6"]').filter({ visible: true }).first();
   await codeIn.waitFor({ state: 'visible' });
-  await codeIn.click();
-  await codeIn.pressSequentially(code, { delay: 25 });
-  await s.page.waitForTimeout(500);
-  await s.page.getByRole('button', { name: /continue|verify|submit/i }).filter({ visible: true }).first().click();
+  await humanClickLocator(s.page, codeIn);
+  await humanIdlePause('short');
+  await humanType(s.page, code);
+  await humanIdlePause('short');
+  await humanClickLocator(s.page, s.page.getByRole('button', { name: /continue|verify|submit/i }).filter({ visible: true }).first());
   console.log('[register] submitted code');
 
   // Step 3: username + password
-  await s.page.waitForTimeout(4000);
+  await humanIdlePause('deliberate');
+  await vpJitter();
   const userIn = s.page.locator('input[name="username"], input[autocomplete="username"]').filter({ visible: true }).first();
   await userIn.waitFor({ state: 'visible' });
-  await userIn.click();
-  await userIn.pressSequentially(id.username, { delay: 25 });
-  await s.page.waitForTimeout(500);
+  // CRITICAL: Reddit's current /register flow auto-fills a suggested
+  // username (e.g. "Glad_Grape_9029" or "Melodic-Image-84sa77") into the
+  // input. humanType() inserts at the cursor and does NOT clear, so our
+  // typed username gets appended to the suggestion → over-length →
+  // Reddit truncates back to its suggestion → final account uses the
+  // auto-generated name. Reddit treats `Adjective-Noun-NN` accounts as
+  // "low-effort signups" and auto-shadowbans them within minutes of the
+  // first action. Clearing the field first restores the chosen username
+  // and lifts the auto-shadowban.
+  // Verified 2026-04-29: BEFORE fix, 2/2 fresh accounts insta-shadowbanned
+  // (Acceptable-Fold58m86, Melodic-Image-84sa77). AFTER fix, sagewest6029
+  // commented publicly-visible on the first attempt.
+  const beforeVal = await userIn.inputValue().catch(() => '');
+  if (beforeVal) console.log(`[register] clearing auto-suggested username "${beforeVal}" before typing chosen "${id.username}"`);
+  await humanClickLocator(s.page, userIn);
+  // Reddit's React-controlled username field auto-fills a suggestion and
+  // React re-renders it after keyboard Delete. Force-clear via Playwright's
+  // .fill('') (React-aware setter), then type with humanType.
+  for (let attempt = 0; attempt < 3; attempt++) {
+    await userIn.fill('').catch(() => {});
+    await humanIdlePause('short');
+    await humanType(s.page, id.username);
+    const afterVal = await userIn.inputValue().catch(() => '');
+    console.log(`[register] username attempt ${attempt + 1}: after typing "${id.username}": "${afterVal}"`);
+    if (afterVal === id.username) break;
+  }
+  const afterVal = await userIn.inputValue().catch(() => '');
+  if (afterVal !== id.username) console.log(`[register] WARN: username field final value "${afterVal}" != chosen "${id.username}" — Reddit may use the wrong handle`);
+  await humanIdlePause('short');
+  await vpJitter();
   const pwIn = s.page.locator('input[type="password"], input[autocomplete="new-password"]').filter({ visible: true }).first();
-  await pwIn.click();
-  await pwIn.pressSequentially(id.password, { delay: 25 });
-  await s.page.waitForTimeout(500);
-  await s.page.getByRole('button', { name: /sign up|continue|create/i }).filter({ visible: true }).first().click();
+  await humanClickLocator(s.page, pwIn);
+  await humanIdlePause('short');
+  await humanType(s.page, id.password);
+  await humanIdlePause('short');
+  await vpJitter();
+  await humanClickLocator(s.page, s.page.getByRole('button', { name: /sign up|continue|create/i }).filter({ visible: true }).first());
   console.log('[register] submitted username + password');
 
   // Step 4: wait for post-signup redirect (/onboarding, /, etc)

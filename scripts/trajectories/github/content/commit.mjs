@@ -5,6 +5,8 @@ import { detectGitHubBanSignals } from '../../../../dist/platforms/github/ban_si
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { checkReachable } from '../../_shared/action-runner.mjs';
+import { humanType } from '../../../../dist/human/keyboard.js';
+import { humanClickLocator } from '../../../../dist/human/mouse.js';
 
 const REPO_URL = process.env.REPO_URL || '';
 const FILE_PATH = process.env.FILE_PATH || 'README.md';
@@ -39,10 +41,10 @@ try {
   // Programmatic CodeMirror append: click the editor, send End+Enter via
   // keyboard, type the line. Direct DOM manipulation on CodeMirror would
   // bypass GitHub's diff-tracking, so we stay with keyboard events.
-  await s.page.locator('.CodeMirror, [data-codemirror], textarea[name="value"], div[contenteditable="true"]').first().click().catch(() => {});
+  await humanClickLocator(s.page, s.page.locator('.CodeMirror, [data-codemirror], textarea[name="value"], div[contenteditable="true"]').first()).catch(() => {});
   await s.page.keyboard.press('End').catch(() => {});
   await s.page.keyboard.press('Enter').catch(() => {});
-  await s.page.keyboard.type(FILE_APPEND.trim(), { delay: 30 }).catch(() => {});
+  await humanType(s.page, FILE_APPEND.trim()).catch(() => {});
   await s.page.waitForTimeout(1500);
 
   // Open the Commit-changes modal via explicit selector — the toolbar button

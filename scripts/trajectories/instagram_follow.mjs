@@ -1,5 +1,6 @@
 import { getSocialAccount, resolveAccountSession } from '../../dist/utils/credentials.js';
 import { WSession } from '../../dist/session/wsession.js';
+import { humanClickLocator } from '../../dist/human/mouse.js';
 
 const TARGET_USER = (process.env.TARGET_USER || 'wisent.ai').replace(/^@/, '');
 const URL = `https://www.instagram.com/${encodeURIComponent(TARGET_USER)}/`;
@@ -32,7 +33,7 @@ try {
   const alreadyFollowing = await followingBtn.count().catch(() => 0);
   if (alreadyFollowing > 0) { console.log(`PASS: already following @${TARGET_USER}`); process.exit(0); }
   await followBtn.waitFor({ state: 'visible' });
-  await followBtn.click();
+  await humanClickLocator(s.page, followBtn);
   await s.page.waitForTimeout(3000);
   // Verify transition: Follow → Following
   const after = await s.page.locator('button').filter({ hasText: /^\s*Following\s*$/ }).filter({ visible: true }).count().catch(() => 0);

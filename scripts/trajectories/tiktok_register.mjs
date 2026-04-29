@@ -1,6 +1,7 @@
 import { WSession } from '../../dist/session/wsession.js';
 import { execute } from '../../dist/agent/loop.js';
 import { generatePersona } from '../../dist/browser/persona.js';
+import { humanClickLocator } from '../../dist/human/mouse.js';
 
 const URL = 'https://www.tiktok.com/signup';
 const GOAL = `generate_identity(platform="tiktok"). Click "Use phone or email". Click "Sign up with email". For birthday use select_option(target="month",value=$TIKTOK_NEW_BIRTHMONTH), select_option(target="day",value=$TIKTOK_NEW_BIRTHDAY), select_option(target="year",value=$TIKTOK_NEW_BIRTHYEAR). Fill email with $TIKTOK_NEW_EMAIL. Fill password with $TIKTOK_NEW_PASSWORD. Click "Send code". check_email(email=$TIKTOK_NEW_EMAIL,sender="tiktok") for code. Fill code. Click Next. done(value=$TIKTOK_NEW_USERNAME).`;
@@ -72,7 +73,7 @@ if (process.env.TIKTOK_HARDCODED !== '1') {
       for (const sel of ['button:has-text("Decline optional cookies")', 'button:has-text("Accept all")', 'button:has-text("Allow all")']) {
         try {
           const btn = s.page.locator(sel).first();
-          if (await btn.isVisible().catch(() => false)) { await btn.click(); console.log(`[test] Dismissed cookie banner`); break; }
+          if (await btn.isVisible().catch(() => false)) { await humanClickLocator(s.page, btn); console.log(`[test] Dismissed cookie banner`); break; }
         } catch {}
       }
 
@@ -131,16 +132,15 @@ if (process.env.TIKTOK_HARDCODED !== '1') {
         };
       })()`).catch((e) => ({ error: e.message }));
       console.log(`[test] fill verify: ${JSON.stringify(verify)}`);
-      const fillField = async (placeholder, val) => s.page.evaluate(`(({ ph, val }) => {
-        const inputs = Array.from(document.querySelectorAll('input'));
-        const el = inputs.find(i => (i.placeholder || '').toLowerCase().includes(ph.toLowerCase()));
-        if (!el) return { ok: false, reason: 'not-found' };
-        const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
-        setter.call(el, val);
-        el.dispatchEvent(new Event('input', { bubbles: true }));
-        el.dispatchEvent(new Event('change', { bubbles: true }));
+      // Humanized fill — replaces descriptor-set + dispatch('input') which
+      // bypassed all keystrokes (anti-bot signal that TikTok's signup ML reads).
+      const { humanFill } = await import('../../dist/human/keyboard.js');
+      const fillField = async (placeholder, val) => {
+        const loc = s.page.locator(`input[placeholder*="${placeholder}" i]`).first();
+        if (!(await loc.count())) return { ok: false, reason: 'not-found' };
+        await humanFill(s.page, loc, val);
         return { ok: true, len: val.length };
-      })(${JSON.stringify({ ph: placeholder, val })})`);
+      };
       await s.wait(2);
 
       // Capture Send code button rect + install click listener so we can see what actually got clicked.
@@ -198,7 +198,7 @@ if (process.env.TIKTOK_HARDCODED !== '1') {
 
       // Type code char-by-char w/ variable delays — one burst via DOM setter looks
       // unlike real typing; React form sees each keystroke as separate input event.
-      await s.page.click('input[placeholder*="digit" i], input[name="code"]').catch(() => {});
+      await humanClickLocator(s.page, s.page.locator('input[placeholder*="digit" i], input[name="code"]').first()).catch(() => {});
       for (const ch of code) { await s.page.keyboard.type(ch); await new Promise(r => setTimeout(r, 80 + Math.floor(Math.random() * 140))); }
       await s.page.keyboard.press('Tab').catch(() => {}); await s.wait(1);
 
@@ -265,7 +265,7 @@ if (process.env.TIKTOK_HARDCODED !== '1') {
         await fillField('username', id.username).catch(() => s.fill('Username', id.username));
         await s.wait(1);
         const unBtn = await s.page.evaluate(`(() => { const b = Array.from(document.querySelectorAll('button')).find(x => /next|continue|submit/i.test(x.textContent || '')); return { disabled: b?.disabled }; })()`).catch(() => ({}));
-        if (unBtn.disabled === false) await s.page.locator('button:has-text("Next"), button:has-text("Continue")').first().click().catch(() => {});
+        if (unBtn.disabled === false) await humanClickLocator(s.page, s.page.locator('button:has-text("Next"), button:has-text("Continue")').first()).catch(() => {});
         await s.wait(5);
       }
 

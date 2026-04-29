@@ -1,5 +1,6 @@
 import { getSocialAccount, resolveAccountSession } from '../../dist/utils/credentials.js';
 import { WSession } from '../../dist/session/wsession.js';
+import { humanClickLocator } from '../../dist/human/mouse.js';
 
 const HOME_URL = 'https://x.com/home';
 
@@ -27,7 +28,7 @@ try {
   const likeBtn = s.page.locator('[data-testid="like"]').filter({ visible: true }).first();
   await likeBtn.waitFor({ state: 'visible' });
   await likeBtn.scrollIntoViewIfNeeded();
-  await likeBtn.click();
+  await humanClickLocator(s.page, likeBtn);
   await s.page.waitForTimeout(2000);
   // Verify like → unlike transition (the same button now exposes data-testid="unlike")
   const unlikeBtn = s.page.locator('[data-testid="unlike"]').first();

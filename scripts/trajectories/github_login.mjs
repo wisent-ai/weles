@@ -1,5 +1,6 @@
 import { getSocialAccount } from '../../dist/utils/credentials.js';
 import { WSession } from '../../dist/session/wsession.js';
+import { humanClickLocator } from '../../dist/human/mouse.js';
 
 const URL = 'https://github.com/login';
 
@@ -108,7 +109,7 @@ try {
   const submitLoc = s.page.locator('input[type="submit"][value*="Sign in" i], input[name="commit"], form[action*="/session"] button[type="submit"], button[type="submit"]').first();
   let submitted = { clicked: false };
   if (await submitLoc.count() > 0) {
-    submitted = await submitLoc.click().then(() => ({ clicked: true, via: 'locator' })).catch((e) => ({ clicked: false, err: e.message?.slice(0, 100) }));
+    submitted = await humanClickLocator(s.page, submitLoc).then(() => ({ clicked: true, via: 'humanClickLocator' })).catch((e) => ({ clicked: false, err: e.message?.slice(0, 100) }));
     if (!submitted.clicked) {
       // Locator.click hit Chromium synthesizeMouseEvent disconnect; submit form
       // via JS instead. Form has action="/session" so requestSubmit triggers POST.

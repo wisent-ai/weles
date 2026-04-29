@@ -8,6 +8,8 @@
 import { WSession } from '../../dist/session/wsession.js';
 import { CaptchaSolver } from '../../dist/captcha/solver.js';
 import { execute } from '../../dist/agent/loop.js';
+import { humanFill } from '../../dist/human/keyboard.js';
+import { humanClickLocator } from '../../dist/human/mouse.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { randomBytes } from 'node:crypto';
@@ -91,22 +93,22 @@ try {
   await s.goto(URL);
   await s.page.waitForTimeout(2500);
 
-  const fillA = await s.page.evaluate((d) => {
-    const email = document.querySelector('input[name="email-address"], input[autocomplete="email"], input#email-address');
-    const pwd = document.querySelector('input[name="password"], input[autocomplete="new-password"], input#password');
-    if (!email || !pwd) return { ok: false, hasEmail: !!email, hasPwd: !!pwd };
-    const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
-    set.call(email, d.email); email.dispatchEvent(new Event('input', { bubbles: true }));
-    set.call(pwd, d.password); pwd.dispatchEvent(new Event('input', { bubbles: true }));
-    return { ok: true };
-  }, id);
-  console.log(`[register] fill email+pwd: ${JSON.stringify(fillA)}`);
-  if (!fillA.ok) throw new Error(`email/password fields not found (hasEmail=${fillA.hasEmail} hasPwd=${fillA.hasPwd})`);
+  // Humanized fill — bare descriptor.set + dispatch('input') previously
+  // bypassed all keystrokes, which LinkedIn's reCAPTCHA Enterprise v3 saw as
+  // a bot signal even with a valid token.
+  const emailLoc = s.page.locator('input[name="email-address"], input[autocomplete="email"], input#email-address').filter({ visible: true }).first();
+  const pwdLoc = s.page.locator('input[name="password"], input[autocomplete="new-password"], input#password').filter({ visible: true }).first();
+  const hasEmail = await emailLoc.count();
+  const hasPwd = await pwdLoc.count();
+  if (!hasEmail || !hasPwd) throw new Error(`email/password fields not found (hasEmail=${hasEmail} hasPwd=${hasPwd})`);
+  await humanFill(s.page, emailLoc, id.email);
+  await humanFill(s.page, pwdLoc, id.password);
+  console.log(`[register] fill email+pwd: ok`);
 
   await getAndInjectRecaptcha(s.page, 'signup');
   await s.page.waitForTimeout(500);
 
-  const submit1 = await s.page.locator('button[type="submit"]:has-text("Agree"), button[type="submit"]:has-text("Continue"), button#join-form-submit, button[data-tracking-control-name*="signup"]').first().click().then(() => true).catch(e => { console.log(`[register] submit1 err: ${e.message?.slice(0, 80)}`); return false; });
+  const submit1 = await humanClickLocator(s.page, s.page.locator('button[type="submit"]:has-text("Agree"), button[type="submit"]:has-text("Continue"), button#join-form-submit, button[data-tracking-control-name*="signup"]').first()).then(() => true).catch(e => { console.log(`[register] submit1 err: ${e.message?.slice(0, 80)}`); return false; });
   console.log(`[register] click Agree & Join: ${submit1}`);
   if (!submit1) throw new Error('Agree & Join button not clickable');
   await s.page.waitForTimeout(4000);
@@ -120,26 +122,28 @@ try {
     const v2ok = await solveV2Modal(s.page);
     if (v2ok) {
       await s.page.waitForTimeout(2000);
-      const v2submit = await s.page.locator('button:has-text("Verify"), button:has-text("Continue"), button:has-text("Submit"), button[type="submit"]').last().click().then(() => true).catch(() => false);
+      const v2submit = await humanClickLocator(s.page, s.page.locator('button:has-text("Verify"), button:has-text("Continue"), button:has-text("Submit"), button[type="submit"]').last()).then(() => true).catch(() => false);
       console.log(`[register] v2 submit: ${v2submit}`);
       await s.page.waitForTimeout(4000);
     }
   }
 
-  const fillB = await s.page.evaluate((d) => {
-    const first = document.querySelector('input[name="first-name"], input#first-name');
-    const last = document.querySelector('input[name="last-name"], input#last-name');
-    if (!first || !last) return { ok: false, url: location.href };
-    const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
-    set.call(first, d.first); first.dispatchEvent(new Event('input', { bubbles: true }));
-    set.call(last, d.last); last.dispatchEvent(new Event('input', { bubbles: true }));
-    return { ok: true };
-  }, id);
-  console.log(`[register] fill first+last: ${JSON.stringify(fillB)}`);
-  if (fillB.ok) {
+  const firstLoc = s.page.locator('input[name="first-name"], input#first-name').filter({ visible: true }).first();
+  const lastLoc = s.page.locator('input[name="last-name"], input#last-name').filter({ visible: true }).first();
+  const hasFirst = await firstLoc.count();
+  const hasLast = await lastLoc.count();
+  let fillBOk = false;
+  if (hasFirst && hasLast) {
+    await humanFill(s.page, firstLoc, id.first);
+    await humanFill(s.page, lastLoc, id.last);
+    fillBOk = true;
+  } else {
+    console.log(`[register] fill first+last skipped (hasFirst=${hasFirst} hasLast=${hasLast} url=${s.page.url()})`);
+  }
+  if (fillBOk) {
     await getAndInjectRecaptcha(s.page, 'signup');
     await s.page.waitForTimeout(500);
-    const submit2 = await s.page.locator('button[type="submit"]:has-text("Continue"), button#join-form-submit').first().click().then(() => true).catch(e => { console.log(`[register] submit2 err: ${e.message?.slice(0, 80)}`); return false; });
+    const submit2 = await humanClickLocator(s.page, s.page.locator('button[type="submit"]:has-text("Continue"), button#join-form-submit').first()).then(() => true).catch(e => { console.log(`[register] submit2 err: ${e.message?.slice(0, 80)}`); return false; });
     console.log(`[register] click Continue: ${submit2}`);
     if (!submit2) throw new Error('Continue button not clickable');
     await s.page.waitForTimeout(5000);

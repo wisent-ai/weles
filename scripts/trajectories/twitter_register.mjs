@@ -1,5 +1,6 @@
 import { WSession } from '../../dist/session/wsession.js';
 import { chromium } from 'playwright';
+import { humanClickLocator } from '../../dist/human/mouse.js';
 
 const URL = 'https://x.com/i/flow/signup?lang=en';
 const MAX_RETRIES = 5;
@@ -167,7 +168,7 @@ async function signup(s) {
     // SetTrusted(true). Previous page.evaluate(b.click()) produced isTrusted=false
     // which Arkose-gated submits reject (same pattern as TikTok select.ts fix
     // in commit ce369f6). Fall through to Enter key if neither selector matches.
-    await s.page.locator('[data-testid="SignupButton"], [data-testid="LoginForm_Login_Button"]').first().click().catch(() => {});
+    await humanClickLocator(s.page, s.page.locator('[data-testid="SignupButton"], [data-testid="LoginForm_Login_Button"]').first()).catch(() => {});
     await s.press('Enter').catch(() => {});
     await sleep(5);
   }
