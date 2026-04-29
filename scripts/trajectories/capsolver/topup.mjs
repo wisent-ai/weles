@@ -29,8 +29,16 @@ try {
   if (await amtIn.isVisible().catch(() => false)) { await amtIn.click(); await amtIn.fill(String(usd)); console.log(`[trajectory] amount filled: $${usd}`); }
 
   if (!confirm) { await dryRunExit(s, 'capsolver', usd); process.exit(0); }
-  console.log('FAIL: TOPUP_CONFIRM=1 not yet wired through Capsolver checkout. Stop here for safety.');
-  process.exit(1);
+
+  // CONFIRM: Find and click pay button
+  const { findAndClickPayButton } = await import('../_shared/services/topup_common.mjs');
+  const clicked = await findAndClickPayButton(s.page);
+  if (!clicked) {
+    console.log('FAIL: could not find pay/checkout button');
+    process.exit(1);
+  }
+  await s.page.waitForTimeout(8000);
+  console.log(`PASS-CHARGED: checkout initiated, url=${s.page.url().slice(0, 100)}`);
 } catch (e) {
   console.log('FAIL:', e.message?.slice(0, 200));
   process.exit(1);
