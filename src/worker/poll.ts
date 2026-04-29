@@ -54,8 +54,8 @@ function resolveTrajectory(action: string): string | null {
     story_view: (p) => `scripts/trajectories/${p}/actions/story_view.mjs`, watch_through: (p) => `scripts/trajectories/${p}/actions/watch_through.mjs`,
     bookmark: (p) => `scripts/trajectories/${p}/actions/bookmark.mjs`, save: (p) => `scripts/trajectories/${p}/actions/save.mjs`,
     reset_password: (p) => p === 'github' ? 'scripts/trajectories/github/recover/reset_password.mjs' : `scripts/trajectories/${p}_reset_password.mjs`,
-    balance: (p) => p === 'iproyal' ? 'scripts/trajectories/iproyal/balance.mjs' : `scripts/trajectories/${p}_balance.mjs`,
-    topup: (p) => p === 'iproyal' ? 'scripts/trajectories/iproyal/topup.mjs' : (null as unknown as string),
+    balance: (p) => (p === 'iproyal' || p === 'packetstream' || p === 'brightdata' || p === 'oxylabs' || p === 'anticaptcha' || p === 'capmonster' || p === 'capsolver' || p === 'twocaptcha' || p === 'nopecha' || p === 'sadcaptcha' || p === 'pingproxies' || p === 'juicysms' || p === 'fivesim') ? `scripts/trajectories/${p}/balance.mjs` : `scripts/trajectories/${p}_balance.mjs`,
+    topup: (p) => (p === 'iproyal' || p === 'packetstream' || p === 'brightdata' || p === 'oxylabs' || p === 'anticaptcha' || p === 'capmonster' || p === 'capsolver' || p === 'twocaptcha' || p === 'nopecha' || p === 'sadcaptcha' || p === 'pingproxies' || p === 'juicysms' || p === 'fivesim') ? `scripts/trajectories/${p}/topup.mjs` : (null as unknown as string),
   };
   const router = routes[verb];
   return router ? router(plat) : null;
