@@ -26,11 +26,13 @@ export const PRICES = SHARED_PRICES;
 class WelesCostTracker {
   private inner: SharedCostTracker;
   private flushed = false;
+  private agent_id: string;
 
   constructor() {
     const supabaseUrl = process.env.COST_SUPABASE_URL ?? process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseKey = process.env.COST_SUPABASE_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
     const agent_id = process.env.ACTION_LOG_ID ?? `weles-${process.pid}`;
+    this.agent_id = agent_id;
     // We use 'memory' sink internally and add Supabase persistence ourselves
     // in flush(); this lets us write the legacy recordings/_costs file and
     // the central table in one shot.
@@ -102,7 +104,10 @@ class WelesCostTracker {
     }
 
     if (this._supabase) {
-      try { await this._supabase.write(snap.records); } catch (e: any) {
+      try {
+        const stamped = snap.records.map(r => ({ ...r, agent_id: this.agent_id })) as any;
+        await this._supabase.write(stamped);
+      } catch (e: any) {
         console.log(`[cost] Supabase flush err: ${e.message?.slice(0, 120)}`);
       }
     }
