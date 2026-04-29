@@ -1,6 +1,7 @@
 import { WSession } from '../../../dist/session/wsession.js';
 import { CaptchaSolver } from '../../../dist/captcha/solver.js';
 import { injectProviderCookies, handleOAuthConsent, clickOAuthProviderButton } from '../../../dist/platforms/_shared/cross_platform_oauth.js';
+import { humanClickLocator } from '../../../dist/human/mouse.js';
 
 // ProductHunt does not offer email/password signup — only OAuth via Twitter,
 // Google, Facebook, AngelList. This trajectory uses an existing Twitter account
@@ -165,7 +166,7 @@ async function signup(s) {
       const submitBtn = s.page.locator('button[type="submit"]').first();
       if (await submitBtn.count()) {
         await submitBtn.evaluate((el) => { el.disabled = false; el.classList.remove('cursor-not-allowed', 'opacity-50'); }).catch(() => {});
-        await submitBtn.click({ force: true }).catch(() => {});
+        await humanClickLocator(s.page, submitBtn).catch(() => {});
         console.log(`[ph] submit: clicked`);
       } else { console.log(`[ph] submit: no-button`); }
       await sleep(6);

@@ -1,5 +1,6 @@
 import { getSocialAccount, resolveAccountSession } from '../../dist/utils/credentials.js';
 import { WSession } from '../../dist/session/wsession.js';
+import { humanClickLocator } from '../../dist/human/mouse.js';
 
 const TARGET_URL = process.env.TARGET_URL || 'https://www.instagram.com/explore/';
 
@@ -24,7 +25,7 @@ try {
   // Open first post: clicking the first <a href*="/p/"> in the feed/explore.
   const firstPost = s.page.locator('a[href*="/p/"]').filter({ visible: true }).first();
   await firstPost.waitFor({ state: 'visible' });
-  await firstPost.click();
+  await humanClickLocator(s.page, firstPost);
   await s.page.waitForTimeout(4000);
 
   // The like button on a post is <svg aria-label="Like"> wrapped in a clickable
@@ -35,7 +36,7 @@ try {
   const alreadyLiked = await unlikeBtn.count().catch(() => 0);
   if (alreadyLiked > 0) { console.log('PASS: already liked first post'); process.exit(0); }
   await likeBtn.waitFor({ state: 'visible' });
-  await likeBtn.click();
+  await humanClickLocator(s.page, likeBtn);
   await s.page.waitForTimeout(2500);
   const after = await s.page.locator('svg[aria-label="Unlike"]').filter({ visible: true }).count().catch(() => 0);
   if (after === 0) { console.log('FAIL: clicked Like but no transition to Unlike state'); process.exit(1); }

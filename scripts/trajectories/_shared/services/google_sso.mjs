@@ -2,6 +2,8 @@
 // Many proxy/captcha/SMS providers expose only a "Sign in with Google" button.
 // Caller must already have clicked the provider's "Sign in with Google" button
 // and the page must now be on accounts.google.com (or about to redirect there).
+import { humanFill } from '../../../../dist/human/keyboard.js';
+import { humanClickLocator } from '../../../../dist/human/mouse.js';
 
 /**
  * Drive Google's identifier → password → consent sequence.
@@ -29,12 +31,11 @@ export async function googleSso(session, creds, opts = {}) {
 
   const emailIn = page.locator('input[type="email"], input[name="identifier"], input#identifierId').filter({ visible: true }).first();
   await emailIn.waitFor({ state: 'visible' });
-  await emailIn.click();
-  await emailIn.pressSequentially(creds.email, { delay: 25 });
+  await humanFill(page, emailIn, creds.email);
   console.log(`[google_sso] identifier filled (${creds.email})`);
 
   const idNext = page.locator('#identifierNext button, button:has-text("Next"), [jsname="LgbsSe"]').filter({ visible: true }).first();
-  await idNext.click();
+  await humanClickLocator(page, idNext);
 
   // Loop: at each step, try to land on a visible password input. Click
   // "Enter your password" if offered, "Try another way" if we're on the
@@ -51,7 +52,7 @@ export async function googleSso(session, creds, opts = {}) {
     const enterPw = page.getByText(/^Enter your password$/i).first();
     if (await enterPw.isVisible().catch(() => false)) {
       console.log('[google_sso] clicking "Enter your password"');
-      await enterPw.click();
+      await humanClickLocator(page, enterPw);
       await page.waitForTimeout(1500);
       continue;
     }
@@ -59,7 +60,7 @@ export async function googleSso(session, creds, opts = {}) {
     const tryAnother = page.getByText(/^Try another way$/i).first();
     if (await tryAnother.isVisible().catch(() => false)) {
       console.log('[google_sso] clicking "Try another way"');
-      await tryAnother.click();
+      await humanClickLocator(page, tryAnother);
       await page.waitForTimeout(1500);
       continue;
     }
@@ -74,12 +75,11 @@ export async function googleSso(session, creds, opts = {}) {
   }
 
   const pwIn = page.locator('input[type="password"], input[name="Passwd"]').filter({ visible: true }).first();
-  await pwIn.click();
-  await pwIn.pressSequentially(creds.password, { delay: 25 });
+  await humanFill(page, pwIn, creds.password);
   console.log('[google_sso] password filled');
 
   const pwNext = page.locator('#passwordNext button, button:has-text("Next"), [jsname="LgbsSe"]').filter({ visible: true }).first();
-  await pwNext.click();
+  await humanClickLocator(page, pwNext);
 
   const originHost = opts.originHost;
   const isPopup = page !== session.page;
@@ -111,7 +111,7 @@ export async function googleSso(session, creds, opts = {}) {
       const continueBtn = page.locator('button:has-text("Continue"), button:has-text("Allow")').filter({ visible: true }).first();
       if (await continueBtn.isVisible().catch(() => false)) {
         console.log('[google_sso] clicking OAuth consent Continue/Allow');
-        await continueBtn.click({ force: true }).catch(() => {});
+        await humanClickLocator(page, continueBtn).catch(() => {});
         await page.waitForTimeout(2000).catch(() => {});
         continue;
       }

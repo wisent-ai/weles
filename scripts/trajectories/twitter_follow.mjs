@@ -1,5 +1,6 @@
 import { getSocialAccount, resolveAccountSession } from '../../dist/utils/credentials.js';
 import { WSession } from '../../dist/session/wsession.js';
+import { humanClickLocator } from '../../dist/human/mouse.js';
 
 const TARGET_HANDLE = 'elonmusk';
 const TARGET_URL = `https://x.com/${TARGET_HANDLE}`;
@@ -42,7 +43,7 @@ try {
     console.log(`FAIL: no Follow button visible at ${url}. visible testids: ${JSON.stringify(tids)}`);
     process.exit(1);
   }
-  await followBtn.click();
+  await humanClickLocator(s.page, followBtn);
   await s.page.waitForTimeout(2000);
   // Verify Follow → Following transition
   const followingBtn = s.page.locator('[data-testid$="-unfollow"]').filter({ visible: true }).first();

@@ -6,6 +6,8 @@ import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { checkReachable } from '../../_shared/action-runner.mjs';
+import { humanType, humanFill } from '../../../../dist/human/keyboard.js';
+import { humanClickLocator } from '../../../../dist/human/mouse.js';
 
 // Word pool used to generate organic-looking repo names when REPO_NAME isn't
 // supplied. Set WELES_GITHUB_REPO_WORDS to override (comma-separated) so the
@@ -41,14 +43,12 @@ try {
   // is fine for our use case (organic-looking workspaces).
   const nameIn = s.page.locator('input#repository-name-input').first();
   await nameIn.waitFor({ state: 'visible' });
-  await nameIn.click();
-  await nameIn.pressSequentially(REPO_NAME, { delay: 25 });
+  await humanFill(s.page, nameIn, REPO_NAME);
   await s.page.waitForTimeout(800);
   const descIn = s.page.locator('input[name="Description"]').first();
-  await descIn.click();
-  await descIn.pressSequentially(REPO_DESC, { delay: 25 });
+  await humanFill(s.page, descIn, REPO_DESC);
   await s.page.waitForTimeout(500);
-  await s.page.locator('button[type="submit"]').filter({ hasText: 'Create repository' }).first().click();
+  await humanClickLocator(s.page, s.page.locator('button[type="submit"]').filter({ hasText: 'Create repository' }).first());
 
   for (let w = 0; w < 15; w++) {
     await s.page.waitForTimeout(1000);

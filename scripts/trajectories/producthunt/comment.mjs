@@ -1,6 +1,8 @@
 import { WSession } from '../../../dist/session/wsession.js';
 import { getSocialAccount, resolveAccountSession } from '../../../dist/utils/credentials.js';
 import { injectPHCookies, loginViaTwitter } from './_session.mjs';
+import { humanType, humanFill } from '../../../dist/human/keyboard.js';
+import { humanClickLocator } from '../../../dist/human/mouse.js';
 
 // Post a comment on a Product Hunt launch.
 // PRODUCTHUNT_URL=https://www.producthunt.com/products/<slug>  -> launch page
@@ -40,8 +42,8 @@ async function postComment(s, acct) {
   // via Cmd/Ctrl+Enter which TipTap wires up to the reply mutation.
   const editor = s.page.locator('[contenteditable="true"][role="textbox"].tiptap').first();
   await editor.waitFor();
-  await editor.click();
-  await s.page.keyboard.type(COMMENT_TEXT, { delay: 12 });
+  await humanClickLocator(s.page, editor);
+  await humanType(s.page, COMMENT_TEXT);
   await sleep(1);
   await s.page.keyboard.press('Meta+Enter').catch(() => {});
   await s.page.keyboard.press('Control+Enter').catch(() => {});
@@ -55,7 +57,7 @@ async function postComment(s, acct) {
   let btnClicked = null;
   if ((await submitBtn.count()) && !(await submitBtn.isDisabled().catch(() => true))) {
     btnClicked = ((await submitBtn.innerText().catch(() => '')) ?? '').trim();
-    await submitBtn.click().catch(() => {});
+    await humanClickLocator(s.page, submitBtn).catch(() => {});
   }
   console.log(`[ph-comment] explicit submit button: ${btnClicked}`);
   await sleep(4);

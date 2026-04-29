@@ -11,7 +11,7 @@
  * env is set.
  */
 import { getSocialAccount } from '../../../../dist/utils/credentials.js';
-import { WSession } from '../../../../dist/session/wsession.js';
+import { WSession } from '../../../../dist/session/wsession.js';\nimport { humanClickLocator } from '../../../../dist/human/mouse.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import { join } from 'node:path';
@@ -65,7 +65,7 @@ try {
   for (const sel of SUBMIT_SELECTORS) {
     const loc = s.page.locator(sel).first();
     if ((await loc.count().catch(() => 0)) > 0) {
-      const r = await loc.click().then(() => ({ clicked: true, via: sel })).catch((e) => ({ clicked: false, err: e.message?.slice(0, 100), tried: sel }));
+      const r = await humanClickLocator(s.page, loc).then(() => ({ clicked: true, via: sel })).catch((e) => ({ clicked: false, err: e.message?.slice(0, 100), tried: sel }));
       if (r.clicked) { submit = r; break; }
       submit = r;
     }
@@ -110,7 +110,7 @@ try {
   await s.wait(1);
   const submitLoc2 = s.page.locator('input[type="submit"][value*="Change" i], button[type="submit"]').first();
   const submit2 = (await submitLoc2.count()) > 0
-    ? await submitLoc2.click().then(() => ({ clicked: true, via: 'locator' })).catch((e) => ({ clicked: false, err: e.message?.slice(0, 100) }))
+    ? await humanClickLocator(s.page, submitLoc2).then(() => ({ clicked: true, via: 'humanClickLocator' })).catch((e) => ({ clicked: false, err: e.message?.slice(0, 100) }))
     : { clicked: false };
   console.log(`[reset] Submit new password: ${JSON.stringify(submit2)}`);
   if (!submit2.clicked) throw new Error('no submit control on password_reset/<token> page');

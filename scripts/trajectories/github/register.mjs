@@ -2,7 +2,7 @@ import { WSession } from '../../../dist/session/wsession.js';
 import { solveFunCaptcha } from './_funcaptcha.mjs';
 import { solveAudioPuzzle } from './_audio_solver.mjs';
 import { solveRotationViaCoords } from './_coords_solver.mjs';
-import { humanClick, nextInterClickMs } from '../../../dist/human/mouse.js'; import { humanType } from '../../../dist/human/keyboard.js';
+import { humanClick, humanClickLocator, nextInterClickMs } from '../../../dist/human/mouse.js'; import { humanType } from '../../../dist/human/keyboard.js';
 
 const URL = 'https://github.com/signup';
 
@@ -86,13 +86,13 @@ try {
   console.log(`[register] Country button: ${JSON.stringify(countryState)}`);
   if (countryState.found && !/united states|^us$/i.test(countryState.text)) {
     try {
-      await s.page.locator('#country-dropdown-panel-button, button.country-select-button').first().click();
+      await humanClickLocator(s.page, s.page.locator('#country-dropdown-panel-button, button.country-select-button').first());
       await s.wait(1);
       // Pick the "United States" option via a trusted locator click. Re-check
       // innerText to exclude 'Virgin' / 'Minor' variants (hasText is substring).
       const all = await s.page.locator('[role="option"], li, button, a').filter({ hasText: /united states/i }).all().catch(() => []);
       let optClicked = { clicked: false };
-      for (const el of all) { const t = ((await el.innerText().catch(() => '')) ?? '').trim(); if (/^united states/i.test(t) && !/virgin/i.test(t) && !/minor/i.test(t)) { await el.click().catch(() => {}); optClicked = { clicked: true, text: t.slice(0, 40) }; break; } }
+      for (const el of all) { const t = ((await el.innerText().catch(() => '')) ?? '').trim(); if (/^united states/i.test(t) && !/virgin/i.test(t) && !/minor/i.test(t)) { await humanClickLocator(s.page, el).catch(() => {}); optClicked = { clicked: true, text: t.slice(0, 40) }; break; } }
       console.log(`[register] Country option click: ${JSON.stringify(optClicked)}`);
     } catch (e) { console.log(`[register] Country click error: ${e.message?.slice(0, 80)}`); }
   } else {
@@ -121,7 +121,7 @@ try {
       await btn.scrollIntoViewIfNeeded().catch(() => {}); await s.wait(0.5);
       const bb = await btn.boundingBox();
       if (bb) { await humanClick(s.page, Math.round(bb.x + bb.width / 2), Math.round(bb.y + bb.height / 2)); clicked.via = 'humanClick'; }
-      else { await btn.click(); clicked.via = 'locator'; }
+      else { await humanClickLocator(s.page, btn); clicked.via = 'humanClickLocator'; }
     } else {
       // Locator-based text match: 'button:has-text("Create account")' filtered
       // to exclude OAuth variants. Avoids the evaluate-based btn.click() that
@@ -129,7 +129,7 @@ try {
       const altLocator = s.page.locator('button:has-text("Create account"):not(:has-text("Google")):not(:has-text("Apple"))').first();
       if (await altLocator.isVisible().catch(() => false)) {
         await altLocator.scrollIntoViewIfNeeded().catch(() => {});
-        await altLocator.click().catch(() => {});
+        await humanClickLocator(s.page, altLocator).catch(() => {});
         clicked = { via: 'locator-text', text: 'Create account' };
       }
     }

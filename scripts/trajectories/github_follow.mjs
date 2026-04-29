@@ -1,5 +1,6 @@
 import { getSocialAccount } from '../../dist/utils/credentials.js';
 import { WSession } from '../../dist/session/wsession.js';
+import { humanClickLocator } from '../../dist/human/mouse.js';
 
 const TARGET = process.env.GITHUB_FOLLOW_TARGET ?? 'lbartoszcze';
 
@@ -64,7 +65,7 @@ try {
   const followLoc = s.page.locator('input[type="submit"][value="Follow"]:visible').first();
   let clicked;
   if (await followLoc.count()) {
-    await followLoc.click().catch(() => {});
+    await humanClickLocator(s.page, followLoc).catch(() => {});
     clicked = { clicked: true, tag: 'input-visible' };
   } else {
     const formSubmit = await s.page.evaluate(`(() => { const f = document.querySelector('form[action*="/users/follow"]'); if (f) { f.removeAttribute('hidden'); f.requestSubmit?.(); return true; } return false; })()`).catch(() => false);

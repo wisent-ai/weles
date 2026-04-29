@@ -1,6 +1,8 @@
 import { getSocialAccount, resolveAccountSession } from '../../dist/utils/credentials.js';
 import { WSession } from '../../dist/session/wsession.js';
 import { execute } from '../../dist/agent/loop.js';
+import { humanType } from '../../dist/human/keyboard.js';
+import { humanIdlePause, humanClickLocator } from '../../dist/human/mouse.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -62,15 +64,18 @@ try {
   const userIn = s.page.locator('input[name="email"], input[name="username"], input[aria-label*="username" i], input[aria-label*="email" i]').filter({ visible: true }).first();
   const pwIn = s.page.locator('input[name="pass"], input[name="password"], input[type="password"]').filter({ visible: true }).first();
   await userIn.waitFor({ state: 'visible' });
-  await userIn.click();
-  await userIn.pressSequentially(process.env.SVC_EMAIL, { delay: 25 });
-  await pwIn.click();
-  await pwIn.pressSequentially(process.env.SVC_PASSWORD, { delay: 25 });
-  await s.page.waitForTimeout(400);
+  await humanClickLocator(s.page, userIn);
+  await humanIdlePause('short');
+  await humanType(s.page, process.env.SVC_EMAIL);
+  await humanIdlePause('short');
+  await humanClickLocator(s.page, pwIn);
+  await humanIdlePause('short');
+  await humanType(s.page, process.env.SVC_PASSWORD);
+  await humanIdlePause('short');
   // Instagram's submit is a <div role="button"> with text "Log in" — there
   // are no <button type="submit"> elements rendered. Match exact text "Log
   // in" to avoid hitting "Log in with Facebook" instead.
-  await s.page.locator('div[role="button"]').filter({ hasText: /^\s*Log in\s*$/ }).filter({ visible: true }).first().click();
+  await humanClickLocator(s.page, s.page.locator('div[role="button"]').filter({ hasText: /^\s*Log in\s*$/ }).filter({ visible: true }).first());
   for (let i = 0; i < 15; i++) {
     await s.page.waitForTimeout(1000);
     if (!/\/accounts\/login\/?$/.test(s.page.url())) break;
@@ -108,12 +113,22 @@ try {
     // proxy host; action_failed leaves the burned IP in rotation. Match the
     // linkedin_login / twitter_login classifier ordering.
     const msg = e.message ?? '';
+    // Instagram's IP-block manifests as a 200 response on /accounts/login with
+    // a soft banner ("Sorry, there was a problem with your request" /
+    // "suspicious activity" / "try again later") — no chrome-error, no
+    // ERR_HTTP_RESPONSE_CODE_FAILURE, no /challenge/ URL. Sniff the page text
+    // before falling through to checkpoint, otherwise the burned IP stays in
+    // rotation (worker.markBurned only fires on ip_blocked).
+    let pageBody = '';
+    try { pageBody = (await s.page?.evaluate?.(() => document.body?.innerText ?? '')) ?? ''; } catch {}
+    const ipBlockMarkers = /Sorry,?\s+there was a problem|suspicious activity|please try again later|We restrict certain activity|you'?re using automated|temporarily blocked|We can'?t process/i;
     let sig;
     if (/\/accounts\/suspended|\/accounts\/disabled/.test(finalUrl)) sig = 'suspended';
     else if (/\/checkpoint|\/challenge|\/two_factor/.test(finalUrl)) sig = 'checkpoint';
     else if (/ERR_HTTP_RESPONSE_CODE_FAILURE|ERR_BLOCKED_BY_RESPONSE|ERR_BLOCKED_BY_CLIENT|ERR_BLOCKED_BY_ADMINISTRATOR/.test(msg)) sig = 'ip_blocked';
     else if (/ERR_TUNNEL_CONNECTION_FAILED|ERR_PROXY_CONNECTION_FAILED/.test(msg)) sig = 'proxy_failed';
     else if (finalUrl.startsWith('chrome-error://')) sig = 'proxy_failed';
+    else if (ipBlockMarkers.test(pageBody)) sig = 'ip_blocked';
     // Login form rendered but the trajectory threw before redirect (locator
     // timeout, no form inputs, submit blocked). Still on instagram.com/login
     // means cookies-stale: retrying the same path will hit the same wall.

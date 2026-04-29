@@ -1,4 +1,5 @@
 import { WSession } from '../../dist/session/wsession.js';
+import { humanType, humanFill } from '../../dist/human/keyboard.js';
 
 const URL = 'https://www.instagram.com/accounts/emailsignup/';
 const MAX_RETRIES = 5;
@@ -166,9 +167,9 @@ async function signup(s) {
         }
         // Clear and type phone via shared atoms
         const telLoc = s.page.locator('input[type="tel"]').first();
-        if (await telLoc.count()) await telLoc.fill('').catch(() => {});
+        if (await telLoc.count()) await humanFill(s.page, telLoc, '').catch(() => {});
         await sleep(1);
-        await s.page.keyboard.type(digits, { delay: 50 }).catch(() => {});
+        await humanType(s.page, digits).catch(() => {});
         await sleep(1);
         // Instagram's heavy page crashes on mouse.move, so the Send Code /
         // Next / Continue button goes via s.jsClick (named escape-hatch atom).

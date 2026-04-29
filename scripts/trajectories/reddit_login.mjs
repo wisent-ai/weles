@@ -2,6 +2,8 @@ import { getSocialAccount, resolveAccountSession } from '../../dist/utils/creden
 import { WSession } from '../../dist/session/wsession.js';
 import { execute } from '../../dist/agent/loop.js';
 import { detectRedditBanSignals } from '../../dist/platforms/reddit/ban_signals.js';
+import { humanType } from '../../dist/human/keyboard.js';
+import { humanIdlePause, humanClickLocator } from '../../dist/human/mouse.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -91,13 +93,15 @@ try {
     await s.page.waitForTimeout(2000);
     const userIn = s.page.locator('input#login-username, input[name="username"], input[autocomplete="username"]').filter({ visible: true }).first();
     await userIn.waitFor({ state: 'visible' });
-    await userIn.click();
-    await userIn.pressSequentially(process.env.SVC_EMAIL, { delay: 25 });
+    await humanClickLocator(s.page, userIn);
+    await humanIdlePause('short');
+    await humanType(s.page, process.env.SVC_EMAIL);
     const pwIn = s.page.locator('input#login-password, input[name="password"], input[type="password"]').filter({ visible: true }).first();
     await pwIn.waitFor({ state: 'visible' });
-    await pwIn.click();
-    await pwIn.pressSequentially(process.env.SVC_PASSWORD, { delay: 25 });
-    await s.page.waitForTimeout(400);
+    await humanClickLocator(s.page, pwIn);
+    await humanIdlePause('short');
+    await humanType(s.page, process.env.SVC_PASSWORD);
+    await humanIdlePause('short');
     // Press Enter on password field — Reddit's submit button may be in Shadow DOM
     // (web component button) which Playwright can't reach. Enter triggers the form.
     await pwIn.press('Enter');

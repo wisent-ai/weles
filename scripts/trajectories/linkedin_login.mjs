@@ -1,6 +1,8 @@
 import { getSocialAccount, resolveAccountSession } from '../../dist/utils/credentials.js';
 import { WSession } from '../../dist/session/wsession.js';
 import { CaptchaSolver } from '../../dist/captcha/solver.js';
+import { humanType } from '../../dist/human/keyboard.js';
+import { humanIdlePause } from '../../dist/human/mouse.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -62,10 +64,13 @@ try {
   // without going through the click pipeline.
   await s.page.locator(usernameSel).filter({ visible: true }).first().waitFor({ state: 'visible' });
   await s.page.evaluate(() => document.querySelector('input#username, input[name="session_key"]')?.focus());
-  await s.page.keyboard.type(process.env.SVC_EMAIL ?? '', { delay: 25 });
+  await humanIdlePause('short');
+  await humanType(s.page, process.env.SVC_EMAIL ?? '');
+  await humanIdlePause('short');
   await s.page.evaluate(() => document.querySelector('input#password, input[name="session_password"]')?.focus());
-  await s.page.keyboard.type(process.env.SVC_PASSWORD ?? '', { delay: 25 });
-  await s.page.waitForTimeout(400);
+  await humanIdlePause('short');
+  await humanType(s.page, process.env.SVC_PASSWORD ?? '');
+  await humanIdlePause('short');
   // LinkedIn's submit is type='submit' inside a real <form> — locator.click
   // hangs the full default click-timeout because the click event registers
   // but Playwright's navigation-wait never resolves (LinkedIn returns the

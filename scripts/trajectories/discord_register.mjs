@@ -1,5 +1,6 @@
 import { WSession } from '../../dist/session/wsession.js';
 import { execute } from '../../dist/agent/loop.js';
+import { humanClickLocator } from '../../dist/human/mouse.js';
 
 const URL = 'https://discord.com/register';
 const GOAL = `generate_identity(platform="discord"). Fill Email with $DISCORD_NEW_EMAIL. Fill "Display Name" with $DISCORD_NEW_USERNAME. Fill Username with $DISCORD_NEW_USERNAME. Fill Password with $DISCORD_NEW_PASSWORD. For Date of Birth use select_option(target="month",value=$DISCORD_NEW_BIRTHMONTH), select_option(target="day",value=$DISCORD_NEW_BIRTHDAY), select_option(target="year",value=$DISCORD_NEW_BIRTHYEAR). Click "Create Account". If captcha, solve_captcha(sitekey="auto"). If email verification, check_email(email=$DISCORD_NEW_EMAIL,sender="discord"). done(value=$DISCORD_NEW_USERNAME).`;
@@ -16,24 +17,18 @@ try {
       if (mounted) { console.log(`[test] SPA mounted after ${i + 1}s`); break; }
       await s.wait(1);
     }
-    // Fill via JS value setter + React events (more reliable than el.fill for Discord SPA)
+    // Humanized fill — replaces descriptor-set + dispatch('input') which
+    // bypassed every keystroke (anti-bot signal). humanFill clicks, clears,
+    // then types one char at a time with trace-derived timing.
+    const { humanFill } = await import('../../dist/human/keyboard.js');
     const fillField = async (name, val) => {
       const resolved = s.resolveEnv(val);
-      const result = await s.page.evaluate(`(({ name, val }) => {
-        const el = document.querySelector('input[name="' + name + '"]');
-        if (!el) return { ok: false, reason: 'not-found' };
-        el.focus();
-        const originalType = el.type;
-        if (originalType === 'password') el.type = 'text';
-        const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
-        setter.call(el, val);
-        el.dispatchEvent(new Event('input', { bubbles: true }));
-        el.dispatchEvent(new Event('change', { bubbles: true }));
-        if (originalType === 'password') el.type = originalType;
-        return { ok: true, len: val.length };
-      })(${JSON.stringify({ name, val: resolved })})`);
-      console.log(`[test] fill ${name}: ${JSON.stringify(result)}`);
-      return result;
+      const loc = s.page.locator(`input[name="${name}"]`).first();
+      if (!(await loc.count())) { const r = { ok: false, reason: 'not-found' }; console.log(`[test] fill ${name}: ${JSON.stringify(r)}`); return r; }
+      await humanFill(s.page, loc, resolved);
+      const r = { ok: true, len: resolved.length };
+      console.log(`[test] fill ${name}: ${JSON.stringify(r)}`);
+      return r;
     };
     // Wait for form to fully render (comboboxes take longer than text inputs)
     for (let i = 0; i < 15; i++) {
@@ -62,9 +57,9 @@ try {
     await fillField('password', '$DISCORD_NEW_PASSWORD');
     await s.wait(1);
     // Click terms checkbox — target the checkboxOption wrapper, not just the text
-    const termsClicked = await s.page.locator('[class*="checkboxOption"]').click().catch(() => 'missed');
+    const termsClicked = await humanClickLocator(s.page, s.page.locator('[class*="checkboxOption"]').first()).then(() => 'ok').catch(() => 'missed');
     if (termsClicked !== 'missed') console.log('[test] Terms checkbox clicked');
-    else { await s.page.locator('text=I have read and agree').click().catch(() => {}); console.log('[test] Terms text clicked'); }
+    else { await humanClickLocator(s.page, s.page.locator('text=I have read and agree').first()).catch(() => {}); console.log('[test] Terms text clicked'); }
     await s.wait(1);
     // Check form state before submit
     const formState = await s.page.evaluate(`(() => {
@@ -80,13 +75,13 @@ try {
     // Retry submit until captcha data is intercepted
     for (let attempt = 0; attempt < 8; attempt++) {
       // Try multiple click strategies
-      await s.page.locator('button[type="submit"]').click().catch(() => {});
+      await humanClickLocator(s.page, s.page.locator('button[type="submit"]').first()).catch(() => {});
       await s.wait(2);
       if (s.captchaResponse) { console.log('[test] Form submitted (captcha intercepted via locator click)'); break; }
       // Second strategy: same selector but skip Playwright's actionability
       // check (force). Still routes through CDP so it's a trusted click,
       // just with the should-be-visible/should-be-enabled checks bypassed.
-      await s.page.locator('button[type="submit"]').click({ force: true }).catch(() => {});
+      await humanClickLocator(s.page, s.page.locator('button[type="submit"]').first()).catch(() => {});
       await s.wait(2);
       if (s.captchaResponse) { console.log('[test] Form submitted (captcha intercepted via force locator click)'); break; }
       await s.page.evaluate('document.querySelector("form")?.requestSubmit()').catch(() => {});

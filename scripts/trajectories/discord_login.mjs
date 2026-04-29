@@ -70,21 +70,17 @@ try {
   }
   const inputNames = await s.page.evaluate(`Array.from(document.querySelectorAll('input')).map(i=>({name:i.name,type:i.type,ph:i.placeholder,aria:i.getAttribute('aria-label')}))`).catch(() => []);
   console.log(`[login] Inputs: ${JSON.stringify(inputNames)}`);
-  // Use JS value setter (Playwright el.fill fails on Discord's React inputs)
+  // Humanized fill — descriptor-set + dispatch('input') previously bypassed
+  // every keystroke; route through humanFill (real click + ControlOrMeta+A
+  // + humanType). Discord's React inputs work fine with keystrokes; the old
+  // comment about Playwright el.fill failing was specific to the .fill()
+  // synchronous-set path, not real keyboard events.
+  const { humanFill } = await import('../../dist/human/keyboard.js');
   const fillField = async (selector, val) => {
-    return s.page.evaluate(`(({ sel, val }) => {
-      const el = document.querySelector(sel);
-      if (!el) return { ok: false, reason: 'not-found', sel };
-      el.focus();
-      const originalType = el.type;
-      if (originalType === 'password') el.type = 'text';
-      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
-      setter.call(el, val);
-      el.dispatchEvent(new Event('input', { bubbles: true }));
-      el.dispatchEvent(new Event('change', { bubbles: true }));
-      if (originalType === 'password') el.type = originalType;
-      return { ok: true, len: val.length };
-    })(${JSON.stringify({ sel: selector, val })})`);
+    const loc = s.page.locator(selector).first();
+    if (!(await loc.count())) return { ok: false, reason: 'not-found', sel: selector };
+    await humanFill(s.page, loc, val);
+    return { ok: true, len: val.length };
   };
   // Find email input (could be name="email", name="login", or type="email")
   const emailSel = inputNames.find(i => i.name === 'email' || i.type === 'email' || i.name === 'login')

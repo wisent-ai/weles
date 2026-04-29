@@ -1,5 +1,7 @@
 import { WSession } from '../../../dist/session/wsession.js';
 import { approveQr } from './_qr_approve.mjs';
+import { humanFill, humanType } from '../../../dist/human/keyboard.js';
+import { humanClickLocator } from '../../../dist/human/mouse.js';
 
 const SIGNUP_URL = 'https://accounts.google.com/signup/v2/createaccount?biz=false&cc=US&continue=https%3A%2F%2Fwww.youtube.com%2Fsignin%3Faction_handle_signin%3Dtrue&dsh=S0&flowEntry=SignUp&flowName=GlifWebSignIn&hl=en&service=youtube';
 const MAX_RETRIES = 15;
@@ -26,7 +28,7 @@ async function readPage(s) {
 async function clickNext(s) {
   await s.click('Next').catch(() => {});
   // Also try a locator-click on Next in one of the common locale strings.
-  await s.page.locator('button, div[role="button"]').filter({ hasText: /^(next|weiter|suivant|siguiente)$/i }).first().click().catch(() => {});
+  await humanClickLocator(s.page, s.page.locator('button, div[role="button"]').filter({ hasText: /^(next|weiter|suivant|siguiente)$/i }).first()).catch(() => {});
 }
 
 async function signup(s) {
@@ -73,22 +75,25 @@ async function signup(s) {
   console.log('[google] step 3: birthday + gender');
   const birthMonth = Number(id.birthMonth) || 6;
 
-  await s.page.locator('#month').click().catch((e) => console.log(`[google] #month click: ${e.message?.slice(0, 60)}`));
+  await humanClickLocator(s.page, s.page.locator('#month').first()).catch((e) => console.log(`[google] #month click: ${e.message?.slice(0, 60)}`));
   await sleep(1.5);
+  // Material option list — force=true preserves the original force-click semantics.
   await s.page.locator(`li[data-value="${birthMonth}"]`).first().click({ force: true }).catch((e) => console.log(`[google] month option click: ${e.message?.slice(0, 60)}`));
   await sleep(1);
 
-  await s.page.locator('input[name="day"], input#day').first().fill(String(id.birthDay)).catch(() => {});
+  const dayLoc = s.page.locator('input[name="day"], input#day').first();
+  if (await dayLoc.count()) await humanFill(s.page, dayLoc, String(id.birthDay)).catch(() => {});
   await sleep(0.3);
-  await s.page.locator('input[name="year"], input#year').first().fill(String(id.birthYear)).catch(() => {});
+  const yearLoc = s.page.locator('input[name="year"], input#year').first();
+  if (await yearLoc.count()) await humanFill(s.page, yearLoc, String(id.birthYear)).catch(() => {});
   await sleep(0.5);
 
   // Gender: click the role=combobox labeled "Gender", then click the "Rather not say" option
   const genderCombobox = s.page.getByRole('combobox', { name: /^gender$/i });
-  await genderCombobox.click().catch((e) => console.log(`[google] gender combobox click: ${e.message?.slice(0, 60)}`));
+  await humanClickLocator(s.page, genderCombobox).catch((e) => console.log(`[google] gender combobox click: ${e.message?.slice(0, 60)}`));
   await sleep(1.5);
   // Options render as [role="option"] after opening
-  await s.page.getByRole('option', { name: /rather not say/i }).click().catch((e) => console.log(`[google] gender option click: ${e.message?.slice(0, 60)}`));
+  await humanClickLocator(s.page, s.page.getByRole('option', { name: /rather not say/i })).catch((e) => console.log(`[google] gender option click: ${e.message?.slice(0, 60)}`));
   await sleep(1);
 
   const genderVal = await s.page.evaluate(`(() => {
@@ -212,10 +217,10 @@ async function signup(s) {
     }
     const phone = smsRes.replace(/^phone:\s*/i, '').trim();
     console.log(`[google] phone: ${phone}`);
-    await s.page.locator(phoneSel).first().fill(phone).catch(async () => {
-      await s.page.locator(phoneSel).first().click().catch(() => {});
-      await s.page.keyboard.type(phone, { delay: 40 }).catch(() => {});
-    });
+    {
+      const phoneLoc = s.page.locator(phoneSel).first();
+      if (await phoneLoc.count()) await humanFill(s.page, phoneLoc, phone).catch(() => {});
+    }
     await sleep(1);
     await clickNext(s);
     await sleep(6);
@@ -229,7 +234,7 @@ async function signup(s) {
     for (const cs of ['input[name="code"]', 'input[type="tel"]', 'input#code']) {
       const el = s.page.locator(cs).first();
       if (await el.isVisible().catch(() => false)) {
-        await el.fill(code).catch(() => {});
+        await humanFill(s.page, el, code).catch(() => {});
         break;
       }
     }

@@ -1,6 +1,8 @@
 import { getSocialAccount, resolveAccountSession } from '../../dist/utils/credentials.js';
 import { WSession } from '../../dist/session/wsession.js';
 import { execute } from '../../dist/agent/loop.js';
+import { humanFill } from '../../dist/human/keyboard.js';
+import { humanClickLocator } from '../../dist/human/mouse.js';
 
 const LOGIN_URL = 'https://x.com/i/flow/login';
 const HOME_URL = 'https://x.com/home';
@@ -80,8 +82,8 @@ async function tryDirectLoginPath() {
 
   await s.page.waitForSelector(usernameSel);
   await s.screenshot('direct_username_visible').catch(() => {});
-  await s.page.fill(usernameSel, process.env.SVC_EMAIL);
-  await s.page.click(nextBtnSel);
+  await humanFill(s.page, s.page.locator(usernameSel).first(), process.env.SVC_EMAIL);
+  await humanClickLocator(s.page, s.page.locator(nextBtnSel).first());
 
   const passwordLocator = s.page.locator(passwordSel).first();
   const challengeLocator = s.page.locator('input[data-testid="ocfEnterTextTextInput"]').first();
@@ -96,8 +98,8 @@ async function tryDirectLoginPath() {
   }
 
   await s.screenshot('direct_password_visible').catch(() => {});
-  await s.page.fill(passwordSel, process.env.SVC_PASSWORD);
-  await s.page.click(loginBtnSel);
+  await humanFill(s.page, s.page.locator(passwordSel).first(), process.env.SVC_PASSWORD);
+  await humanClickLocator(s.page, s.page.locator(loginBtnSel).first());
 
   try { await s.page.waitForURL(/x\.com\/(home|i\/flow\/login\/check)/); } catch {}
   await s.screenshot('direct_after_submit').catch(() => {});
