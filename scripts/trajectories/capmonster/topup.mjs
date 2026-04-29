@@ -1,7 +1,7 @@
-// CapMonster Cloud topup via Google SSO. Dry-run by default.
+// CapMonster Cloud topup via Google SSO through Keycloak.
 import { WSession } from '../../../dist/session/wsession.js';
 import { googleSso, getGoogleSsoCreds } from '../_shared/services/google_sso.mjs';
-import { topupOpts, dryRunExit } from '../_shared/services/topup_common.mjs';
+import { topupOpts, dryRunExit, findAndClickPayButton } from '../_shared/services/topup_common.mjs';
 
 const { usd, confirm } = topupOpts();
 const login = await getGoogleSsoCreds();
@@ -16,10 +16,10 @@ try {
   if (!ok) { console.log('FAIL: Google SSO did not complete'); process.exit(1); }
 
   await s.page.waitForTimeout(5000);
-  // CapMonster's add-funds flow is usually inside the Profile or Billing tab.
   await s.page.goto('https://dash.capmonster.cloud/Profile/AddFunds', { waitUntil: 'domcontentloaded' }).catch(() => {});
   await s.page.waitForTimeout(5000);
 
+  // Fill amount if input exists
   const amtIn = s.page.locator('input[type="number"], input[name*="amount" i], input[inputmode="numeric"]').filter({ visible: true }).first();
   if (await amtIn.isVisible().catch(() => false)) {
     await amtIn.click(); await amtIn.fill(String(usd));
@@ -27,8 +27,15 @@ try {
   }
 
   if (!confirm) { await dryRunExit(s, 'capmonster', usd); process.exit(0); }
-  console.log('FAIL: TOPUP_CONFIRM=1 not yet wired through CapMonster checkout. Stop here for safety.');
-  process.exit(1);
+
+  // CONFIRM: Find and click the pay/checkout button
+  const clicked = await findAndClickPayButton(s.page);
+  if (!clicked) {
+    console.log('FAIL: could not find pay/checkout button');
+    process.exit(1);
+  }
+  await s.page.waitForTimeout(8000);
+  console.log(`PASS-CHARGED: checkout initiated, url=${s.page.url().slice(0, 100)}`);
 } catch (e) {
   console.log('FAIL:', e.message?.slice(0, 200));
   process.exit(1);
