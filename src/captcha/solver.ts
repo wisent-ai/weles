@@ -5,6 +5,7 @@
 
 import { solveRecaptchaV2 } from './recaptcha.js';
 import { getCaptchaCredentials } from '../utils/credentials.js';
+import { costTracker } from '../utils/cost.js';
 
 type Page = any;
 
@@ -76,14 +77,14 @@ export class CaptchaSolver {
       const token = await apiSolve('https://api.capsolver.com', this._creds.capsolver, {
         type: taskType, websiteURL: page.url?.() ?? '', websiteKey: sitekey,
       });
-      if (token) { console.log(`[captcha:solver] ${taskType} solved via capsolver`); return token; }
+      if (token) { console.log(`[captcha:solver] ${taskType} solved via capsolver`); costTracker.recordCaptcha('capsolver', 'recaptcha_v2'); return token; }
     }
     if (this._creds.anticaptcha) {
       const token = await apiSolve('https://api.anti-captcha.com', this._creds.anticaptcha, {
         type: 'RecaptchaV2TaskProxyless', websiteURL: page.url?.() ?? '', websiteKey: sitekey,
         isEnterprise: !!options?.enterprise,
       });
-      if (token) { console.log(`[captcha:solver] V2 solved via anticaptcha`); return token; }
+      if (token) { console.log(`[captcha:solver] V2 solved via anticaptcha`); costTracker.recordCaptcha('anticaptcha', 'recaptcha_v2'); return token; }
     }
     // Image-grid path for cases where API solvers fail and Google's
     // standard frame chain IS present (non-LinkedIn enterprise sites).
@@ -105,19 +106,19 @@ export class CaptchaSolver {
         type: 'ReCaptchaV3EnterpriseTaskProxyLess', websiteURL: url, websiteKey: sitekey,
         minScore: 0.9, pageAction: action ?? 'verify',
       });
-      if (token) { console.log('[captcha:solver] ReCaptchaV3Enterprise solved via capsolver'); return token; }
+      if (token) { console.log('[captcha:solver] ReCaptchaV3Enterprise solved via capsolver'); costTracker.recordCaptcha('capsolver', 'recaptcha_v3'); return token; }
       const tokenV3 = await apiSolve('https://api.capsolver.com', this._creds.capsolver, {
         type: 'ReCaptchaV3TaskProxyLess', websiteURL: url, websiteKey: sitekey,
         minScore: 0.9, pageAction: action ?? 'verify',
       });
-      if (tokenV3) { console.log('[captcha:solver] ReCaptchaV3 solved via capsolver'); return tokenV3; }
+      if (tokenV3) { console.log('[captcha:solver] ReCaptchaV3 solved via capsolver'); costTracker.recordCaptcha('capsolver', 'recaptcha_v3'); return tokenV3; }
     }
     if (this._creds.anticaptcha) {
       const token = await apiSolve('https://api.anti-captcha.com', this._creds.anticaptcha, {
         type: 'RecaptchaV3TaskProxyless', websiteURL: url, websiteKey: sitekey,
         minScore: 0.7, pageAction: action ?? 'verify',
       });
-      if (token) { console.log('[captcha:solver] ReCaptchaV3 solved via anticaptcha'); return token; }
+      if (token) { console.log('[captcha:solver] ReCaptchaV3 solved via anticaptcha'); costTracker.recordCaptcha('anticaptcha', 'recaptcha_v3'); return token; }
     }
     return null;
   }
@@ -125,9 +126,11 @@ export class CaptchaSolver {
   async solveTurnstile(sitekey: string, url: string): Promise<string | null> {
     await this._ensureInit();
     if (this._creds.capsolver) {
-      return apiSolve('https://api.capsolver.com', this._creds.capsolver, {
+      const token = await apiSolve('https://api.capsolver.com', this._creds.capsolver, {
         type: 'AntiTurnstileTaskProxyLess', websiteURL: url, websiteKey: sitekey,
       });
+      if (token) costTracker.recordCaptcha('capsolver', 'turnstile');
+      return token;
     }
     return null;
   }
@@ -154,11 +157,11 @@ export class CaptchaSolver {
     // Try all services: anticaptcha → capmonster → capsolver
     if (this._creds.anticaptcha) {
       const token = await apiSolve('https://api.anti-captcha.com', this._creds.anticaptcha, baseTask);
-      if (token) { console.log('[captcha:solver] Solved via anticaptcha'); return token; }
+      if (token) { console.log('[captcha:solver] Solved via anticaptcha'); costTracker.recordCaptcha('anticaptcha', 'hcaptcha'); return token; }
     }
     if (this._creds.capmonster) {
       const token = await apiSolve('https://api.capmonster.cloud', this._creds.capmonster, baseTask);
-      if (token) { console.log('[captcha:solver] Solved via capmonster'); return token; }
+      if (token) { console.log('[captcha:solver] Solved via capmonster'); costTracker.recordCaptcha('capmonster', 'hcaptcha'); return token; }
     }
     if (this._creds.capsolver) {
       // CapSolver: HCaptchaEnterpriseTaskProxyLess is its own task type;
@@ -166,7 +169,7 @@ export class CaptchaSolver {
       const t: Record<string, any> = { ...baseTask, type: enterprise ? (useProxy ? 'HCaptchaEnterpriseTask' : 'HCaptchaEnterpriseTaskProxyLess') : (useProxy ? 'HCaptchaTask' : 'HCaptchaTaskProxyLess') };
       delete t.isEnterprise;
       const token = await apiSolve('https://api.capsolver.com', this._creds.capsolver, t);
-      if (token) { console.log('[captcha:solver] Solved via capsolver'); return token; }
+      if (token) { console.log('[captcha:solver] Solved via capsolver'); costTracker.recordCaptcha('capsolver', 'hcaptcha'); return token; }
     }
     console.log('[captcha:solver] All services failed for hCaptcha');
     return null;
@@ -204,6 +207,7 @@ export class CaptchaSolver {
       const dot = u.hostname.startsWith('www.') ? u.hostname.slice(3) : ('.' + u.hostname);
       for (const [name, value] of Object.entries(j.data?.cookies ?? {})) out.push({ name, value: String(value), domain: dot, path: '/' });
       console.log(`[captcha:solver] PerimeterX solved via nocaptcha (${out.length} cookies)`);
+      if (out.length) costTracker.recordCaptcha('nocaptcha', 'perimeterx');
       return out.length ? out : null;
     } catch (e: any) {
       console.log(`[captcha:api] nocaptcha PerimeterX fetch err: ${e.message?.slice(0, 100)}`);
@@ -219,7 +223,7 @@ export class CaptchaSolver {
       if (subdomain) task.funcaptchaApiJSSubdomain = subdomain.replace(/^https?:\/\//, '').replace('iframe.arkoselabs.com', 'client-api.arkoselabs.com');
       if (blob) task.data = JSON.stringify({ blob });
       const token = await apiSolve('https://api.anti-captcha.com', this._creds.anticaptcha, task);
-      if (token) { console.log('[captcha:solver] FunCaptcha solved via anticaptcha'); return token; }
+      if (token) { console.log('[captcha:solver] FunCaptcha solved via anticaptcha'); costTracker.recordCaptcha('anticaptcha', 'funcaptcha'); return token; }
     }
     if (this._creds.twocaptcha) {
       const sd = subdomain ? subdomain.replace(/^https?:\/\//, '').replace('iframe.arkoselabs.com', 'client-api.arkoselabs.com') : '';
@@ -235,7 +239,7 @@ export class CaptchaSolver {
         for (let i = 0; i < 60; i++) {
           await new Promise(r => setTimeout(r, 5000));
           const res = await (await fetch(`https://2captcha.com/res.php?key=${this._creds.twocaptcha}&action=get&id=${tid}&json=1`)).json().catch(() => ({})) as any;
-          if (res.status === 1) { console.log(`[captcha:api] 2captcha solved`); return res.request; }
+          if (res.status === 1) { console.log(`[captcha:api] 2captcha solved`); costTracker.recordCaptcha('twocaptcha', 'funcaptcha'); return res.request; }
           if (res.request !== 'CAPCHA_NOT_READY') { console.log(`[captcha:api] 2captcha error: ${res.request}`); break; }
         }
       } else { console.log(`[captcha:api] 2captcha create error: ${cr.request ?? cr.error_text ?? JSON.stringify(cr)}`); }
@@ -245,14 +249,14 @@ export class CaptchaSolver {
       if (subdomain) task.funcaptchaApiJSSubdomain = subdomain.replace(/^https?:\/\//, '').replace('iframe.arkoselabs.com', 'client-api.arkoselabs.com');
       if (blob) task.data = JSON.stringify({ blob });
       const token = await apiSolve('https://api.capmonster.cloud', this._creds.capmonster, task);
-      if (token) { console.log('[captcha:solver] FunCaptcha solved via capmonster'); return token; }
+      if (token) { console.log('[captcha:solver] FunCaptcha solved via capmonster'); costTracker.recordCaptcha('capmonster', 'funcaptcha'); return token; }
     }
     if (this._creds.capsolver) {
       const task: Record<string, any> = { type: 'FunCaptchaTaskProxyLess', websiteURL: url, websitePublicKey: publicKey };
       if (subdomain) { let s = subdomain.startsWith('http') ? subdomain : `https://${subdomain}`; s = s.replace('iframe.arkoselabs.com', 'client-api.arkoselabs.com'); task.funcaptchaApiJSSubdomain = s; }
       if (blob) task.data = JSON.stringify({ blob });
       const token = await apiSolve('https://api.capsolver.com', this._creds.capsolver, task);
-      if (token) { console.log('[captcha:solver] FunCaptcha solved via capsolver'); return token; }
+      if (token) { console.log('[captcha:solver] FunCaptcha solved via capsolver'); costTracker.recordCaptcha('capsolver', 'funcaptcha'); return token; }
     }
     console.log('[captcha:solver] All services failed for FunCaptcha');
     return null;

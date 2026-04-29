@@ -200,15 +200,33 @@ async function pauseAccount(accountId: string, signal?: string, hours = 24): Pro
   await fetch(`${SUPABASE_URL}/rest/v1/social_accounts?id=eq.${accountId}`, { method: 'PATCH', headers: { ...headers(), Prefer: 'return=minimal' }, body: JSON.stringify(body) }).catch(() => {});
 }
 
-async function writeResult(jobId: string, status: 'completed' | 'failed' | 'pending_review', result: Record<string, unknown>, error?: string): Promise<void> {
+async function writeResult(jobId: string, status: 'completed' | 'failed' | 'pending_review', result: Record<string, unknown>, error?: string, costs?: { cost_usd: number; service_costs: Record<string, number> }): Promise<void> {
+  const body: Record<string, unknown> = {
+    status, result, error: error ?? null,
+    completed_at: new Date().toISOString(),
+  };
+  if (costs) {
+    body.cost_usd = costs.cost_usd;
+    body.service_costs = costs.service_costs;
+  }
   await fetch(`${SUPABASE_URL}/rest/v1/account_action_logs?id=eq.${jobId}`, {
     method: 'PATCH',
     headers: { ...headers(), Prefer: 'return=minimal' },
-    body: JSON.stringify({
-      status, result, error: error ?? null,
-      completed_at: new Date().toISOString(),
-    }),
+    body: JSON.stringify(body),
   }).catch(() => {});
+}
+
+async function readCosts(jobId: string): Promise<{ cost_usd: number; service_costs: Record<string, number> } | null> {
+  const path = join(RECORDINGS_ROOT, '_costs', `${jobId}.json`);
+  try {
+    const raw = await readFile(path, 'utf8');
+    const parsed = JSON.parse(raw);
+    if (typeof parsed?.cost_usd === 'number' && parsed.service_costs && typeof parsed.service_costs === 'object') {
+      void unlink(path).catch(() => {});
+      return { cost_usd: parsed.cost_usd, service_costs: parsed.service_costs };
+    }
+  } catch { /* file absent or malformed */ }
+  return null;
 }
 
 async function closeCampaignItem(params: Record<string, unknown> | undefined, finalStatus: 'completed' | 'failed', error?: string): Promise<void> {
@@ -279,19 +297,21 @@ export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
   }
   // Always upload so every run has recordings on the detail page.
   await uploadArtifacts(row.action, row.id, runStart, { force: true }).then(a => { if (a) result.artifacts = a }).catch(() => {});
+  const costs = await readCosts(row.id);
+  if (costs) console.log(`[worker] ${row.id.slice(0, 8)} cost=$${costs.cost_usd.toFixed(4)} services=${Object.keys(costs.service_costs).join(',')}`);
   const pendingPath = join(RECORDINGS_ROOT, row.action, 'pending_review.json');
   let pending: Record<string, unknown> | null = null;
   try { pending = JSON.parse(await readFile(pendingPath, 'utf8')); await unlink(pendingPath); } catch { pending = null; }
   if (exitCode === 0 && pending) {
     result.pending_review = pending;
-    await writeResult(row.id, 'pending_review', result);
+    await writeResult(row.id, 'pending_review', result, undefined, costs ?? undefined);
     console.log(`[worker] ${row.id.slice(0, 8)} pending_review`);
   } else if (exitCode === 0) {
-    await writeResult(row.id, 'completed', result);
+    await writeResult(row.id, 'completed', result, undefined, costs ?? undefined);
     await closeCampaignItem(row.params, 'completed');
     console.log(`[worker] ${row.id.slice(0, 8)} completed signal=${(result.ban_signal as BanSignal).signal}`);
   } else {
-    await writeResult(row.id, 'failed', result, stderr || `exit ${exitCode}`);
+    await writeResult(row.id, 'failed', result, stderr || `exit ${exitCode}`, costs ?? undefined);
     await closeCampaignItem(row.params, 'failed', stderr || `exit ${exitCode}`);
     console.log(`[worker] ${row.id.slice(0, 8)} failed exit=${exitCode}`);
   }

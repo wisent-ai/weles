@@ -22,6 +22,7 @@ import { join } from 'node:path';
 import { resolveProxy } from '../proxy/config.js';
 import { getEmailApiKey } from '../utils/credentials.js';
 import { findCustomBrowser } from './find_browser.js';
+import { costTracker } from '../utils/cost.js';
 
 import { installAtoms } from './wsession_atoms.js';  // installAtoms() is invoked at file end after WSession is declared
 function recordingsDir(label?: string): string { const d = join(process.cwd(), 'recordings', ...(label ? [label] : [])); mkdirSync(d, { recursive: true }); return d; }
@@ -60,6 +61,8 @@ export class WSession {
   personaConfig: Persona | undefined;
   capturedResponses: Array<{ ts: number; method: string; url: string; status: number; headers: Record<string, string>; body: string }> = [];
   private _smsOrder: SmsNumber | null = null;
+  private _proxyBytes = 0;
+  private _cdp: any = null;
 
   private constructor(ctx: BrowserContext, page: any, label: string, cap: Capture) {
     this.ctx = ctx; this.page = page; this.label = label; this._cap = cap;
@@ -69,6 +72,21 @@ export class WSession {
     page.on?.('request', (req: any) => { try { const u = req.url(); if (authPaths.some(p => u.includes(p)) && req.method() === 'POST') { this.captchaFormData = JSON.parse(req.postData() ?? '{}'); this.captchaEndpoint = u; const h = req.headers(); this.captchaHeaders = {}; for (const k of Object.keys(h)) { if (k.startsWith('x-')) this.captchaHeaders[k] = h[k]; } } } catch {} });
     page.on?.('response', async (res: any) => { try { const u = res.url(); if (authPaths.some(p => u.includes(p)) && res.status() >= 400) { const d = await res.json(); if (d.captcha_key !== undefined) { this.captchaResponse = d; console.log(`[wsession] Captured captcha data: sitekey=${d.captcha_sitekey?.slice(0, 12)}`); } const errs = d?.errors?.login?._errors ?? d?.errors?.email?._errors ?? []; const code = errs[0]?.code; if (code === 'ACCOUNT_PERMANENTLY_DISABLED' || code === 'ACCOUNT_DISABLED' || code === 'ACCOUNT_LOGIN_BLOCKED') { this.authBlocked = code; console.log(`[wsession] Auth blocked by platform: ${code}`); } } } catch {} });
     ctx.on?.('response', async (res: any) => { try { if (this.capturedResponses.length >= 500) this.capturedResponses.shift(); let body = ''; try { body = (await res.text()).slice(0, 8192); } catch {} this.capturedResponses.push({ ts: Date.now(), method: res.request()?.method?.() ?? 'GET', url: res.url(), status: res.status(), headers: res.headers(), body }); } catch {} });
+    // CDP Network.dataReceived — accumulates bytes flowing through the proxy
+    // upstream so we can compute per-trajectory egress cost in close().
+    void (async () => {
+      try {
+        if (typeof ctx.newCDPSession !== 'function') return;
+        this._cdp = await ctx.newCDPSession(page);
+        await this._cdp.send('Network.enable').catch(() => {});
+        this._cdp.on('Network.dataReceived', (e: any) => {
+          // encodedDataLength is on-the-wire bytes (post-compression). Falls
+          // back to dataLength for older Chromium revisions.
+          const n = Number(e?.encodedDataLength ?? e?.dataLength ?? 0);
+          if (n > 0) this._proxyBytes += n;
+        });
+      } catch (e: any) { console.log(`[wsession] CDP attach err: ${e.message?.slice(0, 120)}`); }
+    })();
   }
 
   async runStep<T>(name: string, fn: () => Promise<T>): Promise<T> {
@@ -143,13 +161,22 @@ export class WSession {
   async fill(target: string, value: string): Promise<string> {
     return this.runStep(`fill_${target}`, async () => {
     const v = this.resolveEnv(value);
+    // CRITICAL: every fill path must go through humanFill (humanized click +
+    // clear + humanType). Bare `el.fill(v)` writes the value via the DOM with
+    // ZERO keystroke events on the page — anti-bot signal that triggered the
+    // 2026-04-29 Reddit hard-ban after the comment trajectory's submit click
+    // bug was patched. The same defect exists for all form inputs anywhere
+    // we use Playwright's `.fill()`, so the wrapper layer is the right place
+    // to enforce humanization for every callsite.
+    const { humanFill } = await import('../human/keyboard.js');
     // Playwright's accessible-label resolver finds <label>Username or email</label>
-    // bound inputs even when the input's own name/placeholder/aria-label don't match
-    // the target keywords (e.g. github's <input name="login">). Try this first.
-    try { const lbl = this.page.getByLabel?.(target, { exact: false })?.first?.(); if (lbl && await lbl.isVisible({ timeout: 1500 }).catch(() => false)) { await lbl.fill(v); return 'filled'; } } catch {}
+    // bound inputs even when the input's own name/placeholder/aria-label don't
+    // match the target keywords (e.g. github's <input name="login">). Try this
+    // first.
+    try { const lbl = this.page.getByLabel?.(target, { exact: false })?.first?.(); if (lbl && await lbl.isVisible({ timeout: 1500 }).catch(() => false)) { await humanFill(this.page, lbl, v); return 'filled'; } } catch {}
     const kws = target.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(w => w.length > 2);
     const sels = kws.flatMap(k => ['input','textarea','[contenteditable]'].flatMap(t => [`${t}[name*="${k}"]`,`${t}[placeholder*="${k}" i]`,`${t}[aria-label*="${k}" i]`]));
-    for (const sel of sels) { try { const el = this.page.locator?.(sel)?.first?.(); if (el && await el.isVisible()) { await el.fill(v); return 'filled'; } } catch {} }
+    for (const sel of sels) { try { const el = this.page.locator?.(sel)?.first?.(); if (el && await el.isVisible()) { await humanFill(this.page, el, v); return 'filled'; } } catch {} }
     const tgt = JSON.stringify(target.toLowerCase());
     const c = await this.page.evaluate(`(()=>{var t=${tgt};for(var el of document.querySelectorAll('*')){var r=el.getBoundingClientRect();var ph=(el.getAttribute('placeholder')||'').toLowerCase();if(r.width>50&&r.height>10&&r.x>0&&ph&&ph.indexOf(t)>=0)return{x:r.x+r.width/2,y:r.y+r.height/2}}return null})()`).catch(() => null);
     if (c) { await humanClick(this.page, c.x, c.y); await this.page.keyboard.press('Meta+a').catch(() => {}); await humanType(this.page, v); return 'filled'; }
@@ -183,7 +210,7 @@ export class WSession {
     });
   }
 
-  async clickSelector(selector: string): Promise<string> { return this.runStep(`clickSel_${selector.slice(0,30)}`, async () => { const loc = this.page.locator(selector).first(); if (!(await loc.count())) return 'no-element-found'; await loc.click(); return `clicked ${selector.slice(0,60)}`; }); }
+  async clickSelector(selector: string): Promise<string> { return this.runStep(`clickSel_${selector.slice(0,30)}`, async () => { const loc = this.page.locator(selector).first(); if (!(await loc.count())) return 'no-element-found'; const { humanClickLocator } = await import('../human/mouse.js'); await humanClickLocator(this.page, loc); return `clicked ${selector.slice(0,60)}`; }); }
   async type(value: string): Promise<string> { return this.runStep('type', async () => { await humanType(this.page, this.resolveEnv(value)); return 'typed'; }); }
   async press(key: string): Promise<string> { return this.runStep(`press_${key}`, async () => { await this.page.keyboard.press(key); return `pressed ${key}`; }); }
 
@@ -256,13 +283,23 @@ export class WSession {
     const email = this.resolveEnv(data.email);
     const password = this.resolveEnv(data.password);
     const name = data.name ? this.resolveEnv(data.name) : undefined;
-    const cookies = await this.ctx.cookies().catch(() => []);
+    // Capture full storage state (cookies + per-origin localStorage), not
+    // just cookies. Reddit / Twitter / Instagram store anti-bot tokens
+    // (loid, _id_secret, redditcmoreId, telemetry session ids, ...) in
+    // localStorage and re-send them as XHR headers (e.g. x-reddit-loid).
+    // A subsequent action that restores ONLY cookies arrives with a valid
+    // session cookie but missing localStorage tokens — that's a "session
+    // moved to a different device" signal Reddit shadowbans on within
+    // seconds. Verified 2026-04-29: cookie-only restore for fresh registered
+    // accounts → about.json 404 (shadowban) within 2 minutes of first action.
+    const storageState = await this.ctx.storageState().catch(() => ({ cookies: [] as any[], origins: [] as any[] }));
+    const cookies = (storageState as any).cookies ?? [];
     const row = {
       platform,
       username,
       display_name: name,
       profile_url: profileUrl(platform, username, name),
-      metadata: { email, password, status: data.status ?? 'created', created_via: 'weles', cookies, cookies_updated_at: new Date().toISOString(), proxy: this.proxyConfig ?? null, persona: this.personaConfig ?? null },
+      metadata: { email, password, status: data.status ?? 'created', created_via: 'weles', cookies, storage_state: storageState, cookies_updated_at: new Date().toISOString(), proxy: this.proxyConfig ?? null, persona: this.personaConfig ?? null },
       is_active: true,
       created_by: 'weles',
     };
@@ -276,7 +313,24 @@ export class WSession {
   }
 
   async close(): Promise<void> {
-    console.log(`[wsession] close() label=${this.label}`);
+    console.log(`[wsession] close() label=${this.label} proxy_bytes=${this._proxyBytes}`);
+    // Flush proxy egress cost. Provider derived from proxy host substring; if
+    // we can't classify (custom PROXY_URL, no proxy at all), record as
+    // 'proxy_other' so the bytes still appear in service_costs.
+    if (this._proxyBytes > 0 && this.proxyConfig?.server) {
+      try {
+        const host = new URL(this.proxyConfig.server).hostname.toLowerCase();
+        const isMobile = /mobile/.test(host) || this.proxyConfig.platform?.toLowerCase().includes('mobile') === true;
+        const provider = host.includes('packetstream') ? 'packetstream'
+          : host.includes('oxylabs') ? 'oxylabs'
+          : host.includes('pingproxies') || host.includes('pingproxy') ? 'pingproxies'
+          : host.includes('iproyal') ? 'iproyal'
+          : host.includes('brd.superproxy') || host.includes('brightdata') ? 'brightdata'
+          : 'other';
+        costTracker.recordProxyBytes(provider, this._proxyBytes, isMobile);
+      } catch (e: any) { console.log(`[wsession] proxy-bytes record err: ${e.message?.slice(0, 100)}`); }
+    }
+    try { await this._cdp?.detach?.(); } catch {}
     await this._cap.save('session', this.page).catch(() => {}); try { writeFileSync(join(recordingsDir(this.label || undefined), 'network.ndjson'), this.capturedResponses.map(r => JSON.stringify(r)).join('\n')); } catch {}
     if (process.env.WELES_INSTRUMENT === '1' && !this.page.isClosed?.()) { try { const j: string = await this.page.evaluate('(window.__inst_flush)?window.__inst_flush():"[]"'); const outDir = join(process.cwd(), '.work', 'inst'); mkdirSync(outDir, { recursive: true }); const fn = join(outDir, `${this.label || 'session'}_${new Date().toISOString().replace(/[:.]/g, '-')}.json`); writeFileSync(fn, j); console.log(`[wsession] dumped __inst ${j.length}ch -> ${fn}`); } catch (e: any) { console.log(`[wsession] __inst dump err: ${e.message?.slice(0,120)}`); } }
     const video = this.page.video?.();
@@ -285,6 +339,10 @@ export class WSession {
     await this.page.close().catch((e: any) => console.log(`[wsession] page.close error: ${e.message?.slice(0, 200)}`));
     if (video) { await video.saveAs(dest).catch((e: any) => { console.log(`[wsession] video.saveAs error: ${e.message?.slice(0, 200)}`); try { const src = video.path?.() as string | undefined; if (src) { copyFileSync(src, dest); console.log(`[wsession] video copied from ${src}`); } } catch {} }); }
     await this.ctx.close().catch((e: any) => console.log(`[wsession] ctx.close error: ${e.message?.slice(0, 200)}`));
+    // Flush per-trajectory cost.json for the worker. We do this here in
+    // addition to the beforeExit hook so trajectories that re-enter or run
+    // multiple sessions in one process can still book costs reliably.
+    await costTracker.flush().catch(() => {});
     console.log(`[wsession] close() done`);
   }
 

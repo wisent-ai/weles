@@ -3,6 +3,8 @@
  * Plain HTTP GET calls, no external dependencies.
  */
 
+import { costTracker } from './cost.js';
+
 const JUICY_BASE = 'https://juicysms.com/api';
 
 const SERVICE_IDS: Record<string, string> = {
@@ -44,6 +46,7 @@ export async function getNumber(service: string, country = 'UK'): Promise<SmsNum
     const m = text.match(/ORDER_ID_(\d+)_NUMBER_(\d+)/);
     if (m) {
       console.log(`[sms] juicysms: got ${m[2]} (order ${m[1]}, ${country})`);
+      costTracker.recordSms('juicysms', service);
       return { phone: normalizePhone(m[2], country), orderId: m[1], provider: 'juicysms', country };
     }
     if (text.includes('OPEN_ORDER')) {
@@ -52,7 +55,10 @@ export async function getNumber(service: string, country = 'UK'): Promise<SmsNum
       const r2 = await fetch(url).catch(() => null);
       const t2 = (await r2?.text())?.trim() ?? '';
       const m2 = t2.match(/ORDER_ID_(\d+)_NUMBER_(\d+)/);
-      if (m2) return { phone: normalizePhone(m2[2], country), orderId: m2[1], provider: 'juicysms', country };
+      if (m2) {
+        costTracker.recordSms('juicysms', service);
+        return { phone: normalizePhone(m2[2], country), orderId: m2[1], provider: 'juicysms', country };
+      }
     }
     console.log(`[sms] juicysms (${country}): ${text.slice(0, 60)}`);
   }
@@ -69,6 +75,7 @@ export async function getNumber(service: string, country = 'UK'): Promise<SmsNum
         const phone = String(d.phoneNumber ?? '');
         console.log(`[sms] sms-activate: got ${phone} (activation ${d.activationId})`);
         await fetch(`https://api.sms-activate.org/stubs/handler_api.php?api_key=${saKey}&action=setStatus&status=1&id=${d.activationId}`).catch(() => {});
+        costTracker.recordSms('smsactivate', service);
         return { phone: normalizePhone(phone, country), orderId: String(d.activationId), provider: 'smsactivate', country };
       }
     }
