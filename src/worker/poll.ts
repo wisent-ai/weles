@@ -133,6 +133,10 @@ function paramsToEnv(params: Record<string, unknown>, action: string, trajPath: 
     env.PROXY_URL = params.proxy_url_override;
     env.PROXY_URL_FORCE = '1';
   }
+  // Service-credential topup parameters (proxy auto-topup cron). Read by
+  // scripts/trajectories/_shared/services/topup_common.mjs#topupOpts.
+  if (typeof params.topup_usd === 'number') env.TOPUP_USD = String(params.topup_usd);
+  if (params.topup_confirm === true || params.topup_confirm === '1' || params.topup_confirm === 1) env.TOPUP_CONFIRM = '1';
   if (action.endsWith('_post_promote') || action.endsWith('_submit_promote')) env.POST_PROMOTE = '1';
   for (const [k, ek] of [['repo_name','REPO_NAME'],['repo_desc','REPO_DESC'],['file_path','FILE_PATH'],['file_append','FILE_APPEND'],['commit_message','COMMIT_MESSAGE'],['issue_title','ISSUE_TITLE'],['issue_body','ISSUE_BODY']]) if (typeof params[k] === 'string') env[ek] = params[k];
   if (params.require_approval === true) env.REQUIRE_APPROVAL = '1';
