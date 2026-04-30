@@ -126,6 +126,13 @@ function paramsToEnv(params: Record<string, unknown>, action: string, trajPath: 
   if (typeof params.invite_url === 'string') env.INVITE_URL = params.invite_url;
   if (typeof params.repo_url === 'string') env.REPO_URL = params.repo_url;
   if (typeof params.text === 'string') env.SVC_TEXT = params.text;
+  // Capability-bootstrap override: forces a specific proxy URL into the
+  // trajectory so we can test (provider, action) cells deterministically.
+  // credentials.ts respects PROXY_URL_FORCE=1 to ignore stored proxy.
+  if (typeof params.proxy_url_override === 'string') {
+    env.PROXY_URL = params.proxy_url_override;
+    env.PROXY_URL_FORCE = '1';
+  }
   if (action.endsWith('_post_promote') || action.endsWith('_submit_promote')) env.POST_PROMOTE = '1';
   for (const [k, ek] of [['repo_name','REPO_NAME'],['repo_desc','REPO_DESC'],['file_path','FILE_PATH'],['file_append','FILE_APPEND'],['commit_message','COMMIT_MESSAGE'],['issue_title','ISSUE_TITLE'],['issue_body','ISSUE_BODY']]) if (typeof params[k] === 'string') env[ek] = params[k];
   if (params.require_approval === true) env.REQUIRE_APPROVAL = '1';
