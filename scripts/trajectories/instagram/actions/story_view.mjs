@@ -1,6 +1,6 @@
 import { getSocialAccount, resolveAccountSession } from '../../../../dist/utils/credentials.js';
 import { WSession } from '../../../../dist/session/wsession.js';
-import { execute } from '../../../../dist/agent/loop.js';
+import { humanClickLocator } from '../../../../dist/human/mouse.js';
 import { detectInstagramBanSignals } from '../../../../dist/platforms/instagram/ban_signals.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -16,10 +16,22 @@ let ban = null;
 try {
   await s.goto('https://www.instagram.com/');
   checkReachable(s, 'instagram');
-  await s.page.waitForTimeout(3000);
-  const result = await execute(s, `You are on the Instagram home feed. At the top of the feed you should see a row of story circles from people you follow. Click the first story circle to open the stories viewer. Let stories auto-advance for about 15 seconds (at least 3 stories). Then click the X to close. done(value="viewed"). Do NOT navigate() beyond the stories viewer. Do NOT give_up.`, { flowName: 'instagram_story_view' });
+  await s.page.waitForTimeout(4000);
+  // Story tray entries are <li role="menuitem" tabindex="0"> with anchored
+  // story-ring image. Click the first one to enter the stories viewer.
+  // Once inside, /stories/{user}/{id} is the URL — auto-advance handles the
+  // rest. Wait ~15s then close via Esc (no need to find X).
+  const story = s.page.locator('li[role="menuitem"], button[aria-label^="Story by"], div[role="menuitem"]:has(canvas), a[href^="/stories/"]').filter({ visible: true }).first();
+  if (!(await story.count())) throw new Error('no stories in tray');
+  await story.scrollIntoViewIfNeeded().catch(() => {});
+  await humanClickLocator(s.page, story);
+  await s.page.waitForFunction(() => /\/stories\//.test(location.pathname), { timeout: 8000 });
+  // Dwell ~15s so 3+ stories auto-advance and register as views.
+  for (let i = 0; i < 15; i++) await s.page.waitForTimeout(1000);
+  await s.page.keyboard.press('Escape').catch(() => {});
+  await s.page.waitForTimeout(1500);
   ban = await detectInstagramBanSignals(s.page, s.capturedResponses).catch(() => null);
-  console.log(`[ban-signal] ${ban?.signal}  PASS: ${result.value}`);
+  console.log(`[ban-signal] ${ban?.signal}  PASS: viewed`);
 } catch (e) {
   ban = e.banSignal ?? await detectInstagramBanSignals(s.page, s.capturedResponses).catch(() => null);
   console.log(`[ban-signal] ${ban?.signal}  FAIL: ${e.message?.slice(0, 200)}`);

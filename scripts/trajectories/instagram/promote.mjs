@@ -1,4 +1,5 @@
 import { runAction } from '../_shared/action-runner.mjs';
+import { instagramSubmitComment } from '../_shared/instagram-submit.mjs';
 import { detectInstagramBanSignals } from '../../../dist/platforms/instagram/ban_signals.js';
 
 await runAction({
@@ -16,7 +17,7 @@ await runAction({
       return { postTitle: (caption || '').slice(0, 280), postBody: '' };
     } catch { return { postTitle: '', postBody: '' }; }
   },
-  commentGoal: (text) => `Click the first post in the explore grid to open it. Find the comment input (placeholder "Add a comment..."). fill(target="add a comment", value=${JSON.stringify(text)}). Click Post to submit. done(value="promoted"). Do NOT navigate() beyond the post modal. Do NOT give_up.`,
-  targetedCommentGoal: (text) => `You are on a specific Instagram page (user profile, tag, or post). If there is a grid of posts, click the first one to open the post modal. Find the comment input (placeholder "Add a comment..."). fill(target="add a comment", value=${JSON.stringify(text)}). Click Post to submit. done(value="promoted"). Do NOT navigate() beyond the post modal. Do NOT give_up.`,
+  submitComment: instagramSubmitComment,
+  submitTargetedComment: instagramSubmitComment,
   banDetector: detectInstagramBanSignals,
 });

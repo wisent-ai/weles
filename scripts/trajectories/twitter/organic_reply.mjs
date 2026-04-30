@@ -1,4 +1,5 @@
 import { runAction } from '../_shared/action-runner.mjs';
+import { twitterSubmitReply } from '../_shared/twitter-submit.mjs';
 import { detectTwitterBanSignals } from '../../../dist/platforms/twitter/ban_signals.js';
 
 // action MUST match action_action_logs.action so worker reads ban_signal.json
@@ -17,6 +18,6 @@ await runAction({
       return { postTitle: pick.replace(/^"full_text":"/, '').replace(/"$/, '').slice(0, 280), postBody: '' };
     } catch { return { postTitle: '', postBody: '' }; }
   },
-  commentGoal: (text) => `On x.com home timeline. Use js_click(selector="[data-testid='reply']") to open reply composer (Twitter Reply button has data-testid='reply' — direct selector beats vision). Wait 2 seconds. fill(target="Post your reply", value=${JSON.stringify(text)}). Then js_click(selector="[data-testid='tweetButton']") to submit. done(value="replied"). Do NOT navigate(). Do NOT give_up.`,
+  submitComment: twitterSubmitReply,
   banDetector: detectTwitterBanSignals,
 });

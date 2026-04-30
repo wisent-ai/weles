@@ -1,9 +1,9 @@
 import { getSocialAccount } from '../../../dist/utils/credentials.js';
 import { WSession } from '../../../dist/session/wsession.js';
-import { execute } from '../../../dist/agent/loop.js';
+import { humanType } from '../../../dist/human/keyboard.js';
+import { humanClickLocator } from '../../../dist/human/mouse.js';
 
 const URL = 'https://accounts.snapchat.com/accounts/login';
-const GOAL = `Fill username/email with $SVC_USER. Click Next. Fill password with $SVC_PASSWORD. Click the Log In button. Wait for redirect to accounts.snapchat.com dashboard. Verify the My Account heading is visible. done(value="logged in").`;
 
 const acct = await getSocialAccount('snapchat');
 if (!acct) { console.log('FAIL: no active snapchat account in DB'); process.exit(1); }
@@ -14,11 +14,21 @@ console.log(`[trajectory] Using account: ${acct.username}`);
 const s = await WSession.start({ label: 'snapchat_login', proxy: process.env.PROXY_URL || undefined });
 try {
   await s.goto(URL);
-  const result = await execute(s, `Open ${URL}. ${GOAL}`, {
-    envHints: { SVC_USER: process.env.SVC_USER, SVC_PASSWORD: '***' },
-    flowName: 'snapchat_login',
-  });
-  console.log('PASS:', result.value);
+  await s.page.waitForTimeout(2500);
+  // Step 1: username/email input → Next.
+  const userIn = s.page.locator('input[name="username"], input#username, input[autocomplete="username"], input[type="email"]').filter({ visible: true }).first();
+  await userIn.waitFor({ state: 'visible' });
+  await humanClickLocator(s.page, userIn);
+  await humanType(s.page, process.env.SVC_USER);
+  await humanClickLocator(s.page, s.page.locator('button[type="submit"], button:has-text("Next"), button:has-text("Continue")').filter({ visible: true }).first());
+  // Step 2: password → Log In.
+  const pwIn = s.page.locator('input[name="password"], input[type="password"], input[autocomplete="current-password"]').filter({ visible: true }).first();
+  await pwIn.waitFor({ state: 'visible' });
+  await humanClickLocator(s.page, pwIn);
+  await humanType(s.page, process.env.SVC_PASSWORD);
+  await humanClickLocator(s.page, s.page.locator('button[type="submit"], button:has-text("Log In"), button:has-text("Sign in")').filter({ visible: true }).first());
+  await s.page.waitForFunction(() => /accounts\.snapchat\.com\/(?!.*login)/.test(location.href) || /accounts\.snapchat\.com\/account\/?$/.test(location.href), { timeout: 25000 });
+  console.log(`PASS: logged in (${s.page.url()})`);
 } catch (e) {
   console.log('FAIL:', e.message?.slice(0, 200));
   process.exit(1);

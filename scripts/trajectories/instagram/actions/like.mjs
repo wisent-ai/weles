@@ -1,6 +1,6 @@
 import { getSocialAccount, resolveAccountSession } from '../../../../dist/utils/credentials.js';
 import { WSession } from '../../../../dist/session/wsession.js';
-import { execute } from '../../../../dist/agent/loop.js';
+import { humanClickLocator } from '../../../../dist/human/mouse.js';
 import { detectInstagramBanSignals } from '../../../../dist/platforms/instagram/ban_signals.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -26,12 +26,39 @@ try {
   await s.goto(url);
   checkReachable(s, 'instagram');
   await s.page.waitForTimeout(3500);
-  const goal = TARGET_URL
-    ? `You are on a specific Instagram post. Click the heart icon under the image to like it. done(value="liked"). Do NOT navigate(). Do NOT give_up.`
-    : `You are on an Instagram grid page. Click the first post to open its modal. Find the heart icon in the action row and click it to like. done(value="liked"). Do NOT navigate beyond the post modal. Do NOT give_up.`;
-  const result = await execute(s, goal, { flowName: 'instagram_like' });
-  ban = await detectInstagramBanSignals(s.page, s.capturedResponses).catch(() => null);
-  console.log(`[ban-signal] ${ban?.signal}  PASS: ${result.value}`);
+  // If we're on a grid (profile, explore, hashtag), the page has a wall of
+  // post-thumbnail anchors a[href^="/p/"] / a[href^="/reel/"]. Open the
+  // first one to land on a single-post URL where the like button is stable.
+  if (!/\/p\/|\/reel\//.test(s.page.url())) {
+    const thumb = s.page.locator('a[href*="/p/"], a[href*="/reel/"]').filter({ visible: true }).first();
+    await thumb.waitFor({ state: 'visible' });
+    const href = await thumb.getAttribute('href');
+    if (href) {
+      const postUrl = href.startsWith('http') ? href : `https://www.instagram.com${href}`;
+      await s.goto(postUrl);
+      await s.page.waitForTimeout(3000);
+    } else {
+      await humanClickLocator(s.page, thumb);
+      await s.page.waitForTimeout(3000);
+    }
+  }
+  // Like button: <svg aria-label="Like"> inside a clickable parent. Click
+  // the closest role="button" ancestor (or the svg's parent <div> in older
+  // markup). State flip: aria-label changes from "Like" to "Unlike".
+  const likeSvg = s.page.locator('svg[aria-label="Like"]').filter({ visible: true }).first();
+  if (!(await likeSvg.count())) {
+    // Already liked — idempotent PASS
+    ban = await detectInstagramBanSignals(s.page, s.capturedResponses).catch(() => null);
+    console.log(`[ban-signal] ${ban?.signal}  PASS: already liked`);
+  } else {
+    // Click the parent button/div, not the svg itself (svg has pointer-events:none).
+    const likeBtn = likeSvg.locator('xpath=ancestor::*[self::button or self::div[@role="button"] or @role="button"][1]').first();
+    await likeBtn.scrollIntoViewIfNeeded().catch(() => {});
+    await humanClickLocator(s.page, likeBtn);
+    await s.page.locator('svg[aria-label="Unlike"]').first().waitFor({ state: 'visible' });
+    ban = await detectInstagramBanSignals(s.page, s.capturedResponses).catch(() => null);
+    console.log(`[ban-signal] ${ban?.signal}  PASS: liked`);
+  }
 } catch (e) {
   ban = e.banSignal ?? await detectInstagramBanSignals(s.page, s.capturedResponses).catch(() => null);
   console.log(`[ban-signal] ${ban?.signal}  FAIL: ${e.message?.slice(0, 200)}`);

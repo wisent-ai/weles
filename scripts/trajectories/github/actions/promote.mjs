@@ -1,4 +1,5 @@
 import { runAction } from '../../_shared/action-runner.mjs';
+import { githubSubmitIssueComment } from '../../_shared/github-submit.mjs';
 import { detectGitHubBanSignals } from '../../../../dist/platforms/github/ban_signals.js';
 
 const ISSUE_URL = process.env.ISSUE_URL;
@@ -15,6 +16,6 @@ await runAction({
       return { postTitle: title || '', postBody: body || '' };
     } catch { return { postTitle: '', postBody: '' }; }
   },
-  commentGoal: (text) => `Find the comment composer at the bottom of the issue page (placeholder "Leave a comment"). fill(target="Leave a comment", value=${JSON.stringify(text)}). Click Comment to submit. done(value="promoted"). Do NOT navigate(). Do NOT give_up.`,
+  submitComment: githubSubmitIssueComment,
   banDetector: detectGitHubBanSignals,
 });

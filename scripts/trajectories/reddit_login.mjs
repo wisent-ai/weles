@@ -1,6 +1,5 @@
 import { getSocialAccount, resolveAccountSession } from '../../dist/utils/credentials.js';
 import { WSession } from '../../dist/session/wsession.js';
-import { execute } from '../../dist/agent/loop.js';
 import { detectRedditBanSignals } from '../../dist/platforms/reddit/ban_signals.js';
 import { humanType } from '../../dist/human/keyboard.js';
 import { humanIdlePause, humanClickLocator } from '../../dist/human/mouse.js';
@@ -8,7 +7,6 @@ import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
 const URL = 'https://www.reddit.com/login';
-const GOAL = `Fill username/email with $SVC_EMAIL and password with $SVC_PASSWORD. Click Log In or Sign In. Wait for redirect. done(value="logged in").`;
 
 const acct = await getSocialAccount('reddit');
 if (!acct) { console.log('FAIL: no active reddit account in DB'); process.exit(1); }

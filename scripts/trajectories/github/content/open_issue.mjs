@@ -1,6 +1,5 @@
 import { getSocialAccount, resolveAccountSession } from '../../../../dist/utils/credentials.js';
 import { WSession } from '../../../../dist/session/wsession.js';
-import { execute } from '../../../../dist/agent/loop.js';
 import { detectGitHubBanSignals } from '../../../../dist/platforms/github/ban_signals.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -62,11 +61,12 @@ try {
   console.log(`[open_issue] fill: ok title=${ISSUE_TITLE.length}c body=${ISSUE_BODY.length}c`);
   await s.page.waitForTimeout(2000);
 
-  // Title + body were already filled programmatically above. Ask the agent only
-  // to click the submit button — explicit selector across both classic and
-  // React UI variants. New form has `data-testid="create-issue-button"`.
-  const goal = `You are on GitHub's new-issue form for the repo. The title and body are already filled. Use js_click(selector="[data-testid='create-issue-button']:not([disabled]), button[type='submit']:has-text('Submit new issue'), button[type='submit']:has-text('Create'), button.btn-primary[type='submit']:not([disabled])") to submit. Wait 5 seconds. done(value="submitted"). Do NOT navigate() manually. Do not refill any text.`;
-  await execute(s, goal, {}); // flow cache would freeze literal ISSUE_TITLE/ISSUE_BODY; always replan
+  // Submit. New issue form has data-testid="create-issue-button"; classic UI
+  // uses <button type="submit"> with text "Submit new issue".
+  const submitBtn = s.page.locator('[data-testid="create-issue-button"]:not([disabled]), button[type="submit"]:has-text("Submit new issue"), button[type="submit"]:has-text("Create"), button.btn-primary[type="submit"]:not([disabled])').filter({ visible: true }).first();
+  await submitBtn.waitFor({ state: 'visible' });
+  await submitBtn.scrollIntoViewIfNeeded().catch(() => {});
+  await humanClickLocator(s.page, submitBtn);
 
   for (let w = 0; w < 20; w++) {
     await s.page.waitForTimeout(1000);

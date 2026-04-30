@@ -1,6 +1,6 @@
 import { getSocialAccount, resolveAccountSession } from '../../../../dist/utils/credentials.js';
 import { WSession } from '../../../../dist/session/wsession.js';
-import { execute } from '../../../../dist/agent/loop.js';
+import { humanClickLocator } from '../../../../dist/human/mouse.js';
 import { detectInstagramBanSignals } from '../../../../dist/platforms/instagram/ban_signals.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -19,12 +19,33 @@ try {
   await s.goto(TARGET_URL || 'https://www.instagram.com/explore/');
   checkReachable(s, 'instagram');
   await s.page.waitForTimeout(3500);
-  const goal = TARGET_URL
-    ? `You are on a specific Instagram post. Find the bookmark icon (ribbon shape) in the action row beneath the image. Click it. done(value="saved"). Do NOT navigate(). Do NOT give_up.`
-    : `You are on Instagram explore. Click the first post in the grid to open its modal. Find the bookmark icon (ribbon shape) in the action row. Click it. done(value="saved"). Do NOT navigate beyond the post modal. Do NOT give_up.`;
-  const result = await execute(s, goal, { flowName: 'instagram_save' });
-  ban = await detectInstagramBanSignals(s.page, s.capturedResponses).catch(() => null);
-  console.log(`[ban-signal] ${ban?.signal}  PASS: ${result.value}`);
+  if (!/\/p\/|\/reel\//.test(s.page.url())) {
+    const thumb = s.page.locator('a[href*="/p/"], a[href*="/reel/"]').filter({ visible: true }).first();
+    await thumb.waitFor({ state: 'visible' });
+    const href = await thumb.getAttribute('href');
+    if (href) {
+      const postUrl = href.startsWith('http') ? href : `https://www.instagram.com${href}`;
+      await s.goto(postUrl);
+      await s.page.waitForTimeout(3000);
+    } else {
+      await humanClickLocator(s.page, thumb);
+      await s.page.waitForTimeout(3000);
+    }
+  }
+  // Bookmark/save: <svg aria-label="Save"> flips to "Remove" once saved.
+  // Click the ancestor button/role-button (svg has pointer-events:none).
+  const saveSvg = s.page.locator('svg[aria-label="Save"]').filter({ visible: true }).first();
+  if (!(await saveSvg.count())) {
+    ban = await detectInstagramBanSignals(s.page, s.capturedResponses).catch(() => null);
+    console.log(`[ban-signal] ${ban?.signal}  PASS: already saved`);
+  } else {
+    const saveBtn = saveSvg.locator('xpath=ancestor::*[self::button or self::div[@role="button"] or @role="button"][1]').first();
+    await saveBtn.scrollIntoViewIfNeeded().catch(() => {});
+    await humanClickLocator(s.page, saveBtn);
+    await s.page.locator('svg[aria-label="Remove"]').first().waitFor({ state: 'visible' });
+    ban = await detectInstagramBanSignals(s.page, s.capturedResponses).catch(() => null);
+    console.log(`[ban-signal] ${ban?.signal}  PASS: saved`);
+  }
 } catch (e) {
   ban = e.banSignal ?? await detectInstagramBanSignals(s.page, s.capturedResponses).catch(() => null);
   console.log(`[ban-signal] ${ban?.signal}  FAIL: ${e.message?.slice(0, 200)}`);

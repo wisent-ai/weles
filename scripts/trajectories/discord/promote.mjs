@@ -1,4 +1,5 @@
 import { runAction } from '../_shared/action-runner.mjs';
+import { discordSubmitMessage } from '../_shared/discord-submit.mjs';
 import { detectDiscordBanSignals } from '../../../dist/platforms/discord/ban_signals.js';
 
 const channelPath = process.env.SERVER_CHANNEL_PATH || '@me';
@@ -16,6 +17,6 @@ await runAction({
       return { postTitle: (text || '').slice(0, 300), postBody: '' };
     } catch { return { postTitle: '', postBody: '' }; }
   },
-  commentGoal: (text) => `Find the message composer at the bottom (placeholder "Message #..."). fill(target="Message", value=${JSON.stringify(text)}). Press Enter to send. done(value="promoted"). Do NOT navigate(). Do NOT give_up.`,
+  submitComment: discordSubmitMessage,
   banDetector: detectDiscordBanSignals,
 });

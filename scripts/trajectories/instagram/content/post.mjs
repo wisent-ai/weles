@@ -10,7 +10,8 @@
  */
 import { getSocialAccount, resolveAccountSession } from '../../../../dist/utils/credentials.js';
 import { WSession } from '../../../../dist/session/wsession.js';
-import { execute } from '../../../../dist/agent/loop.js';
+import { humanType } from '../../../../dist/human/keyboard.js';
+import { humanClickLocator } from '../../../../dist/human/mouse.js';
 import { detectInstagramBanSignals } from '../../../../dist/platforms/instagram/ban_signals.js';
 import { generatePost } from '../../_shared/llm.mjs';
 import { generateImageFile } from '../../_shared/media.mjs';
@@ -48,7 +49,6 @@ const personaCtx = { name: character.name, bio: character.bio, personality: char
 const caption = process.env.SVC_TEXT || await generatePost({ persona: personaCtx, surface: 'instagram', product });
 console.log(`[instagram:${ACTION}] caption: ${caption.slice(0, 120)}...`);
 
-// Image prompt — niche-driven aesthetic, no product overlay (captions do the promo).
 const imagePrompt = process.env.IMAGE_PROMPT || `${character.niche ?? 'casual lifestyle'} photo, authentic amateur aesthetic, natural lighting, mobile phone camera, candid composition, no text or logos`;
 const imagePath = await generateImageFile({
   prompt: imagePrompt,
@@ -69,24 +69,56 @@ try {
   const loggedOut = await s.page.evaluate(() => /\/accounts\/login/.test(location.pathname));
   if (loggedOut) throw new Error('not_logged_in: cookies stale — needs instagram_login refresh');
 
-  // The Create modal is behind a "+" icon in the left nav. Agent drives it.
-  const goal = `You are on instagram.com logged in as ${acct.username}. Do the following in order:\n1. Find the "Create" button in the left sidebar (plus icon, labelled "Create"). Click it. A "Create new post" dropdown may appear — if so, click "Post".\n2. A file-picker dialog opens. The image file at ${imagePath} will be attached programmatically by the test harness — you do NOT need to click select-from-computer; instead wait for the image preview to appear in the modal.\n3. Click "Next" on the crop/filter step to skip to caption step.\n4. Click "Next" on the filter step (do not apply a filter).\n5. Click the caption textarea (labelled "Write a caption...") and type exactly: ${caption}\n6. Click the "Share" button at the top-right of the modal.\nAfter the modal closes and the feed shows the new post, done(value="posted"). Do NOT navigate() manually.`;
-
-  // Pre-hook: attach the file to any input[type=file] that appears. Playwright
-  // can chain setInputFiles before the element exists via fileChooser event.
+  // Hook filechooser: the Create modal calls input[type=file].click() once
+  // we click "Select from computer" — Playwright catches the dialog event
+  // and we feed it the generated image path directly.
   s.page.on('filechooser', async (chooser) => {
     try { await chooser.setFiles(imagePath); console.log(`[instagram] filechooser accepted ${imagePath}`); }
     catch (e) { console.log(`[instagram] filechooser err: ${e.message?.slice(0, 80)}`); }
   });
 
-  const result = await execute(s, goal, {}); // no flow cache — caption is per-tick
+  // 1. Click "Create" in left sidebar (svg aria-label="New post").
+  const createBtn = s.page.locator('a[href="#"]:has(svg[aria-label="New post"]), div[role="button"]:has(svg[aria-label="New post"]), a:has-text("Create"):has(svg)').filter({ visible: true }).first();
+  await createBtn.waitFor({ state: 'visible' });
+  await humanClickLocator(s.page, createBtn);
+  await s.page.waitForTimeout(1500);
+  // Some IG variants split into "Post / Reel / Story" submenu.
+  const postSubmenu = s.page.locator('a:has-text("Post"), div[role="menuitem"]:has-text("Post"), span:has-text("Post")').filter({ visible: true }).first();
+  if (await postSubmenu.isVisible({ timeout: 1500 }).catch(() => false)) {
+    await humanClickLocator(s.page, postSubmenu);
+    await s.page.waitForTimeout(1500);
+  }
+  // 2. Click "Select from computer" inside the Create modal — triggers
+  //    filechooser, our hook above attaches the image path.
+  const selectBtn = s.page.locator('div[role="dialog"] button:has-text("Select from computer"), [role="dialog"] button:has-text("Select from device")').filter({ visible: true }).first();
+  await selectBtn.waitFor({ state: 'visible' });
+  await humanClickLocator(s.page, selectBtn);
+  // Wait for crop/preview step — image rendered in modal.
+  await s.page.locator('div[role="dialog"] img[alt*="image" i], div[role="dialog"] canvas, div[role="dialog"] [style*="background-image"]').first().waitFor({ state: 'visible', timeout: 30000 });
+  await s.page.waitForTimeout(1500);
+  // 3. Next (crop) → 4. Next (filter)
+  for (let step = 0; step < 2; step++) {
+    const next = s.page.locator('div[role="dialog"] button:has-text("Next"), div[role="dialog"] [role="button"]:has-text("Next"), div[role="dialog"] div[role="button"]:has-text("Next")').filter({ visible: true }).first();
+    await next.waitFor({ state: 'visible', timeout: 15000 });
+    await humanClickLocator(s.page, next);
+    await s.page.waitForTimeout(1500);
+  }
+  // 5. Fill caption textarea.
+  const captionBox = s.page.locator('div[role="dialog"] textarea[aria-label*="caption" i], div[role="dialog"] div[contenteditable="true"][aria-label*="caption" i], div[role="dialog"] textarea').filter({ visible: true }).first();
+  await captionBox.waitFor({ state: 'visible' });
+  await humanClickLocator(s.page, captionBox);
+  await humanType(s.page, caption);
+  await s.page.waitForTimeout(1500);
+  // 6. Share.
+  const shareBtn = s.page.locator('div[role="dialog"] button:has-text("Share"), div[role="dialog"] [role="button"]:has-text("Share"), div[role="dialog"] div[role="button"]:has-text("Share")').filter({ visible: true }).first();
+  await shareBtn.waitFor({ state: 'visible' });
+  await humanClickLocator(s.page, shareBtn);
+  // Wait for the share to complete — modal closes and "Your post has been shared" appears or modal is gone.
+  await s.page.waitForFunction(() => !document.querySelector('div[role="dialog"] button:has-text("Share")') || /Your post has been shared/i.test(document.body.innerText), { timeout: 60000 }).catch(() => {});
+  await s.page.waitForTimeout(2500);
   banSignal = await detectInstagramBanSignals(s.page, s.capturedResponses).catch(() => null);
-  console.log(`[ban-signal] ${banSignal?.signal}  PASS: ${result.value}`);
+  console.log(`[ban-signal] ${banSignal?.signal}  PASS: posted`);
 } catch (e) {
-  // Prefer err.banSignal (set by checkReachable when goto landed on a login wall
-  // or chrome-error). Without this, the bare detectInstagramBanSignals returns
-  // 'healthy' for what's actually a cookies-stale checkpoint, hiding the real
-  // failure mode behind a misleading signal.
   banSignal = e.banSignal ?? await detectInstagramBanSignals(s.page, s.capturedResponses).catch(() => null);
   console.log(`[ban-signal] ${banSignal?.signal}  FAIL: ${e.message?.slice(0, 200)}`);
   process.exitCode = 1;

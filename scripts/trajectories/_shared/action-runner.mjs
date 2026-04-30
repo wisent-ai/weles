@@ -4,18 +4,18 @@
  *
  * Config shape:
  *   platform:       string ('twitter' | 'instagram' | ...)
- *   action:         'browse' | 'organic_comment' | 'promote'
- *   feedUrl:        string | () => string — the landing URL for this action
+ *   action:         'browse' | 'organic_comment' | 'promote' | 'post' | 'post_promote'
+ *   feedUrl:        string | () => string — landing URL for this action
  *   scrolls:        number — how many idle scrolls for browse
  *   banDetector:    async (page, responses) => BanSignal
- *   commentGoal:    string — prompt text for the agent loop when action is comment/promote
+ *   submitComment:  async (s, text) => void — deterministic Playwright path for comment/promote
+ *   submitPost:     async (s, text) => void — deterministic Playwright path for post/post_promote
  *
  * Reads character + product context from the DB as needed. Writes
  * recordings/<platform>_<action>/ban_signal.json.
  */
 import { getSocialAccount, resolveAccountSession, markCookiesStale } from '../../../dist/utils/credentials.js';
 import { WSession } from '../../../dist/session/wsession.js';
-import { execute } from '../../../dist/agent/loop.js';
 import { generateOrganicComment, generatePromoteComment, generatePost } from './llm.mjs';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -193,8 +193,9 @@ export async function runAction(cfg) {
         console.log('PASS: pending_review (approval required, not posted)');
         resultValue = 'pending_review';
       } else {
-        const r = await execute(s, cfg.postGoal(text), {}); // no flow cache — text is per-tick
-        resultValue = r.value;
+        if (typeof cfg.submitPost !== 'function') throw new Error(`cfg.submitPost not provided for ${cfg.platform} ${cfg.action}`);
+        await cfg.submitPost(s, text);
+        resultValue = 'posted';
       }
     } else {
       const surfaceLabel = typeof cfg.surfaceLabel === 'function' ? cfg.surfaceLabel(acct, feed) : (cfg.surfaceLabel ?? feed);
@@ -233,9 +234,10 @@ export async function runAction(cfg) {
         console.log('PASS: pending_review (approval required, not submitted)');
         resultValue = 'pending_review';
       } else {
-        const goalFn = targetedMode && cfg.targetedCommentGoal ? cfg.targetedCommentGoal : cfg.commentGoal;
-        const r = await execute(s, goalFn(text), { flowName: label });
-        resultValue = r.value;
+        const submitter = targetedMode && typeof cfg.submitTargetedComment === 'function' ? cfg.submitTargetedComment : cfg.submitComment;
+        if (typeof submitter !== 'function') throw new Error(`cfg.submitComment not provided for ${cfg.platform} ${cfg.action}`);
+        await submitter(s, text);
+        resultValue = 'commented';
       }
     }
     banSignal = await cfg.banDetector(s.page, s.capturedResponses).catch(() => null);
