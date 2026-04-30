@@ -143,20 +143,58 @@ function paramsToEnv(params: Record<string, unknown>, action: string, trajPath: 
   return env;
 }
 
-async function runTrajectory(row: ActionLogRow, path: string): Promise<{ exitCode: number; stderr: string }> {
+async function runTrajectory(row: ActionLogRow, path: string, extraEnv: Record<string, string> = {}): Promise<{ exitCode: number; stderr: string }> {
   // Delete stale ban_signal.json from prior run — same recordings/<action>/
   // dir is shared across runs, so a killed predecessor would otherwise be
   // attributed to this row.
   try { await (await import('node:fs/promises')).unlink(join(RECORDINGS_ROOT, row.action, 'ban_signal.json')).catch(() => {}); } catch { /* noop */ }
   return new Promise((resolve) => {
     const child = spawn('node', [path], {
-      env: { ...process.env, ...paramsToEnv(row.params ?? {}, row.action, path), ACCOUNT_ID: row.account_id, ACTION_LOG_ID: row.id, ACTION: row.action },
+      env: { ...process.env, ...paramsToEnv(row.params ?? {}, row.action, path), ...extraEnv, ACCOUNT_ID: row.account_id, ACTION_LOG_ID: row.id, ACTION: row.action },
       cwd: process.cwd(), stdio: ['ignore', 'inherit', 'pipe'],
     });
     let stderr = '';
     child.stderr.on('data', (chunk) => { stderr += chunk.toString(); });
     child.on('close', (code) => resolve({ exitCode: code ?? -1, stderr: stderr.slice(-2000) }));
   });
+}
+
+// Diagnostic retry: when a trajectory fails without WELES_INSTRUMENT, re-run
+// it with instrumentation on so the next debug session has a fresh dump in
+// .work/inst/<label>_*.json that diff_trajectory.mjs can pick up. The retry's
+// outcome is ignored — the original failure stays as the action_log's
+// recorded result. Skipped for cheap service trajectories (balance/topup/
+// health) where instrumentation has little diagnostic value.
+//
+// Opt out with AUTO_INSTRUMENT_RETRIES=0.
+async function diagnosticRetry(row: ActionLogRow, path: string): Promise<string | null> {
+  if (process.env.AUTO_INSTRUMENT_RETRIES === '0') return null;
+  if (process.env.WELES_INSTRUMENT === '1') return null; // already instrumented
+  const SKIP_SUFFIXES = ['_balance', '_topup', '_health'];
+  if (SKIP_SUFFIXES.some((s) => row.action.endsWith(s))) return null;
+  console.log(`[worker] ${row.id.slice(0, 8)} diagnostic retry with WELES_INSTRUMENT=1 ...`);
+  try {
+    await runTrajectory(row, path, { WELES_INSTRUMENT: '1' });
+  } catch (e) {
+    console.log(`[worker] ${row.id.slice(0, 8)} diagnostic retry error: ${(e as Error).message?.slice(0, 200)}`);
+  }
+  // Find newest matching dump.
+  try {
+    const { readdirSync, statSync } = await import('node:fs');
+    const instDir = join(process.cwd(), '.work', 'inst');
+    const trajLabel = path.split('/').pop()?.replace(/\.mjs$/, '') ?? '';
+    const dumps = readdirSync(instDir)
+      .filter((f) => f.endsWith('.json') && !f.startsWith('chrome_'))
+      .map((f) => ({ f, full: join(instDir, f), m: statSync(join(instDir, f)).mtimeMs }))
+      .sort((a, b) => b.m - a.m);
+    const match = dumps.find((d) => d.f.startsWith(`${trajLabel}_`)) || dumps[0];
+    if (match) {
+      console.log(`[worker] ${row.id.slice(0, 8)} instrumented dump -> ${match.full}`);
+      console.log(`[worker]   review with: node scripts/debug/diff_trajectory.mjs ${path}`);
+      return match.full;
+    }
+  } catch { /* noop */ }
+  return null;
 }
 
 async function readBanSignal(action: string): Promise<BanSignal | null> {
@@ -333,6 +371,13 @@ export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
     await closeCampaignItem(row.params, 'completed');
     console.log(`[worker] ${row.id.slice(0, 8)} completed signal=${(result.ban_signal as BanSignal).signal}`);
   } else {
+    // Kick off diagnostic retry BEFORE writing the failure result so the
+    // dump path can be attached to result.instrumented_dump. This doubles
+    // the cost of failed runs (one extra trajectory invocation with
+    // WELES_INSTRUMENT=1 set) but ensures the diff harness has data the
+    // moment someone investigates. Opt out with AUTO_INSTRUMENT_RETRIES=0.
+    const dumpPath = await diagnosticRetry(row, trajPath);
+    if (dumpPath) result.instrumented_dump = dumpPath;
     await writeResult(row.id, 'failed', result, stderr || `exit ${exitCode}`, costs ?? undefined);
     await closeCampaignItem(row.params, 'failed', stderr || `exit ${exitCode}`);
     console.log(`[worker] ${row.id.slice(0, 8)} failed exit=${exitCode}`);
