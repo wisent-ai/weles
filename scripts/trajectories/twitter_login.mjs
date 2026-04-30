@@ -1,6 +1,5 @@
 import { getSocialAccount, resolveAccountSession } from '../../dist/utils/credentials.js';
 import { WSession } from '../../dist/session/wsession.js';
-import { execute } from '../../dist/agent/loop.js';
 import { humanFill } from '../../dist/human/keyboard.js';
 import { humanClickLocator } from '../../dist/human/mouse.js';
 
@@ -74,36 +73,27 @@ async function tryCookieFirstLogin() {
   return false;
 }
 
-async function tryDirectLoginPath() {
+async function deterministicLogin() {
   const usernameSel = 'input[autocomplete="username"], input[name="text"]';
   const passwordSel = 'input[autocomplete="current-password"], input[name="password"]';
   const nextBtnSel = '[data-testid="LoginForm_Login_Button"], button:has-text("Next")';
   const loginBtnSel = '[data-testid="LoginForm_Login_Button"], button:has-text("Log in")';
 
   await s.page.waitForSelector(usernameSel);
-  await s.screenshot('direct_username_visible').catch(() => {});
   await humanFill(s.page, s.page.locator(usernameSel).first(), process.env.SVC_EMAIL);
   await humanClickLocator(s.page, s.page.locator(nextBtnSel).first());
 
-  const passwordLocator = s.page.locator(passwordSel).first();
-  const challengeLocator = s.page.locator('input[data-testid="ocfEnterTextTextInput"]').first();
-  const winner = await Promise.race([
-    passwordLocator.waitFor({ state: 'visible' }).then(() => 'password').catch(() => null),
-    challengeLocator.waitFor({ state: 'visible' }).then(() => 'challenge').catch(() => null),
-  ]);
-
-  if (winner !== 'password') {
-    await s.screenshot(winner === 'challenge' ? 'direct_challenge_detected' : 'direct_post_next_unknown').catch(() => {});
-    return 'agent-required';
-  }
-
-  await s.screenshot('direct_password_visible').catch(() => {});
+  // Wait for the password input. If a challenge step intervenes (phone/email
+  // confirm, 2FA, arkose), the password input never appears and this throws
+  // after Playwright's default — outer catch persists ban_signal=checkpoint.
+  await s.page.locator(passwordSel).first().waitFor({ state: 'visible' });
   await humanFill(s.page, s.page.locator(passwordSel).first(), process.env.SVC_PASSWORD);
   await humanClickLocator(s.page, s.page.locator(loginBtnSel).first());
 
-  try { await s.page.waitForURL(/x\.com\/(home|i\/flow\/login\/check)/); } catch {}
-  await s.screenshot('direct_after_submit').catch(() => {});
-  return /x\.com\/home/.test(s.page.url()) ? 'ok' : 'agent-required';
+  // Wait for /home — auth complete. /i/flow/login/check or any non-/home
+  // landing means a post-password challenge (rate limit, locked, suspended)
+  // and we throw to ban_signal.
+  await s.page.waitForURL(/x\.com\/home/);
 }
 
 try {
@@ -114,33 +104,16 @@ try {
   } else {
     await s.goto(LOGIN_URL);
     await new Promise((r) => setTimeout(r, 3000));
-
-    let outcome = 'agent-required';
-    try {
-      outcome = await tryDirectLoginPath();
-    } catch (e) {
-      console.log(`[trajectory] direct path errored: ${e.message?.slice(0, 200)}`);
-      await s.screenshot('direct_errored').catch(() => {});
-    }
-
-    if (outcome === 'ok') {
-      console.log('PASS: logged in (direct path)');
-      await captureCookies();
-    } else {
-      const result = await execute(s, `You are on x.com login flow. Username/email is $SVC_EMAIL, password is $SVC_PASSWORD. If you see a username/email input, fill it and click Next. If you see a "confirm it's you" challenge asking for phone/email/username, fill it with $SVC_EMAIL and click Next. If you see a password input, fill it with $SVC_PASSWORD and click Log in. If you see a 2FA/verification-code prompt, use check_email to retrieve the code and submit it. done(value="logged in") once x.com/home is loaded.`, {
-        envHints: { SVC_EMAIL: process.env.SVC_EMAIL, SVC_PASSWORD: '***' },
-        flowName: 'twitter_login',
-        maxSteps: 25,
-      });
-      console.log('PASS:', result.value);
-      await captureCookies();
-    }
+    await deterministicLogin();
+    console.log('PASS: logged in (deterministic email/password)');
+    await captureCookies();
   }
 } catch (e) {
-  // Write a structured ban_signal so the worker doesn't fall back to
+  // Write a structured ban_signal so the worker doesn't bucket as
   // 'unknown_error'. Twitter login can fail at proxy CONNECT (chrome-error),
-  // at the suspended/locked landing page, or simply because the agent loop
-  // can't get through 2FA. Surface each cleanly.
+  // at the suspended/locked landing page, on a 2FA/arkose challenge that
+  // intercepts the password step, or simply because /home never loads after
+  // submit (rate limit). Each surfaces with a distinct ban_signal below.
   try {
     const dir = (await import('node:path')).join(process.cwd(), 'recordings', 'twitter_login');
     (await import('node:fs')).mkdirSync(dir, { recursive: true });
@@ -155,9 +128,10 @@ try {
     else if (/ERR_TUNNEL_CONNECTION_FAILED|ERR_PROXY_CONNECTION_FAILED/.test(msg)) sig = 'proxy_failed';
     else if (finalUrl.startsWith('chrome-error://')) sig = 'proxy_failed';
     else if (/account\/access|account_access/.test(finalUrl)) sig = 'suspended';
-    // Any /i/flow/login* (including bare /i/flow/login when the agent stalls
-    // on 2FA / arkose) is cookies-stale: the trajectory got the form rendered
-    // but couldn't push past auth. Same 24h skip as the explicit /check URL.
+    // Any /i/flow/login* (including bare /i/flow/login when /home never
+    // loads after submit) is cookies-stale: the trajectory got the form
+    // rendered but couldn't push past auth. Same 24h skip as the explicit
+    // /check URL.
     else if (/\/i\/flow\/login|\/account\/locked|\/i\/flow\/(verify|access)/.test(finalUrl)) sig = 'checkpoint';
     (await import('node:fs')).writeFileSync((await import('node:path')).join(dir, 'ban_signal.json'), JSON.stringify({ account_id: acct.id, username: acct.username, action: 'twitter_login', signal: sig, healthy: false, details: { final_url: finalUrl, reason: e.message?.slice(0, 200) ?? 'no message' }, ts: new Date().toISOString() }, null, 2));
     // suspended → deactivate row; checkpoint → mark cookies stale (24h skip).
