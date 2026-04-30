@@ -76,8 +76,19 @@ export async function humanMove(page: MousePage, x: number, y: number, startX?: 
  *
  * Resolves the element's bounding box, picks a small random offset inside it
  * (humans don't always click dead-center), then dispatches a real Bezier-pathed
- * mouse move + click. Falls back gracefully to the locator's native .click()
- * if the bbox is unavailable (e.g. element off-screen / detached).
+ * mouse move to that position. After the human-like pointer movement completes,
+ * delegates to the locator's `.click({ force: true })` for the actual click
+ * event — this triggers React's synthetic event system (form submit handlers,
+ * onClick delegates, etc). force:true skips Playwright's actionability checks
+ * (visible/enabled/stable) which would timeout on disabled buttons or obscured
+ * elements. A raw `page.mouse.click()` at the same coordinates often fails to
+ * fire React's form onSubmit because the event doesn't propagate through
+ * React's event delegation root — verified 2026-04-30 on TikTok's login
+ * form: `page.mouse.click` on the submit button never fired the
+ * `/passport/web/login/` POST, while `locator.click({force:true})` did.
+ *
+ * Falls back gracefully to the locator's native .click() if the bbox is
+ * unavailable (e.g. element off-screen / detached).
  *
  * Use this anywhere a trajectory needs to click an element. Do NOT call
  * `locator.click()` directly (skips humanMove pre-trajectory) and do NOT
@@ -97,7 +108,24 @@ export async function humanClickLocator(page: any, locator: any): Promise<void> 
   const padY = Math.max(2, Math.floor(box.height * 0.15));
   const tx = box.x + padX + Math.floor(Math.random() * Math.max(1, box.width - padX * 2));
   const ty = box.y + padY + Math.floor(Math.random() * Math.max(1, box.height - padY * 2));
-  await humanClick(page as MousePage, tx, ty);
+  // Human-like pointer movement — behavioral trackers see the mouse travel
+  // to the target before the click fires. This is the anti-shadowban part.
+  await humanMove(page as MousePage, tx, ty);
+  const jx = tx + randomBetween(-2, 2);
+  const jy = ty + randomBetween(-2, 2);
+  await page.mouse.move(Math.round(jx), Math.round(jy));
+  await waitMs(sampleReactionMs());
+  // Delegate the actual click to the locator with force:true — Playwright's
+  // locator.click() triggers React's synthetic event system correctly (form
+  // onSubmit, onClick delegates, etc), whereas page.mouse.click() dispatches
+  // a raw DOM MouseEvent that React's event delegation may not pick up.
+  // force:true skips Playwright's actionability checks (visible, enabled,
+  // stable) which would otherwise timeout on disabled buttons or obscured
+  // elements — the humanMove above already positioned the pointer at the
+  // target, so we know the coordinates are correct. Verified 2026-04-30:
+  // page.mouse.click on TikTok's login submit button never fired the
+  // /passport/web/login/ POST; locator.click({force:true}) does.
+  await locator.click({ force: true });
 }
 
 export async function humanClick(page: MousePage, x: number, y: number, startX?: number, startY?: number): Promise<void> {

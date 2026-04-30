@@ -70,7 +70,7 @@ try {
       await s.page.goto(PROFILE_URL, { waitUntil: 'domcontentloaded' });
       await s.page.locator('a[href*="/video/"]').first().waitFor({ state: 'visible', timeout: 15000 }).catch(() => {});
     }
-    try { await candidates[i].click({ timeout: 5000 }); } catch { continue; }
+    try { await humanClickLocator(s.page, candidates[i]); } catch { continue; }
     await s.page.waitForURL(/\/video\/\d+/, { timeout: 15000 }).catch(() => {});
     // Hydrate-or-bust: 25s window per video. The right-rail mounts at ~9s
     // on a happy session.
