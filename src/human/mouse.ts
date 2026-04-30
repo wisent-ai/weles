@@ -42,6 +42,42 @@ export async function humanIdlePause(kind: 'short' | 'deliberate' | 'long' = 'de
   await waitMs(ms);
 }
 
+/**
+ * Human-like vertical scroll. Real users scroll in bursts of 2-5 wheel deltas
+ * with sub-second pauses, then dwell on the new content for a few seconds
+ * before the next burst. Use this BEFORE any write verb (comment, vote, like)
+ * so the behavioral classifier sees realistic dwell + scroll signal, not a
+ * goto -> immediate-action pattern. Reddit's async spam classifier reads
+ * this telemetry as part of the post-comment scoring window.
+ *
+ * @param page          a Playwright Page (with .mouse.wheel + .waitForTimeout)
+ * @param totalDeltaY   approx total cumulative pixels to scroll (positive = down)
+ * @param burstCount    how many distinct scroll bursts to break the total into
+ */
+export async function humanScroll(
+  page: { mouse: { wheel(dx: number, dy: number): Promise<void> }; waitForTimeout(ms: number): Promise<void> },
+  totalDeltaY = 1200,
+  burstCount = 3,
+): Promise<void> {
+  const perBurst = Math.max(120, Math.round(totalDeltaY / burstCount));
+  for (let b = 0; b < burstCount; b++) {
+    const wheelsThisBurst = Math.floor(randomBetween(2, 5));
+    let remaining = perBurst;
+    for (let i = 0; i < wheelsThisBurst; i++) {
+      // Each wheel event is 80-260 px (matches macOS magic-mouse / trackpad
+      // intermediate scroll deltas; far from the unrealistic 1000+ that
+      // page.evaluate(window.scrollBy(0, N)) would produce).
+      const dy = Math.min(remaining, Math.floor(randomBetween(80, 260)));
+      remaining -= dy;
+      await page.mouse.wheel(0, dy).catch(() => {});
+      await page.waitForTimeout(Math.floor(randomBetween(120, 380)));
+      if (remaining <= 0) break;
+    }
+    // Dwell between bursts — read the just-revealed content. 1.2-3.5s.
+    await page.waitForTimeout(Math.floor(randomBetween(1200, 3500)));
+  }
+}
+
 export async function humanMove(page: MousePage, x: number, y: number, startX?: number, startY?: number, steps?: number): Promise<void> {
   const sx = startX ?? randomBetween(200, 600);
   const sy = startY ?? randomBetween(150, 450);
