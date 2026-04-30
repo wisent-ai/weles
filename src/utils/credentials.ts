@@ -186,8 +186,21 @@ export async function resolveAccountSession(acct: SocialAccount): Promise<Accoun
     const { providerFromHost } = await import('../proxy/policy.js');
     const storedProvider = providerFromHost(meta.proxy.host as string);
     const isLegacyRelay = !storedProvider && (meta.proxy.username === 'lbartoszcze' || /^209\.38\./.test(meta.proxy.host as string));
+    // Capability gate on the stored provider: if the matrix has marked
+    // (storedProvider, action) as 'fail', drop the stored proxy and let the
+    // dynamic-pick path below find a passing one. Otherwise keep the stored
+    // sticky session so accounts maintain a stable exit-IP cohort.
+    let storedFailing = false;
+    if (storedProvider && process.env.ACTION) {
+      try {
+        const { isCellFail } = await import('../proxy/capability.js');
+        storedFailing = await isCellFail(storedProvider, process.env.ACTION);
+      } catch { /* capability lookup best-effort */ }
+    }
     if (isLegacyRelay) {
       console.log(`[identity] dropping stored legacy/datacenter proxy ${meta.proxy.host}:${meta.proxy.port} — falling through to provider selection`);
+    } else if (storedFailing) {
+      console.log(`[identity] capability matrix marks ${storedProvider}/${process.env.ACTION} as fail — dropping stored proxy`);
     } else {
       const refreshed = await refreshStickyIfDead(meta.proxy as ProxyConfig);
       if (refreshed) { cfg = refreshed; if (refreshed !== meta.proxy) await backfillProxy(acct, refreshed); }
@@ -211,57 +224,37 @@ export async function resolveAccountSession(acct: SocialAccount): Promise<Accoun
   if (!cfg && process.env.PROXY_URL) {
     out.proxyUrl = process.env.PROXY_URL;
   } else if (!cfg) {
-    // No stored proxy at all. Pick a provider deterministically from the
-    // account id so the fleet spreads across providers instead of every
-    // account exiting through the same Oxylabs BR /16. Same id always hashes
-    // to the same provider — keeps the account's exit-IP cohort stable.
-    // Country is platform-aware: Discord works on BR, LinkedIn/Reddit/Twitter
-    // need US (their bot-detection walls fire on Brazilian residential ranges).
-    // Provider-platform exclusion table. The exit-IP burn registry only fires
-    // on edge-level signals (ip_blocked / proxy_auth_failed); platform-side
-    // shadowbans that happen AFTER a successful connection (Reddit insta-
-    // shadowbans accounts created through PacketStream's residential pool,
-    // returns 200 + cookies, then 404s the user 30s later) never trigger
-    // markBurned. Hardcode the known-poisoned (provider, platform) combos
-    // here so the resolver doesn't pick them in the first place.
-    //   - oxylabs → linkedin, twitter: ERR_HTTP_RESPONSE_CODE_FAILURE at edge
-    //   - packetstream → reddit: account shadowbanned within ~60s of register
-    const { isProviderBlockedForPlatform } = await import('../proxy/policy.js');
-    const ALL_PROVIDERS = ['oxylabs', 'packetstream', 'pingproxies', 'brightdata'];
-    const PROVIDERS = ALL_PROVIDERS.filter(p => !isProviderBlockedForPlatform(p, acct.platform));
-    let hash = 0;
-    for (const ch of (acct.id ?? acct.username ?? '')) hash = ((hash << 5) - hash + ch.charCodeAt(0)) | 0;
-    const provider = PROVIDERS[Math.abs(hash) % PROVIDERS.length];
+    // Capability-driven selection: pick the cheapest provider whose matrix
+    // cell for this (provider, action) is 'pass' (or 'unknown' on cold-start).
+    // The matrix updates after every action via worker/poll.recordOutcome.
+    // Self-heals when a provider's quality drops; no hardcoded toxicity table.
+    const action = process.env.ACTION ?? `${acct.platform}_unknown`;
     const country = acct.platform === 'discord' ? '' : 'us';
+    const PHOST: Record<string, string> = { twitter: 'x.com', linkedin: 'www.linkedin.com', instagram: 'www.instagram.com', reddit: 'www.reddit.com', tiktok: 'www.tiktok.com', discord: 'discord.com', github: 'github.com', producthunt: 'www.producthunt.com' };
+    const targetHost = PHOST[acct.platform];
     try {
+      const { selectByCapability } = await import('../proxy/capability.js');
       const mod = await import('../proxy/config.js');
-      const filter = `residential ${provider} ${country}`.trim();
-      // Platform host for pre-flight CONNECT validation against the actual
-      // destination (PacketStream relays can be up for one host and down
-      // for another — testing against ipify.org missed those gaps).
-      const PHOST: Record<string, string> = { twitter: 'x.com', linkedin: 'www.linkedin.com', instagram: 'www.instagram.com', reddit: 'www.reddit.com', tiktok: 'www.tiktok.com', discord: 'discord.com', github: 'github.com', producthunt: 'www.producthunt.com' };
-      const targetHost = PHOST[acct.platform];
-      let pw = await mod.resolveProxy(filter, targetHost);
-      if (!pw) {
-        for (const alt of PROVIDERS) {
-          if (alt === provider) continue;
-          pw = await mod.resolveProxy(`residential ${alt} ${country}`.trim(), targetHost);
-          if (pw) break;
+      // Walk down the cost-ordered list of passing providers. If the cheapest
+      // one's resolveProxy fails (sticky preflight, no live IPs), exclude it
+      // and try the next. Caps at 5 attempts so we never spin forever.
+      const tried: string[] = [];
+      let pw: Awaited<ReturnType<typeof mod.resolveProxy>> | undefined;
+      for (let i = 0; i < 5; i++) {
+        const winner = await selectByCapability(action, tried);
+        if (!winner) {
+          console.log(`[identity] no provider passes capability for action=${action} platform=${acct.platform}`);
+          break;
         }
-      }
-      if (!pw) {
-        // Last-pass residential search — still respect the policy
-        // blocklist (e.g. PacketStream for reddit/tiktok). Iterate each
-        // non-blocked provider explicitly rather than passing a bare
-        // "residential" filter that resolveProxy may route to a poisoned pool.
-        const blocked = new Set(ALL_PROVIDERS.filter(p => isProviderBlockedForPlatform(p, acct.platform)));
-        for (const alt of ALL_PROVIDERS) {
-          if (blocked.has(alt)) continue;
-          pw = await mod.resolveProxy(`residential ${alt} ${country}`.trim(), targetHost);
-          if (pw) break;
+        const filter = `residential ${winner.provider} ${country}`.trim();
+        pw = await mod.resolveProxy(filter, targetHost);
+        if (pw) {
+          console.log(`[identity] capability pick ${winner.provider} ($${winner.cost_per_gb}/GB) for action=${action}`);
+          break;
         }
+        tried.push(winner.provider);
       }
-      // Mobile carrier IPs are rarely on platform blocklists — fall here when residential is exhausted.
+      // Mobile carrier IPs as last resort — rarely on platform blocklists.
       if (!pw) pw = await mod.resolveProxy(`mobile ${country}`.trim(), targetHost) ?? await mod.resolveProxy('mobile', targetHost);
       if (pw?.server) {
         const u = new URL(pw.server);
