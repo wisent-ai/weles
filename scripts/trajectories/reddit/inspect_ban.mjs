@@ -28,20 +28,19 @@ try {
     console.log(`[inspect] injected ${prepared.length} cookies`);
   }
 
-  // Navigate to own profile
-  const profileUrl = `https://www.reddit.com/user/${acct.username}/`;
-  await s.page.goto(profileUrl, { waitUntil: 'domcontentloaded' });
+  // Navigate to homepage first (this is where ban banners usually appear)
+  await s.page.goto('https://www.reddit.com/', { waitUntil: 'domcontentloaded' });
   await s.page.waitForTimeout(5000);
+  const homeUrl = s.page.url();
+  const homeText = await s.page.evaluate(() => document.body?.innerText?.slice(0, 5000) ?? '');
+  await s.page.screenshot({ path: 'recordings/reddit_inspect_ban/homepage_logged_in.png' });
+  console.log(`[inspect] homepage url: ${homeUrl}`);
+  console.log(`[inspect] homepage text:\n${homeText}`);
 
-  const finalUrl = s.page.url();
-  const fullText = await s.page.evaluate(() => document.body?.innerText?.slice(0, 5000) ?? '');
-  console.log(`[inspect] url: ${finalUrl}`);
-  console.log(`[inspect] page text:\n${fullText}`);
-
-  // Find ban/suspension/restriction elements
-  const banEls = await s.page.evaluate(() => {
+  // Find ban/suspension/restriction elements on homepage
+  const homeBanEls = await s.page.evaluate(() => {
     const results = [];
-    const keywords = /ban|suspend|restrict|deactivat|blocked|removed|appeal|violation/i;
+    const keywords = /ban|suspend|restrict|deactivat|blocked|removed|appeal|violation|shadow/i;
     const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_ELEMENT);
     while (walker.nextNode()) {
       const el = walker.currentNode;
@@ -54,7 +53,35 @@ try {
     }
     return results;
   });
-  console.log(`[inspect] ban elements (logged-in): ${JSON.stringify(banEls, null, 2)}`);
+  console.log(`[inspect] ban elements on homepage (logged-in): ${JSON.stringify(homeBanEls, null, 2)}`);
+
+  // Now navigate to own profile
+  const profileUrl = `https://www.reddit.com/user/${acct.username}/`;
+  await s.page.goto(profileUrl, { waitUntil: 'domcontentloaded' });
+  await s.page.waitForTimeout(5000);
+  const finalUrl = s.page.url();
+  const fullText = await s.page.evaluate(() => document.body?.innerText?.slice(0, 5000) ?? '');
+  await s.page.screenshot({ path: 'recordings/reddit_inspect_ban/profile_logged_in.png' });
+  console.log(`[inspect] profile url: ${finalUrl}`);
+  console.log(`[inspect] profile text:\n${fullText}`);
+
+  // Find ban/suspension/restriction elements
+  const banEls = await s.page.evaluate(() => {
+    const results = [];
+    const keywords = /ban|suspend|restrict|deactivat|blocked|removed|appeal|violation|shadow/i;
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_ELEMENT);
+    while (walker.nextNode()) {
+      const el = walker.currentNode;
+      const text = (el.innerText || '').trim();
+      const cls = String(el.className || '').slice(0, 100);
+      const tag = el.tagName || '';
+      if (keywords.test(text) && text.length < 500) {
+        results.push({ tag, cls, text });
+      }
+    }
+    return results;
+  });
+  console.log(`[inspect] ban elements on profile (logged-in): ${JSON.stringify(banEls, null, 2)}`);
 
   // Now check the same profile WITHOUT cookies (logged-out view)
   console.log('[inspect] --- checking logged-out view ---');
