@@ -260,9 +260,16 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
   // weles's binary emits it unconditionally and that's one of the signals
   // webmssdk signs into x-mssdk-info, allowing TikTok to recognise the session
   // as non-Chrome. Measured 2026-04-18 via side-by-side manual captures.
+  // EXCEPTION: passport/web/* (region, login, etc.) are cross-origin POSTs
+  // requiring CORS preflight — without accept-language the OPTIONS response
+  // mismatches the request headers and Chrome aborts with ERR_FAILED.
   await context.route('**/*', async (route) => {
     const req = route.request();
     const url = req.url();
+    if (/passport\/web\//.test(url)) {
+      await route.continue();
+      return;
+    }
     if (/tiktok\.com|tiktokv\.us|tiktokcdn|byteoversea|mssdk\./.test(url) && req.isNavigationRequest() === false) {
       const headers = { ...req.headers() };
       delete headers['accept-language'];
