@@ -119,7 +119,7 @@ export async function resolveProxy(proxy: string, targetHost?: string): Promise<
     // bypass earlier this session — closing it here.)
     const { providerFromHost, isProviderBlockedForPlatform } = await import('./policy.js');
     const platformForBlock = platformFromTarget(targetHost);
-    const provFromUrl = providerFromHost(u.hostname);
+    const provFromUrl = providerFromHost(u.hostname, decodeURIComponent(u.username));
     if (isProviderBlockedForPlatform(provFromUrl, platformForBlock)) {
       console.log(`[proxy] BLOCKED: PROXY_URL host=${u.hostname} maps to ${provFromUrl}, which is on the toxic list for ${platformForBlock} — refusing to hand out`);
       return undefined;

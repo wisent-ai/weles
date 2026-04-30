@@ -26,9 +26,23 @@ const HOST_PROVIDER_PATTERNS: Array<[RegExp, string]> = [
   [/(^|\.)brightdata\.com$/i, 'brightdata'],
 ];
 
-export function providerFromHost(host: string | undefined): string | undefined {
-  if (!host) return undefined;
-  for (const [pat, name] of HOST_PROVIDER_PATTERNS) if (pat.test(host)) return name;
+// Username patterns: stored proxies are often IP-form (BrightData routes
+// residential traffic through gateway IPs in DC ranges like 137.184.x), so
+// hostname matching alone misses them. The username carries an unmistakable
+// provider-specific shape — use it as a fallback.
+const USER_PROVIDER_PATTERNS: Array<[RegExp, string]> = [
+  [/^brd-customer-/i, 'brightdata'],
+  [/^customer-.*-cc-[a-z]{2}-sessid-\d+/i, 'oxylabs'],
+  [/_c_[a-z]{2}_s_\d+/i, 'pingproxies'],
+];
+
+export function providerFromHost(host: string | undefined, username?: string): string | undefined {
+  if (host) {
+    for (const [pat, name] of HOST_PROVIDER_PATTERNS) if (pat.test(host)) return name;
+  }
+  if (username) {
+    for (const [pat, name] of USER_PROVIDER_PATTERNS) if (pat.test(username)) return name;
+  }
   return undefined;
 }
 
