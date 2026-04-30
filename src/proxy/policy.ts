@@ -4,15 +4,13 @@
 // passing PROXY_URL=http://...@proxy.packetstream.io:... for a reddit
 // register would bypass the per-account check entirely.
 
-const PROVIDER_PLATFORM_BLOCK: Record<string, string[]> = {
-  // PacketStream's residential range gets reddit accounts insta-shadowbanned —
-  // signup completes, cookies return, account 404s within ~10 min after
-  // first comment. Verified across multiple accounts this session.
-  packetstream: ['reddit', 'tiktok'],
-  // Oxylabs residential exit IPs hit ERR_HTTP_RESPONSE_CODE_FAILURE at the
-  // edge on linkedin/twitter login pages.
-  oxylabs: ['linkedin', 'twitter'],
-};
+// Replaced by data-driven proxy_capability_matrix in src/proxy/capability.ts.
+// The hardcoded toxicity table conflicted with matrix-passing cells (e.g.
+// PacketStream for tiktok was blocked here even when the matrix had data
+// showing recent passes). Cold-start cost is one bad attempt per
+// (provider, action) cell — the matrix marks it 'fail' immediately and
+// future selects skip it. No more policy embedded in code.
+const PROVIDER_PLATFORM_BLOCK: Record<string, string[]> = {};
 
 // Map a proxy hostname (or hostname-like substring) back to its provider name.
 // Used when resolveProxy receives a fully-qualified PROXY_URL and we need to
