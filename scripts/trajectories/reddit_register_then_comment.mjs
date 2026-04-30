@@ -106,7 +106,7 @@ try {
   // keystrokes for the new value.
   for (let attempt = 0; attempt < 3; attempt++) {
     // Force-clear via Playwright's React-aware setter (bypasses humanFill).
-    await userIn.fill('').catch(() => {});
+    await userIn.fill('').catch(() => {}); // lint-allow: bare-fill
     await humanIdlePause('short');
     await humanType(s.page, id.username);
     const afterTypeVal = await userIn.inputValue().catch(() => '?');

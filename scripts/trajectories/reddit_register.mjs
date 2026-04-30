@@ -99,11 +99,14 @@ try {
   const beforeVal = await userIn.inputValue().catch(() => '');
   if (beforeVal) console.log(`[register] clearing auto-suggested username "${beforeVal}" before typing chosen "${id.username}"`);
   await humanClickLocator(s.page, userIn);
-  // Reddit's React-controlled username field auto-fills a suggestion and
-  // React re-renders it after keyboard Delete. Force-clear via Playwright's
-  // .fill('') (React-aware setter), then type with humanType.
+  // Reddit's React-controlled username field auto-fills a suggestion. The
+  // only reliable way to clear React-controlled inputs is Playwright's
+  // .fill('') (React-aware setter). humanFill's Ctrl+A+Delete is rejected
+  // because React re-injects the suggestion after the keyboard event.
+  // After clearing we use humanType for the actual chosen value (real
+  // CDP keystrokes — anti-bot clean).
   for (let attempt = 0; attempt < 3; attempt++) {
-    await userIn.fill('').catch(() => {});
+    await userIn.fill('').catch(() => {}); // lint-allow: bare-fill
     await humanIdlePause('short');
     await humanType(s.page, id.username);
     const afterVal = await userIn.inputValue().catch(() => '');

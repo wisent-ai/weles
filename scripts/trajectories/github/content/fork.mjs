@@ -1,6 +1,6 @@
 import { getSocialAccount, resolveAccountSession } from '../../../../dist/utils/credentials.js';
 import { WSession } from '../../../../dist/session/wsession.js';
-import { execute } from '../../../../dist/agent/loop.js';
+import { humanClickLocator } from '../../../../dist/human/mouse.js';
 import { detectGitHubBanSignals } from '../../../../dist/platforms/github/ban_signals.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -43,8 +43,12 @@ try {
     process.exit(0);
   }
 
-  const goal = `You are on GitHub's create-fork page for ${upstreamPath}. Leave the default owner and repository name. Find the green "Create fork" button at the bottom of the form and click it. done(value="fork_clicked"). Do NOT navigate() and do NOT change any form fields.`;
-  await execute(s, goal, { flowName: 'github_fork' });
+  // The /fork route renders a form with one submit button — green "Create fork".
+  // GitHub uses <button type="submit"> within the wrapping <form action="/<owner>/<repo>/fork">.
+  const submitBtn = s.page.locator('form[action$="/fork"] button[type="submit"], button[type="submit"]:has-text("Create fork")').filter({ visible: true }).first();
+  await submitBtn.waitFor({ state: 'visible' });
+  await submitBtn.scrollIntoViewIfNeeded().catch(() => {});
+  await humanClickLocator(s.page, submitBtn);
 
   for (let w = 0; w < 30; w++) {
     await s.page.waitForTimeout(1000);

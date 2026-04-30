@@ -1,4 +1,5 @@
 import { runAction } from '../_shared/action-runner.mjs';
+import { tiktokSubmitComment } from '../_shared/tiktok-submit.mjs';
 import { detectTikTokBanSignals } from '../../../dist/platforms/tiktok/ban_signals.js';
 
 await runAction({
@@ -16,7 +17,7 @@ await runAction({
       return { postTitle: (caption || '').slice(0, 280), postBody: '' };
     } catch { return { postTitle: '', postBody: '' }; }
   },
-  commentGoal: (text) => `Click the comment icon on the current video to open the comment panel. Find the comment input (placeholder "Add comment..."). fill(target="add comment", value=${JSON.stringify(text)}). Click Post to submit. done(value="promoted"). Do NOT navigate(). Do NOT give_up.`,
-  targetedCommentGoal: (text) => `You are on a specific TikTok page (user profile, tag, or video). If you see a grid of videos, click the first one to open it. Click the comment icon to open the comment panel. fill(target="add comment", value=${JSON.stringify(text)}). Click Post to submit. done(value="promoted"). Do NOT navigate() away. Do NOT give_up.`,
+  submitComment: tiktokSubmitComment,
+  submitTargetedComment: tiktokSubmitComment,
   banDetector: detectTikTokBanSignals,
 });

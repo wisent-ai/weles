@@ -185,18 +185,16 @@ try {
   // no /cp/zones/<name> URL. Click the zone-name text in the table to trigger
   // the correct in-app routing.
   console.log(`[trajectory] clicking zone name "${resi.name}" to open detail`);
-  const clicked = await s.page.evaluate((zoneName) => {
-    // Find any clickable element whose text content is exactly the zone name.
-    const all = Array.from(document.querySelectorAll('a, button, [role="button"], [role="link"], [role="cell"], td, span, div'));
-    for (const el of all) {
-      const t = (el.textContent || '').trim();
-      if (t === zoneName && el.offsetParent !== null) {
-        el.click();
-        return { found: true, tag: el.tagName, classes: el.className?.toString().slice(0, 80) };
-      }
-    }
-    return { found: false };
-  }, resi.name);
+  // Use a Playwright locator that matches an exact-text-content element. The
+  // zone-list table renders the name in either an <a>, <td>, or role=cell.
+  // Locator click goes through CDP so trust signals are clean.
+  const zoneLink = s.page.locator(`a, button, [role="button"], [role="link"], [role="cell"], td, span, div`).filter({ hasText: new RegExp(`^\\s*${resi.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*$`) }).filter({ visible: true }).first();
+  let clicked = { found: false };
+  if (await zoneLink.count()) {
+    await zoneLink.click({ force: true }).catch(() => {});
+    const tag = await zoneLink.evaluate(el => el.tagName).catch(() => '');
+    clicked = { found: true, tag };
+  }
   console.log(`[trajectory] click result:`, JSON.stringify(clicked));
   await s.page.waitForTimeout(8000);
   console.log(`[trajectory] after-click url=${s.page.url()}`);

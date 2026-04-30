@@ -1,23 +1,36 @@
 import { runAction } from '../../_shared/action-runner.mjs';
+import { humanType, humanFill } from '../../../../dist/human/keyboard.js';
+import { humanClickLocator } from '../../../../dist/human/mouse.js';
 import { detectRedditBanSignals } from '../../../../dist/platforms/reddit/ban_signals.js';
 
 const ACTION = process.env.POST_PROMOTE === '1' ? 'post_promote' : 'post';
 const SUBREDDIT = (process.env.SUBREDDIT || '').replace(/^r\//, '');
 if (!SUBREDDIT) { console.log('FAIL: SUBREDDIT required for reddit submit'); process.exit(1); }
 
-// Reddit submit UI wants a title + body. The LLM currently generates a single
-// body blob — we split on the first sentence to feed title/body. Agent loop
-// handles both fields in the Compose UI.
 await runAction({
   platform: 'reddit',
   action: ACTION,
-  feedUrl: `https://www.reddit.com/r/${encodeURIComponent(SUBREDDIT)}/submit`,
+  // Use old.reddit.com for submission — same deterministic
+  // textarea/button.save pattern as reddit_comment.mjs.
+  feedUrl: `https://old.reddit.com/r/${encodeURIComponent(SUBREDDIT)}/submit?selftext=true`,
   banDetector: detectRedditBanSignals,
   surfaceLabel: `r/${SUBREDDIT}`,
-  postGoal: (text) => {
+  submitPost: async (s, text) => {
     const idx = text.indexOf('.');
     const title = (idx > 5 && idx < 120 ? text.slice(0, idx) : text.slice(0, 100)).trim();
     const body  = (idx > 5 ? text.slice(idx + 1) : '').trim();
-    return `You are on reddit's Submit-post form for r/${SUBREDDIT}. Do the following:\n1. Click the "Text" post-type tab if not already selected.\n2. Click the Title field and type exactly: ${title}\n3. Click the Body field and type exactly: ${body || '(no body)'}\n4. Click the Post button at the bottom-right of the form.\nAfter URL advances to a permalinked post URL (/r/${SUBREDDIT}/comments/...), done(value="submitted"). Do NOT navigate() manually.`;
+    const titleIn = s.page.locator('input[name="title"], textarea[name="title"]').filter({ visible: true }).first();
+    await titleIn.waitFor({ state: 'visible', timeout: 15000 });
+    await humanFill(s.page, titleIn, title);
+    const bodyIn = s.page.locator('textarea[name="text"]').filter({ visible: true }).first();
+    if (await bodyIn.count() && body) {
+      await humanClickLocator(s.page, bodyIn);
+      await humanType(s.page, body);
+    }
+    // old.reddit's Submit button is button.btn within the submit form.
+    const submitBtn = s.page.locator('form#newlink button.btn[type="submit"], button.btn:has-text("submit")').filter({ visible: true }).first();
+    await submitBtn.waitFor({ state: 'visible' });
+    await humanClickLocator(s.page, submitBtn);
+    await s.page.waitForFunction((sub) => /\/comments\//.test(location.pathname) && new RegExp(`/r/${sub}/`, 'i').test(location.pathname), SUBREDDIT, { timeout: 30000 });
   },
 });

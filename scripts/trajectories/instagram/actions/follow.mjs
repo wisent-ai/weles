@@ -1,6 +1,6 @@
 import { getSocialAccount, resolveAccountSession } from '../../../../dist/utils/credentials.js';
 import { WSession } from '../../../../dist/session/wsession.js';
-import { execute } from '../../../../dist/agent/loop.js';
+import { humanClickLocator } from '../../../../dist/human/mouse.js';
 import { detectInstagramBanSignals } from '../../../../dist/platforms/instagram/ban_signals.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -20,12 +20,24 @@ try {
   await s.goto(url);
   checkReachable(s, 'instagram');
   await s.page.waitForTimeout(3500);
-  const goal = TARGET_USER
-    ? `You are on Instagram profile ${TARGET_USER}. Find the Follow button in the profile header. Click it. done(value="followed ${TARGET_USER}"). Do NOT navigate(). Do NOT give_up.`
-    : `You are on Instagram's Suggested for You page. Find any account card and click its Follow button. done(value="followed"). Do NOT give_up.`;
-  const result = await execute(s, goal, { flowName: 'instagram_follow' });
-  ban = await detectInstagramBanSignals(s.page, s.capturedResponses).catch(() => null);
-  console.log(`[ban-signal] ${ban?.signal}  PASS: ${result.value}`);
+  // The follow CTA is a <button> with text "Follow" or "Follow back" in the
+  // profile header. Once clicked, its text flips to "Following" (verifies
+  // success). Filter to button-shaped follow exactly to avoid hitting
+  // "Follow this hashtag" / "Follow suggestions" links.
+  const followBtn = s.page.locator('button').filter({ hasText: /^\s*(Follow|Follow back)\s*$/ }).filter({ visible: true }).first();
+  // Already following? "Following" button visible means PASS idempotent.
+  const followingBtn = s.page.locator('button').filter({ hasText: /^\s*(Following|Requested)\s*$/ }).filter({ visible: true }).first();
+  if (await followingBtn.isVisible({ timeout: 1500 }).catch(() => false)) {
+    ban = await detectInstagramBanSignals(s.page, s.capturedResponses).catch(() => null);
+    console.log(`[ban-signal] ${ban?.signal}  PASS: already following`);
+  } else {
+    await followBtn.waitFor({ state: 'visible' });
+    await followBtn.scrollIntoViewIfNeeded().catch(() => {});
+    await humanClickLocator(s.page, followBtn);
+    await s.page.locator('button').filter({ hasText: /^\s*(Following|Requested)\s*$/ }).first().waitFor({ state: 'visible' });
+    ban = await detectInstagramBanSignals(s.page, s.capturedResponses).catch(() => null);
+    console.log(`[ban-signal] ${ban?.signal}  PASS: followed`);
+  }
 } catch (e) {
   ban = e.banSignal ?? await detectInstagramBanSignals(s.page, s.capturedResponses).catch(() => null);
   console.log(`[ban-signal] ${ban?.signal}  FAIL: ${e.message?.slice(0, 200)}`);

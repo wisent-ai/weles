@@ -1,4 +1,5 @@
 import { runAction } from '../_shared/action-runner.mjs';
+import { linkedinSubmitComment } from '../_shared/linkedin-submit.mjs';
 import { detectLinkedInBanSignals } from '../../../dist/platforms/linkedin/ban_signals.js';
 
 await runAction({
@@ -16,7 +17,7 @@ await runAction({
       return { postTitle: (text || '').slice(0, 400), postBody: '' };
     } catch { return { postTitle: '', postBody: '' }; }
   },
-  commentGoal: (text) => `Find the first post on the feed and click its Comment button. In the comment editor, fill(target="Add a comment", value=${JSON.stringify(text)}). Click Post. done(value="promoted"). Do NOT navigate() away. Do NOT give_up.`,
-  targetedCommentGoal: (text) => `You are on a LinkedIn page. If it's a specific post/activity, find its Comment button and click it. If it's a profile or hashtag feed, pick the first visible post and click its Comment button. In the comment editor, fill(target="Add a comment", value=${JSON.stringify(text)}). Click Post. done(value="promoted"). Do NOT navigate() away. Do NOT give_up.`,
+  submitComment: linkedinSubmitComment,
+  submitTargetedComment: linkedinSubmitComment,
   banDetector: detectLinkedInBanSignals,
 });

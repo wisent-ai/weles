@@ -1,6 +1,6 @@
 import { getSocialAccount, resolveAccountSession } from '../../../../dist/utils/credentials.js';
 import { WSession } from '../../../../dist/session/wsession.js';
-import { execute } from '../../../../dist/agent/loop.js';
+import { humanClickLocator } from '../../../../dist/human/mouse.js';
 import { detectGitHubBanSignals } from '../../../../dist/platforms/github/ban_signals.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -24,11 +24,6 @@ const { proxyUrl, persona } = await resolveAccountSession(acct);
 const s = await WSession.start({ label: 'github_star', proxy: proxyUrl, persona });
 let ban = null;
 try {
-  // Inject the account's stored github.com cookies so the session is
-  // authenticated when we navigate to the repo. Without this, every star
-  // trajectory ran as an anonymous visitor and the new not_logged_in check
-  // tripped — even though the account had freshly-saved cookies in
-  // metadata.cookies from a prior github_login run.
   const cookies = (acct.metadata?.cookies ?? []).filter(c => (c.domain ?? '').includes('github.com'));
   if (cookies.length) {
     await s.ctx.addCookies(cookies).catch(e => console.log(`[star] cookie add error: ${e.message?.slice(0, 80)}`));
@@ -42,57 +37,37 @@ try {
   checkReachable(s, 'github');
   await s.page.waitForTimeout(2500);
 
-  // Login precondition. GitHub shows the Sign-in header button when logged out;
-  // clicking Star on a logged-out session opens a modal and the star never
-  // registers. Bail early with a clear signal so the caller can re-auth.
   const loggedOut = await s.page.evaluate(() => {
     const signInLinks = Array.from(document.querySelectorAll('a[href="/login"], a[href^="/login?"]'));
     return signInLinks.some(a => /sign\s*in/i.test(a.textContent || ''));
   });
   if (loggedOut) throw new Error('not_logged_in: github shows Sign-in link; cookies are stale');
 
-  // Precise click on the star form's submit button. Previously we called
-  // btn.click() inside page.evaluate — that produces isTrusted=false which
-  // github's spam ML treats as a bot signal for engagement verbs (same
-  // anti-pattern ce369f6 fixed on TikTok). Use s.click() which routes
-  // through WSession → humanClick → CDP mouse, so SetTrusted(true) fires.
-  const directClick = await s.click('Star this repository').then(r => ({ clicked: !/no-target-found/.test(r), via: r }));
-  console.log(`[star] direct form click: ${JSON.stringify(directClick)}`);
-  if (directClick.clicked) {
-    await s.page.waitForTimeout(2500);
-    // If the Starred/Unstar form is now present, the star registered server-
-    // side and we don't need the agent loop. Confirm then skip straight to
-    // the final DOM check + done().
-    const alreadyStarred = await s.page.evaluate(() => {
-      return !!document.querySelector('form[action$="/unstar"]');
-    });
-    if (alreadyStarred) {
-      console.log('[star] direct click succeeded — repo shows unstar form; skipping agent loop');
-      const ban2 = await detectGitHubBanSignals(s.page, s.capturedResponses).catch(() => null);
-      console.log(`[ban-signal] ${ban2?.signal}  PASS: starred (direct)`);
-      await s.close();
-      process.exit(0);
-    }
+  // If we're on trending or search, navigate into the first repo.
+  if (!repoUrl) {
+    const repoLink = s.page.locator('article h3 a, article h2 a, a[data-hydro-click*="REPOSITORY"]').filter({ visible: true }).first();
+    await repoLink.waitFor({ state: 'visible' });
+    await humanClickLocator(s.page, repoLink);
+    await s.page.waitForLoadState('domcontentloaded');
+    await s.page.waitForTimeout(2000);
   }
 
-  const goal = repoUrl
-    ? `You are on a specific GitHub repo page. Find the Star button in the top-right of the repo header (next to Watch and Fork). Click it. Then VERIFY: read the page and confirm the button now says "Starred" (not "Star") AND/OR the count has incremented. If the button still says "Star", click it once more then re-verify. Only done(value="starred") after the button reads "Starred". If after two click attempts the button still reads "Star", give_up(reason="star_did_not_persist"). Do NOT navigate().`
-    : `You are on a GitHub search results or trending page listing repos. Click the first repo title to open it. Then find the Star button in the top-right and click it. VERIFY: the button should now read "Starred". If still "Star", retry once. Only done(value="starred") after the button reads "Starred". Otherwise give_up(reason="star_did_not_persist").`;
-  const result = await execute(s, goal, { flowName: 'github_star' });
-
-  // Independent DOM verification in case the agent lied. GitHub renders the
-  // Star form as <form><button name="star"> when unstarred and
-  // <form><button name="unstar"> when starred. The latter also has
-  // aria-label="Unstar <owner>/<repo>".
-  const domVerified = await s.page.evaluate(() => {
-    const btns = Array.from(document.querySelectorAll('button'));
-    const unstar = btns.some(b => /^unstar\s/i.test(b.getAttribute('aria-label') || '') || /^unstar$/i.test((b.getAttribute('name') || '').trim()));
-    return unstar;
-  });
-  if (!domVerified) throw new Error('star_did_not_persist: DOM still shows unstarred state after done');
-
-  ban = await detectGitHubBanSignals(s.page, s.capturedResponses).catch(() => null);
-  console.log(`[ban-signal] ${ban?.signal}  PASS: ${result.value}`);
+  // Star form: <form action="/{owner}/{repo}/star"> → <button name="star"> Star</button>.
+  // After submit, GitHub re-renders to <form action="/{owner}/{repo}/unstar">.
+  const unstarForm = s.page.locator('form[action$="/unstar"]').filter({ visible: true }).first();
+  if (await unstarForm.count()) {
+    ban = await detectGitHubBanSignals(s.page, s.capturedResponses).catch(() => null);
+    console.log(`[ban-signal] ${ban?.signal}  PASS: already starred`);
+  } else {
+    const starBtn = s.page.locator('form[action$="/star"] button[type="submit"]').filter({ visible: true }).first();
+    await starBtn.waitFor({ state: 'visible' });
+    await starBtn.scrollIntoViewIfNeeded().catch(() => {});
+    await humanClickLocator(s.page, starBtn);
+    // Wait for state flip — Unstar form appears, action attribute changes.
+    await s.page.locator('form[action$="/unstar"]').first().waitFor({ state: 'visible', timeout: 12000 });
+    ban = await detectGitHubBanSignals(s.page, s.capturedResponses).catch(() => null);
+    console.log(`[ban-signal] ${ban?.signal}  PASS: starred`);
+  }
 } catch (e) {
   ban = e.banSignal ?? await detectGitHubBanSignals(s.page, s.capturedResponses).catch(() => null);
   console.log(`[ban-signal] ${ban?.signal}  FAIL: ${e.message?.slice(0, 200)}`);

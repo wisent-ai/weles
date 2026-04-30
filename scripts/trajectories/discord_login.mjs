@@ -1,9 +1,7 @@
 import { getSocialAccount } from '../../dist/utils/credentials.js';
 import { WSession } from '../../dist/session/wsession.js';
-import { execute } from '../../dist/agent/loop.js';
 
 const URL = 'https://discord.com/login';
-const GOAL = `Fill username/email with $SVC_EMAIL and password with $SVC_PASSWORD. Click Log In or Sign In. Wait for redirect. done(value="logged in").`;
 
 const acct = await getSocialAccount('discord');
 if (!acct) { console.log('FAIL: no active discord account in DB'); process.exit(1); }

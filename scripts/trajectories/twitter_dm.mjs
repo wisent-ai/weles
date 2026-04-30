@@ -1,6 +1,7 @@
 import { getSocialAccount, resolveAccountSession } from '../../dist/utils/credentials.js';
 import { WSession } from '../../dist/session/wsession.js';
-import { execute } from '../../dist/agent/loop.js';
+import { humanType } from '../../dist/human/keyboard.js';
+import { humanClickLocator } from '../../dist/human/mouse.js';
 
 const RECIPIENT = process.env.RECIPIENT_HANDLE || 'wisent_ai';
 const MESSAGE = process.env.DM_MESSAGE || 'Hello from weles agent';
@@ -13,11 +14,6 @@ const { proxyUrl, persona } = await resolveAccountSession(acct);
 const s = await WSession.start({ label: 'twitter_dm', proxy: proxyUrl, persona });
 
 try {
-  // Cookie-first auth. twitter_dm previously ran full login inside, which
-  // duplicated twitter_login's work and timed out the agent loop reliably
-  // because Twitter's /i/flow/login resets the form on every Next click.
-  // Inject stored auth_token + ct0 cookies; if they're stale, fail fast and
-  // let twitter_login refresh them on the next routine tick.
   const stored = (acct.metadata?.cookies ?? []).filter(c => /(^|\.)x\.com$|(^|\.)twitter\.com$/.test(c.domain ?? ''));
   if (!stored.length) { console.log('FAIL: no twitter cookies — login first'); process.exit(1); }
   await s.ctx.addCookies(stored.map(c => ({ ...c, path: c.path || '/' })));
@@ -29,15 +25,43 @@ try {
     process.exit(1);
   }
 
-  // Open the DM compose URL for the recipient. /messages/compose pre-fills the
-  // To field so we don't have to drive the recipient-search dropdown.
-  await s.page.goto(`https://x.com/messages/compose?recipient_id=&text=${encodeURIComponent(MESSAGE)}`, { waitUntil: 'domcontentloaded' });
-  await s.page.waitForTimeout(2000);
+  // Compose URL pre-opens the new-message panel; we still need to pick the
+  // recipient (no recipient_id pre-fill is supported without their numeric id).
+  await s.page.goto('https://x.com/messages/compose', { waitUntil: 'domcontentloaded' });
+  await s.page.waitForTimeout(3000);
 
-  const result = await execute(s, `Compose a DM to @${RECIPIENT} with message "${MESSAGE}". If a recipient search field is shown, type "${RECIPIENT}" and pick the matching user. Click Next or the New Message button if prompted. Type the message into the message body if not already filled. Click Send. done(value="DM sent").`, {
-    flowName: 'twitter_dm',
-  });
-  console.log('PASS:', result.value);
+  // Recipient search input — Twitter uses input[data-testid="searchPeople"]
+  // inside the new-conversation modal/panel.
+  const searchIn = s.page.locator('input[data-testid="searchPeople"], input[aria-label*="Search people" i], div[role="dialog"] input[role="combobox"]').filter({ visible: true }).first();
+  await searchIn.waitFor({ state: 'visible', timeout: 15000 });
+  await humanClickLocator(s.page, searchIn);
+  await humanType(s.page, RECIPIENT);
+  await s.page.waitForTimeout(2500);
+  // Pick the first matching user cell — data-testid="TypeaheadUser" or
+  // role="button" containing the @ handle. Filter to exact-match handle.
+  const userRow = s.page.locator(`div[data-testid="TypeaheadUser"]:has-text("@${RECIPIENT}"), [role="button"]:has-text("@${RECIPIENT}")`).filter({ visible: true }).first();
+  if (!(await userRow.count())) throw new Error(`recipient @${RECIPIENT} not found in search results`);
+  await humanClickLocator(s.page, userRow);
+  await s.page.waitForTimeout(1500);
+  // "Next" button to confirm recipient selection.
+  const nextBtn = s.page.locator('button[data-testid="nextButton"], div[role="button"]:has-text("Next")').filter({ visible: true }).first();
+  if (await nextBtn.isVisible({ timeout: 2500 }).catch(() => false)) {
+    await humanClickLocator(s.page, nextBtn);
+    await s.page.waitForTimeout(2000);
+  }
+
+  // Message body — contenteditable div with data-testid="dmComposerTextInput".
+  const msgIn = s.page.locator('div[data-testid="dmComposerTextInput"], div[contenteditable="true"][data-testid*="ComposerTextInput"], div[role="textbox"][data-testid*="dm" i]').filter({ visible: true }).first();
+  await msgIn.waitFor({ state: 'visible', timeout: 15000 });
+  await humanClickLocator(s.page, msgIn);
+  await humanType(s.page, MESSAGE);
+  await s.page.waitForTimeout(800);
+  // Send.
+  const sendBtn = s.page.locator('button[data-testid="dmComposerSendButton"], div[data-testid="dmComposerSendButton"], button[aria-label*="Send" i]').filter({ visible: true }).first();
+  await sendBtn.waitFor({ state: 'visible' });
+  await humanClickLocator(s.page, sendBtn);
+  await s.page.waitForTimeout(3000);
+  console.log(`PASS: DM sent to @${RECIPIENT}`);
 } catch (e) {
   console.log('FAIL:', e.message?.slice(0, 200));
   process.exit(1);

@@ -1,6 +1,6 @@
 import { getSocialAccount, resolveAccountSession } from '../../../../dist/utils/credentials.js';
 import { WSession } from '../../../../dist/session/wsession.js';
-import { execute } from '../../../../dist/agent/loop.js';
+import { humanClickLocator } from '../../../../dist/human/mouse.js';
 import { detectLinkedInBanSignals } from '../../../../dist/platforms/linkedin/ban_signals.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -18,13 +18,25 @@ let ban = null;
 try {
   await s.goto(TARGET_URL || 'https://www.linkedin.com/feed/');
   checkReachable(s, 'linkedin');
-  await s.page.waitForTimeout(3000);
-  const goal = TARGET_URL
-    ? `You are on a specific LinkedIn post. Find the Like reaction button (thumbs-up icon) in the social action bar beneath the post. Click it (not Comment, not Share). done(value="liked"). Do NOT give_up.`
-    : `You are on the LinkedIn feed. Find the first post. Click its Like reaction button (thumbs-up icon in the social action bar). done(value="liked"). Do NOT navigate away. Do NOT give_up.`;
-  const result = await execute(s, goal, { flowName: 'linkedin_like' });
-  ban = await detectLinkedInBanSignals(s.page, s.capturedResponses).catch(() => null);
-  console.log(`[ban-signal] ${ban?.signal}  PASS: ${result.value}`);
+  await s.page.waitForTimeout(3500);
+  // LinkedIn's like button is a <button aria-label="React Like"> that flips
+  // aria-pressed false→true on click. Scope to the first feed post container
+  // so we don't accidentally tap a comment-level like.
+  const post = s.page.locator('div.feed-shared-update-v2, div.fie-impression-container, [data-id^="urn:li:activity"]').first();
+  await post.waitFor({ state: 'visible' });
+  await post.scrollIntoViewIfNeeded().catch(() => {});
+  const likeBtn = post.locator('button[aria-label*="React Like" i]:not([aria-pressed="true"])').first();
+  if (!(await likeBtn.count())) {
+    // Already liked — idempotent PASS
+    ban = await detectLinkedInBanSignals(s.page, s.capturedResponses).catch(() => null);
+    console.log(`[ban-signal] ${ban?.signal}  PASS: already liked`);
+  } else {
+    await likeBtn.scrollIntoViewIfNeeded().catch(() => {});
+    await humanClickLocator(s.page, likeBtn);
+    await post.locator('button[aria-label*="React Like" i][aria-pressed="true"]').first().waitFor({ state: 'visible' });
+    ban = await detectLinkedInBanSignals(s.page, s.capturedResponses).catch(() => null);
+    console.log(`[ban-signal] ${ban?.signal}  PASS: liked`);
+  }
 } catch (e) {
   ban = e.banSignal ?? await detectLinkedInBanSignals(s.page, s.capturedResponses).catch(() => null);
   console.log(`[ban-signal] ${ban?.signal}  FAIL: ${e.message?.slice(0, 200)}`);

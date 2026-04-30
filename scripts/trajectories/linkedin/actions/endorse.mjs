@@ -1,6 +1,6 @@
 import { getSocialAccount, resolveAccountSession } from '../../../../dist/utils/credentials.js';
 import { WSession } from '../../../../dist/session/wsession.js';
-import { execute } from '../../../../dist/agent/loop.js';
+import { humanClickLocator } from '../../../../dist/human/mouse.js';
 import { detectLinkedInBanSignals } from '../../../../dist/platforms/linkedin/ban_signals.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -16,10 +16,38 @@ let ban = null;
 try {
   await s.goto('https://www.linkedin.com/mynetwork/invite-connect/connections/');
   checkReachable(s, 'linkedin');
-  await s.page.waitForTimeout(2500);
-  const result = await execute(s, `You are on LinkedIn's connections list. Click the first connection's profile. On their profile, scroll to the Skills section. Click the "+" icon next to any skill to endorse it. done(value="endorsed"). Do NOT give_up.`, { flowName: 'linkedin_endorse' });
+  await s.page.waitForTimeout(3000);
+  // First connection card has an anchor pointing to /in/<vanity>/. Pick it.
+  const profileLink = s.page.locator('a[href*="/in/"][data-test-app-aware-link]').filter({ visible: true }).first();
+  await profileLink.waitFor({ state: 'visible' });
+  const href = await profileLink.getAttribute('href');
+  if (!href) throw new Error('no connection profile href found');
+  const profileUrl = href.startsWith('http') ? href : `https://www.linkedin.com${href}`;
+  await s.goto(profileUrl);
+  checkReachable(s, 'linkedin');
+  await s.page.waitForTimeout(3000);
+  // Skills section is anchored by section[id="skills"]. Inside, each skill
+  // row exposes a button with aria-label="Endorse <skill>" — clicking it
+  // flips to aria-label="Endorsed <skill>" (or removes the button if
+  // already endorsed). Pick the first not-yet-endorsed skill.
+  await s.page.evaluate(() => { const el = document.querySelector('section[id="skills"], div[id="skills"]'); el?.scrollIntoView({ block: 'center' }); }).catch(() => {});
+  await s.page.waitForTimeout(1500);
+  const endorseBtn = s.page.locator('button[aria-label^="Endorse "]:not([aria-pressed="true"])').filter({ visible: true }).first();
+  if (!(await endorseBtn.count())) throw new Error('no endorseable skill found on profile');
+  await endorseBtn.scrollIntoViewIfNeeded().catch(() => {});
+  await humanClickLocator(s.page, endorseBtn);
+  // After endorse, button label flips to "Endorsed " or aria-pressed=true,
+  // OR a confirmation modal appears asking proficiency. Click "Endorse" in
+  // modal if present.
+  const modalConfirm = s.page.locator('div.artdeco-modal button:has-text("Endorse")').first();
+  if (await modalConfirm.isVisible({ timeout: 2000 }).catch(() => false)) {
+    await humanClickLocator(s.page, modalConfirm);
+  }
+  await s.page.waitForFunction(() => {
+    return Array.from(document.querySelectorAll('button[aria-label^="Endorsed "]')).length > 0;
+  }, { timeout: 6000 }).catch(() => {});
   ban = await detectLinkedInBanSignals(s.page, s.capturedResponses).catch(() => null);
-  console.log(`[ban-signal] ${ban?.signal}  PASS: ${result.value}`);
+  console.log(`[ban-signal] ${ban?.signal}  PASS: endorsed`);
 } catch (e) {
   ban = e.banSignal ?? await detectLinkedInBanSignals(s.page, s.capturedResponses).catch(() => null);
   console.log(`[ban-signal] ${ban?.signal}  FAIL: ${e.message?.slice(0, 200)}`);

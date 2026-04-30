@@ -1,6 +1,6 @@
 import { getSocialAccount, resolveAccountSession } from '../../../../dist/utils/credentials.js';
 import { WSession } from '../../../../dist/session/wsession.js';
-import { execute } from '../../../../dist/agent/loop.js';
+import { humanClickLocator } from '../../../../dist/human/mouse.js';
 import { detectLinkedInBanSignals } from '../../../../dist/platforms/linkedin/ban_signals.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -14,12 +14,28 @@ const _stored = (acct.metadata?.cookies ?? []).filter(c => /linkedin\.com/.test(
 if (_stored.length) await s.ctx.addCookies(_stored.map(c => ({ ...c, path: c.path || '/' }))).catch(() => {});
 let ban = null;
 try {
-  await s.goto('https://www.linkedin.com/mynetwork/');
+  await s.goto('https://www.linkedin.com/mynetwork/grow/');
   checkReachable(s, 'linkedin');
-  await s.page.waitForTimeout(2500);
-  const result = await execute(s, `You are on LinkedIn's My Network page. Find a People You May Know card and click its Connect button (not Follow). If a "Send without a note" dialog appears, click Send. done(value="connection_requested"). Do NOT give_up.`, { flowName: 'linkedin_connect' });
+  await s.page.waitForTimeout(3500);
+  // PYMK card "Connect" buttons live as <button aria-label="Invite NAME to connect">.
+  // Filter to invite (not Follow). Take the first non-disabled one in
+  // viewport. After click, LinkedIn often shows a "Send without a note"
+  // confirm modal — click Send when it appears.
+  const inviteBtn = s.page.locator('button[aria-label^="Invite "][aria-label$="to connect"]').filter({ visible: true }).first();
+  await inviteBtn.waitFor({ state: 'visible' });
+  await inviteBtn.scrollIntoViewIfNeeded().catch(() => {});
+  await humanClickLocator(s.page, inviteBtn);
+  // Optional confirm modal: <button aria-label="Send now"> or "Send" inside artdeco-modal.
+  const sendBtn = s.page.locator('div.artdeco-modal button[aria-label="Send now"], div.artdeco-modal button:has-text("Send")').first();
+  if (await sendBtn.isVisible({ timeout: 2500 }).catch(() => false)) {
+    await humanClickLocator(s.page, sendBtn);
+  }
+  // Verify state flip: same card's button toggles to "Pending"/aria-label="Pending, click to withdraw invitation"
+  await s.page.waitForFunction(() => {
+    return Array.from(document.querySelectorAll('button[aria-label*="Pending" i]')).length > 0;
+  }, { timeout: 6000 }).catch(() => {});
   ban = await detectLinkedInBanSignals(s.page, s.capturedResponses).catch(() => null);
-  console.log(`[ban-signal] ${ban?.signal}  PASS: ${result.value}`);
+  console.log(`[ban-signal] ${ban?.signal}  PASS: connection_requested`);
 } catch (e) {
   ban = e.banSignal ?? await detectLinkedInBanSignals(s.page, s.capturedResponses).catch(() => null);
   console.log(`[ban-signal] ${ban?.signal}  FAIL: ${e.message?.slice(0, 200)}`);

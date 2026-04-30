@@ -208,6 +208,12 @@ function findBareFills(src, evalRanges) {
     if (/humanFill\s*\(/.test(line)) continue;
     // s.fill is WSession wrapper — now humanized.
     if (/\bs\.fill\s*\(/.test(line)) continue;
+    // lint-allow:bare-fill — explicit per-line exemption for cases where
+    // humanFill's keyboard select-all+delete causes the framework (e.g.
+    // Reddit's React-controlled username field) to re-inject a server
+    // suggestion. The .fill('') React-setter clear is the only reliable
+    // way to remove the suggestion before humanType writes the chosen value.
+    if (/lint-allow:\s*bare-fill/.test(line)) continue;
     // Skip {force:true}.fill weirdness (vendor admin) — those are in EXEMPT_DIRS.
     const idx = src.indexOf(line) === -1 ? -1 : src.indexOf(line);
     if (idx >= 0 && inAnyRange(idx + line.indexOf('.fill('), evalRanges)) continue;

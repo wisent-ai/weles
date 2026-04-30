@@ -1,6 +1,6 @@
 import { getSocialAccount, resolveAccountSession } from '../../../../dist/utils/credentials.js';
 import { WSession } from '../../../../dist/session/wsession.js';
-import { execute } from '../../../../dist/agent/loop.js';
+import { humanClickLocator } from '../../../../dist/human/mouse.js';
 import { detectDiscordBanSignals } from '../../../../dist/platforms/discord/ban_signals.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -20,10 +20,24 @@ let ban = null;
 try {
   await s.goto(INVITE_URL);
   checkReachable(s, 'discord');
-  await s.page.waitForTimeout(3000);
-  const result = await execute(s, `You are on a Discord invite page. Click the "Accept Invite" or "Join Server" button. If a rules / gate screen appears, accept the rules. done(value="joined"). Do NOT navigate() beyond the join flow. Do NOT give_up.`, { flowName: 'discord_join_server' });
+  await s.page.waitForTimeout(3500);
+  // Accept Invite — Discord uses <button> with text "Accept Invite" /
+  // "Join {Server}". Modal-scoped to avoid hitting random sidebar buttons
+  // when an existing /channels session loads.
+  const acceptBtn = s.page.locator('button:has-text("Accept Invite"), button:has-text("Join Server"), button:has(div:has-text("Accept Invite")), button:has(div:has-text("Join "))').filter({ visible: true }).first();
+  await acceptBtn.waitFor({ state: 'visible', timeout: 15000 });
+  await humanClickLocator(s.page, acceptBtn);
+  // Wait for navigation into the joined channel — URL flips to /channels/{guildId}/{channelId}.
+  await s.page.waitForFunction(() => /\/channels\/\d+\/\d+/.test(location.pathname), { timeout: 25000 }).catch(() => {});
+  // If a rules/gate screen popped up, click "Submit"/"Continue".
+  const ruleSubmit = s.page.locator('button:has-text("Submit"), button:has-text("Continue"), button:has-text("Complete")').filter({ visible: true }).first();
+  if (await ruleSubmit.isVisible({ timeout: 2500 }).catch(() => false)) {
+    await humanClickLocator(s.page, ruleSubmit);
+    await s.page.waitForTimeout(2500);
+  }
+  if (!/\/channels\/\d+/.test(s.page.url())) throw new Error(`did not land in joined channel — final url=${s.page.url()}`);
   ban = await detectDiscordBanSignals(s.page, s.capturedResponses).catch(() => null);
-  console.log(`[ban-signal] ${ban?.signal}  PASS: ${result.value}`);
+  console.log(`[ban-signal] ${ban?.signal}  PASS: joined`);
 } catch (e) {
   ban = e.banSignal ?? await detectDiscordBanSignals(s.page, s.capturedResponses).catch(() => null);
   console.log(`[ban-signal] ${ban?.signal}  FAIL: ${e.message?.slice(0, 200)}`);

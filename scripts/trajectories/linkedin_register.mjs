@@ -7,8 +7,7 @@
  */
 import { WSession } from '../../dist/session/wsession.js';
 import { CaptchaSolver } from '../../dist/captcha/solver.js';
-import { execute } from '../../dist/agent/loop.js';
-import { humanFill } from '../../dist/human/keyboard.js';
+import { humanFill, humanType } from '../../dist/human/keyboard.js';
 import { humanClickLocator } from '../../dist/human/mouse.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -197,11 +196,20 @@ try {
     throw new Error(`signup_did_not_complete: URL stayed at ${verifyUrl} — likely reCAPTCHA score too low or silent rejection`);
   }
   if (/verify|email-verification|email_verification|checkpoint/.test(verifyUrl)) {
-    const result = await execute(s, `On LinkedIn email verification page. check_email(email=${id.email},sender="linkedin") to retrieve the 6-digit verification code. fill(target="verification code field, pin input, or 6-digit code", value=<code>). Click Submit/Verify/Continue. Wait for redirect. save_account(platform="linkedin",username=${id.handle},email=${id.email},password=${id.password},name="${id.first} ${id.last}"). done(value=${id.handle}).`);
-    console.log(`PASS: ${result.value}`);
+    // Email verification: poll Resend for 6-digit code → fill PIN input → submit.
+    const code = await s.checkEmail(id.email, 'linkedin');
+    if (!code || /^no code|^error:/.test(code)) throw new Error(`linkedin verification email did not arrive: ${code}`);
+    const pinIn = s.page.locator('input[name="pin"], input[autocomplete="one-time-code"], input#input__email_verification_pin').filter({ visible: true }).first();
+    await pinIn.waitFor({ state: 'visible' });
+    await humanClickLocator(s.page, pinIn);
+    await humanType(s.page, code);
+    await humanClickLocator(s.page, s.page.locator('button[type="submit"]:has-text("Submit"), button:has-text("Verify"), button[type="submit"]:has-text("Agree"), button#email-pin-submit-button').first());
+    await s.page.waitForFunction(() => !/verify|email-verification|email_verification|checkpoint/.test(location.href), { timeout: 30000 }).catch(() => {});
+    await s.saveAccount('linkedin', { username: id.handle, email: id.email, password: id.password, name: `${id.first} ${id.last}` });
+    console.log(`PASS: ${id.handle}`);
   } else {
-    const result = await execute(s, `LinkedIn signup completed at URL ${verifyUrl}. save_account(platform="linkedin",username=${id.handle},email=${id.email},password=${id.password},name="${id.first} ${id.last}"). done(value=${id.handle}).`);
-    console.log(`PASS: ${result.value}`);
+    await s.saveAccount('linkedin', { username: id.handle, email: id.email, password: id.password, name: `${id.first} ${id.last}` });
+    console.log(`PASS: ${id.handle}`);
   }
   try { mkdirSync(join(process.cwd(), 'recordings', 'linkedin_register'), { recursive: true }); writeFileSync(join(process.cwd(), 'recordings', 'linkedin_register', 'ban_signal.json'), JSON.stringify({ action: 'linkedin_register', signal: 'healthy', healthy: true, details: { username: id.handle, email: id.email, final_url: s.page.url() }, ts: new Date().toISOString() }, null, 2)); } catch {}
 } catch (e) {

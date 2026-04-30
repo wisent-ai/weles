@@ -1,6 +1,5 @@
 import { getSocialAccount, resolveAccountSession } from '../../../../dist/utils/credentials.js';
 import { WSession } from '../../../../dist/session/wsession.js';
-import { execute } from '../../../../dist/agent/loop.js';
 import { detectGitHubBanSignals } from '../../../../dist/platforms/github/ban_signals.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -47,10 +46,26 @@ try {
   await humanType(s.page, FILE_APPEND.trim()).catch(() => {});
   await s.page.waitForTimeout(1500);
 
-  // Open the Commit-changes modal via explicit selector — the toolbar button
-  // has a distinctive class/data-attr in both classic and React UIs.
-  const openModalGoal = `Click the "Commit changes..." button in the toolbar (top right of the editor). Use js_click(selector="button:has-text('Commit changes'):not([disabled]), button.btn-primary:has-text('Commit'), button[data-test-selector*='commit']") to open it. Wait 2 seconds for the modal to render. The modal title is "Commit changes" or "Propose changes". Then in the modal, clear the message field if it's pre-populated and type exactly: ${COMMIT_MESSAGE}. Keep "Commit directly to the main branch" selected. Then use js_click(selector="dialog button:has-text('Commit changes'):not([disabled]), .Box--overlay button.btn-primary:not([disabled])") to confirm. After the modal closes and URL changes from /edit/, done(value="committed"). Do NOT navigate() manually.`;
-  await execute(s, openModalGoal, {}); // flow cache would freeze literal COMMIT_MESSAGE; always replan
+  // Open the Commit-changes modal: toolbar button text is "Commit changes...".
+  // GitHub's React editor renders it as <button> with primary styling.
+  const openCommit = s.page.locator('button:has-text("Commit changes")').filter({ visible: true }).first();
+  await openCommit.waitFor({ state: 'visible', timeout: 10000 });
+  await humanClickLocator(s.page, openCommit);
+  await s.page.waitForTimeout(2000);
+  // Modal commit message textarea — id="commit-message-input" / aria-label="Commit message".
+  const msgIn = s.page.locator('textarea[id="commit-message-input"], textarea[aria-label*="ommit message"], dialog textarea[name="commit_message"]').filter({ visible: true }).first();
+  if (await msgIn.count()) {
+    await humanClickLocator(s.page, msgIn);
+    await s.page.keyboard.press('Control+A').catch(() => {});
+    await s.page.keyboard.press('Meta+A').catch(() => {});
+    await s.page.keyboard.press('Delete').catch(() => {});
+    await humanType(s.page, COMMIT_MESSAGE);
+  }
+  await s.page.waitForTimeout(800);
+  // Modal confirm button — second "Commit changes" inside dialog/Box--overlay.
+  const confirmCommit = s.page.locator('dialog button:has-text("Commit changes"), [role="dialog"] button:has-text("Commit changes"), .Box--overlay button:has-text("Commit changes")').filter({ visible: true }).first();
+  await confirmCommit.waitFor({ state: 'visible' });
+  await humanClickLocator(s.page, confirmCommit);
 
   for (let w = 0; w < 20; w++) {
     await s.page.waitForTimeout(1000);
