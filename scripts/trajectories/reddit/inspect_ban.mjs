@@ -29,10 +29,12 @@ try {
   }
 
   // Navigate to homepage first (this is where ban banners usually appear)
-  await s.page.goto('https://www.reddit.com/', { waitUntil: 'domcontentloaded' });
-  await s.page.waitForTimeout(5000);
+  await s.page.goto('https://www.reddit.com/', { waitUntil: 'networkidle' });
+  await s.page.waitForTimeout(8000);
   const homeUrl = s.page.url();
-  const homeText = await s.page.evaluate(() => document.body?.innerText?.slice(0, 5000) ?? '');
+  // Wait for actual content to render (Reddit SPA needs time)
+  await s.page.waitForSelector('shreddit-app', { timeout: 15000 }).catch(() => {});
+  const homeText = await s.page.evaluate(() => document.body?.innerText?.slice(0, 8000) ?? '');
   await s.page.screenshot({ path: 'recordings/reddit_inspect_ban/homepage_logged_in.png' });
   console.log(`[inspect] homepage url: ${homeUrl}`);
   console.log(`[inspect] homepage text:\n${homeText}`);
@@ -57,10 +59,11 @@ try {
 
   // Now navigate to own profile
   const profileUrl = `https://www.reddit.com/user/${acct.username}/`;
-  await s.page.goto(profileUrl, { waitUntil: 'domcontentloaded' });
-  await s.page.waitForTimeout(5000);
+  await s.page.goto(profileUrl, { waitUntil: 'networkidle' });
+  await s.page.waitForTimeout(8000);
+  await s.page.waitForSelector('shreddit-app', { timeout: 15000 }).catch(() => {});
   const finalUrl = s.page.url();
-  const fullText = await s.page.evaluate(() => document.body?.innerText?.slice(0, 5000) ?? '');
+  const fullText = await s.page.evaluate(() => document.body?.innerText?.slice(0, 8000) ?? '');
   await s.page.screenshot({ path: 'recordings/reddit_inspect_ban/profile_logged_in.png' });
   console.log(`[inspect] profile url: ${finalUrl}`);
   console.log(`[inspect] profile text:\n${fullText}`);
