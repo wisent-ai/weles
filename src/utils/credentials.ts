@@ -229,7 +229,6 @@ export async function resolveAccountSession(acct: SocialAccount): Promise<Accoun
     const { isProviderBlockedForPlatform } = await import('../proxy/policy.js');
     const ALL_PROVIDERS = ['oxylabs', 'packetstream', 'pingproxies', 'brightdata'];
     const PROVIDERS = ALL_PROVIDERS.filter(p => !isProviderBlockedForPlatform(p, acct.platform));
-    const OXY_BLOCKED = new Set(['linkedin', 'twitter']); // legacy name kept for downstream conditional
     let hash = 0;
     for (const ch of (acct.id ?? acct.username ?? '')) hash = ((hash << 5) - hash + ch.charCodeAt(0)) | 0;
     const provider = PROVIDERS[Math.abs(hash) % PROVIDERS.length];
@@ -250,7 +249,18 @@ export async function resolveAccountSession(acct: SocialAccount): Promise<Accoun
           if (pw) break;
         }
       }
-      if (!pw && !OXY_BLOCKED.has(acct.platform)) pw = await mod.resolveProxy(`residential ${country}`.trim(), targetHost) ?? await mod.resolveProxy('residential', targetHost);
+      if (!pw) {
+        // Last-pass residential search — still respect the policy
+        // blocklist (e.g. PacketStream for reddit/tiktok). Iterate each
+        // non-blocked provider explicitly rather than passing a bare
+        // "residential" filter that resolveProxy may route to a poisoned pool.
+        const blocked = new Set(ALL_PROVIDERS.filter(p => isProviderBlockedForPlatform(p, acct.platform)));
+        for (const alt of ALL_PROVIDERS) {
+          if (blocked.has(alt)) continue;
+          pw = await mod.resolveProxy(`residential ${alt} ${country}`.trim(), targetHost);
+          if (pw) break;
+        }
+      }
       // Mobile carrier IPs are rarely on platform blocklists — fall here when residential is exhausted.
       if (!pw) pw = await mod.resolveProxy(`mobile ${country}`.trim(), targetHost) ?? await mod.resolveProxy('mobile', targetHost);
       if (pw?.server) {

@@ -8,7 +8,7 @@ const PROVIDER_PLATFORM_BLOCK: Record<string, string[]> = {
   // PacketStream's residential range gets reddit accounts insta-shadowbanned —
   // signup completes, cookies return, account 404s within ~10 min after
   // first comment. Verified across multiple accounts this session.
-  packetstream: ['reddit'],
+  packetstream: ['reddit', 'tiktok'],
   // Oxylabs residential exit IPs hit ERR_HTTP_RESPONSE_CODE_FAILURE at the
   // edge on linkedin/twitter login pages.
   oxylabs: ['linkedin', 'twitter'],
