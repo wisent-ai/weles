@@ -1,7 +1,8 @@
 // IPRoyal balance check via Google SSO. Popup-based GSI flow with consent
 // step handled by googleSso helper.
 import { WSession } from '../../../dist/session/wsession.js';
-import { googleSso, parseBalanceFromText, patchServiceBalance, getGoogleSsoCreds } from '../_shared/services/google_sso.mjs';
+import { googleSso, parseBalanceFromText, getGoogleSsoCreds } from '../_shared/services/google_sso.mjs';
+import { patchEffectiveBalance } from '../_shared/services/proxy_probe.mjs';
 
 const LOGIN_URL = 'https://dashboard.iproyal.com/login';
 
@@ -42,10 +43,10 @@ try {
   }
   console.log(`[trajectory] balance=$${balance}`);
 
-  const r1 = await patchServiceBalance('IPRoyal Residential', balance);
-  const r2 = await patchServiceBalance('IPRoyal Mobile', balance);
+  const r1 = await patchEffectiveBalance('IPRoyal Residential', balance);
+  const r2 = await patchEffectiveBalance('IPRoyal Mobile', balance);
   if (!r1 || !r2) { console.log(`FAIL: PATCH residential=${r1} mobile=${r2}`); process.exit(1); }
-  console.log(`PASS: balance=$${balance} (persisted to Residential + Mobile)`);
+  console.log(`PASS: dashboard=$${balance} (effective balance written + probed)`);
 } catch (e) {
   console.log('FAIL:', e.message?.slice(0, 200));
   process.exit(1);

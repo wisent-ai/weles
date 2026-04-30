@@ -4,7 +4,8 @@
 // service_credentials.login_password IS the Google password.
 import { getServiceLogin } from '../../../dist/utils/credentials.js';
 import { WSession } from '../../../dist/session/wsession.js';
-import { googleSso, parseBalanceFromText, patchServiceBalance } from '../_shared/services/google_sso.mjs';
+import { googleSso, parseBalanceFromText } from '../_shared/services/google_sso.mjs';
+import { patchEffectiveBalance } from '../_shared/services/proxy_probe.mjs';
 
 const LOGIN_URL = 'https://brightdata.com/cp/login';
 const DASH_URL  = 'https://brightdata.com/cp/api_example';
@@ -38,9 +39,9 @@ try {
   }
   console.log(`[trajectory] balance=$${balance}`);
 
-  const patched = await patchServiceBalance(DISPLAY_NAME, balance);
+  const patched = await patchEffectiveBalance(DISPLAY_NAME, balance);
   if (!patched) { console.log('FAIL: balance scraped but PATCH service_credentials failed'); process.exit(1); }
-  console.log(`PASS: balance=$${balance} (persisted)`);
+  console.log(`PASS: dashboard=$${balance} (effective balance written + probed)`);
 } catch (e) {
   console.log('FAIL:', e.message?.slice(0, 200));
   process.exit(1);

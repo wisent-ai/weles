@@ -3,6 +3,7 @@
 // run and was non-deterministic). Native login form — no Google SSO.
 import { getServiceLogin } from '../../../dist/utils/credentials.js';
 import { WSession } from '../../../dist/session/wsession.js';
+import { patchEffectiveBalance } from '../_shared/services/proxy_probe.mjs';
 
 const LOGIN_URL = 'https://app.packetstream.io/login';
 const DASH_URL  = 'https://app.packetstream.io';
@@ -15,18 +16,6 @@ function parseBalanceFromText(text) {
   const dollar = text.match(/\$([0-9]+\.[0-9]{2})\b/);
   if (dollar) return Number(dollar[1]);
   return null;
-}
-
-async function patchServiceBalance(displayName, balance) {
-  const supabaseUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
-  if (!supabaseUrl || !key) return false;
-  const r = await fetch(`${supabaseUrl}/rest/v1/service_credentials?display_name=eq.${encodeURIComponent(displayName)}`, {
-    method: 'PATCH',
-    headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
-    body: JSON.stringify({ balance_usd: balance, updated_at: new Date().toISOString() }),
-  });
-  return r.ok;
 }
 
 const login = await getServiceLogin(DISPLAY_NAME);
@@ -62,9 +51,9 @@ try {
   if (balance == null) { console.log(`FAIL: could not parse balance from dashboard text (${text.length} chars)`); process.exit(1); }
   console.log(`[trajectory] balance=$${balance}`);
 
-  const patched = await patchServiceBalance(DISPLAY_NAME, balance);
+  const patched = await patchEffectiveBalance(DISPLAY_NAME, balance);
   if (!patched) { console.log('FAIL: balance scraped but PATCH service_credentials failed'); process.exit(1); }
-  console.log(`PASS: balance=$${balance} (persisted)`);
+  console.log(`PASS: dashboard=$${balance} (effective balance written + probed)`);
 } catch (e) {
   console.log('FAIL:', e.message?.slice(0, 200));
   process.exit(1);

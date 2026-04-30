@@ -1,7 +1,8 @@
 // Pingproxies (rebranded as Byteful) balance check via Google SSO.
 // dashboard.byteful.com/login exposes "Continue with Google" button.
 import { WSession } from '../../../dist/session/wsession.js';
-import { googleSso, parseBalanceFromText, patchServiceBalance, getGoogleSsoCreds } from '../_shared/services/google_sso.mjs';
+import { googleSso, parseBalanceFromText, getGoogleSsoCreds } from '../_shared/services/google_sso.mjs';
+import { patchEffectiveBalance } from '../_shared/services/proxy_probe.mjs';
 
 const LOGIN_URL = 'https://dashboard.byteful.com/login';
 const DISPLAY_NAME = 'Pingproxies';
@@ -30,9 +31,9 @@ try {
   }
   console.log(`[trajectory] balance=$${balance}`);
 
-  const patched = await patchServiceBalance(DISPLAY_NAME, balance);
+  const patched = await patchEffectiveBalance(DISPLAY_NAME, balance);
   if (!patched) { console.log('FAIL: PATCH service_credentials failed'); process.exit(1); }
-  console.log(`PASS: balance=$${balance} (persisted)`);
+  console.log(`PASS: dashboard=$${balance} (effective balance written + probed)`);
 } catch (e) {
   console.log('FAIL:', e.message?.slice(0, 200));
   process.exit(1);

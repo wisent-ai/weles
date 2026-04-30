@@ -1,7 +1,8 @@
 // Oxylabs balance check via Google GSI iframe button + popup-based OAuth.
 // One scrape covers BOTH 'Oxylabs Residential' and 'Oxylabs Mobile' rows.
 import { WSession } from '../../../dist/session/wsession.js';
-import { googleSso, parseBalanceFromText, patchServiceBalance, getGoogleSsoCreds } from '../_shared/services/google_sso.mjs';
+import { googleSso, parseBalanceFromText, getGoogleSsoCreds } from '../_shared/services/google_sso.mjs';
+import { patchEffectiveBalance } from '../_shared/services/proxy_probe.mjs';
 
 const LOGIN_URL = 'https://dashboard.oxylabs.io/';
 const BILLING_URL = 'https://dashboard.oxylabs.io/en/billing-plans';
@@ -55,10 +56,12 @@ try {
   }
   console.log(`[trajectory] balance=${balance}`);
 
-  const r1 = await patchServiceBalance('Oxylabs Residential', balance);
-  const r2 = await patchServiceBalance('Oxylabs Mobile', balance);
+  // patchEffectiveBalance does a real CONNECT through the upstream — if 407,
+  // overrides balance to 0 so cron decisions reflect EFFECTIVE balance.
+  const r1 = await patchEffectiveBalance('Oxylabs Residential', balance);
+  const r2 = await patchEffectiveBalance('Oxylabs Mobile', balance);
   if (!r1 || !r2) { console.log(`FAIL: PATCH residential=${r1} mobile=${r2}`); process.exit(1); }
-  console.log(`PASS: balance=$${balance} (persisted to Residential + Mobile)`);
+  console.log(`PASS: dashboard=$${balance} (effective balance written + probed)`);
 } catch (e) {
   console.log('FAIL:', e.message?.slice(0, 200));
   process.exit(1);
