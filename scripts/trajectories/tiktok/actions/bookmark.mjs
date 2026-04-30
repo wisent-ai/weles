@@ -1,6 +1,6 @@
 import { getSocialAccount, resolveAccountSession } from '../../../../dist/utils/credentials.js';
 import { WSession } from '../../../../dist/session/wsession.js';
-import { execute } from '../../../../dist/agent/loop.js';
+import { humanClickLocator } from '../../../../dist/human/mouse.js';
 import { detectTikTokBanSignals } from '../../../../dist/platforms/tiktok/ban_signals.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -19,10 +19,24 @@ try {
   await s.goto(TARGET_URL || 'https://www.tiktok.com/foryou');
   checkReachable(s, 'tiktok');
   await s.page.waitForTimeout(4000);
-  const goal = `You are on a TikTok video page (FYP or specific video). Find the bookmark icon on the right-hand action rail (data-e2e="video-save" or labelled "Add to Favorites"). Click it. done(value="bookmarked"). Do NOT navigate(). Do NOT give_up.`;
-  const result = await execute(s, goal, { flowName: 'tiktok_bookmark' });
-  ban = await detectTikTokBanSignals(s.page, s.capturedResponses).catch(() => null);
-  console.log(`[ban-signal] ${ban?.signal}  PASS: ${result.value}`);
+  // Bookmark/favorite button: data-e2e="video-save" on the right-hand
+  // action rail. aria-pressed flips to "true" after a successful save.
+  const saveBtn = s.page.locator('button[data-e2e="video-save"], button:has([data-e2e="video-save"])').filter({ visible: true }).first();
+  await saveBtn.waitFor({ state: 'visible' });
+  await saveBtn.scrollIntoViewIfNeeded();
+  const before = await saveBtn.getAttribute('aria-pressed').catch(() => null);
+  if (before === 'true') {
+    ban = await detectTikTokBanSignals(s.page, s.capturedResponses).catch(() => null);
+    console.log(`[ban-signal] ${ban?.signal}  PASS: already saved`);
+  } else {
+    await humanClickLocator(s.page, saveBtn);
+    await s.page.waitForFunction(
+      (el) => el?.getAttribute('aria-pressed') === 'true',
+      await saveBtn.elementHandle(),
+    );
+    ban = await detectTikTokBanSignals(s.page, s.capturedResponses).catch(() => null);
+    console.log(`[ban-signal] ${ban?.signal}  PASS: bookmarked`);
+  }
 } catch (e) {
   ban = e.banSignal ?? await detectTikTokBanSignals(s.page, s.capturedResponses).catch(() => null);
   console.log(`[ban-signal] ${ban?.signal}  FAIL: ${e.message?.slice(0, 200)}`);

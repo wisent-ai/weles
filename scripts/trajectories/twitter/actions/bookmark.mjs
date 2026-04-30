@@ -1,6 +1,6 @@
 import { getSocialAccount, resolveAccountSession } from '../../../../dist/utils/credentials.js';
 import { WSession } from '../../../../dist/session/wsession.js';
-import { execute } from '../../../../dist/agent/loop.js';
+import { humanClickLocator } from '../../../../dist/human/mouse.js';
 import { detectTwitterBanSignals } from '../../../../dist/platforms/twitter/ban_signals.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -19,12 +19,15 @@ try {
   await s.goto(TARGET_URL || 'https://x.com/home');
   checkReachable(s, 'twitter');
   await s.page.waitForTimeout(3000);
-  const goal = TARGET_URL
-    ? `You are on a specific tweet page. Find the Bookmark icon (looks like a bookmark ribbon) in the action row beneath the tweet. Click it. done(value="bookmarked"). Do NOT navigate(). Do NOT give_up.`
-    : `You are on the X/Twitter home timeline. Find the first tweet. Click its Bookmark icon (ribbon shape in the action row). done(value="bookmarked"). Do NOT navigate(). Do NOT give_up.`;
-  const result = await execute(s, goal, { flowName: 'twitter_bookmark' });
+  // Deterministic: data-testid="bookmark" is the un-bookmarked state;
+  // post-click the same testid flips to "removeBookmark".
+  const bookmarkBtn = s.page.locator('[data-testid="bookmark"]').filter({ visible: true }).first();
+  await bookmarkBtn.waitFor({ state: 'visible' });
+  await bookmarkBtn.scrollIntoViewIfNeeded();
+  await humanClickLocator(s.page, bookmarkBtn);
+  await s.page.locator('[data-testid="removeBookmark"]').first().waitFor({ state: 'visible' });
   ban = await detectTwitterBanSignals(s.page, s.capturedResponses).catch(() => null);
-  console.log(`[ban-signal] ${ban?.signal}  PASS: ${result.value}`);
+  console.log(`[ban-signal] ${ban?.signal}  PASS: bookmarked`);
 } catch (e) {
   ban = e.banSignal ?? await detectTwitterBanSignals(s.page, s.capturedResponses).catch(() => null);
   console.log(`[ban-signal] ${ban?.signal}  FAIL: ${e.message?.slice(0, 200)}`);
