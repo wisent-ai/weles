@@ -54,7 +54,33 @@ try {
     }
     return results;
   });
-  console.log(`[inspect] ban elements: ${JSON.stringify(banEls, null, 2)}`);
+  console.log(`[inspect] ban elements (logged-in): ${JSON.stringify(banEls, null, 2)}`);
+
+  // Now check the same profile WITHOUT cookies (logged-out view)
+  console.log('[inspect] --- checking logged-out view ---');
+  await s.ctx.clearCookies();
+  await s.page.goto(profileUrl, { waitUntil: 'domcontentloaded' });
+  await s.page.waitForTimeout(5000);
+  const logoutUrl = s.page.url();
+  const logoutText = await s.page.evaluate(() => document.body?.innerText?.slice(0, 3000) ?? '');
+  console.log(`[inspect] logged-out url: ${logoutUrl}`);
+  console.log(`[inspect] logged-out text:\n${logoutText}`);
+  const logoutBanEls = await s.page.evaluate(() => {
+    const results = [];
+    const keywords = /ban|suspend|restrict|deactivat|blocked|removed|appeal|violation/i;
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_ELEMENT);
+    while (walker.nextNode()) {
+      const el = walker.currentNode;
+      const text = (el.innerText || '').trim();
+      const cls = String(el.className || '').slice(0, 100);
+      const tag = el.tagName || '';
+      if (keywords.test(text) && text.length < 500) {
+        results.push({ tag, cls, text });
+      }
+    }
+    return results;
+  });
+  console.log(`[inspect] ban elements (logged-out): ${JSON.stringify(logoutBanEls, null, 2)}`);
 } catch (e) {
   console.log(`[inspect] error: ${e.message}`);
 } finally {
