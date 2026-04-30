@@ -173,6 +173,15 @@ export async function resolveAccountSession(acct: SocialAccount): Promise<Accoun
     return out;
   }
 
+  // Capability-bootstrap force-override: test a specific provider regardless
+  // of stored proxy. Set by worker/poll when params.proxy_url_override is
+  // present. Highest priority so we get deterministic provider control.
+  if (process.env.PROXY_URL && process.env.PROXY_URL_FORCE === '1') {
+    out.proxyUrl = process.env.PROXY_URL;
+    out.persona = (meta?.persona as Persona | undefined) ?? generatePersona({});
+    return out;
+  }
+
   if (meta?.proxy?.host && meta?.proxy?.port && !(await isBurned(meta.proxy.host))) {
     // Reject stored proxies whose hostname doesn't match a known residential
     // provider AND whose username matches the legacy `lbartoszcze` weles relay
