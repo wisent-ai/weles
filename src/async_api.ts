@@ -210,7 +210,11 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
         console.log('[async_api] property-trap instrumentation installed (WELES_INSTRUMENT=1)');
       } catch (e) { console.log(`[async_api] property-trap install failed: ${(e as Error).message}`); }
     }
-    await context.addInitScript(`try{var _og=navigator.credentials.get.bind(navigator.credentials);navigator.credentials.get=function(o){return o&&o.publicKey?new Promise(function(){}):_og(o)}}catch(e){}`);
+    // WebAuthn passkey stub — block passkey prompts. Must reject with
+    // NotAllowedError (like a real browser without authenticator), NOT
+    // return a hanging Promise — Reddit's anti-bot detects the
+    // never-resolving Promise and loops (39x vs 4x on human).
+    await context.addInitScript(`try{var _og=navigator.credentials.get.bind(navigator.credentials);navigator.credentials.get=function(o){if(o&&o.publicKey){var exc=new DOMException('The operation is not supported.','NotAllowedError');return Promise.reject(exc)}return _og(o)}}catch(e){}`);
     // Arkose: capture iframe data via MutationObserver
     // Arkose iframe-data observer. Do NOT pre-create window.__arkoseData — that
     // shows up as an extra own-window property on every page, including about:blank
@@ -270,7 +274,7 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
 
   await context.addInitScript(initScript);
   // WebAuthn passkey stub — block passkey prompts (same as custom Chromium path)
-  await context.addInitScript(`try{var _og=navigator.credentials.get.bind(navigator.credentials);navigator.credentials.get=function(o){return o&&o.publicKey?new Promise(function(){}):_og(o)}}catch(e){}`);
+  await context.addInitScript(`try{var _og=navigator.credentials.get.bind(navigator.credentials);navigator.credentials.get=function(o){if(o&&o.publicKey){var exc=new DOMException('The operation is not supported.','NotAllowedError');return Promise.reject(exc)}return _og(o)}}catch(e){}`);
   await context.addInitScript(`try{window.__arkoseData=null;new MutationObserver(function(m){m.forEach(function(r){r.addedNodes.forEach(function(n){if(n.tagName==='IFRAME'&&n.id==='arkoseFrame'){var s=n.getAttribute('src')||'';var pk=(s.match(/\\/([A-F0-9-]{36})\\//)||[])[1]||'';var bl=(s.match(/[?&]data=([^&]+)/)||[])[1]||'';window.__arkoseData={publicKey:pk,blob:decodeURIComponent(bl),subdomain:(new URL(s)).origin,ts:Date.now()};console.log('[arkose] captured pkey='+pk.slice(0,12))}})})}).observe(document.documentElement,{childList:true,subtree:true})}catch(e){}`);
   await context.addInitScript(`try{var _of=window.fetch;window.fetch=function(){var u=arguments[0],o=arguments[1]||{};if(typeof u==='string'&&u.includes('/auth/register')&&o.method==='POST'){try{window.__weles_form_data=JSON.parse(o.body)}catch(e){}try{var h=o.headers||{};window.__weles_extra_headers={};for(var k in h){if(k.startsWith('x-'))window.__weles_extra_headers[k]=h[k]}}catch(e){}}return _of.apply(this,arguments).then(function(r){if(typeof u==='string'&&u.includes('/auth/register')&&r.status>=400){r.clone().json().then(function(d){if(d.captcha_key!==undefined)window.__weles_captcha_response=d}).catch(function(){})}return r})}}catch(e){}`);
 
