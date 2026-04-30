@@ -137,8 +137,12 @@ export class CDPWeles {
     // 9. Add init script
     if (initScript) context.addInitScript(initScript);
 
-    // 10. WebAuthn passkey stub (prevents passkey prompts on Google SSO)
-    context.addInitScript(`try{var _og=navigator.credentials.get.bind(navigator.credentials);navigator.credentials.get=function(o){return o&&o.publicKey?new Promise(function(){}):_og(o)}}catch(e){}`);
+    // 10. WebAuthn passkey stub (prevents passkey prompts on Google SSO).
+    // Must reject with NotAllowedError (like a real browser without
+    // authenticator), NOT return a hanging Promise — Reddit's anti-bot
+    // detects the never-resolving Promise as anomalous and loops
+    // (39x reads vs 4x on human), creating a timing fingerprint.
+    context.addInitScript(`try{var _og=navigator.credentials.get.bind(navigator.credentials);navigator.credentials.get=function(o){if(o&&o.publicKey){var exc=new DOMException('The operation is not supported.','NotAllowedError');return Promise.reject(exc)}return _og(o)}}catch(e){}`);
 
     return new CDPWeles(proc, connection, context, localProxy);
   }
