@@ -317,17 +317,25 @@ export class WSession {
     // Flush proxy egress cost. Provider derived from proxy host substring; if
     // we can't classify (custom PROXY_URL, no proxy at all), record as
     // 'proxy_other' so the bytes still appear in service_costs.
-    if (this._proxyBytes > 0 && this.proxyConfig?.server) {
+    if (this._proxyBytes > 0) {
       try {
-        const host = new URL(this.proxyConfig.server).hostname.toLowerCase();
-        const isMobile = /mobile/.test(host) || this.proxyConfig.platform?.toLowerCase().includes('mobile') === true;
-        const provider = host.includes('packetstream') ? 'packetstream'
-          : host.includes('oxylabs') ? 'oxylabs'
-          : host.includes('pingproxies') || host.includes('pingproxy') ? 'pingproxies'
-          : host.includes('iproyal') ? 'iproyal'
-          : host.includes('brd.superproxy') || host.includes('brightdata') ? 'brightdata'
-          : 'other';
-        costTracker.recordProxyBytes(provider, this._proxyBytes, isMobile);
+        const server = this.proxyConfig?.server;
+        if (server) {
+          const host = new URL(server).hostname.toLowerCase();
+          const isMobile = /mobile/.test(host) || this.proxyConfig?.platform?.toLowerCase().includes('mobile') === true;
+          const provider = host.includes('packetstream') ? 'packetstream'
+            : host.includes('oxylabs') ? 'oxylabs'
+            : host.includes('pingproxies') || host.includes('pingproxy') ? 'pingproxies'
+            : host.includes('iproyal') ? 'iproyal'
+            : host.includes('brd.superproxy') || host.includes('brightdata') ? 'brightdata'
+            : 'other';
+          costTracker.recordProxyBytes(provider, this._proxyBytes, isMobile);
+        } else {
+          // No proxyConfig but CDP tracked bytes — e.g. direct connection
+          // or API-only sessions. Record as 'proxy_other' so the bytes
+          // aren't silently dropped.
+          costTracker.recordProxyBytes('other', this._proxyBytes);
+        }
       } catch (e: any) { console.log(`[wsession] proxy-bytes record err: ${e.message?.slice(0, 100)}`); }
     }
     try { await this._cdp?.detach?.(); } catch {}

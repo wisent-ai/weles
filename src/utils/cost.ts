@@ -23,9 +23,10 @@ import {
 // Re-export the canonical PRICES table for any in-repo code that read it.
 export const PRICES = SHARED_PRICES;
 
+function round4(n: number): number { return Math.round(n * 10000) / 10000; }
+
 class WelesCostTracker {
   private inner: SharedCostTracker;
-  private flushed = false;
   private agent_id: string;
 
   constructor() {
@@ -87,19 +88,30 @@ class WelesCostTracker {
   }
 
   /** Writes recordings/_costs/<ACTION_LOG_ID>.json (legacy worker contract)
-   *  AND, if Supabase creds are set, posts records to cost_records. */
+   *  AND, if Supabase creds are set, posts records to cost_records.
+   *  NOT idempotent — each call drains the buffer so multiple WSession
+   *  close() calls in one trajectory all get their records written. */
   async flush(): Promise<void> {
-    if (this.flushed) return;
-    this.flushed = true;
     const snap = this.inner.snapshot();
     if (snap.records.length === 0) return;
+    // Clear the inner buffer so subsequent flush() calls only write new records.
+    (this.inner as any).buffer = [];
 
     const id = process.env.ACTION_LOG_ID;
+    // Accumulate into the local file so the worker sees the full total.
     if (id) {
       const path = join(process.cwd(), 'recordings', '_costs', `${id}.json`);
       try {
         await mkdir(dirname(path), { recursive: true });
-        await writeFile(path, JSON.stringify({ cost_usd: snap.cost_usd, service_costs: snap.service_costs }));
+        // Read existing file to merge, so multiple flushes produce a single
+        // rollup (worker reads the file once at the end).
+        let existing: { cost_usd: number; service_costs: Record<string, number> } = { cost_usd: 0, service_costs: {} };
+        try { existing = JSON.parse(await (await import('node:fs/promises')).readFile(path, 'utf8')); } catch { /* first flush */ }
+        for (const [k, v] of Object.entries(snap.service_costs)) {
+          existing.service_costs[k] = round4((existing.service_costs[k] ?? 0) + v);
+        }
+        existing.cost_usd = round4(existing.cost_usd + snap.cost_usd);
+        await writeFile(path, JSON.stringify(existing));
       } catch { /* best-effort */ }
     }
 
