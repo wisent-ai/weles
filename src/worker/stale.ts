@@ -23,7 +23,7 @@ export async function staleCookieAccounts(candidates: CandidateRow[]): Promise<S
   const stale = new Set<string>();
   const ids = [...new Set(
     candidates
-      .filter((r) => r.account_id && r.action && !r.action.endsWith('_register') && !r.action.endsWith('_health'))
+      .filter((r) => r.account_id && r.action && !r.action.endsWith('_register') && !r.action.endsWith('_health') && !r.action.endsWith('_balance') && !r.action.endsWith('_topup'))
       .map((r) => r.account_id!)
   )].slice(0, 50);
   if (ids.length === 0) return stale;
