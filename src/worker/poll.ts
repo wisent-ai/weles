@@ -139,7 +139,7 @@ async function runTrajectory(row: ActionLogRow, path: string): Promise<{ exitCod
   try { await (await import('node:fs/promises')).unlink(join(RECORDINGS_ROOT, row.action, 'ban_signal.json')).catch(() => {}); } catch { /* noop */ }
   return new Promise((resolve) => {
     const child = spawn('node', [path], {
-      env: { ...process.env, ...paramsToEnv(row.params ?? {}, row.action, path), ACCOUNT_ID: row.account_id, ACTION_LOG_ID: row.id },
+      env: { ...process.env, ...paramsToEnv(row.params ?? {}, row.action, path), ACCOUNT_ID: row.account_id, ACTION_LOG_ID: row.id, ACTION: row.action },
       cwd: process.cwd(), stdio: ['ignore', 'inherit', 'pipe'],
     });
     let stderr = '';
@@ -272,7 +272,7 @@ export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
   const { exitCode, stderr } = await runTrajectory(row, trajPath);
   const banSignal = await readBanSignal(row.action);
   const result: Record<string, unknown> = {};
-  try { const m = JSON.parse(await readFile(join(RECORDINGS_ROOT, row.action, 'session_meta.json'), 'utf8')); result.session = { proxy_host: m.proxy_host, proxy_port: m.proxy_port, proxy_user: m.proxy_user, exit_ip: m.exit_ip, platform: m.platform }; } catch {}
+  try { const m = JSON.parse(await readFile(join(RECORDINGS_ROOT, row.action, 'session_meta.json'), 'utf8')); result.session = { proxy_host: m.proxy_host, proxy_port: m.proxy_port, proxy_user: m.proxy_user, exit_ip: m.exit_ip, platform: m.platform, provider: m.provider }; } catch {}
   if (banSignal) {
     result.ban_signal = banSignal;
     if (banSignal.healthy === false) await pauseAccount(row.account_id, banSignal.signal);
@@ -280,6 +280,16 @@ export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
   } else {
     result.ban_signal = { healthy: exitCode === 0, signal: exitCode === 0 ? 'healthy' : 'unknown_error' };
   }
+  // Capability-matrix update: record (provider, action) outcome so the
+  // selector self-heals as providers go bad / recover. Skips when provider
+  // unknown (direct egress) or signal is non-classifying (script error).
+  try {
+    const { recordOutcome } = await import('../proxy/capability.js');
+    const s = result.session as any;
+    const finalSignal = (result.ban_signal as BanSignal).signal;
+    const finalStatus = exitCode === 0 ? 'completed' : 'failed';
+    if (s?.provider) await recordOutcome(s.provider, row.action, finalStatus, finalSignal, row.platform);
+  } catch { /* best-effort */ }
   if (row.action.endsWith('_health')) {
     const snap = await importHealthSnapshot(row.account_id, row.action.slice(0, -'_health'.length));
     if (snap) { result.health_snapshot = snap; result.ban_signal = { healthy: snap.signal === 'healthy', signal: snap.signal }; }
