@@ -1,6 +1,6 @@
 import { getSocialAccount, resolveAccountSession } from '../../../../dist/utils/credentials.js';
 import { WSession } from '../../../../dist/session/wsession.js';
-import { execute } from '../../../../dist/agent/loop.js';
+import { humanClickLocator } from '../../../../dist/human/mouse.js';
 import { detectTikTokBanSignals } from '../../../../dist/platforms/tiktok/ban_signals.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -26,14 +26,34 @@ try {
   await s.goto(url);
   checkReachable(s, 'tiktok');
   await s.page.waitForTimeout(4000);
-  const goal = TARGET_URL
-    ? `You are on a specific TikTok video. Click the heart icon on the right-hand action rail to like the video. done(value="liked"). Do NOT navigate(). Do NOT give_up.`
-    : (TARGET_USER || SEARCH_QUERY)
-      ? `You are on a TikTok page showing a grid of videos (profile or hashtag). Click the first video to open it. Then click the heart icon on the right-hand action rail to like. done(value="liked"). Do NOT navigate(). Do NOT give_up.`
-      : `You are on the TikTok For You feed. Find the current video's heart icon on the right-hand action rail. Click it to like. done(value="liked"). Do NOT give_up.`;
-  const result = await execute(s, goal, { flowName: 'tiktok_like' });
-  ban = await detectTikTokBanSignals(s.page, s.capturedResponses).catch(() => null);
-  console.log(`[ban-signal] ${ban?.signal}  PASS: ${result.value}`);
+  // If we landed on a profile / hashtag grid, navigate into the first video.
+  // Specific-video URLs and /foryou already have the right-rail action panel
+  // hydrated in place.
+  if (!/\/video\//.test(s.page.url()) && !/\/foryou/.test(s.page.url())) {
+    const firstVideo = s.page.locator('a[href*="/video/"]').first();
+    await firstVideo.waitFor({ state: 'visible' });
+    await humanClickLocator(s.page, firstVideo);
+    await s.page.waitForURL(/\/video\/\d+/);
+  }
+  // Like button on TikTok video pages: data-e2e="like-icon" (foryou rail) or
+  // "browse-like-icon" (profile-derived video page). Either match works.
+  const likeBtn = s.page.locator('button[data-e2e="like-icon"], button[data-e2e="browse-like-icon"], button:has([data-e2e="like-icon"]), button:has([data-e2e="browse-like-icon"])').filter({ visible: true }).first();
+  await likeBtn.waitFor({ state: 'visible' });
+  await likeBtn.scrollIntoViewIfNeeded();
+  const before = await likeBtn.getAttribute('aria-pressed').catch(() => null);
+  if (before === 'true') {
+    ban = await detectTikTokBanSignals(s.page, s.capturedResponses).catch(() => null);
+    console.log(`[ban-signal] ${ban?.signal}  PASS: already liked`);
+  } else {
+    await humanClickLocator(s.page, likeBtn);
+    // Poll for aria-pressed to flip — TikTok's digg XHR can take 3-8s.
+    await s.page.waitForFunction(
+      (el) => el?.getAttribute('aria-pressed') === 'true',
+      await likeBtn.elementHandle(),
+    );
+    ban = await detectTikTokBanSignals(s.page, s.capturedResponses).catch(() => null);
+    console.log(`[ban-signal] ${ban?.signal}  PASS: liked`);
+  }
 } catch (e) {
   ban = e.banSignal ?? await detectTikTokBanSignals(s.page, s.capturedResponses).catch(() => null);
   console.log(`[ban-signal] ${ban?.signal}  FAIL: ${e.message?.slice(0, 200)}`);

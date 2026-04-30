@@ -1,6 +1,6 @@
 import { getSocialAccount, resolveAccountSession } from '../../../../dist/utils/credentials.js';
 import { WSession } from '../../../../dist/session/wsession.js';
-import { execute } from '../../../../dist/agent/loop.js';
+import { humanClickLocator } from '../../../../dist/human/mouse.js';
 import { detectTwitterBanSignals } from '../../../../dist/platforms/twitter/ban_signals.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -26,12 +26,17 @@ try {
   await s.goto(url);
   checkReachable(s, 'twitter');
   await s.page.waitForTimeout(3000);
-  const goal = TARGET_URL
-    ? `You are on a specific X/Twitter tweet. Click the heart icon in the tweet's action row to like it. done(value="liked"). Do NOT navigate(). Do NOT give_up.`
-    : `You are on an X/Twitter page showing tweets. Find the first tweet and click its heart icon in the action row to like it. done(value="liked"). Do NOT navigate(). Do NOT give_up.`;
-  const result = await execute(s, goal, { flowName: 'twitter_like' });
+  // Deterministic: data-testid="like" is the unliked button (heart icon in
+  // the tweet action row); after a successful like the same button switches
+  // to data-testid="unlike". Click the first visible like, then verify the
+  // unlike state appeared.
+  const likeBtn = s.page.locator('[data-testid="like"]').filter({ visible: true }).first();
+  await likeBtn.waitFor({ state: 'visible' });
+  await likeBtn.scrollIntoViewIfNeeded();
+  await humanClickLocator(s.page, likeBtn);
+  await s.page.locator('[data-testid="unlike"]').first().waitFor({ state: 'visible' });
   ban = await detectTwitterBanSignals(s.page, s.capturedResponses).catch(() => null);
-  console.log(`[ban-signal] ${ban?.signal}  PASS: ${result.value}`);
+  console.log(`[ban-signal] ${ban?.signal}  PASS: liked`);
 } catch (e) {
   ban = e.banSignal ?? await detectTwitterBanSignals(s.page, s.capturedResponses).catch(() => null);
   console.log(`[ban-signal] ${ban?.signal}  FAIL: ${e.message?.slice(0, 200)}`);

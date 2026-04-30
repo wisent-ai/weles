@@ -1,6 +1,6 @@
 import { getSocialAccount, resolveAccountSession } from '../../../../dist/utils/credentials.js';
 import { WSession } from '../../../../dist/session/wsession.js';
-import { execute } from '../../../../dist/agent/loop.js';
+import { humanClickLocator } from '../../../../dist/human/mouse.js';
 import { detectTwitterBanSignals } from '../../../../dist/platforms/twitter/ban_signals.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -20,12 +20,29 @@ try {
   await s.goto(url);
   checkReachable(s, 'twitter');
   await s.page.waitForTimeout(3000);
-  const goal = TARGET_USER
-    ? `You are on X/Twitter profile @${TARGET_USER}. Find the Follow button in the profile header (near the user name, not in the sidebar). Click it. done(value="followed @${TARGET_USER}"). Do NOT navigate(). Do NOT give_up.`
-    : `You are on the X/Twitter home timeline. In the "Who to follow" sidebar, find any account's Follow button and click it. done(value="followed"). Do NOT give_up.`;
-  const result = await execute(s, goal, { flowName: 'twitter_follow' });
-  ban = await detectTwitterBanSignals(s.page, s.capturedResponses).catch(() => null);
-  console.log(`[ban-signal] ${ban?.signal}  PASS: ${result.value}`);
+  // Deterministic: data-testid="<userId>-follow" is the unfollowed state;
+  // after a successful follow the same testid switches to "<userId>-unfollow".
+  // When TARGET_USER is set we scope by aria-label to the target's button
+  // (avoids accidentally clicking a "Who to follow" sidebar suggestion).
+  const followSel = TARGET_USER
+    ? `[data-testid$="-follow"][aria-label*="${TARGET_USER}"]`
+    : `[data-testid$="-follow"]`;
+  const unfollowSel = TARGET_USER
+    ? `[data-testid$="-unfollow"][aria-label*="${TARGET_USER}"]`
+    : `[data-testid$="-unfollow"]`;
+  // If already following the target, exit clean. (Idempotent action.)
+  if (TARGET_USER && await s.page.locator(unfollowSel).first().isVisible().catch(() => false)) {
+    ban = await detectTwitterBanSignals(s.page, s.capturedResponses).catch(() => null);
+    console.log(`[ban-signal] ${ban?.signal}  PASS: already following @${TARGET_USER}`);
+  } else {
+    const followBtn = s.page.locator(followSel).filter({ visible: true }).first();
+    await followBtn.waitFor({ state: 'visible' });
+    await followBtn.scrollIntoViewIfNeeded();
+    await humanClickLocator(s.page, followBtn);
+    await s.page.locator(unfollowSel).first().waitFor({ state: 'visible' });
+    ban = await detectTwitterBanSignals(s.page, s.capturedResponses).catch(() => null);
+    console.log(`[ban-signal] ${ban?.signal}  PASS: followed${TARGET_USER ? ` @${TARGET_USER}` : ''}`);
+  }
 } catch (e) {
   ban = e.banSignal ?? await detectTwitterBanSignals(s.page, s.capturedResponses).catch(() => null);
   console.log(`[ban-signal] ${ban?.signal}  FAIL: ${e.message?.slice(0, 200)}`);
