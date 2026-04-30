@@ -184,7 +184,7 @@ export async function resolveAccountSession(acct: SocialAccount): Promise<Accoun
     // and found the follow button. Same account, same session, same persona
     // — only the proxy changed.
     const { providerFromHost } = await import('../proxy/policy.js');
-    const storedProvider = providerFromHost(meta.proxy.host as string);
+    const storedProvider = providerFromHost(meta.proxy.host as string, meta.proxy.username as string);
     const isLegacyRelay = !storedProvider && (meta.proxy.username === 'lbartoszcze' || /^209\.38\./.test(meta.proxy.host as string));
     // Capability gate on the stored provider: if the matrix has marked
     // (storedProvider, action) as 'fail', drop the stored proxy and let the
