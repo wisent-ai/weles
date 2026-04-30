@@ -1,6 +1,6 @@
 import { getSocialAccount, resolveAccountSession } from '../../../../dist/utils/credentials.js';
 import { WSession } from '../../../../dist/session/wsession.js';
-import { execute } from '../../../../dist/agent/loop.js';
+import { humanClickLocator } from '../../../../dist/human/mouse.js';
 import { detectRedditBanSignals } from '../../../../dist/platforms/reddit/ban_signals.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -12,14 +12,29 @@ const acct = await getSocialAccount('reddit');
 if (!acct) { console.log('FAIL: no active reddit account'); process.exit(1); }
 const { proxyUrl, persona } = await resolveAccountSession(acct);
 const s = await WSession.start({ label: 'reddit_join_sub', proxy: proxyUrl, persona });
+const _stored = (acct.metadata?.cookies ?? []).filter(c => /reddit\.com/.test(c.domain ?? ''));
+if (_stored.length) await s.ctx.addCookies(_stored.map(c => ({ ...c, path: c.path || '/' }))).catch(() => {});
 let ban = null;
 try {
-  await s.goto(`https://www.reddit.com/r/${encodeURIComponent(SUBREDDIT)}/`);
+  // Use old.reddit.com — the subscribe toggle is a plain anchor with stable
+  // class-based state markers (.fancy-toggle-button.add → .remove on join)
+  // rather than the new-reddit Header SDK which is driven through the
+  // shadow DOM of <faceplate-tracker> / shreddit web components.
+  await s.goto(`https://old.reddit.com/r/${encodeURIComponent(SUBREDDIT)}/`);
   checkReachable(s, 'reddit');
-  await s.page.waitForTimeout(2500);
-  const result = await execute(s, `You are on r/${SUBREDDIT}. Find the Join button in the subreddit header (may appear as a circular + icon or a button labelled "Join"). js_click(text="Join"). done(value="joined"). Do NOT navigate(). Do NOT give_up.`, { flowName: 'reddit_join_sub' });
-  ban = await detectRedditBanSignals(s.page, s.capturedResponses).catch(() => null);
-  console.log(`[ban-signal] ${ban?.signal}  PASS: ${result.value}`);
+  // Already subscribed? .fancy-toggle-button.remove exists when joined.
+  if (await s.page.locator('a.fancy-toggle-button.remove, a.toggle-button.active').first().isVisible().catch(() => false)) {
+    ban = await detectRedditBanSignals(s.page, s.capturedResponses).catch(() => null);
+    console.log(`[ban-signal] ${ban?.signal}  PASS: already joined r/${SUBREDDIT}`);
+  } else {
+    const joinBtn = s.page.locator('a.fancy-toggle-button.add, a:has-text("subscribe")').filter({ visible: true }).first();
+    await joinBtn.waitFor({ state: 'visible' });
+    await joinBtn.scrollIntoViewIfNeeded();
+    await humanClickLocator(s.page, joinBtn);
+    await s.page.locator('a.fancy-toggle-button.remove, a.toggle-button.active').first().waitFor({ state: 'visible' });
+    ban = await detectRedditBanSignals(s.page, s.capturedResponses).catch(() => null);
+    console.log(`[ban-signal] ${ban?.signal}  PASS: joined r/${SUBREDDIT}`);
+  }
 } catch (e) {
   ban = e.banSignal ?? await detectRedditBanSignals(s.page, s.capturedResponses).catch(() => null);
   console.log(`[ban-signal] ${ban?.signal}  FAIL: ${e.message?.slice(0, 200)}`);

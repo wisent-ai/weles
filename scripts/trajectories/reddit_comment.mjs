@@ -2,7 +2,8 @@ import { getSocialAccount, resolveAccountSession } from '../../dist/utils/creden
 import { WSession } from '../../dist/session/wsession.js';
 import { detectRedditBanSignals } from '../../dist/platforms/reddit/ban_signals.js';
 import { humanType } from '../../dist/human/keyboard.js';
-import { humanIdlePause, humanClickLocator } from '../../dist/human/mouse.js';
+import { humanIdlePause, humanScroll, humanClickLocator } from '../../dist/human/mouse.js';
+import { probeCommentVisibility, probeShadowban } from '../../dist/platforms/reddit/shadowban_probe.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -10,7 +11,19 @@ import { join } from 'node:path';
 // inside a normal form. New reddit.com puts the composer inside <shreddit-composer>'s
 // shadow root collapsed at 0×0 until the user clicks "Join the conversation",
 // which the agent loop never reliably finds and times out at max-iterations.
-const TARGET_URL = process.env.TARGET_URL || 'https://www.reddit.com/r/test/comments/18da1zl/some_test_commands/';
+//
+// Default target: r/CasualConversation (newbie-tolerant, no karma gate, light
+// AutoMod). Previous default r/test produced false-positive shadowban verdicts:
+// r/test's auto-mod removes new-account comments quickly, which our verifier
+// reads as shadowban. CasualConversation accepts comments from <24h-old
+// accounts and has steady comment volume.
+const TARGET_URL = process.env.TARGET_URL || 'https://www.reddit.com/r/CasualConversation/new/';
+
+// Deferred clean-session verify: see organic_comment.mjs for rationale.
+// Wait this long after submit confirms in our own session, then re-check the
+// comment's public visibility from a fresh proxy + no cookies. Set to 0 to
+// disable (legacy behaviour for tests).
+const DEFER_VERIFY_MS = Number(process.env.DEFER_VERIFY_MS ?? 300_000);
 // Comment body needs to be innocuous and topic-appropriate. The previous
 // default "Hello from weles agent" literally announced automation —
 // Reddit's content classifier flags this and shadowbans the account
@@ -78,10 +91,42 @@ try {
   await s.page.waitForTimeout(2000);
   const realHandle = await s.page.evaluate(() => { try { return JSON.parse(document.body?.innerText ?? '{}')?.data?.name ?? null; } catch { return null; } });
   if (realHandle) console.log(`[trajectory] real handle: ${realHandle}`);
-  await s.page.goto(oldUrl, { waitUntil: 'domcontentloaded' });
+
+  // If TARGET_URL points to a sub listing (no /comments/<id>/ segment), pick
+  // a recent post from the sub via the JSON API. Lets the default URL be a
+  // newbie-tolerant sub root rather than a specific post that may go stale.
+  let resolvedOldUrl = oldUrl;
+  if (!/\/comments\/[a-z0-9]+\//i.test(oldUrl)) {
+    try {
+      const listingSrc = oldUrl.endsWith('/') ? oldUrl : oldUrl + '/';
+      const listingJson = listingSrc.replace(/\/$/, '/.json?limit=25');
+      const data = await s.page.evaluate(async (u) => {
+        const r = await fetch(u, { credentials: 'include' });
+        if (!r.ok) return null;
+        return await r.json();
+      }, listingJson).catch(() => null);
+      const candidates = (data?.data?.children ?? [])
+        .map(c => c.data)
+        .filter(p => p && !p.locked && !p.archived && (p.num_comments ?? 0) < 800);
+      const pick = candidates[Math.floor(Math.random() * Math.min(candidates.length, 8))];
+      if (pick?.permalink) resolvedOldUrl = `https://old.reddit.com${pick.permalink}`;
+      console.log(`[trajectory] resolved sub listing -> post ${resolvedOldUrl}`);
+    } catch (e) {
+      console.log(`[trajectory] sub listing fetch err: ${e.message?.slice(0, 100)}`);
+    }
+  }
+
+  await s.page.goto(resolvedOldUrl, { waitUntil: 'domcontentloaded' });
   await s.page.waitForTimeout(3000);
   const url = s.page.url();
   if (/\/login/.test(url)) { console.log(`FAIL: cookies stale, redirected to login (${url})`); process.exit(1); }
+
+  // Pre-comment dwell — scroll the post body and a few existing comments
+  // before opening the composer. Reddit's behavioral classifier scores the
+  // user's pre-action telemetry as part of the post-submit shadowban gate.
+  await humanIdlePause('deliberate');
+  await humanScroll(s.page, 1200, 3).catch(() => {});
+  await humanIdlePause('short');
 
   // The comment composer is the FIRST textarea[name="text"] on the page —
   // there's one per existing reply box but the top-level reply form is first.
@@ -295,7 +340,64 @@ try {
   }
   console.log(`[ban-signal] ${banSignal?.signal ?? 'healthy'}`);
   if (!publiclyVisible) throw new Error(`comment not publicly visible — ${banSignal.signal} (${banSignal.details?.reason ?? 'no detail'})`);
-  console.log(`PASS: commented "${COMMENT_BODY}" on ${oldUrl} (verified public)`);
+  console.log(`PASS: commented "${COMMENT_BODY}" on ${resolvedOldUrl} (verified public, in-session)`);
+
+  // Deferred clean-session verify. The in-session 60s permalink poll above
+  // catches AutoMod-removal and immediate shadowbans. It does NOT catch
+  // Reddit's async spam classifier, which runs on a 60-300s delay and either
+  // removes the specific comment or shadowbans the account silently. Wait
+  // DEFER_VERIFY_MS, then re-fetch the comment permalink JSON via a fresh
+  // proxy with NO cookies. If the comment is missing from a clean view, the
+  // async classifier removed it post-hoc — flag the account.
+  // Skip when DEFER_VERIFY_MS=0 (test path) or when we couldn't capture the
+  // comment id (the multi-vantage about.json probe still runs as a fallback).
+  if (DEFER_VERIFY_MS > 0) {
+    console.log(`[deferred-verify] waiting ${DEFER_VERIFY_MS / 1000}s before clean-session probe`);
+    await new Promise((r) => setTimeout(r, DEFER_VERIFY_MS));
+    let stillPublic = null;
+    if (postedCommentId) {
+      const probe = await probeCommentVisibility({
+        postPermalinkBase: resolvedOldUrl,
+        commentId: postedCommentId,
+        expectedAuthor: handle ?? undefined,
+      });
+      stillPublic = probe.visible;
+      console.log(`[deferred-verify] permalink probe: visible=${probe.visible} status=${probe.status} exit_ip=${probe.exit_ip ?? '?'}`);
+    }
+    // If we couldn't pin the comment id, fall back to multi-vantage account
+    // probe — if the WHOLE account is shadowbanned, the user-level check
+    // catches it.
+    if (stillPublic === null && handle) {
+      const probe = await probeShadowban(handle, 3).catch(() => null);
+      if (probe) {
+        console.log(`[deferred-verify] account probe: verdict=${probe.verdict}`);
+        stillPublic = probe.verdict !== 'shadowbanned';
+      }
+    }
+    if (stillPublic === false) {
+      banSignal = {
+        signal: 'shadowbanned',
+        healthy: false,
+        details: {
+          real_handle: handle,
+          reason: 'comment was publicly visible immediately after submit, but missing from a clean-session probe ' + Math.round(DEFER_VERIFY_MS / 1000) + 's later — async classifier shadowban',
+        },
+      };
+      // Auto-flag in social_accounts to pull from rotation.
+      const supabaseUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
+      const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
+      if (supabaseUrl && key && acct.id) {
+        await fetch(`${supabaseUrl}/rest/v1/social_accounts?id=eq.${acct.id}`, {
+          method: 'PATCH',
+          headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+          body: JSON.stringify({ status: 'shadowbanned' }),
+        }).catch(() => {});
+        console.log(`[deferred-verify] auto-flagged ${acct.username} status=shadowbanned`);
+      }
+      throw new Error('deferred clean-session probe: comment removed within ' + Math.round(DEFER_VERIFY_MS / 1000) + 's of submit');
+    }
+    console.log(`PASS: comment confirmed visible from clean session at t+${DEFER_VERIFY_MS / 1000}s`);
+  }
 } catch (e) {
   banSignal = banSignal ?? await detectRedditBanSignals(s.page, s.capturedResponses).catch(() => null);
   if (banSignal) console.log(`[ban-signal] ${banSignal.signal}`);

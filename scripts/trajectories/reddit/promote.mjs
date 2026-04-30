@@ -10,7 +10,8 @@
  */
 import { getSocialAccount, resolveAccountSession } from '../../../dist/utils/credentials.js';
 import { WSession } from '../../../dist/session/wsession.js';
-import { execute } from '../../../dist/agent/loop.js';
+import { humanClickLocator } from '../../../dist/human/mouse.js';
+import { humanType } from '../../../dist/human/keyboard.js';
 import { generatePromoteComment } from '../_shared/llm.mjs';
 import { checkReachable } from '../_shared/action-runner.mjs';
 import { detectRedditBanSignals } from '../../../dist/platforms/reddit/ban_signals.js';
@@ -114,12 +115,28 @@ try {
     process.exit(0);
   }
 
-  await s.goto(postUrl);
+  // Translate www.reddit.com permalink → old.reddit.com so the comment
+  // composer is a plain visible <textarea name="text"> (not the
+  // <shreddit-composer> shadow DOM widget).
+  const oldPostUrl = postUrl.replace(/^https?:\/\/(www\.)?reddit\.com/, 'https://old.reddit.com');
+  await s.goto(oldPostUrl);
   checkReachable(s, 'reddit');
-  const result = await execute(s, `You are on a reddit post. Find the comment textarea (placeholder "Add a comment" or "join the conversation"). fill(target="add a comment", value=${JSON.stringify(commentText)}). Then js_click(text="Comment") to submit. done(value="promoted"). Do NOT navigate(). Do NOT give_up.`, { flowName: 'reddit_promote' });
+  // Deterministic submit: same selectors as reddit_comment.mjs.
+  const ta = s.page.locator('textarea[name="text"]').filter({ visible: true }).first();
+  await ta.waitFor({ state: 'visible' });
+  await humanClickLocator(s.page, ta);
+  await ta.focus();
+  await humanType(s.page, commentText);
+  const submitBtn = ta.locator('xpath=ancestor::form[1]').locator('button.save, button[type="submit"]').first();
+  await submitBtn.waitFor({ state: 'visible' });
+  await humanClickLocator(s.page, submitBtn);
+  await s.page.waitForFunction(
+    (body) => (document.body?.innerText ?? '').includes(body),
+    commentText,
+  );
   banSignal = await detectRedditBanSignals(s.page, s.capturedResponses).catch(() => null);
   console.log(`[ban-signal] ${banSignal?.signal}`);
-  console.log('PASS:', result.value);
+  console.log('PASS: promoted');
 } catch (e) {
   banSignal = await detectRedditBanSignals(s.page, s.capturedResponses).catch(() => null);
   if (banSignal) console.log(`[ban-signal] ${banSignal.signal}`);

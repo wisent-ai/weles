@@ -37,6 +37,7 @@ function resolveTrajectory(action: string): string | null {
     dwell: () => benignPath, notifications: () => benignPath, search: () => benignPath, profile_view: () => benignPath,
     browse: (p) => p === 'github' ? 'scripts/trajectories/github/actions/browse.mjs' : `scripts/trajectories/${p}/browse.mjs`,
     health: (p) => p === 'github' ? 'scripts/trajectories/github/health/run.mjs' : `scripts/trajectories/${p}/health.mjs`,
+    shadowban_check: (p) => `scripts/trajectories/${p}/shadowban_check.mjs`,
     organic_comment: (p) => `scripts/trajectories/${p}/organic_comment.mjs`, organic_reply: (p) => `scripts/trajectories/${p}/organic_reply.mjs`, organic_message: (p) => `scripts/trajectories/${p}/organic_message.mjs`,
     organic_issue_comment: (p) => `scripts/trajectories/${p}/actions/organic_issue_comment.mjs`,
     promote: (p) => p === 'github' ? 'scripts/trajectories/github/actions/promote.mjs' : `scripts/trajectories/${p}/promote.mjs`,
