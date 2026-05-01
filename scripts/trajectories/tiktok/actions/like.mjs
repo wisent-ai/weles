@@ -5,6 +5,8 @@ import { detectTikTokBanSignals } from '../../../../dist/platforms/tiktok/ban_si
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { checkReachable } from '../../_shared/action-runner.mjs';
+import { assertAuthed, AuthProbeError } from '../../_shared/auth-probe.mjs';
+import { markCookiesStale } from '../../../../dist/utils/credentials.js';
 
 const TARGET_URL  = process.env.TARGET_URL || '';
 const TARGET_USER = (process.env.TARGET_USER || '').replace(/^@/, '');
@@ -26,6 +28,8 @@ try {
   await s.goto(url);
   checkReachable(s, 'tiktok');
   await s.page.waitForTimeout(4000);
+  try { await assertAuthed('tiktok', s, { label: 'tiktok_like' }); }
+  catch (probeErr) { if (probeErr instanceof AuthProbeError) { console.log(`FAIL: ${probeErr.message}`); await markCookiesStale(acct.id); process.exit(1); } throw probeErr; }
   // If we landed on a profile / hashtag grid, navigate into the first video.
   // Specific-video URLs and /foryou already have the right-rail action panel
   // hydrated in place.

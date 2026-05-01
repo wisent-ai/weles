@@ -13,21 +13,7 @@ console.log(`[trajectory] Using account: ${acct.username}`);
 
 const s = await WSession.start({ label: 'youtube_login', proxy: process.env.PROXY_URL || undefined });
 try {
-  // Cookie-first.
-  const stored = Array.isArray(acct.metadata?.cookies) ? acct.metadata.cookies : [];
-  if (stored.length) {
-    await s.ctx.addCookies(stored.filter(c => c?.name && c?.value && (c.domain || c.url)).map(c => ({ ...c, path: c.path || '/' }))).catch(() => {});
-    await s.page.goto('https://www.youtube.com/', { waitUntil: 'domcontentloaded' });
-    await s.page.waitForTimeout(3500);
-    const u = s.page.url();
-    if (/youtube\.com/.test(u) && !/accounts\.google\.com/.test(u)) {
-      const loggedIn = await s.page.evaluate(() => !!document.querySelector('button[aria-label*="Account menu" i], img#avatar-btn, ytd-topbar-menu-button-renderer button[aria-label*="Account" i]')).catch(() => false);
-      if (loggedIn) {
-        console.log(`PASS: logged in (cookie-first) — ${u}`);
-        process.exit(0);
-      }
-    }
-  }
+  // Cookie-first removed — login always means form login. See auth-probe.mjs.
   await s.goto(URL);
   await s.page.waitForTimeout(3000);
   // Step 1: email → Next.

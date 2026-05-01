@@ -1,6 +1,7 @@
-import { getSocialAccount, resolveAccountSession } from '../../dist/utils/credentials.js';
+import { getSocialAccount, resolveAccountSession, markCookiesStale } from '../../dist/utils/credentials.js';
 import { WSession } from '../../dist/session/wsession.js';
 import { humanClickLocator } from '../../dist/human/mouse.js';
+import { assertAuthed, AuthProbeError } from './_shared/auth-probe.mjs';
 
 const TARGET_HANDLE = 'elonmusk';
 const TARGET_URL = `https://x.com/${TARGET_HANDLE}`;
@@ -31,7 +32,10 @@ try {
   // already follows the target (we then branch on which one matched).
   await s.page.locator(`[data-testid$="-follow"][aria-label*="${TARGET_HANDLE}"], [data-testid$="-unfollow"][aria-label*="${TARGET_HANDLE}"]`).first().waitFor({ state: 'visible', timeout: 30000 }).catch(() => {});
   const url = s.page.url();
-  if (/\/i\/flow\/login/.test(url)) { console.log(`FAIL: cookies stale, redirected to login (${url})`); process.exit(1); }
+  if (/\/i\/flow\/login/.test(url)) { console.log(`FAIL: cookies stale, redirected to login (${url})`); await markCookiesStale(acct.id); process.exit(1); }
+  // Positive auth probe — see _shared/auth-probe.mjs.
+  try { await assertAuthed('twitter', s, { label: 'twitter_follow' }); }
+  catch (probeErr) { if (probeErr instanceof AuthProbeError) { console.log(`FAIL: ${probeErr.message}`); await markCookiesStale(acct.id); process.exit(1); } throw probeErr; }
 
   // Already following? data-testid ends with -unfollow (the button label is
   // "Following" on hover and "Unfollow" on click). Scope to the target's

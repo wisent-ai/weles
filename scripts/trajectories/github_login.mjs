@@ -44,12 +44,10 @@ let s;
 for (let retry = 0; retry < 3; retry++) {
   try {
     s = await WSession.start({ label: 'github_login', proxy: proxyUrl });
-    // Try cookie-first: inject github.com cookies from saved account before navigating
-    const cookies = (acct.metadata.cookies ?? []).filter(c => (c.domain ?? '').includes('github.com'));
-    if (cookies.length) {
-      await s.ctx.addCookies(cookies).catch(e => console.log(`[login] cookie add error: ${e.message?.slice(0, 80)}`));
-      console.log(`[login] Injected ${cookies.length} cookies`);
-    }
+    // Cookie-first removed — github.com serves a logged-out homepage shell
+    // and the saved cookies might be device-mismatched. Login always means
+    // form login now. Cookies stay around as a fallback in `s.ctx.cookies()`
+    // only if the form login below fully restores the session.
     await s.goto('https://github.com/');
     let rendered = false;
     for (let i = 0; i < 15; i++) {
@@ -65,19 +63,7 @@ for (let retry = 0; retry < 3; retry++) {
 if (!s) { console.log('FAIL: homepage never rendered'); process.exit(1); }
 
 try {
-  // Check if cookie session already worked
-  const sessionCookie = (await s.ctx.cookies()).find(c => c.name === 'user_session' && c.value);
-  const url1 = s.page.url?.() ?? '';
-  if (sessionCookie && !url1.includes('/login') && !url1.includes('/session')) {
-    const hasAvatar = await s.page.evaluate('!!document.querySelector(\'[aria-label*="View profile"], summary img.avatar-user\')').catch(() => false);
-    if (hasAvatar) { console.log(`PASS: cookie-first logged in — ${url1}`); process.exit(0); }
-  }
-  console.log('[login] Cookie session not valid, using password path');
-
-  // Clear the injected stale cookies. With them present, github.com/login
-  // treats us as partially-signed-in and redirects to the homepage, where
-  // the subsequent fill/submit hit unrelated elements (search box + the
-  // Submit-feedback widget) and produce false-positive "logged in" signals.
+  // Cookie-first PASS branch removed. Always do form login.
   await s.ctx.clearCookies();
   await s.goto(URL);
   await s.wait(3);

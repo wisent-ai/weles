@@ -5,6 +5,8 @@ import { detectTikTokBanSignals } from '../../../../dist/platforms/tiktok/ban_si
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { checkReachable } from '../../_shared/action-runner.mjs';
+import { assertAuthed, AuthProbeError } from '../../_shared/auth-probe.mjs';
+import { markCookiesStale } from '../../../../dist/utils/credentials.js';
 
 const TARGET_URL = process.env.TARGET_URL || '';
 
@@ -19,6 +21,8 @@ try {
   await s.goto(TARGET_URL || 'https://www.tiktok.com/foryou');
   checkReachable(s, 'tiktok');
   await s.page.waitForTimeout(4000);
+  try { await assertAuthed('tiktok', s, { label: 'tiktok_bookmark' }); }
+  catch (probeErr) { if (probeErr instanceof AuthProbeError) { console.log(`FAIL: ${probeErr.message}`); await markCookiesStale(acct.id); process.exit(1); } throw probeErr; }
   // Bookmark/favorite button: data-e2e="video-save" on the right-hand
   // action rail. aria-pressed flips to "true" after a successful save.
   const saveBtn = s.page.locator('button[data-e2e="video-save"], button:has([data-e2e="video-save"])').filter({ visible: true }).first();

@@ -1,8 +1,9 @@
 import { WSession } from '../../../dist/session/wsession.js';
-import { getSocialAccount, resolveAccountSession } from '../../../dist/utils/credentials.js';
+import { getSocialAccount, resolveAccountSession, markCookiesStale } from '../../../dist/utils/credentials.js';
 import { injectPHCookies, loginViaTwitter } from './_session.mjs';
 import { humanType, humanFill } from '../../../dist/human/keyboard.js';
 import { humanClickLocator } from '../../../dist/human/mouse.js';
+import { assertAuthed, AuthProbeError } from '../_shared/auth-probe.mjs';
 
 // Post a comment on a Product Hunt launch.
 // PRODUCTHUNT_URL=https://www.producthunt.com/products/<slug>  -> launch page
@@ -35,6 +36,13 @@ async function postComment(s, acct) {
     await sleep(4);
     cur = s.page.url();
     if (cur.includes('/login') || cur.includes('/captcha_verification')) throw new Error('still_blocked_after_relogin');
+  }
+
+  // Positive auth probe — see _shared/auth-probe.mjs.
+  try { await assertAuthed('producthunt', s, { label: 'producthunt_comment' }); }
+  catch (probeErr) {
+    if (probeErr instanceof AuthProbeError) { try { await markCookiesStale(acct.id); } catch {} throw new Error(`auth_probe_failed: ${probeErr.message}`); }
+    throw probeErr;
   }
 
   // PH forum comment editor is a TipTap/ProseMirror contenteditable. Target

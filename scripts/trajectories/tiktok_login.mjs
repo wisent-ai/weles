@@ -180,7 +180,14 @@ async function captureCookies() {
   } catch (e) { console.log('[cookie-capture] err:', e.message); }
 }
 
-async function tryCookieFirstLogin() {
+// REMOVED tryCookieFirstLogin — see auth-probe.mjs header comment for full
+// rationale. Short version: cookies present + URL didn't bounce ≠ session is
+// authed. TikTok serves /foryou and /messages with logged-out shells when
+// the session is device-mismatched, so cookie-first declared PASS while the
+// comment input never rendered for the supposedly-logged-in user. Login
+// always means form login now. Action trajectories use assertAuthed() from
+// auth-probe.mjs to verify a session is real.
+async function _removedCookieFirstLogin_doNotReintroduce() {
   const stored = Array.isArray(acct.metadata?.cookies) ? acct.metadata.cookies : [];
   if (stored.length === 0) return false;
 
@@ -238,13 +245,8 @@ async function tryCookieFirstLogin() {
 }
 
 try {
-  const skipCookieFirst = process.env.TIKTOK_SKIP_COOKIE_FIRST === '1';
-  const cookieOk = skipCookieFirst ? false : await tryCookieFirstLogin();
-  if (skipCookieFirst) console.log('[trajectory] TIKTOK_SKIP_COOKIE_FIRST=1 — skipping cookie-first attempt');
-  if (cookieOk) {
-    console.log('PASS: logged in (cookie-first)');
-    await captureCookies();
-  } else {
+  // Cookie-first removed — login always means form login. See auth-probe.mjs.
+  {
     // Pre-seed TikTok region cookies so the page skips the cross-origin
     // /passport/web/region/ probe (which is flaky through residential
     // proxies — sometimes returns ERR_FAILED on CORS preflight, breaking

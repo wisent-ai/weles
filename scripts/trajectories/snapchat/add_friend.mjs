@@ -1,7 +1,8 @@
-import { getSocialAccount } from '../../../dist/utils/credentials.js';
+import { getSocialAccount, markCookiesStale } from '../../../dist/utils/credentials.js';
 import { WSession } from '../../../dist/session/wsession.js';
 import { humanType } from '../../../dist/human/keyboard.js';
 import { humanClickLocator } from '../../../dist/human/mouse.js';
+import { assertAuthed, AuthProbeError } from '../_shared/auth-probe.mjs';
 
 const TARGET = process.env.TARGET_USERNAME || 'team.snapchat';
 const LOGIN_URL = 'https://accounts.snapchat.com/accounts/login';
@@ -37,6 +38,10 @@ try {
     await s.goto('https://web.snapchat.com/');
     await s.page.waitForTimeout(4000);
   }
+
+  // Positive auth probe — see _shared/auth-probe.mjs.
+  try { await assertAuthed('snapchat', s, { label: 'snapchat_add_friend' }); }
+  catch (probeErr) { if (probeErr instanceof AuthProbeError) { console.log(`FAIL: ${probeErr.message}`); await markCookiesStale(acct.id); process.exit(1); } throw probeErr; }
 
   // web.snapchat.com — use the search/add input. Search box is contenteditable
   // div with role="textbox" / aria-label="Search".

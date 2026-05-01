@@ -4,6 +4,8 @@ import { detectTikTokBanSignals } from '../../../../dist/platforms/tiktok/ban_si
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { checkReachable } from '../../_shared/action-runner.mjs';
+import { assertAuthed, AuthProbeError } from '../../_shared/auth-probe.mjs';
+import { markCookiesStale } from '../../../../dist/utils/credentials.js';
 
 // Watch-through = sit on a single FYP video for its full duration plus one
 // replay, then advance. TikTok's recommender uses watch-through ratio as a
@@ -20,6 +22,8 @@ try {
   await s.goto('https://www.tiktok.com/foryou');
   checkReachable(s, 'tiktok');
   await s.page.waitForTimeout(4000);
+  try { await assertAuthed('tiktok', s, { label: 'tiktok_watch_through' }); }
+  catch (probeErr) { if (probeErr instanceof AuthProbeError) { console.log(`FAIL: ${probeErr.message}`); await markCookiesStale(acct.id); process.exit(1); } throw probeErr; }
   // Sit on the first video for ~30s (avg TikTok length ~15s, so this is a
   // full watch + about one replay loop). Then advance twice with short dwell.
   await s.page.waitForTimeout(28000 + Math.floor(Math.random() * 6000));

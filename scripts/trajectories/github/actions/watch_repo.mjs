@@ -1,10 +1,11 @@
-import { getSocialAccount, resolveAccountSession } from '../../../../dist/utils/credentials.js';
+import { getSocialAccount, resolveAccountSession, markCookiesStale } from '../../../../dist/utils/credentials.js';
 import { WSession } from '../../../../dist/session/wsession.js';
 import { detectGitHubBanSignals } from '../../../../dist/platforms/github/ban_signals.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { checkReachable } from '../../_shared/action-runner.mjs';
 import { humanClickLocator } from '../../../../dist/human/mouse.js';
+import { assertAuthed, AuthProbeError } from '../../_shared/auth-probe.mjs';
 
 const REPO_URL_RAW = process.env.REPO_URL || process.env.TARGET_URL || '';
 const SEARCH_QUERY = process.env.SEARCH_QUERY || '';
@@ -32,6 +33,8 @@ try {
   await s.goto(url);
   checkReachable(s, 'github');
   await s.page.waitForTimeout(2500);
+  try { await assertAuthed('github', s, { label: 'github_watch_repo' }); }
+  catch (probeErr) { if (probeErr instanceof AuthProbeError) { console.log(`FAIL: ${probeErr.message}`); await markCookiesStale(acct.id); process.exit(1); } throw probeErr; }
   // Deterministic Playwright. Trending/search pages don't have a Watch
   // button — first navigate into the first repo. Then click the Watch
   // button (aria-label="Watch: ..."), pick "Participating and @mentions"

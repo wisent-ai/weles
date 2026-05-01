@@ -1,10 +1,11 @@
-import { getSocialAccount, resolveAccountSession } from '../../../../dist/utils/credentials.js';
+import { getSocialAccount, resolveAccountSession, markCookiesStale } from '../../../../dist/utils/credentials.js';
 import { WSession } from '../../../../dist/session/wsession.js';
 import { humanClickLocator } from '../../../../dist/human/mouse.js';
 import { detectRedditBanSignals } from '../../../../dist/platforms/reddit/ban_signals.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { checkReachable } from '../../_shared/action-runner.mjs';
+import { assertAuthed, AuthProbeError } from '../../_shared/auth-probe.mjs';
 
 const SUBREDDIT = (process.env.SUBREDDIT || 'popular').replace(/^r\//, '');
 const TARGET_URL = process.env.TARGET_URL || '';
@@ -25,6 +26,8 @@ try {
   await s.goto(url);
   checkReachable(s, 'reddit');
   await s.page.waitForTimeout(3000);
+  try { await assertAuthed('reddit', s, { label: 'reddit_upvote' }); }
+  catch (probeErr) { if (probeErr instanceof AuthProbeError) { console.log(`FAIL: ${probeErr.message}`); await markCookiesStale(acct.id); process.exit(1); } throw probeErr; }
   // First not-yet-upvoted post arrow. After a successful upvote the same
   // div's class flips from "arrow up" to "arrow upmod".
   const upArrow = s.page.locator('div.thing div.arrows div.arrow.up').first();

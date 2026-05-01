@@ -1,6 +1,7 @@
-import { getSocialAccount, resolveAccountSession } from '../../dist/utils/credentials.js';
+import { getSocialAccount, resolveAccountSession, markCookiesStale } from '../../dist/utils/credentials.js';
 import { WSession } from '../../dist/session/wsession.js';
 import { humanClickLocator } from '../../dist/human/mouse.js';
+import { assertAuthed, AuthProbeError } from './_shared/auth-probe.mjs';
 
 const HOME_URL = 'https://x.com/home';
 
@@ -22,7 +23,22 @@ try {
   await s.page.goto(HOME_URL, { waitUntil: 'domcontentloaded' });
   await s.page.waitForTimeout(4000);
   const url = s.page.url();
-  if (/\/i\/flow\/login/.test(url)) { console.log(`FAIL: cookies stale, redirected to login (${url})`); process.exit(1); }
+  if (/\/i\/flow\/login/.test(url)) { console.log(`FAIL: cookies stale, redirected to login (${url})`); await markCookiesStale(acct.id); process.exit(1); }
+
+  // Positive auth probe — auth_token in jar ≠ session is real. Twitter
+  // serves a logged-out shell on x.com/home for cookie-injected sessions
+  // it doesn't trust. URL doesn't bounce, but compose / DM / profile
+  // links are absent. See _shared/auth-probe.mjs.
+  try {
+    await assertAuthed('twitter', s, { label: 'twitter_like' });
+  } catch (probeErr) {
+    if (probeErr instanceof AuthProbeError) {
+      console.log(`FAIL: ${probeErr.message}`);
+      await markCookiesStale(acct.id);
+      process.exit(1);
+    }
+    throw probeErr;
+  }
 
   // The /home timeline can be empty for very-new accounts whose For-You
   // algorithm hasn't been built yet — Twitter shows the compose box and

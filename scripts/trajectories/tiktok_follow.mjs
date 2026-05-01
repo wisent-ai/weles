@@ -1,6 +1,7 @@
 import { getSocialAccount, resolveAccountSession, markCookiesStale } from '../../dist/utils/credentials.js';
 import { WSession } from '../../dist/session/wsession.js';
 import { humanClickLocator, humanIdlePause } from '../../dist/human/mouse.js';
+import { assertAuthed, AuthProbeError } from './_shared/auth-probe.mjs';
 
 const TARGET_USER = (process.env.TARGET_USER || 'tiktok').replace(/^@/, '');
 const URL = `https://www.tiktok.com/@${encodeURIComponent(TARGET_USER)}`;
@@ -34,6 +35,20 @@ try {
     console.log('FAIL: cookies stale (no sessionid) — login first');
     await markCookiesStale(acct.id);
     process.exit(1);
+  }
+
+  // Positive auth probe — sessionid in jar ≠ session is authed server-side.
+  // See _shared/auth-probe.mjs for the rationale. Marks cookies stale on
+  // failure so the next routine tick enqueues a fresh login.
+  try {
+    await assertAuthed('tiktok', s, { label: 'tiktok_follow' });
+  } catch (probeErr) {
+    if (probeErr instanceof AuthProbeError) {
+      console.log(`FAIL: ${probeErr.message}`);
+      await markCookiesStale(acct.id);
+      process.exit(1);
+    }
+    throw probeErr;
   }
 
   // Profile page Follow button: <button data-e2e="follow-button"> on web.

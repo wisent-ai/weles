@@ -1,10 +1,11 @@
-import { getSocialAccount, resolveAccountSession } from '../../../../dist/utils/credentials.js';
+import { getSocialAccount, resolveAccountSession, markCookiesStale } from '../../../../dist/utils/credentials.js';
 import { WSession } from '../../../../dist/session/wsession.js';
 import { humanClickLocator } from '../../../../dist/human/mouse.js';
 import { detectLinkedInBanSignals } from '../../../../dist/platforms/linkedin/ban_signals.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { checkReachable } from '../../_shared/action-runner.mjs';
+import { assertAuthed, AuthProbeError } from '../../_shared/auth-probe.mjs';
 
 const acct = await getSocialAccount('linkedin');
 if (!acct) { console.log('FAIL: no active linkedin account'); process.exit(1); }
@@ -17,6 +18,8 @@ try {
   await s.goto('https://www.linkedin.com/mynetwork/grow/');
   checkReachable(s, 'linkedin');
   await s.page.waitForTimeout(3500);
+  try { await assertAuthed('linkedin', s, { label: 'linkedin_connect' }); }
+  catch (probeErr) { if (probeErr instanceof AuthProbeError) { console.log(`FAIL: ${probeErr.message}`); await markCookiesStale(acct.id); process.exit(1); } throw probeErr; }
   // PYMK card "Connect" buttons live as <button aria-label="Invite NAME to connect">.
   // Filter to invite (not Follow). Take the first non-disabled one in
   // viewport. After click, LinkedIn often shows a "Send without a note"

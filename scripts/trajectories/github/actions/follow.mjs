@@ -1,9 +1,10 @@
-import { getSocialAccount, resolveAccountSession } from '../../../../dist/utils/credentials.js';
+import { getSocialAccount, resolveAccountSession, markCookiesStale } from '../../../../dist/utils/credentials.js';
 import { WSession } from '../../../../dist/session/wsession.js';
 import { detectGitHubBanSignals } from '../../../../dist/platforms/github/ban_signals.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { checkReachable } from '../../_shared/action-runner.mjs';
+import { assertAuthed, AuthProbeError } from '../../_shared/auth-probe.mjs';
 
 const TARGET_USER = (process.env.TARGET_USER || '').replace(/^@/, '');
 
@@ -32,6 +33,8 @@ try {
   await s.goto(`https://github.com/${encodeURIComponent(target)}`);
   checkReachable(s, 'github');
   await s.page.waitForTimeout(2500);
+  try { await assertAuthed('github', s, { label: 'github_follow' }); }
+  catch (probeErr) { if (probeErr instanceof AuthProbeError) { console.log(`FAIL: ${probeErr.message}`); await markCookiesStale(acct.id); process.exit(1); } throw probeErr; }
 
   // GitHub follow form: <form action="/users/follow?target=<name>"> with
   // <button> Follow </button>. After click form swaps to action="/users/
