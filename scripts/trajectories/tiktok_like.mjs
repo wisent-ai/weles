@@ -45,7 +45,10 @@ try {
     process.exit(1);
   }
 
-  const hasSessionId = await s.page.evaluate(() => document.cookie.includes('sessionid'));
+  // sessionid is httpOnly — document.cookie can't see it. Read cookies via
+  // the browser context API, which returns httpOnly cookies too.
+  const ctxCookies = await s.ctx.cookies();
+  const hasSessionId = ctxCookies.some(c => c.name === 'sessionid' && (c.domain || '').includes('tiktok'));
   if (!hasSessionId) {
     console.log('FAIL: cookies stale (no sessionid) — login first');
     await markCookiesStale(acct.id);

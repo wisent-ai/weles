@@ -59,7 +59,11 @@ export async function runHealthProbe(cfg) {
 
   const loggedOut = { url: null, status: null, body: null };
   if (cfg.loggedOutUrl) {
-    const sOut = await WSession.start({ label: `${cfg.platform}_health_out`, proxy: proxyUrl });
+    // Re-use the same persona we used for the logged-in probe. Without this,
+    // WSession.start picks a random persona and may land on Firefox, which
+    // breaks any platform that needs CDP (TikTok's network-bytes counter,
+    // mssdk-info synthesis, etc.) and silently degrades the probe.
+    const sOut = await WSession.start({ label: `${cfg.platform}_health_out`, proxy: proxyUrl, persona });
     try {
       await sOut.goto(cfg.loggedOutUrl(acct.username));
       const resp = sOut.capturedResponses.find(r => cfg.loggedOutRegex.test(r.url));

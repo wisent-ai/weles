@@ -367,15 +367,28 @@ try {
       await s.page.waitForTimeout(2000);
       console.log(`[tiktok_login] post-captcha loginResponses=${JSON.stringify(loginResponses)}`);
     }
-    // Wait for sessionid cookie + navigation away from /login. If the login
-    // does not complete (wrong credentials, server error, captcha), this
-    // throws after Playwright's default and the outer catch persists
-    // ban_signal with classified reason from final URL.
+    // Wait for sessionid cookie + navigation away from /login. The sessionid
+    // cookie is httpOnly — document.cookie inside the page can't see it —
+    // so poll s.ctx.cookies() (which returns httpOnly cookies too) instead
+    // of waitForFunction. If the login does not complete (wrong credentials,
+    // server error, captcha), this throws after the timeout and the outer
+    // catch persists ban_signal with classified reason from final URL.
     try {
-      await s.page.waitForFunction(() => document.cookie.includes('sessionid') && !location.pathname.startsWith('/login'));
+      const deadline = Date.now() + 30_000;
+      let signedIn = false;
+      while (Date.now() < deadline) {
+        const ctxCookies = await s.ctx.cookies().catch(() => []);
+        const hasSession = ctxCookies.some(c => c.name === 'sessionid' && (c.domain || '').includes('tiktok'));
+        const path = await s.page.evaluate('location.pathname').catch(() => '/login');
+        if (hasSession && !String(path).startsWith('/login')) { signedIn = true; break; }
+        await s.page.waitForTimeout(500);
+      }
+      if (!signedIn) throw new Error('sessionid+url wait timeout');
     } catch (waitErr) {
       // Timed out — capture diagnostics before re-throwing
       await s.screenshot('post_submit_timeout').catch(() => {});
+      const ctxCookies = await s.ctx.cookies().catch(() => []);
+      const hasSessionIdHttpOnly = ctxCookies.some(c => c.name === 'sessionid' && (c.domain || '').includes('tiktok'));
       const finalState = await s.page.evaluate(() => {
         const u = document.querySelector('input[name="username"]');
         const p = document.querySelector('input[type="password"]');
@@ -403,12 +416,12 @@ try {
           usernameLen: u?.value?.length ?? -1,
           passwordLen: p?.value?.length ?? -1,
           buttonDisabled: b?.disabled,
-          hasSessionId: document.cookie.includes('sessionid'),
           errors: errs.slice(0, 5),
           captchas: captchas.slice(0, 5),
           captchaDom,
         };
       }).catch((e) => ({ err: e.message }));
+      finalState.hasSessionId = hasSessionIdHttpOnly;
       console.log(`[tiktok_login] timeout finalState: ${JSON.stringify(finalState)}`);
       console.log(`[tiktok_login] timeout loginResponses: ${JSON.stringify(loginResponses)}`);
       throw waitErr;
