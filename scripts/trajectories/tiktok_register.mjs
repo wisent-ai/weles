@@ -13,7 +13,12 @@ const URL = 'https://www.tiktok.com/signup';
   for (let retry = 0; retry < 3; retry++) {
     if (s) { await s.close().catch(() => {}); s = null; }
 
-    s = await WSession.start({ label: 'tiktok_register', proxy: process.env.PROXY_URL || 'residential', persona: generatePersona({ country: 'US', browser: process.env.FORCE_BROWSER }) });
+    // Pin chromium — humanMove uses CDP-routed Page.dispatchMouseEvent which
+    // is Chromium-only. Firefox crashes with "synthesizeMouseEvent is not a
+    // function" on the very first click. Default persona randomization is
+    // 60/40 chromium/firefox; for a trajectory that must drive humanMove,
+    // we hard-pin Chromium.
+    s = await WSession.start({ label: 'tiktok_register', proxy: process.env.PROXY_URL || 'residential', persona: generatePersona({ country: 'US', browser: process.env.FORCE_BROWSER || 'chromium' }) });
     try {
       // Fresh identity per retry — don't reuse emails across failed runs
       id = await s.generateIdentity('tiktok');
@@ -92,10 +97,27 @@ const URL = 'https://www.tiktok.com/signup';
       await s.select('year', id.birthYear);
       await s.wait(1);
 
-      // Plain Playwright fill — local Chromium has no password-typing block,
-      // and Playwright's fill fires the exact InputEvent sequence React expects.
+      // Email — humanFill via s.fill works for plain text inputs.
       await s.fill('Email', id.email);
-      await s.fill('Password', password);
+      // Password — TikTok's password input has a show/hide eye toggle whose
+      // <i role="button"> sits inside the input's bounding box (rightmost
+      // ~52px). humanClickLocator's randomized in-element offset can hit the
+      // toggle (or trigger TikTok's React handler that swaps type=password
+      // for type=text and re-mounts the input), leaving the focused element
+      // detached so subsequent CDP keystrokes write nothing — pwLen=0 and
+      // the Next button stays disabled. Workaround: focus() the input
+      // directly (no pointer click, no toggle hit), then dispatch keystrokes
+      // via humanType. Verified 2026-04-30: pwLen matches len(password)
+      // and Next becomes enabled after entering the verification code.
+      const pwLoc = s.page.locator('input[placeholder="Password"], input[type="password"]').first();
+      if (await pwLoc.count()) {
+        const { humanType } = await import('../../dist/human/keyboard.js');
+        await pwLoc.focus();
+        await s.wait(1);
+        await s.page.keyboard.press('ControlOrMeta+A').catch(() => {});
+        await s.page.keyboard.press('Delete').catch(() => {});
+        await humanType(s.page, password);
+      }
       await s.wait(1);
       // Tab out of password — fires React onBlur, dismisses "password must have..." error
       await s.page.keyboard.press('Tab').catch(() => {});
