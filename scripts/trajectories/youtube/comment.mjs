@@ -3,6 +3,7 @@ import { WSession } from '../../../dist/session/wsession.js';
 import { humanType } from '../../../dist/human/keyboard.js';
 import { humanClickLocator } from '../../../dist/human/mouse.js';
 import { assertAuthed, AuthProbeError } from '../_shared/auth-probe.mjs';
+import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../_shared/cookie-freshness.mjs';
 
 const VIDEO = process.env.VIDEO_URL || 'https://www.youtube.com/watch?v=dQw4w9WgXcQ';
 const COMMENT = process.env.COMMENT_TEXT || 'Great video!';
@@ -16,8 +17,15 @@ try {
   // Cookie injection — youtube_login persists Google + youtube cookies; this
   // trajectory assumes a previously-authenticated account. If logged out we
   // throw, since the YT comment form refuses anonymous submissions.
-  const stored = Array.isArray(acct.metadata?.cookies) ? acct.metadata.cookies : [];
-  if (stored.length) await s.ctx.addCookies(stored.filter(c => c?.name && c?.value && (c.domain || c.url)).map(c => ({ ...c, path: c.path || '/' }))).catch(() => {});
+  // Cookie freshness gate — see _shared/cookie-freshness.mjs.
+  let stored;
+  try {
+    stored = loadFreshCookieJarOrFail(acct, { platform: 'youtube', label: 'youtube_comment', currentProxyUrl: proxyUrl, currentPersona: persona });
+  } catch (jarErr) {
+    if (jarErr instanceof CookieJarStaleError) { console.log(`FAIL: ${jarErr.message}`); await markCookiesStale(acct.id); await s.close().catch(() => {}); process.exit(1); }
+    throw jarErr;
+  }
+  await s.ctx.addCookies(stored.filter(c => c?.name && c?.value && (c.domain || c.url)).map(c => ({ ...c, path: c.path || '/' }))).catch(() => {});
 
   await s.goto(VIDEO);
   await s.page.waitForTimeout(4500);

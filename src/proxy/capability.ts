@@ -126,6 +126,8 @@ async function loadPaused(): Promise<PausedValue> {
 
 /**
  * Pick the cheapest provider whose matrix cell for this action is 'pass'.
+ * If the action has no direct pass history, prefer providers with any pass
+ * for the same platform before trying providers with no platform history.
  *
  * Returns null when the matrix is empty for this action (cold start) AND
  * unknown providers should default to eligible ('unknown'-as-pass), OR when
@@ -145,21 +147,30 @@ export async function selectByCapability(
 ): Promise<{ provider: ProviderName; cost_per_gb: number } | null> {
   const [matrix, rates] = await Promise.all([loadMatrix(), loadRates()]);
   const exclude = new Set(excludeProviders);
-  const candidates: Array<{ p: ProviderName; cost: number; cell: 'pass' | 'unknown' }> = [];
+  const platformPrefix = action.includes('_') ? `${action.split('_')[0]}_` : '';
+  const candidates: Array<{ p: ProviderName; cost: number; cell: 'pass' | 'platform_pass' | 'unknown' }> = [];
   for (const p of ALL_PROVIDERS) {
     if (exclude.has(p)) continue;
-    const cell = matrix.matrix[p]?.[action]?.result;
+    const providerCells = matrix.matrix[p] ?? {};
+    const cell = providerCells[action]?.result;
     if (cell === 'fail') continue;
+    const platformCells = platformPrefix
+      ? Object.entries(providerCells).filter(([act]) => act.startsWith(platformPrefix))
+      : [];
+    const hasPlatformPass = platformCells.some(([, platformCell]) => platformCell.result === 'pass');
+    const hasPlatformFail = platformCells.some(([, platformCell]) => platformCell.result === 'fail');
     const cost = rates.rates[p]?.per_gb ?? Number.POSITIVE_INFINITY;
     if (!Number.isFinite(cost)) continue;
-    candidates.push({ p, cost, cell: cell ?? 'unknown' });
+    if (cell === 'pass') candidates.push({ p, cost, cell: 'pass' });
+    else if (hasPlatformPass) candidates.push({ p, cost, cell: 'platform_pass' });
+    else if (!hasPlatformFail) candidates.push({ p, cost, cell: 'unknown' });
   }
   if (candidates.length === 0) return null;
-  // Prefer 'pass' cells; among same tier, cheapest. So a known-pass at
-  // $5/GB beats an unknown at $1/GB on the first round, then the matrix
-  // updates and the unknown gets to compete fairly next time.
+  // Prefer exact action passes, then same-platform passes, then cold-start
+  // unknowns; among same tier, cheapest.
+  const rank: Record<(typeof candidates)[number]['cell'], number> = { pass: 0, platform_pass: 1, unknown: 2 };
   candidates.sort((a, b) => {
-    if (a.cell !== b.cell) return a.cell === 'pass' ? -1 : 1;
+    if (a.cell !== b.cell) return rank[a.cell] - rank[b.cell];
     return a.cost - b.cost;
   });
   const winner = candidates[0];

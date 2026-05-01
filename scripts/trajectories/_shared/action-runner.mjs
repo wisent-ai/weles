@@ -18,6 +18,7 @@ import { getSocialAccount, resolveAccountSession, markCookiesStale } from '../..
 import { WSession } from '../../../dist/session/wsession.js';
 import { generateOrganicComment, generatePromoteComment, generatePost } from './llm.mjs';
 import { assertAuthed, AuthProbeError } from './auth-probe.mjs';
+import { loadFreshCookieJarOrFail, CookieJarStaleError } from './cookie-freshness.mjs';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -98,12 +99,47 @@ export async function runAction(cfg) {
   // redirect to /login and the compose trajectory can't proceed.
   const domainFor = { twitter: 'x.com', reddit: 'reddit.com', instagram: 'instagram.com', tiktok: 'tiktok.com', linkedin: 'linkedin.com', discord: 'discord.com', github: 'github.com' };
   const wantedDomain = domainFor[cfg.platform];
-  const cookies = (acct.metadata?.cookies ?? []).filter(c => wantedDomain && (c.domain ?? '').includes(wantedDomain));
-  if (cookies.length) {
-    await s.ctx.addCookies(cookies).catch(e => console.log(`[${label}] cookie add err: ${e.message?.slice(0, 80)}`));
-    console.log(`[${label}] injected ${cookies.length} ${wantedDomain} cookies`);
-  }
   let banSignal = null;
+  // Cookie freshness gate — bound the device-mismatch / token-staleness
+  // failure mode that produced TikTok's silent logged-out shell. If the
+  // jar is stale (no cookies_minted_at, or older than the freshness
+  // window), skip injection, mark cookies stale, and exit. Next routine
+  // tick will enqueue a fresh form login. Browse trajectories are
+  // exempted because they don't need an authed session.
+  if (cfg.action !== 'browse') {
+    try {
+      const freshAll = loadFreshCookieJarOrFail(acct, { platform: cfg.platform, label, currentProxyUrl: proxyUrl, currentPersona: persona });
+      const cookies = freshAll.filter(c => wantedDomain && (c.domain ?? '').includes(wantedDomain));
+      if (cookies.length) {
+        await s.ctx.addCookies(cookies).catch(e => console.log(`[${label}] cookie add err: ${e.message?.slice(0, 80)}`));
+        console.log(`[${label}] injected ${cookies.length} ${wantedDomain} cookies (jar fresh)`);
+      } else {
+        // Jar fresh but no cookies for this domain — treat as stale to be safe.
+        throw new CookieJarStaleError(`cookie_jar_no_domain_match: jar fresh but no ${wantedDomain} cookies`, { platform: cfg.platform, reason: 'no_domain_match' });
+      }
+    } catch (jarErr) {
+      if (jarErr instanceof CookieJarStaleError) {
+        banSignal = { signal: 'checkpoint', healthy: false, details: { reason: jarErr.message.slice(0, 200), ...(jarErr.details ?? {}) } };
+        if (acct.id) await markCookiesStale(acct.id).catch(() => {});
+        try {
+          const dir = join(process.cwd(), 'recordings', label);
+          mkdirSync(dir, { recursive: true });
+          writeFileSync(join(dir, 'ban_signal.json'), JSON.stringify({ account_id: acct.id, username: acct.username, action: label, ...banSignal, ts: new Date().toISOString() }, null, 2));
+        } catch {}
+        await s.close().catch(() => {});
+        console.log(`FAIL: ${jarErr.message}`);
+        process.exit(1);
+      }
+      throw jarErr;
+    }
+  } else {
+    // browse — non-authed; inject if available but don't gate
+    const cookies = (acct.metadata?.cookies ?? []).filter(c => wantedDomain && (c.domain ?? '').includes(wantedDomain));
+    if (cookies.length) {
+      await s.ctx.addCookies(cookies).catch(e => console.log(`[${label}] cookie add err: ${e.message?.slice(0, 80)}`));
+      console.log(`[${label}] injected ${cookies.length} ${wantedDomain} cookies (browse — freshness not enforced)`);
+    }
+  }
   let resultValue = null;
   // Resolve a specific target if the caller provided one. Precedence:
   // TARGET_URL (full URL) > TARGET_USER (resolved per-platform) > SEARCH_QUERY

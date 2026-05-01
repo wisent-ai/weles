@@ -2,6 +2,7 @@ import { getSocialAccount, markCookiesStale } from '../../dist/utils/credentials
 import { WSession } from '../../dist/session/wsession.js';
 import { humanClickLocator } from '../../dist/human/mouse.js';
 import { assertAuthed, AuthProbeError } from './_shared/auth-probe.mjs';
+import { loadFreshCookieJarOrFail, CookieJarStaleError } from './_shared/cookie-freshness.mjs';
 
 const TARGET = process.env.GITHUB_FOLLOW_TARGET ?? 'lbartoszcze';
 
@@ -22,8 +23,16 @@ let s;
 for (let retry = 0; retry < 3; retry++) {
   try {
     s = await WSession.start({ label: 'github_follow', proxy: proxyUrl });
-    const cookies = (acct.metadata.cookies ?? []).filter(c => (c.domain ?? '').includes('github.com'));
-    if (cookies.length) await s.ctx.addCookies(cookies).catch(() => {});
+    // Cookie freshness gate — see _shared/cookie-freshness.mjs.
+    try {
+      const all = loadFreshCookieJarOrFail(acct, { platform: 'github', label: 'github_follow', currentProxyUrl: proxyUrl, currentPersona: persona });
+      const cookies = all.filter(c => (c.domain ?? '').includes('github.com'));
+      if (!cookies.length) throw new CookieJarStaleError('cookie_jar_no_domain_match: jar fresh but no github.com cookies', { platform: 'github' });
+      await s.ctx.addCookies(cookies).catch(() => {});
+    } catch (jarErr) {
+      if (jarErr instanceof CookieJarStaleError) { console.log(`FAIL: ${jarErr.message}`); await markCookiesStale(acct.id); await s.close().catch(() => {}); process.exit(1); }
+      throw jarErr;
+    }
     await s.goto(`https://github.com/${TARGET}`);
     let rendered = false;
     for (let i = 0; i < 15; i++) {

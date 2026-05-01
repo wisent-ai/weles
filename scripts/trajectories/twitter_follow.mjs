@@ -2,6 +2,7 @@ import { getSocialAccount, resolveAccountSession, markCookiesStale } from '../..
 import { WSession } from '../../dist/session/wsession.js';
 import { humanClickLocator } from '../../dist/human/mouse.js';
 import { assertAuthed, AuthProbeError } from './_shared/auth-probe.mjs';
+import { loadFreshCookieJarOrFail, CookieJarStaleError } from './_shared/cookie-freshness.mjs';
 
 const TARGET_HANDLE = 'elonmusk';
 const TARGET_URL = `https://x.com/${TARGET_HANDLE}`;
@@ -14,13 +15,19 @@ const { proxyUrl, persona } = await resolveAccountSession(acct);
 const s = await WSession.start({ label: 'twitter_follow', proxy: proxyUrl, persona });
 
 try {
-  // Cookie-first: inject stored auth_token, navigate to target user, click Follow
-  const stored = Array.isArray(acct.metadata?.cookies) ? acct.metadata.cookies : [];
-  const hasAuthToken = stored.some(c => c?.name === 'auth_token' && c?.value);
-  if (!hasAuthToken) { console.log('FAIL: no auth_token in stored cookies — login first'); process.exit(1); }
-  const prepared = stored.filter(c => c?.name && c?.value && (c.domain || c.url)).map(c => ({ ...c, path: c.path || '/' }));
+  // Cookie freshness gate — see _shared/cookie-freshness.mjs.
+  let prepared;
+  try {
+    const all = loadFreshCookieJarOrFail(acct, { platform: 'twitter', label: 'twitter_follow', currentProxyUrl: proxyUrl, currentPersona: persona });
+    const hasAuthToken = all.some(c => c?.name === 'auth_token' && c?.value);
+    if (!hasAuthToken) throw new CookieJarStaleError('cookie_jar_missing_auth_token: jar fresh but no auth_token', { platform: 'twitter' });
+    prepared = all.filter(c => c?.name && c?.value && (c.domain || c.url)).map(c => ({ ...c, path: c.path || '/' }));
+  } catch (jarErr) {
+    if (jarErr instanceof CookieJarStaleError) { console.log(`FAIL: ${jarErr.message}`); await markCookiesStale(acct.id); process.exit(1); }
+    throw jarErr;
+  }
   await s.ctx.addCookies(prepared);
-  console.log(`[trajectory] injected ${prepared.length} stored cookies`);
+  console.log(`[trajectory] injected ${prepared.length} stored cookies (jar fresh)`);
 
   await s.page.goto(TARGET_URL, { waitUntil: 'domcontentloaded' });
   // x.com SPA needs ~6-8s to hydrate the profile page after domcontentloaded;

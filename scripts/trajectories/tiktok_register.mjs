@@ -1,8 +1,24 @@
 import { WSession } from '../../dist/session/wsession.js';
 import { generatePersona } from '../../dist/browser/persona.js';
 import { humanClickLocator } from '../../dist/human/mouse.js';
+import { reportBlocked } from '../../dist/utils/email/domain.js';
+import { generateIdentity } from '../../dist/utils/identity.js';
 
 const URL = 'https://www.tiktok.com/signup';
+
+async function syncReactInputValue(locator, value) {
+  await locator.evaluate((el, v) => {
+    const proto = Object.getPrototypeOf(el);
+    const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+    if (setter) setter.call(el, v);
+    else el.value = v;
+    // React keeps a private value tracker and ignores input events if it
+    // believes the value did not change. Reset the tracker before dispatch.
+    el._valueTracker?.setValue('');
+    el.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: v }));
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+  }, value).catch(() => {});
+}
 
 {
   // Single deterministic path — phone-or-email → email tab → fill DOB+email+
@@ -10,22 +26,28 @@ const URL = 'https://www.tiktok.com/signup';
   // Retry the flow up to 3 times if browser/page dies during early setup (crash-prone with custom Chromium)
   let id = null, password = null, s = null, success = false;
 
-  for (let retry = 0; retry < 3; retry++) {
+  const maxRetries = Math.max(1, Number(process.env.MAX_RETRIES || 3));
+  for (let retry = 0; retry < maxRetries; retry++) {
     if (s) { await s.close().catch(() => {}); s = null; }
+    let registerVerifyErrorCode = null;
+    let registerVerifySeen = false;
+    let sendCodeSeen = false;
+    let sendCodeSuccess = false;
 
-    // Pin chromium — humanMove uses CDP-routed Page.dispatchMouseEvent which
-    // is Chromium-only. Firefox crashes with "synthesizeMouseEvent is not a
-    // function" on the very first click. Default persona randomization is
-    // 60/40 chromium/firefox; for a trajectory that must drive humanMove,
-    // we hard-pin Chromium.
-    s = await WSession.start({ label: 'tiktok_register', proxy: process.env.PROXY_URL || 'residential', persona: generatePersona({ country: 'US', browser: process.env.FORCE_BROWSER || 'chromium' }) });
     try {
       // Fresh identity per retry — don't reuse emails across failed runs
-      id = await s.generateIdentity('tiktok');
+      id = await generateIdentity('tiktok');
       // NO fixed prefix — TikTok decodes body; recurring prefix = counter key.
       const pfx = String.fromCharCode(65+Math.floor(Math.random()*26)) + Array.from({length:7},()=>String.fromCharCode(97+Math.floor(Math.random()*26))).join('');
       password = pfx + (100+Math.floor(Math.random()*900)) + '!@#$%&*'[Math.floor(Math.random()*7)];
       console.log(`[test] attempt ${retry + 1}: identity=${id.username} <${id.email}> bday=${id.birthMonth}/${id.birthDay}/${id.birthYear}`);
+
+      // Pin chromium — humanMove uses CDP-routed Page.dispatchMouseEvent which
+      // is Chromium-only. Firefox crashes with "synthesizeMouseEvent is not a
+      // function" on the very first click. Default persona randomization is
+      // 60/40 chromium/firefox; for a trajectory that must drive humanMove,
+      // we hard-pin Chromium.
+      s = await WSession.start({ label: 'tiktok_register', proxy: process.env.PROXY_URL || 'residential', targetHost: 'www.tiktok.com', persona: generatePersona({ country: 'US', browser: process.env.FORCE_BROWSER || 'chromium' }) });
 
       // Full request+response logging for interesting endpoints.
       // Focus on /region/ since that's where brendawatsica had len=204 (with captcha_domain) and current has len=23.
@@ -40,6 +62,8 @@ const URL = 'https://www.tiktok.com/signup';
         if (ttHeaders.length) console.log(`[req-tt-hdrs] ${ttHeaders.map(k => k + '=' + (h[k] || '').slice(0, 120)).join(' | ')}`);
         else console.log(`[req-tt-hdrs] NONE — header keys: ${Object.keys(h).join(',')}`);
         if (body) console.log(`[req-body] ${body.slice(0, 400)}`);
+        if (/email\/send_code/i.test(u)) sendCodeSeen = true;
+        if (/register_verify_login/i.test(u)) registerVerifySeen = true;
       });
       s.page.on('response', async (resp) => {
         const u = resp.url();
@@ -51,6 +75,21 @@ const URL = 'https://www.tiktok.com/signup';
         console.log(`[res] ${resp.status()} ${u.slice(0, 140)}`);
         console.log(`[res-body] ${body.slice(0, 500).replace(/\s+/g, ' ')}`);
         console.log(`[res-hdrs] ${hdrJson.slice(0, 600)}`);
+        if (/email\/send_code/i.test(u)) {
+          try {
+            const parsed = JSON.parse(body);
+            if (parsed?.message === 'success') sendCodeSuccess = true;
+            console.log(`[test] send_code message=${parsed?.message ?? 'missing'}`);
+          } catch {}
+        }
+        if (/register_verify_login/i.test(u)) {
+          registerVerifySeen = true;
+          try {
+            const parsed = JSON.parse(body);
+            registerVerifyErrorCode = parsed?.data?.error_code ?? parsed?.error_code ?? null;
+            console.log(`[test] register_verify_login error_code=${registerVerifyErrorCode ?? 'missing'}`);
+          } catch {}
+        }
       });
 
       for (const u of ['https://www.tiktok.com/','https://www.tiktok.com/explore']) { await s.page.goto(u,{waitUntil:'domcontentloaded'}).catch(()=>{}); await s.wait(3); }
@@ -182,17 +221,24 @@ const URL = 'https://www.tiktok.com/signup';
       // countdown or a captcha/rate-limit indicator to appear.
       let probe = { hasResend: false, indicators: [] };
       const PROBE = `(() => { const t = document.body.innerText || ''; const i = []; if (document.querySelector('.captcha-verify-container, .captcha_verify_container, [class*="captcha-"]')) i.push('captcha-container'); if (document.querySelector('iframe[src*="captcha"]')) i.push('captcha-iframe'); if (/drag|puzzle|rotate|slide/i.test(t)) i.push('captcha-text'); if (/too many|attempts|try again later/i.test(t)) i.push('rate-limit'); return { indicators: i, hasResend: /Resend code/i.test(t), url: location.href }; })()`;
-      for (let pw = 0; pw < 12; pw++) { await s.wait(2); probe = await s.page.evaluate(PROBE).catch(() => ({ error: true })); if (probe.hasResend || probe.indicators?.length) break; }
+      for (let pw = 0; pw < 25; pw++) {
+        await s.wait(2);
+        probe = await s.page.evaluate(PROBE).catch(() => ({ error: true }));
+        if (probe.hasResend || sendCodeSuccess || probe.indicators?.length) break;
+      }
       console.log(`[test] After Send code: ${JSON.stringify(probe)}`);
       await s.screenshot(`after_send_code_r${retry}`).catch(() => {});
 
-      if (!probe.hasResend) {
+      if (!probe.hasResend && !sendCodeSuccess) {
         console.log(`[test] attempt ${retry + 1}: Send code did not advance form (no Resend countdown). indicators=${probe.indicators?.join(',') || 'none'}`);
         // If it's rate-limit, don't retry
         if (probe.indicators?.includes('rate-limit')) { console.log('FAIL: TikTok rate-limited this session'); break; }
         // If captcha, log and give up for this attempt (will handle separately)
         if (probe.indicators?.length) { console.log(`FAIL: captcha detected — ${probe.indicators.join(',')}`); break; }
         continue;
+      }
+      if (!probe.hasResend && sendCodeSuccess) {
+        console.log('[test] send_code API succeeded although countdown text did not render — polling inbox anyway');
       }
 
       // Poll Resend for verification code
@@ -206,8 +252,13 @@ const URL = 'https://www.tiktok.com/signup';
 
       // Type code char-by-char w/ variable delays — one burst via DOM setter looks
       // unlike real typing; React form sees each keystroke as separate input event.
-      await humanClickLocator(s.page, s.page.locator('input[placeholder*="digit" i], input[name="code"]').first()).catch(() => {});
+      const codeLoc = s.page.locator('input[placeholder*="digit" i], input[name="code"]').first();
+      await humanClickLocator(s.page, codeLoc).catch(() => {});
       for (const ch of code) { await s.page.keyboard.type(ch); await new Promise(r => setTimeout(r, 80 + Math.floor(Math.random() * 140))); }
+      // Reconcile React state only after send_code has succeeded. Doing this
+      // before send_code changed TikTok's challenge path and stalled the flow.
+      if (await pwLoc.count().catch(() => 0)) await syncReactInputValue(pwLoc, password);
+      await syncReactInputValue(codeLoc, code);
       await s.page.keyboard.press('Tab').catch(() => {}); await s.wait(1);
 
       // Capture button position + install click listener BEFORE we click anything.
@@ -236,6 +287,22 @@ const URL = 'https://www.tiktok.com/signup';
         // Try humanClick via s.click (what worked for Send code)
         const r = await s.click('Next');
         console.log(`[test] s.click('Next') => ${r}`);
+        await s.wait(2);
+        if (!registerVerifySeen && (s.page.url?.() ?? '').includes('/signup/phone-or-email/email')) {
+          console.log('[test] Next click produced no register_verify_login request — trying keyboard activation');
+          const nextBtn = s.page.getByRole('button', { name: /^\s*Next\s*$/i }).first();
+          await nextBtn.focus().catch(() => {});
+          await s.page.keyboard.press('Enter').catch(() => {});
+          await s.wait(2);
+          if (!registerVerifySeen) {
+            await s.page.keyboard.press('Space').catch(() => {});
+            await s.wait(2);
+          }
+          if (!registerVerifySeen && await nextBtn.isVisible().catch(() => false)) {
+            await humanClickLocator(s.page, nextBtn).catch(() => {});
+            await s.wait(2);
+          }
+        }
       } else {
         console.log('[test] Next disabled, cannot submit');
         continue;
@@ -355,8 +422,16 @@ const URL = 'https://www.tiktok.com/signup';
         break;
       }
       console.log(`[test] attempt ${retry + 1}: didn't reach logged-in state. finalUrl=${finalUrl} sessionid=${hasSessionId}`);
+      if (String(registerVerifyErrorCode) === '1340' && id?.email) {
+        await reportBlocked(id.email, 'tiktok_register_error_1340_after_email_verify', 'tiktok').catch(() => {});
+        console.log(`[domain] quarantined ${id.email.split('@')[1]} for tiktok after register_verify_login 1340`);
+      }
     } catch (e) {
       console.log(`[test] attempt ${retry + 1} crashed: ${e.message?.slice(0, 120)}`);
+      if (String(registerVerifyErrorCode) === '1340' && id?.email) {
+        await reportBlocked(id.email, 'tiktok_register_error_1340_after_email_verify', 'tiktok').catch(() => {});
+        console.log(`[domain] quarantined ${id.email.split('@')[1]} for tiktok after register_verify_login 1340`);
+      }
     }
   }
 

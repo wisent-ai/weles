@@ -29,7 +29,7 @@ export async function generateIdentity(platform: string): Promise<Identity> {
   const firstName = faker.person.firstName();
   const lastName = faker.person.lastName();
   const username = faker.internet.username({ firstName, lastName }).toLowerCase().replace(/[^a-z0-9]/g, '') + faker.number.int({ min: 100, max: 9999 });
-  const domain = await pickDomain();
+  const domain = await pickDomain(platform);
   const email = `${username}@${domain}`;
   // base64url alone produces only [A-Za-z0-9_-]; TikTok's validator does not
   // count _ or - as "special characters" and rejects the password. Build a

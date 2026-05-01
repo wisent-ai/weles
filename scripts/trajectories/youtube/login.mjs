@@ -2,6 +2,7 @@ import { getSocialAccount } from '../../../dist/utils/credentials.js';
 import { WSession } from '../../../dist/session/wsession.js';
 import { humanType } from '../../../dist/human/keyboard.js';
 import { humanClickLocator } from '../../../dist/human/mouse.js';
+import { persistFreshCookieJar } from '../_shared/cookie-freshness.mjs';
 
 const URL = 'https://accounts.google.com/ServiceLogin?continue=https%3A%2F%2Fwww.youtube.com%2F';
 
@@ -30,6 +31,9 @@ try {
   await humanClickLocator(s.page, s.page.locator('button:has-text("Next"), #passwordNext button, button[jsname]:has-text("Next")').filter({ visible: true }).first());
   // Wait until we land on youtube.com (or myaccount.google.com if redirect path differs).
   await s.page.waitForFunction(() => /youtube\.com\/?(?:\?|$)/.test(location.href) || /myaccount\.google\.com/.test(location.href), { timeout: 30000 });
+  // Persist with cookies_minted_at so action trajectories can enforce freshness.
+  try { const cookies = await s.ctx.cookies(); await persistFreshCookieJar(acct, cookies, { currentProxyUrl: process.env.PROXY_URL }); }
+  catch (e) { console.log('[cookie-capture] err:', e.message?.slice(0, 100)); }
   console.log(`PASS: logged in (${s.page.url()})`);
 } catch (e) {
   console.log('FAIL:', e.message?.slice(0, 200));

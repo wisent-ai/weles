@@ -6,6 +6,7 @@ import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { checkReachable } from '../../_shared/action-runner.mjs';
 import { assertAuthed, AuthProbeError } from '../../_shared/auth-probe.mjs';
+import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../../_shared/cookie-freshness.mjs';
 import { markCookiesStale } from '../../../../dist/utils/credentials.js';
 
 const TARGET_URL = process.env.TARGET_URL || '';
@@ -14,8 +15,17 @@ const acct = await getSocialAccount('tiktok');
 if (!acct) { console.log('FAIL: no active tiktok account'); process.exit(1); }
 const { proxyUrl, persona } = await resolveAccountSession(acct);
 const s = await WSession.start({ label: 'tiktok_bookmark', proxy: proxyUrl, persona });
-const _stored = (acct.metadata?.cookies ?? []).filter(c => /tiktok\.com/.test(c.domain ?? ''));
-if (_stored.length) await s.ctx.addCookies(_stored.map(c => ({ ...c, path: c.path || '/' }))).catch(() => {});
+// Cookie freshness gate — see _shared/cookie-freshness.mjs.
+let _stored;
+try {
+  const _all = loadFreshCookieJarOrFail(acct, { platform: 'tiktok', label: 'tiktok_bookmark', currentProxyUrl: proxyUrl, currentPersona: persona });
+  _stored = _all.filter(c => /tiktok\.com/.test(c.domain ?? ''));
+  if (!_stored.length) throw new CookieJarStaleError('cookie_jar_no_domain_match: jar fresh but no tiktok.com cookies', { platform: 'tiktok' });
+} catch (jarErr) {
+  if (jarErr instanceof CookieJarStaleError) { console.log(`FAIL: ${jarErr.message}`); await markCookiesStale(acct.id); await s.close().catch(() => {}); process.exit(1); }
+  throw jarErr;
+}
+await s.ctx.addCookies(_stored.map(c => ({ ...c, path: c.path || '/' }))).catch(() => {});
 let ban = null;
 try {
   await s.goto(TARGET_URL || 'https://www.tiktok.com/foryou');

@@ -2,6 +2,7 @@ import { getSocialAccount, resolveAccountSession, markCookiesStale } from '../..
 import { WSession } from '../../dist/session/wsession.js';
 import { humanClickLocator, humanIdlePause } from '../../dist/human/mouse.js';
 import { assertAuthed, AuthProbeError } from './_shared/auth-probe.mjs';
+import { loadFreshCookieJarOrFail, CookieJarStaleError } from './_shared/cookie-freshness.mjs';
 
 const TARGET_USER = (process.env.TARGET_USER || 'tiktok').replace(/^@/, '');
 const URL = `https://www.tiktok.com/@${encodeURIComponent(TARGET_USER)}`;
@@ -14,9 +15,16 @@ const { proxyUrl, persona } = await resolveAccountSession(acct);
 const s = await WSession.start({ label: 'tiktok_follow', proxy: proxyUrl, persona });
 
 try {
-  // Cookie-first auth — TikTok requires sessionid + tt-target-idc.
-  const stored = (acct.metadata?.cookies ?? []).filter(c => /tiktok\.com/.test(c.domain ?? ''));
-  if (!stored.length) { console.log('FAIL: no tiktok cookies — login first'); process.exit(1); }
+  // Cookie freshness gate — see _shared/cookie-freshness.mjs.
+  let stored;
+  try {
+    const all = loadFreshCookieJarOrFail(acct, { platform: 'tiktok', label: 'tiktok_follow', currentProxyUrl: proxyUrl, currentPersona: persona });
+    stored = all.filter(c => /tiktok\.com/.test(c.domain ?? ''));
+    if (!stored.length) throw new CookieJarStaleError('cookie_jar_no_domain_match: jar fresh but no tiktok.com cookies', { platform: 'tiktok' });
+  } catch (jarErr) {
+    if (jarErr instanceof CookieJarStaleError) { console.log(`FAIL: ${jarErr.message}`); await markCookiesStale(acct.id); process.exit(1); }
+    throw jarErr;
+  }
   await s.ctx.addCookies(stored.map(c => ({ ...c, path: c.path || '/' })));
 
   await s.page.goto(URL, { waitUntil: 'domcontentloaded' });

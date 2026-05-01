@@ -34,10 +34,34 @@ export interface WSessionOptions {
   headless?: boolean;
   record?: boolean;
   cdpEndpoint?: string;
+  targetHost?: string;
   os?: string;
   locale?: string;
   persona?: Persona;
   browser?: string;
+}
+
+function redactProxyForLog(proxy: unknown): string {
+  if (!proxy) return 'undefined';
+  if (typeof proxy === 'string') {
+    try {
+      const u = new URL(proxy);
+      if (u.username) u.username = `${decodeURIComponent(u.username).slice(0, 18)}...`;
+      if (u.password) u.password = '***';
+      return u.toString();
+    } catch {
+      return '[proxy]';
+    }
+  }
+  if (typeof proxy === 'object') {
+    const p = proxy as { server?: string; username?: string; password?: string };
+    return JSON.stringify({
+      server: p.server,
+      username: p.username ? `${p.username.slice(0, 18)}...` : undefined,
+      password: p.password ? '***' : undefined,
+    });
+  }
+  return String(proxy);
 }
 
 const asV = (p: any) => p as unknown as ScreenshottablePage;
@@ -117,13 +141,17 @@ export class WSession {
   static async start(opts: WSessionOptions = {}): Promise<WSession> {
     const label = opts.label ?? '';
     const cdp = opts.cdpEndpoint ?? process.env.BRIGHTDATA_BROWSER_WS;
-    console.log(`[wsession] start() label=${label} cdp=${!!cdp} proxy=${opts.proxy}`);
+    console.log(`[wsession] start() label=${label} cdp=${!!cdp} proxy=${redactProxyForLog(opts.proxy)}`);
     if (cdp) {
       const browser = await chromium.connectOverCDP(cdp);
       const ctx = browser.contexts()[0] || await browser.newContext({ locale: 'en-US' }); const page = ctx.pages()[0] || await ctx.newPage();
       return new WSession(ctx, page, label, new Capture({ newPage: async () => page } as any, label ? recordingsDir(label) : undefined));
     }
-    const proxy = opts.proxy ? await resolveProxy(opts.proxy, (opts as any).targetHost) : undefined;
+    const proxyRequested = !!opts.proxy && !['none', 'direct'].includes(String(opts.proxy).toLowerCase());
+    const proxy = proxyRequested ? await resolveProxy(opts.proxy!, opts.targetHost) : undefined;
+    if (proxyRequested && !proxy) {
+      throw new Error(`proxy_unavailable: requested ${opts.proxy} for ${opts.targetHost ?? 'unknown target'}`);
+    }
     const persona: Persona = opts.persona ?? generatePersona({ country: proxy?.country, os: opts.os as Persona['os'] | undefined, browser: opts.browser as Persona['browser'] | undefined });
     const bOpts: AsyncNewBrowserOptions = { os: persona.os, browser: persona.browser, headless: opts.headless ?? false, recordVideo: opts.record ?? (process.env.WELES_DISABLE_RECORDING !== '1'), locale: opts.locale, persona, proxy };
     const cp = opts.chromiumPath ?? process.env.CHROMIUM_PATH ?? findCustomBrowser(bOpts.browser);
@@ -349,7 +377,7 @@ export class WSession {
       username,
       display_name: name,
       profile_url: profileUrl(platform, username, name),
-      metadata: { email, password, status: data.status ?? 'created', created_via: 'weles', cookies, storage_state: storageState, cookies_updated_at: new Date().toISOString(), proxy: this.proxyConfig ?? null, persona: this.personaConfig ?? null },
+      metadata: { email, password, status: data.status ?? 'created', created_via: 'weles', cookies, storage_state: storageState, cookies_updated_at: new Date().toISOString(), cookies_minted_at: new Date().toISOString(), cookies_minted_proxy: this._proxySignature(), cookies_minted_persona: this._personaSignature(), proxy: this.proxyConfig ?? null, persona: this.personaConfig ?? null },
       is_active: true,
       created_by: 'weles',
     };
@@ -359,7 +387,7 @@ export class WSession {
       body: JSON.stringify(row),
     });
     if (!res.ok) return `error: ${res.status} ${await res.text().catch(() => '')}`;
-    try { const r = await res.json(); writeFileSync(join(recordingsDir(this.label || undefined), 'account.json'), JSON.stringify(Array.isArray(r)?r[0]:r, null, 2)); } catch {} await markSignupSuccess(email).catch(() => {}); return `account saved: ${platform}/${username}`;
+    try { const r = await res.json(); writeFileSync(join(recordingsDir(this.label || undefined), 'account.json'), JSON.stringify(Array.isArray(r)?r[0]:r, null, 2)); } catch {} await markSignupSuccess(email, platform).catch(() => {}); return `account saved: ${platform}/${username}`;
   }
 
   async close(): Promise<void> {
@@ -405,6 +433,31 @@ export class WSession {
   }
 
   resolveEnv(v: string): string { return v.replace(/\$\{?([A-Z_][A-Z0-9_]*)\}?/g, (_, k) => this._env[k] ?? process.env[k] ?? v); }
+
+  /** Derive a stable proxy signature for cookie-jar binding (mirrors cookie-freshness.mjs). */
+  private _proxySignature(): string | null {
+    const cfg = this.proxyConfig;
+    if (!cfg) return null;
+    if (typeof cfg === 'object' && (cfg as any).host) {
+      const port = (cfg as any).port ? String((cfg as any).port) : '';
+      return `${(cfg as any).host}:${port}`.replace(/:$/, '');
+    }
+    if (typeof cfg === 'string') {
+      try { const u = new URL(cfg); return `${u.hostname}:${u.port || ''}`.replace(/:$/, ''); } catch { return null; }
+    }
+    return null;
+  }
+
+  /** Derive a stable persona signature for cookie-jar binding (mirrors cookie-freshness.mjs). */
+  private _personaSignature(): string | null {
+    const p = this.personaConfig as any;
+    if (!p) return null;
+    if (p.canvasSeed != null) return `cs:${p.canvasSeed}`;
+    const s = `${p.userAgentOs ?? ''}|${p.gpu?.renderer ?? ''}|${p.timezone ?? ''}|${p.language ?? ''}`;
+    let h = 5381;
+    for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+    return `h:${h}`;
+  }
 }
 
 function profileUrl(platform: string, username: string, name?: string): string {

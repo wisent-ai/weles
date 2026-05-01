@@ -2,6 +2,7 @@ import { getSocialAccount, resolveAccountSession, markCookiesStale } from '../..
 import { WSession } from '../../dist/session/wsession.js';
 import { humanClickLocator } from '../../dist/human/mouse.js';
 import { assertAuthed, AuthProbeError } from './_shared/auth-probe.mjs';
+import { loadFreshCookieJarOrFail, CookieJarStaleError } from './_shared/cookie-freshness.mjs';
 
 const HOME_URL = 'https://x.com/home';
 
@@ -13,11 +14,17 @@ const { proxyUrl, persona } = await resolveAccountSession(acct);
 const s = await WSession.start({ label: 'twitter_like', proxy: proxyUrl, persona });
 
 try {
-  // Cookie-first: inject auth_token, navigate to /home, click first like button
-  const stored = Array.isArray(acct.metadata?.cookies) ? acct.metadata.cookies : [];
-  const hasAuthToken = stored.some(c => c?.name === 'auth_token' && c?.value);
-  if (!hasAuthToken) { console.log('FAIL: no auth_token in stored cookies — login first'); process.exit(1); }
-  const prepared = stored.filter(c => c?.name && c?.value && (c.domain || c.url)).map(c => ({ ...c, path: c.path || '/' }));
+  // Cookie freshness gate — see _shared/cookie-freshness.mjs.
+  let prepared;
+  try {
+    const all = loadFreshCookieJarOrFail(acct, { platform: 'twitter', label: 'twitter_like', currentProxyUrl: proxyUrl, currentPersona: persona });
+    const hasAuthToken = all.some(c => c?.name === 'auth_token' && c?.value);
+    if (!hasAuthToken) throw new CookieJarStaleError('cookie_jar_missing_auth_token: jar fresh but no auth_token', { platform: 'twitter' });
+    prepared = all.filter(c => c?.name && c?.value && (c.domain || c.url)).map(c => ({ ...c, path: c.path || '/' }));
+  } catch (jarErr) {
+    if (jarErr instanceof CookieJarStaleError) { console.log(`FAIL: ${jarErr.message}`); await markCookiesStale(acct.id); process.exit(1); }
+    throw jarErr;
+  }
   await s.ctx.addCookies(prepared);
 
   await s.page.goto(HOME_URL, { waitUntil: 'domcontentloaded' });

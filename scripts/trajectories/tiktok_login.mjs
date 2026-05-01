@@ -2,6 +2,7 @@ import { getSocialAccount, resolveAccountSession } from '../../dist/utils/creden
 import { WSession } from '../../dist/session/wsession.js';
 import { humanType } from '../../dist/human/keyboard.js';
 import { humanClickLocator, humanIdlePause } from '../../dist/human/mouse.js';
+import { persistFreshCookieJar } from './_shared/cookie-freshness.mjs';
 
 const PASSWORD_URL = 'https://www.tiktok.com/login/phone-or-email/email?lang=en';
 const FEED_URL = 'https://www.tiktok.com/foryou?lang=en';
@@ -160,23 +161,21 @@ console.log(`[trajectory] Using account: ${acct.username}`);
 
 const { proxyUrl, persona } = await resolveAccountSession(acct);
 const s = await WSession.start({ label: 'tiktok_login', proxy: proxyUrl, persona });
+const loginDiag = {
+  account_id: acct.id,
+  username: acct.username,
+  accountApiError: '',
+  loginResponses: [],
+  failedRequests: [],
+  captcha: { present: false, solved: false },
+  finalState: null,
+};
 
 async function captureCookies() {
   if (!acct.id) return;
-  const supabaseUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
-  if (!supabaseUrl || !key) return;
   try {
     const cookies = await s.ctx.cookies();
-    const r = await fetch(`${supabaseUrl}/rest/v1/social_accounts?id=eq.${acct.id}&select=metadata`, { headers: { apikey: key, Authorization: `Bearer ${key}` } });
-    const rows = await r.json();
-    const merged = { ...(rows?.[0]?.metadata ?? {}), cookies };
-    await fetch(`${supabaseUrl}/rest/v1/social_accounts?id=eq.${acct.id}`, {
-      method: 'PATCH',
-      headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
-      body: JSON.stringify({ metadata: merged }),
-    });
-    console.log(`[cookie-capture] refreshed ${cookies.length} cookies for account ${acct.id}`);
+    await persistFreshCookieJar(acct, cookies, { currentProxyUrl: proxyUrl, currentPersona: persona });
   } catch (e) { console.log('[cookie-capture] err:', e.message); }
 }
 
@@ -294,8 +293,9 @@ try {
 
     const submitBtn = s.page.locator('button[data-e2e="login-button"], button[type="submit"]').filter({ visible: true }).first();
     // Capture network responses for /passport/web/login/ to see if submit fired
-    const loginResponses = [];
-    const failedRequests = [];
+    const loginResponses = loginDiag.loginResponses;
+    const failedRequests = loginDiag.failedRequests;
+    let accountApiError = '';
     s.page.on('response', (res) => {
       const u = res.url();
       if (/\/passport\/web\/login|\/passport\/web\/login_with_email|\/passport\/web\/account_check/.test(u)) {
@@ -344,7 +344,12 @@ try {
     });
     s.page.on('console', (msg) => {
       if (msg.type() === 'error' || msg.type() === 'warning') {
-        console.log(`[tiktok_login] page-${msg.type()}: ${msg.text().slice(0, 200)}`);
+        const text = msg.text();
+        if (/Maximum number of attempts reached|account-api error/i.test(text)) {
+          accountApiError = text.slice(0, 200);
+          loginDiag.accountApiError = accountApiError;
+        }
+        console.log(`[tiktok_login] page-${msg.type()}: ${text.slice(0, 200)}`);
       }
     });
     await humanClickLocator(s.page, submitBtn);
@@ -357,9 +362,11 @@ try {
     const captchaPresent = await s.page.evaluate(() =>
       !!document.querySelector('.captcha-verify-container, .captcha_verify_container, [class*="captcha-"]')
     ).catch(() => false);
+    loginDiag.captcha.present = captchaPresent;
     if (captchaPresent) {
       console.log('[tiktok_login] captcha modal detected — attempting SadCaptcha solve');
       const solved = await solveTiktokRotateCaptcha(s.page);
+      loginDiag.captcha.solved = solved;
       if (!solved) {
         await s.screenshot('captcha_solve_failed').catch(() => {});
         throw new Error('captcha_challenge: SadCaptcha solve failed');
@@ -368,6 +375,7 @@ try {
       // for the login XHR.
       await s.page.waitForTimeout(2000);
       console.log(`[tiktok_login] post-captcha loginResponses=${JSON.stringify(loginResponses)}`);
+      if (accountApiError) throw new Error(`login_rate_limited: ${accountApiError}`);
     }
     // Wait for sessionid cookie + navigation away from /login. The sessionid
     // cookie is httpOnly — document.cookie inside the page can't see it —
@@ -424,8 +432,10 @@ try {
         };
       }).catch((e) => ({ err: e.message }));
       finalState.hasSessionId = hasSessionIdHttpOnly;
+      loginDiag.finalState = finalState;
       console.log(`[tiktok_login] timeout finalState: ${JSON.stringify(finalState)}`);
       console.log(`[tiktok_login] timeout loginResponses: ${JSON.stringify(loginResponses)}`);
+      if (accountApiError) throw new Error(`login_rate_limited: ${accountApiError}`);
       throw waitErr;
     }
     console.log('PASS: logged in (deterministic email/password)');
@@ -442,10 +452,12 @@ try {
     fs.mkdirSync(dir, { recursive: true });
     const finalUrl = s?.page?.url?.() ?? '';
     const msg = e.message ?? '';
+    fs.writeFileSync(path.join(dir, 'login_diag.json'), JSON.stringify({ ...loginDiag, error: msg.slice(0, 200), final_url: finalUrl, ts: new Date().toISOString() }, null, 2));
     let sig = 'action_failed';
     if (/ERR_HTTP_RESPONSE_CODE_FAILURE|ERR_BLOCKED_BY_RESPONSE|ERR_BLOCKED_BY_CLIENT|ERR_BLOCKED_BY_ADMINISTRATOR/.test(msg)) sig = 'ip_blocked';
     else if (/ERR_TUNNEL_CONNECTION_FAILED|ERR_PROXY_CONNECTION_FAILED/.test(msg)) sig = 'proxy_failed';
     else if (finalUrl.startsWith('chrome-error://')) sig = 'proxy_failed';
+    else if (/login_rate_limited|Maximum number of attempts reached/i.test(msg)) sig = 'rate_limited';
     else if (/captcha|verify-app|app-download/i.test(msg) || /\/login\/download-app|\/captcha/.test(finalUrl)) sig = 'captcha_challenge';
     else if (/\/login/.test(finalUrl)) sig = 'checkpoint';
     fs.writeFileSync(path.join(dir, 'ban_signal.json'), JSON.stringify({ account_id: acct.id, username: acct.username, action: 'tiktok_login', signal: sig, healthy: false, details: { final_url: finalUrl, reason: e.message?.slice(0, 200) ?? 'no message' }, ts: new Date().toISOString() }, null, 2));
