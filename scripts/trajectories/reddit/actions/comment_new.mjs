@@ -4,8 +4,8 @@
  * All interactions use human atoms. Zero raw page.mouse.click,
  * zero page.evaluate(fetch), zero dispatchEvent.
  */
-import { humanClick, humanClickLocator, humanHoverDwell, humanScroll, humanIdlePause, humanMove } from '../../../dist/human/mouse.js';
-import { humanType } from '../../../dist/human/keyboard.js';
+import { humanClick, humanClickLocator, humanHoverDwell, humanScroll, humanIdlePause, humanMove } from '../../../../dist/human/mouse.js';
+import { humanType } from '../../../../dist/human/keyboard.js';
 import { findComposerPart } from './comment_composer.mjs';
 
 export { findComposerPart };
@@ -265,4 +265,27 @@ export async function verifyCommentVisibility(page, { realHandle, commentBody, c
   else verdict = 'rejected';
 
   return { inUserListing, inPostThread, publicAboutStatus, inAuthListing, verdict };
+}
+
+/** Post-submit browsing: dwell on subreddit for 2-3 min to avoid delayed shadow-removal. */
+export async function postSubmitBrowse(page) {
+  console.log(`[post-submit] browsing subreddit for 2-3 min before close`);
+  await humanIdlePause('deliberate');
+  await humanScroll(page, 600 + Math.floor(Math.random() * 400), 2).catch(() => {});
+  await page.waitForTimeout(8000 + Math.floor(Math.random() * 4000));
+  const postLinks = await page.locator('a[data-click-id="body"], a[href*="/comments/"]').filter({ visible: true }).all().catch(() => []);
+  if (postLinks.length > 1) {
+    const idx = 1 + Math.floor(Math.random() * Math.min(postLinks.length - 1, 4));
+    console.log(`[post-submit] clicking another post (#${idx})`);
+    await humanClickLocator(page, postLinks[idx]).catch(() => {});
+    await page.waitForTimeout(10000 + Math.floor(Math.random() * 8000));
+    await humanScroll(page, 400 + Math.floor(Math.random() * 600), 3).catch(() => {});
+    await page.waitForTimeout(15000 + Math.floor(Math.random() * 10000));
+    const authorLink = page.locator('a[href^="/user/"]').filter({ visible: true }).first();
+    await humanHoverDwell(page, authorLink, { minMs: 2500, maxMs: 4500 }).catch(() => false);
+    await page.waitForTimeout(5000 + Math.floor(Math.random() * 5000));
+    await humanScroll(page, 300 + Math.floor(Math.random() * 400), 2).catch(() => {});
+  }
+  await page.waitForTimeout(20000 + Math.floor(Math.random() * 15000));
+  console.log(`[post-submit] browse phase done`);
 }
