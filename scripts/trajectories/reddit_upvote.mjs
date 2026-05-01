@@ -5,6 +5,7 @@ import { detectRedditBanSignals } from '../../dist/platforms/reddit/ban_signals.
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { assertAuthed, AuthProbeError } from './_shared/auth-probe.mjs';
+import { loadFreshCookieJarOrFail, CookieJarStaleError } from './_shared/cookie-freshness.mjs';
 
 const SUBREDDIT = (process.env.SUBREDDIT || 'CasualConversation').replace(/^r\//, '');
 
@@ -14,8 +15,17 @@ console.log(`[trajectory] Using account: ${acct.username}`);
 
 const { proxyUrl, persona } = await resolveAccountSession(acct);
 const s = await WSession.start({ label: 'reddit_upvote', proxy: proxyUrl, persona });
-const _stored = (acct.metadata?.cookies ?? []).filter(c => /reddit\.com/.test(c.domain ?? ''));
-if (_stored.length) await s.ctx.addCookies(_stored.map(c => ({ ...c, path: c.path || '/' }))).catch(() => {});
+// Cookie freshness gate — see _shared/cookie-freshness.mjs.
+let _stored;
+try {
+  const _all = loadFreshCookieJarOrFail(acct, { platform: 'reddit', label: 'reddit_upvote', currentProxyUrl: proxyUrl, currentPersona: persona });
+  _stored = _all.filter(c => /reddit\.com/.test(c.domain ?? ''));
+  if (!_stored.length) throw new CookieJarStaleError('cookie_jar_no_domain_match: jar fresh but no reddit.com cookies', { platform: 'reddit' });
+} catch (jarErr) {
+  if (jarErr instanceof CookieJarStaleError) { console.log(`FAIL: ${jarErr.message}`); await markCookiesStale(acct.id); await s.close().catch(() => {}); process.exit(1); }
+  throw jarErr;
+}
+await s.ctx.addCookies(_stored.map(c => ({ ...c, path: c.path || '/' }))).catch(() => {});
 let banSignal = null;
 try {
   // Use old.reddit.com — same deterministic vote arrows pattern as

@@ -2,6 +2,7 @@ import { getSocialAccount, resolveAccountSession, markCookiesStale } from '../..
 import { WSession } from '../../dist/session/wsession.js';
 import { humanClickLocator } from '../../dist/human/mouse.js';
 import { assertAuthed, AuthProbeError } from './_shared/auth-probe.mjs';
+import { loadFreshCookieJarOrFail, CookieJarStaleError } from './_shared/cookie-freshness.mjs';
 
 // TikTok's /foryou page renders an empty body for sessions flagged by the
 // fingerprint/proxy heuristics — videoCount=1 (the auto-play element) but
@@ -24,9 +25,16 @@ const { proxyUrl, persona } = await resolveAccountSession(acct);
 const s = await WSession.start({ label: 'tiktok_like', proxy: proxyUrl, persona });
 
 try {
-  // Cookie-first auth.
-  const stored = (acct.metadata?.cookies ?? []).filter(c => /tiktok\.com/.test(c.domain ?? ''));
-  if (!stored.length) { console.log('FAIL: no tiktok cookies — login first'); process.exit(1); }
+  // Cookie freshness gate — see _shared/cookie-freshness.mjs.
+  let stored;
+  try {
+    const all = loadFreshCookieJarOrFail(acct, { platform: 'tiktok', label: 'tiktok_like', currentProxyUrl: proxyUrl, currentPersona: persona });
+    stored = all.filter(c => /tiktok\.com/.test(c.domain ?? ''));
+    if (!stored.length) throw new CookieJarStaleError('cookie_jar_no_domain_match: jar fresh but no tiktok.com cookies', { platform: 'tiktok' });
+  } catch (jarErr) {
+    if (jarErr instanceof CookieJarStaleError) { console.log(`FAIL: ${jarErr.message}`); await markCookiesStale(acct.id); process.exit(1); }
+    throw jarErr;
+  }
   await s.ctx.addCookies(stored.map(c => ({ ...c, path: c.path || '/' })));
 
   // 1. Navigate to a profile that always has the action bar working

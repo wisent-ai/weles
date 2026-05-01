@@ -1,6 +1,7 @@
 import { getSocialAccount } from '../../dist/utils/credentials.js';
 import { WSession } from '../../dist/session/wsession.js';
 import { humanClickLocator } from '../../dist/human/mouse.js';
+import { persistFreshCookieJar } from './_shared/cookie-freshness.mjs';
 
 const URL = 'https://github.com/login';
 
@@ -165,16 +166,10 @@ try {
   if (sessionCookieFresh && !isLoginPage) {
     const finalCookies = postLoginCookies;
     console.log(`PASS: logged in as ${acct.username} — ${finalUrl}`);
-    // Persist fresh cookies back to the account
-    const url = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
-    const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
-    if (url && key && acct.id) {
-      await fetch(`${url}/rest/v1/social_accounts?id=eq.${acct.id}`, {
-        method: 'PATCH',
-        headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ metadata: { ...acct.metadata, cookies: finalCookies, cookies_updated_at: new Date().toISOString() } }),
-      }).catch(() => {});
-    }
+    // Persist fresh cookies back to the account, stamped with cookies_minted_at
+    // so action trajectories can enforce a freshness window before reuse.
+    try { await persistFreshCookieJar(acct, finalCookies, { currentProxyUrl: proxyUrl }); }
+    catch (e) { console.log('[cookie-capture] err:', e.message?.slice(0, 100)); }
   } else {
     // Classify the failure so operators can triage. GitHub returns distinct
     // signals for bad credentials vs anti-abuse vs device-verification gates,

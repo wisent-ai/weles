@@ -158,10 +158,28 @@ import { refreshStickyIfDead } from '../proxy/sticky.js';
 
 export interface AccountSession { proxyUrl?: string; persona?: Persona; }
 
+function inferTrajectoryAction(platform: string): string {
+  const explicit = process.env.ACTION?.trim();
+  if (explicit) return explicit;
+
+  const script = process.argv[1] ?? '';
+  const parts = script.replace(/\.(?:mjs|cjs|js|ts)$/, '').split(/[\\/]+/).filter(Boolean);
+  const file = parts[parts.length - 1] ?? '';
+  const parent = parts[parts.length - 2] ?? '';
+  const grandparent = parts[parts.length - 3] ?? '';
+
+  if (file.startsWith(`${platform}_`)) return file;
+  if (parent === platform && file && file !== 'index') return `${platform}_${file}`;
+  if (grandparent === platform && file && !['index', 'run'].includes(file)) return `${platform}_${file}`;
+  if (grandparent === platform && parent && file === 'run') return `${platform}_${parent}`;
+  return `${platform}_unknown`;
+}
+
 export async function resolveAccountSession(acct: SocialAccount): Promise<AccountSession> {
   const meta = acct.metadata as any;
   const out: AccountSession = {};
   let cfg: ProxyConfig | null = null;
+  const action = inferTrajectoryAction(acct.platform);
 
   // Direct egress for platforms with NO datacenter blacklist. GitHub and
   // Producthunt accept VM IP. LinkedIn HEAD 200 from VM but actual load
@@ -200,16 +218,16 @@ export async function resolveAccountSession(acct: SocialAccount): Promise<Accoun
     // dynamic-pick path below find a passing one. Otherwise keep the stored
     // sticky session so accounts maintain a stable exit-IP cohort.
     let storedFailing = false;
-    if (storedProvider && process.env.ACTION) {
+    if (storedProvider) {
       try {
         const { isCellFail } = await import('../proxy/capability.js');
-        storedFailing = await isCellFail(storedProvider, process.env.ACTION);
+        storedFailing = await isCellFail(storedProvider, action);
       } catch { /* capability lookup best-effort */ }
     }
     if (isLegacyRelay) {
       console.log(`[identity] dropping stored legacy/datacenter proxy ${meta.proxy.host}:${meta.proxy.port} — falling through to provider selection`);
     } else if (storedFailing) {
-      console.log(`[identity] capability matrix marks ${storedProvider}/${process.env.ACTION} as fail — dropping stored proxy`);
+      console.log(`[identity] capability matrix marks ${storedProvider}/${action} as fail — dropping stored proxy`);
     } else {
       const refreshed = await refreshStickyIfDead(meta.proxy as ProxyConfig);
       if (refreshed) { cfg = refreshed; if (refreshed !== meta.proxy) await backfillProxy(acct, refreshed); }
@@ -237,7 +255,6 @@ export async function resolveAccountSession(acct: SocialAccount): Promise<Accoun
     // cell for this (provider, action) is 'pass' (or 'unknown' on cold-start).
     // The matrix updates after every action via worker/poll.recordOutcome.
     // Self-heals when a provider's quality drops; no hardcoded toxicity table.
-    const action = process.env.ACTION ?? `${acct.platform}_unknown`;
     const country = acct.platform === 'discord' ? '' : 'us';
     const PHOST: Record<string, string> = { twitter: 'x.com', linkedin: 'www.linkedin.com', instagram: 'www.instagram.com', reddit: 'www.reddit.com', tiktok: 'www.tiktok.com', discord: 'discord.com', github: 'github.com', producthunt: 'www.producthunt.com' };
     const targetHost = PHOST[acct.platform];

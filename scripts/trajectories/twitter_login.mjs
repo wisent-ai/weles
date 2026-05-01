@@ -2,6 +2,7 @@ import { getSocialAccount, resolveAccountSession } from '../../dist/utils/creden
 import { WSession } from '../../dist/session/wsession.js';
 import { humanFill } from '../../dist/human/keyboard.js';
 import { humanClickLocator } from '../../dist/human/mouse.js';
+import { persistFreshCookieJar } from './_shared/cookie-freshness.mjs';
 
 const LOGIN_URL = 'https://x.com/i/flow/login';
 const HOME_URL = 'https://x.com/home';
@@ -17,20 +18,9 @@ const s = await WSession.start({ label: 'twitter_login', proxy: proxyUrl, person
 
 async function captureCookies() {
   if (!acct.id) return;
-  const supabaseUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
-  if (!supabaseUrl || !key) return;
   try {
     const cookies = await s.ctx.cookies();
-    const r = await fetch(`${supabaseUrl}/rest/v1/social_accounts?id=eq.${acct.id}&select=metadata`, { headers: { apikey: key, Authorization: `Bearer ${key}` } });
-    const rows = await r.json();
-    const merged = { ...(rows?.[0]?.metadata ?? {}), cookies };
-    await fetch(`${supabaseUrl}/rest/v1/social_accounts?id=eq.${acct.id}`, {
-      method: 'PATCH',
-      headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
-      body: JSON.stringify({ metadata: merged }),
-    });
-    console.log(`[cookie-capture] refreshed ${cookies.length} cookies for account ${acct.id}`);
+    await persistFreshCookieJar(acct, cookies, { currentProxyUrl: proxyUrl, currentPersona: persona });
   } catch (e) { console.log('[cookie-capture] err:', e.message); }
 }
 

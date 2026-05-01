@@ -2,6 +2,7 @@ import { getSocialAccount } from '../../../dist/utils/credentials.js';
 import { WSession } from '../../../dist/session/wsession.js';
 import { humanType } from '../../../dist/human/keyboard.js';
 import { humanClickLocator } from '../../../dist/human/mouse.js';
+import { persistFreshCookieJar } from '../_shared/cookie-freshness.mjs';
 
 const URL = 'https://accounts.snapchat.com/accounts/login';
 
@@ -28,6 +29,9 @@ try {
   await humanType(s.page, process.env.SVC_PASSWORD);
   await humanClickLocator(s.page, s.page.locator('button[type="submit"], button:has-text("Log In"), button:has-text("Sign in")').filter({ visible: true }).first());
   await s.page.waitForFunction(() => /accounts\.snapchat\.com\/(?!.*login)/.test(location.href) || /accounts\.snapchat\.com\/account\/?$/.test(location.href), { timeout: 25000 });
+  // Persist with cookies_minted_at for freshness window enforcement.
+  try { const cookies = await s.ctx.cookies(); await persistFreshCookieJar(acct, cookies, { currentProxyUrl: process.env.PROXY_URL }); }
+  catch (e) { console.log('[cookie-capture] err:', e.message?.slice(0, 100)); }
   console.log(`PASS: logged in (${s.page.url()})`);
 } catch (e) {
   console.log('FAIL:', e.message?.slice(0, 200));

@@ -3,6 +3,7 @@ import { WSession } from '../../../dist/session/wsession.js';
 import { humanType } from '../../../dist/human/keyboard.js';
 import { humanClickLocator } from '../../../dist/human/mouse.js';
 import { assertAuthed, AuthProbeError } from '../_shared/auth-probe.mjs';
+import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../_shared/cookie-freshness.mjs';
 
 const TARGET = process.env.TARGET_USERNAME || 'team.snapchat';
 const LOGIN_URL = 'https://accounts.snapchat.com/accounts/login';
@@ -15,8 +16,17 @@ console.log(`[trajectory] Using account: ${acct.username} target=${TARGET}`);
 
 const s = await WSession.start({ label: 'snapchat_add_friend', proxy: process.env.PROXY_URL || undefined });
 try {
-  // Cookie-first via stored cookies on accounts.snapchat.com / web.snapchat.com.
-  const stored = Array.isArray(acct.metadata?.cookies) ? acct.metadata.cookies : [];
+  // Cookie freshness gate — see _shared/cookie-freshness.mjs. On stale,
+  // skip injection so the form-login fallback below kicks in (snapchat
+  // login is part of this trajectory's recovery path).
+  let stored = [];
+  try {
+    stored = loadFreshCookieJarOrFail(acct, { platform: 'snapchat', label: 'snapchat_add_friend', currentProxyUrl: proxyUrl, currentPersona: persona });
+  } catch (jarErr) {
+    if (!(jarErr instanceof CookieJarStaleError)) throw jarErr;
+    console.log(`[snapchat_add_friend] ${jarErr.message} — falling through to form login`);
+    stored = [];
+  }
   if (stored.length) await s.ctx.addCookies(stored.filter(c => c?.name && c?.value && (c.domain || c.url)).map(c => ({ ...c, path: c.path || '/' }))).catch(() => {});
 
   await s.goto('https://web.snapchat.com/');

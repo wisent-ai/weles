@@ -3,6 +3,7 @@ import { WSession } from '../../dist/session/wsession.js';
 import { humanType } from '../../dist/human/keyboard.js';
 import { humanClickLocator } from '../../dist/human/mouse.js';
 import { assertAuthed, AuthProbeError } from './_shared/auth-probe.mjs';
+import { loadFreshCookieJarOrFail, CookieJarStaleError } from './_shared/cookie-freshness.mjs';
 
 const RECIPIENT = process.env.RECIPIENT_HANDLE || 'wisent_ai';
 const MESSAGE = process.env.DM_MESSAGE || 'Hello from weles agent';
@@ -15,8 +16,16 @@ const { proxyUrl, persona } = await resolveAccountSession(acct);
 const s = await WSession.start({ label: 'twitter_dm', proxy: proxyUrl, persona });
 
 try {
-  const stored = (acct.metadata?.cookies ?? []).filter(c => /(^|\.)x\.com$|(^|\.)twitter\.com$/.test(c.domain ?? ''));
-  if (!stored.length) { console.log('FAIL: no twitter cookies — login first'); process.exit(1); }
+  // Cookie freshness gate — see _shared/cookie-freshness.mjs.
+  let stored;
+  try {
+    const all = loadFreshCookieJarOrFail(acct, { platform: 'twitter', label: 'twitter_dm', currentProxyUrl: proxyUrl, currentPersona: persona });
+    stored = all.filter(c => /(^|\.)x\.com$|(^|\.)twitter\.com$/.test(c.domain ?? ''));
+    if (!stored.length) throw new CookieJarStaleError('cookie_jar_no_domain_match: jar fresh but no x.com/twitter.com cookies', { platform: 'twitter' });
+  } catch (jarErr) {
+    if (jarErr instanceof CookieJarStaleError) { console.log(`FAIL: ${jarErr.message}`); await markCookiesStale(acct.id); process.exit(1); }
+    throw jarErr;
+  }
   await s.ctx.addCookies(stored.map(c => ({ ...c, path: c.path || '/' })));
 
   await s.page.goto('https://x.com/home', { waitUntil: 'domcontentloaded' });

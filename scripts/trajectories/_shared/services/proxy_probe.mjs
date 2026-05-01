@@ -50,9 +50,15 @@ export function probeCredsFor(displayName) {
   const e = process.env;
   switch (displayName) {
     case 'Bright Data':
-      return e.BRIGHTDATA_USERNAME && e.BRIGHTDATA_PASSWORD
-        ? { host: 'brd.superproxy.io', port: 22225, username: `brd-customer-${e.BRIGHTDATA_USERNAME}-zone-${e.BRIGHTDATA_ZONE ?? 'isp'}`, password: e.BRIGHTDATA_PASSWORD }
-        : null;
+      if (!e.BRIGHTDATA_USERNAME || !e.BRIGHTDATA_PASSWORD) return null;
+      return {
+        host: 'brd.superproxy.io',
+        port: 22225,
+        username: e.BRIGHTDATA_USERNAME.startsWith('brd-customer-')
+          ? e.BRIGHTDATA_USERNAME
+          : `brd-customer-${e.BRIGHTDATA_USERNAME}-zone-${e.BRIGHTDATA_ZONE ?? 'isp'}`,
+        password: e.BRIGHTDATA_PASSWORD,
+      };
     case 'PacketStream':
       return e.PACKETSTREAM_USERNAME && e.PACKETSTREAM_PASSWORD
         ? { host: 'proxy.packetstream.io', port: 31112, username: e.PACKETSTREAM_USERNAME, password: e.PACKETSTREAM_PASSWORD }
