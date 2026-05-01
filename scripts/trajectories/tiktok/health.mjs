@@ -8,7 +8,11 @@ await runHealthProbe({
   loggedInUrl: 'https://www.tiktok.com/foryou',
   loggedInRegex: /tiktok\.com\/(foryou|login)/,
   loggedOutUrl: (u) => `https://www.tiktok.com/@${encodeURIComponent(u)}`,
-  loggedOutRegex: /tiktok\.com\/@[^/?]+$/,
+  // Allow trailing query params (TikTok auto-appends ?lang=en-GB and others)
+  // and trailing slash. Must be permissive enough to catch the profile-page
+  // response post-redirect; otherwise capturedResponses.find() returns
+  // nothing and the probe falsely reports shadowbanned.
+  loggedOutRegex: /tiktok\.com\/@[^/?]+(?:[/?#].*)?$/,
   banDetector: detectTikTokBanSignals,
   extractLoggedIn: (body, resp) => {
     const finalUrl = resp?.url ?? '';

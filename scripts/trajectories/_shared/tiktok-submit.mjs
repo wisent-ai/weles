@@ -1,7 +1,80 @@
 import { humanType } from '../../../dist/human/keyboard.js';
 import { humanClickLocator } from '../../../dist/human/mouse.js';
 
+/**
+ * Navigate to a video page from the current feed/profile, then submit a
+ * comment. TikTok's /foryou feed uses an immersive video player where the
+ * right-rail action bar (comment icon, like button, etc.) frequently fails to
+ * hydrate — the same render-shadow that tiktok_like works around by navigating
+ * to a profile → video page first. On a dedicated /video/ page the right rail
+ * always mounts, so the comment icon and input are reliably present.
+ *
+ * If the page is already on a /video/ URL with a visible comment icon, we
+ * skip the navigation and go straight to commenting.
+ */
 export async function tiktokSubmitComment(s, text) {
+  let currentUrl = s.page.url?.() ?? '';
+
+  // If we're not already on a video page, navigate to one. Strategy:
+  // 1. If on a profile page (@user), click the first video link.
+  // 2. If on /foryou or /following, navigate to @tiktok (always has videos)
+  //    and click through to a video page.
+  // TikTok's /foryou immersive player frequently fails to hydrate the
+  // right-rail action bar (comment icon, like button, etc.) — same
+  // render-shadow as tiktok_like. On a dedicated /video/ page the right
+  // rail always mounts, so the comment icon and input are reliably present.
+  const onVideoPage = /\/video\/\d+/.test(currentUrl);
+  if (!onVideoPage) {
+    const isProfile = /\/@[^/?#]+$/.test(currentUrl.split('?')[0]);
+    if (!isProfile) {
+      // On /foryou or other page — navigate to @tiktok profile.
+      console.log('[tiktok-submit] navigating to @tiktok profile for video link');
+      await s.goto('https://www.tiktok.com/@tiktok');
+      currentUrl = s.page.url?.() ?? '';
+    }
+    // Wait for profile grid to render video links.
+    const firstVideo = s.page.locator('a[href*="/video/"]').first();
+    const gridLoaded = await firstVideo.waitFor({ state: 'visible', timeout: 30000 }).then(() => true).catch(() => false);
+    if (!gridLoaded) {
+      const bodyLen = await s.page.evaluate(() => document.body?.innerText?.length || 0).catch(() => 0);
+      throw new Error(`tiktok_comment: profile @tiktok did not render video grid (bodyLen=${bodyLen}) — render-shadowed`);
+    }
+    // Click through to a video page. Try up to 4 videos in case the first
+    // doesn't hydrate the right rail (same pattern as tiktok_like).
+    const videoLinks = await s.page.locator('a[href*="/video/"]').all();
+    const candidates = videoLinks.slice(0, Math.min(4, videoLinks.length));
+    console.log(`[tiktok-submit] found ${candidates.length} video links on profile`);
+    let landed = false;
+    for (let i = 0; i < candidates.length; i++) {
+      const link = candidates[i];
+      const href = await link.getAttribute('href').catch(() => '');
+      console.log(`[tiktok-submit] trying video ${i + 1}/${candidates.length}: ${href}`);
+      try {
+        await humanClickLocator(s.page, link);
+        await s.page.waitForURL(/\/video\/\d+/, { timeout: 15000 }).catch(() => {});
+        // Wait for the right rail to hydrate (comment icon appears).
+        const commentIconProbe = s.page.locator('[data-e2e="comment-icon"], [data-e2e="browse-comment-icon"]').filter({ visible: true }).first();
+        const found = await commentIconProbe.waitFor({ state: 'visible', timeout: 25000 }).then(() => true).catch(() => false);
+        if (found) {
+          console.log(`[tiktok-submit] comment icon hydrated on video ${i + 1}`);
+          landed = true;
+          break;
+        }
+        console.log(`[tiktok-submit] video ${i + 1} did not hydrate comment icon — retrying`);
+      } catch (e) {
+        console.log(`[tiktok-submit] video ${i + 1} click failed: ${e.message?.slice(0, 80)}`);
+      }
+      // Go back to profile to try next video.
+      if (i < candidates.length - 1) {
+        await s.page.goBack({ waitUntil: 'domcontentloaded' }).catch(() => {});
+        await s.page.waitForTimeout(2000);
+        // Wait for profile grid to re-render.
+        await s.page.locator('a[href*="/video/"]').first().waitFor({ state: 'visible', timeout: 15000 }).catch(() => {});
+      }
+    }
+    if (!landed) throw new Error('tiktok_comment: could not reach a video page with a visible comment icon');
+  }
+
   // Comment toggle — sidebar icon with data-e2e="comment-icon" / "browse-comment-icon".
   const commentIcon = s.page.locator('[data-e2e="comment-icon"], [data-e2e="browse-comment-icon"], [data-e2e="feed-comment-icon"]').filter({ visible: true }).first();
   if (await commentIcon.count()) {

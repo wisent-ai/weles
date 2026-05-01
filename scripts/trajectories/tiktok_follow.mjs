@@ -26,7 +26,10 @@ try {
   // TikTok doesn't redirect logged-out users to /login — it just renders the
   // profile page without the follow button. Detect this by checking for the
   // sessionid cookie (proof of valid session). No sessionid = cookies stale.
-  const hasSessionId = await s.page.evaluate(() => document.cookie.includes('sessionid'));
+  // sessionid is httpOnly so document.cookie can't see it — read via the
+  // browser context API.
+  const ctxCookies = await s.ctx.cookies();
+  const hasSessionId = ctxCookies.some(c => c.name === 'sessionid' && (c.domain || '').includes('tiktok'));
   if (!hasSessionId) {
     console.log('FAIL: cookies stale (no sessionid) — login first');
     await markCookiesStale(acct.id);
