@@ -1,7 +1,7 @@
 import { WSession } from '../../dist/session/wsession.js';
 import { humanType } from '../../dist/human/keyboard.js';
 import { humanMove, humanIdlePause, humanClick, humanClickLocator, humanScroll, humanHoverDwell } from '../../dist/human/mouse.js';
-import { findComposerPart, spaTransitionToPost, engageMedia, dwellOnPostPage, submitNewRedditComment, verifyCommentVisibility } from './reddit/actions/comment_new.mjs';
+import { findComposerPart, spaTransitionToPost, engageMedia, dwellOnPostPage, submitNewRedditComment, verifyCommentVisibility, postSubmitBrowse } from './reddit/actions/comment_new.mjs';
 import { detectRedditBanSignals } from '../../dist/platforms/reddit/ban_signals.js';
 import { generateOrganicComment } from './_shared/llm.mjs';
 import { randomBytes } from 'node:crypto';
@@ -271,6 +271,7 @@ try {
   const acceptedBySubmit = !!(createdComment?.permalink || createdComment?.id);
   if (verdict === 'PASS') {
     console.log(`PASS: ${id.username} -> commented "${COMMENT_BODY}" -> https://www.reddit.com${commentPermalink} (visible in post thread)`);
+    await postSubmitBrowse(s.page);
   } else {
     console.log(`FAIL: ${id.username} -> ${verdict} | inUserListing=${inUserListing} inPostThread=${inPostThread} aboutStatus=${aboutStatus} inAuthListing=${inAuthListing}`);
     process.exit(1);
