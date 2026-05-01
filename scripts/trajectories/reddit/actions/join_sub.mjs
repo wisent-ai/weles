@@ -1,10 +1,11 @@
-import { getSocialAccount, resolveAccountSession } from '../../../../dist/utils/credentials.js';
+import { getSocialAccount, resolveAccountSession, markCookiesStale } from '../../../../dist/utils/credentials.js';
 import { WSession } from '../../../../dist/session/wsession.js';
 import { humanClickLocator } from '../../../../dist/human/mouse.js';
 import { detectRedditBanSignals } from '../../../../dist/platforms/reddit/ban_signals.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { checkReachable } from '../../_shared/action-runner.mjs';
+import { assertAuthed, AuthProbeError } from '../../_shared/auth-probe.mjs';
 
 const SUBREDDIT = (process.env.SUBREDDIT || 'popular').replace(/^r\//, '');
 
@@ -22,6 +23,8 @@ try {
   // shadow DOM of <faceplate-tracker> / shreddit web components.
   await s.goto(`https://old.reddit.com/r/${encodeURIComponent(SUBREDDIT)}/`);
   checkReachable(s, 'reddit');
+  try { await assertAuthed('reddit', s, { label: 'reddit_join_sub' }); }
+  catch (probeErr) { if (probeErr instanceof AuthProbeError) { console.log(`FAIL: ${probeErr.message}`); await markCookiesStale(acct.id); process.exit(1); } throw probeErr; }
   // Already subscribed? .fancy-toggle-button.remove exists when joined.
   if (await s.page.locator('a.fancy-toggle-button.remove, a.toggle-button.active').first().isVisible().catch(() => false)) {
     ban = await detectRedditBanSignals(s.page, s.capturedResponses).catch(() => null);

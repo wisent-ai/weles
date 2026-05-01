@@ -17,6 +17,7 @@
 import { getSocialAccount, resolveAccountSession, markCookiesStale } from '../../../dist/utils/credentials.js';
 import { WSession } from '../../../dist/session/wsession.js';
 import { generateOrganicComment, generatePromoteComment, generatePost } from './llm.mjs';
+import { assertAuthed, AuthProbeError } from './auth-probe.mjs';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -160,6 +161,24 @@ export async function runAction(cfg) {
       if (onAuthWallAfter) {
         banSignal = { signal: 'checkpoint', healthy: false, details: { final_url: settledUrl, reason: 'SPA-redirected to login wall during settle — stored cookies stale' } };
         throw new Error(`auth_wall: ${cfg.platform} session redirected to login during SPA settle — landed at ${settledUrl}`);
+      }
+      // Positive auth probe — REQUIRED before any write action. URL-bounce
+      // checks above only catch cookies that triggered a /login redirect;
+      // they MISS the device-mismatch case where TikTok / Twitter / etc.
+      // serve a logged-out shell on the same URL with all authed UI
+      // suppressed (no comment input, no compose button). Without this
+      // probe, the action loop runs on a logged-out page, fails to find
+      // its target locator, and gets misdiagnosed as render-shadow or
+      // anti-spam gating instead of "stored cookies are dead".
+      // See _shared/auth-probe.mjs for the per-platform markers + rules.
+      try {
+        await assertAuthed(cfg.platform, s, { label, timeout: 8000 });
+      } catch (probeErr) {
+        if (probeErr instanceof AuthProbeError) {
+          banSignal = probeErr.banSignal;
+          throw new Error(`auth_probe_failed: ${probeErr.message}`);
+        }
+        throw probeErr;
       }
     }
 

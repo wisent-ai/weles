@@ -1,10 +1,11 @@
-import { getSocialAccount, resolveAccountSession } from '../../../../dist/utils/credentials.js';
+import { getSocialAccount, resolveAccountSession, markCookiesStale } from '../../../../dist/utils/credentials.js';
 import { WSession } from '../../../../dist/session/wsession.js';
 import { humanClickLocator } from '../../../../dist/human/mouse.js';
 import { detectLinkedInBanSignals } from '../../../../dist/platforms/linkedin/ban_signals.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { checkReachable } from '../../_shared/action-runner.mjs';
+import { assertAuthed, AuthProbeError } from '../../_shared/auth-probe.mjs';
 
 const TARGET_URL = process.env.TARGET_URL || '';
 
@@ -19,6 +20,8 @@ try {
   await s.goto(TARGET_URL || 'https://www.linkedin.com/feed/');
   checkReachable(s, 'linkedin');
   await s.page.waitForTimeout(3500);
+  try { await assertAuthed('linkedin', s, { label: 'linkedin_like' }); }
+  catch (probeErr) { if (probeErr instanceof AuthProbeError) { console.log(`FAIL: ${probeErr.message}`); await markCookiesStale(acct.id); process.exit(1); } throw probeErr; }
   // LinkedIn's like button is a <button aria-label="React Like"> that flips
   // aria-pressed false→true on click. Scope to the first feed post container
   // so we don't accidentally tap a comment-level like.

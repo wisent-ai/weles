@@ -1,7 +1,8 @@
-import { getSocialAccount } from '../../../dist/utils/credentials.js';
+import { getSocialAccount, markCookiesStale } from '../../../dist/utils/credentials.js';
 import { WSession } from '../../../dist/session/wsession.js';
 import { humanType } from '../../../dist/human/keyboard.js';
 import { humanClickLocator } from '../../../dist/human/mouse.js';
+import { assertAuthed, AuthProbeError } from '../_shared/auth-probe.mjs';
 
 const VIDEO = process.env.VIDEO_URL || 'https://www.youtube.com/watch?v=dQw4w9WgXcQ';
 const COMMENT = process.env.COMMENT_TEXT || 'Great video!';
@@ -21,7 +22,10 @@ try {
   await s.goto(VIDEO);
   await s.page.waitForTimeout(4500);
   const loggedOut = await s.page.evaluate(() => !!document.querySelector('a[href^="https://accounts.google.com/ServiceLogin"]') && !document.querySelector('img#avatar-btn'));
-  if (loggedOut) throw new Error('not_logged_in: cookies stale — run youtube_login first');
+  if (loggedOut) { await markCookiesStale(acct.id); throw new Error('not_logged_in: cookies stale — run youtube_login first'); }
+  // Positive auth probe — see _shared/auth-probe.mjs.
+  try { await assertAuthed('youtube', s, { label: 'youtube_comment' }); }
+  catch (probeErr) { if (probeErr instanceof AuthProbeError) { console.log(`FAIL: ${probeErr.message}`); await markCookiesStale(acct.id); process.exit(1); } throw probeErr; }
 
   // Scroll to comment section: #comments anchor.
   await s.page.evaluate(() => { document.querySelector('#comments')?.scrollIntoView({ block: 'center' }); }).catch(() => {});

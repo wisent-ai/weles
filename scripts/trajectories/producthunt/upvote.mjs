@@ -1,4 +1,5 @@
 import { WSession } from '../../../dist/session/wsession.js';
+import { assertAuthed, AuthProbeError } from '../_shared/auth-probe.mjs';
 
 // Upvote a Product Hunt product. Pass PRODUCTHUNT_URL=https://www.producthunt.com/products/<slug>
 // to vote on a specific product; otherwise the trajectory upvotes the first product
@@ -117,6 +118,10 @@ async function vote(s) {
   await injectPHCookies(s, cookies);
   await s.goto(TARGET_URL);
   await sleep(4);
+
+  // Positive auth probe — see _shared/auth-probe.mjs.
+  try { await assertAuthed('producthunt', s, { label: 'producthunt_upvote' }); }
+  catch (probeErr) { if (probeErr instanceof AuthProbeError) { throw new Error(`auth_probe_failed: ${probeErr.message}`); } throw probeErr; }
 
   // Dismiss cookie consent banner if present
   const t0 = await readPage(s);

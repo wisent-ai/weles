@@ -5,6 +5,8 @@ import { detectTikTokBanSignals } from '../../../../dist/platforms/tiktok/ban_si
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { checkReachable } from '../../_shared/action-runner.mjs';
+import { assertAuthed, AuthProbeError } from '../../_shared/auth-probe.mjs';
+import { markCookiesStale } from '../../../../dist/utils/credentials.js';
 
 // When TARGET_USER is unset, default to TikTok's official account — gives a
 // deterministic, always-populated profile page rather than relying on the
@@ -22,6 +24,13 @@ try {
   await s.goto(`https://www.tiktok.com/@${encodeURIComponent(TARGET_USER)}`);
   checkReachable(s, 'tiktok');
   await s.page.waitForTimeout(3500);
+  // Positive auth probe — cookies in jar ≠ TikTok server trusts session.
+  // See _shared/auth-probe.mjs.
+  try { await assertAuthed('tiktok', s, { label: 'tiktok_follow' }); }
+  catch (probeErr) {
+    if (probeErr instanceof AuthProbeError) { console.log(`FAIL: ${probeErr.message}`); await markCookiesStale(acct.id); process.exit(1); }
+    throw probeErr;
+  }
   // Idempotent: if already following, exit clean.
   const followingBtn = s.page.locator('button[data-e2e="follow-icon"], button:has-text("Following")').filter({ visible: true }).first();
   if (await followingBtn.count().catch(() => 0) > 0) {

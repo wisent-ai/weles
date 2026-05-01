@@ -1,10 +1,11 @@
-import { getSocialAccount, resolveAccountSession } from '../../../../dist/utils/credentials.js';
+import { getSocialAccount, resolveAccountSession, markCookiesStale } from '../../../../dist/utils/credentials.js';
 import { WSession } from '../../../../dist/session/wsession.js';
 import { humanClickLocator } from '../../../../dist/human/mouse.js';
 import { detectRedditBanSignals } from '../../../../dist/platforms/reddit/ban_signals.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { checkReachable } from '../../_shared/action-runner.mjs';
+import { assertAuthed, AuthProbeError } from '../../_shared/auth-probe.mjs';
 
 const TARGET_USER = (process.env.TARGET_USER || '').replace(/^u\//, '').replace(/^\/u\//, '');
 const SUBREDDIT   = (process.env.SUBREDDIT   || 'popular').replace(/^r\//, '');
@@ -34,6 +35,8 @@ try {
   // u_ subreddit directly avoids new-reddit shadow DOM entirely.
   await s.goto(`https://old.reddit.com/r/u_${encodeURIComponent(author)}/`);
   checkReachable(s, 'reddit');
+  try { await assertAuthed('reddit', s, { label: 'reddit_follow' }); }
+  catch (probeErr) { if (probeErr instanceof AuthProbeError) { console.log(`FAIL: ${probeErr.message}`); await markCookiesStale(acct.id); process.exit(1); } throw probeErr; }
   if (await s.page.locator('a.fancy-toggle-button.remove, a.toggle-button.active').first().isVisible().catch(() => false)) {
     ban = await detectRedditBanSignals(s.page, s.capturedResponses).catch(() => null);
     console.log(`[ban-signal] ${ban?.signal}  PASS: already following u/${author}`);

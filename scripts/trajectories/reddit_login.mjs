@@ -56,25 +56,10 @@ async function captureCookies() {
 
 let banSignal = null;
 try {
-  // Cookie-first: inject reddit_session and navigate to /home. If we land
-  // there without the /login redirect, login is already valid via cookies.
-  const stored = Array.isArray(acct.metadata?.cookies) ? acct.metadata.cookies : [];
-  const hasSession = stored.some(c => /reddit_session/.test(c?.name ?? ''));
-  if (hasSession) {
-    const prepared = stored.filter(c => c?.name && c?.value && (c.domain || c.url)).map(c => ({ ...c, path: c.path || '/' }));
-    await s.ctx.addCookies(prepared).catch(() => {});
-    await s.page.goto('https://www.reddit.com/', { waitUntil: 'domcontentloaded' });
-    await s.page.waitForTimeout(3000);
-    const u = s.page.url();
-    if (!/\/login/.test(u)) {
-      console.log(`PASS: logged in (cookie-first) — ${u}`);
-      banSignal = { signal: 'healthy', healthy: true, details: { url: u } };
-      await captureCookies();
-      await s.close();
-      process.exit(0);
-    }
-    console.log(`[reddit_login] cookie-first landed on ${u}, falling through to form login`);
-  }
+  // Cookie-first removed — reddit serves www.reddit.com/ to logged-out
+  // users too, so URL-didn't-bounce-to-/login was a false-positive PASS.
+  // Login always means form login now. Action trajectories use
+  // assertAuthed() from _shared/auth-probe.mjs.
   await s.goto(URL);
   const earlySignal = await detectRedditBanSignals(s.page, s.capturedResponses).catch(() => null);
   if (earlySignal?.signal === 'ip_blocked') {

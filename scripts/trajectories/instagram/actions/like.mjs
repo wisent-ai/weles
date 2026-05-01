@@ -1,10 +1,11 @@
-import { getSocialAccount, resolveAccountSession } from '../../../../dist/utils/credentials.js';
+import { getSocialAccount, resolveAccountSession, markCookiesStale } from '../../../../dist/utils/credentials.js';
 import { WSession } from '../../../../dist/session/wsession.js';
 import { humanClickLocator } from '../../../../dist/human/mouse.js';
 import { detectInstagramBanSignals } from '../../../../dist/platforms/instagram/ban_signals.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { checkReachable } from '../../_shared/action-runner.mjs';
+import { assertAuthed, AuthProbeError } from '../../_shared/auth-probe.mjs';
 
 const TARGET_URL  = process.env.TARGET_URL || '';
 const TARGET_USER = (process.env.TARGET_USER || '').replace(/^@/, '');
@@ -26,6 +27,8 @@ try {
   await s.goto(url);
   checkReachable(s, 'instagram');
   await s.page.waitForTimeout(3500);
+  try { await assertAuthed('instagram', s, { label: 'instagram_like' }); }
+  catch (probeErr) { if (probeErr instanceof AuthProbeError) { console.log(`FAIL: ${probeErr.message}`); await markCookiesStale(acct.id); process.exit(1); } throw probeErr; }
   // If we're on a grid (profile, explore, hashtag), the page has a wall of
   // post-thumbnail anchors a[href^="/p/"] / a[href^="/reel/"]. Open the
   // first one to land on a single-post URL where the like button is stable.

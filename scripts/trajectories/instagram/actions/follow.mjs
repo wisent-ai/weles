@@ -5,6 +5,8 @@ import { detectInstagramBanSignals } from '../../../../dist/platforms/instagram/
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { checkReachable } from '../../_shared/action-runner.mjs';
+import { assertAuthed, AuthProbeError } from '../../_shared/auth-probe.mjs';
+import { markCookiesStale } from '../../../../dist/utils/credentials.js';
 
 const TARGET_USER = (process.env.TARGET_USER || '').replace(/^@/, '');
 
@@ -20,6 +22,8 @@ try {
   await s.goto(url);
   checkReachable(s, 'instagram');
   await s.page.waitForTimeout(3500);
+  try { await assertAuthed('instagram', s, { label: 'instagram_follow' }); }
+  catch (probeErr) { if (probeErr instanceof AuthProbeError) { console.log(`FAIL: ${probeErr.message}`); await markCookiesStale(acct.id); process.exit(1); } throw probeErr; }
   // The follow CTA is a <button> with text "Follow" or "Follow back" in the
   // profile header. Once clicked, its text flips to "Following" (verifies
   // success). Filter to button-shaped follow exactly to avoid hitting

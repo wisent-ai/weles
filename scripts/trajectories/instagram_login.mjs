@@ -36,23 +36,10 @@ async function captureCookies() {
 }
 
 try {
-  // Cookie-first: inject sessionid, navigate to /, check we land on home
-  const stored = Array.isArray(acct.metadata?.cookies) ? acct.metadata.cookies : [];
-  const hasSessionId = stored.some(c => c?.name === 'sessionid' && c?.value);
-  if (hasSessionId) {
-    const prepared = stored.filter(c => c?.name && c?.value && (c.domain || c.url)).map(c => ({ ...c, path: c.path || '/' }));
-    await s.ctx.addCookies(prepared);
-    await s.page.goto('https://www.instagram.com/', { waitUntil: 'domcontentloaded' });
-    await s.page.waitForTimeout(3500);
-    const u = s.page.url();
-    if (/accounts\/suspended|accounts\/disabled/.test(u)) throw new Error(`suspended: account banned by instagram (${u})`);
-    if (!/accounts\/login|accounts\/onetap|challenge|checkpoint/.test(u)) {
-      console.log(`PASS: logged in (cookie-first) — ${u}`);
-      await captureCookies();
-      process.exit(0);
-    }
-    console.log(`[trajectory] cookie-first landed on ${u} — falling through to form login`);
-  }
+  // Cookie-first removed — cookies present + URL didn't bounce ≠ session is
+  // authed. Instagram serves the same /-shell to logged-out users when the
+  // injected sessionid is device-mismatched. Login always means form login
+  // now; action trajectories use assertAuthed() to verify before acting.
   // Direct Playwright form login. Instagram inputs use name=username/password.
   await s.page.goto(URL, { waitUntil: 'domcontentloaded' });
   await s.page.waitForTimeout(2500);

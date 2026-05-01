@@ -1,6 +1,7 @@
 import { getSocialAccount, resolveAccountSession, markCookiesStale } from '../../dist/utils/credentials.js';
 import { WSession } from '../../dist/session/wsession.js';
 import { humanClickLocator } from '../../dist/human/mouse.js';
+import { assertAuthed, AuthProbeError } from './_shared/auth-probe.mjs';
 
 // TikTok's /foryou page renders an empty body for sessions flagged by the
 // fingerprint/proxy heuristics — videoCount=1 (the auto-play element) but
@@ -53,6 +54,23 @@ try {
     console.log('FAIL: cookies stale (no sessionid) — login first');
     await markCookiesStale(acct.id);
     process.exit(1);
+  }
+
+  // Positive auth probe — sessionid being present in the cookie jar doesn't
+  // mean TikTok's server actually trusts the session. Device-mismatched
+  // cookies render the profile shell but suppress all authed UI (no comment
+  // input, no like-button hydration). The profile page is currently loaded
+  // here so we can probe the topbar markers directly. On fail: mark cookies
+  // stale + exit; the next routine tick will enqueue tiktok_login.
+  try {
+    await assertAuthed('tiktok', s, { label: 'tiktok_like' });
+  } catch (probeErr) {
+    if (probeErr instanceof AuthProbeError) {
+      console.log(`FAIL: ${probeErr.message}`);
+      await markCookiesStale(acct.id);
+      process.exit(1);
+    }
+    throw probeErr;
   }
 
   // 2. TikTok render-shadows ~50% of video-page hydrations: the URL navigates

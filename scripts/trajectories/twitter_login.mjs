@@ -34,7 +34,11 @@ async function captureCookies() {
   } catch (e) { console.log('[cookie-capture] err:', e.message); }
 }
 
-async function tryCookieFirstLogin() {
+// REMOVED tryCookieFirstLogin — cookies-as-login is a false-positive
+// generator. See _shared/auth-probe.mjs for the rationale. Login always
+// means form login now; action trajectories use assertAuthed() to verify
+// a real authed session before doing anything.
+async function _removedCookieFirstLogin_doNotReintroduce() {
   const stored = Array.isArray(acct.metadata?.cookies) ? acct.metadata.cookies : [];
   if (stored.length === 0) return false;
   const hasAuthToken = stored.some((c) => c?.name === 'auth_token');
@@ -97,17 +101,12 @@ async function deterministicLogin() {
 }
 
 try {
-  const cookieOk = await tryCookieFirstLogin();
-  if (cookieOk) {
-    console.log('PASS: logged in (cookie-first)');
-    await captureCookies();
-  } else {
-    await s.goto(LOGIN_URL);
-    await new Promise((r) => setTimeout(r, 3000));
-    await deterministicLogin();
-    console.log('PASS: logged in (deterministic email/password)');
-    await captureCookies();
-  }
+  // Cookie-first removed — login always means form login. See auth-probe.mjs.
+  await s.goto(LOGIN_URL);
+  await new Promise((r) => setTimeout(r, 3000));
+  await deterministicLogin();
+  console.log('PASS: logged in (deterministic email/password)');
+  await captureCookies();
 } catch (e) {
   // Write a structured ban_signal so the worker doesn't bucket as
   // 'unknown_error'. Twitter login can fail at proxy CONNECT (chrome-error),

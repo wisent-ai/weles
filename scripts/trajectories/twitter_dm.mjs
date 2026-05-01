@@ -1,7 +1,8 @@
-import { getSocialAccount, resolveAccountSession } from '../../dist/utils/credentials.js';
+import { getSocialAccount, resolveAccountSession, markCookiesStale } from '../../dist/utils/credentials.js';
 import { WSession } from '../../dist/session/wsession.js';
 import { humanType } from '../../dist/human/keyboard.js';
 import { humanClickLocator } from '../../dist/human/mouse.js';
+import { assertAuthed, AuthProbeError } from './_shared/auth-probe.mjs';
 
 const RECIPIENT = process.env.RECIPIENT_HANDLE || 'wisent_ai';
 const MESSAGE = process.env.DM_MESSAGE || 'Hello from weles agent';
@@ -22,8 +23,12 @@ try {
   await s.page.waitForTimeout(3000);
   if (/\/(i\/flow\/login|login)/.test(s.page.url())) {
     console.log(`FAIL: cookies stale, redirected to login (${s.page.url()})`);
+    await markCookiesStale(acct.id);
     process.exit(1);
   }
+  // Positive auth probe — see _shared/auth-probe.mjs.
+  try { await assertAuthed('twitter', s, { label: 'twitter_dm' }); }
+  catch (probeErr) { if (probeErr instanceof AuthProbeError) { console.log(`FAIL: ${probeErr.message}`); await markCookiesStale(acct.id); process.exit(1); } throw probeErr; }
 
   // Compose URL pre-opens the new-message panel; we still need to pick the
   // recipient (no recipient_id pre-fill is supported without their numeric id).

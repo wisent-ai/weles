@@ -1,6 +1,7 @@
-import { getSocialAccount } from '../../dist/utils/credentials.js';
+import { getSocialAccount, markCookiesStale } from '../../dist/utils/credentials.js';
 import { WSession } from '../../dist/session/wsession.js';
 import { humanClickLocator } from '../../dist/human/mouse.js';
+import { assertAuthed, AuthProbeError } from './_shared/auth-probe.mjs';
 
 const TARGET = process.env.GITHUB_FOLLOW_TARGET ?? 'lbartoszcze';
 
@@ -42,8 +43,12 @@ try {
   const hasSession = cookies.some(c => c.name === 'user_session' && c.value);
   if (!hasSession) {
     console.log('FAIL: not logged in (no user_session cookie). Run github_login.mjs first.');
+    await markCookiesStale(acct.id);
     process.exit(1);
   }
+  // Positive auth probe — see _shared/auth-probe.mjs.
+  try { await assertAuthed('github', s, { label: 'github_follow' }); }
+  catch (probeErr) { if (probeErr instanceof AuthProbeError) { console.log(`FAIL: ${probeErr.message}`); await markCookiesStale(acct.id); process.exit(1); } throw probeErr; }
 
   // Check current state: visible Unfollow = already following; visible Follow = not yet
   const state = await s.page.evaluate(`(() => {

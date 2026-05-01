@@ -1,10 +1,11 @@
-import { getSocialAccount, resolveAccountSession } from '../../../../dist/utils/credentials.js';
+import { getSocialAccount, resolveAccountSession, markCookiesStale } from '../../../../dist/utils/credentials.js';
 import { WSession } from '../../../../dist/session/wsession.js';
 import { humanClickLocator } from '../../../../dist/human/mouse.js';
 import { detectInstagramBanSignals } from '../../../../dist/platforms/instagram/ban_signals.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { checkReachable } from '../../_shared/action-runner.mjs';
+import { assertAuthed, AuthProbeError } from '../../_shared/auth-probe.mjs';
 
 const TARGET_URL = process.env.TARGET_URL || '';
 
@@ -19,6 +20,8 @@ try {
   await s.goto(TARGET_URL || 'https://www.instagram.com/explore/');
   checkReachable(s, 'instagram');
   await s.page.waitForTimeout(3500);
+  try { await assertAuthed('instagram', s, { label: 'instagram_save' }); }
+  catch (probeErr) { if (probeErr instanceof AuthProbeError) { console.log(`FAIL: ${probeErr.message}`); await markCookiesStale(acct.id); process.exit(1); } throw probeErr; }
   if (!/\/p\/|\/reel\//.test(s.page.url())) {
     const thumb = s.page.locator('a[href*="/p/"], a[href*="/reel/"]').filter({ visible: true }).first();
     await thumb.waitFor({ state: 'visible' });

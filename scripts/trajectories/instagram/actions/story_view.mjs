@@ -1,10 +1,11 @@
-import { getSocialAccount, resolveAccountSession } from '../../../../dist/utils/credentials.js';
+import { getSocialAccount, resolveAccountSession, markCookiesStale } from '../../../../dist/utils/credentials.js';
 import { WSession } from '../../../../dist/session/wsession.js';
 import { humanClickLocator } from '../../../../dist/human/mouse.js';
 import { detectInstagramBanSignals } from '../../../../dist/platforms/instagram/ban_signals.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { checkReachable } from '../../_shared/action-runner.mjs';
+import { assertAuthed, AuthProbeError } from '../../_shared/auth-probe.mjs';
 
 const acct = await getSocialAccount('instagram');
 if (!acct) { console.log('FAIL: no active instagram account'); process.exit(1); }
@@ -17,6 +18,8 @@ try {
   await s.goto('https://www.instagram.com/');
   checkReachable(s, 'instagram');
   await s.page.waitForTimeout(4000);
+  try { await assertAuthed('instagram', s, { label: 'instagram_story_view' }); }
+  catch (probeErr) { if (probeErr instanceof AuthProbeError) { console.log(`FAIL: ${probeErr.message}`); await markCookiesStale(acct.id); process.exit(1); } throw probeErr; }
   // Story tray entries are <li role="menuitem" tabindex="0"> with anchored
   // story-ring image. Click the first one to enter the stories viewer.
   // Once inside, /stories/{user}/{id} is the URL — auto-advance handles the

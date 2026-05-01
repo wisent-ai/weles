@@ -1,6 +1,7 @@
-import { getSocialAccount, resolveAccountSession } from '../../dist/utils/credentials.js';
+import { getSocialAccount, resolveAccountSession, markCookiesStale } from '../../dist/utils/credentials.js';
 import { WSession } from '../../dist/session/wsession.js';
 import { humanClickLocator } from '../../dist/human/mouse.js';
+import { assertAuthed, AuthProbeError } from './_shared/auth-probe.mjs';
 
 const TARGET_URL = process.env.TARGET_URL || 'https://www.instagram.com/explore/';
 
@@ -20,7 +21,10 @@ try {
   await s.page.goto(TARGET_URL, { waitUntil: 'domcontentloaded' });
   await s.page.waitForTimeout(5000);
   const url = s.page.url();
-  if (/\/accounts\/login/.test(url)) { console.log(`FAIL: cookies stale, redirected to login (${url})`); process.exit(1); }
+  if (/\/accounts\/login/.test(url)) { console.log(`FAIL: cookies stale, redirected to login (${url})`); await markCookiesStale(acct.id); process.exit(1); }
+  // Positive auth probe — see _shared/auth-probe.mjs.
+  try { await assertAuthed('instagram', s, { label: 'instagram_like' }); }
+  catch (probeErr) { if (probeErr instanceof AuthProbeError) { console.log(`FAIL: ${probeErr.message}`); await markCookiesStale(acct.id); process.exit(1); } throw probeErr; }
 
   // Open first post: clicking the first <a href*="/p/"> in the feed/explore.
   const firstPost = s.page.locator('a[href*="/p/"]').filter({ visible: true }).first();
