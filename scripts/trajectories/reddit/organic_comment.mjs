@@ -11,7 +11,7 @@ import { WSession } from '../../../dist/session/wsession.js';
 import { generateOrganicComment } from '../_shared/llm.mjs';
 import { checkReachable } from '../_shared/action-runner.mjs';
 import { detectRedditBanSignals } from '../../../dist/platforms/reddit/ban_signals.js';
-import { humanScroll, humanIdlePause, humanClickLocator } from '../../../dist/human/mouse.js';
+import { humanScroll, humanIdlePause, humanClickLocator, humanHoverDwell } from '../../../dist/human/mouse.js';
 import { humanType } from '../../../dist/human/keyboard.js';
 import { probeCommentVisibility, probeShadowban } from '../../../dist/platforms/reddit/shadowban_probe.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
@@ -105,16 +105,13 @@ try {
   await humanIdlePause('deliberate');
   await humanScroll(s.page, 1400, 3).catch(() => {});
   await humanIdlePause('deliberate');
-  // Hover a username link if present — small extra mouse trajectory the
-  // classifier sees as "user inspected the OP". Fail-quiet.
-  try {
-    const userLink = s.page.locator('a[href*="/user/"], a[href*="/u/"]').filter({ visible: true }).first();
-    const box = await userLink.boundingBox().catch(() => null);
-    if (box) {
-      await s.page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-      await humanIdlePause('short');
-    }
-  } catch { /* skip */ }
+  // Hover a username link if present — triggers rpl-hovercard:after-show
+  // which Reddit's anti-spam scoring reads as "user inspected the OP".
+  // Atom: humanHoverDwell handles all timing + viewport-bounds + fail-quiet.
+  await humanHoverDwell(
+    s.page,
+    s.page.locator('a[href*="/user/"], a[href*="/u/"]').filter({ visible: true }).first(),
+  ).catch(() => false);
   await humanScroll(s.page, 800, 2).catch(() => {});
 
   // Deterministic submit: same selectors as reddit_comment.mjs. textarea

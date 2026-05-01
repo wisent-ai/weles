@@ -14,7 +14,7 @@
  */
 import { WSession } from '../../dist/session/wsession.js';
 import { humanType } from '../../dist/human/keyboard.js';
-import { humanMove, humanIdlePause, humanClickLocator, humanScroll } from '../../dist/human/mouse.js';
+import { humanMove, humanIdlePause, humanClickLocator, humanScroll, humanHoverDwell } from '../../dist/human/mouse.js';
 import { detectRedditBanSignals } from '../../dist/platforms/reddit/ban_signals.js';
 import { generateOrganicComment } from './_shared/llm.mjs';
 import { randomBytes } from 'node:crypto';
@@ -190,8 +190,28 @@ try {
   // natural page-view events that Reddit's anti-bot looks for. Without it,
   // the registration→comment direct path is a detectable automation signal.
   console.log('[browse] organic session before comment');
-  await s.page.goto('https://www.reddit.com/', { waitUntil: 'domcontentloaded' });
+  // Navigate directly to r/<SUBREDDIT>/new feed page. Sorted by NEW so the
+  // posts visible in the feed match the JSON API listing we'll pick from.
+  // The human-handoff run spent ~45 seconds on r/CasualConversation before
+  // clicking into a post; during that dwell Reddit wrote
+  // Storage.setItem:good-visit-feeds-search (3x) and
+  // Storage.setItem:pathname-page-type-map (3x) — engagement-quality
+  // telemetry that the prior trajectory never triggered (0 setItem writes
+  // in the diff). Without good-visit signals, Reddit's anti-spam scores
+  // the session as "no genuine engagement" and shadow-removes the first
+  // comment from a fresh account.
+  // Feed + listing sort: use /new so the visible feed matches the API listing.
+  const listingSort = 'new';
+  const feedUrl = SUBREDDIT === 'popular' || SUBREDDIT === 'all'
+    ? 'https://www.reddit.com/'
+    : `https://www.reddit.com/r/${SUBREDDIT}/${listingSort}/`;
+  await s.page.goto(feedUrl, { waitUntil: 'domcontentloaded' });
   await humanIdlePause('deliberate');
+  // Long feed dwell (8-15s) so Reddit's good-visit tracker fires.
+  // The property-trap diff showed setItem:good-visit-feeds-search firing
+  // on the feed page URL only when the session dwelled >5s; the prior
+  // trajectory's 2-3s feed visit never triggered it.
+  await s.page.waitForTimeout(8000 + Math.floor(Math.random() * 7000));
   // Scroll the feed via REAL wheel events (humanScroll). Previous
   // implementation used `page.evaluate(window.scrollBy)` which produces
   // ZERO wheel events on the page — synthetic scroll is a strong bot
@@ -201,96 +221,79 @@ try {
   // through Playwright's mouse.wheel API with multi-burst pattern +
   // realistic dwell.
   await humanScroll(s.page, 1200 + Math.floor(Math.random() * 800), 3 + Math.floor(Math.random() * 3));
-  // Click into a post from the feed — this creates a natural navigation event.
-  const feedPost = s.page.locator('a[href*="/comments/"]').filter({ visible: true }).first();
-  if (await feedPost.count()) {
-    await humanClickLocator(s.page, feedPost);
-    await humanIdlePause('deliberate');
-    await s.page.waitForTimeout(3000 + Math.floor(Math.random() * 3000));
-    // Real wheel scroll on the post page — same anti-bot reasoning as above.
-    await humanScroll(s.page, 600 + Math.floor(Math.random() * 400), 2);
-    await s.page.waitForTimeout(2000);
-  }
-  console.log(`[browse] done — picking post from r/${SUBREDDIT}`);
+  // Hover a username link on the feed page — triggers
+  // faceplate-hovercard:open / rpl-hovercard:after-show on the FEED
+  // page (where the component is fully loaded). The human-handoff diff
+  // showed 31x faceplate-hovercard:open subscribers on the feed page;
+  // the trajectory had only 36 (from the home page, not the subreddit).
+  await humanHoverDwell(
+    s.page,
+    s.page.locator('a[href^="/user/"], a[href*="/user/"]').filter({ visible: true }).first(),
+  ).catch(() => false);
+  // NOTE: prior code clicked a random feed post here as part of "browse",
+  // then navigated AWAY from the feed back to a target post via goto(),
+  // which lost SPA state. Now we stay on the feed; the comment phase
+  // picks from visible feed posts and SPA-clicks directly.
+  console.log(`[browse] done — staying on r/${SUBREDDIT}/${listingSort} feed for comment-phase post pick`);
 
-  // ===== COMMENT via OLD-reddit (proven-working path) =====
-  // Empirical finding 2026-04-30: comments submitted via old.reddit.com surface
-  // publicly more reliably than NEW-reddit shreddit-composer comments
-  // (which got shadow-removed even with identical bot-detection signals).
+  // ===== COMMENT — pick post from RENDERED FEED DOM =====
+  // The 2026-05-01 instrumentation diff (zaneyates3333 run) revealed:
+  //   - Feed page (/new): 33x faceplate-hovercard:open, good-visit signals
+  //   - Browse-clicked post (1s9n1d2 via humanClickLocator): 34x hovercard
+  //   - goto()-loaded post (1t0gnbv): only 2x hovercard listeners, no
+  //     after-show/hide subscribers
+  // The SPA-transition click loads the full hovercard component graph;
+  // a cold goto load doesn't. Therefore we MUST pick a post that's actually
+  // rendered in the feed DOM and click it, not pick from JSON API listing
+  // and goto().
   //
-  // Pick a post DYNAMICALLY from r/<SUBREDDIT> /new listing — same approach
-  // as scripts/trajectories/reddit/organic_comment.mjs. Fetch via in-page
-  // fetch so it goes through session cookies + proxy.
-  const sortPath = SUBREDDIT === 'popular' || SUBREDDIT === 'all'
-    ? `/r/${SUBREDDIT}/new`
-    : `/r/${SUBREDDIT}`;
-  const listingUrl = `https://www.reddit.com${sortPath}/.json?limit=50&raw_json=1`;
-  const listingData = await s.page.evaluate(async (u) => {
-    try { const r = await fetch(u, { credentials: 'include' }); if (!r.ok) return null; return await r.json(); } catch { return null; }
-  }, listingUrl).catch(() => null);
-  let postUrlWww = null, postTitle = '', postBody = '';
-  let postCandidates = [];
-  try {
-    const candidates = (listingData?.data?.children ?? [])
-      .map(c => c.data)
-      .filter(p => p && !p.locked && !p.archived && p.num_comments < 2000);
-    postCandidates = candidates
-      .slice(0, Math.min(candidates.length, 12))
-      .sort(() => Math.random() - 0.5)
-      .map(p => ({
-        url: `https://www.reddit.com${p.permalink}`,
-        title: p.title || '',
-        body: p.selftext || '',
-      }));
-  } catch (e) { console.log('[listing-parse]', e.message); }
-  if (SUBMIT_PATH === 'new') {
-    // New reddit does not mount an editable composer on every otherwise
-    // eligible post. Some pages contain a hidden 0x0 shreddit-composer with
-    // no shadow root, which cannot be focused or submitted. Validate the
-    // visible composer before generating a body for the post.
-    for (const candidate of postCandidates) {
-      await s.page.goto(candidate.url, { waitUntil: 'domcontentloaded' });
-      await humanIdlePause('short');
-      let probe = null;
-      for (let attempt = 0; attempt < 6; attempt++) {
-        await s.page.waitForTimeout(1000 + Math.floor(Math.random() * 500));
-        probe = await s.page.evaluate(() => {
-          const composers = Array.from(document.querySelectorAll('shreddit-composer'));
-          const metrics = composers.map((sc) => {
-            const r = sc.getBoundingClientRect();
-            return { w: Math.round(r.width), h: Math.round(r.height), hasShadow: !!sc.shadowRoot };
-          });
-          const visible = metrics.find(m => m.w > 20 && m.h > 20);
-          const faceplates = Array.from(document.querySelectorAll('faceplate-textarea-input[placeholder="Join the conversation"]'));
-          const visibleFaceplate = faceplates.find((el) => {
-            const r = el.getBoundingClientRect();
-            const style = getComputedStyle(el);
-            return r.width > 20 && r.height > 20 && style.display !== 'none' && style.visibility !== 'hidden';
-          });
-          return {
-            found: composers.length > 0 || faceplates.length > 0,
-            count: composers.length,
-            faceplateCount: faceplates.length,
-            visible: !!visible || !!visibleFaceplate,
-            visibleFaceplate: !!visibleFaceplate,
-            metrics,
-          };
-        }).catch(() => null);
-        if (probe?.visible) break;
-      }
-      console.log(`[comment] candidate composer probe: ${candidate.title.slice(0, 50)} ${JSON.stringify(probe)}`);
-      if (probe?.visible) {
-        postUrlWww = candidate.url;
-        postTitle = candidate.title;
-        postBody = candidate.body;
-        break;
-      }
+  // shreddit-post elements expose the data we need as attributes:
+  //   permalink, post-title, post-author, content-href, num-comments
+  // Scrape these from the rendered feed, prefer text posts (those with
+  // shreddit-post-text-body or selftext attribute), pick one randomly.
+  const visiblePosts = await s.page.evaluate(() => {
+    const out = [];
+    const els = Array.from(document.querySelectorAll('shreddit-post'));
+    for (const el of els) {
+      const rect = el.getBoundingClientRect();
+      // Only include posts within or near the viewport (humans see them).
+      if (rect.bottom < 0 || rect.top > window.innerHeight + 800) continue;
+      const permalink = el.getAttribute('permalink') || '';
+      const title = el.getAttribute('post-title') || '';
+      const numComments = parseInt(el.getAttribute('comment-count') || '0', 10);
+      const isLocked = el.hasAttribute('is-locked');
+      const isNsfw = el.hasAttribute('nsfw');
+      // text post detection — has a post-title link AND no embedded media
+      const hasText = !!el.querySelector('shreddit-post-text-body, [slot="text-body"], div[id^="t3_"][id$="-post-rtjson-content"]');
+      if (!permalink || isLocked || isNsfw || numComments > 2000) continue;
+      out.push({ permalink, title, numComments, hasText, top: rect.top });
     }
-  } else {
-    const pick = postCandidates[0];
-    if (pick) { postUrlWww = pick.url; postTitle = pick.title; postBody = pick.body; }
+    return out;
+  }).catch(() => []);
+  console.log(`[feed-scrape] visible posts: ${visiblePosts.length}`);
+  let postUrlWww = null, postTitle = '', postBody = '';
+  if (visiblePosts.length) {
+    // Prefer text posts; otherwise any visible post.
+    const textPosts = visiblePosts.filter(p => p.hasText);
+    const pool = textPosts.length ? textPosts : visiblePosts;
+    const pick = pool[Math.floor(Math.random() * pool.length)];
+    postUrlWww = `https://www.reddit.com${pick.permalink}`;
+    postTitle = pick.title;
+    console.log(`[comment] picked from feed DOM: ${postTitle.slice(0, 60)}`);
+    // Fetch just the selftext via API for LLM context (no goto, no nav).
+    try {
+      const body = await s.page.evaluate(async (perm) => {
+        try {
+          const r = await fetch(`${perm}.json?raw_json=1`, { credentials: 'include' });
+          if (!r.ok) return '';
+          const j = await r.json();
+          return j?.[0]?.data?.children?.[0]?.data?.selftext || '';
+        } catch { return ''; }
+      }, pick.permalink);
+      postBody = body || '';
+    } catch {}
   }
-  if (!postUrlWww) throw new Error(`no eligible post found in r/${SUBREDDIT}`);
+  if (!postUrlWww) throw new Error(`no eligible post visible in r/${SUBREDDIT} feed DOM`);
   console.log(`[comment] picked post: ${postTitle.slice(0, 80)}`);
 
   // Generate comment body via the persona-aware LLM endpoint, with the
@@ -326,11 +329,92 @@ try {
     s.page.on('framenavigated', (f) => { if (f === s.page.mainFrame()) console.log(`[diag] framenavigated url=${f.url()}`); });
     s.page.on('pageerror', (e) => console.log(`[diag] pageerror ${String(e.message || e).slice(0, 200)}`));
     s.page.context().on('close', () => console.log('[diag] context.close fired'));
-    await s.page.goto(postUrlWww, { waitUntil: 'domcontentloaded' });
+    // CRITICAL: navigate to the post by CLICKING from the feed page instead
+    // of goto(). The human-handoff diff (2026-05-01) showed the human's
+    // post page had rpl-hovercard:after-show/hide and rpl-dropdown:after-
+    // show/hide listeners (146 hovercard listeners total), but the goto
+    // path's post page only registered rpl-hovercard:show (43 listeners)
+    // — the SPA transition from feed preserves the feed's JavaScript
+    // state (good-visit telemetry, hovercard/dropdown component listeners)
+    // while goto() does a cold page load that starts from scratch.
+    const currentUrl = s.page.url();
+    const alreadyOnPost = currentUrl.includes('/comments/') && currentUrl.includes(postUrlWww.split('/comments/')[1]?.split('/')[0] || '');
+    if (!alreadyOnPost) {
+      // Try clicking the post link from the feed. Fall back to goto if
+      // the feed doesn't show this specific post (different sort, etc.).
+      const postLink = s.page.locator(`a[href*="${postUrlWww.replace('https://www.reddit.com', '')}"]`).filter({ visible: true }).first();
+      if (await postLink.count()) {
+        console.log(`[comment] clicking post link from feed (SPA transition)`);
+        await humanClickLocator(s.page, postLink);
+        await s.page.waitForTimeout(3000 + Math.floor(Math.random() * 2000));
+      } else {
+        // Post link not visible in current feed (rare since we picked from
+        // visible DOM). Scroll deeper to surface it.
+        console.log(`[comment] post link not immediately visible — scrolling feed`);
+        await humanScroll(s.page, 800 + Math.floor(Math.random() * 600), 2);
+        await s.page.waitForTimeout(2000);
+        const postLink2 = s.page.locator(`a[href*="${postUrlWww.replace('https://www.reddit.com', '')}"]`).filter({ visible: true }).first();
+        if (await postLink2.count()) {
+          console.log(`[comment] clicking post link after scroll (SPA transition)`);
+          await humanClickLocator(s.page, postLink2);
+          await s.page.waitForTimeout(3000 + Math.floor(Math.random() * 2000));
+        } else {
+          console.log(`[comment] post not in feed — falling back to goto (cold load — degraded path)`);
+          await s.page.goto(postUrlWww, { waitUntil: 'domcontentloaded' });
+        }
+      }
+    } else {
+      console.log(`[comment] already on target post page`);
+    }
+    // Long initial dwell so Performance.getEntriesByType:mark milestones
+    // complete — the human-handoff run accessed these (only-in-A); the prior
+    // trajectory navigated/scrolled before they fired and Reddit's anti-spam
+    // saw a "no good visit" signal (Storage.setItem:good-visit-feeds-search
+    // never triggered in the trajectory, did in the handoff).
     await humanIdlePause('deliberate');
-    await s.page.waitForTimeout(2500 + Math.floor(Math.random() * 1500));
-    await humanScroll(s.page, 800 + Math.floor(Math.random() * 600), 2);
-    await s.page.waitForTimeout(2000);
+    // Long initial dwell so Reddit's full SPA boots:
+    //   - chat:matrix-* infrastructure (only-in-H in 2026-05-01 diff)
+    //   - lit-router-connected, rs-auth-client-user-change
+    //   - UserStoreById/ByName, redirect-account-manager
+    //   - faceplate-tracker components (which mount the hovercard system)
+    // The human-handoff session dwelled minutes on the post page; the
+    // prior trajectory's 5-8s waitForTimeout submitted before async
+    // boot completed. Reddit's anti-spam reads this "no chat init,
+    // no faceplate hovercard subscribers" as a low-trust profile and
+    // shadow-removes the comment.
+    await s.page.waitForTimeout(15000 + Math.floor(Math.random() * 10000));
+
+    // Hover post-author username — wait for the hovercard popover to
+    // actually mount (rpl-hovercard:after-show fires when popover is
+    // visible). Use a longer dwell so the popover has time to render.
+    // Property-trap diff (handoff vs trajectory 2026-05-01) showed
+    // rpl-hovercard:after-show was only-in-H; rpl-hovercard:show was
+    // only-in-T — meaning we registered the listener but the popover
+    // never displayed. A 1.5-3.3s hover wasn't long enough.
+    const hovered1 = await humanHoverDwell(
+      s.page,
+      s.page.locator('a[href^="/user/"]').filter({ visible: true }).first(),
+      { minMs: 3500, maxMs: 6500 },
+    ).catch(() => false);
+    console.log(`[hover] post-author dwell ${hovered1 ? 'fired' : 'skipped'}`);
+
+    // Natural reading scroll — exposes commenter usernames.
+    await humanScroll(s.page, 800 + Math.floor(Math.random() * 600), 3);
+    await s.page.waitForTimeout(3000 + Math.floor(Math.random() * 2000));
+
+    // Hover ANOTHER username (a commenter, after the post-author).
+    // Human had 2x rpl-hovercard:after-show in the diff — they hovered
+    // two distinct username links.
+    const userLinks = await s.page.locator('a[href^="/user/"]').filter({ visible: true }).all().catch(() => []);
+    if (userLinks.length > 1) {
+      const hovered2 = await humanHoverDwell(
+        s.page,
+        userLinks[1],
+        { minMs: 2500, maxMs: 4500 },
+      ).catch(() => false);
+      console.log(`[hover] commenter dwell ${hovered2 ? 'fired' : 'skipped'}`);
+    }
+    await s.page.waitForTimeout(3000 + Math.floor(Math.random() * 2000));
 
     const postUrl = s.page.url();
     console.log(`[comment] post-page url=${postUrl}`);
