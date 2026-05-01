@@ -245,13 +245,18 @@ const URL = 'https://www.tiktok.com/signup';
       const clickLog = await s.page.evaluate(`JSON.stringify(window.__wclick || [])`).catch(() => '[]');
       console.log(`[test] clicks received: ${clickLog}`);
 
-      // Wait for URL change OR post-submit state (captcha / username page / onboarding / foryou)
+      // Wait for URL change OR post-submit state. Once Next clicks succeed,
+      // TikTok routes to /signup/create-username (the username-creation step
+      // — at this point the account is created server-side, sessionid cookie
+      // is set; we just need to finalize username). Other terminal states:
+      // /foryou (logged in directly), interests/onboarding pages, captcha
+      // modal, or an inline error.
       let postUrl = s.page.url?.() ?? '';
       for (let w = 0; w < 30; w++) {
         await s.wait(2);
         postUrl = s.page.url?.() ?? '';
         const t = await s.page.evaluate('(document.body.innerText || "").slice(0, 600).toLowerCase()').catch(() => '');
-        if (/foryou|\/@|onboarding|interests|choose.*username|profile picture|turn on notifications/i.test(postUrl + ' ' + t)) {
+        if (/create-username|foryou|\/@|onboarding|interests|choose.*username|create a username|profile picture|turn on notifications/i.test(postUrl + ' ' + t)) {
           console.log(`[test] post-next state found at wait ${w}: url=${postUrl}`); break;
         }
         if (/drag|puzzle|captcha|verify/i.test(t)) { console.log(`[test] captcha-like at wait ${w}: ${t.slice(0, 120)}`); break; }
@@ -259,34 +264,97 @@ const URL = 'https://www.tiktok.com/signup';
       }
       await s.screenshot(`after_next_r${retry}`).catch(() => {});
 
-      // Must leave the /signup/phone-or-email/email URL and land somewhere logged-in
-      // for the account to really exist.
+      // Must leave the /signup/phone-or-email/email URL — if we're still
+      // there, Next didn't trigger registration server-side.
       if (postUrl.includes('/signup/phone-or-email/email')) {
         console.log(`[test] attempt ${retry + 1}: stuck on signup page — Next didn't create account`);
         continue;
       }
 
-      // Optional username step
+      // Username creation step: TikTok routes here on successful registration.
+      // Account exists at this point (sessionid cookie set), but we need to
+      // pick a username so the auth state finalizes.
       const pageText = await s.page.evaluate('document.body.innerText').catch(() => '');
-      if (/choose.*username|create a username|set a username/i.test(pageText)) {
-        console.log('[test] username prompt detected, filling');
-        await fillField('username', id.username).catch(() => s.fill('Username', id.username));
-        await s.wait(1);
-        const unBtn = await s.page.evaluate(`(() => { const b = Array.from(document.querySelectorAll('button')).find(x => /next|continue|submit/i.test(x.textContent || '')); return { disabled: b?.disabled }; })()`).catch(() => ({}));
-        if (unBtn.disabled === false) await humanClickLocator(s.page, s.page.locator('button:has-text("Next"), button:has-text("Continue")').first()).catch(() => {});
-        await s.wait(5);
+      const nowOnUsernameStep = /\/signup\/create-username/.test(postUrl) ||
+                                /create.{0,3}username|choose.{0,3}username|set.{0,3}username/i.test(pageText);
+      if (nowOnUsernameStep) {
+        console.log('[test] username step detected — filling');
+        // Probe the input + button (helps debug if TikTok renames placeholders).
+        const unInfo = await s.page.evaluate(`(() => {
+          const inputs = Array.from(document.querySelectorAll('input')).filter(i => {
+            const r = i.getBoundingClientRect();
+            return r.width > 0 && r.height > 0 && i.offsetParent !== null;
+          }).map(i => ({ placeholder: i.placeholder, name: i.name, type: i.type, valueLen: (i.value || '').length }));
+          const btns = Array.from(document.querySelectorAll('button')).filter(b => {
+            const r = b.getBoundingClientRect();
+            return r.width > 0 && r.height > 0 && b.offsetParent !== null;
+          }).map(b => ({ text: (b.textContent || '').trim().slice(0, 30), disabled: b.disabled }));
+          return { inputs, btns };
+        })()`).catch(() => ({}));
+        console.log(`[test] username step DOM: ${JSON.stringify(unInfo).slice(0, 600)}`);
+
+        // Fill username via the same focus()-then-humanType workaround we
+        // use for password (TikTok's create-username input may also have
+        // suffix toggles; safer to skip humanClickLocator).
+        const unLoc = s.page.locator('input[placeholder*="username" i], input[name*="username" i]').first();
+        if (await unLoc.count()) {
+          const { humanType } = await import('../../dist/human/keyboard.js');
+          await unLoc.focus();
+          await s.wait(1);
+          await s.page.keyboard.press('ControlOrMeta+A').catch(() => {});
+          await s.page.keyboard.press('Delete').catch(() => {});
+          await humanType(s.page, id.username);
+          await s.wait(2);
+        }
+
+        // Read whatever value TikTok actually accepted (it auto-prefixes,
+        // truncates, or rejects suggestions and adds digits). Save the
+        // post-fill value so DB gets the real username, not what we typed.
+        const acceptedUsername = await s.page.evaluate(`(() => {
+          const inp = document.querySelector('input[placeholder*="username" i], input[name*="username" i]');
+          return inp ? (inp.value || '') : '';
+        })()`).catch(() => '');
+        const finalUsername = acceptedUsername || id.username;
+        console.log(`[test] username field value=${JSON.stringify(acceptedUsername)} chosen=${JSON.stringify(finalUsername)}`);
+
+        // Click the submit button. Text varies: "Sign up", "Next", "Continue".
+        // Try each in order until one is visible + enabled.
+        for (const txt of ['Sign up', 'Next', 'Continue', 'Done']) {
+          try {
+            const btn = s.page.getByRole('button', { name: new RegExp(`^\\s*${txt}\\s*$`, 'i') }).first();
+            if ((await btn.count()) && await btn.isVisible({ timeout: 1500 }).catch(() => false) && !(await btn.isDisabled().catch(() => false))) {
+              await humanClickLocator(s.page, btn);
+              console.log(`[test] clicked ${txt} on username step`);
+              break;
+            }
+          } catch {}
+        }
+
+        // Wait up to 30s for redirect away from /signup/create-username.
+        // TikTok then routes to interest selection / profile picture / foryou.
+        for (let w = 0; w < 15; w++) {
+          await s.wait(2);
+          const u = s.page.url?.() ?? '';
+          if (!u.includes('/signup/create-username')) { console.log(`[test] left create-username at wait ${w}: ${u}`); break; }
+        }
+        // Update the identity we'll save with the actual username TikTok kept.
+        id.username = finalUsername;
       }
 
-      // Success: anywhere post-signup that looks logged-in
+      // Success: anywhere post-signup that looks logged-in (or that had to
+      // come from a successful register_verify_login response — even
+      // /signup/create-username counts because the account is created at
+      // that point and sessionid is set).
       const finalUrl = s.page.url?.() ?? '';
-      const signedIn = /foryou|\/@|\/home|onboarding|interests/.test(finalUrl);
+      const hasSessionId = await s.page.evaluate('document.cookie.includes("sessionid")').catch(() => false);
+      const signedIn = hasSessionId || /foryou|\/@|\/home|onboarding|interests|create-username/.test(finalUrl);
       if (signedIn) {
         await s.saveAccount('tiktok', { username: id.username, email: id.email, password });
-        console.log(`PASS: ${id.username} (final url ${finalUrl})`);
+        console.log(`PASS: ${id.username} (final url ${finalUrl}, sessionid=${hasSessionId})`);
         success = true;
         break;
       }
-      console.log(`[test] attempt ${retry + 1}: didn't reach logged-in state. finalUrl=${finalUrl}`);
+      console.log(`[test] attempt ${retry + 1}: didn't reach logged-in state. finalUrl=${finalUrl} sessionid=${hasSessionId}`);
     } catch (e) {
       console.log(`[test] attempt ${retry + 1} crashed: ${e.message?.slice(0, 120)}`);
     }
