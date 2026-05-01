@@ -8,7 +8,7 @@ import { type Persona, generatePersona } from '../browser/persona.js';
 import { SessionStore } from './store.js';
 import { Capture } from '../capture/capture.js';
 import { findClickTarget, askPage, checkPage, type ScreenshottablePage } from '../vision/analyze.js';
-import { humanClick } from '../human/mouse.js';
+import { humanClick, humanClickLocator } from '../human/mouse.js';
 import { humanType } from '../human/keyboard.js';
 import { selectOption } from '../human/select.js';
 import { waitCloudflare } from '../cloudflare/challenge.js';
@@ -148,12 +148,62 @@ export class WSession {
 
   async click(target: string): Promise<string> {
     return this.runStep(`click_${target}`, async () => {
+      // CRITICAL: every click path must reach a Playwright Locator and use
+      // humanClickLocator (humanMove + locator.click({force:true})). Raw
+      // page.mouse.click at the right coordinates does NOT propagate through
+      // React's synthetic event delegation root on TikTok (verified 2026-04-30:
+      // tiktok_login submit button click via mouse.click never fired
+      // /passport/web/login/ POST; locator.click did. Same pattern broke
+      // tiktok_register's "Use phone or email" button after TikTok upgraded
+      // signup React handlers between Apr 17 and Apr 29 — the click registered
+      // a DOM event but the route transition handler never ran).
+      // Order:
+      //   1. Playwright accessible-name resolver (getByRole exact then loose)
+      //   2. DOM walker that stamps a marker attribute on the matched element,
+      //      then re-resolves it as a Playwright Locator
+      //   3. Vision-OCR fallback (rare; icon-only buttons without text). Uses
+      //      raw humanClick — vision targets typically lack accessible text
+      //      so coords-to-locator conversion is unreliable. Accept that React
+      //      may not fire on icon clicks.
+      const tryLoc = async (loc: any, descPrefix: string): Promise<string | null> => {
+        try {
+          if ((await loc.count?.()) > 0 && await loc.first().isVisible({ timeout: 1500 }).catch(() => false)) {
+            await humanClickLocator(this.page, loc.first());
+            return `clicked ${descPrefix}${target}`;
+          }
+        } catch {}
+        return null;
+      };
+      const tEsc = target.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const reExact = new RegExp(`^\\s*${tEsc}\\s*$`, 'i');
+      const reLoose = new RegExp(tEsc, 'i');
+      // Pass 1a: exact accessible-name match (button > link > checkbox).
+      for (const role of ['button', 'link', 'checkbox'] as const) {
+        try { const r = await tryLoc(this.page.getByRole(role, { name: reExact }), `${role}: `); if (r) return r; } catch {}
+      }
+      // Pass 1b: loose substring match (skip checkbox to avoid grabbing
+      // Apple/Google buttons when the user said "Sign in").
+      for (const role of ['button', 'link'] as const) {
+        try { const r = await tryLoc(this.page.getByRole(role, { name: reLoose }), `${role}: `); if (r) return r; } catch {}
+      }
+      // Pass 2: DOM walker — preserves the existing exact-vs-partial precedence
+      // and shadow-DOM upvote escape hatch, but stamps a unique data attribute
+      // on the matched element so we can re-resolve it as a Playwright Locator
+      // and route the click through humanClickLocator.
+      const marker = `weles-click-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+      const c = await this.page.evaluate(`(()=>{function F(r,s){var a=Array.from(r.querySelectorAll(s));r.querySelectorAll('*').forEach(function(e){if(e.shadowRoot)a=a.concat(F(e.shadowRoot,s))});return a}function vis(el){var r=el.getBoundingClientRect();return r.width>0&&r.height>0&&el.offsetParent!==null}var t=${JSON.stringify(target.toLowerCase().trim())};var m=${JSON.stringify(marker)};var sr=F(document,'[data-post-click-location] button');if(t.indexOf('upvote')>=0&&sr.length>0){sr[0].setAttribute('data-weles-click',m);return{desc:'upvote (shadow)'}}var bs=F(document,'button,a,[role="button"],[role="link"],[role="tab"],[role="menuitem"],[role="option"],[data-e2e],label,input[type="checkbox"],[role="checkbox"]');var exact=null,partial=null;for(var i=0;i<bs.length;i++){var el=bs[i];var txt=((el.textContent||'').trim()+' '+(el.getAttribute('aria-label')||'').trim()).toLowerCase().trim();var visi=vis(el);if(!visi)continue;if(txt===t||txt.split(' ').join(' ')===t){exact=el;break}if(!partial&&txt.indexOf(t)>=0){partial=el}}var hit=exact||partial;if(!hit)return null;var cb=hit.querySelector('input[type="checkbox"]')||hit;cb.setAttribute('data-weles-click',m);var d=((hit.textContent||'').trim()||(hit.getAttribute('aria-label')||'')).slice(0,40);return{desc:(exact?'exact:':'partial:')+d}})()`).catch(() => null);
+      if (c) {
+        const loc = this.page.locator(`[data-weles-click="${marker}"]`).first();
+        try { await humanClickLocator(this.page, loc); }
+        finally { await this.page.evaluate(`(()=>{document.querySelectorAll('[data-weles-click=${JSON.stringify(marker)}]').forEach(e=>e.removeAttribute('data-weles-click'))})()`).catch(() => {}); }
+        return `clicked ${(c as any).desc ?? target}`;
+      }
+      // Pass 3: vision-OCR fallback for icon-only targets. Raw humanClick is
+      // last-resort; if React doesn't fire, the trajectory's outer retry loop
+      // will surface "stuck at <url>" and a fix is needed at the trajectory
+      // (use s.clickSelector or s.page.locator(...).click() with humanClickLocator).
       const coords = await findClickTarget(asV(this.page), target);
-      if (coords) { await humanClick(this.page, coords.x, coords.y); return `clicked ${target}`; }
-      // Two-pass DOM text match: exact-first (trimmed), then substring. Substring
-      // alone matches "Sign in with Apple" before "Sign in" — broke linkedin_login.
-      const c = await this.page.evaluate(`(()=>{function F(r,s){var a=Array.from(r.querySelectorAll(s));r.querySelectorAll('*').forEach(function(e){if(e.shadowRoot)a=a.concat(F(e.shadowRoot,s))});return a}function vis(el){var r=el.getBoundingClientRect();return r.width>0&&r.height>0&&el.offsetParent!==null}var t=${JSON.stringify(target.toLowerCase().trim())};var sr=F(document,'[data-post-click-location] button');if(t.indexOf('upvote')>=0&&sr.length>0){var r=sr[0].getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2,desc:'upvote (shadow)'}}var bs=F(document,'button,a,[role="button"],label,input[type="checkbox"],[role="checkbox"]');var exact=null,partial=null;for(var i=0;i<bs.length;i++){var el=bs[i];var txt=((el.textContent||'').trim()+' '+(el.getAttribute('aria-label')||'').trim()).toLowerCase().trim();var visi=vis(el);if(!visi)continue;if(txt===t||txt.split(' ').join(' ')===t){exact=el;break}if(!partial&&txt.indexOf(t)>=0){partial=el}}var hit=exact||partial;if(!hit)return null;var cb=hit.querySelector('input[type="checkbox"]')||hit;var r=cb.getBoundingClientRect();if(r.width<1){r=hit.getBoundingClientRect()}var d=((hit.textContent||'').trim()||(hit.getAttribute('aria-label')||'')).slice(0,40);return{x:r.x+r.width/2,y:r.y+r.height/2,desc:(exact?'exact:':'partial:')+d}})()`).catch(() => null);
-      if (c) { await humanClick(this.page, c.x, c.y); return `clicked ${c.desc ?? target}`; }
+      if (coords) { await humanClick(this.page, coords.x, coords.y); return `clicked ${target} (vision)`; }
       return 'no-target-found';
     });
   }
