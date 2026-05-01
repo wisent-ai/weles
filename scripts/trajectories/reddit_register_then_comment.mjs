@@ -38,6 +38,10 @@ const SUBREDDIT = (RAW_SUBREDDIT === 'popular' || RAW_SUBREDDIT === 'all')
 // title/body as context. Overridable via $COMMENT_BODY for tests where
 // you want a deterministic body.
 const COMMENT_BODY_OVERRIDE = process.env.COMMENT_BODY || null;
+// Submit-path: 'old' (default, proven-working) or 'new' (shreddit-composer
+// on www.reddit.com). 'new' is experimental — kept as a switch to enable
+// further bot-detection diff work against chrome-human (which uses new-reddit).
+const SUBMIT_PATH = (process.env.NEW_REDDIT === '1' || process.env.SUBMIT_PATH === 'new') ? 'new' : 'old';
 const AGENT_DOMAIN = process.env.AGENT_DOMAIN ?? 'mailwisent.com';
 const PROXY_FILTER = process.env.PROXY_URL || 'residential brightdata us';
 const REAL_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15';
@@ -57,6 +61,31 @@ const id = genIdentity();
 console.log(`[register] identity: ${id.username} ${id.email}`);
 
 const s = await WSession.start({ label: 'reddit_register_then_comment', proxy: PROXY_FILTER, browser: 'chromium', targetHost: 'www.reddit.com' });
+
+function decodeHtmlAttr(s) {
+  return String(s || '')
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&#x27;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>');
+}
+
+function extractCommentFromCreateResponse(body, expectedBody) {
+  const html = decodeHtmlAttr(body);
+  const needle = String(expectedBody || '').trim().slice(0, 50);
+  if (needle && !html.includes(needle)) return null;
+  const permalink = html.match(/\bpermalink="([^"]+)"/i)?.[1] || '';
+  const thing = html.match(/\bthingid="t1_([a-z0-9]+)"/i)?.[1] || html.match(/\bthingId="t1_([a-z0-9]+)"/)?.[1] || '';
+  const link = permalink.match(/\/comments\/([a-z0-9]+)\//i)?.[1] || '';
+  if (!permalink && !thing) return null;
+  return {
+    permalink: permalink.startsWith('/') ? permalink : `/${permalink.replace(/^https?:\/\/[^/]+\//, '')}`,
+    id: thing,
+    linkId: link,
+  };
+}
 
 async function vpJitter() {
   const vp = s.page.viewportSize(); if (!vp) return;
@@ -200,13 +229,67 @@ try {
     try { const r = await fetch(u, { credentials: 'include' }); if (!r.ok) return null; return await r.json(); } catch { return null; }
   }, listingUrl).catch(() => null);
   let postUrlWww = null, postTitle = '', postBody = '';
+  let postCandidates = [];
   try {
     const candidates = (listingData?.data?.children ?? [])
       .map(c => c.data)
       .filter(p => p && !p.locked && !p.archived && p.num_comments < 2000);
-    const pick = candidates[Math.floor(Math.random() * Math.min(candidates.length, 12))];
-    if (pick) { postUrlWww = `https://www.reddit.com${pick.permalink}`; postTitle = pick.title || ''; postBody = pick.selftext || ''; }
+    postCandidates = candidates
+      .slice(0, Math.min(candidates.length, 12))
+      .sort(() => Math.random() - 0.5)
+      .map(p => ({
+        url: `https://www.reddit.com${p.permalink}`,
+        title: p.title || '',
+        body: p.selftext || '',
+      }));
   } catch (e) { console.log('[listing-parse]', e.message); }
+  if (SUBMIT_PATH === 'new') {
+    // New reddit does not mount an editable composer on every otherwise
+    // eligible post. Some pages contain a hidden 0x0 shreddit-composer with
+    // no shadow root, which cannot be focused or submitted. Validate the
+    // visible composer before generating a body for the post.
+    for (const candidate of postCandidates) {
+      await s.page.goto(candidate.url, { waitUntil: 'domcontentloaded' });
+      await humanIdlePause('short');
+      let probe = null;
+      for (let attempt = 0; attempt < 6; attempt++) {
+        await s.page.waitForTimeout(1000 + Math.floor(Math.random() * 500));
+        probe = await s.page.evaluate(() => {
+          const composers = Array.from(document.querySelectorAll('shreddit-composer'));
+          const metrics = composers.map((sc) => {
+            const r = sc.getBoundingClientRect();
+            return { w: Math.round(r.width), h: Math.round(r.height), hasShadow: !!sc.shadowRoot };
+          });
+          const visible = metrics.find(m => m.w > 20 && m.h > 20);
+          const faceplates = Array.from(document.querySelectorAll('faceplate-textarea-input[placeholder="Join the conversation"]'));
+          const visibleFaceplate = faceplates.find((el) => {
+            const r = el.getBoundingClientRect();
+            const style = getComputedStyle(el);
+            return r.width > 20 && r.height > 20 && style.display !== 'none' && style.visibility !== 'hidden';
+          });
+          return {
+            found: composers.length > 0 || faceplates.length > 0,
+            count: composers.length,
+            faceplateCount: faceplates.length,
+            visible: !!visible || !!visibleFaceplate,
+            visibleFaceplate: !!visibleFaceplate,
+            metrics,
+          };
+        }).catch(() => null);
+        if (probe?.visible) break;
+      }
+      console.log(`[comment] candidate composer probe: ${candidate.title.slice(0, 50)} ${JSON.stringify(probe)}`);
+      if (probe?.visible) {
+        postUrlWww = candidate.url;
+        postTitle = candidate.title;
+        postBody = candidate.body;
+        break;
+      }
+    }
+  } else {
+    const pick = postCandidates[0];
+    if (pick) { postUrlWww = pick.url; postTitle = pick.title; postBody = pick.body; }
+  }
   if (!postUrlWww) throw new Error(`no eligible post found in r/${SUBREDDIT}`);
   console.log(`[comment] picked post: ${postTitle.slice(0, 80)}`);
 
@@ -225,65 +308,381 @@ try {
   }
   console.log(`[comment-text] ${COMMENT_BODY.slice(0, 120)}`);
 
-  const oldRedditUrl = postUrlWww.replace(/^https?:\/\/(www\.|new\.)?reddit\.com/, 'https://old.reddit.com');
-  await s.page.goto(oldRedditUrl, { waitUntil: 'domcontentloaded' });
-  await humanIdlePause('deliberate');
-  await s.page.waitForTimeout(2000 + Math.floor(Math.random() * 1500));
+  let createdComment = null;
 
-  const postUrl = s.page.url();
-  console.log(`[comment] post-page url=${postUrl}`);
-  if (/\/login/.test(postUrl)) throw new Error(`comment phase: redirected to login (cookies invalid)`);
+  if (SUBMIT_PATH === 'new') {
+    // ===== NEW-reddit submit path =====
+    // Use the real shreddit-composer UI on www.reddit.com. The visible
+    // submit control is currently a custom button-small[type=submit], not
+    // always a native <button>, so tagName === 'BUTTON' misses it and falls
+    // back to unreliable Ctrl+Enter.
+    //
+    // Diagnostic listeners — without these the only signal on a renderer
+    // crash or a forced page close is the catch-all
+    // `[chromium:disconnected] pwBrowser disconnected pid=undefined` from
+    // async_api.ts, which doesn't say which step the page died on.
+    s.page.on('crash', () => console.log('[diag] page.crash fired'));
+    s.page.on('close', () => console.log(`[diag] page.close fired url=${(() => { try { return s.page.url(); } catch { return 'n/a'; }})()}`));
+    s.page.on('framenavigated', (f) => { if (f === s.page.mainFrame()) console.log(`[diag] framenavigated url=${f.url()}`); });
+    s.page.on('pageerror', (e) => console.log(`[diag] pageerror ${String(e.message || e).slice(0, 200)}`));
+    s.page.context().on('close', () => console.log('[diag] context.close fired'));
+    await s.page.goto(postUrlWww, { waitUntil: 'domcontentloaded' });
+    await humanIdlePause('deliberate');
+    await s.page.waitForTimeout(2500 + Math.floor(Math.random() * 1500));
+    await humanScroll(s.page, 800 + Math.floor(Math.random() * 600), 2);
+    await s.page.waitForTimeout(2000);
 
-  // OLD-reddit comment textarea is inside the top-level reply form. The
-  // structure is:
-  //   <div class="commentarea">
-  //     <div class="usertext-edit md-container">
-  //       <textarea name="text"></textarea>
-  //     </div>
-  //     <button class="save">save</button>
-  //   </div>
-  // Note: form may be wrapped or cloneable. We probe to find what's there.
-  const probe = await s.page.evaluate(() => {
-    const all = Array.from(document.querySelectorAll('textarea'));
-    const meta = all.map(t => ({
-      name: t.name,
-      visible: t.offsetParent !== null,
-      rect: (() => { const r = t.getBoundingClientRect(); return `${Math.round(r.width)}x${Math.round(r.height)}`; })(),
-      parent: t.parentElement?.className?.slice(0, 60),
-      grand: t.parentElement?.parentElement?.className?.slice(0, 60),
-    }));
-    const ca = document.querySelector('.commentarea');
-    const hasForm = !!document.querySelector('form.usertext');
-    const isLoggedIn = !!document.querySelector('a[href*="/user/"]') && !document.querySelector('.login-required');
-    return { textareas: meta, hasCommentArea: !!ca, hasForm, isLoggedIn, title: document.title };
-  });
-  console.log(`[comment] probe: ${JSON.stringify(probe).slice(0, 800)}`);
+    const postUrl = s.page.url();
+    console.log(`[comment] post-page url=${postUrl}`);
+    if (/\/login/.test(postUrl)) throw new Error(`comment phase: redirected to login (cookies invalid)`);
 
-  // Find the visible top-level reply textarea[name="text"]. Each existing
-  // comment in the thread also has a (hidden) reply form with its own
-  // textarea[name="text"], so .first() works only if the top-level form
-  // is first in DOM order — which it is on old.reddit post pages.
-  const textarea = s.page.locator('textarea[name="text"]').first();
-  await textarea.waitFor({ state: 'visible', timeout: 15000 });
-  await humanClickLocator(s.page, textarea);
-  await humanIdlePause('short');
-  await humanType(s.page, COMMENT_BODY);
-  await humanIdlePause('short');
-  await vpJitter();
+    const findComposerPart = (part) => {
+      function dig(root, predicate) {
+        const queue = [root];
+        while (queue.length) {
+          const node = queue.shift();
+          if (!node) continue;
+          if (node.nodeType === Node.ELEMENT_NODE && predicate(node)) return node;
+          if (node.shadowRoot) queue.push(node.shadowRoot);
+          if (node.children) queue.push(...node.children);
+        }
+        return null;
+      }
+      const composers = Array.from(document.querySelectorAll('shreddit-composer'));
+      const composer = composers.find((sc) => {
+        const r = sc.getBoundingClientRect();
+        return r.width > 20 && r.height > 20;
+      }) || composers[0];
+      const isVisible = (el) => {
+        const r = el.getBoundingClientRect();
+        const style = getComputedStyle(el);
+        return r.width > 8 && r.height > 8 && style.visibility !== 'hidden' && style.display !== 'none';
+      };
+      const visibleFaceplate = () => {
+        const inputs = Array.from(document.querySelectorAll('faceplate-textarea-input[placeholder="Join the conversation"]'));
+        const el = inputs.find(isVisible);
+        if (!el) return null;
+        const r = el.getBoundingClientRect();
+        return {
+          x: r.left + Math.min(40, r.width / 2),
+          y: r.top + Math.min(22, r.height / 2),
+          w: r.width,
+          h: r.height,
+          tag: el.tagName.toLowerCase(),
+          text: (el.textContent || el.getAttribute('placeholder') || '').trim().slice(0, 80),
+        };
+      };
+      if (part === 'editable') {
+        if (!composer) return null;
+        // Dig from composer (host element) so the traversal covers both
+        // composer.shadowRoot AND composer.children (light DOM / slotted).
+        // Reddit's shreddit-composer keeps the contenteditable in the
+        // light DOM after expansion; searching only shadowRoot misses it.
+        const el = dig(composer, (e) => {
+          if (!isVisible(e)) return false;
+          if (e.getAttribute('contenteditable') === 'true') return true;
+          if (e.matches?.('[role="textbox"], textarea')) return true;
+          return false;
+        });
+        if (!el) return null;
+        const r = el.getBoundingClientRect();
+        return { x: r.left + Math.min(40, r.width / 2), y: r.top + Math.min(24, r.height / 2), w: r.width, h: r.height, tag: el.tagName.toLowerCase() };
+      }
+      if (part === 'placeholder') {
+        const fp = visibleFaceplate();
+        if (fp) return fp;
+        if (!composer) return null;
+        const el = dig(composer, (e) => {
+          if (!isVisible(e)) return false;
+          const text = (e.textContent || '').trim().toLowerCase();
+          if (e.classList?.contains('cursor-text')) return true;
+          if (text.includes('join the conversation')) return true;
+          return false;
+        }) || composer;
+        const r = el.getBoundingClientRect();
+        return { x: r.left + Math.min(44, r.width / 2), y: r.top + Math.min(24, r.height / 2), w: r.width, h: r.height, tag: el.tagName.toLowerCase(), text: (el.textContent || '').trim().slice(0, 80) };
+      }
+      if (!composer) return null;
+      // Dig from composer (host) so traversal covers BOTH composer.shadowRoot
+      // and composer.children (light DOM). The Comment submit button is
+      // rendered in the light DOM as `<button type="submit">comment</button>`
+      // — it's not inside shadowRoot, so the prior `composer.shadowRoot ??
+      // composer` form was missing it whenever shadowRoot existed.
+      const el = dig(composer, (e) => {
+        if (!isVisible(e)) return false;
+        const tag = e.tagName.toLowerCase();
+        const type = (e.getAttribute('type') || '').toLowerCase();
+        if (type !== 'submit' && !tag.includes('button')) return false;
+        const text = (e.textContent || e.getAttribute('aria-label') || '').trim().toLowerCase();
+        if (!text.includes('comment') && !text.includes('reply') && !text.includes('submit')) return false;
+        if (e.disabled || e.getAttribute('aria-disabled') === 'true') return false;
+        return true;
+      });
+      if (!el) return null;
+      const r = el.getBoundingClientRect();
+      return { x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, h: r.height, tag: el.tagName.toLowerCase(), text: (el.textContent || '').trim().slice(0, 80) };
+    };
 
-  // CRITICAL: scope the submit button to the SAME form as the textarea.
-  // Otherwise `button.save` first-on-page can match a "save comment" button
-  // attached to an existing thread-comment, which submits to a different
-  // endpoint and produces shadow-removal. Diff vs the visible-comment trace
-  // (wespratt2656) confirmed: original committed trajectory used
-  // ancestor::form[1] scoping, which submitted to relative /api/comment;
-  // unscoped button.save picked a different button submitting to absolute
-  // https://www.reddit.com/api/comment, going through new-reddit's spam
-  // filter (always shadow_removed for new accounts).
-  const submitBtn = textarea.locator('xpath=ancestor::form[1]').locator('button.save, button[type="submit"]').first();
-  await submitBtn.waitFor({ state: 'visible', timeout: 10000 });
-  await humanClickLocator(s.page, submitBtn);
-  console.log('[comment] submitted via form-scoped submit button');
+    // Pre-flight: scroll the composer into view BEFORE doing any clicks.
+    // After humanScroll() the composer can be at y<0 (above viewport) or
+    // y>viewportH (below viewport). CDP Input.dispatchMouseEvent at a
+    // negative or out-of-viewport Y silently drops the CDP session —
+    // Chromium does not crash, the renderer rejects the event and
+    // Playwright surfaces it as `pwBrowser disconnected`. Diagnosed
+    // 2026-04-30 via [diag] log of zanestone7384 run (y=-337) and
+    // sagekoepp1273 run (y=-535).
+    const viewportH = await s.page.evaluate(() => window.innerHeight).catch(() => 1440);
+    await s.page.evaluate(() => {
+      const fp = Array.from(document.querySelectorAll('faceplate-textarea-input[placeholder="Join the conversation"]'))
+        .find((el) => {
+          const r = el.getBoundingClientRect();
+          return r.width > 8 && r.height > 8;
+        });
+      const composers = Array.from(document.querySelectorAll('shreddit-composer'));
+      const composer = composers.find((sc) => {
+        const r = sc.getBoundingClientRect();
+        return r.width > 20 && r.height > 20;
+      }) || composers[0];
+      const target = fp || composer;
+      if (target) target.scrollIntoView({ block: 'center', behavior: 'instant' });
+    }).catch(() => {});
+    await s.page.waitForTimeout(700 + Math.floor(Math.random() * 400));
+
+    let editable = null;
+    for (let i = 0; i < 6; i++) {
+      editable = await s.page.evaluate(findComposerPart, 'editable').catch(() => null);
+      if (editable && editable.y >= 0 && editable.y <= viewportH) break;
+      editable = null;
+      const placeholder = await s.page.evaluate(findComposerPart, 'placeholder').catch(() => null);
+      if (placeholder && placeholder.y >= 0 && placeholder.y <= viewportH) {
+        // Click the placeholder ONCE to expand the composer. Do NOT click
+        // again outside the loop — a second click toggles the composer
+        // back to collapsed, which is why the submit-button probe was
+        // returning null in the sagekoepp1273 run.
+        console.log(`[diag] clicking placeholder at (${placeholder.x}, ${placeholder.y})`);
+        await humanMove(s.page, placeholder.x, placeholder.y);
+        await s.page.mouse.click(placeholder.x, placeholder.y, { delay: 70 + Math.floor(Math.random() * 80) });
+        await s.page.waitForTimeout(1500);
+        // Re-probe — after expansion the contenteditable should exist.
+        const expanded = await s.page.evaluate(findComposerPart, 'editable').catch(() => null);
+        if (expanded && expanded.y >= 0 && expanded.y <= viewportH) {
+          editable = expanded;
+          console.log(`[comment] composer expanded → editable: ${JSON.stringify(editable)}`);
+          break;
+        }
+        // Composer didn't expand to a contenteditable. Reuse the placeholder
+        // position — typing will hit whatever is now focused (clicking the
+        // faceplate moves focus to its internal textarea).
+        editable = placeholder;
+        console.log(`[comment] composer didn't expose editable; using placeholder pos: ${JSON.stringify(editable)}`);
+        break;
+      }
+      await s.page.evaluate(() => {
+        document.dispatchEvent(new CustomEvent('open-comment-composer', { bubbles: true, composed: true }));
+        for (const sc of document.querySelectorAll('shreddit-composer')) {
+          sc.dispatchEvent(new CustomEvent('open-comment-composer', { bubbles: true, composed: true }));
+        }
+      }).catch(() => {});
+      await s.page.waitForTimeout(1000);
+    }
+    console.log(`[comment] new-reddit editable probe: ${JSON.stringify(editable)}`);
+    if (!editable) throw new Error('new-reddit composer editable not found');
+
+    // Type into whatever element is now focused after the placeholder click.
+    // No second click — that would toggle the composer back to collapsed.
+    console.log(`[diag] before humanType len=${COMMENT_BODY.length}`);
+    await humanType(s.page, COMMENT_BODY);
+    console.log(`[diag] after humanType — url=${s.page.url()} closed=${s.page.isClosed()}`);
+
+    // Diagnostic: confirm the body landed somewhere in the DOM. If this
+    // is false, the typing went to a non-focused or wrong target and the
+    // submit button won't appear.
+    const bodyLanded = await s.page.evaluate((needle) => {
+      const norm = (s) => String(s || '').replace(/\s+/g, ' ').trim();
+      const want = norm(needle).slice(0, 50);
+      if (!want) return false;
+      // Check page body innerText (covers contenteditable + textarea values
+      // through faceplate web components).
+      if (norm(document.body.innerText).includes(want)) return true;
+      // Check shreddit-composer shadow DOM contenteditable + textarea.
+      for (const sc of document.querySelectorAll('shreddit-composer')) {
+        const root = sc.shadowRoot ?? sc;
+        const queue = [root];
+        while (queue.length) {
+          const n = queue.shift();
+          if (!n) continue;
+          if (n.nodeType === Node.ELEMENT_NODE) {
+            if (norm(n.textContent).includes(want)) return true;
+            if (typeof n.value === 'string' && norm(n.value).includes(want)) return true;
+            if (n.shadowRoot) queue.push(n.shadowRoot);
+            if (n.children) queue.push(...n.children);
+          }
+        }
+      }
+      return false;
+    }, COMMENT_BODY).catch(() => false);
+    console.log(`[diag] body-landed-in-dom=${bodyLanded}`);
+
+    await humanIdlePause('short');
+    await vpJitter();
+    console.log(`[diag] after vpJitter — about to probe submit`);
+
+    let submit = null;
+    for (let i = 0; i < 8; i++) {
+      submit = await s.page.evaluate(findComposerPart, 'submit').catch(() => null);
+      if (submit) break;
+      await s.page.waitForTimeout(750);
+    }
+    console.log(`[comment] new-reddit submit probe: ${JSON.stringify(submit)}`);
+    if (!submit) {
+      // Diagnostic: dump ALL button-like elements with comment/reply/submit
+      // text anywhere on the page so we can see what the structure actually
+      // looks like after typing on a fresh account.
+      const enumeration = await s.page.evaluate(() => {
+        const out = [];
+        const seen = new Set();
+        function isVis(el) {
+          const r = el.getBoundingClientRect();
+          const st = getComputedStyle(el);
+          return r.width > 4 && r.height > 4 && st.visibility !== 'hidden' && st.display !== 'none';
+        }
+        function visit(root, depth) {
+          if (!root || depth > 12 || seen.has(root)) return;
+          seen.add(root);
+          const queue = [root];
+          while (queue.length) {
+            const n = queue.shift();
+            if (!n || n.nodeType !== 1) continue;
+            const tag = n.tagName.toLowerCase();
+            const type = (n.getAttribute?.('type') || '').toLowerCase();
+            const role = (n.getAttribute?.('role') || '').toLowerCase();
+            const text = (n.textContent || '').trim().toLowerCase().slice(0, 60);
+            const aria = (n.getAttribute?.('aria-label') || '').toLowerCase();
+            const matches = (tag.includes('button') || type === 'submit' || role === 'button')
+              && (text.includes('comment') || text.includes('reply') || text.includes('submit') || text.includes('post')
+                  || aria.includes('comment') || aria.includes('reply') || aria.includes('submit') || aria.includes('post'));
+            if (matches) {
+              const r = n.getBoundingClientRect();
+              out.push({
+                tag, type, role,
+                text: text.slice(0, 40),
+                aria: aria.slice(0, 40),
+                vis: isVis(n),
+                disabled: !!n.disabled || n.getAttribute?.('aria-disabled') === 'true',
+                x: Math.round(r.left + r.width / 2),
+                y: Math.round(r.top + r.height / 2),
+                w: Math.round(r.width),
+                h: Math.round(r.height),
+              });
+            }
+            if (n.shadowRoot) queue.push(n.shadowRoot);
+            if (n.children) queue.push(...n.children);
+          }
+        }
+        visit(document.documentElement, 0);
+        return out.slice(0, 30);
+      }).catch((e) => ({ err: String(e) }));
+      console.log(`[diag] all-button-like enumeration: ${JSON.stringify(enumeration)}`);
+      // Dump composer state too
+      const composerState = await s.page.evaluate(() => {
+        const out = [];
+        for (const sc of document.querySelectorAll('shreddit-composer')) {
+          const r = sc.getBoundingClientRect();
+          out.push({
+            w: Math.round(r.width), h: Math.round(r.height),
+            hasShadow: !!sc.shadowRoot,
+            childCount: sc.children?.length ?? 0,
+            shadowChildCount: sc.shadowRoot?.children?.length ?? 0,
+            innerHTMLLen: (sc.innerHTML || '').length,
+            shadowHTMLLen: (sc.shadowRoot?.innerHTML || '').length,
+          });
+        }
+        return out;
+      }).catch(() => null);
+      console.log(`[diag] composer-state: ${JSON.stringify(composerState)}`);
+      throw new Error('new-reddit composer submit button not found');
+    }
+
+    await humanMove(s.page, submit.x, submit.y);
+    await s.page.mouse.click(submit.x, submit.y, { delay: 90 + Math.floor(Math.random() * 90) });
+    console.log('[comment] submitted via new-reddit shreddit-composer submit button');
+
+    // New-reddit does not submit through old /api/comment XHR. It posts to
+    // /svc/shreddit/t3_<post>/create-comment and returns a partial HTML
+    // payload containing the newly-created <shreddit-comment> with thingId
+    // and permalink. This is the earliest authoritative submit-success
+    // signal; user listing can lag and caused false negatives in tests.
+    for (let i = 0; i < 12; i++) {
+      await s.page.waitForTimeout(1000);
+      const fromResponse = [...s.capturedResponses]
+        .reverse()
+        .filter(r => r.status >= 200 && r.status < 300 && /\/svc\/shreddit\/t3_[a-z0-9]+\/create-comment/i.test(r.url))
+        .map(r => extractCommentFromCreateResponse(r.body, COMMENT_BODY))
+        .find(Boolean);
+      if (fromResponse) {
+        createdComment = fromResponse;
+        break;
+      }
+      const fromDom = await s.page.evaluate((body) => {
+        const norm = (s) => String(s || '').replace(/\s+/g, ' ').trim();
+        const needle = norm(body).slice(0, 80);
+        for (const el of document.querySelectorAll('shreddit-comment')) {
+          const text = norm(el.textContent);
+          if (needle && !text.includes(needle)) continue;
+          const permalink = el.getAttribute('permalink') || '';
+          const thingId = el.getAttribute('thingid') || el.getAttribute('thingId') || '';
+          const id = (thingId.match(/^t1_([a-z0-9]+)$/i) || [])[1] || '';
+          const linkId = (permalink.match(/\/comments\/([a-z0-9]+)\//i) || [])[1] || '';
+          if (permalink || id) return { permalink, id, linkId };
+        }
+        return null;
+      }, COMMENT_BODY).catch(() => null);
+      if (fromDom) {
+        createdComment = fromDom;
+        break;
+      }
+    }
+    console.log(`[comment] new-reddit created-comment probe: ${JSON.stringify(createdComment)}`);
+  } else {
+    // ===== OLD-reddit submit path (default, proven-working) =====
+    const oldRedditUrl = postUrlWww.replace(/^https?:\/\/(www\.|new\.)?reddit\.com/, 'https://old.reddit.com');
+    await s.page.goto(oldRedditUrl, { waitUntil: 'domcontentloaded' });
+    await humanIdlePause('deliberate');
+    await s.page.waitForTimeout(2000 + Math.floor(Math.random() * 1500));
+
+    const postUrl = s.page.url();
+    console.log(`[comment] post-page url=${postUrl}`);
+    if (/\/login/.test(postUrl)) throw new Error(`comment phase: redirected to login (cookies invalid)`);
+
+    const probe = await s.page.evaluate(() => {
+      const all = Array.from(document.querySelectorAll('textarea'));
+      const meta = all.map(t => ({
+        name: t.name,
+        visible: t.offsetParent !== null,
+        rect: (() => { const r = t.getBoundingClientRect(); return `${Math.round(r.width)}x${Math.round(r.height)}`; })(),
+        parent: t.parentElement?.className?.slice(0, 60),
+        grand: t.parentElement?.parentElement?.className?.slice(0, 60),
+      }));
+      return { textareas: meta, hasForm: !!document.querySelector('form.usertext'), title: document.title };
+    });
+    console.log(`[comment] probe: ${JSON.stringify(probe).slice(0, 600)}`);
+
+    const textarea = s.page.locator('textarea[name="text"]').first();
+    await textarea.waitFor({ state: 'visible', timeout: 15000 });
+    await humanClickLocator(s.page, textarea);
+    await humanIdlePause('short');
+    await humanType(s.page, COMMENT_BODY);
+    await humanIdlePause('short');
+    await vpJitter();
+    // CRITICAL: scope the submit button to the SAME form as the textarea
+    // (existing thread-comments have their own .save controls that post
+    // to absolute www.reddit.com/api/comment, going through new-reddit's
+    // spam filter — always shadow_removed for new accounts).
+    const submitBtn = textarea.locator('xpath=ancestor::form[1]').locator('button.save, button[type="submit"]').first();
+    await submitBtn.waitFor({ state: 'visible', timeout: 10000 });
+    await humanClickLocator(s.page, submitBtn);
+    console.log('[comment] submitted via form-scoped submit button (OLD-reddit)');
+  }
 
   // Wait briefly for the comment to appear in-page. This is best-effort —
   // old.reddit's DOM update after submit can lag past our timeout window
@@ -340,6 +739,14 @@ try {
   let commentPermalink = '';
   let commentLinkId = '';
   let commentId = '';
+  const acceptedBySubmit = !!(createdComment?.permalink || createdComment?.id);
+  if (createdComment) {
+    commentPermalink = createdComment.permalink
+      ? (createdComment.permalink.startsWith('/') ? createdComment.permalink : `/${createdComment.permalink}`)
+      : '';
+    commentLinkId = createdComment.linkId || '';
+    commentId = createdComment.id || '';
+  }
 
   if (realHandle) {
     // 1. Find comment in user listing + extract its permalink + parent post id.
@@ -420,12 +827,13 @@ try {
     }
   }
 
-  console.log(`[verify] inUserListing=${inUserListing} inPostThread=${inPostThread} aboutStatus=${publicAboutStatus} inAuthListing=${inAuthListing} permalink=${commentPermalink}`);
+  console.log(`[verify] acceptedBySubmit=${acceptedBySubmit} inUserListing=${inUserListing} inPostThread=${inPostThread} aboutStatus=${publicAboutStatus} inAuthListing=${inAuthListing} permalink=${commentPermalink}`);
 
   let verdict;
+  const accepted = acceptedBySubmit || inUserListing || inAuthListing;
   if (publicAboutStatus === 404) verdict = 'shadowbanned';
-  else if (inPostThread && inUserListing) verdict = 'PASS';
-  else if (inUserListing && !inPostThread) verdict = 'shadow_removed';
+  else if (inPostThread && accepted) verdict = 'PASS';
+  else if (accepted && !inPostThread) verdict = 'shadow_removed';
   else if (inAuthListing && !inUserListing) verdict = 'rate_limited_or_filtered';
   else verdict = 'rejected';
 
