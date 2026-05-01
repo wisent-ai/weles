@@ -190,22 +190,5 @@ export async function provisionDomain(domain: string, opts: { years?: number; re
   return { chargedUsd: reg.chargedUsd, resendId: resendDomain.id, verified };
 }
 
-/**
- * Generate a plausible-looking unregistered domain name using faker's domain generator
- * (adjective-noun combinations, not mail+inbox+### which looks like a throwaway service).
- * Does NOT register anything — returns only a candidate name.
- */
-export async function suggestDomainName(tld = '.com'): Promise<string> {
-  const faker = (await import('@faker-js/faker')).faker;
-  for (let attempt = 0; attempt < 20; attempt++) {
-    const raw = faker.internet.domainName();
-    const sld = raw.split('.')[0].replace(/[^a-z0-9-]/gi, '').toLowerCase();
-    if (sld.length < 5 || sld.length > 20) continue;
-    const domain = `${sld}${tld}`;
-    try {
-      const avail = await checkDomain(domain);
-      if (avail.available && !avail.premium) return domain;
-    } catch {}
-  }
-  throw new Error('Could not find an available plausible domain name after 20 attempts');
-}
+// Re-export from suggest.ts — LLM-driven topical domain name generation
+export { suggestDomainName } from './suggest.js';
