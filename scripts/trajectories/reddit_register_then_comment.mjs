@@ -1,29 +1,12 @@
-/**
- * Combined register-then-comment trajectory: registers a fresh Reddit account
- * AND posts a comment in the SAME WSession (same browser process, same
- * persona, same proxy sticky session, same localStorage/IndexedDB, same TLS
- * keys, same HTTP/2 connections, same in-page state). This mirrors a human
- * who registers and immediately comments in the same browser tab — the
- * scenario that's been shown to NOT get insta-shadowbanned.
- *
- * The atomic register/comment trajectories close the browser between actions,
- * which Reddit's anti-bot tags as "session moved to a new device" and
- * shadowbans within seconds of the first comment. This trajectory eliminates
- * that signal as a confound so we can see whether browser-process continuity
- * is the actual root cause.
- */
 import { WSession } from '../../dist/session/wsession.js';
 import { humanType } from '../../dist/human/keyboard.js';
 import { humanMove, humanIdlePause, humanClick, humanClickLocator, humanScroll, humanHoverDwell } from '../../dist/human/mouse.js';
-import { findComposerPart, spaTransitionToPost, engageMedia, dwellOnPostPage, submitNewRedditComment } from './reddit/actions/comment_new.mjs';
-import { verifyCommentVisibility } from './reddit/actions/comment_verify.mjs';
+import { findComposerPart, spaTransitionToPost, engageMedia, dwellOnPostPage, submitNewRedditComment, verifyCommentVisibility } from './reddit/actions/comment_new.mjs';
 import { detectRedditBanSignals } from '../../dist/platforms/reddit/ban_signals.js';
 import { generateOrganicComment } from './_shared/llm.mjs';
 import { randomBytes } from 'node:crypto';
-
 process.on('unhandledRejection', (err) => { console.log(`UNHANDLED: ${err?.message || err}`); process.exit(2); });
 process.on('uncaughtException', (err) => { console.log(`UNCAUGHT: ${err?.message || err}`); process.exit(3); });
-
 const REGISTER_URL = 'https://www.reddit.com/register';
 const NEWBIE_FRIENDLY_SUBS = [
   'CasualConversation', 'AskOldPeople', 'AskReddit', 'NoStupidQuestions',
@@ -33,13 +16,11 @@ const RAW_SUBREDDIT = process.env.SUBREDDIT || 'popular';
 const SUBREDDIT = (RAW_SUBREDDIT === 'popular' || RAW_SUBREDDIT === 'all')
   ? NEWBIE_FRIENDLY_SUBS[Math.floor(Math.random() * NEWBIE_FRIENDLY_SUBS.length)]
   : RAW_SUBREDDIT;
-// you want a deterministic body.
 const COMMENT_BODY_OVERRIDE = process.env.COMMENT_BODY || null;
 const SUBMIT_PATH = (process.env.NEW_REDDIT === '1' || process.env.SUBMIT_PATH === 'new') ? 'new' : 'old';
 const AGENT_DOMAIN = process.env.AGENT_DOMAIN ?? 'mailwisent.com';
 const PROXY_FILTER = process.env.PROXY_URL || 'residential brightdata us';
 const REAL_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15';
-
 function genIdentity() {
   const F = 'Garry,Katie,Logan,Maya,Owen,Riley,Sage,Tess,Wes,Zane'.split(',');
   const L = 'Koepp,Bayer,Pratt,Quinn,Reeves,Stone,Vega,West,Yates,Cole'.split(',');
@@ -50,12 +31,9 @@ function genIdentity() {
   const password = randomBytes(9).toString('base64').replace(/[+/=]/g, '') + '!A1';
   return { first, last, username, email, password, name: `${first} ${last}` };
 }
-
 const id = genIdentity();
 console.log(`[register] identity: ${id.username} ${id.email}`);
-
 const s = await WSession.start({ label: 'reddit_register_then_comment', proxy: PROXY_FILTER, browser: 'chromium', targetHost: 'www.reddit.com' });
-
 function decodeHtmlAttr(s) {
   return String(s || '')
     .replace(/&amp;/g, '&')
@@ -65,7 +43,6 @@ function decodeHtmlAttr(s) {
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>');
 }
-
 function extractCommentFromCreateResponse(body, expectedBody) {
   const html = decodeHtmlAttr(body);
   const needle = String(expectedBody || '').trim().slice(0, 50);
@@ -80,18 +57,15 @@ function extractCommentFromCreateResponse(body, expectedBody) {
     linkId: link,
   };
 }
-
 async function vpJitter() {
   const vp = s.page.viewportSize(); if (!vp) return;
   await humanMove(s.page, 100 + Math.floor(Math.random() * (vp.width - 200)), 100 + Math.floor(Math.random() * (vp.height - 200)));
 }
-
 try {
   // ===== REGISTRATION =====
   await s.page.goto(REGISTER_URL, { waitUntil: 'domcontentloaded' });
   await humanIdlePause('deliberate');
   await vpJitter();
-
   const emailIn = s.page.locator('input[type="email"], input[name="email"], input[autocomplete="email"]').filter({ visible: true }).first();
   await emailIn.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, emailIn);
@@ -101,7 +75,6 @@ try {
   await vpJitter();
   await humanClickLocator(s.page, s.page.getByRole('button', { name: /continue/i }).filter({ visible: true }).first());
   console.log('[register] submitted email');
-
   await humanIdlePause('deliberate');
   const code = await s.checkEmail(id.email, 'reddit');
   if (/^error|^no code/.test(code)) throw new Error(`email_code_failed: ${code}`);
@@ -116,16 +89,13 @@ try {
   await humanIdlePause('short');
   await humanClickLocator(s.page, s.page.getByRole('button', { name: /continue|verify|submit/i }).filter({ visible: true }).first());
   console.log('[register] submitted code');
-
   await humanIdlePause('deliberate');
   await vpJitter();
   const userIn = s.page.locator('input[name="username"], input[autocomplete="username"]').filter({ visible: true }).first();
   await userIn.waitFor({ state: 'visible' });
-  // suggestion.
   const beforeVal = await userIn.inputValue().catch(() => '?');
   console.log(`[register] username field BEFORE typing: "${beforeVal}"`);
   await humanClickLocator(s.page, userIn);
-  // keystrokes for the new value.
   for (let attempt = 0; attempt < 3; attempt++) {
     await userIn.fill('').catch(() => {}); // lint-allow: bare-fill
     await humanIdlePause('short');
@@ -146,45 +116,30 @@ try {
   await vpJitter();
   await humanClickLocator(s.page, s.page.getByRole('button', { name: /sign up|continue|create/i }).filter({ visible: true }).first());
   console.log('[register] submitted username + password');
-
   for (let i = 0; i < 20; i++) {
     await s.page.waitForTimeout(1500);
     const u = s.page.url();
     if (!/\/register/.test(u)) break;
   }
   console.log(`[register] post-signup url=${s.page.url()}`);
-
   const result = await s.saveAccount('reddit', { username: id.username, email: id.email, password: id.password, name: id.name });
   console.log(`[register] saveAccount: ${result}`);
-
-  // around. Match that loosely.
   await humanIdlePause('deliberate');
   await s.page.waitForTimeout(3000 + Math.floor(Math.random() * 4000));
-
   console.log('[browse] organic session before comment');
-  // clicking into a post; during that dwell Reddit wrote
-  // Storage.setItem:good-visit-feeds-search (3x) and
-  // comment from a fresh account.
-  // NOTE: the feedUrl uses the DEFAULT sort (no /new) to match the human-
-  // scrapes the rendered DOM so it works with any sort.
   const listingSort = 'new';
   const feedUrl = SUBREDDIT === 'popular' || SUBREDDIT === 'all'
     ? 'https://www.reddit.com/'
     : `https://www.reddit.com/r/${SUBREDDIT}/`;
   await s.page.goto(feedUrl, { waitUntil: 'domcontentloaded' });
   await humanIdlePause('deliberate');
-  //   - good-visit-feeds-search: needs >5s dwell to fire
-  //     usernames while browsing); T was 0-1x
-  // classifier to score us as a genuine session.
   await s.page.waitForTimeout(15000 + Math.floor(Math.random() * 10000));
-  // First scroll burst — reading the feed.
   await humanScroll(s.page, 1200 + Math.floor(Math.random() * 800), 3 + Math.floor(Math.random() * 3));
   await humanIdlePause('deliberate');
   await humanHoverDwell(
     s.page,
     s.page.locator('a[href^="/user/"], a[href*="/user/"]').filter({ visible: true }).first(),
   ).catch(() => false);
-  // scrolled the feed in multiple distinct reading sessions.
   await s.page.waitForTimeout(8000 + Math.floor(Math.random() * 6000));
   await humanScroll(s.page, 1000 + Math.floor(Math.random() * 600), 2 + Math.floor(Math.random() * 2));
   await humanIdlePause('deliberate');
@@ -196,9 +151,6 @@ try {
   console.log(`[browse] done — staying on r/${SUBREDDIT}/${listingSort} feed for comment-phase post pick`);
 
   // ===== COMMENT — pick post from RENDERED FEED DOM =====
-  //     after-show/hide subscribers
-  // and goto().
-  //
   const visiblePosts = await s.page.evaluate(() => {
     const out = [];
     const els = Array.from(document.querySelectorAll('shreddit-post'));
@@ -210,7 +162,6 @@ try {
       const numComments = parseInt(el.getAttribute('comment-count') || '0', 10);
       const isLocked = el.hasAttribute('is-locked');
       const isNsfw = el.hasAttribute('nsfw');
-      // Media post detection — has embedded video/image player.
       const hasMedia = !!el.querySelector('shreddit-player, video, iframe[src*="youtube"], iframe[src*="youtu.be"], img.gallery-carousel-image, shreddit-gallery-carousel, a[href*="imgur"], a[href*=".jpg"], a[href*=".png"], a[href*=".gif"], shreddit-aspect-ratio-box img');
       const hasText = !!el.querySelector('shreddit-post-text-body, [slot="text-body"], div[id^="t3_"][id$="-post-rtjson-content"]');
       if (!permalink || isLocked || isNsfw || numComments > 2000) continue;
@@ -229,7 +180,6 @@ try {
     postTitle = pick.title;
   postHasMedia = pick.hasMedia;
     console.log(`[comment] picked from feed DOM: ${postTitle.slice(0, 60)} ${postHasMedia ? '(media)' : '(text)'}`);
-    // from the shreddit-post element instead.
     try {
       const body = await s.page.evaluate((perm) => {
         const el = document.querySelector(`shreddit-post[permalink="${perm}"]`);
@@ -242,7 +192,6 @@ try {
   }
   if (!postUrlWww) throw new Error(`no eligible post visible in r/${SUBREDDIT} feed DOM`);
   console.log(`[comment] picked post: ${postTitle.slice(0, 80)}`);
-
   let COMMENT_BODY;
   if (COMMENT_BODY_OVERRIDE) {
     COMMENT_BODY = COMMENT_BODY_OVERRIDE;
@@ -253,9 +202,7 @@ try {
     });
   }
   console.log(`[comment-text] ${COMMENT_BODY.slice(0, 120)}`);
-
   let createdComment = null;
-
   if (SUBMIT_PATH === 'new') {
     s.page.on('crash', () => console.log('[diag] page.crash fired'));
     s.page.on('close', () => console.log(`[diag] page.close fired url=${(() => { try { return s.page.url(); } catch { return 'n/a'; }})()}`));
@@ -277,11 +224,9 @@ try {
     await s.page.goto(oldRedditUrl, { waitUntil: 'domcontentloaded' });
     await humanIdlePause('deliberate');
     await s.page.waitForTimeout(2000 + Math.floor(Math.random() * 1500));
-
     const postUrl = s.page.url();
     console.log(`[comment] post-page url=${postUrl}`);
     if (/\/login/.test(postUrl)) throw new Error(`comment phase: redirected to login (cookies invalid)`);
-
     const probe = await s.page.evaluate(() => {
       const all = Array.from(document.querySelectorAll('textarea'));
       const meta = all.map(t => ({
@@ -294,7 +239,6 @@ try {
       return { textareas: meta, hasForm: !!document.querySelector('form.usertext'), title: document.title };
     });
     console.log(`[comment] probe: ${JSON.stringify(probe).slice(0, 600)}`);
-
     const textarea = s.page.locator('textarea[name="text"]').first();
     await textarea.waitFor({ state: 'visible', timeout: 15000 });
     await humanClickLocator(s.page, textarea);
@@ -302,13 +246,11 @@ try {
     await humanType(s.page, COMMENT_BODY);
     await humanIdlePause('short');
     await vpJitter();
-    // spam filter — always shadow_removed for new accounts).
     const submitBtn = textarea.locator('xpath=ancestor::form[1]').locator('button.save, button[type="submit"]').first();
     await submitBtn.waitFor({ state: 'visible', timeout: 10000 });
     await humanClickLocator(s.page, submitBtn);
     console.log('[comment] submitted via form-scoped submit button (OLD-reddit)');
   }
-
   let postedLocally = false;
   for (let i = 0; i < 12; i++) {
     await s.page.waitForTimeout(1500);
@@ -316,20 +258,17 @@ try {
     if (txt.includes(COMMENT_BODY)) { postedLocally = true; break; }
   }
   console.log(`[comment] in-page check: ${postedLocally ? 'visible' : 'not seen yet (proceeding to verify)'}`);
-
   let realHandle = null;
   try {
     const meResp = await s.page.context().request.get('https://www.reddit.com/api/me.json', { headers: { 'Accept': 'application/json' }, ignoreHTTPSErrors: true, timeout: 10000 }).catch(() => null);
     if (meResp) { const meData = await meResp.json().catch(() => null); realHandle = meData?.data?.name ?? null; }
   } catch {}
   console.log(`[comment] real handle: ${realHandle}`);
-
   const commentPermalink = createdComment?.permalink ? (createdComment.permalink.startsWith('/') ? createdComment.permalink : `/${createdComment.permalink}`) : '';
   const { inUserListing, inPostThread, publicAboutStatus: aboutStatus, inAuthListing, verdict } = await verifyCommentVisibility(s.page, {
     realHandle, commentBody: COMMENT_BODY, commentPermalink, proxyConfig: s.proxyConfig,
   });
   const acceptedBySubmit = !!(createdComment?.permalink || createdComment?.id);
-
   if (verdict === 'PASS') {
     console.log(`PASS: ${id.username} -> commented "${COMMENT_BODY}" -> https://www.reddit.com${commentPermalink} (visible in post thread)`);
   } else {
