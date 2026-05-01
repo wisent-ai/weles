@@ -280,15 +280,16 @@ try {
     postUrlWww = `https://www.reddit.com${pick.permalink}`;
     postTitle = pick.title;
     console.log(`[comment] picked from feed DOM: ${postTitle.slice(0, 60)}`);
-    // Fetch just the selftext via API for LLM context (no goto, no nav).
+    // Scrape selftext from the rendered feed DOM — NOT from .json API.
+    // page.evaluate(fetch(.json)) is a bot signal: no human user ever
+    // fetches raw JSON from the browser. Read the visible post body text
+    // from the shreddit-post element instead.
     try {
-      const body = await s.page.evaluate(async (perm) => {
-        try {
-          const r = await fetch(`${perm}.json?raw_json=1`, { credentials: 'include' });
-          if (!r.ok) return '';
-          const j = await r.json();
-          return j?.[0]?.data?.children?.[0]?.data?.selftext || '';
-        } catch { return ''; }
+      const body = await s.page.evaluate((perm) => {
+        const el = document.querySelector(`shreddit-post[permalink="${perm}"]`);
+        if (!el) return '';
+        const textEl = el.querySelector('shreddit-post-text-body, [slot="text-body"], div[id^="t3_"][id$="-post-rtjson-content"]');
+        return textEl?.textContent?.trim() || '';
       }, pick.permalink);
       postBody = body || '';
     } catch {}
@@ -516,21 +517,13 @@ try {
     // 2026-04-30 via [diag] log of zanestone7384 run (y=-337) and
     // sagekoepp1273 run (y=-535).
     const viewportH = await s.page.evaluate(() => window.innerHeight).catch(() => 1440);
-    await s.page.evaluate(() => {
-      const fp = Array.from(document.querySelectorAll('faceplate-textarea-input[placeholder="Join the conversation"]'))
-        .find((el) => {
-          const r = el.getBoundingClientRect();
-          return r.width > 8 && r.height > 8;
-        });
-      const composers = Array.from(document.querySelectorAll('shreddit-composer'));
-      const composer = composers.find((sc) => {
-        const r = sc.getBoundingClientRect();
-        return r.width > 20 && r.height > 20;
-      }) || composers[0];
-      const target = fp || composer;
-      if (target) target.scrollIntoView({ block: 'center', behavior: 'instant' });
-    }).catch(() => {});
-    await s.page.waitForTimeout(700 + Math.floor(Math.random() * 400));
+    // Scroll the composer into view via locator API, not page.evaluate(
+    // scrollIntoView) — the JS scrollIntoView({behavior:'instant'}) produces
+    // no wheel events and is a bot signal. The locator method also uses
+    // instant scroll but doesn't run visible JS in the page context.
+    const composerLocator = s.page.locator('shreddit-composer').first();
+    await composerLocator.scrollIntoViewIfNeeded().catch(() => {});
+    await humanIdlePause('short');
 
     let editable = null;
     for (let i = 0; i < 6; i++) {
@@ -544,8 +537,7 @@ try {
         // back to collapsed, which is why the submit-button probe was
         // returning null in the sagekoepp1273 run.
         console.log(`[diag] clicking placeholder at (${placeholder.x}, ${placeholder.y})`);
-        await humanMove(s.page, placeholder.x, placeholder.y);
-        await s.page.mouse.click(placeholder.x, placeholder.y, { delay: 70 + Math.floor(Math.random() * 80) });
+        await humanClick(s.page, placeholder.x, placeholder.y);
         await s.page.waitForTimeout(1500);
         // Re-probe — after expansion the contenteditable should exist.
         const expanded = await s.page.evaluate(findComposerPart, 'editable').catch(() => null);
@@ -561,13 +553,10 @@ try {
         console.log(`[comment] composer didn't expose editable; using placeholder pos: ${JSON.stringify(editable)}`);
         break;
       }
-      await s.page.evaluate(() => {
-        document.dispatchEvent(new CustomEvent('open-comment-composer', { bubbles: true, composed: true }));
-        for (const sc of document.querySelectorAll('shreddit-composer')) {
-          sc.dispatchEvent(new CustomEvent('open-comment-composer', { bubbles: true, composed: true }));
-        }
-      }).catch(() => {});
-      await s.page.waitForTimeout(1000);
+      // Removed: dispatchEvent('open-comment-composer') — no human ever
+      // dispatches custom DOM events; it's a bot signal. The placeholder
+      // click above handles composer expansion.
+      await humanIdlePause('deliberate');
     }
     console.log(`[comment] new-reddit editable probe: ${JSON.stringify(editable)}`);
     if (!editable) throw new Error('new-reddit composer editable not found');
@@ -687,8 +676,7 @@ try {
       throw new Error('new-reddit composer submit button not found');
     }
 
-    await humanMove(s.page, submit.x, submit.y);
-    await s.page.mouse.click(submit.x, submit.y, { delay: 90 + Math.floor(Math.random() * 90) });
+    await humanClick(s.page, submit.x, submit.y);
     console.log('[comment] submitted via new-reddit shreddit-composer submit button');
 
     // New-reddit does not submit through old /api/comment XHR. It posts to
@@ -782,12 +770,18 @@ try {
   }
   console.log(`[comment] in-page check: ${postedLocally ? 'visible' : 'not seen yet (proceeding to API verify)'}`);
 
-  // Sample handle from /api/me.json (in-browser fetch — uses session)
-  const realHandle = await s.page.evaluate(async () => {
-    const r = await fetch('/api/me.json', { credentials: 'include' });
-    const j = await r.json().catch(() => null);
-    return j?.data?.name ?? null;
-  });
+  // Sample handle from /api/me.json via Playwright request context (NOT
+  // page.evaluate(fetch(...)) — that is a bot signal: no human user ever
+  // fetches JSON API from in-page JS). Use the context's request which
+  // inherits session cookies + proxy.
+  let realHandle = null;
+  try {
+    const meResp = await s.page.context().request.get('https://www.reddit.com/api/me.json', { headers: { 'Accept': 'application/json' }, ignoreHTTPSErrors: true, timeout: 10000 }).catch(() => null);
+    if (meResp) {
+      const meData = await meResp.json().catch(() => null);
+      realHandle = meData?.data?.name ?? null;
+    }
+  } catch {}
   console.log(`[comment] real handle: ${realHandle}`);
 
   // Wait for the comment to surface in public listing (unauth probe).
@@ -858,12 +852,14 @@ try {
     publicAboutStatus = aboutResp ? aboutResp.status() : 0;
 
     // 3. Authenticated user listing (sanity check — comment should always be here).
+    // Use context().request (not page.evaluate(fetch)) — same reasoning as
+    // /api/me.json above: in-page fetch of .json URLs is a bot signal.
     try {
-      inAuthListing = await s.page.evaluate(async (handle, body) => {
-        const r = await fetch(`/user/${encodeURIComponent(handle)}/comments/.json?limit=15&sort=new`, { credentials: 'include' });
-        const j = await r.json().catch(() => null);
-        return (j?.data?.children ?? []).some((c) => typeof c?.data?.body === 'string' && c.data.body.includes(body));
-      }, realHandle, COMMENT_BODY);
+      const authResp = await s.page.context().request.get(`https://www.reddit.com/user/${encodeURIComponent(realHandle)}/comments/.json?limit=15&sort=new`, { headers: { 'Accept': 'application/json' }, ignoreHTTPSErrors: true, timeout: 15000 }).catch(() => null);
+      if (authResp) {
+        const authData = await authResp.json().catch(() => null);
+        inAuthListing = (authData?.data?.children ?? []).some((c) => typeof c?.data?.body === 'string' && c.data.body.includes(COMMENT_BODY));
+      }
     } catch { /* skip */ }
 
     // 4. Post-thread probe — the canonical "can outsiders see it" check.
