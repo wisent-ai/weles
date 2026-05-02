@@ -35,18 +35,33 @@ try {
   catch (probeErr) { if (probeErr instanceof AuthProbeError) { console.log(`FAIL: ${probeErr.message}`); await markCookiesStale(acct.id); process.exit(1); } throw probeErr; }
   // Bookmark/favorite button: data-e2e="video-save" on the right-hand
   // action rail. aria-pressed flips to "true" after a successful save.
-  const saveBtn = s.page.locator('button[data-e2e="video-save"], button:has([data-e2e="video-save"])').filter({ visible: true }).first();
+  // 2026-05-02: TikTok video-page DOM uses aria-label-only buttons for the
+  // right-rail action items (no data-e2e). Probe showed:
+  //   <button aria-label="Add to Favourites 218 added to Favourites" class="css-...ButtonActionItem ...">
+  // Match by aria-label substring; keep older data-e2e selectors for the
+  // foryou rail variant.
+  const saveBtn = s.page.locator('button[data-e2e="video-save"], button[data-e2e="favorite-icon"], button[data-e2e="browse-favorite-icon"], button[aria-label*="favourite" i], button[aria-label*="favorite" i]').filter({ visible: true }).first();
   await saveBtn.waitFor({ state: 'visible' });
   await saveBtn.scrollIntoViewIfNeeded();
-  const before = await saveBtn.getAttribute('aria-pressed').catch(() => null);
-  if (before === 'true') {
+  // Modern video-page DOM doesn't toggle aria-pressed; aria-label changes
+  // from "Add to Favourites N added to Favourites" to "Added to Favourites
+  // N added to Favourites". Read aria-label state both before and after.
+  const beforeLabel = await saveBtn.getAttribute('aria-label').catch(() => '') || '';
+  const beforePressed = await saveBtn.getAttribute('aria-pressed').catch(() => null);
+  const alreadySaved = beforePressed === 'true' || /^Added to/i.test(beforeLabel);
+  if (alreadySaved) {
     ban = await detectTikTokBanSignals(s.page, s.capturedResponses).catch(() => null);
     console.log(`[ban-signal] ${ban?.signal}  PASS: already saved`);
   } else {
     await humanClickLocator(s.page, saveBtn);
     await s.page.waitForFunction(
-      (el) => el?.getAttribute('aria-pressed') === 'true',
-      await saveBtn.elementHandle(),
+      ({ el, beforeLabel }) => {
+        if (!el) return false;
+        if (el.getAttribute('aria-pressed') === 'true') return true;
+        const lbl = el.getAttribute('aria-label') || '';
+        return /^Added to/i.test(lbl) || (lbl !== beforeLabel && /favou?rit/i.test(lbl));
+      },
+      { el: await saveBtn.elementHandle(), beforeLabel },
     );
     ban = await detectTikTokBanSignals(s.page, s.capturedResponses).catch(() => null);
     console.log(`[ban-signal] ${ban?.signal}  PASS: bookmarked`);

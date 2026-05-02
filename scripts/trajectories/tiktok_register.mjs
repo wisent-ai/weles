@@ -98,6 +98,14 @@ async function syncReactInputValue(locator, value) {
       // Verify page is alive
       const alive = await s.page.evaluate('document.querySelector("body") !== null').catch(() => false);
       if (!alive) { console.log(`[test] attempt ${retry + 1}: page died after goto`); continue; }
+      // Browser-time vregion check. HTTP preflight verifies the FIRST exit
+      // IP; BrightData rotates exits within a sticky (verified 2026-05-02:
+      // session 7029842 probe-time TTP, browser-time TTP2). SIGI_STATE
+      // pins mssdk routing — TTP2 = click handler bails. Abort + reroll.
+      const vregion = await s.page.evaluate(`(() => { const m = (document.body.innerHTML || '').match(/"vregion":"([A-Z0-9-]{1,20})"/); return m ? m[1] : null; })()`).catch(() => null);
+      console.log(`[test] attempt ${retry + 1}: browser-time vregion=${vregion}`);
+      if (vregion && /-TTP2$/i.test(vregion)) { console.log(`[test] attempt ${retry + 1}: vregion=${vregion} — aborting + rerolling sticky`); continue; }
+
 
       // Dismiss cookie banner if EU/UK proxy
       for (const sel of ['button:has-text("Decline optional cookies")', 'button:has-text("Accept all")', 'button:has-text("Allow all")']) {
