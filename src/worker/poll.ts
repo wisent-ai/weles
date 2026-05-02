@@ -5,6 +5,8 @@ import { spawn } from 'node:child_process';
 import { readFile, readdir, unlink, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { uploadArtifacts } from './upload-artifacts.js';
+import { paramsToEnv, resolveTrajectory } from './dispatch.js';
+import { claimOne } from './claim.js';
 
 export interface ActionLogRow {
   id: string;
@@ -19,128 +21,10 @@ export interface BanSignal { healthy: boolean; signal: string; details?: Record<
 
 const SUPABASE_URL = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
-const INSTANCE_ID = process.env.INSTANCE_ID ?? `weles-${process.pid}`;
 const RECORDINGS_ROOT = process.env.RECORDINGS_ROOT ?? 'recordings';
 
 function headers(): Record<string, string> {
   return { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' };
-}
-
-// Action-name → trajectory path. Maps <platform>_<verb> rows.
-function resolveTrajectory(action: string): string | null {
-  const firstUnderscore = action.indexOf('_');
-  if (firstUnderscore < 0) return null;
-  const plat = action.slice(0, firstUnderscore);
-  const verb = action.slice(firstUnderscore + 1);
-  const benignPath = 'scripts/trajectories/_shared/benign.mjs';
-  const routes: Record<string, (p: string) => string> = {
-    dwell: () => benignPath, notifications: () => benignPath, search: () => benignPath, profile_view: () => benignPath,
-    browse: (p) => p === 'github' ? 'scripts/trajectories/github/actions/browse.mjs' : `scripts/trajectories/${p}/browse.mjs`,
-    health: (p) => p === 'github' ? 'scripts/trajectories/github/health/run.mjs' : `scripts/trajectories/${p}/health.mjs`,
-    shadowban_check: (p) => `scripts/trajectories/${p}/shadowban_check.mjs`,
-    organic_comment: (p) => `scripts/trajectories/${p}/organic_comment.mjs`, organic_reply: (p) => `scripts/trajectories/${p}/organic_reply.mjs`, organic_message: (p) => `scripts/trajectories/${p}/organic_message.mjs`,
-    organic_issue_comment: (p) => `scripts/trajectories/${p}/actions/organic_issue_comment.mjs`,
-    promote: (p) => p === 'github' ? 'scripts/trajectories/github/actions/promote.mjs' : `scripts/trajectories/${p}/promote.mjs`,
-    register: (p) => p === 'github' || p === 'youtube' ? `scripts/trajectories/${p}/register.mjs` : `scripts/trajectories/${p}_register.mjs`,
-    login: (p) => `scripts/trajectories/${p}_login.mjs`, comment: (p) => `scripts/trajectories/${p}_comment.mjs`, dm: (p) => `scripts/trajectories/${p}_dm.mjs`,
-    // Twitter + Instagram have deterministic Playwright variants at the root; the platform/actions/ agent-loop variants hit max-iter on X's heart icon. Prefer root variants where the deterministic file exists.
-    like: (p) => p === 'twitter' || p === 'instagram' ? `scripts/trajectories/${p}_like.mjs` : (p === 'linkedin' || p === 'tiktok') ? `scripts/trajectories/${p}/actions/like.mjs` : `scripts/trajectories/${p}_like.mjs`,
-    follow: (p) => p === 'twitter' || p === 'instagram' ? `scripts/trajectories/${p}_follow.mjs` : (p === 'reddit' || p === 'tiktok' || p === 'github') ? `scripts/trajectories/${p}/actions/follow.mjs` : `scripts/trajectories/${p}_follow.mjs`,
-    upvote: (p) => p === 'reddit' ? 'scripts/trajectories/reddit/actions/upvote.mjs' : `scripts/trajectories/${p}_upvote.mjs`,
-    star: (p) => p === 'github' ? 'scripts/trajectories/github/star/run.mjs' : `scripts/trajectories/${p}_star.mjs`,
-    create_repo: (p) => `scripts/trajectories/${p}/content/create_repo.mjs`, commit: (p) => `scripts/trajectories/${p}/content/commit.mjs`, fork: (p) => `scripts/trajectories/${p}/content/fork.mjs`, open_issue: (p) => `scripts/trajectories/${p}/content/open_issue.mjs`,
-    post: (p) => `scripts/trajectories/${p}/content/post.mjs`, post_promote: (p) => `scripts/trajectories/${p}/content/post.mjs`, submit: (p) => `scripts/trajectories/${p}/content/submit.mjs`, submit_promote: (p) => `scripts/trajectories/${p}/content/submit.mjs`,
-    connect: (p) => `scripts/trajectories/${p}/actions/connect.mjs`, endorse: (p) => `scripts/trajectories/${p}/actions/endorse.mjs`, react: (p) => `scripts/trajectories/${p}/actions/react.mjs`,
-    join_server: (p) => `scripts/trajectories/${p}/actions/join_server.mjs`, join_sub: (p) => `scripts/trajectories/${p}/actions/join_sub.mjs`, watch_repo: (p) => `scripts/trajectories/${p}/actions/watch_repo.mjs`,
-    story_view: (p) => `scripts/trajectories/${p}/actions/story_view.mjs`, watch_through: (p) => `scripts/trajectories/${p}/actions/watch_through.mjs`,
-    bookmark: (p) => `scripts/trajectories/${p}/actions/bookmark.mjs`, save: (p) => `scripts/trajectories/${p}/actions/save.mjs`,
-    reset_password: (p) => p === 'github' ? 'scripts/trajectories/github/recover/reset_password.mjs' : `scripts/trajectories/${p}_reset_password.mjs`,
-    balance: (p) => (p === 'iproyal' || p === 'packetstream' || p === 'brightdata' || p === 'oxylabs' || p === 'anticaptcha' || p === 'capmonster' || p === 'capsolver' || p === 'twocaptcha' || p === 'nopecha' || p === 'sadcaptcha' || p === 'pingproxies' || p === 'juicysms' || p === 'fivesim') ? `scripts/trajectories/${p}/balance.mjs` : `scripts/trajectories/${p}_balance.mjs`,
-    topup: (p) => (p === 'iproyal' || p === 'packetstream' || p === 'brightdata' || p === 'oxylabs' || p === 'anticaptcha' || p === 'capmonster' || p === 'capsolver' || p === 'twocaptcha' || p === 'nopecha' || p === 'sadcaptcha' || p === 'pingproxies' || p === 'juicysms' || p === 'fivesim') ? `scripts/trajectories/${p}/topup.mjs` : (null as unknown as string),
-  };
-  const router = routes[verb];
-  return router ? router(plat) : null;
-}
-
-async function claimOne(): Promise<ActionLogRow | null> {
-  // Lookahead 100 rows so the in-flight per-account lock can find a claimable row even when the first dozen queued items all belong to one in-flight account (common: a verification batch enqueues 10+ rows for one account; with limit=10 the worker would idle until those drained).
-  const res = await fetch(
-    `${SUPABASE_URL}/rest/v1/account_action_logs?select=id,account_id,action,platform,params,status&status=eq.queued&or=(scheduled_at.is.null,scheduled_at.lte.now())&order=scheduled_at.asc.nullsfirst&limit=100`,
-    { headers: headers() },
-  );
-  if (!res.ok) return null;
-  const candidates = (await res.json()) as ActionLogRow[];
-  // Per-account in-flight lock: each account has ONE stored sticky proxy session (Oxylabs sessid). Concurrent connections to one sticky session get refused with ERR_TUNNEL_CONNECTION_FAILED. Serialize per-account; deferred rows pick up next tick. Ignore rows older than 30 min — those are stuck-poison from killed workers and should not block their account forever.
-  const inflightAccounts = new Set<string>();
-  if (candidates.length) {
-    const cutoff = new Date(Date.now() - 30 * 60_000).toISOString();
-    const r = await fetch(`${SUPABASE_URL}/rest/v1/account_action_logs?select=account_id,claimed_at&status=eq.running&claimed_at=gte.${cutoff}`, { headers: headers() });
-    if (r.ok) for (const row of (await r.json()) as { account_id: string | null }[]) if (row.account_id) inflightAccounts.add(row.account_id);
-  }
-  const { staleCookieAccounts } = await import('./stale.js');
-  const staleAccounts = await staleCookieAccounts(candidates);
-  for (const row of candidates) {
-    if (!resolveTrajectory(row.action)) continue;
-    if (!row.account_id || !row.id) continue; // poison rows: legacy promote-cron sometimes emits orphans
-    if (inflightAccounts.has(row.account_id)) continue;
-    if (staleAccounts.has(row.account_id)) continue;
-
-    const claim = await fetch(
-      `${SUPABASE_URL}/rest/v1/account_action_logs?id=eq.${row.id}&status=eq.queued`,
-      {
-        method: 'PATCH',
-        headers: { ...headers(), Prefer: 'return=representation' },
-        body: JSON.stringify({
-          status: 'running', claimed_by: INSTANCE_ID,
-          claimed_at: new Date().toISOString(), started_at: new Date().toISOString(),
-        }),
-      },
-    );
-    if (!claim.ok) continue;
-    const claimed = (await claim.json()) as ActionLogRow[];
-    if (claimed.length > 0) return claimed[0];
-  }
-  return null;
-}
-
-function paramsToEnv(params: Record<string, unknown>, action: string, trajPath: string): Record<string, string> {
-  const env: Record<string, string> = {};
-  // Benign runner dispatches on PLATFORM + VERB derived from the action name.
-  if (trajPath.endsWith('/_shared/benign.mjs')) {
-    const underscore = action.indexOf('_');
-    if (underscore > 0) {
-      env.PLATFORM = action.slice(0, underscore);
-      env.VERB = action.slice(underscore + 1);
-    }
-  }
-  if (typeof params.subreddit === 'string') env.SUBREDDIT = params.subreddit;
-  if (typeof params.product_id === 'string') env.PRODUCT_ID = params.product_id;
-  if (typeof params.variant === 'string') env.VARIANT = params.variant;
-  if (typeof params.issue_url === 'string') env.ISSUE_URL = params.issue_url;
-  if (typeof params.server_channel_path === 'string') env.SERVER_CHANNEL_PATH = params.server_channel_path;
-  if (typeof params.scrolls === 'number') env.SCROLL_COUNT = String(params.scrolls);
-  if (typeof params.posts_to_browse === 'number') env.SCROLL_COUNT = String(params.posts_to_browse);
-  if (typeof params.search_query === 'string') env.SEARCH_QUERY = params.search_query;
-  if (typeof params.target_user === 'string') env.TARGET_USER = params.target_user;
-  if (typeof params.target_url === 'string') env.TARGET_URL = params.target_url;
-  if (typeof params.invite_url === 'string') env.INVITE_URL = params.invite_url;
-  if (typeof params.repo_url === 'string') env.REPO_URL = params.repo_url;
-  if (typeof params.text === 'string') env.SVC_TEXT = params.text;
-  // Capability-bootstrap override: forces a specific proxy URL into the
-  // trajectory so we can test (provider, action) cells deterministically.
-  // credentials.ts respects PROXY_URL_FORCE=1 to ignore stored proxy.
-  if (typeof params.proxy_url_override === 'string') {
-    env.PROXY_URL = params.proxy_url_override;
-    env.PROXY_URL_FORCE = '1';
-  }
-  // Service-credential topup parameters (proxy auto-topup cron). Read by
-  // scripts/trajectories/_shared/services/topup_common.mjs#topupOpts.
-  if (typeof params.topup_usd === 'number') env.TOPUP_USD = String(params.topup_usd);
-  if (params.topup_confirm === true || params.topup_confirm === '1' || params.topup_confirm === 1) env.TOPUP_CONFIRM = '1';
-  if (action.endsWith('_post_promote') || action.endsWith('_submit_promote')) env.POST_PROMOTE = '1';
-  for (const [k, ek] of [['repo_name','REPO_NAME'],['repo_desc','REPO_DESC'],['file_path','FILE_PATH'],['file_append','FILE_APPEND'],['commit_message','COMMIT_MESSAGE'],['issue_title','ISSUE_TITLE'],['issue_body','ISSUE_BODY']]) if (typeof params[k] === 'string') env[ek] = params[k];
-  if (params.require_approval === true) env.REQUIRE_APPROVAL = '1';
-  return env;
 }
 
 async function runTrajectory(row: ActionLogRow, path: string, extraEnv: Record<string, string> = {}): Promise<{ exitCode: number; stderr: string }> {
