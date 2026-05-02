@@ -10,7 +10,11 @@ const WRITE_PATTERNS: Record<string, RegExp> = {
   reddit: /\/svc\/shreddit\/(comment|submit|vote|subscribe)|\/api\/(comment|submit|vote|subscribe)/,
   instagram: /\/api\/v1\/media\/(\d+\/(comment|like|save)|configure|create)|\/graphql\/.+(CreateComment|LikeMedia|FollowUser)|\/api\/v1\/friendships\/(create|destroy)/,
   linkedin: /\/voyager\/api\/(graphql.*(createComment|reactToEntity|inviteV2)|contentcreation\/normShares|relationships\/invitations|growth\/normalizedExpressionsCreation)/,
-  github: /\/issues\/\d+\/comments|\/repos\/[^/]+\/[^/]+\/issues|\/_render_node\/|\/(starred|subscriptions|following|user\/following)\//,
+  // /_graphql$ matches POST writes from the Primer/React composer (issue
+  // comment, etc.); GETs to /_graphql?body=... are filtered out because the
+  // URL contains the query string. /issues/N/comments is the legacy REST
+  // path still used by some flows.
+  github: /\/_graphql$|\/issues\/\d+\/comments|\/repos\/[^/]+\/[^/]+\/issues|\/_render_node\/|\/(starred|subscriptions|following|user\/following)\//,
   discord: /\/api\/v\d+\/channels\/\d+\/messages|\/api\/v\d+\/users\/@me\/relationships|\/api\/v\d+\/invites/,
   tiktok: /\/api\/(comment\/publish|commit\/follow_user|commit\/item\/digg|aweme\/v1\/comment\/publish|aweme\/v1\/commit\/user\/follow|video\/like\/save)/,
   producthunt: /\/frontend\/graphql.*(CreateComment|MakeComment|CreateVote|FollowUser)/,
