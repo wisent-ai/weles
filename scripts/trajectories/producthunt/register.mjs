@@ -204,6 +204,24 @@ async function signup(s) {
   }
   console.log(`[ph] auth cookies: ${phAuth.map(c => c.name).join(', ')}`);
 
+  // The phAuth check above is too permissive — _producthunt_session_production
+  // is set for logged-out visitors too and matches `name.includes('session')`,
+  // so its presence does NOT prove authentication. Run a real auth probe.
+  // Without this gate, the 2026-05-02 22:00Z run for kurtgrant8303 saved
+  // username='vinitra' (a featured/cached real PH user surfaced by the
+  // GraphQL endpoint to logged-out callers) — creating a row claiming
+  // someone else's identity.
+  try {
+    await s.goto(URL);
+    await sleep(3);
+    await assertAuthed('producthunt', s, { label: 'producthunt_register_post_oauth' });
+  } catch (probeErr) {
+    if (probeErr instanceof AuthProbeError) {
+      throw new Error(`oauth_did_not_authenticate: ${probeErr.message?.slice(0, 200)}`);
+    }
+    throw probeErr;
+  }
+
   // Extract the actual PH handle from the topbar user-image-link.
   // PH issues its own handle distinct from the Twitter SSO username
   // (verified 2026-05-02: SSO via @jannieerdman414805 → PH handle
