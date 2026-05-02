@@ -1,5 +1,6 @@
 import { WSession } from '../../dist/session/wsession.js';
 import { humanClickLocator } from '../../dist/human/mouse.js';
+import { autoBindCharacter } from './lib/character-bind.mjs';
 
 const URL = 'https://discord.com/register';
 
@@ -189,6 +190,7 @@ try {
             console.log(`[test] Navigated to: ${s.page.url?.()}`);
             registered = true;
             await s.saveAccount('discord', { username: id.username, email: id.email, password: id.password });
+            await autoBindCharacter(id.username, 'discord').then(r => console.log(`[bind] ${JSON.stringify(r)}`)).catch((e) => console.log(`[bind] err: ${e.message?.slice(0, 80)}`));
             console.log(`PASS: ${id.username}`);
 
             // Verify email: find the verify link and open it in the browser

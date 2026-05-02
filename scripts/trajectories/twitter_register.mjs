@@ -1,6 +1,7 @@
 import { WSession } from '../../dist/session/wsession.js';
 import { chromium } from 'playwright';
 import { humanClickLocator } from '../../dist/human/mouse.js';
+import { autoBindCharacter } from './lib/character-bind.mjs';
 
 const URL = 'https://x.com/i/flow/signup?lang=en';
 const MAX_RETRIES = 5;
@@ -207,6 +208,7 @@ async function signup(s) {
     username: id.username, email: id.email, password: id.password, name,
   });
   console.log(`[tw] ${result}`);
+  await autoBindCharacter(id.username, 'twitter').then(r => console.log(`[bind] ${JSON.stringify(r)}`)).catch((e) => console.log(`[bind] err: ${e.message?.slice(0, 80)}`));
   return id.username;
 }
 

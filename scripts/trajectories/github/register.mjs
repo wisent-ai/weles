@@ -3,6 +3,7 @@ import { solveFunCaptcha } from './_funcaptcha.mjs';
 import { solveAudioPuzzle } from './_audio_solver.mjs';
 import { solveRotationViaCoords } from './_coords_solver.mjs';
 import { humanClick, humanClickLocator, nextInterClickMs } from '../../../dist/human/mouse.js'; import { humanType } from '../../../dist/human/keyboard.js';
+import { autoBindCharacter } from '../lib/character-bind.mjs';
 
 const URL = 'https://github.com/signup';
 
@@ -285,6 +286,7 @@ try {
   const finalUrl = s.page.url?.() ?? '';
   const verified = !finalUrl.includes('signup') && !finalUrl.includes('verify');
   await s.saveAccount('github', { username: id.username, email: id.email, password: id.password, status: verified ? 'verified' : 'needs_verification' });
+  if (verified) await autoBindCharacter(id.username, 'github').then(r => console.log(`[bind] ${JSON.stringify(r)}`)).catch((e) => console.log(`[bind] err: ${e.message?.slice(0, 80)}`));
   console.log(verified ? `PASS: ${id.username} (verified)` : `PARTIAL: ${id.username} at ${finalUrl}`);
 } catch (e) {
   console.log('FAIL:', e.message?.slice(0, 200)); process.exit(/ERR_TUNNEL|ERR_TIMED_OUT|ERR_PROXY|ERR_CONNECTION/.test(e.message ?? '') ? 42 : 1);
