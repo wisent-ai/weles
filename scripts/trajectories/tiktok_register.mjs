@@ -422,16 +422,9 @@ async function syncReactInputValue(locator, value) {
         break;
       }
       console.log(`[test] attempt ${retry + 1}: didn't reach logged-in state. finalUrl=${finalUrl} sessionid=${hasSessionId}`);
-      if (String(registerVerifyErrorCode) === '1340' && id?.email) {
-        await reportBlocked(id.email, 'tiktok_register_error_1340_after_email_verify', 'tiktok').catch(() => {});
-        console.log(`[domain] quarantined ${id.email.split('@')[1]} for tiktok after register_verify_login 1340`);
-      }
+      // 1340 != domain reputation. Do NOT quarantine — root cause is subtleCrypto.count=0.
     } catch (e) {
       console.log(`[test] attempt ${retry + 1} crashed: ${e.message?.slice(0, 120)}`);
-      if (String(registerVerifyErrorCode) === '1340' && id?.email) {
-        await reportBlocked(id.email, 'tiktok_register_error_1340_after_email_verify', 'tiktok').catch(() => {});
-        console.log(`[domain] quarantined ${id.email.split('@')[1]} for tiktok after register_verify_login 1340`);
-      }
     }
   }
 

@@ -203,11 +203,7 @@ export async function resolveProxy(proxy: string, targetHost?: string): Promise<
     // return 502 "relay offline" for ~40% of sessIds at peak. Trajectories
     // that hit a dead relay should classify as proxy_failed; auto-retry is
     // handled at the worker-pool level (rerun_failed.mjs).
-    // Bumped from 3 to 8: with per-platform exit-IP burn, hitting a burned
-    // sticky and rerolling is cheap (4s preflight per attempt, no Chromium
-    // launch). If a provider has half its pool burned for instagram, 3
-    // tries was too few — we'd false-fail the provider and move on while
-    // 5 of its other 7 sticky-session-id slots route to clean exits.
+    // 8 sticky tries per provider (cheap reroll, no Chromium launch).
     for (let attempt = 0; attempt < 8; attempt++) {
       const sessId = Math.floor(Math.random() * 9000000 + 1000000);
       let stickyUser = username, stickyPass = password;
@@ -215,17 +211,10 @@ export async function resolveProxy(proxy: string, targetHost?: string): Promise<
       else if (name.includes('packetstream')) stickyPass = `${password}_country-${cc.toUpperCase()}_session-${sessId}`;
       else if (name.includes('iproyal')) stickyPass = `${password}_country-${cc}_session-${sessId}`;
       else if (name.includes('pingproxies')) stickyUser = `${username}_c_${cc}_s_${sessId}`;
-      // Bright Data: zone-prefixed username, sticky session via -session- suffix.
-      // Username pattern: brd-customer-<customerId>-zone-<zoneName>-country-<cc>-session-<sessId>
-      // The customer + zone come from BRIGHTDATA_USERNAME (or stored row username).
-      // Without a zone-shaped username, this branch is a no-op.
+      // Bright Data: zone-prefixed user, sticky session via -session- suffix.
       else if (name.includes('bright')) stickyUser = `${username}-country-${cc}-session-${sessId}`;
       let host = p.proxy_host;
-      // proxy.packetstream.io etc. resolve to several load-balancer IPs;
-      // dns.lookup() returns whichever one the OS picked first, which may be
-      // burned even though a sibling IP isn't. Pull all A records, filter out
-      // burned hosts, pick a random survivor — keeps PacketStream usable when
-      // only some of its LB IPs are flagged.
+      // Pull all LB A records, filter burned, pick random survivor.
       try {
         const dns = await import('node:dns');
         const allIps: string[] = await new Promise<string[]>((res, rej) =>
@@ -244,13 +233,7 @@ export async function resolveProxy(proxy: string, targetHost?: string): Promise<
         try { const dns = await import('node:dns'); host = await new Promise<string>((res, rej) => dns.lookup(p.proxy_host, (e: any, a: string) => e ? rej(e) : res(a))); } catch {}
         if (await isBurned(host, platformFromTarget(targetHost))) continue;
       }
-      // Pre-flight CONNECT test (~4s timeout): residential providers like
-      // PacketStream split exits across truly-residential ISPs (TELUS, Comcast)
-      // and IPXO marketplace blocks (NET-82-40-64-0-20 etc). Same provider,
-      // very different anti-bot scores. Sample the actual exit IP via fetch
-      // to api.ipify.org, whois it, and reject sticky sessions that exit
-      // through known proxy-marketplace ranges.
-      // Skipped if PROXY_SKIP_PREFLIGHT=1 is set.
+      // Pre-flight CONNECT + exit_ip probe (skip via PROXY_SKIP_PREFLIGHT=1).
       let exitIp = '';
       const platform = platformFromTarget(targetHost);
       if (!process.env.PROXY_SKIP_PREFLIGHT) {
@@ -281,11 +264,20 @@ export async function resolveProxy(proxy: string, targetHost?: string): Promise<
             } catch (e: any) { console.log(`[proxy] exit-ip probe err: ${e.message?.slice(0, 80)}`); }
             console.log(`[proxy] sampled exit_ip="${exitIp}" sticky=${sessId}`);
             if (exitIp && /^82\.40\./.test(exitIp)) { console.log(`[proxy] Skipping IPXO exit ${exitIp}`); preflightContinue = true; }
-            // Per-platform burn scoping: skip exits already burned for this
-            // target. A reddit-blocked exit is still fine for github.
             else if (exitIp && platform && (await isBurned(exitIp, platform))) {
               console.log(`[proxy] Exit ${exitIp} already burned for ${platform} — rerolling sticky`);
               preflightContinue = true;
+            }
+            // Country-verify exit. Geo mismatch (e.g. cc=us but BR exit)
+            // routes TikTok to ttp2 cluster -> 1340. Hard-fail and reroll.
+            if (!preflightContinue && exitIp && cc) {
+              const { verifyExitCountry } = await import('./policy.js');
+              const geo = await verifyExitCountry(exitIp, cc);
+              console.log(`[proxy] geo-check exit=${exitIp} expected=${cc} -> ${geo.result}${geo.exitCc ? ` (${geo.exitCc})` : ''}`);
+              if (geo.result === 'mismatch') {
+                console.log(`[proxy] Geo mismatch: exit ${exitIp} is ${geo.exitCc?.toUpperCase()}, requested ${cc.toUpperCase()} — rerolling sticky`);
+                preflightContinue = true;
+              }
             }
           }
         } catch { /* skip preflight on unexpected error, return as-is */ }
