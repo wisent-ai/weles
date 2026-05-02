@@ -1,6 +1,8 @@
 import { WSession } from '../../../dist/session/wsession.js';
-import { getSocialAccount, resolveAccountSession } from '../../../dist/utils/credentials.js';
+import { getSocialAccount, resolveAccountSession, markCookiesStale } from '../../../dist/utils/credentials.js';
 import { injectPHCookies, loginViaTwitter } from './_session.mjs';
+import { assertAuthed, AuthProbeError } from '../_shared/auth-probe.mjs';
+import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../_shared/cookie-freshness.mjs';
 
 // Fill a Product Hunt user profile (headline, about, location, website).
 
@@ -12,8 +14,17 @@ const ABOUT = process.env.PH_BIO || 'Building, breaking, and shipping side proje
 const LOCATION = process.env.PH_LOCATION || 'Remote';
 const WEBSITE = process.env.PH_WEBSITE || '';
 
-async function fillProfile(s, acct) {
-  const cookies = acct.metadata?.cookies ?? [];
+async function fillProfile(s, acct, sessionMeta) {
+  // Cookie-jar freshness gate — see _shared/cookie-freshness.mjs. Skip
+  // injection on stale; loginViaTwitter recovers below.
+  let cookies = [];
+  try {
+    cookies = loadFreshCookieJarOrFail(acct, { platform: 'producthunt', label: 'producthunt_profile', currentProxyUrl: sessionMeta.proxyUrl, currentPersona: sessionMeta.persona });
+  } catch (jarErr) {
+    if (!(jarErr instanceof CookieJarStaleError)) throw jarErr;
+    console.log(`[ph-profile] ${jarErr.message} — falling through to SSO recovery`);
+    cookies = [];
+  }
   if (cookies.length) {
     const inj = await injectPHCookies(s, cookies);
     console.log(`[ph-profile] injected ${inj} saved producthunt cookies`);
@@ -30,6 +41,16 @@ async function fillProfile(s, acct) {
     await sleep(4);
     cur = s.page.url();
     if (cur.includes('/login') || cur.includes('/captcha_verification')) throw new Error('still_blocked_after_relogin');
+  }
+
+  // Positive auth probe — refuses to fill the profile form on a logged-out shell.
+  try { await assertAuthed('producthunt', s, { label: 'producthunt_profile' }); }
+  catch (probeErr) {
+    if (probeErr instanceof AuthProbeError) {
+      try { await markCookiesStale(acct.id); } catch {}
+      throw new Error(`auth_probe_failed: ${probeErr.message}`);
+    }
+    throw probeErr;
   }
 
   await s.page.waitForSelector('input[type="text"], textarea').catch(() => {});
@@ -66,7 +87,7 @@ console.log(`[ph-profile] using account: ${acct.username}`);
 const sessionOpts = await resolveAccountSession(acct);
 const s = await WSession.start({ label: 'producthunt_profile', ...sessionOpts });
 try {
-  await fillProfile(s, acct);
+  await fillProfile(s, acct, sessionOpts);
   console.log(`PASS: ${acct.username} profile saved`);
   process.exit(0);
 } catch (e) {

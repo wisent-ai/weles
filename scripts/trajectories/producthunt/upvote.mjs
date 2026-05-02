@@ -1,5 +1,7 @@
 import { WSession } from '../../../dist/session/wsession.js';
+import { markCookiesStale } from '../../../dist/utils/credentials.js';
 import { assertAuthed, AuthProbeError } from '../_shared/auth-probe.mjs';
+import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../_shared/cookie-freshness.mjs';
 
 // Upvote a Product Hunt product. Pass PRODUCTHUNT_URL=https://www.producthunt.com/products/<slug>
 // to vote on a specific product; otherwise the trajectory upvotes the first product
@@ -111,7 +113,18 @@ async function readVoteState(s) {
 async function vote(s) {
   const acct = await findProductHuntAccount();
   if (!acct) throw new Error('no_producthunt_account_in_db');
-  const cookies = acct.metadata?.cookies ?? [];
+
+  // Cookie-jar freshness gate — see _shared/cookie-freshness.mjs.
+  let cookies;
+  try {
+    cookies = loadFreshCookieJarOrFail(acct, { platform: 'producthunt', label: 'producthunt_upvote', currentProxyUrl: proxy === 'none' ? null : proxy, currentPersona: acct.metadata?.persona });
+  } catch (jarErr) {
+    if (jarErr instanceof CookieJarStaleError) {
+      try { await markCookiesStale(acct.id); } catch {}
+      throw new Error(`cookie_jar_stale: ${jarErr.message}`);
+    }
+    throw jarErr;
+  }
   console.log(`[ph-vote] using account: ${acct.username} (${cookies.length} cookies)`);
   if (cookies.length < 1) throw new Error('producthunt_account_missing_cookies');
 
