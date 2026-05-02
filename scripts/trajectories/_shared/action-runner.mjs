@@ -295,6 +295,19 @@ export async function runAction(cfg) {
         resultValue = 'commented';
       }
     }
+    // Race fix: write-API responses are captured asynchronously; verifyWriteAction
+    // can run before the response lands in s.capturedResponses if banDetector is
+    // called immediately. Poll until write_verify confirms or 6s elapses.
+    if (cfg.action !== 'browse') {
+      try {
+        const { verifyWriteAction } = await import('../../../dist/platforms/_shared/write_verify.js');
+        for (let i = 0; i < 12; i++) {
+          const v = verifyWriteAction(cfg.platform, cfg.action, s.capturedResponses);
+          if (!v.applicable || v.wrote) break;
+          await s.page.waitForTimeout(500).catch(() => {});
+        }
+      } catch { /* best-effort race-fix; reclass below remains the source of truth */ }
+    }
     banSignal = await cfg.banDetector(s.page, s.capturedResponses).catch(() => null);
     // Reclass: agent's done() might land on auth-wall or chrome-error — detector returns 'healthy' because no platform-ban keywords appear. Plus write-action verification (agent hallucinated done() but no API write fired).
     const successFinalUrl = s.page.url?.() ?? banSignal?.details?.final_url ?? '';
