@@ -46,8 +46,12 @@ try {
   // are gone. Two duplicate input copies exist — only the visible one accepts
   // fill. Use pressSequentially (per-keystroke events) so React's controlled-
   // input state updates; locator.fill sets DOM value but skips React onChange.
-  const usernameSel = 'input#username, input[name="session_key"], input[autocomplete="username"], input[type="text"][autocomplete="webauthn"], input[type="email"]';
-  const passwordSel = 'input#password, input[name="session_password"], input[type="password"][autocomplete="current-password"]';
+  // flagship3 SDUI (current 2026-05): id=":r3:" type="email" autocomplete="username webauthn"
+  // (space-separated, exact-match selectors fail). Old shells (id=username,
+  // name=session_key) shipped pre-SDUI. Use type=email + autocomplete*=username
+  // to catch SDUI without false-matching unrelated email inputs.
+  const usernameSel = 'input#username, input[name="session_key"], input[type="email"][autocomplete*="username"], input[type="email"]';
+  const passwordSel = 'input#password, input[name="session_password"], input[type="password"][autocomplete*="current-password"], input[type="password"]';
   // Drive both inputs via JS focus + Playwright keyboard.type. locator.click
   // on either input hangs the full default timeout (LinkedIn intercepts the
   // click during scroll-into-view). JS focus directs keystrokes correctly
