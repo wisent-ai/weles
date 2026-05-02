@@ -189,7 +189,7 @@ export class CaptchaSolver {
     if (this._creds.capsolver) {
       const cookieMapCs: Record<string, string> = {};
       for (const c of cookies ?? []) if (c?.name && c?.value) cookieMapCs[c.name] = c.value;
-      const task: Record<string, any> = { type: proxy ? 'AntiPerimeterxTask' : 'AntiPerimeterxTaskProxyLess', websiteUrl: url, userAgent };
+      const task: Record<string, any> = { type: proxy ? 'AntiPerimeterxTask' : 'AntiPerimeterxTaskProxyLess', websiteURL: url, userAgent };
       if (Object.keys(cookieMapCs).length) task.cookies = cookieMapCs;
       if (proxy) {
         const pp = new URL(proxy);
