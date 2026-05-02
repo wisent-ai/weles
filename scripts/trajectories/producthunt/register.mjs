@@ -221,13 +221,34 @@ async function signup(s) {
   }
   console.log(`[ph] auth cookies: ${phAuth.map(c => c.name).join(', ')}`);
 
+  // Extract the actual PH handle from the topbar user-image-link.
+  // PH issues its own handle distinct from the Twitter SSO username
+  // (verified 2026-05-02: SSO via @jannieerdman414805 → PH handle
+  // @erdmanjann4145; SSO via swiftwolf6387 → PH handle that 404s when
+  // we navigate to /@swiftwolf6387). We must persist PH's handle, not
+  // the Twitter one, otherwise every profile_view trajectory navigates
+  // to /@<wrong-handle> and benign declares account_missing.
+  const phHandle = await s.page.evaluate(() => {
+    const link = document.querySelector('a[data-test^="user-image-link-"]') ||
+                 document.querySelector('a[href*="/@"][data-test*="user"]');
+    const href = link?.getAttribute('href') || '';
+    const m = href.match(/\/@([^/?#]+)/);
+    return m ? m[1] : null;
+  }).catch(() => null);
+  const phUsername = phHandle ?? twUsername;
+  if (phHandle && phHandle !== twUsername) {
+    console.log(`[ph] platform_handle="${phHandle}" differs from twitter_username="${twUsername}" — using platform_handle`);
+  } else if (!phHandle) {
+    console.log(`[ph] could not extract platform_handle from topbar — falling back to twitter_username="${twUsername}"`);
+  }
+
   const result = await s.saveAccount('producthunt', {
-    username: twUsername,
+    username: phUsername,
     email: twEmail ?? `${twUsername}@wisentmedia.com`,
     password: twPassword ?? 'linked_to_twitter',
   });
   console.log(`[ph] ${result}`);
-  return twUsername;
+  return phUsername;
 }
 
 // Single attempt — the prior MAX_RETRIES=5 loop ran the same deterministic
