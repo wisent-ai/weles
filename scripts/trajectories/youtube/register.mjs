@@ -1,6 +1,8 @@
 import { WSession } from '../../../dist/session/wsession.js';
 import { humanType } from '../../../dist/human/keyboard.js';
 import { humanClickLocator } from '../../../dist/human/mouse.js';
+import { autoBindCharacter } from '../lib/character-bind.mjs';
+import { assertAuthed, AuthProbeError } from '../_shared/auth-probe.mjs';
 
 const URL = 'https://accounts.google.com/signup?continue=https%3A%2F%2Fwww.youtube.com%2F&flowName=GlifWebSignIn&flowEntry=SignUp';
 const MAX_RETRIES = 3;
@@ -105,6 +107,7 @@ for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
 
     await s.page.waitForFunction(() => /youtube\.com|myaccount\.google\.com/.test(location.href), { timeout: 30000 });
     await s.saveAccount('youtube', { username: id.username, email: id.email, password: id.password, status: 'verified' });
+    await autoBindCharacter(id.username, 'youtube').then(r => console.log(`[bind] ${JSON.stringify(r)}`)).catch((e) => console.log(`[bind] err: ${e.message?.slice(0, 80)}`));
     console.log(`PASS: ${id.username}`);
     process.exit(0);
   } catch (e) {
