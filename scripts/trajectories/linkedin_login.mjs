@@ -119,6 +119,17 @@ try {
       throw new Error(`pre-form captcha solver failed at ${r.finalUrl}`);
     }
   }
+  // Degraded /login skeleton: LinkedIn serves a 13KB SSR shell (no SDUI
+  // bootstrap, no inputs) to suspect IPs. The form-fill below would sit 30s
+  // waiting for inputs that never appear. Fast-fail by checking input count
+  // after the SDUI hydration window.
+  {
+    const inputCount = await s.page.evaluate(() => document.querySelectorAll('input').length).catch(() => -1);
+    if (inputCount === 0) {
+      const bodyText = await s.page.evaluate(() => (document.body?.innerText ?? '').slice(0, 500)).catch(() => '');
+      throw new Error(`degraded_login_shell: 0 inputs after hydration window; body=${JSON.stringify(bodyText.slice(0, 200))}`);
+    }
+  }
   // Modern LinkedIn login: visible inputs use autocomplete="webauthn" (passkey
   // hint) + current-password. Legacy #username / [name=session_key] selectors
   // are gone. Two duplicate input copies exist — only the visible one accepts
