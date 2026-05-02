@@ -21,9 +21,14 @@ function headers(): Record<string, string> {
 export async function staleCookieAccounts(candidates: CandidateRow[]): Promise<Set<string>> {
   const cutoff = new Date(Date.now() - STALE_HOURS * 3600_000).toISOString();
   const stale = new Set<string>();
+  // `_login` is the cookies-stale recovery path — it MUST run when an
+  // account is stale (that's literally why the auto-recovery enqueues it).
+  // Excluding it means stale accounts have their refresh attempts blocked
+  // by the same flag that triggered the refresh, and the account stays
+  // dead forever. Same logic for register/health/balance/topup.
   const ids = [...new Set(
     candidates
-      .filter((r) => r.account_id && r.action && !r.action.endsWith('_register') && !r.action.endsWith('_health') && !r.action.endsWith('_balance') && !r.action.endsWith('_topup'))
+      .filter((r) => r.account_id && r.action && !r.action.endsWith('_register') && !r.action.endsWith('_login') && !r.action.endsWith('_health') && !r.action.endsWith('_balance') && !r.action.endsWith('_topup'))
       .map((r) => r.account_id!)
   )].slice(0, 50);
   if (ids.length === 0) return stale;
