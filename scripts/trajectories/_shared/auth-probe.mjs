@@ -79,15 +79,29 @@ const PROBES = {
     ],
   },
   reddit: {
-    // Works for both old and new reddit. New reddit uses USER_DROPDOWN_ID,
-    // shreddit uses faceplate-tracker / left-nav-top-section header text.
+    // Works for old.reddit + modern shreddit. The legacy shreddit visible
+    // markers (USER_DROPDOWN_ID, a[/submit], logged_in_user_dropdown) are
+    // dead in 2026-05 shreddit which now defers most authed UI to runtime
+    // hydration. The SSR HTML still emits structural-but-non-visual markers
+    // that ONLY render when the request was authed:
+    //   <shreddit-async-loader src="/svc/shreddit/user-drawer-button-logged-in">
+    //   <achievements-entrypoint username="USERNAME">
+    //   <after-login-toast-dispatcher username="USERNAME">
+    // These have style:contents or no box at all, so isVisible() returns
+    // false. Use presenceSelectors (count > 0) for them.
     authedSelectors: [
+      // legacy shreddit (kept for older renders)
       '#USER_DROPDOWN_ID',
       'button[id^="USER_DROPDOWN"]',
       'a[href="/submit"]',
       'faceplate-tracker[noun="logged_in_user_dropdown"]',
       // old.reddit
       'span.user a[href*="/user/"]',
+    ],
+    presenceSelectors: [
+      'shreddit-async-loader[src*="user-drawer-button-logged-in"]',
+      'achievements-entrypoint[username]',
+      'after-login-toast-dispatcher[username]',
     ],
     loggedOutMarkers: [
       'a[href*="/login"]',
@@ -207,6 +221,18 @@ export async function assertAuthed(platform, s, opts = {}) {
         const visible = await s.page.locator(sel).first().isVisible({ timeout: 500 });
         if (visible) {
           console.log(`[${label}] authed: ${platform} matched ${sel}`);
+          return sel;
+        }
+      } catch (e) { lastErrors.push(`${sel}: ${e.message?.slice(0, 60)}`); }
+    }
+    // presenceSelectors: structural markers emitted by SSR only when authed
+    // but with no visible bounding box (e.g. shreddit's user-drawer-button-
+    // logged-in async-loader, username-bearing custom elements). Use count.
+    for (const sel of probe.presenceSelectors ?? []) {
+      try {
+        const n = await s.page.locator(sel).count();
+        if (n > 0) {
+          console.log(`[${label}] authed: ${platform} matched ${sel} (presence-only, count=${n})`);
           return sel;
         }
       } catch (e) { lastErrors.push(`${sel}: ${e.message?.slice(0, 60)}`); }
