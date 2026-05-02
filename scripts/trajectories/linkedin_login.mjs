@@ -52,22 +52,50 @@ try {
   // on either input hangs the full default timeout (LinkedIn intercepts the
   // click during scroll-into-view). JS focus directs keystrokes correctly
   // without going through the click pipeline.
-  await s.page.locator(usernameSel).filter({ visible: true }).first().waitFor({ state: 'visible' });
-  await s.page.evaluate(() => document.querySelector('input#username, input[name="session_key"]')?.focus());
+  // Focus + fill via Playwright locators that work on both legacy
+  // checkpoint-frontend (input#username / input[name="session_key"]) and
+  // flagship3 SDUI (input[type="email"][autocomplete="username webauthn"]).
+  // flagship3 inputs have React-generated ids (:r3: etc.) and no name attr,
+  // so the legacy querySelectors return null and JS-focus is a no-op —
+  // humanType then types into nowhere and the form stays blank.
+  const userLoc = s.page.locator(usernameSel).filter({ visible: true }).first();
+  await userLoc.waitFor({ state: 'visible' });
+  await userLoc.click({ force: true });
   await humanIdlePause('short');
   await humanType(s.page, process.env.SVC_EMAIL ?? '');
   await humanIdlePause('short');
-  await s.page.evaluate(() => document.querySelector('input#password, input[name="session_password"]')?.focus());
+  const pwLoc = s.page.locator(passwordSel).filter({ visible: true }).first();
+  await pwLoc.click({ force: true });
   await humanIdlePause('short');
   await humanType(s.page, process.env.SVC_PASSWORD ?? '');
   await humanIdlePause('short');
-  // LinkedIn's submit is type='submit' inside a real <form> — locator.click
-  // hangs the full default click-timeout because the click event registers
-  // but Playwright's navigation-wait never resolves (LinkedIn returns the
-  // /uas/login-submit response that the SPA consumes in-place rather than
-  // navigating). Drive the form's native submit instead — the response
-  // listener captures the result and we re-read URL + cookies after.
-  await s.page.evaluate(() => { const f = document.querySelector('form.login__form, form[action*="login-submit"], form'); if (f && typeof f.requestSubmit === 'function') f.requestSubmit(); else if (f) f.submit(); }).catch(() => {});
+  // Click the Sign-in button via locator.click. LinkedIn now serves two
+  // login shells, randomly:
+  //   (A) Legacy checkpoint-frontend: <form action="...login-submit"> with
+  //       <button type="submit"> inside, PerimeterX iframe gates the click
+  //       handler that POSTs /checkpoint/pk/initiateLogin then submits the
+  //       form to /checkpoint/lg/login-submit.
+  //   (B) New flagship3 SDUI: NO <form>, NO type="submit". Sign-in is
+  //       <button type="button"> with React onClick that POSTs the login
+  //       payload to /flagship-web/rsc-action/actions/server-request?
+  //       sduiid=com.linkedin.sdui.requests.login.authenticate.
+  // Use getByRole('button', name='Sign in') to find the submit control on
+  // either shell. force:true skips Playwright's actionability deadlock
+  // (the React form re-renders during PX/SDUI hydration, never settling).
+  // noWaitAfter: SDUI consumes the response in-place via fetch, no full-
+  // page nav, so the default post-click nav-wait would time out. JS-driven
+  // submit (f.requestSubmit / dispatchEvent) creates isTrusted=false events
+  // that React's onClick filter or PerimeterX silent-rejects → bounce.
+  // Diff harness 2026-05-02 confirmed: locator.click({force,noWaitAfter})
+  // on weles binary fires the POST chain (Fetch.POST:/flagship-web/
+  // rsc-action/actions/server-request observed) and the page navigates to
+  // /checkpoint/challenge or /feed.
+  const submitBtn = s.page
+    .getByRole('button', { name: /^\s*sign\s*in\s*$/i })
+    .filter({ visible: true })
+    .first();
+  await submitBtn.waitFor({ state: 'visible' });
+  await submitBtn.click({ force: true, noWaitAfter: true });
   for (let i = 0; i < 12; i++) {
     await s.page.waitForTimeout(1000);
     if (!/^https?:\/\/www\.linkedin\.com\/login\/?$/.test(s.page.url())) break;
@@ -106,8 +134,12 @@ try {
       console.log(`[linkedin_login] solver returned no cookies on attempt ${solveAttempt + 1}`);
     }
   }
-  await captureCookies();
-  if (liAt) { writeBan('healthy', { final_url: finalUrl }); console.log(`PASS: li_at cookie set — ${finalUrl}`); }
+  // Only persist cookies on the success path. Persisting before the li_at
+  // check writes cookies_minted_at to a fresh-but-failed jar, then the
+  // failure branches below set cookies_stale_at on the same row — the
+  // resulting account is permanently stale with paradoxical "minted +
+  // stale within 1s" timestamps that no consumer can reason about.
+  if (liAt) { await captureCookies(); writeBan('healthy', { final_url: finalUrl }); console.log(`PASS: li_at cookie set — ${finalUrl}`); }
   else if (onCheckpoint) { writeBan('checkpoint', { final_url: finalUrl, reason: 'linkedin issued captchaV2; CapSolver AntiPerimeterX did not return usable cookies' }); const { markCookiesStale } = await import('../../dist/utils/credentials.js'); if (acct.id) await markCookiesStale(acct.id); console.log(`FAIL: linkedin checkpoint — ${finalUrl} (cookies marked stale)`); process.exitCode = 1; }
   else if (finalUrl.startsWith('chrome-error://')) { writeBan('proxy_failed', { final_url: finalUrl, reason: 'chrome-error: proxy CONNECT failed before login completed' }); console.log(`FAIL: proxy_failed — ${finalUrl}`); process.exitCode = 1; }
   // Landing back on /login (often with ?session_redirect=...) after submit
