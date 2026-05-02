@@ -65,6 +65,43 @@ export async function pickFirstProductLaunchUrl(s) {
   return href.startsWith('http') ? href : new URL(href, 'https://www.producthunt.com').toString();
 }
 
+// Discover the authed user's PH handle. Two failures observed during
+// register: the homepage often returns the SSR logged-out shell right
+// after OAuth (the new session cookie isn't reflected in the cached
+// response), so polling the topbar there can sit empty for 16s+.
+// Strategy: bounce between the homepage, /my/notifications (auth-walled,
+// redirects authed users to a path containing the handle), and
+// /products/<latest-launch> (always renders the topbar avatar). First
+// /@<handle> hit anywhere wins.
+export async function extractPhHandle(s) {
+  const sleep = (sec) => new Promise(r => setTimeout(r, sec * 1000));
+  const TARGETS = ['https://www.producthunt.com/', 'https://www.producthunt.com/my/notifications'];
+  for (let i = 0; i < 6; i++) {
+    const url = TARGETS[i % TARGETS.length];
+    try { await s.page.goto(url); } catch {}
+    await sleep(3);
+    const handle = await s.page.evaluate(() => {
+      const selectors = [
+        'a[data-test^="user-image-link-"]',
+        'header a[href^="/@"]',
+        'a[href*="/@"][data-test*="user"]',
+        'a[href^="/@"]',
+      ];
+      for (const sel of selectors) {
+        const el = document.querySelector(sel);
+        const href = el?.getAttribute('href') || '';
+        const m = href.match(/\/@([^/?#]+)/);
+        if (m) return m[1];
+      }
+      const urlMatch = location.href.match(/\/@([^/?#]+)/);
+      if (urlMatch) return urlMatch[1];
+      return null;
+    }).catch(() => null);
+    if (handle) return handle;
+  }
+  return null;
+}
+
 // Pick a Twitter account suitable for SSO into a fresh PH registration.
 // Prefers Twitter accounts whose username is NOT already linked to any PH
 // row — running OAuth from an already-linked Twitter just re-authenticates

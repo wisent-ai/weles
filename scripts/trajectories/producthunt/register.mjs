@@ -3,7 +3,7 @@ import { CaptchaSolver } from '../../../dist/captcha/solver.js';
 import { injectProviderCookies, handleOAuthConsent, clickOAuthProviderButton } from '../../../dist/platforms/_shared/cross_platform_oauth.js';
 import { humanClickLocator } from '../../../dist/human/mouse.js';
 import { autoBindCharacter } from '../lib/character-bind.mjs';
-import { findUsableTwitterAccount, stampLinkedTwitter } from './_session.mjs';
+import { findUsableTwitterAccount, stampLinkedTwitter, extractPhHandle } from './_session.mjs';
 
 // ProductHunt does not offer email/password signup — only OAuth via Twitter,
 // Google, Facebook, AngelList. This trajectory uses an existing Twitter account
@@ -210,32 +210,10 @@ async function signup(s) {
   // otherwise every profile_view trajectory navigates to /@<wrong-handle>
   // and benign declares account_missing.
   //
-  // The onboarding loop above can dwell on /newsletters?campaign=... or
-  // similar marketing pages whose DOM doesn't include the authed topbar.
-  // Navigate to the homepage AND poll for the topbar avatar to hydrate
-  // before extracting — a blind 4s sleep wasn't enough on the
-  // eddiekeeling2594 register at 2026-05-02 20:53Z.
-  await s.goto(URL);
-  let phHandle = null;
-  for (let i = 0; i < 8; i++) {
-    phHandle = await s.page.evaluate(() => {
-      const selectors = [
-        'a[data-test^="user-image-link-"]',
-        'header a[href^="/@"]',
-        'a[href*="/@"][data-test*="user"]',
-        'a[href^="/@"]',
-      ];
-      for (const sel of selectors) {
-        const el = document.querySelector(sel);
-        const href = el?.getAttribute('href') || '';
-        const m = href.match(/\/@([^/?#]+)/);
-        if (m) return m[1];
-      }
-      return null;
-    }).catch(() => null);
-    if (phHandle) break;
-    await sleep(2);
-  }
+  // Logic moved to _session.mjs#extractPhHandle: bounces between
+  // homepage and /my/notifications because PH's homepage often serves
+  // the SSR logged-out shell right after OAuth.
+  const phHandle = await extractPhHandle(s);
   const phUsername = phHandle ?? twUsername;
   if (phHandle && phHandle !== twUsername) {
     console.log(`[ph] platform_handle="${phHandle}" differs from twitter_username="${twUsername}" — using platform_handle`);
