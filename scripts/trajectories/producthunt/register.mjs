@@ -279,7 +279,11 @@ async function signup(s) {
 // captcha unsolvable, account purged) attempts 2-5 fail identically and
 // just generate 5x the bot-signal volume against PH's signup endpoint.
 // On failure, the worker queues a fresh row on next routine tick.
-const s = await WSession.start({ label: 'producthunt_register', proxy });
+// Force chromium — the 2026-05-02 21:01Z run with a Firefox persona failed
+// before saveAccount with `Page.dispatchMouseEvent: win.synthesizeMouseEvent
+// is not a function`. weles's CDP-based mouse path is Chromium-only, and PH
+// signup needs trusted clicks to land the OAuth modal.
+const s = await WSession.start({ label: 'producthunt_register', proxy, browser: 'chromium' });
 try {
   const username = await signup(s);
   console.log(`PASS: ${username}`);
