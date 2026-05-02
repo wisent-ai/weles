@@ -273,6 +273,7 @@ async function signup(s) {
     password: twPassword ?? 'linked_to_twitter',
   });
   console.log(`[ph] ${result}`);
+  await stampLinkedTwitter(phUsername, twUsername).catch((e) => console.log(`[ph] stamp err: ${e.message?.slice(0, 80)}`));
   await autoBindCharacter(phUsername, 'producthunt').then(r => console.log(`[bind] ${JSON.stringify(r)}`)).catch((e) => console.log(`[bind] err: ${e.message?.slice(0, 80)}`));
   return phUsername;
 }
