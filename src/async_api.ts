@@ -125,7 +125,7 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
   if (persona?.language) args.push(`--lang=${persona.language}`);
   if (persona?.timezone) launchOpts.env = { ...process.env, TZ: persona.timezone };
 
-  const isCustomBinary = isChromium && chromiumPath && existsSync(chromiumPath);
+  const isCustomBinary = isChromium && chromiumPath && existsSync(chromiumPath) && process.env.WELES_USE_STOCK_CHROMIUM !== '1';
 
   if (isCustomBinary) {
     launchOpts.executablePath = chromiumPath;
