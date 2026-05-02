@@ -212,16 +212,30 @@ async function signup(s) {
   //
   // The onboarding loop above can dwell on /newsletters?campaign=... or
   // similar marketing pages whose DOM doesn't include the authed topbar.
-  // Navigate to the homepage first so the topbar definitely renders.
+  // Navigate to the homepage AND poll for the topbar avatar to hydrate
+  // before extracting — a blind 4s sleep wasn't enough on the
+  // eddiekeeling2594 register at 2026-05-02 20:53Z.
   await s.goto(URL);
-  await sleep(4);
-  const phHandle = await s.page.evaluate(() => {
-    const link = document.querySelector('a[data-test^="user-image-link-"]') ||
-                 document.querySelector('a[href*="/@"][data-test*="user"]');
-    const href = link?.getAttribute('href') || '';
-    const m = href.match(/\/@([^/?#]+)/);
-    return m ? m[1] : null;
-  }).catch(() => null);
+  let phHandle = null;
+  for (let i = 0; i < 8; i++) {
+    phHandle = await s.page.evaluate(() => {
+      const selectors = [
+        'a[data-test^="user-image-link-"]',
+        'header a[href^="/@"]',
+        'a[href*="/@"][data-test*="user"]',
+        'a[href^="/@"]',
+      ];
+      for (const sel of selectors) {
+        const el = document.querySelector(sel);
+        const href = el?.getAttribute('href') || '';
+        const m = href.match(/\/@([^/?#]+)/);
+        if (m) return m[1];
+      }
+      return null;
+    }).catch(() => null);
+    if (phHandle) break;
+    await sleep(2);
+  }
   const phUsername = phHandle ?? twUsername;
   if (phHandle && phHandle !== twUsername) {
     console.log(`[ph] platform_handle="${phHandle}" differs from twitter_username="${twUsername}" — using platform_handle`);
