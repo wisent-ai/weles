@@ -74,8 +74,10 @@ export async function getSocialAccount(platform: string): Promise<SocialAccount 
   if (!supabaseUrl || !supabaseKey) return null;
   const accountId = process.env.ACCOUNT_ID;
   if (accountId) {
+    // is_active=true so ACCOUNT_ID rows for deactivated accounts (queued
+    // pre-deactivation) bail immediately rather than running pointlessly.
     const res = await fetch(
-      `${supabaseUrl}/rest/v1/social_accounts?id=eq.${accountId}&platform=eq.${platform}&select=id,platform,username,metadata&limit=1`,
+      `${supabaseUrl}/rest/v1/social_accounts?id=eq.${accountId}&platform=eq.${platform}&is_active=eq.true&select=id,platform,username,metadata&limit=1`,
       { headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` } },
     );
     if (!res.ok) return null;
