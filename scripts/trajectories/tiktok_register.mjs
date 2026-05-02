@@ -26,7 +26,7 @@ async function syncReactInputValue(locator, value) {
   // Retry the flow up to 3 times if browser/page dies during early setup (crash-prone with custom Chromium)
   let id = null, password = null, s = null, success = false;
 
-  const maxRetries = Math.max(1, Number(process.env.MAX_RETRIES || 3));
+  const maxRetries = Math.max(1, Number(process.env.MAX_RETRIES || 8));
   for (let retry = 0; retry < maxRetries; retry++) {
     if (s) { await s.close().catch(() => {}); s = null; }
     let registerVerifyErrorCode = null;
