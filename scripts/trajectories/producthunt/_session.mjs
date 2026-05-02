@@ -65,6 +65,76 @@ export async function pickFirstProductLaunchUrl(s) {
   return href.startsWith('http') ? href : new URL(href, 'https://www.producthunt.com').toString();
 }
 
+// Pick a Twitter account suitable for SSO into a fresh PH registration.
+// Prefers Twitter accounts whose username is NOT already linked to any PH
+// row — running OAuth from an already-linked Twitter just re-authenticates
+// the existing PH user (PH binds 1:1 by Twitter source). Tracks linkage
+// via PH row metadata.linked_twitter_username (set by stampLinkedTwitter
+// below) AND a legacy match on PH row username for pre-handle-fix rows.
+export async function findUsableTwitterAccount() {
+  const supabaseUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
+  if (!supabaseUrl || !supabaseKey) return null;
+  const headers = { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` };
+  const linkedTwitter = new Set();
+  try {
+    const phRows = await fetch(
+      `${supabaseUrl}/rest/v1/social_accounts?platform=eq.producthunt&select=username,metadata`,
+      { headers },
+    ).then(r => r.ok ? r.json() : []);
+    for (const ph of phRows) {
+      const lt = ph?.metadata?.linked_twitter_username;
+      if (typeof lt === 'string' && lt) linkedTwitter.add(lt.toLowerCase());
+      if (typeof ph?.username === 'string') linkedTwitter.add(ph.username.toLowerCase());
+    }
+  } catch {}
+  const res = await fetch(
+    `${supabaseUrl}/rest/v1/social_accounts?platform=eq.twitter&is_active=eq.true&select=id,platform,username,metadata&order=created_at.desc&limit=50`,
+    { headers },
+  );
+  if (!res.ok) return null;
+  const rows = await res.json();
+  const isUnlinked = (a) => !linkedTwitter.has(String(a.username || '').toLowerCase());
+  for (const a of rows) {
+    const hasCookies = Array.isArray(a.metadata?.cookies) && a.metadata.cookies.length >= 2;
+    const suspended = String(a.metadata?.status ?? '').toLowerCase().includes('suspend');
+    const locked = String(a.metadata?.status ?? '').toLowerCase().includes('lock');
+    if (hasCookies && !suspended && !locked && isUnlinked(a)) return a;
+  }
+  for (const a of rows) {
+    if (Array.isArray(a.metadata?.cookies) && a.metadata.cookies.length >= 2 && isUnlinked(a)) return a;
+  }
+  for (const a of rows) {
+    const hasCookies = Array.isArray(a.metadata?.cookies) && a.metadata.cookies.length >= 2;
+    const suspended = String(a.metadata?.status ?? '').toLowerCase().includes('suspend');
+    const locked = String(a.metadata?.status ?? '').toLowerCase().includes('lock');
+    if (hasCookies && !suspended && !locked) return a;
+  }
+  return rows[0] ?? null;
+}
+
+// Stamp linked_twitter_username on the PH row that saveAccount just inserted,
+// so future findUsableTwitterAccount() calls can skip this Twitter.
+export async function stampLinkedTwitter(phUsername, twUsername) {
+  const supabaseUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
+  if (!supabaseUrl || !supabaseKey) return;
+  const headers = { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}`, 'Content-Type': 'application/json' };
+  const res = await fetch(
+    `${supabaseUrl}/rest/v1/social_accounts?platform=eq.producthunt&username=eq.${encodeURIComponent(phUsername)}&select=id,metadata`,
+    { headers },
+  );
+  if (!res.ok) return;
+  const rows = await res.json();
+  if (!rows[0]) return;
+  const merged = { ...(rows[0].metadata ?? {}), linked_twitter_username: twUsername };
+  await fetch(
+    `${supabaseUrl}/rest/v1/social_accounts?id=eq.${rows[0].id}`,
+    { method: 'PATCH', headers: { ...headers, Prefer: 'return=minimal' }, body: JSON.stringify({ metadata: merged }) },
+  ).catch(() => {});
+  console.log(`[ph] stamped linked_twitter_username="${twUsername}" on PH row id=${rows[0].id}`);
+}
+
 // Drive the PH-specific Twitter SSO click sequence. All cross-platform
 // primitives (cookies, consent, captcha) come from _shared/.
 export async function loginViaTwitter(s) {
