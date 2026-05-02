@@ -26,24 +26,24 @@ export async function tiktokSubmitComment(s, text) {
   const onVideoPage = /\/video\/\d+/.test(currentUrl);
   if (!onVideoPage) {
     const isProfile = /\/@[^/?#]+$/.test(currentUrl.split('?')[0]);
-    if (!isProfile) {
-      // First try: pick a video from a discovery surface that doesn't depend
-      // on a single profile's video-listing API. /tag/fyp and /explore both
-      // render video tiles via different endpoints; if either hydrates we
-      // skip the profile-grid path entirely.
-      console.log('[tiktok-submit] looking for a video link on /tag/fyp');
-      try {
-        await s.goto('https://www.tiktok.com/tag/fyp');
-        const videoLink = await s.page.locator('a[href*="/video/"]').first().waitFor({ state: 'visible', timeout: 15000 }).then(() => true).catch(() => false);
-        if (videoLink) { currentUrl = s.page.url?.() ?? ''; console.log('[tiktok-submit] /tag/fyp loaded — using its video link'); }
-      } catch { /* fall through */ }
-    }
-    // Wait for profile grid to render video links. TikTok's video-listing API
-    // intermittently 500s on @tiktok ("Something went wrong" with bodyLen
-    // ~1459); a profile reload re-fetches and usually succeeds. Walk a list
-    // of high-volume handles and try each twice.
     let gridLoaded = false;
-    const profileHandles = ['tiktok', 'spotify', 'nba'];
+    let profileHandles = ['tiktok', 'spotify', 'nba'];
+    if (!isProfile) {
+      // /foryou itself doesn't expose direct /video/N anchors, but the
+      // sidebar of each video lists the AUTHOR's profile anchor (/@user).
+      // Scrape those author handles from the current /foryou page and use
+      // them as candidate profiles — TikTok's video-listing API is more
+      // reliable for the small-creator profiles it just recommended us
+      // than for the canonical high-volume handles (@tiktok / @nba).
+      let authorHandles = [];
+      try {
+        if (!/\/foryou/.test(currentUrl)) await s.goto('https://www.tiktok.com/foryou');
+        await s.page.waitForTimeout(5000);
+        authorHandles = await s.page.evaluate(() => [...new Set(Array.from(document.querySelectorAll('a[href*="/@"]')).map(a => { const m = (a.getAttribute('href')||'').match(/\/@([^/?#]+)/); return m ? m[1] : null; }).filter(Boolean))].slice(0, 5));
+        console.log(`[tiktok-submit] /foryou recommended authors: ${JSON.stringify(authorHandles)}`);
+      } catch { /* fall through */ }
+      profileHandles = [...authorHandles, 'tiktok', 'spotify', 'nba'];
+    }
     outer: for (const handle of profileHandles) {
       const profileUrl = `https://www.tiktok.com/@${handle}`;
       for (let attempt = 0; attempt < 2; attempt++) {
