@@ -14,13 +14,26 @@ function headers(): Record<string, string> {
 }
 
 export async function claimOne(): Promise<ActionLogRow | null> {
-  // Lookahead 100 rows so the in-flight per-account lock can find a claimable row even when the first dozen queued items all belong to one in-flight account (common: a verification batch enqueues 10+ rows for one account; with limit=10 the worker would idle until those drained).
+  // Lookahead 300 rows so the per-account in-flight + stale skip lists don't
+  // starve out high-priority recovery rows that sit deep in the queue.
+  // Symptom: 36 linkedin_login rows never claimed because the top 100 by
+  // scheduled_at were all sim-cron rows (linkedin_browse / dwell / etc).
   const res = await fetch(
-    `${SUPABASE_URL}/rest/v1/account_action_logs?select=id,account_id,action,platform,params,status&status=eq.queued&or=(scheduled_at.is.null,scheduled_at.lte.now())&order=scheduled_at.asc.nullsfirst&limit=100`,
+    `${SUPABASE_URL}/rest/v1/account_action_logs?select=id,account_id,action,platform,params,status&status=eq.queued&or=(scheduled_at.is.null,scheduled_at.lte.now())&order=scheduled_at.asc.nullsfirst&limit=300`,
     { headers: headers() },
   );
   if (!res.ok) return null;
-  const candidates = (await res.json()) as ActionLogRow[];
+  let candidates = (await res.json()) as ActionLogRow[];
+  // Priority sort: recovery rows (*_login, *_register, *_health, *_balance,
+  // *_topup) before sim/promote rows. Login mints cookies and unblocks every
+  // downstream action for the same account; health detects bans; balance keeps
+  // proxies funded. Stable-sort by scheduled_at within each priority tier.
+  const recoveryRe = /_(login|register|health|balance|topup)$/;
+  const priority = (a: string) => recoveryRe.test(a) ? 0 : 1;
+  candidates = candidates
+    .map((r, i) => ({ r, i, p: priority(r.action) }))
+    .sort((x, y) => x.p - y.p || x.i - y.i)
+    .map((e) => e.r);
   // Per-account in-flight lock: each account has ONE stored sticky proxy session (Oxylabs sessid). Concurrent connections to one sticky session get refused with ERR_TUNNEL_CONNECTION_FAILED. Serialize per-account; deferred rows pick up next tick. Ignore rows older than 30 min — those are stuck-poison from killed workers and should not block their account forever.
   const inflightAccounts = new Set<string>();
   if (candidates.length) {
