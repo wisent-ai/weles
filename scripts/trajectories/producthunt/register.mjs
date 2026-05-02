@@ -248,6 +248,25 @@ async function signup(s) {
     console.log(`[ph] could not extract platform_handle from topbar — falling back to twitter_username="${twUsername}"`);
   }
 
+  // Idempotency guard: if a PH row already exists with this username
+  // (because the Twitter SSO source was already linked previously), skip
+  // saveAccount so we don't write a duplicate row. PH's OAuth flow always
+  // re-authenticates the same PH user when the Twitter account already
+  // has a linked PH identity, so a re-run of register.mjs against the same
+  // Twitter would otherwise produce N rows pointing at the same PH user.
+  const supabaseUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
+  if (supabaseUrl && supabaseKey) {
+    const exists = await fetch(
+      `${supabaseUrl}/rest/v1/social_accounts?platform=eq.producthunt&username=eq.${encodeURIComponent(phUsername)}&is_active=eq.true&select=id,username`,
+      { headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` } },
+    ).then(r => r.ok ? r.json() : []).catch(() => []);
+    if (exists.length > 0) {
+      console.log(`[ph] active PH row already exists for username="${phUsername}" id=${exists[0].id} — skipping saveAccount (would dup)`);
+      return phUsername;
+    }
+  }
+
   const result = await s.saveAccount('producthunt', {
     username: phUsername,
     email: twEmail ?? `${twUsername}@wisentmedia.com`,
