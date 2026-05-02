@@ -128,7 +128,10 @@ async function pauseAccount(accountId: string, signal?: string, hours = 24): Pro
   // rate_limited: brief account-level throttle — 4h cooldown, not 24h.
   if (signal === 'ip_blocked' || signal === 'proxy_failed' || signal === 'proxy_auth_failed') return;
   if (signal === 'rate_limited') hours = 4;
-  const hard = signal ? ['suspended', 'shadowbanned'].includes(signal) : false;
+  // account_missing = the platform 404s the account's own profile (signup
+  // never finalized, or silently deleted). Re-trying never recovers, so
+  // deactivate the row like suspended/shadowbanned.
+  const hard = signal ? ['suspended', 'shadowbanned', 'account_missing'].includes(signal) : false;
   const body: Record<string, unknown> = { paused_until: new Date(Date.now() + hours * 3600_000).toISOString() };
   if (hard) { body.status = 'flagged'; body.is_active = false; }
   await fetch(`${SUPABASE_URL}/rest/v1/social_accounts?id=eq.${accountId}`, { method: 'PATCH', headers: { ...headers(), Prefer: 'return=minimal' }, body: JSON.stringify(body) }).catch(() => {});
