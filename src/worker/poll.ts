@@ -32,14 +32,34 @@ async function runTrajectory(row: ActionLogRow, path: string, extraEnv: Record<s
   // dir is shared across runs, so a killed predecessor would otherwise be
   // attributed to this row.
   try { await (await import('node:fs/promises')).unlink(join(RECORDINGS_ROOT, row.action, 'ban_signal.json')).catch(() => {}); } catch { /* noop */ }
+  // Hard wall-clock cap. Without this a single hung Chromium (proxy CONNECT
+  // timeout, modal that never resolves, infinite scroll loop) parks one worker
+  // for hours and the other workers can't make up for it. Tightened from
+  // unbounded so a stuck linkedin_dwell can't burn a worker for 30+ min.
+  // Health/probe trajectories cap lower (90s); register/login get 600s; rest
+  // get 360s. Override per-row via WORKER_HARD_TIMEOUT_MS env.
+  const overrideMs = Number(process.env.WORKER_HARD_TIMEOUT_MS ?? 0);
+  const defaultMs = row.action.endsWith('_health') || row.action.endsWith('_balance') || row.action.endsWith('_topup') ? 90_000
+    : row.action.endsWith('_register') || row.action.endsWith('_login') ? 600_000
+    : 360_000;
+  const hardTimeoutMs = overrideMs > 0 ? overrideMs : defaultMs;
   return new Promise((resolve) => {
     const child = spawn('node', [path], {
       env: { ...process.env, ...paramsToEnv(row.params ?? {}, row.action, path), ...extraEnv, ACCOUNT_ID: row.account_id, ACTION_LOG_ID: row.id, ACTION: row.action },
       cwd: process.cwd(), stdio: ['ignore', 'inherit', 'pipe'],
     });
     let stderr = '';
+    let killed = false;
+    const killTimer = setTimeout(() => {
+      killed = true;
+      stderr += `\nFAIL: worker hard timeout (${hardTimeoutMs}ms) — sent SIGKILL`;
+      try { child.kill('SIGKILL'); } catch { /* noop */ }
+    }, hardTimeoutMs);
     child.stderr.on('data', (chunk) => { stderr += chunk.toString(); });
-    child.on('close', (code) => resolve({ exitCode: code ?? -1, stderr: stderr.slice(-2000) }));
+    child.on('close', (code) => {
+      clearTimeout(killTimer);
+      resolve({ exitCode: killed ? 137 : (code ?? -1), stderr: stderr.slice(-2000) });
+    });
   });
 }
 
