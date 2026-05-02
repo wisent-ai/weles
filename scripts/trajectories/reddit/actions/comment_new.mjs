@@ -107,6 +107,15 @@ export async function submitNewRedditComment(page, commentBody, capturedResponse
   console.log(`[comment] new-reddit editable probe: ${JSON.stringify(editable)}`);
   if (!editable) throw new Error('new-reddit composer editable not found');
 
+  // Focus the RTE editable before typing. Without this, humanType keystrokes
+  // land on whatever activeElement is, which after a placeholder click is the
+  // <faceplate-textarea-input> wrapper, not the RTE <div contenteditable=true>.
+  // Result: RTE input listener never fires → no EvaluateCommentAutomationsByPostId,
+  // no recaptchaToken in submit body, comment auto-removed within a minute.
+  // Verified by diff harness: A handoff fired EvalCommentAutomations on each
+  // keystroke (commentBody:"that" at t=11565ms); B trajectory fired 0.
+  await humanClick(page, editable.x, editable.y);
+  await page.waitForTimeout(400 + Math.floor(Math.random() * 300));
   console.log(`[diag] before humanType len=${commentBody.length}`);
   await humanType(page, commentBody);
   console.log(`[diag] after humanType — url=${page.url()} closed=${page.isClosed()}`);
