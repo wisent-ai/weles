@@ -28,15 +28,38 @@ try {
   await s.page.waitForTimeout(3000);
   try { await assertAuthed('reddit', s, { label: 'reddit_upvote' }); }
   catch (probeErr) { if (probeErr instanceof AuthProbeError) { console.log(`FAIL: ${probeErr.message}`); await markCookiesStale(acct.id); process.exit(1); } throw probeErr; }
-  // First not-yet-upvoted post arrow. After a successful upvote the same
-  // div's class flips from "arrow up" to "arrow upmod".
-  const upArrow = s.page.locator('div.thing div.arrows div.arrow.up').first();
+  // First not-yet-upvoted post arrow. The parent is <div class="midcol unvoted">
+  // (NOT <div class="arrows"> — that selector matches nothing on old.reddit and
+  // is why this trajectory previously timed out at the visible-wait below).
+  // After a successful upvote, the parent flips midcol unvoted → midcol likes
+  // and the arrow class flips arrow.up → arrow.upmod.
+  const upArrow = s.page.locator('div.thing div.midcol.unvoted div.arrow.up').first();
   await upArrow.waitFor({ state: 'visible' });
   await upArrow.scrollIntoViewIfNeeded();
+  // Identify the picked thing so out-of-band score-delta verification is
+  // possible (was the vote actually counted server-side, or shadow-counted
+  // locally only). Walks up to the parent div.thing, reads data-fullname.
+  const pickedFullname = await upArrow.evaluate((arrow) => {
+    let n = arrow;
+    for (let i = 0; i < 8 && n; i++) {
+      if (n.classList?.contains('thing') && n.getAttribute('data-fullname')) return n.getAttribute('data-fullname');
+      n = n.parentElement;
+    }
+    return null;
+  }).catch(() => null);
+  console.log(`[upvote] picked thing data-fullname=${pickedFullname}`);
   await humanClickLocator(s.page, upArrow);
-  await s.page.locator('div.thing div.arrows div.arrow.upmod').first().waitFor({ state: 'visible' });
+  // After click, parent class flips: midcol.unvoted → midcol.likes; arrow class
+  // flips: arrow.up → arrow.upmod. Scope the wait to the SAME thing we picked
+  // (not "any upmod arrow on the page") so a cosmetic match elsewhere can't
+  // false-pass the verification.
+  if (pickedFullname) {
+    await s.page.locator(`div.thing[data-fullname="${pickedFullname}"] div.midcol.likes div.arrow.upmod`).first().waitFor({ state: 'visible' });
+  } else {
+    await s.page.locator('div.thing div.midcol.likes div.arrow.upmod').first().waitFor({ state: 'visible' });
+  }
   ban = await detectRedditBanSignals(s.page, s.capturedResponses).catch(() => null);
-  console.log(`[ban-signal] ${ban?.signal}  PASS: upvoted`);
+  console.log(`[ban-signal] ${ban?.signal}  PASS: upvoted ${pickedFullname || ''}`);
 } catch (e) {
   ban = e.banSignal ?? await detectRedditBanSignals(s.page, s.capturedResponses).catch(() => null);
   console.log(`[ban-signal] ${ban?.signal}  FAIL: ${e.message?.slice(0, 200)}`);
