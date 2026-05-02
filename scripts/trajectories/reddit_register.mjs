@@ -10,6 +10,7 @@ import { WSession } from '../../dist/session/wsession.js';
 import { humanType } from '../../dist/human/keyboard.js';
 import { humanMove, humanIdlePause, humanClickLocator } from '../../dist/human/mouse.js';
 import { randomBytes } from 'node:crypto';
+import { autoBindCharacter } from './lib/character-bind.mjs';
 
 const URL = 'https://www.reddit.com/register';
 const AGENT_DOMAIN = process.env.AGENT_DOMAIN ?? 'mailwisent.com';
@@ -137,6 +138,7 @@ try {
   // Step 5: persist + verify
   const result = await s.saveAccount('reddit', { username: id.username, email: id.email, password: id.password, name: id.name });
   console.log(`[register] saveAccount: ${result}`);
+  await autoBindCharacter(id.username, 'reddit').then(r => console.log(`[bind] ${JSON.stringify(r)}`)).catch((e) => console.log(`[bind] err: ${e.message?.slice(0, 80)}`));
 
   const supabaseUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
