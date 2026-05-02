@@ -4,6 +4,7 @@ import { injectPHCookies, loginViaTwitter } from './_session.mjs';
 import { humanType, humanFill } from '../../../dist/human/keyboard.js';
 import { humanClickLocator } from '../../../dist/human/mouse.js';
 import { assertAuthed, AuthProbeError } from '../_shared/auth-probe.mjs';
+import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../_shared/cookie-freshness.mjs';
 
 // Post a comment on a Product Hunt launch.
 // PRODUCTHUNT_URL=https://www.producthunt.com/products/<slug>  -> launch page
@@ -13,8 +14,17 @@ const TARGET_URL = process.env.PRODUCTHUNT_URL || 'https://www.producthunt.com/'
 const COMMENT_TEXT = process.env.PH_COMMENT || 'Looks really clean — congrats on the launch!';
 const sleep = (s) => new Promise(r => setTimeout(r, s * 1000));
 
-async function postComment(s, acct) {
-  const cookies = acct.metadata?.cookies ?? [];
+async function postComment(s, acct, sessionMeta) {
+  // Cookie-jar freshness gate — see _shared/cookie-freshness.mjs. On stale,
+  // skip injection and let loginViaTwitter recover below.
+  let cookies = [];
+  try {
+    cookies = loadFreshCookieJarOrFail(acct, { platform: 'producthunt', label: 'producthunt_comment', currentProxyUrl: sessionMeta.proxyUrl, currentPersona: sessionMeta.persona });
+  } catch (jarErr) {
+    if (!(jarErr instanceof CookieJarStaleError)) throw jarErr;
+    console.log(`[ph-comment] ${jarErr.message} — falling through to SSO recovery`);
+    cookies = [];
+  }
   if (cookies.length) {
     const inj = await injectPHCookies(s, cookies);
     console.log(`[ph-comment] injected ${inj} saved cookies`);
@@ -82,7 +92,7 @@ console.log(`[ph-comment] using account: ${acct.username}`);
 const sessionOpts = await resolveAccountSession(acct);
 const s = await WSession.start({ label: 'producthunt_comment', ...sessionOpts });
 try {
-  await postComment(s, acct);
+  await postComment(s, acct, sessionOpts);
   console.log(`PASS: ${acct.username} commented on ${TARGET_URL}`);
   process.exit(0);
 } catch (e) {
