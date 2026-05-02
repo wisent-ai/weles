@@ -145,7 +145,17 @@ export async function runHealthProbe(cfg) {
   // a {platform}_login row for THIS account so the next worker tick refreshes
   // cookies. Without this, cookies-stale persists until a manual intervention
   // — every subsequent routine probe re-reports checkpoint forever.
-  if (signal === 'checkpoint' && acct.id) {
+  // BUT: skip auto-recovery for accounts whose registration never completed.
+  // metadata.status in {captcha_blocked, unverified, needs_verification,
+  // captcha_signup_failed} means the saveAccount stub got written but the
+  // signup form didn't submit — there are no working cookies and the password
+  // never actually mapped to a real account. Form-login on these stubs always
+  // fails (GitHub returns "incorrect credentials") and the storm just churns
+  // every 6h via health-probe. See ../github/register.mjs:245 for where the
+  // stub gets written.
+  const acctStatus = acct.metadata?.status;
+  const brokenRegistration = ['captcha_blocked', 'unverified', 'needs_verification', 'captcha_signup_failed'].includes(acctStatus);
+  if (signal === 'checkpoint' && acct.id && !brokenRegistration) {
     try {
       const url = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
       const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
@@ -159,6 +169,8 @@ export async function runHealthProbe(cfg) {
         console.log(`[health:${cfg.platform}] auto-enqueued ${cfg.platform}_login for ${acct.username} (cookies stale → recover)`);
       }
     } catch (e) { console.log(`[health:${cfg.platform}] auto-recovery enqueue err: ${e.message?.slice(0, 100)}`); }
+  } else if (signal === 'checkpoint' && brokenRegistration) {
+    console.log(`[health:${cfg.platform}] skip auto-recovery: ${acct.username} metadata.status=${acctStatus} (registration never completed; login can't recover)`);
   }
   if (signal === 'unknown') process.exitCode = 2;
   return snapshot;

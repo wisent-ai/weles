@@ -334,7 +334,7 @@ export async function runAction(cfg) {
     }
     if (!banSignal) banSignal = { signal: 'action_failed', healthy: false, details: { final_url: s.page.url?.() ?? '', reason: e.message?.slice(0, 200) ?? 'no message' } };
     console.log(`[ban-signal] ${banSignal.signal}`);
-    console.log('FAIL:', e.message?.slice(0, 200));
+    console.error('FAIL:', e.message?.slice(0, 200));
     process.exitCode = 1;
   } finally {
     if (banSignal) {
