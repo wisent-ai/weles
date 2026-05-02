@@ -39,18 +39,24 @@ if (process.env.WELES_USE_STOCK_CHROMIUM == null) process.env.WELES_USE_STOCK_CH
 // BrightData has a cleaner residential pool (twitter_login=pass on the same
 // session), so login should clear without triggering the captcha gate.
 // Operator override: PROXY_URL_FORCE already pre-set is honored as-is.
-if (!process.env.PROXY_URL_FORCE && process.env.BRIGHTDATA_USERNAME && process.env.BRIGHTDATA_PASSWORD) {
+// Helper: pick a fresh BrightData sticky session URL each call so retries
+// rotate exit IPs. Returns null if BRIGHTDATA env not set.
+function freshBrightdataUrl() {
+  if (!process.env.BRIGHTDATA_USERNAME || !process.env.BRIGHTDATA_PASSWORD) return null;
   const u = process.env.BRIGHTDATA_USERNAME.startsWith('brd-customer-')
     ? process.env.BRIGHTDATA_USERNAME
     : `brd-customer-${process.env.BRIGHTDATA_USERNAME}-zone-${process.env.BRIGHTDATA_ZONE ?? 'residential_proxy1'}`;
-  // Per-session sticky id — unique per launch so consecutive logins for
-  // different accounts don't share a proxy session that LinkedIn might
-  // correlate. brightdata sticky session via "-session-<id>" username suffix.
   const sess = Math.floor(Math.random() * 9000000 + 1000000);
   const stickyUser = `${u}-country-us-session-${sess}`;
-  process.env.PROXY_URL = `http://${encodeURIComponent(stickyUser)}:${encodeURIComponent(process.env.BRIGHTDATA_PASSWORD)}@brd.superproxy.io:22225`;
-  process.env.PROXY_URL_FORCE = '1';
-  console.log(`[linkedin_login] forcing BrightData residential (session=${sess}, country=us)`);
+  return `http://${encodeURIComponent(stickyUser)}:${encodeURIComponent(process.env.BRIGHTDATA_PASSWORD)}@brd.superproxy.io:22225`;
+}
+if (!process.env.PROXY_URL_FORCE) {
+  const url = freshBrightdataUrl();
+  if (url) {
+    process.env.PROXY_URL = url;
+    process.env.PROXY_URL_FORCE = '1';
+    console.log(`[linkedin_login] forcing BrightData residential (initial sticky)`);
+  }
 }
 
 let { proxyUrl, persona } = await resolveAccountSession(acct);
@@ -59,7 +65,7 @@ let s = await WSession.start({ label: 'linkedin_login', proxy: proxyUrl, persona
 // proxy resolution on each attempt. Each call to resolveAccountSession picks
 // a different sticky session id, which often resolves to a different exit IP.
 async function gotoLogin() {
-  for (let attempt = 0; attempt < 3; attempt++) {
+  for (let attempt = 0; attempt < 5; attempt++) {
     try {
       await s.page.goto('https://www.linkedin.com/login', { waitUntil: 'domcontentloaded' });
       const url = s.page.url?.() ?? '';
@@ -67,10 +73,17 @@ async function gotoLogin() {
       console.log(`[linkedin_login] goto attempt ${attempt + 1}: chrome-error, retrying with fresh proxy`);
     } catch (e) {
       const msg = e.message ?? '';
-      if (!/ERR_TUNNEL_CONNECTION_FAILED|ERR_PROXY_CONNECTION_FAILED|chrome-error/.test(msg) || attempt >= 2) throw e;
+      // Retry on tunnel/proxy failures + HTTP edge-rejection (LinkedIn 4xx/5xx
+      // for flagged exit IPs) + chrome-error. Each retry rotates BrightData
+      // sticky session so we land on a different exit IP.
+      const retriable = /ERR_TUNNEL_CONNECTION_FAILED|ERR_PROXY_CONNECTION_FAILED|ERR_HTTP_RESPONSE_CODE_FAILURE|ERR_BLOCKED_BY_RESPONSE|chrome-error/.test(msg);
+      if (!retriable || attempt >= 4) throw e;
       console.log(`[linkedin_login] goto attempt ${attempt + 1}: ${msg.slice(0, 80)}, retrying with fresh proxy`);
     }
     await s.close().catch(() => {});
+    // Rotate to fresh BrightData sticky before re-resolving.
+    const next = freshBrightdataUrl();
+    if (next) { process.env.PROXY_URL = next; process.env.PROXY_URL_FORCE = '1'; }
     ({ proxyUrl, persona } = await resolveAccountSession(acct));
     s = await WSession.start({ label: 'linkedin_login', proxy: proxyUrl, persona });
   }
