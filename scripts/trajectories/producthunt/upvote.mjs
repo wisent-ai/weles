@@ -2,6 +2,7 @@ import { WSession } from '../../../dist/session/wsession.js';
 import { markCookiesStale } from '../../../dist/utils/credentials.js';
 import { assertAuthed, AuthProbeError } from '../_shared/auth-probe.mjs';
 import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../_shared/cookie-freshness.mjs';
+import { loginViaTwitter } from './_session.mjs';
 
 // Upvote a Product Hunt product. Pass PRODUCTHUNT_URL=https://www.producthunt.com/products/<slug>
 // to vote on a specific product; otherwise the trajectory upvotes the first product
@@ -114,21 +115,29 @@ async function vote(s) {
   const acct = await findProductHuntAccount();
   if (!acct) throw new Error('no_producthunt_account_in_db');
 
-  // Cookie-jar freshness gate — see _shared/cookie-freshness.mjs.
-  let cookies;
+  // Cookie-jar freshness gate — see _shared/cookie-freshness.mjs. On stale,
+  // skip injection and route through loginViaTwitter SSO recovery, matching
+  // the same recovery shape profile.mjs and comment.mjs already use.
+  let cookies = [];
   try {
     cookies = loadFreshCookieJarOrFail(acct, { platform: 'producthunt', label: 'producthunt_upvote', currentProxyUrl: proxy === 'none' ? null : proxy, currentPersona: acct.metadata?.persona });
   } catch (jarErr) {
-    if (jarErr instanceof CookieJarStaleError) {
-      try { await markCookiesStale(acct.id); } catch {}
-      throw new Error(`cookie_jar_stale: ${jarErr.message}`);
-    }
-    throw jarErr;
+    if (!(jarErr instanceof CookieJarStaleError)) throw jarErr;
+    console.log(`[ph-vote] ${jarErr.message} — invoking SSO recovery`);
+    cookies = [];
   }
   console.log(`[ph-vote] using account: ${acct.username} (${cookies.length} cookies)`);
-  if (cookies.length < 1) throw new Error('producthunt_account_missing_cookies');
-
-  await injectPHCookies(s, cookies);
+  if (cookies.length) {
+    await injectPHCookies(s, cookies);
+  } else {
+    console.log('[ph-vote] no fresh cookies — invoking loginViaTwitter');
+    try {
+      await loginViaTwitter(s);
+    } catch (e) {
+      try { await markCookiesStale(acct.id); } catch {}
+      throw new Error(`sso_recovery_failed: ${e.message?.slice(0, 200)}`);
+    }
+  }
   await s.goto(TARGET_URL);
   await sleep(4);
 
