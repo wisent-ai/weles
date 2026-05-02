@@ -65,41 +65,85 @@ export async function pickFirstProductLaunchUrl(s) {
   return href.startsWith('http') ? href : new URL(href, 'https://www.producthunt.com').toString();
 }
 
-// Discover the authed user's PH handle. Two failures observed during
-// register: the homepage often returns the SSR logged-out shell right
-// after OAuth (the new session cookie isn't reflected in the cached
-// response), so polling the topbar there can sit empty for 16s+.
-// Strategy: bounce between the homepage, /my/notifications (auth-walled,
-// redirects authed users to a path containing the handle), and
-// /products/<latest-launch> (always renders the topbar avatar). First
-// /@<handle> hit anywhere wins.
+// Discover the authed user's PH handle. Three register-time failures
+// observed (eddiekeeling 20:53Z, sadieklocko 21:12Z, sallyzieme 21:16Z):
+// the homepage AND /my/notifications both serve the SSR logged-out shell
+// right after OAuth, even though the _producthunt_session_production
+// cookie is set. Try four signals in order of reliability:
+//   1. POST /frontend/graphql with a `Me` query — cookie-authed API call,
+//      returns the username if the session is server-side valid (avoids
+//      any SSR caching).
+//   2. /my/profile redirect — PH sends authed users to /@<handle>/edit.
+//   3. /products/<first-launch-slug> — verified always renders the authed
+//      topbar avatar when the session is valid.
+//   4. Final retry: poll homepage + /my/notifications topbar.
 export async function extractPhHandle(s) {
   const sleep = (sec) => new Promise(r => setTimeout(r, sec * 1000));
-  const TARGETS = ['https://www.producthunt.com/', 'https://www.producthunt.com/my/notifications'];
-  for (let i = 0; i < 6; i++) {
-    const url = TARGETS[i % TARGETS.length];
-    try { await s.page.goto(url); } catch {}
+
+  // 1. GraphQL me query.
+  try {
+    const r = await s.page.context().request.post('https://www.producthunt.com/frontend/graphql', {
+      headers: { 'content-type': 'application/json' },
+      data: JSON.stringify({ query: 'query Me { user { username } }' }),
+    });
+    if (r.ok()) {
+      const body = await r.json().catch(() => ({}));
+      const u = body?.data?.user?.username;
+      if (typeof u === 'string' && u) return u;
+    }
+  } catch {}
+
+  // 2. /my/profile redirect — read the resolved URL.
+  try {
+    await s.page.goto('https://www.producthunt.com/my/profile');
     await sleep(3);
-    const handle = await s.page.evaluate(() => {
-      const selectors = [
-        'a[data-test^="user-image-link-"]',
-        'header a[href^="/@"]',
-        'a[href*="/@"][data-test*="user"]',
-        'a[href^="/@"]',
-      ];
-      for (const sel of selectors) {
-        const el = document.querySelector(sel);
-        const href = el?.getAttribute('href') || '';
-        const m = href.match(/\/@([^/?#]+)/);
-        if (m) return m[1];
-      }
-      const urlMatch = location.href.match(/\/@([^/?#]+)/);
-      if (urlMatch) return urlMatch[1];
-      return null;
-    }).catch(() => null);
-    if (handle) return handle;
+    const m = (s.page.url() || '').match(/\/@([^/?#]+)/);
+    if (m) return m[1];
+  } catch {}
+
+  // 3. /products/<slug> — picks the first launch from the homepage and
+  // navigates there so the authed topbar avatar definitely renders.
+  try {
+    await s.page.goto('https://www.producthunt.com/');
+    await sleep(2);
+    const launchUrl = await pickFirstProductLaunchUrl(s);
+    if (launchUrl) {
+      await s.page.goto(launchUrl);
+      await sleep(4);
+      const h = await topbarHandle(s);
+      if (h) return h;
+    }
+  } catch {}
+
+  // 4. Final retry: poll the original two pages.
+  const TARGETS = ['https://www.producthunt.com/', 'https://www.producthunt.com/my/notifications'];
+  for (let i = 0; i < 4; i++) {
+    try { await s.page.goto(TARGETS[i % TARGETS.length]); } catch {}
+    await sleep(3);
+    const h = await topbarHandle(s);
+    if (h) return h;
   }
   return null;
+}
+
+async function topbarHandle(s) {
+  return await s.page.evaluate(() => {
+    const selectors = [
+      'a[data-test^="user-image-link-"]',
+      'header a[href^="/@"]',
+      'a[href*="/@"][data-test*="user"]',
+      'a[href^="/@"]',
+    ];
+    for (const sel of selectors) {
+      const el = document.querySelector(sel);
+      const href = el?.getAttribute('href') || '';
+      const m = href.match(/\/@([^/?#]+)/);
+      if (m) return m[1];
+    }
+    const urlMatch = location.href.match(/\/@([^/?#]+)/);
+    if (urlMatch) return urlMatch[1];
+    return null;
+  }).catch(() => null);
 }
 
 // Pick a Twitter account suitable for SSO into a fresh PH registration.
