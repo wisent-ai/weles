@@ -33,6 +33,25 @@ if (process.env.WELES_DISABLE_HTTP2 == null) process.env.WELES_DISABLE_HTTP2 = '
 // classifiers that rely on the custom canvas/UA/HEVC shims fire on the
 // login wall, so the trade-off is safe here.
 if (process.env.WELES_USE_STOCK_CHROMIUM == null) process.env.WELES_USE_STOCK_CHROMIUM = '1';
+// Force BrightData residential for linkedin_login. PacketStream's pool gets
+// PerimeterX-flagged on /checkpoint within seconds — 50+ recent attempts all
+// landed on /checkpoint/challenge with reason="linkedin issued captchaV2".
+// BrightData has a cleaner residential pool (twitter_login=pass on the same
+// session), so login should clear without triggering the captcha gate.
+// Operator override: PROXY_URL_FORCE already pre-set is honored as-is.
+if (!process.env.PROXY_URL_FORCE && process.env.BRIGHTDATA_USERNAME && process.env.BRIGHTDATA_PASSWORD) {
+  const u = process.env.BRIGHTDATA_USERNAME.startsWith('brd-customer-')
+    ? process.env.BRIGHTDATA_USERNAME
+    : `brd-customer-${process.env.BRIGHTDATA_USERNAME}-zone-${process.env.BRIGHTDATA_ZONE ?? 'residential_proxy1'}`;
+  // Per-session sticky id — unique per launch so consecutive logins for
+  // different accounts don't share a proxy session that LinkedIn might
+  // correlate. brightdata sticky session via "-session-<id>" username suffix.
+  const sess = Math.floor(Math.random() * 9000000 + 1000000);
+  const stickyUser = `${u}-country-us-session-${sess}`;
+  process.env.PROXY_URL = `http://${encodeURIComponent(stickyUser)}:${encodeURIComponent(process.env.BRIGHTDATA_PASSWORD)}@brd.superproxy.io:22225`;
+  process.env.PROXY_URL_FORCE = '1';
+  console.log(`[linkedin_login] forcing BrightData residential (session=${sess}, country=us)`);
+}
 
 let { proxyUrl, persona } = await resolveAccountSession(acct);
 let s = await WSession.start({ label: 'linkedin_login', proxy: proxyUrl, persona });
