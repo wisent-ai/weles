@@ -184,9 +184,43 @@ export class CaptchaSolver {
    */
   async solvePerimeterX(url: string, userAgent: string, cookies?: Array<{ name: string; value: string; domain?: string }>, proxy?: string): Promise<Array<{ name: string; value: string; domain: string; path: string }> | null> {
     await this._ensureInit();
-    const token = this._creds.nocaptcha;
-    if (!token) { console.log('[captcha:solver] PerimeterX: no NOCAPTCHA_API_KEY set'); return null; }
     const u = new URL(url);
+    const dotDom = u.hostname.startsWith('www.') ? u.hostname.slice(3) : ('.' + u.hostname);
+    if (this._creds.capsolver) {
+      const cookieMapCs: Record<string, string> = {};
+      for (const c of cookies ?? []) if (c?.name && c?.value) cookieMapCs[c.name] = c.value;
+      const task: Record<string, any> = { type: proxy ? 'AntiPerimeterxTask' : 'AntiPerimeterxTaskProxyLess', websiteUrl: url, userAgent };
+      if (Object.keys(cookieMapCs).length) task.cookies = cookieMapCs;
+      if (proxy) {
+        const pp = new URL(proxy);
+        task.proxyType = pp.protocol.replace(':', '');
+        task.proxyAddress = pp.hostname; task.proxyPort = Number(pp.port);
+        if (pp.username) task.proxyLogin = decodeURIComponent(pp.username);
+        if (pp.password) task.proxyPassword = decodeURIComponent(pp.password);
+      }
+      console.log(`[captcha:api] capsolver AntiPerimeterx createTask type=${task.type} url=${url.slice(0, 80)}`);
+      try {
+        const cr = await (await fetch('https://api.capsolver.com/createTask', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clientKey: this._creds.capsolver, task }) })).json() as any;
+        if (cr.errorId) console.log(`[captcha:api] capsolver AntiPerimeterx createTask err: ${cr.errorCode} ${cr.errorDescription}`);
+        else if (cr.taskId) {
+          for (let i = 0; i < 60; i++) {
+            await new Promise(r => setTimeout(r, 5000));
+            const tr = await (await fetch('https://api.capsolver.com/getTaskResult', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clientKey: this._creds.capsolver, taskId: cr.taskId }) })).json() as any;
+            if (tr.errorId) { console.log(`[captcha:api] capsolver AntiPerimeterx err: ${tr.errorCode} ${tr.errorDescription}`); break; }
+            if (tr.status === 'ready') {
+              const sol = tr.solution ?? {};
+              const cm: Record<string, unknown> = (sol.cookies && typeof sol.cookies === 'object') ? sol.cookies : {};
+              const out: Array<{ name: string; value: string; domain: string; path: string }> = [];
+              for (const [n, v] of Object.entries(cm)) out.push({ name: n, value: String(v), domain: dotDom, path: '/' });
+              if (out.length) { console.log(`[captcha:solver] PerimeterX solved via capsolver (${out.length} cookies)`); costTracker.recordCaptcha('capsolver', 'perimeterx'); return out; }
+              console.log('[captcha:api] capsolver AntiPerimeterx returned no cookies in solution'); break;
+            }
+          }
+        }
+      } catch (e: any) { console.log(`[captcha:api] capsolver AntiPerimeterx fetch err: ${e.message?.slice(0, 100)}`); }
+    }
+    const token = this._creds.nocaptcha;
+    if (!token) { console.log('[captcha:solver] PerimeterX: no NOCAPTCHA_API_KEY (capsolver path returned no cookies)'); return null; }
     const cookieMap: Record<string, string> = {};
     for (const c of cookies ?? []) if (c?.name && c?.value) cookieMap[c.name] = c.value;
     const body: Record<string, any> = { href: url, user_agent: userAgent, cookies: cookieMap };
