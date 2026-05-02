@@ -15,7 +15,9 @@ const _stored = (acct.metadata?.cookies ?? []).filter(c => /linkedin\.com/.test(
 if (_stored.length) await s.ctx.addCookies(_stored.map(c => ({ ...c, path: c.path || '/' }))).catch(() => {});
 let ban = null;
 try {
-  await s.goto('https://www.linkedin.com/mynetwork/grow/');
+  // Use page.goto with 45s timeout — WSession's defaultNavigationTimeout(0)
+  // makes s.goto hang forever on auth-walled redirect chains.
+  await s.page.goto('https://www.linkedin.com/mynetwork/grow/', { waitUntil: 'domcontentloaded', timeout: 45000 });
   checkReachable(s, 'linkedin');
   await s.page.waitForTimeout(3500);
   try { await assertAuthed('linkedin', s, { label: 'linkedin_connect' }); }

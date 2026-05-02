@@ -13,9 +13,16 @@ const { proxyUrl, persona } = await resolveAccountSession(acct);
 const s = await WSession.start({ label: 'linkedin_endorse', proxy: proxyUrl, persona });
 const _stored = (acct.metadata?.cookies ?? []).filter(c => /linkedin\.com/.test(c.domain ?? ''));
 if (_stored.length) await s.ctx.addCookies(_stored.map(c => ({ ...c, path: c.path || '/' }))).catch(() => {});
+// WSession's context disables Playwright's navigation timeout (defaults to
+// 0 = wait forever) for resilience on slow-loading platforms. That's wrong
+// for action trajectories: when LinkedIn /feed/ redirects through the auth
+// wall on stale cookies, page.goto stalls indefinitely instead of letting
+// the post-goto auth-wall classifier run. Cap nav to a finite ceiling here.
+s.page.setDefaultNavigationTimeout(45_000);
 let ban = null;
 try {
-  await s.goto('https://www.linkedin.com/mynetwork/invite-connect/connections/');
+  // page.goto with 45s timeout — see like.mjs note on s.goto hang.
+  await s.page.goto('https://www.linkedin.com/mynetwork/invite-connect/connections/', { waitUntil: 'domcontentloaded', timeout: 45000 });
   checkReachable(s, 'linkedin');
   await s.page.waitForTimeout(3000);
   try { await assertAuthed('linkedin', s, { label: 'linkedin_endorse' }); }
@@ -26,7 +33,7 @@ try {
   const href = await profileLink.getAttribute('href');
   if (!href) throw new Error('no connection profile href found');
   const profileUrl = href.startsWith('http') ? href : `https://www.linkedin.com${href}`;
-  await s.goto(profileUrl);
+  await s.page.goto(profileUrl, { waitUntil: 'domcontentloaded' });
   checkReachable(s, 'linkedin');
   await s.page.waitForTimeout(3000);
   // Skills section is anchored by section[id="skills"]. Inside, each skill
