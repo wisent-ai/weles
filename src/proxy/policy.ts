@@ -56,3 +56,28 @@ export function blockedProvidersForPlatform(platform: string): string[] {
   for (const [prov, plats] of Object.entries(PROVIDER_PLATFORM_BLOCK)) if (plats.includes(platform)) out.push(prov);
   return out;
 }
+
+// Country-verify a proxy exit IP via ip-api.com.
+// Providers (Oxylabs in particular) sometimes route residential traffic
+// through a non-US exit when their US pool is exhausted. TikTok routes
+// geo-mismatched sessions to the ttp2 security cluster which fails the
+// SubtleCrypto fingerprint step and returns error_code 1340 at
+// register_verify_login. Confirmed via diff harness vs chrome reference
+// 2026-05-01: success run had subtleCrypto.count=6 + mssdk.tiktokw.us,
+// 1340 run had subtleCrypto.count=0 + mssdk-ttp2.tiktokw.us. Differentiator
+// was geo: success ran from US exit, failure from BR exit (186.195.52.156).
+export type GeoCheckResult = 'match' | 'mismatch' | 'unknown';
+export async function verifyExitCountry(exitIp: string, expectedCc: string, timeoutMs = 3500): Promise<{ result: GeoCheckResult; exitCc?: string }> {
+  if (!exitIp || !expectedCc) return { result: 'unknown' };
+  try {
+    const ctl = AbortSignal.timeout(timeoutMs);
+    const r = await fetch(`http://ip-api.com/json/${exitIp}?fields=countryCode`, { signal: ctl });
+    const j = (await r.json()) as { countryCode?: string };
+    const exitCc = (j?.countryCode || '').toLowerCase();
+    if (!exitCc) return { result: 'unknown' };
+    if (exitCc === expectedCc.toLowerCase()) return { result: 'match', exitCc };
+    return { result: 'mismatch', exitCc };
+  } catch {
+    return { result: 'unknown' };
+  }
+}
