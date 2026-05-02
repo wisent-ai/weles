@@ -8,7 +8,6 @@ import { humanClickLocator } from '../../../dist/human/mouse.js';
 // from the social_accounts table (inject cookies → OAuth through → onboard).
 
 const URL = 'https://www.producthunt.com/';
-const MAX_RETRIES = 5;
 const USE_BRIGHTDATA = !!process.env.BRIGHTDATA_BROWSER_WS;
 const proxy = USE_BRIGHTDATA ? 'none' : (process.env.PROXY_URL || 'none');
 const sleep = (s) => new Promise(r => setTimeout(r, s * 1000));
@@ -231,19 +230,20 @@ async function signup(s) {
   return twUsername;
 }
 
-for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-  console.log(`\n=== ProductHunt signup attempt ${attempt}/${MAX_RETRIES} ===`);
-  const s = await WSession.start({ label: `producthunt_register_${attempt}`, proxy });
-  try {
-    const username = await signup(s);
-    console.log(`PASS: ${username}`);
-    await s.close();
-    process.exit(0);
-  } catch (e) {
-    console.log(`FAIL (attempt ${attempt}): ${e.message?.slice(0, 200)}`);
-    await s.close().catch(() => {});
-    if (attempt === MAX_RETRIES) { console.log('All attempts exhausted'); process.exit(1); }
-    console.log('Retrying in 3s...');
-    await sleep(3);
-  }
+// Single attempt — the prior MAX_RETRIES=5 loop ran the same deterministic
+// signup with the same Twitter SSO account, same proxy, and same captcha
+// solver on every iteration; if attempt 1 fails (twitter cookies expired,
+// captcha unsolvable, account purged) attempts 2-5 fail identically and
+// just generate 5x the bot-signal volume against PH's signup endpoint.
+// On failure, the worker queues a fresh row on next routine tick.
+const s = await WSession.start({ label: 'producthunt_register', proxy });
+try {
+  const username = await signup(s);
+  console.log(`PASS: ${username}`);
+  await s.close();
+  process.exit(0);
+} catch (e) {
+  console.log(`FAIL: ${e.message?.slice(0, 200)}`);
+  await s.close().catch(() => {});
+  process.exit(1);
 }
