@@ -47,7 +47,7 @@ async function syncReactInputValue(locator, value) {
       // function" on the very first click. Default persona randomization is
       // 60/40 chromium/firefox; for a trajectory that must drive humanMove,
       // we hard-pin Chromium.
-      s = await WSession.start({ label: 'tiktok_register', proxy: process.env.PROXY_URL || 'residential', targetHost: 'www.tiktok.com', persona: generatePersona({ country: 'US', browser: process.env.FORCE_BROWSER || 'chromium' }) });
+      s = await WSession.start({ label: 'tiktok_register', proxy: process.env.PROXY_URL || 'residential brightdata', targetHost: 'www.tiktok.com', persona: generatePersona({ country: 'US', browser: process.env.FORCE_BROWSER || 'chromium' }) });
 
       // Full request+response logging for interesting endpoints.
       // Focus on /region/ since that's where brendawatsica had len=204 (with captcha_domain) and current has len=23.
