@@ -44,6 +44,33 @@ export async function tiktokSubmitComment(s, text) {
       } catch { /* fall through */ }
       profileHandles = [...authorHandles, 'tiktok', 'spotify', 'nba'];
     }
+    // Listen for /api/repost/item_list/ response. Verified 2026-05-02:
+    // /api/post/item_list/ returns status=200 with empty body for our session
+    // on @tiktok / @nba / @spotify (renders "Something went wrong" in UI),
+    // while /api/repost/item_list/ returns full itemList[] with author.uniqueId
+    // and id for each video. Subscribing to the repost endpoint gives us a
+    // working video-source even when the post grid is empty.
+    let repostCandidate = null;
+    const onResponse = async (resp) => {
+      try {
+        const u = resp.url();
+        if (!/\/api\/repost\/item_list\//.test(u)) return;
+        if (resp.status() !== 200) return;
+        const json = await resp.json().catch(() => null);
+        const items = json?.itemList;
+        if (!Array.isArray(items)) return;
+        for (const it of items) {
+          const handle = it?.author?.uniqueId;
+          const id = it?.id;
+          if (handle && id && !repostCandidate) {
+            repostCandidate = { handle, id, url: `https://www.tiktok.com/@${handle}/video/${id}` };
+            console.log(`[tiktok-submit] /api/repost/item_list captured: @${handle}/video/${id}`);
+            return;
+          }
+        }
+      } catch { /* ignore */ }
+    };
+    s.page.on('response', onResponse);
     outer: for (const handle of profileHandles) {
       const profileUrl = `https://www.tiktok.com/@${handle}`;
       for (let attempt = 0; attempt < 2; attempt++) {
@@ -52,19 +79,33 @@ export async function tiktokSubmitComment(s, text) {
         gridLoaded = await firstVideo.waitFor({ state: 'visible', timeout: 30000 }).then(() => true).catch(() => false);
         if (gridLoaded) { console.log(`[tiktok-submit] @${handle} grid loaded on attempt ${attempt + 1}`); currentUrl = profileUrl; break outer; }
         console.log(`[tiktok-submit] @${handle} attempt ${attempt + 1}: grid not loaded`);
+        if (repostCandidate) { console.log(`[tiktok-submit] using repost-list video ${repostCandidate.url} since post grid empty`); break outer; }
       }
     }
-    if (!gridLoaded) {
+    s.page.off('response', onResponse);
+    if (!gridLoaded && repostCandidate) {
+      // Navigate directly to the video URL extracted from the working repost
+      // endpoint and treat the rest of the trajectory as if we landed there.
+      await s.goto(repostCandidate.url);
+      currentUrl = repostCandidate.url;
+      gridLoaded = true; // cosmetic — we have a video URL now
+    }
+    if (!gridLoaded && !repostCandidate) {
       const bodyLen = await s.page.evaluate(() => document.body?.innerText?.length || 0).catch(() => 0);
-      throw new Error(`tiktok_comment: no candidate profile rendered video grid (bodyLen=${bodyLen})`);
+      throw new Error(`tiktok_comment: no candidate profile rendered video grid and no repost-list candidate (bodyLen=${bodyLen})`);
+    }
+    // If we navigated directly via repost-list candidate URL we're already
+    // on a /video/N page — skip the profile->click step entirely.
+    let landed = /\/video\/\d+/.test(s.page.url());
+    if (landed) {
+      console.log('[tiktok-submit] already on /video/ page from repost-list candidate — skipping profile click');
     }
     // Click through to a video page. Try up to 4 videos in case the first
     // doesn't hydrate the right rail (same pattern as tiktok_like).
-    const videoLinks = await s.page.locator('a[href*="/video/"]').all();
+    const videoLinks = landed ? [] : await s.page.locator('a[href*="/video/"]').all();
     const candidates = videoLinks.slice(0, Math.min(4, videoLinks.length));
-    console.log(`[tiktok-submit] found ${candidates.length} video links on profile`);
-    let landed = false;
-    for (let i = 0; i < candidates.length; i++) {
+    if (!landed) console.log(`[tiktok-submit] found ${candidates.length} video links on profile`);
+    if (!landed) for (let i = 0; i < candidates.length; i++) {
       const link = candidates[i];
       const href = await link.getAttribute('href').catch(() => '');
       console.log(`[tiktok-submit] trying video ${i + 1}/${candidates.length}: ${href}`);
@@ -72,7 +113,7 @@ export async function tiktokSubmitComment(s, text) {
         await humanClickLocator(s.page, link);
         await s.page.waitForURL(/\/video\/\d+/, { timeout: 15000 }).catch(() => {});
         // Wait for the right rail to hydrate (comment icon appears).
-        const commentIconProbe = s.page.locator('[data-e2e="comment-icon"], [data-e2e="browse-comment-icon"]').filter({ visible: true }).first();
+        const commentIconProbe = s.page.locator('[data-e2e="comment-icon"], [data-e2e="browse-comment-icon"], button[aria-label*="comments" i]').filter({ visible: true }).first();
         const found = await commentIconProbe.waitFor({ state: 'visible', timeout: 25000 }).then(() => true).catch(() => false);
         if (found) {
           console.log(`[tiktok-submit] comment icon hydrated on video ${i + 1}`);
@@ -94,15 +135,26 @@ export async function tiktokSubmitComment(s, text) {
     if (!landed) throw new Error('tiktok_comment: could not reach a video page with a visible comment icon');
   }
 
-  // Comment toggle — sidebar icon with data-e2e="comment-icon" / "browse-comment-icon".
-  const commentIcon = s.page.locator('[data-e2e="comment-icon"], [data-e2e="browse-comment-icon"], [data-e2e="feed-comment-icon"]').filter({ visible: true }).first();
+  // Dismiss intercepting overlays first — the "Introducing keyboard
+  // shortcuts" tooltip (button.inapp-notif__close, aria-label="Close toast")
+  // covers part of the right-rail action area and absorbs clicks.
+  for (const selX of ['button[aria-label="Close toast"]', 'button.inapp-notif__close']) {
+    const x = s.page.locator(selX).filter({ visible: true }).first();
+    if (await x.count().catch(() => 0)) {
+      try { await humanClickLocator(s.page, x); await s.page.waitForTimeout(500); } catch {}
+    }
+  }
+  // Comment toggle — sidebar icon. Modern video page uses aria-label-only
+  // (no data-e2e); foryou rail still has data-e2e selectors.
+  const commentIcon = s.page.locator('[data-e2e="comment-icon"], [data-e2e="browse-comment-icon"], [data-e2e="feed-comment-icon"], button[aria-label*="comments" i]').filter({ visible: true }).first();
   if (await commentIcon.count()) {
+    console.log('[tiktok-submit] clicking comment icon to open panel');
     await humanClickLocator(s.page, commentIcon);
-    await s.page.waitForTimeout(2000);
+    await s.page.waitForTimeout(2500);
   }
   // Comment input — TikTok uses a contenteditable div with class containing
   // "DraftEditor" or div[role="textbox"]. Modern selector: data-e2e="comment-input".
-  const input = s.page.locator('[data-e2e="comment-input"], div[contenteditable="true"][role="textbox"], div.DraftEditor-editorContainer div[contenteditable="true"]').filter({ visible: true }).first();
+  const input = s.page.locator('[data-e2e="comment-input"], [data-e2e="comment-text"], div[contenteditable="true"][role="textbox"], div.DraftEditor-editorContainer div[contenteditable="true"], div[contenteditable="true"][aria-label*="comment" i], textarea[placeholder*="comment" i]').filter({ visible: true }).first();
   await input.waitFor({ state: 'visible', timeout: 15000 });
   await humanClickLocator(s.page, input);
   await humanType(s.page, text);
