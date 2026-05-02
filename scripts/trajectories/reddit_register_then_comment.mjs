@@ -17,7 +17,18 @@ const SUBREDDIT = (RAW_SUBREDDIT === 'popular' || RAW_SUBREDDIT === 'all')
   ? NEWBIE_FRIENDLY_SUBS[Math.floor(Math.random() * NEWBIE_FRIENDLY_SUBS.length)]
   : RAW_SUBREDDIT;
 const COMMENT_BODY_OVERRIDE = process.env.COMMENT_BODY || null;
-const SUBMIT_PATH = (process.env.NEW_REDDIT === '1' || process.env.SUBMIT_PATH === 'new') ? 'new' : 'old';
+// 2026-05-02: default flipped to 'new' (modern shreddit composer) after diff harness
+// proved the legacy old.reddit /api/comment XHR submit was the shadowban discriminator.
+// Survived handoff (human, www.reddit.com): Fetch.POST:/svc/shreddit/t3_<id>/create-comment?cujTrackingId=...
+// Removed trajectory  (auto, old.reddit.com): XHR.POST:/api/comment   (no cujTrackingId)
+// Plus only-A modern composer event subs (comment-post, comment-composer-cancel-draft,
+// rte-*, open-comment-composer), only-A Storage:comment-draft-items-*, only-A
+// Storage:rc::d-* recaptcha tokens; only-B legacy anti-bot Function.toString probes
+// (querySelectorAll/matches/eval/compareDocumentPosition) and only-B XHR /api/comment,
+// /api/badge_indicators/v1, /api/share. Reddit's fresh-account spam classifier flags
+// "first comment via legacy old.reddit interface" because real new users land on the
+// modern site. Set SUBMIT_PATH=old to opt back into the legacy path for A/B comparison.
+const SUBMIT_PATH = (process.env.SUBMIT_PATH === 'old' || process.env.OLD_REDDIT === '1') ? 'old' : 'new';
 const AGENT_DOMAIN = process.env.AGENT_DOMAIN ?? 'mailwisent.com';
 const PROXY_FILTER = process.env.PROXY_URL || 'residential brightdata us';
 const REAL_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15';

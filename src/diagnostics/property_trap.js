@@ -4,6 +4,12 @@
   window.__inst = logs;
   window.__inst_flush = () => JSON.stringify(logs);
 
+  // Save raw EventTarget.addEventListener BEFORE the wrap below replaces it.
+  // The input recorder at the bottom of this file uses _origAddEL so its own
+  // listener registrations do NOT show up in the addEventListener trap log
+  // (which would pollute the diff with our instrumentation's signatures).
+  const _origAddEL = EventTarget.prototype.addEventListener;
+
   function stack() {
     try {
       const s = new Error().stack || '';
@@ -214,4 +220,80 @@
   } catch {}
 
   logs.push({ t: performance.now(), o: '_init_', p: 'done', vt: 'string', vs: 'ok', s: '' });
+
+  // ===== INPUT EVENT RECORDER =====
+  // Captures user-driven mouse / keyboard / wheel / scroll / visibility events
+  // for human-vs-trajectory diffing. The property trap above logs that
+  // addEventListener was *registered* for these types; this section logs the
+  // actual events as they fire. Pushed into the same `logs` array so the
+  // existing __inst_flush() picks them up — no separate flush channel needed.
+  // Uses _origAddEL to bypass our own addEventListener wrap (so our listener
+  // registrations don't pollute the addEventListener trap log).
+  // Key text is redacted (printable single-char keys recorded as "_") so we
+  // don't capture passwords or comment bodies; only timing + key code.
+  try {
+    function recI(type, fields) {
+      let vs = '';
+      try { vs = JSON.stringify(fields).slice(0, 200); } catch {}
+      logs.push({ t: performance.now(), o: 'Input', p: type, vt: 'object', vs, s: '' });
+      if (logs.length > 20000) logs.shift();
+    }
+    let lastMove = 0;
+    const SAMPLE_MOVE_MS = 50; // ~20Hz
+    _origAddEL.call(document, 'pointermove', function(ev) {
+      const now = performance.now();
+      if (now - lastMove < SAMPLE_MOVE_MS) return;
+      lastMove = now;
+      recI('pointermove', { x: ev.clientX, y: ev.clientY });
+    }, { capture: true, passive: true });
+    ['pointerdown','pointerup','click','dblclick','contextmenu'].forEach(function(t) {
+      _origAddEL.call(document, t, function(ev) {
+        recI(t, { x: ev.clientX, y: ev.clientY, btn: ev.button, tag: (ev.target && ev.target.tagName) || '' });
+      }, { capture: true, passive: true });
+    });
+    ['keydown','keyup'].forEach(function(t) {
+      _origAddEL.call(document, t, function(ev) {
+        const k = ev.key || '';
+        recI(t, { key: (k.length === 1 ? '_' : k), code: ev.code, mod: (ev.shiftKey?'S':'')+(ev.ctrlKey?'C':'')+(ev.metaKey?'M':'')+(ev.altKey?'A':'') });
+      }, { capture: true, passive: true });
+    });
+    _origAddEL.call(document, 'wheel', function(ev) { recI('wheel', { dy: ev.deltaY, dx: ev.deltaX }); }, { capture: true, passive: true });
+    _origAddEL.call(window, 'scroll', function() { recI('scroll', { sy: window.scrollY, sx: window.scrollX }); }, { capture: true, passive: true });
+    _origAddEL.call(document, 'visibilitychange', function() { recI('visibilitychange', { s: document.visibilityState }); }, { capture: true, passive: true });
+    _origAddEL.call(window, 'focus', function() { recI('focus', {}); }, { capture: true, passive: true });
+    _origAddEL.call(window, 'blur', function() { recI('blur', {}); }, { capture: true, passive: true });
+  } catch (e) {
+    logs.push({ t: performance.now(), o: '_input_', p: '<init-error>', vt: 'string', vs: String(e).slice(0, 120), s: '' });
+  }
+
+  // ===== FETCH WRAP =====
+  // Reddit's comment-submit goes through window.fetch (GraphQL POST). The XHR
+  // wrap above misses it. Logs URL, method, body, and response status into the
+  // same logs array so the diff can compare comment-submit POST shape across
+  // sessions (post id, request token, csrf, persona-bound IDs, etc.).
+  try {
+    const oFetch = window.fetch;
+    window.fetch = function(input, init) {
+      let url = '', method = 'GET', body = '';
+      try {
+        if (typeof input === 'string') url = input;
+        else if (input && typeof input === 'object') { url = input.url || ''; method = input.method || 'GET'; }
+        if (init) {
+          if (init.method) method = init.method;
+          const b = init.body;
+          if (typeof b === 'string') body = b.slice(0, 4000);
+          else if (b instanceof URLSearchParams) body = b.toString().slice(0, 4000);
+          else if (typeof FormData !== 'undefined' && b instanceof FormData) body = '[FormData]';
+          else if (b && b.byteLength != null) body = '[binary len=' + b.byteLength + ']';
+        }
+      } catch {}
+      logAccess('Fetch', String(method).toUpperCase() + ':' + url.slice(0, 200), body);
+      return oFetch.apply(this, arguments).then(function(r) {
+        try { logAccess('Fetch', 'res:' + url.slice(0, 200), 'status=' + r.status); } catch {}
+        return r;
+      });
+    };
+  } catch (e) {
+    logs.push({ t: performance.now(), o: '_fetch_', p: '<init-error>', vt: 'string', vs: String(e).slice(0, 120), s: '' });
+  }
 })();
