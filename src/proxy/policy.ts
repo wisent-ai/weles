@@ -81,3 +81,28 @@ export async function verifyExitCountry(exitIp: string, expectedCc: string, time
     return { result: 'unknown' };
   }
 }
+
+// TikTok edge-classifier probe. The /signup HTML embeds a SIGI_STATE
+// "vregion" value that pins mssdk routing for the rest of the session:
+// "US-TTP" = standard (mssdk.tiktokw.us), "US-TTP2" = high-risk
+// (mssdk-ttp2.tiktokw.us) where the security SDK never completes init
+// and the click handler bails before firing /send_code/. 2026-05-02
+// probe of 5 random BrightData residential stickies: 4 US-TTP2, 1 US-TTP.
+// Reject US-TTP2 stickies in preflight; resolveProxy 8-attempt loop
+// walks past them before binding the browser.
+export type RoutingResult = 'standard' | 'high_risk' | 'unknown';
+export async function verifyTikTokRouting(proxyUrl: string, secs = 12): Promise<{ result: RoutingResult; vregion?: string }> {
+  if (!proxyUrl) return { result: 'unknown' };
+  try {
+    const { execSync } = await import('node:child_process');
+    const ua = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36';
+    const body = execSync(`curl -s --max-time ${secs} -x "${proxyUrl}" -H "User-Agent: ${ua}" "https://www.tiktok.com/signup"`, { encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 });
+    const m = body.match(/"vregion":"([A-Z0-9-]{1,20})"/);
+    if (!m) return { result: 'unknown' };
+    const vregion = m[1];
+    if (/-TTP2$/i.test(vregion)) return { result: 'high_risk', vregion };
+    return { result: 'standard', vregion };
+  } catch {
+    return { result: 'unknown' };
+  }
+}

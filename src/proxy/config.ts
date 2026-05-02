@@ -195,15 +195,8 @@ export async function resolveProxy(proxy: string, targetHost?: string): Promise<
       console.log(`[proxy] BLOCKED: ${p.display_name} is on toxic list for ${platformFromTarget(targetHost)} — skipping`);
       continue;
     }
-    // Try up to 3 sticky sessions per provider — each fresh sessId may
-    // resolve the residential gateway to a different exit IP. Skip any
-    // host that is in the burned-IP registry. Note: this loop only checks
-    // the upstream load-balancer IP (via isBurned). It does NOT validate
-    // that the actual residential relay is reachable — PacketStream may
-    // return 502 "relay offline" for ~40% of sessIds at peak. Trajectories
-    // that hit a dead relay should classify as proxy_failed; auto-retry is
-    // handled at the worker-pool level (rerun_failed.mjs).
-    // 8 sticky tries per provider (cheap reroll, no Chromium launch).
+    // 8 sticky tries per provider — each fresh sessId resolves to a different
+    // exit IP. Filters: isBurned LB-IP, dead-relay 502s (rerun_failed.mjs).
     for (let attempt = 0; attempt < 8; attempt++) {
       const sessId = Math.floor(Math.random() * 9000000 + 1000000);
       let stickyUser = username, stickyPass = password;
@@ -276,6 +269,17 @@ export async function resolveProxy(proxy: string, targetHost?: string): Promise<
               console.log(`[proxy] geo-check exit=${exitIp} expected=${cc} -> ${geo.result}${geo.exitCc ? ` (${geo.exitCc})` : ''}`);
               if (geo.result === 'mismatch') {
                 console.log(`[proxy] Geo mismatch: exit ${exitIp} is ${geo.exitCc?.toUpperCase()}, requested ${cc.toUpperCase()} — rerolling sticky`);
+                preflightContinue = true;
+              }
+            }
+            // TikTok-specific: reject US-TTP2 vregion classification.
+            if (!preflightContinue && platform === 'tiktok') {
+              const { verifyTikTokRouting } = await import('./policy.js');
+              const proxyUrl = `http://${encodeURIComponent(stickyUser)}:${encodeURIComponent(stickyPass)}@${host}:${p.proxy_port}`;
+              const route = await verifyTikTokRouting(proxyUrl);
+              console.log(`[proxy] tiktok-route exit=${exitIp} -> ${route.result}${route.vregion ? ` (${route.vregion})` : ''}`);
+              if (route.result === 'high_risk') {
+                console.log(`[proxy] TikTok TTP2: exit ${exitIp} vregion=${route.vregion} — rerolling sticky`);
                 preflightContinue = true;
               }
             }
