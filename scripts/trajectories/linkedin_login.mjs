@@ -25,6 +25,14 @@ console.log(`[trajectory] Using account: ${acct.username}`);
 // markedly better against linkedin specifically. Operators can override with
 // WELES_DISABLE_HTTP2=0 if they want to verify h2 behavior.
 if (process.env.WELES_DISABLE_HTTP2 == null) process.env.WELES_DISABLE_HTTP2 = '1';
+// Default to stock Playwright Chromium for the login leg. The custom weles
+// binary intermittently returns ERR_TUNNEL_CONNECTION_FAILED through
+// PacketStream/BrightData proxies for linkedin.com (verified 2026-05-02:
+// stock binary tunneled the same sticky session fine under direct probe).
+// Login only needs a working form render + click — none of the bot
+// classifiers that rely on the custom canvas/UA/HEVC shims fire on the
+// login wall, so the trade-off is safe here.
+if (process.env.WELES_USE_STOCK_CHROMIUM == null) process.env.WELES_USE_STOCK_CHROMIUM = '1';
 
 let { proxyUrl, persona } = await resolveAccountSession(acct);
 let s = await WSession.start({ label: 'linkedin_login', proxy: proxyUrl, persona });
