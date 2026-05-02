@@ -28,12 +28,19 @@ try {
   await s.page.waitForTimeout(3000);
   try { await assertAuthed('reddit', s, { label: 'reddit_upvote' }); }
   catch (probeErr) { if (probeErr instanceof AuthProbeError) { console.log(`FAIL: ${probeErr.message}`); await markCookiesStale(acct.id); process.exit(1); } throw probeErr; }
-  // First not-yet-upvoted post arrow. The parent is <div class="midcol unvoted">
-  // (NOT <div class="arrows"> — that selector matches nothing on old.reddit and
-  // is why this trajectory previously timed out at the visible-wait below).
+  // First not-yet-upvoted, NOT-archived post arrow. The parent is
+  // <div class="midcol unvoted"> (NOT <div class="arrows"> — that selector
+  // matches nothing on old.reddit and is why this trajectory previously timed
+  // out at the visible-wait below). Archived posts (>6mo old, e.g. stickied
+  // welcome threads) carry the .archived class and surface a "This is an
+  // archived post. You won't be able to vote or comment." modal on click;
+  // skip them in the selector so we never pick an unvotable target.
   // After a successful upvote, the parent flips midcol unvoted → midcol likes
   // and the arrow class flips arrow.up → arrow.upmod.
-  const upArrow = s.page.locator('div.thing div.midcol.unvoted div.arrow.up').first();
+  // Skip stickied posts entirely — moderators sticky community announcements
+  // and welcome threads at the top of every subreddit, and those are usually
+  // months-to-years old (archived → unvotable).
+  const upArrow = s.page.locator('div.thing:not(.archived):not(.stickied) div.midcol.unvoted div.arrow.up:not(.archived)').first();
   await upArrow.waitFor({ state: 'visible' });
   await upArrow.scrollIntoViewIfNeeded();
   // Identify the picked thing so out-of-band score-delta verification is
@@ -47,7 +54,14 @@ try {
     }
     return null;
   }).catch(() => null);
-  console.log(`[upvote] picked thing data-fullname=${pickedFullname}`);
+  // Debug: dump the actually-matched arrow's class + parents so a "wrong
+  // pick" failure surfaces actionable info instead of a generic timeout.
+  const pickedDebug = await upArrow.evaluate((arrow) => {
+    let n = arrow.parentElement; let parents = [];
+    for (let i = 0; i < 4 && n; i++) { parents.push(`${n.tagName}.${(n.className||'').slice(0,80)}`); n = n.parentElement; }
+    return { arrowCls: arrow.className, parents };
+  }).catch(() => null);
+  console.log(`[upvote] picked thing data-fullname=${pickedFullname} arrow.cls=${pickedDebug?.arrowCls} parents=${JSON.stringify(pickedDebug?.parents)}`);
   await humanClickLocator(s.page, upArrow);
   // After click, parent class flips: midcol.unvoted → midcol.likes; arrow class
   // flips: arrow.up → arrow.upmod. Scope the wait to the SAME thing we picked
