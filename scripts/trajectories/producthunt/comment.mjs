@@ -1,6 +1,6 @@
 import { WSession } from '../../../dist/session/wsession.js';
 import { getSocialAccount, resolveAccountSession, markCookiesStale } from '../../../dist/utils/credentials.js';
-import { injectPHCookies, loginViaTwitter } from './_session.mjs';
+import { injectPHCookies, loginViaTwitter, pickFirstProductLaunchUrl } from './_session.mjs';
 import { humanType, humanFill } from '../../../dist/human/keyboard.js';
 import { humanClickLocator } from '../../../dist/human/mouse.js';
 import { assertAuthed, AuthProbeError } from '../_shared/auth-probe.mjs';
@@ -9,8 +9,12 @@ import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../_shared/cookie
 // Post a comment on a Product Hunt launch.
 // PRODUCTHUNT_URL=https://www.producthunt.com/products/<slug>  -> launch page
 // PH_COMMENT="text"                                            -> overrides default
+// When PRODUCTHUNT_URL is unset, the trajectory navigates to the homepage
+// and picks the first /products/<slug> launch (only page shape with a
+// tiptap composer — homepage and forum index DON'T have one, verified
+// via .work/ph-probe 2026-05-02).
 
-const TARGET_URL = process.env.PRODUCTHUNT_URL || 'https://www.producthunt.com/';
+const EXPLICIT_TARGET = process.env.PRODUCTHUNT_URL || '';
 const COMMENT_TEXT = process.env.PH_COMMENT || 'Looks really clean — congrats on the launch!';
 const sleep = (s) => new Promise(r => setTimeout(r, s * 1000));
 
@@ -30,22 +34,18 @@ async function postComment(s, acct, sessionMeta) {
     console.log(`[ph-comment] injected ${inj} saved cookies`);
   }
 
-  await s.goto(TARGET_URL);
+  // Bootstrap to the homepage — establishes session + lets us discover a
+  // launch URL when one isn't supplied. PH forum pages don't redirect
+  // logged-out visitors; they just hide the reply input, so detect via
+  // Sign-in button presence.
+  await s.goto('https://www.producthunt.com/');
   await sleep(4);
-
-  let cur = s.page.url();
-  console.log(`[ph-comment] initial nav: ${cur}`);
-  // PH forum pages don't redirect logged-out visitors; they just hide the
-  // reply input. Detect that explicitly via Sign-in button presence.
-  const needsLogin = cur.includes('/login') || cur.includes('/captcha_verification') ||
-    await s.page.evaluate(`(() => !!Array.from(document.querySelectorAll('button,a')).find(e => /^Sign in$/i.test((e.textContent||'').trim())))()`).catch(() => false);
+  const needsLogin = await s.page.evaluate(`(() => !!Array.from(document.querySelectorAll('button,a')).find(e => /^Sign in$/i.test((e.textContent||'').trim())))()`).catch(() => false);
   if (needsLogin) {
     console.log('[ph-comment] session not authenticated — running Twitter SSO');
     await loginViaTwitter(s);
-    await s.goto(TARGET_URL);
+    await s.goto('https://www.producthunt.com/');
     await sleep(4);
-    cur = s.page.url();
-    if (cur.includes('/login') || cur.includes('/captcha_verification')) throw new Error('still_blocked_after_relogin');
   }
 
   // Positive auth probe — see _shared/auth-probe.mjs.
@@ -54,6 +54,15 @@ async function postComment(s, acct, sessionMeta) {
     if (probeErr instanceof AuthProbeError) { try { await markCookiesStale(acct.id); } catch {} throw new Error(`auth_probe_failed: ${probeErr.message}`); }
     throw probeErr;
   }
+
+  // Resolve target launch URL. Caller-supplied PRODUCTHUNT_URL wins; else
+  // pick the first /products/<slug> launch from the authed homepage —
+  // /products is the only page shape with a tiptap composer.
+  const targetUrl = EXPLICIT_TARGET || await pickFirstProductLaunchUrl(s);
+  if (!targetUrl) throw new Error('no_launch_url_discovered');
+  console.log(`[ph-comment] target=${targetUrl}`);
+  await s.goto(targetUrl);
+  await sleep(4);
 
   // PH forum comment editor is a TipTap/ProseMirror contenteditable. Target
   // it, type via keyboard (so Playwright routes real key events), then submit
@@ -68,7 +77,7 @@ async function postComment(s, acct, sessionMeta) {
   await sleep(4);
 
   const found = await s.page.evaluate(`(() => (document.body?.innerText || '').includes(${JSON.stringify(COMMENT_TEXT.slice(0, 60))}))()`).catch(() => false);
-  if (found) return true;
+  if (found) return targetUrl;
 
   // Otherwise click a submit button by label via Playwright locator.
   const submitBtn = s.page.locator('button').filter({ hasText: /^(reply|send|submit)$/i }).first();
@@ -82,7 +91,7 @@ async function postComment(s, acct, sessionMeta) {
 
   const found2 = await s.page.evaluate(`(() => (document.body?.innerText || '').includes(${JSON.stringify(COMMENT_TEXT.slice(0, 60))}))()`).catch(() => false);
   if (!found2) throw new Error(`comment_not_found_after_post: url=${s.page.url().slice(-60)}`);
-  return true;
+  return targetUrl;
 }
 
 const acct = await getSocialAccount('producthunt');
@@ -92,8 +101,8 @@ console.log(`[ph-comment] using account: ${acct.username}`);
 const sessionOpts = await resolveAccountSession(acct);
 const s = await WSession.start({ label: 'producthunt_comment', ...sessionOpts });
 try {
-  await postComment(s, acct, sessionOpts);
-  console.log(`PASS: ${acct.username} commented on ${TARGET_URL}`);
+  const target = await postComment(s, acct, sessionOpts);
+  console.log(`PASS: ${acct.username} commented on ${target}`);
   process.exit(0);
 } catch (e) {
   console.log(`FAIL: ${e.message?.slice(0, 200)}`);
