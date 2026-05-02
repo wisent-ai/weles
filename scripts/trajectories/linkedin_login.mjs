@@ -74,9 +74,51 @@ function writeBan(signal, details) {
   } catch {}
 }
 
+// Solve PerimeterX checkpoint via CapSolver. Returns updated li_at presence.
+async function solveCheckpoint(reason) {
+  let cookies = await s.ctx.cookies();
+  let liAt = cookies.find(c => c.name === 'li_at' && c.value);
+  let finalUrl = s.page.url?.() ?? '';
+  for (let attempt = 0; attempt < 3 && !liAt && /\/(checkpoint|uas\/login|login\/recovery)/.test(finalUrl); attempt++) {
+    console.log(`[linkedin_login] ${reason} solve attempt ${attempt + 1}/3 (capsolver/nocaptcha PerimeterX)`);
+    const ua = await s.page.evaluate(() => navigator.userAgent).catch(() => '');
+    const px = await new CaptchaSolver().solvePerimeterX(finalUrl, ua, cookies.filter(c => /linkedin\.com$/.test(c.domain ?? '')).map(c => ({ name: c.name, value: c.value, domain: c.domain })), proxyUrl);
+    if (px && px.length) {
+      await s.ctx.addCookies(px.map(c => ({ ...c, domain: c.domain ?? '.linkedin.com', path: c.path ?? '/' }))).catch(e => console.log('[linkedin_login] addCookies err:', e.message));
+      await s.page.goto('https://www.linkedin.com/feed/', { waitUntil: 'domcontentloaded' }).catch(() => {});
+      await s.page.waitForTimeout(3000);
+      cookies = await s.ctx.cookies();
+      liAt = cookies.find(c => c.name === 'li_at' && c.value);
+      finalUrl = s.page.url?.() ?? '';
+    }
+  }
+  return { liAt, finalUrl };
+}
+
 try {
   await gotoLogin();
   await s.page.waitForTimeout(2500);
+  // Pre-form-render checkpoint detection. PerimeterX edge-redirects flagged
+  // proxy IPs from /login → /checkpoint/challenge before the SDUI form ever
+  // renders. Detect here so the form-fill doesn't time out 30s on inputs
+  // that won't appear.
+  {
+    const earlyUrl = s.page.url?.() ?? '';
+    if (/\/(checkpoint|uas\/login|login\/recovery)/.test(earlyUrl)) {
+      console.log(`[linkedin_login] pre-form checkpoint at ${earlyUrl} — solving captcha first`);
+      const r = await solveCheckpoint('pre-form');
+      if (r.liAt) {
+        await captureCookies();
+        writeBan('healthy', { final_url: r.finalUrl });
+        console.log(`PASS: li_at cookie set via pre-form captcha solve — ${r.finalUrl}`);
+        await s.close().catch(() => {});
+        process.exit(0);
+      }
+      // Captcha solver failed — bail explicitly so the form-fill below doesn't
+      // time out 30s on inputs that aren't on the page.
+      throw new Error(`pre-form captcha solver failed at ${r.finalUrl}`);
+    }
+  }
   // Modern LinkedIn login: visible inputs use autocomplete="webauthn" (passkey
   // hint) + current-password. Legacy #username / [name=session_key] selectors
   // are gone. Two duplicate input copies exist — only the visible one accepts
