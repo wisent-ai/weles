@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { uploadArtifacts } from './upload-artifacts.js';
 import { paramsToEnv, resolveTrajectory } from './dispatch.js';
 import { claimOne } from './claim.js';
+import { sweepZombiesIfDue } from './stale.js';
 
 export interface ActionLogRow {
   id: string;
@@ -215,6 +216,7 @@ export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
     return 'error';
   }
   if (!(await workersEnabled())) return 'idle';
+  await sweepZombiesIfDue();
   const row = await claimOne();
   if (!row) return 'idle';
   const trajPath = resolveTrajectory(row.action);
