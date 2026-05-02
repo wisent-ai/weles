@@ -37,15 +37,25 @@ try {
   checkReachable(s, 'reddit');
   try { await assertAuthed('reddit', s, { label: 'reddit_follow' }); }
   catch (probeErr) { if (probeErr instanceof AuthProbeError) { console.log(`FAIL: ${probeErr.message}`); await markCookiesStale(acct.id); process.exit(1); } throw probeErr; }
-  if (await s.page.locator('a.fancy-toggle-button.remove, a.toggle-button.active').first().isVisible().catch(() => false)) {
+  // Real structure on old.reddit /r/u_<author>/ (the user's profile-as-subreddit):
+  //   <span class="fancy-toggle-button toggle">
+  //     <a class="option active add login-required">+ friends</a>  (visible if NOT friend)
+  //     <a class="option remove">- friends</a>                      (visible AFTER befriend)
+  //   </span>
+  // Reddit's "follow" implementation IS the friend toggle on the u_ subreddit.
+  // Previous selectors used `a.fancy-toggle-button.add/remove` which match
+  // nothing — fancy-toggle-button is on the parent span, not the <a>.
+  const friendSelector = 'span.fancy-toggle-button.toggle a.option.add';
+  const unfriendSelector = 'span.fancy-toggle-button.toggle a.option.remove.active';
+  if (await s.page.locator(unfriendSelector).first().isVisible().catch(() => false)) {
     ban = await detectRedditBanSignals(s.page, s.capturedResponses).catch(() => null);
     console.log(`[ban-signal] ${ban?.signal}  PASS: already following u/${author}`);
   } else {
-    const joinBtn = s.page.locator('a.fancy-toggle-button.add, a:has-text("subscribe")').filter({ visible: true }).first();
+    const joinBtn = s.page.locator(friendSelector).first();
     await joinBtn.waitFor({ state: 'visible' });
     await joinBtn.scrollIntoViewIfNeeded();
     await humanClickLocator(s.page, joinBtn);
-    await s.page.locator('a.fancy-toggle-button.remove, a.toggle-button.active').first().waitFor({ state: 'visible' });
+    await s.page.locator(unfriendSelector).first().waitFor({ state: 'visible' });
     ban = await detectRedditBanSignals(s.page, s.capturedResponses).catch(() => null);
     console.log(`[ban-signal] ${ban?.signal}  PASS: now following u/${author}`);
   }

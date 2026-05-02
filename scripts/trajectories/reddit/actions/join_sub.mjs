@@ -25,16 +25,27 @@ try {
   checkReachable(s, 'reddit');
   try { await assertAuthed('reddit', s, { label: 'reddit_join_sub' }); }
   catch (probeErr) { if (probeErr instanceof AuthProbeError) { console.log(`FAIL: ${probeErr.message}`); await markCookiesStale(acct.id); process.exit(1); } throw probeErr; }
-  // Already subscribed? .fancy-toggle-button.remove exists when joined.
-  if (await s.page.locator('a.fancy-toggle-button.remove, a.toggle-button.active').first().isVisible().catch(() => false)) {
+  // Real structure on old.reddit /r/<sub>/:
+  //   <span class="fancy-toggle-button subscribe-button toggle">
+  //     <a class="option active add login-required">join</a>  (visible when NOT subscribed)
+  //     <a class="option remove">leave</a>                     (visible AFTER subscribe)
+  //   </span>
+  // The previous selectors used `a.fancy-toggle-button.add/remove` which match
+  // nothing — fancy-toggle-button is on the parent span, not the <a>.
+  const joinSelector = 'span.fancy-toggle-button.subscribe-button a.option.add';
+  const leaveSelector = 'span.fancy-toggle-button.subscribe-button a.option.remove.active';
+  if (await s.page.locator(leaveSelector).first().isVisible().catch(() => false)) {
     ban = await detectRedditBanSignals(s.page, s.capturedResponses).catch(() => null);
     console.log(`[ban-signal] ${ban?.signal}  PASS: already joined r/${SUBREDDIT}`);
   } else {
-    const joinBtn = s.page.locator('a.fancy-toggle-button.add, a:has-text("subscribe")').filter({ visible: true }).first();
+    const joinBtn = s.page.locator(joinSelector).first();
     await joinBtn.waitFor({ state: 'visible' });
     await joinBtn.scrollIntoViewIfNeeded();
     await humanClickLocator(s.page, joinBtn);
-    await s.page.locator('a.fancy-toggle-button.remove, a.toggle-button.active').first().waitFor({ state: 'visible' });
+    // Reddit's toggle() flips classes on success: <a.add> loses 'active' and
+    // gains 'hidden' (or similar), <a.remove> gains 'active'. Wait for the
+    // remove option to become active.
+    await s.page.locator(leaveSelector).first().waitFor({ state: 'visible' });
     ban = await detectRedditBanSignals(s.page, s.capturedResponses).catch(() => null);
     console.log(`[ban-signal] ${ban?.signal}  PASS: joined r/${SUBREDDIT}`);
   }
