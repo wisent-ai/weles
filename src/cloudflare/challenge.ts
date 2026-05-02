@@ -9,8 +9,32 @@ import { askPage, checkPage, findClickTarget, type ScreenshottablePage } from '.
 
 const CF_CHECK_INTERVAL_MS = 3000;
 
+// Fast-path DOM check: real Cloudflare challenge pages always contain one of
+// these strings in title/body. If none match, skip the vision call entirely
+// (askClaude shells out to the LLM router and adds 5-15s per page on every
+// goto, even on platforms that never serve CF). Verified 2026-05-02:
+// LinkedIn /feed/ on stale cookies stalled WSession.goto for 70+ s in this
+// path because LinkedIn doesn't use Cloudflare and the vision call hung.
+async function looksLikeCloudflareDom(page: any): Promise<boolean> {
+  try {
+    const r = await page.evaluate(() => {
+      const t = (document.title || '').toLowerCase();
+      const b = (document.body?.innerText || '').slice(0, 600).toLowerCase();
+      const hasCfMarker = /cloudflare|just a moment|attention required|checking your browser|verifying you are human|enable javascript and cookies/.test(t + ' ' + b);
+      const hasCfFrame = !!document.querySelector('iframe[src*="challenges.cloudflare.com"], iframe[src*="cdn-cgi/challenge-platform"]');
+      return hasCfMarker || hasCfFrame;
+    });
+    return !!r;
+  } catch { return false; }
+}
+
 export async function waitCloudflare(page: any, timeoutMs = 72000, settleMs = 5000): Promise<boolean> {
   await page.waitForTimeout(settleMs);
+
+  // Cheap DOM probe before the expensive vision call. If the page has zero
+  // Cloudflare-shaped markers, return true immediately (treated as "not
+  // challenged"). Saves a round-trip per goto on every non-CF platform.
+  if (!(await looksLikeCloudflareDom(page))) return true;
 
   const rawAnswer = await askPage(
     page as ScreenshottablePage,
