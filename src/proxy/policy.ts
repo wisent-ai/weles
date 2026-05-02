@@ -91,18 +91,28 @@ export async function verifyExitCountry(exitIp: string, expectedCc: string, time
 // Reject US-TTP2 stickies in preflight; resolveProxy 8-attempt loop
 // walks past them before binding the browser.
 export type RoutingResult = 'standard' | 'high_risk' | 'unknown';
-export async function verifyTikTokRouting(proxyUrl: string, secs = 12): Promise<{ result: RoutingResult; vregion?: string }> {
-  if (!proxyUrl) return { result: 'unknown' };
+async function probeOnce(proxyUrl: string, secs: number): Promise<{ vregion: string | null }> {
   try {
     const { execSync } = await import('node:child_process');
     const ua = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36';
     const body = execSync(`curl -s --max-time ${secs} -x "${proxyUrl}" -H "User-Agent: ${ua}" "https://www.tiktok.com/signup"`, { encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 });
     const m = body.match(/"vregion":"([A-Z0-9-]{1,20})"/);
-    if (!m) return { result: 'unknown' };
-    const vregion = m[1];
-    if (/-TTP2$/i.test(vregion)) return { result: 'high_risk', vregion };
-    return { result: 'standard', vregion };
-  } catch {
-    return { result: 'unknown' };
-  }
+    return { vregion: m ? m[1] : null };
+  } catch { return { vregion: null }; }
+}
+export async function verifyTikTokRouting(proxyUrl: string, secs = 12): Promise<{ result: RoutingResult; vregion?: string }> {
+  if (!proxyUrl) return { result: 'unknown' };
+  // Dual probe: BrightData sticky sessions can rotate exit IPs between
+  // requests, so a single probe verifying US-TTP doesn't guarantee the
+  // browser request will go through a US-TTP exit. Make two back-to-back
+  // probes; only accept if BOTH return US-TTP. If they diverge or either
+  // returns null/TTP2, treat as high_risk so the caller rerolls the sticky.
+  const a = await probeOnce(proxyUrl, secs);
+  if (!a.vregion) return { result: 'unknown' };
+  if (/-TTP2$/i.test(a.vregion)) return { result: 'high_risk', vregion: a.vregion };
+  const b = await probeOnce(proxyUrl, secs);
+  if (!b.vregion) return { result: 'unknown', vregion: a.vregion };
+  if (a.vregion !== b.vregion) return { result: 'high_risk', vregion: `${a.vregion}!=${b.vregion}` };
+  if (/-TTP2$/i.test(b.vregion)) return { result: 'high_risk', vregion: b.vregion };
+  return { result: 'standard', vregion: a.vregion };
 }
