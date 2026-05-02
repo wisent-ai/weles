@@ -155,13 +155,27 @@ const PROBES = {
     ],
   },
   producthunt: {
+    // Authed selectors below are NOT live-verified — both currently active PH
+    // accounts have stale cookies (no metadata.cookies_minted_at) and the
+    // 2026-05-02 18:35Z probe (.work/ph-probe/probe_assert_authed.mjs) ran
+    // logged-out on both, so we don't have a logged-in PH session to test
+    // these against yet. The first run after a successful loginViaTwitter
+    // SSO recovery should verify these match — if not, replace with markers
+    // observed via the same probe with PH_PROBE_USERNAME pointing at an
+    // account whose cookies just got minted.
     authedSelectors: [
       'a[href*="/@"][data-test*="user"]',
       'button[data-test="user-menu"]',
     ],
+    // Verified 2026-05-02 18:35Z by .work/ph-probe/probe_assert_authed.mjs:
+    // logged-out PH topbar renders <button data-test="header-nav-link-sign-in">.
+    // The previous selectors (a[href*="/sign-in"], a[href*="/sign-up"]) matched
+    // nothing on the live page — the "Sign in" button has no href (it opens a
+    // modal) and the only "Sign Up" anchor goes to /newsletters?campaign=...
+    // not to a signup flow.
     loggedOutMarkers: [
-      'a[href*="/sign-in"]',
-      'a[href*="/sign-up"]',
+      'button[data-test="header-nav-link-sign-in"]',
+      '[data-test="header-nav-link-sign-in"]',
     ],
   },
   snapchat: {
