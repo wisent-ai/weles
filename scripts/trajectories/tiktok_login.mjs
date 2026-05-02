@@ -358,8 +358,13 @@ try {
     await s.screenshot('post_submit_3s').catch(() => {});
     console.log(`[tiktok_login] +3s loginResponses=${JSON.stringify(loginResponses)}`);
     console.log(`[tiktok_login] +3s failedRequests=${JSON.stringify(failedRequests.slice(0, 10))}`);
+    // Captcha modal check. Excludes the "Verify it's really you" dialog
+    // which shares the captcha-* class prefix but is an OTP flow handled below.
+    const verifyDialogText = await s.page.evaluate(() =>
+      /Verify it..s really you|Verify your identity/i.test(document.body.innerText || "")
+    ).catch(() => false);
     // Check for captcha modal — if present, solve via SadCaptcha and re-submit.
-    const captchaPresent = await s.page.evaluate(() =>
+    const captchaPresent = !verifyDialogText && await s.page.evaluate(() =>
       !!document.querySelector('.captcha-verify-container, .captcha_verify_container, [class*="captcha-"]')
     ).catch(() => false);
     loginDiag.captcha.present = captchaPresent;
@@ -376,6 +381,61 @@ try {
       await s.page.waitForTimeout(2000);
       console.log(`[tiktok_login] post-captcha loginResponses=${JSON.stringify(loginResponses)}`);
       if (accountApiError) throw new Error(`login_rate_limited: ${accountApiError}`);
+    }
+
+    // After captcha solve, handle "Verify it's really you" new-device email-OTP
+    // modal. Triggered when TikTok sees the login coming from a different IP/UA
+    // than the account creation session. The dialog shows an "Email" row with
+    // the masked account email — clicking it sends a 6-digit code; we poll
+    // Resend, enter the code, and continue. If absent, this is a no-op.
+    const verifyChallenge = await s.page.evaluate(() =>
+      /Verify it'?s really you|Verify your identity/i.test(document.body.innerText || '')
+    ).catch(() => false);
+    if (verifyChallenge) {
+      console.log('[tiktok_login] new-device verify dialog detected — running email OTP flow');
+      await s.screenshot('verify_dialog').catch(() => {});
+      // Click the Email row. Selector fallback chain — the dialog DOM has shifted
+      // historically, accept any clickable element that mentions both "Email" and "@".
+      let clicked = false;
+      for (const sel of [
+        '[role="button"]:has-text("Email"):has-text("@")',
+        'div:has-text("Email"):has-text("@")',
+        'button:has-text("Email"):has-text("@")',
+      ]) {
+        const loc = s.page.locator(sel).first();
+        if (await loc.count().catch(() => 0)) {
+          try { await humanClickLocator(s.page, loc); clicked = true; break; } catch {}
+        }
+      }
+      if (!clicked) throw new Error('verify_otp: could not click Email option');
+      await s.page.waitForTimeout(2000);
+      await s.screenshot('verify_after_email_click').catch(() => {});
+      // Some flows auto-send; others require explicit Send code click.
+      for (const sel of ['button:has-text("Send code")', '[data-e2e="send-code-button"]']) {
+        const loc = s.page.locator(sel).filter({ visible: true }).first();
+        if (await loc.count().catch(() => 0)) {
+          try { await humanClickLocator(s.page, loc); break; } catch {}
+        }
+      }
+      await s.page.waitForTimeout(2000);
+      // Poll Resend inbox for the 6-digit code (s.checkEmail handles auth + filter).
+      const acctEmail = acct.metadata?.email || `${acct.username}@${process.env.AGENT_DOMAIN || 'pilatesguild.com'}`;
+      console.log(`[tiktok_login] polling email for verification code: ${acctEmail}`);
+      const code = await s.checkEmail(acctEmail, 'tiktok');
+      if (!code || !/^\d{4,8}$/.test(code)) throw new Error(`verify_otp: no code received (got ${code})`);
+      console.log(`[tiktok_login] got verification code: ${code}`);
+      const codeInput = s.page.locator('input[placeholder*="code" i], input[name*="code" i], input[maxlength="6"]').filter({ visible: true }).first();
+      await codeInput.focus().catch(() => {});
+      await humanType(s.page, code);
+      await s.page.waitForTimeout(1000);
+      for (const sel of ['button:has-text("Continue")', 'button:has-text("Next")', 'button[type="submit"]']) {
+        const loc = s.page.locator(sel).filter({ visible: true }).first();
+        if (await loc.count().catch(() => 0)) {
+          try { await humanClickLocator(s.page, loc); break; } catch {}
+        }
+      }
+      await s.page.waitForTimeout(2000);
+      await s.screenshot('verify_after_code_submit').catch(() => {});
     }
     // Wait for sessionid cookie + navigation away from /login. The sessionid
     // cookie is httpOnly — document.cookie inside the page can't see it —
