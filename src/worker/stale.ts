@@ -51,3 +51,27 @@ export async function staleCookieAccounts(candidates: CandidateRow[]): Promise<S
   }
   return stale;
 }
+
+// Sweep zombie running rows. account_action_logs left in status=running for
+// over 2h are workers killed mid-trajectory (SIGKILL, OOM, network drop).
+// They sit forever, polluting dashboards and blocking the per-account 30-min
+// in-flight slot. Throttled to once per 5 min across all workers' polls.
+let _lastSweep = 0;
+export async function sweepZombiesIfDue(): Promise<void> {
+  if (Date.now() - _lastSweep < 5 * 60_000) return;
+  _lastSweep = Date.now();
+  if (!SUPABASE_URL || !SUPABASE_KEY) return;
+  try {
+    const cutoff = new Date(Date.now() - 2 * 3600_000).toISOString();
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/account_action_logs?status=eq.running&claimed_at=lt.${cutoff}&select=id,action,claimed_by`, { headers: headers() });
+    if (!r.ok) return;
+    const rows = (await r.json()) as Array<{ id: string; action: string; claimed_by: string | null }>;
+    for (const row of rows) {
+      await fetch(`${SUPABASE_URL}/rest/v1/account_action_logs?id=eq.${row.id}&status=eq.running`, {
+        method: 'PATCH', headers: { ...headers(), Prefer: 'return=minimal' },
+        body: JSON.stringify({ status: 'failed', error: `orphaned: claimed_by ${row.claimed_by ?? '?'} stopped responding (>2h)`, completed_at: new Date().toISOString() }),
+      }).catch(() => {});
+      console.log(`[worker] zombie sweep: failed ${row.id.slice(0, 8)} action=${row.action} (claimed_by=${row.claimed_by})`);
+    }
+  } catch { /* best-effort */ }
+}
