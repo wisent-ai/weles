@@ -272,14 +272,16 @@ export async function resolveProxy(proxy: string, targetHost?: string): Promise<
                 preflightContinue = true;
               }
             }
-            // TikTok-specific: reject US-TTP2 vregion classification.
+            // TikTok-specific: require US-TTP standard cluster. Reject
+            // both US-TTP2 (high-risk) and unknown (probe flake) — the
+            // trajectory cannot recover from a TTP2 page bootstrap.
             if (!preflightContinue && platform === 'tiktok') {
               const { verifyTikTokRouting } = await import('./policy.js');
               const proxyUrl = `http://${encodeURIComponent(stickyUser)}:${encodeURIComponent(stickyPass)}@${host}:${p.proxy_port}`;
               const route = await verifyTikTokRouting(proxyUrl);
               console.log(`[proxy] tiktok-route exit=${exitIp} -> ${route.result}${route.vregion ? ` (${route.vregion})` : ''}`);
-              if (route.result === 'high_risk') {
-                console.log(`[proxy] TikTok TTP2: exit ${exitIp} vregion=${route.vregion} — rerolling sticky`);
+              if (route.result !== 'standard') {
+                console.log(`[proxy] TikTok routing not standard (${route.result}${route.vregion ? `=${route.vregion}` : ''}) — rerolling sticky`);
                 preflightContinue = true;
               }
             }
