@@ -32,10 +32,17 @@ export async function staleCookieAccounts(candidates: CandidateRow[]): Promise<S
     { headers: headers() },
   );
   if (!res.ok) return stale;
-  const rows = await res.json() as { id: string; metadata: { cookies_stale_at?: string } }[];
+  const rows = await res.json() as { id: string; metadata: { cookies_stale_at?: string; cookies_minted_at?: string } }[];
   for (const r of rows) {
     const t = r.metadata?.cookies_stale_at;
-    if (t && t > cutoff) stale.add(r.id);
+    if (!t || t <= cutoff) continue;
+    // Honor mint over stale: a successful re-login since the stale mark
+    // overrides it. Without this, the worker pre-claim filter keeps skipping
+    // accounts that just refreshed their cookies — same paradox the routine
+    // and getSocialAccount had before commit 4796d1e.
+    const mint = r.metadata?.cookies_minted_at;
+    if (mint && mint >= t) continue;
+    stale.add(r.id);
   }
   return stale;
 }
