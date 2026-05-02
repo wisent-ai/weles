@@ -370,14 +370,38 @@ try {
     loginDiag.captcha.present = captchaPresent;
     if (captchaPresent) {
       console.log('[tiktok_login] captcha modal detected — attempting SadCaptcha solve');
-      const solved = await solveTiktokRotateCaptcha(s.page);
+      let solved = false;
+      for (let attempt = 0; attempt < 4 && !solved; attempt++) {
+        if (attempt > 0) {
+          // Click captcha refresh button to get a new puzzle. The icon is a
+          // circular arrow at the bottom-right of the modal footer.
+          const refreshed = await s.page.evaluate(() => {
+            const modal = document.querySelector('.captcha-verify-container, .captcha_verify_container, [class*="captcha-"]');
+            if (!modal) return false;
+            const btns = Array.from(modal.querySelectorAll('button, [role="button"], svg, [class*="refresh" i], [class*="reload" i]'));
+            const refresh = btns.find(b => /refresh|reload/i.test((b.className || '').toString()) || /refresh|reload/i.test(b.getAttribute?.('aria-label') || ''));
+            if (refresh) { refresh.click(); return true; }
+            return false;
+          }).catch(() => false);
+          console.log(`[tiktok_login] captcha retry ${attempt} refresh-clicked=${refreshed}`);
+          await s.page.waitForTimeout(1500);
+        }
+        solved = await solveTiktokRotateCaptcha(s.page);
+        console.log(`[tiktok_login] captcha attempt ${attempt + 1} solved=${solved}`);
+      }
       loginDiag.captcha.solved = solved;
       if (!solved) {
         await s.screenshot('captcha_solve_failed').catch(() => {});
-        throw new Error('captcha_challenge: SadCaptcha solve failed');
+        throw new Error('captcha_challenge: SadCaptcha solve failed after 4 attempts');
       }
-      // After captcha solves, TikTok auto-submits the original form. Wait
-      // for the login XHR.
+      // After captcha dismiss, TikTok web does NOT auto-submit the login form
+      // (2026-05-02 verified: angle=318 solved captcha but loginResponses=[]).
+      // Re-click submit manually to fire /passport/web/login/.
+      await s.page.waitForTimeout(1000);
+      const reSubmit = s.page.locator('button[data-e2e="login-button"], button[type="submit"]').filter({ visible: true }).first();
+      if (await reSubmit.count().catch(() => 0)) {
+        try { await humanClickLocator(s.page, reSubmit); console.log('[tiktok_login] post-captcha re-submit clicked'); } catch (e) { console.log(`[tiktok_login] re-submit click err: ${e.message?.slice(0,80)}`); }
+      }
       await s.page.waitForTimeout(2000);
       console.log(`[tiktok_login] post-captcha loginResponses=${JSON.stringify(loginResponses)}`);
       if (accountApiError) throw new Error(`login_rate_limited: ${accountApiError}`);
@@ -394,20 +418,24 @@ try {
     if (verifyChallenge) {
       console.log('[tiktok_login] new-device verify dialog detected — running email OTP flow');
       await s.screenshot('verify_dialog').catch(() => {});
-      // Click the Email row. Selector fallback chain — the dialog DOM has shifted
-      // historically, accept any clickable element that mentions both "Email" and "@".
-      let clicked = false;
-      for (const sel of [
-        '[role="button"]:has-text("Email"):has-text("@")',
-        'div:has-text("Email"):has-text("@")',
-        'button:has-text("Email"):has-text("@")',
-      ]) {
-        const loc = s.page.locator(sel).first();
-        if (await loc.count().catch(() => 0)) {
-          try { await humanClickLocator(s.page, loc); clicked = true; break; } catch {}
-        }
-      }
-      if (!clicked) throw new Error('verify_otp: could not click Email option');
+      // Walk the DOM to find the Email row inside the verify dialog. Smallest
+      // clickable ancestor that contains both "Email" and "@", excluding the
+      // outer "Email or username" login form label.
+      const emailBox = await s.page.evaluate(() => {
+        const vh = window.innerHeight, vw = window.innerWidth;
+        const all = Array.from(document.querySelectorAll('div, button, li, [role="button"]'));
+        const cands = all.filter(el => {
+          const t = (el.innerText || '').trim();
+          if (!(/\bEmail\b/i.test(t) && /@/.test(t) && t.length < 200 && !/Email or username/i.test(t))) return false;
+          const r = el.getBoundingClientRect();
+          return r.width >= 150 && r.height >= 30 && r.y >= 0 && r.y + r.height <= vh && r.x >= 0 && r.x + r.width <= vw;
+        }).map(el => { const r = el.getBoundingClientRect(); return { tag: el.tagName, cls: (el.className?.toString?.() || '').slice(0,80), area: r.width * r.height, x: r.x + r.width/2, y: r.y + r.height/2, w: Math.round(r.width), h: Math.round(r.height) }; });
+        cands.sort((a, b) => a.area - b.area);
+        return cands[0] || null;
+      }).catch(() => null);
+      if (!emailBox) throw new Error('verify_otp: could not locate Email option in dialog');
+      console.log(`[tiktok_login] verify-dialog Email row: ${JSON.stringify(emailBox)}`);
+      await s.page.mouse.click(emailBox.x, emailBox.y);
       await s.page.waitForTimeout(2000);
       await s.screenshot('verify_after_email_click').catch(() => {});
       // Some flows auto-send; others require explicit Send code click.
