@@ -27,17 +27,36 @@ export async function tiktokSubmitComment(s, text) {
   if (!onVideoPage) {
     const isProfile = /\/@[^/?#]+$/.test(currentUrl.split('?')[0]);
     if (!isProfile) {
-      // On /foryou or other page — navigate to @tiktok profile.
-      console.log('[tiktok-submit] navigating to @tiktok profile for video link');
-      await s.goto('https://www.tiktok.com/@tiktok');
-      currentUrl = s.page.url?.() ?? '';
+      // First try: pick a video from a discovery surface that doesn't depend
+      // on a single profile's video-listing API. /tag/fyp and /explore both
+      // render video tiles via different endpoints; if either hydrates we
+      // skip the profile-grid path entirely.
+      console.log('[tiktok-submit] looking for a video link on /tag/fyp');
+      try {
+        await s.goto('https://www.tiktok.com/tag/fyp');
+        const videoLink = await s.page.locator('a[href*="/video/"]').first().waitFor({ state: 'visible', timeout: 15000 }).then(() => true).catch(() => false);
+        if (videoLink) { currentUrl = s.page.url?.() ?? ''; console.log('[tiktok-submit] /tag/fyp loaded — using its video link'); }
+      } catch { /* fall through */ }
     }
-    // Wait for profile grid to render video links.
-    const firstVideo = s.page.locator('a[href*="/video/"]').first();
-    const gridLoaded = await firstVideo.waitFor({ state: 'visible', timeout: 30000 }).then(() => true).catch(() => false);
+    // Wait for profile grid to render video links. TikTok's video-listing API
+    // intermittently 500s on @tiktok ("Something went wrong" with bodyLen
+    // ~1459); a profile reload re-fetches and usually succeeds. Walk a list
+    // of high-volume handles and try each twice.
+    let gridLoaded = false;
+    const profileHandles = ['tiktok', 'spotify', 'nba'];
+    outer: for (const handle of profileHandles) {
+      const profileUrl = `https://www.tiktok.com/@${handle}`;
+      for (let attempt = 0; attempt < 2; attempt++) {
+        await s.goto(profileUrl);
+        const firstVideo = s.page.locator('a[href*="/video/"]').first();
+        gridLoaded = await firstVideo.waitFor({ state: 'visible', timeout: 30000 }).then(() => true).catch(() => false);
+        if (gridLoaded) { console.log(`[tiktok-submit] @${handle} grid loaded on attempt ${attempt + 1}`); currentUrl = profileUrl; break outer; }
+        console.log(`[tiktok-submit] @${handle} attempt ${attempt + 1}: grid not loaded`);
+      }
+    }
     if (!gridLoaded) {
       const bodyLen = await s.page.evaluate(() => document.body?.innerText?.length || 0).catch(() => 0);
-      throw new Error(`tiktok_comment: profile @tiktok did not render video grid (bodyLen=${bodyLen}) — render-shadowed`);
+      throw new Error(`tiktok_comment: no candidate profile rendered video grid (bodyLen=${bodyLen})`);
     }
     // Click through to a video page. Try up to 4 videos in case the first
     // doesn't hydrate the right rail (same pattern as tiktok_like).
