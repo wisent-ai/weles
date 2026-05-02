@@ -2,6 +2,7 @@ import { WSession } from '../../../dist/session/wsession.js';
 import { CaptchaSolver } from '../../../dist/captcha/solver.js';
 import { injectProviderCookies, handleOAuthConsent, clickOAuthProviderButton } from '../../../dist/platforms/_shared/cross_platform_oauth.js';
 import { humanClickLocator } from '../../../dist/human/mouse.js';
+import { autoBindCharacter } from '../lib/character-bind.mjs';
 
 // ProductHunt does not offer email/password signup — only OAuth via Twitter,
 // Google, Facebook, AngelList. This trajectory uses an existing Twitter account
@@ -224,10 +225,15 @@ async function signup(s) {
   // Extract the actual PH handle from the topbar user-image-link.
   // PH issues its own handle distinct from the Twitter SSO username
   // (verified 2026-05-02: SSO via @jannieerdman414805 → PH handle
-  // @erdmanjann4145; SSO via swiftwolf6387 → PH handle that 404s when
-  // we navigate to /@swiftwolf6387). We must persist PH's handle, not
-  // the Twitter one, otherwise every profile_view trajectory navigates
-  // to /@<wrong-handle> and benign declares account_missing.
+  // @erdmanjann4145). We must persist PH's handle, not the Twitter one,
+  // otherwise every profile_view trajectory navigates to /@<wrong-handle>
+  // and benign declares account_missing.
+  //
+  // The onboarding loop above can dwell on /newsletters?campaign=... or
+  // similar marketing pages whose DOM doesn't include the authed topbar.
+  // Navigate to the homepage first so the topbar definitely renders.
+  await s.goto(URL);
+  await sleep(4);
   const phHandle = await s.page.evaluate(() => {
     const link = document.querySelector('a[data-test^="user-image-link-"]') ||
                  document.querySelector('a[href*="/@"][data-test*="user"]');
@@ -248,6 +254,7 @@ async function signup(s) {
     password: twPassword ?? 'linked_to_twitter',
   });
   console.log(`[ph] ${result}`);
+  await autoBindCharacter(phUsername, 'producthunt').then(r => console.log(`[bind] ${JSON.stringify(r)}`)).catch((e) => console.log(`[bind] err: ${e.message?.slice(0, 80)}`));
   return phUsername;
 }
 
