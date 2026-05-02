@@ -3,6 +3,7 @@ import { CaptchaSolver } from '../../../dist/captcha/solver.js';
 import { injectProviderCookies, handleOAuthConsent, clickOAuthProviderButton } from '../../../dist/platforms/_shared/cross_platform_oauth.js';
 import { humanClickLocator } from '../../../dist/human/mouse.js';
 import { autoBindCharacter } from '../lib/character-bind.mjs';
+import { findUsableTwitterAccount, stampLinkedTwitter } from './_session.mjs';
 
 // ProductHunt does not offer email/password signup — only OAuth via Twitter,
 // Google, Facebook, AngelList. This trajectory uses an existing Twitter account
@@ -13,27 +14,7 @@ const USE_BRIGHTDATA = !!process.env.BRIGHTDATA_BROWSER_WS;
 const proxy = USE_BRIGHTDATA ? 'none' : (process.env.PROXY_URL || 'none');
 const sleep = (s) => new Promise(r => setTimeout(r, s * 1000));
 
-async function findUsableTwitterAccount() {
-  const supabaseUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
-  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
-  if (!supabaseUrl || !supabaseKey) return null;
-  const res = await fetch(
-    `${supabaseUrl}/rest/v1/social_accounts?platform=eq.twitter&is_active=eq.true&select=id,platform,username,metadata&order=created_at.desc&limit=20`,
-    { headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` } },
-  );
-  if (!res.ok) return null;
-  const rows = await res.json();
-  for (const a of rows) {
-    const hasCookies = Array.isArray(a.metadata?.cookies) && a.metadata.cookies.length >= 2;
-    const suspended = String(a.metadata?.status ?? '').toLowerCase().includes('suspend');
-    const locked = String(a.metadata?.status ?? '').toLowerCase().includes('lock');
-    if (hasCookies && !suspended && !locked) return a;
-  }
-  for (const a of rows) {
-    if (Array.isArray(a.metadata?.cookies) && a.metadata.cookies.length >= 2) return a;
-  }
-  return rows[0] ?? null;
-}
+// findUsableTwitterAccount + stampLinkedTwitter live in _session.mjs.
 
 async function readPage(s) {
   return (await s.page.evaluate(`(() => {
