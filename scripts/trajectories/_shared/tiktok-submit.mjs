@@ -144,13 +144,17 @@ export async function tiktokSubmitComment(s, text) {
       try { await humanClickLocator(s.page, x); await s.page.waitForTimeout(500); } catch {}
     }
   }
-  // Comment toggle — sidebar icon. Modern video page uses aria-label-only
-  // (no data-e2e); foryou rail still has data-e2e selectors.
+  // Wait for right-rail to hydrate. When we landed via repost-URL
+  // navigation we skipped the click-through loop's hydration wait,
+  // so do an explicit wait here. Same timeout the click-through loop uses.
   const commentIcon = s.page.locator('[data-e2e="comment-icon"], [data-e2e="browse-comment-icon"], [data-e2e="feed-comment-icon"], button[aria-label*="comments" i]').filter({ visible: true }).first();
+  await commentIcon.waitFor({ state: 'visible', timeout: 25000 }).catch(() => {});
   if (await commentIcon.count()) {
     console.log('[tiktok-submit] clicking comment icon to open panel');
     await humanClickLocator(s.page, commentIcon);
     await s.page.waitForTimeout(2500);
+  } else {
+    console.log('[tiktok-submit] comment icon not visible after 25s wait');
   }
   // Comment input — TikTok uses a contenteditable div with class containing
   // "DraftEditor" or div[role="textbox"]. Modern selector: data-e2e="comment-input".
