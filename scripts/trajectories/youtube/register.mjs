@@ -106,6 +106,22 @@ for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     }
 
     await s.page.waitForFunction(() => /youtube\.com|myaccount\.google\.com/.test(location.href), { timeout: 30000 });
+    // Defense-in-depth: confirm the Google→YouTube OAuth actually
+    // authed before persisting the row. PH register hit this same class
+    // — a logged-out _producthunt_session_production cookie got
+    // accepted as proof of auth and saveAccount persisted a row claiming
+    // someone else's identity (vinitra incident, weles 21e21eb).
+    try {
+      await s.page.goto('https://www.youtube.com/');
+      await s.page.waitForTimeout(3000);
+      await assertAuthed('youtube', s, { label: 'youtube_register_post_oauth' });
+    } catch (probeErr) {
+      if (probeErr instanceof AuthProbeError) {
+        throw new Error(`oauth_did_not_authenticate: ${probeErr.message?.slice(0, 200)}`);
+      }
+      throw probeErr;
+    }
+
     await s.saveAccount('youtube', { username: id.username, email: id.email, password: id.password, status: 'verified' });
     await autoBindCharacter(id.username, 'youtube').then(r => console.log(`[bind] ${JSON.stringify(r)}`)).catch((e) => console.log(`[bind] err: ${e.message?.slice(0, 80)}`));
     console.log(`PASS: ${id.username}`);
