@@ -19,8 +19,36 @@ process.env.SVC_EMAIL = acct.metadata.email ?? acct.username;
 process.env.SVC_PASSWORD = acct.metadata.password ?? '';
 console.log(`[trajectory] Using account: ${acct.username}`);
 
-const { proxyUrl, persona } = await resolveAccountSession(acct);
-const s = await WSession.start({ label: 'linkedin_login', proxy: proxyUrl, persona });
+// Default-on HTTP/2-off for linkedin: PacketStream and BrightData residential
+// pools sometimes silently drop h2 frames inside CONNECT, surfacing as
+// ERR_TUNNEL_CONNECTION_FAILED. Empirically tunnel reliability with h2 off is
+// markedly better against linkedin specifically. Operators can override with
+// WELES_DISABLE_HTTP2=0 if they want to verify h2 behavior.
+if (process.env.WELES_DISABLE_HTTP2 == null) process.env.WELES_DISABLE_HTTP2 = '1';
+
+let { proxyUrl, persona } = await resolveAccountSession(acct);
+let s = await WSession.start({ label: 'linkedin_login', proxy: proxyUrl, persona });
+// Goto retry: tunnel connection is flaky, retry up to 3 times with a fresh
+// proxy resolution on each attempt. Each call to resolveAccountSession picks
+// a different sticky session id, which often resolves to a different exit IP.
+async function gotoLogin() {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      await s.page.goto('https://www.linkedin.com/login', { waitUntil: 'domcontentloaded' });
+      const url = s.page.url?.() ?? '';
+      if (!url.startsWith('chrome-error://')) return;
+      console.log(`[linkedin_login] goto attempt ${attempt + 1}: chrome-error, retrying with fresh proxy`);
+    } catch (e) {
+      const msg = e.message ?? '';
+      if (!/ERR_TUNNEL_CONNECTION_FAILED|ERR_PROXY_CONNECTION_FAILED|chrome-error/.test(msg) || attempt >= 2) throw e;
+      console.log(`[linkedin_login] goto attempt ${attempt + 1}: ${msg.slice(0, 80)}, retrying with fresh proxy`);
+    }
+    await s.close().catch(() => {});
+    ({ proxyUrl, persona } = await resolveAccountSession(acct));
+    s = await WSession.start({ label: 'linkedin_login', proxy: proxyUrl, persona });
+  }
+  await s.page.goto('https://www.linkedin.com/login', { waitUntil: 'domcontentloaded' });
+}
 
 async function captureCookies() {
   if (!acct.id) return;
@@ -39,7 +67,7 @@ function writeBan(signal, details) {
 }
 
 try {
-  await s.page.goto('https://www.linkedin.com/login', { waitUntil: 'domcontentloaded' });
+  await gotoLogin();
   await s.page.waitForTimeout(2500);
   // Modern LinkedIn login: visible inputs use autocomplete="webauthn" (passkey
   // hint) + current-password. Legacy #username / [name=session_key] selectors
