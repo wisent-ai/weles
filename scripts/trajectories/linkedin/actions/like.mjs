@@ -17,7 +17,13 @@ const _stored = (acct.metadata?.cookies ?? []).filter(c => /linkedin\.com/.test(
 if (_stored.length) await s.ctx.addCookies(_stored.map(c => ({ ...c, path: c.path || '/' }))).catch(() => {});
 let ban = null;
 try {
-  await s.goto(TARGET_URL || 'https://www.linkedin.com/feed/');
+  // s.goto wraps page.goto with waitCloudflare — but WSession's context
+  // sets defaultNavigationTimeout(0) so the underlying goto hangs forever
+  // when the page never reaches domcontentloaded (LinkedIn /feed/ on stale
+  // cookies redirects through auth wall and stalls). Use page.goto with an
+  // explicit 45s timeout; LinkedIn doesn't use Cloudflare so the
+  // waitCloudflare DOM probe is unnecessary on this surface.
+  await s.page.goto(TARGET_URL || 'https://www.linkedin.com/feed/', { waitUntil: 'domcontentloaded', timeout: 45000 });
   checkReachable(s, 'linkedin');
   await s.page.waitForTimeout(3500);
   try { await assertAuthed('linkedin', s, { label: 'linkedin_like' }); }
