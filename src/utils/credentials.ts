@@ -36,7 +36,13 @@ export async function getByCategory(category: string): Promise<ServiceCredential
 export async function getCaptchaCredentials(): Promise<{ anticaptcha?: string; twocaptcha?: string; capsolver?: string; capmonster?: string }> {
   const creds: Record<string, string | undefined> = {};
   for (const s of await getByCategory('captcha')) {
-    if (!s.api_key_env_var || s.balance_usd === null || s.balance_usd <= 0) continue;
+    // No balance gate: service_credentials.balance_usd is a stale cache
+    // (no cron schedules captcha balance.mjs trajectories — only proxies are
+    // covered by proxy-balance-sweep). 2captcha real balance was $23.61
+    // while DB cached $0; gating here silently excluded the only working
+    // solver for LinkedIn /checkpoint/challenge V2. The provider's own API
+    // returns ERROR_NO_SLOT_AVAILABLE / ERROR_ZERO_BALANCE if actually empty.
+    if (!s.api_key_env_var) continue;
     const key = process.env[s.api_key_env_var];
     if (!key) continue;
     const name = s.display_name.toLowerCase();
@@ -154,201 +160,8 @@ export async function getServiceLogin(displayName: string): Promise<{ email: str
 
 export type { ServiceCredential, SocialAccount };
 
-// --- Per-account session identity: restore proxy + persona so register and
-// login look like the same device. Reuses ProxyConfig/proxyUrl from the shared
-// src/proxy/config.ts module (matching schema the Python signup side writes to
-// social_accounts.metadata.proxy). If the account has no persona yet (pre-V1
-// rows), generate one keyed to the stored proxy country and backfill metadata.
-import type { Persona } from '../browser/persona.js';
-import { generatePersona } from '../browser/persona.js';
-import { proxyUrl as buildProxyUrl, type ProxyConfig } from '../proxy/config.js';
-import { isBurned } from '../proxy/burned.js';
-import { refreshStickyIfDead } from '../proxy/sticky.js';
-
-export interface AccountSession { proxyUrl?: string; persona?: Persona; }
-
-function inferTrajectoryAction(platform: string): string {
-  const explicit = process.env.ACTION?.trim();
-  if (explicit) return explicit;
-
-  const script = process.argv[1] ?? '';
-  const parts = script.replace(/\.(?:mjs|cjs|js|ts)$/, '').split(/[\\/]+/).filter(Boolean);
-  const file = parts[parts.length - 1] ?? '';
-  const parent = parts[parts.length - 2] ?? '';
-  const grandparent = parts[parts.length - 3] ?? '';
-
-  if (file.startsWith(`${platform}_`)) return file;
-  if (parent === platform && file && file !== 'index') return `${platform}_${file}`;
-  if (grandparent === platform && file && !['index', 'run'].includes(file)) return `${platform}_${file}`;
-  if (grandparent === platform && parent && file === 'run') return `${platform}_${parent}`;
-  return `${platform}_unknown`;
-}
-
-export async function resolveAccountSession(acct: SocialAccount): Promise<AccountSession> {
-  const meta = acct.metadata as any;
-  const out: AccountSession = {};
-  let cfg: ProxyConfig | null = null;
-  const action = inferTrajectoryAction(acct.platform);
-
-  // Direct egress for platforms with NO datacenter blacklist. GitHub and
-  // Producthunt accept VM IP. LinkedIn HEAD 200 from VM but actual load
-  // triggers PerimeterX immediately on datacenter — reverted 2026-04-26.
-  // Reddit/Twitter/Instagram/Discord/TikTok all 403 from datacenter.
-  const DIRECT_EGRESS_OK = new Set(['github', 'producthunt']);
-  if (DIRECT_EGRESS_OK.has(acct.platform) && process.env.WELES_FORCE_PROXY !== '1') {
-    if (meta?.persona) out.persona = meta.persona as Persona;
-    return out;
-  }
-
-  // Capability-bootstrap force-override: test a specific provider regardless
-  // of stored proxy. Set by worker/poll when params.proxy_url_override is
-  // present. Highest priority so we get deterministic provider control.
-  if (process.env.PROXY_URL && process.env.PROXY_URL_FORCE === '1') {
-    out.proxyUrl = process.env.PROXY_URL;
-    out.persona = (meta?.persona as Persona | undefined) ?? generatePersona({});
-    return out;
-  }
-
-  if (meta?.proxy?.host && meta?.proxy?.port && !(await isBurned(meta.proxy.host))) {
-    // Reject stored proxies whose hostname doesn't match a known residential
-    // provider AND whose username matches the legacy `lbartoszcze` weles relay
-    // pattern. Verified 2026-04-29 with brendawatsica187648: stored proxy
-    // 209.38.175.3:31112 (Digital Ocean datacenter, decommissioned weles
-    // relay) made TikTok serve a stripped-down page (no <button> elements
-    // rendered, page size 537 bytes). With dynamic provider selection
-    // (BrightData residential), the same trajectory rendered the full page
-    // and found the follow button. Same account, same session, same persona
-    // — only the proxy changed.
-    const { providerFromHost } = await import('../proxy/policy.js');
-    const storedProvider = providerFromHost(meta.proxy.host as string, meta.proxy.username as string);
-    const isLegacyRelay = !storedProvider && (meta.proxy.username === 'lbartoszcze' || /^209\.38\./.test(meta.proxy.host as string));
-    // Capability gate on the stored provider: if the matrix has marked
-    // (storedProvider, action) as 'fail', drop the stored proxy and let the
-    // dynamic-pick path below find a passing one. Otherwise keep the stored
-    // sticky session so accounts maintain a stable exit-IP cohort.
-    let storedFailing = false;
-    if (storedProvider) {
-      try {
-        const { isCellFail } = await import('../proxy/capability.js');
-        storedFailing = await isCellFail(storedProvider, action);
-      } catch { /* capability lookup best-effort */ }
-    }
-    if (isLegacyRelay) {
-      console.log(`[identity] dropping stored legacy/datacenter proxy ${meta.proxy.host}:${meta.proxy.port} — falling through to provider selection`);
-    } else if (storedFailing) {
-      console.log(`[identity] capability matrix marks ${storedProvider}/${action} as fail — dropping stored proxy`);
-    } else {
-      const refreshed = await refreshStickyIfDead(meta.proxy as ProxyConfig);
-      if (refreshed) { cfg = refreshed; if (refreshed !== meta.proxy) await backfillProxy(acct, refreshed); }
-    }
-  } else if (meta?.proxy?.server) {
-    // Legacy shape from the old Python signup path: { server, username, password }.
-    // Convert in place — parsed URL gives host/port/protocol.
-    try {
-      const u = new URL(meta.proxy.server as string);
-      cfg = {
-        host: u.hostname,
-        port: Number(u.port),
-        protocol: u.protocol.replace(/:$/, ''),
-        username: meta.proxy.username,
-        password: meta.proxy.password,
-      };
-      await backfillProxy(acct, cfg);
-    } catch { /* bad server url, fall through */ }
-  }
-
-  if (!cfg && process.env.PROXY_URL) {
-    out.proxyUrl = process.env.PROXY_URL;
-  } else if (!cfg) {
-    // Capability-driven selection: pick the cheapest provider whose matrix
-    // cell for this (provider, action) is 'pass' (or 'unknown' on cold-start).
-    // The matrix updates after every action via worker/poll.recordOutcome.
-    // Self-heals when a provider's quality drops; no hardcoded toxicity table.
-    const country = acct.platform === 'discord' ? '' : 'us';
-    const PHOST: Record<string, string> = { twitter: 'x.com', linkedin: 'www.linkedin.com', instagram: 'www.instagram.com', reddit: 'www.reddit.com', tiktok: 'www.tiktok.com', discord: 'discord.com', github: 'github.com', producthunt: 'www.producthunt.com' };
-    const targetHost = PHOST[acct.platform];
-    try {
-      const { selectByCapability } = await import('../proxy/capability.js');
-      const mod = await import('../proxy/config.js');
-      // Walk down the cost-ordered list of passing providers. If the cheapest
-      // one's resolveProxy fails (sticky preflight, no live IPs), exclude it
-      // and try the next. Caps at 5 attempts so we never spin forever.
-      const tried: string[] = [];
-      let pw: Awaited<ReturnType<typeof mod.resolveProxy>> | undefined;
-      for (let i = 0; i < 5; i++) {
-        const winner = await selectByCapability(action, tried);
-        if (!winner) {
-          console.log(`[identity] no provider passes capability for action=${action} platform=${acct.platform}`);
-          break;
-        }
-        const filter = `residential ${winner.provider} ${country}`.trim();
-        pw = await mod.resolveProxy(filter, targetHost);
-        if (pw) {
-          console.log(`[identity] capability pick ${winner.provider} ($${winner.cost_per_gb}/GB) for action=${action}`);
-          break;
-        }
-        tried.push(winner.provider);
-      }
-      // Mobile carrier IPs as last resort — rarely on platform blocklists.
-      if (!pw) pw = await mod.resolveProxy(`mobile ${country}`.trim(), targetHost) ?? await mod.resolveProxy('mobile', targetHost);
-      if (pw?.server) {
-        const u = new URL(pw.server);
-        cfg = {
-          host: u.hostname,
-          port: Number(u.port),
-          protocol: u.protocol.replace(/:$/, ''),
-          username: pw.username,
-          password: pw.password,
-          country: pw.country,
-        };
-        await backfillProxy(acct, cfg);
-      }
-    } catch (e) {
-      console.error('[identity] dynamic proxy assignment failed:', (e as Error).message);
-    }
-  }
-
-  if (cfg) out.proxyUrl = buildProxyUrl(cfg);
-  if (meta?.persona) {
-    out.persona = meta.persona as Persona;
-  } else {
-    out.persona = generatePersona({ country: cfg?.country ?? meta?.proxy?.country });
-    await backfillPersona(acct, out.persona);
-  }
-  return out;
-}
-
-async function backfillProxy(acct: SocialAccount, cfg: ProxyConfig): Promise<void> {
-  if (!acct.id) return;
-  const url = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
-  if (!url || !key) return;
-  const merged = { ...((acct.metadata ?? {}) as any), proxy: cfg };
-  try {
-    await fetch(`${url}/rest/v1/social_accounts?id=eq.${acct.id}`, {
-      method: 'PATCH',
-      headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
-      body: JSON.stringify({ metadata: merged }),
-    });
-  } catch (e) {
-    console.error('[identity] backfillProxy failed:', (e as Error).message);
-  }
-}
-
-async function backfillPersona(acct: SocialAccount, persona: Persona): Promise<void> {
-  if (!acct.id) return;
-  const url = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
-  if (!url || !key) return;
-  // Supabase PATCH on a JSONB column replaces the whole value, so merge in Node.
-  const merged = { ...((acct.metadata ?? {}) as any), persona };
-  try {
-    await fetch(`${url}/rest/v1/social_accounts?id=eq.${acct.id}`, {
-      method: 'PATCH',
-      headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
-      body: JSON.stringify({ metadata: merged }),
-    });
-  } catch (e) {
-    console.error('[identity] backfillPersona failed:', (e as Error).message);
-  }
-}
+// resolveAccountSession + AccountSession moved to src/account/session.ts on
+// 2026-05-03 (file-size cap). Re-exported here so callers using the legacy
+// `import { resolveAccountSession } from '../utils/credentials.js'` still work.
+export { resolveAccountSession } from '../account/session.js';
+export type { AccountSession } from '../account/session.js';

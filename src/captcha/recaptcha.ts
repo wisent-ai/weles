@@ -82,7 +82,39 @@ async function classifyGrid(bframe: any, instruction: string, gridSize: number):
       }
     } else { console.log(`[recaptcha] 2captcha create error: ${createRes.errorDescription}`); }
   }
-  // CapSolver as secondary (instant AI)
+  // CapMonster Cloud ComplexImageTask — human-routing image-grid solver.
+  // Probed live 2026-05-03: ComplexImageTask is the supported grid task on
+  // capmonster.cloud (RecaptchaComplexImageTask returns ERROR_TASK_ABSENT,
+  // and AntiCaptcha proper rejects ComplexImageTask entirely). Empirical
+  // pass rate vs LinkedIn /checkpoint/challenge is not yet measured here.
+  const cmKey = creds.capmonster ?? '';
+  if (cmKey) {
+    const cmTask: Record<string, any> = {
+      type: 'ComplexImageTask', class: 'recaptcha',
+      imageUrls: [`data:image/jpeg;base64,${gridImgB64}`],
+      metadata: { Task: instruction.replace(/\n/g, ' ').trim(), Grid: `${gridSize}x${gridSize}` },
+    };
+    const create = await (await fetch('https://api.capmonster.cloud/createTask', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ clientKey: cmKey, task: cmTask }),
+    })).json() as any;
+    if (create.taskId) {
+      for (let i = 0; i < 30; i++) {
+        await new Promise((r) => setTimeout(r, 3000));
+        const res = await (await fetch('https://api.capmonster.cloud/getTaskResult', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ clientKey: cmKey, taskId: create.taskId }),
+        })).json() as any;
+        if (res.status === 'ready') {
+          const cells: number[] = res.solution?.cellNumbers ?? res.solution?.cells ?? [];
+          if (cells.length) { const p = cells.map((c) => c + 1); console.log(`[recaptcha] CapMonster: ${JSON.stringify(p)}`); return p; }
+          console.log(`[recaptcha] CapMonster empty solution: ${JSON.stringify(res.solution)?.slice(0, 80)}`); break;
+        }
+        if (res.errorId) { console.log(`[recaptcha] CapMonster error: ${res.errorDescription}`); break; }
+      }
+    } else { console.log(`[recaptcha] CapMonster create error: ${create.errorDescription}`); }
+  }
+  // CapSolver as last-resort (NN classifier, no balance dependency until $0)
   const capsolverKey = creds.capsolver ?? '';
   const questionCode = instructionToCode(instruction);
   if (capsolverKey && questionCode) {
