@@ -82,6 +82,12 @@ const ROUTES: Record<string, (p: string) => string | null> = {
   reset_password: (p) => p === 'github' ? 'scripts/trajectories/github/recover/reset_password.mjs' : `scripts/trajectories/${p}_reset_password.mjs`,
   balance: (p) => PROXY_PROVIDERS.has(p) ? `scripts/trajectories/${p}/balance.mjs` : `scripts/trajectories/${p}_balance.mjs`,
   topup: (p) => PROXY_PROVIDERS.has(p) ? `scripts/trajectories/${p}/topup.mjs` : null,
+  // On-demand ticker scrape: wisent-app inserts an account_action_logs row
+  // with action='unusualwhales_scrape' or 'volumeleaders_scrape' and
+  // params={ticker, page}; the worker spawns the existing scrape script.
+  scrape: (p) => (p === 'unusualwhales' || p === 'volumeleaders' || p === 'tradingview')
+    ? `scripts/trajectories/${p}/scrape.mjs`
+    : null,
 };
 
 export function resolveTrajectory(action: string): string | null {
@@ -109,6 +115,12 @@ export function paramsToEnv(
       env.VERB = action.slice(underscore + 1);
     }
   }
+  // Ticker-scrape parameters for the unusualwhales/volumeleaders/tradingview
+  // scrape verb. Read by scrape.mjs scripts when invoked from the queue (no argv).
+  if (typeof params.ticker === 'string') env.TICKER = params.ticker.toUpperCase();
+  if (typeof params.page === 'string') env.PAGE = params.page;
+  if (typeof params.start_date === 'string') env.START_DATE = params.start_date;
+  if (typeof params.end_date === 'string') env.END_DATE = params.end_date;
   if (typeof params.subreddit === 'string') env.SUBREDDIT = params.subreddit;
   if (typeof params.product_id === 'string') env.PRODUCT_ID = params.product_id;
   if (typeof params.variant === 'string') env.VARIANT = params.variant;

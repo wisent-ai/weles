@@ -15,8 +15,8 @@ loadEnv();
 
 const args = {};
 for (let i = 2; i < process.argv.length; i += 2) args[process.argv[i].replace(/^--/, '')] = process.argv[i + 1];
-const ticker = (args.ticker || '').toUpperCase();
-const pageKey = args.page || 'overview';
+const ticker = (args.ticker || process.env.TICKER || '').toUpperCase();
+const pageKey = args.page || process.env.PAGE || 'overview';
 const screenshotPath = args.screenshot;
 if (!ticker) { console.error('FAIL: --ticker required'); process.exit(1); }
 
