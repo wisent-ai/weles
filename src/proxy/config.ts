@@ -187,7 +187,8 @@ export async function resolveProxy(proxy: string, targetHost?: string): Promise<
     const { isBurned } = await import('./burned.js');
     const { isProviderBlockedForPlatform } = await import('./policy.js');
     const name = p.display_name.toLowerCase();
-    const cc = (ccOverride ?? p.metadata?.country ?? 'us').toLowerCase();
+    const _ov = (p.metadata as any)?.country_overrides?.[platformFromTarget(targetHost) ?? ''];
+    const cc = (ccOverride ?? _ov ?? p.metadata?.country ?? 'us').toLowerCase();
     // DB-row policy enforcement: skip providers blocked for the target
     // platform regardless of how the resolver got here.
     const provKey = name.includes('packetstream') ? 'packetstream' : name.includes('pingproxies') ? 'pingproxies' : name.includes('oxylabs') ? 'oxylabs' : name.includes('iproyal') ? 'iproyal' : name.includes('bright') ? 'brightdata' : undefined;
