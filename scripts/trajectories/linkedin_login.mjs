@@ -6,12 +6,7 @@ import { humanIdlePause } from '../../dist/human/mouse.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { persistFreshCookieJar } from './_shared/cookie-freshness.mjs';
-
-// Direct Playwright fill+click flow — bypasses the agent loop because the
-// agent's vision-based 'click' picks the wrong "Sign in" button (matches
-// "Sign in with Apple" SSO before the form's Sign in) and times out tearing
-// down the browser. /login serves the form directly without the /feed→/uas
-// redirect overhead.
+import { solveLinkedinCheckpoint, injectV3LoginToken } from './_shared/linkedin/checkpoint.mjs';
 
 const acct = await getSocialAccount('linkedin');
 if (!acct) { console.log('FAIL: no active linkedin account in DB'); process.exit(1); }
@@ -19,35 +14,15 @@ process.env.SVC_EMAIL = acct.metadata.email ?? acct.username;
 process.env.SVC_PASSWORD = acct.metadata.password ?? '';
 console.log(`[trajectory] Using account: ${acct.username}`);
 
-// Default-on HTTP/2-off for linkedin: PacketStream and BrightData residential
-// pools sometimes silently drop h2 frames inside CONNECT, surfacing as
-// ERR_TUNNEL_CONNECTION_FAILED. Empirically tunnel reliability with h2 off is
-// markedly better against linkedin specifically. Operators can override with
-// WELES_DISABLE_HTTP2=0 if they want to verify h2 behavior.
 if (process.env.WELES_DISABLE_HTTP2 == null) process.env.WELES_DISABLE_HTTP2 = '1';
-// Default to stock Playwright Chromium for the login leg. The custom weles
-// binary intermittently returns ERR_TUNNEL_CONNECTION_FAILED through
-// PacketStream/BrightData proxies for linkedin.com (verified 2026-05-02:
-// stock binary tunneled the same sticky session fine under direct probe).
-// Login only needs a working form render + click — none of the bot
-// classifiers that rely on the custom canvas/UA/HEVC shims fire on the
-// login wall, so the trade-off is safe here.
 if (process.env.WELES_USE_STOCK_CHROMIUM == null) process.env.WELES_USE_STOCK_CHROMIUM = '1';
-// Load NopeCha auto-solver extension. captcha/perimeterx.js inside the
-// extension solves LinkedIn /checkpoint/challenge using our NOPECHA_API_KEY
-// subscription (embedded in manifest.nopecha.key after worker-side patch).
 if (process.env.WELES_NOPECHA_EXT == null) process.env.WELES_NOPECHA_EXT = '1';
 if (process.env.WELES_NOPECHA_EXT_DIR == null) process.env.WELES_NOPECHA_EXT_DIR = `${process.env.HOME ?? '/home/lukaszbartoszcze'}/weles/var/nopecha-ext`;
-// Force BrightData residential for linkedin_login. PacketStream's pool gets
-// PerimeterX-flagged on /checkpoint within seconds — 50+ recent attempts all
-// landed on /checkpoint/challenge with reason="linkedin issued captchaV2".
-// BrightData has a cleaner residential pool (twitter_login=pass on the same
-// session), so login should clear without triggering the captcha gate.
-// Operator override: PROXY_URL_FORCE already pre-set is honored as-is.
-// Helper: fresh proxy sticky URL per call. Prefer Oxylabs — verified
-// 2026-05-02 with curl that Oxylabs/PacketStream/direct return HTTP 200
-// on linkedin.com/login while BrightData returns HTTP 000 (LinkedIn edge-
-// blocks brightdata residential for this customer's IP range).
+
+// Sticky proxy URL per call. Prefer Oxylabs — verified 2026-05-02 via curl
+// that Oxylabs/PacketStream/direct return HTTP 200 on linkedin.com/login while
+// BrightData returns HTTP 000 (LinkedIn edge-blocks brightdata residential
+// for this customer's IP range).
 function freshBrightdataUrl() {
   if (process.env.OXYLABS_USERNAME && process.env.OXYLABS_PASSWORD) {
     const sess = Math.floor(Math.random() * 9000000 + 1000000);
@@ -75,33 +50,33 @@ if (!process.env.PROXY_URL_FORCE) {
 
 let { proxyUrl, persona } = await resolveAccountSession(acct);
 let s = await WSession.start({ label: 'linkedin_login', proxy: proxyUrl, persona });
-// Goto retry: tunnel connection is flaky, retry up to 3 times with a fresh
-// proxy resolution on each attempt. Each call to resolveAccountSession picks
-// a different sticky session id, which often resolves to a different exit IP.
+
+// async_api sets context.setDefaultNavigationTimeout(0) (unbounded) for
+// long Arkose iframe loads on tiktok signup. We need an explicit cap here
+// so a stalled Oxylabs sticky session doesn't burn the worker's 600s budget
+// (verified 2026-05-03: 3-of-6 test rows hit SIGKILL with no log line past
+// launchPersistentContext — goto was hung).
+const GOTO_MS = 30 * 1000;
 async function gotoLogin() {
   for (let attempt = 0; attempt < 5; attempt++) {
     try {
-      await s.page.goto('https://www.linkedin.com/login', { waitUntil: 'domcontentloaded' });
+      await s.page.goto('https://www.linkedin.com/login', { waitUntil: 'domcontentloaded', timeout: GOTO_MS });
       const url = s.page.url?.() ?? '';
       if (!url.startsWith('chrome-error://')) return;
       console.log(`[linkedin_login] goto attempt ${attempt + 1}: chrome-error, retrying with fresh proxy`);
     } catch (e) {
       const msg = e.message ?? '';
-      // Retry on tunnel/proxy failures + HTTP edge-rejection (LinkedIn 4xx/5xx
-      // for flagged exit IPs) + chrome-error. Each retry rotates BrightData
-      // sticky session so we land on a different exit IP.
-      const retriable = /ERR_TUNNEL_CONNECTION_FAILED|ERR_PROXY_CONNECTION_FAILED|ERR_HTTP_RESPONSE_CODE_FAILURE|ERR_BLOCKED_BY_RESPONSE|chrome-error/.test(msg);
+      const retriable = /ERR_TUNNEL_CONNECTION_FAILED|ERR_PROXY_CONNECTION_FAILED|ERR_HTTP_RESPONSE_CODE_FAILURE|ERR_BLOCKED_BY_RESPONSE|chrome-error|Timeout/.test(msg);
       if (!retriable || attempt >= 4) throw e;
       console.log(`[linkedin_login] goto attempt ${attempt + 1}: ${msg.slice(0, 80)}, retrying with fresh proxy`);
     }
     await s.close().catch(() => {});
-    // Rotate to fresh BrightData sticky before re-resolving.
     const next = freshBrightdataUrl();
     if (next) { process.env.PROXY_URL = next; process.env.PROXY_URL_FORCE = '1'; }
     ({ proxyUrl, persona } = await resolveAccountSession(acct));
     s = await WSession.start({ label: 'linkedin_login', proxy: proxyUrl, persona });
   }
-  await s.page.goto('https://www.linkedin.com/login', { waitUntil: 'domcontentloaded' });
+  await s.page.goto('https://www.linkedin.com/login', { waitUntil: 'domcontentloaded', timeout: GOTO_MS });
 }
 
 async function captureCookies() {
@@ -120,86 +95,26 @@ function writeBan(signal, details) {
   } catch {}
 }
 
-// Solve PerimeterX checkpoint. Strategy:
-//   1) If WELES_NOPECHA_EXT=1, wait for the NopeCha extension to solve
-//      in-page (URL navigates off /checkpoint OR li_at cookie appears).
-//      Poll up to 90s — captchaV2 puzzles take 30-60s to solve.
-//   2) Fall back to API solver (CapSolver/nocaptcha) if extension doesn't.
-async function solveCheckpoint(reason) {
-  let cookies = await s.ctx.cookies();
-  let liAt = cookies.find(c => c.name === 'li_at' && c.value);
-  let finalUrl = s.page.url?.() ?? '';
-  if (process.env.WELES_NOPECHA_EXT === '1' && !liAt && /\/(checkpoint|uas\/login|login\/recovery)/.test(finalUrl)) {
-    console.log(`[linkedin_login] ${reason} waiting for NopeCha extension to solve checkpoint in-page (90s max)`);
-    for (let i = 0; i < 18; i++) {
-      await s.page.waitForTimeout(5000);
-      cookies = await s.ctx.cookies();
-      liAt = cookies.find(c => c.name === 'li_at' && c.value);
-      finalUrl = s.page.url?.() ?? '';
-      if (liAt) { console.log(`[linkedin_login] NopeCha solved! li_at present after ${(i+1)*5}s`); break; }
-      if (!/\/(checkpoint|uas\/login|login\/recovery)/.test(finalUrl)) { console.log(`[linkedin_login] NopeCha solved! URL left checkpoint after ${(i+1)*5}s -> ${finalUrl}`); break; }
-    }
-    if (liAt) return { liAt, finalUrl };
-  }
-  // reCAPTCHA Enterprise V2 (image grid) fallback — when LinkedIn fully
-  // challenges, it shows a visible image-grid puzzle ("select all crosswalks").
-  // Worker logs 2026-05-03 confirmed the grid is reCAPTCHA Enterprise V2,
-  // sitekey 6LcIy_MqAAAAAMKiupFSbmzW3xjGSlIfRzNWYMjC. CapSolver
-  // ReCaptchaV2EnterpriseTaskProxyLess returns a g-recaptcha-response token
-  // that LinkedIn validates server-side. Inject the token + invoke the
-  // verify callback so LinkedIn proceeds.
-  for (let attempt = 0; attempt < 3 && !liAt && /\/(checkpoint|uas\/login|login\/recovery)/.test(finalUrl); attempt++) {
-    console.log(`[linkedin_login] ${reason} solve attempt ${attempt + 1}/3 (reCAPTCHA Enterprise V2 token)`);
-    const RECAPTCHA_SITEKEY = '6LcIy_MqAAAAAMKiupFSbmzW3xjGSlIfRzNWYMjC';
-    const token = await new CaptchaSolver().solveRecaptchaV2(s.page, RECAPTCHA_SITEKEY, { enterprise: true });
-    if (typeof token === 'string' && token.length > 50) {
-      console.log(`[linkedin_login] V2 enterprise token solved (${token.length}ch), injecting`);
-      await s.page.evaluate((t) => {
-        try {
-          // Write to ALL g-recaptcha-response textareas (visible + hidden).
-          document.querySelectorAll('textarea[name="g-recaptcha-response"], textarea[name^="g-recaptcha-response-"], textarea[id="g-recaptcha-response"], textarea[id^="g-recaptcha-response-"]').forEach(el => { el.value = t; });
-          // Override grecaptcha.getResponse so any verify-callback consumer reads our token.
-          if (window.grecaptcha) {
-            window.grecaptcha.getResponse = function() { return t; };
-            if (window.grecaptcha.enterprise) window.grecaptcha.enterprise.getResponse = function() { return t; };
-          }
-          // Invoke the captcha's verify-callback. Most reCAPTCHA integrations
-          // store the callback in a ___grecaptcha_cfg.clients[N].callback path;
-          // call it with our token so LinkedIn's onSuccess handler fires.
-          const cfg = window.___grecaptcha_cfg;
-          if (cfg && cfg.clients) {
-            for (const id of Object.keys(cfg.clients)) {
-              const client = cfg.clients[id];
-              const walk = (o) => { if (!o || typeof o !== 'object') return; for (const k of Object.keys(o)) { const v = o[k]; if (typeof v === 'function' && (k === 'callback' || k === 'fn')) { try { v(t); } catch {} } else walk(v); } };
-              walk(client);
-            }
-          }
-        } catch (e) { console.log('inject err:', e.message); }
-      }, token);
-      // Click any visible "Submit"/"Verify"/"Continue" button to commit
-      await s.page.locator('button:has-text(/submit|verify|continue|next/i)').filter({ visible: true }).first().click({ timeout: 3000 }).catch(() => {});
-      await s.page.waitForTimeout(5000);
-      cookies = await s.ctx.cookies();
-      liAt = cookies.find(c => c.name === 'li_at' && c.value);
-      finalUrl = s.page.url?.() ?? '';
-      if (liAt || !/\/(checkpoint|uas\/login|login\/recovery)/.test(finalUrl)) break;
-    }
-  }
-  return { liAt, finalUrl };
+async function markStaleAndFail(reason, finalUrl, signal = 'checkpoint') {
+  writeBan(signal, { final_url: finalUrl, reason });
+  const { markCookiesStale } = await import('../../dist/utils/credentials.js');
+  if (acct.id) await markCookiesStale(acct.id);
 }
+
+const CHECKPOINT_RE = /\/(checkpoint|uas\/login|login\/recovery)/;
 
 try {
   await gotoLogin();
   await s.page.waitForTimeout(2500);
-  // Pre-form-render checkpoint detection. PerimeterX edge-redirects flagged
-  // proxy IPs from /login → /checkpoint/challenge before the SDUI form ever
-  // renders. Detect here so the form-fill doesn't time out 30s on inputs
-  // that won't appear.
+  // Pre-form-render checkpoint: PerimeterX edge-redirects flagged proxy IPs
+  // from /login → /checkpoint/challenge before SDUI form renders. Detect
+  // here so the form-fill below doesn't time out 30s on inputs that won't
+  // appear.
   {
     const earlyUrl = s.page.url?.() ?? '';
-    if (/\/(checkpoint|uas\/login|login\/recovery)/.test(earlyUrl)) {
+    if (CHECKPOINT_RE.test(earlyUrl)) {
       console.log(`[linkedin_login] pre-form checkpoint at ${earlyUrl} — solving captcha first`);
-      const r = await solveCheckpoint('pre-form');
+      const r = await solveLinkedinCheckpoint(s, 'pre-form');
       if (r.liAt) {
         await captureCookies();
         writeBan('healthy', { final_url: r.finalUrl });
@@ -207,15 +122,12 @@ try {
         await s.close().catch(() => {});
         process.exit(0);
       }
-      // Captcha solver failed — bail explicitly so the form-fill below doesn't
-      // time out 30s on inputs that aren't on the page.
       throw new Error(`pre-form captcha solver failed at ${r.finalUrl}`);
     }
   }
   // Degraded /login skeleton: LinkedIn serves a 13KB SSR shell (no SDUI
-  // bootstrap, no inputs) to suspect IPs. The form-fill below would sit 30s
-  // waiting for inputs that never appear. Fast-fail by checking input count
-  // after the SDUI hydration window.
+  // bootstrap, no inputs) to suspect IPs. Fast-fail on zero inputs after
+  // hydration so the form-fill below doesn't time out.
   {
     const inputCount = await s.page.evaluate(() => document.querySelectorAll('input').length).catch(() => -1);
     if (inputCount === 0) {
@@ -223,27 +135,11 @@ try {
       throw new Error(`degraded_login_shell: 0 inputs after hydration window; body=${JSON.stringify(bodyText.slice(0, 200))}`);
     }
   }
-  // Modern LinkedIn login: visible inputs use autocomplete="webauthn" (passkey
-  // hint) + current-password. Legacy #username / [name=session_key] selectors
-  // are gone. Two duplicate input copies exist — only the visible one accepts
-  // fill. Use pressSequentially (per-keystroke events) so React's controlled-
-  // input state updates; locator.fill sets DOM value but skips React onChange.
-  // flagship3 SDUI (current 2026-05): id=":r3:" type="email" autocomplete="username webauthn"
-  // (space-separated, exact-match selectors fail). Old shells (id=username,
-  // name=session_key) shipped pre-SDUI. Use type=email + autocomplete*=username
-  // to catch SDUI without false-matching unrelated email inputs.
+  // flagship3 SDUI (current 2026-05): id=":r3:" type="email" autocomplete=
+  // "username webauthn". Old shells: id=username, name=session_key.
+  // Use locator click+humanType so the React onChange fires.
   const usernameSel = 'input#username, input[name="session_key"], input[type="email"][autocomplete*="username"], input[type="email"]';
   const passwordSel = 'input#password, input[name="session_password"], input[type="password"][autocomplete*="current-password"], input[type="password"]';
-  // Drive both inputs via JS focus + Playwright keyboard.type. locator.click
-  // on either input hangs the full default timeout (LinkedIn intercepts the
-  // click during scroll-into-view). JS focus directs keystrokes correctly
-  // without going through the click pipeline.
-  // Focus + fill via Playwright locators that work on both legacy
-  // checkpoint-frontend (input#username / input[name="session_key"]) and
-  // flagship3 SDUI (input[type="email"][autocomplete="username webauthn"]).
-  // flagship3 inputs have React-generated ids (:r3: etc.) and no name attr,
-  // so the legacy querySelectors return null and JS-focus is a no-op —
-  // humanType then types into nowhere and the form stays blank.
   const userLoc = s.page.locator(usernameSel).filter({ visible: true }).first();
   await userLoc.waitFor({ state: 'visible' });
   await userLoc.click({ force: true });
@@ -255,148 +151,81 @@ try {
   await humanIdlePause('short');
   await humanType(s.page, process.env.SVC_PASSWORD ?? '');
   await humanIdlePause('short');
-  // Click the Sign-in button via locator.click. LinkedIn now serves two
-  // login shells, randomly:
-  //   (A) Legacy checkpoint-frontend: <form action="...login-submit"> with
-  //       <button type="submit"> inside, PerimeterX iframe gates the click
-  //       handler that POSTs /checkpoint/pk/initiateLogin then submits the
-  //       form to /checkpoint/lg/login-submit.
-  //   (B) New flagship3 SDUI: NO <form>, NO type="submit". Sign-in is
-  //       <button type="button"> with React onClick that POSTs the login
-  //       payload to /flagship-web/rsc-action/actions/server-request?
-  //       sduiid=com.linkedin.sdui.requests.login.authenticate.
-  // Use getByRole('button', name='Sign in') to find the submit control on
-  // either shell. force:true skips Playwright's actionability deadlock
-  // (the React form re-renders during PX/SDUI hydration, never settling).
-  // noWaitAfter: SDUI consumes the response in-place via fetch, no full-
-  // page nav, so the default post-click nav-wait would time out. JS-driven
-  // submit (f.requestSubmit / dispatchEvent) creates isTrusted=false events
-  // that React's onClick filter or PerimeterX silent-rejects → bounce.
-  // Diff harness 2026-05-02 confirmed: locator.click({force,noWaitAfter})
-  // on weles binary fires the POST chain (Fetch.POST:/flagship-web/
-  // rsc-action/actions/server-request observed) and the page navigates to
-  // /checkpoint/challenge or /feed.
-  const submitBtn = s.page
-    .getByRole('button', { name: /^\s*sign\s*in\s*$/i })
-    .filter({ visible: true })
-    .first();
+  // LinkedIn serves two login shells:
+  //   (A) Legacy checkpoint-frontend: <form> + <button type="submit">,
+  //       PerimeterX iframe gates the click handler that POSTs
+  //       /checkpoint/pk/initiateLogin then submits to /checkpoint/lg/login-submit.
+  //   (B) flagship3 SDUI: <button type="button"> with React onClick that
+  //       POSTs /flagship-web/rsc-action/actions/server-request.
+  // getByRole('button', name='Sign in') finds the submit on either shell.
+  // force:true + noWaitAfter avoids React-rerender deadlocks and missing
+  // navigation on SDUI's in-place fetch.
+  const submitBtn = s.page.getByRole('button', { name: /^\s*sign\s*in\s*$/i }).filter({ visible: true }).first();
   await submitBtn.waitFor({ state: 'visible' });
-  // Solve reCAPTCHA Enterprise V3 (invisible) BEFORE submit and inject the
-  // token into the page. LinkedIn's login fires invisible reCAPTCHA on submit;
-  // the token it produces from a flagged session scores too low and triggers
-  // /checkpoint/challenge. Replacing with a CapSolver-issued high-score
-  // token (typically 0.9) clears LinkedIn's risk threshold.
-  // Sitekey verified live 2026-05-03 against linkedin.com/login DOM:
-  //   data-sitekey k=6LcIy_MqAAAAAMKiupFSbmzW3xjGSlIfRzNWYMjC, size=invisible
-  try {
-    const RECAPTCHA_SITEKEY = '6LcIy_MqAAAAAMKiupFSbmzW3xjGSlIfRzNWYMjC';
-    const token = await new CaptchaSolver().solveRecaptchaV3(RECAPTCHA_SITEKEY, s.page.url(), 'login');
-    if (token) {
-      console.log(`[linkedin_login] reCAPTCHA token solved (${token.length}ch), injecting`);
-      // Inject the token: write to all hidden g-recaptcha-response textareas
-      // AND override grecaptcha.execute to return our token. This catches both
-      // the auto-execute path (form-submit listener) and any explicit execute()
-      // calls the SDUI form makes.
-      await s.page.evaluate((t) => {
-        // Override execute to return our token
-        try {
-          const ge = window.grecaptcha;
-          if (ge && ge.enterprise) {
-            ge.enterprise.execute = function() { return Promise.resolve(t); };
-            ge.enterprise.getResponse = function() { return t; };
-          }
-          if (ge) {
-            const _exec = ge.execute;
-            ge.execute = function() { return Promise.resolve(t); };
-            ge.getResponse = function() { return t; };
-          }
-        } catch {}
-        // Fill any hidden textarea named g-recaptcha-response
-        document.querySelectorAll('textarea[name="g-recaptcha-response"], textarea[name^="g-recaptcha-response-"]').forEach(el => { el.value = t; });
-      }, token);
-    } else {
-      console.log('[linkedin_login] reCAPTCHA solver returned no token; submitting anyway');
-    }
-  } catch (e) { console.log('[linkedin_login] reCAPTCHA solve err:', e.message?.slice(0, 200)); }
+  await injectV3LoginToken(s.page);
   await submitBtn.click({ force: true, noWaitAfter: true });
   for (let i = 0; i < 12; i++) {
     await s.page.waitForTimeout(1000);
     if (!/^https?:\/\/www\.linkedin\.com\/login\/?$/.test(s.page.url())) break;
   }
   console.log(`[linkedin_login] post-submit url=${s.page.url()}`);
-  // Don't hand the challenge page to the agent — its solve_captcha tears down
-  // the browser on LinkedIn's PerimeterX-wrapped reCAPTCHA. Fall through to
-  // CapSolver AntiPerimeterX below (which handles checkpoint specifically).
-  // Validate auth + try CapSolver PerimeterX bypass on checkpoint pages.
+
   let cookies = await s.ctx.cookies();
-  let liAt = cookies.find(c => c.name === 'li_at' && c.value);
+  let liAt = cookies.find((c) => c.name === 'li_at' && c.value);
   let finalUrl = s.page.url?.() ?? '';
   let title = await s.page.title?.().catch(() => '') ?? '';
-  let onCheckpoint = /\/(checkpoint|uas\/login|login\/recovery)/.test(finalUrl) || /Security Verification/.test(title);
+  let onCheckpoint = CHECKPOINT_RE.test(finalUrl) || /Security Verification/.test(title);
 
-  // Solve up to 3 times. nocaptcha's PerimeterX endpoint is probabilistic —
-  // first solve may yield cookies that LinkedIn rejects (px-cdn fingerprint
-  // mismatch), retry usually clears it. Cheap to retry: each call is one
-  // HTTPS round-trip to nocaptcha, no Chromium re-launch.
-  for (let solveAttempt = 0; solveAttempt < 3 && !liAt && onCheckpoint; solveAttempt++) {
-    console.log(`[linkedin_login] checkpoint solve attempt ${solveAttempt + 1}/3 (nocaptcha PerimeterX with our proxy)`);
-    const ua = await s.page.evaluate(() => navigator.userAgent).catch(() => '');
-    const px = await new CaptchaSolver().solvePerimeterX(finalUrl, ua, cookies.filter(c => /linkedin\.com$/.test(c.domain ?? '')).map(c => ({ name: c.name, value: c.value, domain: c.domain })), proxyUrl);
-    if (px && px.length) {
-      await s.ctx.addCookies(px.map(c => ({ ...c, domain: c.domain ?? '.linkedin.com', path: c.path ?? '/' }))).catch(e => console.log('[linkedin_login] addCookies err:', e.message));
-      await s.page.goto('https://www.linkedin.com/feed/', { waitUntil: 'domcontentloaded' }).catch(() => {});
-      await s.page.waitForTimeout(3000);
-      cookies = await s.ctx.cookies();
-      liAt = cookies.find(c => c.name === 'li_at' && c.value);
-      finalUrl = s.page.url?.() ?? '';
-      title = await s.page.title?.().catch(() => '') ?? '';
-      onCheckpoint = /\/(checkpoint|uas\/login|login\/recovery)/.test(finalUrl) || /Security Verification/.test(title);
-      console.log(`[linkedin_login] post-bypass attempt ${solveAttempt + 1}: li_at=${!!liAt} url=${finalUrl}`);
-      if (liAt) break;
-    } else {
-      console.log(`[linkedin_login] solver returned no cookies on attempt ${solveAttempt + 1}`);
-    }
+  // Post-submit checkpoint: route through the V2 enterprise solver. Old
+  // path called solvePerimeterX which CapSolver returns ERROR_TYPE_NOT_SUPPORTED
+  // for — never produced cookies. V2 enterprise solves the actual reCAPTCHA
+  // image-grid LinkedIn shows on /checkpoint/challenge.
+  if (!liAt && onCheckpoint) {
+    const r = await solveLinkedinCheckpoint(s, 'post-submit');
+    liAt = r.liAt;
+    finalUrl = r.finalUrl;
+    onCheckpoint = CHECKPOINT_RE.test(finalUrl);
   }
-  // Only persist cookies on the success path. Persisting before the li_at
-  // check writes cookies_minted_at to a fresh-but-failed jar, then the
-  // failure branches below set cookies_stale_at on the same row — the
-  // resulting account is permanently stale with paradoxical "minted +
-  // stale within 1s" timestamps that no consumer can reason about.
-  if (liAt) { await captureCookies(); writeBan('healthy', { final_url: finalUrl }); console.log(`PASS: li_at cookie set — ${finalUrl}`); }
-  else if (onCheckpoint) { writeBan('checkpoint', { final_url: finalUrl, reason: 'linkedin issued captchaV2; CapSolver AntiPerimeterX did not return usable cookies' }); const { markCookiesStale } = await import('../../dist/utils/credentials.js'); if (acct.id) await markCookiesStale(acct.id); console.log(`FAIL: linkedin checkpoint — ${finalUrl} (cookies marked stale)`); process.exitCode = 1; }
-  else if (finalUrl.startsWith('chrome-error://')) { writeBan('proxy_failed', { final_url: finalUrl, reason: 'chrome-error: proxy CONNECT failed before login completed' }); console.log(`FAIL: proxy_failed — ${finalUrl}`); process.exitCode = 1; }
-  // Landing back on /login (often with ?session_redirect=...) after submit
-  // means credentials were silently rejected — wrong password, locked account,
-  // or invalidated session. Treat as cookies-stale: same 24h skip as
-  // checkpoint, so the routine cron stops draining the queue against a dead
-  // login. Without this, the same account hits /login on every tick forever.
-  else if (/^https:\/\/www\.linkedin\.com\/login(\/|\?|$)/.test(finalUrl)) { writeBan('checkpoint', { final_url: finalUrl, reason: 'submit returned to /login — credentials rejected or session_redirect loop' }); const { markCookiesStale } = await import('../../dist/utils/credentials.js'); if (acct.id) await markCookiesStale(acct.id); console.log(`FAIL: linkedin login bounced back — ${finalUrl} (cookies marked stale)`); process.exitCode = 1; }
-  // Default: form submitted, no checkpoint URL, no chrome-error, no li_at.
-  // The cookies the trajectory had don't authenticate any more — mark stale
-  // so the routine cron stops re-attempting against this dead account.
-  else { writeBan('checkpoint', { final_url: finalUrl, reason: 'no li_at cookie set after submit' }); const { markCookiesStale } = await import('../../dist/utils/credentials.js'); if (acct.id) await markCookiesStale(acct.id); console.log(`FAIL: no li_at cookie — ${finalUrl} (cookies marked stale)`); process.exitCode = 1; }
+
+  if (liAt) {
+    await captureCookies();
+    writeBan('healthy', { final_url: finalUrl });
+    console.log(`PASS: li_at cookie set — ${finalUrl}`);
+  } else if (onCheckpoint) {
+    await markStaleAndFail('linkedin issued V2 enterprise captcha; CapSolver token did not satisfy /checkpoint', finalUrl);
+    console.log(`FAIL: linkedin checkpoint — ${finalUrl} (cookies marked stale)`);
+    process.exitCode = 1;
+  } else if (finalUrl.startsWith('chrome-error://')) {
+    writeBan('proxy_failed', { final_url: finalUrl, reason: 'chrome-error: proxy CONNECT failed before login completed' });
+    console.log(`FAIL: proxy_failed — ${finalUrl}`);
+    process.exitCode = 1;
+  } else if (/^https:\/\/www\.linkedin\.com\/login(\/|\?|$)/.test(finalUrl)) {
+    // Bounce back to /login = credentials rejected or session_redirect loop.
+    // Mark stale so routine cron stops re-attempting against a dead account.
+    await markStaleAndFail('submit returned to /login — credentials rejected or session_redirect loop', finalUrl);
+    console.log(`FAIL: linkedin login bounced back — ${finalUrl} (cookies marked stale)`);
+    process.exitCode = 1;
+  } else {
+    await markStaleAndFail('no li_at cookie set after submit', finalUrl);
+    console.log(`FAIL: no li_at cookie — ${finalUrl} (cookies marked stale)`);
+    process.exitCode = 1;
+  }
 } catch (e) {
-  // Classify the catch-tail. ERR_HTTP_RESPONSE_CODE_FAILURE on /login means
-  // LinkedIn returned a 4xx/5xx at the page-load itself — fingerprint or IP
-  // is being blocked at the edge before any captcha screen even renders.
-  // chrome-error means proxy CONNECT failure. Both are platform-side blocks,
-  // not generic "unknown".
+  // ERR_HTTP_RESPONSE_CODE_FAILURE = LinkedIn 4xx/5xx at edge (fingerprint or
+  // IP blocked). Must classify as ip_blocked so worker-pool auto-markBurned
+  // fires. ERR_TUNNEL_CONNECTION_FAILED = real proxy CONNECT failure.
   const finalUrl = s.page?.url?.() ?? '';
   let sig = 'unknown_error';
   const msg = e.message ?? '';
-  // Order matters: HTTP-level rejections (4xx/5xx at edge) MUST classify
-  // as ip_blocked even though the URL ends up at chrome-error. The worker
-  // pool auto-markBurned only fires on ip_blocked, not proxy_failed —
-  // misclassifying as proxy_failed leaves the burned IP in rotation.
-  // ERR_TUNNEL_CONNECTION_FAILED is the actual proxy CONNECT failure.
   if (/ERR_HTTP_RESPONSE_CODE_FAILURE|ERR_BLOCKED_BY_RESPONSE|ERR_BLOCKED_BY_CLIENT|ERR_BLOCKED_BY_ADMINISTRATOR/.test(msg)) sig = 'ip_blocked';
   else if (/ERR_TUNNEL_CONNECTION_FAILED|ERR_PROXY_CONNECTION_FAILED/.test(msg)) sig = 'proxy_failed';
   else if (finalUrl.startsWith('chrome-error://')) sig = 'proxy_failed';
   else if (/Timeout|net::ERR_TIMED_OUT/.test(msg)) sig = 'proxy_failed';
-  // Image-selection (hCaptcha tile picker), or any /checkpoint/ landing →
-  // cookies-stale: solve_captcha can't drive these flows. Mark stale so the
-  // routine cron skips this account for 24h instead of looping.
-  else if (/\/(checkpoint|uas\/login|login\/recovery)/.test(finalUrl) || /image-selection|select.*buses|solve_captcha/i.test(msg)) { sig = 'checkpoint'; const { markCookiesStale } = await import('../../dist/utils/credentials.js'); if (acct.id) await markCookiesStale(acct.id); }
+  else if (CHECKPOINT_RE.test(finalUrl) || /image-selection|select.*buses|solve_captcha/i.test(msg)) {
+    sig = 'checkpoint';
+    const { markCookiesStale } = await import('../../dist/utils/credentials.js');
+    if (acct.id) await markCookiesStale(acct.id);
+  }
   writeBan(sig, { final_url: finalUrl, error: msg.slice(0, 200) });
   console.log('FAIL:', msg.slice(0, 200));
   process.exit(1);
