@@ -1,9 +1,8 @@
 import { CaptchaSolver } from '../../../../dist/captcha/solver.js';
+import { solveRecaptchaV2 as solveRecaptchaV2InPage } from '../../../../dist/captcha/recaptcha.js';
 
 const RECAPTCHA_SITEKEY = '6LcIy_MqAAAAAMKiupFSbmzW3xjGSlIfRzNWYMjC';
 const CHECKPOINT_RE = /\/(checkpoint|uas\/login|login\/recovery)/;
-const SUBMIT_CLICK_MS = 3 * 1000;
-const POST_SOLVE_NAV_MS = 15 * 1000;
 
 export async function solveLinkedinCheckpoint({ ctx, page }, reason) {
   let cookies = await ctx.cookies();
@@ -21,50 +20,31 @@ export async function solveLinkedinCheckpoint({ ctx, page }, reason) {
     }
     if (liAt) return { liAt, finalUrl };
   }
+  // /checkpoint/challenge serves the VISIBLE V2-enterprise image-grid widget,
+  // not the invisible token flow. CapSolver's ReCaptchaV2EnterpriseTaskProxyLess
+  // returns a g-recaptcha-response token in seconds, but injecting it via
+  // outer-page DOM (textarea fill + grecaptcha.getResponse override) does NOT
+  // trigger the captcha widget's internal verify-callback — verified live
+  // 2026-05-03: 3 consecutive token-injects all left URL on /checkpoint.
+  // Skip the token attempts entirely and call the in-page image-grid solver,
+  // which clicks tiles inside the bframe via the trusted-event Playwright
+  // pipeline; this path has demonstrated 'Frame detached — SOLVED!' success.
   for (let attempt = 0; attempt < 3 && !liAt && CHECKPOINT_RE.test(finalUrl); attempt++) {
-    console.log(`[linkedin_login] ${reason} solve attempt ${attempt + 1}/3 (reCAPTCHA Enterprise V2 token)`);
-    const result = await new CaptchaSolver().solveRecaptchaV2(page, RECAPTCHA_SITEKEY, { enterprise: true });
-    // Image-grid path returns true when the captcha frame detaches —
-    // LinkedIn accepted the solution and the form auto-submits, so the
-    // parent context is mid-navigation. Read state defensively: any of
-    // page.url / page.waitForLoadState / ctx.cookies can throw if the
-    // navigation has already torn down the previous frame tree.
-    if (result === true) {
-      console.log(`[linkedin_login] V2 enterprise solved in-page (frame detached)`);
-      const navMs = POST_SOLVE_NAV_MS;
-      try { await page.waitForLoadState('domcontentloaded', { timeout: navMs }); } catch {}
+    console.log(`[linkedin_login] ${reason} solve attempt ${attempt + 1}/3 (in-page image-grid)`);
+    const solved = await solveRecaptchaV2InPage(page).catch((e) => { console.log(`[linkedin_login] in-page solver err: ${e.message?.slice(0, 80)}`); return false; });
+    try { cookies = await ctx.cookies(); } catch {}
+    liAt = cookies.find((c) => c.name === 'li_at' && c.value);
+    try { finalUrl = page.url?.() ?? finalUrl; } catch {}
+    if (liAt || !CHECKPOINT_RE.test(finalUrl)) break;
+    if (!solved) {
+      // image-grid solver returned without success — wait briefly for
+      // any in-flight redirect from a verify that just landed, then check.
+      await page.waitForTimeout(3000).catch(() => {});
       try { cookies = await ctx.cookies(); } catch {}
       liAt = cookies.find((c) => c.name === 'li_at' && c.value);
       try { finalUrl = page.url?.() ?? finalUrl; } catch {}
       if (liAt || !CHECKPOINT_RE.test(finalUrl)) break;
-      continue;
     }
-    const token = result;
-    if (typeof token !== 'string' || token.length <= 50) continue;
-    console.log(`[linkedin_login] V2 enterprise token solved (${token.length}ch), injecting`);
-    await page.evaluate((t) => {
-      try {
-        document.querySelectorAll('textarea[name="g-recaptcha-response"], textarea[name^="g-recaptcha-response-"], textarea[id="g-recaptcha-response"], textarea[id^="g-recaptcha-response-"]').forEach((el) => { el.value = t; });
-        if (window.grecaptcha) {
-          window.grecaptcha.getResponse = function () { return t; };
-          if (window.grecaptcha.enterprise) window.grecaptcha.enterprise.getResponse = function () { return t; };
-        }
-        const cfg = window.___grecaptcha_cfg;
-        if (cfg && cfg.clients) {
-          for (const id of Object.keys(cfg.clients)) {
-            const walk = (o) => { if (!o || typeof o !== 'object') return; for (const k of Object.keys(o)) { const v = o[k]; if (typeof v === 'function' && (k === 'callback' || k === 'fn')) { try { v(t); } catch {} } else walk(v); } };
-            walk(cfg.clients[id]);
-          }
-        }
-      } catch (e) { console.log('inject err:', e.message); }
-    }, token);
-    const clickOpts = { timeout: SUBMIT_CLICK_MS };
-    await page.locator('button:has-text(/submit|verify|continue|next/i)').filter({ visible: true }).first().click(clickOpts).catch(() => {});
-    await page.waitForTimeout(5000);
-    cookies = await ctx.cookies();
-    liAt = cookies.find((c) => c.name === 'li_at' && c.value);
-    finalUrl = page.url?.() ?? '';
-    if (liAt || !CHECKPOINT_RE.test(finalUrl)) break;
   }
   return { liAt, finalUrl };
 }
