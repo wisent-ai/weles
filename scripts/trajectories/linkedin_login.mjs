@@ -146,7 +146,7 @@ try {
     const earlyUrl = s.page.url?.() ?? '';
     if (CHECKPOINT_RE.test(earlyUrl)) {
       console.log(`[linkedin_login] pre-form checkpoint at ${earlyUrl} — solving captcha first`);
-      const r = await solveLinkedinCheckpoint(s, 'pre-form');
+      const r = await solveLinkedinCheckpoint(s, 'pre-form', acct.metadata?.email ?? acct.username);
       if (r.liAt) {
         await captureCookies();
         await captureLinkedinPxStorage(s, acct).catch(() => {});
@@ -214,7 +214,7 @@ try {
   // for — never produced cookies. V2 enterprise solves the actual reCAPTCHA
   // image-grid LinkedIn shows on /checkpoint/challenge.
   if (!liAt && onCheckpoint) {
-    const r = await solveLinkedinCheckpoint(s, 'post-submit');
+    const r = await solveLinkedinCheckpoint(s, 'post-submit', acct.metadata?.email ?? acct.username);
     liAt = r.liAt;
     finalUrl = r.finalUrl;
     onCheckpoint = CHECKPOINT_RE.test(finalUrl);
