@@ -3,6 +3,7 @@ import { CaptchaSolver } from '../../../../dist/captcha/solver.js';
 const RECAPTCHA_SITEKEY = '6LcIy_MqAAAAAMKiupFSbmzW3xjGSlIfRzNWYMjC';
 const CHECKPOINT_RE = /\/(checkpoint|uas\/login|login\/recovery)/;
 const SUBMIT_CLICK_MS = 3 * 1000;
+const POST_SOLVE_NAV_MS = 15 * 1000;
 
 export async function solveLinkedinCheckpoint({ ctx, page }, reason) {
   let cookies = await ctx.cookies();
@@ -22,7 +23,23 @@ export async function solveLinkedinCheckpoint({ ctx, page }, reason) {
   }
   for (let attempt = 0; attempt < 3 && !liAt && CHECKPOINT_RE.test(finalUrl); attempt++) {
     console.log(`[linkedin_login] ${reason} solve attempt ${attempt + 1}/3 (reCAPTCHA Enterprise V2 token)`);
-    const token = await new CaptchaSolver().solveRecaptchaV2(page, RECAPTCHA_SITEKEY, { enterprise: true });
+    const result = await new CaptchaSolver().solveRecaptchaV2(page, RECAPTCHA_SITEKEY, { enterprise: true });
+    // Image-grid path returns true when the captcha frame detaches —
+    // LinkedIn accepted the solution and the form auto-submits, so the
+    // parent context is mid-navigation. Read state defensively: any of
+    // page.url / page.waitForLoadState / ctx.cookies can throw if the
+    // navigation has already torn down the previous frame tree.
+    if (result === true) {
+      console.log(`[linkedin_login] V2 enterprise solved in-page (frame detached)`);
+      const navMs = POST_SOLVE_NAV_MS;
+      try { await page.waitForLoadState('domcontentloaded', { timeout: navMs }); } catch {}
+      try { cookies = await ctx.cookies(); } catch {}
+      liAt = cookies.find((c) => c.name === 'li_at' && c.value);
+      try { finalUrl = page.url?.() ?? finalUrl; } catch {}
+      if (liAt || !CHECKPOINT_RE.test(finalUrl)) break;
+      continue;
+    }
+    const token = result;
     if (typeof token !== 'string' || token.length <= 50) continue;
     console.log(`[linkedin_login] V2 enterprise token solved (${token.length}ch), injecting`);
     await page.evaluate((t) => {
