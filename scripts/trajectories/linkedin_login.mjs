@@ -250,6 +250,43 @@ try {
     .filter({ visible: true })
     .first();
   await submitBtn.waitFor({ state: 'visible' });
+  // Solve reCAPTCHA Enterprise V3 (invisible) BEFORE submit and inject the
+  // token into the page. LinkedIn's login fires invisible reCAPTCHA on submit;
+  // the token it produces from a flagged session scores too low and triggers
+  // /checkpoint/challenge. Replacing with a CapSolver-issued high-score
+  // token (typically 0.9) clears LinkedIn's risk threshold.
+  // Sitekey verified live 2026-05-03 against linkedin.com/login DOM:
+  //   data-sitekey k=6LcIy_MqAAAAAMKiupFSbmzW3xjGSlIfRzNWYMjC, size=invisible
+  try {
+    const RECAPTCHA_SITEKEY = '6LcIy_MqAAAAAMKiupFSbmzW3xjGSlIfRzNWYMjC';
+    const token = await new CaptchaSolver().solveRecaptchaV3(RECAPTCHA_SITEKEY, s.page.url(), 'login');
+    if (token) {
+      console.log(`[linkedin_login] reCAPTCHA token solved (${token.length}ch), injecting`);
+      // Inject the token: write to all hidden g-recaptcha-response textareas
+      // AND override grecaptcha.execute to return our token. This catches both
+      // the auto-execute path (form-submit listener) and any explicit execute()
+      // calls the SDUI form makes.
+      await s.page.evaluate((t) => {
+        // Override execute to return our token
+        try {
+          const ge = window.grecaptcha;
+          if (ge && ge.enterprise) {
+            ge.enterprise.execute = function() { return Promise.resolve(t); };
+            ge.enterprise.getResponse = function() { return t; };
+          }
+          if (ge) {
+            const _exec = ge.execute;
+            ge.execute = function() { return Promise.resolve(t); };
+            ge.getResponse = function() { return t; };
+          }
+        } catch {}
+        // Fill any hidden textarea named g-recaptcha-response
+        document.querySelectorAll('textarea[name="g-recaptcha-response"], textarea[name^="g-recaptcha-response-"]').forEach(el => { el.value = t; });
+      }, token);
+    } else {
+      console.log('[linkedin_login] reCAPTCHA solver returned no token; submitting anyway');
+    }
+  } catch (e) { console.log('[linkedin_login] reCAPTCHA solve err:', e.message?.slice(0, 200)); }
   await submitBtn.click({ force: true, noWaitAfter: true });
   for (let i = 0; i < 12; i++) {
     await s.page.waitForTimeout(1000);
