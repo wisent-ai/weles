@@ -1,0 +1,121 @@
+// One-shot operator script. Opens real Chrome on linkedin.com/login, lets the
+// human drive the flow (type creds, solve any checkpoint captcha by hand, land
+// on /feed). On browser close, extracts:
+//   - localStorage PerimeterX + reCAPTCHA keys (PXdOjV695v_*, _pxvid, pxsid,
+//     px_*, _px_*, rc::*, _grecaptcha)
+//   - All linkedin.com cookies (li_at, JSESSIONID, _px_, etc.)
+// PATCHes both into social_accounts.metadata for the target account.
+//
+// Why: weles automation cannot clear /checkpoint on a cold-start session
+// because PerimeterX challenges every brand-new visitor on a residential
+// proxy. Diff harness 2026-05-03 (.work/inst/linkedin_login_diff_2026-05-03T
+// 21-02-42-556Z.md lines 25-30) confirmed chrome's session reads __pxvid +
+// writes px_hvd while weles reads/writes neither. Once metadata.
+// linkedin_px_storage is seeded once per account (this script), every
+// subsequent linkedin_login restores it before form-fill and PX recognises
+// the returning visitor.
+//
+// Usage:
+//   ACCOUNT_ID=<uuid> node scripts/trajectories/linkedin/recover/seed_px_storage.mjs
+//   USERNAME=<dbusername> node scripts/trajectories/linkedin/recover/seed_px_storage.mjs
+
+import { chromium } from 'playwright';
+import { existsSync, mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+const SUPABASE_URL = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SERVICE_KEY ?? '';
+if (!SUPABASE_URL || !SUPABASE_KEY) { console.error('FAIL: SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY required'); process.exit(2); }
+
+const ACCOUNT_ID = process.env.ACCOUNT_ID ?? '';
+const USERNAME = process.env.USERNAME ?? '';
+if (!ACCOUNT_ID && !USERNAME) { console.error('FAIL: set ACCOUNT_ID=<uuid> or USERNAME=<linkedin-username>'); process.exit(2); }
+
+const CHROME_BIN = process.env.CHROME_BIN || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+if (!existsSync(CHROME_BIN)) { console.error(`FAIL: chrome binary missing at ${CHROME_BIN}`); process.exit(2); }
+
+// Resolve the account row up-front so we fail fast on bad ID/username.
+const idFilter = ACCOUNT_ID ? `id=eq.${ACCOUNT_ID}` : `platform=eq.linkedin&username=eq.${encodeURIComponent(USERNAME)}`;
+const acctRes = await fetch(`${SUPABASE_URL}/rest/v1/social_accounts?${idFilter}&select=id,username,metadata`, { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } });
+const accts = await acctRes.json();
+if (!accts?.[0]?.id) { console.error(`FAIL: no social_accounts row for ${ACCOUNT_ID || USERNAME}`); process.exit(2); }
+const acct = accts[0];
+console.log(`[seed-px] target: ${acct.username} (id=${acct.id.slice(0,8)})`);
+
+// Persistent context — Chrome keeps cookies/localStorage between requests so
+// PX can write its state and we can scrape it on close.
+const userDataDir = mkdtempSync(join(tmpdir(), 'seed-px-'));
+const browser = await chromium.launchPersistentContext(userDataDir, {
+  executablePath: CHROME_BIN,
+  channel: 'chrome',
+  headless: false,
+  viewport: { width: 1280, height: 800 },
+  args: ['--no-sandbox', '--disable-blink-features=AutomationControlled', '--disable-infobars'],
+  ignoreDefaultArgs: ['--enable-automation', '--disable-breakpad'],
+});
+const page = browser.pages()[0] || await browser.newPage();
+console.log('[seed-px] navigating to linkedin.com/login — type your credentials, solve any captcha, wait until you land on /feed');
+try { await page.goto('https://www.linkedin.com/login', { waitUntil: 'domcontentloaded', timeout: 30000 }); }
+catch (e) { console.log(`[seed-px] goto err: ${e.message?.slice(0, 120)}`); }
+
+console.log('[seed-px] window is yours. Close the Chrome window when you reach /feed (or Ctrl+C here).');
+await new Promise((resolve) => {
+  let resolved = false;
+  const done = (why) => { if (resolved) return; resolved = true; console.log(`[seed-px] stopping: ${why}`); resolve(); };
+  page.on('close', () => done('page closed'));
+  browser.on('close', () => done('browser closed'));
+  process.on('SIGINT', () => done('SIGINT'));
+  process.on('SIGTERM', () => done('SIGTERM'));
+});
+
+// Extract localStorage on the linkedin.com origin. Page may already be closed
+// when we get here — re-open a tab if needed to access the origin.
+const PX_RE = /^(PXdOjV695v_|_pxvid|pxsid|_?px_|rc::|_grecaptcha)/;
+let lsItems = {};
+try {
+  let scrapePage = browser.pages().find((p) => p.url().includes('linkedin.com')) ?? browser.pages()[0];
+  if (!scrapePage || scrapePage.isClosed()) scrapePage = await browser.newPage();
+  if (!scrapePage.url().includes('linkedin.com')) {
+    await scrapePage.goto('https://www.linkedin.com/feed/', { waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => {});
+  }
+  lsItems = await scrapePage.evaluate((reSrc) => {
+    const re = new RegExp(reSrc);
+    const out = {};
+    try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && re.test(k)) out[k] = localStorage.getItem(k); } } catch {}
+    return out;
+  }, PX_RE.source).catch(() => ({}));
+} catch (e) { console.log(`[seed-px] localStorage scrape err: ${e.message?.slice(0, 120)}`); }
+const lsCount = Object.keys(lsItems).length;
+console.log(`[seed-px] captured ${lsCount} PX localStorage keys`);
+if (lsCount === 0) { console.log('[seed-px] WARN: no PX keys captured. Did the page reach a PX-protected route?'); }
+
+// Capture cookies for the linkedin.com domain.
+let cookies = [];
+try { cookies = (await browser.cookies()).filter((c) => /linkedin\.com$/.test((c.domain ?? '').replace(/^\./, ''))); }
+catch (e) { console.log(`[seed-px] cookies scrape err: ${e.message?.slice(0, 120)}`); }
+const liAt = cookies.find((c) => c.name === 'li_at' && c.value);
+console.log(`[seed-px] captured ${cookies.length} linkedin.com cookies (li_at=${!!liAt})`);
+
+await browser.close().catch(() => {});
+
+// PATCH metadata.linkedin_px_storage + cookies.
+const now = new Date().toISOString();
+const merged = {
+  ...(acct.metadata ?? {}),
+  linkedin_px_storage: lsItems,
+  linkedin_px_storage_at: now,
+};
+if (cookies.length) {
+  merged.cookies = cookies;
+  merged.cookies_updated_at = now;
+  merged.cookies_minted_at = now;
+  delete merged.cookies_stale_at;
+}
+const patchRes = await fetch(`${SUPABASE_URL}/rest/v1/social_accounts?id=eq.${acct.id}`, {
+  method: 'PATCH',
+  headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+  body: JSON.stringify({ metadata: merged }),
+});
+if (!patchRes.ok) { console.error(`FAIL: PATCH returned ${patchRes.status}: ${(await patchRes.text()).slice(0, 200)}`); process.exit(1); }
+console.log(`PASS: seeded metadata.linkedin_px_storage (${lsCount} keys) + cookies (${cookies.length}) for ${acct.username}`);
