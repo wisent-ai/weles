@@ -4,10 +4,107 @@ import { solveRecaptchaV2 as solveRecaptchaV2InPage } from '../../../../dist/cap
 const RECAPTCHA_SITEKEY = '6LcIy_MqAAAAAMKiupFSbmzW3xjGSlIfRzNWYMjC';
 const CHECKPOINT_RE = /\/(checkpoint|uas\/login|login\/recovery)/;
 
-export async function solveLinkedinCheckpoint({ ctx, page }, reason) {
+// Detect & solve the email-PIN /checkpoint variant. LinkedIn serves this when
+// a known account logs in from a new device/IP: pageKey=
+// "d_checkpoint_ch_emailPinChallenge" with a 6-digit PIN input. We own
+// wisentmedia.com / pilatesguild.com / dashnet102.com inboxes via Resend.
+async function solveEmailPinChallenge({ page }, email) {
+  const pageKey = await page.evaluate(`(()=>document.querySelector('meta[name="pageKey"]')?.content||'')()`).catch(() => '');
+  if (!pageKey.includes('emailPinChallenge')) return { ok: false, reason: 'not_email_pin_challenge' };
+  console.log(`[linkedin_login] emailPinChallenge detected for ${email} — fetching code from Resend`);
+  const RESEND_KEY = process.env.RESEND_RECEIVING_API_KEY;
+  if (!RESEND_KEY) return { ok: false, reason: 'no_resend_api_key' };
+  // Only accept emails that arrived AFTER /checkpoint was loaded — earlier
+  // PINs from prior login attempts are expired. LinkedIn issues a fresh
+  // 6-digit PIN per /checkpoint instance.
+  const challengeStart = Date.now();
+  let code = null;
+  for (let i = 0; i < 18; i++) {
+    await page.waitForTimeout(5000);
+    const list = await fetch(`https://api.resend.com/emails/receiving?limit=20`, { headers: { Authorization: `Bearer ${RESEND_KEY}` } }).then((r) => r.json()).catch(() => null);
+    const matches = (list?.data ?? []).filter((m) => m.to?.[0] === email && /linkedin/i.test(m.from || '') && new Date(m.created_at).getTime() >= challengeStart - 5000);
+    matches.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    const msg = matches[0];
+    if (!msg) continue;
+    const subj = msg.subject || '';
+    const m = subj.match(/\b(\d{6})\b/);
+    if (m) { code = m[1]; console.log(`[linkedin_login] PIN ${code} from subject (sent ${msg.created_at})`); break; }
+    const full = await fetch(`https://api.resend.com/emails/receiving/${msg.id}`, { headers: { Authorization: `Bearer ${RESEND_KEY}` } }).then((r) => r.json()).catch(() => null);
+    const body = (full?.text || full?.html || '').match(/\b(\d{6})\b/);
+    if (body) { code = body[1]; console.log(`[linkedin_login] PIN ${code} from body (sent ${msg.created_at})`); break; }
+  }
+  if (!code) return { ok: false, reason: 'pin_email_timeout' };
+  // Live-discover the visible inputs and buttons so we know exactly what
+  // selector LinkedIn shipped this variant of the page with. Logged for
+  // diagnosis on first failure.
+  const inputInfo = await page.evaluate(`(()=>Array.from(document.querySelectorAll('input')).filter(i=>i.offsetParent!==null).map(i=>({name:i.name,id:i.id,type:i.type,ac:i.getAttribute('autocomplete'),maxLen:i.maxLength,ph:i.placeholder})).slice(0,20))()`).catch(() => []);
+  console.log(`[linkedin_login] emailPin inputs: ${JSON.stringify(inputInfo)}`);
+  const buttonInfo = await page.evaluate(`(()=>Array.from(document.querySelectorAll('button')).filter(b=>b.offsetParent!==null).map(b=>({type:b.type,txt:(b.innerText||b.textContent||'').trim().slice(0,40),id:b.id,name:b.name})).slice(0,10))()`).catch(() => []);
+  console.log(`[linkedin_login] emailPin buttons: ${JSON.stringify(buttonInfo)}`);
+  try {
+    const candidates = [
+      'input[name="pin"]', 'input[id="input__email_verification_pin"]',
+      'input[type="text"][autocomplete="one-time-code"]',
+      'input[autocomplete="one-time-code"]',
+      'input[name="email-pin"]', 'input[name*="pin" i]',
+      'input[type="tel"][maxlength="6"]', 'input[type="text"][maxlength="6"]',
+      'input[type="text"]:not([name="email"]):not([name="username"]):not([name="password"]):not([name="session_key"]):not([name="session_password"])',
+    ];
+    let filled = false;
+    for (const sel of candidates) {
+      const loc = page.locator(sel).filter({ visible: true }).first();
+      if (await loc.count() > 0) {
+        await loc.click({ force: true });
+        await page.keyboard.type(code, { delay: 80 });
+        console.log(`[linkedin_login] PIN filled into ${sel}`);
+        filled = true; break;
+      }
+    }
+    if (!filled) {
+      let split = 0;
+      for (let i = 0; i < 6; i++) {
+        const cell = page.locator(`input[name="pin-${i + 1}"], input[name="otp-${i + 1}"]`).filter({ visible: true }).first();
+        if (await cell.count() === 0) break;
+        await cell.click({ force: true }); await page.keyboard.type(code[i], { delay: 60 });
+        split++;
+      }
+      if (split === 6) { filled = true; console.log('[linkedin_login] PIN filled into 6 split inputs'); }
+    }
+    if (!filled) return { ok: false, reason: 'no_pin_input_found' };
+    const submitCandidates = [
+      'button[type="submit"]',
+      'button[id="email-pin-submit-button"]',
+      'button:has-text(/^\\s*(submit|verify|continue|next|done)\\s*$/i)',
+    ];
+    for (const sel of submitCandidates) {
+      const btn = page.locator(sel).filter({ visible: true }).first();
+      if (await btn.count() > 0) {
+        await btn.click({ force: true }).catch(() => {});
+        console.log(`[linkedin_login] submit clicked via ${sel}`);
+        break;
+      }
+    }
+    await page.waitForLoadState('domcontentloaded').catch(() => {});
+    await page.waitForTimeout(3000).catch(() => {});
+    return { ok: true, code };
+  } catch (e) { return { ok: false, reason: `fill_err:${e.message?.slice(0, 80)}` }; }
+}
+
+export async function solveLinkedinCheckpoint({ ctx, page }, reason, email) {
   let cookies = await ctx.cookies();
   let liAt = cookies.find((c) => c.name === 'li_at' && c.value);
   let finalUrl = page.url?.() ?? '';
+  if (!liAt && email && CHECKPOINT_RE.test(finalUrl)) {
+    const r = await solveEmailPinChallenge({ page }, email);
+    if (r.ok) {
+      try { cookies = await ctx.cookies(); } catch {}
+      liAt = cookies.find((c) => c.name === 'li_at' && c.value);
+      try { finalUrl = page.url?.() ?? finalUrl; } catch {}
+      if (liAt || !CHECKPOINT_RE.test(finalUrl)) return { liAt, finalUrl };
+    } else if (r.reason !== 'not_email_pin_challenge') {
+      console.log(`[linkedin_login] email-PIN handler did not pass: ${r.reason}`);
+    }
+  }
   if (process.env.WELES_NOPECHA_EXT === '1' && !liAt && CHECKPOINT_RE.test(finalUrl)) {
     console.log(`[linkedin_login] ${reason} waiting for NopeCha extension to solve checkpoint in-page (90s max)`);
     for (let i = 0; i < 18; i++) {
