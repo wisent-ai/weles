@@ -13,6 +13,7 @@
  */
 
 import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import {
   CostTracker as SharedCostTracker,
@@ -29,11 +30,16 @@ class WelesCostTracker {
   private inner: SharedCostTracker;
   private agent_id: string;
 
+  private _supabaseUrl: string | null = null;
+  private _supabaseKey: string | null = null;
+  private _autoCreatedRow: boolean = false;
+
   constructor() {
     const supabaseUrl = process.env.COST_SUPABASE_URL ?? process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseKey = process.env.COST_SUPABASE_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
     const agent_id = process.env.ACTION_LOG_ID ?? `weles-${process.pid}`;
     this.agent_id = agent_id;
+    if (supabaseUrl && supabaseKey) { this._supabaseUrl = supabaseUrl; this._supabaseKey = supabaseKey; }
     // We use 'memory' sink internally and add Supabase persistence ourselves
     // in flush(); this lets us write the legacy recordings/_costs file and
     // the central table in one shot.
@@ -49,6 +55,13 @@ class WelesCostTracker {
       this._supabase = new SupabaseSink({ url: supabaseUrl, key: supabaseKey });
     }
     // Auto-flush on process exit.
+    // beforeExit only fires on natural event-loop drain; process.exit(N) skips
+    // it. Trajectories call process.exit(0|1) on every code path, so without
+    // the 'exit' handler below the local-file flush never runs and the worker
+    // sees empty service_costs. 'exit' fires synchronously even on
+    // process.exit, so we use a sync local-file flush there. Supabase
+    // (cost_records) is REST-only — async — so it stays on beforeExit/signals.
+    process.on('exit', () => { try { this.flushLocalSync(); } catch {} });
     process.on('beforeExit', () => { void this.flush(); });
     process.on('SIGINT', () => { void this.flush().finally(() => process.exit(130)); });
     process.on('SIGTERM', () => { void this.flush().finally(() => process.exit(143)); });
@@ -116,13 +129,104 @@ class WelesCostTracker {
     }
 
     if (this._supabase) {
+      // Auto-attach to an account_action_logs row before writing cost_records,
+      // so every record ties to a budget row. Without this, ad-hoc weles
+      // invocations (no ACTION_LOG_ID env) end up as 'weles-<pid>' agents
+      // that float in cost_records with no FK back to a trajectory row.
+      // Discovered 2026-05-02 audit: 42% of tracked proxy egress today (635MB)
+      // was from these untraceable agents.
+      await this.ensureActionLogRow();
       try {
         const stamped = snap.records.map(r => ({ ...r, agent_id: this.agent_id })) as any;
         await this._supabase.write(stamped);
       } catch (e: any) {
         console.log(`[cost] Supabase flush err: ${e.message?.slice(0, 120)}`);
       }
+      // If we created the action_log row ourselves, also patch it with the
+      // running cost_usd + service_costs so the budget query against
+      // account_action_logs sees the spend without needing a cost_records join.
+      if (this._autoCreatedRow) await this.patchActionLogRow(snap);
     }
+  }
+
+  /** If no ACTION_LOG_ID was provided by the caller, INSERT a placeholder row
+   *  into account_action_logs so cost_records have an FK to attach to. The row
+   *  uses action='unattributed:<label>' and the first active social_account as
+   *  FK placeholder (account_id is NOT NULL). After this, this.agent_id is
+   *  the new row's UUID and process.env.ACTION_LOG_ID is set so subsequent
+   *  modules (worker poll readCosts, file flush path) align. */
+  private async ensureActionLogRow(): Promise<void> {
+    if (this._autoCreatedRow) return;
+    if (process.env.ACTION_LOG_ID) return; // caller anchored us already
+    if (!this._supabaseUrl || !this._supabaseKey) return;
+    const headers = { apikey: this._supabaseKey, Authorization: `Bearer ${this._supabaseKey}`, 'Content-Type': 'application/json' };
+    try {
+      const probe = await fetch(`${this._supabaseUrl}/rest/v1/social_accounts?is_active=eq.true&select=id,platform&limit=1`, { headers });
+      const accts = await probe.json() as Array<{ id: string; platform: string }>;
+      if (!Array.isArray(accts) || accts.length === 0) return;
+      const label = process.env.WSESSION_LABEL ?? process.env.npm_package_name ?? `pid-${process.pid}`;
+      const ins = await fetch(`${this._supabaseUrl}/rest/v1/account_action_logs`, {
+        method: 'POST',
+        headers: { ...headers, Prefer: 'return=representation' },
+        body: JSON.stringify({
+          account_id: accts[0].id,
+          platform: accts[0].platform,
+          action: `unattributed:${label}`,
+          status: 'in_progress',
+          started_at: new Date().toISOString(),
+          claimed_by: `weles-${process.pid}`,
+          params: { reason: 'auto-created by cost.ts (no ACTION_LOG_ID env)' },
+        }),
+      });
+      const rows = await ins.json() as Array<{ id: string }>;
+      const id = rows?.[0]?.id;
+      if (id) {
+        this.agent_id = id;
+        process.env.ACTION_LOG_ID = id;
+        (this.inner as any).agent_id = id;
+        this._autoCreatedRow = true;
+        console.log(`[cost] auto-created account_action_logs row ${id} (label=${label})`);
+      }
+    } catch (e: any) { console.log(`[cost] ensureActionLogRow err: ${e.message?.slice(0, 120)}`); }
+  }
+
+  /** PATCH the auto-created account_action_logs row with the running cost
+   *  rollup. Done after every flush so the budget query sees current spend. */
+  private async patchActionLogRow(snap: { cost_usd: number; service_costs: Record<string, number> }): Promise<void> {
+    if (!this._supabaseUrl || !this._supabaseKey) return;
+    const headers = { apikey: this._supabaseKey, Authorization: `Bearer ${this._supabaseKey}`, 'Content-Type': 'application/json' };
+    try {
+      const r = await fetch(`${this._supabaseUrl}/rest/v1/account_action_logs?id=eq.${this.agent_id}&select=cost_usd,service_costs`, { headers });
+      const cur = (await r.json() as Array<{ cost_usd: number | null; service_costs: Record<string, number> | null }>)[0] ?? { cost_usd: 0, service_costs: {} };
+      const merged: Record<string, number> = { ...(cur.service_costs ?? {}) };
+      for (const [k, v] of Object.entries(snap.service_costs)) merged[k] = round4((merged[k] ?? 0) + v);
+      const newTotal = round4(Number(cur.cost_usd ?? 0) + snap.cost_usd);
+      await fetch(`${this._supabaseUrl}/rest/v1/account_action_logs?id=eq.${this.agent_id}`, {
+        method: 'PATCH', headers, body: JSON.stringify({ cost_usd: newTotal, service_costs: merged }),
+      });
+    } catch (e: any) { console.log(`[cost] patchActionLogRow err: ${e.message?.slice(0, 120)}`); }
+  }
+
+  /** Synchronous local-file flush for the 'exit' handler.
+   *  process.exit(N) skips beforeExit, so the async flush() above never runs
+   *  on the trajectory's normal exit paths. This drains the buffer to
+   *  recordings/_costs/<id>.json so the worker's readCosts() in poll.ts gets
+   *  the per-trajectory rollup. Supabase writes are async and skipped here. */
+  flushLocalSync(): void {
+    const snap = this.inner.snapshot();
+    if (snap.records.length === 0) return;
+    (this.inner as any).buffer = [];
+    const id = process.env.ACTION_LOG_ID;
+    if (!id) return;
+    const path = join(process.cwd(), 'recordings', '_costs', `${id}.json`);
+    mkdirSync(dirname(path), { recursive: true });
+    let existing: { cost_usd: number; service_costs: Record<string, number> } = { cost_usd: 0, service_costs: {} };
+    try { existing = JSON.parse(readFileSync(path, 'utf8')); } catch { /* first flush */ }
+    for (const [k, v] of Object.entries(snap.service_costs)) {
+      existing.service_costs[k] = round4((existing.service_costs[k] ?? 0) + v);
+    }
+    existing.cost_usd = round4(existing.cost_usd + snap.cost_usd);
+    writeFileSync(path, JSON.stringify(existing));
   }
 }
 

@@ -174,95 +174,10 @@ export class WSession {
     });
   }
 
-  async click(target: string): Promise<string> {
-    return this.runStep(`click_${target}`, async () => {
-      // CRITICAL: every click path must reach a Playwright Locator and use
-      // humanClickLocator (humanMove + locator.click({force:true})). Raw
-      // page.mouse.click at the right coordinates does NOT propagate through
-      // React's synthetic event delegation root on TikTok (verified 2026-04-30:
-      // tiktok_login submit button click via mouse.click never fired
-      // /passport/web/login/ POST; locator.click did. Same pattern broke
-      // tiktok_register's "Use phone or email" button after TikTok upgraded
-      // signup React handlers between Apr 17 and Apr 29 — the click registered
-      // a DOM event but the route transition handler never ran).
-      // Order:
-      //   1. Playwright accessible-name resolver (getByRole exact then loose)
-      //   2. DOM walker that stamps a marker attribute on the matched element,
-      //      then re-resolves it as a Playwright Locator
-      //   3. Vision-OCR fallback (rare; icon-only buttons without text). Uses
-      //      raw humanClick — vision targets typically lack accessible text
-      //      so coords-to-locator conversion is unreliable. Accept that React
-      //      may not fire on icon clicks.
-      const tryLoc = async (loc: any, descPrefix: string): Promise<string | null> => {
-        try {
-          if ((await loc.count?.()) > 0 && await loc.first().isVisible({ timeout: 1500 }).catch(() => false)) {
-            await humanClickLocator(this.page, loc.first());
-            return `clicked ${descPrefix}${target}`;
-          }
-        } catch {}
-        return null;
-      };
-      const tEsc = target.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const reExact = new RegExp(`^\\s*${tEsc}\\s*$`, 'i');
-      const reLoose = new RegExp(tEsc, 'i');
-      // Pass 1a: exact accessible-name match (button > link > checkbox).
-      for (const role of ['button', 'link', 'checkbox'] as const) {
-        try { const r = await tryLoc(this.page.getByRole(role, { name: reExact }), `${role}: `); if (r) return r; } catch {}
-      }
-      // Pass 1b: loose substring match (skip checkbox to avoid grabbing
-      // Apple/Google buttons when the user said "Sign in").
-      for (const role of ['button', 'link'] as const) {
-        try { const r = await tryLoc(this.page.getByRole(role, { name: reLoose }), `${role}: `); if (r) return r; } catch {}
-      }
-      // Pass 2: DOM walker — preserves the existing exact-vs-partial precedence
-      // and shadow-DOM upvote escape hatch, but stamps a unique data attribute
-      // on the matched element so we can re-resolve it as a Playwright Locator
-      // and route the click through humanClickLocator.
-      const marker = `weles-click-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-      const c = await this.page.evaluate(`(()=>{function F(r,s){var a=Array.from(r.querySelectorAll(s));r.querySelectorAll('*').forEach(function(e){if(e.shadowRoot)a=a.concat(F(e.shadowRoot,s))});return a}function vis(el){var r=el.getBoundingClientRect();return r.width>0&&r.height>0&&el.offsetParent!==null}var t=${JSON.stringify(target.toLowerCase().trim())};var m=${JSON.stringify(marker)};var sr=F(document,'[data-post-click-location] button');if(t.indexOf('upvote')>=0&&sr.length>0){sr[0].setAttribute('data-weles-click',m);return{desc:'upvote (shadow)'}}var bs=F(document,'button,a,[role="button"],[role="link"],[role="tab"],[role="menuitem"],[role="option"],[data-e2e],label,input[type="checkbox"],[role="checkbox"]');var exact=null,partial=null;for(var i=0;i<bs.length;i++){var el=bs[i];var txt=((el.textContent||'').trim()+' '+(el.getAttribute('aria-label')||'').trim()).toLowerCase().trim();var visi=vis(el);if(!visi)continue;if(txt===t||txt.split(' ').join(' ')===t){exact=el;break}if(!partial&&txt.indexOf(t)>=0){partial=el}}var hit=exact||partial;if(!hit)return null;var cb=hit.querySelector('input[type="checkbox"]')||hit;cb.setAttribute('data-weles-click',m);var d=((hit.textContent||'').trim()||(hit.getAttribute('aria-label')||'')).slice(0,40);return{desc:(exact?'exact:':'partial:')+d}})()`).catch(() => null);
-      if (c) {
-        const loc = this.page.locator(`[data-weles-click="${marker}"]`).first();
-        try { await humanClickLocator(this.page, loc); }
-        finally { await this.page.evaluate(`(()=>{document.querySelectorAll('[data-weles-click=${JSON.stringify(marker)}]').forEach(e=>e.removeAttribute('data-weles-click'))})()`).catch(() => {}); }
-        return `clicked ${(c as any).desc ?? target}`;
-      }
-      // Pass 3: vision-OCR fallback for icon-only targets. Raw humanClick is
-      // last-resort; if React doesn't fire, the trajectory's outer retry loop
-      // will surface "stuck at <url>" and a fix is needed at the trajectory
-      // (use s.clickSelector or s.page.locator(...).click() with humanClickLocator).
-      const coords = await findClickTarget(asV(this.page), target);
-      if (coords) { await humanClick(this.page, coords.x, coords.y); return `clicked ${target} (vision)`; }
-      return 'no-target-found';
-    });
-  }
-
-  async fill(target: string, value: string): Promise<string> {
-    return this.runStep(`fill_${target}`, async () => {
-    const v = this.resolveEnv(value);
-    // CRITICAL: every fill path must go through humanFill (humanized click +
-    // clear + humanType). Bare `el.fill(v)` writes the value via the DOM with
-    // ZERO keystroke events on the page — anti-bot signal that triggered the
-    // 2026-04-29 Reddit hard-ban after the comment trajectory's submit click
-    // bug was patched. The same defect exists for all form inputs anywhere
-    // we use Playwright's `.fill()`, so the wrapper layer is the right place
-    // to enforce humanization for every callsite.
-    const { humanFill } = await import('../human/keyboard.js');
-    // Playwright's accessible-label resolver finds <label>Username or email</label>
-    // bound inputs even when the input's own name/placeholder/aria-label don't
-    // match the target keywords (e.g. github's <input name="login">). Try this
-    // first.
-    try { const lbl = this.page.getByLabel?.(target, { exact: false })?.first?.(); if (lbl && await lbl.isVisible({ timeout: 1500 }).catch(() => false)) { await humanFill(this.page, lbl, v); return 'filled'; } } catch {}
-    const kws = target.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(w => w.length > 2);
-    const sels = kws.flatMap(k => ['input','textarea','[contenteditable]'].flatMap(t => [`${t}[name*="${k}"]`,`${t}[placeholder*="${k}" i]`,`${t}[aria-label*="${k}" i]`]));
-    for (const sel of sels) { try { const el = this.page.locator?.(sel)?.first?.(); if (el && await el.isVisible()) { await humanFill(this.page, el, v); return 'filled'; } } catch {} }
-    const tgt = JSON.stringify(target.toLowerCase());
-    const c = await this.page.evaluate(`(()=>{var t=${tgt};for(var el of document.querySelectorAll('*')){var r=el.getBoundingClientRect();var ph=(el.getAttribute('placeholder')||'').toLowerCase();if(r.width>50&&r.height>10&&r.x>0&&ph&&ph.indexOf(t)>=0)return{x:r.x+r.width/2,y:r.y+r.height/2}}return null})()`).catch(() => null);
-    if (c) { await humanClick(this.page, c.x, c.y); await this.page.keyboard.press('Meta+a').catch(() => {}); await humanType(this.page, v); return 'filled'; }
-    const vc = await findClickTarget(asV(this.page), target);
-    if (vc) { await humanClick(this.page, vc.x, vc.y); await this.page.keyboard.press('Meta+a').catch(() => {}); await humanType(this.page, v); return 'filled'; }
-    return 'no-field-found';
-    });
-  }
+  // Method bodies extracted to ./wsession-helpers/finalize.ts to fit the
+  // 300-line per-file cap. wsClose has the BD provider classifier fix.
+  async click(target: string): Promise<string> { const { wsClick } = await import('./wsession-helpers/finalize.js'); return wsClick(this, target); }
+  async fill(target: string, value: string): Promise<string> { const { wsFill } = await import('./wsession-helpers/finalize.js'); return wsFill(this, target, value); }
 
   async focus(selector: string): Promise<string> {
     return this.runStep(`focus_${selector}`, async () => {
@@ -277,10 +192,8 @@ export class WSession {
   async jsClick(selector?: string, text?: string): Promise<string> {
     return this.runStep(`jsClick_${text ?? selector}`, async () => {
       const sel = JSON.stringify(selector ?? ''), txt = JSON.stringify((text ?? '').toLowerCase());
-      // Shadow DOM deep search — el.click() in evaluate produces isTrusted=false; KEPT for Reddit (only-locator-inaccessible surface; Reddit is permissive about isTrusted).
       const sr = await this.page.evaluate(`(()=>{var t=${txt};function F(r){var a=[];r.querySelectorAll('*').forEach(function(e){if(e.shadowRoot){var sr=e.shadowRoot;a=a.concat(Array.from(sr.querySelectorAll('[data-post-click-location] button')));a=a.concat(F(sr))}});return a}var bs=F(document);if(t&&t.indexOf('upvote')>=0&&bs.length>0){bs[0].click();return'clicked upvote (shadow)'}if(t&&t.indexOf('downvote')>=0&&bs.length>1){bs[1].click();return'clicked downvote (shadow)'}return null})()`).catch(() => null);
       if (sr) return sr;
-      // Prefer locator.click() so isTrusted=true (per ce369f6 — TikTok/LinkedIn/Arkose reject isTrusted=false). Fall through to evaluate only when locator finds nothing.
       if (selector) { try { const loc = this.page.locator(selector).first(); if (await loc.count()) { await loc.click(); return `clicked: ${selector.slice(0, 60)}`; } } catch { /* try eval */ } }
       if (text) { try { const loc = this.page.getByRole('button', { name: new RegExp(text, 'i') }).first(); if (await loc.count()) { await loc.click(); return `clicked text: ${text.slice(0, 60)}`; } } catch { /* try eval */ } }
       const r = await this.page.evaluate(`(()=>{function F(r,s){var a=Array.from(r.querySelectorAll(s));r.querySelectorAll('*').forEach(function(e){if(e.shadowRoot)a=a.concat(F(e.shadowRoot,s))});return a}var s=${sel},t=${txt};if(s){try{var e=F(document,s)[0];if(e){e.click();return'clicked-untrusted: '+s}}catch(e){}}if(t){var els=F(document,'button,a,[role="button"],[class*="vote"],[class*="like"],[class*="star"],[class*="follow"]');for(var i=0;i<els.length;i++){var x=((els[i].textContent||'')+(els[i].getAttribute('aria-label')||'')).toLowerCase();if(x.indexOf(t)>=0){els[i].click();return'clicked-untrusted: '+(els[i].getAttribute('aria-label')||els[i].textContent||'').trim().slice(0,40)}}}return null})()`).catch(() => null);
@@ -291,7 +204,6 @@ export class WSession {
   async clickSelector(selector: string): Promise<string> { return this.runStep(`clickSel_${selector.slice(0,30)}`, async () => { const loc = this.page.locator(selector).first(); if (!(await loc.count())) return 'no-element-found'; const { humanClickLocator } = await import('../human/mouse.js'); await humanClickLocator(this.page, loc); return `clicked ${selector.slice(0,60)}`; }); }
   async type(value: string): Promise<string> { return this.runStep('type', async () => { await humanType(this.page, this.resolveEnv(value)); return 'typed'; }); }
   async press(key: string): Promise<string> { return this.runStep(`press_${key}`, async () => { await this.page.keyboard.press(key); return `pressed ${key}`; }); }
-
   async select(target: string, value: string): Promise<string> { return this.runStep(`select_${target}_${value}`, async () => { const result = await selectOption(this.page, target, this.resolveEnv(value)); return result ? `selected: ${result}` : 'no-select-found'; }); }
 
   async scroll(direction: string, amount?: number): Promise<string> {
@@ -306,34 +218,10 @@ export class WSession {
   async read(question: string): Promise<string> { return await askPage(asV(this.page), question) ?? 'NONE'; }
   async solveCaptcha(): Promise<string> { return this.runStep('solveCaptcha', async () => (await solvePageCaptcha(this.page, this._solver, this)) ? 'captcha solved' : 'captcha failed'); }
 
-  async checkEmail(email: string, sender: string): Promise<string> {
-    const key = await getEmailApiKey() ?? '';
-    if (!key) return 'error: no RESEND_RECEIVING_API_KEY';
-    const addr = this.resolveEnv(email).toLowerCase();
-    // Only accept codes from emails received AFTER this trajectory started,
-    // minus a small grace window for clock skew + in-flight emails. Stale
-    // codes from a previous login attempt were being returned, Instagram
-    // rejecting them as expired; this scopes to "this run's" inbox.
-    const earliestAcceptMs = Date.now() - 90_000;
-    for (let i = 0; i < 30; i++) {
-      const r = await fetch('https://api.resend.com/emails/receiving?limit=10', { headers: { Authorization: `Bearer ${key}` } });
-      for (const em of ((await r.json()) as any).data ?? []) {
-        const to = (em.to ?? []).map((t: any) => (typeof t === 'string' ? t : t.email ?? '').toLowerCase());
-        if (!to.includes(addr)) continue;
-        if (sender && !(em.from ?? '').toLowerCase().includes(sender)) continue;
-        const emAt = em.created_at ? new Date(em.created_at).getTime() : 0;
-        if (emAt < earliestAcceptMs) continue;
-        const d = await (await fetch(`https://api.resend.com/emails/receiving/${em.id}`, { headers: { Authorization: `Bearer ${key}` } })).json() as any;
-        const codes = `${d.subject ?? ''} ${d.text ?? ''} ${d.html ?? ''}`.match(/\b\d{5,6}\b/g);
-        if (codes) return codes[0];
-      }
-      await new Promise(r => setTimeout(r, 10000));
-    }
-    return 'no code received';
-  }
-
+  async checkEmail(email: string, sender: string): Promise<string> { const { wsCheckEmail } = await import('./wsession-helpers/finalize.js'); return wsCheckEmail(this, email, sender); }
   async checkSms(service: string, country = 'UK'): Promise<string> { this._smsOrder = await getNumber(service, country); if (!this._smsOrder) return 'error: no SMS number available'; this._env[`${service.toUpperCase()}_NEW_PHONE`] = this._smsOrder.phone; return `phone: ${this._smsOrder.phone}`; }
   async pollSmsCode(): Promise<string> { if (!this._smsOrder) return 'error: no SMS order'; return (await pollCode(this._smsOrder.orderId, this._smsOrder.provider)) ?? 'no code received'; }
+
   async generateIdentity(platform: string): Promise<Identity> {
     const id = await genId(platform);
     const k = platform.toUpperCase();
@@ -352,85 +240,8 @@ export class WSession {
   async needsLogin(): Promise<boolean> { return await checkPage(asV(this.page), 'Is this a login page?'); }
   async screenshot(label: string): Promise<string> { return await this._cap.screenshot(this.page, label); }
 
-  /** Save created account to Supabase social_accounts table. */
-  async saveAccount(platform: string, data: { username: string; email: string; password: string; name?: string; status?: string }): Promise<string> {
-    const url = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
-    const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SERVICE_KEY ?? '';
-    if (!url || !key) return 'error: no SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY';
-    const username = this.resolveEnv(data.username);
-    const email = this.resolveEnv(data.email);
-    const password = this.resolveEnv(data.password);
-    const name = data.name ? this.resolveEnv(data.name) : undefined;
-    // Capture full storage state (cookies + per-origin localStorage), not
-    // just cookies. Reddit / Twitter / Instagram store anti-bot tokens
-    // (loid, _id_secret, redditcmoreId, telemetry session ids, ...) in
-    // localStorage and re-send them as XHR headers (e.g. x-reddit-loid).
-    // A subsequent action that restores ONLY cookies arrives with a valid
-    // session cookie but missing localStorage tokens — that's a "session
-    // moved to a different device" signal Reddit shadowbans on within
-    // seconds. Verified 2026-04-29: cookie-only restore for fresh registered
-    // accounts → about.json 404 (shadowban) within 2 minutes of first action.
-    const storageState = await this.ctx.storageState().catch(() => ({ cookies: [] as any[], origins: [] as any[] }));
-    const cookies = (storageState as any).cookies ?? [];
-    const row = {
-      platform,
-      username,
-      display_name: name,
-      profile_url: profileUrl(platform, username, name),
-      metadata: { email, password, status: data.status ?? 'created', created_via: 'weles', cookies, storage_state: storageState, cookies_updated_at: new Date().toISOString(), cookies_minted_at: new Date().toISOString(), cookies_minted_proxy: this._proxySignature(), cookies_minted_persona: this._personaSignature(), proxy: this.proxyConfig ?? null, persona: this.personaConfig ?? null },
-      is_active: true,
-      created_by: 'weles',
-    };
-    const res = await fetch(`${url}/rest/v1/social_accounts`, {
-      method: 'POST',
-      headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', Prefer: 'return=representation' },
-      body: JSON.stringify(row),
-    });
-    if (!res.ok) return `error: ${res.status} ${await res.text().catch(() => '')}`;
-    try { const r = await res.json(); writeFileSync(join(recordingsDir(this.label || undefined), 'account.json'), JSON.stringify(Array.isArray(r)?r[0]:r, null, 2)); } catch {} await markSignupSuccess(email, platform).catch(() => {}); return `account saved: ${platform}/${username}`;
-  }
-
-  async close(): Promise<void> {
-    console.log(`[wsession] close() label=${this.label} proxy_bytes=${this._proxyBytes}`);
-    // Flush proxy egress cost. Provider derived from proxy host substring; if
-    // we can't classify (custom PROXY_URL, no proxy at all), record as
-    // 'proxy_other' so the bytes still appear in service_costs.
-    if (this._proxyBytes > 0) {
-      try {
-        const server = this.proxyConfig?.server;
-        if (server) {
-          const host = new URL(server).hostname.toLowerCase();
-          const isMobile = /mobile/.test(host) || this.proxyConfig?.platform?.toLowerCase().includes('mobile') === true;
-          const provider = host.includes('packetstream') ? 'packetstream'
-            : host.includes('oxylabs') ? 'oxylabs'
-            : host.includes('pingproxies') || host.includes('pingproxy') ? 'pingproxies'
-            : host.includes('iproyal') ? 'iproyal'
-            : host.includes('brd.superproxy') || host.includes('brightdata') ? 'brightdata'
-            : 'other';
-          costTracker.recordProxyBytes(provider, this._proxyBytes, isMobile);
-        } else {
-          // No proxyConfig but CDP tracked bytes — e.g. direct connection
-          // or API-only sessions. Record as 'proxy_other' so the bytes
-          // aren't silently dropped.
-          costTracker.recordProxyBytes('other', this._proxyBytes);
-        }
-      } catch (e: any) { console.log(`[wsession] proxy-bytes record err: ${e.message?.slice(0, 100)}`); }
-    }
-    try { await this._cdp?.detach?.(); } catch {}
-    await this._cap.save('session', this.page).catch(() => {}); try { writeFileSync(join(recordingsDir(this.label || undefined), 'network.ndjson'), this.capturedResponses.map(r => JSON.stringify(r)).join('\n')); } catch {}
-    if (process.env.WELES_INSTRUMENT === '1' && !this.page.isClosed?.()) { try { const j: string = await this.page.evaluate('(window.__inst_flush)?window.__inst_flush():"[]"'); const outDir = join(process.cwd(), '.work', 'inst'); mkdirSync(outDir, { recursive: true }); const fn = join(outDir, `${this.label || 'session'}_${new Date().toISOString().replace(/[:.]/g, '-')}.json`); writeFileSync(fn, j); console.log(`[wsession] dumped __inst ${j.length}ch -> ${fn}`); } catch (e: any) { console.log(`[wsession] __inst dump err: ${e.message?.slice(0,120)}`); } }
-    const video = this.page.video?.();
-    const dest = join(recordingsDir(this.label || undefined), `${this.label || 'session'}_${new Date().toISOString().replace(/[:.]/g, '-')}.webm`);
-    console.log(`[wsession] close() video=${!!video} dest=${dest}`);
-    await this.page.close().catch((e: any) => console.log(`[wsession] page.close error: ${e.message?.slice(0, 200)}`));
-    if (video) { await video.saveAs(dest).catch((e: any) => { console.log(`[wsession] video.saveAs error: ${e.message?.slice(0, 200)}`); try { const src = video.path?.() as string | undefined; if (src) { copyFileSync(src, dest); console.log(`[wsession] video copied from ${src}`); } } catch {} }); }
-    await this.ctx.close().catch((e: any) => console.log(`[wsession] ctx.close error: ${e.message?.slice(0, 200)}`));
-    // Flush per-trajectory cost.json for the worker. We do this here in
-    // addition to the beforeExit hook so trajectories that re-enter or run
-    // multiple sessions in one process can still book costs reliably.
-    await costTracker.flush().catch(() => {});
-    console.log(`[wsession] close() done`);
-  }
+  async saveAccount(platform: string, data: { username: string; email: string; password: string; name?: string; status?: string }): Promise<string> { const { wsSaveAccount } = await import('./wsession-helpers/finalize.js'); return wsSaveAccount(this, platform, data); }
+  async close(): Promise<void> { const { wsClose } = await import('./wsession-helpers/finalize.js'); return wsClose(this); }
 
   resolveEnv(v: string): string { return v.replace(/\$\{?([A-Z_][A-Z0-9_]*)\}?/g, (_, k) => this._env[k] ?? process.env[k] ?? v); }
 
