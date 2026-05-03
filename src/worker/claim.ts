@@ -46,7 +46,12 @@ export async function claimOne(): Promise<ActionLogRow | null> {
     if (!resolveTrajectory(row.action)) continue;
     if (!row.account_id || !row.id) continue; // poison rows: legacy promote-cron sometimes emits orphans
     if (inflightAccounts.has(row.account_id)) continue;
-    if (staleAccounts.has(row.account_id)) continue;
+    // staleAccounts blocks non-recovery actions; recovery actions (login,
+    // register, health, balance, topup) MUST run to refresh stale cookies
+    // — without this carve-out, _login rows for stale accounts get blocked
+    // by the same flag they exist to clear, and the account stays dead.
+    // (Same intent as the filter at stale.ts:31, applied per-row here.)
+    if (staleAccounts.has(row.account_id) && !recoveryRe.test(row.action)) continue;
 
     const claim = await fetch(
       `${SUPABASE_URL}/rest/v1/account_action_logs?id=eq.${row.id}&status=eq.queued`,
