@@ -61,14 +61,18 @@ function freshBrightdataUrl() {
   }
   return null;
 }
-if (!process.env.PROXY_URL_FORCE) {
-  const url = freshBrightdataUrl();
-  if (url) {
-    process.env.PROXY_URL = url;
-    process.env.PROXY_URL_FORCE = '1';
-    console.log(`[linkedin_login] forcing BrightData residential (initial sticky)`);
-  }
-}
+// 2026-05-03: removed unconditional fresh-sticky override. The previous
+// `freshBrightdataUrl() => PROXY_URL_FORCE=1` block ALWAYS picked a new
+// Oxylabs sticky session, bypassing metadata.proxy. That made every login
+// hit LinkedIn from a different exit IP than the registration session, which
+// LinkedIn's risk model treats as account-takeover-in-progress and pushes
+// to /checkpoint regardless of credentials.
+//
+// resolveAccountSession (src/account/session.ts) already prefers
+// metadata.proxy when it's not burned/legacy/capability-failed, falling
+// back to dynamic provider selection only if the stored proxy is dead.
+// Letting that happen naturally pins each login to the account's stable
+// exit-IP cohort. Operators can still force a sticky via env if needed.
 
 let { proxyUrl, persona } = await resolveAccountSession(acct);
 let s = await WSession.start({ label: 'linkedin_login', proxy: proxyUrl, persona });
