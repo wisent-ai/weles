@@ -154,6 +154,34 @@ export async function solveRecaptchaV2(page: Page): Promise<boolean> {
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     try { // Catch frame detach/navigation as success
     let bframe = findBframe(page);
+    // Anchor-state recovery: when LinkedIn rejects a verify because the
+    // reCAPTCHA token aged out (~120s lifetime), the anchor frame swaps to
+    // an error state with `.recaptcha-checkbox[aria-checked=false]` and the
+    // image bframe goes stale (DOM still queryable, but clicks/verify
+    // ignored, prompts and image bytes frozen). Verified 2026-05-03 from
+    // captcha_attempt5_page.png: "Verification challenge expired. Check
+    // the checkbox again." with red-border anchor checkbox.
+    //
+    // Detect via aria-checked alone (more reliable than scraping the error
+    // message text — the latter changes wording across reCAPTCHA versions).
+    // If unchecked at start of attempt N (where N>0), the previous Verify
+    // failed and we need to re-click the anchor to spawn a fresh bframe.
+    if (attempt > 0) {
+      const af = findAnchorFrame(page);
+      if (af) {
+        const checked = await af.evaluate(`(() => document.querySelector('.recaptcha-checkbox')?.getAttribute('aria-checked') === 'true')()`).catch((e: any) => { console.log(`[recaptcha] anchor read err: ${e.message?.slice(0,80)}`); return null; });
+        if (checked === false) {
+          console.log(`[recaptcha] Attempt ${attempt+1}: anchor unchecked (token expired or rejected) — re-clicking checkbox`);
+          try {
+            const ci2 = page.frameLocator('iframe[src*="captchaInternal"]');
+            await ci2.frameLocator('iframe[src*="anchor"]').first().locator('#recaptcha-anchor').click();
+            await page.waitForEvent('frameattached').catch(() => {});
+            await page.waitForTimeout(1500);
+            bframe = findBframe(page);
+          } catch (e: any) { console.log('[recaptcha] Re-click after expiry failed:', e.message?.slice(0, 80)); }
+        }
+      }
+    }
     if (!bframe) {
       // Page may have navigated to new checkpoint — wait for it to load
       console.log('[recaptcha] No bframe, waiting for page load...');
