@@ -239,16 +239,30 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
     // Intercept fetch to capture captcha data from API responses (Discord/hCaptcha Enterprise pattern)
     await context.addInitScript(`try{var _of=window.fetch;window.fetch=function(){var u=arguments[0],o=arguments[1]||{};if(typeof u==='string'&&u.includes('/auth/register')&&o.method==='POST'){try{window.__weles_form_data=JSON.parse(o.body)}catch(e){}try{var h=o.headers||{};window.__weles_extra_headers={};for(var k in h){if(k.startsWith('x-'))window.__weles_extra_headers[k]=h[k]}}catch(e){}}return _of.apply(this,arguments).then(function(r){if(typeof u==='string'&&u.includes('/auth/register')&&r.status>=400){r.clone().json().then(function(d){if(d.captcha_key!==undefined)window.__weles_captcha_response=d}).catch(function(){})}return r})}}catch(e){}`);
     const origClose = context.close.bind(context);
-    (context as any).close = async () => { await origClose(); await pwBrowser.close(); };
+    (context as any).close = async () => { await origClose(); await pwBrowser?.close(); };
     return context;
   }
 
   // Stock Playwright: use full fingerprint spoofing via JS init scripts
-  let pwBrowser: Browser;
+  let pwBrowser: Browser | null = null;
+  let extContext: any = null;
   if (isChromium) {
     launchOpts.args = args;
     launchOpts.ignoreDefaultArgs = ['--enable-automation', '--enable-unsafe-swiftshader'];
-    pwBrowser = await chromium.launch(launchOpts);
+    if (useNopecha) {
+      // Extensions only load via launchPersistentContext (verified live
+      // 2026-05-03: chromium.launch + --load-extension yields empty
+      // serviceWorkers; launchPersistentContext registers the extension's
+      // service_worker correctly). Build a tmp user-data dir, attach
+      // ctxOpts (proxy/recordVideo/viewport) up-front, return context
+      // directly — newContext() doesn't get called below for the nopecha
+      // branch.
+      const userData = mkdtempSync(join(tmpdir(), 'weles-pc-'));
+      extContext = await chromium.launchPersistentContext(userData, { ...launchOpts, ...ctxOpts });
+      console.log(`[async_api] launchPersistentContext userData=${userData}`);
+    } else {
+      pwBrowser = await chromium.launch(launchOpts);
+    }
   } else {
     // Firefox parity: pref-level fingerprint enforcement (iframe-safe).
     // general.*/dom.* honored by stock Firefox; weles.fingerprint.* only
@@ -267,7 +281,7 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
     pwBrowser = await firefox.launch(launchOpts);
   }
 
-  const context = await pwBrowser.newContext(ctxOpts);
+  const context = extContext ?? await pwBrowser!.newContext(ctxOpts);
   context.setDefaultNavigationTimeout(0);
 
   // Strip Accept-Language on same-origin TikTok sub-requests. Real Chrome 147
@@ -278,7 +292,7 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
   // EXCEPTION: passport/web/* (region, login, etc.) are cross-origin POSTs
   // requiring CORS preflight — without accept-language the OPTIONS response
   // mismatches the request headers and Chrome aborts with ERR_FAILED.
-  await context.route('**/*', async (route) => {
+  await context.route('**/*', async (route: any) => {
     const req = route.request();
     const url = req.url();
     if (/passport\/web\//.test(url)) {
@@ -301,7 +315,7 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
   await context.addInitScript(`try{var _of=window.fetch;window.fetch=function(){var u=arguments[0],o=arguments[1]||{};if(typeof u==='string'&&u.includes('/auth/register')&&o.method==='POST'){try{window.__weles_form_data=JSON.parse(o.body)}catch(e){}try{var h=o.headers||{};window.__weles_extra_headers={};for(var k in h){if(k.startsWith('x-'))window.__weles_extra_headers[k]=h[k]}}catch(e){}}return _of.apply(this,arguments).then(function(r){if(typeof u==='string'&&u.includes('/auth/register')&&r.status>=400){r.clone().json().then(function(d){if(d.captcha_key!==undefined)window.__weles_captcha_response=d}).catch(function(){})}return r})}}catch(e){}`);
 
   const origClose = context.close.bind(context);
-  (context as any).close = async () => { await origClose(); await pwBrowser.close(); };
+  (context as any).close = async () => { await origClose(); await pwBrowser?.close(); };
 
   return context;
 }
