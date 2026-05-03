@@ -125,7 +125,22 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
   if (persona?.language) args.push(`--lang=${persona.language}`);
   if (persona?.timezone) launchOpts.env = { ...process.env, TZ: persona.timezone };
 
-  const isCustomBinary = isChromium && chromiumPath && existsSync(chromiumPath) && process.env.WELES_USE_STOCK_CHROMIUM !== '1';
+  // NopeCha auto-solver: load extension if WELES_NOPECHA_EXT=1 is set + the
+  // unpacked extension dir is provided via WELES_NOPECHA_EXT_DIR. Extension
+  // contains captcha/perimeterx.js which solves LinkedIn /checkpoint puzzles
+  // via NopeCha's API (key embedded in extension manifest.nopecha.key).
+  // Only works with headless=false (xvfb-run on the worker VM provides
+  // virtual display). Mutually exclusive with the custom weles binary —
+  // extensions don't load reliably with the patched binary.
+  const nopechaDir = process.env.WELES_NOPECHA_EXT === '1' ? (process.env.WELES_NOPECHA_EXT_DIR ?? '') : '';
+  const useNopecha = nopechaDir && existsSync(nopechaDir) && headless === false;
+  if (useNopecha) {
+    args.push(`--disable-extensions-except=${nopechaDir}`);
+    args.push(`--load-extension=${nopechaDir}`);
+    console.log(`[async_api] loading NopeCha extension from ${nopechaDir}`);
+  }
+
+  const isCustomBinary = isChromium && chromiumPath && existsSync(chromiumPath) && process.env.WELES_USE_STOCK_CHROMIUM !== '1' && !useNopecha;
 
   if (isCustomBinary) {
     launchOpts.executablePath = chromiumPath;

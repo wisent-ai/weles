@@ -33,6 +33,11 @@ if (process.env.WELES_DISABLE_HTTP2 == null) process.env.WELES_DISABLE_HTTP2 = '
 // classifiers that rely on the custom canvas/UA/HEVC shims fire on the
 // login wall, so the trade-off is safe here.
 if (process.env.WELES_USE_STOCK_CHROMIUM == null) process.env.WELES_USE_STOCK_CHROMIUM = '1';
+// Load NopeCha auto-solver extension. captcha/perimeterx.js inside the
+// extension solves LinkedIn /checkpoint/challenge using our NOPECHA_API_KEY
+// subscription (embedded in manifest.nopecha.key after worker-side patch).
+if (process.env.WELES_NOPECHA_EXT == null) process.env.WELES_NOPECHA_EXT = '1';
+if (process.env.WELES_NOPECHA_EXT_DIR == null) process.env.WELES_NOPECHA_EXT_DIR = `${process.env.HOME ?? '/home/lukaszbartoszcze'}/weles/var/nopecha-ext`;
 // Force BrightData residential for linkedin_login. PacketStream's pool gets
 // PerimeterX-flagged on /checkpoint within seconds — 50+ recent attempts all
 // landed on /checkpoint/challenge with reason="linkedin issued captchaV2".
