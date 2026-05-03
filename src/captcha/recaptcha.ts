@@ -230,10 +230,21 @@ export async function solveRecaptchaV2(page: Page): Promise<boolean> {
       for (const pos of positions) {
         const row = Math.floor((pos - 1) / gridSize) + 1;
         const col = (pos - 1) % gridSize + 1;
-        const el = await bframe.$(`table tr:nth-child(${row}) td:nth-child(${col})`);
-        if (el) {
-          try { await el.click({ force: true }); console.log(`[recaptcha] Tile ${pos}`); }
-          catch { console.log(`[recaptcha] Tile ${pos} stalled — clicking verify`); clickFailed = true; break; }
+        // Use the frameLocator chain (bf, defined above) for tile clicks.
+        // bframe.$().click() goes through the older ElementHandle API which
+        // dispatches mouse events at the iframe's *outer* coordinates and
+        // may not be relayed correctly into the captchaInternal/bframe
+        // chain — verified 2026-05-03: 4 consecutive page screenshots were
+        // byte-identical (same md5) despite "Tile N" log lines, meaning
+        // the tiles never visually registered the click. The frameLocator
+        // chain dispatches via CDP frame-targeted commands and produces
+        // isTrusted events the reCAPTCHA frame accepts.
+        try {
+          await bf.locator(`table tr:nth-child(${row}) td:nth-child(${col})`).click({ force: true });
+          console.log(`[recaptcha] Tile ${pos}`);
+        } catch (e: any) {
+          console.log(`[recaptcha] Tile ${pos} stalled (${e.message?.slice(0,40)}) — clicking verify`);
+          clickFailed = true; break;
         }
         await page.waitForTimeout(300 + Math.floor(Math.random() * 300));
       }
