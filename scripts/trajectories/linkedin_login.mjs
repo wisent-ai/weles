@@ -120,11 +120,27 @@ function writeBan(signal, details) {
   } catch {}
 }
 
-// Solve PerimeterX checkpoint via CapSolver. Returns updated li_at presence.
+// Solve PerimeterX checkpoint. Strategy:
+//   1) If WELES_NOPECHA_EXT=1, wait for the NopeCha extension to solve
+//      in-page (URL navigates off /checkpoint OR li_at cookie appears).
+//      Poll up to 90s — captchaV2 puzzles take 30-60s to solve.
+//   2) Fall back to API solver (CapSolver/nocaptcha) if extension doesn't.
 async function solveCheckpoint(reason) {
   let cookies = await s.ctx.cookies();
   let liAt = cookies.find(c => c.name === 'li_at' && c.value);
   let finalUrl = s.page.url?.() ?? '';
+  if (process.env.WELES_NOPECHA_EXT === '1' && !liAt && /\/(checkpoint|uas\/login|login\/recovery)/.test(finalUrl)) {
+    console.log(`[linkedin_login] ${reason} waiting for NopeCha extension to solve checkpoint in-page (90s max)`);
+    for (let i = 0; i < 18; i++) {
+      await s.page.waitForTimeout(5000);
+      cookies = await s.ctx.cookies();
+      liAt = cookies.find(c => c.name === 'li_at' && c.value);
+      finalUrl = s.page.url?.() ?? '';
+      if (liAt) { console.log(`[linkedin_login] NopeCha solved! li_at present after ${(i+1)*5}s`); break; }
+      if (!/\/(checkpoint|uas\/login|login\/recovery)/.test(finalUrl)) { console.log(`[linkedin_login] NopeCha solved! URL left checkpoint after ${(i+1)*5}s -> ${finalUrl}`); break; }
+    }
+    if (liAt) return { liAt, finalUrl };
+  }
   for (let attempt = 0; attempt < 3 && !liAt && /\/(checkpoint|uas\/login|login\/recovery)/.test(finalUrl); attempt++) {
     console.log(`[linkedin_login] ${reason} solve attempt ${attempt + 1}/3 (capsolver/nocaptcha PerimeterX)`);
     const ua = await s.page.evaluate(() => navigator.userAgent).catch(() => '');
