@@ -8,12 +8,17 @@
 // no character pool), action trajectories abort at _shared/action-runner.mjs:80
 // with FAIL: no character linked.
 
-const TYPOLOGY = {
-  linkedin: { type: 'serious',   platforms: ['linkedin', 'producthunt'] },
-  producthunt: { type: 'serious', platforms: ['linkedin', 'producthunt'] },
-  instagram: { type: 'unserious', platforms: ['instagram', 'tiktok'] },
-  tiktok: { type: 'unserious',    platforms: ['instagram', 'tiktok'] },
-};
+// Typology spans every register-able social platform. Drives both the
+// generation prompt (serious vs unserious) and the platforms array
+// stamped on the new character row so one persona spans its full bucket.
+const SERIOUS_PLATFORM_SET = ['linkedin', 'producthunt', 'github'];
+const UNSERIOUS_CONSUMER = ['instagram', 'tiktok', 'snapchat'];
+const UNSERIOUS_SOCIAL = ['twitter', 'reddit', 'discord', 'youtube'];
+const UNSERIOUS_PLATFORM_SET = [...UNSERIOUS_CONSUMER, ...UNSERIOUS_SOCIAL];
+const TYPOLOGY = Object.fromEntries([
+  ...SERIOUS_PLATFORM_SET.map((p) => [p, { type: 'serious',   platforms: SERIOUS_PLATFORM_SET }]),
+  ...UNSERIOUS_PLATFORM_SET.map((p) => [p, { type: 'unserious', platforms: UNSERIOUS_PLATFORM_SET }]),
+]);
 
 const LLM_API_URL = process.env.LLM_API_URL || 'https://api.wisentmedia.com/api/llm/messages';
 
