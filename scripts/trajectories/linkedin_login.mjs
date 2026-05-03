@@ -7,6 +7,7 @@ import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { persistFreshCookieJar } from './_shared/cookie-freshness.mjs';
 import { solveLinkedinCheckpoint, injectV3LoginToken } from './_shared/linkedin/checkpoint.mjs';
+import { captureLinkedinPxStorage, restoreLinkedinPxStorage } from './_shared/linkedin/px_storage.mjs';
 
 const acct = await getSocialAccount('linkedin');
 if (!acct) { console.log('FAIL: no active linkedin account in DB'); process.exit(1); }
@@ -126,6 +127,12 @@ const CHECKPOINT_RE = /\/(checkpoint|uas\/login|login\/recovery)/;
 
 try {
   await gotoLogin();
+  // Restore PerimeterX localStorage from prior successful session (if any)
+  // BEFORE waiting for the page to hydrate. PX reads __pxvid and px_fp on
+  // bootstrap; once the bundle has run those reads, injecting later is a
+  // no-op. Page is already on linkedin.com origin after gotoLogin so
+  // localStorage writes hit the right origin.
+  await restoreLinkedinPxStorage(s, acct).catch(() => {});
   await s.page.waitForTimeout(2500);
   // Pre-form-render checkpoint: PerimeterX edge-redirects flagged proxy IPs
   // from /login → /checkpoint/challenge before SDUI form renders. Detect
@@ -138,6 +145,7 @@ try {
       const r = await solveLinkedinCheckpoint(s, 'pre-form');
       if (r.liAt) {
         await captureCookies();
+        await captureLinkedinPxStorage(s, acct).catch(() => {});
         writeBan('healthy', { final_url: r.finalUrl });
         console.log(`PASS: li_at cookie set via pre-form captcha solve — ${r.finalUrl}`);
         await s.close().catch(() => {});
@@ -210,6 +218,7 @@ try {
 
   if (liAt) {
     await captureCookies();
+    await captureLinkedinPxStorage(s, acct).catch(() => {});
     writeBan('healthy', { final_url: finalUrl });
     console.log(`PASS: li_at cookie set — ${finalUrl}`);
   } else if (onCheckpoint) {
