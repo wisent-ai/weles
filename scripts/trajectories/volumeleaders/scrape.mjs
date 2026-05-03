@@ -11,8 +11,8 @@ loadEnv();
 
 const args = {};
 for (let i = 2; i < process.argv.length; i += 2) args[process.argv[i].replace(/^--/, '')] = process.argv[i + 1];
-const ticker = (args.ticker || '').toUpperCase();
-const pageKey = args.page || 'trades';
+const ticker = (args.ticker || process.env.TICKER || '').toUpperCase();
+const pageKey = args.page || process.env.PAGE || 'trades';
 const screenshotPath = args.screenshot;
 if (!ticker) { console.error('FAIL: --ticker required'); process.exit(1); }
 
@@ -21,8 +21,8 @@ const password = process.env.VL_PASSWORD;
 if (!email || !password) { console.error('FAIL: VL creds not set'); process.exit(1); }
 
 const today = new Date().toISOString().slice(0, 10);
-const startDate = args['start-date'] || today;
-const endDate = args['end-date'] || today;
+const startDate = args['start-date'] || process.env.START_DATE || today;
+const endDate = args['end-date'] || process.env.END_DATE || today;
 const minRs = args['min-rs'] || '0';
 const maxRank = args['max-rank'] || '-1';
 const minDollars = args['min-dollars'] || '100000';

@@ -22,11 +22,11 @@ const args = {};
 for (let i = 2; i < process.argv.length; i += 2) {
   args[process.argv[i].replace(/^--/, '')] = process.argv[i + 1];
 }
-const ticker = (args.ticker || '').toUpperCase();
-const page = args.page || 'overview';
+const ticker = (args.ticker || process.env.TICKER || '').toUpperCase();
+const page = args.page || process.env.PAGE || 'overview';
 const screenshotPath = args.screenshot;
-const startDate = args['start-date'] || '';
-const endDate = args['end-date'] || '';
+const startDate = args['start-date'] || process.env.START_DATE || '';
+const endDate = args['end-date'] || process.env.END_DATE || '';
 const qs = (() => {
   const p = new URLSearchParams();
   if (startDate) p.set('start_date', startDate);
