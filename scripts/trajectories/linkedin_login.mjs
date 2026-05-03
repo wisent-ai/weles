@@ -39,16 +39,25 @@ if (process.env.WELES_USE_STOCK_CHROMIUM == null) process.env.WELES_USE_STOCK_CH
 // BrightData has a cleaner residential pool (twitter_login=pass on the same
 // session), so login should clear without triggering the captcha gate.
 // Operator override: PROXY_URL_FORCE already pre-set is honored as-is.
-// Helper: pick a fresh BrightData sticky session URL each call so retries
-// rotate exit IPs. Returns null if BRIGHTDATA env not set.
+// Helper: fresh proxy sticky URL per call. Prefer Oxylabs — verified
+// 2026-05-02 with curl that Oxylabs/PacketStream/direct return HTTP 200
+// on linkedin.com/login while BrightData returns HTTP 000 (LinkedIn edge-
+// blocks brightdata residential for this customer's IP range).
 function freshBrightdataUrl() {
-  if (!process.env.BRIGHTDATA_USERNAME || !process.env.BRIGHTDATA_PASSWORD) return null;
-  const u = process.env.BRIGHTDATA_USERNAME.startsWith('brd-customer-')
-    ? process.env.BRIGHTDATA_USERNAME
-    : `brd-customer-${process.env.BRIGHTDATA_USERNAME}-zone-${process.env.BRIGHTDATA_ZONE ?? 'residential_proxy1'}`;
-  const sess = Math.floor(Math.random() * 9000000 + 1000000);
-  const stickyUser = `${u}-country-us-session-${sess}`;
-  return `http://${encodeURIComponent(stickyUser)}:${encodeURIComponent(process.env.BRIGHTDATA_PASSWORD)}@brd.superproxy.io:22225`;
+  if (process.env.OXYLABS_USERNAME && process.env.OXYLABS_PASSWORD) {
+    const sess = Math.floor(Math.random() * 9000000 + 1000000);
+    const stickyUser = `customer-${process.env.OXYLABS_USERNAME}-cc-us-sessid-${sess}`;
+    return `http://${encodeURIComponent(stickyUser)}:${encodeURIComponent(process.env.OXYLABS_PASSWORD)}@pr.oxylabs.io:7777`;
+  }
+  if (process.env.BRIGHTDATA_USERNAME && process.env.BRIGHTDATA_PASSWORD) {
+    const u = process.env.BRIGHTDATA_USERNAME.startsWith('brd-customer-')
+      ? process.env.BRIGHTDATA_USERNAME
+      : `brd-customer-${process.env.BRIGHTDATA_USERNAME}-zone-${process.env.BRIGHTDATA_ZONE ?? 'residential_proxy1'}`;
+    const sess = Math.floor(Math.random() * 9000000 + 1000000);
+    const stickyUser = `${u}-country-us-session-${sess}`;
+    return `http://${encodeURIComponent(stickyUser)}:${encodeURIComponent(process.env.BRIGHTDATA_PASSWORD)}@brd.superproxy.io:22225`;
+  }
+  return null;
 }
 if (!process.env.PROXY_URL_FORCE) {
   const url = freshBrightdataUrl();
