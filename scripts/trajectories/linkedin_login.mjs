@@ -141,17 +141,48 @@ async function solveCheckpoint(reason) {
     }
     if (liAt) return { liAt, finalUrl };
   }
+  // reCAPTCHA Enterprise V2 (image grid) fallback — when LinkedIn fully
+  // challenges, it shows a visible image-grid puzzle ("select all crosswalks").
+  // Worker logs 2026-05-03 confirmed the grid is reCAPTCHA Enterprise V2,
+  // sitekey 6LcIy_MqAAAAAMKiupFSbmzW3xjGSlIfRzNWYMjC. CapSolver
+  // ReCaptchaV2EnterpriseTaskProxyLess returns a g-recaptcha-response token
+  // that LinkedIn validates server-side. Inject the token + invoke the
+  // verify callback so LinkedIn proceeds.
   for (let attempt = 0; attempt < 3 && !liAt && /\/(checkpoint|uas\/login|login\/recovery)/.test(finalUrl); attempt++) {
-    console.log(`[linkedin_login] ${reason} solve attempt ${attempt + 1}/3 (capsolver/nocaptcha PerimeterX)`);
-    const ua = await s.page.evaluate(() => navigator.userAgent).catch(() => '');
-    const px = await new CaptchaSolver().solvePerimeterX(finalUrl, ua, cookies.filter(c => /linkedin\.com$/.test(c.domain ?? '')).map(c => ({ name: c.name, value: c.value, domain: c.domain })), proxyUrl);
-    if (px && px.length) {
-      await s.ctx.addCookies(px.map(c => ({ ...c, domain: c.domain ?? '.linkedin.com', path: c.path ?? '/' }))).catch(e => console.log('[linkedin_login] addCookies err:', e.message));
-      await s.page.goto('https://www.linkedin.com/feed/', { waitUntil: 'domcontentloaded' }).catch(() => {});
-      await s.page.waitForTimeout(3000);
+    console.log(`[linkedin_login] ${reason} solve attempt ${attempt + 1}/3 (reCAPTCHA Enterprise V2 token)`);
+    const RECAPTCHA_SITEKEY = '6LcIy_MqAAAAAMKiupFSbmzW3xjGSlIfRzNWYMjC';
+    const token = await new CaptchaSolver().solveRecaptchaV2(s.page, RECAPTCHA_SITEKEY, { enterprise: true });
+    if (typeof token === 'string' && token.length > 50) {
+      console.log(`[linkedin_login] V2 enterprise token solved (${token.length}ch), injecting`);
+      await s.page.evaluate((t) => {
+        try {
+          // Write to ALL g-recaptcha-response textareas (visible + hidden).
+          document.querySelectorAll('textarea[name="g-recaptcha-response"], textarea[name^="g-recaptcha-response-"], textarea[id="g-recaptcha-response"], textarea[id^="g-recaptcha-response-"]').forEach(el => { el.value = t; });
+          // Override grecaptcha.getResponse so any verify-callback consumer reads our token.
+          if (window.grecaptcha) {
+            window.grecaptcha.getResponse = function() { return t; };
+            if (window.grecaptcha.enterprise) window.grecaptcha.enterprise.getResponse = function() { return t; };
+          }
+          // Invoke the captcha's verify-callback. Most reCAPTCHA integrations
+          // store the callback in a ___grecaptcha_cfg.clients[N].callback path;
+          // call it with our token so LinkedIn's onSuccess handler fires.
+          const cfg = window.___grecaptcha_cfg;
+          if (cfg && cfg.clients) {
+            for (const id of Object.keys(cfg.clients)) {
+              const client = cfg.clients[id];
+              const walk = (o) => { if (!o || typeof o !== 'object') return; for (const k of Object.keys(o)) { const v = o[k]; if (typeof v === 'function' && (k === 'callback' || k === 'fn')) { try { v(t); } catch {} } else walk(v); } };
+              walk(client);
+            }
+          }
+        } catch (e) { console.log('inject err:', e.message); }
+      }, token);
+      // Click any visible "Submit"/"Verify"/"Continue" button to commit
+      await s.page.locator('button:has-text(/submit|verify|continue|next/i)').filter({ visible: true }).first().click({ timeout: 3000 }).catch(() => {});
+      await s.page.waitForTimeout(5000);
       cookies = await s.ctx.cookies();
       liAt = cookies.find(c => c.name === 'li_at' && c.value);
       finalUrl = s.page.url?.() ?? '';
+      if (liAt || !/\/(checkpoint|uas\/login|login\/recovery)/.test(finalUrl)) break;
     }
   }
   return { liAt, finalUrl };
