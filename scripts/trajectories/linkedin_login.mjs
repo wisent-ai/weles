@@ -14,8 +14,29 @@ process.env.SVC_EMAIL = acct.metadata.email ?? acct.username;
 process.env.SVC_PASSWORD = acct.metadata.password ?? '';
 console.log(`[trajectory] Using account: ${acct.username}`);
 
-if (process.env.WELES_DISABLE_HTTP2 == null) process.env.WELES_DISABLE_HTTP2 = '1';
-if (process.env.WELES_USE_STOCK_CHROMIUM == null) process.env.WELES_USE_STOCK_CHROMIUM = '1';
+// 2026-05-03: removed WELES_DISABLE_HTTP2=1 and WELES_USE_STOCK_CHROMIUM=1
+// defaults. Diff harness against chrome reference proved PerimeterX never
+// bootstrapped on weles — every PX storage key, XHR endpoint, and event
+// listener was missing. Root cause: those two flags cripple the fingerprint.
+//
+// HTTP/2 disabled forces HTTP/1.1, which LinkedIn's edge sees instead of
+// the h2 fingerprint real Chrome 147 sends (response confirmed
+// x-li-proto: http/2 for the chrome reference's session).
+//
+// Stock Chromium skips the entire weles-patched binary path in async_api.ts
+// (line 143: isCustomBinary requires WELES_USE_STOCK_CHROMIUM !== '1'),
+// bypassing the canvas / UA / HEVC / ALPS / JA4 fingerprint patches that
+// take effect at the browser-binary level (BEFORE any JS init script can
+// run). LinkedIn's edge fingerprints us at first byte, decides we aren't
+// real Chrome, and serves a stripped /login HTML without the PX script
+// tag — leaving every captcha solve to be rejected at the trust layer
+// regardless of which tiles we click.
+//
+// The original justification ("custom weles binary intermittently returns
+// ERR_TUNNEL_CONNECTION_FAILED through PacketStream/BrightData") was a
+// proxy-layer bug. We now use Oxylabs primarily; if tunnel issues recur,
+// fix the proxy layer or rotate provider — do not strip the fingerprint
+// patches as a workaround.
 if (process.env.WELES_NOPECHA_EXT == null) process.env.WELES_NOPECHA_EXT = '1';
 if (process.env.WELES_NOPECHA_EXT_DIR == null) process.env.WELES_NOPECHA_EXT_DIR = `${process.env.HOME ?? '/home/lukaszbartoszcze'}/weles/var/nopecha-ext`;
 
