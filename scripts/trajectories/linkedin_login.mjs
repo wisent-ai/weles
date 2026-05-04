@@ -6,7 +6,7 @@ import { humanIdlePause } from '../../dist/human/mouse.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { persistFreshCookieJar } from './_shared/cookie-freshness.mjs';
-import { solveLinkedinCheckpoint, injectV3LoginToken } from './_shared/linkedin/checkpoint.mjs';
+import { solveLinkedinCheckpoint, injectV3LoginToken, confirmLinkedinEmail } from './_shared/linkedin/checkpoint.mjs';
 import { captureLinkedinPxStorage, restoreLinkedinPxStorage } from './_shared/linkedin/px_storage.mjs';
 
 const acct = await getSocialAccount('linkedin');
@@ -223,6 +223,12 @@ try {
   if (liAt) {
     await captureCookies();
     await captureLinkedinPxStorage(s, acct).catch(() => {});
+    // Best-effort retroactive email confirmation. Accounts registered before
+    // confirmLinkedinEmail was wired into linkedin_register.mjs (a51f39e)
+    // still carry the unconfirmed-email yellow banner that suppresses feed
+    // posts and triggers captcha_challenge on first write actions. The
+    // helper is a no-op when no recent confirm-email is in the inbox.
+    await confirmLinkedinEmail(s.page, acct.metadata?.email ?? acct.username).catch(() => {});
     writeBan('healthy', { final_url: finalUrl });
     console.log(`PASS: li_at cookie set — ${finalUrl}`);
   } else if (onCheckpoint) {
