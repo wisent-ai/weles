@@ -146,6 +146,41 @@ export async function solveLinkedinCheckpoint({ ctx, page }, reason, email) {
   return { liAt, finalUrl };
 }
 
+// Confirm the new account's email by hitting the signed-link URL LinkedIn
+// emailed at register-time. The yellow banner persists on /feed and
+// limits the account's surface until this is consumed. Subject pattern:
+// "<First>, your pin is <6digits>. Please confirm your email address."
+// Body contains a https://www.linkedin.com/comm/psettings/email/confirm?...
+// link signed with id+ct+sig+crua. Hitting it on an authed session removes
+// the banner.
+const CONFIRM_GOTO_MS = 30 * 1000;
+export async function confirmLinkedinEmail(page, email) {
+  const RESEND_KEY = process.env.RESEND_RECEIVING_API_KEY;
+  if (!RESEND_KEY) { console.log('[linkedin_register] no RESEND_RECEIVING_API_KEY — skipping email confirmation'); return { ok: false, reason: 'no_resend_key' }; }
+  const start = Date.now() - 10 * 60 * 1000;
+  let confirmUrl = null;
+  for (let i = 0; i < 18; i++) {
+    const list = await fetch(`https://api.resend.com/emails/receiving?limit=20`, { headers: { Authorization: `Bearer ${RESEND_KEY}` } }).then((r) => r.json()).catch(() => null);
+    const matches = (list?.data ?? []).filter((m) => m.to?.[0] === email && /confirm your email/i.test(m.subject || '') && new Date(m.created_at).getTime() >= start);
+    matches.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    if (matches[0]) {
+      const full = await fetch(`https://api.resend.com/emails/receiving/${matches[0].id}`, { headers: { Authorization: `Bearer ${RESEND_KEY}` } }).then((r) => r.json()).catch(() => null);
+      const body = full?.text || full?.html || '';
+      const m = body.match(/https:\/\/www\.linkedin\.com\/comm\/psettings\/email\/confirm\?[^\s<>"]+/);
+      if (m) { confirmUrl = m[0]; break; }
+    }
+    await page.waitForTimeout(5000);
+  }
+  if (!confirmUrl) { console.log('[linkedin_register] no email-confirmation link in inbox'); return { ok: false, reason: 'confirm_email_not_received' }; }
+  console.log(`[linkedin_register] navigating to email-confirmation URL`);
+  try { await page.goto(confirmUrl, { waitUntil: 'domcontentloaded', timeout: CONFIRM_GOTO_MS }); }
+  catch (e) { return { ok: false, reason: `goto_err:${e.message?.slice(0, 80)}` }; }
+  await page.waitForTimeout(2500);
+  const finalUrl = page.url?.() ?? '';
+  console.log(`[linkedin_register] post-confirm URL: ${finalUrl}`);
+  return { ok: true, finalUrl };
+}
+
 // Solve invisible reCAPTCHA Enterprise V3 against the login form's sitekey
 // and inject the token. LinkedIn's login fires invisible reCAPTCHA on submit;
 // tokens from a flagged session score below 0.9 and trigger /checkpoint.
