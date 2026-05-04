@@ -159,6 +159,22 @@ async function backfillProxy(acct: SocialAccount, cfg: ProxyConfig): Promise<voi
   const url = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
   if (!url || !key) return;
+  // True backfill: never overwrite a registration-time proxy with a different
+  // host. Only update when the existing row is absent OR the host matches
+  // (sticky-session-id refresh on the same provider host). This preserves the
+  // IP binding established at saveAccount/registration time across rotations
+  // through dynamic selectByCapability fallthroughs and legacy-filter drops.
+  // Without this guard, every login attempt that fell through clobbered the
+  // registration value, destroying the cookies<->exit-IP binding that
+  // LinkedIn (and every PerimeterX-protected platform) reads on session
+  // resume — see metadata.proxy on sagekoepp7919 going from PacketStream
+  // 209.38.175.14 → Oxylabs 195.86.126.156 within one session.
+  const existingHost = (acct.metadata as any)?.proxy?.host;
+  const existingPort = (acct.metadata as any)?.proxy?.port;
+  if (existingHost && (existingHost !== cfg.host || existingPort !== cfg.port)) {
+    console.log(`[identity] backfillProxy: preserving registration-time proxy ${existingHost}:${existingPort} (refusing overwrite to ${cfg.host}:${cfg.port})`);
+    return;
+  }
   const merged = { ...((acct.metadata ?? {}) as any), proxy: cfg };
   try {
     await fetch(`${url}/rest/v1/social_accounts?id=eq.${acct.id}`, {

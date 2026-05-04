@@ -111,12 +111,7 @@ export async function resolveProxy(proxy: string, targetHost?: string): Promise<
 
   if (proxy.startsWith('http://') || proxy.startsWith('https://') || proxy.startsWith('socks')) {
     const u = new URL(proxy);
-    // Toxicity policy enforcement on the URL-form path: a caller setting
-    // PROXY_URL=http://...@proxy.packetstream.io:... for a reddit target
-    // would otherwise bypass the per-account block table in credentials.ts.
-    // Derive the provider from the hostname and reject if it's blocked for
-    // the trajectory's target platform. (User explicitly demonstrated this
-    // bypass earlier this session — closing it here.)
+    // Toxicity policy on URL-form path: reject providers blocked for target.
     const { providerFromHost, isProviderBlockedForPlatform } = await import('./policy.js');
     const platformForBlock = platformFromTarget(targetHost);
     const provFromUrl = providerFromHost(u.hostname, decodeURIComponent(u.username));
@@ -236,21 +231,21 @@ export async function resolveProxy(proxy: string, targetHost?: string): Promise<
         try {
           const auth = Buffer.from(`${stickyUser}:${stickyPass}`).toString('base64');
           const net = await import('node:net');
-          const ok = await new Promise<boolean>((resolve) => {
-            const sock = net.connect({ host, port: Number(p.proxy_port) }, () => {
-              sock.write(`CONNECT ${probeHost}:443 HTTP/1.1\r\nHost: ${probeHost}:443\r\nProxy-Authorization: Basic ${auth}\r\n\r\n`);
-            });
-            const timer = setTimeout(() => { sock.destroy(); resolve(false); }, 4000);
-            sock.once('data', (d) => { clearTimeout(timer); sock.destroy(); resolve(/^HTTP\/1\.[01] 200/.test(d.toString())); });
-            sock.once('error', () => { clearTimeout(timer); resolve(false); });
+          const status = await new Promise<number>((resolve) => {
+            const sock = net.connect({ host, port: Number(p.proxy_port) }, () => sock.write(`CONNECT ${probeHost}:443 HTTP/1.1\r\nHost: ${probeHost}:443\r\nProxy-Authorization: Basic ${auth}\r\n\r\n`));
+            const timer = setTimeout(() => { sock.destroy(); resolve(-1); }, 4000);
+            sock.once('data', (d) => { clearTimeout(timer); sock.destroy(); const m = /^HTTP\/1\.[01] (\d{3})/.exec(d.toString()); resolve(m ? Number(m[1]) : 0); });
+            sock.once('error', () => { clearTimeout(timer); resolve(-1); });
           });
-          if (!ok) { console.log(`[proxy] Pre-flight failed for ${p.display_name} sticky=${sessId} target=${probeHost} — retrying`); preflightContinue = true; }
+          const ok = status === 200;
+          if (!ok) {
+            console.log(`[proxy] Pre-flight failed ${p.display_name} sticky=${sessId} status=${status}`);
+            preflightContinue = true;
+            // 407 = account unfunded/suspended. Same credential, all sticks fail. Enqueue topup now.
+            if (status === 407) { const { enqueueProviderTopup } = await import('./policy.js'); await enqueueProviderTopup(p.display_name).catch(() => {}); break; }
+          }
           else {
-            // Always sample the exit IP — it's the actual residential IP the
-            // platform sees. We need it to (a) burn the right thing on
-            // ip_blocked, (b) avoid handing out an exit already burned for
-            // this platform, (c) reject IPXO marketplace ranges that
-            // PerimeterX/Arkose flag as datacenter-equivalent.
+            // Sample exit IP for burn tracking + IPXO range filter.
             try {
               const { execSync } = await import('node:child_process');
               const proxyAuth = `http://${encodeURIComponent(stickyUser)}:${encodeURIComponent(stickyPass)}@${host}:${p.proxy_port}`;
@@ -262,15 +257,17 @@ export async function resolveProxy(proxy: string, targetHost?: string): Promise<
               console.log(`[proxy] Exit ${exitIp} already burned for ${platform} — rerolling sticky`);
               preflightContinue = true;
             }
-            // Country-verify exit. Geo mismatch (e.g. cc=us but BR exit)
-            // routes TikTok to ttp2 cluster -> 1340. Hard-fail and reroll.
-            if (!preflightContinue && exitIp && cc) {
-              const { verifyExitCountry } = await import('./policy.js');
-              const geo = await verifyExitCountry(exitIp, cc);
-              console.log(`[proxy] geo-check exit=${exitIp} expected=${cc} -> ${geo.result}${geo.exitCc ? ` (${geo.exitCc})` : ''}`);
-              if (geo.result === 'mismatch') {
-                console.log(`[proxy] Geo mismatch: exit ${exitIp} is ${geo.exitCc?.toUpperCase()}, requested ${cc.toUpperCase()} — rerolling sticky`);
-                preflightContinue = true;
+            // Country + LinkedIn-probe verify. probeLinkedinLogin sends the
+            // same Chrome headers Chromium will send — predicts pass/fail.
+            if (!preflightContinue && exitIp) {
+              const { verifyExitCountry, probeLinkedinLogin } = await import('./policy.js');
+              const geo = cc ? await verifyExitCountry(exitIp, cc) : { result: 'unknown' as const };
+              if (geo.result === 'mismatch') preflightContinue = true;
+              if (!preflightContinue && platform === 'linkedin') {
+                const url = `http://${encodeURIComponent(stickyUser)}:${encodeURIComponent(stickyPass)}@${host}:${p.proxy_port}`;
+                const probe = await probeLinkedinLogin(url);
+                console.log(`[proxy] linkedin-probe exit=${exitIp} -> ${probe.result}${probe.bytes ? ` (${probe.bytes}B)` : ''}`);
+                if (probe.result !== 'form') preflightContinue = true;
               }
             }
             // TikTok-specific: require US-TTP standard cluster. Reject

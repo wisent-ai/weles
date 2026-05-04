@@ -8,6 +8,7 @@ import { join } from 'node:path';
 import { persistFreshCookieJar } from './_shared/cookie-freshness.mjs';
 import { solveLinkedinCheckpoint, injectV3LoginToken, confirmLinkedinEmail } from './_shared/linkedin/checkpoint.mjs';
 import { captureLinkedinPxStorage, restoreLinkedinPxStorage } from './_shared/linkedin/px_storage.mjs';
+import { pageHasLoginForm, freshProviderUrl, PROVIDER_ROTATION } from './_shared/linkedin/proxy_rotation.mjs';
 
 const acct = await getSocialAccount('linkedin');
 if (!acct) { console.log('FAIL: no active linkedin account in DB'); process.exit(1); }
@@ -84,25 +85,32 @@ let s = await WSession.start({ label: 'linkedin_login', proxy: proxyUrl, persona
 // launchPersistentContext — goto was hung).
 const GOTO_MS = 30 * 1000;
 async function gotoLogin() {
-  for (let attempt = 0; attempt < 5; attempt++) {
+  for (let attempt = 0; attempt < PROVIDER_ROTATION.length; attempt++) {
     try {
       await s.page.goto('https://www.linkedin.com/login', { waitUntil: 'domcontentloaded', timeout: GOTO_MS });
       const url = s.page.url?.() ?? '';
-      if (!url.startsWith('chrome-error://')) return;
-      console.log(`[linkedin_login] goto attempt ${attempt + 1}: chrome-error, retrying with fresh proxy`);
+      if (url.startsWith('chrome-error://')) {
+        console.log(`[linkedin_login] goto attempt ${attempt + 1}: chrome-error`);
+      } else if (await pageHasLoginForm(s.page)) {
+        console.log(`[linkedin_login] goto attempt ${attempt + 1}: full login form rendered`);
+        return;
+      } else {
+        console.log(`[linkedin_login] goto attempt ${attempt + 1}: stripped /login shell — flagged exit IP`);
+      }
     } catch (e) {
       const msg = e.message ?? '';
-      const retriable = /ERR_TUNNEL_CONNECTION_FAILED|ERR_PROXY_CONNECTION_FAILED|ERR_HTTP_RESPONSE_CODE_FAILURE|ERR_BLOCKED_BY_RESPONSE|chrome-error|Timeout/.test(msg);
-      if (!retriable || attempt >= 4) throw e;
-      console.log(`[linkedin_login] goto attempt ${attempt + 1}: ${msg.slice(0, 80)}, retrying with fresh proxy`);
+      const retriable = /ERR_TUNNEL_CONNECTION_FAILED|ERR_PROXY_CONNECTION_FAILED|ERR_PROXY_AUTH_UNSUPPORTED|ERR_HTTP_RESPONSE_CODE_FAILURE|ERR_BLOCKED_BY_RESPONSE|chrome-error|Timeout/.test(msg);
+      if (!retriable || attempt >= PROVIDER_ROTATION.length - 1) throw e;
+      console.log(`[linkedin_login] goto attempt ${attempt + 1}: ${msg.slice(0, 80)}`);
     }
     await s.close().catch(() => {});
-    const next = freshBrightdataUrl();
-    if (next) { process.env.PROXY_URL = next; process.env.PROXY_URL_FORCE = '1'; }
+    const provider = PROVIDER_ROTATION[(attempt + 1) % PROVIDER_ROTATION.length];
+    const next = (await freshProviderUrl(provider)) ?? freshBrightdataUrl();
+    if (next) { process.env.PROXY_URL = next; process.env.PROXY_URL_FORCE = '1'; console.log(`[linkedin_login] rotating to provider=${provider}`); }
     ({ proxyUrl, persona } = await resolveAccountSession(acct));
     s = await WSession.start({ label: 'linkedin_login', proxy: proxyUrl, persona });
   }
-  await s.page.goto('https://www.linkedin.com/login', { waitUntil: 'domcontentloaded', timeout: GOTO_MS });
+  throw new Error('all_providers_stripped: every residential exit served the degraded /login shell');
 }
 
 async function captureCookies() {
