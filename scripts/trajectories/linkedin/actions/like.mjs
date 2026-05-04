@@ -6,6 +6,7 @@ import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { checkReachable } from '../../_shared/action-runner.mjs';
 import { assertAuthed, AuthProbeError } from '../../_shared/auth-probe.mjs';
+import { reloginLinkedinInline } from '../../_shared/linkedin/relogin.mjs';
 
 const TARGET_URL = process.env.TARGET_URL || '';
 
@@ -23,11 +24,27 @@ try {
   // cookies redirects through auth wall and stalls). Use page.goto with an
   // explicit 45s timeout; LinkedIn doesn't use Cloudflare so the
   // waitCloudflare DOM probe is unnecessary on this surface.
-  await s.page.goto(TARGET_URL || 'https://www.linkedin.com/feed/', { waitUntil: 'domcontentloaded', timeout: 45000 });
-  checkReachable(s, 'linkedin');
-  await s.page.waitForTimeout(3500);
-  try { await assertAuthed('linkedin', s, { label: 'linkedin_like' }); }
-  catch (probeErr) { if (probeErr instanceof AuthProbeError) { console.log(`FAIL: ${probeErr.message}`); await markCookiesStale(acct.id); process.exit(1); } throw probeErr; }
+  // Auth gate: navigate + checkReachable + assertAuthed. Any of these can
+  // throw auth_wall (cookies stale because the residential sticky changed
+  // exit IP since they were minted). On auth_wall, do an inline relogin on
+  // the SAME WSession so the new li_at is bound to the current sticky's
+  // exit IP; retry the whole gate once.
+  let authed = false;
+  for (let attempt = 0; attempt < 2 && !authed; attempt++) {
+    try {
+      await s.page.goto(TARGET_URL || 'https://www.linkedin.com/feed/', { waitUntil: 'domcontentloaded', timeout: 45000 });
+      checkReachable(s, 'linkedin');
+      await s.page.waitForTimeout(3500);
+      await assertAuthed('linkedin', s, { label: 'linkedin_like' });
+      authed = true;
+    } catch (gateErr) {
+      const isAuthWall = gateErr instanceof AuthProbeError || /auth_wall/.test(gateErr.message ?? '');
+      if (!isAuthWall || attempt > 0) throw gateErr;
+      console.log(`[linkedin_like] auth_wall on attempt ${attempt + 1} — running inline relogin on same session`);
+      const r = await reloginLinkedinInline(s, acct);
+      if (!r.ok) { console.log(`FAIL: inline relogin failed: ${r.reason}`); await markCookiesStale(acct.id); process.exit(1); }
+    }
+  }
   // LinkedIn's like button is a <button aria-label="React Like"> that flips
   // aria-pressed false→true on click. Scope to the first feed post container
   // so we don't accidentally tap a comment-level like.
