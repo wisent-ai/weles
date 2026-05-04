@@ -39,10 +39,27 @@ export async function reloginLinkedinInline(s, acct) {
     return { ok: false, reason: `goto_err:${e.message?.slice(0, 80)}` };
   }
   await s.page.waitForTimeout(1500);
+  let landedUrl = s.page.url?.() ?? '';
+  console.log(`[linkedin_relogin] post-goto URL: ${landedUrl}`);
   // Pre-form checkpoint check (rare but possible on flagged sessions)
-  if (CHECKPOINT_RE.test(s.page.url() ?? '')) {
+  if (CHECKPOINT_RE.test(landedUrl)) {
     const r = await solveLinkedinCheckpoint(s, 'relogin-pre-form', email);
     if (r.liAt) return { ok: true, liAt: r.liAt, finalUrl: r.finalUrl };
+    landedUrl = s.page.url?.() ?? landedUrl;
+    console.log(`[linkedin_relogin] post-checkpoint URL: ${landedUrl}`);
+  }
+  // If page never reached /login (e.g. redirected to /feed, /home, /onboarding,
+  // or somewhere else), force-navigate via document.location since clearCookies
+  // alone may not have cleared localStorage-bound auth state.
+  if (!/\/(login|signin|uas\/login)\b/.test(landedUrl) && !CHECKPOINT_RE.test(landedUrl)) {
+    console.log(`[linkedin_relogin] not on /login — clearing storage and force-navigating`);
+    try {
+      await s.page.evaluate(`(()=>{try{localStorage.clear();sessionStorage.clear();}catch(e){}})()`);
+      await s.page.goto('https://www.linkedin.com/login', { waitUntil: 'domcontentloaded', timeout: GOTO_MS });
+      await s.page.waitForTimeout(1500);
+      landedUrl = s.page.url?.() ?? '';
+      console.log(`[linkedin_relogin] post-force-goto URL: ${landedUrl}`);
+    } catch (e) { return { ok: false, reason: `force_goto_err:${e.message?.slice(0, 80)}` }; }
   }
   // Fill the form. Same selectors as linkedin_login.mjs.
   const usernameSel = 'input#username, input[name="session_key"], input[type="email"][autocomplete*="username"], input[type="email"]';
