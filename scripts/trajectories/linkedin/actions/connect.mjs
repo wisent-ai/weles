@@ -6,6 +6,7 @@ import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { checkReachable } from '../../_shared/action-runner.mjs';
 import { assertAuthed, AuthProbeError } from '../../_shared/auth-probe.mjs';
+import { reloginLinkedinInline } from '../../_shared/linkedin/relogin.mjs';
 
 const acct = await getSocialAccount('linkedin');
 if (!acct) { console.log('FAIL: no active linkedin account'); process.exit(1); }
@@ -17,11 +18,22 @@ let ban = null;
 try {
   // Use page.goto with 45s timeout — WSession's defaultNavigationTimeout(0)
   // makes s.goto hang forever on auth-walled redirect chains.
-  await s.page.goto('https://www.linkedin.com/mynetwork/grow/', { waitUntil: 'domcontentloaded', timeout: 45000 });
-  checkReachable(s, 'linkedin');
-  await s.page.waitForTimeout(3500);
-  try { await assertAuthed('linkedin', s, { label: 'linkedin_connect' }); }
-  catch (probeErr) { if (probeErr instanceof AuthProbeError) { console.log(`FAIL: ${probeErr.message}`); await markCookiesStale(acct.id); process.exit(1); } throw probeErr; }
+  let authed = false;
+  for (let attempt = 0; attempt < 2 && !authed; attempt++) {
+    try {
+      await s.page.goto('https://www.linkedin.com/mynetwork/grow/', { waitUntil: 'domcontentloaded', timeout: 45000 });
+      checkReachable(s, 'linkedin');
+      await s.page.waitForTimeout(3500);
+      await assertAuthed('linkedin', s, { label: 'linkedin_connect' });
+      authed = true;
+    } catch (gateErr) {
+      const isAuthWall = gateErr instanceof AuthProbeError || /auth_wall/.test(gateErr.message ?? '');
+      if (!isAuthWall || attempt > 0) throw gateErr;
+      console.log(`[linkedin_connect] auth_wall on attempt ${attempt + 1} — running inline relogin on same session`);
+      const r = await reloginLinkedinInline(s, acct);
+      if (!r.ok) { console.log(`FAIL: inline relogin failed: ${r.reason}`); await markCookiesStale(acct.id); process.exit(1); }
+    }
+  }
   // PYMK card "Connect" buttons live as <button aria-label="Invite NAME to connect">.
   // Filter to invite (not Follow). Take the first non-disabled one in
   // viewport. After click, LinkedIn often shows a "Send without a note"
