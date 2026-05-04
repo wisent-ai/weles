@@ -33,7 +33,13 @@ const base = 'https://www.volumeleaders.com';
 // with the Tickers field substituted for the requested symbol. Date range
 // defaults to today but can be overridden via --start-date/--end-date.
 const PAGE_URLS = {
-  trades: (t) => `${base}/Trades?Tickers=${t}&StartDate=${startDate}&EndDate=${endDate}&MinVolume=0&MaxVolume=2000000000&Conditions=-1&VCD=0&RelativeSize=${minRs}&DarkPools=-1&Sweeps=-1&LatePrints=-1&SignaturePrints=-1&EvenShared=-1&SecurityTypeKey=-1&MinPrice=0&MaxPrice=100000&MinDollars=${minDollars}&MaxDollars=${maxDollars}&TradeRank=-1&TradeRankSnapshot=-1&MarketCap=0&IncludePremarket=1&IncludeRTH=1&IncludeAH=1&IncludeOpening=1&IncludeClosing=1&IncludePhantom=1&IncludeOffsetting=1&SectorIndustry=&PresetSearchTemplateID=87&ViewMode=Automatic`,
+  // Trades grid: minimal-params URL. The earlier template carried
+  // PresetSearchTemplateID=87 (a saved-search preset) and TradeRank=-1 /
+  // TradeRankSnapshot=-1 which together filter the grid to 0 rows even
+  // though VL's database shows 1196 lifetime trades on RCAT. Drop the
+  // preset and rank overrides; keep the date range, dollar bounds, and
+  // session-time inclusion flags.
+  trades: (t) => `${base}/Trades?Tickers=${t}&StartDate=${startDate}&EndDate=${endDate}&MinVolume=0&MaxVolume=2000000000&MinPrice=0&MaxPrice=100000&MinDollars=${minDollars}&MaxDollars=${maxDollars}&IncludePremarket=1&IncludeRTH=1&IncludeAH=1&IncludeOpening=1&IncludeClosing=1&IncludePhantom=1&IncludeOffsetting=1&ViewMode=Automatic`,
   clusters: (t) => `${base}/TradeClusters?Tickers=${t}&StartDate=${startDate}&EndDate=${endDate}&MinVolume=0&MaxVolume=2000000000&VCD=0&SecurityTypeKey=-1&RelativeSize=${minRs}&MinPrice=0&MaxPrice=100000&MinDollars=${minDollars}&MaxDollars=${maxDollars}&TradeClusterRank=${maxRank}&SectorIndustry=&PresetSearchTemplateID=87&ViewMode=Automatic`,
   cluster_bombs: (t) => `${base}/TradeClusterBombs?Tickers=${t}&StartDate=${startDate}&EndDate=${endDate}&MinVolume=0&MaxVolume=2000000000&VCD=0&RelativeSize=${minRs}&MinDollars=0&MaxDollars=30000000000&TradeClusterBombRank=-1&SectorIndustry=&ViewMode=Automatic`,
   levels: (t) => `${base}/TradeLevels?Ticker=${t}&MinVolume=0&MaxVolume=2000000000&VCD=0&RelativeSize=${minRs}&MinPrice=0&MaxPrice=100000&MinDollars=${minDollars}&MaxDollars=${maxDollars}&StartDate=${startDate}&EndDate=${endDate}&TradeLevelRank=-1&TradeLevelCount=50&ViewMode=Automatic`,
