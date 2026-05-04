@@ -6,6 +6,7 @@ import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { checkReachable } from '../../_shared/action-runner.mjs';
 import { assertAuthed, AuthProbeError } from '../../_shared/auth-probe.mjs';
+import { reloginLinkedinInline } from '../../_shared/linkedin/relogin.mjs';
 
 const acct = await getSocialAccount('linkedin');
 if (!acct) { console.log('FAIL: no active linkedin account'); process.exit(1); }
@@ -22,11 +23,22 @@ s.page.setDefaultNavigationTimeout(45_000);
 let ban = null;
 try {
   // page.goto with 45s timeout — see like.mjs note on s.goto hang.
-  await s.page.goto('https://www.linkedin.com/mynetwork/invite-connect/connections/', { waitUntil: 'domcontentloaded', timeout: 45000 });
-  checkReachable(s, 'linkedin');
-  await s.page.waitForTimeout(3000);
-  try { await assertAuthed('linkedin', s, { label: 'linkedin_endorse' }); }
-  catch (probeErr) { if (probeErr instanceof AuthProbeError) { console.log(`FAIL: ${probeErr.message}`); await markCookiesStale(acct.id); process.exit(1); } throw probeErr; }
+  let authed = false;
+  for (let attempt = 0; attempt < 2 && !authed; attempt++) {
+    try {
+      await s.page.goto('https://www.linkedin.com/mynetwork/invite-connect/connections/', { waitUntil: 'domcontentloaded', timeout: 45000 });
+      checkReachable(s, 'linkedin');
+      await s.page.waitForTimeout(3000);
+      await assertAuthed('linkedin', s, { label: 'linkedin_endorse' });
+      authed = true;
+    } catch (gateErr) {
+      const isAuthWall = gateErr instanceof AuthProbeError || /auth_wall/.test(gateErr.message ?? '');
+      if (!isAuthWall || attempt > 0) throw gateErr;
+      console.log(`[linkedin_endorse] auth_wall on attempt ${attempt + 1} — running inline relogin on same session`);
+      const r = await reloginLinkedinInline(s, acct);
+      if (!r.ok) { console.log(`FAIL: inline relogin failed: ${r.reason}`); await markCookiesStale(acct.id); process.exit(1); }
+    }
+  }
   // First connection card has an anchor pointing to /in/<vanity>/. Pick it.
   const profileLink = s.page.locator('a[href*="/in/"][data-test-app-aware-link]').filter({ visible: true }).first();
   await profileLink.waitFor({ state: 'visible' });
