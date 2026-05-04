@@ -3,6 +3,7 @@ import { WSession } from '../../../dist/session/wsession.js';
 import { humanType } from '../../../dist/human/keyboard.js';
 import { humanClickLocator } from '../../../dist/human/mouse.js';
 import { assertAuthed, AuthProbeError } from '../_shared/auth-probe.mjs';
+import { reloginLinkedinInline } from '../_shared/linkedin/relogin.mjs';
 import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../_shared/cookie-freshness.mjs';
 
 // RECIPIENT_HANDLE accepts vanity ("williamhgates") or full /in/ URL. We
@@ -32,15 +33,27 @@ try {
   }
   await s.ctx.addCookies(stored.map(c => ({ ...c, path: c.path || '/' })));
 
-  await s.page.goto('https://www.linkedin.com/feed/', { waitUntil: 'domcontentloaded' });
-  await s.page.waitForTimeout(4500);
-  if (/\/(login|checkpoint|uas)/.test(s.page.url())) {
-    console.log(`FAIL: cookies stale, redirected to ${s.page.url()}`);
-    await markCookiesStale(acct.id);
-    process.exit(1);
+  let authed = false;
+  for (let attempt = 0; attempt < 2 && !authed; attempt++) {
+    await s.page.goto('https://www.linkedin.com/feed/', { waitUntil: 'domcontentloaded' });
+    await s.page.waitForTimeout(4500);
+    const url = s.page.url();
+    if (/\/(login|checkpoint|uas)/.test(url)) {
+      if (attempt > 0) { console.log(`FAIL: cookies stale after relogin, redirected to ${url}`); await markCookiesStale(acct.id); process.exit(1); }
+      console.log(`[linkedin_dm] auth_wall on attempt 1 (URL=${url}) — running inline relogin on same session`);
+      const r = await reloginLinkedinInline(s, acct);
+      if (!r.ok) { console.log(`FAIL: inline relogin failed: ${r.reason}`); await markCookiesStale(acct.id); process.exit(1); }
+      continue;
+    }
+    try { await assertAuthed('linkedin', s, { label: 'linkedin_dm' }); authed = true; }
+    catch (probeErr) {
+      if (!(probeErr instanceof AuthProbeError)) throw probeErr;
+      if (attempt > 0) { console.log(`FAIL: ${probeErr.message}`); await markCookiesStale(acct.id); process.exit(1); }
+      console.log(`[linkedin_dm] auth probe failed on attempt 1 — running inline relogin`);
+      const r = await reloginLinkedinInline(s, acct);
+      if (!r.ok) { console.log(`FAIL: inline relogin failed: ${r.reason}`); await markCookiesStale(acct.id); process.exit(1); }
+    }
   }
-  try { await assertAuthed('linkedin', s, { label: 'linkedin_dm' }); }
-  catch (probeErr) { if (probeErr instanceof AuthProbeError) { console.log(`FAIL: ${probeErr.message}`); await markCookiesStale(acct.id); process.exit(1); } throw probeErr; }
 
   await s.page.goto(profileUrl, { waitUntil: 'domcontentloaded' });
   await s.page.waitForTimeout(4500);
