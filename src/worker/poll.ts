@@ -40,7 +40,12 @@ async function runTrajectory(row: ActionLogRow, path: string, extraEnv: Record<s
   // Health/probe trajectories cap lower (90s); register/login get 600s; rest
   // get 360s. Override per-row via WORKER_HARD_TIMEOUT_MS env.
   const overrideMs = Number(process.env.WORKER_HARD_TIMEOUT_MS ?? 0);
-  const defaultMs = row.action.endsWith('_health') || row.action.endsWith('_balance') || row.action.endsWith('_topup') ? 90_000
+  // _topup needs Google SSO + dashboard navigation + form fill + payment
+  // submit; the 90s _balance budget SIGKILL'd brightdata_topup mid-flow on
+  // 2026-05-04 (cited account_action_logs row 45bbb63f). Bump _topup to
+  // 360s, in line with the other interactive trajectories.
+  const defaultMs = row.action.endsWith('_health') || row.action.endsWith('_balance') ? 90_000
+    : row.action.endsWith('_topup') ? 360_000
     : row.action.endsWith('_register') || row.action.endsWith('_login') ? 600_000
     : 360_000;
   const hardTimeoutMs = overrideMs > 0 ? overrideMs : defaultMs;
