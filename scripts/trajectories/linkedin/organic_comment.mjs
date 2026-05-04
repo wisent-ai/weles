@@ -1,9 +1,11 @@
 import { runAction } from '../_shared/action-runner.mjs';
 import { linkedinSubmitComment } from '../_shared/linkedin-submit.mjs';
+import { reloginLinkedinInline } from '../_shared/linkedin/relogin.mjs';
 import { detectLinkedInBanSignals } from '../../../dist/platforms/linkedin/ban_signals.js';
 
 await runAction({
   platform: 'linkedin', action: 'organic_comment',
+  inlineRelogin: reloginLinkedinInline,
   feedUrl: 'https://www.linkedin.com/feed/',
   surfaceLabel: 'linkedin feed',
   pickPost: async (s) => {

@@ -16,8 +16,6 @@
  */
 import { getSocialAccount, resolveAccountSession, markCookiesStale } from '../../../dist/utils/credentials.js';
 import { WSession } from '../../../dist/session/wsession.js';
-import { generateOrganicComment, generatePromoteComment, generatePost } from './llm.mjs';
-import { assertAuthed, AuthProbeError } from './auth-probe.mjs';
 import { loadFreshCookieJarOrFail, CookieJarStaleError } from './cookie-freshness.mjs';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -54,15 +52,6 @@ async function fetchSupabase(path) {
   const r = await fetch(`${url}/rest/v1/${path}`, { headers: { apikey: key, Authorization: `Bearer ${key}` } });
   if (!r.ok) return null;
   return r.json();
-}
-
-async function genComment({ character, product, variant, surfaceLabel, postTitle, postBody }) {
-  const persona = { name: character.name, bio: character.bio, personality: character.personality, niche: character.niche };
-  const post = { surface: surfaceLabel, title: postTitle, body: postBody };
-  if (product) {
-    return generatePromoteComment({ persona, post, product: { name: product.name, description: product.description, variant } });
-  }
-  return generateOrganicComment({ persona, post });
 }
 
 export async function runAction(cfg) {
@@ -157,144 +146,21 @@ export async function runAction(cfg) {
   else if (SEARCH_QUERY && cfg.resolveSearchUrl) { feed = cfg.resolveSearchUrl(SEARCH_QUERY); targetedMode = true; }
   else feed = typeof cfg.feedUrl === 'function' ? cfg.feedUrl(acct.username) : cfg.feedUrl;
   try {
-    await s.goto(feed);
-    // Proxy CONNECT failure: chromium serves chrome-error://chromewebdata/
-    // ("This site can't be reached / ERR_TUNNEL_CONNECTION_FAILED"). Without
-    // this branch the trajectory continues, the ban detector sees no ban
-    // pattern in the chrome-error body and reports signal=healthy, hiding
-    // proxy infra failures behind 'completed:healthy'. Emit a clean
-    // proxy_failed signal instead so rerun_failed.mjs can retry these.
-    try {
-      const finalUrl = s.page.url?.() ?? '';
-      if (finalUrl.startsWith('chrome-error://')) {
-        banSignal = { signal: 'proxy_failed', healthy: false, details: { final_url: finalUrl, reason: 'chrome-error: proxy CONNECT failed (likely tunnel/sticky-session issue)' } };
-        throw new Error(`proxy_failed: ${cfg.platform} navigation never left chrome-error — proxy CONNECT failed for ${feed}`);
-      }
-      const onAuthWall = /\/(login|signin|sessions\/new|uas\/login|checkpoint)\b/.test(finalUrl) || /\/login\?/.test(finalUrl);
-      if (onAuthWall && cfg.action !== 'browse') {
-        banSignal = { signal: 'checkpoint', healthy: false, details: { final_url: finalUrl, reason: 'redirected to platform login wall — stored cookies stale or session never authenticated' } };
-        throw new Error(`auth_wall: ${cfg.platform} session not authenticated — landed at ${finalUrl}`);
-      }
-    } catch (authErr) { if (banSignal && (banSignal.signal === 'checkpoint' || banSignal.signal === 'proxy_failed')) throw authErr; /* otherwise continue */ }
+    // Auth gate (navigate + chrome-error + auth_wall + SPA settle + assertAuthed)
+    // lives in _shared/linkedin/auth-gate.mjs. Supports cfg.inlineRelogin so a
+    // platform-specific helper can mint fresh cookies on the SAME WSession
+    // when the first attempt hits auth_wall (verified live: linkedin engagement
+    // running on stale-cookie account → relogin via emailPinChallenge → retry → PASS).
+    const { runAuthGate } = await import('./linkedin/auth-gate.mjs');
+    const gateRes = await runAuthGate({ s, cfg, acct, feed, label });
+    if (!gateRes.ok) { banSignal = gateRes.banSignal; throw gateRes.error; }
 
-    // SPA-loaded surfaces (Twitter timeline, Instagram feed, LinkedIn feed,
-    // Reddit comments) populate via XHR after the initial HTML loads. Without
-    // this wait, the agent loop runs immediately, sees an empty layout, and
-    // give_up()s — visible as exit-1 with only the goto screenshot in
-    // recordings (no agent-step screenshots). 3s gives the timeline + reply
-    // composer time to render before the agent's first action.
-    if (cfg.action !== 'browse') await s.page.waitForTimeout(3000).catch(() => {});
-    // Re-check the URL after the SPA settle. LinkedIn's /feed/ returns 200 OK
-    // on stale cookies, then JS-redirects to /uas/login during the wait — the
-    // post-goto check at line 130 misses this. Without the re-check, the agent
-    // loop runs against the login page, fails to find Comment buttons,
-    // give_ups, and the linkedin ban detector returns 'healthy' (PerimeterX
-    // isn't in the default captcha frame regex), masking the cookies-stale
-    // failure mode behind 'completed:healthy'.
-    if (cfg.action !== 'browse') {
-      const settledUrl = s.page.url?.() ?? '';
-      const onAuthWallAfter = /\/(login|signin|sessions\/new|uas\/login|checkpoint|accounts\/login)\b/.test(settledUrl) || /\/login\?/.test(settledUrl);
-      if (onAuthWallAfter) {
-        banSignal = { signal: 'checkpoint', healthy: false, details: { final_url: settledUrl, reason: 'SPA-redirected to login wall during settle — stored cookies stale' } };
-        throw new Error(`auth_wall: ${cfg.platform} session redirected to login during SPA settle — landed at ${settledUrl}`);
-      }
-      // Positive auth probe — REQUIRED before any write action. URL-bounce
-      // checks above only catch cookies that triggered a /login redirect;
-      // they MISS the device-mismatch case where TikTok / Twitter / etc.
-      // serve a logged-out shell on the same URL with all authed UI
-      // suppressed (no comment input, no compose button). Without this
-      // probe, the action loop runs on a logged-out page, fails to find
-      // its target locator, and gets misdiagnosed as render-shadow or
-      // anti-spam gating instead of "stored cookies are dead".
-      // See _shared/auth-probe.mjs for the per-platform markers + rules.
-      try {
-        await assertAuthed(cfg.platform, s, { label, timeout: 8000 });
-      } catch (probeErr) {
-        if (probeErr instanceof AuthProbeError) {
-          banSignal = probeErr.banSignal;
-          throw new Error(`auth_probe_failed: ${probeErr.message}`);
-        }
-        throw probeErr;
-      }
-    }
-
-    if (cfg.action === 'browse') {
-      for (let i = 0; i < (cfg.scrolls ?? 6); i++) {
-        await s.page.evaluate(() => window.scrollBy(0, window.innerHeight * (0.6 + Math.random() * 0.6)));
-        await s.page.waitForTimeout(900 + Math.floor(Math.random() * 1400));
-      }
-      resultValue = `scrolled ${cfg.scrolls ?? 6}x`;
-    } else if (cfg.action === 'post' || cfg.action === 'post_promote') {
-      // Original post: generate short content, drive the compose UI via agent.
-      // Product-mention version goes through generatePost with product set so
-      // the LLM weaves it in naturally instead of opening with brand.
-      let text = preapprovedText;
-      if (!text) {
-        if (!character) throw new Error('no character — cannot LLM-generate post without persona');
-        const personaCtx = { name: character.name, bio: character.bio, personality: character.personality, niche: character.niche };
-        text = await generatePost({ persona: personaCtx, surface: cfg.platform, product: product ?? undefined });
-        console.log(`[post-text] ${text.slice(0, 140)}...`);
-      }
-      if (cfg.action === 'post_promote' && REQUIRE_APPROVAL && !preapprovedText) {
-        const dir = join(process.cwd(), 'recordings', label);
-        mkdirSync(dir, { recursive: true });
-        writeFileSync(join(dir, 'pending_review.json'), JSON.stringify({
-          account_id: acct.id, username: acct.username, action: label,
-          surface_label: typeof cfg.surfaceLabel === 'function' ? cfg.surfaceLabel(acct, feed) : cfg.surfaceLabel,
-          product: product ? { name: product.name } : null,
-          variant: (process.env.VARIANT || character?.promotion_config?.variant || 'mention').toLowerCase(),
-          post_text: text, ts: new Date().toISOString(),
-        }, null, 2));
-        console.log('PASS: pending_review (approval required, not posted)');
-        resultValue = 'pending_review';
-      } else {
-        if (typeof cfg.submitPost !== 'function') throw new Error(`cfg.submitPost not provided for ${cfg.platform} ${cfg.action}`);
-        await cfg.submitPost(s, text);
-        resultValue = 'posted';
-      }
-    } else {
-      const surfaceLabel = typeof cfg.surfaceLabel === 'function' ? cfg.surfaceLabel(acct, feed) : (cfg.surfaceLabel ?? feed);
-      const picked = await (cfg.pickPost?.(s).catch(e => { console.log(`[${label}] pickPost failed: ${e.message?.slice(0, 80)}`); return { postTitle: '', postBody: '' }; }) ?? Promise.resolve({ postTitle: '', postBody: '' }));
-      // pickPost returns empty when the captured-response body is truncated
-      // (8KB cap on Twitter/Reddit JSON), the regex misses, or the SPA hasn't
-      // loaded posts yet. The /api/llm/generate endpoint requires a non-empty
-      // post.title for comment/promote tasks (returns 400). Substitute a
-      // surface-aware placeholder so genComment doesn't 400 — the LLM still
-      // produces a generic on-topic comment from persona + surface alone.
-      const postTitle = picked.postTitle || `post on ${typeof surfaceLabel === 'function' ? surfaceLabel(acct, feed) : (surfaceLabel || cfg.platform)}`;
-      const postBody = picked.postBody || '';
-      let text = preapprovedText;
-      if (!text) {
-        text = await genComment({
-          character, product,
-          variant: (process.env.VARIANT || character?.promotion_config?.variant || 'mention').toLowerCase(),
-          surfaceLabel, postTitle, postBody,
-        });
-        console.log(`[comment-text] ${text.slice(0, 140)}...`);
-      } else {
-        console.log(`[preapproved] using operator-reviewed text (${text.length} chars)`);
-      }
-      if (cfg.action === 'promote' && REQUIRE_APPROVAL && !preapprovedText) {
-        const dir = join(process.cwd(), 'recordings', label);
-        mkdirSync(dir, { recursive: true });
-        writeFileSync(join(dir, 'pending_review.json'), JSON.stringify({
-          account_id: acct.id, username: acct.username, action: label,
-          post_url: targetedMode ? feed : null, surface_label: surfaceLabel,
-          post_title: postTitle, post_body: (postBody || '').slice(0, 600),
-          character: character ? { name: character.name, niche: character.niche } : null,
-          product: product ? { name: product.name } : null,
-          variant: (process.env.VARIANT || character?.promotion_config?.variant || 'mention').toLowerCase(),
-          comment_text: text, ts: new Date().toISOString(),
-        }, null, 2));
-        console.log('PASS: pending_review (approval required, not submitted)');
-        resultValue = 'pending_review';
-      } else {
-        const submitter = targetedMode && typeof cfg.submitTargetedComment === 'function' ? cfg.submitTargetedComment : cfg.submitComment;
-        if (typeof submitter !== 'function') throw new Error(`cfg.submitComment not provided for ${cfg.platform} ${cfg.action}`);
-        await submitter(s, text);
-        resultValue = 'commented';
-      }
-    }
+    // Per-action handlers extracted to _shared/runner/handlers.mjs.
+    const { handleBrowse, handlePost, handleComment } = await import('./runner/handlers.mjs');
+    const ctx = { acct, character, product, preapprovedText, label, feed, targetedMode };
+    if (cfg.action === 'browse') resultValue = await handleBrowse(s, cfg);
+    else if (cfg.action === 'post' || cfg.action === 'post_promote') resultValue = await handlePost(s, cfg, ctx);
+    else resultValue = await handleComment(s, cfg, ctx);
     // Race fix: write-API responses are captured asynchronously; verifyWriteAction
     // can run before the response lands in s.capturedResponses if banDetector is
     // called immediately. Poll until write_verify confirms or 6s elapses.
