@@ -20,14 +20,14 @@ async function authPass({ s, cfg, feed, label }) {
       error: new Error(`proxy_failed: ${cfg.platform} navigation never left chrome-error — proxy CONNECT failed for ${feed}`),
     };
   }
-  if (AUTH_WALL_RE.test(finalUrl) && cfg.action !== 'browse') {
+  if (AUTH_WALL_RE.test(finalUrl) && true) {
     return {
       ok: false,
       banSignal: { signal: 'checkpoint', healthy: false, details: { final_url: finalUrl, reason: 'redirected to platform login wall — stored cookies stale or session never authenticated' } },
       error: new Error(`auth_wall: ${cfg.platform} session not authenticated — landed at ${finalUrl}`),
     };
   }
-  if (cfg.action !== 'browse') {
+  if (true) {
     await s.page.waitForTimeout(SPA_SETTLE_MS).catch(() => {});
     const settledUrl = s.page.url?.() ?? '';
     if (AUTH_WALL_RE.test(settledUrl)) {

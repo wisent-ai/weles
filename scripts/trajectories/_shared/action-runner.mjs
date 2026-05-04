@@ -65,7 +65,7 @@ export async function runAction(cfg) {
     character = rows?.[0]?.characters ?? null;
     // Accept a character-less post when SVC_TEXT is operator-supplied —
     // lets the UI path be verified without a character+product in prod DB.
-    if (!character && !(preapprovedTextProbe && (cfg.action === 'post' || cfg.action === 'post_promote'))) {
+    if (!character && !preapprovedTextProbe) {
       console.log('FAIL: no character linked'); process.exit(1);
     }
   }
@@ -92,10 +92,10 @@ export async function runAction(cfg) {
   // Cookie freshness gate — bound the device-mismatch / token-staleness
   // failure mode that produced TikTok's silent logged-out shell. If the
   // jar is stale (no cookies_minted_at, or older than the freshness
-  // window), skip injection, mark cookies stale, and exit. Next routine
-  // tick will enqueue a fresh form login. Browse trajectories are
-  // exempted because they don't need an authed session.
-  if (cfg.action !== 'browse') {
+  // window), skip injection, mark cookies stale, and exit. browse counts
+  // as auth-required too (warming an unauthed session is pointless — the
+  // engagement signal LinkedIn ingests is per-account).
+  {
     try {
       const freshAll = loadFreshCookieJarOrFail(acct, { platform: cfg.platform, label, currentProxyUrl: proxyUrl, currentPersona: persona });
       const cookies = freshAll.filter(c => wantedDomain && (c.domain ?? '').includes(wantedDomain));
@@ -108,25 +108,29 @@ export async function runAction(cfg) {
       }
     } catch (jarErr) {
       if (jarErr instanceof CookieJarStaleError) {
-        banSignal = { signal: 'checkpoint', healthy: false, details: { reason: jarErr.message.slice(0, 200), ...(jarErr.details ?? {}) } };
-        if (acct.id) await markCookiesStale(acct.id).catch(() => {});
-        try {
-          const dir = join(process.cwd(), 'recordings', label);
-          mkdirSync(dir, { recursive: true });
-          writeFileSync(join(dir, 'ban_signal.json'), JSON.stringify({ account_id: acct.id, username: acct.username, action: label, ...banSignal, ts: new Date().toISOString() }, null, 2));
-        } catch {}
-        await s.close().catch(() => {});
-        console.log(`FAIL: ${jarErr.message}`);
-        process.exit(1);
-      }
-      throw jarErr;
-    }
-  } else {
-    // browse — non-authed; inject if available but don't gate
-    const cookies = (acct.metadata?.cookies ?? []).filter(c => wantedDomain && (c.domain ?? '').includes(wantedDomain));
-    if (cookies.length) {
-      await s.ctx.addCookies(cookies).catch(e => console.log(`[${label}] cookie add err: ${e.message?.slice(0, 80)}`));
-      console.log(`[${label}] injected ${cookies.length} ${wantedDomain} cookies (browse — freshness not enforced)`);
+        // Stale jar — try inline relogin on the SAME WSession (mints fresh
+        // cookies bound to the current proxy sticky). If unavailable or it
+        // fails, fall back to the original exit path so the routine layer
+        // can re-queue.
+        if (typeof cfg.inlineRelogin === 'function') {
+          console.log(`[${label}] ${jarErr.message?.slice(0, 80)} — attempting inline relogin`);
+          const r = await cfg.inlineRelogin(s, acct).catch((e) => ({ ok: false, reason: e.message?.slice(0, 80) }));
+          if (r?.ok) { console.log(`[${label}] inline relogin minted fresh cookies — continuing`); }
+          else {
+            banSignal = { signal: 'checkpoint', healthy: false, details: { reason: `${jarErr.message.slice(0, 120)} (inline relogin failed: ${r?.reason ?? 'unknown'})`, ...(jarErr.details ?? {}) } };
+            if (acct.id) await markCookiesStale(acct.id).catch(() => {});
+            await s.close().catch(() => {});
+            console.log(`FAIL: ${jarErr.message}`);
+            process.exit(1);
+          }
+        } else {
+          banSignal = { signal: 'checkpoint', healthy: false, details: { reason: jarErr.message.slice(0, 200), ...(jarErr.details ?? {}) } };
+          if (acct.id) await markCookiesStale(acct.id).catch(() => {});
+          await s.close().catch(() => {});
+          console.log(`FAIL: ${jarErr.message}`);
+          process.exit(1);
+        }
+      } else { throw jarErr; }
     }
   }
   let resultValue = null;
