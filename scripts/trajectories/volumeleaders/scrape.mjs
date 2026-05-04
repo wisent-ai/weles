@@ -97,7 +97,24 @@ try {
     console.error('FAIL: page never rendered');
     process.exit(1);
   }
-  await s.wait(5);
+  // Initial paint isn't enough for VL — the trades / clusters grids hydrate
+  // via AJAX after the page loads. Poll up to 60s for any tbody tr with 6+
+  // real cells and no "Loading" text. Fall through if pattern doesn't apply
+  // so non-grid pages don't fail.
+  for (let i = 0; i < 60; i += 1) {
+    const ok = await s.page.evaluate(`(() => {
+      const rows = document.querySelectorAll('tbody tr');
+      for (const r of rows) {
+        const txt = r.innerText || '';
+        if (/loading/i.test(txt)) continue;
+        const cells = r.querySelectorAll('td');
+        if (cells.length >= 6 && txt.replace(/\\s+/g, '').length > 20) return true;
+      }
+      return false;
+    })()`).catch(() => false);
+    if (ok) { console.error(`[vl] grid hydrated after ${i + 1}s`); break; }
+    await s.wait(1);
+  }
 
   if (screenshotPath) {
     await s.page.screenshot({ path: screenshotPath, fullPage: true }).catch(() => {});
