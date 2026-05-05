@@ -44,13 +44,20 @@ try {
   if (await cardOption.isVisible().catch(() => false)) { await cardOption.click(); console.log('[trajectory] selected Credit/debit card method'); await s.page.waitForTimeout(1500); }
   else { console.log('[trajectory] Credit/debit card option not found — proceeding with current selection'); }
 
+  // Fill the Stripe Elements card form with TOPUP_CARD_* env values
+  // (issued by the orchestrator from a Privacy.com / Stripe-Issuing card
+  // vault). Without these env vars the trajectory cannot fill the form
+  // and exits early with a clear blocker reason.
+  const { fillStripeElements } = await import('../_shared/services/topup_common.mjs');
+  const fill = await fillStripeElements(s.page);
+  console.log(`[trajectory] stripe elements fill: ${JSON.stringify(fill)}`);
+  if (!fill.ok) { console.log(`FAIL: stripe elements not fully filled — reason=${fill.reason ?? 'partial'}`); process.exit(1); }
+
   // The actual charge button on iproyal is labelled "Deposit", not "Pay".
   const depositBtn = s.page.locator('button:has-text("Deposit"), button:has-text("Complete deposit")').filter({ visible: true }).first();
   if (!(await depositBtn.isVisible().catch(() => false))) { console.log('FAIL: Deposit button not visible'); process.exit(1); }
 
-  // Watch for Stripe payment_intents POST to confirm the charge actually
-  // fires (the previous PASS-CHARGED was a false positive — clicked Pay
-  // text on the PayPal radio, no Stripe charge POST).
+  // Watch for Stripe payment_intents POST to confirm the charge actually fires.
   let stripeChargeFired = false;
   s.ctx.on('request', (req) => { if (/api\.stripe\.com\/v1\/(payment_intents|setup_intents).*confirm/.test(req.url())) stripeChargeFired = true; });
 
