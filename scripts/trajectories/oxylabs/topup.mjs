@@ -84,18 +84,35 @@ try {
   await continueBtn.click();
   await s.page.waitForTimeout(8000);
 
-  // Now on the Cleverbridge checkout page. Click the second Continue button
-  // to submit payment. Credit Card is pre-selected by default.
+  // Now on the Cleverbridge -> Stripe checkout page. Click the second
+  // Continue / payment-method continue to advance to card entry.
   const checkoutContinue = s.page.locator('button:has-text("Continue"), input[type="submit"][value*="Continue" i]').filter({ visible: true }).last();
   if (await checkoutContinue.isVisible().catch(() => false)) {
     console.log('[trajectory] clicking Cleverbridge checkout Continue');
     await checkoutContinue.click();
-    for (let i = 0; i < 30 && !stripeChargeFired; i++) await s.page.waitForTimeout(1000);
+    await s.page.waitForTimeout(6000);
   }
+
+  // Stripe checkout may surface the Stripe Link 2FA prompt (cited 2026-05-04
+  // from oxylabs_v2 frame: "Confirm it's you" with SMS OTP to ***36). Click
+  // "Pay without Link" to fall through to direct card entry.
+  const payWithoutLink = s.page.locator('button:has-text("Pay without Link"), a:has-text("Pay without Link")').filter({ visible: true }).first();
+  if (await payWithoutLink.isVisible().catch(() => false)) { await payWithoutLink.click({ force: true }).catch(() => {}); console.log('[trajectory] clicked "Pay without Link" to bypass Stripe Link 2FA'); await s.page.waitForTimeout(3000); }
+
+  // Fill Stripe Elements card form from TOPUP_CARD_* env vars.
+  const { fillStripeElements } = await import('../_shared/services/topup_common.mjs');
+  const fill = await fillStripeElements(s.page);
+  console.log(`[trajectory] stripe elements fill: ${JSON.stringify(fill)}`);
+  if (!fill.ok) { console.log(`FAIL: stripe elements not fully filled — reason=${fill.reason ?? 'partial'}`); process.exit(1); }
+
+  // Stripe-hosted checkout: the final Pay button text varies (Subscribe / Pay).
+  const finalBtn = s.page.locator('button:has-text("Subscribe"), button:has-text("Pay"), button[type="submit"]').filter({ visible: true }).last();
+  if (await finalBtn.isVisible().catch(() => false)) { await finalBtn.click({ force: true }).catch(() => {}); console.log('[trajectory] clicked final Stripe-checkout submit'); }
+  for (let i = 0; i < 30 && !stripeChargeFired; i++) await s.page.waitForTimeout(1000);
 
   const url = s.page.url();
   if (stripeChargeFired) console.log(`PASS-CHARGED: Stripe payment_intents/confirm POST fired, url=${url.slice(0, 100)}`);
-  else console.log(`FAIL: checkout reached but no Stripe charge POST observed in 30s, url=${url.slice(0, 100)}`);
+  else console.log(`FAIL: no Stripe charge POST observed in 30s, url=${url.slice(0, 100)}`);
 } catch (e) {
   console.log('FAIL:', e.message?.slice(0, 200));
   process.exit(1);
