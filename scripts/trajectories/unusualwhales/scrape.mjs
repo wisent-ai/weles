@@ -123,6 +123,45 @@ async function doLogin(sess) {
   process.exit(1);
 }
 
+// Parse one row of the rendered UW darkpool table into a uw_darkpool_history record.
+// Headers/order probed 2026-05-06 from a persisted ORCL snapshot — column lookup
+// by header name handles the "" + "Powered by unusualwhales.com" trailing
+// columns and any future column shuffling.
+function parseUwDarkpoolPrint(headers, rowCells, scrapedAtIso) {
+  if (!Array.isArray(rowCells) || rowCells.length < 5) return null;
+  const idx = (n) => headers.indexOf(n);
+  const get = (n) => { const i = idx(n); return i >= 0 ? rowCells[i] : null; };
+  const timeStr = get('Time - PDT / UTC+4'); const tk = get('Ticker'); const priceStr = get('Price'); const sizeStr = get('Size'); const premiumStr = get('Premium');
+  if (!timeStr || !tk || !priceStr || !sizeStr || !premiumStr) return null;
+  const m = String(timeStr).match(/(\d{1,2})\/(\d{1,2})\s+(\d{1,2}):(\d{2}):(\d{2})/);
+  if (!m) return null;
+  const yr = new Date(scrapedAtIso).getUTCFullYear();
+  let cand = new Date(Date.UTC(yr, +m[1] - 1, +m[2], +m[3] + 4, +m[4], +m[5]));
+  if (cand > new Date(scrapedAtIso)) cand = new Date(Date.UTC(yr - 1, +m[1] - 1, +m[2], +m[3] + 4, +m[4], +m[5]));
+  const num = (s) => { const n = Number(String(s).replace(/[$,\s]/g, '')); return Number.isFinite(n) ? n : null; };
+  const dollarMag = (s) => { const c = String(s).replace(/[$,\s]/g, ''); const m2 = c.match(/^([\d.]+)([KMBT])?$/); if (!m2) return null; const n = Number(m2[1]); return n * (m2[2] === 'K' ? 1e3 : m2[2] === 'M' ? 1e6 : m2[2] === 'B' ? 1e9 : m2[2] === 'T' ? 1e12 : 1); };
+  const pct = (s) => { const n = Number(String(s).replace(/%/g, '').trim()); return Number.isFinite(n) ? n : null; };
+  const orNull = (s) => { const t = (s || '').trim(); return t || null; };
+  const price = num(priceStr); const size = Math.round(num(sizeStr) || 0); const premium = dollarMag(premiumStr);
+  if (price == null || size === 0 || premium == null) return null;
+  return { ticker: tk.trim(), full_datetime: cand.toISOString(), price, size, premium, volume_shares: dollarMag(get('Volume')), pct_vol: pct(get('% Vol')), pct_30d_vol: pct(get('% 30D Vol')), trf_delay: orNull(get('TRF delay')), sector: orNull(get('Sector')), issue_type: orNull(get('Issue Type')), sold_codes: orNull(get('Sold codes')), trade_code: orNull(get('Trade code')), settlement_code: orNull(get('Settlement code')), extended_trading_code: orNull(get('Extended trading code')) };
+}
+
+async function upsertDarkpoolPrints(data, ticker, scrapedAtIso) {
+  const tables = data?.tables || [];
+  const dp = tables.find((t) => Array.isArray(t.headers) && t.headers.includes('Time - PDT / UTC+4'));
+  if (!dp) { console.error('[uw_scrape] no darkpool table found in scrape data'); return 0; }
+  const parsed = (dp.rows || []).map((r) => parseUwDarkpoolPrint(dp.headers, r, scrapedAtIso)).filter((x) => x != null && x.ticker === ticker);
+  if (parsed.length === 0) return 0;
+  const supaUrl = process.env.SUPABASE_URL; const supaKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!supaUrl || !supaKey) { console.error('[uw_scrape] missing SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY — skipping upsert'); return 0; }
+  const r = await fetch(`${supaUrl}/rest/v1/uw_darkpool_history?on_conflict=ticker,full_datetime,size,premium`, {
+    method: 'POST', headers: { apikey: supaKey, Authorization: `Bearer ${supaKey}`, 'Content-Type': 'application/json', Prefer: 'resolution=ignore-duplicates,return=minimal' }, body: JSON.stringify(parsed),
+  });
+  if (!r.ok) { console.error(`[uw_scrape] upsert HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`); return 0; }
+  return parsed.length;
+}
+
 try {
   await doLogin(s);
   // Give the SPA a moment to fully boot after login redirect.
@@ -190,13 +229,23 @@ try {
     return out;
   })()`);
 
+  // For the darkpool page, parse each rendered row and insert into the
+  // per-print durable ledger. UW returns at most 50 most-recent prints
+  // and there's no historical date-range fetch, so accumulation is
+  // forward-looking — daily scrapes naturally grow the table.
+  let dpUpserted = 0;
+  if (page === 'darkpool') {
+    dpUpserted = await upsertDarkpoolPrints(data, ticker, new Date().toISOString());
+    console.error(`[uw_scrape] darkpool upserted=${dpUpserted}`);
+  }
+
   // Persist scrape to Supabase + GCS before exit.
   const persisted = await persistContext({
     ticker,
     page,
     data,
     screenshotPath,
-    metadata: { auth: authStatus, source: 'scrape.mjs' },
+    metadata: { auth: authStatus, source: 'scrape.mjs', dpUpserted },
   });
   console.error(`[uw_scrape] persisted row id=${persisted.id} gcs=${persisted.gcs_url || 'none'}`);
 
