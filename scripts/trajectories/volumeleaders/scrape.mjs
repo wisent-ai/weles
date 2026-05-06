@@ -116,22 +116,40 @@ async function paginateAndUpsertTrades(sess, t, sd, ed, md, xd, rs) {
   }
   if (!xsrf) { console.error('[vl] no __RequestVerificationToken after 30s — cannot paginate'); return 0; }
   console.error(`[vl] got xsrf token (${xsrf.length} chars)`);
-  const PAGE_SIZE = 100; const MAX_PAGES = 100; const allRows = [];
-  let totalRecords = null;
-  for (let pageIdx = 0; pageIdx < MAX_PAGES; pageIdx += 1) {
-    const start = pageIdx * PAGE_SIZE;
-    const body = buildGetTradesBody({ ticker: t, startDate: sd, endDate: ed, minDollars: md, maxDollars: xd, minRs: rs, start, length: PAGE_SIZE });
-    let resp;
-    try {
-      resp = await sess.page.evaluate(`(async ({ b, x }) => { const r = await fetch('/Trades/GetTrades', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-XSRF-Token': x, 'X-Requested-With': 'XMLHttpRequest' }, body: b }); const t2 = await r.text(); return { status: r.status, body: t2 }; })(${JSON.stringify({ b: body, x: xsrf })})`);
-    } catch (e) { console.error(`[vl] page=${pageIdx} fetch err ${e.message}`); break; }
-    if (resp.status !== 200) { console.error(`[vl] page=${pageIdx} HTTP ${resp.status} body[0:300]=${resp.body.slice(0, 300)}`); break; }
-    let j; try { j = JSON.parse(resp.body); } catch (e) { console.error(`[vl] page=${pageIdx} parse err — body[0:300]=${resp.body.slice(0, 300)}`); break; }
-    if (totalRecords == null) totalRecords = j.recordsTotal || 0;
-    if (!Array.isArray(j.data) || j.data.length === 0) { console.error(`[vl] page=${pageIdx} data empty: recordsTotal=${j.recordsTotal} recordsFiltered=${j.recordsFiltered} draw=${j.draw} keys=${Object.keys(j).join(',')}`); break; }
-    allRows.push(...j.data);
-    console.error(`[vl] page=${pageIdx} fetched=${j.data.length} cumulative=${allRows.length}/${totalRecords}`);
-    if (allRows.length >= totalRecords) break;
+  // VL silently caps wide-range queries to 0 records (verified 2026-05-06:
+  // ORCL 1y returns recordsTotal=0; ORCL 30d returns 1231; ORCL 1d returns
+  // 20). Chunk the requested range into ≤30-day windows and paginate within
+  // each chunk. Keep windows aligned to the user-supplied end date so the
+  // most-recent data is captured first.
+  const CHUNK_DAYS = 28; const PAGE_SIZE = 100; const MAX_PAGES_PER_CHUNK = 200;
+  const sdMs = new Date(sd).getTime(); const edMs = new Date(ed).getTime(); const ONE_DAY = 24 * 60 * 60 * 1000;
+  const fmt = (ms) => new Date(ms).toISOString().slice(0, 10);
+  const chunks = [];
+  for (let cur = edMs; cur >= sdMs; cur -= CHUNK_DAYS * ONE_DAY) {
+    const chunkStart = Math.max(sdMs, cur - (CHUNK_DAYS - 1) * ONE_DAY);
+    chunks.push({ start: fmt(chunkStart), end: fmt(cur) });
+    if (chunkStart === sdMs) break;
+  }
+  console.error(`[vl] paginating across ${chunks.length} ${CHUNK_DAYS}-day chunks: ${chunks[0]?.start} .. ${chunks[chunks.length-1]?.end}`);
+  const allRows = [];
+  for (const chunk of chunks) {
+    let chunkTotal = null;
+    for (let pageIdx = 0; pageIdx < MAX_PAGES_PER_CHUNK; pageIdx += 1) {
+      const start = pageIdx * PAGE_SIZE;
+      const body = buildGetTradesBody({ ticker: t, startDate: chunk.start, endDate: chunk.end, minDollars: md, maxDollars: xd, minRs: rs, start, length: PAGE_SIZE });
+      let resp;
+      try {
+        resp = await sess.page.evaluate(`(async ({ b, x }) => { const r = await fetch('/Trades/GetTrades', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-XSRF-Token': x, 'X-Requested-With': 'XMLHttpRequest' }, body: b }); const t2 = await r.text(); return { status: r.status, body: t2 }; })(${JSON.stringify({ b: body, x: xsrf })})`);
+      } catch (e) { console.error(`[vl] ${chunk.start}..${chunk.end} page=${pageIdx} fetch err ${e.message}`); break; }
+      if (resp.status !== 200) { console.error(`[vl] ${chunk.start}..${chunk.end} page=${pageIdx} HTTP ${resp.status}`); break; }
+      let j; try { j = JSON.parse(resp.body); } catch (e) { console.error(`[vl] ${chunk.start}..${chunk.end} page=${pageIdx} parse err`); break; }
+      if (chunkTotal == null) chunkTotal = j.recordsTotal || 0;
+      if (!Array.isArray(j.data) || j.data.length === 0) { if (pageIdx === 0) console.error(`[vl] ${chunk.start}..${chunk.end} no data`); break; }
+      allRows.push(...j.data);
+      console.error(`[vl] ${chunk.start}..${chunk.end} page=${pageIdx} fetched=${j.data.length} chunk=${allRows.length}/${chunkTotal} grand=${allRows.length}`);
+      if (allRows.length >= chunkTotal && pageIdx * PAGE_SIZE + j.data.length >= chunkTotal) break;
+      if ((pageIdx + 1) * PAGE_SIZE >= chunkTotal) break;
+    }
   }
   if (allRows.length === 0) return 0;
   const supaUrl = process.env.SUPABASE_URL; const supaKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
