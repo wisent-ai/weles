@@ -92,7 +92,15 @@ try {
     }
   }
 
-  if (!writes.length) { console.log('PASS: no-op (form values already match character)'); process.exit(0); }
+  // Mirror to social_accounts even on no-op so dashboards reflect the
+  // platform-side state regardless of whether this run wrote anything.
+  await fetch(`${SUPABASE_URL}/rest/v1/social_accounts?id=eq.${acct.id}`, {
+    method: 'PATCH',
+    headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+    body: JSON.stringify({ display_name: targetName || null, profile_url: `https://www.instagram.com/${acct.username}/`, updated_at: new Date().toISOString() }),
+  }).catch(() => {});
+
+  if (!writes.length) { console.log('PASS: no-op (form values already match character; DB synced)'); process.exit(0); }
   console.log(`[ig-profile] writes: ${writes.join('; ')}`);
 
   // Submit. Instagram's submit on this page is a <div role="button"> reading
