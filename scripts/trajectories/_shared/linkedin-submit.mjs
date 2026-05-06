@@ -29,15 +29,20 @@ export async function linkedinSubmitComment(s, text) {
 export async function linkedinSubmitPost(s, text) {
   await s.goto('https://www.linkedin.com/feed/');
   await s.page.waitForTimeout(3500);
-  // Compose share button — top of feed.
-  const startPost = s.page.locator('button.share-box-feed-entry__trigger, button:has-text("Start a post"), [aria-label="Start a post"]').filter({ visible: true }).first();
+  // Compose share button — top of feed. aria-label="Start a post" is the
+  // stable marker (verified 2026-05-06 in captured /feed/ DOM at
+  // recordings/linkedin_browse/after_001_goto__dom.html).
+  const startPost = s.page.locator('[aria-label="Start a post"], button.share-box-feed-entry__trigger, button:has-text("Start a post")').filter({ visible: true }).first();
   await startPost.waitFor({ state: 'visible', timeout: 15000 });
   await humanClickLocator(s.page, startPost);
-  const editor = s.page.locator('div[role="textbox"][contenteditable="true"], div.ql-editor[contenteditable="true"]').filter({ visible: true }).first();
+  // 2026-05-06: composer migrated off Quill (.ql-editor / div[role="textbox"]).
+  // Match a wider set of editor shapes — data-testid is the stable LinkedIn
+  // 2026 attribute; legacy + bare contenteditable kept as fall-throughs.
+  const editor = s.page.locator('[data-testid*="editor"][contenteditable="true"], [data-testid*="composer"][contenteditable="true"], div[role="textbox"][contenteditable="true"], div.ql-editor[contenteditable="true"], [contenteditable="true"]:not([role="combobox"]):not([role="textbox"])').filter({ visible: true }).first();
   await editor.waitFor({ state: 'visible', timeout: 10000 });
   await humanClickLocator(s.page, editor);
   await humanType(s.page, text);
-  const postBtn = s.page.locator('div.share-box_actions button.share-actions__primary-action:not([disabled]), button:has-text("Post"):not([disabled])').filter({ visible: true }).first();
+  const postBtn = s.page.locator('button.share-actions__primary-action:not([disabled]), [data-testid*="post"][role="button"]:not([disabled]), button:has-text("Post"):not([disabled])').filter({ visible: true }).first();
   await postBtn.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, postBtn);
   await s.page.waitForFunction(() => !document.querySelector('div[role="dialog"][role="dialog"] div.ql-editor[contenteditable="true"]'), { timeout: 20000 }).catch(() => {});
