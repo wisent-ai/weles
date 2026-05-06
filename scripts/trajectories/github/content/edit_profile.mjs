@@ -86,22 +86,55 @@ try {
     writes.push(`${label} "${cur}" -> "${target}"`);
   }
 
-  // Avatar upload — DISABLED. The 2026-05-06 23:32Z run wrote
-  // `writes.push('avatar uploaded')` after setInputFiles + a Save click,
-  // but api.github.com still returned the 1530-byte 420x420 default
-  // identicon (etag a5970040361fa0c11381d37b45fcf3094a683d13b7140cd5816b60ccc36393ad).
-  // .work/gh-probe/probe_avatar_upload.mjs confirmed: setInputFiles on
-  // input#avatar_upload does NOT trigger github's upload JS — no modal
-  // appears, no buttons change. github's avatar flow needs the hidden
-  // PUT-form submitted (input#avatar_upload + _method=put +
-  // authenticity_token + a multipart commit), but Playwright's
-  // setInputFiles+change event isn't enough. Reverse-engineering the
-  // required submit path is real work — leaving the avatarUrl resolver
-  // above intact (avatar_url || training_images[0]) so the next pass can
-  // hook into a working upload mechanism (likely a direct multipart POST
-  // via page.context().request).
+  // Avatar upload — github wraps the file input in a <file-attachment>
+  // custom element that drives a 3-step alambic upload (POST policy →
+  // S3 PUT → form submit). setInputFiles alone doesn't trigger the
+  // custom element's change handler reliably. Construct a real File
+  // via page.evaluate + dispatch change so file-attachment fires.
   if (avatarUrl) {
-    console.log(`[gh-profile] avatar source available (${avatarUrl.slice(0, 80)}) — upload flow not yet wired (probe shows setInputFiles alone is no-op on github)`);
+    try {
+      const editSummary = s.page.locator('form[aria-label="Profile picture"] summary, details summary:has-text("Edit")').filter({ visible: true }).first();
+      if (await editSummary.count()) {
+        await humanClickLocator(s.page, editSummary);
+        await s.page.waitForTimeout(1500);
+      }
+      const resp = await s.page.context().request.get(avatarUrl);
+      if (!resp.ok()) {
+        console.log(`[gh-profile] avatar fetch failed: ${resp.status()}`);
+      } else {
+        const buf = await resp.body();
+        const base64 = buf.toString('base64');
+        const fileIn = s.page.locator('input#avatar_upload').first();
+        if (await fileIn.count()) {
+          // Use page.evaluate to construct a real File and assign + dispatch.
+          await s.page.evaluate(({ b64, name }) => {
+            const input = document.querySelector('#avatar_upload');
+            if (!input) return;
+            const bin = atob(b64);
+            const arr = new Uint8Array(bin.length);
+            for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+            const file = new File([arr], name, { type: 'image/png' });
+            const dt = new DataTransfer();
+            dt.items.add(file);
+            (input).files = dt.files;
+            input.dispatchEvent(new Event('change', { bubbles: true }));
+          }, { b64: base64, name: `${acct.username}_avatar.png` });
+          await s.page.waitForTimeout(4000);
+          // After file-attachment finishes its upload, "Set new profile
+          // picture" appears.
+          const setBtn = s.page.locator('button:has-text("Set new profile picture")').filter({ visible: true }).first();
+          if (await setBtn.isVisible().catch(() => false)) {
+            await humanClickLocator(s.page, setBtn);
+            await s.page.waitForTimeout(4000);
+            writes.push(`avatar uploaded`);
+          } else {
+            console.log('[gh-profile] file dispatched but no "Set new profile picture" surfaced');
+          }
+        } else {
+          console.log('[gh-profile] avatar_upload input not found in DOM');
+        }
+      }
+    } catch (e) { console.log(`[gh-profile] avatar upload err: ${e.message?.slice(0, 120)}`); }
   }
 
   // Mirror to social_accounts even on no-op so the DB row catches up to the
