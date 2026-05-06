@@ -103,6 +103,12 @@ function buildGetTradesBody({ ticker, startDate, endDate, minDollars, maxDollars
 // Paginate POST /Trades/GetTrades via the authenticated browser context,
 // then upsert into public.vl_trades_history (PK=trade_id, ON CONFLICT DO NOTHING).
 async function paginateAndUpsertTrades(sess, t, sd, ed, md, xd, rs) {
+  // VL is ASP.NET MVC with anti-forgery: requests need X-XSRF-Token header
+  // pulled from the hidden input on the rendered page (verified in DOM
+  // capture 2026-05-06 — beforeSend handler reads $('input[name="__RequestVerificationToken"]').val()
+  // and calls xhr.setRequestHeader("X-XSRF-Token", token)). Without it, /Trades/GetTrades 403s.
+  const xsrf = await sess.page.evaluate('document.querySelector(\'input[name="__RequestVerificationToken"]\')?.value || ""').catch(() => '');
+  if (!xsrf) { console.error('[vl] no __RequestVerificationToken on page — cannot paginate'); return 0; }
   const PAGE_SIZE = 100; const MAX_PAGES = 100; const allRows = [];
   let totalRecords = null;
   for (let pageIdx = 0; pageIdx < MAX_PAGES; pageIdx += 1) {
@@ -110,7 +116,7 @@ async function paginateAndUpsertTrades(sess, t, sd, ed, md, xd, rs) {
     const body = buildGetTradesBody({ ticker: t, startDate: sd, endDate: ed, minDollars: md, maxDollars: xd, minRs: rs, start, length: PAGE_SIZE });
     let resp;
     try {
-      resp = await sess.page.evaluate(`(async (b) => { const r = await fetch('/Trades/GetTrades', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: b }); const x = await r.text(); return { status: r.status, body: x }; })(${JSON.stringify(body)})`);
+      resp = await sess.page.evaluate(`(async ({ b, x }) => { const r = await fetch('/Trades/GetTrades', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-XSRF-Token': x, 'X-Requested-With': 'XMLHttpRequest' }, body: b }); const t2 = await r.text(); return { status: r.status, body: t2 }; })(${JSON.stringify({ b: body, x: xsrf })})`);
     } catch (e) { console.error(`[vl] page=${pageIdx} fetch err ${e.message}`); break; }
     if (resp.status !== 200) { console.error(`[vl] page=${pageIdx} HTTP ${resp.status}`); break; }
     let j; try { j = JSON.parse(resp.body); } catch (e) { console.error(`[vl] page=${pageIdx} parse err`); break; }
