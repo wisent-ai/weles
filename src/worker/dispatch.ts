@@ -36,8 +36,23 @@ const ROUTES: Record<string, (p: string) => string | null> = {
   organic_message: (p) => `scripts/trajectories/${p}/organic_message.mjs`,
   organic_issue_comment: (p) => `scripts/trajectories/${p}/actions/organic_issue_comment.mjs`,
   promote: (p) => p === 'github' ? 'scripts/trajectories/github/actions/promote.mjs' : `scripts/trajectories/${p}/promote.mjs`,
-  register: (p) => (p === 'github' || p === 'youtube' || p === 'producthunt') ? `scripts/trajectories/${p}/register.mjs` : `scripts/trajectories/${p}_register.mjs`,
-  login: (p) => `scripts/trajectories/${p}_login.mjs`,
+  register: (p) => {
+    if (p === 'github' || p === 'youtube' || p === 'producthunt' || p === 'microsoft') return `scripts/trajectories/${p}/register.mjs`;
+    if (p === 'apple') return 'scripts/trajectories/apple/register/run.mjs';
+    if (p === 'facebook' || p === 'threads') return `scripts/trajectories/meta/${p}_register.mjs`;
+    return `scripts/trajectories/${p}_register.mjs`;
+  },
+  login: (p) => {
+    if (p === 'apple' || p === 'microsoft') return `scripts/trajectories/${p}/login.mjs`;
+    if (p === 'facebook' || p === 'threads') return `scripts/trajectories/meta/${p}_login.mjs`;
+    return `scripts/trajectories/${p}_login.mjs`;
+  },
+  // Cross-platform OAuth login. Action shape: <platform>_login_via_<provider>,
+  // e.g. reddit_login_via_apple, tiktok_login_via_google, linkedin_login_via_microsoft.
+  // The verb-side dispatcher below catches `login_via_<provider>` and routes to
+  // the parametric runner; provider is extracted from the verb suffix in
+  // paramsToEnv and surfaced as PROVIDER env.
+  login_via: () => 'scripts/trajectories/cross_login/run.mjs',
   comment: (p) => p === 'producthunt' ? 'scripts/trajectories/producthunt/comment.mjs' : `scripts/trajectories/${p}_comment.mjs`,
 
   // Twitter DM is at the root; instagram/linkedin/discord/snapchat under
@@ -48,6 +63,10 @@ const ROUTES: Record<string, (p: string) => string | null> = {
     : `scripts/trajectories/${p}/dm.mjs`,
 
   profile: (p) => p === 'producthunt' ? 'scripts/trajectories/producthunt/profile.mjs' : `scripts/trajectories/${p}_profile.mjs`,
+  // edit_profile = write character persona content (bio, display_name, optional
+  // external_url) onto the platform's /accounts/edit form. instagram is the
+  // first platform with this trajectory (5 char-account links available).
+  edit_profile: (p) => `scripts/trajectories/${p}/actions/edit_profile.mjs`,
   upvote: (p) => p === 'reddit' ? 'scripts/trajectories/reddit/actions/upvote.mjs'
     : p === 'producthunt' ? 'scripts/trajectories/producthunt/upvote.mjs'
     : `scripts/trajectories/${p}_upvote.mjs`,
@@ -95,6 +114,12 @@ export function resolveTrajectory(action: string): string | null {
   if (firstUnderscore < 0) return null;
   const plat = action.slice(0, firstUnderscore);
   const verb = action.slice(firstUnderscore + 1);
+  // Cross-login: collapse every login_via_<provider> verb onto a single
+  // parametric runner. The provider is parsed out in paramsToEnv into PROVIDER.
+  if (verb.startsWith('login_via_')) {
+    const router = ROUTES['login_via'];
+    return router ? router(plat) : null;
+  }
   const router = ROUTES[verb];
   return router ? router(plat) : null;
 }
@@ -113,6 +138,16 @@ export function paramsToEnv(
     if (underscore > 0) {
       env.PLATFORM = action.slice(0, underscore);
       env.VERB = action.slice(underscore + 1);
+    }
+  }
+  // Cross-login parametric dispatch: <platform>_login_via_<provider>
+  // → set PLATFORM + PROVIDER env so cross_login/run.mjs can table-lookup
+  // the target URL + OAuth-button regex without one-trajectory-file-per-pair.
+  if (trajPath.endsWith('/cross_login/run.mjs')) {
+    const m = action.match(/^([a-z]+)_login_via_([a-z]+)$/);
+    if (m) {
+      env.PLATFORM = m[1];
+      env.PROVIDER = m[2];
     }
   }
   // Ticker-scrape parameters for the unusualwhales/volumeleaders/tradingview
