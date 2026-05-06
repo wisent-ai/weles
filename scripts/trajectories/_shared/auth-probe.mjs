@@ -132,10 +132,14 @@ const PROBES = {
   },
   linkedin: {
     authedSelectors: [
-      '.global-nav__me-photo',
-      'img.global-nav__me-photo',
-      'a[data-control-name="identity_profile_photo"]',
-      'button[data-control-name="nav.settings_signout"]',
+      // LinkedIn 2026 design-system selectors — class names are hashed
+      // (e.g. class="d35743eb"), but data-testid attributes are stable.
+      // Captured 2026-05-06 from rileywest6465 /feed/ DOM at
+      // recordings/linkedin_browse/after_001_goto__dom.html — old
+      // .global-nav__me-photo selectors had zero matches.
+      '[data-testid="primary-nav"]',
+      '[data-testid="mainFeed"]',
+      '[data-testid="typeahead-input"]',
     ],
     loggedOutMarkers: [
       'a[data-tracking-control-name*="auth-typeahead"]',
