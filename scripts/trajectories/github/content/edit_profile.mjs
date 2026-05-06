@@ -19,7 +19,7 @@ if (!acct) { console.log('FAIL: no active github account in DB'); process.exit(1
 console.log(`[gh-profile] using account: ${acct.username}`);
 
 const linkRes = await fetch(
-  `${SUPABASE_URL}/rest/v1/character_social_accounts?social_account_id=eq.${acct.id}&select=characters(id,name,bio,niche,occupation,home_city,home_country)`,
+  `${SUPABASE_URL}/rest/v1/character_social_accounts?social_account_id=eq.${acct.id}&select=characters(id,name,bio,niche,occupation,home_city,home_country,avatar_url,training_images)`,
   { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } },
 ).then(r => r.ok ? r.json() : []);
 const character = linkRes?.[0]?.characters;
@@ -29,6 +29,13 @@ console.log(`[gh-profile] character: ${character.name} (niche=${character.niche}
 const targetName = character.name || '';
 const targetBio = (character.bio || '').slice(0, 160);
 const targetLocation = [character.home_city, character.home_country].filter(Boolean).join(', ');
+// Avatar source: avatar_url first; fall back to training_images[0] for the
+// 74 chars that have training images but the avatar_url backfill migration
+// hasn't merged yet. Path is either a /api/gcs-image proxy URL or absolute.
+const rawAvatar = character.avatar_url || (Array.isArray(character.training_images) ? character.training_images[0] : null);
+const avatarUrl = rawAvatar
+  ? (rawAvatar.startsWith('http') ? rawAvatar : `https://content.wisent.ai${rawAvatar}`)
+  : null;
 
 const { proxyUrl, persona } = await resolveAccountSession(acct);
 const s = await WSession.start({ label: 'github_edit_profile', proxy: proxyUrl, persona, browser: 'chromium' });
@@ -77,6 +84,47 @@ try {
     await s.page.keyboard.press('Backspace').catch(() => {});
     await humanType(s.page, target);
     writes.push(`${label} "${cur}" -> "${target}"`);
+  }
+
+  // Avatar upload — github exposes input#avatar_upload (type=file) on the
+  // same /settings/profile form. We fetch the image into a temp file and
+  // hand it to Playwright's setInputFiles. Idempotent guard: only upload
+  // when avatarUrl is set AND the user has no avatar set yet (the default
+  // identicon shows up via img.avatar-user with src like
+  // /<username>?s=<size>; once a real avatar is uploaded, the src points
+  // at avatars.githubusercontent.com).
+  if (avatarUrl) {
+    const haveCustomAvatar = await s.page.evaluate(() => {
+      const img = document.querySelector('img.avatar-user, img[alt*="@"][src*="avatars.githubusercontent"]');
+      const src = img?.getAttribute('src') || '';
+      return src.includes('avatars.githubusercontent.com/u/');
+    }).catch(() => false);
+    if (!haveCustomAvatar) {
+      try {
+        const resp = await s.page.context().request.get(avatarUrl);
+        if (resp.ok()) {
+          const buf = await resp.body();
+          const tmpPath = `/tmp/gh-avatar-${acct.id}.png`;
+          (await import('node:fs')).writeFileSync(tmpPath, buf);
+          const fileIn = s.page.locator('input#avatar_upload, input[type="file"][name="user[avatar]"]').first();
+          if (await fileIn.count()) {
+            await fileIn.setInputFiles(tmpPath);
+            await s.page.waitForTimeout(2500);
+            // After upload, github may show a crop modal — accept defaults.
+            const setBtn = s.page.locator('button:has-text("Set new profile picture"), button:has-text("Save")').filter({ visible: true }).first();
+            if (await setBtn.isVisible().catch(() => false)) {
+              await humanClickLocator(s.page, setBtn);
+              await s.page.waitForTimeout(3000);
+            }
+            writes.push(`avatar uploaded from ${avatarUrl.slice(0, 80)}`);
+          }
+        } else {
+          console.log(`[gh-profile] avatar fetch failed: ${resp.status()}`);
+        }
+      } catch (e) { console.log(`[gh-profile] avatar upload err: ${e.message?.slice(0, 120)}`); }
+    } else {
+      console.log('[gh-profile] avatar already set on platform — skipping upload');
+    }
   }
 
   // Mirror to social_accounts even on no-op so the DB row catches up to the
