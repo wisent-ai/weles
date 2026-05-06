@@ -46,20 +46,23 @@ try {
     }
   }
   // LinkedIn's like button is a <button aria-label="React Like"> that flips
-  // aria-pressed false→true on click. Scope to the first feed post container
-  // so we don't accidentally tap a comment-level like.
-  const post = s.page.locator('div.feed-shared-update-v2, div.fie-impression-container, [data-id^="urn:li:activity"]').first();
-  await post.waitFor({ state: 'visible' });
-  await post.scrollIntoViewIfNeeded().catch(() => {});
-  const likeBtn = post.locator('button[aria-label*="React Like" i]:not([aria-pressed="true"])').first();
+  // aria-pressed false→true on click. 2026-05-06: the legacy post-container
+  // selectors (.feed-shared-update-v2, .fie-impression-container,
+  // [data-id^="urn:li:activity"]) are gone in the new design system, so
+  // target the first React-Like button on the page directly. The aria-label
+  // is semantic and stable; comment-level likes have a different
+  // aria-label ("Like this comment") so the React-Like prefix already
+  // excludes them.
+  const likeBtn = s.page.locator('button[aria-label*="React Like" i]:not([aria-pressed="true"])').first();
   if (!(await likeBtn.count())) {
-    // Already liked — idempotent PASS
+    // Already liked OR no posts on the page — idempotent PASS-or-noop.
+    const anyLiked = await s.page.locator('button[aria-label*="React Like" i][aria-pressed="true"]').count();
     ban = await detectLinkedInBanSignals(s.page, s.capturedResponses).catch(() => null);
-    console.log(`[ban-signal] ${ban?.signal}  PASS: already liked`);
+    console.log(`[ban-signal] ${ban?.signal}  PASS: ${anyLiked ? 'already liked' : 'no_likeable_posts_on_page'}`);
   } else {
     await likeBtn.scrollIntoViewIfNeeded().catch(() => {});
     await humanClickLocator(s.page, likeBtn);
-    await post.locator('button[aria-label*="React Like" i][aria-pressed="true"]').first().waitFor({ state: 'visible' });
+    await s.page.locator('button[aria-label*="React Like" i][aria-pressed="true"]').first().waitFor({ state: 'visible' });
     ban = await detectLinkedInBanSignals(s.page, s.capturedResponses).catch(() => null);
     console.log(`[ban-signal] ${ban?.signal}  PASS: liked`);
   }
