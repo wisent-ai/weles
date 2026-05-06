@@ -107,8 +107,15 @@ async function paginateAndUpsertTrades(sess, t, sd, ed, md, xd, rs) {
   // pulled from the hidden input on the rendered page (verified in DOM
   // capture 2026-05-06 — beforeSend handler reads $('input[name="__RequestVerificationToken"]').val()
   // and calls xhr.setRequestHeader("X-XSRF-Token", token)). Without it, /Trades/GetTrades 403s.
-  const xsrf = await sess.page.evaluate('document.querySelector(\'input[name="__RequestVerificationToken"]\')?.value || ""').catch(() => '');
-  if (!xsrf) { console.error('[vl] no __RequestVerificationToken on page — cannot paginate'); return 0; }
+  // The hidden input is appended late in the page render — poll up to 30s.
+  let xsrf = '';
+  for (let i = 0; i < 30; i += 1) {
+    xsrf = await sess.page.evaluate('document.querySelector(\'input[name="__RequestVerificationToken"]\')?.value || ""').catch(() => '');
+    if (xsrf) break;
+    await sess.wait(1);
+  }
+  if (!xsrf) { console.error('[vl] no __RequestVerificationToken after 30s — cannot paginate'); return 0; }
+  console.error(`[vl] got xsrf token (${xsrf.length} chars)`);
   const PAGE_SIZE = 100; const MAX_PAGES = 100; const allRows = [];
   let totalRecords = null;
   for (let pageIdx = 0; pageIdx < MAX_PAGES; pageIdx += 1) {
