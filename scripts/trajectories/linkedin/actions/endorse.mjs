@@ -40,7 +40,9 @@ try {
     }
   }
   // First connection card has an anchor pointing to /in/<vanity>/. Pick it.
-  const profileLink = s.page.locator('a[href*="/in/"][data-test-app-aware-link]').filter({ visible: true }).first();
+  // 2026-05-06: data-test-app-aware-link is gone in the new design system —
+  // use plain a[href*="/in/"] which matches both old and new markup.
+  const profileLink = s.page.locator('a[href*="/in/"]').filter({ visible: true }).first();
   await profileLink.waitFor({ state: 'visible' });
   const href = await profileLink.getAttribute('href');
   if (!href) throw new Error('no connection profile href found');
