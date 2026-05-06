@@ -85,7 +85,9 @@ if (!acct) { console.log('FAIL: no_producthunt_account_in_db'); process.exit(1);
 console.log(`[ph-profile] using account: ${acct.username}`);
 
 const sessionOpts = await resolveAccountSession(acct);
-const s = await WSession.start({ label: 'producthunt_profile', ...sessionOpts });
+// Force chromium — see weles 8c7c20b / 2026-05-06 upvote run for the
+// Firefox NS_ERROR_ABORT failure mode the PH action flow hits.
+const s = await WSession.start({ label: 'producthunt_profile', ...sessionOpts, browser: 'chromium' });
 try {
   await fillProfile(s, acct, sessionOpts);
   console.log(`PASS: ${acct.username} profile saved`);
