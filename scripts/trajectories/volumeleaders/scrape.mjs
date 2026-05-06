@@ -33,13 +33,14 @@ const base = 'https://www.volumeleaders.com';
 // with the Tickers field substituted for the requested symbol. Date range
 // defaults to today but can be overridden via --start-date/--end-date.
 const PAGE_URLS = {
-  // Trades grid: minimal-params URL. The earlier template carried
-  // PresetSearchTemplateID=87 (a saved-search preset) and TradeRank=-1 /
-  // TradeRankSnapshot=-1 which together filter the grid to 0 rows even
-  // though VL's database shows 1196 lifetime trades on RCAT. Drop the
-  // preset and rank overrides; keep the date range, dollar bounds, and
-  // session-time inclusion flags.
-  trades: (t) => `${base}/Trades?Tickers=${t}&StartDate=${startDate}&EndDate=${endDate}&MinVolume=0&MaxVolume=2000000000&MinPrice=0&MaxPrice=100000&MinDollars=${minDollars}&MaxDollars=${maxDollars}&IncludePremarket=1&IncludeRTH=1&IncludeAH=1&IncludeOpening=1&IncludeClosing=1&IncludePhantom=1&IncludeOffsetting=1&ViewMode=Automatic`,
+  // Trades grid: full param set. VL's TradesView.cshtml template inlines
+  // these into the DataTables ajax-config script tag; missing params
+  // produce invalid JS (e.g. `"RelativeSize": ,`) that throws a
+  // SyntaxError before DataTable can fire POST /Trades/GetTrades.
+  // Required: RelativeSize, DarkPools, Sweeps, LatePrints, SignaturePrints,
+  // EvenShared, Conditions, VCD, SecurityTypeKey, MarketCap, SectorIndustry,
+  // TradeRank, TradeRankSnapshot — values mirror /Chart0's "any" defaults.
+  trades: (t) => `${base}/Trades?Tickers=${t}&StartDate=${startDate}&EndDate=${endDate}&MinVolume=0&MaxVolume=2000000000&MinPrice=0&MaxPrice=100000&MinDollars=${minDollars}&MaxDollars=${maxDollars}&Conditions=&VCD=0&SecurityTypeKey=-1&RelativeSize=${minRs}&DarkPools=-1&Sweeps=-1&LatePrints=-1&SignaturePrints=-1&EvenShared=-1&TradeRank=-1&TradeRankSnapshot=-1&MarketCap=-1&IncludePremarket=1&IncludeRTH=1&IncludeAH=1&IncludeOpening=1&IncludeClosing=1&IncludePhantom=1&IncludeOffsetting=1&SectorIndustry=&ViewMode=Automatic`,
   clusters: (t) => `${base}/TradeClusters?Tickers=${t}&StartDate=${startDate}&EndDate=${endDate}&MinVolume=0&MaxVolume=2000000000&VCD=0&SecurityTypeKey=-1&RelativeSize=${minRs}&MinPrice=0&MaxPrice=100000&MinDollars=${minDollars}&MaxDollars=${maxDollars}&TradeClusterRank=${maxRank}&SectorIndustry=&PresetSearchTemplateID=87&ViewMode=Automatic`,
   cluster_bombs: (t) => `${base}/TradeClusterBombs?Tickers=${t}&StartDate=${startDate}&EndDate=${endDate}&MinVolume=0&MaxVolume=2000000000&VCD=0&RelativeSize=${minRs}&MinDollars=0&MaxDollars=30000000000&TradeClusterBombRank=-1&SectorIndustry=&ViewMode=Automatic`,
   levels: (t) => `${base}/TradeLevels?Ticker=${t}&MinVolume=0&MaxVolume=2000000000&VCD=0&RelativeSize=${minRs}&MinPrice=0&MaxPrice=100000&MinDollars=${minDollars}&MaxDollars=${maxDollars}&StartDate=${startDate}&EndDate=${endDate}&TradeLevelRank=-1&TradeLevelCount=50&ViewMode=Automatic`,
