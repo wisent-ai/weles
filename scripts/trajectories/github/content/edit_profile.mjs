@@ -79,7 +79,19 @@ try {
     writes.push(`${label} "${cur}" -> "${target}"`);
   }
 
-  if (!writes.length) { console.log('PASS: no-op (form values already match character)'); process.exit(0); }
+  // Mirror to social_accounts even on no-op so the DB row catches up to the
+  // platform side regardless of whether this run wrote anything to the form.
+  await fetch(`${SUPABASE_URL}/rest/v1/social_accounts?id=eq.${acct.id}`, {
+    method: 'PATCH',
+    headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+    body: JSON.stringify({
+      display_name: targetName || null,
+      profile_url: `https://github.com/${acct.username}`,
+      updated_at: new Date().toISOString(),
+    }),
+  }).catch((e) => console.log(`[gh-profile] db-sync warn: ${e.message?.slice(0, 80)}`));
+
+  if (!writes.length) { console.log('PASS: no-op (form values already match character; DB synced)'); process.exit(0); }
   console.log(`[gh-profile] writes: ${writes.join('; ')}`);
 
   // Submit: button[type="submit"] reading "Update profile".
@@ -94,6 +106,7 @@ try {
     console.log(`FAIL: bio mismatch after save ("${verifiedBio.slice(0, 60)}..." != "${targetBio.slice(0, 60)}...")`);
     process.exit(1);
   }
+
   console.log(`PASS: ${acct.username} profile updated to ${character.name}`);
 } catch (e) {
   console.log('FAIL:', e.message?.slice(0, 200));
