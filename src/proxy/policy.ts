@@ -146,22 +146,34 @@ export async function probeLinkedinLogin(proxyUrl: string, secs = 8): Promise<{ 
 // Reject US-TTP2 stickies in preflight; resolveProxy 8-attempt loop
 // walks past them before binding the browser.
 export type RoutingResult = 'standard' | 'high_risk' | 'unknown';
-async function probeOnce(proxyUrl: string, secs: number): Promise<{ vregion: string | null }> {
+async function probeOnce(proxyUrl: string, secs: number): Promise<{ vregion: string | null; bytes: number }> {
   try {
     const { execSync } = await import('node:child_process');
     const ua = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36';
-    const body = execSync(`curl -s --max-time ${secs} -x "${proxyUrl}" -H "User-Agent: ${ua}" "https://www.tiktok.com/signup"`, { encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 });
+    // Chromium-realistic header set (mirrors the linkedin probe pattern):
+    // a plain UA-only curl can pass while real Chromium fails — TikTok's
+    // edge gates on sec-ch-ua + Accept-Language too. Match what Chromium
+    // actually sends so probe verdict tracks browser behaviour.
+    const args = ['-s', '--max-time', String(secs), '-x', proxyUrl,
+      '-H', `User-Agent: ${ua}`,
+      '-H', 'sec-ch-ua: "Google Chrome";v="147", "Not.A/Brand";v="8", "Chromium";v="147"',
+      '-H', 'sec-ch-ua-mobile: ?0', '-H', 'sec-ch-ua-platform: "macOS"',
+      '-H', 'Accept: text/html,application/xhtml+xml,application/xml;q=0.9',
+      '-H', 'Accept-Language: en-US,en;q=0.9',
+      'https://www.tiktok.com/signup'];
+    const body = execSync(`curl ${args.map(a => `'${a.replace(/'/g, "'\\''")}'`).join(' ')}`, { encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 });
     const m = body.match(/"vregion":"([A-Z0-9-]{1,20})"/);
-    return { vregion: m ? m[1] : null };
-  } catch { return { vregion: null }; }
+    return { vregion: m ? m[1] : null, bytes: body.length };
+  } catch { return { vregion: null, bytes: 0 }; }
 }
 export async function verifyTikTokRouting(proxyUrl: string, secs = 12): Promise<{ result: RoutingResult; vregion?: string }> {
   if (!proxyUrl) return { result: 'unknown' };
-  // Dual probe: BrightData sticky sessions can rotate exit IPs between
-  // requests, so a single probe verifying US-TTP doesn't guarantee the
-  // browser request will go through a US-TTP exit. Make two back-to-back
-  // probes; only accept if BOTH return US-TTP. If they diverge or either
-  // returns null/TTP2, treat as high_risk so the caller rerolls the sticky.
+  // Dual probe with Chromium-realistic headers: BrightData sticky sessions
+  // can rotate exit IPs between requests, so two back-to-back probes catch
+  // drift. Reject any sticky that on either probe (a) lacks vregion,
+  // (b) returns TTP2, (c) shows mobile-redirect markers
+  // (/login/download-app referenced in /signup body == 1340 at
+  // register_verify_login), or (d) drifts vregion across probes.
   const a = await probeOnce(proxyUrl, secs);
   if (!a.vregion) return { result: 'unknown' };
   if (/-TTP2$/i.test(a.vregion)) return { result: 'high_risk', vregion: a.vregion };
@@ -180,9 +192,16 @@ export async function verifyTikTokRouting(proxyUrl: string, secs = 12): Promise<
 const _enqueuedTopupThisProcess = new Set<string>();
 const _TOPUP_SLUG: Record<string, string> = {
   'Bright Data': 'brightdata', 'PacketStream': 'packetstream',
+  // Oxylabs Residential + Mobile use the same trajectory; topup.mjs now
+  // probes the current active plan tier and exits PASS-NOOP without
+  // charging if the user is already at-or-above the requested tier
+  // (currentRank >= requestedRank check). Default topup_usd: 30 maps to
+  // Starter, so an existing Starter+ subscription no-ops on 407 — preventing
+  // duplicate purchases. Real tier upgrades require explicit topup_usd raise.
   'Oxylabs Residential': 'oxylabs', 'Oxylabs Mobile': 'oxylabs',
   'IPRoyal Residential': 'iproyal', 'IPRoyal Mobile': 'iproyal',
-  'Pingproxies': 'pingproxies',
+  // Pingproxies excluded until byteful React onClick swallow on
+  // "Add store credit" is fixed; topup.mjs can't fire the Stripe POST today.
 };
 export async function enqueueProviderTopup(displayName: string): Promise<{ ok: boolean; reason?: string }> {
   if (_enqueuedTopupThisProcess.has(displayName)) return { ok: false, reason: 'already_enqueued_this_process' };
