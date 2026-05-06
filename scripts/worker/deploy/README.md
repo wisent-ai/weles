@@ -68,3 +68,4 @@ psql "$DATABASE_URL" -c "
 Worker claims the oldest `queued` rows first (ordered by `scheduled_at`). If
 the queue has older stale rows, they drain before new campaign items — flush
 with a `UPDATE ... SET status='cancelled'` if needed.
+# auto-deploy smoke test 2026-05-06T01:55:50Z
