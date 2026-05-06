@@ -212,7 +212,10 @@ async function vote(s) {
   return acct.username;
 }
 
-const s = await WSession.start({ label: 'producthunt_upvote', proxy });
+// Force chromium — Firefox persona produces NS_ERROR_ABORT on goto and
+// fails the CDP mouse path (verified 2026-05-06 on this trajectory and
+// previously in register.mjs commit 8c7c20b).
+const s = await WSession.start({ label: 'producthunt_upvote', proxy, browser: 'chromium' });
 try {
   const username = await vote(s);
   console.log(`PASS: ${username} upvoted ${TARGET_URL}`);
