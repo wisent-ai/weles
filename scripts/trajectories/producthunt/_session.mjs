@@ -219,7 +219,14 @@ export async function stampLinkedTwitter(phUsername, twUsername) {
 // Drive the PH-specific Twitter SSO click sequence. All cross-platform
 // primitives (cookies, consent, captcha) come from _shared/.
 export async function loginViaTwitter(s) {
-  const tw = await getSocialAccount('twitter');
+  // Use findUsableTwitterAccount, NOT getSocialAccount('twitter'). Worker
+  // spawns trajectories with ACCOUNT_ID set to the PH row's id, and
+  // getSocialAccount honors that env — querying id=<PH_id> AND
+  // platform=twitter, which never matches and returns null. Verified
+  // 2026-05-06: PH upvote/comment via this path FAILed
+  // sso_recovery_failed: no_twitter_account. findUsableTwitterAccount
+  // queries by platform alone and skips already-linked Twitters.
+  const tw = await findUsableTwitterAccount();
   if (!tw) throw new Error('no_twitter_account');
   const twCookies = tw.metadata?.cookies ?? [];
   if (twCookies.length < 2) throw new Error('twitter_account_missing_cookies');
