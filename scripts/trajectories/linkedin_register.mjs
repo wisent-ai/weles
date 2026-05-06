@@ -12,7 +12,7 @@ import { humanClickLocator } from '../../dist/human/mouse.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { randomBytes } from 'node:crypto';
-import { confirmLinkedinEmail } from './_shared/linkedin/checkpoint.mjs';
+import { confirmLinkedinEmail, solveLinkedinCheckpoint } from './_shared/linkedin/checkpoint.mjs';
 
 const URL = 'https://www.linkedin.com/signup';
 const RECAPTCHA_SITEKEY = '6LcIy_MqAAAAAMKiupFSbmzW3xjGSlIfRzNWYMjC';
@@ -42,16 +42,37 @@ async function getAndInjectRecaptcha(page, action) {
 }
 
 async function solveV2Modal(page) {
-  // LinkedIn's V2 checkbox modal uses a DIFFERENT sitekey than the V3 invisible
-  // tracker. Extract the V2 sitekey from the recaptcha iframe URL: it has
-  // pattern /recaptcha/(api2|enterprise)/anchor?ar=1&k=<SITEKEY>&...
-  // Fall back to V3 sitekey only if extraction fails.
-  let v2Sitekey = RECAPTCHA_SITEKEY;
-  for (const f of page.frames()) {
-    const m = (f.url() || '').match(/[?&]k=([0-9A-Za-z_-]+)/);
-    if (m && m[1] !== RECAPTCHA_SITEKEY) { v2Sitekey = m[1]; break; }
+  // LinkedIn's V2 modal uses a DIFFERENT sitekey from the V3 invisible
+  // tracker. Wait up to 8s for the recaptcha bframe to load, then extract
+  // sitekey from its URL (pattern /recaptcha/(api2|enterprise)/(anchor|
+  // bframe)?...&k=<SITEKEY>) or from the page's [data-sitekey] attribute.
+  // Cited 2026-05-05 register-B failure: passing the V3 sitekey to a V2
+  // task causes CapMonster INVALID_SITEKEY and CapSolver returns a junk
+  // token that LinkedIn silently rejects post-submit.
+  let v2Sitekey = null;
+  for (let i = 0; i < 16; i++) {
+    for (const f of page.frames()) {
+      const url = f.url() || '';
+      if (!/recaptcha\/(api2|enterprise)/i.test(url)) continue;
+      const m = url.match(/[?&]k=([0-9A-Za-z_-]+)/);
+      if (m && m[1] !== RECAPTCHA_SITEKEY) { v2Sitekey = m[1]; break; }
+    }
+    if (v2Sitekey) break;
+    try {
+      const dom = await page.evaluate(() => {
+        const el = document.querySelector('[data-sitekey]');
+        return el?.getAttribute('data-sitekey') ?? null;
+      });
+      if (dom && dom !== RECAPTCHA_SITEKEY) { v2Sitekey = dom; break; }
+    } catch {}
+    await page.waitForTimeout(500);
   }
-  console.log(`[recaptcha:v2] using sitekey=${v2Sitekey.slice(0, 20)}...`);
+  if (!v2Sitekey) {
+    const allFrames = page.frames().map(f => (f.url() || '').slice(0, 100)).join(' | ');
+    console.log(`[recaptcha:v2] could not extract V2 sitekey — frames: ${allFrames.slice(0, 400)}`);
+    return false;
+  }
+  console.log(`[recaptcha:v2] extracted sitekey=${v2Sitekey.slice(0, 20)}...`);
   const solver = new CaptchaSolver();
   const token = await solver.solveRecaptchaV2(page, v2Sitekey, { enterprise: true });
   if (!token || token === false) { console.log('[recaptcha:v2] solver returned null/false'); return false; }
@@ -90,7 +111,14 @@ function genIdentity() {
 const id = genIdentity();
 console.log(`[register] identity: ${id.email} / ${id.first} ${id.last}`);
 
-const s = await WSession.start({ label: 'linkedin_register', proxy: process.env.PROXY_URL || 'residential', targetHost: 'www.linkedin.com' });
+// Force chromium AND macOS persona. Chromium because humanMove/humanClick +
+// CDP attach assume Chromium internals (Page.dispatchMouseEvent — Firefox
+// throws "synthesizeMouseEvent is not a function"). macOS because
+// 2026-05-06 .work/probe-macos.mjs proved LinkedIn flags Windows persona
+// (412KB PX challenge) but lets macOS through (54KB form).
+const { generatePersona } = await import('../../dist/browser/persona.js');
+const macPersona = generatePersona({ os: 'macos', browser: 'chromium' });
+const s = await WSession.start({ label: 'linkedin_register', proxy: process.env.PROXY_URL || 'residential', targetHost: 'www.linkedin.com', browser: 'chromium', persona: macPersona });
 try {
   await s.goto(URL);
   await s.page.waitForTimeout(2500);
@@ -145,9 +173,41 @@ try {
   if (fillBOk) {
     await getAndInjectRecaptcha(s.page, 'signup');
     await s.page.waitForTimeout(500);
+    // Capture /signup/api/cors/createAccount response BEFORE click. On a
+    // challenged session LinkedIn returns HTTP 200 with body
+    // {submissionId, challengeUrl:"/checkpoint/challengeIframe/..."} — the
+    // challenge lives inside an iframe at challengeUrl, NOT a top-level
+    // redirect. Without explicitly navigating to challengeUrl the page stays
+    // at /signup forever and the post-redirect loop times out as "rejected".
+    // Diff harness 2026-05-06 .work/inst/linkedin_register_2026-05-06T17-59-19-014Z.json
+    // captured this exact response shape on the 17:59 run.
+    const createAccountRes = s.page.waitForResponse((r) => /\/signup\/api\/cors\/createAccount/.test(r.url())).catch(() => null);
     const submit2 = await humanClickLocator(s.page, s.page.locator('button[type="submit"]:has-text("Continue"), button#join-form-submit').first()).then(() => true).catch(e => { console.log(`[register] submit2 err: ${e.message?.slice(0, 80)}`); return false; });
     console.log(`[register] click Continue: ${submit2}`);
     if (!submit2) throw new Error('Continue button not clickable');
+    const apiRes = await createAccountRes;
+    let challengeUrl = '';
+    if (apiRes) {
+      try {
+        const body = await apiRes.json();
+        challengeUrl = body?.challengeUrl ?? '';
+        console.log(`[register] createAccount status=${apiRes.status()} submissionId=${(body?.submissionId ?? '').slice(0, 12)} challengeUrl=${challengeUrl ? challengeUrl.slice(0, 60) + '...' : 'none'}`);
+      } catch (e) { console.log(`[register] createAccount body parse err: ${e.message?.slice(0, 80)}`); }
+    }
+    if (challengeUrl) {
+      const fullUrl = challengeUrl.startsWith('http') ? challengeUrl : `https://www.linkedin.com${challengeUrl}`;
+      console.log(`[register] navigating to challenge: ${fullUrl.slice(0, 80)}...`);
+      await s.page.goto(fullUrl, { waitUntil: 'domcontentloaded' }).catch(e => console.log(`[register] challenge goto err: ${e.message?.slice(0, 80)}`));
+      // Wait for the recaptcha checkbox iframe to actually attach before
+      // invoking the solver. Direct-navigation to /checkpoint/challengeIframe
+      // races: sometimes page DOM is ready before the captchaInternal frame
+      // attaches → solver hits checkbox-locator timeouts (run-5 logs).
+      const captchaReady = await s.page.waitForSelector('iframe[src*="captchaInternal"], iframe[src*="recaptcha/api2"], iframe[src*="recaptcha/enterprise"]', { state: 'attached' }).then(() => true).catch(() => false);
+      console.log(`[register] captcha iframe attached: ${captchaReady}`);
+      await s.page.waitForTimeout(2000);
+      const cp = await solveLinkedinCheckpoint({ ctx: s.ctx, page: s.page }, 'register', id.email);
+      console.log(`[register] checkpoint solver returned: liAt=${cp?.liAt ? 'yes' : 'no'} finalUrl=${cp?.finalUrl?.slice(0, 80)}`);
+    }
     await s.page.waitForTimeout(5000);
   }
 
