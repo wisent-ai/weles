@@ -55,11 +55,14 @@ try {
   try { await assertAuthed('github', s, { label: 'github_edit_profile' }); }
   catch (probeErr) { if (probeErr instanceof AuthProbeError) { console.log(`FAIL: ${probeErr.message}`); await markCookiesStale(acct.id); process.exit(1); } throw probeErr; }
 
-  // Form fields on /settings/profile:
-  //   Name     → input#user_profile_name
+  // Form fields on /settings/profile (verified 2026-05-06 via
+  // .work/gh-probe/dump_form.mjs):
+  //   Name     → input#user_display_name (name="user[display_name]")
   //   Bio      → textarea#user_profile_bio
   //   Location → input#user_profile_location
-  const nameIn = s.page.locator('input#user_profile_name, input[name="user[profile_name]"]').filter({ visible: true }).first();
+  // Earlier trajectory used input#user_profile_name which doesn't exist —
+  // that's why the 22:51Z run wrote bio but skipped name.
+  const nameIn = s.page.locator('input#user_display_name, input[name="user\\[display_name\\]"]').filter({ visible: true }).first();
   const bioIn = s.page.locator('textarea#user_profile_bio, textarea[name="user[profile_bio]"]').filter({ visible: true }).first();
   const locIn = s.page.locator('input#user_profile_location, input[name="user[profile_location]"]').filter({ visible: true }).first();
 
