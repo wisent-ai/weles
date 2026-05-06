@@ -64,9 +64,10 @@ const ROUTES: Record<string, (p: string) => string | null> = {
 
   profile: (p) => p === 'producthunt' ? 'scripts/trajectories/producthunt/profile.mjs' : `scripts/trajectories/${p}_profile.mjs`,
   // edit_profile = write character persona content (bio, display_name, optional
-  // external_url) onto the platform's /accounts/edit form. instagram is the
-  // first platform with this trajectory (5 char-account links available).
-  edit_profile: (p) => `scripts/trajectories/${p}/actions/edit_profile.mjs`,
+  // external_url) onto the platform's /accounts/edit form. github goes under
+  // <platform>/content/ because github/actions/ is at the 5-file cap;
+  // every other platform follows the actions/ convention.
+  edit_profile: (p) => p === 'github' ? 'scripts/trajectories/github/content/edit_profile.mjs' : `scripts/trajectories/${p}/actions/edit_profile.mjs`,
   upvote: (p) => p === 'reddit' ? 'scripts/trajectories/reddit/actions/upvote.mjs'
     : p === 'producthunt' ? 'scripts/trajectories/producthunt/upvote.mjs'
     : `scripts/trajectories/${p}_upvote.mjs`,
