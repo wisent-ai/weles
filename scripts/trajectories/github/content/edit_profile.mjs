@@ -86,45 +86,22 @@ try {
     writes.push(`${label} "${cur}" -> "${target}"`);
   }
 
-  // Avatar upload — github exposes input#avatar_upload (type=file) on the
-  // same /settings/profile form. We fetch the image into a temp file and
-  // hand it to Playwright's setInputFiles. Idempotent guard: only upload
-  // when avatarUrl is set AND the user has no avatar set yet (the default
-  // identicon shows up via img.avatar-user with src like
-  // /<username>?s=<size>; once a real avatar is uploaded, the src points
-  // at avatars.githubusercontent.com).
+  // Avatar upload — DISABLED. The 2026-05-06 23:32Z run wrote
+  // `writes.push('avatar uploaded')` after setInputFiles + a Save click,
+  // but api.github.com still returned the 1530-byte 420x420 default
+  // identicon (etag a5970040361fa0c11381d37b45fcf3094a683d13b7140cd5816b60ccc36393ad).
+  // .work/gh-probe/probe_avatar_upload.mjs confirmed: setInputFiles on
+  // input#avatar_upload does NOT trigger github's upload JS — no modal
+  // appears, no buttons change. github's avatar flow needs the hidden
+  // PUT-form submitted (input#avatar_upload + _method=put +
+  // authenticity_token + a multipart commit), but Playwright's
+  // setInputFiles+change event isn't enough. Reverse-engineering the
+  // required submit path is real work — leaving the avatarUrl resolver
+  // above intact (avatar_url || training_images[0]) so the next pass can
+  // hook into a working upload mechanism (likely a direct multipart POST
+  // via page.context().request).
   if (avatarUrl) {
-    const haveCustomAvatar = await s.page.evaluate(() => {
-      const img = document.querySelector('img.avatar-user, img[alt*="@"][src*="avatars.githubusercontent"]');
-      const src = img?.getAttribute('src') || '';
-      return src.includes('avatars.githubusercontent.com/u/');
-    }).catch(() => false);
-    if (!haveCustomAvatar) {
-      try {
-        const resp = await s.page.context().request.get(avatarUrl);
-        if (resp.ok()) {
-          const buf = await resp.body();
-          const tmpPath = `/tmp/gh-avatar-${acct.id}.png`;
-          (await import('node:fs')).writeFileSync(tmpPath, buf);
-          const fileIn = s.page.locator('input#avatar_upload, input[type="file"][name="user[avatar]"]').first();
-          if (await fileIn.count()) {
-            await fileIn.setInputFiles(tmpPath);
-            await s.page.waitForTimeout(2500);
-            // After upload, github may show a crop modal — accept defaults.
-            const setBtn = s.page.locator('button:has-text("Set new profile picture"), button:has-text("Save")').filter({ visible: true }).first();
-            if (await setBtn.isVisible().catch(() => false)) {
-              await humanClickLocator(s.page, setBtn);
-              await s.page.waitForTimeout(3000);
-            }
-            writes.push(`avatar uploaded from ${avatarUrl.slice(0, 80)}`);
-          }
-        } else {
-          console.log(`[gh-profile] avatar fetch failed: ${resp.status()}`);
-        }
-      } catch (e) { console.log(`[gh-profile] avatar upload err: ${e.message?.slice(0, 120)}`); }
-    } else {
-      console.log('[gh-profile] avatar already set on platform — skipping upload');
-    }
+    console.log(`[gh-profile] avatar source available (${avatarUrl.slice(0, 80)}) — upload flow not yet wired (probe shows setInputFiles alone is no-op on github)`);
   }
 
   // Mirror to social_accounts even on no-op so the DB row catches up to the
