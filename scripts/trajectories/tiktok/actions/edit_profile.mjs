@@ -1,0 +1,120 @@
+// Write the linked character's persona content (display_name + bio) onto
+// the TikTok profile via the settings/profile page.
+//
+// Companion to instagram's edit_profile (commit b9be789). tiktok has 2
+// char-linked active accounts (marlongoodwin9943, meredithortiz502) so
+// this trajectory can be live-validated, unlike instagram where all 5
+// char-linked accounts are deactivated.
+
+import { getSocialAccount, resolveAccountSession, markCookiesStale } from '../../../../dist/utils/credentials.js';
+import { WSession } from '../../../../dist/session/wsession.js';
+import { humanType } from '../../../../dist/human/keyboard.js';
+import { humanClickLocator } from '../../../../dist/human/mouse.js';
+import { assertAuthed, AuthProbeError } from '../../_shared/auth-probe.mjs';
+import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../../_shared/cookie-freshness.mjs';
+
+const SUPABASE_URL = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
+
+const acct = await getSocialAccount('tiktok');
+if (!acct) { console.log('FAIL: no active tiktok account in DB'); process.exit(1); }
+console.log(`[tt-profile] using account: ${acct.username}`);
+
+const linkRes = await fetch(
+  `${SUPABASE_URL}/rest/v1/character_social_accounts?social_account_id=eq.${acct.id}&select=characters(id,name,bio,niche)`,
+  { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } },
+).then(r => r.ok ? r.json() : []);
+const character = linkRes?.[0]?.characters;
+if (!character) { console.log(`FAIL: no character linked to tiktok/${acct.username}`); process.exit(1); }
+console.log(`[tt-profile] character: ${character.name} (niche=${character.niche})`);
+
+// TikTok bio cap is 80 chars.
+const targetBio = (character.bio || '').slice(0, 80);
+const targetName = character.name || '';
+
+const { proxyUrl, persona } = await resolveAccountSession(acct);
+const s = await WSession.start({ label: 'tiktok_edit_profile', proxy: proxyUrl, persona, browser: 'chromium' });
+
+try {
+  let stored;
+  try {
+    const all = loadFreshCookieJarOrFail(acct, { platform: 'tiktok', label: 'tiktok_edit_profile', currentProxyUrl: proxyUrl, currentPersona: persona });
+    stored = all.filter(c => /tiktok\.com/.test(c.domain ?? ''));
+    if (!stored.length) throw new CookieJarStaleError('cookie_jar_no_domain_match: jar fresh but no tiktok.com cookies', { platform: 'tiktok' });
+  } catch (jarErr) {
+    if (jarErr instanceof CookieJarStaleError) { console.log(`FAIL: ${jarErr.message}`); await markCookiesStale(acct.id); process.exit(1); }
+    throw jarErr;
+  }
+  await s.ctx.addCookies(stored.map(c => ({ ...c, path: c.path || '/' })));
+
+  // TikTok's account-edit URL. The exact path has shifted across redesigns —
+  // try the canonical /setting first; if redirected, the trajectory will
+  // surface that final URL in the auth-probe failure.
+  await s.page.goto('https://www.tiktok.com/setting', { waitUntil: 'domcontentloaded' });
+  await s.page.waitForTimeout(5000);
+  if (/\/login(\/|$)/.test(s.page.url())) {
+    console.log(`FAIL: cookies stale, redirected to login (${s.page.url()})`);
+    await markCookiesStale(acct.id);
+    process.exit(1);
+  }
+  try { await assertAuthed('tiktok', s, { label: 'tiktok_edit_profile' }); }
+  catch (probeErr) { if (probeErr instanceof AuthProbeError) { console.log(`FAIL: ${probeErr.message}`); await markCookiesStale(acct.id); process.exit(1); } throw probeErr; }
+
+  // Profile fields on /setting:
+  //   * Name      → input[data-e2e="edit-profile-name"] or input near "Name" label
+  //   * Bio       → textarea[data-e2e="edit-profile-bio"] or textarea near "Bio"
+  // Both are inline-edit fields; some cohorts gate edits behind a "Edit profile" button.
+  const editBtn = s.page.locator('button:has-text("Edit profile"), [data-e2e="edit-profile-entrance"]').filter({ visible: true }).first();
+  if (await editBtn.isVisible().catch(() => false)) {
+    await humanClickLocator(s.page, editBtn);
+    await s.page.waitForTimeout(2500);
+  }
+
+  const nameIn = s.page.locator('input[data-e2e*="name" i], input[placeholder*="name" i], input[aria-label*="name" i]').filter({ visible: true }).first();
+  const bioIn = s.page.locator('textarea[data-e2e*="bio" i], textarea[placeholder*="bio" i], textarea[aria-label*="bio" i]').filter({ visible: true }).first();
+
+  const writes = [];
+  if (await nameIn.count()) {
+    const cur = await nameIn.inputValue().catch(() => '');
+    if (cur.trim() !== targetName.trim()) {
+      await humanClickLocator(s.page, nameIn);
+      await s.page.keyboard.press('Meta+A').catch(() => {});
+      await s.page.keyboard.press('Control+A').catch(() => {});
+      await s.page.keyboard.press('Backspace').catch(() => {});
+      await humanType(s.page, targetName);
+      writes.push(`name "${cur}" -> "${targetName}"`);
+    }
+  }
+  if (await bioIn.count()) {
+    const cur = await bioIn.inputValue().catch(() => '');
+    if (cur.trim() !== targetBio.trim()) {
+      await humanClickLocator(s.page, bioIn);
+      await s.page.keyboard.press('Meta+A').catch(() => {});
+      await s.page.keyboard.press('Control+A').catch(() => {});
+      await s.page.keyboard.press('Backspace').catch(() => {});
+      await humanType(s.page, targetBio);
+      writes.push(`bio (${cur.length} -> ${targetBio.length} chars)`);
+    }
+  }
+
+  if (!writes.length) { console.log('PASS: no-op (form values already match character)'); process.exit(0); }
+  console.log(`[tt-profile] writes: ${writes.join('; ')}`);
+
+  // Save. TikTok's button often reads "Save" — sometimes inside a modal.
+  const saveBtn = s.page.locator('button:has-text("Save"), [data-e2e="save-profile"]').filter({ visible: true }).first();
+  await saveBtn.waitFor({ state: 'visible' });
+  await humanClickLocator(s.page, saveBtn);
+  await s.page.waitForTimeout(4000);
+
+  const verifiedBio = await bioIn.inputValue().catch(() => '');
+  if (verifiedBio.trim() !== targetBio.trim()) {
+    console.log(`FAIL: bio mismatch after save ("${verifiedBio.slice(0, 60)}..." != "${targetBio.slice(0, 60)}...")`);
+    process.exit(1);
+  }
+  console.log(`PASS: ${acct.username} profile updated to ${character.name}`);
+} catch (e) {
+  console.log('FAIL:', e.message?.slice(0, 200));
+  process.exit(1);
+} finally {
+  await s.close();
+}
