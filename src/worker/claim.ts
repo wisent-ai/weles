@@ -42,10 +42,17 @@ export async function claimOne(): Promise<ActionLogRow | null> {
     if (r.ok) for (const row of (await r.json()) as { account_id: string | null }[]) if (row.account_id) inflightAccounts.add(row.account_id);
   }
   const staleAccounts = await staleCookieAccounts(candidates);
+  // Trading scrapes run with proxy_url_override='direct' (no sticky-session
+  // proxy), so the per-account in-flight lock that protects Oxylabs sessids
+  // does not apply. Allowing N workers to claim concurrent *_scrape rows
+  // for the same sentinel account is what makes parallel trading scrapes
+  // possible. Social actions still get the lock because they share an
+  // Oxylabs sticky session per account.
+  const isParallelSafeScrape = (a: string) => /^(unusualwhales|volumeleaders|tradingview)_scrape$/.test(a);
   for (const row of candidates) {
     if (!resolveTrajectory(row.action)) continue;
     if (!row.account_id || !row.id) continue; // poison rows: legacy promote-cron sometimes emits orphans
-    if (inflightAccounts.has(row.account_id)) continue;
+    if (inflightAccounts.has(row.account_id) && !isParallelSafeScrape(row.action)) continue;
     // staleAccounts blocks non-recovery actions; recovery actions (login,
     // register, health, balance, topup) MUST run to refresh stale cookies
     // — without this carve-out, _login rows for stale accounts get blocked
