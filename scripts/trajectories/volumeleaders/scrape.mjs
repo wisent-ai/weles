@@ -81,6 +81,73 @@ async function login() {
   throw new Error('login did not redirect');
 }
 
+// Build the URL-encoded form body that VL's DataTables-shaped POST /Trades/GetTrades
+// expects. Mirror the field set captured in vl_full_body probes 2026-05-06.
+function buildGetTradesBody({ ticker, startDate, endDate, minDollars, maxDollars, minRs, start, length }) {
+  const f = new URLSearchParams();
+  f.append('draw', '1'); f.append('start', String(start)); f.append('length', String(length));
+  for (let i = 0; i < 14; i += 1) {
+    f.append(`columns[${i}][data]`, 'FullTimeString24');
+    f.append(`columns[${i}][searchable]`, 'true');
+    f.append(`columns[${i}][orderable]`, 'true');
+    f.append(`columns[${i}][search][value]`, '');
+    f.append(`columns[${i}][search][regex]`, 'false');
+  }
+  f.append('order[0][column]', '1'); f.append('order[0][dir]', 'desc');
+  f.append('search[value]', ''); f.append('search[regex]', 'false');
+  const filt = { Tickers: ticker, StartDate: startDate, EndDate: endDate, MinVolume: '0', MaxVolume: '2000000000', MinPrice: '0', MaxPrice: '100000', MinDollars: String(minDollars), MaxDollars: String(maxDollars), Conditions: '', VCD: '0', SecurityTypeKey: '-1', RelativeSize: String(minRs), DarkPools: '-1', Sweeps: '-1', LatePrints: '-1', SignaturePrints: '-1', EvenShared: '-1', TradeRank: '-1', TradeRankSnapshot: '-1', MarketCap: '-1', IncludePremarket: '1', IncludeRTH: '1', IncludeAH: '1', IncludeOpening: '1', IncludeClosing: '1', IncludePhantom: '1', IncludeOffsetting: '1', SectorIndustry: '' };
+  for (const [k, v] of Object.entries(filt)) f.append(k, v);
+  return f.toString();
+}
+
+// Paginate POST /Trades/GetTrades via the authenticated browser context,
+// then upsert into public.vl_trades_history (PK=trade_id, ON CONFLICT DO NOTHING).
+async function paginateAndUpsertTrades(sess, t, sd, ed, md, xd, rs) {
+  const PAGE_SIZE = 100; const MAX_PAGES = 100; const allRows = [];
+  let totalRecords = null;
+  for (let pageIdx = 0; pageIdx < MAX_PAGES; pageIdx += 1) {
+    const start = pageIdx * PAGE_SIZE;
+    const body = buildGetTradesBody({ ticker: t, startDate: sd, endDate: ed, minDollars: md, maxDollars: xd, minRs: rs, start, length: PAGE_SIZE });
+    let resp;
+    try {
+      resp = await sess.page.evaluate(`(async (b) => { const r = await fetch('/Trades/GetTrades', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: b }); const x = await r.text(); return { status: r.status, body: x }; })(${JSON.stringify(body)})`);
+    } catch (e) { console.error(`[vl] page=${pageIdx} fetch err ${e.message}`); break; }
+    if (resp.status !== 200) { console.error(`[vl] page=${pageIdx} HTTP ${resp.status}`); break; }
+    let j; try { j = JSON.parse(resp.body); } catch (e) { console.error(`[vl] page=${pageIdx} parse err`); break; }
+    if (totalRecords == null) totalRecords = j.recordsTotal || 0;
+    if (!Array.isArray(j.data) || j.data.length === 0) break;
+    allRows.push(...j.data);
+    console.error(`[vl] page=${pageIdx} fetched=${j.data.length} cumulative=${allRows.length}/${totalRecords}`);
+    if (allRows.length >= totalRecords) break;
+  }
+  if (allRows.length === 0) return 0;
+  const supaUrl = process.env.SUPABASE_URL; const supaKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!supaUrl || !supaKey) { console.error('[vl] missing SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY — skipping upsert'); return 0; }
+  const mapped = allRows.map((d) => ({
+    trade_id: d.TradeID, ticker: d.Ticker, sector: d.Sector || null, industry: d.Industry || null, name: d.Name || null,
+    full_datetime: d.FullDateTime, date_key: d.DateKey, time_key: d.TimeKey || null, sequence_number: d.SequenceNumber || null,
+    price: d.Price, bid: d.Bid || null, ask: d.Ask || null, dollars: d.Dollars, volume: d.Volume,
+    dollars_multiplier: d.DollarsMultiplier || null, trade_count: d.TradeCount || null, trade_rank: d.TradeRank || null,
+    trade_rank_snapshot: d.TradeRankSnapshot || null, cumulative_distribution: d.CumulativeDistribution || null,
+    is_dark_pool: d.DarkPool === 1, is_sweep: d.Sweep === 1, is_late_print: d.LatePrint === 1,
+    is_signature_print: d.SignaturePrint === 1, is_opening_trade: d.OpeningTrade === 1,
+    is_closing_trade: d.ClosingTrade === 1, is_phantom_print: d.PhantomPrint === 1,
+    inside_bar: d.InsideBar === 1, double_inside_bar: d.DoubleInsideBar === 1,
+    trade_conditions: d.TradeConditions || null, rsi_hour: d.RSIHour || null, rsi_day: d.RSIDay || null,
+    cancelled: d.Cancelled === 1,
+  }));
+  const BATCH = 500; let inserted = 0;
+  for (let i = 0; i < mapped.length; i += BATCH) {
+    const slice = mapped.slice(i, i + BATCH);
+    const r = await fetch(`${supaUrl}/rest/v1/vl_trades_history?on_conflict=trade_id`, {
+      method: 'POST', headers: { apikey: supaKey, Authorization: `Bearer ${supaKey}`, 'Content-Type': 'application/json', Prefer: 'resolution=ignore-duplicates,return=minimal' }, body: JSON.stringify(slice),
+    });
+    if (!r.ok) { console.error(`[vl] upsert HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`); break; }
+    inserted += slice.length;
+  }
+  return inserted;
+}
+
 try {
   await login();
   await s.wait(3);
@@ -142,12 +209,23 @@ try {
     return out;
   })()`);
 
+  // For the trades page, paginate through VL's POST /Trades/GetTrades
+  // endpoint and upsert each print into the per-trade vl_trades_history
+  // table. The snapshot blob in stock_context is still written below for
+  // back-compat with existing readers, but vl_trades_history is the
+  // accumulating ledger keyed on TradeID with ON CONFLICT DO NOTHING.
+  let perTradeUpserted = 0;
+  if (pageKey === 'trades') {
+    perTradeUpserted = await paginateAndUpsertTrades(s, ticker, startDate, endDate, minDollars, maxDollars, minRs);
+    console.error(`[vl] paginated trades upserted=${perTradeUpserted}`);
+  }
+
   const persisted = await persistContext({
     ticker,
     page: `vl_${pageKey}`,
     data,
     screenshotPath,
-    metadata: { source: 'volumeleaders/scrape.mjs' },
+    metadata: { source: 'volumeleaders/scrape.mjs', perTradeUpserted },
   });
   console.error(`[vl] persisted row id=${persisted.id} gcs=${persisted.gcs_url || 'none'}`);
 
