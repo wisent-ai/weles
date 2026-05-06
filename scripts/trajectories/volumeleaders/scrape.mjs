@@ -55,7 +55,9 @@ if (!PAGE_URLS[pageKey]) {
   process.exit(1);
 }
 
-const s = await WSession.start({ label: `vl_scrape_${ticker}_${pageKey}`, proxy: process.env.PROXY_URL || 'oxylabs' });
+// VL is a paid SaaS dashboard authenticated with a single session.
+// Default direct; override via PROXY_URL or params.proxy_url_override.
+const s = await WSession.start({ label: `vl_scrape_${ticker}_${pageKey}`, proxy: process.env.PROXY_URL || 'direct' });
 
 async function login() {
   console.error('[vl] logging in');
