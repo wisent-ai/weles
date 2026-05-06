@@ -125,10 +125,10 @@ async function paginateAndUpsertTrades(sess, t, sd, ed, md, xd, rs) {
     try {
       resp = await sess.page.evaluate(`(async ({ b, x }) => { const r = await fetch('/Trades/GetTrades', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-XSRF-Token': x, 'X-Requested-With': 'XMLHttpRequest' }, body: b }); const t2 = await r.text(); return { status: r.status, body: t2 }; })(${JSON.stringify({ b: body, x: xsrf })})`);
     } catch (e) { console.error(`[vl] page=${pageIdx} fetch err ${e.message}`); break; }
-    if (resp.status !== 200) { console.error(`[vl] page=${pageIdx} HTTP ${resp.status}`); break; }
-    let j; try { j = JSON.parse(resp.body); } catch (e) { console.error(`[vl] page=${pageIdx} parse err`); break; }
+    if (resp.status !== 200) { console.error(`[vl] page=${pageIdx} HTTP ${resp.status} body[0:300]=${resp.body.slice(0, 300)}`); break; }
+    let j; try { j = JSON.parse(resp.body); } catch (e) { console.error(`[vl] page=${pageIdx} parse err — body[0:300]=${resp.body.slice(0, 300)}`); break; }
     if (totalRecords == null) totalRecords = j.recordsTotal || 0;
-    if (!Array.isArray(j.data) || j.data.length === 0) break;
+    if (!Array.isArray(j.data) || j.data.length === 0) { console.error(`[vl] page=${pageIdx} data empty: recordsTotal=${j.recordsTotal} recordsFiltered=${j.recordsFiltered} draw=${j.draw} keys=${Object.keys(j).join(',')}`); break; }
     allRows.push(...j.data);
     console.error(`[vl] page=${pageIdx} fetched=${j.data.length} cumulative=${allRows.length}/${totalRecords}`);
     if (allRows.length >= totalRecords) break;
