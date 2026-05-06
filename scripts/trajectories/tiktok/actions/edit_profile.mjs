@@ -97,7 +97,14 @@ try {
     }
   }
 
-  if (!writes.length) { console.log('PASS: no-op (form values already match character)'); process.exit(0); }
+  // Mirror to social_accounts even on no-op.
+  await fetch(`${SUPABASE_URL}/rest/v1/social_accounts?id=eq.${acct.id}`, {
+    method: 'PATCH',
+    headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+    body: JSON.stringify({ display_name: targetName || null, profile_url: `https://www.tiktok.com/@${acct.username}`, updated_at: new Date().toISOString() }),
+  }).catch(() => {});
+
+  if (!writes.length) { console.log('PASS: no-op (form values already match character; DB synced)'); process.exit(0); }
   console.log(`[tt-profile] writes: ${writes.join('; ')}`);
 
   // Save. TikTok's button often reads "Save" — sometimes inside a modal.
