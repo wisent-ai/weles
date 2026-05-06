@@ -41,8 +41,18 @@ try {
   }
   // First connection card has an anchor pointing to /in/<vanity>/. Pick it.
   // 2026-05-06: data-test-app-aware-link is gone in the new design system —
-  // use plain a[href*="/in/"] which matches both old and new markup.
+  // use plain a[href*="/in/"] which matches both old and new markup. Detect
+  // empty-connections state explicitly and exit with a clear precondition
+  // message instead of a 30s locator timeout (fresh accounts have 0
+  // connections, so endorse is a no-op for them — caller must wait for
+  // accepted invitations first).
   const profileLink = s.page.locator('a[href*="/in/"]').filter({ visible: true }).first();
+  const visibleCount = await s.page.locator('a[href*="/in/"]').count().catch(() => 0);
+  if (visibleCount === 0) {
+    console.log('FAIL: no_connections_to_endorse — account has 0 accepted connections');
+    await s.close().catch(() => {});
+    process.exit(0); // benign exit, not a code error
+  }
   await profileLink.waitFor({ state: 'visible' });
   const href = await profileLink.getAttribute('href');
   if (!href) throw new Error('no connection profile href found');
