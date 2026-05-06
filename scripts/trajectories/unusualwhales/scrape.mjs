@@ -82,7 +82,12 @@ if (!email || !password) {
   process.exit(1);
 }
 
-const proxyUrl = process.env.PROXY_URL || 'residential';
+// UW is a paid SaaS dashboard we authenticate to with a single shared
+// session; per-request residential rotation is not required and the
+// residential pool's pre-flight checks have repeatedly failed on the
+// mac-mini host. Default to direct (no proxy). Set PROXY_URL=residential
+// (or pass --proxy=residential via params.proxy_url_override) to opt in.
+const proxyUrl = process.env.PROXY_URL || 'direct';
 const s = await WSession.start({ label: `uw_scrape_${ticker}`, proxy: proxyUrl });
 global._s = s;
 
