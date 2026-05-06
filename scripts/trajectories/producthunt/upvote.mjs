@@ -138,12 +138,21 @@ async function vote(s) {
       throw new Error(`sso_recovery_failed: ${e.message?.slice(0, 200)}`);
     }
   }
-  await s.goto(TARGET_URL);
-  await sleep(4);
-
-  // Positive auth probe — see _shared/auth-probe.mjs.
+  // PH's homepage SSR cache sometimes serves the logged-out shell to a
+  // freshly-SSO'd session, so probing on the homepage is unreliable
+  // immediately post-SSO (verified 2026-05-06: comment.mjs PASSED on the
+  // same SSO source while upvote.mjs FAILed at homepage assertAuthed).
+  // Probe on /products/<slug> first — that page always renders the authed
+  // topbar avatar — then navigate to the homepage feed with a ?bc=1
+  // cache-buster so we land on a freshly-rendered authed homepage where
+  // the inline vote button is.
+  await s.goto('https://www.producthunt.com/products/feather-18');
+  await sleep(3);
   try { await assertAuthed('producthunt', s, { label: 'producthunt_upvote' }); }
   catch (probeErr) { if (probeErr instanceof AuthProbeError) { throw new Error(`auth_probe_failed: ${probeErr.message}`); } throw probeErr; }
+  const cacheBustedHome = TARGET_URL.includes('?') ? `${TARGET_URL}&bc=1` : `${TARGET_URL}?bc=1`;
+  await s.goto(cacheBustedHome);
+  await sleep(4);
 
   // Dismiss cookie consent banner if present
   const t0 = await readPage(s);
