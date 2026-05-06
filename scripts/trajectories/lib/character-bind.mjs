@@ -42,51 +42,28 @@ New characters fit the same MOLD: young, niche-specific creator, international/a
 Return ONLY valid JSON:
 {"name":"","gender":"female|male|non_binary","age":<int 19-30>,"nationality":"","niche":"","bio":"1-2 short paragraphs same shape as references","personality":"1-2 sentences in reference style","communication_style":"how they post and caption","interests":["5-7"],"values":["3-4"],"home_city":"","home_country":"","weekly_routine":{"posts_per_week":<int>,"stories_per_week":<int>,"comments_per_week":<int>}}`;
 
-async function generateCharacter(supabaseUrl, serviceKey, platform) {
+async function generateCharacter(_supabaseUrl, _serviceKey, platform) {
+  // 2026-05-06: api.wisentmedia.com decommissioned. Delegate to the
+  // content-platform /api/characters/generate route which uses the same
+  // Claude-via-OAuth client as the UI and writes the characters row +
+  // character_states server-side. Auth via x-cron-secret matches the
+  // /api/llm/generate cron-flow pattern. Keeps prompt + insert logic in
+  // one place (route.ts) so future schema changes don't drift between
+  // weles and content-platform.
   const t = TYPOLOGY[platform];
   if (!t) return null;
-  const systemPrompt = t.type === 'serious' ? SYSTEM_SERIOUS : SYSTEM_UNSERIOUS;
-
-  const llmRes = await fetch(LLM_API_URL, {
+  const charGenUrl = process.env.CHARACTER_GENERATE_URL || 'https://content.wisent.ai/api/characters/generate';
+  const cronSecret = process.env.CRON_SECRET;
+  if (!cronSecret) { console.log('[char-gen] CRON_SECRET not set in env'); return null; }
+  const res = await fetch(charGenUrl, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-5-20250929',
-      max_tokens: 2048,
-      system: systemPrompt,
-      messages: [{ role: 'user', content: `Generate one ${t.type} persona.` }],
-    }),
-  }).catch(() => null);
-  if (!llmRes || !llmRes.ok) return null;
-  let llm; try { llm = await llmRes.json(); } catch { return null; }
-  let text = llm?.content?.[0]?.type === 'text' ? llm.content[0].text.trim() : '';
-  text = text.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '');
-  let persona; try { persona = JSON.parse(text); } catch { return null; }
-
-  if (t.type === 'serious' && persona.home_city !== 'San Francisco' && persona.home_city !== 'New York') return null;
-
-  const H = { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, 'Content-Type': 'application/json' };
-  const insertRes = await fetch(`${supabaseUrl}/rest/v1/characters`, {
-    method: 'POST', headers: { ...H, Prefer: 'return=representation' },
-    body: JSON.stringify({
-      name: persona.name, gender: persona.gender, age: persona.age ?? null, nationality: persona.nationality ?? null,
-      bio: persona.bio ?? '', personality: persona.personality ?? '', communication_style: persona.communication_style ?? null,
-      interests: persona.interests ?? null, values: persona.values ?? null, occupation: persona.occupation ?? null,
-      home_city: persona.home_city ?? null, home_country: persona.home_country ?? null,
-      niche: persona.niche ?? (t.type === 'serious' ? 'tech' : 'lifestyle'),
-      platforms: t.platforms, weekly_routine: persona.weekly_routine ?? null,
-      source: 'generated', is_active: true,
-    }),
-  }).catch(() => null);
-  if (!insertRes || !insertRes.ok) return null;
-  const rows = await insertRes.json().catch(() => []);
-  const created = rows?.[0];
-  if (!created) return null;
-  await fetch(`${supabaseUrl}/rest/v1/character_states`, {
-    method: 'POST', headers: { ...H, Prefer: 'return=minimal' },
-    body: JSON.stringify({ character_id: created.id, current_mood: 'neutral', current_city: persona.home_city ?? null, current_country: persona.home_country ?? null }),
-  }).catch(() => {});
-  return created;
+    headers: { 'Content-Type': 'application/json', 'x-cron-secret': cronSecret },
+    body: JSON.stringify({ type: t.type }),
+  }).catch((e) => { console.log(`[char-gen] fetch err: ${e?.message?.slice(0, 80)}`); return null; });
+  if (!res) return null;
+  if (!res.ok) { console.log(`[char-gen] route returned ${res.status}`); return null; }
+  let body; try { body = await res.json(); } catch { return null; }
+  return body?.character ?? null;
 }
 
 export async function autoBindCharacter(username, platform) {
