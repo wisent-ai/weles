@@ -67,7 +67,7 @@ const ROUTES: Record<string, (p: string) => string | null> = {
   // external_url) onto the platform's /accounts/edit form. github goes under
   // <platform>/content/ because github/actions/ is at the 5-file cap;
   // every other platform follows the actions/ convention.
-  edit_profile: (p) => p === 'github' ? 'scripts/trajectories/github/content/edit_profile.mjs' : `scripts/trajectories/${p}/actions/edit_profile.mjs`,
+  edit_profile: (p) => (p === 'github' || p === 'reddit') ? `scripts/trajectories/${p}/content/edit_profile.mjs` : `scripts/trajectories/${p}/actions/edit_profile.mjs`,
   upvote: (p) => p === 'reddit' ? 'scripts/trajectories/reddit/actions/upvote.mjs'
     : p === 'producthunt' ? 'scripts/trajectories/producthunt/upvote.mjs'
     : `scripts/trajectories/${p}_upvote.mjs`,
