@@ -62,8 +62,49 @@ try {
   }
   try { await assertAuthed('linkedin', s, { label: 'linkedin_edit_profile' }); }
   catch (probeErr) { if (probeErr instanceof AuthProbeError) { console.log(`FAIL: ${probeErr.message}`); await markCookiesStale(acct.id); process.exit(1); } throw probeErr; }
-  await s.page.goto('https://www.linkedin.com/in/me/edit-form/intro/', { waitUntil: 'domcontentloaded' });
-  await s.page.waitForTimeout(5000);
+  // 2026-05-06: /in/me/edit-form/intro/ deprecated — returns "This page
+  // doesn't exist" for fresh accounts. Navigate to /in/me/ profile page
+  // and click the pencil edit-intro button to open the modal.
+  await s.page.goto('https://www.linkedin.com/in/me/', { waitUntil: 'domcontentloaded' });
+  await s.page.waitForTimeout(4000);
+  // 2026-05-06: button enumeration on /in/me/ shows the edit-intro entry
+  // is `<a aria-label="Edit profile">` — same icon-only pencil that used
+  // to open /in/me/edit-form/intro/. Clicking it opens the intro modal
+  // in-page.
+  const editIntroBtn = s.page.locator('a[aria-label="Edit profile" i], button[aria-label="Edit profile" i], a[aria-label*="Edit intro" i]').filter({ visible: true }).first();
+  if (await editIntroBtn.count()) {
+    await humanClickLocator(s.page, editIntroBtn);
+    await s.page.waitForTimeout(3000);
+  } else {
+    console.log('[li-profile] edit-intro button not found on /in/me/ — falling through to field probe');
+  }
+  // 2026-05-06: dump landing URL + page title + first 600 chars of body
+  // text + every visible input/textarea so future selector drifts surface
+  // in the log instead of silent no-ops.
+  const landingUrl = s.page.url();
+  const pageTitle = await s.page.title().catch(() => '');
+  const bodyTextHead = await s.page.evaluate(() => (document.body?.innerText || '').slice(0, 600)).catch(() => '');
+  console.log(`[li-profile] landing url=${landingUrl}`);
+  console.log(`[li-profile] page title=${pageTitle}`);
+  console.log(`[li-profile] body head: ${bodyTextHead.replace(/\n/g, ' / ').slice(0, 400)}`);
+  const formFields = await s.page.evaluate(() => {
+    const out = [];
+    for (const el of Array.from(document.querySelectorAll('input, textarea'))) {
+      const r = el.getBoundingClientRect();
+      out.push({
+        tag: el.tagName.toLowerCase(),
+        id: el.id || '',
+        name: el.getAttribute('name') || '',
+        ph: el.getAttribute('placeholder') || '',
+        type: el.getAttribute('type') || '',
+        visible: r.width > 0 && r.height > 0,
+        val: (el.value || '').slice(0, 40),
+      });
+    }
+    return out;
+  }).catch(() => []);
+  console.log(`[li-profile] form fields on edit-intro page (${formFields.length}):`);
+  for (const f of formFields.filter(f => f.visible)) console.log(`  ${f.tag} id="${f.id}" name="${f.name}" ph="${f.ph}" type="${f.type}" val="${f.val}"`);
 
   // Edit Intro modal fields:
   //   First name        → input[id*="first-name"]
