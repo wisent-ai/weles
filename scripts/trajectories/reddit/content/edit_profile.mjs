@@ -17,12 +17,14 @@ if (!acct) { console.log('FAIL: no active reddit account in DB'); process.exit(1
 console.log(`[rd-profile] using account: ${acct.username}`);
 
 const linkRes = await fetch(
-  `${SUPABASE_URL}/rest/v1/character_social_accounts?social_account_id=eq.${acct.id}&select=characters(id,name,bio,niche)`,
+  `${SUPABASE_URL}/rest/v1/character_social_accounts?social_account_id=eq.${acct.id}&select=characters(id,name,bio,niche,avatar_url,training_images)`,
   { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } },
 ).then(r => r.ok ? r.json() : []);
 const character = linkRes?.[0]?.characters;
 if (!character) { console.log(`FAIL: no character linked to reddit/${acct.username}`); process.exit(1); }
 console.log(`[rd-profile] character: ${character.name} (niche=${character.niche})`);
+const rawAvatar = character.avatar_url || (Array.isArray(character.training_images) ? character.training_images[0] : null);
+const avatarUrl = rawAvatar ? (rawAvatar.startsWith('http') ? rawAvatar : `https://content.wisent.ai${rawAvatar}`) : null;
 
 const targetName = (character.name || '').slice(0, 30); // reddit display name cap
 const targetBio = (character.bio || '').slice(0, 200);  // reddit "about" cap
