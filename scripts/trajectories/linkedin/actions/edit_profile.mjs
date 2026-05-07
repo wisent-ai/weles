@@ -157,6 +157,12 @@ try {
     // Press Tab to blur + commit the typed value before clicking Save.
     await s.page.keyboard.press('Tab').catch(() => {});
     await s.page.waitForTimeout(800);
+    // Diagnostic: dump every visible button so we can identify the real
+    // save control (last run with `last()` selector hit a button that
+    // dispatched no save mutation — picking the wrong one).
+    const btnDump = await s.page.evaluate(() => Array.from(document.querySelectorAll('button')).filter(b => b.getBoundingClientRect().width > 0).map(b => { const r = b.getBoundingClientRect(); return `${b.textContent?.trim().slice(0, 30) || ''}|aria=${b.getAttribute('aria-label') || ''}|disabled=${b.disabled || b.getAttribute('aria-disabled') === 'true'}|y=${Math.round(r.y)}|w=${Math.round(r.width)}`; })).catch(() => []);
+    console.log(`[li-profile] visible buttons (${btnDump.length}):`);
+    for (const b of btnDump.filter((s) => /save|cancel|discard/i.test(s)).slice(0, 10)) console.log(`  ${b}`);
     // 2026 modal: multiple "Save" buttons may be in the DOM (cancel-state,
     // save-state). Target the visible enabled one. LinkedIn disables Save
     // until the form sees a real change event from a typed input.
@@ -164,13 +170,22 @@ try {
     const saveCount = await saveBtn.count();
     console.log(`[li-profile] save button enabled count=${saveCount}`);
     if (saveCount > 0) {
-      // Watch for the actual save mutation POST. The form is rendered as a
-      // React Server Component; saving fires a POST to /flagship-web/
-      // rsc-action/actions/<action>?screenId=...ProfileEditIntroForm with
-      // the form data. Capture it explicitly so we don't false-PASS when
-      // the click is a no-op.
-      const savePost = s.page.waitForResponse((r) => r.request().method() === 'POST' && /rsc-action.*ProfileEditIntroForm/.test(r.url()) && r.status() === 200).catch(() => null);
-      await humanClickLocator(s.page, saveBtn);
+      // Watch for the save mutation POST. The form is a React Server
+      // Component; saving fires a POST to /flagship-web/rsc-action/.
+      const savePost = s.page.waitForResponse((r) => r.request().method() === 'POST' && /rsc-action.*ProfileEditIntroForm|rsc-action.*editProfile|rsc-action.*action=update/.test(r.url())).catch(() => null);
+      // 2026-05-07: humanClickLocator on the visible Save button produced
+      // zero mutation POSTs across multiple runs. RSC forms commonly
+      // submit via form.requestSubmit(button) not button.click(); call
+      // that directly so the right onSubmit/action handler fires.
+      const dispatchResult = await s.page.evaluate(() => {
+        const btn = Array.from(document.querySelectorAll('button')).find(b => /^save$/i.test(b.textContent?.trim() ?? '') && !b.disabled && b.getBoundingClientRect().width > 0);
+        if (!btn) return 'no-save-button';
+        const form = btn.closest('form');
+        if (form?.requestSubmit) { form.requestSubmit(btn); return 'requestSubmit'; }
+        btn.click();
+        return 'btn.click';
+      }).catch((e) => `err:${e.message?.slice(0, 60)}`);
+      console.log(`[li-profile] save dispatch: ${dispatchResult}`);
       const apiRes = await savePost;
       const postClickBody = await s.page.evaluate(() => (document.body?.innerText || '').slice(0, 600).replace(/\n/g, ' / ')).catch(() => '');
       console.log(`[li-profile] save: post-click url=${s.page.url()}`);
