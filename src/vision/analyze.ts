@@ -84,7 +84,7 @@ async function takeScreenshot(page: ScreenshottablePage): Promise<Buffer | null>
   }
 }
 
-function askClaude(screenshot: Buffer, question: string, tier = 'tier_0_bare', domHtml = ''): string {
+export function askClaude(screenshot: Buffer, question: string, tier = 'tier_0_bare', domHtml = ''): string {
   const dir = visionDir();
   const ts = new Date().toISOString().replace(/[:.]/g, '_');
   const imgPath = join(dir, `vision_${ts}_${tier}.png`);
