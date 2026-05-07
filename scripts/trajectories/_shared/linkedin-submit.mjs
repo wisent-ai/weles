@@ -2,21 +2,32 @@ import { humanType } from '../../../dist/human/keyboard.js';
 import { humanClickLocator } from '../../../dist/human/mouse.js';
 
 export async function linkedinSubmitComment(s, text) {
-  // First post container.
-  const post = s.page.locator('div.feed-shared-update-v2, div.fie-impression-container, [data-id^="urn:li:activity"]').first();
+  // 2026-05-06: legacy container selectors gone in the new design system.
+  // Anchor on the React-Like button (semantic + stable) and ascend to its
+  // feed-post wrapper. Empty-feed accounts (fresh registrations with no
+  // following) get an early benign-no-op so we don't 30s-timeout hunting
+  // for a post that won't render.
+  const reactLikeCount = await s.page.locator('button[aria-label*="React Like" i]').count();
+  if (reactLikeCount === 0) {
+    console.log('[linkedin_submit_comment] no_likeable_posts_on_page — feed empty, skipping');
+    return;
+  }
+  const post = s.page.locator('button[aria-label*="React Like" i]').first().locator('xpath=ancestor::*[@data-testid="feed-post" or @data-id or contains(@class, "feed-post") or contains(@class, "update-components")][1]');
   await post.waitFor({ state: 'visible', timeout: 15000 });
   await post.scrollIntoViewIfNeeded().catch(() => {});
   // Comment button — aria-label="Comment".
   const commentBtn = post.locator('button[aria-label="Comment"], button[aria-label*="comment" i]:not([aria-label*="React" i])').filter({ visible: true }).first();
   await commentBtn.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, commentBtn);
-  // Editor — contenteditable div with role="textbox" inside the comments section.
-  const editor = post.locator('div[role="textbox"][contenteditable="true"], div.ql-editor[contenteditable="true"]').filter({ visible: true }).first();
+  // Editor — wider 2026 set: data-testid editor/composer + legacy Quill +
+  // bare contenteditable. Page-scoped because the comment composer can
+  // attach outside the post wrapper depending on layout.
+  const editor = s.page.locator('[data-testid*="editor"][contenteditable="true"], [data-testid*="composer"][contenteditable="true"], div[role="textbox"][contenteditable="true"], div.ql-editor[contenteditable="true"], [contenteditable="true"]:not([role="combobox"]):not([role="textbox"])').filter({ visible: true }).first();
   await editor.waitFor({ state: 'visible', timeout: 10000 });
   await humanClickLocator(s.page, editor);
   await humanType(s.page, text);
   // Post submit button — once text is entered, button[disabled] flips.
-  const postBtn = post.locator('button.comments-comment-box__submit-button:not([disabled]), button:has-text("Post"):not([disabled])').filter({ visible: true }).first();
+  const postBtn = s.page.locator('button.comments-comment-box__submit-button:not([disabled]), [data-testid*="comment"][role="button"]:not([disabled]):has-text("Post"), button:has-text("Post"):not([disabled])').filter({ visible: true }).first();
   await postBtn.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, postBtn);
   // Verify state flip — editor cleared.

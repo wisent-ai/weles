@@ -87,17 +87,39 @@ export class CookieJarStaleError extends Error {
  * Accepts either a ProxyConfig-shaped object ({ host, port, ... }) or a
  * proxy URL string. Returns 'direct' when no proxy is in play.
  */
+// Map a proxy username to its provider name. The host can vary across
+// CONNECTs to the same provider (oxylabs DNS-resolves pr.oxylabs.io to
+// many gateway IPs and the selector picks one at random per call -- see
+// src/proxy/config.ts:207-220) so a host-only signature spuriously
+// flips between two valid oxylabs sessions and trips
+// cookie_jar_proxy_mismatch on every consecutive action. Username keeps
+// the provider stable.
+const USER_PROVIDER_RE = [
+  [/^customer-.*-cc-[a-z]{2}-sessid-\d+/i, 'oxylabs'],
+  [/^brd-customer-/i, 'brightdata'],
+  [/_c_[a-z]{2}_s_\d+/i, 'pingproxies'],
+];
+function providerFromUser(user) {
+  if (!user) return null;
+  for (const [re, name] of USER_PROVIDER_RE) if (re.test(user)) return name;
+  return null;
+}
+
 export function proxySignature(proxyOrUrl) {
   if (!proxyOrUrl) return 'direct';
   // ProxyConfig shape
   if (typeof proxyOrUrl === 'object' && proxyOrUrl.host) {
     const port = proxyOrUrl.port ? String(proxyOrUrl.port) : '';
+    const prov = providerFromUser(proxyOrUrl.username);
+    if (prov) return `${prov}:${port}`.replace(/:$/, '');
     return `${proxyOrUrl.host}:${port}`.replace(/:$/, '');
   }
   // URL string shape ("http://user:pass@host:port")
   if (typeof proxyOrUrl === 'string') {
     try {
       const u = new URL(proxyOrUrl);
+      const prov = providerFromUser(u.username ? decodeURIComponent(u.username) : '');
+      if (prov) return `${prov}:${u.port || ''}`.replace(/:$/, '');
       return `${u.hostname}:${u.port || ''}`.replace(/:$/, '');
     } catch { return 'direct'; }
   }
@@ -180,7 +202,11 @@ export function loadFreshCookieJarOrFail(acct, { platform, label, currentProxyUr
       // (e.g. "gate.oxylabs.io:1234"), NOT a URL or ProxyConfig object.
       const storedSig = typeof storedProxy === 'string' && !storedProxy.includes('://') ? storedProxy : proxySignature(storedProxy);
       const currentSig = proxySignature(currentProxyUrl);
-      if (storedSig !== 'direct' && currentSig !== 'direct' && storedSig !== currentSig) {
+      // Legacy sigs are "<ip>:<port>", new sigs are "<provider>:<port>" --
+      // tolerate the migration when ports match (next login overwrites it).
+      const portsMatch = storedSig.split(':')[1] === currentSig.split(':')[1];
+      const looksLikeMigration = portsMatch && /^(oxylabs|brightdata|pingproxies|packetstream|iproyal):/.test(currentSig) && /^\d+\.\d+\.\d+\.\d+:/.test(storedSig);
+      if (storedSig !== 'direct' && currentSig !== 'direct' && storedSig !== currentSig && !looksLikeMigration) {
         throw new CookieJarStaleError(`cookie_jar_proxy_mismatch: jar minted under proxy=${storedSig} but current proxy=${currentSig} for ${platform} — login required`, {
           platform, label, reason: 'proxy_mismatch', stored_proxy: storedSig, current_proxy: currentSig, account_id: acct?.id ?? null,
         });
