@@ -135,7 +135,20 @@ async function classifyGrid(bframe: any, instruction: string, gridSize: number):
     if (pos) answers.push({ name: labels[i], positions: pos });
   });
   if (answers.length === 0) return null;
-  if (answers.length === 1) { console.log(`[recaptcha] Only ${answers[0].name} responded — using its answer (no consensus possible)`); return answers[0].positions; }
+  if (answers.length === 1) {
+    // Claude tiebreaker — ask vision on the grid image, require 2-of-2.
+    try {
+      const v = await import('../vision/analyze.js') as any;
+      const ask = v.askClaude as ((b: Buffer, q: string, t?: string) => string) | undefined;
+      if (ask) {
+        const grid = gridSize === 3 ? '1 2 3 / 4 5 6 / 7 8 9' : '1-4/5-8/9-12/13-16';
+        const ans = ask(Buffer.from(gridImgB64, 'base64'), `reCAPTCHA grid (${grid}). Instruction: "${instr}". Return ONLY a JSON array of positions, e.g. [1,4,7].`, 'tier_image');
+        const mm = (ans || '').match(/\[[\d,\s]*\]/);
+        if (mm) { try { const cp = JSON.parse(mm[0]); if (Array.isArray(cp)) { console.log(`[recaptcha] Claude tiebreaker: ${JSON.stringify(cp)}`); answers.push({ name: 'Claude', positions: cp }); } } catch {} }
+      }
+    } catch {}
+    if (answers.length === 1) { console.log(`[recaptcha] Only ${answers[0].name} responded`); return answers[0].positions; }
+  }
   const tally = new Map<number, number>();
   for (const a of answers) for (const p of new Set(a.positions)) tally.set(p, (tally.get(p) ?? 0) + 1);
   const majority = [...tally.entries()].filter(([, c]) => c >= 2).map(([p]) => p).sort((a, b) => a - b);
