@@ -21,12 +21,14 @@ if (!acct) { console.log('FAIL: no active tiktok account in DB'); process.exit(1
 console.log(`[tt-profile] using account: ${acct.username}`);
 
 const linkRes = await fetch(
-  `${SUPABASE_URL}/rest/v1/character_social_accounts?social_account_id=eq.${acct.id}&select=characters(id,name,bio,niche)`,
+  `${SUPABASE_URL}/rest/v1/character_social_accounts?social_account_id=eq.${acct.id}&select=characters(id,name,bio,niche,avatar_url,training_images)`,
   { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } },
 ).then(r => r.ok ? r.json() : []);
 const character = linkRes?.[0]?.characters;
 if (!character) { console.log(`FAIL: no character linked to tiktok/${acct.username}`); process.exit(1); }
 console.log(`[tt-profile] character: ${character.name} (niche=${character.niche})`);
+const rawAvatar = character.avatar_url || (Array.isArray(character.training_images) ? character.training_images[0] : null);
+const avatarUrl = rawAvatar ? (rawAvatar.startsWith('http') ? rawAvatar : `https://content.wisent.ai${rawAvatar}`) : null;
 
 // TikTok bio cap is 80 chars.
 const targetBio = (character.bio || '').slice(0, 80);

@@ -25,12 +25,14 @@ console.log(`[ig-profile] using account: ${acct.username}`);
 // Pull the linked character's persona data. Without a link, there's nothing
 // to write — exit cleanly so the worker doesn't retry.
 const linkRes = await fetch(
-  `${SUPABASE_URL}/rest/v1/character_social_accounts?social_account_id=eq.${acct.id}&select=characters(id,name,bio,niche,occupation,home_city)`,
+  `${SUPABASE_URL}/rest/v1/character_social_accounts?social_account_id=eq.${acct.id}&select=characters(id,name,bio,niche,occupation,home_city,avatar_url,training_images)`,
   { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } },
 ).then(r => r.ok ? r.json() : []);
 const character = linkRes?.[0]?.characters;
 if (!character) { console.log(`FAIL: no character linked to instagram/${acct.username}`); process.exit(1); }
 console.log(`[ig-profile] character: ${character.name} (niche=${character.niche})`);
+const rawAvatar = character.avatar_url || (Array.isArray(character.training_images) ? character.training_images[0] : null);
+const avatarUrl = rawAvatar ? (rawAvatar.startsWith('http') ? rawAvatar : `https://content.wisent.ai${rawAvatar}`) : null;
 
 const targetBio = (character.bio || '').slice(0, 150);
 const targetName = character.name || '';
