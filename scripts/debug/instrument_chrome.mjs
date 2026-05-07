@@ -124,23 +124,33 @@ const interval = setInterval(async () => {
 // linkedin/actions/edit_profile.mjs, so we can diff to find why the save
 // mutation POST never fires from the trajectory.
 if (process.env.DRIVE_LINKEDIN_EDIT_INTRO === '1' && PLATFORM === 'linkedin') {
-  console.log('[inst-chrome] DRIVE_LINKEDIN_EDIT_INTRO=1 — driving form fill');
+  console.log('[inst-chrome] DRIVE_LINKEDIN_EDIT_INTRO=1 — driving form fill via weles humanized atoms');
+  // Use weles humanized atoms so the apples-to-apples comparison vs the
+  // edit_profile trajectory uses identical event semantics. Plain
+  // page.keyboard.type() / locator.click() produce different timing
+  // signatures than weles humanFill / humanClickLocator.
+  const { humanType, humanFill } = await import(`${WELES_ROOT}/dist/human/keyboard.js`);
+  const { humanClickLocator, humanIdlePause } = await import(`${WELES_ROOT}/dist/human/mouse.js`);
   await page.waitForTimeout(4000);
   try {
     const fnIn = page.getByLabel('First name', { exact: false }).filter({ visible: true }).first();
     const lnIn = page.getByLabel('Last name', { exact: false }).filter({ visible: true }).first();
     if (await fnIn.count()) {
+      await humanClickLocator(page, fnIn);
       await fnIn.click({ clickCount: 3 });
       await page.keyboard.press('Backspace');
-      await page.keyboard.type(process.env.DRIVE_FIRST_NAME || 'Anya', { delay: 40 });
-      console.log('[inst-chrome] typed first name');
+      await humanType(page, process.env.DRIVE_FIRST_NAME || 'Anya');
+      console.log('[inst-chrome] typed first name (humanized)');
     } else { console.log('[inst-chrome] first-name locator missing'); }
+    await humanIdlePause('short');
     if (await lnIn.count()) {
+      await humanClickLocator(page, lnIn);
       await lnIn.click({ clickCount: 3 });
       await page.keyboard.press('Backspace');
-      await page.keyboard.type(process.env.DRIVE_LAST_NAME || 'Sharma', { delay: 40 });
-      console.log('[inst-chrome] typed last name');
+      await humanType(page, process.env.DRIVE_LAST_NAME || 'Sharma');
+      console.log('[inst-chrome] typed last name (humanized)');
     } else { console.log('[inst-chrome] last-name locator missing'); }
+    await humanIdlePause('deliberate');
     // Wait for React hydration to complete before attempting save —
     // RSC hydration of the form's onClick can take 4-6s after navigate.
     // Save button being VISIBLE doesn't mean its handler is attached.
@@ -169,20 +179,17 @@ if (process.env.DRIVE_LINKEDIN_EDIT_INTRO === '1' && PLATFORM === 'linkedin') {
       return out;
     }).catch(() => []);
     console.log(`[inst-chrome] save candidates after hydration: ${JSON.stringify(saveDiag)}`);
-    // 2026-05-07 DOM enumeration found the visible "Save" button is
-    // type="button" (decorative proxy, no form ancestor), and the actual
-    // save trigger is a HIDDEN button[type="submit"] with formAction
-    // pointing at the edit URL. Click the hidden submit directly via JS.
-    const submitResult = await page.evaluate(() => {
-      const submit = Array.from(document.querySelectorAll('button[type="submit"], input[type="submit"]')).find(b => b.getAttribute('formaction') || b.closest('form')?.action || /\/edit\//.test(b.getAttribute('formaction') || '') || (b.tagName === 'BUTTON' && /submit/i.test(b.textContent || '')));
-      if (!submit) return 'no-hidden-submit-found';
-      submit.click();
-      return `clicked-hidden-submit text="${(submit.textContent || '').trim().slice(0, 30)}" formaction="${submit.getAttribute('formaction') || ''}"`;
-    }).catch((e) => `err:${String(e).slice(0, 60)}`);
-    console.log(`[inst-chrome] hidden submit dispatch: ${submitResult}`);
-    await page.waitForTimeout(8000);
-    const final = page.url();
-    console.log(`[inst-chrome] post-save url=${final}`);
+    // Click the visible "Save" button via humanClickLocator — same path
+    // edit_profile.mjs trajectory uses. CDP-trusted bezier mouse path,
+    // not synthetic JS click.
+    const saveBtn = page.locator('button:has-text("Save"):not([disabled]):not([aria-disabled="true"])').filter({ visible: true }).last();
+    if (await saveBtn.count()) {
+      console.log('[inst-chrome] clicking Save via humanClickLocator');
+      await humanClickLocator(page, saveBtn);
+      await page.waitForTimeout(8000);
+      const final = page.url();
+      console.log(`[inst-chrome] post-save url=${final}`);
+    } else { console.log('[inst-chrome] save button missing'); }
   } catch (e) { console.log(`[inst-chrome] drive err: ${String(e).slice(0, 200)}`); }
   console.log('[inst-chrome] auto-drive complete; closing in 3s for capture');
   await page.waitForTimeout(3000);
