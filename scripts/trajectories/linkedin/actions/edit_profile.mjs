@@ -74,7 +74,11 @@ try {
   const editIntroBtn = s.page.locator('a[aria-label="Edit profile" i], button[aria-label="Edit profile" i], a[aria-label*="Edit intro" i]').filter({ visible: true }).first();
   if (await editIntroBtn.count()) {
     await humanClickLocator(s.page, editIntroBtn);
-    await s.page.waitForTimeout(3000);
+    // Wait for first-name field to attach. Click navigates to
+    // /<vanity>/edit/intro/ and the form renders in a React portal that
+    // mounts after RUM bundles finish (3s post-click yielded 0 fields).
+    await s.page.locator('input[id*="first-name" i], input[id*="firstName" i], input[name*="firstName" i]').filter({ visible: true }).first().waitFor({ state: 'visible' }).catch(() => {});
+    await s.page.waitForTimeout(2000);
   } else {
     console.log('[li-profile] edit-intro button not found on /in/me/ — falling through to field probe');
   }
@@ -114,18 +118,29 @@ try {
   // We split character.name on the first space for first/last.
   const [firstName, ...rest] = targetName.split(/\s+/);
   const lastName = rest.join(' ');
-  const fnIn = s.page.locator('input[id*="first-name" i], input[id*="firstName" i]').filter({ visible: true }).first();
-  const lnIn = s.page.locator('input[id*="last-name" i], input[id*="lastName" i]').filter({ visible: true }).first();
-  const hlIn = s.page.locator('input[id*="headline" i], textarea[id*="headline" i]').filter({ visible: true }).first();
+  // 2026-05-06: input ids are React-generated `:r<rand>:` and not stable
+  // across renders. Match by visible label text via Playwright getByLabel
+  // — LinkedIn's intro modal wraps every input in <label>...field name
+  // </label><input>. This survives React id churn and disambiguates
+  // First name vs Additional name (positional index 2 was Additional
+  // name, not Headline — typing the headline into Additional name
+  // produced 72/50-char overflow + silent save reject).
+  const fnIn = s.page.getByLabel('First name', { exact: false }).filter({ visible: true }).first();
+  const lnIn = s.page.getByLabel('Last name', { exact: false }).filter({ visible: true }).first();
+  const hlIn = s.page.getByLabel('Headline', { exact: false }).filter({ visible: true }).first();
 
   const writes = [];
   for (const [el, target, label] of [[fnIn, firstName, 'first_name'], [lnIn, lastName, 'last_name'], [hlIn, targetHeadline, 'headline']]) {
-    if (!target || !(await el.count())) continue;
+    if (!target || !(await el.count())) { console.log(`[li-profile] ${label}: locator missing — skipping`); continue; }
     const cur = await el.inputValue().catch(() => '');
     if (cur.trim() === target.trim()) continue;
     await humanClickLocator(s.page, el);
-    await s.page.keyboard.press('Meta+A').catch(() => {});
-    await s.page.keyboard.press('Control+A').catch(() => {});
+    // Triple-click selects the whole input value reliably (Meta+A and
+    // Control+A both observed to no-op on LinkedIn 2026 form 2026-05-06:
+    // "Garry" + Meta+A + Backspace + "Amanda" produced "GarryAmanda"
+    // 11ch instead of "Amanda" 6ch). Triple-click works because LinkedIn's
+    // input doesn't suppress the dblclick/triple-click selection event.
+    await el.click({ clickCount: 3 }).catch(() => {});
     await s.page.keyboard.press('Backspace').catch(() => {});
     await humanType(s.page, target);
     writes.push(`${label} "${cur}" -> "${target}"`);
@@ -133,21 +148,37 @@ try {
 
   if (writes.length) {
     console.log(`[li-profile] writes: ${writes.join('; ')}`);
-    const saveBtn = s.page.locator('button:has-text("Save")').filter({ visible: true }).first();
-    await saveBtn.waitFor({ state: 'visible' });
-    await humanClickLocator(s.page, saveBtn);
-    await s.page.waitForTimeout(4500);
+    // 2026 modal: multiple "Save" buttons may be in the DOM (cancel-state,
+    // save-state). Target the visible enabled one. LinkedIn disables Save
+    // until the form sees a real change event from a typed input.
+    const saveBtn = s.page.locator('button:has-text("Save"):not([disabled]):not([aria-disabled="true"])').filter({ visible: true }).last();
+    const saveCount = await saveBtn.count();
+    console.log(`[li-profile] save button enabled count=${saveCount}`);
+    if (saveCount > 0) {
+      await humanClickLocator(s.page, saveBtn);
+      await s.page.waitForTimeout(4500);
+      const postClickBody = await s.page.evaluate(() => (document.body?.innerText || '').slice(0, 600).replace(/\n/g, ' / ')).catch(() => '');
+      console.log(`[li-profile] save: post-click url=${s.page.url()}`);
+      console.log(`[li-profile] save: post-click body head: ${postClickBody.slice(0, 400)}`);
+    } else {
+      console.log('[li-profile] save button not enabled — humanType may not have triggered React change event');
+    }
   } else {
     console.log('[li-profile] intro fields already match — skipping save');
   }
 
-  // About lives in a separate modal at /in/me/edit-form/about — open it
-  // and fill if needed. Navigate explicitly so we don't depend on click-
-  // through-from-intro flow.
+  // About lives at /in/<vanity>/edit/about/ in 2026 (the legacy /in/me/
+  // edit-form/about/ deep-link 404s same way intro/ did). Resolve own
+  // vanity from current URL.
+  console.log(`[li-profile] entering about block (targetAbout=${targetAbout ? targetAbout.length + 'ch' : 'none'})`);
   if (targetAbout) {
-    await s.page.goto('https://www.linkedin.com/in/me/edit-form/about/', { waitUntil: 'domcontentloaded' });
+    const myVanity = s.page.url().match(/\/in\/([^/?]+)/)?.[1] || 'me';
+    console.log(`[li-profile] vanity=${myVanity}`);
+    await s.page.goto(`https://www.linkedin.com/in/${myVanity}/edit/about/`, { waitUntil: 'domcontentloaded' });
     await s.page.waitForTimeout(4000);
-    const aboutIn = s.page.locator('textarea[id*="summary" i], textarea[id*="about" i]').filter({ visible: true }).first();
+    // 2026 design: about textarea is the first visible textarea on the
+    // edit-about modal (legacy `id*=summary` doesn't match React `:r…:`).
+    const aboutIn = s.page.locator('textarea').filter({ visible: true }).first();
     if (await aboutIn.count()) {
       const cur = await aboutIn.inputValue().catch(() => '');
       if (cur.trim() !== targetAbout.trim()) {
@@ -168,12 +199,23 @@ try {
   // /in/me/edit-form/profile-photo (or via the photo overlay on the main
   // profile). The dialog has Add photo / Save controls and a hidden file
   // input. Navigating directly + setInputFiles avoids modal-state issues.
+  console.log(`[li-profile] entering avatar block (avatarUrl=${avatarUrl ? 'yes' : 'none'})`);
   if (avatarUrl) {
     const tmpAvatar = await loadAvatarFile(avatarUrl, { size: 800, format: 'jpeg', quality: 90 });
     if (tmpAvatar) {
       try {
-        await s.page.goto('https://www.linkedin.com/in/me/edit-form/profile-photo/', { waitUntil: 'domcontentloaded' });
-        await s.page.waitForTimeout(4500);
+        // 2026 design: photo upload lives behind the "Add photo" pencil on
+        // /in/<vanity>/. Open profile, click pencil, then the modal exposes
+        // the hidden file input. Direct deep-link to /edit-form/profile-
+        // photo/ 404s same as the other edit-form/ paths.
+        const myVanity = s.page.url().match(/\/in\/([^/?]+)/)?.[1] || 'me';
+        await s.page.goto(`https://www.linkedin.com/in/${myVanity}/`, { waitUntil: 'domcontentloaded' });
+        await s.page.waitForTimeout(3000);
+        const addPhotoBtn = s.page.locator('a[aria-label="Add photo" i], button[aria-label="Add photo" i], a[aria-label*="Edit photo" i]').filter({ visible: true }).first();
+        if (await addPhotoBtn.count()) {
+          await humanClickLocator(s.page, addPhotoBtn);
+          await s.page.waitForTimeout(2500);
+        }
         const fileIn = s.page.locator('input[type="file"][accept*="image"], input.image-edit-camera__file-input, input[type="file"]').first();
         if (await fileIn.count()) {
           await fileIn.setInputFiles(tmpAvatar);
