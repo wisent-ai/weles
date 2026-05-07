@@ -49,8 +49,12 @@ try {
   }
   await s.ctx.addCookies(stored.map(c => ({ ...c, path: c.path || '/' })));
 
-  await s.page.goto('https://www.linkedin.com/in/me/edit-form/intro/', { waitUntil: 'domcontentloaded' });
-  await s.page.waitForTimeout(5000);
+  // 2026-05-06: hit /feed/ first to confirm auth via primary-nav. The
+  // /in/me/edit-form/intro/ page renders an edit-modal-only view that does
+  // NOT expose the global nav, so assertAuthed false-fails there even on
+  // valid sessions. After /feed/ confirms auth, navigate to the edit URL.
+  await s.page.goto('https://www.linkedin.com/feed/', { waitUntil: 'domcontentloaded' });
+  await s.page.waitForTimeout(3000);
   if (/\/(login|checkpoint|uas)/.test(s.page.url())) {
     console.log(`FAIL: cookies stale, redirected to ${s.page.url()}`);
     await markCookiesStale(acct.id);
@@ -58,6 +62,8 @@ try {
   }
   try { await assertAuthed('linkedin', s, { label: 'linkedin_edit_profile' }); }
   catch (probeErr) { if (probeErr instanceof AuthProbeError) { console.log(`FAIL: ${probeErr.message}`); await markCookiesStale(acct.id); process.exit(1); } throw probeErr; }
+  await s.page.goto('https://www.linkedin.com/in/me/edit-form/intro/', { waitUntil: 'domcontentloaded' });
+  await s.page.waitForTimeout(5000);
 
   // Edit Intro modal fields:
   //   First name        → input[id*="first-name"]
