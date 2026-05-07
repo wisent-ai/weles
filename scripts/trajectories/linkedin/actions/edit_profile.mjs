@@ -148,6 +148,15 @@ try {
 
   if (writes.length) {
     console.log(`[li-profile] writes: ${writes.join('; ')}`);
+    // 2026-05-07: previous flow clicked Save and saw the modal stay open;
+    // network log of that run showed ONLY telemetry POSTs after click,
+    // never the save mutation. Root cause: typing leaves focus IN the last
+    // input, and LinkedIn's React form binds the dirty flag to the blur
+    // event of the last-touched field. Without a blur, the form-dirty
+    // state stays false and the save onClick handler returns early.
+    // Press Tab to blur + commit the typed value before clicking Save.
+    await s.page.keyboard.press('Tab').catch(() => {});
+    await s.page.waitForTimeout(800);
     // 2026 modal: multiple "Save" buttons may be in the DOM (cancel-state,
     // save-state). Target the visible enabled one. LinkedIn disables Save
     // until the form sees a real change event from a typed input.
@@ -155,11 +164,18 @@ try {
     const saveCount = await saveBtn.count();
     console.log(`[li-profile] save button enabled count=${saveCount}`);
     if (saveCount > 0) {
+      // Watch for the actual save mutation POST. The form is rendered as a
+      // React Server Component; saving fires a POST to /flagship-web/
+      // rsc-action/actions/<action>?screenId=...ProfileEditIntroForm with
+      // the form data. Capture it explicitly so we don't false-PASS when
+      // the click is a no-op.
+      const savePost = s.page.waitForResponse((r) => r.request().method() === 'POST' && /rsc-action.*ProfileEditIntroForm/.test(r.url()) && r.status() === 200).catch(() => null);
       await humanClickLocator(s.page, saveBtn);
-      await s.page.waitForTimeout(4500);
+      const apiRes = await savePost;
       const postClickBody = await s.page.evaluate(() => (document.body?.innerText || '').slice(0, 600).replace(/\n/g, ' / ')).catch(() => '');
       console.log(`[li-profile] save: post-click url=${s.page.url()}`);
       console.log(`[li-profile] save: post-click body head: ${postClickBody.slice(0, 400)}`);
+      console.log(`[li-profile] save: mutation POST=${apiRes ? `${apiRes.status()} ${apiRes.url().slice(0, 120)}` : 'NEVER FIRED'}`);
     } else {
       console.log('[li-profile] save button not enabled — humanType may not have triggered React change event');
     }
