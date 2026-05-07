@@ -9,6 +9,7 @@ import { humanType } from '../../../../dist/human/keyboard.js';
 import { humanClickLocator } from '../../../../dist/human/mouse.js';
 import { assertAuthed, AuthProbeError } from '../../_shared/auth-probe.mjs';
 import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../../_shared/cookie-freshness.mjs';
+import { loadAvatarFile } from '../../_shared/runner/avatar-loader.mjs';
 
 const SUPABASE_URL = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
@@ -60,12 +61,17 @@ try {
   await s.page.goto(`https://x.com/${encodeURIComponent(acct.username)}`, { waitUntil: 'domcontentloaded' });
   await s.page.waitForTimeout(3500);
 
-  // Click the "Edit profile" button. Twitter exposes both an aria-label and
-  // a visible-text variant; cohorts vary.
-  const editBtn = s.page.locator('a[href="/settings/profile"], a[data-testid="edit_profile"], div[role="button"]:has-text("Edit profile"), button:has-text("Edit profile")').filter({ visible: true }).first();
+  // Twitter exposes one of two affordances on the user's own profile:
+  //   * "Edit profile" → opens an inline modal (existing populated profile)
+  //   * "Set up profile" / data-testid="editProfileButton" → routes to
+  //     /i/flow/setup_profile (fresh account, never customized).
+  // Probe (2026-05-07): a fresh-cookie sallyzieme04049 lands on the latter.
+  // Both flows surface input[data-testid="fileInput"] for the avatar plus
+  // text fields for name/bio.
+  const editBtn = s.page.locator('a[data-testid="edit_profile"], a[href="/settings/profile"], button[data-testid="editProfileButton"], a[data-testid="editProfileButton"], [data-testid="editProfileButton"], div[role="button"]:has-text("Edit profile")').filter({ visible: true }).first();
   await editBtn.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, editBtn);
-  await s.page.waitForTimeout(3500);
+  await s.page.waitForTimeout(4500);
 
   // The Edit-profile modal exposes:
   //   Name → input[name="displayName"]
@@ -104,14 +110,36 @@ try {
     body: JSON.stringify({ display_name: targetName || null, profile_url: `https://x.com/${acct.username}`, updated_at: new Date().toISOString() }),
   }).catch(() => {});
 
+  // Avatar upload — both Edit and Set-up flows expose
+  // input[data-testid="fileInput"] (probe-verified 2026-05-07). Twitter's
+  // crop modal shows "Apply" once the file is loaded.
+  if (avatarUrl) {
+    const tmpAvatar = await loadAvatarFile(avatarUrl, { size: 512, format: 'jpeg', quality: 88 });
+    if (tmpAvatar) {
+      try {
+        const fileIn = s.page.locator('input[data-testid="fileInput"]').first();
+        if (await fileIn.count()) {
+          await fileIn.setInputFiles(tmpAvatar);
+          const applyBtn = s.page.locator('button[data-testid="applyButton"], div[role="button"]:has-text("Apply"), button:has-text("Apply")').filter({ visible: true }).first();
+          try {
+            await applyBtn.waitFor({ state: 'visible' });
+            await applyBtn.click();
+            writes.push('avatar uploaded');
+            await s.page.waitForTimeout(2500);
+          } catch { console.log('[tw-profile] avatar apply btn never appeared'); }
+        } else { console.log('[tw-profile] fileInput not in DOM — twitter UI variant'); }
+      } catch (e) { console.log(`[tw-profile] avatar err: ${e.message?.slice(0, 120)}`); }
+    }
+  }
+
   if (!writes.length) { console.log('PASS: no-op (form values already match character; DB synced)'); process.exit(0); }
   console.log(`[tw-profile] writes: ${writes.join('; ')}`);
 
-  // Save: button[data-testid="Profile_Save_Button"] in the modal.
-  const saveBtn = s.page.locator('button[data-testid="Profile_Save_Button"], button:has-text("Save")').filter({ visible: true }).first();
+  // Save: Profile_Save_Button (Edit flow) or Next/Done (setup flow).
+  const saveBtn = s.page.locator('button[data-testid="Profile_Save_Button"], button[data-testid="ocfSelectAvatarNextButton"], button[data-testid="OCF_CallToAction_Button"], div[role="button"]:has-text("Save"), button:has-text("Save"), button:has-text("Done")').filter({ visible: true }).first();
   await saveBtn.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, saveBtn);
-  await s.page.waitForTimeout(4000);
+  await s.page.waitForTimeout(5000);
   console.log(`PASS: ${acct.username} profile updated to ${character.name}`);
 } catch (e) {
   console.log('FAIL:', e.message?.slice(0, 200));

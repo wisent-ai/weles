@@ -9,6 +9,7 @@ import { humanType } from '../../../../dist/human/keyboard.js';
 import { humanClickLocator } from '../../../../dist/human/mouse.js';
 import { assertAuthed, AuthProbeError } from '../../_shared/auth-probe.mjs';
 import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../../_shared/cookie-freshness.mjs';
+import { loadAvatarFile } from '../../_shared/runner/avatar-loader.mjs';
 
 const SUPABASE_URL = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
@@ -113,6 +114,32 @@ try {
         await s.page.waitForTimeout(4500);
         writes.push(`about (${cur.length} -> ${targetAbout.length} chars)`);
       }
+    }
+  }
+
+  // Avatar upload — linkedin's profile-photo upload lives at
+  // /in/me/edit-form/profile-photo (or via the photo overlay on the main
+  // profile). The dialog has Add photo / Save controls and a hidden file
+  // input. Navigating directly + setInputFiles avoids modal-state issues.
+  if (avatarUrl) {
+    const tmpAvatar = await loadAvatarFile(avatarUrl, { size: 800, format: 'jpeg', quality: 90 });
+    if (tmpAvatar) {
+      try {
+        await s.page.goto('https://www.linkedin.com/in/me/edit-form/profile-photo/', { waitUntil: 'domcontentloaded' });
+        await s.page.waitForTimeout(4500);
+        const fileIn = s.page.locator('input[type="file"][accept*="image"], input.image-edit-camera__file-input, input[type="file"]').first();
+        if (await fileIn.count()) {
+          await fileIn.setInputFiles(tmpAvatar);
+          await s.page.waitForTimeout(4000);
+          const applyBtn = s.page.locator('button:has-text("Save photo"), button:has-text("Apply"), button:has-text("Save")').filter({ visible: true }).first();
+          try {
+            await applyBtn.waitFor({ state: 'visible' });
+            await applyBtn.click();
+            writes.push('avatar uploaded');
+            await s.page.waitForTimeout(3500);
+          } catch { console.log('[li-profile] avatar apply not visible'); }
+        } else { console.log('[li-profile] no file input on edit-form/profile-photo'); }
+      } catch (e) { console.log(`[li-profile] avatar err: ${e.message?.slice(0, 120)}`); }
     }
   }
 

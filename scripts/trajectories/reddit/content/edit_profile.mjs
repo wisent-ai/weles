@@ -8,6 +8,7 @@ import { humanType } from '../../../../dist/human/keyboard.js';
 import { humanClickLocator } from '../../../../dist/human/mouse.js';
 import { assertAuthed, AuthProbeError } from '../../_shared/auth-probe.mjs';
 import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../../_shared/cookie-freshness.mjs';
+import { loadAvatarFile } from '../../_shared/runner/avatar-loader.mjs';
 
 const SUPABASE_URL = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
@@ -80,6 +81,26 @@ try {
       await s.page.keyboard.press('Backspace').catch(() => {});
       await humanType(s.page, targetBio);
       writes.push(`bio (${cur.length} -> ${targetBio.length} chars)`);
+    }
+  }
+
+  // Avatar upload — reddit's modern shreddit settings page renders
+  // <faceplate-file-input> custom elements for the profile picture. The
+  // wrapper hides a real <input type="file" accept="image/*"> and binds to
+  // upload via the in-page faceplate library (similar to github's
+  // file-attachment). setInputFiles on the inner input fires the upload.
+  // No commit click needed on shreddit — upload completes in-place.
+  if (avatarUrl) {
+    const tmpAvatar = await loadAvatarFile(avatarUrl, { size: 512, format: 'jpeg', quality: 88 });
+    if (tmpAvatar) {
+      try {
+        const fileIn = s.page.locator('faceplate-file-input input[type="file"], input[type="file"][accept*="image"]').first();
+        if (await fileIn.count()) {
+          await fileIn.setInputFiles(tmpAvatar);
+          await s.page.waitForTimeout(5000);
+          writes.push('avatar uploaded');
+        } else { console.log('[rd-profile] no avatar file input on /settings/profile'); }
+      } catch (e) { console.log(`[rd-profile] avatar err: ${e.message?.slice(0, 120)}`); }
     }
   }
 

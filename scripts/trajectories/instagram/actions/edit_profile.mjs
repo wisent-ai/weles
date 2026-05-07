@@ -14,6 +14,7 @@ import { humanType } from '../../../../dist/human/keyboard.js';
 import { humanClickLocator } from '../../../../dist/human/mouse.js';
 import { assertAuthed, AuthProbeError } from '../../_shared/auth-probe.mjs';
 import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../../_shared/cookie-freshness.mjs';
+import { loadAvatarFile } from '../../_shared/runner/avatar-loader.mjs';
 
 const SUPABASE_URL = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
@@ -91,6 +92,40 @@ try {
       await s.page.keyboard.press('Backspace').catch(() => {});
       await humanType(s.page, targetBio);
       writes.push(`bio (${cur.length} -> ${targetBio.length} chars)`);
+    }
+  }
+
+  // Avatar upload — instagram /accounts/edit/ exposes a "Change profile
+  // photo" overlay that opens a dialog with an Upload Photo button bound
+  // to a hidden input[type="file"][accept*="image"]. The Upload-Photo
+  // button binding fires a filechooser; we also accept direct setInputFiles
+  // on the hidden input when the binding is missing.
+  if (avatarUrl) {
+    const tmpAvatar = await loadAvatarFile(avatarUrl, { size: 512, format: 'jpeg', quality: 88 });
+    if (tmpAvatar) {
+      try {
+        const changeBtn = s.page.locator('button:has-text("Change profile photo"), div[role="button"]:has-text("Change profile photo")').filter({ visible: true }).first();
+        if (await changeBtn.isVisible().catch(() => false)) {
+          await humanClickLocator(s.page, changeBtn);
+          await s.page.waitForTimeout(2500);
+          const upload = s.page.locator('button:has-text("Upload Photo"), button:has-text("Upload photo")').filter({ visible: true }).first();
+          if (await upload.isVisible().catch(() => false)) {
+            const fileChooserPromise = s.page.waitForEvent('filechooser');
+            await upload.click();
+            const fc = await fileChooserPromise;
+            await fc.setFiles(tmpAvatar);
+            await s.page.waitForTimeout(4000);
+            writes.push('avatar uploaded');
+          } else {
+            const fileIn = s.page.locator('input[type="file"][accept*="image"]').first();
+            if (await fileIn.count()) {
+              await fileIn.setInputFiles(tmpAvatar);
+              await s.page.waitForTimeout(4000);
+              writes.push('avatar uploaded');
+            } else { console.log('[ig-profile] no upload affordance after Change clicked'); }
+          }
+        } else { console.log('[ig-profile] Change profile photo button not visible'); }
+      } catch (e) { console.log(`[ig-profile] avatar err: ${e.message?.slice(0, 120)}`); }
     }
   }
 
