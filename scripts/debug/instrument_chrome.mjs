@@ -141,38 +141,48 @@ if (process.env.DRIVE_LINKEDIN_EDIT_INTRO === '1' && PLATFORM === 'linkedin') {
       await page.keyboard.type(process.env.DRIVE_LAST_NAME || 'Sharma', { delay: 40 });
       console.log('[inst-chrome] typed last name');
     } else { console.log('[inst-chrome] last-name locator missing'); }
-    // Try Enter-on-form first. If that doesn't fire a save mutation,
-    // also try clicking the Save button. Both paths' network shapes
-    // recorded for diff.
-    if (await lnIn.count()) {
-      console.log('[inst-chrome] pressing Enter while focused in last-name');
-      await lnIn.focus();
-      await page.keyboard.press('Enter');
-      await page.waitForTimeout(3000);
-    }
-    await page.keyboard.press('Tab');
-    await page.waitForTimeout(800);
-    const saveBtn = page.locator('button:has-text("Save"):not([disabled]):not([aria-disabled="true"])').filter({ visible: true }).last();
-    if (await saveBtn.count()) {
-      console.log('[inst-chrome] clicking save (humanlike: bbox + mouse.click)');
-      const box = await saveBtn.boundingBox().catch(() => null);
-      if (box) {
-        const x = box.x + box.width / 2;
-        const y = box.y + box.height / 2;
-        await page.mouse.move(x - 30, y - 5);
-        await page.waitForTimeout(120);
-        await page.mouse.move(x, y, { steps: 10 });
-        await page.waitForTimeout(80);
-        await page.mouse.down();
-        await page.waitForTimeout(60);
-        await page.mouse.up();
-      } else {
-        await saveBtn.click();
+    // Wait for React hydration to complete before attempting save —
+    // RSC hydration of the form's onClick can take 4-6s after navigate.
+    // Save button being VISIBLE doesn't mean its handler is attached.
+    console.log('[inst-chrome] waiting 6s for hydration');
+    await page.waitForTimeout(6000);
+    // Check if there's a button with explicit form-action attribute
+    // or a hidden submit input that the visible Save proxies to.
+    const saveDiag = await page.evaluate(() => {
+      const out = [];
+      for (const el of Array.from(document.querySelectorAll('button, input[type="submit"]'))) {
+        const r = el.getBoundingClientRect();
+        const visible = r.width > 0 && r.height > 0;
+        const txt = (el.textContent || el.value || '').trim().slice(0, 30);
+        if (!/save|submit/i.test(txt) && !/save|submit/i.test(el.getAttribute('aria-label') || '')) continue;
+        out.push({
+          tag: el.tagName.toLowerCase(),
+          text: txt,
+          aria: el.getAttribute('aria-label') || '',
+          type: el.getAttribute('type') || '',
+          formaction: el.getAttribute('formaction') || '',
+          formId: el.closest('form')?.id || '(no form)',
+          formAction: el.closest('form')?.action || '',
+          visible,
+        });
       }
-      await page.waitForTimeout(8000);
-      const final = page.url();
-      console.log(`[inst-chrome] post-save url=${final}`);
-    } else { console.log('[inst-chrome] save button missing'); }
+      return out;
+    }).catch(() => []);
+    console.log(`[inst-chrome] save candidates after hydration: ${JSON.stringify(saveDiag)}`);
+    // 2026-05-07 DOM enumeration found the visible "Save" button is
+    // type="button" (decorative proxy, no form ancestor), and the actual
+    // save trigger is a HIDDEN button[type="submit"] with formAction
+    // pointing at the edit URL. Click the hidden submit directly via JS.
+    const submitResult = await page.evaluate(() => {
+      const submit = Array.from(document.querySelectorAll('button[type="submit"], input[type="submit"]')).find(b => b.getAttribute('formaction') || b.closest('form')?.action || /\/edit\//.test(b.getAttribute('formaction') || '') || (b.tagName === 'BUTTON' && /submit/i.test(b.textContent || '')));
+      if (!submit) return 'no-hidden-submit-found';
+      submit.click();
+      return `clicked-hidden-submit text="${(submit.textContent || '').trim().slice(0, 30)}" formaction="${submit.getAttribute('formaction') || ''}"`;
+    }).catch((e) => `err:${String(e).slice(0, 60)}`);
+    console.log(`[inst-chrome] hidden submit dispatch: ${submitResult}`);
+    await page.waitForTimeout(8000);
+    const final = page.url();
+    console.log(`[inst-chrome] post-save url=${final}`);
   } catch (e) { console.log(`[inst-chrome] drive err: ${String(e).slice(0, 200)}`); }
   console.log('[inst-chrome] auto-drive complete; closing in 3s for capture');
   await page.waitForTimeout(3000);
