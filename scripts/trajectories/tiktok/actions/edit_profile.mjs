@@ -12,6 +12,7 @@ import { humanType } from '../../../../dist/human/keyboard.js';
 import { humanClickLocator } from '../../../../dist/human/mouse.js';
 import { assertAuthed, AuthProbeError } from '../../_shared/auth-probe.mjs';
 import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../../_shared/cookie-freshness.mjs';
+import { loadAvatarFile } from '../../_shared/runner/avatar-loader.mjs';
 
 const SUPABASE_URL = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
@@ -96,6 +97,35 @@ try {
       await s.page.keyboard.press('Backspace').catch(() => {});
       await humanType(s.page, targetBio);
       writes.push(`bio (${cur.length} -> ${targetBio.length} chars)`);
+    }
+  }
+
+  // Avatar upload — tiktok /setting exposes an avatar zone. Hovering shows
+  // a "Change photo" button that opens a dialog with an inline upload
+  // <input type="file" accept="image/*">. After upload, an "Apply" button
+  // commits the crop.
+  if (avatarUrl) {
+    const tmpAvatar = await loadAvatarFile(avatarUrl, { size: 512, format: 'jpeg', quality: 88 });
+    if (tmpAvatar) {
+      try {
+        const changeBtn = s.page.locator('[data-e2e*="avatar" i], button:has-text("Change photo"), div[role="button"]:has-text("Change photo")').filter({ visible: true }).first();
+        if (await changeBtn.isVisible().catch(() => false)) {
+          await humanClickLocator(s.page, changeBtn);
+          await s.page.waitForTimeout(2500);
+        }
+        const fileIn = s.page.locator('input[type="file"][accept*="image"]').first();
+        if (await fileIn.count()) {
+          await fileIn.setInputFiles(tmpAvatar);
+          await s.page.waitForTimeout(3000);
+          const applyBtn = s.page.locator('button:has-text("Apply"), button:has-text("Confirm"), button:has-text("Save")').filter({ visible: true }).first();
+          try {
+            await applyBtn.waitFor({ state: 'visible' });
+            await applyBtn.click();
+            writes.push('avatar uploaded');
+            await s.page.waitForTimeout(2500);
+          } catch { console.log('[tt-profile] avatar apply not visible'); }
+        } else { console.log('[tt-profile] no image file input on /setting'); }
+      } catch (e) { console.log(`[tt-profile] avatar err: ${e.message?.slice(0, 120)}`); }
     }
   }
 
