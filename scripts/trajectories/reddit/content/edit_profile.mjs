@@ -84,22 +84,56 @@ try {
     }
   }
 
-  // Avatar upload — reddit's modern shreddit settings page renders
-  // <faceplate-file-input> custom elements for the profile picture. The
-  // wrapper hides a real <input type="file" accept="image/*"> and binds to
-  // upload via the in-page faceplate library (similar to github's
-  // file-attachment). setInputFiles on the inner input fires the upload.
-  // No commit click needed on shreddit — upload completes in-place.
+  // Avatar upload — reddit's avatar-edit affordance lives on the user
+  // profile page. Probe-verified 2026-05-07 (.work/rd-probe → weswest9029):
+  //   1. nav /user/<u>/
+  //   2. click button[aria-label="Edit profile avatar"] → modal opens with
+  //      "Select a new image" + Save button
+  //   3. click "Select a new image" → fires filechooser
+  //   4. setFiles → enables Save in the modal
+  //   5. The Save button lives in shadow DOM; pierce + click via evaluate
+  //
+  // Backend caveat: shreddit's CreateProfileStructuredStylesUploadLease
+  // mutation needs the u_<username> subreddit to exist. Brand-new accounts
+  // that have never posted see "Unable to resolve profile" — make a
+  // throwaway post first if your account is fresh.
   if (avatarUrl) {
     const tmpAvatar = await loadAvatarFile(avatarUrl, { size: 512, format: 'jpeg', quality: 88 });
     if (tmpAvatar) {
       try {
-        const fileIn = s.page.locator('faceplate-file-input input[type="file"], input[type="file"][accept*="image"]').first();
-        if (await fileIn.count()) {
-          await fileIn.setInputFiles(tmpAvatar);
-          await s.page.waitForTimeout(5000);
-          writes.push('avatar uploaded');
-        } else { console.log('[rd-profile] no avatar file input on /settings/profile'); }
+        await s.page.goto(`https://www.reddit.com/user/${acct.username}/`, { waitUntil: 'domcontentloaded' });
+        await s.page.waitForTimeout(6000);
+        const editAvatarBtn = s.page.locator('button[aria-label="Edit profile avatar"], [aria-label="Edit profile avatar"]').first();
+        if (await editAvatarBtn.count()) {
+          await editAvatarBtn.click();
+          await s.page.waitForTimeout(4000);
+          const selectBtn = s.page.locator('button:has-text("Select a new image")').first();
+          if (await selectBtn.count()) {
+            const fcPromise = s.page.waitForEvent('filechooser');
+            await selectBtn.click();
+            const fc = await fcPromise;
+            await fc.setFiles(tmpAvatar);
+            await s.page.waitForTimeout(5000);
+            // Save lives in shadow DOM; pierce + click the enabled one
+            const saved = await s.page.evaluate(() => {
+              function walk(root) {
+                for (const el of root.querySelectorAll('button')) {
+                  if ((el.textContent || '').trim() === 'Save' && !el.hasAttribute('disabled') && el.getBoundingClientRect().width > 0) {
+                    el.click();
+                    return true;
+                  }
+                }
+                for (const el of root.querySelectorAll('*')) if (el.shadowRoot) { if (walk(el.shadowRoot)) return true; }
+                return false;
+              }
+              return walk(document);
+            });
+            if (saved) {
+              await s.page.waitForTimeout(6000);
+              writes.push('avatar uploaded');
+            } else { console.log('[rd-profile] no enabled Save after setFiles'); }
+          } else { console.log('[rd-profile] no Select-a-new-image after Edit-avatar click'); }
+        } else { console.log('[rd-profile] Edit-profile-avatar button not visible'); }
       } catch (e) { console.log(`[rd-profile] avatar err: ${e.message?.slice(0, 120)}`); }
     }
   }
