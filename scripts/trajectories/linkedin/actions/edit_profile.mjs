@@ -118,31 +118,31 @@ try {
   // We split character.name on the first space for first/last.
   const [firstName, ...rest] = targetName.split(/\s+/);
   const lastName = rest.join(' ');
-  // 2026-05-06: input ids are React-generated `:r<rand>:` and not stable
-  // across renders. Match by visible label text via Playwright getByLabel
-  // — LinkedIn's intro modal wraps every input in <label>...field name
-  // </label><input>. This survives React id churn and disambiguates
-  // First name vs Additional name (positional index 2 was Additional
-  // name, not Headline — typing the headline into Additional name
-  // produced 72/50-char overflow + silent save reject).
-  const fnIn = s.page.getByLabel('First name', { exact: false }).filter({ visible: true }).first();
-  const lnIn = s.page.getByLabel('Last name', { exact: false }).filter({ visible: true }).first();
-  const hlIn = s.page.getByLabel('Headline', { exact: false }).filter({ visible: true }).first();
+  // 2026-05-08: drop visible:true filter — Headline + Industry are BELOW
+  // viewport at modal-open. Industry* (required) silently aborts save
+  // when empty — verified live in webm frame: red "Industry is a required
+  // field" inline error.
+  const fnIn = s.page.getByLabel('First name', { exact: false }).first();
+  const lnIn = s.page.getByLabel('Last name', { exact: false }).first();
+  const hlIn = s.page.getByLabel('Headline', { exact: false }).first();
+  const indIn = s.page.getByLabel('Industry', { exact: false }).first();
+  const tgtInd = (character.occupation || character.niche || 'Venture Capital and Private Equity').slice(0, 100);
 
   const writes = [];
-  for (const [el, target, label] of [[fnIn, firstName, 'first_name'], [lnIn, lastName, 'last_name'], [hlIn, targetHeadline, 'headline']]) {
+  for (const [el, target, label] of [[fnIn, firstName, 'first_name'], [lnIn, lastName, 'last_name'], [hlIn, targetHeadline, 'headline'], [indIn, tgtInd, 'industry']]) {
     if (!target || !(await el.count())) { console.log(`[li-profile] ${label}: locator missing — skipping`); continue; }
+    await el.scrollIntoViewIfNeeded().catch(() => {});
     const cur = await el.inputValue().catch(() => '');
     if (cur.trim() === target.trim()) continue;
     await humanClickLocator(s.page, el);
-    // Triple-click selects the whole input value reliably (Meta+A and
-    // Control+A both observed to no-op on LinkedIn 2026 form 2026-05-06:
-    // "Garry" + Meta+A + Backspace + "Amanda" produced "GarryAmanda"
-    // 11ch instead of "Amanda" 6ch). Triple-click works because LinkedIn's
-    // input doesn't suppress the dblclick/triple-click selection event.
     await el.click({ clickCount: 3 }).catch(() => {});
     await s.page.keyboard.press('Backspace').catch(() => {});
     await humanType(s.page, target);
+    if (label === 'industry') {
+      await s.page.waitForTimeout(1200);
+      const sugg = s.page.locator('[role="option"], [role="listbox"] li, .typeahead-result').filter({ visible: true }).first();
+      if (await sugg.count()) { await humanClickLocator(s.page, sugg); console.log('[li-profile] picked industry typeahead'); }
+    }
     writes.push(`${label} "${cur}" -> "${target}"`);
   }
 
@@ -276,5 +276,18 @@ try {
   console.log('FAIL:', e.message?.slice(0, 200));
   process.exit(1);
 } finally {
+  // 2026-05-08 user request: WELES_KEEP_OPEN=1 holds the browser open
+  // after the trajectory finishes so the human can take over and debug
+  // the form state directly. Default behavior (no env var) closes as
+  // before so cron + worker calls aren't affected.
+  if (process.env.WELES_KEEP_OPEN === '1') {
+    console.log('[li-profile] WELES_KEEP_OPEN=1 — browser left open. Close window or Ctrl+C to exit.');
+    await new Promise((resolve) => {
+      const done = () => { resolve(); };
+      try { s.page.on('close', done); s.ctx.on('close', done); } catch {}
+      process.on('SIGINT', done);
+      process.on('SIGTERM', done);
+    });
+  }
   await s.close();
 }
