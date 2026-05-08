@@ -179,17 +179,60 @@ if (process.env.DRIVE_LINKEDIN_EDIT_INTRO === '1' && PLATFORM === 'linkedin') {
       return out;
     }).catch(() => []);
     console.log(`[inst-chrome] save candidates after hydration: ${JSON.stringify(saveDiag)}`);
-    // Click the visible "Save" button via humanClickLocator — same path
-    // edit_profile.mjs trajectory uses. CDP-trusted bezier mouse path,
-    // not synthetic JS click.
-    const saveBtn = page.locator('button:has-text("Save"):not([disabled]):not([aria-disabled="true"])').filter({ visible: true }).last();
-    if (await saveBtn.count()) {
-      console.log('[inst-chrome] clicking Save via humanClickLocator');
-      await humanClickLocator(page, saveBtn);
-      await page.waitForTimeout(8000);
-      const final = page.url();
-      console.log(`[inst-chrome] post-save url=${final}`);
-    } else { console.log('[inst-chrome] save button missing'); }
+    // Iterate save strategies in-place IN THE SAME SESSION instead of
+    // closing the browser between attempts. After each strategy, watch
+    // network for the save mutation; if it fires, we're done.
+    let mutationFired = false;
+    const watchMutation = (label) => page.waitForResponse(
+      (r) => r.request().method() === 'POST' && /firstName|lastName|profileEdit|EditIntro/i.test((r.request().postData() || '') + r.url())
+    ).then((r) => { console.log(`[inst-chrome:${label}] MUTATION FIRED ${r.status()} ${r.url().slice(0, 120)}`); mutationFired = true; }).catch(() => {});
+    const reInit = async (label) => {
+      // Re-open the modal so the React form is in a fresh state. Saving in
+      // the same modal twice may be blocked by LinkedIn's "no-changes"
+      // check; navigating restores the form to current persisted values.
+      console.log(`[inst-chrome:${label}] re-opening modal`);
+      await page.goto(TARGET_URL, { waitUntil: 'domcontentloaded' }).catch(() => {});
+      await page.waitForTimeout(4000);
+      const fn = page.getByLabel('First name', { exact: false }).filter({ visible: true }).first();
+      const ln = page.getByLabel('Last name', { exact: false }).filter({ visible: true }).first();
+      if (await fn.count()) { await humanClickLocator(page, fn); await fn.click({ clickCount: 3 }); await page.keyboard.press('Backspace'); await humanType(page, process.env.DRIVE_FIRST_NAME || 'Anya'); }
+      if (await ln.count()) { await humanClickLocator(page, ln); await ln.click({ clickCount: 3 }); await page.keyboard.press('Backspace'); await humanType(page, process.env.DRIVE_LAST_NAME || 'Sharma'); }
+      await humanIdlePause('deliberate');
+    };
+    const saveBtnSel = 'button:has-text("Save"):not([disabled]):not([aria-disabled="true"])';
+    // Strategy 1: humanClickLocator on visible Save (trajectory's path)
+    if (!mutationFired) {
+      const w = watchMutation('strat1-humanClick');
+      const sb = page.locator(saveBtnSel).filter({ visible: true }).last();
+      if (await sb.count()) { await humanClickLocator(page, sb); await Promise.race([w, page.waitForTimeout(6000)]); }
+    }
+    // Strategy 2: focus then Enter (form Enter-submit)
+    if (!mutationFired) {
+      await reInit('strat2-enter');
+      const w = watchMutation('strat2-enter');
+      await page.keyboard.press('Enter');
+      await Promise.race([w, page.waitForTimeout(5000)]);
+    }
+    // Strategy 3: page.mouse coordinate click on Save button bbox (trusted)
+    if (!mutationFired) {
+      await reInit('strat3-mouse-coord');
+      const w = watchMutation('strat3-mouse-coord');
+      const sb = page.locator(saveBtnSel).filter({ visible: true }).last();
+      const box = await sb.boundingBox().catch(() => null);
+      if (box) { await page.mouse.click(box.x + box.width/2, box.y + box.height/2); }
+      await Promise.race([w, page.waitForTimeout(5000)]);
+    }
+    // Strategy 4: dispatchEvent (synthetic - last resort)
+    if (!mutationFired) {
+      await reInit('strat4-dispatch');
+      const w = watchMutation('strat4-dispatch');
+      const sb = page.locator(saveBtnSel).filter({ visible: true }).last();
+      if (await sb.count()) { await sb.dispatchEvent('click'); }
+      await Promise.race([w, page.waitForTimeout(5000)]);
+    }
+    console.log(`[inst-chrome] mutation fired across all strategies: ${mutationFired}`);
+    const final = page.url();
+    console.log(`[inst-chrome] final url=${final}`);
   } catch (e) { console.log(`[inst-chrome] drive err: ${String(e).slice(0, 200)}`); }
   console.log('[inst-chrome] auto-drive complete; closing in 3s for capture');
   await page.waitForTimeout(3000);
