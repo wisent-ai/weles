@@ -122,9 +122,14 @@ try {
   // viewport at modal-open. Industry* (required) silently aborts save
   // when empty — verified live in webm frame: red "Industry is a required
   // field" inline error.
-  const fnIn = s.page.getByLabel('First name', { exact: false }).first();
-  const lnIn = s.page.getByLabel('Last name', { exact: false }).first();
-  const hlIn = s.page.getByLabel('Headline', { exact: false }).first();
+  // 2026-05-08: positional matching by visible-text-input order. Verified
+  // live form: index 0=First name, 1=Last name, 2=Additional name (skip),
+  // 3=Headline (textarea), 4=Industry typeahead. getByLabel('Headline')
+  // returned 0 because LinkedIn doesn't use real <label for> on it.
+  const fnIn = s.page.locator('input[type="text"]').nth(0);
+  const lnIn = s.page.locator('input[type="text"]').nth(1);
+  // Headline is a textarea (240px wide, multiline) — first visible textarea.
+  const hlIn = s.page.locator('textarea').first();
   const indIn = s.page.getByLabel('Industry', { exact: false }).first();
   const tgtInd = (character.occupation || character.niche || 'Venture Capital and Private Equity').slice(0, 100);
 
