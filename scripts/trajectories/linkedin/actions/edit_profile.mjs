@@ -247,23 +247,22 @@ try {
         const myVanity = s.page.url().match(/\/in\/([^/?]+)/)?.[1] || 'me';
         await s.page.goto(`https://www.linkedin.com/in/${myVanity}/`, { waitUntil: 'domcontentloaded' });
         await s.page.waitForTimeout(3000);
-        const addPhotoBtn = s.page.locator('a[aria-label="Add photo" i], button[aria-label="Add photo" i], a[aria-label*="Edit photo" i]').filter({ visible: true }).first();
-        if (await addPhotoBtn.count()) {
-          await humanClickLocator(s.page, addPhotoBtn);
-          await s.page.waitForTimeout(2500);
+        const addPhotoBtn = s.page.locator('a[aria-label="Add photo" i], button[aria-label="Add photo" i]').filter({ visible: true }).first();
+        if (await addPhotoBtn.count()) { await humanClickLocator(s.page, addPhotoBtn); await s.page.waitForTimeout(2500); }
+        // 2026-05-08: modal exposes "Upload photo" button (not file input).
+        // Intercept filechooser BEFORE click.
+        const upBtn = s.page.locator('button:has-text("Upload photo"), label:has-text("Upload photo")').filter({ visible: true }).first();
+        const fcP = await upBtn.count() ? s.page.waitForEvent('filechooser').catch(() => null) : null;
+        if (await upBtn.count()) await humanClickLocator(s.page, upBtn);
+        const chooser = fcP ? await fcP : null;
+        if (chooser) { await chooser.setFiles(tmpAvatar); }
+        else {
+          const fIn = s.page.locator('input[type="file"]').first();
+          if (await fIn.count()) await fIn.setInputFiles(tmpAvatar);
         }
-        const fileIn = s.page.locator('input[type="file"][accept*="image"], input.image-edit-camera__file-input, input[type="file"]').first();
-        if (await fileIn.count()) {
-          await fileIn.setInputFiles(tmpAvatar);
-          await s.page.waitForTimeout(4000);
-          const applyBtn = s.page.locator('button:has-text("Save photo"), button:has-text("Apply"), button:has-text("Save")').filter({ visible: true }).first();
-          try {
-            await applyBtn.waitFor({ state: 'visible' });
-            await applyBtn.click();
-            writes.push('avatar uploaded');
-            await s.page.waitForTimeout(3500);
-          } catch { console.log('[li-profile] avatar apply not visible'); }
-        } else { console.log('[li-profile] no file input on edit-form/profile-photo'); }
+        await s.page.waitForTimeout(4500);
+        const applyBtn = s.page.locator('button:has-text("Save photo"), button:has-text("Apply"), button:has-text("Save")').filter({ visible: true }).first();
+        if (await applyBtn.count()) { await humanClickLocator(s.page, applyBtn); writes.push('avatar uploaded'); await s.page.waitForTimeout(3500); }
       } catch (e) { console.log(`[li-profile] avatar err: ${e.message?.slice(0, 120)}`); }
     }
   }
