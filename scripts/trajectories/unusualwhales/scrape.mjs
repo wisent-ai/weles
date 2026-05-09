@@ -45,6 +45,11 @@ if (!ticker) {
 // page here without verifying it appears in the <a href> list that probe
 // emits, otherwise the scrape will hit a 404.
 const PAGE_URLS = {
+  // Options-flow alerts — UW's flagship per-trade signal. The /stock/T/flow-alerts
+  // page redirects to /option-flow-alerts?ticker_symbol=T which renders 50 rows by
+  // default but accepts &limit=N up to 500 (probed 2026-05-09: 50/100/200/500 work,
+  // 1000 collapses back to 50). Use limit=500 for max history per scrape.
+  option_flow_alerts: (t) => `https://unusualwhales.com/option-flow-alerts?ticker_symbol=${t}&limit=500`,
   overview: (t) => `https://unusualwhales.com/stock/${t}/overview${qs}`,
   chart: (t) => `https://unusualwhales.com/stock/${t}/chart${qs}`,
   flow_alerts: (t) => `https://unusualwhales.com/stock/${t}/flow-alerts${qs}`,
@@ -239,13 +244,23 @@ try {
     console.error(`[uw_scrape] darkpool upserted=${dpUpserted}`);
   }
 
+  // For the options-flow-alerts page, parse each row and insert into the
+  // per-trade options-flow ledger. This is UW's flagship signal — per-options-trade
+  // alerts with side/call_or_put/strike/expiry/sentiment/Greeks data.
+  let ofUpserted = 0;
+  if (page === 'option_flow_alerts') {
+    const { upsertUwOptionsFlow } = await import('./_option_flow.mjs');
+    ofUpserted = await upsertUwOptionsFlow(data, ticker, new Date().toISOString());
+    console.error(`[uw_scrape] options-flow upserted=${ofUpserted}`);
+  }
+
   // Persist scrape to Supabase + GCS before exit.
   const persisted = await persistContext({
     ticker,
     page,
     data,
     screenshotPath,
-    metadata: { auth: authStatus, source: 'scrape.mjs', dpUpserted },
+    metadata: { auth: authStatus, source: 'scrape.mjs', dpUpserted, ofUpserted },
   });
   console.error(`[uw_scrape] persisted row id=${persisted.id} gcs=${persisted.gcs_url || 'none'}`);
 
