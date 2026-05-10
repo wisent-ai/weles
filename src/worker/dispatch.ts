@@ -37,7 +37,12 @@ const ROUTES: Record<string, (p: string) => string | null> = {
   organic_issue_comment: (p) => `scripts/trajectories/${p}/actions/organic_issue_comment.mjs`,
   promote: (p) => p === 'github' ? 'scripts/trajectories/github/actions/promote.mjs' : `scripts/trajectories/${p}/promote.mjs`,
   register: (p) => {
-    if (p === 'github' || p === 'youtube' || p === 'producthunt' || p === 'microsoft') return `scripts/trajectories/${p}/register.mjs`;
+    // youtube_register and google_register both run the canonical Gmail
+    // signup flow at google/register.mjs (Material-Design comboboxes, SMS
+    // already wired, QR-recovery path). Persists as platform='google' —
+    // cross_login's PROVIDER_TO_ACCOUNT_PLATFORM is aligned to that.
+    if (p === 'youtube' || p === 'google') return 'scripts/trajectories/google/register.mjs';
+    if (p === 'github' || p === 'producthunt' || p === 'microsoft') return `scripts/trajectories/${p}/register.mjs`;
     if (p === 'apple') return 'scripts/trajectories/apple/register/run.mjs';
     if (p === 'facebook' || p === 'threads') return `scripts/trajectories/meta/${p}_register.mjs`;
     return `scripts/trajectories/${p}_register.mjs`;
@@ -155,6 +160,9 @@ export function paramsToEnv(
   // scrape verb. Read by scrape.mjs scripts when invoked from the queue (no argv).
   if (typeof params.ticker === 'string') env.TICKER = params.ticker.toUpperCase();
   if (typeof params.page === 'string') env.PAGE = params.page;
+  // `pages` is comma-separated or array; scraper loops in one Playwright session.
+  if (Array.isArray(params.pages)) env.PAGES = params.pages.join(',');
+  else if (typeof params.pages === 'string') env.PAGES = params.pages;
   if (typeof params.start_date === 'string') env.START_DATE = params.start_date;
   if (typeof params.end_date === 'string') env.END_DATE = params.end_date;
   if (typeof params.subreddit === 'string') env.SUBREDDIT = params.subreddit;
