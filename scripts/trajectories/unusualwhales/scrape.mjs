@@ -222,6 +222,29 @@ async function scrapeOnePage(sess, tk, pg, ssPath) {
       headers: Array.from(t.querySelectorAll('thead th, thead td')).map((h) => h.innerText.trim()),
       rows: Array.from(t.querySelectorAll('tbody tr')).slice(0, 500).map((r) => Array.from(r.querySelectorAll('td, th')).map((c) => c.innerText.trim())),
     }));
+    // Non-table extractors for UW pages that render charts/cards/SVG instead of tables.
+    // Pages confirmed table-empty 2026-05-10: financials, insiders, dividends, volatility,
+    // options_charting, net_premium, risk, greek_exposure, chart.
+    out.cards = Array.from(document.querySelectorAll('[class*="card" i], [class*="Card" i], [class*="kpi" i], [class*="metric" i]')).slice(0, 50).map((el) => {
+      const label = el.querySelector('[class*="label" i], [class*="title" i], h3, h4, h5')?.innerText?.trim() || '';
+      const value = el.querySelector('[class*="value" i], [class*="figure" i], strong, b')?.innerText?.trim() || el.innerText?.trim().slice(0, 100) || '';
+      return { label, value };
+    }).filter((c) => c.label || c.value);
+    // ChartIQ / Highcharts / Recharts / D3 series data — every <path d="M...">
+    // SVG path that draws a line or bar plus the data-point text labels.
+    out.svgSeries = Array.from(document.querySelectorAll('svg')).slice(0, 5).map((svg) => ({
+      pathCount: svg.querySelectorAll('path').length,
+      circleCount: svg.querySelectorAll('circle').length,
+      rectCount: svg.querySelectorAll('rect').length,
+      textLabels: Array.from(svg.querySelectorAll('text')).slice(0, 200).map((t) => t.innerText?.trim() || t.textContent?.trim() || '').filter(Boolean),
+      ariaLabels: Array.from(svg.querySelectorAll('[aria-label]')).slice(0, 50).map((e) => e.getAttribute('aria-label')).filter(Boolean),
+    }));
+    // ChartIQ canvas charts expose data via window.CIQ — capture if present.
+    out.ciq = (typeof window.CIQ !== 'undefined') ? Object.keys(window.CIQ).slice(0, 50) : null;
+    // Highcharts data accessor
+    if (typeof window.Highcharts !== 'undefined' && window.Highcharts.charts) {
+      out.highcharts = window.Highcharts.charts.filter(Boolean).slice(0, 3).map((c) => c.series?.map((s) => ({ name: s.name, dataLen: s.data?.length || 0, sampleData: (s.data || []).slice(0, 5).map((d) => ({ x: d.x, y: d.y })) })));
+    }
     out.bodyText = (document.body?.innerText || '').slice(0, 10000);
     return out;
   });
