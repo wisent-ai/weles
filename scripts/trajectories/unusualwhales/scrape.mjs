@@ -24,6 +24,11 @@ for (let i = 2; i < process.argv.length; i += 2) {
 }
 const ticker = (args.ticker || process.env.TICKER || '').toUpperCase();
 const page = args.page || process.env.PAGE || 'overview';
+// `pages` is comma-separated; if present, scrape all of them in one
+// Playwright session (login once, navigate per page, persist per page).
+// Single-job-per-ticker shape — replaces the old one-job-per-page blast.
+const pagesArg = args.pages || process.env.PAGES || '';
+const pagesList = pagesArg ? pagesArg.split(',').map((p) => p.trim()).filter(Boolean) : null;
 const screenshotPath = args.screenshot;
 const startDate = args['start-date'] || process.env.START_DATE || '';
 const endDate = args['end-date'] || process.env.END_DATE || '';
@@ -167,110 +172,61 @@ async function upsertDarkpoolPrints(data, ticker, scrapedAtIso) {
   return parsed.length;
 }
 
-try {
-  await doLogin(s);
-  // Give the SPA a moment to fully boot after login redirect.
-  await s.wait(3);
-
-  const url = PAGE_URLS[page](ticker);
-  console.error(`[uw_scrape] navigating to ${url}`);
-  await s.goto(url);
-  const sess = s;
-
-  // Wait for page content to render (up to 60s). If the SPA client-side
-  // router hung on the same-origin nav, reload once halfway through.
-  let ready = false;
-  let lastLen = 0;
-  let reloaded = false;
-  for (let i = 0; i < 60; i++) {
-    const len = await sess.page.evaluate('document.body?.innerText?.length || 0').catch(() => 0);
-    if (len > 500) { ready = true; console.error(`[uw_scrape] page rendered after ${i + 1}s (bodyText=${len} chars)`); break; }
-    if (i % 5 === 0) console.error(`[uw_scrape] waiting for render... bodyText=${len}`);
+// Scrape one UW page within an already-authenticated Playwright session.
+async function scrapeOnePage(sess, tk, pg, ssPath) {
+  if (!PAGE_URLS[pg]) { console.error(`[uw_scrape] unknown page '${pg}'`); return { skipped: true, reason: 'unknown_page' }; }
+  const url = PAGE_URLS[pg](tk);
+  console.error(`[uw_scrape] [${pg}] -> ${url}`);
+  await sess.goto(url);
+  let ready = false; let reloaded = false;
+  for (let i = 0; i < 60; i += 1) {
+    let len = 0;
+    try { len = await sess.page.evaluate(() => document.body?.innerText?.length || 0); } // allow-raw-playwright: read-only render check
+    catch (e) { console.error(`[uw_scrape] [${pg}] render-poll evaluate threw: ${e.message}`); }
+    if (len > 500) { ready = true; console.error(`[uw_scrape] [${pg}] rendered after ${i + 1}s (${len})`); break; }
     if (i === 15 && !reloaded) {
       reloaded = true;
-      console.error('[uw_scrape] 15s blank — forcing hard reload');
-      await sess.page.reload().catch(() => {});
+      try { await sess.page.reload(); } catch (e) { console.error(`[uw_scrape] [${pg}] reload threw: ${e.message}`); }
     }
-    lastLen = len;
     await sess.wait(1);
   }
-  if (!ready) {
-    const curr = sess.page.url();
-    console.error(`FAIL: page never rendered. url=${curr} lastLen=${lastLen}`);
-    await sess.page.screenshot({ path: '/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/trading-tools/screenshots/uw_scrape_fail.png' }).catch(() => {});
-    process.exit(1);
-  }
-  // Let charts/tables settle
+  if (!ready) { console.error(`[uw_scrape] [${pg}] never rendered — skipping`); return { skipped: true, reason: 'never_rendered' }; }
   await sess.wait(5);
-
-  // Verify the session is authenticated
-  const authStatus = await sess.page.evaluate(`(() => {
-    const body = document.body?.innerText || '';
-    const stale = /Viewing data from.*days ago.*Subscribe for live/i.test(body);
-    const guest = /Sign In/.test(body) && !/Sign Out/.test(body);
-    return { stale, guest, hasSignIn: /Sign In/.test(body), hasSignOut: /Sign Out/.test(body) };
-  })()`);
-  console.error(`[uw_scrape] auth status: ${JSON.stringify(authStatus)}`);
-
-  // Optional screenshot
-  if (screenshotPath) {
-    await sess.page.screenshot({ path: screenshotPath, fullPage: true }).catch(() => {});
-    console.error(`[uw_scrape] screenshot saved to ${screenshotPath}`);
+  const authStatus = await sess.page.evaluate(() => { const b = document.body?.innerText || ''; return { stale: /Viewing data from.*days ago.*Subscribe for live/i.test(b), guest: /Sign In/.test(b) && !/Sign Out/.test(b) }; }); // allow-raw-playwright: read-only DOM
+  if (ssPath) {
+    try { await sess.page.screenshot({ path: ssPath, fullPage: true }); }
+    catch (e) { console.error(`[uw_scrape] [${pg}] screenshot threw: ${e.message}`); }
   }
-
-  // Generic extraction: grab page title, all tables as arrays of rows, top-level text blocks
-  const data = await sess.page.evaluate(`(() => {
+  const data = await sess.page.evaluate(() => { // allow-raw-playwright: read-only DOM extraction
     const out = { url: location.href, title: document.title };
-    // Extract tables
-    out.tables = Array.from(document.querySelectorAll('table')).slice(0, 10).map(t => {
-      const headers = Array.from(t.querySelectorAll('thead th, thead td')).map(h => h.innerText.trim());
-      const rows = Array.from(t.querySelectorAll('tbody tr')).slice(0, 50).map(r =>
-        Array.from(r.querySelectorAll('td, th')).map(c => c.innerText.trim())
-      );
-      return { headers, rows };
-    });
-    // Extract visible text (truncated)
+    out.tables = Array.from(document.querySelectorAll('table')).slice(0, 10).map((t) => ({
+      headers: Array.from(t.querySelectorAll('thead th, thead td')).map((h) => h.innerText.trim()),
+      rows: Array.from(t.querySelectorAll('tbody tr')).slice(0, 500).map((r) => Array.from(r.querySelectorAll('td, th')).map((c) => c.innerText.trim())),
+    }));
     out.bodyText = (document.body?.innerText || '').slice(0, 10000);
     return out;
-  })()`);
-
-  // For the darkpool page, parse each rendered row and insert into the
-  // per-print durable ledger. UW returns at most 50 most-recent prints
-  // and there's no historical date-range fetch, so accumulation is
-  // forward-looking — daily scrapes naturally grow the table.
-  let dpUpserted = 0;
-  if (page === 'darkpool') {
-    dpUpserted = await upsertDarkpoolPrints(data, ticker, new Date().toISOString());
-    console.error(`[uw_scrape] darkpool upserted=${dpUpserted}`);
-  }
-
-  // For the options-flow-alerts page, parse each row and insert into the
-  // per-trade options-flow ledger. This is UW's flagship signal — per-options-trade
-  // alerts with side/call_or_put/strike/expiry/sentiment/Greeks data.
-  let ofUpserted = 0;
-  if (page === 'option_flow_alerts') {
-    const { upsertUwOptionsFlow } = await import('./_option_flow.mjs');
-    ofUpserted = await upsertUwOptionsFlow(data, ticker, new Date().toISOString());
-    console.error(`[uw_scrape] options-flow upserted=${ofUpserted}`);
-  }
-
-  // Persist scrape to Supabase + GCS before exit.
-  const persisted = await persistContext({
-    ticker,
-    page,
-    data,
-    screenshotPath,
-    metadata: { auth: authStatus, source: 'scrape.mjs', dpUpserted, ofUpserted },
   });
-  console.error(`[uw_scrape] persisted row id=${persisted.id} gcs=${persisted.gcs_url || 'none'}`);
+  let dpUpserted = 0; let ofUpserted = 0;
+  if (pg === 'darkpool') dpUpserted = await upsertDarkpoolPrints(data, tk, new Date().toISOString());
+  if (pg === 'option_flow_alerts') {
+    const { upsertUwOptionsFlow } = await import('./_option_flow.mjs');
+    ofUpserted = await upsertUwOptionsFlow(data, tk, new Date().toISOString());
+  }
+  const persisted = await persistContext({ ticker: tk, page: pg, data, screenshotPath: ssPath, metadata: { auth: authStatus, source: 'scrape.mjs', dpUpserted, ofUpserted } });
+  console.error(`[uw_scrape] [${pg}] persisted=${persisted.id} dp=${dpUpserted} of=${ofUpserted}`);
+  return { data, persisted, dpUpserted, ofUpserted };
+}
 
-  // Write JSON directly to real stdout (console.log is redirected).
-  process.stdout.write(JSON.stringify({
-    ticker,
-    page,
-    ...data,
-    stock_context: persisted,
-  }) + '\n');
+try {
+  await doLogin(s);
+  await s.wait(3);
+  const allPages = pagesList && pagesList.length > 0 ? pagesList : [page];
+  const results = [];
+  for (const pg of allPages) {
+    try { results.push({ page: pg, ...(await scrapeOnePage(s, ticker, pg, allPages.length === 1 ? screenshotPath : null)) }); }
+    catch (e) { console.error(`[uw_scrape] [${pg}] threw: ${e.message}`); results.push({ page: pg, error: e.message }); }
+  }
+  process.stdout.write(JSON.stringify({ ticker, pages: allPages, results }) + '\n');
   process.exit(0);
 } catch (e) {
   console.error(`FAIL: ${e.message}`);
