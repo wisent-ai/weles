@@ -192,6 +192,25 @@ async function scrapeOnePage(sess, tk, pg, ssPath) {
   }
   if (!ready) { console.error(`[uw_scrape] [${pg}] never rendered — skipping`); return { skipped: true, reason: 'never_rendered' }; }
   await sess.wait(5);
+  // For pages with a TIME RANGE calendar picker (option_flow_alerts),
+  // drive the picker to the largest preset before extracting. Confirmed
+  // on /dark-pool-flow (2026-05-08): the page disclaimer caps the
+  // free-tier window at 7 calendar days, so "Last 7 Days" is the
+  // maximum-history preset available.
+  if (pg === 'option_flow_alerts') {
+    try {
+      const timeBtn = sess.page.locator('button:has-text("TIME RANGE")').first();
+      if (await timeBtn.count()) {
+        await timeBtn.click();
+        await sess.wait(2);
+        const last7 = sess.page.locator('button:has-text("Last 7 Days")').first();
+        if (await last7.count()) { await last7.click(); await sess.wait(1); }
+        const applyBtn = sess.page.locator('button:has-text("Apply")').first();
+        if (await applyBtn.count()) { await applyBtn.click(); await sess.wait(8); }
+        console.error(`[uw_scrape] [${pg}] applied Last 7 Days TIME RANGE`);
+      }
+    } catch (e) { console.error(`[uw_scrape] [${pg}] TIME RANGE drive threw: ${e.message}`); }
+  }
   const authStatus = await sess.page.evaluate(() => { const b = document.body?.innerText || ''; return { stale: /Viewing data from.*days ago.*Subscribe for live/i.test(b), guest: /Sign In/.test(b) && !/Sign Out/.test(b) }; }); // allow-raw-playwright: read-only DOM
   if (ssPath) {
     try { await sess.page.screenshot({ path: ssPath, fullPage: true }); }
