@@ -16,7 +16,7 @@ import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../_shared/cookie
 
 const EXPLICIT_TARGET = process.env.PRODUCTHUNT_URL || '';
 const COMMENT_TEXT = process.env.PH_COMMENT || 'Looks really clean — congrats on the launch!';
-const sleep = (s) => new Promise(r => setTimeout(r, s * 1000));
+const sleep = (s) => new Promise(r => setTimeout(r, s * 1000));  // allow-raw-playwright: utility sleep shim — usages should migrate to humanIdlePause
 
 async function postComment(s, acct, sessionMeta) {
   // Cookie-jar freshness gate — see _shared/cookie-freshness.mjs. On stale,

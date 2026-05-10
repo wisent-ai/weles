@@ -41,7 +41,7 @@ function cdp(method, params) {
   });
 }
 const s = {
-  wait: (n) => new Promise(r => setTimeout(r, n * 1000)),
+  wait: (n) => new Promise(r => setTimeout(r, n * 1000)),  // allow-raw-playwright: review — context-dependent timer
   close: async () => ws.close(),
   page: { evaluate: async (js) => {
     const r = await cdp('Runtime.evaluate', { expression: `(async () => { ${js.startsWith('(') ? 'return ' + js : js} })()`, awaitPromise: true, returnByValue: true });

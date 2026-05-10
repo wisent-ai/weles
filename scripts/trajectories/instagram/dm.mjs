@@ -1,7 +1,7 @@
 import { getSocialAccount, resolveAccountSession, markCookiesStale } from '../../../dist/utils/credentials.js';
 import { WSession } from '../../../dist/session/wsession.js';
 import { humanType } from '../../../dist/human/keyboard.js';
-import { humanClickLocator } from '../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../dist/human/mouse.js';
 import { assertAuthed, AuthProbeError } from '../_shared/auth-probe.mjs';
 import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../_shared/cookie-freshness.mjs';
 
@@ -28,7 +28,7 @@ try {
   await s.ctx.addCookies(stored.map(c => ({ ...c, path: c.path || '/' })));
 
   await s.page.goto('https://www.instagram.com/direct/new/', { waitUntil: 'domcontentloaded' });
-  await s.page.waitForTimeout(4500);
+  await humanIdlePause('deliberate');
   if (/\/accounts\/login/.test(s.page.url())) {
     console.log(`FAIL: cookies stale, redirected to login (${s.page.url()})`);
     await markCookiesStale(acct.id);
@@ -39,7 +39,7 @@ try {
 
   // Some IG cohorts show a Notifications/Updates upsell modal; dismiss
   // opportunistically without blocking if absent.
-  await s.page.waitForTimeout(800);
+  await humanIdlePause('short');
   const notNowSel = 'div[role="dialog"] button:has-text("Not Now"), div[role="dialog"] button:has-text("Not now")';
   const notNowCount = await s.page.locator(notNowSel).filter({ visible: true }).count().catch(() => 0);
   if (notNowCount > 0) await humanClickLocator(s.page, s.page.locator(notNowSel).filter({ visible: true }).first());
@@ -50,17 +50,17 @@ try {
   await searchIn.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, searchIn);
   await humanType(s.page, RECIPIENT);
-  await s.page.waitForTimeout(2500);
+  await humanIdlePause('deliberate');
 
   const userRow = s.page.locator(`div[role="dialog"] div[role="button"]:has-text("${RECIPIENT}"), div[role="dialog"] [role="button"] span:has-text("${RECIPIENT}")`).filter({ visible: true }).first();
   await userRow.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, userRow);
-  await s.page.waitForTimeout(1200);
+  await humanIdlePause('short');
 
   const chatBtn = s.page.locator('div[role="dialog"] button:has-text("Chat"), div[role="dialog"] button:has-text("Next"), div[role="dialog"] [role="button"]:has-text("Chat")').filter({ visible: true }).first();
   await chatBtn.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, chatBtn);
-  await s.page.waitForTimeout(3500);
+  await humanIdlePause('deliberate');
 
   // Composer is contenteditable div, aria-label="Message". Per
   // feedback_focus_before_type: humanClick the editable BEFORE humanType.
@@ -68,7 +68,7 @@ try {
   await composer.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, composer);
   await humanType(s.page, MESSAGE);
-  await s.page.waitForTimeout(800);
+  await humanIdlePause('short');
 
   const sendSel = 'div[role="button"]:has(svg[aria-label="Send"]), div[role="button"]:has-text("Send"), button:has-text("Send")';
   const sendCount = await s.page.locator(sendSel).filter({ visible: true }).count().catch(() => 0);
@@ -77,7 +77,7 @@ try {
   } else {
     await s.page.keyboard.press('Enter');
   }
-  await s.page.waitForTimeout(3000);
+  await humanIdlePause('deliberate');
 
   const echoCount = await s.page.locator(`:text("${MESSAGE.slice(0, 60)}")`).filter({ visible: true }).count().catch(() => 0);
   if (!echoCount) { console.log('FAIL: composer typed but message not echoed in conversation pane'); process.exit(1); }

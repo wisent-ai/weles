@@ -2,6 +2,7 @@
 import { getServiceLogin } from '../../../dist/utils/credentials.js';
 import { WSession } from '../../../dist/session/wsession.js';
 import { topupOpts, dryRunExit } from '../_shared/services/topup_common.mjs';
+import { humanIdlePause } from '../../../dist/human/mouse.js';
 
 const { usd, confirm } = topupOpts();
 const login = await getServiceLogin('SadCaptcha');
@@ -10,17 +11,17 @@ if (!login) { console.log('FAIL: no SadCaptcha creds. Run sadcaptcha/register.mj
 const s = await WSession.start({ label: 'sadcaptcha_topup', browser: 'chromium' });
 try {
   await s.goto('https://www.sadcaptcha.com/login');
-  await s.page.waitForTimeout(2000);
+  await humanIdlePause('deliberate');
   await s.page.locator('input[name="username"]').fill(login.email);
   await s.page.locator('input[name="password"]').fill(login.password);
   await s.page.locator('input[type="submit"]').click();
 
-  for (let i = 0; i < 20; i++) { await s.page.waitForTimeout(1000); if (!/\/login/.test(s.page.url())) break; }
+  for (let i = 0; i < 20; i++) { await humanIdlePause('short'); if (!/\/login/.test(s.page.url())) break; }
   if (/\/login/.test(s.page.url())) { console.log('FAIL: still on /login after submit'); process.exit(1); }
 
   // SadCaptcha pricing/buy section anchored on home.
   await s.page.goto('https://www.sadcaptcha.com/dashboard', { waitUntil: 'domcontentloaded' }).catch(() => {});
-  await s.page.waitForTimeout(5000);
+  await humanIdlePause('long');
 
   const amtIn = s.page.locator('input[type="number"], input[name*="amount" i], input[inputmode="numeric"]').filter({ visible: true }).first();
   if (await amtIn.isVisible().catch(() => false)) { await amtIn.click(); await amtIn.fill(String(usd)); console.log(`[trajectory] amount filled: $${usd}`); }
@@ -34,7 +35,7 @@ try {
     console.log('FAIL: could not find pay/checkout button');
     process.exit(1);
   }
-  await s.page.waitForTimeout(8000);
+  await humanIdlePause('long');
   console.log(`PASS-CHARGED: checkout initiated, url=${s.page.url().slice(0, 100)}`);
 } catch (e) {
   console.log('FAIL:', e.message?.slice(0, 200));

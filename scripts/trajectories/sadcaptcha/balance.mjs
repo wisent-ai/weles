@@ -3,6 +3,7 @@
 import { getServiceLogin } from '../../../dist/utils/credentials.js';
 import { WSession } from '../../../dist/session/wsession.js';
 import { parseBalanceFromText, patchServiceBalance } from '../_shared/services/google_sso.mjs';
+import { humanIdlePause } from '../../../dist/human/mouse.js';
 
 const LOGIN_URL = 'https://www.sadcaptcha.com/login';
 const DASH_URL = 'https://www.sadcaptcha.com/dashboard';
@@ -18,7 +19,7 @@ console.log(`[trajectory] Using service login: ${login.email}`);
 const s = await WSession.start({ label: 'sadcaptcha_balance', browser: 'chromium' });
 try {
   await s.goto(LOGIN_URL);
-  await s.page.waitForTimeout(2000);
+  await humanIdlePause('deliberate');
 
   const userIn = s.page.locator('input[name="username"], input[type="email"]').filter({ visible: true }).first();
   await userIn.waitFor({ state: 'visible' });
@@ -31,11 +32,11 @@ try {
   await pwIn.pressSequentially(login.password, { delay: 25 });
   await pwIn.press('Enter');
 
-  for (let i = 0; i < 20; i++) { await s.page.waitForTimeout(1000); if (!/\/login/.test(s.page.url())) break; }
+  for (let i = 0; i < 20; i++) { await humanIdlePause('short'); if (!/\/login/.test(s.page.url())) break; }
   if (/\/login/.test(s.page.url())) { console.log('FAIL: still on /login after submit'); process.exit(1); }
 
   await s.page.goto(DASH_URL, { waitUntil: 'domcontentloaded' }).catch(() => {});
-  await s.page.waitForTimeout(5000);
+  await humanIdlePause('long');
 
   const text = await s.page.evaluate(() => document.body.innerText);
   const balance = parseBalanceFromText(text);

@@ -3,6 +3,7 @@
 import { randomBytes } from 'node:crypto';
 import { WSession } from '../../../dist/session/wsession.js';
 import { CaptchaSolver } from '../../../dist/captcha/solver.js';
+import { humanIdlePause } from '../../../dist/human/mouse.js';
 
 // SadCaptcha rejects gmail aliases; use a fresh wisentmedia.com mailbox instead.
 const EMAIL = `svc.sad.${randomBytes(3).toString('hex')}@wisentmedia.com`;
@@ -21,7 +22,7 @@ console.log(`[trajectory] registering: ${EMAIL}`);
 const s = await WSession.start({ label: 'sadcaptcha_register', browser: 'chromium' });
 try {
   await s.goto('https://www.sadcaptcha.com/register');
-  await s.page.waitForTimeout(3000);
+  await humanIdlePause('deliberate');
   await s.page.locator('input#username').click();
   await s.page.locator('input#username').pressSequentially(EMAIL, { delay: 25 });
   await s.page.locator('input#password1').click();
@@ -41,7 +42,7 @@ try {
   console.log('[trajectory] reCAPTCHA token injected');
 
   await s.page.locator('input[type="submit"]').click();
-  await s.page.waitForTimeout(5000);
+  await humanIdlePause('long');
   console.log(`[trajectory] post-register url=${s.page.url()}`);
 
   if (/\/register/.test(s.page.url())) {

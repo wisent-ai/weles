@@ -8,6 +8,7 @@
 import { chromium } from 'playwright';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { humanIdlePause } from '../../../dist/human/mouse.js';
 
 const supaUrl = process.env.SUPABASE_URL ?? '';
 const supaKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
@@ -25,7 +26,7 @@ async function warmCloudflare() {
     const ctx = await browser.newContext({ userAgent: UA });
     const page = await ctx.newPage();
     await page.goto('https://www.producthunt.com/', { waitUntil: 'domcontentloaded' });
-    await new Promise(r => setTimeout(r, 8000));
+    await humanIdlePause('long');
     const cookies = await ctx.cookies('https://www.producthunt.com/');
     console.log(`[warm] captured ${cookies.length} cookies (cf_clearance: ${cookies.find(c => c.name === 'cf_clearance') ? 'YES' : 'NO'})`);
     return cookies;

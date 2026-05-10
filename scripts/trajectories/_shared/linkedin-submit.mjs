@@ -1,5 +1,5 @@
 import { humanType } from '../../../dist/human/keyboard.js';
-import { humanClickLocator } from '../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../dist/human/mouse.js';
 
 export async function linkedinSubmitComment(s, text) {
   // 2026-05-06: legacy container selectors gone in the new design system.
@@ -39,7 +39,7 @@ export async function linkedinSubmitComment(s, text) {
 
 export async function linkedinSubmitPost(s, text) {
   await s.goto('https://www.linkedin.com/feed/');
-  await s.page.waitForTimeout(3500);
+  await humanIdlePause('deliberate');
   // Compose share button — top of feed. aria-label="Start a post" is the
   // stable marker (verified 2026-05-06 in captured /feed/ DOM at
   // recordings/linkedin_browse/after_001_goto__dom.html).

@@ -1,3 +1,4 @@
+import { humanIdlePause } from '../../../dist/human/mouse.js';
 /**
  * Positive auth probe — the ONLY way an action trajectory or login flow may
  * claim "logged in". URL-bounce checks ("did /messages redirect to /login?")
@@ -228,7 +229,7 @@ export async function assertAuthed(platform, s, opts = {}) {
   // navigation. Twitter / Instagram / TikTok all hydrate the topbar via
   // a post-load XHR; rushing the probe will false-fail on a healthy
   // session that just hasn't finished mounting.
-  await s.page.waitForTimeout(settleMs).catch(() => {});
+  await humanIdlePause().catch(() => {});
 
   // Pass 1: any authed selector visible?
   const deadline = Date.now() + timeout;
@@ -255,7 +256,7 @@ export async function assertAuthed(platform, s, opts = {}) {
         }
       } catch (e) { lastErrors.push(`${sel}: ${e.message?.slice(0, 60)}`); }
     }
-    await s.page.waitForTimeout(500);
+    await humanIdlePause('short');
   }
 
   // Pass 2: collect logged-out markers + page-text negative for diagnostics.

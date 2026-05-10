@@ -1,5 +1,6 @@
 import { WSession } from '../../../dist/session/wsession.js';
 import { SessionStore } from '../../../dist/session/store.js';
+import { humanIdlePause } from '../../../dist/human/mouse.js';
 
 const LABEL = 'vast';
 const EMAIL = process.env.VAST_GOOGLE_EMAIL ?? 'lukasz.bartoszcze@wisent.ai';
@@ -22,12 +23,12 @@ async function loggedIn() {
 
 try {
   await ws.goto('https://cloud.vast.ai/');
-  await new Promise(r => setTimeout(r, 3000));
+  await humanIdlePause('deliberate');
 
   if (!(await loggedIn())) {
     console.log('[vast] not logged in; running OAuth');
     await ws.click('Login');
-    await new Promise(r => setTimeout(r, 2000));
+    await humanIdlePause('deliberate');
     const popupP = ws.ctx.waitForEvent('page').catch(() => null);
     await ws.click('Continue with Google');
     const popup = await popupP;
@@ -46,10 +47,10 @@ try {
         } else if (path.includes('/signin/oauth/') || path.includes('/oauthconsent')) {
           await popup.evaluate(`(() => { var b = Array.from(document.querySelectorAll('button,[role="button"],a')).find(e => /^(continue|allow|confirm)$/i.test((e.innerText||'').trim())); if (b) b.click(); })()`).catch(() => {});
         }
-        await new Promise(r => setTimeout(r, 1000));
+        await humanIdlePause('short');
       }
     }
-    await new Promise(r => setTimeout(r, 3000));
+    await humanIdlePause('deliberate');
     const saved = await store.capturePlaywright(ws.ctx, LABEL);
     console.log(`[vast] login flow captured ${saved.length} cookies`);
   } else {
@@ -70,11 +71,11 @@ try {
   })()`);
 
   await ws.goto('https://cloud.vast.ai/host/machines/');
-  await new Promise(r => setTimeout(r, 7000));
+  await humanIdlePause('long');
   await store.capturePlaywright(ws.ctx, LABEL);
 
   await ws.page.goto('https://cloud.vast.ai/host/setup/', { waitUntil: 'domcontentloaded' }).catch(() => {});
-  await new Promise(r => setTimeout(r, 6000));
+  await humanIdlePause('long');
 
   // Find the <pre>/<code> block containing the real install command, scroll
   // to it, then click the Copy button that sits nearest to it. Capture the
@@ -117,7 +118,7 @@ try {
   console.log('[vast] final screenshot -> /tmp/vast_install_cmd.png');
   await ws.page.screenshot({ path: '/tmp/vast_transcript.png', fullPage: true }).catch(() => {});
   console.log('[vast] screenshot -> /tmp/vast_transcript.png');
-  await new Promise(r => setTimeout(r, 6000));
+  await humanIdlePause('long');
 
   const afterState = await ws.page.evaluate(`(() => {
     var t = ((document.body?.innerText || '').match(/[^\\n]*(listed|success|error|fail|invalid|unauth)[^\\n]*/i) || [null])[0];

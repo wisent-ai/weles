@@ -1,7 +1,7 @@
 import { getSocialAccount, resolveAccountSession, markCookiesStale } from '../../../dist/utils/credentials.js';
 import { WSession } from '../../../dist/session/wsession.js';
 import { humanType } from '../../../dist/human/keyboard.js';
-import { humanClickLocator } from '../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../dist/human/mouse.js';
 import { assertAuthed, AuthProbeError } from '../_shared/auth-probe.mjs';
 import { reloginLinkedinInline } from '../_shared/linkedin/relogin.mjs';
 import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../_shared/cookie-freshness.mjs';
@@ -36,7 +36,7 @@ try {
   let authed = false;
   for (let attempt = 0; attempt < 2 && !authed; attempt++) {
     await s.page.goto('https://www.linkedin.com/feed/', { waitUntil: 'domcontentloaded' });
-    await s.page.waitForTimeout(4500);
+    await humanIdlePause('deliberate');
     const url = s.page.url();
     if (/\/(login|checkpoint|uas)/.test(url)) {
       if (attempt > 0) { console.log(`FAIL: cookies stale after relogin, redirected to ${url}`); await markCookiesStale(acct.id); process.exit(1); }
@@ -56,7 +56,7 @@ try {
   }
 
   await s.page.goto(profileUrl, { waitUntil: 'domcontentloaded' });
-  await s.page.waitForTimeout(4500);
+  await humanIdlePause('deliberate');
 
   // No Message button = not connected + not Open Profile → DM impossible
   // without InMail credits. Surface as structured FAIL early.
@@ -67,18 +67,18 @@ try {
     process.exit(1);
   }
   await humanClickLocator(s.page, s.page.locator(msgSel).filter({ visible: true }).first());
-  await s.page.waitForTimeout(2500);
+  await humanIdlePause('deliberate');
 
   const composer = s.page.locator('div.msg-form__contenteditable[contenteditable="true"], div[role="textbox"][contenteditable="true"]').filter({ visible: true }).first();
   await composer.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, composer);
   await humanType(s.page, MESSAGE);
-  await s.page.waitForTimeout(800);
+  await humanIdlePause('short');
 
   const sendBtn = s.page.locator('button.msg-form__send-button, button[aria-label*="Send" i]:not([disabled])').filter({ visible: true }).first();
   await sendBtn.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, sendBtn);
-  await s.page.waitForTimeout(3500);
+  await humanIdlePause('deliberate');
 
   const echoCount = await s.page.locator(`.msg-s-event-listitem :text("${MESSAGE.slice(0, 60)}"), li.msg-s-message-list__event :text("${MESSAGE.slice(0, 60)}"), :text("${MESSAGE.slice(0, 60)}")`).filter({ visible: true }).count().catch(() => 0);
   if (!echoCount) { console.log('FAIL: composer typed but message not echoed in conversation'); process.exit(1); }

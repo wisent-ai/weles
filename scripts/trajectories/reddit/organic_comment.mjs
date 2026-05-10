@@ -152,7 +152,7 @@ try {
     }).catch(() => null);
     if (realHandle) {
       console.log(`[deferred-verify] waiting ${DEFER_VERIFY_MS / 1000}s before clean-session probe of ${realHandle}`);
-      await new Promise(r => setTimeout(r, DEFER_VERIFY_MS));
+      await new Promise(r => setTimeout(r, DEFER_VERIFY_MS));  // allow-raw-playwright: polling/rate-limit loop
       const probe = await probeShadowban(realHandle, 3).catch((e) => ({ verdict: 'indeterminate', vantages: [], err: e?.message }));
       console.log(`[deferred-verify] verdict=${probe.verdict}`);
       if (probe.verdict === 'shadowbanned') {

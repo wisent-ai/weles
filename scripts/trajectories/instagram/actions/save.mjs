@@ -1,6 +1,6 @@
 import { getSocialAccount, resolveAccountSession, markCookiesStale } from '../../../../dist/utils/credentials.js';
 import { WSession } from '../../../../dist/session/wsession.js';
-import { humanClickLocator } from '../../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
 import { detectInstagramBanSignals } from '../../../../dist/platforms/instagram/ban_signals.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -19,7 +19,7 @@ let ban = null;
 try {
   await s.goto(TARGET_URL || 'https://www.instagram.com/explore/');
   checkReachable(s, 'instagram');
-  await s.page.waitForTimeout(3500);
+  await humanIdlePause('deliberate');
   try { await assertAuthed('instagram', s, { label: 'instagram_save' }); }
   catch (probeErr) { if (probeErr instanceof AuthProbeError) { console.log(`FAIL: ${probeErr.message}`); await markCookiesStale(acct.id); process.exit(1); } throw probeErr; }
   if (!/\/p\/|\/reel\//.test(s.page.url())) {
@@ -29,10 +29,10 @@ try {
     if (href) {
       const postUrl = href.startsWith('http') ? href : `https://www.instagram.com${href}`;
       await s.goto(postUrl);
-      await s.page.waitForTimeout(3000);
+      await humanIdlePause('deliberate');
     } else {
       await humanClickLocator(s.page, thumb);
-      await s.page.waitForTimeout(3000);
+      await humanIdlePause('deliberate');
     }
   }
   // Bookmark/save: <svg aria-label="Save"> flips to "Remove" once saved.

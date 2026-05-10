@@ -40,7 +40,7 @@ try {
   // <span class="button-text">Follow</span>.
   await s.goto(`https://www.reddit.com/user/${encodeURIComponent(author)}/`);
   checkReachable(s, 'reddit');
-  await s.page.waitForTimeout(4000);
+  await humanIdlePause('deliberate');
   try { await assertAuthed('reddit', s, { label: 'reddit_follow_new' }); }
   catch (probeErr) { if (probeErr instanceof AuthProbeError) { console.log(`FAIL: ${probeErr.message}`); await markCookiesStale(acct.id); process.exit(1); } throw probeErr; }
   const followComp = s.page.locator('follow-button').first();

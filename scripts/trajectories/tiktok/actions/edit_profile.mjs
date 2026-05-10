@@ -9,7 +9,7 @@
 import { getSocialAccount, resolveAccountSession, markCookiesStale } from '../../../../dist/utils/credentials.js';
 import { WSession } from '../../../../dist/session/wsession.js';
 import { humanType } from '../../../../dist/human/keyboard.js';
-import { humanClickLocator } from '../../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
 import { assertAuthed, AuthProbeError } from '../../_shared/auth-probe.mjs';
 import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../../_shared/cookie-freshness.mjs';
 import { loadAvatarFile } from '../../_shared/runner/avatar-loader.mjs';
@@ -54,7 +54,7 @@ try {
   // try the canonical /setting first; if redirected, the trajectory will
   // surface that final URL in the auth-probe failure.
   await s.page.goto('https://www.tiktok.com/setting', { waitUntil: 'domcontentloaded' });
-  await s.page.waitForTimeout(5000);
+  await humanIdlePause('long');
   if (/\/login(\/|$)/.test(s.page.url())) {
     console.log(`FAIL: cookies stale, redirected to login (${s.page.url()})`);
     await markCookiesStale(acct.id);
@@ -70,7 +70,7 @@ try {
   const editBtn = s.page.locator('button:has-text("Edit profile"), [data-e2e="edit-profile-entrance"]').filter({ visible: true }).first();
   if (await editBtn.isVisible().catch(() => false)) {
     await humanClickLocator(s.page, editBtn);
-    await s.page.waitForTimeout(2500);
+    await humanIdlePause('deliberate');
   }
 
   const nameIn = s.page.locator('input[data-e2e*="name" i], input[placeholder*="name" i], input[aria-label*="name" i]').filter({ visible: true }).first();
@@ -111,18 +111,18 @@ try {
         const changeBtn = s.page.locator('[data-e2e*="avatar" i], button:has-text("Change photo"), div[role="button"]:has-text("Change photo")').filter({ visible: true }).first();
         if (await changeBtn.isVisible().catch(() => false)) {
           await humanClickLocator(s.page, changeBtn);
-          await s.page.waitForTimeout(2500);
+          await humanIdlePause('deliberate');
         }
         const fileIn = s.page.locator('input[type="file"][accept*="image"]').first();
         if (await fileIn.count()) {
           await fileIn.setInputFiles(tmpAvatar);
-          await s.page.waitForTimeout(3000);
+          await humanIdlePause('deliberate');
           const applyBtn = s.page.locator('button:has-text("Apply"), button:has-text("Confirm"), button:has-text("Save")').filter({ visible: true }).first();
           try {
             await applyBtn.waitFor({ state: 'visible' });
             await applyBtn.click();
             writes.push('avatar uploaded');
-            await s.page.waitForTimeout(2500);
+            await humanIdlePause('deliberate');
           } catch { console.log('[tt-profile] avatar apply not visible'); }
         } else { console.log('[tt-profile] no image file input on /setting'); }
       } catch (e) { console.log(`[tt-profile] avatar err: ${e.message?.slice(0, 120)}`); }
@@ -143,7 +143,7 @@ try {
   const saveBtn = s.page.locator('button:has-text("Save"), [data-e2e="save-profile"]').filter({ visible: true }).first();
   await saveBtn.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, saveBtn);
-  await s.page.waitForTimeout(4000);
+  await humanIdlePause('deliberate');
 
   const verifiedBio = await bioIn.inputValue().catch(() => '');
   if (verifiedBio.trim() !== targetBio.trim()) {

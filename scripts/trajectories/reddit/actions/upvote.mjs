@@ -1,6 +1,6 @@
 import { getSocialAccount, resolveAccountSession, markCookiesStale } from '../../../../dist/utils/credentials.js';
 import { WSession } from '../../../../dist/session/wsession.js';
-import { humanClickLocator } from '../../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
 import { detectRedditBanSignals } from '../../../../dist/platforms/reddit/ban_signals.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -25,7 +25,7 @@ try {
   const url = baseUrl.replace(/^https?:\/\/(www\.)?reddit\.com/, 'https://old.reddit.com');
   await s.goto(url);
   checkReachable(s, 'reddit');
-  await s.page.waitForTimeout(3000);
+  await humanIdlePause('deliberate');
   try { await assertAuthed('reddit', s, { label: 'reddit_upvote' }); }
   catch (probeErr) { if (probeErr instanceof AuthProbeError) { console.log(`FAIL: ${probeErr.message}`); await markCookiesStale(acct.id); process.exit(1); } throw probeErr; }
   // First not-yet-upvoted, NOT-archived post arrow. The parent is

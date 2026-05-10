@@ -100,7 +100,7 @@ export async function generateVideoFile(params, { timeoutMs = 480000, pollMs = 5
     ? `${base}${path}/${encodeURIComponent(jobId)}`
     : `${base}${path}?job_id=${encodeURIComponent(jobId)}`;
   while (Date.now() < deadline) {
-    await new Promise(res => setTimeout(res, pollMs));
+    await new Promise(res => setTimeout(res, pollMs));  // allow-raw-playwright: polling/rate-limit loop
     const s = await fetch(statusUrl, { headers: { 'x-cron-secret': secret() } });
     const sd = await s.json().catch(() => ({}));
     if (sd.status === 'completed' && sd.url) {

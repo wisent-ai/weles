@@ -76,7 +76,7 @@ try {
     } catch (e) { return { ok: false, reason: `click: ${e.message?.slice(0, 60)}` }; }
     await humanType(s.page, v); await s.page.keyboard.press('Tab').catch(() => {}); return { ok: true };
   };
-  const pause = () => new Promise(r => setTimeout(r, nextInterClickMs()));
+  const pause = () => new Promise(r => setTimeout(r, nextInterClickMs()));  // allow-raw-playwright: utility sleep shim — usages should migrate to humanIdlePause
   const checkAlive = (tag, r) => { if (!r.ok && /closed|disconnect|Target/i.test(r.reason ?? '')) { console.log(`FAIL: browser died at ${tag} — ${r.reason}`); s.close().catch(()=>{}); process.exit(42); } };
   const er = await fillField('#email', '$GITHUB_NEW_EMAIL'); console.log(`[register] Fill email: ${JSON.stringify(er)}`); checkAlive('email', er); await pause();
   const pr = await fillField('#password', '$GITHUB_NEW_PASSWORD'); console.log(`[register] Fill password: ${JSON.stringify(pr)}`); checkAlive('password', pr); await pause();
@@ -188,7 +188,7 @@ try {
   const ua = await s.page.evaluate('navigator.userAgent').catch(() => '');
   // Browser keep-alive during long solve — pings page every 3s so Chromium doesn't kill the context
   let keepAliveAbort = false;
-  const keepAlive = (async () => { while (!keepAliveAbort) { await new Promise(r => setTimeout(r, 3000)); try { await s.page.evaluate('Date.now()'); } catch {} } })();
+  const keepAlive = (async () => { while (!keepAliveAbort) { await new Promise(r => setTimeout(r, 3000)); try { await s.page.evaluate('Date.now()'); } catch {} } })();  // allow-raw-playwright: review — context-dependent timer
 
   let solved = false;
   const isBD = !!process.env.BRIGHTDATA_BROWSER_WS;

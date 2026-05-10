@@ -7,7 +7,7 @@
 import { getSocialAccount, resolveAccountSession, markCookiesStale } from '../../../../dist/utils/credentials.js';
 import { WSession } from '../../../../dist/session/wsession.js';
 import { humanType } from '../../../../dist/human/keyboard.js';
-import { humanClickLocator } from '../../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
 import { assertAuthed, AuthProbeError } from '../../_shared/auth-probe.mjs';
 import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../../_shared/cookie-freshness.mjs';
 import { loadAvatarFile } from '../../_shared/runner/avatar-loader.mjs';
@@ -54,7 +54,7 @@ try {
   await s.ctx.addCookies(stored.map(c => ({ ...c, path: c.path || '/' })));
 
   await s.page.goto('https://github.com/settings/profile', { waitUntil: 'domcontentloaded' });
-  await s.page.waitForTimeout(4500);
+  await humanIdlePause('deliberate');
   if (/\/login/.test(s.page.url())) {
     console.log(`FAIL: cookies stale, redirected to login (${s.page.url()})`);
     await markCookiesStale(acct.id);
@@ -101,7 +101,7 @@ try {
         const editSummary = s.page.locator('form[aria-label="Profile picture"] summary, details summary:has-text("Edit")').filter({ visible: true }).first();
         if (await editSummary.count()) {
           await humanClickLocator(s.page, editSummary);
-          await s.page.waitForTimeout(1500);
+          await humanIdlePause('short');
         }
         const fileIn = s.page.locator('input#avatar_upload').first();
         if (await fileIn.count()) {
@@ -152,7 +152,7 @@ try {
   const saveBtn = s.page.locator('button[type="submit"]:has-text("Update profile"), input[value="Update profile"]').filter({ visible: true }).first();
   await saveBtn.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, saveBtn);
-  await s.page.waitForTimeout(4000);
+  await humanIdlePause('deliberate');
 
   // Verify by reading the form back (the page reloads on save).
   const verifiedBio = await bioIn.inputValue().catch(() => '');

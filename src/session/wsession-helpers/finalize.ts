@@ -112,7 +112,7 @@ export async function wsCheckEmail(s: WSession, email: string, sender: string): 
       const codes = `${d.subject ?? ''} ${d.text ?? ''} ${d.html ?? ''}`.match(/\b\d{5,6}\b/g);
       if (codes) return codes[0];
     }
-    await new Promise(r => setTimeout(r, 10000));
+    await new Promise(r => setTimeout(r, 10000));  // allow-raw-playwright: polling/rate-limit loop
   }
   return 'no code received';
 }

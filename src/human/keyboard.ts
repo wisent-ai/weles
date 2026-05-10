@@ -96,7 +96,7 @@ export async function humanType(page: any, text: string): Promise<void> {
  * Use this anywhere a trajectory needs to fill a form field. Do NOT call
  * `locator.fill(v)` (writes via DOM with NO keystrokes — anti-bot signal),
  * `locator.pressSequentially(v, {delay: N})` (fixed-delay timing — anti-bot
- * signal), or `page.keyboard.type(v, {delay: N})` (same as pressSequentially).
+ * signal), or `page.keyboard.type(v, {delay: N})` (same as pressSequentially).  // allow-raw-playwright: implementation file — defines the humanized atom
  */
 export async function humanFill(page: any, locator: any, text: string): Promise<void> {
   const { humanClickLocator } = await import('./mouse.js');

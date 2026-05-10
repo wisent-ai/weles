@@ -1,5 +1,7 @@
 import { CaptchaSolver } from '../../../../dist/captcha/solver.js';
 import { solveRecaptchaV2 as solveRecaptchaV2InPage } from '../../../../dist/captcha/recaptcha.js';
+import { humanIdlePause } from '../../../../dist/human/mouse.js';
+import { humanType } from '../../../../dist/human/keyboard.js';
 
 const RECAPTCHA_SITEKEY = '6LcIy_MqAAAAAMKiupFSbmzW3xjGSlIfRzNWYMjC';
 const CHECKPOINT_RE = /\/(checkpoint|uas\/login|login\/recovery)/;
@@ -20,7 +22,7 @@ async function solveEmailPinChallenge({ page }, email) {
   const challengeStart = Date.now();
   let code = null;
   for (let i = 0; i < 18; i++) {
-    await page.waitForTimeout(5000);
+    await humanIdlePause('long');
     const list = await fetch(`https://api.resend.com/emails/receiving?limit=20`, { headers: { Authorization: `Bearer ${RESEND_KEY}` } }).then((r) => r.json()).catch(() => null);
     const matches = (list?.data ?? []).filter((m) => m.to?.[0] === email && /linkedin/i.test(m.from || '') && new Date(m.created_at).getTime() >= challengeStart - 5000);
     matches.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
@@ -55,7 +57,7 @@ async function solveEmailPinChallenge({ page }, email) {
       const loc = page.locator(sel).filter({ visible: true }).first();
       if (await loc.count() > 0) {
         await loc.click({ force: true });
-        await page.keyboard.type(code, { delay: 80 });
+        await humanType(page, code, { delay: 80 });
         console.log(`[linkedin_login] PIN filled into ${sel}`);
         filled = true; break;
       }
@@ -65,7 +67,7 @@ async function solveEmailPinChallenge({ page }, email) {
       for (let i = 0; i < 6; i++) {
         const cell = page.locator(`input[name="pin-${i + 1}"], input[name="otp-${i + 1}"]`).filter({ visible: true }).first();
         if (await cell.count() === 0) break;
-        await cell.click({ force: true }); await page.keyboard.type(code[i], { delay: 60 });
+        await cell.click({ force: true }); await humanType(page, code[i], { delay: 60 });
         split++;
       }
       if (split === 6) { filled = true; console.log('[linkedin_login] PIN filled into 6 split inputs'); }
@@ -85,7 +87,7 @@ async function solveEmailPinChallenge({ page }, email) {
       }
     }
     await page.waitForLoadState('domcontentloaded').catch(() => {});
-    await page.waitForTimeout(3000).catch(() => {});
+    await humanIdlePause('deliberate').catch(() => {});
     return { ok: true, code };
   } catch (e) { return { ok: false, reason: `fill_err:${e.message?.slice(0, 80)}` }; }
 }
@@ -108,7 +110,7 @@ export async function solveLinkedinCheckpoint({ ctx, page }, reason, email) {
   if (process.env.WELES_NOPECHA_EXT === '1' && !liAt && CHECKPOINT_RE.test(finalUrl)) {
     console.log(`[linkedin_login] ${reason} waiting for NopeCha extension to solve checkpoint in-page (90s max)`);
     for (let i = 0; i < 18; i++) {
-      await page.waitForTimeout(5000);
+      await humanIdlePause('long');
       cookies = await ctx.cookies();
       liAt = cookies.find((c) => c.name === 'li_at' && c.value);
       finalUrl = page.url?.() ?? '';
@@ -136,7 +138,7 @@ export async function solveLinkedinCheckpoint({ ctx, page }, reason, email) {
     if (!solved) {
       // image-grid solver returned without success — wait briefly for
       // any in-flight redirect from a verify that just landed, then check.
-      await page.waitForTimeout(3000).catch(() => {});
+      await humanIdlePause('deliberate').catch(() => {});
       try { cookies = await ctx.cookies(); } catch {}
       liAt = cookies.find((c) => c.name === 'li_at' && c.value);
       try { finalUrl = page.url?.() ?? finalUrl; } catch {}
@@ -169,13 +171,13 @@ export async function confirmLinkedinEmail(page, email) {
       const m = body.match(/https:\/\/www\.linkedin\.com\/comm\/psettings\/email\/confirm\?[^\s<>"]+/);
       if (m) { confirmUrl = m[0]; break; }
     }
-    await page.waitForTimeout(5000);
+    await humanIdlePause('long');
   }
   if (!confirmUrl) { console.log('[linkedin_register] no email-confirmation link in inbox'); return { ok: false, reason: 'confirm_email_not_received' }; }
   console.log(`[linkedin_register] navigating to email-confirmation URL`);
   try { await page.goto(confirmUrl, { waitUntil: 'domcontentloaded', timeout: CONFIRM_GOTO_MS }); }
   catch (e) { return { ok: false, reason: `goto_err:${e.message?.slice(0, 80)}` }; }
-  await page.waitForTimeout(2500);
+  await humanIdlePause('deliberate');
   const finalUrl = page.url?.() ?? '';
   console.log(`[linkedin_register] post-confirm URL: ${finalUrl}`);
   return { ok: true, finalUrl };

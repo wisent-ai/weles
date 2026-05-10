@@ -33,7 +33,7 @@ let ban = null;
 try {
   await s.goto(`https://www.tiktok.com/@${encodeURIComponent(TARGET_USER)}`);
   checkReachable(s, 'tiktok');
-  await s.page.waitForTimeout(3500);
+  await humanIdlePause('deliberate');
   // Positive auth probe — cookies in jar ≠ TikTok server trusts session.
   // See _shared/auth-probe.mjs.
   try { await assertAuthed('tiktok', s, { label: 'tiktok_follow' }); }

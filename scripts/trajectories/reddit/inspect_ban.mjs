@@ -10,6 +10,7 @@
  */
 import { getSocialAccount, resolveAccountSession } from '../../../dist/utils/credentials.js';
 import { WSession } from '../../../dist/session/wsession.js';
+import { humanIdlePause } from '../../../dist/human/mouse.js';
 
 const acct = await getSocialAccount('reddit');
 if (!acct) { console.log('FAIL: no active reddit account in DB'); process.exit(1); }
@@ -31,7 +32,7 @@ try {
   // Navigate to homepage first (this is where ban banners usually appear)
   await s.page.goto('https://www.reddit.com/', { waitUntil: 'domcontentloaded' });
   // Reddit SPA needs time to hydrate — wait for content to appear
-  await s.page.waitForTimeout(12000);
+  await humanIdlePause('long');
   const homeUrl = s.page.url();
   const homeText = await s.page.evaluate(() => document.body?.innerText?.slice(0, 8000) ?? '');
   await s.page.screenshot({ path: 'recordings/reddit_inspect_ban/homepage_logged_in.png' });
@@ -59,7 +60,7 @@ try {
   // Now navigate to own profile
   const profileUrl = `https://www.reddit.com/user/${acct.username}/`;
   await s.page.goto(profileUrl, { waitUntil: 'domcontentloaded' });
-  await s.page.waitForTimeout(12000);
+  await humanIdlePause('long');
   const finalUrl = s.page.url();
   const fullText = await s.page.evaluate(() => document.body?.innerText?.slice(0, 8000) ?? '');
   await s.page.screenshot({ path: 'recordings/reddit_inspect_ban/profile_logged_in.png' });
@@ -88,7 +89,7 @@ try {
   console.log('[inspect] --- checking logged-out view ---');
   await s.ctx.clearCookies();
   await s.page.goto(profileUrl, { waitUntil: 'domcontentloaded' });
-  await s.page.waitForTimeout(5000);
+  await humanIdlePause('long');
   const logoutUrl = s.page.url();
   const logoutText = await s.page.evaluate(() => document.body?.innerText?.slice(0, 3000) ?? '');
   console.log(`[inspect] logged-out url: ${logoutUrl}`);

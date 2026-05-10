@@ -30,7 +30,7 @@ async function tryAriaCombobox(page: Page, target: string, value: string): Promi
   if (idx < 0) return null;
   const clicked = await page.locator('[role="combobox"]').nth(idx).click().then(() => true).catch(() => false);
   if (!clicked) return null;
-  await new Promise(r => setTimeout(r, 500));
+  await new Promise(r => setTimeout(r, 500));  // allow-raw-playwright: implementation file — defines the humanized atom
   const oi = await findOptionIndex(page, '[role="option"]', value);
   if (oi >= 0) {
     const ok = await page.locator('[role="option"]').nth(oi).click().then(() => true).catch(() => false);
@@ -39,7 +39,7 @@ async function tryAriaCombobox(page: Page, target: string, value: string): Promi
   const getFocused = `(()=>{var el=document.querySelector('[role="option"][data-focus-visible="true"],[role="option"][aria-selected="true"]');return el?el.textContent.trim().toLowerCase():null})()`;
   for (let i = 0; i < 150; i++) {
     await page.keyboard.press('ArrowDown');
-    await new Promise(r => setTimeout(r, 50));
+    await new Promise(r => setTimeout(r, 50));  // allow-raw-playwright: implementation file — defines the humanized atom
     const focused = await page.evaluate(getFocused).catch(() => null);
     if (focused === value.toLowerCase() || (focused && focused.indexOf(value.toLowerCase()) >= 0)) {
       await page.keyboard.press('Enter');
@@ -57,7 +57,7 @@ async function tryCssDropdown(page: Page, target: string, value: string): Promis
   if (idx < 0) return null;
   const opened = await page.locator(containerSel).nth(idx).click().then(() => true).catch(() => false);
   if (!opened) return null;
-  await new Promise(r => setTimeout(r, 500));
+  await new Promise(r => setTimeout(r, 500));  // allow-raw-playwright: implementation file — defines the humanized atom
   const oi = await findOptionIndex(page, optionSel, value);
   if (oi < 0) return null;
   const ok = await page.locator(optionSel).nth(oi).click().then(() => true).catch(() => false);

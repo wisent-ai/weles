@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { checkReachable } from '../../_shared/action-runner.mjs';
 import { humanFill } from '../../../../dist/human/keyboard.js';
-import { humanClickLocator } from '../../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
 
 // Word pool used to generate organic-looking repo names when REPO_NAME isn't
 // supplied. Set WELES_GITHUB_REPO_WORDS to override (comma-separated) so the
@@ -30,7 +30,7 @@ try {
   if (cookies.length) await s.ctx.addCookies(cookies).catch(() => {});
   await s.goto('https://github.com/new');
   checkReachable(s, 'github');
-  await s.page.waitForTimeout(3000);
+  await humanIdlePause('deliberate');
   const loggedOut = await s.page.evaluate(() => !!document.querySelector('a[href="/login"]'));
   if (loggedOut) throw new Error('not_logged_in: cookies stale');
 
@@ -43,14 +43,14 @@ try {
   const nameIn = s.page.locator('input#repository-name-input').first();
   await nameIn.waitFor({ state: 'visible' });
   await humanFill(s.page, nameIn, REPO_NAME);
-  await s.page.waitForTimeout(800);
+  await humanIdlePause('short');
   const descIn = s.page.locator('input[name="Description"]').first();
   await humanFill(s.page, descIn, REPO_DESC);
-  await s.page.waitForTimeout(500);
+  await humanIdlePause('short');
   await humanClickLocator(s.page, s.page.locator('button[type="submit"]').filter({ hasText: 'Create repository' }).first());
 
   for (let w = 0; w < 15; w++) {
-    await s.page.waitForTimeout(1000);
+    await humanIdlePause('short');
     const u = s.page.url?.() ?? '';
     if (new RegExp(`github\\.com/${acct.username}/${REPO_NAME}(?:/|$)`).test(u)) break;
   }

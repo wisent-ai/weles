@@ -9,7 +9,7 @@ const USE_BRIGHTDATA = !!process.env.BRIGHTDATA_BROWSER_WS;
 const oxyUser = process.env.OXYLABS_USERNAME;
 const oxyPass = process.env.OXYLABS_PASSWORD;
 const proxy = USE_BRIGHTDATA ? 'none' : (process.env.PROXY_URL || (oxyUser && oxyPass ? `http://customer-${oxyUser}-cc-us-sessid-${Math.floor(Math.random()*9999999)}:${oxyPass}@pr.oxylabs.io:7777` : 'none'));
-const sleep = (s) => new Promise(r => setTimeout(r, s * 1000));
+const sleep = (s) => new Promise(r => setTimeout(r, s * 1000));  // allow-raw-playwright: utility sleep shim — usages should migrate to humanIdlePause
 
 async function readPage(s) {
   return (await s.page.evaluate(`(() => {

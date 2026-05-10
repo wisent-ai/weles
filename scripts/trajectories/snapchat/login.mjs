@@ -1,7 +1,7 @@
 import { getSocialAccount } from '../../../dist/utils/credentials.js';
 import { WSession } from '../../../dist/session/wsession.js';
 import { humanType } from '../../../dist/human/keyboard.js';
-import { humanClickLocator } from '../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../dist/human/mouse.js';
 import { persistFreshCookieJar } from '../_shared/cookie-freshness.mjs';
 
 const URL = 'https://accounts.snapchat.com/accounts/login';
@@ -15,7 +15,7 @@ console.log(`[trajectory] Using account: ${acct.username}`);
 const s = await WSession.start({ label: 'snapchat_login', proxy: process.env.PROXY_URL || undefined });
 try {
   await s.goto(URL);
-  await s.page.waitForTimeout(2500);
+  await humanIdlePause('deliberate');
   // Step 1: username/email input → Next.
   const userIn = s.page.locator('input[name="username"], input#username, input[autocomplete="username"], input[type="email"]').filter({ visible: true }).first();
   await userIn.waitFor({ state: 'visible' });

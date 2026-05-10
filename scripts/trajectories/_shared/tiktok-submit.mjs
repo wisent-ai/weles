@@ -1,5 +1,5 @@
 import { humanType } from '../../../dist/human/keyboard.js';
-import { humanClickLocator } from '../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../dist/human/mouse.js';
 
 /**
  * Navigate to a video page from the current feed/profile, then submit a
@@ -38,7 +38,7 @@ export async function tiktokSubmitComment(s, text) {
       let authorHandles = [];
       try {
         if (!/\/foryou/.test(currentUrl)) await s.goto('https://www.tiktok.com/foryou');
-        await s.page.waitForTimeout(5000);
+        await humanIdlePause('long');
         authorHandles = await s.page.evaluate(() => [...new Set(Array.from(document.querySelectorAll('a[href*="/@"]')).map(a => { const m = (a.getAttribute('href')||'').match(/\/@([^/?#]+)/); return m ? m[1] : null; }).filter(Boolean))].slice(0, 5));
         console.log(`[tiktok-submit] /foryou recommended authors: ${JSON.stringify(authorHandles)}`);
       } catch { /* fall through */ }
@@ -127,7 +127,7 @@ export async function tiktokSubmitComment(s, text) {
       // Go back to profile to try next video.
       if (i < candidates.length - 1) {
         await s.page.goBack({ waitUntil: 'domcontentloaded' }).catch(() => {});
-        await s.page.waitForTimeout(2000);
+        await humanIdlePause('deliberate');
         // Wait for profile grid to re-render.
         await s.page.locator('a[href*="/video/"]').first().waitFor({ state: 'visible', timeout: 15000 }).catch(() => {});
       }
@@ -141,7 +141,7 @@ export async function tiktokSubmitComment(s, text) {
   for (const selX of ['button[aria-label="Close toast"]', 'button.inapp-notif__close']) {
     const x = s.page.locator(selX).filter({ visible: true }).first();
     if (await x.count().catch(() => 0)) {
-      try { await humanClickLocator(s.page, x); await s.page.waitForTimeout(500); } catch {}
+      try { await humanClickLocator(s.page, x); await humanIdlePause('short'); } catch {}
     }
   }
   // Wait for right-rail to hydrate. When we landed via repost-URL
@@ -152,7 +152,7 @@ export async function tiktokSubmitComment(s, text) {
   if (await commentIcon.count()) {
     console.log('[tiktok-submit] clicking comment icon to open panel');
     await humanClickLocator(s.page, commentIcon);
-    await s.page.waitForTimeout(2500);
+    await humanIdlePause('deliberate');
   } else {
     console.log('[tiktok-submit] comment icon not visible after 25s wait');
   }

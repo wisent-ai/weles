@@ -2,6 +2,7 @@
 // "LOGIN WITH GOOGLE" button (and Cloudflare Turnstile).
 import { WSession } from '../../../dist/session/wsession.js';
 import { googleSso, parseBalanceFromText, patchServiceBalance, getGoogleSsoCreds } from '../_shared/services/google_sso.mjs';
+import { humanIdlePause } from '../../../dist/human/mouse.js';
 
 const LOGIN_URL = 'https://juicysms.com/login';
 const DISPLAY_NAME = 'JuicySMS';
@@ -13,20 +14,20 @@ console.log(`[trajectory] Using Google SSO: ${login.email}`);
 const s = await WSession.start({ label: 'juicysms_balance', browser: 'chromium' });
 try {
   await s.goto(LOGIN_URL);
-  await s.page.waitForTimeout(8000); // Turnstile auto-solve window
+  await humanIdlePause('long'); // Turnstile auto-solve window
 
   const popupPromise = s.page.waitForEvent('popup').catch(() => null);
   await s.page.locator('a:has-text("LOGIN WITH GOOGLE"), button:has-text("LOGIN WITH GOOGLE"), a:has-text("Login with Google"), button:has-text("Login with Google")').filter({ visible: true }).first().click();
-  const popup = await Promise.race([popupPromise, new Promise(r => setTimeout(() => r(null), 8000))]);
+  const popup = await Promise.race([popupPromise, new Promise(r => setTimeout(() => r(null), 8000))]);  // allow-raw-playwright: Promise.race deadline
 
   const ok = await googleSso(s, login, { originHost: 'juicysms.com', page: popup ?? undefined });
   if (!ok) { console.log('FAIL: Google SSO did not complete'); process.exit(1); }
 
-  for (let i = 0; i < 30; i++) { await s.page.waitForTimeout(1000); if (!/\/login/.test(s.page.url())) break; }
+  for (let i = 0; i < 30; i++) { await humanIdlePause('short'); if (!/\/login/.test(s.page.url())) break; }
   if (/\/login/.test(s.page.url())) {
     await s.page.goto('https://juicysms.com/dashboard', { waitUntil: 'domcontentloaded' }).catch(() => {});
   }
-  await s.page.waitForTimeout(5000);
+  await humanIdlePause('long');
 
   const text = await s.page.evaluate(() => document.body.innerText);
   console.log(`[trajectory] dashboard text length=${text.length}`);

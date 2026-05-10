@@ -4,7 +4,7 @@ import { detectGitHubBanSignals } from '../../../../dist/platforms/github/ban_si
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { checkReachable } from '../../_shared/action-runner.mjs';
-import { humanClickLocator } from '../../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
 import { assertAuthed, AuthProbeError } from '../../_shared/auth-probe.mjs';
 
 const REPO_URL_RAW = process.env.REPO_URL || process.env.TARGET_URL || '';
@@ -32,7 +32,7 @@ try {
   else url = 'https://github.com/trending';
   await s.goto(url);
   checkReachable(s, 'github');
-  await s.page.waitForTimeout(2500);
+  await humanIdlePause('deliberate');
   try { await assertAuthed('github', s, { label: 'github_watch_repo' }); }
   catch (probeErr) { if (probeErr instanceof AuthProbeError) { console.log(`FAIL: ${probeErr.message}`); await markCookiesStale(acct.id); process.exit(1); } throw probeErr; }
   // Deterministic Playwright. Trending/search pages don't have a Watch
@@ -43,7 +43,7 @@ try {
     const firstRepoLink = s.page.locator('a[href^="/"]').filter({ hasText: /\// }).filter({ visible: true }).first();
     await humanClickLocator(s.page, firstRepoLink);
     await s.page.waitForLoadState('domcontentloaded');
-    await s.page.waitForTimeout(2000);
+    await humanIdlePause('deliberate');
   }
   // GitHub watch button: aria-label starts with "Watch:" when not watching,
   // text includes "(N)" subscriber count. Already-watching shows
@@ -56,9 +56,9 @@ try {
     ban = await detectGitHubBanSignals(s.page, s.capturedResponses).catch(() => null);
   } else {
     await humanClickLocator(s.page, watchBtn);
-    await s.page.waitForTimeout(1500);
+    await humanIdlePause('short');
     await humanClickLocator(s.page, s.page.locator('label, button').filter({ hasText: /Participating and @mentions/ }).filter({ visible: true }).first());
-    await s.page.waitForTimeout(2500);
+    await humanIdlePause('deliberate');
     const ariaAfter = await s.page.locator('button[aria-label^="Watch"]').first().getAttribute('aria-label').catch(() => null);
     ban = await detectGitHubBanSignals(s.page, s.capturedResponses).catch(() => null);
     if (/Watch: (Participating|All Activity|Custom)/.test(ariaAfter || '')) console.log(`PASS: now watching (${ariaAfter})`);

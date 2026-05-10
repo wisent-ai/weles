@@ -5,7 +5,7 @@ import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { checkReachable } from '../../_shared/action-runner.mjs';
 import { humanFill } from '../../../../dist/human/keyboard.js';
-import { humanClickLocator } from '../../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
 
 const REPO_URL = process.env.REPO_URL || '';
 const ISSUE_TITLE = (process.env.ISSUE_TITLE || 'question about usage').slice(0, 250);
@@ -30,7 +30,7 @@ try {
   if (cookies.length) await s.ctx.addCookies(cookies).catch(() => {});
   await s.goto(`${repoBase}/issues/new/choose`);
   checkReachable(s, 'github');
-  await s.page.waitForTimeout(3500);
+  await humanIdlePause('deliberate');
   const loggedOut = await s.page.evaluate(() => !!document.querySelector('a[href="/login"]'));
   if (loggedOut) throw new Error('not_logged_in: cookies stale');
 
@@ -44,7 +44,7 @@ try {
   if (hasBlank) await humanClickLocator(s.page, blankLoc).catch(() => {});
   const blankClicked = { clicked: hasBlank, onForm: !!(await s.page.locator('input[name="issue[title]"]').count()) };
   console.log(`[open_issue] blank_picker: ${JSON.stringify(blankClicked)}`);
-  await s.page.waitForTimeout(3000);
+  await humanIdlePause('deliberate');
 
   // Humanized title+body fill — bare descriptor.set + dispatch('input')
   // bypassed all keystrokes which github's spam-ML reads.
@@ -59,7 +59,7 @@ try {
   await humanFill(s.page, titleLoc, ISSUE_TITLE);
   await humanFill(s.page, bodyLoc, ISSUE_BODY);
   console.log(`[open_issue] fill: ok title=${ISSUE_TITLE.length}c body=${ISSUE_BODY.length}c`);
-  await s.page.waitForTimeout(2000);
+  await humanIdlePause('deliberate');
 
   // Submit. New issue form has data-testid="create-issue-button"; classic UI
   // uses <button type="submit"> with text "Submit new issue".
@@ -69,7 +69,7 @@ try {
   await humanClickLocator(s.page, submitBtn);
 
   for (let w = 0; w < 20; w++) {
-    await s.page.waitForTimeout(1000);
+    await humanIdlePause('short');
     const u = s.page.url?.() ?? '';
     if (/\/issues\/\d+/.test(u)) break;
   }

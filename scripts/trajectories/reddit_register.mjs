@@ -129,7 +129,7 @@ try {
 
   // Step 4: wait for post-signup redirect (/onboarding, /, etc)
   for (let i = 0; i < 20; i++) {
-    await s.page.waitForTimeout(1500);
+    await humanIdlePause('short');
     const u = s.page.url();
     if (!/\/register/.test(u)) break;
   }

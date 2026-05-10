@@ -16,6 +16,7 @@ const TRAJECTORIES = [
 
 const TEMPLATE = (name) => `import { AsyncNewBrowser } from '../dist/async_api.js';
 import { execute } from '../dist/agent/loop.js';
+import { humanIdlePause } from '../dist/human/mouse.js';
 
 // Goal imported from scripts/run_all.mjs — run with:
 //   node scripts/run_all.mjs ${name}
@@ -36,7 +37,7 @@ async function main() {
   const page = ctx.pages()[0] || await ctx.newPage();
   try {
     await page.goto(t.url, { waitUntil: t.waitLoad ? 'load' : 'domcontentloaded' });
-    await page.waitForTimeout(t.waitLoad ? 5000 : 3000);
+    await humanIdlePause();
     const result = await execute(page, 'Open ' + t.url + '. ' + t.goal, {
       envHints: t.emailEnv ? { SVC_EMAIL: process.env.SVC_EMAIL, SVC_PASSWORD: '***' } : {},
     });

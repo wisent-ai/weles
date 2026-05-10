@@ -3,6 +3,7 @@
 
 import { getSocialAccount } from '../../../dist/utils/credentials.js';
 import { WSession } from '../../../dist/session/wsession.js';
+import { humanClickLocator } from '../../../dist/human/mouse.js';
 
 const APP_ID = process.env.APP_ID;
 const TESTER_EMAIL = process.env.TESTER_EMAIL;
@@ -23,22 +24,22 @@ try {
 
   // Click into group (first one if no name specified)
   if (GROUP_NAME) {
-    await s.page.locator(`a:has-text("${GROUP_NAME}")`).first().click();
+    await humanClickLocator(s.page, s.page.locator(`a:has-text("${GROUP_NAME}")`).first());
   } else {
-    await s.page.locator('a[href*="/testflight/groups/"]').first().click();
+    await humanClickLocator(s.page, s.page.locator('a[href*="/testflight/groups/"]').first());
   }
   await s.wait(4);
 
   // Go to Testers tab
-  await s.page.locator('a:has-text("Testers"), button:has-text("Testers")').first().click().catch(() => {});
+  await humanClickLocator(s.page, s.page.locator('a:has-text("Testers"), button:has-text("Testers")').first()).catch(() => {});
   await s.wait(3);
 
   // Click + to add
-  await s.page.locator('button:has-text("Add"), button[aria-label*="Add"]').first().click();
+  await humanClickLocator(s.page, s.page.locator('button:has-text("Add"), button[aria-label*="Add"]').first());
   await s.wait(2);
 
   // Add by email
-  await s.page.locator('button:has-text("Email"), label:has-text("Email")').first().click().catch(() => {});
+  await humanClickLocator(s.page, s.page.locator('button:has-text("Email"), label:has-text("Email")').first()).catch(() => {});
   await s.wait(2);
   await s.page.locator('input[type="email"], input[placeholder*="email" i]').fill(TESTER_EMAIL);
   await s.wait(1);

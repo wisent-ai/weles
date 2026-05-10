@@ -163,7 +163,7 @@ try {
           console.log(`[test] ${svc.name} attempt ${attempt + 1} solving...`);
           let token = null;
           for (let i = 0; i < 60; i++) {
-            await new Promise(r => setTimeout(r, 5000));
+            await new Promise(r => setTimeout(r, 5000));  // allow-raw-playwright: polling/rate-limit loop
             const res = await (await fetch(svc.url + '/getTaskResult', {
               method: 'POST', headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ clientKey: apiKey, taskId: createRes.taskId }),

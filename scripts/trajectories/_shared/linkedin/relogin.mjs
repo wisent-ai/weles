@@ -38,7 +38,7 @@ export async function reloginLinkedinInline(s, acct) {
   } catch (e) {
     return { ok: false, reason: `goto_err:${e.message?.slice(0, 80)}` };
   }
-  await s.page.waitForTimeout(1500);
+  await humanIdlePause('short');
   let landedUrl = s.page.url?.() ?? '';
   console.log(`[linkedin_relogin] post-goto URL: ${landedUrl}`);
   // Pre-form checkpoint check (rare but possible on flagged sessions)
@@ -56,7 +56,7 @@ export async function reloginLinkedinInline(s, acct) {
     try {
       await s.page.evaluate(`(()=>{try{localStorage.clear();sessionStorage.clear();}catch(e){}})()`);
       await s.page.goto('https://www.linkedin.com/login', { waitUntil: 'domcontentloaded', timeout: GOTO_MS });
-      await s.page.waitForTimeout(1500);
+      await humanIdlePause('short');
       landedUrl = s.page.url?.() ?? '';
       console.log(`[linkedin_relogin] post-force-goto URL: ${landedUrl}`);
     } catch (e) { return { ok: false, reason: `force_goto_err:${e.message?.slice(0, 80)}` }; }
@@ -82,7 +82,7 @@ export async function reloginLinkedinInline(s, acct) {
   await injectV3LoginToken(s.page).catch(() => {});
   await submitBtn.click({ force: true, noWaitAfter: true }).catch(() => {});
   for (let i = 0; i < 12; i++) {
-    await s.page.waitForTimeout(1000);
+    await humanIdlePause('short');
     if (!/^https?:\/\/www\.linkedin\.com\/login\/?$/.test(s.page.url())) break;
   }
   let cookies = await s.ctx.cookies();

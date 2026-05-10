@@ -1,6 +1,6 @@
 import { getSocialAccount, resolveAccountSession } from '../../../../dist/utils/credentials.js';
 import { WSession } from '../../../../dist/session/wsession.js';
-import { humanClickLocator } from '../../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
 import { detectTwitterBanSignals } from '../../../../dist/platforms/twitter/ban_signals.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -18,7 +18,7 @@ let ban = null;
 try {
   await s.goto(TARGET_URL || 'https://x.com/home');
   checkReachable(s, 'twitter');
-  await s.page.waitForTimeout(3000);
+  await humanIdlePause('deliberate');
   // Deterministic: data-testid="bookmark" is the un-bookmarked state;
   // post-click the same testid flips to "removeBookmark".
   const bookmarkBtn = s.page.locator('[data-testid="bookmark"]').filter({ visible: true }).first();

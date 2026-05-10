@@ -1,6 +1,6 @@
 import { WSession } from '../../../dist/session/wsession.js';
 import { humanType } from '../../../dist/human/keyboard.js';
-import { humanClickLocator } from '../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../dist/human/mouse.js';
 
 const URL = 'https://accounts.snapchat.com/accounts/signup';
 const MAX_RETRIES = 3;
@@ -10,7 +10,7 @@ async function fillNext(s, locator, value) {
   await humanClickLocator(s.page, locator);
   await humanType(s.page, value);
   await humanClickLocator(s.page, s.page.locator('button[type="submit"], button:has-text("Next"), button:has-text("Continue"), button:has-text("Sign Up")').filter({ visible: true }).first());
-  await s.page.waitForTimeout(1800);
+  await humanIdlePause('short');
 }
 
 for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
@@ -21,7 +21,7 @@ for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     console.log(`[sc] identity: ${id.username} / ${id.email}`);
 
     await s.goto(URL);
-    await s.page.waitForTimeout(2500);
+    await humanIdlePause('deliberate');
 
     // 1. First name (most current Snap signup variants put first+last on the
     //    same screen with separate "Next" between or one shared submit).
@@ -35,16 +35,16 @@ for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
       await humanType(s.page, id.lastName);
     }
     await humanClickLocator(s.page, s.page.locator('button[type="submit"], button:has-text("Next"), button:has-text("Continue"), button:has-text("Sign Up")').filter({ visible: true }).first());
-    await s.page.waitForTimeout(1800);
+    await humanIdlePause('short');
 
     // 2. Birthday — usually a single date input or three selects.
     const dateIn = s.page.locator('input[name="birthday"], input[type="date"]').filter({ visible: true }).first();
     if (await dateIn.count()) {
       const iso = `${id.birthYear.padStart(4, '0')}-${String(id.birthMonth).padStart(2, '0')}-${String(id.birthDay).padStart(2, '0')}`;
       await humanClickLocator(s.page, dateIn);
-      await s.page.keyboard.type(iso);
+      await humanType(s.page, iso);
       await humanClickLocator(s.page, s.page.locator('button[type="submit"], button:has-text("Next"), button:has-text("Continue")').filter({ visible: true }).first());
-      await s.page.waitForTimeout(1800);
+      await humanIdlePause('short');
     } else {
       // Triple-select fallback (older flow).
       const monthSel = s.page.locator('select[name="month"]').first();
@@ -54,7 +54,7 @@ for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
       if (await daySel.count()) await daySel.selectOption(String(id.birthDay));
       if (await yearSel.count()) await yearSel.selectOption(String(id.birthYear));
       await humanClickLocator(s.page, s.page.locator('button[type="submit"], button:has-text("Next"), button:has-text("Continue")').filter({ visible: true }).first());
-      await s.page.waitForTimeout(1800);
+      await humanIdlePause('short');
     }
 
     // 3. Username

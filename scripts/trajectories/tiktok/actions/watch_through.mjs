@@ -7,6 +7,7 @@ import { checkReachable } from '../../_shared/action-runner.mjs';
 import { assertAuthed, AuthProbeError } from '../../_shared/auth-probe.mjs';
 import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../../_shared/cookie-freshness.mjs';
 import { markCookiesStale } from '../../../../dist/utils/credentials.js';
+import { humanIdlePause } from '../../../../dist/human/mouse.js';
 
 // Watch-through = sit on a single FYP video for its full duration plus one
 // replay, then advance. TikTok's recommender uses watch-through ratio as a
@@ -31,16 +32,16 @@ let ban = null;
 try {
   await s.goto('https://www.tiktok.com/foryou');
   checkReachable(s, 'tiktok');
-  await s.page.waitForTimeout(4000);
+  await humanIdlePause('deliberate');
   try { await assertAuthed('tiktok', s, { label: 'tiktok_watch_through' }); }
   catch (probeErr) { if (probeErr instanceof AuthProbeError) { console.log(`FAIL: ${probeErr.message}`); await markCookiesStale(acct.id); process.exit(1); } throw probeErr; }
   // Sit on the first video for ~30s (avg TikTok length ~15s, so this is a
   // full watch + about one replay loop). Then advance twice with short dwell.
-  await s.page.waitForTimeout(28000 + Math.floor(Math.random() * 6000));
+  await humanIdlePause();
   await s.page.keyboard.press('ArrowDown');
-  await s.page.waitForTimeout(12000 + Math.floor(Math.random() * 6000));
+  await humanIdlePause();
   await s.page.keyboard.press('ArrowDown');
-  await s.page.waitForTimeout(14000 + Math.floor(Math.random() * 6000));
+  await humanIdlePause();
   ban = await detectTikTokBanSignals(s.page, s.capturedResponses).catch(() => null);
   console.log(`[ban-signal] ${ban?.signal}  PASS: watched_through_3`);
 } catch (e) {

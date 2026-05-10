@@ -4,6 +4,7 @@
 import { getServiceLogin } from '../../../dist/utils/credentials.js';
 import { WSession } from '../../../dist/session/wsession.js';
 import { topupOpts, dryRunExit } from '../_shared/services/topup_common.mjs';
+import { humanIdlePause } from '../../../dist/human/mouse.js';
 
 const PRESETS = [50, 100, 250, 500, 1000];
 const { usd, confirm } = topupOpts();
@@ -15,16 +16,16 @@ if (!login) { console.log('FAIL: no PacketStream creds'); process.exit(1); }
 const s = await WSession.start({ label: 'packetstream_topup', browser: 'chromium' });
 try {
   await s.goto('https://app.packetstream.io/login');
-  await s.page.waitForTimeout(1500);
+  await humanIdlePause('short');
   const u = s.page.locator('input[name="username"]').filter({ visible: true }).first();
   await u.click(); await u.pressSequentially(login.email, { delay: 25 });
   const p = s.page.locator('input[name="password"]').filter({ visible: true }).first();
   await p.click(); await p.pressSequentially(login.password, { delay: 25 });
   await p.press('Enter');
-  for (let i = 0; i < 20; i++) { await s.page.waitForTimeout(1000); if (!/\/login/.test(s.page.url())) break; }
+  for (let i = 0; i < 20; i++) { await humanIdlePause('short'); if (!/\/login/.test(s.page.url())) break; }
 
   await s.page.goto('https://app.packetstream.io/dashboard/deposit', { waitUntil: 'domcontentloaded' });
-  await s.page.waitForTimeout(3000);
+  await humanIdlePause('deliberate');
   await s.page.selectOption('#paypal-amount', String(target)).catch(() => {});
   console.log(`[trajectory] selected preset $${target} (requested $${usd})`);
 
@@ -37,7 +38,7 @@ try {
     if (sel) { sel.value = String(amt); sel.dispatchEvent(new Event('change', { bubbles: true })); }
   }, target);
   for (let i = 0; i < 30; i++) {
-    await s.page.waitForTimeout(1000);
+    await humanIdlePause('short');
     const u = s.page.url();
     if (/paypal\.com|stripe\.com|checkout/i.test(u)) break;
   }

@@ -1,6 +1,6 @@
 import { getSocialAccount, resolveAccountSession, markCookiesStale } from '../../dist/utils/credentials.js';
 import { WSession } from '../../dist/session/wsession.js';
-import { humanClickLocator } from '../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../dist/human/mouse.js';
 import { assertAuthed, AuthProbeError } from './_shared/auth-probe.mjs';
 import { loadFreshCookieJarOrFail, CookieJarStaleError } from './_shared/cookie-freshness.mjs';
 
@@ -28,7 +28,7 @@ try {
   await s.ctx.addCookies(stored.map(c => ({ ...c, path: c.path || '/' })));
 
   await s.page.goto(URL, { waitUntil: 'domcontentloaded' });
-  await s.page.waitForTimeout(5000);
+  await humanIdlePause('long');
   const url = s.page.url();
   if (/\/accounts\/login/.test(url)) { console.log(`FAIL: cookies stale, redirected to login (${url})`); await markCookiesStale(acct.id); process.exit(1); }
   // Positive auth probe — see _shared/auth-probe.mjs.
@@ -44,7 +44,7 @@ try {
   if (alreadyFollowing > 0) { console.log(`PASS: already following @${TARGET_USER}`); process.exit(0); }
   await followBtn.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, followBtn);
-  await s.page.waitForTimeout(3000);
+  await humanIdlePause('deliberate');
   // Verify transition: Follow → Following
   const after = await s.page.locator('button').filter({ hasText: /^\s*Following\s*$/ }).filter({ visible: true }).count().catch(() => 0);
   if (after === 0) { console.log(`FAIL: clicked Follow but no transition to Following — may be shadowbanned or rate-limited`); process.exit(1); }

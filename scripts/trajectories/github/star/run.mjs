@@ -1,6 +1,6 @@
 import { getSocialAccount, resolveAccountSession } from '../../../../dist/utils/credentials.js';
 import { WSession } from '../../../../dist/session/wsession.js';
-import { humanClickLocator } from '../../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
 import { detectGitHubBanSignals } from '../../../../dist/platforms/github/ban_signals.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -35,7 +35,7 @@ try {
   else url = 'https://github.com/trending';
   await s.goto(url);
   checkReachable(s, 'github');
-  await s.page.waitForTimeout(2500);
+  await humanIdlePause('deliberate');
 
   const loggedOut = await s.page.evaluate(() => {
     const signInLinks = Array.from(document.querySelectorAll('a[href="/login"], a[href^="/login?"]'));
@@ -49,7 +49,7 @@ try {
     await repoLink.waitFor({ state: 'visible' });
     await humanClickLocator(s.page, repoLink);
     await s.page.waitForLoadState('domcontentloaded');
-    await s.page.waitForTimeout(2000);
+    await humanIdlePause('deliberate');
   }
 
   // Star form: <form action="/{owner}/{repo}/star"> → <button name="star"> Star</button>.

@@ -3,6 +3,7 @@
 import { WSession } from '../../../dist/session/wsession.js';
 import { googleSso, parseBalanceFromText, getGoogleSsoCreds } from '../_shared/services/google_sso.mjs';
 import { patchEffectiveBalance } from '../_shared/services/proxy_probe.mjs';
+import { humanIdlePause } from '../../../dist/human/mouse.js';
 
 const LOGIN_URL = 'https://dashboard.iproyal.com/login';
 
@@ -13,11 +14,11 @@ console.log(`[trajectory] Using Google SSO: ${login.email}`);
 const s = await WSession.start({ label: 'iproyal_balance', browser: 'chromium' });
 try {
   await s.goto(LOGIN_URL);
-  await s.page.waitForTimeout(4000);
+  await humanIdlePause('deliberate');
 
   const popupPromise = s.page.waitForEvent('popup').catch(() => null);
   await s.page.locator('button:has-text("Login with Google"), button:has-text("Continue with Google")').filter({ visible: true }).first().click();
-  const popup = await Promise.race([popupPromise, new Promise(r => setTimeout(() => r(null), 15000))]);
+  const popup = await Promise.race([popupPromise, new Promise(r => setTimeout(() => r(null), 15000))]);  // allow-raw-playwright: Promise.race deadline
   if (!popup) { console.log('FAIL: Google login popup did not open'); process.exit(1); }
   await popup.waitForLoadState('domcontentloaded').catch(() => {});
 
@@ -25,13 +26,13 @@ try {
   if (!ok) { console.log('FAIL: Google SSO did not complete'); process.exit(1); }
 
   for (let i = 0; i < 60; i++) {
-    await s.page.waitForTimeout(1000);
+    await humanIdlePause('short');
     if (!/\/login/.test(s.page.url())) break;
   }
   console.log(`[trajectory] post-login url=${s.page.url()}`);
   if (/\/login/.test(s.page.url())) {
     await s.page.goto('https://dashboard.iproyal.com/', { waitUntil: 'domcontentloaded' }).catch(() => {});
-    await s.page.waitForTimeout(5000);
+    await humanIdlePause('long');
   }
 
   const text = await s.page.evaluate(() => document.body.innerText);

@@ -32,7 +32,7 @@ try {
   // now; action trajectories use assertAuthed() to verify before acting.
   // Direct Playwright form login. Instagram inputs use name=username/password.
   await s.page.goto(URL, { waitUntil: 'domcontentloaded' });
-  await s.page.waitForTimeout(2500);
+  await humanIdlePause('deliberate');
   // Instagram's actual selector names: email (not username) + pass (not
   // password). Earlier 'username'/'password' selectors never matched and
   // every login timed out at 30s before submit.
@@ -52,7 +52,7 @@ try {
   // in" to avoid hitting "Log in with Facebook" instead.
   await humanClickLocator(s.page, s.page.locator('div[role="button"]').filter({ hasText: /^\s*Log in\s*$/ }).filter({ visible: true }).first());
   for (let i = 0; i < 15; i++) {
-    await s.page.waitForTimeout(1000);
+    await humanIdlePause('short');
     if (!/\/accounts\/login\/?$/.test(s.page.url())) break;
   }
   const finalUrl = s.page.url();

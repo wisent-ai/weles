@@ -8,7 +8,7 @@
 import { WSession } from '../../dist/session/wsession.js';
 import { CaptchaSolver } from '../../dist/captcha/solver.js';
 import { humanFill, humanType } from '../../dist/human/keyboard.js';
-import { humanClickLocator } from '../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../dist/human/mouse.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { randomBytes } from 'node:crypto';
@@ -65,7 +65,7 @@ async function solveV2Modal(page) {
       });
       if (dom && dom !== RECAPTCHA_SITEKEY) { v2Sitekey = dom; break; }
     } catch {}
-    await page.waitForTimeout(500);
+    await humanIdlePause('short');
   }
   if (!v2Sitekey) {
     const allFrames = page.frames().map(f => (f.url() || '').slice(0, 100)).join(' | ');
@@ -121,7 +121,7 @@ const macPersona = generatePersona({ os: 'macos', browser: 'chromium' });
 const s = await WSession.start({ label: 'linkedin_register', proxy: process.env.PROXY_URL || 'residential', targetHost: 'www.linkedin.com', browser: 'chromium', persona: macPersona });
 try {
   await s.goto(URL);
-  await s.page.waitForTimeout(2500);
+  await humanIdlePause('deliberate');
 
   // Humanized fill — bare descriptor.set + dispatch('input') previously
   // bypassed all keystrokes, which LinkedIn's reCAPTCHA Enterprise v3 saw as
@@ -136,12 +136,12 @@ try {
   console.log(`[register] fill email+pwd: ok`);
 
   await getAndInjectRecaptcha(s.page, 'signup');
-  await s.page.waitForTimeout(500);
+  await humanIdlePause('short');
 
   const submit1 = await humanClickLocator(s.page, s.page.locator('button[type="submit"]:has-text("Agree"), button[type="submit"]:has-text("Continue"), button#join-form-submit, button[data-tracking-control-name*="signup"]').first()).then(() => true).catch(e => { console.log(`[register] submit1 err: ${e.message?.slice(0, 80)}`); return false; });
   console.log(`[register] click Agree & Join: ${submit1}`);
   if (!submit1) throw new Error('Agree & Join button not clickable');
-  await s.page.waitForTimeout(4000);
+  await humanIdlePause('deliberate');
 
   // After Agree & Join, LinkedIn often presents a v2 "I'm not a robot" modal.
   // Detect it and solve via API token (v2 solver's frame chain doesn't match
@@ -151,10 +151,10 @@ try {
     console.log('[register] v2 modal detected — solving via API token');
     const v2ok = await solveV2Modal(s.page);
     if (v2ok) {
-      await s.page.waitForTimeout(2000);
+      await humanIdlePause('deliberate');
       const v2submit = await humanClickLocator(s.page, s.page.locator('button:has-text("Verify"), button:has-text("Continue"), button:has-text("Submit"), button[type="submit"]').last()).then(() => true).catch(() => false);
       console.log(`[register] v2 submit: ${v2submit}`);
-      await s.page.waitForTimeout(4000);
+      await humanIdlePause('deliberate');
     }
   }
 
@@ -172,7 +172,7 @@ try {
   }
   if (fillBOk) {
     await getAndInjectRecaptcha(s.page, 'signup');
-    await s.page.waitForTimeout(500);
+    await humanIdlePause('short');
     // Capture /signup/api/cors/createAccount response BEFORE click. On a
     // challenged session LinkedIn returns HTTP 200 with body
     // {submissionId, challengeUrl:"/checkpoint/challengeIframe/..."} — the
@@ -204,11 +204,11 @@ try {
       // attaches → solver hits checkbox-locator timeouts (run-5 logs).
       const captchaReady = await s.page.waitForSelector('iframe[src*="captchaInternal"], iframe[src*="recaptcha/api2"], iframe[src*="recaptcha/enterprise"]', { state: 'attached' }).then(() => true).catch(() => false);
       console.log(`[register] captcha iframe attached: ${captchaReady}`);
-      await s.page.waitForTimeout(2000);
+      await humanIdlePause('deliberate');
       const cp = await solveLinkedinCheckpoint({ ctx: s.ctx, page: s.page }, 'register', id.email);
       console.log(`[register] checkpoint solver returned: liAt=${cp?.liAt ? 'yes' : 'no'} finalUrl=${cp?.finalUrl?.slice(0, 80)}`);
     }
-    await s.page.waitForTimeout(5000);
+    await humanIdlePause('long');
   }
 
   // Wait for the post-signup redirect to /feed, /onboarding, or /checkpoint.
@@ -222,7 +222,7 @@ try {
     const haveLiAt = ck.some(c => c.name === 'li_at' && c.value);
     if (haveLiAt || /\/feed|\/onboarding|\/check|\/m\/welcome/.test(u)) break;
     if (/^https?:\/\/www\.linkedin\.com\/signup\/?$/.test(u)) break; // signup rejected, no point waiting
-    await s.page.waitForTimeout(2000);
+    await humanIdlePause('deliberate');
   }
   // After redirect settles, persist cookies to social_accounts.metadata.cookies.
   try {

@@ -1,6 +1,7 @@
 // Capsolver balance check via Google SSO popup.
 import { WSession } from '../../../dist/session/wsession.js';
 import { googleSso, parseBalanceFromText, patchServiceBalance, getGoogleSsoCreds } from '../_shared/services/google_sso.mjs';
+import { humanIdlePause } from '../../../dist/human/mouse.js';
 
 const LOGIN_URL = 'https://dashboard.capsolver.com/passport/login';
 const DISPLAY_NAME = 'Capsolver';
@@ -12,11 +13,11 @@ console.log(`[trajectory] Using Google SSO: ${login.email}`);
 const s = await WSession.start({ label: 'capsolver_balance', browser: 'chromium' });
 try {
   await s.goto(LOGIN_URL);
-  await s.page.waitForTimeout(8000);
+  await humanIdlePause('long');
 
   const popupPromise = s.page.waitForEvent('popup').catch(() => null);
   await s.page.locator('button:has-text("Sign In With Google")').filter({ visible: true }).first().click();
-  const popup = await Promise.race([popupPromise, new Promise(r => setTimeout(() => r(null), 15000))]);
+  const popup = await Promise.race([popupPromise, new Promise(r => setTimeout(() => r(null), 15000))]);  // allow-raw-playwright: Promise.race deadline
   if (!popup) { console.log('FAIL: Google login popup did not open'); process.exit(1); }
   await popup.waitForLoadState('domcontentloaded').catch(() => {});
 
@@ -24,12 +25,12 @@ try {
   if (!ok) { console.log('FAIL: Google SSO did not complete'); process.exit(1); }
 
   for (let i = 0; i < 60; i++) {
-    await s.page.waitForTimeout(1000);
+    await humanIdlePause('short');
     if (!/\/passport\/login/.test(s.page.url())) break;
   }
   console.log(`[trajectory] post-login url=${s.page.url()}`);
 
-  await s.page.waitForTimeout(5000);
+  await humanIdlePause('long');
   const text = await s.page.evaluate(() => document.body.innerText);
   console.log(`[trajectory] dashboard text length=${text.length}`);
   const balance = parseBalanceFromText(text);

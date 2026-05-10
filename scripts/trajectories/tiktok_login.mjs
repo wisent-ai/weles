@@ -26,7 +26,7 @@ async function solveTiktokRotateCaptcha(page) {
       return imgs.length >= 2;
     }).catch(() => false);
     if (ready) break;
-    await page.waitForTimeout(500);
+    await humanIdlePause('short');
   }
   // Extract images + slider track + button geometry from the modal.
   const probe = await page.evaluate(() => {
@@ -125,7 +125,7 @@ async function solveTiktokRotateCaptcha(page) {
   const startY = probe.sliderInfo.y + Math.floor(probe.sliderInfo.h / 2);
   const endX = startX + dragX;
   await page.mouse.move(startX, startY, { steps: 5 });
-  await page.waitForTimeout(150);
+  await humanIdlePause('short');
   await page.mouse.down();
   // Move in 30 small steps over ~1.5s, with slight Y jitter.
   const steps = 30;
@@ -136,13 +136,13 @@ async function solveTiktokRotateCaptcha(page) {
     const x = startX + Math.round(dragX * ease);
     const y = startY + (Math.random() < 0.3 ? (Math.random() < 0.5 ? -1 : 1) : 0);
     await page.mouse.move(x, y);
-    await page.waitForTimeout(35 + Math.floor(Math.random() * 25));
+    await humanIdlePause();
   }
-  await page.waitForTimeout(120);
+  await humanIdlePause('short');
   await page.mouse.up();
   // Wait up to 5s for the modal to disappear.
   for (let w = 0; w < 10; w++) {
-    await page.waitForTimeout(500);
+    await humanIdlePause('short');
     const stillThere = await page.evaluate(() => !!document.querySelector('.captcha-verify-container, .captcha_verify_container')).catch(() => true);
     if (!stillThere) {
       console.log('[tt-captcha] modal dismissed — captcha solved');
@@ -354,7 +354,7 @@ try {
     });
     await humanClickLocator(s.page, submitBtn);
     console.log(`[tiktok_login] submit clicked, waiting for sessionid (${loginResponses.length} login XHR captured so far)`);
-    await s.page.waitForTimeout(3000);
+    await humanIdlePause('deliberate');
     await s.screenshot('post_submit_3s').catch(() => {});
     console.log(`[tiktok_login] +3s loginResponses=${JSON.stringify(loginResponses)}`);
     console.log(`[tiktok_login] +3s failedRequests=${JSON.stringify(failedRequests.slice(0, 10))}`);
@@ -384,7 +384,7 @@ try {
             return false;
           }).catch(() => false);
           console.log(`[tiktok_login] captcha retry ${attempt} refresh-clicked=${refreshed}`);
-          await s.page.waitForTimeout(1500);
+          await humanIdlePause('short');
         }
         solved = await solveTiktokRotateCaptcha(s.page);
         console.log(`[tiktok_login] captcha attempt ${attempt + 1} solved=${solved}`);
@@ -397,12 +397,12 @@ try {
       // After captcha dismiss, TikTok web does NOT auto-submit the login form
       // (2026-05-02 verified: angle=318 solved captcha but loginResponses=[]).
       // Re-click submit manually to fire /passport/web/login/.
-      await s.page.waitForTimeout(1000);
+      await humanIdlePause('short');
       const reSubmit = s.page.locator('button[data-e2e="login-button"], button[type="submit"]').filter({ visible: true }).first();
       if (await reSubmit.count().catch(() => 0)) {
         try { await humanClickLocator(s.page, reSubmit); console.log('[tiktok_login] post-captcha re-submit clicked'); } catch (e) { console.log(`[tiktok_login] re-submit click err: ${e.message?.slice(0,80)}`); }
       }
-      await s.page.waitForTimeout(2000);
+      await humanIdlePause('deliberate');
       console.log(`[tiktok_login] post-captcha loginResponses=${JSON.stringify(loginResponses)}`);
       if (accountApiError) throw new Error(`login_rate_limited: ${accountApiError}`);
     }
@@ -436,7 +436,7 @@ try {
       if (!emailBox) throw new Error('verify_otp: could not locate Email option in dialog');
       console.log(`[tiktok_login] verify-dialog Email row: ${JSON.stringify(emailBox)}`);
       await s.page.mouse.click(emailBox.x, emailBox.y);
-      await s.page.waitForTimeout(2000);
+      await humanIdlePause('deliberate');
       await s.screenshot('verify_after_email_click').catch(() => {});
       // Some flows auto-send; others require explicit Send code click.
       for (const sel of ['button:has-text("Send code")', '[data-e2e="send-code-button"]']) {
@@ -445,7 +445,7 @@ try {
           try { await humanClickLocator(s.page, loc); break; } catch {}
         }
       }
-      await s.page.waitForTimeout(2000);
+      await humanIdlePause('deliberate');
       // Poll Resend inbox for the 6-digit code (s.checkEmail handles auth + filter).
       const acctEmail = acct.metadata?.email || `${acct.username}@${process.env.AGENT_DOMAIN || 'pilatesguild.com'}`;
       console.log(`[tiktok_login] polling email for verification code: ${acctEmail}`);
@@ -455,14 +455,14 @@ try {
       const codeInput = s.page.locator('input[placeholder*="code" i], input[name*="code" i], input[maxlength="6"]').filter({ visible: true }).first();
       await codeInput.focus().catch(() => {});
       await humanType(s.page, code);
-      await s.page.waitForTimeout(1000);
+      await humanIdlePause('short');
       for (const sel of ['button:has-text("Continue")', 'button:has-text("Next")', 'button[type="submit"]']) {
         const loc = s.page.locator(sel).filter({ visible: true }).first();
         if (await loc.count().catch(() => 0)) {
           try { await humanClickLocator(s.page, loc); break; } catch {}
         }
       }
-      await s.page.waitForTimeout(2000);
+      await humanIdlePause('deliberate');
       await s.screenshot('verify_after_code_submit').catch(() => {});
     }
     // Wait for sessionid cookie + navigation away from /login. The sessionid
@@ -479,7 +479,7 @@ try {
         const hasSession = ctxCookies.some(c => c.name === 'sessionid' && (c.domain || '').includes('tiktok'));
         const path = await s.page.evaluate('location.pathname').catch(() => '/login');
         if (hasSession && !String(path).startsWith('/login')) { signedIn = true; break; }
-        await s.page.waitForTimeout(500);
+        await humanIdlePause('short');
       }
       if (!signedIn) throw new Error('sessionid+url wait timeout');
     } catch (waitErr) {

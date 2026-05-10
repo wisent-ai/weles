@@ -6,6 +6,7 @@ import { getServiceLogin } from '../../../dist/utils/credentials.js';
 import { WSession } from '../../../dist/session/wsession.js';
 import { googleSso, parseBalanceFromText } from '../_shared/services/google_sso.mjs';
 import { patchEffectiveBalance } from '../_shared/services/proxy_probe.mjs';
+import { humanIdlePause } from '../../../dist/human/mouse.js';
 
 const LOGIN_URL = 'https://brightdata.com/cp/login';
 const DASH_URL  = 'https://brightdata.com/cp/api_example';
@@ -18,17 +19,17 @@ console.log(`[trajectory] Using service login: ${login.email}`);
 const s = await WSession.start({ label: 'brightdata_balance', browser: 'chromium' });
 try {
   await s.goto(LOGIN_URL);
-  await s.page.waitForTimeout(2500);
+  await humanIdlePause('deliberate');
 
   await s.page.locator('button:has-text("Log in with Google")').filter({ visible: true }).first().click();
 
   const ok = await googleSso(s, login, { originHost: 'brightdata.com' });
   if (!ok) { console.log('FAIL: Google SSO did not land back on brightdata.com'); process.exit(1); }
 
-  await s.page.waitForTimeout(3000);
+  await humanIdlePause('deliberate');
   // Bright Data lists balance on the billing page.
   await s.page.goto('https://brightdata.com/cp/setting/billing', { waitUntil: 'domcontentloaded' }).catch(() => {});
-  await s.page.waitForTimeout(8000);
+  await humanIdlePause('long');
 
   const text = await s.page.evaluate(() => document.body.innerText);
   console.log(`[trajectory] dashboard text length=${text.length}`);

@@ -5,6 +5,7 @@
 // on a different proxy sticky and re-burns).
 
 import { assertAuthed, AuthProbeError } from '../auth-probe.mjs';
+import { humanIdlePause } from '../../../../dist/human/mouse.js';
 
 const AUTH_WALL_RE = /\/(login|signin|sessions\/new|uas\/login|checkpoint|accounts\/login)\b/;
 const ASSERT_AUTHED_MS = 8 * 1000;
@@ -28,7 +29,7 @@ async function authPass({ s, cfg, feed, label }) {
     };
   }
   if (true) {
-    await s.page.waitForTimeout(SPA_SETTLE_MS).catch(() => {});
+    await humanIdlePause().catch(() => {});
     const settledUrl = s.page.url?.() ?? '';
     if (AUTH_WALL_RE.test(settledUrl)) {
       return {

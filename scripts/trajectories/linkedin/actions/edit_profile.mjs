@@ -6,7 +6,7 @@
 import { getSocialAccount, resolveAccountSession, markCookiesStale } from '../../../../dist/utils/credentials.js';
 import { WSession } from '../../../../dist/session/wsession.js';
 import { humanType } from '../../../../dist/human/keyboard.js';
-import { humanClickLocator } from '../../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
 import { assertAuthed, AuthProbeError } from '../../_shared/auth-probe.mjs';
 import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../../_shared/cookie-freshness.mjs';
 import { loadAvatarFile } from '../../_shared/runner/avatar-loader.mjs';
@@ -54,7 +54,7 @@ try {
   // NOT expose the global nav, so assertAuthed false-fails there even on
   // valid sessions. After /feed/ confirms auth, navigate to the edit URL.
   await s.page.goto('https://www.linkedin.com/feed/', { waitUntil: 'domcontentloaded' });
-  await s.page.waitForTimeout(3000);
+  await humanIdlePause('deliberate');
   if (/\/(login|checkpoint|uas)/.test(s.page.url())) {
     console.log(`FAIL: cookies stale, redirected to ${s.page.url()}`);
     await markCookiesStale(acct.id);
@@ -66,7 +66,7 @@ try {
   // doesn't exist" for fresh accounts. Navigate to /in/me/ profile page
   // and click the pencil edit-intro button to open the modal.
   await s.page.goto('https://www.linkedin.com/in/me/', { waitUntil: 'domcontentloaded' });
-  await s.page.waitForTimeout(4000);
+  await humanIdlePause('deliberate');
   // 2026-05-06: button enumeration on /in/me/ shows the edit-intro entry
   // is `<a aria-label="Edit profile">` — same icon-only pencil that used
   // to open /in/me/edit-form/intro/. Clicking it opens the intro modal
@@ -78,7 +78,7 @@ try {
     // /<vanity>/edit/intro/ and the form renders in a React portal that
     // mounts after RUM bundles finish (3s post-click yielded 0 fields).
     await s.page.locator('input[id*="first-name" i], input[id*="firstName" i], input[name*="firstName" i]').filter({ visible: true }).first().waitFor({ state: 'visible' }).catch(() => {});
-    await s.page.waitForTimeout(2000);
+    await humanIdlePause('deliberate');
   } else {
     console.log('[li-profile] edit-intro button not found on /in/me/ — falling through to field probe');
   }
@@ -144,7 +144,7 @@ try {
     await s.page.keyboard.press('Backspace').catch(() => {});
     await humanType(s.page, target);
     if (label === 'industry') {
-      await s.page.waitForTimeout(1200);
+      await humanIdlePause('short');
       const sugg = s.page.locator('[role="option"], [role="listbox"] li, .typeahead-result').filter({ visible: true }).first();
       if (await sugg.count()) { await humanClickLocator(s.page, sugg); console.log('[li-profile] picked industry typeahead'); }
     }
@@ -161,7 +161,7 @@ try {
     // state stays false and the save onClick handler returns early.
     // Press Tab to blur + commit the typed value before clicking Save.
     await s.page.keyboard.press('Tab').catch(() => {});
-    await s.page.waitForTimeout(800);
+    await humanIdlePause('short');
     // Diagnostic: dump every visible button so we can identify the real
     // save control (last run with `last()` selector hit a button that
     // dispatched no save mutation — picking the wrong one).
@@ -211,7 +211,7 @@ try {
     const myVanity = s.page.url().match(/\/in\/([^/?]+)/)?.[1] || 'me';
     console.log(`[li-profile] vanity=${myVanity}`);
     await s.page.goto(`https://www.linkedin.com/in/${myVanity}/edit/about/`, { waitUntil: 'domcontentloaded' });
-    await s.page.waitForTimeout(4000);
+    await humanIdlePause('deliberate');
     // 2026 design: about textarea is the first visible textarea on the
     // edit-about modal (legacy `id*=summary` doesn't match React `:r…:`).
     const aboutIn = s.page.locator('textarea').filter({ visible: true }).first();
@@ -225,7 +225,7 @@ try {
         await humanType(s.page, targetAbout);
         const saveBtn = s.page.locator('button:has-text("Save")').filter({ visible: true }).first();
         await humanClickLocator(s.page, saveBtn);
-        await s.page.waitForTimeout(4500);
+        await humanIdlePause('deliberate');
         writes.push(`about (${cur.length} -> ${targetAbout.length} chars)`);
       }
     }
@@ -246,9 +246,9 @@ try {
         // photo/ 404s same as the other edit-form/ paths.
         const myVanity = s.page.url().match(/\/in\/([^/?]+)/)?.[1] || 'me';
         await s.page.goto(`https://www.linkedin.com/in/${myVanity}/`, { waitUntil: 'domcontentloaded' });
-        await s.page.waitForTimeout(3000);
+        await humanIdlePause('deliberate');
         const addPhotoBtn = s.page.locator('a[aria-label="Add photo" i], button[aria-label="Add photo" i]').filter({ visible: true }).first();
-        if (await addPhotoBtn.count()) { await humanClickLocator(s.page, addPhotoBtn); await s.page.waitForTimeout(2500); }
+        if (await addPhotoBtn.count()) { await humanClickLocator(s.page, addPhotoBtn); await humanIdlePause('deliberate'); }
         // 2026-05-08: modal exposes "Upload photo" button (not file input).
         // Intercept filechooser BEFORE click.
         const upBtn = s.page.locator('button:has-text("Upload photo"), label:has-text("Upload photo")').filter({ visible: true }).first();
@@ -260,9 +260,9 @@ try {
           const fIn = s.page.locator('input[type="file"]').first();
           if (await fIn.count()) await fIn.setInputFiles(tmpAvatar);
         }
-        await s.page.waitForTimeout(4500);
+        await humanIdlePause('deliberate');
         const applyBtn = s.page.locator('button:has-text("Save photo"), button:has-text("Apply"), button:has-text("Save")').filter({ visible: true }).first();
-        if (await applyBtn.count()) { await humanClickLocator(s.page, applyBtn); writes.push('avatar uploaded'); await s.page.waitForTimeout(3500); }
+        if (await applyBtn.count()) { await humanClickLocator(s.page, applyBtn); writes.push('avatar uploaded'); await humanIdlePause('deliberate'); }
       } catch (e) { console.log(`[li-profile] avatar err: ${e.message?.slice(0, 120)}`); }
     }
   }

@@ -23,17 +23,17 @@ export async function spaTransitionToPost(page, postUrlWww) {
   if (await postLink.count()) {
     console.log(`[comment] clicking post link from feed (SPA transition)`);
     await humanClickLocator(page, postLink);
-    await page.waitForTimeout(3000 + Math.floor(Math.random() * 2000));
+    await humanIdlePause();
     console.log(`[comment] SPA click done — url=${page.url().slice(0, 80)}`);
     return;
   }
   console.log(`[comment] post link not visible — scrolling feed`);
   await humanScroll(page, 800 + Math.floor(Math.random() * 600), 2).catch(() => {});
-  await page.waitForTimeout(2000);
+  await humanIdlePause('deliberate');
   const postLink2 = page.locator(`a[href*="${href}"]`).filter({ visible: true }).first();
   if (await postLink2.count()) {
     await humanClickLocator(page, postLink2);
-    await page.waitForTimeout(3000 + Math.floor(Math.random() * 2000));
+    await humanIdlePause();
     return;
   }
   console.log(`[comment] post not in feed — falling back to goto (cold load)`);
@@ -47,13 +47,13 @@ export async function engageMedia(page) {
   if (await playBtn.count().catch(() => 0)) {
     await humanClickLocator(page, playBtn).catch(() => {});
   }
-  await page.waitForTimeout(5000 + Math.floor(Math.random() * 5000));
+  await humanIdlePause();
 }
 
 /** Dwell on post page: 15-25s boot + 2x username hover + scroll. */
 export async function dwellOnPostPage(page) {
   await humanIdlePause('deliberate');
-  await page.waitForTimeout(15000 + Math.floor(Math.random() * 10000));
+  await humanIdlePause();
   const hovered1 = await humanHoverDwell(
     page,
     page.locator('a[href^="/user/"]').filter({ visible: true }).first(),
@@ -61,7 +61,7 @@ export async function dwellOnPostPage(page) {
   ).catch(() => false);
   console.log(`[hover] post-author dwell ${hovered1 ? 'fired' : 'skipped'}`);
   await humanScroll(page, 800 + Math.floor(Math.random() * 600), 3).catch(() => {});
-  await page.waitForTimeout(3000 + Math.floor(Math.random() * 2000));
+  await humanIdlePause();
   try {
     const userLinks = await page.locator('a[href^="/user/"]').filter({ visible: true }).all().catch(() => []);
     if (userLinks.length > 1) {
@@ -69,7 +69,7 @@ export async function dwellOnPostPage(page) {
       console.log(`[hover] commenter dwell ${hovered2 ? 'fired' : 'skipped'}`);
     }
   } catch {}
-  await page.waitForTimeout(3000 + Math.floor(Math.random() * 2000));
+  await humanIdlePause();
 }
 
 /**
@@ -91,7 +91,7 @@ export async function submitNewRedditComment(page, commentBody, capturedResponse
     if (placeholder && placeholder.y >= 0 && placeholder.y <= viewportH) {
       console.log(`[diag] clicking placeholder at (${placeholder.x}, ${placeholder.y})`);
       await humanClick(page, placeholder.x, placeholder.y);
-      await page.waitForTimeout(1500);
+      await humanIdlePause('short');
       const expanded = await page.evaluate(findComposerPart, 'editable').catch(() => null);
       if (expanded && expanded.y >= 0 && expanded.y <= viewportH) {
         editable = expanded;
@@ -115,7 +115,7 @@ export async function submitNewRedditComment(page, commentBody, capturedResponse
   // Verified by diff harness: A handoff fired EvalCommentAutomations on each
   // keystroke (commentBody:"that" at t=11565ms); B trajectory fired 0.
   await humanClick(page, editable.x, editable.y);
-  await page.waitForTimeout(400 + Math.floor(Math.random() * 300));
+  await humanIdlePause();
   console.log(`[diag] before humanType len=${commentBody.length}`);
   await humanType(page, commentBody);
   console.log(`[diag] after humanType — url=${page.url()} closed=${page.isClosed()}`);
@@ -151,7 +151,7 @@ export async function submitNewRedditComment(page, commentBody, capturedResponse
   for (let i = 0; i < 8; i++) {
     submit = await page.evaluate(findComposerPart, 'submit').catch(() => null);
     if (submit) break;
-    await page.waitForTimeout(750);
+    await humanIdlePause('short');
   }
   console.log(`[comment] new-reddit submit probe: ${JSON.stringify(submit)}`);
   if (!submit) throw new Error('new-reddit composer submit button not found');
@@ -161,7 +161,7 @@ export async function submitNewRedditComment(page, commentBody, capturedResponse
 
   let createdComment = null;
   for (let i = 0; i < 12; i++) {
-    await page.waitForTimeout(1000);
+    await humanIdlePause('short');
     if (capturedResponses && extractCommentFn) {
       const fromResponse = [...capturedResponses]
         .reverse()
@@ -200,7 +200,7 @@ export async function verifyCommentVisibility(page, { realHandle, commentBody, c
 
   // User listing
   for (let i = 0; i < 12; i++) {
-    await new Promise(r => setTimeout(r, 5000));
+    await new Promise(r => setTimeout(r, 5000));  // allow-raw-playwright: polling/rate-limit loop
     const resp = await page.context().request.get(
       `https://old.reddit.com/user/${encodeURIComponent(realHandle)}/comments/.json?limit=15&sort=new`,
       { headers: { 'Accept': 'application/json' }, ignoreHTTPSErrors: true, timeout: 15000 },
@@ -236,7 +236,7 @@ export async function verifyCommentVisibility(page, { realHandle, commentBody, c
 
   // Unauth post-thread probe
   if (commentPermalink) {
-    await new Promise(r => setTimeout(r, 8000));
+    await humanIdlePause('long');
     const { request: pwRequest } = await import('playwright');
     const unauthCtx = await pwRequest.newContext({
       extraHTTPHeaders: { Accept: 'application/json' },
@@ -281,20 +281,20 @@ export async function postSubmitBrowse(page) {
   console.log(`[post-submit] browsing subreddit for 2-3 min before close`);
   await humanIdlePause('deliberate');
   await humanScroll(page, 600 + Math.floor(Math.random() * 400), 2).catch(() => {});
-  await page.waitForTimeout(8000 + Math.floor(Math.random() * 4000));
+  await humanIdlePause();
   const postLinks = await page.locator('a[data-click-id="body"], a[href*="/comments/"]').filter({ visible: true }).all().catch(() => []);
   if (postLinks.length > 1) {
     const idx = 1 + Math.floor(Math.random() * Math.min(postLinks.length - 1, 4));
     console.log(`[post-submit] clicking another post (#${idx})`);
     await humanClickLocator(page, postLinks[idx]).catch(() => {});
-    await page.waitForTimeout(10000 + Math.floor(Math.random() * 8000));
+    await humanIdlePause();
     await humanScroll(page, 400 + Math.floor(Math.random() * 600), 3).catch(() => {});
-    await page.waitForTimeout(15000 + Math.floor(Math.random() * 10000));
+    await humanIdlePause();
     const authorLink = page.locator('a[href^="/user/"]').filter({ visible: true }).first();
     await humanHoverDwell(page, authorLink, { minMs: 2500, maxMs: 4500 }).catch(() => false);
-    await page.waitForTimeout(5000 + Math.floor(Math.random() * 5000));
+    await humanIdlePause();
     await humanScroll(page, 300 + Math.floor(Math.random() * 400), 2).catch(() => {});
   }
-  await page.waitForTimeout(20000 + Math.floor(Math.random() * 15000));
+  await humanIdlePause();
   console.log(`[post-submit] browse phase done`);
 }

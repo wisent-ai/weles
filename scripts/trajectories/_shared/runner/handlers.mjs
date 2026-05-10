@@ -8,6 +8,7 @@
 import { generateOrganicComment, generatePromoteComment, generatePost } from '../llm.mjs';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { humanIdlePause, humanScroll } from '../../../../dist/human/mouse.js';
 
 const REQUIRE_APPROVAL = process.env.REQUIRE_PROMOTE_APPROVAL !== '0';
 
@@ -20,8 +21,8 @@ async function genComment({ character, product, variant, surfaceLabel, postTitle
 
 export async function handleBrowse(s, cfg) {
   for (let i = 0; i < (cfg.scrolls ?? 6); i++) {
-    await s.page.evaluate(() => window.scrollBy(0, window.innerHeight * (0.6 + Math.random() * 0.6)));
-    await s.page.waitForTimeout(900 + Math.floor(Math.random() * 1400));
+    await humanScroll(s.page, 1200, 3);
+    await humanIdlePause();
   }
   return `scrolled ${cfg.scrolls ?? 6}x`;
 }

@@ -9,6 +9,7 @@
 // Usage: ACCOUNT_ID=<uuid> node scripts/debug/linkedin/extract_px_storage.mjs
 
 import { chromium } from 'playwright';
+import { humanIdlePause } from '../../../dist/human/mouse.js';
 
 const ACCOUNT_ID = process.env.ACCOUNT_ID;
 if (!ACCOUNT_ID) { console.error('ACCOUNT_ID env required'); process.exit(2); }
@@ -36,7 +37,7 @@ const page = ctx.pages()[0] || await ctx.newPage();
 console.log('[px-extract] navigating to https://www.linkedin.com/login');
 await page.goto('https://www.linkedin.com/login', { waitUntil: 'domcontentloaded', timeout: 30000 });
 console.log('[px-extract] waiting 15s for PX bootstrap');
-await page.waitForTimeout(15000);
+await humanIdlePause('long');
 
 // PerimeterX writes its trust state inside the cross-origin
 // li.protechts.net iframe (verified 2026-05-04 frame probe) — main-page

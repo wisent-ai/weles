@@ -20,6 +20,7 @@ import { detectLinkedInBanSignals }  from '../../../dist/platforms/linkedin/ban_
 import { detectDiscordBanSignals }   from '../../../dist/platforms/discord/ban_signals.js';
 import { detectGitHubBanSignals }    from '../../../dist/platforms/github/ban_signals.js';
 import { detectProductHuntBanSignals } from '../../../dist/platforms/producthunt/ban_signals.js';
+import { humanIdlePause, humanScroll } from '../../../dist/human/mouse.js';
 
 const DETECTORS = {
   reddit: detectRedditBanSignals, twitter: detectTwitterBanSignals,
@@ -114,12 +115,12 @@ try {
   await s.goto(url);
   const [minMs, maxMs] = verbCfg.dwellMs;
   for (let i = 0; i < verbCfg.scrolls; i++) {
-    await s.page.evaluate(() => window.scrollBy(0, window.innerHeight * (0.5 + Math.random() * 0.7)));
-    await s.page.waitForTimeout(minMs + Math.floor(Math.random() * (maxMs - minMs)));
+    await humanScroll(s.page, 1200, 3);
+    await humanIdlePause();
   }
   // If no scrolls requested (e.g. Instagram notifications — click the bell instead)
   if (verbCfg.scrolls === 0) {
-    await s.page.waitForTimeout(minMs + Math.floor(Math.random() * (maxMs - minMs)));
+    await humanIdlePause();
   }
   banSignal = await detector(s.page, s.capturedResponses).catch(() => null);
   // Reclassify the same way action-runner does — if the page is on the

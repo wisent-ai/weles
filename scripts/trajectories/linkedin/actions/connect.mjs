@@ -1,6 +1,6 @@
 import { getSocialAccount, resolveAccountSession, markCookiesStale } from '../../../../dist/utils/credentials.js';
 import { WSession } from '../../../../dist/session/wsession.js';
-import { humanClickLocator } from '../../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
 import { detectLinkedInBanSignals } from '../../../../dist/platforms/linkedin/ban_signals.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -23,7 +23,7 @@ try {
     try {
       await s.page.goto('https://www.linkedin.com/mynetwork/grow/', { waitUntil: 'domcontentloaded', timeout: 45000 });
       checkReachable(s, 'linkedin');
-      await s.page.waitForTimeout(3500);
+      await humanIdlePause('deliberate');
       await assertAuthed('linkedin', s, { label: 'linkedin_connect' });
       authed = true;
     } catch (gateErr) {

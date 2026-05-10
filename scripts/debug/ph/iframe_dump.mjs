@@ -8,7 +8,7 @@ import { getSocialAccount, resolveAccountSession } from '../../../dist/utils/cre
 import { injectPHCookies } from '../../trajectories/producthunt/_session.mjs';
 import { injectProviderCookies } from '../../../dist/platforms/_shared/cross_platform_oauth.js';
 
-const sleep = (s) => new Promise(r => setTimeout(r, s * 1000));
+const sleep = (s) => new Promise(r => setTimeout(r, s * 1000));  // allow-raw-playwright: utility sleep shim — usages should migrate to humanIdlePause
 
 const acct = await getSocialAccount('producthunt');
 const tw = await getSocialAccount('twitter');

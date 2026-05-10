@@ -1,7 +1,7 @@
 import { getSocialAccount, resolveAccountSession, markCookiesStale } from '../../dist/utils/credentials.js';
 import { WSession } from '../../dist/session/wsession.js';
 import { humanType } from '../../dist/human/keyboard.js';
-import { humanClickLocator } from '../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../dist/human/mouse.js';
 import { assertAuthed, AuthProbeError } from './_shared/auth-probe.mjs';
 import { loadFreshCookieJarOrFail, CookieJarStaleError } from './_shared/cookie-freshness.mjs';
 
@@ -29,7 +29,7 @@ try {
   await s.ctx.addCookies(stored.map(c => ({ ...c, path: c.path || '/' })));
 
   await s.page.goto('https://x.com/home', { waitUntil: 'domcontentloaded' });
-  await s.page.waitForTimeout(3000);
+  await humanIdlePause('deliberate');
   if (/\/(i\/flow\/login|login)/.test(s.page.url())) {
     console.log(`FAIL: cookies stale, redirected to login (${s.page.url()})`);
     await markCookiesStale(acct.id);
@@ -42,7 +42,7 @@ try {
   // Compose URL pre-opens the new-message panel; we still need to pick the
   // recipient (no recipient_id pre-fill is supported without their numeric id).
   await s.page.goto('https://x.com/messages/compose', { waitUntil: 'domcontentloaded' });
-  await s.page.waitForTimeout(3000);
+  await humanIdlePause('deliberate');
 
   // Recipient search input — Twitter uses input[data-testid="searchPeople"]
   // inside the new-conversation modal/panel.
@@ -50,18 +50,18 @@ try {
   await searchIn.waitFor({ state: 'visible', timeout: 15000 });
   await humanClickLocator(s.page, searchIn);
   await humanType(s.page, RECIPIENT);
-  await s.page.waitForTimeout(2500);
+  await humanIdlePause('deliberate');
   // Pick the first matching user cell — data-testid="TypeaheadUser" or
   // role="button" containing the @ handle. Filter to exact-match handle.
   const userRow = s.page.locator(`div[data-testid="TypeaheadUser"]:has-text("@${RECIPIENT}"), [role="button"]:has-text("@${RECIPIENT}")`).filter({ visible: true }).first();
   if (!(await userRow.count())) throw new Error(`recipient @${RECIPIENT} not found in search results`);
   await humanClickLocator(s.page, userRow);
-  await s.page.waitForTimeout(1500);
+  await humanIdlePause('short');
   // "Next" button to confirm recipient selection.
   const nextBtn = s.page.locator('button[data-testid="nextButton"], div[role="button"]:has-text("Next")').filter({ visible: true }).first();
   if (await nextBtn.isVisible({ timeout: 2500 }).catch(() => false)) {
     await humanClickLocator(s.page, nextBtn);
-    await s.page.waitForTimeout(2000);
+    await humanIdlePause('deliberate');
   }
 
   // Message body — contenteditable div with data-testid="dmComposerTextInput".
@@ -69,12 +69,12 @@ try {
   await msgIn.waitFor({ state: 'visible', timeout: 15000 });
   await humanClickLocator(s.page, msgIn);
   await humanType(s.page, MESSAGE);
-  await s.page.waitForTimeout(800);
+  await humanIdlePause('short');
   // Send.
   const sendBtn = s.page.locator('button[data-testid="dmComposerSendButton"], div[data-testid="dmComposerSendButton"], button[aria-label*="Send" i]').filter({ visible: true }).first();
   await sendBtn.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, sendBtn);
-  await s.page.waitForTimeout(3000);
+  await humanIdlePause('deliberate');
   console.log(`PASS: DM sent to @${RECIPIENT}`);
 } catch (e) {
   console.log('FAIL:', e.message?.slice(0, 200));

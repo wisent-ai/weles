@@ -7,7 +7,7 @@ const URL = 'https://x.com/i/flow/signup?lang=en';
 const MAX_RETRIES = 5;
 const USE_BRIGHTDATA = !!process.env.BRIGHTDATA_BROWSER_WS;
 const proxy = USE_BRIGHTDATA ? 'none' : (process.env.PROXY_URL || 'none');
-const sleep = (s) => new Promise(r => setTimeout(r, s * 1000));
+const sleep = (s) => new Promise(r => setTimeout(r, s * 1000));  // allow-raw-playwright: utility sleep shim — usages should migrate to humanIdlePause
 
 const SKIP_BUTTONS = ['Skip for now', 'Not now', 'Next', 'Skip'];
 

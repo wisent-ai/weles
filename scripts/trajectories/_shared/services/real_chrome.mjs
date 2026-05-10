@@ -9,6 +9,7 @@ import { chromium } from 'playwright';
 import { mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { humanIdlePause } from '../../../../dist/human/mouse.js';
 
 // Use Weles Chromium (147), which Google's signin flow recognizes as a
 // real Chrome browser (per scripts/trajectories/google/_export_cookies.mjs
@@ -55,10 +56,10 @@ export async function launchRealChrome({ label = 'real_chrome' } = {}) {
 
 // Drive Google's identifier → password → consent on a real-Chrome page.
 export async function googleSsoRealChrome(page, creds) {
-  await page.waitForTimeout(1500);
+  await humanIdlePause('short');
   for (let i = 0; i < 30; i++) {
     if (/accounts\.google\.com/.test(page.url())) break;
-    await page.waitForTimeout(500);
+    await humanIdlePause('short');
   }
   if (!/accounts\.google\.com/.test(page.url())) {
     console.log(`[google_sso_chrome] FAIL: never reached google (url=${page.url()})`);
@@ -76,7 +77,7 @@ export async function googleSsoRealChrome(page, creds) {
   let pwInVisible = 0;
   for (let step = 0; step < 6; step++) {
     for (let i = 0; i < 8; i++) {
-      await page.waitForTimeout(500);
+      await humanIdlePause('short');
       pwInVisible = await page.locator('input[type="password"], input[name="Passwd"]').filter({ visible: true }).count().catch(() => 0);
       if (pwInVisible > 0) break;
     }
@@ -86,12 +87,12 @@ export async function googleSsoRealChrome(page, creds) {
     for (let v = 0; v < 30; v++) {
       const verifying = await page.getByText(/Verifying it.s you/i).first().isVisible().catch(() => false);
       if (!verifying) break;
-      await page.waitForTimeout(500);
+      await humanIdlePause('short');
     }
     const enterPw = page.locator('button:has-text("Enter your password")').filter({ visible: true }).first();
-    if (await enterPw.isVisible().catch(() => false)) { console.log('[google_sso_chrome] clicking Enter your password'); await enterPw.click({ force: true }); await page.waitForTimeout(2500); continue; }
+    if (await enterPw.isVisible().catch(() => false)) { console.log('[google_sso_chrome] clicking Enter your password'); await enterPw.click({ force: true }); await humanIdlePause('deliberate'); continue; }
     const tryAnother = page.locator('button:has-text("Try another way")').filter({ visible: true }).first();
-    if (await tryAnother.isVisible().catch(() => false)) { console.log('[google_sso_chrome] clicking Try another way'); await tryAnother.click({ force: true }); await page.waitForTimeout(2500); continue; }
+    if (await tryAnother.isVisible().catch(() => false)) { console.log('[google_sso_chrome] clicking Try another way'); await tryAnother.click({ force: true }); await humanIdlePause('deliberate'); continue; }
     console.log(`[google_sso_chrome] no progress option visible`); break;
   }
   if (!pwInVisible) { console.log(`[google_sso_chrome] FAIL: never reached password input (final url=${page.url()})`); return false; }

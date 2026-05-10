@@ -11,7 +11,7 @@
 import { getSocialAccount, resolveAccountSession } from '../../../../dist/utils/credentials.js';
 import { WSession } from '../../../../dist/session/wsession.js';
 import { humanType } from '../../../../dist/human/keyboard.js';
-import { humanClickLocator } from '../../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
 import { detectInstagramBanSignals } from '../../../../dist/platforms/instagram/ban_signals.js';
 import { generatePost } from '../../_shared/llm.mjs';
 import { generateImageFile } from '../../_shared/media.mjs';
@@ -65,7 +65,7 @@ try {
   if (cookies.length) await s.ctx.addCookies(cookies).catch(() => {});
   await s.goto('https://www.instagram.com/');
   checkReachable(s, 'instagram');
-  await s.page.waitForTimeout(4000);
+  await humanIdlePause('deliberate');
   const loggedOut = await s.page.evaluate(() => /\/accounts\/login/.test(location.pathname));
   if (loggedOut) throw new Error('not_logged_in: cookies stale — needs instagram_login refresh');
 
@@ -81,12 +81,12 @@ try {
   const createBtn = s.page.locator('a[href="#"]:has(svg[aria-label="New post"]), div[role="button"]:has(svg[aria-label="New post"]), a:has-text("Create"):has(svg)').filter({ visible: true }).first();
   await createBtn.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, createBtn);
-  await s.page.waitForTimeout(1500);
+  await humanIdlePause('short');
   // Some IG variants split into "Post / Reel / Story" submenu.
   const postSubmenu = s.page.locator('a:has-text("Post"), div[role="menuitem"]:has-text("Post"), span:has-text("Post")').filter({ visible: true }).first();
   if (await postSubmenu.isVisible({ timeout: 1500 }).catch(() => false)) {
     await humanClickLocator(s.page, postSubmenu);
-    await s.page.waitForTimeout(1500);
+    await humanIdlePause('short');
   }
   // 2. Click "Select from computer" inside the Create modal — triggers
   //    filechooser, our hook above attaches the image path.
@@ -95,27 +95,27 @@ try {
   await humanClickLocator(s.page, selectBtn);
   // Wait for crop/preview step — image rendered in modal.
   await s.page.locator('div[role="dialog"] img[alt*="image" i], div[role="dialog"] canvas, div[role="dialog"] [style*="background-image"]').first().waitFor({ state: 'visible', timeout: 30000 });
-  await s.page.waitForTimeout(1500);
+  await humanIdlePause('short');
   // 3. Next (crop) → 4. Next (filter)
   for (let step = 0; step < 2; step++) {
     const next = s.page.locator('div[role="dialog"] button:has-text("Next"), div[role="dialog"] [role="button"]:has-text("Next"), div[role="dialog"] div[role="button"]:has-text("Next")').filter({ visible: true }).first();
     await next.waitFor({ state: 'visible', timeout: 15000 });
     await humanClickLocator(s.page, next);
-    await s.page.waitForTimeout(1500);
+    await humanIdlePause('short');
   }
   // 5. Fill caption textarea.
   const captionBox = s.page.locator('div[role="dialog"] textarea[aria-label*="caption" i], div[role="dialog"] div[contenteditable="true"][aria-label*="caption" i], div[role="dialog"] textarea').filter({ visible: true }).first();
   await captionBox.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, captionBox);
   await humanType(s.page, caption);
-  await s.page.waitForTimeout(1500);
+  await humanIdlePause('short');
   // 6. Share.
   const shareBtn = s.page.locator('div[role="dialog"] button:has-text("Share"), div[role="dialog"] [role="button"]:has-text("Share"), div[role="dialog"] div[role="button"]:has-text("Share")').filter({ visible: true }).first();
   await shareBtn.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, shareBtn);
   // Wait for the share to complete — modal closes and "Your post has been shared" appears or modal is gone.
   await s.page.waitForFunction(() => !document.querySelector('div[role="dialog"] button:has-text("Share")') || /Your post has been shared/i.test(document.body.innerText), { timeout: 60000 }).catch(() => {});
-  await s.page.waitForTimeout(2500);
+  await humanIdlePause('deliberate');
   banSignal = await detectInstagramBanSignals(s.page, s.capturedResponses).catch(() => null);
   console.log(`[ban-signal] ${banSignal?.signal}  PASS: posted`);
 } catch (e) {

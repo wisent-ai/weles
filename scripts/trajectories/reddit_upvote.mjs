@@ -1,6 +1,6 @@
 import { getSocialAccount, resolveAccountSession, markCookiesStale } from '../../dist/utils/credentials.js';
 import { WSession } from '../../dist/session/wsession.js';
-import { humanClickLocator } from '../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../dist/human/mouse.js';
 import { detectRedditBanSignals } from '../../dist/platforms/reddit/ban_signals.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -31,7 +31,7 @@ try {
   // Use old.reddit.com — same deterministic vote arrows pattern as
   // reddit/actions/upvote.mjs. Picks first post in the listing.
   await s.goto(`https://old.reddit.com/r/${encodeURIComponent(SUBREDDIT)}/`);
-  await s.page.waitForTimeout(2500);
+  await humanIdlePause('deliberate');
   // Positive auth probe — see _shared/auth-probe.mjs.
   try { await assertAuthed('reddit', s, { label: 'reddit_upvote' }); }
   catch (probeErr) { if (probeErr instanceof AuthProbeError) { console.log(`FAIL: ${probeErr.message}`); await markCookiesStale(acct.id); process.exit(1); } throw probeErr; }

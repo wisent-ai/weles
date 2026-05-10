@@ -1,6 +1,6 @@
 import { getSocialAccount, resolveAccountSession, markCookiesStale } from '../../../../dist/utils/credentials.js';
 import { WSession } from '../../../../dist/session/wsession.js';
-import { humanClickLocator } from '../../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
 import { detectInstagramBanSignals } from '../../../../dist/platforms/instagram/ban_signals.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -17,7 +17,7 @@ let ban = null;
 try {
   await s.goto('https://www.instagram.com/');
   checkReachable(s, 'instagram');
-  await s.page.waitForTimeout(4000);
+  await humanIdlePause('deliberate');
   try { await assertAuthed('instagram', s, { label: 'instagram_story_view' }); }
   catch (probeErr) { if (probeErr instanceof AuthProbeError) { console.log(`FAIL: ${probeErr.message}`); await markCookiesStale(acct.id); process.exit(1); } throw probeErr; }
   // Story tray entries are <li role="menuitem" tabindex="0"> with anchored
@@ -30,9 +30,9 @@ try {
   await humanClickLocator(s.page, story);
   await s.page.waitForFunction(() => /\/stories\//.test(location.pathname), { timeout: 8000 });
   // Dwell ~15s so 3+ stories auto-advance and register as views.
-  for (let i = 0; i < 15; i++) await s.page.waitForTimeout(1000);
+  for (let i = 0; i < 15; i++) await humanIdlePause('short');
   await s.page.keyboard.press('Escape').catch(() => {});
-  await s.page.waitForTimeout(1500);
+  await humanIdlePause('short');
   ban = await detectInstagramBanSignals(s.page, s.capturedResponses).catch(() => null);
   console.log(`[ban-signal] ${ban?.signal}  PASS: viewed`);
 } catch (e) {
