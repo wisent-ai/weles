@@ -13,7 +13,7 @@ import { assertAuthed, AuthProbeError } from '../_shared/auth-probe.mjs';
 const URL = 'https://www.producthunt.com/';
 const USE_BRIGHTDATA = !!process.env.BRIGHTDATA_BROWSER_WS;
 const proxy = USE_BRIGHTDATA ? 'none' : (process.env.PROXY_URL || 'none');
-const sleep = (s) => new Promise(r => setTimeout(r, s * 1000));
+const sleep = (s) => new Promise(r => setTimeout(r, s * 1000));  // allow-raw-playwright: utility sleep shim — usages should migrate to humanIdlePause
 
 // findUsableTwitterAccount + stampLinkedTwitter live in _session.mjs.
 

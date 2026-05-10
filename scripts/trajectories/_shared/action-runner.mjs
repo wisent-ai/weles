@@ -19,6 +19,7 @@ import { WSession } from '../../../dist/session/wsession.js';
 import { loadFreshCookieJarOrFail, CookieJarStaleError } from './cookie-freshness.mjs';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { humanIdlePause } from '../../../dist/human/mouse.js';
 
 // Re-exported assert used by the 27 specialized trajectories (linkedin/like, twitter/follow, instagram/save, github/star, etc) that don't go through runAction. Detects three failure modes that previously fell through to ban_signal:healthy: (1) chrome-error://chromewebdata/ from proxy CONNECT failure; (2) URL on a platform login wall (cookies stale); (3) platform-specific logged-out redirect (twitter/?failedScript, instagram/accounts/login, etc). Throws a typed error with a structured banSignal so the caller's catch can persist it.
 const _AUTH_WALL = /\/(login|signin|sessions\/new|uas\/login|checkpoint|accounts\/login)\b/;
@@ -174,7 +175,7 @@ export async function runAction(cfg) {
         for (let i = 0; i < 12; i++) {
           const v = verifyWriteAction(cfg.platform, cfg.action, s.capturedResponses);
           if (!v.applicable || v.wrote) break;
-          await s.page.waitForTimeout(500).catch(() => {});
+          await humanIdlePause('short').catch(() => {});
         }
       } catch { /* best-effort race-fix; reclass below remains the source of truth */ }
     }

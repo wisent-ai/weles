@@ -1,7 +1,7 @@
 import { getSocialAccount, resolveAccountSession, markCookiesStale } from '../../../dist/utils/credentials.js';
 import { WSession } from '../../../dist/session/wsession.js';
 import { humanType } from '../../../dist/human/keyboard.js';
-import { humanClickLocator } from '../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../dist/human/mouse.js';
 import { assertAuthed, AuthProbeError } from '../_shared/auth-probe.mjs';
 import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../_shared/cookie-freshness.mjs';
 
@@ -26,7 +26,7 @@ try {
   await s.ctx.addCookies(stored.filter(c => c?.name && c?.value && (c.domain || c.url)).map(c => ({ ...c, path: c.path || '/' }))).catch(() => {});
 
   await s.page.goto('https://web.snapchat.com/', { waitUntil: 'domcontentloaded' });
-  await s.page.waitForTimeout(5500);
+  await humanIdlePause('long');
   if (/login|signup|accounts\.snapchat\.com/.test(s.page.url())) {
     console.log(`FAIL: cookies stale, redirected to ${s.page.url()}`);
     await markCookiesStale(acct.id);
@@ -38,32 +38,32 @@ try {
   const composeBtn = s.page.locator('button[aria-label="Compose Chat"], button[aria-label*="New Chat" i], button[aria-label*="Compose" i]').filter({ visible: true }).first();
   await composeBtn.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, composeBtn);
-  await s.page.waitForTimeout(1500);
+  await humanIdlePause('short');
 
   const searchIn = s.page.locator('div[role="textbox"][contenteditable="true"], input[type="search"], input[aria-label*="Search" i], input[placeholder*="Search" i]').filter({ visible: true }).first();
   await searchIn.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, searchIn);
   await humanType(s.page, RECIPIENT);
-  await s.page.waitForTimeout(2500);
+  await humanIdlePause('deliberate');
 
   const userRow = s.page.locator(`[role="option"]:has-text("${RECIPIENT}"), [role="button"]:has-text("${RECIPIENT}"), li:has-text("${RECIPIENT}")`).filter({ visible: true }).first();
   await userRow.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, userRow);
-  await s.page.waitForTimeout(1200);
+  await humanIdlePause('short');
 
-  await s.page.waitForTimeout(400);
+  await humanIdlePause('short');
   const chatBtnSel = 'button:has-text("Chat"), button:has-text("Next"), [role="button"]:has-text("Chat")';
   const chatBtnCount = await s.page.locator(chatBtnSel).filter({ visible: true }).count().catch(() => 0);
   if (chatBtnCount > 0) {
     await humanClickLocator(s.page, s.page.locator(chatBtnSel).filter({ visible: true }).first());
-    await s.page.waitForTimeout(2000);
+    await humanIdlePause('deliberate');
   }
 
   const composer = s.page.locator('div[role="textbox"][contenteditable="true"][aria-label*="message" i], div[role="textbox"][contenteditable="true"]').filter({ visible: true }).last();
   await composer.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, composer);
   await humanType(s.page, MESSAGE);
-  await s.page.waitForTimeout(600);
+  await humanIdlePause('short');
 
   const sendSel = 'button[aria-label*="Send" i], div[role="button"][aria-label*="Send" i]';
   const sendCount = await s.page.locator(sendSel).filter({ visible: true }).count().catch(() => 0);
@@ -72,7 +72,7 @@ try {
   } else {
     await s.page.keyboard.press('Enter');
   }
-  await s.page.waitForTimeout(3000);
+  await humanIdlePause('deliberate');
 
   const echoCount = await s.page.locator(`:text("${MESSAGE.slice(0, 60)}")`).filter({ visible: true }).count().catch(() => 0);
   if (!echoCount) { console.log('FAIL: composer typed but message not echoed in chat'); process.exit(1); }

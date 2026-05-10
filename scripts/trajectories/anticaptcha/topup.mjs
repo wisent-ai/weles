@@ -3,6 +3,7 @@
 import { WSession } from '../../../dist/session/wsession.js';
 import { googleSso, getGoogleSsoCreds } from '../_shared/services/google_sso.mjs';
 import { topupOpts, dryRunExit } from '../_shared/services/topup_common.mjs';
+import { humanIdlePause } from '../../../dist/human/mouse.js';
 
 const PRESETS = [10, 25, 50, 100, 500];
 function nearestPreset(usd) {
@@ -19,24 +20,24 @@ if (!login) { console.log('FAIL: no Google SSO creds'); process.exit(1); }
 const s = await WSession.start({ label: 'anticaptcha_topup', browser: 'chromium' });
 try {
   await s.goto('https://anti-captcha.com/clients/entrance/login');
-  await s.page.waitForTimeout(4000);
+  await humanIdlePause('deliberate');
   await s.page.locator('button:has-text("Continue with Google"), a:has-text("Continue with Google")').filter({ visible: true }).first().click();
   const ok = await googleSso(s, login, { originHost: 'anti-captcha.com' });
   if (!ok) { console.log('FAIL: Google SSO did not complete'); process.exit(1); }
 
-  await s.page.waitForTimeout(4000);
+  await humanIdlePause('deliberate');
   await s.page.goto('https://anti-captcha.com/clients/finance/refill', { waitUntil: 'networkidle' });
-  await s.page.waitForTimeout(8000);
+  await humanIdlePause('long');
 
   // Click VISA card to open payment dialog
   await s.page.locator('span.card-cat:has(img[alt="Visa"])').first().click();
-  await s.page.waitForTimeout(3000);
+  await humanIdlePause('deliberate');
 
   // Click Stripe "Select" button (second one in dialog)
   const selectBtns = await s.page.locator('button:has-text("Select"), a:has-text("Select")').all();
   if (selectBtns.length >= 2) {
     await selectBtns[1].click();
-    await s.page.waitForTimeout(3000);
+    await humanIdlePause('deliberate');
   }
 
   // Now on amount selection page - click the matching preset button
@@ -52,7 +53,7 @@ try {
   // CONFIRM: Click amount to redirect to Stripe checkout
   console.log(`[trajectory] CONFIRM: clicking $${amount} to proceed to Stripe`);
   await amountBtn.click();
-  await s.page.waitForTimeout(10000);
+  await humanIdlePause('long');
   
   // Should redirect to stripe.com or payment partner
   const url = s.page.url();

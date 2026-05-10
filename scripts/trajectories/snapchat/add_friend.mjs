@@ -1,7 +1,7 @@
 import { getSocialAccount, markCookiesStale } from '../../../dist/utils/credentials.js';
 import { WSession } from '../../../dist/session/wsession.js';
 import { humanType } from '../../../dist/human/keyboard.js';
-import { humanClickLocator } from '../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../dist/human/mouse.js';
 import { assertAuthed, AuthProbeError } from '../_shared/auth-probe.mjs';
 import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../_shared/cookie-freshness.mjs';
 
@@ -30,11 +30,11 @@ try {
   if (stored.length) await s.ctx.addCookies(stored.filter(c => c?.name && c?.value && (c.domain || c.url)).map(c => ({ ...c, path: c.path || '/' }))).catch(() => {});
 
   await s.goto('https://web.snapchat.com/');
-  await s.page.waitForTimeout(3500);
+  await humanIdlePause('deliberate');
   if (/login|signup/.test(s.page.url())) {
     // Re-login via accounts.snapchat.com.
     await s.goto(LOGIN_URL);
-    await s.page.waitForTimeout(2500);
+    await humanIdlePause('deliberate');
     const userIn = s.page.locator('input[name="username"], input#username, input[autocomplete="username"], input[type="email"]').filter({ visible: true }).first();
     await humanClickLocator(s.page, userIn);
     await humanType(s.page, process.env.SVC_USER);
@@ -46,7 +46,7 @@ try {
     await humanClickLocator(s.page, s.page.locator('button[type="submit"], button:has-text("Log In")').filter({ visible: true }).first());
     await s.page.waitForFunction(() => /accounts\.snapchat\.com\/(?!.*login)|web\.snapchat\.com/.test(location.href), { timeout: 25000 });
     await s.goto('https://web.snapchat.com/');
-    await s.page.waitForTimeout(4000);
+    await humanIdlePause('deliberate');
   }
 
   // Positive auth probe — see _shared/auth-probe.mjs.
@@ -59,7 +59,7 @@ try {
   await searchBox.waitFor({ state: 'visible', timeout: 15000 });
   await humanClickLocator(s.page, searchBox);
   await humanType(s.page, TARGET);
-  await s.page.waitForTimeout(2500);
+  await humanIdlePause('deliberate');
   // First "Add Friend" button in the result list.
   const addBtn = s.page.locator('button:has-text("Add Friend"), button:has-text("Add"), [role="button"]:has-text("Add Friend")').filter({ visible: true }).first();
   await addBtn.waitFor({ state: 'visible', timeout: 10000 });

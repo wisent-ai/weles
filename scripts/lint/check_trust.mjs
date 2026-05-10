@@ -8,12 +8,12 @@
  *      evaluate call is located by finding the opening `page.evaluate(` and
  *      walking forward with paren+bracket+quote tracking until the matching
  *      close is found. Only `.click()` within that span is reported.
- *   2. `dispatchEvent(new MouseEvent(` anywhere (isTrusted=false mouse events).
+ *   2. `dispatchEvent(new MouseEvent(` anywhere (isTrusted=false mouse events).  // allow-raw-playwright: lint / test fixture — pattern reference, not actual call
  *
  * Does NOT flag:
  *   - s.jsClick()            — deliberate shadow-DOM escape hatch
  *   - dispatchEvent(new Event('input' | 'change', ...))  — React controlled-input
- *   - locator.click() / page.mouse.click() / page.click() — CDP-routed
+ *   - locator.click() / page.mouse.click() / page.click() — CDP-routed  // allow-raw-playwright: lint / test fixture — pattern reference, not actual call
  */
 import { readdir, readFile } from 'node:fs/promises';
 import { join, relative } from 'node:path';

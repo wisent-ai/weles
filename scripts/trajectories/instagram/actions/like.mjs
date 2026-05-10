@@ -1,6 +1,6 @@
 import { getSocialAccount, resolveAccountSession, markCookiesStale } from '../../../../dist/utils/credentials.js';
 import { WSession } from '../../../../dist/session/wsession.js';
-import { humanClickLocator } from '../../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
 import { detectInstagramBanSignals } from '../../../../dist/platforms/instagram/ban_signals.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -26,7 +26,7 @@ try {
   else url = 'https://www.instagram.com/explore/';
   await s.goto(url);
   checkReachable(s, 'instagram');
-  await s.page.waitForTimeout(3500);
+  await humanIdlePause('deliberate');
   try { await assertAuthed('instagram', s, { label: 'instagram_like' }); }
   catch (probeErr) { if (probeErr instanceof AuthProbeError) { console.log(`FAIL: ${probeErr.message}`); await markCookiesStale(acct.id); process.exit(1); } throw probeErr; }
   // If we're on a grid (profile, explore, hashtag), the page has a wall of
@@ -39,10 +39,10 @@ try {
     if (href) {
       const postUrl = href.startsWith('http') ? href : `https://www.instagram.com${href}`;
       await s.goto(postUrl);
-      await s.page.waitForTimeout(3000);
+      await humanIdlePause('deliberate');
     } else {
       await humanClickLocator(s.page, thumb);
-      await s.page.waitForTimeout(3000);
+      await humanIdlePause('deliberate');
     }
   }
   // Like button: <svg aria-label="Like"> inside a clickable parent. Click

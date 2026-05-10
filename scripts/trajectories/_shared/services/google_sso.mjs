@@ -3,7 +3,7 @@
 // Caller must already have clicked the provider's "Sign in with Google" button
 // and the page must now be on accounts.google.com (or about to redirect there).
 import { humanFill } from '../../../../dist/human/keyboard.js';
-import { humanClickLocator } from '../../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
 
 /**
  * Drive Google's identifier → password → consent sequence.
@@ -18,11 +18,11 @@ export async function googleSso(session, creds, opts = {}) {
   // calling this helper since on('page') listeners attach too late if added
   // here.
   let page = opts.page ?? session.page;
-  await page.waitForTimeout(1500);
+  await humanIdlePause('short');
 
   for (let i = 0; i < 30; i++) {
     if (/accounts\.google\.com/.test(page.url())) break;
-    await page.waitForTimeout(500);
+    await humanIdlePause('short');
   }
   if (!/accounts\.google\.com/.test(page.url())) {
     console.log(`[google_sso] FAIL: never reached accounts.google.com (url=${page.url()})`);
@@ -43,7 +43,7 @@ export async function googleSso(session, creds, opts = {}) {
   let pwInVisible = 0;
   for (let step = 0; step < 6; step++) {
     for (let i = 0; i < 30; i++) {
-      await page.waitForTimeout(500);
+      await humanIdlePause('short');
       pwInVisible = await page.locator('input[type="password"], input[name="Passwd"]').filter({ visible: true }).count().catch(() => 0);
       if (pwInVisible > 0) break;
     }
@@ -53,7 +53,7 @@ export async function googleSso(session, creds, opts = {}) {
     if (await enterPw.isVisible().catch(() => false)) {
       console.log('[google_sso] clicking "Enter your password"');
       await humanClickLocator(page, enterPw);
-      await page.waitForTimeout(1500);
+      await humanIdlePause('short');
       continue;
     }
 
@@ -61,7 +61,7 @@ export async function googleSso(session, creds, opts = {}) {
     if (await tryAnother.isVisible().catch(() => false)) {
       console.log('[google_sso] clicking "Try another way"');
       await humanClickLocator(page, tryAnother);
-      await page.waitForTimeout(1500);
+      await humanIdlePause('short');
       continue;
     }
 
@@ -87,18 +87,18 @@ export async function googleSso(session, creds, opts = {}) {
     if (isPopup && page.isClosed?.()) {
       console.log('[google_sso] OAuth popup closed; checking main page');
       for (let j = 0; j < 30; j++) {
-        await session.page.waitForTimeout(500);
+        await humanIdlePause('short');
         const u = session.page.url();
         if (originHost && u.includes(originHost) && !/login|signin/i.test(u.split('?')[0])) { console.log(`[google_sso] returned to ${originHost}`); return true; }
       }
       console.log(`[google_sso] popup closed; main page=${session.page.url()}`);
       return true;
     }
-    await page.waitForTimeout(1000).catch(() => {});
+    await humanIdlePause('short').catch(() => {});
     if (isPopup && page.isClosed?.()) {
       console.log('[google_sso] OAuth popup closed; checking main page');
       for (let j = 0; j < 20; j++) {
-        await session.page.waitForTimeout(500);
+        await humanIdlePause('short');
         const u = session.page.url();
         if (originHost && u.includes(originHost) && !/login|signin/i.test(u.split('?')[0])) { console.log(`[google_sso] returned to ${originHost}`); return true; }
       }
@@ -112,7 +112,7 @@ export async function googleSso(session, creds, opts = {}) {
       if (await continueBtn.isVisible().catch(() => false)) {
         console.log('[google_sso] clicking OAuth consent Continue/Allow');
         await humanClickLocator(page, continueBtn).catch(() => {});
-        await page.waitForTimeout(2000).catch(() => {});
+        await humanIdlePause('deliberate').catch(() => {});
         continue;
       }
     }

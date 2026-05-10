@@ -5,6 +5,7 @@ import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { checkReachable } from '../../_shared/action-runner.mjs';
 import { assertAuthed, AuthProbeError } from '../../_shared/auth-probe.mjs';
+import { humanIdlePause } from '../../../../dist/human/mouse.js';
 
 const TARGET_USER = (process.env.TARGET_USER || '').replace(/^@/, '');
 
@@ -22,7 +23,7 @@ try {
   if (!target) {
     await s.goto('https://github.com/explore');
     checkReachable(s, 'github');
-    await s.page.waitForTimeout(3000);
+    await humanIdlePause('deliberate');
     target = await s.page.evaluate(() => {
       const link = Array.from(document.querySelectorAll('a[href^="/"]')).find(a => /^\/[\w-]+$/.test(a.getAttribute('href') || '') && a.querySelector('img.avatar') && a.getAttribute('href')?.length < 25);
       return link ? link.getAttribute('href').replace(/^\//, '') : '';
@@ -32,7 +33,7 @@ try {
 
   await s.goto(`https://github.com/${encodeURIComponent(target)}`);
   checkReachable(s, 'github');
-  await s.page.waitForTimeout(2500);
+  await humanIdlePause('deliberate');
   try { await assertAuthed('github', s, { label: 'github_follow' }); }
   catch (probeErr) { if (probeErr instanceof AuthProbeError) { console.log(`FAIL: ${probeErr.message}`); await markCookiesStale(acct.id); process.exit(1); } throw probeErr; }
 
@@ -53,7 +54,7 @@ try {
       if (f && typeof f.requestSubmit === 'function') f.requestSubmit();
       else if (f) f.submit();
     });
-    await s.page.waitForTimeout(2500);
+    await humanIdlePause('deliberate');
     const after = await s.page.locator(`form[action*="/users/unfollow"]`).filter({ visible: true }).count().catch(() => 0);
     if (after === 0) throw new Error('follow did not register — Unfollow form not visible after submit');
     console.log(`PASS: followed ${target}`);

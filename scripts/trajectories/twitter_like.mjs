@@ -1,6 +1,6 @@
 import { getSocialAccount, resolveAccountSession, markCookiesStale } from '../../dist/utils/credentials.js';
 import { WSession } from '../../dist/session/wsession.js';
-import { humanClickLocator } from '../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../dist/human/mouse.js';
 import { assertAuthed, AuthProbeError } from './_shared/auth-probe.mjs';
 import { loadFreshCookieJarOrFail, CookieJarStaleError } from './_shared/cookie-freshness.mjs';
 
@@ -28,7 +28,7 @@ try {
   await s.ctx.addCookies(prepared);
 
   await s.page.goto(HOME_URL, { waitUntil: 'domcontentloaded' });
-  await s.page.waitForTimeout(4000);
+  await humanIdlePause('deliberate');
   const url = s.page.url();
   if (/\/i\/flow\/login/.test(url)) { console.log(`FAIL: cookies stale, redirected to login (${url})`); await markCookiesStale(acct.id); process.exit(1); }
 
@@ -58,14 +58,14 @@ try {
   if (!hasLikeBtn) {
     console.log('[trajectory] /home empty — falling to /elonmusk timeline');
     await s.page.goto('https://x.com/elonmusk', { waitUntil: 'domcontentloaded' });
-    await s.page.waitForTimeout(4000);
+    await humanIdlePause('deliberate');
     likeBtn = s.page.locator('[data-testid="like"]').filter({ visible: true }).first();
     hasLikeBtn = await likeBtn.waitFor({ state: 'visible', timeout: 30000 }).then(() => true).catch(() => false);
     if (!hasLikeBtn) { console.log('FAIL: no like button visible on either /home or /elonmusk'); process.exit(1); }
   }
   await likeBtn.scrollIntoViewIfNeeded();
   await humanClickLocator(s.page, likeBtn);
-  await s.page.waitForTimeout(2000);
+  await humanIdlePause('deliberate');
   // Verify like → unlike transition (the same button now exposes data-testid="unlike")
   const unlikeBtn = s.page.locator('[data-testid="unlike"]').first();
   const ok = await unlikeBtn.isVisible().catch(() => false);

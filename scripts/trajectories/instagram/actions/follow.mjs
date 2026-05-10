@@ -1,6 +1,6 @@
 import { getSocialAccount, resolveAccountSession } from '../../../../dist/utils/credentials.js';
 import { WSession } from '../../../../dist/session/wsession.js';
-import { humanClickLocator } from '../../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
 import { detectInstagramBanSignals } from '../../../../dist/platforms/instagram/ban_signals.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -21,7 +21,7 @@ try {
   const url = TARGET_USER ? `https://www.instagram.com/${encodeURIComponent(TARGET_USER)}/` : 'https://www.instagram.com/explore/people/';
   await s.goto(url);
   checkReachable(s, 'instagram');
-  await s.page.waitForTimeout(3500);
+  await humanIdlePause('deliberate');
   try { await assertAuthed('instagram', s, { label: 'instagram_follow' }); }
   catch (probeErr) { if (probeErr instanceof AuthProbeError) { console.log(`FAIL: ${probeErr.message}`); await markCookiesStale(acct.id); process.exit(1); } throw probeErr; }
   // The follow CTA is a <button> with text "Follow" or "Follow back" in the

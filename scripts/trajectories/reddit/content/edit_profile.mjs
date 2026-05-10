@@ -5,7 +5,7 @@
 import { getSocialAccount, resolveAccountSession, markCookiesStale } from '../../../../dist/utils/credentials.js';
 import { WSession } from '../../../../dist/session/wsession.js';
 import { humanType } from '../../../../dist/human/keyboard.js';
-import { humanClickLocator } from '../../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
 import { assertAuthed, AuthProbeError } from '../../_shared/auth-probe.mjs';
 import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../../_shared/cookie-freshness.mjs';
 import { loadAvatarFile } from '../../_shared/runner/avatar-loader.mjs';
@@ -46,7 +46,7 @@ try {
   await s.ctx.addCookies(stored.map(c => ({ ...c, path: c.path || '/' })));
 
   await s.page.goto('https://www.reddit.com/settings/profile', { waitUntil: 'domcontentloaded' });
-  await s.page.waitForTimeout(5000);
+  await humanIdlePause('long');
   if (/\/login/.test(s.page.url())) {
     console.log(`FAIL: cookies stale, redirected to login (${s.page.url()})`);
     await markCookiesStale(acct.id);
@@ -102,18 +102,18 @@ try {
     if (tmpAvatar) {
       try {
         await s.page.goto(`https://www.reddit.com/user/${acct.username}/`, { waitUntil: 'domcontentloaded' });
-        await s.page.waitForTimeout(6000);
+        await humanIdlePause('long');
         const editAvatarBtn = s.page.locator('button[aria-label="Edit profile avatar"], [aria-label="Edit profile avatar"]').first();
         if (await editAvatarBtn.count()) {
           await editAvatarBtn.click();
-          await s.page.waitForTimeout(4000);
+          await humanIdlePause('deliberate');
           const selectBtn = s.page.locator('button:has-text("Select a new image")').first();
           if (await selectBtn.count()) {
             const fcPromise = s.page.waitForEvent('filechooser');
             await selectBtn.click();
             const fc = await fcPromise;
             await fc.setFiles(tmpAvatar);
-            await s.page.waitForTimeout(5000);
+            await humanIdlePause('long');
             // Save lives in shadow DOM; pierce + click the enabled one
             const saved = await s.page.evaluate(() => {
               function walk(root) {
@@ -129,7 +129,7 @@ try {
               return walk(document);
             });
             if (saved) {
-              await s.page.waitForTimeout(6000);
+              await humanIdlePause('long');
               writes.push('avatar uploaded');
             } else { console.log('[rd-profile] no enabled Save after setFiles'); }
           } else { console.log('[rd-profile] no Select-a-new-image after Edit-avatar click'); }
@@ -152,7 +152,7 @@ try {
   const saveBtn = s.page.locator('button:has-text("Save"), button[type="submit"]').filter({ visible: true }).first();
   await saveBtn.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, saveBtn);
-  await s.page.waitForTimeout(4000);
+  await humanIdlePause('deliberate');
   console.log(`PASS: ${acct.username} profile updated to ${character.name}`);
 } catch (e) {
   console.log('FAIL:', e.message?.slice(0, 200));

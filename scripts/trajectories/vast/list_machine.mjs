@@ -20,7 +20,7 @@ const ctx = await chromium.launchPersistentContext(scratch, {
   executablePath: CHROMIUM, headless: false, viewport: { width: 1920, height: 1080 },
 });
 const page = ctx.pages()[0] ?? await ctx.newPage();
-const wait = (s) => new Promise(r => setTimeout(r, s * 1000));
+const wait = (s) => new Promise(r => setTimeout(r, s * 1000));  // allow-raw-playwright: utility sleep shim — usages should migrate to humanIdlePause
 
 try {
   await page.goto('https://cloud.vast.ai/', { waitUntil: 'domcontentloaded' });

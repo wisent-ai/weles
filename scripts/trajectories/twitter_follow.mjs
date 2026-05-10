@@ -1,6 +1,6 @@
 import { getSocialAccount, resolveAccountSession, markCookiesStale } from '../../dist/utils/credentials.js';
 import { WSession } from '../../dist/session/wsession.js';
-import { humanClickLocator } from '../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../dist/human/mouse.js';
 import { assertAuthed, AuthProbeError } from './_shared/auth-probe.mjs';
 import { loadFreshCookieJarOrFail, CookieJarStaleError } from './_shared/cookie-freshness.mjs';
 
@@ -65,7 +65,7 @@ try {
     process.exit(1);
   }
   await humanClickLocator(s.page, followBtn);
-  await s.page.waitForTimeout(2000);
+  await humanIdlePause('deliberate');
   // Verify Follow → Following transition (scoped to target handle).
   const followingBtn = s.page.locator(`[data-testid$="-unfollow"][aria-label*="${TARGET_HANDLE}"]`).filter({ visible: true }).first();
   const ok = await followingBtn.isVisible().catch(() => false);

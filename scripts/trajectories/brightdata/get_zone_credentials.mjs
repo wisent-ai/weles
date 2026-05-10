@@ -16,6 +16,7 @@
 import { getServiceLogin } from '../../../dist/utils/credentials.js';
 import { WSession } from '../../../dist/session/wsession.js';
 import { googleSso } from '../_shared/services/google_sso.mjs';
+import { humanIdlePause } from '../../../dist/human/mouse.js';
 
 const login = await getServiceLogin('Bright Data');
 if (!login) { console.log('FAIL: no Bright Data creds in service_credentials'); process.exit(1); }
@@ -25,27 +26,27 @@ const s = await WSession.start({ label: 'brightdata_get_zone_credentials', brows
 
 try {
   await s.goto('https://brightdata.com/cp/login');
-  await s.page.waitForTimeout(2500);
+  await humanIdlePause('deliberate');
 
   await s.page.locator('button:has-text("Log in with Google")').filter({ visible: true }).first().click();
 
   const ok = await googleSso(s, login, { originHost: 'brightdata.com' });
   if (!ok) { console.log('FAIL: Google SSO did not return to brightdata.com'); process.exit(1); }
-  await s.page.waitForTimeout(4000);
+  await humanIdlePause('deliberate');
 
   // Dismiss any first-login modal/survey popups.
   for (const sel of ['button:has-text("Skip")', 'button:has-text("X")', '[aria-label="Close"]', 'button:has-text("Got it")', 'button:has-text("Maybe later")']) {
     const btn = s.page.locator(sel).first();
     if (await btn.isVisible().catch(() => false)) {
       await btn.click({ force: true }).catch(() => {});
-      await s.page.waitForTimeout(400);
+      await humanIdlePause('short');
     }
   }
 
   // Step 1: list zones at /cp/zones (the "My Proxies" section).
   console.log('[trajectory] navigating to /cp/zones');
   await s.page.goto('https://brightdata.com/cp/zones', { waitUntil: 'domcontentloaded' });
-  await s.page.waitForTimeout(6000);
+  await humanIdlePause('long');
 
   // Skip "What is your role?" + similar onboarding modals that block the page.
   for (const sel of ['button:has-text("Skip")', 'a:has-text("Skip")', 'button:has-text("Skip for now")', '[aria-label="Close"]', 'button[aria-label="Close"]']) {
@@ -53,7 +54,7 @@ try {
     if (await btn.isVisible().catch(() => false)) {
       await btn.click({ force: true }).catch(() => {});
       console.log(`[trajectory] dismissed modal via ${sel}`);
-      await s.page.waitForTimeout(1000);
+      await humanIdlePause('short');
     }
   }
 
@@ -95,7 +96,7 @@ try {
     // Use force:true to bypass the visibility check.
     console.log('[trajectory] no zones — clicking "Create Proxy"');
     await s.page.locator('button:has-text("Create Proxy")').first().click({ force: true }).catch((e) => console.log(`[trajectory] Create Proxy click err: ${e.message?.slice(0,80)}`));
-    await s.page.waitForTimeout(5000);
+    await humanIdlePause('long');
     console.log(`[trajectory] post-click url=${s.page.url()}`);
     await s.page.screenshot({ path: 'recordings/brightdata_get_zone_credentials/after_create_proxy.png', fullPage: true }).catch(() => {});
     const postClickButtons = await s.page.evaluate(() => Array.from(document.querySelectorAll('button, a, [role="button"]'))
@@ -116,7 +117,7 @@ try {
       if (await c.isVisible().catch(() => false)) {
         await c.click({ force: true }).catch(() => {});
         console.log(`[trajectory] picked product: ${sel}`);
-        await s.page.waitForTimeout(2500);
+        await humanIdlePause('deliberate');
         break;
       }
     }
@@ -137,7 +138,7 @@ try {
         if (await c.isVisible().catch(() => false)) {
           await c.click({ force: true }).catch(() => {});
           console.log(`[trajectory] step${step}: clicked ${sel}`);
-          await s.page.waitForTimeout(3500);
+          await humanIdlePause('deliberate');
           clicked = true;
           break;
         }
@@ -147,7 +148,7 @@ try {
 
     // Re-list zones after creation.
     await s.page.goto('https://brightdata.com/cp/zones', { waitUntil: 'domcontentloaded' });
-    await s.page.waitForTimeout(6000);
+    await humanIdlePause('long');
     const zones2 = await s.page.evaluate(() => {
       const out = [];
       const links = document.querySelectorAll('a[href*="/cp/zones/"]');
@@ -196,14 +197,14 @@ try {
     clicked = { found: true, tag };
   }
   console.log(`[trajectory] click result:`, JSON.stringify(clicked));
-  await s.page.waitForTimeout(8000);
+  await humanIdlePause('long');
   console.log(`[trajectory] after-click url=${s.page.url()}`);
   await s.page.screenshot({ path: 'recordings/brightdata_get_zone_credentials/zone_detail.png', fullPage: true }).catch(() => {});
 
   // Skip any modals that appear on the zone detail page.
   for (const sel of ['button:has-text("Skip")', 'button:has-text("Got it")', 'button[aria-label="Close"]', '[aria-label="Close"]', 'button:has-text("Close")']) {
     const btn = s.page.locator(sel).filter({ visible: true }).first();
-    if (await btn.isVisible().catch(() => false)) { await btn.click({ force: true }).catch(() => {}); await s.page.waitForTimeout(500); }
+    if (await btn.isVisible().catch(() => false)) { await btn.click({ force: true }).catch(() => {}); await humanIdlePause('short'); }
   }
 
   // The password may need updating before it's usable. Look for "Update password"
@@ -220,11 +221,11 @@ try {
     if (await btn.isVisible().catch(() => false)) {
       console.log(`[trajectory] clicking ${sel} to rotate the zone password`);
       await btn.click({ force: true }).catch(() => {});
-      await s.page.waitForTimeout(2500);
+      await humanIdlePause('deliberate');
       // Confirmation dialog may appear; click Confirm/Yes/Update.
       for (const csel of ['button:has-text("Update")', 'button:has-text("Confirm")', 'button:has-text("Yes")', 'button:has-text("Continue")']) {
         const c = s.page.locator(csel).filter({ visible: true }).first();
-        if (await c.isVisible().catch(() => false)) { await c.click({ force: true }).catch(() => {}); await s.page.waitForTimeout(2500); break; }
+        if (await c.isVisible().catch(() => false)) { await c.click({ force: true }).catch(() => {}); await humanIdlePause('deliberate'); break; }
       }
       break;
     }
@@ -245,11 +246,11 @@ try {
     for (const el of els) {
       if (await el.isVisible().catch(() => false)) {
         await el.click({ force: true }).catch(() => {});
-        await s.page.waitForTimeout(300);
+        await humanIdlePause('short');
       }
     }
   }
-  await s.page.waitForTimeout(1500);
+  await humanIdlePause('short');
   await s.page.screenshot({ path: 'recordings/brightdata_get_zone_credentials/after_reveal.png', fullPage: true }).catch(() => {});
 
   // Scrape access params. BrightData typically renders them as labeled rows

@@ -10,7 +10,7 @@ const WELES_DIST = '/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/wele
 const { humanClick, nativeType } = await import(`${WELES_DIST}/human/mouse.js`);
 const { nextDwellMs, nextInterKeyMs } = await import(`${WELES_DIST}/human/trace.js`);
 
-const waitMs = (ms) => new Promise(r => setTimeout(r, ms));
+const waitMs = (ms) => new Promise(r => setTimeout(r, ms));  // allow-raw-playwright: utility sleep shim — usages should migrate to humanIdlePause
 
 const humanFill = async ({ page, cdp }, sel, val) => {
   const bb = await page.locator(sel).first().boundingBox();

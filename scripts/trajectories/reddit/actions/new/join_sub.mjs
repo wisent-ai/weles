@@ -30,7 +30,7 @@ try {
   // button after the upgrade fires.
   await s.goto(`https://www.reddit.com/r/${encodeURIComponent(SUBREDDIT)}/`);
   checkReachable(s, 'reddit');
-  await s.page.waitForTimeout(4000);
+  await humanIdlePause('deliberate');
   try { await assertAuthed('reddit', s, { label: 'reddit_join_sub_new' }); }
   catch (probeErr) { if (probeErr instanceof AuthProbeError) { console.log(`FAIL: ${probeErr.message}`); await markCookiesStale(acct.id); process.exit(1); } throw probeErr; }
   const headerBtns = s.page.locator('shreddit-subreddit-header-buttons').first();

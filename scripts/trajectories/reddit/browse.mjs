@@ -11,6 +11,7 @@ import { WSession } from '../../../dist/session/wsession.js';
 import { detectRedditBanSignals } from '../../../dist/platforms/reddit/ban_signals.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { humanIdlePause, humanScroll } from '../../../dist/human/mouse.js';
 
 const SUBREDDIT = process.env.SUBREDDIT || 'popular';
 const SCROLL_COUNT = parseInt(process.env.SCROLL_COUNT || '8', 10);
@@ -26,8 +27,8 @@ try {
   await s.goto(`https://www.reddit.com/r/${SUBREDDIT}/`);
   // Idle scroll: simulate skimming the feed without clicking anything.
   for (let i = 0; i < SCROLL_COUNT; i++) {
-    await s.page.evaluate(() => window.scrollBy(0, window.innerHeight * (0.6 + Math.random() * 0.6)));
-    await s.page.waitForTimeout(800 + Math.floor(Math.random() * 1400));
+    await humanScroll(s.page, 1200, 3);
+    await humanIdlePause();
   }
   banSignal = await detectRedditBanSignals(s.page, s.capturedResponses).catch((e) => ({ healthy: false, signal: 'unknown_error', details: { detector_error: e.message } }));
   console.log(`[ban-signal] ${banSignal.signal}`);

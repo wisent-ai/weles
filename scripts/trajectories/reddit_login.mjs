@@ -63,7 +63,7 @@ try {
     // <faceplate-form> web component — inputs live in shadow DOM, but Playwright
     // pierces open shadow roots automatically. Selectors target the slotted
     // <input> elements that bubble up: input#login-username, input#login-password.
-    await s.page.waitForTimeout(2000);
+    await humanIdlePause('deliberate');
     const userIn = s.page.locator('input#login-username, input[name="username"], input[autocomplete="username"]').filter({ visible: true }).first();
     await userIn.waitFor({ state: 'visible' });
     await humanClickLocator(s.page, userIn);
@@ -78,7 +78,7 @@ try {
     // Press Enter on password field — Reddit's submit button may be in Shadow DOM
     // (web component button) which Playwright can't reach. Enter triggers the form.
     await pwIn.press('Enter');
-    for (let i = 0; i < 15; i++) { await s.page.waitForTimeout(1000); if (!/\/login/.test(s.page.url())) break; }
+    for (let i = 0; i < 15; i++) { await humanIdlePause('short'); if (!/\/login/.test(s.page.url())) break; }
     banSignal = await detectRedditBanSignals(s.page, s.capturedResponses).catch((e) => ({ healthy: false, signal: 'unknown_error', details: { detector_error: e.message } }));
     console.log(`[ban-signal] ${banSignal.signal} (${JSON.stringify(banSignal.details).slice(0, 200)})`);
     if (banSignal?.signal === 'ip_blocked') await wipeStoredProxy(acct.id);

@@ -1,7 +1,7 @@
 import { getSocialAccount } from '../../../dist/utils/credentials.js';
 import { WSession } from '../../../dist/session/wsession.js';
 import { humanType } from '../../../dist/human/keyboard.js';
-import { humanClickLocator } from '../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../dist/human/mouse.js';
 import { persistFreshCookieJar } from '../_shared/cookie-freshness.mjs';
 
 const URL = 'https://accounts.google.com/ServiceLogin?continue=https%3A%2F%2Fwww.youtube.com%2F';
@@ -16,7 +16,7 @@ const s = await WSession.start({ label: 'youtube_login', proxy: process.env.PROX
 try {
   // Cookie-first removed — login always means form login. See auth-probe.mjs.
   await s.goto(URL);
-  await s.page.waitForTimeout(3000);
+  await humanIdlePause('deliberate');
   // Step 1: email → Next.
   const emailIn = s.page.locator('input[type="email"], input#identifierId, input[name="identifier"]').filter({ visible: true }).first();
   await emailIn.waitFor({ state: 'visible' });

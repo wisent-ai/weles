@@ -1,3 +1,4 @@
+import { humanIdlePause } from '../../../dist/human/mouse.js';
 // In-browser Arkose audio puzzle solver for GitHub FunCaptcha.
 // Ports the core flow from account-api-build/skills/creators/_github_audio.py.
 // Strategy: inject audio capture hooks, click Audio puzzle, per round read target
@@ -62,7 +63,7 @@ async function getGameFrame(page) {
       const info = await enforcement.evaluate('({ btns: document.querySelectorAll("button").length, imgs: document.querySelectorAll("img,canvas").length, textLen: (document.body?.innerText ?? "").length })').catch(() => null);
       if (info && (info.btns > 0 || info.imgs > 0 || info.textLen > 20)) return enforcement;
     }
-    await new Promise(r => setTimeout(r, 1000));
+    await humanIdlePause('short');
   }
   return null;
 }
@@ -103,12 +104,12 @@ export async function solveAudioPuzzle(page, { maxRounds = 10 } = {}) {
       audioBtn = frame.locator(`button:has-text("${audioMatch.text}"), [aria-label="${audioMatch.aria}"]`).first();
       break;
     }
-    await new Promise(r => setTimeout(r, 1000));
+    await humanIdlePause('short');
   }
   if (!audioBtn) { console.log('[audio] No Audio button found after 30s — game appears visual-only'); return false; }
   await audioBtn.click().catch(e => console.log(`[audio] click err: ${e.message?.slice(0, 100)}`));
   console.log('[audio] Clicked Audio puzzle');
-  await new Promise(r => setTimeout(r, 5000));
+  await humanIdlePause('long');
 
   for (let round = 1; round <= maxRounds; round++) {
     const info = await frame.evaluate(`(() => {
@@ -133,7 +134,7 @@ export async function solveAudioPuzzle(page, { maxRounds = 10 } = {}) {
       await playBtn.click().catch(() => {});
       console.log(`[audio] R${round}: Play clicked`);
     }
-    await new Promise(r => setTimeout(r, 14000));  // Let all clips play
+    await new Promise(r => setTimeout(r, 14000));  // Let all clips play  // allow-raw-playwright: review — context-dependent timer
 
     // Retrieve captured audio from any frame
     let b64 = null, mime = 'audio/wav';
@@ -166,7 +167,7 @@ export async function solveAudioPuzzle(page, { maxRounds = 10 } = {}) {
     for (const f of page.frames()) {
       await f.evaluate('window.__playedAudio = []').catch(() => {});
     }
-    await new Promise(r => setTimeout(r, 3000));
+    await humanIdlePause('deliberate');
   }
   return false;
 }

@@ -33,7 +33,7 @@ async function solveOne(svc, apiKey, { websiteURL, publicKey, apiSub, blob, user
   if (cr.errorId) return { err: `${cr.errorCode} ${cr.errorDescription?.slice(0, 100)}`, fatal: cr.errorCode !== 'ERROR_CAPTCHA_UNSOLVABLE' };
   console.log(`[funcaptcha] ${svc.name} taskId=${cr.taskId}`);
   for (let i = 0; i < POLL_SECONDS / 5; i++) {
-    await new Promise(r => setTimeout(r, 5000));
+    await new Promise(r => setTimeout(r, 5000));  // allow-raw-playwright: polling/rate-limit loop
     let res;
     try { res = await (await fetch(svc.url + '/getTaskResult', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clientKey: apiKey, taskId: cr.taskId }) })).json(); }
     catch { continue; }

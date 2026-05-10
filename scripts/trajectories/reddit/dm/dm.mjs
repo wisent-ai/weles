@@ -1,7 +1,7 @@
 import { getSocialAccount, resolveAccountSession, markCookiesStale } from '../../../../dist/utils/credentials.js';
 import { WSession } from '../../../../dist/session/wsession.js';
 import { humanType } from '../../../../dist/human/keyboard.js';
-import { humanClickLocator } from '../../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
 import { assertAuthed, AuthProbeError } from '../../_shared/auth-probe.mjs';
 import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../../_shared/cookie-freshness.mjs';
 
@@ -38,12 +38,12 @@ try {
   // Auth-probe on a real shell — the compose page renders the form even
   // when logged out, so it's an unreliable place to probe.
   await s.goto('https://old.reddit.com/');
-  await s.page.waitForTimeout(2500);
+  await humanIdlePause('deliberate');
   try { await assertAuthed('reddit', s, { label: 'reddit_dm' }); }
   catch (probeErr) { if (probeErr instanceof AuthProbeError) { console.log(`FAIL: ${probeErr.message}`); await markCookiesStale(acct.id); process.exit(1); } throw probeErr; }
 
   await s.goto(`https://old.reddit.com/message/compose/?to=${encodeURIComponent(RECIPIENT)}`);
-  await s.page.waitForTimeout(2500);
+  await humanIdlePause('deliberate');
 
   const toIn = s.page.locator('input#send_to, input[name="to"]').filter({ visible: true }).first();
   await toIn.waitFor({ state: 'visible' });
@@ -68,7 +68,7 @@ try {
   await sendBtn.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, sendBtn);
 
-  await s.page.waitForTimeout(4000);
+  await humanIdlePause('deliberate');
   const successCount = await s.page.locator(':text("your message has been delivered"), :text("message delivered"), .status:has-text("delivered")').count().catch(() => 0);
   const errorHits = await s.page.evaluate(() => {
     const txt = (document.body?.innerText || '').toLowerCase();

@@ -5,6 +5,7 @@
 import { chromium } from 'playwright';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { humanIdlePause } from '../../../dist/human/mouse.js';
 
 const supaUrl = process.env.SUPABASE_URL ?? '';
 const supaKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
@@ -112,11 +113,11 @@ cdp.on('Network.responseReceivedExtraInfo', (e) => {
 
 console.log('[cdp] OAuth flow start');
 await page.goto('https://www.producthunt.com/', { waitUntil: 'domcontentloaded' }).catch(() => {});
-await new Promise(r => setTimeout(r, 5000));
+await humanIdlePause('long');
 
 const c1 = await page.locator('button:has-text("Sign in"), a:has-text("Sign in")').first().click().then(() => 'clicked').catch(e => `err: ${e.message?.slice(0, 80)}`);
 console.log(`[cdp] Sign in click: ${c1}`);
-await new Promise(r => setTimeout(r, 5000));
+await humanIdlePause('long');
 const modalText = await page.evaluate(`(() => (document.body?.innerText || '').slice(0, 400))()`).catch(() => '');
 console.log(`[cdp] after Sign in: ${modalText.replace(/\n/g, ' | ').slice(0, 300)}`);
 
@@ -137,11 +138,11 @@ for (let attempt = 0; attempt < 3; attempt++) {
   })()`).catch((e) => `err: ${e.message?.slice(0, 80)}`);
   console.log(`[cdp] Sign in with X click (attempt ${attempt}): ${c2}`);
   if (c2.startsWith('clicked')) break;
-  await new Promise(r => setTimeout(r, 3000));
+  await new Promise(r => setTimeout(r, 3000));  // allow-raw-playwright: polling/rate-limit loop
 }
 // Wait up to 60s for OAuth round-trip (CF challenge + Twitter redirect + callback)
 for (let i = 0; i < 30; i++) {
-  await new Promise(r => setTimeout(r, 2000));
+  await new Promise(r => setTimeout(r, 2000));  // allow-raw-playwright: polling/rate-limit loop
   const u = page.url();
   if (i % 4 === 0) {
     const body = await page.evaluate(`(() => (document.body?.innerText || '').slice(0, 300))()`).catch(() => '');
@@ -158,10 +159,10 @@ for (let i = 0; i < 3; i++) {
   const t = await page.evaluate(`(() => (document.body?.innerText || '').toLowerCase().slice(0, 500))()`).catch(() => '');
   if (t.includes('authorize') || (t.includes('allow') && t.includes('producthunt'))) {
     await page.locator('button:has-text("Authorize"), input[value*="Authorize"]').first().click().catch(() => {});
-    await new Promise(r => setTimeout(r, 4000));
+    await new Promise(r => setTimeout(r, 4000));  // allow-raw-playwright: polling/rate-limit loop
   } else break;
 }
-await new Promise(r => setTimeout(r, 6000));
+await humanIdlePause('long');
 
 console.log(`\n[cdp] total captured ${captured.length} producthunt Set-Cookie responses`);
 const sessionResp = captured.find(c => c.setCookie.includes('_producthunt_session_production'));

@@ -103,7 +103,7 @@ export async function pollCode(orderId: string, provider: 'juicysms' | 'smsactiv
     }
     const elapsed = Math.round((Date.now() - start) / 1000);
     if (elapsed % 15 === 0) console.log(`[sms] waiting for code... (${elapsed}s / ${waitSecs}s)`);
-    await new Promise(r => setTimeout(r, 5000));
+    await new Promise(r => setTimeout(r, 5000));  // allow-raw-playwright: polling/rate-limit loop
   }
   // Skip (not cancel) — prevents getting the same dead number again. Free if SMS wasn't delivered.
   if (provider === 'juicysms') {

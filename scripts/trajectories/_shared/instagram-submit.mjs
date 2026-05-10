@@ -1,5 +1,5 @@
 import { humanType } from '../../../dist/human/keyboard.js';
-import { humanClickLocator } from '../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../dist/human/mouse.js';
 
 // If we're on a grid (explore, profile, hashtag), open first post first.
 async function ensureSinglePost(s) {
@@ -10,10 +10,10 @@ async function ensureSinglePost(s) {
     if (href) {
       const postUrl = href.startsWith('http') ? href : `https://www.instagram.com${href}`;
       await s.goto(postUrl);
-      await s.page.waitForTimeout(3000);
+      await humanIdlePause('deliberate');
     } else {
       await humanClickLocator(s.page, thumb);
-      await s.page.waitForTimeout(3000);
+      await humanIdlePause('deliberate');
     }
   }
 }

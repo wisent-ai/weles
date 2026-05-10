@@ -2,6 +2,7 @@
 // at auth.capmonster.cloud which exposes a "Login with Google" link.
 import { WSession } from '../../../dist/session/wsession.js';
 import { googleSso, parseBalanceFromText, patchServiceBalance, getGoogleSsoCreds } from '../_shared/services/google_sso.mjs';
+import { humanIdlePause } from '../../../dist/human/mouse.js';
 
 const LOGIN_URL = 'https://dash.capmonster.cloud/?culture=en';
 const DISPLAY_NAME = 'CapMonster Cloud';
@@ -13,14 +14,14 @@ console.log(`[trajectory] Using Google SSO: ${login.email}`);
 const s = await WSession.start({ label: 'capmonster_balance', browser: 'chromium' });
 try {
   await s.goto(LOGIN_URL);
-  await s.page.waitForTimeout(4000);
+  await humanIdlePause('deliberate');
 
   await s.page.locator('a:has-text("Login with Google"), a:has-text("Continue with Google"), a:has-text("Sign in with Google")').filter({ visible: true }).first().click();
 
   const ok = await googleSso(s, login, { originHost: 'capmonster.cloud' });
   if (!ok) { console.log('FAIL: Google SSO did not land back on capmonster.cloud'); process.exit(1); }
 
-  await s.page.waitForTimeout(6000);
+  await humanIdlePause('long');
   const text = await s.page.evaluate(() => document.body.innerText);
   console.log(`[trajectory] dashboard text length=${text.length}`);
   const balance = parseBalanceFromText(text);

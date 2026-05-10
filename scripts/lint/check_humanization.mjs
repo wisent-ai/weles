@@ -158,7 +158,7 @@ function findBareClicks(src, evalRanges) {
   const out = [];
   // Match `.click(` that isn't preceded by a humanized atom or trusted helper.
   // Allowed: humanClick(, humanClickLocator(, page.mouse.click(, s.click(,
-  // s.jsClick(, s.clickSelector(, page.click(, frame.click(, s.page.mouse.click(,
+  // s.jsClick(, s.clickSelector(, page.click(, frame.click(, s.page.mouse.click(,  // allow-raw-playwright: lint / test fixture — pattern reference, not actual call
   // .click({force:true})  (vendor admin force flag — already exempt).
   const lines = src.split('\n');
   for (let li = 0; li < lines.length; li++) {
@@ -179,7 +179,7 @@ function findBareClicks(src, evalRanges) {
       // (they're positioned in detached portals). These are not user-facing
       // buttons — they're select-option equivalents inside dropdown menus.
       if (/\.click\s*\(\s*\{\s*force\s*:\s*true/.test(line) && /li\[|role.*option|data-value/.test(line)) continue;
-      // page.click(target) is Playwright's high-level helper that auto-scrolls
+      // page.click(target) is Playwright's high-level helper that auto-scrolls  // allow-raw-playwright: lint / test fixture — pattern reference, not actual call
       // and uses CDP — acceptable. But we don't actually use it anywhere in
       // social trajectories; flag any new occurrences just in case.
       // Find the absolute index of the `.click(` to test eval-range inclusion.

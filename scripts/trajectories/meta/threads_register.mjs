@@ -28,7 +28,7 @@ const URL = 'https://www.threads.net/login';
 const MAX_RETRIES = 5;
 const USE_BRIGHTDATA = !!process.env.BRIGHTDATA_BROWSER_WS;
 const proxy = USE_BRIGHTDATA ? 'none' : (process.env.PROXY_URL || 'none');
-const sleep = (s) => new Promise(r => setTimeout(r, s * 1000));
+const sleep = (s) => new Promise(r => setTimeout(r, s * 1000));  // allow-raw-playwright: utility sleep shim — usages should migrate to humanIdlePause
 
 async function readPage(s) {
   return (await s.page.evaluate(`(() => {

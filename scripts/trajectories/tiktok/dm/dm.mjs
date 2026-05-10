@@ -1,7 +1,7 @@
 import { getSocialAccount, resolveAccountSession, markCookiesStale } from '../../../../dist/utils/credentials.js';
 import { WSession } from '../../../../dist/session/wsession.js';
 import { humanType } from '../../../../dist/human/keyboard.js';
-import { humanClickLocator } from '../../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
 import { assertAuthed, AuthProbeError } from '../../_shared/auth-probe.mjs';
 import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../../_shared/cookie-freshness.mjs';
 
@@ -28,7 +28,7 @@ try {
   await s.ctx.addCookies(stored.map(c => ({ ...c, path: c.path || '/' })));
 
   await s.page.goto('https://www.tiktok.com/messages', { waitUntil: 'domcontentloaded' });
-  await s.page.waitForTimeout(5000);
+  await humanIdlePause('long');
   if (/\/login(\/|$)/.test(s.page.url())) {
     console.log(`FAIL: cookies stale, redirected to login (${s.page.url()})`);
     await markCookiesStale(acct.id);
@@ -40,32 +40,32 @@ try {
   const newMsgBtn = s.page.locator('[data-e2e="chat-create-new"], button[aria-label*="New message" i], div[role="button"]:has-text("New message"), button:has-text("New message")').filter({ visible: true }).first();
   await newMsgBtn.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, newMsgBtn);
-  await s.page.waitForTimeout(1800);
+  await humanIdlePause('short');
 
   const searchIn = s.page.locator('input[data-e2e="chat-create-new-search"], input[placeholder*="Search" i], input[aria-label*="Search" i]').filter({ visible: true }).first();
   await searchIn.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, searchIn);
   await humanType(s.page, RECIPIENT);
-  await s.page.waitForTimeout(2500);
+  await humanIdlePause('deliberate');
 
   const userRow = s.page.locator(`[data-e2e*="search-user"]:has-text("${RECIPIENT}"), div[role="button"]:has-text("${RECIPIENT}"), li:has-text("${RECIPIENT}")`).filter({ visible: true }).first();
   await userRow.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, userRow);
-  await s.page.waitForTimeout(1500);
+  await humanIdlePause('short');
 
   // Some flows show a "Next"/"Start chat" confirm — opportunistic.
-  await s.page.waitForTimeout(400);
+  await humanIdlePause('short');
   const nextSel = 'button:has-text("Next"), button:has-text("Start chat"), [role="button"]:has-text("Next")';
   const nextCount = await s.page.locator(nextSel).filter({ visible: true }).count().catch(() => 0);
   if (nextCount > 0) {
     await humanClickLocator(s.page, s.page.locator(nextSel).filter({ visible: true }).first());
-    await s.page.waitForTimeout(2000);
+    await humanIdlePause('deliberate');
   }
 
   // Recipient may have DMs restricted (followers-only) → composer never
   // mounts. Surface as a structured FAIL instead of waiting on default
   // 30s waitFor.
-  await s.page.waitForTimeout(1500);
+  await humanIdlePause('short');
   const composerSel = '[data-e2e="message-input-textarea"], div[contenteditable="true"][role="textbox"], textarea[data-e2e*="message-input"]';
   const composerCount = await s.page.locator(composerSel).filter({ visible: true }).count().catch(() => 0);
   if (!composerCount) {
@@ -76,7 +76,7 @@ try {
   const composer = s.page.locator(composerSel).filter({ visible: true }).first();
   await humanClickLocator(s.page, composer);
   await humanType(s.page, MESSAGE);
-  await s.page.waitForTimeout(600);
+  await humanIdlePause('short');
 
   const sendSel = '[data-e2e="message-send"], button[aria-label*="Send" i], div[role="button"]:has-text("Send")';
   const sendCount = await s.page.locator(sendSel).filter({ visible: true }).count().catch(() => 0);
@@ -85,7 +85,7 @@ try {
   } else {
     await s.page.keyboard.press('Enter');
   }
-  await s.page.waitForTimeout(3000);
+  await humanIdlePause('deliberate');
 
   const echoCount = await s.page.locator(`:text("${MESSAGE.slice(0, 60)}")`).filter({ visible: true }).count().catch(() => 0);
   if (!echoCount) { console.log('FAIL: composer typed but message not echoed in conversation pane'); process.exit(1); }

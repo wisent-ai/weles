@@ -3,6 +3,7 @@
 // login_password — pull shared Google password via getGoogleSsoCreds().
 import { WSession } from '../../../dist/session/wsession.js';
 import { googleSso, parseBalanceFromText, patchServiceBalance, getGoogleSsoCreds } from '../_shared/services/google_sso.mjs';
+import { humanIdlePause } from '../../../dist/human/mouse.js';
 
 const LOGIN_URL = 'https://anti-captcha.com/clients/';
 const DISPLAY_NAME = 'AntiCaptcha';
@@ -14,14 +15,14 @@ console.log(`[trajectory] Using Google SSO: ${login.email}`);
 const s = await WSession.start({ label: 'anticaptcha_balance', browser: 'chromium' });
 try {
   await s.goto(LOGIN_URL);
-  await s.page.waitForTimeout(3000);
+  await humanIdlePause('deliberate');
 
   await s.page.locator('a:has-text("Continue with Google")').filter({ visible: true }).first().click();
 
   const ok = await googleSso(s, login, { originHost: 'anti-captcha.com' });
   if (!ok) { console.log('FAIL: Google SSO did not land back on anti-captcha.com'); process.exit(1); }
 
-  await s.page.waitForTimeout(5000);
+  await humanIdlePause('long');
   const text = await s.page.evaluate(() => document.body.innerText);
   console.log(`[trajectory] dashboard text length=${text.length}`);
   const balance = parseBalanceFromText(text);

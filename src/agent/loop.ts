@@ -10,6 +10,7 @@ import type { WSession } from '../session/wsession.js';
 import { dispatch } from './tools.js';
 import { Capture } from '../capture/capture.js';
 import { loadFlow, saveFlow, replayFlow, type FlowStep } from '../session/flows.js';
+import { humanIdlePause } from '../human/mouse.js';
 
 const MAX_ITERATIONS = 20;
 
@@ -232,7 +233,7 @@ export async function execute(
       if (pages.length > 1 && pages[pages.length - 1] !== activePage) {
         activePage = pages[pages.length - 1];
         console.log(`[loop] popup detected: ${(typeof activePage.url === 'function' ? activePage.url() : activePage.url) ?? ''}`.slice(0, 120));
-        await new Promise(r => setTimeout(r, 2000));
+        await humanIdlePause('deliberate');
       }
     } catch { /* skip */ }
     history.push(call);

@@ -4,6 +4,7 @@
 import { getServiceLogin } from '../../../dist/utils/credentials.js';
 import { WSession } from '../../../dist/session/wsession.js';
 import { patchEffectiveBalance } from '../_shared/services/proxy_probe.mjs';
+import { humanIdlePause } from '../../../dist/human/mouse.js';
 
 const LOGIN_URL = 'https://app.packetstream.io/login';
 const DASH_URL  = 'https://app.packetstream.io';
@@ -25,7 +26,7 @@ console.log(`[trajectory] Using service login: ${login.email}`);
 const s = await WSession.start({ label: 'packetstream_balance', browser: 'chromium' });
 try {
   await s.goto(LOGIN_URL);
-  await s.page.waitForTimeout(1500);
+  await humanIdlePause('short');
 
   const userIn = s.page.locator('input[name="username"], input[name="email"], input[autocomplete="username"]').filter({ visible: true }).first();
   await userIn.waitFor({ state: 'visible' });
@@ -36,15 +37,15 @@ try {
   await pwIn.waitFor({ state: 'visible' });
   await pwIn.click();
   await pwIn.pressSequentially(login.password, { delay: 25 });
-  await s.page.waitForTimeout(300);
+  await humanIdlePause('short');
   await pwIn.press('Enter');
 
-  for (let i = 0; i < 20; i++) { await s.page.waitForTimeout(1000); if (!/\/login/.test(s.page.url())) break; }
+  for (let i = 0; i < 20; i++) { await humanIdlePause('short'); if (!/\/login/.test(s.page.url())) break; }
   if (/\/login/.test(s.page.url())) { console.log(`FAIL: still on /login after submit (${s.page.url()})`); process.exit(1); }
   console.log(`[trajectory] post-login url=${s.page.url()}`);
 
   if (!/app\.packetstream\.io\/?$/.test(s.page.url())) await s.page.goto(DASH_URL, { waitUntil: 'domcontentloaded' });
-  await s.page.waitForTimeout(3000);
+  await humanIdlePause('deliberate');
 
   const text = await s.page.evaluate(() => document.body.innerText);
   const balance = parseBalanceFromText(text);

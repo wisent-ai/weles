@@ -3,6 +3,7 @@
  */
 
 import { CaptchaSolver } from './solver.js';
+import { humanIdlePause } from '../human/mouse.js';
 
 type Page = any;
 
@@ -49,7 +50,7 @@ export async function detectCaptcha(page: Page): Promise<CaptchaInfo | null> {
       const info: any = await (f.evaluate ? f.evaluate(FRAME_DETECT_SCRIPT) : page.evaluate(FRAME_DETECT_SCRIPT)).catch(() => null);
       if (info) { console.log(`[captcha] Detected: ${info.type} sitekey=${(info.sitekey || '').slice(0, 20)} frame=${f.url?.().slice(0, 80) ?? 'main'}`); return info; }
     }
-    await new Promise(r => setTimeout(r, 1000));
+    await humanIdlePause('short');
   }
   console.log('[captcha] No captcha iframe detected after 15s');
   return null;
@@ -136,6 +137,6 @@ async function solveFuncaptchaOnPage(page: Page, publicKey: string, blob?: strin
   if (!token) { console.log('[captcha] FunCaptcha solve failed'); return false; }
   console.log(`[captcha] FunCaptcha solved, injecting token`);
   await page.evaluate(`window.postMessage({eventId:"challenge-complete",payload:{sessionToken:${JSON.stringify(token)}}},"*")`).catch(() => {});
-  await new Promise(r => setTimeout(r, 3000));
+  await humanIdlePause('deliberate');
   return true;
 }

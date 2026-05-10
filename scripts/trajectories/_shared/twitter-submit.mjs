@@ -1,5 +1,5 @@
 import { humanType } from '../../../dist/human/keyboard.js';
-import { humanClickLocator } from '../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../dist/human/mouse.js';
 
 // Click the first tweet's Reply button → fill composer → submit. Each step is
 // a single deterministic Playwright locator path with state-flip verification.
@@ -27,7 +27,7 @@ export async function twitterSubmitReply(s, text) {
 // Click the compose-tweet button → fill text → click Post.
 export async function twitterSubmitPost(s, text) {
   await s.page.goto('https://x.com/home', { waitUntil: 'domcontentloaded' });
-  await s.page.waitForTimeout(3000);
+  await humanIdlePause('deliberate');
   const composeBtn = s.page.locator('a[data-testid="SideNav_NewTweet_Button"], a[href="/compose/post"], a[href="/compose/tweet"]').filter({ visible: true }).first();
   await composeBtn.waitFor({ state: 'visible', timeout: 15000 });
   await humanClickLocator(s.page, composeBtn);

@@ -1,7 +1,7 @@
 import { getSocialAccount, resolveAccountSession, markCookiesStale } from '../../../dist/utils/credentials.js';
 import { WSession } from '../../../dist/session/wsession.js';
 import { humanType } from '../../../dist/human/keyboard.js';
-import { humanClickLocator } from '../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../dist/human/mouse.js';
 import { assertAuthed, AuthProbeError } from '../_shared/auth-probe.mjs';
 import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../_shared/cookie-freshness.mjs';
 
@@ -32,7 +32,7 @@ try {
   await s.ctx.addCookies(stored.map(c => ({ ...c, path: c.path || '/' })));
 
   await s.page.goto('https://discord.com/channels/@me', { waitUntil: 'domcontentloaded' });
-  await s.page.waitForTimeout(6000);
+  await humanIdlePause('long');
   if (/\/login/.test(s.page.url())) {
     console.log(`FAIL: cookies stale, redirected to login (${s.page.url()})`);
     await markCookiesStale(acct.id);
@@ -45,7 +45,7 @@ try {
   // DM. Searches DMs + friends + guilds.
   const isMac = process.platform === 'darwin';
   await s.page.keyboard.press(isMac ? 'Meta+K' : 'Control+K');
-  await s.page.waitForTimeout(800);
+  await humanIdlePause('short');
 
   // If quick-switcher didn't open, click the "Find or start a conversation"
   // pill above the DM list as the alternate entry point.
@@ -55,21 +55,21 @@ try {
     const findPill = s.page.locator('button:has-text("Find or start a conversation"), [role="button"]:has-text("Find or start a conversation")').filter({ visible: true }).first();
     await findPill.waitFor({ state: 'visible' });
     await humanClickLocator(s.page, findPill);
-    await s.page.waitForTimeout(800);
+    await humanIdlePause('short');
   }
   const queryIn = s.page.locator(switcherSel).filter({ visible: true }).first();
   await queryIn.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, queryIn);
   await humanType(s.page, RECIPIENT);
-  await s.page.waitForTimeout(2200);
+  await humanIdlePause('deliberate');
 
   const userRow = s.page.locator(`[role="listbox"] [role="option"]:has-text("${RECIPIENT}")`).filter({ visible: true }).first();
   await userRow.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, userRow);
-  await s.page.waitForTimeout(2500);
+  await humanIdlePause('deliberate');
 
   // Composer: contenteditable slate editor.
-  await s.page.waitForTimeout(1500);
+  await humanIdlePause('short');
   const composerSel = 'div[role="textbox"][contenteditable="true"], div[data-slate-editor="true"], div[aria-label^="Message @"]';
   const composerCount = await s.page.locator(composerSel).filter({ visible: true }).count().catch(() => 0);
   if (!composerCount) {
@@ -80,9 +80,9 @@ try {
   const composer = s.page.locator(composerSel).filter({ visible: true }).first();
   await humanClickLocator(s.page, composer);
   await humanType(s.page, MESSAGE);
-  await s.page.waitForTimeout(600);
+  await humanIdlePause('short');
   await s.page.keyboard.press('Enter');
-  await s.page.waitForTimeout(3000);
+  await humanIdlePause('deliberate');
 
   const echoCount = await s.page.locator(`[role="article"]:has-text("${MESSAGE.slice(0, 60)}"), li[id^="chat-messages-"]:has-text("${MESSAGE.slice(0, 60)}")`).filter({ visible: true }).count().catch(() => 0);
   if (!echoCount) { console.log('FAIL: composer typed but message not echoed in chat'); process.exit(1); }

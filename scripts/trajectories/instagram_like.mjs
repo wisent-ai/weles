@@ -1,6 +1,6 @@
 import { getSocialAccount, resolveAccountSession, markCookiesStale } from '../../dist/utils/credentials.js';
 import { WSession } from '../../dist/session/wsession.js';
-import { humanClickLocator } from '../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../dist/human/mouse.js';
 import { assertAuthed, AuthProbeError } from './_shared/auth-probe.mjs';
 import { loadFreshCookieJarOrFail, CookieJarStaleError } from './_shared/cookie-freshness.mjs';
 
@@ -27,7 +27,7 @@ try {
   await s.ctx.addCookies(stored.map(c => ({ ...c, path: c.path || '/' })));
 
   await s.page.goto(TARGET_URL, { waitUntil: 'domcontentloaded' });
-  await s.page.waitForTimeout(5000);
+  await humanIdlePause('long');
   const url = s.page.url();
   if (/\/accounts\/login/.test(url)) { console.log(`FAIL: cookies stale, redirected to login (${url})`); await markCookiesStale(acct.id); process.exit(1); }
   // Positive auth probe — see _shared/auth-probe.mjs.
@@ -38,7 +38,7 @@ try {
   const firstPost = s.page.locator('a[href*="/p/"]').filter({ visible: true }).first();
   await firstPost.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, firstPost);
-  await s.page.waitForTimeout(4000);
+  await humanIdlePause('deliberate');
 
   // The like button on a post is <svg aria-label="Like"> wrapped in a clickable
   // div role=button. After click aria-label becomes "Unlike". Filter to the
@@ -49,7 +49,7 @@ try {
   if (alreadyLiked > 0) { console.log('PASS: already liked first post'); process.exit(0); }
   await likeBtn.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, likeBtn);
-  await s.page.waitForTimeout(2500);
+  await humanIdlePause('deliberate');
   const after = await s.page.locator('svg[aria-label="Unlike"]').filter({ visible: true }).count().catch(() => 0);
   if (after === 0) { console.log('FAIL: clicked Like but no transition to Unlike state'); process.exit(1); }
   console.log('PASS: liked first post on explore');

@@ -6,7 +6,7 @@
 import { getSocialAccount, resolveAccountSession, markCookiesStale } from '../../../../dist/utils/credentials.js';
 import { WSession } from '../../../../dist/session/wsession.js';
 import { humanType } from '../../../../dist/human/keyboard.js';
-import { humanClickLocator } from '../../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
 import { assertAuthed, AuthProbeError } from '../../_shared/auth-probe.mjs';
 import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../../_shared/cookie-freshness.mjs';
 import { loadAvatarFile } from '../../_shared/runner/avatar-loader.mjs';
@@ -49,7 +49,7 @@ try {
   // Land on home first so assertAuthed has a known authed surface, then
   // navigate to the profile and click "Edit profile".
   await s.page.goto('https://x.com/home', { waitUntil: 'domcontentloaded' });
-  await s.page.waitForTimeout(4000);
+  await humanIdlePause('deliberate');
   if (/\/(i\/flow\/login|login)/.test(s.page.url())) {
     console.log(`FAIL: cookies stale, redirected to login (${s.page.url()})`);
     await markCookiesStale(acct.id);
@@ -59,7 +59,7 @@ try {
   catch (probeErr) { if (probeErr instanceof AuthProbeError) { console.log(`FAIL: ${probeErr.message}`); await markCookiesStale(acct.id); process.exit(1); } throw probeErr; }
 
   await s.page.goto(`https://x.com/${encodeURIComponent(acct.username)}`, { waitUntil: 'domcontentloaded' });
-  await s.page.waitForTimeout(3500);
+  await humanIdlePause('deliberate');
 
   // Twitter exposes one of two affordances on the user's own profile:
   //   * "Edit profile" → opens an inline modal (existing populated profile)
@@ -71,7 +71,7 @@ try {
   const editBtn = s.page.locator('a[data-testid="edit_profile"], a[href="/settings/profile"], button[data-testid="editProfileButton"], a[data-testid="editProfileButton"], [data-testid="editProfileButton"], div[role="button"]:has-text("Edit profile")').filter({ visible: true }).first();
   await editBtn.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, editBtn);
-  await s.page.waitForTimeout(4500);
+  await humanIdlePause('deliberate');
 
   // The Edit-profile modal exposes:
   //   Name → input[name="displayName"]
@@ -125,7 +125,7 @@ try {
             await applyBtn.waitFor({ state: 'visible' });
             await applyBtn.click();
             writes.push('avatar uploaded');
-            await s.page.waitForTimeout(2500);
+            await humanIdlePause('deliberate');
           } catch { console.log('[tw-profile] avatar apply btn never appeared'); }
         } else { console.log('[tw-profile] fileInput not in DOM — twitter UI variant'); }
       } catch (e) { console.log(`[tw-profile] avatar err: ${e.message?.slice(0, 120)}`); }
@@ -139,7 +139,7 @@ try {
   const saveBtn = s.page.locator('button[data-testid="Profile_Save_Button"], button[data-testid="ocfSelectAvatarNextButton"], button[data-testid="OCF_CallToAction_Button"], div[role="button"]:has-text("Save"), button:has-text("Save"), button:has-text("Done")').filter({ visible: true }).first();
   await saveBtn.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, saveBtn);
-  await s.page.waitForTimeout(5000);
+  await humanIdlePause('long');
   console.log(`PASS: ${acct.username} profile updated to ${character.name}`);
 } catch (e) {
   console.log('FAIL:', e.message?.slice(0, 200));

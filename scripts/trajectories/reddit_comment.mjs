@@ -88,7 +88,7 @@ try {
   // which uses the same fetch path as the comment submission. Skip the
   // early bail; rely on the post-submit visibility loop instead.
   await s.page.goto('https://old.reddit.com/api/me.json', { waitUntil: 'domcontentloaded' });
-  await s.page.waitForTimeout(2000);
+  await humanIdlePause('deliberate');
   const realHandle = await s.page.evaluate(() => { try { return JSON.parse(document.body?.innerText ?? '{}')?.data?.name ?? null; } catch { return null; } });
   if (realHandle) console.log(`[trajectory] real handle: ${realHandle}`);
 
@@ -117,7 +117,7 @@ try {
   }
 
   await s.page.goto(resolvedOldUrl, { waitUntil: 'domcontentloaded' });
-  await s.page.waitForTimeout(3000);
+  await humanIdlePause('deliberate');
   const url = s.page.url();
   if (/\/login/.test(url)) { console.log(`FAIL: cookies stale, redirected to login (${url})`); process.exit(1); }
 
@@ -168,7 +168,7 @@ try {
   let postedLocally = false;
   let postedCommentId = null;
   for (let i = 0; i < 12; i++) {
-    await s.page.waitForTimeout(1000);
+    await humanIdlePause('short');
     const found = await s.page.evaluate((body) => {
       const text = document.body?.innerText ?? '';
       if (!text.includes(body)) return null;
@@ -248,7 +248,7 @@ try {
   // the DOM (Reddit may not yet have rendered the new comment when we polled).
   const baseUrl = oldUrl.replace(/\/$/, '');
   for (let attempt = 0; attempt < 12; attempt++) {
-    await s.page.waitForTimeout(5000);
+    await humanIdlePause('long');
     try {
       let has = false;
       const ctxFetch = async (url) => {

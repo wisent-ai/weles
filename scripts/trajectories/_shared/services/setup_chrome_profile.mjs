@@ -3,6 +3,7 @@
 // After this completes, every service-balance trajectory that uses
 // launchRealChrome will inherit the Google session.
 import { launchRealChrome } from './real_chrome.mjs';
+import { humanIdlePause } from '../../../../dist/human/mouse.js';
 
 console.log('[setup] Opening Chrome. Sign in to Google with lukasz.bartoszcze@gmail.com.');
 console.log('[setup] You may be prompted for 2FA / passkey / phone tap — complete it normally.');
@@ -18,7 +19,7 @@ try {
       console.log(`PASS: signed in (${s.page.url()}). Profile cookies persisted. Re-run service balance trajectories now.`);
       process.exit(0);
     }
-    await s.page.waitForTimeout(1500);
+    await humanIdlePause('short');
   }
   console.log('FAIL: 10-minute deadline reached without landing on myaccount/mail.google.com.');
   process.exit(1);

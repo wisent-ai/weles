@@ -28,7 +28,7 @@ try {
   await s.ctx.addCookies(stored.map(c => ({ ...c, path: c.path || '/' })));
 
   await s.page.goto(URL, { waitUntil: 'domcontentloaded' });
-  await s.page.waitForTimeout(6000);
+  await humanIdlePause('long');
   const url = s.page.url();
   if (/\/login/.test(url)) { console.log(`FAIL: cookies stale, redirected to login (${url})`); await markCookiesStale(acct.id); process.exit(1); }
 
@@ -72,7 +72,7 @@ try {
   // state flip rather than a single check at 1s.
   let flipped = false;
   for (let i = 0; i < 30; i++) {
-    await s.page.waitForTimeout(500);
+    await humanIdlePause('short');
     const after = await s.page.locator('button[data-e2e="follow-icon"], button:has-text("Following")').filter({ visible: true }).count().catch(() => 0);
     if (after > 0) { flipped = true; break; }
   }

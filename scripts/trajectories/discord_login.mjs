@@ -121,7 +121,7 @@ try {
         if (cr.errorId) { console.log(`[login] ${svc.name} error: ${cr.errorCode}`); break; }
         console.log(`[login] ${svc.name} attempt ${attempt + 1} solving...`);
         let token = null;
-        for (let i = 0; i < 60; i++) { await new Promise(r => setTimeout(r, 5000)); const res = await (await fetch(svc.url + '/getTaskResult', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clientKey: apiKey, taskId: cr.taskId }) })).json(); if (res.status === 'ready') { token = res.solution?.gRecaptchaResponse ?? res.solution?.token; break; } if (res.errorId) break; }
+        for (let i = 0; i < 60; i++) { await new Promise(r => setTimeout(r, 5000)); const res = await (await fetch(svc.url + '/getTaskResult', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clientKey: apiKey, taskId: cr.taskId }) })).json(); if (res.status === 'ready') { token = res.solution?.gRecaptchaResponse ?? res.solution?.token; break; } if (res.errorId) break; }  // allow-raw-playwright: polling/rate-limit loop
         if (!token) { console.log(`[login] ${svc.name} solve failed`); break; }
         formData.captcha_key = token;
         if (currentRqtoken) formData.captcha_rqtoken = currentRqtoken;
@@ -161,7 +161,7 @@ try {
           const loginAttemptTs = Date.now() - 30000; // 30s buffer
           let verifyDone = false;
           for (let poll = 0; poll < 15 && !verifyDone; poll++) {
-            await new Promise(r => setTimeout(r, 5000));
+            await new Promise(r => setTimeout(r, 5000));  // allow-raw-playwright: polling/rate-limit loop
             const emails2 = await (await fetch('https://api.resend.com/emails/receiving?limit=10', { headers: { Authorization: `Bearer ${resendKey}` } })).json();
             for (const em of emails2.data || []) {
               const to = (em.to || []).map(t => typeof t === 'string' ? t : t.email).join(',');
@@ -191,7 +191,7 @@ try {
                 });
                 await newPage.goto(authorizeLink, { waitUntil: 'domcontentloaded' }).catch(() => {});
                 // Wait for the SPA to mount and call the authorize-ip API
-                for (let w = 0; w < 30 && !apiCalled; w++) { await new Promise(r => setTimeout(r, 1000)); }
+                for (let w = 0; w < 30 && !apiCalled; w++) { await new Promise(r => setTimeout(r, 1000)); }  // allow-raw-playwright: polling/rate-limit loop
                 const verifyUrl = newPage.url();
                 console.log(`[login] Authorize tab: ${verifyUrl?.slice(0, 80)} apiCalled=${apiCalled}`);
                 await newPage.close().catch(() => {});

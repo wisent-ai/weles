@@ -6,6 +6,7 @@ import { WSession } from '../../../dist/session/wsession.js';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, dirname } from 'node:path';
+import { humanIdlePause } from '../../../dist/human/mouse.js';
 
 const OUT = join(homedir(), '.weles', 'google_approver_cookies.json');
 mkdirSync(dirname(OUT), { recursive: true });
@@ -25,7 +26,7 @@ const isLoggedIn = (u) => {
 const deadline = Date.now() + 10 * 60_000;
 while (Date.now() < deadline) {
   if (isLoggedIn(page.url())) break;
-  await new Promise(r => setTimeout(r, 1500));
+  await humanIdlePause('short');
 }
 
 const url = page.url();

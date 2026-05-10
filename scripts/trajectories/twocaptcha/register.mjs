@@ -2,6 +2,7 @@
 // Google button by using the native registration flow instead.
 import { randomBytes } from 'node:crypto';
 import { WSession } from '../../../dist/session/wsession.js';
+import { humanIdlePause } from '../../../dist/human/mouse.js';
 
 const REGISTER_URL = 'https://2captcha.com/auth/register';
 const RECAPTCHA_SITEKEY = '6Lfo9qojAAAAAPqqMn9QlAY2RBSVuEW63vDJ442M';
@@ -24,7 +25,7 @@ async function solveInvisibleRecaptcha() {
   const create = await fetch('https://api.capsolver.com/createTask', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clientKey: key, task: { type: 'ReCaptchaV2TaskProxyLess', websiteURL: REGISTER_URL, websiteKey: RECAPTCHA_SITEKEY, isInvisible: true } }) }).then(r => r.json()).catch(() => null);
   if (!create?.taskId) return null;
   for (let i = 0; i < 60; i++) {
-    await new Promise(r => setTimeout(r, 3000));
+    await new Promise(r => setTimeout(r, 3000));  // allow-raw-playwright: polling/rate-limit loop
     const res = await fetch('https://api.capsolver.com/getTaskResult', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clientKey: key, taskId: create.taskId }) }).then(r => r.json()).catch(() => null);
     if (res?.status === 'ready') return res.solution?.gRecaptchaResponse;
     if (res?.errorId) return null;
@@ -35,7 +36,7 @@ async function solveInvisibleRecaptcha() {
 const s = await WSession.start({ label: 'twocaptcha_register', browser: 'chromium' });
 try {
   await s.goto(REGISTER_URL);
-  await s.page.waitForTimeout(5000);
+  await humanIdlePause('long');
 
   await s.page.locator('input[name="email"]').fill(EMAIL);
   await s.page.locator('input[name="password"]').fill(password);
@@ -50,7 +51,7 @@ try {
   console.log('[trajectory] reCAPTCHA token injected');
 
   await s.page.locator('button:has-text("Create account")').click();
-  await s.page.waitForTimeout(8000);
+  await humanIdlePause('long');
   console.log(`[trajectory] post-register url=${s.page.url()}`);
 
   if (/\/register/.test(s.page.url())) {

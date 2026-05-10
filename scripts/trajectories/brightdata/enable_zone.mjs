@@ -5,6 +5,7 @@
 import { getServiceLogin } from '../../../dist/utils/credentials.js';
 import { WSession } from '../../../dist/session/wsession.js';
 import { googleSso } from '../_shared/services/google_sso.mjs';
+import { humanIdlePause } from '../../../dist/human/mouse.js';
 
 const ZONE = process.env.BRIGHTDATA_ZONE || 'residential_proxy1';
 
@@ -14,20 +15,20 @@ if (!login) { console.log('FAIL: no Bright Data creds'); process.exit(1); }
 const s = await WSession.start({ label: 'brightdata_enable_zone', browser: 'chromium' });
 try {
   await s.goto('https://brightdata.com/cp/login');
-  await s.page.waitForTimeout(2500);
+  await humanIdlePause('deliberate');
   await s.page.locator('button:has-text("Log in with Google")').filter({ visible: true }).first().click();
   const ok = await googleSso(s, login, { originHost: 'brightdata.com' });
   if (!ok) { console.log('FAIL: Google SSO did not complete'); process.exit(1); }
-  await s.page.waitForTimeout(3000);
+  await humanIdlePause('deliberate');
 
   // Skip onboarding modal.
   for (const sel of ['button:has-text("Skip")', '[aria-label="Close"]']) {
     const btn = s.page.locator(sel).filter({ visible: true }).first();
-    if (await btn.isVisible().catch(() => false)) { await btn.click({ force: true }).catch(() => {}); await s.page.waitForTimeout(500); }
+    if (await btn.isVisible().catch(() => false)) { await btn.click({ force: true }).catch(() => {}); await humanIdlePause('short'); }
   }
 
   await s.page.goto(`https://brightdata.com/cp/zones/${ZONE}/access_params`, { waitUntil: 'domcontentloaded' });
-  await s.page.waitForTimeout(8000);
+  await humanIdlePause('long');
 
   // Aggressively dismiss the "What is your role?" onboarding modal that
   // re-appears after navigation. The dialog blocks all clicks until skipped.
@@ -44,7 +45,7 @@ try {
       const btn = s.page.locator(sel).filter({ visible: true }).first();
       if (await btn.isVisible().catch(() => false)) {
         await btn.click({ force: true }).catch(() => {});
-        await s.page.waitForTimeout(800);
+        await humanIdlePause('short');
         dismissed = true;
         console.log(`[trajectory] modal dismissed via ${sel} (attempt ${attempt})`);
         break;
@@ -52,7 +53,7 @@ try {
     }
     // Also try Esc.
     await s.page.keyboard.press('Escape').catch(() => {});
-    await s.page.waitForTimeout(400);
+    await humanIdlePause('short');
     if (!dismissed) break;
   }
 
@@ -95,7 +96,7 @@ try {
   });
   console.log(`[trajectory] clicked header checkbox wrapper at y=${bestY}`);
 
-  await s.page.waitForTimeout(3000);
+  await humanIdlePause('deliberate');
 
   // Confirm if a dialog asks.
   for (const sel of ['button:has-text("Activate")', 'button:has-text("Enable")', 'button:has-text("Confirm")', 'button:has-text("Yes")']) {
@@ -103,7 +104,7 @@ try {
     if (await btn.isVisible().catch(() => false)) {
       await btn.click({ force: true }).catch(() => {});
       console.log(`[trajectory] confirmed: ${sel}`);
-      await s.page.waitForTimeout(3000);
+      await humanIdlePause('deliberate');
       break;
     }
   }

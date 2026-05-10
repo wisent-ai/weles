@@ -6,6 +6,7 @@
  */
 
 import { askPage, findClickTarget, type ScreenshottablePage } from '../vision/analyze.js';
+import { humanType } from '../human/mouse.js';
 
 const NONE_MARKERS = ['none', 'null', 'n/a', 'not visible', 'no balance', 'not found'];
 
@@ -60,6 +61,6 @@ export async function fill(page: any, targetDescription: string, value: string):
   const target = await findClickTarget(page as ScreenshottablePage, targetDescription);
   if (!target) return false;
   await page.mouse.click(target.x, target.y);
-  await page.keyboard.type(value);
+  await humanType(page, value);
   return true;
 }

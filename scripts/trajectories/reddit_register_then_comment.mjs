@@ -128,7 +128,7 @@ try {
   await humanClickLocator(s.page, s.page.getByRole('button', { name: /sign up|continue|create/i }).filter({ visible: true }).first());
   console.log('[register] submitted username + password');
   for (let i = 0; i < 20; i++) {
-    await s.page.waitForTimeout(1500);
+    await humanIdlePause('short');
     const u = s.page.url();
     if (!/\/register/.test(u)) break;
   }
@@ -136,7 +136,7 @@ try {
   const result = await s.saveAccount('reddit', { username: id.username, email: id.email, password: id.password, name: id.name });
   console.log(`[register] saveAccount: ${result}`);
   await humanIdlePause('deliberate');
-  await s.page.waitForTimeout(3000 + Math.floor(Math.random() * 4000));
+  await humanIdlePause();
   console.log('[browse] organic session before comment');
   const listingSort = 'new';
   const feedUrl = SUBREDDIT === 'popular' || SUBREDDIT === 'all'
@@ -144,14 +144,14 @@ try {
     : `https://www.reddit.com/r/${SUBREDDIT}/`;
   await s.page.goto(feedUrl, { waitUntil: 'domcontentloaded' });
   await humanIdlePause('deliberate');
-  await s.page.waitForTimeout(15000 + Math.floor(Math.random() * 10000));
+  await humanIdlePause();
   await humanScroll(s.page, 1200 + Math.floor(Math.random() * 800), 3 + Math.floor(Math.random() * 3));
   await humanIdlePause('deliberate');
   await humanHoverDwell(
     s.page,
     s.page.locator('a[href^="/user/"], a[href*="/user/"]').filter({ visible: true }).first(),
   ).catch(() => false);
-  await s.page.waitForTimeout(8000 + Math.floor(Math.random() * 6000));
+  await humanIdlePause();
   await humanScroll(s.page, 1000 + Math.floor(Math.random() * 600), 2 + Math.floor(Math.random() * 2));
   await humanIdlePause('deliberate');
   const feedUserLinks = await s.page.locator('a[href^="/user/"], a[href*="/user/"]').filter({ visible: true }).all().catch(() => []);
@@ -234,7 +234,7 @@ try {
     const oldRedditUrl = postUrlWww.replace(/^https?:\/\/(www\.|new\.)?reddit\.com/, 'https://old.reddit.com');
     await s.page.goto(oldRedditUrl, { waitUntil: 'domcontentloaded' });
     await humanIdlePause('deliberate');
-    await s.page.waitForTimeout(2000 + Math.floor(Math.random() * 1500));
+    await humanIdlePause();
     const postUrl = s.page.url();
     console.log(`[comment] post-page url=${postUrl}`);
     if (/\/login/.test(postUrl)) throw new Error(`comment phase: redirected to login (cookies invalid)`);
@@ -264,7 +264,7 @@ try {
   }
   let postedLocally = false;
   for (let i = 0; i < 12; i++) {
-    await s.page.waitForTimeout(1500);
+    await humanIdlePause('short');
     const txt = await s.page.evaluate(() => document.body?.innerText ?? '').catch(() => '');
     if (txt.includes(COMMENT_BODY)) { postedLocally = true; break; }
   }

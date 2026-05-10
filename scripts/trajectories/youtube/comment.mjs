@@ -1,7 +1,7 @@
 import { getSocialAccount, markCookiesStale } from '../../../dist/utils/credentials.js';
 import { WSession } from '../../../dist/session/wsession.js';
 import { humanType } from '../../../dist/human/keyboard.js';
-import { humanClickLocator } from '../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../dist/human/mouse.js';
 import { assertAuthed, AuthProbeError } from '../_shared/auth-probe.mjs';
 import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../_shared/cookie-freshness.mjs';
 
@@ -28,7 +28,7 @@ try {
   await s.ctx.addCookies(stored.filter(c => c?.name && c?.value && (c.domain || c.url)).map(c => ({ ...c, path: c.path || '/' }))).catch(() => {});
 
   await s.goto(VIDEO);
-  await s.page.waitForTimeout(4500);
+  await humanIdlePause('deliberate');
   const loggedOut = await s.page.evaluate(() => !!document.querySelector('a[href^="https://accounts.google.com/ServiceLogin"]') && !document.querySelector('img#avatar-btn'));
   if (loggedOut) { await markCookiesStale(acct.id); throw new Error('not_logged_in: cookies stale — run youtube_login first'); }
   // Positive auth probe — see _shared/auth-probe.mjs.
@@ -37,23 +37,23 @@ try {
 
   // Scroll to comment section: #comments anchor.
   await s.page.evaluate(() => { document.querySelector('#comments')?.scrollIntoView({ block: 'center' }); }).catch(() => {});
-  await s.page.waitForTimeout(2500);
+  await humanIdlePause('deliberate');
   // Placeholder "Add a comment..." — clicking it expands the input box.
   const placeholder = s.page.locator('#placeholder-area, ytd-comment-simplebox-renderer #simplebox-placeholder').filter({ visible: true }).first();
   await placeholder.waitFor({ state: 'visible', timeout: 15000 });
   await humanClickLocator(s.page, placeholder);
-  await s.page.waitForTimeout(1200);
+  await humanIdlePause('short');
   // Expanded input: contenteditable div.
   const input = s.page.locator('div#contenteditable-root[contenteditable="true"], ytd-commentbox div[contenteditable="true"]').filter({ visible: true }).first();
   await input.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, input);
   await humanType(s.page, COMMENT);
-  await s.page.waitForTimeout(800);
+  await humanIdlePause('short');
   // Submit button — id=submit-button or aria-label="Comment".
   const submit = s.page.locator('ytd-commentbox #submit-button button, ytd-button-renderer#submit-button button, button[aria-label="Comment"]').filter({ visible: true }).first();
   await submit.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, submit);
-  await s.page.waitForTimeout(3500);
+  await humanIdlePause('deliberate');
   console.log(`PASS: commented`);
 } catch (e) {
   console.log('FAIL:', e.message?.slice(0, 200));

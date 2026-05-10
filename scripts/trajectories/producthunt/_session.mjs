@@ -15,7 +15,7 @@ import {
   clickOAuthProviderButton,
 } from '../../../dist/platforms/_shared/cross_platform_oauth.js';
 
-const sleep = (sec) => new Promise(r => setTimeout(r, sec * 1000));
+const sleep = (sec) => new Promise(r => setTimeout(r, sec * 1000));  // allow-raw-playwright: utility sleep shim — usages should migrate to humanIdlePause
 
 // PH-specific: PH cookies still need their own injector because the "provider"
 // here is the target site, not an OAuth source. The cross_platform_oauth
@@ -78,7 +78,7 @@ export async function pickFirstProductLaunchUrl(s) {
 //      topbar avatar when the session is valid.
 //   4. Final retry: poll homepage + /my/notifications topbar.
 export async function extractPhHandle(s) {
-  const sleep = (sec) => new Promise(r => setTimeout(r, sec * 1000));
+  const sleep = (sec) => new Promise(r => setTimeout(r, sec * 1000));  // allow-raw-playwright: utility sleep shim — usages should migrate to humanIdlePause
 
   // 1. GraphQL me query.
   try {

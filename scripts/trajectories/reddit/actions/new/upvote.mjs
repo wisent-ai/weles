@@ -29,7 +29,7 @@ try {
   const url = baseUrl.replace(/^https?:\/\/(old|new)\.reddit\.com/, 'https://www.reddit.com');
   await s.goto(url);
   checkReachable(s, 'reddit');
-  await s.page.waitForTimeout(4000);
+  await humanIdlePause('deliberate');
   try { await assertAuthed('reddit', s, { label: 'reddit_upvote_new' }); }
   catch (probeErr) { if (probeErr instanceof AuthProbeError) { console.log(`FAIL: ${probeErr.message}`); await markCookiesStale(acct.id); process.exit(1); } throw probeErr; }
   // Pick the first post we have not already voted on. Iterate rendered

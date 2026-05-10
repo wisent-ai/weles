@@ -4,6 +4,8 @@
 import { getServiceLogin } from '../../../dist/utils/credentials.js';
 import { WSession } from '../../../dist/session/wsession.js';
 import { parseBalanceFromText, patchServiceBalance } from '../_shared/services/google_sso.mjs';
+import { humanIdlePause } from '../../../dist/human/mouse.js';
+import { humanType } from '../../../dist/human/keyboard.js';
 
 const LOGIN_URL = 'https://2captcha.com/auth/login';
 const DISPLAY_NAME = '2Captcha';
@@ -18,7 +20,7 @@ console.log(`[trajectory] Using 2Captcha login: ${login.email}`);
 const s = await WSession.start({ label: 'twocaptcha_balance', browser: 'chromium' });
 try {
   await s.goto(LOGIN_URL);
-  await s.page.waitForTimeout(5000);
+  await humanIdlePause('long');
 
   await s.page.locator('input[name="email"]').fill(login.email);
   await s.page.locator('input[name="password"]').fill(login.password);
@@ -28,7 +30,7 @@ try {
   for (let i = 0; i < 60; i++) {
     const ready = await s.page.evaluate(() => typeof window.grecaptcha?.execute === 'function').catch(() => false);
     if (ready) break;
-    await s.page.waitForTimeout(500);
+    await humanIdlePause('short');
   }
   const tokenLen = await s.page.evaluate(() => new Promise((resolve) => {
     try {
@@ -45,10 +47,10 @@ try {
   console.log(`[trajectory] grecaptcha token length=${tokenLen}`);
 
   await s.page.locator('button:has-text("Continue")').click();
-  await s.page.waitForTimeout(8000);
+  await humanIdlePause('long');
 
   for (let i = 0; i < 30; i++) {
-    await s.page.waitForTimeout(1000);
+    await humanIdlePause('short');
     if (!/\/auth\/login/.test(s.page.url())) break;
   }
   console.log(`[trajectory] post-login url=${s.page.url()}`);
@@ -74,9 +76,9 @@ try {
     // receives exactly one digit and Vue's input handler advances focus.
     const otpFirst = s.page.locator('input[name="otp-1"]');
     await otpFirst.click();
-    await s.page.keyboard.type(code, { delay: 60 });
+    await humanType(s.page, code, { delay: 60 });
     for (let i = 0; i < 30; i++) {
-      await s.page.waitForTimeout(1000);
+      await humanIdlePause('short');
       if (!/\/confirm-email/.test(s.page.url())) break;
     }
     console.log(`[trajectory] post-confirm url=${s.page.url()}`);
@@ -87,11 +89,11 @@ try {
   if (/\/select-role/.test(s.page.url())) {
     console.log('[trajectory] selecting customer role (2nd Next button)');
     await s.page.locator('button:has-text("Next")').nth(1).click({ force: true }).catch(() => {});
-    await s.page.waitForTimeout(8000);
+    await humanIdlePause('long');
     console.log(`[trajectory] post-role url=${s.page.url()}`);
   }
 
-  await s.page.waitForTimeout(5000);
+  await humanIdlePause('long');
   const text = await s.page.evaluate(() => document.body.innerText);
   console.log(`[trajectory] dashboard text length=${text.length}`);
   const balance = parseBalanceFromText(text);

@@ -1,6 +1,6 @@
 import { getSocialAccount, resolveAccountSession } from '../../../../dist/utils/credentials.js';
 import { WSession } from '../../../../dist/session/wsession.js';
-import { humanClickLocator } from '../../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
 import { detectTikTokBanSignals } from '../../../../dist/platforms/tiktok/ban_signals.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -37,7 +37,7 @@ try {
   else url = 'https://www.tiktok.com/foryou';
   await s.goto(url);
   checkReachable(s, 'tiktok');
-  await s.page.waitForTimeout(4000);
+  await humanIdlePause('deliberate');
   try { await assertAuthed('tiktok', s, { label: 'tiktok_like' }); }
   catch (probeErr) { if (probeErr instanceof AuthProbeError) { console.log(`FAIL: ${probeErr.message}`); await markCookiesStale(acct.id); process.exit(1); } throw probeErr; }
   // If we landed on a profile / hashtag grid, navigate into the first video.

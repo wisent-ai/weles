@@ -11,7 +11,7 @@
 import { getSocialAccount, resolveAccountSession, markCookiesStale } from '../../../../dist/utils/credentials.js';
 import { WSession } from '../../../../dist/session/wsession.js';
 import { humanType } from '../../../../dist/human/keyboard.js';
-import { humanClickLocator } from '../../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
 import { assertAuthed, AuthProbeError } from '../../_shared/auth-probe.mjs';
 import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../../_shared/cookie-freshness.mjs';
 import { loadAvatarFile } from '../../_shared/runner/avatar-loader.mjs';
@@ -54,7 +54,7 @@ try {
   await s.ctx.addCookies(stored.map(c => ({ ...c, path: c.path || '/' })));
 
   await s.page.goto('https://www.instagram.com/accounts/edit/', { waitUntil: 'domcontentloaded' });
-  await s.page.waitForTimeout(5000);
+  await humanIdlePause('long');
   if (/\/accounts\/login/.test(s.page.url())) {
     console.log(`FAIL: cookies stale, redirected to login (${s.page.url()})`);
     await markCookiesStale(acct.id);
@@ -107,20 +107,20 @@ try {
         const changeBtn = s.page.locator('button:has-text("Change profile photo"), div[role="button"]:has-text("Change profile photo")').filter({ visible: true }).first();
         if (await changeBtn.isVisible().catch(() => false)) {
           await humanClickLocator(s.page, changeBtn);
-          await s.page.waitForTimeout(2500);
+          await humanIdlePause('deliberate');
           const upload = s.page.locator('button:has-text("Upload Photo"), button:has-text("Upload photo")').filter({ visible: true }).first();
           if (await upload.isVisible().catch(() => false)) {
             const fileChooserPromise = s.page.waitForEvent('filechooser');
             await upload.click();
             const fc = await fileChooserPromise;
             await fc.setFiles(tmpAvatar);
-            await s.page.waitForTimeout(4000);
+            await humanIdlePause('deliberate');
             writes.push('avatar uploaded');
           } else {
             const fileIn = s.page.locator('input[type="file"][accept*="image"]').first();
             if (await fileIn.count()) {
               await fileIn.setInputFiles(tmpAvatar);
-              await s.page.waitForTimeout(4000);
+              await humanIdlePause('deliberate');
               writes.push('avatar uploaded');
             } else { console.log('[ig-profile] no upload affordance after Change clicked'); }
           }
@@ -145,7 +145,7 @@ try {
   const submitBtn = s.page.locator('div[role="button"]:has-text("Submit"), button[type="submit"]:has-text("Submit")').filter({ visible: true }).first();
   await submitBtn.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, submitBtn);
-  await s.page.waitForTimeout(4000);
+  await humanIdlePause('deliberate');
 
   // Verify the changes stuck by re-reading the form fields.
   const verifiedName = await nameIn.inputValue().catch(() => '');

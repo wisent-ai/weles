@@ -19,6 +19,7 @@ import { chromium } from 'playwright';
 import { mkdirSync, existsSync, writeFileSync, readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { humanIdlePause } from '../../dist/human/mouse.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const WELES_ROOT = join(__dirname, '..', '..');
@@ -131,7 +132,7 @@ if (process.env.DRIVE_LINKEDIN_EDIT_INTRO === '1' && PLATFORM === 'linkedin') {
   // signatures than weles humanFill / humanClickLocator.
   const { humanType, humanFill } = await import(`${WELES_ROOT}/dist/human/keyboard.js`);
   const { humanClickLocator, humanIdlePause } = await import(`${WELES_ROOT}/dist/human/mouse.js`);
-  await page.waitForTimeout(4000);
+  await humanIdlePause('deliberate');
   try {
     const fnIn = page.getByLabel('First name', { exact: false }).filter({ visible: true }).first();
     const lnIn = page.getByLabel('Last name', { exact: false }).filter({ visible: true }).first();
@@ -155,7 +156,7 @@ if (process.env.DRIVE_LINKEDIN_EDIT_INTRO === '1' && PLATFORM === 'linkedin') {
     // RSC hydration of the form's onClick can take 4-6s after navigate.
     // Save button being VISIBLE doesn't mean its handler is attached.
     console.log('[inst-chrome] waiting 6s for hydration');
-    await page.waitForTimeout(6000);
+    await humanIdlePause('long');
     // Check if there's a button with explicit form-action attribute
     // or a hidden submit input that the visible Save proxies to.
     const saveDiag = await page.evaluate(() => {
@@ -192,7 +193,7 @@ if (process.env.DRIVE_LINKEDIN_EDIT_INTRO === '1' && PLATFORM === 'linkedin') {
       // check; navigating restores the form to current persisted values.
       console.log(`[inst-chrome:${label}] re-opening modal`);
       await page.goto(TARGET_URL, { waitUntil: 'domcontentloaded' }).catch(() => {});
-      await page.waitForTimeout(4000);
+      await humanIdlePause('deliberate');
       const fn = page.getByLabel('First name', { exact: false }).filter({ visible: true }).first();
       const ln = page.getByLabel('Last name', { exact: false }).filter({ visible: true }).first();
       if (await fn.count()) { await humanClickLocator(page, fn); await fn.click({ clickCount: 3 }); await page.keyboard.press('Backspace'); await humanType(page, process.env.DRIVE_FIRST_NAME || 'Anya'); }
@@ -204,14 +205,14 @@ if (process.env.DRIVE_LINKEDIN_EDIT_INTRO === '1' && PLATFORM === 'linkedin') {
     if (!mutationFired) {
       const w = watchMutation('strat1-humanClick');
       const sb = page.locator(saveBtnSel).filter({ visible: true }).last();
-      if (await sb.count()) { await humanClickLocator(page, sb); await Promise.race([w, page.waitForTimeout(6000)]); }
+      if (await sb.count()) { await humanClickLocator(page, sb); await Promise.race([w, page.waitForTimeout(6000)]); }  // allow-raw-playwright: Promise.race deadline
     }
     // Strategy 2: focus then Enter (form Enter-submit)
     if (!mutationFired) {
       await reInit('strat2-enter');
       const w = watchMutation('strat2-enter');
       await page.keyboard.press('Enter');
-      await Promise.race([w, page.waitForTimeout(5000)]);
+      await Promise.race([w, page.waitForTimeout(5000)]);  // allow-raw-playwright: Promise.race deadline
     }
     // Strategy 3: page.mouse coordinate click on Save button bbox (trusted)
     if (!mutationFired) {
@@ -220,7 +221,7 @@ if (process.env.DRIVE_LINKEDIN_EDIT_INTRO === '1' && PLATFORM === 'linkedin') {
       const sb = page.locator(saveBtnSel).filter({ visible: true }).last();
       const box = await sb.boundingBox().catch(() => null);
       if (box) { await page.mouse.click(box.x + box.width/2, box.y + box.height/2); }
-      await Promise.race([w, page.waitForTimeout(5000)]);
+      await Promise.race([w, page.waitForTimeout(5000)]);  // allow-raw-playwright: Promise.race deadline
     }
     // Strategy 4: dispatchEvent (synthetic - last resort)
     if (!mutationFired) {
@@ -228,14 +229,14 @@ if (process.env.DRIVE_LINKEDIN_EDIT_INTRO === '1' && PLATFORM === 'linkedin') {
       const w = watchMutation('strat4-dispatch');
       const sb = page.locator(saveBtnSel).filter({ visible: true }).last();
       if (await sb.count()) { await sb.dispatchEvent('click'); }
-      await Promise.race([w, page.waitForTimeout(5000)]);
+      await Promise.race([w, page.waitForTimeout(5000)]);  // allow-raw-playwright: Promise.race deadline
     }
     console.log(`[inst-chrome] mutation fired across all strategies: ${mutationFired}`);
     const final = page.url();
     console.log(`[inst-chrome] final url=${final}`);
   } catch (e) { console.log(`[inst-chrome] drive err: ${String(e).slice(0, 200)}`); }
   console.log('[inst-chrome] auto-drive complete; closing in 3s for capture');
-  await page.waitForTimeout(3000);
+  await humanIdlePause('deliberate');
   await browser.close().catch(() => {});
 } else {
   console.log(`[inst-chrome] window is yours — drive the flow, then Ctrl+C in terminal or close browser to finalize.`);

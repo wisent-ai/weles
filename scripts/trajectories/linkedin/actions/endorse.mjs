@@ -1,6 +1,6 @@
 import { getSocialAccount, resolveAccountSession, markCookiesStale } from '../../../../dist/utils/credentials.js';
 import { WSession } from '../../../../dist/session/wsession.js';
-import { humanClickLocator } from '../../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
 import { detectLinkedInBanSignals } from '../../../../dist/platforms/linkedin/ban_signals.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -28,7 +28,7 @@ try {
     try {
       await s.page.goto('https://www.linkedin.com/mynetwork/invite-connect/connections/', { waitUntil: 'domcontentloaded', timeout: 45000 });
       checkReachable(s, 'linkedin');
-      await s.page.waitForTimeout(3000);
+      await humanIdlePause('deliberate');
       await assertAuthed('linkedin', s, { label: 'linkedin_endorse' });
       authed = true;
     } catch (gateErr) {
@@ -59,13 +59,13 @@ try {
   const profileUrl = href.startsWith('http') ? href : `https://www.linkedin.com${href}`;
   await s.page.goto(profileUrl, { waitUntil: 'domcontentloaded' });
   checkReachable(s, 'linkedin');
-  await s.page.waitForTimeout(3000);
+  await humanIdlePause('deliberate');
   // Skills section is anchored by section[id="skills"]. Inside, each skill
   // row exposes a button with aria-label="Endorse <skill>" — clicking it
   // flips to aria-label="Endorsed <skill>" (or removes the button if
   // already endorsed). Pick the first not-yet-endorsed skill.
   await s.page.evaluate(() => { const el = document.querySelector('section[id="skills"], div[id="skills"]'); el?.scrollIntoView({ block: 'center' }); }).catch(() => {});
-  await s.page.waitForTimeout(1500);
+  await humanIdlePause('short');
   const endorseBtn = s.page.locator('button[aria-label^="Endorse "]:not([aria-pressed="true"])').filter({ visible: true }).first();
   if (!(await endorseBtn.count())) throw new Error('no endorseable skill found on profile');
   await endorseBtn.scrollIntoViewIfNeeded().catch(() => {});

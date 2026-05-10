@@ -1,5 +1,6 @@
 import { CDPConnection } from '../cdp/connection.js';
 import { CDPPage } from '../cdp/page/page.js';
+import { humanIdlePause } from '../human/mouse.js';
 
 export interface EmulationSettings {
   userAgent: string;
@@ -97,7 +98,7 @@ export class CDPBrowserContext {
     const initial = this._pages.length;
     while (Date.now() - start < ms) {
       if (this._pages.length > initial) return this._pages[this._pages.length - 1];
-      await new Promise(r => setTimeout(r, 200));
+      await humanIdlePause('short');
     }
     return null;
   }

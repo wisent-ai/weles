@@ -6,6 +6,7 @@
  */
 
 import { askPage, checkPage, findClickTarget, type ScreenshottablePage } from '../vision/analyze.js';
+import { humanIdlePause } from '../human/mouse.js';
 
 const CF_CHECK_INTERVAL_MS = 3000;
 
@@ -29,7 +30,7 @@ async function looksLikeCloudflareDom(page: any): Promise<boolean> {
 }
 
 export async function waitCloudflare(page: any, timeoutMs = 72000, settleMs = 5000): Promise<boolean> {
-  await page.waitForTimeout(settleMs);
+  await humanIdlePause();
 
   // Cheap DOM probe before the expensive vision call. If the page has zero
   // Cloudflare-shaped markers, return true immediately (treated as "not
@@ -60,7 +61,7 @@ export async function waitCloudflare(page: any, timeoutMs = 72000, settleMs = 50
 
   const checks = Math.floor(timeoutMs / CF_CHECK_INTERVAL_MS);
   for (let i = 0; i < checks; i++) {
-    await page.waitForTimeout(CF_CHECK_INTERVAL_MS);
+    await humanIdlePause();
     const stillCf = await checkPage(
       page as ScreenshottablePage,
       'Is this a Cloudflare security verification or challenge page?',

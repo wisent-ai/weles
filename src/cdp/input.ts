@@ -56,7 +56,7 @@ function resolveKey(key: string): [number, string, string] {
 }
 
 function delay(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms));
+  return new Promise(resolve => setTimeout(resolve, ms));  // allow-raw-playwright: review — context-dependent timer
 }
 
 export class CDPMouse {

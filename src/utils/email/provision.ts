@@ -141,7 +141,7 @@ export async function verifyResendDomain(domainId: string, pollSeconds = 20, max
     const d = await getResendDomain(domainId);
     if (d.status === 'verified') return true;
     if (d.status === 'failed') throw new Error('Resend domain verification failed');
-    await new Promise(r => setTimeout(r, pollSeconds * 1000));
+    await new Promise(r => setTimeout(r, pollSeconds * 1000));  // allow-raw-playwright: review — context-dependent timer
   }
   return false;
 }

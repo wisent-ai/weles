@@ -7,7 +7,7 @@
 const POLL_SECONDS = 300;
 
 import { writeFileSync, mkdirSync } from 'node:fs';
-import { humanClick } from '../../../dist/human/mouse.js';
+import { humanClick, humanIdlePause } from '../../../dist/human/mouse.js';
 
 async function waitForCaptchaUI(page) {
   // Force-strip `v-hidden`/`d-none` classes and inline visibility so puzzle iframe becomes visible.
@@ -50,7 +50,7 @@ async function waitForCaptchaUI(page) {
         if (i % 5 === 0) console.log(`[coords] Wait ${i}s box=${Math.round(box.width)}x${Math.round(box.height)} page-clip=${Math.round(buf.length / 1024)}KB`);
       } catch (e) { if (i % 5 === 0) console.log(`[coords] Wait ${i}s screenshot err: ${e.message?.slice(0, 80)}`); }
     }
-    await new Promise(r => setTimeout(r, 1000));
+    await humanIdlePause('short');
   }
   return null;
 }
@@ -123,7 +123,7 @@ async function submitCoords(apiKey, imageBase64, comment) {
   if (cr.errorId) return { err: `${cr.errorCode} ${cr.errorDescription?.slice(0, 120)}` };
   console.log(`[coords] taskId=${cr.taskId}`);
   for (let i = 0; i < POLL_SECONDS / 5; i++) {
-    await new Promise(r => setTimeout(r, 5000));
+    await new Promise(r => setTimeout(r, 5000));  // allow-raw-playwright: polling/rate-limit loop
     const res = await (await fetch('https://api.2captcha.com/getTaskResult', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ clientKey: apiKey, taskId: cr.taskId }),
@@ -197,7 +197,7 @@ async function clickVisualPuzzleInEnforcement(page) {
     const r = await clickInEnforcement(page, ['visual puzzle', 'visual challenge', 'visual']);
     if (r?.ok) { console.log(`[coords] clicked Visual puzzle in enforcement: "${r.text}" at (${Math.round(r.x)},${Math.round(r.y)})`); return true; }
     if (i % 3 === 0) console.log(`[coords] waiting Visual puzzle button (count=${r?.count ?? '?'} sample=${JSON.stringify(r?.texts ?? []).slice(0, 120)})`);
-    await new Promise(r => setTimeout(r, 1000));
+    await new Promise(r => setTimeout(r, 1000));  // allow-raw-playwright: polling/rate-limit loop
   }
   return false;
 }
@@ -218,7 +218,7 @@ export async function solveRotationViaCoords(page, { maxRounds = 80 } = {}) {
     const urlNow = page.url?.() ?? '';
     if (/signup_emailsent|verif|launch-code|account_verif/.test(urlNow)) { console.log(`[coords] R${round}: URL solved at ${urlNow}`); return true; }
     const box = await page.locator('iframe.js-octocaptcha-frame').first().boundingBox().catch(() => null);
-    if (!box) { for (let i = 0; i < 15; i++) { await new Promise(r => setTimeout(r, 1000)); const u = page.url?.() ?? ''; if (/signup_emailsent|verif|launch-code|account_verif/.test(u)) { console.log(`[coords] R${round}: iframe gone, URL advanced to ${u}`); return true; } } console.log(`[coords] R${round}: iframe gone, URL stuck at ${page.url?.() ?? ''}`); return false; }
+    if (!box) { for (let i = 0; i < 15; i++) { await new Promise(r => setTimeout(r, 1000)); const u = page.url?.() ?? ''; if (/signup_emailsent|verif|launch-code|account_verif/.test(u)) { console.log(`[coords] R${round}: iframe gone, URL advanced to ${u}`); return true; } } console.log(`[coords] R${round}: iframe gone, URL stuck at ${page.url?.() ?? ''}`); return false; }  // allow-raw-playwright: polling/rate-limit loop
     let buf;
     try { buf = await page.screenshot({ type: 'png', clip: { x: box.x, y: box.y, width: box.width, height: box.height } }); }
     catch (e) { console.log(`[coords] R${round}: screenshot err: ${e.message?.slice(0, 120)}`); return false; }
@@ -233,14 +233,14 @@ export async function solveRotationViaCoords(page, { maxRounds = 80 } = {}) {
       if (g.screen === 'A') clickXY = { x: Math.round(w / 2), y: 262, src: 'gemini-A' };
       else if (g.screen === 'D') clickXY = { x: 120, y: 418, src: 'gemini-D' };
       else if (g.screen === 'E') {
-        if (g.action === 'none') { console.log(`[coords] R${round} E-none — waiting for puzzle to load`); await new Promise(r => setTimeout(r, 3000)); continue; }
+        if (g.action === 'none') { console.log(`[coords] R${round} E-none — waiting for puzzle to load`); await new Promise(r => setTimeout(r, 3000)); continue; }  // allow-raw-playwright: review — context-dependent timer
         if (navCount > 20) { console.log(`IP_FLAGGED: Arkose nav=${navCount} on single puzzle without match — carousel exhausted, rotate`); process.exit(42); }
         bestScore = Math.max(bestScore, g.score || 0);
         const threshold = Math.max(7, 9 - Math.floor(navCount / 4));
         const submitNow = g.action === 'submit' || (g.score >= threshold && g.score >= bestScore);
         const needles = submitNow ? ['submit'] : ['navigate to next', 'next', 'arrow'];
         const domResult = await clickInEnforcement(page, needles);
-        if (domResult?.ok) { await humanClick(page, Math.round(box.x + domResult.x), Math.round(box.y + domResult.y)); console.log(`[coords] R${round} E-${submitNow?'submit':'next'} (score=${g.score} thresh=${threshold} nav=${navCount} submits=${totalSubmits}) humanClick: ${domResult.sig?.txt || domResult.sig?.aria}`); if (submitNow) { totalSubmits++; navCount = 0; bestScore = 0; if (totalSubmits > SUBMIT_BUDGET) { console.log(`IP_FLAGGED: Arkose served ${totalSubmits} puzzles without URL advance — treat as flagged, rotate proxy`); process.exit(42); } } else navCount++; await new Promise(r => setTimeout(r, 1500)); const u = page.url?.() ?? ''; if (/signup_emailsent|verif|launch-code|account_verif/.test(u)) return true; continue; }
+        if (domResult?.ok) { await humanClick(page, Math.round(box.x + domResult.x), Math.round(box.y + domResult.y)); console.log(`[coords] R${round} E-${submitNow?'submit':'next'} (score=${g.score} thresh=${threshold} nav=${navCount} submits=${totalSubmits}) humanClick: ${domResult.sig?.txt || domResult.sig?.aria}`); if (submitNow) { totalSubmits++; navCount = 0; bestScore = 0; if (totalSubmits > SUBMIT_BUDGET) { console.log(`IP_FLAGGED: Arkose served ${totalSubmits} puzzles without URL advance — treat as flagged, rotate proxy`); process.exit(42); } } else navCount++; await new Promise(r => setTimeout(r, 1500)); const u = page.url?.() ?? ''; if (/signup_emailsent|verif|launch-code|account_verif/.test(u)) return true; continue; }  // allow-raw-playwright: review — context-dependent timer
         const ex = g.x || (submitNow ? 226 : 370); const ey = g.y || (submitNow ? 340 : 300);
         clickXY = submitNow ? { x: ex, y: ey, src: 'gemini-E-submit-coord' } : { x: ex, y: ey, src: 'gemini-E-next-swipe', swipe: -100 };
       }
@@ -249,11 +249,11 @@ export async function solveRotationViaCoords(page, { maxRounds = 80 } = {}) {
         // puzzle starts at max threshold instead of inheriting a low one.
         navCount = 0; bestScore = 0;
         const r = await clickInEnforcement(page, ['try again', 'reload', 'restart']);
-        if (r?.ok) { await humanClick(page, Math.round(box.x + r.x), Math.round(box.y + r.y)); console.log(`[coords] R${round} G recover humanClick: ${JSON.stringify(r.sig ?? r.text)}`); await new Promise(r2 => setTimeout(r2, 4000)); continue; }
+        if (r?.ok) { await humanClick(page, Math.round(box.x + r.x), Math.round(box.y + r.y)); console.log(`[coords] R${round} G recover humanClick: ${JSON.stringify(r.sig ?? r.text)}`); await new Promise(r2 => setTimeout(r2, 4000)); continue; }  // allow-raw-playwright: review — context-dependent timer
         clickXY = { x: g.x || Math.round(w / 2), y: g.y || 340, src: 'gemini-G-try-coord' };
       }
       else if ((g.screen === 'B' || g.screen === 'F') && g.action !== 'none' && g.x) { navCount = 0; bestScore = 0; clickXY = { x: g.x, y: g.y, src: `gemini-${g.screen}` }; }
-      else if ((g.screen === 'B' || g.screen === 'F' || g.screen === 'C') && g.action === 'none') { navCount = 0; bestScore = 0; console.log(`[coords] R${round} ${g.screen}-none — waiting for UI`); await new Promise(r => setTimeout(r, 3000)); continue; }
+      else if ((g.screen === 'B' || g.screen === 'F' || g.screen === 'C') && g.action === 'none') { navCount = 0; bestScore = 0; console.log(`[coords] R${round} ${g.screen}-none — waiting for UI`); await new Promise(r => setTimeout(r, 3000)); continue; }  // allow-raw-playwright: review — context-dependent timer
       else console.log(`[coords] R${round} gemini screen=${g.screen ?? '?'} err=${g.err ?? '-'}, falling back`);
       if (clickXY) console.log(`[coords] R${round} ${clickXY.src}: (${clickXY.x},${clickXY.y})`);
     }
@@ -273,24 +273,24 @@ export async function solveRotationViaCoords(page, { maxRounds = 80 } = {}) {
     // so the canvas sees a real pointer trajectory (mobile-first carousel).
     try {
       await page.mouse.move(pageX - 5, pageY - 3);
-      await new Promise(r => setTimeout(r, 80));
+      await humanIdlePause('short');
       await page.mouse.move(pageX, pageY);
-      await new Promise(r => setTimeout(r, 60));
+      await humanIdlePause('short');
       await page.mouse.down();
-      await new Promise(r => setTimeout(r, 70));
+      await humanIdlePause('short');
       if (clickXY.swipe) {
         const steps = 6, dx = clickXY.swipe;
         for (let i = 1; i <= steps; i++) {
           await page.mouse.move(pageX + Math.round(dx * i / steps), pageY + (i % 2 === 0 ? 1 : -1));
-          await new Promise(r => setTimeout(r, 30));
+          await humanIdlePause('short');
         }
-        await new Promise(r => setTimeout(r, 50));
+        await humanIdlePause('short');
       }
       await page.mouse.up();
     } catch (e) { console.log(`[coords] pointer err: ${e.message?.slice(0, 100)}`); }
     const gesture = clickXY.swipe ? `swipe(${clickXY.swipe}px)` : 'clicked';
     console.log(`[coords] R${round} ${clickXY.src} ${gesture} page(${Math.round(pageX)},${Math.round(pageY)})`);
-    await new Promise(r => setTimeout(r, 5000));
+    await humanIdlePause('long');
     const u = page.url?.() ?? '';
     if (/signup_emailsent|verif|launch-code|account_verif/.test(u)) { console.log(`[coords] URL advanced to ${u}`); return true; }
   }

@@ -1,6 +1,6 @@
 import { getSocialAccount, resolveAccountSession } from '../../../../dist/utils/credentials.js';
 import { WSession } from '../../../../dist/session/wsession.js';
-import { humanClickLocator } from '../../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
 import { detectTwitterBanSignals } from '../../../../dist/platforms/twitter/ban_signals.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -25,7 +25,7 @@ try {
   else url = 'https://x.com/home';
   await s.goto(url);
   checkReachable(s, 'twitter');
-  await s.page.waitForTimeout(3000);
+  await humanIdlePause('deliberate');
   // Deterministic: data-testid="like" is the unliked button (heart icon in
   // the tweet action row); after a successful like the same button switches
   // to data-testid="unlike". Click the first visible like, then verify the

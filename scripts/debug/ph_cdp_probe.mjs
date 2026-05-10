@@ -1,4 +1,5 @@
 import { chromium } from 'playwright';
+import { humanIdlePause } from '../../dist/human/mouse.js';
 
 const mode = process.argv[2] || 'plain';
 const useStock = process.env.STOCK_CHROMIUM === '1';
@@ -70,7 +71,7 @@ if (process.env.PROBE_GRAPHQL === '1') {
     }
   });
   await page.goto('https://www.producthunt.com/', { waitUntil: 'domcontentloaded' }).catch(() => {});
-  await new Promise(r => setTimeout(r, 10000));
+  await humanIdlePause('long');
   console.log(`\n[probe] total graphql POSTs: ${count}`);
   await browser.close();
   process.exit(0);
@@ -137,23 +138,23 @@ if (process.env.PROBE_FULL_OAUTH === '1') {
     }
   });
   await page.goto('https://www.producthunt.com/', { waitUntil: 'domcontentloaded' });
-  await new Promise(r => setTimeout(r, 3000));
+  await humanIdlePause('deliberate');
   await page.locator('button:has-text("Sign in"), a:has-text("Sign in")').first().click().catch(() => {});
-  await new Promise(r => setTimeout(r, 3000));
+  await new Promise(r => setTimeout(r, 3000));  // allow-raw-playwright: polling/rate-limit loop
   await page.locator('button:has-text("Sign in with X"), button:has-text("Continue with Twitter")').first().click().catch(() => {});
-  await new Promise(r => setTimeout(r, 8000));
+  await new Promise(r => setTimeout(r, 8000));  // allow-raw-playwright: polling/rate-limit loop
   for (let i = 0; i < 3; i++) {
     const t = await page.evaluate(`(() => (document.body?.innerText || '').toLowerCase().slice(0, 800))()`).catch(() => '');
     if (t.includes('authorize') || (t.includes('allow') && t.includes('producthunt'))) {
       await page.locator('button:has-text("Authorize"), input[value*="Authorize"]').first().click().catch(() => {});
-      await new Promise(r => setTimeout(r, 4000));
+      await new Promise(r => setTimeout(r, 4000));  // allow-raw-playwright: polling/rate-limit loop
     } else break;
   }
   for (let i = 0; i < 15; i++) {
     const u = page.url();
     console.log(`[probe] oauth wait t=${i*2}s url=${u.slice(0, 70)}`);
     if (u.includes('producthunt.com') && !u.includes('/auth/') && !u.includes('twitter.com') && !u.includes('x.com')) break;
-    await new Promise(r => setTimeout(r, 2000));
+    await new Promise(r => setTimeout(r, 2000));  // allow-raw-playwright: polling/rate-limit loop
   }
   console.log(`[probe] landed at: ${page.url()} — now polling for disconnect`);
 }
@@ -161,9 +162,9 @@ if (process.env.PROBE_FULL_OAUTH === '1') {
 if (process.env.PROBE_OAUTH === '1') {
   console.log('[probe] simulating OAuth navigation history before captcha page');
   await page.goto('https://www.producthunt.com/', { waitUntil: 'domcontentloaded' }).catch(() => {});
-  await new Promise(r => setTimeout(r, 2000));
+  await humanIdlePause('deliberate');
   await page.goto('https://www.producthunt.com/auth/twitter?origin=%2F', { waitUntil: 'domcontentloaded' }).catch(() => {});
-  await new Promise(r => setTimeout(r, 3000));
+  await humanIdlePause('deliberate');
 }
 
 // PROBE_COOKIES=1 injects PH + Twitter cookies for the most-recent producthunt
@@ -204,13 +205,13 @@ if (process.env.PROBE_FETCH === '1') {
       } catch (e) {
         console.log(`[probe-fetch] t=${i*5}s err: ${e.message?.slice(0, 60)}`);
       }
-      await new Promise(r => setTimeout(r, 5000));
+      await new Promise(r => setTimeout(r, 5000));  // allow-raw-playwright: polling/rate-limit loop
     }
   })();
 }
 
 for (let i = 0; i < 30; i++) {
-  await new Promise(r => setTimeout(r, 2000));
+  await new Promise(r => setTimeout(r, 2000));  // allow-raw-playwright: polling/rate-limit loop
   try {
     const url = page.url();
     const isClosed = page.isClosed();

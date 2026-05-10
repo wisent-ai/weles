@@ -1,6 +1,6 @@
 import { getSocialAccount, resolveAccountSession } from '../../../../dist/utils/credentials.js';
 import { WSession } from '../../../../dist/session/wsession.js';
-import { humanClickLocator } from '../../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
 import { detectTwitterBanSignals } from '../../../../dist/platforms/twitter/ban_signals.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -19,7 +19,7 @@ try {
   const url = TARGET_USER ? `https://x.com/${encodeURIComponent(TARGET_USER)}` : 'https://x.com/home';
   await s.goto(url);
   checkReachable(s, 'twitter');
-  await s.page.waitForTimeout(3000);
+  await humanIdlePause('deliberate');
   // Deterministic: data-testid="<userId>-follow" is the unfollowed state;
   // after a successful follow the same testid switches to "<userId>-unfollow".
   // When TARGET_USER is set we scope by aria-label to the target's button

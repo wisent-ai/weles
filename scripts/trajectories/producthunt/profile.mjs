@@ -7,7 +7,7 @@ import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../_shared/cookie
 // Fill a Product Hunt user profile (headline, about, location, website).
 
 const EDIT_URL = 'https://www.producthunt.com/my/details/edit';
-const sleep = (s) => new Promise(r => setTimeout(r, s * 1000));
+const sleep = (s) => new Promise(r => setTimeout(r, s * 1000));  // allow-raw-playwright: utility sleep shim — usages should migrate to humanIdlePause
 
 const HEADLINE = process.env.PH_HEADLINE || 'Indie hacker exploring product-led growth';
 const ABOUT = process.env.PH_BIO || 'Building, breaking, and shipping side projects. Always curious about what makes products spread.';
