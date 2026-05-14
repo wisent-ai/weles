@@ -212,9 +212,22 @@ async function scrapeOnePage(sess, tk, pg, ssPath) {
     } catch (e) { console.error(`[uw_scrape] [${pg}] TIME RANGE drive threw: ${e.message}`); }
   }
   const authStatus = await sess.page.evaluate(() => { const b = document.body?.innerText || ''; return { stale: /Viewing data from.*days ago.*Subscribe for live/i.test(b), guest: /Sign In/.test(b) && !/Sign Out/.test(b) }; }); // allow-raw-playwright: read-only DOM
+  // UW renders inside inner scroll container; `fullPage:true` misses it.
+  // Resize viewport to deepest scrollHeight, snapshot, restore.
   if (ssPath) {
-    try { await sess.page.screenshot({ path: ssPath, fullPage: true }); }
-    catch (e) { console.error(`[uw_scrape] [${pg}] screenshot threw: ${e.message}`); }
+    try {
+      const maxH = await sess.page.evaluate(() => {
+        let h = Math.max(document.documentElement.scrollHeight || 0, document.body?.scrollHeight || 0);
+        for (const el of document.querySelectorAll('*')) { const st = getComputedStyle(el); if ((st.overflowY === 'auto' || st.overflowY === 'scroll') && el.scrollHeight > el.clientHeight + 50) h = Math.max(h, el.scrollHeight + 200); }
+        return Math.min(h, 24000);
+      });
+      const origVp = sess.page.viewportSize();
+      if (maxH > origVp.height) await sess.page.setViewportSize({ width: origVp.width, height: maxH }); // allow-raw-playwright: viewport resize for full-content capture
+      await sess.wait(2);
+      await sess.page.screenshot({ path: ssPath, fullPage: false }); // allow-raw-playwright: viewport-sized PNG (sized to full content)
+      if (maxH > origVp.height) await sess.page.setViewportSize(origVp); // allow-raw-playwright: restore
+      console.error(`[uw_scrape] [${pg}] screenshot at ${maxH}px tall`);
+    } catch (e) { console.error(`[uw_scrape] [${pg}] screenshot threw: ${e.message}`); }
   }
   const data = await sess.page.evaluate(() => { // allow-raw-playwright: read-only DOM extraction
     const out = { url: location.href, title: document.title };
