@@ -9,25 +9,9 @@
 import { WSession } from '../../dist/session/wsession.js';
 import { humanType } from '../../dist/human/keyboard.js';
 import { humanMove, humanIdlePause, humanClickLocator } from '../../dist/human/mouse.js';
-import { randomBytes } from 'node:crypto';
 import { autoBindCharacter } from './lib/character-bind.mjs';
 
 const URL = 'https://www.reddit.com/register';
-const AGENT_DOMAIN = process.env.AGENT_DOMAIN ?? 'mailwisent.com';
-
-function genIdentity() {
-  const F = 'Garry,Katie,Logan,Maya,Owen,Riley,Sage,Tess,Wes,Zane'.split(',');
-  const L = 'Koepp,Bayer,Pratt,Quinn,Reeves,Stone,Vega,West,Yates,Cole'.split(',');
-  const first = F[Math.floor(Math.random() * F.length)];
-  const last = L[Math.floor(Math.random() * L.length)];
-  const username = `${first.toLowerCase()}${last.toLowerCase()}${Math.floor(Math.random() * 9000 + 1000)}`;
-  const email = `${username}@${AGENT_DOMAIN}`;
-  const password = randomBytes(9).toString('base64').replace(/[+/=]/g, '') + '!A1';
-  return { first, last, username, email, password, name: `${first} ${last}` };
-}
-
-const id = genIdentity();
-console.log(`[register] identity: ${id.username} ${id.email}`);
 
 // PacketStream's residential range gets accounts insta-shadowbanned by
 // Reddit (account creates fine, then 404s within 60s). Force a non-
@@ -35,7 +19,10 @@ console.log(`[register] identity: ${id.username} ${id.email}`);
 // the filter triggers config.ts's KNOWN_PROVIDERS match — only providers
 // matching that name will be tried.
 const PROXY_FILTER = process.env.PROXY_URL || 'residential oxylabs us';
-const s = await WSession.start({ label: 'reddit_register', proxy: PROXY_FILTER, browser: 'chromium', targetHost: 'www.reddit.com' });
+// Persona + identity rotation centralized in WSession.start (opts.platform).
+const s = await WSession.start({ label: 'reddit_register', proxy: PROXY_FILTER, targetHost: 'www.reddit.com', platform: 'reddit' });
+const id = { first: s.identity.firstName, last: s.identity.lastName, username: s.identity.username, email: s.identity.email, password: s.identity.password, name: `${s.identity.firstName} ${s.identity.lastName}` };
+console.log(`[register] identity: ${id.username} ${id.email}`);
 // Use shared atomic helpers from src/human/. Empirical-distribution timing
 // (p50=105ms keystroke dwell, p50=169ms inter-key, Bezier mouse paths) derived
 // from real operator behavior trace. Reddit's signup-time bot classifier is

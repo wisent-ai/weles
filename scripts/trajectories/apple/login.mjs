@@ -2,8 +2,9 @@
 // Flow: goto ASC -> redirects to idmsa.apple.com -> fill email -> Continue -> fill password -> Sign In -> 2FA -> trusted.
 // 2FA code must be fetched externally (iMessage gateway, trusted device, or manual input via 2FA_CODE env var).
 
-import { getSocialAccount } from '../../../dist/utils/credentials.js';
+import { getSocialAccount, resolveAccountSession } from '../../../dist/utils/credentials.js';
 import { WSession } from '../../../dist/session/wsession.js';
+import { persistFreshCookieJar } from '../_shared/cookie-freshness.mjs';
 
 const URL = 'https://appstoreconnect.apple.com';
 
@@ -15,7 +16,8 @@ const email = acct.metadata.email;
 const password = acct.metadata.password;
 console.log(`[apple-login] using account: ${acct.username} (${email})`);
 
-const s = await WSession.start({ label: 'apple_login', proxy: process.env.PROXY_URL || undefined });
+const { proxyUrl, persona } = await resolveAccountSession(acct);
+const s = await WSession.start({ label: 'apple_login', proxy: proxyUrl ?? (process.env.PROXY_URL || undefined), persona });
 try {
   await s.goto(URL);
   await s.wait(5);
@@ -107,6 +109,14 @@ try {
     const isDashboard = url.includes('appstoreconnect.apple.com') && !url.includes('/login') && !url.includes('idmsa');
     if (isDashboard) {
       console.log(`PASS: logged in — ${url}`);
+      // Persist the fresh cookie jar so cross_login (reddit_login_via_apple,
+      // tiktok_login_via_apple, etc.) can replay it on the next OAuth click
+      // without forcing a re-login on appleid.apple.com.
+      try {
+        const cookies = await s.ctx.cookies();
+        const persisted = await persistFreshCookieJar(acct, cookies, { currentProxyUrl: proxyUrl, currentPersona: persona });
+        console.log(`[apple-login] cookie persist: ${persisted?.ok ? `ok (${cookies.length})` : `FAIL ${persisted?.reason}`}`);
+      } catch (e) { console.log(`[apple-login] cookie persist err: ${e.message?.slice(0, 120)}`); }
       await s.saveAccount('apple', { username: acct.username, email, password });
       process.exit(0);
     }

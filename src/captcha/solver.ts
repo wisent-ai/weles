@@ -29,7 +29,7 @@ async function apiSolve(apiUrl: string, clientKey: string, task: Record<string, 
   if (!taskId) { console.log(`[captcha:api] ${svc} no taskId in response`); return null; }
   console.log(`[captcha:api] ${svc} taskId=${taskId}`);
   for (let i = 0; i < 60; i++) {
-    await new Promise(r => setTimeout(r, 5000));
+    await new Promise(r => setTimeout(r, 5000));  // allow-raw-playwright: polling/rate-limit loop
     const res = await (await fetch(apiUrl + '/getTaskResult', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ clientKey, taskId }),
@@ -69,9 +69,12 @@ export class CaptchaSolver {
 
   async solveRecaptchaV2(page: Page, sitekey: string, options?: { enterprise?: boolean }): Promise<string | boolean | null> {
     await this._ensureInit();
-    // CapSolver API token works for sites that wrap reCAPTCHA in their own
-    // iframes (LinkedIn's /checkpoint/challengeIframe/ vs Google's
-    // captchaInternal). Token mode bypasses the frame chain entirely.
+    // V2 chain: CapMonster → CapSolver → AntiCaptcha → image-grid.
+    if (this._creds.capmonster) {
+      const tType = options?.enterprise ? 'RecaptchaV2EnterpriseTaskProxyless' : 'NoCaptchaTaskProxyless';
+      const t = await apiSolve('https://api.capmonster.cloud', this._creds.capmonster, { type: tType, websiteURL: page.url?.() ?? '', websiteKey: sitekey });
+      if (t) { console.log(`[captcha:solver] ${tType} solved via capmonster`); costTracker.recordCaptcha('capmonster', 'recaptcha_v2'); return t; }
+    }
     if (this._creds.capsolver) {
       const taskType = options?.enterprise ? 'ReCaptchaV2EnterpriseTaskProxyLess' : 'ReCaptchaV2TaskProxyLess';
       const token = await apiSolve('https://api.capsolver.com', this._creds.capsolver, {
@@ -94,14 +97,8 @@ export class CaptchaSolver {
 
   async solveRecaptchaV3(sitekey: string, url: string, action?: string): Promise<string | null> {
     await this._ensureInit();
-    // Try CapSolver first — supports both ReCaptchaV3TaskProxyLess and the
-    // ReCaptchaV3EnterpriseTaskProxyLess variant that LinkedIn signup uses
-    // (sitekey 6LcIy_MqAA... is enterprise). CapSolver returns higher-score
-    // tokens (typically 0.9) than anticaptcha (typically 0.7).
+    // CapSolver V3 first (enterprise + non-enterprise), then AntiCaptcha.
     if (this._creds.capsolver) {
-      // minScore 0.9 — LinkedIn signup correlates reCAPTCHA score with
-      // PerimeterX scoring; lower scores get silently rejected even if
-      // technically valid. CapSolver retries internally until threshold met.
       const token = await apiSolve('https://api.capsolver.com', this._creds.capsolver, {
         type: 'ReCaptchaV3EnterpriseTaskProxyLess', websiteURL: url, websiteKey: sitekey,
         minScore: 0.9, pageAction: action ?? 'verify',
@@ -204,7 +201,7 @@ export class CaptchaSolver {
         if (cr.errorId) console.log(`[captcha:api] capsolver AntiPerimeterx createTask err: ${cr.errorCode} ${cr.errorDescription}`);
         else if (cr.taskId) {
           for (let i = 0; i < 60; i++) {
-            await new Promise(r => setTimeout(r, 5000));
+            await new Promise(r => setTimeout(r, 5000));  // allow-raw-playwright: polling/rate-limit loop
             const tr = await (await fetch('https://api.capsolver.com/getTaskResult', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clientKey: this._creds.capsolver, taskId: cr.taskId }) })).json() as any;
             if (tr.errorId) { console.log(`[captcha:api] capsolver AntiPerimeterx err: ${tr.errorCode} ${tr.errorDescription}`); break; }
             if (tr.status === 'ready') {
@@ -271,7 +268,7 @@ export class CaptchaSolver {
         const tid = cr.request;
         console.log(`[captcha:api] 2captcha taskId=${tid}`);
         for (let i = 0; i < 60; i++) {
-          await new Promise(r => setTimeout(r, 5000));
+          await new Promise(r => setTimeout(r, 5000));  // allow-raw-playwright: polling/rate-limit loop
           const res = await (await fetch(`https://2captcha.com/res.php?key=${this._creds.twocaptcha}&action=get&id=${tid}&json=1`)).json().catch(() => ({})) as any;
           if (res.status === 1) { console.log(`[captcha:api] 2captcha solved`); costTracker.recordCaptcha('twocaptcha', 'funcaptcha'); return res.request; }
           if (res.request !== 'CAPCHA_NOT_READY') { console.log(`[captcha:api] 2captcha error: ${res.request}`); break; }

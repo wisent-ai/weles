@@ -2,13 +2,13 @@ import { getSocialAccount, resolveAccountSession } from '../../dist/utils/creden
 import { WSession } from '../../dist/session/wsession.js';
 import { CaptchaSolver } from '../../dist/captcha/solver.js';
 import { humanType } from '../../dist/human/keyboard.js';
-import { humanIdlePause } from '../../dist/human/mouse.js';
+import { humanIdlePause, humanClickLocator } from '../../dist/human/mouse.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { persistFreshCookieJar } from './_shared/cookie-freshness.mjs';
 import { solveLinkedinCheckpoint, injectV3LoginToken, confirmLinkedinEmail } from './_shared/linkedin/checkpoint.mjs';
 import { captureLinkedinPxStorage, restoreLinkedinPxStorage } from './_shared/linkedin/px_storage.mjs';
-import { pageHasLoginForm, freshProviderUrl, PROVIDER_ROTATION } from './_shared/linkedin/proxy_rotation.mjs';
+import { pageHasLoginForm, freshProviderUrl, PROVIDER_ROTATION, gotoLoginRotating } from './_shared/linkedin/proxy_rotation.mjs';
 
 const acct = await getSocialAccount('linkedin');
 if (!acct) { console.log('FAIL: no active linkedin account in DB'); process.exit(1); }
@@ -16,31 +16,15 @@ process.env.SVC_EMAIL = acct.metadata.email ?? acct.username;
 process.env.SVC_PASSWORD = acct.metadata.password ?? '';
 console.log(`[trajectory] Using account: ${acct.username}`);
 
-// 2026-05-03: removed WELES_DISABLE_HTTP2=1 and WELES_USE_STOCK_CHROMIUM=1
-// defaults. Diff harness against chrome reference proved PerimeterX never
-// bootstrapped on weles — every PX storage key, XHR endpoint, and event
-// listener was missing. Root cause: those two flags cripple the fingerprint.
-//
-// HTTP/2 disabled forces HTTP/1.1, which LinkedIn's edge sees instead of
-// the h2 fingerprint real Chrome 147 sends (response confirmed
-// x-li-proto: http/2 for the chrome reference's session).
-//
-// Stock Chromium skips the entire weles-patched binary path in async_api.ts
-// (line 143: isCustomBinary requires WELES_USE_STOCK_CHROMIUM !== '1'),
-// bypassing the canvas / UA / HEVC / ALPS / JA4 fingerprint patches that
-// take effect at the browser-binary level (BEFORE any JS init script can
-// run). LinkedIn's edge fingerprints us at first byte, decides we aren't
-// real Chrome, and serves a stripped /login HTML without the PX script
-// tag — leaving every captcha solve to be rejected at the trust layer
-// regardless of which tiles we click.
-//
-// The original justification ("custom weles binary intermittently returns
-// ERR_TUNNEL_CONNECTION_FAILED through PacketStream/BrightData") was a
-// proxy-layer bug. We now use Oxylabs primarily; if tunnel issues recur,
-// fix the proxy layer or rotate provider — do not strip the fingerprint
-// patches as a workaround.
-if (process.env.WELES_NOPECHA_EXT == null) process.env.WELES_NOPECHA_EXT = '1';
-if (process.env.WELES_NOPECHA_EXT_DIR == null) process.env.WELES_NOPECHA_EXT_DIR = `${process.env.HOME ?? '/home/lukaszbartoszcze'}/weles/var/nopecha-ext`;
+// 2026-05-03: removed WELES_DISABLE_HTTP2 + WELES_USE_STOCK_CHROMIUM defaults
+// (HTTP/1.1 + stock chromium broke the fingerprint stack).
+// NopeCha browser extension disabled 2026-05-06: it never auto-solves
+// because chrome.storage.local.settings.key is empty (no programmatic
+// init). Loading it caused 2/5 launchPersistentContext hangs and the
+// trajectory's 90s extension-wait yields nothing. The NopeCha API
+// recognition path in src/captcha/recaptcha.ts does the actual solving
+// via direct API calls — no extension needed.
+if (process.env.WELES_NOPECHA_EXT == null) process.env.WELES_NOPECHA_EXT = '0';
 
 // Sticky proxy URL per call. Prefer Oxylabs — verified 2026-05-02 via curl
 // that Oxylabs/PacketStream/direct return HTTP 200 on linkedin.com/login while
@@ -76,7 +60,56 @@ function freshBrightdataUrl() {
 // exit-IP cohort. Operators can still force a sticky via env if needed.
 
 let { proxyUrl, persona } = await resolveAccountSession(acct);
+// Force macOS persona. LinkedIn fingerprints Windows + Oxylabs Mobile as
+// "form=false" (cited 2026-05-06 probes).
+if (!persona || persona.os !== 'macos') {
+  const { generatePersona } = await import('../../dist/browser/persona.js');
+  persona = generatePersona({ os: 'macos', browser: 'chromium' });
+}
+// Sticky-IP preservation. Each linkedin_login session MUST reuse the
+// exit-IP cohort the account first registered + last successfully logged in
+// from — otherwise LinkedIn's risk model treats the shift as
+// account-takeover and forces /checkpoint with the captcha grid (cited
+// today's run 2026-05-08T06:25 frame_last.png + .work/login-diag/linkedin/run1.out).
+//
+// resolveAccountSession returns proxyUrl already with the stored sticky
+// session ID baked in (oxylabs `customer-X-cc-us-sessid-N` etc). Only
+// override when:
+//   (a) no proxyUrl came back (account never registered with a proxy), OR
+//   (b) the stored proxy is NOT Oxylabs Mobile (Residential triggers PX
+//       challenge per 2026-05-06 probe).
+// Override path generates a fresh sessId by design — ONLY first login or
+// recovery after the registration sticky burned. Steady-state logins
+// must hit the same exit IP as the prior successful login.
+function isOxylabsIsp(url) {
+  if (!url) return false;
+  try {
+    const u = new URL(url);
+    return u.hostname === 'isp.oxylabs.io';
+  } catch { return false; }
+}
+if (!isOxylabsIsp(proxyUrl)) {
+  console.log(`[linkedin_login] stored proxy is not Oxylabs ISP — picking fresh (one-time, will be persisted)`);
+  const { resolveProxy } = await import('../../dist/proxy/config.js');
+  const pw = await resolveProxy('isp oxylabs us', 'www.linkedin.com');
+  if (pw?.server && pw?.username) {
+    const u = new URL(pw.server);
+    u.username = encodeURIComponent(pw.username);
+    u.password = encodeURIComponent(pw.password ?? '');
+    proxyUrl = u.toString();
+    console.log(`[linkedin_login] picked isp proxy ${pw.server}`);
+  } else {
+    console.log(`[linkedin_login] FAIL: no isp oxylabs us proxy resolved; refusing to run on non-ISP exit (user rule)`);
+    process.exit(2);
+  }
+} else {
+  console.log(`[linkedin_login] reusing stored Oxylabs ISP sticky for ${acct.username}`);
+}
+console.log(`[linkedin_login:dbg] before WSession.start`);
 let s = await WSession.start({ label: 'linkedin_login', proxy: proxyUrl, persona });
+console.log(`[linkedin_login:dbg] after WSession.start, s.page=${s?.page ? 'ok' : 'null'} url=${s?.page?.url?.() ?? 'unknown'}`);
+
+async function injectAccountCookies() { /* intentionally no-op */ }
 
 // async_api sets context.setDefaultNavigationTimeout(0) (unbounded) for
 // long Arkose iframe loads on tiktok signup. We need an explicit cap here
@@ -85,39 +118,21 @@ let s = await WSession.start({ label: 'linkedin_login', proxy: proxyUrl, persona
 // launchPersistentContext — goto was hung).
 const GOTO_MS = 30 * 1000;
 async function gotoLogin() {
-  for (let attempt = 0; attempt < PROVIDER_ROTATION.length; attempt++) {
-    try {
-      await s.page.goto('https://www.linkedin.com/login', { waitUntil: 'domcontentloaded', timeout: GOTO_MS });
-      const url = s.page.url?.() ?? '';
-      if (url.startsWith('chrome-error://')) {
-        console.log(`[linkedin_login] goto attempt ${attempt + 1}: chrome-error`);
-      } else if (await pageHasLoginForm(s.page)) {
-        console.log(`[linkedin_login] goto attempt ${attempt + 1}: full login form rendered`);
-        return;
-      } else {
-        console.log(`[linkedin_login] goto attempt ${attempt + 1}: stripped /login shell — flagged exit IP`);
-      }
-    } catch (e) {
-      const msg = e.message ?? '';
-      const retriable = /ERR_TUNNEL_CONNECTION_FAILED|ERR_PROXY_CONNECTION_FAILED|ERR_PROXY_AUTH_UNSUPPORTED|ERR_HTTP_RESPONSE_CODE_FAILURE|ERR_BLOCKED_BY_RESPONSE|chrome-error|Timeout/.test(msg);
-      if (!retriable || attempt >= PROVIDER_ROTATION.length - 1) throw e;
-      console.log(`[linkedin_login] goto attempt ${attempt + 1}: ${msg.slice(0, 80)}`);
-    }
-    await s.close().catch(() => {});
-    const provider = PROVIDER_ROTATION[(attempt + 1) % PROVIDER_ROTATION.length];
-    const next = (await freshProviderUrl(provider)) ?? freshBrightdataUrl();
-    if (next) { process.env.PROXY_URL = next; process.env.PROXY_URL_FORCE = '1'; console.log(`[linkedin_login] rotating to provider=${provider}`); }
-    ({ proxyUrl, persona } = await resolveAccountSession(acct));
-    s = await WSession.start({ label: 'linkedin_login', proxy: proxyUrl, persona });
-  }
-  throw new Error('all_providers_stripped: every residential exit served the degraded /login shell');
+  // Now rotation-aware. On stripped_login_shell or goto_chrome_error,
+  // gotoLoginRotating curl-probes fresh stickies via PROVIDER_ROTATION,
+  // tears down the WSession, and restarts with a working proxy. Returns
+  // the (possibly fresh) session + the proxyUrl actually in use, which
+  // we persist in captureCookies via metadata.proxy.
+  const r = await gotoLoginRotating({ session: s, persona, restartFn: async (url, p) => WSession.start({ label: 'linkedin_login', proxy: url, persona: p }), maxRotations: 5, gotoTimeoutMs: GOTO_MS });
+  s = r.session;
+  if (r.proxyUrl) proxyUrl = r.proxyUrl;
 }
 
 async function captureCookies() {
   if (!acct.id) return;
   try {
     const cookies = await s.ctx.cookies();
-    await persistFreshCookieJar(acct, cookies, { currentProxyUrl: proxyUrl, currentPersona: persona });
+    await persistFreshCookieJar(acct, cookies, { currentProxyUrl: proxyUrl, currentPersona: persona, persistProxy: true });
   } catch (e) { console.log('[cookie-capture] err:', e.message); }
 }
 
@@ -145,7 +160,7 @@ try {
   // no-op. Page is already on linkedin.com origin after gotoLogin so
   // localStorage writes hit the right origin.
   await restoreLinkedinPxStorage(s, acct).catch(() => {});
-  await s.page.waitForTimeout(2500);
+  await humanIdlePause('deliberate');
   // Pre-form-render checkpoint: PerimeterX edge-redirects flagged proxy IPs
   // from /login → /checkpoint/challenge before SDUI form renders. Detect
   // here so the form-fill below doesn't time out 30s on inputs that won't
@@ -183,12 +198,12 @@ try {
   const passwordSel = 'input#password, input[name="session_password"], input[type="password"][autocomplete*="current-password"], input[type="password"]';
   const userLoc = s.page.locator(usernameSel).filter({ visible: true }).first();
   await userLoc.waitFor({ state: 'visible' });
-  await userLoc.click({ force: true });
+  await humanClickLocator(s.page, userLoc);
   await humanIdlePause('short');
   await humanType(s.page, process.env.SVC_EMAIL ?? '');
   await humanIdlePause('short');
   const pwLoc = s.page.locator(passwordSel).filter({ visible: true }).first();
-  await pwLoc.click({ force: true });
+  await humanClickLocator(s.page, pwLoc);
   await humanIdlePause('short');
   await humanType(s.page, process.env.SVC_PASSWORD ?? '');
   await humanIdlePause('short');
@@ -204,9 +219,9 @@ try {
   const submitBtn = s.page.getByRole('button', { name: /^\s*sign\s*in\s*$/i }).filter({ visible: true }).first();
   await submitBtn.waitFor({ state: 'visible' });
   await injectV3LoginToken(s.page);
-  await submitBtn.click({ force: true, noWaitAfter: true });
+  await humanClickLocator(s.page, submitBtn);
   for (let i = 0; i < 12; i++) {
-    await s.page.waitForTimeout(1000);
+    await humanIdlePause('short');
     if (!/^https?:\/\/www\.linkedin\.com\/login\/?$/.test(s.page.url())) break;
   }
   console.log(`[linkedin_login] post-submit url=${s.page.url()}`);

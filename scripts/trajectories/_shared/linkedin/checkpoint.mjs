@@ -1,6 +1,6 @@
 import { CaptchaSolver } from '../../../../dist/captcha/solver.js';
 import { solveRecaptchaV2 as solveRecaptchaV2InPage } from '../../../../dist/captcha/recaptcha.js';
-import { humanIdlePause } from '../../../../dist/human/mouse.js';
+import { humanIdlePause, humanClickLocator } from '../../../../dist/human/mouse.js';
 import { humanType } from '../../../../dist/human/keyboard.js';
 
 const RECAPTCHA_SITEKEY = '6LcIy_MqAAAAAMKiupFSbmzW3xjGSlIfRzNWYMjC';
@@ -56,8 +56,8 @@ async function solveEmailPinChallenge({ page }, email) {
     for (const sel of candidates) {
       const loc = page.locator(sel).filter({ visible: true }).first();
       if (await loc.count() > 0) {
-        await loc.click({ force: true });
-        await humanType(page, code, { delay: 80 });
+        await humanClickLocator(page, loc);
+        await humanType(page, code);
         console.log(`[linkedin_login] PIN filled into ${sel}`);
         filled = true; break;
       }
@@ -67,7 +67,7 @@ async function solveEmailPinChallenge({ page }, email) {
       for (let i = 0; i < 6; i++) {
         const cell = page.locator(`input[name="pin-${i + 1}"], input[name="otp-${i + 1}"]`).filter({ visible: true }).first();
         if (await cell.count() === 0) break;
-        await cell.click({ force: true }); await humanType(page, code[i], { delay: 60 });
+        await humanClickLocator(page, cell); await humanType(page, code[i]);
         split++;
       }
       if (split === 6) { filled = true; console.log('[linkedin_login] PIN filled into 6 split inputs'); }
@@ -81,7 +81,7 @@ async function solveEmailPinChallenge({ page }, email) {
     for (const sel of submitCandidates) {
       const btn = page.locator(sel).filter({ visible: true }).first();
       if (await btn.count() > 0) {
-        await btn.click({ force: true }).catch(() => {});
+        try { await humanClickLocator(page, btn); } catch { /* form may have already submitted */ }
         console.log(`[linkedin_login] submit clicked via ${sel}`);
         break;
       }
@@ -143,6 +143,19 @@ export async function solveLinkedinCheckpoint({ ctx, page }, reason, email) {
       liAt = cookies.find((c) => c.name === 'li_at' && c.value);
       try { finalUrl = page.url?.() ?? finalUrl; } catch {}
       if (liAt || !CHECKPOINT_RE.test(finalUrl)) break;
+      // Reset captcha iframe state for the next attempt — after a failed
+      // verify, the reCAPTCHA anchor checkbox enters a non-clickable state
+      // that breaks subsequent attempts with locator.click timeout. Reload
+      // the page (cookies persist via ctx) to get a fresh captcha.
+      if (attempt < 2) {
+        console.log(`[linkedin_login] ${reason} reloading page before next attempt to reset stale captcha state`);
+        try {
+          await page.reload({ waitUntil: 'domcontentloaded' });
+        } catch (e) {
+          console.log(`[linkedin_login] reload err: ${(e && e.message && e.message.slice(0, 80)) || 'unknown'}`);
+        }
+        try { finalUrl = page.url?.() ?? finalUrl; } catch {}
+      }
     }
   }
   return { liAt, finalUrl };

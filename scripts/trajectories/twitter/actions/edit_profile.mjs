@@ -123,7 +123,7 @@ try {
           const applyBtn = s.page.locator('button[data-testid="applyButton"], div[role="button"]:has-text("Apply"), button:has-text("Apply")').filter({ visible: true }).first();
           try {
             await applyBtn.waitFor({ state: 'visible' });
-            await applyBtn.click();
+            await humanClickLocator(s.page, applyBtn);
             writes.push('avatar uploaded');
             await humanIdlePause('deliberate');
           } catch { console.log('[tw-profile] avatar apply btn never appeared'); }

@@ -11,15 +11,15 @@ import { humanFill, humanType } from '../../dist/human/keyboard.js';
 import { humanClickLocator, humanIdlePause } from '../../dist/human/mouse.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { randomBytes } from 'node:crypto';
 import { confirmLinkedinEmail, solveLinkedinCheckpoint } from './_shared/linkedin/checkpoint.mjs';
+import { fillPostRegisterOnboarding } from './_shared/linkedin/onboarding/work_school.mjs';
+// generateIdentity import removed — identity now created by WSession.start via opts.platform.
 
 const URL = 'https://www.linkedin.com/signup';
 const RECAPTCHA_SITEKEY = '6LcIy_MqAAAAAMKiupFSbmzW3xjGSlIfRzNWYMjC';
-const AGENT_DOMAIN = process.env.AGENT_DOMAIN;
-if (!AGENT_DOMAIN) { console.log('FAIL: AGENT_DOMAIN env not set'); process.exit(1); }
 
 import { autoBindCharacter } from './lib/character-bind.mjs';
+import { generateIdentity } from '../../dist/utils/identity.js';
 
 async function getAndInjectRecaptcha(page, action) {
   const solver = new CaptchaSolver();
@@ -49,21 +49,19 @@ async function solveV2Modal(page) {
   // Cited 2026-05-05 register-B failure: passing the V3 sitekey to a V2
   // task causes CapMonster INVALID_SITEKEY and CapSolver returns a junk
   // token that LinkedIn silently rejects post-submit.
+  // Match only V2 anchor/bframe iframes; V3 also lives at /enterprise/* but never under /anchor|/bframe.
   let v2Sitekey = null;
   for (let i = 0; i < 16; i++) {
     for (const f of page.frames()) {
       const url = f.url() || '';
-      if (!/recaptcha\/(api2|enterprise)/i.test(url)) continue;
+      if (!/recaptcha\/(api2|enterprise)\/(anchor|bframe)/i.test(url)) continue;
       const m = url.match(/[?&]k=([0-9A-Za-z_-]+)/);
       if (m && m[1] !== RECAPTCHA_SITEKEY) { v2Sitekey = m[1]; break; }
     }
     if (v2Sitekey) break;
     try {
-      const dom = await page.evaluate(() => {
-        const el = document.querySelector('[data-sitekey]');
-        return el?.getAttribute('data-sitekey') ?? null;
-      });
-      if (dom && dom !== RECAPTCHA_SITEKEY) { v2Sitekey = dom; break; }
+      const dom = await page.evaluate((v3Key) => { for (const el of document.querySelectorAll('[data-sitekey]')) { const k = el.getAttribute('data-sitekey'); if (k && k !== v3Key) return k; } return null; }, RECAPTCHA_SITEKEY);
+      if (dom) { v2Sitekey = dom; break; }
     } catch {}
     await humanIdlePause('short');
   }
@@ -97,35 +95,25 @@ async function solveV2Modal(page) {
   return true;
 }
 
-function genIdentity() {
-  const F = 'Garry,Katie,Logan,Maya,Owen,Riley,Sage,Tess,Wes,Zane'.split(',');
-  const L = 'Koepp,Bayer,Pratt,Quinn,Reeves,Stone,Vega,West,Yates,Cole'.split(',');
-  const first = F[Math.floor(Math.random() * F.length)];
-  const last = L[Math.floor(Math.random() * L.length)];
-  const handle = `${first.toLowerCase()}${last.toLowerCase()}${Math.floor(Math.random() * 9000 + 1000)}`;
-  const password = randomBytes(9).toString('base64').replace(/[+/=]/g, '') + '!A1';
-  const email = `${handle}@${AGENT_DOMAIN}`;
-  return { first, last, handle, email, password };
-}
-
-const id = genIdentity();
+// Persona + identity rotation centralized in WSession.start (platform: 'linkedin').
+// Browser pin to chromium retained: 2026-05-13 instrumented Firefox run hit
+// locator timeout 30s on input[name=email-address] — LinkedIn served Firefox a
+// different signup page OR the weles Firefox build doesn't render correctly.
+// Until firefox-build is patched separately, browser stays chromium. OS still
+// rotates via persona (~70% windows / 25% macos / 5% linux).
+if (!process.env.PROXY_URL) { console.log('FAIL: PROXY_URL unset — LinkedIn register requires explicit static ISP proxy (isp.oxylabs.io:8003-8010). Random-sticky residential is burned for LinkedIn signup.'); process.exit(2); }
+const s = await WSession.start({ label: 'linkedin_register', proxy: process.env.PROXY_URL, targetHost: 'www.linkedin.com', platform: 'linkedin', browser: 'chromium' });
+const id = { first: s.identity.firstName, last: s.identity.lastName, handle: s.identity.username, email: s.identity.email, password: s.identity.password };
 console.log(`[register] identity: ${id.email} / ${id.first} ${id.last}`);
-
-// Force chromium AND macOS persona. Chromium because humanMove/humanClick +
-// CDP attach assume Chromium internals (Page.dispatchMouseEvent — Firefox
-// throws "synthesizeMouseEvent is not a function"). macOS because
-// 2026-05-06 .work/probe-macos.mjs proved LinkedIn flags Windows persona
-// (412KB PX challenge) but lets macOS through (54KB form).
-const { generatePersona } = await import('../../dist/browser/persona.js');
-const macPersona = generatePersona({ os: 'macos', browser: 'chromium' });
-const s = await WSession.start({ label: 'linkedin_register', proxy: process.env.PROXY_URL || 'residential', targetHost: 'www.linkedin.com', browser: 'chromium', persona: macPersona });
+// Persist credentials so a captcha failure mid-run still leaves a way to log in via keeper.
+try { const { writeFileSync: _wf } = await import('node:fs'); _wf('/tmp/linkedin_register_creds.txt', `email=${id.email}\nhandle=${id.handle}\npassword=${id.password}\nfirst=${id.first}\nlast=${id.last}\nproxy=${process.env.PROXY_URL}\nts=${new Date().toISOString()}\n`); }
+catch (e) { console.log(`[register] creds file err: ${e.message?.slice(0, 80)}`); }
 try {
   await s.goto(URL);
   await humanIdlePause('deliberate');
-
-  // Humanized fill — bare descriptor.set + dispatch('input') previously
-  // bypassed all keystrokes, which LinkedIn's reCAPTCHA Enterprise v3 saw as
-  // a bot signal even with a valid token.
+  // Force autocomplete=off + clear values on every input. 2026-05-11
+  // recording showed prior subprocess identities leaking via Chromium autofill.
+  await s.page.evaluate(() => { for (const el of document.querySelectorAll('input,textarea')) { el.setAttribute('autocomplete','off'); el.value=''; } }).catch(e => console.log(`[register] autofill-disable err: ${e.message?.slice(0, 80)}`));
   const emailLoc = s.page.locator('input[name="email-address"], input[autocomplete="email"], input#email-address').filter({ visible: true }).first();
   const pwdLoc = s.page.locator('input[name="password"], input[autocomplete="new-password"], input#password').filter({ visible: true }).first();
   const hasEmail = await emailLoc.count();
@@ -195,13 +183,15 @@ try {
       } catch (e) { console.log(`[register] createAccount body parse err: ${e.message?.slice(0, 80)}`); }
     }
     if (challengeUrl) {
+      // DETECTION_TRIGGERED. createAccount returned challengeUrl → IP or
+      // fingerprint is burned. Bail with exit code 2 so batch can rotate.
+      if (process.env.LINKEDIN_REGISTER_TRY_CHALLENGE !== '1') {
+        console.log(`FAIL: DETECTION_TRIGGERED — createAccount challengeUrl set; rotate IP/fingerprint and retry`);
+        process.exit(2);
+      }
       const fullUrl = challengeUrl.startsWith('http') ? challengeUrl : `https://www.linkedin.com${challengeUrl}`;
       console.log(`[register] navigating to challenge: ${fullUrl.slice(0, 80)}...`);
       await s.page.goto(fullUrl, { waitUntil: 'domcontentloaded' }).catch(e => console.log(`[register] challenge goto err: ${e.message?.slice(0, 80)}`));
-      // Wait for the recaptcha checkbox iframe to actually attach before
-      // invoking the solver. Direct-navigation to /checkpoint/challengeIframe
-      // races: sometimes page DOM is ready before the captchaInternal frame
-      // attaches → solver hits checkbox-locator timeouts (run-5 logs).
       const captchaReady = await s.page.waitForSelector('iframe[src*="captchaInternal"], iframe[src*="recaptcha/api2"], iframe[src*="recaptcha/enterprise"]', { state: 'attached' }).then(() => true).catch(() => false);
       console.log(`[register] captcha iframe attached: ${captchaReady}`);
       await humanIdlePause('deliberate');
@@ -251,10 +241,7 @@ try {
   process.env.LINKEDIN_NEW_FIRSTNAME = id.first;
   process.env.LINKEDIN_NEW_LASTNAME = id.last;
   process.env.LINKEDIN_NEW_USERNAME = id.handle;
-  // No flowName — each register run has a unique identity, so flow cache
-  // would replay save_account with stale args. Re-plan every run.
-  // Also reject /signup as a "success" — it means signup didn't actually
-  // complete (silent reCAPTCHA score rejection).
+  // Reject /signup as success — silent reCAPTCHA-score rejection looks identical.
   if (/^https?:\/\/www\.linkedin\.com\/signup\/?$/.test(verifyUrl) || verifyUrl.includes('/signup/api/')) {
     throw new Error(`signup_did_not_complete: URL stayed at ${verifyUrl} — likely reCAPTCHA score too low or silent rejection`);
   }
@@ -278,6 +265,8 @@ try {
     await autoBindCharacter(id.handle, 'linkedin').then(r => console.log(`[bind] ${JSON.stringify(r)}`)).catch((e) => console.log(`[bind] err: ${e.message?.slice(0, 80)}`));
     console.log(`PASS: ${id.handle}`);
   }
+  // Fill "add a role/school" onboarding gate so stooge can view other profiles.
+  try { const ob = await fillPostRegisterOnboarding(s.page); console.log(`[register] onboarding: ${JSON.stringify(ob)}`); } catch (obErr) { console.log(`[register] onboarding err: ${obErr.message?.slice(0, 100)}`); }
   try { mkdirSync(join(process.cwd(), 'recordings', 'linkedin_register'), { recursive: true }); writeFileSync(join(process.cwd(), 'recordings', 'linkedin_register', 'ban_signal.json'), JSON.stringify({ action: 'linkedin_register', signal: 'healthy', healthy: true, details: { username: id.handle, email: id.email, final_url: s.page.url() }, ts: new Date().toISOString() }, null, 2)); } catch {}
 } catch (e) {
   const finalUrl = s.page.url?.() ?? '';

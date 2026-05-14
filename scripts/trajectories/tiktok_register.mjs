@@ -1,6 +1,7 @@
 import { WSession } from '../../dist/session/wsession.js';
 import { generatePersona } from '../../dist/browser/persona.js';
-import { humanClickLocator } from '../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../dist/human/mouse.js';
+import { humanType } from '../../dist/human/keyboard.js';
 import { reportBlocked } from '../../dist/utils/email/domain.js';
 import { generateIdentity } from '../../dist/utils/identity.js';
 import { autoBindCharacter } from './lib/character-bind.mjs';
@@ -153,6 +154,30 @@ const URL = 'https://www.tiktok.com/signup';
         console.log(`[test] attempt ${retry + 1}: Send code did not advance form. indicators=${probe.indicators?.join(',') || 'none'}`);
         if (probe.indicators?.includes('rate-limit')) { console.log('FAIL: TikTok rate-limited this session'); break; }
         if (probe.indicators?.length) { console.log(`FAIL: captcha detected — ${probe.indicators.join(',')}`); break; }
+        if (process.env.STAY_OPEN_ON_STUCK === '1') {
+          console.log('[test] STAY_OPEN_ON_STUCK=1 — keeping browser open. Close window manually when done.');
+          await humanIdlePause('long').catch(() => {});
+        }
+        try {
+          const sendDump = await s.page.evaluate(() => {
+            const inputs = Array.from(document.querySelectorAll('input')).map(i => ({ placeholder: i.placeholder, name: i.name, type: i.type, valueLen: (i.value||'').length }));
+            const btns = Array.from(document.querySelectorAll('button')).map(b => ({ text: (b.textContent||'').trim().slice(0,30), disabled: b.disabled, ariaDisabled: b.getAttribute('aria-disabled') }));
+            const errs = Array.from(document.querySelectorAll('[class*="error" i],[class*="tip" i]')).map(e => (e.textContent||'').trim().slice(0,200)).filter(Boolean);
+            const ls = {}; try { for (const k of Object.keys(localStorage)) ls[k] = (localStorage.getItem(k)||'').slice(0,200); } catch {}
+            const ss = {}; try { for (const k of Object.keys(sessionStorage)) ss[k] = (sessionStorage.getItem(k)||'').slice(0,200); } catch {}
+            const perf = (performance.getEntriesByType('resource')||[]).filter(e => /tiktok|mssdk|ttwid|passport|verification/.test(e.name)).slice(-50).map(e => ({ name: e.name.slice(0,200), duration: Math.round(e.duration), responseEnd: Math.round(e.responseEnd), transferSize: e.transferSize }));
+            const wclick = window.__wclick || [];
+            const themeAttr = document.documentElement.getAttribute('data-theme') || document.documentElement.getAttribute('class') || '';
+            const colorScheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+            return { url: location.href, inputs, btns, errs, ls, ss, perf, wclick, themeAttr, colorScheme, cookies: document.cookie };
+          });
+          const ctxCookies = await s.ctx.cookies().catch(() => []);
+          const fs = await import('node:fs'); const path = await import('node:path');
+          const dir = path.join(process.cwd(), '.work', 'stuck'); fs.mkdirSync(dir, { recursive: true });
+          const fname = path.join(dir, `sendcode_${Date.now()}.json`);
+          fs.writeFileSync(fname, JSON.stringify({ stage: 'send_code_no_advance', sendDump, ctxCookies }, null, 2));
+          console.log(`[stuck-diag] dumped send-code-stuck state to ${fname}`);
+        } catch (e) { console.log(`[stuck-diag] err: ${e.message?.slice(0,200)}`); }
         continue;
       }
       if (!probe.hasResend && net.sendCodeSuccess) console.log('[test] send_code API succeeded although countdown text did not render — polling inbox anyway');
@@ -169,7 +194,7 @@ const URL = 'https://www.tiktok.com/signup';
       // Type code char-by-char w/ variable delays
       const codeLoc = s.page.locator('input[placeholder*="digit" i], input[name="code"]').first();
       await humanClickLocator(s.page, codeLoc).catch(() => {});
-      for (const ch of code) { await s.page.keyboard.type(ch); await new Promise(r => setTimeout(r, 80 + Math.floor(Math.random() * 140))); }
+      for (const ch of code) { await humanType(s.page, ch); await new Promise(r => setTimeout(r, 80 + Math.floor(Math.random() * 140))); }  // allow-raw-playwright: review — context-dependent timer
       // Reconcile React state only after send_code has succeeded.
       if (await pwLoc.count().catch(() => 0)) await syncReactInputValue(pwLoc, password);
       await syncReactInputValue(codeLoc, code);
@@ -231,6 +256,33 @@ const URL = 'https://www.tiktok.com/signup';
 
       if (postUrl.includes('/signup/phone-or-email/email')) {
         console.log(`[test] attempt ${retry + 1}: stuck on signup page — Next didn't create account`);
+        // Automated diagnostic: dump everything we can read from the page
+        // at the stuck point. Writes to .work/stuck/<ts>.json for later diff.
+        try {
+          const dump = await s.page.evaluate(() => {
+            const out = { ts: Date.now(), url: location.href };
+            const inputs = Array.from(document.querySelectorAll('input')).map(i => ({ placeholder: i.placeholder, name: i.name, type: i.type, valueLen: (i.value||'').length, validity: { valid: i.validity?.valid, badInput: i.validity?.badInput, valueMissing: i.validity?.valueMissing, customError: i.validity?.customError, validationMessage: i.validationMessage } }));
+            const btns = Array.from(document.querySelectorAll('button')).map(b => ({ text: (b.textContent||'').trim().slice(0,30), disabled: b.disabled, ariaDisabled: b.getAttribute('aria-disabled'), dataE2e: b.getAttribute('data-e2e'), cls: (b.className||'').toString().slice(0,80) }));
+            const errs = Array.from(document.querySelectorAll('[class*="error" i],[class*="tip" i],[class*="warning" i]')).map(e => (e.textContent||'').trim().slice(0,200)).filter(Boolean);
+            const cookies = document.cookie;
+            const ls = {}; try { for (const k of Object.keys(localStorage)) ls[k] = (localStorage.getItem(k)||'').slice(0,200); } catch {}
+            const ss = {}; try { for (const k of Object.keys(sessionStorage)) ss[k] = (sessionStorage.getItem(k)||'').slice(0,200); } catch {}
+            const perf = (performance.getEntriesByType('resource')||[]).filter(e => /tiktok|mssdk|ttwid|passport/.test(e.name)).slice(-50).map(e => ({ name: e.name.slice(0,200), duration: Math.round(e.duration), responseEnd: Math.round(e.responseEnd), transferSize: e.transferSize }));
+            const sigiTag = document.querySelector('script#SIGI_STATE') || document.querySelector('script#__UNIVERSAL_DATA_FOR_REHYDRATION__');
+            let sigiKeys = null; if (sigiTag) { try { const j = JSON.parse(sigiTag.textContent || '{}'); sigiKeys = Object.keys(j); } catch {} }
+            const wclick = window.__wclick || [];
+            const bodyText = (document.body.innerText||'').slice(0,1500);
+            return { ...out, inputs, btns, errs, cookies, ls, ss, perf, sigiKeys, wclick, bodyText };
+          });
+          const ctxCookies = await s.ctx.cookies().catch(() => []);
+          const fs = await import('node:fs');
+          const path = await import('node:path');
+          const stuckDir = path.join(process.cwd(), '.work', 'stuck');
+          fs.mkdirSync(stuckDir, { recursive: true });
+          const fname = path.join(stuckDir, `stuck_${Date.now()}.json`);
+          fs.writeFileSync(fname, JSON.stringify({ dump, ctxCookies }, null, 2));
+          console.log(`[stuck-diag] dumped page state to ${fname}`);
+        } catch (e) { console.log(`[stuck-diag] err: ${e.message?.slice(0,200)}`); }
         continue;
       }
 

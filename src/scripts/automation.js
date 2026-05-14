@@ -25,26 +25,51 @@ for (const prop of [
   } catch(e) {}
 }
 
-// Make toString() of overridden functions look native
+// Make toString() of overridden functions look native. Critical: real
+// Chrome emits "function get innerHeight() { [native code] }" for window
+// getters (with "get " prefix and accessor name), but the prior version
+// emitted "function innerHeight() { [native code] }" (no prefix). PX
+// fingerprints walk Object.getOwnPropertyDescriptor(window,'innerHeight')
+// .get.toString() and the missing prefix flags us as tampered (cited
+// .work/inst/linkedin_login_diff_2026-05-04T03-31-04-140Z.md Function
+// .toString inspections section: "get innerHeight" et al only fire on
+// weles after PX flags us → it then runs the deep probes).
 const _origToString = Function.prototype.toString;
+const _nativeStrings = new Map();
 const _nativeOverrides = new Set();
 
 Function.prototype.toString = function() {
+  const exact = _nativeStrings.get(this);
+  if (exact !== undefined) return exact;
   if (_nativeOverrides.has(this)) {
     return 'function ' + (this.name || '') + '() { [native code] }';
   }
   return _origToString.call(this);
 };
-_nativeOverrides.add(Function.prototype.toString);
+// Self-register the toString patch so PX's
+// Function.prototype.toString.toString() returns Chrome's exact output.
+_nativeStrings.set(Function.prototype.toString, 'function toString() { [native code] }');
 
-// Helper to define a property that looks native
-window.__welesDefine = function(obj, prop, getter) {
-  _nativeOverrides.add(getter);
+// Helper to define a getter property that looks native. kind defaults to
+// 'get' (Chrome accessor format); pass 'method' for method overrides
+// (e.g. getBattery) which don't have the "get " prefix.
+window.__welesDefine = function(obj, prop, getter, kind) {
+  const k = kind || 'get';
+  const fakeStr = k === 'get'
+    ? 'function get ' + prop + '() { [native code] }'
+    : 'function ' + prop + '() { [native code] }';
+  _nativeStrings.set(getter, fakeStr);
   Object.defineProperty(obj, prop, {
     get: getter,
     configurable: true,
     enumerable: true,
   });
+};
+
+// Register exact toString output for non-getter overrides (Date.prototype
+// .getTimezoneOffset, Intl.DateTimeFormat.prototype.resolvedOptions, etc).
+window.__welesNativeString = function(fn, name) {
+  _nativeStrings.set(fn, 'function ' + name + '() { [native code] }');
 };
 
 // --- Chromium-specific anti-detection ---

@@ -38,10 +38,16 @@ switch (cmd) {
     break;
   }
   case 'add': {
-    if (!domain) { console.error('Usage: add <domain> [provider]'); process.exit(1); }
-    const body = { domain, status: 'pending', provider: extra ?? 'manual', registered_at: now(), updated_at: now() };
-    await api('POST', '', body);
-    console.log(`Added ${domain} (status=pending). Run "verify ${domain}" after MX records propagate and Resend confirms.`);
+    if (!domain) { console.error('Usage: add <domain> [years]'); process.exit(1); }
+    // Auto-provision end-to-end: Namecheap register → Resend domain create +
+    // receiving enable → write DNS records to Namecheap → poll Resend until
+    // verified → upsert inbound_email_domains row as active. Was previously
+    // just an insert-pending stub that required manual `verify` followup.
+    const { provisionDomain } = await import('../../dist/utils/email/provision.js');
+    const years = extra ? parseInt(extra, 10) : 1;
+    const result = await provisionDomain(domain, { years });
+    console.log(`Added ${domain}: charged=$${result.chargedUsd.toFixed(2)} resend_id=${result.resendId} verified=${result.verified}`);
+    if (!result.verified) console.log(`Row inserted as pending — Resend verification timed out. Re-poll via dist/utils/email/provision.ts:verifyResendDomain or wait and retry.`);
     break;
   }
   case 'verify': {

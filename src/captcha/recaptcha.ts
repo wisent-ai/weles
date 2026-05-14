@@ -5,6 +5,7 @@
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { askPage, type ScreenshottablePage } from '../vision/analyze.js';
+import { humanIdlePause } from '../human/mouse.js';
 
 type Page = any;
 // MAX_ATTEMPTS removed 2026-05-06: blind retries trip LinkedIn login-restriction.
@@ -92,7 +93,7 @@ async function classifyGrid(bframe: any, instruction: string, gridSize: number):
       })).json() as any;
       const jobId = post?.data; if (!jobId) return null;
       for (let i = 0; i < 30; i++) {
-        await new Promise(r => setTimeout(r, 2000));
+        await new Promise(r => setTimeout(r, 2000));  // allow-raw-playwright: polling/rate-limit loop
         const g = await (await fetch(`https://api.nopecha.com/v1/recognition/recaptcha?id=${jobId}`, { headers: { 'Authorization': `Basic ${k}` } })).json() as any;
         if (Array.isArray(g?.data)) return (g.data as boolean[]).map((v, i) => v ? i + 1 : 0).filter(Boolean);
         if (g?.error && g.error !== 14) return null;
@@ -116,7 +117,7 @@ async function classifyGrid(bframe: any, instruction: string, gridSize: number):
     })).json() as any;
     if (!c.taskId) return null;
     for (let i = 0; i < 20; i++) {
-      await new Promise(r => setTimeout(r, 3000));
+      await new Promise(r => setTimeout(r, 3000));  // allow-raw-playwright: polling/rate-limit loop
       const r = await (await fetch('https://api.2captcha.com/getTaskResult', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ clientKey: k, taskId: c.taskId }),
@@ -126,8 +127,26 @@ async function classifyGrid(bframe: any, instruction: string, gridSize: number):
     }
     return null;
   }
-  const settled = await Promise.allSettled([nopechaSolve(), capsolverSolve(), twocaptchaSolve()]);
-  const labels = ['NopeCha', 'CapSolver', '2captcha'];
+  // Claude vision as a parallel 4th solver (not just tiebreaker). API solvers
+  // agreed on cars 3x3 [5,6,8] in 2026-05-09 LinkedIn run but LinkedIn
+  // rejected — both were systematically wrong. Adding Claude expands the
+  // signal so a 3-of-4 majority can override a 2-solver mistake.
+  async function claudeSolve(): Promise<number[] | null> {
+    try {
+      const v = await import('../vision/analyze.js') as any;
+      const ask = v.askClaude as ((b: Buffer, q: string, t?: string) => string) | undefined;
+      if (!ask) return null;
+      const grid = gridSize === 3 ? '1 2 3 / 4 5 6 / 7 8 9' : '1-4/5-8/9-12/13-16';
+      const b64 = gridImgB64 as string; // narrowed: line 72 returns null if falsy
+      const ans = ask(Buffer.from(b64, 'base64'), `reCAPTCHA grid (${grid}). Instruction: "${instr}". Return ONLY a JSON array of positions, e.g. [1,4,7].`, 'tier_image');
+      const mm = (ans || '').match(/\[[\d,\s]*\]/);
+      if (!mm) return null;
+      const p = JSON.parse(mm[0]);
+      return Array.isArray(p) ? p as number[] : null;
+    } catch { return null; }
+  }
+  const settled = await Promise.allSettled([nopechaSolve(), capsolverSolve(), twocaptchaSolve(), claudeSolve()]);
+  const labels = ['NopeCha', 'CapSolver', '2captcha', 'Claude'];
   const answers: { name: string; positions: number[] }[] = [];
   settled.forEach((s, i) => {
     const pos = s.status === 'fulfilled' && Array.isArray(s.value) ? s.value as number[] : null;
@@ -149,10 +168,26 @@ async function classifyGrid(bframe: any, instruction: string, gridSize: number):
     } catch {}
     if (answers.length === 1) { console.log(`[recaptcha] Only ${answers[0].name} responded`); return answers[0].positions; }
   }
+  // Claude-first consensus. Verified 2026-05-09 on LinkedIn: NopeCha+2captcha
+  // agreed on cars 3x3 [5,6,8] and bicycles 4x4 [9,10] — both rejected by
+  // LinkedIn's grader. The two API solvers share the same flawed CNN backbone
+  // for these challenge classes, so their "agreement" doesn't mean correct;
+  // it means correlated wrong. Claude vision (multimodal LLM) is the
+  // strongest signal we have. Strategy:
+  //   1) If Claude returned an answer, submit Claude's answer (it picks tiles
+  //      most reliably on LinkedIn-style challenges).
+  //   2) Else fall back to ≥2-of-N majority of the API solvers.
+  const claudeAns = answers.find(a => a.name === 'Claude');
+  if (claudeAns && claudeAns.positions.length > 0) {
+    console.log(`[recaptcha] Submitting Claude's answer: ${JSON.stringify(claudeAns.positions)} (API solvers: ${answers.filter(a => a.name !== 'Claude').map(a => `${a.name}=${JSON.stringify(a.positions)}`).join(', ')})`);
+    return claudeAns.positions.slice().sort((a, b) => a - b);
+  }
   const tally = new Map<number, number>();
   for (const a of answers) for (const p of new Set(a.positions)) tally.set(p, (tally.get(p) ?? 0) + 1);
   const majority = [...tally.entries()].filter(([, c]) => c >= 2).map(([p]) => p).sort((a, b) => a - b);
-  console.log(`[recaptcha] Consensus (≥2 of ${answers.length}): ${JSON.stringify(majority)}`);
+  console.log(`[recaptcha] No Claude answer; consensus (≥2 of ${answers.length}): ${JSON.stringify(majority)}`);
+  const minT = gridSize === 3 ? 1 : 2;
+  if (majority.length < minT) { const { disagreementTiebreaker } = await import('./consensus.js'); const t = await disagreementTiebreaker(answers, gridImgB64, instr, gridSize, minT); if (t && t.length > 0) return t; }
   return majority.length > 0 ? majority : answers[0].positions;
 }
 
@@ -186,19 +221,21 @@ export async function solveRecaptchaV2(page: Page): Promise<boolean> {
     const attempt = 0;
     try {
     let bframe = findBframe(page);
-    // Anchor-state recovery: when LinkedIn rejects a verify because the
-    // reCAPTCHA token aged out (~120s lifetime), the anchor frame swaps to
-    // an error state with `.recaptcha-checkbox[aria-checked=false]` and the
-    // image bframe goes stale (DOM still queryable, but clicks/verify
-    // ignored, prompts and image bytes frozen). Verified 2026-05-03 from
-    // captcha_attempt5_page.png: "Verification challenge expired. Check
-    // the checkbox again." with red-border anchor checkbox.
-    //
-    // Detect via aria-checked alone (more reliable than scraping the error
-    // message text — the latter changes wording across reCAPTCHA versions).
-    // If unchecked at start of attempt N (where N>0), the previous Verify
-    // failed and we need to re-click the anchor to spawn a fresh bframe.
-    // attempt > 0 re-click block removed — single-shot, no expiry recovery.
+    // Anchor-state recovery (restored 2026-05-08 from frame_5a0be1ec_last.png
+    // showing "Verification challenge expired" + aria-checked=false).
+    try {
+      const af = findAnchorFrame(page);
+      if (af) {
+        const checked = await af.evaluate(`(() => document.querySelector('.recaptcha-checkbox')?.getAttribute('aria-checked') === 'true')()`).catch(() => false);
+        if (!checked && bframe) {
+          console.log('[recaptcha] Anchor unchecked (token expired) — re-clicking');
+          try { await af.locator('#recaptcha-anchor').click({ force: true }); } catch {}
+          await page.waitForEvent('frameattached', { timeout: 5000 }).catch(() => {});
+          await humanIdlePause('short');
+          bframe = findBframe(page);
+        }
+      }
+    } catch {}
     if (!bframe) {
       // Page may have navigated to new checkpoint — wait for it to load
       console.log('[recaptcha] No bframe, waiting for page load...');
@@ -252,10 +289,10 @@ export async function solveRecaptchaV2(page: Page): Promise<boolean> {
           console.log(`[recaptcha] Tile ${pos} stalled (${e.message?.slice(0,40)})`);
           break;
         }
-        await page.waitForTimeout(300 + Math.floor(Math.random() * 300));
+        await humanIdlePause();
       }
     }
-    await page.waitForTimeout(500);
+    await humanIdlePause('short');
 
     // Click verify
     const verifyEl = await bframe.$('#recaptcha-verify-button');

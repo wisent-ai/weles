@@ -33,20 +33,13 @@ async function runTrajectory(row: ActionLogRow, path: string, extraEnv: Record<s
   // dir is shared across runs, so a killed predecessor would otherwise be
   // attributed to this row.
   try { await (await import('node:fs/promises')).unlink(join(RECORDINGS_ROOT, row.action, 'ban_signal.json')).catch(() => {}); } catch { /* noop */ }
-  // Hard wall-clock cap. Without this a single hung Chromium (proxy CONNECT
-  // timeout, modal that never resolves, infinite scroll loop) parks one worker
-  // for hours and the other workers can't make up for it. Tightened from
-  // unbounded so a stuck linkedin_dwell can't burn a worker for 30+ min.
-  // Health/probe trajectories cap lower (90s); register/login get 600s; rest
-  // get 360s. Override per-row via WORKER_HARD_TIMEOUT_MS env.
+  // Hard wall-clock cap. Health/probe 90s; topup 360s; register/login 900s
+  // (bumped from 600s 2026-05-05: CapMonster->CapSolver->AntiCaptcha V2
+  // fall-through can take 12+ min). Override per-row via WORKER_HARD_TIMEOUT_MS.
   const overrideMs = Number(process.env.WORKER_HARD_TIMEOUT_MS ?? 0);
-  // _topup needs Google SSO + dashboard navigation + form fill + payment
-  // submit; the 90s _balance budget SIGKILL'd brightdata_topup mid-flow on
-  // 2026-05-04 (cited account_action_logs row 45bbb63f). Bump _topup to
-  // 360s, in line with the other interactive trajectories.
   const defaultMs = row.action.endsWith('_health') || row.action.endsWith('_balance') ? 90_000
     : row.action.endsWith('_topup') ? 360_000
-    : row.action.endsWith('_register') || row.action.endsWith('_login') ? 600_000
+    : row.action.endsWith('_register') || row.action.endsWith('_login') ? 900_000
     : 360_000;
   const hardTimeoutMs = overrideMs > 0 ? overrideMs : defaultMs;
   return new Promise((resolve) => {

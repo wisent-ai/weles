@@ -111,7 +111,7 @@ try {
           const upload = s.page.locator('button:has-text("Upload Photo"), button:has-text("Upload photo")').filter({ visible: true }).first();
           if (await upload.isVisible().catch(() => false)) {
             const fileChooserPromise = s.page.waitForEvent('filechooser');
-            await upload.click();
+            await humanClickLocator(s.page, upload);
             const fc = await fileChooserPromise;
             await fc.setFiles(tmpAvatar);
             await humanIdlePause('deliberate');

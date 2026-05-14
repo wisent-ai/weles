@@ -120,7 +120,7 @@ try {
           const applyBtn = s.page.locator('button:has-text("Apply"), button:has-text("Confirm"), button:has-text("Save")').filter({ visible: true }).first();
           try {
             await applyBtn.waitFor({ state: 'visible' });
-            await applyBtn.click();
+            await humanClickLocator(s.page, applyBtn);
             writes.push('avatar uploaded');
             await humanIdlePause('deliberate');
           } catch { console.log('[tt-profile] avatar apply not visible'); }

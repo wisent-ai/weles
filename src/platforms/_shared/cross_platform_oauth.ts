@@ -1,3 +1,4 @@
+import { humanIdlePause } from '../../human/mouse.js';
 // Cross-platform OAuth helpers.
 //
 // Pattern: use stored cookies from an account on platform A to OAuth-sign-in
@@ -15,10 +16,11 @@ interface ProviderConfig { primaryDomain: string; mirrorDomains?: string[]; }
 const PROVIDER_DOMAINS: Record<string, ProviderConfig> = {
   twitter: { primaryDomain: '.x.com', mirrorDomains: ['.twitter.com'] },
   instagram: { primaryDomain: '.instagram.com' },
-  google: { primaryDomain: '.google.com' },
-  facebook: { primaryDomain: '.facebook.com' },
+  google: { primaryDomain: '.google.com', mirrorDomains: ['.youtube.com', '.accounts.google.com'] },
+  facebook: { primaryDomain: '.facebook.com', mirrorDomains: ['.messenger.com'] },
   github: { primaryDomain: '.github.com' },
-  apple: { primaryDomain: '.apple.com' },
+  apple: { primaryDomain: '.apple.com', mirrorDomains: ['.icloud.com'] },
+  microsoft: { primaryDomain: '.microsoftonline.com', mirrorDomains: ['.live.com', '.microsoft.com', '.login.microsoft.com'] },
 };
 
 export interface RawCookie {
@@ -90,7 +92,7 @@ export async function handleOAuthConsent(s: SessionLike, maxAttempts: number = 3
     await s.click('Authorize app').catch(() => {});
     await s.click('Authorize').catch(() => {});
     await s.click('Allow').catch(() => {});
-    await new Promise(r => setTimeout(r, 3000));
+    await humanIdlePause('deliberate');
   }
 }
 
@@ -99,7 +101,7 @@ export async function waitForNavBackTo(page: PageLike, mustInclude: string, must
   for (let i = 0; i < seconds / 2; i++) {
     const u: string = page.url?.() ?? '';
     if (u.includes(mustInclude) && !mustExcludeAny.some(x => u.includes(x))) return true;
-    await new Promise(r => setTimeout(r, 2000));
+    await humanIdlePause('deliberate');
   }
   return false;
 }
@@ -116,9 +118,9 @@ export async function clearReCaptchaGate(s: SessionLike, solver: any, gateUrlSub
     const u: string = s.page.url?.() ?? '';
     if (!u.includes(gateUrlSubstring)) return true;
     await s.page.waitForSelector('iframe[src*="recaptcha/api2/anchor"]').catch(() => {});
-    await new Promise(r => setTimeout(r, 3000));
+    await humanIdlePause('deliberate');
     const solved = await solvePageCaptcha(s.page, solver, s).catch(() => false);
-    if (!solved) { await new Promise(r => setTimeout(r, 3000)); continue; }
+    if (!solved) { await new Promise(r => setTimeout(r, 3000)); continue; }  // allow-raw-playwright: review — context-dependent timer
     // Try button click first (more reliable than requestSubmit on PH's React
     // form), then form.requestSubmit, then a synthetic submit event.
     await s.page.evaluate(() => {
@@ -131,13 +133,13 @@ export async function clearReCaptchaGate(s: SessionLike, solver: any, gateUrlSub
       if (typeof form.requestSubmit === 'function') form.requestSubmit();
       else form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
     }).catch(() => {});
-    await new Promise(r => setTimeout(r, 6000));
+    await humanIdlePause('long');
     if (!(s.page.url?.() ?? '').includes(gateUrlSubstring)) return true;
     // Token's been written but the page didn't navigate. PH's verification
     // sets a server cookie on solve — re-issuing a navigation to the homepage
     // carries that cookie and lets the next request pass the gate.
     await s.page.goto('https://www.producthunt.com/').catch(() => {});
-    await new Promise(r => setTimeout(r, 3000));
+    await humanIdlePause('deliberate');
     if (!(s.page.url?.() ?? '').includes(gateUrlSubstring)) return true;
   }
   return false;

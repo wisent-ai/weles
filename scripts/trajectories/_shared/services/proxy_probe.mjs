@@ -95,6 +95,13 @@ export async function patchEffectiveBalance(displayName, dashboardBalance) {
   let probe = null;
   if (creds) probe = await probeProxyAuth(creds);
 
+  // probe-fail (407 / non-200 / network): write 0 + note. probe-OK or
+  // no-probe: write whatever the dashboard scraped, including 0 — every
+  // balance trajectory now forensic-dumps on regex miss and throws before
+  // calling this helper, so dashboardBalance==null cannot reach here. A
+  // scraped 0 is a real "depleted" reading and must be trusted; the prior
+  // 2026-05-08 "preserve prior balance on probe-OK + dashboard-zero" branch
+  // perpetuated $0 forever once a row was ever 0.
   let effective = dashboardBalance;
   let note = null;
   if (probe && !probe.ok) {
@@ -105,9 +112,9 @@ export async function patchEffectiveBalance(displayName, dashboardBalance) {
   }
 
   const update = {
-    balance_usd: effective,
     last_balance_check: new Date().toISOString(),
     updated_at: new Date().toISOString(),
+    balance_usd: effective,
   };
   // Read-modify-write notes so we don't clobber procurement context the
   // operator may have written. Only update notes when we just observed a

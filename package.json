@@ -23,6 +23,7 @@
     "fingerprint-generator": "^2.1.0",
     "header-generator": "^2.1.0",
     "jsqr": "^1.4.0",
+    "patchright": "^1.59.4",
     "playwright": "^1.59.1",
     "pngjs": "^7.0.0",
     "sharp": "^0.34.5",

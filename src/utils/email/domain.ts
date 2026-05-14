@@ -8,7 +8,47 @@
  *
  * All listed domains are expected to live in a single Resend receiving workspace,
  * so one RESEND_RECEIVING_API_KEY can poll inboxes across every domain.
+ *
+ * Live MX validation: every candidate row gets dns.resolveMx() before being
+ * returned. Domains with empty MX are PATCH'd to status='mx_broken' on the spot
+ * and skipped to the next candidate. Self-heals DNS drift on the trajectory's
+ * own failure path — no separate cron needed.
  */
+
+import { resolveMx } from 'node:dns/promises';
+
+const MX_CACHE_TTL_MS = 5 * 60 * 1000;
+const mxCache: Map<string, { ok: boolean; at: number }> = new Map();
+
+async function hasValidMx(domain: string): Promise<boolean> {
+  const cached = mxCache.get(domain);
+  if (cached && Date.now() - cached.at < MX_CACHE_TTL_MS) return cached.ok;
+  let ok = false;
+  try {
+    const records = await resolveMx(domain);
+    ok = Array.isArray(records) && records.length > 0;
+  } catch { ok = false; }
+  mxCache.set(domain, { ok, at: Date.now() });
+  return ok;
+}
+
+async function markMxBroken(sb: { url: string; key: string }, domain: string): Promise<void> {
+  const now = new Date().toISOString();
+  try {
+    const res = await fetch(`${sb.url}/rest/v1/inbound_email_domains?domain=eq.${encodeURIComponent(domain)}`, {
+      method: 'PATCH',
+      headers: { apikey: sb.key, Authorization: `Bearer ${sb.key}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+      body: JSON.stringify({ status: 'mx_broken', updated_at: now }),
+    });
+    if (!res.ok) {
+      let body = '';
+      try { body = await res.text(); } catch (te: any) { body = `<read err: ${te?.message ?? ''}>`; }
+      console.log(`[domain] mx_broken PATCH ${domain} HTTP ${res.status}: ${body.slice(0, 160)}`);
+      return;
+    }
+    console.log(`[domain] auto-demoted ${domain} to mx_broken (no MX records found)`);
+  } catch (e: any) { console.log(`[domain] mx_broken patch err for ${domain}: ${e?.message?.slice(0, 80)}`); }
+}
 
 function envDerived(): string {
   const list = process.env.AGENT_EMAIL_DOMAINS?.split(',').map(s => s.trim()).filter(Boolean) ?? [];
@@ -71,21 +111,42 @@ async function pickFromDb(platform?: string): Promise<string | null> {
       if (platform) throw new Error(`domain_unavailable: no active inbound domains below ${maxSignups} signups for ${platform}`);
       return null;
     }
-    const row = rows.find(r => {
+    let row: DomainRow | undefined;
+    for (const r of rows) {
       const block = platformBlock(r, platform);
       if (block.blocked) {
         console.log(`[domain] Skipping ${r.domain} for ${platform}: ${block.reason ?? 'platform_blocked'}`);
-        return false;
+        continue;
       }
-      return true;
-    });
+      if (!(await hasValidMx(r.domain))) {
+        console.log(`[domain] Skipping ${r.domain} — no MX records; demoting to mx_broken`);
+        await markMxBroken(sb, r.domain);
+        continue;
+      }
+      row = r;
+      break;
+    }
     if (!row) {
-      throw new Error(`domain_unavailable: no active inbound domains available for ${platform ?? 'generic'} after platform block filters`);
+      throw new Error(`domain_unavailable: no active inbound domains available for ${platform ?? 'generic'} after platform block + MX filters`);
     }
     console.log(`[domain] Picked ${row.domain} (${row.signup_count}/${maxSignups} confirmed signups so far — not counted yet)`);
-    // Do NOT bump signup_count here. It only increments on confirmed-successful
-    // account creation via markSignupSuccess(). Previously failed attempts
-    // inflated the counter and auto-provisioned junk domains.
+    // Bump last_used_at on PICK (not signup_count) so the ORDER BY
+    // signup_count.asc,last_used_at.asc rotates to a different domain on
+    // the next call, even when no signup PASSes. signup_count still
+    // increments only via markSignupSuccess(). Pre-2026-05-12: failed
+    // attempts left last_used_at stale, so pickFromDb returned the same
+    // domain for every retry in a burst (verified in batch_deep run.log:
+    // 10 consecutive register attempts all used @inboxmail659.com).
+    try {
+      await fetch(
+        `${sb.url}/rest/v1/inbound_email_domains?domain=eq.${encodeURIComponent(row.domain)}`,
+        {
+          method: 'PATCH',
+          headers: { apikey: sb.key, Authorization: `Bearer ${sb.key}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+          body: JSON.stringify({ last_used_at: new Date().toISOString() }),
+        },
+      );
+    } catch (e: any) { console.log(`[domain] last_used_at patch err: ${e?.message?.slice(0, 80)}`); }
     return row.domain;
   } catch (e: any) {
     if (String(e?.message ?? '').startsWith('domain_unavailable:')) throw e;

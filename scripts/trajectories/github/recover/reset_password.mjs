@@ -11,7 +11,8 @@
  * env is set.
  */
 import { getSocialAccount } from '../../../../dist/utils/credentials.js';
-import { WSession } from '../../../../dist/session/wsession.js';\nimport { humanClickLocator } from '../../../../dist/human/mouse.js';
+import { WSession } from '../../../../dist/session/wsession.js';
+import { humanClickLocator } from '../../../../dist/human/mouse.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import { join } from 'node:path';

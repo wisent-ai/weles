@@ -35,7 +35,7 @@ const LAYOUTS: Record<string, BrowserLayout> = {
     envDir: 'WELES_FIREFOX_DIR',
     installDirName: 'weles-firefox',
     appSubpaths: ['Firefox.app/Contents/MacOS/firefox', 'firefox/firefox'],
-    localBuildSubpath: 'firefox-build/obj-weles/dist/Nightly.app/Contents/MacOS/firefox',
+    localBuildSubpath: 'firefox-build/mozilla-central/obj-weles/dist/Nightly.app/Contents/MacOS/firefox',
     optPaths: ['/opt/firefox/firefox'],
   },
 };

@@ -4,7 +4,6 @@ import { humanMove, humanIdlePause, humanClick, humanClickLocator, humanScroll, 
 import { findComposerPart, spaTransitionToPost, engageMedia, dwellOnPostPage, submitNewRedditComment, verifyCommentVisibility, postSubmitBrowse } from './reddit/actions/comment_new.mjs';
 import { detectRedditBanSignals } from '../../dist/platforms/reddit/ban_signals.js';
 import { generateOrganicComment } from './_shared/llm.mjs';
-import { randomBytes } from 'node:crypto';
 process.on('unhandledRejection', (err) => { console.log(`UNHANDLED: ${err?.message || err}`); process.exit(2); });
 process.on('uncaughtException', (err) => { console.log(`UNCAUGHT: ${err?.message || err}`); process.exit(3); });
 const REGISTER_URL = 'https://www.reddit.com/register';
@@ -29,22 +28,12 @@ const COMMENT_BODY_OVERRIDE = process.env.COMMENT_BODY || null;
 // "first comment via legacy old.reddit interface" because real new users land on the
 // modern site. Set SUBMIT_PATH=old to opt back into the legacy path for A/B comparison.
 const SUBMIT_PATH = (process.env.SUBMIT_PATH === 'old' || process.env.OLD_REDDIT === '1') ? 'old' : 'new';
-const AGENT_DOMAIN = process.env.AGENT_DOMAIN ?? 'mailwisent.com';
 const PROXY_FILTER = process.env.PROXY_URL || 'residential brightdata us';
 const REAL_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15';
-function genIdentity() {
-  const F = 'Garry,Katie,Logan,Maya,Owen,Riley,Sage,Tess,Wes,Zane'.split(',');
-  const L = 'Koepp,Bayer,Pratt,Quinn,Reeves,Stone,Vega,West,Yates,Cole'.split(',');
-  const first = F[Math.floor(Math.random() * F.length)];
-  const last = L[Math.floor(Math.random() * L.length)];
-  const username = `${first.toLowerCase()}${last.toLowerCase()}${Math.floor(Math.random() * 9000 + 1000)}`;
-  const email = `${username}@${AGENT_DOMAIN}`;
-  const password = randomBytes(9).toString('base64').replace(/[+/=]/g, '') + '!A1';
-  return { first, last, username, email, password, name: `${first} ${last}` };
-}
-const id = genIdentity();
+// Persona + identity rotation centralized in WSession.start (opts.platform).
+const s = await WSession.start({ label: 'reddit_register_then_comment', proxy: PROXY_FILTER, targetHost: 'www.reddit.com', platform: 'reddit' });
+const id = { first: s.identity.firstName, last: s.identity.lastName, username: s.identity.username, email: s.identity.email, password: s.identity.password, name: `${s.identity.firstName} ${s.identity.lastName}` };
 console.log(`[register] identity: ${id.username} ${id.email}`);
-const s = await WSession.start({ label: 'reddit_register_then_comment', proxy: PROXY_FILTER, browser: 'chromium', targetHost: 'www.reddit.com' });
 function decodeHtmlAttr(s) {
   return String(s || '')
     .replace(/&amp;/g, '&')

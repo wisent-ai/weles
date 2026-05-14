@@ -4,13 +4,16 @@
 // passing PROXY_URL=http://...@proxy.packetstream.io:... for a reddit
 // register would bypass the per-account check entirely.
 
-// Replaced by data-driven proxy_capability_matrix in src/proxy/capability.ts.
-// The hardcoded toxicity table conflicted with matrix-passing cells (e.g.
-// PacketStream for tiktok was blocked here even when the matrix had data
-// showing recent passes). Cold-start cost is one bad attempt per
-// (provider, action) cell — the matrix marks it 'fail' immediately and
-// future selects skip it. No more policy embedded in code.
-const PROVIDER_PLATFORM_BLOCK: Record<string, string[]> = {};
+// Most provider/platform pairs are governed by the data-driven
+// proxy_capability_matrix in src/proxy/capability.ts. Hard exclusions
+// stay here because they're CLAUDE.md auto-rules, not statistical
+// observations. PacketStream + LinkedIn is one such rule: PacketStream's
+// residential range is flagged by LinkedIn anti-bot; signups from those
+// IPs land on /checkpoint immediately and account_action_logs has zero
+// linkedin_login successes via PacketStream.
+const PROVIDER_PLATFORM_BLOCK: Record<string, string[]> = {
+  packetstream: ['linkedin'],
+};
 
 // Map a proxy hostname (or hostname-like substring) back to its provider name.
 // Used when resolveProxy receives a fully-qualified PROXY_URL and we need to

@@ -64,17 +64,11 @@ export function parseProxyUrl(url: string): ProxyConfig {
   };
 }
 
-// ---------------------------------------------------------------------------
-// ProxyPool
-// ---------------------------------------------------------------------------
-
 export class ProxyPool {
   private _proxies: ProxyConfig[] = [];
   private _index = 0;
-
   get length(): number { return this._proxies.length; }
   add(config: ProxyConfig): void { this._proxies.push(config); }
-
   next(random = false): ProxyConfig {
     if (this._proxies.length === 0) throw new Error('ProxyPool is empty');
     if (random) return this._proxies[Math.floor(Math.random() * this._proxies.length)];
@@ -84,14 +78,6 @@ export class ProxyPool {
   }
 }
 
-/**
- * Resolve a proxy type (residential, mobile, datacenter) or URL to Playwright proxy config.
- * Fetches available providers from the service_credentials Supabase table,
- * filters by balance > 0 and env var availability, returns the first working one.
- */
-// Map a target host (the URL the trajectory is about to hit) to the platform
-// we burn against. e.g. www.instagram.com -> 'instagram', x.com -> 'twitter'.
-// Used so per-platform burn scoring matches the worker's row.platform.
 function platformFromTarget(host: string | undefined): string | undefined {
   if (!host) return undefined;
   const h = host.toLowerCase();
@@ -103,6 +89,8 @@ function platformFromTarget(host: string | undefined): string | undefined {
   if (h.includes('github.com')) return 'github';
   if (h.includes('tiktok.com')) return 'tiktok';
   if (h.includes('producthunt.com')) return 'producthunt';
+  if (h.includes('youtube.com')) return 'youtube';
+  if (h.includes('google.com')) return 'google';  // accounts.google.com etc — was undefined → legacy isBurned blocked all PacketStream LB IPs (verified 2026-05-07)
   return undefined;
 }
 
@@ -142,6 +130,9 @@ export async function resolveProxy(proxy: string, targetHost?: string): Promise<
   if (!res.ok) { console.log(`[proxy] Failed to fetch providers: ${res.status}`); return undefined; }
   type Row = { display_name: string; proxy_host: string; proxy_port: string; api_key_env_var: string; balance_usd: number; metadata?: { country?: string } };
   const providers = await res.json() as Row[];
+  const { maybeOxylabsIspRow } = await import('./sources/isp_row.js');
+  const ispRow = maybeOxylabsIspRow();
+  if (ispRow) providers.push(ispRow);
 
   const typeFilter = proxy.toLowerCase();
   // Tokens after 'residential'/'mobile' may include a 2-letter country code
@@ -151,7 +142,9 @@ export async function resolveProxy(proxy: string, targetHost?: string): Promise<
   const ccOverride = (typeFilter.match(/\b([a-z]{2})\b/g) ?? []).find(t => !['oxylabs', 'mobile', 'residential', 'datacenter', 'sticky'].includes(t) && /^[a-z]{2}$/.test(t));
   const isResidential = /\bresidential\b/.test(typeFilter);
   const isMobile = /\bmobile\b/.test(typeFilter);
-  let filtered = isResidential ? providers.filter(p => !p.display_name.toLowerCase().includes('mobile'))
+  const isIsp = /\bisp\b/.test(typeFilter);
+  let filtered = isIsp ? providers.filter(p => p.display_name.toLowerCase().includes('isp'))
+    : isResidential ? providers.filter(p => !p.display_name.toLowerCase().includes('mobile') && !p.display_name.toLowerCase().includes('isp'))
     : isMobile ? providers.filter(p => p.display_name.toLowerCase().includes('mobile'))
     : providers;
 
@@ -184,6 +177,11 @@ export async function resolveProxy(proxy: string, targetHost?: string): Promise<
     const name = p.display_name.toLowerCase();
     const _ov = (p.metadata as any)?.country_overrides?.[platformFromTarget(targetHost) ?? ''];
     const cc = (ccOverride ?? _ov ?? p.metadata?.country ?? 'us').toLowerCase();
+    // City pin: same shape as country_overrides. When set, pin the exit
+    // city so persona timezone aligns with proxy geo (LinkedIn flags
+    // tz/IP mismatches as suspicious-device signals).
+    const _cityOv = (p.metadata as any)?.city_overrides?.[platformFromTarget(targetHost) ?? ''];
+    const city = (_cityOv ?? (p.metadata as any)?.city ?? '').toString().toLowerCase().replace(/\s+/g, '_') || undefined;
     // DB-row policy enforcement: skip providers blocked for the target
     // platform regardless of how the resolver got here.
     const provKey = name.includes('packetstream') ? 'packetstream' : name.includes('pingproxies') ? 'pingproxies' : name.includes('oxylabs') ? 'oxylabs' : name.includes('iproyal') ? 'iproyal' : name.includes('bright') ? 'brightdata' : undefined;
@@ -196,7 +194,11 @@ export async function resolveProxy(proxy: string, targetHost?: string): Promise<
     for (let attempt = 0; attempt < 8; attempt++) {
       const sessId = Math.floor(Math.random() * 9000000 + 1000000);
       let stickyUser = username, stickyPass = password;
-      if (name.includes('oxylabs')) stickyUser = `customer-${username}-cc-${cc}-sessid-${sessId}`;
+      if (name.includes('oxylabs') && !name.includes('isp')) {
+        const cityPart = city ? `-city-${city}` : '';
+        stickyUser = `customer-${username}-cc-${cc}${cityPart}-sessid-${sessId}`;
+      }
+      // Oxylabs ISP: static IPs, plain username/password — no customer- prefix, no sessid.
       else if (name.includes('packetstream')) stickyPass = `${password}_country-${cc.toUpperCase()}_session-${sessId}`;
       else if (name.includes('iproyal')) stickyPass = `${password}_country-${cc}_session-${sessId}`;
       else if (name.includes('pingproxies')) stickyUser = `${username}_c_${cc}_s_${sessId}`;

@@ -161,10 +161,11 @@ export async function patchServiceBalance(displayName, balance) {
   const supabaseUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
   if (!supabaseUrl || !key) return false;
+  const now = new Date().toISOString();
   const r = await fetch(`${supabaseUrl}/rest/v1/service_credentials?display_name=eq.${encodeURIComponent(displayName)}`, {
     method: 'PATCH',
     headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
-    body: JSON.stringify({ balance_usd: balance, updated_at: new Date().toISOString() }),
+    body: JSON.stringify({ balance_usd: balance, last_balance_check: now, updated_at: now }),
   });
   return r.ok;
 }

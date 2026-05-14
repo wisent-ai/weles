@@ -2,6 +2,8 @@
 import { WSession } from '../../../dist/session/wsession.js';
 import { googleSso, getGoogleSsoCreds } from '../_shared/services/google_sso.mjs';
 import { topupOpts, dryRunExit } from '../_shared/services/topup_common.mjs';
+import { humanIdlePause } from '../../../dist/human/mouse.js';
+import { humanType } from '../../../dist/human/keyboard.js';
 
 const { usd, confirm } = topupOpts();
 const login = await getGoogleSsoCreds();
@@ -10,19 +12,19 @@ if (!login) { console.log('FAIL: no Google SSO creds'); process.exit(1); }
 const s = await WSession.start({ label: 'pingproxies_topup', browser: 'chromium' });
 try {
   await s.goto('https://dashboard.byteful.com/login');
-  await s.page.waitForTimeout(4000);
+  await humanIdlePause('deliberate');
   await s.page.locator('button:has-text("Continue with Google"), button:has-text("Sign in with Google")').filter({ visible: true }).first().click();
   const ok = await googleSso(s, login, { originHost: 'byteful.com' });
   if (!ok) { console.log('FAIL: Google SSO did not complete'); process.exit(1); }
 
-  await s.page.waitForTimeout(5000);
-  // Verified 2026-05-04: the bottom-sidebar Add balance flow opens a
-  // store-credit modal that requires NEW card entry every time (no
-  // saved-card-for-store-credit option). The Wallet sub-page under
-  // Billing may expose a different topup flow that uses the saved
-  // subscription card on file.
-  await s.page.goto('https://dashboard.byteful.com/billing/wallet', { waitUntil: 'domcontentloaded' }).catch(() => {});
-  await s.page.waitForTimeout(4000);
+  await humanIdlePause('long');
+  // The home dashboard Add-balance modal exposes "Show More Payment
+  // Options" that may reveal the saved card on file (****2430 visible
+  // on /billing/payment-methods). The wallet variant of the modal
+  // (entered from /billing/wallet) does NOT show that — only New Card +
+  // Crypto. Going via home to reach the saved-card option.
+  await s.page.goto('https://dashboard.byteful.com/', { waitUntil: 'domcontentloaded' }).catch(() => {});
+  await humanIdlePause('deliberate');
   // Diag: enumerate what's actually visible on the wallet page.
   try {
     const walletState = await s.page.evaluate(() => {
@@ -44,7 +46,7 @@ try {
   if (!(await addBalanceBtn.isVisible().catch(() => false))) { console.log('FAIL: "Add balance" button not visible'); process.exit(1); }
   await addBalanceBtn.evaluate((el) => (el).click());
   console.log('[trajectory] clicked "Add balance" via JS evaluate (top-right)');
-  await s.page.waitForTimeout(3500);
+  await humanIdlePause('deliberate');
 
   // Enumerate everything inside the modal containing the text "Credit card"
   // (or close variants) plus all clickable elements. v8s [role="tab"]
@@ -65,19 +67,53 @@ try {
 
   const amtIn = s.page.locator('input[type="number"], input[name*="amount" i], input[inputmode="numeric"]').filter({ visible: true }).first();
   if (await amtIn.isVisible().catch(() => false)) {
+    // The pingproxies modal has a default amount value of 100 (cited from
+    // modal HTML dump). v14s keyboard.type without proper clearing
+    // appended to "100" producing "1010"/"10010" — invalid amount that
+    // silently aborted the form. Use selectAll-then-type which Playwright
+    // dispatches as a real key sequence React picks up.
     await amtIn.click();
-    // v7-v13 cited: Locator.fill() sets the DOM value but React's controlled
-    // input ignores it (no charge POST fired across 7 different click
-    // strategies). page.keyboard.type dispatches per-character keydown +
-    // input events that React's value tracker accepts.
-    await s.page.keyboard.press('Control+A').catch(() => {});
-    await s.page.keyboard.press('Meta+A').catch(() => {});
-    await s.page.keyboard.press('Backspace').catch(() => {});
-    await s.page.keyboard.type(String(usd), { delay: 60 });
-    console.log(`[trajectory] amount typed: $${usd}`);
+    await amtIn.selectText().catch(() => {});
+    await s.page.keyboard.press('Backspace');
+    await humanType(s.page, String(usd), { delay: 80 });
+    const actualValue = await amtIn.inputValue().catch(() => '');
+    console.log(`[trajectory] amount input value after clear+type: "${actualValue}" (target: $${usd})`);
   }
 
+  // Dump the full modal HTML so I can read actual selectors offline
+  // instead of guessing. Writes to a known location for inspection.
+  try {
+    const modalHtml = await s.page.evaluate(() => {
+      const dialogs = Array.from(document.querySelectorAll('[role="dialog"]')).filter(d => d.offsetParent);
+      return dialogs.map(d => d.outerHTML).join('\n\n<!-- next dialog -->\n\n');
+    });
+    const fs = await import('node:fs');
+    fs.writeFileSync('/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/.work/topup-debug/pingproxies_modal.html', modalHtml);
+    console.log('[trajectory] dumped modal HTML to .work/topup-debug/pingproxies_modal.html');
+  } catch (e) { console.log('[diag] HTML dump err:', e.message?.slice(0, 80)); }
+
   if (!confirm) { await dryRunExit(s, 'pingproxies', usd); process.exit(0); }
+
+  // Click "Show More Payment Options" then the saved card option (cited
+  // 2026-05-04: /billing/payment-methods has Mastercard ****2430 saved as
+  // Default). The home-dashboard Add balance modal exposes this via the
+  // "Show More Payment Options" expander. Without explicitly selecting a
+  // saved card, the modal's "Add store credit" click is silently aborted
+  // by byteful's React onClick — verified across 15 iterations.
+  const showMore = s.page.locator('button:has-text("Show More Payment Options"), a:has-text("Show More Payment Options")').filter({ visible: true }).first();
+  if (await showMore.isVisible().catch(() => false)) {
+    await showMore.evaluate((el) => (el).click());
+    console.log('[trajectory] clicked "Show More Payment Options"');
+    await humanIdlePause('deliberate');
+  }
+  const savedCard = s.page.locator('label:has-text("2430"), [class*="radio"]:has-text("2430"), div:has-text("Mastercard"):has-text("2430")').filter({ visible: true }).first();
+  if (await savedCard.isVisible().catch(() => false)) {
+    await savedCard.evaluate((el) => (el).click());
+    console.log('[trajectory] selected saved card ****2430');
+    await humanIdlePause('short');
+  } else {
+    console.log('[trajectory] saved card ****2430 not visible — proceeding with default selection');
+  }
 
   // CONFIRM: click the deposit-confirm button + watch for Stripe charge POST.
   let stripeChargeFired = false;
@@ -91,10 +127,10 @@ try {
   // without firing any Stripe POST — likely because Credit card tab was
   // visually highlighted but not actually the active form.
   const ccTab = s.page.locator('[role="tab"]:has-text("Credit card"), button:has-text("Credit card"), label:has-text("Credit card")').filter({ visible: true }).first();
-  if (await ccTab.isVisible().catch(() => false)) { await ccTab.click({ force: true }).catch(() => {}); console.log('[trajectory] clicked Credit card tab'); await s.page.waitForTimeout(1500); }
+  if (await ccTab.isVisible().catch(() => false)) { await ccTab.click({ force: true }).catch(() => {}); console.log('[trajectory] clicked Credit card tab'); await humanIdlePause('short'); }
 
   const agreeBtn = s.page.locator('button:has-text("Agree & Continue")').filter({ visible: true }).first();
-  if (await agreeBtn.isVisible().catch(() => false)) { await agreeBtn.click({ force: true }).catch(() => {}); console.log('[trajectory] clicked "Agree & Continue"'); await s.page.waitForTimeout(2000); }
+  if (await agreeBtn.isVisible().catch(() => false)) { await agreeBtn.click({ force: true }).catch(() => {}); console.log('[trajectory] clicked "Agree & Continue"'); await humanIdlePause('deliberate'); }
 
   // Re-snapshot the modal AFTER Agree & Continue. v9 confirmed the modal
   // exists with "Add store credit" but the click closes the modal without
@@ -126,10 +162,10 @@ try {
   // only on a "user gesture" — focus + Enter is the most reliable
   // Playwright path that React event listeners pick up.
   await confirmBtn.focus().catch(() => {});
-  await s.page.waitForTimeout(300);
+  await humanIdlePause('short');
   await s.page.keyboard.press('Enter');
   console.log('[trajectory] focused + pressed Enter on Add store credit');
-  for (let i = 0; i < 30 && !stripeChargeFired; i++) await s.page.waitForTimeout(1000);
+  for (let i = 0; i < 30 && !stripeChargeFired; i++) await humanIdlePause('short');
   if (stripeChargeFired) console.log(`PASS-CHARGED: Stripe payment_intents/confirm POST fired, url=${s.page.url().slice(0, 100)}`);
   else console.log(`FAIL: deposit-confirm clicked but no Stripe charge POST observed in 30s, url=${s.page.url().slice(0, 100)}`);
 } catch (e) {
