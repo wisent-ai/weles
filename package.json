@@ -18,7 +18,7 @@
   },
   "dependencies": {
     "@faker-js/faker": "^10.4.0",
-    "@wisent/cost-tracker": "git+https://github.com/wisent-ai/wisent-cost-tracker.git",
+    "@wisent/cost-tracker": "github:wisent-ai/wisent-cost-tracker",
     "cloakbrowser": "^0.3.24",
     "fingerprint-generator": "^2.1.0",
     "header-generator": "^2.1.0",
