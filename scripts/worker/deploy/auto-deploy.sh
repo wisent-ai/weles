@@ -46,6 +46,39 @@ fi
 # exactly the silent failure mode that ate the 2026-05-13 UW
 # screenshot uploads.
 GCLOUD_SA_KEY="$HOME/.config/gcloud/application_default_credentials.json"
+GCLOUD_SA_MIRROR_DIR="$HOME/.weles-secrets"
+GCLOUD_SA_MIRROR="$GCLOUD_SA_MIRROR_DIR/droid-441-adc.json"
+mkdir -p "$GCLOUD_SA_MIRROR_DIR"
+chmod 700 "$GCLOUD_SA_MIRROR_DIR"
+
+# Self-heal layer 1: mirror the canonical ADC to a stable secondary
+# location each tick so an accidental wipe of ~/.config/gcloud/ is
+# recoverable. Only writes when the contents differ — no churn.
+if [ -f "$GCLOUD_SA_KEY" ]; then
+  if [ ! -f "$GCLOUD_SA_MIRROR" ] || ! cmp -s "$GCLOUD_SA_KEY" "$GCLOUD_SA_MIRROR"; then
+    cp "$GCLOUD_SA_KEY" "$GCLOUD_SA_MIRROR"
+    chmod 600 "$GCLOUD_SA_MIRROR"
+    log "gcloud: mirrored ADC to $GCLOUD_SA_MIRROR"
+  fi
+fi
+
+# Self-heal layer 2: if the canonical ADC was deleted (or the
+# ~/.config/gcloud/ dir was wiped by macOS upgrade) but the mirror
+# survives, restore the canonical from the mirror before activation.
+if [ ! -f "$GCLOUD_SA_KEY" ] && [ -f "$GCLOUD_SA_MIRROR" ]; then
+  mkdir -p "$(dirname "$GCLOUD_SA_KEY")"
+  cp "$GCLOUD_SA_MIRROR" "$GCLOUD_SA_KEY"
+  chmod 600 "$GCLOUD_SA_KEY"
+  log "gcloud: restored ADC from mirror $GCLOUD_SA_MIRROR -> $GCLOUD_SA_KEY"
+fi
+
+# Self-heal layer 3: ensure gcloud CLI has an active service account.
+# Runs even when ADC is missing — gcloud will emit an actionable error
+# to the log if the activate call has no key to read, rather than
+# silently no-oping. With layers 1+2 above, ADC is present in all
+# scenarios except simultaneous wipe of both canonical and mirror —
+# which is below the threshold of automatable recovery and is the only
+# state requiring out-of-band SA key provisioning.
 if [ -f "$GCLOUD_SA_KEY" ]; then
   ACTIVE_SA=$(gcloud auth list --filter=status:ACTIVE --format='value(account)' 2>/dev/null || true)
   if [ -z "$ACTIVE_SA" ]; then
@@ -53,7 +86,7 @@ if [ -f "$GCLOUD_SA_KEY" ]; then
     gcloud auth activate-service-account --key-file="$GCLOUD_SA_KEY" >> "$LOG" 2>&1
   fi
 else
-  log "gcloud: WARNING $GCLOUD_SA_KEY not present — uploads will fail"
+  log "gcloud: BOTH $GCLOUD_SA_KEY and $GCLOUD_SA_MIRROR missing — uploads will fail until provisioning runs"
 fi
 
 git fetch --quiet origin main
