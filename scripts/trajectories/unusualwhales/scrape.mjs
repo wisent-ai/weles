@@ -265,8 +265,16 @@ try {
   const allPages = pagesList && pagesList.length > 0 ? pagesList : [page];
   const results = [];
   for (const pg of allPages) {
-    try { results.push({ page: pg, ...(await scrapeOnePage(s, ticker, pg, allPages.length === 1 ? screenshotPath : null)) }); }
+    // Per-page screenshot: in single-page mode, honor the --screenshot CLI
+    // path if provided; otherwise (multi-page or no path) write a temp PNG
+    // per page so persistContext can upload each to GCS alongside its
+    // stock_context row. Previously multi-page mode silently passed null
+    // here, so 25-page jobs produced zero screenshots.
+    const ssPath = (allPages.length === 1 && screenshotPath) ? screenshotPath : path.join(os.tmpdir(), `uw_${ticker}_${pg}_${Date.now()}.png`);
+    try { results.push({ page: pg, ...(await scrapeOnePage(s, ticker, pg, ssPath)) }); }
     catch (e) { console.error(`[uw_scrape] [${pg}] threw: ${e.message}`); results.push({ page: pg, error: e.message }); }
+    // Cleanup per-page temp screenshot; persistContext has already uploaded it.
+    if (ssPath !== screenshotPath) { try { fs.unlinkSync(ssPath); } catch (e) { /* tolerable: nothing to clean up */ } }
   }
   process.stdout.write(JSON.stringify({ ticker, pages: allPages, results }) + '\n');
   process.exit(0);
