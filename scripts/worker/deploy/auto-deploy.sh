@@ -31,6 +31,31 @@ if ! git diff --quiet HEAD --; then
   exit 0
 fi
 
+# Ensure the gcloud CLI has an active service account so the worker's
+# `gcloud storage cp` calls in scripts/trajectories/*/persist*.mjs can
+# upload artifacts to GCS without a manual `gcloud auth login`. This
+# block runs BEFORE the new-commit check so the activation is verified
+# on every 60-second tick, not just on deploy ticks. Self-heals across
+# reboots, macOS upgrades, `brew upgrade google-cloud-sdk`, `gcloud
+# auth revoke`, full disk reprovisioning, and service-account key
+# rotations — anything that wipes ~/.config/gcloud/ gets caught at the
+# next tick rather than waiting for the next git commit to land.
+# Without this, `gcloud auth list` returns "No credentialed accounts"
+# and every persist call fails with `gcloud storage cp failed (1):
+# You do not currently have an active account selected.` — which is
+# exactly the silent failure mode that ate the 2026-05-13 UW
+# screenshot uploads.
+GCLOUD_SA_KEY="$HOME/.config/gcloud/application_default_credentials.json"
+if [ -f "$GCLOUD_SA_KEY" ]; then
+  ACTIVE_SA=$(gcloud auth list --filter=status:ACTIVE --format='value(account)' 2>/dev/null || true)
+  if [ -z "$ACTIVE_SA" ]; then
+    log "gcloud: no active account — activating from $GCLOUD_SA_KEY"
+    gcloud auth activate-service-account --key-file="$GCLOUD_SA_KEY" >> "$LOG" 2>&1
+  fi
+else
+  log "gcloud: WARNING $GCLOUD_SA_KEY not present — uploads will fail"
+fi
+
 git fetch --quiet origin main
 LOCAL=$(git rev-parse HEAD)
 REMOTE=$(git rev-parse origin/main)
@@ -48,27 +73,6 @@ if [ "$BEFORE_LOCK" != "$AFTER_LOCK" ]; then
   npm ci --ignore-scripts >> "$LOG" 2>&1
 fi
 npm run build >> "$LOG" 2>&1
-
-# Ensure the gcloud CLI has an active service account so the worker's
-# `gcloud storage cp` calls in scripts/trajectories/*/persist*.mjs can
-# upload artifacts to GCS without a manual `gcloud auth login`. This
-# runs every tick; gcloud activate-service-account is idempotent (it
-# refreshes the credential entry but does not error when the account
-# is already registered). Without this, `gcloud auth list` returns
-# "No credentialed accounts" and every persist call fails with
-# `gcloud storage cp failed (1): You do not currently have an
-# active account selected.` — which is exactly the silent failure
-# mode that ate the 2026-05-13 UW screenshot uploads.
-GCLOUD_SA_KEY="$HOME/.config/gcloud/application_default_credentials.json"
-if [ -f "$GCLOUD_SA_KEY" ]; then
-  ACTIVE_SA=$(gcloud auth list --filter=status:ACTIVE --format='value(account)' 2>/dev/null || true)
-  if [ -z "$ACTIVE_SA" ]; then
-    log "gcloud: no active account — activating from $GCLOUD_SA_KEY"
-    gcloud auth activate-service-account --key-file="$GCLOUD_SA_KEY" >> "$LOG" 2>&1
-  fi
-else
-  log "gcloud: WARNING $GCLOUD_SA_KEY not present — uploads will fail"
-fi
 
 UID_NUM=$(id -u)
 PLIST="$HOME/Library/LaunchAgents/com.wisent.weles-worker.plist"
