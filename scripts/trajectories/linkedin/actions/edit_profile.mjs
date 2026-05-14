@@ -7,6 +7,7 @@ import { getSocialAccount, resolveAccountSession, markCookiesStale } from '../..
 import { WSession } from '../../../../dist/session/wsession.js';
 import { humanType } from '../../../../dist/human/keyboard.js';
 import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
+import { nativeSelectAllAndDelete } from '../../../../dist/human/mouse-native.js';
 import { assertAuthed, AuthProbeError } from '../../_shared/auth-probe.mjs';
 import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../../_shared/cookie-freshness.mjs';
 import { loadAvatarFile } from '../../_shared/runner/avatar-loader.mjs';
@@ -140,8 +141,7 @@ try {
     const cur = await el.inputValue().catch(() => '');
     if (cur.trim() === target.trim()) continue;
     await humanClickLocator(s.page, el);
-    await el.click({ clickCount: 3 }).catch(() => {});
-    await s.page.keyboard.press('Backspace').catch(() => {});
+    nativeSelectAllAndDelete();
     await humanType(s.page, target);
     if (label === 'industry') {
       await humanIdlePause('short');

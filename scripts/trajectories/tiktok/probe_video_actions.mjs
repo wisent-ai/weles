@@ -1,6 +1,7 @@
 import { getSocialAccount, resolveAccountSession } from '../../../dist/utils/credentials.js';
 import { WSession } from '../../../dist/session/wsession.js';
 import { loadFreshCookieJarOrFail } from '../_shared/cookie-freshness.mjs';
+import { humanIdlePause } from '../../../dist/human/mouse.js';
 
 const TARGET = process.env.TARGET_URL || 'https://www.tiktok.com/foryou';
 const acct = await getSocialAccount('tiktok');
@@ -10,9 +11,28 @@ try {
   const all = loadFreshCookieJarOrFail(acct, { platform: 'tiktok', label: 'tiktok_probe_video_actions', currentProxyUrl: proxyUrl, currentPersona: persona });
   const stored = all.filter(c => /tiktok\.com/.test(c.domain ?? ''));
   await s.ctx.addCookies(stored.map(c => ({ ...c, path: c.path || '/' })));
+  // Capture every /api/ response with body length & head — diagnoses cases
+  // where TikTok serves status=200 but empty body to suspicious sessions.
+  const apiResponses = [];
+  s.page.on('response', async (r) => {
+    const u = r.url();
+    if (!/tiktok\.com\/api\//.test(u)) return;
+    let body = '';
+    try { body = await r.text(); } catch {}
+    apiResponses.push({ status: r.status(), url: u.split('?')[0], len: body.length, head: body.slice(0, 200).replace(/\n/g, ' ') });
+  });
   await s.page.goto(TARGET, { waitUntil: 'domcontentloaded' });
-  await s.page.waitForTimeout(10000);
+  await humanIdlePause('long');
+  if (process.env.PROBE_PROFILE) {
+    await s.goto(`https://www.tiktok.com/${process.env.PROBE_PROFILE}`);
+    await humanIdlePause('long');
+  }
   await s.screenshot('after_goto').catch(() => {});
+  console.log('[probe] /api/ responses captured:');
+  for (const r of apiResponses) console.log(`  ${r.status} len=${r.len} ${r.url}`);
+  const interesting = apiResponses.filter(r => /post\/item_list|repost\/item_list|item_list/.test(r.url));
+  console.log('[probe] item_list responses (first 200 chars):');
+  for (const r of interesting) console.log(`  ${r.url} -> status=${r.status} len=${r.len} head="${r.head}"`);
   const finalUrl = s.page.url();
   console.log('[probe] finalUrl:', finalUrl);
   const tags = await s.page.evaluate(() => {

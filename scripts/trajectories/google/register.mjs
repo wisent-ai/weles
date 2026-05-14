@@ -7,11 +7,9 @@ const SIGNUP_URL = 'https://accounts.google.com/signup/v2/createaccount?biz=fals
 const MAX_RETRIES = 15;
 const USE_BRIGHTDATA = !!process.env.BRIGHTDATA_BROWSER_WS;
 const BASE_PROXY = USE_BRIGHTDATA ? 'none' : (process.env.PROXY_URL || 'residential');
-const sleep = (s) => new Promise(r => setTimeout(r, s * 1000));
+const sleep = (s) => new Promise(r => setTimeout(r, s * 1000));  // allow-raw-playwright: utility sleep shim — usages should migrate to humanIdlePause
 
-// Rotate sticky-session id per attempt so a dead/overloaded relay on one
-// session doesn't block every attempt. Works for PacketStream / IPRoyal /
-// Pingproxies / Oxylabs URL formats that embed session-NNNN in user or pass.
+// Rotate sticky-session id per attempt; works for PacketStream / IPRoyal / Pingproxies / Oxylabs URL formats embedding session-NNNN.
 function freshProxy() {
   if (!BASE_PROXY || BASE_PROXY === 'none' || !BASE_PROXY.startsWith('http')) return BASE_PROXY;
   const sid = Math.floor(Math.random() * 9_000_000 + 1_000_000);
@@ -26,8 +24,7 @@ async function readPage(s) {
 }
 
 async function clickNext(s) {
-  await s.click('Next').catch(() => {});
-  // Also try a locator-click on Next in one of the common locale strings.
+  // Direct locator.click bypasses wsession.click's 30s data-weles-click locator wait, which during the wait was tripping Google's session-idle timer (verified 2026-05-06: /info/sessionexpired redirects after first Next).
   await humanClickLocator(s.page, s.page.locator('button, div[role="button"]').filter({ hasText: /^(next|weiter|suivant|siguiente)$/i }).first()).catch(() => {});
 }
 
@@ -281,20 +278,21 @@ function instrumentSession(s) {
   const br = s.ctx.browser?.();
   if (br) br.on('disconnected', () => console.log('[evt] browser.disconnected'));
 }
-
+// Cap s.close() at 5s — proxy_dead teardown otherwise hangs the retry loop forever (verified 2026-05-06).
+const closeBounded = (s) => Promise.race([s.close().catch(() => {}), new Promise((r) => setTimeout(r, 5000))]).catch(() => {});
 for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
   const proxy = freshProxy();
   console.log(`\n=== Google signup attempt ${attempt}/${MAX_RETRIES} proxy=${proxy.slice(-60)} ===`);
-  const s = await WSession.start({ label: `google_register_${attempt}`, proxy });
+  const s = await WSession.start({ label: `google_register_${attempt}`, proxy, browser: 'chromium', targetHost: 'accounts.google.com' });
   instrumentSession(s);
   try {
     const username = await signup(s);
     console.log(`PASS: ${username}`);
-    await s.close();
+    await closeBounded(s);
     process.exit(0);
   } catch (e) {
     console.log(`FAIL (attempt ${attempt}): ${e.message?.slice(0, 200)}`);
-    await s.close().catch(() => {});
+    await closeBounded(s);
     if (attempt === MAX_RETRIES) { console.log('All attempts exhausted'); process.exit(1); }
     await sleep(3);
   }

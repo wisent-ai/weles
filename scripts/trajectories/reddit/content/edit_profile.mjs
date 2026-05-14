@@ -105,12 +105,12 @@ try {
         await humanIdlePause('long');
         const editAvatarBtn = s.page.locator('button[aria-label="Edit profile avatar"], [aria-label="Edit profile avatar"]').first();
         if (await editAvatarBtn.count()) {
-          await editAvatarBtn.click();
+          await humanClickLocator(s.page, editAvatarBtn);
           await humanIdlePause('deliberate');
           const selectBtn = s.page.locator('button:has-text("Select a new image")').first();
           if (await selectBtn.count()) {
             const fcPromise = s.page.waitForEvent('filechooser');
-            await selectBtn.click();
+            await humanClickLocator(s.page, selectBtn);
             const fc = await fcPromise;
             await fc.setFiles(tmpAvatar);
             await humanIdlePause('long');

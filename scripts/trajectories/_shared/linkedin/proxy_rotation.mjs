@@ -1,3 +1,4 @@
+import { humanIdlePause } from '../../../../dist/human/mouse.js';
 // Provider rotation + form-rendering probe for linkedin_login.mjs.
 //
 // Cited from 2026-05-04 04:44 run output: 5 consecutive Oxylabs sticky
@@ -10,13 +11,20 @@
 // between providers gives us 4x the surface area before giving up.
 
 export async function pageHasLoginForm(page) {
-  await page.waitForTimeout(3000);
+  await humanIdlePause('deliberate');
   try {
-    const r = await page.evaluate(() => ({
-      emailInputs: document.querySelectorAll('input[type="email"], input[name="session_key"], input#username').length,
-      totalInputs: document.querySelectorAll('input').length,
-    }));
-    return r.emailInputs > 0;
+    // page.evaluate has NO default timeout in Playwright — if the page's
+    // main thread is blocked by heavy PX crypto / infinite loops, evaluate
+    // never resolves. Cited .work/li-login-grid-fixed.log 2026-05-06: log
+    // idle 117s after "after goto", evaluate hung. Race with deadline.
+    const evalP = page.evaluate(() => {
+      const inputs = Array.from(document.querySelectorAll('input[type="email"], input[name="session_key"], input#username'));
+      const visible = inputs.filter(i => i.offsetParent !== null && i.offsetWidth > 0 && i.offsetHeight > 0);
+      return { visibleEmailInputs: visible.length };
+    });
+    const deadline = new Promise((_, rej) => setTimeout(() => rej(new Error('eval_deadline')), 10000));
+    const r = await Promise.race([evalP, deadline]);
+    return r.visibleEmailInputs > 0;
   } catch { return false; }
 }
 
@@ -29,7 +37,12 @@ export async function pageHasLoginForm(page) {
 export async function freshProviderUrl(provider) {
   try {
     const mod = await import('../../../../dist/proxy/config.js');
-    const pw = await mod.resolveProxy(`residential ${provider} us`, 'www.linkedin.com');
+    // User rule (explicit, 2026-05-11): ISP-sticky pool for all LinkedIn
+    // traffic. Earlier mobile/residential pin removed — random sticky exits
+    // burned the signup flow per session telemetry. Only Oxylabs ISP
+    // (isp.oxylabs.io:8001-8010, dedicated static IPs).
+    const tier = 'isp';
+    const pw = await mod.resolveProxy(`${tier} ${provider} us`, 'www.linkedin.com');
     if (!pw?.server || !pw?.username) return null;
     const u = new URL(pw.server);
     u.username = encodeURIComponent(pw.username);
@@ -84,4 +97,36 @@ export async function findUnflaggedSticky(maxAttempts = PROVIDER_ROTATION.length
     if (r.ok) return { url, provider, attempts: i + 1 };
   }
   return null;
+}
+
+// Goto /login with sticky-rotation on stripped-shell / chrome-error. The
+// trajectory's old single-attempt path failed permanently when the
+// initial proxy IP was edge-flagged by LinkedIn. Now: on those two errors
+// we curl-probe fresh stickies via findUnflaggedSticky, tear down the
+// session, and restart with the working URL. Caller passes restartFn to
+// rebuild the WSession with the new proxy. Returns the (possibly fresh)
+// session + the proxyUrl actually in use.
+export async function gotoLoginRotating({ session, persona, restartFn, maxRotations = 5, gotoTimeoutMs = 30000 }) {
+  let s = session;
+  let activeProxy = null;
+  let attempts = 0;
+  while (true) {
+    try {
+      await s.page.goto('https://www.linkedin.com/login', { waitUntil: 'domcontentloaded', timeout: gotoTimeoutMs });
+      const url = s.page.url?.() ?? '';
+      if (url.startsWith('chrome-error://')) throw new Error('goto_chrome_error');
+      if (!(await pageHasLoginForm(s.page))) throw new Error('stripped_login_shell');
+      console.log(`[linkedin_login] goto: full login form rendered (rotations=${attempts})`);
+      return { session: s, proxyUrl: activeProxy };
+    } catch (e) {
+      if (!/stripped_login_shell|goto_chrome_error/.test(e.message)) throw e;
+      if (++attempts > maxRotations) throw new Error(`rotation_exhausted_after_${attempts}: ${e.message}`);
+      console.log(`[linkedin_login] ${e.message} — rotating sticky (rotation ${attempts}/${maxRotations})`);
+      const fresh = await findUnflaggedSticky(8);
+      if (!fresh) throw new Error('no_unflagged_sticky_found');
+      await s.close().catch(() => {});
+      s = await restartFn(fresh.url, persona);
+      activeProxy = fresh.url;
+    }
+  }
 }

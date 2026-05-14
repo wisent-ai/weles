@@ -1,6 +1,6 @@
 import { WSession } from '../../../dist/session/wsession.js';
 import { humanType } from '../../../dist/human/keyboard.js';
-import { humanClickLocator } from '../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../dist/human/mouse.js';
 import { autoBindCharacter } from '../lib/character-bind.mjs';
 import { assertAuthed, AuthProbeError } from '../_shared/auth-probe.mjs';
 
@@ -12,7 +12,7 @@ async function clickNext(s) {
     s.page,
     s.page.locator('button:has-text("Next"), button[jsname]:has-text("Next"), #personalDetailsNext button, #birthdaygenderNext button, #createpasswordNext button, button[type="submit"]:has-text("Next")').filter({ visible: true }).first(),
   );
-  await s.page.waitForTimeout(2500);
+  await humanIdlePause('deliberate');
 }
 
 for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
@@ -23,7 +23,7 @@ for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     console.log(`[yt] identity: ${id.username} / ${id.email}`);
 
     await s.goto(URL);
-    await s.page.waitForTimeout(3500);
+    await humanIdlePause('deliberate');
 
     // 1. First/last name.
     const firstIn = s.page.locator('input[name="firstName"], input#firstName').filter({ visible: true }).first();
@@ -61,7 +61,7 @@ for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     const createGmail = s.page.locator('div[role="radio"]:has-text("Create your own Gmail"), button:has-text("Create your own Gmail"), input[value="0"][type="radio"] + label, label:has-text("Create your own Gmail address")').filter({ visible: true }).first();
     if (await createGmail.isVisible({ timeout: 3000 }).catch(() => false)) {
       await humanClickLocator(s.page, createGmail);
-      await s.page.waitForTimeout(1500);
+      await humanIdlePause('short');
     }
 
     // 4. Username (Gmail).
@@ -88,13 +88,37 @@ for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     const skip = s.page.locator('button:has-text("Skip"), button:has-text("Not now")').filter({ visible: true }).first();
     if (await skip.isVisible({ timeout: 4000 }).catch(() => false)) {
       await humanClickLocator(s.page, skip);
-      await s.page.waitForTimeout(2500);
+      await humanIdlePause('deliberate');
     } else {
-      // No skip button — Google requires phone for this signup. Fail
-      // deterministically so caller knows why.
+      // Google requires phone verification on automation IPs. Walk the
+      // SMS-verify flow via JuicySMS (service='google', SID=1; same provider
+      // used by twitter/instagram/apple registers). Country preference: US
+      // first, then UK.
       const phoneIn = s.page.locator('input[type="tel"], input[name="phoneNumber"], input[name="phoneNumberId"]').filter({ visible: true }).first();
       if (await phoneIn.count()) {
-        throw new Error('youtube_phone_required: SMS verification path not implemented for Google signup');
+        let phone = await s.checkSms('google', 'US');
+        if (phone.startsWith('error')) {
+          console.log(`[yt] US SMS unavailable (${phone.slice(0, 80)}) — trying UK`);
+          phone = await s.checkSms('google', 'UK');
+          if (phone.startsWith('error')) throw new Error(`youtube_sms_unavailable: ${phone.slice(0, 120)}`);
+        }
+        const phoneNum = s.resolveEnv('$GOOGLE_NEW_PHONE');
+        const digits = phoneNum.replace(/^\+\d{1,2}/, '').replace(/\D/g, '');
+        console.log(`[yt] phone reserved: ${phoneNum}`);
+
+        await humanClickLocator(s.page, phoneIn);
+        await humanType(s.page, digits);
+        await clickNext(s);
+
+        const code = await s.pollSmsCode();
+        if (!code || /^no code|^error/i.test(code)) throw new Error(`youtube_sms_otp_failed: ${code}`);
+        console.log(`[yt] SMS code received: ${code}`);
+
+        const codeIn = s.page.locator('input[type="tel"], input[name="code"], input[autocomplete="one-time-code"], input[id*="code" i]').filter({ visible: true }).first();
+        await codeIn.waitFor({ state: 'visible' });
+        await humanClickLocator(s.page, codeIn);
+        await humanType(s.page, code);
+        await clickNext(s);
       }
     }
 
@@ -102,7 +126,7 @@ for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     const agree = s.page.locator('button:has-text("I agree"), button:has-text("Accept"), button:has-text("Agree")').filter({ visible: true }).first();
     if (await agree.isVisible({ timeout: 6000 }).catch(() => false)) {
       await humanClickLocator(s.page, agree);
-      await s.page.waitForTimeout(3500);
+      await humanIdlePause('deliberate');
     }
 
     await s.page.waitForFunction(() => /youtube\.com|myaccount\.google\.com/.test(location.href), { timeout: 30000 });
@@ -113,7 +137,7 @@ for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     // someone else's identity (vinitra incident, weles 21e21eb).
     try {
       await s.page.goto('https://www.youtube.com/');
-      await s.page.waitForTimeout(3000);
+      await humanIdlePause('deliberate');
       await assertAuthed('youtube', s, { label: 'youtube_register_post_oauth' });
     } catch (probeErr) {
       if (probeErr instanceof AuthProbeError) {

@@ -3,6 +3,7 @@ import { CDPError, CDPNavigationError } from '../errors.js';
 import { CDPFrame, FrameTree } from './frame.js';
 import { CDPMouse, CDPKeyboard } from '../input.js';
 import { CDPScreencast } from './screencast.js';
+import { humanIdlePause } from '../../human/mouse.js';
 
 type EventHandler = (data?: any) => void;
 
@@ -192,7 +193,7 @@ export class CDPPage {
   }
 
   waitForTimeout(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    return new Promise(resolve => setTimeout(resolve, ms));  // allow-raw-playwright: review — context-dependent timer
   }
 
   async waitForSelector(selector: string, options?: { state?: string; timeout?: number }): Promise<void> {
@@ -201,7 +202,7 @@ export class CDPPage {
     const mf = this._ft.mainFrame;
     if (!mf) throw new CDPError('No main frame');
     while (!await mf.evaluate(js)) {
-      await this.waitForTimeout(100);
+      await humanIdlePause();
     }
   }
 
@@ -213,7 +214,7 @@ export class CDPPage {
     while (true) {
       const cur = this.url;
       if (urlOrPattern instanceof RegExp ? urlOrPattern.test(cur) : cur.includes(urlOrPattern)) return;
-      await this.waitForTimeout(100);
+      await humanIdlePause();
     }
   }
 

@@ -59,6 +59,18 @@ export async function resolveAccountSession(acct: SocialAccount): Promise<Accoun
     return out;
   }
 
+  // Static-IP pin per account. When metadata.proxy.exit_ip_url is set, the
+  // account has a dedicated /32 (ISP/static-residential product) reserved.
+  // Bypass all rotation logic and use that exact URL. If the row also has
+  // a persisted persona, return both immediately. If the static URL is set
+  // but unreachable, refuse rather than silently fall back to a rotating
+  // sticky — drift is exactly what static IPs exist to prevent.
+  if (typeof meta?.proxy?.exit_ip_url === 'string' && meta.proxy.exit_ip_url) {
+    out.proxyUrl = meta.proxy.exit_ip_url as string;
+    out.persona = (meta?.persona as Persona | undefined) ?? generatePersona({ country: meta?.proxy?.country });
+    return out;
+  }
+
   if (meta?.proxy?.host && meta?.proxy?.port && !(await isBurned(meta.proxy.host))) {
     // Reject stored proxies whose hostname doesn't match a known residential
     // provider AND whose username matches the legacy `lbartoszcze` weles relay
@@ -118,7 +130,7 @@ export async function resolveAccountSession(acct: SocialAccount): Promise<Accoun
           console.log(`[identity] no provider passes capability for action=${action} platform=${acct.platform}`);
           break;
         }
-        const filter = `residential ${winner.provider} ${country}`.trim();
+        const filter = `isp ${winner.provider} ${country}`.trim();
         pw = await mod.resolveProxy(filter, targetHost);
         if (pw) {
           console.log(`[identity] capability pick ${winner.provider} ($${winner.cost_per_gb}/GB) for action=${action}`);
@@ -126,7 +138,7 @@ export async function resolveAccountSession(acct: SocialAccount): Promise<Accoun
         }
         tried.push(winner.provider);
       }
-      if (!pw) pw = await mod.resolveProxy(`mobile ${country}`.trim(), targetHost) ?? await mod.resolveProxy('mobile', targetHost);
+      if (!pw) { console.error(`[identity] no isp proxy resolved for action=${action} platform=${acct.platform} country=${country}; user rule: ISP for everything`); throw new Error('no_isp_proxy'); }
       if (pw?.server) {
         const u = new URL(pw.server);
         cfg = {

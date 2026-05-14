@@ -4,6 +4,8 @@ import { WSession } from '../../../dist/session/wsession.js';
 import { googleSso, parseBalanceFromText, getGoogleSsoCreds } from '../_shared/services/google_sso.mjs';
 import { patchEffectiveBalance } from '../_shared/services/proxy_probe.mjs';
 import { humanIdlePause } from '../../../dist/human/mouse.js';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 const LOGIN_URL = 'https://dashboard.byteful.com/login';
 const DISPLAY_NAME = 'Pingproxies';
@@ -27,7 +29,12 @@ try {
   console.log(`[trajectory] dashboard text length=${text.length}`);
   const balance = parseBalanceFromText(text);
   if (balance == null) {
-    console.log(`FAIL: could not parse balance. First 600 chars: ${text.slice(0, 600).replace(/\n/g, ' | ')}`);
+    const dir = join(process.cwd(), '.work', 'pingproxies_balance');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'dashboard-text.txt'), text);
+    try { writeFileSync(join(dir, 'dashboard.html'), await s.page.content()); } catch {}
+    try { await s.page.screenshot({ path: join(dir, 'dashboard.png'), fullPage: true }); } catch {}
+    console.log(`FAIL: Pingproxies balance regex did not match — full dashboard text dumped to ${dir}/`);
     process.exit(1);
   }
   console.log(`[trajectory] balance=$${balance}`);

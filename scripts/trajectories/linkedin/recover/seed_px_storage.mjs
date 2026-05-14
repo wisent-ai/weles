@@ -23,6 +23,8 @@ import { chromium } from 'playwright';
 import { existsSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { humanClickLocator } from '../../../../dist/human/mouse.js';
+import { humanFill } from '../../../../dist/human/keyboard.js';
 
 const SUPABASE_URL = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SERVICE_KEY ?? '';
@@ -55,11 +57,32 @@ const browser = await chromium.launchPersistentContext(userDataDir, {
   ignoreDefaultArgs: ['--enable-automation', '--disable-breakpad'],
 });
 const page = browser.pages()[0] || await browser.newPage();
-console.log('[seed-px] navigating to linkedin.com/login — type your credentials, solve any captcha, wait until you land on /feed');
+console.log('[seed-px] navigating to linkedin.com/login (real Chrome, fingerprint genuine)');
 try { await page.goto('https://www.linkedin.com/login', { waitUntil: 'domcontentloaded', timeout: 30000 }); }
 catch (e) { console.log(`[seed-px] goto err: ${e.message?.slice(0, 120)}`); }
 
-console.log('[seed-px] window is yours. Close the Chrome window when you reach /feed (or Ctrl+C here).');
+// Auto-fill from DB metadata if AUTO_LOGIN=1 + creds present.
+const email = acct.metadata?.email;
+const password = acct.metadata?.password;
+if (process.env.AUTO_LOGIN === '1' && email && password) {
+  try {
+    const userInput = page.locator('input#username, input[name="session_key"], input[type="email"][autocomplete*="username"], input[type="email"]').filter({ visible: true }).first();
+    await userInput.waitFor({ state: 'visible' });
+    await humanFill(page, userInput, email);
+    const pwInput = page.locator('input#password, input[name="session_password"], input[type="password"]').filter({ visible: true }).first();
+    await humanFill(page, pwInput, password);
+    console.log('[seed-px] auto-filled credentials, submitting');
+    // Submit by pressing Enter inside the password field — LinkedIn's
+    // /login form binds Enter to the form's default submit, sidestepping
+    // the variable button selectors (id="organic-div-form" submit
+    // button has dynamic class names that break direct selectors).
+    await pwInput.press('Enter');
+    await page.waitForURL((url) => !/\/login(\?|$)/.test(url.toString())).catch(() => {});
+    console.log(`[seed-px] post-submit url=${page.url()}`);
+  } catch (e) { console.log(`[seed-px] auto-login err: ${e.message?.slice(0, 120)}`); }
+}
+
+console.log('[seed-px] window is yours (or auto-login result above). Close Chrome to capture state.');
 await new Promise((resolve) => {
   let resolved = false;
   const done = (why) => { if (resolved) return; resolved = true; console.log(`[seed-px] stopping: ${why}`); resolve(); };
@@ -88,7 +111,11 @@ try {
 } catch (e) { console.log(`[seed-px] localStorage scrape err: ${e.message?.slice(0, 120)}`); }
 const lsCount = Object.keys(lsItems).length;
 console.log(`[seed-px] captured ${lsCount} PX localStorage keys`);
-if (lsCount === 0) { console.log('[seed-px] WARN: no PX keys captured. Did the page reach a PX-protected route?'); }
+if (lsCount === 0) {
+  console.error('FAIL: no PX keys captured. Closed before reaching /feed (or wrong creds blocked login). Refusing to PATCH empty storage.');
+  await browser.close().catch(() => {});
+  process.exit(1);
+}
 
 // Capture cookies for the linkedin.com domain.
 let cookies = [];

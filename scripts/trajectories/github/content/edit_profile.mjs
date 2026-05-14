@@ -120,7 +120,7 @@ try {
             const commitDone = s.page.waitForResponse(
               r => /\/settings\/avatars\/\d+/.test(r.url()) && r.request().method() === 'POST',
             );
-            await setBtn.click();
+            await humanClickLocator(s.page, setBtn);
             await commitDone;
             writes.push('avatar uploaded');
           } catch (e) {

@@ -4,6 +4,8 @@ import { getServiceLogin } from '../../../dist/utils/credentials.js';
 import { WSession } from '../../../dist/session/wsession.js';
 import { parseBalanceFromText, patchServiceBalance } from '../_shared/services/google_sso.mjs';
 import { humanIdlePause } from '../../../dist/human/mouse.js';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 const LOGIN_URL = 'https://www.sadcaptcha.com/login';
 const DASH_URL = 'https://www.sadcaptcha.com/dashboard';
@@ -41,7 +43,12 @@ try {
   const text = await s.page.evaluate(() => document.body.innerText);
   const balance = parseBalanceFromText(text);
   if (balance == null) {
-    console.log(`FAIL: could not parse balance. First 600 chars: ${text.slice(0, 600).replace(/\n/g, ' | ')}`);
+    const dir = join(process.cwd(), '.work', 'sadcaptcha_balance');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'dashboard-text.txt'), text);
+    try { writeFileSync(join(dir, 'dashboard.html'), await s.page.content()); } catch {}
+    try { await s.page.screenshot({ path: join(dir, 'dashboard.png'), fullPage: true }); } catch {}
+    console.log(`FAIL: SadCaptcha balance regex did not match — full dashboard text dumped to ${dir}/`);
     process.exit(1);
   }
   console.log(`[trajectory] balance=$${balance}`);

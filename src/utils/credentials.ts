@@ -33,15 +33,9 @@ export async function getByCategory(category: string): Promise<ServiceCredential
   return (await fetchAll()).filter(c => c.category === category);
 }
 
-export async function getCaptchaCredentials(): Promise<{ anticaptcha?: string; twocaptcha?: string; capsolver?: string; capmonster?: string }> {
+export async function getCaptchaCredentials(): Promise<{ anticaptcha?: string; twocaptcha?: string; capsolver?: string; capmonster?: string; nopecha?: string }> {
   const creds: Record<string, string | undefined> = {};
   for (const s of await getByCategory('captcha')) {
-    // No balance gate: service_credentials.balance_usd is a stale cache
-    // (no cron schedules captcha balance.mjs trajectories — only proxies are
-    // covered by proxy-balance-sweep). 2captcha real balance was $23.61
-    // while DB cached $0; gating here silently excluded the only working
-    // solver for LinkedIn /checkpoint/challenge V2. The provider's own API
-    // returns ERROR_NO_SLOT_AVAILABLE / ERROR_ZERO_BALANCE if actually empty.
     if (!s.api_key_env_var) continue;
     const key = process.env[s.api_key_env_var];
     if (!key) continue;
@@ -50,7 +44,9 @@ export async function getCaptchaCredentials(): Promise<{ anticaptcha?: string; t
     else if (name.includes('2captcha')) creds.twocaptcha = key;
     else if (name.includes('capsolver')) creds.capsolver = key;
     else if (name.includes('capmonster')) creds.capmonster = key;
+    else if (name.includes('nopecha')) creds.nopecha = key;
   }
+  if (!creds.nopecha && process.env.NOPECHA_API_KEY) creds.nopecha = process.env.NOPECHA_API_KEY;
   console.log(`[credentials] Captcha services: ${Object.keys(creds).join(', ') || 'none'}`);
   return creds;
 }

@@ -239,7 +239,7 @@ export function loadFreshCookieJarOrFail(acct, { platform, label, currentProxyUr
  * of the freshness gate is that cookies_minted_at proves a fresh login
  * happened, not just that some cookies got copied around.
  */
-export async function persistFreshCookieJar(acct, cookies, { currentProxyUrl, currentPersona } = {}) {
+export async function persistFreshCookieJar(acct, cookies, { currentProxyUrl, currentPersona, persistProxy = false } = {}) {
   const url = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SERVICE_KEY ?? '';
   if (!url || !key || !acct?.id) {
@@ -260,14 +260,8 @@ export async function persistFreshCookieJar(acct, cookies, { currentProxyUrl, cu
     : (acct?.metadata?.persona
       ? personaSignature(acct.metadata.persona)
       : null);
-  const nextMetadata = {
-    ...(acct.metadata ?? {}),
-    cookies,
-    cookies_updated_at: now,
-    cookies_minted_at: now,
-    cookies_minted_proxy: mintedProxy,
-    cookies_minted_persona: mintedPersona,
-  };
+  const nextMetadata = { ...(acct.metadata ?? {}), cookies, cookies_updated_at: now, cookies_minted_at: now, cookies_minted_proxy: mintedProxy, cookies_minted_persona: mintedPersona };
+  if (persistProxy && typeof currentProxyUrl === 'string' && currentProxyUrl) { try { const u = new URL(currentProxyUrl); nextMetadata.proxy = { host: u.hostname, port: Number(u.port), protocol: u.protocol.replace(/:$/, ''), username: decodeURIComponent(u.username || ''), password: decodeURIComponent(u.password || '') }; } catch {} }
   // Clear cookies_stale_at — the whole point of persisting fresh cookies is
   // they're no longer stale. Without this, getSocialAccount and the routine
   // selector both skip the account for 24h after the previous staleness mark,

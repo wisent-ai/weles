@@ -139,7 +139,9 @@ if (__weles.window) {
 // --- Timezone ---
 if (__weles.timezone && __weles.timezone.offset !== undefined) {
   const offset = __weles.timezone.offset;
-  Date.prototype.getTimezoneOffset = function() { return offset; };
+  const tzFn = function() { return offset; };
+  if (window.__welesNativeString) window.__welesNativeString(tzFn, 'getTimezoneOffset');
+  Date.prototype.getTimezoneOffset = tzFn;
 }
 
 // --- navigator.plugins: include 'PDF Viewer' first ---
@@ -161,7 +163,9 @@ if (__weles.timezone && __weles.timezone.offset !== undefined) {
     const arr = Object.create(PluginArray.prototype);
     plugins.forEach((p, i) => Object.defineProperty(arr, i, { value: p, enumerable: true }));
     Object.defineProperty(arr, 'length', { value: plugins.length, enumerable: true });
-    Object.defineProperty(navigator, 'plugins', { get: function() { return arr; }, configurable: true, enumerable: true });
+    const pluginsGet = function() { return arr; };
+    if (window.__welesNativeString) window.__welesNativeString(pluginsGet, 'get plugins');
+    Object.defineProperty(navigator, 'plugins', { get: pluginsGet, configurable: true, enumerable: true });
   } catch { /* leave native */ }
 })();
 
@@ -174,10 +178,11 @@ if (__weles.timezone && __weles.timezone.offset !== undefined) {
 (function patchConnection() {
   if (typeof navigator === 'undefined' || !navigator.connection) return;
   const apply = (target) => {
-    try { Object.defineProperty(target, 'downlink',      { get: function() { return 10; },    configurable: true, enumerable: true }); } catch {}
-    try { Object.defineProperty(target, 'effectiveType', { get: function() { return '4g'; },  configurable: true, enumerable: true }); } catch {}
-    try { Object.defineProperty(target, 'rtt',           { get: function() { return 50; },    configurable: true, enumerable: true }); } catch {}
-    try { Object.defineProperty(target, 'saveData',      { get: function() { return false; }, configurable: true, enumerable: true }); } catch {}
+    const mk = (name, val) => { const g = function() { return val; }; if (window.__welesNativeString) window.__welesNativeString(g, 'get ' + name); return g; };
+    try { Object.defineProperty(target, 'downlink',      { get: mk('downlink', 10),     configurable: true, enumerable: true }); } catch {}
+    try { Object.defineProperty(target, 'effectiveType', { get: mk('effectiveType','4g'), configurable: true, enumerable: true }); } catch {}
+    try { Object.defineProperty(target, 'rtt',           { get: mk('rtt', 50),          configurable: true, enumerable: true }); } catch {}
+    try { Object.defineProperty(target, 'saveData',      { get: mk('saveData', false),  configurable: true, enumerable: true }); } catch {}
   };
   apply(navigator.connection);
   try { apply(Object.getPrototypeOf(navigator.connection)); } catch {}
@@ -197,14 +202,18 @@ if (__weles.timezone && __weles.timezone.offset !== undefined) {
     const bluetooth = Object.create(null);
     Object.defineProperty(bluetooth, 'getAvailability', { value: function() { return Promise.resolve(false); }, configurable: false, enumerable: false });
     Object.defineProperty(bluetooth, 'requestDevice', { value: function() { return Promise.reject(new DOMException('Web Bluetooth API globally disabled.', 'NotFoundError')); }, configurable: false, enumerable: false });
-    Object.defineProperty(navigator, 'bluetooth', { get: function() { return bluetooth; }, configurable: true, enumerable: true });
+    const btGet = function() { return bluetooth; };
+    if (window.__welesNativeString) window.__welesNativeString(btGet, 'get bluetooth');
+    Object.defineProperty(navigator, 'bluetooth', { get: btGet, configurable: true, enumerable: true });
   }
   if (!('keyboard' in navigator)) {
     const keyboard = Object.create(null);
     Object.defineProperty(keyboard, 'getLayoutMap', { value: function() { return Promise.resolve(new Map()); }, configurable: false, enumerable: false });
     Object.defineProperty(keyboard, 'lock', { value: function() { return Promise.resolve(undefined); }, configurable: false, enumerable: false });
     Object.defineProperty(keyboard, 'unlock', { value: function() { return undefined; }, configurable: false, enumerable: false });
-    Object.defineProperty(navigator, 'keyboard', { get: function() { return keyboard; }, configurable: true, enumerable: true });
+    const kbGet = function() { return keyboard; };
+    if (window.__welesNativeString) window.__welesNativeString(kbGet, 'get keyboard');
+    Object.defineProperty(navigator, 'keyboard', { get: kbGet, configurable: true, enumerable: true });
   }
 })();
 
@@ -217,18 +226,22 @@ if (__weles.timezone && __weles.timezone.offset !== undefined) {
 // don't see an en-US navigator with an en-GB Intl resolvedOptions.locale.
 if (__weles.navigator && __weles.navigator.language) {
   const wantedLocale = __weles.navigator.language;
+  const regNS = window.__welesNativeString;
   const orig = Intl.DateTimeFormat.prototype.resolvedOptions;
-  Intl.DateTimeFormat.prototype.resolvedOptions = function() {
-    const r = orig.call(this);
-    return { ...r, locale: wantedLocale };
-  };
+  const dtf = function() { const r = orig.call(this); return { ...r, locale: wantedLocale }; };
+  if (regNS) regNS(dtf, 'resolvedOptions');
+  Intl.DateTimeFormat.prototype.resolvedOptions = dtf;
   if (Intl.NumberFormat?.prototype?.resolvedOptions) {
     const o = Intl.NumberFormat.prototype.resolvedOptions;
-    Intl.NumberFormat.prototype.resolvedOptions = function() { const r = o.call(this); return { ...r, locale: wantedLocale }; };
+    const nf = function() { const r = o.call(this); return { ...r, locale: wantedLocale }; };
+    if (regNS) regNS(nf, 'resolvedOptions');
+    Intl.NumberFormat.prototype.resolvedOptions = nf;
   }
   if (Intl.Collator?.prototype?.resolvedOptions) {
     const o = Intl.Collator.prototype.resolvedOptions;
-    Intl.Collator.prototype.resolvedOptions = function() { const r = o.call(this); return { ...r, locale: wantedLocale }; };
+    const cl = function() { const r = o.call(this); return { ...r, locale: wantedLocale }; };
+    if (regNS) regNS(cl, 'resolvedOptions');
+    Intl.Collator.prototype.resolvedOptions = cl;
   }
 }
 
@@ -244,25 +257,24 @@ if (__weles.navigator && __weles.navigator.language) {
   try {
     const isHevc = (s) => /\b(hev1|hvc1)\b/i.test(s || '');
 
+    const regNS = window.__welesNativeString;
     if (typeof MediaSource !== 'undefined' && MediaSource.isTypeSupported) {
       const orig = MediaSource.isTypeSupported.bind(MediaSource);
-      MediaSource.isTypeSupported = function(type) {
-        if (isHevc(type)) return true;
-        return orig(type);
-      };
+      const its = function(type) { if (isHevc(type)) return true; return orig(type); };
+      if (regNS) regNS(its, 'isTypeSupported');
+      MediaSource.isTypeSupported = its;
     }
 
     if (typeof HTMLMediaElement !== 'undefined' && HTMLMediaElement.prototype.canPlayType) {
       const origCpt = HTMLMediaElement.prototype.canPlayType;
-      HTMLMediaElement.prototype.canPlayType = function(type) {
-        if (isHevc(type)) return 'probably';
-        return origCpt.call(this, type);
-      };
+      const cpt = function(type) { if (isHevc(type)) return 'probably'; return origCpt.call(this, type); };
+      if (regNS) regNS(cpt, 'canPlayType');
+      HTMLMediaElement.prototype.canPlayType = cpt;
     }
 
     if (navigator.mediaCapabilities && navigator.mediaCapabilities.decodingInfo) {
       const origDec = navigator.mediaCapabilities.decodingInfo.bind(navigator.mediaCapabilities);
-      navigator.mediaCapabilities.decodingInfo = function(config) {
+      const di = function(config) {
         try {
           const ct = config?.video?.contentType || config?.audio?.contentType || '';
           if (isHevc(ct)) {
@@ -276,6 +288,8 @@ if (__weles.navigator && __weles.navigator.language) {
         } catch {}
         return origDec(config);
       };
+      if (regNS) regNS(di, 'decodingInfo');
+      navigator.mediaCapabilities.decodingInfo = di;
     }
   } catch (e) { window.__WELES_HEVC_ERR = String(e); }
 })();
