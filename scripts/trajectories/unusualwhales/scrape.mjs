@@ -219,7 +219,7 @@ async function scrapeOnePage(sess, tk, pg, ssPath) {
       const maxH = await sess.page.evaluate(() => {
         let h = Math.max(document.documentElement.scrollHeight || 0, document.body?.scrollHeight || 0);
         for (const el of document.querySelectorAll('*')) { const st = getComputedStyle(el); if ((st.overflowY === 'auto' || st.overflowY === 'scroll') && el.scrollHeight > el.clientHeight + 50) h = Math.max(h, el.scrollHeight + 200); }
-        return Math.min(h, 24000);
+        return Math.min(h, 8000);
       });
       const origVp = sess.page.viewportSize();
       if (maxH > origVp.height) await sess.page.setViewportSize({ width: origVp.width, height: maxH }); // allow-raw-playwright: viewport resize for full-content capture
@@ -286,8 +286,9 @@ try {
     const ssPath = (allPages.length === 1 && screenshotPath) ? screenshotPath : path.join(os.tmpdir(), `uw_${ticker}_${pg}_${Date.now()}.png`);
     try { results.push({ page: pg, ...(await scrapeOnePage(s, ticker, pg, ssPath)) }); }
     catch (e) { console.error(`[uw_scrape] [${pg}] threw: ${e.message}`); results.push({ page: pg, error: e.message }); }
-    // Cleanup per-page temp screenshot; persistContext has already uploaded it.
-    if (ssPath !== screenshotPath) { try { fs.unlinkSync(ssPath); } catch (e) { /* tolerable: nothing to clean up */ } }
+    if (ssPath !== screenshotPath) { try { fs.unlinkSync(ssPath); } catch (e) { /* tolerable */ } }
+    // Free renderer memory before next page (SIGKILL 137 happened at 24000px cap).
+    try { await s.goto('about:blank'); } catch (e) { console.error(`[uw_scrape] about:blank: ${e.message}`); }
   }
   process.stdout.write(JSON.stringify({ ticker, pages: allPages, results }) + '\n');
   process.exit(0);
