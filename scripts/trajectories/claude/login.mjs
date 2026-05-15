@@ -28,6 +28,7 @@ import {
   CLAUDE_TOKEN_URL,
   CLAUDE_OAUTH_SCOPES,
 } from './oauth_config.mjs';
+import { pageDiag } from './diag.mjs';
 
 const DISPLAY_NAME = process.env.CLAUDE_DISPLAY_NAME || 'Claude';
 
@@ -156,11 +157,7 @@ let STEP = 'init';
 const mark = (n) => { STEP = n; console.log(`[step] ${n}`); };
 const overallSec = Number(process.env.CLAUDE_LOGIN_OVERALL_SEC || 300);
 const wd = setTimeout(async () => {
-  const u = await Promise.resolve(s.page.url()).catch((x) => `url-err:${x.message}`);
-  const t = await s.page.title().catch((x) => `title-err:${x.message}`);
-  const body = await s.page.locator('body').innerText()
-    .then((b) => b.slice(0, 800).replace(/\s+/g, ' ')).catch((x) => `body-err:${x.message}`);
-  console.log(`FAIL: overall watchdog ${overallSec}s exceeded at step=${STEP} url=${u} title=${JSON.stringify(t)} bodyText=${JSON.stringify(body)}`);
+  console.log(`FAIL: overall watchdog ${overallSec}s exceeded at step=${STEP} ${await pageDiag(s.page)}`);
   process.exit(1);
 }, overallSec * 1000);
 wd.unref();
@@ -172,9 +169,18 @@ try {
 
   if (login.loginMethod === 'google_sso') {
     mark('find_google_button');
-    const googleBtn = s.page.locator('button:has-text("Google"), a:has-text("Google"), button[aria-label*="Google" i], button:has-text("Continue with Google")').filter({ visible: true }).first();
-    if (!(await googleBtn.isVisible().catch(() => false))) {
-      console.log('FAIL: "Continue with Google" button not visible on claude.ai login');
+    // claude.ai/oauth/authorize redirects to a login SPA that renders the
+    // provider buttons client-side, so an instant isVisible() races the
+    // render. Wait for it; on miss dump live HTML so the real markup (and
+    // correct selector) lands in the blob.
+    const googleBtn = s.page.getByRole('button', { name: /google/i })
+      .or(s.page.getByRole('link', { name: /google/i }))
+      .or(s.page.locator('button:has-text("Google"), a:has-text("Google"), [data-provider="google" i], button[aria-label*="Google" i]'))
+      .first();
+    try {
+      await googleBtn.waitFor({ state: 'visible' });
+    } catch (e) {
+      console.log(`FAIL: google button not visible (${e.message}). ${await pageDiag(s.page, { html: true })}`);
       process.exit(1);
     }
     mark('click_google_button');
@@ -271,12 +277,7 @@ try {
   try {
     code = await Promise.race([listener.codePromise, deadline]);
   } catch (e) {
-    const u = await Promise.resolve(s.page.url()).catch((x) => `url-error:${x.message}`);
-    const t = await s.page.title().catch((x) => `title-error:${x.message}`);
-    const body = await s.page.locator('body').innerText()
-      .then((b) => b.slice(0, 600).replace(/\s+/g, ' '))
-      .catch((x) => `body-error:${x.message}`);
-    throw new Error(`${e.message}. url=${u} title=${JSON.stringify(t)} bodyText=${JSON.stringify(body)}`);
+    throw new Error(`${e.message}. ${await pageDiag(s.page)}`);
   }
   clearTimeout(wd);
   console.log(`[claude-login] received code (len=${code.length})`);
