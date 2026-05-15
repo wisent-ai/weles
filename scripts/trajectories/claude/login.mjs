@@ -28,7 +28,7 @@ import {
   CLAUDE_TOKEN_URL,
   CLAUDE_OAUTH_SCOPES,
 } from './oauth_config.mjs';
-import { pageDiag } from './diag.mjs';
+import { pageDiag, startWatchdog } from './diag.mjs';
 
 const DISPLAY_NAME = process.env.CLAUDE_DISPLAY_NAME || 'Claude';
 
@@ -156,11 +156,7 @@ const s = await WSession.start({
 let STEP = 'init';
 const mark = (n) => { STEP = n; console.log(`[step] ${n}`); };
 const overallSec = Number(process.env.CLAUDE_LOGIN_OVERALL_SEC || 300);
-const wd = setTimeout(async () => {
-  console.log(`FAIL: overall watchdog ${overallSec}s exceeded at step=${STEP} ${await pageDiag(s.page)}`);
-  process.exit(1);
-}, overallSec * 1000);
-wd.unref();
+const wd = startWatchdog(() => s.page, () => STEP, overallSec);
 
 try {
   mark('goto_authorize');
