@@ -136,7 +136,16 @@ const params = new URLSearchParams({
 });
 const authorizeUrl = `${CLAUDE_AUTHORIZE_URL}?${params.toString()}`;
 
-const s = await WSession.start({ label: 'claude_login', browser: 'chromium' });
+// Google/Anthropic SSO from a datacenter IP gets hard-blocked. Route
+// through a residential exit (resolveProxy picks the highest-balance
+// residential provider whose *_USERNAME/*_PASSWORD env vars are set).
+// CLAUDE_LOGIN_PROXY overrides the selector ('none' to force direct).
+const proxySel = process.env.CLAUDE_LOGIN_PROXY ?? 'residential us';
+const s = await WSession.start({
+  label: 'claude_login',
+  browser: 'chromium',
+  proxy: proxySel === 'none' ? undefined : proxySel,
+});
 try {
   await s.goto(authorizeUrl);
   await humanIdlePause('deliberate');
