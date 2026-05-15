@@ -146,20 +146,44 @@ const s = await WSession.start({
   browser: 'chromium',
   proxy: proxySel === 'none' ? undefined : proxySel,
 });
+
+// Overall watchdog. The per-step playwright waits have 30s defaults, but
+// humanIdlePause / humanClickLocator / weles goto-hooks can stall without
+// a deadline, leaving the process hung, the VM never self-deleting, and
+// no blob written. STEP tracks the last entered phase; on the deadline we
+// dump STEP + live page state so the EXACT stuck line lands in the blob.
+let STEP = 'init';
+const mark = (n) => { STEP = n; console.log(`[step] ${n}`); };
+const overallSec = Number(process.env.CLAUDE_LOGIN_OVERALL_SEC || 300);
+const wd = setTimeout(async () => {
+  const u = await Promise.resolve(s.page.url()).catch((x) => `url-err:${x.message}`);
+  const t = await s.page.title().catch((x) => `title-err:${x.message}`);
+  const body = await s.page.locator('body').innerText()
+    .then((b) => b.slice(0, 800).replace(/\s+/g, ' ')).catch((x) => `body-err:${x.message}`);
+  console.log(`FAIL: overall watchdog ${overallSec}s exceeded at step=${STEP} url=${u} title=${JSON.stringify(t)} bodyText=${JSON.stringify(body)}`);
+  process.exit(1);
+}, overallSec * 1000);
+wd.unref();
+
 try {
+  mark('goto_authorize');
   await s.goto(authorizeUrl);
   await humanIdlePause('deliberate');
 
   if (login.loginMethod === 'google_sso') {
+    mark('find_google_button');
     const googleBtn = s.page.locator('button:has-text("Google"), a:has-text("Google"), button[aria-label*="Google" i], button:has-text("Continue with Google")').filter({ visible: true }).first();
     if (!(await googleBtn.isVisible().catch(() => false))) {
       console.log('FAIL: "Continue with Google" button not visible on claude.ai login');
       process.exit(1);
     }
+    mark('click_google_button');
     await humanClickLocator(s.page, googleBtn);
+    mark('wait_accounts_google');
     await s.page.waitForURL(/accounts\.google\.com/);
     await humanIdlePause('deliberate');
 
+    mark('google_email');
     const gEmailIn = s.page.locator('input[type="email"]').filter({ visible: true }).first();
     await gEmailIn.waitFor({ state: 'visible' });
     await humanFill(s.page, gEmailIn, login.email);
@@ -167,6 +191,7 @@ try {
     await humanClickLocator(s.page, gNextEmail);
     await humanIdlePause('deliberate');
 
+    mark('google_password');
     const gPwIn = s.page.locator('input[type="password"]').filter({ visible: true }).first();
     await gPwIn.waitFor({ state: 'visible' });
     await humanFill(s.page, gPwIn, login.password);
@@ -174,6 +199,7 @@ try {
     await humanClickLocator(s.page, gNextPw);
     await humanIdlePause('long');
 
+    mark('google_2fa_check');
     const gOtp = s.page.locator('input[type="tel"][autocomplete="one-time-code"], input[name="totpPin"], input[autocomplete="one-time-code"]').filter({ visible: true }).first();
     if (await gOtp.isVisible().catch(() => false)) {
       const otp = process.env.CLAUDE_2FA_CODE;
@@ -186,6 +212,7 @@ try {
       await humanClickLocator(s.page, gOtpNext);
       await humanIdlePause('long');
     }
+    mark('wait_back_to_claude');
     await s.page.waitForURL(/claude\.ai/);
     await humanIdlePause('deliberate');
   } else {
@@ -223,11 +250,13 @@ try {
     }
   }
 
+  mark('oauth_consent');
   const authorizeBtn = s.page.locator('button:has-text("Authorize"), button:has-text("Allow"), button:has-text("Approve"), button:has-text("Continue")').filter({ visible: true }).first();
   if (await authorizeBtn.isVisible().catch(() => false)) {
     await humanClickLocator(s.page, authorizeBtn);
     await humanIdlePause('long');
   }
+  mark('await_callback');
 
   // Step 5 — wait for callback listener to receive the code. The OAuth
   // redirect can silently never fire (unhandled challenge, consent DOM
@@ -249,6 +278,7 @@ try {
       .catch((x) => `body-error:${x.message}`);
     throw new Error(`${e.message}. url=${u} title=${JSON.stringify(t)} bodyText=${JSON.stringify(body)}`);
   }
+  clearTimeout(wd);
   console.log(`[claude-login] received code (len=${code.length})`);
 
   const tokenResp = await exchangeCodeForToken(code, verifier, listener.url);
