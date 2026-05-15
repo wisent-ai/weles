@@ -141,43 +141,79 @@ try {
   await s.goto(authorizeUrl);
   await humanIdlePause('deliberate');
 
-  // Step 1 — email. Anthropic uses an email-first form.
-  const emailIn = s.page.locator('input[type="email"], input[name="email"], input[autocomplete="email"], input[id*="email" i]').filter({ visible: true }).first();
-  if (!(await emailIn.isVisible().catch(() => false))) {
-    console.log('FAIL: email input not visible on claude.ai login');
-    process.exit(1);
-  }
-  await humanFill(s.page, emailIn, login.email);
-  await humanIdlePause('short');
-
-  const continueBtn = s.page.locator('button:has-text("Continue"), button[type="submit"]').filter({ visible: true }).first();
-  await humanClickLocator(s.page, continueBtn);
-  await humanIdlePause('deliberate');
-
-  // Step 2 — password.
-  const pwIn = s.page.locator('input[type="password"], input[name="password"], input[autocomplete="current-password"]').filter({ visible: true }).first();
-  await pwIn.waitFor({ state: 'visible' });
-  await humanFill(s.page, pwIn, login.password);
-  await humanIdlePause('short');
-  const signinBtn = s.page.locator('button:has-text("Continue"), button:has-text("Sign in"), button:has-text("Log in"), button[type="submit"]').filter({ visible: true }).first();
-  await humanClickLocator(s.page, signinBtn);
-  await humanIdlePause('long');
-
-  // Step 3 — optional 2FA. CLAUDE_2FA_CODE env mirrors apple/login.mjs.
-  const otpIn = s.page.locator('input[autocomplete="one-time-code"], input[name="code"], input[id*="otp" i], input[inputmode="numeric"]').filter({ visible: true }).first();
-  if (await otpIn.isVisible().catch(() => false)) {
-    const otp = process.env.CLAUDE_2FA_CODE;
-    if (!otp) {
-      console.log('FAIL: 2FA prompt visible but CLAUDE_2FA_CODE env not set');
+  if (login.loginMethod === 'google_sso') {
+    const googleBtn = s.page.locator('button:has-text("Google"), a:has-text("Google"), button[aria-label*="Google" i], button:has-text("Continue with Google")').filter({ visible: true }).first();
+    if (!(await googleBtn.isVisible().catch(() => false))) {
+      console.log('FAIL: "Continue with Google" button not visible on claude.ai login');
       process.exit(1);
     }
-    await humanFill(s.page, otpIn, otp);
-    const otpSubmit = s.page.locator('button[type="submit"], button:has-text("Verify"), button:has-text("Continue")').filter({ visible: true }).first();
-    await humanClickLocator(s.page, otpSubmit);
+    await humanClickLocator(s.page, googleBtn);
+    await s.page.waitForURL(/accounts\.google\.com/);
+    await humanIdlePause('deliberate');
+
+    const gEmailIn = s.page.locator('input[type="email"]').filter({ visible: true }).first();
+    await gEmailIn.waitFor({ state: 'visible' });
+    await humanFill(s.page, gEmailIn, login.email);
+    const gNextEmail = s.page.locator('#identifierNext button, button:has-text("Next")').filter({ visible: true }).first();
+    await humanClickLocator(s.page, gNextEmail);
+    await humanIdlePause('deliberate');
+
+    const gPwIn = s.page.locator('input[type="password"]').filter({ visible: true }).first();
+    await gPwIn.waitFor({ state: 'visible' });
+    await humanFill(s.page, gPwIn, login.password);
+    const gNextPw = s.page.locator('#passwordNext button, button:has-text("Next")').filter({ visible: true }).first();
+    await humanClickLocator(s.page, gNextPw);
     await humanIdlePause('long');
+
+    const gOtp = s.page.locator('input[type="tel"][autocomplete="one-time-code"], input[name="totpPin"], input[autocomplete="one-time-code"]').filter({ visible: true }).first();
+    if (await gOtp.isVisible().catch(() => false)) {
+      const otp = process.env.CLAUDE_2FA_CODE;
+      if (!otp) {
+        console.log('FAIL: Google 2FA prompt visible but CLAUDE_2FA_CODE env not set');
+        process.exit(1);
+      }
+      await humanFill(s.page, gOtp, otp);
+      const gOtpNext = s.page.locator('#totpNext button, button:has-text("Next"), button[type="submit"]').filter({ visible: true }).first();
+      await humanClickLocator(s.page, gOtpNext);
+      await humanIdlePause('long');
+    }
+    await s.page.waitForURL(/claude\.ai/);
+    await humanIdlePause('deliberate');
+  } else {
+    const emailIn = s.page.locator('input[type="email"], input[name="email"], input[autocomplete="email"], input[id*="email" i]').filter({ visible: true }).first();
+    if (!(await emailIn.isVisible().catch(() => false))) {
+      console.log('FAIL: email input not visible on claude.ai login');
+      process.exit(1);
+    }
+    await humanFill(s.page, emailIn, login.email);
+    await humanIdlePause('short');
+
+    const continueBtn = s.page.locator('button:has-text("Continue"), button[type="submit"]').filter({ visible: true }).first();
+    await humanClickLocator(s.page, continueBtn);
+    await humanIdlePause('deliberate');
+
+    const pwIn = s.page.locator('input[type="password"], input[name="password"], input[autocomplete="current-password"]').filter({ visible: true }).first();
+    await pwIn.waitFor({ state: 'visible' });
+    await humanFill(s.page, pwIn, login.password);
+    await humanIdlePause('short');
+    const signinBtn = s.page.locator('button:has-text("Continue"), button:has-text("Sign in"), button:has-text("Log in"), button[type="submit"]').filter({ visible: true }).first();
+    await humanClickLocator(s.page, signinBtn);
+    await humanIdlePause('long');
+
+    const otpIn = s.page.locator('input[autocomplete="one-time-code"], input[name="code"], input[id*="otp" i], input[inputmode="numeric"]').filter({ visible: true }).first();
+    if (await otpIn.isVisible().catch(() => false)) {
+      const otp = process.env.CLAUDE_2FA_CODE;
+      if (!otp) {
+        console.log('FAIL: 2FA prompt visible but CLAUDE_2FA_CODE env not set');
+        process.exit(1);
+      }
+      await humanFill(s.page, otpIn, otp);
+      const otpSubmit = s.page.locator('button[type="submit"], button:has-text("Verify"), button:has-text("Continue")').filter({ visible: true }).first();
+      await humanClickLocator(s.page, otpSubmit);
+      await humanIdlePause('long');
+    }
   }
 
-  // Step 4 — consent screen for claude-code client.
   const authorizeBtn = s.page.locator('button:has-text("Authorize"), button:has-text("Allow"), button:has-text("Approve"), button:has-text("Continue")').filter({ visible: true }).first();
   if (await authorizeBtn.isVisible().catch(() => false)) {
     await humanClickLocator(s.page, authorizeBtn);
