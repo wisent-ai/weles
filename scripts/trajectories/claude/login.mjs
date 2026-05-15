@@ -229,8 +229,26 @@ try {
     await humanIdlePause('long');
   }
 
-  // Step 5 — wait for callback listener to receive the code.
-  const code = await listener.codePromise;
+  // Step 5 — wait for callback listener to receive the code. The OAuth
+  // redirect can silently never fire (unhandled challenge, consent DOM
+  // changed, redirect blocked). Without a deadline the process hangs
+  // forever, the VM never self-deletes, and no blob is ever written —
+  // an unobservable stall. Race the code against a deadline that dumps
+  // the live page state so the EXACT cause is captured in the blob.
+  const deadlineSec = Number(process.env.CLAUDE_LOGIN_DEADLINE_SEC || 180);
+  const deadline = new Promise((_, rej) =>
+    setTimeout(() => rej(new Error(`callback not received within ${deadlineSec}s`)), deadlineSec * 1000));
+  let code;
+  try {
+    code = await Promise.race([listener.codePromise, deadline]);
+  } catch (e) {
+    const u = await Promise.resolve(s.page.url()).catch((x) => `url-error:${x.message}`);
+    const t = await s.page.title().catch((x) => `title-error:${x.message}`);
+    const body = await s.page.locator('body').innerText()
+      .then((b) => b.slice(0, 600).replace(/\s+/g, ' '))
+      .catch((x) => `body-error:${x.message}`);
+    throw new Error(`${e.message}. url=${u} title=${JSON.stringify(t)} bodyText=${JSON.stringify(body)}`);
+  }
   console.log(`[claude-login] received code (len=${code.length})`);
 
   const tokenResp = await exchangeCodeForToken(code, verifier, listener.url);
