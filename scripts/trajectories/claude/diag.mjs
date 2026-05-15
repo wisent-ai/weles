@@ -20,3 +20,22 @@ export async function pageDiag(page, { html = false } = {}) {
   const key = html ? 'html' : 'bodyText';
   return `url=${u} title=${JSON.stringify(t)} ${key}=${JSON.stringify(content)}`;
 }
+
+// Process-wide watchdog. MUST exit even if diagnostics hang — the page can
+// be wedged in exactly the way that makes CDP title/content calls never
+// return, so a hard secondary timer guarantees a blob is written. The
+// outer timer is intentionally NOT unref'd: it must keep the event loop
+// alive so it actually fires when the main flow is blocked in an await.
+export function startWatchdog(getPage, getStep, sec) {
+  return setTimeout(() => {
+    const hard = setTimeout(() => {
+      console.log(`FAIL: overall watchdog ${sec}s at step=${getStep()} (diag hung, hard exit)`);
+      process.exit(1);
+    }, 15000);
+    hard.unref();
+    pageDiag(getPage())
+      .then((d) => console.log(`FAIL: overall watchdog ${sec}s exceeded at step=${getStep()} ${d}`))
+      .catch((e) => console.log(`FAIL: overall watchdog ${sec}s at step=${getStep()} diag-error:${e.message}`))
+      .finally(() => process.exit(1));
+  }, sec * 1000);
+}
