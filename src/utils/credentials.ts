@@ -139,19 +139,19 @@ export async function markCookiesStale(accountId: string): Promise<void> {
 }
 
 /** Get service credentials for balance checks (login_email + login_password from DB). */
-export async function getServiceLogin(displayName: string): Promise<{ email: string; password: string } | null> {
+export async function getServiceLogin(displayName: string): Promise<{ email: string; password: string; loginMethod: string } | null> {
   const supabaseUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
   if (!supabaseUrl || !supabaseKey) return null;
   const res = await fetch(
-    `${supabaseUrl}/rest/v1/service_credentials?display_name=ilike.${encodeURIComponent(displayName)}&select=login_email,login_password&limit=1`,
+    `${supabaseUrl}/rest/v1/service_credentials?display_name=ilike.${encodeURIComponent(displayName)}&select=login_email,login_password,login_method&limit=1`,
     { headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` } },
   );
   if (!res.ok) return null;
-  const rows = await res.json() as { login_email: string | null; login_password: string | null }[];
+  const rows = await res.json() as { login_email: string | null; login_password: string | null; login_method: string | null }[];
   const row = rows[0];
   if (!row?.login_email || !row?.login_password) return null;
-  return { email: row.login_email, password: row.login_password };
+  return { email: row.login_email, password: row.login_password, loginMethod: row.login_method ?? 'email_password' };
 }
 
 export type { ServiceCredential, SocialAccount };
