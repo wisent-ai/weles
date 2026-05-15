@@ -29,6 +29,7 @@ import {
   CLAUDE_OAUTH_SCOPES,
 } from './oauth_config.mjs';
 import { pageDiag, startWatchdog } from './diag.mjs';
+import { doGoogleSso } from './google_sso.mjs';
 
 const DISPLAY_NAME = process.env.CLAUDE_DISPLAY_NAME || 'Claude';
 
@@ -179,41 +180,16 @@ try {
       console.log(`FAIL: google button not visible (${e.message}). ${await pageDiag(s.page, { html: true })}`);
       process.exit(1);
     }
-    mark('click_google_button');
-    await humanClickLocator(s.page, googleBtn);
-    mark('wait_accounts_google');
-    await s.page.waitForURL(/accounts\.google\.com/);
-    await humanIdlePause('deliberate');
-
-    mark('google_email');
-    const gEmailIn = s.page.locator('input[type="email"]').filter({ visible: true }).first();
-    await gEmailIn.waitFor({ state: 'visible' });
-    await humanFill(s.page, gEmailIn, login.email);
-    const gNextEmail = s.page.locator('#identifierNext button, button:has-text("Next")').filter({ visible: true }).first();
-    await humanClickLocator(s.page, gNextEmail);
-    await humanIdlePause('deliberate');
-
-    mark('google_password');
-    const gPwIn = s.page.locator('input[type="password"]').filter({ visible: true }).first();
-    await gPwIn.waitFor({ state: 'visible' });
-    await humanFill(s.page, gPwIn, login.password);
-    const gNextPw = s.page.locator('#passwordNext button, button:has-text("Next")').filter({ visible: true }).first();
-    await humanClickLocator(s.page, gNextPw);
-    await humanIdlePause('long');
-
-    mark('google_2fa_check');
-    const gOtp = s.page.locator('input[type="tel"][autocomplete="one-time-code"], input[name="totpPin"], input[autocomplete="one-time-code"]').filter({ visible: true }).first();
-    if (await gOtp.isVisible().catch(() => false)) {
-      const otp = process.env.CLAUDE_2FA_CODE;
-      if (!otp) {
-        console.log('FAIL: Google 2FA prompt visible but CLAUDE_2FA_CODE env not set');
-        process.exit(1);
-      }
-      await humanFill(s.page, gOtp, otp);
-      const gOtpNext = s.page.locator('#totpNext button, button:has-text("Next"), button[type="submit"]').filter({ visible: true }).first();
-      await humanClickLocator(s.page, gOtpNext);
-      await humanIdlePause('long');
-    }
+    await doGoogleSso({
+      page: s.page,
+      context: s.page.context(),
+      googleBtn,
+      login,
+      mark,
+      humanFill,
+      humanClickLocator,
+      humanIdlePause,
+    });
     mark('wait_back_to_claude');
     await s.page.waitForURL(/claude\.ai/);
     await humanIdlePause('deliberate');
