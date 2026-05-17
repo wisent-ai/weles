@@ -15,10 +15,23 @@ export async function doGoogleSso({
   humanFill, humanClickLocator, humanIdlePause,
 }) {
   mark('click_google_button');
+  // Diagnostic: a prior run reported click "success" but the login page
+  // stayed unchanged — log exactly which node matched and pre/post URL
+  // so a wrong/non-interactive match is unambiguous in the blob.
+  let btnHtml;
+  try {
+    btnHtml = await googleBtn.evaluate((el) => el.outerHTML.slice(0, 300));
+  } catch (e) {
+    btnHtml = `btn-html-error:${e.message}`;
+  }
+  const urlBefore = page.url();
+  console.log(`[google_sso] clicking btn=${JSON.stringify(btnHtml)} urlBefore=${urlBefore}`);
   const popupWin = new Promise((resolve) => {
     context.once('page', (p) => resolve(p));
   });
   await humanClickLocator(page, googleBtn);
+  await humanIdlePause('deliberate');
+  console.log(`[google_sso] post-click urlAfter=${page.url()}`);
 
   mark('resolve_google_page');
   const sameTabWin = page.waitForURL(/accounts\.google\.com/).then(() => page);
