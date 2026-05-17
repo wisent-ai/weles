@@ -87,6 +87,44 @@ async function clickSubmit(page, humanClick, namePattern) {
   throw new Error(`clickSubmit: no button matching /${patternSrc}/i found in 8s`);
 }
 
+// Like clickSubmit but waits for the button to be ENABLED before
+// clicking. Google's WIZ Next button stays disabled (aria-disabled
+// or disabled attribute) until the on-blur input validator fires;
+// clicking a disabled WIZ button is a silent no-op. Polls for up to
+// 8s post-fill for the button to enable, then clicks. On failure
+// throws with the full button-state diagnostic so we can see whether
+// the issue is "button never appeared", "button appeared but never
+// enabled", or "button enabled but click had no effect".
+async function waitForEnabledThenClick(page, humanClick, namePattern) {
+  const patternSrc = namePattern.source;
+  let lastState = null;
+  for (let i = 0; i < 80; i += 1) {
+    lastState = await page.evaluate((src) => {
+      const re = new RegExp(src, 'i');
+      const candidates = Array.from(document.querySelectorAll('button, [role="button"]'));
+      for (const el of candidates) {
+        const txt = (el.innerText || el.textContent || '').trim();
+        if (!re.test(txt)) continue;
+        const r = el.getBoundingClientRect();
+        if (r.width < 4 || r.height < 4) continue;
+        const disabled = el.disabled || el.getAttribute('aria-disabled') === 'true' || el.getAttribute('disabled') !== null;
+        return {
+          x: r.x + r.width / 2, y: r.y + r.height / 2,
+          tag: el.tagName, txt: txt.slice(0, 40),
+          disabled, found: true,
+        };
+      }
+      return { found: false };
+    }, patternSrc);
+    if (lastState.found && !lastState.disabled) {
+      await humanClick(page, Math.round(lastState.x), Math.round(lastState.y));
+      return;
+    }
+    await page.waitForTimeout(100); // allow-raw-playwright: enable-state poll, not a humanized action
+  }
+  throw new Error(`waitForEnabledThenClick: button stuck unclickable for /${patternSrc}/i, lastState=${JSON.stringify(lastState)}`);
+}
+
 export async function doGoogleSso({
   page, login, authorizeUrl, mark,
   humanFill, humanClickLocator, humanIdlePause, humanType,
@@ -112,20 +150,30 @@ export async function doGoogleSso({
   const gEmailIn = page.locator('input[type="email"]').filter({ visible: true }).first();
   await gEmailIn.waitFor({ state: 'visible' });
   await fillAndVerify(page, gEmailIn, login.email, humanFill);
-  // Video 2026-05-17T22:07:21Z: email landed but Next never clicked,
-  // page stayed on email screen for the entire 65s run.
-  // getByRole('button',name:/next/i) returned no element — Google's
-  // WIZ wrapper exposes a custom role/aria that doesn't match
-  // 'button' or doesn't surface 'Next' as the accessible name.
-  // text= locator scoped to a real <button> tag is the failsafe.
-  await clickSubmit(page, humanClick,/next|continue/i);
+  // Google's WIZ Next button enables only after the input's blur+change
+  // event chain runs through their validator. fillAndVerify's
+  // native-setter path dispatches input+change, but blur is needed for
+  // the on-blur validator. Dispatch a focusout/blur, then verify the
+  // button is actually enabled before clicking — otherwise the click
+  // is a no-op against a disabled control.
+  await gEmailIn.evaluate((el) => {
+    el.dispatchEvent(new Event('blur', { bubbles: true }));
+    el.dispatchEvent(new Event('focusout', { bubbles: true }));
+  });
+  await humanIdlePause('short');
+  await waitForEnabledThenClick(page, humanClick, /next|continue/i);
   await humanIdlePause('deliberate');
 
   mark('google_password');
   const gPwIn = page.locator('input[type="password"]').filter({ visible: true }).first();
   await gPwIn.waitFor({ state: 'visible' });
   await fillAndVerify(page, gPwIn, login.password, humanFill);
-  await clickSubmit(page, humanClick,/next|sign in|continue/i);
+  await gPwIn.evaluate((el) => {
+    el.dispatchEvent(new Event('blur', { bubbles: true }));
+    el.dispatchEvent(new Event('focusout', { bubbles: true }));
+  });
+  await humanIdlePause('short');
+  await waitForEnabledThenClick(page, humanClick, /next|sign in|continue/i);
   await humanIdlePause('long');
 
   mark('google_2fa_check');
