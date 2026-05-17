@@ -55,6 +55,34 @@ async function fillAndVerify(page, locator, text, humanFill) {
   throw new Error(`fillAndVerify exhausted humanFill+native-setter; field value="${final}" expected len=${text.length}`);
 }
 
+// Locate Google's submit button across multiple selectors — WIZ
+// renders accessible-name via aria-label OR visible text OR a child
+// span, and the role-based name match alone failed on the live page
+// (video 22:07:21Z: getByRole found no element, the Next button was
+// never clicked). Each candidate is an equivalent locator strategy
+// targeting the same button; the first visible match is clicked.
+// Throws with the per-strategy visibility tally if none match, so
+// the failure is diagnosable.
+async function clickSubmit(page, humanClickLocator, namePattern) {
+  const candidates = [
+    page.getByRole('button', { name: namePattern }),
+    page.locator('button').filter({ hasText: namePattern }).filter({ visible: true }),
+    page.locator('[role="button"]').filter({ hasText: namePattern }).filter({ visible: true }),
+    page.locator('button:has(span)').filter({ hasText: namePattern }).filter({ visible: true }),
+  ];
+  const tally = [];
+  for (const loc of candidates) {
+    const first = loc.first();
+    const visible = await first.isVisible();
+    tally.push(visible);
+    if (visible) {
+      await humanClickLocator(page, first);
+      return;
+    }
+  }
+  throw new Error(`clickSubmit found no visible button matching ${namePattern}; tried ${tally.length} strategies, visibility=${JSON.stringify(tally)}`);
+}
+
 export async function doGoogleSso({
   page, login, authorizeUrl, mark,
   humanFill, humanClickLocator, humanIdlePause, humanType,
@@ -79,20 +107,20 @@ export async function doGoogleSso({
   const gEmailIn = page.locator('input[type="email"]').filter({ visible: true }).first();
   await gEmailIn.waitFor({ state: 'visible' });
   await fillAndVerify(page, gEmailIn, login.email, humanFill);
-  // Video 2026-05-17T22:00:45Z: humanType('\n') after the native-setter
-  // path no longer submits — the JS value-setter doesn't keep input
-  // focus, and a CDP Enter keystroke hits the same dropped-keys
-  // problem the email typing did. Click the Next button instead via
-  // role-based locator (resilient to WIZ class obfuscation, which an
-  // earlier comment said had defeated raw-selector clicks).
-  await humanClickLocator(page, page.getByRole('button', { name: /next|continue/i }).first());
+  // Video 2026-05-17T22:07:21Z: email landed but Next never clicked,
+  // page stayed on email screen for the entire 65s run.
+  // getByRole('button',name:/next/i) returned no element — Google's
+  // WIZ wrapper exposes a custom role/aria that doesn't match
+  // 'button' or doesn't surface 'Next' as the accessible name.
+  // text= locator scoped to a real <button> tag is the failsafe.
+  await clickSubmit(page, humanClickLocator, /next|continue/i);
   await humanIdlePause('deliberate');
 
   mark('google_password');
   const gPwIn = page.locator('input[type="password"]').filter({ visible: true }).first();
   await gPwIn.waitFor({ state: 'visible' });
   await fillAndVerify(page, gPwIn, login.password, humanFill);
-  await humanClickLocator(page, page.getByRole('button', { name: /next|sign in|continue/i }).first());
+  await clickSubmit(page, humanClickLocator, /next|sign in|continue/i);
   await humanIdlePause('long');
 
   mark('google_2fa_check');
