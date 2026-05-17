@@ -18,7 +18,8 @@ export async function pageDiag(page, { html = false } = {}) {
       .catch((x) => `body-err:${x.message}`);
   }
   const key = html ? 'html' : 'bodyText';
-  return `url=${u} title=${JSON.stringify(t)} ${key}=${JSON.stringify(content)}`;
+  const con = Array.isArray(globalThis.__claudeConsole) ? globalThis.__claudeConsole.slice(-12) : [];
+  return `url=${u} title=${JSON.stringify(t)} console=${JSON.stringify(con)} ${key}=${JSON.stringify(content)}`;
 }
 
 // Process-wide watchdog. MUST exit even if diagnostics hang — the page can
