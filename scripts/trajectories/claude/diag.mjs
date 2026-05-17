@@ -22,21 +22,40 @@ export async function pageDiag(page, { html = false } = {}) {
   return `url=${u} title=${JSON.stringify(t)} console=${JSON.stringify(con)} ${key}=${JSON.stringify(content)}`;
 }
 
-// Process-wide watchdog. MUST exit even if diagnostics hang — the page can
-// be wedged in exactly the way that makes CDP title/content calls never
-// return, so a hard secondary timer guarantees a blob is written. The
-// outer timer is intentionally NOT unref'd: it must keep the event loop
-// alive so it actually fires when the main flow is blocked in an await.
-export function startWatchdog(getPage, getStep, sec) {
+// recordVideo only finalizes a non-empty .webm when the browser context
+// is closed. process.exit() bypasses `finally`, so every exit path must
+// close the session first or the video is 0 bytes (useless — the only
+// sanctioned diagnostic). makeShutdown returns a shutdown(code) that
+// flushes the session (bounded so a hung close can't wedge the VM) then
+// exits. getSession returns the live WSession or null.
+export function makeShutdown(getSession) {
+  return async function shutdown(code) {
+    const s = getSession();
+    if (s) {
+      const flushed = s.close().then(() => true);
+      const capped = new Promise((r) => setTimeout(() => r(false), 20000));
+      const ok = await Promise.race([flushed, capped]);
+      if (!ok) console.error('session close did not finish before cap');
+    }
+    process.exit(code);
+  };
+}
+
+// Process-wide watchdog. MUST exit even if diagnostics hang — the page
+// can be wedged so CDP title/content never return; a hard secondary
+// timer guarantees termination. Not unref'd: keeps the loop alive so it
+// fires while the main flow is blocked in an await. onTimeout flushes
+// the video before exit.
+export function startWatchdog(getPage, getStep, sec, shutdown) {
   return setTimeout(() => {
     const hard = setTimeout(() => {
       console.log(`FAIL: overall watchdog ${sec}s at step=${getStep()} (diag hung, hard exit)`);
-      process.exit(1);
-    }, 15000);
+      shutdown(1);
+    }, 25000);
     hard.unref();
     pageDiag(getPage())
       .then((d) => console.log(`FAIL: overall watchdog ${sec}s exceeded at step=${getStep()} ${d}`))
       .catch((e) => console.log(`FAIL: overall watchdog ${sec}s at step=${getStep()} diag-error:${e.message}`))
-      .finally(() => process.exit(1));
+      .finally(() => shutdown(1));
   }, sec * 1000);
 }

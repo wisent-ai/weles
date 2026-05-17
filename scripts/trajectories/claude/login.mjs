@@ -28,7 +28,7 @@ import {
   CLAUDE_TOKEN_URL,
   CLAUDE_OAUTH_SCOPES,
 } from './oauth_config.mjs';
-import { pageDiag, startWatchdog } from './diag.mjs';
+import { pageDiag, startWatchdog, makeShutdown } from './diag.mjs';
 import { doGoogleSso } from './google_sso.mjs';
 import { doEmailCode } from './email_code.mjs';
 
@@ -46,8 +46,8 @@ console.debug = () => process.stdout.write(_TLP);
 // Uncaught errors / rejections print a stack trace to stderr (2>&1 puts
 // it in the blob). Replace with the phrase + a non-zero exit so the
 // only text anywhere is the phrase; diagnose from video/DOM.
-process.on('uncaughtException', () => { process.stderr.write(_TLP); process.exit(1); });
-process.on('unhandledRejection', () => { process.stderr.write(_TLP); process.exit(1); });
+let SESSION = null; const shutdown = makeShutdown(() => SESSION);
+process.on('uncaughtException', () => { process.stderr.write(_TLP); shutdown(1); }); process.on('unhandledRejection', () => { process.stderr.write(_TLP); shutdown(1); });
 
 const DISPLAY_NAME = process.env.CLAUDE_DISPLAY_NAME || 'Claude';
 
@@ -166,6 +166,7 @@ const s = await WSession.start({
   browser: 'chromium',
   proxy: proxySel === 'none' ? undefined : proxySel,
 });
+SESSION = s; // every exit path now flushes the video via shutdown()
 
 // Overall watchdog. The per-step playwright waits have 30s defaults, but
 // humanIdlePause / humanClickLocator / weles goto-hooks can stall without
@@ -175,7 +176,7 @@ const s = await WSession.start({
 let STEP = 'init';
 const mark = (n) => { STEP = n; console.log(`[step] ${n}`); };
 const overallSec = Number(process.env.CLAUDE_LOGIN_OVERALL_SEC || 300);
-const wd = startWatchdog(() => s.page, () => STEP, overallSec);
+const wd = startWatchdog(() => s.page, () => STEP, overallSec, shutdown);
 
 // Attach console/pageerror/network listeners BEFORE goto so a failure to
 // hydrate the claude.ai SPA (buttons never render) surfaces the actual
@@ -292,7 +293,7 @@ try {
   // (e.g. a Google step waitFor timeout) shows what the page actually
   // was, not just an opaque playwright timeout string.
   console.log(`FAIL: ${e.message}. ${await pageDiag(s.page, { html: true })}`);
-  process.exit(1);
+  await shutdown(1); // closes context → flushes .webm, then exits
 } finally {
   listener.server.close();
   await s.close();
