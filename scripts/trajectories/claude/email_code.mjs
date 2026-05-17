@@ -28,8 +28,8 @@ export async function doEmailCode({
     await humanIdlePause('long');
   }
   if (!/^\d{5,6}$/.test(code)) {
-    console.log(`FAIL: no claude.ai email code after polling (last="${code}"). ${await pageDiag(s.page)}`);
-    process.exit(1);
+    // throw (not process.exit) so login.mjs' catch flushes the .webm
+    throw new Error(`no claude.ai email code after polling (last="${code}")`);
   }
   console.log(`[claude-login] got email code (len=${code.length})`);
 
