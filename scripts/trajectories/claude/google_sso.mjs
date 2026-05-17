@@ -131,11 +131,36 @@ export async function doGoogleSso({
 }) {
   const { humanClick } = await import('../../../dist/human/mouse.js');
   mark('google_prelogin_goto');
-  // waitUntil:'domcontentloaded' — accounts.google.com behind the
-  // residential proxy keeps network busy and the 'load' event (Playwright
-  // goto default) may never fire, hanging the navigation indefinitely.
-  // domcontentloaded returns once the DOM is parsed; the email-input
-  // waitFor below then gates on the form actually rendering.
+  // Probe whether this account already has a live Google session
+  // (cookies were injected by WSession.start from the per-account
+  // jar at ~/.weles/sessions.json). If we land on myaccount.google.com
+  // without being redirected to /signin, the session is good and we
+  // skip the email/password/2FA dance entirely — going straight to
+  // the claude.ai authorize URL where GIS finds the live account.
+  await page.goto('https://myaccount.google.com/', { waitUntil: 'commit' });
+  await humanIdlePause('deliberate');
+  const urlAfterProbe = page.url();
+  if (urlAfterProbe.includes('myaccount.google.com') && !urlAfterProbe.includes('/signin')) {
+    mark('google_session_reused');
+    console.log(`[google_sso] reused persisted session for ${login.email}`);
+    mark('goto_authorize_direct');
+    await page.goto(authorizeUrl, { waitUntil: 'commit' });
+    await humanIdlePause('deliberate');
+    mark('gis_continue_direct');
+    const gBtnEarly = page.getByRole('button', { name: /google/i })
+      .or(page.locator('button:has-text("Google"), [data-provider="google" i]'))
+      .first();
+    await gBtnEarly.waitFor({ state: 'visible' });
+    await humanClickLocator(page, gBtnEarly);
+    await humanIdlePause('long');
+    const acctEarly = page.locator(`text=${login.email}`).first();
+    if (await acctEarly.isVisible().catch(() => false)) {
+      await humanClickLocator(page, acctEarly);
+      await humanIdlePause('long');
+    }
+    return page;
+  }
+  // No live session — fall into the email/password sign-in flow.
   await page.goto('https://accounts.google.com/ServiceLogin?hl=en', { waitUntil: 'commit' });
   await humanIdlePause('deliberate');
 
