@@ -1,88 +1,35 @@
-// Google-SSO sub-flow for the claude login trajectory. claude.ai's
-// "Continue with Google" opens Google OAuth in a POPUP, so the main page
-// never navigates to accounts.google.com; race a popup against same-tab
-// nav and bind every Google step to whichever page wins. Returns once
-// the Google credentials/TOTP are submitted; the caller resumes the
-// claude.ai consent + PKCE callback on the original page.
+// Google-SSO sub-flow for the claude login trajectory.
 //
-// The race uses two promises that only ever RESOLVE (to the winning
-// page). If the popup never opens AND same-tab nav never happens the
-// race stays pending and the trajectory's hardened overall watchdog
-// fires at step=resolve_google_page with full page state — the correct
-// owner of that failure, not a hidden sentinel here.
+// ROOT CAUSE (live SSH evidence): claude.ai's "Continue with Google" is a
+// Google Identity Services (GIS) button, not a classic OAuth redirect.
+// Clicking it with no Google session logs "Provider's accounts list is
+// empty." and does nothing (no popup, no nav). So we must establish a
+// Google session at accounts.google.com FIRST, then load claude.ai's
+// authorize URL — GIS then has an account and the click completes.
 export async function doGoogleSso({
-  page, context, googleBtn, login, mark,
+  page, login, authorizeUrl, mark,
   humanFill, humanClickLocator, humanIdlePause,
 }) {
-  mark('click_google_button');
-  // Diagnostic: a prior run reported click "success" but the login page
-  // stayed unchanged — log exactly which node matched and pre/post URL
-  // so a wrong/non-interactive match is unambiguous in the blob.
-  // Enumerate every button/link so the exact "Continue with Google"
-  // element + a precise selector are visible in the blob. Not wrapped —
-  // a failure propagates to login.mjs' try/catch which logs FAIL.
-  const inventory = await page.evaluate(() => {
-    const seen = [];
-    for (const el of document.querySelectorAll('button,a,[role="button"]')) {
-      const r = el.getBoundingClientRect();
-      let txt = el.textContent;
-      if (txt === null) txt = '';
-      seen.push({
-        tag: el.tagName.toLowerCase(),
-        role: el.getAttribute('role'),
-        text: String(txt).trim().slice(0, 60),
-        href: el.getAttribute('href'),
-        visible: r.width > 0 && r.height > 0,
-      });
-    }
-    return seen;
-  });
-  const btnHtml = await googleBtn.evaluate((el) => el.outerHTML.slice(0, 600));
-  const urlBefore = page.url();
-  console.log(`[google_sso] inventory=${JSON.stringify(inventory)}`);
-  console.log(`[google_sso] clicking btn=${JSON.stringify(btnHtml)} urlBefore=${urlBefore}`);
-  // Capture what the click actually triggers: console errors, any
-  // google/oauth network attempt, popup count, and post-click HTML.
-  const consoleMsgs = [];
-  page.on('console', (m) => { if (m.type() === 'error') consoleMsgs.push(m.text().slice(0, 200)); });
-  page.on('pageerror', (e) => consoleMsgs.push(`pageerror:${e.message.slice(0, 200)}`));
-  const netHits = [];
-  page.on('request', (r) => {
-    const u = r.url();
-    if (/accounts\.google\.com|oauth|\/auth\//.test(u)) netHits.push(`${r.method()} ${u.slice(0, 120)}`);
-  });
-  const popupWin = new Promise((resolve) => {
-    context.once('page', (p) => resolve(p));
-  });
-  await humanClickLocator(page, googleBtn);
-  await humanIdlePause('deliberate');
-  const pagesNow = context.pages().length;
-  const postHtml = await page.content().then((h) => h.replace(/\s+/g, ' ').slice(0, 1200));
-  console.log(`[google_sso] post-click urlAfter=${page.url()} pages=${pagesNow} consoleErrs=${JSON.stringify(consoleMsgs.slice(-5))} netHits=${JSON.stringify(netHits.slice(-5))}`);
-  console.log(`[google_sso] post-click html=${JSON.stringify(postHtml)}`);
-
-  mark('resolve_google_page');
-  const sameTabWin = page.waitForURL(/accounts\.google\.com/).then(() => page);
-  const gp = await Promise.race([popupWin, sameTabWin]);
-  await gp.waitForLoadState('domcontentloaded');
+  mark('google_prelogin_goto');
+  await page.goto('https://accounts.google.com/ServiceLogin?hl=en');
   await humanIdlePause('deliberate');
 
   mark('google_email');
-  const gEmailIn = gp.locator('input[type="email"]').filter({ visible: true }).first();
+  const gEmailIn = page.locator('input[type="email"]').filter({ visible: true }).first();
   await gEmailIn.waitFor({ state: 'visible' });
-  await humanFill(gp, gEmailIn, login.email);
-  await humanClickLocator(gp, gp.locator('#identifierNext button, button:has-text("Next")').filter({ visible: true }).first());
+  await humanFill(page, gEmailIn, login.email);
+  await humanClickLocator(page, page.locator('#identifierNext button, button:has-text("Next")').filter({ visible: true }).first());
   await humanIdlePause('deliberate');
 
   mark('google_password');
-  const gPwIn = gp.locator('input[type="password"]').filter({ visible: true }).first();
+  const gPwIn = page.locator('input[type="password"]').filter({ visible: true }).first();
   await gPwIn.waitFor({ state: 'visible' });
-  await humanFill(gp, gPwIn, login.password);
-  await humanClickLocator(gp, gp.locator('#passwordNext button, button:has-text("Next")').filter({ visible: true }).first());
+  await humanFill(page, gPwIn, login.password);
+  await humanClickLocator(page, page.locator('#passwordNext button, button:has-text("Next")').filter({ visible: true }).first());
   await humanIdlePause('long');
 
   mark('google_2fa_check');
-  const gOtp = gp.locator('input[type="tel"][autocomplete="one-time-code"], input[name="totpPin"], input[autocomplete="one-time-code"]').filter({ visible: true }).first();
+  const gOtp = page.locator('input[type="tel"][autocomplete="one-time-code"], input[name="totpPin"], input[autocomplete="one-time-code"]').filter({ visible: true }).first();
   let otpVisible;
   try {
     otpVisible = await gOtp.isVisible();
@@ -96,9 +43,37 @@ export async function doGoogleSso({
       console.log('FAIL: Google 2FA prompt visible but CLAUDE_2FA_CODE env not set');
       process.exit(1);
     }
-    await humanFill(gp, gOtp, otp);
-    await humanClickLocator(gp, gp.locator('#totpNext button, button:has-text("Next"), button[type="submit"]').filter({ visible: true }).first());
+    await humanFill(page, gOtp, otp);
+    await humanClickLocator(page, page.locator('#totpNext button, button:has-text("Next"), button[type="submit"]').filter({ visible: true }).first());
     await humanIdlePause('long');
   }
-  return gp;
+
+  // Session established. Now load claude.ai's OAuth — GIS sees the account.
+  mark('goto_authorize');
+  await page.goto(authorizeUrl);
+  await humanIdlePause('deliberate');
+
+  mark('gis_continue');
+  const gBtn = page.getByRole('button', { name: /google/i })
+    .or(page.locator('button:has-text("Google"), [data-provider="google" i]'))
+    .first();
+  await gBtn.waitFor({ state: 'visible' });
+  await humanClickLocator(page, gBtn);
+  await humanIdlePause('long');
+
+  // A GIS account chooser may render; pick the row matching our email.
+  mark('gis_account_chooser');
+  const acct = page.locator(`text=${login.email}`).first();
+  let acctVisible;
+  try {
+    acctVisible = await acct.isVisible();
+  } catch (e) {
+    acctVisible = false;
+    console.log(`[google_sso] account-chooser probe threw (treated absent): ${e.message}`);
+  }
+  if (acctVisible) {
+    await humanClickLocator(page, acct);
+    await humanIdlePause('long');
+  }
+  return page;
 }
