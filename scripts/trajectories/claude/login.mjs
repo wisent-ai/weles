@@ -159,6 +159,22 @@ const mark = (n) => { STEP = n; console.log(`[step] ${n}`); };
 const overallSec = Number(process.env.CLAUDE_LOGIN_OVERALL_SEC || 300);
 const wd = startWatchdog(() => s.page, () => STEP, overallSec);
 
+// Attach console/pageerror/network listeners BEFORE goto so a failure to
+// hydrate the claude.ai SPA (buttons never render) surfaces the actual
+// JS errors / blocked asset loads, not just an opaque element timeout.
+// Two observed failure modes — (1) SPA never hydrates, (2) hydrates but
+// the OAuth click does nothing — both point at SPA JS not executing in
+// the patched headless chromium via residential proxy; these listeners
+// capture the cause for every path (pageDiag appends them).
+globalThis.__claudeConsole = [];
+s.page.on('console', (m) => {
+  if (m.type() === 'error') globalThis.__claudeConsole.push(`con:${m.text().slice(0, 180)}`);
+});
+s.page.on('pageerror', (e) => globalThis.__claudeConsole.push(`err:${e.message.slice(0, 180)}`));
+s.page.on('requestfailed', (r) => {
+  globalThis.__claudeConsole.push(`reqfail:${r.failure()?.errorText ?? '?'} ${r.url().slice(0, 100)}`);
+});
+
 try {
   mark('goto_authorize');
   await s.goto(authorizeUrl);
