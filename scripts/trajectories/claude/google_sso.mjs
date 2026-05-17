@@ -79,18 +79,20 @@ export async function doGoogleSso({
   const gEmailIn = page.locator('input[type="email"]').filter({ visible: true }).first();
   await gEmailIn.waitFor({ state: 'visible' });
   await fillAndVerify(page, gEmailIn, login.email, humanFill);
-  // Google's GlifWebSignIn Next button is WIZ-obfuscated and force-click
-  // didn't advance the page (stayed on /signin/identifier). Submitting
-  // the focused field with Enter is the canonical robust Google signin
-  // submit and avoids the obfuscated-selector problem entirely.
-  await humanType(page, '\n');
+  // Video 2026-05-17T22:00:45Z: humanType('\n') after the native-setter
+  // path no longer submits — the JS value-setter doesn't keep input
+  // focus, and a CDP Enter keystroke hits the same dropped-keys
+  // problem the email typing did. Click the Next button instead via
+  // role-based locator (resilient to WIZ class obfuscation, which an
+  // earlier comment said had defeated raw-selector clicks).
+  await humanClickLocator(page, page.getByRole('button', { name: /next|continue/i }).first());
   await humanIdlePause('deliberate');
 
   mark('google_password');
   const gPwIn = page.locator('input[type="password"]').filter({ visible: true }).first();
   await gPwIn.waitFor({ state: 'visible' });
   await fillAndVerify(page, gPwIn, login.password, humanFill);
-  await humanType(page, '\n');
+  await humanClickLocator(page, page.getByRole('button', { name: /next|sign in|continue/i }).first());
   await humanIdlePause('long');
 
   mark('google_2fa_check');
