@@ -8,7 +8,7 @@
 // authorize URL — GIS then has an account and the click completes.
 export async function doGoogleSso({
   page, login, authorizeUrl, mark,
-  humanFill, humanClickLocator, humanIdlePause,
+  humanFill, humanClickLocator, humanIdlePause, humanType,
 }) {
   mark('google_prelogin_goto');
   // waitUntil:'domcontentloaded' — accounts.google.com behind the
@@ -23,14 +23,18 @@ export async function doGoogleSso({
   const gEmailIn = page.locator('input[type="email"]').filter({ visible: true }).first();
   await gEmailIn.waitFor({ state: 'visible' });
   await humanFill(page, gEmailIn, login.email);
-  await humanClickLocator(page, page.locator('#identifierNext button, button:has-text("Next")').filter({ visible: true }).first());
+  // Google's GlifWebSignIn Next button is WIZ-obfuscated and force-click
+  // didn't advance the page (stayed on /signin/identifier). Submitting
+  // the focused field with Enter is the canonical robust Google signin
+  // submit and avoids the obfuscated-selector problem entirely.
+  await humanType(page, '\n');
   await humanIdlePause('deliberate');
 
   mark('google_password');
   const gPwIn = page.locator('input[type="password"]').filter({ visible: true }).first();
   await gPwIn.waitFor({ state: 'visible' });
   await humanFill(page, gPwIn, login.password);
-  await humanClickLocator(page, page.locator('#passwordNext button, button:has-text("Next")').filter({ visible: true }).first());
+  await humanType(page, '\n');
   await humanIdlePause('long');
 
   mark('google_2fa_check');

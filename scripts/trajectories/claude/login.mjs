@@ -21,7 +21,7 @@ import crypto from 'node:crypto';
 import { getServiceLogin } from '../../../dist/utils/credentials.js';
 import { WSession } from '../../../dist/session/wsession.js';
 import { humanIdlePause, humanClickLocator } from '../../../dist/human/mouse.js';
-import { humanFill } from '../../../dist/human/keyboard.js';
+import { humanFill, humanType } from '../../../dist/human/keyboard.js';
 import {
   CLAUDE_CLIENT_ID,
   CLAUDE_AUTHORIZE_URL,
@@ -188,6 +188,7 @@ try {
       humanFill,
       humanClickLocator,
       humanIdlePause,
+      humanType,
     });
     mark('wait_back_to_claude');
     await s.page.waitForURL(/claude\.ai/);
