@@ -6,6 +6,36 @@
 // empty." and does nothing (no popup, no nav). So we must establish a
 // Google session at accounts.google.com FIRST, then load claude.ai's
 // authorize URL — GIS then has an account and the click completes.
+
+// Google's GlifWebSignIn binds keydown handlers in a post-hydration
+// microtask, so synthetic CDP keystrokes that fire the instant the
+// input is `visible` are silently dropped (video 2026-05-17 showed the
+// email field staying empty for the entire run). Gate on editable
+// (true only once WIZ has finished hydrating: readOnly cleared,
+// disabled false), then type and confirm the value actually landed.
+// Retype up to 3 attempts if Google ate the keys. Errors propagate —
+// no swallowed catches that could fake success. page.waitForTimeout
+// calls are short polling sleeps inside an internal verification loop
+// (NOT a humanized action the bot classifier ever sees) so the
+// humanized-action rule does not apply.
+async function fillAndVerify(page, locator, text, humanFill) {
+  await locator.waitFor({ state: 'visible' });
+  for (let i = 0; i < 50; i += 1) {
+    if (await locator.isEditable()) break;
+    await page.waitForTimeout(100); // allow-raw-playwright: post-hydration poll, not a humanized action
+  }
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    await humanFill(page, locator, text);
+    for (let i = 0; i < 20; i += 1) {
+      const v = await locator.inputValue();
+      if (v === text) return;
+      await page.waitForTimeout(100); // allow-raw-playwright: input-value poll, not a humanized action
+    }
+  }
+  const final = await locator.inputValue();
+  throw new Error(`fillAndVerify gave up after 3 attempts; field value="${final}" expected len=${text.length}`);
+}
+
 export async function doGoogleSso({
   page, login, authorizeUrl, mark,
   humanFill, humanClickLocator, humanIdlePause, humanType,
@@ -20,9 +50,16 @@ export async function doGoogleSso({
   await humanIdlePause('deliberate');
 
   mark('google_email');
+  // Video evidence (2026-05-17): visible-wait passed the moment the
+  // input rendered, but Google's WIZ controller binds the keydown
+  // handlers a tick later, so humanFill's CDP keystrokes landed in a
+  // not-yet-live field and the value stayed empty across the whole run.
+  // Gate on editable+enabled (Playwright's `editable` waits past WIZ
+  // hydration) and then verify the typed value actually landed; retype
+  // up to 3 times if Google ate the keys.
   const gEmailIn = page.locator('input[type="email"]').filter({ visible: true }).first();
   await gEmailIn.waitFor({ state: 'visible' });
-  await humanFill(page, gEmailIn, login.email);
+  await fillAndVerify(page, gEmailIn, login.email, humanFill);
   // Google's GlifWebSignIn Next button is WIZ-obfuscated and force-click
   // didn't advance the page (stayed on /signin/identifier). Submitting
   // the focused field with Enter is the canonical robust Google signin
@@ -33,7 +70,7 @@ export async function doGoogleSso({
   mark('google_password');
   const gPwIn = page.locator('input[type="password"]').filter({ visible: true }).first();
   await gPwIn.waitFor({ state: 'visible' });
-  await humanFill(page, gPwIn, login.password);
+  await fillAndVerify(page, gPwIn, login.password, humanFill);
   await humanType(page, '\n');
   await humanIdlePause('long');
 
