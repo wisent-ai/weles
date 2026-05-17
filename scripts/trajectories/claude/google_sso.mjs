@@ -55,38 +55,43 @@ async function fillAndVerify(page, locator, text, humanFill) {
   throw new Error(`fillAndVerify exhausted humanFill+native-setter; field value="${final}" expected len=${text.length}`);
 }
 
-// Locate Google's submit button across multiple selectors — WIZ
-// renders accessible-name via aria-label OR visible text OR a child
-// span, and the role-based name match alone failed on the live page
-// (video 22:07:21Z: getByRole found no element, the Next button was
-// never clicked). Each candidate is an equivalent locator strategy
-// targeting the same button; the first visible match is clicked.
-// Throws with the per-strategy visibility tally if none match, so
-// the failure is diagnosable.
-async function clickSubmit(page, humanClickLocator, namePattern) {
-  const candidates = [
-    page.getByRole('button', { name: namePattern }),
-    page.locator('button').filter({ hasText: namePattern }).filter({ visible: true }),
-    page.locator('[role="button"]').filter({ hasText: namePattern }).filter({ visible: true }),
-    page.locator('button:has(span)').filter({ hasText: namePattern }).filter({ visible: true }),
-  ];
-  const tally = [];
-  for (const loc of candidates) {
-    const first = loc.first();
-    const visible = await first.isVisible();
-    tally.push(visible);
-    if (visible) {
-      await humanClickLocator(page, first);
+// Find Google's submit button by walking the DOM directly. The
+// 22:14:57Z run showed Playwright locator-based searches all
+// returning isVisible=false even though the Next button is plainly
+// visible — WIZ wraps it in a way Playwright's visibility heuristic
+// rejects. Walk every <button> and [role=button], match by trimmed
+// innerText against the pattern, take the first with a non-zero
+// bounding rect, and click via humanized pointer at its center.
+// Waits up to 8s for the button to appear post-hydration.
+async function clickSubmit(page, humanClick, namePattern) {
+  const patternSrc = namePattern.source;
+  for (let i = 0; i < 80; i += 1) {
+    const hit = await page.evaluate((src) => {
+      const re = new RegExp(src, 'i');
+      const candidates = Array.from(document.querySelectorAll('button, [role="button"]'));
+      for (const el of candidates) {
+        const txt = (el.innerText || el.textContent || '').trim();
+        if (!re.test(txt)) continue;
+        const r = el.getBoundingClientRect();
+        if (r.width < 4 || r.height < 4) continue;
+        return { x: r.x + r.width / 2, y: r.y + r.height / 2, tag: el.tagName, txt: txt.slice(0, 40) };
+      }
+      return null;
+    }, patternSrc);
+    if (hit) {
+      await humanClick(page, Math.round(hit.x), Math.round(hit.y));
       return;
     }
+    await page.waitForTimeout(100); // allow-raw-playwright: post-hydration poll, not a humanized action
   }
-  throw new Error(`clickSubmit found no visible button matching ${namePattern}; tried ${tally.length} strategies, visibility=${JSON.stringify(tally)}`);
+  throw new Error(`clickSubmit: no button matching /${patternSrc}/i found in 8s`);
 }
 
 export async function doGoogleSso({
   page, login, authorizeUrl, mark,
   humanFill, humanClickLocator, humanIdlePause, humanType,
 }) {
+  const { humanClick } = await import('../../../dist/human/mouse.js');
   mark('google_prelogin_goto');
   // waitUntil:'domcontentloaded' — accounts.google.com behind the
   // residential proxy keeps network busy and the 'load' event (Playwright
@@ -113,14 +118,14 @@ export async function doGoogleSso({
   // WIZ wrapper exposes a custom role/aria that doesn't match
   // 'button' or doesn't surface 'Next' as the accessible name.
   // text= locator scoped to a real <button> tag is the failsafe.
-  await clickSubmit(page, humanClickLocator, /next|continue/i);
+  await clickSubmit(page, humanClick,/next|continue/i);
   await humanIdlePause('deliberate');
 
   mark('google_password');
   const gPwIn = page.locator('input[type="password"]').filter({ visible: true }).first();
   await gPwIn.waitFor({ state: 'visible' });
   await fillAndVerify(page, gPwIn, login.password, humanFill);
-  await clickSubmit(page, humanClickLocator, /next|sign in|continue/i);
+  await clickSubmit(page, humanClick,/next|sign in|continue/i);
   await humanIdlePause('long');
 
   mark('google_2fa_check');
