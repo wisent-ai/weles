@@ -261,7 +261,10 @@ try {
   console.log('[claude-login] token exchange succeeded');
   process.stdout.write(JSON.stringify(blob) + '\n');
 } catch (e) {
-  console.log(`FAIL: ${e.message}`);
+  // Append live page state + captured console/network so EVERY failure
+  // (e.g. a Google step waitFor timeout) shows what the page actually
+  // was, not just an opaque playwright timeout string.
+  console.log(`FAIL: ${e.message}. ${await pageDiag(s.page, { html: true })}`);
   process.exit(1);
 } finally {
   listener.server.close();
