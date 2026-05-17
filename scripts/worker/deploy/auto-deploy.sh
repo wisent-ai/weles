@@ -89,6 +89,26 @@ else
   log "gcloud: BOTH $GCLOUD_SA_KEY and $GCLOUD_SA_MIRROR missing — uploads will fail until provisioning runs"
 fi
 
+# Ensure the claude-reauth LaunchAgent is installed and current. Like
+# the gcloud self-heal above, this runs every tick (BEFORE the
+# no-new-commit early-exit) so the agent survives reboots / accidental
+# bootout without waiting for the next commit. Acts ONLY when the
+# installed plist differs from the repo copy, so steady-state ticks are
+# a no-op and never bootout an in-flight reauth run.
+REAUTH_SRC="$WELES_DIR/scripts/worker/deploy/claude-reauth/com.wisent.claude-reauth.plist"
+REAUTH_DST="$HOME/Library/LaunchAgents/com.wisent.claude-reauth.plist"
+if [ -f "$REAUTH_SRC" ]; then
+  if [ ! -f "$REAUTH_DST" ] || ! cmp -s "$REAUTH_SRC" "$REAUTH_DST"; then
+    cp "$REAUTH_SRC" "$REAUTH_DST"
+    chmod 644 "$REAUTH_DST"
+    chmod +x "$WELES_DIR/scripts/worker/deploy/claude-reauth/reauth-launch.sh"
+    RU_UID=$(id -u)
+    launchctl bootout "gui/$RU_UID" "$REAUTH_DST" 2>/dev/null || true
+    launchctl bootstrap "gui/$RU_UID" "$REAUTH_DST"
+    log "claude-reauth: (re)installed LaunchAgent from repo"
+  fi
+fi
+
 git fetch --quiet origin main
 LOCAL=$(git rev-parse HEAD)
 REMOTE=$(git rev-parse origin/main)
