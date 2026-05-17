@@ -176,31 +176,14 @@ s.page.on('requestfailed', (r) => {
 });
 
 try {
-  mark('goto_authorize');
-  await s.goto(authorizeUrl);
-  await humanIdlePause('deliberate');
-
   if (login.loginMethod === 'google_sso') {
-    mark('find_google_button');
-    // claude.ai/oauth/authorize redirects to a login SPA that renders the
-    // provider buttons client-side, so an instant isVisible() races the
-    // render. Wait for it; on miss dump live HTML so the real markup (and
-    // correct selector) lands in the blob.
-    const googleBtn = s.page.getByRole('button', { name: /google/i })
-      .or(s.page.getByRole('link', { name: /google/i }))
-      .or(s.page.locator('button:has-text("Google"), a:has-text("Google"), [data-provider="google" i], button[aria-label*="Google" i]'))
-      .first();
-    try {
-      await googleBtn.waitFor({ state: 'visible' });
-    } catch (e) {
-      console.log(`FAIL: google button not visible (${e.message}). ${await pageDiag(s.page, { html: true })}`);
-      process.exit(1);
-    }
+    // google_sso owns its navigation: it logs into accounts.google.com
+    // FIRST (claude.ai uses Google Identity Services — the GIS button is
+    // inert with no Google session) then loads authorizeUrl itself.
     await doGoogleSso({
       page: s.page,
-      context: s.page.context(),
-      googleBtn,
       login,
+      authorizeUrl,
       mark,
       humanFill,
       humanClickLocator,
@@ -210,6 +193,9 @@ try {
     await s.page.waitForURL(/claude\.ai/);
     await humanIdlePause('deliberate');
   } else {
+    mark('goto_authorize');
+    await s.goto(authorizeUrl);
+    await humanIdlePause('deliberate');
     const emailIn = s.page.locator('input[type="email"], input[name="email"], input[autocomplete="email"], input[id*="email" i]').filter({ visible: true }).first();
     if (!(await emailIn.isVisible().catch(() => false))) {
       console.log('FAIL: email input not visible on claude.ai login');
