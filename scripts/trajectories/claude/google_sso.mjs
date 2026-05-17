@@ -11,7 +11,12 @@ export async function doGoogleSso({
   humanFill, humanClickLocator, humanIdlePause,
 }) {
   mark('google_prelogin_goto');
-  await page.goto('https://accounts.google.com/ServiceLogin?hl=en');
+  // waitUntil:'domcontentloaded' — accounts.google.com behind the
+  // residential proxy keeps network busy and the 'load' event (Playwright
+  // goto default) may never fire, hanging the navigation indefinitely.
+  // domcontentloaded returns once the DOM is parsed; the email-input
+  // waitFor below then gates on the form actually rendering.
+  await page.goto('https://accounts.google.com/ServiceLogin?hl=en', { waitUntil: 'domcontentloaded' });
   await humanIdlePause('deliberate');
 
   mark('google_email');
@@ -50,7 +55,7 @@ export async function doGoogleSso({
 
   // Session established. Now load claude.ai's OAuth — GIS sees the account.
   mark('goto_authorize');
-  await page.goto(authorizeUrl);
+  await page.goto(authorizeUrl, { waitUntil: 'domcontentloaded' });
   await humanIdlePause('deliberate');
 
   mark('gis_continue');
