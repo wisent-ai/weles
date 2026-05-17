@@ -18,13 +18,28 @@ export async function doGoogleSso({
   // Diagnostic: a prior run reported click "success" but the login page
   // stayed unchanged — log exactly which node matched and pre/post URL
   // so a wrong/non-interactive match is unambiguous in the blob.
-  let btnHtml;
-  try {
-    btnHtml = await googleBtn.evaluate((el) => el.outerHTML.slice(0, 300));
-  } catch (e) {
-    btnHtml = `btn-html-error:${e.message}`;
-  }
+  // Enumerate every button/link so the exact "Continue with Google"
+  // element + a precise selector are visible in the blob. Not wrapped —
+  // a failure propagates to login.mjs' try/catch which logs FAIL.
+  const inventory = await page.evaluate(() => {
+    const seen = [];
+    for (const el of document.querySelectorAll('button,a,[role="button"]')) {
+      const r = el.getBoundingClientRect();
+      let txt = el.textContent;
+      if (txt === null) txt = '';
+      seen.push({
+        tag: el.tagName.toLowerCase(),
+        role: el.getAttribute('role'),
+        text: String(txt).trim().slice(0, 60),
+        href: el.getAttribute('href'),
+        visible: r.width > 0 && r.height > 0,
+      });
+    }
+    return seen;
+  });
+  const btnHtml = await googleBtn.evaluate((el) => el.outerHTML.slice(0, 600));
   const urlBefore = page.url();
+  console.log(`[google_sso] inventory=${JSON.stringify(inventory)}`);
   console.log(`[google_sso] clicking btn=${JSON.stringify(btnHtml)} urlBefore=${urlBefore}`);
   const popupWin = new Promise((resolve) => {
     context.once('page', (p) => resolve(p));
