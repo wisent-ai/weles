@@ -32,8 +32,27 @@ async function fillAndVerify(page, locator, text, humanFill) {
       await page.waitForTimeout(100); // allow-raw-playwright: input-value poll, not a humanized action
     }
   }
+  // Video evidence 2026-05-17T21:56:26Z: even with humanFill retried 3×
+  // against an editable input, Google's WIZ-wrapped Material text-field
+  // never accepted the keystrokes — field stayed empty the whole run.
+  // The native React/Vue/WIZ value setter is what frameworks listen to;
+  // dispatch input+change so Google's model sees the change. Last resort
+  // (humanFill demonstrably failed first) — does NOT replace the
+  // humanized path for selectors WIZ does not own.
+  await locator.evaluate((el, value) => {
+    const proto = Object.getPrototypeOf(el);
+    const setter = Object.getOwnPropertyDescriptor(proto, 'value').set;
+    setter.call(el, value);
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+  }, text);
+  for (let i = 0; i < 20; i += 1) {
+    const v = await locator.inputValue();
+    if (v === text) return;
+    await page.waitForTimeout(100); // allow-raw-playwright: input-value poll, not a humanized action
+  }
   const final = await locator.inputValue();
-  throw new Error(`fillAndVerify gave up after 3 attempts; field value="${final}" expected len=${text.length}`);
+  throw new Error(`fillAndVerify exhausted humanFill+native-setter; field value="${final}" expected len=${text.length}`);
 }
 
 export async function doGoogleSso({
