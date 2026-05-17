@@ -30,7 +30,6 @@ import {
 } from './oauth_config.mjs';
 import { pageDiag, startWatchdog, makeShutdown } from './diag.mjs';
 import { doGoogleSso } from './google_sso.mjs';
-import { doEmailCode } from './email_code.mjs';
 
 // Text logs are forbidden for troubleshooting. Every console.log line —
 // from this trajectory, its sub-modules, and weles internals — emits
@@ -212,14 +211,6 @@ try {
     mark('wait_back_to_claude');
     await s.page.waitForURL(/claude\.ai/);
     await humanIdlePause('deliberate');
-  } else if (login.email.endsWith('@wisentmedia.com')) {
-    // @wisentmedia.com is the only domain Resend receiving can read, so
-    // it's the email-code path regardless of the row's login_method
-    // (the DB CHECK constraint has no 'email_code' value).
-    await doEmailCode({
-      s, login, authorizeUrl, mark,
-      humanFill, humanType, humanClickLocator, humanIdlePause, pageDiag,
-    });
   } else {
     mark('goto_authorize');
     await s.goto(authorizeUrl);
