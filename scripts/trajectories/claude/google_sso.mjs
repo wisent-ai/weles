@@ -41,12 +41,25 @@ export async function doGoogleSso({
   const urlBefore = page.url();
   console.log(`[google_sso] inventory=${JSON.stringify(inventory)}`);
   console.log(`[google_sso] clicking btn=${JSON.stringify(btnHtml)} urlBefore=${urlBefore}`);
+  // Capture what the click actually triggers: console errors, any
+  // google/oauth network attempt, popup count, and post-click HTML.
+  const consoleMsgs = [];
+  page.on('console', (m) => { if (m.type() === 'error') consoleMsgs.push(m.text().slice(0, 200)); });
+  page.on('pageerror', (e) => consoleMsgs.push(`pageerror:${e.message.slice(0, 200)}`));
+  const netHits = [];
+  page.on('request', (r) => {
+    const u = r.url();
+    if (/accounts\.google\.com|oauth|\/auth\//.test(u)) netHits.push(`${r.method()} ${u.slice(0, 120)}`);
+  });
   const popupWin = new Promise((resolve) => {
     context.once('page', (p) => resolve(p));
   });
   await humanClickLocator(page, googleBtn);
   await humanIdlePause('deliberate');
-  console.log(`[google_sso] post-click urlAfter=${page.url()}`);
+  const pagesNow = context.pages().length;
+  const postHtml = await page.content().then((h) => h.replace(/\s+/g, ' ').slice(0, 1200));
+  console.log(`[google_sso] post-click urlAfter=${page.url()} pages=${pagesNow} consoleErrs=${JSON.stringify(consoleMsgs.slice(-5))} netHits=${JSON.stringify(netHits.slice(-5))}`);
+  console.log(`[google_sso] post-click html=${JSON.stringify(postHtml)}`);
 
   mark('resolve_google_page');
   const sameTabWin = page.waitForURL(/accounts\.google\.com/).then(() => page);
