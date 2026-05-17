@@ -101,12 +101,17 @@ function isBurnout(probe) {
 }
 
 async function pickLruRow() {
-  // Only the real Max accounts carry login_method=google_sso; the
-  // claude-reauth-config row is api_key_only so it is excluded.
+  // The 3 Max rows are display_name ILIKE 'Claude%' AND
+  // login_method=google_sso. The display_name filter is essential:
+  // other rows (e.g. 'Oxylabs Residential') also carry
+  // login_method=google_sso, and the api_key_only config row
+  // 'claude-reauth-config' would match display_name ILIKE 'Claude%'
+  // — the two filters together select exactly the 3 accounts.
   const rows = await sbGet(
-    'service_credentials?login_method=eq.google_sso'
+    'service_credentials?display_name=ilike.Claude%25'
+    + '&login_method=eq.google_sso'
     + '&select=id,display_name,updated_at&order=updated_at.asc&limit=1');
-  if (!rows.length) throw new Error('no google_sso Claude credential row');
+  if (!rows.length) throw new Error('no Claude google_sso credential row');
   return rows[0];
 }
 
