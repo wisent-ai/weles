@@ -30,6 +30,7 @@ import {
 } from './oauth_config.mjs';
 import { pageDiag, startWatchdog } from './diag.mjs';
 import { doGoogleSso } from './google_sso.mjs';
+import { doEmailCode } from './email_code.mjs';
 
 const DISPLAY_NAME = process.env.CLAUDE_DISPLAY_NAME || 'Claude';
 
@@ -193,6 +194,14 @@ try {
     mark('wait_back_to_claude');
     await s.page.waitForURL(/claude\.ai/);
     await humanIdlePause('deliberate');
+  } else if (login.email.endsWith('@wisentmedia.com')) {
+    // @wisentmedia.com is the only domain Resend receiving can read, so
+    // it's the email-code path regardless of the row's login_method
+    // (the DB CHECK constraint has no 'email_code' value).
+    await doEmailCode({
+      s, login, authorizeUrl, mark,
+      humanFill, humanType, humanClickLocator, humanIdlePause, pageDiag,
+    });
   } else {
     mark('goto_authorize');
     await s.goto(authorizeUrl);
