@@ -192,7 +192,12 @@ s.page.on('response', async (r) => {
   if (!/oauth|authorize|\/api\//.test(u)) return;
   let body;
   try { body = await r.text(); } catch (e) { body = `<text() threw: ${e.message.slice(0, 80)}>`; }
-  const line = `AUTHZRESP ${r.status()} ${r.request().method()} ${u.slice(0, 140)} :: ${body.replace(/\s+/g, ' ').slice(0, 600)}\n`;
+  // Capture the REQUEST post body too — the 400 invalid_request_error
+  // on POST /v1/oauth/{org}/authorize means the SPA's submitted JSON
+  // is malformed; we need to see exactly which field.
+  let reqBody = '';
+  try { const pd = r.request().postData(); if (pd) reqBody = ` REQ=${String(pd).replace(/\s+/g, ' ').slice(0, 500)}`; } catch (e) { reqBody = ` REQ-err=${e.message.slice(0, 60)}`; }
+  const line = `AUTHZRESP ${r.status()} ${r.request().method()} ${u.slice(0, 140)}${reqBody} :: ${body.replace(/\s+/g, ' ').slice(0, 500)}\n`;
   const { appendFileSync } = await import('node:fs');
   appendFileSync(AUTHZ_LOG, line);
 });
