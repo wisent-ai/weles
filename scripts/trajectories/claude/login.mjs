@@ -137,11 +137,16 @@ const params = new URLSearchParams({
   code_challenge_method: 'S256',
   state: b64url(crypto.randomBytes(16)),
 });
-const authorizeUrl = `${CLAUDE_AUTHORIZE_URL}?${params.toString()}`;
-// Raw stderr (bypasses the console.* phrase suppression) so the
-// EXACT constructed authorize URL is captured for diagnosis —
-// "Invalid request format" means a param is wrong and we need to
-// see precisely what claude.ai is being sent.
+// URLSearchParams encodes the scope's spaces as '+'. Per RFC 3986
+// a '+' in a query string is a LITERAL plus, not a space — only
+// form bodies treat '+' as space. claude.ai's OAuth server parses
+// the scope strictly and got "user:profile+user:inference+..."
+// (literal pluses) -> "Authorization failed — Invalid request
+// format" (videos 07:12Z..16:42Z). Re-encode '+' as %20. Safe
+// here: code_challenge/state are base64url (-_ , never +),
+// client_id is a UUID, redirect_uri has no '+'; only scope spaces
+// are affected.
+const authorizeUrl = `${CLAUDE_AUTHORIZE_URL}?${params.toString().replace(/\+/g, '%20')}`;
 process.stderr.write(`AUTHZURL ${authorizeUrl}\n`);
 
 // Google/Anthropic SSO from a datacenter IP gets hard-blocked. Route
