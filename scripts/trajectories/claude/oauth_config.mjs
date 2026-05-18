@@ -15,10 +15,13 @@
 // claude.com/cai host and a SINGLE scope: user:inference.
 
 export const CLAUDE_CLIENT_ID = '9d1c250a-e61b-44d9-88ed-5944d1962f5e';
-export const CLAUDE_AUTHORIZE_URL = 'https://claude.com/cai/oauth/authorize';
-// Token exchange host follows the same claude.com/cai base as the
-// authorize endpoint (was claude.ai/v1/oauth/token).
-export const CLAUDE_TOKEN_URL = 'https://claude.com/cai/v1/oauth/token';
+// claude.com/cai/oauth/authorize was captured from the real CLI's
+// setup-token OSC-8 hyperlink, but curl proved it just 307-redirects
+// to claude.ai/oauth/authorize with identical params — a pointless
+// extra hop. The endpoint was NEVER the cause of "Invalid request
+// format". Use the canonical claude.ai endpoints directly.
+export const CLAUDE_AUTHORIZE_URL = 'https://claude.ai/oauth/authorize';
+export const CLAUDE_TOKEN_URL = 'https://claude.ai/v1/oauth/token';
 
 // Hosted callback — claude.com displays the code on this page for
 // the headless/manual flow (code=true). The trajectory reads it
