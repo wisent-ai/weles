@@ -213,6 +213,13 @@ export async function doGoogleSso({
   mark('gis_account_chooser_main');
   await clickEmailRow(page, login.email);
   await humanIdlePause('long');
+  // Video 04:44:23Z: account-row click worked → Google's
+  // "You're signing back in to Claude" consent screen with a
+  // Continue button. Click Continue and Google finishes the
+  // redirect to claude.ai's callback with the OAuth code.
+  mark('gis_consent_continue');
+  await waitForEnabledThenClick(page, /^continue$/i);
+  await humanIdlePause('long');
   return page;
 }
 
