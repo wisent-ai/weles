@@ -1,7 +1,11 @@
 import { WSession } from '../../dist/session/wsession.js';
 import { humanClickLocator } from '../../dist/human/mouse.js';
 import { autoBindCharacter } from './lib/character-bind.mjs';
-import { markBurnedIp } from '../../dist/proxy/burned.js';
+// burned.js is CommonJS; default-import then destructure (named ESM import
+// of a CJS export is fragile across rebuilds). This lineage exposes
+// markBurned(host,signal,platform) — no multi-level markBurnedIp.
+import burnedMod from '../../dist/proxy/burned.js';
+const markBurned = burnedMod.markBurned;
 
 const URL = 'https://discord.com/register';
 
@@ -204,6 +208,22 @@ try {
             console.log(`[test] Navigated to: ${s.page.url?.()}`);
             registered = true;
             await s.saveAccount('discord', { username: id.username, email: id.email, password: id.password });
+            // Persist the localStorage auth token to metadata.discord_token.
+            // saveAccount stores creds+cookies, but Discord auth IS the
+            // localStorage token and scrape_discord injects
+            // metadata.discord_token — without this every downstream Discord
+            // run must re-login. Mirrors discord_login.mjs.
+            try {
+              const supaUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+              const supaKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+              if (supaUrl && supaKey) {
+                const cur = await (await fetch(`${supaUrl}/rest/v1/social_accounts?platform=eq.discord&username=eq.${encodeURIComponent(id.username)}&select=id,metadata`, { headers: { apikey: supaKey, Authorization: `Bearer ${supaKey}` } })).json();
+                if (cur && cur[0]) {
+                  await fetch(`${supaUrl}/rest/v1/social_accounts?id=eq.${cur[0].id}`, { method: 'PATCH', headers: { apikey: supaKey, Authorization: `Bearer ${supaKey}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' }, body: JSON.stringify({ metadata: { ...(cur[0].metadata || {}), discord_token: authToken } }) });
+                  console.log('[test] persisted metadata.discord_token');
+                }
+              }
+            } catch (e) { console.log(`[test] discord_token persist err: ${e.message?.slice(0, 80)}`); }
             await autoBindCharacter(id.username, 'discord').then(r => console.log(`[bind] ${JSON.stringify(r)}`)).catch((e) => console.log(`[bind] err: ${e.message?.slice(0, 80)}`));
             console.log(`PASS: ${id.username}`);
 
@@ -257,19 +277,19 @@ try {
       if (registered) {
         registeredOk = true;
       } else if (exitIp) {
-        await markBurnedIp(exitIp, 'captcha_challenge', 'discord');
+        await markBurned(exitIp, 'captcha_challenge', 'discord');
         console.log(`[reroll] exit ${exitIp} burned (captcha_challenge: all solver tokens rejected) — rerolling to a fresh sticky`);
       } else {
         console.log('FAIL: all captcha attempts exhausted, no exit IP to burn');
       }
     } else {
       console.log('[reroll] no captcha data intercepted — rerolling');
-      if (exitIp) await markBurnedIp(exitIp, 'action_failed', 'discord');
+      if (exitIp) await markBurned(exitIp, 'action_failed', 'discord');
     }
   }
 } catch (e) {
   console.log('FAIL:', e.message?.slice(0, 200));
-  if (exitIp) { try { await markBurnedIp(exitIp, 'action_failed', 'discord'); } catch {} }
+  if (exitIp) { try { await markBurned(exitIp, 'action_failed', 'discord'); } catch {} }
 } finally {
   await s.close();
 }
