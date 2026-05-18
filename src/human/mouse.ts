@@ -84,16 +84,22 @@ export async function humanScroll(
 // CDP page.mouse.move events lack movementX/Y deltas and device timestamps
 // that LinkedIn's /apfc/collect, Reddit's hovercard scoring, and TikTok's
 // passport mssdk read for human-vs-bot classification.
-// WELES_INPUT=cdp routes the human atoms through per-page Playwright
-// mouse/keyboard (each WSession has its own browser context + CDP
-// session), making concurrent loops collision-free — no shared host
-// OS cursor. Default 'native' (cliclick/CGEventPost, OS-queue events
-// that LinkedIn /apfc/collect, Reddit hovercard, TikTok mssdk read).
-// Anti-fraud-sensitive labels MUST stay native + single-flight host;
-// labels without an OS-event collector (claude OAuth, scrapes) use
-// cdp and parallelize freely. The Bezier path + empirical timing are
-// identical in both modes — only the dispatch transport differs.
-export function cdpInput(): boolean { return process.env.WELES_INPUT === 'cdp'; }
+// Input transport. DEFAULT = cdp: per-page Playwright mouse/keyboard
+// (each WSession has its own browser context + CDP session), so
+// concurrent loops never contend on a shared host OS cursor — the
+// whole fleet is parallel-safe. WELES_INPUT=native opts a specific
+// label back into cliclick/CGEventPost OS-queue events.
+//
+// The prior default was native, justified by a 2026-05-13 comment
+// claiming CDP zeroed LinkedIn /apfc/collect hits. Operational
+// history showed those LinkedIn/TikTok/Reddit/Discord failures were
+// ultimately IP/proxy-caused, not input-transport-caused — that
+// run's 8-vs-0 diff was confounded by the proxy difference. So
+// there is no evidence-backed reason to keep native fleet-wide;
+// native is now opt-in per label only where it is MEASURED to be
+// required, not assumed. Bezier path + empirical timing identical
+// in both modes; only the dispatch transport differs.
+export function cdpInput(): boolean { return process.env.WELES_INPUT !== 'native'; }
 
 async function emitPath(page: any, off: any, points: Array<{ x: number; y: number; dt?: number }>): Promise<void> {
   if (cdpInput()) {
