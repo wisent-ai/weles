@@ -13,20 +13,19 @@ import { humanClick } from './mouse.js';
 type Page = any;
 
 /** Scroll the nth match of `sel` into view and humanClick its centre via a
- * raw CDP pointer (move+down+up at coordinates). humanClickLocator's final
- * locator.click() enforces Playwright's viewport guard and throws "Element
- * is outside of the viewport" on Discord's /register form even after
- * scrollIntoViewIfNeeded; a coordinate humanClick has no such guard
- * (verified 2026-05-18 via keeper: humanclick at the Month combobox coords
- * opens it and renders the 12 [role=option]s). Returns true on success. */
+ * raw CDP pointer (move+down+up at coordinates). Resolves zero-size a11y
+ * focus-proxies to their nearest sized ancestor: Discord's DOB
+ * [role="combobox"] is a 0x0 `focusTarget` div whose visible clickable box
+ * is the parent `selectButton` (108x38) — verified 2026-05-18 via keeper.
+ * page.locator().boundingBox() returns null for the 0x0 proxy, and
+ * humanClickLocator's force locator.click() throws "Element is outside of
+ * the viewport"; this measure-then-coordinate-click path has neither
+ * problem. Returns true on success. */
 async function scrollAndClick(page: Page, sel: string, nth: number): Promise<boolean> {
-  const loc = page.locator(sel).nth(nth);
-  await loc.scrollIntoViewIfNeeded?.();
-  const box = await loc.boundingBox?.();
-  if (!box) return false;
-  const cx = Math.round(box.x + box.width / 2);
-  const cy = Math.round(box.y + box.height / 2);
-  await humanClick(page, cx, cy);
+  const q = JSON.stringify(sel);
+  const pt = await page.evaluate(`(()=>{var els=document.querySelectorAll(${q});var node=els[${nth}];if(!node)return null;var b=node.getBoundingClientRect();var hop=0;while(node&&(b.width<1||b.height<1)&&hop<6){node=node.parentElement;hop++;if(node)b=node.getBoundingClientRect()}if(!node)return null;node.scrollIntoView({block:'center',inline:'center'});b=node.getBoundingClientRect();if(b.width<1||b.height<1)return null;return{x:Math.round(b.x+b.width/2),y:Math.round(b.y+b.height/2)}})()`) as { x: number; y: number } | null;  // allow-raw-playwright: read-only geometry measure + scrollIntoView, no synthetic click
+  if (!pt) return false;
+  await humanClick(page, pt.x, pt.y);
   return true;
 }
 
