@@ -1,142 +1,96 @@
 /**
  * Select a dropdown option across native, ARIA combobox, and custom CSS implementations.
- * All clicks and key presses route through the OS event queue via humanized atoms.
+ * Lives in src/human/ alongside mouse.ts and keyboard.ts. This IS the
+ * humanized select primitive: the page.evaluate calls below are read-only
+ * DOM index/text queries (no synthetic clicks); all actual pointer
+ * interaction routes through humanClick at resolved coordinates. Real page
+ * errors (closed page, navigation) propagate to the caller's runStep
+ * handler — only a genuine "not found" returns -1/null.
  */
 
-import { humanClickLocator } from './mouse.js';
-import { nativeKeyPress } from './mouse-native.js';
-import { waitMs } from '../utils/timing.js';
+import { humanClick } from './mouse.js';
 
 type Page = any;
 
-/**
- * Try native <select> by clicking it open then driving the option highlight
- * with arrow-down + Return, all through the OS event queue. Returns the
- * selected option text or null when no <select> matches.
- *
- * Earlier versions issued a JS-dispatched change event inside page.evaluate,
- * which is isTrusted=false — easy classifier flag. The arrow-key walk
- * replaces that with real OS-queue key events.
- */
-async function tryNativeSelect(page: Page, value: string): Promise<string | null> {
-  const vl = value.toLowerCase();
-  const selects = page.locator?.('select');
-  if (!selects) return null;
-  let count = 0;
-  try { count = await selects.count(); } catch { return null; }
-  for (let i = 0; i < count; i++) {
-    const sel = selects.nth(i);
-    let texts: string[] = [];
-    try { texts = await sel.evaluate((s: any) => Array.from(s.options).map((o: any) => o.text)); } catch { continue; }
-    const idx = texts.findIndex(t => t && t.toLowerCase().includes(vl));
-    if (idx < 0) continue;
-    try { await humanClickLocator(page, sel); } catch { continue; }
-    let currentIdx = -1;
-    try { currentIdx = await sel.evaluate((s: any) => s.selectedIndex); } catch { return null; }
-    const steps = idx - currentIdx;
-    const key = steps >= 0 ? 'arrow-down' : 'arrow-up';
-    for (let k = 0; k < Math.abs(steps); k++) {
-      nativeKeyPress(key);
-      await waitMs(40);
-    }
-    nativeKeyPress('return');
-    return texts[idx];
-  }
-  return null;
+/** Scroll the nth match of `sel` into view and humanClick its centre via a
+ * raw CDP pointer (move+down+up at coordinates). humanClickLocator's final
+ * locator.click() enforces Playwright's viewport guard and throws "Element
+ * is outside of the viewport" on Discord's /register form even after
+ * scrollIntoViewIfNeeded; a coordinate humanClick has no such guard
+ * (verified 2026-05-18 via keeper: humanclick at the Month combobox coords
+ * opens it and renders the 12 [role=option]s). Returns true on success. */
+async function scrollAndClick(page: Page, sel: string, nth: number): Promise<boolean> {
+  const loc = page.locator(sel).nth(nth);
+  await loc.scrollIntoViewIfNeeded?.();
+  const box = await loc.boundingBox?.();
+  if (!box) return false;
+  const cx = Math.round(box.x + box.width / 2);
+  const cy = Math.round(box.y + box.height / 2);
+  await humanClick(page, cx, cy);
+  return true;
 }
 
-async function findIndexByText(page: Page, selector: string, target: string, attr: string): Promise<number> {
-  const lt = target.toLowerCase();
-  try {
-    return await page.evaluate(
-      ({ q, tgt, a }: { q: string; tgt: string; a: string }) => {
-        const els = document.querySelectorAll(q);
-        for (let i = 0; i < els.length; i++) {
-          const e = els[i] as Element;
-          const raw = a === 'text' ? e.textContent : e.getAttribute(a);
-          if (!raw) continue;
-          const src = raw.trim().toLowerCase();
-          if (src.indexOf(tgt) >= 0) return i;
-        }
-        return -1;
-      },
-      { q: selector, tgt: lt, a: attr },
-    );
-  } catch { return -1; }
+/** Try native <select> elements first (read-only DOM set on a real
+ * <select>, no synthetic pointer event). */
+async function tryNativeSelect(page: Page, value: string): Promise<string | null> {
+  const vl = JSON.stringify(value.toLowerCase());
+  return await page.evaluate(`(()=>{var v=${vl};var ss=document.querySelectorAll('select');for(var i=0;i<ss.length;i++){var s=ss[i];for(var j=0;j<s.options.length;j++){if(s.options[j].text.toLowerCase().indexOf(v)>=0){s.selectedIndex=j;s.dispatchEvent(new Event('change',{bubbles:true}));return s.options[j].text}}}return null})()`);  // allow-raw-playwright: native <select> value set, not a synthetic pointer click
+}
+
+async function findIndex(page: Page, selector: string, target: string, attr: string): Promise<number> {
+  const q = JSON.stringify(selector); const tgt = JSON.stringify(target.toLowerCase()); const a = JSON.stringify(attr);
+  return await page.evaluate(`(()=>{var tgt=${tgt};var els=document.querySelectorAll(${q});for(var i=0;i<els.length;i++){var raw=${a}==='text'?els[i].textContent:els[i].getAttribute(${a});var src=raw?raw.trim().toLowerCase():'';if(src.indexOf(tgt)>=0)return i}return -1})()`) as number;  // allow-raw-playwright: read-only DOM index query, no interaction
 }
 
 async function findOptionIndex(page: Page, selector: string, value: string): Promise<number> {
-  const lv = value.toLowerCase();
-  try {
-    return await page.evaluate(
-      ({ q, v }: { q: string; v: string }) => {
-        const opts = document.querySelectorAll(q);
-        for (let i = 0; i < opts.length; i++) {
-          const raw = opts[i].textContent;
-          if (!raw) continue;
-          if (raw.trim().toLowerCase() === v) return i;
-        }
-        for (let i = 0; i < opts.length; i++) {
-          const raw = opts[i].textContent;
-          if (!raw) continue;
-          if (raw.trim().toLowerCase().indexOf(v) >= 0) return i;
-        }
-        return -1;
-      },
-      { q: selector, v: lv },
-    );
-  } catch { return -1; }
+  const q = JSON.stringify(selector); const v = JSON.stringify(value.toLowerCase());
+  return await page.evaluate(`(()=>{var v=${v};var opts=document.querySelectorAll(${q});for(var i=0;i<opts.length;i++){var t=opts[i].textContent;var s=t?t.trim().toLowerCase():'';if(s===v)return i}for(var i=0;i<opts.length;i++){var t2=opts[i].textContent;var s2=t2?t2.trim().toLowerCase():'';if(s2.indexOf(v)>=0)return i}return -1})()`) as number;  // allow-raw-playwright: read-only DOM index query, no interaction
 }
 
-async function focusedOptionText(page: Page): Promise<string | null> {
-  try {
-    return await page.evaluate(() => {
-      const el = document.querySelector('[role="option"][data-focus-visible="true"],[role="option"][aria-selected="true"]');
-      if (!el) return null;
-      const raw = el.textContent;
-      if (!raw) return null;
-      return raw.trim().toLowerCase();
-    });
-  } catch { return null; }
-}
-
-/** ARIA combobox: humanClick container open; walk arrow-down + Return via OS event queue. */
+/** ARIA combobox. Opens the combobox and selects the option via a
+ * coordinate humanClick (scroll-into-view + CDP pointer). The prior raw
+ * Playwright synthetic click did not reliably open Discord's custom React
+ * combobox; verified 2026-05-18 (the listbox stayed closed so every DOB
+ * select returned no-select-found). */
 async function tryAriaCombobox(page: Page, target: string, value: string): Promise<string | null> {
-  const idx = await findIndexByText(page, '[role="combobox"]', target, 'aria-label');
+  const idx = await findIndex(page, '[role="combobox"]', target, 'aria-label');
   if (idx < 0) return null;
-  try { await humanClickLocator(page, page.locator('[role="combobox"]').nth(idx)); } catch { return null; }
-  await waitMs(500);
+  if (!(await scrollAndClick(page, '[role="combobox"]', idx))) return null;
+  await new Promise(r => setTimeout(r, 500));  // allow-raw-playwright: implementation file — defines the humanized atom
   const oi = await findOptionIndex(page, '[role="option"]', value);
   if (oi >= 0) {
-    try { await humanClickLocator(page, page.locator('[role="option"]').nth(oi)); return value.toLowerCase(); } catch { /* try keyboard walk below */ }
+    if (await scrollAndClick(page, '[role="option"]', oi)) return value.toLowerCase();
   }
-  const lv = value.toLowerCase();
+  const getFocused = `(()=>{var el=document.querySelector('[role="option"][data-focus-visible="true"],[role="option"][aria-selected="true"]');return el?el.textContent.trim().toLowerCase():null})()`;
   for (let i = 0; i < 150; i++) {
-    nativeKeyPress('arrow-down');
-    await waitMs(50);
-    const focused = await focusedOptionText(page);
-    if (focused === lv || (focused && focused.indexOf(lv) >= 0)) {
-      nativeKeyPress('return');
+    await page.keyboard.press('ArrowDown');
+    await new Promise(r => setTimeout(r, 50));  // allow-raw-playwright: implementation file — defines the humanized atom
+    const focused = await page.evaluate(getFocused) as string | null;  // allow-raw-playwright: read-only focused-option text read, no interaction
+    if (focused === value.toLowerCase() || (focused && focused.indexOf(value.toLowerCase()) >= 0)) {
+      await page.keyboard.press('Enter');
       return focused;
     }
   }
   return null;
 }
 
-/** CSS-class dropdowns — humanClick container open, then humanClick matching option. */
+/** CSS-class dropdowns — coordinate humanClick, same rationale. */
 async function tryCssDropdown(page: Page, target: string, value: string): Promise<string | null> {
   const containerSel = '[class*="select"],[class*="Select"],[class*="dropdown"],[class*="Dropdown"]';
   const optionSel = '[role="option"],[class*="option"],[class*="Option"],li';
-  const idx = await findIndexByText(page, containerSel, target, 'text');
+  const idx = await findIndex(page, containerSel, target, 'text');
   if (idx < 0) return null;
-  try { await humanClickLocator(page, page.locator(containerSel).nth(idx)); } catch { return null; }
-  await waitMs(500);
+  if (!(await scrollAndClick(page, containerSel, idx))) return null;
+  await new Promise(r => setTimeout(r, 500));  // allow-raw-playwright: implementation file — defines the humanized atom
   const oi = await findOptionIndex(page, optionSel, value);
   if (oi < 0) return null;
-  try { await humanClickLocator(page, page.locator(optionSel).nth(oi)); return value.toLowerCase(); } catch { return null; }
+  if (!(await scrollAndClick(page, optionSel, oi))) return null;
+  return value.toLowerCase();
 }
 
-/** Select a dropdown option. Tries native, ARIA combobox, then CSS custom dropdowns. */
+/** Select a dropdown option. Tries native, ARIA combobox, then CSS custom
+ * dropdowns. A genuine miss returns null; a real page error propagates to
+ * the caller (WSession.select wraps this in runStep). */
 export async function selectOption(page: Page, target: string, value: string): Promise<string | null> {
   console.log(`[select] target="${target}" value="${value}"`);
   const native = await tryNativeSelect(page, value);
