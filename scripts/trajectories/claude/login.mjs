@@ -208,9 +208,12 @@ try {
       humanIdlePause,
       humanType,
     });
-    mark('wait_back_to_claude');
-    await s.page.waitForURL(/claude\.ai/);
-    await humanIdlePause('deliberate');
+    // Don't waitForURL(/claude.ai/) — the OAuth redirect_uri is
+    // http://127.0.0.1:<port>/callback (the local listener), so
+    // Google's consent redirect goes there directly, never to a
+    // claude.ai URL. The codePromise wait below catches the
+    // callback hit, which is the real signal of OAuth success.
+    mark('wait_callback_via_listener');
   } else {
     mark('goto_authorize');
     await s.goto(authorizeUrl);
