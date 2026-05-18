@@ -84,8 +84,30 @@ export async function humanScroll(
 // CDP page.mouse.move events lack movementX/Y deltas and device timestamps
 // that LinkedIn's /apfc/collect, Reddit's hovercard scoring, and TikTok's
 // passport mssdk read for human-vs-bot classification.
+// WELES_INPUT=cdp routes the human atoms through per-page Playwright
+// mouse/keyboard (each WSession has its own browser context + CDP
+// session), making concurrent loops collision-free — no shared host
+// OS cursor. Default 'native' (cliclick/CGEventPost, OS-queue events
+// that LinkedIn /apfc/collect, Reddit hovercard, TikTok mssdk read).
+// Anti-fraud-sensitive labels MUST stay native + single-flight host;
+// labels without an OS-event collector (claude OAuth, scrapes) use
+// cdp and parallelize freely. The Bezier path + empirical timing are
+// identical in both modes — only the dispatch transport differs.
+export function cdpInput(): boolean { return process.env.WELES_INPUT === 'cdp'; }
+
+async function emitPath(page: any, off: any, points: Array<{ x: number; y: number; dt?: number }>): Promise<void> {
+  if (cdpInput()) {
+    for (const p of points) {
+      await page.mouse.move(p.x, p.y);
+      if (p.dt && p.dt > 0) await waitMs(Math.min(p.dt, 120));
+    }
+    return;
+  }
+  await emitPath(page, off, points);
+}
+
 export async function humanMove(page: any, x: number, y: number, startX?: number, startY?: number, steps?: number): Promise<void> {
-  const off = await getOffsetFromPage(page);
+  const off = cdpInput() ? null : await getOffsetFromPage(page);
   const sx = startX ?? randomBetween(200, 600);
   const sy = startY ?? randomBetween(150, 450);
   const template = traceAvailable() ? getMoveTemplate(sx, sy, x, y) : [];
@@ -111,7 +133,7 @@ export async function humanMove(page: any, x: number, y: number, startX?: number
     });
   }
   points.push({ x, y, dt: 0 });
-  await nativeBatchMove(off, points);
+  await emitPath(page, off, points);
 }
 
 /**
@@ -134,12 +156,18 @@ export async function humanClickLocator(page: any, locator: any): Promise<void> 
   const tx = box.x + padX + Math.floor(Math.random() * Math.max(1, box.width - padX * 2));
   const ty = box.y + padY + Math.floor(Math.random() * Math.max(1, box.height - padY * 2));
   await humanMove(page, tx, ty);
+  const jx = Math.round(tx + randomBetween(-2, 2));
+  const jy = Math.round(ty + randomBetween(-2, 2));
+  if (cdpInput()) {
+    await page.mouse.move(jx, jy);
+    await waitMs(sampleReactionMs());
+    await page.mouse.click(jx, jy);
+    return;
+  }
   const off = await getOffsetFromPage(page);
-  const jx = tx + randomBetween(-2, 2);
-  const jy = ty + randomBetween(-2, 2);
-  nativeMove(off, Math.round(jx), Math.round(jy));
+  nativeMove(off, jx, jy);
   await waitMs(sampleReactionMs());
-  await nativeClick(off, Math.round(jx), Math.round(jy));
+  await nativeClick(off, jx, jy);
 }
 
 /**
@@ -218,12 +246,18 @@ export async function humanHoverDwell(
 
 export async function humanClick(page: any, x: number, y: number, startX?: number, startY?: number): Promise<void> {
   await humanMove(page, x, y, startX, startY);
+  const jx = Math.round(x + randomBetween(-2, 2));
+  const jy = Math.round(y + randomBetween(-2, 2));
+  if (cdpInput()) {
+    await page.mouse.move(jx, jy);
+    await waitMs(sampleReactionMs());
+    await page.mouse.click(jx, jy);
+    return;
+  }
   const off = await getOffsetFromPage(page);
-  const jx = x + randomBetween(-2, 2);
-  const jy = y + randomBetween(-2, 2);
-  nativeMove(off, Math.round(jx), Math.round(jy));
+  nativeMove(off, jx, jy);
   await waitMs(sampleReactionMs());
-  await nativeClick(off, Math.round(jx), Math.round(jy));
+  await nativeClick(off, jx, jy);
 }
 
 // Native cliclick-backed click/type helpers extracted to mouse-native.ts.

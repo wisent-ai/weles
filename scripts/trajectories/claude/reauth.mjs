@@ -163,6 +163,11 @@ function runLogin(displayName) {
         ...process.env,
         CLAUDE_DISPLAY_NAME: displayName,
         CLAUDE_LOGIN_PROXY: 'none',
+        // claude.ai OAuth has no OS-event anti-fraud collector
+        // (no LinkedIn /apfc-class telemetry), so the per-page CDP
+        // input path is correct here AND makes this trajectory
+        // parallel-safe (no shared host OS cursor via cliclick).
+        WELES_INPUT: 'cdp',
       },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
