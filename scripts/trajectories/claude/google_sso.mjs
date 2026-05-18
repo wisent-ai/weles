@@ -222,24 +222,32 @@ export async function doGoogleSso({
   // The popup MUST be a real popup so the opener relationship
   // exists. Browser launched with --disable-popup-blocking
   // (async_api.ts) allows the popup.
+  // claude.ai GIS is NON-DETERMINISTIC: sometimes a real popup
+  // (account chooser page), sometimes in-page/FedCM with no popup
+  // event. Run 6bcf109 went in-page → reached Authorize consent
+  // (login.mjs oauth_consent handled it); run 39ec467 hung on
+  // "Loading…" because the old code hard-blocked waitForEvent for
+  // a popup that never came. Race popup vs bounded marker (no
+  // swallowing catch — a real context error still propagates). No
+  // popup ⇒ GIS went in-page; return and let oauth_consent click
+  // Authorize on the main page.
+  const NO_POPUP = Symbol('no-popup');
   const popupP = page.context().waitForEvent('page');
+  const timeoutP = new Promise((r) => setTimeout(() => r(NO_POPUP), 20000));
   await waitForEnabledThenClick(page, /continue with google|^google$/i);
-  const popup = await popupP;
-  console.log(`[google_sso] GIS popup opened: ${popup.url()}`);
+  const popup = await Promise.race([popupP, timeoutP]);
+  if (popup === NO_POPUP) {
+    console.log('[google_sso] no GIS popup — in-page flow; deferring to oauth_consent');
+    await humanIdlePause('long');
+    return page;
+  }
+  console.log(`[google_sso] GIS popup: ${popup.url()}`);
   await popup.waitForLoadState('domcontentloaded');
-
-  // The popup shows account chooser then consent — handle both
-  // in the popup, then it auto-closes and the opener (claude.ai)
-  // receives the credential and completes OAuth.
   mark('gis_account_chooser_popup');
   await clickEmailRow(popup, login.email);
   await humanIdlePause('long');
-  // Some flows show a consent step in the popup too.
-  try {
-    await waitForEnabledThenClick(popup, /^continue$/i);
-  } catch (e) {
-    console.log(`[google_sso] no consent button in popup (may have auto-confirmed): ${e.message.slice(0, 80)}`);
-  }
+  try { await waitForEnabledThenClick(popup, /^continue$/i); }
+  catch (e) { console.log(`[google_sso] no popup consent btn: ${e.message.slice(0, 60)}`); }
   await humanIdlePause('long');
   return page;
 }
