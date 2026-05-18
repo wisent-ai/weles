@@ -192,6 +192,15 @@ async function pickFromDb(platform?: string): Promise<string | null> {
 
 /** Return a domain for use in a new signup email address. */
 export async function pickDomain(platform?: string): Promise<string> {
+  // FORCE_EMAIL_DOMAIN pins the signup email domain, overriding the rotator.
+  // The rotator picks by signup_count.asc and cannot tell which domains are
+  // actually verified-receiving in the Resend workspace — verified 2026-05-18
+  // that only pilatesguild.com + wisentmedia.com receive (0 of last 100
+  // inbound for the other rotator domains), so a signup on an MX-only domain
+  // can never confirm its email. This env lets a caller pin a known-receiving
+  // domain when the rotator would otherwise hand out a dead one.
+  const forced = process.env.FORCE_EMAIL_DOMAIN?.trim();
+  if (forced) return forced;
   return (await pickFromDb(platform)) ?? envDerived();
 }
 

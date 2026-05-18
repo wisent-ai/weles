@@ -4,7 +4,10 @@ import { autoBindCharacter } from './lib/character-bind.mjs';
 
 const URL = 'https://discord.com/register';
 
-const s = await WSession.start({ label: 'discord_register', proxy: process.env.PROXY_URL || 'residential', browser: 'chromium' });
+// targetHost lets resolveProxy map a filter string ("residential oxylabs
+// us") to a provider row + Discord country policy; without it filter-form
+// PROXY_URL throws proxy_unavailable (same fix as discord_login).
+const s = await WSession.start({ label: 'discord_register', proxy: process.env.PROXY_URL || 'residential', targetHost: 'discord.com', browser: 'chromium' });
 try {
   {
     // Single deterministic path: hCaptcha solve via service + direct
