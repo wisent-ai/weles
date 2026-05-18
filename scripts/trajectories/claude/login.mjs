@@ -282,8 +282,11 @@ try {
 } catch (e) {
   // Append live page state + captured console/network so EVERY failure
   // (e.g. a Google step waitFor timeout) shows what the page actually
-  // was, not just an opaque playwright timeout string.
-  console.log(`FAIL: ${e.message}. ${await pageDiag(s.page, { html: true })}`);
+  // was, not just an opaque playwright timeout string. Use raw
+  // process.stderr.write (bypasses the console.* phrase override)
+  // so the actual failure message reaches the runner's stderr
+  // capture for diagnosis — same channel as the OAuth blob uses.
+  process.stderr.write(`FAIL: ${e.message}\n`);
   await shutdown(1); // closes context → flushes .webm, then exits
 } finally {
   listener.server.close();
