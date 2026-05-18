@@ -69,49 +69,59 @@ async function clickSubmit(page, humanClick, namePattern) {
   throw new Error(`clickSubmit: no button matching /${patternSrc}/i found in 8s`);
 }
 
-// Like clickSubmit but waits for the button to be ENABLED before
-// clicking. Google's WIZ Next button stays disabled (aria-disabled
-// or disabled attribute) until the on-blur input validator fires;
-// clicking a disabled WIZ button is a silent no-op. Polls for up to
-// 8s post-fill for the button to enable, then clicks. On failure
-// throws with the full button-state diagnostic so we can see whether
-// the issue is "button never appeared", "button appeared but never
-// enabled", or "button enabled but click had no effect".
-async function waitForEnabledThenClick(page, humanClick, namePattern) {
+// Wait for the button to be ENABLED then click via CDP
+// Input.dispatchMouseEvent. WIZ's submit handler checks event
+// trust; Playwright's page.mouse.click goes through the browser
+// API and produces real-trusted events for ordinary pages, but
+// the weles-patched Chromium has shown WIZ rejecting them in
+// previous runs (video 22:14:57+ rendered the click as no-op).
+// CDP Input.dispatchMouseEvent is the protocol-level equivalent
+// of Input.insertText that just fixed the typing — same trust
+// model. Throws with the full button-state diagnostic on
+// timeout so the failure mode stays diagnosable.
+async function waitForEnabledThenClick(page, namePattern) {
   const patternSrc = namePattern.source;
   let lastState = null;
-  for (let i = 0; i < 80; i += 1) {
-    lastState = await page.evaluate((src) => {
-      const re = new RegExp(src, 'i');
-      const candidates = Array.from(document.querySelectorAll('button, [role="button"]'));
-      for (const el of candidates) {
-        const txt = (el.innerText || el.textContent || '').trim();
-        if (!re.test(txt)) continue;
-        const r = el.getBoundingClientRect();
-        if (r.width < 4 || r.height < 4) continue;
-        const disabled = el.disabled || el.getAttribute('aria-disabled') === 'true' || el.getAttribute('disabled') !== null;
-        return {
-          x: r.x + r.width / 2, y: r.y + r.height / 2,
-          tag: el.tagName, txt: txt.slice(0, 40),
-          disabled, found: true,
-        };
+  const cdp = await page.context().newCDPSession(page);
+  try {
+    for (let i = 0; i < 80; i += 1) {
+      lastState = await page.evaluate((src) => {
+        const re = new RegExp(src, 'i');
+        const candidates = Array.from(document.querySelectorAll('button, [role="button"]'));
+        for (const el of candidates) {
+          const txt = (el.innerText || el.textContent || '').trim();
+          if (!re.test(txt)) continue;
+          const r = el.getBoundingClientRect();
+          if (r.width < 4 || r.height < 4) continue;
+          const disabled = el.disabled || el.getAttribute('aria-disabled') === 'true' || el.getAttribute('disabled') !== null;
+          return {
+            x: r.x + r.width / 2, y: r.y + r.height / 2,
+            tag: el.tagName, txt: txt.slice(0, 40),
+            disabled, found: true,
+          };
+        }
+        return { found: false };
+      }, patternSrc);
+      if (lastState.found && !lastState.disabled) {
+        const x = Math.round(lastState.x);
+        const y = Math.round(lastState.y);
+        await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y });
+        await cdp.send('Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button: 'left', clickCount: 1 });
+        await cdp.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x, y, button: 'left', clickCount: 1 });
+        return;
       }
-      return { found: false };
-    }, patternSrc);
-    if (lastState.found && !lastState.disabled) {
-      await humanClick(page, Math.round(lastState.x), Math.round(lastState.y));
-      return;
+      await page.waitForTimeout(100); // allow-raw-playwright: enable-state poll, not a humanized action
     }
-    await page.waitForTimeout(100); // allow-raw-playwright: enable-state poll, not a humanized action
+    throw new Error(`waitForEnabledThenClick: button stuck unclickable for /${patternSrc}/i, lastState=${JSON.stringify(lastState)}`);
+  } finally {
+    await cdp.detach();
   }
-  throw new Error(`waitForEnabledThenClick: button stuck unclickable for /${patternSrc}/i, lastState=${JSON.stringify(lastState)}`);
 }
 
 export async function doGoogleSso({
   page, login, authorizeUrl, mark,
   humanFill, humanClickLocator, humanIdlePause, humanType,
 }) {
-  const { humanClick } = await import('../../../dist/human/mouse.js');
   mark('google_prelogin_goto');
   await page.goto('https://accounts.google.com/ServiceLogin?hl=en', { waitUntil: 'commit' });
   await humanIdlePause('deliberate');
@@ -138,7 +148,7 @@ export async function doGoogleSso({
     el.dispatchEvent(new Event('focusout', { bubbles: true }));
   });
   await humanIdlePause('short');
-  await waitForEnabledThenClick(page, humanClick, /next|continue/i);
+  await waitForEnabledThenClick(page,/next|continue/i);
   await humanIdlePause('deliberate');
 
   mark('google_password');
@@ -150,7 +160,7 @@ export async function doGoogleSso({
     el.dispatchEvent(new Event('focusout', { bubbles: true }));
   });
   await humanIdlePause('short');
-  await waitForEnabledThenClick(page, humanClick, /next|sign in|continue/i);
+  await waitForEnabledThenClick(page,/next|sign in|continue/i);
   await humanIdlePause('long');
 
   mark('google_2fa_check');
