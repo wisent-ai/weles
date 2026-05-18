@@ -188,6 +188,17 @@ s.page.on('pageerror', (e) => globalThis.__claudeConsole.push(`err:${e.message.s
 s.page.on('requestfailed', (r) => {
   globalThis.__claudeConsole.push(`reqfail:${r.failure()?.errorText ?? '?'} ${r.url().slice(0, 100)}`);
 });
+// Focused capture: ONLY the consent POST to /v1/oauth/{org}/
+// authorize — its request body + response is THE exact cause.
+// Append to var/authz-debug.log (unraced by the runner's stderr).
+s.page.on('response', async (r) => {
+  const u = r.url();
+  if (!/\/v1\/oauth\/[^/]+\/authorize/.test(u) || r.request().method() !== 'POST') return;
+  let resp; try { resp = await r.text(); } catch (e) { resp = `<resp-err ${e.message.slice(0, 60)}>`; }
+  let req = ''; try { const p = r.request().postData(); if (p) req = String(p).slice(0, 500); } catch (e) { req = `<req-err ${e.message.slice(0, 50)}>`; }
+  const { appendFileSync } = await import('node:fs');
+  appendFileSync('/Users/charles/weles/var/authz-debug.log', `CONSENT ${r.status()} ${u.slice(0, 110)} REQ=${req} RESP=${resp.replace(/\s+/g, ' ').slice(0, 400)}\n`);
+});
 
 try {
   if (login.loginMethod === 'google_sso') {
