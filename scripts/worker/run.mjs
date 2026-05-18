@@ -22,25 +22,29 @@ process.on('SIGTERM', stop);
 const IDLE_MIN_MS = 3000;
 const IDLE_MAX_MS = 8000;
 const ERROR_BACKOFF_MS = 15000;
-// The humanized input atoms (mouse.ts/keyboard.ts) are now 100%
-// native: every move/click/keystroke goes through cliclick, which
-// drives the SINGLE host OS cursor+keyboard, and getWindowOffset
-// targets `window 1 of process "Chromium"` with no per-loop
-// addressing (mouse-native.ts:114-128). Two pollOnce loops running
-// human-input trajectories on one host therefore interleave clicks
-// and keystrokes into whichever window has OS focus — cross-
-// trajectory corruption with no error. The current atoms have no
-// CDP path to route around it. So native-input concurrency on one
-// host is unsafe; clamp to 1. Pure-scrape trajectories that never
-// call the human atoms are serialized too — accepting that
-// throughput cost is the conservative correctness-preserving choice
-// until per-loop display isolation (separate macOS session /
-// virtual display per loop) exists, gated by the explicit
-// WELES_ALLOW_UNSAFE_PARALLEL escape hatch.
+// Concurrency safety depends on the input transport:
+//  - WELES_INPUT=cdp: human atoms dispatch via per-page Playwright
+//    mouse/keyboard into each WSession's own browser context — no
+//    shared host resource, so N loops are collision-free. Honor
+//    WORKER_CONCURRENCY as requested.
+//  - native (default): every move/click/keystroke is cliclick,
+//    driving the SINGLE host OS cursor; getWindowOffset targets
+//    `window 1 of process Chromium` with no per-loop addressing
+//    (mouse-native.ts:114-128). N>1 loops interleave input into
+//    whichever window has OS focus — cross-trajectory corruption
+//    with no error. Clamp to 1 unless WELES_ALLOW_UNSAFE_PARALLEL=1
+//    (reserved for per-loop display isolation: separate macOS
+//    session / virtual display per loop).
+// Anti-fraud-sensitive labels (LinkedIn /apfc-class) must run
+// native and therefore single-flight on their own host; labels
+// without an OS-event collector should set WELES_INPUT=cdp to
+// parallelize (claude reauth already does, in reauth.mjs).
 const _reqConc = Math.max(1, Number(process.env.WORKER_CONCURRENCY ?? 1) || 1);
-const CONCURRENCY = process.env.WELES_ALLOW_UNSAFE_PARALLEL === '1' ? _reqConc : 1;
+const _cdp = process.env.WELES_INPUT === 'cdp';
+const _safe = _cdp || process.env.WELES_ALLOW_UNSAFE_PARALLEL === '1';
+const CONCURRENCY = _safe ? _reqConc : 1;
 if (_reqConc > 1 && CONCURRENCY === 1) {
-  console.log(`[worker] WORKER_CONCURRENCY=${_reqConc} ignored: native cliclick input shares one host OS cursor (mouse-native.ts). Clamped to 1. Set WELES_ALLOW_UNSAFE_PARALLEL=1 only with per-loop display isolation.`);
+  console.log(`[worker] WORKER_CONCURRENCY=${_reqConc} clamped to 1: native cliclick input shares one host OS cursor (mouse-native.ts). Set WELES_INPUT=cdp (per-page, parallel-safe) for non-anti-fraud labels, or WELES_ALLOW_UNSAFE_PARALLEL=1 with per-loop display isolation.`);
 }
 
 async function loop(slot) {

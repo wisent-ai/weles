@@ -7,6 +7,17 @@
 // ---------------------------------------------------------------------------
 
 import { nativeType, nativeSelectAllAndDelete } from './mouse-native.js';
+import { cdpInput } from './mouse.js';
+
+// Per-char CDP typing with empirical inter-key jitter. Used when
+// WELES_INPUT=cdp (parallel-safe per-page path) — page.keyboard
+// dispatches into this page's own context, not the host OS queue.
+async function cdpType(page: any, text: string): Promise<void> {
+  for (const ch of text) {
+    await page.keyboard.type(ch);  // allow-raw-playwright: implementation file — defines the humanized atom's cdp transport
+    await new Promise((r) => setTimeout(r, 80 + Math.floor(Math.random() * 140)));
+  }
+}
 
 /**
  * Human-like typing — every keystroke goes through the OS event queue via
@@ -14,8 +25,8 @@ import { nativeType, nativeSelectAllAndDelete } from './mouse-native.js';
  * keyboard API emit isTrusted=true events but lack the device timestamps
  * and key-event timing jitter that anti-bot classifiers fingerprint on.
  */
-export async function humanType(_page: any, text: string): Promise<void> {
-  void _page;
+export async function humanType(page: any, text: string): Promise<void> {
+  if (cdpInput()) { await cdpType(page, text); return; }
   await nativeType(text);
 }
 
@@ -31,6 +42,12 @@ export async function humanType(_page: any, text: string): Promise<void> {
 export async function humanFill(page: any, locator: any, text: string): Promise<void> {
   const { humanClickLocator } = await import('./mouse.js');
   await humanClickLocator(page, locator);
+  if (cdpInput()) {
+    await page.keyboard.press('ControlOrMeta+A');  // allow-raw-playwright: implementation file — defines the humanized atom's cdp transport
+    await page.keyboard.press('Delete');  // allow-raw-playwright: implementation file — defines the humanized atom's cdp transport
+    await cdpType(page, text);
+    return;
+  }
   nativeSelectAllAndDelete();
   await nativeType(text);
 }
