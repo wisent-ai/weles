@@ -15,26 +15,34 @@
 // method designed for inserting text into a focused input; it fires
 // the same input event sequence as IME composition, which WIZ
 // accepts as legitimate. Click to focus, insertText, verify.
-async function fillAndVerify(page, locator, text, humanClickLocator) {
+// EVIDENCE (local CDP run 2026-05-18 23:25:27, frames): the prior
+// Input.insertText path set the value (password dots visible) but
+// Google's password page kept "Next" DISABLED and the run stalled
+// on Welcome 13s→37s. Input.insertText fires only `input` — no
+// per-key beforeinput/keydown/keyup — so Google's password-field
+// validator that enables Next never triggers (the email page
+// enables Next on any input, which is why email advanced but
+// password did not). Fix: type via the humanized keyboard atom —
+// under the CDP default that is page.keyboard.type per char, which
+// emits the full keydown/keyup/input sequence and resolves shifted
+// chars correctly (the key=char concern that motivated
+// Input.insertText does not apply to page.keyboard). Single-shot:
+// on failure throw to the caller, no retry.
+async function fillAndVerify(page, locator, text, humanClickLocator, humanType) {
   await locator.waitFor({ state: 'visible' });
   for (let i = 0; i < 50; i += 1) {
     if (await locator.isEditable()) break;
     await page.waitForTimeout(100); // allow-raw-playwright: post-hydration poll, not a humanized action
   }
   await humanClickLocator(page, locator);
-  const cdp = await page.context().newCDPSession(page);
-  try {
-    await cdp.send('Input.insertText', { text });
-    for (let i = 0; i < 20; i += 1) {
-      const v = await locator.inputValue();
-      if (v === text) return;
-      await page.waitForTimeout(100); // allow-raw-playwright: input-value poll, not a humanized action
-    }
-    const final = await locator.inputValue();
-    throw new Error(`fillAndVerify Input.insertText didn't land; field value="${final}" expected len=${text.length}`);
-  } finally {
-    await cdp.detach();
+  await humanType(page, text);
+  for (let i = 0; i < 20; i += 1) {
+    const v = await locator.inputValue();
+    if (v === text) return;
+    await page.waitForTimeout(100); // allow-raw-playwright: input-value poll, not a humanized action
   }
+  const final = await locator.inputValue();
+  throw new Error(`fillAndVerify: humanType value did not land; field="${final}" expected len=${text.length}`);
 }
 
 // Find Google's submit button by walking the DOM directly. The
@@ -136,7 +144,7 @@ export async function doGoogleSso({
   // up to 3 times if Google ate the keys.
   const gEmailIn = page.locator('input[type="email"]').filter({ visible: true }).first();
   await gEmailIn.waitFor({ state: 'visible' });
-  await fillAndVerify(page, gEmailIn, login.email, humanClickLocator);
+  await fillAndVerify(page, gEmailIn, login.email, humanClickLocator, humanType);
   // Google's WIZ Next button enables only after the input's blur+change
   // event chain runs through their validator. fillAndVerify's
   // native-setter path dispatches input+change, but blur is needed for
@@ -162,7 +170,7 @@ export async function doGoogleSso({
   mark('google_password');
   const gPwIn = page.locator('input[type="password"]').filter({ visible: true }).first();
   await gPwIn.waitFor({ state: 'visible' });
-  await fillAndVerify(page, gPwIn, login.password, humanClickLocator);
+  await fillAndVerify(page, gPwIn, login.password, humanClickLocator, humanType);
   try {
     await gPwIn.evaluate((el) => {
       el.dispatchEvent(new Event('blur', { bubbles: true }));
