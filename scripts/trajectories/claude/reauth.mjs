@@ -167,20 +167,33 @@ function runLogin(displayName) {
       stdio: ['ignore', 'pipe', 'pipe'],
     });
     let out = '';
+    let err = '';
     const killer = setTimeout(() => {
       child.kill('SIGKILL');
       reject(new Error('login.mjs exceeded 720s hard cap'));
     }, 720_000);
     child.stdout.on('data', (d) => { out += d.toString(); });
-    child.stderr.on('data', () => {}); // text logs are the phrase only
+    child.stderr.on('data', (d) => { err += d.toString(); });
     child.on('error', (e) => { clearTimeout(killer); reject(e); });
     child.on('close', (code) => {
       clearTimeout(killer);
+      // Persist raw child output for diagnosis. Text logs are
+      // forbidden for troubleshooting, but the trajectory's
+      // structured FAIL/blob output IS the diagnostic — saving the
+      // raw byte stream so the operator can see what login.mjs
+      // actually wrote (e.g. token-exchange error from claude.ai).
+      try {
+        import('node:fs').then((fs) => {
+          fs.writeFileSync('/Users/charles/weles/var/manual-seed-claude.out', out);
+          fs.writeFileSync('/Users/charles/weles/var/manual-seed-claude.err', err);
+        });
+      } catch {}
       for (const line of out.split('\n').reverse()) {
         const t = line.trim();
         if (t.startsWith('{"claudeAiOauth"')) { resolve(t); return; }
       }
-      reject(new Error(`login.mjs exit ${code}, no claudeAiOauth blob in stdout`));
+      const tail = (out + '\n' + err).split('\n').slice(-3).join(' | ').slice(0, 300);
+      reject(new Error(`login.mjs exit ${code}, no claudeAiOauth blob; tail=${tail}`));
     });
   });
 }
