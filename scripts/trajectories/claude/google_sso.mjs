@@ -189,28 +189,49 @@ export async function doGoogleSso({
   await humanIdlePause('deliberate');
 
   mark('gis_continue');
-  // Same trust issue as the Google Next button — claude.ai's GIS
-  // "Continue with Google" was visible but Playwright/humanClick
-  // didn't register (video 02:48:25Z: page stuck on claude.ai
-  // Log in for 60s..220s). Use the same CDP dispatchMouseEvent path
-  // that just fixed the Google Next click. Match by text "Google"
-  // on a button so we hit the GIS button specifically.
+  // claude.ai's "Continue with Google" opens Google Identity
+  // Services in a POPUP window for the account chooser. The video
+  // 03:04:59Z showed the button click landing (button became
+  // "Loading...") but the trajectory only watched the main page,
+  // so the popup's account-row was never clicked and Loading sat
+  // for 160s. Register the popup listener BEFORE the click so the
+  // popup Promise resolves the moment GIS opens it.
+  const popupP = page.context().waitForEvent('page');
   await waitForEnabledThenClick(page, /continue with google|^google$/i);
-  await humanIdlePause('long');
+  const popup = await popupP;
+  console.log(`[google_sso] GIS popup opened: ${popup.url()}`);
+  await popup.waitForLoadState('domcontentloaded');
 
-  // A GIS account chooser may render; pick the row matching our email.
-  mark('gis_account_chooser');
-  const acct = page.locator(`text=${login.email}`).first();
-  let acctVisible;
+  mark('gis_account_chooser_popup');
+  // The popup shows a list of Google accounts; click the row whose
+  // visible text matches our login email. CDP-clicked via the popup
+  // page (same trust path as the Google Next click).
+  const cdp = await popup.context().newCDPSession(popup);
   try {
-    acctVisible = await acct.isVisible();
-  } catch (e) {
-    acctVisible = false;
-    console.log(`[google_sso] account-chooser probe threw (treated absent): ${e.message}`);
+    let hit = null;
+    for (let i = 0; i < 100; i += 1) {
+      hit = await popup.evaluate((email) => {
+        const els = Array.from(document.querySelectorAll('*'));
+        for (const el of els) {
+          const txt = (el.innerText || el.textContent || '').trim();
+          if (txt !== email && !txt.endsWith(email)) continue;
+          const r = el.getBoundingClientRect();
+          if (r.width < 4 || r.height < 4) continue;
+          return { x: r.x + r.width / 2, y: r.y + r.height / 2, txt: txt.slice(0, 80) };
+        }
+        return null;
+      }, login.email);
+      if (hit) break;
+      await popup.waitForTimeout(100); // allow-raw-playwright: account-row appearance poll
+    }
+    if (!hit) throw new Error(`GIS popup never showed account row for ${login.email}`);
+    const x = Math.round(hit.x), y = Math.round(hit.y);
+    await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y });
+    await cdp.send('Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button: 'left', clickCount: 1 });
+    await cdp.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x, y, button: 'left', clickCount: 1 });
+  } finally {
+    await cdp.detach();
   }
-  if (acctVisible) {
-    await humanClickLocator(page, acct);
-    await humanIdlePause('long');
-  }
+  await humanIdlePause('long');
   return page;
 }
