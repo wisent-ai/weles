@@ -12,7 +12,15 @@ process.env.SVC_PASSWORD = acct.metadata.password;
 // Use the same proxy provider but with a fresh sticky session (old sessid expired)
 const savedProxy = acct.metadata.proxy;
 let proxyUrl = process.env.PROXY_URL || 'residential';
-if (savedProxy?.server && savedProxy?.username) {
+// An explicit PROXY_URL filter (e.g. 'residential oxylabs us') wins over the
+// account's savedProxy. The savedProxy rebuild silently overrode PROXY_URL,
+// so an expired/burned saved provider could never be rotated away from —
+// the login then failed before the browser even mounted. When PROXY_URL is
+// set, hand the filter string straight to WSession's resolver (reroll path,
+// same as linkedin_register); only rebuild from savedProxy otherwise.
+if (process.env.PROXY_URL) {
+  console.log(`[trajectory] PROXY_URL override: "${proxyUrl}" (savedProxy bypassed for reroll)`);
+} else if (savedProxy?.server && savedProxy?.username) {
   const u = new globalThis.URL(savedProxy.server);
   // Generate new sticky session ID for the same provider
   const newSessId = Math.floor(Math.random() * 9000000 + 1000000);
@@ -26,7 +34,10 @@ console.log(`[trajectory] Using account: ${acct.username} (${process.env.SVC_EMA
 let s;
 for (let retry = 0; retry < 3; retry++) {
   try {
-    s = await WSession.start({ label: 'discord_login', proxy: proxyUrl });
+    // targetHost lets resolveProxy map a filter string ("residential
+    // oxylabs us") to the right provider row + Discord country policy.
+    // Without it, filter-form PROXY_URL throws proxy_unavailable.
+    s = await WSession.start({ label: 'discord_login', proxy: proxyUrl, targetHost: 'discord.com' });
     // Visit register page first to pass Cloudflare challenge and set cf_clearance cookie
     await s.goto('https://discord.com/register');
     await s.wait(3);
