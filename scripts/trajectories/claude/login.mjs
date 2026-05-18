@@ -16,7 +16,6 @@
 // Pass it via CLAUDE_2FA_CODE env var (mirrors apple/login.mjs).
 //
 // Run: node scripts/trajectories/claude/login.mjs
-import http from 'node:http';
 import crypto from 'node:crypto';
 import { getServiceLogin } from '../../../dist/utils/credentials.js';
 import { WSession } from '../../../dist/session/wsession.js';
@@ -27,6 +26,7 @@ import {
   CLAUDE_AUTHORIZE_URL,
   CLAUDE_TOKEN_URL,
   CLAUDE_OAUTH_SCOPES,
+  CLAUDE_REDIRECT_URI,
 } from './oauth_config.mjs';
 import { pageDiag, startWatchdog, makeShutdown } from './diag.mjs';
 import { doGoogleSso } from './google_sso.mjs';
@@ -60,38 +60,28 @@ function genPkce() {
   return { verifier, challenge };
 }
 
-// EVIDENCE (this session, authz-debug.log): the failing consent
-// POST sent redirect_uri=https://platform.claude.com/oauth/code/
-// callback and claude.ai returned 400 invalid_request_error.
-// claude.ai's own published client metadata registers redirect_uris
-// as ONLY ["http://localhost/callback","http://127.0.0.1/callback"]
-// — platform.claude.com is rejected for client 9d1c250a. The
-// claudeAiOauth blob comes from the normal loopback login flow (not
-// setup-token's manual paste). RFC 8252 §7.3: the authz server must
-// accept any port on a loopback redirect.
-async function startCallbackListener() {
-  return new Promise((resolveServer, rejectServer) => {
-    let resolveCode; let rejectCode;
-    const codePromise = new Promise((res, rej) => { resolveCode = res; rejectCode = rej; });
-    const server = http.createServer((req, res) => {
-      try {
-        const reqUrl = new URL(req.url, 'http://127.0.0.1');
-        if (reqUrl.pathname !== '/callback') { res.writeHead(404); res.end('nf'); return; }
-        const code = reqUrl.searchParams.get('code');
-        const err = reqUrl.searchParams.get('error');
-        if (err) { res.writeHead(400); res.end(err); rejectCode(new Error(`oauth error: ${err}`)); return; }
-        if (!code) { res.writeHead(400); res.end('no code'); rejectCode(new Error('no code in callback')); return; }
-        res.writeHead(200, { 'content-type': 'text/html' });
-        res.end('<html><body>OAuth code received.</body></html>');
-        resolveCode(code);
-      } catch (e) { rejectCode(e); }
+// Replicate the WORKING manual flow (human-driven, this session,
+// same weles-patched Chromium): hosted redirect_uri
+// https://platform.claude.com/oauth/code/callback + code=true +
+// scope=org:create_api_key user:profile user:inference. After
+// Authorize, that page DISPLAYS the auth code; scrape it from the
+// DOM. Form is "<code>#<fragment>"; the real code is before '#'.
+async function readDisplayedCode(page) {
+  for (let i = 0; i < 120; i += 1) {
+    const found = await page.evaluate(() => { // allow-raw-playwright: read-only DOM scrape of the displayed OAuth code
+      const rx = /\b[A-Za-z0-9_-]{30,}#[A-Za-z0-9_-]{6,}\b/;
+      for (const inp of document.querySelectorAll('input,textarea')) {
+        const v = (inp.value || '').trim();
+        if (rx.test(v)) return v.match(rx)[0];
+      }
+      const t = (document.body.innerText || document.body.textContent || '').trim();
+      const m = t.match(rx);
+      return m ? m[0] : null;
     });
-    server.on('error', rejectServer);
-    server.listen(0, '127.0.0.1', () => {
-      const port = server.address().port;
-      resolveServer({ port, url: `http://127.0.0.1:${port}/callback`, codePromise, server });
-    });
-  });
+    if (found) return String(found).split('#')[0];
+    await page.waitForTimeout(1000); // allow-raw-playwright: code-appearance poll
+  }
+  throw new Error('authorization code never displayed on callback page');
 }
 
 async function exchangeCodeForToken(code, verifier, redirectUri) {
@@ -133,16 +123,14 @@ if (!login) { console.log(`FAIL: no '${DISPLAY_NAME}' row in service_credentials
 console.log(`[claude-login] using service login: ${login.email}`);
 
 const { verifier, challenge } = genPkce();
-const listener = await startCallbackListener();
 
-// Loopback redirect_uri (registered for client 9d1c250a per
-// claude.ai client metadata) + single user:inference scope. No
-// code=true: that is the setup-token manual-paste flow; the
-// normal login auto-redirects the code to the listener.
+// EXACT params of the human-verified working flow (.manual-pkce.txt
+// this session): code=true + hosted redirect_uri + 3-scope set.
 const params = new URLSearchParams({
+  code: 'true',
   client_id: CLAUDE_CLIENT_ID,
   response_type: 'code',
-  redirect_uri: listener.url,
+  redirect_uri: CLAUDE_REDIRECT_URI,
   scope: CLAUDE_OAUTH_SCOPES.join(' '),
   code_challenge: challenge,
   code_challenge_method: 'S256',
@@ -264,22 +252,15 @@ try {
   // click the Authorize button (humanClickLocator didn't detect it)
   try { await s.page.waitForLoadState('networkidle'); const m = await import('./google_sso.mjs'); await m.waitForEnabledThenClick(s.page, /^authorize$|^allow$/i); } catch {}
   await humanIdlePause('long');
-  mark('await_callback');
+  mark('read_displayed_code');
 
-  // Loopback flow: claude.ai redirects the code to the listener.
-  const deadlineSec = Number(process.env.CLAUDE_LOGIN_DEADLINE_SEC || 180);
-  const deadline = new Promise((_, rej) =>
-    setTimeout(() => rej(new Error(`callback not received within ${deadlineSec}s`)), deadlineSec * 1000));
-  let code;
-  try {
-    code = await Promise.race([listener.codePromise, deadline]);
-  } catch (e) {
-    throw new Error(`${e.message}. ${await pageDiag(s.page)}`);
-  }
+  // Hosted flow (matches the working manual run): the
+  // platform.claude.com callback page displays the code.
+  const code = await readDisplayedCode(s.page);
   clearTimeout(wd);
-  console.log(`[claude-login] received code (len=${code.length})`);
+  console.log(`[claude-login] read code (len=${code.length})`);
 
-  const tokenResp = await exchangeCodeForToken(code, verifier, listener.url);
+  const tokenResp = await exchangeCodeForToken(code, verifier, CLAUDE_REDIRECT_URI);
   const blob = buildBlob(tokenResp);
   console.log('[claude-login] token exchange succeeded');
   process.stdout.write(JSON.stringify(blob) + '\n');
@@ -293,6 +274,5 @@ try {
   process.stderr.write(`FAIL: ${e.message}\n`);
   await shutdown(1); // closes context → flushes .webm, then exits
 } finally {
-  listener.server.close();
   await s.close();
 }
