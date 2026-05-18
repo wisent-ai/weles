@@ -253,8 +253,10 @@ try {
   }
 
   mark('oauth_consent');
-  // CDP click path (humanClickLocator did not detect this button)
-  try { const m = await import('./google_sso.mjs'); await m.waitForEnabledThenClick(s.page, /^authorize$|^allow$/i); } catch {}
+  // Let the Google→claude.ai→authorize redirect chain settle so
+  // newCDPSession/evaluate don't hit a navigation race; then CDP
+  // click the Authorize button (humanClickLocator didn't detect it)
+  try { await s.page.waitForLoadState('networkidle'); const m = await import('./google_sso.mjs'); await m.waitForEnabledThenClick(s.page, /^authorize$|^allow$/i); } catch {}
   await humanIdlePause('long');
   mark('await_callback');
 
