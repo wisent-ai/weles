@@ -253,11 +253,9 @@ try {
   }
 
   mark('oauth_consent');
-  const authorizeBtn = s.page.locator('button:has-text("Authorize"), button:has-text("Allow"), button:has-text("Approve"), button:has-text("Continue")').filter({ visible: true }).first();
-  if (await authorizeBtn.isVisible().catch(() => false)) {
-    await humanClickLocator(s.page, authorizeBtn);
-    await humanIdlePause('long');
-  }
+  // CDP click path (humanClickLocator did not detect this button)
+  try { const m = await import('./google_sso.mjs'); await m.waitForEnabledThenClick(s.page, /^authorize$|^allow$/i); } catch {}
+  await humanIdlePause('long');
   mark('await_callback');
 
   // Step 5 — wait for callback listener to receive the code. The OAuth

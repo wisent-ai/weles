@@ -79,7 +79,7 @@ async function clickSubmit(page, humanClick, namePattern) {
 // of Input.insertText that just fixed the typing — same trust
 // model. Throws with the full button-state diagnostic on
 // timeout so the failure mode stays diagnosable.
-async function waitForEnabledThenClick(page, namePattern) {
+export async function waitForEnabledThenClick(page, namePattern) {
   const patternSrc = namePattern.source;
   let lastState = null;
   const cdp = await page.context().newCDPSession(page);
