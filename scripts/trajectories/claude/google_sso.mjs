@@ -189,11 +189,13 @@ export async function doGoogleSso({
   await humanIdlePause('deliberate');
 
   mark('gis_continue');
-  const gBtn = page.getByRole('button', { name: /google/i })
-    .or(page.locator('button:has-text("Google"), [data-provider="google" i]'))
-    .first();
-  await gBtn.waitFor({ state: 'visible' });
-  await humanClickLocator(page, gBtn);
+  // Same trust issue as the Google Next button — claude.ai's GIS
+  // "Continue with Google" was visible but Playwright/humanClick
+  // didn't register (video 02:48:25Z: page stuck on claude.ai
+  // Log in for 60s..220s). Use the same CDP dispatchMouseEvent path
+  // that just fixed the Google Next click. Match by text "Google"
+  // on a button so we hit the GIS button specifically.
+  await waitForEnabledThenClick(page, /continue with google|^google$/i);
   await humanIdlePause('long');
 
   // A GIS account chooser may render; pick the row matching our email.
