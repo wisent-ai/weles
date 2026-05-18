@@ -11,7 +11,7 @@ import { chromium, type BrowserContext, type Browser } from 'playwright';
 import { generate, toConfig, toCppConfig } from './fingerprint.js';
 import { buildInitScript } from './scripts/loader.js';
 import { pruneRecordings } from './prune.js';
-import { launchWelesFirefox } from './browser/firefox_launch.js';
+import { launchWelesFirefox, firefoxIdentityFor } from './browser/firefox_launch.js';
 import {
   WEBAUTHN_REJECT_SCRIPT,
   ARKOSE_OBSERVER_SCRIPT,
@@ -28,6 +28,12 @@ const CHROMIUM_ARGS = [
   '--disable-infobars',
   // Pin window to known screen position so native input drivers (cliclick) can map CSS→screen without Accessibility perms.
   '--window-position=0,0',
+  // claude.ai's "Continue with Google" uses GIS in popup mode and
+  // posts the credential back to the opener via postMessage. The
+  // default popup-blocker eats that popup, breaking OAuth (FAIL
+  // diagnostic 05:31Z: callback not received within 180s after
+  // GIS got to /gsi/transform with no opener tab). Allow it.
+  '--disable-popup-blocking',
   // HTTP/2 + QUIC + TLS1.3 early-data + DNS-HTTPS + HTTPS Upgrades are default-on in Chrome 147. Disabling emits ALPN/TLS-ext/akamaiH2 deltas TikTok+Akamai flag. Switch providers, never globally disable.
 ];
 
@@ -61,21 +67,34 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
     if (persona.deviceMemory) n.deviceMemory = persona.deviceMemory;
     n.language = persona.language;
     n.languages = [persona.language];
-    fpConfig.screen = { ...(fpConfig.screen ?? {}), width: persona.screen.width, height: persona.screen.height, availWidth: persona.screen.width, availHeight: persona.screen.height - 40, colorDepth: 24, pixelDepth: 24 };
+    // colorDepth/pixelDepth = 30 on macOS (Retina/HDR 10-bit) and 24 elsewhere.
+    // 2026-05-14: prior hardcoded 24 leaked macOS-persona inconsistency (Mac UA + 24-bit color) and made PerimeterX run Canvas.toDataURL deep-fingerprint. The Apple-host Metal-rendered canvas hash then didn't match LinkedIn's expected mac-Chrome hash database, so createAccount returned challengeUrl. Confirmed via .work/diff/diff_fingerprint.mjs on run9 (M3 macOS, FAIL): screen.colorDepth=24 + Canvas.toDataURL triggered at t=2566ms vs run7 (M1 macOS, PASS) which never read either.
+    // availLeft/availTop reflect the real desktop chrome (0/33 on macOS for menubar, 0/0 elsewhere) — PerimeterX checks availTop presence.
+    const _depth = persona.os === 'macos' ? 30 : 24;
+    const _availTop = persona.os === 'macos' ? 33 : 0;
+    fpConfig.screen = { ...(fpConfig.screen ?? {}), width: persona.screen.width, height: persona.screen.height, availWidth: persona.screen.width, availHeight: persona.screen.height - 40, availLeft: 0, availTop: _availTop, colorDepth: _depth, pixelDepth: _depth };
     fpConfig.window = { ...(fpConfig.window ?? {}), devicePixelRatio: persona.screen.dpr, outerWidth: persona.screen.width + 2, outerHeight: persona.screen.height + 80, screenX: 10, screenY: 10 };
     fpConfig.webgl = { ...(fpConfig.webgl ?? {}), vendor: isChromium ? 'Google Inc.' : 'Mozilla', renderer: persona.gpu.renderer, unmaskedVendor: persona.gpu.vendor, unmaskedRenderer: persona.gpu.renderer };
     // Canvas noise NOT applied — LSB-flip makes canvas data URL 4x stock-Chrome size, TikTok mssdk flags.
   }
 
-  const initScript = buildInitScript(fpConfig, options.excludeScripts);
   const nav = fpConfig.navigator ?? {};
+  // Firefox identity is owned by general.*.override prefs + the weles FF binary
+  // patches. The Chrome-shaped navigator.js spoof and a Chrome ctxOpts.userAgent
+  // would re-clobber that with a Chrome UA on a Gecko engine (instant Cloudflare
+  // engine-consistency fail), so drop navigator.js and use the real Gecko UA.
+  const ffId = isChromium ? null : firefoxIdentityFor(nav.platform, persona?.os);
+  const initScript = buildInitScript(
+    fpConfig,
+    isChromium ? options.excludeScripts : [...(options.excludeScripts ?? []), 'navigator.js'],
+  );
   const viewW = persona?.screen.width ?? 1920;
   const viewH = persona?.screen.height ?? 1080;
   const dpr = persona?.screen.dpr ?? 1;
 
   // tz/locale NOT set in ctxOpts — Playwright routes via CDP Emulation which TikTok mssdk detects. Pass --lang + TZ env instead.
   const ctxOpts: Record<string, any> = {
-    userAgent: nav.userAgent,
+    userAgent: ffId ? ffId.ua : nav.userAgent,
     viewport: { width: viewW, height: viewH },
     screen: { width: viewW, height: viewH },
     deviceScaleFactor: dpr,
@@ -178,7 +197,12 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
       try {
         const trapPath = join(__dirname, 'diagnostics', 'property_trap.js');
         await context.addInitScript(readFileSync(trapPath, 'utf-8'));
-        console.log('[async_api] property-trap instrumentation installed (WELES_INSTRUMENT=1)');
+        // Sibling files: input event recorder + canvas/audio/window-flag fingerprint hooks.
+        const fpPath = join(__dirname, 'diagnostics', 'fingerprint_hooks.js');
+        await context.addInitScript(readFileSync(fpPath, 'utf-8'));
+        const inputPath = join(__dirname, 'diagnostics', 'input_recorder.js');
+        await context.addInitScript(readFileSync(inputPath, 'utf-8'));
+        console.log('[async_api] property-trap + fingerprint-hooks + input-recorder installed (WELES_INSTRUMENT=1)');
       } catch (e) { console.log(`[async_api] property-trap install failed: ${(e as Error).message}`); }
     }
     await context.addInitScript(WEBAUTHN_REJECT_SCRIPT);

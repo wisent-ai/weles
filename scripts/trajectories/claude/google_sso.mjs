@@ -189,36 +189,37 @@ export async function doGoogleSso({
   await humanIdlePause('deliberate');
 
   mark('gis_continue');
-  // Repeated failure mode across 03:22Z / 04:03Z runs: CDP click
-  // landed (button → Loading...) but no popup ever opened —
-  // claude.ai's onClick calls window.open(googleOauthUrl) which
-  // the popup-blocker eats. The Browser.setPermission
-  // window-management grant didn't help because that permission
-  // governs the Multi-Screen API, not popups. Override window.open
-  // in the page context so when claude.ai calls it, the main page
-  // navigates to that URL instead — no popup needed, no
-  // popup-blocker, and Google's authorize page redirects right
-  // back to claude.ai's redirect_uri with the auth code.
-  await page.evaluate(() => { // allow-raw-playwright: in-page window.open hijack, not a user-facing action
-    window.open = (u) => { if (u) window.location.href = String(u); return window; };
-  });
+  // claude.ai's "Continue with Google" uses Google Identity
+  // Services in popup mode — the popup runs Google's GIS UI and
+  // posts the credential back to claude.ai (the opener) via
+  // postMessage. The earlier window.open hijack (run 04:27Z)
+  // navigated the main page to Google instead — that broke the
+  // opener relationship, so when GIS completed at
+  // accounts.google.com/gsi/transform there was no claude.ai
+  // tab to receive the postMessage, the JS bundle aborted, and
+  // the OAuth callback never fired (run 05:31Z FAIL diag:
+  // "callback not received within 180s, url=.../gsi/transform").
+  // The popup MUST be a real popup so the opener relationship
+  // exists. Browser launched with --disable-popup-blocking
+  // (async_api.ts) allows the popup.
+  const popupP = page.context().waitForEvent('page');
   await waitForEnabledThenClick(page, /continue with google|^google$/i);
-  await humanIdlePause('long');
+  const popup = await popupP;
+  console.log(`[google_sso] GIS popup opened: ${popup.url()}`);
+  await popup.waitForLoadState('domcontentloaded');
 
-  // Video 04:27:54Z: window.open hijack worked — main page
-  // navigated to Google's "Choose an account" screen showing
-  // Łukasz Bartoszcze / lukasz.bartoszcze@wisent.ai. Click that
-  // account row (CDP click path, same trust model as elsewhere)
-  // and Google will redirect back to claude.ai's redirect_uri.
-  mark('gis_account_chooser_main');
-  await clickEmailRow(page, login.email);
+  // The popup shows account chooser then consent — handle both
+  // in the popup, then it auto-closes and the opener (claude.ai)
+  // receives the credential and completes OAuth.
+  mark('gis_account_chooser_popup');
+  await clickEmailRow(popup, login.email);
   await humanIdlePause('long');
-  // Video 04:44:23Z: account-row click worked → Google's
-  // "You're signing back in to Claude" consent screen with a
-  // Continue button. Click Continue and Google finishes the
-  // redirect to claude.ai's callback with the OAuth code.
-  mark('gis_consent_continue');
-  await waitForEnabledThenClick(page, /^continue$/i);
+  // Some flows show a consent step in the popup too.
+  try {
+    await waitForEnabledThenClick(popup, /^continue$/i);
+  } catch (e) {
+    console.log(`[google_sso] no consent button in popup (may have auto-confirmed): ${e.message.slice(0, 80)}`);
+  }
   await humanIdlePause('long');
   return page;
 }
