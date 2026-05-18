@@ -177,20 +177,24 @@ s.page.on('pageerror', (e) => globalThis.__claudeConsole.push(`err:${e.message.s
 s.page.on('requestfailed', (r) => {
   globalThis.__claudeConsole.push(`reqfail:${r.failure()?.errorText ?? '?'} ${r.url().slice(0, 100)}`);
 });
-// EXACT-CAUSE capture: dump the HTTP status + body of every
-// claude.ai /oauth/authorize response via raw stderr (bypasses the
-// console.* phrase suppression). "Invalid request format" is a
-// claude.ai server response — this shows precisely what it returns
-// instead of guessing.
+// EXACT-CAUSE capture. "Invalid request format" is rendered by the
+// authorize Next.js SPA — so an XHR/API call validates the OAuth
+// request and returns that error. Capture non-static responses on
+// the authorize/oauth/api path (skip JS/CSS/font/static assets) to
+// a dedicated append file (var/authz-debug.log) so the runner's
+// truncating stderr can't lose it. Errors are written, never
+// swallowed into a sentinel.
+const AUTHZ_LOG = '/Users/charles/weles/var/authz-debug.log';
 s.page.on('response', async (r) => {
-  try {
-    const u = r.url();
-    if (!u.includes('/oauth/authorize')) return;
-    const body = await r.text().catch(() => '<body unavailable>');
-    process.stderr.write(`AUTHZRESP ${r.status()} ${u.slice(0, 120)} :: ${body.replace(/\s+/g, ' ').slice(0, 400)}\n`);
-  } catch (e) {
-    process.stderr.write(`AUTHZRESP capture-err ${e.message.slice(0, 80)}\n`);
-  }
+  const u = r.url();
+  const isStatic = /\.(js|css|woff2?|png|svg|ico|map)(\?|$)/.test(u) || u.includes('/_next/static') || u.includes('assets-proxy');
+  if (isStatic) return;
+  if (!/oauth|authorize|\/api\//.test(u)) return;
+  let body;
+  try { body = await r.text(); } catch (e) { body = `<text() threw: ${e.message.slice(0, 80)}>`; }
+  const line = `AUTHZRESP ${r.status()} ${r.request().method()} ${u.slice(0, 140)} :: ${body.replace(/\s+/g, ' ').slice(0, 600)}\n`;
+  const { appendFileSync } = await import('node:fs');
+  appendFileSync(AUTHZ_LOG, line);
 });
 
 try {
