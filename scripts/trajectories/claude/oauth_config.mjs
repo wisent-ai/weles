@@ -28,7 +28,16 @@ export const CLAUDE_TOKEN_URL = 'https://claude.ai/v1/oauth/token';
 // from the DOM (no loopback listener).
 export const CLAUDE_REDIRECT_URI = 'https://platform.claude.com/oauth/code/callback';
 
-// The real CLI sends EXACTLY one scope.
+// scope=user:inference (captured from `claude setup-token`) is the
+// LONG-LIVED-TOKEN flow; the SESSION-login flow that yields the
+// claudeAiOauth blob (refreshToken + subscriptionType +
+// organizationUuid) requires the claude-code session scope set.
+// Both loopback and hosted redirect_uri got the same 400
+// invalid_request_error with the single scope (captures
+// req_011CbAjgVqqrd4gku53E4Hye / req_011CbAkz5NoNUqAdnzUdxREW),
+// so the malformed field is the scope, not redirect_uri.
 export const CLAUDE_OAUTH_SCOPES = [
+  'org:create_api_key',
+  'user:profile',
   'user:inference',
 ];
