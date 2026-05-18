@@ -204,5 +204,56 @@ export async function doGoogleSso({
   });
   await waitForEnabledThenClick(page, /continue with google|^google$/i);
   await humanIdlePause('long');
+
+  // Video 04:27:54Z: window.open hijack worked — main page
+  // navigated to Google's "Choose an account" screen showing
+  // Łukasz Bartoszcze / lukasz.bartoszcze@wisent.ai. Click that
+  // account row (CDP click path, same trust model as elsewhere)
+  // and Google will redirect back to claude.ai's redirect_uri.
+  mark('gis_account_chooser_main');
+  await clickEmailRow(page, login.email);
+  await humanIdlePause('long');
   return page;
+}
+
+// Click the Google account-chooser row matching the given email.
+// The row is a div, not a button, so waitForEnabledThenClick won't
+// find it. DOM-walk for any element whose visible text contains
+// the email, take its bounding-box center, CDP-click.
+async function clickEmailRow(page, email) {
+  const cdp = await page.context().newCDPSession(page);
+  try {
+    let hit = null;
+    for (let i = 0; i < 100; i += 1) {
+      hit = await page.evaluate((e) => {
+        const els = Array.from(document.querySelectorAll('*'));
+        for (const el of els) {
+          const txt = (el.innerText || el.textContent || '').trim();
+          if (!txt.includes(e)) continue;
+          if (el.children.length > 0) {
+            const childMatches = Array.from(el.children).some((c) => (c.innerText || c.textContent || '').includes(e));
+            if (childMatches) continue;
+          }
+          const r = el.getBoundingClientRect();
+          if (r.width < 20 || r.height < 20) continue;
+          let target = el;
+          for (let p = el; p; p = p.parentElement) {
+            if (p.getAttribute && (p.getAttribute('role') === 'link' || p.tagName === 'A' || p.tagName === 'LI' || p.tagName === 'BUTTON' || p.getAttribute('data-identifier'))) { target = p; break; }
+          }
+          const tr = target.getBoundingClientRect();
+          return { x: tr.x + tr.width / 2, y: tr.y + tr.height / 2, txt: txt.slice(0, 80) };
+        }
+        return null;
+      }, email);
+      if (hit) break;
+      await page.waitForTimeout(100); // allow-raw-playwright: account-row appearance poll
+    }
+    if (!hit) throw new Error(`clickEmailRow: no row matching ${email} found`);
+    const x = Math.round(hit.x), y = Math.round(hit.y);
+    await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y });
+    await cdp.send('Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button: 'left', clickCount: 1 });
+    await cdp.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x, y, button: 'left', clickCount: 1 });
+  } finally {
+    await cdp.detach();
+  }
 }
