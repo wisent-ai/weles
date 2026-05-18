@@ -7,52 +7,34 @@
 // Google session at accounts.google.com FIRST, then load claude.ai's
 // authorize URL — GIS then has an account and the click completes.
 
-// Google's GlifWebSignIn binds keydown handlers in a post-hydration
-// microtask, so synthetic CDP keystrokes that fire the instant the
-// input is `visible` are silently dropped (video 2026-05-17 showed the
-// email field staying empty for the entire run). Gate on editable
-// (true only once WIZ has finished hydrating: readOnly cleared,
-// disabled false), then type and confirm the value actually landed.
-// Retype up to 3 attempts if Google ate the keys. Errors propagate —
-// no swallowed catches that could fake success. page.waitForTimeout
-// calls are short polling sleeps inside an internal verification loop
-// (NOT a humanized action the bot classifier ever sees) so the
-// humanized-action rule does not apply.
-async function fillAndVerify(page, locator, text, humanFill) {
+// Root cause of the email-field-stays-empty bug: humanType uses CDP
+// Input.dispatchKeyEvent with key=char which is wrong for chars
+// requiring shift (@ . uppercase) — the synthetic event's
+// KeyboardEvent.key doesn't match a real key, and WIZ's beforeinput
+// validator rejects the keystroke. Input.insertText is the CDP
+// method designed for inserting text into a focused input; it fires
+// the same input event sequence as IME composition, which WIZ
+// accepts as legitimate. Click to focus, insertText, verify.
+async function fillAndVerify(page, locator, text, humanClickLocator) {
   await locator.waitFor({ state: 'visible' });
   for (let i = 0; i < 50; i += 1) {
     if (await locator.isEditable()) break;
     await page.waitForTimeout(100); // allow-raw-playwright: post-hydration poll, not a humanized action
   }
-  for (let attempt = 1; attempt <= 3; attempt += 1) {
-    await humanFill(page, locator, text);
+  await humanClickLocator(page, locator);
+  const cdp = await page.context().newCDPSession(page);
+  try {
+    await cdp.send('Input.insertText', { text });
     for (let i = 0; i < 20; i += 1) {
       const v = await locator.inputValue();
       if (v === text) return;
       await page.waitForTimeout(100); // allow-raw-playwright: input-value poll, not a humanized action
     }
+    const final = await locator.inputValue();
+    throw new Error(`fillAndVerify Input.insertText didn't land; field value="${final}" expected len=${text.length}`);
+  } finally {
+    await cdp.detach();
   }
-  // Video evidence 2026-05-17T21:56:26Z: even with humanFill retried 3×
-  // against an editable input, Google's WIZ-wrapped Material text-field
-  // never accepted the keystrokes — field stayed empty the whole run.
-  // The native React/Vue/WIZ value setter is what frameworks listen to;
-  // dispatch input+change so Google's model sees the change. Last resort
-  // (humanFill demonstrably failed first) — does NOT replace the
-  // humanized path for selectors WIZ does not own.
-  await locator.evaluate((el, value) => {
-    const proto = Object.getPrototypeOf(el);
-    const setter = Object.getOwnPropertyDescriptor(proto, 'value').set;
-    setter.call(el, value);
-    el.dispatchEvent(new Event('input', { bubbles: true }));
-    el.dispatchEvent(new Event('change', { bubbles: true }));
-  }, text);
-  for (let i = 0; i < 20; i += 1) {
-    const v = await locator.inputValue();
-    if (v === text) return;
-    await page.waitForTimeout(100); // allow-raw-playwright: input-value poll, not a humanized action
-  }
-  const final = await locator.inputValue();
-  throw new Error(`fillAndVerify exhausted humanFill+native-setter; field value="${final}" expected len=${text.length}`);
 }
 
 // Find Google's submit button by walking the DOM directly. The
@@ -131,36 +113,6 @@ export async function doGoogleSso({
 }) {
   const { humanClick } = await import('../../../dist/human/mouse.js');
   mark('google_prelogin_goto');
-  // Probe whether this account already has a live Google session
-  // (cookies were injected by WSession.start from the per-account
-  // jar at ~/.weles/sessions.json). If we land on myaccount.google.com
-  // without being redirected to /signin, the session is good and we
-  // skip the email/password/2FA dance entirely — going straight to
-  // the claude.ai authorize URL where GIS finds the live account.
-  await page.goto('https://myaccount.google.com/', { waitUntil: 'commit' });
-  await humanIdlePause('deliberate');
-  const urlAfterProbe = page.url();
-  if (urlAfterProbe.includes('myaccount.google.com') && !urlAfterProbe.includes('/signin')) {
-    mark('google_session_reused');
-    console.log(`[google_sso] reused persisted session for ${login.email}`);
-    mark('goto_authorize_direct');
-    await page.goto(authorizeUrl, { waitUntil: 'commit' });
-    await humanIdlePause('deliberate');
-    mark('gis_continue_direct');
-    const gBtnEarly = page.getByRole('button', { name: /google/i })
-      .or(page.locator('button:has-text("Google"), [data-provider="google" i]'))
-      .first();
-    await gBtnEarly.waitFor({ state: 'visible' });
-    await humanClickLocator(page, gBtnEarly);
-    await humanIdlePause('long');
-    const acctEarly = page.locator(`text=${login.email}`).first();
-    if (await acctEarly.isVisible().catch(() => false)) {
-      await humanClickLocator(page, acctEarly);
-      await humanIdlePause('long');
-    }
-    return page;
-  }
-  // No live session — fall into the email/password sign-in flow.
   await page.goto('https://accounts.google.com/ServiceLogin?hl=en', { waitUntil: 'commit' });
   await humanIdlePause('deliberate');
 
@@ -174,7 +126,7 @@ export async function doGoogleSso({
   // up to 3 times if Google ate the keys.
   const gEmailIn = page.locator('input[type="email"]').filter({ visible: true }).first();
   await gEmailIn.waitFor({ state: 'visible' });
-  await fillAndVerify(page, gEmailIn, login.email, humanFill);
+  await fillAndVerify(page, gEmailIn, login.email, humanClickLocator);
   // Google's WIZ Next button enables only after the input's blur+change
   // event chain runs through their validator. fillAndVerify's
   // native-setter path dispatches input+change, but blur is needed for
@@ -192,7 +144,7 @@ export async function doGoogleSso({
   mark('google_password');
   const gPwIn = page.locator('input[type="password"]').filter({ visible: true }).first();
   await gPwIn.waitFor({ state: 'visible' });
-  await fillAndVerify(page, gPwIn, login.password, humanFill);
+  await fillAndVerify(page, gPwIn, login.password, humanClickLocator);
   await gPwIn.evaluate((el) => {
     el.dispatchEvent(new Event('blur', { bubbles: true }));
     el.dispatchEvent(new Event('focusout', { bubbles: true }));

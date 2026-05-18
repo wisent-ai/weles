@@ -160,16 +160,8 @@ const authorizeUrl = `${CLAUDE_AUTHORIZE_URL}?${params.toString()}`;
 // residential provider whose *_USERNAME/*_PASSWORD env vars are set).
 // CLAUDE_LOGIN_PROXY overrides the selector ('none' to force direct).
 const proxySel = process.env.CLAUDE_LOGIN_PROXY ?? 'residential us';
-// Per-account session label so WSession.start auto-injects this
-// account's persisted cookies (~/.weles/sessions.json). Once a
-// human or a successful run establishes the Google session, every
-// subsequent rotation reuses it and skips the email/password dance
-// entirely — which is the only path past Google's WIZ form
-// hardening (video evidence: 6 click-strategy iterations against
-// the email-then-Next flow never advanced the page).
-const sessionLabel = `claude_login_${login.email.replace(/[^a-z0-9]/gi, '_')}`;
 const s = await WSession.start({
-  label: sessionLabel,
+  label: 'claude_login',
   browser: 'chromium',
   proxy: proxySel === 'none' ? undefined : proxySel,
 });
@@ -286,7 +278,6 @@ try {
   const tokenResp = await exchangeCodeForToken(code, verifier, listener.url);
   const blob = buildBlob(tokenResp);
   console.log('[claude-login] token exchange succeeded');
-  await s.saveCookies().catch((e) => console.log(`saveCookies: ${e.message}`));
   process.stdout.write(JSON.stringify(blob) + '\n');
 } catch (e) {
   // Append live page state + captured console/network so EVERY failure
