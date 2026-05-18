@@ -69,6 +69,55 @@ async function clickSubmit(page, humanClick, namePattern) {
   throw new Error(`clickSubmit: no button matching /${patternSrc}/i found in 8s`);
 }
 
+// Activate a button via keyboard: focus the element in the page,
+// then dispatch a real Enter keystroke through CDP. The browser
+// treats Enter on a focused button as the same trusted user
+// gesture as a click — including for window.open — which
+// CDP-injected mouse events fail to provide for claude.ai's
+// Continue-with-Google popup (video 03:22:09Z: Loading sat for
+// 160s, no popup, because the popup-blocker rejected window.open).
+async function activateByKeyboard(page, namePattern) {
+  const patternSrc = namePattern.source;
+  let focused = false;
+  for (let i = 0; i < 80; i += 1) {
+    focused = await page.evaluate((src) => { // allow-raw-playwright: in-page focus, not a humanized action
+      const re = new RegExp(src, 'i');
+      const candidates = Array.from(document.querySelectorAll('button, [role="button"]'));
+      for (const el of candidates) {
+        const txt = (el.innerText || el.textContent || '').trim();
+        if (!re.test(txt)) continue;
+        const r = el.getBoundingClientRect();
+        if (r.width < 4 || r.height < 4) continue;
+        const disabled = el.disabled || el.getAttribute('aria-disabled') === 'true';
+        if (disabled) return false;
+        el.focus();
+        return document.activeElement === el;
+      }
+      return false;
+    }, patternSrc);
+    if (focused) break;
+    await page.waitForTimeout(100); // allow-raw-playwright: focus-ready poll
+  }
+  if (!focused) throw new Error(`activateByKeyboard: could not focus button /${patternSrc}/i`);
+  // Dispatch Enter via CDP — Input.dispatchKeyEvent with the
+  // correct windowsVirtualKeyCode produces a real KeyboardEvent
+  // with isTrusted=true; browsers count Enter-on-focused-button as
+  // an activation gesture eligible for window.open.
+  const cdp = await page.context().newCDPSession(page);
+  try {
+    await cdp.send('Input.dispatchKeyEvent', {
+      type: 'keyDown', key: 'Enter', code: 'Enter',
+      windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13,
+    });
+    await cdp.send('Input.dispatchKeyEvent', {
+      type: 'keyUp', key: 'Enter', code: 'Enter',
+      windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13,
+    });
+  } finally {
+    await cdp.detach();
+  }
+}
+
 // Wait for the button to be ENABLED then click via CDP
 // Input.dispatchMouseEvent. WIZ's submit handler checks event
 // trust; Playwright's page.mouse.click goes through the browser
@@ -189,15 +238,17 @@ export async function doGoogleSso({
   await humanIdlePause('deliberate');
 
   mark('gis_continue');
-  // claude.ai's "Continue with Google" opens Google Identity
-  // Services in a POPUP window for the account chooser. The video
-  // 03:04:59Z showed the button click landing (button became
-  // "Loading...") but the trajectory only watched the main page,
-  // so the popup's account-row was never clicked and Loading sat
-  // for 160s. Register the popup listener BEFORE the click so the
-  // popup Promise resolves the moment GIS opens it.
+  // Video 03:22:09Z: CDP dispatchMouseEvent fired (React set the
+  // button to Loading...), but no popup ever opened — claude.ai's
+  // onClick calls window.open, which the browser only honors when
+  // the click is a trusted user gesture. CDP-injected mouse events
+  // don't satisfy that gate in the weles-patched Chromium. The
+  // canonical fix is keyboard activation: tab-focus the button,
+  // press Enter; browsers treat Enter on a focused button as the
+  // same trusted gesture as a real click. Register the popup
+  // listener first so the Promise resolves the moment GIS opens.
   const popupP = page.context().waitForEvent('page');
-  await waitForEnabledThenClick(page, /continue with google|^google$/i);
+  await activateByKeyboard(page, /continue with google|^google$/i);
   const popup = await popupP;
   console.log(`[google_sso] GIS popup opened: ${popup.url()}`);
   await popup.waitForLoadState('domcontentloaded');
