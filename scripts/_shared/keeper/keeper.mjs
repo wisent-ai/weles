@@ -232,6 +232,17 @@ async function dispatch(cmd) {
       const result = await solveRecaptchaV2(s.page);
       return { ok: !!result?.passed, result };
     }
+    if (cmd.action === 'solvecaptcha') {
+      // Generic detect+solve (hCaptcha/reCAPTCHA/Turnstile) via the
+      // capsolver/capmonster-backed solvePageCaptcha. Discord login uses
+      // hCaptcha which solveRecaptchaV2 cannot handle. Passing the WSession
+      // enables the Discord intercepted-API captcha path
+      // (session.captchaResponse.captcha_sitekey). Returns true/token on
+      // success, true when no captcha present.
+      const { solvePageCaptcha } = await import(`${REPO}/dist/captcha/detect.js`);
+      const result = await solvePageCaptcha(s.page, undefined, s);
+      return { ok: !!result, result: typeof result === 'string' ? result.slice(0, 40) : result };
+    }
     if (cmd.action === 'save_account') {
       const result = await wsSaveAccount(s, cmd.platform, {
         username: cmd.username, email: cmd.email, password: cmd.password,
