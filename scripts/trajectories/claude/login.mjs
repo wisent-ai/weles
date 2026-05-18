@@ -145,6 +145,7 @@ const listener = await startCallbackListener();
 console.log(`[claude-login] callback listener on ${listener.url}`);
 
 const params = new URLSearchParams({
+  code: 'true', // real claude-code CLI sends this; absence => "Invalid request format" (video 07:12Z)
   client_id: CLAUDE_CLIENT_ID,
   response_type: 'code',
   redirect_uri: listener.url,
