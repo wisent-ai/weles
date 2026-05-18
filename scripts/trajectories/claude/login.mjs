@@ -16,7 +16,6 @@
 // Pass it via CLAUDE_2FA_CODE env var (mirrors apple/login.mjs).
 //
 // Run: node scripts/trajectories/claude/login.mjs
-import http from 'node:http';
 import crypto from 'node:crypto';
 import { getServiceLogin } from '../../../dist/utils/credentials.js';
 import { WSession } from '../../../dist/session/wsession.js';
@@ -27,6 +26,7 @@ import {
   CLAUDE_AUTHORIZE_URL,
   CLAUDE_TOKEN_URL,
   CLAUDE_OAUTH_SCOPES,
+  CLAUDE_REDIRECT_URI,
 } from './oauth_config.mjs';
 import { pageDiag, startWatchdog, makeShutdown } from './diag.mjs';
 import { doGoogleSso } from './google_sso.mjs';
@@ -60,38 +60,28 @@ function genPkce() {
   return { verifier, challenge };
 }
 
-// Loopback OAuth listener. claude.ai's OWN published client
-// metadata (https://claude.ai/oauth/claude-code-client-metadata,
-// fetched directly) registers redirect_uris EXACTLY as
-// ["http://localhost/callback","http://127.0.0.1/callback"] — the
-// hosted platform.claude.com value from community docs is NOT
-// registered for this client and was rejected as "Invalid request
-// format". RFC 8252 §7.3 requires the authz server to accept any
-// port on a loopback redirect, so http://127.0.0.1:<port>/callback
-// is spec-correct and the server redirects the code straight here.
-async function startCallbackListener() {
-  return new Promise((resolveServer, rejectServer) => {
-    let resolveCode; let rejectCode;
-    const codePromise = new Promise((res, rej) => { resolveCode = res; rejectCode = rej; });
-    const server = http.createServer((req, res) => {
-      try {
-        const reqUrl = new URL(req.url, 'http://127.0.0.1');
-        if (reqUrl.pathname !== '/callback') { res.writeHead(404); res.end('not found'); return; }
-        const code = reqUrl.searchParams.get('code');
-        const err = reqUrl.searchParams.get('error');
-        if (err) { res.writeHead(400); res.end(`oauth error: ${err}`); rejectCode(new Error(`oauth error: ${err}`)); return; }
-        if (!code) { res.writeHead(400); res.end('no code'); rejectCode(new Error('no code in callback')); return; }
-        res.writeHead(200, { 'content-type': 'text/html' });
-        res.end('<html><body>OAuth code received.</body></html>');
-        resolveCode(code);
-      } catch (e) { rejectCode(e); }
+// GROUND TRUTH (real claude CLI v2.1.143 captured authorize URL):
+// redirect_uri=https://platform.claude.com/oauth/code/callback
+// with code=true is the headless/manual flow — claude.com renders
+// the authorization code ON the callback page. Read it from the
+// DOM. The 92-char form is "<code>#<fragment>"; the real code is
+// the part before '#'.
+async function readDisplayedCode(page) {
+  for (let i = 0; i < 120; i += 1) {
+    const found = await page.evaluate(() => { // allow-raw-playwright: read-only DOM scrape of the displayed OAuth code
+      const rx = /\b[A-Za-z0-9_-]{30,}#[A-Za-z0-9_-]{6,}\b/;
+      for (const inp of document.querySelectorAll('input,textarea')) {
+        const v = (inp.value || '').trim();
+        if (rx.test(v)) return v.match(rx)[0];
+      }
+      const t = (document.body.innerText || document.body.textContent || '').trim();
+      const m = t.match(rx);
+      return m ? m[0] : null;
     });
-    server.on('error', rejectServer);
-    server.listen(0, '127.0.0.1', () => {
-      const port = server.address().port;
-      resolveServer({ port, url: `http://127.0.0.1:${port}/callback`, codePromise, server });
-    });
-  });
+    if (found) return String(found).split('#')[0];
+    await page.waitForTimeout(1000); // allow-raw-playwright: code-appearance poll
+  }
+  throw new Error('authorization code never displayed on callback page');
 }
 
 async function exchangeCodeForToken(code, verifier, redirectUri) {
@@ -133,23 +123,20 @@ if (!login) { console.log(`FAIL: no '${DISPLAY_NAME}' row in service_credentials
 console.log(`[claude-login] using service login: ${login.email}`);
 
 const { verifier, challenge } = genPkce();
-const listener = await startCallbackListener();
 
-// No code=true: that param is the manual-display flow for the
-// hosted callback. With the registered loopback redirect_uri the
-// authz server auto-redirects the code straight to the listener.
+// Exact param set the real claude CLI sends (captured ground
+// truth): code=true + hosted redirect_uri + single user:inference
+// scope. claude.com displays the code on the callback page.
 const params = new URLSearchParams({
+  code: 'true',
   client_id: CLAUDE_CLIENT_ID,
   response_type: 'code',
-  redirect_uri: listener.url,
+  redirect_uri: CLAUDE_REDIRECT_URI,
   scope: CLAUDE_OAUTH_SCOPES.join(' '),
   code_challenge: challenge,
   code_challenge_method: 'S256',
   state: b64url(crypto.randomBytes(16)),
 });
-// URLSearchParams encodes scope spaces as '+'; RFC 3986 treats a
-// query-string '+' as a literal plus, so re-encode as %20 (safe:
-// only scope has spaces; base64url/UUID values have no '+').
 const authorizeUrl = `${CLAUDE_AUTHORIZE_URL}?${params.toString().replace(/\+/g, '%20')}`;
 process.stderr.write(`AUTHZURL ${authorizeUrl}\n`);
 
@@ -206,12 +193,11 @@ try {
       humanIdlePause,
       humanType,
     });
-    // Don't waitForURL(/claude.ai/) — the OAuth redirect_uri is
-    // http://127.0.0.1:<port>/callback (the local listener), so
-    // Google's consent redirect goes there directly, never to a
-    // claude.ai URL. The codePromise wait below catches the
-    // callback hit, which is the real signal of OAuth success.
-    mark('wait_callback_via_listener');
+    // After Google SSO, claude.com's authorize → consent →
+    // hosted callback renders the code on-page; readDisplayedCode
+    // (below) scrapes it. No URL wait here — the page lands on
+    // platform.claude.com, not a claude.ai URL.
+    mark('post_sso');
   } else {
     mark('goto_authorize');
     await s.goto(authorizeUrl);
@@ -256,23 +242,14 @@ try {
   // click the Authorize button (humanClickLocator didn't detect it)
   try { await s.page.waitForLoadState('networkidle'); const m = await import('./google_sso.mjs'); await m.waitForEnabledThenClick(s.page, /^authorize$|^allow$/i); } catch {}
   await humanIdlePause('long');
-  mark('await_callback');
+  mark('read_displayed_code');
 
-  // Authz server redirects the code to the loopback listener.
-  // Deadline so a never-firing redirect can't hang forever.
-  const deadlineSec = Number(process.env.CLAUDE_LOGIN_DEADLINE_SEC || 180);
-  const deadline = new Promise((_, rej) =>
-    setTimeout(() => rej(new Error(`callback not received within ${deadlineSec}s`)), deadlineSec * 1000));
-  let code;
-  try {
-    code = await Promise.race([listener.codePromise, deadline]);
-  } catch (e) {
-    throw new Error(`${e.message}. ${await pageDiag(s.page)}`);
-  }
+  // Hosted flow: claude.com renders the code on the callback page.
+  const code = await readDisplayedCode(s.page);
   clearTimeout(wd);
-  console.log(`[claude-login] received code (len=${code.length})`);
+  console.log(`[claude-login] read code (len=${code.length})`);
 
-  const tokenResp = await exchangeCodeForToken(code, verifier, listener.url);
+  const tokenResp = await exchangeCodeForToken(code, verifier, CLAUDE_REDIRECT_URI);
   const blob = buildBlob(tokenResp);
   console.log('[claude-login] token exchange succeeded');
   process.stdout.write(JSON.stringify(blob) + '\n');
@@ -286,6 +263,5 @@ try {
   process.stderr.write(`FAIL: ${e.message}\n`);
   await shutdown(1); // closes context → flushes .webm, then exits
 } finally {
-  listener.server.close();
   await s.close();
 }
