@@ -48,6 +48,7 @@ switch (action) {
   case 'press': cmd = { action, key: args[0] }; break;
   case 'eval':  cmd = { action, js: args.join(' ') }; break;
   case 'solverecaptcha': cmd = { action }; break;
+  case 'solvecaptcha': cmd = { action }; break;
   case 'save_account':
     cmd = { action, platform: args[0], username: args[1], email: args[2], password: args[3], name: args[4], status: args[5] };
     break;
