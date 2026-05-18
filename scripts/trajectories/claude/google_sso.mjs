@@ -189,58 +189,20 @@ export async function doGoogleSso({
   await humanIdlePause('deliberate');
 
   mark('gis_continue');
-  // Video 03:22:09Z: CDP click DID register (button became
-  // Loading...) but no popup opened — Chromium's popup-blocker
-  // silently denied claude.ai's window.open. Video 03:45:17Z:
-  // keyboard Enter on the focused button did nothing because
-  // claude.ai's button has no Enter handler. Solution: CDP click
-  // (registers) + grant window-management permission via CDP
-  // (removes popup-blocker gate).
-  const ctx = page.context();
-  const permCdp = await ctx.newCDPSession(page);
-  try {
-    await permCdp.send('Browser.setPermission', {
-      origin: new URL(page.url()).origin,
-      permission: { name: 'window-management' },
-      setting: 'granted',
-    });
-  } finally { await permCdp.detach(); }
-  const popupP = ctx.waitForEvent('page');
+  // Repeated failure mode across 03:22Z / 04:03Z runs: CDP click
+  // landed (button → Loading...) but no popup ever opened —
+  // claude.ai's onClick calls window.open(googleOauthUrl) which
+  // the popup-blocker eats. The Browser.setPermission
+  // window-management grant didn't help because that permission
+  // governs the Multi-Screen API, not popups. Override window.open
+  // in the page context so when claude.ai calls it, the main page
+  // navigates to that URL instead — no popup needed, no
+  // popup-blocker, and Google's authorize page redirects right
+  // back to claude.ai's redirect_uri with the auth code.
+  await page.evaluate(() => { // allow-raw-playwright: in-page window.open hijack, not a user-facing action
+    window.open = (u) => { if (u) window.location.href = String(u); return window; };
+  });
   await waitForEnabledThenClick(page, /continue with google|^google$/i);
-  const popup = await popupP;
-  console.log(`[google_sso] GIS popup opened: ${popup.url()}`);
-  await popup.waitForLoadState('domcontentloaded');
-
-  mark('gis_account_chooser_popup');
-  // The popup shows a list of Google accounts; click the row whose
-  // visible text matches our login email. CDP-clicked via the popup
-  // page (same trust path as the Google Next click).
-  const cdp = await popup.context().newCDPSession(popup);
-  try {
-    let hit = null;
-    for (let i = 0; i < 100; i += 1) {
-      hit = await popup.evaluate((email) => {
-        const els = Array.from(document.querySelectorAll('*'));
-        for (const el of els) {
-          const txt = (el.innerText || el.textContent || '').trim();
-          if (txt !== email && !txt.endsWith(email)) continue;
-          const r = el.getBoundingClientRect();
-          if (r.width < 4 || r.height < 4) continue;
-          return { x: r.x + r.width / 2, y: r.y + r.height / 2, txt: txt.slice(0, 80) };
-        }
-        return null;
-      }, login.email);
-      if (hit) break;
-      await popup.waitForTimeout(100); // allow-raw-playwright: account-row appearance poll
-    }
-    if (!hit) throw new Error(`GIS popup never showed account row for ${login.email}`);
-    const x = Math.round(hit.x), y = Math.round(hit.y);
-    await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y });
-    await cdp.send('Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button: 'left', clickCount: 1 });
-    await cdp.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x, y, button: 'left', clickCount: 1 });
-  } finally {
-    await cdp.detach();
-  }
   await humanIdlePause('long');
   return page;
 }
