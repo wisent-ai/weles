@@ -1,13 +1,24 @@
 import { WSession } from '../../dist/session/wsession.js';
 import { humanClickLocator } from '../../dist/human/mouse.js';
 import { autoBindCharacter } from './lib/character-bind.mjs';
+import { markBurnedIp } from '../../dist/proxy/burned.js';
 
 const URL = 'https://discord.com/register';
 
-// targetHost lets resolveProxy map a filter string ("residential oxylabs
-// us") to a provider row + Discord country policy; without it filter-form
-// PROXY_URL throws proxy_unavailable (same fix as discord_login).
+// Reroll-until-clean (the proven linkedin_register pattern). A single
+// random Oxylabs Residential sticky is frequently hCaptcha-flagged for
+// Discord register — EVERY solver token comes back 400 captcha-required
+// regardless of solver. That is an IP-reputation signal, not a solver
+// problem: markBurnedIp the exit (/32+/24+/19+ASN) and re-create the
+// session; resolveProxy skips burned IPs so the next sticky is a fresh
+// exit. targetHost lets resolveProxy map the "residential oxylabs us"
+// filter to a provider row + Discord country policy.
+const MAX_REROLL = parseInt(process.env.DISCORD_MAX_REROLL || '6', 10);
+let registeredOk = false;
+for (let reroll = 0; reroll < MAX_REROLL && !registeredOk; reroll++) {
 const s = await WSession.start({ label: 'discord_register', proxy: process.env.PROXY_URL || 'residential', targetHost: 'discord.com', browser: 'chromium' });
+const exitIp = s.proxyConfig?.exit_ip || (s.proxyConfig?.server ? new globalThis.URL(s.proxyConfig.server).hostname : null);
+console.log(`[reroll ${reroll + 1}/${MAX_REROLL}] exit=${exitIp ?? 'unknown'}`);
 try {
   {
     // Single deterministic path: hCaptcha solve via service + direct
@@ -243,15 +254,25 @@ try {
         }
         if (registered) break;
       }
-      if (!registered) { console.log('FAIL: all captcha attempts exhausted'); process.exit(1); }
+      if (registered) {
+        registeredOk = true;
+      } else if (exitIp) {
+        await markBurnedIp(exitIp, 'captcha_challenge', 'discord');
+        console.log(`[reroll] exit ${exitIp} burned (captcha_challenge: all solver tokens rejected) — rerolling to a fresh sticky`);
+      } else {
+        console.log('FAIL: all captcha attempts exhausted, no exit IP to burn');
+      }
     } else {
-      console.log('FAIL: no captcha data intercepted');
-      process.exit(1);
+      console.log('[reroll] no captcha data intercepted — rerolling');
+      if (exitIp) await markBurnedIp(exitIp, 'action_failed', 'discord');
     }
   }
 } catch (e) {
   console.log('FAIL:', e.message?.slice(0, 200));
-  process.exit(1);
+  if (exitIp) { try { await markBurnedIp(exitIp, 'action_failed', 'discord'); } catch {} }
 } finally {
   await s.close();
 }
+}
+if (!registeredOk) { console.log('FAIL: exhausted rerolls without registration'); process.exit(1); }
+process.exit(0);
