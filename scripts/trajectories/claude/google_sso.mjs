@@ -143,10 +143,18 @@ export async function doGoogleSso({
   // the on-blur validator. Dispatch a focusout/blur, then verify the
   // button is actually enabled before clicking — otherwise the click
   // is a no-op against a disabled control.
-  await gEmailIn.evaluate((el) => {
-    el.dispatchEvent(new Event('blur', { bubbles: true }));
-    el.dispatchEvent(new Event('focusout', { bubbles: true }));
-  });
+  // best-effort blur — if the page has already navigated (Google
+  // auto-submits some flows), the evaluate fails with
+  // "Execution context was destroyed" which is HARMLESS; the
+  // navigation we wanted is already happening. Catch and continue.
+  try {
+    await gEmailIn.evaluate((el) => {
+      el.dispatchEvent(new Event('blur', { bubbles: true }));
+      el.dispatchEvent(new Event('focusout', { bubbles: true }));
+    });
+  } catch (e) {
+    if (!e.message.includes('Execution context was destroyed')) throw e;
+  }
   await humanIdlePause('short');
   await waitForEnabledThenClick(page,/next|continue/i);
   await humanIdlePause('deliberate');
@@ -155,10 +163,14 @@ export async function doGoogleSso({
   const gPwIn = page.locator('input[type="password"]').filter({ visible: true }).first();
   await gPwIn.waitFor({ state: 'visible' });
   await fillAndVerify(page, gPwIn, login.password, humanClickLocator);
-  await gPwIn.evaluate((el) => {
-    el.dispatchEvent(new Event('blur', { bubbles: true }));
-    el.dispatchEvent(new Event('focusout', { bubbles: true }));
-  });
+  try {
+    await gPwIn.evaluate((el) => {
+      el.dispatchEvent(new Event('blur', { bubbles: true }));
+      el.dispatchEvent(new Event('focusout', { bubbles: true }));
+    });
+  } catch (e) {
+    if (!e.message.includes('Execution context was destroyed')) throw e;
+  }
   await humanIdlePause('short');
   await waitForEnabledThenClick(page,/next|sign in|continue/i);
   await humanIdlePause('long');
