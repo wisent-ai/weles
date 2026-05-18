@@ -138,6 +138,11 @@ const params = new URLSearchParams({
   state: b64url(crypto.randomBytes(16)),
 });
 const authorizeUrl = `${CLAUDE_AUTHORIZE_URL}?${params.toString()}`;
+// Raw stderr (bypasses the console.* phrase suppression) so the
+// EXACT constructed authorize URL is captured for diagnosis —
+// "Invalid request format" means a param is wrong and we need to
+// see precisely what claude.ai is being sent.
+process.stderr.write(`AUTHZURL ${authorizeUrl}\n`);
 
 // Google/Anthropic SSO from a datacenter IP gets hard-blocked. Route
 // through a residential exit (resolveProxy picks the highest-balance
