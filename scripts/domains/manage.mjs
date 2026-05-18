@@ -6,6 +6,7 @@
 //   node scripts/domains/manage.mjs verify <domain>
 //   node scripts/domains/manage.mjs block <domain> [reason]
 //   node scripts/domains/manage.mjs retire <domain>
+//   node scripts/domains/manage.mjs recheck            — 3-attempt MX validation for every mx_broken row; auto-promote any that now resolves. Mirrors the auto-heal that pickFromDb runs on each call.
 
 const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const key = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
@@ -77,6 +78,29 @@ switch (cmd) {
     console.log(`${domain} → retired`);
     break;
   }
+  case 'recheck': {
+    const { resolveMx } = await import('node:dns/promises');
+    const res = await fetch(`${base}?status=eq.mx_broken&select=domain,updated_at&order=domain.asc`, { headers: hdr });
+    const rows = await res.json();
+    console.log(`Found ${rows.length} mx_broken rows; re-validating (3 attempts each, 600ms backoff)...`);
+    let recovered = 0;
+    for (const r of rows) {
+      let ok = false;
+      for (let i = 0; i < 3 && !ok; i++) {
+        try { const recs = await resolveMx(r.domain); if (Array.isArray(recs) && recs.length > 0) ok = true; } catch {}
+        if (!ok && i < 2) await new Promise((res2) => setTimeout(res2, 600));
+      }
+      if (ok) {
+        await api('PATCH', `?domain=eq.${encodeURIComponent(r.domain)}`, { status: 'active', updated_at: now() });
+        console.log(`  ${r.domain.padEnd(30)} → active (MX resolved)`);
+        recovered++;
+      } else {
+        console.log(`  ${r.domain.padEnd(30)} still mx_broken (3 attempts failed)`);
+      }
+    }
+    console.log(`Recovered ${recovered}/${rows.length} rows.`);
+    break;
+  }
   default:
     console.log('Usage:');
     console.log('  list                         — show all domains, status, usage');
@@ -84,5 +108,6 @@ switch (cmd) {
     console.log('  verify <domain>              — mark active (after MX + Resend verified)');
     console.log('  block <domain> [reason]      — mark blocked (silent throttle, etc.)');
     console.log('  retire <domain>              — permanently remove from rotation');
+    console.log('  recheck                      — re-validate every mx_broken row; auto-promote any whose MX now resolves');
     process.exit(1);
 }

@@ -20,16 +20,51 @@ import { resolveMx } from 'node:dns/promises';
 const MX_CACHE_TTL_MS = 5 * 60 * 1000;
 const mxCache: Map<string, { ok: boolean; at: number }> = new Map();
 
+// Up to 3 resolveMx attempts with 600ms gap before declaring MX missing.
+// Single-shot lookup used to permanently flip the row to mx_broken on any
+// transient SERVFAIL/timeout/empty-response, and there was no recovery —
+// so the rotator drained to wisentmedia.com while every other domain sat
+// invisible (verified 2026-05-18: 7/8 .com rows mx_broken, MX live in DNS).
 async function hasValidMx(domain: string): Promise<boolean> {
   const cached = mxCache.get(domain);
   if (cached && Date.now() - cached.at < MX_CACHE_TTL_MS) return cached.ok;
   let ok = false;
-  try {
-    const records = await resolveMx(domain);
-    ok = Array.isArray(records) && records.length > 0;
-  } catch { ok = false; }
+  for (let i = 0; i < 3 && !ok; i++) {
+    try {
+      const records = await resolveMx(domain);
+      if (Array.isArray(records) && records.length > 0) ok = true;
+    } catch { /* retry */ }
+    if (!ok && i < 2) await new Promise((r) => setTimeout(r, 600)); // allow-raw-playwright: server-side DNS retry backoff, not browser-driving
+  }
   mxCache.set(domain, { ok, at: Date.now() });
   return ok;
+}
+
+// Opportunistic self-heal for false-positive mx_broken rows. Sampled on
+// every pickFromDb call (limit 5, only rows untouched >1h). Without this,
+// once a domain drifted into mx_broken on a single transient DNS blip it
+// stayed invisible forever — the rotator drained to wisentmedia.com.
+async function recheckMxBroken(sb: { url: string; key: string }): Promise<void> {
+  try {
+    const hourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    const res = await fetch(
+      `${sb.url}/rest/v1/inbound_email_domains?status=eq.mx_broken&or=(updated_at.lt.${encodeURIComponent(hourAgo)},updated_at.is.null)&order=updated_at.asc.nullsfirst&limit=5&select=domain`,
+      { headers: { apikey: sb.key, Authorization: `Bearer ${sb.key}` } },
+    );
+    if (!res.ok) return;
+    const rows = (await res.json()) as Array<{ domain: string }>;
+    for (const r of rows) {
+      mxCache.delete(r.domain);
+      if (await hasValidMx(r.domain)) {
+        await fetch(`${sb.url}/rest/v1/inbound_email_domains?domain=eq.${encodeURIComponent(r.domain)}`, {
+          method: 'PATCH',
+          headers: { apikey: sb.key, Authorization: `Bearer ${sb.key}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+          body: JSON.stringify({ status: 'active', updated_at: new Date().toISOString() }),
+        });
+        console.log(`[domain] auto-recovered ${r.domain} from mx_broken (MX now resolves)`);
+      }
+    }
+  } catch (e: any) { console.log(`[domain] recheckMxBroken err: ${e?.message?.slice(0, 80)}`); }
 }
 
 async function markMxBroken(sb: { url: string; key: string }, domain: string): Promise<void> {
@@ -97,6 +132,7 @@ function platformBlock(row: DomainRow, platform?: string): { blocked: boolean; r
 async function pickFromDb(platform?: string): Promise<string | null> {
   const sb = supabaseEnv();
   if (!sb) return null;
+  recheckMxBroken(sb);
   const maxSignups = platform ? (PLATFORM_MAX_SIGNUPS[platform.toLowerCase()] ?? MAX_SIGNUPS_PER_DOMAIN) : MAX_SIGNUPS_PER_DOMAIN;
   try {
     // Only pick domains under the signup cap
