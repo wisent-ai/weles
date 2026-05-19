@@ -86,6 +86,63 @@ const CHROME_VERSIONS = [
   '146.0.6044.199',
 ];
 
+// --- Firefox engine surface --------------------------------------------------
+// The weles-firefox binary (~/.local/share/weles-firefox/<ver>-weles.N) exposes
+// real Gecko-only navigator fields (oscpu, buildID, productSub=20100101, empty
+// vendor). But fingerprint.ts's generate() runs fingerprint-generator with a
+// `last 5 chrome versions` browserlist, so it returns a Chrome UA even for
+// browser:'firefox'. Shipping that Chrome UA on a Gecko engine is the exact
+// signal Google ("this browser or app may not be secure") and Cloudflare flag.
+// firefoxNav() returns a UA + navigator fields internally consistent with the
+// Gecko engine. The rv:/Firefox major MUST track the installed binary's major
+// so a deep UA<->engine check stays consistent — bump FIREFOX_VERSION when
+// weles-firefox is upgraded. productSub (20100101) and buildID
+// (20181001000000) are Mozilla-frozen for every desktop Firefox since v64, so
+// they are correct values, not fingerprint tells.
+const FIREFOX_VERSION = '142.0';
+
+const FIREFOX_UA_TEMPLATES: Record<string, string> = {
+  macos:   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:VER) Gecko/20100101 Firefox/VER',
+  windows: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:VER) Gecko/20100101 Firefox/VER',
+  linux:   'Mozilla/5.0 (X11; Linux x86_64; rv:VER) Gecko/20100101 Firefox/VER',
+};
+
+const FIREFOX_OSCPU: Record<string, string> = {
+  macos:   'Intel Mac OS X 10.15',
+  windows: 'Windows NT 10.0; Win64; x64',
+  linux:   'Linux x86_64',
+};
+
+const FIREFOX_APPVERSION: Record<string, string> = {
+  macos:   '5.0 (Macintosh)',
+  windows: '5.0 (Windows)',
+  linux:   '5.0 (X11)',
+};
+
+export interface FirefoxNav {
+  userAgent: string;
+  appVersion: string;
+  oscpu: string;
+  vendor: '';
+  product: 'Gecko';
+  productSub: '20100101';
+  buildID: '20181001000000';
+}
+
+/** Internally-consistent desktop-Firefox navigator surface for `targetOs`. */
+export function firefoxNav(targetOs: string): FirefoxNav {
+  const os = targetOs in FIREFOX_UA_TEMPLATES ? targetOs : 'macos';
+  return {
+    userAgent: FIREFOX_UA_TEMPLATES[os].replace(/VER/g, FIREFOX_VERSION),
+    appVersion: FIREFOX_APPVERSION[os],
+    oscpu: FIREFOX_OSCPU[os],
+    vendor: '',
+    product: 'Gecko',
+    productSub: '20100101',
+    buildID: '20181001000000',
+  };
+}
+
 const COUNTRY_LOCALE: Record<string, { tz: string; lang: string }> = {
   US:    { tz: 'America/New_York', lang: 'en-US' },
   'US-W':{ tz: 'America/Los_Angeles', lang: 'en-US' },

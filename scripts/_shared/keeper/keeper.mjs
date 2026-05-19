@@ -35,6 +35,9 @@ const PLATFORM = process.env.PLATFORM || '';
 const URL_ARG = process.env.URL || '';
 const JAR_PATH = process.env.JAR || '';
 const HEADLESS = process.env.HEADLESS === '1';
+// Optional engine pin for debugging a specific browser (e.g. verifying the
+// Firefox fingerprint). Only applied when no PLATFORM persona is sourced.
+const BROWSER = process.env.BROWSER || '';
 
 const KEEPER_DIR = join(homedir(), '.weles', 'keeper', SESSION);
 mkdirSync(KEEPER_DIR, { recursive: true });
@@ -58,7 +61,7 @@ if (!proxy && process.env.PROXY_URL) {
   console.log(`[keeper:${SESSION}] using PROXY_URL env override`);
 }
 
-const s = await WSession.start({ label: `keeper-${SESSION}`, proxy, persona, headless: HEADLESS });
+const s = await WSession.start({ label: `keeper-${SESSION}`, proxy, persona, headless: HEADLESS, browser: BROWSER || undefined });
 console.log(`[keeper:${SESSION}] WSession started`);
 
 // Cookie injection: explicit JAR path wins, else use account's metadata.cookies.
