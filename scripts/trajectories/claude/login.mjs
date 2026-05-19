@@ -246,21 +246,22 @@ try {
     }
   }
 
-  mark('oauth_consent');
-  // EVIDENCE (run 23:34:07, frame t44): reached claude.ai's
-  // Authorize consent screen but never clicked it. Cause:
-  // waitForLoadState('networkidle') NEVER resolves on claude.ai —
-  // the page fires continuous datadog RUM beacons
-  // (browser-intake-us5-datadoghq.com/api/v2/rum, seen in
-  // authz-debug.log), so 500ms network-quiet never occurs; it hung
-  // to its timeout, threw, and the surrounding `catch {}` silently
-  // ate it, skipping the Authorize click entirely. Fix: settle with
-  // a humanIdlePause (no networkidle), and DO NOT swallow the click
-  // error — let it propagate to the FAIL catch so failures surface.
-  await humanIdlePause('deliberate');
-  const m = await import('./google_sso.mjs');
-  await m.waitForEnabledThenClick(s.page, /^authorize$|^allow$/i);
-  await humanIdlePause('long');
+  // SSO path: doGoogleSso's bounded state machine already drove
+  // through the Authorize consent (or returned on the
+  // platform.claude.com code page), so re-clicking here would
+  // double-fire / throw against a code page that has no Authorize
+  // button. Only the non-SSO email/password path still needs the
+  // explicit consent click. settle with humanIdlePause (NOT
+  // networkidle — claude.ai's continuous datadog RUM beacons mean
+  // 500ms network-quiet never occurs and it would hang to timeout),
+  // and DO NOT swallow the click error — let it reach the FAIL catch.
+  if (login.loginMethod !== 'google_sso') {
+    mark('oauth_consent');
+    await humanIdlePause('deliberate');
+    const m = await import('./google_sso.mjs');
+    await m.waitForEnabledThenClick(s.page, /^authorize$|^allow$/i);
+    await humanIdlePause('long');
+  }
   mark('read_displayed_code');
 
   // Hosted flow (matches the working manual run): the
