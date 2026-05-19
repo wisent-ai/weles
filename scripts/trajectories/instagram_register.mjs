@@ -1,5 +1,6 @@
 import { WSession } from '../../dist/session/wsession.js';
 import { humanType, humanFill } from '../../dist/human/keyboard.js';
+import { humanIdlePause } from '../../dist/human/mouse.js';
 import { autoBindCharacter } from './lib/character-bind.mjs';
 
 const URL = 'https://www.instagram.com/accounts/emailsignup/';
@@ -30,7 +31,12 @@ async function signup(s) {
   console.log(`[ig] identity: ${id.username} / phone=${phone}`);
   if (phone.startsWith('error')) throw new Error('no_phone_number');
   const phoneNum = s.resolveEnv('$INSTAGRAM_NEW_PHONE');
-  const digits = phoneNum.replace(/^\+\d{1,2}/, '').replace(/\D/g, '');
+  // IG validates this field against E.164: passing the raw 10-digit
+  // national number trips the red "include the country code" banner
+  // (verified 2026-05-19 frame f_020 of instagram_signup_probe). Pass
+  // the full phoneNum which is already +<cc><number>; strip only spaces
+  // and dashes the SMS provider may include.
+  const digits = phoneNum.replace(/[^\d+]/g, '');
 
   // Navigate
   await s.goto(URL);
@@ -56,13 +62,18 @@ async function signup(s) {
   await sleep(1);
   await s.fill('password', id.password);
   await sleep(1);
-  // Date of birth — three dropdowns on the same signup page (live form,
-  // not the separate page the post-submit handler below was written for).
-  // wsSelect returns null on miss; the post-submit block at line ~70 is
-  // kept as a defensive A/B catch.
-  await s.select('Day', id.birthDay);
-  await s.select('Month', id.birthMonth);
-  await s.select('Year', id.birthYear);
+  // Date of birth — ARIA comboboxes with aria-haspopup=listbox and aria-labels
+  // "Select day/month/year". The listbox is virtualized: only ~16 options render
+  // at a time, so direct locator click on an off-window option times out on
+  // "element is not visible" (verified 2026-05-19 frame 40+). s.select goes
+  // through tryAriaCombobox which finds the matching combobox by aria-label
+  // substring, scroll-and-clicks it, then either coordinate-clicks the option
+  // if rendered or ArrowDown-walks the listbox until aria-selected matches.
+  await s.select('Select day', id.birthDay);
+  await humanIdlePause('short');
+  await s.select('Select month', id.birthMonth);
+  await humanIdlePause('short');
+  await s.select('Select year', id.birthYear);
   await sleep(1);
   await s.fill('Full name', name);
   await sleep(1);
@@ -80,21 +91,6 @@ async function signup(s) {
   // Screenshot after submit
   await s.page.screenshot({ path: `/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/recordings/ig_after_submit.png` }).catch(() => {});
 
-  // Birthday page
-  const t2 = await readPage(s);
-  if (t2.includes('birthday') || t2.includes('birth') || t2.includes('date of birth')) {
-    console.log('[ig] birthday page detected');
-    await s.select('Month', id.birthMonth).catch(() => {});
-    await s.select('Day', id.birthDay).catch(() => {});
-    await s.select('Year', id.birthYear).catch(() => {});
-    await sleep(1);
-    await s.click('Next').catch(() => {});
-    // Submit the birthday form via a trusted click (see §1 in the anti-
-    // patterns doc). button.aOOlW is Instagram's submit class when
-    // type=submit isn't present on the birthday variant of the form.
-    await s.clickSelector('button[type="submit"], button.aOOlW').catch(() => {});
-    await sleep(5);
-  }
 
   // Wait for confirmation code page to appear (or any post-signup page)
   let t3 = '';
@@ -161,8 +157,10 @@ async function signup(s) {
         console.log(`[ig] SMS attempt ${phoneAttempt + 1} (${country}): ${phone}`);
         if (phone.startsWith('error')) { await sleep(5); continue; }
         const phoneNum = s.resolveEnv('$INSTAGRAM_NEW_PHONE');
-        // Strip country prefix to get raw digits
-        const digits = phoneNum.replace(/^\+\d{1,2}/, '').replace(/\D/g, '');
+        // Keep the country-code prefix — IG validates against E.164 on
+        // both the initial signup field AND the /suspended re-entry
+        // field. Strip only the separators the SMS provider may include.
+        const digits = phoneNum.replace(/[^\d+]/g, '');
         console.log(`[ig] phone digits: ${digits} (country: ${country})`);
         // If non-US country, try to change country selector
         if (country !== 'US') {
