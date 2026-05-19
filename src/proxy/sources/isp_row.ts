@@ -26,3 +26,24 @@ export function maybeOxylabsIspRow(): IspRow | undefined {
     metadata: { country: 'us' },
   };
 }
+
+// Decodo US Dedicated Static Residential ISP (purchased 2026-05-17).
+// Each port is a FIXED exit IP — pin the first DECODO_ISP_PORTS entry so
+// the location stays constant across runs. A stable static exit is the
+// whole point: Discord/LinkedIn flag new-location/rotating-residential
+// logins and disable the account; a consistent owned ISP IP does not.
+// Creds in weles/.env (DECODO_ISP_USERNAME/PASSWORD/HOST/PORTS).
+export function maybeDecodoIspRow(): IspRow | undefined {
+  if (!process.env.DECODO_ISP_USERNAME || !process.env.DECODO_ISP_PASSWORD) return undefined;
+  const host = process.env.DECODO_ISP_HOST || 'isp.decodo.com';
+  const rawPorts = process.env.DECODO_ISP_PORTS || process.env.DECODO_ISP_PORT || '10001';
+  const port = String(Number(rawPorts.split(',')[0].trim()));
+  return {
+    display_name: 'Decodo ISP',
+    proxy_host: host,
+    proxy_port: port,
+    api_key_env_var: 'DECODO_ISP_USERNAME',
+    balance_usd: 0,
+    metadata: { country: 'us' },
+  };
+}

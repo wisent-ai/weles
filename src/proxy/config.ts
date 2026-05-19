@@ -130,9 +130,8 @@ export async function resolveProxy(proxy: string, targetHost?: string): Promise<
   if (!res.ok) { console.log(`[proxy] Failed to fetch providers: ${res.status}`); return undefined; }
   type Row = { display_name: string; proxy_host: string; proxy_port: string; api_key_env_var: string; balance_usd: number; metadata?: { country?: string } };
   const providers = await res.json() as Row[];
-  const { maybeOxylabsIspRow } = await import('./sources/isp_row.js');
-  const ispRow = maybeOxylabsIspRow();
-  if (ispRow) providers.push(ispRow);
+  const { maybeOxylabsIspRow, maybeDecodoIspRow } = await import('./sources/isp_row.js');
+  for (const r of [maybeOxylabsIspRow(), maybeDecodoIspRow()]) if (r) providers.push(r);
 
   const typeFilter = proxy.toLowerCase();
   // Tokens after 'residential'/'mobile' may include a 2-letter country code
@@ -149,7 +148,7 @@ export async function resolveProxy(proxy: string, targetHost?: string): Promise<
     : providers;
 
   // Allow explicit provider name targeting (e.g. 'pingproxies', 'packetstream', 'oxylabs')
-  const KNOWN_PROVIDERS = ['oxylabs', 'packetstream', 'pingproxies', 'iproyal', 'brightdata'];
+  const KNOWN_PROVIDERS = ['oxylabs', 'packetstream', 'pingproxies', 'iproyal', 'brightdata', 'decodo'];
   const explicit = KNOWN_PROVIDERS.find(n => typeFilter.includes(n));
   if (explicit) {
     // Strip spaces / underscores from display_name so 'brightdata' matches 'Bright Data'.
