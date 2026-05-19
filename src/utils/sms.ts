@@ -84,16 +84,24 @@ export async function getNumber(service: string, country = 'UK'): Promise<SmsNum
   return null;
 }
 
-/** Poll for SMS code. waitSecs = max seconds to wait (default 90). */
-export async function pollCode(orderId: string, provider: 'juicysms' | 'smsactivate', waitSecs = 90): Promise<string | null> {
+/** Poll for SMS code. waitSecs = max seconds to wait (default 240).
+ * 90s was too short for Instagram US numbers — IG SMS routes through
+ * carriers that add 30-90s of latency on top of JuicySMS's own ~10-30s
+ * relay, so a 90s budget timed out before code delivery even on
+ * working numbers (verified 2026-05-19 against +17065877794, IG flow). */
+export async function pollCode(orderId: string, provider: 'juicysms' | 'smsactivate', waitSecs = 240): Promise<string | null> {
   const start = Date.now();
+  let _lastJuicy = '';
   while (Date.now() - start < waitSecs * 1000) {
     if (provider === 'juicysms') {
       const jKey = process.env.JUICYSMS_API_KEY!;
       const r = await fetch(`${JUICY_BASE}/getsms?key=${jKey}&orderId=${orderId}`).catch(() => null);
       const text = (await r?.text())?.trim() ?? '';
       if (text.startsWith('SUCCESS_')) { const code = text.replace('SUCCESS_', '').match(/(\d{4,8})/)?.[1]; if (code) { console.log(`[sms] code: ${code}`); return code; } }
-      if (!text.includes('WAIT') && text !== '') console.log(`[sms] juicysms poll: ${text.slice(0, 60)}`);
+      // Log every distinct response: pool diagnostics need the WAIT_CODE
+      // distribution to distinguish "polling fine but no SMS arrived"
+      // from "JuicySMS rejecting the request" from "order expired".
+      if (text !== _lastJuicy) { console.log(`[sms] juicysms poll: ${text.slice(0, 80)}`); _lastJuicy = text; }
     } else {
       const saKey = process.env.SMSACTIVATE_API_KEY!;
       const r = await fetch(`https://api.sms-activate.org/stubs/handler_api.php?api_key=${saKey}&action=getStatus&id=${orderId}`).catch(() => null);

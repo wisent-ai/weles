@@ -19,15 +19,18 @@ async function readPage(s) {
   })()`).catch(() => '')).toLowerCase();
 }
 
-async function signup(s) {
+async function signup(s, attempt = 1) {
   const id = await s.generateIdentity('instagram');
   id.email = `${id.username}@wisentmedia.com`;
   s._env['INSTAGRAM_NEW_EMAIL'] = id.email;
   const name = `${id.firstName} ${id.lastName}`;
 
-  // Get a phone number for signup (skip email — wisentmedia.com codes are rejected)
-  let phone = await s.checkSms('instagram', 'US');
-  if (phone.startsWith('error')) phone = await s.checkSms('instagram', 'UK');
+  // JuicySMS US-IG pool is dead (11/11 'WAITING' forever 2026-05-19).
+  // Rotate country UK/NL/US by attempt; on order error try the others.
+  const COUNTRY_ORDER = ['UK', 'NL', 'US'];
+  const country = COUNTRY_ORDER[(attempt - 1) % COUNTRY_ORDER.length];
+  let phone = await s.checkSms('instagram', country);
+  for (const fb of COUNTRY_ORDER) { if (phone.startsWith('error') && fb !== country) phone = await s.checkSms('instagram', fb); }
   console.log(`[ig] identity: ${id.username} / phone=${phone}`);
   if (phone.startsWith('error')) throw new Error('no_phone_number');
   const phoneNum = s.resolveEnv('$INSTAGRAM_NEW_PHONE');
@@ -283,7 +286,7 @@ for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
   console.log(`\n=== Instagram signup attempt ${attempt}/${MAX_RETRIES} ===`);
   const s = await WSession.start({ label: `instagram_register_${attempt}`, proxy, browser: 'chromium' });
   try {
-    const username = await signup(s);
+    const username = await signup(s, attempt);
     console.log(`PASS: ${username}`);
     await s.close();
     process.exit(0);
