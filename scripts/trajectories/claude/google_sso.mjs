@@ -7,27 +7,11 @@
 // Google session at accounts.google.com FIRST, then load claude.ai's
 // authorize URL — GIS then has an account and the click completes.
 
-// Root cause of the email-field-stays-empty bug: humanType uses CDP
-// Input.dispatchKeyEvent with key=char which is wrong for chars
-// requiring shift (@ . uppercase) — the synthetic event's
-// KeyboardEvent.key doesn't match a real key, and WIZ's beforeinput
-// validator rejects the keystroke. Input.insertText is the CDP
-// method designed for inserting text into a focused input; it fires
-// the same input event sequence as IME composition, which WIZ
-// accepts as legitimate. Click to focus, insertText, verify.
-// EVIDENCE (local CDP run 2026-05-18 23:25:27, frames): the prior
-// Input.insertText path set the value (password dots visible) but
-// Google's password page kept "Next" DISABLED and the run stalled
-// on Welcome 13s→37s. Input.insertText fires only `input` — no
-// per-key beforeinput/keydown/keyup — so Google's password-field
-// validator that enables Next never triggers (the email page
-// enables Next on any input, which is why email advanced but
-// password did not). Fix: type via the humanized keyboard atom —
-// under the CDP default that is page.keyboard.type per char, which
-// emits the full keydown/keyup/input sequence and resolves shifted
-// chars correctly (the key=char concern that motivated
-// Input.insertText does not apply to page.keyboard). Single-shot:
-// on failure throw to the caller, no retry.
+// Email/password fields: humanType (CDP default = page.keyboard.type
+// per char) emits the full keydown/keyup/input sequence, which
+// Google's WIZ validator needs to enable Next — Input.insertText
+// fired only `input` so the password page's Next stayed DISABLED
+// (frames 2026-05-18 23:25:27). Single-shot: throw on failure.
 async function fillAndVerify(page, locator, text, humanClickLocator, humanType) {
   await locator.waitFor({ state: 'visible' });
   for (let i = 0; i < 50; i += 1) {
@@ -209,47 +193,59 @@ export async function doGoogleSso({
   await humanIdlePause('deliberate');
 
   mark('gis_continue');
-  // claude.ai's "Continue with Google" uses Google Identity
-  // Services in popup mode — the popup runs Google's GIS UI and
-  // posts the credential back to claude.ai (the opener) via
-  // postMessage. The earlier window.open hijack (run 04:27Z)
-  // navigated the main page to Google instead — that broke the
-  // opener relationship, so when GIS completed at
-  // accounts.google.com/gsi/transform there was no claude.ai
-  // tab to receive the postMessage, the JS bundle aborted, and
-  // the OAuth callback never fired (run 05:31Z FAIL diag:
-  // "callback not received within 180s, url=.../gsi/transform").
-  // The popup MUST be a real popup so the opener relationship
-  // exists. Browser launched with --disable-popup-blocking
-  // (async_api.ts) allows the popup.
-  // claude.ai GIS is NON-DETERMINISTIC: sometimes a real popup
-  // (account chooser page), sometimes in-page/FedCM with no popup
-  // event. Run 6bcf109 went in-page → reached Authorize consent
-  // (login.mjs oauth_consent handled it); run 39ec467 hung on
-  // "Loading…" because the old code hard-blocked waitForEvent for
-  // a popup that never came. Race popup vs bounded marker (no
-  // swallowing catch — a real context error still propagates). No
-  // popup ⇒ GIS went in-page; return and let oauth_consent click
-  // Authorize on the main page.
-  const NO_POPUP = Symbol('no-popup');
-  const popupP = page.context().waitForEvent('page');
-  const timeoutP = new Promise((r) => setTimeout(() => r(NO_POPUP), 20000));
-  await waitForEnabledThenClick(page, /continue with google|^google$/i);
-  const popup = await Promise.race([popupP, timeoutP]);
-  if (popup === NO_POPUP) {
-    console.log('[google_sso] no GIS popup — in-page flow; deferring to oauth_consent');
-    await humanIdlePause('long');
-    return page;
+  // claude.ai "Continue with Google" → consent is GIS-driven; the
+  // post-click state is non-deterministic (popup chooser | in-page
+  // FedCM→consent | GIS "Loading…" | blank), so a fixed-timer race
+  // diverged on identical code. Bounded state machine: click, poll
+  // for a TERMINAL marker (popup / enabled Authorize / the
+  // platform.claude.com code page); if none, reload authorizeUrl
+  // and retry. Throw with page diag only after the attempt budget.
+  // retry-allowed: bounded recovery for the documented non-deterministic
+  // claude.ai GIS handoff — reloading authorizeUrl with the established
+  // Google session is the deterministic resolution, not a flaky retry.
+  let popupPage = null;
+  const onPopup = (p) => { if (!popupPage) popupPage = p; };
+  page.context().on('page', onPopup);
+  try {
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      try { await waitForEnabledThenClick(page, /continue with google|^google$/i); }
+      catch (e) { console.log(`[google_sso] no continue-with-google a${attempt}: ${e.message.slice(0, 50)}`); }
+      let popupHandled = false;
+      for (let i = 0; i < 200; i += 1) {
+        if (popupPage && !popupHandled) {
+          popupHandled = true;
+          console.log(`[google_sso] GIS popup: ${popupPage.url()}`);
+          await popupPage.waitForLoadState('domcontentloaded');
+          mark('gis_account_chooser_popup');
+          await clickEmailRow(popupPage, login.email);
+          await humanIdlePause('long');
+          try { await waitForEnabledThenClick(popupPage, /^continue$/i); }
+          catch (e) { console.log(`[google_sso] no popup consent: ${e.message.slice(0, 50)}`); }
+        }
+        const st = await page.evaluate(() => {
+          const b = Array.from(document.querySelectorAll('button,[role="button"]'));
+          const c = b.find((x) => /^(authorize|allow)$/i.test((x.innerText || x.textContent || '').trim())
+            && !(x.disabled || x.getAttribute('aria-disabled') === 'true'));
+          return { host: location.host, consent: !!c };
+        });
+        if (st.host === 'platform.claude.com') { mark('code_page'); return page; }
+        if (st.consent) {
+          mark('oauth_consent_click');
+          await waitForEnabledThenClick(page, /^authorize$|^allow$/i);
+          await humanIdlePause('long');
+          return page;
+        }
+        await page.waitForTimeout(100); // allow-raw-playwright: terminal-state poll
+      }
+      console.log(`[google_sso] no terminal state a${attempt}; reloading authorizeUrl`);
+      await page.goto(authorizeUrl, { waitUntil: 'commit' });
+      await humanIdlePause('deliberate');
+    }
+    const d = await page.evaluate(() => ({ url: location.href, body: (document.body?.innerText || '').replace(/\s+/g, ' ').slice(0, 220) }));
+    throw new Error(`gis_continue: no consent/code after 4 attempts diag=${JSON.stringify(d)}`);
+  } finally {
+    page.context().off('page', onPopup);
   }
-  console.log(`[google_sso] GIS popup: ${popup.url()}`);
-  await popup.waitForLoadState('domcontentloaded');
-  mark('gis_account_chooser_popup');
-  await clickEmailRow(popup, login.email);
-  await humanIdlePause('long');
-  try { await waitForEnabledThenClick(popup, /^continue$/i); }
-  catch (e) { console.log(`[google_sso] no popup consent btn: ${e.message.slice(0, 60)}`); }
-  await humanIdlePause('long');
-  return page;
 }
 
 // Click the Google account-chooser row matching the given email.
