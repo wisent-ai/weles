@@ -115,15 +115,22 @@ async function pickLruRow() {
   return rows[0];
 }
 
-async function markRowUsed(rowId) {
+// Bumps updated_at unconditionally so a failing row rotates to the
+// back of the LRU and the next-LRU row is tried on the next tick
+// (without this, a permanently broken row keeps getting re-picked
+// forever and the whole pipeline stalls). When errMsg is set, it is
+// also recorded in metadata.last_login_error / .at for diagnosis.
+async function markRowAttempted(rowId, errMsg) {
+  const patch = { updated_at: new Date().toISOString() };
+  if (errMsg) patch.metadata = { last_login_error: String(errMsg).slice(0, 500), last_login_error_at: patch.updated_at };
   const r = await fetch(
     `${SUPABASE_URL}/rest/v1/service_credentials?id=eq.${encodeURIComponent(rowId)}`,
     {
       method: 'PATCH',
       headers: { ...SB_HEADERS, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
-      body: JSON.stringify({ updated_at: new Date().toISOString() }),
+      body: JSON.stringify(patch),
     });
-  if (r.status >= 400) console.error(`mark_row_used PATCH ${r.status}: ${await r.text()}`);
+  if (r.status >= 400) console.error(`mark_row_attempted PATCH ${r.status}: ${await r.text()}`);
 }
 
 async function donate(cfg, blobJson) {
@@ -220,12 +227,22 @@ async function main() {
 
   const row = await pickLruRow();
   console.log(`[reauth] burnt — reauthing LRU row ${row.display_name} (updated ${row.updated_at})`);
-  const blob = await runLogin(row.display_name);
+  let blob;
+  try {
+    blob = await runLogin(row.display_name);
+  } catch (e) {
+    // ALWAYS mark the row attempted (with the error) so a row that
+    // permanently can't authenticate rotates to the back of the LRU
+    // — otherwise the picker re-selects the same broken row forever
+    // and the donation pipeline stalls across the whole fleet.
+    await markRowAttempted(row.id, e?.message || String(e));
+    throw e;
+  }
   console.log(`[reauth] got OAuth blob len=${blob.length} for ${row.display_name}`);
 
   const newSub = await donate(cfg, blob);
   console.log(`[reauth] donated new sub id=${newSub.id ?? '?'}`);
-  await markRowUsed(row.id);
+  await markRowAttempted(row.id);
 
   let deleted = 0;
   for (const old of poolBefore) {
