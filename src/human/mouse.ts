@@ -109,7 +109,15 @@ async function emitPath(page: any, off: any, points: Array<{ x: number; y: numbe
     }
     return;
   }
-  await emitPath(page, off, points);
+  // Non-CDP path: emit through the OS event queue. The recursive
+  // `emitPath(page, off, points)` that was here is unreachable-by-design
+  // (infinite self-call); the intended sink is nativeBatchMove. `off` is
+  // populated by callers when cdpInput() is false (humanMove:116 etc.),
+  // so it should be non-null here; assert and surface a loud error if a
+  // caller violates that invariant rather than silently passing null
+  // into the native bridge.
+  if (!off) throw new Error('emitPath: native path requires NativeOffset; caller passed null');
+  await nativeBatchMove(off, points);
 }
 
 export async function humanMove(page: any, x: number, y: number, startX?: number, startY?: number, steps?: number): Promise<void> {
@@ -121,7 +129,13 @@ export async function humanMove(page: any, x: number, y: number, startX?: number
   if (template.length) {
     for (const p of template) points.push({ x: p.x, y: p.y, dt: Math.min(p.dt, 120) });
     points.push({ x, y, dt: 0 });
-    await nativeBatchMove(off, points);
+    // Route through emitPath so the CDP-vs-native dispatch branch
+    // matches the Bezier branch at line 142 (which also uses emitPath).
+    // The prior direct nativeBatchMove(off, points) caused a TS error
+    // (off: NativeOffset | null vs NativeOffset) and a real runtime
+    // bug: when cdpInput() is true and `off` is null, native dispatch
+    // was attempted instead of the CDP page.mouse.move loop.
+    await emitPath(page, off, points);
     return;
   }
   const n = steps ?? Math.max(20, Math.floor(randomBetween(30, 60)));
