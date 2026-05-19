@@ -44,14 +44,29 @@ async function signup(s) {
     await sleep(2);
   }
 
-  // Fill signup form with phone number
-  await s.fill('emailOrPhone', digits);
-  await sleep(1);
-  await s.fill('fullName', name);
-  await sleep(1);
-  await s.fill('username', id.username);
+  // Fill signup form with phone number.
+  // Selector targets updated 2026-05-19 from live frame evidence
+  // (.work/instagram_signup_probe/frame_8ad8a66a_010.png): IG signup form
+  // input name attributes drifted off "emailOrPhone" / "fullName"; wsFill's
+  // selector fan-out finds the inputs by their visible label / placeholder
+  // when target keywords match. Live form labels: "Mobile number or email
+  // address" / "Password" / "Date of birth" / "Name" (placeholder
+  // "Full name") / "Username".
+  await s.fill('email', digits);
   await sleep(1);
   await s.fill('password', id.password);
+  await sleep(1);
+  // Date of birth — three dropdowns on the same signup page (live form,
+  // not the separate page the post-submit handler below was written for).
+  // wsSelect returns null on miss; the post-submit block at line ~70 is
+  // kept as a defensive A/B catch.
+  await s.select('Day', id.birthDay);
+  await s.select('Month', id.birthMonth);
+  await s.select('Year', id.birthYear);
+  await sleep(1);
+  await s.fill('Full name', name);
+  await sleep(1);
+  await s.fill('username', id.username);
   await sleep(1);
 
   // Take screenshot before submit to verify form state
