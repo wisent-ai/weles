@@ -135,6 +135,24 @@ npm run build >> "$LOG" 2>&1
 # cannot start. Build the native addon explicitly. Idempotent: skips
 # when spawn-helper is already present; logs FAILED (not silent) if
 # the toolchain is missing so it is diagnosable on the next tick.
+# Claude Code CLI (the real `claude` binary) is what login.mjs drives
+# via `claude auth login --claudeai` for the reauth flow. Without it,
+# login.mjs's existsSync guard fails fast with
+# "FAIL: claude binary not at $HOME/.local/bin/claude" and the
+# claude-reauth LaunchAgent loops on every tick (observed on mac mini
+# 2026-05-19 06:50Z claude-reauth.log). Install via the official
+# installer if missing — it places the binary at
+# $HOME/.local/bin/claude -> $HOME/.local/share/claude/versions/X.Y.Z,
+# the exact path login.mjs resolves. Idempotent: skips when present.
+if [ ! -x "$HOME/.local/bin/claude" ]; then
+  log "claude-code: installing CLI (missing at \$HOME/.local/bin/claude)"
+  if curl -fsSL https://claude.ai/install.sh | bash >> "$LOG" 2>&1; then
+    log "claude-code: install ok ($($HOME/.local/bin/claude --version 2>/dev/null | head -1))"
+  else
+    log "claude-code: install FAILED — claude-reauth will not function until fixed"
+  fi
+fi
+
 NODE_PTY_DIR="$WELES_DIR/node_modules/node-pty"
 if [ -d "$NODE_PTY_DIR" ] && [ ! -x "$NODE_PTY_DIR/build/Release/spawn-helper" ]; then
   log "node-pty: building native addon (spawn-helper missing)"
