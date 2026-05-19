@@ -114,13 +114,9 @@ async function signup(s) {
     console.log('[ig] SMS verification — polling for code...');
     smsCode = await s.pollSmsCode();
     console.log(`[ig] SMS code: ${smsCode}`);
-    if (smsCode && smsCode !== 'no code received') {
-      await s.fill('Confirmation code', smsCode).catch(() => {});
-      await sleep(1);
-      await s.click('Continue').catch(() => {});
-      await sleep(5);
-      for (let w = 0; w < 10; w++) { await sleep(2); const tt = await readPage(s); if (!tt.includes('confirmation')) { console.log(`[ig] code accepted`); break; } }
-    } else { console.log('[ig] no SMS code — will retry with new number'); }
+    // Initial fill happens in the onboarding loop's code-page branch
+    // (deduped — was duplicated here and below, both forgot the
+    // 'no code received' sentinel check on re-entry).
   }
 
   // Handle "confirm you're human" captcha or skip onboarding
@@ -135,16 +131,19 @@ async function signup(s) {
       console.log('[ig] redirected to password reset — account not created');
       throw new Error('password_reset_redirect');
     }
-    // Still on confirmation code page — re-enter code and click Submit
-    if ((t.includes('confirmation code') || t.includes('enter the 6-digit')) && smsCode) {
-      await s.fill('Confirmation code', smsCode).catch(() => {});
-      await sleep(1);
-      await s.click('Continue').catch(() => {});
-      await sleep(5);
-      const pt = await readPage(s);
-      console.log(`[ig] code submit: ${pt.slice(0, 120).replace(/\n/g, ' ')}`);
+    // Still on code page — re-enter, click Continue. Exclude the
+    // 'no code received' sentinel: it gets truncated to 'no cod' and
+    // burns the number across 30 retries (frame after_011).
+    const codePage = t.includes('confirmation code') || t.includes('enter the 6-digit');
+    if (codePage && smsCode && smsCode !== 'no code received') {
+      await s.fill('Confirmation code', smsCode);
+      await humanIdlePause('short');
+      await s.click('Continue');
+      await humanIdlePause('deliberate');
+      console.log(`[ig] code submit: ${(await readPage(s)).slice(0, 120).replace(/\n/g, ' ')}`);
       continue;
     }
+    if (codePage) throw new Error('sms_code_not_received');
     // Selfie verification — can't bypass, must retry
     if (t.includes('verification selfie') || t.includes('upload a photo that clearly')) {
       console.log('[ig] selfie verification required — cannot automate, retrying');
