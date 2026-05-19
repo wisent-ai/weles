@@ -130,11 +130,16 @@ export async function googleSso(session, creds, opts = {}) {
 }
 
 export function parseBalanceFromText(text) {
+  // Require a "Balance:" / "Credits:" / "Wallet:" / "Funds:" labelled
+  // match. The earlier first-$X.XX path returned a service price on
+  // JuicySMS / FiveSim landing pages (verified live 2026-05-19: JuicySMS
+  // post-SSO landed on the rentals homepage whose first row was Discord
+  // "$0.53"; the parser reported it as the balance). Now return null when
+  // no labelled balance is found, so callers can detect a scrape that
+  // landed on the wrong page instead of persisting a misleading number.
   if (!text) return null;
-  const labeled = text.match(/(?:balance|credit[s]?|account|wallet|funds)[^\n$€£]{0,40}\$([0-9]+(?:\.[0-9]{1,4})?)/i);
+  const labeled = text.match(/(?:balance|credit[s]?|wallet|funds)[^\n$€£]{0,40}\$([0-9]+(?:\.[0-9]{1,4})?)/i);
   if (labeled) return Number(labeled[1]);
-  const dollar = text.match(/\$([0-9]+(?:\.[0-9]{2,4})?)\b/);
-  if (dollar) return Number(dollar[1]);
   return null;
 }
 
