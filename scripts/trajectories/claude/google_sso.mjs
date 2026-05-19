@@ -232,8 +232,17 @@ export async function doGoogleSso({
         if (st.consent) {
           mark('oauth_consent_click');
           await waitForEnabledThenClick(page, /^authorize$|^allow$/i);
-          await humanIdlePause('long');
-          return page;
+          // Consent granted: the SPA POSTs /v1/oauth/.../authorize
+          // (slow in headless — renders a spinner) then redirects to
+          // platform.claude.com which shows the code. Wait for that
+          // host deterministically; do NOT reload authorizeUrl (it
+          // would re-trigger the consent flow). Single bounded wait.
+          for (let k = 0; k < 1800; k += 1) {
+            const h = await page.evaluate(() => location.host);
+            if (h === 'platform.claude.com') { mark('code_page'); return page; }
+            await page.waitForTimeout(100); // allow-raw-playwright: post-consent redirect poll
+          }
+          throw new Error('post-consent: no platform.claude.com redirect in 180s');
         }
         await page.waitForTimeout(100); // allow-raw-playwright: terminal-state poll
       }

@@ -163,6 +163,13 @@ function runLogin(displayName) {
         ...process.env,
         CLAUDE_DISPLAY_NAME: displayName,
         CLAUDE_LOGIN_PROXY: 'none',
+        // login.mjs's own watchdog defaults to 300s, which truncates
+        // a SUCCESSFUL but slow consent POST/redirect (frames proved
+        // Authorize clicked, then the 300s kill landed mid-redirect
+        // before platform.claude.com rendered the code). Set it just
+        // under the 720s hard SIGKILL below so login.mjs's own
+        // diagnostic + shutdown (video flush) runs first.
+        CLAUDE_LOGIN_OVERALL_SEC: '690',
         // claude.ai OAuth has no OS-event anti-fraud collector
         // (no LinkedIn /apfc-class telemetry), so the per-page CDP
         // input path is correct here AND makes this trajectory
