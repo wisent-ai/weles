@@ -1,6 +1,7 @@
 import { WSession } from '../../dist/session/wsession.js';
 import { humanClickLocator } from '../../dist/human/mouse.js';
 import { autoBindCharacter } from './lib/character-bind.mjs';
+import { harvestAfterRegister } from './lib/discord_harvest.mjs';
 // burned.js is CommonJS; default-import then destructure (named ESM import
 // of a CJS export is fragile across rebuilds). This lineage exposes
 // markBurned(host,signal,platform) — no multi-level markBurnedIp.
@@ -261,6 +262,7 @@ try {
             }
             if (!verified) console.log('[test] Email verification did not complete');
             else console.log('[test] Email verified');
+            await harvestAfterRegister(s); // DISCORD_HARVEST_AFTER_REGISTER=1 gates inline harvest pre-disable
             break;
           }
           // Discord returned new captcha data — retry with updated rqdata
