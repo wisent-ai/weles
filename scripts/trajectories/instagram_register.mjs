@@ -82,11 +82,15 @@ async function signup(s) {
 
   // Take screenshot before submit to verify form state
   await s.page.screenshot({ path: `/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/recordings/ig_before_submit.png` }).catch(() => {});
-  // Click Sign up — use s.clickSelector so the submit dispatches with
-  // isTrusted=true. Instagram's /api/v1/* rate_limited detector keys off
-  // feedback_required JSON that fires when the Sign-up click fails the
-  // isTrusted check; see docs/DETECTION_ANTIPATTERNS.md §1.
-  await s.clickSelector('button[type="submit"]').catch(() => {});
+  // Click Sign up — IG renders the submit control as
+  // <div role="button" tabindex="0"> containing a <span>Submit</span>;
+  // there are no <button> tags on the page (verified 2026-05-19 in
+  // recordings/instagram_register_1/after_009_*_dom.html). The prior
+  // `button[type="submit"]` selector silently matched a hidden iframe
+  // submit and the real Submit was never clicked. s.click('Submit')
+  // routes through wsClick which scans [role="button"] for visible
+  // textContent + aria-label match and humanClickLocator's the hit.
+  await s.click('Submit');
   await sleep(5);
   // Screenshot after submit
   await s.page.screenshot({ path: `/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/recordings/ig_after_submit.png` }).catch(() => {});
