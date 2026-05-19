@@ -61,23 +61,28 @@ async function clickSubmit(page, humanClick, namePattern) {
   throw new Error(`clickSubmit: no button matching /${patternSrc}/i found in 8s`);
 }
 
+// page.evaluate throws "Execution context was destroyed" when the
+// page navigates mid-call. In an OAuth redirect chain a navigation
+// is the EXPECTED transition, so in poll loops it must mean "not
+// ready, re-poll the new document", never a fatal error.
+async function navEval(page, fn, dflt, arg) {
+  try { return await page.evaluate(fn, arg); }
+  catch (e) {
+    if (/destroyed|navigation|Target closed|crashed|detached|Session closed/i.test(e.message)) return dflt;
+    throw e;
+  }
+}
+
 // Wait for the button to be ENABLED then click via CDP
-// Input.dispatchMouseEvent. WIZ's submit handler checks event
-// trust; Playwright's page.mouse.click goes through the browser
-// API and produces real-trusted events for ordinary pages, but
-// the weles-patched Chromium has shown WIZ rejecting them in
-// previous runs (video 22:14:57+ rendered the click as no-op).
-// CDP Input.dispatchMouseEvent is the protocol-level equivalent
-// of Input.insertText that just fixed the typing — same trust
-// model. Throws with the full button-state diagnostic on
-// timeout so the failure mode stays diagnosable.
+// Input.dispatchMouseEvent (WIZ rejects Playwright's trusted click in
+// the weles-patched Chromium). Throws the button-state diag on timeout.
 export async function waitForEnabledThenClick(page, namePattern) {
   const patternSrc = namePattern.source;
   let lastState = null;
   const cdp = await page.context().newCDPSession(page);
   try {
     for (let i = 0; i < 80; i += 1) {
-      lastState = await page.evaluate((src) => {
+      lastState = await navEval(page, (src) => {
         const re = new RegExp(src, 'i');
         const candidates = Array.from(document.querySelectorAll('button, [role="button"]'));
         for (const el of candidates) {
@@ -93,7 +98,7 @@ export async function waitForEnabledThenClick(page, namePattern) {
           };
         }
         return { found: false };
-      }, patternSrc);
+      }, { found: false }, patternSrc);
       if (lastState.found && !lastState.disabled) {
         const x = Math.round(lastState.x);
         const y = Math.round(lastState.y);
@@ -193,16 +198,10 @@ export async function doGoogleSso({
   await humanIdlePause('deliberate');
 
   mark('gis_continue');
-  // claude.ai "Continue with Google" → consent is GIS-driven; the
-  // post-click state is non-deterministic (popup chooser | in-page
-  // FedCM→consent | GIS "Loading…" | blank), so a fixed-timer race
-  // diverged on identical code. Bounded state machine: click, poll
-  // for a TERMINAL marker (popup / enabled Authorize / the
-  // platform.claude.com code page); if none, reload authorizeUrl
-  // and retry. Throw with page diag only after the attempt budget.
-  // retry-allowed: bounded recovery for the documented non-deterministic
-  // claude.ai GIS handoff — reloading authorizeUrl with the established
-  // Google session is the deterministic resolution, not a flaky retry.
+  // GIS handoff is non-deterministic (popup | in-page consent |
+  // Loading | blank). Bounded state machine: poll for a terminal
+  // marker; if none, reload authorizeUrl and retry.
+  // retry-allowed: bounded recovery for the non-deterministic claude.ai GIS handoff, not a flaky retry.
   let popupPage = null;
   const onPopup = (p) => { if (!popupPage) popupPage = p; };
   page.context().on('page', onPopup);
@@ -222,12 +221,12 @@ export async function doGoogleSso({
           try { await waitForEnabledThenClick(popupPage, /^continue$/i); }
           catch (e) { console.log(`[google_sso] no popup consent: ${e.message.slice(0, 50)}`); }
         }
-        const st = await page.evaluate(() => {
+        const st = await navEval(page, () => {
           const b = Array.from(document.querySelectorAll('button,[role="button"]'));
           const c = b.find((x) => /^(authorize|allow)$/i.test((x.innerText || x.textContent || '').trim())
             && !(x.disabled || x.getAttribute('aria-disabled') === 'true'));
           return { host: location.host, consent: !!c };
-        });
+        }, { host: '', consent: false });
         if (st.host === 'platform.claude.com') { mark('code_page'); return page; }
         if (st.consent) {
           mark('oauth_consent_click');
@@ -238,7 +237,7 @@ export async function doGoogleSso({
           // host deterministically; do NOT reload authorizeUrl (it
           // would re-trigger the consent flow). Single bounded wait.
           for (let k = 0; k < 1800; k += 1) {
-            const h = await page.evaluate(() => location.host);
+            const h = await navEval(page, () => location.host, '');
             if (h === 'platform.claude.com') { mark('code_page'); return page; }
             await page.waitForTimeout(100); // allow-raw-playwright: post-consent redirect poll
           }
@@ -250,7 +249,7 @@ export async function doGoogleSso({
       await page.goto(authorizeUrl, { waitUntil: 'commit' });
       await humanIdlePause('deliberate');
     }
-    const d = await page.evaluate(() => ({ url: location.href, body: (document.body?.innerText || '').replace(/\s+/g, ' ').slice(0, 220) }));
+    const d = await navEval(page, () => ({ url: location.href, body: (document.body?.innerText || '').replace(/\s+/g, ' ').slice(0, 220) }), { url: '?', body: 'context destroyed' });
     throw new Error(`gis_continue: no consent/code after 4 attempts diag=${JSON.stringify(d)}`);
   } finally {
     page.context().off('page', onPopup);

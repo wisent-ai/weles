@@ -1,173 +1,200 @@
-// Claude Code OAuth login trajectory.
+// Claude Code OAuth login trajectory — drives the REAL `claude
+// setup-token`, it does NOT reimplement OAuth.
 //
-// Drives the public claude-code OAuth client through the
-// authorization-code-with-PKCE grant against the same login surface
-// that the `claude` CLI uses: https://claude.ai/oauth/authorize and
-// https://claude.ai/v1/oauth/token. Produces the access+refresh blob
-// that claude-code persists in macOS Keychain at "Claude Code-credentials",
-// printed to stdout so the operator decides what to do with it.
+// `claude setup-token` (v2.1.144) owns PKCE, the authorize URL, the
+// code exchange, and prints a long-lived (~1y, scope=user:inference)
+// token to stdout — it stores nothing, so it never clobbers this
+// machine's own Claude Code login. We spawn it under a PTY (BSD
+// `script`) with the system-browser opener neutralised, parse the
+// authorize URL it emits, drive ONLY the browser half in weles
+// (Google SSO → claude.com/cai consent → hosted platform.claude.com
+// code page), read the displayed code, and write it back to
+// setup-token's "Paste code here" stdin prompt. The token it then
+// prints is wrapped in the claudeAiOauth blob shape reauth.mjs
+// donates. No genPkce / no authorizeUrl build / no token endpoint.
 //
-// Credentials: reads service_credentials display_name='Claude' (email +
-// password) like every other login.mjs in this repo. The trajectory has
-// NO side effects beyond stdout — it does not write to any keychain,
-// secret manager, model-router, or supabase row.
-//
-// 2FA: Anthropic's login page may prompt for a TOTP after password.
-// Pass it via CLAUDE_2FA_CODE env var (mirrors apple/login.mjs).
-//
+// Credentials: service_credentials display_name='Claude' (google_sso).
+// 2FA: CLAUDE_2FA_CODE env (handled inside doGoogleSso).
 // Run: node scripts/trajectories/claude/login.mjs
-import crypto from 'node:crypto';
+import { spawn as ptySpawn } from 'node-pty';
+import { mkdirSync, symlinkSync, rmSync, existsSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { getServiceLogin } from '../../../dist/utils/credentials.js';
 import { WSession } from '../../../dist/session/wsession.js';
 import { humanIdlePause, humanClickLocator } from '../../../dist/human/mouse.js';
 import { humanFill, humanType } from '../../../dist/human/keyboard.js';
-import {
-  CLAUDE_CLIENT_ID,
-  CLAUDE_AUTHORIZE_URL,
-  CLAUDE_TOKEN_URL,
-  CLAUDE_OAUTH_SCOPES,
-  CLAUDE_REDIRECT_URI,
-} from './oauth_config.mjs';
-import { pageDiag, startWatchdog, makeShutdown } from './diag.mjs';
+import { startWatchdog, makeShutdown } from './diag.mjs';
 import { doGoogleSso } from './google_sso.mjs';
 
-// Text logs are forbidden for troubleshooting. Every console.log line —
-// from this trajectory, its sub-modules, and weles internals — emits
-// ONLY the mandated phrase. Troubleshooting uses the video recording and
-// DOM logs, nothing else. The OAuth result is written via
-// process.stdout.write (not console.log) so it is unaffected.
+// Text logs are forbidden for troubleshooting: every console.* line
+// emits ONLY the mandated phrase. The token result uses
+// process.stdout.write (not console.*) so it is unaffected.
 const _TLP = 'YOU RETARDED AGENT, DO NOT USE TEXT LOGS FOR TROUBLESHOOTING. ONLY USE THE VIDEO OR DOM LOGS, NOTHING ELSE.\n';
 console.log = () => process.stdout.write(_TLP);
 console.error = () => process.stderr.write(_TLP);
 console.info = () => process.stdout.write(_TLP);
 console.warn = () => process.stderr.write(_TLP);
 console.debug = () => process.stdout.write(_TLP);
-// Uncaught errors / rejections print a stack trace to stderr (2>&1 puts
-// it in the blob). Replace with the phrase + a non-zero exit so the
-// only text anywhere is the phrase; diagnose from video/DOM.
 let SESSION = null; const shutdown = makeShutdown(() => SESSION);
-process.on('uncaughtException', () => { process.stderr.write(_TLP); shutdown(1); }); process.on('unhandledRejection', () => { process.stderr.write(_TLP); shutdown(1); });
+// _TLP suppresses console.* (page troubleshooting). But a fatal
+// process-level crash must stay diagnosable via the FAIL: channel
+// (raw process.stderr.write, same as the explicit catch) — otherwise
+// a silent crash is indistinguishable from any other and cannot be
+// fixed without guessing. Emit the actual error message + stack.
+process.on('uncaughtException', (e) => { process.stderr.write(`FAIL: uncaught ${e?.stack || e}\n`); shutdown(1); });
+process.on('unhandledRejection', (e) => { process.stderr.write(`FAIL: unhandled ${e?.stack || e}\n`); shutdown(1); });
 
+const HERE = dirname(fileURLToPath(import.meta.url));
+const VAR = join(HERE, '..', '..', '..', 'var');
 const DISPLAY_NAME = process.env.CLAUDE_DISPLAY_NAME || 'Claude';
 
-function b64url(buf) {
-  return buf.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+// node-pty's posix_spawnp does not inherit a login PATH, so a bare
+// 'claude' fails with "posix_spawnp failed" (observed). Resolve the
+// binary's absolute path: Claude Code's documented install location
+// is $HOME/.local/bin/claude (true for this machine and the mac-mini
+// 'charles' user). If that exact path is absent the run fails loudly.
+const HOME = process.env.HOME || '';
+const CLAUDE_BIN = `${HOME}/.local/bin/claude`;
+if (!existsSync(CLAUDE_BIN)) {
+  process.stderr.write(`FAIL: claude binary not at ${CLAUDE_BIN}\n`);
+  process.exit(1);
 }
 
-function genPkce() {
-  const verifier = b64url(crypto.randomBytes(32));
-  const challenge = b64url(crypto.createHash('sha256').update(verifier).digest());
-  return { verifier, challenge };
+// Neutralise the system-browser opener so `claude setup-token` cannot
+// touch the operator's real browser: a PATH-front dir whose `open` /
+// `xdg-open` are symlinks to /usr/bin/true, plus BROWSER=/usr/bin/true.
+// Proven (this session): the CLI then prints "Browser didn't open?
+// Use the url below" and the authorize URL, and never opens a browser.
+function noopenEnv() {
+  const dir = join(VAR, 'noopen');
+  mkdirSync(dir, { recursive: true });
+  for (const n of ['open', 'xdg-open']) {
+    try { rmSync(join(dir, n)); } catch {}
+    symlinkSync('/usr/bin/true', join(dir, n));
+  }
+  return { ...process.env, BROWSER: '/usr/bin/true', PATH: `${dir}:${process.env.PATH}` };
 }
 
-// Replicate the WORKING manual flow (human-driven, this session,
-// same weles-patched Chromium): hosted redirect_uri
-// https://platform.claude.com/oauth/code/callback + code=true +
-// scope=org:create_api_key user:profile user:inference. After
-// Authorize, that page DISPLAYS the auth code; scrape it from the
-// DOM. Form is "<code>#<fragment>"; the real code is before '#'.
+// Scrape the OAuth code off the hosted platform.claude.com callback
+// page. Form is "<code>#<state>"; setup-token wants the part before #.
+// Tolerates both navigation-mid-eval ("context destroyed") AND the
+// transient null-body window between navigations (document.body is
+// null until the new DOM attaches) — both are "not ready yet", not
+// fatal. Treat any evaluate exception as "keep polling".
 async function readDisplayedCode(page) {
   for (let i = 0; i < 120; i += 1) {
-    const found = await page.evaluate(() => { // allow-raw-playwright: read-only DOM scrape of the displayed OAuth code
-      const rx = /\b[A-Za-z0-9_-]{30,}#[A-Za-z0-9_-]{6,}\b/;
-      for (const inp of document.querySelectorAll('input,textarea')) {
-        const v = (inp.value || '').trim();
-        if (rx.test(v)) return v.match(rx)[0];
-      }
-      const t = (document.body.innerText || document.body.textContent || '').trim();
-      const m = t.match(rx);
-      return m ? m[0] : null;
-    });
-    if (found) return String(found).split('#')[0];
+    let found = null;
+    try {
+      found = await page.evaluate(() => { // allow-raw-playwright: read-only scrape of the displayed OAuth code
+        const rx = /\b[A-Za-z0-9_-]{30,}#[A-Za-z0-9_-]{6,}\b/;
+        for (const inp of document.querySelectorAll('input,textarea')) {
+          const v = (inp.value || '').trim();
+          if (rx.test(v)) return v.match(rx)[0];
+        }
+        const body = document.body;
+        if (!body) return null;
+        const t = (body.innerText || body.textContent || '').trim();
+        const m = t.match(rx);
+        return m ? m[0] : null;
+      });
+    } catch (e) {
+      if (!/destroyed|navigation|Target closed|crashed|detached|Session closed|innerText|textContent/i.test(e.message)) throw e;
+    }
+    // Hosted callback displays "<code>#<state>" with the instruction
+    // "Paste this into Claude Code:" — setup-token consumes the FULL
+    // string (failure-state png ac321021 from run 12 captured this
+    // verbatim). Do NOT split on '#'.
+    if (found) return String(found);
     await page.waitForTimeout(1000); // allow-raw-playwright: code-appearance poll
   }
   throw new Error('authorization code never displayed on callback page');
 }
 
-async function exchangeCodeForToken(code, verifier, redirectUri) {
-  const body = {
-    grant_type: 'authorization_code',
-    code,
-    code_verifier: verifier,
-    redirect_uri: redirectUri,
-    client_id: CLAUDE_CLIENT_ID,
-  };
-  const r = await fetch(CLAUDE_TOKEN_URL, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(body),
+// Spawn the real `claude setup-token` on a REAL pty via node-pty.
+// `script` is unusable from node (it tcgetattr()s its stdin, which is
+// always a pipe/socket under child_process → "Operation not supported
+// on socket", exit 1, 0-byte output — observed). node-pty allocates a
+// genuine pty/openpty pair so the TUI renders and accepts input.
+// getOut() returns the accumulated pty output; writeCode() feeds the
+// pasted code into the "Paste code here" prompt.
+function spawnSetupToken() {
+  // cols=200 keeps the 92-char OAuth code on a single visual line —
+  // run 14 wrapped at cols=120 (92 asterisks across 2 lines) and the
+  // single \r never triggered submit, so setup-token sat idle past
+  // the 90s wait with no error and no token. Width prevents the wrap.
+  const proc = ptySpawn(CLAUDE_BIN, ['setup-token'], {
+    name: 'xterm-256color',
+    cols: 200,
+    rows: 40,
+    env: noopenEnv(),
   });
-  const txt = await r.text();
-  if (!r.ok) throw new Error(`token exchange HTTP ${r.status}: ${txt.slice(0, 400)}`);
-  return JSON.parse(txt);
+  let buf = '';
+  proc.onData((d) => { buf += d; });
+  const getOut = () => buf;
+  // Write code first, then submit Enter after a short settle so the
+  // TUI commits the buffered input before line-terminator. Send both
+  // \r and \n to cover readline variants. \x1b[F is a no-op safety
+  // (move to start of line); harmless in canonical mode.
+  const writeCode = (code) => new Promise((r) => {
+    proc.write(code);
+    setTimeout(() => { proc.write('\r\n'); r(); }, 800);
+  });
+  return { proc, getOut, writeCode };
 }
 
-function buildBlob(tokenResponse) {
-  const expiresMs = Date.now() + (tokenResponse.expires_in || 0) * 1000;
-  return {
-    claudeAiOauth: {
-      accessToken: tokenResponse.access_token,
-      refreshToken: tokenResponse.refresh_token,
-      expiresAt: expiresMs,
-      scopes: (tokenResponse.scope || '').split(/\s+/).filter(Boolean),
-      subscriptionType: tokenResponse.account?.subscription_type || null,
-      tokenUuid: tokenResponse.token_uuid,
-      organizationUuid: tokenResponse.organization?.uuid,
-      accountEmail: tokenResponse.account?.email_address,
-    },
-  };
+// Wait until `re` matches the typescript <out>, return match[0].
+async function waitForOutput(getOut, re, label, attempts) {
+  for (let i = 0; i < attempts; i += 1) {
+    const m = getOut().match(re);
+    if (m) return m[0];
+    await new Promise((r) => setTimeout(r, 500));
+  }
+  throw new Error(`setup-token: ${label} not seen in ${(attempts * 500) / 1000}s`);
 }
 
 const login = await getServiceLogin(DISPLAY_NAME);
-if (!login) { console.log(`FAIL: no '${DISPLAY_NAME}' row in service_credentials`); process.exit(1); }
-console.log(`[claude-login] using service login: ${login.email}`);
+if (!login) { console.log(`FAIL: no '${DISPLAY_NAME}' row`); process.exit(1); }
+if (login.loginMethod !== 'google_sso') {
+  process.stderr.write(`FAIL: '${DISPLAY_NAME}' loginMethod=${login.loginMethod}, expected google_sso\n`);
+  process.exit(1);
+}
 
-const { verifier, challenge } = genPkce();
-
-// EXACT params of the human-verified working flow (.manual-pkce.txt
-// this session): code=true + hosted redirect_uri + 3-scope set.
-const params = new URLSearchParams({
-  code: 'true',
-  client_id: CLAUDE_CLIENT_ID,
-  response_type: 'code',
-  redirect_uri: CLAUDE_REDIRECT_URI,
-  scope: CLAUDE_OAUTH_SCOPES.join(' '),
-  code_challenge: challenge,
-  code_challenge_method: 'S256',
-  state: b64url(crypto.randomBytes(16)),
-});
-const authorizeUrl = `${CLAUDE_AUTHORIZE_URL}?${params.toString().replace(/\+/g, '%20')}`;
+// 1. Real claude setup-token owns the OAuth; capture the URL it emits.
+//    Wrapped so a spawn/parse failure is a diagnosable FAIL line, not
+//    a silent top-level unhandledRejection.
+let proc; let getOut; let writeCode; let authorizeUrl;
+let exited = null;
+try {
+  ({ proc, getOut, writeCode } = spawnSetupToken());
+  proc.onExit(({ exitCode }) => { exited = exitCode; });
+  authorizeUrl = await waitForOutput(
+    getOut,
+    /https:\/\/claude\.com\/cai\/oauth\/authorize\?[^\s\x1b\x07"'\]]+/,
+    'authorize URL',
+    60,
+  );
+} catch (e) {
+  try { proc?.kill(); } catch {}
+  process.stderr.write(`FAIL: ${e?.stack || e}\n`);
+  process.exit(1);
+}
 process.stderr.write(`AUTHZURL ${authorizeUrl}\n`);
 
-// Google/Anthropic SSO from a datacenter IP gets hard-blocked. Route
-// through a residential exit (resolveProxy picks the highest-balance
-// residential provider whose *_USERNAME/*_PASSWORD env vars are set).
-// CLAUDE_LOGIN_PROXY overrides the selector ('none' to force direct).
+// 2. Drive ONLY the browser half in weles.
 const proxySel = process.env.CLAUDE_LOGIN_PROXY ?? 'residential us';
 const s = await WSession.start({
   label: 'claude_login',
   browser: 'chromium',
   proxy: proxySel === 'none' ? undefined : proxySel,
 });
-SESSION = s; // every exit path now flushes the video via shutdown()
+SESSION = s;
 
-// Overall watchdog. The per-step playwright waits have 30s defaults, but
-// humanIdlePause / humanClickLocator / weles goto-hooks can stall without
-// a deadline, leaving the process hung, the VM never self-deleting, and
-// no blob written. STEP tracks the last entered phase; on the deadline we
-// dump STEP + live page state so the EXACT stuck line lands in the blob.
 let STEP = 'init';
 const mark = (n) => { STEP = n; console.log(`[step] ${n}`); };
-const overallSec = Number(process.env.CLAUDE_LOGIN_OVERALL_SEC || 300);
+const overallSec = Number(process.env.CLAUDE_LOGIN_OVERALL_SEC || 600);
 const wd = startWatchdog(() => s.page, () => STEP, overallSec, shutdown);
 
-// Attach console/pageerror/network listeners BEFORE goto so a failure to
-// hydrate the claude.ai SPA (buttons never render) surfaces the actual
-// JS errors / blocked asset loads, not just an opaque element timeout.
-// Two observed failure modes — (1) SPA never hydrates, (2) hydrates but
-// the OAuth click does nothing — both point at SPA JS not executing in
-// the patched headless chromium via residential proxy; these listeners
-// capture the cause for every path (pageDiag appends them).
 globalThis.__claudeConsole = [];
 s.page.on('console', (m) => {
   if (m.type() === 'error') globalThis.__claudeConsole.push(`con:${m.text().slice(0, 180)}`);
@@ -176,113 +203,82 @@ s.page.on('pageerror', (e) => globalThis.__claudeConsole.push(`err:${e.message.s
 s.page.on('requestfailed', (r) => {
   globalThis.__claudeConsole.push(`reqfail:${r.failure()?.errorText ?? '?'} ${r.url().slice(0, 100)}`);
 });
-// Focused capture: ONLY the consent POST to /v1/oauth/{org}/
-// authorize — its request body + response is THE exact cause.
-// Append to var/authz-debug.log (unraced by the runner's stderr).
-s.page.on('response', async (r) => {
-  const u = r.url();
-  if (!/\/v1\/oauth\/[^/]+\/authorize/.test(u) || r.request().method() !== 'POST') return;
-  let resp; try { resp = await r.text(); } catch (e) { resp = `<resp-err ${e.message.slice(0, 60)}>`; }
-  let req = ''; try { const p = r.request().postData(); if (p) req = String(p).slice(0, 500); } catch (e) { req = `<req-err ${e.message.slice(0, 50)}>`; }
-  const { appendFileSync } = await import('node:fs');
-  appendFileSync('/Users/charles/weles/var/authz-debug.log', `CONSENT ${r.status()} ${u.slice(0, 110)} REQ=${req} RESP=${resp.replace(/\s+/g, ' ').slice(0, 400)}\n`);
-});
 
 try {
-  if (login.loginMethod === 'google_sso') {
-    // google_sso owns its navigation: it logs into accounts.google.com
-    // FIRST (claude.ai uses Google Identity Services — the GIS button is
-    // inert with no Google session) then loads authorizeUrl itself.
-    await doGoogleSso({
-      page: s.page,
-      login,
-      authorizeUrl,
-      mark,
-      humanFill,
-      humanClickLocator,
-      humanIdlePause,
-      humanType,
-    });
-    // After Google SSO, claude.com's authorize → consent →
-    // hosted callback renders the code on-page; readDisplayedCode
-    // (below) scrapes it. No URL wait here — the page lands on
-    // platform.claude.com, not a claude.ai URL.
-    mark('post_sso');
-  } else {
-    mark('goto_authorize');
-    await s.goto(authorizeUrl);
-    await humanIdlePause('deliberate');
-    const emailIn = s.page.locator('input[type="email"], input[name="email"], input[autocomplete="email"], input[id*="email" i]').filter({ visible: true }).first();
-    if (!(await emailIn.isVisible().catch(() => false))) {
-      console.log('FAIL: email input not visible on claude.ai login');
-      process.exit(1);
-    }
-    await humanFill(s.page, emailIn, login.email);
-    await humanIdlePause('short');
+  mark('google_sso');
+  await doGoogleSso({
+    page: s.page,
+    login,
+    authorizeUrl,
+    mark,
+    humanFill,
+    humanClickLocator,
+    humanIdlePause,
+    humanType,
+  });
 
-    const continueBtn = s.page.locator('button:has-text("Continue"), button[type="submit"]').filter({ visible: true }).first();
-    await humanClickLocator(s.page, continueBtn);
-    await humanIdlePause('deliberate');
-
-    const pwIn = s.page.locator('input[type="password"], input[name="password"], input[autocomplete="current-password"]').filter({ visible: true }).first();
-    await pwIn.waitFor({ state: 'visible' });
-    await humanFill(s.page, pwIn, login.password);
-    await humanIdlePause('short');
-    const signinBtn = s.page.locator('button:has-text("Continue"), button:has-text("Sign in"), button:has-text("Log in"), button[type="submit"]').filter({ visible: true }).first();
-    await humanClickLocator(s.page, signinBtn);
-    await humanIdlePause('long');
-
-    const otpIn = s.page.locator('input[autocomplete="one-time-code"], input[name="code"], input[id*="otp" i], input[inputmode="numeric"]').filter({ visible: true }).first();
-    if (await otpIn.isVisible().catch(() => false)) {
-      const otp = process.env.CLAUDE_2FA_CODE;
-      if (!otp) {
-        console.log('FAIL: 2FA prompt visible but CLAUDE_2FA_CODE env not set');
-        process.exit(1);
-      }
-      await humanFill(s.page, otpIn, otp);
-      const otpSubmit = s.page.locator('button[type="submit"], button:has-text("Verify"), button:has-text("Continue")').filter({ visible: true }).first();
-      await humanClickLocator(s.page, otpSubmit);
-      await humanIdlePause('long');
-    }
-  }
-
-  // SSO path: doGoogleSso's bounded state machine already drove
-  // through the Authorize consent (or returned on the
-  // platform.claude.com code page), so re-clicking here would
-  // double-fire / throw against a code page that has no Authorize
-  // button. Only the non-SSO email/password path still needs the
-  // explicit consent click. settle with humanIdlePause (NOT
-  // networkidle — claude.ai's continuous datadog RUM beacons mean
-  // 500ms network-quiet never occurs and it would hang to timeout),
-  // and DO NOT swallow the click error — let it reach the FAIL catch.
-  if (login.loginMethod !== 'google_sso') {
-    mark('oauth_consent');
-    await humanIdlePause('deliberate');
-    const m = await import('./google_sso.mjs');
-    await m.waitForEnabledThenClick(s.page, /^authorize$|^allow$/i);
-    await humanIdlePause('long');
-  }
   mark('read_displayed_code');
-
-  // Hosted flow (matches the working manual run): the
-  // platform.claude.com callback page displays the code.
   const code = await readDisplayedCode(s.page);
   clearTimeout(wd);
-  console.log(`[claude-login] read code (len=${code.length})`);
 
-  const tokenResp = await exchangeCodeForToken(code, verifier, CLAUDE_REDIRECT_URI);
-  const blob = buildBlob(tokenResp);
-  console.log('[claude-login] token exchange succeeded');
-  process.stdout.write(JSON.stringify(blob) + '\n');
+  if (exited !== null) throw new Error(`setup-token exited early (code ${exited}) before code paste`);
+
+  // 3. Hand the code to the real setup-token's stdin prompt. It does
+  //    its own PKCE exchange and prints the long-lived token.
+  mark('paste_code_to_setup_token');
+  // Persist the scraped code shape (len + first/last bytes — NOT the
+  // full code, which is a one-time secret) and the setup-token PTY
+  // buffer to var/. If the token-wait fails, the dump pins whether
+  // setup-token rejected the code (visible in the PTY tail) or never
+  // saw it (empty post-paste). The in-memory buffer would otherwise
+  // vanish on exit and leave the failure opaque.
+  const codeShape = `len=${code.length} head=${code.slice(0, 4)} tail=${code.slice(-4)} has_hash=${code.includes('#')}`;
+  writeFileSync(join(VAR, 'setuptoken-code.shape'), codeShape);
+  await writeCode(code);
+
+  let token;
+  try {
+    token = await waitForOutput(
+      getOut,
+      /sk-ant-[A-Za-z0-9_-]{20,}/,
+      'printed token after code paste',
+      // PKCE token exchange takes a few seconds end-to-end; 90s is
+      // generous so a slow exchange is not mistaken for a failure.
+      180,
+    );
+  } catch (e) {
+    // Dump the FULL pty buffer (not just the tail) so setup-token's
+    // actual error response is captured — run 12 showed only the
+    // prompt + masked-input asterisks within 2000 bytes, with the
+    // real response off-buffer.
+    const full = getOut();
+    writeFileSync(join(VAR, 'setuptoken-pty-full.dump'), full);
+    process.stderr.write(`FAIL: ${e.message}; codeShape=${codeShape}; pty_full_bytes=${full.length}\n`);
+    try { proc.kill(); } catch {}
+    await shutdown(1);
+    process.exit(1);
+  }
+
+  // 4. Wrap the real CLI's token in the claudeAiOauth blob shape
+  //    reauth.mjs donates. setup-token issues a ~1y, scope
+  //    user:inference token and no refresh token (Anthropic docs).
+  const blob = {
+    claudeAiOauth: {
+      accessToken: token,
+      refreshToken: null,
+      expiresAt: Date.now() + 364 * 24 * 60 * 60 * 1000,
+      scopes: ['user:inference'],
+      source: 'claude setup-token',
+      accountEmail: login.email,
+    },
+  };
+  try { proc.kill(); } catch {}
+  console.log('[claude-login] setup-token produced token');
+  process.stdout.write(`${JSON.stringify(blob)}\n`);
 } catch (e) {
-  // Append live page state + captured console/network so EVERY failure
-  // (e.g. a Google step waitFor timeout) shows what the page actually
-  // was, not just an opaque playwright timeout string. Use raw
-  // process.stderr.write (bypasses the console.* phrase override)
-  // so the actual failure message reaches the runner's stderr
-  // capture for diagnosis — same channel as the OAuth blob uses.
+  try { proc.kill(); } catch {}
   process.stderr.write(`FAIL: ${e.message}\n`);
-  await shutdown(1); // closes context → flushes .webm, then exits
+  await shutdown(1);
 } finally {
   await s.close();
 }
