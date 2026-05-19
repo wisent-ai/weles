@@ -50,6 +50,17 @@ async function solveHCaptcha(sitekey, rqdata) {
 // the caller can poll for the code. If Discord rejects the number with
 // 50022 (Invalid phone number — VOIP detected) or similar, returns ok=false
 // so the caller can skip the order and try a different number/country.
+// Mark a juicysms number as bad so the pool issues a different one next
+// time. cancelOrder just refunds; skipnumber blacklists the number for
+// this customer. Critical when Discord 50022 keeps re-targeting the same
+// VOIP-detected number across orders.
+async function skipJuicySmsNumber(orderId) {
+  const k = process.env.JUICYSMS_API_KEY;
+  if (!k) return;
+  try { await fetch(`https://juicysms.com/api/skipnumber?key=${k}&orderId=${orderId}`); }
+  catch (e) { console.log(`[sms] skipnumber err: ${e.message?.slice(0, 80)}`); }
+}
+
 async function tryDispatch(token, country) {
   const num = await getNumber('discord', country);
   if (!num) return { ok: false, reason: 'no_number', country };
@@ -61,6 +72,22 @@ async function tryDispatch(token, country) {
     const body = { phone: num.phone, captcha_key: captchaToken };
     if (dispatch.body.captcha_rqtoken) body.captcha_rqtoken = dispatch.body.captcha_rqtoken;
     dispatch = await discordApi(token, '/users/@me/phone', { method: 'POST', body: JSON.stringify(body) });
+  }
+  if (dispatch.status === 429 && dispatch.body?.retry_after) {
+    const wait = Math.ceil(dispatch.body.retry_after) + 2;
+    console.log(`[phone-verify] ${country} rate-limited, waiting ${wait}s...`);
+    await new Promise(r => setTimeout(r, wait * 1000)); // allow-raw-playwright: Discord retry_after cooldown, not browser pacing
+    await cancelOrder(num.orderId, num.provider);
+    return { ok: false, reason: 'rate_limited', num, retry_after: wait };
+  }
+  // 50022 = Invalid phone number (VOIP detected). Skip the number on the
+  // juicysms side so the pool issues a different one — cancelOrder alone
+  // lets juicysms re-issue the same flagged number.
+  if (dispatch.status === 400 && dispatch.body?.code === 50022) {
+    console.log(`[phone-verify] ${country} 50022 VOIP-rejected — skipping number on juicysms`);
+    if (num.provider === 'juicysms') await skipJuicySmsNumber(num.orderId);
+    else await cancelOrder(num.orderId, num.provider);
+    return { ok: false, reason: 'voip', num };
   }
   if (dispatch.status !== 204 && dispatch.status !== 200) {
     console.log(`[phone-verify] ${country} dispatch status=${dispatch.status} body=${JSON.stringify(dispatch.body).slice(0, 160)}`);
