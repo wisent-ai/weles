@@ -1,4 +1,5 @@
 import { FingerprintGenerator } from 'fingerprint-generator';
+import { firefoxNav } from './browser/persona.js';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -111,11 +112,13 @@ export function toConfig(
 
   const isChromium = browser === 'chromium';
 
-  let ua: string = nav.userAgent ?? '';
-  if (isChromium) {
-    // UA Reduction: Chrome 101+ exposes Chrome/<major>.0.0.0 (full version only via client hints). toCppConfig does this for C++; do it here too so __weles.navigator.userAgent the navigator.js bundle reads also matches real Chrome on cross-origin iframes (PX leak found 2026-04-25).
-    ua = ensureModernChromeUA(ua, targetOs).replace(/Chrome\/(\d+)\.\d+\.\d+\.\d+/, 'Chrome/$1.0.0.0');
-  }
+  // Firefox: generate()'s chrome-pinned browserlist returns a Chrome UA even
+  // for browser:'firefox'; the patched Gecko binary then mismatches it. Build
+  // a coherent Firefox navigator instead. Chromium: UA Reduction so the
+  // navigator.js-injected UA matches real Chrome on cross-origin iframes.
+  const ffNav = isChromium ? null : firefoxNav(targetOs);
+  let ua: string = ffNav ? ffNav.userAgent
+    : ensureModernChromeUA(nav.userAgent ?? '', targetOs).replace(/Chrome\/(\d+)\.\d+\.\d+\.\d+/, 'Chrome/$1.0.0.0');
 
   const platform = PLATFORM_MAP[targetOs] ?? 'MacIntel';
 
@@ -137,7 +140,7 @@ export function toConfig(
     navConfig.product = 'Gecko';
     navConfig.productSub = '20030107';
     navConfig.pdfViewerEnabled = true;
-  }
+  } else { Object.assign(navConfig, ffNav); }
 
   const webglVendor = isChromium ? 'Google Inc.' : 'Mozilla';
 

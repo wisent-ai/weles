@@ -1,28 +1,41 @@
 // Hide automation signals before any page code runs.
 
-// navigator.webdriver — return false (not undefined) to match real Chrome
-Object.defineProperty(Navigator.prototype, 'webdriver', {
-  get: () => false,
-  configurable: true,
-});
+// Firefox is skipped: the weles-patched Firefox binary already forces
+// navigator.webdriver=false NATIVELY (dom.webdriver.enabled:false +
+// weles.fingerprint.webdriver.force prefs). Layering a JS `() => false`
+// getter on top makes
+// Object.getOwnPropertyDescriptor(Navigator.prototype,'webdriver').get
+// .toString() return "() => false" instead of Firefox's native
+// "function webdriver() { [native code] }" — the exact signal Google's
+// "this browser or app may not be secure" botguard reads. The Selenium/cdc_
+// marker scrub is Chromium/Selenium-oriented too; defining getters for those
+// names on Firefox would make `name in window` true for props real Firefox
+// never has. Juggler markers are scrubbed in firefox/stubs.js instead.
+if (__weles.browser !== 'firefox') {
+  // navigator.webdriver — return false (not undefined) to match real Chrome
+  Object.defineProperty(Navigator.prototype, 'webdriver', {
+    get: () => false,
+    configurable: true,
+  });
 
-// Playwright/Puppeteer/Selenium markers
-for (const prop of [
-  '__webdriver_script_fn', '__webdriver_evaluate', '__selenium_evaluate',
-  '__fxdriver_evaluate', '__driver_unwrapped', '__webdriver_unwrapped',
-  '__driver_evaluate', '__fxdriver_unwrapped', '__lastWatirAlert',
-  '__lastWatirConfirm', '__lastWatirPrompt', 'domAutomation',
-  'domAutomationController', '_phantom', 'callPhantom', '__nightmare',
-  '_selenium', 'cdc_adoQpoasnfa76pfcZLmcfl_Array',
-  'cdc_adoQpoasnfa76pfcZLmcfl_Promise', 'cdc_adoQpoasnfa76pfcZLmcfl_Symbol',
-]) {
-  try { delete window[prop]; } catch(e) {}
-  try {
-    Object.defineProperty(window, prop, {
-      get: () => undefined,
-      configurable: true,
-    });
-  } catch(e) {}
+  // Playwright/Puppeteer/Selenium markers
+  for (const prop of [
+    '__webdriver_script_fn', '__webdriver_evaluate', '__selenium_evaluate',
+    '__fxdriver_evaluate', '__driver_unwrapped', '__webdriver_unwrapped',
+    '__driver_evaluate', '__fxdriver_unwrapped', '__lastWatirAlert',
+    '__lastWatirConfirm', '__lastWatirPrompt', 'domAutomation',
+    'domAutomationController', '_phantom', 'callPhantom', '__nightmare',
+    '_selenium', 'cdc_adoQpoasnfa76pfcZLmcfl_Array',
+    'cdc_adoQpoasnfa76pfcZLmcfl_Promise', 'cdc_adoQpoasnfa76pfcZLmcfl_Symbol',
+  ]) {
+    try { delete window[prop]; } catch(e) {}
+    try {
+      Object.defineProperty(window, prop, {
+        get: () => undefined,
+        configurable: true,
+      });
+    } catch(e) {}
+  }
 }
 
 // Make toString() of overridden functions look native. Critical: real
