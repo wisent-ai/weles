@@ -262,7 +262,7 @@ try {
             }
             if (!verified) console.log('[test] Email verification did not complete');
             else console.log('[test] Email verified');
-            await harvestAfterRegister(s); // DISCORD_HARVEST_AFTER_REGISTER=1 gates inline harvest pre-disable
+            await harvestAfterRegister(s, { token: authToken, username: id.username }); // DISCORD_HARVEST_AFTER_REGISTER=1 gates phone-verify + API harvest
             break;
           }
           // Discord returned new captcha data — retry with updated rqdata
