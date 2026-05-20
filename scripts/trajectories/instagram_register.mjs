@@ -2,14 +2,11 @@ import { WSession } from '../../dist/session/wsession.js';
 import { humanType, humanFill } from '../../dist/human/keyboard.js';
 import { humanIdlePause } from '../../dist/human/mouse.js';
 import { autoBindCharacter } from './lib/character-bind.mjs';
+import { pickInstagramProxy } from './lib/instagram-proxy.mjs';
 
 const URL = 'https://www.instagram.com/accounts/emailsignup/';
+// retry-allowed: signup fails on bad SMS pool / IG dispatch suppression, both transient; outer loop reseeds proxy + country + identity
 const MAX_RETRIES = 5;
-const USE_BRIGHTDATA = !!process.env.BRIGHTDATA_BROWSER_WS;
-// Build US Oxylabs proxy URL directly — DB metadata routes to Brazil for Discord, but Instagram needs US
-const oxyUser = process.env.OXYLABS_USERNAME;
-const oxyPass = process.env.OXYLABS_PASSWORD;
-const proxy = USE_BRIGHTDATA ? 'none' : (process.env.PROXY_URL || (oxyUser && oxyPass ? `http://customer-${oxyUser}-cc-us-sessid-${Math.floor(Math.random()*9999999)}:${oxyPass}@pr.oxylabs.io:7777` : 'none'));
 const sleep = (s) => new Promise(r => setTimeout(r, s * 1000));  // allow-raw-playwright: utility sleep shim — usages should migrate to humanIdlePause
 
 async function readPage(s) {
@@ -284,7 +281,7 @@ async function signup(s, attempt = 1) {
 
 for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
   console.log(`\n=== Instagram signup attempt ${attempt}/${MAX_RETRIES} ===`);
-  const s = await WSession.start({ label: `instagram_register_${attempt}`, proxy, browser: 'chromium' });
+  const s = await WSession.start({ label: `instagram_register_${attempt}`, proxy: pickInstagramProxy(), browser: 'chromium' });
   try {
     const username = await signup(s, attempt);
     console.log(`PASS: ${username}`);
