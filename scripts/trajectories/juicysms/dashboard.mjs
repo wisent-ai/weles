@@ -1,86 +1,72 @@
-// Drive the JuicySMS dashboard via forgot-password → reset → login.
-// Goal: see whether the dashboard shows the 17 IG orders this session
-// as "SMS arrived but not relayed" versus "truly never received".
-// Auto-account: svc.jui.4jtakl@wisentmedia.com (password unknown).
+// JuicySMS dashboard order-history inspection via Google SSO.
+// Same login flow balance.mjs uses (the auto-account is Google-linked,
+// not password-secured). After SSO completes, dump the full dashboard
+// + every linked sub-page so the user can read which orders the
+// dashboard says received SMS.
 import { WSession } from '../../../dist/session/wsession.js';
+import { googleSso, getGoogleSsoCreds } from '../_shared/services/google_sso.mjs';
 import { humanIdlePause } from '../../../dist/human/mouse.js';
-import { randomBytes } from 'node:crypto';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 
-const EMAIL = 'svc.jui.4jtakl@wisentmedia.com';
-const NEW_PW = `J${randomBytes(8).toString('base64url')}!9`;
+const LOGIN_URL = 'https://juicysms.com/login';
+const OUT_DIR = join(process.cwd(), '.work', 'juicysms_dashboard');
 
-async function pause(s) { await new Promise(r => setTimeout(r, s * 1000)); }  // allow-raw-playwright: between-poll wait for Resend API, no browser action
+const login = await getGoogleSsoCreds();
+if (!login) { console.log('FAIL: no Google SSO credentials in DB'); process.exit(1); }
+console.log(`[dash] Using Google SSO: ${login.email}`);
 
-async function waitForResetEmail(start) {
-  for (let i = 0; i < 60; i++) {
-    await pause(5);
-    const r = await fetch('https://api.resend.com/emails/receiving?limit=50', {
-      headers: { Authorization: `Bearer ${process.env.RESEND_RECEIVING_API_KEY}` },
-    });
-    const j = await r.json();
-    const match = (j.data || []).find(m =>
-      (m.from || '').includes('juicysms') &&
-      (m.to || []).includes(EMAIL) &&
-      new Date(m.created_at).getTime() >= start);
-    if (match) {
-      const full = await (await fetch(`https://api.resend.com/emails/receiving/${match.id}`, {
-        headers: { Authorization: `Bearer ${process.env.RESEND_RECEIVING_API_KEY}` },
-      })).json();
-      console.log(`[mail] juicysms reset email arrived id=${match.id} subj="${match.subject}"`);
-      return full;
-    }
-    if (i % 6 === 0) console.log(`[mail] waiting for juicysms reset... ${i * 5}s elapsed`);
-  }
-  return null;
-}
-
-const start = Date.now();
 const s = await WSession.start({ label: 'juicysms_dashboard', browser: 'chromium' });
 try {
-  await s.goto('https://juicysms.com/forgot-password');
-  await humanIdlePause('deliberate');
-  await s.fill('email', EMAIL);
-  await humanIdlePause('short');
-  await s.click('Email Password Reset Link');
-  await humanIdlePause('deliberate');
-  console.log(`[dash] forgot-password submitted; polling Resend for reset email...`);
-  const email = await waitForResetEmail(start);
-  if (!email) throw new Error('reset_email_not_received');
-  const body = (email.html || email.text || '');
-  const linkMatch = body.match(/https:\/\/juicysms\.com\/reset-password\/[A-Za-z0-9%._/-]+/);
-  if (!linkMatch) throw new Error('reset_link_not_in_email');
-  console.log(`[dash] following reset link: ${linkMatch[0].slice(0, 60)}...`);
-  await s.goto(linkMatch[0]);
-  await humanIdlePause('deliberate');
-  // Reset form has Email + Password (no Confirm Password) per frame
-  // reset_done.png 2026-05-20. Earlier guess at Password + Confirm
-  // Password left Email blank and never updated the credential.
-  await s.fill('email', EMAIL);
-  await humanIdlePause('short');
-  await s.fill('Password', NEW_PW);
-  await humanIdlePause('short');
-  await s.click('Reset Password');
+  await s.goto(LOGIN_URL);
   await humanIdlePause('long');
-  console.log(`[dash] password reset complete; new pw=${NEW_PW.slice(0,4)}...${NEW_PW.slice(-3)}`);
-  await s.goto('https://juicysms.com/login');
-  await humanIdlePause('deliberate');
-  await s.fill('email', EMAIL);
-  await humanIdlePause('short');
-  await s.fill('password', NEW_PW);
-  await humanIdlePause('short');
-  await s.click('Login');
-  await humanIdlePause('long');
-  console.log(`[dash] login URL=${s.page.url()}`);
-  for (const path of ['/orders', '/transactions', '/history', '/dashboard']) {
-    await s.goto(`https://juicysms.com${path}`);
-    await humanIdlePause('deliberate');
-    console.log(`[dash] navigated to ${path} → ${s.page.url()}`);
+
+  let popup = null;
+  const popupPromise = s.page.waitForEvent('popup').then(p => { popup = p; }, () => {});
+  await s.page.locator('a:has-text("LOGIN WITH GOOGLE"), button:has-text("LOGIN WITH GOOGLE"), a:has-text("Login with Google"), button:has-text("Login with Google")').filter({ visible: true }).first().click();
+  await Promise.race([popupPromise, new Promise(r => setTimeout(r, 8000))]);  // allow-raw-playwright: Promise.race deadline matches balance.mjs
+
+  const ok = await googleSso(s, login, { originHost: 'juicysms.com', page: popup });
+  if (!ok) throw new Error('google_sso_did_not_complete');
+
+  // Wait until URL settles on juicysms.com (the OAuth roundtrip lands us
+  // back on a juicysms route eventually). Earlier check `!/login` exited
+  // while still on accounts.google.com, then the next goto raced the
+  // OAuth redirect and threw ERR_ABORTED.
+  for (let i = 0; i < 60; i++) {
+    await humanIdlePause('short');
+    if (/juicysms\.com/.test(s.page.url()) && !/\/login/.test(s.page.url())) break;
   }
-  await fetch(`${process.env.SUPABASE_URL}/rest/v1/service_credentials?id=eq.juicysms_auto`, {
-    method: 'PATCH',
-    headers: { apikey: process.env.SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
-    body: JSON.stringify({ login_password: NEW_PW, updated_at: new Date().toISOString() }),
-  }).then(r => console.log(`[dash] saved new password to service_credentials: HTTP ${r.status}`));
+  console.log(`[dash] post-SSO URL=${s.page.url()}`);
+  await humanIdlePause('long');
+
+  mkdirSync(OUT_DIR, { recursive: true });
+
+  // /dashboard is a NotFound component (verified 2026-05-20). The
+  // logged-in homepage / "/" / "/my-account" carries the real nav.
+  await s.goto('https://juicysms.com/');
+  await humanIdlePause('long');
+  writeFileSync(join(OUT_DIR, 'home.html'), await s.page.content());
+  console.log(`[dash] / rendered url=${s.page.url()}`);
+
+  // Read-only DOM query: extract every in-app nav link, no synthetic events.
+  const navHrefs = await s.page.evaluate(`Array.from(document.querySelectorAll('a[href^="/"]')).map(a => a.getAttribute('href')).filter(Boolean)`);  // allow-raw-playwright: read-only href extraction
+  const candidates = [...new Set(navHrefs.filter(h => !/^\/(build|favicon|apple|site|lang|blog|faq|hdiw|api|terms|privacy|sitemap|support|referrals|sms-verification|register)/.test(h) && !/\.(png|svg|ico|js|css|webmanifest)/.test(h)))].slice(0, 40);
+  console.log(`[dash] in-app routes (post-SSO):`, candidates);
+  writeFileSync(join(OUT_DIR, 'nav-candidates.json'), JSON.stringify({ all: navHrefs, candidates }, null, 2));
+
+  for (const path of candidates) {
+    const target = path.startsWith('http') ? path : `https://juicysms.com${path}`;
+    let errored = false;
+    try { await s.goto(target); } catch (e) { errored = true; console.log(`[dash] goto ${path} threw: ${e.message?.slice(0,80)}`); }
+    if (errored) continue;
+    await humanIdlePause('long');
+    const slug = path.replace(/[\/]/g, '_').replace(/^_+|_+$/g, '') || 'root';
+    const html = await s.page.content();
+    writeFileSync(join(OUT_DIR, `${slug}.html`), html);
+    console.log(`[dash] ${path} rendered ${html.length}b`);
+  }
+
   console.log('[dash] PASS');
 } catch (e) {
   console.log(`[dash] FAIL: ${e.message?.slice(0, 200)}`);
