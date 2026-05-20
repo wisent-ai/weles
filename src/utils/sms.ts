@@ -84,12 +84,14 @@ export async function getNumber(service: string, country = 'UK'): Promise<SmsNum
   return null;
 }
 
-/** Poll for SMS code. waitSecs = max seconds to wait (default 240).
- * 90s was too short for Instagram US numbers — IG SMS routes through
- * carriers that add 30-90s of latency on top of JuicySMS's own ~10-30s
- * relay, so a 90s budget timed out before code delivery even on
- * working numbers (verified 2026-05-19 against +17065877794, IG flow). */
-export async function pollCode(orderId: string, provider: 'juicysms' | 'smsactivate', waitSecs = 240): Promise<string | null> {
+/** Poll for SMS code. waitSecs = max seconds to wait (default 900).
+ * Bumped 2026-05-20: 240s also too short. JuicySMS US-IG returned
+ * 'WAITING' across the full 4-minute window on 17 numbers. IG dispatch
+ * latency may be 5-15 minutes (no SMS provider publishes IG-specific
+ * TTL) so the 4-minute test was a false negative on delivery timing,
+ * not necessarily proof the pool is dead. 15 minutes is the safe upper
+ * bound for any SMS service except the cheapest pools. */
+export async function pollCode(orderId: string, provider: 'juicysms' | 'smsactivate', waitSecs = 900): Promise<string | null> {
   const start = Date.now();
   let _lastJuicy = '';
   while (Date.now() - start < waitSecs * 1000) {
