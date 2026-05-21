@@ -22,7 +22,7 @@
 
 import { WSession } from '../../../../dist/session/wsession.js';
 import { googleSso, getGoogleSsoCreds } from '../../_shared/services/google_sso.mjs';
-import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
+import { humanClick, humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
 import { humanType, humanFill } from '../../../../dist/human/keyboard.js';
 import { readFileSync } from 'node:fs';
 
@@ -117,25 +117,62 @@ try {
 
   await humanIdlePause('long'); // let the Docs canvas finish hydrating
 
-  // Try to set the title. Best-effort; non-fatal.
+  // Set the title via coordinate-based humanClick. The Playwright
+  // locator boundingBox path used here in the prior iteration would
+  // sometimes match a wrong element or hang on boundingBox, producing
+  // a "title set" log that the rendered UI later contradicted. The
+  // companion rename_doc trajectory proved the JS getBoundingClientRect
+  // + humanClick(x, y) flow works end-to-end on Chromium. Use the same
+  // path here so create_doc's own title step verifies under the same
+  // post-commit DOM probe.
   try {
-    const titleLabel = s.page.locator('.docs-title-input-label-inner, .docs-title-input-label, [aria-label*="Rename" i]').filter({ visible: true }).first();
-    const labelVisible = await probeVisible(titleLabel);
-    if (labelVisible) {
-      await humanClickLocator(s.page, titleLabel);
-      await humanIdlePause('short');
-      const titleInput = s.page.locator('input.docs-title-input, input[aria-label*="Rename" i]').filter({ visible: true }).first();
-      const inputVisible = await probeVisible(titleInput);
-      if (inputVisible) {
-        await humanFill(s.page, titleInput, TITLE);
+    const bbox = await s.page.evaluate(() => { // allow-raw-playwright: read-only bbox lookup of the title label
+      const candidates = [
+        '.docs-title-input-label-inner',
+        '.docs-title-input-label',
+        '[aria-label="Rename"]',
+      ];
+      for (const sel of candidates) {
+        const el = document.querySelector(sel);
+        if (!el) continue;
+        const r = el.getBoundingClientRect();
+        if (r.width < 4 || r.height < 4) continue;
+        return { x: r.x + r.width / 2, y: r.y + r.height / 2, sel };
+      }
+      return null;
+    });
+    if (!bbox) {
+      log('WARN: title label not in DOM; doc keeps default name');
+    } else {
+      await humanClick(s.page, Math.round(bbox.x), Math.round(bbox.y));
+      await humanIdlePause('deliberate');
+      const after = await s.page.evaluate(() => { // allow-raw-playwright: read-only DOM probe of the title input state
+        const inp = document.querySelector('input.docs-title-input');
+        return {
+          inputPresent: !!inp,
+          inputVisible: inp ? (inp.offsetWidth > 0 || inp.offsetHeight > 0) : false,
+          activeIsTitle: document.activeElement === inp,
+        };
+      });
+      if (!after.inputPresent || !after.inputVisible || !after.activeIsTitle) {
+        log('WARN: title input did not become editable after click — ' + JSON.stringify(after));
+      } else {
+        await s.page.keyboard.press('Meta+A'); // allow-raw-playwright: select-all in focused title input
+        await humanIdlePause('short');
+        await humanType(s.page, TITLE);
+        await humanIdlePause('short');
         await s.page.keyboard.press('Enter'); // allow-raw-playwright: commit-title Enter press
         await humanIdlePause('deliberate');
-        log('title set: ' + TITLE);
-      } else {
-        log('WARN: title input not editable; doc keeps default name');
+        const committed = await s.page.evaluate(() => { // allow-raw-playwright: read-only DOM probe of committed title
+          const label = document.querySelector('.docs-title-input-label-inner');
+          return label ? (label.textContent || '').trim() : null;
+        });
+        if (committed === TITLE) {
+          log('title set: ' + TITLE);
+        } else {
+          log('WARN: title commit not verified (label=' + JSON.stringify(committed) + ' expected=' + JSON.stringify(TITLE) + ')');
+        }
       }
-    } else {
-      log('WARN: title label not found; doc keeps default name');
     }
   } catch (e) {
     log('WARN: title-set raised: ' + (e.message || String(e)).slice(0, 80));
