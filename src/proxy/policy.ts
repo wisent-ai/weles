@@ -25,6 +25,7 @@ const HOST_PROVIDER_PATTERNS: Array<[RegExp, string]> = [
   [/(^|\.)iproyal\.com$/i, 'iproyal'],
   [/(^|\.)brd\.superproxy\.io$/i, 'brightdata'],
   [/(^|\.)brightdata\.com$/i, 'brightdata'],
+  [/(^|\.)decodo\.com$/i, 'decodo'],
 ];
 
 // Username patterns: stored proxies are often IP-form (BrightData routes
