@@ -51,7 +51,14 @@ async function resolveCreds() {
 }
 
 const creds = await resolveCreds();
-const s = await WSession.start({ label: LABEL, browser: process.env.BROWSER || undefined });
+// Chromium is the default engine for this trajectory. Firefox passes
+// Google SSO and produces a real doc, but the title input
+// (input.docs-title-input) and body canvas (.kix-appview-editor) both
+// time out on boundingBox under the Firefox engine — Docs renders
+// those as canvas-backed controls Firefox's WSession can't resolve.
+// Chromium fills title + body cleanly. Override with BROWSER=firefox
+// only when probing engine parity.
+const s = await WSession.start({ label: LABEL, browser: process.env.BROWSER || 'chromium' });
 
 try {
   log('engine:', s.personaConfig?.browser ?? 'unknown', '| title:', TITLE, '| content_bytes:', content.length);
