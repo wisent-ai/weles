@@ -30,13 +30,26 @@ const opts = await resolveAccountSession(acct);
 const s = await WSession.start({ label: 'discord_accept_friend_request', proxy: opts.proxyUrl, persona: opts.persona, targetHost: 'discord.com', browser: 'chromium' });
 console.log(`[accept_friend] account=${acct.username} limit=${ACCEPT_LIMIT}`);
 
+async function fail(msg) {
+  console.log(`FAIL: ${msg}`);
+  try { await s.page.screenshot({ path: `.work/accept_friend_request/fail_${Date.now()}.png` }); } catch (e) { console.log(`[accept_friend] screenshot err: ${e.message?.slice(0, 80)}`); }
+  await s.close();
+  process.exit(1);
+}
+
 try {
   await s.ctx.addInitScript(`(()=>{try{if(location.hostname.indexOf('discord')>=0){localStorage.setItem('token',JSON.stringify(${JSON.stringify(token)}))}}catch(e){}})()`);
   await s.goto('https://discord.com/channels/@me');
-  await humanIdlePause('deliberate');
+  // Wait for the SPA gateway-hydration splash ("DID YOU KNOW: ...") to
+  // clear by waiting for the bottom-left User Settings gear button —
+  // it only appears once the user-popout has rendered.
+  try { await s.page.locator('button[aria-label="User Settings"]').first().waitFor({ state: 'visible' }); }
+  catch (e) { await fail(`SPA did not finish hydrating: ${e.message?.slice(0, 80)}`); }
+  await humanIdlePause('short');
 
-  const pendingTab = s.page.locator('div, button').filter({ hasText: /^Pending$/ }).first();
-  if ((await pendingTab.count()) === 0) { console.log('FAIL: Pending tab not found'); process.exit(1); }
+  // Tab text may include a count badge like "Pending (2)" — match prefix.
+  const pendingTab = s.page.locator('div, button, [role=tab]').filter({ hasText: /^Pending(\s|\(|$)/ }).first();
+  if ((await pendingTab.count()) === 0) { await fail('Pending tab not found'); }
   await humanClickLocator(s.page, pendingTab);
   await humanIdlePause('deliberate');
 
