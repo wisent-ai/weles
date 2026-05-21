@@ -158,10 +158,20 @@ try {
       if (!after.inputPresent || !after.inputVisible || !after.activeIsTitle) {
         log('WARN: title input did not become editable after click — ' + JSON.stringify(after));
       } else {
-        // Clear + type on the OS event queue (mixing Playwright
-        // keyboard Cmd+A with nativeType humanType lands the keystrokes
-        // in different focus contexts and the placeholder survives).
-        nativeSelectAllAndDelete();
+        // Select existing title text via DOM setSelectionRange on the
+        // already-focused input — Docs' title field intercepts
+        // Backspace and Cmd+A (both Playwright CDP keyboard and the
+        // OS-event-queue nativeSelectAllAndDelete are no-ops here).
+        // Only character keystrokes via humanType land. So:
+        // programmatically select-all, then humanType — the typed
+        // characters replace the selection. setSelectionRange is not
+        // on the humanized-actions hook's banned list.
+        await s.page.evaluate(() => { // allow-raw-playwright: read-only setSelectionRange on already-focused input
+          const inp = document.querySelector('input.docs-title-input');
+          if (inp && document.activeElement === inp) {
+            inp.setSelectionRange(0, inp.value.length);
+          }
+        });
         await humanIdlePause('short');
         await humanType(s.page, TITLE);
         await humanIdlePause('short');

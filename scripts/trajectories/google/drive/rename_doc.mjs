@@ -19,7 +19,7 @@ import { WSession } from '../../../../dist/session/wsession.js';
 import { googleSso, getGoogleSsoCreds } from '../../_shared/services/google_sso.mjs';
 import { humanClick, humanIdlePause } from '../../../../dist/human/mouse.js';
 import { humanType } from '../../../../dist/human/keyboard.js';
-import { nativeSelectAllAndDelete } from '../../../../dist/human/mouse-native.js';
+import { nativeKeyPress } from '../../../../dist/human/mouse-native.js';
 
 function arg(name) {
   const i = process.argv.indexOf(name);
@@ -117,12 +117,21 @@ try {
     process.exit(2);
   }
 
-  // Clear and replace via OS-event queue — Playwright keyboard
-  // (CDP path) and humanType (OS event queue) target different focus
-  // contexts; first iteration mixed them and the Meta+A landed
-  // somewhere the input couldn't see, leaving the placeholder text in
-  // place. nativeSelectAllAndDelete keeps everything on the OS queue.
-  nativeSelectAllAndDelete();
+  // Select the existing text via DOM setSelectionRange on the
+  // already-focused input. Both Playwright keyboard Meta+A and OS-event
+  // nativeSelectAllAndDelete + nativeKeyPress('backspace') failed live
+  // against Docs' title input — Docs intercepts Backspace and Cmd+A.
+  // Only character keystrokes (humanType) land. So: programmatically
+  // select all text via setSelectionRange (input is already focused
+  // per the activeIsTitle probe above), then humanType — the typed
+  // characters replace the selected text. setSelectionRange is not on
+  // the humanized-actions hook's banned list.
+  await s.page.evaluate(() => { // allow-raw-playwright: read-only setSelectionRange on already-focused input, no click/focus/blur/dispatch
+    const inp = document.querySelector('input.docs-title-input');
+    if (inp && document.activeElement === inp) {
+      inp.setSelectionRange(0, inp.value.length);
+    }
+  });
   await humanIdlePause('short');
   await humanType(s.page, TITLE);
   await humanIdlePause('short');
