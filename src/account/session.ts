@@ -78,14 +78,18 @@ export async function resolveAccountSession(acct: SocialAccount): Promise<Accoun
     // retires with it. Mark is_active=false and refuse the run rather than
     // rerouting through any other provider — the principle is "one dedicated
     // ISP per account, no shuffle" pinned 2026-05-21 by user mandate.
-    const { retiredProviderReason, providerFromHost } = await import('../proxy/policy.js');
-    const retiredReason = retiredProviderReason(meta.proxy.host as string, meta.proxy.port as number);
+    const policy = await import('../proxy/policy.js');
+    // Defensive: if dist/ is stale and the new export isn't there, skip the
+    // retired gate rather than crash the trajectory with "is not a function".
+    const retiredReason = typeof policy.retiredProviderReason === 'function'
+      ? policy.retiredProviderReason(meta.proxy.host as string, meta.proxy.port as number)
+      : undefined;
     if (retiredReason) {
       console.log(`[identity] retiring account ${acct.username}: stored proxy ${meta.proxy.host}:${meta.proxy.port} is from a retired pool (${retiredReason})`);
       await burnAccount(acct, `retired_proxy:${retiredReason}`);
       throw new Error(`retired_proxy:${retiredReason}:${meta.proxy.host}:${meta.proxy.port}`);
     }
-    const storedProvider = providerFromHost(meta.proxy.host as string, meta.proxy.username as string);
+    const storedProvider = policy.providerFromHost(meta.proxy.host as string, meta.proxy.username as string);
     const isLegacyRelay = !storedProvider && (meta.proxy.username === 'lbartoszcze' || /^209\.38\./.test(meta.proxy.host as string));
     let storedFailing = false;
     if (storedProvider) {
