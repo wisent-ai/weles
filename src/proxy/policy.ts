@@ -65,6 +65,13 @@ const RETIRED_PROVIDER_HOSTS: { pattern: RegExp; reason: string }[] = [
   { pattern: /^195\.86\./,                      reason: 'oxylabs_residential_exit_range' },
   { pattern: /^152\.233\./,                     reason: 'oxylabs_residential_exit_range' },
   { pattern: /^209\.38\./,                      reason: 'legacy_lbartoszcze_relay' },
+  // Oxylabs Dedicated ISP — purchased as "Comcast" but live audit
+  // 2026-05-21 shows ports 8003-8005 exit on NetEnterprise (AS11563) and
+  // CenturyLink (AS3561) datacenter ASNs, not Comcast. Same pattern memory
+  // already documented in oxylabs_isp_is_datacenter_2026-05-12.md. Decodo
+  // ISP is the canonical static-residential pool now.
+  { pattern: /(^|\.)isp\.oxylabs\.io$/i,        reason: 'oxylabs_dedicated_isp_serves_datacenter' },
+  { pattern: /(^|\.)disp\.oxylabs\.io$/i,       reason: 'oxylabs_dedicated_isp_serves_datacenter' },
 ];
 // Port-only signal: 7777 is the Oxylabs Residential rotating port across
 // every gateway hostname they expose. Matching by port catches CIDR drift.
