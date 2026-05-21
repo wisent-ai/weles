@@ -98,20 +98,24 @@ if (!verbCfg) { console.log(`FAIL: no config for ${PLATFORM}.${VERB}`); process.
 const detector = DETECTORS[PLATFORM];
 if (!detector) { console.log(`FAIL: no ban detector for ${PLATFORM}`); process.exit(1); }
 
-const acct = await getSocialAccount(PLATFORM);
-if (!acct) { console.log(`FAIL: no active ${PLATFORM} account`); process.exit(1); }
-
-const selfHandle = acct.username;
-const targetUser = TARGET_USER || selfHandle;
-const url = typeof verbCfg.url === 'function' ? verbCfg.url(targetUser, QUERY) : verbCfg.url;
-
-console.log(`[benign] ${PLATFORM}/${VERB} acct=${acct.username} url=${url}`);
-
-const { proxyUrl, persona } = await resolveAccountSession(acct);
 const label = `${PLATFORM}_${VERB}`;
-const s = await WSession.start({ label, proxy: proxyUrl, persona });
+let acct = null;
+let s = null;
+let selfHandle = '';
 let banSignal = null;
 try {
+  acct = await getSocialAccount(PLATFORM);
+  if (!acct) {
+    banSignal = { signal: 'no_account', healthy: false, details: { stage: 'pre-WSession', reason: `no active ${PLATFORM} account` } };
+    throw new Error(`no active ${PLATFORM} account`);
+  }
+  selfHandle = acct.username;
+  const targetUser = TARGET_USER || selfHandle;
+  const url = typeof verbCfg.url === 'function' ? verbCfg.url(targetUser, QUERY) : verbCfg.url;
+  console.log(`[benign] ${PLATFORM}/${VERB} acct=${acct.username} url=${url}`);
+
+  const { proxyUrl, persona } = await resolveAccountSession(acct);
+  s = await WSession.start({ label, proxy: proxyUrl, persona });
   await s.goto(url);
   const [minMs, maxMs] = verbCfg.dwellMs;
   for (let i = 0; i < verbCfg.scrolls; i++) {
@@ -153,15 +157,30 @@ try {
   console.log(`[ban-signal] ${banSignal?.signal}`);
   console.log(`PASS: ${PLATFORM}_${VERB} ${verbCfg.scrolls}x scrolls`);
 } catch (e) {
-  banSignal = await detector(s.page, s.capturedResponses).catch(() => null);
-  const eFinalUrl = s.page.url?.() ?? banSignal?.details?.final_url ?? '';
-  const eBodySample = banSignal?.details?.body_text_sample ?? '';
-  const eOnAuthWall = /\/(login|signin|sessions\/new|uas\/login|checkpoint|accounts\/login)\b/.test(eFinalUrl) || /\/login\?/.test(eFinalUrl);
-  if (banSignal && eOnAuthWall && (banSignal.signal === 'healthy' || banSignal.signal === 'captcha_challenge')) {
-    banSignal = { signal: 'checkpoint', healthy: false, details: { final_url: eFinalUrl, reason: `reclassified from ${banSignal.signal} — page on auth wall after benign loop crash`, prev_signal: banSignal.signal } };
-  } else if (banSignal && eFinalUrl.startsWith('chrome-error://') && (banSignal.signal === 'healthy' || banSignal.signal === 'unknown')) {
-    const sig = /HTTP ERROR 407|ERR_PROXY_AUTH/i.test(eBodySample) ? 'proxy_auth_failed' : /HTTP ERROR 4|ERR_HTTP_RESPONSE_CODE/i.test(eBodySample) ? 'ip_blocked' : 'proxy_failed';
-    banSignal = { signal: sig, healthy: false, details: { final_url: eFinalUrl, reason: `reclassified from ${banSignal.signal} — chrome-error page after benign crash`, prev_signal: banSignal.signal } };
+  if (s) {
+    let detResult;
+    try { detResult = await detector(s.page, s.capturedResponses); }
+    catch (derr) { console.log('[detector] err in catch:', derr?.message?.slice(0, 100)); }
+    banSignal = detResult;
+    const eFinalUrl = s.page.url?.() ?? banSignal?.details?.final_url ?? '';
+    const eBodySample = banSignal?.details?.body_text_sample ?? '';
+    const eOnAuthWall = /\/(login|signin|sessions\/new|uas\/login|checkpoint|accounts\/login)\b/.test(eFinalUrl) || /\/login\?/.test(eFinalUrl);
+    if (banSignal && eOnAuthWall && (banSignal.signal === 'healthy' || banSignal.signal === 'captcha_challenge')) {
+      banSignal = { signal: 'checkpoint', healthy: false, details: { final_url: eFinalUrl, reason: `reclassified from ${banSignal.signal} — page on auth wall after benign loop crash`, prev_signal: banSignal.signal } };
+    } else if (banSignal && eFinalUrl.startsWith('chrome-error://') && (banSignal.signal === 'healthy' || banSignal.signal === 'unknown')) {
+      const sig = /HTTP ERROR 407|ERR_PROXY_AUTH/i.test(eBodySample) ? 'proxy_auth_failed' : /HTTP ERROR 4|ERR_HTTP_RESPONSE_CODE/i.test(eBodySample) ? 'ip_blocked' : 'proxy_failed';
+      banSignal = { signal: sig, healthy: false, details: { final_url: eFinalUrl, reason: `reclassified from ${banSignal.signal} — chrome-error page after benign crash`, prev_signal: banSignal.signal } };
+    }
+  } else if (!banSignal) {
+    // s never opened — getSocialAccount, resolveAccountSession, or WSession.start threw.
+    // Classify by exception message so the worker writes a real ban_signal instead of
+    // bubbling exit-1 with no diagnostic (the 'unknown_error' baseline on z0earw45dw1p).
+    const msg = e?.message?.slice(0, 200) ?? 'unknown';
+    const sig = /no_isp_proxy|no isp proxy|no_proxy_resolved/i.test(msg) ? 'no_proxy_resolved' :
+                /no active.*account|no_account/i.test(msg) ? 'no_account' :
+                /ERR_PROXY_AUTH|HTTP 407/i.test(msg) ? 'proxy_auth_failed' :
+                'session_boot_failed';
+    banSignal = { signal: sig, healthy: false, details: { stage: 'pre-WSession', reason: msg } };
   }
   if (banSignal) console.log(`[ban-signal] ${banSignal.signal}`);
   console.log('FAIL:', e.message?.slice(0, 200));
@@ -171,11 +190,12 @@ try {
     try {
       const dir = join(process.cwd(), 'recordings', label);
       mkdirSync(dir, { recursive: true });
-      writeFileSync(join(dir, 'ban_signal.json'), JSON.stringify({ account_id: acct.id, username: acct.username, action: label, ...banSignal, ts: new Date().toISOString() }, null, 2));
+      writeFileSync(join(dir, 'ban_signal.json'), JSON.stringify({ account_id: acct?.id ?? null, username: acct?.username ?? null, action: label, ...banSignal, ts: new Date().toISOString() }, null, 2));
     } catch (e) { console.log('[ban-signal] persist err:', e.message); }
-    if (banSignal.signal === 'checkpoint' && acct.id) {
-      await markCookiesStale(acct.id).catch((e) => console.log('[mark-stale] err:', e.message?.slice(0, 80)));
+    if (banSignal.signal === 'checkpoint' && acct?.id) {
+      try { await markCookiesStale(acct.id); }
+      catch (mse) { console.log('[mark-stale] err:', mse?.message?.slice(0, 80)); }
     }
   }
-  await s.close();
+  if (s) await s.close();
 }
