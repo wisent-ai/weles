@@ -29,7 +29,12 @@ async function resolveCreds() {
 }
 
 const creds = await resolveCreds();
-const s = await WSession.start({ label: LABEL, browser: process.env.BROWSER || undefined });
+// Chromium is the default engine; Firefox engine stalls at Google's
+// password challenge page (same root cause that broke Firefox in
+// create_doc — Google's WIZ form doesn't surface a password input
+// for the Gecko UA in some sessions). Override with BROWSER=firefox
+// only when probing engine parity.
+const s = await WSession.start({ label: LABEL, browser: process.env.BROWSER || 'chromium' });
 
 try {
   log('engine:', s.personaConfig?.browser ?? 'unknown');
