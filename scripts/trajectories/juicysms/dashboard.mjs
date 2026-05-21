@@ -42,30 +42,50 @@ try {
 
   mkdirSync(OUT_DIR, { recursive: true });
 
-  // /dashboard is a NotFound component (verified 2026-05-20). The
-  // logged-in homepage / "/" / "/my-account" carries the real nav.
-  await s.goto('https://juicysms.com/');
-  await humanIdlePause('long');
-  writeFileSync(join(OUT_DIR, 'home.html'), await s.page.content());
-  console.log(`[dash] / rendered url=${s.page.url()}`);
-
-  // Read-only DOM query: extract every in-app nav link, no synthetic events.
-  const navHrefs = await s.page.evaluate(`Array.from(document.querySelectorAll('a[href^="/"]')).map(a => a.getAttribute('href')).filter(Boolean)`);  // allow-raw-playwright: read-only href extraction
-  const candidates = [...new Set(navHrefs.filter(h => !/^\/(build|favicon|apple|site|lang|blog|faq|hdiw|api|terms|privacy|sitemap|support|referrals|sms-verification|register)/.test(h) && !/\.(png|svg|ico|js|css|webmanifest)/.test(h)))].slice(0, 40);
-  console.log(`[dash] in-app routes (post-SSO):`, candidates);
-  writeFileSync(join(OUT_DIR, 'nav-candidates.json'), JSON.stringify({ all: navHrefs, candidates }, null, 2));
-
-  for (const path of candidates) {
-    const target = path.startsWith('http') ? path : `https://juicysms.com${path}`;
-    let errored = false;
-    try { await s.goto(target); } catch (e) { errored = true; console.log(`[dash] goto ${path} threw: ${e.message?.slice(0,80)}`); }
-    if (errored) continue;
+  // /dashboard and /orders return 404 (verified 2026-05-20). Real in-app
+  // routes from the Ziggy table: /myorders (SMS order history), /myaccount
+  // (profile + settings), /addfunds (top-up history), /hire-panel (active
+  // hire contracts). The marketing-nav regex on / missed these because
+  // they only appear in the logged-in user-menu dropdown.
+  async function dumpPath(path) {
+    try { await s.goto(`https://juicysms.com${path}`); } catch (e) {
+      console.log(`[dash] goto ${path} threw: ${e.message?.slice(0,80)}`);
+      return;
+    }
     await humanIdlePause('long');
-    const slug = path.replace(/[\/]/g, '_').replace(/^_+|_+$/g, '') || 'root';
+    const slug = path === '/' ? 'home' : path.replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_+|_+$/g, '');
     const html = await s.page.content();
     writeFileSync(join(OUT_DIR, `${slug}.html`), html);
-    console.log(`[dash] ${path} rendered ${html.length}b`);
+    console.log(`[dash] ${path} rendered ${html.length}b at url=${s.page.url()}`);
   }
+
+  await dumpPath('/');
+  await dumpPath('/myaccount');
+  await dumpPath('/addfunds');
+  await dumpPath('/hire-panel');
+  await dumpPath('/webhooks');
+  // Paginate /myorders so we capture the full 494-order history. Without
+  // paging we only see the most recent 10 (all CANCELLED), missing any
+  // earlier order that actually delivered an SMS body. Inertia returns
+  // JSON when X-Inertia header is set, so we fetch all pages in-browser
+  // and write a single aggregate file (avoids 50 HTML dumps).
+  await s.goto('https://juicysms.com/myorders');
+  await humanIdlePause('long');
+  const allOrders = await s.page.evaluate(async (lastPage) => {  // allow-raw-playwright: read-only fetch loop, no synthetic events
+    const decode = t => t.replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/&#039;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+    const out = [];
+    for (let p = 1; p <= lastPage; p++) {
+      const r = await fetch(`/myorders?page=${p}`, { credentials: 'include' });
+      const html = await r.text();
+      const m = html.match(/data-page="([^"]+)"/);
+      if (!m) continue;
+      const data = JSON.parse(decode(m[1]));
+      out.push(...(data.props?.orders?.data || []));
+    }
+    return out;
+  }, 50);
+  writeFileSync(join(OUT_DIR, 'all_orders.json'), JSON.stringify(allOrders, null, 2));
+  console.log(`[dash] aggregated ${allOrders.length} orders into all_orders.json`);
 
   console.log('[dash] PASS');
 } catch (e) {
