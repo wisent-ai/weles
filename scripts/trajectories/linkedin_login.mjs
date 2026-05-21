@@ -81,17 +81,19 @@ if (!persona || persona.os !== 'macos') {
 // Override path generates a fresh sessId by design — ONLY first login or
 // recovery after the registration sticky burned. Steady-state logins
 // must hit the same exit IP as the prior successful login.
-function isOxylabsIsp(url) {
+// Any static-residential ISP host (Decodo isp.decodo.com canonical since
+// 2026-05-21, plus legacy isp.oxylabs.io / disp.oxylabs.io for accounts
+// still pinned there). Generic 'isp us' filter on the fresh-pick path so
+// the canonical Decodo wins by being first in the providers list.
+const STATIC_ISP_RE = /(^|\.)(isp\.oxylabs\.io|disp\.oxylabs\.io|isp\.decodo\.com)$/i;
+function isStaticIsp(url) {
   if (!url) return false;
-  try {
-    const u = new URL(url);
-    return u.hostname === 'isp.oxylabs.io';
-  } catch { return false; }
+  try { return STATIC_ISP_RE.test(new URL(url).hostname); } catch { return false; }
 }
-if (!isOxylabsIsp(proxyUrl)) {
-  console.log(`[linkedin_login] stored proxy is not Oxylabs ISP — picking fresh (one-time, will be persisted)`);
+if (!isStaticIsp(proxyUrl)) {
+  console.log(`[linkedin_login] stored proxy not static ISP — picking fresh`);
   const { resolveProxy } = await import('../../dist/proxy/config.js');
-  const pw = await resolveProxy('isp oxylabs us', 'www.linkedin.com');
+  const pw = await resolveProxy('isp us', 'www.linkedin.com');
   if (pw?.server && pw?.username) {
     const u = new URL(pw.server);
     u.username = encodeURIComponent(pw.username);
@@ -99,11 +101,11 @@ if (!isOxylabsIsp(proxyUrl)) {
     proxyUrl = u.toString();
     console.log(`[linkedin_login] picked isp proxy ${pw.server}`);
   } else {
-    console.log(`[linkedin_login] FAIL: no isp oxylabs us proxy resolved; refusing to run on non-ISP exit (user rule)`);
+    console.log(`[linkedin_login] FAIL: no static ISP proxy resolved`);
     process.exit(2);
   }
 } else {
-  console.log(`[linkedin_login] reusing stored Oxylabs ISP sticky for ${acct.username}`);
+  console.log(`[linkedin_login] reusing stored static ISP sticky for ${acct.username}`);
 }
 console.log(`[linkedin_login:dbg] before WSession.start`);
 let s = await WSession.start({ label: 'linkedin_login', proxy: proxyUrl, persona });
