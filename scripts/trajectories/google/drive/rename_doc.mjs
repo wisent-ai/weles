@@ -19,6 +19,7 @@ import { WSession } from '../../../../dist/session/wsession.js';
 import { googleSso, getGoogleSsoCreds } from '../../_shared/services/google_sso.mjs';
 import { humanClick, humanIdlePause } from '../../../../dist/human/mouse.js';
 import { humanType } from '../../../../dist/human/keyboard.js';
+import { nativeSelectAllAndDelete } from '../../../../dist/human/mouse-native.js';
 
 function arg(name) {
   const i = process.argv.indexOf(name);
@@ -116,8 +117,12 @@ try {
     process.exit(2);
   }
 
-  // Select all (in case the input has existing text) + type new title.
-  await s.page.keyboard.press('Meta+A'); // allow-raw-playwright: select-all in focused title input on macOS
+  // Clear and replace via OS-event queue — Playwright keyboard
+  // (CDP path) and humanType (OS event queue) target different focus
+  // contexts; first iteration mixed them and the Meta+A landed
+  // somewhere the input couldn't see, leaving the placeholder text in
+  // place. nativeSelectAllAndDelete keeps everything on the OS queue.
+  nativeSelectAllAndDelete();
   await humanIdlePause('short');
   await humanType(s.page, TITLE);
   await humanIdlePause('short');

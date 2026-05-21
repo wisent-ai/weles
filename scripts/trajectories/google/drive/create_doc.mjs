@@ -24,6 +24,7 @@ import { WSession } from '../../../../dist/session/wsession.js';
 import { googleSso, getGoogleSsoCreds } from '../../_shared/services/google_sso.mjs';
 import { humanClick, humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
 import { humanType, humanFill } from '../../../../dist/human/keyboard.js';
+import { nativeSelectAllAndDelete } from '../../../../dist/human/mouse-native.js';
 import { readFileSync } from 'node:fs';
 
 function arg(name) {
@@ -157,7 +158,10 @@ try {
       if (!after.inputPresent || !after.inputVisible || !after.activeIsTitle) {
         log('WARN: title input did not become editable after click — ' + JSON.stringify(after));
       } else {
-        await s.page.keyboard.press('Meta+A'); // allow-raw-playwright: select-all in focused title input
+        // Clear + type on the OS event queue (mixing Playwright
+        // keyboard Cmd+A with nativeType humanType lands the keystrokes
+        // in different focus contexts and the placeholder survives).
+        nativeSelectAllAndDelete();
         await humanIdlePause('short');
         await humanType(s.page, TITLE);
         await humanIdlePause('short');
