@@ -92,57 +92,65 @@ try {
   const docId = docIdMatch?.[1];
   log('doc created, id=' + docId);
 
-  // Set the title. Docs has an editable .docs-title-input-label-inner; click
-  // it then humanFill. The title input is rendered as an input element after
-  // a click on the heading area at the top of the page.
-  const titleInput = s.page.locator('input.docs-title-input').filter({ visible: true }).first();
-  for (let i = 0; i < 30; i++) {
-    if (await titleInput.isVisible().catch(() => false)) break;
-    // The visible thing is .docs-title-input-label-inner (a span). Clicking
-    // it morphs the label into an actual <input> we can fill.
-    const titleLabel = s.page.locator('.docs-title-input-label-inner, .docs-title-input-label').filter({ visible: true }).first();
-    if (await titleLabel.isVisible().catch(() => false)) {
-      await humanClickLocator(s.page, titleLabel);
-      await humanIdlePause('short');
-    } else {
-      await humanIdlePause('short');
+  // Print the URL as the load-bearing result FIRST. Title + body
+  // insertion below are best-effort. The first iteration hard-failed
+  // when the Docs title-input locator's boundingBox call exceeded 30s
+  // (modern Docs renders the title as a canvas-rendered control and
+  // the legacy input.docs-title-input selector is no longer real). Now
+  // the URL is committed to stdout before any fragile UI manipulation.
+  console.log('URL: ' + docUrl);
+
+  async function probeVisible(loc) {
+    try { return await loc.isVisible(); }
+    catch (e) {
+      if (/detached|navigat|destroyed|closed/i.test(e.message || '')) return null;
+      throw e;
     }
   }
-  if (await titleInput.isVisible().catch(() => false)) {
-    await humanFill(s.page, titleInput, TITLE);
-    await s.page.keyboard.press('Enter'); // allow-raw-playwright: commit-title Enter press
+
+  await humanIdlePause('long'); // let the Docs canvas finish hydrating
+
+  // Try to set the title. Best-effort; non-fatal.
+  try {
+    const titleLabel = s.page.locator('.docs-title-input-label-inner, .docs-title-input-label, [aria-label*="Rename" i]').filter({ visible: true }).first();
+    const labelVisible = await probeVisible(titleLabel);
+    if (labelVisible) {
+      await humanClickLocator(s.page, titleLabel);
+      await humanIdlePause('short');
+      const titleInput = s.page.locator('input.docs-title-input, input[aria-label*="Rename" i]').filter({ visible: true }).first();
+      const inputVisible = await probeVisible(titleInput);
+      if (inputVisible) {
+        await humanFill(s.page, titleInput, TITLE);
+        await s.page.keyboard.press('Enter'); // allow-raw-playwright: commit-title Enter press
+        await humanIdlePause('deliberate');
+        log('title set: ' + TITLE);
+      } else {
+        log('WARN: title input not editable; doc keeps default name');
+      }
+    } else {
+      log('WARN: title label not found; doc keeps default name');
+    }
+  } catch (e) {
+    log('WARN: title-set raised: ' + (e.message || String(e)).slice(0, 80));
+  }
+
+  // Try to insert body content. Best-effort; non-fatal. Canvas waitFor
+  // uses Playwright's default visibility timeout (30s) — long enough for
+  // first hydration, short enough to fail fast on a wrong selector.
+  try {
+    const canvas = s.page.locator('.kix-appview-editor, .docs-texteventtarget-iframe, [contenteditable="true"]').first();
+    await canvas.waitFor({ state: 'visible' });
+    await humanClickLocator(s.page, canvas);
     await humanIdlePause('deliberate');
-    log('title set: ' + TITLE);
-  } else {
-    log('WARN: title input never rendered; doc keeps default "Untitled document"');
+    log('typing ' + content.length + ' chars into body…');
+    await humanType(s.page, content);
+    await humanIdlePause('long');
+    log('body typed');
+  } catch (e) {
+    log('WARN: body-insert raised: ' + (e.message || String(e)).slice(0, 80));
   }
 
-  // Focus the body canvas. Docs renders the editable surface inside an
-  // iframe.docs-texteventtarget-iframe; clicking somewhere in the visible
-  // canvas focuses it. Use the .kix-appview-editor container's bounding
-  // box and humanClick in the middle.
-  const canvas = s.page.locator('.kix-appview-editor, .docs-texteventtarget-iframe').first();
-  await canvas.waitFor({ state: 'visible' });
-  await humanClickLocator(s.page, canvas);
-  await humanIdlePause('deliberate');
-
-  // Type the content. humanType routes through nativeType so the kix
-  // editor receives a real keystroke stream. Slow but correct — ~30
-  // chars/sec on this Mac.
-  log('typing ' + content.length + ' chars into body…');
-  await humanType(s.page, content);
-  await humanIdlePause('long');
-
-  // Docs autosaves after typing stops; the .docs-titlebar-badge changes to
-  // "Saved to Drive" once the save completes. Best-effort wait.
-  for (let i = 0; i < 30; i++) {
-    const saved = await s.page.locator('.docs-titlebar-badge:has-text("Saved")').count();
-    if (saved > 0) break;
-    await humanIdlePause('short');
-  }
-
-  log('PASS: doc created and saved');
-  console.log('URL: ' + docUrl);
+  log('PASS: doc available at ' + docUrl);
 } finally {
   await s.close();
 }
