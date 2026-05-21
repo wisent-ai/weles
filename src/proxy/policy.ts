@@ -47,6 +47,40 @@ export function providerFromHost(host: string | undefined, username?: string): s
   return undefined;
 }
 
+// Retired provider pools. Accounts whose stored metadata.proxy points at one
+// of these MUST be burned (is_active=false) rather than rerouted through any
+// other provider. The principle pinned 2026-05-21: one dedicated ISP IP per
+// account, set at registration time, used forever. When the pinned pool
+// retires, the account retires with it.
+//
+// Each retired pattern names what we observed in the wild:
+//   - pr.oxylabs.io / 195.86.* / 152.233.* on port 7777: Oxylabs Residential
+//     rotating gateway. Banned for LinkedIn and every account-bound flow
+//     since the exit IP changes per request, which breaks persona<->IP
+//     binding the platforms key on.
+//   - 209.38.*: legacy lbartoszcze weles relay (Digital Ocean datacenter).
+//     Decommissioned with the Python account-api stack 2026-04-24.
+const RETIRED_PROVIDER_HOSTS: { pattern: RegExp; reason: string }[] = [
+  { pattern: /(^|\.)pr\.oxylabs\.io$/i,        reason: 'oxylabs_residential_rotating' },
+  { pattern: /^195\.86\./,                      reason: 'oxylabs_residential_exit_range' },
+  { pattern: /^152\.233\./,                     reason: 'oxylabs_residential_exit_range' },
+  { pattern: /^209\.38\./,                      reason: 'legacy_lbartoszcze_relay' },
+];
+// Port-only signal: 7777 is the Oxylabs Residential rotating port across
+// every gateway hostname they expose. Matching by port catches CIDR drift.
+const RETIRED_PROVIDER_PORTS: Record<number, string> = {
+  7777: 'oxylabs_residential_rotating_port',
+};
+
+export function retiredProviderReason(host: string | undefined, port: number | string | undefined): string | undefined {
+  const portNum = typeof port === 'string' ? Number(port) : port;
+  if (portNum && RETIRED_PROVIDER_PORTS[portNum]) return RETIRED_PROVIDER_PORTS[portNum];
+  if (host) {
+    for (const { pattern, reason } of RETIRED_PROVIDER_HOSTS) if (pattern.test(host)) return reason;
+  }
+  return undefined;
+}
+
 export function isProviderBlockedForPlatform(provider: string | undefined, platform: string | undefined): boolean {
   if (!provider || !platform) return false;
   return (PROVIDER_PLATFORM_BLOCK[provider] ?? []).includes(platform);

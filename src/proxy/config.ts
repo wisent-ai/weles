@@ -130,8 +130,10 @@ export async function resolveProxy(proxy: string, targetHost?: string): Promise<
   if (!res.ok) { console.log(`[proxy] Failed to fetch providers: ${res.status}`); return undefined; }
   type Row = { display_name: string; proxy_host: string; proxy_port: string; api_key_env_var: string; balance_usd: number; metadata?: { country?: string } };
   const providers = await res.json() as Row[];
+  // Decodo first — canonical static ISP (real residential ASNs). Skip-shuffle
+  // branch below keeps this order deterministic for isIsp filters.
   const { maybeOxylabsIspRow, maybeDecodoIspRow } = await import('./sources/isp_row.js');
-  for (const r of [maybeOxylabsIspRow(), maybeDecodoIspRow()]) if (r) providers.push(r);
+  for (const r of [maybeDecodoIspRow(), maybeOxylabsIspRow()]) if (r) providers.push(r);
 
   const typeFilter = proxy.toLowerCase();
   // Tokens after 'residential'/'mobile' may include a 2-letter country code
@@ -155,9 +157,8 @@ export async function resolveProxy(proxy: string, targetHost?: string): Promise<
     filtered = filtered.filter(p => p.display_name.toLowerCase().replace(/[\s_-]+/g, '').includes(explicit));
   }
 
-  // Shuffle so each call rotates across providers instead of always picking highest balance.
-  // Important for sites (e.g. TikTok) that rate-limit per-provider IP pool rather than per-IP.
-  for (let i = filtered.length - 1; i > 0; i--) {
+  // Shuffle residential/mobile (per-pool rate limits). ISP stays deterministic.
+  if (!isIsp) for (let i = filtered.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [filtered[i], filtered[j]] = [filtered[j], filtered[i]];
   }

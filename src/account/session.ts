@@ -72,16 +72,19 @@ export async function resolveAccountSession(acct: SocialAccount): Promise<Accoun
   }
 
   if (meta?.proxy?.host && meta?.proxy?.port && !(await isBurned(meta.proxy.host))) {
-    // Reject stored proxies whose hostname doesn't match a known residential
-    // provider AND whose username matches the legacy `lbartoszcze` weles relay
-    // pattern. Verified 2026-04-29 with brendawatsica187648: stored proxy
-    // 209.38.175.3:31112 (Digital Ocean datacenter, decommissioned weles
-    // relay) made TikTok serve a stripped-down page (no <button> elements
-    // rendered, page size 537 bytes). With dynamic provider selection
-    // (BrightData residential), the same trajectory rendered the full page
-    // and found the follow button. Same account, same session, same persona
-    // — only the proxy changed.
-    const { providerFromHost } = await import('../proxy/policy.js');
+    // Retired-provider gate. Each account is pinned to one dedicated ISP IP
+    // at registration; when the pinned pool retires (Oxylabs Residential
+    // rotating port 7777, legacy lbartoszcze 209.38.* relay), the account
+    // retires with it. Mark is_active=false and refuse the run rather than
+    // rerouting through any other provider — the principle is "one dedicated
+    // ISP per account, no shuffle" pinned 2026-05-21 by user mandate.
+    const { retiredProviderReason, providerFromHost } = await import('../proxy/policy.js');
+    const retiredReason = retiredProviderReason(meta.proxy.host as string, meta.proxy.port as number);
+    if (retiredReason) {
+      console.log(`[identity] retiring account ${acct.username}: stored proxy ${meta.proxy.host}:${meta.proxy.port} is from a retired pool (${retiredReason})`);
+      await burnAccount(acct, `retired_proxy:${retiredReason}`);
+      throw new Error(`retired_proxy:${retiredReason}:${meta.proxy.host}:${meta.proxy.port}`);
+    }
     const storedProvider = providerFromHost(meta.proxy.host as string, meta.proxy.username as string);
     const isLegacyRelay = !storedProvider && (meta.proxy.username === 'lbartoszcze' || /^209\.38\./.test(meta.proxy.host as string));
     let storedFailing = false;
@@ -196,6 +199,31 @@ async function backfillProxy(acct: SocialAccount, cfg: ProxyConfig): Promise<voi
     });
   } catch (e) {
     console.error('[identity] backfillProxy failed:', (e as Error).message);
+  }
+}
+
+// Mark an account inactive when its pinned proxy pool retires. The next
+// routine tick that queries social_accounts.is_active=true skips it; ops
+// dashboards surface the retired_reason for reassignment.
+async function burnAccount(acct: SocialAccount, reason: string): Promise<void> {
+  if (!acct.id) return;
+  const url = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
+  if (!url || !key) return;
+  const meta = (acct.metadata ?? {}) as Record<string, unknown>;
+  const merged = {
+    ...meta,
+    retired_at: new Date().toISOString(),
+    retired_reason: reason,
+  };
+  try {
+    await fetch(`${url}/rest/v1/social_accounts?id=eq.${acct.id}`, {
+      method: 'PATCH',
+      headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+      body: JSON.stringify({ is_active: false, metadata: merged }),
+    });
+  } catch (e) {
+    console.error('[identity] burnAccount failed:', (e as Error).message);
   }
 }
 
