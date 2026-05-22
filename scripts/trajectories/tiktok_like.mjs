@@ -18,7 +18,7 @@ const TARGET_USER = (process.env.TARGET_USER || 'tiktok').replace(/^@/, '');
 const PROFILE_URL = `https://www.tiktok.com/@${encodeURIComponent(TARGET_USER)}`;
 
 const acct = await getSocialAccount('tiktok');
-if (!acct) { console.log('FAIL: no active tiktok account in DB'); process.exit(1); }
+if (!acct) { console.log('FAIL: no active tiktok account in DB'); process.exitCode = 1; }
 console.log(`[trajectory] Using account: ${acct.username}`);
 
 const { proxyUrl, persona } = await resolveAccountSession(acct);
@@ -32,7 +32,7 @@ try {
     stored = all.filter(c => /tiktok\.com/.test(c.domain ?? ''));
     if (!stored.length) throw new CookieJarStaleError('cookie_jar_no_domain_match: jar fresh but no tiktok.com cookies', { platform: 'tiktok' });
   } catch (jarErr) {
-    if (jarErr instanceof CookieJarStaleError) { console.log(`FAIL: ${jarErr.message}`); await markCookiesStale(acct.id); process.exit(1); }
+    if (jarErr instanceof CookieJarStaleError) { console.log(`FAIL: ${jarErr.message}`); await markCookiesStale(acct.id); process.exitCode = 1; }
     throw jarErr;
   }
   await s.ctx.addCookies(stored.map(c => ({ ...c, path: c.path || '/' })));
@@ -51,7 +51,7 @@ try {
     const bodyLen = await s.page.evaluate(() => document.body?.innerText?.length || 0);
     console.log(`FAIL: profile @${TARGET_USER} did not render video grid (bodyLen=${bodyLen}) — fingerprint-gated`);
     await markCookiesStale(acct.id);
-    process.exit(1);
+    process.exitCode = 1;
   }
 
   // sessionid is httpOnly — document.cookie can't see it. Read cookies via
@@ -61,7 +61,7 @@ try {
   if (!hasSessionId) {
     console.log('FAIL: cookies stale (no sessionid) — login first');
     await markCookiesStale(acct.id);
-    process.exit(1);
+    process.exitCode = 1;
   }
 
   // Positive auth probe — sessionid being present in the cookie jar doesn't
@@ -76,7 +76,7 @@ try {
     if (probeErr instanceof AuthProbeError) {
       console.log(`FAIL: ${probeErr.message}`);
       await markCookiesStale(acct.id);
-      process.exit(1);
+      process.exitCode = 1;
     }
     throw probeErr;
   }
@@ -115,7 +115,7 @@ try {
   if (!likeBtn) {
     const tids = await s.page.evaluate(() => [...new Set(Array.from(document.querySelectorAll('[data-e2e]')).map(e => e.getAttribute('data-e2e')))].filter(t => /like|action|browse|video/i.test(t)).slice(0, 15));
     console.log(`FAIL: no like button found after ${candidates.length} video attempts. last data-e2e: ${JSON.stringify(tids)}`);
-    process.exit(1);
+    process.exitCode = 1;
   }
   await likeBtn.scrollIntoViewIfNeeded();
 
@@ -141,11 +141,11 @@ try {
   else {
     const diggInfo = diggResp ? ` digg=${diggResp.status} body=${diggResp.body.replace(/\s+/g, ' ').slice(0, 200)}` : ' digg=no_xhr_observed';
     console.log(`FAIL: aria-pressed did not flip (before=${before} after=${after})${diggInfo}`);
-    process.exit(1);
+    process.exitCode = 1;
   }
 } catch (e) {
   console.log('FAIL:', e.message?.slice(0, 200));
-  process.exit(1);
+  process.exitCode = 1;
 } finally {
   await s.close();
 }

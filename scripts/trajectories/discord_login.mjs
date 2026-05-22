@@ -5,8 +5,8 @@ import { persistFreshCookieJar } from './_shared/cookie-freshness.mjs';
 const URL = 'https://discord.com/login';
 
 const acct = await getSocialAccount('discord');
-if (!acct) { console.log('FAIL: no active discord account in DB'); process.exit(1); }
-if (!acct.metadata.password) { console.log(`FAIL: account ${acct.username} has no password`); process.exit(1); }
+if (!acct) { console.log('FAIL: no active discord account in DB'); process.exitCode = 1; }
+if (!acct.metadata.password) { console.log(`FAIL: account ${acct.username} has no password`); process.exitCode = 1; }
 process.env.SVC_EMAIL = acct.metadata.email ?? acct.username;
 process.env.SVC_PASSWORD = acct.metadata.password;
 // Use the same proxy provider but with a fresh sticky session (old sessid expired)
@@ -50,7 +50,7 @@ for (let retry = 0; retry < 3; retry++) {
   await s?.close().catch(() => {});
   s = null;
 }
-if (!s) { console.log('FAIL: SPA never mounted after 3 attempts'); process.exit(1); }
+if (!s) { console.log('FAIL: SPA never mounted after 3 attempts'); process.exitCode = 1; }
 
 async function captureCookies() {
   if (!acct.id) return;
@@ -94,7 +94,7 @@ try {
   await s.wait(1);
   let deactivateAccount = async () => {};
   try { ({ deactivateAccount } = await import('../../dist/account/state.js')); } catch (e) { console.log(`[login] state.js import failed: ${e.message?.slice(0, 100)}`); }
-  const bail = () => { try { if (s.authBlocked) { Promise.resolve(deactivateAccount(acct.id, acct.metadata, s.authBlocked)).then(() => { console.log(`FAIL: ${acct.username} ${s.authBlocked} (deactivated)`); process.exit(1); }).catch(() => process.exit(1)); return true; } if ((s.page?.url?.() ?? '').includes('/channels')) { console.log(`PASS: direct login — ${s.page.url()}`); captureCookies().then(() => process.exit(0)).catch(() => process.exit(0)); return true; } } catch (e) { console.log(`[login] bail err: ${e.message?.slice(0, 100)}`); } return false; };
+  const bail = () => { try { if (s.authBlocked) { Promise.resolve(deactivateAccount(acct.id, acct.metadata, s.authBlocked)).then(() => { console.log(`FAIL: ${acct.username} ${s.authBlocked} (deactivated)`); process.exitCode = 1; }).catch(() => process.exit(1)); return true; } if ((s.page?.url?.() ?? '').includes('/channels')) { console.log(`PASS: direct login — ${s.page.url()}`); captureCookies().then(() => process.exit(0)).catch(() => process.exit(0)); return true; } } catch (e) { console.log(`[login] bail err: ${e.message?.slice(0, 100)}`); } return false; };
   // locator.click on Discord's submit hangs the full default timeout — click registers but its navigation promise never resolves. Skip locator.click; form.requestSubmit fires /api/v9/auth/login directly and populates captchaFormData on the response, which is what every downstream branch needs.
   for (let attempt = 0; attempt < 5; attempt++) {
     console.log(`[login] Submit attempt ${attempt + 1}`);
@@ -287,7 +287,7 @@ try {
     fs.writeFileSync(path.join(dir, 'ban_signal.json'), JSON.stringify({ account_id: acct.id, username: acct.username, action: 'discord_login', signal: sig, healthy: false, details: { final_url: finalUrl, reason: e.message?.slice(0, 200) ?? 'no message' }, ts: new Date().toISOString() }, null, 2));
   } catch {}
   console.log('FAIL:', e.message?.slice(0, 200));
-  process.exit(1);
+  process.exitCode = 1;
 } finally {
   await s.close();
 }

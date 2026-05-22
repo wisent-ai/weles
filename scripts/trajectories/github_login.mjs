@@ -6,8 +6,8 @@ import { persistFreshCookieJar } from './_shared/cookie-freshness.mjs';
 const URL = 'https://github.com/login';
 
 const acct = await getSocialAccount('github');
-if (!acct) { console.error('FAIL: no active github account in DB'); process.exit(1); }
-if (!acct.metadata.password) { console.error(`FAIL: account ${acct.username} has no password`); process.exit(1); }
+if (!acct) { console.error('FAIL: no active github account in DB'); process.exitCode = 1; }
+if (!acct.metadata.password) { console.error(`FAIL: account ${acct.username} has no password`); process.exitCode = 1; }
 // Skip stubs from a registration that never completed. metadata.status set by
 // scripts/trajectories/github/register.mjs:245 (captcha_blocked) and similar
 // signup-fail paths. These rows have no cookies and no real GitHub identity —
@@ -17,7 +17,7 @@ if (!acct.metadata.password) { console.error(`FAIL: account ${acct.username} has
   const s = acct.metadata?.status;
   if (['captcha_blocked', 'unverified', 'needs_verification', 'captcha_signup_failed'].includes(s)) {
     console.error(`FAIL: account ${acct.username} has metadata.status=${s} — registration never completed; login can't recover (mark account inactive in DB to remove from pool)`);
-    process.exit(1);
+    process.exitCode = 1;
   }
 }
 process.env.SVC_EMAIL = acct.metadata.email ?? acct.username;
@@ -73,7 +73,7 @@ for (let retry = 0; retry < 3; retry++) {
   await s?.close().catch(() => {});
   s = null;
 }
-if (!s) { console.error('FAIL: homepage never rendered'); process.exit(1); }
+if (!s) { console.error('FAIL: homepage never rendered'); process.exitCode = 1; }
 
 try {
   // Cookie-first PASS branch removed. Always do form login.
@@ -87,7 +87,7 @@ try {
   const urlAfterGoto = s.page.url?.() ?? '';
   if (!urlAfterGoto.includes('/login') && !urlAfterGoto.includes('/session')) {
     console.error(`FAIL: goto(${URL}) landed at ${urlAfterGoto} — login form not present`);
-    process.exit(1);
+    process.exitCode = 1;
   }
 
   await s.fill('Username or email', '$SVC_EMAIL');
@@ -119,7 +119,7 @@ try {
   console.log(`[login] Submit: ${JSON.stringify(submitted)}`);
   if (!submitted.clicked) {
     console.error('FAIL: no Sign-in submit control found on login page');
-    process.exit(1);
+    process.exitCode = 1;
   }
 
   // Wait for redirect
@@ -162,7 +162,7 @@ try {
       console.log(`[login] After device verify: ${url2}`);
     } else {
       console.error('FAIL: no device verification code received');
-      process.exit(1);
+      process.exitCode = 1;
     }
   }
 
@@ -198,7 +198,7 @@ try {
       return { reason, flash: flash.slice(0, 200), title: document.title };
     })()`).catch(() => ({ reason: 'unknown', flash: '', title: '' }));
     console.error(`FAIL: not logged in at ${finalUrl} — reason=${diag.reason} flash=${JSON.stringify(diag.flash)} title=${JSON.stringify(diag.title)}`);
-    process.exit(1);
+    process.exitCode = 1;
   }
 } catch (e) {
   // Structured ban_signal so the worker can route this row correctly. Three
@@ -220,7 +220,7 @@ try {
     fs.writeFileSync(path.join(dir, 'ban_signal.json'), JSON.stringify({ account_id: acct.id, username: acct.username, action: 'github_login', signal: sig, healthy: false, details: { final_url: finalUrl, reason: e.message?.slice(0, 200) ?? 'no message' }, ts: new Date().toISOString() }, null, 2));
   } catch {}
   console.error('FAIL:', e.message?.slice(0, 200));
-  process.exit(1);
+  process.exitCode = 1;
 } finally {
   await s.close();
 }

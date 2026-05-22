@@ -225,7 +225,7 @@ for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
   } catch (e) {
     console.log(`FAIL (attempt ${attempt}): ${e.message?.slice(0, 200)}`);
     await s.close().catch(() => {});
-    if (attempt === MAX_RETRIES) { console.log('All attempts exhausted'); process.exit(1); }
+    if (attempt === MAX_RETRIES) { console.log('All attempts exhausted'); process.exitCode = 1; }
     console.log('Retrying with fresh proxy IP in 3s...');
     await sleep(3);
   }

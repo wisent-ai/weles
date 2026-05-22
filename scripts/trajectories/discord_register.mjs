@@ -90,7 +90,7 @@ try {
     })()`).catch(() => ({}));
     console.log(`[test] Form state: ${JSON.stringify(formState)}`);
     const btnDisabled = formState.btnDisabled ?? true;
-    if (btnDisabled) { console.log('FAIL: submit button disabled — form validation failed'); process.exit(1); }
+    if (btnDisabled) { console.log('FAIL: submit button disabled — form validation failed'); process.exitCode = 1; }
     // Retry submit until captcha data is intercepted
     for (let attempt = 0; attempt < 8; attempt++) {
       // Try multiple click strategies
@@ -296,5 +296,5 @@ try {
   await s.close();
 }
 }
-if (!registeredOk) { console.log('FAIL: exhausted rerolls without registration'); process.exit(1); }
+if (!registeredOk) { console.log('FAIL: exhausted rerolls without registration'); process.exitCode = 1; }
 process.exit(0);

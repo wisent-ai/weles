@@ -8,7 +8,7 @@ const TARGET_USER = (process.env.TARGET_USER || 'tiktok').replace(/^@/, '');
 const URL = `https://www.tiktok.com/@${encodeURIComponent(TARGET_USER)}`;
 
 const acct = await getSocialAccount('tiktok');
-if (!acct) { console.log('FAIL: no active tiktok account in DB'); process.exit(1); }
+if (!acct) { console.log('FAIL: no active tiktok account in DB'); process.exitCode = 1; }
 console.log(`[trajectory] Using account: ${acct.username}`);
 
 const { proxyUrl, persona } = await resolveAccountSession(acct);
@@ -22,7 +22,7 @@ try {
     stored = all.filter(c => /tiktok\.com/.test(c.domain ?? ''));
     if (!stored.length) throw new CookieJarStaleError('cookie_jar_no_domain_match: jar fresh but no tiktok.com cookies', { platform: 'tiktok' });
   } catch (jarErr) {
-    if (jarErr instanceof CookieJarStaleError) { console.log(`FAIL: ${jarErr.message}`); await markCookiesStale(acct.id); process.exit(1); }
+    if (jarErr instanceof CookieJarStaleError) { console.log(`FAIL: ${jarErr.message}`); await markCookiesStale(acct.id); process.exitCode = 1; }
     throw jarErr;
   }
   await s.ctx.addCookies(stored.map(c => ({ ...c, path: c.path || '/' })));
@@ -30,7 +30,7 @@ try {
   await s.page.goto(URL, { waitUntil: 'domcontentloaded' });
   await humanIdlePause('long');
   const url = s.page.url();
-  if (/\/login/.test(url)) { console.log(`FAIL: cookies stale, redirected to login (${url})`); await markCookiesStale(acct.id); process.exit(1); }
+  if (/\/login/.test(url)) { console.log(`FAIL: cookies stale, redirected to login (${url})`); await markCookiesStale(acct.id); process.exitCode = 1; }
 
   // TikTok doesn't redirect logged-out users to /login — it just renders the
   // profile page without the follow button. Detect this by checking for the
@@ -42,7 +42,7 @@ try {
   if (!hasSessionId) {
     console.log('FAIL: cookies stale (no sessionid) — login first');
     await markCookiesStale(acct.id);
-    process.exit(1);
+    process.exitCode = 1;
   }
 
   // Positive auth probe — sessionid in jar ≠ session is authed server-side.
@@ -54,7 +54,7 @@ try {
     if (probeErr instanceof AuthProbeError) {
       console.log(`FAIL: ${probeErr.message}`);
       await markCookiesStale(acct.id);
-      process.exit(1);
+      process.exitCode = 1;
     }
     throw probeErr;
   }
@@ -76,11 +76,11 @@ try {
     const after = await s.page.locator('button[data-e2e="follow-icon"], button:has-text("Following")').filter({ visible: true }).count().catch(() => 0);
     if (after > 0) { flipped = true; break; }
   }
-  if (!flipped) { console.log('FAIL: clicked Follow but state did not flip'); process.exit(1); }
+  if (!flipped) { console.log('FAIL: clicked Follow but state did not flip'); process.exitCode = 1; }
   console.log(`PASS: followed @${TARGET_USER}`);
 } catch (e) {
   console.log('FAIL:', e.message?.slice(0, 200));
-  process.exit(1);
+  process.exitCode = 1;
 } finally {
   await s.close();
 }

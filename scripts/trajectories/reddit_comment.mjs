@@ -33,7 +33,7 @@ const DEFER_VERIFY_MS = Number(process.env.DEFER_VERIFY_MS ?? 300_000);
 const COMMENT_BODY = process.env.COMMENT_BODY || 'thanks for sharing';
 
 const acct = await getSocialAccount('reddit');
-if (!acct) { console.log('FAIL: no active reddit account in DB'); process.exit(1); }
+if (!acct) { console.log('FAIL: no active reddit account in DB'); process.exitCode = 1; }
 console.log(`[trajectory] Using account: ${acct.username}`);
 
 const { proxyUrl, persona } = await resolveAccountSession(acct);
@@ -119,7 +119,7 @@ try {
   await s.page.goto(resolvedOldUrl, { waitUntil: 'domcontentloaded' });
   await humanIdlePause('deliberate');
   const url = s.page.url();
-  if (/\/login/.test(url)) { console.log(`FAIL: cookies stale, redirected to login (${url})`); process.exit(1); }
+  if (/\/login/.test(url)) { console.log(`FAIL: cookies stale, redirected to login (${url})`); process.exitCode = 1; }
 
   // Pre-comment dwell — scroll the post body and a few existing comments
   // before opening the composer. Reddit's behavioral classifier scores the

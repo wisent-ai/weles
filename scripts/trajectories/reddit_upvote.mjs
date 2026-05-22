@@ -10,7 +10,7 @@ import { loadFreshCookieJarOrFail, CookieJarStaleError } from './_shared/cookie-
 const SUBREDDIT = (process.env.SUBREDDIT || 'CasualConversation').replace(/^r\//, '');
 
 const acct = await getSocialAccount('reddit');
-if (!acct) { console.log('FAIL: no active reddit account in DB'); process.exit(1); }
+if (!acct) { console.log('FAIL: no active reddit account in DB'); process.exitCode = 1; }
 console.log(`[trajectory] Using account: ${acct.username}`);
 
 const { proxyUrl, persona } = await resolveAccountSession(acct);
@@ -22,7 +22,7 @@ try {
   _stored = _all.filter(c => /reddit\.com/.test(c.domain ?? ''));
   if (!_stored.length) throw new CookieJarStaleError('cookie_jar_no_domain_match: jar fresh but no reddit.com cookies', { platform: 'reddit' });
 } catch (jarErr) {
-  if (jarErr instanceof CookieJarStaleError) { console.log(`FAIL: ${jarErr.message}`); await markCookiesStale(acct.id); await s.close().catch(() => {}); process.exit(1); }
+  if (jarErr instanceof CookieJarStaleError) { console.log(`FAIL: ${jarErr.message}`); await markCookiesStale(acct.id); await s.close().catch(() => {}); process.exitCode = 1; }
   throw jarErr;
 }
 await s.ctx.addCookies(_stored.map(c => ({ ...c, path: c.path || '/' }))).catch(() => {});
@@ -34,7 +34,7 @@ try {
   await humanIdlePause('deliberate');
   // Positive auth probe — see _shared/auth-probe.mjs.
   try { await assertAuthed('reddit', s, { label: 'reddit_upvote' }); }
-  catch (probeErr) { if (probeErr instanceof AuthProbeError) { console.log(`FAIL: ${probeErr.message}`); await markCookiesStale(acct.id); process.exit(1); } throw probeErr; }
+  catch (probeErr) { if (probeErr instanceof AuthProbeError) { console.log(`FAIL: ${probeErr.message}`); await markCookiesStale(acct.id); process.exitCode = 1; } throw probeErr; }
   const firstThing = s.page.locator('div.thing[data-fullname^="t3_"]').filter({ visible: true }).first();
   await firstThing.waitFor({ state: 'visible' });
   const upArrow = firstThing.locator('div.arrows div.arrow.up:not(.upmod), div.arrows div.arrow.upmod').first();

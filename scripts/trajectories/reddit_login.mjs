@@ -10,7 +10,7 @@ import { persistFreshCookieJar } from './_shared/cookie-freshness.mjs';
 const URL = 'https://www.reddit.com/login';
 
 const acct = await getSocialAccount('reddit');
-if (!acct) { console.log('FAIL: no active reddit account in DB'); process.exit(1); }
+if (!acct) { console.log('FAIL: no active reddit account in DB'); process.exitCode = 1; }
 process.env.SVC_EMAIL = acct.metadata.email ?? acct.username;
 process.env.SVC_PASSWORD = acct.metadata.password ?? '';
 console.log(`[trajectory] Using account: ${acct.username}`);
