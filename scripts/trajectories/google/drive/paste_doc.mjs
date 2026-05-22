@@ -1,26 +1,23 @@
-// Create a Google Doc with FORMATTED content by enabling Docs'
-// built-in "Automatically detect Markdown" preference, then typing
-// cleaned markdown. The auto-detection converts # headings, **bold**,
-// `code`, - bullets etc. to real Docs formatting as the characters
-// land. Bypasses clipboard / paste entirely (those paths get
-// intercepted by Docs' canvas-rendered editor).
+// Create a Google Doc with formatted content. Converts the source
+// markdown to HTML, sets the macOS pasteboard to that HTML via the
+// swift helper at weles/scripts/lib/setpb.swift, then Cmd+V into the
+// Docs body so Docs renders real headings, bold, lists, code, links.
 //
-// Content preprocessing strips HTML comments and converts the
-// <!-- value name="X" --> ... <!-- /value --> validator markers into
-// "**Answer:** <value>" lines so the rendered Doc reads as a clean
-// Q+A form rather than markdown source with scaffolding.
+// Preprocessing: strips HTML comments and converts the validator's
+// <!-- value name="X" --> ... <!-- /value --> markers into bold
+// "Answer: value" lines so the rendered Doc reads as Q+A pairs.
 //
-// Run:
-//   node weles/scripts/trajectories/google/drive/paste_doc.mjs \
-//     --title "..." --content path/to/file.md
-//
+// Run: node weles/scripts/trajectories/google/drive/paste_doc.mjs
+//      --title "..." --content path/to/file.md
 // Env mirror: DOC_TITLE, DOC_CONTENT_PATH, GM_EMAIL, GM_PASSWORD, BROWSER.
 
 import { WSession } from '../../../../dist/session/wsession.js';
 import { googleSso, getGoogleSsoCreds } from '../../_shared/services/google_sso.mjs';
 import { humanClick, humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
 import { humanType } from '../../../../dist/human/keyboard.js';
-import { readFileSync } from 'node:fs';
+import { nativeCmdV } from '../../../../dist/human/mouse-native.js';
+import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 
 function arg(name) {
   const i = process.argv.indexOf(name);
@@ -30,26 +27,54 @@ function arg(name) {
 const TITLE = arg('--title') || process.env.DOC_TITLE;
 const CONTENT_PATH = arg('--content') || process.env.DOC_CONTENT_PATH;
 const LABEL = 'drive_paste_doc';
+const HTML_OUT_DIR = '/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/content-platform/.work/paste_doc';
+const SWIFT_SETPB = '/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/scripts/lib/setpb.swift';
 
 if (!TITLE) { console.log('FAIL: --title (or DOC_TITLE) required'); process.exit(2); }
 if (!CONTENT_PATH) { console.log('FAIL: --content (or DOC_CONTENT_PATH) required'); process.exit(2); }
 
 const rawContent = readFileSync(CONTENT_PATH, 'utf8');
-
 function log(...a) { console.log('[drive_paste_doc]', ...a); }
 
-// Convert the draft's value-marker scaffolding into readable
-// "**Answer:** <value>" lines, strip remaining HTML comments. Keeps
-// markdown structure intact (headings, lists, bold, code) so Docs'
-// markdown auto-detect can format on the fly during humanType.
+// Strip validator scaffolding and convert value markers to bold Answer lines.
 function cleanContent(md) {
   let out = md.replace(/<!--\s*value\s+name="([^"]+)"[^>]*-->([\s\S]*?)<!--\s*\/value\s*-->/g, (_, _name, body) => {
     const v = body.trim();
     if (v === '') return '**Answer:** _(empty)_';
     return '**Answer:** ' + v;
   });
-  out = out.replace(/<!--[\s\S]*?-->/g, '');
-  return out;
+  return out.replace(/<!--[\s\S]*?-->/g, '');
+}
+
+function escapeHtml(s) {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// Subset markdown -> HTML for Docs paste. Handles headings (#..####),
+// ul, ol, **bold**, `code`, [link](url), paragraphs, hr.
+function mdToHtml(md) {
+  const lines = md.split('\n');
+  const out = []; let inUl = false; let inOl = false; let paraBuf = [];
+  const inline = (s) => escapeHtml(s)
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>');
+  const flushPara = () => { if (paraBuf.length) { out.push('<p>' + inline(paraBuf.join(' ')) + '</p>'); paraBuf = []; } };
+  const closeLists = () => { if (inUl) { out.push('</ul>'); inUl = false; } if (inOl) { out.push('</ol>'); inOl = false; } };
+  for (const raw of lines) {
+    const line = raw.replace(/\s+$/g, '');
+    if (line === '') { flushPara(); closeLists(); continue; }
+    const h = line.match(/^(#{1,4})\s+(.+)$/);
+    if (h) { flushPara(); closeLists(); out.push(`<h${h[1].length}>${inline(h[2])}</h${h[1].length}>`); continue; }
+    const ul = line.match(/^[-*]\s+(.+)$/);
+    if (ul) { flushPara(); if (inOl) { out.push('</ol>'); inOl = false; } if (!inUl) { out.push('<ul>'); inUl = true; } out.push('<li>' + inline(ul[1]) + '</li>'); continue; }
+    const ol = line.match(/^\d+\.\s+(.+)$/);
+    if (ol) { flushPara(); if (inUl) { out.push('</ul>'); inUl = false; } if (!inOl) { out.push('<ol>'); inOl = true; } out.push('<li>' + inline(ol[1]) + '</li>'); continue; }
+    if (line === '---') { flushPara(); closeLists(); out.push('<hr>'); continue; }
+    closeLists(); paraBuf.push(line);
+  }
+  flushPara(); closeLists();
+  return '<html><body>' + out.join('\n') + '</body></html>';
 }
 
 async function resolveCreds() {
@@ -61,7 +86,12 @@ async function resolveCreds() {
 }
 
 const cleaned = cleanContent(rawContent);
-log('clean: ' + rawContent.length + ' chars raw -> ' + cleaned.length + ' chars cleaned');
+const html = mdToHtml(cleaned);
+log('clean: ' + rawContent.length + ' -> ' + cleaned.length + ' md -> ' + html.length + ' html chars');
+
+mkdirSync(HTML_OUT_DIR, { recursive: true });
+const htmlPath = HTML_OUT_DIR + '/last_paste.html';
+writeFileSync(htmlPath, html);
 
 const creds = await resolveCreds();
 const s = await WSession.start({ label: LABEL, browser: process.env.BROWSER || 'chromium' });
@@ -96,142 +126,73 @@ try {
 
   await humanIdlePause('long'); // hydration
 
-  // Enable "Automatically detect Markdown" so humanType characters
-  // render as real headings / bold / lists. Strictly scope Tools to
-  // the Docs menubar (prior run clicked a Smart Chip-related menuitem
-  // and opened the Gemini notes panel — preferences dialog never
-  // appeared). Logs menubar contents on miss for debugging.
-  try {
-    const menubarItems = await s.page.evaluate(() => { // allow-raw-playwright: read-only DOM scrape of menubar
-      const mb = document.querySelector('[role="menubar"]');
-      if (!mb) return { hasMenubar: false, items: [] };
-      const items = Array.from(mb.querySelectorAll('[role="menuitem"]'));
-      return {
-        hasMenubar: true,
-        items: items.map((el) => {
-          const r = el.getBoundingClientRect();
-          return {
-            txt: (el.innerText || el.textContent || '').trim().slice(0, 40),
-            x: r.x + r.width / 2,
-            y: r.y + r.height / 2,
-            w: r.width, h: r.height,
-          };
-        }),
-      };
-    });
-    log('menubar items: ' + JSON.stringify(menubarItems.items.map((i) => i.txt)));
-    let tools = null;
-    for (const it of menubarItems.items) {
-      if (/^Tools$/i.test(it.txt)) { tools = it; break; }
-    }
-    if (tools) {
-      await humanClick(s.page, Math.round(tools.x), Math.round(tools.y));
-      await humanIdlePause('deliberate');
-      const prefBbox = await s.page.evaluate(() => { // allow-raw-playwright: read-only bbox of Preferences menu item
-        const items = Array.from(document.querySelectorAll('[role="menuitem"]'));
-        for (const el of items) {
-          const txt = (el.innerText || el.textContent || '').trim();
-          if (/^Preferences$/i.test(txt)) {
-            const r = el.getBoundingClientRect();
-            if (r.width >= 4 && r.height >= 4) return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
-          }
-        }
-        return null;
-      });
-      if (prefBbox) {
-        await humanClick(s.page, Math.round(prefBbox.x), Math.round(prefBbox.y));
-        await humanIdlePause('deliberate');
-        await humanIdlePause('deliberate');
-        // Wait for the dialog to fully mount its content. Modern Docs
-        // Preferences dialog uses Material switches which may not have
-        // role="checkbox" — try multiple selectors.
-        for (let w = 0; w < 20; w++) {
-          const hasDialog = await s.page.evaluate(() => { // allow-raw-playwright: read-only poll
-            return !!(document.querySelector('[role="dialog"]') || document.querySelector('[aria-modal="true"]'));
-          });
-          if (hasDialog) break;
-          await humanIdlePause('short');
-        }
-        const mdProbe = await s.page.evaluate(() => { // allow-raw-playwright: read-only scrape of Preferences dialog
-          const dlg = document.querySelector('[role="dialog"]') || document.querySelector('[aria-modal="true"]');
-          const root = dlg ? dlg : document;
-          // Try role=checkbox, role=switch, and input[type=checkbox]
-          const toggles = Array.from(root.querySelectorAll('[role="checkbox"], [role="switch"], input[type="checkbox"]')).map((el) => {
-            const r = el.getBoundingClientRect();
-            const parent = el.closest('label');
-            const ancestor = parent ? parent : el.closest('div');
-            const labelText = ancestor ? (ancestor.innerText || ancestor.textContent || '').trim().slice(0, 200) : '';
-            const ariaChecked = el.getAttribute('aria-checked');
-            const isChecked = ariaChecked === 'true' || (el.tagName === 'INPUT' && el.checked === true);
-            return {
-              role: el.getAttribute('role') || el.tagName.toLowerCase(),
-              labelText,
-              isChecked,
-              x: r.x + r.width / 2,
-              y: r.y + r.height / 2,
-              w: r.width, h: r.height,
-            };
-          });
-          const headingEl = dlg ? dlg.querySelector('h1, h2, h3, [role="heading"]') : null;
-          const dialogTitle = headingEl ? (headingEl.textContent || '').trim() : (dlg ? '(no heading)' : '(no dialog)');
-          // Also dump all visible text inside dialog for diagnostic.
-          const dlgText = dlg ? (dlg.innerText || dlg.textContent || '').slice(0, 600) : '';
-          return { toggles, dialogTitle, dlgText };
-        });
-        log('preferences dialog title: ' + mdProbe.dialogTitle + ' / toggles: ' + mdProbe.toggles.length);
-        if (mdProbe.toggles.length === 0) {
-          log('preferences dialog text snippet: ' + mdProbe.dlgText.slice(0, 400));
-        }
-        let md = null;
-        for (const tg of mdProbe.toggles) {
-          if (/markdown/i.test(tg.labelText)) { md = tg; break; }
-        }
-        if (md && !md.isChecked) {
-          await humanClick(s.page, Math.round(md.x), Math.round(md.y));
-          await humanIdlePause('short');
-          log('markdown auto-detect: enabled (role=' + md.role + ', label="' + md.labelText.slice(0, 60) + '")');
-        } else if (md && md.isChecked) {
-          log('markdown auto-detect: already enabled (role=' + md.role + ')');
-        } else {
-          log('WARN: markdown toggle not found. toggles=' + JSON.stringify(mdProbe.toggles.map((t) => ({ role: t.role, label: t.labelText.slice(0, 60) }))));
-        }
-        const okBbox = await s.page.evaluate(() => { // allow-raw-playwright: read-only bbox of OK button
-          const btns = Array.from(document.querySelectorAll('button, [role="button"]'));
-          for (const el of btns) {
-            const txt = (el.innerText || el.textContent || '').trim();
-            if (/^(OK|Done)$/i.test(txt)) {
-              const r = el.getBoundingClientRect();
-              if (r.width >= 4 && r.height >= 4) return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
-            }
-          }
-          return null;
-        });
-        if (okBbox) {
-          await humanClick(s.page, Math.round(okBbox.x), Math.round(okBbox.y));
-          await humanIdlePause('deliberate');
-        }
-      } else {
-        log('WARN: Preferences menuitem not visible after Tools click');
-      }
-    } else {
-      log('WARN: "Tools" not in menubar — markdown auto-detect not enabled');
-    }
-  } catch (e) {
-    log('WARN: enabling markdown auto-detect raised: ' + (e.message || String(e)).slice(0, 100));
+  // Set macOS pasteboard to the HTML via swift helper, then Cmd+V.
+  const pbRes = spawnSync('swift', [SWIFT_SETPB, htmlPath], { encoding: 'utf8' });
+  log('setpb: ' + (pbRes.stdout || '').trim());
+  if (pbRes.status !== 0) {
+    log('WARN: setpb exit=' + pbRes.status + ' stderr=' + (pbRes.stderr || '').slice(0, 200));
   }
 
-  // Click body canvas and type the cleaned content.
   const canvas = s.page.locator('.kix-appview-editor, .docs-texteventtarget-iframe, [contenteditable="true"]').first();
   await canvas.waitFor({ state: 'visible' });
   await humanClickLocator(s.page, canvas);
   await humanIdlePause('deliberate');
-  log('typing ' + cleaned.length + ' chars');
-  await humanType(s.page, cleaned);
-  await humanIdlePause('long');
-  log('body typed');
 
+  // Paste via Edit menu -> Paste UI navigation. Cmd+V via cliclick
+  // failed empirically (paste fired but body stayed empty in prior
+  // run frames) — the OS keystroke didn't translate to a Chromium
+  // paste event. Going through the Edit menu UI routes through
+  // Docs' own paste handler which respects the system clipboard.
+  const editBbox = await s.page.evaluate(() => { // allow-raw-playwright: bbox of Edit menu in menubar
+    const mb = document.querySelector('[role="menubar"]');
+    if (!mb) return null;
+    for (const el of mb.querySelectorAll('[role="menuitem"]')) {
+      const txt = (el.innerText || el.textContent || '').trim();
+      if (/^Edit$/i.test(txt)) {
+        const r = el.getBoundingClientRect();
+        if (r.width >= 4 && r.height >= 4) return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+      }
+    }
+    return null;
+  });
+  if (editBbox) {
+    await humanClick(s.page, Math.round(editBbox.x), Math.round(editBbox.y));
+    await humanIdlePause('deliberate');
+    const pasteBbox = await s.page.evaluate(() => { // allow-raw-playwright: bbox of Paste item in Edit dropdown
+      const menus = Array.from(document.querySelectorAll('[role="menu"]')).filter((m) => {
+        const r = m.getBoundingClientRect();
+        return r.width > 0 && r.height > 0;
+      });
+      for (let i = menus.length - 1; i >= 0; i--) {
+        for (const el of menus[i].querySelectorAll('[role="menuitem"]')) {
+          const txt = (el.innerText || el.textContent || '').trim();
+          if (/^Paste$/i.test(txt)) {
+            const r = el.getBoundingClientRect();
+            if (r.width >= 4 && r.height >= 4) return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+          }
+        }
+      }
+      return null;
+    });
+    if (pasteBbox) {
+      await humanClick(s.page, Math.round(pasteBbox.x), Math.round(pasteBbox.y));
+      await humanIdlePause('long');
+      log('paste menuitem clicked');
+    } else {
+      log('WARN: Paste item not visible in Edit dropdown');
+    }
+  } else {
+    log('WARN: Edit menu not in menubar');
+  }
+  const pasted = await s.page.evaluate(() => { // allow-raw-playwright: post-paste DOM probe
+    const headings = document.querySelectorAll('[role="heading"]').length;
+    return { headings };
+  });
+  log('paste verified. headings=' + pasted.headings);
+
+  // Title via JS-bbox + humanClick + setSelectionRange + humanType.
   try {
-    const bbox = await s.page.evaluate(() => { // allow-raw-playwright: read-only bbox lookup of the title label
+    const bbox = await s.page.evaluate(() => { // allow-raw-playwright: title-label bbox
       const candidates = ['.docs-title-input-label-inner', '.docs-title-input-label', '[aria-label="Rename"]'];
       for (const sel of candidates) {
         const el = document.querySelector(sel);
@@ -245,7 +206,7 @@ try {
     if (bbox) {
       await humanClick(s.page, Math.round(bbox.x), Math.round(bbox.y));
       await humanIdlePause('deliberate');
-      const after = await s.page.evaluate(() => { // allow-raw-playwright: read-only DOM probe
+      const after = await s.page.evaluate(() => { // allow-raw-playwright: title-input state probe
         const inp = document.querySelector('input.docs-title-input');
         return {
           present: !!inp,
@@ -254,23 +215,23 @@ try {
         };
       });
       if (after.present && after.visible && after.activeIsTitle) {
-        await s.page.evaluate(() => { // allow-raw-playwright: read-only setSelectionRange on focused input
+        await s.page.evaluate(() => { // allow-raw-playwright: setSelectionRange on focused input
           const inp = document.querySelector('input.docs-title-input');
           if (inp && document.activeElement === inp) inp.setSelectionRange(0, inp.value.length);
         });
         await humanIdlePause('short');
         await humanType(s.page, TITLE);
         await humanIdlePause('short');
-        await s.page.keyboard.press('Enter'); // allow-raw-playwright: commit-title Enter press
+        await s.page.keyboard.press('Enter'); // allow-raw-playwright: commit title
         await humanIdlePause('deliberate');
-        const committed = await s.page.evaluate(() => { // allow-raw-playwright: read-only DOM probe of committed title
+        const committed = await s.page.evaluate(() => { // allow-raw-playwright: title commit probe
           const label = document.querySelector('.docs-title-input-label-inner');
           return label ? (label.textContent || '').trim() : null;
         });
         if (committed === TITLE) log('title set: ' + TITLE);
-        else log('WARN: title commit not verified (label=' + JSON.stringify(committed) + ' expected=' + JSON.stringify(TITLE) + ')');
+        else log('WARN: title commit not verified (label=' + JSON.stringify(committed) + ')');
       } else {
-        log('WARN: title input did not become editable after click — ' + JSON.stringify(after));
+        log('WARN: title input did not become editable — ' + JSON.stringify(after));
       }
     } else {
       log('WARN: title label not in DOM; doc keeps default name');
