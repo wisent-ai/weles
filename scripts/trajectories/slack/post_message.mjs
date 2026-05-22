@@ -82,96 +82,67 @@ async function fetchJSON(url, init) {
   return r.json();
 }
 
-// --- Step 1: sign in via email + magic code (NOT Google SSO) ----------------
-// The Google account in _sso.env (lukasz.bartoszcze@gmail.com) is NOT a
-// member of the wisent.slack.com workspace — verified by a prior run that
-// completed Google SSO and got "doesn't have an account on this workspace".
-// Wisent workspace membership is on the @wisent.ai email. Slack's email
-// magic-code flow sends a 6-digit code to that mailbox; we read it back via
-// the existing gmail_token.pickle (already consented for the @wisent.ai
-// account, verified at growth-tactics/google_drive/gmail_token.pickle).
-const SLACK_EMAIL = process.env.SLACK_EMAIL || 'lukasz.bartoszcze@wisent.ai';
-const GMAIL_PICKLE = process.env.GMAIL_PICKLE
-  || '/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/growth-tactics/google_drive/gmail_token.pickle';
+// --- Step 1: Google SSO with workspace-member @wisent.ai credentials -------
+// User provided lukasz.bartoszcze@wisent.ai + the @wisent.ai Google
+// Workspace password. Wisent Slack admits members by Google SSO, so this
+// path lands the user as a workspace member (the prior gmail attempt
+// failed at membership; this one shouldn't).
+const SLACK_EMAIL = process.env.SLACK_EMAIL || '';
+const SLACK_PASS = process.env.SLACK_PASS || '';
+if (!SLACK_EMAIL || !SLACK_PASS) {
+  console.error('SLACK_EMAIL / SLACK_PASS env required');
+  await safeShutdown(); process.exit(2);
+}
 
-console.log(`[slack] step 1: email magic-code sign-in as ${SLACK_EMAIL}`);
+console.log(`[slack] step 1: Google SSO as ${SLACK_EMAIL}`);
 await s.page.goto('https://wisent.slack.com', { waitUntil: 'domcontentloaded' });
 await humanIdlePause('deliberate');
 await shot('01-slack-landing');
 
+const googleBtn = s.page.getByRole('button', { name: /^\s*google\s*$/i })
+  .or(s.page.getByRole('link', { name: /^\s*google\s*$/i }));
+await humanClickLocator(s.page, googleBtn.first(), { timeoutMs: 15000 });
+await humanIdlePause('long');
+await shot('02-google-email');
+
 await humanFill(s.page, s.page.locator('input[type="email"]').first(), SLACK_EMAIL);
-await humanIdlePause('short');
-// Solve the reCAPTCHA v2 "I'm not a robot" widget before submit.
-const captchaFrame = s.page.locator('iframe[src*="recaptcha"]').first();
-if (await captchaFrame.count() > 0) {
-  console.log('[slack] reCAPTCHA detected — solving via weles captcha helper');
-  const solved = await solveRecaptchaV2(s.page);
-  console.log(`[slack] reCAPTCHA solve result: ${solved}`);
-  if (!solved) { console.error('[slack] reCAPTCHA solve failed'); await safeShutdown(); process.exit(7); }
-  await humanIdlePause('deliberate');
-  await shot('01b-captcha-solved');
-}
-await humanClickLocator(s.page, s.page.getByRole('button', { name: /sign in with email/i }).first(),
-                        { timeoutMs: 10000 });
+await s.page.keyboard.press('Enter');
 await humanIdlePause('long');
-await shot('02-after-email-submit');
 
-// Poll Gmail for the latest Slack magic code email (sender feedback@slack.com
-// or no-reply@slack.com), extract 6-digit code, enter it.
-async function fetchMagicCode(timeoutSeconds = 90) {
-  const py = `
-import pickle, sys, time, re, base64
-from googleapiclient.discovery import build
-from google.auth.transport.requests import Request
-with open(sys.argv[1], 'rb') as f: creds = pickle.load(f)
-if creds.expired and creds.refresh_token: creds.refresh(Request())
-svc = build('gmail', 'v1', credentials=creds, cache_discovery=False)
-deadline = time.time() + int(sys.argv[2])
-while time.time() < deadline:
-    r = svc.users().messages().list(userId='me',
-        q='from:(slack OR feedback@slack.com OR no-reply@slack.com) newer_than:1h',
-        maxResults=5).execute()
-    for m in r.get('messages', []):
-        full = svc.users().messages().get(userId='me', id=m['id'], format='full').execute()
-        snippet = full.get('snippet', '')
-        parts = []
-        def walk(payload):
-            for p in payload.get('parts', []) or []:
-                if p.get('body', {}).get('data'):
-                    parts.append(base64.urlsafe_b64decode(p['body']['data']).decode('utf-8', 'replace'))
-                walk(p)
-        walk(full.get('payload', {}))
-        body = snippet + '\\n' + '\\n'.join(parts)
-        mm = re.search(r'\\b(\\d{3}[\\s-]?\\d{3})\\b', body)
-        if mm:
-            code = re.sub(r'\\s|-', '', mm.group(1))
-            if len(code) == 6:
-                print(code); sys.exit(0)
-    time.sleep(5)
-sys.exit(2)
-`;
-  const PY = process.env.PYTHON3
-    || '/Library/Frameworks/Python.framework/Versions/3.12/bin/python3.12';
-  const r = spawnSync(PY, ['-c', py, GMAIL_PICKLE, String(timeoutSeconds)]);
-  if (r.status !== 0) throw new Error(`magic-code fetch failed: ${r.stderr?.toString().slice(0, 200)}`);
-  return r.stdout.toString().trim();
+async function fillPasswordWhenAvailable() {
+  const pwd = s.page.locator('input[type="password"]');
+  if (await pwd.count() === 0) return false;
+  await humanFill(s.page, pwd, SLACK_PASS);
+  await s.page.keyboard.press('Enter');
+  await humanIdlePause('long');
+  return true;
 }
-console.log('[slack] polling Gmail for Slack magic code…');
-const code = await fetchMagicCode();
-console.log(`[slack] got magic code (${code.length} chars)`);
-
-// Slack's magic-code page has 6 single-digit input boxes.
-const codeInputs = s.page.locator('input[autocomplete="one-time-code"], input[inputmode="numeric"]');
-const n = await codeInputs.count();
-if (n >= 6) {
-  for (let i = 0; i < 6; i++) {
-    await humanFill(s.page, codeInputs.nth(i), code[i]);
+if (!await fillPasswordWhenAvailable()) {
+  console.log('[slack] passkey/2FA challenge — clicking Try another way → Enter your password');
+  await shot('04a-2fa-challenge');
+  const tryOther = s.page.getByRole('button', { name: /try another way/i })
+    .or(s.page.getByRole('link', { name: /try another way/i }));
+  if (await tryOther.count() > 0) {
+    await humanClickLocator(s.page, tryOther.first(), { timeoutMs: 10000 });
+    await humanIdlePause('long');
+    const enterPwd = s.page.getByText(/enter your password/i).first();
+    if (await enterPwd.count() > 0) {
+      await humanClickLocator(s.page, enterPwd, { timeoutMs: 10000 });
+      await humanIdlePause('long');
+      await fillPasswordWhenAvailable();
+    }
   }
-} else {
-  await humanFill(s.page, codeInputs.first(), code);
 }
-await humanIdlePause('long');
-await shot('04-after-code');
+await shot('04-after-password');
+
+// Google's OAuth consent screen "Continue" button completes the handshake.
+const continueBtn = s.page.getByRole('button', { name: /^\s*continue\s*$/i });
+if (await continueBtn.count() > 0) {
+  console.log('[slack] consent — clicking Continue');
+  await humanClickLocator(s.page, continueBtn.first(), { timeoutMs: 10000 });
+  await humanIdlePause('long');
+  await shot('04d-after-consent');
+}
 console.log(`[slack] post-signin url=${s.page.url()}`);
 
 // --- Step 2: extract xoxc- token from authenticated Slack web client -------
