@@ -7,7 +7,7 @@ import { loadFreshCookieJarOrFail, CookieJarStaleError } from './_shared/cookie-
 const TARGET = process.env.GITHUB_FOLLOW_TARGET ?? 'lbartoszcze';
 
 const acct = await getSocialAccount('github');
-if (!acct) { console.log('FAIL: no active github account in DB'); process.exit(1); }
+if (!acct) { console.log('FAIL: no active github account in DB'); process.exitCode = 1; }
 process.env.SVC_EMAIL = acct.metadata.email ?? acct.username;
 process.env.SVC_PASSWORD = acct.metadata.password ?? '';
 
@@ -30,7 +30,7 @@ for (let retry = 0; retry < 3; retry++) {
       if (!cookies.length) throw new CookieJarStaleError('cookie_jar_no_domain_match: jar fresh but no github.com cookies', { platform: 'github' });
       await s.ctx.addCookies(cookies).catch(() => {});
     } catch (jarErr) {
-      if (jarErr instanceof CookieJarStaleError) { console.log(`FAIL: ${jarErr.message}`); await markCookiesStale(acct.id); await s.close().catch(() => {}); process.exit(1); }
+      if (jarErr instanceof CookieJarStaleError) { console.log(`FAIL: ${jarErr.message}`); await markCookiesStale(acct.id); await s.close().catch(() => {}); process.exitCode = 1; }
       throw jarErr;
     }
     await s.goto(`https://github.com/${TARGET}`);
@@ -44,7 +44,7 @@ for (let retry = 0; retry < 3; retry++) {
   await s?.close().catch(() => {});
   s = null;
 }
-if (!s) { console.log('FAIL: page never rendered'); process.exit(1); }
+if (!s) { console.log('FAIL: page never rendered'); process.exitCode = 1; }
 
 try {
   // Verify logged in (cookie session)
@@ -53,11 +53,11 @@ try {
   if (!hasSession) {
     console.log('FAIL: not logged in (no user_session cookie). Run github_login.mjs first.');
     await markCookiesStale(acct.id);
-    process.exit(1);
+    process.exitCode = 1;
   }
   // Positive auth probe — see _shared/auth-probe.mjs.
   try { await assertAuthed('github', s, { label: 'github_follow' }); }
-  catch (probeErr) { if (probeErr instanceof AuthProbeError) { console.log(`FAIL: ${probeErr.message}`); await markCookiesStale(acct.id); process.exit(1); } throw probeErr; }
+  catch (probeErr) { if (probeErr instanceof AuthProbeError) { console.log(`FAIL: ${probeErr.message}`); await markCookiesStale(acct.id); process.exitCode = 1; } throw probeErr; }
 
   // Check current state: visible Unfollow = already following; visible Follow = not yet
   const state = await s.page.evaluate(`(() => {
@@ -97,11 +97,11 @@ try {
   else {
     const err = await s.page.evaluate("(()=>{const e=document.querySelector('.flash-error,[role=\"alert\"]'); return e?e.innerText.trim().slice(0,200):null;})()").catch(() => null);
     console.log(`FAIL: follow did not register${err ? ` — ${err}` : ''}`);
-    process.exit(1);
+    process.exitCode = 1;
   }
 } catch (e) {
   console.log('FAIL:', e.message?.slice(0, 200));
-  process.exit(1);
+  process.exitCode = 1;
 } finally {
   await s.close();
 }

@@ -7,7 +7,7 @@ import { loadFreshCookieJarOrFail, CookieJarStaleError } from './_shared/cookie-
 const TARGET_URL = process.env.TARGET_URL || 'https://www.instagram.com/explore/';
 
 const acct = await getSocialAccount('instagram');
-if (!acct) { console.log('FAIL: no active instagram account in DB'); process.exit(1); }
+if (!acct) { console.log('FAIL: no active instagram account in DB'); process.exitCode = 1; }
 console.log(`[trajectory] Using account: ${acct.username}`);
 
 const { proxyUrl, persona } = await resolveAccountSession(acct);
@@ -21,7 +21,7 @@ try {
     stored = all.filter(c => /instagram\.com/.test(c.domain ?? ''));
     if (!stored.length) throw new CookieJarStaleError('cookie_jar_no_domain_match: jar fresh but no instagram.com cookies', { platform: 'instagram' });
   } catch (jarErr) {
-    if (jarErr instanceof CookieJarStaleError) { console.log(`FAIL: ${jarErr.message}`); await markCookiesStale(acct.id); process.exit(1); }
+    if (jarErr instanceof CookieJarStaleError) { console.log(`FAIL: ${jarErr.message}`); await markCookiesStale(acct.id); process.exitCode = 1; }
     throw jarErr;
   }
   await s.ctx.addCookies(stored.map(c => ({ ...c, path: c.path || '/' })));
@@ -29,10 +29,10 @@ try {
   await s.page.goto(TARGET_URL, { waitUntil: 'domcontentloaded' });
   await humanIdlePause('long');
   const url = s.page.url();
-  if (/\/accounts\/login/.test(url)) { console.log(`FAIL: cookies stale, redirected to login (${url})`); await markCookiesStale(acct.id); process.exit(1); }
+  if (/\/accounts\/login/.test(url)) { console.log(`FAIL: cookies stale, redirected to login (${url})`); await markCookiesStale(acct.id); process.exitCode = 1; }
   // Positive auth probe — see _shared/auth-probe.mjs.
   try { await assertAuthed('instagram', s, { label: 'instagram_like' }); }
-  catch (probeErr) { if (probeErr instanceof AuthProbeError) { console.log(`FAIL: ${probeErr.message}`); await markCookiesStale(acct.id); process.exit(1); } throw probeErr; }
+  catch (probeErr) { if (probeErr instanceof AuthProbeError) { console.log(`FAIL: ${probeErr.message}`); await markCookiesStale(acct.id); process.exitCode = 1; } throw probeErr; }
 
   // Open first post: clicking the first <a href*="/p/"> in the feed/explore.
   const firstPost = s.page.locator('a[href*="/p/"]').filter({ visible: true }).first();
@@ -51,11 +51,11 @@ try {
   await humanClickLocator(s.page, likeBtn);
   await humanIdlePause('deliberate');
   const after = await s.page.locator('svg[aria-label="Unlike"]').filter({ visible: true }).count().catch(() => 0);
-  if (after === 0) { console.log('FAIL: clicked Like but no transition to Unlike state'); process.exit(1); }
+  if (after === 0) { console.log('FAIL: clicked Like but no transition to Unlike state'); process.exitCode = 1; }
   console.log('PASS: liked first post on explore');
 } catch (e) {
   console.log('FAIL:', e.message?.slice(0, 200));
-  process.exit(1);
+  process.exitCode = 1;
 } finally {
   await s.close();
 }

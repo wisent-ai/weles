@@ -132,17 +132,17 @@ try {
   if (supabaseUrl && key) {
     const r = await fetch(`${supabaseUrl}/rest/v1/social_accounts?platform=eq.reddit&username=eq.${encodeURIComponent(id.username)}&select=id,metadata`, { headers: { apikey: key, Authorization: `Bearer ${key}` } });
     const rows = await r.json();
-    if (!rows?.[0]) { console.log(`FAIL: saveAccount returned ok but no DB row for ${id.username}`); process.exit(1); }
+    if (!rows?.[0]) { console.log(`FAIL: saveAccount returned ok but no DB row for ${id.username}`); process.exitCode = 1; }
     const cookies = rows[0].metadata?.cookies ?? [];
     const hasSession = cookies.some?.(c => /reddit_session|token_v2/.test(c?.name ?? ''));
-    if (!hasSession) { console.log(`FAIL: row ${rows[0].id} saved but no reddit_session cookie — signup didn't authenticate`); process.exit(1); }
+    if (!hasSession) { console.log(`FAIL: row ${rows[0].id} saved but no reddit_session cookie — signup didn't authenticate`); process.exitCode = 1; }
     console.log(`PASS: ${id.username} (db_row=${rows[0].id} cookies=${cookies.length} reddit_session=yes)`);
   } else {
     console.log(`PASS: ${id.username} (no DB verification — SUPABASE_URL not set)`);
   }
 } catch (e) {
   console.log('FAIL:', e.message?.slice(0, 300));
-  process.exit(1);
+  process.exitCode = 1;
 } finally {
   await s.close();
 }

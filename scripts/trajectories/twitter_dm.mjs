@@ -9,7 +9,7 @@ const RECIPIENT = process.env.RECIPIENT_HANDLE || 'wisent_ai';
 const MESSAGE = process.env.DM_MESSAGE || 'Hello from weles agent';
 
 const acct = await getSocialAccount('twitter');
-if (!acct) { console.log('FAIL: no active twitter account in DB'); process.exit(1); }
+if (!acct) { console.log('FAIL: no active twitter account in DB'); process.exitCode = 1; }
 console.log(`[trajectory] Using account: ${acct.username}`);
 
 const { proxyUrl, persona } = await resolveAccountSession(acct);
@@ -23,7 +23,7 @@ try {
     stored = all.filter(c => /(^|\.)x\.com$|(^|\.)twitter\.com$/.test(c.domain ?? ''));
     if (!stored.length) throw new CookieJarStaleError('cookie_jar_no_domain_match: jar fresh but no x.com/twitter.com cookies', { platform: 'twitter' });
   } catch (jarErr) {
-    if (jarErr instanceof CookieJarStaleError) { console.log(`FAIL: ${jarErr.message}`); await markCookiesStale(acct.id); process.exit(1); }
+    if (jarErr instanceof CookieJarStaleError) { console.log(`FAIL: ${jarErr.message}`); await markCookiesStale(acct.id); process.exitCode = 1; }
     throw jarErr;
   }
   await s.ctx.addCookies(stored.map(c => ({ ...c, path: c.path || '/' })));
@@ -33,11 +33,11 @@ try {
   if (/\/(i\/flow\/login|login)/.test(s.page.url())) {
     console.log(`FAIL: cookies stale, redirected to login (${s.page.url()})`);
     await markCookiesStale(acct.id);
-    process.exit(1);
+    process.exitCode = 1;
   }
   // Positive auth probe — see _shared/auth-probe.mjs.
   try { await assertAuthed('twitter', s, { label: 'twitter_dm' }); }
-  catch (probeErr) { if (probeErr instanceof AuthProbeError) { console.log(`FAIL: ${probeErr.message}`); await markCookiesStale(acct.id); process.exit(1); } throw probeErr; }
+  catch (probeErr) { if (probeErr instanceof AuthProbeError) { console.log(`FAIL: ${probeErr.message}`); await markCookiesStale(acct.id); process.exitCode = 1; } throw probeErr; }
 
   // Compose URL pre-opens the new-message panel; we still need to pick the
   // recipient (no recipient_id pre-fill is supported without their numeric id).
@@ -78,7 +78,7 @@ try {
   console.log(`PASS: DM sent to @${RECIPIENT}`);
 } catch (e) {
   console.log('FAIL:', e.message?.slice(0, 200));
-  process.exit(1);
+  process.exitCode = 1;
 } finally {
   await s.close();
 }

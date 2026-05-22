@@ -312,5 +312,5 @@ const URL = 'https://www.tiktok.com/signup';
   }
 
   if (s) await s.close().catch(() => {});
-  if (!success) { console.log('FAIL: exhausted retries'); process.exit(1); }
+  if (!success) { console.log('FAIL: exhausted retries'); process.exitCode = 1; }
 }

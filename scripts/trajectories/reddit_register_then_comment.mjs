@@ -274,11 +274,11 @@ try {
     await postSubmitBrowse(s.page);
   } else {
     console.log(`FAIL: ${id.username} -> ${verdict} | inUserListing=${inUserListing} inPostThread=${inPostThread} aboutStatus=${aboutStatus} inAuthListing=${inAuthListing}`);
-    process.exit(1);
+    process.exitCode = 1;
   }
 } catch (e) {
   console.log('FAIL:', e.message?.slice(0, 300));
-  process.exit(1);
+  process.exitCode = 1;
 } finally {
   await s.close();
 }

@@ -9,7 +9,7 @@ import { persistFreshCookieJar } from './_shared/cookie-freshness.mjs';
 const URL = 'https://www.instagram.com/accounts/login/';
 
 const acct = await getSocialAccount('instagram');
-if (!acct) { console.log('FAIL: no active instagram account in DB'); process.exit(1); }
+if (!acct) { console.log('FAIL: no active instagram account in DB'); process.exitCode = 1; }
 process.env.SVC_EMAIL = acct.metadata.email ?? acct.username;
 process.env.SVC_PASSWORD = acct.metadata.password ?? '';
 console.log(`[trajectory] Using account: ${acct.username}`);
@@ -126,7 +126,7 @@ try {
     }
   } catch {}
   console.log('FAIL:', e.message?.slice(0, 200));
-  process.exit(1);
+  process.exitCode = 1;
 } finally {
   await s.close();
 }

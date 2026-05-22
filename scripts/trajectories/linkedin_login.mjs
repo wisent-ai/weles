@@ -11,7 +11,7 @@ import { captureLinkedinPxStorage, restoreLinkedinPxStorage } from './_shared/li
 import { pageHasLoginForm, freshProviderUrl, PROVIDER_ROTATION, gotoLoginRotating } from './_shared/linkedin/proxy_rotation.mjs';
 
 const acct = await getSocialAccount('linkedin');
-if (!acct) { console.log('FAIL: no active linkedin account in DB'); process.exit(1); }
+if (!acct) { console.log('FAIL: no active linkedin account in DB'); process.exitCode = 1; }
 process.env.SVC_EMAIL = acct.metadata.email ?? acct.username;
 process.env.SVC_PASSWORD = acct.metadata.password ?? '';
 console.log(`[trajectory] Using account: ${acct.username}`);
@@ -293,7 +293,7 @@ try {
   }
   writeBan(sig, { final_url: finalUrl, error: msg.slice(0, 200) });
   console.log('FAIL:', msg.slice(0, 200));
-  process.exit(1);
+  process.exitCode = 1;
 } finally {
   await s.close();
 }

@@ -7,7 +7,7 @@ import { loadFreshCookieJarOrFail, CookieJarStaleError } from './_shared/cookie-
 const HOME_URL = 'https://x.com/home';
 
 const acct = await getSocialAccount('twitter');
-if (!acct) { console.log('FAIL: no active twitter account in DB'); process.exit(1); }
+if (!acct) { console.log('FAIL: no active twitter account in DB'); process.exitCode = 1; }
 console.log(`[trajectory] Using account: ${acct.username}`);
 
 const { proxyUrl, persona } = await resolveAccountSession(acct);
@@ -22,7 +22,7 @@ try {
     if (!hasAuthToken) throw new CookieJarStaleError('cookie_jar_missing_auth_token: jar fresh but no auth_token', { platform: 'twitter' });
     prepared = all.filter(c => c?.name && c?.value && (c.domain || c.url)).map(c => ({ ...c, path: c.path || '/' }));
   } catch (jarErr) {
-    if (jarErr instanceof CookieJarStaleError) { console.log(`FAIL: ${jarErr.message}`); await markCookiesStale(acct.id); process.exit(1); }
+    if (jarErr instanceof CookieJarStaleError) { console.log(`FAIL: ${jarErr.message}`); await markCookiesStale(acct.id); process.exitCode = 1; }
     throw jarErr;
   }
   await s.ctx.addCookies(prepared);
@@ -30,7 +30,7 @@ try {
   await s.page.goto(HOME_URL, { waitUntil: 'domcontentloaded' });
   await humanIdlePause('deliberate');
   const url = s.page.url();
-  if (/\/i\/flow\/login/.test(url)) { console.log(`FAIL: cookies stale, redirected to login (${url})`); await markCookiesStale(acct.id); process.exit(1); }
+  if (/\/i\/flow\/login/.test(url)) { console.log(`FAIL: cookies stale, redirected to login (${url})`); await markCookiesStale(acct.id); process.exitCode = 1; }
 
   // Positive auth probe — auth_token in jar ≠ session is real. Twitter
   // serves a logged-out shell on x.com/home for cookie-injected sessions
@@ -42,7 +42,7 @@ try {
     if (probeErr instanceof AuthProbeError) {
       console.log(`FAIL: ${probeErr.message}`);
       await markCookiesStale(acct.id);
-      process.exit(1);
+      process.exitCode = 1;
     }
     throw probeErr;
   }
@@ -61,7 +61,7 @@ try {
     await humanIdlePause('deliberate');
     likeBtn = s.page.locator('[data-testid="like"]').filter({ visible: true }).first();
     hasLikeBtn = await likeBtn.waitFor({ state: 'visible', timeout: 30000 }).then(() => true).catch(() => false);
-    if (!hasLikeBtn) { console.log('FAIL: no like button visible on either /home or /elonmusk'); process.exit(1); }
+    if (!hasLikeBtn) { console.log('FAIL: no like button visible on either /home or /elonmusk'); process.exitCode = 1; }
   }
   await likeBtn.scrollIntoViewIfNeeded();
   await humanClickLocator(s.page, likeBtn);
@@ -69,11 +69,11 @@ try {
   // Verify like → unlike transition (the same button now exposes data-testid="unlike")
   const unlikeBtn = s.page.locator('[data-testid="unlike"]').first();
   const ok = await unlikeBtn.isVisible().catch(() => false);
-  if (!ok) { console.log('FAIL: clicked like but no unlike state — likely shadowbanned or rate-limited'); process.exit(1); }
+  if (!ok) { console.log('FAIL: clicked like but no unlike state — likely shadowbanned or rate-limited'); process.exitCode = 1; }
   console.log('PASS: liked tweet');
 } catch (e) {
   console.log('FAIL:', e.message?.slice(0, 200));
-  process.exit(1);
+  process.exitCode = 1;
 } finally {
   await s.close();
 }

@@ -154,7 +154,7 @@ async function solveTiktokRotateCaptcha(page) {
 }
 
 const acct = await getSocialAccount('tiktok');
-if (!acct) { console.log('FAIL: no active tiktok account in DB'); process.exit(1); }
+if (!acct) { console.log('FAIL: no active tiktok account in DB'); process.exitCode = 1; }
 process.env.SVC_EMAIL = acct.metadata.email ?? acct.username;
 process.env.SVC_PASSWORD = acct.metadata.password ?? '';
 console.log(`[trajectory] Using account: ${acct.username}`);
@@ -551,7 +551,7 @@ try {
     fs.writeFileSync(path.join(dir, 'ban_signal.json'), JSON.stringify({ account_id: acct.id, username: acct.username, action: 'tiktok_login', signal: sig, healthy: false, details: { final_url: finalUrl, reason: e.message?.slice(0, 200) ?? 'no message' }, ts: new Date().toISOString() }, null, 2));
   } catch {}
   console.log('FAIL:', e.message?.slice(0, 200));
-  process.exit(1);
+  process.exitCode = 1;
 } finally {
   await s.close();
 }
