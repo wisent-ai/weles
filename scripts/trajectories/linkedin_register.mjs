@@ -285,7 +285,10 @@ try {
   else if (/captcha|challenge|checkpoint/.test(finalUrl)) sig = 'captcha_challenge';
   try { mkdirSync(join(process.cwd(), 'recordings', 'linkedin_register'), { recursive: true }); writeFileSync(join(process.cwd(), 'recordings', 'linkedin_register', 'ban_signal.json'), JSON.stringify({ action: 'linkedin_register', signal: sig, healthy: false, details: { final_url: finalUrl, error: e.message?.slice(0, 200), attempted_email: id.email }, ts: new Date().toISOString() }, null, 2)); } catch {}
   console.log(`FAIL: ${e.message?.slice(0, 200)}`);
-  process.exit(1);
+  // exitCode (not exit) so the finally block's await s.close() actually runs.
+  // process.exit(1) kills pending async ops immediately, which prevents
+  // Playwright from flushing the recordVideo .webm to disk.
+  process.exitCode = 1;
 } finally {
   await s.close();
 }
