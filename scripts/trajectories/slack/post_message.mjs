@@ -1,20 +1,7 @@
-// scripts/trajectories/slack/post_message.mjs
-//
-// Drive Google-SSO login into wisent.slack.com, create a workspace app via
-// the manifest flow, extract the bot token, post the Jakub status message.
-// Per the per-trajectory CLAUDE.md, all invariants (workspace url, scope
-// list, credential source) are recorded there.
-//
-// Env required:
-//   SSO_EMAIL                — sourced from weles/.work/_sso.env
-//   SSO_PASS                 — sourced from weles/.work/_sso.env
-//   MESSAGE_FILE             — defaults to swiatowid/.work/jakub-status.txt
-//   TARGET_CHANNEL or NAME   — defaults to "jakub"; "general" if not found
-//   SWT_CLI                  — path to swt-cli binary
-//
-// Run:
-//   set -a; . weles/.work/_sso.env; set +a
-//   node weles/scripts/trajectories/slack/post_message.mjs
+// Slack-post trajectory. Drive Google-SSO into wisent.slack.com, create app
+// via manifest, extract xoxb token, post Jakub message. See CLAUDE.md.
+// Env: SSO_EMAIL, SSO_PASS (from .work/_sso.env), MESSAGE_FILE,
+//      SLACK_TARGET_CHANNEL or SLACK_TARGET_CHANNEL_NAME, SWT_CLI.
 
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
@@ -32,10 +19,6 @@ const SETTINGS = join(process.env.HOME, '.claude', 'settings.json');
 const TARGET_NAME = (process.env.SLACK_TARGET_CHANNEL_NAME || 'jakub').toLowerCase();
 const TARGET_CHAN = process.env.SLACK_TARGET_CHANNEL || '';
 
-if (!process.env.SSO_EMAIL || !process.env.SSO_PASS) {
-  console.error('SSO_EMAIL / SSO_PASS missing — source weles/.work/_sso.env first');
-  process.exit(2);
-}
 if (!existsSync(MESSAGE_FILE)) {
   console.error(`MESSAGE_FILE not found: ${MESSAGE_FILE}`);
   process.exit(2);
@@ -74,6 +57,7 @@ settings:
 const { WSession } = await import(`${WELES}/dist/session/wsession.js`);
 const { humanFill } = await import(`${WELES}/dist/human/keyboard.js`);
 const { humanClickLocator, humanIdlePause } = await import(`${WELES}/dist/human/mouse.js`);
+const { solveRecaptchaV2 } = await import(`${WELES}/dist/captcha/recaptcha.js`);
 
 const headless = process.env.HEADLESS === '1';
 const s = await WSession.start({ label: 'slack-post', headless });
@@ -98,203 +82,159 @@ async function fetchJSON(url, init) {
   return r.json();
 }
 
-// --- Step 1: Google SSO into wisent.slack.com -------------------------------
-console.log('[slack] step 1: log into wisent.slack.com via Google SSO');
+// --- Step 1: sign in via email + magic code (NOT Google SSO) ----------------
+// The Google account in _sso.env (lukasz.bartoszcze@gmail.com) is NOT a
+// member of the wisent.slack.com workspace — verified by a prior run that
+// completed Google SSO and got "doesn't have an account on this workspace".
+// Wisent workspace membership is on the @wisent.ai email. Slack's email
+// magic-code flow sends a 6-digit code to that mailbox; we read it back via
+// the existing gmail_token.pickle (already consented for the @wisent.ai
+// account, verified at growth-tactics/google_drive/gmail_token.pickle).
+const SLACK_EMAIL = process.env.SLACK_EMAIL || 'lukasz.bartoszcze@wisent.ai';
+const GMAIL_PICKLE = process.env.GMAIL_PICKLE
+  || '/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/growth-tactics/google_drive/gmail_token.pickle';
+
+console.log(`[slack] step 1: email magic-code sign-in as ${SLACK_EMAIL}`);
 await s.page.goto('https://wisent.slack.com', { waitUntil: 'domcontentloaded' });
 await humanIdlePause('deliberate');
 await shot('01-slack-landing');
 
-// Slack's button label is literally "Google" (with the G icon). Try the
-// strict-match variant first, then variants seen on enterprise / SSO pages.
-const googleBtn = s.page.getByRole('button', { name: /^\s*google\s*$/i })
-  .or(s.page.getByRole('link', { name: /^\s*google\s*$/i }))
-  .or(s.page.getByRole('button', { name: /sign in with google/i }))
-  .or(s.page.getByRole('link', { name: /sign in with google/i }));
-let popup = null;
-try {
-  const popupPromise = s.page.context().waitForEvent('page');
-  await humanClickLocator(s.page, googleBtn.first(), { timeoutMs: 15000 });
-  popup = await popupPromise;
-} catch (e) {
-  console.log(`[slack] no popup: ${e.message?.slice(0, 80)} — continuing on main page`);
+await humanFill(s.page, s.page.locator('input[type="email"]').first(), SLACK_EMAIL);
+await humanIdlePause('short');
+// Solve the reCAPTCHA v2 "I'm not a robot" widget before submit.
+const captchaFrame = s.page.locator('iframe[src*="recaptcha"]').first();
+if (await captchaFrame.count() > 0) {
+  console.log('[slack] reCAPTCHA detected — solving via weles captcha helper');
+  const solved = await solveRecaptchaV2(s.page);
+  console.log(`[slack] reCAPTCHA solve result: ${solved}`);
+  if (!solved) { console.error('[slack] reCAPTCHA solve failed'); await safeShutdown(); process.exit(7); }
+  await humanIdlePause('deliberate');
+  await shot('01b-captcha-solved');
 }
-if (popup) {
-  console.log(`[slack] Google SSO opened in popup ${popup.url()}`);
-  s.page = popup;
-}
-await humanIdlePause('deliberate');
-await shot('02-google-email');
-
-await humanFill(s.page, s.page.locator('input[type="email"]'), process.env.SSO_EMAIL);
-await s.page.keyboard.press('Enter');
+await humanClickLocator(s.page, s.page.getByRole('button', { name: /sign in with email/i }).first(),
+                        { timeoutMs: 10000 });
 await humanIdlePause('long');
-await shot('03-google-postemail');
+await shot('02-after-email-submit');
 
-// Google may show password OR a passkey/2FA challenge directly. Handle both.
-const pwdInput = s.page.locator('input[type="password"]');
-const pwdCount = await pwdInput.count();
-if (pwdCount > 0) {
-  await humanFill(s.page, pwdInput, process.env.SSO_PASS);
-  await s.page.keyboard.press('Enter');
-  await humanIdlePause('long');
-  await shot('04-after-password');
-} else {
-  console.log('[slack] no password field; landed on a 2FA/passkey challenge');
-  await shot('04a-2fa-challenge');
-  // Click "Try another way" to enumerate alternate options.
-  const tryOther = s.page.getByRole('button', { name: /try another way/i })
-    .or(s.page.getByRole('link', { name: /try another way/i }));
-  if (await tryOther.count() > 0) {
-    await humanClickLocator(s.page, tryOther.first(), { timeoutMs: 10000 });
-    await humanIdlePause('long');
-    await shot('04b-other-options');
-  } else {
-    console.log('[slack] no "Try another way" button visible — Google likely demands the primary challenge');
+// Poll Gmail for the latest Slack magic code email (sender feedback@slack.com
+// or no-reply@slack.com), extract 6-digit code, enter it.
+async function fetchMagicCode(timeoutSeconds = 90) {
+  const py = `
+import pickle, sys, time, re, base64
+from googleapiclient.discovery import build
+from google.auth.transport.requests import Request
+with open(sys.argv[1], 'rb') as f: creds = pickle.load(f)
+if creds.expired and creds.refresh_token: creds.refresh(Request())
+svc = build('gmail', 'v1', credentials=creds, cache_discovery=False)
+deadline = time.time() + int(sys.argv[2])
+while time.time() < deadline:
+    r = svc.users().messages().list(userId='me',
+        q='from:(slack OR feedback@slack.com OR no-reply@slack.com) newer_than:1h',
+        maxResults=5).execute()
+    for m in r.get('messages', []):
+        full = svc.users().messages().get(userId='me', id=m['id'], format='full').execute()
+        snippet = full.get('snippet', '')
+        parts = []
+        def walk(payload):
+            for p in payload.get('parts', []) or []:
+                if p.get('body', {}).get('data'):
+                    parts.append(base64.urlsafe_b64decode(p['body']['data']).decode('utf-8', 'replace'))
+                walk(p)
+        walk(full.get('payload', {}))
+        body = snippet + '\\n' + '\\n'.join(parts)
+        mm = re.search(r'\\b(\\d{3}[\\s-]?\\d{3})\\b', body)
+        if mm:
+            code = re.sub(r'\\s|-', '', mm.group(1))
+            if len(code) == 6:
+                print(code); sys.exit(0)
+    time.sleep(5)
+sys.exit(2)
+`;
+  const PY = process.env.PYTHON3
+    || '/Library/Frameworks/Python.framework/Versions/3.12/bin/python3.12';
+  const r = spawnSync(PY, ['-c', py, GMAIL_PICKLE, String(timeoutSeconds)]);
+  if (r.status !== 0) throw new Error(`magic-code fetch failed: ${r.stderr?.toString().slice(0, 200)}`);
+  return r.stdout.toString().trim();
+}
+console.log('[slack] polling Gmail for Slack magic code…');
+const code = await fetchMagicCode();
+console.log(`[slack] got magic code (${code.length} chars)`);
+
+// Slack's magic-code page has 6 single-digit input boxes.
+const codeInputs = s.page.locator('input[autocomplete="one-time-code"], input[inputmode="numeric"]');
+const n = await codeInputs.count();
+if (n >= 6) {
+  for (let i = 0; i < 6; i++) {
+    await humanFill(s.page, codeInputs.nth(i), code[i]);
   }
-}
-
-console.log(`[slack] post-sso url=${s.page.url()}`);
-
-// --- Step 2: create app from manifest --------------------------------------
-console.log('[slack] step 2: api.slack.com/apps?new_app=1');
-await s.page.goto('https://api.slack.com/apps?new_app=1', { waitUntil: 'domcontentloaded' });
-await humanIdlePause('deliberate');
-await shot('05-new-app-dialog');
-
-await humanClickLocator(s.page, s.page.getByText(/from a manifest/i).first(),
-                        { timeoutMs: 10000 });
-await humanIdlePause('deliberate');
-
-// Workspace picker may auto-select if there's only one — count visible options.
-const wisentLocator = s.page.getByText(/wisent/i).first();
-if (await wisentLocator.count() > 0) {
-  await humanClickLocator(s.page, wisentLocator, { timeoutMs: 10000 });
 } else {
-  console.log('[slack] workspace picker: no explicit wisent option visible; assuming auto-select');
+  await humanFill(s.page, codeInputs.first(), code);
 }
-await humanClickLocator(s.page, s.page.getByRole('button', { name: /^next$/i }).first(),
-                        { timeoutMs: 10000 });
-await humanIdlePause('deliberate');
-
-// Paste manifest via OS pasteboard so we drive only humanized inputs.
-spawnSync('/usr/bin/pbcopy', [], { input: MANIFEST_YAML });
-const aceEditor = s.page.locator('.ace_editor, .ace_content, textarea').first();
-await humanClickLocator(s.page, aceEditor, { timeoutMs: 10000 });
-await humanIdlePause('short');
-await s.page.keyboard.press('Meta+A');
-await s.page.keyboard.press('Backspace');
-await humanIdlePause('short');
-await s.page.keyboard.press('Meta+V');
-await humanIdlePause('deliberate');
-await shot('06-manifest-pasted');
-
-await humanClickLocator(s.page, s.page.getByRole('button', { name: /^next$/i }).first(),
-                        { timeoutMs: 10000 });
-await humanIdlePause('deliberate');
-await humanClickLocator(s.page, s.page.getByRole('button', { name: /^create$/i }).first(),
-                        { timeoutMs: 10000 });
-await s.page.waitForLoadState('domcontentloaded');
 await humanIdlePause('long');
-await shot('07-app-created');
+await shot('04-after-code');
+console.log(`[slack] post-signin url=${s.page.url()}`);
 
-// --- Step 3: install + authorize -------------------------------------------
-console.log('[slack] step 3: install + authorize');
-await humanClickLocator(
-  s.page, s.page.getByRole('button', { name: /install to workspace/i }).first(),
-  { timeoutMs: 15000 }
-);
-await s.page.waitForLoadState('domcontentloaded');
-await humanIdlePause('deliberate');
-await humanClickLocator(
-  s.page, s.page.getByRole('button', { name: /^allow$/i }).first(),
-  { timeoutMs: 15000 }
-);
-await s.page.waitForLoadState('domcontentloaded');
+// --- Step 2: extract xoxc- token from authenticated Slack web client -------
+// Skip api.slack.com entirely. wisent.slack.com web app embeds an xoxc-
+// client token in window.boot_data; combined with the httponly `d` cookie
+// (auto-carried by Playwright's request ctx), we can call chat.postMessage
+// directly without ever creating a bot app.
+console.log('[slack] step 2: load Slack web client + extract xoxc-');
+await s.page.goto('https://wisent.slack.com/messages', { waitUntil: 'domcontentloaded' });
 await humanIdlePause('long');
-await shot('08-authorized');
+await shot('05-messages-page');
 
-// --- Step 4: scrape xoxb from OAuth & Permissions --------------------------
-console.log('[slack] step 4: read xoxb from OAuth & Permissions');
-await humanClickLocator(
-  s.page, s.page.locator('a[href*="/oauth"]').first(), { timeoutMs: 10000 }
-);
-await s.page.waitForLoadState('domcontentloaded');
-await humanIdlePause('deliberate');
-await shot('09-oauth-page');
-
-const tokenStr = await s.page.evaluate(() => {
-  const txt = document.body.innerText || '';
-  const m = txt.match(/xoxb-\d+-\d+-[A-Za-z0-9]+/);
-  return m ? m[0] : '';
+const xoxc = await s.page.evaluate(() => {
+  function findInLS() {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      const v = localStorage.getItem(k);
+      if (typeof v !== 'string') continue;
+      const m = v.match(/xoxc-[\d]+-[\d]+-[\d]+-[a-f0-9]+/);
+      if (m) return m[0];
+    }
+    return null;
+  }
+  const bd = (typeof window !== 'undefined') ? window.boot_data : null;
+  if (bd && bd.api_token) return bd.api_token;
+  return findInLS();
 });
-if (!tokenStr) {
-  console.error('[slack] FAILED to extract xoxb token; screenshots in .work/slack-post/');
-  await safeShutdown();
-  process.exit(3);
+if (!xoxc) {
+  console.error('[slack] no xoxc- in boot_data or localStorage; screenshots in .work/slack-post/');
+  await safeShutdown(); process.exit(6);
 }
-console.log(`[slack] captured token=${tokenStr.slice(0, 18)}… len=${tokenStr.length}`);
+console.log(`[slack] xoxc=${xoxc.slice(0, 24)}… len=${xoxc.length}`);
 
-// --- Step 5: inject token + team_id into ~/.claude/settings.json -----------
-console.log('[slack] step 5: write token into ~/.claude/settings.json');
-const settings = JSON.parse(readFileSync(SETTINGS, 'utf8'));
-settings.mcpServers = settings.mcpServers || {};
-settings.mcpServers.slack = settings.mcpServers.slack || {
-  command: 'npx', args: ['-y', '@modelcontextprotocol/server-slack'], env: {},
-};
-settings.mcpServers.slack.env.SLACK_BOT_TOKEN = tokenStr;
-
-let teamId = '';
-try {
-  const auth = await fetchJSON('https://slack.com/api/auth.test', {
-    method: 'POST', headers: { Authorization: `Bearer ${tokenStr}` },
+// --- Step 3: resolve channel + post via Slack API using browser cookies ----
+const ctxReq = s.page.context().request;
+async function slackApi(method, form) {
+  const body = Object.entries(form).map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join('&');
+  const r = await ctxReq.post(`https://wisent.slack.com/api/${method}?_x_id=${Date.now()}`, {
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    data: body,
   });
-  if (auth.team_id) {
-    teamId = auth.team_id;
-    settings.mcpServers.slack.env.SLACK_TEAM_ID = teamId;
-  } else {
-    console.log(`[slack] auth.test returned no team_id (error=${auth.error || 'unknown'})`);
-  }
-} catch (e) {
-  console.log(`[slack] auth.test failed: ${e.message?.slice(0, 80)}`);
+  const j = await r.json();
+  if (!j.ok) throw new Error(`${method}: ${j.error || JSON.stringify(j).slice(0, 80)}`);
+  return j;
 }
-writeFileSync(SETTINGS, JSON.stringify(settings, null, 2));
-console.log(`[slack] settings.json updated. team_id=${teamId || '(unresolved)'}`);
 
-// --- Step 6: resolve channel + post via swt-cli ----------------------------
-console.log('[slack] step 6: resolve channel + post');
 let channelId = TARGET_CHAN;
 if (!channelId) {
-  let channels = [];
-  try {
-    const list = await fetchJSON(
-      'https://slack.com/api/conversations.list?types=public_channel,private_channel&limit=1000',
-      { headers: { Authorization: `Bearer ${tokenStr}` } }
-    );
-    channels = list.channels || [];
-  } catch (e) {
-    console.error(`[slack] conversations.list failed: ${e.message?.slice(0, 80)}`);
-    await safeShutdown();
-    process.exit(4);
-  }
-  const named = channels.find((c) => (c.name || '').toLowerCase() === TARGET_NAME);
-  const general = channels.find((c) => (c.name || '').toLowerCase() === 'general');
-  channelId = (named || general || {}).id || '';
+  const list = await slackApi('conversations.list', {
+    token: xoxc, types: 'public_channel,private_channel', limit: '1000',
+  });
+  const named = list.channels.find((c) => c.name && c.name.toLowerCase() === TARGET_NAME);
+  const general = list.channels.find((c) => c.name && c.name.toLowerCase() === 'general');
+  if (named) channelId = named.id;
+  else if (general) channelId = general.id;
 }
-if (!channelId) {
-  console.error('[slack] could not resolve a channel id; aborting');
-  await safeShutdown();
-  process.exit(4);
-}
+if (!channelId) { console.error('[slack] no channel id'); await safeShutdown(); process.exit(4); }
 
-const post = spawnSync(SWT_CLI, [
-  'slack', 'post', '--channel', channelId, '--text-file', MESSAGE_FILE,
-], { env: { ...process.env, SLACK_BOT_TOKEN: tokenStr }, stdio: 'inherit' });
-if (post.status !== 0) {
-  console.error('[slack] swt-cli slack post exited non-zero');
-  await safeShutdown();
-  process.exit(post.status || 5);
-}
-console.log(`[slack] ✓ posted to channel=${channelId}`);
+const messageText = readFileSync(MESSAGE_FILE, 'utf8');
+const post = await slackApi('chat.postMessage', {
+  token: xoxc, channel: channelId, text: messageText, as_user: 'true',
+});
+console.log(`[slack] ✓ posted ts=${post.ts} channel=${channelId}`);
 
 await safeShutdown();
 console.log('[slack] done');
