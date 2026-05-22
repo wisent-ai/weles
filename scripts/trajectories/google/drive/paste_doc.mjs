@@ -142,36 +142,58 @@ try {
         await humanClick(s.page, Math.round(prefBbox.x), Math.round(prefBbox.y));
         await humanIdlePause('deliberate');
         await humanIdlePause('deliberate');
+        // Wait for the dialog to fully mount its content. Modern Docs
+        // Preferences dialog uses Material switches which may not have
+        // role="checkbox" — try multiple selectors.
+        for (let w = 0; w < 20; w++) {
+          const hasDialog = await s.page.evaluate(() => { // allow-raw-playwright: read-only poll
+            return !!(document.querySelector('[role="dialog"]') || document.querySelector('[aria-modal="true"]'));
+          });
+          if (hasDialog) break;
+          await humanIdlePause('short');
+        }
         const mdProbe = await s.page.evaluate(() => { // allow-raw-playwright: read-only scrape of Preferences dialog
-          const dlg = document.querySelector('[role="dialog"]');
+          const dlg = document.querySelector('[role="dialog"]') || document.querySelector('[aria-modal="true"]');
           const root = dlg ? dlg : document;
-          const checkboxes = Array.from(root.querySelectorAll('[role="checkbox"]')).map((cb) => {
-            const r = cb.getBoundingClientRect();
-            const parent = cb.closest('label');
-            const ancestor = parent ? parent : cb.closest('div');
+          // Try role=checkbox, role=switch, and input[type=checkbox]
+          const toggles = Array.from(root.querySelectorAll('[role="checkbox"], [role="switch"], input[type="checkbox"]')).map((el) => {
+            const r = el.getBoundingClientRect();
+            const parent = el.closest('label');
+            const ancestor = parent ? parent : el.closest('div');
             const labelText = ancestor ? (ancestor.innerText || ancestor.textContent || '').trim().slice(0, 200) : '';
+            const ariaChecked = el.getAttribute('aria-checked');
+            const isChecked = ariaChecked === 'true' || (el.tagName === 'INPUT' && el.checked === true);
             return {
+              role: el.getAttribute('role') || el.tagName.toLowerCase(),
               labelText,
-              isChecked: cb.getAttribute('aria-checked') === 'true',
+              isChecked,
               x: r.x + r.width / 2,
               y: r.y + r.height / 2,
+              w: r.width, h: r.height,
             };
           });
-          return { checkboxes, dialogTitle: dlg ? (dlg.querySelector('h1, h2, h3, [role="heading"]')?.textContent || '').trim() : '(no dialog)' };
+          const headingEl = dlg ? dlg.querySelector('h1, h2, h3, [role="heading"]') : null;
+          const dialogTitle = headingEl ? (headingEl.textContent || '').trim() : (dlg ? '(no heading)' : '(no dialog)');
+          // Also dump all visible text inside dialog for diagnostic.
+          const dlgText = dlg ? (dlg.innerText || dlg.textContent || '').slice(0, 600) : '';
+          return { toggles, dialogTitle, dlgText };
         });
-        log('preferences dialog title: ' + mdProbe.dialogTitle + ' / checkboxes: ' + mdProbe.checkboxes.length);
+        log('preferences dialog title: ' + mdProbe.dialogTitle + ' / toggles: ' + mdProbe.toggles.length);
+        if (mdProbe.toggles.length === 0) {
+          log('preferences dialog text snippet: ' + mdProbe.dlgText.slice(0, 400));
+        }
         let md = null;
-        for (const cb of mdProbe.checkboxes) {
-          if (/markdown/i.test(cb.labelText)) { md = cb; break; }
+        for (const tg of mdProbe.toggles) {
+          if (/markdown/i.test(tg.labelText)) { md = tg; break; }
         }
         if (md && !md.isChecked) {
           await humanClick(s.page, Math.round(md.x), Math.round(md.y));
           await humanIdlePause('short');
-          log('markdown auto-detect: enabled');
+          log('markdown auto-detect: enabled (role=' + md.role + ', label="' + md.labelText.slice(0, 60) + '")');
         } else if (md && md.isChecked) {
-          log('markdown auto-detect: already enabled');
+          log('markdown auto-detect: already enabled (role=' + md.role + ')');
         } else {
-          log('WARN: markdown checkbox not found. labels=' + JSON.stringify(mdProbe.checkboxes.map((c) => c.labelText.slice(0, 60))));
+          log('WARN: markdown toggle not found. toggles=' + JSON.stringify(mdProbe.toggles.map((t) => ({ role: t.role, label: t.labelText.slice(0, 60) }))));
         }
         const okBbox = await s.page.evaluate(() => { // allow-raw-playwright: read-only bbox of OK button
           const btns = Array.from(document.querySelectorAll('button, [role="button"]'));
