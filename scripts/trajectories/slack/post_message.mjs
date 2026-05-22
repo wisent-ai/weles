@@ -175,13 +175,16 @@ console.log(`[slack] xoxc=${xoxc.slice(0, 24)}… len=${xoxc.length}`);
 
 // --- Step 2b: create the Swiatowid bot app, scrape xoxb- -------------------
 console.log('[slack] step 2b: api.slack.com app creation');
-await s.page.goto('https://wisent-workspace.slack.com/apps/manage', { waitUntil: 'domcontentloaded' });
-// Bot-app creation deferred — api.slack.com modal selectors are flaky across
-// personas. Posting as Lukasz via xoxc below; bot identity is a follow-up.
-const xoxb = '';
-if (false) {  // dead code marker
-await humanIdlePause('long');
-}  // end dead-code marker
+const { createBotApp } = await import('./create_bot_app.mjs');
+let xoxb = '';
+try {
+  xoxb = await createBotApp({ page: s.page, weles: WELES, shot });
+  if (xoxb) console.log(`[slack] ✓ xoxb=${xoxb.slice(0, 18)}… len=${xoxb.length}`);
+  else console.log('[slack] bot created but no xoxb on OAuth page');
+} catch (e) {
+  console.log(`[slack] bot creation failed: ${e.message?.slice(0, 200)}`);
+  console.log('[slack] continuing with xoxc (post will be as Lukasz)');
+}
 
 // --- Step 3: resolve channel + post via Slack API using browser cookies ----
 const ctxReq = s.page.context().request;
