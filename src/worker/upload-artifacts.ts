@@ -8,8 +8,12 @@
 // path never uploads — that's where the volume is, and you rarely need
 // recordings for a clean tick.
 //
-// Cap per run: 10 screenshots + 1 video + 1 html + 1 ndjson. Files older
-// than runStart are ignored (older runs' artifacts).
+// Cap per run: 10 screenshots + 10 videos + 1 html + 1 ndjson. videos was
+// previously capped at 1 — but Playwright writes one .webm PER PAGE in the
+// context, so trajectories that open multiple pages produced multiple webms
+// on disk and only the newest reached storage, hiding everything before the
+// last page. Bumped to 10 so the full trajectory's video history is captured.
+// Files older than runStart are ignored (older runs' artifacts).
 
 import { readFile, readdir, stat } from 'node:fs/promises'
 import { join, extname } from 'node:path'
@@ -21,17 +25,22 @@ const BUCKET = 'recordings'
 
 export interface ArtifactUrls {
   screenshots: string[]
+  // video: the newest webm uploaded — kept for backwards compat with
+  // existing readers (Artifacts viewer, ban-attribution heuristics).
   video: string | null
+  // videos: every webm uploaded for the run, newest-first. New code should
+  // prefer this over .video. The .video field aliases videos[0].
+  videos: string[]
   dom: string[]
   logs: string[]
 }
 
-const KIND_BY_EXT: Record<string, keyof ArtifactUrls | null> = {
+const KIND_BY_EXT: Record<string, 'screenshots' | 'videos' | 'dom' | 'logs' | null> = {
   '.png': 'screenshots',
   '.jpg': 'screenshots',
   '.jpeg': 'screenshots',
-  '.webm': 'video' as keyof ArtifactUrls,
-  '.mp4': 'video' as keyof ArtifactUrls,
+  '.webm': 'videos',
+  '.mp4': 'videos',
   '.html': 'dom',
   '.ndjson': 'logs',
   '.log': 'logs',
@@ -39,7 +48,7 @@ const KIND_BY_EXT: Record<string, keyof ArtifactUrls | null> = {
 
 const CAPS: Record<string, number> = {
   screenshots: 10,
-  video: 1,
+  videos: 10,
   dom: 1,
   logs: 1,
 }
@@ -95,7 +104,8 @@ export async function uploadArtifacts(
   // Stat each, keep those newer than runStart (minus 2s fudge for clock skew
   // + trajectory startup) and one of the recognized kinds.
   const since = runStart.getTime() - 2000
-  const candidates: Array<{ path: string; name: string; ext: string; kind: keyof ArtifactUrls; mtime: number }> = []
+  type Kind = 'screenshots' | 'videos' | 'dom' | 'logs'
+  const candidates: Array<{ path: string; name: string; ext: string; kind: Kind; mtime: number }> = []
   for (const name of entries) {
     const ext = extname(name).toLowerCase()
     const kind = KIND_BY_EXT[ext]
@@ -110,23 +120,21 @@ export async function uploadArtifacts(
   // Newest first so caps keep the latest files per kind.
   candidates.sort((a, b) => b.mtime - a.mtime)
 
-  const urls: ArtifactUrls = { screenshots: [], video: null, dom: [], logs: [] }
-  const counts: Record<string, number> = { screenshots: 0, video: 0, dom: 0, logs: 0 }
+  const urls: ArtifactUrls = { screenshots: [], video: null, videos: [], dom: [], logs: [] }
+  const counts: Record<Kind, number> = { screenshots: 0, videos: 0, dom: 0, logs: 0 }
 
   for (const c of candidates) {
-    const kindKey = c.kind as string
-    if (counts[kindKey] >= (CAPS[kindKey] ?? 1)) continue
+    if (counts[c.kind] >= (CAPS[c.kind] ?? 1)) continue
     const storagePath = `${action}/${logId}/${c.name}`
     const ok = await uploadOne(c.path, storagePath, contentTypeFor(c.ext))
     if (!ok) continue
-    counts[kindKey]++
+    counts[c.kind]++
     const u = publicUrl(storagePath)
-    if (c.kind === 'video') urls.video = u
-    else (urls[c.kind] as string[]).push(u)
+    ;(urls[c.kind] as string[]).push(u)
   }
+  // Back-compat alias: .video = newest webm = videos[0]
+  urls.video = urls.videos[0] ?? null
 
-  // Return null if we didn't actually upload anything so callers can omit the
-  // artifacts field from result rather than PATCH an empty object.
-  if (counts.screenshots + counts.video + counts.dom + counts.logs === 0) return null
+  if (counts.screenshots + counts.videos + counts.dom + counts.logs === 0) return null
   return urls
 }
