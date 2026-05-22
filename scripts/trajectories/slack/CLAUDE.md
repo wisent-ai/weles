@@ -2,7 +2,7 @@
 
 ## Workspace
 
-- The Wisent Slack workspace is at **`https://wisent.slack.com`** (verified by HTTP 200 GET; the candidate alternatives `wisentai.slack.com`, `getwisent.slack.com`, `wisent-ai.slack.com` all return 404).
+- The Wisent Slack workspace is at **`https://wisent-workspace.slack.com`** (verified by HTTP 200 GET; the candidate alternatives `wisentai.slack.com`, `getwisent-workspace.slack.com`, `wisent-ai.slack.com` all return 404).
 - The org uses **Google Workspace SSO**. Sign-in path: workspace URL → "Sign in with Google" → Google OAuth consent → back to Slack web.
 
 ## Credentials

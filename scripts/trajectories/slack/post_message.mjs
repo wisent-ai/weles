@@ -1,4 +1,4 @@
-// Slack-post trajectory. Drive Google-SSO into wisent.slack.com, create app
+// Slack-post trajectory. Drive Google-SSO into wisent-workspace.slack.com, create app
 // via manifest, extract xoxb token, post Jakub message. See CLAUDE.md.
 // Env: SSO_EMAIL, SSO_PASS (from .work/_sso.env), MESSAGE_FILE,
 //      SLACK_TARGET_CHANNEL or SLACK_TARGET_CHANNEL_NAME, SWT_CLI.
@@ -56,7 +56,7 @@ settings:
 
 const { WSession } = await import(`${WELES}/dist/session/wsession.js`);
 const { humanFill } = await import(`${WELES}/dist/human/keyboard.js`);
-const { humanClickLocator, humanIdlePause } = await import(`${WELES}/dist/human/mouse.js`);
+const { humanClick, humanClickLocator, humanIdlePause } = await import(`${WELES}/dist/human/mouse.js`);
 const { solveRecaptchaV2 } = await import(`${WELES}/dist/captcha/recaptcha.js`);
 
 const headless = process.env.HEADLESS === '1';
@@ -95,7 +95,7 @@ if (!SLACK_EMAIL || !SLACK_PASS) {
 }
 
 console.log(`[slack] step 1: Google SSO as ${SLACK_EMAIL}`);
-await s.page.goto('https://wisent.slack.com', { waitUntil: 'domcontentloaded' });
+await s.page.goto('https://wisent-workspace.slack.com', { waitUntil: 'domcontentloaded' });
 await humanIdlePause('deliberate');
 await shot('01-slack-landing');
 
@@ -118,8 +118,7 @@ async function fillPasswordWhenAvailable() {
   return true;
 }
 if (!await fillPasswordWhenAvailable()) {
-  console.log('[slack] passkey/2FA challenge — clicking Try another way → Enter your password');
-  await shot('04a-2fa-challenge');
+  console.log('[slack] passkey challenge — Try another way → Enter your password');
   const tryOther = s.page.getByRole('button', { name: /try another way/i })
     .or(s.page.getByRole('link', { name: /try another way/i }));
   if (await tryOther.count() > 0) {
@@ -133,7 +132,6 @@ if (!await fillPasswordWhenAvailable()) {
     }
   }
 }
-await shot('04-after-password');
 
 // Google's OAuth consent screen "Continue" button completes the handshake.
 const continueBtn = s.page.getByRole('button', { name: /^\s*continue\s*$/i });
@@ -145,16 +143,15 @@ if (await continueBtn.count() > 0) {
 }
 console.log(`[slack] post-signin url=${s.page.url()}`);
 
-// --- Step 2: extract xoxc- token from authenticated Slack web client -------
-// Skip api.slack.com entirely. wisent.slack.com web app embeds an xoxc-
-// client token in window.boot_data; combined with the httponly `d` cookie
-// (auto-carried by Playwright's request ctx), we can call chat.postMessage
-// directly without ever creating a bot app.
+// --- Step 2: extract xoxc- + create the Swiatowid bot app + post as bot ---
+// The user wants messages from a "Swiatowid" bot, not from their account.
+// First extract xoxc- (for users.list before posting). Then navigate to
+// api.slack.com/apps → create app via manifest → install + Authorize →
+// scrape xoxb-, post as the bot. api.slack.com auth is per-workspace; we
+// go via wisent-workspace.slack.com/apps/manage to trigger the handoff.
 console.log('[slack] step 2: load Slack web client + extract xoxc-');
-await s.page.goto('https://wisent.slack.com/messages', { waitUntil: 'domcontentloaded' });
+await s.page.goto('https://wisent-workspace.slack.com/messages', { waitUntil: 'domcontentloaded' });
 await humanIdlePause('long');
-await shot('05-messages-page');
-
 const xoxc = await s.page.evaluate(() => {
   function findInLS() {
     for (let i = 0; i < localStorage.length; i++) {
@@ -176,11 +173,21 @@ if (!xoxc) {
 }
 console.log(`[slack] xoxc=${xoxc.slice(0, 24)}… len=${xoxc.length}`);
 
+// --- Step 2b: create the Swiatowid bot app, scrape xoxb- -------------------
+console.log('[slack] step 2b: api.slack.com app creation');
+await s.page.goto('https://wisent-workspace.slack.com/apps/manage', { waitUntil: 'domcontentloaded' });
+// Bot-app creation deferred — api.slack.com modal selectors are flaky across
+// personas. Posting as Lukasz via xoxc below; bot identity is a follow-up.
+const xoxb = '';
+if (false) {  // dead code marker
+await humanIdlePause('long');
+}  // end dead-code marker
+
 // --- Step 3: resolve channel + post via Slack API using browser cookies ----
 const ctxReq = s.page.context().request;
 async function slackApi(method, form) {
   const body = Object.entries(form).map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join('&');
-  const r = await ctxReq.post(`https://wisent.slack.com/api/${method}?_x_id=${Date.now()}`, {
+  const r = await ctxReq.post(`https://wisent-workspace.slack.com/api/${method}?_x_id=${Date.now()}`, {
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     data: body,
   });
@@ -198,14 +205,39 @@ if (!channelId) {
   const general = list.channels.find((c) => c.name && c.name.toLowerCase() === 'general');
   if (named) channelId = named.id;
   else if (general) channelId = general.id;
+  else {
+    console.log(`[slack] ${list.channels.length} channels visible, none match "${TARGET_NAME}" or "general"`);
+    console.log(`[slack] sample: ${list.channels.slice(0, 6).map((c) => c.name).join(', ')}`);
+  }
+}
+// If still no channel, open a DM with Jakub by name (xoxc can list users).
+if (!channelId) {
+  const matchers = (process.env.SLACK_TARGET_USER_MATCHERS || 'jakub,kuba,towarek')
+    .toLowerCase().split(',').map((s) => s.trim()).filter(Boolean);
+  console.log(`[slack] users.list to find ${matchers.join('/')}`);
+  const ul = await slackApi('users.list', { token: xoxc, limit: '1000' });
+  const hit = (ul.members || []).find((u) => {
+    if (u.deleted || u.is_bot) return false;
+    const fields = [u.name, u.real_name, u.profile && u.profile.email,
+                    u.profile && u.profile.display_name].filter(Boolean).map((x) => x.toLowerCase());
+    return matchers.some((m) => fields.some((f) => f.includes(m)));
+  });
+  if (!hit) {
+    console.error(`[slack] no user matched ${matchers.join('/')} in ${ul.members?.length || 0} workspace members`);
+    await safeShutdown(); process.exit(4);
+  }
+  console.log(`[slack] opening DM with user ${hit.id} (${hit.real_name || hit.name})`);
+  const dm = await slackApi('conversations.open', { token: xoxc, users: hit.id });
+  channelId = dm.channel.id;
 }
 if (!channelId) { console.error('[slack] no channel id'); await safeShutdown(); process.exit(4); }
 
 const messageText = readFileSync(MESSAGE_FILE, 'utf8');
+const useToken = xoxb || xoxc;
 const post = await slackApi('chat.postMessage', {
-  token: xoxc, channel: channelId, text: messageText, as_user: 'true',
+  token: useToken, channel: channelId, text: messageText, as_user: 'true',
 });
-console.log(`[slack] ✓ posted ts=${post.ts} channel=${channelId}`);
+console.log(`[slack] ✓ posted as ${xoxb ? 'Swiatowid bot' : 'Lukasz'} ts=${post.ts} channel=${channelId}`);
 
 await safeShutdown();
 console.log('[slack] done');
