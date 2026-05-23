@@ -1,21 +1,6 @@
-// General persistent-browser keeper backed by full weles infrastructure.
-//
-// Replaces the prior vanilla-Playwright version. Now:
-//   - WSession.start() handles proxy resolution, persona, patched
-//     Chromium 147 fingerprint, recording.
-//   - getSocialAccount(PLATFORM) sources the account so cookies + proxy
-//     come from a real registered row, not a fresh anonymous context.
-//   - All clicks/fills/types route through the weles humanized atoms
-//     (humanClickLocator, humanFill, humanType) — never raw Playwright
-//     locator.click() (which leaves event.isTrusted=false).
-//   - Action sidecar talks over a Unix socket, no CDP debug port exposed.
-//
-// Env:
-//   SESSION   — namespace for socket + output dir (default "default")
-//   PLATFORM  — getSocialAccount target (e.g. "linkedin")
-//   URL       — optional initial navigation
-//   JAR       — optional explicit cookie-jar JSON path
-//   HEADLESS  — "1" for headless (default: visible)
+// Persistent-browser keeper backed by weles infrastructure (WSession + humanized atoms).
+// Sidecar talks via Unix socket — no CDP debug port. Bookkeeping in bookkeeping.mjs.
+// Env: SESSION, PLATFORM, URL, JAR, HEADLESS, BROWSER, KEEPER_FLOW_ACTION.
 
 import net from 'node:net';
 import { existsSync, mkdirSync, readFileSync, writeFileSync, unlinkSync } from 'node:fs';
@@ -29,6 +14,9 @@ const { humanType, humanFill } = await import(`${REPO}/dist/human/keyboard.js`);
 const { humanClickLocator, humanClick, humanScroll, humanMove, humanIdlePause } = await import(`${REPO}/dist/human/mouse.js`);
 const { wsSaveAccount } = await import(`${REPO}/dist/session/wsession-helpers/finalize.js`);
 const { solveRecaptchaV2 } = await import(`${REPO}/dist/captcha/recaptcha.js`);
+const { captureVersions } = await import(`${REPO}/dist/diagnostics/versions.js`);
+const { uploadArtifacts } = await import(`${REPO}/dist/worker/upload-artifacts.js`);
+const { setupKeeperFlow } = await import('./bookkeeping.mjs');
 
 const SESSION = process.env.SESSION || 'default';
 const PLATFORM = process.env.PLATFORM || '';
@@ -63,6 +51,10 @@ if (!proxy && process.env.PROXY_URL) {
 
 const s = await WSession.start({ label: `keeper-${SESSION}`, proxy, persona, headless: HEADLESS, browser: BROWSER || undefined });
 console.log(`[keeper:${SESSION}] WSession started`);
+
+const KEEPER_FLOW_ACTION = process.env.KEEPER_FLOW_ACTION || (PLATFORM ? `${PLATFORM}_keeper` : 'keeper_flow');
+const flow = await setupKeeperFlow({ session: SESSION, platform: PLATFORM || null, action: KEEPER_FLOW_ACTION, accountId: acct?.id ?? null, proxyUrl: proxy ?? null, captureVersionsFn: captureVersions, uploadArtifactsFn: uploadArtifacts, getLastUrl: () => s.page.url() });
+if (flow.rowId) console.log(`[keeper:${SESSION}] bookkeeping row=${flow.rowId.slice(0, 8)} action=${KEEPER_FLOW_ACTION}`);
 
 // Cookie injection: explicit JAR path wins, else use account's metadata.cookies.
 if (JAR_PATH && existsSync(JAR_PATH)) {
@@ -197,12 +189,7 @@ async function dispatch(cmd) {
       await humanIdlePause(cmd.kind || 'deliberate');
       return { ok: true };
     }
-    // Composite captcha-solver actions (solverecaptcha, solvePerimeterX)
-    // were removed: they ran their own internal screenshot/classify/click
-    // loops inside the keeper, hiding every intermediate state from the
-    // outer agent. The keeper exposes only atomic actions; the agent
-    // (multimodal Claude) is the classifier and runs the loop one step
-    // at a time with a Read between each.
+    // Composite captcha-solver loops removed — keeper exposes atomic actions only.
     if (cmd.action === 'humanfill_email_password') {
       const e = s.page.locator('input#username, input[name="session_key"], input[type="email"]:not([readonly])').filter({ visible: true }).first();
       await humanFill(s.page, e, cmd.email);
@@ -231,6 +218,15 @@ async function dispatch(cmd) {
       return { ok: true, result: await s.page.evaluate(cmd.js) };
     }
     if (cmd.action === 'cookies') { return { ok: true, cookies: await s.ctx.cookies() }; }
+    if (cmd.action === 'set_input_files') { await s.page.locator(cmd.selector).first().setInputFiles(cmd.path); return { ok: true }; }
+    if (cmd.action === 'api_post') {
+      // POST via browser context's request (carries cookies + fingerprint headers).
+      const r = await s.page.context().request.post(cmd.url, {
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded', ...(cmd.headers || {}) },
+        data: cmd.body || '', maxRedirects: cmd.maxRedirects ?? 5,
+      });
+      return { ok: true, status: r.status(), url: r.url(), body: (await r.text()).slice(0, 4000) };
+    }
     if (cmd.action === 'solverecaptcha') {
       const result = await solveRecaptchaV2(s.page);
       return { ok: !!result?.passed, result };
@@ -251,7 +247,13 @@ async function dispatch(cmd) {
         username: cmd.username, email: cmd.email, password: cmd.password,
         name: cmd.name, status: cmd.status,
       });
-      return { ok: !result.startsWith('error'), result };
+      const ok = !result.startsWith('error');
+      if (ok) await flow.close('completed', { healthy: true, signal: 'keeper_completed', details: { saved: result } }, null);
+      return { ok, result };
+    }
+    if (cmd.action === 'mark_failed') {
+      await flow.close('failed', { healthy: false, signal: cmd.signal || 'keeper_marked_failed', details: { reason: cmd.reason || null, last_url: s.page.url() } }, null);
+      return { ok: true };
     }
     if (cmd.action === 'fill_stripe') {
       const { fillStripeElements } = await import(`${REPO}/scripts/trajectories/_shared/services/topup_common.mjs`);
