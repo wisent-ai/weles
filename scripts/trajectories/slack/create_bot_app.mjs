@@ -54,20 +54,19 @@ export async function createBotApp({ page, weles, shot }) {
   const manifest = readFileSync(join(__dirname, 'manifest.yaml'), 'utf8');
   spawnSync('/usr/bin/pbcopy', [], { input: manifest });
   await shot('07d-manifest-editor');
-  // DOM dump for the manifest editor — likely a Lume code-editor wrapper.
-  const editorEls = await page.evaluate(() => {
-    const out = [];
-    document.querySelectorAll('textarea, [contenteditable="true"], .ace_editor, .ace_content, [class*="editor"], [class*="Editor"]').forEach((el) => {
-      const r = el.getBoundingClientRect();
-      if (r.width === 0 || r.height === 0) return;
-      out.push(`${el.tagName.toLowerCase()}.${(el.className || '').toString().split(' ').slice(0, 2).join('.')} ${r.width|0}x${r.height|0}`);
-    });
-    return out;
-  });
-  console.log(`[bot] editor candidates: ${JSON.stringify(editorEls.slice(0, 10))}`);
-  const ace = page.locator('textarea, [contenteditable="true"], .ace_editor, .ace_content').first();
-  await ace.waitFor({ state: 'attached' });
-  await humanClickLocator(page, ace, { timeoutMs: 10000 });
+  // Switch to YAML tab since our manifest is YAML.
+  const yamlTab = page.getByRole('tab', { name: /^YAML$/i })
+    .or(page.locator('button, a').filter({ hasText: /^YAML$/i })).first();
+  if (await yamlTab.count() > 0) {
+    console.log('[bot] switching to YAML tab');
+    await humanClickLocator(page, yamlTab, { timeoutMs: 10000 });
+    await humanIdlePause('short');
+  }
+  // Editor is a code-mirror style overlay over a hidden <textarea>.
+  // Force-click so keyboard events route to it.
+  const ta = page.locator('textarea').first();
+  await ta.click({ force: true });
+  await humanIdlePause('short');
   await humanIdlePause('short');
   await page.keyboard.press('Meta+A');
   await page.keyboard.press('Backspace');
