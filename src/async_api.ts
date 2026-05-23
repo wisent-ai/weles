@@ -34,6 +34,15 @@ const CHROMIUM_ARGS = [
   // diagnostic 05:31Z: callback not received within 180s after
   // GIS got to /gsi/transform with no opener tab). Allow it.
   '--disable-popup-blocking',
+  // Suppress the Chromium-native "Open in <app>?" protocol-handler prompt.
+  // It draws at the OS-window level (outside Playwright's screenshot
+  // viewport and DOM), so any page that tries to open slack://, zoommtg://,
+  // msteams://, vscode:// etc. while the desktop client is installed
+  // produces an invisible-to-Playwright dialog that intercepts every
+  // synthetic click. AutoLaunchProtocolsFromOrigins is the Chromium
+  // feature that owns this prompt — disabling it makes the page silently
+  // proceed without opening the app handler.
+  '--disable-features=AutoLaunchProtocolsFromOrigins',
   // HTTP/2 + QUIC + TLS1.3 early-data + DNS-HTTPS + HTTPS Upgrades are default-on in Chrome 147. Disabling emits ALPN/TLS-ext/akamaiH2 deltas TikTok+Akamai flag. Switch providers, never globally disable.
 ];
 
@@ -190,6 +199,7 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
     await context.addInitScript(WEBAUTHN_REJECT_SCRIPT);
     await context.addInitScript(ARKOSE_OBSERVER_SCRIPT);
     await context.addInitScript(FETCH_REGISTER_INTERCEPT_SCRIPT);
+    attachProtocolHandlerWatcher(context);
     const origClose = context.close.bind(context);
     (context as any).close = async () => { await origClose(); await pwBrowser?.close(); };
     return context;
@@ -234,11 +244,41 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
   await context.addInitScript(WEBAUTHN_REJECT_SCRIPT);
   await context.addInitScript(ARKOSE_OBSERVER_SCRIPT_STOCK);
   await context.addInitScript(FETCH_REGISTER_INTERCEPT_SCRIPT);
+  attachProtocolHandlerWatcher(context);
 
   const origClose = context.close.bind(context);
   (context as any).close = async () => { await origClose(); await pwBrowser?.close(); };
 
   return context;
+}
+
+/**
+ * Observe navigation attempts to custom URI schemes (slack://, zoommtg://,
+ * msteams://, vscode://, etc.) so trajectories are not blind to the
+ * Chromium-native "Open in <app>?" prompt that would otherwise draw at
+ * the OS-window level (invisible to page.screenshot() and DOM queries).
+ *
+ * Pair with the --disable-features=AutoLaunchProtocolsFromOrigins launch
+ * flag above. The flag prevents the prompt from blocking the page; this
+ * watcher logs the attempt so the trajectory knows the page tried to
+ * launch a desktop client.
+ */
+function attachProtocolHandlerWatcher(context: BrowserContext) {
+  context.on('page', (page) => {
+    page.on('framenavigated', (frame) => {
+      const url = frame.url();
+      const scheme = url.split(':', 1)[0];
+      if (scheme && scheme !== 'http' && scheme !== 'https'
+          && scheme !== 'about' && scheme !== 'data' && scheme !== 'blob') {
+        console.log(`[async_api] custom-protocol nav attempted: ${url.slice(0, 200)}`);
+      }
+    });
+    page.on('request', (req) => {
+      const url = req.url();
+      if (url.startsWith('http') || url.startsWith('about:') || url.startsWith('data:') || url.startsWith('blob:')) return;
+      console.log(`[async_api] custom-protocol request: ${url.slice(0, 200)} (frame=${req.frame()?.url()?.slice(0, 80)})`);
+    });
+  });
 }
 
 export class AsyncWeles {
