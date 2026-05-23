@@ -96,6 +96,46 @@ for (const p of expanded) {
   console.log(`  queued ${row.id.slice(0, 8)} port=${port} domain=${p.domain}`);
 }
 console.log(`\ntag namespace: ${TAG_NS}`);
-console.log('query:');
-console.log(`  curl "${SUPABASE_URL}/rest/v1/account_action_logs?params->>source=like.${TAG_NS}%25&select=status,params->>force_email_domain,result->session->>exit_ip,result->ban_signal->signal"`);
+
+// Chrome baseline auto-capture: for each unique proxy in the plan, run
+// instrument_chrome.mjs from the SAME proxy as a paired counterfactual.
+// instrument_chrome.mjs respects CAPTURE_DURATION_MS for self-termination
+// (the script chooses its own capture window — no external killer).
+// The resulting dump is greped for PerimeterX markers and inserted as a
+// synthetic account_action_logs row with action=chrome_baseline_<platform>_register
+// so the burn-attribution matcher can read it as a pairable row.
+// Disable with --no-chrome.
+if (args['no-chrome'] !== 'true') {
+  const TARGET_URL = args.platform === 'linkedin' ? 'https://www.linkedin.com/signup' : '';
+  if (!TARGET_URL) { console.log('[paired] no TARGET_URL mapping for platform=' + args.platform + '; skip chrome baselines'); }
+  else {
+    const { spawn } = await import('node:child_process');
+    const { readFileSync } = await import('node:fs');
+    const uniqueProxies = [...new Set(expanded.map(p => p.proxy))];
+    console.log(`\n[paired] firing ${uniqueProxies.length} chrome baselines (CAPTURE_DURATION_MS=30000, parallel)`);
+    const captures = uniqueProxies.map(proxy => new Promise((resolve) => {
+      const env = { ...process.env, PLATFORM: args.platform, TARGET_URL, PROXY_URL: proxy, CHROME_BIN: process.env.CHROME_BIN || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', CAPTURE_DURATION_MS: '30000', WELES_FIRST_RUN: '1' };
+      const child = spawn('node', [join(WELES_ROOT, 'scripts', 'debug', 'instrument_chrome.mjs')], { env, stdio: 'pipe' });
+      let outPath = '';
+      child.stdout.on('data', d => { const s = d.toString(); const m = s.match(/output -> (\S+\.json)/); if (m) outPath = m[1]; });
+      child.on('close', () => resolve({ proxy, port: new URL(proxy).port, dumpPath: outPath }));
+    }));
+    const results = await Promise.all(captures);
+    for (const r of results) {
+      if (!r.dumpPath) { console.log(`  chrome ${r.port}: capture had no dump path (likely chrome failed to launch)`); continue; }
+      let protechts = 0;
+      try { protechts = (readFileSync(r.dumpPath, 'utf8').match(/protechts\.net/g) || []).length; } catch (e) { console.log(`  chrome ${r.port}: read err ${e.message?.slice(0, 60)}`); continue; }
+      const baseDomain = args.vary === 'ip' ? args['hold-domain'] : (plan.find(p => p.proxy === r.proxy)?.domain ?? '');
+      const status = protechts > 0 ? 'failed' : 'completed';
+      const body = { account_id: ACCOUNT_ID, platform: args.platform, action: `chrome_baseline_${args.platform}_register`, status, scheduled_at: new Date().toISOString(), completed_at: new Date().toISOString(), result: { session: { provider: 'chrome', proxy_host: new URL(r.proxy).hostname, proxy_port: r.port }, ban_signal: { healthy: protechts === 0, signal: protechts > 0 ? 'perimeterx_loaded' : 'clean', details: { protechts_count: protechts, dump_path: r.dumpPath } }, artifacts: { videos: [], video: null, screenshots: [], dom: [], logs: [r.dumpPath] } }, params: { source: `${TAG_NS}_chrome_${r.port}`, proxy_url_override: r.proxy, force_email_domain: baseDomain, browser: 'chrome' } };
+      const ins = await fetch(`${SUPABASE_URL}/rest/v1/account_action_logs`, { method: 'POST', headers, body: JSON.stringify(body) });
+      if (!ins.ok) { console.log(`  chrome ${r.port}: INSERT failed http=${ins.status}`); continue; }
+      const row = (await ins.json())[0];
+      console.log(`  chrome ${r.port}: protechts=${protechts} status=${status} row=${row.id.slice(0, 8)}`);
+    }
+  }
+}
+
+console.log('\nquery:');
+console.log(`  curl "${SUPABASE_URL}/rest/v1/account_action_logs?params->>source=like.${TAG_NS}%25&select=status,action,params->>force_email_domain,result->session->>exit_ip,result->ban_signal->signal"`);
 console.log('attribution fires on next /api/cron/burn-attribution tick (every 4h).');
