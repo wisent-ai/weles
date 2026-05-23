@@ -63,7 +63,7 @@ function poolProxies(name) {
     // burns against a residential counterfactual.
     const user = ENV.OXYLABS_USERNAME, pass = ENV.OXYLABS_PASSWORD;
     if (!user || !pass) return [];
-    const sessions = parseInt(process.env.OXYLABS_RESI_SESSIONS || '3', 10);
+    const sessions = parseInt(process.env.OXYLABS_RESI_SESSIONS || '1', 10);
     const out = [];
     for (let i = 0; i < sessions; i++) {
       const sid = `paired${Date.now()}${i}`;
@@ -95,24 +95,70 @@ if (args.vary === 'ip') {
 }
 
 const reps = parseInt(args.reps || '1', 10);
-const expanded = [];
+let expanded = [];
 for (let i = 0; i < reps; i++) for (const p of plan) expanded.push(p);
 
-console.log(`[paired] queueing ${expanded.length} rows: platform=${args.platform} action=${args.action} vary=${args.vary}`);
+if (args.vary === 'ip' && args['no-smart-plan'] !== 'true') {
+  const { repinPlanDomain } = await import('./smart_plan.mjs');
+  const freshness = parseInt(args['freshness-hours'] || '168', 10);
+  const sp = await repinPlanDomain({ supabaseUrl: SUPABASE_URL, supabaseKey: SUPABASE_KEY, action: args.action, plan, holdDomain: args['hold-domain'], freshnessHours: freshness });
+  if (sp.changed) {
+    console.log(`[paired] smart-plan: re-pinning hold-domain '${args['hold-domain']}' -> '${sp.holdDomain}' (${sp.coverageCount}/${sp.totalProxies} planned proxies have existing failure at this domain)`);
+    plan = sp.plan;
+    expanded = [];
+    for (let i = 0; i < reps; i++) for (const p of plan) expanded.push(p);
+  }
+}
+
+console.log(`[paired] planning ${expanded.length} rows: platform=${args.platform} action=${args.action} vary=${args.vary}`);
 const TAG_NS = args.tag || `paired_${args.vary}_${Date.now()}`;
 const headers = { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json', Prefer: 'return=representation' };
+
+// Cache check: matcher reads 168h of history, so any prior terminal-state
+// row with same (action, proxy_url_override, force_email_domain) is reusable
+// — no need to re-run. Override window with --freshness-hours; force re-run
+// with --no-cache.
+const FRESHNESS_HOURS = parseInt(args['freshness-hours'] || '168', 10);
+const sinceIso = new Date(Date.now() - FRESHNESS_HOURS * 3600 * 1000).toISOString();
+async function findFreshRow(action, proxy, domain) {
+  if (args['no-cache'] === 'true') return null;
+  const qp = new URLSearchParams();
+  qp.set('select', 'id,status,completed_at');
+  qp.set('action', `eq.${action}`);
+  qp.set('params->>proxy_url_override', `eq.${proxy}`);
+  qp.set('params->>force_email_domain', `eq.${domain}`);
+  qp.set('status', 'in.(completed,failed)');
+  qp.set('completed_at', `gte.${sinceIso}`);
+  qp.set('order', 'completed_at.desc');
+  qp.set('limit', '1');
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/account_action_logs?${qp}`, { headers });
+  if (!res.ok) return null;
+  const rows = await res.json();
+  return rows[0] || null;
+}
+
 const ids = [];
+let queued = 0, reused = 0;
 for (const p of expanded) {
   const port = new URL(p.proxy).port;
+  const cached = await findFreshRow(args.action, p.proxy, p.domain);
+  if (cached) {
+    ids.push(cached.id);
+    reused++;
+    console.log(`  reuse  ${cached.id.slice(0, 8)} (${cached.status}, ${cached.completed_at?.slice(0, 16)}) port=${port} domain=${p.domain}`);
+    continue;
+  }
   const tag = `${TAG_NS}_${port}_${p.domain}`;
   const body = { account_id: ACCOUNT_ID, platform: args.platform, action: args.action, status: 'queued', scheduled_at: new Date().toISOString(), params: { source: tag, proxy_url_override: p.proxy, force_email_domain: p.domain } };
   const res = await fetch(`${SUPABASE_URL}/rest/v1/account_action_logs`, { method: 'POST', headers, body: JSON.stringify(body) });
   if (!res.ok) { console.error(`row INSERT failed http=${res.status}: ${(await res.text()).slice(0, 200)}`); process.exit(3); }
   const row = (await res.json())[0];
   ids.push(row.id);
+  queued++;
   console.log(`  queued ${row.id.slice(0, 8)} port=${port} domain=${p.domain}`);
 }
-console.log(`\ntag namespace: ${TAG_NS}`);
+console.log(`\n[paired] queued=${queued} reused=${reused} (freshness=${FRESHNESS_HOURS}h)`);
+console.log(`tag namespace: ${TAG_NS}`);
 
 // Chrome baseline auto-capture: for each unique proxy in the plan, run
 // instrument_chrome.mjs from the SAME proxy as a paired counterfactual.
@@ -128,8 +174,21 @@ if (args['no-chrome'] !== 'true') {
   else {
     const { spawn } = await import('node:child_process');
     const { readFileSync } = await import('node:fs');
-    const uniqueProxies = [...new Set(expanded.map(p => p.proxy))];
-    console.log(`\n[paired] firing ${uniqueProxies.length} chrome baselines (CAPTURE_DURATION_MS=30000, parallel)`);
+    const chromeAction = `chrome_baseline_${args.platform}_register`;
+    const allProxies = [...new Set(expanded.map(p => p.proxy))];
+    const uniqueProxies = [];
+    let chromeReused = 0;
+    for (const proxy of allProxies) {
+      const baseDomain = args.vary === 'ip' ? args['hold-domain'] : (plan.find(p => p.proxy === proxy)?.domain ?? '');
+      const cached = await findFreshRow(chromeAction, proxy, baseDomain);
+      if (cached) {
+        chromeReused++;
+        console.log(`  reuse  chrome ${cached.id.slice(0, 8)} (${cached.status}) port=${new URL(proxy).port}`);
+      } else {
+        uniqueProxies.push(proxy);
+      }
+    }
+    console.log(`\n[paired] chrome baselines: reused=${chromeReused} to_capture=${uniqueProxies.length}`);
     const captures = uniqueProxies.map(proxy => new Promise((resolve) => {
       const env = { ...process.env, PLATFORM: args.platform, TARGET_URL, PROXY_URL: proxy, CHROME_BIN: process.env.CHROME_BIN || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', CAPTURE_DURATION_MS: '30000', WELES_FIRST_RUN: '1' };
       const child = spawn('node', [join(WELES_ROOT, 'scripts', 'debug', 'instrument_chrome.mjs')], { env, stdio: 'pipe' });
@@ -137,22 +196,89 @@ if (args['no-chrome'] !== 'true') {
       child.stdout.on('data', d => { const s = d.toString(); const m = s.match(/output -> (\S+\.json)/); if (m) outPath = m[1]; });
       child.on('close', () => resolve({ proxy, port: new URL(proxy).port, dumpPath: outPath }));
     }));
+    const { execSync } = await import('node:child_process');
     const results = await Promise.all(captures);
     for (const r of results) {
       if (!r.dumpPath) { console.log(`  chrome ${r.port}: capture had no dump path (likely chrome failed to launch)`); continue; }
       let protechts = 0;
       try { protechts = (readFileSync(r.dumpPath, 'utf8').match(/protechts\.net/g) || []).length; } catch (e) { console.log(`  chrome ${r.port}: read err ${e.message?.slice(0, 60)}`); continue; }
+      // Probe exit_ip through the proxy so chrome rows are directly pairable
+      // with weles rows (matcher's rowExitIp reads result.session.exit_ip).
+      let exitIp = null;
+      try {
+        const out = execSync(`curl -s --max-time 10 --proxy '${r.proxy}' https://api.ipify.org`, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+        if (/^\d+\.\d+\.\d+\.\d+$/.test(out)) exitIp = out;
+      } catch (_) { /* exitIp stays null */ }
       const baseDomain = args.vary === 'ip' ? args['hold-domain'] : (plan.find(p => p.proxy === r.proxy)?.domain ?? '');
       const status = protechts > 0 ? 'failed' : 'completed';
-      const body = { account_id: ACCOUNT_ID, platform: args.platform, action: `chrome_baseline_${args.platform}_register`, status, scheduled_at: new Date().toISOString(), completed_at: new Date().toISOString(), result: { session: { provider: 'chrome', proxy_host: new URL(r.proxy).hostname, proxy_port: r.port }, ban_signal: { healthy: protechts === 0, signal: protechts > 0 ? 'perimeterx_loaded' : 'clean', details: { protechts_count: protechts, dump_path: r.dumpPath } }, artifacts: { videos: [], video: null, screenshots: [], dom: [], logs: [r.dumpPath] } }, params: { source: `${TAG_NS}_chrome_${r.port}`, proxy_url_override: r.proxy, force_email_domain: baseDomain, browser: 'chrome' } };
+      const body = { account_id: ACCOUNT_ID, platform: args.platform, action: `chrome_baseline_${args.platform}_register`, status, scheduled_at: new Date().toISOString(), completed_at: new Date().toISOString(), result: { session: { provider: 'chrome', proxy_host: new URL(r.proxy).hostname, proxy_port: r.port, exit_ip: exitIp }, ban_signal: { healthy: protechts === 0, signal: protechts > 0 ? 'perimeterx_loaded' : 'clean', details: { protechts_count: protechts, dump_path: r.dumpPath } }, artifacts: { videos: [], video: null, screenshots: [], dom: [], logs: [r.dumpPath] } }, params: { source: `${TAG_NS}_chrome_${r.port}`, proxy_url_override: r.proxy, force_email_domain: baseDomain, browser: 'chrome' } };
       const ins = await fetch(`${SUPABASE_URL}/rest/v1/account_action_logs`, { method: 'POST', headers, body: JSON.stringify(body) });
       if (!ins.ok) { console.log(`  chrome ${r.port}: INSERT failed http=${ins.status}`); continue; }
       const row = (await ins.json())[0];
-      console.log(`  chrome ${r.port}: protechts=${protechts} status=${status} row=${row.id.slice(0, 8)}`);
+      console.log(`  chrome ${r.port}: protechts=${protechts} exit_ip=${exitIp ?? 'unknown'} status=${status} row=${row.id.slice(0, 8)}`);
     }
   }
 }
 
 console.log('\nquery:');
 console.log(`  curl "${SUPABASE_URL}/rest/v1/account_action_logs?params->>source=like.${TAG_NS}%25&select=status,action,params->>force_email_domain,result->session->>exit_ip,result->ban_signal->signal"`);
-console.log('attribution fires on next /api/cron/burn-attribution tick (every 4h).');
+
+// Auto-wait for queued rows to reach terminal status, then trigger
+// burn-attribution. Closes the gap so the runner exits only after the
+// matcher has scored this batch. Disable with --no-attribute.
+if (args['no-attribute'] !== 'true' && ids.length > 0) {
+  const CONTENT_PLATFORM_URL = process.env.CONTENT_PLATFORM_URL || ENV.CONTENT_PLATFORM_URL || 'https://content.wisent.ai';
+  const POLL_MS = parseInt(args['poll-ms'] || '15000', 10);
+  const idList = ids.join(',');
+  console.log(`\n[paired] polling ${ids.length} rows to terminal status (every ${POLL_MS / 1000}s)`);
+  let lastSummary = '';
+  while (true) {
+    const pollRes = await fetch(`${SUPABASE_URL}/rest/v1/account_action_logs?id=in.(${idList})&select=id,status`, { headers });
+    if (!pollRes.ok) { console.log(`  poll err http=${pollRes.status}: ${(await pollRes.text()).slice(0, 200)}`); break; }
+    const pollRows = await pollRes.json();
+    const open = pollRows.filter(r => r.status === 'queued' || r.status === 'running');
+    const completed = pollRows.filter(r => r.status === 'completed').length;
+    const failed = pollRows.filter(r => r.status === 'failed').length;
+    const summary = `open=${open.length} completed=${completed} failed=${failed}`;
+    if (summary !== lastSummary) { console.log(`  [poll] ${summary}`); lastSummary = summary; }
+    if (open.length === 0) break;
+    await new Promise(r => setTimeout(r, POLL_MS)); // allow-raw-playwright: REST poll loop, no browser/page context
+  }
+  console.log(`[paired] firing ${CONTENT_PLATFORM_URL}/api/cron/burn-attribution (manual-trigger bypass)`);
+  const attribRes = await fetch(`${CONTENT_PLATFORM_URL}/api/cron/burn-attribution`, { method: 'POST', headers: { 'x-cron-secret': 'manual-trigger' } });
+  const attribText = await attribRes.text();
+  console.log(`[paired] attribution http=${attribRes.status} body=${attribText.slice(0, 400)}`);
+
+  // Per-IP verdict report. Re-fetches the participating rows + the live
+  // burned_proxies table, groups by exit_ip (falling back to proxy host:port
+  // when ipify is null), and prints BURNED/HEALTHY plus the matcher's
+  // attribution stamp if present.
+  const finalRowsRes = await fetch(`${SUPABASE_URL}/rest/v1/account_action_logs?id=in.(${idList})&select=id,action,status,params,result`, { headers });
+  const finalRows = finalRowsRes.ok ? await finalRowsRes.json() : [];
+  const burnedRes = await fetch(`${SUPABASE_URL}/rest/v1/system_settings?key=eq.burned_proxies&select=value`, { headers });
+  const burnedHosts = burnedRes.ok ? ((await burnedRes.json())[0]?.value?.hosts ?? {}) : {};
+  const byIp = {};
+  for (const row of finalRows) {
+    const u = new URL(row.params?.proxy_url_override ?? 'http://x');
+    const ip = row.result?.session?.exit_ip ?? `${u.hostname}:${u.port}`;
+    if (!byIp[ip]) byIp[ip] = [];
+    byIp[ip].push(row);
+  }
+  console.log('\n[paired] VERDICT (per exit IP)');
+  console.log('='.repeat(72));
+  for (const [ip, rows] of Object.entries(byIp)) {
+    const burned = ip in burnedHosts;
+    const passes = rows.filter(r => r.status === 'completed').length;
+    const fails = rows.filter(r => r.status === 'failed').length;
+    const attributions = rows.map(r => r.result?.attribution).filter(Boolean);
+    const verdict = burned ? 'BURNED' : (passes > 0 && fails === 0 ? 'HEALTHY' : 'UNATTRIBUTED');
+    console.log(`  ${ip}: ${verdict}  pass=${passes} fail=${fails} rows=${rows.length}`);
+    if (burned) {
+      const e = burnedHosts[ip];
+      console.log(`    burned_at=${e.last_burned_at} signals=${e.signals.join(',')} platforms=${e.platforms.join(',')}`);
+    }
+    for (const a of attributions) console.log(`    attributed: factor=${a.attributed_factor} value=${a.attributed_value} reason=${a.reason}`);
+  }
+} else {
+  console.log('[paired] auto-attribution skipped (--no-attribute)');
+}
