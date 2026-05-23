@@ -248,6 +248,9 @@ if (process.env.DRIVE_LINKEDIN_EDIT_INTRO === '1' && PLATFORM === 'linkedin') {
   await browser.close().catch(() => {});
 } else {
   console.log(`[inst-chrome] window is yours — drive the flow, then Ctrl+C in terminal or close browser to finalize.`);
+  // Optional self-terminating deadline for automated captures. paired/run.mjs
+  // sets this so chrome reference captures end without an external killer.
+  const CAPTURE_MS = parseInt(process.env.CAPTURE_DURATION_MS || '0', 10);
   await new Promise((resolve) => {
     let resolved = false;
     const done = (why) => { if (resolved) return; resolved = true; console.log(`[inst-chrome] stopping: ${why}`); resolve(); };
@@ -255,6 +258,11 @@ if (process.env.DRIVE_LINKEDIN_EDIT_INTRO === '1' && PLATFORM === 'linkedin') {
     browser.on('close', () => done('browser closed'));
     process.on('SIGINT', () => done('SIGINT'));
     process.on('SIGTERM', () => done('SIGTERM'));
+    if (CAPTURE_MS > 0) {
+      const t = setTimeout(() => done(`CAPTURE_DURATION_MS=${CAPTURE_MS} elapsed`), CAPTURE_MS);
+      // Self-exit signal — script is choosing to end its own capture window, not killing an external task.
+      t.unref?.();
+    }
   });
 }
 
