@@ -27,6 +27,10 @@ let cmd;
 switch (action) {
   case 'screenshot': case 'dump': case 'url': case 'cookies':
     cmd = { action }; break;
+  case 'api_post':
+    cmd = { action, url: args[0], body: args.slice(1).join(' ') }; break;
+  case 'set_input_files':
+    cmd = { action, selector: args[0], path: args[1] }; break;
   case 'nav':   cmd = { action, url: args[0] }; break;
   case 'click': cmd = { action, selector: args.join(' ') }; break;
   case 'click_any': cmd = { action: 'click', selector: args.join(' '), skipVisible: true }; break;
@@ -51,6 +55,9 @@ switch (action) {
   case 'solvecaptcha': cmd = { action }; break;
   case 'save_account':
     cmd = { action, platform: args[0], username: args[1], email: args[2], password: args[3], name: args[4], status: args[5] };
+    break;
+  case 'mark_failed':
+    cmd = { action, signal: args[0] || 'keeper_marked_failed', reason: args.slice(1).join(' ') || null };
     break;
   case 'fill_stripe': cmd = { action }; break;
   default: console.error(`unknown action: ${action}`); process.exit(1);
