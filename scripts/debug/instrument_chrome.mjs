@@ -50,6 +50,13 @@ console.log(`[inst-chrome] platform=${PLATFORM} target=${TARGET_URL}`);
 console.log(`[inst-chrome] output -> ${OUT}`);
 
 const userDataDir = `/tmp/inst-chrome-${PLATFORM}-${Date.now()}`;
+const PROXY_URL = process.env.PROXY_URL || '';
+let proxyOpt;
+if (PROXY_URL) {
+  const u = new URL(PROXY_URL);
+  proxyOpt = { server: `${u.protocol}//${u.host}`, username: decodeURIComponent(u.username), password: decodeURIComponent(u.password) };
+  console.log(`[inst-chrome] proxy=${proxyOpt.server} user=${proxyOpt.username.slice(0, 12)}...`);
+}
 const browser = await chromium.launchPersistentContext(userDataDir, {
   executablePath: CHROME_BIN,
   channel: 'chrome',
@@ -57,6 +64,7 @@ const browser = await chromium.launchPersistentContext(userDataDir, {
   viewport: { width: 1280, height: 800 },
   args: ['--no-sandbox', '--disable-blink-features=AutomationControlled', '--disable-infobars', '--lang=en-US'],
   ignoreDefaultArgs: ['--enable-automation', '--disable-breakpad'],
+  ...(proxyOpt ? { proxy: proxyOpt } : {}),
 });
 
 if (USERNAME) {
