@@ -234,7 +234,7 @@ export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
   if (banSignal) {
     result.ban_signal = banSignal;
     if (banSignal.healthy === false) await pauseAccount(row.account_id, banSignal.signal);
-    if (banSignal.signal === 'ip_blocked' || banSignal.signal === 'proxy_auth_failed') { const s = result.session as any; const t = s?.exit_ip || s?.proxy_host; if (t) { const { markBurned } = await import('../proxy/burned.js'); await markBurned(t, banSignal.signal, row.platform); } }
+    // NOTE: previous version wrote unconditional IP burns on ip_blocked / proxy_auth_failed signals. That was paired-comparison-incorrect by symmetry with the _register burn writer reverted in 4cd2eb4. Removed for consistency — the burn-attribution cron (content-platform src/lib/burn-attribution/runner.ts) is now the sole writer to system_settings.burned_proxies, and only on paired counterfactuals.
     // NOTE: previous version wrote unconditional (domain, ip, host) burns on every _register failure. That was paired-comparison-incorrect — a single failure with no counterfactual cannot isolate which factor caused the failure. Removed b5235af → see this commit. Domain/IP attribution must come from a paired (fail, pass) matcher that observes one factor changed and outcome flipped.
   } else {
     result.ban_signal = { healthy: exitCode === 0, signal: exitCode === 0 ? 'healthy' : 'unknown_error' };
