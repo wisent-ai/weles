@@ -235,10 +235,7 @@ export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
     result.ban_signal = banSignal;
     if (banSignal.healthy === false) await pauseAccount(row.account_id, banSignal.signal);
     if (banSignal.signal === 'ip_blocked' || banSignal.signal === 'proxy_auth_failed') { const s = result.session as any; const t = s?.exit_ip || s?.proxy_host; if (t) { const { markBurned } = await import('../proxy/burned.js'); await markBurned(t, banSignal.signal, row.platform); } }
-    // Learning loop for _register failures: write (email-domain, proxy-host) as platform-blocked so next pickDomain/pickProxy skips the burned combo.
-    if (banSignal.healthy === false && row.action.endsWith('_register')) { const s = result.session as any; const email = (banSignal.details as any)?.attempted_email; const rsn = `${row.action}_${banSignal.signal}`;
-      if (email) { try { const { reportBlocked } = await import('../utils/email/domain.js'); await reportBlocked(email, rsn, row.platform); } catch (e) { console.log('[reg-burn] dom', e instanceof Error ? e.message : String(e)); } }
-      const hs = [s?.exit_ip, s?.proxy_host].filter(Boolean) as string[]; if (hs.length) { try { const { markBurned } = await import('../proxy/burned.js'); for (const h of hs) await markBurned(h, rsn, row.platform); } catch (e) { console.log('[reg-burn] px', e instanceof Error ? e.message : String(e)); } } }
+    // NOTE: previous version wrote unconditional (domain, ip, host) burns on every _register failure. That was paired-comparison-incorrect — a single failure with no counterfactual cannot isolate which factor caused the failure. Removed b5235af → see this commit. Domain/IP attribution must come from a paired (fail, pass) matcher that observes one factor changed and outcome flipped.
   } else {
     result.ban_signal = { healthy: exitCode === 0, signal: exitCode === 0 ? 'healthy' : 'unknown_error' };
   }
