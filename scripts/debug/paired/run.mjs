@@ -54,7 +54,24 @@ function poolProxies(name) {
     if (!host || !user || !pass || !ports.length) return [];
     return ports.map(p => `http://${user}:${pass}@${host}:${p.trim()}`);
   }
-  throw new Error(`unknown pool: ${name} (supported: decodo, oxylabs-dedicated-isp)`);
+  if (name === 'oxylabs-residential') {
+    // Counterfactual residential IP class against Decodo/Oxylabs Comcast static
+    // ISP pools. pr.oxylabs.io:7777 with sticky sessid. The pool rotates IPs by
+    // design; the sessid+sesstime hint pins exits within a 30-min window per
+    // session, so each --reps invocation produces N distinct exits across the
+    // pool — exactly the IP-class variation needed to attribute static-ISP
+    // burns against a residential counterfactual.
+    const user = ENV.OXYLABS_USERNAME, pass = ENV.OXYLABS_PASSWORD;
+    if (!user || !pass) return [];
+    const sessions = parseInt(process.env.OXYLABS_RESI_SESSIONS || '3', 10);
+    const out = [];
+    for (let i = 0; i < sessions; i++) {
+      const sid = `paired${Date.now()}${i}`;
+      out.push(`http://customer-${user}-cc-US-sessid-${sid}-sesstime-30:${pass}@pr.oxylabs.io:7777`);
+    }
+    return out;
+  }
+  throw new Error(`unknown pool: ${name} (supported: decodo, oxylabs-dedicated-isp, oxylabs-residential)`);
 }
 
 let plan;
