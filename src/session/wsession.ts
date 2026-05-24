@@ -18,6 +18,7 @@ import { generateIdentity as genId, type Identity } from '../utils/identity.js';
 import { markSignupSuccess } from '../utils/email/domain.js';
 import { getNumber, pollCode, type SmsNumber } from '../utils/sms.js';
 import { writeFileSync, mkdirSync, copyFileSync } from 'node:fs';
+import { startInstrumentation } from './wsession-helpers/net_record.js';
 import { join } from 'node:path';
 import { resolveProxy } from '../proxy/config.js';
 import { getEmailApiKey } from '../utils/credentials.js';
@@ -177,7 +178,11 @@ export class WSession {
       } catch {}
     }
     if (label && bOpts.proxy?.server) { try { const u = new URL(bOpts.proxy.server); writeFileSync(join(recordingsDir(label), 'session_meta.json'), JSON.stringify({ proxy_host: u.hostname, proxy_port: u.port, proxy_user: bOpts.proxy.username?.slice(0, 80), proxy_full: bOpts.proxy.server, exit_ip: bOpts.proxy.exit_ip, platform: bOpts.proxy.platform, provider: (bOpts.proxy as any).provider, started_at: new Date().toISOString() }, null, 2)); } catch {} }
-    { const dir = join(process.cwd(), '.work', 'inst'); mkdirSync(dir, { recursive: true }); const ts = new Date().toISOString().replace(/[:.]/g, '-'); const fn = join(dir, `${label || 'session'}_${ts}.json`); const accum = new Map(); const reqs: any[] = []; const netFilter = /github\.com|arkoselabs\.com|octocaptcha\.com|linkedin\.com|protechts\.net|perimeterx\.net/; ctx.on('request', (req) => { try { const u = req.url(); if (!netFilter.test(u)) return; let post = ''; try { post = req.postData()?.slice(0, 4000) || ''; } catch {} reqs.push({ t: Date.now(), phase: 'req', method: req.method(), url: u, headers: req.headers(), postData: post }); } catch {} }); ctx.on('response', async (resp) => { try { const u = resp.url(); if (!netFilter.test(u)) return; let body = ''; try { body = (await resp.text()).slice(0, 8000); } catch {} reqs.push({ t: Date.now(), phase: 'res', status: resp.status(), url: u, headers: resp.headers(), body }); } catch {} }); setInterval(async () => { try { for (const f of ws.page.frames()) { try { const j: string = await f.evaluate('(window.__inst_flush)?window.__inst_flush():"[]"'); const log = JSON.parse(j); if (!log.length) continue; const url = f.url(); const prev = accum.get(url); if (!prev || log.length > prev.log.length) accum.set(url, { url, log }); } catch {} } writeFileSync(fn, JSON.stringify({ accesses: [...accum.values()], requests: reqs })); } catch {} }, 5000); }
+    // Complete-record network capture: NO domain filter, NO body truncation.
+    // Captures every request/response (utf8 + base64), WebSocket frames in both
+    // directions, TCP serverAddr, TLS securityDetails. Runs on every WSession —
+    // keepers and trajectories — without exception. See net_record.ts.
+    startInstrumentation(ws, ctx, label);
     return ws;
   }
 
