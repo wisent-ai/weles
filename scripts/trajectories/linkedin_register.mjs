@@ -102,7 +102,12 @@ async function solveV2Modal(page) {
 // Until firefox-build is patched separately, browser stays chromium. OS still
 // rotates via persona (~70% windows / 25% macos / 5% linux).
 if (!process.env.PROXY_URL) { console.log('FAIL: PROXY_URL unset — LinkedIn register requires explicit static ISP proxy (isp.oxylabs.io:8003-8010). Random-sticky residential is burned for LinkedIn signup.'); process.exit(2); }
-const s = await WSession.start({ label: 'linkedin_register', proxy: process.env.PROXY_URL, targetHost: 'www.linkedin.com', platform: 'linkedin', browser: 'chromium' });
+// Pin persona OS to host (or PERSONA_OS override). Default persona generator
+// rolls 70% windows / 25% macos / 5% linux, and cross-OS fingerprint mismatch
+// (Apple GPU under Windows UA, etc.) plus the documented Windows-apfc-hash
+// burn pattern make the random roll a recurring detection trigger.
+const hostOs = process.platform === 'darwin' ? 'macos' : process.platform === 'win32' ? 'windows' : 'linux';
+const s = await WSession.start({ label: 'linkedin_register', proxy: process.env.PROXY_URL, targetHost: 'www.linkedin.com', platform: 'linkedin', browser: 'chromium', os: process.env.PERSONA_OS ?? hostOs });
 const id = { first: s.identity.firstName, last: s.identity.lastName, handle: s.identity.username, email: s.identity.email, password: s.identity.password };
 console.log(`[register] identity: ${id.email} / ${id.first} ${id.last}`);
 // Persist credentials so a captcha failure mid-run still leaves a way to log in via keeper.
@@ -111,19 +116,25 @@ catch (e) { console.log(`[register] creds file err: ${e.message?.slice(0, 80)}`)
 try {
   await s.goto(URL);
   await humanIdlePause('deliberate');
-  // Force autocomplete=off + clear values on every input. 2026-05-11
-  // recording showed prior subprocess identities leaking via Chromium autofill.
-  await s.page.evaluate(() => { for (const el of document.querySelectorAll('input,textarea')) { el.setAttribute('autocomplete','off'); el.value=''; } }).catch(e => console.log(`[register] autofill-disable err: ${e.message?.slice(0, 80)}`));
+  // Removed: page.evaluate that set every input.value='' + autocomplete='off'.
+  // Keeper-driven success 2026-05-24 didn't run this and passed; the bulk DOM
+  // mutation is observable to PerimeterX's MutationObserver and is plausibly
+  // part of the trajectory-vs-keeper score gap.
   const emailLoc = s.page.locator('input[name="email-address"], input[autocomplete="email"], input#email-address').filter({ visible: true }).first();
   const pwdLoc = s.page.locator('input[name="password"], input[autocomplete="new-password"], input#password').filter({ visible: true }).first();
   const hasEmail = await emailLoc.count();
   const hasPwd = await pwdLoc.count();
   if (!hasEmail || !hasPwd) throw new Error(`email/password fields not found (hasEmail=${hasEmail} hasPwd=${hasPwd})`);
   await humanFill(s.page, emailLoc, id.email);
+  await humanIdlePause('deliberate');
   await humanFill(s.page, pwdLoc, id.password);
   console.log(`[register] fill email+pwd: ok`);
 
-  await getAndInjectRecaptcha(s.page, 'signup');
+  // No reCAPTCHA v3 pre-injection. Keeper-driven success 2026-05-24 on the
+  // same Comcast ISP exit proved injection is what causes createAccount to
+  // return challengeUrl — LinkedIn flags the mismatch between the in-page
+  // grecaptcha SDK score and a 3rd-party-issued token in the hidden field.
+  // Let the in-page invisible reCAPTCHA SDK score the session normally.
   await humanIdlePause('short');
 
   const submit1 = await humanClickLocator(s.page, s.page.locator('button[type="submit"]:has-text("Agree"), button[type="submit"]:has-text("Continue"), button#join-form-submit, button[data-tracking-control-name*="signup"]').first()).then(() => true).catch(e => { console.log(`[register] submit1 err: ${e.message?.slice(0, 80)}`); return false; });
@@ -131,10 +142,11 @@ try {
   if (!submit1) throw new Error('Agree & Join button not clickable');
   await humanIdlePause('deliberate');
 
-  // After Agree & Join, LinkedIn often presents a v2 "I'm not a robot" modal.
-  // Detect it and solve via API token (v2 solver's frame chain doesn't match
-  // LinkedIn's challengeIframe wrapper, so we inject directly).
-  const hasV2 = await s.page.evaluate(() => !!document.querySelector('iframe[src*="recaptcha/api2"], iframe[src*="recaptcha/enterprise"], div.g-recaptcha[data-sitekey]') || Array.from(document.querySelectorAll('iframe')).some(f => /challengeIframe/.test(f.src ?? '')));
+  // V2 modal detection narrowed to actual recaptcha frame presence (not the
+  // pre-emptively-loaded challengeIframe wrapper that always appears). The
+  // old wrapper-based detector fired solveV2Modal even when no modal was
+  // shown to the user, polling page.frames() 16 times for nothing.
+  const hasV2 = await s.page.evaluate(() => !!document.querySelector('iframe[src*="recaptcha/api2/bframe"], iframe[src*="recaptcha/enterprise/bframe"]'));
   if (hasV2) {
     console.log('[register] v2 modal detected — solving via API token');
     const v2ok = await solveV2Modal(s.page);
@@ -153,13 +165,14 @@ try {
   let fillBOk = false;
   if (hasFirst && hasLast) {
     await humanFill(s.page, firstLoc, id.first);
+    await humanIdlePause('deliberate');
     await humanFill(s.page, lastLoc, id.last);
     fillBOk = true;
   } else {
     console.log(`[register] fill first+last skipped (hasFirst=${hasFirst} hasLast=${hasLast} url=${s.page.url()})`);
   }
   if (fillBOk) {
-    await getAndInjectRecaptcha(s.page, 'signup');
+    // No reCAPTCHA v3 pre-injection — see comment above the first submit.
     await humanIdlePause('short');
     // Capture /signup/api/cors/createAccount response BEFORE click. On a
     // challenged session LinkedIn returns HTTP 200 with body
