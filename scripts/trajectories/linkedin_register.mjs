@@ -15,16 +15,6 @@ import { confirmLinkedinEmail, solveLinkedinCheckpoint } from './_shared/linkedi
 import { fillPostRegisterOnboarding } from './_shared/linkedin/onboarding/work_school.mjs';
 // generateIdentity import removed — identity now created by WSession.start via opts.platform.
 
-// Pin this anti-fraud-sensitive label to native OS-event input
-// regardless of the fleet default (commit 02a50a0 made CDP the
-// default for parallelism). LinkedIn signup has the /apfc/collect
-// OS-queue collector this whole native path was built for; a
-// one-shot run cannot prove CDP-safe here because pass/fail is
-// IP-confounded. Until a controlled same-IP native-vs-CDP A/B
-// clears CDP for LinkedIn, this trajectory uses native so the
-// default flip cannot regress it. Set before any human atom runs.
-if (!process.env.WELES_INPUT) process.env.WELES_INPUT = 'native';
-
 const URL = 'https://www.linkedin.com/signup';
 const RECAPTCHA_SITEKEY = '6LcIy_MqAAAAAMKiupFSbmzW3xjGSlIfRzNWYMjC';
 
