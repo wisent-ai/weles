@@ -192,7 +192,7 @@ export async function wsClose(s: WSession): Promise<void> {
   try { await (s as any)._cdp?.detach?.(); } catch {}
   await (s as any)._cap.save('session', s.page).catch(() => {});
   try { writeFileSync(join(recordingsDir(s.label || undefined), 'network.ndjson'), s.capturedResponses.map(r => JSON.stringify(r)).join('\n')); } catch {}
-  if (process.env.WELES_INSTRUMENT !== '0' && !s.page.isClosed?.()) {
+  if (!s.page.isClosed?.()) {
     try {
       const j: string = await s.page.evaluate('(window.__inst_flush)?window.__inst_flush():"[]"');
       const outDir = join(process.cwd(), '.work', 'inst');

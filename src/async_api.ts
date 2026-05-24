@@ -189,13 +189,12 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
       const stubPath = join(__dirname, 'scripts', 'chrome147_stubs.js');
       await context.addInitScript(readFileSync(stubPath, 'utf-8'));
     } catch (e) { console.log(`[async_api] stub script load failed: ${(e as Error).message}`); }
-    if (process.env.WELES_INSTRUMENT !== '0') {
-      try {
-        const trapPath = join(__dirname, 'diagnostics', 'property_trap.js');
-        await context.addInitScript(readFileSync(trapPath, 'utf-8'));
-        console.log('[async_api] property-trap instrumentation installed (default-on; set WELES_INSTRUMENT=0 to disable)');
-      } catch (e) { console.log(`[async_api] property-trap install failed: ${(e as Error).message}`); }
-    }
+    // Property-trap instrumentation is unconditional. No opt-out.
+    try {
+      const trapPath = join(__dirname, 'diagnostics', 'property_trap.js');
+      await context.addInitScript(readFileSync(trapPath, 'utf-8'));
+      console.log('[async_api] property-trap instrumentation installed');
+    } catch (e) { console.log(`[async_api] property-trap install failed: ${(e as Error).message}`); }
     await context.addInitScript(WEBAUTHN_REJECT_SCRIPT);
     await context.addInitScript(ARKOSE_OBSERVER_SCRIPT);
     await context.addInitScript(FETCH_REGISTER_INTERCEPT_SCRIPT);
