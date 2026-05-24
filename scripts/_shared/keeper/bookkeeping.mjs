@@ -47,7 +47,7 @@ async function uploadOrNull(uploadFn, label, rowId, runStart) {
   catch (e) { console.log(`[keeper-bookkeeping] uploadArtifacts threw: ${e?.message?.slice(0, 100) ?? String(e).slice(0, 100)}`); return null; }
 }
 
-export async function setupKeeperFlow({ session, platform, action, accountId, proxyUrl, sessionMeta, captureVersionsFn, uploadArtifactsFn, getLastUrl }) {
+export async function setupKeeperFlow({ session, platform, action, accountId, proxyUrl, sessionMeta, captureVersionsFn, uploadArtifactsFn, getLastUrl, closeSessionFn }) {
   const runStart = new Date();
   const versionsAtStart = captureVersionsFn ? captureVersionsFn('scripts/_shared/keeper/keeper.mjs') : null;
   const sessionMetaInitial = sessionMeta ?? { provider: 'keeper', proxy_url: proxyUrl ?? null, platform: platform ?? null };
@@ -61,6 +61,14 @@ export async function setupKeeperFlow({ session, platform, action, accountId, pr
   async function close(status, banSignal, savedAccountId) {
     if (closed || !flowRowId) return;
     closed = true;
+    // Close WSession FIRST so finalize.ts wsClose runs: captures DOM via
+    // _cap.save, renames page@<hash>.webm into the labeled subdir, writes
+    // network.ndjson, dumps __inst flush. Otherwise uploadArtifacts runs
+    // before any of those files exist on disk.
+    if (closeSessionFn) {
+      try { await closeSessionFn(); }
+      catch (e) { console.log(`[keeper-bookkeeping] closeSession err: ${e?.message?.slice(0, 100) ?? String(e).slice(0, 100)}`); }
+    }
     const artifacts = await uploadOrNull(uploadArtifactsFn, `keeper-${session}`, flowRowId, runStart);
     const versionsAtEnd = captureVersionsFn ? captureVersionsFn('scripts/_shared/keeper/keeper.mjs') : null;
     const result = { session: sessionMetaInitial, ban_signal: banSignal ?? { healthy: status === 'completed', signal: status === 'completed' ? 'keeper_completed' : 'keeper_failed' }, versions: versionsAtEnd, artifacts };

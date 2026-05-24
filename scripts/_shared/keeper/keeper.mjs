@@ -53,7 +53,7 @@ const s = await WSession.start({ label: `keeper-${SESSION}`, proxy, persona, hea
 console.log(`[keeper:${SESSION}] WSession started`);
 
 const KEEPER_FLOW_ACTION = process.env.KEEPER_FLOW_ACTION || (PLATFORM ? `${PLATFORM}_keeper` : 'keeper_flow');
-const flow = await setupKeeperFlow({ session: SESSION, platform: PLATFORM || null, action: KEEPER_FLOW_ACTION, accountId: acct?.id ?? null, proxyUrl: proxy ?? null, captureVersionsFn: captureVersions, uploadArtifactsFn: uploadArtifacts, getLastUrl: () => s.page.url() });
+const flow = await setupKeeperFlow({ session: SESSION, platform: PLATFORM || null, action: KEEPER_FLOW_ACTION, accountId: acct?.id ?? null, proxyUrl: proxy ?? null, captureVersionsFn: captureVersions, uploadArtifactsFn: uploadArtifacts, getLastUrl: () => s.page.url(), closeSessionFn: async () => { try { await s.close(); } catch (e) { console.log(`[keeper:${SESSION}] s.close err: ${e?.message?.slice(0, 100) ?? String(e).slice(0, 100)}`); } } });
 if (flow.rowId) console.log(`[keeper:${SESSION}] bookkeeping row=${flow.rowId.slice(0, 8)} action=${KEEPER_FLOW_ACTION}`);
 
 // Cookie injection: explicit JAR path wins, else use account's metadata.cookies.
