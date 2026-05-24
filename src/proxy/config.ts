@@ -259,13 +259,13 @@ export async function resolveProxy(proxy: string, targetHost?: string): Promise<
               console.log(`[proxy] Exit ${exitIp} already burned for ${platform} — rerolling sticky`);
               preflightContinue = true;
             }
-            // WELES_SKIP_LINKEDIN_PROBE=1 disables linkedin-probe (2026-05-24:
-            // keeper passed with no probe, trajectory with probe got challengeUrl).
+            // Country + LinkedIn-probe verify. probeLinkedinLogin sends the
+            // same Chrome headers Chromium will send — predicts pass/fail.
             if (!preflightContinue && exitIp) {
               const { verifyExitCountry, probeLinkedinLogin } = await import('./policy.js');
               const geo = cc ? await verifyExitCountry(exitIp, cc) : { result: 'unknown' as const };
               if (geo.result === 'mismatch') preflightContinue = true;
-              if (!preflightContinue && platform === 'linkedin' && process.env.WELES_SKIP_LINKEDIN_PROBE !== '1') {
+              if (!preflightContinue && platform === 'linkedin') {
                 const url = `http://${encodeURIComponent(stickyUser)}:${encodeURIComponent(stickyPass)}@${host}:${p.proxy_port}`;
                 const probe = await probeLinkedinLogin(url);
                 console.log(`[proxy] linkedin-probe exit=${exitIp} -> ${probe.result}${probe.bytes ? ` (${probe.bytes}B)` : ''}`);
