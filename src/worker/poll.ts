@@ -73,7 +73,7 @@ async function runTrajectory(row: ActionLogRow, path: string, extraEnv: Record<s
 // Opt out with AUTO_INSTRUMENT_RETRIES=0.
 async function diagnosticRetry(row: ActionLogRow, path: string): Promise<string | null> {
   if (process.env.AUTO_INSTRUMENT_RETRIES === '0') return null;
-  if (process.env.WELES_INSTRUMENT === '1') return null; // already instrumented
+  if (process.env.WELES_INSTRUMENT !== '0') return null; // already instrumented (default-on)
   const SKIP_SUFFIXES = ['_balance', '_topup', '_health'];
   if (SKIP_SUFFIXES.some((s) => row.action.endsWith(s))) return null;
   console.log(`[worker] ${row.id.slice(0, 8)} diagnostic retry with WELES_INSTRUMENT=1 ...`);
