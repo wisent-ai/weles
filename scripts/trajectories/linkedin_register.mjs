@@ -120,12 +120,11 @@ try {
   // Keeper-driven success 2026-05-24 didn't run this and passed; the bulk DOM
   // mutation is observable to PerimeterX's MutationObserver and is plausibly
   // part of the trajectory-vs-keeper score gap.
-  // Bare-CSS locators without .filter({visible:true}) / .count() — those
-  // trigger Playwright's in-page visibility introspection (getComputedStyle
-  // probes etc) that PerimeterX MutationObserver can fingerprint. The
-  // keeper-driven success used plain CSS selectors and passed.
-  const emailLoc = s.page.locator('input[name="email-address"], input[autocomplete="email"], input#email-address').first();
-  const pwdLoc = s.page.locator('input[name="password"], input[autocomplete="new-password"], input#password').first();
+  const emailLoc = s.page.locator('input[name="email-address"], input[autocomplete="email"], input#email-address').filter({ visible: true }).first();
+  const pwdLoc = s.page.locator('input[name="password"], input[autocomplete="new-password"], input#password').filter({ visible: true }).first();
+  const hasEmail = await emailLoc.count();
+  const hasPwd = await pwdLoc.count();
+  if (!hasEmail || !hasPwd) throw new Error(`email/password fields not found (hasEmail=${hasEmail} hasPwd=${hasPwd})`);
   await humanFill(s.page, emailLoc, id.email);
   await humanIdlePause('deliberate');
   await humanFill(s.page, pwdLoc, id.password);
@@ -159,8 +158,8 @@ try {
     }
   }
 
-  const firstLoc = s.page.locator('input[name="first-name"], input#first-name').first();
-  const lastLoc = s.page.locator('input[name="last-name"], input#last-name').first();
+  const firstLoc = s.page.locator('input[name="first-name"], input#first-name').filter({ visible: true }).first();
+  const lastLoc = s.page.locator('input[name="last-name"], input#last-name').filter({ visible: true }).first();
   const hasFirst = await firstLoc.count();
   const hasLast = await lastLoc.count();
   let fillBOk = false;
