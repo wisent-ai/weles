@@ -23,11 +23,12 @@ import { dirname } from 'node:path';
 
 const LABEL = process.argv[2] || 'swiatowid';
 const LOGIN_URL = 'https://linear.app/login';
-// /settings/api hosts OAuth apps, webhooks, and "Member API keys" (personal).
-// Workspace-prefixed form (linear.app/<slug>/settings/api) skips Linear's
-// linear:// deep-link interstitial ("Open here instead") that hits on the
-// non-prefixed URL post-cookied-login.
-// (/settings/account/api redirects to /settings/workspace — doesn't exist.)
+// Personal API keys are minted from the "Security & access" settings tab,
+// reachable via the inline "security & access settings" link in the Member
+// API keys section of the workspace /settings/api page. We navigate to
+// /settings/api first, then follow that inline link to discover the
+// canonical security-page URL Linear uses (varies across releases).
+// Workspace-prefixed URLs skip Linear's linear:// deep-link interstitial.
 const WORKSPACE_HOME = 'https://linear.app/';
 const API_PATH = '/settings/api';
 const SUCCESS_URL_RE = /linear\.app\/[^/]+\/(team|my|issues|inbox|settings)/;
@@ -170,31 +171,46 @@ try {
   await humanIdlePause('long');
   console.log(`[linear-key] post-nav url=${s.page.url()}`);
 
-  // Scroll to the "Member API keys" section and click its inline create
-  // button. Linear renders this section with a heading and one button next
-  // to it. The button label is "New API key" / "Create new" / sometimes
-  // just a "+" — find it by walking from the heading to its sibling button.
-  const sectionInfo = await s.page.evaluate(() => {
+  // The Member API keys section has an inline link "security & access
+  // settings" that points to the canonical personal-key page. Click it
+  // and let Linear navigate, then re-read the URL.
+  const inlineLink = s.page.getByRole('link', { name: /security\s*&\s*access\s*settings/i });
+  if (await inlineLink.first().isVisible().catch(() => false)) {
+    console.log('[linear-key] clicking inline "security & access settings" link');
+    await humanClickLocator(s.page, inlineLink.first(), { timeoutMs: 10000 });
+    await humanIdlePause('long');
+    console.log(`[linear-key] after-link url=${s.page.url()}`);
+  } else {
+    console.log('[linear-key] inline link not visible — trying sidebar tab');
+    const sidebarLink = s.page.getByRole('link', { name: /^security\s*&\s*access$/i })
+      .or(s.page.getByRole('button', { name: /^security\s*&\s*access$/i }));
+    if (await sidebarLink.first().isVisible().catch(() => false)) {
+      await humanClickLocator(s.page, sidebarLink.first(), { timeoutMs: 10000 });
+      await humanIdlePause('long');
+      console.log(`[linear-key] after-sidebar url=${s.page.url()}`);
+    }
+  }
+
+  // Now on the security-and-access page: probe for the personal-API-keys
+  // section and find the create button beside it.
+  const personalProbe = await s.page.evaluate(() => {
     const heads = Array.from(document.querySelectorAll('h1, h2, h3, h4, [role="heading"]'));
-    const h = heads.find(el => /member api keys/i.test((el.innerText || '').trim()));
-    if (!h) return { found: false, reason: 'no Member API keys heading' };
+    const h = heads.find(el => /personal api key|api key/i.test((el.innerText || '').trim()));
+    if (!h) return { found: false, reason: 'no personal API keys heading on security page' };
     h.scrollIntoView({ block: 'center' });
-    // Walk up to the section container (parent of heading), look inside it
-    // for buttons and links and report their labels + selectors.
     const section = h.closest('section, div, article') || h.parentElement;
     const buttons = Array.from(section.querySelectorAll('button, a[role="button"], a'))
       .filter(b => b.offsetParent !== null)
-      .map(b => ({ tag: b.tagName.toLowerCase(), text: (b.innerText || b.textContent || '').trim().slice(0, 60), aria: b.getAttribute('aria-label'), href: b.getAttribute('href') }));
-    return { found: true, sectionTag: section.tagName, buttons };
+      .map(b => ({ tag: b.tagName.toLowerCase(), text: (b.innerText || b.textContent || '').trim().slice(0, 60), aria: b.getAttribute('aria-label') }));
+    return { found: true, headingText: (h.innerText || '').trim().slice(0, 80), buttons };
   });
-  console.log(`[linear-key] section probe: ${JSON.stringify(sectionInfo).slice(0, 500)}`);
+  console.log(`[linear-key] personal-key probe: ${JSON.stringify(personalProbe).slice(0, 600)}`);
   await humanIdlePause('short');
 
-  // Click "Create key" / "New API key" inside the Member API keys section.
-  // Use a wide selector that matches both the generic "Create" button label
-  // and any "New …key" variant Linear ships.
+  // Click "New API key" / "Create new" / "Create key" inside the personal
+  // keys section.
   const createBtn = s.page.locator(
-    'button:has-text("Create key"), button:has-text("New API key"), button:has-text("New key"), button:has-text("Create new"), button:has-text("Personal API key"), button[aria-label*="create" i][aria-label*="key" i], button[aria-label*="new" i][aria-label*="key" i], a:has-text("New API key"), a:has-text("Create new"), a:has-text("New key")'
+    'button:has-text("New API key"), button:has-text("Create key"), button:has-text("Create new"), button:has-text("Personal API key"), button[aria-label*="create" i][aria-label*="key" i], button[aria-label*="new" i][aria-label*="key" i]'
   ).filter({ visible: true }).first();
   if (!(await createBtn.isVisible().catch(() => false))) {
     // Dump page state for diagnosis.
