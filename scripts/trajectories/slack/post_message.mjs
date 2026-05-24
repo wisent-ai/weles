@@ -1,21 +1,19 @@
 // Slack-post trajectory. Drive Google-SSO into wisent-workspace.slack.com, create app
-// via manifest, extract xoxb token, post Jakub message. See CLAUDE.md.
-// Env: SSO_EMAIL, SSO_PASS (from .work/_sso.env), MESSAGE_FILE,
-//      SLACK_TARGET_CHANNEL or SLACK_TARGET_CHANNEL_NAME, SWT_CLI.
+// via manifest, extract xoxb token, post the message at MESSAGE_FILE as the bot.
+// Does NOT touch ~/.claude/settings.json or any MCP config — the xoxb lives
+// only in process memory and is used immediately for the post.
+// Env: SLACK_EMAIL, SLACK_PASS, MESSAGE_FILE,
+//      SLACK_TARGET_CHANNEL or SLACK_TARGET_CHANNEL_NAME.
 
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { existsSync, readFileSync, mkdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { spawnSync } from 'node:child_process';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const WELES = join(__dirname, '..', '..', '..');
 const SWIATOWID = join(WELES, '..', 'swiatowid');
 const MESSAGE_FILE = process.env.MESSAGE_FILE
   || join(SWIATOWID, '.work', 'jakub-status.txt');
-const SWT_CLI = process.env.SWT_CLI
-  || join(SWIATOWID, '.build', 'debug', 'swt-cli');
-const SETTINGS = join(process.env.HOME, '.claude', 'settings.json');
 const TARGET_NAME = (process.env.SLACK_TARGET_CHANNEL_NAME || 'jakub').toLowerCase();
 const TARGET_CHAN = process.env.SLACK_TARGET_CHANNEL || '';
 
@@ -24,40 +22,9 @@ if (!existsSync(MESSAGE_FILE)) {
   process.exit(2);
 }
 
-// 12-scope app manifest matching M58/M59 swiatowid/scripts/slack-bootstrap.sh.
-const MANIFEST_YAML = `display_information:
-  name: Claude Code
-  description: Claude Code (Anthropic CLI) — posts status updates and reads channel context.
-  background_color: "#1f1f1f"
-features:
-  bot_user:
-    display_name: Claude Code
-    always_online: true
-oauth_config:
-  scopes:
-    bot:
-      - chat:write
-      - chat:write.public
-      - channels:read
-      - channels:history
-      - groups:read
-      - groups:history
-      - im:history
-      - mpim:history
-      - users:read
-      - users:read.email
-      - reactions:read
-      - reactions:write
-settings:
-  org_deploy_enabled: false
-  socket_mode_enabled: false
-  token_rotation_enabled: false
-`;
-
 const { WSession } = await import(`${WELES}/dist/session/wsession.js`);
 const { humanFill } = await import(`${WELES}/dist/human/keyboard.js`);
-const { humanClick, humanClickLocator, humanIdlePause } = await import(`${WELES}/dist/human/mouse.js`);
-const { solveRecaptchaV2 } = await import(`${WELES}/dist/captcha/recaptcha.js`);
+const { humanClickLocator, humanIdlePause } = await import(`${WELES}/dist/human/mouse.js`);
 
 const headless = process.env.HEADLESS === '1';
 const s = await WSession.start({ label: 'slack-post', headless });
@@ -74,12 +41,6 @@ async function shot(label) {
 async function safeShutdown() {
   if (!s.shutdown) return;
   try { await s.shutdown(); } catch (e) { console.log(`[slack] shutdown WARN: ${e.message?.slice(0, 80)}`); }
-}
-
-async function fetchJSON(url, init) {
-  const r = await fetch(url, init);
-  if (!r.ok) throw new Error(`HTTP ${r.status} from ${url}`);
-  return r.json();
 }
 
 // --- Step 1: Google SSO with workspace-member @wisent.ai credentials -------
@@ -175,16 +136,13 @@ console.log(`[slack] xoxc=${xoxc.slice(0, 24)}… len=${xoxc.length}`);
 
 // --- Step 2b: create the Swiatowid bot app, scrape xoxb- -------------------
 console.log('[slack] step 2b: api.slack.com app creation');
-const { createBotApp } = await import('./create_bot_app.mjs');
-let xoxb = '';
-try {
-  xoxb = await createBotApp({ page: s.page, weles: WELES, shot });
-  if (xoxb) console.log(`[slack] ✓ xoxb=${xoxb.slice(0, 18)}… len=${xoxb.length}`);
-  else console.log('[slack] bot created but no xoxb on OAuth page');
-} catch (e) {
-  console.log(`[slack] bot creation failed: ${e.message?.slice(0, 200)}`);
-  console.log('[slack] continuing with xoxc (post will be as Lukasz)');
+const { createBotApp } = await import('./steps/create_bot_app.mjs');
+const xoxb = await createBotApp({ page: s.page, weles: WELES, shot });
+if (!xoxb) {
+  console.error('[slack] bot created but no xoxb on OAuth page — failing rather than posting as user');
+  await safeShutdown(); process.exit(7);
 }
+console.log(`[slack] ✓ xoxb=${xoxb.slice(0, 18)}… len=${xoxb.length}`);
 
 // --- Step 3: resolve channel + post via Slack API using browser cookies ----
 const ctxReq = s.page.context().request;
@@ -236,11 +194,8 @@ if (!channelId) {
 if (!channelId) { console.error('[slack] no channel id'); await safeShutdown(); process.exit(4); }
 
 const messageText = readFileSync(MESSAGE_FILE, 'utf8');
-const useToken = xoxb || xoxc;
-const post = await slackApi('chat.postMessage', {
-  token: useToken, channel: channelId, text: messageText, as_user: 'true',
-});
-console.log(`[slack] ✓ posted as ${xoxb ? 'Swiatowid bot' : 'Lukasz'} ts=${post.ts} channel=${channelId}`);
+const post = await slackApi('chat.postMessage', { token: xoxb, channel: channelId, text: messageText });
+console.log(`[slack] ✓ posted as Swiatowid bot ts=${post.ts} channel=${channelId}`);
 
 await safeShutdown();
 console.log('[slack] done');

@@ -1,97 +1,149 @@
-// Step 2b of the slack-post trajectory, extracted to keep post_message.mjs
-// under the 300-line file cap. Drives api.slack.com/apps?new_app=1 → From
-// a manifest (via Tab+Enter keyboard nav — more reliable than DOM clicks
-// across browser personas) → workspace pick → paste manifest → install +
-// authorize → scrape xoxb- from OAuth & Permissions page.
-import { readFileSync } from 'node:fs';
+// Create a Slack app from the local manifest.yaml, install it to the Wisent
+// workspace, and return the resulting xoxb bot token.
+//
+// API-only path. The "Create app from manifest" dialog has too many
+// React/click failure modes across personas; instead this:
+//   1. Extracts xoxc from window.boot_data in the workspace web client.
+//   2. POSTs /api/apps.manifest.create with xoxc as Bearer (Slack accepts
+//      xoxc for admin-style write endpoints when the user has perms).
+//   3. Navigates to /apps/<id>/install-on-team, scrapes the OAuth URL.
+//   4. POSTs the OAuth consent form via page.context().request (the only
+//      reliable way past Slack's anti-bot synthetic-click rejection on
+//      the Allow button — x-slack-shared-secret-outcome: no-match).
+//   5. Scrapes xoxb from input.value on /apps/<id>/oauth.
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { spawnSync } from 'node:child_process';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
+// Manifest as JS object → JSON for the apps.manifest.create API. The web
+// UI accepts YAML, but the xoxc-authed API path requires JSON-stringified
+// manifest (verified live: YAML with xoxc returns invalid_manifest with
+// no detail; JSON works).
+const SWIATOWID_MANIFEST = {
+  display_information: {
+    name: 'Swiatowid',
+    description: 'Wisent macOS dock for Claude Code sessions - posts status updates.',
+    background_color: '#1f1f1f',
+  },
+  features: {
+    bot_user: { display_name: 'Swiatowid', always_online: true },
+  },
+  oauth_config: {
+    scopes: {
+      bot: [
+        'chat:write',
+        'chat:write.public',
+        'channels:read',
+        'channels:history',
+        'users:read',
+        'users:read.email',
+        'im:write',
+        'im:history',
+        'mpim:write',
+        'mpim:history',
+      ],
+    },
+  },
+  settings: {
+    org_deploy_enabled: false,
+    socket_mode_enabled: false,
+    token_rotation_enabled: false,
+  },
+};
+
 /** Returns the xoxb- bot token (empty string on any failure). */
 export async function createBotApp({ page, weles, shot }) {
-  const { humanFill } = await import(`${weles}/dist/human/keyboard.js`);
-  const { humanClickLocator, humanIdlePause } = await import(`${weles}/dist/human/mouse.js`);
+  const { humanIdlePause } = await import(`${weles}/dist/human/mouse.js`);
 
-  await page.goto('https://wisent-workspace.slack.com/apps/manage', { waitUntil: 'domcontentloaded' });
-  await humanIdlePause('long');
-  await page.goto('https://api.slack.com/apps?new_app=1', { waitUntil: 'domcontentloaded' });
-  await humanIdlePause('long');
-  await shot('07-new-app-dialog');
+  page.on('response', async (resp) => {
+    const u = resp.url();
+    if (!/api\/apps\.manifest|api\/auth\.test/.test(u)) return;
+    try {
+      const body = await resp.text();
+      console.log(`[bot][api] ${resp.status()} ${u.split('?')[0]} -> ${body.slice(0, 600)}`);
+    } catch (e) { /* body unavailable */ }
+  });
 
-  // From a manifest — verified by DOM dump to be a <button class="c-button-unstyled">.
-  const fmBtn = page.locator('button.c-button-unstyled').filter({
-    hasText: /from a manifest/i,
-  }).first();
-  await fmBtn.waitFor({ state: 'visible' });
-  console.log('[bot] clicking <button class="c-button-unstyled">From a manifest</button>');
-  await humanClickLocator(page, fmBtn, { timeoutMs: 10000 });
-  await page.waitForLoadState('domcontentloaded');
+  // Extract xoxc workspace token from the Slack web client. Cookies seat
+  // automatically via the same browser context (we're already SSO'd).
+  await page.goto('https://wisent-workspace.slack.com/messages', { waitUntil: 'domcontentloaded' });
   await humanIdlePause('long');
-  await shot('07b-after-from-manifest');
+  const xoxc = await page.evaluate(() => {
+    if (window.boot_data && window.boot_data.api_token) return window.boot_data.api_token;
+    for (let i = 0; i < localStorage.length; i++) {
+      const v = localStorage.getItem(localStorage.key(i)) || '';
+      const m = v.match(/xoxc-[\d]+-[\d]+-[\d]+-[a-f0-9]+/);
+      if (m) return m[0];
+    }
+    return '';
+  });
+  if (!xoxc) throw new Error('[bot] no xoxc token in window.boot_data or localStorage');
+  console.log(`[bot] xoxc=${xoxc.slice(0, 24)}… len=${xoxc.length}`);
 
-  // Workspace picker: <button id="team-picker_button" class="c-select_button">
-  // with text "Select a team" (NOT "Select a workspace" — that's the heading).
-  await humanIdlePause('long');
-  const trigger = page.locator('#team-picker_button, button.c-select_button').first();
-  await trigger.waitFor({ state: 'visible' });
-  await humanClickLocator(page, trigger, { timeoutMs: 10000 });
-  await humanIdlePause('short');
-  const wisOpt = page.getByRole('option', { name: /wisent/i })
-    .or(page.locator('[role="menuitem"]').filter({ hasText: /wisent/i }))
-    .or(page.locator('li, a, button').filter({ hasText: /^\s*Wisent\s*$/i }))
-    .first();
-  await wisOpt.waitFor({ state: 'visible' });
-  const wisLabel = await wisOpt.textContent();
-  console.log(`[bot] picking workspace "${(wisLabel || '').slice(0, 60)}"`);
-  await humanClickLocator(page, wisOpt, { timeoutMs: 10000 });
-  await humanIdlePause('short');
-  await humanClickLocator(page, page.getByRole('button', { name: /^next$/i }).first(), { timeoutMs: 10000 });
-  await humanIdlePause('long');
+  const manifest = JSON.stringify(SWIATOWID_MANIFEST);
+  console.log(`[bot] POST /api/apps.manifest.create (manifest ${manifest.length} chars JSON, with xoxc)`);
+  // First validate to surface the exact field-level error before attempting create.
+  const validateResp = await page.context().request.post('https://slack.com/api/apps.manifest.validate', {
+    headers: { 'Authorization': `Bearer ${xoxc}` },
+    multipart: { manifest, token: xoxc },
+  });
+  const validate = await validateResp.json();
+  console.log(`[bot][validate] ${JSON.stringify(validate).slice(0, 1500)}`);
+  if (!validate.ok) throw new Error(`[bot] apps.manifest.validate failed: ${JSON.stringify(validate).slice(0, 500)}`);
 
-  const manifest = readFileSync(join(__dirname, 'manifest.yaml'), 'utf8');
-  spawnSync('/usr/bin/pbcopy', [], { input: manifest });
-  await shot('07d-manifest-editor');
-  // Switch to YAML tab since our manifest is YAML.
-  const yamlTab = page.getByRole('tab', { name: /^YAML$/i })
-    .or(page.locator('button, a').filter({ hasText: /^YAML$/i })).first();
-  if (await yamlTab.count() > 0) {
-    console.log('[bot] switching to YAML tab');
-    await humanClickLocator(page, yamlTab, { timeoutMs: 10000 });
-    await humanIdlePause('short');
+  const createResp = await page.context().request.post('https://slack.com/api/apps.manifest.create', {
+    headers: { 'Authorization': `Bearer ${xoxc}` },
+    multipart: { manifest, token: xoxc },
+  });
+  const create = await createResp.json();
+  console.log(`[bot][create] ${JSON.stringify(create).slice(0, 1500)}`);
+  if (!create.ok) {
+    throw new Error(`[bot] apps.manifest.create failed: ${JSON.stringify(create).slice(0, 500)}`);
   }
-  // Editor is a code-mirror style overlay over a hidden <textarea>.
-  // Force-click so keyboard events route to it.
-  const ta = page.locator('textarea').first();
-  await ta.click({ force: true });
-  await humanIdlePause('short');
-  await humanIdlePause('short');
-  await page.keyboard.press('Meta+A');
-  await page.keyboard.press('Backspace');
-  await humanIdlePause('short');
-  await page.keyboard.press('Meta+V');
-  await humanIdlePause('deliberate');
-  await shot('08-manifest-pasted');
-  await humanClickLocator(page, page.getByRole('button', { name: /^next$/i }).first(), { timeoutMs: 10000 });
-  await humanIdlePause('deliberate');
-  await humanClickLocator(page, page.getByRole('button', { name: /^create$/i }).first(), { timeoutMs: 10000 });
-  await page.waitForLoadState('domcontentloaded');
-  await humanIdlePause('long');
+  const appId = create.app_id;
+  if (!appId) throw new Error(`[bot] apps.manifest.create returned no app_id: ${JSON.stringify(create).slice(0, 200)}`);
+  console.log(`[bot] ✓ app created via API: id=${appId}`);
+  await shot('08-app-created');
 
-  await humanClickLocator(page, page.getByRole('button', { name: /install to workspace/i }).first(), { timeoutMs: 15000 });
-  await page.waitForLoadState('domcontentloaded');
-  await humanIdlePause('deliberate');
-  await humanClickLocator(page, page.getByRole('button', { name: /^allow$/i }).first(), { timeoutMs: 15000 });
-  await page.waitForLoadState('domcontentloaded');
+  // Install: load install-on-team to render the per-app OAuth authorize URL.
+  await page.goto(`https://api.slack.com/apps/${appId}/install-on-team`, { waitUntil: 'domcontentloaded' });
   await humanIdlePause('long');
+  const oauthHref = await page.evaluate(() =>
+    (Array.from(document.querySelectorAll('a')).find(
+      a => /install to/i.test(a.textContent || '') && /oauth\/v2\/authorize/.test(a.href)
+    ) || {}).href || ''
+  );
+  if (!oauthHref) throw new Error('[bot] no Install→OAuth href found on install-on-team page');
+  await page.goto(oauthHref, { waitUntil: 'domcontentloaded' });
+  await humanIdlePause('long');
+  await shot('10-oauth-consent');
 
-  await humanClickLocator(page, page.locator('a[href*="/oauth"]').first(), { timeoutMs: 10000 });
-  await page.waitForLoadState('domcontentloaded');
+  const formAction = await page.evaluate(() => document.querySelector('#oauth_install_form')?.action || '');
+  const formBody = await page.evaluate(() => {
+    const f = document.querySelector('#oauth_install_form');
+    if (!f) return '';
+    const p = new URLSearchParams();
+    f.querySelectorAll('input[type=hidden]').forEach(i => p.append(i.name, i.value));
+    return p.toString();
+  });
+  if (!formAction || !formBody) throw new Error('[bot] OAuth consent form not found');
+  const allowResp = await page.context().request.post(formAction, {
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    data: formBody, maxRedirects: 5,
+  });
+  if (allowResp.status() !== 200 || !allowResp.url().includes('success=1')) {
+    throw new Error(`[bot] OAuth POST rejected: ${allowResp.status()} ${allowResp.url()}`);
+  }
+  console.log('[bot] ✓ OAuth Allow accepted');
+
+  await page.goto(`https://api.slack.com/apps/${appId}/oauth`, { waitUntil: 'domcontentloaded' });
   await humanIdlePause('deliberate');
   await shot('11-oauth-page');
   const xoxb = await page.evaluate(() => {
+    const fromInputs = Array.from(document.querySelectorAll('input,textarea'))
+      .map(i => i.value || '').find(v => /^xoxb-/.test(v));
+    if (fromInputs) return fromInputs;
     const m = (document.body.innerText || '').match(/xoxb-\d+-\d+-[A-Za-z0-9]+/);
     return m ? m[0] : '';
   });

@@ -1,6 +1,6 @@
 display_information:
   name: Swiatowid
-  description: Wisent's macOS dock for Claude Code sessions — posts status updates.
+  description: Wisent macOS dock for Claude Code sessions - posts status updates.
   background_color: "#1f1f1f"
 features:
   bot_user:
