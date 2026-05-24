@@ -49,7 +49,7 @@ if (!proxy && process.env.PROXY_URL) {
   console.log(`[keeper:${SESSION}] using PROXY_URL env override`);
 }
 
-const s = await WSession.start({ label: `keeper-${SESSION}`, proxy, persona, headless: HEADLESS, browser: BROWSER || undefined });
+const s = await WSession.start({ label: `keeper-${SESSION}`, proxy, persona, headless: HEADLESS, browser: BROWSER || undefined, os: process.env.PERSONA_OS || undefined });
 console.log(`[keeper:${SESSION}] WSession started`);
 
 const KEEPER_FLOW_ACTION = process.env.KEEPER_FLOW_ACTION || (PLATFORM ? `${PLATFORM}_keeper` : 'keeper_flow');
