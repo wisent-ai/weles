@@ -42,4 +42,30 @@
   _origAddEL.call(document, 'visibilitychange', function() { recI('visibilitychange', { s: document.visibilityState }); }, { capture: true, passive: true });
   _origAddEL.call(window, 'focus', function() { recI('focus', {}); }, { capture: true, passive: true });
   _origAddEL.call(window, 'blur', function() { recI('blur', {}); }, { capture: true, passive: true });
+  // input.value setter hook — every programmatic OR keyboard-driven write
+  // is recorded with target id/name/type + new value + stack. Closes the
+  // "humanFill typed but value got cut" mystery: future runs show exactly
+  // what was set, when, by whom.
+  function hookValueSetter(proto, label) {
+    var d = Object.getOwnPropertyDescriptor(proto, 'value');
+    if (!d || !d.set || !d.get) return;
+    Object.defineProperty(proto, 'value', {
+      configurable: true, enumerable: d.enumerable, get: d.get,
+      set: function(v) {
+        try { recI(label + '_value_set', { id: this.id, name: this.name, type: this.type, tag: this.tagName, val: String(v).slice(0, 200) }); } catch (e) {}
+        return d.set.call(this, v);
+      }
+    });
+  }
+  try { hookValueSetter(HTMLInputElement.prototype, 'input'); } catch (e) {}
+  try { hookValueSetter(HTMLTextAreaElement.prototype, 'textarea'); } catch (e) {}
+  // Capture-phase 'input' event: fires AFTER every keystroke or autocomplete
+  // selection mutates the input. Records cumulative input.value so you can
+  // replay how the field filled up character by character.
+  _origAddEL.call(document, 'input', function(ev) {
+    var t = ev.target; if (!t) return;
+    var tag = t.tagName;
+    if (tag !== 'INPUT' && tag !== 'TEXTAREA') return;
+    recI('input_event', { id: t.id, name: t.name, type: t.type, val: String(t.value).slice(0, 200), isTrusted: ev.isTrusted });
+  }, { capture: true, passive: true });
 })();
