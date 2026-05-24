@@ -131,27 +131,26 @@ export class Capture {
   // -----------------------------------------------------------------------
 
   async captureDom(page: CDPPage, label: string): Promise<string | null> {
+    const dir = this._dir();
     try {
-      const result = await page.send('DOM.getDocument', { depth: -1, pierce: true });
-      const root = result?.root;
-      if (!root) return null;
-
-      // Also grab outer HTML for convenience
-      const htmlResult = await page.send('DOM.getOuterHTML', { nodeId: root.nodeId });
-
-      const dir = this._dir();
-      const filename = `${label}_dom_${timestamp()}.json`;
-      const filePath = join(dir, filename);
-
-      writeFileSync(
-        filePath,
-        JSON.stringify({ tree: root, outerHTML: htmlResult?.outerHTML ?? '' }, null, 2),
-      );
-
-      return filePath;
-    } catch {
-      return null;
-    }
+      const r = await page.send('DOM.getDocument', { depth: -1, pierce: true });
+      const root = r?.root;
+      if (root) {
+        const h = await page.send('DOM.getOuterHTML', { nodeId: root.nodeId });
+        const fp = join(dir, `${label}_dom_${timestamp()}.json`);
+        writeFileSync(fp, JSON.stringify({ tree: root, outerHTML: h?.outerHTML ?? '' }, null, 2));
+        return fp;
+      }
+    } catch { /* CDP unavailable on Firefox; use Playwright content() below */ }
+    try {
+      const html = await (page as any).content?.();
+      if (typeof html === 'string') {
+        const fp = join(dir, `${label}_dom_${timestamp()}.html`);
+        writeFileSync(fp, html);
+        return fp;
+      }
+    } catch { /* page closed */ }
+    return null;
   }
 
   // -----------------------------------------------------------------------
