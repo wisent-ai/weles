@@ -71,33 +71,9 @@ async function runTrajectory(row: ActionLogRow, path: string, extraEnv: Record<s
 // health) where instrumentation has little diagnostic value.
 //
 // Opt out with AUTO_INSTRUMENT_RETRIES=0.
-async function diagnosticRetry(row: ActionLogRow, path: string): Promise<string | null> {
-  if (process.env.AUTO_INSTRUMENT_RETRIES === '0') return null;
-  if (process.env.WELES_INSTRUMENT !== '0') return null; // already instrumented (default-on)
-  const SKIP_SUFFIXES = ['_balance', '_topup', '_health'];
-  if (SKIP_SUFFIXES.some((s) => row.action.endsWith(s))) return null;
-  console.log(`[worker] ${row.id.slice(0, 8)} diagnostic retry with WELES_INSTRUMENT=1 ...`);
-  try {
-    await runTrajectory(row, path, { WELES_INSTRUMENT: '1' });
-  } catch (e) {
-    console.log(`[worker] ${row.id.slice(0, 8)} diagnostic retry error: ${(e as Error).message?.slice(0, 200)}`);
-  }
-  // Find newest matching dump.
-  try {
-    const { readdirSync, statSync } = await import('node:fs');
-    const instDir = join(process.cwd(), '.work', 'inst');
-    const trajLabel = path.split('/').pop()?.replace(/\.mjs$/, '') ?? '';
-    const dumps = readdirSync(instDir)
-      .filter((f) => f.endsWith('.json') && !f.startsWith('chrome_'))
-      .map((f) => ({ f, full: join(instDir, f), m: statSync(join(instDir, f)).mtimeMs }))
-      .sort((a, b) => b.m - a.m);
-    const match = dumps.find((d) => d.f.startsWith(`${trajLabel}_`)) || dumps[0];
-    if (match) {
-      console.log(`[worker] ${row.id.slice(0, 8)} instrumented dump -> ${match.full}`);
-      console.log(`[worker]   review with: node scripts/debug/diff_trajectory.mjs ${path}`);
-      return match.full;
-    }
-  } catch { /* noop */ }
+async function diagnosticRetry(_row: ActionLogRow, _path: string): Promise<string | null> {
+  // Vestigial: instrumentation is now unconditional, so the original run
+  // already wrote the .work/inst/<label>_*.json dump. Nothing to retry.
   return null;
 }
 
