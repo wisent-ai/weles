@@ -263,6 +263,11 @@ export async function enqueueProviderTopup(displayName: string): Promise<{ ok: b
   } catch {}
   if (!accountId) return { ok: false, reason: 'no_service_account' };
   try {
+    const f = await fetch(`${url}/rest/v1/system_settings?key=eq.workers_enabled&select=value`, { headers: { apikey: key, Authorization: `Bearer ${key}` } });
+    const flagRows = await f.json() as Array<{ value: { enabled?: boolean } }>;
+    if (flagRows[0]?.value?.enabled === false) return { ok: false, reason: 'workers_disabled' };
+  } catch {}
+  try {
     const since = new Date(Date.now() - 3600 * 1000).toISOString();
     const r = await fetch(`${url}/rest/v1/account_action_logs?action=eq.${slug}_topup&status=eq.queued&started_at=gte.${since}&select=id&limit=1`, { headers: { apikey: key, Authorization: `Bearer ${key}` } });
     const rows = await r.json() as Array<{ id: string }>;

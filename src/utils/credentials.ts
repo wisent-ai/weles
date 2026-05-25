@@ -132,6 +132,11 @@ export async function markCookiesStale(accountId: string): Promise<void> {
     await fetch(`${supabaseUrl}/rest/v1/social_accounts?id=eq.${accountId}`, { method: 'PATCH', headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' }, body: JSON.stringify({ metadata: merged }) });
     const plat = rows[0]?.platform;
     if (!plat) return;
+    const flagRes = await fetch(`${supabaseUrl}/rest/v1/system_settings?key=eq.workers_enabled&select=value`, { headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` } });
+    if (flagRes.ok) {
+      const flagRows = await flagRes.json() as Array<{ value?: { enabled?: boolean } }>;
+      if (flagRows[0]?.value?.enabled === false) return;
+    }
     const since = new Date(Date.now() - 3600_000).toISOString();
     const recent = await fetch(`${supabaseUrl}/rest/v1/account_action_logs?account_id=eq.${accountId}&action=eq.${plat}_login&scheduled_at=gte.${since}&select=id&limit=1`, { headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` } }).then(r => r.ok ? r.json() : []).catch(() => []);
     if (Array.isArray(recent) && recent.length === 0) await fetch(`${supabaseUrl}/rest/v1/account_action_logs`, { method: 'POST', headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' }, body: JSON.stringify({ account_id: accountId, platform: plat, action: `${plat}_login`, status: 'queued', params: { reason: 'auto-recovery from cookies-stale' }, scheduled_at: new Date().toISOString() }) });
