@@ -8,12 +8,15 @@
 // path never uploads — that's where the volume is, and you rarely need
 // recordings for a clean tick.
 //
-// Cap per run: 10 screenshots + 10 videos + 1 html + 1 ndjson. videos was
+// Cap per run: 50 screenshots + 50 videos + 100 dom + 100 logs. videos was
 // previously capped at 1 — but Playwright writes one .webm PER PAGE in the
 // context, so trajectories that open multiple pages produced multiple webms
 // on disk and only the newest reached storage, hiding everything before the
-// last page. Bumped to 10 so the full trajectory's video history is captured.
-// Files older than runStart are ignored (older runs' artifacts).
+// last page. dom + logs were also capped at 1 which dropped every DOM dump
+// except the newest and dropped per-step network ndjson files — both kinds
+// are small text and capping them defeats the no-truncation rule that the
+// byte-by-byte net_record.ts capture was wired in to satisfy. Files older
+// than runStart are ignored (older runs' artifacts).
 
 import { readFile, readdir, stat } from 'node:fs/promises'
 import { join, extname } from 'node:path'
@@ -47,10 +50,10 @@ const KIND_BY_EXT: Record<string, 'screenshots' | 'videos' | 'dom' | 'logs' | nu
 }
 
 const CAPS: Record<string, number> = {
-  screenshots: 10,
-  videos: 10,
-  dom: 1,
-  logs: 1,
+  screenshots: 50,
+  videos: 50,
+  dom: 100,
+  logs: 100,
 }
 
 function publicUrl(path: string): string {
