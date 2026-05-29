@@ -193,15 +193,15 @@ try {
       } catch (e) { console.log(`[register] createAccount body parse err: ${e.message?.slice(0, 80)}`); }
     }
     if (challengeUrl) {
-      // DETECTION_TRIGGERED. createAccount returned challengeUrl → IP or
-      // fingerprint is burned. THROW (don't process.exit) so the finally
-      // block's await s.close() runs and finalizes the recording +
-      // network.ndjson + DOM — process.exit kills the pending capture flush,
-      // which is why failed runs had no network.ndjson to diff against the
-      // keeper. The catch maps this to signal=detection_triggered + exit 2
-      // so batch rotation still triggers.
+      // createAccount challengeUrl = reCAPTCHA "Security verification", NOT an IP/
+      // fingerprint burn. The 2026-05-29 cold-vs-warm keeper test (same Oxylabs ISP
+      // exit + macOS persona) proved it is browser-identity-trust driven: cold (fresh
+      // bcookie) gets the challenge, warm (existing account's bcookie/bscookie) does
+      // not. A new identity can't have a trusted bcookie, so IP/fingerprint rotation
+      // won't clear it — only TRY_CHALLENGE=1 (solve) or pre-warmed trust works. THROW
+      // (not exit) so finally s.close() finalizes capture; catch keeps the prefix.
       if (process.env.LINKEDIN_REGISTER_TRY_CHALLENGE !== '1') {
-        throw new Error('DETECTION_TRIGGERED: createAccount returned challengeUrl — rotate IP/fingerprint');
+        throw new Error('DETECTION_TRIGGERED: createAccount challengeUrl — cold identity, no trusted bcookie; IP/fingerprint rotation will not clear it (set LINKEDIN_REGISTER_TRY_CHALLENGE=1 to solve)');
       }
       const fullUrl = challengeUrl.startsWith('http') ? challengeUrl : `https://www.linkedin.com${challengeUrl}`;
       console.log(`[register] navigating to challenge: ${fullUrl.slice(0, 80)}...`);
