@@ -31,6 +31,13 @@ export interface Persona {
   audioSampleRate: 44100 | 48000;
   timezone: string;
   language: string;
+  // Browser-correct Accept-Language header. Real Chrome on an en-US install
+  // sends 'en-US,en;q=0.9'; real Firefox sends 'en-US,en;q=0.5' (Mozilla
+  // intl.accept_languages). Weles previously shipped a bare 'en-US' for both,
+  // which on Firefox = non-standard fingerprint (the q-secondary is missing).
+  // Threaded into Playwright extraHTTPHeaders so the wire value matches what
+  // the corresponding real browser emits.
+  acceptLanguage: string;
   canvasSeed: number;
 }
 
@@ -197,9 +204,16 @@ export function generatePersona(opts: { country?: string; os?: Persona['os']; br
   const rendererShort = gpu.renderer.match(/Apple M\d[^,)]*|UHD Graphics \d+|GTX \d+|RTX \d+|Radeon [A-Z]+ ?\d+|Iris[^,)]*/)?.[0] ?? 'GPU';
   console.log(`[persona] os=${os} browser=${browser} gpu=${rendererShort} screen=${screen.width}x${screen.height}@${screen.dpr} tz=${locale.tz} lang=${locale.lang}`);
 
+  // Real Chrome auto-appends ';q=0.9' to its --lang flag; real Firefox emits
+  // ',en;q=0.5' from its intl.accept_languages pref. Encode per-browser so
+  // weles wire matches each engine's real-world Accept-Language string.
+  const acceptLanguage = browser === 'firefox'
+    ? `${locale.lang},${locale.lang.split('-')[0]};q=0.5`
+    : `${locale.lang},${locale.lang.split('-')[0]};q=0.9`;
+
   return {
     os, browser, chromeVersion, userAgentOs, platform, gpu, screen,
     hardwareConcurrency, audioSampleRate,
-    timezone: locale.tz, language: locale.lang, canvasSeed,
+    timezone: locale.tz, language: locale.lang, acceptLanguage, canvasSeed,
   };
 }

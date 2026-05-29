@@ -88,12 +88,13 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
   const viewH = persona?.screen.height ?? 1080;
   const dpr = persona?.screen.dpr ?? 1;
 
-  // tz/locale NOT set in ctxOpts — Playwright routes via CDP Emulation which TikTok mssdk detects. Pass --lang + TZ env instead.
+  // tz/locale NOT in ctxOpts (CDP Emulation -> TikTok mssdk detects). --lang + TZ env. Accept-Language IS set via extraHTTPHeaders (header only) so weles Firefox emits 'en-US,en;q=0.5', Chromium 'en-US,en;q=0.9' (computed in persona.ts).
   const ctxOpts: Record<string, any> = {
     userAgent: nav.userAgent,
     viewport: { width: viewW, height: viewH },
     screen: { width: viewW, height: viewH },
     deviceScaleFactor: dpr,
+    ...(persona?.acceptLanguage ? { extraHTTPHeaders: { 'accept-language': persona.acceptLanguage } } : {}),
   };
   if (options.proxy) {
     ctxOpts.proxy = options.proxy;
@@ -180,11 +181,17 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
     const customCtxOpts: Record<string, any> = { viewport: { width: viewW, height: viewH }, deviceScaleFactor: dpr };
     if (ctxOpts.proxy) { customCtxOpts.proxy = ctxOpts.proxy; customCtxOpts.ignoreHTTPSErrors = true; }
     if (ctxOpts.recordVideo) customCtxOpts.recordVideo = ctxOpts.recordVideo;
+    if (ctxOpts.extraHTTPHeaders) customCtxOpts.extraHTTPHeaders = ctxOpts.extraHTTPHeaders;
     console.log(`[async_api] Context opts: ${JSON.stringify(customCtxOpts, (k, v) => k === 'password' ? '***' : v)}`);
     const context = await pwBrowser.newContext(customCtxOpts);
     context.setDefaultNavigationTimeout(0);
     console.log(`[async_api] Context created`);
-    // Init-script injections (Chrome 147 stubs, then unconditional diagnostics).
+    // Init-script injections (Chrome 147 stubs, then diagnostics). The trap is
+    // default-on: the stealth rewrite (2026-05-26) makes it invisible to
+    // detectors — exfil under Symbol.for('weles.inst'), native-toString proxy on
+    // every wrapper, no automation-flag pollution — verified BLOCKED=false
+    // against Google SSO with property_trap + input_recorder injected. The old
+    // WELES_INSTRUMENT gate was a stopgap for the pre-stealth trap and is gone.
     const _inject = async (path: string, label: string) => { try { await context.addInitScript(readFileSync(path, 'utf-8')); console.log(`[async_api] ${label} installed`); } catch (e) { console.log(`[async_api] ${label} install failed: ${(e as Error).message}`); } };
     await _inject(join(__dirname, 'scripts', 'chrome147_stubs.js'), 'chrome147-stubs');
     await _inject(join(__dirname, 'diagnostics', 'property_trap.js'), 'property-trap');
