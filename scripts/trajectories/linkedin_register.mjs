@@ -15,16 +15,6 @@ import { confirmLinkedinEmail, solveLinkedinCheckpoint } from './_shared/linkedi
 import { fillPostRegisterOnboarding } from './_shared/linkedin/onboarding/work_school.mjs';
 // generateIdentity import removed — identity now created by WSession.start via opts.platform.
 
-// Pin this anti-fraud-sensitive label to native OS-event input
-// regardless of the fleet default (commit 02a50a0 made CDP the
-// default for parallelism). LinkedIn signup has the /apfc/collect
-// OS-queue collector this whole native path was built for; a
-// one-shot run cannot prove CDP-safe here because pass/fail is
-// IP-confounded. Until a controlled same-IP native-vs-CDP A/B
-// clears CDP for LinkedIn, this trajectory uses native so the
-// default flip cannot regress it. Set before any human atom runs.
-if (!process.env.WELES_INPUT) process.env.WELES_INPUT = 'native';
-
 const URL = 'https://www.linkedin.com/signup';
 const RECAPTCHA_SITEKEY = '6LcIy_MqAAAAAMKiupFSbmzW3xjGSlIfRzNWYMjC';
 
@@ -105,14 +95,11 @@ async function solveV2Modal(page) {
   return true;
 }
 
-// Persona + identity rotation centralized in WSession.start (platform: 'linkedin').
-// Browser pin to chromium retained: 2026-05-13 instrumented Firefox run hit
-// locator timeout 30s on input[name=email-address] — LinkedIn served Firefox a
-// different signup page OR the weles Firefox build doesn't render correctly.
-// Until firefox-build is patched separately, browser stays chromium. OS still
-// rotates via persona (~70% windows / 25% macos / 5% linux).
-if (!process.env.PROXY_URL) { console.log('FAIL: PROXY_URL unset — LinkedIn register requires explicit static ISP proxy (isp.oxylabs.io:8003-8010). Random-sticky residential is burned for LinkedIn signup.'); process.exit(2); }
-const s = await WSession.start({ label: 'linkedin_register', proxy: process.env.PROXY_URL, targetHost: 'www.linkedin.com', platform: 'linkedin', browser: 'chromium' });
+// Persona + identity + browser + OS + input rotation all centralized in
+// WSession.start (platform: 'linkedin'). No browser/OS/input pin — rolls
+// naturally like the keeper does.
+if (!process.env.PROXY_URL) { console.log('FAIL: PROXY_URL unset — LinkedIn register requires an explicit proxy (PROXY_URL).'); process.exit(2); }
+const s = await WSession.start({ label: 'linkedin_register', proxy: process.env.PROXY_URL, targetHost: 'www.linkedin.com', platform: 'linkedin' });
 const id = { first: s.identity.firstName, last: s.identity.lastName, handle: s.identity.username, email: s.identity.email, password: s.identity.password };
 console.log(`[register] identity: ${id.email} / ${id.first} ${id.last}`);
 // Persist credentials so a captcha failure mid-run still leaves a way to log in via keeper.
