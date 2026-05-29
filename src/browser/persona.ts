@@ -120,12 +120,6 @@ const FIREFOX_OSCPU: Record<string, string> = {
   linux:   'Linux x86_64',
 };
 
-const FIREFOX_APPVERSION: Record<string, string> = {
-  macos:   '5.0 (Macintosh)',
-  windows: '5.0 (Windows)',
-  linux:   '5.0 (X11)',
-};
-
 export interface FirefoxNav {
   userAgent: string;
   appVersion: string;
@@ -139,9 +133,11 @@ export interface FirefoxNav {
 /** Internally-consistent desktop-Firefox navigator surface for `targetOs`. */
 export function firefoxNav(targetOs: string): FirefoxNav {
   const os = targetOs in FIREFOX_UA_TEMPLATES ? targetOs : 'macos';
+  const userAgent = FIREFOX_UA_TEMPLATES[os].replace(/VER/g, FIREFOX_VERSION);
   return {
-    userAgent: FIREFOX_UA_TEMPLATES[os].replace(/VER/g, FIREFOX_VERSION),
-    appVersion: FIREFOX_APPVERSION[os],
+    userAgent,
+    // Real Firefox navigator.appVersion is the UA string minus the "Mozilla/" prefix; emitting the bare "5.0 (Macintosh)" form is engine-impossible (2026-05-29 LinkedIn collector dump showed Firefox returning "5.0 (Macintosh)" — a non-standard truncation that doesn't match any real Firefox build).
+    appVersion: userAgent.replace(/^Mozilla\//, ''),
     oscpu: FIREFOX_OSCPU[os],
     vendor: '',
     product: 'Gecko',
