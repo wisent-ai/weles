@@ -186,12 +186,7 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
     const context = await pwBrowser.newContext(customCtxOpts);
     context.setDefaultNavigationTimeout(0);
     console.log(`[async_api] Context created`);
-    // Init-script injections (Chrome 147 stubs, then diagnostics). The trap is
-    // default-on: the stealth rewrite (2026-05-26) makes it invisible to
-    // detectors — exfil under Symbol.for('weles.inst'), native-toString proxy on
-    // every wrapper, no automation-flag pollution — verified BLOCKED=false
-    // against Google SSO with property_trap + input_recorder injected. The old
-    // WELES_INSTRUMENT gate was a stopgap for the pre-stealth trap and is gone.
+    // Init-script injections — Chrome 147 stubs + diagnostics (property_trap, input_recorder). Stealth rewrite 2026-05-26: exfil under Symbol.for('weles.inst'), wrapper toString proxy, no automation-flag pollution; verified BLOCKED=false vs Google SSO.
     const _inject = async (path: string, label: string) => { try { await context.addInitScript(readFileSync(path, 'utf-8')); console.log(`[async_api] ${label} installed`); } catch (e) { console.log(`[async_api] ${label} install failed: ${(e as Error).message}`); } };
     await _inject(join(__dirname, 'scripts', 'chrome147_stubs.js'), 'chrome147-stubs');
     await _inject(join(__dirname, 'diagnostics', 'property_trap.js'), 'property-trap');
@@ -244,6 +239,8 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
   await context.addInitScript(WEBAUTHN_REJECT_SCRIPT);
   await context.addInitScript(ARKOSE_OBSERVER_SCRIPT_STOCK);
   await context.addInitScript(FETCH_REGISTER_INTERCEPT_SCRIPT);
+  // Diagnostic shims — engine-agnostic (pure DOM/JS), were Chromium-custom-binary-only before this; now on stock path too so Firefox sessions also dump navigator-access traces.
+  for (const f of ['property_trap.js', 'input_recorder.js']) { try { await context.addInitScript(readFileSync(join(__dirname, 'diagnostics', f), 'utf-8')); console.log(`[async_api] ${f.split('.')[0]} installed`); } catch (e) { console.log(`[async_api] ${f} install failed: ${(e as Error).message}`); } }
   attachProtocolHandlerWatcher(context);
 
   const origClose = context.close.bind(context);
