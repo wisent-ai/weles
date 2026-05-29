@@ -177,11 +177,6 @@ function runLogin(displayName) {
         // under the 720s hard SIGKILL below so login.mjs's own
         // diagnostic + shutdown (video flush) runs first.
         CLAUDE_LOGIN_OVERALL_SEC: '690',
-        // claude.ai OAuth has no OS-event anti-fraud collector
-        // (no LinkedIn /apfc-class telemetry), so the per-page CDP
-        // input path is correct here AND makes this trajectory
-        // parallel-safe (no shared host OS cursor via cliclick).
-        WELES_INPUT: 'cdp',
       },
       stdio: ['ignore', 'pipe', 'pipe'],
     });

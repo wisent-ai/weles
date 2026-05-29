@@ -32,7 +32,7 @@ const targetName = character.name || '';
 const targetBio = (character.bio || '').slice(0, 160);
 
 const { proxyUrl, persona } = await resolveAccountSession(acct);
-const s = await WSession.start({ label: 'twitter_edit_profile', proxy: proxyUrl, persona, browser: 'chromium' });
+const s = await WSession.start({ label: 'twitter_edit_profile', proxy: proxyUrl, persona });
 
 try {
   let stored;

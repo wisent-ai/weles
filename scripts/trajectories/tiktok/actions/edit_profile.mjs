@@ -36,7 +36,7 @@ const targetBio = (character.bio || '').slice(0, 80);
 const targetName = character.name || '';
 
 const { proxyUrl, persona } = await resolveAccountSession(acct);
-const s = await WSession.start({ label: 'tiktok_edit_profile', proxy: proxyUrl, persona, browser: 'chromium' });
+const s = await WSession.start({ label: 'tiktok_edit_profile', proxy: proxyUrl, persona });
 
 try {
   let stored;

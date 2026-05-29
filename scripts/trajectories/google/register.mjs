@@ -283,7 +283,7 @@ const closeBounded = (s) => Promise.race([s.close().catch(() => {}), new Promise
 for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
   const proxy = freshProxy();
   console.log(`\n=== Google signup attempt ${attempt}/${MAX_RETRIES} proxy=${proxy.slice(-60)} ===`);
-  const s = await WSession.start({ label: `google_register_${attempt}`, proxy, browser: 'chromium', targetHost: 'accounts.google.com' });
+  const s = await WSession.start({ label: `google_register_${attempt}`, proxy, targetHost: 'accounts.google.com' });
   instrumentSession(s);
   try {
     const username = await signup(s);

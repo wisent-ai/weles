@@ -36,7 +36,7 @@ const token = acct.metadata?.discord_token;
 if (!token) { console.log(`FAIL: ${acct.username} metadata.discord_token missing`); process.exit(1); }
 
 const opts = await resolveAccountSession(acct);
-const s = await WSession.start({ label: 'discord_share_invite', proxy: opts.proxyUrl, persona: opts.persona, targetHost: 'discord.com', browser: 'chromium' });
+const s = await WSession.start({ label: 'discord_share_invite', proxy: opts.proxyUrl, persona: opts.persona, targetHost: 'discord.com' });
 console.log(`[share_invite] account=${acct.username} channel=${CHANNEL} dm_targets=${TARGETS.length}`);
 
 try {

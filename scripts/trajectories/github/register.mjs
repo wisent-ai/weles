@@ -10,9 +10,9 @@ const URL = 'https://github.com/signup';
 let s;
 for (let retry = 0; retry < 3; retry++) {
   try {
-    // Windows profile matches Bright Data's clean fingerprint that bypassed Twitter Arkose (commit 36e4dff).
-    // en-US locale pins language + accept-language headers to match US proxy geolocation.
-    s = await WSession.start({ label: 'github_register', proxy: process.env.PROXY_URL || 'residential', os: 'windows', locale: 'en-US' });
+    // No OS pin — persona OS rolls naturally. en-US locale pins language +
+    // accept-language headers to match US proxy geolocation.
+    s = await WSession.start({ label: 'github_register', proxy: process.env.PROXY_URL || 'residential', locale: 'en-US' });
     await s.goto('https://github.com/');
     let rendered = false;
     for (let i = 0; i < 15; i++) {
