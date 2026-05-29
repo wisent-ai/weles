@@ -75,7 +75,8 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
     n.hardwareConcurrency = persona.hardwareConcurrency;
     if (persona.deviceMemory) n.deviceMemory = persona.deviceMemory;
     n.language = persona.language;
-    n.languages = [persona.language];
+    // navigator.languages must be [primary, secondary] when primary has a region tag — real Firefox/Chrome always emit the bare-lang as the second entry (Mozilla intl.accept_languages, Chrome --lang both expand it). Bare single-entry array is engine-impossible and an obvious bot tell.
+    n.languages = persona.language.includes('-') ? [persona.language, persona.language.split('-')[0]] : [persona.language];
     fpConfig.screen = { ...(fpConfig.screen ?? {}), width: persona.screen.width, height: persona.screen.height, availWidth: persona.screen.width, availHeight: persona.screen.height - 40, colorDepth: 24, pixelDepth: 24 };
     fpConfig.window = { ...(fpConfig.window ?? {}), devicePixelRatio: persona.screen.dpr, outerWidth: persona.screen.width + 2, outerHeight: persona.screen.height + 80, screenX: 10, screenY: 10 };
     fpConfig.webgl = { ...(fpConfig.webgl ?? {}), vendor: isChromium ? 'Google Inc.' : 'Mozilla', renderer: persona.gpu.renderer, unmaskedVendor: persona.gpu.vendor, unmaskedRenderer: persona.gpu.renderer };
