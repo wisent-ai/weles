@@ -194,10 +194,14 @@ try {
     }
     if (challengeUrl) {
       // DETECTION_TRIGGERED. createAccount returned challengeUrl → IP or
-      // fingerprint is burned. Bail with exit code 2 so batch can rotate.
+      // fingerprint is burned. THROW (don't process.exit) so the finally
+      // block's await s.close() runs and finalizes the recording +
+      // network.ndjson + DOM — process.exit kills the pending capture flush,
+      // which is why failed runs had no network.ndjson to diff against the
+      // keeper. The catch maps this to signal=detection_triggered + exit 2
+      // so batch rotation still triggers.
       if (process.env.LINKEDIN_REGISTER_TRY_CHALLENGE !== '1') {
-        console.log(`FAIL: DETECTION_TRIGGERED — createAccount challengeUrl set; rotate IP/fingerprint and retry`);
-        process.exit(2);
+        throw new Error('DETECTION_TRIGGERED: createAccount returned challengeUrl — rotate IP/fingerprint');
       }
       const fullUrl = challengeUrl.startsWith('http') ? challengeUrl : `https://www.linkedin.com${challengeUrl}`;
       console.log(`[register] navigating to challenge: ${fullUrl.slice(0, 80)}...`);
@@ -281,14 +285,15 @@ try {
 } catch (e) {
   const finalUrl = s.page.url?.() ?? '';
   let sig = 'action_failed';
-  if (finalUrl.startsWith('chrome-error://')) sig = 'proxy_failed';
+  if (e.message?.startsWith('DETECTION_TRIGGERED')) sig = 'detection_triggered';
+  else if (finalUrl.startsWith('chrome-error://')) sig = 'proxy_failed';
   else if (/captcha|challenge|checkpoint/.test(finalUrl)) sig = 'captcha_challenge';
   try { mkdirSync(join(process.cwd(), 'recordings', 'linkedin_register'), { recursive: true }); writeFileSync(join(process.cwd(), 'recordings', 'linkedin_register', 'ban_signal.json'), JSON.stringify({ action: 'linkedin_register', signal: sig, healthy: false, details: { final_url: finalUrl, error: e.message?.slice(0, 200), attempted_email: id.email }, ts: new Date().toISOString() }, null, 2)); } catch {}
   console.log(`FAIL: ${e.message?.slice(0, 200)}`);
   // exitCode (not exit) so the finally block's await s.close() actually runs.
   // process.exit(1) kills pending async ops immediately, which prevents
   // Playwright from flushing the recordVideo .webm to disk.
-  process.exitCode = 1;
+  process.exitCode = e.message?.startsWith('DETECTION_TRIGGERED') ? 2 : 1;
 } finally {
   await s.close();
 }
