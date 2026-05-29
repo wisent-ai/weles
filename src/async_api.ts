@@ -79,7 +79,7 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
     n.languages = persona.language.includes('-') ? [persona.language, persona.language.split('-')[0]] : [persona.language];
     fpConfig.screen = { ...(fpConfig.screen ?? {}), width: persona.screen.width, height: persona.screen.height, availWidth: persona.screen.width, availHeight: persona.screen.height - 40, colorDepth: 24, pixelDepth: 24 };
     fpConfig.window = { ...(fpConfig.window ?? {}), devicePixelRatio: persona.screen.dpr, outerWidth: persona.screen.width + 2, outerHeight: persona.screen.height + 80, screenX: 10, screenY: 10 };
-    fpConfig.webgl = { ...(fpConfig.webgl ?? {}), vendor: isChromium ? 'Google Inc.' : 'Mozilla', renderer: persona.gpu.renderer, unmaskedVendor: persona.gpu.vendor, unmaskedRenderer: persona.gpu.renderer };
+    fpConfig.webgl = { ...(fpConfig.webgl ?? {}), vendor: isChromium ? 'Google Inc.' : 'Mozilla', renderer: isChromium ? persona.gpu.renderer : persona.gpu.renderer.replace(/^ANGLE \([^,]+, ANGLE Metal Renderer: ([^,]+).*\)$/, '$1').replace(/^ANGLE \([^,]+, ([^,]+).*\)$/, '$1'), unmaskedVendor: isChromium ? persona.gpu.vendor : persona.gpu.vendor.replace(/^Google Inc\. \((.+)\)$/, '$1'), unmaskedRenderer: isChromium ? persona.gpu.renderer : persona.gpu.renderer.replace(/^ANGLE \([^,]+, ANGLE Metal Renderer: ([^,]+).*\)$/, '$1').replace(/^ANGLE \([^,]+, ([^,]+).*\)$/, '$1') };
     // Canvas noise NOT applied — LSB-flip makes canvas data URL 4x stock-Chrome size, TikTok mssdk flags.
   }
 
