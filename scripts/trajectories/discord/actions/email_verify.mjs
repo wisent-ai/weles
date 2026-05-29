@@ -67,7 +67,7 @@ async function resolveClickToVerify(link) {
 }
 
 const opts = await resolveAccountSession(acct);
-const s = await WSession.start({ label: 'discord_email_verify', proxy: opts.proxyUrl, persona: opts.persona, targetHost: 'discord.com', browser: 'chromium' });
+const s = await WSession.start({ label: 'discord_email_verify', proxy: opts.proxyUrl, persona: opts.persona, targetHost: 'discord.com' });
 console.log(`[email_verify] account=${acct.username} email=${email}`);
 
 try {

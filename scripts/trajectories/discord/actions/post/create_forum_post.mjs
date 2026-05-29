@@ -42,7 +42,7 @@ const token = acct.metadata?.discord_token;
 if (!token) { console.log(`FAIL: ${acct.username} metadata.discord_token missing`); process.exit(1); }
 
 const opts = await resolveAccountSession(acct);
-const s = await WSession.start({ label: 'discord_create_forum_post', proxy: opts.proxyUrl, persona: opts.persona, targetHost: 'discord.com', browser: 'chromium' });
+const s = await WSession.start({ label: 'discord_create_forum_post', proxy: opts.proxyUrl, persona: opts.persona, targetHost: 'discord.com' });
 console.log(`[forum_post] account=${acct.username} channel=${CHANNEL} title=${TITLE.slice(0, 40)}`);
 
 try {

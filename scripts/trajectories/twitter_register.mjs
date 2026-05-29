@@ -216,7 +216,7 @@ for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
   console.log(`\n=== Twitter signup attempt ${attempt}/${MAX_RETRIES} ===`);
   // Force chromium — Firefox persona picks fail at fill() because the
   // weles fill path uses CDP newCDPSession which is Chromium-only.
-  const s = await WSession.start({ label: `twitter_register_${attempt}`, proxy, browser: 'chromium' });
+  const s = await WSession.start({ label: `twitter_register_${attempt}`, proxy });
   try {
     const username = await signup(s);
     console.log(`PASS: ${username}`);

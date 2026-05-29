@@ -280,7 +280,7 @@ async function signup(s) {
 // before saveAccount with `Page.dispatchMouseEvent: win.synthesizeMouseEvent
 // is not a function`. weles's CDP-based mouse path is Chromium-only, and PH
 // signup needs trusted clicks to land the OAuth modal.
-const s = await WSession.start({ label: 'producthunt_register', proxy, browser: 'chromium' });
+const s = await WSession.start({ label: 'producthunt_register', proxy });
 try {
   const username = await signup(s);
   console.log(`PASS: ${username}`);

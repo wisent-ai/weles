@@ -39,7 +39,7 @@ const avatarUrl = rawAvatar
   : null;
 
 const { proxyUrl, persona } = await resolveAccountSession(acct);
-const s = await WSession.start({ label: 'github_edit_profile', proxy: proxyUrl, persona, browser: 'chromium' });
+const s = await WSession.start({ label: 'github_edit_profile', proxy: proxyUrl, persona });
 
 try {
   let stored;

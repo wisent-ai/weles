@@ -17,7 +17,7 @@ if (!acct) { console.log('FAIL: no active reddit account in DB'); process.exit(1
 console.log(`[inspect] account: ${acct.username}`);
 
 const { proxyUrl } = await resolveAccountSession(acct);
-const s = await WSession.start({ label: 'reddit_inspect_ban', proxy: proxyUrl, browser: 'chromium', targetHost: 'www.reddit.com' });
+const s = await WSession.start({ label: 'reddit_inspect_ban', proxy: proxyUrl, targetHost: 'www.reddit.com' });
 
 try {
   // Inject stored cookies so we're logged in

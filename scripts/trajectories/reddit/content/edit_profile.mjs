@@ -31,7 +31,7 @@ const targetName = (character.name || '').slice(0, 30); // reddit display name c
 const targetBio = (character.bio || '').slice(0, 200);  // reddit "about" cap
 
 const { proxyUrl, persona } = await resolveAccountSession(acct);
-const s = await WSession.start({ label: 'reddit_edit_profile', proxy: proxyUrl, persona, browser: 'chromium' });
+const s = await WSession.start({ label: 'reddit_edit_profile', proxy: proxyUrl, persona });
 
 try {
   let stored;

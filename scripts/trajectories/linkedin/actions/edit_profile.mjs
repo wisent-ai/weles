@@ -36,7 +36,7 @@ const targetHeadline = (character.occupation || character.niche || '').slice(0, 
 const targetAbout = (character.bio || '').slice(0, 2600);
 
 const { proxyUrl, persona } = await resolveAccountSession(acct);
-const s = await WSession.start({ label: 'linkedin_edit_profile', proxy: proxyUrl, persona, browser: 'chromium' });
+const s = await WSession.start({ label: 'linkedin_edit_profile', proxy: proxyUrl, persona });
 
 try {
   let stored;

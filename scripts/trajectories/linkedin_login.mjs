@@ -60,11 +60,11 @@ function freshBrightdataUrl() {
 // exit-IP cohort. Operators can still force a sticky via env if needed.
 
 let { proxyUrl, persona } = await resolveAccountSession(acct);
-// Force macOS persona. LinkedIn fingerprints Windows + Oxylabs Mobile as
-// "form=false" (cited 2026-05-06 probes).
-if (!persona || persona.os !== 'macos') {
+// No OS/browser pin — reuse the account's resolved persona; only generate a
+// fresh, naturally-rolled one if the account has none.
+if (!persona) {
   const { generatePersona } = await import('../../dist/browser/persona.js');
-  persona = generatePersona({ os: 'macos', browser: 'chromium' });
+  persona = generatePersona();
 }
 // Sticky-IP preservation. Each linkedin_login session MUST reuse the
 // exit-IP cohort the account first registered + last successfully logged in

@@ -21,7 +21,7 @@ const URL = 'https://discord.com/register';
 const MAX_REROLL = parseInt(process.env.DISCORD_MAX_REROLL || '6', 10);
 let registeredOk = false;
 for (let reroll = 0; reroll < MAX_REROLL && !registeredOk; reroll++) {
-const s = await WSession.start({ label: 'discord_register', proxy: process.env.PROXY_URL || 'residential', targetHost: 'discord.com', browser: 'chromium' });
+const s = await WSession.start({ label: 'discord_register', proxy: process.env.PROXY_URL || 'residential', targetHost: 'discord.com' });
 const exitIp = s.proxyConfig?.exit_ip || (s.proxyConfig?.server ? new globalThis.URL(s.proxyConfig.server).hostname : null);
 console.log(`[reroll ${reroll + 1}/${MAX_REROLL}] exit=${exitIp ?? 'unknown'}`);
 try {
