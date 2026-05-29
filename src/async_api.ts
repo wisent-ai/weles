@@ -242,6 +242,7 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
   await context.addInitScript(FETCH_REGISTER_INTERCEPT_SCRIPT);
   // Diagnostic shims — engine-agnostic (pure DOM/JS), were Chromium-custom-binary-only before this; now on stock path too so Firefox sessions also dump navigator-access traces.
   for (const f of ['property_trap.js', 'input_recorder.js']) { try { await context.addInitScript(readFileSync(join(__dirname, 'diagnostics', f), 'utf-8')); console.log(`[async_api] ${f.split('.')[0]} installed`); } catch (e) { console.log(`[async_api] ${f} install failed: ${(e as Error).message}`); } }
+  try { let _fh=readFileSync(join(__dirname, 'diagnostics', 'fingerprint_hooks.js'), 'utf-8'); if (persona && !isChromium) { const _g:any=(fpConfig as any).webgl??{}; _fh=_fh.replace(/__WELES_GL_VENDOR__/g, _g.unmaskedVendor||_g.vendor||'Mozilla').replace(/__WELES_GL_RENDERER__/g, _g.unmaskedRenderer||_g.renderer||''); } await context.addInitScript(_fh); console.log('[async_api] fingerprint_hooks installed'); } catch (e) { console.log(`[async_api] fingerprint_hooks install failed: ${(e as Error).message}`); }
   attachProtocolHandlerWatcher(context);
 
   const origClose = context.close.bind(context);
