@@ -192,16 +192,15 @@ export async function wsClose(s: WSession): Promise<void> {
   try { await (s as any)._cdp?.detach?.(); } catch {}
   await (s as any)._cap.save('session', s.page).catch(() => {});
   try { writeFileSync(join(recordingsDir(s.label || undefined), 'network.ndjson'), s.capturedResponses.map(r => JSON.stringify(r)).join('\n')); } catch {}
-  if (!s.page.isClosed?.()) {
-    try {
-      const j: string = await s.page.evaluate('(window.__inst_flush)?window.__inst_flush():"[]"');
-      const outDir = join(process.cwd(), '.work', 'inst');
-      mkdirSync(outDir, { recursive: true });
-      const fn = join(outDir, `${s.label || 'session'}_${new Date().toISOString().replace(/[:.]/g, '-')}.json`);
-      writeFileSync(fn, j);
-      console.log(`[wsession] dumped __inst ${j.length}ch -> ${fn}`);
-    } catch (e: any) { console.log(`[wsession] __inst dump err: ${e.message?.slice(0,120)}`); }
-  }
+  // Final merged dump — fires the close-time flush of every frame's
+  // property-trap log + writes the same {accesses, requests, console,
+  // pageerrors, persona, proxy, versions} shape the interval writer uses,
+  // overwriting the in-flight file with the freshest state. Output lives at
+  // recordings/<label>/<label>_<iso>.inst.json so uploadArtifacts picks it up.
+  try {
+    const { finalDump } = await import('./net_record.js');
+    await finalDump(s);
+  } catch (e: any) { console.log(`[wsession] finalDump err: ${e?.message?.slice(0, 120)}`); }
   const video = s.page.video?.();
   const dest = join(recordingsDir(s.label || undefined), `${s.label || 'session'}_${new Date().toISOString().replace(/[:.]/g, '-')}.webm`);
   console.log(`[wsession] close() video=${!!video} dest=${dest}`);
