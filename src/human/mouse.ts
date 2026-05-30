@@ -169,6 +169,10 @@ export async function humanMove(page: any, x: number, y: number, startX?: number
  */
 export async function humanClickLocator(page: any, locator: any): Promise<void> {
   try { await locator.scrollIntoViewIfNeeded?.(); } catch { /* element may already be in view */ }
+  // Engagement: emit one wheel cycle so reCAPTCHA v3's invisible scoring sees
+  // Input.wheel + Input.scroll + performance.interactionCount > 0. See
+  // keyboard.ts humanMicroScroll for the fp_matrix evidence basis.
+  try { const { humanMicroScroll } = await import('./keyboard.js'); await humanMicroScroll(page); } catch { /* non-fatal */ }
   const box = await locator.boundingBox?.();
   if (!box) throw new Error('humanClickLocator: bounding box unavailable (element detached or off-screen)');
   const padX = Math.max(2, Math.floor(box.width * 0.15));
