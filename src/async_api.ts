@@ -4,7 +4,7 @@
  * Launches Playwright with custom Chromium binary + fingerprint spoofing.
  */
 
-import { existsSync, writeFileSync, mkdtempSync, readFileSync } from 'node:fs';
+import { existsSync, writeFileSync, mkdtempSync, mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { chromium, type BrowserContext, type Browser } from 'playwright';
@@ -141,17 +141,13 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
     const fpFile = join(fpDir, 'config.json');
     writeFileSync(fpFile, JSON.stringify(cppConfig));
     args.push(`--weles-fingerprint=${fpFile}`);
-    // Diagnostics opt-in: WELES_CHROMIUM_NETLOG=1 writes per-launch netlog + verbose stderr. Off by default (netlogs grow to 100+ MB).
-    const diagDir = join(process.cwd(), 'recordings');
-    let netLogPath = '';
-    if (process.env.WELES_CHROMIUM_NETLOG === '1') {
-      netLogPath = join(diagDir, `netlog_${Date.now()}_${Math.floor(Math.random() * 1e6)}.json`);
-      args.push('--enable-logging=stderr');
-      args.push('--v=1');
-      args.push('--vmodule=*/net/*=2,*/proxy*=2,*/http/*=2');
-      args.push(`--log-net-log=${netLogPath}`);
-      args.push('--net-log-capture-mode=Everything');
-    }
+    // NetLog ALWAYS-on per the standing full-capture instruction — Chrome dumps every socket open/close, DNS lookup, HTTP/2 frame, QUIC packet, cookie store mutation to netlog.json. Path lives in recordings/<label>/ so it rides the existing upload + sibling_files manifest. Verbose stderr stays behind WELES_CHROMIUM_NETLOG=1 (the noisy flag).
+    const diagDir = join(process.cwd(), 'recordings', process.env.WELES_LABEL || 'unnamed');
+    mkdirSync(diagDir, { recursive: true });
+    const netLogPath = join(diagDir, 'netlog.json');
+    args.push(`--log-net-log=${netLogPath}`);
+    args.push('--net-log-capture-mode=Everything');
+    if (process.env.WELES_CHROMIUM_NETLOG === '1') { args.push('--enable-logging=stderr'); args.push('--v=1'); args.push('--vmodule=*/net/*=2,*/proxy*=2,*/http/*=2'); }
     // Opt-in HTTP/1.1 mode via WELES_DISABLE_HTTP2=1 — only when a residential proxy drops h2 frames inside CONNECT tunnels. Keeps h2 on by default for TikTok mssdk / Akamai h2 parity.
     if (process.env.WELES_DISABLE_HTTP2 === '1') {
       args.push('--disable-http2');
