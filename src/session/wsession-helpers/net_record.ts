@@ -9,8 +9,9 @@
 // `(ws as any)._instRequests` so finalize.ts can write the final dump shape.
 
 import type { BrowserContext } from 'playwright';
-import { writeFileSync, mkdirSync } from 'node:fs';
+import { writeFileSync, mkdirSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import { platform as osPlatform, release as osRelease, arch as osArch, totalmem, cpus, hostname, version as osVersion } from 'node:os';
 
 // One merged fingerprint artifact per run, written under recordings/<label>/ so
 // the worker uploader (src/worker/upload-artifacts.ts) picks it up alongside
@@ -31,14 +32,33 @@ export function startInstrumentation(ws: any, ctx: BrowserContext, label: string
   const consoleMsgs: any[] = [];
   const pageErrors: any[] = [];
   const startedAt = new Date().toISOString();
+  const swEvents: any[] = [];
+  const targetEvents: any[] = [];
+  const frameEvents: any[] = [];
+  const metricsHistory: any[] = [];
+  const storageHistory: any[] = [];
   ws._instRequests = reqs;
   ws._instConsole = consoleMsgs;
   ws._instPageErrors = pageErrors;
+  ws._instSwEvents = swEvents;
+  ws._instTargetEvents = targetEvents;
+  ws._instFrameEvents = frameEvents;
+  ws._instMetricsHistory = metricsHistory;
+  ws._instStorageHistory = storageHistory;
   ws._instAccum = accum;
   ws._instFile = fn;
+  ws._instDir = dir;
   ws._instStartedAt = startedAt;
+  ws._instHost = {
+    platform: osPlatform(), release: osRelease(), arch: osArch(), version: osVersion?.() ?? null,
+    hostname: hostname(), totalmem: totalmem(), cpu_count: cpus().length, cpu_model: cpus()[0]?.model ?? null,
+    node_version: process.version, pid: process.pid,
+  };
   attachCompleteNetRecord(ctx, reqs);
   attachPageDiagnostics(ws, consoleMsgs, pageErrors);
+  attachServiceWorkers(ctx, swEvents);
+  attachCdpLifecycle(ws, ctx, targetEvents, frameEvents, metricsHistory);
+  pollStorageState(ws, ctx, storageHistory);
   setInterval(async () => {
     try {
       for (const f of ws.page.frames()) {
@@ -51,16 +71,7 @@ export function startInstrumentation(ws: any, ctx: BrowserContext, label: string
           if (!prev || log.length > prev.log.length) accum.set(url, { url, log });
         } catch {}
       }
-      writeFileSync(fn, JSON.stringify({
-        label, started_at: startedAt,
-        persona: ws.personaConfig ?? null,
-        proxy: ws.proxyConfig ?? null,
-        versions: ws._versions ?? null,
-        accesses: [...accum.values()],
-        requests: reqs,
-        console: consoleMsgs,
-        pageerrors: pageErrors,
-      }));
+      writeFileSync(fn, JSON.stringify(buildDumpPayload(ws)));
     } catch {}
   }, 5000);
   return reqs;
@@ -85,18 +96,7 @@ export async function finalDump(ws: any): Promise<void> {
         } catch {}
       }
     }
-    writeFileSync(ws._instFile, JSON.stringify({
-      label: ws.label ?? null,
-      started_at: ws._instStartedAt ?? null,
-      closed_at: new Date().toISOString(),
-      persona: ws.personaConfig ?? null,
-      proxy: ws.proxyConfig ?? null,
-      versions: ws._versions ?? null,
-      accesses: [...ws._instAccum.values()],
-      requests: ws._instRequests ?? [],
-      console: ws._instConsole ?? [],
-      pageerrors: ws._instPageErrors ?? [],
-    }));
+    writeFileSync(ws._instFile, JSON.stringify(buildDumpPayload(ws, { closing: true })));
     console.log(`[wsession] final inst dump -> ${ws._instFile}`);
   } catch (e: any) { console.log(`[wsession] finalDump err: ${e?.message?.slice(0, 120)}`); }
 }
@@ -209,4 +209,89 @@ export function attachCompleteNetRecord(ctx: BrowserContext, reqs: any[]): void 
       });
     } catch {}
   });
+}
+
+// Service worker registration events. Fires when the page registers / activates
+// a SW; relevant because many bot-checks (PerimeterX, Akamai, hCaptcha) ship
+// their logic via SW for cross-frame state.
+function attachServiceWorkers(ctx: BrowserContext, swEvents: any[]): void {
+  try {
+    (ctx as any).on?.('serviceworker', (sw: any) => {
+      try { swEvents.push({ t: Date.now(), phase: 'register', url: sw.url?.() ?? null }); } catch {}
+    });
+  } catch {}
+}
+
+// CDP target lifecycle + frame attach/detach/navigate + periodic
+// Performance.getMetrics. Uses the WSession's existing CDP session (created in
+// the constructor for Network.dataReceived) — adds Target / Page subscriptions
+// + a getMetrics poll into the per-interval write.
+function attachCdpLifecycle(ws: any, ctx: BrowserContext, targetEvents: any[], frameEvents: any[], metricsHistory: any[]): void {
+  void (async () => {
+    try {
+      // The WSession constructor sets ws._cdp asynchronously; wait briefly.
+      for (let i = 0; i < 20 && !ws._cdp; i++) await new Promise(r => setImmediate(r));
+      const cdp = ws._cdp;
+      if (!cdp) return;
+      try { await cdp.send('Target.setDiscoverTargets', { discover: true }); } catch {}
+      try { await cdp.send('Page.enable'); } catch {}
+      try { await cdp.send('Performance.enable'); } catch {}
+      cdp.on('Target.targetCreated', (e: any) => { try { targetEvents.push({ t: Date.now(), phase: 'created', info: e?.targetInfo }); } catch {} });
+      cdp.on('Target.targetDestroyed', (e: any) => { try { targetEvents.push({ t: Date.now(), phase: 'destroyed', targetId: e?.targetId }); } catch {} });
+      cdp.on('Target.targetInfoChanged', (e: any) => { try { targetEvents.push({ t: Date.now(), phase: 'changed', info: e?.targetInfo }); } catch {} });
+      cdp.on('Page.frameAttached', (e: any) => { try { frameEvents.push({ t: Date.now(), phase: 'attached', frameId: e?.frameId, parentFrameId: e?.parentFrameId }); } catch {} });
+      cdp.on('Page.frameDetached', (e: any) => { try { frameEvents.push({ t: Date.now(), phase: 'detached', frameId: e?.frameId, reason: e?.reason }); } catch {} });
+      cdp.on('Page.frameNavigated', (e: any) => { try { frameEvents.push({ t: Date.now(), phase: 'navigated', frameId: e?.frame?.id, url: e?.frame?.url, securityOrigin: e?.frame?.securityOrigin }); } catch {} });
+      ws._instMetricsPollId = setInterval(async () => {
+        try { const m = await cdp.send('Performance.getMetrics'); metricsHistory.push({ t: Date.now(), metrics: m?.metrics ?? [] }); } catch {}
+      }, 10_000);
+    } catch (e: any) { try { targetEvents.push({ t: Date.now(), phase: 'attach_error', err: String(e?.message ?? e) }); } catch {} }
+  })();
+}
+
+// Periodic ctx.storageState() snapshot. Cookies + localStorage + sessionStorage
+// + IndexedDB-origin metadata across all origins the context has touched.
+// Captured at start, every 10s thereafter, and on close (via finalDump).
+function pollStorageState(ws: any, ctx: BrowserContext, storageHistory: any[]): void {
+  void (async () => { try { storageHistory.push({ t: Date.now(), state: await ctx.storageState() }); } catch {} })();
+  ws._instStoragePollId = setInterval(async () => {
+    try { storageHistory.push({ t: Date.now(), state: await ctx.storageState() }); } catch {}
+  }, 10_000);
+}
+
+// Sibling-file manifest: list every file currently in recordings/<label>/
+// other than the inst.json itself, with size + mtime. Lets the inst dump
+// reference its webm / DOM / screenshots / network.ndjson companions by path
+// instead of inlining them.
+function buildSiblingManifest(dir: string, instFn: string): any[] {
+  try {
+    return readdirSync(dir).filter(n => join(dir, n) !== instFn).map(n => {
+      try { const s = statSync(join(dir, n)); return { name: n, size: s.size, mtime: s.mtimeMs }; }
+      catch { return { name: n, error: 'stat_failed' }; }
+    });
+  } catch { return []; }
+}
+
+// Single source of truth for the dump shape. Called from the interval writer
+// and from finalDump at close.
+function buildDumpPayload(ws: any, opts: { closing?: boolean } = {}): any {
+  return {
+    label: ws.label ?? null,
+    started_at: ws._instStartedAt ?? null,
+    closed_at: opts.closing ? new Date().toISOString() : null,
+    host: ws._instHost ?? null,
+    persona: ws.personaConfig ?? null,
+    proxy: ws.proxyConfig ?? null,
+    versions: ws._versions ?? null,
+    accesses: ws._instAccum ? [...ws._instAccum.values()] : [],
+    requests: ws._instRequests ?? [],
+    console: ws._instConsole ?? [],
+    pageerrors: ws._instPageErrors ?? [],
+    service_workers: ws._instSwEvents ?? [],
+    cdp_targets: ws._instTargetEvents ?? [],
+    cdp_frames: ws._instFrameEvents ?? [],
+    cdp_metrics: ws._instMetricsHistory ?? [],
+    storage_history: ws._instStorageHistory ?? [],
+    sibling_files: ws._instDir && ws._instFile ? buildSiblingManifest(ws._instDir, ws._instFile) : [],
+  };
 }
