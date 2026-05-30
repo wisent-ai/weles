@@ -254,6 +254,7 @@ function buildDumpPayload(ws: any, opts: { closing?: boolean } = {}): any {
     cdp_network: ws._instCdpNetwork ?? [],
     system_info: ws._instSystemInfo ?? null,
     process_info: ws._instProcessInfo ?? null,
+    process_history: ws._instProcessHistory ?? [],
     cdp_tracing: ws._instTracing ?? [],
     cdp_tracing_error: ws._instTracingError ?? null,
     js_coverage: ws._instJsCoverageData ?? null,
