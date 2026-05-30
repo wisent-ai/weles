@@ -284,6 +284,12 @@ try {
   //    subscriptionType, ...}} shape reauth.mjs donates.
   console.log('[claude-login] auth login produced refreshable blob');
   process.stdout.write(`${newKC}\n`);
+  // Blob emitted. Exit now: the PTY child + browser session keep the event loop
+  // alive, so the process never exits, reauth's 'close' never fires, and its
+  // 720s killer rejects despite the blob already being in stdout.
+  try { proc.kill(); } catch {}
+  try { await s.close(); } catch {}
+  process.exit(0);
 } catch (e) {
   try { proc.kill(); } catch {}
   if (PRIOR_KC) { try { writeKC(PRIOR_KC); } catch {} }

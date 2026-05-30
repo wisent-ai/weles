@@ -182,9 +182,21 @@ function runLogin(displayName) {
     });
     let out = '';
     let err = '';
+    const harvestBlob = () => {
+      for (const line of out.split('\n').reverse()) {
+        const t = line.trim();
+        if (t.startsWith('{"claudeAiOauth"')) return t;
+      }
+      return null;
+    };
     const killer = setTimeout(() => {
+      // login.mjs can emit the blob to stdout and then not exit, so 'close'
+      // never fires. Harvest the blob before killing — it is already captured —
+      // and only reject if it genuinely never appeared.
+      const blob = harvestBlob();
       child.kill('SIGKILL');
-      reject(new Error('login.mjs exceeded 720s hard cap'));
+      if (blob) resolve(blob);
+      else reject(new Error('login.mjs exceeded 720s hard cap'));
     }, 720_000);
     child.stdout.on('data', (d) => { out += d.toString(); });
     child.stderr.on('data', (d) => { err += d.toString(); });
