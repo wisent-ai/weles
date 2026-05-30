@@ -147,6 +147,17 @@
         try { logAccess('RTCPeerConnection', 'addIceCandidate', (cand && cand.candidate ? cand.candidate.slice(0, 400) : (cand + '').slice(0, 400))); } catch {}
         return o.apply(this, arguments);
       });
+      hook(RTCPeerConnection.prototype, 'getStats', (o) => function() {
+        const p = o.apply(this, arguments);
+        return p.then(function(report) {
+          try {
+            const out = [];
+            report.forEach(function(s) { out.push(s); });
+            logAccess('RTCPeerConnection', 'getStats', JSON.stringify(out));
+          } catch (err) { logAccess('_fp_', 'rtc-getstats-error', String(err).slice(0, 120)); }
+          return report;
+        });
+      });
     }
   } catch (e) { logAccess('_fp_', 'rtc-init-error', String(e).slice(0, 120)); }
 
