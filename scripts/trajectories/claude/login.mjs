@@ -142,15 +142,23 @@ function spawnAuthLogin() {
 // macOS Keychain "Claude Code-credentials" — where the auth flow
 // writes the full refreshable claudeAiOauth blob.
 const KC_SVC = 'Claude Code-credentials';
+// Bound every `security` call. If the login keychain auto-locks mid-run,
+// `security` blocks on a GUI unlock prompt that never returns in the headless
+// launchd session — that indefinite block (observed: ~3 poll lines then a
+// SIGKILL at the 720s cap, no FAIL / pty-dump) is worse than a clean miss. On
+// the bound, execFileSync throws and we treat it as "not present yet" so the
+// poll loop's own maxSec governs.
+const KC_READ_MS = Number(process.env.CLAUDE_KC_READ_MS || 5000);
+const KC_WRITE_MS = 8000;
 function readKC() {
-  try { return execFileSync('security', ['find-generic-password', '-s', KC_SVC, '-w'], { encoding: 'utf8' }).trim(); }
+  try { return execFileSync('security', ['find-generic-password', '-s', KC_SVC, '-w'], { encoding: 'utf8', timeout: KC_READ_MS }).trim(); }
   catch { return null; }
 }
 function writeKC(payload) {
-  execFileSync('security', ['add-generic-password', '-U', '-s', KC_SVC, '-a', process.env.USER || '', '-w', payload]);
+  execFileSync('security', ['add-generic-password', '-U', '-s', KC_SVC, '-a', process.env.USER || '', '-w', payload], { timeout: KC_WRITE_MS });
 }
 function deleteKC() {
-  try { execFileSync('security', ['delete-generic-password', '-s', KC_SVC], { stdio: 'ignore' }); } catch {}
+  try { execFileSync('security', ['delete-generic-password', '-s', KC_SVC], { stdio: 'ignore', timeout: KC_WRITE_MS }); } catch {}
 }
 async function waitForKCChange(prev, maxSec) {
   for (let i = 0; i < maxSec * 2; i += 1) {
