@@ -17,6 +17,7 @@ import {
   ARKOSE_OBSERVER_SCRIPT,
   ARKOSE_OBSERVER_SCRIPT_STOCK,
   FETCH_REGISTER_INTERCEPT_SCRIPT,
+  MODERN_API_HOOKS_SCRIPT,
 } from './browser/init_scripts.js';
 import type { Persona } from './browser/persona.js';
 
@@ -192,6 +193,7 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
     await context.addInitScript(WEBAUTHN_REJECT_SCRIPT);
     await context.addInitScript(ARKOSE_OBSERVER_SCRIPT);
     await context.addInitScript(FETCH_REGISTER_INTERCEPT_SCRIPT);
+    await context.addInitScript(MODERN_API_HOOKS_SCRIPT);
     attachProtocolHandlerWatcher(context);
     const origClose = context.close.bind(context);
     (context as any).close = async () => { await origClose(); await pwBrowser?.close(); };
