@@ -8,33 +8,6 @@
 
 import { nativeType, nativeSelectAllAndDelete } from './mouse-native.js';
 import { cdpInput } from './mouse.js';
-import { randomBetween, waitMs } from '../utils/timing.js';
-
-/**
- * Single wheel-down + wheel-up cycle through CDP page.mouse.wheel. Real
- * wheel event (fires wheel + scroll listeners on the scroll container),
- * not Element.scrollIntoView programmatic dispatch.
- *
- * fp_matrix/diff over 54 keeper captures (2026-05-30): Input.wheel reads
- * appeared in 100% of ULTIMATE_PASS captures, 9% of GAUNTLET_STUCK; same
- * pattern for Input.scroll (100%/18%) and performance.interactionCount
- * (100%/9%). Sessions with zero wheel/scroll get their reCAPTCHA v3 score
- * elevated and trip the v2 "Security verification" modal regardless of
- * fingerprint correctness. One down-up cycle populates all three signals.
- *
- * Fail-quiet: page.mouse.wheel can throw on detached contexts; engagement
- * noise is non-fatal, caller never needs to handle.
- */
-export async function humanMicroScroll(page: any): Promise<void> {
-  try {
-    const dy = Math.floor(randomBetween(20, 80));
-    await page.mouse.wheel(0, dy);  // allow-raw-playwright: implementation file — defines the humanized atom
-    await waitMs(randomBetween(120, 280));
-    const back = Math.floor(dy * randomBetween(0.6, 0.9));
-    await page.mouse.wheel(0, -back);  // allow-raw-playwright: implementation file — defines the humanized atom
-    await waitMs(randomBetween(200, 500));
-  } catch { /* engagement noise is non-fatal */ }
-}
 
 // Per-char CDP typing with empirical inter-key jitter. Used when
 // WELES_INPUT=cdp (parallel-safe per-page path) — page.keyboard
