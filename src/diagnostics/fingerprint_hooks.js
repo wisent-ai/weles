@@ -165,5 +165,72 @@
     } catch (err) { logAccess('_fp_', 'webgl-getParameter-init-error', String(err).slice(0, 120)); }
   }
 
+  // (6) Modern JS APIs that bot detectors increasingly probe. Each hook logs
+  // the resolved values into the same accesses log; no truncation.
+  // WebGPU adapter info.
+  try {
+    if (navigator.gpu && navigator.gpu.requestAdapter) {
+      const _origReqAdapter = navigator.gpu.requestAdapter.bind(navigator.gpu);
+      navigator.gpu.requestAdapter = function() {
+        const p = _origReqAdapter.apply(this, arguments);
+        p.then(function(adapter) {
+          try {
+            const info = adapter && adapter.info ? adapter.info : null;
+            const features = adapter && adapter.features ? [...adapter.features] : [];
+            const limits = adapter && adapter.limits ? Object.fromEntries(Object.entries(adapter.limits).filter(function(e){return typeof e[1] === 'number';})) : null;
+            logAccess('WebGPU', 'requestAdapter', JSON.stringify({ info: info ? { vendor: info.vendor, architecture: info.architecture, device: info.device, description: info.description } : null, features, limits }));
+          } catch (err) { logAccess('_fp_', 'webgpu-resolve-error', String(err).slice(0, 120)); }
+        }, function(err) { logAccess('_fp_', 'webgpu-reject', String(err).slice(0, 120)); });
+        return p;
+      };
+    }
+  } catch (e) { logAccess('_fp_', 'webgpu-init-error', String(e).slice(0, 120)); }
+  // Performance.memory (Chrome legacy fingerprint).
+  try {
+    if (performance && performance.memory) {
+      const m = performance.memory;
+      logAccess('performance', 'memory', 'jsHeapSizeLimit=' + m.jsHeapSizeLimit + ' totalJSHeapSize=' + m.totalJSHeapSize + ' usedJSHeapSize=' + m.usedJSHeapSize);
+    }
+  } catch (e) { logAccess('_fp_', 'perfmemory-init-error', String(e).slice(0, 120)); }
+  // Battery API.
+  try {
+    if (navigator.getBattery) {
+      navigator.getBattery().then(function(b) {
+        try { logAccess('navigator', 'battery', 'charging=' + b.charging + ' level=' + b.level + ' chargingTime=' + b.chargingTime + ' dischargingTime=' + b.dischargingTime); } catch {}
+      }, function() {});
+    }
+  } catch (e) { logAccess('_fp_', 'battery-init-error', String(e).slice(0, 120)); }
+  // Network Information API.
+  try {
+    if (navigator.connection) {
+      const c = navigator.connection;
+      logAccess('navigator', 'connection', 'effectiveType=' + c.effectiveType + ' downlink=' + c.downlink + ' rtt=' + c.rtt + ' saveData=' + c.saveData + ' type=' + (c.type || 'unknown'));
+    }
+  } catch (e) { logAccess('_fp_', 'connection-init-error', String(e).slice(0, 120)); }
+  // SpeechSynthesis voices.
+  try {
+    if (typeof speechSynthesis !== 'undefined') {
+      const voices = speechSynthesis.getVoices();
+      logAccess('speechSynthesis', 'getVoices', 'count=' + voices.length + ' list=' + JSON.stringify(voices.map(function(v) { return { name: v.name, lang: v.lang, default: v.default, localService: v.localService, voiceURI: v.voiceURI }; })));
+    }
+  } catch (e) { logAccess('_fp_', 'voices-init-error', String(e).slice(0, 120)); }
+  // Notifications.
+  try { if (typeof Notification !== 'undefined') logAccess('Notification', 'permission', Notification.permission); } catch (e) { logAccess('_fp_', 'notif-init-error', String(e).slice(0, 120)); }
+  // Permissions queries — log every query and its result. Hooks the query
+  // method itself rather than emitting a snapshot, since pages probe specific
+  // permission names dynamically.
+  try {
+    if (navigator.permissions && navigator.permissions.query) {
+      const _origPermQuery = navigator.permissions.query.bind(navigator.permissions);
+      navigator.permissions.query = function(desc) {
+        const p = _origPermQuery.apply(this, arguments);
+        p.then(function(status) {
+          try { logAccess('Permissions', 'query', JSON.stringify({ desc, state: status.state })); } catch {}
+        }, function() {});
+        return p;
+      };
+    }
+  } catch (e) { logAccess('_fp_', 'permissions-init-error', String(e).slice(0, 120)); }
+
   logs.push({ t: performance.now(), o: '_fp_init_', p: 'done', vt: 'string', vs: 'ok', s: '' });
 })();
