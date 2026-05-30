@@ -103,6 +103,39 @@ export function attachCdpLifecycle(ws: any, _ctx: BrowserContext, targetEvents: 
       ws._instDomCountersPollId = setInterval(async () => {
         try { const c = await cdp.send('Memory.getDOMCounters'); ws._instDomCounters.push({ t: Date.now(), counters: c }); } catch {}
       }, 10_000);
+      // Page lifecycle markers + dialog/file-chooser/window-open + within-doc nav.
+      ws._instPageEvents = [];
+      try { await cdp.send('Page.setLifecycleEventsEnabled', { enabled: true }); } catch {}
+      cdp.on('Page.lifecycleEvent', (e: any) => { try { ws._instPageEvents.push({ t: Date.now(), phase: 'lifecycle', name: e?.name, frameId: e?.frameId, loaderId: e?.loaderId, timestamp: e?.timestamp }); } catch {} });
+      cdp.on('Page.javascriptDialogOpening', (e: any) => { try { ws._instPageEvents.push({ t: Date.now(), phase: 'dialog', type: e?.type, message: e?.message, url: e?.url, defaultPrompt: e?.defaultPrompt }); } catch {} });
+      cdp.on('Page.fileChooserOpened', (e: any) => { try { ws._instPageEvents.push({ t: Date.now(), phase: 'fileChooser', frameId: e?.frameId, mode: e?.mode, backendNodeId: e?.backendNodeId }); } catch {} });
+      cdp.on('Page.windowOpen', (e: any) => { try { ws._instPageEvents.push({ t: Date.now(), phase: 'windowOpen', url: e?.url, windowName: e?.windowName, windowFeatures: e?.windowFeatures, userGesture: e?.userGesture }); } catch {} });
+      cdp.on('Page.navigatedWithinDocument', (e: any) => { try { ws._instPageEvents.push({ t: Date.now(), phase: 'navWithinDoc', frameId: e?.frameId, url: e?.url }); } catch {} });
+      // Runtime — full console + uncaught exceptions at CDP level (richer than
+      // Playwright's page.on('console') wrap; preserves Runtime.RemoteObject
+      // for each arg + stack trace).
+      ws._instRuntime = [];
+      try { await cdp.send('Runtime.enable'); } catch {}
+      cdp.on('Runtime.consoleAPICalled', (e: any) => { try { ws._instRuntime.push({ t: Date.now(), phase: 'console', type: e?.type, args: e?.args, executionContextId: e?.executionContextId, stackTrace: e?.stackTrace }); } catch {} });
+      cdp.on('Runtime.exceptionThrown', (e: any) => { try { ws._instRuntime.push({ t: Date.now(), phase: 'exception', timestamp: e?.timestamp, exceptionDetails: e?.exceptionDetails }); } catch {} });
+      // Browser-level log entries (network, deprecation, intervention, security).
+      ws._instLog = [];
+      try { await cdp.send('Log.enable'); } catch {}
+      cdp.on('Log.entryAdded', (e: any) => { try { ws._instLog.push({ t: Date.now(), entry: e?.entry }); } catch {} });
+      // Security state — TLS state changes, mixed content, cert warnings.
+      ws._instSecurity = [];
+      try { await cdp.send('Security.enable'); } catch {}
+      cdp.on('Security.securityStateChanged', (e: any) => { try { ws._instSecurity.push({ t: Date.now(), phase: 'stateChanged', securityState: e?.securityState, summary: e?.summary, explanations: e?.explanations, insecureContentStatus: e?.insecureContentStatus }); } catch {} });
+      cdp.on('Security.visibleSecurityStateChanged', (e: any) => { try { ws._instSecurity.push({ t: Date.now(), phase: 'visibleStateChanged', visibleSecurityState: e?.visibleSecurityState }); } catch {} });
+      // Storage privacy-sandbox events.
+      ws._instStorageEvents = [];
+      cdp.on('Storage.indexedDBListUpdated', (e: any) => { try { ws._instStorageEvents.push({ t: Date.now(), phase: 'idbList', origin: e?.origin, storageKey: e?.storageKey }); } catch {} });
+      cdp.on('Storage.cacheStorageListUpdated', (e: any) => { try { ws._instStorageEvents.push({ t: Date.now(), phase: 'cacheList', origin: e?.origin }); } catch {} });
+      cdp.on('Storage.interestGroupAccessed', (e: any) => { try { ws._instStorageEvents.push({ t: Date.now(), phase: 'interestGroup', accessTime: e?.accessTime, type: e?.type, ownerOrigin: e?.ownerOrigin, name: e?.name }); } catch {} });
+      cdp.on('Storage.sharedStorageAccessed', (e: any) => { try { ws._instStorageEvents.push({ t: Date.now(), phase: 'sharedStorage', accessTime: e?.accessTime, type: e?.type, ownerOrigin: e?.ownerOrigin, params: e?.params }); } catch {} });
+      // Browser downloads.
+      cdp.on('Browser.downloadWillBegin', (e: any) => { try { ws._instPageEvents.push({ t: Date.now(), phase: 'downloadBegin', frameId: e?.frameId, guid: e?.guid, url: e?.url, suggestedFilename: e?.suggestedFilename }); } catch {} });
+      cdp.on('Browser.downloadProgress', (e: any) => { try { ws._instPageEvents.push({ t: Date.now(), phase: 'downloadProgress', guid: e?.guid, totalBytes: e?.totalBytes, receivedBytes: e?.receivedBytes, state: e?.state }); } catch {} });
     } catch (e: any) { try { targetEvents.push({ t: Date.now(), phase: 'attach_error', err: String(e?.message ?? e) }); } catch {} }
   })();
 }
@@ -127,13 +160,36 @@ export async function captureFinalCdpSnapshots(ws: any): Promise<void> {
 // One-shot OS-level snapshots at session start.
 export function captureHostSnapshots(ws: any): void {
   const probe = (cmd: string) => { try { return execSync(cmd, { encoding: 'utf8' }); } catch (e: any) { return 'ERR: ' + String(e?.message ?? e); } };
+  const isMac = process.platform === 'darwin';
   ws._instHostSnapshots = {
-    ps: probe(process.platform === 'darwin' ? 'ps -axo pid,ppid,user,command' : 'ps -axo pid,ppid,user,cmd'),
-    ifconfig: probe(process.platform === 'darwin' ? 'ifconfig' : 'ip -j addr'),
-    route: probe(process.platform === 'darwin' ? 'netstat -rn' : 'ip -j route'),
-    netstat: probe(process.platform === 'darwin' ? 'netstat -an -p tcp' : 'ss -tan'),
+    ps: probe(isMac ? 'ps -axo pid,ppid,user,command' : 'ps -axo pid,ppid,user,cmd'),
+    ifconfig: probe(isMac ? 'ifconfig' : 'ip -j addr'),
+    route: probe(isMac ? 'netstat -rn' : 'ip -j route'),
+    netstat: probe(isMac ? 'netstat -an -p tcp' : 'ss -tan'),
+    top: probe(isMac ? 'top -l 1 -n 20 -stats pid,command,cpu,mem,state' : 'top -bn1 -w 200 | head -30'),
+    vmstat: probe(isMac ? 'vm_stat' : 'free -m'),
+    uptime: probe('uptime'),
+    resolv: probe(isMac ? 'scutil --dns 2>/dev/null || cat /etc/resolv.conf' : 'cat /etc/resolv.conf'),
+    pmset: probe(isMac ? 'pmset -g batt; pmset -g therm' : 'cat /sys/class/power_supply/BAT0/uevent 2>/dev/null || echo no-battery'),
+    sysctl_net: probe(isMac ? 'sysctl -a 2>/dev/null | grep -E "net\\." | head -200' : 'sysctl -a 2>/dev/null | grep -E "net\\." | head -200'),
+    launchctl: isMac ? probe('launchctl list | head -100') : probe('systemctl list-units --type=service --state=running | head -100'),
     captured_at: new Date().toISOString(),
   };
+}
+
+// Playwright-side page-level event hooks. Complements the CDP Page.* events
+// (which fire on the browser side) by also capturing what Playwright's own
+// event surface sees — popup/download/dialog/filechooser.
+export function attachPagePlaywrightEvents(ws: any): void {
+  if (!ws.page) return;
+  ws._instPlaywrightEvents = [];
+  const push = (e: any) => { try { ws._instPlaywrightEvents.push(e); } catch {} };
+  try { ws.page.on?.('popup', (p: any) => push({ t: Date.now(), phase: 'popup', url: p?.url?.() ?? null })); } catch {}
+  try { ws.page.on?.('download', (d: any) => push({ t: Date.now(), phase: 'download', url: d?.url?.() ?? null, suggestedFilename: d?.suggestedFilename?.() ?? null })); } catch {}
+  try { ws.page.on?.('filechooser', (f: any) => push({ t: Date.now(), phase: 'filechooser', isMultiple: f?.isMultiple?.() ?? null })); } catch {}
+  try { ws.page.on?.('dialog', (d: any) => push({ t: Date.now(), phase: 'dialog', type: d?.type?.(), message: d?.message?.(), defaultValue: d?.defaultValue?.() })); } catch {}
+  try { ws.page.on?.('worker', (w: any) => push({ t: Date.now(), phase: 'worker', url: w?.url?.() ?? null })); } catch {}
+  try { ws.page.on?.('framenavigated', (f: any) => push({ t: Date.now(), phase: 'frameNavigated', url: f?.url?.() ?? null, name: f?.name?.() ?? null })); } catch {}
 }
 
 // Periodic ctx.storageState() snapshot. Cookies + localStorage + sessionStorage
