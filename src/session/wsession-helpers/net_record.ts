@@ -13,6 +13,7 @@ import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { platform as osPlatform, release as osRelease, arch as osArch, totalmem, cpus, hostname, version as osVersion } from 'node:os';
 import { attachServiceWorkers, attachCdpLifecycle, pollStorageState, buildSiblingManifest, attachStdoutCapture, sliceStdout } from './capture_extras.js';
+import { startPcap } from './pcap_sidecar.js';
 
 // One merged fingerprint artifact per run, written under recordings/<label>/ so
 // the worker uploader (src/worker/upload-artifacts.ts) picks it up alongside
@@ -62,6 +63,7 @@ export function startInstrumentation(ws: any, ctx: BrowserContext, label: string
   attachServiceWorkers(ctx, swEvents);
   attachCdpLifecycle(ws, ctx, targetEvents, frameEvents, metricsHistory);
   pollStorageState(ws, ctx, storageHistory);
+  startPcap(ws, label);
   setInterval(async () => {
     try {
       for (const f of ws.page.frames()) {
@@ -86,6 +88,7 @@ export function startInstrumentation(ws: any, ctx: BrowserContext, label: string
 // uploaded artifact contains everything up to the moment of close.
 export async function finalDump(ws: any): Promise<void> {
   if (!ws?._instFile) return;
+  try { const { stopPcap } = await import('./pcap_sidecar.js'); await stopPcap(ws); } catch {}
   try {
     if (!ws.page?.isClosed?.()) {
       for (const f of ws.page.frames?.() ?? []) {
@@ -237,6 +240,7 @@ function buildDumpPayload(ws: any, opts: { closing?: boolean } = {}): any {
     cdp_metrics: ws._instMetricsHistory ?? [],
     storage_history: ws._instStorageHistory ?? [],
     cdp_network: ws._instCdpNetwork ?? [],
+    pcap: ws._instPcap ?? null,
     stdout: sliceStdout(ws),
     sibling_files: ws._instDir && ws._instFile ? buildSiblingManifest(ws._instDir, ws._instFile) : [],
   };
