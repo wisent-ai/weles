@@ -12,7 +12,7 @@ import type { BrowserContext } from 'playwright';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { platform as osPlatform, release as osRelease, arch as osArch, totalmem, cpus, hostname, version as osVersion } from 'node:os';
-import { attachServiceWorkers, attachCdpLifecycle, pollStorageState, buildSiblingManifest, attachStdoutCapture, sliceStdout } from './capture_extras.js';
+import { attachServiceWorkers, attachCdpLifecycle, pollStorageState, buildSiblingManifest, attachStdoutCapture, sliceStdout, captureHostSnapshots } from './capture_extras.js';
 import { startPcap } from './pcap_sidecar.js';
 
 // One merged fingerprint artifact per run, written under recordings/<label>/ so
@@ -64,6 +64,7 @@ export function startInstrumentation(ws: any, ctx: BrowserContext, label: string
   attachCdpLifecycle(ws, ctx, targetEvents, frameEvents, metricsHistory);
   pollStorageState(ws, ctx, storageHistory);
   startPcap(ws, label);
+  captureHostSnapshots(ws);
   setInterval(async () => {
     try {
       for (const f of ws.page.frames()) {
@@ -88,9 +89,13 @@ export function startInstrumentation(ws: any, ctx: BrowserContext, label: string
 // uploaded artifact contains everything up to the moment of close.
 export async function finalDump(ws: any): Promise<void> {
   if (!ws?._instFile) return;
-  // End CDP Tracing first so tracingComplete fires and ws._instTracing is
-  // populated before we serialize the dump. Failure noted, not silenced.
-  if (ws._cdp) { try { await ws._cdp.send('Tracing.end'); } catch (e: any) { ws._instTracingEndError = String(e?.message ?? e); } }
+  // End CDP Tracing + coverage tracking first so per-domain takeXxx results
+  // are populated before serialization. Failures noted, not silenced.
+  if (ws._cdp) {
+    try { await ws._cdp.send('Tracing.end'); } catch (e: any) { ws._instTracingEndError = String(e?.message ?? e); }
+    try { ws._instJsCoverageData = await ws._cdp.send('Profiler.takePreciseCoverage'); await ws._cdp.send('Profiler.stopPreciseCoverage'); } catch (e: any) { ws._instJsCoverageEndError = String(e?.message ?? e); }
+    try { ws._instCssCoverageData = await ws._cdp.send('CSS.takeCoverageDelta'); await ws._cdp.send('CSS.stopRuleUsageTracking'); } catch (e: any) { ws._instCssCoverageEndError = String(e?.message ?? e); }
+  }
   try { const { stopPcap } = await import('./pcap_sidecar.js'); await stopPcap(ws); } catch {}
   try {
     if (!ws.page?.isClosed?.()) {
@@ -247,6 +252,13 @@ function buildDumpPayload(ws: any, opts: { closing?: boolean } = {}): any {
     process_info: ws._instProcessInfo ?? null,
     cdp_tracing: ws._instTracing ?? [],
     cdp_tracing_error: ws._instTracingError ?? null,
+    js_coverage: ws._instJsCoverageData ?? null,
+    js_coverage_error: ws._instJsCoverageError ?? null,
+    css_coverage: ws._instCssCoverageData ?? null,
+    css_coverage_error: ws._instCssCoverageError ?? null,
+    webaudio: ws._instWebAudio ?? [],
+    webaudio_error: ws._instWebAudioError ?? null,
+    host_snapshots: ws._instHostSnapshots ?? null,
     pcap: ws._instPcap ?? null,
     stdout: sliceStdout(ws),
     sibling_files: ws._instDir && ws._instFile ? buildSiblingManifest(ws._instDir, ws._instFile) : [],
