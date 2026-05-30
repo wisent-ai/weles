@@ -19,9 +19,12 @@ export function attachServiceWorkers(ctx: BrowserContext, swEvents: any[]): void
 }
 
 // CDP target lifecycle + frame attach/detach/navigate + periodic
-// Performance.getMetrics. Uses the WSession's existing CDP session (created in
-// the constructor for Network.dataReceived) — adds Target / Page subscriptions
-// + a getMetrics poll into the per-interval write.
+// Performance.getMetrics + raw wire-level Network.* extra info. Uses the
+// WSession's existing CDP session (created in the constructor for
+// Network.dataReceived). Network.*ExtraInfo events surface the actual
+// on-the-wire headers (including HTTP/2 :method/:path/:authority/:scheme
+// pseudo-headers and the cookie pair line as sent), connection-reuse info,
+// and final loaded byte counts that Playwright's ctx.on('response') hides.
 export function attachCdpLifecycle(ws: any, _ctx: BrowserContext, targetEvents: any[], frameEvents: any[], metricsHistory: any[]): void {
   void (async () => {
     try {
@@ -38,6 +41,20 @@ export function attachCdpLifecycle(ws: any, _ctx: BrowserContext, targetEvents: 
       cdp.on('Page.frameAttached', (e: any) => { try { frameEvents.push({ t: Date.now(), phase: 'attached', frameId: e?.frameId, parentFrameId: e?.parentFrameId }); } catch {} });
       cdp.on('Page.frameDetached', (e: any) => { try { frameEvents.push({ t: Date.now(), phase: 'detached', frameId: e?.frameId, reason: e?.reason }); } catch {} });
       cdp.on('Page.frameNavigated', (e: any) => { try { frameEvents.push({ t: Date.now(), phase: 'navigated', frameId: e?.frame?.id, url: e?.frame?.url, securityOrigin: e?.frame?.securityOrigin }); } catch {} });
+      // Raw wire-level CDP Network.* events. The WSession constructor already
+      // calls Network.enable for dataReceived; these handlers latch on the
+      // same session. cdp_network array lives on ws so buildDumpPayload reads
+      // it without an extra plumbing layer.
+      if (!ws._instCdpNetwork) ws._instCdpNetwork = [];
+      const nw = ws._instCdpNetwork;
+      cdp.on('Network.requestWillBeSentExtraInfo', (e: any) => { try { nw.push({ t: Date.now(), phase: 'reqExtra', requestId: e?.requestId, associatedCookies: e?.associatedCookies, headers: e?.headers, connectTiming: e?.connectTiming, clientSecurityState: e?.clientSecurityState, siteHasCookieInOtherPartition: e?.siteHasCookieInOtherPartition }); } catch {} });
+      cdp.on('Network.responseReceivedExtraInfo', (e: any) => { try { nw.push({ t: Date.now(), phase: 'resExtra', requestId: e?.requestId, blockedCookies: e?.blockedCookies, headers: e?.headers, resourceIPAddressSpace: e?.resourceIPAddressSpace, statusCode: e?.statusCode, headersText: e?.headersText, cookiePartitionKey: e?.cookiePartitionKey, cookiePartitionKeyOpaque: e?.cookiePartitionKeyOpaque }); } catch {} });
+      cdp.on('Network.loadingFinished', (e: any) => { try { nw.push({ t: Date.now(), phase: 'loadingFinished', requestId: e?.requestId, encodedDataLength: e?.encodedDataLength, shouldReportCorbBlocking: e?.shouldReportCorbBlocking }); } catch {} });
+      cdp.on('Network.loadingFailed', (e: any) => { try { nw.push({ t: Date.now(), phase: 'loadingFailed', requestId: e?.requestId, type: e?.type, errorText: e?.errorText, canceled: e?.canceled, blockedReason: e?.blockedReason, corsErrorStatus: e?.corsErrorStatus }); } catch {} });
+      cdp.on('Network.signedExchangeReceived', (e: any) => { try { nw.push({ t: Date.now(), phase: 'signedExchange', requestId: e?.requestId, info: e?.info }); } catch {} });
+      cdp.on('Network.requestServedFromCache', (e: any) => { try { nw.push({ t: Date.now(), phase: 'servedFromCache', requestId: e?.requestId }); } catch {} });
+      cdp.on('Network.webSocketHandshakeResponseReceived', (e: any) => { try { nw.push({ t: Date.now(), phase: 'wsHandshakeRes', requestId: e?.requestId, response: e?.response }); } catch {} });
+      cdp.on('Network.webSocketWillSendHandshakeRequest', (e: any) => { try { nw.push({ t: Date.now(), phase: 'wsHandshakeReq', requestId: e?.requestId, request: e?.request }); } catch {} });
       ws._instMetricsPollId = setInterval(async () => {
         try { const m = await cdp.send('Performance.getMetrics'); metricsHistory.push({ t: Date.now(), metrics: m?.metrics ?? [] }); } catch {}
       }, 10_000);

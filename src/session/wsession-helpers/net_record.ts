@@ -236,6 +236,7 @@ function buildDumpPayload(ws: any, opts: { closing?: boolean } = {}): any {
     cdp_frames: ws._instFrameEvents ?? [],
     cdp_metrics: ws._instMetricsHistory ?? [],
     storage_history: ws._instStorageHistory ?? [],
+    cdp_network: ws._instCdpNetwork ?? [],
     stdout: sliceStdout(ws),
     sibling_files: ws._instDir && ws._instFile ? buildSiblingManifest(ws._instDir, ws._instFile) : [],
   };
