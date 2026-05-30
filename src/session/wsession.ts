@@ -165,6 +165,7 @@ export class WSession {
     const cp = opts.chromiumPath ?? process.env.CHROMIUM_PATH ?? findCustomBrowser(bOpts.browser);
     if (bOpts.browser === 'chromium' && !cp) throw new Error('Custom Chromium not found. Set CHROMIUM_PATH or install to a known location.');
     if (cp && bOpts.browser === 'chromium') bOpts.chromiumPath = cp;
+    if (label) { process.env.SSLKEYLOGFILE = join(recordingsDir(label), 'sslkey.log'); } // SSLKEYLOGFILE = per-session key log for offline HTTP/2 frame decryption from a pcap (Chromium+Firefox both honor it). recordingsDir() also mkdirs the parent so Chrome can write at launch.
     const ctx = await AsyncNewBrowser(bOpts);
     const page = ctx.pages()[0] || await ctx.newPage();
     const cap = new Capture({ newPage: async () => page } as any, label ? recordingsDir(label) : undefined);
