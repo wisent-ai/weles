@@ -178,6 +178,11 @@ export function captureHostSnapshots(ws: any): void {
     pmset: probe(isMac ? 'pmset -g batt; pmset -g therm' : 'cat /sys/class/power_supply/BAT0/uevent 2>/dev/null || echo no-battery'),
     sysctl_net: probe(isMac ? 'sysctl -a 2>/dev/null | grep -E "net\\." | head -200' : 'sysctl -a 2>/dev/null | grep -E "net\\." | head -200'),
     launchctl: isMac ? probe('launchctl list | head -100') : probe('systemctl list-units --type=service --state=running | head -100'),
+    arp: probe(isMac ? 'arp -an' : 'ip neigh'),
+    dns_cache: isMac ? probe('dscacheutil -cachedump -entries 2>/dev/null || echo cache-disabled') : probe('resolvectl statistics 2>/dev/null || echo no-resolvectl'),
+    thermal: isMac ? probe('powermetrics -n 1 -i 100 --samplers smc 2>/dev/null | head -50 || echo needs-sudo') : probe('sensors 2>/dev/null || echo no-sensors'),
+    lsof_node: probe(`lsof -p ${process.pid} 2>/dev/null | head -100 || echo lsof-failed`),
+    sockstat: isMac ? probe('netstat -an -p tcp -p udp 2>/dev/null | head -80') : probe('ss -tani 2>/dev/null | head -80'),
     captured_at: new Date().toISOString(),
   };
 }
