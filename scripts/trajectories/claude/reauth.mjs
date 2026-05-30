@@ -235,15 +235,28 @@ async function main() {
   const row = await pickLruRow();
   console.log(`[reauth] burnt — reauthing LRU row ${row.display_name} (updated ${row.updated_at})`);
   let blob;
-  try {
-    blob = await runLogin(row.display_name);
-  } catch (e) {
-    // ALWAYS mark the row attempted (with the error) so a row that
-    // permanently can't authenticate rotates to the back of the LRU
-    // — otherwise the picker re-selects the same broken row forever
-    // and the donation pipeline stalls across the whole fleet.
-    await markRowAttempted(row.id, e?.message || String(e));
-    throw e;
+  // Google's "browser may not be secure" block is intermittent per browser
+  // launch (same IP, fingerprint rolls each launch — a clearing launch mints
+  // the blob, a blocked one fails fast with BROWSER_NOT_SECURE). Retry with a
+  // fresh login.mjs launch on that specific signal so one tick is very likely
+  // to catch a clearing launch.
+  const maxTries = Number(process.env.CLAUDE_REAUTH_LOGIN_TRIES || 4);
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      blob = await runLogin(row.display_name);
+      break;
+    } catch (e) {
+      const msg = e?.message || String(e);
+      const blocked = /BROWSER_NOT_SECURE/.test(msg);
+      console.log(`[reauth] login attempt ${attempt}/${maxTries} failed${blocked ? ' (browser-not-secure)' : ''}`);
+      if (blocked && attempt < maxTries) continue;
+      // ALWAYS mark the row attempted (with the error) so a row that
+      // permanently can't authenticate rotates to the back of the LRU
+      // — otherwise the picker re-selects the same broken row forever
+      // and the donation pipeline stalls across the whole fleet.
+      await markRowAttempted(row.id, msg);
+      throw e;
+    }
   }
   console.log(`[reauth] got OAuth blob len=${blob.length} for ${row.display_name}`);
 
