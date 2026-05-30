@@ -88,6 +88,9 @@ export function startInstrumentation(ws: any, ctx: BrowserContext, label: string
 // uploaded artifact contains everything up to the moment of close.
 export async function finalDump(ws: any): Promise<void> {
   if (!ws?._instFile) return;
+  // End CDP Tracing first so tracingComplete fires and ws._instTracing is
+  // populated before we serialize the dump. Failure noted, not silenced.
+  if (ws._cdp) { try { await ws._cdp.send('Tracing.end'); } catch (e: any) { ws._instTracingEndError = String(e?.message ?? e); } }
   try { const { stopPcap } = await import('./pcap_sidecar.js'); await stopPcap(ws); } catch {}
   try {
     if (!ws.page?.isClosed?.()) {
@@ -240,6 +243,10 @@ function buildDumpPayload(ws: any, opts: { closing?: boolean } = {}): any {
     cdp_metrics: ws._instMetricsHistory ?? [],
     storage_history: ws._instStorageHistory ?? [],
     cdp_network: ws._instCdpNetwork ?? [],
+    system_info: ws._instSystemInfo ?? null,
+    process_info: ws._instProcessInfo ?? null,
+    cdp_tracing: ws._instTracing ?? [],
+    cdp_tracing_error: ws._instTracingError ?? null,
     pcap: ws._instPcap ?? null,
     stdout: sliceStdout(ws),
     sibling_files: ws._instDir && ws._instFile ? buildSiblingManifest(ws._instDir, ws._instFile) : [],

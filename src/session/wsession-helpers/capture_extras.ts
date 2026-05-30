@@ -58,6 +58,20 @@ export function attachCdpLifecycle(ws: any, _ctx: BrowserContext, targetEvents: 
       ws._instMetricsPollId = setInterval(async () => {
         try { const m = await cdp.send('Performance.getMetrics'); metricsHistory.push({ t: Date.now(), metrics: m?.metrics ?? [] }); } catch {}
       }, 10_000);
+      // One-shot system info — full GPU adapter list with vendor, device,
+      // driver version, GL renderer, supported video decoders, command-line
+      // flags Chrome actually launched with. Captured once at session start.
+      try { ws._instSystemInfo = await cdp.send('SystemInfo.getInfo'); } catch (e: any) { ws._instSystemInfo = { error: String(e?.message ?? e) }; }
+      try { ws._instProcessInfo = await cdp.send('SystemInfo.getProcessInfo'); } catch (e: any) { ws._instProcessInfo = { error: String(e?.message ?? e) }; }
+      // CDP Tracing — every browser internal event (V8 GC + JIT, layout,
+      // paint, GPU, blink, devtools timeline) at microsecond resolution.
+      // dataCollected events stream individually; we accumulate then write at
+      // tracingComplete time. The category set covers the most useful slices
+      // without enabling Tracing's verbose log-class which produces hundreds
+      // of MB. Fail-quiet if the binary doesn't support Tracing.
+      ws._instTracing = [];
+      cdp.on('Tracing.dataCollected', (e: any) => { try { for (const ev of (e?.value ?? [])) ws._instTracing.push(ev); } catch {} });
+      try { await cdp.send('Tracing.start', { categories: 'v8,blink,devtools.timeline,disabled-by-default-devtools.timeline,latencyInfo,toplevel', options: 'sampling-frequency=10000' }); } catch (e: any) { ws._instTracingError = String(e?.message ?? e); }
     } catch (e: any) { try { targetEvents.push({ t: Date.now(), phase: 'attach_error', err: String(e?.message ?? e) }); } catch {} }
   })();
 }
