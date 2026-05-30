@@ -216,6 +216,56 @@
   } catch (e) { logAccess('_fp_', 'voices-init-error', String(e).slice(0, 120)); }
   // Notifications.
   try { if (typeof Notification !== 'undefined') logAccess('Notification', 'permission', Notification.permission); } catch (e) { logAccess('_fp_', 'notif-init-error', String(e).slice(0, 120)); }
+  // WebHID / WebUSB / WebSerial / Web Bluetooth — hook getDevices to log any
+  // enumeration the page does. Most pages won't call these without a user
+  // gesture, but the hook ensures we capture every attempt.
+  function _hookDeviceEnum(host, name, methodName) {
+    try {
+      if (!host || !host[methodName]) return;
+      const _orig = host[methodName].bind(host);
+      host[methodName] = function() {
+        const p = _orig.apply(this, arguments);
+        if (p && typeof p.then === 'function') p.then(function(result) {
+          try {
+            const arr = Array.isArray(result) ? result : [result];
+            logAccess(name, methodName, 'count=' + arr.length + ' list=' + JSON.stringify(arr.map(function(d) {
+              return { name: d?.productName, vendorId: d?.vendorId, productId: d?.productId, serial: d?.serialNumber, opened: d?.opened };
+            })));
+          } catch (err) { logAccess('_fp_', name + '-resolve-error', String(err).slice(0, 120)); }
+        }, function() {});
+        return p;
+      };
+    } catch (e) { logAccess('_fp_', name + '-hook-error', String(e).slice(0, 120)); }
+  }
+  try { _hookDeviceEnum(navigator.hid, 'WebHID', 'getDevices'); } catch {}
+  try { _hookDeviceEnum(navigator.usb, 'WebUSB', 'getDevices'); } catch {}
+  try { _hookDeviceEnum(navigator.serial, 'WebSerial', 'getPorts'); } catch {}
+  try { _hookDeviceEnum(navigator.bluetooth, 'WebBluetooth', 'getDevices'); } catch {}
+  // Idle Detection — constructor presence + permission state.
+  try {
+    if (typeof IdleDetector !== 'undefined') {
+      logAccess('IdleDetector', 'available', 'true');
+      if (IdleDetector.requestPermission) {
+        const _origIdle = IdleDetector.requestPermission.bind(IdleDetector);
+        IdleDetector.requestPermission = function() { const p = _origIdle.apply(this, arguments); p.then(function(s) { try { logAccess('IdleDetector', 'requestPermission', String(s)); } catch {} }, function() {}); return p; };
+      }
+    }
+  } catch (e) { logAccess('_fp_', 'idle-init-error', String(e).slice(0, 120)); }
+  // MediaDevices.enumerateDevices — already logged once in property_trap's
+  // navigator hooks; re-hook here to capture FULL device list including
+  // deviceId/groupId/kind/label per device.
+  try {
+    if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
+      const _origMD = navigator.mediaDevices.enumerateDevices.bind(navigator.mediaDevices);
+      navigator.mediaDevices.enumerateDevices = function() {
+        const p = _origMD.apply(this, arguments);
+        p.then(function(list) {
+          try { logAccess('MediaDevices', 'enumerateDevices', JSON.stringify(list.map(function(d) { return { kind: d.kind, label: d.label, deviceId: d.deviceId, groupId: d.groupId }; }))); } catch {}
+        }, function() {});
+        return p;
+      };
+    }
+  } catch (e) { logAccess('_fp_', 'md-init-error', String(e).slice(0, 120)); }
   // Permissions queries — log every query and its result. Hooks the query
   // method itself rather than emitting a snapshot, since pages probe specific
   // permission names dynamically.
