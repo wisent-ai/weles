@@ -12,7 +12,7 @@ import type { BrowserContext } from 'playwright';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { platform as osPlatform, release as osRelease, arch as osArch, totalmem, cpus, hostname, version as osVersion } from 'node:os';
-import { attachServiceWorkers, attachCdpLifecycle, pollStorageState, buildSiblingManifest, attachStdoutCapture, sliceStdout, captureHostSnapshots, captureFinalCdpSnapshots } from './capture_extras.js';
+import { attachServiceWorkers, attachCdpLifecycle, pollStorageState, buildSiblingManifest, attachStdoutCapture, sliceStdout, captureHostSnapshots, captureFinalCdpSnapshots, attachPagePlaywrightEvents } from './capture_extras.js';
 import { startPcap } from './pcap_sidecar.js';
 
 // One merged fingerprint artifact per run, written under recordings/<label>/ so
@@ -65,6 +65,7 @@ export function startInstrumentation(ws: any, ctx: BrowserContext, label: string
   pollStorageState(ws, ctx, storageHistory);
   startPcap(ws, label);
   captureHostSnapshots(ws);
+  attachPagePlaywrightEvents(ws);
   setInterval(async () => {
     try {
       for (const f of ws.page.frames()) {
@@ -270,6 +271,12 @@ function buildDumpPayload(ws: any, opts: { closing?: boolean } = {}): any {
     dom_snapshot_error: ws._instDomSnapshotError ?? null,
     heap_snapshot: ws._instHeapSnapshot ?? null,
     heap_snapshot_error: ws._instHeapSnapshotError ?? null,
+    page_events: ws._instPageEvents ?? [],
+    runtime: ws._instRuntime ?? [],
+    log_entries: ws._instLog ?? [],
+    security: ws._instSecurity ?? [],
+    storage_events: ws._instStorageEvents ?? [],
+    playwright_events: ws._instPlaywrightEvents ?? [],
     host_snapshots: ws._instHostSnapshots ?? null,
     pcap: ws._instPcap ?? null,
     stdout: sliceStdout(ws),
