@@ -7,6 +7,7 @@ import type { BrowserContext } from 'playwright';
 import { readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { execSync } from 'node:child_process';
+import { CDP_EVENTS } from './cdp_events.generated.js';
 
 // Service worker registration events. Fires when the page registers / activates
 // a SW; relevant because many bot-checks (PerimeterX, Akamai, hCaptcha) ship
@@ -141,6 +142,27 @@ export function attachCdpLifecycle(ws: any, _ctx: BrowserContext, targetEvents: 
       // Browser downloads.
       cdp.on('Browser.downloadWillBegin', (e: any) => { try { ws._instPageEvents.push({ t: Date.now(), phase: 'downloadBegin', frameId: e?.frameId, guid: e?.guid, url: e?.url, suggestedFilename: e?.suggestedFilename }); } catch {} });
       cdp.on('Browser.downloadProgress', (e: any) => { try { ws._instPageEvents.push({ t: Date.now(), phase: 'downloadProgress', guid: e?.guid, totalBytes: e?.totalBytes, receivedBytes: e?.receivedBytes, state: e?.state }); } catch {} });
+      // CDP firehose — subscribe to every documented event from
+      // protocol.d.ts via the generated list. Events from already-enabled
+      // domains land in ws._instCdpFirehose; events from un-enabled domains
+      // simply never fire. This is the bounded-set capture replacing the
+      // one-channel-at-a-time wiring.
+      ws._instCdpFirehose = [];
+      // Attempt to enable every domain that has an .enable method so events
+      // start flowing. Many fail silently (no enable method or already enabled);
+      // that's expected and not an error.
+      const enableDomains = new Set(CDP_EVENTS.map(e => e[0]));
+      for (const d of enableDomains) {
+        try { await cdp.send(`${d}.enable` as any); } catch {}
+      }
+      for (const [domain, event] of CDP_EVENTS) {
+        const key = `${domain}.${event}`;
+        try {
+          cdp.on(key, (payload: any) => {
+            try { ws._instCdpFirehose.push({ t: Date.now(), domain, event, payload }); } catch {}
+          });
+        } catch {}
+      }
     } catch (e: any) { try { targetEvents.push({ t: Date.now(), phase: 'attach_error', err: String(e?.message ?? e) }); } catch {} }
   })();
 }

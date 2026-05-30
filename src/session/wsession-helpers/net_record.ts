@@ -278,6 +278,7 @@ function buildDumpPayload(ws: any, opts: { closing?: boolean } = {}): any {
     security: ws._instSecurity ?? [],
     storage_events: ws._instStorageEvents ?? [],
     playwright_events: ws._instPlaywrightEvents ?? [],
+    cdp_firehose: ws._instCdpFirehose ?? [],
     host_snapshots: ws._instHostSnapshots ?? null,
     pcap: ws._instPcap ?? null,
     stdout: sliceStdout(ws),
