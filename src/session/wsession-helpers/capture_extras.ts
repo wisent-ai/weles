@@ -83,8 +83,45 @@ export function attachCdpLifecycle(ws: any, _ctx: BrowserContext, targetEvents: 
       cdp.on('WebAudio.contextCreated', (e: any) => { try { ws._instWebAudio.push({ t: Date.now(), phase: 'contextCreated', context: e?.context }); } catch {} });
       cdp.on('WebAudio.contextDestroyed', (e: any) => { try { ws._instWebAudio.push({ t: Date.now(), phase: 'contextDestroyed', contextId: e?.contextId }); } catch {} });
       cdp.on('WebAudio.contextChanged', (e: any) => { try { ws._instWebAudio.push({ t: Date.now(), phase: 'contextChanged', context: e?.context }); } catch {} });
+      // Animation.* — every CSS / Web Animations API animation start / cancel / update.
+      ws._instAnimations = [];
+      try { await cdp.send('Animation.enable'); } catch (e: any) { ws._instAnimationsError = String(e?.message ?? e); }
+      cdp.on('Animation.animationCreated', (e: any) => { try { ws._instAnimations.push({ t: Date.now(), phase: 'created', id: e?.id }); } catch {} });
+      cdp.on('Animation.animationStarted', (e: any) => { try { ws._instAnimations.push({ t: Date.now(), phase: 'started', animation: e?.animation }); } catch {} });
+      cdp.on('Animation.animationCanceled', (e: any) => { try { ws._instAnimations.push({ t: Date.now(), phase: 'canceled', id: e?.id }); } catch {} });
+      cdp.on('Animation.animationUpdated', (e: any) => { try { ws._instAnimations.push({ t: Date.now(), phase: 'updated', animation: e?.animation }); } catch {} });
+      // IndexedDB.* — DB created/updated/version-changed events. Many bot
+      // detectors store fingerprint state in IndexedDB to survive cookie wipes.
+      ws._instIndexedDb = [];
+      try { await cdp.send('IndexedDB.enable'); } catch (e: any) { ws._instIndexedDbError = String(e?.message ?? e); }
+      cdp.on('IndexedDB.databaseCreated', (e: any) => { try { ws._instIndexedDb.push({ t: Date.now(), phase: 'created', name: e?.databaseName, origin: e?.origin }); } catch {} });
+      cdp.on('IndexedDB.versionChange', (e: any) => { try { ws._instIndexedDb.push({ t: Date.now(), phase: 'versionChange', name: e?.databaseName }); } catch {} });
+      // Memory.getDOMCounters polled every 10s — Documents, Nodes, JSEventListeners
+      // counts on the renderer process. Cheap, useful for memory-leak detection
+      // and for spotting bot-detection scripts that spawn many short-lived nodes.
+      ws._instDomCounters = [];
+      ws._instDomCountersPollId = setInterval(async () => {
+        try { const c = await cdp.send('Memory.getDOMCounters'); ws._instDomCounters.push({ t: Date.now(), counters: c }); } catch {}
+      }, 10_000);
     } catch (e: any) { try { targetEvents.push({ t: Date.now(), phase: 'attach_error', err: String(e?.message ?? e) }); } catch {} }
   })();
+}
+
+// Final-state CDP captures invoked from finalDump: DOMSnapshot of every frame
+// (full DOM tree + computed styles + layout boxes), one HeapProfiler snapshot.
+// Both produce large payloads — done once at close, not periodically.
+export async function captureFinalCdpSnapshots(ws: any): Promise<void> {
+  const cdp = ws?._cdp;
+  if (!cdp) return;
+  try { ws._instDomSnapshot = await cdp.send('DOMSnapshot.captureSnapshot', { computedStyles: [], includeDOMRects: true, includePaintOrder: true, includeBlendedBackgroundColors: true, includeTextColorOpacities: true }); } catch (e: any) { ws._instDomSnapshotError = String(e?.message ?? e); }
+  try {
+    const chunks: string[] = [];
+    const handler = (e: any) => { chunks.push(e?.chunk ?? ''); };
+    cdp.on('HeapProfiler.addHeapSnapshotChunk', handler);
+    await cdp.send('HeapProfiler.takeHeapSnapshot', { reportProgress: false, captureNumericValue: true });
+    cdp.off?.('HeapProfiler.addHeapSnapshotChunk', handler);
+    ws._instHeapSnapshot = chunks.join('');
+  } catch (e: any) { ws._instHeapSnapshotError = String(e?.message ?? e); }
 }
 
 // One-shot OS-level snapshots at session start.
