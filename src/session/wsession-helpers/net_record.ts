@@ -12,7 +12,7 @@ import type { BrowserContext } from 'playwright';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { platform as osPlatform, release as osRelease, arch as osArch, totalmem, cpus, hostname, version as osVersion } from 'node:os';
-import { attachServiceWorkers, attachCdpLifecycle, pollStorageState, buildSiblingManifest, attachStdoutCapture, sliceStdout, captureHostSnapshots } from './capture_extras.js';
+import { attachServiceWorkers, attachCdpLifecycle, pollStorageState, buildSiblingManifest, attachStdoutCapture, sliceStdout, captureHostSnapshots, captureFinalCdpSnapshots } from './capture_extras.js';
 import { startPcap } from './pcap_sidecar.js';
 
 // One merged fingerprint artifact per run, written under recordings/<label>/ so
@@ -96,6 +96,9 @@ export async function finalDump(ws: any): Promise<void> {
     try { ws._instJsCoverageData = await ws._cdp.send('Profiler.takePreciseCoverage'); await ws._cdp.send('Profiler.stopPreciseCoverage'); } catch (e: any) { ws._instJsCoverageEndError = String(e?.message ?? e); }
     try { ws._instCssCoverageData = await ws._cdp.send('CSS.takeCoverageDelta'); await ws._cdp.send('CSS.stopRuleUsageTracking'); } catch (e: any) { ws._instCssCoverageEndError = String(e?.message ?? e); }
   }
+  // One-shot DOMSnapshot + HeapProfiler at close — captured before pcap/page
+  // teardown so the snapshots reflect the actual final state of the session.
+  try { await captureFinalCdpSnapshots(ws); } catch {}
   try { const { stopPcap } = await import('./pcap_sidecar.js'); await stopPcap(ws); } catch {}
   try {
     if (!ws.page?.isClosed?.()) {
@@ -258,6 +261,15 @@ function buildDumpPayload(ws: any, opts: { closing?: boolean } = {}): any {
     css_coverage_error: ws._instCssCoverageError ?? null,
     webaudio: ws._instWebAudio ?? [],
     webaudio_error: ws._instWebAudioError ?? null,
+    animations: ws._instAnimations ?? [],
+    animations_error: ws._instAnimationsError ?? null,
+    indexed_db: ws._instIndexedDb ?? [],
+    indexed_db_error: ws._instIndexedDbError ?? null,
+    dom_counters: ws._instDomCounters ?? [],
+    dom_snapshot: ws._instDomSnapshot ?? null,
+    dom_snapshot_error: ws._instDomSnapshotError ?? null,
+    heap_snapshot: ws._instHeapSnapshot ?? null,
+    heap_snapshot_error: ws._instHeapSnapshotError ?? null,
     host_snapshots: ws._instHostSnapshots ?? null,
     pcap: ws._instPcap ?? null,
     stdout: sliceStdout(ws),
