@@ -31,23 +31,41 @@
     return ('00000000' + h.toString(16)).slice(-8);
   }
 
-  // (1) Canvas content hash. Stacks on top of property_trap's canvas hooks;
-  // makeNative chases the chain so toString still reports the true native.
+  // (1) Canvas content — FULL raw data, no truncation. toDataURL is already a
+  // base64 text string; getImageData yields a Uint8ClampedArray that we encode
+  // to base64. Both end up in the merged inst dump's accesses[] for
+  // bit-perfect reconstruction of what the page rendered to the canvas.
+  function _u8ToBase64(u8) {
+    let s = '';
+    for (let i = 0; i < u8.length; i++) s += String.fromCharCode(u8[i]);
+    try { return btoa(s); } catch (e) { return ''; }
+  }
   try {
     hook(HTMLCanvasElement.prototype, 'toDataURL', (o) => function() {
       const v = o.apply(this, arguments);
-      logAccess('Canvas', 'toDataURL', 'len=' + (v ? v.length : 0) + ' h=' + (v ? _fnv32(v) : '0') + ' head=' + (v ? v.slice(0, 80) : ''));
+      logAccess('Canvas', 'toDataURL', 'len=' + (v ? v.length : 0) + ' h=' + (v ? _fnv32(v) : '0') + ' data=' + (v || ''));
       return v;
     });
     hook(CanvasRenderingContext2D.prototype, 'getImageData', (o) => function() {
       const v = o.apply(this, arguments);
       const d = v && v.data;
-      logAccess('Canvas', 'getImageData', 'len=' + (d ? d.length : 0) + ' h=' + (d ? _fnv32u8(d) : '0'));
+      const b64 = d ? _u8ToBase64(d) : '';
+      logAccess('Canvas', 'getImageData', 'len=' + (d ? d.length : 0) + ' h=' + (d ? _fnv32u8(d) : '0') + ' w=' + (v ? v.width : 0) + ' h=' + (v ? v.height : 0) + ' data_b64=' + b64);
       return v;
     });
   } catch (e) { logAccess('_fp_', 'canvas-init-error', String(e).slice(0, 120)); }
 
-  // (2) Audio render output hash.
+  // (2) Audio — FULL raw render output. OfflineAudioContext.startRendering's
+  // resulting AudioBuffer holds Float32Array channels; we encode each channel's
+  // bytes to base64 so the inst dump captures the exact sample stream the
+  // audio-fingerprint code path produced (per-OS+browser deterministic). Same
+  // for getChannelData reads.
+  function _f32ToBase64(f32) {
+    try {
+      const u8 = new Uint8Array(f32.buffer, f32.byteOffset, f32.byteLength);
+      return _u8ToBase64(u8);
+    } catch (e) { return ''; }
+  }
   try {
     if (typeof OfflineAudioContext !== 'undefined') {
       hook(OfflineAudioContext.prototype, 'startRendering', (o) => function() {
@@ -56,13 +74,13 @@
         logAccess('OfflineAudioContext', 'startRendering', 'len=' + (me.length || 0) + ' sr=' + (me.sampleRate || 0));
         return p.then(function(buf) {
           try {
-            const ch = buf.getChannelData(0);
-            const N = Math.min(ch.length, 1000);
-            let s = 0;
-            for (let i = 0; i < N; i++) s += Math.abs(ch[i]);
-            const first = [];
-            for (let i = 0; i < Math.min(ch.length, 200); i++) first.push(ch[i].toFixed(8));
-            logAccess('OfflineAudioContext', 'renderedSum', 'samples=' + ch.length + ' sum1k=' + s.toFixed(6) + ' h=' + _fnv32(first.join(',')));
+            const numCh = buf.numberOfChannels || 0;
+            for (let c = 0; c < numCh; c++) {
+              const ch = buf.getChannelData(c);
+              let s = 0;
+              for (let i = 0; i < Math.min(ch.length, 1000); i++) s += Math.abs(ch[i]);
+              logAccess('OfflineAudioContext', 'renderedChannel:' + c, 'samples=' + ch.length + ' sr=' + buf.sampleRate + ' sum1k=' + s.toFixed(6) + ' h=' + _fnv32u8(new Uint8Array(ch.buffer, ch.byteOffset, ch.byteLength)) + ' data_b64=' + _f32ToBase64(ch));
+            }
           } catch (err) { logAccess('_fp_', 'render-promise-error', String(err).slice(0, 120)); }
           return buf;
         });
@@ -72,9 +90,7 @@
       hook(AudioBuffer.prototype, 'getChannelData', (o) => function(c) {
         const r = o.apply(this, arguments);
         try {
-          const first = [];
-          for (let i = 0; i < Math.min(r.length, 10); i++) first.push(r[i].toFixed(8));
-          logAccess('AudioBuffer', 'getChannelData:' + c, 'len=' + r.length + ' first10=' + first.join(','));
+          logAccess('AudioBuffer', 'getChannelData:' + c, 'len=' + r.length + ' h=' + _fnv32u8(new Uint8Array(r.buffer, r.byteOffset, r.byteLength)) + ' data_b64=' + _f32ToBase64(r));
         } catch (err) { logAccess('_fp_', 'getChannelData-error', String(err).slice(0, 120)); }
         return r;
       });
