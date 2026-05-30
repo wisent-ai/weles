@@ -47,6 +47,11 @@ const KIND_BY_EXT: Record<string, 'screenshots' | 'videos' | 'dom' | 'logs' | nu
   '.html': 'dom',
   '.ndjson': 'logs',
   '.log': 'logs',
+  // The merged fingerprint dump written by net_record.ts + finalize.ts —
+  // accesses, requests, console, pageerrors, persona, proxy, versions in
+  // one file. Uploaded as a 'logs' artifact so it appears in the existing
+  // /weles inspection UI's logs column without a schema change.
+  '.json': 'logs',
 }
 
 const CAPS: Record<string, number> = {
@@ -88,6 +93,8 @@ function contentTypeFor(ext: string): string {
   if (ext === '.webm') return 'video/webm'
   if (ext === '.mp4') return 'video/mp4'
   if (ext === '.html') return 'text/html'
+  if (ext === '.json') return 'application/json'
+  if (ext === '.ndjson') return 'application/x-ndjson'
   return 'application/octet-stream'
 }
 
@@ -95,9 +102,13 @@ export async function uploadArtifacts(
   action: string,
   logId: string,
   runStart: Date,
-  opts: { force?: boolean } = {},
+  _opts: { force?: boolean } = {},
 ): Promise<ArtifactUrls | null> {
-  if (!opts.force) return null
+  // Was gated behind opts.force=true — only failures + health flips uploaded,
+  // happy paths skipped. The standing "ALL FINGERPRINTS, no truncation" rule
+  // means every run's full inst dump needs to be in Supabase Storage so the
+  // /weles inspection UI can render it, not just the failure paths. The opts
+  // arg is retained for callsite compatibility but no longer gates upload.
   if (!SUPABASE_URL || !SUPABASE_KEY) return null
 
   const dir = join(RECORDINGS_ROOT, action)

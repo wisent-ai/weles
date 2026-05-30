@@ -12,20 +12,38 @@ import type { BrowserContext } from 'playwright';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
+// One merged fingerprint artifact per run, written under recordings/<label>/ so
+// the worker uploader (src/worker/upload-artifacts.ts) picks it up alongside
+// webm + DOM snapshots and pushes everything to Supabase Storage in one batch.
+// The dump shape ({accesses, requests, console, pageerrors, persona, proxy,
+// versions, label, started_at}) covers every page-side + network channel
+// captured by WSession; the screenshots/DOM/webm artifacts in the same dir are
+// the visual companions to it. The capture surface deliberately has NO domain
+// filter, NO body truncation, and runs on every WSession (keepers and
+// trajectories) without exception per the 2026-05-24 standing instruction.
 export function startInstrumentation(ws: any, ctx: BrowserContext, label: string | undefined): any[] {
-  const dir = join(process.cwd(), '.work', 'inst');
+  const dir = join(process.cwd(), 'recordings', label || 'session');
   mkdirSync(dir, { recursive: true });
   const ts = new Date().toISOString().replace(/[:.]/g, '-');
-  const fn = join(dir, `${label || 'session'}_${ts}.json`);
+  const fn = join(dir, `${label || 'session'}_${ts}.inst.json`);
   const accum = new Map();
   const reqs: any[] = [];
+  const consoleMsgs: any[] = [];
+  const pageErrors: any[] = [];
+  const startedAt = new Date().toISOString();
   ws._instRequests = reqs;
+  ws._instConsole = consoleMsgs;
+  ws._instPageErrors = pageErrors;
+  ws._instAccum = accum;
+  ws._instFile = fn;
+  ws._instStartedAt = startedAt;
   attachCompleteNetRecord(ctx, reqs);
+  attachPageDiagnostics(ws, consoleMsgs, pageErrors);
   setInterval(async () => {
     try {
       for (const f of ws.page.frames()) {
         try {
-          const j: string = await f.evaluate('(window.__inst_flush)?window.__inst_flush():"[]"');  // allow-raw-playwright: instrumentation flush
+          const j: string = await f.evaluate('(()=>{var a=globalThis[Symbol.for("weles.inst")];return a?a.flush():"[]"})()');  // allow-raw-playwright: instrumentation flush
           const log = JSON.parse(j);
           if (!log.length) continue;
           const url = f.url();
@@ -33,10 +51,78 @@ export function startInstrumentation(ws: any, ctx: BrowserContext, label: string
           if (!prev || log.length > prev.log.length) accum.set(url, { url, log });
         } catch {}
       }
-      writeFileSync(fn, JSON.stringify({ accesses: [...accum.values()], requests: reqs }));
+      writeFileSync(fn, JSON.stringify({
+        label, started_at: startedAt,
+        persona: ws.personaConfig ?? null,
+        proxy: ws.proxyConfig ?? null,
+        versions: ws._versions ?? null,
+        accesses: [...accum.values()],
+        requests: reqs,
+        console: consoleMsgs,
+        pageerrors: pageErrors,
+      }));
     } catch {}
   }, 5000);
   return reqs;
+}
+
+// Called at WSession close: one last flush of the property-trap log across all
+// frames + write the final merged dump. Overwrites the file the interval writer
+// has been refreshing every 5 seconds with the most-recent state, so the
+// uploaded artifact contains everything up to the moment of close.
+export async function finalDump(ws: any): Promise<void> {
+  if (!ws?._instFile) return;
+  try {
+    if (!ws.page?.isClosed?.()) {
+      for (const f of ws.page.frames?.() ?? []) {
+        try {
+          const j: string = await f.evaluate('(()=>{var a=globalThis[Symbol.for("weles.inst")];return a?a.flush():"[]"})()');  // allow-raw-playwright: instrumentation flush
+          const log = JSON.parse(j);
+          if (!log.length) continue;
+          const url = f.url();
+          const prev = ws._instAccum.get(url);
+          if (!prev || log.length > prev.log.length) ws._instAccum.set(url, { url, log });
+        } catch {}
+      }
+    }
+    writeFileSync(ws._instFile, JSON.stringify({
+      label: ws.label ?? null,
+      started_at: ws._instStartedAt ?? null,
+      closed_at: new Date().toISOString(),
+      persona: ws.personaConfig ?? null,
+      proxy: ws.proxyConfig ?? null,
+      versions: ws._versions ?? null,
+      accesses: [...ws._instAccum.values()],
+      requests: ws._instRequests ?? [],
+      console: ws._instConsole ?? [],
+      pageerrors: ws._instPageErrors ?? [],
+    }));
+    console.log(`[wsession] final inst dump -> ${ws._instFile}`);
+  } catch (e: any) { console.log(`[wsession] finalDump err: ${e?.message?.slice(0, 120)}`); }
+}
+
+// Subscribe to console + pageerror so they ride in the same merged inst dump
+// instead of being lost. Each console event gets type, text, location, and
+// per-arg .jsonValue() resolution where possible. pageerror captures uncaught
+// runtime errors from the page itself.
+function attachPageDiagnostics(ws: any, consoleMsgs: any[], pageErrors: any[]): void {
+  try {
+    ws.page.on?.('console', async (msg: any) => {
+      try {
+        const args: any[] = [];
+        for (const a of (msg.args?.() ?? [])) {
+          try { args.push(await a.jsonValue?.()); } catch { args.push(String(a)); }
+        }
+        consoleMsgs.push({ t: Date.now(), type: msg.type?.(), text: msg.text?.(), location: msg.location?.(), args });
+      } catch {}
+    });
+    ws.page.on?.('pageerror', (err: any) => {
+      try { pageErrors.push({ t: Date.now(), name: err?.name, message: err?.message, stack: err?.stack }); } catch {}
+    });
+    ws.page.on?.('crash', () => {
+      try { pageErrors.push({ t: Date.now(), name: 'crash', message: 'page crashed', stack: null }); } catch {}
+    });
+  } catch {}
 }
 
 export function attachCompleteNetRecord(ctx: BrowserContext, reqs: any[]): void {
