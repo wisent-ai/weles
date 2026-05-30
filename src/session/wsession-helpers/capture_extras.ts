@@ -6,6 +6,7 @@
 import type { BrowserContext } from 'playwright';
 import { readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import { execSync } from 'node:child_process';
 
 // Service worker registration events. Fires when the page registers / activates
 // a SW; relevant because many bot-checks (PerimeterX, Akamai, hCaptcha) ship
@@ -72,8 +73,30 @@ export function attachCdpLifecycle(ws: any, _ctx: BrowserContext, targetEvents: 
       ws._instTracing = [];
       cdp.on('Tracing.dataCollected', (e: any) => { try { for (const ev of (e?.value ?? [])) ws._instTracing.push(ev); } catch {} });
       try { await cdp.send('Tracing.start', { categories: 'v8,blink,devtools.timeline,disabled-by-default-devtools.timeline,latencyInfo,toplevel', options: 'sampling-frequency=10000' }); } catch (e: any) { ws._instTracingError = String(e?.message ?? e); }
+      // JS coverage — which functions actually ran.
+      try { await cdp.send('Profiler.enable'); await cdp.send('Profiler.startPreciseCoverage', { callCount: false, detailed: false }); } catch (e: any) { ws._instJsCoverageError = String(e?.message ?? e); }
+      // CSS coverage — which rules matched.
+      try { await cdp.send('DOM.enable'); await cdp.send('CSS.enable'); await cdp.send('CSS.startRuleUsageTracking'); } catch (e: any) { ws._instCssCoverageError = String(e?.message ?? e); }
+      // WebAudio lifecycle — context created/destroyed/changed at CDP level.
+      ws._instWebAudio = [];
+      try { await cdp.send('WebAudio.enable'); } catch (e: any) { ws._instWebAudioError = String(e?.message ?? e); }
+      cdp.on('WebAudio.contextCreated', (e: any) => { try { ws._instWebAudio.push({ t: Date.now(), phase: 'contextCreated', context: e?.context }); } catch {} });
+      cdp.on('WebAudio.contextDestroyed', (e: any) => { try { ws._instWebAudio.push({ t: Date.now(), phase: 'contextDestroyed', contextId: e?.contextId }); } catch {} });
+      cdp.on('WebAudio.contextChanged', (e: any) => { try { ws._instWebAudio.push({ t: Date.now(), phase: 'contextChanged', context: e?.context }); } catch {} });
     } catch (e: any) { try { targetEvents.push({ t: Date.now(), phase: 'attach_error', err: String(e?.message ?? e) }); } catch {} }
   })();
+}
+
+// One-shot OS-level snapshots at session start.
+export function captureHostSnapshots(ws: any): void {
+  const probe = (cmd: string) => { try { return execSync(cmd, { encoding: 'utf8' }); } catch (e: any) { return 'ERR: ' + String(e?.message ?? e); } };
+  ws._instHostSnapshots = {
+    ps: probe(process.platform === 'darwin' ? 'ps -axo pid,ppid,user,command' : 'ps -axo pid,ppid,user,cmd'),
+    ifconfig: probe(process.platform === 'darwin' ? 'ifconfig' : 'ip -j addr'),
+    route: probe(process.platform === 'darwin' ? 'netstat -rn' : 'ip -j route'),
+    netstat: probe(process.platform === 'darwin' ? 'netstat -an -p tcp' : 'ss -tan'),
+    captured_at: new Date().toISOString(),
+  };
 }
 
 // Periodic ctx.storageState() snapshot. Cookies + localStorage + sessionStorage

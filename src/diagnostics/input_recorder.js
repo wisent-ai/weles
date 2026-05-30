@@ -1,15 +1,16 @@
-// Input event recorder for human-vs-trajectory diffing. Extracted from
-// property_trap.js to free space for canvas/audio/window-flag hooks.
-// Pushes into the global __inst array property_trap installs so
-// __inst_flush() picks events up alongside the property-access log.
-// Uses window._inst_orig_add_el (stashed by property_trap) to bypass our
-// own addEventListener wrap so listener registrations don't pollute the
-// addEventListener trap log.
+// Input event recorder for human-vs-trajectory diffing. Reuses the stealth
+// core property_trap.js installs under Symbol.for('weles.inst') — so it shares
+// the same hidden log array AND the same native-toString cloaking (the value
+// setter it installs reports native source via api.makeNative). Uses
+// api.origAddEL (the real addEventListener captured before the trap wrap) so
+// its own listener registrations don't pollute the addEventListener trap log.
 (function(){
-  if (!window.__inst || window.__inst_input_installed) return;
-  window.__inst_input_installed = true;
-  const logs = window.__inst;
-  const _origAddEL = window._inst_orig_add_el || EventTarget.prototype.addEventListener;
+  const api = globalThis[Symbol.for('weles.inst')];
+  if (!api || api._inputInstalled) return;
+  api._inputInstalled = true;
+  const logs = api.logs;
+  const makeNative = api.makeNative;
+  const _origAddEL = api.origAddEL || EventTarget.prototype.addEventListener;
   function recI(type, fields) {
     let vs = '';
     try { vs = JSON.stringify(fields).slice(0, 200); } catch {}
@@ -42,26 +43,22 @@
   _origAddEL.call(document, 'visibilitychange', function() { recI('visibilitychange', { s: document.visibilityState }); }, { capture: true, passive: true });
   _origAddEL.call(window, 'focus', function() { recI('focus', {}); }, { capture: true, passive: true });
   _origAddEL.call(window, 'blur', function() { recI('blur', {}); }, { capture: true, passive: true });
-  // input.value setter hook — every programmatic OR keyboard-driven write
-  // is recorded with target id/name/type + new value + stack. Closes the
-  // "humanFill typed but value got cut" mystery: future runs show exactly
-  // what was set, when, by whom.
+  // input.value setter hook — every programmatic OR keyboard-driven write is
+  // recorded with target id/name/type + new value. Routed through makeNative so
+  // the replacement setter reports the original's native source under toString.
   function hookValueSetter(proto, label) {
     var d = Object.getOwnPropertyDescriptor(proto, 'value');
     if (!d || !d.set || !d.get) return;
-    Object.defineProperty(proto, 'value', {
-      configurable: true, enumerable: d.enumerable, get: d.get,
-      set: function(v) {
-        try { recI(label + '_value_set', { id: this.id, name: this.name, type: this.type, tag: this.tagName, val: String(v).slice(0, 200) }); } catch (e) {}
-        return d.set.call(this, v);
-      }
-    });
+    var newSet = makeNative(function(v) {
+      try { recI(label + '_value_set', { id: this.id, name: this.name, type: this.type, tag: this.tagName, val: String(v).slice(0, 200) }); } catch (e) {}
+      return d.set.call(this, v);
+    }, d.set);
+    Object.defineProperty(proto, 'value', { configurable: true, enumerable: d.enumerable, get: d.get, set: newSet });
   }
   try { hookValueSetter(HTMLInputElement.prototype, 'input'); } catch (e) {}
   try { hookValueSetter(HTMLTextAreaElement.prototype, 'textarea'); } catch (e) {}
   // Capture-phase 'input' event: fires AFTER every keystroke or autocomplete
-  // selection mutates the input. Records cumulative input.value so you can
-  // replay how the field filled up character by character.
+  // selection mutates the input. Records cumulative input.value.
   _origAddEL.call(document, 'input', function(ev) {
     var t = ev.target; if (!t) return;
     var tag = t.tagName;
