@@ -56,8 +56,13 @@ export function attachCdpLifecycle(ws: any, _ctx: BrowserContext, targetEvents: 
       cdp.on('Network.requestServedFromCache', (e: any) => { try { nw.push({ t: Date.now(), phase: 'servedFromCache', requestId: e?.requestId }); } catch {} });
       cdp.on('Network.webSocketHandshakeResponseReceived', (e: any) => { try { nw.push({ t: Date.now(), phase: 'wsHandshakeRes', requestId: e?.requestId, response: e?.response }); } catch {} });
       cdp.on('Network.webSocketWillSendHandshakeRequest', (e: any) => { try { nw.push({ t: Date.now(), phase: 'wsHandshakeReq', requestId: e?.requestId, request: e?.request }); } catch {} });
+      // Performance + per-helper-process info. SystemInfo.getProcessInfo
+      // returns the full Chromium process tree (gpu, renderer, utility,
+      // network, plugin, broker, etc.) with cpuTime + os pid + processType.
+      ws._instProcessHistory = [];
       ws._instMetricsPollId = setInterval(async () => {
         try { const m = await cdp.send('Performance.getMetrics'); metricsHistory.push({ t: Date.now(), metrics: m?.metrics ?? [] }); } catch {}
+        try { const p = await cdp.send('SystemInfo.getProcessInfo'); ws._instProcessHistory.push({ t: Date.now(), processInfo: p }); } catch {}
       }, 10_000);
       // One-shot system info — full GPU adapter list with vendor, device,
       // driver version, GL renderer, supported video decoders, command-line
