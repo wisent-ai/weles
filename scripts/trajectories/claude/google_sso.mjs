@@ -6,6 +6,7 @@
 // empty." and does nothing (no popup, no nav). So we must establish a
 // Google session at accounts.google.com FIRST, then load claude.ai's
 // authorize URL — GIS then has an account and the click completes.
+import { humanClick } from '../../../dist/human/mouse.js';
 
 // Email/password fields: humanType (CDP default = page.keyboard.type
 // per char) emits the full keydown/keyup/input sequence, which
@@ -29,38 +30,6 @@ async function fillAndVerify(page, locator, text, humanClickLocator, humanType) 
   throw new Error(`fillAndVerify: humanType value did not land; field="${final}" expected len=${text.length}`);
 }
 
-// Find Google's submit button by walking the DOM directly. The
-// 22:14:57Z run showed Playwright locator-based searches all
-// returning isVisible=false even though the Next button is plainly
-// visible — WIZ wraps it in a way Playwright's visibility heuristic
-// rejects. Walk every <button> and [role=button], match by trimmed
-// innerText against the pattern, take the first with a non-zero
-// bounding rect, and click via humanized pointer at its center.
-// Waits up to 8s for the button to appear post-hydration.
-async function clickSubmit(page, humanClick, namePattern) {
-  const patternSrc = namePattern.source;
-  for (let i = 0; i < 80; i += 1) {
-    const hit = await page.evaluate((src) => {
-      const re = new RegExp(src, 'i');
-      const candidates = Array.from(document.querySelectorAll('button, [role="button"]'));
-      for (const el of candidates) {
-        const txt = (el.innerText || el.textContent || '').trim();
-        if (!re.test(txt)) continue;
-        const r = el.getBoundingClientRect();
-        if (r.width < 4 || r.height < 4) continue;
-        return { x: r.x + r.width / 2, y: r.y + r.height / 2, tag: el.tagName, txt: txt.slice(0, 40) };
-      }
-      return null;
-    }, patternSrc);
-    if (hit) {
-      await humanClick(page, Math.round(hit.x), Math.round(hit.y));
-      return;
-    }
-    await page.waitForTimeout(100); // allow-raw-playwright: post-hydration poll, not a humanized action
-  }
-  throw new Error(`clickSubmit: no button matching /${patternSrc}/i found in 8s`);
-}
-
 // page.evaluate throws "Execution context was destroyed" when the
 // page navigates mid-call. In an OAuth redirect chain a navigation
 // is the EXPECTED transition, so in poll loops it must mean "not
@@ -73,46 +42,40 @@ async function navEval(page, fn, dflt, arg) {
   }
 }
 
-// Wait for the button to be ENABLED then click via CDP
-// Input.dispatchMouseEvent (WIZ rejects Playwright's trusted click in
-// the weles-patched Chromium). Throws the button-state diag on timeout.
+// Wait for the button to be ENABLED then click it with a humanized pointer
+// move+click (humanClick). The earlier raw CDP Input.dispatchMouseEvent issued
+// a press/release with NO pointer movement — a strong automation signal that
+// tripped Google's "browser or app may not be secure" block at sign-in.
+// humanClick is the same primitive gmail_login_search uses to clear that exact
+// gate on this engine. Throws the button-state diag on timeout.
 export async function waitForEnabledThenClick(page, namePattern) {
   const patternSrc = namePattern.source;
   let lastState = null;
-  const cdp = await page.context().newCDPSession(page);
-  try {
-    for (let i = 0; i < 80; i += 1) {
-      lastState = await navEval(page, (src) => {
-        const re = new RegExp(src, 'i');
-        const candidates = Array.from(document.querySelectorAll('button, [role="button"]'));
-        for (const el of candidates) {
-          const txt = (el.innerText || el.textContent || '').trim();
-          if (!re.test(txt)) continue;
-          const r = el.getBoundingClientRect();
-          if (r.width < 4 || r.height < 4) continue;
-          const disabled = el.disabled || el.getAttribute('aria-disabled') === 'true' || el.getAttribute('disabled') !== null;
-          return {
-            x: r.x + r.width / 2, y: r.y + r.height / 2,
-            tag: el.tagName, txt: txt.slice(0, 40),
-            disabled, found: true,
-          };
-        }
-        return { found: false };
-      }, { found: false }, patternSrc);
-      if (lastState.found && !lastState.disabled) {
-        const x = Math.round(lastState.x);
-        const y = Math.round(lastState.y);
-        await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y });
-        await cdp.send('Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button: 'left', clickCount: 1 });
-        await cdp.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x, y, button: 'left', clickCount: 1 });
-        return;
+  for (let i = 0; i < 80; i += 1) {
+    lastState = await navEval(page, (src) => {
+      const re = new RegExp(src, 'i');
+      const candidates = Array.from(document.querySelectorAll('button, [role="button"]'));
+      for (const el of candidates) {
+        const txt = (el.innerText || el.textContent || '').trim();
+        if (!re.test(txt)) continue;
+        const r = el.getBoundingClientRect();
+        if (r.width < 4 || r.height < 4) continue;
+        const disabled = el.disabled || el.getAttribute('aria-disabled') === 'true' || el.getAttribute('disabled') !== null;
+        return {
+          x: r.x + r.width / 2, y: r.y + r.height / 2,
+          tag: el.tagName, txt: txt.slice(0, 40),
+          disabled, found: true,
+        };
       }
-      await page.waitForTimeout(100); // allow-raw-playwright: enable-state poll, not a humanized action
+      return { found: false };
+    }, { found: false }, patternSrc);
+    if (lastState.found && !lastState.disabled) {
+      await humanClick(page, Math.round(lastState.x), Math.round(lastState.y));
+      return;
     }
-    throw new Error(`waitForEnabledThenClick: button stuck unclickable for /${patternSrc}/i, lastState=${JSON.stringify(lastState)}`);
-  } finally {
-    await cdp.detach();
+    await page.waitForTimeout(100); // allow-raw-playwright: enable-state poll, not a humanized action
   }
+  throw new Error(`waitForEnabledThenClick: button stuck unclickable for /${patternSrc}/i, lastState=${JSON.stringify(lastState)}`);
 }
 
 export async function doGoogleSso({
@@ -157,8 +120,24 @@ export async function doGoogleSso({
   await humanIdlePause('deliberate');
 
   mark('google_password');
+  // Google shows EITHER the password field OR a "Couldn't sign you in / browser
+  // may not be secure" block. With the humanized click above this should now
+  // clear; if Google still blocks, fail fast with a distinct BROWSER_NOT_SECURE
+  // signal (caught by login.mjs -> reauth rotates the LRU row) instead of
+  // waiting 30s for a password field that will never render.
   const gPwIn = page.locator('input[type="password"]').filter({ visible: true }).first();
-  await gPwIn.waitFor({ state: 'visible' });
+  const blocked = page.getByText(/Couldn.?t sign you in|may not be secure/i).first();
+  let sawPw = false;
+  for (let i = 0; i < 40; i += 1) {
+    if (await gPwIn.isVisible().catch(() => false)) { sawPw = true; break; }
+    if (await blocked.isVisible().catch(() => false)) {
+      const e = new Error('BROWSER_NOT_SECURE: Google blocked this exit at sign-in');
+      e.code = 'BROWSER_NOT_SECURE';
+      throw e;
+    }
+    await page.waitForTimeout(500); // allow-raw-playwright: password-or-block poll, not a humanized action
+  }
+  if (!sawPw) throw new Error('google_password: neither password field nor block page appeared');
   await fillAndVerify(page, gPwIn, login.password, humanClickLocator, humanType);
   try {
     await gPwIn.evaluate((el) => {
@@ -261,39 +240,33 @@ export async function doGoogleSso({
 // find it. DOM-walk for any element whose visible text contains
 // the email, take its bounding-box center, CDP-click.
 async function clickEmailRow(page, email) {
-  const cdp = await page.context().newCDPSession(page);
-  try {
-    let hit = null;
-    for (let i = 0; i < 100; i += 1) {
-      hit = await page.evaluate((e) => {
-        const els = Array.from(document.querySelectorAll('*'));
-        for (const el of els) {
-          const txt = (el.innerText || el.textContent || '').trim();
-          if (!txt.includes(e)) continue;
-          if (el.children.length > 0) {
-            const childMatches = Array.from(el.children).some((c) => (c.innerText || c.textContent || '').includes(e));
-            if (childMatches) continue;
-          }
-          const r = el.getBoundingClientRect();
-          if (r.width < 20 || r.height < 20) continue;
-          let target = el;
-          for (let p = el; p; p = p.parentElement) {
-            if (p.getAttribute && (p.getAttribute('role') === 'link' || p.tagName === 'A' || p.tagName === 'LI' || p.tagName === 'BUTTON' || p.getAttribute('data-identifier'))) { target = p; break; }
-          }
-          const tr = target.getBoundingClientRect();
-          return { x: tr.x + tr.width / 2, y: tr.y + tr.height / 2, txt: txt.slice(0, 80) };
+  let hit = null;
+  for (let i = 0; i < 100; i += 1) {
+    hit = await page.evaluate((e) => {
+      const els = Array.from(document.querySelectorAll('*'));
+      for (const el of els) {
+        const txt = (el.innerText || el.textContent || '').trim();
+        if (!txt.includes(e)) continue;
+        if (el.children.length > 0) {
+          const childMatches = Array.from(el.children).some((c) => (c.innerText || c.textContent || '').includes(e));
+          if (childMatches) continue;
         }
-        return null;
-      }, email);
-      if (hit) break;
-      await page.waitForTimeout(100); // allow-raw-playwright: account-row appearance poll
-    }
-    if (!hit) throw new Error(`clickEmailRow: no row matching ${email} found`);
-    const x = Math.round(hit.x), y = Math.round(hit.y);
-    await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y });
-    await cdp.send('Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button: 'left', clickCount: 1 });
-    await cdp.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x, y, button: 'left', clickCount: 1 });
-  } finally {
-    await cdp.detach();
+        const r = el.getBoundingClientRect();
+        if (r.width < 20 || r.height < 20) continue;
+        let target = el;
+        for (let p = el; p; p = p.parentElement) {
+          if (p.getAttribute && (p.getAttribute('role') === 'link' || p.tagName === 'A' || p.tagName === 'LI' || p.tagName === 'BUTTON' || p.getAttribute('data-identifier'))) { target = p; break; }
+        }
+        const tr = target.getBoundingClientRect();
+        return { x: tr.x + tr.width / 2, y: tr.y + tr.height / 2, txt: txt.slice(0, 80) };
+      }
+      return null;
+    }, email);
+    if (hit) break;
+    await page.waitForTimeout(100); // allow-raw-playwright: account-row appearance poll
   }
+  if (!hit) throw new Error(`clickEmailRow: no row matching ${email} found`);
+  // Humanized pointer move+click (not raw CDP dispatch) — same anti-block
+  // rationale as waitForEnabledThenClick.
+  await humanClick(page, Math.round(hit.x), Math.round(hit.y));
 }
