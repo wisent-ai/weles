@@ -159,7 +159,8 @@ export function attachCdpLifecycle(ws: any, _ctx: BrowserContext, targetEvents: 
           cdp.on(key, (payload: any) => {
             try {
               if (ws._instCdpFirehose.length >= 100000) { ws._instCdpFirehoseOverflow++; return; }
-              ws._instCdpFirehose.push({ t: Date.now(), domain, event, payload });
+              let stored: any = payload; try { const s = JSON.stringify(payload); if (s && s.length > 1048576) stored = { _truncated: true, original_size: s.length, preview: s.slice(0, 16384) }; } catch (err: any) { stored = { _stringify_error: String(err?.message ?? err) }; }
+              ws._instCdpFirehose.push({ t: Date.now(), domain, event, payload: stored });
             } catch {}
           });
         } catch {}
