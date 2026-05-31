@@ -148,9 +148,7 @@ export function attachCdpLifecycle(ws: any, _ctx: BrowserContext, targetEvents: 
       // simply never fire. This is the bounded-set capture replacing the
       // one-channel-at-a-time wiring.
       ws._instCdpFirehose = [];
-      // Attempt to enable every domain that has an .enable method so events
-      // start flowing. Many fail silently (no enable method or already enabled);
-      // that's expected and not an error.
+      ws._instCdpFirehoseOverflow = 0;
       const enableDomains = new Set(CDP_EVENTS.map(e => e[0]));
       for (const d of enableDomains) {
         try { await cdp.send(`${d}.enable` as any); } catch {}
@@ -159,7 +157,10 @@ export function attachCdpLifecycle(ws: any, _ctx: BrowserContext, targetEvents: 
         const key = `${domain}.${event}`;
         try {
           cdp.on(key, (payload: any) => {
-            try { ws._instCdpFirehose.push({ t: Date.now(), domain, event, payload }); } catch {}
+            try {
+              if (ws._instCdpFirehose.length >= 100000) { ws._instCdpFirehoseOverflow++; return; }
+              ws._instCdpFirehose.push({ t: Date.now(), domain, event, payload });
+            } catch {}
           });
         } catch {}
       }
