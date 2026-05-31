@@ -85,6 +85,17 @@ export function attachWorkerInventory(ws: any): void {
       if (childCdp) {
         try { inv = await childCdp.send('Runtime.evaluate', { expression: 'JSON.stringify({selfNames:Object.getOwnPropertyNames(self),navNames:Object.getOwnPropertyNames(self.navigator||{}),ua:(self.navigator&&self.navigator.userAgent)||null,scope:String(self.constructor&&self.constructor.name)})', returnByValue: true }); }
         catch (e2: any) { err = String(e2?.message ?? e2); }
+        // Subscribe Runtime + Network on the worker session so events beyond
+        // the initial snapshot land in ws._instWorkerEvents.
+        if (!ws._instWorkerEvents) ws._instWorkerEvents = [];
+        const we = ws._instWorkerEvents;
+        try { await childCdp.send('Runtime.enable'); } catch {}
+        try { await childCdp.send('Network.enable'); } catch {}
+        childCdp.on('Runtime.consoleAPICalled', (ev: any) => { try { we.push({ t: Date.now(), targetId: ti.targetId, phase: 'console', payload: ev }); } catch {} });
+        childCdp.on('Runtime.exceptionThrown', (ev: any) => { try { we.push({ t: Date.now(), targetId: ti.targetId, phase: 'exception', payload: ev }); } catch {} });
+        childCdp.on('Network.requestWillBeSent', (ev: any) => { try { we.push({ t: Date.now(), targetId: ti.targetId, phase: 'request', payload: ev }); } catch {} });
+        childCdp.on('Network.responseReceived', (ev: any) => { try { we.push({ t: Date.now(), targetId: ti.targetId, phase: 'response', payload: ev }); } catch {} });
+        childCdp.on('Network.loadingFailed', (ev: any) => { try { we.push({ t: Date.now(), targetId: ti.targetId, phase: 'loadingFailed', payload: ev }); } catch {} });
       } else { err = 'no child cdp session handle'; }
       ws._instWorkerSurfaces.push({ t: Date.now(), targetType: ti.type, targetUrl: ti.url, targetId: ti.targetId, sessionId: sessId, inventory: inv, inventory_error: err });
     } catch (err: any) { ws._instWorkerSurfaces.push({ t: Date.now(), phase: 'attach-handler-error', err: String(err?.message ?? err) }); }
