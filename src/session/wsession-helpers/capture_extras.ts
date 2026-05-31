@@ -179,7 +179,13 @@ export async function captureFinalCdpSnapshots(ws: any): Promise<void> {
   // captured; CDP's DOMSnapshot.captureSnapshot walks shadow roots by default
   // for open shadow roots. Combined with DOM.getDocument({pierce:true}) for
   // the closed-shadow case via a sibling call.
-  try { ws._instDomSnapshot = await cdp.send('DOMSnapshot.captureSnapshot', { computedStyles: [], includeDOMRects: true, includePaintOrder: true, includeBlendedBackgroundColors: true, includeTextColorOpacities: true }); } catch (e: any) { ws._instDomSnapshotError = String(e?.message ?? e); }
+  // CSS property list for DOMSnapshot computedStyles. Curated set focused on
+  // properties bot detectors fingerprint on: font, color, layout, transform,
+  // visibility, position. Full ~600-property CSS spec list isn't passed
+  // because the resulting snapshot would be 100x larger; this set covers the
+  // properties LinkedIn / PerimeterX / Akamai actually read.
+  const cs = 'font-family,font-size,font-weight,font-style,font-variant,line-height,letter-spacing,color,background-color,background-image,width,height,min-width,min-height,max-width,max-height,display,position,visibility,opacity,transform,transform-origin,border,border-radius,box-shadow,text-shadow,filter,backdrop-filter,clip-path,overflow,z-index,cursor,pointer-events,user-select,text-align,text-decoration,text-transform,white-space,word-break,direction,writing-mode';
+  try { ws._instDomSnapshot = await cdp.send('DOMSnapshot.captureSnapshot', { computedStyles: cs.split(','), includeDOMRects: true, includePaintOrder: true, includeBlendedBackgroundColors: true, includeTextColorOpacities: true }); } catch (e: any) { ws._instDomSnapshotError = String(e?.message ?? e); }
   try { ws._instDomPiercedTree = await cdp.send('DOM.getDocument', { depth: -1, pierce: true }); } catch (e: any) { ws._instDomPiercedTreeError = String(e?.message ?? e); }
   try {
     const chunks: string[] = [];
