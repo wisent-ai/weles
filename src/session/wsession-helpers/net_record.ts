@@ -13,7 +13,7 @@ import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { platform as osPlatform, release as osRelease, arch as osArch, totalmem, cpus, hostname, version as osVersion } from 'node:os';
 import { attachServiceWorkers, attachCdpLifecycle, pollStorageState, buildSiblingManifest, attachStdoutCapture, sliceStdout, captureHostSnapshots, captureFinalCdpSnapshots, attachPagePlaywrightEvents } from './capture_extras.js';
-import { startPcap } from './pcap_sidecar.js';
+import { startPcap, attachWorkerInventory } from './pcap_sidecar.js';
 
 // One merged fingerprint artifact per run, written under recordings/<label>/ so
 // the worker uploader (src/worker/upload-artifacts.ts) picks it up alongside
@@ -64,6 +64,7 @@ export function startInstrumentation(ws: any, ctx: BrowserContext, label: string
   attachCdpLifecycle(ws, ctx, targetEvents, frameEvents, metricsHistory);
   pollStorageState(ws, ctx, storageHistory);
   startPcap(ws, label);
+  attachWorkerInventory(ws);
   captureHostSnapshots(ws);
   attachPagePlaywrightEvents(ws);
   setInterval(async () => {
@@ -270,6 +271,8 @@ function buildDumpPayload(ws: any, opts: { closing?: boolean } = {}): any {
     dom_counters: ws._instDomCounters ?? [],
     dom_snapshot: ws._instDomSnapshot ?? null,
     dom_snapshot_error: ws._instDomSnapshotError ?? null,
+    dom_pierced_tree: ws._instDomPiercedTree ?? null,
+    dom_pierced_tree_error: ws._instDomPiercedTreeError ?? null,
     heap_snapshot: ws._instHeapSnapshot ?? null,
     heap_snapshot_error: ws._instHeapSnapshotError ?? null,
     page_events: ws._instPageEvents ?? [],
@@ -279,6 +282,8 @@ function buildDumpPayload(ws: any, opts: { closing?: boolean } = {}): any {
     storage_events: ws._instStorageEvents ?? [],
     playwright_events: ws._instPlaywrightEvents ?? [],
     cdp_firehose: ws._instCdpFirehose ?? [],
+    worker_surfaces: ws._instWorkerSurfaces ?? [],
+    worker_surfaces_error: ws._instWorkerSurfacesError ?? null,
     host_snapshots: ws._instHostSnapshots ?? null,
     pcap: ws._instPcap ?? null,
     stdout: sliceStdout(ws),
