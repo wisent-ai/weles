@@ -61,6 +61,36 @@ export function startPcap(ws: any, label: string | undefined): void {
   ws._instPcapChild = child;
 }
 
+// Worker auto-attach + inventory. Worker JS contexts (Web/Shared/Service) are
+// NOT reachable via context.addInitScript — the SURFACE_INVENTORY_SCRIPT only
+// runs in document contexts. CDP Target.setAutoAttach gives a child session
+// per worker; for each we run a one-shot Runtime.evaluate to enumerate
+// Object.getOwnPropertyNames(self) + .navigator. Result lands in
+// ws._instWorkerSurfaces. Lives here (not in capture_extras.ts) because that
+// file is at the 300-line cap.
+export function attachWorkerInventory(ws: any): void {
+  const cdp = ws?._cdp;
+  if (!cdp) return;
+  ws._instWorkerSurfaces = [];
+  void (async () => {
+    try { await cdp.send('Target.setAutoAttach', { autoAttach: true, waitForDebuggerOnStart: false, flatten: true }); }
+    catch (e: any) { ws._instWorkerSurfacesError = String(e?.message ?? e); }
+  })();
+  cdp.on('Target.attachedToTarget', async (e: any) => {
+    try {
+      const sessId = e?.sessionId; const ti = e?.targetInfo;
+      if (!sessId || !ti) return;
+      const childCdp = (cdp as any)._connection?.session?.(sessId) ?? (cdp as any).session?.(sessId) ?? null;
+      let inv: any = null; let err: string | null = null;
+      if (childCdp) {
+        try { inv = await childCdp.send('Runtime.evaluate', { expression: 'JSON.stringify({selfNames:Object.getOwnPropertyNames(self),navNames:Object.getOwnPropertyNames(self.navigator||{}),ua:(self.navigator&&self.navigator.userAgent)||null,scope:String(self.constructor&&self.constructor.name)})', returnByValue: true }); }
+        catch (e2: any) { err = String(e2?.message ?? e2); }
+      } else { err = 'no child cdp session handle'; }
+      ws._instWorkerSurfaces.push({ t: Date.now(), targetType: ti.type, targetUrl: ti.url, targetId: ti.targetId, sessionId: sessId, inventory: inv, inventory_error: err });
+    } catch (err: any) { ws._instWorkerSurfaces.push({ t: Date.now(), phase: 'attach-handler-error', err: String(err?.message ?? err) }); }
+  });
+}
+
 export async function stopPcap(ws: any): Promise<void> {
   const child: ChildProcess | undefined = ws?._instPcapChild;
   if (!child || child.exitCode !== null || child.signalCode !== null) return;

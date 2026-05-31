@@ -173,7 +173,12 @@ export function attachCdpLifecycle(ws: any, _ctx: BrowserContext, targetEvents: 
 export async function captureFinalCdpSnapshots(ws: any): Promise<void> {
   const cdp = ws?._cdp;
   if (!cdp) return;
+  // DOMSnapshot includes shadow tree contents in the documents[] array when
+  // captured; CDP's DOMSnapshot.captureSnapshot walks shadow roots by default
+  // for open shadow roots. Combined with DOM.getDocument({pierce:true}) for
+  // the closed-shadow case via a sibling call.
   try { ws._instDomSnapshot = await cdp.send('DOMSnapshot.captureSnapshot', { computedStyles: [], includeDOMRects: true, includePaintOrder: true, includeBlendedBackgroundColors: true, includeTextColorOpacities: true }); } catch (e: any) { ws._instDomSnapshotError = String(e?.message ?? e); }
+  try { ws._instDomPiercedTree = await cdp.send('DOM.getDocument', { depth: -1, pierce: true }); } catch (e: any) { ws._instDomPiercedTreeError = String(e?.message ?? e); }
   try {
     const chunks: string[] = [];
     const handler = (e: any) => { chunks.push(e?.chunk ?? ''); };
