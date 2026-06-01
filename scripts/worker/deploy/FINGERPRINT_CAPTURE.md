@@ -2055,6 +2055,145 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 - **[T]** Per sandboxed iframe: parent frame URL + sandbox value + creator script URL + creation timestamp.
 - **[T]** Cross-document attribution — which document spawned which sandbox + what scope it has.
 
+## BBBBBBBBBBBB. WebGPU texture / buffer allocation footprint
+
+- **[T]** Per WebGPU device: every `createTexture` / `createBuffer` call — size, usage flags, format.
+- **[T]** Per WebGPU device: cumulative GPU memory consumed over session.
+- **[T]** Per WebGPU device: command-buffer submit count + per-command-type breakdown.
+
+## CCCCCCCCCCCC. Canvas allocation tracking + lifetime
+
+- **[T]** Every `document.createElement('canvas')` / `new OffscreenCanvas` call: timestamp + dimensions + caller stack.
+- **[T]** Per canvas: lifetime (creation to GC) + peak memory.
+- **[T]** Per canvas: getContext calls — context type (2d/webgl/webgl2/webgpu/bitmaprenderer) + context attributes.
+
+## DDDDDDDDDDDD. HTTP/2 priority dependency tree
+
+- **[T]** Per HTTP/2 session: priority dependency graph at every PRIORITY frame.
+- **[T]** Per stream: weight (1-256) + exclusive flag.
+- **[T]** Per session: priority-change frequency distribution.
+
+## EEEEEEEEEEEE. CSS containment usage per page
+
+- **[T]** Per element with `contain:` rule: which containment types (layout / paint / size / style / inline-size).
+- **[T]** Per page: containment opt-in count + per-type distribution.
+- **[T]** content-visibility usage — `content-visibility: auto` element count.
+
+## FFFFFFFFFFFF. JS framework detection
+
+- **[T]** Detect frameworks via well-known globals: `window.React`, `__REACT_DEVTOOLS_GLOBAL_HOOK__`, `window.Vue`, `__VUE_DEVTOOLS_GLOBAL_HOOK__`, `window.ng` (Angular), `window.angular`, `window.__SVELTE_DEVTOOLS_GLOBAL_HOOK__`, `window.lit` (Lit), `window.htmx`, `window.Alpine`, `window.Stimulus`, `window.jQuery`, `window.$`.
+- **[T]** Per framework detected: version string from build-id / package metadata exposed.
+- **[T]** Per-page React Fiber root presence + root count.
+
+## GGGGGGGGGGGG. CMS / platform detection
+
+- **[T]** Detect platform via meta-generator + DOM heuristics — WordPress (`<meta name="generator" content="WordPress">`), Shopify (`window.Shopify`), Squarespace (`window.Y` static), Wix (`window.wixBiSession`), Webflow, Hugo, Gatsby, Next.js (`window.__NEXT_DATA__`), Nuxt (`window.__NUXT__`), Astro, Remix, SvelteKit, Eleventy.
+- **[T]** Detect e-commerce: Magento, BigCommerce, WooCommerce, Salesforce Commerce Cloud.
+
+## HHHHHHHHHHHH. Alt-Svc advertisements per host
+
+- **[T]** Per host: every `Alt-Svc:` response header seen — protocol (h2, h3, quic), persist=, ma= (max-age).
+- **[T]** Per host: which Alt-Svc was actually used on subsequent connections (cache hit).
+
+## IIIIIIIIIIII. V8 sandboxed pointers + CFI
+
+- **[T]** V8 sandbox enabled state (from `--enable-features=V8VMFuture` flag).
+- **[T]** CFI (control-flow integrity) violation count from `chrome://crashes/`.
+- **[T]** Ignition / Sparkplug / Maglev / Turbofan tier transition counts per top-N functions (already partly in NNNNNNNN, here deeper — per-function tier history).
+
+## JJJJJJJJJJJJ. CDP connection source attribution
+
+- **[T]** Per attached page: who attached the CDP session — Playwright over WebSocket, devtools UI, custom inspector. Distinguish via `Inspector.targetCrashed` payload + `Browser.getVersion` response identity.
+- **[T]** Per CDP session: attached features list (which domains the consumer enabled).
+
+## KKKKKKKKKKKK. WebGL / WebGPU context loss + restore
+
+- **[T]** Per WebGL context: `webglcontextlost` events + recovery time.
+- **[T]** Per WebGPU device: `lost` Promise resolution + reason.
+- **[T]** GPU process crash → context loss attribution.
+
+## LLLLLLLLLLLL. WebAuthn attestation
+
+- **[T]** Per `navigator.credentials.create()` call: full options (rp, user, pubKeyCredParams, authenticatorSelection, attestation, extensions).
+- **[T]** Per attestation: format (`none` / `packed` / `tpm` / `android-key` / `android-safetynet` / `fido-u2f` / `apple` / `apple-appattest`).
+- **[T]** Per credential created: credential ID sha256 + transports + backupEligible + backupState.
+
+## MMMMMMMMMMMM. macOS Stage Manager state
+
+- **[T]** Stage Manager enabled — `defaults read com.apple.WindowManager GloballyEnabled`.
+- **[T]** Auto-hide menu bar — `defaults read NSGlobalDomain _HIHideMenuBar`.
+- **[T]** Group windows by application — `defaults read com.apple.WindowManager AutoHide`.
+
+## NNNNNNNNNNNN. macOS Notification Center counts
+
+- **[T]** Pending notifications count — read from Notification Center DB metadata (count only).
+- **[T]** Per-app notification permission state — `sqlite3 NotificationCenter.db` count of approved bundles.
+- **[T]** Focus / Do Not Disturb active state.
+
+## OOOOOOOOOOOO. macOS Spotlight indexed items
+
+- **[T]** `mdutil -s /` Spotlight index status per volume (enabled / disabled).
+- **[T]** Approximate indexed item count — `mdfind 'kMDItemContentType == *' | wc -l` (count only).
+- **[T]** Per content-type prevalence — `mdfind 'kMDItemContentType == "public.image"' | wc -l`, `public.movie`, `public.text`, etc.
+
+## PPPPPPPPPPPP. macOS Apple ID + iCloud sync status
+
+- **[T]** Active iCloud account — `defaults read MobileMeAccounts Accounts | grep AccountID` (sha256'd).
+- **[T]** iCloud services enabled — `defaults read MobileMeAccounts` per service: ENABLED key (Photos, Drive, Mail, Calendar, Contacts, Reminders, Notes, Safari, Keychain, FindMyMac, BackToMyMac, Bookmarks, NewsPublisher, MMShop, MMMoreInfo, ProtectedCloudStorage, iCloudDrive, FaceTime, Messages, iCloudIDP, GameCenter, HomeKit, Mail Drop).
+- **[T]** Family Sharing enabled — `defaults read MobileMeAccounts FamilyMember`.
+
+## QQQQQQQQQQQQ. Per-image decode cost
+
+- **[T]** Per loaded image: decode CPU time from `disabled-by-default-blink.feature_usage` Tracing slot.
+- **[T]** Per image: hardware-accelerated vs software-decoded (from Tracing `gpu.memory` allocations).
+- **[T]** Per image: actual decode-on-load vs decode-on-display attribution.
+
+## RRRRRRRRRRRR. HTML `<slot>` assignment events
+
+- **[T]** Every `slotchange` event fired per ShadowRoot — slot name + assigned nodes count.
+- **[T]** Per page: total slot count + slot occupancy distribution.
+
+## SSSSSSSSSSSS. Shadow DOM + Custom Element lifecycle
+
+- **[T]** Every `attachShadow({mode})` call — host element + mode (open/closed) + delegatesFocus + slotAssignment + serializable + clonable.
+- **[T]** Every Custom Element upgrade — element tag + constructor + connectedCallback fire count.
+
+## TTTTTTTTTTTT. document.adoptedStyleSheets membership changes
+
+- **[T]** Per Document and per ShadowRoot: adoptedStyleSheets array — count + sha256 of each constructed stylesheet's serialized rules.
+- **[T]** Mutation events on adoptedStyleSheets length over session.
+
+## UUUUUUUUUUUU. NDC (Network Diagnostic Cause) chain per failure
+
+- **[T]** Per network failure: full diagnostic cause chain from NetLog (NetError code + sub-cause + lower-level OS error).
+- **[T]** Per ERR_*: per-error-code count distribution over session.
+
+## VVVVVVVVVVVV. fetch() keepalive distribution
+
+- **[T]** Per `fetch(url, {keepalive: true})` call: count of keepalive vs non-keepalive fetches.
+- **[T]** Per keepalive fetch: did it survive pagehide? (Resource Timing entry presence after unload).
+
+## WWWWWWWWWWWW. WebRTC DTLS fingerprint
+
+- **[T]** Per PeerConnection: local DTLS fingerprint (cert sha256) + algorithm.
+- **[T]** Per PeerConnection: remote DTLS fingerprint received in answer.
+- **[T]** TLS cipher negotiated for DTLS-SRTP.
+
+## XXXXXXXXXXXX. HTTP redirect total cost
+
+- **[T]** Per redirect chain: cumulative time across hops; total bytes received across hops.
+- **[T]** Per chain: HTTP-version transitions (HTTP/1.1 → HTTP/2 across hops).
+
+## YYYYYYYYYYYY. Browser-side `navigator.userActivation`
+
+- **[T]** Per page: `navigator.userActivation.hasBeenActive` + `isActive` at every script invocation.
+- **[T]** User-activation expiry log — when did each gesture expire.
+
+## ZZZZZZZZZZZZ. CPU instruction trace fingerprints
+
+- **[T]** Per Chromium child: `sample <pid> 0.1` micro-sample — top stack frames + leaf-function call counts.
+- **[T]** Per renderer: V8 inline-cache transitions per call site (already in NNNNNNNN — here cite call-site source URLs).
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
