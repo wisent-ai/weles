@@ -5699,6 +5699,115 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per page: RTCPeerConnection.prototype.createOffer / setLocalDescription / addIceCandidate / getStats toString() values sha256 cross-check.
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA. Per-page private DNS resolver detection
+
+- **[T]** Per session: presence of `/etc/resolver/*` per-domain DNS overrides (network configuration profile).
+- **[T]** Per session: configured DNS-over-HTTPS provider URL.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB. Per-page WPAD (Web Proxy Auto-Discovery) probe presence
+
+- **[T]** Per session: WPAD lookup attempts observed in pcap.
+- **[T]** Per session: configured PAC URL via `scutil --proxy`.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC. Per-page mDNS responder activity
+
+- **[T]** Per session: mDNS announce + query packet count via port-5353 pcap.
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD. Per-page IPv6 RA observation
+
+- **[T]** Per session: IPv6 Router Advertisement packets received.
+- **[T]** Per session: SLAAC-derived address presence.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE. Per-page Kerberos / SPNEGO auth challenges
+
+- **[T]** Per response: `WWW-Authenticate: Negotiate` / `WWW-Authenticate: NTLM` headers.
+- **[T]** Per challenge: client response capability (Mac Kerberos via Kerberos.framework).
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF. Per-page UA-CH client hint cache freshness
+
+- **[T]** Per origin: `Critical-CH` previously delivered → cached UA-CH high-entropy values valid for subsequent navigations.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG. Per-page Local Font Access API state
+
+- **[T]** Per `navigator.fonts.query()` call: permission state + per-font metadata returned (family/style/postscriptName/fullName).
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH. Per-page Hand-tracking WebXR capability
+
+- **[T]** Per page: `navigator.xr.isSessionSupported('immersive-vr', {requiredFeatures: ['hand-tracking']})` outcome.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII. Per-page Eye-tracking WebXR capability
+
+- **[T]** Per page: gaze-tracking feature probe outcome.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ. Per-page WindowManagement API state
+
+- **[T]** Per `window.getScreenDetails()` call: per-screen lifetime tracking + per-screen events log.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK. Per-page CapturedSurfaceControl API state
+
+- **[T]** Per `getDisplayMedia({surfaceSwitching: 'include'})` call: capability + surface switching events.
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL. Per-page CapturedSelection / selection-handle events
+
+- **[T]** Per native selection-handle gesture (if mobile UA): start/move/end events.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM. Per-page Browser MachineLearning API capability
+
+- **[T]** Per `navigator.ml.createContext()` (WebNN, recent): device-type selection + outcome.
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN. Per-page WebNN computeGraph distribution
+
+- **[T]** Per WebNN context: operator distribution in compiled graph (conv2d / matmul / softmax / relu / etc.).
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO. Per-page Browser-internal Site Engagement Index score
+
+- **[T]** Per origin: SEI score via `chrome://site-engagement/` (high-engagement sites get autoplay permission).
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP. Per-page Browser autoplay policy decision
+
+- **[T]** Per page: autoplay-policy resolved (default / user-gesture-required / document-user-activation-required / no-user-gesture-required).
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ. Per-page Browser Media Engagement Index trigger
+
+- **[T]** Per page: MEI threshold met (allows autoplay-with-sound) vs not.
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR. Per-page Browser-blocked autoplay event log
+
+- **[T]** Per page: `play()` Promise rejected events count due to autoplay restrictions.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS. Per-page User Activation v2 transient state
+
+- **[T]** Per page: `navigator.userActivation.isActive` polled at every script-task boundary.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT. Per-page User Activation v2 sticky state
+
+- **[T]** Per page: `navigator.userActivation.hasBeenActive` value evolution.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU. Per-page Page lifecycle state aware events
+
+- **[T]** Per page: `document.wasDiscarded` value at session start (true → restored from discard).
+- **[T]** Per page: `document.visibilityState` initial value (visible / hidden / prerender).
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV. Per-page Page lifecycle event handlers list
+
+- **[T]** Per page: registered handlers for `freeze`, `resume`, `visibilitychange`, `pagehide`, `pageshow`, `beforeunload`, `unload` per scope (window / document / element).
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW. Per-page Performance Memory API result
+
+- **[T]** Per page: `performance.measureUserAgentSpecificMemory()` (cross-origin-isolated only) per-realm breakdown.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX. Per-page Cross-Origin Isolation actual state
+
+- **[T]** Per page: `crossOriginIsolated` value resolved + which header chain produced it (COEP+COOP+Origin-Agent-Cluster).
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY. Per-page Browser Field-Trial cohorts active
+
+- **[T]** Per session: `chrome://field-trial-internals/` cohort assignments (impacts feature flag values per request).
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ. Per-page Browser-side Variations Service request
+
+- **[T]** Per session: `clients4.google.com/chrome-variations/seed` request fired or not + last-modified header on the seed.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
