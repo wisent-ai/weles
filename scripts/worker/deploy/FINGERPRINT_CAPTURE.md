@@ -5058,6 +5058,114 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per page: vertical-align value distribution (baseline / top / middle / bottom / text-top / text-bottom / super / sub / length / percentage).
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA. Per-page Touch event surface gestures
+
+- **[T]** Per touchstart event: changedTouches per-touch identifier + clientX/Y / screenX/Y / pageX/Y / radiusX/Y / rotationAngle / force / altitudeAngle / azimuthAngle / touchType (direct/stylus).
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB. Per-page WheelEvent deltaMode / phase signal
+
+- **[T]** Per wheel event: deltaX/Y/Z + deltaMode (PIXEL/LINE/PAGE) + ctrlKey/metaKey flag (Ctrl+wheel = zoom signal).
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC. Per-page MouseEvent button + buttons mask distribution
+
+- **[T]** Per mouse event: button (0/1/2/3/4/5) + buttons bitmask (1/2/4/8/16 combinations).
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD. Per-page KeyboardEvent code distribution
+
+- **[T]** Per keydown/keyup: key + code (physical key identifier) + location (standard/left/right/numpad) + repeat + isComposing.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE. Per-page InputEvent inputType taxonomy
+
+- **[T]** Per input event: inputType value (`insertText` / `insertReplacementText` / `insertLineBreak` / `insertParagraph` / `insertOrderedList` / `insertUnorderedList` / `insertHorizontalRule` / `insertFromYank` / `insertFromDrop` / `insertFromPaste` / `insertFromPasteAsQuotation` / `insertTranspose` / `insertCompositionText` / `insertLink` / `deleteWordBackward` / `deleteWordForward` / `deleteSoftLineBackward` / `deleteSoftLineForward` / `deleteEntireSoftLine` / `deleteHardLineBackward` / `deleteHardLineForward` / `deleteByDrag` / `deleteByCut` / `deleteContent` / `deleteContentBackward` / `deleteContentForward` / `historyUndo` / `historyRedo` / `formatBold` / `formatItalic` / `formatUnderline` / etc.).
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF. Per-page BeforeInputEvent default-prevented count
+
+- **[T]** Per beforeinput event: preventDefault() called or not — distinguishes interception by libraries (rich-text editors).
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG. Per-page ClipboardEvent isTrusted distribution
+
+- **[T]** Per copy / cut / paste event: isTrusted flag + presence of clipboardData.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH. Per-page ContextMenu event default-prevented count
+
+- **[T]** Per contextmenu event: preventDefault() called or not (right-click suppression).
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII. Per-page Selectstart event default-prevented count
+
+- **[T]** Per selectstart event: preventDefault() called (text-selection suppression).
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ. Per-page DragStart event dataTransfer setting
+
+- **[T]** Per dragstart event: dataTransfer.setData calls + setDragImage call presence + effectAllowed value.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK. Per-page DragOver dropEffect resolution
+
+- **[T]** Per dragover event: dropEffect value (none/copy/move/link).
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL. Per-page Cancellable event default-prevented distribution
+
+- **[T]** Per cancelable event type: % of events where preventDefault() was called.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM. Per-page Capturing-phase listener registration count
+
+- **[T]** Per page: `addEventListener(type, fn, true)` (capture phase) call count.
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN. Per-page Passive listener distribution
+
+- **[T]** Per page: `addEventListener(type, fn, {passive: true})` vs default vs passive:false count distribution by event type.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO. Per-page once listener distribution
+
+- **[T]** Per page: `addEventListener(type, fn, {once: true})` count.
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP. Per-page Signal-bound listener distribution
+
+- **[T]** Per page: `addEventListener(type, fn, {signal})` count + per-signal abort count.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ. Per-page Event.composedPath() retraversal
+
+- **[T]** Per dispatched event: composedPath length distribution + cross-shadow-root crossing count.
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR. Per-page DOMException error code distribution
+
+- **[T]** Per page: thrown DOMException name distribution (`AbortError` / `NotAllowedError` / `SecurityError` / `NetworkError` / `QuotaExceededError` / `InvalidStateError` / `InvalidModificationError` / etc.).
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS. Per-page Console-counter / time-named state
+
+- **[T]** Per page: `console.count(label)` final count per label.
+- **[T]** Per page: `console.time(label)` / `timeEnd` durations per label.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT. Per-page localStorage capacity probe
+
+- **[T]** Per origin: attempt setItem of progressively larger values until QuotaExceededError — surfaces actual storage cap.
+- **[T]** Per origin: localStorage entry count + total byte size at session close.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU. Per-page sessionStorage same-tab vs cross-tab divergence
+
+- **[T]** Per origin: sessionStorage entry count + byte size.
+- **[T]** Cross-tab sessionStorage isolation observed (spec says isolated per-tab).
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV. Per-page cookies count + domain distribution
+
+- **[T]** Per page: cookies sent on first navigation (count per Set-Cookie domain).
+- **[T]** Per page: per-cookie sameSite / partitioned distribution histogram.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW. Per-page favicon last-modified date
+
+- **[T]** Per favicon: server Last-Modified header value (when cached).
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX. Per-page Window CustomEvent dispatch log
+
+- **[T]** Per page: every `new CustomEvent(type, {detail})` constructor — type + detail-object byte estimate.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY. Per-page postMessage origin allowlist
+
+- **[T]** Per page: `iframe.contentWindow.postMessage(msg, targetOrigin)` calls — targetOrigin distribution (wildcards '*' vs explicit origins).
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ. Per-page MessageEvent origin distribution
+
+- **[T]** Per received message event: origin + source identification + ports[] length distribution.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
