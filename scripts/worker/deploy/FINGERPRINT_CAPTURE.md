@@ -7373,6 +7373,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per visible element: resolved user-select value distribution.
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA. Per-page CSS computed `appearance` resolved per form control
+
+- **[T]** Per form control: resolved appearance value (auto / none / button / textfield / menulist / listbox / meter / progress-bar / searchfield / checkbox / radio).
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB. Per-page CSS computed `accent-color` resolved per form control
+
+- **[T]** Per form control: resolved accent-color value distribution.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC. Per-page CSS computed `caret-color` resolved per editable
+
+- **[T]** Per editable element: resolved caret-color value distribution.
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD. Per-page CSS computed `color-scheme` resolved per element
+
+- **[T]** Per element: resolved color-scheme value (`light` / `dark` / `light dark` / `only light` / `only dark`).
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE. Per-page CSS computed `color-gamut` rendering decision
+
+- **[T]** Per element with explicit color-gamut: rendering decision (sRGB-clipped vs Display-P3).
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF. Per-page CSS computed `mask-mode` resolved per masked element
+
+- **[T]** Per masked element: resolved mask-mode (alpha / luminance / match-source).
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG. Per-page CSS computed `mask-clip` resolved per masked element
+
+- **[T]** Per masked element: resolved mask-clip value distribution.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH. Per-page CSS computed `mask-composite` resolved per masked element
+
+- **[T]** Per masked element: resolved mask-composite value distribution.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII. Per-page CSS computed `mask-position` resolved per masked element
+
+- **[T]** Per masked element: resolved mask-position value distribution.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ. Per-page CSS computed `mask-repeat` resolved per masked element
+
+- **[T]** Per masked element: resolved mask-repeat value distribution.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK. Per-page CSS computed `mask-size` resolved per masked element
+
+- **[T]** Per masked element: resolved mask-size value distribution.
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL. Per-page CSS computed `mask-type` resolved on SVG masks
+
+- **[T]** Per SVG mask: resolved mask-type (luminance / alpha).
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM. Per-page CSS computed `clip-path` resolved per element
+
+- **[T]** Per clipped element: resolved clip-path function form + reference geometry box.
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN. Per-page CSS computed `shape-outside` resolved per floated element
+
+- **[T]** Per floated element with shape-outside: resolved value (image / basic-shape / none).
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO. Per-page CSS computed `shape-margin` resolved per element
+
+- **[T]** Per element with shape-outside: resolved shape-margin distribution.
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP. Per-page CSS computed `offset-path` resolved per animated element
+
+- **[T]** Per element using motion-path: resolved offset-path / offset-distance / offset-rotate distribution.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ. Per-page CSS computed `view-transition-name` resolved per element
+
+- **[T]** Per element with view-transition-name: resolved name value distribution.
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR. Per-page CSS computed `anchor-name` resolved per anchored element
+
+- **[T]** Per element with anchor-name: resolved value list.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS. Per-page CSS computed `anchor-scope` resolved per anchor
+
+- **[T]** Per anchor: resolved anchor-scope (none / all / `<dashed-ident>`).
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT. Per-page CSS computed `position-anchor` resolved per positioned element
+
+- **[T]** Per anchored-positioned element: resolved position-anchor value.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU. Per-page CSS computed `position-area` resolved per positioned element
+
+- **[T]** Per anchored-positioned element: resolved position-area distribution.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV. Per-page CSS computed `inset-area` resolved per positioned element
+
+- **[T]** Per anchored-positioned element: resolved inset-area distribution.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW. Per-page CSS computed `position-try-fallbacks` resolved chain
+
+- **[T]** Per anchored element: resolved fallback chain.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX. Per-page CSS computed `field-sizing` resolved per form control
+
+- **[T]** Per form control: resolved field-sizing (`fixed` / `content`).
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY. Per-page CSS computed `interpolate-size` resolved per element
+
+- **[T]** Per element: resolved interpolate-size (`numeric-only` / `allow-keywords`).
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ. Per-page CSS computed `text-wrap-style` resolved per text element
+
+- **[T]** Per visible text element: resolved text-wrap-style (`auto` / `balance` / `pretty` / `stable`).
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
