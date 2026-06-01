@@ -4520,6 +4520,231 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 - **[T]** Per page: simultaneous captcha vendor presence (page uses BOTH reCAPTCHA and Cloudflare Turnstile, etc.).
 - **[T]** Per captcha vendor: site key extracted + invocation count.
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA. Per-page browser-extension residual XHR fingerprint
+
+- **[T]** Per page: any XHR requests originating from extension content scripts — Chromium sets `initiator: 'other'` and the request URL points to extension-owned hosts.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB. Per-page MV3 vs MV2 extension capability detection
+
+- **[T]** Per page: extensions visible via DOM injection — distinguish MV3 declarativeNetRequest behavior vs MV2 webRequest-blocking behavior.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC. Per-page Element internals form validation message
+
+- **[T]** Per ElementInternals: setValidity flags + validationMessage string.
+- **[T]** Per form: reported validity per submit attempt.
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD. Per-page constraint validation custom message distribution
+
+- **[T]** Per input element: `setCustomValidity(message)` call log.
+- **[T]** Per page: distribution of custom validation messages by element.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE. Per-page `<select>` option list mutation
+
+- **[T]** Per `<select>` element: option-add / option-remove / option-reorder events.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF. Per-page `<optgroup>` usage
+
+- **[T]** Per `<select>`: optgroup count + nested options per group.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG. Per-page `<fieldset disabled>` chain
+
+- **[T]** Per `<form>`: nested fieldset disabled-chain effective state per control.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH. Per-page `<button formaction|formmethod|formenctype|formtarget|formnovalidate>` overrides
+
+- **[T]** Per submit button: formaction/formmethod/formenctype/formtarget/formnovalidate attribute presence.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII. Per-page form `accept-charset` attribute
+
+- **[T]** Per `<form>`: accept-charset value distribution (typically utf-8 but legacy sites differ).
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ. Per-page form `autocomplete=off` ratio
+
+- **[T]** Per page: per-form autocomplete attribute value + per-field autocomplete-override count.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK. Per-page `<table>` semantic structure
+
+- **[T]** Per `<table>`: `<thead>`, `<tbody>`, `<tfoot>`, `<colgroup>`, `<col>`, `<caption>` presence count + row/cell distribution.
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL. Per-page `<table>` accessibility attributes
+
+- **[T]** Per `<th>`: scope attribute distribution (row/col/rowgroup/colgroup/auto).
+- **[T]** Per `<th>`/`<td>`: headers attribute references.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM. Per-page `<ol type|reversed|start>` distribution
+
+- **[T]** Per `<ol>` element: type attribute (1/a/A/i/I/none) + reversed flag + start integer.
+- **[T]** Per `<li>`: value attribute override count.
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN. Per-page `<time datetime>` distribution
+
+- **[T]** Per `<time datetime>` element: datetime parsed format + content text presence.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO. Per-page `<abbr title>` distribution
+
+- **[T]** Per `<abbr>` element: title attribute byte size distribution.
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP. Per-page `<bdi>` / `<bdo dir>` distribution
+
+- **[T]** Per page: bidirectional-isolation element count + `<bdo dir>` direction overrides.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ. Per-page `<ruby>` / `<rt>` / `<rp>` annotation count
+
+- **[T]** Per page: Asian-script ruby annotation count + rt/rp child distribution.
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR. Per-page `<wbr>` soft-break count
+
+- **[T]** Per page: `<wbr>` element count.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS. Per-page `<picture>` art-direction count
+
+- **[T]** Per `<picture>`: per-source media query attribute presence (art direction signal).
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT. Per-page CSS `view-transition-class` distribution
+
+- **[T]** Per element with `view-transition-class`: declared class values + scope.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU. Per-page CSS `:has()` selector usage
+
+- **[T]** Per stylesheet: `:has(...)` selector occurrence count.
+- **[T]** Per page: parent-selector usage (Chrome's recent CSS feature) — heavy use suggests modern framework.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV. Per-page CSS `:is()` / `:where()` selector grouping usage
+
+- **[T]** Per stylesheet: `:is(...)` and `:where(...)` count distribution.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW. Per-page CSS `:not(complex)` selector usage
+
+- **[T]** Per stylesheet: `:not(...)` selector with non-simple argument count.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX. Per-page CSS attribute selector with `i` flag
+
+- **[T]** Per stylesheet: case-insensitive attribute selector count (`[type="text" i]`).
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY. Per-page CSS combinator distribution
+
+- **[T]** Per stylesheet: descendant (` `) vs child (`>`) vs adjacent-sibling (`+`) vs general-sibling (`~`) combinator distribution.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ. Per-page CSS `::before` / `::after` pseudo-element count
+
+- **[T]** Per stylesheet: generated-content rule count for `::before`, `::after`, `::marker`, `::placeholder`, `::file-selector-button`, `::backdrop`, `::selection`, `::first-line`, `::first-letter`.
+
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA. Per-page Performance Timeline buffer settings
+
+- **[T]** Per page: `performance.setResourceTimingBufferSize(n)` calls + final buffer size.
+- **[T]** Per page: `performance.clearResourceTimings` / `clearMarks` / `clearMeasures` call distribution.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB. Per-page `userAgentData.brands` exact equality vs UA string
+
+- **[T]** Per page: `navigator.userAgentData.brands` value vs `navigator.userAgent` value cross-check — divergence indicates spoofing layer.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC. Per-page Intl segmenter iteration boundary
+
+- **[T]** Per `new Intl.Segmenter(locale, opts)`: locale + granularity + segments delivered per known input.
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD. Per-page Intl PluralRules / RelativeTimeFormat / DisplayNames outputs
+
+- **[T]** Per `Intl.PluralRules('en').select(N)` for N in known set: outputs.
+- **[T]** Per `Intl.RelativeTimeFormat('en','always').format(-3, 'day')` round-trips.
+- **[T]** Per `Intl.DisplayNames('en',{type:'language'}).of('zh-Hant')` round-trips.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE. Per-page Intl Collator.compare ordering matrix
+
+- **[T]** Per page: `Intl.Collator('en').compare(a,b)` outputs across a known matrix of 50+ string pairs.
+- **[T]** Per locale: same matrix — surfaces ICU version + collation tailoring data.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF. Per-page browser-locale-aware string upper/lower
+
+- **[T]** Per page: `'i'.toLocaleUpperCase('tr-TR')` → 'İ' (Turkish dotted-i edge case).
+- **[T]** Per page: `'ß'.toLocaleUpperCase('de-DE')` → 'SS' vs 'ẞ'.
+- **[T]** Per page: 30+ locale-sensitive case-transformation test cases.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG. Per-page IndexedDB `KeyRange` traversal pattern
+
+- **[T]** Per IDB cursor: KeyRange bounds + direction (next/nextunique/prev/prevunique).
+- **[T]** Per cursor: items iterated count.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH. Per-page WebCrypto algorithm coverage
+
+- **[T]** Per `crypto.subtle.generateKey` / `importKey` / `exportKey` / `encrypt` / `decrypt` / `sign` / `verify` / `deriveKey` / `deriveBits` / `digest` / `wrapKey` / `unwrapKey` call: algorithm name + algorithm params + outcome.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII. Per-page WebCrypto algorithm-name coverage matrix
+
+- **[T]** Per page: for each algorithm name (`RSASSA-PKCS1-v1_5`, `RSA-PSS`, `RSA-OAEP`, `ECDSA`, `ECDH`, `Ed25519`, `Ed448`, `X25519`, `X448`, `AES-CTR`, `AES-CBC`, `AES-GCM`, `AES-KW`, `HMAC`, `HKDF`, `PBKDF2`), `crypto.subtle.generateKey` with a known config — outcome (success / NotSupportedError).
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ. Per-page `crypto.subtle.digest` algorithm matrix
+
+- **[T]** Per page: digest test for SHA-1 / SHA-256 / SHA-384 / SHA-512 over a known input — output bytes hash.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK. Per-page TextEncoder utf-16 fallback (not supported but probed)
+
+- **[T]** `new TextEncoder('utf-16')` throws (spec) vs implementation-specific accepts (rare) — outcome.
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL. Per-page TextDecoder available encoding list
+
+- **[T]** Per page: `new TextDecoder(name)` for known IANA names (gbk/big5/euc-jp/koi8-r/iso-8859-1/...) — which succeed.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM. Per-page CompressionStream supported format matrix
+
+- **[T]** Per page: `new CompressionStream('gzip'|'deflate'|'deflate-raw')` — which succeed.
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN. Per-page CSS `:focus-visible` activation rules
+
+- **[T]** Per page: when does `:focus-visible` activate vs `:focus` alone — keyboard-vs-mouse focus-state divergence.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO. Per-page Element scroll-snap stop count
+
+- **[T]** Per snap-container: snap-stop events fired + index per stop.
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP. Per-page Pointer Events pen + eraser detail
+
+- **[T]** Per pen event: tiltX/tiltY/twist/tangentialPressure values.
+- **[T]** Per eraser event: same.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ. Per-page Browser-side print preview rendering
+
+- **[T]** Per `window.print()` call: print-preview rendered PDF byte hash.
+- **[T]** Per page: print-preview opened count.
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR. Per-page MediaRecorder recording quality
+
+- **[T]** Per `MediaRecorder({mimeType, bitsPerSecond, audioBitsPerSecond, videoBitsPerSecond})`: per-config bytes-per-second observed.
+- **[T]** Per recording: chunk size distribution + total duration.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS. Per-page MediaSource attaching to which element
+
+- **[T]** Per MediaSource: which `<video>` / `<audio>` element it's attached to (HTMLMediaElement reference).
+- **[T]** Per SourceBuffer: total `appendBuffer` byte count + `remove(start,end)` call distribution.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT. Per-page `URL.canParse` behavior on edge inputs
+
+- **[T]** Per page: known-edge URL inputs (`""`, `"http://"`, `"https://a"`, `"//x"`, `"file:///"`, `"data:,A"`, `"javascript:1"`, IPv6 with brackets, IDN) → URL.canParse outcomes.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU. Per-page native DOM `Element.parentNode` performance
+
+- **[T]** Per page: total `parentNode` reads.
+- **[T]** Per page: deepest DOM-traversal observed (parentNode walk depth).
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV. Per-page `Document.body.parentElement` chain
+
+- **[T]** Per page: documentElement → body → main-content child tree depth distribution.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW. Per-page native DOM tree-walking API usage
+
+- **[T]** Per page: `document.createNodeIterator()` + `document.createTreeWalker()` call count + per-call filter functions.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX. Per-page CSS `outline-color` / `outline-style` / `outline-width` distribution
+
+- **[T]** Per page: outline declaration count + per-property value distribution.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY. Per-page CSS `appearance` property usage
+
+- **[T]** Per page: `appearance: none` / `auto` / `button` / `textfield` declaration count.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ. Per-page CSS form-control system-styling reset count
+
+- **[T]** Per page: how many form controls have `appearance: none` applied (resetting native UA styles).
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
