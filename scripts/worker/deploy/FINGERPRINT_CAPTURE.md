@@ -10285,6 +10285,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per session: per-Mojo-interface message-count events.
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA. Per-page Trajectory action verb distribution
+
+- **[T]** Per session: per-trajectory-verb (humanClick / humanType / humanScroll / humanIdlePause / humanFill / humanSelect / humanDrag / etc.) invocation count.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB. Per-page Trajectory action target selector distribution
+
+- **[T]** Per session: per-action target CSS-selector text length distribution + selector-specificity distribution.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC. Per-page Trajectory action retry attempts distribution
+
+- **[T]** Per session: per-action retry count distribution.
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD. Per-page Trajectory action failure-reason distribution
+
+- **[T]** Per session: per-action failure-reason category (`selector_not_found` / `element_not_visible` / `element_not_clickable` / `timeout` / `selector_ambiguous` / etc.) histogram.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE. Per-page Trajectory action latency distribution
+
+- **[T]** Per session: per-action wall-clock latency distribution by verb.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF. Per-page Trajectory humanIdlePause reason distribution
+
+- **[T]** Per session: per-pause reason (`deliberate` / `natural` / `microthought` / `typo-recovery` / `between-actions`) histogram.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG. Per-page Trajectory humanIdlePause duration distribution
+
+- **[T]** Per session: per-pause duration histogram (ms).
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH. Per-page Trajectory humanType per-character delay distribution
+
+- **[T]** Per session: per-keystroke delay histogram (ms).
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII. Per-page Trajectory humanType typo distribution
+
+- **[T]** Per session: typo+backspace+correct event count per trajectory.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ. Per-page Trajectory humanClick pre-click hover dwell
+
+- **[T]** Per session: per-click pre-click hover-time distribution.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK. Per-page Trajectory humanClick mouse-path velocity profile
+
+- **[T]** Per session: per-click mouse-path velocity histogram + acceleration variance.
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL. Per-page Trajectory humanScroll deltaY distribution
+
+- **[T]** Per session: per-scroll deltaY value distribution.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM. Per-page Trajectory humanScroll duration distribution
+
+- **[T]** Per session: per-scroll wall-clock duration distribution.
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN. Per-page Trajectory humanDrag distance distribution
+
+- **[T]** Per session: per-drag distance distribution.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO. Per-page Trajectory humanFill character timing relative to humanType
+
+- **[T]** Per session: humanFill vs humanType character-timing divergence histogram.
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP. Per-page Trajectory humanSelect option distribution
+
+- **[T]** Per session: per-humanSelect call: target select element + selected option index/value.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ. Per-page Trajectory action total count per trajectory
+
+- **[T]** Per session: per-trajectory file total action count.
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR. Per-page Trajectory exit-status distribution
+
+- **[T]** Per session: per-trajectory final exit-status (`PASS` / `FAIL` / `CAPTCHA` / `BLOCKED` / `KILLED` / `OOM` / `TIMEOUT`).
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS. Per-page Trajectory exit-status reason classifier
+
+- **[T]** Per session: per-FAIL trajectory cause attribution (`ip_blocked` / `fingerprint_flagged` / `captcha_challenge` / `account_dead` / `cookies_stale` / `domain_blocked` / `network_error`).
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT. Per-page Trajectory ban-signal distribution
+
+- **[T]** Per session: per-ban-signal type (`hard_ban` / `shadowban` / `rate_limit` / `checkpoint` / `email_verify` / `phone_verify` / `id_verify`) detection event count.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU. Per-page Trajectory IP burn classification
+
+- **[T]** Per session: was the exit IP burned during this run (per-CIDR-level + per-ASN-level burn signal).
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV. Per-page Trajectory account burn classification
+
+- **[T]** Per session: was the social_accounts row marked burned post-run.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW. Per-page Trajectory persona burn classification
+
+- **[T]** Per session: was the persona reused or rotated post-run.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX. Per-page Trajectory email domain burn classification
+
+- **[T]** Per session: was the email domain used marked mx_broken / suspended post-run.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY. Per-page Trajectory proxy provider attribution
+
+- **[T]** Per session: which proxy provider (Oxylabs / IPRoyal / BrightData / PacketStream / Decodo / Pingproxies / etc.) was used + per-provider pool.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ. Per-page Trajectory captcha solver invocation count
+
+- **[T]** Per session: per-captcha-vendor (reCAPTCHA / hCaptcha / Turnstile / Arkose / NoCaptcha / capsolver) invocation count + outcome.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
