@@ -5271,6 +5271,113 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per registered AudioWorkletProcessor: parameterDescriptors array + per-parameter defaultValue / minValue / maxValue / automationRate.
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA. Per-page WebSocket close code distribution
+
+- **[T]** Per WebSocket close: code (1000 / 1001 / 1002 / ...) + reason string + wasClean flag.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB. Per-page Fetch abort reason distribution
+
+- **[T]** Per aborted fetch: AbortSignal.reason value (DOMException / Error / custom value).
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC. Per-page Network::ResourceRequest credentials propagation
+
+- **[T]** Per outgoing fetch: credentials mode resolved (omit/same-origin/include) → cookies attached or not per request.
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD. Per-page CORS preflight OPTIONS request log
+
+- **[T]** Per CORS request: was preflight fired? → preflight URL + Access-Control-Request-Method + Access-Control-Request-Headers.
+- **[T]** Per preflight: cache duration via Access-Control-Max-Age.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE. Per-page Cross-Origin-Resource-Policy enforcement
+
+- **[T]** Per outgoing cross-origin subresource: CORP header expected vs received vs blocked.
+- **[T]** Per blocked load: Audits issue payload.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF. Per-page Origin trial cache state
+
+- **[T]** Per page: previously-cached Origin Trial tokens applied vs newly-issued via meta tag.
+- **[T]** Per origin trial: token bound origin matches current page origin.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG. Per-page Reporting-Endpoints + Report-To header parsed
+
+- **[T]** Per response: Reporting-Endpoints map (modern syntax) + legacy Report-To JSON parsed.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH. Per-page `Permissions-Policy: ch-*` client-hint policies
+
+- **[T]** Per response: Permissions-Policy ch-* directives delivered + which subframes get which UA-CH.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII. Per-page `Speculation-Rules` JSON parse
+
+- **[T]** Per page: per-rule prefetch vs prerender vs prefetch-with-subresources strategy + per-URL pattern eagerness (immediate/eager/moderate/conservative).
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ. Per-page X-Frame-Options vs CSP frame-ancestors resolution
+
+- **[T]** Per response: which header (X-Frame-Options vs CSP frame-ancestors) was used + resolved decision.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK. Per-page Resource Loading Hints HTTP/2 PUSH state
+
+- **[T]** Per response: any HTTP/2 PUSH_PROMISE received vs not (HTTP/2 server push, removed from many implementations).
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL. Per-page Network::Trial Override headers
+
+- **[T]** Per response: `Sec-Variant-Hints` (variants) / `Sec-Original-Url` / `Sec-CDN-Loop` headers if any.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM. Per-page connection pool reuse per host
+
+- **[T]** Per host: distinct connection ID count + reuse-per-connection histogram (from NetLog `URL_REQUEST_SOURCE` correlation).
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN. Per-page HTTP/2 PING frame round-trip distribution
+
+- **[T]** Per HTTP/2 session: PING frame round-trip times per ping.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO. Per-page HTTP/2 SETTINGS frame distribution
+
+- **[T]** Per HTTP/2 session: SETTINGS frames received — full settings map per frame.
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP. Per-page HTTP/2 WINDOW_UPDATE frame rate
+
+- **[T]** Per HTTP/2 session: WINDOW_UPDATE frame count + per-stream window increment distribution.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ. Per-page HTTP/2 PRIORITY frame distribution
+
+- **[T]** Per HTTP/2 session: PRIORITY frame count + dependency-tree change frequency.
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR. Per-page HTTP/2 stream-reset RST_STREAM frame distribution
+
+- **[T]** Per HTTP/2 session: RST_STREAM frames + error code distribution.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS. Per-page HTTP/2 HEADERS frame compressed-vs-uncompressed ratio
+
+- **[T]** Per stream: HEADERS frame compressed byte size vs uncompressed equivalent (HPACK efficiency).
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT. Per-page HPACK dynamic table state
+
+- **[T]** Per HTTP/2 session: HPACK dynamic table size at connection end + entries added vs evicted count.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU. Per-page CONTINUATION frame frequency
+
+- **[T]** Per HTTP/2 stream: HEADERS spillover to CONTINUATION frames count (large header values signal).
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV. Per-page HTTP/2 frame-type histogram
+
+- **[T]** Per HTTP/2 session: count of each frame type (DATA / HEADERS / PRIORITY / RST_STREAM / SETTINGS / PUSH_PROMISE / PING / GOAWAY / WINDOW_UPDATE / CONTINUATION).
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW. Per-page HTTP/3 stream-type distribution
+
+- **[T]** Per QUIC connection: control / push / qpack-encoder / qpack-decoder stream presence + per-type byte volume.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX. Per-page QPACK dynamic-table state (HTTP/3)
+
+- **[T]** Per QUIC session: QPACK dynamic table size + per-stream encoder/decoder activity.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY. Per-page QUIC packet number distribution
+
+- **[T]** Per QUIC connection: packet number space (Initial / Handshake / 1-RTT) packet count.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ. Per-page QUIC frame type histogram
+
+- **[T]** Per QUIC connection: count of each frame type (PADDING / PING / ACK / RESET_STREAM / STOP_SENDING / CRYPTO / NEW_TOKEN / STREAM / MAX_DATA / MAX_STREAM_DATA / MAX_STREAMS / DATA_BLOCKED / STREAM_DATA_BLOCKED / STREAMS_BLOCKED / NEW_CONNECTION_ID / RETIRE_CONNECTION_ID / PATH_CHALLENGE / PATH_RESPONSE / CONNECTION_CLOSE / HANDSHAKE_DONE).
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
