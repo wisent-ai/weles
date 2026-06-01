@@ -2989,6 +2989,137 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 - **[T]** Per page using `navigator.ink.requestPresenter(delegatePresenter, element)`: hint points emitted + presenter state.
 - **[T]** Delegated ink trail capability + active state.
 
+## AAAAAAAAAAAAAAAAAAA. WebGL / WebGL2 extension presence matrix
+
+- **[T]** Per WebGL context: presence test for every documented extension — `ANGLE_instanced_arrays`, `EXT_blend_minmax`, `EXT_color_buffer_float`, `EXT_color_buffer_half_float`, `EXT_disjoint_timer_query`, `EXT_disjoint_timer_query_webgl2`, `EXT_float_blend`, `EXT_frag_depth`, `EXT_shader_texture_lod`, `EXT_sRGB`, `EXT_texture_compression_bptc`, `EXT_texture_compression_rgtc`, `EXT_texture_filter_anisotropic`, `EXT_texture_norm16`, `KHR_parallel_shader_compile`, `OES_draw_buffers_indexed`, `OES_element_index_uint`, `OES_fbo_render_mipmap`, `OES_standard_derivatives`, `OES_texture_float`, `OES_texture_float_linear`, `OES_texture_half_float`, `OES_texture_half_float_linear`, `OES_vertex_array_object`, `OVR_multiview2`, `WEBGL_color_buffer_float`, `WEBGL_compressed_texture_astc`, `WEBGL_compressed_texture_etc`, `WEBGL_compressed_texture_etc1`, `WEBGL_compressed_texture_pvrtc`, `WEBGL_compressed_texture_s3tc`, `WEBGL_compressed_texture_s3tc_srgb`, `WEBGL_debug_renderer_info`, `WEBGL_debug_shaders`, `WEBGL_depth_texture`, `WEBGL_draw_buffers`, `WEBGL_lose_context`, `WEBGL_multi_draw`, `WEBGL_video_texture`.
+
+## BBBBBBBBBBBBBBBBBBB. CSS clip-path type distribution
+
+- **[T]** Per page: usage count of each `clip-path` function — `inset()`, `circle()`, `ellipse()`, `polygon()`, `path()`, `xywh()`, `rect()`, `shape()`.
+- **[T]** Per page: SVG referenced clip-paths (`url(#foo)`) count.
+
+## CCCCCCCCCCCCCCCCCCC. CSS mask + mix-blend / background-blend usage
+
+- **[T]** Per page: count of elements with `mask-image` / `-webkit-mask-image` set; mask source distribution.
+- **[T]** Per page: `mix-blend-mode` value distribution (per mode: normal/multiply/screen/overlay/darken/lighten/color-dodge/color-burn/hard-light/soft-light/difference/exclusion/hue/saturation/color/luminosity/plus-lighter).
+- **[T]** Per page: `background-blend-mode` distribution.
+
+## DDDDDDDDDDDDDDDDDDD. CSS filter / backdrop-filter function distribution
+
+- **[T]** Per page: usage count of each `filter` function — `blur()`, `brightness()`, `contrast()`, `drop-shadow()`, `grayscale()`, `hue-rotate()`, `invert()`, `opacity()`, `saturate()`, `sepia()`, `url()`.
+- **[T]** Per page: `backdrop-filter` function distribution.
+
+## EEEEEEEEEEEEEEEEEEE. CSS transition-property distribution
+
+- **[T]** Per page: transitioned property name histogram across all `transition-property` declarations.
+- **[T]** Per page: transition-timing-function distribution (linear / ease / ease-in / ease-out / ease-in-out / steps() / cubic-bezier() / linear()).
+
+## FFFFFFFFFFFFFFFFFFF. CSS will-change / contain / isolation usage
+
+- **[T]** Per page: elements declaring `will-change: foo, bar` — properties hinted.
+- **[T]** Per page: `contain` value distribution (already in EEEEEEEEEEEE — here per element count + per-axis split).
+- **[T]** Per page: `isolation: isolate` element count.
+
+## GGGGGGGGGGGGGGGGGGG. CSS scroll-* properties
+
+- **[T]** Per page: `overscroll-behavior` value distribution.
+- **[T]** Per page: `scroll-snap-type` + `scroll-snap-align` usage count.
+- **[T]** Per page: `scroll-padding` + `scroll-margin` declarations.
+- **[T]** Per page: `scrollbar-gutter` / `scrollbar-width` / `scrollbar-color` usage.
+- **[T]** Per page: `scroll-behavior: smooth` usage count.
+
+## HHHHHHHHHHHHHHHHHHH. CSS touch-action / pointer-events / user-select
+
+- **[T]** Per page: `touch-action` value distribution (auto / none / pan-x / pan-y / pinch-zoom / manipulation).
+- **[T]** Per page: `pointer-events` value distribution.
+- **[T]** Per page: `user-select` value distribution (auto / none / text / all / contain).
+
+## IIIIIIIIIIIIIIIIIII. WebRTC RTCConfiguration detail
+
+- **[T]** Per PeerConnection: `iceTransportPolicy` (all/relay), `bundlePolicy` (balanced/max-bundle/max-compat), `rtcpMuxPolicy` (require), `iceCandidatePoolSize`.
+- **[T]** Per PeerConnection: `iceServers` URLs (sha256'd if private TURN) + credential type.
+
+## JJJJJJJJJJJJJJJJJJJ. Web Audio graph topology
+
+- **[T]** Per AudioContext: node count by type — Oscillator / Gain / BiquadFilter / DynamicsCompressor / Delay / Convolver / Analyser / IIRFilter / WaveShaper / ScriptProcessor / AudioWorklet / ChannelSplitter / ChannelMerger / Panner / StereoPanner / MediaElementSource / MediaStreamSource / MediaStreamDestination.
+- **[T]** Per context: connection graph — for each node, list of `connect()` targets.
+
+## KKKKKKKKKKKKKKKKKKK. WebCodecs codec resolution
+
+- **[T]** Per `VideoEncoder.configure({codec})` call: resolved encoder name + hardware-vs-software (`hardwareAcceleration` field).
+- **[T]** Per `VideoDecoder.configure({codec})` call: resolved decoder name + hardware-vs-software.
+- **[T]** Per `AudioEncoder` / `AudioDecoder` configure: same.
+
+## LLLLLLLLLLLLLLLLLLL. ImageDecoder format support matrix
+
+- **[T]** `ImageDecoder.isTypeSupported(mime)` matrix across every known image mime.
+- **[T]** Per page: ImageDecoder instances + bytes decoded by format.
+
+## MMMMMMMMMMMMMMMMMMM. CSS counter-set / counter-reset / counter-increment
+
+- **[T]** Per page: declared counter names + reset/increment patterns.
+- **[T]** Per page: `counter()` / `counters()` function usage in `content:`.
+
+## NNNNNNNNNNNNNNNNNNN. CSS @page margin box rules
+
+- **[T]** Per page: every `@page` rule's margin-box children (`@top-left`, `@top-center`, `@top-right`, `@bottom-left`, `@bottom-center`, `@bottom-right`, `@left-top`, `@left-middle`, `@left-bottom`, `@right-top`, `@right-middle`, `@right-bottom`).
+
+## OOOOOOOOOOOOOOOOOOO. SVG element type distribution
+
+- **[T]** Per page: per SVG element tag count (`svg`, `path`, `circle`, `rect`, `ellipse`, `line`, `polyline`, `polygon`, `text`, `tspan`, `defs`, `g`, `use`, `symbol`, `clipPath`, `mask`, `filter`, `linearGradient`, `radialGradient`, `pattern`, `marker`, `foreignObject`, `image`, `animate`, `animateTransform`, `animateMotion`).
+- **[T]** Per page: SVG filter primitive count (`feGaussianBlur`, `feColorMatrix`, `feComposite`, `feMorphology`, `feDisplacementMap`, `feFlood`, `feOffset`, `feMerge`, `feBlend`, `feTurbulence`, `feConvolveMatrix`, `feSpecularLighting`, `feDiffuseLighting`, `feDistantLight`, `fePointLight`, `feSpotLight`).
+
+## PPPPPPPPPPPPPPPPPPP. MathML element distribution
+
+- **[T]** Per page: per MathML element count (`math`, `mrow`, `mn`, `mi`, `mo`, `mfrac`, `msup`, `msub`, `msubsup`, `munder`, `mover`, `munderover`, `msqrt`, `mroot`, `mtable`, `mtr`, `mtd`, `mtext`, `mspace`, `mstyle`, `merror`, `mphantom`, `menclose`, `mfenced`).
+
+## QQQQQQQQQQQQQQQQQQQ. HTML semantic element distribution
+
+- **[T]** Per page: count of every HTML element tag — full inventory of `body.querySelectorAll('*')` grouped by tagName.
+- **[T]** Top-N least common tags per page (rare tags identify framework versions).
+
+## RRRRRRRRRRRRRRRRRRR. ARIA role distribution
+
+- **[T]** Per page: count of elements with each explicit `role=` attribute — `button`/`link`/`navigation`/`main`/`banner`/`contentinfo`/`complementary`/`region`/`article`/`section`/`form`/`search`/`status`/`alert`/`dialog`/`menu`/`menuitem`/`tab`/`tabpanel`/`tabs`/`textbox`/`combobox`/`listbox`/`option`/`tree`/`treegrid`/`grid`/`row`/`gridcell`/...
+
+## SSSSSSSSSSSSSSSSSSS. HTML data-* attribute usage
+
+- **[T]** Per page: total `data-*` attribute count + per-attribute-name frequency histogram (sha256'd attribute name keys, count values).
+
+## TTTTTTTTTTTTTTTTTTT. HTML form per-input value entropy
+
+- **[T]** Per `<input>`: declared input type + max-length + observed value length distribution.
+- **[T]** Per page: total form-control count + per-type breakdown.
+
+## UUUUUUUUUUUUUUUUUUU. Page CSP report-uri / report-to deliveries
+
+- **[T]** Per response with CSP `report-uri` or `report-to`: endpoint URL + reports delivered count.
+- **[T]** Per page: violation report queue depth at session close.
+
+## VVVVVVVVVVVVVVVVVVV. Content-Security-Policy header value parsing
+
+- **[T]** Per response with CSP: full directive set parsed — `default-src` / `script-src` / `script-src-elem` / `script-src-attr` / `style-src` / `style-src-elem` / `style-src-attr` / `img-src` / `font-src` / `connect-src` / `frame-src` / `child-src` / `worker-src` / `manifest-src` / `media-src` / `object-src` / `prefetch-src` / `base-uri` / `form-action` / `frame-ancestors` / `navigate-to` / `report-uri` / `report-to` / `require-trusted-types-for` / `trusted-types` / `upgrade-insecure-requests` / `block-all-mixed-content`.
+
+## WWWWWWWWWWWWWWWWWWW. NEL (Network Error Logging) report deliveries
+
+- **[T]** Per response with `NEL:` header: policy + report-to group + sampling-rate + success-fraction + failure-fraction.
+- **[T]** Per origin: NEL reports delivered count (network errors observed).
+
+## XXXXXXXXXXXXXXXXXXX. HTTP cookie partitioning + first-party-set membership outcomes
+
+- **[T]** Per outgoing request: per-cookie partition decision (sent / blocked / partitioned).
+- **[T]** Per FPS membership: same-set vs cross-set boundary crossings.
+
+## YYYYYYYYYYYYYYYYYYY. Per-page `Origin-Agent-Cluster: ?1` header parsing
+
+- **[T]** Per page: `Origin-Agent-Cluster` response header value (when present).
+- **[T]** Per frame: origin-keyed agent cluster vs site-keyed.
+
+## ZZZZZZZZZZZZZZZZZZZ. Per-page TransformStream / TextDecoderStream usage
+
+- **[T]** Per page: every `new TransformStream(transformer)` call + `readableStrategy` / `writableStrategy` highwater mark.
+- **[T]** Per page: every `TextDecoderStream` / `TextEncoderStream` / `CompressionStream` / `DecompressionStream` instance — codec + bytes processed.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
