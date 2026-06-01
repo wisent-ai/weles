@@ -13925,6 +13925,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per session: hand resting boolean.
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA. Per-page CSS property `align-items` computed value distribution
+
+- **[T]** Per session: per-element resolved align-items value distribution.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB. Per-page CSS property `align-self` computed value distribution
+
+- **[T]** Per session: per-element resolved align-self value distribution.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC. Per-page CSS property `justify-items` computed value distribution
+
+- **[T]** Per session: per-element resolved justify-items value distribution.
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD. Per-page CSS property `justify-self` computed value distribution
+
+- **[T]** Per session: per-element resolved justify-self value distribution.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE. Per-page CSS property `justify-content` computed value distribution
+
+- **[T]** Per session: per-element resolved justify-content value distribution.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF. Per-page CSS property `flex-direction` computed value distribution
+
+- **[T]** Per session: per-element resolved flex-direction value distribution.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG. Per-page CSS property `flex-wrap` computed value distribution
+
+- **[T]** Per session: per-element resolved flex-wrap value distribution.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH. Per-page CSS property `flex-grow` computed value distribution
+
+- **[T]** Per session: per-element resolved flex-grow value distribution.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII. Per-page CSS property `flex-shrink` computed value distribution
+
+- **[T]** Per session: per-element resolved flex-shrink value distribution.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ. Per-page CSS property `flex-basis` computed value distribution
+
+- **[T]** Per session: per-element resolved flex-basis value distribution.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK. Per-page CSS property `order` computed value distribution
+
+- **[T]** Per session: per-element resolved order value distribution.
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL. Per-page CSS property `gap` computed value distribution
+
+- **[T]** Per session: per-element resolved gap value distribution.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM. Per-page CSS property `row-gap` computed value distribution
+
+- **[T]** Per session: per-element resolved row-gap value distribution.
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN. Per-page CSS property `column-gap` computed value distribution
+
+- **[T]** Per session: per-element resolved column-gap value distribution.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO. Per-page CSS property `grid-template-columns` computed value distribution
+
+- **[T]** Per session: per-grid container resolved grid-template-columns value distribution.
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP. Per-page CSS property `grid-template-rows` computed value distribution
+
+- **[T]** Per session: per-grid container resolved grid-template-rows value distribution.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ. Per-page CSS property `grid-template-areas` computed value distribution
+
+- **[T]** Per session: per-grid container resolved grid-template-areas value distribution.
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR. Per-page CSS property `grid-auto-columns` computed value distribution
+
+- **[T]** Per session: per-grid container resolved grid-auto-columns value distribution.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS. Per-page CSS property `grid-auto-rows` computed value distribution
+
+- **[T]** Per session: per-grid container resolved grid-auto-rows value distribution.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT. Per-page CSS property `grid-auto-flow` computed value distribution
+
+- **[T]** Per session: per-grid container resolved grid-auto-flow value distribution.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU. Per-page CSS property `grid-column-start` computed value distribution
+
+- **[T]** Per session: per-grid-item resolved grid-column-start value distribution.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV. Per-page CSS property `grid-column-end` computed value distribution
+
+- **[T]** Per session: per-grid-item resolved grid-column-end value distribution.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW. Per-page CSS property `grid-row-start` computed value distribution
+
+- **[T]** Per session: per-grid-item resolved grid-row-start value distribution.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX. Per-page CSS property `grid-row-end` computed value distribution
+
+- **[T]** Per session: per-grid-item resolved grid-row-end value distribution.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY. Per-page CSS property `grid-area` computed value distribution
+
+- **[T]** Per session: per-grid-item resolved grid-area value distribution.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ. Per-page CSS property `place-content` computed value distribution
+
+- **[T]** Per session: per-element resolved place-content value distribution.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
