@@ -1397,6 +1397,178 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 - **[T]** Pasteboard count (NSPasteboardGeneralName) + per-board content type list — `pbpaste -Prefer txt | wc -c` (count only, no content).
 - **[T]** Drag pasteboard active count.
 
+## QQQQQQQ. Per-page Storage Access requestStorageAccessFor
+
+- **[T]** Every `document.requestStorageAccessFor(origin)` call: origin + outcome (granted/denied/prompt).
+- **[T]** Every `document.requestStorageAccess({all: true})` outcome.
+- **[T]** Storage Access API headers — `Sec-Fetch-Storage-Access` value per outgoing request.
+
+## RRRRRRR. ServiceWorker fetch interception overhead
+
+- **[T]** Per SW-intercepted fetch: ServiceWorker fetch event start to network fetch start delta.
+- **[T]** SW respondWith() resolution latency distribution.
+- **[T]** SW navigation preload hit/miss per page.
+- **[T]** Worker → main thread postMessage round-trip latency distribution.
+
+## SSSSSSS. BroadcastChannel + Web Locks per-channel
+
+- **[T]** Every BroadcastChannel: name + post count + payload byte distribution.
+- **[T]** Every Web Lock held: name + mode (shared/exclusive) + duration + steal events.
+- **[T]** Per-channel postMessage origin allowlist + counts.
+
+## TTTTTTT. Per-host connection reuse + pool state
+
+- **[T]** Per host: max simultaneous connections used in session.
+- **[T]** Per host: connection-reuse count vs new-connection count.
+- **[T]** Per host: HTTP/2 stream multiplexing depth distribution.
+- **[T]** Connection close reasons per pool (idle timeout, server close, GOAWAY, error).
+
+## UUUUUUU. Browser auto-update + component update events
+
+- **[T]** Browser update check fired count per session (from NetLog `update.googleapis.com` requests).
+- **[T]** Component install/update events per session (Widevine version bump, etc.).
+- **[T]** Variation seed refresh events from `clients2.google.com`.
+
+## VVVVVVV. View Transitions API usage
+
+- **[T]** Every `document.startViewTransition(callback)` call: transition phase log (transitionStart, transitionEnd, transitionAbort).
+- **[T]** ViewTransition tree snapshot at transitionStart.
+- **[T]** Cross-document view transitions (recent) — every `@view-transition` declaration in CSS + outcome.
+
+## WWWWWWW. HTTP redirect chain + cache key
+
+- **[T]** Per request that redirected: full chain (302/301/307/308 hops, every Location header), final URL.
+- **[T]** Per cached resource: cache key composition (URL + Vary header dimensions resolved + partition key).
+- **[T]** Per Vary response: which client headers compose the cache key (Origin, User-Agent, Accept-Language, etc.).
+
+## XXXXXXX. Memory pressure level transitions
+
+- **[T]** CDP `Memory.pressureLevelChange` events per session: timestamp + new level (None/Moderate/Critical).
+- **[T]** OS memory pressure — macOS `sysctl kern.memorystatus_vm_pressure_level`.
+- **[T]** Per-renderer-process memory pressure response (tab discards, freezes).
+
+## YYYYYYY. Per-Chromium-child cumulative CPU + RSS
+
+- **[T]** Per child process: cumulative cpu_time from `SystemInfo.getProcessInfo` polled every 10s — total CPU consumed over session.
+- **[T]** Per child: max resident_size observed (peak RSS).
+- **[T]** Per child: total faults + page-ins delta over session.
+
+## ZZZZZZZ. GPU command buffer + submit metrics
+
+- **[T]** GPU process: command buffer submit count from Tracing `gpu` category.
+- **[T]** GPU process: per-command-type submit count (draw, compute dispatch, copy, etc.).
+- **[T]** GPU process: GPU-side scheduler queue depth over session.
+
+## AAAAAAAA. Browser idle vs busy period histogram
+
+- **[T]** Browser idle periods detected from `requestIdleCallback` deadline-remaining values + Tracing `disabled-by-default-cpu_profiler.runtime_stats`.
+- **[T]** Cumulative idle vs busy time per session.
+
+## BBBBBBBB. JS heap snapshot retained-size by constructor
+
+- **[T]** From HeapProfiler snapshot at session close: per top-level constructor (Function/Promise/RegExp/Error/Array/Object/Map/Set/HTMLElement/etc.), total instance count + retained size.
+- **[T]** Largest 100 retainers by retained size.
+- **[T]** Detached DOM subtrees identified by retainer chain (already named in UUUUUU; here deeper — full subtree dump).
+
+## CCCCCCCC. Per-extension content script injection
+
+- **[T]** MutationObserver on `document.documentElement.childList` watching for nodes added by extensions post-DOMContentLoaded — log each (tagName, src, classList, id).
+- **[T]** Detection of isolated-world scripts via `chrome.runtime.id` checks on detected nodes.
+
+## DDDDDDDD. COEP / COOP report deliveries
+
+- **[T]** Per page: every `coep-report` / `coop-report` payload from ReportingObserver — body, type, url.
+- **[T]** Cross-origin embedder/opener decisions per frame.
+
+## EEEEEEEE. Worklet pool population per frame
+
+- **[T]** Per frame, per worklet type (animation/layout/paint/audio): which worklets are registered, their scriptURL sha256, output graph.
+
+## FFFFFFFF. ServiceWorker lifecycle event counts
+
+- **[T]** Per SW: install/activate/fetch/message/sync/push/notificationclick/notificationclose handler invocation counts.
+- **[T]** Per SW: skipWaiting()/clients.claim() call counts and outcomes.
+- **[T]** Per SW update: old-vs-new script content sha256 + dependent imports diff.
+
+## GGGGGGGG. fetch() option distribution
+
+- **[T]** Per `fetch(url, init)` call: full init object — method, headers, body presence, mode (cors/no-cors/same-origin/navigate), credentials (omit/same-origin/include), cache (default/no-store/reload/no-cache/force-cache/only-if-cached), redirect (follow/error/manual), referrer + referrerPolicy, integrity, keepalive, signal-bound (yes/no).
+- **[T]** Distribution histograms across the session per option dimension.
+
+## HHHHHHHH. Per-response cookie modification log
+
+- **[T]** Every `Set-Cookie` header in every response — name (sha256'd), domain, path, expires, max-age, secure, httpOnly, sameSite, partitioned.
+- **[T]** Per origin: cumulative Set-Cookie count over session.
+
+## IIIIIIII. COEP enforcement decisions per request
+
+- **[T]** Per outgoing request: was it blocked due to COEP enforcement? (from CDP `Network.loadingFailed` with `blockedReason:'CoepFrameResourceNeedsCoepHeader'`).
+- **[T]** Per response: was it transformed by COEP (cross-origin-embedder-policy header injection)?
+
+## JJJJJJJJ. Mixed content presence + upgrades
+
+- **[T]** Per page: mixed-content warnings (active + passive).
+- **[T]** Per resource: HSTS-upgrade applied (http→https) vs not.
+- **[T]** Per resource: CSP `upgrade-insecure-requests` directive applied vs not.
+
+## KKKKKKKK. Per Chromium utility process: which service
+
+- **[T]** For each pid in `SystemInfo.getProcessInfo` with `type:'Utility'`: service name from `chrome://process-internals/` (network_service, audio_service, video_capture, storage_service, data_decoder, etc.).
+- **[T]** Per service: cpu_time + memory.
+
+## LLLLLLLL. macOS Time Machine / iCloud Drive state
+
+- **[T]** Time Machine status — `tmutil status` + last backup time.
+- **[T]** iCloud Drive sync state — `defaults read com.apple.bird` + `brctl status` (count of synced items).
+- **[T]** iCloud Drive enabled — `defaults read MobileMeAccounts iCloudDriveEnabled`.
+
+## MMMMMMMM. macOS Keychain access events
+
+- **[T]** Per session: number of times Chromium accessed login.keychain — `log show --last 5m --predicate 'subsystem == "com.apple.securityd"'` (count, no contents).
+- **[T]** Per session: number of Touch ID / Apple Watch unlock challenges.
+
+## NNNNNNNN. macOS dock + menu bar state
+
+- **[T]** Dock items count + names (`defaults read com.apple.dock persistent-apps`).
+- **[T]** Dock orientation + size — `defaults read com.apple.dock orientation` + `tilesize`.
+- **[T]** Dock auto-hide state — `defaults read com.apple.dock autohide`.
+- **[T]** Menu bar extras count + identifier list — `defaults read NSGlobalDomain NSStatusItemSpacing` + `NSStatusItemSelectionPadding`.
+
+## OOOOOOOO. macOS APNS + push state
+
+- **[T]** APNS daemon process state — `ps -ef | grep apsd`.
+- **[T]** APSD connection state — `log show --last 1m --predicate 'process == "apsd"'` (count).
+- **[T]** Web Push registration count per origin.
+
+## PPPPPPPP. AdAuction + Protected Audience
+
+- **[T]** Per `navigator.runAdAuction(config)` call: full config + outcome (winner URN + bid + auction time).
+- **[T]** Per FLEDGE/Protected Audience worklet: scoring + bidding logic source sha256.
+- **[T]** Interest group joined/left events per origin.
+
+## QQQQQQQQ. CSS rule type distribution
+
+- **[T]** Per stylesheet: rule count by type — `CSSStyleRule`, `CSSMediaRule`, `CSSKeyframesRule`, `CSSFontFaceRule`, `CSSImportRule`, `CSSSupportsRule`, `CSSContainerRule`, `CSSLayerBlockRule`, `CSSScopeRule`, `CSSStartingStyleRule`, `CSSPropertyRule`, `CSSCounterStyleRule`, `CSSNamespaceRule`, `CSSPageRule`, `CSSFontFeatureValuesRule`, `CSSFontPaletteValuesRule`, `CSSPositionTryRule`, `CSSViewTransitionRule`.
+- **[T]** Per `@font-face`: src URLs + unicode-range + descriptors.
+- **[T]** Per `@container`: container-name + container-type.
+
+## RRRRRRRR. HTMLImageElement / picture detail
+
+- **[T]** Per `<img>`: `src`, `srcset` entries, `sizes`, `currentSrc`, `naturalWidth`, `naturalHeight`, `decoding` (sync/async/auto), `loading` (eager/lazy), `crossorigin`, `referrerpolicy`, `fetchpriority`.
+- **[T]** Per `<picture>`: `<source>` count + per-source media/type/srcset/sizes; selected `<source>` index.
+
+## SSSSSSSS. Custom Elements + Web Components state
+
+- **[T]** `customElements.get` enumeration — every registered custom element name + constructor name + `observedAttributes`.
+- **[T]** `customElements.whenDefined` pending registrations.
+- **[T]** Per shadow root: mode (open/closed), slot count, delegatesFocus, slotAssignment.
+
+## TTTTTTTT. Content Security Policy resolved per resource
+
+- **[T]** Per resource loaded: which CSP directive permitted it (script-src, style-src, img-src, etc.).
+- **[T]** Per resource blocked by CSP: directive + source value matched.
+- **[T]** Per CSP: nonce + hash sources used count.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
