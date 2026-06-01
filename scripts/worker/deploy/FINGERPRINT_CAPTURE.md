@@ -7997,6 +7997,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per AudioContext.listener: positionX/Y/Z + forwardX/Y/Z + upX/Y/Z AudioParam value evolution.
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA. Per-page RTCPeerConnection createOffer offerToReceiveAudio/Video distribution
+
+- **[T]** Per createOffer call: offerToReceiveAudio + offerToReceiveVideo + iceRestart + voiceActivityDetection flags.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB. Per-page RTCPeerConnection setConfiguration calls
+
+- **[T]** Per setConfiguration call: new iceServers / iceTransportPolicy / bundlePolicy / rtcpMuxPolicy values.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC. Per-page RTCPeerConnection addTrack / removeTrack calls
+
+- **[T]** Per call: track kind (audio/video) + streams[] count.
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD. Per-page RTCPeerConnection addTransceiver direction
+
+- **[T]** Per addTransceiver call: direction (sendrecv/sendonly/recvonly/inactive) + sendEncodings array.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE. Per-page RTCRtpSender.setParameters bitrate distribution
+
+- **[T]** Per setParameters call: per-encoding maxBitrate / scaleResolutionDownBy / priority / networkPriority.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF. Per-page RTCRtpSender.replaceTrack calls
+
+- **[T]** Per replaceTrack call: previous track id + new track id.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG. Per-page RTCDataChannel send/close call distribution
+
+- **[T]** Per DataChannel: send call count + total bytes + close events.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH. Per-page RTCDataChannel.bufferedAmount polling
+
+- **[T]** Per DataChannel: bufferedAmount sampling histogram.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII. Per-page RTCDataChannel.ordered / maxRetransmits / maxPacketLifeTime distribution
+
+- **[T]** Per DataChannel: ordered flag + reliability mode (maxRetransmits vs maxPacketLifeTime).
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ. Per-page RTCSctpTransport state log
+
+- **[T]** Per SCTP transport: state transitions (`connecting` / `connected` / `closed`).
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK. Per-page RTCDtlsTransport state log
+
+- **[T]** Per DTLS transport: state transitions (`new` / `connecting` / `connected` / `closed` / `failed`).
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL. Per-page RTCIceTransport state log
+
+- **[T]** Per ICE transport: state transitions (`new` / `checking` / `connected` / `completed` / `disconnected` / `failed` / `closed`).
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM. Per-page RTCIceTransport gathering state log
+
+- **[T]** Per ICE transport: gatheringState transitions (`new` / `gathering` / `complete`).
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN. Per-page RTCPeerConnection connectionState transitions
+
+- **[T]** Per PeerConnection: connectionState transitions (`new` / `connecting` / `connected` / `disconnected` / `failed` / `closed`).
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO. Per-page RTCPeerConnection signalingState transitions
+
+- **[T]** Per PeerConnection: signalingState transitions (`stable` / `have-local-offer` / `have-remote-offer` / `have-local-pranswer` / `have-remote-pranswer` / `closed`).
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP. Per-page RTCPeerConnection iceConnectionState transitions
+
+- **[T]** Per PeerConnection: iceConnectionState transitions (`new` / `checking` / `connected` / `completed` / `failed` / `disconnected` / `closed`).
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ. Per-page RTCPeerConnection iceGatheringState transitions
+
+- **[T]** Per PeerConnection: iceGatheringState transitions.
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR. Per-page RTCStatsReport candidatePair type distribution
+
+- **[T]** Per stats poll: candidate-pair `nominated` / `selected` flag distribution + state.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS. Per-page RTCStatsReport remote-inbound-rtp distribution
+
+- **[T]** Per stats poll: remote-inbound-rtp jitter / packetsLost / roundTripTime distribution.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT. Per-page RTCStatsReport outbound-rtp distribution
+
+- **[T]** Per stats poll: outbound-rtp framesEncoded / qpSum / qualityLimitationReason distribution.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU. Per-page RTCStatsReport inbound-rtp distribution
+
+- **[T]** Per stats poll: inbound-rtp framesDecoded / framesDropped / packetsReceived / jitterBufferDelay distribution.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV. Per-page RTCStatsReport transport-stats distribution
+
+- **[T]** Per stats poll: transport bytesSent / bytesReceived + selectedCandidatePairId.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW. Per-page RTCStatsReport codec stats
+
+- **[T]** Per stats poll: codec mimeType + clockRate + channels + payloadType + sdpFmtpLine distribution.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX. Per-page RTCStatsReport certificate stats
+
+- **[T]** Per stats poll: per-certificate fingerprintAlgorithm + base64Certificate sha256.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY. Per-page RTCStatsReport ice-server stats
+
+- **[T]** Per stats poll: per-ICE-server URL + total requests / responses sent.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ. Per-page RTCStatsReport stream stats
+
+- **[T]** Per stats poll: per-MediaStream id + per-track audioLevel / totalAudioEnergy.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
