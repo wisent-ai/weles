@@ -9141,6 +9141,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per session: hinge-display configuration count.
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA. Per-page CDP LayerTree.enable / disable invocations
+
+- **[T]** Per session: LayerTree domain enable / disable count.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB. Per-page CDP LayerTree.compositingReasons invocations
+
+- **[T]** Per session: compositingReasons calls per layerId.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC. Per-page CDP LayerTree.loadSnapshot invocations
+
+- **[T]** Per session: layer snapshot retrieval count.
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD. Per-page CDP LayerTree.replaySnapshot invocations
+
+- **[T]** Per session: replaySnapshot count + per-call fromStep / toStep.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE. Per-page CDP LayerTree.profileSnapshot invocations
+
+- **[T]** Per session: per-layer profile snapshot count.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF. Per-page CDP LayerTree.makeSnapshot invocations
+
+- **[T]** Per session: makeSnapshot count + per-call layerId.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG. Per-page CDP HeapProfiler.takeBenchmarkSnapshot invocations
+
+- **[T]** Per session: heap-benchmark snapshot count.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH. Per-page CDP DeviceOrientation.setDeviceOrientationOverride invocations
+
+- **[T]** Per session: alpha/beta/gamma override count.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII. Per-page CDP DeviceOrientation.clearDeviceOrientationOverride invocations
+
+- **[T]** Per session: clear override count.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ. Per-page CDP Emulation.setSensorOverrideEnabled invocations
+
+- **[T]** Per session: sensor type (accelerometer / gyroscope / magnetometer / etc.) override enabled count.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK. Per-page CDP Emulation.setSensorOverrideReadings invocations
+
+- **[T]** Per session: per-sensor override readings count.
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL. Per-page CDP Emulation.setPressureSourceOverrideEnabled invocations
+
+- **[T]** Per session: per-pressure-source (`cpu`/`gpu`) override enabled count.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM. Per-page CDP Emulation.setPressureStateOverride invocations
+
+- **[T]** Per session: pressure-state override count (`nominal` / `fair` / `serious` / `critical`).
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN. Per-page CDP Cast.enable / disable invocations
+
+- **[T]** Per session: Cast domain (Chromecast media-router) enable / disable count.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO. Per-page CDP Cast.setSinkToUse invocations
+
+- **[T]** Per session: cast-sink set count + per-sink name.
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP. Per-page CDP Cast.startTabMirroring invocations
+
+- **[T]** Per session: startTabMirroring count.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ. Per-page CDP Cast.stopCasting invocations
+
+- **[T]** Per session: stopCasting count.
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR. Per-page CDP Media.enable / disable invocations
+
+- **[T]** Per session: Media domain enable / disable count.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS. Per-page CDP Media playerEventsAdded events
+
+- **[T]** Per session: per-player event count + per-event name.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT. Per-page CDP Media playerPropertiesChanged events
+
+- **[T]** Per session: per-player property-change event count.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU. Per-page CDP Media playerMessagesLogged events
+
+- **[T]** Per session: per-player message log count.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV. Per-page CDP Media playerErrorsRaised events
+
+- **[T]** Per session: per-player error event count + per-error class.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW. Per-page CDP Media playersCreated events
+
+- **[T]** Per session: total players-created event count.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX. Per-page CDP BackgroundService.startObserving invocations
+
+- **[T]** Per session: per-service (`backgroundFetch`/`backgroundSync`/`pushMessaging`/`notifications`/`paymentHandler`/`periodicBackgroundSync`) startObserving count.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY. Per-page CDP BackgroundService.stopObserving invocations
+
+- **[T]** Per session: stopObserving count per service.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ. Per-page CDP BackgroundService.recordingStateChanged events
+
+- **[T]** Per session: recording-state-change event count per service.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
