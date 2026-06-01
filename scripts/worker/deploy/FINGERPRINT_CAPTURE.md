@@ -18397,6 +18397,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per session: count of HTTP/3 stream IDs observed in QUIC packet reassembly (compared against CDP firehose for delta-check).
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA. Per-page Per-trajectory action log: humanClick records
+
+- **[T]** Per session: per-humanClick record (x, y, before_url, after_url, button, ms_to_settle, native_path_used) — sourced from weles/src/human/click.ts instrumentation.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB. Per-page Per-trajectory action log: humanType records
+
+- **[T]** Per session: per-humanType record (target_selector, typed_text_length, per-char inter-key delay distribution, accidental-typo injection rate) — sourced from weles/src/human/type.ts.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC. Per-page Per-trajectory action log: humanScroll records
+
+- **[T]** Per session: per-humanScroll record (target_element, delta_y, ms_to_settle, smooth_steps, easing_curve_used) — sourced from weles/src/human/scroll.ts.
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD. Per-page Per-trajectory action log: humanIdlePause records
+
+- **[T]** Per session: per-humanIdlePause record (intent_label, requested_ms, actual_ms, jitter_pct) — sourced from weles/src/human/idle.ts.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE. Per-page Per-trajectory action log: humanFill records
+
+- **[T]** Per session: per-humanFill record (target_locator, value_length, click_before_type_offset, post-fill blur event presence) — sourced from weles/src/human/fill.ts.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF. Per-page Per-trajectory action log: humanNavigate records
+
+- **[T]** Per session: per-page.goto record (intent_url, final_url, redirect_chain, ms_to_settle, waitUntil-mode used).
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG. Per-page Per-trajectory action log: nativeClick fallback records
+
+- **[T]** Per session: per-nativeClick fallback invocation (reason for falling back to cliclick/CGEventPost, target_pid).
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH. Per-page Per-trajectory action log: nativeType fallback records
+
+- **[T]** Per session: per-nativeType fallback invocation (reason, per-key CGEventCreateKeyboardEvent virtkey + modifiers).
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII. Per-page Per-trajectory action log: agent-loop turn count
+
+- **[T]** Per session: count of agent (`claude -p` browser-automation) turns + per-turn LLM input/output token consumption.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ. Per-página Per-trajectory action log: agent-loop tool-use distribution
+
+- **[T]** Per session: per-tool invocation count from agent's tool-use stream (browser_navigate, browser_click, browser_type, browser_screenshot, browser_evaluate, etc.).
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK. Per-page Per-trajectory action log: agent-loop assistant text
+
+- **[T]** Per session: full transcript of agent's assistant text turns (reasoning narrative).
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL. Per-page Per-trajectory action log: agent-loop model name
+
+- **[T]** Per session: which exact Claude model id agent used at each turn (haiku/sonnet/opus) + which version.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM. Per-page Per-trajectory action log: agent-loop flow-replay hit ratio
+
+- **[T]** Per session: count of cached flow-replay hits vs fresh agent invocations + per-pattern hit ratio.
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN. Per-page Per-trajectory action log: ban_signal write count
+
+- **[T]** Per session: count of ban_signal writes per platform-classifier (perimeterx, recaptcha_enterprise, hcaptcha, arkose, datadome, akamai_bm, kasada_kpsdk, shape_aux).
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO. Per-page Per-trajectory action log: captcha solver invocation
+
+- **[T]** Per session: count of captcha solver invocations (CapSolver/AntiCaptcha/2Captcha/SadCaptcha) + per-solver-method ('image_to_text'|'recaptcha_v2'|'recaptcha_v3'|'recaptcha_enterprise'|'hcaptcha'|'funcaptcha') distribution + per-call cost in USD.
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP. Per-page Per-trajectory action log: SMS solver invocation
+
+- **[T]** Per session: count of SMS-receive-code requests (JuicySMS/SMSPool/5sim/SMS-activate) + per-service-country + per-service-target + per-rental cost in USD.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ. Per-page Per-trajectory action log: email-receive request
+
+- **[T]** Per session: count of inbound email checks (Resend Receiving API) + per-mailbox + per-message-source distribution.
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR. Per-page Per-trajectory action log: proxy selection record
+
+- **[T]** Per session: per-proxy-pick record (provider, pool, country, host, port, sticky_session_id, why_chosen).
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS. Per-page Per-trajectory action log: proxy exit IP record
+
+- **[T]** Per session: per-proxy-pick record (resolved_exit_ip, asn, asn_org, geo_country, geo_city, classifier_score) via ip-api.com or ipinfo.io lookup at session start.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT. Per-page Per-trajectory action log: persona generator output
+
+- **[T]** Per session: full persona JSON written by weles/src/persona.ts (firstName, lastName, age, gender, country, browser, os, ua, locale, timezone, fingerprint subset).
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU. Per-page Per-trajectory action log: persona generator seed
+
+- **[T]** Per session: PRNG seed used by generatePersona (so the persona is replayable byte-exact).
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV. Per-page Per-trajectory action log: WSession launch args
+
+- **[T]** Per session: full Chromium argv at launch (after flag injection), captured pre-fork.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW. Per-page Per-trajectory action log: WSession user-data-dir path
+
+- **[T]** Per session: path to the user-data-dir (profile dir) created for the session + final size on disk at end.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX. Per-page Per-trajectory action log: WSession addInitScript bundle
+
+- **[T]** Per session: full text of each addInitScript() blob injected (sourceMapURL + sha256 of script text).
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY. Per-page Per-trajectory action log: WSession route handler trace
+
+- **[T]** Per session: per-page.route() handler invocation (URL pattern, response transformation applied).
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ. Per-página Per-trajectory action log: WSession exit code + reason
+
+- **[T]** Per session: exit code from Chromium process + final pass/fail classification + ban_signal that triggered finalization.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
