@@ -59,7 +59,24 @@ async function loadConfig() {
     agentId: m.WISENT_APP_AGENT_ID,
     hmacSecret: m.WISENT_APP_AGENT_AUTH_SECRET,
     donorUserId: m.WISENT_DONOR_USER_ID,
+    rawMeta: m, // carried through to MERGE expiry back without clobbering keys
+    activeTokenExpiresAt: Number(m.active_token_expires_at) || 0, // unix ms, 0 until first run
   };
+}
+
+function blobExpiresAt(b) { // expiry (unix ms) from a {"claudeAiOauth":{...}} blob; 0 if unparseable
+  try { return Number(JSON.parse(b)?.claudeAiOauth?.expiresAt) || 0; } catch { return 0; }
+}
+
+// Record the minted token's expiry on the reauth-config row so the NEXT tick
+// refreshes BEFORE it dies. MERGE — a bare {metadata} would clobber config keys.
+async function persistActiveExpiry(rawMeta, expiresAtMs) {
+  const r = await fetch(
+    `${SUPABASE_URL}/rest/v1/service_credentials?id=eq.claude-reauth-config`,
+    { method: 'PATCH',
+      headers: { ...SB_HEADERS, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+      body: JSON.stringify({ metadata: { ...rawMeta, active_token_expires_at: expiresAtMs } }) });
+  if (r.status >= 400) console.error(`persist expiry PATCH ${r.status}: ${await r.text()}`);
 }
 
 function sign(cfg, body) {
@@ -229,17 +246,21 @@ async function main() {
   const poolBefore = await listSubscriptions(cfg);
   const probe = await probePool(cfg);
   const burnt = isBurnout(probe);
-  console.log(`[reauth] pool=${poolBefore.length} probe_status=${probe.status} burnt=${burnt}`);
-  if (!burnt) { console.log('[reauth] healthy — nothing to do'); return; }
+  // PROACTIVE: re-mint while the token is still valid but within margin of expiry,
+  // instead of waiting for isBurnout (a 401 from an already-dead token = downtime).
+  const marginMs = Number(process.env.CLAUDE_REAUTH_REFRESH_MARGIN_SEC || 10800) * 1000;
+  const expMs = cfg.activeTokenExpiresAt;
+  const reason = burnt ? 'burnt'
+    : (expMs > 0 && Date.now() >= expMs - marginMs ? 'expiring-soon' : null);
+  console.log(`[reauth] pool=${poolBefore.length} probe=${probe.status} burnt=${burnt} exp_ms=${expMs} reason=${reason ?? 'none'}`);
+  if (!reason) { console.log('[reauth] healthy & not near expiry — nothing to do'); return; }
 
   const row = await pickLruRow();
-  console.log(`[reauth] burnt — reauthing LRU row ${row.display_name} (updated ${row.updated_at})`);
+  console.log(`[reauth] ${reason} — reauthing LRU row ${row.display_name} (updated ${row.updated_at})`);
   let blob;
-  // Google's "browser may not be secure" block is intermittent per browser
-  // launch (same IP, fingerprint rolls each launch — a clearing launch mints
-  // the blob, a blocked one fails fast with BROWSER_NOT_SECURE). Retry with a
-  // fresh login.mjs launch on that specific signal so one tick is very likely
-  // to catch a clearing launch.
+  // Google's "browser may not be secure" block is intermittent per launch
+  // (fingerprint rolls each launch). Retry on BROWSER_NOT_SECURE so a tick
+  // likely catches a clearing launch.
   const maxTries = Number(process.env.CLAUDE_REAUTH_LOGIN_TRIES || 4);
   for (let attempt = 1; ; attempt += 1) {
     try {
@@ -263,6 +284,8 @@ async function main() {
   const newSub = await donate(cfg, blob);
   console.log(`[reauth] donated new sub id=${newSub.id ?? '?'}`);
   await markRowAttempted(row.id);
+  const newExp = blobExpiresAt(blob);
+  if (newExp > 0) await persistActiveExpiry(cfg.rawMeta, newExp);
 
   let deleted = 0;
   for (const old of poolBefore) {
