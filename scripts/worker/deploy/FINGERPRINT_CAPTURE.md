@@ -19437,6 +19437,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per session: per-page outbound count of `googletagservices.com/tag/js/gpt.js` requests blocked (signals presence of uBlock Origin/AdBlock).
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA. Per-page Resolution / windowSize / DPR triplet snapshot
+
+- **[T]** Per session: (window.innerWidth, window.innerHeight, window.devicePixelRatio) plus (screen.width, screen.height) snapshot at trajectory start.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB. Per-page Resolution / windowSize / DPR triplet end-of-session snapshot
+
+- **[T]** Per session: same triplet at trajectory end (catches resize-during-session).
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC. Per-page Browser version triplet
+
+- **[T]** Per session: (navigator.userAgent semver, navigator.userAgentData.brands semver, sec-ch-ua header semver) — all three sources should match exactly.
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD. Per-page Browser platform triplet
+
+- **[T]** Per session: (navigator.platform, navigator.userAgentData.platform, sec-ch-ua-platform header) — all three sources should match.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE. Per-page Browser timezone triplet
+
+- **[T]** Per session: (Intl.DateTimeFormat().resolvedOptions().timeZone, Date.getTimezoneOffset() in minutes, system /etc/localtime symlink target) — all three should imply the same zone.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF. Per-page Browser language triplet
+
+- **[T]** Per session: (navigator.language, navigator.languages first element, Accept-Language header first segment) — all three should match.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG. Per-page Browser numeric-id triplet
+
+- **[T]** Per session: (navigator.hardwareConcurrency, navigator.deviceMemory, navigator.maxTouchPoints) — joint signal that bot-detectors check for impossible combinations.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH. Per-page Browser font-list joint signal
+
+- **[T]** Per session: (offscreen-canvas font-fingerprint hash, document.fonts FontFaceSet size, local-font-access API enumeration if granted) — joint signal that fingerprinters cross-validate.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII. Per-page Browser canvas joint signal
+
+- **[T]** Per session: (toDataURL('image/webp') sha256, toDataURL('image/png') sha256, OffscreenCanvas convertToBlob('image/jpeg') sha256) triplet (per-codec-different but per-device-stable).
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ. Per-página Browser audio joint signal
+
+- **[T]** Per session: (OfflineAudioContext renderQuantum length-25 fingerprint hash, AnalyserNode.getFloatTimeDomainData fingerprint hash, DynamicsCompressor activation fingerprint hash) triplet.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK. Per-page Browser WebGL joint signal
+
+- **[T]** Per session: (UNMASKED_VENDOR_WEBGL, UNMASKED_RENDERER_WEBGL, GL_VERSION, GL_SHADING_LANGUAGE_VERSION, MAX_TEXTURE_SIZE, MAX_VIEWPORT_DIMS, MAX_VERTEX_UNIFORM_VECTORS, MAX_VARYING_VECTORS) octuple.
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL. Per-page Browser WebGL2 joint signal
+
+- **[T]** Per session: (UNIFORM_BUFFER_OFFSET_ALIGNMENT, MAX_DRAW_BUFFERS, MAX_3D_TEXTURE_SIZE, MAX_ARRAY_TEXTURE_LAYERS, MAX_COLOR_ATTACHMENTS, MAX_SAMPLES, MAX_TRANSFORM_FEEDBACK_INTERLEAVED_COMPONENTS, MAX_UNIFORM_BLOCK_SIZE, MAX_COMBINED_UNIFORM_BLOCKS, MAX_VERTEX_UNIFORM_BLOCKS, MAX_FRAGMENT_UNIFORM_BLOCKS) snapshot.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM. Per-page Browser SpeechSynthesis voice list
+
+- **[T]** Per session: list of `speechSynthesis.getVoices()` (name, lang, default, localService, voiceURI) per voice — Mac default voices, Windows SAPI voices, etc.
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN. Per-page Browser plugin list
+
+- **[T]** Per session: `navigator.plugins` array snapshot (length + per-plugin {name, filename, description, mimeTypes-array}) — must match the persona's expected browser+OS combo.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO. Per-page Browser mimeTypes list
+
+- **[T]** Per session: `navigator.mimeTypes` array snapshot (per-mime {type, suffixes, description, enabledPlugin}).
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP. Per-page Browser productSub snapshot
+
+- **[T]** Per session: `navigator.productSub` value ('20030107' for Chromium, '20100101' for Gecko-based — Firefox/Camoufox) — strong browser-family signal.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ. Per-page Browser vendor snapshot
+
+- **[T]** Per session: `navigator.vendor` value ('Google Inc.' for Chromium, '' for Firefox, 'Apple Computer, Inc.' for Safari).
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR. Per-page Browser vendorSub snapshot
+
+- **[T]** Per session: `navigator.vendorSub` value (always empty in modern browsers; non-empty signals an anomaly).
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS. Per-page Browser product snapshot
+
+- **[T]** Per session: `navigator.product` value (always 'Gecko' on Chromium and Firefox; 'WebKit' nowhere; signals impossible UA on mismatch).
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT. Per-page Browser appName snapshot
+
+- **[T]** Per session: `navigator.appName` value ('Netscape' on all modern browsers).
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU. Per-page Browser appVersion snapshot
+
+- **[T]** Per session: `navigator.appVersion` value (mirrors UA without the 'Mozilla/' prefix).
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV. Per-page Browser appCodeName snapshot
+
+- **[T]** Per session: `navigator.appCodeName` value (always 'Mozilla').
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW. Per-page Browser oscpu snapshot
+
+- **[T]** Per session: `navigator.oscpu` value (Firefox-only — 'Intel Mac OS X 10.15', 'Windows NT 10.0; Win64; x64'; absent on Chrome).
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX. Per-page Browser buildID snapshot
+
+- **[T]** Per session: `navigator.buildID` value (Firefox-only — 14-char timestamp string).
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY. Per-page Browser browserSpecific snapshot
+
+- **[T]** Per session: per-engine-unique global API presence map (window.chrome on Chromium, window.netscape on Firefox, window.GestureEvent + window.ApplePay on Safari) — joint signal that bots get wrong on browser-spoofs.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ. Per-página Browser non-trivial global APIs joint snapshot
+
+- **[T]** Per session: per-API presence (Sanitizer, AnimationTrigger, FencedFrame, OffscreenCanvas, BeforeInstallPromptEvent, TrustedTypes, SharedWorker, BroadcastChannel, FileSystemHandle, USB, Bluetooth, WebUSB, NetworkInformation, IdleDetector, ContactsManager, EyeDropper) joint snapshot for cross-version signal.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
