@@ -10389,6 +10389,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per session: per-captcha-vendor (reCAPTCHA / hCaptcha / Turnstile / Arkose / NoCaptcha / capsolver) invocation count + outcome.
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA. Per-page weles trajectory file mtime distribution
+
+- **[T]** Per session: mtime of the trajectory.mjs file on disk vs commit timestamp.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB. Per-page weles trajectory file SHA256
+
+- **[T]** Per session: SHA256 of the trajectory.mjs source bytes at execution time.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC. Per-page weles dist build SHA256
+
+- **[T]** Per session: SHA256 of weles dist directory (compiled JS) tree hash.
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD. Per-page weles git commit short SHA
+
+- **[T]** Per session: git commit short SHA of weles repo at execution time.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE. Per-page weles git dirty flag
+
+- **[T]** Per session: was the weles repo dirty (uncommitted changes) at execution time?
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF. Per-page weles Chromium binary SHA256
+
+- **[T]** Per session: SHA256 of the patched Chromium binary at execution time.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG. Per-page weles patched Chromium revision
+
+- **[T]** Per session: chromium-build branch + commit + patch-set tree-sha at the binary's compile time.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH. Per-page weles patched Firefox binary SHA256
+
+- **[T]** Per session: SHA256 of the patched Firefox binary (when browser==firefox).
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII. Per-page weles patched Firefox revision
+
+- **[T]** Per session: firefox-build branch + commit + patch-set tree-sha.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ. Per-page weles Playwright version
+
+- **[T]** Per session: Playwright npm package version + commit.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK. Per-page weles Node.js version
+
+- **[T]** Per session: Node.js version + V8 version + libuv version + OpenSSL version embedded.
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL. Per-page weles npm tree hash
+
+- **[T]** Per session: npm package-lock.json tree sha.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM. Per-page weles persona-generator commit SHA
+
+- **[T]** Per session: persona.ts source commit SHA + tree position.
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN. Per-page weles humanized atoms commit SHA
+
+- **[T]** Per session: src/human/ source commit SHA + tree position.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO. Per-page weles WSession constructor commit SHA
+
+- **[T]** Per session: src/session/wsession.ts commit SHA.
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP. Per-page weles async_api commit SHA
+
+- **[T]** Per session: src/async_api.ts commit SHA.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ. Per-page weles init-scripts source SHA
+
+- **[T]** Per session: src/browser/init_scripts.ts + src/diagnostics/*.js source SHAs.
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR. Per-page weles fingerprint config JSON SHA
+
+- **[T]** Per session: SHA256 of the `--weles-fingerprint=<path>.json` file the binary read.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS. Per-page weles `.env` source SHA
+
+- **[T]** Per session: SHA256 of weles `.env` file (no values surfaced).
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT. Per-page weles worker.env source SHA
+
+- **[T]** Per session: SHA256 of weles/var/worker.env (no values surfaced).
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU. Per-page weles service_credentials row count snapshot
+
+- **[T]** Per session: service_credentials table row count at session start (presence only).
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV. Per-page weles inbound_email_domains row count snapshot
+
+- **[T]** Per session: inbound_email_domains table row count + active vs mx_broken distribution.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW. Per-page weles social_accounts row count snapshot
+
+- **[T]** Per session: social_accounts row count + active vs shadowbanned + cookies_stale_at distribution.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX. Per-page weles account_action_logs queue depth snapshot
+
+- **[T]** Per session: queue depth at session start + per-platform distribution.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY. Per-page weles system_settings workers_enabled snapshot
+
+- **[T]** Per session: workers_enabled value at session start (paused vs running).
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ. Per-page weles host machine identifier
+
+- **[T]** Per session: host machine identifier (sha256 of hostname + MAC + macOS hardware UUID).
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
