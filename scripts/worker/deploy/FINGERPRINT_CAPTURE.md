@@ -4849,6 +4849,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per page: math-comparison function usage count.
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA. Per-page CSS `pow()` / `log()` / `exp()` / `sqrt()` / `sin()` / `cos()` / `tan()` / `mod()` / `rem()` / `abs()` / `sign()` / `round()` / `hypot()`
+
+- **[T]** Per page: usage count of CSS math functions (recent additions).
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB. Per-page CSS `if()` conditional (recent)
+
+- **[T]** Per page: CSS `if()` conditional usage count.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC. Per-page CSS `light-dark()` color function
+
+- **[T]** Per page: light-dark() function usage count + resolved color per scheme.
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD. Per-page CSS `attr()` advanced syntax usage
+
+- **[T]** Per page: `attr(name type, fallback)` calls (modern attr() typed reads).
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE. Per-page CSS `:state(...)` custom-state pseudo
+
+- **[T]** Per custom element with ElementInternals: states list set + matched-CSS-selector count.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF. Per-page CSS `@property syntax="<color>" inherits="false"` registration count
+
+- **[T]** Per page: per-syntax type distribution (`<length>`, `<color>`, `<percentage>`, `<integer>`, `<number>`, `<angle>`, `<time>`, `<resolution>`, `<image>`, `<url>`, `<transform-function>`, `<transform-list>`, `*`).
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG. Per-page CSS `@font-palette-values` declaration
+
+- **[T]** Per page: font-palette-values rules + base-palette + override-colors count.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH. Per-page CSS `font-synthesis` declaration
+
+- **[T]** Per page: font-synthesis-weight / -style / -small-caps usage.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII. Per-page CSS `font-optical-sizing` usage
+
+- **[T]** Per page: font-optical-sizing value (auto/none) declarations.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ. Per-page CSS `font-variant-emoji` usage
+
+- **[T]** Per page: font-variant-emoji (`auto` / `text` / `emoji` / `unicode`) usage.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK. Per-page CSS `font-stretch` distribution
+
+- **[T]** Per page: font-stretch declarations (ultra-condensed / extra-condensed / condensed / semi-condensed / normal / semi-expanded / expanded / extra-expanded / ultra-expanded / %).
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL. Per-page CSS `font-size-adjust` distribution
+
+- **[T]** Per page: font-size-adjust value distribution (ex-height/cap-height/ch-width/ic-width/ic-height/none).
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM. Per-page CSS `quotes` distribution
+
+- **[T]** Per page: quotes property values (auto/none/string pairs) usage.
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN. Per-page CSS `list-style-image` distribution
+
+- **[T]** Per page: list-style-image URL usage (custom bullets).
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO. Per-page CSS `list-style-type` distribution
+
+- **[T]** Per page: list-style-type value distribution (disc/circle/square/decimal/lower-roman/upper-roman/lower-alpha/upper-alpha/...).
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP. Per-page CSS `cursor` value distribution
+
+- **[T]** Per page: cursor value distribution (auto / default / none / context-menu / help / pointer / progress / wait / cell / crosshair / text / vertical-text / alias / copy / move / no-drop / not-allowed / grab / grabbing / e-resize / n-resize / ne-resize / nw-resize / s-resize / se-resize / sw-resize / w-resize / ew-resize / ns-resize / nesw-resize / nwse-resize / col-resize / row-resize / all-scroll / zoom-in / zoom-out / url()).
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ. Per-page CSS `resize` property distribution
+
+- **[T]** Per page: resize property values (none / both / horizontal / vertical / block / inline).
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR. Per-page CSS `place-self` shorthand usage
+
+- **[T]** Per page: place-self / place-items / place-content shorthand usage count.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS. Per-page CSS `gap` shorthand usage
+
+- **[T]** Per page: gap / row-gap / column-gap usage in flex + grid containers.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT. Per-page CSS `grid-template-rows` / `grid-template-columns` complexity
+
+- **[T]** Per page: grid track count distribution + use of `repeat()`, `minmax()`, `auto-fill`, `auto-fit`, `fit-content()`, `subgrid` value distribution.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU. Per-page CSS `grid-template-areas` declaration
+
+- **[T]** Per page: grid-template-areas string distribution + area name count.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV. Per-page CSS `grid-area` named-area assignments
+
+- **[T]** Per page: per-element grid-area assignment count + named-area resolution.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW. Per-page CSS `display: grid` vs `display: flex` vs `display: block` distribution
+
+- **[T]** Per page: rendered display-value distribution histogram per visible element (Grid / Flex / Block / Inline / Inline-Block / Inline-Flex / Inline-Grid / Contents / None / Table / Table-Cell).
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX. Per-page CSS `position: sticky` / `fixed` / `absolute` / `relative` distribution
+
+- **[T]** Per page: position value distribution histogram + sticky-element scroll-binding behavior.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY. Per-page CSS `z-index` declaration distribution
+
+- **[T]** Per page: z-index value distribution + stacking context count.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ. Per-page CSS `transform` 3D vs 2D usage
+
+- **[T]** Per page: transform function distribution (translate/translateX/Y/Z/3d, rotate/X/Y/Z/3d, scale/X/Y/Z/3d, skew/X/Y, matrix/3d, perspective).
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
