@@ -19125,6 +19125,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per session: `security dump-keychain login.keychain-db | grep -c 'class:'` count (passwords/keys in local keychain).
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA. Per-page Chromium GPU process trace: GpuMemoryBufferManager allocations
+
+- **[T]** Per session: count of GpuMemoryBuffer allocations + per-format ('R_8'|'RGBA_8888'|'BGR_565'|'YUV_420_BIPLANAR') distribution.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB. Per-page Chromium GPU process trace: GLES2 command-buffer flush sequence
+
+- **[T]** Per session: ordered list of GLES2 commands sent across the command-buffer (gpu.cmd_decoder tracing).
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC. Per-page Chromium GPU process trace: Vulkan command-pool allocations
+
+- **[T]** Per session: count of `vkAllocateCommandBuffers` calls per VkCommandPool (Vulkan backend on Linux + ANGLE).
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD. Per-page Chromium GPU process trace: ANGLE D3D11 device features
+
+- **[T]** Per session: ANGLE D3D11 feature-level + per-extension support map (Windows-only, surfaced via about:gpu).
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE. Per-page Chromium GPU process trace: Metal pipeline-state count
+
+- **[T]** Per session: count of MTLPipelineState objects created (macOS Metal backend, surfaced via about:gpu).
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF. Per-page Chromium GPU process trace: SwapChain present count
+
+- **[T]** Per session: count of DXGISwapChain.Present() / NSOpenGLContext.flushBuffer() / CGLFlushDrawable() calls per browser frame.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG. Per-page Chromium GPU process trace: per-frame draw call count
+
+- **[T]** Per session: per-presented-frame total draw-call count (glDrawElements + DrawIndexedInstanced + drawIndexedPrimitives etc.) via gpu.angle tracing.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH. Per-page Chromium GPU process trace: ShaderProgram link error log
+
+- **[T]** Per session: per-shader link-error log + per-program info-log capture (via gl.getProgramInfoLog).
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII. Per-page Chromium GPU process trace: TextureManager pool size
+
+- **[T]** Per session: GPU TextureManager pool occupancy snapshot via gpu.texture_manager tracing.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ. Per-página Chromium GPU process trace: ResourceProvider shared-image count
+
+- **[T]** Per session: count of SharedImage allocations + per-usage ('SCANOUT'|'GLES2_READ'|'GLES2_WRITE'|'RASTER'|'DISPLAY_READ'|'RAW_DRAW') distribution.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK. Per-page Chromium GPU process trace: GL_RENDERER unmasked
+
+- **[T]** Per session: pre-strip GL_RENDERER string from WEBGL_debug_renderer_info before fingerprint defenses mask it (captured via attached probe).
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL. Per-page Chromium GPU process trace: GL_VENDOR unmasked
+
+- **[T]** Per session: pre-strip GL_VENDOR string captured via attached probe (compare against persona.fingerprint.webgl.vendor).
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM. Per-page Chromium GPU process trace: GL_VERSION unmasked
+
+- **[T]** Per session: pre-strip GL_VERSION string captured (e.g. 'OpenGL ES 3.0 (ANGLE 2.1.21752 git hash …)').
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN. Per-page Chromium GPU process trace: ANGLE backend choice
+
+- **[T]** Per session: ANGLE backend chosen for the page ('OpenGLES'|'OpenGL'|'D3D11'|'D3D9'|'D3D11on12'|'Vulkan'|'Metal'|'Null') from chrome://gpu output.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO. Per-page Chromium GPU process trace: GpuDataManagerImpl feature status
+
+- **[T]** Per session: per-GPU-feature ('canvas'|'compositing'|'gpu_compositing'|'rasterization'|'video_decode'|'video_encode'|'webgl'|'webgl2'|'webgpu') status ('enabled'|'disabled'|'software'|'unavailable') from chrome://gpu.
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP. Per-page Chromium GPU process trace: Software workaround list
+
+- **[T]** Per session: list of active GPU driver bug workarounds applied to this session (from chrome://gpu).
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ. Per-page Chromium GPU process trace: GPU memory size
+
+- **[T]** Per session: GPU memory size from chrome://gpu reporting (mirrors WMI Win32_VideoController.AdapterRAM on Windows, IOServiceMatching IOPCIDevice on macOS).
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR. Per-page Chromium GPU process trace: Driver vendor + version
+
+- **[T]** Per session: GPU driver vendor + driver version string from chrome://gpu (e.g. 'NVIDIA 535.86', 'Intel 31.0.101.5333', 'AMD 24.10.27.10').
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS. Per-page Chromium GPU process trace: SkiaGraphite backend
+
+- **[T]** Per session: SkiaGraphite backend status flag from chrome://gpu (modern Skia GPU pipeline replacing Ganesh).
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT. Per-page Chromium GPU process trace: WebGPU adapter list
+
+- **[T]** Per session: per-WebGPU adapter exposed (vendor, architecture, device, description, isFallbackAdapter, isCompatibilityMode, features Set, limits) from `navigator.gpu.requestAdapter()`.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU. Per-page Chromium GPU process trace: Dawn backend choice
+
+- **[T]** Per session: Dawn (WebGPU implementation) backend chosen ('D3D12'|'D3D11'|'Metal'|'Vulkan'|'OpenGL'|'OpenGLES'|'Null') from chrome://gpu.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV. Per-page Chromium GPU process trace: GPU process crash count
+
+- **[T]** Per session: count of GPU process crashes recovered during session via Inspector.targetCrashed events.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW. Per-page Chromium GPU process trace: SwiftShader CPU fallback flag
+
+- **[T]** Per session: whether `--use-angle=swiftshader` or `--disable-gpu` fallback was activated during the session.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX. Per-page Chromium GPU process trace: Video decoder MFE pipeline
+
+- **[T]** Per session: which Media Foundation Encoder / VAAPI / VideoToolbox accelerator path the decoder picked per session.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY. Per-page Chromium GPU process trace: HEVC decoder path
+
+- **[T]** Per session: whether the H.265/HEVC decoder is hardware-accelerated (per video element + per session) via D3D11 / VAAPI / VideoToolbox tracing.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ. Per-página Chromium GPU process trace: AV1 decoder path
+
+- **[T]** Per session: whether AV1 decoder path used libgav1, libaom, or hw-accelerated dav1d-on-GPU.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
