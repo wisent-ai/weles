@@ -3511,6 +3511,137 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per page: vocab/typeof/property/about/resource RDFa attribute count.
 
+## AAAAAAAAAAAAAAAAAAAAAAA. WebRTC encoded transform per-frame metadata
+
+- **[T]** Per encoded video frame via `RTCRtpScriptTransform`: temporalIndex / spatialIndex / dependencies / type (key/delta).
+- **[T]** Per encoded audio frame: synchronizationSource + contributingSources.
+
+## BBBBBBBBBBBBBBBBBBBBBBB. WebTransport reliable + unreliable stream split
+
+- **[T]** Per WebTransport session: bidi vs uni stream count + per-direction byte volume.
+- **[T]** Per session: datagram vs stream byte ratio.
+
+## CCCCCCCCCCCCCCCCCCCCCCC. Page-side Trusted Types violation log
+
+- **[T]** Every Trusted Types violation event: sink name (innerHTML / scriptElement.src / etc.) + caller stack + sample of disallowed string.
+- **[T]** Per page: per-sink violation count.
+
+## DDDDDDDDDDDDDDDDDDDDDDD. Page-side eval / Function() call log
+
+- **[T]** Every `eval(code)` call: caller stack + code length sha256.
+- **[T]** Every `new Function(code)` call: same.
+- **[T]** Per page: dynamic-code execution call count + CSP `unsafe-eval` outcome.
+
+## EEEEEEEEEEEEEEEEEEEEEEE. Page-side new Worker(scriptUrl) construction log
+
+- **[T]** Every `new Worker(url, options)` call: scriptURL + options.type (classic/module) + name + credentials.
+- **[T]** Every `new SharedWorker(url, options)` call: same.
+
+## FFFFFFFFFFFFFFFFFFFFFFF. Page-side WeakRef + FinalizationRegistry usage
+
+- **[T]** Per page: count of `new WeakRef(target)` calls.
+- **[T]** Per page: count of `new FinalizationRegistry(cleanup)` + `.register()` / `.unregister()` calls.
+
+## GGGGGGGGGGGGGGGGGGGGGGG. Page-side SharedArrayBuffer + Atomics throughput
+
+- **[T]** Per session: total `Atomics.add/sub/store/load/exchange` calls + per-op distribution.
+- **[T]** Per SAB: byteLength + grow operations + transfer log.
+
+## HHHHHHHHHHHHHHHHHHHHHHH. Page-side `requestIdleCallback` deadline use
+
+- **[T]** Per `requestIdleCallback` invocation: timeRemaining() at callback start vs end.
+- **[T]** Per callback: didTimeout flag value.
+
+## IIIIIIIIIIIIIIIIIIIIIII. Page-side `queueMicrotask` call log
+
+- **[T]** Per page: total `queueMicrotask(fn)` calls + caller stack distribution.
+
+## JJJJJJJJJJJJJJJJJJJJJJJ. Page-side `structuredClone` usage
+
+- **[T]** Per `structuredClone(value, transfer)` call: input byte estimate + transfer array length.
+- **[T]** Per call: success vs DataCloneError outcome.
+
+## KKKKKKKKKKKKKKKKKKKKKKK. Page-side BlobURL.createObjectURL revocation gap
+
+- **[T]** Per session: createObjectURL count vs revokeObjectURL count delta (URL handle leaks).
+- **[T]** Per blob URL: lifetime until revocation.
+
+## LLLLLLLLLLLLLLLLLLLLLLL. Page-side Range API usage
+
+- **[T]** Per `document.createRange()` call: caller stack.
+- **[T]** Per range: extractContents/cloneContents/deleteContents/insertNode call log.
+- **[T]** Per page: Range API call count.
+
+## MMMMMMMMMMMMMMMMMMMMMMM. Page-side Selection API mutation
+
+- **[T]** Per session: `window.getSelection()` access count.
+- **[T]** Per session: `selection.addRange()` / `removeAllRanges()` / `selectAllChildren()` / `modify()` call log.
+
+## NNNNNNNNNNNNNNNNNNNNNNN. Page-side `document.execCommand` legacy usage
+
+- **[T]** Per page: every `document.execCommand(name, ...)` call (deprecated but still works) — command name + arg.
+- **[T]** Per page: `document.queryCommandSupported`/`queryCommandEnabled`/`queryCommandValue` calls.
+
+## OOOOOOOOOOOOOOOOOOOOOOO. Page-side `document.designMode` usage
+
+- **[T]** Per page: `document.designMode` value reads + writes.
+- **[T]** Per `contenteditable` element: edit session count + total mutations.
+
+## PPPPPPPPPPPPPPPPPPPPPPP. Per-page `inputmode=numeric` virtual-keyboard hint
+
+- **[T]** Per `<input inputmode="...">` element: declared inputmode value distribution (none/text/tel/url/email/numeric/decimal/search).
+- **[T]** Per page: virtualkeyboard policy attribute (`virtualkeyboardpolicy="manual"`).
+
+## QQQQQQQQQQQQQQQQQQQQQQQ. Per-page `<details name>` exclusive accordion group
+
+- **[T]** Per page: count of `<details name="group-name">` exclusive accordions per group.
+- **[T]** Per group: toggle event coordination behavior.
+
+## RRRRRRRRRRRRRRRRRRRRRRR. Per page invokers attribute
+
+- **[T]** Per `<button invoketarget="...">` element: invoketarget id + invokeaction value.
+- **[T]** Per page: invoker attribute usage count.
+
+## SSSSSSSSSSSSSSSSSSSSSSS. Page-side `MathML` operator behavior
+
+- **[T]** Per `<mo>` element rendered: stretch behavior + lspace + rspace + form value.
+- **[T]** Per math expression: MathML rendering passes count.
+
+## TTTTTTTTTTTTTTTTTTTTTTT. Per-page CSS @position-try fallback
+
+- **[T]** Per page: every `@position-try --name { ... }` rule + per-rule property set.
+- **[T]** Per anchored element: position-try-fallback chain.
+
+## UUUUUUUUUUUUUUUUUUUUUUU. CSS `align-content` / `place-content` modern values
+
+- **[T]** Per page: count of `align-content: stretch | baseline | first baseline | last baseline | safe center | unsafe center`.
+- **[T]** Per page: `place-content` / `place-items` / `place-self` usage count.
+
+## VVVVVVVVVVVVVVVVVVVVVVV. CSS `text-decoration-skip-ink` + `text-underline-offset`
+
+- **[T]** Per page: usage count of `text-decoration-skip-ink`, `text-underline-offset`, `text-decoration-thickness`, `text-decoration-style`.
+- **[T]** Per page: text-rendering value (`auto`/`optimizeSpeed`/`optimizeLegibility`/`geometricPrecision`).
+
+## WWWWWWWWWWWWWWWWWWWWWWW. CSS `caret-color` distribution
+
+- **[T]** Per page: distinct `caret-color` values declared.
+- **[T]** Per page: rendered caret color per focused control.
+
+## XXXXXXXXXXXXXXXXXXXXXXX. CSS `accent-color` distribution
+
+- **[T]** Per page: distinct `accent-color` values declared.
+- **[T]** Per page: rendered accent color per form control.
+
+## YYYYYYYYYYYYYYYYYYYYYYY. Page-side `Element.scrollIntoView` call log
+
+- **[T]** Per call: behavior (auto/smooth/instant) + block (start/center/end/nearest) + inline.
+- **[T]** Per page: total scrollIntoView calls.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZ. Page-side `Element.attachInternals()` ElementInternals
+
+- **[T]** Per custom element registering form-associated internals: attachInternals() call log.
+- **[T]** Per internals: form validation states reported.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
