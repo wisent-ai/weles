@@ -3642,6 +3642,451 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 - **[T]** Per custom element registering form-associated internals: attachInternals() call log.
 - **[T]** Per internals: form validation states reported.
 
+## AAAAAAAAAAAAAAAAAAAAAAAA. CSS `@layer` ordering observation
+
+- **[T]** Per page: declared `@layer` order vs resolved cascade order.
+- **[T]** Per page: layer-internal rule count.
+
+## BBBBBBBBBBBBBBBBBBBBBBBB. CSS `@scope (root) to (limit)` resolution
+
+- **[T]** Per page: every `@scope` rule's resolved scope nodes count + limit nodes count.
+
+## CCCCCCCCCCCCCCCCCCCCCCCC. Page-side `Element.replaceChildren` usage
+
+- **[T]** Per page: every `Element.replaceChildren(...)` call (modern DOM) — caller stack + node count.
+- **[T]** Per page: legacy innerHTML reassignment vs replaceChildren ratio.
+
+## DDDDDDDDDDDDDDDDDDDDDDDD. Page-side `DOMTokenList.supports` query log
+
+- **[T]** Per page: every `element.classList.supports`, `relList.supports`, `sandbox.supports` capability probe — token + outcome.
+
+## EEEEEEEEEEEEEEEEEEEEEEEE. Page-side `Element.toggleAttribute` call log
+
+- **[T]** Per page: every `Element.toggleAttribute(name, force)` call — name + force flag + outcome.
+
+## FFFFFFFFFFFFFFFFFFFFFFFF. Page-side `Element.matches` / `closest` call log
+
+- **[T]** Per page: total `matches(selector)` call count.
+- **[T]** Per page: total `closest(selector)` call count.
+- **[T]** Per page: selector text distribution (sha256 of selector strings).
+
+## GGGGGGGGGGGGGGGGGGGGGGGG. Page-side `Document.elementsFromPoint` call log
+
+- **[T]** Per call: (x, y) + returned element count + caller stack.
+- **[T]** Per page: hit-test calls per second.
+
+## HHHHHHHHHHHHHHHHHHHHHHHH. Page-side `Range.getBoundingClientRect` call log
+
+- **[T]** Per Range object: getBoundingClientRect call count + caller stack.
+
+## IIIIIIIIIIIIIIIIIIIIIIII. Page-side `getComputedStyle` per-property reads
+
+- **[T]** Per page: `getComputedStyle(el).getPropertyValue(name)` calls — property name distribution.
+- **[T]** Per page: `getComputedStyle(el, pseudo)` pseudo-element argument distribution.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJ. Page-side `Element.scrollLeft/Top` reads
+
+- **[T]** Per page: `scrollLeft` / `scrollTop` reads — caller stack + element selector.
+- **[T]** Per page: scroll-position read frequency.
+
+## KKKKKKKKKKKKKKKKKKKKKKKK. Page-side `Element.clientWidth/Height` reads
+
+- **[T]** Per page: layout-triggering property reads — `clientWidth`, `clientHeight`, `offsetWidth`, `offsetHeight`, `scrollWidth`, `scrollHeight`, `offsetTop`, `offsetLeft`, `offsetParent`.
+
+## LLLLLLLLLLLLLLLLLLLLLLLL. Page-side `Element.innerText` reads
+
+- **[T]** Per page: `innerText` reads (layout-triggering) — caller stack + element selector.
+- **[T]** Per page: `outerText` reads.
+
+## MMMMMMMMMMMMMMMMMMMMMMMM. Page-side `CaretPosition` API
+
+- **[T]** Per `document.caretPositionFromPoint(x, y)` / `document.caretRangeFromPoint` call: returned offsetNode + offset.
+
+## NNNNNNNNNNNNNNNNNNNNNNNN. Page-side `Element.focus({preventScroll})` log
+
+- **[T]** Every `Element.focus(options)` call: preventScroll flag + focusVisible flag.
+- **[T]** Per page: total focus() / blur() call counts.
+
+## OOOOOOOOOOOOOOOOOOOOOOOO. Page-side `Element.scroll()` call log
+
+- **[T]** Every `Element.scroll(x, y)` / `scrollTo` / `scrollBy(opts)` call: arguments + behavior.
+
+## PPPPPPPPPPPPPPPPPPPPPPPP. Page-side `Element.animate` shorthand vs longhand call
+
+- **[T]** Per page: `Element.animate(keyframes, durationOrOpts)` calls — shorthand-duration vs full-options usage ratio.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQ. Page-side `KeyframeEffect` standalone construction
+
+- **[T]** Per `new KeyframeEffect(target, keyframes, opts)` + `new Animation(effect, timeline)` construction: caller stack.
+
+## RRRRRRRRRRRRRRRRRRRRRRRR. Page-side `MutationObserver.takeRecords` calls
+
+- **[T]** Per MutationObserver: `takeRecords()` call count (drains records without callback fire).
+
+## SSSSSSSSSSSSSSSSSSSSSSSS. Page-side `requestSubmit()` vs form.submit() ratio
+
+- **[T]** Per page: form.requestSubmit() calls vs form.submit() calls.
+
+## TTTTTTTTTTTTTTTTTTTTTTTT. Page-side `<form rel=help|noreferrer|noopener>` attribute usage
+
+- **[T]** Per `<form>`: rel attribute tokens distribution.
+
+## UUUUUUUUUUUUUUUUUUUUUUUU. Page-side `Element.checkVisibility()` call log
+
+- **[T]** Per call: checkOpacity / checkVisibilityCSS / contentVisibilityAuto / opacityProperty / visibilityProperty options + outcome.
+
+## VVVVVVVVVVVVVVVVVVVVVVVV. Per-page `Document.startViewTransition()` outcome chain
+
+- **[T]** Per call: returned ViewTransition lifecycle — ready / finished / updateCallbackDone / skipTransition / readyState transitions.
+
+## WWWWWWWWWWWWWWWWWWWWWWWW. Per-page `Document.exitFullscreen()` / `exitPictureInPicture()` / `exitPointerLock()` log
+
+- **[T]** Per call: caller stack + outcome (Promise resolved/rejected).
+
+## XXXXXXXXXXXXXXXXXXXXXXXX. Per-page `Element.setHTMLUnsafe` / `setHTML` log
+
+- **[T]** Per call: input string sha256 + sanitizer options (when setHTML with Sanitizer).
+
+## YYYYYYYYYYYYYYYYYYYYYYYY. Per-page `Document.parseHTMLUnsafe` log
+
+- **[T]** Per call: input string sha256 + caller stack.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZ. Per-page `Document.fragmentDirective` URL fragment
+
+- **[T]** Per page: `:~:text=` / `:~:selector=` URL fragment directives present + scrolled-to element.
+
+## AAAAAAAAAAAAAAAAAAAAAAAAA. Per-page `Document.adoptedStyleSheets.push` event log
+
+- **[T]** Per push/splice/pop: array length delta + caller stack.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBB. Per-page CSSStyleSheet `replace` vs `replaceSync` ratio
+
+- **[T]** Per constructed CSSStyleSheet: replace vs replaceSync usage count.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCC. Per-page `Element.attributeStyleMap.set/append` log
+
+- **[T]** Per element with Typed OM: attributeStyleMap mutations log.
+
+## DDDDDDDDDDDDDDDDDDDDDDDDD. Per-page CSS `paint-order` attribute usage (SVG)
+
+- **[T]** Per SVG element with `paint-order`: declared value (`normal` / `fill stroke markers` / etc.).
+
+## EEEEEEEEEEEEEEEEEEEEEEEEE. Per-page SVG `<feImage>` xlink:href fetch outcome
+
+- **[T]** Per `<feImage>`: referenced URL + load outcome.
+- **[T]** Per SVG with external references: fetch error count.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFF. Per-page Web Audio `decodeAudioData` outcome
+
+- **[T]** Per `AudioContext.decodeAudioData(arrayBuffer)` call: input byte size + decoded AudioBuffer duration + sample rate + channels.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGG. Per-page `<audio preload>` strategy distribution
+
+- **[T]** Per `<audio>` / `<video>`: preload attribute value (`none` / `metadata` / `auto`).
+- **[T]** Per page: distribution.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHH. Per-page `<source media>` query selection
+
+- **[T]** Per `<source media="...">` element: which media query the browser matched.
+
+## IIIIIIIIIIIIIIIIIIIIIIIII. Per-page `<track kind=subtitles|captions|descriptions|chapters|metadata>` usage
+
+- **[T]** Per `<track>` element: kind + src + label + srclang.
+- **[T]** Per video: total track count + per-kind distribution.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJ. Per-page `Element.requestVideoFrameCallback` registered count
+
+- **[T]** Per `<video>`: registered rVFC callback count + cumulative invocations.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKK. Per-page `HTMLImageElement.decode()` outcome
+
+- **[T]** Per `img.decode()` call: outcome (resolved / rejected) + decode duration.
+
+## LLLLLLLLLLLLLLLLLLLLLLLLL. Per-page `Element.checkVisibility` vs `IntersectionObserver` ratio
+
+- **[T]** Per page: imperative `checkVisibility()` calls vs IntersectionObserver registrations — programming-style fingerprint.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMM. Per-page TextDecoderStream / CompressionStream throughput
+
+- **[T]** Per stream: input bytes + output bytes + codec (gzip/deflate/deflate-raw).
+
+## NNNNNNNNNNNNNNNNNNNNNNNNN. Per-page `<input type=number step=...>` value precision
+
+- **[T]** Per numeric input: step + min + max + decimal handling on submit.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOO. Per-page `<input type=range orient=vertical>` attribute
+
+- **[T]** Per range input: vendor-prefixed orient attribute usage (Firefox legacy).
+
+## PPPPPPPPPPPPPPPPPPPPPPPPP. Per-page `<datalist>` autocomplete option count
+
+- **[T]** Per `<datalist>` element: option count.
+- **[T]** Per associated input: list attribute references.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQ. Per-page `<output for>` association log
+
+- **[T]** Per `<output>` element: for attribute references + value updates.
+
+## RRRRRRRRRRRRRRRRRRRRRRRRR. Per-page `<progress max value>` state log
+
+- **[T]** Per `<progress>` element: max + value over time + indeterminate state transitions.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSS. Per-page `<meter min low high optimum max value>` distribution
+
+- **[T]** Per `<meter>` element: full attribute set.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTT. Per-page `<map name>` / `<area shape coords>` distribution
+
+- **[T]** Per image map: area count + shape distribution (rect/circle/poly/default).
+
+## UUUUUUUUUUUUUUUUUUUUUUUUU. Per-page `<canvas>` 2D `direction` property
+
+- **[T]** Per 2D canvas: direction attribute usage (ltr/rtl/inherit) + textAlign + textBaseline + fontKerning + fontStretch + fontVariantCaps + letterSpacing + wordSpacing.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVV. Per-page Canvas2D `ImageSmoothingQuality` distribution
+
+- **[T]** Per 2D canvas: imageSmoothingEnabled flag + imageSmoothingQuality (`low`/`medium`/`high`) distribution.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWW. Per-page Canvas2D `globalCompositeOperation` distribution
+
+- **[T]** Per 2D canvas: globalCompositeOperation values used (`source-over` / `multiply` / `screen` / ... 26 operations).
+
+## XXXXXXXXXXXXXXXXXXXXXXXXX. Per-page Canvas2D `filter` property usage
+
+- **[T]** Per 2D canvas: ctx.filter assignment values + reset count.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYY. Per-page Canvas2D `lineCap` / `lineJoin` / `miterLimit` distribution
+
+- **[T]** Per 2D canvas: lineCap (butt/round/square), lineJoin (miter/round/bevel), miterLimit value distribution.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZ. Per-page Canvas2D path command distribution
+
+- **[T]** Per Canvas2D context: path command call distribution (`moveTo`/`lineTo`/`bezierCurveTo`/`quadraticCurveTo`/`arc`/`arcTo`/`ellipse`/`rect`/`closePath`/`roundRect`).
+
+## AAAAAAAAAAAAAAAAAAAAAAAAAA. Per-page Path2D constructor distribution
+
+- **[T]** Per Path2D() construction: from string (SVG path data) vs empty vs from-Path2D copy.
+- **[T]** Per Path2D: addPath/closePath/transform call count.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBB. Per-page Canvas2D matrix transform stack
+
+- **[T]** Per canvas: save/restore depth distribution.
+- **[T]** Per canvas: setTransform / transform / translate / rotate / scale call count.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCC. Per-page WebGL viewport / scissor configuration
+
+- **[T]** Per WebGL context: viewport rect values used + scissor rect distribution.
+- **[T]** Per WebGL context: cullFace + frontFace mode distribution.
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDD. Per-page WebGL blend equation + factor distribution
+
+- **[T]** Per WebGL context: blendFunc / blendFuncSeparate / blendEquation / blendEquationSeparate / blendColor parameter distribution.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEE. Per-page WebGL depth + stencil state
+
+- **[T]** Per WebGL context: depthFunc / depthMask / depthRange / clearDepth values.
+- **[T]** Per WebGL context: stencilFunc / stencilMask / stencilOp values.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFF. Per-page WebGL `pixelStorei` flag distribution
+
+- **[T]** Per WebGL context: pixelStorei flags set — UNPACK_ALIGNMENT, UNPACK_FLIP_Y_WEBGL, UNPACK_PREMULTIPLY_ALPHA_WEBGL, UNPACK_COLORSPACE_CONVERSION_WEBGL, PACK_ALIGNMENT, UNPACK_ROW_LENGTH, UNPACK_IMAGE_HEIGHT, UNPACK_SKIP_PIXELS, UNPACK_SKIP_ROWS, UNPACK_SKIP_IMAGES.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGG. Per-page WebGL texture parameter distribution
+
+- **[T]** Per texture: texParameteri values — TEXTURE_MIN_FILTER, TEXTURE_MAG_FILTER, TEXTURE_WRAP_S/T/R, TEXTURE_COMPARE_MODE/FUNC, TEXTURE_BASE/MAX_LEVEL, TEXTURE_MIN/MAX_LOD.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHH. Per-page WebGPU bind-group layouts
+
+- **[T]** Per WebGPU device: createBindGroupLayout entries — binding number, visibility, resource type (buffer/sampler/texture/storage-texture).
+- **[T]** Per BindGroupLayout: bindings count distribution.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIII. Per-page WebGPU pipeline cache identifiers
+
+- **[T]** Per WebGPU device: cachedPipelineId distribution (when implemented).
+- **[T]** Per pipeline: layout sha256 + shader module sha256.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJ. Per-page WGSL feature flags
+
+- **[T]** Per WGSL module compiled: feature directives used — `enable f16`, `enable subgroups`, `enable derivative_uniformity`.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKK. Per-page WebAudio media playback latency
+
+- **[T]** Per `MediaElementAudioSourceNode`: end-to-end audio-route latency from media element to destination.
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLL. Per-page MediaStream constraints applied vs requested
+
+- **[T]** Per `getUserMedia({audio, video})` call: requested constraints vs `track.getSettings()` resolved.
+- **[T]** Per page: per-constraint matrix observed.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMM. Per-page MediaStreamTrack contentHint usage
+
+- **[T]** Per video track: `contentHint` set value (`""`/`motion`/`detail`/`text`).
+- **[T]** Per audio track: contentHint set value (`""`/`speech`/`music`).
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNN. Per-page Image rendering size mismatch
+
+- **[T]** Per `<img>`: declared `width`/`height` attributes vs `naturalWidth`/`naturalHeight` vs computed style width/height vs rendered pixel size.
+- **[T]** Per page: image-aspect-ratio override count via `aspect-ratio` CSS.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOO. Per-page IntrinsicSize CSS usage
+
+- **[T]** Per page: `aspect-ratio` declared element count.
+- **[T]** Per page: `contain-intrinsic-size` declared count.
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPP. Per-page `<source type>` MIME selection
+
+- **[T]** Per `<picture>` / `<video>` / `<audio>`: per-source `type` attribute MIME + selection outcome.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQ. Per-page Resource Hints attribution
+
+- **[T]** Per resource: did a hint (`<link rel=preload|prefetch|preconnect|dns-prefetch|modulepreload>`) precede its fetch?
+- **[T]** Per hint: hit ratio (resource fetched within session).
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRR. Per-page `<link rel=manifest>` link
+
+- **[T]** Per page: manifest link presence + URL + crossorigin attribute.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSS. Per-page `<link rel=apple-touch-icon-precomposed>` set
+
+- **[T]** Per page: icon link variants — `apple-touch-icon`, `apple-touch-icon-precomposed`, `mask-icon`, `shortcut icon`, `fluid-icon`, `image_src`.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTT. Per-page `<meta name=robots>` directives
+
+- **[T]** Per page: robots meta tag content (`index/noindex`, `follow/nofollow`, `noarchive`, `nosnippet`, `notranslate`, `noimageindex`).
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUU. Per-page `<meta http-equiv>` directives
+
+- **[T]** Per page: every http-equiv directive — `refresh`, `content-security-policy`, `x-ua-compatible`, `default-style`, `content-language`, `content-type`.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVV. Per-page `<style>` inline byte distribution
+
+- **[T]** Per page: inline `<style>` block byte count + count of blocks.
+- **[T]** Per page: inline `<script>` byte count + count of blocks.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWW. Per-page `<noscript>` fallback content presence
+
+- **[T]** Per page: `<noscript>` element count + fallback content byte size.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXX. Per-page `<template>` element distribution
+
+- **[T]** Per page: `<template>` element count + content document size per template.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYY. Per-page `<slot>` element distribution
+
+- **[T]** Per page: `<slot>` element count + named vs default slot distribution.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZ. Per-page `<dialog open>` declarative open state
+
+- **[T]** Per `<dialog>` element: declarative `open` attribute presence at parse time.
+
+## AAAAAAAAAAAAAAAAAAAAAAAAAAA. Per-page `<input list=...>` association count
+
+- **[T]** Per `<input>` with `list` attribute: referenced `<datalist>` option count + autocomplete value distribution.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBB. Per-page autofocus attribute distribution
+
+- **[T]** Per page: autofocus-attribute element count + focused-on-load element.
+- **[T]** Per page: focus-loss events post-autofocus.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCC. Per-page `tabindex` distribution
+
+- **[T]** Per page: tabindex value distribution across focusable elements (positive/zero/negative).
+- **[T]** Per page: focus order observed.
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDD. Per-page `contenteditable` attribute distribution
+
+- **[T]** Per page: `contenteditable` (true/false/plaintext-only/inherit) element count + per-value distribution.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEE. Per-page `draggable` attribute distribution
+
+- **[T]** Per page: `draggable=true` element count + drag events fired.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFF. Per-page `hidden` attribute distribution
+
+- **[T]** Per page: `hidden` attribute + `hidden="until-found"` element counts.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGG. Per-page `popover` attribute distribution
+
+- **[T]** Per page: `popover="auto"` vs `popover="manual"` vs `popover="hint"` element count.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHH. Per-page `inert` attribute toggle log
+
+- **[T]** Per page: inert-toggling events + scopes affected (dialog opens, view transitions, etc.).
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIII. Per-page `slot` attribute on light-DOM children
+
+- **[T]** Per element with `slot=foo` attribute: matched ShadowRoot + assignedSlot resolution.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJ. Per-page `is` attribute (Custom Elements built-in extension)
+
+- **[T]** Per page: `is="..."` attribute usage count + matched custom element.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKK. Per-page `nonce` attribute lifecycle
+
+- **[T]** Per `<script nonce>` / `<style nonce>` element: nonce sha256 + post-load nonce-getter return (Chromium hides nonce post-load).
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLL. Per-page `<style media=print>` block usage
+
+- **[T]** Per page: per-`media` attribute style-block byte count.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMM. Per-page `<link blocking=render>` usage
+
+- **[T]** Per `<link rel=stylesheet blocking=render>` / `<link rel=preload as=script blocking=render>`: render-blocking declarations + observed blocking behavior.
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNN. Per-page `<script blocking=render>` usage
+
+- **[T]** Per `<script blocking=render>` element: declared count + actual render-blocking observed.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOO. Per-page `<script async type=module>` usage
+
+- **[T]** Per page: classic vs module script count + async vs defer attribute distribution within each.
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPP. Per-page `<script type=importmap-shim>` polyfill detection
+
+- **[T]** Per page: presence of well-known polyfills via `<script>` src patterns — `core-js`, `polyfill.io`, `cdnjs.cloudflare.com/ajax/libs/polyfill`, `es-module-shims`.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQ. Per-page `requireActorJS` import detection (Discourse-style)
+
+- **[T]** Per page: presence of well-known JS namespaces — `define`, `require` (AMD), `webpackChunk*`, `__webpack_require__`, `System`, `parcelRequire`, `module.exports`, `viteExpress`.
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRR. Per-page bundler artifact detection
+
+- **[T]** Per page: webpack chunk-load events (`window.webpackChunk*` calls); Vite HMR ping; Snowpack ESM imports; Parcel runtime; Rollup chunk format.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSS. Per-page Service-Worker scope cache write
+
+- **[T]** Per SW: total cache.put calls + total cache.delete calls over session.
+- **[T]** Per SW: total clients.matchAll() calls.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTT. Per-page `<link rel=stylesheet disabled>` toggle log
+
+- **[T]** Per `<link rel=stylesheet>`: `disabled` attribute toggle events + active state at session end.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUU. Per-page alternate stylesheet selection log
+
+- **[T]** Per page: `<link rel=alternate stylesheet>` elements + which was selected by user preference.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVV. Per-page `<link rel=stylesheet>` cross-origin redirect chain
+
+- **[T]** Per stylesheet load: redirect chain count + final URL.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWW. Per-page background sync ID enumeration
+
+- **[T]** Per origin: ServiceWorker SyncManager getTags() result.
+- **[T]** Per origin: BackgroundSync registration events.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXX. Per-page PeriodicSync ID enumeration
+
+- **[T]** Per origin: PeriodicSyncManager getTags() + minInterval distribution.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYY. Per-page Push subscription expiry
+
+- **[T]** Per push subscription: expirationTime value + days-until-expiry distribution.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZ. Per-page Notification action button count
+
+- **[T]** Per displayed Notification: actions[] count + per-action title + icon + type.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
