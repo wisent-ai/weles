@@ -6436,6 +6436,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per session: Power.* histogram distribution (energy-cost per renderer).
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA. Per-page Browser-internal `chrome://histograms/Navigation.*` time-series
+
+- **[T]** Per session: Navigation.* histogram changes (per navigation-type distribution).
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB. Per-page Browser-internal `chrome://histograms/PageLoad.PaintTiming.*` time-series
+
+- **[T]** Per session: FP / FCP / LCP histogram bucket distribution.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC. Per-page Browser-internal `chrome://histograms/Net.Cookie.*` time-series
+
+- **[T]** Per session: Net.Cookie.* histogram distribution (cookie-store reads/writes/deletes).
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD. Per-page Browser-internal `chrome://histograms/PrivacySandbox.*` time-series
+
+- **[T]** Per session: PrivacySandbox histogram changes (Topics / Protected Audience / Shared Storage outcomes).
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE. Per-page Browser-internal `chrome://histograms/SiteEngagement.*` time-series
+
+- **[T]** Per session: SiteEngagement histogram bucket changes.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF. Per-page Browser-internal `chrome://histograms/IPC.*` time-series
+
+- **[T]** Per session: IPC frequency + latency histogram distribution per channel.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG. Per-page Browser-internal `chrome://histograms/Scheduling.*` time-series
+
+- **[T]** Per session: Scheduling histogram distribution (task-queue depth / priorities).
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH. Per-page Browser-internal `chrome://histograms/TaskScheduler.*` time-series
+
+- **[T]** Per session: TaskScheduler histogram distribution (worker-pool utilization).
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII. Per-page Browser-internal `chrome://histograms/MediaCapabilities.*` time-series
+
+- **[T]** Per session: MediaCapabilities histogram distribution.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ. Per-page Browser-internal `chrome://histograms/Decoder.*` time-series
+
+- **[T]** Per session: Decoder.* histogram distribution per media codec.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK. Per-page Browser-internal `chrome://histograms/Cast.*` time-series
+
+- **[T]** Per session: Cast.* histogram (Chromecast device discovery events).
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL. Per-page Browser-internal `chrome://histograms/PresentationApi.*` time-series
+
+- **[T]** Per session: Presentation API histogram distribution.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM. Per-page Browser-internal `chrome://histograms/RemotePlay.*` time-series
+
+- **[T]** Per session: RemotePlay histogram distribution.
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN. Per-page Browser-internal `chrome://histograms/EME.*` time-series
+
+- **[T]** Per session: Encrypted Media Extensions histogram distribution.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO. Per-page Browser-internal `chrome://histograms/Audio.*` time-series
+
+- **[T]** Per session: Audio.* histogram distribution (output device latency / device selection).
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP. Per-page Browser-internal `chrome://histograms/Speech.*` time-series
+
+- **[T]** Per session: Speech (recognition + synthesis) histogram distribution.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ. Per-page Browser-internal `chrome://histograms/InstantSearch.*` time-series
+
+- **[T]** Per session: Instant Search histogram distribution (omnibox prerender behavior).
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR. Per-page Browser-internal `chrome://histograms/SearchProvider.*` time-series
+
+- **[T]** Per session: SearchProvider histogram changes.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS. Per-page Browser-internal `chrome://histograms/UMA.PersistentLogs.*` time-series
+
+- **[T]** Per session: UMA log queue depth + upload outcome histogram.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT. Per-page Browser-internal `chrome://histograms/UKM.*` time-series
+
+- **[T]** Per session: UKM (URL-Keyed Metrics) histogram changes.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU. Per-page Browser-internal `chrome://histograms/DNS.*` time-series
+
+- **[T]** Per session: DNS.* histogram changes (host resolver per-attempt outcomes).
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV. Per-page Browser-internal `chrome://histograms/PageImage.*` time-series
+
+- **[T]** Per session: image decoder histogram per source-format.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW. Per-page Browser-internal `chrome://histograms/Reading_List.*` time-series
+
+- **[T]** Per session: Reading List addition / removal / read-state histogram.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX. Per-page Browser-internal `chrome://histograms/PWAInstall.*` time-series
+
+- **[T]** Per session: Progressive Web App install prompt + installation outcome histogram.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY. Per-page Browser-internal `chrome://histograms/Bookmarks.*` time-series
+
+- **[T]** Per session: bookmark addition + removal histogram.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ. Per-page Browser-internal `chrome://histograms/Translate.*` time-series
+
+- **[T]** Per session: Translate prompt + acceptance + completion histogram.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
