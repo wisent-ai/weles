@@ -17253,6 +17253,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per session: capture of `MOZ_LOG=SpeechAPI:5,sync,timestamp` trace lines (SpeechSynthesis + SpeechRecognition events).
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA. Per-page macOS open() syscall distribution via dtruss
+
+- **[T]** Per session: count of `open()` / `openat()` syscalls observed via `sudo dtruss -p <browser_pid>` + per-file-path distribution.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB. Per-page macOS stat() syscall distribution
+
+- **[T]** Per session: count of `stat()` / `fstat()` / `lstat()` syscalls via dtruss + per-path distribution.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC. Per-page macOS mmap() syscall distribution
+
+- **[T]** Per session: count of `mmap()` / `munmap()` / `mprotect()` syscalls via dtruss + per-size distribution.
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD. Per-page macOS socket() syscall distribution
+
+- **[T]** Per session: count of `socket()` / `bind()` / `connect()` / `accept()` / `listen()` syscalls via dtruss + per-family+type distribution.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE. Per-page macOS read()/write() syscall distribution
+
+- **[T]** Per session: count of `read()` / `pread()` / `write()` / `pwrite()` syscalls via dtruss + per-fd + per-byte-count distribution.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF. Per-page macOS sendto()/recvfrom() syscall distribution
+
+- **[T]** Per session: count of `sendto()` / `sendmsg()` / `recvfrom()` / `recvmsg()` syscalls via dtruss + per-fd + per-byte-count distribution.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG. Per-page macOS sigaction() syscall distribution
+
+- **[T]** Per session: count of `sigaction()` / `sigprocmask()` / `sigsuspend()` / `kill()` / `pthread_kill()` syscalls via dtruss + per-signal distribution.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH. Per-page macOS fork()/posix_spawn() syscall distribution
+
+- **[T]** Per session: count of `fork()` / `vfork()` / `posix_spawn()` / `execve()` syscalls via dtruss + per-binary distribution.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII. Per-page macOS thread_create syscall distribution
+
+- **[T]** Per session: count of `pthread_create()` calls + per-thread-name + per-stack-size distribution via dtrace `pthread_create:entry` probe.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ. Per-página macOS ioctl syscall distribution
+
+- **[T]** Per session: count of `ioctl()` syscalls via dtruss + per-fd + per-cmd distribution.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK. Per-page macOS fcntl syscall distribution
+
+- **[T]** Per session: count of `fcntl()` syscalls via dtruss + per-cmd ('F_GETFD'|'F_SETFD'|'F_GETFL'|'F_SETFL'|'F_DUPFD') distribution.
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL. Per-page macOS gettimeofday/clock_gettime distribution
+
+- **[T]** Per session: count of `gettimeofday()` + `clock_gettime()` syscalls via dtruss + per-clk_id distribution.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM. Per-page macOS kqueue/kevent syscall distribution
+
+- **[T]** Per session: count of `kqueue()` / `kevent()` / `kevent64()` syscalls via dtruss + per-fflags distribution.
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN. Per-page macOS select/poll syscall distribution
+
+- **[T]** Per session: count of `select()` / `poll()` / `pselect()` / `ppoll()` syscalls via dtruss (rarely fires on macOS — usually kqueue).
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO. Per-page macOS mach_msg_trap distribution
+
+- **[T]** Per session: count of `mach_msg_trap` invocations via dtruss + per-port distribution (Mach IPC primary primitive).
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP. Per-page macOS thread_switch distribution
+
+- **[T]** Per session: count of `thread_switch` mach traps + per-target-thread distribution.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ. Per-page macOS getentropy syscall distribution
+
+- **[T]** Per session: count of `getentropy()` syscalls via dtruss + per-output-byte-count distribution (libc entropy source).
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR. Per-page macOS pthread_mutex_lock distribution
+
+- **[T]** Per session: count of `pthread_mutex_lock()` / `pthread_mutex_unlock()` invocations via dtrace `pthread_mutex_lock:entry` probe.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS. Per-page macOS pthread_cond_wait distribution
+
+- **[T]** Per session: count of `pthread_cond_wait()` / `pthread_cond_signal()` / `pthread_cond_broadcast()` invocations via dtrace probe.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT. Per-page macOS sem_wait/sem_post distribution
+
+- **[T]** Per session: count of `sem_wait()` / `sem_post()` / `sem_trywait()` invocations via dtrace probe (POSIX semaphores).
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU. Per-page macOS dispatch_async distribution
+
+- **[T]** Per session: count of `dispatch_async()` / `dispatch_sync()` invocations via dtrace `libdispatch.dylib::dispatch_async$entry` probe.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV. Per-page macOS dispatch_source_create distribution
+
+- **[T]** Per session: count of `dispatch_source_create()` invocations + per-source-type ('DATA_ADD'|'DATA_OR'|'TIMER'|'SIGNAL'|'PROC'|'READ'|'WRITE'|'VNODE'|'MEMORYPRESSURE') distribution.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW. Per-page macOS CFRunLoopRunSpecific distribution
+
+- **[T]** Per session: count of `CFRunLoopRunSpecific()` invocations via dtrace `CoreFoundation::CFRunLoopRunSpecific$entry` probe (event-loop iterations).
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX. Per-page macOS NSAppleScript distribution
+
+- **[T]** Per session: count of `NSAppleScript::executeAndReturnError:` invocations (AppleScript bridges hit only if WebKit AppleScript-handler is active).
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY. Per-page macOS dlopen() syscall distribution
+
+- **[T]** Per session: count of `dlopen()` / `dlclose()` invocations via dtrace `libdyld::dlopen$entry` probe + per-library-path distribution.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ. Per-página macOS dyld_call_image_load distribution
+
+- **[T]** Per session: count of dyld image-load callbacks observed via `dyld_register_image_state_change_handler` (every dylib mapping into the process).
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
