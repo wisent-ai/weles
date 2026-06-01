@@ -4745,6 +4745,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per page: how many form controls have `appearance: none` applied (resetting native UA styles).
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA. Per-page CSS `caption-side` distribution
+
+- **[T]** Per `<table>` with `<caption>`: caption-side value (top/bottom/inline-start/inline-end).
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB. Per-page CSS `empty-cells` distribution
+
+- **[T]** Per `<table>`: empty-cells value (show/hide).
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC. Per-page CSS `table-layout` distribution
+
+- **[T]** Per `<table>`: table-layout value (auto/fixed).
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD. Per-page CSS `border-collapse` distribution
+
+- **[T]** Per `<table>`: border-collapse value (separate/collapse) + border-spacing per side.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE. Per-page CSS `direction: rtl` declaration count
+
+- **[T]** Per page: explicit `direction: rtl` declarations vs inherited from `<html dir>`.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF. Per-page CSS `unicode-bidi` distribution
+
+- **[T]** Per page: `unicode-bidi: normal|embed|isolate|bidi-override|isolate-override|plaintext` usage.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG. Per-page CSS `writing-mode` distribution
+
+- **[T]** Per page: writing-mode value (`horizontal-tb` / `vertical-rl` / `vertical-lr` / `sideways-rl` / `sideways-lr`) declaration count.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH. Per-page CSS `text-combine-upright` distribution
+
+- **[T]** Per page: text-combine-upright declaration count (East-Asian typography signal).
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII. Per-page CSS `text-orientation` distribution
+
+- **[T]** Per page: text-orientation value (mixed/upright/sideways) usage.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ. Per-page CSS `letter-spacing` + `word-spacing` distribution
+
+- **[T]** Per page: declared letter-spacing values + word-spacing values distribution.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK. Per-page CSS `tab-size` distribution
+
+- **[T]** Per page: declared tab-size values.
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL. Per-page CSS `white-space` distribution
+
+- **[T]** Per page: `white-space: normal|nowrap|pre|pre-wrap|pre-line|break-spaces` distribution.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM. Per-page CSS `overflow-wrap` / `word-break` distribution
+
+- **[T]** Per page: overflow-wrap and word-break value distribution.
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN. Per-page CSS `text-overflow: ellipsis` count
+
+- **[T]** Per page: text-overflow declaration count + ellipsis usage.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO. Per-page CSS `line-clamp` / `-webkit-line-clamp` count
+
+- **[T]** Per page: line-clamp / -webkit-line-clamp usage (mobile-style truncation).
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP. Per-page CSS `aspect-ratio` distribution
+
+- **[T]** Per page: aspect-ratio declaration distribution (16/9, 4/3, 1/1, 21/9, etc.).
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ. Per-page CSS `object-fit` / `object-position` distribution
+
+- **[T]** Per page: object-fit value (`fill`/`contain`/`cover`/`none`/`scale-down`) distribution + per-element object-position.
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR. Per-page CSS `background-attachment: fixed` count
+
+- **[T]** Per page: fixed-attachment background count (performance signal).
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS. Per-page CSS `background-clip` distribution
+
+- **[T]** Per page: background-clip value (`border-box`/`padding-box`/`content-box`/`text`) usage.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT. Per-page CSS `border-image` usage
+
+- **[T]** Per page: border-image-source declaration count + per-source URL or gradient.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU. Per-page CSS gradient function distribution
+
+- **[T]** Per page: linear-gradient / radial-gradient / conic-gradient / repeating-* gradient function usage count.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV. Per-page CSS `color()` / `color-mix()` function usage
+
+- **[T]** Per page: usage count of modern color-function syntax (named here in OOOOOOOOOOOOOOO; deeper: per-function arg pattern).
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW. Per-page CSS variable computation chain
+
+- **[T]** Per page: `var(--foo, fallback)` chain depth + fallback presence frequency.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX. Per-page CSS `env()` variable usage
+
+- **[T]** Per page: `env(safe-area-inset-top|right|bottom|left)` / `env(keyboard-inset-*)` declaration count.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY. Per-page CSS calc() depth distribution
+
+- **[T]** Per page: `calc()` invocation count + nesting depth distribution.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ. Per-page CSS `min()` / `max()` / `clamp()` usage
+
+- **[T]** Per page: math-comparison function usage count.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
