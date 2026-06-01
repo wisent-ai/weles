@@ -4087,6 +4087,439 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per displayed Notification: actions[] count + per-action title + icon + type.
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAA. Per-page `<link rel=preload as=audio|video|track|font|fetch|document|object|embed|worker|sharedworker>` distribution
+
+- **[T]** Per `<link rel=preload>`: `as` attribute distribution across all 16 documented values.
+- **[T]** Per `as=font` preload: `crossorigin` attribute presence (required for cors-restricted fonts).
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBB. Per-page `<link rel=expect blocking=render>` Document Subresource Bundle declaration
+
+- **[T]** Per page: `<link rel=expect blocking=render href=foo>` declarations + outcomes.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCC. Per-page `<link rel=privacy-policy>` / `<link rel=terms-of-service>`
+
+- **[T]** Per page: legal-link `rel` attribute usage — `privacy-policy`, `terms-of-service`, `license`, `author`, `me`.
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDD. Per-page `<a rel>` link relation distribution
+
+- **[T]** Per anchor: `rel` token list — `noopener`, `noreferrer`, `external`, `me`, `nofollow`, `sponsored`, `ugc`, `tag`, `bookmark`, `prev`, `next`, `help`, `search`, `up`.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEE. Per-page Trusted Types policy enforcement count
+
+- **[T]** Per page: `require-trusted-types-for` directive on which sinks.
+- **[T]** Per page: violations enforced count + report-only count.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFF. Per-page Web App Lifecycle freeze/resume events
+
+- **[T]** Per page: every `freeze` event fired + every `resume` event with timestamp delta.
+- **[T]** Per page: discard-restore log via `wasDiscarded` flag check.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGG. Per-page Document.adoptedStyleSheets ordering operations
+
+- **[T]** Per page: adoptedStyleSheets reorder events (assign vs push vs unshift).
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHH. Per-page `Element.role` IDL attribute usage
+
+- **[T]** Per page: ARIA role IDL property accesses + state queries.
+- **[T]** Per page: programmatic role assignments vs HTML role attributes.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIII. Per-page `Element.ariaLabel` IDL property usage
+
+- **[T]** Per page: ariaLabel / ariaLabelledByElements / ariaDescribedByElements IDL writes.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJ. Per-page `Element.requestPointerLock` outcomes
+
+- **[T]** Per call: outcome (Promise resolved/rejected) + unadjustedMovement flag.
+- **[T]** Per page: pointer-lock state transition log.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKK. Per-page `KeyboardLock.lock` outcomes
+
+- **[T]** Per `navigator.keyboard.lock(keyCodes)` call: keyCodes array + outcome.
+- **[T]** Per page: keyboard-lock-in-effect duration distribution.
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLL. Per-page `Selection.removeAllRanges` vs `empty()` ratio
+
+- **[T]** Per page: Selection API removeAllRanges vs empty() (deprecated) call distribution.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMM. Per-page `Document.scrollingElement` resolution
+
+- **[T]** Per page: `document.scrollingElement` resolution (quirks vs standards mode → different element).
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNN. Per-page legacy `Document.captureEvents` / `releaseEvents` invocation
+
+- **[T]** Per page: deprecated Netscape-era API call presence — if the page calls these, it's a fingerprint.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOO. Per-page `Document.queryCommandValue` lookups
+
+- **[T]** Per page: queryCommandValue calls — command name + return value.
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPP. Per-page MathML attribute usage
+
+- **[T]** Per `<math>` element: `display` attribute (block/inline), `overflow` attribute.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQ. Per-page Web Component lifecycle callback firing rates
+
+- **[T]** Per custom element class: connectedCallback / disconnectedCallback / attributeChangedCallback / adoptedCallback / formAssociatedCallback fire counts.
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRR. Per-page form-associated custom element ElementInternals usage
+
+- **[T]** Per custom element: `setFormValue` / `setValidity` / `reportValidity` call counts.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSS. Per-page TextDecoder fatal error stream
+
+- **[T]** Per TextDecoder with `fatal:true`: TypeError throw count.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTT. Per-page WeakSet / WeakMap proliferation
+
+- **[T]** Per page: `new WeakSet()` / `new WeakMap()` construction count.
+- **[T]** Per page: weakly-held reference count at session close.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUU. Per-page `FormData` construction count
+
+- **[T]** Per page: `new FormData()` / `new FormData(form)` calls + per-call entry count.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVV. Per-page Response.bytes() / .formData() / .json() / .text() / .arrayBuffer() / .blob() distribution
+
+- **[T]** Per fetched Response: which body-decoder methods are called + total bytes by decoder type.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWW. Per-page Request constructor mode/credentials/cache/redirect distribution
+
+- **[T]** Per `new Request(input, init)` call: full init reconstruction — mode (cors/no-cors/same-origin/navigate) + credentials (omit/same-origin/include) + cache (default/no-store/reload/no-cache/force-cache/only-if-cached) + redirect (follow/error/manual).
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXX. Per-page `Headers.append` / `set` / `delete` distribution
+
+- **[T]** Per Headers instance: append vs set vs delete call distribution.
+- **[T]** Per page: most-modified header name distribution.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYY. Per-page `URLSearchParams.set` / `append` / `delete` distribution
+
+- **[T]** Per URLSearchParams: mutation call distribution.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZ. Per-page Console object identity test
+
+- **[T]** Per page: `Function.prototype.toString.call(console.log)` — surfaces whether console has been monkey-patched (consent-management platforms, observability tools, DevTools attached).
+
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAA. Per-page setter.toString integrity check
+
+- **[T]** Per page: `Function.prototype.toString.call(Object.getOwnPropertyDescriptor(Navigator.prototype, 'userAgent').get)` — surfaces whether the navigator.userAgent getter has been redefined.
+- **[T]** Same probe for every spoofable Navigator/Screen/Document/Window getter.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBB. Per-page Proxy detection of getOwnPropertyDescriptor results
+
+- **[T]** Per page: configurable / writable / enumerable flags on every Navigator getter — divergence from canonical spec indicates wrapping.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCC. Per-page `Object.setPrototypeOf` call log
+
+- **[T]** Per page: every `Object.setPrototypeOf(target, proto)` invocation — caller stack.
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDD. Per-page `Proxy` constructor usage
+
+- **[T]** Per page: `new Proxy(target, handler)` construction count + caller stack.
+- **[T]** Per page: which trap functions the handler defines (get / set / has / deleteProperty / ownKeys / etc.).
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEE. Per-page `Reflect.*` call log
+
+- **[T]** Per page: `Reflect.get`, `Reflect.set`, `Reflect.has`, `Reflect.deleteProperty`, `Reflect.ownKeys`, `Reflect.getOwnPropertyDescriptor`, `Reflect.defineProperty`, `Reflect.preventExtensions`, `Reflect.isExtensible`, `Reflect.apply`, `Reflect.construct`, `Reflect.getPrototypeOf`, `Reflect.setPrototypeOf` invocation counts.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFF. Per-page DataView byte-order usage
+
+- **[T]** Per `new DataView(buffer)` construction: byteOffset + byteLength.
+- **[T]** Per DataView read/write: little-endian vs big-endian distribution.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGG. Per-page TypedArray subclass distribution
+
+- **[T]** Per page: per TypedArray subclass construction count — Int8Array, Uint8Array, Uint8ClampedArray, Int16Array, Uint16Array, Int32Array, Uint32Array, BigInt64Array, BigUint64Array, Float16Array, Float32Array, Float64Array.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHH. Per-page `ArrayBuffer.transfer` / `transferToFixedLength` usage
+
+- **[T]** Per ArrayBuffer: transfer-to-fixed-length / resize / detach event log.
+- **[T]** Per ArrayBuffer: resizable vs fixed-length distribution.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIII. Per-page `SharedArrayBuffer.grow` usage
+
+- **[T]** Per SAB: grow events + final byteLength.
+- **[T]** Per SAB: growable flag at construction.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJ. Per-page `Atomics.pause` (recent) usage
+
+- **[T]** Per page: `Atomics.pause()` (CPU pause hint) call count.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKK. Per-page `Promise.withResolvers` / `Promise.try` / `Promise.allSettled` distribution
+
+- **[T]** Per page: usage counts of modern Promise statics.
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLL. Per-page Iterator helpers (.map/.filter/.take) chain depth
+
+- **[T]** Per page: Iterator helper invocations + chain depth distribution.
+- **[T]** Per page: `Iterator.from`, `.toArray`, `.reduce`, `.forEach`, `.some`, `.every`, `.find` usage counts.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMM. Per-page AsyncIterator helpers
+
+- **[T]** Per page: AsyncIterator.prototype.map / filter / take / drop / flatMap / reduce / toArray / forEach / some / every / find invocations.
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNN. Per-page `Object.groupBy` / `Map.groupBy` usage
+
+- **[T]** Per page: groupBy invocations + key callback distribution.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOO. Per-page `Array.prototype.toReversed / toSorted / toSpliced / with` usage
+
+- **[T]** Per page: ES2023 non-mutating Array method usage count.
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPP. Per-page `String.prototype.isWellFormed` / `toWellFormed` usage
+
+- **[T]** Per page: well-formed-string method invocation count.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQ. Per-page `RegExp.prototype.unicodeSets` flag usage
+
+- **[T]** Per page: regex with `v` flag construction count + set-notation usage.
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRR. Per-page `Map.prototype.emplace` / `Set.prototype.union/intersection/difference/symmetricDifference/isSubsetOf/isSupersetOf/isDisjointFrom` usage
+
+- **[T]** Per page: modern set/map method usage counts.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSS. Per-page `WeakMap.prototype.getOrInsert` usage (recent)
+
+- **[T]** Per page: getOrInsert / getOrInsertComputed call count.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTT. Per-page `Error.cause` propagation
+
+- **[T]** Per thrown error: presence of `cause` property + nested cause chain depth.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUU. Per-page `AggregateError` construction
+
+- **[T]** Per page: AggregateError construction count + errors[] length distribution.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVV. Per-page `Symbol.dispose` / `Symbol.asyncDispose` usage
+
+- **[T]** Per page: `using` / `await using` declaration count (explicit resource management).
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWW. Per-page `Function.prototype.bind` overhead
+
+- **[T]** Per page: total `Function.prototype.bind` calls — caller stack distribution.
+- **[T]** Per page: bound-function execution count.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXX. Per-page `Function.prototype.call/apply` vs Function direct-call ratio
+
+- **[T]** Per page: explicit `.call(this, ...)` / `.apply(this, args)` invocation count.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYY. Per-page lexical-this `()=>` arrow vs `function(){}` declaration count
+
+- **[T]** Per page: arrow-function vs traditional-function-declaration ratio (parsed via AST walk over loaded scripts).
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ. Per-page `class` declaration vs `function` constructor ratio
+
+- **[T]** Per page: ES6 class declarations vs `function Foo(){}` + `Foo.prototype.method` patterns.
+
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAA. Per-page Workers / SharedWorkers vs MessageChannel split
+
+- **[T]** Per page: MessageChannel vs Worker.postMessage vs BroadcastChannel byte-volume distribution.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBB. Per-page TransferableObject distribution
+
+- **[T]** Per postMessage call: transfer[] entries by type (MessagePort/ArrayBuffer/ImageBitmap/OffscreenCanvas/ReadableStream/WritableStream/TransformStream/AudioData/VideoFrame).
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCC. Per-page `OffscreenCanvas.transferToImageBitmap` usage
+
+- **[T]** Per OffscreenCanvas: transferToImageBitmap / convertToBlob call distribution.
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDD. Per-page ImageBitmap close() lifecycle
+
+- **[T]** Per ImageBitmap: created vs explicitly-closed count delta (handle leak detection).
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEE. Per-page VideoFrame allocation log
+
+- **[T]** Per VideoFrame: codedWidth/codedHeight/format/timestamp + close() lifecycle tracking.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFF. Per-page AudioData allocation log
+
+- **[T]** Per AudioData: numberOfChannels/sampleRate/numberOfFrames/format + close() lifecycle.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGG. Per-page EncodedVideoChunk / EncodedAudioChunk dump
+
+- **[T]** Per chunk: type (key/delta) + byteLength + timestamp.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHH. Per-page `<source srcset>` candidate parsed list
+
+- **[T]** Per `<source srcset>`: each candidate URL + density descriptor + width descriptor + selected candidate.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIII. Per-page `<img>` `sizes` attribute resolution
+
+- **[T]** Per `<img sizes>`: declared sizes media queries + resolved size at current viewport.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ. Per-page Media Session position polling
+
+- **[T]** Per page with MediaSession: per-second position snapshots (when active).
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKK. Per-page Service Worker waitUntil() promise chain
+
+- **[T]** Per fetch event: waitUntil() promise count + cumulative resolved time.
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLL. Per-page Service Worker respondWith() async flow
+
+- **[T]** Per fetch event: respondWith resolution latency + final Response source (cache vs network vs constructed).
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMM. Per-page navigation.transition state
+
+- **[T]** Per soft navigation: `navigation.transition.from` and `navigation.transition.navigationType`.
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNN. Per-page navigation.canIntercept boolean per navigation
+
+- **[T]** Per navigate event: canIntercept flag + intercept() called or not.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOO. Per-page `<a download>` attribute usage
+
+- **[T]** Per `<a download>` element: download attribute value + click outcome.
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPP. Per-page Browser sniffing meta tags
+
+- **[T]** Per page: `<meta name="apple-mobile-web-app-capable">`, `<meta name="apple-mobile-web-app-status-bar-style">`, `<meta name="application-name">`, `<meta name="msapplication-*">` tag set.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ. Per-page Open Graph image array
+
+- **[T]** Per page: og:image + og:image:width + og:image:height + og:image:type repetitions.
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRR. Per-page JSON-LD blob enumeration
+
+- **[T]** Per page: all `<script type="application/ld+json">` blob count + per-blob byte size + per-blob @type vocabulary.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSS. Per-page `<link rel=alternate type=application/atom+xml>` syndication feed
+
+- **[T]** Per page: RSS/Atom feed link presence + href.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTT. Per-page `<link rel=pingback>` / `<link rel=webmention>` discovery
+
+- **[T]** Per page: indieweb endpoint advertisements.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUU. Per-page WebFinger / nostr / activitypub markers
+
+- **[T]** Per page: ActivityPub / Mastodon / nostr meta-tag presence (decentralized social fingerprints).
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVV. Per-page brave-rewards / brave-search markers
+
+- **[T]** Per page: presence of Brave-specific globals (`brave` property on navigator) + rewards meta tags.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWW. Per-page anti-bot dispatcher detection
+
+- **[T]** Per page: presence of known classifier client SDKs — PerimeterX (`_pxAppId`, `_pxhd`), DataDome (`__cf`, `dd_*`), Cloudflare Turnstile (`turnstile` global), hCaptcha (`hcaptcha`), reCAPTCHA Enterprise (`grecaptcha.enterprise`), Arkose (`fc-token`, `arkose-cdn.com`), Imperva (`incap_ses_*`), Akamai BotManager (`_abck`, `bm_sz`), F5 Distributed Cloud (`f5avr`), Kasada (`KP_UIDz`).
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXX. Per-page tracking-pixel detection
+
+- **[T]** Per page: image requests to known analytics endpoints (`google-analytics.com/collect`, `facebook.com/tr`, `analytics.tiktok.com`, `analytics.twitter.com`, `linkedin.com/li.lms-analytics/insight.min.js`, `bat.bing.com/action`, etc.) — fired count.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYY. Per-page session-recording script detection
+
+- **[T]** Per page: presence of session-recording vendor scripts — FullStory, Hotjar, LogRocket, Mouseflow, Quantum Metric, Pendo, Heap, Smartlook, Inspectlet, Lucky Orange.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ. Per-page AI vendor script detection
+
+- **[T]** Per page: presence of LLM/AI vendor SDKs — OpenAI SDK, Anthropic SDK, Replicate, ElevenLabs, Pinecone, LangChain Web, Vercel AI SDK, Anthropic Web SDK.
+
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA. Per-page payment-vendor SDK detection
+
+- **[T]** Per page: presence of Stripe.js (`Stripe()`), Adyen, Braintree, PayPal SDK, Apple Pay JS, Google Pay JS, Klarna, Affirm, Afterpay, Sezzle global SDK detection.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB. Per-page support-chat SDK detection
+
+- **[T]** Per page: Intercom, Zendesk, Drift, Crisp, LiveChat, Tawk.to, HubSpot Chat, Olark, Tidio, Help Scout, Salesforce LiveAgent, Front Chat global presence.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC. Per-page tag-management platform detection
+
+- **[T]** Per page: Google Tag Manager (`gtm.js`), Segment (`analytics.js`/`snippet`), Tealium IQ, Adobe Launch / DTM, Ensighten, Matomo Tag Manager presence.
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD. Per-page consent-management platform detection
+
+- **[T]** Per page: OneTrust (`OneTrust`/`OptanonConsent`), Cookiebot, TrustArc, Quantcast Choice (`__tcfapi`), Sourcepoint, Didomi, Usercentrics, Iubenda, Termly global presence.
+- **[T]** Per page: `__tcfapi` function presence (TCF v2.x) + `__gpp` (Global Privacy Platform).
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE. Per-page A/B framework detection
+
+- **[T]** Per page: Optimizely (`window.optimizely`), VWO (`window._vwo_*`), Google Optimize (`window.dataLayer` + `optimize.container.id`), Adobe Target (`mbox.js`), Statsig (`statsig`), LaunchDarkly (`ld.client`), Split.io, Eppo, GrowthBook detection.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF. Per-page recommendation-engine detection
+
+- **[T]** Per page: Algolia (`window._algolia*`), Coveo, Bloomreach, Constructor.io, Klevu, Yotpo, Bazaarvoice global presence.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG. Per-page commerce platform JS detection
+
+- **[T]** Per page: Shopify (`window.Shopify`), Magento (`require([...])`), WooCommerce (`wc_*` cookies), Salesforce Commerce Cloud, BigCommerce, Spree, Solidus, Sylius.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH. Per-page CRM / sales SDK detection
+
+- **[T]** Per page: HubSpot (`window._hsq`), Marketo (`MunchkinJS`), Pardot, Mailchimp Mandrill, ActiveCampaign, Iterable, Customer.io, Braze, OneSignal global SDK presence.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIII. Per-page video-player SDK detection
+
+- **[T]** Per page: Video.js (`window.videojs`), JW Player, Shaka Player, hls.js (`window.Hls`), dash.js (`dashjs`), Mux Data, Bitmovin, Brightcove, Vimeo Player, YouTube IFrame API.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ. Per-page CDN SDK detection
+
+- **[T]** Per page: presence of Cloudflare Workers Rocket Loader, Fastly Compute@Edge, Akamai EdgeWorkers, Vercel Edge Middleware, Netlify Edge Functions runtime markers.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK. Per-page UI library detection
+
+- **[T]** Per page: Material UI (`MuiThemeProvider`), Ant Design (`antd-*`), Tailwind (`window.tailwind`), Bootstrap (`bootstrap.*`), Chakra UI, Mantine, Radix UI, shadcn/ui markers, Bulma, Foundation global classes.
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL. Per-page state-management library detection
+
+- **[T]** Per page: Redux (`__REDUX_DEVTOOLS_EXTENSION__`), MobX, Zustand, Recoil, Jotai, XState, Apollo Client (`__APOLLO_CLIENT__`), React Query (`window.queryClient`).
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM. Per-page i18n library detection
+
+- **[T]** Per page: react-intl, i18next (`window.i18next`), formatjs, lingui, vue-i18n, ngx-translate, Polyglot, LinguiJS global presence.
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN. Per-page form-library detection
+
+- **[T]** Per page: react-hook-form, Formik, react-final-form, Yup, Zod, Joi, valibot global presence.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO. Per-page testing-instrumentation detection
+
+- **[T]** Per page: Cypress (`window.Cypress`), Playwright (`window.playwright`), Puppeteer (`navigator.webdriver === true`), Selenium (`window.document.documentElement.getAttribute('webdriver')`), WebDriverIO, TestCafe traces.
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP. Per-page Web3 / crypto wallet SDK detection
+
+- **[T]** Per page: `window.ethereum` (MetaMask / Coinbase Wallet / Phantom), `window.solana`, `window.tronWeb`, `window.cardano`, `window.aptos`, `window.suiWallet`, WalletConnect global presence.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ. Per-page hardware wallet bridge detection
+
+- **[T]** Per page: Ledger Live Bridge, Trezor Connect, Keystone, GridPlus Lattice, Tangem global presence.
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR. Per-page SSO bridge detection
+
+- **[T]** Per page: Auth0 (`window.auth0`), Okta (`window.okta`), Firebase Auth (`firebase.auth`), Amazon Cognito, Stytch, Clerk, SuperTokens, NextAuth global presence.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS. Per-page WebSocket client library detection
+
+- **[T]** Per page: Socket.IO (`io`), SockJS (`SockJS`), Phoenix Channels (`Phoenix`), ActionCable (`createConsumer`), Ably (`Ably.Realtime`), Pusher (`Pusher`), Centrifuge.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT. Per-page real-time DB SDK detection
+
+- **[T]** Per page: Firebase Realtime DB (`firebase.database`), Supabase (`window.supabase`), Convex, Liveblocks, PartyKit, PowerSync global presence.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU. Per-page graphics library detection
+
+- **[T]** Per page: Three.js (`THREE`), Babylon.js (`BABYLON`), PixiJS (`PIXI`), Phaser, ZIM, p5.js (`p5`), Konva, Fabric.js, Two.js, PlayCanvas global presence.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV. Per-page chart library detection
+
+- **[T]** Per page: Chart.js, D3 (`d3`), Highcharts, Plotly, ECharts, ApexCharts, Recharts, Victory, Nivo, Visx global presence.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW. Per-page map library detection
+
+- **[T]** Per page: Google Maps (`google.maps`), Mapbox GL (`mapboxgl`), Leaflet (`L`), MapLibre, Cesium, OpenLayers (`ol`), Apple MapKit JS, ArcGIS API global presence.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX. Per-page editor library detection
+
+- **[T]** Per page: TinyMCE, CKEditor, Quill, Slate, Lexical, ProseMirror, Tiptap, Monaco Editor (`monaco`), CodeMirror (`CodeMirror`), Ace Editor (`ace`) global presence.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY. Per-page ads vendor SDK detection
+
+- **[T]** Per page: Google AdSense, Google Ad Manager (`googletag`), Amazon Publisher Services (`apstag`), Prebid.js (`pbjs`), Criteo, OpenX, AppNexus / Xandr, PubMatic, Index Exchange, Magnite global presence.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ. Per-page captcha vendor diversity
+
+- **[T]** Per page: simultaneous captcha vendor presence (page uses BOTH reCAPTCHA and Cloudflare Turnstile, etc.).
+- **[T]** Per captcha vendor: site key extracted + invocation count.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
