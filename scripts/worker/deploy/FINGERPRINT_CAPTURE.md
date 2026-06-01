@@ -8309,6 +8309,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per page: rejectionhandled (late-handled rejection) event count.
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA. Per-page CDP Browser.setDownloadBehavior outcomes
+
+- **[T]** Per session: Browser.setDownloadBehavior policy + path.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB. Per-page CDP Browser.cancelDownload outcomes
+
+- **[T]** Per session: Browser.cancelDownload invocations per download id.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC. Per-page CDP Browser.setWindowBounds outcomes
+
+- **[T]** Per session: Browser.setWindowBounds invocations + outcome.
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD. Per-page CDP Browser.setDockTile outcomes (macOS)
+
+- **[T]** Per session: Browser.setDockTile badge text changes (macOS-only).
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE. Per-page CDP Page.setLifecycleEventsEnabled state
+
+- **[T]** Per session: lifecycle events enabled state + emitted event count.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF. Per-page CDP Page.setAdBlockingEnabled state
+
+- **[T]** Per session: ad-blocking devtools state.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG. Per-page CDP Page.setBypassCSP state
+
+- **[T]** Per session: CSP bypass devtools state.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH. Per-page CDP Page.setFontFamilies overrides
+
+- **[T]** Per session: font-family override per-script (standard/fixed/serif/sansSerif/cursive/fantasy/math) applied.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII. Per-page CDP Page.setFontSizes overrides
+
+- **[T]** Per session: font-size override applied (standard / fixed).
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ. Per-page CDP Page.setSPCTransactionMode state
+
+- **[T]** Per session: Secure Payment Confirmation transaction mode override.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK. Per-page CDP Page.setWebLifecycleState invocations
+
+- **[T]** Per session: setWebLifecycleState calls (frozen / active).
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL. Per-page CDP Page.produceCompilationCache invocations
+
+- **[T]** Per session: produceCompilationCache call count per URL.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM. Per-page CDP Page.addCompilationCache invocations
+
+- **[T]** Per session: addCompilationCache call count per URL.
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN. Per-page CDP Page.clearCompilationCache invocations
+
+- **[T]** Per session: clearCompilationCache call count.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO. Per-page CDP Page.setInterceptFileChooserDialog state
+
+- **[T]** Per session: file-chooser interception state.
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP. Per-page CDP Page.setRPHRegistrationMode state
+
+- **[T]** Per session: register-protocol-handler mode override.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ. Per-page CDP Page.generateTestReport invocations
+
+- **[T]** Per session: test-report generation count.
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR. Per-page CDP Page.waitForDebugger invocations
+
+- **[T]** Per session: waitForDebugger calls (debugger-attach signal).
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS. Per-page CDP Page.setPrerenderingAllowed state
+
+- **[T]** Per session: prerendering-allowed override state.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT. Per-page CDP Page.setDocumentContent invocations
+
+- **[T]** Per session: setDocumentContent call count + per-frame byte size.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU. Per-page CDP Page.reload invocations
+
+- **[T]** Per session: reload call count + ignoreCache flag.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV. Per-page CDP Page.navigate invocations
+
+- **[T]** Per session: navigate call count + per-call URL + referrerPolicy + frameId target.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW. Per-page CDP Page.navigateToHistoryEntry invocations
+
+- **[T]** Per session: history-traversal call count via CDP.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX. Per-page CDP Page.resetNavigationHistory invocations
+
+- **[T]** Per session: history reset call count.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY. Per-page CDP Page.bringToFront invocations
+
+- **[T]** Per session: bringToFront call count.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ. Per-page CDP Page.close invocations
+
+- **[T]** Per session: Page.close devtools-invocation count.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
