@@ -6540,6 +6540,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per session: Translate prompt + acceptance + completion histogram.
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA. Per-page Browser-internal `chrome://histograms/PageVisits.*` time-series
+
+- **[T]** Per session: page-visit histogram bucket changes.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB. Per-page Browser-internal `chrome://histograms/Print.*` time-series
+
+- **[T]** Per session: print-preview + actual print operation histogram.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC. Per-page Browser-internal `chrome://histograms/Extensions.*` time-series
+
+- **[T]** Per session: Extensions histogram changes (install + uninstall + content-script injection).
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD. Per-page Browser-internal `chrome://histograms/DataReduction.*` time-series
+
+- **[T]** Per session: Data-Saver bytes-saved + bytes-unsaved histogram.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE. Per-page Browser-internal `chrome://histograms/PaymentRequest.*` time-series
+
+- **[T]** Per session: PaymentRequest invocation + outcome histogram.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF. Per-page Browser-internal `chrome://histograms/Login.*` time-series
+
+- **[T]** Per session: Login (account chooser, password fill) histogram distribution.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG. Per-page Browser-internal `chrome://histograms/Tab.*` time-series
+
+- **[T]** Per session: Tab lifecycle histogram (create / close / discard / restore).
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH. Per-page Browser-internal `chrome://histograms/WebUI.*` time-series
+
+- **[T]** Per session: WebUI page load histogram.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII. Per-page Browser-internal `chrome://histograms/WebApk.*` time-series
+
+- **[T]** Per session: WebApk install / launch histogram.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ. Per-page Browser-internal `chrome://histograms/Throttling.*` time-series
+
+- **[T]** Per session: throttling-policy histogram (background-tab JS clamp / hidden-rAF).
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK. Per-page Browser-internal `chrome://histograms/AppleSilicon.*` time-series
+
+- **[T]** Per session: Apple-Silicon-specific perf histograms (when on Apple GPU).
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL. Per-page Browser-internal `chrome://histograms/Vulkan.*` / `Metal.*` / `D3D.*` time-series
+
+- **[T]** Per session: GPU-backend-specific histograms (which backend Chrome actually used).
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM. Per-page Browser-internal `chrome://histograms/Net.QuicNewConnection.*` time-series
+
+- **[T]** Per session: QUIC new-connection latency histogram.
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN. Per-page Browser-internal `chrome://histograms/Net.SSL.*` time-series
+
+- **[T]** Per session: SSL handshake outcome histogram + cipher-suite negotiation histogram.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO. Per-page Browser-internal `chrome://histograms/Net.HostResolver.*` time-series
+
+- **[T]** Per session: host-resolver per-attempt histogram.
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP. Per-page Browser-internal `chrome://histograms/Net.NetworkErrorLogging.*` time-series
+
+- **[T]** Per session: NEL report delivery histogram.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ. Per-page Browser-internal `chrome://histograms/Net.OCSP.*` time-series
+
+- **[T]** Per session: OCSP query outcome histogram (stapled vs fetched vs missing).
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR. Per-page Browser-internal `chrome://histograms/Net.CertVerifier.*` time-series
+
+- **[T]** Per session: cert verifier outcome histogram.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS. Per-page Browser-internal `chrome://histograms/Net.TrustToken.*` time-series
+
+- **[T]** Per session: Trust Token issuance + redemption histogram.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT. Per-page Browser-internal `chrome://histograms/Net.ECH.*` time-series
+
+- **[T]** Per session: Encrypted Client Hello outcome histogram.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU. Per-page Browser-internal `chrome://histograms/Net.0RTT.*` time-series
+
+- **[T]** Per session: 0-RTT sent + accepted histogram.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV. Per-page Browser-internal `chrome://histograms/Net.Alpn.*` time-series
+
+- **[T]** Per session: ALPN protocol negotiated histogram.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW. Per-page Browser-internal `chrome://histograms/Net.Http3.*` time-series
+
+- **[T]** Per session: HTTP/3 use + fallback histogram.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX. Per-page Browser-internal `chrome://histograms/Net.CookieControls.*` time-series
+
+- **[T]** Per session: third-party-cookie blocking outcome histogram.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY. Per-page Browser-internal `chrome://histograms/Net.ProxyService.*` time-series
+
+- **[T]** Per session: ProxyService resolution outcome histogram.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ. Per-page Browser-internal `chrome://histograms/Net.WPAD.*` time-series
+
+- **[T]** Per session: WPAD discovery outcome histogram.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
