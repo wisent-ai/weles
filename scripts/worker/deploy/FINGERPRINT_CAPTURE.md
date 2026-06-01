@@ -7060,6 +7060,111 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per session: App Store agent activity log.
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA. Per-page macOS `defaults read` per com.apple.* domain
+
+- **[T]** Per session: every preference domain under `com.apple.*` — full enumeration via `defaults domains`.
+- **[T]** Per domain: byte size of stored preferences (count only).
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB. Per-page macOS `defaults` per app-bundle-identifier domain
+
+- **[T]** Per session: per-third-party-app preference domain count (sha256'd bundle identifiers).
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC. Per-page macOS `com.apple.Safari` defaults state
+
+- **[T]** Per session: Safari is the system browser? + Safari preference snapshot (sha256 only).
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD. Per-page macOS `com.apple.WebKit` defaults state
+
+- **[T]** Per session: WebKit-bundled-app preference snapshot.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE. Per-page macOS `com.apple.systempreferences` defaults state
+
+- **[T]** Per session: System Preferences last-opened pane.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF. Per-page macOS `com.apple.controlcenter` defaults state
+
+- **[T]** Per session: Control Center module list + order + visibility per module.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG. Per-page macOS `com.apple.menuextra.battery` defaults state
+
+- **[T]** Per session: battery menu-extra ShowPercent flag.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH. Per-page macOS `com.apple.dock` defaults state
+
+- **[T]** Per session: dock orientation + tilesize + autohide + magnification + position-immutable.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII. Per-page macOS `com.apple.spaces` defaults state
+
+- **[T]** Per session: spaces count + per-space app assignments.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ. Per-page macOS `com.apple.finder` defaults state
+
+- **[T]** Per session: Finder ShowAllFiles / ShowExternalHardDrivesOnDesktop / DesktopViewSettings / ShowPathbar flags.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK. Per-page macOS `com.apple.symbolichotkeys` defaults state
+
+- **[T]** Per session: custom keyboard shortcuts configured.
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL. Per-page macOS `com.apple.driver.AppleBluetoothMultitouch.mouse` defaults state
+
+- **[T]** Per session: Magic Mouse gesture toggles distribution.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM. Per-page macOS `com.apple.driver.AppleBluetoothMultitouch.trackpad` defaults state
+
+- **[T]** Per session: Magic Trackpad gesture toggles distribution.
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN. Per-page macOS `com.apple.AppleMultitouchMouse` defaults state
+
+- **[T]** Per session: trackpad/mouse multitouch parameters.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO. Per-page macOS `com.apple.preferences.timezone` defaults state
+
+- **[T]** Per session: configured timezone + last-modified date.
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP. Per-page macOS `com.apple.print.PrintingPrefs` defaults state
+
+- **[T]** Per session: configured default printer (sha256'd printer name).
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ. Per-page macOS `com.apple.preferences.softwareupdate` defaults state
+
+- **[T]** Per session: software-update preferences (automatic-download enabled / install-system-data-files / automatic-check-enabled).
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR. Per-page macOS `com.apple.network` defaults state
+
+- **[T]** Per session: NetworkServiceMap preferences snapshot.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS. Per-page macOS `com.apple.Calendar` defaults state
+
+- **[T]** Per session: configured calendar account count (presence only).
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT. Per-page macOS `com.apple.AddressBook` defaults state
+
+- **[T]** Per session: Contacts account count (presence only).
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU. Per-page macOS `com.apple.iCal.alarms` defaults state
+
+- **[T]** Per session: configured alarm count.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV. Per-page macOS `com.apple.knowledge-agent` defaults state
+
+- **[T]** Per session: knowledge-agent state (Spotlight knowledge graph).
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW. Per-page macOS `com.apple.HIToolbox` defaults state
+
+- **[T]** Per session: input source list + selected input source.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX. Per-page macOS `com.apple.iTunes` / `com.apple.Music` defaults state
+
+- **[T]** Per session: Music app preferences snapshot.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY. Per-page macOS `com.apple.TV` defaults state
+
+- **[T]** Per session: TV app preferences snapshot.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ. Per-page macOS `com.apple.Photos` defaults state
+
+- **[T]** Per session: Photos library presence (sha256 of library path).
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
