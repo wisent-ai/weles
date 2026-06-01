@@ -10909,6 +10909,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per session: per-WebSocket handshake server-selected subprotocol distribution.
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA. Per-page outgoing request Accept-Encoding value
+
+- **[T]** Per session: per-outgoing-request Accept-Encoding value distribution.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB. Per-page outgoing request Accept value
+
+- **[T]** Per session: per-outgoing-request Accept value distribution.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC. Per-page outgoing request Accept-Language value
+
+- **[T]** Per session: per-outgoing-request Accept-Language value distribution.
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD. Per-page outgoing request User-Agent value
+
+- **[T]** Per session: per-outgoing-request User-Agent value sha256 (verify it matches persona).
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE. Per-page outgoing request Sec-Fetch-Site value distribution
+
+- **[T]** Per session: per-outgoing-request Sec-Fetch-Site (cross-site / same-origin / same-site / none) distribution.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF. Per-page outgoing request Sec-Fetch-Mode value distribution
+
+- **[T]** Per session: per-outgoing-request Sec-Fetch-Mode (cors / navigate / no-cors / same-origin / websocket) distribution.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG. Per-page outgoing request Sec-Fetch-Dest value distribution
+
+- **[T]** Per session: per-outgoing-request Sec-Fetch-Dest (`document` / `image` / `script` / `style` / `font` / `audio` / `video` / `manifest` / `iframe` / `frame` / `object` / `embed` / `worker` / `sharedworker` / `serviceworker` / `audioworklet` / `paintworklet` / `xslt` / `report` / `track` / `fencedframe` / `webidentity` / `empty`) distribution.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH. Per-page outgoing request Sec-Fetch-User value distribution
+
+- **[T]** Per session: per-outgoing-request Sec-Fetch-User (`?1` / absent) distribution.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII. Per-page outgoing request Sec-Fetch-Storage-Access value distribution
+
+- **[T]** Per session: per-outgoing-request Sec-Fetch-Storage-Access value distribution.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ. Per-page outgoing request Referer policy resolved per request
+
+- **[T]** Per session: per-outgoing-request resolved Referer value (full URL vs origin-only vs absent).
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK. Per-page outgoing request Origin header presence distribution
+
+- **[T]** Per session: per-outgoing-request Origin header presence + value distribution.
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL. Per-page outgoing request Authorization header presence
+
+- **[T]** Per session: per-outgoing-request Authorization header presence + scheme (Basic / Bearer / Digest / DPoP / etc.).
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM. Per-page outgoing request Cookie header byte size distribution
+
+- **[T]** Per session: per-outgoing-request Cookie header byte size distribution.
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN. Per-page outgoing request Content-Type request body type distribution
+
+- **[T]** Per session: per-outgoing-POST request Content-Type distribution.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO. Per-page outgoing request Content-Length distribution
+
+- **[T]** Per session: per-outgoing-request Content-Length value distribution.
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP. Per-page outgoing request Cookie attribute pairs distribution
+
+- **[T]** Per session: per-outgoing-request Cookie header per-name presence histogram.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ. Per-page outgoing request DNT header presence
+
+- **[T]** Per session: per-outgoing-request DNT (Do-Not-Track) header presence + value.
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR. Per-page outgoing request If-Match / If-None-Match presence
+
+- **[T]** Per session: per-outgoing-request conditional-request header presence + value.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS. Per-page outgoing request If-Modified-Since / If-Unmodified-Since presence
+
+- **[T]** Per session: per-outgoing-request time-based conditional-request header presence + value.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT. Per-page outgoing request If-Range presence
+
+- **[T]** Per session: per-outgoing-request If-Range presence + value.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU. Per-page outgoing request Range presence
+
+- **[T]** Per session: per-outgoing-request Range header presence + value.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV. Per-page outgoing request Forwarded header distribution
+
+- **[T]** Per session: per-outgoing-request Forwarded header value distribution.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW. Per-page outgoing request Expect header presence
+
+- **[T]** Per session: per-outgoing-request Expect header presence (100-continue) count.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX. Per-page outgoing request TE header distribution
+
+- **[T]** Per session: per-outgoing-request TE header value distribution.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY. Per-page outgoing request Connection header distribution
+
+- **[T]** Per session: per-outgoing-request Connection (keep-alive vs close vs Upgrade) distribution.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ. Per-page outgoing request Cache-Control directive distribution
+
+- **[T]** Per session: per-outgoing-request Cache-Control directive distribution (no-cache / no-store / max-age / etc.).
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
