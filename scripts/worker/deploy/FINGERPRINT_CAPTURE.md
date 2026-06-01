@@ -2325,6 +2325,144 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 - **[T]** Per ServiceWorker: `registration.navigationPreload.{enable,disable,getState,setHeaderValue}` state.
 - **[T]** Per navigation: navigation preload hit vs SW network request.
 
+## AAAAAAAAAAAAAA. Path MTU discovery events
+
+- **[T]** Per outbound TCP connection: PMTUD events from NetLog `TCP_CONNECT` blackhole detection.
+- **[T]** Per connection: discovered MTU value.
+- **[T]** Per session: PMTUD failure count.
+
+## BBBBBBBBBBBBBB. Browser-issued OCSP requests
+
+- **[T]** Per cert chain validation: OCSP query fired vs stapled-only.
+- **[T]** Per OCSP responder URL: latency + response status.
+- **[T]** OCSP cache hit / miss per session.
+
+## CCCCCCCCCCCCCC. WebPush endpoint format
+
+- **[T]** Per push subscription: endpoint URL host (`fcm.googleapis.com` / `web.push.apple.com` / `updates.push.services.mozilla.com`).
+- **[T]** Per subscription: applicationServerKey sha256 + p256dh + auth secret presence.
+- **[T]** VAPID claim verification on push receipt.
+
+## DDDDDDDDDDDDDD. WebUSB device descriptor depth
+
+- **[T]** Per `navigator.usb` granted device: full USB descriptor — bcdUSB, deviceClass, deviceSubClass, deviceProtocol, vendorId, productId, productName (sha256'd), manufacturerName (sha256'd), serialNumber (sha256'd).
+- **[T]** Per device: full configuration descriptor — interfaces array, endpoints, alternate settings.
+
+## EEEEEEEEEEEEEE. WebHID report descriptor
+
+- **[T]** Per `navigator.hid` granted device: full HID report descriptor bytes (sha256).
+- **[T]** Per device: vendorId + productId + collections array + reportIds.
+- **[T]** Per device: inputReport / outputReport / featureReport events log.
+
+## FFFFFFFFFFFFFF. WebSerial port detail
+
+- **[T]** Per `navigator.serial` granted port: usbVendorId, usbProductId, bluetoothServiceClassId, productName (sha256'd).
+- **[T]** Per port: open events + baudRate + dataBits + stopBits + parity + bufferSize + flowControl.
+
+## GGGGGGGGGGGGGG. Bluetooth GATT services
+
+- **[T]** Per `navigator.bluetooth` granted device: GATT service UUIDs advertised.
+- **[T]** Per service: characteristics + descriptors.
+- **[T]** Per characteristic: read/write/notify operations log.
+
+## HHHHHHHHHHHHHH. WebNFC tag interaction
+
+- **[T]** `NDEFReader.scan()` calls + reading events with NDEF record types.
+- **[T]** `NDEFReader.write()` payload byte sizes.
+
+## IIIIIIIIIIIIII. EME (Encrypted Media) sessions per element
+
+- **[T]** Per `<video>` element using EME: `MediaKeys` instance + session count.
+- **[T]** Per session: `keyStatuses` Map iteration with keyId sha256 + status.
+- **[T]** Per session: license request + response byte counts.
+
+## JJJJJJJJJJJJJJ. A/B testing cookie distribution heuristic
+
+- **[T]** Detect known A/B platforms via cookie name patterns — Optimizely (`optimizely_*`), VWO (`_vwo_*`), Google Optimize (`_gaexp`), Adobe Target (`mbox`), LaunchDarkly (`ld_*`), Statsig (`statsig.stable_id`), Split.io.
+- **[T]** Per platform detected: bucket assignment value sha256 (to see if account is in known A/B groups).
+
+## KKKKKKKKKKKKKK. JavaScript module dependency graph
+
+- **[T]** Per page: every `import()` dynamic-import call + resolved URL + parent module URL.
+- **[T]** Per page: full ES module dependency graph from `Debugger.scriptParsed` events + import-meta-url.
+- **[T]** Per page: import-map JSON content (`<script type="importmap">`).
+
+## LLLLLLLLLLLLLL. Subresource attributes deep
+
+- **[T]** Per `<script>`: `crossorigin` value (anonymous/use-credentials), `type` (classic/module/importmap/speculationrules/webbundle), `defer`, `async`, `nomodule`, `nonce` (sha256'd), `integrity`, `referrerpolicy`, `fetchpriority`.
+- **[T]** Per `<link>`: `crossorigin`, `as`, `imagesrcset`, `imagesizes`, `fetchpriority`, `blocking`.
+- **[T]** Per `<iframe>`: `allowfullscreen`, `allowpaymentrequest`, `allow`, `csp`, `referrerpolicy`, `loading`, `sandbox`, `srcdoc`.
+
+## MMMMMMMMMMMMMM. Referrer policy cascade
+
+- **[T]** Per outgoing request: resolved referrer policy + which scope it came from (meta tag / link rel / element attribute / fetch init / page default).
+- **[T]** Per page: referrer-policy distribution (no-referrer / no-referrer-when-downgrade / origin / origin-when-cross-origin / same-origin / strict-origin / strict-origin-when-cross-origin / unsafe-url).
+
+## NNNNNNNNNNNNNN. Blob URL lifecycle
+
+- **[T]** Per `URL.createObjectURL(blob)` call: source MIME + size + caller stack.
+- **[T]** Per `URL.revokeObjectURL` call: matched against creation log (unmatched = leaks).
+- **[T]** Blob URL active count at session close.
+
+## OOOOOOOOOOOOOO. MutationRecord type distribution
+
+- **[T]** Per MutationObserver callback fire: MutationRecord type (childList / attributes / characterData) counts.
+- **[T]** Per attribute mutation: attributeName + oldValue presence.
+
+## PPPPPPPPPPPPPP. Animation effect detail
+
+- **[T]** Per `Element.animate(keyframes, options)` call: full keyframes array + timing object (delay/duration/iterations/iterationStart/direction/easing/composite/fill).
+- **[T]** Per Animation: effect.getKeyframes() detail.
+
+## QQQQQQQQQQQQQQ. Document timeline drift
+
+- **[T]** At session start, middle, and close: `document.timeline.currentTime` vs `performance.now()` vs `Date.now()` snapshot — drift histogram.
+- **[T]** Per long animation: timeline-vs-perf drift over its lifetime.
+
+## RRRRRRRRRRRRRR. WebAuthn largeBlob storage
+
+- **[T]** Per credential with `largeBlob` extension: read/write outcomes + payload byte sizes.
+- **[T]** Per credential: hmac-secret extension support.
+
+## SSSSSSSSSSSSSS. WebOTP transport
+
+- **[T]** Per `navigator.credentials.get({otp: {transport: ['sms']}})` call: outcome + retrieval time.
+- **[T]** Per OTP credential: detected source (SMS / email).
+
+## TTTTTTTTTTTTTT. WebRTC stats time-series
+
+- **[T]** Per PeerConnection: every `getStats()` poll — outboundRtp packetsSent / bytesSent / framesPerSecond / framesEncoded / qualityLimitationDurations / qualityLimitationResolutionChanges.
+- **[T]** Per PeerConnection: candidatePair bytesSent / bytesReceived / currentRoundTripTime / availableOutgoingBitrate timeseries.
+- **[T]** Per codec: codecParams (clockRate, channels, sdpFmtpLine) negotiated.
+
+## UUUUUUUUUUUUUU. UA-CH high-entropy values delivery
+
+- **[T]** Per response: `Critical-CH`, `Accept-CH`, `Vary` headers parsed.
+- **[T]** Per origin: cached UA-CH high-entropy values delivered on subsequent navigations.
+
+## VVVVVVVVVVVVVV. Per-page `<input>` autofill suggestion fingerprint
+
+- **[T]** Per autofill-eligible input (`autocomplete='cc-number'`, `'tel'`, `'street-address'`, etc.): whether Chrome offered any suggestion — fingerprintable because the count of saved entries determines suggestion availability.
+- **[T]** Per page: autofill profile counts probed indirectly.
+
+## WWWWWWWWWWWWWW. Per-page Trust Token redemption attempts
+
+- **[T]** Per `fetch(url, {trustToken: {type: 'redemption', issuer}})` call: outcome (accepted / rejected) + issuer origin.
+- **[T]** Per origin: stored Trust Token count.
+
+## XXXXXXXXXXXXXX. Per-page SharedStorage operations
+
+- **[T]** Per Shared Storage operation: append/clear/delete/entries/get/keys/set + caller worklet origin.
+- **[T]** Per origin: stored entries count.
+
+## YYYYYYYYYYYYYY. Per-page CookieStore subscribe events
+
+- **[T]** Per `cookieStore.addEventListener('change')`: log every cookie change event with cookie name (sha256) + type (changed/deleted).
+
+## ZZZZZZZZZZZZZZ. Per Chromium-internal: BackgroundFetch state
+
+- **[T]** Per origin: BackgroundFetch registration list — id, downloadTotal, uploadTotal, downloaded, uploaded, result, failureReason.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
