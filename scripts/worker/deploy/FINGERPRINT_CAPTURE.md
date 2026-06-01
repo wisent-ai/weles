@@ -6018,6 +6018,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per iframe: full resolved sandbox flag set (allow-scripts / allow-forms / allow-same-origin / allow-popups / etc.) — 18 documented tokens.
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA. Per-page Browser caches: chrome://settings/cookies count per origin
+
+- **[T]** Per origin: stored cookie row count + total cookie name+value byte sum.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB. Per-page Browser caches: chrome://settings/storage usage per origin
+
+- **[T]** Per origin: storage quota usage detail per type (caches / serviceWorkerRegistrations / localStorage / sessionStorage / indexedDB / fileSystems).
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC. Per-page macOS Keychain item count
+
+- **[T]** Per session: keychain item count via `security dump-keychain -d login.keychain-db | wc -l` (count only).
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD. Per-page macOS APFS volume snapshot count
+
+- **[T]** Per volume: `tmutil listlocalsnapshots /` snapshot count + retention age.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE. Per-page macOS Privacy Indicators state
+
+- **[T]** Per session: orange (microphone) + green (camera) privacy indicator state via `mediaaccessd` log events.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF. Per-page macOS Screen recording prompt history
+
+- **[T]** Per session: ScreenCaptureKit / CGRequestScreenCaptureAccess calls visible via `log show --predicate 'subsystem == "com.apple.screensharing"'`.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG. Per-page macOS Microphone access events
+
+- **[T]** Per session: microphone-access events visible via `log show --predicate 'subsystem == "com.apple.mediaremoted"'`.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH. Per-page macOS App Intents / Shortcuts registrations
+
+- **[T]** Per session: Shortcuts app registration count + intent action count.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII. Per-page macOS Spotlight indexed paths state
+
+- **[T]** Per session: indexed-volumes count + per-volume indexing-state (enabled / disabled).
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ. Per-page macOS NTSP service Hidden Mac UUIDs
+
+- **[T]** Per session: NSCFNetworkID values for service identification.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK. Per-page macOS BiometricKitd state
+
+- **[T]** Per session: Touch ID / Face ID enrollment count via `bioutil -r -s`.
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL. Per-page macOS UNUserNotificationCenter delivered notifications
+
+- **[T]** Per session: delivered notification count from Notification Center DB.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM. Per-page macOS Universal Control state
+
+- **[T]** Per session: Universal Control enabled state — `defaults read com.apple.universalcontrol`.
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN. Per-page macOS Sidecar state
+
+- **[T]** Per session: Sidecar configured state + paired-iPad presence.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO. Per-page macOS Migration Assistant transfer history
+
+- **[T]** Per session: migration history presence (sha256 of legacy machine name from Local Items).
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP. Per-page macOS Activation lock state
+
+- **[T]** Per session: Activation Lock enabled state for Apple Silicon.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ. Per-page macOS Lockdown Mode state
+
+- **[T]** Per session: Lockdown Mode enabled — `defaults read com.apple.security.lockdown` presence.
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR. Per-page macOS Reduce Motion enabled flag
+
+- **[T]** Per session: `defaults read com.apple.universalaccess reduceMotion`.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS. Per-page macOS Increase Contrast enabled flag
+
+- **[T]** Per session: `defaults read com.apple.universalaccess increaseContrast`.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT. Per-page macOS Reduce Transparency enabled flag
+
+- **[T]** Per session: `defaults read com.apple.universalaccess reduceTransparency`.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU. Per-page macOS Differentiate Without Color enabled flag
+
+- **[T]** Per session: `defaults read com.apple.universalaccess differentiateWithoutColor`.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV. Per-page macOS VoiceOver enabled flag
+
+- **[T]** Per session: VoiceOver-enabled via `defaults read com.apple.universalaccess voiceOverOnOffKey`.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW. Per-page macOS Spoken Content enabled
+
+- **[T]** Per session: spoken content enabled via `defaults read com.apple.speech.synthesis.general.prefs`.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX. Per-page macOS Switch Control enabled
+
+- **[T]** Per session: Switch Control enabled state.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY. Per-page macOS Voice Control enabled
+
+- **[T]** Per session: Voice Control enabled state.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ. Per-page macOS HoverText enabled
+
+- **[T]** Per session: HoverText accessibility feature state.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
