@@ -6332,6 +6332,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per page: cloneNode(true) vs cloneNode(false) call distribution.
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA. Per-page Browser-internal `chrome://histograms/Net.QuicSession.*` time-series
+
+- **[T]** Per session: QUIC session metric histograms count change since session start.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB. Per-page Browser-internal `chrome://histograms/Net.HttpJob.*` time-series
+
+- **[T]** Per session: HttpJob latency histogram bucket distribution.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC. Per-page Browser-internal `chrome://histograms/PageLoad.*` UMA metrics
+
+- **[T]** Per session: PageLoad LCP / CLS / FCP histogram bucket distribution.
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD. Per-page Browser-internal `chrome://histograms/V8.GC.*` time-series
+
+- **[T]** Per session: V8 GC pause histogram bucket distribution per GC type.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE. Per-page Browser-internal `chrome://histograms/Blink.*` time-series
+
+- **[T]** Per session: Blink-namespace histogram bucket changes.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF. Per-page Browser-internal `chrome://histograms/Memory.*` time-series
+
+- **[T]** Per session: Memory.Renderer / Memory.Browser histogram distribution.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG. Per-page Browser-internal `chrome://histograms/Compositing.*` time-series
+
+- **[T]** Per session: compositing-thread histogram distribution.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH. Per-page Browser-internal `chrome://histograms/Net.SocketIO.*` time-series
+
+- **[T]** Per session: socket I/O histogram per-pool change.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII. Per-page Browser-internal `chrome://histograms/Cookie.*` time-series
+
+- **[T]** Per session: cookie store histogram changes.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ. Per-page Browser-internal `chrome://histograms/Storage.*` time-series
+
+- **[T]** Per session: Storage.* histogram changes per quota category.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK. Per-page Browser-internal `chrome://histograms/WebRTC.*` time-series
+
+- **[T]** Per session: WebRTC histogram-bucket changes per RTC sub-component.
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL. Per-page Browser-internal `chrome://histograms/CrossOriginIsolation.*` time-series
+
+- **[T]** Per session: COI-related histogram distribution.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM. Per-page Browser-internal `chrome://histograms/Renderer4.*` time-series
+
+- **[T]** Per session: Renderer4 paint-and-layout histogram distribution.
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN. Per-page Browser-internal `chrome://histograms/Permissions.*` time-series
+
+- **[T]** Per session: Permission prompt outcomes histogram.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO. Per-page Browser-internal `chrome://histograms/Autofill.*` time-series
+
+- **[T]** Per session: Autofill suggestion offering count + acceptance rate.
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP. Per-page Browser-internal `chrome://histograms/SafeBrowsing.*` time-series
+
+- **[T]** Per session: Safe-Browsing classifier invocation histogram.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ. Per-page Browser-internal `chrome://histograms/PasswordManager.*` time-series
+
+- **[T]** Per session: PasswordManager outcome histogram (suggestion offered / accepted / rejected).
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR. Per-page Browser-internal `chrome://histograms/Identity.*` time-series
+
+- **[T]** Per session: Identity / FedCM outcomes histogram.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS. Per-page Browser-internal `chrome://histograms/Reload.*` time-series
+
+- **[T]** Per session: page-reload outcome histogram.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT. Per-page Browser-internal `chrome://histograms/BackForwardCache.*` time-series
+
+- **[T]** Per session: BFCache eligibility outcome distribution.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU. Per-page Browser-internal `chrome://histograms/Variations.*` time-series
+
+- **[T]** Per session: Variations seed-fetch + activation outcome histogram.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV. Per-page Browser-internal `chrome://histograms/Sync.*` time-series
+
+- **[T]** Per session: Sync session outcome histogram (signed-in profile only).
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW. Per-page Browser-internal `chrome://histograms/OptimizationGuide.*` time-series
+
+- **[T]** Per session: Optimization Guide hint fetch + apply outcome histogram.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX. Per-page Browser-internal `chrome://histograms/Sessions.*` time-series
+
+- **[T]** Per session: Sessions restore + activation histogram.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY. Per-page Browser-internal `chrome://histograms/OmniboxProvider.*` time-series
+
+- **[T]** Per session: Omnibox provider suggestion counts (Search vs URL vs Bookmark vs History vs Shortcut).
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ. Per-page Browser-internal `chrome://histograms/Power.*` time-series
+
+- **[T]** Per session: Power.* histogram distribution (energy-cost per renderer).
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
