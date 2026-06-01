@@ -7269,6 +7269,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per session: permission resets per origin.
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA. Per-page Browser-side process suspend / resume events
+
+- **[T]** Per Chromium child: kern.suspended state transitions via `task_info`.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB. Per-Chromium child memory-pressure callback events
+
+- **[T]** Per child: `MEMORYSTATUS_PRESSURE_*` notification events (none/warn/critical).
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC. Per-page User-Timing API delivery latency
+
+- **[T]** Per user-timing entry: `entryStart` callback fire delta vs entry timestamp.
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD. Per-page CSS computed `tab-size` resolved per element
+
+- **[T]** Per visible text element: resolved tab-size value.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE. Per-page CSS computed `word-spacing` resolved per element
+
+- **[T]** Per visible text element: resolved word-spacing.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF. Per-page CSS computed `letter-spacing` resolved per element
+
+- **[T]** Per visible text element: resolved letter-spacing.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG. Per-page CSS computed `text-indent` resolved per element
+
+- **[T]** Per visible text element: resolved text-indent.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH. Per-page CSS computed `box-shadow` resolved per element
+
+- **[T]** Per visible element with shadow: resolved box-shadow value distribution.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII. Per-page CSS computed `text-shadow` resolved per element
+
+- **[T]** Per visible text element with shadow: resolved text-shadow distribution.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ. Per-page CSS computed `transition-duration` resolved per element
+
+- **[T]** Per element with transition: resolved transition-duration distribution.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK. Per-page CSS computed `transition-timing-function` resolved per element
+
+- **[T]** Per element with transition: resolved timing-function distribution.
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL. Per-page CSS computed `animation-duration` resolved per element
+
+- **[T]** Per element with animation: resolved animation-duration distribution.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM. Per-page CSS computed `animation-iteration-count` resolved per element
+
+- **[T]** Per element with animation: resolved iteration-count distribution.
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN. Per-page CSS computed `animation-delay` resolved per element
+
+- **[T]** Per element with animation: resolved animation-delay distribution.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO. Per-page CSS computed `font-weight` numeric distribution
+
+- **[T]** Per visible text element: resolved font-weight value (100-900 + variable axis).
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP. Per-page CSS computed `font-style` resolved distribution
+
+- **[T]** Per visible text element: resolved font-style (normal / italic / oblique<angle>).
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ. Per-page CSS computed `font-stretch` resolved distribution
+
+- **[T]** Per visible text element: resolved font-stretch.
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR. Per-page CSS computed `text-rendering` resolved distribution
+
+- **[T]** Per visible text element: resolved text-rendering (auto / optimizeSpeed / optimizeLegibility / geometricPrecision).
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS. Per-page CSS computed `text-justify` resolved distribution
+
+- **[T]** Per visible text element: resolved text-justify (auto / inter-character / inter-word / distribute / none).
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT. Per-page CSS computed `text-align` resolved distribution
+
+- **[T]** Per visible text element: resolved text-align value distribution.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU. Per-page CSS computed `text-align-last` resolved distribution
+
+- **[T]** Per visible text element: resolved text-align-last distribution.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV. Per-page CSS computed `text-transform` resolved distribution
+
+- **[T]** Per visible text element: resolved text-transform (none / capitalize / uppercase / lowercase / full-width / full-size-kana / math-auto / math-bold / math-italic / math-bold-italic / etc.).
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW. Per-page CSS computed `text-decoration` resolved per element
+
+- **[T]** Per element with text-decoration: resolved line / style / color / thickness.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX. Per-page CSS computed `cursor` resolved per element
+
+- **[T]** Per visible interactive element: resolved cursor value distribution.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY. Per-page CSS computed `pointer-events` resolved per element
+
+- **[T]** Per visible element: resolved pointer-events distribution.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ. Per-page CSS computed `user-select` resolved per element
+
+- **[T]** Per visible element: resolved user-select value distribution.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
