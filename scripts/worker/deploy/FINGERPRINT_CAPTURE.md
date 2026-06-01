@@ -9453,6 +9453,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per session: install history entries (recent installs, system-update history, App Store install events).
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA. Per-page CDP firehose per-domain frequency
+
+- **[T]** Per session: per-CDP-domain event frequency histogram (events/second).
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB. Per-page CDP firehose per-event-name frequency
+
+- **[T]** Per session: per-event-name frequency histogram.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC. Per-page CDP firehose total event count by phase
+
+- **[T]** Per session: events delivered during pre-navigation vs in-flight vs post-load phases.
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD. Per-page CDP firehose payload byte total
+
+- **[T]** Per session: total CDP firehose payload bytes captured per domain.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE. Per-page CDP firehose suppressed events
+
+- **[T]** Per session: events dropped due to firehose buffer overflow (already W partial; deeper attribution by source domain).
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF. Per-page CDP firehose event inter-arrival distribution
+
+- **[T]** Per session: per-event-name inter-arrival timestamp histogram.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG. Per-page CDP firehose burst detection
+
+- **[T]** Per session: detected burst-rate windows + per-burst event count.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH. Per-page CDP firehose per-frameId attribution
+
+- **[T]** Per session: per-frameId event count distribution across all domains.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII. Per-page CDP firehose per-targetId attribution
+
+- **[T]** Per session: per-targetId event count distribution.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ. Per-page CDP firehose per-requestId attribution
+
+- **[T]** Per session: per-requestId Network.* event count distribution.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK. Per-page CDP firehose per-loaderId attribution
+
+- **[T]** Per session: per-loaderId Page.* event count.
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL. Per-page CDP firehose per-scriptId attribution
+
+- **[T]** Per session: per-scriptId Debugger.* event count.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM. Per-page CDP firehose per-executionContextId attribution
+
+- **[T]** Per session: per-executionContextId Runtime.* event count.
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN. Per-page CDP firehose per-isolateId attribution
+
+- **[T]** Per session: per-isolateId V8.* event count.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO. Per-page CDP firehose per-sessionId attribution
+
+- **[T]** Per session: per-sessionId (CDP session) event count.
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP. Per-page CDP firehose per-workerId attribution
+
+- **[T]** Per session: per-worker-target event count.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ. Per-page CDP firehose per-nodeId attribution
+
+- **[T]** Per session: per-DOM-nodeId event count (DOM.* + DOMSnapshot.* + Accessibility.*).
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR. Per-page CDP firehose per-stylesheetId attribution
+
+- **[T]** Per session: per-stylesheetId CSS.* event count.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS. Per-page CDP firehose per-layerId attribution
+
+- **[T]** Per session: per-layerId LayerTree.* event count.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT. Per-page CDP firehose per-databaseName attribution
+
+- **[T]** Per session: per-IndexedDB-databaseName IndexedDB.* event count.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU. Per-page CDP firehose per-cacheName attribution
+
+- **[T]** Per session: per-CacheStorage-cacheName CacheStorage.* event count.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV. Per-page CDP firehose per-WebSocket-connectionId attribution
+
+- **[T]** Per session: per-WebSocket-connectionId Network.webSocket* event count.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW. Per-page CDP firehose per-animation-id attribution
+
+- **[T]** Per session: per-animation-id Animation.* event count.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX. Per-page CDP firehose per-contextId WebAudio attribution
+
+- **[T]** Per session: per-WebAudio-contextId WebAudio.* event count.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY. Per-page CDP firehose per-playerId Media attribution
+
+- **[T]** Per session: per-Media-playerId Media.* event count.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ. Per-page CDP firehose per-versionId ServiceWorker attribution
+
+- **[T]** Per session: per-SW-versionId ServiceWorker.* event count.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
