@@ -8829,6 +8829,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per session: setPlaybackRate count + per-call rate value.
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA. Per-page CDP Animation.releaseAnimations invocations
+
+- **[T]** Per session: animation-release count per id batch.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB. Per-page CDP Animation.resolveAnimation invocations
+
+- **[T]** Per session: resolveAnimation call count per id.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC. Per-page CDP Animation.seekAnimations invocations
+
+- **[T]** Per session: seekAnimations count + per-call currentTime.
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD. Per-page CDP Animation.setPaused invocations
+
+- **[T]** Per session: setPaused per-id paused state distribution.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE. Per-page CDP Animation.setTiming invocations
+
+- **[T]** Per session: setTiming count + per-call duration / delay.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF. Per-page CDP Audits.enable subscribers
+
+- **[T]** Per session: Audits.enable invocation count.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG. Per-page CDP Audits.getEncodedResponse invocations
+
+- **[T]** Per session: getEncodedResponse calls per requestId + encoding choice.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH. Per-page CDP Audits.checkContrast invocations
+
+- **[T]** Per session: contrast-check call count + per-call options.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII. Per-page CDP Audits.checkFormsIssues invocations
+
+- **[T]** Per session: form-issues check call count.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ. Per-page CDP Accessibility.enable / disable invocations
+
+- **[T]** Per session: Accessibility.enable / disable invocation count.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK. Per-page CDP Accessibility.getPartialAXTree invocations
+
+- **[T]** Per session: per-nodeId tree-fetch count.
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL. Per-page CDP Accessibility.queryAXTree invocations
+
+- **[T]** Per session: queryAXTree call count + per-call role / accessibleName filter.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM. Per-page CDP Accessibility.getRootAXNode invocations
+
+- **[T]** Per session: root-node retrieval count.
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN. Per-page CDP Accessibility.getAXNodeAndAncestors invocations
+
+- **[T]** Per session: per-id ancestors-chain retrieval count.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO. Per-page CDP Accessibility.getChildAXNodes invocations
+
+- **[T]** Per session: per-id child-node retrieval count.
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP. Per-page CDP IndexedDB.enable / disable invocations
+
+- **[T]** Per session: IDB CDP-channel enable / disable count.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ. Per-page CDP IndexedDB.requestDatabaseNames invocations
+
+- **[T]** Per session: requestDatabaseNames count + per-origin response length.
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR. Per-page CDP IndexedDB.requestDatabase invocations
+
+- **[T]** Per session: requestDatabase call count + per-call objectStores list length.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS. Per-page CDP IndexedDB.deleteDatabase invocations
+
+- **[T]** Per session: deleteDatabase devtools-invocation count.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT. Per-page CDP IndexedDB.deleteObjectStoreEntries invocations
+
+- **[T]** Per session: delete-store-entries count + per-call keyRange.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU. Per-page CDP CacheStorage.requestCacheNames invocations
+
+- **[T]** Per session: requestCacheNames count per origin.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV. Per-page CDP CacheStorage.requestEntries invocations
+
+- **[T]** Per session: requestEntries call count + per-call pageSize + skipCount.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW. Per-page CDP CacheStorage.requestCachedResponse invocations
+
+- **[T]** Per session: per-cache cached-response retrievals count.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX. Per-page CDP CacheStorage.deleteCache invocations
+
+- **[T]** Per session: deleteCache devtools-invocation count.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY. Per-page CDP CacheStorage.deleteEntry invocations
+
+- **[T]** Per session: deleteEntry call count + per-cache key.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ. Per-page CDP ApplicationCache.enable invocations (legacy)
+
+- **[T]** Per session: AppCache CDP-domain enable count (deprecated but listed).
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
