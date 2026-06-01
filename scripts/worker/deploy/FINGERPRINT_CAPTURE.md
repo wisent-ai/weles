@@ -8621,6 +8621,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per session: lastSeenObjectId event delivery count.
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA. Per-page CDP DOM.enable subscribers
+
+- **[T]** Per session: DOM.enable invocation count + includeWhitespace parameter.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB. Per-page CDP DOM.querySelector / querySelectorAll invocations
+
+- **[T]** Per session: count + per-selector text sha256.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC. Per-page CDP DOM.getOuterHTML / setOuterHTML invocations
+
+- **[T]** Per session: per-call nodeId + payload byte size.
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD. Per-page CDP DOM.removeNode / requestChildNodes invocations
+
+- **[T]** Per session: removeNode + requestChildNodes count.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE. Per-page CDP DOM.moveTo / copyTo invocations
+
+- **[T]** Per session: moveTo / copyTo node count.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF. Per-page CDP DOM.setAttributeValue / setAttributesAsText invocations
+
+- **[T]** Per session: setAttribute call count + per-call attribute name distribution.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG. Per-page CDP DOM.focus invocations
+
+- **[T]** Per session: DOM.focus calls per nodeId.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH. Per-page CDP DOM.setNodeName invocations
+
+- **[T]** Per session: setNodeName count + per-call new tag name.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII. Per-page CDP DOM.setNodeValue invocations
+
+- **[T]** Per session: setNodeValue count + per-call new value byte size.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ. Per-page CDP DOM.discardSearchResults invocations
+
+- **[T]** Per session: search-result-discard count.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK. Per-page CDP DOM.markUndoableState / undo / redo invocations
+
+- **[T]** Per session: undoable-state mark + undo + redo call distribution.
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL. Per-page CDP DOM.resolveNode invocations
+
+- **[T]** Per session: resolveNode call count.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM. Per-page CDP DOM.scrollIntoViewIfNeeded invocations
+
+- **[T]** Per session: scrollIntoViewIfNeeded count.
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN. Per-page CDP DOMSnapshot.disable / DOMSnapshot.enable subscribers
+
+- **[T]** Per session: DOMSnapshot.enable / disable invocations.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO. Per-page CDP CSS.enable subscribers
+
+- **[T]** Per session: CSS.enable invocation count.
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP. Per-page CDP CSS.setStyleSheetText invocations
+
+- **[T]** Per session: setStyleSheetText count + per-call byte size.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ. Per-page CDP CSS.setStyleTexts invocations
+
+- **[T]** Per session: setStyleTexts count.
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR. Per-page CDP CSS.addRule invocations
+
+- **[T]** Per session: addRule count + per-rule text byte size.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS. Per-page CDP CSS.forcePseudoState invocations
+
+- **[T]** Per session: per-pseudo (hover/focus/active/visited/focus-within/focus-visible/target) force count.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT. Per-page CDP CSS.setKeyframeKey invocations
+
+- **[T]** Per session: keyframe-key edit count.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU. Per-page CDP CSS.setMediaText invocations
+
+- **[T]** Per session: media-text edit count.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV. Per-page CDP CSS.setContainerQueryText invocations
+
+- **[T]** Per session: container-query edit count.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW. Per-page CDP CSS.setSupportsText invocations
+
+- **[T]** Per session: @supports edit count.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX. Per-page CDP CSS.setScopeText invocations
+
+- **[T]** Per session: @scope edit count.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY. Per-page CDP CSS.takeComputedStyleUpdates invocations
+
+- **[T]** Per session: takeComputedStyleUpdates retrieval count.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ. Per-page CDP CSS.trackComputedStyleUpdates state
+
+- **[T]** Per session: tracked computed style properties list.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
