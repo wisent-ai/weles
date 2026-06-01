@@ -2194,6 +2194,137 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 - **[T]** Per Chromium child: `sample <pid> 0.1` micro-sample — top stack frames + leaf-function call counts.
 - **[T]** Per renderer: V8 inline-cache transitions per call site (already in NNNNNNNN — here cite call-site source URLs).
 
+## AAAAAAAAAAAAA. Per-CSS-property paint cost histogram
+
+- **[T]** From Tracing `disabled-by-default-blink.paint`: per CSS property triggering invalidation, cumulative paint cost over session.
+- **[T]** Top-N most-expensive CSS properties for this page.
+
+## BBBBBBBBBBBBB. Per-script GC-allowed flag
+
+- **[T]** Per script execution context: V8 `gcAllowed` flag distribution (microtask vs task vs init).
+- **[T]** Per page: GC-blocked windows (in user-script execution).
+
+## CCCCCCCCCCCCC. WebAuthn PRF extension usage
+
+- **[T]** Per credential created with `extensions: {prf: {...}}`: input salt + evaluated output sha256.
+- **[T]** PRF eval over session count.
+
+## DDDDDDDDDDDDD. Secure Payment Confirmation
+
+- **[T]** Per page: `PaymentRequest({method: 'secure-payment-confirmation', ...})` calls + outcomes.
+- **[T]** Per SPC credential: rpId + credentialIds + payeeOrigin.
+
+## EEEEEEEEEEEEE. Federated Identity API state per origin
+
+- **[T]** Per origin: registered FedCM IdP list — `IdentityProviderConfig` URLs.
+- **[T]** Per IdP: login status (`logged-in` / `logged-out` / `unknown`).
+- **[T]** Per `navigator.credentials.get({identity})` call: IdP + clientId requested.
+
+## FFFFFFFFFFFFF. ReportingObserver bucket distribution
+
+- **[T]** Per page: per-report-type cumulative count over session.
+- **[T]** Per report endpoint group: delivery success count (from `Reporting-Endpoints` response header parsing).
+
+## GGGGGGGGGGGGG. CDN-internal trace headers
+
+- **[T]** Per response: any `cf-request-id`, `cf-bgj`, `cf-cache-status`, `cdn-loop`, `x-cache-trace`, `x-edge-location`, `x-fastly-request-id`, `surrogate-key`, `akamai-grn`, `x-vercel-id`, `x-amzn-trace-id`, `x-cloud-trace-context`, `x-google-trace-id`, `x-google-backends`, `x-google-netmon-label`, `x-azure-ref` headers.
+
+## HHHHHHHHHHHHH. Topics API epoch transitions
+
+- **[T]** Per page: `document.browsingTopics()` returned list per epoch crossing.
+- **[T]** Per epoch boundary: which Topics were used in `Sec-Browsing-Topics` header.
+
+## IIIIIIIIIIIII. Private Aggregation API
+
+- **[T]** Per Protected Audience worklet / Shared Storage worklet: `privateAggregation.contributeToHistogram({bucket, value})` calls.
+- **[T]** Per origin: aggregated histogram contribution counts + buckets.
+
+## JJJJJJJJJJJJJ. Microtask queue depth
+
+- **[T]** From Tracing `disabled-by-default-v8.runtime_stats`: microtask queue depth distribution over session.
+- **[T]** Per JS task: microtask drain count.
+
+## KKKKKKKKKKKKK. BroadcastChannel reach
+
+- **[T]** Per BroadcastChannel: cross-tab vs same-tab post delivery — confirmed via co-attached CDP sessions counting received messages per name.
+- **[T]** Per page: total BroadcastChannel + MessageChannel + Worker postMessage volume.
+
+## LLLLLLLLLLLLL. WebTransport limits negotiated
+
+- **[T]** Per WebTransport session: server max-data, max-stream-data, max-bidi-streams, max-uni-streams.
+- **[T]** Per session: actual streams opened vs limits.
+
+## MMMMMMMMMMMMM. Range request distribution
+
+- **[T]** Per fetch with `Range` header: range start, range end, total resource size.
+- **[T]** Per resource: number of Range fetches over session (video streaming pattern).
+
+## NNNNNNNNNNNNN. WebRTC ICE role
+
+- **[T]** Per PeerConnection: ICE controlling/controlled role assignment.
+- **[T]** Per ICE role conflict: tiebreaker value sent + received.
+
+## OOOOOOOOOOOOO. COEP variants
+
+- **[T]** Per frame: COEP value resolved (`unsafe-none` / `require-corp` / `credentialless`).
+- **[T]** Per cross-origin subresource: required CORP header present vs absent.
+
+## PPPPPPPPPPPPP. Locale fallback chain consulted
+
+- **[T]** Per `Intl.DateTimeFormat()` constructor: locale resolution chain (requested locale → fallback chain → resolved).
+- **[T]** Per page: `lang` attribute vs `Accept-Language` divergence.
+
+## QQQQQQQQQQQQQ. CSPRNG draws
+
+- **[T]** Per page: total bytes drawn from `crypto.getRandomValues` over session.
+- **[T]** Per origin: per-byte-count call distribution.
+
+## RRRRRRRRRRRRR. SystemDarkMode listener attachment
+
+- **[T]** Per page: `matchMedia('(prefers-color-scheme: dark)').addEventListener('change', ...)` count.
+- **[T]** OS dark-mode transition events during session (rare but captureable).
+
+## SSSSSSSSSSSSS. Per-document Eyedropper / EyeDropper API
+
+- **[T]** Eyedropper open count per page.
+- **[T]** Per eyedrop: sampled sRGB value.
+
+## TTTTTTTTTTTTT. Compute Pressure source `gpu` (when shipped)
+
+- **[T]** PressureObserver with source `gpu` — state transitions.
+- **[T]** GPU pressure observer attached vs not (capability-only check).
+
+## UUUUUUUUUUUUU. Per-page `<dialog popover>` show events
+
+- **[T]** Every `<el popover>` element: showPopover / hidePopover / togglePopover invocation log.
+- **[T]** Per page: total popovers shown.
+
+## VVVVVVVVVVVVV. Embedded font subsetting fingerprint
+
+- **[T]** Per `@font-face` rule: range of characters actually used on the page (subset detection).
+- **[T]** Per font file fetched: byte size vs decoded glyph count (subsetted fonts have small byte sizes).
+
+## WWWWWWWWWWWWW. SourceMap discovery
+
+- **[T]** Per script with `sourceMappingURL` directive: URL fetched + size + content sha256.
+- **[T]** Per stylesheet with sourcemap: same.
+- **[T]** Per source map: linked source URLs.
+
+## XXXXXXXXXXXXX. Per-tab Audio playback state
+
+- **[T]** Per tab: `Page.isAudible` state transitions (CDP audible event).
+- **[T]** Per `<audio>`/`<video>` autoplay decision outcome (allowed / blocked-by-policy).
+
+## YYYYYYYYYYYYY. Custom URL scheme handler registration
+
+- **[T]** Per page: `navigator.registerProtocolHandler(scheme, url)` calls.
+- **[T]** Per scheme: registered handler count.
+
+## ZZZZZZZZZZZZZ. NavigationPreloadManager state
+
+- **[T]** Per ServiceWorker: `registration.navigationPreload.{enable,disable,getState,setHeaderValue}` state.
+- **[T]** Per navigation: navigation preload hit vs SW network request.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
