@@ -21517,6 +21517,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per session: per-`<video>`/`<audio>` srcObject (MediaStream/MediaSource) vs src (URL) distribution.
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA. Per-page Intl.DateTimeFormat resolvedOptions
+
+- **[T]** Per session: per-Intl.DateTimeFormat default constructor `.resolvedOptions()` snapshot (locale, calendar, numberingSystem, timeZone, hour12, hourCycle, year, month, day).
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB. Per-page Intl.NumberFormat resolvedOptions
+
+- **[T]** Per1 session: per-Intl.NumberFormat default constructor `.resolvedOptions()` snapshot (locale, numberingSystem, style, minimumIntegerDigits, minimumFractionDigits, maximumFractionDigits, minimumSignificantDigits, maximumSignificantDigits).
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC. Per-page Intl.Collator resolvedOptions
+
+- **[T]** Per session: per-Intl.Collator default constructor `.resolvedOptions()` snapshot (locale, sensitivity, ignorePunctuation, collation, numeric, caseFirst).
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD. Per-page Intl.PluralRules resolvedOptions
+
+- **[T]** Per session: per-Intl.PluralRules default constructor `.resolvedOptions()` snapshot.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE. Per-page Intl.RelativeTimeFormat resolvedOptions
+
+- **[T]** Per session: per-Intl.RelativeTimeFormat default constructor `.resolvedOptions()` snapshot.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF. Per-page Intl.ListFormat resolvedOptions
+
+- **[T]** Per session: per-Intl.ListFormat default constructor `.resolvedOptions()` snapshot.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG. Per-page Intl.Segmenter resolvedOptions
+
+- **[T]** Per session: per-Intl.Segmenter default constructor `.resolvedOptions()` snapshot.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH. Per-page Intl.DurationFormat resolvedOptions
+
+- **[T]** Per session: per-Intl.DurationFormat default constructor `.resolvedOptions()` snapshot.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII. Per-page Intl.supportedValuesOf snapshot
+
+- **[T]** Per session: per-known-key `Intl.supportedValuesOf('calendar')` + 'collation' + 'currency' + 'numberingSystem' + 'timeZone' + 'unit' Array snapshot.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ. Per-página Intl.Locale construct from canonical-tag
+
+- **[T]** Per session: per-Locale tag canonical-form distribution (e.g. 'en-US-u-ca-buddhist' → resolved canonical form).
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK. Per-page Intl.Locale maximize() output
+
+- **[T]** Per session: per-Locale tag `.maximize()` output (likely-subtag expansion via CLDR).
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL. Per-page Intl.Locale minimize() output
+
+- **[T]** Per session: per-Locale tag `.minimize()` output (likely-subtag removal via CLDR).
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM. Per-page Intl.DateTimeFormat per-locale month names
+
+- **[T]** Per session: per-Intl.DateTimeFormat(locale, {month:'long'}) formatted month-name distribution for new Date(2025, 0, 1) and …, 11, 1).
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN. Per-page Intl.DateTimeFormat per-locale weekday names
+
+- **[T]** Per session: per-Intl.DateTimeFormat(locale, {weekday:'long'}) formatted weekday-name distribution.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO. Per-page Intl.NumberFormat per-locale decimal-separator
+
+- **[T]** Per session: per-Intl.NumberFormat(locale).formatToParts(1.5) decimal-separator value.
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP. Per-page Intl.NumberFormat per-locale grouping-separator
+
+- **[T]** Per session: per-Intl.NumberFormat(locale).formatToParts(1234567).find(p=>p.type==='group').value.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ. Per-page Intl.RelativeTimeFormat per-locale
+
+- **[T]** Per session: per-Intl.RelativeTimeFormat(locale, {numeric:'auto'}).format(-1, 'day') string ('yesterday' vs locale variant).
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR. Per-page Intl.DisplayNames per-locale region names
+
+- **[T]** Per session: per-Intl.DisplayNames(locale, {type:'region'}).of('US') string (i18n region-name signature).
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS. Per-page Intl.DisplayNames per-locale language names
+
+- **[T]** Per session: per-Intl.DisplayNames(locale, {type:'language'}).of('en') string.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT. Per-page Intl.DisplayNames per-locale currency names
+
+- **[T]** Per session: per-Intl.DisplayNames(locale, {type:'currency'}).of('USD') string.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU. Per-page Intl.DisplayNames per-locale calendar names
+
+- **[T]** Per session: per-Intl.DisplayNames(locale, {type:'calendar'}).of('buddhist'|'chinese'|'hebrew'|'islamic'|'gregory'|'japanese'|'persian'|'ethioaa'|'roc'|'coptic'|'iso8601'|'islamic-civil'|'islamic-rgsa'|'islamic-tbla'|'islamic-umalqura'|'indian') string distribution.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV. Per-page Intl.DateTimeFormat per-calendar era distribution
+
+- **[T]** Per session: per-Intl.DateTimeFormat(locale, {era:'long', calendar:'japanese'}).format(new Date('1989-01-08')) value.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW. Per-page Intl.NumberFormat per-numberingSystem distribution
+
+- **[T]** Per session: per-Intl.NumberFormat('ar-EG-u-nu-arab').format(123) Arabic-Indic digit rendering string.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX. Per-page Intl.DateTimeFormat per-hourCycle distribution
+
+- **[T]** Per session: per-Intl.DateTimeFormat(locale, {hour:'numeric'}).resolvedOptions().hourCycle value ('h11'|'h12'|'h23'|'h24') distribution.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY. Per-page Intl.Segmenter per-granularity output
+
+- **[T]** Per session: per-Intl.Segmenter('th', {granularity:'word'}).segment('สวัสดีครับ') segments Array (Thai word-segmenter signature).
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ. Per-página Intl.NumberFormat per-currency distribution
+
+- **[T]** Per session: per-Intl.NumberFormat(locale, {style:'currency', currency:'JPY'}).format(1500) string ('¥1,500' vs locale-formatted variant).
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
