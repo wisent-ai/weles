@@ -2727,6 +2727,142 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 - **[T]** Per `JSON.stringify(value, replacer)` call where replacer is a function: replacer invocation count + caller stack.
 - **[T]** Per `JSON.parse(text, reviver)` call: reviver invocation count.
 
+## AAAAAAAAAAAAAAAAA. CSS @counter-style + @font-feature-values + @font-palette-values
+
+- **[T]** Per page: every `@counter-style` rule (system/symbols/additive-symbols/range/pad/speak-as).
+- **[T]** Per page: every `@font-feature-values` rule + `@font-palette-values` rule.
+- **[T]** Per page: usage of `font-variant-alternates` / `font-palette` / `font-synthesis`.
+
+## BBBBBBBBBBBBBBBBB. CSS @keyframes registry
+
+- **[T]** Per page: every `@keyframes name { ... }` rule with name + key count + property set animated.
+- **[T]** Per page: `animation-name` reference count per keyframes name.
+
+## CCCCCCCCCCCCCCCCC. CSS @container query usage
+
+- **[T]** Per element: `container-name: ...` + `container-type: ...` declarations.
+- **[T]** Per stylesheet: `@container <name>? (<query>) { ... }` rule count.
+- **[T]** Container query evaluator results sampled per breakpoint.
+
+## DDDDDDDDDDDDDDDDD. CSS @starting-style declarations
+
+- **[T]** Per page: every `@starting-style { ... }` block + transitioning property set.
+
+## EEEEEEEEEEEEEEEEE. CSS @page rules
+
+- **[T]** Per page: every `@page` (paged-media) rule + per-margin-box rules (`@top-left`, `@bottom-right`, etc.).
+
+## FFFFFFFFFFFFFFFFF. CSS @namespace + @supports detail
+
+- **[T]** Per stylesheet: `@namespace` declarations.
+- **[T]** Per page: every `@supports (...)` block + parsed condition + matched/unmatched outcome.
+
+## GGGGGGGGGGGGGGGGG. CSS media query parsing detail
+
+- **[T]** Per stylesheet: every `@media (...)` block — full media query string sha256 + matched/unmatched at session start.
+- **[T]** Per page: media-query change events fired during session.
+
+## HHHHHHHHHHHHHHHHH. Per-element pseudoclass match counts
+
+- **[T]** Per page: count of elements matching `:user-invalid`, `:user-valid`, `:modal`, `:picture-in-picture`, `:fullscreen`, `:open`, `:closed`, `:defined`, `:placeholder-shown`, `:placeholder`, `:autofill`, `:state(...)`.
+- **[T]** Per page: counts vary with site state (modal open → `:modal` matches; placeholder shown → `:placeholder-shown` matches).
+
+## IIIIIIIIIIIIIIIII. Shadow DOM ::part / ::slotted usage
+
+- **[T]** Per page: count of `::part(foo)` rule references + `part=` attribute usage.
+- **[T]** Per page: count of `::slotted(...)` rules in shadow trees.
+- **[T]** Per page: `:host` + `:host-context(...)` rule count.
+
+## JJJJJJJJJJJJJJJJJ. HTMLVideoElement.requestVideoFrameCallback
+
+- **[T]** Per `<video>` with `requestVideoFrameCallback`: per-frame metadata — presentationTime, expectedDisplayTime, presentedFrames, processingDuration, captureTime, receiveTime, rtpTimestamp, width, height, mediaTime.
+- **[T]** Per video: dropped frames / corrupted frames count over session.
+
+## KKKKKKKKKKKKKKKKK. MediaSource lifecycle
+
+- **[T]** Per `MediaSource`: SourceBuffer list per type, appendBuffer byte counts, append duration distribution.
+- **[T]** Per MediaSource: state transitions (closed/open/ended).
+- **[T]** Per SourceBuffer: `appendWindowStart`, `appendWindowEnd`, `timestampOffset`, `mode` (segments/sequence).
+
+## LLLLLLLLLLLLLLLLL. MediaSession state + metadata
+
+- **[T]** Per page: registered MediaSession action handlers (play/pause/seekbackward/seekforward/previoustrack/nexttrack/skipad/stop/seekto/togglemicrophone/togglecamera/togglehang).
+- **[T]** Per page: MediaSession metadata — title, artist, album, artwork (count + first artwork sha256), chapterInfo array.
+- **[T]** Per page: position state polled — duration / playbackRate / position.
+
+## MMMMMMMMMMMMMMMMM. Web Animations composite ordering
+
+- **[T]** Per running animation: composite mode (`replace` / `add` / `accumulate`).
+- **[T]** Per element with multiple animations: composite-order resolution.
+
+## NNNNNNNNNNNNNNNNN. CSS image-rendering / image-orientation distribution
+
+- **[T]** Per page: usage count of `image-rendering: pixelated` / `crisp-edges` / `smooth` / `auto` / `optimizeSpeed` / `optimizeQuality`.
+- **[T]** Per page: `image-orientation: from-image` vs `none` usage count.
+
+## OOOOOOOOOOOOOOOOO. CSS text-wrap balance/pretty + hyphens
+
+- **[T]** Per page: usage count of `text-wrap: balance|pretty|stable|nowrap`.
+- **[T]** Per page: `hyphens: auto|none|manual` distribution + hyphenation dictionary loaded for the page's `lang`.
+
+## PPPPPPPPPPPPPPPPP. CSS contain-intrinsic-size + content-visibility
+
+- **[T]** Per element with `content-visibility: auto`: skipped-rendering count + render-when-visible transitions.
+- **[T]** Per element with `contain-intrinsic-size`: declared size vs actual size after layout.
+
+## QQQQQQQQQQQQQQQQQ. CSS color-scheme value
+
+- **[T]** Per page: declared `color-scheme: light dark | only light | only dark` value.
+- **[T]** Resolved color scheme at session start (light vs dark).
+
+## RRRRRRRRRRRRRRRRR. Chromium internal password manager state
+
+- **[T]** From Local State / Profile DB: saved-password count per origin (presence only).
+- **[T]** From Profile DB: saved-address count + saved-payment count.
+- **[T]** Password generation suggestions offered per field.
+
+## SSSSSSSSSSSSSSSSS. Browser-extension store activation
+
+- **[T]** Loaded extensions list — `chrome://extensions/` enumerated via CDP `Page.navigate`.
+- **[T]** Per extension: id, name, version, manifest version, permissions list, host_permissions list, enabled state.
+
+## TTTTTTTTTTTTTTTTT. Per-page IndexedDB schema enumeration
+
+- **[T]** Per origin: `indexedDB.databases()` returns DB list — name + version.
+- **[T]** Per DB: object store names list + key paths + auto-increment flags + index names + index key paths.
+- **[T]** Per DB: row count per object store (counts only).
+
+## UUUUUUUUUUUUUUUUU. Per-page Cache Storage detail
+
+- **[T]** Per origin: `caches.keys()` cache name list.
+- **[T]** Per cache: `cache.keys()` request URL count + per-URL response sha256.
+- **[T]** Per cache: total stored bytes.
+
+## VVVVVVVVVVVVVVVVV. Per-page IDBObjectStore index lookup pattern
+
+- **[T]** From CDP `IndexedDB.requestData`: per-object-store cursor traversal pattern observed during session.
+- **[T]** Per IDB transaction: read-only vs read-write distribution.
+
+## WWWWWWWWWWWWWWWWW. Per-page Storage quota usage detail
+
+- **[T]** Per origin: `navigator.storage.estimate()` — `quota`, `usage`, `usageDetails` per category (caches, indexedDB, fileSystem, serviceWorkerRegistrations).
+- **[T]** Per origin: storage pressure events.
+
+## XXXXXXXXXXXXXXXXX. Per-page Origin Private FS deep
+
+- **[T]** Per origin: full recursive enumeration of OPFS root via `getDirectoryHandle` + `entries()` — file name sha256, byte size, last modified.
+- **[T]** Per file: SyncAccessHandle usage count.
+
+## YYYYYYYYYYYYYYYYY. Per-page Trusted Types policy creation log
+
+- **[T]** Per page: every `trustedTypes.createPolicy(name, rules)` call — policy name + sha256 of rules object.
+- **[T]** Per page: per-policy `createHTML` / `createScript` / `createScriptURL` invocation counts.
+
+## ZZZZZZZZZZZZZZZZZ. Per-page DocumentPictureInPicture API state deep
+
+- **[T]** Per call to `documentPictureInPicture.requestWindow({width, height, disallowReturnToOpener})`: full options + outcome.
+- **[T]** Per active PiP doc: cross-document message channel established (yes/no) + message volume.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
