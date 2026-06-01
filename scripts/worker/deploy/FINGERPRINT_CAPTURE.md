@@ -2595,6 +2595,138 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 - **[T]** Per WS handshake: `Sec-WebSocket-Key` (16-byte base64) — verify entropy + confirm random origin.
 - **[T]** Per WS: server `Sec-WebSocket-Accept` matches expected SHA-1 derivation.
 
+## AAAAAAAAAAAAAAAA. CSS @property registrations
+
+- **[T]** Per page: every `@property --name { syntax: ...; inherits: ...; initial-value: ...; }` rule (registered custom properties).
+- **[T]** Per page: `CSS.registerProperty()` programmatic calls.
+
+## BBBBBBBBBBBBBBBB. Dialog modal state log
+
+- **[T]** Per `<dialog>` element: `showModal()` open count, time-open distribution.
+- **[T]** Per modal: keyboard close event (Esc), inert-overlay flag.
+
+## CCCCCCCCCCCCCCCC. SpeechSynthesisUtterance queue state
+
+- **[T]** `speechSynthesis.pending`, `.speaking`, `.paused` polled at session boundaries.
+- **[T]** Per utterance: queue position at speak() time + actual start time delta.
+
+## DDDDDDDDDDDDDDDD. Permissions API onchange event log
+
+- **[T]** Per permission name: `.onchange` events fired during session (state transitions).
+- **[T]** Per permission: initial state captured + delta over session.
+
+## EEEEEEEEEEEEEEEE. Auto-play policy resolution per `<video>`/`<audio>`
+
+- **[T]** Per element: `play()` Promise outcome — resolved / rejected (autoplay blocked).
+- **[T]** Per page: autoplay-allowed origin (user-activation captured / pre-granted via Media Engagement Index / muted).
+
+## FFFFFFFFFFFFFFFF. TaskController + TaskSignal state
+
+- **[T]** Per `TaskController({priority, signal})`: priority transitions over session.
+- **[T]** Per scheduled task: `scheduler.postTask(task, {priority, delay, signal})` log with outcome.
+
+## GGGGGGGGGGGGGGGG. ScrollTimeline + ViewTimeline registration
+
+- **[T]** Per page: every `new ScrollTimeline({source, axis})` constructor call.
+- **[T]** Per page: every `@view-timeline` / `view-timeline: ...` CSS declaration parsed.
+- **[T]** Animation-timeline assignments via JS or CSS.
+
+## HHHHHHHHHHHHHHHH. CSS @layer cascade ordering
+
+- **[T]** Per stylesheet: `@layer name1, name2, name3;` declarations + per-layer rule count.
+- **[T]** Per page: layer stacking order resolved.
+
+## IIIIIIIIIIIIIIII. CSS @scope rules
+
+- **[T]** Per stylesheet: every `@scope (selector) to (selector) { ... }` block + scope rule count.
+
+## JJJJJJJJJJJJJJJJ. CSS nesting rule depth
+
+- **[T]** Per stylesheet: max nesting depth across all rules.
+- **[T]** Per stylesheet: nested-rule count.
+
+## KKKKKKKKKKKKKKKK. CSS @import URL chain
+
+- **[T]** Per stylesheet: full `@import` chain (parent → import → import → …).
+- **[T]** Per chain: cyclic detection + chain length.
+
+## LLLLLLLLLLLLLLLL. View Transitions name registry
+
+- **[T]** Per page: every `view-transition-name: foo;` declaration — name + element selector.
+- **[T]** Per transition: which pairs participated.
+
+## MMMMMMMMMMMMMMMM. Anchor positioning declarations
+
+- **[T]** Per page: every `anchor-name: --foo` declaration + every `position-anchor: --foo` reference.
+- **[T]** Per anchor: positioning fallback chain (`@position-try`).
+
+## NNNNNNNNNNNNNNNN. CSS subgrid usage
+
+- **[T]** Per page: count of grid containers using `subgrid` (rows or columns).
+- **[T]** Per subgrid: parent grid + subgrid axis.
+
+## OOOOOOOOOOOOOOOO. CSS Color Module Level 4 functions
+
+- **[T]** Per page: usage of `color-mix()`, `color()`, `oklch()`, `oklab()`, `lab()`, `lch()`, `hwb()`, `color-contrast()` functions — count per function.
+- **[T]** Per page: color-space references (`srgb`, `display-p3`, `rec2020`, `prophoto-rgb`, `xyz`).
+
+## PPPPPPPPPPPPPPPP. CSS Houdini Typed OM usage
+
+- **[T]** Per page: `Element.computedStyleMap()` calls — count + caller stack.
+- **[T]** Per page: `Element.attributeStyleMap.set()` / `.get()` / `.delete()` calls.
+- **[T]** `CSS.number()`, `CSS.px()`, `CSS.em()`, etc. usage per page.
+
+## QQQQQQQQQQQQQQQQ. font-display strategy distribution
+
+- **[T]** Per `@font-face` rule: `font-display` value (`auto`/`block`/`swap`/`fallback`/`optional`) — distribution across loaded fonts.
+- **[T]** Per font: actual swap/fallback events observed during load.
+
+## RRRRRRRRRRRRRRRR. Lazy-loading boundary breaches
+
+- **[T]** Per `<img loading=lazy>` / `<iframe loading=lazy>`: time when it entered viewport relative to page load.
+- **[T]** Per lazy resource: was it fetched before viewport entry? (chromium can hint-fetch lazy resources).
+
+## SSSSSSSSSSSSSSSS. Reporting API endpoint groups
+
+- **[T]** Per response: `Reporting-Endpoints` header parsed — group name → URL mappings.
+- **[T]** Per group: delivery attempts + successes.
+
+## TTTTTTTTTTTTTTTT. Navigation API entries
+
+- **[T]** Per page: `navigation.entries()` full list — id, url, key, sameDocument, state.
+- **[T]** Per navigation: `navigate` event log with destination, downloadRequest, formData, hashChange, info, signal.
+
+## UUUUUUUUUUUUUUUU. NoState Prefetch hits
+
+- **[T]** Per resource: was it from `chrome://nostate-prefetch` (zero-state warm-up)? — discoverable from NetLog `URL_REQUEST` source flags.
+- **[T]** Per page: NoState Prefetch hit rate.
+
+## VVVVVVVVVVVVVVVV. DOM ID collision detection
+
+- **[T]** Per page: count of duplicate `id` attribute values (spec violation but common; site signature).
+- **[T]** Per page: count of empty `id` attributes.
+
+## WWWWWWWWWWWWWWWW. Selector engine fingerprint
+
+- **[T]** Per page: `document.querySelectorAll('*').length` (total element count).
+- **[T]** Per page: `document.querySelectorAll(':is(h1,h2,h3,h4,h5,h6)').length`, `:has(...)` selector usage count, `:where(...)` count.
+- **[T]** Per page: time to execute a known complex selector (selector-engine performance is fingerprintable).
+
+## XXXXXXXXXXXXXXXX. Resource source-of-discovery histogram
+
+- **[T]** Per page: per-resource origination — Preload Scanner (initiator: 'link rel=preload'), Parser-blocking (initiator: 'parser'), Script-injected (initiator: 'script'), Fetch API (initiator: 'fetch'), XHR (initiator: 'xmlhttprequest'), Other.
+- **[T]** Per origin: discovery method distribution.
+
+## YYYYYYYYYYYYYYYY. Document Picture-in-Picture window state
+
+- **[T]** Per PiP window: width × height + opening element selector.
+- **[T]** Per PiP window: cross-document copy reference graph (which DOM nodes were moved).
+
+## ZZZZZZZZZZZZZZZZ. JSON.stringify replacer + reviver call log
+
+- **[T]** Per `JSON.stringify(value, replacer)` call where replacer is a function: replacer invocation count + caller stack.
+- **[T]** Per `JSON.parse(text, reviver)` call: reviver invocation count.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
