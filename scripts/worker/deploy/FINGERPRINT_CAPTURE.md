@@ -8413,6 +8413,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per session: Page.close devtools-invocation count.
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA. Per-page CDP Network.enable subscribers
+
+- **[T]** Per session: Network.enable invocation count + maxResourceBufferSize / maxTotalBufferSize / maxPostDataSize parameters.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB. Per-page CDP Network.setAttachDebugStack state
+
+- **[T]** Per session: stack-attachment state for network requests.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC. Per-page CDP Network.takeResponseBodyForInterceptionAsStream invocations
+
+- **[T]** Per session: per-interception streaming-body retrieval count.
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD. Per-page CDP Network.replayXHR invocations
+
+- **[T]** Per session: replayXHR call count + per-request id.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE. Per-page CDP Network.searchInResponseBody invocations
+
+- **[T]** Per session: searchInResponseBody call count + query length.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF. Per-page CDP Network.setRequestInterception invocations
+
+- **[T]** Per session: request-interception pattern list applied.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG. Per-page CDP Network.continueInterceptedRequest invocations
+
+- **[T]** Per session: continueInterceptedRequest count + per-call override fields.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH. Per-page CDP Network.getAllCookies invocations
+
+- **[T]** Per session: getAllCookies devtools-invocation count.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII. Per-page CDP Network.deleteCookies invocations
+
+- **[T]** Per session: deleteCookies count + per-cookie filter.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ. Per-page CDP Network.canEmulateNetworkConditions invocations
+
+- **[T]** Per session: capability probe outcome.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK. Per-page CDP Network.canClearBrowserCache invocations
+
+- **[T]** Per session: capability probe outcome.
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL. Per-page CDP Network.canClearBrowserCookies invocations
+
+- **[T]** Per session: capability probe outcome.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM. Per-page CDP Fetch.enable invocations
+
+- **[T]** Per session: Fetch.enable patterns + handleAuthRequests flag.
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN. Per-page CDP Fetch.continueRequest / failRequest / fulfillRequest invocations
+
+- **[T]** Per session: per-action count + per-request id.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO. Per-page CDP Fetch.continueWithAuth invocations
+
+- **[T]** Per session: continueWithAuth count + response (Default/CancelAuth/ProvideCredentials).
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP. Per-page CDP Runtime.evaluate invocations
+
+- **[T]** Per session: Runtime.evaluate call count + per-call expression length.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ. Per-page CDP Runtime.callFunctionOn invocations
+
+- **[T]** Per session: callFunctionOn call count + per-call functionDeclaration length.
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR. Per-page CDP Runtime.compileScript invocations
+
+- **[T]** Per session: compileScript call count + cache hit/miss.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS. Per-page CDP Runtime.runScript invocations
+
+- **[T]** Per session: runScript call count + script-id.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT. Per-page CDP Runtime.terminateExecution invocations
+
+- **[T]** Per session: terminateExecution call count.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU. Per-page CDP Runtime.addBinding invocations
+
+- **[T]** Per session: addBinding call count + binding name.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV. Per-page CDP Runtime.bindingCalled events
+
+- **[T]** Per session: bindingCalled event count + per-call payload size.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW. Per-page CDP Runtime.discardConsoleEntries invocations
+
+- **[T]** Per session: console-discard call count.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX. Per-page CDP Runtime.releaseObject / releaseObjectGroup invocations
+
+- **[T]** Per session: per-call count + per-objectGroup name.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY. Per-page CDP Runtime.setMaxCallStackSizeToCapture invocations
+
+- **[T]** Per session: max call-stack-depth set.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ. Per-page CDP Runtime.removeBinding invocations
+
+- **[T]** Per session: removeBinding call count.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
