@@ -18813,6 +18813,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per session: count of standalone `request.newContext()` HTTP-only contexts created + per-context dispatched request count.
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA. Per-page Cross-arm matrix: PASS vs FAIL Jaccard distance over all inst fields
+
+- **[T]** Per session: Jaccard distance (intersection/union) between this run's flat-keyed inst.json field set and the mean PASS field set + mean FAIL field set.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB. Per-page Cross-arm matrix: PASS vs FAIL Hamming distance over field-presence bitmap
+
+- **[T]** Per session: Hamming distance over a canonical bitmap of all observed inst.json fields between this run and a reference PASS run.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC. Per-page Cross-arm matrix: PASS vs FAIL Levenshtein distance over header-order
+
+- **[T]** Per session: Levenshtein distance between the outbound HTTP/2 header-order list of this run vs reference PASS run (low-edit distance = header-order parity).
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD. Per-page Cross-arm matrix: classifier-prediction score
+
+- **[T]** Per session: scalar 0–1 ML classifier output predicting PASS-likelihood given inst.json field set (logistic-regression on past corpus).
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE. Per-page Cross-arm matrix: per-field information-gain
+
+- **[T]** Per session: per-field ranked information-gain (IG) value computed via I(field; PASS_outcome) over the past corpus.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF. Per-page Cross-arm matrix: top-N candidate root-cause fields
+
+- **[T]** Per session: ranked top-N (default N=10) candidate fields whose value differs between this FAIL run and the nearest PASS run by IG-weighted edit distance.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG. Per-page Cross-arm matrix: persona-vs-host divergence summary
+
+- **[T]** Per session: count of inst.json fields where persona-declared value differs from host-observed value (e.g. persona.os='Windows' vs Sec-CH-UA-Platform='macOS').
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH. Per-page Cross-arm matrix: nearest PASS neighbor distance
+
+- **[T]** Per session: minimum edit-distance over all stored PASS run inst.json files (signals "how close is this to an actual PASS").
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII. Per-page Cross-arm matrix: nearest FAIL neighbor distance
+
+- **[T]** Per session: minimum edit-distance over all stored FAIL run inst.json files (signals "how close is this to a known-FAIL pattern").
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ. Per-página Cross-arm matrix: per-section completeness ratio
+
+- **[T]** Per session: per-section ratio of [W]/[P]/[T] flags from FINGERPRINT_CAPTURE.md (how much of each section is actually wired vs partial vs todo).
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK. Per-page Cross-arm matrix: per-section captured-bytes ratio
+
+- **[T]** Per session: per-section ratio of expected_bytes vs actual_captured_bytes (signals truncation or incomplete capture).
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL. Per-page Cross-arm matrix: signal-flow propagation chain
+
+- **[T]** Per session: graph (DOT format) showing how a single inst.json field value differs upstream — e.g. proxy_pool='datacenter' → ip.asn='LATAM' → /apfc/collect=0 → captcha_challenge=true.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM. Per-page Cross-arm matrix: per-field mutability score
+
+- **[T]** Per session: per-field "is this field mutable from weles config" boolean (so we know which deltas are fixable).
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN. Per-page Cross-arm matrix: per-field "cost-to-fix" score
+
+- **[T]** Per session: per-field estimated lines-of-code to flip the value (so root-cause-cost is enumerable).
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO. Per-page Cross-arm matrix: trajectory mtime + sha256
+
+- **[T]** Per session: per-trajectory.mjs file mtime + sha256 captured at run start (versions provenance).
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP. Per-page Cross-arm matrix: weles_dist_sha256
+
+- **[T]** Per session: sha256 of the weles dist/ tree captured at run start (binary provenance).
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ. Per-page Cross-arm matrix: weles_commit_short + dirty flag
+
+- **[T]** Per session: `git log -1 --format=%h` + uncommitted-changes flag captured at run start (source provenance).
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR. Per-page Cross-arm matrix: chromium_build_id
+
+- **[T]** Per session: Chromium build id (from `chrome --version` + sha256 of binary) captured at run start.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS. Per-page Cross-arm matrix: chromium_patches_applied
+
+- **[T]** Per session: list of patches applied in ../chromium-build/ to this binary (sha256 of each patch file).
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT. Per-page Cross-arm matrix: firefox_patches_applied
+
+- **[T]** Per session: list of patches applied in ../firefox-build/patches/ to this binary (sha256 of each patch file).
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU. Per-page Cross-arm matrix: bcookie / li_at / li_alerts presence
+
+- **[T]** Per session: presence flags for known LinkedIn jar cookies (bcookie, lidc, li_at, li_alerts, JSESSIONID) at trajectory start vs end (cold/warm distinction).
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV. Per-page Cross-arm matrix: bcookie age + reissue count
+
+- **[T]** Per session: per-bcookie value parsed bcookie format ('v=2&<uuid>') → age + reissue-count signal.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW. Per-page Cross-arm matrix: ban_signal correlation matrix
+
+- **[T]** Per session: P(ban_signal | upstream-field-value) per (ban_signal, field-name) pair (mined over historical corpus).
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX. Per-page Cross-arm matrix: routine-vs-trajectory match audit
+
+- **[T]** Per session: scalar "did the trajectory match the routine's planned action?" (catches accidental drift between routine planner and trajectory executor).
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY. Per-page Cross-arm matrix: lifecycle phase audit
+
+- **[T]** Per session: scalar "did the trajectory respect the account's current lifecycle phase?" (catches phase-mismatched action calls).
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ. Per-página Cross-arm matrix: ecosystem-vs-identity rollup parity
+
+- **[T]** Per session: scalar "do identity-level metrics match ecosystem-level aggregates after this run?" (catches data-pipeline drift).
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
