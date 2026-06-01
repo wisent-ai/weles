@@ -21205,6 +21205,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per session: per-Page beforeunload event preventDefault call count + per-event returnValue assignment count.
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA. Per-page Canvas fingerprint variance check
+
+- **[T]** Per session: same canvas-draw operation invoked twice in same session → check pixel-identical results (CDP-defended browsers may add noise that breaks intra-session consistency).
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB. Per-page Canvas fingerprint canonical-text rendering
+
+- **[T]** Per session: per-canvas fillText('Cwm fjordbank glyphs vext quiz, 😀', 4, 17) sha256 output (canonical fingerprint test string).
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC. Per-page Canvas geometric primitive sha256
+
+- **[T]** Per session: per-canvas arc()+bezierCurveTo() composite shape sha256 (catches sub-pixel rasterizer variance across machines).
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD. Per-page WebGL fingerprint shader output sha256
+
+- **[T]** Per session: per-WebGL canonical-shader output sha256 (e.g. fragment-shader rasterizing colored gradient — yields per-driver fingerprint).
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE. Per-page WebGPU fingerprint compute-shader output sha256
+
+- **[T]** Per session: per-WebGPU canonical-compute-shader output sha256 (run f32x4 inverse-sqrt pipeline on known input — yields per-driver+per-arch fingerprint).
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF. Per-page Audio fingerprint OfflineAudioContext sha256
+
+- **[T]** Per session: per-OfflineAudioContext canonical-OscillatorNode->DynamicsCompressorNode->renderQuantum(25) buffer-sample sha256.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG. Per-page Audio fingerprint AnalyserNode FFT output sha256
+
+- **[T]** Per session: per-AnalyserNode getFloatFrequencyData over canonical OscillatorNode output sha256 (frequency-domain fingerprint).
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH. Per-page Audio fingerprint Hybrid sha256 (canvas+webgl+audio)
+
+- **[T]** Per session: hybrid `sha256(canvas_text + webgl_shader + audio_dynamics)` triple-hash (joint fingerprint used by FingerprintJS Pro).
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII. Per-page Canvas fillStyle sub-pixel coverage
+
+- **[T]** Per session: per-canvas fillStyle gradient rendering — yields per-GPU sub-pixel coverage signature.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ. Per-página Canvas anti-aliasing distribution
+
+- **[T]** Per session: per-canvas anti-aliased line rendering sha256 (per-OS/per-GPU subpixel positioning signature).
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK. Per-page Canvas typography subpixel-positioning
+
+- **[T]** Per session: per-canvas serif vs sans-serif typography rendering sha256 (per-OS text-rendering pipeline signature).
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL. Per-page Canvas emoji rendering sha256
+
+- **[T]** Per session: per-canvas rendered Unicode emoji ('🦄', '🌍', '👨🏻‍💻') sha256 (per-OS emoji-font signature).
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM. Per-page Canvas CJK character rendering sha256
+
+- **[T]** Per session: per-canvas rendered CJK characters ('日本語', '中文', '한국어') sha256 (per-OS CJK-font signature).
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN. Per-page Canvas Arabic / Hebrew rendering sha256
+
+- **[T]** Per session: per-canvas rendered RTL strings ('العربية', 'עברית') sha256 (RTL-shaper signature).
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO. Per-page Canvas mathematical-symbol rendering sha256
+
+- **[T]** Per session: per-canvas rendered Unicode math symbols ('∑∫∂∇⊕⊗') sha256.
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP. Per-page Canvas variable-font axis rendering sha256
+
+- **[T]** Per session: per-canvas variable-font axis sweep (wght 100-900, slnt -15..0) rendering sha256.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ. Per-page Canvas SVG-text rendering sha256
+
+- **[T]** Per session: per-`<svg>` per-`<text>` per-`textPath` rendering sha256 (SVG-text-shaper signature).
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR. Per-page Canvas font-stretch keyword rendering
+
+- **[T]** Per session: per-canvas per-font-stretch ('ultra-condensed'|'extra-condensed'|'condensed'|'semi-condensed'|'normal'|'semi-expanded'|'expanded'|'extra-expanded'|'ultra-expanded') rendering sha256.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS. Per-page Canvas font-feature-tags rendering
+
+- **[T]** Per session: per-canvas per-OpenType-feature-tag ('liga'|'dlig'|'frac'|'tnum'|'pnum'|'lnum'|'onum'|'smcp'|'c2sc') rendering sha256.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT. Per-page Canvas color-space rendering ('srgb' vs 'display-p3')
+
+- **[T]** Per session: per-canvas (color-space) context-attribute pair rendering sha256.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU. Per-page Canvas alpha-channel pre-multiplied rendering
+
+- **[T]** Per session: per-canvas (alpha:true, premultiplied:false) ImageData distribution.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV. Per-page Canvas isPointInPath subpixel signal
+
+- **[T]** Per session: per-canvas `isPointInPath(x, y)` on canonical-path with sub-pixel-(x,y) probe distribution.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW. Per-page Canvas measureText.actualBoundingBox
+
+- **[T]** Per session: per-canvas measureText('M').actualBoundingBoxAscent + actualBoundingBoxDescent + actualBoundingBoxLeft + actualBoundingBoxRight (per-font glyph-metric signature).
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX. Per-page Canvas TextMetrics fontBoundingBox
+
+- **[T]** Per session: per-canvas measureText('').fontBoundingBoxAscent + fontBoundingBoxDescent.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY. Per-page Canvas globalCompositeOperation rendering
+
+- **[T]** Per session: per-canvas per-globalCompositeOperation ('source-over'|'destination-in'|'lighter'|'difference'|'screen'|'multiply'|'hue'|'luminosity') rendering sha256.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ. Per-página Canvas createImageBitmap of ImageBitmapSource
+
+- **[T]** Per session: per-`createImageBitmap()` invocation per-source-type ('Blob'|'HTMLImageElement'|'SVGImageElement'|'HTMLVideoElement'|'HTMLCanvasElement'|'ImageData'|'OffscreenCanvas'|'VideoFrame') sha256 output.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
