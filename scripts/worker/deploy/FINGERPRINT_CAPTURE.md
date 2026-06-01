@@ -5913,6 +5913,111 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per profile: per (top-level-origin, third-party-origin) partition storage allocation.
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA. Per-page Chrome blocked content count per content type
+
+- **[T]** Per profile: per-origin blocked content count (popups, downloads, redirects).
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB. Per-page Chrome "Always Open This Type of Link in Associated App" preferences
+
+- **[T]** Per profile: protocol handlers registered via web-app via navigator.registerProtocolHandler.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC. Per-page Chrome Reduced-Motion-respecting policy
+
+- **[T]** Per page: respects prefers-reduced-motion preference vs ignores (animations played anyway).
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD. Per-page Chrome Energy-Save Mode state
+
+- **[T]** Per session: Chrome's energy-saver mode enabled via Local State `performance.battery_saver_mode_state`.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE. Per-page Chrome Memory-Save Mode state
+
+- **[T]** Per session: Chrome's memory-saver mode enabled state.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF. Per-page Chrome Tab Freezing observations
+
+- **[T]** Per tab: freeze events from chrome://discards/ table.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG. Per-page Chrome Tab Discarding observations
+
+- **[T]** Per tab: discard events + reason (memory pressure vs idle).
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH. Per-page Chrome HighEfficiencyMode policy
+
+- **[T]** Per session: high-efficiency mode active vs not.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII. Per-page Chrome PriceTracking opt-in state per URL
+
+- **[T]** Per session: shopping URLs with price-tracking subscriptions.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ. Per-page Chrome Identity-API ML-based suggestions
+
+- **[T]** Per page: ML-driven Identity API suggestion deliveries (FedCM mediation).
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK. Per-page Chrome Suspicious Notifications detection
+
+- **[T]** Per page: notifications marked suspicious by Chrome heuristic (ML model).
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL. Per-page Chrome Lookalike domain detection
+
+- **[T]** Per navigation: lookalike-URL warning triggered vs not.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM. Per-page Chrome Interstitial warning frequency
+
+- **[T]** Per session: per-interstitial type count (safe-browsing-malware / safe-browsing-phishing / safe-browsing-unwanted / safe-browsing-billing / ssl-error / captive-portal / blocked-mixed-content / supervised-user / etc.).
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN. Per-page Chrome Tracking Protection cookie blocks
+
+- **[T]** Per page: third-party cookies blocked count due to Tracking Protection vs declined.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO. Per-page Chrome IP Protection state
+
+- **[T]** Per session: Chrome IP Protection (proxy-based privacy feature) active vs not + tunneled origin list.
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP. Per-page Chrome Origin Trial-controlled API exposure delta
+
+- **[T]** Per page: presence of OT-controlled APIs that are absent without a valid token (FedCM, Compute Pressure, Web NFC, etc.).
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ. Per-page Chrome Field-Trial-controlled feature delta
+
+- **[T]** Per session: feature-flag values resolved per field trial cohort (e.g., DeprecateUnloadByUserAgent).
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR. Per-page Chrome ResourceCoordinator priority decision
+
+- **[T]** Per frame: priority decision (foreground / background) from chrome://process-internals/.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS. Per-page Chrome BackForwardCacheMetrics
+
+- **[T]** Per navigation: BFCache hit / miss + reason histogram.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT. Per-page Chrome Auction worklet output
+
+- **[T]** Per Protected-Audience auction: winning bid + selected ad URN + winning interest group + losing bids count.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU. Per-page Chrome Shared Storage worklet output
+
+- **[T]** Per Shared Storage operation: output Promise resolution + privacy budget consumed.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV. Per-page Chrome Anonymous frames count
+
+- **[T]** Per page: anonymous-frame attribute usage + frame count.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW. Per-page Chrome Fenced Frames
+
+- **[T]** Per page: `<fencedframe>` element count + per-frame mode (default / opaque-ads).
+- **[T]** Per fenced frame: parent-frame-isolation boundary cross attempts.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX. Per-page Chrome Portal element (deprecated experimental)
+
+- **[T]** Per page: `<portal>` element presence (deprecated but legacy still detectable).
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY. Per-page Chrome Permissions-Policy unloadable iframe presence
+
+- **[T]** Per page: iframes with `unload-event` policy denied count.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ. Per-page Chrome Sandbox flags resolved per iframe
+
+- **[T]** Per iframe: full resolved sandbox flag set (allow-scripts / allow-forms / allow-same-origin / allow-popups / etc.) — 18 documented tokens.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
