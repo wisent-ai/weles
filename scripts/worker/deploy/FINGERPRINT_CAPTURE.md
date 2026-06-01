@@ -11741,6 +11741,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per session: navigator.webdriver value (`true` / `false` / undefined).
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA. Per-page Navigator userAgentData.platform value
+
+- **[T]** Per session: navigator.userAgentData.platform value.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB. Per-page Navigator userAgentData.mobile value
+
+- **[T]** Per session: navigator.userAgentData.mobile boolean value.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC. Per-page Navigator userAgentData.brands array
+
+- **[T]** Per session: navigator.userAgentData.brands array exact values.
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD. Per-page Navigator userAgentData.getHighEntropyValues architecture
+
+- **[T]** Per session: high-entropy `architecture` field value.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE. Per-page Navigator userAgentData.getHighEntropyValues bitness
+
+- **[T]** Per session: high-entropy `bitness` field value.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF. Per-page Navigator userAgentData.getHighEntropyValues model
+
+- **[T]** Per session: high-entropy `model` field value.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG. Per-page Navigator userAgentData.getHighEntropyValues platformVersion
+
+- **[T]** Per session: high-entropy `platformVersion` field value.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH. Per-page Navigator userAgentData.getHighEntropyValues uaFullVersion
+
+- **[T]** Per session: high-entropy `uaFullVersion` field value.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII. Per-page Navigator userAgentData.getHighEntropyValues fullVersionList
+
+- **[T]** Per session: high-entropy `fullVersionList` array values.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ. Per-page Navigator userAgentData.getHighEntropyValues wow64
+
+- **[T]** Per session: high-entropy `wow64` boolean value (Windows 32-on-64 detection).
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK. Per-page Navigator userAgentData.getHighEntropyValues formFactor
+
+- **[T]** Per session: high-entropy `formFactor` array values (`Desktop` / `Automotive` / `Mobile` / `Tablet` / `XR` / `EInk` / `Watch`).
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL. Per-page Navigator userAgentData.toJSON output
+
+- **[T]** Per session: navigator.userAgentData.toJSON() entire object value.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM. Per-page Navigator.connection.downlinkMax value
+
+- **[T]** Per session: navigator.connection.downlinkMax value (deprecated; presence is signal).
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN. Per-page Navigator.contacts.select capability probe
+
+- **[T]** Per session: Contacts API presence test.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO. Per-page Navigator.scheduling.isInputPending capability probe
+
+- **[T]** Per session: scheduling.isInputPending API presence + behavior.
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP. Per-page Navigator.scheduling.postTask capability probe
+
+- **[T]** Per session: scheduler.postTask API presence + return type.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ. Per-page Navigator.scheduling.yield capability probe
+
+- **[T]** Per session: scheduler.yield API presence + behavior.
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR. Per-page Navigator.deprecatedReplaceInDocument capability probe
+
+- **[T]** Per session: probe of any deprecated-yet-still-shipping API in Chromium build.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS. Per-page Navigator.deprecatedRunAdAuctionEnforcesKAnonymity capability probe
+
+- **[T]** Per session: deprecated Protected-Audience k-anonymity enforcement API presence.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT. Per-page Navigator.canShare capability probe
+
+- **[T]** Per session: navigator.canShare API presence + boolean result for known share-data shapes.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU. Per-page Navigator.share capability probe
+
+- **[T]** Per session: navigator.share API presence + invocation count.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV. Per-page Navigator.virtualKeyboard capability probe
+
+- **[T]** Per session: virtual-keyboard API presence + overlaysContent boolean state.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW. Per-page Navigator.windowControlsOverlay capability probe
+
+- **[T]** Per session: window-controls-overlay API presence + getTitlebarAreaRect outcome.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX. Per-page Navigator.standalone capability probe
+
+- **[T]** Per session: navigator.standalone presence (iOS WebView fingerprint).
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY. Per-page Navigator.gpu capability probe
+
+- **[T]** Per session: navigator.gpu presence + adapter capability.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ. Per-page Navigator.ml capability probe
+
+- **[T]** Per session: navigator.ml (WebNN) presence + capability.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
