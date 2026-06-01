@@ -7893,6 +7893,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per WebGPUDevice: pushErrorScope / popErrorScope usage by filter ('validation' / 'out-of-memory' / 'internal').
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA. Per-page WebAudio OscillatorNode type distribution
+
+- **[T]** Per OscillatorNode: type value (`sine`/`square`/`sawtooth`/`triangle`/`custom`) + frequency distribution.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB. Per-page WebAudio BiquadFilterNode type distribution
+
+- **[T]** Per BiquadFilterNode: type value (`lowpass`/`highpass`/`bandpass`/`lowshelf`/`highshelf`/`peaking`/`notch`/`allpass`) + frequency / Q distribution.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC. Per-page WebAudio DynamicsCompressorNode parameter distribution
+
+- **[T]** Per DynamicsCompressorNode: threshold / knee / ratio / attack / release values + reduction observed.
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD. Per-page WebAudio PannerNode parameter distribution
+
+- **[T]** Per PannerNode: panningModel (`equalpower`/`HRTF`) + distanceModel (`linear`/`inverse`/`exponential`) + position / orientation values.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE. Per-page WebAudio StereoPannerNode pan distribution
+
+- **[T]** Per StereoPannerNode: pan AudioParam value evolution.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF. Per-page WebAudio AnalyserNode parameter distribution
+
+- **[T]** Per AnalyserNode: fftSize / smoothingTimeConstant / minDecibels / maxDecibels values.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG. Per-page WebAudio DelayNode delayTime distribution
+
+- **[T]** Per DelayNode: delayTime AudioParam value evolution.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH. Per-page WebAudio ConvolverNode buffer + normalize distribution
+
+- **[T]** Per ConvolverNode: buffer presence (impulse-response loaded) + normalize flag.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII. Per-page WebAudio WaveShaperNode curve distribution
+
+- **[T]** Per WaveShaperNode: curve length + oversample value (`none`/`2x`/`4x`).
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ. Per-page WebAudio IIRFilterNode coefficients
+
+- **[T]** Per IIRFilterNode: feedforward + feedback coefficient arrays.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK. Per-page WebAudio AudioBufferSourceNode loop + playbackRate
+
+- **[T]** Per ABSN: loop flag + loopStart / loopEnd + playbackRate / detune values.
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL. Per-page WebAudio MediaElementAudioSourceNode source
+
+- **[T]** Per MediaElementAudioSourceNode: associated `<audio>` / `<video>` element + bytes routed.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM. Per-page WebAudio MediaStreamAudioSourceNode source
+
+- **[T]** Per MediaStreamAudioSourceNode: associated MediaStream id + tracks count.
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN. Per-page WebAudio MediaStreamAudioDestinationNode usage
+
+- **[T]** Per MediaStreamAudioDestinationNode: outbound MediaStream id.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO. Per-page WebAudio ChannelSplitterNode / ChannelMergerNode usage
+
+- **[T]** Per node: numberOfInputs / numberOfOutputs distribution.
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP. Per-page WebAudio ConstantSourceNode usage
+
+- **[T]** Per ConstantSourceNode: offset AudioParam value distribution.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ. Per-page WebAudio AudioWorkletProcessor scriptURL
+
+- **[T]** Per registered AudioWorkletProcessor: scriptURL + source sha256.
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR. Per-page WebAudio AudioWorklet messagePort traffic
+
+- **[T]** Per AudioWorkletNode: postMessage byte volume in each direction.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS. Per-page WebAudio AudioContext.state transitions
+
+- **[T]** Per AudioContext: state transitions log (`suspended` / `running` / `closed`) + reason.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT. Per-page WebAudio AudioContext.audioWorklet.addModule outcomes
+
+- **[T]** Per addModule call: scriptURL + outcome.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU. Per-page WebAudio OfflineAudioContext usage
+
+- **[T]** Per OfflineAudioContext: numberOfChannels / length / sampleRate + startRendering + suspend / resume call distribution.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV. Per-page WebAudio AudioContext.createMediaElementSource source attribution
+
+- **[T]** Per createMediaElementSource call: associated media-element selector.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW. Per-page WebAudio AudioParam automation event distribution
+
+- **[T]** Per AudioParam: setValueAtTime / linearRampToValueAtTime / exponentialRampToValueAtTime / setTargetAtTime / setValueCurveAtTime / cancelScheduledValues / cancelAndHoldAtTime distribution.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX. Per-page WebAudio AudioContext.outputLatency / baseLatency distribution
+
+- **[T]** Per AudioContext: outputLatency value + baseLatency value distribution.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY. Per-page WebAudio AudioContext.sinkId state
+
+- **[T]** Per AudioContext: setSinkId calls (audio output device routing).
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ. Per-page WebAudio AudioListener position / orientation distribution
+
+- **[T]** Per AudioContext.listener: positionX/Y/Z + forwardX/Y/Z + upX/Y/Z AudioParam value evolution.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
