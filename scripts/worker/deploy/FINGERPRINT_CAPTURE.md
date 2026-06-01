@@ -3253,6 +3253,139 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 - **[T]** `Browser.getHistograms({delta:true})` polled every 30s — emits per-histogram count change since previous poll.
 - **[T]** Per histogram: top-N most-active over session.
 
+## AAAAAAAAAAAAAAAAAAAAA. WebTransport per-datagram event stream
+
+- **[T]** Per WebTransport datagram sent + received: byte count + timestamp + sequence.
+- **[T]** Per stream: open + close + abort events with stream ID + final error code.
+
+## BBBBBBBBBBBBBBBBBBBBB. WebRTC RTCRtpTransceiver direction state
+
+- **[T]** Per RTCRtpTransceiver: direction (sendrecv/sendonly/recvonly/inactive/stopped) at creation + after each setLocalDescription/setRemoteDescription.
+- **[T]** Per transceiver: mid identifier + currentDirection.
+
+## CCCCCCCCCCCCCCCCCCCCC. Legacy fullscreen API presence
+
+- **[T]** Per page: `webkitRequestFullscreen` / `mozRequestFullScreen` / `msRequestFullscreen` presence (vendor-prefixed legacy API surface).
+- **[T]** Per page: `webkitFullscreenElement` / `mozFullScreenElement` / `msFullscreenElement` references.
+
+## DDDDDDDDDDDDDDDDDDDDD. Legacy animation API presence
+
+- **[T]** `mozRequestAnimationFrame` / `webkitRequestAnimationFrame` / `msRequestAnimationFrame` global presence.
+- **[T]** `webkitCancelAnimationFrame` etc. presence.
+
+## EEEEEEEEEEEEEEEEEEEEE. Legacy MS Pointer event presence
+
+- **[T]** `MSPointerEvent` / `MSGesture` / `msMaxTouchPoints` global presence (legacy IE/Edge surface).
+- **[T]** `navigator.msPointerEnabled` value.
+
+## FFFFFFFFFFFFFFFFFFFFF. CSS font-kerning + ligatures + variant detail
+
+- **[T]** Per page: `font-kerning: normal|none|auto` usage count.
+- **[T]** Per page: `font-variant-ligatures: ...` usage (common-ligatures / discretionary-ligatures / historical-ligatures / contextual).
+- **[T]** Per page: `font-variant-numeric` usage (lining-nums / oldstyle-nums / proportional-nums / tabular-nums / diagonal-fractions / stacked-fractions / ordinal / slashed-zero).
+- **[T]** Per page: `font-variant-caps` usage (small-caps / all-small-caps / petite-caps / all-petite-caps / unicase / titling-caps).
+- **[T]** Per page: `font-feature-settings` declarations.
+
+## GGGGGGGGGGGGGGGGGGGGG. CDN cache-control + edge-cache headers
+
+- **[T]** Per response: `Cdn-Cache-Control`, `Surrogate-Control`, `Edge-Control`, `CF-Cache-Control` headers parsed.
+- **[T]** Per response: `Surrogate-Key`, `X-VCL-Version`, `X-Origin-Cache-Control` headers.
+
+## HHHHHHHHHHHHHHHHHHHHH. Per-page NEL report success / failure sampling
+
+- **[T]** Per response with NEL: per-policy success-fraction + failure-fraction.
+- **[T]** Per origin: actual reports queued + delivered + dropped.
+
+## IIIIIIIIIIIIIIIIIIIII. chrome://predictors/ autocomplete + resource
+
+- **[T]** `chrome://predictors/#autocomplete` table contents (URL prediction cache).
+- **[T]** `chrome://predictors/#resource-prefetch` table contents.
+- **[T]** `chrome://predictors/#loading` table contents.
+
+## JJJJJJJJJJJJJJJJJJJJJ. chrome://media-internals/ players
+
+- **[T]** Active media players list — per player: pipeline state, decoder name, codec, video resolution, audio format.
+- **[T]** Per player: decode error count + render frame drop count.
+
+## KKKKKKKKKKKKKKKKKKKKK. chrome://device-log/ events
+
+- **[T]** Per session: device-log entries since boot — USB/Bluetooth/HID/network device events.
+
+## LLLLLLLLLLLLLLLLLLLLL. Per-page form field count by type
+
+- **[T]** Per `<form>`: count of `<input>` by type (text/password/email/tel/url/number/date/time/datetime-local/color/range/file/checkbox/radio/submit/reset/button/image/search/hidden).
+- **[T]** Per form: presence of file input + accept attribute + multiple flag.
+
+## MMMMMMMMMMMMMMMMMMMMM. Per page: shorthand vs longhand CSS usage
+
+- **[T]** Per stylesheet: shorthand declaration count (`margin`, `padding`, `border`, `background`, `font`, `transition`, `animation`) vs longhand count.
+- **[T]** Per page: distribution.
+
+## NNNNNNNNNNNNNNNNNNNNN. Per page: vendor-prefixed CSS usage
+
+- **[T]** Per stylesheet: `-webkit-*` / `-moz-*` / `-ms-*` / `-o-*` prefixed property count.
+- **[T]** Per page: prefix-vs-standard usage ratio.
+
+## OOOOOOOOOOOOOOOOOOOOO. Per page: CSS units distribution
+
+- **[T]** Per page: distribution of length units used — px, em, rem, %, vw, vh, vi, vb, vmin, vmax, svw, svh, lvw, lvh, dvw, dvh, ch, ex, cm, mm, in, pt, pc, Q, fr, cap, ic, lh, rlh.
+- **[T]** Per page: angle units (deg/rad/grad/turn), time units (s/ms), resolution units (dpi/dpcm/dppx).
+
+## PPPPPPPPPPPPPPPPPPPPP. Page-side timing-attack: GPU draw latency
+
+- **[T]** Render a known WebGL scene, measure draw-to-pixel-readback latency via `Sync` objects (fingerprints GPU model + driver).
+- **[T]** Multi-pass shader compile-to-link latency.
+
+## QQQQQQQQQQQQQQQQQQQQQ. Page-side timing-attack: AudioContext jitter
+
+- **[T]** Per AudioContext: scheduled-time vs actual-time delta on `start(when)` calls (audio clock vs system clock drift).
+- **[T]** Per AudioContext: `outputLatency` value evolution over session.
+
+## RRRRRRRRRRRRRRRRRRRRR. Page-side `Promise` microtask priority test
+
+- **[T]** Test execution order of mixed `queueMicrotask` + Promise.then() + MutationObserver callbacks — surfaces V8 task queue priority.
+
+## SSSSSSSSSSSSSSSSSSSSS. Per-page `<script>` source URL distinct count
+
+- **[T]** Per page: distinct external script URL count.
+- **[T]** Per page: distinct origin count among script sources (cross-origin script load distribution).
+
+## TTTTTTTTTTTTTTTTTTTTT. Per-page UMA opt-in state (Chromium telemetry)
+
+- **[T]** UMA enabled — from Local State `user_experience_metrics.reporting_enabled`.
+- **[T]** Crash reporting enabled — from Local State `user_experience_metrics.client_id` presence.
+
+## UUUUUUUUUUUUUUUUUUUUU. Per-page error console event stream
+
+- **[T]** Per page: every error logged to console — message text + stack trace + filename + line + column.
+- **[T]** Per error type: aggregated count.
+
+## VVVVVVVVVVVVVVVVVVVVV. Per-page `Blob`/`File` construction byte distribution
+
+- **[T]** Per `new Blob([...], {type})` call: total byte size + MIME.
+- **[T]** Per `new File([...], name, {type})` call: same + filename sha256.
+
+## WWWWWWWWWWWWWWWWWWWWW. Per-page `URL.canParse` + `URL.parse` usage
+
+- **[T]** Per `URL.canParse(input, base)` call: input + outcome.
+- **[T]** Per `URL.parse(input, base)` call: outcome.
+
+## XXXXXXXXXXXXXXXXXXXXX. Per-page Encoding/Decoding text usage
+
+- **[T]** Per `new TextDecoder(label, opts)` call: label + fatal flag + ignoreBOM flag.
+- **[T]** Per `new TextEncoder()` call: actually-emitted encoding (always utf-8 by spec; capability sanity).
+- **[T]** Per encoder/decoder: bytes processed over session.
+
+## YYYYYYYYYYYYYYYYYYYYY. Per-page CSS `:nth-*` selector usage
+
+- **[T]** Per stylesheet: `:nth-child` / `:nth-of-type` / `:nth-last-child` / `:nth-last-of-type` selector count.
+- **[T]** Per stylesheet: complex `nth-*` arguments (3n+1, even, odd, etc.).
+
+## ZZZZZZZZZZZZZZZZZZZZZ. Per-page `<details>` + `<summary>` count + toggle log
+
+- **[T]** Per page: `<details>` element count, with default-open count.
+- **[T]** Per page: `toggle` event log per `<details>` (already named in DDDDDDDDD — here per-element timing).
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
