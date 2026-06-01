@@ -3120,6 +3120,139 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 - **[T]** Per page: every `new TransformStream(transformer)` call + `readableStrategy` / `writableStrategy` highwater mark.
 - **[T]** Per page: every `TextDecoderStream` / `TextEncoderStream` / `CompressionStream` / `DecompressionStream` instance — codec + bytes processed.
 
+## AAAAAAAAAAAAAAAAAAAA. HTTP security response headers full set
+
+- **[T]** Per response: parsed value of every security header — `Strict-Transport-Security`, `Expect-CT`, `X-Content-Type-Options`, `X-Frame-Options`, `X-XSS-Protection`, `X-Permitted-Cross-Domain-Policies`, `X-Download-Options`, `X-DNS-Prefetch-Control`, `Cross-Origin-Resource-Policy`, `Cross-Origin-Opener-Policy`, `Cross-Origin-Embedder-Policy`, `Cross-Origin-Window-Policy`, `Referrer-Policy`, `Permissions-Policy`, `Document-Policy`, `Reporting-Endpoints`, `Speculation-Rules`, `Critical-CH`, `Accept-CH`, `Origin-Agent-Cluster`.
+
+## BBBBBBBBBBBBBBBBBBBB. HTTP standard response headers full set
+
+- **[T]** Per response: value of every standard header — `Server`, `Date`, `Content-Type`, `Content-Length`, `Content-Encoding`, `Content-Language`, `Content-Location`, `Content-Disposition`, `Content-Range`, `Vary`, `ETag`, `Last-Modified`, `Cache-Control`, `Expires`, `Age`, `Pragma`, `Via`, `Server-Timing`, `Trailer`, `Transfer-Encoding`, `Upgrade`, `Connection`, `Accept-Ranges`, `Allow`.
+
+## CCCCCCCCCCCCCCCCCCCC. HTTP/3 + QUIC observable detail
+
+- **[T]** Per QUIC session: QUIC version negotiated; Initial packet size distribution; Handshake round-trip count.
+- **[T]** Per QUIC session: CONNECTION_CLOSE frame error code distribution.
+- **[T]** Per QUIC session: STATELESS_RESET count observed.
+- **[T]** Per QUIC session: 0-RTT data sent / accepted.
+
+## DDDDDDDDDDDDDDDDDDDD. HTTP/2 :authority + :scheme + :method observation
+
+- **[T]** Per HTTP/2 stream: pseudo-header `:authority` value vs Host header divergence.
+- **[T]** Per HTTP/2 stream: `:scheme` (http/https) value distribution.
+- **[T]** Per HTTP/2 stream: `:method` value distribution.
+
+## EEEEEEEEEEEEEEEEEEEE. IME composition event log
+
+- **[T]** Per `<input>` / `<textarea>` / `contenteditable`: composition session log — `compositionstart` + per-`compositionupdate` data + `compositionend` final value.
+- **[T]** Per page: IME usage count + active input source attribution.
+
+## FFFFFFFFFFFFFFFFFFFF. Blink rendering pipeline phase counts
+
+- **[T]** From Tracing `disabled-by-default-blink.invalidation`: per page, style-invalidation count + layout-invalidation count + paint-invalidation count.
+- **[T]** Per page: full-document-layout count (forced synchronous layout).
+
+## GGGGGGGGGGGGGGGGGGGG. Compositor commit timing
+
+- **[T]** From Tracing `cc`: per page, BeginMainFrame → CommitMainFrame interval distribution.
+- **[T]** Per page: PaintToCompositor texture upload byte counts.
+
+## HHHHHHHHHHHHHHHHHHHH. CSS custom property registration + reads
+
+- **[T]** Per page: registered custom properties (`--foo: bar;`) count + their distinct values.
+- **[T]** Per page: `getPropertyValue('--foo')` call distribution.
+
+## IIIIIIIIIIIIIIIIIIII. macOS QoS class per Chromium child
+
+- **[T]** Per Chromium child process: `task_policy_get` QoS class — UserInteractive / UserInitiated / Default / Utility / Background.
+- **[T]** Per process: scheduler policy (`getpriority`/`nice` value).
+
+## JJJJJJJJJJJJJJJJJJJJ. macOS APFS snapshot state
+
+- **[T]** Per session: `tmutil listlocalsnapshots /` count.
+- **[T]** macOS APFS snapshot retention configuration.
+
+## KKKKKKKKKKKKKKKKKKKK. Browser window zoom + page scale
+
+- **[T]** Per tab: page zoom level (`chrome://settings/zoom` per-host value).
+- **[T]** Per tab: pinch-zoom state via `visualViewport.scale`.
+- **[T]** Default zoom for each origin.
+
+## LLLLLLLLLLLLLLLLLLLL. Browser accessibility flags
+
+- **[T]** Per browser: a11y-mode enabled (VoiceOver / NVDA / TalkBack / JAWS detection via `chrome://accessibility/` flags).
+- **[T]** Per browser: tab caret browsing enabled.
+- **[T]** Per browser: large-cursor enabled.
+
+## MMMMMMMMMMMMMMMMMMMM. Per Chromium child: process inheritance graph
+
+- **[T]** Per Chromium child pid: parent pid chain from spawn time → browser process root.
+- **[T]** Per process: spawn-time argv (captured via `ps -o command= -p <pid>` at first detection).
+
+## NNNNNNNNNNNNNNNNNNNN. macOS Activity Monitor classification
+
+- **[T]** Per process: Activity Monitor "App" vs "Background" classification (from `task_policy`).
+- **[T]** Per process: App Nap state.
+
+## OOOOOOOOOOOOOOOOOOOO. Per outgoing request: header order verification
+
+- **[T]** Per HTTP/1.1 request: literal byte order of headers as sent on the wire (from pcap decode).
+- **[T]** Per HTTP/2 request: HPACK literal/indexed/never-indexed flag per header (from frame decode).
+
+## PPPPPPPPPPPPPPPPPPPP. WebRTC sdp.bandwidth lines + ssrc identifiers
+
+- **[T]** Per RTCPeerConnection: SDP `b=` line values per media stream.
+- **[T]** Per peer connection: SSRC list per media stream.
+- **[T]** Per SSRC: rtcp-fb (feedback) capability negotiated.
+
+## QQQQQQQQQQQQQQQQQQQQ. Per-page Origin-Agent-Cluster ?0 / ?1 negotiation
+
+- **[T]** Per frame: explicit OAC opt-in vs default site-keyed agent cluster.
+- **[T]** Per page: OAC-induced separate AgentClusterIds (visible via `SharedArrayBuffer` postMessage failures).
+
+## RRRRRRRRRRRRRRRRRRRR. Page-side ICU collation table fingerprint
+
+- **[T]** Per page: `'a'.localeCompare('ä', locale)` matrix across 50+ test pairs and locales — surfaces ICU version-specific collation differences.
+- **[T]** Per page: `Intl.Segmenter` grapheme/word/sentence breakpoint patterns on known input — fingerprints ICU break-iterator data version.
+
+## SSSSSSSSSSSSSSSSSSSS. Page-side Unicode normalization edges
+
+- **[T]** Per page: `'ﬁ'.normalize('NFD')` and similar edge cases — surfaces ICU normalization data version.
+- **[T]** Per page: `String.prototype.toLocaleLowerCase('tr-TR')` Turkish-i edge case behavior.
+
+## TTTTTTTTTTTTTTTTTTTT. Page-side Intl.Segmenter graphemes test
+
+- **[T]** Per page: segmenter outputs for known mixed-script test strings — emoji ZWJ sequences, combining marks, etc.
+
+## UUUUUUUUUUUUUUUUUUUU. Page-side time-zone observed offsets
+
+- **[T]** Per page: `new Date('2020-06-21T12:00:00Z').toString()` vs `toLocaleString()` — surfaces TZ database version differences.
+- **[T]** Per page: historical date timezone offset query (e.g. 1900-01-01 → tz offset reflects LMT vs zone-name distinction).
+
+## VVVVVVVVVVVVVVVVVVVV. Per session WebKitCommitGuestProcess events (Linux/Android only)
+
+- **[T]** Per Linux/Android Chromium session: zygote process spawn events from `ps`.
+- **[T]** Process-spawn-time delta distribution per child type.
+
+## WWWWWWWWWWWWWWWWWWWW. Per-page CSS `@media print` rules
+
+- **[T]** Per stylesheet: `@media print { ... }` rules + page-scoped declarations.
+- **[T]** Per page: media-type='print' rule count.
+
+## XXXXXXXXXXXXXXXXXXXX. Per-page `<base href>` and `<base target>`
+
+- **[T]** Per page: `<base>` element href + target values.
+- **[T]** Per page: baseURI resolution at every cross-document navigation.
+
+## YYYYYYYYYYYYYYYYYYYY. Per-page favicon discovery sequence
+
+- **[T]** Per page: favicon candidates discovered (rel='icon', rel='shortcut icon', rel='apple-touch-icon', rel='mask-icon').
+- **[T]** Per candidate: byte sha256 + dimensions.
+
+## ZZZZZZZZZZZZZZZZZZZZ. Per-page TimingHistogram delta polling
+
+- **[T]** `Browser.getHistograms({delta:true})` polled every 30s — emits per-histogram count change since previous poll.
+- **[T]** Per histogram: top-N most-active over session.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
