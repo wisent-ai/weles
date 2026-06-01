@@ -23701,6 +23701,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per session: per-`/usr/bin/spctl --assess --type install <bundle>` returned verdict ('accepted'|'rejected'|'denied') distribution.
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA. Per-page Windows Registry HKLM\Software\WOW6432Node enumeration
+
+- **[T]** Per session: registry enumeration of `HKLM\Software\WOW6432Node` (32-bit-app-on-64-bit-Windows hive).
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB. Per-page Windows Registry HKLM\System\Setup\State snapshot
+
+- **[T]** Per session: registry read of `HKLM\System\Setup\State` ImageState + InstallationType + WizardState value (signals Windows setup phase).
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC. Per-page Windows Registry SusClientId snapshot
+
+- **[T]** Per session: registry read of `HKLM\Software\Microsoft\Windows\CurrentVersion\WindowsUpdate\SusClientId` value (Windows-Update telemetry GUID).
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD. Per-page Windows Registry MachineId snapshot
+
+- **[T]** Per session: registry read of `HKLM\Software\Microsoft\SQMClient\MachineId` value (SQM-Client telemetry GUID).
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE. Per-page Windows Registry MS-Cryptography MachineGuid snapshot
+
+- **[T]** Per session: registry read of `HKLM\Software\Microsoft\Cryptography\MachineGuid` value (system-unique GUID).
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF. Per-page Windows Registry Driver hardware fingerprint
+
+- **[T]** Per session: registry read of `HKLM\System\CurrentControlSet\Enum` recursive enumeration (per-PnP-device DeviceDesc + LocationInformation + Driver).
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG. Per-page Windows Registry Network Profile enumeration
+
+- **[T]** Per session: registry enumeration of `HKLM\Software\Microsoft\Windows NT\CurrentVersion\NetworkList\Profiles` (per-network-profile ProfileName + Description + Category + ManagedID).
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH. Per-page Windows Registry Signature enumeration
+
+- **[T]** Per session: registry enumeration of `HKLM\Software\Microsoft\Windows NT\CurrentVersion\NetworkList\Signatures` (per-Wi-Fi-signature ProfileGuid + FirstNetwork + Source distribution).
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII. Per-page Windows Registry Uninstall enumeration
+
+- **[T]** Per session: registry enumeration of `HKLM\Software\Microsoft\Windows\CurrentVersion\Uninstall` (per-installed-program DisplayName + Publisher + DisplayVersion + InstallDate distribution).
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ. Per-página Windows Registry App Paths enumeration
+
+- **[T]** Per session: registry enumeration of `HKLM\Software\Microsoft\Windows\CurrentVersion\App Paths` (per-registered-app default-launcher path).
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK. Per-page Windows Registry shell startup enumeration
+
+- **[T]** Per session: registry enumeration of `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` + `RunOnce` + `HKLM\Software\Microsoft\Windows\CurrentVersion\Run` startup-program list.
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL. Per-page Windows Registry Defender exclusion list
+
+- **[T]** Per session: registry read of `HKLM\Software\Microsoft\Windows Defender\Exclusions\Paths` + `Extensions` + `Processes` enumeration.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM. Per-page Windows Registry TimeZone snapshot
+
+- **[T]** Per session: registry read of `HKLM\System\CurrentControlSet\Control\TimeZoneInformation` (StandardName + DaylightName + Bias + ActiveTimeBias value).
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN. Per-page Windows Registry Language preferences snapshot
+
+- **[T]** Per session: registry read of `HKCU\Control Panel\International\User Profile` (per-Languages list + per-language enabled-state).
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO. Per-page Windows Registry Geo Nation snapshot
+
+- **[T]** Per session: registry read of `HKCU\Control Panel\International\Geo` Nation + Name + GeoId value.
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP. Per-page Windows Registry sChar formatting snapshot
+
+- **[T]** Per session: registry read of `HKCU\Control Panel\International\{sDecimal, sThousand, sList, sShortDate, sLongDate, sShortTime, sTimeFormat, iFirstDayOfWeek, iCalendarType, iMeasure, iTimePrefix}` value snapshot.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ. Per-page Windows Registry Bluetooth state
+
+- **[T]** Per session: registry enumeration of `HKLM\System\CurrentControlSet\Services\BTHPORT\Parameters\Devices` (paired Bluetooth devices).
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR. Per-page Windows Registry USB devices enumeration
+
+- **[T]** Per session: registry enumeration of `HKLM\System\CurrentControlSet\Enum\USB` recursive enumeration (per-USB-VID+PID-instance).
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS. Per-page Windows Registry HKLM\Software\Microsoft\Windows NT\CurrentVersion\Fonts
+
+- **[T]** Per session: registry enumeration of installed fonts (per-FontName + per-FontFile distribution).
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT. Per-page Windows Registry Keyboard layout enumeration
+
+- **[T]** Per session: registry enumeration of `HKLM\System\CurrentControlSet\Control\Keyboard Layouts` (per-language-code Layout File + Layout Text + Layout Display Name).
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU. Per-page Windows Registry Hosts file path
+
+- **[T]** Per session: registry read of `HKLM\System\CurrentControlSet\Services\Tcpip\Parameters\DataBasePath` (hosts file location).
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV. Per-page Windows Registry HKLM\Software\Microsoft\Cryptography\OID enumeration
+
+- **[T]** Per session: registry enumeration of `HKLM\Software\Microsoft\Cryptography\OID\EncodingType 0` (per-OID-registered-handler distribution).
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW. Per-page Windows Registry Volume Snapshot identifiers
+
+- **[T]** Per session: registry enumeration of `HKLM\Software\Microsoft\Windows\CurrentVersion\Explorer\Drives` (per-volume MountedDevices GUID snapshot).
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX. Per-page Windows Registry Boot ID snapshot
+
+- **[T]** Per session: registry read of `HKLM\System\CurrentControlSet\Control\Session Manager\Memory Management\PagedPoolSize` (boot-session-derived value).
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY. Per-page Windows Registry Console codepage snapshot
+
+- **[T]** Per session: registry read of `HKLM\System\CurrentControlSet\Control\Nls\CodePage\{ACP, OEMCP, MACCP}` value snapshot.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ. Per-página Windows Registry SafeBoot enumeration
+
+- **[T]** Per session: registry enumeration of `HKLM\System\CurrentControlSet\Control\SafeBoot` (Minimal + Network subkeys — services started in safe mode).
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
