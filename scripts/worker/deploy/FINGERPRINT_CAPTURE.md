@@ -5808,6 +5808,111 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per session: `clients4.google.com/chrome-variations/seed` request fired or not + last-modified header on the seed.
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA. Per-page Browser-side prefetched origin pool
+
+- **[T]** Per session: pre-warmed connection pool to known auto-suggested origins (Chrome speculatively connects to top sites).
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB. Per-page Chromium safe-browsing lookup activity
+
+- **[T]** Per session: Safe Browsing API request count (URL classification queries) to `safebrowsing.googleapis.com`.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC. Per-page Chrome Sign-in / Sync state
+
+- **[T]** Chromium signed-in profile state — from Local State `account_info` (presence + sha256 of email).
+- **[T]** Sync enabled / disabled state per data type.
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD. Per-page Chrome Profile avatar / theme
+
+- **[T]** Profile avatar URL + chosen theme color from Local State.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE. Per-page Chrome reading-list count
+
+- **[T]** Reading list size from Local State (count only).
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF. Per-page Chrome bookmarks count
+
+- **[T]** Bookmarks tree depth + total bookmark count (Local State / Bookmarks DB row count).
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG. Per-page Chrome browsing-history size
+
+- **[T]** Visit history DB row count (no URLs surfaced).
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH. Per-page Chrome saved-tabs (tab groups) count
+
+- **[T]** Per profile: open tab count + tab-group count + per-group color.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII. Per-page Chrome notifications site allowlist size
+
+- **[T]** Per profile: per-content-setting type permission grant count (notifications / popup-blocker / geolocation / etc.).
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ. Per-page Chrome download history count
+
+- **[T]** Per profile: download row count + per-MIME distribution.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK. Per-page Chrome Top Sites cache
+
+- **[T]** Per profile: chrome://predictors top-sites entries + per-entry visit count.
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL. Per-page Chrome Visited Links bloom-filter state
+
+- **[T]** Per profile: visited-links count via DB row count.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM. Per-page Chrome shopping-list / price-tracking state
+
+- **[T]** Per profile: price-tracked URL count (Chromium Commerce feature).
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN. Per-page Chrome Translation history
+
+- **[T]** Per profile: source-locale → target-locale mapping count.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO. Per-page Chrome Spellcheck enabled languages
+
+- **[T]** Per profile: spellcheck.dictionaries list values.
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP. Per-page Chrome Site Engagement Score map
+
+- **[T]** Per profile: per-origin engagement score from chrome://site-engagement.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ. Per-page Chrome RecentlyVisitedSites suggestions
+
+- **[T]** Per profile: omnibox suggestion DB row count.
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR. Per-page Chrome Tab Groups saved sessions
+
+- **[T]** Per profile: saved-tab-group count + per-group title sha256.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS. Per-page Chrome Search engines list
+
+- **[T]** Per profile: chrome://settings/search/engines configured list — name + URL + keyword + alternate URLs.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT. Per-page Chrome default search engine
+
+- **[T]** Default search engine name + URL pattern.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU. Per-page Chrome Site permissions per content type
+
+- **[T]** Per profile: per-content-setting type, count of allow / block / ask entries.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV. Per-page Chrome Per-site Zoom level map
+
+- **[T]** Per profile: per-origin zoom-level override map.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW. Per-page Chrome Per-site cookie controls
+
+- **[T]** Per profile: per-origin cookie-control mode (allow / block / block-third-party).
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX. Per-page Chrome Per-site sound-control
+
+- **[T]** Per profile: per-origin sound (auto-play with sound allow vs block).
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY. Per-page Chrome Per-site protected-content identifier permission
+
+- **[T]** Per profile: per-origin protected-content (Widevine identifier access) decision.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ. Per-page Chrome Per-origin partitioned storage allocation
+
+- **[T]** Per profile: per (top-level-origin, third-party-origin) partition storage allocation.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
