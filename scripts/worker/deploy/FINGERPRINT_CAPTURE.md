@@ -8933,6 +8933,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per session: AppCache CDP-domain enable count (deprecated but listed).
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA. Per-page CDP Target.attachToTarget invocations
+
+- **[T]** Per session: attachToTarget call count + per-target type.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB. Per-page CDP Target.detachFromTarget invocations
+
+- **[T]** Per session: detachFromTarget call count.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC. Per-page CDP Target.createBrowserContext invocations
+
+- **[T]** Per session: createBrowserContext count + per-call disposeOnDetach + proxyServer + proxyBypassList.
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD. Per-page CDP Target.disposeBrowserContext invocations
+
+- **[T]** Per session: dispose count per browserContextId.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE. Per-page CDP Target.createTarget invocations
+
+- **[T]** Per session: createTarget count + per-call URL + browserContextId + newWindow + background.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF. Per-page CDP Target.closeTarget invocations
+
+- **[T]** Per session: closeTarget per-target invocations.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG. Per-page CDP Target.exposeDevToolsProtocol invocations
+
+- **[T]** Per session: exposeDevToolsProtocol calls + per-call bindingName.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH. Per-page CDP Target.setAutoAttach invocations
+
+- **[T]** Per session: setAutoAttach toggles + flatten flag.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII. Per-page CDP Target.setDiscoverTargets state
+
+- **[T]** Per session: setDiscoverTargets toggles.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ. Per-page CDP Target.setRemoteLocations invocations
+
+- **[T]** Per session: remote location list applied (host/port distribution).
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK. Per-page CDP Storage.clearCookies invocations
+
+- **[T]** Per session: clearCookies per-browserContextId count.
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL. Per-page CDP Storage.clearTrustTokens invocations
+
+- **[T]** Per session: per-issuer clear count.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM. Per-page CDP Storage.runBounceTrackingMitigations invocations
+
+- **[T]** Per session: bounce-tracking mitigation trigger count.
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN. Per-page CDP Storage.resetSharedStorageBudget invocations
+
+- **[T]** Per session: Shared Storage budget reset count per origin.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO. Per-page CDP Storage.setSharedStorageEntry invocations
+
+- **[T]** Per session: setSharedStorageEntry per (origin, key, value) count.
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP. Per-page CDP Storage.deleteSharedStorageEntry invocations
+
+- **[T]** Per session: deleteSharedStorageEntry per (origin, key) count.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ. Per-page CDP Storage.clearSharedStorageEntries invocations
+
+- **[T]** Per session: clear-all per-origin count.
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR. Per-page CDP Storage.setSharedStorageTracking invocations
+
+- **[T]** Per session: tracking-enable / disable count.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS. Per-page CDP Storage.setStorageBucketTracking invocations
+
+- **[T]** Per session: storage-bucket tracking-enable count.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT. Per-page CDP Storage.setInterestGroupTracking invocations
+
+- **[T]** Per session: interest-group tracking-enable count.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU. Per-page CDP Storage.setInterestGroupAuctionTracking invocations
+
+- **[T]** Per session: auction-tracking-enable count.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV. Per-page CDP Storage.deleteStorageBucket invocations
+
+- **[T]** Per session: delete-bucket count per (origin, name).
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW. Per-page CDP Storage.untrackCacheStorageForOrigin invocations
+
+- **[T]** Per session: untrack-cache count per origin.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX. Per-page CDP Storage.untrackIndexedDBForOrigin invocations
+
+- **[T]** Per session: untrack-IDB count per origin.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY. Per-page CDP Storage.trackCacheStorageForOrigin invocations
+
+- **[T]** Per session: track-cache count per origin.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ. Per-page CDP Storage.trackIndexedDBForOrigin invocations
+
+- **[T]** Per session: track-IDB count per origin.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
