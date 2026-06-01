@@ -154,7 +154,7 @@ async function donate(cfg, blobJson) {
   const body = {
     user_id: cfg.donorUserId,
     provider: 'claude_code',
-    key_label: `reauth-macmini ${new Date().toISOString()}`,
+    label: `reauth-macmini ${new Date().toISOString()}`, // model-router reads `label`, not key_label
     api_key: blobJson,
   };
   const r = await fetch(`${cfg.routerUrl}/v1/subscriptions/${cfg.agentId}`, {
