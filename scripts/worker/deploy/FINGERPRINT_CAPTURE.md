@@ -4953,6 +4953,111 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per page: transform function distribution (translate/translateX/Y/Z/3d, rotate/X/Y/Z/3d, scale/X/Y/Z/3d, skew/X/Y, matrix/3d, perspective).
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA. Per-page CSS `perspective` value distribution
+
+- **[T]** Per page: perspective declarations + perspective-origin values.
+- **[T]** Per page: backface-visibility value (visible / hidden) distribution.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB. Per-page CSS `transform-style` distribution
+
+- **[T]** Per page: transform-style value (`flat`/`preserve-3d`) usage.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC. Per-page CSS `mix-blend-mode` per-element distribution
+
+- **[T]** Per page: count of elements with non-`normal` mix-blend-mode (already in CCCCCCCCCCCCCCCC; here per-element with selector-path).
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD. Per-page CSS `isolation: isolate` element count
+
+- **[T]** Per page: count of elements with `isolation: isolate` (stacking-context creator).
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE. Per-page CSS `paint-order` distribution
+
+- **[T]** Per page: paint-order value distribution (text/SVG).
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF. Per-page CSS `view-transition-class` distribution (deep)
+
+- **[T]** Per page: view-transition-class declarations + class-list resolution per element.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG. Per-page CSS `animation-composition` distribution
+
+- **[T]** Per page: animation-composition value (replace/add/accumulate) usage.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH. Per-page CSS `animation-timeline` distribution
+
+- **[T]** Per page: animation-timeline value (auto / `--scroll-timeline` / `--view-timeline` / none) usage.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII. Per-page CSS `animation-range-start` / `animation-range-end` distribution
+
+- **[T]** Per page: scroll-driven animation range declarations.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ. Per-page CSS `timeline-scope` declarations
+
+- **[T]** Per page: timeline-scope declarations + parent-scope inheritance.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK. Per-page CSS `transition-behavior: allow-discrete` usage
+
+- **[T]** Per page: transition-behavior declarations (recent feature for discrete-property transitions).
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL. Per-page CSS `@starting-style` block count
+
+- **[T]** Per page: @starting-style rules + transitioning-element count.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM. Per-page CSS `interpolate-size: allow-keywords` declaration
+
+- **[T]** Per page: interpolate-size value count (recent feature for auto/min-content/max-content transitions).
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN. Per-page CSS `field-sizing` declaration
+
+- **[T]** Per page: field-sizing value (`fixed` / `content`) on form controls.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO. Per-page CSS `text-emphasis` declarations
+
+- **[T]** Per page: text-emphasis-style / text-emphasis-color / text-emphasis-position usage.
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP. Per-page CSS `forced-color-adjust` distribution
+
+- **[T]** Per page: forced-color-adjust value (`auto` / `none` / `preserve-parent-color`) usage.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ. Per-page CSS `print-color-adjust` declarations
+
+- **[T]** Per page: print-color-adjust / `-webkit-print-color-adjust` value (economy/exact).
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR. Per-page CSS `widows` / `orphans` distribution
+
+- **[T]** Per page: widows + orphans values per text block.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS. Per-page CSS `box-decoration-break` distribution
+
+- **[T]** Per page: box-decoration-break value (slice/clone) usage.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT. Per-page CSS `outline-offset` distribution
+
+- **[T]** Per page: outline-offset value distribution.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU. Per-page CSS `inset` shorthand vs longhand usage
+
+- **[T]** Per page: inset / inset-block / inset-inline shorthand usage count.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV. Per-page CSS `margin-trim` distribution
+
+- **[T]** Per page: margin-trim value (`none` / `block-start` / `block-end` / etc.) usage.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW. Per-page CSS `text-box-trim` / `text-box-edge` distribution
+
+- **[T]** Per page: text-box-trim + text-box-edge declarations (modern leading-trim feature).
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX. Per-page CSS `content-visibility` value distribution
+
+- **[T]** Per page: content-visibility (auto / hidden / visible) declarations.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY. Per-page CSS `border-spacing` distribution
+
+- **[T]** Per page: border-spacing value distribution per table.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ. Per-page CSS `vertical-align` distribution
+
+- **[T]** Per page: vertical-align value distribution (baseline / top / middle / bottom / text-top / text-bottom / super / sub / length / percentage).
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
