@@ -9037,6 +9037,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per session: track-IDB count per origin.
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA. Per-page CDP WebAudio.getRealtimeData invocations
+
+- **[T]** Per session: getRealtimeData call count per contextId.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB. Per-page CDP DOMSnapshot.captureSnapshot invocations
+
+- **[T]** Per session: captureSnapshot call count + per-call computedStyles list length.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC. Per-page CDP DOMSnapshot.getSnapshot invocations (legacy)
+
+- **[T]** Per session: legacy getSnapshot call count + per-call includeEventListeners flag.
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD. Per-page CDP DOMDebugger.setDOMBreakpoint invocations
+
+- **[T]** Per session: DOM breakpoint set count + per-call type (`subtree-modified` / `attribute-modified` / `node-removed`).
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE. Per-page CDP DOMDebugger.setEventListenerBreakpoint invocations
+
+- **[T]** Per session: event-listener breakpoint set + per-call eventName.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF. Per-page CDP DOMDebugger.setInstrumentationBreakpoint invocations
+
+- **[T]** Per session: instrumentation-breakpoint set + per-call name (`setTimeout`/`setInterval`/`scriptFirstStatement`/`load`/`xhrSend`/`webglErrorFired`/etc.).
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG. Per-page CDP DOMDebugger.setXHRBreakpoint invocations
+
+- **[T]** Per session: XHR breakpoint URL pattern set count.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH. Per-page CDP DOMDebugger.removeXHRBreakpoint invocations
+
+- **[T]** Per session: removeXHRBreakpoint count.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII. Per-page CDP EventBreakpoints.setInstrumentationBreakpoint invocations
+
+- **[T]** Per session: EventBreakpoints CDP usage.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ. Per-page CDP Log.enable / disable / clear invocations
+
+- **[T]** Per session: Log domain enable / disable / clear count.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK. Per-page CDP Log.startViolationsReport invocations
+
+- **[T]** Per session: startViolationsReport invocation count + per-call violation list applied.
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL. Per-page CDP Log.stopViolationsReport invocations
+
+- **[T]** Per session: stopViolationsReport invocation count.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM. Per-page CDP Inspector.enable / disable invocations
+
+- **[T]** Per session: Inspector domain enable / disable count.
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN. Per-page CDP Overlay.enable / disable invocations
+
+- **[T]** Per session: Overlay domain enable / disable count.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO. Per-page CDP Overlay.setInspectMode invocations
+
+- **[T]** Per session: per-mode (`searchForNode`/`searchForUAShadowDOM`/`captureAreaScreenshot`/`showDistances`/`none`) set count.
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP. Per-page CDP Overlay.setShowDebugBorders state
+
+- **[T]** Per session: debug-borders toggle count.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ. Per-page CDP Overlay.setShowFPSCounter state
+
+- **[T]** Per session: FPS-counter toggle count.
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR. Per-page CDP Overlay.setShowGridOverlays invocations
+
+- **[T]** Per session: grid-overlay toggle per-nodeId count.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS. Per-page CDP Overlay.setShowFlexOverlays invocations
+
+- **[T]** Per session: flex-overlay toggle per-nodeId count.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT. Per-page CDP Overlay.setShowScrollSnapOverlays invocations
+
+- **[T]** Per session: scroll-snap overlay toggle count.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU. Per-page CDP Overlay.setShowContainerQueryOverlays invocations
+
+- **[T]** Per session: container-query overlay toggle count.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV. Per-page CDP Overlay.setShowPaintRects state
+
+- **[T]** Per session: paint-rects toggle count.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW. Per-page CDP Overlay.setShowLayoutShiftRegions state
+
+- **[T]** Per session: layout-shift-regions toggle count.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX. Per-page CDP Overlay.setShowScrollBottleneckRects state
+
+- **[T]** Per session: scroll-bottleneck-rects toggle count.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY. Per-page CDP Overlay.setShowAdHighlights state
+
+- **[T]** Per session: ad-highlights toggle count.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ. Per-page CDP Overlay.setShowHinge invocations
+
+- **[T]** Per session: hinge-display configuration count.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
