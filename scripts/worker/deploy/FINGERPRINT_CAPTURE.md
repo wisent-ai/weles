@@ -1569,6 +1569,184 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 - **[T]** Per resource blocked by CSP: directive + source value matched.
 - **[T]** Per CSP: nonce + hash sources used count.
 
+## UUUUUUUU. Per-WebSocket frame timing
+
+- **[T]** Per frame on every WebSocket: send-time, receive-time, opcode, payload-len, mask flag (from decoded pcap).
+- **[T]** Per-frame inter-arrival delta (used by signaling-protocol classifiers).
+- **[T]** Sec-WebSocket-Protocol subprotocol negotiated per connection.
+
+## VVVVVVVV. DataTransfer drag-and-drop events
+
+- **[T]** Every drag event (`dragstart`, `dragenter`, `dragover`, `dragleave`, `drop`, `dragend`): DataTransfer.items types[] + files count + effectAllowed + dropEffect.
+- **[T]** Per drag: source element selector + drop target selector.
+
+## WWWWWWWW. Clipboard event capture
+
+- **[T]** Every `paste`/`copy`/`cut` event: ClipboardEvent.clipboardData.types[] + per-type byte count (no content).
+- **[T]** Synthetic vs user-initiated clipboard events (`isTrusted` flag).
+
+## XXXXXXXX. history.pushState / replaceState log
+
+- **[T]** Every `history.pushState(state, title, url)` call: serialized state + URL.
+- **[T]** Every `history.replaceState` call: same.
+- **[T]** Every `popstate` event fired: associated state.
+
+## YYYYYYYY. PerformanceNavigationTiming per-phase
+
+- **[T]** From the navigation entry: `unloadEventStart/End`, `redirectStart/End`, `fetchStart`, `domainLookupStart/End`, `connectStart/End`, `secureConnectionStart`, `requestStart`, `responseStart/End`, `domInteractive`, `domContentLoadedEventStart/End`, `domComplete`, `loadEventStart/End`, `transferSize`, `encodedBodySize`, `decodedBodySize`, `nextHopProtocol`, `serverTiming[]`, `redirectCount`, `criticalCHRestart`.
+
+## ZZZZZZZZ. Document Picture-in-Picture cross-window IPC
+
+- **[T]** Per PiP window: postMessage exchanges with main document — count + payload size distribution.
+- **[T]** PiP `requestWindow` capability + outcome.
+- **[T]** PiP window lifecycle event log (`pagehide`, `pageshow`, focus, blur).
+
+## AAAAAAAAA. PaintWorklet + AudioWorklet execution
+
+- **[T]** Per registered PaintWorklet: invocation count + output canvas pixel hash per invocation.
+- **[T]** Per AudioWorkletNode: process() invocation count + accumulated CPU time.
+- **[T]** Per LayoutWorklet (when shipped): invocation count.
+
+## BBBBBBBBB. Per-form FormData iteration
+
+- **[T]** On form submit: `new FormData(form)` iteration — every entry name (sha256'd) + entry value type (string/File/Blob) + entry size.
+- **[T]** Submission method (XHR/fetch/navigation).
+
+## CCCCCCCCC. HTMLDialogElement lifecycle
+
+- **[T]** Per `<dialog>` element: `show()`/`showModal()`/`close()` call log + dialog returnValue.
+- **[T]** Per `<dialog>`: cancel/close event fired.
+
+## DDDDDDDDD. details/summary toggle history
+
+- **[T]** Per `<details>` element: every `open` attribute change with timestamp.
+- **[T]** `toggle` event log per `<details>`.
+
+## EEEEEEEEE. ARIA-live region announcement queue
+
+- **[T]** For every `aria-live` region: text content changes over session (with timestamp).
+- **[T]** Politeness (off/polite/assertive) per region.
+
+## FFFFFFFFF. IntersectionObserver / ResizeObserver registration detail
+
+- **[T]** Per registered IntersectionObserver: rootMargin + threshold list + root selector.
+- **[T]** Per ResizeObserver: target selectors + box type (border-box/content-box/device-pixel-content-box).
+
+## GGGGGGGGG. Element transform chain
+
+- **[T]** Per visible element: full CSS `transform` matrix + `transform-origin` + 3D rendering context.
+- **[T]** Cumulative transform from root to leaf for sampled elements (composite transform identifies device-pixel snapping rules).
+
+## HHHHHHHHH. CSS state transition log
+
+- **[T]** Per element: `:hover` / `:focus` / `:focus-within` / `:focus-visible` / `:active` / `:visited` (cross-origin restricted) state-transition log.
+- **[T]** Per element: `:checked` / `:disabled` / `:enabled` / `:read-only` / `:placeholder-shown` state-transition log.
+
+## IIIIIIIII. Per-form-control value-change events
+
+- **[T]** Per `<select>`: option count + selected index changes.
+- **[T]** Per `<input type=range>`: value/step/min/max changes.
+- **[T]** Per `<input type=color>`: value changes.
+- **[T]** Per `<input type=date|time|datetime-local|month|week>`: parsed value changes.
+- **[T]** Per `<input type=file>`: selected file count + total size + per-file MIME.
+
+## JJJJJJJJJ. Media element state stream
+
+- **[T]** Per `<video>` / `<audio>` element: `currentTime`, `duration`, `playbackRate`, `volume`, `muted`, `paused`, `played` ranges, `seekable` ranges, `buffered` ranges, `readyState`, `networkState` polled every 1s.
+- **[T]** Per media element: events log (`loadstart`/`loadeddata`/`canplay`/`canplaythrough`/`play`/`pause`/`seeking`/`seeked`/`waiting`/`stalled`/`ended`/`error`/`abort`/`emptied`/`durationchange`/`timeupdate`/`ratechange`/`volumechange`).
+- **[T]** Per element: `presentationMode` (inline/PiP/fullscreen).
+
+## KKKKKKKKK. CSS transition events
+
+- **[T]** Every `transitionstart`/`transitionrun`/`transitionend`/`transitioncancel` event: target selector + propertyName + elapsedTime + pseudoElement.
+
+## LLLLLLLLL. CSS animation events
+
+- **[T]** Every `animationstart`/`animationiteration`/`animationend`/`animationcancel` event: target selector + animationName + elapsedTime + pseudoElement.
+
+## MMMMMMMMM. Speculation rules detail
+
+- **[T]** Per page: every `<script type="speculationrules">` parsed JSON — prefetch/prerender targets + eagerness + score.
+- **[T]** Prerender activation events with timing (`prerenderingchange`).
+- **[T]** Prefetch hits/misses per speculation target.
+
+## NNNNNNNNN. Edge measurement: timing-attack primitives
+
+- **[T]** `performance.measureUserAgentSpecificMemory()` result (cross-origin-isolated only).
+- **[T]** `Atomics.wait` wakeup timing across SharedArrayBuffer.
+- **[T]** Tree-shaking timing of `requestAnimationFrame` skews under heavy CPU load.
+
+## OOOOOOOOO. iOS-device fingerprint (when running via WDA over WiFi)
+
+- **[T]** iPhone serial + UDID (sha256'd) — from WDA `/wda/device/info`.
+- **[T]** iOS version + build (`ProductVersion` + `BuildVersion`).
+- **[T]** Device model identifier (`iPhone15,2`).
+- **[T]** Battery percentage + charge state — `/wda/batteryInfo`.
+- **[T]** Locale + timezone — `/wda/device/info` country/locale fields.
+- **[T]** Screen size + DPR.
+- **[T]** Installed app list via pymobiledevice3 `apps list` (count + bundle-id sha256).
+
+## PPPPPPPPP. Inter-process Mojo message rates
+
+- **[T]** From Tracing `disabled-by-default-mojom`: per-interface message count over session, top N interfaces by message volume.
+- **[T]** Per-pipe peak depth (interface_provider, network_context, frame_host, etc.).
+
+## QQQQQQQQQ. CDM (Encrypted Media) deep
+
+- **[T]** Per `MediaKeys` instance: server certificate sha256.
+- **[T]** Per `MediaKeySession`: key statuses, expirations, key IDs (count only — not IDs).
+- **[T]** Per CDM operation: time to first response.
+
+## RRRRRRRRR. Compute Pressure observer
+
+- **[T]** `PressureObserver({source:'cpu'}).observe` — every state change (`nominal`/`fair`/`serious`/`critical`) with timestamp.
+- **[T]** Source `gpu` if shipped — same.
+- **[T]** Per state: duration spent in that state over session.
+
+## SSSSSSSSS. Per-tab document policy + permissions policy resolved diff
+
+- **[T]** For every cross-document navigation: snapshot the resolved Permissions-Policy / Document-Policy at landing time vs at unload time.
+
+## TTTTTTTTT. PerformanceMark + measure namespace
+
+- **[T]** Every `performance.mark(name, options)` call: full name + detail + startTime.
+- **[T]** Every `performance.measure(name, opts)` call: full args.
+- **[T]** Per page: per-mark cumulative count + per-measure cumulative count + per-namespace (page-author / Chromium-internal) attribution.
+
+## UUUUUUUUU. Per-canvas allocation footprint
+
+- **[T]** Per `<canvas>` element creation: width × height × 4 bytes (RGBA) memory cost.
+- **[T]** Per OffscreenCanvas: same.
+- **[T]** Per ImageBitmap created: source + size.
+
+## VVVVVVVVV. window.opener / cross-window references
+
+- **[T]** `window.opener` non-null check + same-origin check.
+- **[T]** `window.parent` / `window.top` cross-origin gating state.
+- **[T]** Every `window.open()` call: URL + windowName + features string.
+
+## WWWWWWWWW. console-via-CSP-blocked
+
+- **[T]** Console errors emitted as a result of CSP violations.
+- **[T]** Console errors emitted from Permissions-Policy denials.
+- **[T]** Console errors emitted from cross-origin-isolated requirement failures.
+
+## XXXXXXXXX. window.crossOriginIsolated / SharedArrayBuffer access count
+
+- **[T]** Number of `SharedArrayBuffer` constructions per session.
+- **[T]** Number of `Atomics.wait` calls + average wait duration.
+- **[T]** Cross-window SAB transfer attempts (allowed iff isolated).
+
+## YYYYYYYYY. ResizeObserver + IntersectionObserver delivery rate
+
+- **[T]** Per observer: callback fire rate over session.
+- **[T]** Coalesced-entry count vs fired-callback count (Chrome batches entries).
+
+## ZZZZZZZZZ. Per-frame paint quad change rate
+
+- **[T]** From Tracing `disabled-by-default-devtools.timeline.frame`: paint invalidation rect distribution + per-frame paint count.
+- **[T]** Frame drop count over session.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
