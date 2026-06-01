@@ -5166,6 +5166,111 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per received message event: origin + source identification + ports[] length distribution.
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA. Per-page DOM XPath query usage
+
+- **[T]** Per page: `document.evaluate(xpath, ...)` call count + per-XPath sha256.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB. Per-page XSLTProcessor usage
+
+- **[T]** Per page: `new XSLTProcessor()` construction count + transformToFragment call count.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC. Per-page DOMParser MIME type distribution
+
+- **[T]** Per `new DOMParser().parseFromString(str, type)` call: type value distribution (text/html / text/xml / application/xml / application/xhtml+xml / image/svg+xml).
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD. Per-page XMLSerializer usage
+
+- **[T]** Per page: `new XMLSerializer().serializeToString(node)` call count.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE. Per-page `<svg>` external script execution attempt
+
+- **[T]** Per SVG element: external `<script>` reference + execution outcome (most CSPs block).
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF. Per-page SVG animation declaration count
+
+- **[T]** Per SVG: `<animate>`, `<animateTransform>`, `<animateMotion>`, `<set>` element count + per-animation begin/end/dur.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG. Per-page SMIL `<switch>` conditional rendering
+
+- **[T]** Per SVG: `<switch>` + `<foreignObject>` conditional path used + ignored.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH. Per-page SVG `<text>` text-rendering distribution
+
+- **[T]** Per SVG text element: text-rendering value + lengthAdjust + textLength + dominant-baseline + alignment-baseline.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII. Per-page SVG `viewBox` aspect-ratio distribution
+
+- **[T]** Per `<svg>` element: viewBox value + preserveAspectRatio.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ. Per-page Canvas2D color-space distribution
+
+- **[T]** Per Canvas2D context: `getContextAttributes().colorSpace` value (`srgb` vs `display-p3`).
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK. Per-page CanvasRenderingContext2D `fillStyle` Gradient/Pattern distribution
+
+- **[T]** Per canvas: fillStyle.constructor.name distribution (string / CanvasGradient / CanvasPattern).
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL. Per-page CanvasGradient.addColorStop call distribution
+
+- **[T]** Per gradient: number of color stops added.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM. Per-page CanvasPattern.setTransform call usage
+
+- **[T]** Per CanvasPattern: setTransform call count + matrix values.
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN. Per-page Canvas drawImage source distribution
+
+- **[T]** Per drawImage call: source type (HTMLImageElement / HTMLCanvasElement / HTMLVideoElement / OffscreenCanvas / ImageBitmap / VideoFrame / SVGImageElement / CanvasImageSource).
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO. Per-page Canvas blendmode `globalCompositeOperation` change frequency
+
+- **[T]** Per canvas: GCO state changes per frame (composite-mode toggles indicate complex rendering).
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP. Per-page Canvas hit-region usage (deprecated)
+
+- **[T]** Per canvas: addHitRegion / removeHitRegion / clearHitRegions call count.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ. Per-page WebGL `drawElements` index buffer usage
+
+- **[T]** Per WebGL draw call: drawArrays vs drawElements vs drawElementsInstanced vs drawArraysInstanced distribution.
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR. Per-page WebGL2 transform-feedback session
+
+- **[T]** Per WebGL2 context: beginTransformFeedback / endTransformFeedback call count + primitive mode distribution.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS. Per-page WebGL2 sampler binding state
+
+- **[T]** Per WebGL2 context: createSampler / bindSampler / samplerParameteri call distribution.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT. Per-page WebGL2 query object distribution
+
+- **[T]** Per WebGL2 context: query objects (`ANY_SAMPLES_PASSED`, `ANY_SAMPLES_PASSED_CONSERVATIVE`, `TRANSFORM_FEEDBACK_PRIMITIVES_WRITTEN`, `TIME_ELAPSED_EXT`) usage.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU. Per-page WebGPU compute pipeline dispatch sizes
+
+- **[T]** Per `compute_pass.dispatchWorkgroups(x, y, z)` call: workgroup dispatch dimensions.
+- **[T]** Per indirect dispatch: source buffer + offset.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV. Per-page WebGPU render pipeline cache hit-rate
+
+- **[T]** Per WebGPU device: pipeline-cache hit ratio (estimated via repeat pipeline creation latency).
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW. Per-page WebAudio AudioParam automation count
+
+- **[T]** Per AudioParam: setValueAtTime / linearRampToValueAtTime / exponentialRampToValueAtTime / setTargetAtTime / setValueCurveAtTime / cancelScheduledValues / cancelAndHoldAtTime call distribution.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX. Per-page AudioBufferSourceNode loop usage
+
+- **[T]** Per ABSN: loop flag + loopStart + loopEnd + start delta / stop delta.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY. Per-page MediaElementAudioSourceNode crossOrigin handling
+
+- **[T]** Per node: source HTMLMediaElement crossorigin attribute value (anonymous / use-credentials) + resulting audio-graph behavior.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ. Per-page AudioWorkletProcessor parameter descriptors
+
+- **[T]** Per registered AudioWorkletProcessor: parameterDescriptors array + per-parameter defaultValue / minValue / maxValue / automationRate.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
