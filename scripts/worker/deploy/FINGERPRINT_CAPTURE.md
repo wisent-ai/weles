@@ -7685,6 +7685,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per navigate event: info value (custom user-supplied data passed to navigation handler).
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA. Per-page WebSocket message event timing distribution
+
+- **[T]** Per WebSocket: per-message arrival timing distribution + inter-message delta histogram.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB. Per-page WebSocket buffered amount polling
+
+- **[T]** Per WebSocket: bufferedAmount sampling + max-buffered-amount over session.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC. Per-page WebSocket readyState transitions
+
+- **[T]** Per WebSocket: readyState transitions (CONNECTING / OPEN / CLOSING / CLOSED) + each-transition timestamp.
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD. Per-page WebSocket extensions string parsed
+
+- **[T]** Per WebSocket: `extensions` property value at handshake completion.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE. Per-page WebSocket protocol string
+
+- **[T]** Per WebSocket: `protocol` property value (negotiated subprotocol).
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF. Per-page Fetch streaming Request body
+
+- **[T]** Per `fetch(url, {body: streamObj})` call: ReadableStream of body bytes + transfer-encoding negotiated.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG. Per-page Fetch streaming Response body
+
+- **[T]** Per `Response.body` consumer: chunk-arrival timing + per-chunk byte size distribution.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH. Per-page ReadableStream.tee distribution
+
+- **[T]** Per page: ReadableStream tee() call count + downstream-consumer count.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII. Per-page WritableStream.abort / close usage
+
+- **[T]** Per page: WritableStream lifecycle event distribution.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ. Per-page TransformStream chain length
+
+- **[T]** Per page: TransformStream construction chains (readable → transform → writable pipe length).
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK. Per-page ByteLengthQueuingStrategy / CountQueuingStrategy usage
+
+- **[T]** Per page: per-strategy construction count + highWaterMark distribution.
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL. Per-page Streams pipeline (pipeTo / pipeThrough) usage
+
+- **[T]** Per page: pipeTo / pipeThrough call distribution + intermediate-stream count per pipeline.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM. Per-page TextDecoderStream encoding distribution
+
+- **[T]** Per page: TextDecoderStream encoding name distribution (`utf-8` / `iso-8859-1` / `windows-1252` / etc.).
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN. Per-page TextEncoderStream construction count
+
+- **[T]** Per page: TextEncoderStream construction count + bytes encoded.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO. Per-page CompressionStream / DecompressionStream throughput
+
+- **[T]** Per page: bytes compressed + bytes decompressed per stream + format (gzip / deflate / deflate-raw).
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP. Per-page Request priority hint observation
+
+- **[T]** Per `fetch(url, {priority})` call: priority hint set (`high` / `low` / `auto`) + resolved priority.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ. Per-page Resource priority observation
+
+- **[T]** Per loaded resource: fetchPriority attribute value (`high` / `low` / `auto`) on `<script>` / `<link>` / `<img>` / `<iframe>`.
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR. Per-page IDB transaction durability mode distribution
+
+- **[T]** Per IDBTransaction: durability option (`default` / `strict` / `relaxed`) usage.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS. Per-page IDB ObjectStore.put vs add ratio
+
+- **[T]** Per IDBObjectStore: put-call count vs add-call count distribution.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT. Per-page IDB cursor direction distribution
+
+- **[T]** Per cursor: direction (`next` / `nextunique` / `prev` / `prevunique`) usage distribution.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU. Per-page IDB getAll / getAllKeys page-size distribution
+
+- **[T]** Per call: count limit + retrieved item count.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV. Per-page CacheStorage match / matchAll usage
+
+- **[T]** Per Cache: match vs matchAll call distribution + ignoreSearch / ignoreMethod / ignoreVary options.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW. Per-page CacheStorage delete / has usage
+
+- **[T]** Per Cache: delete / has invocation count + outcome distribution.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX. Per-page CacheStorage.keys() origin enumeration
+
+- **[T]** Per origin: caches.keys() result length.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY. Per-page Cookie Store getAll usage
+
+- **[T]** Per page: cookieStore.getAll() call count + per-call filter.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ. Per-page Cookie Store set/delete usage
+
+- **[T]** Per page: cookieStore.set / delete invocation count + per-cookie attributes.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
