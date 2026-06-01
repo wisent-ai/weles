@@ -8101,6 +8101,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per stats poll: per-MediaStream id + per-track audioLevel / totalAudioEnergy.
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA. Per-page MediaStreamTrack.applyConstraints calls
+
+- **[T]** Per applyConstraints call: requested constraints object + Promise outcome.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB. Per-page MediaStreamTrack.stop call distribution
+
+- **[T]** Per MediaStreamTrack: stop() call count + lifetime distribution.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC. Per-page MediaStreamTrack.clone call distribution
+
+- **[T]** Per MediaStreamTrack: clone() call count.
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD. Per-page MediaStream addTrack / removeTrack calls
+
+- **[T]** Per MediaStream: addTrack / removeTrack call distribution.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE. Per-page MediaStream.clone calls
+
+- **[T]** Per MediaStream: clone() invocation count.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF. Per-page navigator.mediaDevices.ondevicechange events
+
+- **[T]** Per session: devicechange event firings (device-connection state-change signal).
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG. Per-page navigator.mediaDevices.getDisplayMedia constraints distribution
+
+- **[T]** Per getDisplayMedia call: constraints (preferCurrentTab / selfBrowserSurface / systemAudio / surfaceSwitching / monitorTypeSurfaces).
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH. Per-page navigator.mediaDevices.getUserMedia constraints distribution
+
+- **[T]** Per getUserMedia call: audio/video constraint trees (sampleRate / sampleSize / channelCount / echoCancellation / noiseSuppression / autoGainControl / latency / facingMode / aspectRatio / frameRate / width / height / resizeMode / pan / tilt / zoom).
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII. Per-page navigator.mediaSession actionHandlers registered
+
+- **[T]** Per page: per-action handler registered count (play/pause/seekbackward/seekforward/previoustrack/nexttrack/skipad/stop/seekto/togglemicrophone/togglecamera/togglehang/enterpictureinpicture/exitpictureinpicture).
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ. Per-page navigator.mediaSession.playbackState distribution
+
+- **[T]** Per page: mediaSession.playbackState value distribution (none / paused / playing).
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK. Per-page navigator.mediaSession.metadata update log
+
+- **[T]** Per page: setPositionState call distribution + duration / position / playbackRate values.
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL. Per-page navigator.gpu device-pool count
+
+- **[T]** Per page: requestAdapter call count + per-adapter info isFallbackAdapter flag.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM. Per-page navigator.ml WebNN context creation
+
+- **[T]** Per page: navigator.ml.createContext call count + per-context deviceType.
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN. Per-page WebNN MLGraphBuilder operator distribution
+
+- **[T]** Per graph: per-operator usage (conv2d / matmul / softmax / relu / sigmoid / tanh / gemm / add / sub / mul / div / etc.).
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO. Per-page WebNN MLOperand data-type distribution
+
+- **[T]** Per operand: dataType (float32 / float16 / int32 / uint32 / int8 / uint8 / int64 / uint64).
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP. Per-page WebTransport closeInfo distribution
+
+- **[T]** Per WebTransport session: closeInfo.closeCode + closeInfo.reason distribution.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ. Per-page WebTransport datagrams readable.read invocations
+
+- **[T]** Per session: datagrams.readable.read() call count + total bytes received.
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR. Per-page WebTransport datagrams writable.write invocations
+
+- **[T]** Per session: datagrams.writable.write() call count + total bytes sent.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS. Per-page WebTransport bidirectionalStreams accepts
+
+- **[T]** Per session: incomingBidirectionalStreams reader.read() call count.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT. Per-page WebTransport unidirectionalStreams accepts
+
+- **[T]** Per session: incomingUnidirectionalStreams reader.read() call count.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU. Per-page WebTransport createBidirectionalStream calls
+
+- **[T]** Per session: createBidirectionalStream call count + each stream's bytesSent / bytesReceived.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV. Per-page WebTransport createUnidirectionalStream calls
+
+- **[T]** Per session: createUnidirectionalStream call count + per-stream bytes sent.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW. Per-page WebTransport stats() polling
+
+- **[T]** Per session: getStats() return distribution (sampleSize / averageBandwidth / smoothedRTT / packetsLost / etc.).
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX. Per-page WebTransport ready Promise resolution latency
+
+- **[T]** Per session: time-to-ready Promise resolution.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY. Per-page WebTransport closed Promise resolution
+
+- **[T]** Per session: closed Promise resolution timestamp + reason.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ. Per-page WebTransport stream.abort / stream.cancel distribution
+
+- **[T]** Per WebTransport stream: abort / cancel invocation count + error codes.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
