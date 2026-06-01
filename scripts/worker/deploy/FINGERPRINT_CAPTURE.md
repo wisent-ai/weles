@@ -6956,6 +6956,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per session: Identifiability-Study sampling outcomes histogram (Chrome's own anti-fingerprinting telemetry).
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA. Per-page macOS launchd `com.apple.appsleep` events
+
+- **[T]** Per session: app-sleep transition events from launchd log.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB. Per-page macOS launchd `com.apple.coreservices` events
+
+- **[T]** Per session: CoreServices event log (file-handler registrations, default app changes).
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC. Per-page macOS launchd `com.apple.mdmclient` events
+
+- **[T]** Per session: MDM client check-in events (managed-device signal).
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD. Per-page macOS launchd `com.apple.smb` events
+
+- **[T]** Per session: SMB mount activity event log.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE. Per-page macOS launchd `com.apple.assistantd` events
+
+- **[T]** Per session: Siri / Assistant daemon activity log.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF. Per-page macOS launchd `com.apple.parsecd` events
+
+- **[T]** Per session: Parsec (search-suggest backend) traffic events.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG. Per-page macOS launchd `com.apple.contextmemoryservice` events
+
+- **[T]** Per session: Spotlight context memory events.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH. Per-page macOS launchd `com.apple.coreduetd` events
+
+- **[T]** Per session: CoreDuet (ML-based learning daemon) activity log.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII. Per-page macOS launchd `com.apple.knowledgeconstructiond` events
+
+- **[T]** Per session: knowledge-construction events (Spotlight intelligence).
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ. Per-page macOS launchd `com.apple.duetexpertd` events
+
+- **[T]** Per session: duet expert system activity log.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK. Per-page macOS launchd `com.apple.symptomsd` events
+
+- **[T]** Per session: symptomsd daemon events (network performance heuristics).
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL. Per-page macOS launchd `com.apple.WirelessRadioManagerd` events
+
+- **[T]** Per session: WirelessRadioManagerd activity (radio state transitions).
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM. Per-page macOS launchd `com.apple.locationd` events
+
+- **[T]** Per session: locationd request count + per-requester app distribution.
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN. Per-page macOS launchd `com.apple.timed` events
+
+- **[T]** Per session: timed daemon NTP sync event log.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO. Per-page macOS launchd `com.apple.osanalytics.osanalyticshelper` events
+
+- **[T]** Per session: OS Analytics helper activity log.
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP. Per-page macOS launchd `com.apple.analyticsd` events
+
+- **[T]** Per session: AnalyticsD activity log + upload count.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ. Per-page macOS launchd `com.apple.tccd` events
+
+- **[T]** Per session: TCC daemon prompt + access decision events.
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR. Per-page macOS launchd `com.apple.findmydeviced` events
+
+- **[T]** Per session: Find My Device daemon activity log.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS. Per-page macOS launchd `com.apple.familycircled` events
+
+- **[T]** Per session: Family Sharing daemon activity (managed-by-parent signal).
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT. Per-page macOS launchd `com.apple.passd` events
+
+- **[T]** Per session: Wallet (passd) daemon activity + per-pass count.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU. Per-page macOS launchd `com.apple.callservicesd` events
+
+- **[T]** Per session: call-services (FaceTime / Continuity) daemon activity log.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV. Per-page macOS launchd `com.apple.bluetoothd` events
+
+- **[T]** Per session: bluetoothd connect / disconnect events per device.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW. Per-page macOS launchd `com.apple.wifid` events
+
+- **[T]** Per session: wifid scan + join events per SSID (sha256'd).
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX. Per-page macOS launchd `com.apple.usbmuxd` events
+
+- **[T]** Per session: USB-muxd device-attach events (iOS device tether signal).
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY. Per-page macOS launchd `com.apple.softwareupdated` events
+
+- **[T]** Per session: SoftwareUpdate daemon check-in + per-update activity log.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ. Per-page macOS launchd `com.apple.appstoreagent` events
+
+- **[T]** Per session: App Store agent activity log.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
