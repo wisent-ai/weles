@@ -17773,6 +17773,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per session: capture of `wpr -start GeneralProfile -filemode` then `wpr -stop session.etl` (Windows Performance Recorder ETW trace of process syscalls + page faults + image loads).
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA. Per-page CDP Network.requestWillBeSent firehose
+
+- **[T]** Per session: full list of every Network.requestWillBeSent event captured with requestId, loaderId, documentURL, request{url,method,headers,postData,initialPriority,referrerPolicy}, timestamp, wallTime, initiator, redirectResponse, type, frameId, hasUserGesture.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB. Per-page CDP Network.responseReceived firehose
+
+- **[T]** Per session: full list of every Network.responseReceived event with requestId, loaderId, timestamp, type, response{url,status,statusText,headers,mimeType,charset,requestHeaders,connectionReused,connectionId,remoteIPAddress,remotePort,fromDiskCache,fromServiceWorker,fromPrefetchCache,encodedDataLength,timing,protocol,securityState,securityDetails}.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC. Per-page CDP Network.dataReceived firehose
+
+- **[T]** Per session: every Network.dataReceived event (requestId, timestamp, dataLength, encodedDataLength).
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD. Per-page CDP Network.loadingFinished firehose
+
+- **[T]** Per session: every Network.loadingFinished event (requestId, timestamp, encodedDataLength, shouldReportCorbBlocking).
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE. Per-page CDP Network.loadingFailed firehose
+
+- **[T]** Per session: every Network.loadingFailed event (requestId, timestamp, type, errorText, canceled, blockedReason, corsErrorStatus).
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF. Per-page CDP Network.requestServedFromCache firehose
+
+- **[T]** Per session: every Network.requestServedFromCache event (requestId).
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG. Per-page CDP Network.signedExchangeReceived firehose
+
+- **[T]** Per session: every Network.signedExchangeReceived event (Signed-HTTP-Exchange RFC 9242 fingerprint).
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH. Per-page CDP Network.webSocketCreated firehose
+
+- **[T]** Per session: every Network.webSocketCreated event (requestId, url, initiator).
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII. Per-page CDP Network.webSocketFrameSent firehose
+
+- **[T]** Per session: every Network.webSocketFrameSent event (requestId, timestamp, response{opcode,mask,payloadData}).
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ. Per-página CDP Network.webSocketFrameReceived firehose
+
+- **[T]** Per session: every Network.webSocketFrameReceived event (requestId, timestamp, response{opcode,mask,payloadData}).
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK. Per-page CDP Network.webSocketWillSendHandshakeRequest firehose
+
+- **[T]** Per session: every Network.webSocketWillSendHandshakeRequest event (requestId, timestamp, wallTime, request{headers}).
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL. Per-page CDP Network.webSocketHandshakeResponseReceived firehose
+
+- **[T]** Per session: every Network.webSocketHandshakeResponseReceived event (requestId, timestamp, response{status,statusText,headers,httpVersion}).
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM. Per-page CDP Network.webTransportCreated firehose
+
+- **[T]** Per session: every Network.webTransportCreated event (transportId, url, timestamp, initiator).
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN. Per-page CDP Network.eventSourceMessageReceived firehose
+
+- **[T]** Per session: every Network.eventSourceMessageReceived event (requestId, timestamp, eventName, eventId, data).
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO. Per-page CDP Network.requestExtraInfo firehose
+
+- **[T]** Per session: every Network.requestExtraInfo event (requestId, associatedCookies, headers, connectTiming, clientSecurityState).
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP. Per-page CDP Network.responseExtraInfo firehose
+
+- **[T]** Per session: every Network.responseExtraInfo event (requestId, blockedCookies, headers, resourceIPAddressSpace, statusCode, headersText, cookiePartitionKey).
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ. Per-page CDP Network.trustTokenOperationDone firehose
+
+- **[T]** Per session: every Network.trustTokenOperationDone event (status, type, requestId, topLevelOrigin, issuerOrigin, issuedTokenCount).
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR. Per-page CDP Network.subresourceWebBundleMetadataReceived firehose
+
+- **[T]** Per session: every Network.subresourceWebBundleMetadataReceived event (requestId, urls).
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS. Per-page CDP Network.subresourceWebBundleInnerResponseParsed firehose
+
+- **[T]** Per session: every Network.subresourceWebBundleInnerResponseParsed event (innerRequestId, innerRequestURL, bundleRequestId).
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT. Per-page CDP Network.reportingApiReportAdded firehose
+
+- **[T]** Per session: every Network.reportingApiReportAdded event (report{id,initiatorUrl,destination,type,timestamp,depth,completedAttempts,body}).
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU. Per-page CDP Page.frameNavigated firehose
+
+- **[T]** Per session: every Page.frameNavigated event (frame{id,parentId,loaderId,name,url,securityOrigin,mimeType,unreachableUrl,adFrameStatus,secureContextType,crossOriginIsolatedContextType,gatedAPIFeatures}).
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV. Per-page CDP Page.frameAttached/Detached firehose
+
+- **[T]** Per session: every Page.frameAttached + Page.frameDetached event (frameId, parentFrameId, stack).
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW. Per-page CDP Page.lifecycleEvent firehose
+
+- **[T]** Per session: every Page.lifecycleEvent event (frameId, loaderId, name, timestamp) — names cover navigated/firstContentfulPaint/firstMeaningfulPaint/firstPaint/init/load/DOMContentLoaded/networkAlmostIdle/networkIdle.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX. Per-page CDP Page.domContentEventFired firehose
+
+- **[T]** Per session: every Page.domContentEventFired event (timestamp).
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY. Per-page CDP Page.loadEventFired firehose
+
+- **[T]** Per session: every Page.loadEventFired event (timestamp).
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ. Per-página CDP Page.navigatedWithinDocument firehose
+
+- **[T]** Per session: every Page.navigatedWithinDocument event (frameId, url) — fires on history.pushState / hash change.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
