@@ -8517,6 +8517,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per session: removeBinding call count.
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA. Per-page CDP Debugger.enable subscribers
+
+- **[T]** Per session: Debugger.enable + maxScriptsCacheSize parameter.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB. Per-page CDP Debugger.pause / resume invocations
+
+- **[T]** Per session: pause / resume call count.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC. Per-page CDP Debugger.setBreakpoint invocations
+
+- **[T]** Per session: setBreakpoint call count + per-URL hit.
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD. Per-page CDP Debugger.removeBreakpoint invocations
+
+- **[T]** Per session: removeBreakpoint call count.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE. Per-page CDP Debugger.stepInto / stepOver / stepOut invocations
+
+- **[T]** Per session: step-* call count per direction.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF. Per-page CDP Debugger.setVariableValue invocations
+
+- **[T]** Per session: setVariableValue count.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG. Per-page CDP Debugger.setSkipAllPauses state
+
+- **[T]** Per session: skip-all-pauses state.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH. Per-page CDP Debugger.setBlackboxPatterns invocations
+
+- **[T]** Per session: blackbox pattern list applied.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII. Per-page CDP Debugger.evaluateOnCallFrame invocations
+
+- **[T]** Per session: evaluateOnCallFrame count + per-call frameId.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ. Per-page CDP Debugger.setReturnValue invocations
+
+- **[T]** Per session: setReturnValue count.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK. Per-page CDP Debugger.restartFrame invocations
+
+- **[T]** Per session: restartFrame count.
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL. Per-page CDP Debugger.setPauseOnExceptions state
+
+- **[T]** Per session: pause-on-exceptions state (`none` / `uncaught` / `all`).
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM. Per-page CDP Profiler.enable subscribers
+
+- **[T]** Per session: Profiler.enable invocation count.
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN. Per-page CDP Profiler.start / stop invocations
+
+- **[T]** Per session: profile-recording session count + per-profile duration.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO. Per-page CDP Profiler.setSamplingInterval invocations
+
+- **[T]** Per session: sampling interval set (microseconds).
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP. Per-page CDP Profiler.takeTypeProfile invocations
+
+- **[T]** Per session: type-profile retrievals.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ. Per-page CDP HeapProfiler.enable subscribers
+
+- **[T]** Per session: HeapProfiler.enable invocation count.
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR. Per-page CDP HeapProfiler.startSampling / stopSampling invocations
+
+- **[T]** Per session: sampling-allocation session count + samplingInterval.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS. Per-page CDP HeapProfiler.startTrackingHeapObjects / stopTrackingHeapObjects invocations
+
+- **[T]** Per session: heap-object tracking session count.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT. Per-page CDP HeapProfiler.addInspectedHeapObject invocations
+
+- **[T]** Per session: per-object addInspectedHeapObject call count.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU. Per-page CDP HeapProfiler.collectGarbage invocations
+
+- **[T]** Per session: explicit GC trigger count.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV. Per-page CDP HeapProfiler.takeHeapSnapshot invocations
+
+- **[T]** Per session: heap-snapshot count + per-snapshot byte size.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW. Per-page CDP HeapProfiler.getSamplingProfile invocations
+
+- **[T]** Per session: sampling-profile retrieval count.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX. Per-page CDP HeapProfiler.getHeapObjectId invocations
+
+- **[T]** Per session: getHeapObjectId per-remoteObjectId call count.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY. Per-page CDP HeapProfiler.getObjectByHeapObjectId invocations
+
+- **[T]** Per session: object-retrieval per-heapObjectId count.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ. Per-page CDP HeapProfiler.lastSeenObjectId events
+
+- **[T]** Per session: lastSeenObjectId event delivery count.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
