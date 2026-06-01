@@ -9245,6 +9245,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per session: recording-state-change event count per service.
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA. Per-page CDP ServiceWorker.enable / disable invocations
+
+- **[T]** Per session: ServiceWorker domain enable / disable count.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB. Per-page CDP ServiceWorker.startWorker / stopWorker invocations
+
+- **[T]** Per session: per-scopeURL startWorker / stopWorker count.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC. Per-page CDP ServiceWorker.unregister invocations
+
+- **[T]** Per session: unregister count per scopeURL.
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD. Per-page CDP ServiceWorker.skipWaiting invocations
+
+- **[T]** Per session: skipWaiting devtools count.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE. Per-page CDP ServiceWorker.updateRegistration invocations
+
+- **[T]** Per session: updateRegistration count per scopeURL.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF. Per-page CDP ServiceWorker.dispatchSyncEvent invocations
+
+- **[T]** Per session: dispatchSyncEvent count per tag.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG. Per-page CDP ServiceWorker.dispatchPeriodicSyncEvent invocations
+
+- **[T]** Per session: dispatchPeriodicSyncEvent count per tag.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH. Per-page CDP ServiceWorker.deliverPushMessage invocations
+
+- **[T]** Per session: deliverPushMessage count + per-call data byte size.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII. Per-page CDP ServiceWorker.inspectWorker invocations
+
+- **[T]** Per session: inspectWorker count per versionId.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ. Per-page CDP ServiceWorker.setForceUpdateOnPageLoad state
+
+- **[T]** Per session: forceUpdateOnPageLoad toggle count.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK. Per-page CDP WebAuthn.enable invocations
+
+- **[T]** Per session: WebAuthn CDP-domain enable count + enableUI flag.
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL. Per-page CDP WebAuthn.disable invocations
+
+- **[T]** Per session: WebAuthn disable count.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM. Per-page CDP WebAuthn.addVirtualAuthenticator invocations
+
+- **[T]** Per session: virtual-authenticator add count + per-call options (protocol/transport/hasResidentKey/hasUserVerification).
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN. Per-page CDP WebAuthn.removeVirtualAuthenticator invocations
+
+- **[T]** Per session: remove count per authenticatorId.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO. Per-page CDP WebAuthn.addCredential invocations
+
+- **[T]** Per session: addCredential count per (authenticatorId, credentialId).
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP. Per-page CDP WebAuthn.removeCredential invocations
+
+- **[T]** Per session: removeCredential count.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ. Per-page CDP WebAuthn.getCredential invocations
+
+- **[T]** Per session: getCredential count.
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR. Per-page CDP WebAuthn.getCredentials invocations
+
+- **[T]** Per session: getCredentials count per authenticatorId.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS. Per-page CDP WebAuthn.clearCredentials invocations
+
+- **[T]** Per session: clearCredentials count.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT. Per-page CDP WebAuthn.setUserVerified invocations
+
+- **[T]** Per session: setUserVerified count + flag.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU. Per-page CDP WebAuthn.setAutomaticPresenceSimulation invocations
+
+- **[T]** Per session: automatic-presence-simulation toggle count.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV. Per-page CDP WebAuthn.setResponseOverrideBits invocations
+
+- **[T]** Per session: response-override bits set count.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW. Per-page CDP FedCm.enable / disable invocations
+
+- **[T]** Per session: FedCm CDP-domain enable / disable count.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX. Per-page CDP FedCm.selectAccount invocations
+
+- **[T]** Per session: selectAccount count per dialog.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY. Per-page CDP FedCm.clickDialogButton invocations
+
+- **[T]** Per session: clickDialogButton count per dialogButton.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ. Per-page CDP FedCm.dismissDialog invocations
+
+- **[T]** Per session: dismissDialog count per dialog.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
