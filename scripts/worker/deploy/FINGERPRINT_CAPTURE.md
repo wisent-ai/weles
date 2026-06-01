@@ -9349,6 +9349,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per session: dismissDialog count per dialog.
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA. Per-page macOS `system_profiler SPDisplaysDataType` per-display detail
+
+- **[T]** Per attached display: model + resolution + refresh rate + main display flag + mirror flag + EDID parsed (manufacturer / product code / serial number sha256'd).
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB. Per-page macOS `system_profiler SPHardwareDataType` detail
+
+- **[T]** Per session: model identifier + chip + total cores + memory + boot ROM version + serial number sha256 + hardware UUID sha256 + provisioning UDID sha256.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC. Per-page macOS `system_profiler SPSoftwareDataType` detail
+
+- **[T]** Per session: system version + kernel version + boot volume + boot mode + computer name (sha256'd) + user name (sha256'd) + secure virtual memory enabled + time since boot.
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD. Per-page macOS `system_profiler SPNetworkDataType` detail
+
+- **[T]** Per network service: type + hardware MAC sha256 + IPv4 address + IPv6 addresses + DNS servers + DHCP server + DHCP lease expiration + proxies configured.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE. Per-page macOS `system_profiler SPUSBDataType` detail
+
+- **[T]** Per USB device: product name (sha256'd) + manufacturer + vendor ID + product ID + version + serial number sha256 + speed + bus power.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF. Per-page macOS `system_profiler SPBluetoothDataType` detail
+
+- **[T]** Per paired Bluetooth device: name (sha256'd) + address sha256 + product ID + vendor ID + connected state.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG. Per-page macOS `system_profiler SPAudioDataType` detail
+
+- **[T]** Per audio device: name + manufacturer + transport + input channels + output channels + default-input flag + default-output flag.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH. Per-page macOS `system_profiler SPCameraDataType` detail
+
+- **[T]** Per attached camera: name + model + unique ID sha256.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII. Per-page macOS `system_profiler SPPowerDataType` detail
+
+- **[T]** Per session: battery cycle count + condition + max capacity + design capacity + current state + AC charger info.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ. Per-page macOS `system_profiler SPMemoryDataType` detail
+
+- **[T]** Per session: per-slot memory size + type + speed + manufacturer + part number sha256.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK. Per-page macOS `system_profiler SPStorageDataType` detail
+
+- **[T]** Per volume: mount point + total + free + filesystem type + device + APFS flag + encryption flag.
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL. Per-page macOS `system_profiler SPThunderboltDataType` detail
+
+- **[T]** Per Thunderbolt device: name + manufacturer + speed + status + UID sha256.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM. Per-page macOS `system_profiler SPPCIDataType` detail
+
+- **[T]** Per PCI device: name + type + slot + vendor + device-ID + revision-ID.
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN. Per-page macOS `system_profiler SPSerialATADataType` detail
+
+- **[T]** Per SATA device: name + model + revision + serial number sha256 + capacity.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO. Per-page macOS `system_profiler SPNVMeDataType` detail
+
+- **[T]** Per NVMe device: name + model + capacity + serial number sha256.
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP. Per-page macOS `system_profiler SPiBridgeDataType` detail
+
+- **[T]** Per session: iBridge / T2 / Apple Silicon Secure-Enclave version + boot ROM version.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ. Per-page macOS `system_profiler SPFireWireDataType` detail
+
+- **[T]** Per FireWire device: name + manufacturer + speed (legacy hardware fingerprint).
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR. Per-page macOS `system_profiler SPSPIDataType` detail
+
+- **[T]** Per SPI bus device: name + bus + speed.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS. Per-page macOS `system_profiler SPSmartCardsDataType` detail
+
+- **[T]** Per smart card reader: name + status.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT. Per-page macOS `system_profiler SPDisplaysDataType` GPU subsection
+
+- **[T]** Per GPU: name + vendor + chipset model + bus + VRAM + Metal support level + revision-id.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU. Per-page macOS `system_profiler SPDiagnosticsDataType` detail
+
+- **[T]** Per session: diagnostic test results (Mini Cycle / Diagnostic State).
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV. Per-page macOS `system_profiler SPDeveloperToolsDataType` detail
+
+- **[T]** Per session: installed developer tools (Xcode version, CLT version).
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW. Per-page macOS `system_profiler SPInternationalDataType` detail
+
+- **[T]** Per session: localized language list + region settings.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX. Per-page macOS `system_profiler SPAccessibilityDataType` detail
+
+- **[T]** Per session: accessibility features enabled state.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY. Per-page macOS `system_profiler SPApplicationsDataType` detail
+
+- **[T]** Per session: installed application count + per-app bundle-id sha256 + version + last-modified timestamp.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ. Per-page macOS `system_profiler SPInstallHistoryDataType` detail
+
+- **[T]** Per session: install history entries (recent installs, system-update history, App Store install events).
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
