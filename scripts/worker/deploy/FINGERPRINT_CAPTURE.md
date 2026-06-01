@@ -17461,6 +17461,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per session: `/proc/<browser_pid>/syscall` contents (current syscall NR + args + stack pointer + program counter).
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA. Per-page Linux /proc/<pid>/oom_score snapshot
+
+- **[T]** Per session: `/proc/<browser_pid>/oom_score` + `/oom_score_adj` + `/oom_adj` snapshot (OOM killer ranking).
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB. Per-page Linux /proc/<pid>/sched snapshot
+
+- **[T]** Per session: `/proc/<browser_pid>/sched` contents (per-task scheduler statistics).
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC. Per-page Linux /proc/<pid>/schedstat snapshot
+
+- **[T]** Per session: `/proc/<browser_pid>/schedstat` contents (cpu_runtime, wait_time, pcount).
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD. Per-page Linux /proc/<pid>/numa_maps snapshot
+
+- **[T]** Per session: `/proc/<browser_pid>/numa_maps` contents (per-NUMA-node memory policy + page residence).
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE. Per-page Linux /proc/<pid>/personality snapshot
+
+- **[T]** Per session: `/proc/<browser_pid>/personality` byte (kernel "personality" flag: ADDR_LIMIT_32BIT, ADDR_NO_RANDOMIZE, etc.).
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF. Per-page Linux /proc/<pid>/loginuid snapshot
+
+- **[T]** Per session: `/proc/<browser_pid>/loginuid` value (audit-system original login UID).
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG. Per-page Linux /proc/<pid>/auxv snapshot
+
+- **[T]** Per session: `/proc/<browser_pid>/auxv` contents (ELF auxiliary vector: AT_RANDOM, AT_PLATFORM, AT_BASE, AT_PHDR, AT_HWCAP, AT_HWCAP2, AT_SYSINFO_EHDR).
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH. Per-page Linux /proc/<pid>/exe symlink target
+
+- **[T]** Per session: `readlink /proc/<browser_pid>/exe` (path to the executable image, may differ from cmdline).
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII. Per-page Linux /proc/<pid>/cwd symlink target
+
+- **[T]** Per session: `readlink /proc/<browser_pid>/cwd` (current working directory).
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ. Per-página Linux /proc/<pid>/root symlink target
+
+- **[T]** Per session: `readlink /proc/<browser_pid>/root` (chroot path, normally '/').
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK. Per-page Linux /proc/<pid>/ns enumeration
+
+- **[T]** Per session: per-namespace symlink targets in `/proc/<browser_pid>/ns/` (cgroup, ipc, mnt, net, pid, time, user, uts).
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL. Per-page Linux /proc/<pid>/task enumeration
+
+- **[T]** Per session: per-thread directory listing in `/proc/<browser_pid>/task/` enumerating all kernel threads belonging to the process.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM. Per-page Linux /proc/<pid>/timers snapshot
+
+- **[T]** Per session: `/proc/<browser_pid>/timers` contents (POSIX interval-timer state per task).
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN. Per-page Linux /proc/cpuinfo snapshot
+
+- **[T]** Per session: `/proc/cpuinfo` contents (per-CPU vendor_id, model name, microcode, cpu MHz, cache size, flags).
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO. Per-page Linux /proc/meminfo snapshot
+
+- **[T]** Per session: `/proc/meminfo` contents (MemTotal, MemFree, MemAvailable, Buffers, Cached, SwapTotal, SwapFree, Dirty, Writeback, AnonPages, Mapped, Shmem, Slab, HugePages_Total).
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP. Per-page Linux /proc/vmstat snapshot
+
+- **[T]** Per session: `/proc/vmstat` contents (per-counter kernel VM stat: pgpgin, pgpgout, pswpin, pswpout, pgfault, pgmajfault, pglazyfree).
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ. Per-page Linux /proc/stat snapshot
+
+- **[T]** Per session: `/proc/stat` contents (per-CPU user/nice/system/idle/iowait/irq/softirq/steal/guest/guest_nice + intr + ctxt + btime + processes + procs_running + procs_blocked).
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR. Per-page Linux /proc/loadavg snapshot
+
+- **[T]** Per session: `/proc/loadavg` value (1-min/5-min/15-min load average + running/total task count + last PID).
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS. Per-page Linux /proc/uptime snapshot
+
+- **[T]** Per session: `/proc/uptime` value (total uptime + total idle CPU-seconds).
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT. Per-page Linux /proc/interrupts snapshot
+
+- **[T]** Per session: `/proc/interrupts` per-IRQ count + per-CPU count.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU. Per-page Linux /proc/diskstats snapshot
+
+- **[T]** Per session: `/proc/diskstats` per-device read/write count + bytes + queue depth.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV. Per-page Linux /proc/net/dev snapshot
+
+- **[T]** Per session: `/proc/net/dev` per-interface RX bytes/packets/errs/drop + TX bytes/packets/errs/drop.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW. Per-page Linux /proc/net/tcp snapshot
+
+- **[T]** Per session: `/proc/net/tcp` + `/proc/net/tcp6` per-socket local_addr, rem_addr, st, tx_queue, rx_queue, tr, tm->when, retrnsmt, uid, timeout, inode.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX. Per-page Linux /proc/net/udp snapshot
+
+- **[T]** Per session: `/proc/net/udp` + `/proc/net/udp6` per-socket data.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY. Per-page Linux /proc/net/route snapshot
+
+- **[T]** Per session: `/proc/net/route` + `/proc/net/ipv6_route` contents (kernel routing table).
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ. Per-página Linux /proc/net/arp snapshot
+
+- **[T]** Per session: `/proc/net/arp` contents (per-host IP + HW addr + flags + mask + device).
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
