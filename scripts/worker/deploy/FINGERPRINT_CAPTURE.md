@@ -8725,6 +8725,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per session: tracked computed style properties list.
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA. Per-page CDP Input.dispatchKeyEvent invocations
+
+- **[T]** Per session: dispatchKeyEvent count + per-event type + keyCode distribution.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB. Per-page CDP Input.dispatchMouseEvent invocations
+
+- **[T]** Per session: dispatchMouseEvent count + per-event type + button + pointerType.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC. Per-page CDP Input.dispatchTouchEvent invocations
+
+- **[T]** Per session: touch event count + per-event touchPoints array length.
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD. Per-page CDP Input.dispatchDragEvent invocations
+
+- **[T]** Per session: dispatchDragEvent count + per-event type.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE. Per-page CDP Input.synthesizePinchGesture invocations
+
+- **[T]** Per session: pinch gesture synthesis count + scale factor.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF. Per-page CDP Input.synthesizeScrollGesture invocations
+
+- **[T]** Per session: scroll-gesture synthesis count + per-call deltas.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG. Per-page CDP Input.synthesizeTapGesture invocations
+
+- **[T]** Per session: tap-gesture synthesis count.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH. Per-page CDP Input.imeSetComposition invocations
+
+- **[T]** Per session: IME composition events sent + per-event text length.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII. Per-page CDP Input.insertText invocations
+
+- **[T]** Per session: insertText count + per-call text length.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ. Per-page CDP Input.setIgnoreInputEvents state
+
+- **[T]** Per session: ignoreInputEvents state.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK. Per-page CDP Tracing.start invocations
+
+- **[T]** Per session: Tracing.start invocation count + categories + transferMode + streamFormat + streamCompression.
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL. Per-page CDP Tracing.requestMemoryDump invocations
+
+- **[T]** Per session: requestMemoryDump count + per-dump global level.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM. Per-page CDP Tracing.getCategories invocations
+
+- **[T]** Per session: getCategories invocation count.
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN. Per-page CDP Schema.getDomains invocations
+
+- **[T]** Per session: getDomains invocation count + reported CDP domain list at each call.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO. Per-page CDP Memory.getDOMCounters invocations
+
+- **[T]** Per session: per-call response (Documents / Nodes / JSEventListeners) histogram.
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP. Per-page CDP Memory.startSampling / stopSampling invocations
+
+- **[T]** Per session: sampling-allocation session count + samplingInterval + suppressRandomness.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ. Per-page CDP Memory.getSamplingProfile invocations
+
+- **[T]** Per session: sampling-profile retrieval count.
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR. Per-page CDP Memory.prepareForLeakDetection invocations
+
+- **[T]** Per session: prepareForLeakDetection trigger count.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS. Per-page CDP Memory.simulatePressureNotification invocations
+
+- **[T]** Per session: per-pressure-level (none/moderate/critical) simulate count.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT. Per-page CDP Memory.forciblyPurgeJavaScriptMemory invocations
+
+- **[T]** Per session: purge-JavaScript-memory trigger count.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU. Per-page CDP Memory.setPressureNotificationsSuppressed state
+
+- **[T]** Per session: pressure-suppression state.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV. Per-page CDP Performance.enable subscribers
+
+- **[T]** Per session: Performance.enable + timeDomain (`timeTicks` / `threadTicks`).
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW. Per-page CDP Performance.getMetrics invocations
+
+- **[T]** Per session: per-call retrieved metrics count + name distribution (`Timestamp` / `Documents` / `Frames` / `JSEventListeners` / `Nodes` / `LayoutCount` / `RecalcStyleCount` / `LayoutDuration` / `RecalcStyleDuration` / `ScriptDuration` / `TaskDuration` / `JSHeapUsedSize` / `JSHeapTotalSize` / `FirstMeaningfulPaint` / `DomContentLoaded` / `NavigationStart`).
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX. Per-page CDP PerformanceTimeline.enable invocations
+
+- **[T]** Per session: PerformanceTimeline.enable + eventTypes list.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY. Per-page CDP Animation.disable / enable subscribers
+
+- **[T]** Per session: Animation.enable / disable invocation count.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ. Per-page CDP Animation.setPlaybackRate invocations
+
+- **[T]** Per session: setPlaybackRate count + per-call rate value.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
