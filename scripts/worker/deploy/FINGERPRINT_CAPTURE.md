@@ -15693,6 +15693,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per session: per-resize-event (innerWidth, innerHeight, devicePixelRatio, orientation, timestamp) log.
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA. Per-page screen.orientation.angle log
+
+- **[T]** Per session: per-orientationchange (angle, type, timestamp) log.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB. Per-page screen.availWidth/availHeight changes log
+
+- **[T]** Per session: per-change (availWidth, availHeight, timestamp) log when screen dimensions change mid-trajectory.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC. Per-page screen.colorDepth/pixelDepth observation
+
+- **[T]** Per session: screen.colorDepth and screen.pixelDepth integer values per page.
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD. Per-page window.outerWidth/outerHeight observation
+
+- **[T]** Per session: `window.outerWidth` + `window.outerHeight` values (browser chrome included).
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE. Per-page window.screenX/screenY observation
+
+- **[T]** Per session: `window.screenX` + `window.screenY` values (window position relative to virtual screen).
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF. Per-page Window.Screen.isExtended observation
+
+- **[T]** Per session: `screen.isExtended` boolean (multi-monitor presence signal).
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG. Per-page Window Management API screen list
+
+- **[T]** Per session: `await window.getScreenDetails()` returns per-screen {left, top, width, height, devicePixelRatio, isPrimary, isInternal, label, availLeft, availTop, availWidth, availHeight, colorDepth, pixelDepth, orientation}.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH. Per-page document.fullscreenElement transitions
+
+- **[T]** Per session: per-fullscreen transition (entered, exited, target-element, timestamp) log.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII. Per-page document.pictureInPictureElement transitions
+
+- **[T]** Per session: per-PiP transition (entered, exited, target-video, timestamp) log.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ. Per-página document.pointerLockElement transitions
+
+- **[T]** Per session: per-pointer-lock transition (target-element, success-or-error, timestamp) log.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK. Per-page Permissions API status snapshot
+
+- **[T]** Per session: `await navigator.permissions.query()` state ('granted'|'denied'|'prompt') for each named API (geolocation, notifications, push, midi, camera, microphone, speaker-selection, device-info, background-fetch, background-sync, persistent-storage, ambient-light-sensor, accelerometer, gyroscope, magnetometer, clipboard-read, clipboard-write, display-capture, payment-handler, screen-wake-lock, idle-detection, system-wake-lock, periodic-background-sync, storage-access, top-level-storage-access, window-management, local-fonts, captured-surface-control, identity-credentials-get, otp-credentials, publickey-credentials-get, publickey-credentials-create, web-share, smart-card, hid, usb, serial, bluetooth, nfc).
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL. Per-page Notification.permission value
+
+- **[T]** Per session: `Notification.permission` value ('granted'|'denied'|'default').
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM. Per-page Notification.requestPermission call count
+
+- **[T]** Per session: count of `Notification.requestPermission()` invocations.
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN. Per-page navigator.geolocation.getCurrentPosition call count
+
+- **[T]** Per session: count of `navigator.geolocation.getCurrentPosition()` invocations.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO. Per-page navigator.geolocation.watchPosition call count
+
+- **[T]** Per session: count of `navigator.geolocation.watchPosition()` invocations.
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP. Per-page navigator.credentials.get/store call count
+
+- **[T]** Per session: count of `navigator.credentials.get()` / `store()` / `create()` invocations and mediation mode ('silent'|'optional'|'required') distribution.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ. Per-page PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable call count
+
+- **[T]** Per session: count of webauthn UVPA availability check invocations + return value distribution.
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR. Per-page PaymentRequest constructor call count
+
+- **[T]** Per session: count of `new PaymentRequest()` constructions and methodData payment-method-name distribution.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS. Per-page navigator.share call count
+
+- **[T]** Per session: count of `navigator.share()` invocations and ShareData (url/title/text/files) distribution.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT. Per-page navigator.canShare call count
+
+- **[T]** Per session: count of `navigator.canShare()` invocations + return-value distribution.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU. Per-page navigator.clipboard.read/write call count
+
+- **[T]** Per session: count of `navigator.clipboard.read()` / `readText()` / `write()` / `writeText()` invocations.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV. Per-page navigator.wakeLock.request call count
+
+- **[T]** Per session: count of `navigator.wakeLock.request('screen')` invocations.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW. Per-page navigator.locks.request call count
+
+- **[T]** Per session: count of `navigator.locks.request()` invocations + name + mode ('shared'/'exclusive') distribution.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX. Per-page IdleDetector start call count
+
+- **[T]** Per session: count of `IdleDetector.start()` invocations + threshold arg distribution.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY. Per-page Sensor permission/instantiation count
+
+- **[T]** Per session: count of `new Accelerometer()` / `new Gyroscope()` / `new LinearAccelerationSensor()` / `new GravitySensor()` / `new AbsoluteOrientationSensor()` / `new RelativeOrientationSensor()` / `new Magnetometer()` / `new AmbientLightSensor()` constructions.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ. Per-página Battery Status API getBattery call count
+
+- **[T]** Per session: count of `navigator.getBattery()` invocations + last observed level / charging / chargingTime / dischargingTime.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
