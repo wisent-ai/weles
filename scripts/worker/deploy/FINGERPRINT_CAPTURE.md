@@ -1052,6 +1052,192 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 - **[T]** Per-request RFC 9218 priority signals.
 - **[T]** Resource fetch order across the page — first-N requests in order; identifies which discovery method (parser-blocking vs preload-scanner vs script-injected) found which URL.
 
+## KKKKK. Mach-O binary introspection (macOS)
+
+- **[T]** Chromium main binary: `otool -l <bin>` load commands, segments + sections, codesign blob, entitlements (`codesign -d --entitlements - <bin>`), embedded `Info.plist`, bundle identifier + version.
+- **[T]** Chromium frameworks under `Chromium.app/Contents/Frameworks/`: per-framework load commands + UUID + linker version.
+- **[T]** Per Chromium child binary (Helper, Helper (GPU), Helper (Plugin), Helper (Renderer)): sha256 + codesign team-id + entitlements.
+- **[T]** weles dist `.mjs` files: sha256 + line count + first-byte-of-source hash (catches subtle build divergence).
+
+## LLLLL. Per-Chromium-process Mach task info
+
+- **[T]** `task_info()` per Chromium child pid: virtual_size, resident_size, max_resident_size, suspend_count, policy, faults, pageins, copy_on_write_faults, threads_count.
+- **[T]** Thread-level info per process — `proc_pidinfo` PROC_PIDTHREADINFO for each thread: scheduler policy, priority, run state.
+- **[T]** `mach_port_dump` count of ports owned per task.
+
+## MMMMM. Filesystem extended attributes
+
+- **[T]** Chromium binary xattrs — `xattr -lx <binary>` full dump (com.apple.quarantine flags, com.apple.metadata:kMDItemWhereFroms, com.apple.lastuseddate, com.apple.cs.CodeDirectoryHash).
+- **[T]** weles workdir xattrs (`~/.work/inst/*.json`) for Spotlight-tagged files.
+- **[T]** Per file in `recordings/<label>/`: xattr inventory (provenance tags).
+
+## NNNNN. Chromium variation seed + synthetic trials
+
+- **[T]** `chrome://variations/` — full variation seed value + every active field trial group assignment.
+- **[T]** `chrome://histograms/UMA.SyntheticTrials` — which synthetic field trials are active for this session.
+- **[T]** `chrome://field-trial-internals/` — field-trial-to-group assignments.
+- **[T]** `chrome://variations/#permanent` — permanently-saved variation seed.
+
+## OOOOO. Chrome stored profile + Local State
+
+- **[T]** `~/Library/Application Support/Google/Chrome/Local State` (or Chromium profile dir): JSON dump of profile names, default profile, ML model versions, optimization-guide hint cache, machine-id.
+- **[T]** Per-profile `Preferences` JSON — sha256 of contents + key-by-key inventory (no values).
+- **[T]** `Network Persistent State` — HTTP/QUIC server config cache.
+- **[T]** `Network Action Predictor` DB row count.
+- **[T]** `Top Sites` DB row count.
+- **[T]** `Favicons` DB size + entry count.
+
+## PPPPP. Default-app handler registration (macOS LaunchServices)
+
+- **[T]** `defaults read com.apple.LaunchServices/com.apple.launchservices.secure` — for `http://` / `https://` / `mailto:` / `ftp://` / `feed:` / `sms:` / `tel:` schemes, which app is registered.
+- **[T]** Default browser identity — `defaults read ~/Library/Preferences/com.apple.LaunchServices/com.apple.launchservices.secure LSHandlers`.
+
+## QQQQQ. macOS keyboard + input source list
+
+- **[T]** `defaults read com.apple.HIToolbox AppleEnabledInputSources` — every input method configured.
+- **[T]** Selected input source via `defaults read com.apple.HIToolbox AppleSelectedInputSources`.
+- **[T]** Keyboard repeat rate + initial delay — `defaults read NSGlobalDomain KeyRepeat` + `InitialKeyRepeat`.
+- **[T]** Dead keys + diacritic enabled — `defaults read NSGlobalDomain ApplePressAndHoldEnabled`.
+
+## RRRRR. macOS accessibility-enabled apps (TCC.db)
+
+- **[T]** Apps with Accessibility approval — count via `sqlite3 ~/Library/Application\ Support/com.apple.TCC/TCC.db "select count(*) from access where service='kTCCServiceAccessibility' and allowed=1"`.
+- **[T]** Apps with Screen Recording approval (count only).
+- **[T]** Apps with Full Disk Access approval (count only).
+- **[T]** Apps with Microphone / Camera / Contacts / Calendars approval (counts).
+
+## SSSSS. CPU governor / scaling policy
+
+- **[T]** macOS — `sysctl machdep.xcpm.*` for performance state machine state.
+- **[T]** `sysctl hw.cpufrequency` + `hw.cpufrequency_min` + `hw.cpufrequency_max`.
+- **[T]** Apple Silicon P-state and E-state — `powermetrics --samplers cpu_power -n 1 -i 100`.
+
+## TTTTT. DNS-over-HTTPS state
+
+- **[T]** Chrome Secure DNS setting — from `chrome://flags/#dns-over-https` + Local State JSON `dns_over_https.mode` / `templates`.
+- **[T]** System DNS provider per resolver scope — `scutil --dns` already partly W; expand to per-scope server addresses + flags.
+- **[T]** DoH provider templates known to Chrome — `chrome://settings/security` configured value.
+- **[T]** Per outbound DNS query: was it resolved via DoH or plaintext? (from NetLog `HOST_RESOLVER_IMPL_REQUEST` events).
+
+## UUUUU. TLS deeper
+
+- **[T]** ECH (Encrypted Client Hello) status per connection — sent vs absent; retry-config received from server.
+- **[T]** TLS Channel ID extension presence (deprecated but probed).
+- **[T]** HelloRetryRequest occurrences per session (server forces curve renegotiation).
+- **[T]** TLS False Start used (yes/no).
+- **[T]** Per cert chain: SCT (Signed Certificate Timestamp) count + delivery method (TLS ext vs OCSP vs cert).
+- **[T]** OCSP staple present per cert chain + freshness.
+- **[T]** CRL fetch events from NetLog.
+- **[T]** TLS Application-Layer Protocol Settings (ALPS) negotiated values.
+
+## VVVVV. Per-Chromium component install versions
+
+- **[T]** From `chrome://components/`: Widevine CDM, MEI Preload, File-Type Policies, Crowd Deny, Subresource Filter, Recovery, First Party Sets, Trust Token Key Commitments, TrustedVault, Origin Trials Config, Optimization Hints, Safety Tips, Pkix Error List, Real-Time URL Lookup Service Allowlist, Federated Learning of Cohorts, Floc Component, Probabilistic Reveal Tokens — component-name → version pairs.
+
+## WWWWW. WebRTC capabilities exhaustive
+
+- **[T]** `RTCRtpSender.getCapabilities('video').codecs` — per codec: `mimeType`, `clockRate`, `numChannels`, `sdpFmtpLine`, `parameters`.
+- **[T]** Same for `audio` kind.
+- **[T]** `RTCRtpReceiver.getCapabilities` — same axes.
+- **[T]** `getCapabilities().headerExtensions` — full RTP extension URI list.
+- **[T]** Custom RTP header extensions registered.
+
+## XXXXX. WebRTC SCTP + data channel stats
+
+- **[T]** Per DataChannel: maxRetransmits, maxPacketLifeTime, ordered, protocol, priority, label.
+- **[T]** Per SCTP transport: maxChannels, state.
+- **[T]** Per data channel send: byte count + packet count over session.
+
+## YYYYY. First-Party-Sets + storage partitioning state
+
+- **[T]** `chrome://first-party-sets/` content.
+- **[T]** Per third-party origin embedded in a first-party context: partition key value, partitioned-cookie count, storage partition existence.
+- **[T]** Per origin: storage access permission grants from CDP `Storage.getStorageKeyForFrame` introspection.
+
+## ZZZZZ. macOS dictionaries / spell-check / voices
+
+- **[T]** Installed dictionaries — `ls ~/Library/Dictionaries/` + `ls /Library/Dictionaries/`.
+- **[T]** Preferred spell-check languages — `defaults read NSGlobalDomain NSPreferredLanguages` + `NSSpellCheckerLanguages`.
+- **[T]** Installed speech voices — `say -v ?` count (no content).
+- **[T]** Selected speech voice — `defaults read com.apple.speech.synthesis.general.prefs SelectedVoiceName`.
+
+## AAAAAA. Permissions-Policy applied-vs-requested diff
+
+- **[T]** Per frame: requested permissions-policy directives (from `<iframe allow="...">` + Permissions-Policy header) vs effective ones reported by `Page.getPermissionsPolicyState`. Diff surfaces enforcement deltas.
+
+## BBBBBB. macOS network profile / managed config
+
+- **[T]** Managed configuration profiles — `profiles -P -v` (count + sha256 of names; presence indicates MDM-enrolled).
+- **[T]** Network locations — `networksetup -listlocations`.
+- **[T]** VPN configurations — `networksetup -listallvpns`.
+- **[T]** Network priority order — `networksetup -listnetworkserviceorder`.
+
+## CCCCCC. Multi-touch / Magic input device capabilities
+
+- **[T]** Trackpad gesture state — `defaults read com.apple.AppleMultitouchTrackpad` (every gesture toggle).
+- **[T]** Magic Mouse buttons — `defaults read com.apple.AppleMultitouchMouse`.
+- **[T]** Paired input devices — `system_profiler SPBluetoothDataType` (count + device-type tally).
+- **[T]** Trackpad / Mouse haptic feedback strength — `defaults read NSGlobalDomain com.apple.trackpad.forceClick` + `com.apple.trackpad.scaling`.
+
+## DDDDDD. Subresource integrity + report-only violations
+
+- **[T]** Per page: SRI hash mismatches detected (from `Network.responseReceived` + a `SecurityPolicyViolation` event).
+- **[T]** CSP report-only directives that would have blocked, but didn't (from CDP `Audits.issueAdded` with `code:'CSPViolation'` + `isReportOnly:true`).
+
+## EEEEEE. Browser ML model versions
+
+- **[T]** Optimization Guide model versions in Local State.
+- **[T]** TFLite model versions Chromium has downloaded (passwords leak detector, segmentation models, intent classifier).
+- **[T]** ML model load events from `chrome://components/`.
+
+## FFFFFF. Per-origin permission grants exhaustive
+
+- **[T]** Per origin, the resolved state of every Permission API name — geolocation/notifications/push/midi/camera/microphone/background-sync/idle-detection/persistent-storage/payment-handler/screen-wake-lock/system-wake-lock/storage-access/window-management/local-fonts/clipboard-read/clipboard-write/usb/serial/hid/bluetooth/keyboard-lock/pointer-lock/ambient-light-sensor/accelerometer/gyroscope/magnetometer/orientation/proximity (and any others surfaced by `navigator.permissions.query`).
+- **[T]** Per origin: how many permissions are "granted" vs "denied" vs "prompt".
+
+## GGGGGG. Network protocol fallback chain
+
+- **[T]** Per connection: h3 attempted vs falling back to h2 vs h1.1 — from NetLog `QUIC_SESSION` events.
+- **[T]** Alt-Svc cache state (from `chrome://net-internals/#alt-svc`).
+- **[T]** Per host: protocol distribution histogram across all session connections.
+
+## HHHHHH. WebCryptoKey extractability + usage
+
+- **[T]** Per `crypto.subtle.generateKey` call: `extractable` flag + `keyUsages` array — Secure-Enclave-backed iff `extractable:false` and algorithm is ECDSA P-256 on Apple Silicon.
+- **[T]** Per key: which key it is — `algorithm.name` + `algorithm.namedCurve` + `algorithm.modulusLength` + `algorithm.hash`.
+
+## IIIIII. Page-side animation frame timing
+
+- **[T]** Distribution of `requestAnimationFrame` callback durations (when the JS work in each frame's rAF callback exceeds 16.67ms it drops frames — drop count is fingerprintable).
+- **[T]** Inter-rAF delta distribution (display refresh rate is observable from this).
+- **[T]** When tab is hidden, `requestAnimationFrame` throttles to 1Hz — capture this transition.
+
+## JJJJJJ. iframe content reading via CDP across origins
+
+- **[T]** Per OOPIF: separate `Runtime.evaluate` via the child session can read content even across-origin (CDP bypasses SOP for the attached debugger). Per OOPIF, dump `document.documentElement.outerHTML.length`.
+- **[T]** Cross-origin iframe IPC events from `Tracing` `disabled-by-default-mojom`.
+
+## KKKKKK. Per-tab state across the browser
+
+- **[T]** Tab count and per-tab URL (when more than the trajectory's tab exists).
+- **[T]** Per-tab discarded state (`chrome://discards/`).
+- **[T]** Per-tab last-visible time.
+
+## LLLLLL. Page sources of randomness consumed
+
+- **[T]** Every call to `crypto.getRandomValues` — log byte length + return-value sha256 + caller stack.
+- **[T]** Every call to `Math.random` — log count + caller stack + first-N return values for determinism replay.
+- **[T]** Every `Date.now()` / `performance.now()` call — log return value to enable session replay against the same clock.
+
+## MMMMMM. Page DOM ID + class entropy
+
+- **[T]** Per-page: hash distribution of element id attribute values + class attribute values across the visible DOM. Fingerprints page builder version (e.g. LinkedIn's class naming changes per deploy).
+- **[T]** Per-page: sha256 of `document.documentElement.outerHTML` byte stream (deduped, normalized for noise) — quick PASS/FAIL DOM equivalence check.
+
+## NNNNNN. WebView / chrome:// scrape full set
+
+- **[T]** Beyond SSSS list: `chrome://crashes/`, `chrome://dino/`, `chrome://prefs-internals/`, `chrome://safe-browsing/`, `chrome://signed-exchange-internals/`, `chrome://management/`, `chrome://media-engagement/`, `chrome://nacl/`, `chrome://gcm-internals/`, `chrome://invalidations/`, `chrome://identity-internals/`, `chrome://interstitials/`, `chrome://chrome-urls/` (lists every accessible chrome:// page — recursively scrape).
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
