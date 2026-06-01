@@ -2863,6 +2863,132 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 - **[T]** Per call to `documentPictureInPicture.requestWindow({width, height, disallowReturnToOpener})`: full options + outcome.
 - **[T]** Per active PiP doc: cross-document message channel established (yes/no) + message volume.
 
+## AAAAAAAAAAAAAAAAAA. Sensor API readings stream
+
+- **[T]** Per `Accelerometer` / `Gyroscope` / `Magnetometer` / `AmbientLightSensor` / `GravitySensor` / `LinearAccelerationSensor` / `AbsoluteOrientationSensor` / `RelativeOrientationSensor`: every reading event — timestamp + values (x/y/z/quaternion).
+- **[T]** Per sensor: sample frequency requested vs actual delivered.
+
+## BBBBBBBBBBBBBBBBBB. Geolocation watch results stream
+
+- **[T]** Per `navigator.geolocation.watchPosition(success, error, options)` call: every successful position result — coords.{latitude, longitude, accuracy, altitude, altitudeAccuracy, heading, speed} + timestamp.
+- **[T]** Per watch: error events (PERMISSION_DENIED / POSITION_UNAVAILABLE / TIMEOUT) count.
+
+## CCCCCCCCCCCCCCCCCC. Battery state event stream
+
+- **[T]** Per `navigator.getBattery()` resolved BatteryManager: `levelchange` + `chargingchange` + `chargingtimechange` + `dischargingtimechange` events log over session.
+
+## DDDDDDDDDDDDDDDDDD. DeviceMotion / DeviceOrientation event stream
+
+- **[T]** Every `devicemotion` event: acceleration.{x,y,z}, accelerationIncludingGravity, rotationRate.{alpha,beta,gamma}, interval.
+- **[T]** Every `deviceorientation` event: alpha, beta, gamma, absolute.
+- **[T]** Per page: event delivery rate distribution.
+
+## EEEEEEEEEEEEEEEEEE. IdleDetector event stream
+
+- **[T]** Per `IdleDetector({threshold}).start()`: every state change — userState (active/idle) + screenState (locked/unlocked).
+- **[T]** Per detector: threshold value + cumulative idle time over session.
+
+## FFFFFFFFFFFFFFFFFF. WakeLock sentinel state stream
+
+- **[T]** Per `navigator.wakeLock.request('screen')`: sentinel acquired event + `release` event.
+- **[T]** Per sentinel: `released` Promise resolution timestamp.
+
+## GGGGGGGGGGGGGGGGGG. Vibration API call log
+
+- **[T]** Per `navigator.vibrate(pattern)` call: pattern array + caller stack.
+- **[T]** Per page: vibration total call count.
+
+## HHHHHHHHHHHHHHHHHH. ScreenOrientation event stream
+
+- **[T]** Per `screen.orientation.change` event: previous type → new type (portrait-primary/portrait-secondary/landscape-primary/landscape-secondary).
+- **[T]** Per page: orientation lock attempts and outcomes.
+
+## IIIIIIIIIIIIIIIIII. Media-query change event stream
+
+- **[T]** Per registered `matchMedia(query).addEventListener('change', ...)`: every state-change event with new matches state.
+- **[T]** Per page: per-query change count + final state.
+
+## JJJJJJJJJJJJJJJJJJ. PerformanceObserver subType buffering
+
+- **[T]** Per observer: `buffered:true` initial entries delivered count.
+- **[T]** Per observer: post-registration entries delivered count.
+- **[T]** Per observer: callback invocation latency distribution.
+
+## KKKKKKKKKKKKKKKKKK. Browser certificate verifier configuration
+
+- **[T]** Built-in cert verifier vs platform cert verifier — from `chrome://flags` `#use-chromium-certificate-verifier` state.
+- **[T]** Per cert chain validation: which verifier produced the result.
+
+## LLLLLLLLLLLLLLLLLL. Storage Access permission UI invocation
+
+- **[T]** Per page: `document.requestStorageAccess()` call → did the browser show a UI prompt vs auto-grant vs auto-deny?
+- **[T]** Per origin: cached storage-access decisions.
+
+## MMMMMMMMMMMMMMMMMM. SpeechRecognition language fallback
+
+- **[T]** Per SpeechRecognition session: requested `lang` vs actually used.
+- **[T]** Per session: continuous/interimResults/maxAlternatives settings.
+
+## NNNNNNNNNNNNNNNNNN. Network status change event stream
+
+- **[T]** `online` / `offline` event log per session.
+- **[T]** `navigator.connection.change` event log — every transition (type / effectiveType / downlink / rtt / saveData change).
+
+## OOOOOOOOOOOOOOOOOO. CookieStore change events stream
+
+- **[T]** Per `cookieStore` subscription: every `change` event with changed/deleted arrays (name + value-sha256 only).
+
+## PPPPPPPPPPPPPPPPPP. Document visibility change stream
+
+- **[T]** Every `visibilitychange` event — visibilityState before/after + timestamp.
+- **[T]** Per session: visible/hidden ratio + transition count.
+
+## QQQQQQQQQQQQQQQQQQ. Page lifecycle event stream
+
+- **[T]** Every `freeze` / `resume` / `pageshow` / `pagehide` event — persisted flag + timestamp.
+
+## RRRRRRRRRRRRRRRRRR. Pointer hover capability changes
+
+- **[T]** Per session: `matchMedia('(hover: hover)')` / `(any-hover: hover)` / `(pointer: fine|coarse|none)` / `(any-pointer: ...)` matches state + change events.
+
+## SSSSSSSSSSSSSSSSSS. Prefers-color-scheme change event stream
+
+- **[T]** Per session: `matchMedia('(prefers-color-scheme: dark)')` state changes (rare, but happens at OS dark/light transitions).
+- **[T]** Per session: similar for `prefers-reduced-motion`, `prefers-reduced-data`, `prefers-reduced-transparency`, `prefers-contrast`, `forced-colors`, `inverted-colors`.
+
+## TTTTTTTTTTTTTTTTTT. Geolocation accuracy distribution
+
+- **[T]** Per Geolocation result: accuracy histogram in meters across all results returned.
+- **[T]** Source attribution (GPS / Wi-Fi / IP / coarse) inferred from accuracy bucket.
+
+## UUUUUUUUUUUUUUUUUU. Per-page Vibrate / TouchEvent.force distribution
+
+- **[T]** Per touch event: force value histogram.
+- **[T]** Per touch event: radiusX / radiusY / rotationAngle distribution.
+
+## VVVVVVVVVVVVVVVVVV. ServiceWorker controllerchange event stream
+
+- **[T]** Per page: every `navigator.serviceWorker.controllerchange` event — new controller scriptURL + reason.
+
+## WWWWWWWWWWWWWWWWWW. Per-page InputDeviceCapabilities
+
+- **[T]** Per input event: `sourceCapabilities.firesTouchEvents` value.
+- **[T]** Per page: source capabilities distribution across all input events.
+
+## XXXXXXXXXXXXXXXXXX. Permissions API state-change event stream
+
+- **[T]** Per Permission registered: every `.onchange` event — name + previous state + new state + timestamp.
+
+## YYYYYYYYYYYYYYYYYY. PressureObserver state-change event stream
+
+- **[T]** Every PressureObserver delivery — source + state + timestamp.
+- **[T]** Per session: time-in-state distribution (nominal / fair / serious / critical).
+
+## ZZZZZZZZZZZZZZZZZZ. Compositor delegated-ink point stream
+
+- **[T]** Per page using `navigator.ink.requestPresenter(delegatePresenter, element)`: hint points emitted + presenter state.
+- **[T]** Delegated ink trail capability + active state.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
