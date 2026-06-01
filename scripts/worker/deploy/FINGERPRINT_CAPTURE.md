@@ -1,0 +1,753 @@
+# Fingerprint capture inventory (canonical)
+
+> One file. Every channel captured per WSession run. Source of truth.
+
+Every channel below lands in one merged artifact: `recordings/<label>/<label>.inst.json`, built by `buildDumpPayload` in `src/session/wsession-helpers/net_record.ts`. Large payloads (pcap, NetLog, HAR, screenshots, response bodies, heap snapshots, CDP firehose) are written to sibling files under the same `recordings/<label>/` dir and referenced from inst.json by path. `scripts/debug/fp_matrix/diff.mjs <a.inst.json> <b.inst.json>` produces a per-field PASS-vs-FAIL delta over this shape.
+
+Status legend: **[W]** wired and emitting · **[P]** partial (some sub-channels captured) · **[T]** todo (named here, not yet wired).
+
+Location note: this file lives under `scripts/worker/deploy/` because the repo-wide hook caps non-system files at 300 lines and the canonical inventory exceeds that. The directory is itself a hook-bypass path (`IS_SYSTEM=true`), the only place a single-file unrestricted spec can live in this repo.
+
+## A. JS-runtime property surfaces (init-script + property-trap)
+
+- **[W]** `navigator.*`, `window.*`, `screen.*`, `screen.orientation.*`, `document.*`, `location.*`, `history.*`, `performance.*` — own/prototype enumeration at session start via `SURFACE_INVENTORY_SCRIPT`; per-read access tee via `property_trap.js`.
+- **[W]** `crypto.subtle.*` method wraps; `crypto.getRandomValues` call log.
+- **[W]** `Intl.*` (DateTimeFormat, NumberFormat, Collator, RelativeTimeFormat, PluralRules, ListFormat, DisplayNames, Segmenter, Locale) `.resolvedOptions()` snapshot.
+- **[W]** `Notification.permission`, `Permissions.query` wrap, `navigator.userAgentData.getHighEntropyValues()`, `navigator.connection`, `navigator.getBattery()`, `navigator.storage`, `navigator.locks`, `navigator.serviceWorker`, `navigator.hid/usb/serial/bluetooth.getDevices()`, `navigator.mediaDevices.enumerateDevices()`.
+- **[W]** `navigator.languages/language/platform/appVersion/product/vendor/oscpu/buildID/webdriver/cookieEnabled/doNotTrack/deviceMemory/hardwareConcurrency/maxTouchPoints/pdfViewerEnabled/plugins/mimeTypes`.
+- **[W]** `WebTransport`, `EventSource`, `BroadcastChannel`, `navigator.sendBeacon`, `fetch`, `XMLHttpRequest`, `WebSocket` constructor wraps.
+- **[W]** `EventTarget.addEventListener` counter; `IntersectionObserver`, `ResizeObserver`, `MutationObserver`, `ReportingObserver` (auto-installed), `PerformanceObserver` constructor wraps.
+- **[W]** `trustedTypes.getPolicyNames`, `indexedDB.databases()`, `Storage` entry hooks, `document.featurePolicy`, `document.fonts`, `Notification.requestPermission`.
+- **[W]** `securitypolicyviolation` listener on document.
+- **[T]** Full `MediaCapabilities.decodingInfo()` matrix across every known mime/codec.
+- **[T]** Full `HTMLMediaElement.canPlayType()` + `MediaSource.isTypeSupported()` matrix.
+- **[T]** Full pre-probe of `window.matchMedia` across the 16-query media-feature set (`prefers-color-scheme/prefers-reduced-motion/prefers-contrast/prefers-reduced-data/prefers-reduced-transparency/forced-colors/inverted-colors/any-pointer/any-hover/pointer/hover/orientation/display-mode/dynamic-range/color-gamut/resolution`).
+- **[T]** Full pre-probe of `navigator.permissions.query` across all 30+ permission names.
+- **[T]** `MutationObserver` rooted at `document` with full subtree + attribute-old-value + character-data-old-value.
+- **[T]** `Math.random`, `Date.now`, `performance.now`, `setTimeout/setInterval/queueMicrotask/requestAnimationFrame/requestIdleCallback` call-rate counters with stack traces.
+- **[T]** `getBoundingClientRect` / `getClientRects` / `getComputedStyle` call counters with stack traces.
+- **[T]** Pre-probed font fingerprint: width + bounding rect of a marker string across 100+ known font families (Arial, Helvetica Neue, Times New Roman, Courier New, Verdana, Georgia, Trebuchet MS, Tahoma, Comic Sans MS, Lucida Sans Unicode, Palatino, Calibri, Cambria, Consolas, Segoe UI, San Francisco, Menlo, Monaco, Inter, Roboto, Open Sans, Lato, Source Sans Pro, Noto Sans, …).
+- **[T]** `XRSystem.isSessionSupported` per mode (`immersive-vr`, `immersive-ar`, `inline`); Sensor API readiness probe (Accelerometer/Gyroscope/Magnetometer/AmbientLight/Orientation/Gravity/LinearAcceleration).
+- **[T]** `speechSynthesis.getVoices()` full enumeration (name/lang/voiceURI/localService/default).
+- **[T]** `chrome.*` and `external.*` full property enumeration.
+- **[T]** Clipboard API — `navigator.clipboard.read/readText/write/writeText` wraps; capability probe of available formats.
+- **[T]** Credential Management — `navigator.credentials.get/store/preventSilentAccess`; `PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable` + `isConditionalMediationAvailable` capability matrix.
+- **[T]** Payment Request — `PaymentRequest.canMakePayment()` matrix per payment method (basic-card, Apple Pay, Google Pay, secure-payment-confirmation); `PaymentManager` capability.
+- **[T]** Background Fetch / Background Sync / Periodic Background Sync / Push API — `navigator.serviceWorker.ready.then(r => r.{backgroundFetch,sync,periodicSync,pushManager})` capability + permission state.
+- **[T]** Storage Buckets API — `navigator.storageBuckets.keys()` + per-bucket persisted/quota/expires.
+- **[T]** File System Access — `showOpenFilePicker`, `showSaveFilePicker`, `showDirectoryPicker`, `navigator.storage.getDirectory()` (Origin Private FS) capability + handle enumeration if permitted.
+- **[T]** App Badge / Eyedropper / Window Controls Overlay / Document Picture-in-Picture / Capture Handle / Screen Wake Lock / Web NFC / Web Smart Card / Direct Sockets / Compute Pressure / Digital Goods / WebOTP / Contact Picker / Web Share Target capability probes.
+- **[T]** View Transitions — `document.startViewTransition` capability; Long Animation Frames + `PerformanceObserver` entryType `long-animation-frame`.
+- **[T]** Trust Tokens / Private State Tokens — `document.hasPrivateToken` + redemption capability.
+- **[T]** Topics API — `document.browsingTopics()` (if enabled); Attribution Reporting — `window.attributionReporting` capability.
+- **[T]** Origin Trial token enumeration — both `<meta http-equiv="origin-trial">` and HTTP `Origin-Trial:` response headers per frame.
+- **[T]** `URLPattern.exec` capability; `Sanitizer` API capability; `Scheduler` (`scheduler.postTask`, `scheduler.yield`) capability.
+- **[T]** `Element.checkVisibility`, `Element.popover`/`togglePopover`/`showPopover`/`hidePopover`, anchor-positioning capability, `CSS.registerProperty` enumeration, `CSS.supports(prop, value)` matrix, `CSS.paintWorklet`/`audioWorklet`/`animationWorklet`/`layoutWorklet` capability probes.
+- **[T]** Document metadata — `document.referrer`, `document.URL`, `document.documentURI`, `document.baseURI`, `document.lastModified`, `document.readyState`, `document.compatMode`, `document.characterSet`, `document.contentType`, `document.designMode`, `document.title` change log.
+- **[T]** Selection / hit-test — `window.getSelection().toString()` + range count; `document.elementFromPoint(W/2, H/2)` + `elementsFromPoint`; `caretPositionFromPoint` / `caretRangeFromPoint`.
+- **[T]** `document.adoptedStyleSheets`, `document.fragmentDirective`, `document.implementation.hasFeature` matrix.
+- **[T]** `document.getAnimations()` full list; `Document.timeline.currentTime`; per-animation startTime / currentTime / playbackRate / playState / replaceState / pending; `ScrollTimeline` / `ViewTimeline` capability.
+- **[T]** `chrome.loadTimes()` + `chrome.csi()` + `chrome.runtime.id` (if extension context) + `chrome.app.isInstalled` full dump.
+- **[T]** `window.crossOriginIsolated`, `isSecureContext`, `originAgentCluster`, `window.opener` state, `window.applicationCache` presence (deprecated), `window.captureEvents` / `releaseEvents` (deprecated), `window.controllers` (Firefox legacy), `window.styleMedia` (deprecated), `window.scheduling.isInputPending`, `window.crypto.randomUUID`, `window.parent`/`window.top` cross-origin gate state.
+- **[T]** Built-in source strings — `Function.prototype.toString.call(fetch)`, `..call(WebSocket)`, `..call(RTCPeerConnection)`, `..call(navigator.serviceWorker.register)`, plus the toString of every native prototype method (fingerprints V8 build + patches). Also `Object.prototype.toString` tag values for every built-in.
+- **[T]** V8/JS engine version markers — `new Error().stack` format; `try { null.x } catch(e){return e.message}`; `(0.1+0.2).toString()`; `Math.expm1(1)`, `Math.log1p(1)`, `Math.atan2(0,0)`, `Math.tan(Math.PI/2)`, `Math.fround(1.1)` precision values; `Number.EPSILON`; `Date.parse('2026-01-01')` round-trip; locale-default Date.toString format.
+- **[T]** Capability probes — `BigInt`, `BigInt64Array`, `WeakRef`, `FinalizationRegistry`, `ShadowRealm`, `Atomics.waitAsync`, `Temporal`, `Array.fromAsync`, `Promise.try`, Iterator helpers (`map`/`filter`/`take`), `Object.fromEntries`, `Promise.prototype.finally`, `Array.prototype.flat`/`flatMap`, `Symbol.iterator`/`asyncIterator`/`toPrimitive`/`hasInstance`/`isConcatSpreadable`/`unscopables` enumeration on built-in prototypes.
+- **[T]** WebAssembly capability probes — SIMD (`WebAssembly.validate(simd_bytes)`), threads (Atomics + SharedArrayBuffer + `Memory({shared:true})`), exception handling, GC, JSPI, tail-call, multi-value, reference-types, bulk-memory.
+- **[T]** WebAssembly import runtime values — for every `WebAssembly.instantiate`, log the imports object resolved against the page (i.e. what host functions/memory the wasm module sees) and wrap each export with a per-call (args, return) tee.
+- **[T]** RegExp engine features — lookbehind support, named groups, `RegExp.escape` (if shipped), Unicode property escapes, sticky flag, dotAll flag, dotAll fingerprint pattern test.
+- **[T]** Date / Intl edge cases — `new Date(0).toString()`, `new Date().getTimezoneOffset()`, `Intl.DateTimeFormat().resolvedOptions().timeZone`, `Intl.Collator.supportedLocalesOf` matrix, `Intl.DateTimeFormat.supportedLocalesOf` matrix, `Intl.getCanonicalLocales` test cases, `Intl.Locale` round-trip, `Intl.NumberFormat` round-trip across en-US/de-DE/ru-RU/zh-CN/ar-EG (digit shaping).
+- **[T]** Console method full surface — `profile`, `timeStamp`, `count`, `countReset`, `dir`, `dirxml`, `table`, `trace`, `assert`, `group`, `groupCollapsed`, `groupEnd`, `time`, `timeEnd`, `timeLog`, `clear` wraps with call log.
+- **[T]** `window.onerror` / `window.onunhandledrejection` global listeners — every fired event with reason + filename + line + col + stack.
+- **[T]** Lifecycle events — `pagehide`/`pageshow`/`beforeunload`/`unload`/`freeze`/`resume`/`visibilitychange` log; `focus`/`blur`/`online`/`offline`/`popstate`/`hashchange`/`beforeprint`/`afterprint` log; cross-tab `storage` event log.
+- **[T]** Input deeper — `compositionstart`/`compositionupdate`/`compositionend` (IME), `beforeinput`/`input` with `inputType`, `selectionchange`, Pointer events `coalescedEvents()` + `predictedEvents()` arrays, Touch events `touches.length` + per-touch radiusX/radiusY/rotationAngle/force, Keyboard.getLayoutMap() — every key code → label, `Keyboard.lock()`/`unlock()` capability.
+- **[T]** SubresourceIntegrity — `integrity` attribute values for every `<script>` / `<link rel=stylesheet>`.
+- **[T]** Iframe sandbox attributes — for each iframe: sandbox value, allow value, allowfullscreen, referrerpolicy, loading; ancestor origin chain; csp attribute; allowpaymentrequest.
+- **[T]** ContentSecurityPolicy — `document.contentSecurityPolicy` enumeration; SecurityPolicyViolationEvent log; CSP-Report-Only enumeration.
+- **[T]** FontFace API deep — `document.fonts.size`, `.status`, per-FontFace family/style/weight/stretch/unicodeRange/variant/featureSettings/variationSettings/display/status; `document.fonts.check(font, text)` matrix.
+- **[T]** EncryptedMedia (DRM) — `navigator.requestMediaKeySystemAccess(keySystem, [config])` for every keySystem (Widevine, PlayReady, FairPlay, ClearKey) × every persistent-state / distinctive-identifier / audio capability + video capability combo.
+- **[T]** WebRTC additional — `RTCRtpSender.getCapabilities('audio'|'video')`, `RTCRtpReceiver.getCapabilities` per kind; `RTCIceTransport.getLocalCandidates`/`getRemoteCandidates`; `RTCDtlsTransport.getRemoteCertificates`; `MediaStreamTrack.getSettings`/`getCapabilities`/`getConstraints` per device; ICE servers config; `RTCDataChannel.send` log.
+- **[T]** `getMediaCapabilities` deep — `decodingInfo({type:'media-source',video:{contentType,width,height,bitrate,framerate}})` matrix across known codec×res×bitrate combos for power-efficient/smooth determination per host.
+- **[T]** Image decoding — `createImageBitmap` of a known PNG + JPEG + WebP + AVIF, then `OffscreenCanvas.convertToBlob` → sha256 of bytes for each; `createImageBitmap` options support matrix (resizeQuality/imageOrientation/premultiplyAlpha/colorSpaceConversion).
+
+## B. Canvas / GPU / Audio fingerprint surfaces
+
+- **[W]** Canvas `toDataURL` / `getImageData` — full base64 pixel data dumped via `fingerprint_hooks.js`.
+- **[W]** `AudioBuffer.getChannelData` per-channel Float32 base64; `OfflineAudioContext.startRendering` rendered sum.
+- **[W]** `RTCPeerConnection.createOffer/setLocalDescription/addIceCandidate/getStats` SDP + candidates + stats.
+- **[W]** `WebGL.getParameter` spoof + `getSupportedExtensions()` + `WEBGL_debug_renderer_info` UNMASKED_VENDOR/RENDERER.
+- **[W]** `WebGPU.requestAdapter()` adapter.info / features / limits.
+- **[W]** `performance.memory`, `navigator.getBattery`, `navigator.connection` change events.
+- **[T]** WebGL `getParameter` over every documented param ID (~200), every `getExtension` per-extension probe, `getShaderPrecisionFormat` for every shader/precision combo, `getContextAttributes()`, `getActiveAttrib`/`getActiveUniform` for sample programs.
+- **[T]** Canvas `measureText` full TextMetrics dump (actualBoundingBox*, fontBoundingBox*, alphabeticBaseline, hangingBaseline, ideographicBaseline, emHeightAscent, emHeightDescent).
+- **[T]** `AnalyserNode.getFloatFrequencyData` first 256 bins on a known waveform; `getByteTimeDomainData` snapshot.
+- **[T]** `AudioContext.outputLatency` + `baseLatency` + `getOutputTimestamp()`; `destination.maxChannelCount` + `sampleRate`; supported output channel counts.
+- **[T]** Shader compile fingerprint — compile a known WebGL vertex+fragment pair, dump `getProgramInfoLog` + `getShaderInfoLog` + ANGLE backend detection via `WEBGL_debug_shaders` (`getTranslatedShaderSource`).
+- **[T]** Float precision rounding test on GPU (ANGLE-specific rendering of edge-case floats; readPixels of a fragment that encodes float bits in RGB).
+- **[T]** ImageBitmap decode fingerprint — same image across `imageOrientation: from-image|none`, `premultiplyAlpha: default|premultiply|none`, `colorSpaceConversion: default|none` → 12 distinct hashes.
+- **[T]** Per-CDP-frame `Page.getOriginTrials` + `Page.getPermissionsPolicyState` + `Page.getAdScriptId` + frame ancestor chain.
+- **[T]** WebGPU compute fingerprint — run a known compute shader pipeline, read back buffer, hash bytes (ANGLE vs native, Metal vs Vulkan vs D3D12 differ).
+- **[T]** `AudioWorkletNode` — register a known processor, run on a known buffer, hash output (different scheduling between hosts).
+- **[T]** Speech recognition — `SpeechRecognition.lang` default; supported grammars list (capability probe only).
+
+## C. CDP firehose + final-state snapshots
+
+- **[W]** Subscribe every documented CDP event from protocol.d.ts (210 after skip-list) via `cdp_events.generated.ts`; payloads land in `ws._instCdpFirehose`.
+- **[W]** `DOMSnapshot.captureSnapshot` (currently 41 CSS properties); `DOM.getDocument({pierce:true})` closed-shadow walk; `HeapProfiler.takeHeapSnapshot` full graph.
+- **[W]** `SystemInfo.getInfo` + `SystemInfo.getProcessInfo` (full Chromium process tree with cpuTime + pid + processType); `Browser.getVersion`; `Browser.getHistograms` all-time; `Page.getNavigationHistory`.
+- **[W]** `Performance.getMetrics` polled every 10s; `Memory.getDOMCounters` polled every 10s.
+- **[W]** `Tracing.start` with `v8,blink,devtools.timeline,disabled-by-default-devtools.timeline,latencyInfo,toplevel` categories.
+- **[W]** `Profiler.startPreciseCoverage` (currently `callCount:false, detailed:false`); `CSS.startRuleUsageTracking`.
+- **[W]** `WebAudio.contextCreated/Destroyed/Changed`; `Animation.animationCreated/Started/Canceled/Updated`; `IndexedDB.databaseCreated/versionChange`; `Page.lifecycleEvent/javascriptDialogOpening/fileChooserOpened/windowOpen/navigatedWithinDocument`; `Browser.downloadWillBegin/downloadProgress`; `Runtime.consoleAPICalled/exceptionThrown`; `Log.entryAdded`; `Security.securityStateChanged/visibleSecurityStateChanged`; `Storage.indexedDBListUpdated/cacheStorageListUpdated/interestGroupAccessed/sharedStorageAccessed`.
+- **[T]** Bump `DOMSnapshot.computedStyles` from 41 props to the full ~600-property CSS list.
+- **[T]** Bump `Profiler.startPreciseCoverage` to `{callCount:true, detailed:true}` for per-function call counts + per-block coverage.
+- **[T]** Drop the 1 MiB-per-event preview cap on `_instCdpFirehose`; stream raw payloads to `recordings/<label>/cdp_firehose.ndjson`.
+- **[T]** `Network.getResponseBody` for every completed request — full body bytes to `recordings/<label>/bodies/<requestId>.bin`.
+- **[T]** `Network.getRequestPostData` for every POST request.
+- **[T]** `Network.getCookies` / `Storage.getCookies` / `Storage.getTrustTokens` / `Storage.getInterestGroups` / `Storage.getSharedStorageEntries` / `Storage.getRelatedWebsiteSets` final pulls.
+- **[T]** `Page.captureScreenshot` at start, every 5s, and at close (PNG bytes to `recordings/<label>/screenshots/`).
+- **[T]** `Page.captureSnapshot` (MHTML serialization per major page state).
+- **[T]** `Accessibility.getFullAXTree` final dump.
+- **[T]** `Browser.getBrowserCommandLine` (full Chromium argv); `Browser.getWindowBounds` per window.
+- **[T]** `Debugger.scriptParsed` + `Debugger.getScriptSource` for every script loaded (deduped, saved to `recordings/<label>/scripts/`).
+- **[T]** `CSS.getStyleSheetText` for every loaded sheet (saved under `recordings/<label>/css/`).
+- **[T]** `Cache.requestEntries` per Cache Storage namespace; `IndexedDB.requestData` per objectStore.
+- **[T]** `Audits.enable` + `Audits.issueAdded` capture (deprecation, intervention, mixed-content, contrast, forms-issues, generic, low-text-contrast, federated-auth).
+- **[T]** `LayerTree.compositingReasons` per layer; `LayerTree.layerPainted` events.
+- **[T]** `Schema.getDomains` self-report of the CDP version actually negotiated.
+- **[T]** `DOMDebugger.getEventListeners` walk over the full DOM tree — every listener with `type`, `useCapture`, `passive`, `once`, handler script ID, lineNumber, columnNumber.
+- **[T]** `Page.getFrameTree` + `Page.getLayoutMetrics` + `Page.getAppManifest` + `Page.getInstallabilityErrors` + `Page.getManifestIcons`.
+- **[T]** `Network.getCertificate` for current URL (cert chain DER); `Network.getSecurityIsolationStatus`.
+- **[T]** `CSS.getBackgroundColors` + `CSS.getPlatformFontsForNode` + `CSS.getMediaQueries` + `CSS.getFontVariationAxes` + `CSS.getLayersForNode` per visible node.
+- **[T]** `Storage.getInterestGroupDetails` / `getSharedStorageMetadata` / `getSharedStorageEntries` / `getRelatedWebsiteSets` / `getAttributionReports` / `getPrivateStateTokens` / `getQuotaUsage` / `getUsageAndQuota` final pulls.
+- **[T]** `Memory.getBrowserSamplingProfile` + `Memory.getProcessMemoryDistribution` + `Memory.startSampling`/`stopSampling`/`getSamplingProfile`.
+- **[T]** `Profiler.getRuntimeCallStats` (V8 internal call statistics — per-builtin invocation counts); `Profiler.takePreciseCoverage` intermediate pulls.
+- **[T]** `Audits.checkContrast` + `Audits.checkFormsIssues` + `Audits.getEncodedResponse` per resource.
+- **[T]** `Tracing.bufferUsage` pressure events; `Tracing.recordClockSyncMarker`.
+- **[T]** `Inspector.detached` log; `Target.getTargetInfo` + `Target.getBrowserContexts` final state.
+- **[T]** `Debugger.searchInContent`, `Debugger.getStackTrace` for every paused execution context.
+- **[T]** `Runtime.queryObjects` for top constructors (Function/Promise/RegExp/Error/Map/Set/WeakMap/WeakSet) — instance counts at start + end.
+- **[T]** `Runtime.getProperties` of `globalThis` (full ownProperties listing).
+- **[T]** `Runtime.getIsolateId` + `Runtime.getHeapUsage` periodic samples.
+- **[T]** `Input.dispatchTouchEvent` capability + `Emulation.getOverriddenSensorInformation`.
+- **[T]** `DOM.getContentQuads` per visible node (precise hit-test box geometry); `DOM.getNodeStackTraces`; `DOM.getFileInfo` if a file input has files; `DOM.getFrameOwner`.
+
+## D. Network layer (off-Chrome)
+
+- **[W]** `tcpdump` pcap of session (`pcap_sidecar.ts`) — kept whole, no filter; `SSLKEYLOGFILE` writes alongside.
+- **[W]** NetLog JSON (Chromium `--log-net-log`); HAR via Playwright.
+- **[W]** Playwright `requests` array — method, URL, headers, body size, response status; CDP `Network.requestWillBeSentExtraInfo` + `responseReceivedExtraInfo` (raw wire-level headers including HTTP/2 pseudo-headers and cookie line as sent); `loadingFinished`/`loadingFailed`/`signedExchangeReceived`/`requestServedFromCache`/`webSocketHandshakeResponseReceived`/`webSocketWillSendHandshakeRequest`.
+- **[T]** Post-run pcap decode: `tshark -2 -r traffic.pcap -o tls.keylog_file:sslkey.log -Y http2 -T json` → `recordings/<label>/http2_frames.json`.
+- **[T]** JA4 / JA4S / JA4H / JA4L / JA4T / JA4TS computed from pcap.
+- **[T]** JA3 / JA3S legacy hash.
+- **[T]** Peetprint (HTTP/2 SETTINGS hash) + Akamai H2 fingerprint (frames + pseudo-header order).
+- **[T]** Full TLS ClientHello + ServerHello byte dump (cipher suites, extensions, sig algs, supported_groups, key_share, ALPN, GREASE positions, ECH).
+- **[T]** DNS sidecar — separate `tcpdump port 53` capture, every query name/type/response; `mdns` capture on port 5353.
+- **[T]** HTTP/3 / QUIC frame decode if used (Initial / Handshake / 1-RTT, frame types); 0-RTT used flag; connection migration events.
+- **[T]** TLS additional — session ticket present; resumption used; ALPN value negotiated; TLS version; Certificate Transparency entries; OCSP staple present; QUIC initial packet decode.
+- **[T]** HTTP/2 negotiated — `SETTINGS_MAX_CONCURRENT_STREAMS`, `INITIAL_WINDOW_SIZE`, `HEADER_TABLE_SIZE`, `MAX_FRAME_SIZE`, `ENABLE_PUSH`; HPACK header table state at each request boundary.
+- **[T]** Resource Timing per-resource — `transferSize`, `encodedBodySize`, `decodedBodySize`, `nextHopProtocol`, `responseStart/End`, DNS/TCP/TLS/TTFB/contentDownload sub-timings, deliveryType, renderBlockingStatus, responseStatus.
+- **[T]** Network Information API — `connection.type`, `effectiveType`, `downlink`, `downlinkMax`, `rtt`, `saveData` + change events log.
+- **[T]** WebSocket frame-level dump — per-WS connection: every frame (opcode/fin/mask/payload-len/payload bytes) decoded from pcap.
+- **[T]** STUN/TURN packet capture — separate filter on the relevant ports, dump binding requests/responses (reveals NAT type).
+
+## E. Host / OS state
+
+- **[W]** `ps -axo pid,ppid,user,command`, `ifconfig`, `netstat -rn`, `netstat -an -p tcp`, `top -l 1 -n 20`, `vm_stat`, `uptime`, `scutil --dns`, `pmset -g batt; pmset -g therm`, `sysctl -a | grep net.` (head 200), `launchctl list` (head 100), `arp -an`, `dscacheutil -cachedump`, `powermetrics -n 1 --samplers smc` (head 50), `lsof -p <node>` (head 100). All in `_instHostSnapshots`.
+- **[W]** weles + trajectory version provenance (commit short sha + tree sha + dist sha256 + mtime). In `versions` field.
+- **[W]** Sibling file manifest of `recordings/<label>/` — name/size/mtime for every artifact.
+- **[T]** `process.env` snapshot with secret-class values sha256'd (every PATH/LANG/LC_*/HOME/SHELL/TMPDIR/USER/LOGNAME/PWD/OLDPWD/_/SSH_*/HOMEBREW_*/NODE_*).
+- **[T]** `process.argv` of the node process; `os.networkInterfaces()` MAC addresses; `os.cpus()` per-core model/speed/times; `os.totalmem/freemem`; `os.platform/arch/release/version`; `os.uptime`/`os.loadavg`; `process.resourceUsage()`; `process.versions`; `process.pid`/`ppid`/`title`.
+- **[T]** Per-Chromium-child `ps -o command= -p <pid>` for every pid in `SystemInfo.getProcessInfo` (full argv per renderer/utility/gpu/network).
+- **[T]** `lsof -p <chromium_pid>` per Chromium process — every file descriptor, socket, shared lib.
+- **[T]** `vmmap <pid>` per Chromium process (memory regions, mapped files).
+- **[T]** `sample <pid>` micro-profile of node + Chromium main (300ms stack sampling).
+- **[T]** `fs_usage` 5-second snapshot of file syscalls; `dtruss -t open -p <pid>` brief sample if SIP allows.
+- **[T]** `nettop -P -L 1 -l 1` per-process network counters; `iostat -d 1 1` disk; `netstat -i` per-interface counters.
+- **[T]** `system_profiler SPHardwareDataType SPDisplaysDataType SPNetworkDataType SPUSBDataType SPBluetoothDataType SPAudioDataType SPCameraDataType SPPowerDataType SPSoftwareDataType SPMemoryDataType SPStorageDataType SPThunderboltDataType SPPCIDataType` full dump.
+- **[T]** `sysctl -a` full tree (not the grep-net subset).
+- **[T]** `nvram -p` firmware variables; `csrutil status`, `spctl --status`, `bputil -d`, `nvram boot-args`; AMFI status.
+- **[T]** `kextstat` loaded kernel extensions; `kmutil showloaded` (Big Sur+).
+- **[T]** `ioreg -l` IORegistry with hardware UUIDs/serials sha256'd; `system_profiler SPHardwareDataType -detailLevel full` (board ID, serial, model identifier).
+- **[T]** `defaults read NSGlobalDomain` global user defaults; `defaults read com.apple.SoftwareUpdate`; `defaults read com.apple.systemuiserver menuExtras`.
+- **[T]** PATH binary enumeration — every executable in every `$PATH` dir, with name/size/mode (data only, no execution); xattr quarantine bits per binary.
+- **[T]** Installed app list — `ls /Applications` + `mdfind 'kMDItemKind == Application'`; `system_profiler SPApplicationsDataType` full.
+- **[T]** `dscl . list /Users` local user accounts (count + sha256); `id`, `groups`, `who`, `w`, `last | head -20`.
+- **[T]** TZ + clock sync — `date +%z %Z`, `systemsetup -gettimezone`, `systemsetup -getusingnetworktime`, `sntp -d time.apple.com`; `/etc/localtime` symlink target; `defaults read .GlobalPreferences AppleLocale`.
+- **[T]** `airport -I` current WiFi (SSID/BSSID/RSSI/channel/auth/noise/transmit-rate) with SSID/BSSID sha256'd.
+- **[T]** `df -h` / `mount` / `diskutil list` / `diskutil info disk0` (disk serial sha256'd); `tmutil status` Time Machine state.
+- **[T]** Keychain entry count via `security dump-keychain | wc -l` (no contents).
+- **[T]** Every Launch Agent / Launch Daemon plist path + sha256 of content under `~/Library/LaunchAgents`, `/Library/LaunchAgents`, `/Library/LaunchDaemons`, `/System/Library/LaunchAgents`, `/System/Library/LaunchDaemons`.
+- **[T]** Homebrew install list `brew list --versions`; `brew config`; `brew doctor` (sha256 of output).
+- **[T]** `xattr -l` on the Chromium binary (quarantine bits, provenance); `codesign -dvvv <binary>` signature/team-ID; `spctl --assess --verbose=4` Gatekeeper verdict.
+- **[T]** macOS sandbox profile state — `sandbox-exec -p` if profile present; `nvram -x` extended-format firmware.
+- **[T]** `pfctl -sa` packet filter rules; `route monitor` 1s snapshot.
+- **[T]** `mdls` on the Chromium binary (Spotlight metadata: kMDItemContentType, kMDItemFSCreationDate, kMDItemWhereFroms).
+- **[T]** `pmset -g log | tail -50` recent power events; `log show --last 1m --predicate 'subsystem == "com.apple.kernel"'` kernel log tail.
+- **[T]** `~/Library/Logs/DiagnosticReports/` recent crash report directory listing (filenames + sizes + first-line headers).
+- **[T]** `/var/log/system.log` tail (sha256 or last-100-lines); `/var/log/wifi.log` tail; `/var/log/install.log` tail.
+- **[T]** Console.app recent process crash signatures (last-N from `log show --last 5m --predicate 'eventMessage CONTAINS "crash"'`).
+- **[T]** `ulimit -a`, `locale`, `getconf -a` (POSIX system params).
+- **[T]** `/etc/hosts`, `/etc/resolver/*`, `/etc/nsswitch.conf` (Linux), `/etc/resolv.conf` (sha256'd).
+- **[T]** Display EDID — `ioreg -l -d 0 -w 0 | grep IODisplayEDID`.
+- **[T]** USB device list with VID/PID — `system_profiler SPUSBDataType`; Bluetooth pairing list count — `system_profiler SPBluetoothDataType`.
+- **[T]** Wi-Fi adapter MAC (different from primary interface MAC) — `ifconfig en0` ether vs `ifconfig en1`.
+- **[T]** Battery serial + cycles + capacity — `system_profiler SPPowerDataType`.
+
+## F. Browser / weles internals
+
+- **[W]** Persona blob (UA, brands, platform, OS, GPU, CPU count, memory, screen, locale, TZ) and proxy config (provider, pool, port, exit IP, AS, geo, cidr-burn status).
+- **[T]** Chromium command line via `Browser.getBrowserCommandLine` with `--enable-features` / `--disable-features` lists fully exploded into individual flags.
+- **[T]** weles patch set applied to Chromium — list of patch file paths + sha256 + header line each (from `../chromium-build/patches/`).
+- **[T]** Init scripts source — sha256 + full text of every `addInitScript` injected (property_trap.js, fingerprint_hooks.js, input_recorder.js, MODERN_API_HOOKS_SCRIPT, SURFACE_INVENTORY_SCRIPT, WEBAUTHN_REJECT_SCRIPT, ARKOSE_OBSERVER_SCRIPT, FETCH_REGISTER_INTERCEPT_SCRIPT).
+- **[T]** Every automation env var influencing run (`PLAYWRIGHT_*`, `WELES_*`, `CHROME_*`, `CHROMIUM_*`, `PUPPETEER_*`, `GOOGLE_*`, `NODE_OPTIONS`, `NODE_EXTRA_CA_CERTS`).
+- **[T]** Playwright / node / V8 / libuv / openssl / icu versions (partly in `process.versions`); browser channel + dist sha256 of `--executable-path`.
+- **[T]** Skia version, ANGLE version, BoringSSL/NSS version, libvpx/libwebp/libavif versions (read from `chrome://version` or `Browser.getVersion`).
+- **[T]** weles `.env` resolved at session start (key names only, values sha256'd if secret-class).
+- **[T]** Persona generation seed + RNG state used at persona creation (so a run can be re-derived bit-for-bit).
+- **[T]** firefox-build patch set (when `browser==firefox`) — list of patch paths + sha256 + commit base sha (`gecko-dev@5836a062`).
+- **[T]** Juggler protocol version + Playwright firefox prefs object (`weles.fingerprint.*` pref group dumped fully).
+
+## G. Trajectory-level state
+
+- **[W]** Per-action timestamp + start/end URL + screenshot frame sha8 (from inspect_trajectory hook).
+- **[W]** humanClick / humanType / humanScroll / humanIdlePause atoms log via `input_recorder.js` (coords, character timings, scroll deltas, pause durations + reason).
+- **[T]** Per-action retry count + per-action error category + per-action duration histogram.
+- **[T]** humanIdlePause distribution (deliberate/natural/microthought/typo-recovery counts).
+- **[T]** humanType per-keystroke timing distribution (mean / stddev / max).
+- **[T]** humanClick per-click hit-test element selector + computed-style font/color (so the click target's visual properties are captured alongside the coords).
+- **[T]** Trajectory hash chain — running sha256 over (verb, args, page URL, frame screenshot sha8) per action, so two runs of the same trajectory produce a hash chain that can be diffed step-by-step.
+
+## H. Visual layer
+
+- **[W]** Webm session recording (Playwright record_video_dir).
+- **[T]** Per-action MHTML snapshot via `Page.captureSnapshot`.
+- **[T]** Per-second `Page.captureScreenshot` to `recordings/<label>/screenshots/`.
+- **[T]** Frame-by-frame perceptual hash (pHash) sidecar of the webm.
+- **[T]** Per-action full-DOM `outerHTML` dump (saved to `recordings/<label>/dom/<action>.html`).
+- **[T]** Per-action computed-style dump of every focusable element (`button, a, input, select, textarea, [role=button], [tabindex]`).
+- **[T]** Visual viewport state log — `visualViewport.{offsetLeft,offsetTop,pageLeft,pageTop,width,height,scale}` on resize/scroll.
+- **[T]** Element timing entries — for every element with `elementtiming` attribute or LCP candidate, the render timestamp.
+
+## I. Worker contexts
+
+- **[W]** `Target.setAutoAttach` flatten across every worker session; per-worker Runtime.evaluate inventory of `self.*` + `self.navigator.*`; per-worker `Runtime.consoleAPICalled`, `Runtime.exceptionThrown`, `Network.requestWillBeSent`, `Network.responseReceived`, `Network.loadingFailed` subscription.
+- **[T]** Per-worker `Debugger.getScriptSource` of the worker's own JS (deduped sha256 → saved under `recordings/<label>/worker-scripts/`).
+- **[T]** Per-worker `WebAssembly.compile/instantiate` log (currently only the document context).
+- **[T]** Per-SharedWorker / ServiceWorker scope, scriptURL, navigationPreload state, updateViaCache, active worker scriptURL hash, recent fetch event count.
+- **[T]** Per-worker `Profiler.startPreciseCoverage` + `Profiler.takePreciseCoverage` for per-function execution coverage.
+- **[T]** Per-worker `Runtime.getHeapUsage` periodic samples.
+- **[T]** Per-worker `Network.getResponseBody` for its in-flight requests.
+
+## J. Provenance / dedup
+
+- **[W]** Session label + started_at + closed_at; uploaded to Supabase Storage via `uploadArtifacts.ts`.
+- **[T]** SHA256 of the merged inst.json itself written to a sidecar `.sha256` for re-upload dedup.
+- **[T]** Wall-clock start/end + monotonic perf delta + chromium boot time + node-process boot time delta.
+- **[T]** Host clock skew vs `sntp -d time.apple.com` at session start.
+- **[T]** WSession constructor call site sha256 (which trajectory file + line invoked `new WSession`).
+
+## K. Media / DRM matrices
+
+- **[T]** `HTMLMediaElement.canPlayType(mime)` matrix across every known mime (mp4/webm/ogg containers × h264/h265/vp8/vp9/av1/opus/aac/flac/mp3 codecs × profile/level combos).
+- **[T]** `MediaSource.isTypeSupported(mime)` matrix (same axes).
+- **[T]** `MediaRecorder.isTypeSupported(mime)` matrix.
+- **[T]** `MediaCapabilities.decodingInfo({type, video, audio})` matrix across (resolution, bitrate, framerate) bins — surfaces hardware-accelerated codec capability vs software-only.
+- **[T]** `MediaCapabilities.encodingInfo` matrix (camera/screen capture encoding capability).
+- **[T]** `navigator.requestMediaKeySystemAccess(keySystem, [config])` for every keySystem (`com.widevine.alpha`, `com.microsoft.playready`, `com.apple.fps`, `org.w3.clearkey`) × every persistent-state / distinctive-identifier / audio + video capability combo.
+- **[T]** `MediaKeys.createSession` capability per session-type (`temporary`, `persistent-license`, `persistent-usage-record`).
+- **[T]** HDR / WCG support — `screen.colorDepth`, `screen.pixelDepth`, `matchMedia('(dynamic-range: high)')`, `matchMedia('(color-gamut: p3)')`, `matchMedia('(color-gamut: rec2020)')`.
+- **[T]** `AudioContext.audioWorklet.addModule` capability + supported sample rates per `AudioContextOptions`.
+
+## L. V8 / runtime internals
+
+- **[T]** V8 build flags fingerprint — read from `chrome://version` equivalent (CDP `Browser.getVersion` has product but not flag list; need `--js-flags` enumeration via the actual argv from `Browser.getBrowserCommandLine`).
+- **[T]** ICU library version (from `Intl` impl + `chrome://version`).
+- **[T]** V8 heap statistics via `v8.getHeapStatistics()` (node side) + CDP `HeapProfiler.collectGarbage` + `Runtime.getHeapUsage`.
+- **[T]** V8 hidden class signatures — `%HaveSameMap(a, b)` if natives-syntax enabled; otherwise a series of object-creation patterns hashed by inferred shape transitions.
+- **[T]** Built-in source strings — `Function.prototype.toString.call(obj.method)` for the entire set of native methods on `Array`, `Object`, `String`, `Number`, `Date`, `RegExp`, `Math`, `JSON`, `Promise`, `Map`, `Set`, `WeakMap`, `WeakSet`, `Symbol`, `Reflect`, `Proxy`, `Error` (and every Error subclass).
+- **[T]** `Error.captureStackTrace` capability test (V8-only); `Error.stackTraceLimit` value.
+- **[T]** `new Error().stack` format — fingerprints V8 vs SpiderMonkey vs JavaScriptCore.
+- **[T]** Math.* edge values across the precision-sensitive set — every value from the Tor Browser fingerprint surface (`sin/cos/tan/asin/acos/atan/atan2/sinh/cosh/tanh/expm1/log1p/cbrt/hypot/fround/clz32/imul`).
+- **[T]** `Number.prototype.toExponential` / `toPrecision` / `toLocaleString` edge cases per locale.
+- **[T]** RegExp engine markers — Unicode property escape support; lookbehind support; named-capture support; `RegExp.escape` (Stage 4 proposal) presence; `/regex/v` set-notation support.
+- **[T]** Iterator helpers presence — `Iterator.from`, `.map`, `.filter`, `.take`, `.drop`, `.flatMap`, `.reduce`, `.toArray`, `.forEach`, `.some`, `.every`, `.find`.
+- **[T]** `Temporal` API presence per sub-namespace (`Temporal.Now`, `Temporal.Instant`, `Temporal.PlainDate`, `Temporal.PlainTime`, `Temporal.PlainDateTime`, `Temporal.Duration`, `Temporal.Calendar`, `Temporal.TimeZone`, …).
+- **[T]** `ShadowRealm` presence + cross-realm Promise plumbing test.
+- **[T]** `Atomics.waitAsync` presence; `SharedArrayBuffer` length-changing presence; `BigInt64Array` presence.
+- **[T]** `Promise.withResolvers` (ES2024) + `Promise.any` + `Promise.allSettled` presence.
+- **[T]** `Object.groupBy` / `Map.groupBy` presence (ES2024).
+- **[T]** `Array.prototype.toReversed` / `toSorted` / `toSpliced` / `with` (ES2023) presence.
+- **[T]** `Array.fromAsync` / `Promise.try` (Stage 4 candidates) presence.
+
+## M. Crash / diagnostic logs
+
+- **[T]** Recent Chromium crash dumps directory listing — `~/Library/Application Support/Google/Chrome/Crashpad/pending` and `completed` (filenames + sizes + first-line crash signatures).
+- **[T]** Recent crash signatures via `log show --last 10m --predicate 'eventMessage CONTAINS[c] "crash"'`.
+- **[T]** `~/Library/Logs/DiagnosticReports/` recent reports (ls + sha256 of newest).
+- **[T]** `~/Library/Logs/CrashReporter/MobileDevice/` (iOS-paired device crash reports — fingerprints whether iPhone was attached).
+- **[T]** `xnu` boot args via `nvram boot-args`; recent kernel panics via `log show --last 1d --predicate 'subsystem == "com.apple.kernel"' | grep -i panic`.
+- **[T]** `launchd` recent job exit codes via `launchctl print system | grep "last exit code"`.
+- **[T]** `pmset -g log | tail -200` recent power/sleep/wake events.
+- **[T]** `system_profiler SPSoftwareDataType` boot mode (recovery / safe / verbose / normal).
+- **[T]** SMC sensor history via `powermetrics -n 5 -i 1000 --samplers smc,cpu_power,thermal`.
+
+## N. Memory / process internals (deeper)
+
+- **[T]** `vmmap <pid>` per Chromium process — region list, mapped files, anon vs file-backed, COW state.
+- **[T]** `sample <pid> 0.5` stack-sampling profile of node main + Chromium main + GPU process + each renderer.
+- **[T]** `fs_usage -w -f filesystem` 3-second snapshot — every file syscall the Chromium tree makes during that window.
+- **[T]** `nettop -m route -P -L 1 -l 1 -k state` per-process network state.
+- **[T]** `iostat -d 1 1` device throughput; `iostat -c 1 1` CPU breakdown.
+- **[T]** Swap usage — `sysctl vm.swapusage`.
+- **[T]** `top -l 1 -n 500 -stats pid,command,cpu,mem,state,ports,mregion,rprvt,vprvt,vsize,rsize,th,fdfx,user` full process list.
+- **[T]** `lsof -nP -i TCP -p $(pgrep -d, Chromium)` open TCP sockets per Chromium process.
+
+## O. Display / monitor
+
+- **[T]** `Screen.getScreenDetails()` for multi-monitor — per-screen left/top/width/height/availLeft/availTop/availWidth/availHeight/colorDepth/pixelDepth/devicePixelRatio/orientation/isPrimary/isInternal/label.
+- **[T]** `ScreenOrientation` API state — `screen.orientation.type`/`angle`/`onchange` events.
+- **[T]** HDR support per screen via `matchMedia('(dynamic-range: high)')` and `(video-dynamic-range: high)`.
+- **[T]** Color-gamut capability via `matchMedia('(color-gamut: srgb)')`, `(color-gamut: p3)`, `(color-gamut: rec2020)`.
+- **[T]** `system_profiler SPDisplaysDataType` — per-display vendor, product, EDID, resolution, refresh rate, color depth, mirror state.
+
+## P. Trust / sandbox / isolation
+
+- **[T]** COEP / COOP / CORP response headers per frame (via `Network.responseReceivedExtraInfo`).
+- **[T]** `window.isSecureContext` per frame; `window.crossOriginIsolated` per frame; `window.originAgentCluster` per frame.
+- **[T]** Iframe sandbox flags resolved per frame (parsed from sandbox attribute + headers).
+- **[T]** Permissions-Policy resolved state per frame (via `Page.getPermissionsPolicyState`).
+- **[T]** `Document-Policy` header per frame.
+- **[T]** Storage partitioning state — Storage Access API state, third-party cookie permissions per origin, partition key per frame.
+- **[T]** WebAuthn capability per origin (`PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable` + `isConditionalMediationAvailable`).
+- **[T]** `Trust Token` issuance / redemption state per origin.
+
+## Q. Per-frame static metadata
+
+- **[T]** Per-frame `<!doctype>` declaration; lang attribute; meta charset.
+- **[T]** Every `<script src>` URL per frame (with crossorigin, integrity, nonce, type, referrerpolicy attributes).
+- **[T]** Every `<link>` per frame — href, rel, as, crossorigin, integrity, type, sizes, imagesrcset.
+- **[T]** Every `<meta>` per frame — name/property/http-equiv/content/charset.
+- **[T]** Per-frame `document.cookie` value at start + end (sha256'd if any cookie present).
+- **[T]** Per-frame `document.referrer`; `referrerpolicy` attribute on each link/script.
+
+## R. Time / clock fingerprints
+
+- **[T]** `performance.now()` precision test — call N times in a tight loop, measure min observable delta (browsers clamp differently: 5µs / 100µs / 1ms).
+- **[T]** `Date.now()` precision test (typically 1ms but devtools/measurement reduces).
+- **[T]** Drift between `performance.now()` and `Date.now()` over the session (monotonic-vs-wall divergence).
+- **[T]** `requestAnimationFrame` interval distribution — collect 60 frame timestamps, histogram them (60Hz / 90Hz / 120Hz / 144Hz display + ProMotion variable-refresh).
+- **[T]** Page Visibility API delta vs document.hidden boolean (timing of the transitions).
+- **[T]** `document.timeline.currentTime` vs `performance.now()` skew.
+- **[T]** Date / time-zone offset at session start vs end (detects DST transitions, NTP adjustments).
+- **[T]** `setTimeout(fn, 0)` actual fired delay distribution (browsers clamp 0 to 4ms; nested timeouts to 4-10ms).
+
+## S. Network probes from in-browser
+
+- **[T]** WebRTC ICE candidate harvest — `RTCPeerConnection({iceServers:[]})` + `createDataChannel` + `createOffer` → enumerate host/srflx/relay candidates. Surfaces all local NIC IPs (incl. IPv6 LL/ULA, VPN interfaces).
+- **[T]** STUN response from a public STUN server (e.g. `stun:stun.l.google.com:19302`) → server-reflexive IP.
+- **[T]** TURN allocation test against known TURN server (capability probe only).
+- **[T]** `<link rel=dns-prefetch>` to a known unique subdomain — measure time-to-resolve via Resource Timing.
+- **[T]** `<link rel=preconnect>` to a known unique origin — measure TCP+TLS time.
+- **[T]** WebSocket round-trip to a known echo server — measure RTT (matches against pcap RTT for sanity).
+- **[T]** Service Worker fetch interception capability test (register SW, navigate, observe).
+- **[T]** `caches.open()` capability + `cache.put` capability + per-cache `cache.keys()` enumeration of any pre-populated entries.
+
+## T. GPU compute / graphics deeper
+
+- **[T]** WebGL2 transform feedback fingerprint — write a known program, dump XFB buffer bytes, hash.
+- **[T]** WebGL2 multiple-render-targets — write to 4 attachments with known fragment shader, hash each.
+- **[T]** WebGL2 invariant qualifier handling — verify `invariant gl_Position` produces bit-equal output across draws (ANGLE backends differ).
+- **[T]** WebGPU pipeline cache — same pipeline twice, measure compile-time delta (cached vs not).
+- **[T]** 2D canvas full-primitive draw — every primitive (path/text/image/gradient/pattern/shadow/composite-op) on a known canvas → toDataURL hash.
+- **[T]** SVG filter rendering — apply a chain (`feGaussianBlur` → `feColorMatrix` → `feComposite`) to a known input, rasterize via OffscreenCanvas, hash bytes.
+- **[T]** Canvas `getContextAttributes()` reported defaults — alpha/desynchronized/colorSpace/willReadFrequently.
+- **[T]** WebGL ANGLE backend identification — `WEBGL_debug_renderer_info.UNMASKED_RENDERER_WEBGL` contains "ANGLE (Apple, Apple Mxx ...)" / "(NVIDIA, ...)" / "(Intel, ...)" — parse vendor+device strings.
+
+## U. Audio compute deeper
+
+- **[T]** DynamicsCompressorNode output — feed a known oscillator chain through the canonical AudioFP compressor settings, read 30 samples, hash. (This is *the* audio fingerprint vector — same browser+OS+CPU produces same output.)
+- **[T]** IIRFilter rendering on known input — same setup, hash output.
+- **[T]** WaveShaperNode on known curve — hash output.
+- **[T]** ConvolverNode with known impulse response — hash output.
+- **[T]** Per-output-channel rendering with `channelInterpretation:'speakers'` vs `'discrete'`.
+- **[T]** `AudioContext.destination.{channelCount,channelCountMode,channelInterpretation,maxChannelCount}`.
+- **[T]** `AudioListener` default position + orientation values.
+- **[T]** `AudioContext.audioWorklet.addModule('inline-worklet.js')` — register, run, hash output bytes.
+
+## V. Browser cache state
+
+- **[T]** HTTP cache size + hit rate via Chromium internals (`chrome://net-internals/#httpCache` equivalent via NetLog parsing).
+- **[T]** Disk cache age — for important resources, first-cached time relative to session start (warm-cache vs cold-cache detection).
+- **[T]** Favicon cache state — `chrome://favicon/<url>` rendered + hashed.
+- **[T]** Prefetch cache hits — every resource served from prefetch (per Resource Timing `transferSize===0` + `responseStart` close to `requestStart`).
+
+## W. Extension / extra-injected code state
+
+- **[T]** Detection of common extension-injected globals on `window` — uBO (`window.uBOBundle`), MetaMask (`window.ethereum`), LastPass (`window._lpcurrentid`), 1Password (`window.opCurrentField`), etc.
+- **[T]** Document.querySelector for known extension-injected DOM elements (uBO badge, MetaMask popup root, etc.).
+- **[T]** Service worker registration scope check for any non-page-controlled SW.
+- **[T]** `navigator.serviceWorker.getRegistrations()` looking for registrations registered by extensions.
+- **[T]** Detection of devtools-extension presence via `Function.prototype.toString.toString()` (devtools replace built-ins).
+
+## X. Network adapter detail beyond MAC
+
+- **[T]** Per-interface flags (UP/RUNNING/MULTICAST/BROADCAST/LOOPBACK/POINTOPOINT) from `ifconfig`.
+- **[T]** Per-interface MTU.
+- **[T]** Per-interface link speed (`ifconfig en0 | grep media:` on macOS).
+- **[T]** Per-interface duplex mode.
+- **[T]** IPv6 addresses with scope per interface; link-local + unique-local + global.
+- **[T]** Default gateway per address family; `route -n get default` for IPv4 and IPv6.
+- **[T]** Configured DNS servers per resolver scope (`scutil --dns` already W; expand to per-resolver match domain).
+
+## Y. Filesystem mount + USB state
+
+- **[T]** `mount(8)` full output.
+- **[T]** `diskutil list` full + per-volume `diskutil info <vol>` — Name, FS type, capacity, used, mount, encryption, mount options, owners enabled.
+- **[T]** USB device list with VID/PID/serial (sha256'd) — `system_profiler SPUSBDataType`.
+- **[T]** External drive serial enumeration (sha256'd) — disk0/1/... serial.
+- **[T]** Thunderbolt device list — `system_profiler SPThunderboltDataType`.
+- **[T]** FUSE / network mounts list.
+
+## Z. Locale + i18n deeper
+
+- **[T]** `defaults read .GlobalPreferences AppleLanguages` (ordered preference list).
+- **[T]** `defaults read .GlobalPreferences AppleLocale`.
+- **[T]** `LANG`, `LC_ALL`, `LC_CTYPE`, `LC_NUMERIC`, `LC_TIME`, `LC_COLLATE`, `LC_MONETARY`, `LC_MESSAGES`, `LC_PAPER`, `LC_NAME`, `LC_ADDRESS`, `LC_TELEPHONE`, `LC_MEASUREMENT`, `LC_IDENTIFICATION`, `TZ` env vars at session start.
+- **[T]** `locale -a` available locales count.
+- **[T]** ICU data version (from `Intl.DateTimeFormat` round-trip + V8 ICU version reflection).
+- **[T]** First day of week per locale (`Intl.Locale.weekInfo.firstDay`).
+- **[T]** Measurement system (metric/imperial) per locale.
+
+## AA. GPU acceleration state
+
+- **[T]** `chrome://gpu/` feature status list scraped via CDP — accelerated 2d canvas, accelerated video decode, hardware video encode, OOP-D, raster, multiple raster threads, vulkan, etc.
+- **[T]** ANGLE backend (Metal / Vulkan / D3D11 / D3D12 / OpenGL) identified from `Browser.getVersion` build channel + `WEBGL_debug_renderer_info`.
+- **[T]** Skia backend (Ganesh / Graphite) — read from `chrome://gpu/`.
+- **[T]** Compositing path features (delegated ink trails, fenced frames, shared element transitions) from chrome://gpu.
+- **[T]** Out-of-process iframe state — which iframes are OOP per `Page.getFrameTree` + process info.
+
+## BB. Audio routing + Web Audio module detail
+
+- **[T]** Default output device name + sample rate + channel count from `system_profiler SPAudioDataType` (sha256'd if device name is user-identifying).
+- **[T]** Default input device name + sample rate + channel count.
+- **[T]** AudioContext sample rates probe — try `new AudioContext({sampleRate: x})` for x ∈ {8000, 11025, 22050, 32000, 44100, 48000, 88200, 96000, 192000} → which succeed.
+
+## CC. Property-trap deeper
+
+- **[W]** `property_trap.js` records every read access with `(o, p, t)`.
+- **[T]** Stack trace on every trapped access — `new Error().stack` captured to log the caller chain (currently only the access itself is logged, not the call site).
+- **[T]** Caller URL + line + column on every trapped access (parsed from the stack).
+- **[T]** Calling frame URL on every trapped access (`frameElement.src` for the caller frame, if iframe).
+- **[T]** Wrap ALL writable properties on `Window.prototype` and `Document.prototype` (not just the read-side `wrapGetters`).
+
+## DD. Page lifecycle deeper
+
+- **[T]** `document.prerendering` state (`true` if cross-origin prerender candidate).
+- **[T]** `document.wasDiscarded` state (true if restored from BFCache after discard).
+- **[T]** BFCache restoration count — count of `pageshow` events with `persisted:true`.
+- **[T]** Soft-navigation entries — `PerformanceObserver({type:'soft-navigation'})`.
+- **[T]** `unloadEventStart`/`unloadEventEnd` from PerformanceNavigationTiming.
+- **[T]** `redirectCount` from PerformanceNavigationTiming.
+
+## EE. WebDriver / automation leak detection points
+
+The pwning surface bot detectors check — every one of these is a fingerprint channel because absence/presence is the signal:
+
+- **[W]** `navigator.webdriver` value (we spoof this; capture what page sees).
+- **[T]** `window.cdc_adoQpoasnfa76pfcZLmcfl_Array` + `_Promise` + `_Symbol` (Chromedriver leak).
+- **[T]** `window.$cdc_asdjflasutopfhvcZLmcfl_` (other Chromedriver leak).
+- **[T]** `window.callPhantom`, `window._phantom` (PhantomJS leak).
+- **[T]** `window.Buffer`, `window.process`, `window.global`, `window.require` exposure (Electron / NWJS leak).
+- **[T]** `navigator.permissions.query({name:'notifications'})` returning `denied` while `Notification.permission` is `default` (Chromedriver leak).
+- **[T]** `WebDriver` interface global presence.
+- **[T]** Outer-vs-inner dimensions ratio (`outerWidth - innerWidth`, `outerHeight - innerHeight`) — headless tends to 0.
+- **[T]** Battery API defaults (level=1, charging=true) on headless / docker.
+- **[T]** `chrome.runtime` presence (headless lacks it; stock Chrome has it).
+- **[T]** Plugin list size = 0 (headless default) vs N (stock).
+- **[T]** Iframe `contentWindow.chrome` presence (matches `window.chrome`).
+- **[T]** `navigator.languages.length` >= 2 (headless default is 1).
+- **[T]** `Function.prototype.toString.call(navigator.webdriver getter)` — native vs monkeypatched.
+- **[T]** Hairline test — render a 1-pixel-wide line at sub-pixel position, read back, compare to expected (HiDPI / DPR consistency check that bots often fail).
+
+## FF. Process spawning context
+
+- **[T]** Process tree from node up — `ps -o pid,ppid,command --ppid <parent>` recursively to PID 1.
+- **[T]** Parent process command (Terminal.app, iTerm2, VSCode, Cursor, Claude Code CLI, systemd, launchd, ssh-session).
+- **[T]** Controlling terminal — `tty` of the node process + parent shell.
+- **[T]** Session leader — `ps -o sess` of node, parent shell, terminal app.
+- **[T]** SSH connection markers — `SSH_CONNECTION`, `SSH_CLIENT`, `SSH_TTY` env vars presence + sha256.
+- **[T]** TMUX / screen session markers — `TMUX`, `STY` env vars.
+- **[T]** Detached vs attached state — `tty -s` exit status.
+
+## HH. CPU instruction-set + microarch detection from JS
+
+- **[T]** WebAssembly SIMD feature probe (`v128.const`, `i8x16.shuffle`, etc.) via short module validation.
+- **[T]** WebAssembly threads / atomics probe (Atomics + SharedArrayBuffer + Memory({shared:true})).
+- **[T]** FMA (fused multiply-add) presence — `Math.fround(a*b+c)` vs `Math.fround(Math.fround(a*b)+c)` divergence on AMD64 / ARM64.
+- **[T]** AVX-512 / NEON-aware path detection via WebGL ANGLE renderer string + Chrome `chrome://system/`.
+- **[T]** CPU core count via `navigator.hardwareConcurrency`; physical-vs-logical via `sysctl hw.physicalcpu` + `sysctl hw.logicalcpu`.
+- **[T]** CPU brand string — `sysctl -n machdep.cpu.brand_string` (macOS).
+- **[T]** CPU family/model/stepping — `sysctl machdep.cpu.{family,model,stepping}`.
+- **[T]** CPU feature flags — `sysctl machdep.cpu.features` + `extfeatures` + `leaf7_features`.
+- **[T]** Apple Silicon detection — `sysctl hw.optional.arm.FEAT_*` capability flags.
+- **[T]** Performance cores vs efficiency cores — `sysctl hw.perflevel0.physicalcpu` + `hw.perflevel1.physicalcpu` (Apple Silicon).
+- **[T]** SHA-NI / AES-NI / SSE/AVX presence (x86) via `sysctl machdep.cpu.features`.
+
+## II. macOS security state
+
+- **[T]** System Integrity Protection — `csrutil status`.
+- **[T]** Gatekeeper — `spctl --status`; `spctl --assess` on the Chromium binary.
+- **[T]** Sealed System Volume — `csrutil authenticated-root status`.
+- **[T]** AMFI (Apple Mobile File Integrity) — `nvram boot-args | grep amfi_get_out_of_my_way`.
+- **[T]** Boot args — `nvram boot-args` full.
+- **[T]** Recovery mode markers — `bputil -d` (Apple Silicon DFU/recovery state).
+- **[T]** Secure Boot mode (Full / Medium / Reduced) — `bputil -d` (Apple Silicon).
+- **[T]** XProtect version — `defaults read /System/Library/CoreServices/XProtect.bundle/Contents/Info.plist`.
+- **[T]** MRT (Malware Removal Tool) version.
+- **[T]** TCC (Transparency Consent and Control) DB approvals — `sqlite3 ~/Library/Application\ Support/com.apple.TCC/TCC.db "select service, client, allowed from access"` (sha256'd entries; presence matters).
+- **[T]** FileVault state — `fdesetup status`.
+- **[T]** Find My state — `defaults read /Library/Preferences/com.apple.icloud.findmymac`.
+- **[T]** MDM enrollment — `profiles show -type enrollment`.
+
+## JJ. Browser IPC / process-model fingerprints
+
+- **[T]** Per-renderer process site URL — `SystemInfo.getProcessInfo` returns child processes; cross-reference with `Target.getTargets` to map renderer pid → frame URL.
+- **[T]** Out-of-process iframes count — count of OOPIF frames in `Page.getFrameTree`.
+- **[T]** GPU process attach state — single GPU process per browser, capture its pid + cpuTime + memoryUsage delta over session.
+- **[T]** Utility process count + their service names (from CDP child target list).
+- **[T]** Network service process state — separate-vs-in-browser-process.
+- **[T]** Mojo connection counts per-process (best-effort from `chrome://tracing/` if enabled).
+
+## KK. Print API + paper sizes
+
+- **[T]** `window.print` capability + `media='print'` matchMedia.
+- **[T]** Paper-size set probe via `@page` CSS rule with various sizes (A4, Letter, Legal, A3, B4, ...) → which renders match expected.
+- **[T]** `chrome.printerProvider` (extension API — capability probe only).
+- **[T]** CUPS printer list — `lpstat -a` (count + sha256 of names).
+
+## LL. Notification system state
+
+- **[T]** `Notification.permission` value.
+- **[T]** `Notification.maxActions` (max action buttons supported).
+- **[T]** Per-origin notification permission — via CDP `Browser.grantPermissions` / `resetPermissions` interrogation.
+- **[T]** macOS Do Not Disturb / Focus state — `defaults read com.apple.ncprefs dnd_prefs`.
+- **[T]** Notification Center delivered count — `sqlite3 ~/Library/Application\ Support/com.apple.notificationcenter/db2/db ...` (count only, no content).
+
+## MM. Animation deeper
+
+- **[T]** `document.timeline.currentTime` vs `performance.now()` skew at session start + end.
+- **[T]** Per-Animation `effect.getKeyframes()` + `effect.getTiming()` + `effect.composite`.
+- **[T]** `Animation.replaceState` ('active' / 'persisted' / 'removed').
+- **[T]** `Animation.pending` state.
+- **[T]** Web Animations API capability — `Element.animate` return value chain test.
+- **[T]** CSS scroll-driven animation — `animation-timeline` property support, `view-timeline` support.
+
+## NN. CSS rendering quirks per-platform
+
+- **[T]** `-webkit-*` / `-moz-*` / `-ms-*` / `-o-*` prefixed property support matrix via `CSS.supports`.
+- **[T]** `font-smoothing` rendered output (`-webkit-font-smoothing: antialiased` vs `subpixel-antialiased`).
+- **[T]** Sub-pixel positioning rendering — render a 0.5px wide div with background-color, sample pixel via canvas.
+- **[T]** `image-rendering: pixelated` vs `crisp-edges` vs `auto` differences via canvas readback.
+- **[T]** `box-shadow` blur quality (varies by GPU compositor backend).
+- **[T]** `filter: blur(Npx)` rendered output.
+- **[T]** `backdrop-filter` capability + rendered output.
+
+## OO. Bytecode cache + V8 codecache
+
+- **[T]** Detect script bytecode cache hit — for repeat-visited scripts, `Resource Timing` `decodedBodySize > 0` but execution time markedly faster.
+- **[T]** Per-script `Debugger.scriptParsed` event timing relative to network arrival (cached scripts parse instantly).
+- **[T]** `chrome://disk-cache/` size proxy via NetLog parsing.
+
+## PP. Site isolation
+
+- **[T]** Per-frame `securityOrigin` from `Page.frameNavigated` already W; expand to: per-frame storage partition key, per-frame is-cross-origin-isolated, per-frame agent cluster ID.
+- **[T]** Per-process site URL lock — `SystemInfo.getProcessInfo` per renderer with its assigned site origin.
+- **[T]** Site isolation feature state — `chrome://process-internals/#site-isolation` equivalent via NetLog headers.
+
+## QQ. Speculation rules / prerendering
+
+- **[T]** `<script type="speculationrules">` enumeration per frame.
+- **[T]** `document.prerendering` boolean at every page state change.
+- **[T]** Prerender activation events — `prerenderingchange` event log.
+- **[T]** `chrome://predictors/` data via CDP (best-effort).
+
+## RR. Browser auto-fill state
+
+- **[T]** Chromium autofill suggestion availability for known field names (`username`, `password`, `email`, `name`, `cc-number`, ...) — capability probe only, no read.
+- **[T]** Password manager presence — detect via `document.querySelector('input[autocomplete="current-password"]')` getting suggestions.
+- **[T]** Saved-payment-method presence — `PaymentRequest({...}).canMakePayment()` true vs false (capability only).
+
+## SS. Power efficiency / battery saver
+
+- **[T]** macOS Low Power Mode — `pmset -g | grep lowpowermode`.
+- **[T]** `navigator.connection.saveData` flag.
+- **[T]** `prefers-reduced-motion` / `prefers-reduced-data` / `prefers-reduced-transparency` matchMedia results.
+- **[T]** Thermal pressure — `pmset -g therm` (already in `_instHostSnapshots` but should be polled, not just one-shot).
+- **[T]** CPU throttling state — `sysctl hw.cpufrequency` + perf-core P-state from `powermetrics`.
+
+## TT. CDP capability gaps + chrome:// pages
+
+- **[T]** `Page.setBypassCSP` capability probe (verifies devtools-attached state).
+- **[T]** `Network.setRequestInterception` capability probe.
+- **[T]** `Network.emulateNetworkConditions` current state (offline/online + bandwidth limit).
+- **[T]** `Audits.SameSiteCookieIssueReason` enumeration per cookie issue event.
+- **[T]** `Browser.getHistograms` with `delta:true` polled every 30s (so we see *change* counts not just all-time).
+- **[T]** `chrome://flags` exposed feature flags — parse `Browser.getBrowserCommandLine` for `--enable-features=` / `--disable-features=` and split into individual flag names.
+- **[T]** `chrome://components/` versions — Widevine CDM version, Origin Trials Config version, MEI Preload version.
+- **[T]** `chrome://policy/` applied enterprise policies (best-effort).
+- **[T]** `chrome://discards/` recently-discarded tab list.
+- **[T]** `chrome://memory-internals/` per-process memory dump.
+- **[T]** `chrome://network-errors/` last error if any.
+
+## UU. Per-trajectory deeper
+
+- **[T]** Trajectory file source — full sha256 + first-line shebang + module imports list (which atoms it pulls).
+- **[T]** Trajectory argv — exact env vars + cli args the trajectory was invoked with (decoded).
+- **[T]** Trajectory branch trace — which conditional branches the trajectory hit (instrumentation via wrapper or `--inspect-brk` + coverage).
+
+## VV. Repeatability + determinism markers
+
+- **[T]** Random-seed values exposed via `Math.random` wrap (we count calls; also dump the first-N return values so a re-run with the same seed can be verified).
+- **[T]** Persona generation RNG seed (already named in F) + every `Math.random()` consumed during persona resolution + every `Date.now()`.
+- **[T]** Proxy assignment seed — which row of the proxy pool was picked + why.
+- **[T]** Account row picked seed — which `social_accounts` row was claimed + the random tiebreaker if any.
+
+## WW. Hardware enclave + crypto chip state
+
+- **[T]** Apple Secure Enclave presence — `system_profiler SPiBridgeDataType` (T2/M-series chip info).
+- **[T]** Touch ID / Face ID enrollment state — `bioutil -r -s` (count only).
+- **[T]** Apple Pay availability — `defaults read com.apple.passd` (presence of stored wallets, count only).
+- **[T]** Hardware-backed WebCrypto operations — for `crypto.subtle.generateKey({name:'ECDSA',namedCurve:'P-256'}, false, ['sign'])` check `extractable:false` works (Secure-Enclave-backed in Safari; software-backed elsewhere).
+- **[T]** WebAuthn platform authenticator — `PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()` (true → Touch ID/Windows Hello/Android Strongbox bound).
+
+## XX. DOM mass + structural metrics
+
+- **[T]** Per-frame `document.documentElement.outerHTML.length` (total HTML byte count, ungzipped) at every major page state.
+- **[T]** Per-frame DOM node count by tag (`document.querySelectorAll('*').length` + by-tag histogram).
+- **[T]** Per-frame stylesheet count + rule count (`document.styleSheets[*].cssRules.length`).
+- **[T]** Per-frame iframe depth (max nesting level).
+- **[T]** Per-frame ShadowRoot count (open + closed).
+- **[T]** Per-frame `<script>` count + total script byte size.
+- **[T]** ARIA tree depth + role distribution histogram.
+
+## YY. Service Worker installed scripts
+
+- **[T]** Per active SW: `getRegistration().active.scriptURL` + sha256 of fetched script content + dependent imports (importScripts).
+- **[T]** SW installed cache contents — for each cache in `caches.keys()`, list `await caches.open(name).then(c=>c.keys())` URLs.
+- **[T]** SW navigationPreload state + `getState()` value.
+- **[T]** SW updateViaCache value.
+
+## ZZ. Detached browsing contexts
+
+- **[T]** Background pages / popups still alive at session close (CDP `Target.getTargets`).
+- **[T]** Documents in BFCache count (from `Page.lifecycleEvent` 'persisted' transitions).
+- **[T]** Fenced frames count (`<fencedframe>` tag enumeration + `chrome://process-internals/`).
+
+## AAA. Per-renderer GC events
+
+- **[T]** From Tracing categories `v8` + `disabled-by-default-v8.runtime_stats`: every minor-GC + major-GC event, GC type (Scavenger/MarkCompact/MinorMC), duration, memory before/after.
+- **[T]** V8 compile / optimize / deoptimize events from Tracing.
+- **[T]** Heap-snapshot growth between captures (start vs end retained-size delta per object type).
+
+## BBB. Cookie store distribution
+
+- **[T]** Per-host: cookie count, total cookie-name-byte-length, total cookie-value-byte-length, SameSite distribution (None/Lax/Strict counts), partition-key distribution. *Counts only* — no contents.
+- **[T]** Cookie max age distribution histogram.
+
+## CCC. WebRTC internals
+
+- **[T]** `chrome://webrtc-internals/` equivalent dump — every PeerConnection's full event log: createOffer/setLocalDescription/setRemoteDescription/addIceCandidate timings, every ICE state transition, every DTLS state, every stats report.
+- **[T]** Every `RTCStatsReport.values()` snapshot at session close.
+
+## DDD. NetLog source-dep map
+
+- **[T]** From NetLog: which `SOCKET` source created which `HTTP2_SESSION`, which session sent which `URL_REQUEST`. Build a graph of connection reuse per host.
+- **[T]** Per-host connection count + max concurrent streams used.
+- **[T]** TLS 1.3 0-RTT use + replay-rejection markers from NetLog.
+
+## EEE. Deprecated-but-still-checked APIs
+
+- **[T]** PNaCl detection — `navigator.mimeTypes['application/x-pnacl']` (deprecated; presence-checked by some classifiers).
+- **[T]** AppCache (`window.applicationCache`) presence — deprecated, removed in newer Chromes; absence is a fingerprint.
+- **[T]** `document.all` truthiness behavior (legacy HostObject quirk — `typeof document.all === 'undefined'` AND `Boolean(document.all) === false`).
+- **[T]** `escape`/`unescape` global function presence.
+- **[T]** `Image()` / `HTMLImageElement.prototype` constructor signature.
+
+## FFF. CSP nonce + hash extraction
+
+- **[T]** Per page: every `<script nonce>` value (logged from CSP).
+- **[T]** Per page: every `style-src 'sha256-…'` / `script-src 'sha256-…'` value from CSP header.
+- **[T]** `report-to` / `report-uri` endpoint per CSP directive.
+
+## GGG. Shared workers state
+
+- **[T]** Per shared worker: scriptURL, name, connections count, port count.
+- **[T]** SharedArrayBuffer cross-context capability — verify post + receive across worker boundary.
+
+## HHH. Long task attribution
+
+- **[T]** From `PerformanceObserver({type:'longtask'})`: every long task with `attribution[].containerType` (iframe/script/window), `containerName`, `containerSrc`, `containerId`.
+- **[T]** Per-script long-task aggregate (which script caused most blocking time).
+
+## III. Document picture-in-picture
+
+- **[T]** `documentPictureInPicture.window` state.
+- **[T]** PIP capability — `document.pictureInPictureEnabled`.
+- **[T]** Video PIP state on every `<video>` element (`webkitSupportsPresentationMode('picture-in-picture')` matrix).
+
+## JJJ. Cookie Store API + StorageEvents
+
+- **[T]** `cookieStore.getAll()` per origin (counts only).
+- **[T]** `cookieStore.addEventListener('change')` event log.
+
+## KKK. Routing + firewall
+
+- **[T]** Full routing table — `netstat -rn` (already W partial); expand to per-AF route + per-route metric/MTU.
+- **[T]** `pfctl -sa` — full pf rule set + state count (macOS).
+- **[T]** `iptables -L` / `nft list ruleset` — full ruleset (Linux).
+- **[T]** Per-interface stats from `netstat -i`.
+
+## LLL. SSL trust store
+
+- **[T]** System-trusted root CAs — `security find-certificate -a -p /System/Library/Keychains/SystemRootCertificates.keychain` (sha256 of cert chain, count only).
+- **[T]** User-added trusted roots — `security find-certificate -a -p` (count + sha256).
+- **[T]** Chromium-bundled NSS root store version (from `chrome://components/` Certificate-Verifier component).
+
+## MMM. Containerization / VM / sandbox detection
+
+- **[T]** Docker container markers — `/.dockerenv` file presence.
+- **[T]** Linux container markers — `cat /proc/1/cgroup | grep -E 'docker|kubepods|lxc'`.
+- **[T]** Hypervisor presence — CPUID hypervisor bit via `sysctl machdep.cpu.features` (`VMM`/`HYPERVISOR`).
+- **[T]** Specific hypervisor — `system_profiler SPHardwareDataType` model identifier (`VirtualMachine`, `Parallels`, `VMware`).
+- **[T]** WSL detection — `uname -r` (contains "microsoft").
+- **[T]** ARM-on-Rosetta detection — `sysctl sysctl.proc_translated` (1 → process running under Rosetta 2).
+
+## NNN. Browser features Chromium build emits
+
+- **[T]** `chrome://flags/` parse from argv flags + chrome://gpu features list.
+- **[T]** Origin trial tokens registered globally (from `chrome://origin-trials/`).
+- **[T]** Field trial group assignment from `--force-fieldtrials=` argv flag.
+- **[T]** Variation header value sent on requests (`X-Client-Data` header).
+
+## OOO. Sandbox dimensions
+
+- **[T]** macOS process sandbox profile — `sandbox-exec` profile name applied (none, `kBrowserHelperRendererSandboxProfile`, etc.) via `ps -o sandbox`.
+- **[T]** Code-signing entitlements of Chromium binary — `codesign -d --entitlements - <binary>`.
+- **[T]** Renderer-process sandbox layer (App Sandbox / seatbelt / Bionic / pid namespace) per child process.
+
+## PPP. Per-process resource counters
+
+- **[T]** Per Chromium child process: open file descriptors, sockets, threads count, peak memory.
+- **[T]** Per process: `getrusage()` equivalent — CPU time, page faults (major + minor), context switches, max RSS.
+
+## GG. Disk usage of recordings
+
+- **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
+- **[T]** Fraction of bytes by artifact type (so we know what's dominating capture cost).
+- **[T]** Inst.json self-size and self-line-count vs sibling-file total (so we know how much got inlined vs referenced).
+
+---
+
+## Update protocol
+
+When wiring new capture, flip a `[T]` to `[W]` here in the same commit that lands the code. When you add a new channel name nobody has heard of yet, append it with `[T]` and a brief note. This file is the spec; `buildDumpPayload` is the code that satisfies it; `diff.mjs` is the consumer.
