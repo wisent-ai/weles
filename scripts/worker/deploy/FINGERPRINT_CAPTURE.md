@@ -9557,6 +9557,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per session: per-SW-versionId ServiceWorker.* event count.
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA. Per-page CDP firehose per-token Storage attribution
+
+- **[T]** Per session: per-private-state-token Storage.* event count.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB. Per-page CDP firehose per-interestGroup attribution
+
+- **[T]** Per session: per-interestGroup name Storage.interestGroupAccessed event count.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC. Per-page CDP firehose per-bucket Storage attribution
+
+- **[T]** Per session: per-storage-bucket Storage.* event count.
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD. Per-page CDP firehose per-cookie-name attribution
+
+- **[T]** Per session: per-cookie-name Network.cookieIssue event count.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE. Per-page CDP firehose per-fenced-frame-config attribution
+
+- **[T]** Per session: per-fenced-frame-config event count.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF. Per-page CDP firehose per-attribution-source attribution
+
+- **[T]** Per session: per-attribution-source Attribution Reporting event count.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG. Per-page CDP firehose per-shared-storage-key attribution
+
+- **[T]** Per session: per-shared-storage-key Storage.sharedStorageAccessed event count.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH. Per-page CDP firehose per-protected-audience-bidder attribution
+
+- **[T]** Per session: per-Protected-Audience-bidder origin event count.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII. Per-page CDP firehose per-trust-token-issuer attribution
+
+- **[T]** Per session: per-trust-token-issuer origin event count.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ. Per-page CDP firehose per-FedCM-IdP attribution
+
+- **[T]** Per session: per-FedCM-IdP origin event count.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK. Per-page CDP firehose per-WebPush-endpoint attribution
+
+- **[T]** Per session: per-WebPush-endpoint event count.
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL. Per-page CDP firehose per-PaymentRequest attribution
+
+- **[T]** Per session: per-PaymentRequest invocation event count.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM. Per-page CDP firehose per-Speculation-rule attribution
+
+- **[T]** Per session: per-Speculation-rule URL event count (prefetch / prerender).
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN. Per-page CDP firehose per-Reporting-Endpoint attribution
+
+- **[T]** Per session: per-Reporting-Endpoint-group event count.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO. Per-page CDP firehose per-Trust-Token-redemption attribution
+
+- **[T]** Per session: per-redemption event count + outcome distribution.
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP. Per-page CDP firehose per-WebCodecs-decoder attribution
+
+- **[T]** Per session: per-VideoDecoder / AudioDecoder configure event count.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ. Per-page CDP firehose per-WebCodecs-encoder attribution
+
+- **[T]** Per session: per-VideoEncoder / AudioEncoder configure event count.
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR. Per-page CDP firehose per-WebTransport-session attribution
+
+- **[T]** Per session: per-WebTransport-session id event count.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS. Per-page CDP firehose per-MediaStream attribution
+
+- **[T]** Per session: per-MediaStream id event count.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT. Per-page CDP firehose per-RTCPeerConnection-id attribution
+
+- **[T]** Per session: per-PeerConnection id event count.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU. Per-page CDP firehose per-RTCDataChannel attribution
+
+- **[T]** Per session: per-DataChannel id event count.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV. Per-page CDP firehose per-AudioContext attribution
+
+- **[T]** Per session: per-AudioContext id event count.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW. Per-page CDP firehose per-AudioWorkletProcessor attribution
+
+- **[T]** Per session: per-registered-processor event count.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX. Per-page CDP firehose per-Animation timeline attribution
+
+- **[T]** Per session: per-DocumentTimeline id event count.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY. Per-page CDP firehose per-View-Transition attribution
+
+- **[T]** Per session: per-startViewTransition transition event count.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ. Per-page CDP firehose per-Web-App-Manifest attribution
+
+- **[T]** Per session: per-manifest URL event count.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
