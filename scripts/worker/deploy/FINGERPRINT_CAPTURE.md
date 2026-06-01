@@ -9973,6 +9973,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per session: Direct UDP socket-close event count.
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA. Per-page Browser-internal `chrome://histograms/SQLite.*` time-series
+
+- **[T]** Per session: SQLite.* (cookie store / history / favicon / login DBs) histogram changes.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB. Per-page Browser-internal `chrome://histograms/Plugin.*` time-series
+
+- **[T]** Per session: Plugin.* histogram (PPAPI / Pepper plugin events — legacy but observable).
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC. Per-page Browser-internal `chrome://histograms/Loading.*` time-series
+
+- **[T]** Per session: Loading.* histogram changes (page-load milestones).
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD. Per-page Browser-internal `chrome://histograms/SubresourceFilter.*` time-series
+
+- **[T]** Per session: Subresource Filter (ads-on-bad-sites) histogram changes.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE. Per-page Browser-internal `chrome://histograms/AdTagging.*` time-series
+
+- **[T]** Per session: Ad-tagging classifier histogram.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF. Per-page Browser-internal `chrome://histograms/InsecureFormSubmissions.*` time-series
+
+- **[T]** Per session: insecure-form-submission warning histogram.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG. Per-page Browser-internal `chrome://histograms/SecureContext.*` time-series
+
+- **[T]** Per session: Secure-Context evaluation histogram.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH. Per-page Browser-internal `chrome://histograms/PrefetchProxy.*` time-series
+
+- **[T]** Per session: Prefetch Proxy outcome histogram.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII. Per-page Browser-internal `chrome://histograms/Prerender.*` time-series
+
+- **[T]** Per session: Prerender2 outcome histogram + per-trigger-type.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ. Per-page Browser-internal `chrome://histograms/BFCache.*` time-series
+
+- **[T]** Per session: BackForwardCache outcome histogram.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK. Per-page Browser-internal `chrome://histograms/Tab.Memory.*` time-series
+
+- **[T]** Per session: per-tab memory consumption histogram bucket changes.
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL. Per-page Browser-internal `chrome://histograms/PaintHolding.*` time-series
+
+- **[T]** Per session: paint-holding outcome histogram (first-paint delay heuristic).
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM. Per-page Browser-internal `chrome://histograms/UseCounter.Permissions.*` time-series
+
+- **[T]** Per session: per-Permission UseCounter histogram.
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN. Per-page Browser-internal `chrome://histograms/UseCounter.Features.*` time-series
+
+- **[T]** Per session: per-WebFeature UseCounter histogram (which Web Platform features were used by the page).
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO. Per-page Browser-internal `chrome://histograms/UseCounter.CSSProperties.*` time-series
+
+- **[T]** Per session: per-CSS-property UseCounter histogram.
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP. Per-page Browser-internal `chrome://histograms/UseCounter.SVG.*` time-series
+
+- **[T]** Per session: per-SVG-feature UseCounter histogram.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ. Per-page Browser-internal `chrome://histograms/UseCounter.DeprecatedAPIs.*` time-series
+
+- **[T]** Per session: per-deprecated-API UseCounter histogram.
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR. Per-page Browser-internal `chrome://histograms/UseCounter.AnimatedCSSProperties.*` time-series
+
+- **[T]** Per session: per-animated-CSS-property UseCounter histogram.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS. Per-page Browser-internal `chrome://histograms/UseCounter.JavaScriptFrameworkPageLoad.*` time-series
+
+- **[T]** Per session: detected-framework histogram (React / Vue / Angular / Svelte / Solid / Preact / Lit / etc.).
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT. Per-page Browser-internal `chrome://histograms/UseCounter.PrivacyMonitor.*` time-series
+
+- **[T]** Per session: per-PrivacyMonitor-feature UseCounter histogram.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU. Per-page Browser-internal `chrome://histograms/Storage.PreviousAccessSinceAddedToInUseChooser.*` time-series
+
+- **[T]** Per session: Storage access pattern histogram.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV. Per-page Browser-internal `chrome://histograms/Net.SecondaryPersistedSession.*` time-series
+
+- **[T]** Per session: secondary-persisted-session histogram.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW. Per-page Browser-internal `chrome://histograms/Net.Wpad.*` time-series
+
+- **[T]** Per session: WPAD outcome histogram.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX. Per-page Browser-internal `chrome://histograms/Net.NTLM.*` time-series
+
+- **[T]** Per session: NTLM challenge outcome histogram.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY. Per-page Browser-internal `chrome://histograms/Net.Negotiate.*` time-series
+
+- **[T]** Per session: Negotiate (SPNEGO/Kerberos) outcome histogram.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ. Per-page Browser-internal `chrome://histograms/Net.MultiOriginCookie.*` time-series
+
+- **[T]** Per session: per-multi-origin-cookie outcome histogram.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
