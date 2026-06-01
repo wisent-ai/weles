@@ -7789,6 +7789,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per page: cookieStore.set / delete invocation count + per-cookie attributes.
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA. Per-page WebGL2 Uniform buffer object usage
+
+- **[T]** Per WebGL2 context: createBuffer with UNIFORM_BUFFER target + bindBufferBase / bindBufferRange call distribution.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB. Per-page WebGL2 Vertex Array Object usage
+
+- **[T]** Per WebGL2 context: createVertexArray + bindVertexArray call distribution.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC. Per-page WebGL2 Multiple-render-targets usage
+
+- **[T]** Per WebGL2 context: drawBuffers call distribution + attachment-count per draw.
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD. Per-page WebGL2 Transform Feedback object usage
+
+- **[T]** Per WebGL2 context: createTransformFeedback + bindTransformFeedback distribution.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE. Per-page WebGL2 Sampler binding distribution
+
+- **[T]** Per WebGL2 context: createSampler / bindSampler call distribution + per-sampler parameters.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF. Per-page WebGL2 Query object usage by type
+
+- **[T]** Per WebGL2 context: beginQuery / endQuery distribution per target (ANY_SAMPLES_PASSED / TRANSFORM_FEEDBACK_PRIMITIVES_WRITTEN / TIME_ELAPSED_EXT / ANY_SAMPLES_PASSED_CONSERVATIVE).
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG. Per-page WebGL2 SyncObject usage
+
+- **[T]** Per WebGL2 context: fenceSync + clientWaitSync / waitSync / deleteSync call distribution.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH. Per-page WebGL2 Texture 3D / Texture 2D Array usage
+
+- **[T]** Per WebGL2 context: TEXTURE_3D / TEXTURE_2D_ARRAY target usage distribution.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII. Per-page WebGL2 Renderbuffer multisample usage
+
+- **[T]** Per WebGL2 context: renderbufferStorageMultisample call distribution + per-call sample count.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ. Per-page WebGL2 PBO upload usage
+
+- **[T]** Per WebGL2 context: PIXEL_PACK_BUFFER / PIXEL_UNPACK_BUFFER usage distribution.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK. Per-page WebGL2 Integer texture usage
+
+- **[T]** Per WebGL2 context: integer-internalFormat texture creation distribution (R8I / R16I / R32I / RG8I / RG16I / RG32I / RGB8I / RGB16I / RGB32I / RGBA8I / RGBA16I / RGBA32I + unsigned variants).
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL. Per-page WebGL2 Float texture extension distribution
+
+- **[T]** Per WebGL2 context: EXT_color_buffer_float / OES_texture_float / OES_texture_float_linear distribution.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM. Per-page WebGPU Bind-group resource distribution
+
+- **[T]** Per BindGroup: per-binding resource type (buffer / sampler / texture / storage-texture / external-texture / acceleration-structure).
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN. Per-page WebGPU Render-pass descriptor stats
+
+- **[T]** Per render-pass: colorAttachments count + depthStencilAttachment present + occlusionQuerySet usage.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO. Per-page WebGPU Compute-pass descriptor stats
+
+- **[T]** Per compute-pass: timestampWrites usage + workgroup-dispatch dimensions distribution.
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP. Per-page WebGPU Shader-module parser errors
+
+- **[T]** Per createShaderModule: WGSL parse errors + warnings list.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ. Per-page WebGPU External texture import usage
+
+- **[T]** Per importExternalTexture call: source video element + sampleType.
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR. Per-page WebGPU Storage-texture write usage
+
+- **[T]** Per BindGroup with storage-texture binding: access mode (`read-only` / `write-only` / `read-write`) distribution.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS. Per-page WebGPU Buffer mapping usage
+
+- **[T]** Per Buffer: mapAsync read vs write distribution + per-map byte size.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT. Per-page WebGPU command-encoder lifecycle
+
+- **[T]** Per CommandEncoder: finish() invocation count + per-encoder pass count.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU. Per-page WebGPU Adapter request failure mode
+
+- **[T]** Per requestAdapter call: returned null vs returned adapter; powerPreference distribution.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV. Per-page WebGPU Adapter requiredFeatures granted vs requested
+
+- **[T]** Per requestDevice: requiredFeatures list vs granted features (`depth-clip-control` / `depth32float-stencil8` / `texture-compression-bc` / `texture-compression-etc2` / `texture-compression-astc` / `timestamp-query` / `indirect-first-instance` / `shader-f16` / `rg11b10ufloat-renderable` / `bgra8unorm-storage` / `float32-filterable` / etc.).
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW. Per-page WebGPU Adapter requiredLimits granted
+
+- **[T]** Per requestDevice: per-limit (maxTextureDimension1D / 2D / 3D / maxBindGroups / maxBindingsPerBindGroup / maxBufferSize / maxUniformBufferBindingSize / maxStorageBufferBindingSize / maxComputeInvocationsPerWorkgroup / etc.) granted value.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX. Per-page WebGPU Device.lost event reason
+
+- **[T]** Per WebGPUDevice: lost-Promise resolution reason ('destroyed' / 'unknown').
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY. Per-page WebGPU Pipeline cache hit-rate (where supported)
+
+- **[T]** Per WebGPUDevice: pipeline-cache hit-rate (estimated via compile-time delta on repeat compile).
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ. Per-page WebGPU Error scope capture
+
+- **[T]** Per WebGPUDevice: pushErrorScope / popErrorScope usage by filter ('validation' / 'out-of-memory' / 'internal').
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
