@@ -9765,6 +9765,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per session: per-PP-directive event count.
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA. Per-page Persona generation seed reproducibility test
+
+- **[T]** Per session: persona-RNG seed produces deterministic output (same seed → same persona blob byte-identical).
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB. Per-page Persona-vs-host-OS divergence detection
+
+- **[T]** Per session: persona OS value vs host OS — divergence flagged as inconsistency.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC. Per-page Persona timezone vs proxy-exit timezone divergence
+
+- **[T]** Per session: persona TZ vs proxy-exit-IP geo-located TZ divergence.
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD. Per-page Persona locale vs Accept-Language divergence
+
+- **[T]** Per session: persona locale vs HTTP Accept-Language header divergence.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE. Per-page Persona screen.width × height vs CDP-emulated dimensions divergence
+
+- **[T]** Per session: persona screen vs CDP Emulation.setDeviceMetricsOverride applied dimensions divergence.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF. Per-page Persona devicePixelRatio vs host devicePixelRatio divergence
+
+- **[T]** Per session: persona DPR vs host DPR divergence.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG. Per-page Persona hardwareConcurrency vs host CPU count divergence
+
+- **[T]** Per session: persona hardwareConcurrency vs host CPU count divergence.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH. Per-page Persona deviceMemory vs host RAM divergence
+
+- **[T]** Per session: persona deviceMemory bucket vs host total RAM divergence.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII. Per-page Persona WebGL renderer vs host GPU divergence
+
+- **[T]** Per session: persona WEBGL_debug_renderer_info UNMASKED_RENDERER vs host GPU divergence.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ. Per-page Persona userAgent vs sec-ch-ua divergence
+
+- **[T]** Per session: persona userAgent string vs Sec-CH-UA brands divergence.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK. Per-page Persona platform vs sec-ch-ua-platform divergence
+
+- **[T]** Per session: persona platform vs Sec-CH-UA-Platform divergence.
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL. Per-page Persona model vs sec-ch-ua-model divergence
+
+- **[T]** Per session: persona model vs Sec-CH-UA-Model divergence.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM. Per-page Persona oscpu vs userAgent platform divergence
+
+- **[T]** Per session: navigator.oscpu vs navigator.platform divergence (Firefox-specific).
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN. Per-page Persona productSub vs navigator.product divergence
+
+- **[T]** Per session: productSub == '20030107' (Chromium signature) vs build-specific value.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO. Per-page Persona vendor vs userAgent-implied vendor divergence
+
+- **[T]** Per session: navigator.vendor ('Google Inc.' / 'Apple Computer, Inc.' / '') vs UA divergence.
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP. Per-page Persona maxTouchPoints vs platform expected divergence
+
+- **[T]** Per session: maxTouchPoints (typically 0 for Mac, 5 for mobile) divergence.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ. Per-page Persona languages array vs HTTP Accept-Language divergence
+
+- **[T]** Per session: navigator.languages vs Accept-Language header divergence.
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR. Per-page Persona pdfViewerEnabled vs UA-implied divergence
+
+- **[T]** Per session: pdfViewerEnabled value vs UA platform expectations.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS. Per-page Persona cookieEnabled vs Chrome default divergence
+
+- **[T]** Per session: cookieEnabled value reported vs spec default.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT. Per-page Persona doNotTrack vs system divergence
+
+- **[T]** Per session: doNotTrack value vs host system DNT setting.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU. Per-page Persona globalPrivacyControl vs system divergence
+
+- **[T]** Per session: GPC value vs host system GPC setting.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV. Per-page Persona webdriver flag value vs detection
+
+- **[T]** Per session: navigator.webdriver value as page-side sees it.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW. Per-page Persona plugin list vs platform expectation divergence
+
+- **[T]** Per session: navigator.plugins length + names vs platform default.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX. Per-page Persona mimeTypes list vs platform default divergence
+
+- **[T]** Per session: navigator.mimeTypes length + entries vs platform default.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY. Per-page Persona buildID vs UA-version divergence (Firefox-specific)
+
+- **[T]** Per session: navigator.buildID vs Firefox build version expected.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ. Per-page Persona userAgentData.brands order
+
+- **[T]** Per session: userAgentData.brands ordered list (Chrome version-dependent ordering signal).
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
