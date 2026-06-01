@@ -740,6 +740,318 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 - **[T]** Per Chromium child process: open file descriptors, sockets, threads count, peak memory.
 - **[T]** Per process: `getrusage()` equivalent — CPU time, page faults (major + minor), context switches, max RSS.
 
+## QQQ. Browser update channel + version detail
+
+- **[T]** Browser channel — Stable / Beta / Dev / Canary inferred from `Browser.getVersion` product string + `userAgent.product` formatting differences.
+- **[T]** Build commit short sha — `chrome://version/` "Revision" line.
+- **[T]** Mojo platform identifier from CDP `Browser.getVersion`.
+- **[T]** Locale built into the binary — `chrome://version/` "Variations Seed Signature" + "Command Line".
+
+## RRR. HSTS + HPKP state
+
+- **[T]** Per-domain HSTS state — `chrome://net-internals/#hsts` query equivalent via NetLog (which domains have STS pinned, max-age, includeSubdomains).
+- **[T]** HPKP pinning state (deprecated but legacy state may persist).
+- **[T]** Expect-CT state per domain.
+- **[T]** Public Key Pinning Reports state.
+
+## SSS. QUIC session resumption + 0-RTT
+
+- **[T]** QUIC session resumption — from NetLog, whether the QUIC handshake reused a saved session.
+- **[T]** 0-RTT data sent + accepted/rejected per request.
+- **[T]** Connection migration events (NAT rebinding tolerance).
+- **[T]** ECN markings observed.
+- **[T]** QUIC version negotiated per connection.
+
+## TTT. WebSocket extensions
+
+- **[T]** Per-WS connection: `permessage-deflate` extension negotiation params (server_max_window_bits, client_max_window_bits, server_no_context_takeover, client_no_context_takeover).
+- **[T]** Per-WS connection: subprotocol negotiated.
+- **[T]** Frame opcode distribution per connection.
+
+## UUU. Resource hints + preloads
+
+- **[T]** Per-page `<link rel=preload>` count + per-as-type distribution; per-preload hit/miss (PerformanceResourceTiming `responseStart` near `requestStart`).
+- **[T]** `<link rel=prefetch>` count + hits.
+- **[T]** `<link rel=modulepreload>` count + hits.
+- **[T]** `<link rel=preconnect>` count + per-origin success.
+- **[T]** `<link rel=dns-prefetch>` count.
+- **[T]** Speculation rules JSON content per `<script type="speculationrules">`.
+
+## VVV. Service Worker conflict log
+
+- **[T]** Per origin: multiple SW registrations vs single — conflict count.
+- **[T]** Scope-vs-scriptURL mismatches.
+- **[T]** SW update fetched-but-not-activated count.
+
+## WWW. WebPush subscription state
+
+- **[T]** Per active SW: `pushManager.getSubscription()` state — endpoint sha256 + applicationServerKey sha256 + expirationTime.
+- **[T]** Per origin: push permission state.
+
+## XXX. WebAuthn credential flags
+
+- **[T]** Per registered credential: `rk` (resident key), `uv` (user verified), `up` (user presence), `bs` (backup state), `be` (backup eligible) flags.
+- **[T]** `PublicKeyCredential.getClientCapabilities()` (recent) — full capability dump.
+- **[T]** Conditional UI availability per Public Key field.
+
+## YYY. SubresourceWebBundle / Bundle Preloading
+
+- **[T]** `<script type="webbundle">` enumeration + scope/resources counts.
+- **[T]** Webbundle hit/miss per resource served from a bundle.
+
+## ZZZ. WebGPU device limits per requestDevice
+
+- **[T]** Per `navigator.gpu.requestDevice({requiredFeatures, requiredLimits})` call: which features were requested, which granted, which limits granted at what value.
+- **[T]** WGSL feature support — try compiling a known WGSL shader containing every optional feature (`f16`, `subgroups`, `derivative_uniformity`).
+
+## AAAA. SharedArrayBuffer cross-context transfer
+
+- **[T]** `postMessage` SAB transfer capability across worker boundary — verify the worker sees the same byte view.
+- **[T]** `crossOriginIsolated === true` required state for SAB.
+- **[T]** Atomics.wait/notify wakeup latency across contexts.
+
+## BBBB. Cross-origin isolation source attribution
+
+- **[T]** Per frame: is it COI because of header (COEP+COOP), feature flag, or both?
+- **[T]** COEP report-only count (would-be-blocked subresources if enforcement were on).
+
+## CCCC. Mojo JS exposure
+
+- **[T]** `Mojo` global presence (only in `--enable-blink-features=MojoJS` builds).
+- **[T]** Detect any leaked Mojo interface globals.
+- **[T]** `chrome.intercept` / `chrome.send` (internal-page-only) presence.
+
+## DDDD. Client Hints sent on every request
+
+- **[T]** Per outbound request: full Client Hints header set — `Sec-CH-UA`, `Sec-CH-UA-Mobile`, `Sec-CH-UA-Platform`, `Sec-CH-UA-Platform-Version`, `Sec-CH-UA-Arch`, `Sec-CH-UA-Bitness`, `Sec-CH-UA-Model`, `Sec-CH-UA-Full-Version-List`, `Sec-CH-UA-WoW64`, `Sec-CH-UA-Form-Factor`, `Sec-CH-Prefers-Color-Scheme`, `Sec-CH-Prefers-Reduced-Motion`, `Sec-CH-Prefers-Reduced-Transparency`, `Sec-CH-DPR`, `Sec-CH-Viewport-Width`, `Sec-CH-Viewport-Height`, `Sec-CH-Width`, `Sec-CH-Save-Data`, `Sec-CH-ECT`, `Sec-CH-Downlink`, `Sec-CH-RTT`.
+- **[T]** Per outbound request: `Sec-Fetch-Site`, `Sec-Fetch-Mode`, `Sec-Fetch-Dest`, `Sec-Fetch-User` values.
+- **[T]** Per outbound request: `Accept-Language` value + order; `Accept` value + order.
+- **[T]** Per outbound request: `Referer` (full vs origin vs none) + `Referrer-Policy` resolved.
+- **[T]** Per outbound request: `X-Client-Data` (Chrome field trial) header value.
+- **[T]** Per outbound request: `Priority` header (RFC 9218).
+
+## EEEE. Server Timing entries
+
+- **[T]** Per response: every `Server-Timing` header value parsed (name + dur + desc).
+- **[T]** `PerformanceServerTiming` entries on every PerformanceResourceTiming.
+
+## FFFF. Event Timing detail
+
+- **[T]** Per `PerformanceEventTiming` entry: `interactionId`, `target` selector path, `processingStart`, `processingEnd`, `startTime`, `duration`.
+- **[T]** Interaction-to-Next-Paint computation per interaction.
+
+## GGGG. Pointer + Wheel event detail
+
+- **[T]** Per pointer event: ratio of `coalescedEvents().length` to base event count.
+- **[T]** Per pointer event: `predictedEvents().length`.
+- **[T]** Wheel event `deltaMode` distribution (0=PIXEL, 1=LINE, 2=PAGE).
+- **[T]** Wheel event deltaX/Y/Z distribution histograms.
+
+## HHHH. Paint + interactivity metrics
+
+- **[T]** `PerformancePaintTiming.firstPaint` and `firstContentfulPaint` values.
+- **[T]** Time-to-interactive (TTI) heuristic computation.
+- **[T]** LCP candidate element selector + size + loadTime + renderTime.
+- **[T]** CLS shifts — for each layout-shift entry: value, sources[] (element selector + previousRect + currentRect).
+
+## IIII. Cookie attribute behavior
+
+- **[T]** Attempt to read HttpOnly cookies via document.cookie — confirmed empty (presence is the fingerprint).
+- **[T]** Per cookie: SameSite (None/Lax/Strict), partitioned (true/false), secure, path, max-age, sourceScheme, sourcePort.
+- **[T]** First-party-sets membership per cookie.
+
+## JJJJ. Storage Access API
+
+- **[T]** `document.requestStorageAccess()` outcome per origin — granted / denied / prompt-shown.
+- **[T]** `document.hasStorageAccess()` state at session start.
+- **[T]** Per-origin storage access permission via CDP `Browser.grantPermissions` introspection.
+
+## KKKK. Login Status API + IdP state
+
+- **[T]** `navigator.login.setStatus()` capability + per-origin state.
+- **[T]** FedCM (Federated Credential Management) availability — `navigator.credentials.get({identity: {...}})` capability.
+- **[T]** Per-IdP login status from FedCM cache.
+
+## LLLL. Topics API + Protected Audience + Attribution
+
+- **[T]** `document.browsingTopics()` returned topic list per epoch.
+- **[T]** Protected Audience auctions — every `navigator.runAdAuction()` call args + outcome.
+- **[T]** Attribution Reporting — `<a attributionsrc>` + `fetch(..., {attributionReporting:...})` log.
+
+## MMMM. Per-request body sniffing
+
+- **[T]** Per POST request: body sniffed content-type (form-data / json / text / binary) regardless of declared Content-Type.
+- **[T]** Per response: sniffed content-type vs declared.
+- **[T]** Per request: cors preflight count, preflight cache hit/miss.
+
+## NNNN. Header ordering signature
+
+- **[T]** Per outbound request: exact order of headers as they appear on the wire (HTTP/1.x) or in HPACK encoder (HTTP/2). Headers SET don't appear in the same order; the order itself is a Chromium-version fingerprint.
+
+## OOOO. SVG / MathML rendering
+
+- **[T]** Render a known SVG with filter/gradient/mask chain → rasterize via OffscreenCanvas → hash bytes.
+- **[T]** Render a known MathML expression → DOM measurement (each child element's bounding rect width/height).
+- **[T]** MathML capability test — `document.createElement('math')` instanceof MathMLElement.
+
+## PPPP. Print-style media + paged-media
+
+- **[T]** `@media print` rules applied — render via `Page.printToPDF` and hash bytes.
+- **[T]** Paged Media support — `@page :first { ... }` rule recognition.
+- **[T]** CSS pagination — `break-before/-after/-inside` honored.
+
+## QQQQ. Document language + writing system
+
+- **[T]** `document.documentElement.lang` value per frame.
+- **[T]** `document.dir` value (ltr/rtl/auto).
+- **[T]** Inferred-language per text node (Intl.Locale.maximize on detected scripts).
+
+## RRRR. iCloud / continuity / handoff state
+
+- **[T]** iCloud account presence — `defaults read MobileMeAccounts` (count + sha256 of account ids).
+- **[T]** Handoff state — `defaults read com.apple.coreservices.useractivityd ActivityAdvertisingAllowed`.
+- **[T]** AirDrop visibility — `defaults read com.apple.sharingd DiscoverableMode`.
+- **[T]** Continuity Camera + Sidecar enrollment count.
+
+## SSSS. Chromium internal pages (chrome://*) we can scrape via CDP
+
+- **[T]** `chrome://gpu/` — Page.navigate + DOMSnapshot.captureSnapshot → full feature/driver/extension dump.
+- **[T]** `chrome://version/` — Page.navigate + dump.
+- **[T]** `chrome://system/` — full system page (incl. lspci/lsusb on linux).
+- **[T]** `chrome://histograms/` — full histogram dump (richer than `Browser.getHistograms`).
+- **[T]** `chrome://serviceworker-internals/` — every registered SW across all origins.
+- **[T]** `chrome://media-internals/` — every media element + decoder state.
+- **[T]** `chrome://net-internals/#dns` — DNS host resolver cache.
+- **[T]** `chrome://net-internals/#sockets` — open sockets + connection pool state.
+- **[T]** `chrome://net-internals/#alt-svc` — Alt-Svc cache.
+- **[T]** `chrome://net-internals/#quic` — active QUIC sessions.
+- **[T]** `chrome://policy/` — applied enterprise policies.
+- **[T]** `chrome://components/` — installed components + versions (Widevine CDM, MEI Preload, etc.).
+- **[T]** `chrome://process-internals/` — process model state.
+- **[T]** `chrome://blob-internals/` — active Blob URLs.
+- **[T]** `chrome://indexeddb-internals/` — per-origin IDB databases.
+- **[T]** `chrome://quota-internals/` — per-origin storage quota.
+- **[T]** `chrome://device-log/` — device events log.
+- **[T]** `chrome://accessibility/` — a11y tree for every tab.
+- **[T]** `chrome://predictors/` — autocomplete + omnibox predictors.
+- **[T]** `chrome://flags/` — current feature flag state.
+- **[T]** `chrome://settings/cookies/detail/` per origin — cookie detail.
+- **[T]** `chrome://discards/` — recently discarded tab list.
+- **[T]** `chrome://download-internals/` — recent download events.
+- **[T]** `chrome://attribution-internals/` — Attribution Reporting state.
+- **[T]** `chrome://private-aggregation-internals/` — private aggregation reports.
+
+## TTTT. Render-process pipeline
+
+- **[T]** Per-page Blink LayoutTree size — `Memory.getDOMCounters` already W; add layout-tree-node count via CDP `DOM.getDocument` walk.
+- **[T]** CC (compositor) layer count + layer tree depth — `LayerTree.layerTreeDidChange` event.
+- **[T]** GPU command buffer activity from Tracing `gpu.memory` category.
+- **[T]** Per-frame paint count + invalidation rect count from `disabled-by-default-devtools.timeline.frame` category.
+
+## UUUU. Pipeline cache fingerprint
+
+- **[T]** WebGL shader pipeline cache — same shader compiled twice within session, measure compile-time delta (first compile slow, cached fast). Hash both timings.
+- **[T]** WebGPU pipeline cache — same trick with `createComputePipeline` / `createRenderPipeline`.
+- **[T]** V8 script cache — same script eval'd twice, measure parse-time delta.
+
+## VVVV. Input entropy / scripted-vs-human detection
+
+- **[T]** Mouse trajectory velocity profile — for every human/automated click, compute the velocity histogram and acceleration variance of the mouse path (humans show jitter; scripts show smooth Bezier or sharp lines).
+- **[T]** Inter-keystroke timing distribution — mean, stddev, p95, p99 (humans show bimodal; scripts show normal/uniform).
+- **[T]** Mouse-pause distribution before clicks (humans pause, scripts don't).
+- **[T]** Scroll-wheel jitter — wheel events fired evenly (scripts) vs unevenly (humans).
+- **[T]** Pointer-event pressure values (humans on trackpad/stylus emit varying pressure; scripts always emit 0 or 0.5).
+- **[T]** Touch event radius variance (real touches vary; synthesized touches are constant).
+
+## WWWW. Coordinate / DPR rounding fingerprint
+
+- **[T]** `window.devicePixelRatio` exact value (1.0/1.25/1.5/2.0/3.0 etc).
+- **[T]** Sub-pixel layout — render a 1px line at `transform: translateX(0.5px)`, sample via getBoundingClientRect, check rounding.
+- **[T]** `getBoundingClientRect()` returning sub-pixel values vs integer-rounded.
+- **[T]** `window.innerWidth` vs `document.documentElement.clientWidth` divergence (scrollbar width fingerprint).
+- **[T]** Scrollbar dimensions — render a forced-scrollbar element, measure width (0 = overlay scrollbars, 15px = classic, varies by OS).
+
+## XXXX. Content encoding negotiation
+
+- **[T]** Per outgoing request `Accept-Encoding` header value + order (`gzip, deflate, br, zstd` ordering varies by Chrome version).
+- **[T]** Per incoming response `Content-Encoding` value distribution across responses.
+- **[T]** Per response: actual decoded size vs declared `Content-Length` discrepancy.
+
+## YYYY. WebCodecs API
+
+- **[T]** `VideoEncoder.isConfigSupported({codec, ...})` matrix across known codec strings.
+- **[T]** `VideoDecoder.isConfigSupported` matrix.
+- **[T]** `AudioEncoder.isConfigSupported` + `AudioDecoder.isConfigSupported` matrices.
+- **[T]** `ImageDecoder.isTypeSupported(mime)` matrix.
+
+## ZZZZ. WebTransport metrics
+
+- **[T]** Per WebTransport session: datagram MTU negotiated, stream count, bytes per stream.
+- **[T]** Connection migration events on WT (QUIC).
+- **[T]** RTT and congestion-control state from `WebTransport.connection`.
+
+## AAAAA. Origin Private FS enumeration
+
+- **[T]** Per origin: `navigator.storage.getDirectory()` root handle, recursive `entries()` enumeration — every file name + size + mtime + sha256 (count + sha256 of names only if privacy-sensitive).
+
+## BBBBB. Detection-evasion sanity links (must not leak)
+
+- **[T]** Confirm trajectory never navigates to known fingerprint-test domains during a real session (creepjs.com, fingerprintjs.com, browserleaks.com, abrahamjuliot.github.io/creepjs, deviceandbrowserinfo.com, audiofp.com). Logged as a non-event invariant — if it ever happens, alert.
+
+## CCCCC. Browser-extension-blocked URLs visible from page
+
+- **[T]** Pixel for known blocked endpoints (Google Analytics, Doubleclick, Facebook Pixel) — outgoing request fired vs not. Absence of these requests is a fingerprint (adblock-style filtering signal).
+- **[T]** `chrome.webRequest`-blocked URLs visible via NetLog `URL_REQUEST_BLOCKED` events.
+
+## DDDDD. Cross-run determinism diff harness
+
+- **[T]** Two-run mode: run the same trajectory twice with same persona+proxy seed, diff every captured channel pair-wise (already mostly done via `diff.mjs`; add: persistence of the inst.json deltas as a stored "determinism signature" so we know which channels are noisy vs stable).
+
+## EEEEE. JS engine GC + JIT internals
+
+- **[T]** Number of GC cycles during session (from Tracing `v8` category) — minor + major counts.
+- **[T]** V8 optimization tier counts from `disabled-by-default-v8.runtime_stats` — Ignition/Sparkplug/Maglev/Turbofan invocations.
+- **[T]** V8 deoptimization events count + per-function deopt reasons.
+- **[T]** Inline cache (IC) hit/miss ratios from V8 runtime stats.
+- **[T]** Lazy parse vs eager parse statistics.
+
+## FFFFF. Sandbox + namespacing dimensions (Linux)
+
+- **[T]** PID namespace ID per Chromium child (Linux only).
+- **[T]** Mount namespace ID per Chromium child.
+- **[T]** Network namespace ID.
+- **[T]** seccomp filter applied (yes/no + filter sha256).
+- **[T]** Capability bounding set (Linux capabilities) per process.
+- **[T]** apparmor / SELinux label per process.
+
+## GGGGG. macOS-specific user-state attributes
+
+- **[T]** Logon time of current user — `last $USER | head -1`.
+- **[T]** Idle time — `ioreg -c IOHIDSystem | awk '/HIDIdleTime/ {print $NF/1e9; exit}'`.
+- **[T]** Number of windows currently open (NSApplication-level) — `osascript -e 'tell application "System Events" to get count of every window of every process'` (read-only, but blocked by AppleScript rule — keep as conceptual only; use private CGWindowList APIs via Node N-API if needed).
+- **[T]** Active app frontmost — `osascript -e 'tell application "System Events" to get name of first application process whose frontmost is true'`.
+- **[T]** Number of desktops + active desktop index.
+
+## HHHHH. Network namespace / VPN detection
+
+- **[T]** Active VPN — `scutil --nwi | grep -i vpn`; `ifconfig | grep -E 'utun|tun|ppp'`.
+- **[T]** Tailscale presence — `ifconfig utun*` + tailscale-specific routes.
+- **[T]** WireGuard interfaces.
+- **[T]** ProxySwitcher / system proxy state — `scutil --proxy`.
+
+## IIIII. Browser developer-tools detection (the page side)
+
+- **[T]** `window.outerHeight - window.innerHeight` exceeds typical browser chrome by N pixels → devtools open (page-side detector).
+- **[T]** `console.log` triggering DevTools-only behavior (e.g., %c style strings rendering via console).
+- **[T]** `Function.prototype.toString` toString invocation count (devtools attached invokes more).
+- **[T]** `Object.getOwnPropertyNames(console)` length differs when devtools-attached.
+
+## JJJJJ. Per-resource priority + scheduling
+
+- **[T]** Per-request `Priority` header value (high/medium/low + incremental).
+- **[T]** Per-request RFC 9218 priority signals.
+- **[T]** Resource fetch order across the page — first-N requests in order; identifies which discovery method (parser-blocking vs preload-scanner vs script-injected) found which URL.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
