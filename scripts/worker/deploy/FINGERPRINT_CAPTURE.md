@@ -6226,6 +6226,112 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per outgoing request: Save-Data header sent (yes/no) + server response per-Save-Data variant.
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA. Per-page document.head child-element ordered sequence
+
+- **[T]** Per page: literal ordered tagName sequence of `document.head.children` at parse-end (e.g. `meta,meta,title,link,link,script,...`). Sequence is framework-specific.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB. Per-page HTML5 attribute case preservation
+
+- **[T]** Per page: `element.getAttributeNames()` casing distribution — surfaces server-side rendering vs client-side framework rendering.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC. Per-page XPath result-type distribution
+
+- **[T]** Per `document.evaluate(xpath, ...)` call: `resultType` requested + per-type usage count (NUMBER_TYPE / STRING_TYPE / BOOLEAN_TYPE / UNORDERED_NODE_ITERATOR_TYPE / etc.).
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD. Per-page WebAssembly streaming vs eager compilation
+
+- **[T]** Per `WebAssembly.compileStreaming` vs `WebAssembly.compile` call ratio.
+- **[T]** Per `instantiateStreaming` vs `instantiate` ratio.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE. Per-page ES decorator usage detection
+
+- **[T]** Per page: presence of decorator-transpiled output (Babel/TypeScript decorator runtime calls) — fingerprint of TC39 decorator adoption.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF. Per-page Reflect.metadata polyfill detection
+
+- **[T]** Per page: `Reflect.metadata` / `Reflect.defineMetadata` / `Reflect.getMetadata` symbol presence — TypeScript experimentalDecorators output marker.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG. Per-page `eval`-toString self-modification detection
+
+- **[T]** Per page: `eval.toString()` value sha256 + re-evaluated probe (some libraries monkey-patch eval).
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH. Per-page CodeStreamReader / VideoStreamTrack source attribution
+
+- **[T]** Per VideoStreamTrack: source (`getUserMedia` / `getDisplayMedia` / `captureStream` from canvas/video / `MediaStreamTrackGenerator`).
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII. Per-page Web Audio K-rate vs A-rate AudioParam distribution
+
+- **[T]** Per AudioParam: automationRate value (`a-rate` / `k-rate`) distribution per node type.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ. Per-page WebGL2 sync-object polling latency
+
+- **[T]** Per WebGL2 `fenceSync` + `clientWaitSync` pair: sync resolution latency (GPU command-queue depth probe).
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK. Per-page navigator.scheduling.isInputPending probe outcomes
+
+- **[T]** Per call to `navigator.scheduling.isInputPending(options)`: outcome (true / false) + options pattern (includeContinuous).
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL. Per-Service-Worker Background Sync API event firing
+
+- **[T]** Per registered SW: `sync` event fire count per tag.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM. Per-Service-Worker Periodic Background Sync registered tags
+
+- **[T]** Per registered SW: `periodicSync` registration list (tag + minInterval) + periodicsync event fire count.
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN. Per-page Element.toggleAttribute boolean-attribute toggling pattern
+
+- **[T]** Per call: attribute name + force flag + outcome.
+- **[T]** Per page: toggleAttribute usage signature (which boolean attributes get toggled).
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO. Per-page Element.scrollIntoView smoothness selection
+
+- **[T]** Per call: `behavior: 'smooth' | 'auto' | 'instant'` distribution.
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP. Per-page IntersectionObserver rootMargin negative-value usage
+
+- **[T]** Per IO registered: rootMargin with negative values (intentional "look-ahead" pattern).
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ. Per-page MutationObserver attributeFilter usage
+
+- **[T]** Per MO registered: attributeFilter array — per-attribute-name filter signature.
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR. Per-element CSS computed font-family resolved name
+
+- **[T]** Per visible element: `getComputedStyle(el).fontFamily` resolved value (which font in the fallback chain actually rendered).
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS. Per-element CSS computed font-size px value
+
+- **[T]** Per visible text element: resolved fontSize in px.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT. Per-element CSS computed line-height resolved px
+
+- **[T]** Per visible text element: resolved lineHeight (normal → px conversion is font-metric-dependent → fingerprint vector).
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU. Per-page Resource Timing entry initiator script + sourceURL attribution
+
+- **[T]** Per resource: `initiatorType` value distribution + per-initiator source URL chain.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV. Per-page Worker.postMessage per-target byte volume
+
+- **[T]** Per Worker / SharedWorker / ServiceWorker: total postMessage byte volume + message count over session.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW. Per-page Element.replaceWith / before / after / prepend / append usage
+
+- **[T]** Per page: modern DOM-manipulation method call distribution (replaceWith / before / after / prepend / append / remove / replaceChildren).
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX. Per-page legacy innerHTML reassignment volume
+
+- **[T]** Per page: `innerHTML` setter call count + per-call byte size of assigned string.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY. Per-page createElement vs createElementNS distribution
+
+- **[T]** Per page: createElement (HTML namespace) vs createElementNS calls (SVG/MathML namespace) ratio.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ. Per-page cloneNode deep vs shallow ratio
+
+- **[T]** Per page: cloneNode(true) vs cloneNode(false) call distribution.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
