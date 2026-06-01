@@ -7477,6 +7477,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per visible text element: resolved text-wrap-style (`auto` / `balance` / `pretty` / `stable`).
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA. Per-page DOMRect getBoundingClientRect precision distribution
+
+- **[T]** Per visible element: getBoundingClientRect().x/y/width/height/top/right/bottom/left precision (sub-pixel vs integer-rounded).
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB. Per-page Element.offsetTop/offsetLeft distribution
+
+- **[T]** Per visible element: offsetTop / offsetLeft / offsetWidth / offsetHeight values.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC. Per-page Element.clientTop / clientLeft distribution
+
+- **[T]** Per visible element: clientTop / clientLeft / clientWidth / clientHeight values.
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD. Per-page Element.scrollTop / scrollLeft distribution
+
+- **[T]** Per scrollable element: scrollTop / scrollLeft / scrollWidth / scrollHeight values.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE. Per-page Range.getBoundingClientRect distribution
+
+- **[T]** Per Range object: getBoundingClientRect dimensions distribution.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF. Per-page Range.getClientRects array length distribution
+
+- **[T]** Per Range object: returned ClientRect array length distribution.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG. Per-page Element.getClientRects array length distribution
+
+- **[T]** Per visible element: getClientRects() returned array length (multi-line inline elements get multiple rects).
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH. Per-page DOMQuad observed boundaries
+
+- **[T]** Per `getBoxQuads()` call: DOMQuad p1/p2/p3/p4 values.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII. Per-page Element.convertQuadFromNode / convertRectFromNode usage
+
+- **[T]** Per call: source / target node coordinate-space conversion.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ. Per-page Element.checkVisibility detailed outcome
+
+- **[T]** Per call: checkOpacity / contentVisibilityAuto / opacityProperty / visibilityProperty options + outcome flag.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK. Per-page Document.elementFromPoint multi-coordinate sampling
+
+- **[T]** Per page: elementFromPoint at (0,0), (W/2, H/2), (W-1, H-1) test points + returned tag.
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL. Per-page Document.elementsFromPoint multi-element distribution
+
+- **[T]** Per call: returned element-array length + stacking-context-traversal depth.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM. Per-page Document.caretPositionFromPoint / caretRangeFromPoint distribution
+
+- **[T]** Per call: returned offsetNode + offset values.
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN. Per-page Element.scrollIntoViewIfNeeded usage (Chrome-only)
+
+- **[T]** Per call: arguments + outcome.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO. Per-page Element.releasePointerCapture / setPointerCapture usage
+
+- **[T]** Per call: pointerId argument + outcome.
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP. Per-page Element.hasPointerCapture call distribution
+
+- **[T]** Per call: pointerId argument + return value.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ. Per-page Element.requestPointerLock / exitPointerLock usage
+
+- **[T]** Per call: options.unadjustedMovement flag + Promise outcome.
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR. Per-page Element.requestFullscreen / exitFullscreen usage
+
+- **[T]** Per call: navigationUI option + Promise outcome.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS. Per-page Document.fullscreenElement state polling
+
+- **[T]** Per page: fullscreenElement value over time + lock duration distribution.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT. Per-page Document.pictureInPictureElement state polling
+
+- **[T]** Per page: pictureInPictureElement value over time + lock duration distribution.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU. Per-page Document.pointerLockElement state polling
+
+- **[T]** Per page: pointerLockElement value over time + lock duration distribution.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV. Per-page Document.activeElement transitions log
+
+- **[T]** Per page: every activeElement transition with timestamp + previous element selector + new element selector.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW. Per-page Document.hasFocus polling
+
+- **[T]** Per page: hasFocus() return value over time.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX. Per-page Document.title mutation log
+
+- **[T]** Per page: every document.title write event with new value sha256.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY. Per-page Document.cookie write log
+
+- **[T]** Per page: every document.cookie setter call with cookie-name sha256 + attributes parsed.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ. Per-page Document.designMode write log
+
+- **[T]** Per page: every document.designMode setter call with previous + new value.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
