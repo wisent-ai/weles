@@ -6122,6 +6122,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per session: HoverText accessibility feature state.
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA. Per-page Page-side prefers-color-scheme listener registration
+
+- **[T]** Per page: count of `matchMedia('(prefers-color-scheme: dark)').addListener` registrations.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB. Per-page Per-input element form-validation message detail
+
+- **[T]** Per validatable input: `validationMessage` value at session end.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC. Per-page Per-input element invalidity state
+
+- **[T]** Per validatable input: `validity.valid` final flag + which constraint failed.
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD. Per-page Each-stylesheet `media` attribute value
+
+- **[T]** Per `<link rel=stylesheet media>`: media attribute value + matched at session start.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE. Per-page Per-fetch crossOrigin response type
+
+- **[T]** Per fetched response: Response.type value (basic / cors / opaque / opaqueredirect / error).
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF. Per-page Per-fetch Response.url vs Request.url
+
+- **[T]** Per fetched response: redirected flag + final url vs initial url.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG. Per-page Per-fetch Response.statusText distribution
+
+- **[T]** Per response: statusText value distribution (e.g. "OK" vs "Ok" vs unique server reason phrases).
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH. Per-page Per-fetch HTTP/2 trailer headers
+
+- **[T]** Per response: any trailer headers received (rare but observable on HTTP/2 streams).
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII. Per-page Per-response decoded body sample preview
+
+- **[T]** Per response: first-N-byte sample sha256 (after decoding compression).
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ. Per-page Per-response content sniffer outcome
+
+- **[T]** Per response: declared Content-Type vs Chromium's sniffed type — used for X-Content-Type-Options enforcement.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK. Per-page Per-response Accept-CH Lifetime
+
+- **[T]** Per response: Accept-CH-Lifetime (legacy delegate) value + Critical-CH + Accept-CH directives.
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL. Per-page Per-response 103 Early Hints
+
+- **[T]** Per response: 103 Early Hints presence + Link hints delivered before final response.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM. Per-page Per-response 421 Misdirected Request occurrences
+
+- **[T]** Per session: 421 response count (server-rejection signaling HTTP/2 connection coalescing failure).
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN. Per-page Per-response Server-Sent Events stream
+
+- **[T]** Per SSE connection: event count + per-event id + per-event data byte length.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO. Per-page Per-fetch redirect manual handling outcome
+
+- **[T]** Per `fetch(url, {redirect: 'manual'})` call: outcome — opaqueredirect Response value.
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP. Per-page Per-fetch redirect-followed cross-origin chain
+
+- **[T]** Per redirect chain: cross-origin transitions per hop — cookies lost / referer changed.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ. Per-page Per-fetch cache mode `only-if-cached` failures
+
+- **[T]** Per `fetch({cache: 'only-if-cached'})` outcome.
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR. Per-page Page-side HTTP cache stale-while-revalidate hits
+
+- **[T]** Per response: stale-while-revalidate served vs revalidated freshly.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS. Per-page Page-side HTTP cache stale-if-error hits
+
+- **[T]** Per response: stale-if-error served (server error followed by stale return).
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT. Per-page Page-side HTTP cache immutable hint usage
+
+- **[T]** Per response: `Cache-Control: immutable` directive presence + revalidation skipped count.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU. Per-page Page-side HTTP cache no-store enforcement
+
+- **[T]** Per response: no-store directive presence + caching behavior verified.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV. Per-page Page-side HTTP cache private vs public hint
+
+- **[T]** Per response: private vs public directive presence + intermediate-cache behavior.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW. Per-page Page-side HTTP cache must-revalidate enforcement
+
+- **[T]** Per response: must-revalidate vs proxy-revalidate directive distribution.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX. Per-page Page-side HTTP cache age field
+
+- **[T]** Per response: `Age:` header value distribution.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY. Per-page Page-side HTTP cache Cache-Status header
+
+- **[T]** Per response: RFC 9211 `Cache-Status:` header presence + status (hit / fwd=miss / fwd=stale / etc.).
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ. Per-page Page-side `Save-Data` directive observed in request
+
+- **[T]** Per outgoing request: Save-Data header sent (yes/no) + server response per-Save-Data variant.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
