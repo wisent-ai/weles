@@ -8205,6 +8205,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per WebTransport stream: abort / cancel invocation count + error codes.
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA. Per-page Cookie SameSite distribution per origin
+
+- **[T]** Per origin: cookie SameSite value distribution (None / Lax / Strict / Unspecified).
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB. Per-page Cookie Domain attribute distribution per origin
+
+- **[T]** Per origin: cookie Domain attribute (host-only vs domain-cookie) distribution.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC. Per-page Cookie Path attribute distribution per origin
+
+- **[T]** Per origin: cookie Path value distribution.
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD. Per-page Cookie Secure flag distribution
+
+- **[T]** Per origin: secure-flag presence ratio.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE. Per-page Cookie HttpOnly flag distribution
+
+- **[T]** Per origin: httpOnly-flag presence ratio.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF. Per-page Cookie Partitioned flag distribution
+
+- **[T]** Per origin: partitioned-flag presence ratio.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG. Per-page Cookie max-age distribution
+
+- **[T]** Per origin: cookie max-age value distribution (in seconds).
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH. Per-page Cookie Expires distribution
+
+- **[T]** Per origin: cookie Expires value distribution (relative to session start).
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII. Per-page Cookie SourcePort distribution
+
+- **[T]** Per origin: cookie sourcePort value distribution.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ. Per-page Cookie SourceScheme distribution
+
+- **[T]** Per origin: cookie sourceScheme value distribution (`Secure` / `NonSecure` / `Unset`).
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK. Per-page Cookie Priority distribution
+
+- **[T]** Per origin: cookie priority value distribution (Low / Medium / High).
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL. Per-page Cookie SameParty distribution (deprecated FPS attribute)
+
+- **[T]** Per origin: cookie sameParty-flag presence (deprecated but legacy still observable).
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM. Per-page Cookie name-prefix distribution
+
+- **[T]** Per origin: __Secure-, __Host-, __Http- prefix usage count.
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN. Per-page Cookie reject reason histogram
+
+- **[T]** Per outgoing request: per-cookie reject reasons (`UserPreferences` / `Overwrite` / `Domain` / `Path` / `PublicSuffix` / `SizeLimit` / `OverwriteInsecure` / `SameSiteNoneInsecure` / `SameSiteUnspecifiedTreatedAsLax` / `ExcludedDomainNonSecure` / `ThirdPartyPhaseout` / `PortMismatch` / `SchemeMismatch`).
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO. Per-page Cookie warning reason histogram
+
+- **[T]** Per outgoing request: per-cookie warning reasons.
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP. Per-page DOMException error code per origin
+
+- **[T]** Per origin: thrown DOMException type histogram observed in console.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ. Per-page TypeError messages distribution
+
+- **[T]** Per page: thrown TypeError messages (sha256'd).
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR. Per-page ReferenceError messages distribution
+
+- **[T]** Per page: thrown ReferenceError messages.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS. Per-page RangeError messages distribution
+
+- **[T]** Per page: thrown RangeError messages.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT. Per-page SyntaxError messages distribution
+
+- **[T]** Per page: thrown SyntaxError messages (often in eval / Function constructors).
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU. Per-page URIError messages distribution
+
+- **[T]** Per page: thrown URIError messages.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV. Per-page EvalError messages distribution
+
+- **[T]** Per page: thrown EvalError messages.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW. Per-page AggregateError errors[] distribution
+
+- **[T]** Per page: AggregateError construction + per-error sub-type distribution.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX. Per-page Custom Error subclass distribution
+
+- **[T]** Per page: per-thrown-error constructor.name distribution (custom Error subclasses signal which framework's error handling is in play).
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY. Per-page unhandledrejection .reason distribution
+
+- **[T]** Per page: unhandled-rejection event reason type (string / Error / DOMException / custom).
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ. Per-page rejectionhandled event firing
+
+- **[T]** Per page: rejectionhandled (late-handled rejection) event count.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
