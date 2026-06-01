@@ -17565,6 +17565,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per session: `/proc/net/arp` contents (per-host IP + HW addr + flags + mask + device).
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA. Per-page Linux /proc/net/netstat snapshot
+
+- **[T]** Per session: `/proc/net/netstat` contents (per-counter kernel TCP/UDP/IP statistics: TcpExt fields like SyncookiesSent, EmbryonicRsts, PruneCalled, RcvPruned, OfoPruned, OutOfWindowIcmps, LockDroppedIcmps).
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB. Per-page Linux /proc/net/snmp snapshot
+
+- **[T]** Per session: `/proc/net/snmp` contents (per-counter SNMP-style IP/ICMP/TCP/UDP statistics).
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC. Per-page Linux /proc/net/sockstat snapshot
+
+- **[T]** Per session: `/proc/net/sockstat` + `/proc/net/sockstat6` contents (per-protocol socket usage counts).
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD. Per-page Linux /proc/net/unix snapshot
+
+- **[T]** Per session: `/proc/net/unix` contents (per-AF_UNIX socket inode + ref-count + state + path).
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE. Per-page Linux /proc/sys/kernel/random/boot_id snapshot
+
+- **[T]** Per session: `/proc/sys/kernel/random/boot_id` UUID (regenerated per kernel boot).
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF. Per-page Linux /proc/sys/kernel/random/entropy_avail snapshot
+
+- **[T]** Per session: `/proc/sys/kernel/random/entropy_avail` integer (kernel CSPRNG entropy pool fill).
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG. Per-page Linux /proc/sys/kernel/osrelease snapshot
+
+- **[T]** Per session: `/proc/sys/kernel/osrelease` + `/proc/sys/kernel/ostype` + `/proc/sys/kernel/version` value (kernel release string).
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH. Per-page Linux /proc/sys/kernel/hostname snapshot
+
+- **[T]** Per session: `/proc/sys/kernel/hostname` + `/proc/sys/kernel/domainname` value.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII. Per-page Linux /sys/class/dmi/id snapshot
+
+- **[T]** Per session: `/sys/class/dmi/id/{product_name,product_version,product_uuid,product_serial,sys_vendor,bios_vendor,bios_version,bios_date,board_name,board_vendor,board_serial,chassis_serial}` snapshot.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ. Per-página Linux /sys/devices/system/cpu/cpufreq snapshot
+
+- **[T]** Per session: per-CPU `/sys/devices/system/cpu/cpu*/cpufreq/{scaling_governor,scaling_cur_freq,scaling_max_freq,scaling_min_freq}` snapshot.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK. Per-page Linux /sys/class/thermal snapshot
+
+- **[T]** Per session: per-thermal-zone `/sys/class/thermal/thermal_zone*/{type,temp,trip_point_0_temp,policy}` snapshot.
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL. Per-page Linux /sys/class/power_supply snapshot
+
+- **[T]** Per session: per-power-supply `/sys/class/power_supply/*/{capacity,status,voltage_now,current_now,energy_full,energy_now,present,type}` snapshot.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM. Per-page Linux /sys/class/net snapshot
+
+- **[T]** Per session: per-interface `/sys/class/net/*/{address,mtu,carrier,speed,duplex,operstate,statistics/rx_bytes,statistics/tx_bytes}` snapshot.
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN. Per-page Linux /sys/class/drm snapshot
+
+- **[T]** Per session: per-display `/sys/class/drm/card*-*/{enabled,status,modes,edid}` snapshot.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO. Per-page Linux /sys/class/input snapshot
+
+- **[T]** Per session: per-input-device `/sys/class/input/input*/{name,phys,uniq,id,capabilities}` snapshot (keyboards, mice, gamepads, touchpads).
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP. Per-page Linux /sys/class/sound snapshot
+
+- **[T]** Per session: per-sound-card `/sys/class/sound/card*/{id,number,uevent}` snapshot.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ. Per-page Linux /sys/devices/system/edac snapshot
+
+- **[T]** Per session: per-memory-controller `/sys/devices/system/edac/mc/mc*/{ce_count,ue_count,size_mb,rank/}` snapshot (correctable + uncorrectable ECC error counts).
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR. Per-page Linux /sys/firmware/acpi snapshot
+
+- **[T]** Per session: `/sys/firmware/acpi/tables/` directory listing (DSDT, SSDT, MADT, FACP, HPET, MCFG, BERT, etc. — firmware ACPI tables).
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS. Per-page Linux /sys/firmware/efi snapshot
+
+- **[T]** Per session: `/sys/firmware/efi/vars/` + `/sys/firmware/efi/efivars/` enumeration (per-UEFI-variable name + guid + value snippet).
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT. Per-page Linux /sys/kernel/security snapshot
+
+- **[T]** Per session: `/sys/kernel/security/{lsm,lockdown,apparmor/policy,selinux/enforce}` value (active LSMs and their state).
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU. Per-page Linux /sys/module enumeration
+
+- **[T]** Per session: `/sys/module/` directory listing (loaded kernel modules + their parameters in `parameters/`).
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV. Per-page Linux dmesg ring buffer snapshot
+
+- **[T]** Per session: `dmesg --time-format iso` output filtered for the trajectory's process lifetime (kernel events: ALSA, USB, network, OOM-killer, watchdog).
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW. Per-page Linux journalctl snapshot
+
+- **[T]** Per session: `journalctl --since <session_start> --until <session_end> --output json` filtered to PID + descendants (systemd journal log).
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX. Per-page Linux auditd /var/log/audit snapshot
+
+- **[T]** Per session: `ausearch -ts <session_start>` output (kernel audit log per-syscall + per-execve + per-path-watched record).
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY. Per-page Linux perf-event-paranoid snapshot
+
+- **[T]** Per session: `/proc/sys/kernel/perf_event_paranoid` integer (controls userspace perf_event access).
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ. Per-página Linux /etc/os-release snapshot
+
+- **[T]** Per session: `/etc/os-release` contents (NAME, VERSION, ID, ID_LIKE, PRETTY_NAME, VERSION_ID, HOME_URL, BUG_REPORT_URL).
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
