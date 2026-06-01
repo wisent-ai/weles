@@ -1905,6 +1905,156 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 - **[T]** Current audio input device — `SwitchAudioSource -t input -c`.
 - **[T]** Audio device priority list — `defaults read com.apple.Music.AppleMusicLab AudioDeviceUID`.
 
+## BBBBBBBBBBB. Ad-blocker activation state
+
+- **[T]** Per page: known ad/tracker URLs that fired vs were blocked (compare Resource Timing entries against EasyList canonical hosts).
+- **[T]** Per page: detection of in-page anti-adblock scripts via DOM query.
+- **[T]** Per session: ratio of blocked-vs-fired tracker requests (presence of any blocking is itself a fingerprint).
+
+## CCCCCCCCCCC. Tracking-protection state
+
+- **[T]** Chrome's tracking-protection setting — from Local State JSON `tracking_protection.enabled`.
+- **[T]** Per page: third-party cookies blocked count (from CDP `Audits.issueAdded` Cookie issues).
+- **[T]** First-Party Set membership boundary crossings.
+
+## DDDDDDDDDDD. Per-request privacy signals
+
+- **[T]** Per outgoing request: `Sec-Purpose` header (prefetch / prerender variants).
+- **[T]** Per outgoing request: `Sec-Browsing-Topics` header value (Topics API).
+- **[T]** Per outgoing request: `DNT` header value (legacy).
+- **[T]** Per outgoing request: `Sec-GPC` (Global Privacy Control) header.
+- **[T]** Per outgoing request: `Sec-Cookie-Header-Compat-Mode` (deprecated but still seen).
+
+## EEEEEEEEEEE. theme-color + meta resolution chain
+
+- **[T]** Per page: full `<meta name="theme-color">` list with media-query qualifiers.
+- **[T]** Per page: effective theme color resolved at session start.
+- **[T]** Per page: `<meta name="color-scheme">` value.
+- **[T]** Per page: `<meta name="viewport">` parsed (width/height/initial-scale/maximum-scale/minimum-scale/user-scalable/viewport-fit).
+
+## FFFFFFFFFFF. ImageDecoder bytes decoded
+
+- **[T]** Per session: total ImageDecoder bytes decoded by format (PNG/JPEG/WebP/AVIF/GIF/BMP/ICO).
+- **[T]** Per format: per-image average decode time.
+- **[T]** Hardware-accelerated decode hits per format.
+
+## GGGGGGGGGGG. NetworkContext exit reasons
+
+- **[T]** From NetLog: per-NetworkContext lifetime, end reason (browser shutdown / explicit destroy / error).
+- **[T]** Per partition: how many NetworkContexts were created (Storage Partitioning creates one per partition).
+
+## HHHHHHHHHHH. PreconnectManager events
+
+- **[T]** From NetLog: per `<link rel=preconnect>`, time-to-connect + connection-reused-or-new.
+- **[T]** Speculative preconnect events fired by Chromium itself (not in HTML).
+
+## IIIIIIIIIII. HTTP cache transaction state distribution
+
+- **[T]** From NetLog: per `URL_REQUEST`, HTTP cache state transitions (CACHE_OPEN_ENTRY / CACHE_READ_RESPONSE / CACHE_VALIDATE / CACHE_DOOM_ENTRY).
+- **[T]** Per session: cache hit / miss / not-cacheable / not-modified-revalidation counts.
+
+## JJJJJJJJJJJ. PerformanceMark detail field
+
+- **[T]** Per mark: arbitrary `detail` field content sha256 (often contains correlation IDs, A/B test bucket assignments, internal site versions — high-entropy site-specific fingerprint).
+- **[T]** Per measure: detail field same treatment.
+
+## KKKKKKKKKKK. ServiceWorker bytecode cache
+
+- **[T]** Per SW script load: was it served from V8 code cache? (parse time near 0).
+- **[T]** Per SW: total code-cache bytes consumed.
+- **[T]** SW update path code-cache invalidation events.
+
+## LLLLLLLLLLL. HTTP DownloadResource events
+
+- **[T]** Per session: every download initiated — URL, suggestedFilename, MIME, total bytes.
+- **[T]** Per download: state transitions (begin / progress / cancel / complete / interrupted).
+- **[T]** Save-As dialog interactions (file dialog opened, accepted, cancelled).
+
+## MMMMMMMMMMM. ResourceFetcher prefetch attribution
+
+- **[T]** Per resource: initiator chain — parser-blocking / preload-scanner / link-rel-preload / script-injected / fetch-API / XHR.
+- **[T]** Per resource: was it fetched by main thread vs prefetcher vs background fetcher.
+- **[T]** Per resource: initiator script URL + line (when discovery is JS-driven).
+
+## NNNNNNNNNNN. GoogleUpdate component status
+
+- **[T]** GoogleSoftwareUpdate launchd daemon state — `launchctl list com.google.keystone.daemon` last exit code.
+- **[T]** Last successful check time — `defaults read com.google.Keystone.Agent lastCheckTime`.
+- **[T]** Configured update channel — `defaults read com.google.Chrome KSChannelID`.
+
+## OOOOOOOOOOO. ICE failure attribution
+
+- **[T]** Per failed ICE candidate: `RTCIceTransport.state` transitions + failure reason.
+- **[T]** Per failed checklist pair: foundation + protocol + priority.
+- **[T]** TURN allocation failure reasons.
+
+## PPPPPPPPPPP. WebSocket extension negotiation
+
+- **[T]** Per WS handshake: `Sec-WebSocket-Extensions` header offered (client) vs accepted (server).
+- **[T]** Per WS: `permessage-deflate` parameters negotiated (server_max_window_bits, client_max_window_bits, server_no_context_takeover, client_no_context_takeover).
+- **[T]** Per WS: `Sec-WebSocket-Protocol` subprotocol offered vs selected.
+
+## QQQQQQQQQQQ. HTTP/2 GOAWAY + RST_STREAM
+
+- **[T]** Per HTTP/2 session: GOAWAY frames received — last-stream-id + error-code + opaque-data.
+- **[T]** Per stream: RST_STREAM frames — stream-id + error-code.
+- **[T]** Per session: PING frame round-trip times.
+- **[T]** SETTINGS frame change events.
+
+## RRRRRRRRRRR. DNSSEC validation
+
+- **[T]** Per outgoing DNS query: `+dnssec` flag set or not (from NetLog).
+- **[T]** Per DNS response: AD (Authenticated Data) bit set / not.
+- **[T]** DoH provider DNSSEC behavior.
+
+## SSSSSSSSSSS. Web App Manifest icon byte hashes
+
+- **[T]** Per manifest icon: full byte sha256 (deduped, saved alongside manifest).
+- **[T]** Per icon: rendered-at-target-DPR pixel hash (compare across runs to detect ICC-profile assignment differences).
+
+## TTTTTTTTTTT. Prerendered page session reuse log
+
+- **[T]** Per prerender activation: time from speculation-rules-fetch to activation; bytes fetched ahead-of-time vs used on activation.
+- **[T]** Per cross-document prerender: cookies / storage isolation boundary crossings.
+
+## UUUUUUUUUUU. ResourceRequest priority modifiers
+
+- **[T]** Per request: initial priority + modified-by-fetchpriority + modified-by-importance.
+- **[T]** Per request: Priority Hint values resolved (`fetchpriority='high'` / `'low'` / `'auto'`).
+- **[T]** Per resource type: per-priority distribution (high / medium / low / very-low / lowest).
+
+## VVVVVVVVVVV. FLEDGE / Protected Audience interest group log
+
+- **[T]** Per origin: every `navigator.joinAdInterestGroup` call — group name, expirationTime, biddingLogicUrl, biddingWasmHelperUrl, dailyUpdateUrl, trustedBiddingSignalsUrl, trustedBiddingSignalsKeys.
+- **[T]** Per origin: `leaveAdInterestGroup` + `clearOriginJoinedAdInterestGroups` calls.
+- **[T]** Active interest groups at session close.
+
+## WWWWWWWWWWW. DOM mutation origin breakdown
+
+- **[T]** Per session: total DOM mutations classified by origin — HTML parser, script (`appendChild`/`innerHTML`/etc.), CSS animation, user interaction.
+- **[T]** Per page state change: mutation rate spike attribution.
+
+## XXXXXXXXXXX. SpeechSynthesis utterance log
+
+- **[T]** Every `speechSynthesis.speak(utt)` call: text length, voice URI, lang, rate, pitch, volume.
+- **[T]** Per utterance: events fired (start, end, error, boundary, mark).
+- **[T]** SpeechSynthesisVoice list change events.
+
+## YYYYYYYYYYY. SpeechRecognition session events
+
+- **[T]** Every SpeechRecognition session: start time, results count, error events.
+- **[T]** Recognition result confidence values distribution per session.
+
+## ZZZZZZZZZZZ. Navigation start cause attribution
+
+- **[T]** Per page navigation: which user-interaction or script-call initiated it — link click, form submission, location.assign / replace / href, history.go, browser back/forward, automation (CDP Page.navigate), prerender activation.
+- **[T]** Per navigation: was it a soft-nav (no real navigation) vs hard-nav.
+
+## AAAAAAAAAAAA. Sandboxed iframe attribution chain
+
+- **[T]** Per sandboxed iframe: parent frame URL + sandbox value + creator script URL + creation timestamp.
+- **[T]** Cross-document attribution — which document spawned which sandbox + what scope it has.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
