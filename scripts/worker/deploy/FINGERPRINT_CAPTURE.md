@@ -18501,6 +18501,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per session: exit code from Chromium process + final pass/fail classification + ban_signal that triggered finalization.
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA. Per-page Mouse acceleration curve fingerprint
+
+- **[T]** Per session: distribution of (Δx, Δy) per native CGEventCreateMouseEvent + the resulting movementX/movementY observed in the page (reveals OS-level acceleration curve).
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB. Per-page Mouse jitter signal
+
+- **[T]** Per session: distribution of (movementX, movementY) magnitude per mousemove (real humans show 0.5–3px jitter; CDP-synthesized movement shows pure integer deltas).
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC. Per-page Mouse pause-before-click signal
+
+- **[T]** Per session: distribution of (ms) between mouse landing on a clickable element and the click being fired (humans: ~150–400ms hover; bot: <50ms).
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD. Per-page Mouse trajectory curvature
+
+- **[T]** Per session: per-trajectory total curvature integral (∫|κ|ds) of the mouse path (humans show curved paths; minimum-distance bot paths are straight lines).
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE. Per-page Mouse velocity peak distribution
+
+- **[T]** Per session: per-trajectory max velocity (pixels/ms) and acceleration peak (pixels/ms²) distribution (humans plateau around 8 px/ms; CDP can hit 50+).
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF. Per-page Mouse approach angle distribution
+
+- **[T]** Per session: per-click approach-angle (final tangent angle of mouse trajectory at impact) distribution (humans: ±25° spread; bot bee-lines: ~0° fixed).
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG. Per-page Keyboard inter-keystroke timing distribution
+
+- **[T]** Per session: per-input-field per-character (ms-since-last-key) distribution + per-char autocorrelation coefficient (humans show power-law dwell times; bot fixed delays appear in narrow Gaussian).
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH. Per-page Keyboard key-dwell timing distribution
+
+- **[T]** Per session: per-key (keydown → keyup) ms distribution (real keyboards: 60–120ms; CDP synthesized: 0ms or fixed constant).
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII. Per-page Keyboard backspace/delete rate
+
+- **[T]** Per session: count of Backspace/Delete keystrokes per filled-character (humans: ~3–8%; bots: 0%).
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ. Per-página Keyboard repeated-key behaviour
+
+- **[T]** Per session: per-held-key (Tab, Arrow, Shift+letter) — keydown without intermediate keyup distribution (humans hold keys; bots release+repress per char).
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK. Per-page Keyboard shift-key interleave
+
+- **[T]** Per session: per-uppercase-character — Shift keydown precedes letter keydown by N ms (real: ~50–100ms; bot synthesizers may fire same ms or skip Shift).
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL. Per-page Touch input emulation distribution
+
+- **[T]** Per session: count of Pointer.pointerType=='touch' events fired (only on devices with maxTouchPoints>0; Mac-pinned personas should produce 0).
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM. Per-page Wheel scroll event delta-mode distribution
+
+- **[T]** Per session: per-wheel-event deltaMode distribution (0=DOM_DELTA_PIXEL, 1=DOM_DELTA_LINE, 2=DOM_DELTA_PAGE) — Mac trackpad fires deltaMode=0 with fractional deltas; Windows mouse-wheel fires deltaMode=0 with multiples of 100.
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN. Per-page Wheel scroll delta granularity
+
+- **[T]** Per session: per-wheel-event (deltaX, deltaY) granularity distribution (fractional vs integer-only) — same OS-fingerprint signal.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO. Per-page Wheel scroll inertia phases
+
+- **[T]** Per session: per-scroll-burst presence of momentum/inertia phase (Mac trackpad has momentum phase; mouse wheel doesn't).
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP. Per-page MouseEvent buttons distribution
+
+- **[T]** Per session: per-mousedown buttons-field distribution (1=left, 2=right, 4=middle) — bot synthesizers often forget to set it.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ. Per-page MouseEvent pressure distribution
+
+- **[T]** Per session: per-pointerdown pressure-field distribution (Pencil/Apple-Pencil fires 0.5; trackpad fires 0.5 for normal click; bot synth typically 0).
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR. Per-page MouseEvent tangentialPressure distribution
+
+- **[T]** Per session: per-pointerdown tangentialPressure-field distribution (only Pencil; bot synth: 0).
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS. Per-page MouseEvent tilt distribution
+
+- **[T]** Per session: per-pointerdown (tiltX, tiltY)-field distribution (only Pencil; bot synth: 0).
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT. Per-page MouseEvent twist distribution
+
+- **[T]** Per session: per-pointerdown twist-field distribution (Pencil only).
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU. Per-page MouseEvent pointerType distribution
+
+- **[T]** Per session: per-pointerdown pointerType distribution ('mouse'|'pen'|'touch') — must match navigator.maxTouchPoints + device profile.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV. Per-page MouseEvent isPrimary distribution
+
+- **[T]** Per session: per-pointerdown isPrimary-field distribution (single pointer always true; multi-touch fires false on secondary fingers).
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW. Per-page MouseEvent isTrusted distribution
+
+- **[T]** Per session: per-MouseEvent isTrusted-field distribution (CDP-injected: true on stock weles via Input.dispatchMouseEvent → SetTrusted; el.click() inside page.evaluate: false).
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX. Per-page MouseEvent click vs auxclick distribution
+
+- **[T]** Per session: count of `click` vs `auxclick` (middle/right button) firings (humans rarely middle-click in normal flows; bot test harnesses sometimes fire auxclick by mistake).
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY. Per-page MouseEvent client/screen-coord mismatch
+
+- **[T]** Per session: per-MouseEvent (clientX,clientY) vs (screenX,screenY) delta (humans: matches `window.screenX + window.screenY + clientX,clientY`; CDP synth may have wrong screen offset).
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ. Per-página MouseEvent timestamp granularity
+
+- **[T]** Per session: per-MouseEvent timestamp delta (modulo 1ms) distribution (humans: sub-millisecond granularity via high-res clock; bot synth: only millisecond-aligned).
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
