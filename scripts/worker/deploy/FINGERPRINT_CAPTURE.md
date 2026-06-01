@@ -20997,6 +20997,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per session: per-Page CSS `env(scrollbar-inline-size)` resolved value (host scrollbar width — Mac trackpad ≈ 0, Windows ≈ 15-17px).
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA. Per-page Reddit reddit-user-cookie distribution
+
+- **[T]** Per session: per-`reddit_user` cookie value parse (encoded JSON with username + signature).
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB. Per-page Reddit modhash header
+
+- **[T]** Per session: per-request outbound `x-modhash` header value (Reddit CSRF token bound to user session).
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC. Per-page Reddit shreddit composer client log
+
+- **[T]** Per session: per-`/svc/shreddit/composer` POST body capture (composed-comment payload pre-submit).
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD. Per-page Reddit shreddit comment-submit recaptcha token
+
+- **[T]** Per session: per-`/comment` POST body recaptchaToken presence (low-trust submit path indicator).
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE. Per-page Reddit auto-removal timestamp
+
+- **[T]** Per session: per-submitted-comment post-submit 60-second visibility-status check + per-comment auto-remove timestamp.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF. Per-page Reddit shadowban verification path
+
+- **[T]** Per session: per-account `/r/<sub>/comments/<post>/comment/<id>/.json` (permalink) returned-tree depth + visibility from second-account fetch.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG. Per-page LinkedIn Voyager api endpoint distribution
+
+- **[T]** Per session: per-Voyager-api endpoint URL distribution (signals scrape-shape vs login-flow).
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH. Per-page LinkedIn checkpoint URL log
+
+- **[T]** Per session: per-Page URL sequence — flag if `/checkpoint/` or `/uas/login` encountered mid-flow (signals identity-verification gate).
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII. Per-page LinkedIn createAccount challengeUrl token
+
+- **[T]** Per session: per-`/uas/createAccount` POST response — extract challengeUrl token + per-token verification outcome.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ. Per-página LinkedIn /apfc/collect POST body
+
+- **[T]** Per session: per-`/apfc/collect` POST body byte-length distribution (PerimeterX-driven captcha-attestation payload).
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK. Per-page LinkedIn /apfc/collect inbound response status
+
+- **[T]** Per session: per-`/apfc/collect` response status (200 = clean, 403 = burned).
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL. Per-page LinkedIn surface og:image og:title
+
+- **[T]** Per session: per-LinkedIn-profile public-page `<meta property="og:image">` + `<meta property="og:title">` value capture (signals indexing surface).
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM. Per-page TikTok mssdk x-bogus parameter
+
+- **[T]** Per session: per-`X-Bogus` outbound URL query param (TikTok mssdk client-token sub-component).
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN. Per-page TikTok mssdk _signature parameter
+
+- **[T]** Per session: per-`_signature` outbound URL query param (TikTok mssdk client-token sub-component).
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO. Per-page TikTok vregion field
+
+- **[T]** Per session: per-Page bootstrap response `vregion` field value distribution ('US'|'US-TTP'|'US-TTP2'|'BR'|'IL'|'AU'|'TW'|'JP'|'KR'|'CN').
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP. Per-page TikTok mssdk security-sdk init outcome
+
+- **[T]** Per session: per-Page security_sdk init success/fail signal (signals mssdk-was-routed-to-bad-cluster).
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ. Per-page Twitter Arkose Labs token
+
+- **[T]** Per session: per-Arkose-FunCaptcha JS bridge token capture + per-bridge URL distribution.
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR. Per-page Twitter onboarding flow_token
+
+- **[T]** Per session: per-`/onboarding/sso_init.json` POST response `flow_token` capture + per-token endpoint sequence.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS. Per-page Twitter device_id auto-mint signal
+
+- **[T]** Per session: per-`/i/api/2/oauth2/authorize` POST request `device_id` parameter — outbound rotation pattern.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT. Per-page Instagram challenge response endpoints
+
+- **[T]** Per session: per-`/challenge/` URL path distribution + per-challenge type ('email'|'sms'|'identity_proof'|'rate_limit'|'manual_review').
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU. Per-page Discord build_number header
+
+- **[T]** Per session: per-`x-discord-build-number` outbound header value (legacy fingerprint that Discord crosschecks against UA).
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV. Per-page Discord super-properties base64
+
+- **[T]** Per session: per-`x-super-properties` outbound header base64-decoded JSON ({os, browser, device, system_locale, browser_user_agent, browser_version, os_version, referrer, referring_domain, search_engine, release_channel, client_build_number, client_event_source}).
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW. Per-page Discord context-properties header
+
+- **[T]** Per session: per-`x-context-properties` outbound header value (Discord client-side state token).
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX. Per-page GitHub gh-uuid distribution
+
+- **[T]** Per session: per-`_octo` cookie value distribution (GitHub session fingerprint + dimensions).
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY. Per-page GitHub user_session cookie
+
+- **[T]** Per session: per-`user_session` cookie value capture + per-session active session count via `__Host-user_session_same_site` correlation.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ. Per-página ProductHunt PHsid cookie
+
+- **[T]** Per session: per-`_producthunt_session` cookie value capture + cross-signed proof header correlation.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
