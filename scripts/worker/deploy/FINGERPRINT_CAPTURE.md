@@ -16837,6 +16837,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per session: per-interface IGMP/MLD packet count + membership group address distribution (multicast group join/leave).
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA. Per-page ARP/NDP packet distribution
+
+- **[T]** Per session: per-interface ARP request/reply count + NDP Router Solicitation / Router Advertisement / Neighbor Solicitation / Neighbor Advertisement packet count.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB. Per-page Ethernet MAC OUI distribution
+
+- **[T]** Per session: per-NIC MAC address OUI (vendor) distribution as observed on the wire (Apple/Intel/Realtek/Broadcom prefixes).
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC. Per-page Wi-Fi BSSID/SSID exposure
+
+- **[T]** Per session: per-interface Wi-Fi BSSID + SSID + channel + RSSI snapshot via host-OS APIs (CoreWLAN on macOS, iwconfig on Linux).
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD. Per-page MAC routing table snapshot
+
+- **[T]** Per session: `route -n get default` + `netstat -rn` per route distribution (gateway, interface, flags, refs, expire).
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE. Per-page MAC SCSelectionInfo per network adapter
+
+- **[T]** Per session: `scutil --nwi` + `networksetup -listallhardwareports` per-adapter status snapshot.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF. Per-page MAC sysctl kern.proc snapshot
+
+- **[T]** Per session: `sysctl kern.proc.all` count + per-process name + parent-pid + uid + state distribution.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG. Per-page MAC sysctl hw.* snapshot
+
+- **[T]** Per session: `sysctl hw.machine`, `hw.model`, `hw.ncpu`, `hw.physicalcpu`, `hw.logicalcpu`, `hw.memsize`, `hw.l1icachesize`, `hw.l1dcachesize`, `hw.l2cachesize`, `hw.l3cachesize`, `hw.pagesize`, `hw.targettype` values.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH. Per-page MAC sysctl kern.boottime observation
+
+- **[T]** Per session: `sysctl kern.boottime` + `kern.osrelease` + `kern.ostype` + `kern.osversion` value.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII. Per-page MAC ioreg IODisplayEDID snapshot
+
+- **[T]** Per session: `ioreg -lw0 -r -d 0 -c AppleDisplay` output captured to enumerate connected displays + EDID payload.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ. Per-página MAC ioreg IOUSBHIDDriver enumeration
+
+- **[T]** Per session: `ioreg -p IOUSB -l -w 0 -k SessionID -k locationID` snapshot enumerating connected USB HID devices (keyboards/mice).
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK. Per-page MAC ioreg IOPMrootDomain power source snapshot
+
+- **[T]** Per session: `ioreg -rn AppleSmartBattery -w0` + `ioreg -rn IOPMPowerSource -w0` snapshot (battery state, charger present, time-to-full).
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL. Per-page MAC ioreg IOPlatformExpertDevice snapshot
+
+- **[T]** Per session: `ioreg -d 1 -k IOPlatformUUID` IOPlatformUUID + IOPlatformSerialNumber + board-id snapshot.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM. Per-page MAC system_profiler SPHardwareDataType
+
+- **[T]** Per session: `system_profiler -json SPHardwareDataType` snapshot (model name, chip, total memory, system firmware version, OS loader version, serial number, hardware UUID, provisioning UDID).
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN. Per-page MAC system_profiler SPSoftwareDataType
+
+- **[T]** Per session: `system_profiler -json SPSoftwareDataType` snapshot (system version, kernel version, boot volume, computer name, user name, secure virtual memory, system integrity protection, time-since-boot).
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO. Per-page MAC system_profiler SPDisplaysDataType
+
+- **[T]** Per session: `system_profiler -json SPDisplaysDataType` snapshot (chipset, VRAM, vendor, device ID, revision, ROM revision, displays connected).
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP. Per-page MAC system_profiler SPAudioDataType
+
+- **[T]** Per session: `system_profiler -json SPAudioDataType` snapshot (audio devices, output sample rate, input sample rate, manufacturer, transport, default device).
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ. Per-page MAC system_profiler SPBluetoothDataType
+
+- **[T]** Per session: `system_profiler -json SPBluetoothDataType` snapshot (controller addr, paired devices, services).
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR. Per-page MAC system_profiler SPMemoryDataType
+
+- **[T]** Per session: `system_profiler -json SPMemoryDataType` snapshot (DIMM count, DIMM type, slot, manufacturer, part number, serial number).
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS. Per-page MAC system_profiler SPThunderboltDataType
+
+- **[T]** Per session: `system_profiler -json SPThunderboltDataType` snapshot (bus, devices, link speed, link width).
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT. Per-page MAC system_profiler SPNetworkDataType
+
+- **[T]** Per session: `system_profiler -json SPNetworkDataType` snapshot (per-interface name, type, IPv4, IPv6, DNS, search domains, router).
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU. Per-page MAC system_profiler SPApplicationsDataType
+
+- **[T]** Per session: `system_profiler -json SPApplicationsDataType` snapshot (installed apps count + per-app version + last modified + signed-by).
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV. Per-page MAC system_profiler SPExtensionsDataType
+
+- **[T]** Per session: `system_profiler -json SPExtensionsDataType` snapshot (per-kext name + version + path + load-state + 64-bit + signed-by).
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW. Per-page MAC system_profiler SPDeveloperToolsDataType
+
+- **[T]** Per session: `system_profiler -json SPDeveloperToolsDataType` snapshot (developer tool installs e.g. Xcode versions).
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX. Per-page MAC system_profiler SPInstallHistoryDataType
+
+- **[T]** Per session: `system_profiler -json SPInstallHistoryDataType` snapshot (per-install date + source + display-version + display-name).
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY. Per-page MAC pmset -g log snapshot
+
+- **[T]** Per session: `pmset -g log` snapshot (assertions, sleep/wake events, lid open/close events).
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ. Per-página MAC log show predicate filter snapshot
+
+- **[T]** Per session: `log show --predicate 'subsystem == "com.apple.WebKit"'` snapshot (system log filtered to browser-related events).
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
