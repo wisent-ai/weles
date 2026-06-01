@@ -1238,6 +1238,165 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Beyond SSSS list: `chrome://crashes/`, `chrome://dino/`, `chrome://prefs-internals/`, `chrome://safe-browsing/`, `chrome://signed-exchange-internals/`, `chrome://management/`, `chrome://media-engagement/`, `chrome://nacl/`, `chrome://gcm-internals/`, `chrome://invalidations/`, `chrome://identity-internals/`, `chrome://interstitials/`, `chrome://chrome-urls/` (lists every accessible chrome:// page — recursively scrape).
 
+## OOOOOO. CDN + cache attribution per response
+
+- **[T]** Per response: `Server` header value (nginx/cloudflare/cloudfront/akamai/fastly/varnish identification).
+- **[T]** Per response: `Via` header (chain of intermediaries).
+- **[T]** Per response: `X-Cache`, `X-Cache-Hits`, `Age`, `X-Served-By`, `X-Timer`, `CF-Ray`, `CF-Cache-Status`, `X-Amz-Cf-Id`, `X-Akamai-Edge-Time`, `X-Fastly-Trace`, `X-Vercel-Cache` headers.
+- **[T]** Per origin: cached-vs-origin ratio (cache hit rate).
+- **[T]** Per response: cache-control directive parsed (max-age, s-maxage, public, private, immutable, no-store, must-revalidate, stale-while-revalidate, stale-if-error).
+
+## PPPPPP. Per-form autocomplete + field metadata
+
+- **[T]** Per `<form>` on page: `action` URL, `method`, `enctype`, `novalidate`, `target`, `autocomplete` attribute.
+- **[T]** Per `<input>` / `<textarea>` / `<select>` in each form: `type`, `name`, `autocomplete` value, `required`, `maxlength`, `pattern`, `placeholder`, `inputmode`, `enterkeyhint`, `spellcheck`.
+- **[T]** Per `<label>`: associated control id, `for` attribute.
+
+## QQQQQQ. Color profile / display ICC
+
+- **[T]** Per attached display: ICC profile name + sha256 of profile bytes — `system_profiler SPDisplaysDataType` + `colorsync --profile`.
+- **[T]** Browser color profile setting — `chrome://settings/colors` configured value.
+- **[T]** Per page: `<meta name="color-scheme">` declared values.
+- **[T]** Browser-rendered color depth per visual — `screen.colorDepth`, `pixelDepth`, `matchMedia('(color: 8)')` matrix.
+
+## RRRRRR. ARIA + accessibility tree mass
+
+- **[T]** Per page: full a11y tree via CDP `Accessibility.getFullAXTree` already named in C; expand to: per-AX node, role + name + description + value + state + landmark designation.
+- **[T]** Per page: ARIA-live region count + politeness distribution.
+- **[T]** Per page: ARIA-hidden subtree count + collective node count under aria-hidden.
+- **[T]** Reduced motion / high contrast / screen reader presence — `chrome://accessibility/` toggles state.
+
+## SSSSSS. Per-resource hash + content type
+
+- **[T]** Every external `<script src>` URL: sha256 of fetched body (deduped, saved under `recordings/<label>/scripts/`).
+- **[T]** Every external `<link rel=stylesheet>`: sha256 of fetched body.
+- **[T]** Every external `<img src>` / `<video src>` / `<audio src>`: sha256 (deduped, optional save for the visual-trace bundle).
+- **[T]** Per page: total transferred bytes / decoded bytes / compression ratio.
+
+## TTTTTT. Preload-scanner discovery log
+
+- **[T]** Resources the Preload Scanner discovered AND fetched (Resource Timing `initiatorType:'link'` with `transferSize`).
+- **[T]** Resources discovered AND NOT fetched (preload candidates that page never used — invisible to standard observation but appears in `Resource Hints` with `initialPriority` set).
+- **[T]** Per-resource initiator chain (which script line added each resource).
+
+## UUUUUU. Per-page heap of detached DOM nodes
+
+- **[T]** From HeapProfiler: detached HTMLElement count at session close (memory-leak signature is fingerprintable).
+- **[T]** Closure scope leak counts per script.
+
+## VVVVVV. Renderer crash + reload events
+
+- **[T]** Renderer crash count over session (from `Page.crash` event subscription if devtools-attached, else `Inspector.targetCrashed`).
+- **[T]** Network service crash count (renderer survives but new network process spawns).
+- **[T]** GPU process crash count.
+- **[T]** Utility process restart count.
+
+## WWWWWW. Resource budget per Lite Mode / Save Data
+
+- **[T]** `navigator.connection.saveData` state at session start.
+- **[T]** Resource decisions made under Save Data — which images downgraded, which preloads skipped.
+- **[T]** Server-side Data-Saver-Hint sent per request (HTTPS-Lite proxy is dead but the Save-Data header is fingerprintable).
+
+## XXXXXX. Per-element ARIA + label metadata
+
+- **[T]** For every focusable element: `aria-label`, `aria-labelledby`, `aria-describedby`, `aria-controls`, `role`, `tabindex`.
+- **[T]** Effective accessible name (computed per AccName 1.1).
+
+## YYYYYY. Beacon API targets
+
+- **[T]** Every `navigator.sendBeacon(url, data)` call: full URL + body byte count + content-type.
+- **[T]** Beacons sent at `pagehide` / `visibilitychange:hidden` boundaries (fingerprint analytics endpoints).
+
+## ZZZZZZ. Clipboard contents (if permission)
+
+- **[T]** If `clipboard-read` permission granted: `navigator.clipboard.read()` ClipboardItem array — per item, MIME types present + per-mime byte sha256.
+- **[T]** If `clipboard-write` permission granted: every `write()` / `writeText()` call — content type + byte count.
+
+## AAAAAAA. Cross-trajectory longitudinal fingerprint
+
+- **[T]** For each WSession over time: persist a per-account "fingerprint signature" (rolling sha256 of stable channels: persona, proxy, OS, GPU, screen, locale, UA) into Supabase. Allows pre-trajectory drift detection (account suddenly served from a new fingerprint = burn signal).
+- **[T]** Per-account hash chain of inst.json sha256s across N sessions — detects fingerprint drift even when individual sessions look clean.
+
+## BBBBBBB. Browser-emitted telemetry endpoint inventory
+
+- **[T]** Every request to known browser telemetry hosts (`clients2.google.com`, `clientservices.googleapis.com`, `update.googleapis.com`, `optimizationguide-pa.googleapis.com`, `chromewebstore.googleapis.com`, `safebrowsing.googleapis.com`) — surface presence + frequency; absence is itself a fingerprint (vanilla Chrome always sends these).
+- **[T]** Per telemetry endpoint: request body size distribution.
+- **[T]** Per telemetry endpoint: response handled correctly (404/200/etc.).
+
+## CCCCCCC. Per-page Storage Access consent state
+
+- **[T]** `document.hasStorageAccess()` result at every page state change.
+- **[T]** Storage Access API permission decisions: granted/denied/prompt + persistence.
+
+## DDDDDDD. Color font / OpenType variable axis support
+
+- **[T]** Variable font axes presence — for each loaded font, `CSSFontFaceRule.fontVariationSettings` + `Document.fonts.check('1em SomeVarFont', 'A')`.
+- **[T]** Color font (COLRv1 / sbix) support test — render a known color emoji glyph, hash output.
+
+## EEEEEEE. SVG + canvas filter rendering matrix
+
+- **[T]** Apply known SVG filter chain (`feGaussianBlur` + `feColorMatrix` + `feComposite` + `feMorphology` + `feDisplacementMap` + `feFlood`) to known input, rasterize, hash.
+- **[T]** Apply CSS `filter: ...` chain (blur, brightness, contrast, drop-shadow, grayscale, hue-rotate, invert, opacity, saturate, sepia) to known div, capture pixel bytes via canvas readback, hash.
+
+## FFFFFFF. Compression + parsing edge cases
+
+- **[T]** Per response served with `gzip` / `br` / `zstd` encoding: actual decompression CPU time delta (CPU-cost fingerprint).
+- **[T]** Per response: byte-stream size before vs after decompression ratio.
+- **[T]** Per HTML response: tokenizer state machine duration (from Tracing `disabled-by-default-blink.feature_usage`).
+
+## GGGGGGG. CookieJar partition key inventory
+
+- **[T]** Per partition key: total cookies stored, per-domain cookie distribution.
+- **[T]** Cross-partition leak attempts — any cookie set with a partition key that conflicts with the requesting site.
+
+## HHHHHHH. WebGL + WebGPU error count
+
+- **[T]** Per WebGL context: `getError()` polled after every major draw — error count over session.
+- **[T]** Per WebGPU device: `uncapturedError` event log.
+- **[T]** WGSL shader compilation errors with full message body.
+
+## IIIIIII. PerformanceLongAnimationFrame (LoAF)
+
+- **[T]** Every `PerformanceObserver({type:'long-animation-frame'})` entry: duration, scripts[] with sourceURL + invoker + executionStart.
+- **[T]** Total blocking time per page state.
+
+## JJJJJJJ. Document picture-in-picture window state deep
+
+- **[T]** Per PiP window: dimensions, position, document.documentElement.outerHTML snapshot.
+- **[T]** PiP transition events: enter, exit, resize.
+
+## KKKKKKK. Per-script execution context fingerprint
+
+- **[T]** Per script (from `Debugger.scriptParsed`): execution context ID + auxData (isDefault, type) + frame ancestry chain.
+- **[T]** Module vs classic-script counts.
+- **[T]** Worklet contexts (paint/audio/animation/layout) — per-worklet script source sha256.
+
+## LLLLLLL. Frame timing skew via repeated paint
+
+- **[T]** Paint timing entry distribution per frame across the session.
+- **[T]** Skew between `performance.now()` and CSS animation `currentTime` at frame boundary.
+
+## MMMMMMM. Per-event isTrusted distribution
+
+- **[T]** For every dispatched event captured: `isTrusted` flag + dispatch path (`composedPath`). Automation generally produces `isTrusted:false` unless using CDP Input.* or weles' nativeClick path.
+- **[T]** Distribution histogram of `isTrusted:true` vs `false` events per session.
+
+## NNNNNNN. Per-frame visibility transitions
+
+- **[T]** `IntersectionObserver` on every frame at `[0, 0.1, 0.25, 0.5, 0.75, 1.0]` thresholds → per-frame visibility timeline.
+- **[T]** ViewportObserver count + activation timeline.
+
+## OOOOOOO. macOS hot corner / Mission Control state
+
+- **[T]** Hot corner actions — `defaults read com.apple.dock wvous-bl-corner wvous-br-corner wvous-tl-corner wvous-tr-corner`.
+- **[T]** Mission Control / Expose state — `defaults read com.apple.dock mcx-expose-disabled`.
+- **[T]** Spaces count + per-space app assignment — `defaults read com.apple.spaces`.
+
+## PPPPPPP. macOS clipboard + drag state
+
+- **[T]** Pasteboard count (NSPasteboardGeneralName) + per-board content type list — `pbpaste -Prefer txt | wc -c` (count only, no content).
+- **[T]** Drag pasteboard active count.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
