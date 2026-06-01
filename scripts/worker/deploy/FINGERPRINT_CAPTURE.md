@@ -23493,6 +23493,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per session: `/proc/net/udp6` per-IPv6 UDP-socket inode + local_addr + rem_addr + tx_queue + rx_queue distribution.
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA. Per-page Linux /proc/sys/net/core/rmem_max snapshot
+
+- **[T]** Per session: `/proc/sys/net/core/{rmem_max,wmem_max,rmem_default,wmem_default,netdev_max_backlog,somaxconn,optmem_max}` value snapshot.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB. Per-page Linux /proc/sys/net/ipv4/tcp_congestion_control snapshot
+
+- **[T]** Per session: `/proc/sys/net/ipv4/tcp_congestion_control` + `tcp_available_congestion_control` value snapshot.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC. Per-page Linux /proc/sys/net/ipv4/tcp_window_scaling snapshot
+
+- **[T]** Per session: `/proc/sys/net/ipv4/tcp_window_scaling` + `tcp_sack` + `tcp_dsack` + `tcp_fack` + `tcp_timestamps` + `tcp_low_latency` value snapshot.
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD. Per-page Linux /proc/sys/net/ipv4/ip_local_port_range snapshot
+
+- **[T]** Per session: `/proc/sys/net/ipv4/ip_local_port_range` value (ephemeral port range).
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE. Per-page Linux /proc/sys/net/ipv4/tcp_max_syn_backlog snapshot
+
+- **[T]** Per session: `/proc/sys/net/ipv4/tcp_max_syn_backlog` value.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF. Per-page Linux /proc/sys/net/ipv4/tcp_syn_retries snapshot
+
+- **[T]** Per session: `/proc/sys/net/ipv4/tcp_syn_retries` + `tcp_synack_retries` + `tcp_retries1` + `tcp_retries2` + `tcp_orphan_retries` value snapshot.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG. Per-page Linux /proc/sys/net/ipv4/tcp_fin_timeout snapshot
+
+- **[T]** Per session: `/proc/sys/net/ipv4/tcp_fin_timeout` + `tcp_keepalive_time` + `tcp_keepalive_intvl` + `tcp_keepalive_probes` value snapshot.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH. Per-page Linux /proc/sys/net/ipv4/tcp_fastopen snapshot
+
+- **[T]** Per session: `/proc/sys/net/ipv4/tcp_fastopen` value (TCP Fast Open bitmask).
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII. Per-page Linux /proc/sys/net/ipv4/tcp_ecn snapshot
+
+- **[T]** Per session: `/proc/sys/net/ipv4/tcp_ecn` + `tcp_ecn_fallback` value snapshot (ECN negotiation policy).
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ. Per-página Linux /proc/sys/net/ipv4/tcp_tw_reuse snapshot
+
+- **[T]** Per session: `/proc/sys/net/ipv4/tcp_tw_reuse` + `tcp_tw_recycle` (obsolete) value snapshot.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK. Per-page Linux /proc/sys/net/ipv4/tcp_no_metrics_save snapshot
+
+- **[T]** Per session: `/proc/sys/net/ipv4/tcp_no_metrics_save` value (whether RTT/cwnd metrics persist across closed connections).
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL. Per-page Linux /proc/sys/net/ipv4/conf snapshot
+
+- **[T]** Per session: per-interface `/proc/sys/net/ipv4/conf/<dev>/{accept_redirects, send_redirects, rp_filter, secure_redirects, accept_local, log_martians, arp_announce, arp_ignore, forwarding}` value snapshot.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM. Per-page Linux /proc/sys/net/ipv6/conf snapshot
+
+- **[T]** Per session: per-interface `/proc/sys/net/ipv6/conf/<dev>/{accept_ra, use_tempaddr, autoconf, mtu, dad_transmits, accept_redirects, forwarding}` value snapshot.
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN. Per-page Linux /proc/sys/fs/file-max snapshot
+
+- **[T]** Per session: `/proc/sys/fs/file-max` + `nr_open` + `file-nr` value snapshot (kernel fd limits).
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO. Per-page Linux /proc/sys/kernel/pid_max snapshot
+
+- **[T]** Per session: `/proc/sys/kernel/pid_max` + `threads-max` value snapshot.
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP. Per-page Linux /proc/sys/kernel/sched_* snapshot
+
+- **[T]** Per session: `/proc/sys/kernel/sched_{rt_runtime_us, rt_period_us, child_runs_first, latency_ns, min_granularity_ns, migration_cost_ns}` value snapshot.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ. Per-page Linux /proc/sys/kernel/randomize_va_space snapshot
+
+- **[T]** Per session: `/proc/sys/kernel/randomize_va_space` value (ASLR policy: 0=off, 1=conservative, 2=full).
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR. Per-page Linux /proc/sys/kernel/yama snapshot
+
+- **[T]** Per session: `/proc/sys/kernel/yama/ptrace_scope` value snapshot (ptrace-scope hardening level).
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS. Per-page Linux /proc/sys/kernel/kptr_restrict snapshot
+
+- **[T]** Per session: `/proc/sys/kernel/kptr_restrict` + `dmesg_restrict` value snapshot.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT. Per-page Linux /proc/sys/kernel/unprivileged_bpf_disabled snapshot
+
+- **[T]** Per session: `/proc/sys/kernel/unprivileged_bpf_disabled` + `unprivileged_userns_clone` value snapshot.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU. Per-page Linux /proc/sys/vm/swappiness snapshot
+
+- **[T]** Per session: `/proc/sys/vm/swappiness` + `vfs_cache_pressure` + `dirty_ratio` + `dirty_background_ratio` + `overcommit_memory` + `overcommit_ratio` value snapshot.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV. Per-page Linux /proc/sys/vm/max_map_count snapshot
+
+- **[T]** Per session: `/proc/sys/vm/max_map_count` value (max mmap regions per process).
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW. Per-page Linux /proc/sys/vm/transparent_hugepage snapshot
+
+- **[T]** Per session: `/sys/kernel/mm/transparent_hugepage/{enabled, defrag, khugepaged/defrag}` value snapshot.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX. Per-page Linux /proc/sys/fs/inotify snapshot
+
+- **[T]** Per session: `/proc/sys/fs/inotify/{max_queued_events, max_user_instances, max_user_watches}` value snapshot.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY. Per-page Linux /proc/sys/fs/epoll snapshot
+
+- **[T]** Per session: `/proc/sys/fs/epoll/max_user_watches` value (kernel epoll watch limit).
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ. Per-página Linux /proc/sys/net/unix/max_dgram_qlen snapshot
+
+- **[T]** Per session: `/proc/sys/net/unix/max_dgram_qlen` value (max UNIX-domain socket datagram queue depth).
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
