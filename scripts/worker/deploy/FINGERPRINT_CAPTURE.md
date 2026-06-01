@@ -6748,6 +6748,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per session: Reporting API delivery histogram.
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA. Per-page Browser-internal `chrome://histograms/V8.IsolateMemory.*` time-series
+
+- **[T]** Per session: V8 isolate memory histogram per renderer.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB. Per-page Browser-internal `chrome://histograms/V8.CompileScript.*` time-series
+
+- **[T]** Per session: V8 script-compile duration histogram per script.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC. Per-page Browser-internal `chrome://histograms/V8.OptimizeFunction.*` time-series
+
+- **[T]** Per session: V8 function-optimization count per tier (Sparkplug / Maglev / Turbofan).
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD. Per-page Browser-internal `chrome://histograms/V8.Deopt.*` time-series
+
+- **[T]** Per session: V8 deopt count + reason histogram.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE. Per-page Browser-internal `chrome://histograms/V8.WasmCompile.*` time-series
+
+- **[T]** Per session: WebAssembly compile-time histogram per module.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF. Per-page Browser-internal `chrome://histograms/V8.WasmExecution.*` time-series
+
+- **[T]** Per session: WebAssembly execution-time histogram per export.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG. Per-page Browser-internal `chrome://histograms/V8.HeapSnapshot.*` time-series
+
+- **[T]** Per session: heap-snapshot capture duration histogram.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH. Per-page Browser-internal `chrome://histograms/V8.GCMark.*` time-series
+
+- **[T]** Per session: V8 GC mark-phase duration histogram.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII. Per-page Browser-internal `chrome://histograms/V8.GCSweep.*` time-series
+
+- **[T]** Per session: V8 GC sweep-phase duration histogram.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ. Per-page Browser-internal `chrome://histograms/V8.GCScavenge.*` time-series
+
+- **[T]** Per session: V8 GC scavenge-phase duration histogram.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK. Per-page Browser-internal `chrome://histograms/V8.GCEpilogue.*` time-series
+
+- **[T]** Per session: V8 GC epilogue-phase duration histogram.
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL. Per-page Browser-internal `chrome://histograms/V8.CodeCache.*` time-series
+
+- **[T]** Per session: V8 code-cache hit / miss / produce histogram.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM. Per-page Browser-internal `chrome://histograms/V8.LazyCompile.*` time-series
+
+- **[T]** Per session: V8 lazy-compile duration histogram.
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN. Per-page Browser-internal `chrome://histograms/V8.IC.*` time-series
+
+- **[T]** Per session: V8 inline-cache state-transition histogram.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO. Per-page Browser-internal `chrome://histograms/V8.Bytecode.*` time-series
+
+- **[T]** Per session: V8 Ignition bytecode-handler dispatch count histogram.
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP. Per-page Browser-internal `chrome://histograms/V8.Sparkplug.*` time-series
+
+- **[T]** Per session: V8 Sparkplug compile-tier histogram.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ. Per-page Browser-internal `chrome://histograms/V8.Maglev.*` time-series
+
+- **[T]** Per session: V8 Maglev compile-tier histogram.
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR. Per-page Browser-internal `chrome://histograms/V8.Turbofan.*` time-series
+
+- **[T]** Per session: V8 Turbofan compile-tier histogram.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS. Per-page Browser-internal `chrome://histograms/V8.LiftoffCompile.*` time-series
+
+- **[T]** Per session: V8 WebAssembly Liftoff compile histogram.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT. Per-page Browser-internal `chrome://histograms/V8.IsolateCount.*` time-series
+
+- **[T]** Per session: number of V8 isolates created over session.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU. Per-page Browser-internal `chrome://histograms/V8.WrapperCount.*` time-series
+
+- **[T]** Per session: V8-to-Blink wrapper count histogram.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV. Per-page Browser-internal `chrome://histograms/V8.PromiseRejected.*` time-series
+
+- **[T]** Per session: unhandled Promise rejection count histogram.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW. Per-page Browser-internal `chrome://histograms/V8.RegExp.*` time-series
+
+- **[T]** Per session: RegExp compile + execute duration histogram.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX. Per-page Browser-internal `chrome://histograms/V8.JSON.*` time-series
+
+- **[T]** Per session: JSON.parse / JSON.stringify byte-throughput histogram.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY. Per-page Browser-internal `chrome://histograms/V8.AsmJs.*` time-series
+
+- **[T]** Per session: asm.js validate + execute histogram (legacy but still in tracing).
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ. Per-page Browser-internal `chrome://histograms/V8.WrapperInline.*` time-series
+
+- **[T]** Per session: V8 wrapper inline-cache state distribution.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
