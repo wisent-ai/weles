@@ -10181,6 +10181,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per session: Identifiability-Study sampling budget consumption histogram.
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA. Per-page Tracing category `disabled-by-default-v8.gc` events
+
+- **[T]** Per session: per-GC-event timestamp + duration + reason captured from Tracing.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB. Per-page Tracing category `disabled-by-default-v8.compile` events
+
+- **[T]** Per session: V8 compile event per script.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC. Per-page Tracing category `disabled-by-default-v8.gc_stats` events
+
+- **[T]** Per session: per-GC-pass detailed stats (mark / sweep / compact / atomic-pause times).
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD. Per-page Tracing category `disabled-by-default-v8.cpu_profiler` events
+
+- **[T]** Per session: V8 CPU profiler ProfileChunk events.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE. Per-page Tracing category `disabled-by-default-v8.turbofan` events
+
+- **[T]** Per session: Turbofan compile events per function.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF. Per-page Tracing category `disabled-by-default-v8.maglev` events
+
+- **[T]** Per session: Maglev compile events per function.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG. Per-page Tracing category `disabled-by-default-v8.deopt` events
+
+- **[T]** Per session: deopt events per function + reason distribution.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH. Per-page Tracing category `disabled-by-default-v8.runtime_stats_sampling` events
+
+- **[T]** Per session: per-runtime-call sampling events.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII. Per-page Tracing category `disabled-by-default-blink.gc` events
+
+- **[T]** Per session: Blink Oilpan GC events.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ. Per-page Tracing category `disabled-by-default-blink.invalidation_tracking` events
+
+- **[T]** Per session: style + layout invalidation tracking events per element.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK. Per-page Tracing category `disabled-by-default-cc.debug` events
+
+- **[T]** Per session: compositor debug events.
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL. Per-page Tracing category `disabled-by-default-cc.debug.cdp-perf` events
+
+- **[T]** Per session: cc/CDP perf debug events.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM. Per-page Tracing category `disabled-by-default-gpu.dawn` events
+
+- **[T]** Per session: Dawn / WebGPU lifecycle events.
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN. Per-page Tracing category `disabled-by-default-gpu.scheduler` events
+
+- **[T]** Per session: GPU scheduler events.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO. Per-page Tracing category `disabled-by-default-network` events
+
+- **[T]** Per session: low-level network events (raw socket I/O + cache hits + connection lifecycle).
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP. Per-page Tracing category `disabled-by-default-blink.feature_usage` events
+
+- **[T]** Per session: which Web Platform features were used (per-feature event count).
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ. Per-page Tracing category `disabled-by-default-blink.user_timing` events
+
+- **[T]** Per session: every performance.mark / measure event captured at Tracing level.
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR. Per-page Tracing category `disabled-by-default-blink.image_decoding` events
+
+- **[T]** Per session: per-image decode events (timestamp + format + size).
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS. Per-page Tracing category `disabled-by-default-toplevel.flow` events
+
+- **[T]** Per session: cross-thread flow events for task scheduling.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT. Per-page Tracing category `disabled-by-default-toplevel.ipc.flow` events
+
+- **[T]** Per session: cross-process IPC flow events.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU. Per-page Tracing category `disabled-by-default-system_stats` events
+
+- **[T]** Per session: system-stats events (CPU / memory / GPU usage samples).
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVHVVVVVVVVVVVVVVVVVVVV. Per-page Tracing category `disabled-by-default-blink.fpga` events
+
+- **[T]** Per session: FPGA / heuristic-based rendering events.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW. Per-page Tracing category `disabled-by-default-ipc.flow` events
+
+- **[T]** Per session: IPC flow events between processes.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX. Per-page Tracing category `disabled-by-default-devtools.timeline.frame` events
+
+- **[T]** Per session: per-frame timeline events.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY. Per-page Tracing category `disabled-by-default-devtools.screenshot` events
+
+- **[T]** Per session: per-frame screenshot data via Tracing screenshot category.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ. Per-page Tracing category `disabled-by-default-mojom` events
+
+- **[T]** Per session: per-Mojo-interface message-count events.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
