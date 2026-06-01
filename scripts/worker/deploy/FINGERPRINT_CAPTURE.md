@@ -5484,6 +5484,112 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per TCP connection: RST flags seen + connection-close reason inferred.
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA. Per-Chromium-child: process priority transitions
+
+- **[T]** Per Chromium child: foreground / background priority transitions per session (task_policy_get / setpriority).
+- **[T]** Per renderer: when did Chromium classify it as foreground vs background (impacts JS-clamp).
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB. Per-Chromium-child: macOS App Nap status
+
+- **[T]** Per Chromium child: App Nap applied yes/no over session (`taskinfo -L`).
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC. Per-Chromium-child: macOS sandbox container
+
+- **[T]** Per child: `sandbox-exec` profile applied; if any, exact policy file applied.
+- **[T]** Per child: codesign team-identifier + bundle-identifier inherited.
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD. Per-Chromium-child: macOS task port survivability
+
+- **[T]** Per child: task-port survive across exec via `posix_spawn` flags.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE. Per-Chromium-child: zone allocator usage
+
+- **[T]** From `vmmap`: per-child PartitionAlloc zone size distribution + V8 isolate allocation size.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF. Per-Chromium-child: shared-memory segment count
+
+- **[T]** Per child: SharedMemoryHandle count + per-segment size + cross-process sharing graph.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG. Per-Chromium-child: mach IPC port count
+
+- **[T]** Per child: Mach port-set ports + send-rights + receive-rights count from `task_threads` + `task_ports`.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH. Per-Chromium-child: file descriptor inheritance
+
+- **[T]** Per child: which fds inherited from parent (via `lsof -p <pid>` parent-vs-child diff).
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII. Per-Chromium-child: anonymous mmap regions
+
+- **[T]** From `vmmap`: per-child anonymous mmap region count + total bytes (heap fragmentation signal).
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ. Per-Chromium-child: dyld shared cache use
+
+- **[T]** Per child: dyld shared cache file path + version (macOS-version-specific).
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK. Per-page Network Information API change events
+
+- **[T]** Every `navigator.connection.change` event: previous values vs new values for type / effectiveType / downlink / rtt / saveData.
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL. Per-page CSS `prefers-reduced-motion` resolution at session start
+
+- **[T]** Per page: `matchMedia('(prefers-reduced-motion: reduce)').matches` value.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM. Per-page CSS `prefers-reduced-data` resolution at session start
+
+- **[T]** Per page: `matchMedia('(prefers-reduced-data: reduce)').matches` value.
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN. Per-page CSS `prefers-reduced-transparency` resolution at session start
+
+- **[T]** Per page: `matchMedia('(prefers-reduced-transparency: reduce)').matches` value.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO. Per-page CSS `prefers-contrast` resolution at session start
+
+- **[T]** Per page: `matchMedia('(prefers-contrast: more)' | '(prefers-contrast: less)' | '(prefers-contrast: custom)' | '(prefers-contrast: no-preference)').matches` matrix.
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP. Per-page CSS `forced-colors: active` resolution at session start
+
+- **[T]** Per page: `matchMedia('(forced-colors: active)').matches` value (Windows High Contrast Mode signal).
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ. Per-page CSS `inverted-colors: inverted` resolution at session start
+
+- **[T]** Per page: `matchMedia('(inverted-colors: inverted)').matches` value (macOS Invert Colors signal).
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR. Per-page CSS `color-gamut` resolution at session start
+
+- **[T]** Per page: matchMedia for color-gamut srgb / p3 / rec2020 individually.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS. Per-page CSS `dynamic-range` resolution at session start
+
+- **[T]** Per page: matchMedia for dynamic-range standard / high.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT. Per-page CSS `display-mode` resolution at session start
+
+- **[T]** Per page: matchMedia for display-mode browser / standalone / minimal-ui / fullscreen / window-controls-overlay.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU. Per-page CSS `update` resolution at session start
+
+- **[T]** Per page: matchMedia for update none / slow / fast.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV. Per-page CSS `scripting` resolution at session start
+
+- **[T]** Per page: matchMedia for scripting none / initial-only / enabled.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW. Per-page CSS `pointer` and `any-pointer` resolution
+
+- **[T]** Per page: matchMedia for pointer fine / coarse / none, any-pointer fine / coarse / none.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX. Per-page CSS `hover` and `any-hover` resolution
+
+- **[T]** Per page: matchMedia for hover hover / none, any-hover hover / none.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY. Per-page CSS `orientation` resolution
+
+- **[T]** Per page: matchMedia for orientation portrait / landscape.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ. Per-page CSS `resolution` resolution
+
+- **[T]** Per page: matchMedia at increasing dppx thresholds — surfaces exact rendered-DPR.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
