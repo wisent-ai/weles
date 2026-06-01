@@ -7165,6 +7165,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per session: Photos library presence (sha256 of library path).
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA. Per-page CDP `Page.handleJavaScriptDialog` outcomes
+
+- **[T]** Per dialog: accept vs dismiss + promptText supplied.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB. Per-page CDP `Page.setDownloadBehavior` events
+
+- **[T]** Per session: download-behavior policy applied (allow / deny / default).
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC. Per-page CDP `Network.setUserAgentOverride` history
+
+- **[T]** Per session: every UA override applied (with platform / acceptLanguage / userAgentMetadata).
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD. Per-page CDP `Network.setExtraHTTPHeaders` history
+
+- **[T]** Per session: every extra-header set applied via CDP.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE. Per-page CDP `Emulation.setUserAgentOverride` history
+
+- **[T]** Per session: emulation UA override events.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF. Per-page CDP `Emulation.setDeviceMetricsOverride` history
+
+- **[T]** Per session: device-metrics override (width / height / DPR / mobile / scale / fitWindow).
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG. Per-page CDP `Emulation.setTouchEmulationEnabled` history
+
+- **[T]** Per session: touch-emulation enabled / disabled events.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH. Per-page CDP `Emulation.setEmulatedMedia` history
+
+- **[T]** Per session: emulated-media type set (`screen` / `print`) + features-array overrides.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII. Per-page CDP `Emulation.setEmulatedVisionDeficiency` history
+
+- **[T]** Per session: vision-deficiency emulation (achromatopsia / blurredVision / deuteranopia / protanopia / tritanopia / reducedContrast / none).
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ. Per-page CDP `Emulation.setLocaleOverride` history
+
+- **[T]** Per session: locale override events.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK. Per-page CDP `Emulation.setTimezoneOverride` history
+
+- **[T]** Per session: timezone override events.
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL. Per-page CDP `Emulation.setGeolocationOverride` history
+
+- **[T]** Per session: geolocation override events.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM. Per-page CDP `Emulation.setIdleOverride` history
+
+- **[T]** Per session: idle override events.
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN. Per-page CDP `Emulation.setCPUThrottlingRate` history
+
+- **[T]** Per session: CPU-throttling-rate set (1.0 = none, 2.0 = 2x slower, ...).
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO. Per-page CDP `Emulation.setHardwareConcurrencyOverride` history
+
+- **[T]** Per session: hardwareConcurrency override events.
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP. Per-page CDP `Emulation.setNavigatorOverrides` history
+
+- **[T]** Per session: navigator property overrides set per emulation session.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ. Per-page CDP `Emulation.setVisibleSize` events
+
+- **[T]** Per session: visible-size events history.
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR. Per-page CDP `Emulation.setScrollbarsHidden` events
+
+- **[T]** Per session: scrollbar-hide toggle history.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS. Per-page CDP `Network.emulateNetworkConditions` history
+
+- **[T]** Per session: emulated network conditions applied (offline flag + latency + download throughput + upload throughput).
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT. Per-page CDP `Network.setCookies` history
+
+- **[T]** Per session: cookies-set via CDP count + per-cookie attributes.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU. Per-page CDP `Network.clearBrowserCookies` history
+
+- **[T]** Per session: cookies clear-events via CDP.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV. Per-page CDP `Network.clearBrowserCache` history
+
+- **[T]** Per session: cache clear-events via CDP.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW. Per-page CDP `Storage.clearDataForOrigin` history
+
+- **[T]** Per session: per-origin data clear events (cookies / cache / shadercache / appcache / file_systems / indexeddb / local_storage / shader_cache / service_workers / cache_storage / interest_groups / private_state_tokens / shared_storage).
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX. Per-page CDP `Storage.overrideQuotaForOrigin` history
+
+- **[T]** Per session: quota override events per origin.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY. Per-page CDP `Browser.setPermission` history
+
+- **[T]** Per session: permissions granted via CDP (per origin × per permission name).
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ. Per-page CDP `Browser.resetPermissions` history
+
+- **[T]** Per session: permission resets per origin.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
