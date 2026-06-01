@@ -2463,6 +2463,138 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per origin: BackgroundFetch registration list — id, downloadTotal, uploadTotal, downloaded, uploaded, result, failureReason.
 
+## AAAAAAAAAAAAAAA. Per-page WebGL texture upload byte count
+
+- **[T]** Per WebGL context: cumulative bytes uploaded via `texImage2D` / `texSubImage2D` / `compressedTexImage2D` over session, broken down by internalformat.
+- **[T]** Per context: bytes uploaded via `bufferData` / `bufferSubData` by usage hint (STATIC_DRAW / DYNAMIC_DRAW / STREAM_DRAW).
+
+## BBBBBBBBBBBBBBB. WebGPU buffer / texture lifecycle
+
+- **[T]** Per WebGPU device: every `createBuffer` / `createTexture` size + usage flags + format + mip-level count.
+- **[T]** Per resource: `destroy()` call log; resources still alive at session close.
+
+## CCCCCCCCCCCCCCC. Per-frame BodyStream tee count
+
+- **[T]** Per `Response.body.tee()` call: caller stack + downstream consumers.
+- **[T]** Per ReadableStream: pull / cancel events log.
+- **[T]** Per stream: byte count flowed through over session.
+
+## DDDDDDDDDDDDDDD. AbortController + AbortSignal usage
+
+- **[T]** Per AbortController: abort() call log + reason value.
+- **[T]** Per AbortSignal: timeout signal vs manual signal classification.
+- **[T]** Per fetch with `signal:`: did it abort? With what reason?
+
+## EEEEEEEEEEEEEEE. Per-element `inert` attribute and focus trap
+
+- **[T]** Per page: elements with `inert` attribute count.
+- **[T]** Focus-trap shifts as a result of inert attribute changes.
+
+## FFFFFFFFFFFFFFF. Per-element `popovertarget` + `popovertargetaction`
+
+- **[T]** Per `<button>` / `<input>` with `popovertarget`: target id + action (show/hide/toggle).
+- **[T]** Popover-target invocation log.
+
+## GGGGGGGGGGGGGGG. Per-document `document.head.children` discovery order
+
+- **[T]** Per page: ordered list of every direct child of `<head>` (tagName + attribute-key sha256s).
+- **[T]** Per page: head-mutation events after initial parse.
+
+## HHHHHHHHHHHHHHH. Per-page `<script>` execution order trace
+
+- **[T]** Per page: order of script execution (parser-discovered, defer, async, dynamic-import, module) — captured from Tracing `disabled-by-default-v8.runtime_stats`.
+- **[T]** Per script: parser-blocking vs deferred vs async classification.
+
+## IIIIIIIIIIIIIII. Per-page render-blocking resources
+
+- **[T]** Per resource: `renderBlockingStatus` from Resource Timing (`blocking` / `non-blocking`).
+- **[T]** Per page: count of render-blocking resources at FCP.
+
+## JJJJJJJJJJJJJJJ. Per-page reactive framework hydration state
+
+- **[T]** Detection of hydration markers — `data-island`, `data-hydrate`, `data-react-helmet`, server-rendered HTML islands.
+- **[T]** Per page: hydration timing (server vs client render boundary).
+
+## KKKKKKKKKKKKKKK. Per-page Critical CSS inlining
+
+- **[T]** Per page: presence of `<style>` blocks before `<link rel=stylesheet>` (critical CSS pattern).
+- **[T]** Per inline `<style>`: byte size distribution.
+
+## LLLLLLLLLLLLLLL. Per-page `<link rel=alternate>` / `<link rel=canonical>`
+
+- **[T]** Per page: full enumeration of `<link>` relations — `canonical`, `alternate`, `me`, `webmention`, `pingback`, `manifest`, `mask-icon`, `apple-touch-icon`, `shortcut icon`, `search`, `next`, `prev`, `dns-prefetch`, `preconnect`, `preload`, `prefetch`, `modulepreload`.
+- **[T]** Per `<link rel=alternate>`: hreflang values for i18n routing.
+
+## MMMMMMMMMMMMMMM. Per-page open-graph + Twitter card metadata
+
+- **[T]** Per page: every `og:*` and `twitter:*` meta tag (no content for sensitive ones; presence/absence is the fingerprint).
+- **[T]** Per page: structured data (`<script type="application/ld+json">`) blob sha256.
+
+## NNNNNNNNNNNNNNN. Per-image `<source>` selection observed
+
+- **[T]** Per `<picture>`: which `<source>` Chrome selected (currentSrc) for the current viewport / DPR.
+- **[T]** Per `<img srcset>`: which descriptor was chosen.
+
+## OOOOOOOOOOOOOOO. Per-script `nomodule` fallback decision
+
+- **[T]** Per page: was the `<script nomodule>` path executed (legacy browser) or `<script type=module>` path?
+- **[T]** Module-script vs classic-script execution count per page.
+
+## PPPPPPPPPPPPPPP. Per Chromium child: thread name list
+
+- **[T]** Per Chromium process: thread name list via `ps -M <pid>` or `proc_pidinfo` PROC_PIDLISTTHREADS — surfaces presence of Compositor / IO / GpuMemoryThread / TaskScheduler threads.
+- **[T]** Per process: thread state distribution (running / waiting / blocked).
+
+## QQQQQQQQQQQQQQQ. Per-tab page-visibility ratio
+
+- **[T]** Per session: ratio of visible vs hidden time per tab — `document.hidden` toggles + duration in each state.
+- **[T]** Per tab: minimized vs background-tab attribution.
+
+## RRRRRRRRRRRRRRR. Per-page WebSocket binaryType usage
+
+- **[T]** Per WebSocket: `binaryType` value (`blob` vs `arraybuffer`) + receive byte distribution.
+- **[T]** Per WS: send / receive imbalance (one-way vs bi-directional traffic shape).
+
+## SSSSSSSSSSSSSSS. Per-page `BFCache:cache-control: no-store` blockers
+
+- **[T]** Per blocked-bfcache page: was the blocker `Cache-Control: no-store` on the document?
+- **[T]** Per page: per-blocker reason histogram.
+
+## TTTTTTTTTTTTTTT. Per-page Content-Length vs actual decoded size mismatch
+
+- **[T]** Per response: declared Content-Length vs actual bytes received.
+- **[T]** Per response: Transfer-Encoding chunked extension parameters (rare but fingerprintable).
+
+## UUUUUUUUUUUUUUU. Per outbound WebSocket / SSE: per-message-deflate stats
+
+- **[T]** Per WS with permessage-deflate negotiated: compression ratio (compressed/uncompressed byte ratio per message).
+- **[T]** Per SSE connection: bytes sent + lines per second.
+
+## VVVVVVVVVVVVVVV. Per-page `disabled` attribute toggle log
+
+- **[T]** Per form control: `disabled` attribute toggle events with timestamp.
+- **[T]** Per page: disabled-state transition rate.
+
+## WWWWWWWWWWWWWWW. Per-page MessagePort transfer
+
+- **[T]** Per `port.postMessage` call: transfer array (transferred objects) types.
+- **[T]** Per `MessageChannel`: lifetime + total message count + total byte volume.
+
+## XXXXXXXXXXXXXXX. Per-page `<iframe srcdoc>` content sha256
+
+- **[T]** Per iframe-srcdoc: byte sha256 of srcdoc content (deduped — same srcdoc on multiple iframes counted once).
+- **[T]** Per page: srcdoc vs src iframe count.
+
+## YYYYYYYYYYYYYYY. Per-page DocumentTimeline + scroll-timeline state
+
+- **[T]** Per scroll-timeline: source element + axis + scroll-state at session start vs end.
+- **[T]** Per view-timeline: target element + axis + inset.
+
+## ZZZZZZZZZZZZZZZ. Per-page WebSocket Sec-WebSocket-Key entropy
+
+- **[T]** Per WS handshake: `Sec-WebSocket-Key` (16-byte base64) — verify entropy + confirm random origin.
+- **[T]** Per WS: server `Sec-WebSocket-Accept` matches expected SHA-1 derivation.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
