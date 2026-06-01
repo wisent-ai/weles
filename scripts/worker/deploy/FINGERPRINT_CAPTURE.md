@@ -5378,6 +5378,112 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per QUIC connection: count of each frame type (PADDING / PING / ACK / RESET_STREAM / STOP_SENDING / CRYPTO / NEW_TOKEN / STREAM / MAX_DATA / MAX_STREAM_DATA / MAX_STREAMS / DATA_BLOCKED / STREAM_DATA_BLOCKED / STREAMS_BLOCKED / NEW_CONNECTION_ID / RETIRE_CONNECTION_ID / PATH_CHALLENGE / PATH_RESPONSE / CONNECTION_CLOSE / HANDSHAKE_DONE).
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA. Per-page TLS ClientHello cipher-suite order
+
+- **[T]** Per TLS handshake: full ordered cipher-suite list as offered (from pcap decode with SSLKEYLOGFILE).
+- **[T]** Per handshake: ordered extension list as offered.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB. Per-page TLS extension lengths
+
+- **[T]** Per ClientHello: per-extension byte length distribution.
+- **[T]** Per ClientHello: GREASE positions in cipher / extension / supported_groups / signature_algorithms / key_share lists.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC. Per-page TLS supported_groups order
+
+- **[T]** Per ClientHello: ordered named-group list (x25519 / secp256r1 / secp384r1 / x448 / etc.).
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD. Per-page TLS signature_algorithms order
+
+- **[T]** Per ClientHello: ordered sigalg list (rsa_pss_rsae_sha256 / ecdsa_secp256r1_sha256 / etc.).
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE. Per-page TLS key_share group selection
+
+- **[T]** Per ClientHello: which groups have key_share entries vs which are only listed in supported_groups.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF. Per-page TLS PSK / Session resumption attempt
+
+- **[T]** Per ClientHello: PSK extension presence + per-PSK identity (sha256).
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG. Per-page TLS ALPN list
+
+- **[T]** Per ClientHello: ordered ALPN protocol list (h2, http/1.1, ...).
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH. Per-page TLS Padding extension presence
+
+- **[T]** Per ClientHello: padding extension presence + total padded length.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII. Per-page TLS Encrypted ClientHello (ECH)
+
+- **[T]** Per ClientHello: ECH extension presence + outer SNI vs hidden SNI.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ. Per-page TLS post-handshake CertificateRequest
+
+- **[T]** Per TLS session: post-handshake client-cert request observed + client-cert sent.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK. Per-page DNS query type distribution
+
+- **[T]** Per session: DNS query-type distribution from port-53 pcap (A / AAAA / HTTPS / CNAME / TXT / MX / etc.).
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL. Per-page DNS query latency distribution
+
+- **[T]** Per DNS query: query-to-response RTT distribution.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM. Per-page DNS server actually used
+
+- **[T]** Per session: DNS server IP each query went to (resolved from pcap source/dest).
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN. Per-page mDNS query observations
+
+- **[T]** Per session: mDNS (port 5353) queries sent or received — count + type distribution.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO. Per-page DoH provider request distribution
+
+- **[T]** Per session: requests to known DoH endpoints (cloudflare-dns.com, dns.google, mozilla.cloudflare-dns.com, dns.nextdns.io, dns.quad9.net, doh.cleanbrowsing.org, dns.adguard.com).
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP. Per-page DoT (DNS-over-TLS) port-853 attempts
+
+- **[T]** Per session: TCP-853 connection attempts observed in pcap (DoT in use).
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ. Per-page NTP / SNTP query observations
+
+- **[T]** Per session: UDP port-123 traffic to known NTP servers (clock sync activity).
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR. Per-page IGMP / MLD multicast subscription
+
+- **[T]** Per session: IGMP / MLD membership reports observed in pcap (multicast group membership).
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS. Per-page LLMNR query observations
+
+- **[T]** Per session: LLMNR (port 5355) queries — count + name distribution.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT. Per-page ARP / NDP cache observations
+
+- **[T]** Per session: ARP requests sent + IPv6 Neighbor Discovery solicitations + advertisements.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU. Per-page TCP SYN retransmission distribution
+
+- **[T]** Per outbound TCP connection: SYN retransmit count + final RTT.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV. Per-page TCP MSS negotiation
+
+- **[T]** Per TCP connection: SYN MSS option offered + acknowledged.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW. Per-page TCP window scaling
+
+- **[T]** Per TCP connection: window-scaling option offered + agreed.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX. Per-page TCP timestamp option
+
+- **[T]** Per TCP connection: timestamp option offered + agreed; TSval initial value + drift.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY. Per-page TCP SACK option
+
+- **[T]** Per TCP connection: SACK-permitted offered + agreed; SACK blocks observed per session.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ. Per-page TCP RST observation distribution
+
+- **[T]** Per TCP connection: RST flags seen + connection-close reason inferred.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
