@@ -3386,6 +3386,131 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 - **[T]** Per page: `<details>` element count, with default-open count.
 - **[T]** Per page: `toggle` event log per `<details>` (already named in DDDDDDDDD — here per-element timing).
 
+## AAAAAAAAAAAAAAAAAAAAAA. eBPF system-call instrumentation (Linux only)
+
+- **[T]** Per Chromium child pid on Linux: `bpftrace` 5-second sample of syscalls — count by syscall name.
+- **[T]** Per child: cgroup memberships from `/proc/<pid>/cgroup`.
+
+## BBBBBBBBBBBBBBBBBBBBBB. Apple Silicon NEON / SVE / SME extension presence
+
+- **[T]** `sysctl hw.optional.arm.FEAT_*` full enumeration — every documented optional feature flag.
+- **[T]** Per child: NEON instruction usage estimation from `sample` CPU profile.
+
+## CCCCCCCCCCCCCCCCCCCCCC. Per V8 isolate identifier
+
+- **[T]** Per renderer: `Runtime.getIsolateId` value at first attach.
+- **[T]** Per session: isolate-id stability across navigations (changes on cross-site navigation due to site isolation).
+
+## DDDDDDDDDDDDDDDDDDDDDD. Per renderer-process worker thread count
+
+- **[T]** Per renderer: ThreadPoolForegroundWorker / Background / IO / Compositor / GpuMemoryThread thread count from `proc_pidinfo`.
+- **[T]** Per thread: stack peak depth from `sample`.
+
+## EEEEEEEEEEEEEEEEEEEEEE. Per-tab Resource Timing buffer overflow events
+
+- **[T]** Per page: `PerformanceObserverEntryList.getEntriesByType('resource')` length vs `performance.getEntries().length` to detect buffer overflow.
+- **[T]** Per page: `resourcetimingbufferfull` event fires + post-overflow entries dropped.
+
+## FFFFFFFFFFFFFFFFFFFFFF. Page DOM-mutation throttling under tab-discard
+
+- **[T]** Per tab: throttling applied when hidden — `requestAnimationFrame` throttled to 1Hz, setTimeout clamped to >=1000ms, etc.
+- **[T]** Per tab: discard-and-reload events.
+
+## GGGGGGGGGGGGGGGGGGGGGG. Per origin: cross-origin window.opener gate
+
+- **[T]** Per page: was `window.opener` blocked by COOP / noopener?
+- **[T]** Per page: `window.open(url, name, 'noopener')` count.
+
+## HHHHHHHHHHHHHHHHHHHHHH. Per page: BeforeUnloadEvent + UnloadEvent registration
+
+- **[T]** Per page: number of `beforeunload` listeners registered + their distinct caller stacks.
+- **[T]** Per page: `unload` listeners count (deprecated; presence blocks BFCache).
+- **[T]** Per page: `pagehide` listeners count (BFCache-compatible alternative).
+
+## IIIIIIIIIIIIIIIIIIIIII. Per page: ResizeObserver-throttled callbacks
+
+- **[T]** Per ResizeObserver: callback delivery latency under high mutation rate (Chrome batches via rAF).
+
+## JJJJJJJJJJJJJJJJJJJJJJ. Per Chromium child: V8 codecache disk size
+
+- **[T]** Per Chromium child: V8 codecache file size in profile-dir `Code Cache/js/` + `Code Cache/wasm/` + `Code Cache/webuijs/`.
+
+## KKKKKKKKKKKKKKKKKKKKKK. Per Chromium child: GPU memory residence
+
+- **[T]** Per GPU process: total resident GPU memory + per-context attribution from `chrome://gpu/`.
+- **[T]** Per renderer: estimated GPU memory used.
+
+## LLLLLLLLLLLLLLLLLLLLLL. Per page: PaymentMethodData detail
+
+- **[T]** Per `PaymentRequest` constructor: methodData array — supportedMethods + data object.
+- **[T]** Per method: supportedNetworks, supportedTypes, allowedAuthMethods.
+
+## MMMMMMMMMMMMMMMMMMMMMM. Per-page Service Worker scope conflict between extensions
+
+- **[T]** Per origin: SW registration scope vs extension-injected SW scope collision detection.
+
+## NNNNNNNNNNNNNNNNNNNNNN. Per-page WebAssembly memory growth
+
+- **[T]** Per `WebAssembly.Memory` instance: pages grown over session.
+- **[T]** Per Memory: shared flag + maximum (declared) vs current.
+
+## OOOOOOOOOOOOOOOOOOOOOO. Per-page Atomics.notify wakeup latency
+
+- **[T]** Per `Atomics.notify(view, index, count)` call: wakeup count returned.
+- **[T]** Per `Atomics.wait` resolution: wait duration + reason (`ok` / `not-equal` / `timed-out`).
+
+## PPPPPPPPPPPPPPPPPPPPPP. Per-page Element.animate composite chain
+
+- **[T]** Per element with multiple Animation instances: composite chain resolution (replace/add/accumulate ordering).
+- **[T]** Per Animation: `replaceState` transitions.
+
+## QQQQQQQQQQQQQQQQQQQQQQ. Per-page constructed stylesheet usage
+
+- **[T]** Per `new CSSStyleSheet()` call: caller stack + replace/replaceSync usage.
+- **[T]** Per stylesheet: adoptedStyleSheets membership count.
+
+## RRRRRRRRRRRRRRRRRRRRRR. Per-page `<input type=file>` accept attribute pattern
+
+- **[T]** Per file input: accept attribute MIME pattern.
+- **[T]** Per file input: `multiple` flag, `webkitdirectory` flag, `capture` attribute.
+
+## SSSSSSSSSSSSSSSSSSSSSS. Per-page Drag-and-Drop file count
+
+- **[T]** Per drop event: `dataTransfer.files.length` + per-file size sum.
+- **[T]** Per drop event: `dataTransfer.types[]` enumeration.
+
+## TTTTTTTTTTTTTTTTTTTTTT. Per response: `Server-Timing` parsed entries
+
+- **[T]** Per response with `Server-Timing` header: every metric — name + dur + desc.
+- **[T]** Per host: top-N most-used Server-Timing metrics.
+
+## UUUUUUUUUUUUUUUUUUUUUU. Per-page `Reporting-Endpoints` header parse
+
+- **[T]** Per response: `Reporting-Endpoints` header parsed — endpoint-group → URL mappings.
+- **[T]** Per group: reports delivered count.
+
+## VVVVVVVVVVVVVVVVVVVVVV. Per-page `Speculation-Rules` header parse
+
+- **[T]** Per response: `Speculation-Rules` header parsed — rule URL.
+- **[T]** Per spec rule: outcomes (prefetched / prerendered / not used).
+
+## WWWWWWWWWWWWWWWWWWWWWW. Per-page `Variable-Cookie` (deprecated CDN feature) presence
+
+- **[T]** Per response: presence of CDN-feature headers — `Variable-Cookie`, `Edge-Control`, `Surrogate-Capability`.
+
+## XXXXXXXXXXXXXXXXXXXXXX. Per-page HTML5 dataset attribute access
+
+- **[T]** Per page: every `element.dataset.fooBar` access (DOM API → camelCase attribute lookup) — call count + caller stack.
+
+## YYYYYYYYYYYYYYYYYYYYYY. Per-page MicroDataExtractor schema.org markup
+
+- **[T]** Per page: itemprop/itemscope/itemtype attribute count.
+- **[T]** Per page: top-level itemtype URIs (schema.org/Person, schema.org/Article, etc.).
+
+## ZZZZZZZZZZZZZZZZZZZZZZ. Per-page RDFa attribute usage
+
+- **[T]** Per page: vocab/typeof/property/about/resource RDFa attribute count.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
