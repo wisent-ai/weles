@@ -17357,6 +17357,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per session: count of dyld image-load callbacks observed via `dyld_register_image_state_change_handler` (every dylib mapping into the process).
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA. Per-page Linux strace open() distribution
+
+- **[T]** Per session: count of `openat()` syscalls via `strace -p <browser_pid> -e trace=openat` + per-file-path distribution.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB. Per-page Linux strace clone3 distribution
+
+- **[T]** Per session: count of `clone3()` syscalls via strace + per-flags distribution (thread/process creation).
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC. Per-page Linux strace mmap distribution
+
+- **[T]** Per session: count of `mmap()` / `mprotect()` / `mremap()` / `munmap()` syscalls via strace + per-prot+flags distribution.
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD. Per-page Linux strace epoll_wait distribution
+
+- **[T]** Per session: count of `epoll_create1()` / `epoll_ctl()` / `epoll_wait()` syscalls via strace + per-events-flags distribution.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE. Per-page Linux strace inotify distribution
+
+- **[T]** Per session: count of `inotify_init1()` + `inotify_add_watch()` + `inotify_rm_watch()` syscalls via strace + per-watched-path distribution.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF. Per-page Linux strace futex distribution
+
+- **[T]** Per session: count of `futex()` syscalls via strace + per-op ('WAIT'|'WAKE'|'CMP_REQUEUE'|'WAIT_BITSET'|'WAKE_BITSET') distribution.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG. Per-page Linux strace io_uring distribution
+
+- **[T]** Per session: count of `io_uring_setup()` + `io_uring_enter()` + `io_uring_register()` syscalls via strace + per-flags distribution.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH. Per-page Linux strace bpf distribution
+
+- **[T]** Per session: count of `bpf()` syscalls via strace + per-cmd ('BPF_PROG_LOAD'|'BPF_MAP_CREATE'|'BPF_PROG_ATTACH'|'BPF_PROG_TEST_RUN') distribution.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII. Per-page Linux strace seccomp distribution
+
+- **[T]** Per session: count of `seccomp()` + `prctl(PR_SET_SECCOMP)` syscalls via strace + per-mode ('STRICT'|'FILTER') distribution.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ. Per-página Linux strace prlimit64 distribution
+
+- **[T]** Per session: count of `getrlimit()` / `setrlimit()` / `prlimit64()` syscalls via strace + per-resource ('RLIMIT_NOFILE'|'RLIMIT_STACK'|'RLIMIT_AS'|'RLIMIT_CPU') distribution.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK. Per-page Linux strace getrandom distribution
+
+- **[T]** Per session: count of `getrandom()` syscalls via strace + per-buflen + per-flags ('GRND_NONBLOCK'|'GRND_RANDOM'|'GRND_INSECURE') distribution.
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL. Per-page Linux /proc/<pid>/status snapshot
+
+- **[T]** Per session: `/proc/<browser_pid>/status` contents (Name, Umask, State, Tgid, Pid, PPid, TracerPid, Uid, Gid, FDSize, VmPeak, VmSize, VmRSS, VmData, Threads, SigQ, CapInh, Seccomp, Speculation_Store_Bypass, NoNewPrivs, Mems_allowed, Cpus_allowed).
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM. Per-page Linux /proc/<pid>/stat snapshot
+
+- **[T]** Per session: `/proc/<browser_pid>/stat` contents (utime, stime, cutime, cstime, priority, nice, num_threads, starttime, vsize, rss, processor, exit_signal, sigignore, sigcatch).
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN. Per-page Linux /proc/<pid>/io snapshot
+
+- **[T]** Per session: `/proc/<browser_pid>/io` contents (rchar, wchar, syscr, syscw, read_bytes, write_bytes, cancelled_write_bytes).
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO. Per-page Linux /proc/<pid>/limits snapshot
+
+- **[T]** Per session: `/proc/<browser_pid>/limits` contents (per-limit Soft Limit + Hard Limit).
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP. Per-page Linux /proc/<pid>/maps snapshot
+
+- **[T]** Per session: `/proc/<browser_pid>/maps` contents (per-memory-range start, end, perms, offset, dev, inode, pathname).
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ. Per-page Linux /proc/<pid>/smaps snapshot
+
+- **[T]** Per session: `/proc/<browser_pid>/smaps` contents (per-range Pss, Shared_Clean, Shared_Dirty, Private_Clean, Private_Dirty, Anonymous, AnonHugePages, Swap).
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR. Per-page Linux /proc/<pid>/fd enumeration
+
+- **[T]** Per session: `/proc/<browser_pid>/fd/` directory listing (per-fd target path).
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS. Per-page Linux /proc/<pid>/fdinfo snapshot
+
+- **[T]** Per session: `/proc/<browser_pid>/fdinfo/*` contents per fd (pos, flags, mnt_id, ino).
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT. Per-page Linux /proc/<pid>/mountinfo snapshot
+
+- **[T]** Per session: `/proc/<browser_pid>/mountinfo` contents (mount points visible to the process).
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU. Per-page Linux /proc/<pid>/cgroup snapshot
+
+- **[T]** Per session: `/proc/<browser_pid>/cgroup` contents (per-controller hierarchy path).
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV. Per-page Linux /proc/<pid>/environ snapshot
+
+- **[T]** Per session: `/proc/<browser_pid>/environ` contents (env vars at exec(), null-separated).
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW. Per-page Linux /proc/<pid>/cmdline snapshot
+
+- **[T]** Per session: `/proc/<browser_pid>/cmdline` contents (argv at exec(), null-separated).
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX. Per-page Linux /proc/<pid>/comm snapshot
+
+- **[T]** Per session: `/proc/<browser_pid>/comm` contents (current task name, 15 chars max).
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY. Per-page Linux /proc/<pid>/wchan snapshot
+
+- **[T]** Per session: `/proc/<browser_pid>/wchan` contents (kernel symbol the task is sleeping on).
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ. Per-página Linux /proc/<pid>/syscall snapshot
+
+- **[T]** Per session: `/proc/<browser_pid>/syscall` contents (current syscall NR + args + stack pointer + program counter).
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
