@@ -7581,6 +7581,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per page: every document.designMode setter call with previous + new value.
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA. Per-page Window.scroll/scrollTo/scrollBy call log
+
+- **[T]** Per page: each scroll/scrollTo/scrollBy invocation: arguments + behavior (smooth/auto/instant).
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB. Per-page Window.resizeTo/resizeBy / moveTo/moveBy call log
+
+- **[T]** Per page: deprecated-but-still-supported window-geometry mutation call distribution.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC. Per-page Window.close / Window.open per outgoing reference
+
+- **[T]** Per page: window.open/close call log with target URL + features string + windowName.
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD. Per-page Window.focus / blur method call log
+
+- **[T]** Per page: explicit window.focus / blur call distribution.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE. Per-page Window.print() invocation log
+
+- **[T]** Per page: window.print() calls + outcome (preview opened / cancelled / completed).
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF. Per-page Window.alert/confirm/prompt distribution
+
+- **[T]** Per page: alert/confirm/prompt call count + caller stack distribution.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG. Per-page Window.stop() invocation log
+
+- **[T]** Per page: window.stop() calls + caller stack.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH. Per-page Location.assign / replace / reload call log
+
+- **[T]** Per page: each navigation API call with target URL + cause (user-script vs framework).
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII. Per-page Location property write distribution
+
+- **[T]** Per page: location.href / location.pathname / location.search / location.hash / location.host / location.hostname / location.protocol / location.port / location.username / location.password write count.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ. Per-page History.length read distribution
+
+- **[T]** Per page: history.length read count + values observed.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK. Per-page History.scrollRestoration mutation log
+
+- **[T]** Per page: history.scrollRestoration setter call distribution (`auto` / `manual`).
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL. Per-page History.state read distribution
+
+- **[T]** Per page: history.state value snapshots at key navigation transitions.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM. Per-page History.go / forward / back call distribution
+
+- **[T]** Per page: history.go(delta) / forward() / back() invocation distribution.
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN. Per-page Navigation API navigate() invocations
+
+- **[T]** Per page: navigation.navigate(url, options) call log.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO. Per-page Navigation API traverseTo / back / forward / reload calls
+
+- **[T]** Per page: navigation.traverseTo / back / forward / reload(opts) invocation log.
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP. Per-page Navigation API entries() snapshot
+
+- **[T]** Per page: navigation.entries() length + per-entry id / key / url / state.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ. Per-page Navigation API currentEntry change events
+
+- **[T]** Per page: currententrychange event log + index transitions.
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR. Per-page Navigation API navigate event handlers
+
+- **[T]** Per page: registered navigate event handlers + preventDefault calls + intercept() calls.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS. Per-page Navigation API navigatesuccess event log
+
+- **[T]** Per page: navigatesuccess event firings + per-event timestamp.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT. Per-page Navigation API navigateerror event log
+
+- **[T]** Per page: navigateerror event firings + reason value.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU. Per-page Navigation API canGoBack / canGoForward state
+
+- **[T]** Per page: canGoBack / canGoForward state polling.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV. Per-page Navigation API updateCurrentEntry calls
+
+- **[T]** Per page: updateCurrentEntry(opts) state value distribution.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW. Per-page Navigation API hashChange transitions
+
+- **[T]** Per page: hash-only navigation count via Navigation API vs hashchange event.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX. Per-page Navigation API formData attachment
+
+- **[T]** Per navigate event: formData attached (yes/no) + per-field count.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY. Per-page Navigation API downloadRequest attachment
+
+- **[T]** Per navigate event: downloadRequest filename value.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ. Per-page Navigation API info value distribution
+
+- **[T]** Per navigate event: info value (custom user-supplied data passed to navigation handler).
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
