@@ -6852,6 +6852,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per session: V8 wrapper inline-cache state distribution.
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA. Per-page Browser-internal `chrome://histograms/Blink.Layout.*` time-series
+
+- **[T]** Per session: Blink layout-phase duration histogram.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB. Per-page Browser-internal `chrome://histograms/Blink.Paint.*` time-series
+
+- **[T]** Per session: Blink paint-phase duration histogram.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC. Per-page Browser-internal `chrome://histograms/Blink.Style.*` time-series
+
+- **[T]** Per session: Blink style-resolution duration histogram.
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD. Per-page Browser-internal `chrome://histograms/Blink.HTMLParserPause.*` time-series
+
+- **[T]** Per session: HTML-parser yield-pause duration histogram.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE. Per-page Browser-internal `chrome://histograms/Blink.PerformanceEntry.*` time-series
+
+- **[T]** Per session: PerformanceObserver entry-delivery histogram per type.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF. Per-page Browser-internal `chrome://histograms/Blink.UseCounter.*` time-series
+
+- **[T]** Per session: Use-Counter histogram changes (which Web Platform features were used by the page).
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG. Per-page Browser-internal `chrome://histograms/Blink.ScriptLoading.*` time-series
+
+- **[T]** Per session: script-loading latency histogram.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH. Per-page Browser-internal `chrome://histograms/Blink.Lifecycle.*` time-series
+
+- **[T]** Per session: Blink document-lifecycle phase-transition histogram.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII. Per-page Browser-internal `chrome://histograms/Blink.Composite.*` time-series
+
+- **[T]** Per session: composite-commit duration histogram.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ. Per-page Browser-internal `chrome://histograms/Blink.WebAnimations.*` time-series
+
+- **[T]** Per session: Web Animations API tick + composite histogram.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK. Per-page Browser-internal `chrome://histograms/Blink.MutationObserver.*` time-series
+
+- **[T]** Per session: MutationObserver delivery latency + record count histogram.
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL. Per-page Browser-internal `chrome://histograms/Blink.IntersectionObserver.*` time-series
+
+- **[T]** Per session: IntersectionObserver invocation histogram.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM. Per-page Browser-internal `chrome://histograms/Blink.ResizeObserver.*` time-series
+
+- **[T]** Per session: ResizeObserver invocation histogram.
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN. Per-page Browser-internal `chrome://histograms/Blink.GarbageCollection.*` time-series
+
+- **[T]** Per session: Oilpan (Blink GC) duration + pause-time histogram.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO. Per-page Browser-internal `chrome://histograms/Blink.WorkerThread.*` time-series
+
+- **[T]** Per session: Worker-thread creation + destruction histogram.
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP. Per-page Browser-internal `chrome://histograms/Blink.ServiceWorker.*` time-series
+
+- **[T]** Per session: ServiceWorker fetch-event timing histogram.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ. Per-page Browser-internal `chrome://histograms/Blink.Fetch.*` time-series
+
+- **[T]** Per session: Fetch API duration histogram.
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR. Per-page Browser-internal `chrome://histograms/Blink.Resource.*` time-series
+
+- **[T]** Per session: ResourceFetcher loader histogram.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS. Per-page Browser-internal `chrome://histograms/Blink.LCP.*` time-series
+
+- **[T]** Per session: Largest Contentful Paint element-type + size histogram.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT. Per-page Browser-internal `chrome://histograms/Blink.CLS.*` time-series
+
+- **[T]** Per session: Cumulative Layout Shift histogram + per-source attribution.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU. Per-page Browser-internal `chrome://histograms/Blink.INP.*` time-series
+
+- **[T]** Per session: Interaction-to-Next-Paint histogram.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV. Per-page Browser-internal `chrome://histograms/Blink.LongTask.*` time-series
+
+- **[T]** Per session: long-task duration histogram.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW. Per-page Browser-internal `chrome://histograms/Blink.IframeEmbed.*` time-series
+
+- **[T]** Per session: iframe embed + navigation histogram.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX. Per-page Browser-internal `chrome://histograms/Blink.Compositor.*` time-series
+
+- **[T]** Per session: cc::Compositor commit + draw histogram.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY. Per-page Browser-internal `chrome://histograms/Blink.HighEntropyJavascript.*` time-series
+
+- **[T]** Per session: high-entropy JS API call histogram (canvas/fonts/webgl/audio).
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ. Per-page Browser-internal `chrome://histograms/Blink.IdentifiabilityStudy.*` time-series
+
+- **[T]** Per session: Identifiability-Study sampling outcomes histogram (Chrome's own anti-fingerprinting telemetry).
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
