@@ -1747,6 +1747,164 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 - **[T]** From Tracing `disabled-by-default-devtools.timeline.frame`: paint invalidation rect distribution + per-frame paint count.
 - **[T]** Frame drop count over session.
 
+## AAAAAAAAAA. macOS DiskArbitration events
+
+- **[T]** Disk mount/unmount events during session — `diskutil activity` 10s sample.
+- **[T]** Per-attached volume: filesystem type, mount options, owners-enabled, journaled, encrypted, UUID (sha256'd).
+- **[T]** Volume insertion / ejection events from `log show --predicate 'subsystem=="com.apple.diskarbitrationd"' --last 5m`.
+
+## BBBBBBBBBB. macOS power assertions
+
+- **[T]** `pmset -g assertions` — every active power assertion (what's preventing sleep): process name + assertion type (PreventUserIdleSystemSleep / PreventSystemSleep / NoIdleSleepAssertion / PreventUserIdleDisplaySleep / UserIsActive).
+- **[T]** Power-source state transitions during session (battery ↔ AC).
+- **[T]** Display sleep / wake events during session.
+
+## CCCCCCCCCC. macOS desktop wallpaper + theme
+
+- **[T]** Desktop wallpaper path + sha256 of bytes — `osascript -e 'tell application "Finder" to get POSIX path of (get desktop picture as alias)'` (blocked under osascript ban; alternative: `defaults read com.apple.desktop` parses Background plist).
+- **[T]** macOS appearance — `defaults read NSGlobalDomain AppleInterfaceStyle` (Dark/Light absence-or-presence).
+- **[T]** Accent color — `defaults read NSGlobalDomain AppleAccentColor`.
+- **[T]** Highlight color — `defaults read NSGlobalDomain AppleHighlightColor`.
+
+## DDDDDDDDDD. macOS window server enumeration
+
+- **[T]** `CGWindowListCopyWindowInfo(kCGWindowListOptionAll, kCGNullWindowID)` via N-API binding — per window: ownerName, ownerPID, layer, bounds, alpha, sharingType, isOnScreen.
+- **[T]** Total visible-window count.
+- **[T]** Per-app window count.
+- **[T]** Foreground app pid + name.
+
+## EEEEEEEEEE. macOS Sharing preferences
+
+- **[T]** File Sharing enabled — `launchctl print system/com.apple.smbd`.
+- **[T]** Screen Sharing / Remote Management — `launchctl print system/com.apple.screensharing`.
+- **[T]** Remote Login (SSH) — `systemsetup -getremotelogin`.
+- **[T]** AirDrop discoverable mode — `defaults read com.apple.sharingd DiscoverableMode`.
+- **[T]** Bluetooth Sharing — `defaults read com.apple.Bluetooth PrefKeyServicesEnabled`.
+
+## FFFFFFFFFF. macOS Wi-Fi RF environment
+
+- **[T]** Surrounding Wi-Fi networks in range — `airport -s` count (no SSIDs surfaced).
+- **[T]** Wi-Fi channel utilization — `airport -I` channel + signal-to-noise.
+- **[T]** Wi-Fi country code — `airport -I | grep "country code"`.
+
+## GGGGGGGGGG. macOS Bluetooth LE scan environment
+
+- **[T]** BLE devices discoverable from this Mac — count only via `system_profiler SPBluetoothDataType` paired devices.
+- **[T]** Bluetooth adapter MAC + power state + discoverable state.
+
+## HHHHHHHHHH. macOS NSUserDefaults full enumeration
+
+- **[T]** `defaults domains` — full list of preference domains installed on the device (count + sha256 of names).
+- **[T]** Per-domain `defaults read <domain>` size in bytes (no contents).
+
+## IIIIIIIIII. launchd job per-state inventory
+
+- **[T]** `launchctl list` full — every loaded job: label, last exit code, pid (or `-` if not running).
+- **[T]** Per-job state distribution (running / idle / failed).
+- **[T]** User-domain agents vs system-domain daemons count.
+
+## JJJJJJJJJJ. WebRTC ICE candidate gather + type breakdown
+
+- **[T]** Per RTCPeerConnection: gather-time delta (createOffer start → all candidates) per candidate type.
+- **[T]** Per connection: host / srflx / relay / prflx candidate counts; relay-only forced (TURN-only) state.
+- **[T]** Per candidate: priority value + foundation + protocol (UDP/TCP/TLS).
+
+## KKKKKKKKKK. HTML5 form constraint validation events
+
+- **[T]** Every `invalid` event fired on form controls (validation message + constraint that failed).
+- **[T]** `form.checkValidity()` / `reportValidity()` call log.
+- **[T]** Per-input: `validity` flags (badInput, customError, patternMismatch, rangeOverflow/Underflow, stepMismatch, tooLong, tooShort, typeMismatch, valueMissing).
+
+## LLLLLLLLLL. Per-element typing-hint attributes
+
+- **[T]** Per `<input>`/`<textarea>`: `enterkeyhint`, `inputmode`, `autocapitalize`, `autocorrect`, `spellcheck`, `autocomplete`, `name`, `id`, `placeholder`, `data-*` attribute set.
+- **[T]** Detection of `<input autocomplete="one-time-code">` (WebOTP triggers).
+
+## MMMMMMMMMM. HTML parser yield events
+
+- **[T]** From Tracing `disabled-by-default-blink.feature_usage`: per page, the HTML parser yield event count + yield reason distribution.
+- **[T]** Time spent in HTMLDocumentParser per page vs idle vs in JS execution.
+
+## NNNNNNNNNN. V8 compile/optimize/deopt detail per function
+
+- **[T]** From Tracing `disabled-by-default-v8.runtime_stats`: per top-N functions, compile / optimize / deopt counts.
+- **[T]** Deopt reasons distribution (TypeMismatch / OutOfBounds / WrongCallTarget / etc.).
+- **[T]** Inline cache transitions per call site.
+- **[T]** Bailout-to-baseline counts.
+
+## OOOOOOOOOO. BFCache eligibility reasons
+
+- **[T]** From CDP `Page.backForwardCacheNotUsed`: per non-eligible navigation, the full `notRestoredExplanations` list with `reason` + `type` + `context`.
+- **[T]** Per session: bfcache hit-rate.
+- **[T]** Per page: bfcache blockers (unload listeners, BroadcastChannel handlers, IndexedDB transactions in flight, etc.).
+
+## PPPPPPPPPP. CHIPS cookie partitioning eligibility
+
+- **[T]** Per Set-Cookie: was `Partitioned;` attribute set? Was it required (third-party context)? Was it stripped?
+- **[T]** Per origin: partitioned-vs-unpartitioned cookie count.
+
+## QQQQQQQQQQ. FedCM / Digital Credentials API
+
+- **[T]** `navigator.credentials.get({identity: {providers: [...]}})` calls + outcomes.
+- **[T]** `navigator.credentials.get({digital: ...})` (Digital Credentials API — recent) calls + outcomes.
+- **[T]** IdP login status set via `navigator.login.setStatus()` per origin.
+
+## RRRRRRRRRR. Web App Manifest detail
+
+- **[T]** Per page with a manifest: full manifest JSON (name, short_name, description, start_url, display, orientation, theme_color, background_color, icons array, scope, related_applications, prefer_related_applications, shortcuts, screenshots, share_target, file_handlers, protocol_handlers).
+- **[T]** Per icon: src + sizes + type + purpose (any/monochrome/maskable).
+
+## SSSSSSSSSS. Cross-Site Cookies blocked reasons
+
+- **[T]** Per blocked cookie (via `Network.requestWillBeSentExtraInfo.associatedCookies[].blockedReasons[]` + `Network.responseReceivedExtraInfo.blockedCookies[].blockedReasons[]`): reason list (SameSiteUnspecifiedTreatedAsLax / SameSiteNoneInsecure / UserPreferences / ThirdPartyPhaseout / etc.).
+
+## TTTTTTTTTT. Origin Trial tokens used per page
+
+- **[T]** Per page: every Origin Trial token (from `<meta http-equiv="origin-trial">` + `Origin-Trial:` response headers).
+- **[T]** Per token: decoded fields (origin, feature, expiry).
+- **[T]** Token use status from `chrome://origin-trials/`.
+
+## UUUUUUUUUU. Network Anonymization Key state
+
+- **[T]** Per outgoing request: Network Anonymization Key (NAK) value — partitions the connection by (top-frame-site, frame-site, cross-site-flag).
+- **[T]** Per connection pool: NAK distribution.
+- **[T]** Same-NAK reuse stats.
+
+## VVVVVVVVVV. Chromium snapshot file + V8 binary blobs
+
+- **[T]** sha256 of `snapshot_blob.bin` / `v8_context_snapshot.bin` in the Chromium framework dir.
+- **[T]** sha256 of `icudtl.dat`.
+- **[T]** sha256 of `resources.pak`, `chrome_100_percent.pak`, `chrome_200_percent.pak`.
+
+## WWWWWWWWWW. Embedder Skia / ANGLE / Dawn versions
+
+- **[T]** Skia git revision — embedded in `chrome://version/` Skia field.
+- **[T]** ANGLE git revision — `chrome://gpu/` ANGLE commit.
+- **[T]** Dawn (WebGPU) git revision — `chrome://gpu/` Dawn commit.
+- **[T]** Embedded V8 git revision — `chrome://version/` V8 field.
+
+## XXXXXXXXXX. Per-PerformanceObserver namespace registration
+
+- **[T]** Per page: every `PerformanceObserver` registered — supported entry types observed, buffered mode flag, `durationThreshold` (event-timing only).
+- **[T]** Per observer: callback fire count + entries delivered count over session.
+
+## YYYYYYYYYY. macOS-specific App Sandbox profile per Chromium child
+
+- **[T]** Per Chromium child pid: `ps -o sandbox= -p <pid>` — sandbox profile name applied (e.g. `app/chrome-renderer`, `app/com.google.Chrome.helper`, `kBrowserHelperSandboxProfile`).
+- **[T]** Per Chromium child: codesigning team identifier + bundle identifier inherited from parent.
+
+## ZZZZZZZZZZ. Calendaring + reminders presence (counts only)
+
+- **[T]** Calendar account count — `defaults read com.apple.iCal | grep CalDAVAccount | wc -l`.
+- **[T]** Reminders.app data count via TCC permission state (no content).
+- **[T]** Mail accounts count — `defaults read MobileMeAccounts AccountID | wc -l`.
+
+## AAAAAAAAAAA. Audio output route preference
+
+- **[T]** Current audio output device — `SwitchAudioSource -c` (or `system_profiler SPAudioDataType`).
+- **[T]** Current audio input device — `SwitchAudioSource -t input -c`.
+- **[T]** Audio device priority list — `defaults read com.apple.Music.AppleMusicLab AudioDeviceUID`.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
