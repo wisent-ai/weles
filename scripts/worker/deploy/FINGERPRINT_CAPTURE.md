@@ -5590,6 +5590,115 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per page: matchMedia at increasing dppx thresholds — surfaces exact rendered-DPR.
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA. Per-Chromium child page-fault distribution
+
+- **[T]** Per Chromium child: major + minor page-fault count via `task_info(TASK_EVENTS_INFO)`.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB. Per-Chromium child file-system byte counters
+
+- **[T]** Per Chromium child: I/O bytes read + written from `task_info(TASK_VM_INFO)` + `task_info(TASK_BASIC_INFO)`.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC. Per-Chromium child socket byte counters
+
+- **[T]** Per Chromium child: TCP/UDP bytes sent + received from `nettop -P -l 1`.
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD. Per-renderer V8 native-method invocation distribution
+
+- **[T]** From Tracing `disabled-by-default-v8.runtime_stats`: top-N native methods invoked + per-method cumulative time.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE. macOS Battery Health detail
+
+- **[T]** Per session: battery cycle count, condition (Normal / Service Recommended), max capacity %, design capacity, manufacturer — from `system_profiler SPPowerDataType`.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF. macOS UserNotification Center filter list
+
+- **[T]** Per session: NotificationCenter bundle-IDs allowed + blocked count (from notification-center prefs).
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG. Per-page WebSocket close-reason byte distribution
+
+- **[T]** Per WebSocket close event: reason string byte length + UTF-8 validity.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH. Per-page WebSocket subprotocol RPC framing
+
+- **[T]** Per WebSocket: observed framing on top of raw frames (JSON-RPC / MessagePack / Protobuf / custom binary).
+- **[T]** Per session: subprotocol stack-trace from payload bytes.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII. Per-page WebTransport datagram packet ID sequence
+
+- **[T]** Per WebTransport session: datagram sequence numbers + lost / re-ordered packet detection.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ. Per-page Web Push notification subscription expirationTime
+
+- **[T]** Per push subscription: expirationTime value distribution.
+- **[T]** Per session: expired-subscription auto-renewal events.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK. Per-page Service Worker importScripts dependency list
+
+- **[T]** Per SW: per `importScripts(url)` call: URL + cached vs network-fetched + content sha256.
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL. Per-page Service Worker respondWith Stream chunking
+
+- **[T]** Per SW fetch event with streamed Response: chunk count + per-chunk byte size distribution.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM. Per-page Cache Storage byte total
+
+- **[T]** Per origin: sum of bytes across all open Cache entries.
+- **[T]** Per origin: per-cache average entry size.
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN. Per-origin IndexedDB byte total
+
+- **[T]** Per origin: sum of bytes across all IDB databases.
+- **[T]** Per origin: per-database average entry size.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO. Per-page IPv4 vs IPv6 connection preference
+
+- **[T]** Per session: outbound connections established over IPv4 vs IPv6 count + per-host preference observed.
+- **[T]** Per host: Happy Eyeballs winning family (IPv4 vs IPv6 race outcome).
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP. Per-page Service Worker fetch event delay distribution
+
+- **[T]** Per SW fetch interception: time from request initiation to FetchEvent.respondWith resolution.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ. Per-page DNS prefetch hit-rate
+
+- **[T]** Per `<link rel=dns-prefetch>`: was the prefetched name later resolved through the cache?
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR. Per-page Service Worker scope eviction events
+
+- **[T]** Per SW: was the registration evicted under storage pressure?
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS. Per-page browser_action / page_action extension count
+
+- **[T]** Per browser session: extension popup invocation count visible from page side.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT. Per-page navigation API committed cause
+
+- **[T]** Per navigation: `navigation.committedEntry.committedReason` (recent API) — explicit cause attribution.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU. Per-page Page-Lifecycle V2 freeze-trigger attribution
+
+- **[T]** Per freeze event: trigger (background discard vs explicit `document.freeze()` vs CPU-pressure).
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV. Per-page console-method monkey-patch signature
+
+- **[T]** Per page: `console.log.toString().length` — divergence from canonical native value indicates monkey-patching.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW. Per-page Native getter integrity (Window.location)
+
+- **[T]** Per page: `Object.getOwnPropertyDescriptor(window, 'location').get?.toString()` divergence from native value.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX. Per-page Native getter integrity (Element)
+
+- **[T]** Per page: per Element-prototype getter (innerHTML/outerHTML/clientWidth/textContent/...) toString() divergence test.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY. Per-page Native getter integrity (HTMLCanvasElement)
+
+- **[T]** Per page: HTMLCanvasElement.prototype.toDataURL.toString() value sha256 — divergence indicates trap install.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ. Per-page Native getter integrity (RTCPeerConnection)
+
+- **[T]** Per page: RTCPeerConnection.prototype.createOffer / setLocalDescription / addIceCandidate / getStats toString() values sha256 cross-check.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
