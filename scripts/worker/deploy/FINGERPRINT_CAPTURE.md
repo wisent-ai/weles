@@ -17669,6 +17669,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per session: `/etc/os-release` contents (NAME, VERSION, ID, ID_LIKE, PRETTY_NAME, VERSION_ID, HOME_URL, BUG_REPORT_URL).
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA. Per-page Windows GetSystemInfo snapshot
+
+- **[T]** Per session: `GetSystemInfo()` snapshot (dwOemId, wProcessorArchitecture, wProcessorLevel, wProcessorRevision, dwPageSize, dwNumberOfProcessors, dwActiveProcessorMask, lpMinimumApplicationAddress, lpMaximumApplicationAddress, dwAllocationGranularity).
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB. Per-page Windows GetVersionEx snapshot
+
+- **[T]** Per session: `GetVersionEx()` / `RtlGetVersion()` snapshot (dwMajorVersion, dwMinorVersion, dwBuildNumber, wServicePackMajor, wServicePackMinor, wSuiteMask, wProductType).
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC. Per-page Windows GlobalMemoryStatusEx snapshot
+
+- **[T]** Per session: `GlobalMemoryStatusEx()` snapshot (ullTotalPhys, ullAvailPhys, ullTotalPageFile, ullAvailPageFile, ullTotalVirtual, ullAvailVirtual, ullAvailExtendedVirtual, dwMemoryLoad).
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD. Per-page Windows GetComputerName snapshot
+
+- **[T]** Per session: `GetComputerNameW()` + `GetComputerNameExW()` per-format (NetBIOS, DnsHostname, DnsDomain, DnsFullyQualified, PhysicalNetBIOS) value.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE. Per-page Windows GetUserName snapshot
+
+- **[T]** Per session: `GetUserNameW()` + `GetUserNameExW()` per-format (NameSamCompatible, NameFullyQualifiedDN, NameDisplay, NameUniqueId) value.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF. Per-page Windows IsWow64Process2 snapshot
+
+- **[T]** Per session: `IsWow64Process2()` returned process-machine + native-machine pair (x86-on-x64, x86-on-arm64, etc.).
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG. Per-page Windows Registry HKLM\Software\Microsoft\Windows NT\CurrentVersion snapshot
+
+- **[T]** Per session: registry read of ProductName, EditionID, InstallationType, ReleaseId, DisplayVersion, CurrentBuild, UBR, BuildLab, InstallDate, ProductId, RegisteredOwner, RegisteredOrganization values.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH. Per-page Windows Registry HKLM\System\CurrentControlSet\Control\ComputerName snapshot
+
+- **[T]** Per session: registry read of ComputerName key (NetBIOS hostname, ActiveComputerName).
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII. Per-page Windows Registry HKLM\Hardware\Description\System\BIOS snapshot
+
+- **[T]** Per session: registry read of BIOSVendor, BIOSVersion, BIOSReleaseDate, BaseBoardManufacturer, BaseBoardProduct, BaseBoardVersion, SystemFamily, SystemManufacturer, SystemProductName, SystemSKU, SystemVersion.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ. Per-página Windows Registry HKLM\Hardware\Description\System\CentralProcessor snapshot
+
+- **[T]** Per session: per-CPU registry read of ProcessorNameString, Identifier, VendorIdentifier, ~MHz, Update Revision values.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK. Per-page Windows WMI Win32_BaseBoard snapshot
+
+- **[T]** Per session: `wmic baseboard get serialnumber,manufacturer,product,version` (motherboard serial).
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL. Per-page Windows WMI Win32_BIOS snapshot
+
+- **[T]** Per session: `Get-CimInstance Win32_BIOS` (Manufacturer, Name, SMBIOSBIOSVersion, SerialNumber, Version, ReleaseDate).
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM. Per-page Windows WMI Win32_ComputerSystem snapshot
+
+- **[T]** Per session: `Get-CimInstance Win32_ComputerSystem` (Manufacturer, Model, SystemSKUNumber, HypervisorPresent, NumberOfProcessors, NumberOfLogicalProcessors, TotalPhysicalMemory).
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN. Per-page Windows WMI Win32_PnPEntity enumeration
+
+- **[T]** Per session: `Get-CimInstance Win32_PnPEntity` enumerating all PnP devices (HID, USB, PCI, ACPI) with DeviceID + Manufacturer + PNPDeviceID.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO. Per-page Windows WMI Win32_VideoController enumeration
+
+- **[T]** Per session: `Get-CimInstance Win32_VideoController` (Name, AdapterRAM, DriverVersion, VideoModeDescription, CurrentHorizontalResolution, CurrentVerticalResolution, CurrentRefreshRate).
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP. Per-page Windows WMI Win32_SoundDevice enumeration
+
+- **[T]** Per session: `Get-CimInstance Win32_SoundDevice` (Name, Manufacturer, Status, PNPDeviceID).
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ. Per-page Windows WMI Win32_NetworkAdapter enumeration
+
+- **[T]** Per session: `Get-CimInstance Win32_NetworkAdapter` (Name, MACAddress, Manufacturer, NetEnabled, AdapterType, Speed, GUID, PNPDeviceID).
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR. Per-page Windows WMI Win32_DiskDrive enumeration
+
+- **[T]** Per session: `Get-CimInstance Win32_DiskDrive` (Model, Manufacturer, SerialNumber, Size, FirmwareRevision, InterfaceType, Caption).
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS. Per-page Windows WMI Win32_LogicalDisk enumeration
+
+- **[T]** Per session: `Get-CimInstance Win32_LogicalDisk` per-volume (DeviceID, DriveType, FileSystem, FreeSpace, Size, VolumeSerialNumber, VolumeName, ProviderName).
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT. Per-page Windows WMI Win32_PhysicalMemory enumeration
+
+- **[T]** Per session: `Get-CimInstance Win32_PhysicalMemory` per-DIMM (Manufacturer, PartNumber, SerialNumber, Capacity, Speed, ConfiguredClockSpeed, BankLabel, DeviceLocator, SMBIOSMemoryType).
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU. Per-page Windows WMI Win32_Battery snapshot
+
+- **[T]** Per session: `Get-CimInstance Win32_Battery` per-battery (BatteryStatus, EstimatedChargeRemaining, EstimatedRunTime, DesignVoltage).
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV. Per-page Windows WMI Win32_OperatingSystem snapshot
+
+- **[T]** Per session: `Get-CimInstance Win32_OperatingSystem` (Caption, Version, BuildNumber, OSArchitecture, InstallDate, LastBootUpTime, LocalDateTime, CountryCode, OSLanguage, RegisteredUser, SerialNumber, CSDVersion, MUILanguages).
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW. Per-page Windows WMI Win32_TimeZone snapshot
+
+- **[T]** Per session: `Get-CimInstance Win32_TimeZone` (Caption, StandardName, DaylightName, Bias, DaylightBias, StandardBias).
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX. Per-page Windows WMI MSAcpi_ThermalZoneTemperature snapshot
+
+- **[T]** Per session: `Get-CimInstance -Namespace root/WMI -ClassName MSAcpi_ThermalZoneTemperature` per-zone CurrentTemperature value (Kelvin × 10).
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY. Per-page Windows WMI Win32_Processor snapshot
+
+- **[T]** Per session: `Get-CimInstance Win32_Processor` per-CPU (Name, Manufacturer, ProcessorId, MaxClockSpeed, CurrentClockSpeed, L2CacheSize, L3CacheSize, NumberOfCores, NumberOfLogicalProcessors, SocketDesignation, Stepping, Family, ProcessorType, Revision).
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ. Per-página Windows ETW WPR/WPA trace
+
+- **[T]** Per session: capture of `wpr -start GeneralProfile -filemode` then `wpr -stop session.etl` (Windows Performance Recorder ETW trace of process syscalls + page faults + image loads).
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
