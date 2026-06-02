@@ -49,9 +49,22 @@ export function findCustomBrowser(browser: string = 'chromium'): string | undefi
   if (!layout) return undefined;
   const home = process.env.HOME ?? '';
   const installRoot = process.env[layout.envDir] ?? join(home, '.local/share', layout.installDirName);
+  // Newest version first. Compare the numeric components (chromium a.b.c.d then
+  // the -weles.N suffix) numerically, NOT lexicographically — otherwise
+  // "147...-weles.10" would sort before "...-weles.2" and pick an older build.
+  const verKey = (s: string): number[] => (s.match(/\d+/g) ?? []).map(Number);
+  const newestFirst = (a: string, b: string): number => {
+    const ka = verKey(a);
+    const kb = verKey(b);
+    for (let i = 0; i < Math.max(ka.length, kb.length); i++) {
+      const d = (kb[i] ?? 0) - (ka[i] ?? 0);
+      if (d !== 0) return d;
+    }
+    return 0;
+  };
   const prebuilt: string[] = [];
   try {
-    for (const v of readdirSync(installRoot).sort().reverse()) {
+    for (const v of readdirSync(installRoot).sort(newestFirst)) {
       for (const sub of layout.appSubpaths) prebuilt.push(join(installRoot, v, sub));
     }
   } catch { /* install root may not exist yet */ }

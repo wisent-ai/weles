@@ -36,18 +36,31 @@ This:
 | Linux x86_64 | `weles-chromium-147-linux-x86_64.tar.gz` | 193 MB | ✅ published |
 | macOS x86_64 | — | — | not planned (use Rosetta) |
 
-## Building from source
+## Building & publishing from source
 
-Only needed if you're modifying the C++ fingerprint code. See `chromium-build/src` (branch `weles-147`) and `chromium-build/weles_patch_backup_*/all_changes.patch`. Expect ~4 h on a 16-core host.
+Only needed if you're modifying the C++ fingerprint code. The patch lives in
+`chromium-build/src` (branch `weles-147`) + `chromium-build/weles_patch_backup_*/all_changes.patch`.
 
-When finished, package and upload:
+**One command builds (~4 h on a 16-core host) AND publishes** — so the released
+binary can never lag the source:
 
 ```bash
-cd chromium-build/src/out/Weles
-tar -czf /tmp/weles-chromium-147-macos-arm64.tar.gz Chromium.app
-shasum -a 256 /tmp/weles-chromium-147-macos-arm64.tar.gz | awk '{print $1}' > /tmp/weles-chromium-147-macos-arm64.tar.gz.sha256
-gh release upload chromium-147.0.7727.108-weles.1 \
-  /tmp/weles-chromium-147-macos-arm64.tar.gz \
-  /tmp/weles-chromium-147-macos-arm64.tar.gz.sha256 \
-  --repo wisent-ai/weles --clobber
+bash scripts/chromium/build.sh             # autoninja, then auto-upload + propagate
+bash scripts/chromium/build.sh --dry-run   # build, then preview the release (no upload)
 ```
+
+`build.sh` runs `autoninja` then chains to `release.sh`, which reads the version
+from the built binary, creates a fresh `chromium-<ver>-weles.N` GitHub release
+(N auto-incremented), bumps the pinned tag in `download.sh`, and commits+pushes.
+Every host's 60 s auto-deploy then installs the new binary via `download.sh` and
+`find_browser.ts` auto-selects the newest version.
+
+If the binary is already built, publish on its own:
+
+```bash
+bash scripts/chromium/release.sh           # package + upload + bump pin + commit + push
+```
+
+Never `gh release upload --clobber` onto an existing tag: hosts key on the tag
+(the install dir is per-version) and won't notice an in-place replacement. Each
+build gets a new `-weles.N` tag — that is what `release.sh` does automatically.
