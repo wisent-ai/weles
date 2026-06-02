@@ -96,6 +96,11 @@ type ProxyPreflightAttempt = {
   geo_exit_cc?: string;
   linkedin_probe_result?: string;
   linkedin_probe_bytes?: number;
+  linkedin_probe_request?: unknown;
+  linkedin_probe_transport?: unknown;
+  linkedin_probe_body_markers?: unknown;
+  linkedin_probe_response_body?: unknown;
+  linkedin_probe_error?: string;
   tiktok_route_result?: string;
   tiktok_vregion_present?: boolean;
   rejected_reason?: string;
@@ -125,6 +130,7 @@ function writeProxyPreflightDiagnostics(diag: Record<string, unknown>): void {
         proxy_credentials: 'omitted',
         sticky_ids: 'sha256-prefix only',
         exit_ips: 'sha256-prefix only',
+        linkedin_probe: 'request headers, curl transport metadata, and unauthenticated response bodies captured; proxy credentials omitted',
       },
     }, null, 2));
   } catch {}
@@ -407,6 +413,11 @@ export async function resolveProxy(proxy: string, targetHost?: string): Promise<
                 console.log(`[proxy] linkedin-probe exit=${exitIp} -> ${probe.result}${probe.bytes ? ` (${probe.bytes}B)` : ''}`);
                 attemptDiag.linkedin_probe_result = probe.result;
                 attemptDiag.linkedin_probe_bytes = probe.bytes;
+                attemptDiag.linkedin_probe_request = probe.request;
+                attemptDiag.linkedin_probe_transport = probe.transport;
+                attemptDiag.linkedin_probe_body_markers = probe.body_markers;
+                attemptDiag.linkedin_probe_response_body = probe.response_body;
+                attemptDiag.linkedin_probe_error = probe.error;
                 if (probe.result !== 'form') {
                   attemptDiag.rejected_reason = `linkedin_probe:${probe.result}`;
                   preflightContinue = true;

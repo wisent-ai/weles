@@ -161,24 +161,121 @@ export async function verifyExitReputation(exitIp: string): Promise<{ result: Re
 // same UA + sec-ch-ua headers Chromium sends — otherwise we false-positive
 // on stickies that pass plain curl but fail Chromium.
 export type LinkedInProbeResult = 'form' | 'challenge' | 'unknown';
-export async function probeLinkedinLogin(proxyUrl: string, secs = 8): Promise<{ result: LinkedInProbeResult; bytes?: number }> {
+export async function probeLinkedinLogin(proxyUrl: string, secs = 8): Promise<{
+  result: LinkedInProbeResult;
+  bytes?: number;
+  request?: {
+    tool: 'curl';
+    target_url: string;
+    method: 'GET';
+    timeout_secs: number;
+    header_order: string[];
+    headers: Record<string, string>;
+  };
+  transport?: {
+    curl_version?: string;
+    curl_features?: string[];
+    http_code?: number;
+    http_version?: string;
+    num_connects?: number;
+    num_headers?: number;
+    ssl_verify_result?: number;
+    time_connect?: number;
+    time_appconnect?: number;
+    time_starttransfer?: number;
+    time_total?: number;
+  };
+  body_markers?: {
+    login_form: boolean;
+    signup_form: boolean;
+    challenge: boolean;
+  };
+  response_body?: {
+    encoding: 'utf8';
+    text: string;
+    bytes: number;
+    truncated: boolean;
+    max_bytes: number;
+  };
+  error?: string;
+}> {
   if (!proxyUrl) return { result: 'unknown' };
+  const targetUrl = 'https://www.linkedin.com/login';
+  const ua = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36';
+  const headers: Record<string, string> = {
+    'User-Agent': ua,
+    'sec-ch-ua': '"Google Chrome";v="147", "Not.A/Brand";v="8", "Chromium";v="147"',
+    'sec-ch-ua-mobile': '?0',
+    'sec-ch-ua-platform': '"macOS"',
+    Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9',
+    'Accept-Language': 'en-US,en;q=0.9',
+  };
+  const headerOrder = Object.keys(headers);
+  const request = {
+    tool: 'curl' as const,
+    target_url: targetUrl,
+    method: 'GET' as const,
+    timeout_secs: secs,
+    header_order: headerOrder,
+    headers,
+  };
+  let curlVersion = '';
+  let curlFeatures: string[] = [];
   try {
-    const { execSync } = await import('node:child_process');
-    const ua = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36';
-    const args = ['-s', '--max-time', String(secs), '-x', proxyUrl,
-      '-H', `User-Agent: ${ua}`,
-      '-H', 'sec-ch-ua: "Google Chrome";v="147", "Not.A/Brand";v="8", "Chromium";v="147"',
-      '-H', 'sec-ch-ua-mobile: ?0', '-H', 'sec-ch-ua-platform: "macOS"',
-      '-H', 'Accept: text/html,application/xhtml+xml,application/xml;q=0.9',
-      '-H', 'Accept-Language: en-US,en;q=0.9',
-      'https://www.linkedin.com/login'];
-    const body = execSync(`curl ${args.map(a => `'${a.replace(/'/g, "'\\''")}'`).join(' ')}`, { encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 });
+    const { execFileSync } = await import('node:child_process');
+    const versionOut = execFileSync('curl', ['--version'], { encoding: 'utf8', maxBuffer: 256 * 1024 });
+    const lines = versionOut.split(/\r?\n/);
+    curlVersion = lines[0]?.trim() ?? '';
+    const features = lines.find(l => l.startsWith('Features:'));
+    curlFeatures = features ? features.replace(/^Features:\s*/, '').split(/\s+/).filter(Boolean) : [];
+
+    const args = ['-sS', '--max-time', String(secs), '-x', proxyUrl,
+      ...headerOrder.flatMap((name) => ['-H', `${name}: ${headers[name]}`]),
+      '-w', '\n__CURL_META__%{json}',
+      targetUrl];
+    const out = execFileSync('curl', args, { encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 });
+    const marker = '\n__CURL_META__';
+    const idx = out.lastIndexOf(marker);
+    const body = idx >= 0 ? out.slice(0, idx) : out;
+    const metaRaw = idx >= 0 ? out.slice(idx + marker.length) : '';
+    let meta: any = {};
+    try { meta = metaRaw ? JSON.parse(metaRaw) : {}; } catch {}
     const bytes = body.length;
-    if (/name="session_key"|id="username"|input type="email"/.test(body)) return { result: 'form', bytes };
-    return { result: 'challenge', bytes };
-  } catch {
-    return { result: 'unknown' };
+    const maxBodyBytes = Number(process.env.WELES_LINKEDIN_PREFLIGHT_BODY_MAX_BYTES ?? 1_000_000);
+    const responseBody = {
+      encoding: 'utf8' as const,
+      text: body.slice(0, maxBodyBytes),
+      bytes,
+      truncated: body.length > maxBodyBytes,
+      max_bytes: maxBodyBytes,
+    };
+    const bodyMarkers = {
+      login_form: /name="session_key"|id="username"|input type="email"/.test(body),
+      signup_form: /name="email-address"|id="email-address"|join-form-submit/.test(body),
+      challenge: /checkpoint|challenge|captcha|recaptcha|security/i.test(body),
+    };
+    const transport = {
+      curl_version: curlVersion,
+      curl_features: curlFeatures,
+      http_code: typeof meta.http_code === 'number' ? meta.http_code : undefined,
+      http_version: typeof meta.http_version === 'string' ? meta.http_version : undefined,
+      num_connects: typeof meta.num_connects === 'number' ? meta.num_connects : undefined,
+      num_headers: typeof meta.num_headers === 'number' ? meta.num_headers : undefined,
+      ssl_verify_result: typeof meta.ssl_verify_result === 'number' ? meta.ssl_verify_result : undefined,
+      time_connect: typeof meta.time_connect === 'number' ? meta.time_connect : undefined,
+      time_appconnect: typeof meta.time_appconnect === 'number' ? meta.time_appconnect : undefined,
+      time_starttransfer: typeof meta.time_starttransfer === 'number' ? meta.time_starttransfer : undefined,
+      time_total: typeof meta.time_total === 'number' ? meta.time_total : undefined,
+    };
+    if (bodyMarkers.login_form || bodyMarkers.signup_form) return { result: 'form', bytes, request, transport, body_markers: bodyMarkers, response_body: responseBody };
+    return { result: bodyMarkers.challenge ? 'challenge' : 'unknown', bytes, request, transport, body_markers: bodyMarkers, response_body: responseBody };
+  } catch (e: any) {
+    return {
+      result: 'unknown',
+      request,
+      transport: { curl_version: curlVersion, curl_features: curlFeatures },
+      error: String(e?.message ?? e).replace(proxyUrl, '[proxy-url]').slice(0, 200),
+    };
   }
 }
 
