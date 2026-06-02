@@ -29525,6 +29525,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per session: per-page `PerformanceObserver({entryTypes:['layout-shift']})` per-entry `value`, `hadRecentInput`, `sources[]` distribution.
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH. Per-page PerformanceObserver fid observation
+
+- **[T]** Per session: per-page `PerformanceObserver({entryTypes:['first-input']})` per-entry `processingStart`, `processingEnd`, `cancelable`, `target` distribution.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBI. Per-page PerformanceObserver paint observation
+
+- **[T]** Per session: per-page `PerformanceObserver({entryTypes:['paint']})` per-entry `name` ('first-paint'|'first-contentful-paint') + `startTime` distribution.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCJ. Per-page PerformanceObserver navigation observation
+
+- **[T]** Per session: per-page `PerformanceObserver({entryTypes:['navigation']})` per-entry `type` ('navigate'|'reload'|'back_forward'|'prerender') + full PerformanceNavigationTiming snapshot.
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDK. Per-page PerformanceObserver resource observation
+
+- **[T]** Per session: per-page `PerformanceObserver({entryTypes:['resource']})` per-entry `name`, `initiatorType`, `nextHopProtocol`, `workerStart`, `redirectStart`, `redirectEnd`, `fetchStart`, `domainLookupStart`, `domainLookupEnd`, `connectStart`, `connectEnd`, `secureConnectionStart`, `requestStart`, `responseStart`, `responseEnd`, `transferSize`, `encodedBodySize`, `decodedBodySize`, `responseStatus`, `renderBlockingStatus` ('blocking'|'non-blocking'|'unknown'), `serverTiming[]`, `deliveryType` ('cache'|'navigational-prefetch'|''), `firstInterimResponseStart`, `contentType` distribution.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEL. Per-page PerformanceObserver mark observation
+
+- **[T]** Per session: per-page `PerformanceObserver({entryTypes:['mark']})` per-entry `name`, `startTime`, `detail` distribution.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFM. Per-page PerformanceObserver measure observation
+
+- **[T]** Per session: per-page `PerformanceObserver({entryTypes:['measure']})` per-entry `name`, `startTime`, `duration`, `detail` distribution.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGN. Per-page PerformanceObserver event observation
+
+- **[T]** Per session: per-page `PerformanceObserver({entryTypes:['event']})` per-entry `name`, `processingStart`, `processingEnd`, `duration`, `interactionId`, `cancelable`, `target` distribution.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHO. Per-page PerformanceObserver visibility-state observation
+
+- **[T]** Per session: per-page `PerformanceObserver({entryTypes:['visibility-state']})` per-entry `name` ('visible'|'hidden') + `startTime` distribution.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIP. Per-page PerformanceObserver longanimationframe observation
+
+- **[T]** Per session: per-page `PerformanceObserver({entryTypes:['long-animation-frame']})` per-entry `startTime`, `duration`, `renderStart`, `styleAndLayoutStart`, `firstUIEventTimestamp`, `blockingDuration`, `scripts[]` distribution.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJQ. Per-página PerformanceObserver element observation
+
+- **[T]** Per session: per-page `PerformanceObserver({entryTypes:['element']})` per-entry `name`, `renderTime`, `loadTime`, `intersectionRect`, `naturalWidth`, `naturalHeight`, `id`, `element`, `url`, `identifier` distribution.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKR. Per-page CDP Performance.getMetrics result
+
+- **[T]** Per session: per-page `Performance.getMetrics()` per-metric `name` ('Timestamp', 'AudioHandlers', 'AudioWorkletProcessors', 'Documents', 'Frames', 'JSEventListeners', 'LayoutObjects', 'MediaKeySessions', 'MediaKeys', 'Nodes', 'Resources', 'ContextLifecycleStateObservers', 'V8PerContextDatas', 'WorkerGlobalScopes', 'UACSSResources', 'RTCPeerConnections', 'ResourceFetchers', 'AdSubframes', 'DetachedScriptStates', 'ArrayBufferContents', 'LayoutCount', 'RecalcStyleCount', 'LayoutDuration', 'RecalcStyleDuration', 'DevToolsCommandDuration', 'ScriptDuration', 'V8CompileDuration', 'TaskDuration', 'TaskOtherDuration', 'ThreadTime', 'ProcessTime', 'JSHeapUsedSize', 'JSHeapTotalSize', 'FirstMeaningfulPaint', 'DomContentLoaded', 'NavigationStart') + `value` snapshot.
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLS. Per-page CDP Profiler.takePreciseCoverage
+
+- **[T]** Per session: per-page `Profiler.takePreciseCoverage()` per-script per-function call-count distribution.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMT. Per-page CDP HeapProfiler.takeHeapSnapshot
+
+- **[T]** Per session: per-page `HeapProfiler.takeHeapSnapshot()` per-snapshot byte size + node-count + edge-count + per-node-type distribution.
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNU. Per-page CDP HeapProfiler.startSampling
+
+- **[T]** Per session: per-page `HeapProfiler.startSampling()` invocation count + per-sample `samplingInterval` distribution.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOV. Per-page CDP Debugger.scriptParsed event
+
+- **[T]** Per session: per-page `Debugger.scriptParsed` event count + per-event `scriptId`, `url`, `startLine`, `startColumn`, `endLine`, `endColumn`, `executionContextId`, `hash`, `executionContextAuxData`, `isLiveEdit`, `sourceMapURL`, `hasSourceURL`, `isModule`, `length`, `stackTrace`, `codeOffset`, `scriptLanguage`, `debugSymbols`, `embedderName` distribution.
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPW. Per-page CDP Debugger.scriptFailedToParse event
+
+- **[T]** Per session: per-page `Debugger.scriptFailedToParse` event count + per-event distribution.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQX. Per-página CDP Debugger.paused event
+
+- **[T]** Per session: per-page `Debugger.paused` event count + per-event `reason` ('ambiguous'|'assert'|'CSPViolation'|'debugCommand'|'DOM'|'EventListener'|'exception'|'instrumentation'|'OOM'|'other'|'promiseRejection'|'XHR'|'step') + `data` + `callFrames[]` distribution.
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRY. Per-page CDP Debugger.resumed event
+
+- **[T]** Per session: per-page `Debugger.resumed` event count.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSZ. Per-page CDP Debugger.breakpointResolved event
+
+- **[T]** Per session: per-page `Debugger.breakpointResolved` event count + per-event `breakpointId`, `location.scriptId`, `location.lineNumber`, `location.columnNumber` distribution.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT1. Per-page CDP Animation.animationCreated event
+
+- **[T]** Per session: per-page `Animation.animationCreated` event count + per-event `id`, `name`, `pausedState`, `playState`, `playbackRate`, `startTime`, `currentTime`, `type`, `source.backendNodeId`, `source.delay`, `source.endDelay`, `source.iterationStart`, `source.iterations`, `source.duration`, `source.direction`, `source.fill`, `source.easing`, `cssId` distribution.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU2. Per-page CDP Animation.animationStarted event
+
+- **[T]** Per session: per-page `Animation.animationStarted` event count + per-event `animation` distribution.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV3. Per-page CDP Animation.animationCanceled event
+
+- **[T]** Per session: per-page `Animation.animationCanceled` event count + per-event `id` distribution.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW4. Per-page CDP Audits.issueAdded event
+
+- **[T]** Per session: per-page `Audits.issueAdded` event count + per-event `issue.code`, `issue.details` distribution — security/CORS/mixed-content/deprecation/cookie issues observed by DevTools.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX5. Per-page CDP Inspector.targetCrashed event
+
+- **[T]** Per session: per-page `Inspector.targetCrashed` event count.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY6. Per-page CDP Inspector.targetReloadedAfterCrash event
+
+- **[T]** Per session: per-page `Inspector.targetReloadedAfterCrash` event count.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ7. Per-página CDP Inspector.detached event
+
+- **[T]** Per session: per-page `Inspector.detached` event count + per-event `reason` distribution.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
