@@ -32333,7 +32333,111 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per session: per-host `dmesg` kernel-ring-buffer recent-line count + per-log-level (KERN_EMERG|KERN_ALERT|KERN_CRIT|KERN_ERR|KERN_WARNING|KERN_NOTICE|KERN_INFO|KERN_DEBUG) distribution.
 
-## ## GG. Disk usage of recordings
+## ## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA9. Per-page Linux DTrace probe observation
+
+- **[T]** Per session: per-host DTrace per-probe-provider (`syscall`, `proc`, `sched`, `vminfo`, `mib`, `tcp`, `udp`, `ip`, `io`, `sysinfo`, `fbt`, `pid`, `profile`, `tick`, `sdt`) per-probe-name + per-invocation count distribution.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBC. Per-page macOS dtruss observation
+
+- **[T]** Per session: per-host `dtruss -p <pid>` syscall invocation count per-syscall-name distribution.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCD. Per-page Linux strace observation
+
+- **[T]** Per session: per-host `strace -f -p <pid>` per-syscall invocation count + per-syscall-name distribution (`read`, `write`, `open`, `openat`, `close`, `stat`, `fstat`, `lstat`, `poll`, `epoll_wait`, `epoll_ctl`, `select`, `pselect6`, `lseek`, `mmap`, `mprotect`, `munmap`, `brk`, `rt_sigaction`, `rt_sigprocmask`, `rt_sigreturn`, `ioctl`, `pread64`, `pwrite64`, `readv`, `writev`, `access`, `pipe`, `pipe2`, `sched_yield`, `mremap`, `msync`, `mincore`, `madvise`, `shmget`, `shmat`, `shmctl`, `dup`, `dup2`, `dup3`, `pause`, `nanosleep`, `getitimer`, `alarm`, `setitimer`, `getpid`, `sendfile`, `socket`, `connect`, `accept`, `accept4`, `sendto`, `recvfrom`, `sendmsg`, `recvmsg`, `shutdown`, `bind`, `listen`, `getsockname`, `getpeername`, `socketpair`, `setsockopt`, `getsockopt`, `clone`, `fork`, `vfork`, `execve`, `exit`, `exit_group`, `wait4`, `waitid`, `kill`, `tkill`, `tgkill`, `clock_gettime`, `gettimeofday`, `futex`, `set_robust_list`, `get_robust_list`, `getuid`, `getgid`, `geteuid`, `getegid`, `setuid`, `setgid`, `setpgid`, `getppid`, `getpgrp`, `setsid`, `getsid`, `getrandom`) distribution.
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDE. Per-page Linux perf observation
+
+- **[T]** Per session: per-host `perf stat -p <pid>` per-counter (`task-clock`, `context-switches`, `cpu-migrations`, `page-faults`, `cycles`, `instructions`, `branches`, `branch-misses`, `cache-references`, `cache-misses`, `L1-dcache-loads`, `L1-dcache-load-misses`, `LLC-loads`, `LLC-load-misses`, `dTLB-loads`, `dTLB-load-misses`, `iTLB-loads`, `iTLB-load-misses`, `LLC-stores`, `LLC-store-misses`) distribution.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEF. Per-page Linux ftrace observation
+
+- **[T]** Per session: per-host `/sys/kernel/debug/tracing/trace` ftrace ringbuffer line count + per-event-type distribution.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFG. Per-page Linux kprobes observation
+
+- **[T]** Per session: per-host `/sys/kernel/debug/kprobes/list` per-kprobe distribution.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGH. Per-page Linux uprobes observation
+
+- **[T]** Per session: per-host `/sys/kernel/debug/tracing/uprobe_events` per-uprobe distribution.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHI. Per-page Linux audit log observation
+
+- **[T]** Per session: per-host `auditctl -l` audit rule count + per-`ausearch` event-type (USER_LOGIN|USER_LOGOUT|USER_AUTH|SYSCALL|PATH|EXECVE|CWD|SOCKADDR|SERVICE_START|SERVICE_STOP|CONFIG_CHANGE|SYSTEM_BOOT|SYSTEM_SHUTDOWN|AVC|SECCOMP) count distribution.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIJ. Per-page Linux journalctl observation
+
+- **[T]** Per session: per-host `journalctl --since '<time>'` log-entry count + per-PRIORITY level distribution.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJK. Per-página Linux conntrack observation
+
+- **[T]** Per session: per-host `conntrack -L` per-connection-tracking entry distribution.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKL. Per-page Linux iptables observation
+
+- **[T]** Per session: per-host `iptables -L -v -n` per-table (filter, nat, mangle, raw, security) per-chain (INPUT, FORWARD, OUTPUT, PREROUTING, POSTROUTING) per-rule packet+byte count distribution.
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLM. Per-page Linux nftables observation
+
+- **[T]** Per session: per-host `nft list ruleset` per-table per-chain per-rule distribution.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMN. Per-page Linux ipset observation
+
+- **[T]** Per session: per-host `ipset list` per-set per-element count distribution.
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNO. Per-page Linux tc observation
+
+- **[T]** Per session: per-host `tc qdisc show` per-interface qdisc + `tc class show` per-class + `tc filter show` per-filter distribution.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOP. Per-page Linux ss observation
+
+- **[T]** Per session: per-host `ss -tunap` per-socket distribution (matches netstat but newer).
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPQ. Per-page Linux netstat observation
+
+- **[T]** Per session: per-host `netstat -anp` per-socket distribution.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQR. Per-página Linux ip link observation
+
+- **[T]** Per session: per-host `ip -s link show` per-interface (state, mtu, qdisc, flags, mac, broadcast, RX bytes/packets/errors/dropped, TX bytes/packets/errors/dropped) distribution.
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRS. Per-page Linux ip addr observation
+
+- **[T]** Per session: per-host `ip addr show` per-interface IP/IPv6 + broadcast + scope distribution.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSST. Per-page Linux ip route observation
+
+- **[T]** Per session: per-host `ip route show` per-route (dst, via, dev, proto, src, metric) distribution.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTU. Per-page Linux ip neigh observation
+
+- **[T]** Per session: per-host `ip neigh show` per-neighbor (IP, MAC, dev, state) distribution.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUV. Per-page Linux ip rule observation
+
+- **[T]** Per session: per-host `ip rule show` per-policy-routing-rule distribution.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVW. Per-page Linux ethtool observation
+
+- **[T]** Per session: per-host `ethtool <iface>` per-interface (Speed, Duplex, Auto-negotiation, Port, PHYAD, Transceiver, Wake-on, Link detected) + `ethtool -k <iface>` per-offload feature distribution.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWX. Per-page Linux iwconfig observation
+
+- **[T]** Per session: per-host `iwconfig <iface>` per-WiFi-interface (ESSID, Mode, Frequency, Access Point, Bit Rate, Tx-Power, Retry, RTS thr, Fragment thr, Power Management, Link Quality, Signal level, Noise level, Rx invalid nwid, Rx invalid crypt, Rx invalid frag, Tx excessive retries, Invalid misc, Missed beacon) distribution.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXY. Per-page Linux iw observation
+
+- **[T]** Per session: per-host `iw dev <iface> info` + `iw dev <iface> station dump` per-station (rx/tx bytes/packets, signal, signal avg, beacon signal avg, tx bitrate, rx bitrate, expected throughput, authorized, authenticated, associated, preamble, WMM/WME, MFP, TDLS peer) distribution.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYZ. Per-page Linux tcpdump observation
+
+- **[T]** Per session: per-host `tcpdump -i <iface>` packet capture line count + per-packet (proto, src, dst, port, size) distribution.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ-1. Per-página Linux tshark observation
+
+- **[T]** Per session: per-host `tshark -i <iface>` packet capture line count distribution.
+
+## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
 - **[T]** Fraction of bytes by artifact type (so we know what's dominating capture cost).
