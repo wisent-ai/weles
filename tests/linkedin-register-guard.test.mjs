@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { assertLinkedinAuthenticatedRegistration, assertLinkedinDedicatedIspProxy, assertLinkedinProxyStable, classifyLinkedinRegisterFailure, getLinkedinChallengeSignal } from '../scripts/trajectories/_shared/linkedin/register_guard.mjs';
+import { assertLinkedinAuthenticatedRegistration, assertLinkedinDedicatedIspProxy, assertLinkedinProxyStable, classifyLinkedinRegisterFailure, getLinkedinChallengeSignal, summarizeLinkedinProxyState } from '../scripts/trajectories/_shared/linkedin/register_guard.mjs';
 
 function fakeSession(exitIp, expectedIp = exitIp, options = {}) {
   return {
@@ -86,6 +86,32 @@ describe('LinkedIn register guard', () => {
     }), 'test')).rejects.toThrow(/DETECTION_TRIGGERED/);
   });
 
+  it('summarizes proxy diagnostics without leaking credentials', () => {
+    const summary = summarizeLinkedinProxyState({
+      proxyConfig: {
+        server: 'http://127.0.0.1:8001',
+        username: 'secret-user',
+        password: 'secret-pass',
+        provider: 'oxylabs',
+        platform: 'isp',
+        country: 'US',
+        exit_ip: '50.117.105.62',
+      },
+    }, 'http://user:pass@example.invalid:1234', '50.117.105.61');
+    expect(summary).toEqual({
+      requested: '[url-form]',
+      server_host: '127.0.0.1',
+      server_port: '8001',
+      server_scheme: 'http',
+      provider: 'oxylabs',
+      platform: 'isp',
+      country: 'US',
+      expected_exit_ip: '50.117.105.61',
+      actual_exit_ip: '50.117.105.62',
+    });
+    expect(JSON.stringify(summary)).not.toMatch(/secret|user:pass/);
+  });
+
   it('does not wire CAPTCHA bypass into LinkedIn registration', () => {
     const source = readFileSync(new URL('../scripts/trajectories/linkedin_register.mjs', import.meta.url), 'utf8');
     expect(source).not.toMatch(/CaptchaSolver|solveRecaptcha|solveLinkedinCheckpoint|LINKEDIN_REGISTER_TRY_CHALLENGE/);
@@ -96,6 +122,7 @@ describe('LinkedIn register guard', () => {
     expect(source).toMatch(/assertLinkedinAuthenticatedRegistration/);
     expect(source).toMatch(/saveVerifiedLinkedinAccount/);
     expect(source).toMatch(/ACCOUNT_PERSIST_FAILED/);
+    expect(source).toMatch(/getLinkedinFailureDiagnostics/);
     expect(source).not.toMatch(/post-redirect URL|persisted .*cookies/);
   });
 });

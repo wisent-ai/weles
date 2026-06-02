@@ -103,6 +103,37 @@ export async function getLinkedinAuthState(session) {
   };
 }
 
+export function summarizeLinkedinProxyState(session, requestedProxy = '', expectedExitIp = '') {
+  const cfg = session.proxyConfig ?? {};
+  let serverHost = '';
+  let serverPort = '';
+  let serverScheme = '';
+  try {
+    const u = new URL(cfg.server ?? '');
+    serverHost = u.hostname;
+    serverPort = u.port;
+    serverScheme = u.protocol.replace(/:$/, '');
+  } catch {}
+  return {
+    requested: String(requestedProxy).startsWith('http') ? '[url-form]' : String(requestedProxy).slice(0, 80),
+    server_host: serverHost,
+    server_port: serverPort,
+    server_scheme: serverScheme,
+    provider: cfg.provider ?? '',
+    platform: cfg.platform ?? '',
+    country: cfg.country ?? '',
+    expected_exit_ip: expectedExitIp || '',
+    actual_exit_ip: cfg.exit_ip ?? '',
+  };
+}
+
+export async function getLinkedinFailureDiagnostics(session, requestedProxy = '', expectedExitIp = '') {
+  return {
+    auth: await getLinkedinAuthState(session).catch((e) => ({ error: e.message?.slice(0, 160) })),
+    proxy: summarizeLinkedinProxyState(session, requestedProxy, expectedExitIp),
+  };
+}
+
 export async function assertLinkedinAuthenticatedRegistration(session, stage = '') {
   const state = await getLinkedinAuthState(session);
   const challengeSignal = getLinkedinChallengeSignal({ url: state.final_url });
