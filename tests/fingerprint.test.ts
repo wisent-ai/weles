@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { toConfig, toCppConfig } from '../src/fingerprint.js';
+import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 
 const fakeFp = {
   fingerprint: {
@@ -16,8 +19,6 @@ describe('toConfig', () => {
     expect(c.navigator.language).toBe('en-US');
     expect(c.screen.width).toBe(1920);
     expect(c.webgl.vendor).toBe('Google Inc.');
-    expect(c.canvas.noiseSeed).toBeGreaterThan(0);
-    expect(c.audio.noiseSeed).toBeGreaterThan(0);
   });
   it('uses Windows platform', () => {
     const c = toConfig(fakeFp, 'windows', 'chromium');
@@ -37,7 +38,11 @@ describe('toConfig', () => {
     expect(c.navigator.vendor).toBe('Google Inc.');
     expect(c.navigator.productSub).toBe('20030107');
     expect(c.navigator.pdfViewerEnabled).toBe(true);
-    expect(typeof c.navigator.deviceMemory).toBe('number');
+  });
+  it('keeps canvas and audio noise disabled', () => {
+    const c = toConfig(fakeFp, 'macos', 'chromium');
+    expect(c.canvas).toEqual({});
+    expect(c.audio).toEqual({});
   });
 });
 
@@ -70,6 +75,33 @@ describe('toCppConfig', () => {
     const cpp = toCppConfig(config, 'macos');
     expect(cpp.canvas.noiseSeed).toBe(config.canvas.noiseSeed);
     expect(cpp.audio.noiseSeed).toBe(config.audio.noiseSeed);
+  });
+  it('uses the resolved Chromium app version for client hints', () => {
+    const root = mkdtempSync(join(tmpdir(), 'weles-chromium-version-test-'));
+    const contents = join(root, 'Chromium.app', 'Contents');
+    const executableDir = join(contents, 'MacOS');
+    mkdirSync(executableDir, { recursive: true });
+    writeFileSync(join(contents, 'Info.plist'), [
+      '<?xml version="1.0" encoding="UTF-8"?>',
+      '<plist version="1.0">',
+      '<dict>',
+      '<key>CFBundleShortVersionString</key>',
+      '<string>147.0.7727.108</string>',
+      '</dict>',
+      '</plist>',
+    ].join('\n'));
+
+    const chromiumPath = join(executableDir, 'Chromium');
+    const config = toConfig(fakeFp, 'macos', 'chromium');
+    const cpp = toCppConfig(config, 'macos', { chromiumPath });
+
+    expect(cpp.navigator.userAgent).toContain('Chrome/147.0.0.0');
+    expect(cpp.clientHints.fullVersion).toBe('147.0.7727.108');
+    expect(cpp.clientHints.brandFullVersionList).toEqual([
+      { brand: 'Google Chrome', version: '147.0.7727.108' },
+      { brand: 'Not.A/Brand', version: '8.0.0.0' },
+      { brand: 'Chromium', version: '147.0.7727.108' },
+    ]);
   });
 });
 

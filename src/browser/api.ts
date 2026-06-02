@@ -101,7 +101,7 @@ export class CDPWeles {
     // 5. Launch chromium — pass --weles-fingerprint for custom binary
     const extraArgs: string[] = [];
     if (isCustomBinary) {
-      const cppConfig = toCppConfig(config, targetOs);
+      const cppConfig = toCppConfig(config, targetOs, { chromiumPath: options.chromiumPath });
       extraArgs.push(`--weles-fingerprint=${JSON.stringify(cppConfig)}`);
     }
     const { process: proc, wsUrl } = await launchChromium({
