@@ -27653,6 +27653,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per session: per-`Reflect.apply` + `Reflect.construct` + `Reflect.get` + `Reflect.set` + `Reflect.deleteProperty` + `Reflect.has` + `Reflect.ownKeys` + `Reflect.getPrototypeOf` + `Reflect.setPrototypeOf` + `Reflect.preventExtensions` + `Reflect.isExtensible` + `Reflect.getOwnPropertyDescriptor` + `Reflect.defineProperty` invocation count.
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB. Per-page chrome://gpu observation
+
+- **[T]** Per session: per-`chrome://gpu` rendered-page snapshot — GL Vendor, GL Renderer, GL Version, GL Shading Language, GL_ARB_* extension list, Compositing, Multiple Raster Threads, Out-of-process Rasterization, OpenGL, Hardware Protected Video Decode, Rasterization, Skia Renderer, Video Decode, Video Encode, Vulkan, WebGL, WebGL2, WebGPU full status distribution.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBC. Per-page chrome://version observation
+
+- **[T]** Per session: per-`chrome://version` rendered-page snapshot — Chrome version, Revision, OS, JavaScript V8 version, User Agent, Command Line flags, Executable Path, Profile Path, Variations distribution.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCD. Per-page chrome://flags observation
+
+- **[T]** Per session: per-`chrome://flags` enabled-experiment list — per-flag `name`, `default`, `value` distribution.
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDE. Per-page chrome://settings observation
+
+- **[T]** Per session: per-`chrome://settings/cookies` + `chrome://settings/content/javascript` + `chrome://settings/content/cookies` + `chrome://settings/content/images` + `chrome://settings/content/popups` + `chrome://settings/content/location` + `chrome://settings/content/notifications` + `chrome://settings/content/sound` + `chrome://settings/content/autoplay` per-permission state snapshot.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEF. Per-page chrome://extensions observation
+
+- **[T]** Per session: per-`chrome://extensions` enabled-extension list — per-extension `id`, `name`, `version`, `description`, `homepageUrl`, `permissions`, `hostPermissions`, `incognito` distribution.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFG. Per-page chrome://components observation
+
+- **[T]** Per session: per-`chrome://components` installed-component list — per-component `name`, `version`, `status` distribution (Adobe Flash Player, Chrome Improved Recovery, Chrome Trust Services, CRLSet, etc.).
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGH. Per-page chrome://policy observation
+
+- **[T]** Per session: per-`chrome://policy` enterprise-policy list — per-policy `name`, `level`, `scope`, `source`, `value`, `status` distribution.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHI. Per-page chrome://histograms observation
+
+- **[T]** Per session: per-`chrome://histograms/<name>` per-histogram namespace bucket count.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIJ. Per-page chrome://memory-internals observation
+
+- **[T]** Per session: per-`chrome://memory-internals` per-process private/shared memory distribution + per-renderer process-id snapshot.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJK. Per-página chrome://tracing observation
+
+- **[T]** Per session: per-`chrome://tracing` recorded-buffer size + per-category event-count distribution.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKL. Per-page chrome://discards observation
+
+- **[T]** Per session: per-`chrome://discards` per-tab `url`, `title`, `discarded`, `discardCount`, `lastActiveSeconds`, `siteEngagementScore`, `loadingState`, `state`, `cannotDiscardReason`, `utilityRank` distribution.
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLM. Per-page chrome://signin-internals observation
+
+- **[T]** Per session: per-`chrome://signin-internals` snapshot — Google account sign-in state, refresh-token-status, primary-account-id distribution.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMN. Per-page chrome://device-log observation
+
+- **[T]** Per session: per-`chrome://device-log` per-event log-level + per-event-type distribution.
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNO. Per-page chrome://hid-internals observation
+
+- **[T]** Per session: per-`chrome://hid-internals` per-HID device snapshot — vendor-id, product-id, name, serial-number, usage-page, usage distribution.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOP. Per-page chrome://usb-internals observation
+
+- **[T]** Per session: per-`chrome://usb-internals` per-USB device snapshot — vendor-id, product-id, manufacturer-name, product-name, serial-number, bus-number, port-number, configuration-list distribution.
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPQ. Per-page chrome://bluetooth-internals observation
+
+- **[T]** Per session: per-`chrome://bluetooth-internals` per-Bluetooth-adapter + per-paired-device snapshot — address, name, RSSI, manufacturer-data, service-uuids distribution.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQR. Per-página chrome://media-internals observation
+
+- **[T]** Per session: per-`chrome://media-internals` per-player snapshot — codec, audio-codec, video-codec, profile, render-id, has-audio, has-video, height, width, fps, duration distribution.
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRS. Per-page chrome://webrtc-internals observation
+
+- **[T]** Per session: per-`chrome://webrtc-internals` per-PeerConnection snapshot — full stats graph (inbound-rtp, outbound-rtp, remote-inbound-rtp, remote-outbound-rtp, candidate-pair, local-candidate, remote-candidate, transport, certificate, codec, media-source, track, stream, peer-connection) per-stat-field distribution.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSST. Per-page chrome://network-errors observation
+
+- **[T]** Per session: per-`chrome://network-errors` per-error-code list snapshot.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTU. Per-page chrome://net-export observation
+
+- **[T]** Per session: per-`chrome://net-export` produced NetLog `.json` file size + per-event-type count + per-source-type count distribution.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUV. Per-page chrome://prefs-internals observation
+
+- **[T]** Per session: per-`chrome://prefs-internals` per-pref snapshot — pref-name + pref-value + value-source ('default'|'user'|'recommended'|'extension'|'managed') distribution.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVW. Per-page chrome://variations observation
+
+- **[T]** Per session: per-`chrome://variations` per-fieldtrial snapshot — trial-name + group-name + feature-flag distribution.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWX. Per-page chrome://accessibility observation
+
+- **[T]** Per session: per-`chrome://accessibility` per-document accessibility-tree snapshot — node count + per-role distribution + ARIA attribute set.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXY. Per-page chrome://serviceworker-internals observation
+
+- **[T]** Per session: per-`chrome://serviceworker-internals` per-SW snapshot — registration-id, scope, scriptUrl, status, fetchHandlerExistence, version-id distribution.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYZ. Per-page chrome://indexeddb-internals observation
+
+- **[T]** Per session: per-`chrome://indexeddb-internals` per-origin snapshot — origin + dbName + dbSize + open-connections + last-modified distribution.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ1. Per-página chrome://nacl observation
+
+- **[T]** Per session: per-`chrome://nacl` snapshot — NaCl plugin version + supported-features list (now deprecated; per-page check signals legacy NaCl support).
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
