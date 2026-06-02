@@ -222,10 +222,20 @@ export function assertLinkedinDedicatedIspProxy(session, requestedProxy = '') {
   const raw = String(requestedProxy).toLowerCase();
   const server = String(session.proxyConfig?.server ?? '').toLowerCase();
   const username = String(session.proxyConfig?.username ?? '').toLowerCase();
+  const provider = String(session.proxyConfig?.provider ?? '').toLowerCase();
   const proxyType = String(session.proxyConfig?.proxy_type ?? '').toLowerCase();
   const isUrlForm = /^(https?:|socks)/.test(raw);
   if (/\b(residential|mobile|datacenter)\b/.test(raw) && !/\bisp\b/.test(raw)) {
     throw new Error(`PROXY_NOT_DEDICATED_ISP: requested=${raw.slice(0, 80)}`);
+  }
+  const retiredLinkedinProxy =
+    /\boxylabs\b/.test(raw) ||
+    provider === 'oxylabs' ||
+    /(^|\/\/|\.)(?:pr|isp|disp)\.oxylabs\.io(?::|\/|$)/.test(server) ||
+    /(?:^|\/\/)(?:195\.86\.|152\.233\.|209\.38\.)/.test(server) ||
+    /:7777(?:\/|$)/.test(server);
+  if (retiredLinkedinProxy) {
+    throw new Error(`PROXY_NOT_DEDICATED_ISP: retired_linkedin_proxy requested=${raw.slice(0, 80)} server=${server.slice(0, 80)} provider=${provider}`);
   }
   if (isUrlForm && !proxyType) {
     throw new Error('PROXY_NOT_DEDICATED_ISP: unclassified_url_proxy');
