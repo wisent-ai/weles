@@ -27757,6 +27757,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per session: per-`chrome://nacl` snapshot — NaCl plugin version + supported-features list (now deprecated; per-page check signals legacy NaCl support).
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB. Per-page CDP Network.requestServedFromCache event observation
+
+- **[T]** Per session: per-`Network.requestServedFromCache` event count + per-event `requestId` distribution.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBC. Per-page CDP Network.signedExchangeReceived event observation
+
+- **[T]** Per session: per-`Network.signedExchangeReceived` event count + per-event `signedExchangeInfo.header.requestUrl` + `signedExchangeInfo.outerResponse.url` distribution.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCD. Per-page CDP Network.trustTokenOperationDone event observation
+
+- **[T]** Per session: per-`Network.trustTokenOperationDone` event count + per-event `status`, `type`, `requestId`, `topLevelOrigin`, `issuerOrigin`, `issuedTokenCount` distribution.
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDE. Per-page CDP Network.subresourceWebBundleMetadataReceived event observation
+
+- **[T]** Per session: per-`Network.subresourceWebBundleMetadataReceived` event count + per-event `requestId`, `urls[]` distribution.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEF. Per-page CDP Network.subresourceWebBundleInnerResponseParsed event observation
+
+- **[T]** Per session: per-`Network.subresourceWebBundleInnerResponseParsed` event count.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFG. Per-page CDP Network.reportingApiReportAdded event observation
+
+- **[T]** Per session: per-`Network.reportingApiReportAdded` event count + per-event `report.id`, `report.initiatorUrl`, `report.destination`, `report.type`, `report.timestamp`, `report.depth`, `report.completedAttempts`, `report.body` distribution.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGH. Per-page CDP Network.reportingApiReportUpdated event observation
+
+- **[T]** Per session: per-`Network.reportingApiReportUpdated` event count.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHI. Per-page CDP Network.reportingApiEndpointsChangedForOrigin event observation
+
+- **[T]** Per session: per-`Network.reportingApiEndpointsChangedForOrigin` event count + per-event `origin`, `endpoints[]` distribution.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIJ. Per-page CDP Network.policyUpdated event observation
+
+- **[T]** Per session: per-`Network.policyUpdated` event count.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJK. Per-página CDP Network.eventSourceMessageReceived event observation
+
+- **[T]** Per session: per-`Network.eventSourceMessageReceived` event count + per-event `requestId`, `timestamp`, `eventName`, `eventId`, `data` distribution.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKL. Per-page CDP Network.webSocketWillSendHandshakeRequest event observation
+
+- **[T]** Per session: per-`Network.webSocketWillSendHandshakeRequest` event count + per-event `requestId`, `timestamp`, `wallTime`, `request.headers` distribution.
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLM. Per-page CDP Network.webSocketHandshakeResponseReceived event observation
+
+- **[T]** Per session: per-`Network.webSocketHandshakeResponseReceived` event count + per-event `requestId`, `timestamp`, `response.status`, `response.statusText`, `response.headers`, `response.headersText`, `response.requestHeaders`, `response.requestHeadersText` distribution.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMN. Per-page CDP Network.webSocketCreated event observation
+
+- **[T]** Per session: per-`Network.webSocketCreated` event count + per-event `requestId`, `url`, `initiator` distribution.
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNO. Per-page CDP Network.webSocketClosed event observation
+
+- **[T]** Per session: per-`Network.webSocketClosed` event count + per-event `requestId`, `timestamp` distribution.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOP. Per-page CDP Network.webSocketFrameSent event observation
+
+- **[T]** Per session: per-`Network.webSocketFrameSent` event count + per-event `requestId`, `timestamp`, `response.opcode` (0=continuation, 1=text, 2=binary, 8=close, 9=ping, 10=pong), `response.mask`, `response.payloadData` distribution.
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPQ. Per-page CDP Network.webSocketFrameReceived event observation
+
+- **[T]** Per session: per-`Network.webSocketFrameReceived` event count + per-event `requestId`, `timestamp`, `response.opcode`, `response.mask`, `response.payloadData` distribution.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQR. Per-página CDP Network.webSocketFrameError event observation
+
+- **[T]** Per session: per-`Network.webSocketFrameError` event count + per-event `requestId`, `timestamp`, `errorMessage` distribution.
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRS. Per-page CDP Network.loadingFailed event observation
+
+- **[T]** Per session: per-`Network.loadingFailed` event count + per-event `requestId`, `timestamp`, `type`, `errorText`, `canceled`, `blockedReason` ('other'|'csp'|'mixed-content'|'origin'|'inspector'|'subresource-filter'|'content-type'|'coep-frame-resource-needs-coep-header'|'coop-sandboxed-iframe-cannot-navigate-to-coop-page'|'corp-not-same-origin'|'corp-not-same-origin-after-defaulted-to-same-origin-by-coep'|'corp-not-same-site'), `corsErrorStatus.corsError`, `corsErrorStatus.failedParameter` distribution.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSST. Per-page CDP Network.loadingFinished event observation
+
+- **[T]** Per session: per-`Network.loadingFinished` event count + per-event `requestId`, `timestamp`, `encodedDataLength` distribution.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTU. Per-page CDP Network.dataReceived event observation
+
+- **[T]** Per session: per-`Network.dataReceived` event count + per-event `requestId`, `timestamp`, `dataLength`, `encodedDataLength` distribution.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUV. Per-page CDP Network.resourceChangedPriority event observation
+
+- **[T]** Per session: per-`Network.resourceChangedPriority` event count + per-event `requestId`, `newPriority`, `timestamp` distribution.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVW. Per-page CDP Network.requestIntercepted event observation
+
+- **[T]** Per session: per-`Network.requestIntercepted` event count + per-event `interceptionId`, `request`, `frameId`, `resourceType`, `isNavigationRequest`, `isDownload`, `redirectUrl`, `authChallenge`, `responseErrorReason`, `responseStatusCode`, `responseHeaders`, `requestId` distribution.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWX. Per-page CDP Network.requestPaused event observation
+
+- **[T]** Per session: per-`Network.requestPaused` event count + per-event `requestId`, `request`, `frameId`, `resourceType`, `responseErrorReason`, `responseStatusCode`, `responseStatusText`, `responseHeaders`, `networkId`, `redirectedRequestId` distribution.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXY. Per-page CDP Network.authRequired event observation
+
+- **[T]** Per session: per-`Network.authRequired` event count + per-event `requestId`, `request`, `frameId`, `resourceType`, `authChallenge.source` ('Server'|'Proxy'), `authChallenge.origin`, `authChallenge.scheme`, `authChallenge.realm` distribution.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYZ. Per-page CDP Network.responseReceivedExtraInfo event observation
+
+- **[T]** Per session: per-`Network.responseReceivedExtraInfo` event count + per-event `requestId`, `blockedCookies[]`, `headers`, `resourceIPAddressSpace`, `statusCode`, `headersText`, `cookiePartitionKey`, `cookiePartitionKeyOpaque` distribution.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ1. Per-página CDP Network.requestWillBeSentExtraInfo event observation
+
+- **[T]** Per session: per-`Network.requestWillBeSentExtraInfo` event count + per-event `requestId`, `associatedCookies[]`, `headers`, `clientSecurityState`, `connectTiming.requestTime`, `siteHasCookieInOtherPartition` distribution.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
