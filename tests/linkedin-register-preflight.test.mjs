@@ -20,11 +20,16 @@ function runLinkedinRegisterWithProxy(proxy) {
   return { cwd, result, signalPath };
 }
 
+function expectNoSessionLaunch(result) {
+  expect(`${result.stdout}\n${result.stderr}`).not.toMatch(/\[wsession\] start\(\)/);
+}
+
 describe('LinkedIn register preflight', () => {
   it('fails invalid proxy requests before browser launch and writes ban_signal', () => {
     const { cwd, result, signalPath } = runLinkedinRegisterWithProxy('direct');
     try {
       expect(result.status).toBe(3);
+      expectNoSessionLaunch(result);
       expect(`${result.stdout}\n${result.stderr}`).toMatch(/FAIL: PROXY_NOT_DEDICATED_ISP: requested=direct/);
 
       const signal = JSON.parse(readFileSync(signalPath, 'utf8'));
@@ -50,6 +55,7 @@ describe('LinkedIn register preflight', () => {
     const { cwd, result, signalPath } = runLinkedinRegisterWithProxy(rawProxy);
     try {
       expect(result.status).toBe(3);
+      expectNoSessionLaunch(result);
       expect(`${result.stdout}\n${result.stderr}`).toMatch(/FAIL: PROXY_NOT_DEDICATED_ISP: url_form_proxy_request/);
 
       const signalText = readFileSync(signalPath, 'utf8');
