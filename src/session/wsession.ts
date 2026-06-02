@@ -33,6 +33,7 @@ export interface WSessionOptions {
   label?: string;
   proxy?: string;
   chromiumPath?: string;
+  userDataDir?: string;
   headless?: boolean;
   record?: boolean;
   cdpEndpoint?: string;
@@ -214,7 +215,7 @@ export class WSession {
       throw new Error(`proxy_unavailable: requested ${opts.proxy} for ${opts.targetHost ?? 'unknown target'}`);
     }
     const pageDiagnostics = opts.pageDiagnostics ?? (label !== 'linkedin_register');
-    const bOpts: AsyncNewBrowserOptions = { os: persona.os, browser: persona.browser, headless: opts.headless ?? false, recordVideo: opts.record ?? (process.env.WELES_DISABLE_RECORDING !== '1'), locale: opts.locale, persona, proxy, pageDiagnostics };
+    const bOpts: AsyncNewBrowserOptions = { os: persona.os, browser: persona.browser, headless: opts.headless ?? false, recordVideo: opts.record ?? (process.env.WELES_DISABLE_RECORDING !== '1'), locale: opts.locale, persona, proxy, pageDiagnostics, userDataDir: opts.userDataDir ?? process.env.WELES_USER_DATA_DIR };
     const cp = bOpts.browser === 'chromium'
       ? resolveChromiumPathOverride(opts.chromiumPath)
       : (opts.chromiumPath ?? process.env.CHROMIUM_PATH ?? findCustomBrowser(bOpts.browser));
