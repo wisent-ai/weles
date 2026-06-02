@@ -98,14 +98,15 @@ async function solveV2Modal(page) {
 // Persona + identity + browser + OS + input rotation all centralized in
 // WSession.start (platform: 'linkedin'). No browser/OS/input pin — rolls
 // naturally like the keeper does.
-if (!process.env.PROXY_URL) { console.log('FAIL: PROXY_URL unset — LinkedIn register requires an explicit proxy (PROXY_URL).'); process.exit(2); }
-const s = await WSession.start({ label: 'linkedin_register', proxy: process.env.PROXY_URL, targetHost: 'www.linkedin.com', platform: 'linkedin' });
-assertLinkedinDedicatedIspProxy(s, process.env.PROXY_URL);
+const requestedProxy = process.env.LINKEDIN_REGISTER_PROXY ?? process.env.LINKEDIN_PROXY ?? process.env.PROXY_URL ?? 'isp oxylabs us';
+console.log(`[register] proxy request: ${requestedProxy.startsWith('http') ? '[url-form]' : requestedProxy}`);
+const s = await WSession.start({ label: 'linkedin_register', proxy: requestedProxy, targetHost: 'www.linkedin.com', platform: 'linkedin' });
+assertLinkedinDedicatedIspProxy(s, requestedProxy);
 const id = { first: s.identity.firstName, last: s.identity.lastName, handle: s.identity.username, email: s.identity.email, password: s.identity.password };
 let expectedExitIp = s.proxyConfig?.exit_ip ?? '';
 console.log(`[register] identity: ${id.email} / ${id.first} ${id.last}`);
 // Persist credentials so a captcha failure mid-run still leaves a way to log in via keeper.
-try { const { writeFileSync: _wf } = await import('node:fs'); _wf('/tmp/linkedin_register_creds.txt', `email=${id.email}\nhandle=${id.handle}\npassword=${id.password}\nfirst=${id.first}\nlast=${id.last}\nproxy=${process.env.PROXY_URL}\nts=${new Date().toISOString()}\n`); }
+try { const { writeFileSync: _wf } = await import('node:fs'); _wf('/tmp/linkedin_register_creds.txt', `email=${id.email}\nhandle=${id.handle}\npassword=${id.password}\nfirst=${id.first}\nlast=${id.last}\nproxy=${requestedProxy}\nts=${new Date().toISOString()}\n`); }
 catch (e) { console.log(`[register] creds file err: ${e.message?.slice(0, 80)}`); }
 try {
   await s.goto(URL);
