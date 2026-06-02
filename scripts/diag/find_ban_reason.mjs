@@ -37,6 +37,20 @@ function decodeHtml(value) {
     .replace(/&gt;/g, '>');
 }
 
+function stripTags(value) {
+  return decodeHtml(String(value ?? '').replace(/<[^>]*>/g, ' '))
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function escapeRegex(value) {
+  return String(value ?? '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function unique(values) {
+  return [...new Set(values.filter(Boolean))];
+}
+
 function extractBalancedObject(text, start) {
   if (start < 0 || text[start] !== '{') return '';
   let depth = 0;
@@ -71,6 +85,73 @@ function inlineBanSignalFromHtml(html, label) {
   return jsonFromText(objectText, `${label} inline ban_signal`);
 }
 
+function tableRowsAfterHeading(html, heading) {
+  const re = new RegExp(`<h2[^>]*>\\s*${escapeRegex(heading)}\\s*<\\/h2>`, 'i');
+  const m = re.exec(html);
+  if (!m) return [];
+  const start = m.index + m[0].length;
+  const rest = html.slice(start);
+  const nextHeading = rest.search(/<h2[^>]*>/i);
+  const section = nextHeading >= 0 ? rest.slice(0, nextHeading) : rest;
+  const table = section.match(/<table[\s\S]*?<\/table>/i)?.[0] ?? '';
+  return table.match(/<tr[\s\S]*?<\/tr>/gi) ?? [];
+}
+
+function cellsFromRow(row) {
+  return (row.match(/<td[\s\S]*?<\/td>/gi) ?? []).map(stripTags);
+}
+
+function statFromHtml(html, label) {
+  const re = new RegExp(`${escapeRegex(label)}:\\s*<b[^>]*>(\\d+)`, 'i');
+  const m = html.match(re);
+  return m ? Number(m[1]) : null;
+}
+
+function aggregateFromHtml(html, label) {
+  if (!/\/weles\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i.test(html)) return null;
+  const action = stripTags(html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i)?.[1] ?? '');
+  const runIds = unique([...html.matchAll(/\/weles\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/gi)].map((m) => m[1]));
+  const failureReasons = tableRowsAfterHeading(html, 'Failure reasons')
+    .map(cellsFromRow)
+    .filter((cells) => cells.length >= 2 && cells[0] !== 'reason')
+    .map((cells) => ({
+      reason: cells[0],
+      runs: Number(cells[1]) || 0,
+      signals: cells[2] === '—' ? '' : cells[2],
+      last_stages: cells[3] === '—' ? '' : cells[3],
+      examples: unique([...cells[4].matchAll(/[0-9a-f]{8}/gi)].map((m) => m[0])),
+      message: cells[5] === '—' ? '' : cells[5],
+    }));
+  const proxyOutcomes = tableRowsAfterHeading(html, 'Exit-IP / proxy outcome analysis')
+    .map(cellsFromRow)
+    .filter((cells) => cells.length >= 8 && !/^exit ip/i.test(cells[0]))
+    .map((cells) => ({
+      exit_ip_or_proxy: cells[0],
+      runs: Number(cells[1]) || 0,
+      clean: Number(cells[2]) || 0,
+      challenge: Number(cells[3]) || 0,
+      proxy_fail: Number(cells[4]) || 0,
+      other: Number(cells[5]) || 0,
+      signals: cells[6] === '—' ? '' : cells[6],
+      reasons: cells[7] === '—' ? '' : cells[7],
+    }));
+  if (!failureReasons.length && !runIds.length) return null;
+  return {
+    aggregate: true,
+    source: label,
+    action,
+    stats: {
+      runs: statFromHtml(html, 'runs'),
+      completed: statFromHtml(html, 'completed'),
+      failed: statFromHtml(html, 'failed'),
+    },
+    primary_reason: failureReasons[0]?.reason ?? '',
+    failure_reasons: failureReasons,
+    proxy_outcomes: proxyOutcomes,
+    run_ids: runIds,
+  };
+}
+
 async function readInput(input) {
   if (!input) input = DEFAULT_LOCAL;
 
@@ -86,6 +167,8 @@ async function readInput(input) {
       if (/^\s*\{/.test(text)) return { source: input, data: jsonFromText(text, input) };
       const inline = inlineBanSignalFromHtml(text, input);
       if (inline) return { source: `${input}#inline-ban-signal`, data: inline };
+      const aggregate = aggregateFromHtml(text, input);
+      if (aggregate) return { source: input, data: aggregate };
       throw new Error(`no ban_signal.json URL found in ${input}`);
     }
     try {
@@ -156,6 +239,7 @@ function deriveReasons(sig, details) {
 }
 
 function summarize(data, source) {
+  if (data?.aggregate) return data;
   const sig = signalObject(data);
   const details = detailsObject(sig);
   const stages = stageEvents(details);
@@ -199,6 +283,25 @@ try {
     console.log(JSON.stringify(summary, null, 2));
   } else {
     console.log(`source: ${summary.source}`);
+    if (summary.aggregate) {
+      console.log(`action: ${summary.action || '—'}`);
+      console.log(`runs: total=${summary.stats.runs ?? '—'} completed=${summary.stats.completed ?? '—'} failed=${summary.stats.failed ?? '—'}`);
+      console.log(`primary_reason: ${summary.primary_reason || '—'}`);
+      for (const reason of summary.failure_reasons.slice(0, 20)) {
+        const signals = reason.signals ? ` signals=${reason.signals}` : '';
+        const stages = reason.last_stages ? ` stages=${reason.last_stages}` : '';
+        const examples = reason.examples.length ? ` examples=${reason.examples.join(',')}` : '';
+        console.log(`- ${reason.reason}: runs=${reason.runs}${signals}${stages}${examples}${reason.message ? ` message=${reason.message}` : ''}`);
+      }
+      if (summary.proxy_outcomes.length) {
+        console.log('proxy_outcomes:');
+        for (const proxy of summary.proxy_outcomes.slice(0, 12)) {
+          console.log(`- ${proxy.exit_ip_or_proxy}: runs=${proxy.runs} clean=${proxy.clean} challenge=${proxy.challenge} proxy_fail=${proxy.proxy_fail} other=${proxy.other}${proxy.reasons ? ` reasons=${proxy.reasons}` : ''}`);
+        }
+      }
+      console.log(`run_ids: ${summary.run_ids.length}`);
+      process.exit(0);
+    }
     console.log(`action: ${summary.action || '—'}`);
     console.log(`signal: ${summary.signal || '—'} healthy=${summary.healthy}`);
     console.log(`primary_reason: ${summary.primary_reason || '—'}`);
