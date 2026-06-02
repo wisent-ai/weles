@@ -28,6 +28,8 @@ describe('LinkedIn register guard', () => {
     await expect(assertLinkedinProxyStable(fakeSession('50.117.105.62'), 'test')).resolves.toBe('50.117.105.62');
     await expect(assertLinkedinProxyStable(fakeSession('50.117.105.63', '50.117.105.62'), 'test'))
       .rejects.toThrow(/PROXY_DRIFT/);
+    await expect(assertLinkedinProxyStable(fakeSession('proxy auth failed'), 'test'))
+      .rejects.toThrow(/invalid_exit_ip/);
   });
 
   it('rejects obvious rotating proxy forms', () => {
