@@ -108,11 +108,14 @@ export async function assertLinkedinProxyStable(session, stage, expectedExitIp =
   } finally {
     await probePage?.close?.().catch(() => {});
   }
+  if (!actual) throw new Error(`PROXY_DRIFT_CHECK_FAILED: stage=${stage} empty_exit_ip`);
+  if (!/^[0-9a-fA-F:.]+$/.test(actual)) {
+    throw new Error(`PROXY_DRIFT_CHECK_FAILED: stage=${stage} invalid_exit_ip=${actual.slice(0, 80)}`);
+  }
   const expected = expectedExitIp || session.proxyConfig.exit_ip || actual;
   if (expected && actual && expected !== actual) {
     throw new Error(`PROXY_DRIFT: stage=${stage} expected=${expected} actual=${actual}`);
   }
-  if (!actual) throw new Error(`PROXY_DRIFT_CHECK_FAILED: stage=${stage} empty_exit_ip`);
   session.proxyConfig.exit_ip = actual;
   return actual;
 }
