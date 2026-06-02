@@ -145,6 +145,7 @@ try {
   }
   // Fill "add a role/school" onboarding gate so stooge can view other profiles.
   try { const ob = await fillPostRegisterOnboarding(s.page); console.log(`[register] onboarding: ${JSON.stringify(ob)}`); } catch (obErr) { console.log(`[register] onboarding err: ${obErr.message?.slice(0, 100)}`); }
+  await assertNoLinkedinChallengePage(s, 'after_onboarding');
   authState = await assertLinkedinAuthenticatedRegistration(s, 'after_onboarding');
   await saveVerifiedLinkedinAccount(s, { username: id.handle, email: id.email, password: id.password, name: `${id.first} ${id.last}` });
   await confirmLinkedinEmail(s.page, id.email).catch((e) => console.log(`[linkedin_register] email confirm err: ${e.message?.slice(0, 80)}`));
