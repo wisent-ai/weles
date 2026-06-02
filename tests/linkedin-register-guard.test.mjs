@@ -5,12 +5,11 @@ function fakeSession(exitIp, expectedIp = exitIp) {
   return {
     proxyConfig: { server: 'http://127.0.0.1:8001', exit_ip: expectedIp },
     ctx: {
-      request: {
-        get: async () => ({
-          ok: () => true,
-          text: async () => exitIp,
-        }),
-      },
+      newPage: async () => ({
+        goto: async () => {},
+        locator: () => ({ innerText: async () => exitIp }),
+        close: async () => {},
+      }),
     },
   };
 }
