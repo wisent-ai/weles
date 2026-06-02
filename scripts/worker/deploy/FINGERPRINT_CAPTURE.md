@@ -27965,6 +27965,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per session: per-`Page.fetchTimedOut`-style stuck-network observation count via stalled-event signature.
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB. Per-page CDP DOM.documentUpdated event observation
+
+- **[T]** Per session: per-`DOM.documentUpdated` event count.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBC. Per-page CDP DOM.attributeModified event observation
+
+- **[T]** Per session: per-`DOM.attributeModified` event count + per-event `nodeId`, `name`, `value` distribution.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCD. Per-page CDP DOM.attributeRemoved event observation
+
+- **[T]** Per session: per-`DOM.attributeRemoved` event count + per-event `nodeId`, `name` distribution.
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDE. Per-page CDP DOM.characterDataModified event observation
+
+- **[T]** Per session: per-`DOM.characterDataModified` event count + per-event `nodeId`, `characterData` byte size distribution.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEF. Per-page CDP DOM.childNodeCountUpdated event observation
+
+- **[T]** Per session: per-`DOM.childNodeCountUpdated` event count + per-event `nodeId`, `childNodeCount` distribution.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFG. Per-page CDP DOM.childNodeInserted event observation
+
+- **[T]** Per session: per-`DOM.childNodeInserted` event count + per-event `parentNodeId`, `previousNodeId`, `node` (full Node object) distribution.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGH. Per-page CDP DOM.childNodeRemoved event observation
+
+- **[T]** Per session: per-`DOM.childNodeRemoved` event count + per-event `parentNodeId`, `nodeId` distribution.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHI. Per-page CDP DOM.distributedNodesUpdated event observation
+
+- **[T]** Per session: per-`DOM.distributedNodesUpdated` event count + per-event `insertionPointId`, `distributedNodes[]` distribution.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIJ. Per-page CDP DOM.inlineStyleInvalidated event observation
+
+- **[T]** Per session: per-`DOM.inlineStyleInvalidated` event count + per-event `nodeIds[]` distribution.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJK. Per-página CDP DOM.pseudoElementAdded event observation
+
+- **[T]** Per session: per-`DOM.pseudoElementAdded` event count + per-event `parentId`, `pseudoElement` (full Node) distribution.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKL. Per-page CDP DOM.pseudoElementRemoved event observation
+
+- **[T]** Per session: per-`DOM.pseudoElementRemoved` event count + per-event `parentId`, `pseudoElementId` distribution.
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLM. Per-page CDP DOM.scrollableFlagUpdated event observation
+
+- **[T]** Per session: per-`DOM.scrollableFlagUpdated` event count.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMN. Per-page CDP DOM.shadowRootPopped event observation
+
+- **[T]** Per session: per-`DOM.shadowRootPopped` event count + per-event `hostId`, `rootId` distribution.
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNO. Per-page CDP DOM.shadowRootPushed event observation
+
+- **[T]** Per session: per-`DOM.shadowRootPushed` event count + per-event `hostId`, `root` (full Node) distribution.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOP. Per-page CDP CSS.fontsUpdated event observation
+
+- **[T]** Per session: per-`CSS.fontsUpdated` event count + per-event `font.familyName`, `font.fontDisplay`, `font.fontFamily`, `font.fontStretch`, `font.fontStyle`, `font.fontVariant`, `font.fontWeight`, `font.glyphIndex`, `font.platformFontFamily`, `font.src`, `font.unicodeRange`, `font.fontVariationAxes[]` distribution.
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPQ. Per-page CDP CSS.mediaQueryResultChanged event observation
+
+- **[T]** Per session: per-`CSS.mediaQueryResultChanged` event count.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQR. Per-página CDP CSS.styleSheetAdded event observation
+
+- **[T]** Per session: per-`CSS.styleSheetAdded` event count + per-event `header.styleSheetId`, `header.frameId`, `header.sourceURL`, `header.sourceMapURL`, `header.origin` ('injected'|'user-agent'|'inspector'|'regular'), `header.title`, `header.ownerNode`, `header.disabled`, `header.hasSourceURL`, `header.isInline`, `header.isMutable`, `header.isConstructed`, `header.startLine`, `header.startColumn`, `header.length`, `header.endLine`, `header.endColumn` distribution.
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRS. Per-page CDP CSS.styleSheetRemoved event observation
+
+- **[T]** Per session: per-`CSS.styleSheetRemoved` event count + per-event `styleSheetId` distribution.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSST. Per-page CDP CSS.styleSheetChanged event observation
+
+- **[T]** Per session: per-`CSS.styleSheetChanged` event count + per-event `styleSheetId` distribution.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTU. Per-page CDP Runtime.executionContextCreated event observation
+
+- **[T]** Per session: per-`Runtime.executionContextCreated` event count + per-event `context.id`, `context.origin`, `context.name`, `context.uniqueId`, `context.auxData.frameId`, `context.auxData.isDefault`, `context.auxData.type` ('default'|'isolated'|'worker') distribution.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUV. Per-page CDP Runtime.executionContextDestroyed event observation
+
+- **[T]** Per session: per-`Runtime.executionContextDestroyed` event count + per-event `executionContextId`, `executionContextUniqueId` distribution.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVW. Per-page CDP Runtime.exceptionThrown event observation
+
+- **[T]** Per session: per-`Runtime.exceptionThrown` event count + per-event `timestamp`, `exceptionDetails.exceptionId`, `exceptionDetails.text`, `exceptionDetails.lineNumber`, `exceptionDetails.columnNumber`, `exceptionDetails.scriptId`, `exceptionDetails.url`, `exceptionDetails.stackTrace.callFrames[]`, `exceptionDetails.exception.type`, `exceptionDetails.exception.subtype`, `exceptionDetails.exception.className`, `exceptionDetails.exception.value`, `exceptionDetails.exception.unserializableValue`, `exceptionDetails.exception.description`, `exceptionDetails.executionContextId` distribution.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWX. Per-page CDP Runtime.exceptionRevoked event observation
+
+- **[T]** Per session: per-`Runtime.exceptionRevoked` event count + per-event `reason`, `exceptionId` distribution.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXY. Per-page CDP Runtime.consoleAPICalled event observation
+
+- **[T]** Per session: per-`Runtime.consoleAPICalled` event count + per-event `type` ('log'|'debug'|'info'|'error'|'warning'|'dir'|'dirxml'|'table'|'trace'|'clear'|'startGroup'|'startGroupCollapsed'|'endGroup'|'assert'|'profile'|'profileEnd'|'count'|'timeEnd'), `args[]`, `executionContextId`, `timestamp`, `stackTrace`, `context` distribution.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYZ. Per-page CDP Runtime.inspectRequested event observation
+
+- **[T]** Per session: per-`Runtime.inspectRequested` event count + per-event `object`, `hints`, `executionContextId` distribution.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ1. Per-página CDP Runtime.bindingCalled event observation
+
+- **[T]** Per session: per-`Runtime.bindingCalled` event count + per-event `name`, `payload`, `executionContextId` distribution.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
