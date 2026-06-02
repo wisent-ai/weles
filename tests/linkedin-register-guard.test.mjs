@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { assertLinkedinDedicatedIspProxy, assertLinkedinProxyStable, classifyLinkedinRegisterFailure } from '../scripts/trajectories/_shared/linkedin/register_guard.mjs';
+import { assertLinkedinDedicatedIspProxy, assertLinkedinProxyStable, classifyLinkedinRegisterFailure, getLinkedinChallengeSignal } from '../scripts/trajectories/_shared/linkedin/register_guard.mjs';
 
 function fakeSession(exitIp, expectedIp = exitIp) {
   return {
@@ -38,9 +38,27 @@ describe('LinkedIn register guard', () => {
     expect(() => assertLinkedinDedicatedIspProxy(fakeSession('1.1.1.1'), 'isp oxylabs us')).not.toThrow();
   });
 
+  it('detects challenge pages without treating email verification as CAPTCHA', () => {
+    expect(getLinkedinChallengeSignal({
+      url: 'https://www.linkedin.com/checkpoint/challengeIframe/AQH123',
+      iframes: [{ src: 'https://www.linkedin.com/checkpoint/challengeIframe/AQH123' }],
+    })).toBe('challenge_page');
+    expect(getLinkedinChallengeSignal({
+      url: 'https://www.linkedin.com/checkpoint/',
+      title: 'Security verification',
+      bodyText: 'Complete the captcha to continue',
+    })).toBe('challenge_page');
+    expect(getLinkedinChallengeSignal({
+      url: 'https://www.linkedin.com/checkpoint/email-verification',
+      inputs: [{ autocomplete: 'one-time-code', name: 'pin' }],
+      bodyText: 'Enter the confirmation code sent to your email',
+    })).toBe('');
+  });
+
   it('does not wire CAPTCHA bypass into LinkedIn registration', () => {
     const source = readFileSync(new URL('../scripts/trajectories/linkedin_register.mjs', import.meta.url), 'utf8');
     expect(source).not.toMatch(/CaptchaSolver|solveRecaptcha|solveLinkedinCheckpoint|LINKEDIN_REGISTER_TRY_CHALLENGE/);
     expect(source).toMatch(/DETECTION_TRIGGERED: createAccount challengeUrl/);
+    expect(source).toMatch(/assertNoLinkedinChallengePage/);
   });
 });

@@ -11,7 +11,7 @@ import { humanClickLocator, humanIdlePause } from '../../dist/human/mouse.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { confirmLinkedinEmail } from './_shared/linkedin/checkpoint.mjs';
-import { assertLinkedinDedicatedIspProxy, assertLinkedinProxyStable, classifyLinkedinRegisterFailure, ensureLinkedinSignupForm } from './_shared/linkedin/register_guard.mjs';
+import { assertLinkedinDedicatedIspProxy, assertLinkedinProxyStable, assertNoLinkedinChallengePage, classifyLinkedinRegisterFailure, ensureLinkedinSignupForm } from './_shared/linkedin/register_guard.mjs';
 import { fillPostRegisterOnboarding } from './_shared/linkedin/onboarding/work_school.mjs';
 // generateIdentity import removed — identity now created by WSession.start via opts.platform.
 
@@ -36,6 +36,7 @@ try {
   await s.goto(URL);
   await humanIdlePause('deliberate');
   expectedExitIp = await assertLinkedinProxyStable(s, 'after_goto', expectedExitIp);
+  await assertNoLinkedinChallengePage(s, 'after_goto');
   const { emailLoc, pwdLoc } = await ensureLinkedinSignupForm(s);
   await s.page.evaluate(() => { for (const el of document.querySelectorAll('input,textarea')) { el.setAttribute('autocomplete','off'); el.value=''; } }).catch(e => console.log(`[register] autofill-disable err: ${e.message?.slice(0, 80)}`));
   await humanFill(s.page, emailLoc, id.email);
