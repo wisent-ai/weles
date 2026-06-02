@@ -157,6 +157,7 @@ export class WSession {
     const label = opts.label ?? '';
     const cdp = opts.cdpEndpoint ?? process.env.BRIGHTDATA_BROWSER_WS;
     console.log(`[wsession] start() label=${label} cdp=${!!cdp} proxy=${redactProxyForLog(opts.proxy)}`);
+    if (label) process.env.WELES_LABEL = label;
     if (cdp) {
       const browser = await chromium.connectOverCDP(cdp);
       const ctx = browser.contexts()[0] || await browser.newContext({ locale: 'en-US' }); const page = ctx.pages()[0] || await ctx.newPage();

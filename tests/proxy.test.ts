@@ -1,4 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { proxyUrl, toPlaywright, parseProxyUrl, ProxyPool, resolveProxy } from '../src/proxy/config.js';
 
 const ENV_KEYS = [
@@ -16,12 +19,17 @@ const ENV_KEYS = [
   'DECODO_ISP_PORT',
   'DECODO_ISP_PORTS',
   'PROXY_SKIP_PREFLIGHT',
+  'WELES_LABEL',
 ] as const;
 
 let savedEnv: Partial<Record<(typeof ENV_KEYS)[number], string | undefined>>;
 let savedFetch: typeof globalThis.fetch;
+let savedCwd: string;
+let tempDirs: string[];
 
 beforeEach(() => {
+  savedCwd = process.cwd();
+  tempDirs = [];
   savedEnv = {};
   for (const key of ENV_KEYS) {
     savedEnv[key] = process.env[key];
@@ -31,6 +39,8 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  process.chdir(savedCwd);
+  for (const dir of tempDirs) rmSync(dir, { recursive: true, force: true });
   for (const key of ENV_KEYS) {
     const value = savedEnv[key];
     if (value === undefined) delete process.env[key];
@@ -154,5 +164,33 @@ describe('resolveProxy URL policy', () => {
 
     await expect(resolveProxy('isp decodo us', 'www.linkedin.com'))
       .resolves.toMatchObject({ provider: 'decodo', proxy_type: 'isp', platform: 'linkedin', country: 'us' });
+  });
+
+  it('writes redacted proxy preflight diagnostics before browser launch', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'weles-proxy-preflight-'));
+    tempDirs.push(dir);
+    process.chdir(dir);
+    process.env.WELES_LABEL = 'linkedin_register';
+    process.env.SUPABASE_URL = 'https://supabase.example.test';
+    process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-role-key';
+    process.env.DECODO_ISP_USERNAME = 'user';
+    process.env.DECODO_ISP_PASSWORD = 'pass';
+    process.env.DECODO_ISP_HOST = '127.0.0.1';
+    process.env.DECODO_ISP_PORT = '10001';
+    process.env.PROXY_SKIP_PREFLIGHT = '1';
+    globalThis.fetch = vi.fn(async () => new Response('[]', { status: 200, headers: { 'Content-Type': 'application/json' } })) as typeof globalThis.fetch;
+
+    await expect(resolveProxy('isp decodo us', 'www.linkedin.com')).resolves.toBeDefined();
+    const path = join(dir, 'recordings', 'linkedin_register', 'proxy_preflight.json');
+    expect(existsSync(path)).toBe(true);
+    const artifact = JSON.parse(readFileSync(path, 'utf8'));
+    expect(artifact).toMatchObject({
+      requested_proxy: 'isp decodo us',
+      target_host: 'www.linkedin.com',
+      selected: true,
+      selected_provider: 'Decodo ISP',
+      attempt_count: 1,
+    });
+    expect(JSON.stringify(artifact)).not.toContain('pass');
   });
 });
