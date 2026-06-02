@@ -180,6 +180,7 @@ describe('LinkedIn register guard', () => {
     expect(source).not.toMatch(/process\.exitCode = e\.message\?\.startsWith\('DETECTION_TRIGGERED'\)/);
     expect(source).toMatch(/DETECTION_TRIGGERED: createAccount challengeUrl/);
     expect(source).not.toMatch(/linkedin_register_creds|LINKEDIN_NEW_|autocomplete','off'|attempted_email: id\.email|details: \{[^}]*email: id\.email|details: \{[^}]*username: id\.handle/);
+    expect(source).not.toMatch(/page\.evaluate|waitForFunction/);
     expect(source).toMatch(/attempted_email_hash/);
     expect(source).toMatch(/email_hash/);
     expect(source).toMatch(/assertNoLinkedinChallengePage/);
@@ -193,5 +194,12 @@ describe('LinkedIn register guard', () => {
     expect(source).toMatch(/before_account_persist[\s\S]*saveVerifiedLinkedinAccount[\s\S]*PASS:/);
     expect(source.slice(0, source.indexOf('after_onboarding'))).not.toMatch(/PASS:/);
     expect(source).not.toMatch(/post-redirect URL|persisted .*cookies/);
+  });
+
+  it('does not expose Weles-named error globals from fingerprint shims', () => {
+    const chrome147 = readFileSync(new URL('../src/scripts/chrome147_stubs.js', import.meta.url), 'utf8');
+    const navigatorShim = readFileSync(new URL('../src/scripts/navigator.js', import.meta.url), 'utf8');
+    expect(chrome147).not.toMatch(/__WELES_/);
+    expect(navigatorShim).not.toMatch(/__WELES_/);
   });
 });
