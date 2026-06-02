@@ -93,6 +93,11 @@ export interface FingerprintConfig {
   audio: Record<string, any>;
 }
 
+export interface FingerprintVersionOptions {
+  chromiumPath?: string;
+  chromiumVersion?: string;
+}
+
 /**
  * Convert a generated fingerprint object to a JS-ready config dict
  * suitable for injection via the init scripts.
@@ -193,12 +198,16 @@ export function toConfig(
  * binary's --weles-fingerprint=<json> flag. Includes client hints with
  * "Google Chrome" brand for passing Google SSO.
  */
-export function toCppConfig(config: FingerprintConfig, targetOs = 'macos'): Record<string, any> {
+export function toCppConfig(
+  config: FingerprintConfig,
+  targetOs = 'macos',
+  versionOptions?: FingerprintVersionOptions,
+): Record<string, any> {
   const nav = config.navigator;
   const scr = config.screen;
   const webgl = config.webgl;
   let ua = nav.userAgent ?? '';
-  const realVersion = detectChromiumVersion();
+  const realVersion = resolveChromiumVersion(versionOptions);
   // UA Reduction: real Chrome 101+ reports Chrome/<major>.0.0.0 in navigator.userAgent,
   // not the full four-part version. The full version is exposed only via client hints.
   // Not following UA Reduction flags us against every real Chrome baseline.
@@ -235,8 +244,14 @@ export function toCppConfig(config: FingerprintConfig, targetOs = 'macos'): Reco
   };
 }
 
-function detectChromiumVersion(): string | null {
-  const chromiumPath = process.env.CHROMIUM_PATH;
+function resolveChromiumVersion(options?: FingerprintVersionOptions): string | null {
+  if (options?.chromiumVersion && /^\d+\.\d+\.\d+\.\d+$/.test(options.chromiumVersion)) {
+    return options.chromiumVersion;
+  }
+  return detectChromiumVersion(options?.chromiumPath);
+}
+
+function detectChromiumVersion(chromiumPath = process.env.CHROMIUM_PATH): string | null {
   if (!chromiumPath) return null;
   // Read version from Info.plist for macOS .app bundles (--version hangs)
   if (chromiumPath.includes('.app/')) {

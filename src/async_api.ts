@@ -190,7 +190,7 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
 
   if (isCustomBinary) {
     launchOpts.executablePath = chromiumPath;
-    const cppConfig = toCppConfig(fpConfig, targetOs);
+    const cppConfig = toCppConfig(fpConfig, targetOs, { chromiumPath });
     const fpDir = mkdtempSync(join(tmpdir(), 'weles-fp-'));
     const fpFile = join(fpDir, 'config.json');
     writeFileSync(fpFile, JSON.stringify(cppConfig));
