@@ -58,6 +58,14 @@ export interface AsyncNewBrowserOptions {
   excludeScripts?: string[];
   chromiumPath?: string;
   persona?: Persona;
+  pageDiagnostics?: boolean;
+}
+
+function redactContextOpts(opts: Record<string, any>): Record<string, any> {
+  return JSON.parse(JSON.stringify(opts, (k, v) => {
+    if (/username|password|authorization|cookie|token|apikey|api_key|secret/i.test(k)) return '<redacted>';
+    return v;
+  }));
 }
 
 export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Promise<BrowserContext> {
@@ -66,6 +74,7 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
   const browserType = persona?.browser ?? options.browser ?? 'chromium';
   const isChromium = browserType === 'chromium';
   const headless = options.headless ?? false;
+  const pageDiagnostics = options.pageDiagnostics !== false;
 
   const fp = generate({ os: targetOs, browser: browserType });
   const fpConfig = toConfig(fp, targetOs, browserType);
@@ -182,20 +191,24 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
     if (ctxOpts.recordVideo) customCtxOpts.recordVideo = ctxOpts.recordVideo;
     if (ctxOpts.extraHTTPHeaders) customCtxOpts.extraHTTPHeaders = ctxOpts.extraHTTPHeaders;
     if (process.env.WELES_LABEL) customCtxOpts.recordHar = { path: join(process.cwd(), 'recordings', process.env.WELES_LABEL, 'session.har'), content: 'embed', mode: 'full' }; // Playwright HAR — every request/response timing + body, sealed at context.close.
-    console.log(`[async_api] Context opts: ${JSON.stringify(customCtxOpts, (k, v) => k === 'password' ? '***' : v)}`);
+    console.log(`[async_api] Context opts: ${JSON.stringify(redactContextOpts(customCtxOpts))}`);
     const context = await pwBrowser.newContext(customCtxOpts);
     context.setDefaultNavigationTimeout(0);
     console.log(`[async_api] Context created`);
-    // Init-script injections — Chrome 147 stubs + diagnostics (property_trap, input_recorder). Stealth rewrite 2026-05-26: exfil under Symbol.for('weles.inst'), wrapper toString proxy, no automation-flag pollution; verified BLOCKED=false vs Google SSO.
+    // Init-script injections. Chrome 147 stubs are fingerprint-parity shims;
+    // page diagnostics are disabled for sensitive flows such as LinkedIn
+    // register because wrappers/traps are visible to page JavaScript.
     const _inject = async (path: string, label: string) => { try { await context.addInitScript(readFileSync(path, 'utf-8')); console.log(`[async_api] ${label} installed`); } catch (e) { console.log(`[async_api] ${label} install failed: ${(e as Error).message}`); } };
     await _inject(join(__dirname, 'scripts', 'chrome147_stubs.js'), 'chrome147-stubs');
-    await _inject(join(__dirname, 'diagnostics', 'property_trap.js'), 'property-trap');
-    await _inject(join(__dirname, 'diagnostics', 'input_recorder.js'), 'input-recorder');
-    await context.addInitScript(WEBAUTHN_REJECT_SCRIPT);
-    await context.addInitScript(ARKOSE_OBSERVER_SCRIPT);
-    await context.addInitScript(FETCH_REGISTER_INTERCEPT_SCRIPT);
-    await context.addInitScript(MODERN_API_HOOKS_SCRIPT);
-    await context.addInitScript(SURFACE_INVENTORY_SCRIPT);
+    if (pageDiagnostics) {
+      await _inject(join(__dirname, 'diagnostics', 'property_trap.js'), 'property-trap');
+      await _inject(join(__dirname, 'diagnostics', 'input_recorder.js'), 'input-recorder');
+      await context.addInitScript(WEBAUTHN_REJECT_SCRIPT);
+      await context.addInitScript(ARKOSE_OBSERVER_SCRIPT);
+      await context.addInitScript(FETCH_REGISTER_INTERCEPT_SCRIPT);
+      await context.addInitScript(MODERN_API_HOOKS_SCRIPT);
+      await context.addInitScript(SURFACE_INVENTORY_SCRIPT);
+    }
     attachProtocolHandlerWatcher(context);
     const origClose = context.close.bind(context);
     (context as any).close = async () => { await origClose(); await pwBrowser?.close(); };
@@ -238,12 +251,14 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
   });
 
   await context.addInitScript(initScript);
-  await context.addInitScript(WEBAUTHN_REJECT_SCRIPT);
-  await context.addInitScript(ARKOSE_OBSERVER_SCRIPT_STOCK);
-  await context.addInitScript(FETCH_REGISTER_INTERCEPT_SCRIPT);
-  // Diagnostic shims — engine-agnostic (pure DOM/JS), were Chromium-custom-binary-only before this; now on stock path too so Firefox sessions also dump navigator-access traces.
-  for (const f of ['property_trap.js', 'input_recorder.js']) { try { await context.addInitScript(readFileSync(join(__dirname, 'diagnostics', f), 'utf-8')); console.log(`[async_api] ${f.split('.')[0]} installed`); } catch (e) { console.log(`[async_api] ${f} install failed: ${(e as Error).message}`); } }
-  try { let _fh=readFileSync(join(__dirname, 'diagnostics', 'fingerprint_hooks.js'), 'utf-8'); if (persona && !isChromium) { const _g:any=(fpConfig as any).webgl??{}; _fh=_fh.replace(/__WELES_GL_VENDOR__/g, _g.unmaskedVendor||_g.vendor||'Mozilla').replace(/__WELES_GL_RENDERER__/g, _g.unmaskedRenderer||_g.renderer||''); } await context.addInitScript(_fh); console.log('[async_api] fingerprint_hooks installed'); } catch (e) { console.log(`[async_api] fingerprint_hooks install failed: ${(e as Error).message}`); }
+  if (pageDiagnostics) {
+    await context.addInitScript(WEBAUTHN_REJECT_SCRIPT);
+    await context.addInitScript(ARKOSE_OBSERVER_SCRIPT_STOCK);
+    await context.addInitScript(FETCH_REGISTER_INTERCEPT_SCRIPT);
+    // Diagnostic shims — engine-agnostic (pure DOM/JS), were Chromium-custom-binary-only before this; now on stock path too so Firefox sessions also dump navigator-access traces.
+    for (const f of ['property_trap.js', 'input_recorder.js']) { try { await context.addInitScript(readFileSync(join(__dirname, 'diagnostics', f), 'utf-8')); console.log(`[async_api] ${f.split('.')[0]} installed`); } catch (e) { console.log(`[async_api] ${f} install failed: ${(e as Error).message}`); } }
+    try { let _fh=readFileSync(join(__dirname, 'diagnostics', 'fingerprint_hooks.js'), 'utf-8'); if (persona && !isChromium) { const _g:any=(fpConfig as any).webgl??{}; _fh=_fh.replace(/__WELES_GL_VENDOR__/g, _g.unmaskedVendor||_g.vendor||'Mozilla').replace(/__WELES_GL_RENDERER__/g, _g.unmaskedRenderer||_g.renderer||''); } await context.addInitScript(_fh); console.log('[async_api] fingerprint_hooks installed'); } catch (e) { console.log(`[async_api] fingerprint_hooks install failed: ${(e as Error).message}`); }
+  }
   attachProtocolHandlerWatcher(context);
 
   const origClose = context.close.bind(context);
