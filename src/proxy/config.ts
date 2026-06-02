@@ -169,7 +169,14 @@ export async function resolveProxy(proxy: string, targetHost?: string): Promise<
     [filtered[i], filtered[j]] = [filtered[j], filtered[i]];
   }
 
+  const { retiredProviderReason, isProviderBlockedForPlatform } = await import('./policy.js');
   for (const p of filtered) {
+    const retiredReason = retiredProviderReason(p.proxy_host, p.proxy_port);
+    if (retiredReason) {
+      console.log(`[proxy] BLOCKED: ${p.display_name} host=${p.proxy_host}:${p.proxy_port} retired=${retiredReason} - skipping`);
+      continue;
+    }
+
     const envUser = p.api_key_env_var;
     const envPass = envUser?.replace('USERNAME', 'PASSWORD').replace('API_KEY', 'PASSWORD');
     const username = process.env[envUser] ?? '';
@@ -179,7 +186,6 @@ export async function resolveProxy(proxy: string, targetHost?: string): Promise<
       continue;
     }
     const { isBurned } = await import('./burned.js');
-    const { isProviderBlockedForPlatform } = await import('./policy.js');
     const name = p.display_name.toLowerCase();
     const _ov = (p.metadata as any)?.country_overrides?.[platformFromTarget(targetHost) ?? ''];
     const cc = (ccOverride ?? _ov ?? p.metadata?.country ?? 'us').toLowerCase();
