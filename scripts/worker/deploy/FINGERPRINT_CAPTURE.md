@@ -28901,6 +28901,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per session: per-page `window.localStorage.length` + sum-of-key-value byte sizes + per-`window.sessionStorage.length` distribution.
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB. Per-page Service Worker registration scope
+
+- **[T]** Per session: per-page `navigator.serviceWorker.getRegistrations()` snapshot — per-registration `scope`, `updateViaCache` ('imports'|'all'|'none'), `active.scriptURL`, `active.state`, `waiting.scriptURL`, `installing.scriptURL`, `navigationPreload.enabled` distribution.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB. Per-page Service Worker fetch handler observation
+
+- **[T]** Per session: per-SW per-`self.addEventListener('fetch', ...)` handler invocation count + per-event `request.url`, `request.mode` ('cors'|'no-cors'|'same-origin'|'navigate'), `request.credentials` ('omit'|'same-origin'|'include'), `request.destination`, `request.cache`, `request.redirect`, `request.integrity`, `request.keepalive`, `request.signal.aborted` distribution.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC. Per-page Service Worker install/activate event observation
+
+- **[T]** Per session: per-SW `install` + `activate` event handler invocation count + per-event `waitUntil()` promise count.
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD. Per-page Service Worker push subscription endpoint
+
+- **[T]** Per session: per-SW `registration.pushManager.getSubscription()` snapshot — `endpoint`, `expirationTime`, `options.applicationServerKey`, `options.userVisibleOnly` distribution.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE. Per-page Web App Manifest observation
+
+- **[T]** Per session: per-page `<link rel="manifest">` href + fetched manifest contents — `name`, `short_name`, `description`, `start_url`, `id`, `scope`, `display` ('fullscreen'|'standalone'|'minimal-ui'|'browser'), `display_override[]`, `orientation`, `theme_color`, `background_color`, `icons[]`, `screenshots[]`, `categories[]`, `lang`, `dir`, `prefer_related_applications`, `related_applications[]`, `share_target`, `protocol_handlers[]`, `file_handlers[]`, `launch_handler`, `handle_links`, `edge_side_panel`, `widgets[]` distribution.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF. Per-page <meta name="theme-color"> snapshot
+
+- **[T]** Per session: per-page `<meta name="theme-color">` + `media`-attribute (`(prefers-color-scheme: dark)`) distribution.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG. Per-page <meta name="viewport"> snapshot
+
+- **[T]** Per session: per-page `<meta name="viewport">` content distribution (`width`, `initial-scale`, `minimum-scale`, `maximum-scale`, `user-scalable`, `viewport-fit`, `interactive-widget`).
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH. Per-page <meta http-equiv="..."> snapshot
+
+- **[T]** Per session: per-page `<meta http-equiv>` tag list — per-name ('Content-Security-Policy', 'Content-Type', 'Default-Style', 'Refresh', 'Set-Cookie', 'X-UA-Compatible') content distribution.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII. Per-page <meta name="referrer"> snapshot
+
+- **[T]** Per session: per-page `<meta name="referrer">` content value ('no-referrer', 'no-referrer-when-downgrade', 'origin', 'origin-when-cross-origin', 'same-origin', 'strict-origin', 'strict-origin-when-cross-origin', 'unsafe-url') distribution.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ. Per-página <link rel="canonical"> snapshot
+
+- **[T]** Per session: per-page `<link rel="canonical">` href + per-`<link rel="alternate">` per-hreflang + media href distribution.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK. Per-page <link rel="preload"> snapshot
+
+- **[T]** Per session: per-page `<link rel="preload">` per-link `as` ('script'|'style'|'image'|'font'|'document'|'audio'|'video'|'object'|'track'|'embed'|'worker'|'fetch') + `crossorigin`, `integrity`, `imagesizes`, `imagesrcset` distribution.
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL. Per-page <link rel="modulepreload"> snapshot
+
+- **[T]** Per session: per-page `<link rel="modulepreload">` per-link href + integrity + crossorigin distribution.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM. Per-page <link rel="prefetch"> snapshot
+
+- **[T]** Per session: per-page `<link rel="prefetch">` per-link href + crossorigin distribution.
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN. Per-page <link rel="dns-prefetch"> snapshot
+
+- **[T]** Per session: per-page `<link rel="dns-prefetch">` per-link href distribution.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO. Per-page <link rel="preconnect"> snapshot
+
+- **[T]** Per session: per-page `<link rel="preconnect">` per-link href + crossorigin distribution.
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP. Per-page <link rel="icon"> snapshot
+
+- **[T]** Per session: per-page `<link rel="icon">` per-link href + sizes + type + crossorigin distribution + per-`<link rel="apple-touch-icon">` + `<link rel="mask-icon">` href + color distribution.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ. Per-página <link rel="stylesheet"> snapshot
+
+- **[T]** Per session: per-page `<link rel="stylesheet">` per-link href + media + integrity + crossorigin + disabled + onload + onerror distribution.
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR. Per-page /.well-known/security.txt observation
+
+- **[T]** Per session: per-host `/.well-known/security.txt` fetched contents — Contact, Expires, Encryption, Acknowledgments, Preferred-Languages, Canonical, Policy, Hiring fields distribution.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS. Per-page /.well-known/change-password observation
+
+- **[T]** Per session: per-host `/.well-known/change-password` HTTP status + redirect-target distribution.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT. Per-page /.well-known/openid-configuration observation
+
+- **[T]** Per session: per-host `/.well-known/openid-configuration` JSON — `issuer`, `authorization_endpoint`, `token_endpoint`, `userinfo_endpoint`, `jwks_uri`, `registration_endpoint`, `scopes_supported`, `response_types_supported`, `response_modes_supported`, `grant_types_supported`, `subject_types_supported`, `id_token_signing_alg_values_supported`, `token_endpoint_auth_methods_supported`, `claims_supported` distribution.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU. Per-page /.well-known/apple-app-site-association observation
+
+- **[T]** Per session: per-host `/.well-known/apple-app-site-association` JSON contents — `applinks.apps[]`, `applinks.details[].appID`, `applinks.details[].paths[]`, `webcredentials.apps[]`, `appclips.apps[]`, `activitycontinuation.apps[]` distribution.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV. Per-page /.well-known/assetlinks.json observation
+
+- **[T]** Per session: per-host `/.well-known/assetlinks.json` (Android Digital Asset Links) array snapshot — per-link `relation[]`, `target.namespace`, `target.package_name`, `target.sha256_cert_fingerprints[]` distribution.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW. Per-page /.well-known/dnt-policy observation
+
+- **[T]** Per session: per-host `/.well-known/dnt-policy.txt` HTTP status + contents distribution.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX. Per-page /robots.txt observation
+
+- **[T]** Per session: per-host `/robots.txt` contents — per-User-agent + Allow + Disallow + Sitemap + Crawl-delay rule distribution.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY. Per-page /sitemap.xml observation
+
+- **[T]** Per session: per-host `/sitemap.xml` (or `/sitemap_index.xml`) contents — per-URL `loc`, `lastmod`, `changefreq`, `priority` distribution.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ. Per-página /humans.txt observation
+
+- **[T]** Per session: per-host `/humans.txt` contents — TEAM / THANKS / SITE / NOTE section distribution.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
