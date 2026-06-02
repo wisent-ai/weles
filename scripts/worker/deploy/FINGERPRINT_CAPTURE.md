@@ -27341,6 +27341,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per session: per-`Object.getOwnPropertyNames(Permissions.prototype)` + per-Permission-name (`'geolocation'`, `'notifications'`, `'camera'`, `'microphone'`, `'speaker-selection'`, `'midi'`, `'storage-access'`, `'window-management'`, `'persistent-storage'`, `'screen-wake-lock'`, `'system-wake-lock'`, `'usb'`, `'bluetooth'`, `'background-fetch'`, `'background-sync'`, `'periodic-background-sync'`, `'push'`, `'clipboard-read'`, `'clipboard-write'`, `'payment-handler'`, `'idle-detection'`, `'local-fonts'`, `'compute-pressure'`, `'top-level-storage-access'`, `'captured-surface-control'`) supported-or-not bit.
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB. Per-page navigator.userAgentData.getHighEntropyValues full hints
+
+- **[T]** Per session: per-`navigator.userAgentData.getHighEntropyValues(['architecture','bitness','brands','fullVersionList','mobile','model','platform','platformVersion','uaFullVersion','wow64','formFactor','formFactors'])` snapshot — full UA-CH hint distribution.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBC. Per-page navigator.userAgentData.toJSON
+
+- **[T]** Per session: per-`navigator.userAgentData.toJSON()` snapshot — serialized low-entropy hint payload.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCD. Per-page navigator.userAgentData.brands
+
+- **[T]** Per session: per-`navigator.userAgentData.brands` array snapshot — per-brand `brand` + `version` distribution; signals GREASE entries placement.
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDE. Per-page navigator.userAgentData.mobile
+
+- **[T]** Per session: per-`navigator.userAgentData.mobile` boolean distribution.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEF. Per-page navigator.userAgentData.platform
+
+- **[T]** Per session: per-`navigator.userAgentData.platform` string distribution ('Windows', 'macOS', 'Linux', 'iOS', 'Android', 'Chrome OS', 'Fuchsia').
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFG. Per-page navigator.deviceMemory
+
+- **[T]** Per session: per-`navigator.deviceMemory` distribution (`0.25`, `0.5`, `1`, `2`, `4`, `8`; clamped per spec).
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGH. Per-page navigator.hardwareConcurrency
+
+- **[T]** Per session: per-`navigator.hardwareConcurrency` integer distribution.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHI. Per-page navigator.maxTouchPoints
+
+- **[T]** Per session: per-`navigator.maxTouchPoints` integer distribution.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIJ. Per-page navigator.connection.downlink
+
+- **[T]** Per session: per-`navigator.connection.downlink` + `navigator.connection.effectiveType` ('slow-2g'|'2g'|'3g'|'4g') + `navigator.connection.rtt` + `navigator.connection.saveData` + `navigator.connection.type` ('bluetooth'|'cellular'|'ethernet'|'none'|'wifi'|'wimax'|'other'|'unknown') distribution.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJK. Per-página navigator.serviceWorker.controller
+
+- **[T]** Per session: per-`navigator.serviceWorker.controller` snapshot — `scriptURL`, `state` ('parsed'|'installing'|'installed'|'activating'|'activated'|'redundant'), `scope`.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKL. Per-page navigator.webdriver
+
+- **[T]** Per session: per-`navigator.webdriver` boolean distribution; signals automation flag.
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLM. Per-page navigator.pdfViewerEnabled
+
+- **[T]** Per session: per-`navigator.pdfViewerEnabled` boolean distribution.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMN. Per-page navigator.languages array
+
+- **[T]** Per session: per-`navigator.languages` array snapshot — per-locale entry + array length distribution.
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNO. Per-page navigator.language
+
+- **[T]** Per session: per-`navigator.language` primary-locale snapshot.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOP. Per-page navigator.onLine
+
+- **[T]** Per session: per-`navigator.onLine` boolean distribution.
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPQ. Per-page navigator.cookieEnabled
+
+- **[T]** Per session: per-`navigator.cookieEnabled` boolean distribution.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQR. Per-página navigator.doNotTrack
+
+- **[T]** Per session: per-`navigator.doNotTrack` ('0'|'1'|null|'unspecified') distribution.
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRS. Per-page navigator.globalPrivacyControl
+
+- **[T]** Per session: per-`navigator.globalPrivacyControl` boolean distribution.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSST. Per-page navigator.bluetooth
+
+- **[T]** Per session: per-`navigator.bluetooth` presence + `navigator.bluetooth.getAvailability()` boolean snapshot.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTU. Per-page navigator.gpu adapter
+
+- **[T]** Per session: per-`navigator.gpu.requestAdapter()` resolved `GPUAdapter.info.vendor` + `architecture` + `device` + `description` snapshot.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUV. Per-page navigator.locks
+
+- **[T]** Per session: per-`navigator.locks.query()` snapshot — `held[]` + `pending[]` lock array distribution.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVW. Per-page navigator.virtualKeyboard
+
+- **[T]** Per session: per-`navigator.virtualKeyboard.boundingRect` snapshot + `navigator.virtualKeyboard.overlaysContent` boolean.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWX. Per-page navigator.userActivation
+
+- **[T]** Per session: per-`navigator.userActivation.hasBeenActive` + `navigator.userActivation.isActive` boolean snapshot.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXY. Per-page navigator.scheduling.isInputPending
+
+- **[T]** Per session: per-`navigator.scheduling.isInputPending({includeContinuous: true})` snapshot — main-thread input-pending boolean.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYZ. Per-page navigator.windowControlsOverlay
+
+- **[T]** Per session: per-`navigator.windowControlsOverlay.visible` + `navigator.windowControlsOverlay.getTitlebarAreaRect()` snapshot.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ1. Per-página navigator.contacts.getProperties
+
+- **[T]** Per session: per-`navigator.contacts.getProperties()` snapshot — supported contact-property list (`'name'`, `'email'`, `'tel'`, `'address'`, `'icon'`).
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
