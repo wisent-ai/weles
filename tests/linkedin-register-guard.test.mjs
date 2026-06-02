@@ -90,6 +90,8 @@ describe('LinkedIn register guard', () => {
     expect(source).not.toMatch(/CaptchaSolver|solveRecaptcha|solveLinkedinCheckpoint|LINKEDIN_REGISTER_TRY_CHALLENGE/);
     expect(source).toMatch(/DETECTION_TRIGGERED: createAccount challengeUrl/);
     expect(source).toMatch(/assertNoLinkedinChallengePage/);
+    expect(source).toMatch(/after_submit_email_password/);
+    expect(source).toMatch(/after_create_account/);
     expect(source).toMatch(/assertLinkedinAuthenticatedRegistration/);
   });
 });
