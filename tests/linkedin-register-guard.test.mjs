@@ -48,6 +48,7 @@ describe('LinkedIn register guard', () => {
     expect(() => assertLinkedinDedicatedIspProxy(fakeSession('1.1.1.1'), 'isp oxylabs us')).toThrow(/retired_linkedin_proxy/);
     expect(() => assertLinkedinDedicatedIspProxy({ proxyConfig: { server: 'http://isp.oxylabs.io:8003', proxy_type: 'isp' } }, 'isp decodo us')).toThrow(/retired_linkedin_proxy/);
     expect(() => assertLinkedinDedicatedIspProxy({ proxyConfig: { server: 'http://127.0.0.1:8001', provider: 'oxylabs', proxy_type: 'isp' } }, 'isp decodo us')).toThrow(/retired_linkedin_proxy/);
+    expect(() => assertLinkedinDedicatedIspProxy({ proxyConfig: { server: 'http://127.0.0.1:8001' } }, 'isp decodo us')).toThrow(/missing_proxy_type/);
     expect(() => assertLinkedinDedicatedIspProxy({ proxyConfig: { server: 'http://127.0.0.1:8001', proxy_type: 'isp' } }, 'isp decodo us')).not.toThrow();
   });
 

@@ -196,7 +196,7 @@ export async function resolveProxy(proxy: string, targetHost?: string): Promise<
     const city = (_cityOv ?? (p.metadata as any)?.city ?? '').toString().toLowerCase().replace(/\s+/g, '_') || undefined;
     // DB-row policy enforcement: skip providers blocked for the target
     // platform regardless of how the resolver got here.
-    const provKey = name.includes('packetstream') ? 'packetstream' : name.includes('pingproxies') ? 'pingproxies' : name.includes('oxylabs') ? 'oxylabs' : name.includes('iproyal') ? 'iproyal' : name.includes('bright') ? 'brightdata' : undefined;
+    const provKey = name.includes('packetstream') ? 'packetstream' : name.includes('pingproxies') ? 'pingproxies' : name.includes('oxylabs') ? 'oxylabs' : name.includes('iproyal') ? 'iproyal' : name.includes('bright') ? 'brightdata' : name.includes('decodo') ? 'decodo' : undefined;
     if (isProviderBlockedForPlatform(provKey, platformFromTarget(targetHost))) {
       console.log(`[proxy] BLOCKED: ${p.display_name} is on toxic list for ${platformFromTarget(targetHost)} — skipping`);
       continue;

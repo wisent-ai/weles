@@ -141,4 +141,18 @@ describe('resolveProxy URL policy', () => {
 
     await expect(resolveProxy('isp oxylabs us', 'www.linkedin.com')).resolves.toBeUndefined();
   });
+
+  it('tags Decodo ISP rows with provider metadata for LinkedIn diagnostics', async () => {
+    process.env.SUPABASE_URL = 'https://supabase.example.test';
+    process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-role-key';
+    process.env.DECODO_ISP_USERNAME = 'user';
+    process.env.DECODO_ISP_PASSWORD = 'pass';
+    process.env.DECODO_ISP_HOST = '127.0.0.1';
+    process.env.DECODO_ISP_PORT = '10001';
+    process.env.PROXY_SKIP_PREFLIGHT = '1';
+    globalThis.fetch = vi.fn(async () => new Response('[]', { status: 200, headers: { 'Content-Type': 'application/json' } })) as typeof globalThis.fetch;
+
+    await expect(resolveProxy('isp decodo us', 'www.linkedin.com'))
+      .resolves.toMatchObject({ provider: 'decodo', proxy_type: 'isp', platform: 'linkedin', country: 'us' });
+  });
 });

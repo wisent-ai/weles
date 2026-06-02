@@ -240,6 +240,9 @@ export function assertLinkedinDedicatedIspProxy(session, requestedProxy = '') {
   if (isUrlForm && !proxyType) {
     throw new Error('PROXY_NOT_DEDICATED_ISP: unclassified_url_proxy');
   }
+  if (!proxyType) {
+    throw new Error('PROXY_NOT_DEDICATED_ISP: missing_proxy_type');
+  }
   if (proxyType && proxyType !== 'isp') {
     throw new Error(`PROXY_NOT_DEDICATED_ISP: proxy_type=${proxyType}`);
   }
