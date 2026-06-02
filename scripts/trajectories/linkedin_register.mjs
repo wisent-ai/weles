@@ -303,7 +303,82 @@ async function waitPastEmailVerification(page) {
 const requestedProxy = process.env.LINKEDIN_REGISTER_PROXY ?? process.env.LINKEDIN_PROXY ?? process.env.PROXY_URL ?? 'isp decodo us';
 const requestedEntryUrl = process.env.LINKEDIN_REGISTER_ENTRY_URL ?? DEFAULT_ENTRY_URL;
 const stopAfterSignupReady = process.env.LINKEDIN_REGISTER_STOP_AFTER_SIGNUP_READY === '1';
-console.log(`[register] proxy request: ${requestedProxy.startsWith('http') ? '[url-form]' : requestedProxy}`);
+function safeRequestedProxy(value = '') {
+  const raw = String(value ?? '');
+  return /^(https?:|socks)/i.test(raw) ? '[url-form]' : raw.slice(0, 80);
+}
+
+const stageEvents = [];
+function proxyStageState() {
+  const cfg = s?.proxyConfig ?? {};
+  return {
+    expected_exit_ip: expectedExitIp || '',
+    actual_exit_ip: cfg.exit_ip ?? '',
+    proxy_type: cfg.proxy_type ?? '',
+    provider: cfg.provider ?? '',
+    country: cfg.country ?? '',
+    platform: cfg.platform ?? '',
+  };
+}
+
+function recordStage(stage, data = {}) {
+  stageEvents.push({
+    ts: new Date().toISOString(),
+    stage,
+    url: s?.page?.url?.() ?? '',
+    ...proxyStageState(),
+    ...data,
+  });
+}
+
+function addReason(reasons, code, message, data = {}) {
+  if (reasons.some((r) => r.code === code)) return;
+  reasons.push({ code, message: String(message ?? '').slice(0, 240), ...data });
+}
+
+function linkedinFailureReasons(signal, errorMessage = '', finalUrl = '', diagnostics = null) {
+  const reasons = [];
+  if (/PROXY_NOT_DEDICATED_ISP/.test(errorMessage)) {
+    addReason(reasons, 'proxy_not_dedicated_isp', errorMessage);
+  }
+  if (/PROXY_DRIFT_CHECK_FAILED/.test(errorMessage)) {
+    addReason(reasons, 'proxy_drift_probe_failed', errorMessage);
+  }
+  if (/PROXY_DRIFT:/.test(errorMessage)) {
+    addReason(reasons, 'proxy_exit_ip_drift', errorMessage);
+  }
+  if (/DETECTION_TRIGGERED/.test(errorMessage) || signal === 'captcha_challenge') {
+    addReason(reasons, 'linkedin_challenge_or_checkpoint', errorMessage || finalUrl);
+  }
+  if (/signup_form_unavailable/.test(errorMessage)) {
+    addReason(reasons, 'signup_form_unavailable', errorMessage);
+  }
+  if (/entry_path_no_signup_click/.test(errorMessage)) {
+    addReason(reasons, 'entry_path_no_signup_click', errorMessage);
+  }
+  if (/signup_did_not_complete/.test(errorMessage) || /^https?:\/\/www\.linkedin\.com\/signup\/?$/.test(finalUrl)) {
+    addReason(reasons, 'signup_did_not_complete', errorMessage || finalUrl);
+  }
+  if (/signup_verification_incomplete/.test(errorMessage)) {
+    addReason(reasons, 'signup_verification_incomplete', errorMessage);
+  }
+  if (/signup_did_not_authenticate/.test(errorMessage)) {
+    addReason(reasons, 'missing_authenticated_session', errorMessage);
+  }
+  if (/ACCOUNT_PERSIST_FAILED/.test(errorMessage)) {
+    addReason(reasons, 'account_persist_failed', errorMessage);
+  }
+  if (diagnostics?.challenge_signal) {
+    addReason(reasons, 'linkedin_page_challenge_signal', diagnostics.challenge_signal);
+  }
+  if (diagnostics?.auth && diagnostics.auth.has_li_at === false && signal !== 'proxy_failed') {
+    addReason(reasons, 'missing_li_at_cookie', `linkedin_cookie_count=${diagnostics.auth.linkedin_cookie_count ?? 'unknown'}`);
+  }
+  if (!reasons.length) addReason(reasons, signal || 'action_failed', errorMessage || finalUrl || 'unclassified failure');
+  return reasons;
+}
+
+console.log(`[register] proxy request: ${safeRequestedProxy(requestedProxy)}`);
 console.log(`[register] entry url: ${requestedEntryUrl}`);
 let s = null;
 let id = { first: '', last: '', handle: '', email: '', password: '' };
@@ -311,7 +386,9 @@ let expectedExitIp = '';
 let authState = null;
 
 try {
+  recordStage('proxy_request_received', { requested_proxy: safeRequestedProxy(requestedProxy) });
   assertLinkedinRegisterProxyRequest(requestedProxy);
+  recordStage('proxy_request_validated', { requested_proxy: safeRequestedProxy(requestedProxy) });
   s = await WSession.start({
     label: 'linkedin_register',
     proxy: requestedProxy,
@@ -320,15 +397,22 @@ try {
     browser: process.env.WELES_REGISTER_BROWSER || undefined,
     os: process.env.WELES_REGISTER_OS || undefined,
   });
+  recordStage('session_started');
   id = { first: s.identity.firstName, last: s.identity.lastName, handle: s.identity.username, email: s.identity.email, password: s.identity.password };
   expectedExitIp = s.proxyConfig?.exit_ip ?? '';
+  recordStage('identity_ready', { identity_created: true, email_hash: hashValue(id.email), handle_hash: hashValue(id.handle) });
   console.log(`[register] identity generated email_hash=${hashValue(id.email)} handle_hash=${hashValue(id.handle)}`);
   assertLinkedinDedicatedIspProxy(s, requestedProxy);
+  recordStage('proxy_metadata_validated');
   await enterLinkedinSignup(s, requestedEntryUrl);
+  recordStage('signup_goto_complete', { entry_url: requestedEntryUrl });
   await humanIdlePause('deliberate');
   expectedExitIp = await assertLinkedinProxyStable(s, 'after_goto', expectedExitIp);
+  recordStage('proxy_stable_after_goto');
   await assertNoLinkedinChallengePage(s, 'after_goto');
+  recordStage('no_challenge_after_goto');
   const { emailLoc, pwdLoc } = await ensureLinkedinSignupForm(s);
+  recordStage('signup_form_ready');
   if (stopAfterSignupReady) {
     await writeSubmitDiagnostics('stop_after_signup_ready', {
       url: s.page.url(),
@@ -341,8 +425,10 @@ try {
   } else {
   await humanFill(s.page, emailLoc, id.email);
   await humanFill(s.page, pwdLoc, id.password);
+  recordStage('email_password_filled');
   console.log(`[register] fill email+pwd: ok`);
   expectedExitIp = await assertLinkedinProxyStable(s, 'before_submit_email_password', expectedExitIp);
+  recordStage('proxy_stable_before_email_password_submit');
 
   const submit1Before = await collectSubmitState(s.page, 'before_submit_email_password');
   const submit1ReqPromise = s.page.waitForRequest((r) => /\/signup\/api\//.test(r.url()), { timeout: 8000 }).catch(() => null);
@@ -350,6 +436,7 @@ try {
   const submit1 = await humanClickLocator(s.page, s.page.locator('button[type="submit"]:has-text("Agree"), button[type="submit"]:has-text("Continue"), button#join-form-submit, button[data-tracking-control-name*="signup"]').first()).then(() => true).catch(e => { console.log(`[register] submit1 err: ${e.message?.slice(0, 80)}`); return false; });
   console.log(`[register] click Agree & Join: ${submit1}`);
   if (!submit1) throw new Error('Agree & Join button not clickable');
+  recordStage('email_password_submitted', { clicked: submit1 });
   await humanIdlePause('deliberate');
   const [submit1Req, submit1Res] = await Promise.all([submit1ReqPromise, submit1ResPromise]);
   const submit1After = await collectSubmitState(s.page, 'after_submit_email_password');
@@ -362,8 +449,10 @@ try {
   await writeSubmitDiagnostics('submit1_diagnostics', submit1Diagnostics);
   console.log(`[register] submit1 api=${submit1Diagnostics.request?.method ?? 'none'} status=${submit1Diagnostics.response?.status ?? 'none'} url=${submit1Diagnostics.response?.url ?? submit1Diagnostics.request?.url ?? 'none'}`);
   await assertNoLinkedinChallengePage(s, 'after_submit_email_password');
+  recordStage('no_challenge_after_email_password_submit');
 
   const hasV2 = await hasVisibleCaptchaChallenge(s.page);
+  recordStage('captcha_frame_probe', { has_visible_captcha_frame: hasV2 });
   if (hasV2) throw new Error('DETECTION_TRIGGERED: visible CAPTCHA challenge after email/password submit');
 
   const firstLoc = s.page.locator('input[name="first-name"], input#first-name').filter({ visible: true }).first();
@@ -375,11 +464,14 @@ try {
     await humanFill(s.page, firstLoc, id.first);
     await humanFill(s.page, lastLoc, id.last);
     fillBOk = true;
+    recordStage('first_last_filled');
   } else {
     console.log(`[register] fill first+last skipped (hasFirst=${hasFirst} hasLast=${hasLast} url=${s.page.url()})`);
+    recordStage('first_last_skipped', { has_first_input: Boolean(hasFirst), has_last_input: Boolean(hasLast) });
   }
   if (fillBOk) {
     expectedExitIp = await assertLinkedinProxyStable(s, 'before_create_account', expectedExitIp);
+    recordStage('proxy_stable_before_create_account');
     // Capture /signup/api/cors/createAccount response BEFORE click. On a
     // challenged session LinkedIn returns HTTP 200 with body
     // {submissionId, challengeUrl:"/checkpoint/challengeIframe/..."} — the
@@ -392,20 +484,25 @@ try {
     const submit2 = await humanClickLocator(s.page, s.page.locator('button[type="submit"]:has-text("Continue"), button#join-form-submit').first()).then(() => true).catch(e => { console.log(`[register] submit2 err: ${e.message?.slice(0, 80)}`); return false; });
     console.log(`[register] click Continue: ${submit2}`);
     if (!submit2) throw new Error('Continue button not clickable');
+    recordStage('create_account_submitted', { clicked: submit2 });
     const apiRes = await createAccountRes;
     let challengeUrl = '';
+    let createAccountStatus = null;
     if (apiRes) {
       try {
         const body = await apiRes.json();
         challengeUrl = body?.challengeUrl ?? '';
+        createAccountStatus = apiRes.status();
         console.log(`[register] createAccount status=${apiRes.status()} submissionId=${(body?.submissionId ?? '').slice(0, 12)} challengeUrl=${challengeUrl ? challengeUrl.slice(0, 60) + '...' : 'none'}`);
       } catch (e) { console.log(`[register] createAccount body parse err: ${e.message?.slice(0, 80)}`); }
     }
+    recordStage('create_account_response', { status: createAccountStatus, has_challenge_url: Boolean(challengeUrl) });
     if (challengeUrl) {
       throw new Error(`DETECTION_TRIGGERED: createAccount challengeUrl=${challengeUrl.slice(0, 120)}`);
     }
     await humanIdlePause('long');
     await assertNoLinkedinChallengePage(s, 'after_create_account');
+    recordStage('no_challenge_after_create_account');
   }
 
   // Wait for the post-signup redirect to /feed, /onboarding, or /checkpoint.
@@ -423,8 +520,10 @@ try {
   }
   const verifyUrl = s.page.url();
   console.log(`[register] post-name URL: ${verifyUrl}`);
+  recordStage('post_name_url', { verify_url: verifyUrl });
   // Reject /signup as success — silent reCAPTCHA-score rejection looks identical.
   expectedExitIp = await assertLinkedinProxyStable(s, 'before_success_validation', expectedExitIp);
+  recordStage('proxy_stable_before_success_validation');
   if (/^https?:\/\/www\.linkedin\.com\/signup\/?$/.test(verifyUrl) || verifyUrl.includes('/signup/api/')) {
     throw new Error(`signup_did_not_complete: URL stayed at ${verifyUrl} — LinkedIn did not accept the registration`);
   }
@@ -439,27 +538,38 @@ try {
     await humanClickLocator(s.page, s.page.locator('button[type="submit"]:has-text("Submit"), button:has-text("Verify"), button[type="submit"]:has-text("Agree"), button#email-pin-submit-button').first());
     await waitPastEmailVerification(s.page);
     authState = await assertLinkedinAuthenticatedRegistration(s, 'after_email_verification');
+    recordStage('email_verification_completed', { authenticated: authState?.has_li_at ?? false });
   } else {
     authState = await assertLinkedinAuthenticatedRegistration(s, 'after_registration_redirect');
+    recordStage('registration_redirect_authenticated', { authenticated: authState?.has_li_at ?? false });
   }
   // Fill "add a role/school" onboarding gate so stooge can view other profiles.
   try { const ob = await fillPostRegisterOnboarding(s.page); console.log(`[register] onboarding: ${JSON.stringify(ob)}`); } catch (obErr) { console.log(`[register] onboarding err: ${obErr.message?.slice(0, 100)}`); }
+  recordStage('onboarding_attempted');
   await assertNoLinkedinChallengePage(s, 'after_onboarding');
+  recordStage('no_challenge_after_onboarding');
   authState = await assertLinkedinAuthenticatedRegistration(s, 'after_onboarding');
+  recordStage('after_onboarding_authenticated', { authenticated: authState?.has_li_at ?? false });
   expectedExitIp = await assertLinkedinProxyStable(s, 'before_account_persist', expectedExitIp);
+  recordStage('proxy_stable_before_account_persist');
   await saveVerifiedLinkedinAccount(s, { username: id.handle, email: id.email, password: id.password, name: `${id.first} ${id.last}` });
+  recordStage('account_persisted');
   await confirmLinkedinEmail(s.page, id.email).catch((e) => console.log(`[linkedin_register] email confirm err: ${e.message?.slice(0, 80)}`));
   await autoBindCharacter(id.handle, 'linkedin').then(r => console.log(`[bind] ${JSON.stringify(r)}`)).catch((e) => console.log(`[bind] err: ${e.message?.slice(0, 80)}`));
+  recordStage('pass');
   console.log(`PASS: ${id.handle}`);
   const diagnostics = await getLinkedinFailureDiagnostics(s, requestedProxy, expectedExitIp);
-  try { mkdirSync(join(process.cwd(), 'recordings', 'linkedin_register'), { recursive: true }); writeFileSync(join(process.cwd(), 'recordings', 'linkedin_register', 'ban_signal.json'), JSON.stringify({ action: 'linkedin_register', signal: 'healthy', healthy: true, details: { username_hash: hashValue(id.handle), email_hash: hashValue(id.email), final_url: s.page.url(), auth: authState, diagnostics }, ts: new Date().toISOString() }, null, 2)); } catch {}
+  try { mkdirSync(join(process.cwd(), 'recordings', 'linkedin_register'), { recursive: true }); writeFileSync(join(process.cwd(), 'recordings', 'linkedin_register', 'ban_signal.json'), JSON.stringify({ action: 'linkedin_register', signal: 'healthy', healthy: true, details: { username_hash: hashValue(id.handle), email_hash: hashValue(id.email), final_url: s.page.url(), auth: authState, diagnostics, failure_reasons: [], stage_events: stageEvents }, ts: new Date().toISOString() }, null, 2)); } catch {}
   }
 } catch (e) {
   const finalUrl = s?.page?.url?.() ?? '';
-  const sig = classifyLinkedinRegisterFailure(e.message ?? '', finalUrl);
+  const errorMessage = e.message ?? '';
+  const sig = classifyLinkedinRegisterFailure(errorMessage, finalUrl);
+  recordStage('failure_classified', { signal: sig, error: errorMessage.slice(0, 200) });
   const proxyPreflight = loadProxyPreflightSummary();
-  const diagnostics = s ? await getLinkedinFailureDiagnostics(s, requestedProxy, expectedExitIp).catch(() => null) : { proxy: { requested: requestedProxy.startsWith('http') ? '[url-form]' : requestedProxy.slice(0, 80), preflight: proxyPreflight } };
-  try { mkdirSync(join(process.cwd(), 'recordings', 'linkedin_register'), { recursive: true }); writeFileSync(join(process.cwd(), 'recordings', 'linkedin_register', 'ban_signal.json'), JSON.stringify({ action: 'linkedin_register', signal: sig, healthy: false, details: { final_url: finalUrl, error: e.message?.slice(0, 200), attempted_email_hash: hashValue(id.email), expected_exit_ip: expectedExitIp, diagnostics }, ts: new Date().toISOString() }, null, 2)); } catch {}
+  const diagnostics = s ? await getLinkedinFailureDiagnostics(s, requestedProxy, expectedExitIp).catch(() => null) : { proxy: { requested: safeRequestedProxy(requestedProxy), preflight: proxyPreflight } };
+  const failureReasons = linkedinFailureReasons(sig, errorMessage, finalUrl, diagnostics);
+  try { mkdirSync(join(process.cwd(), 'recordings', 'linkedin_register'), { recursive: true }); writeFileSync(join(process.cwd(), 'recordings', 'linkedin_register', 'ban_signal.json'), JSON.stringify({ action: 'linkedin_register', signal: sig, healthy: false, details: { final_url: finalUrl, error: errorMessage.slice(0, 200), attempted_email_hash: hashValue(id.email), expected_exit_ip: expectedExitIp, diagnostics, failure_reasons: failureReasons, stage_events: stageEvents }, ts: new Date().toISOString() }, null, 2)); } catch {}
   console.log(`FAIL: ${e.message?.slice(0, 200)}`);
   // exitCode (not exit) so the finally block's await s.close() actually runs.
   // process.exit(1) kills pending async ops immediately, which prevents
