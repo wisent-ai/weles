@@ -34829,6 +34829,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per session: per-page per-element `lang` + `xml:lang` attribute distribution.
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB24. Per-page Console method observation
+
+- **[T]** Per session: per-page `console.log` + `console.debug` + `console.info` + `console.warn` + `console.error` + `console.trace` + `console.dir` + `console.dirxml` + `console.table` + `console.group` + `console.groupCollapsed` + `console.groupEnd` + `console.clear` + `console.count` + `console.countReset` + `console.assert` + `console.time` + `console.timeLog` + `console.timeEnd` + `console.timeStamp` + `console.profile` + `console.profileEnd` invocation count distribution.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB24. Per-page Console arguments byte size observation
+
+- **[T]** Per session: per-page per-console-method total-argument-byte-size distribution.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC24. Per-page Console memory observation
+
+- **[T]** Per session: per-page `console.memory.usedJSHeapSize` + `totalJSHeapSize` + `jsHeapSizeLimit` distribution.
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD24. Per-page Console message formatter observation
+
+- **[T]** Per session: per-page per-console-message format-specifier ('%s'|'%d'|'%i'|'%f'|'%o'|'%O'|'%c'|'%%') count distribution.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE24. Per-page Element.computedRole observation
+
+- **[T]** Per session: per-page `element.computedRole` per-element ARIA role distribution.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF24. Per-page Element.computedName observation
+
+- **[T]** Per session: per-page `element.computedName` per-element accessible-name distribution.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG24. Per-page Element.role attribute observation
+
+- **[T]** Per session: per-page `<element role>` per-attribute value ('alert'|'alertdialog'|'application'|'article'|'banner'|'button'|'cell'|'checkbox'|'columnheader'|'combobox'|'complementary'|'contentinfo'|'definition'|'dialog'|'directory'|'document'|'feed'|'figure'|'form'|'grid'|'gridcell'|'group'|'heading'|'img'|'link'|'list'|'listbox'|'listitem'|'log'|'main'|'marquee'|'math'|'menu'|'menubar'|'menuitem'|'menuitemcheckbox'|'menuitemradio'|'navigation'|'none'|'note'|'option'|'presentation'|'progressbar'|'radio'|'radiogroup'|'region'|'row'|'rowgroup'|'rowheader'|'scrollbar'|'search'|'searchbox'|'separator'|'slider'|'spinbutton'|'status'|'switch'|'tab'|'table'|'tablist'|'tabpanel'|'term'|'textbox'|'timer'|'toolbar'|'tooltip'|'tree'|'treegrid'|'treeitem') count distribution.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH24. Per-page Element.aria-label observation
+
+- **[T]** Per session: per-page `aria-label` + `aria-labelledby` + `aria-describedby` + `aria-details` per-element distribution.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII24. Per-page Element.aria-hidden observation
+
+- **[T]** Per session: per-page `aria-hidden` + `aria-disabled` + `aria-readonly` + `aria-required` + `aria-invalid` per-element distribution.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ-17. Per-página Element.aria-expanded observation
+
+- **[T]** Per session: per-page `aria-expanded` + `aria-checked` + `aria-selected` + `aria-pressed` + `aria-current` per-element distribution.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK-18. Per-page Element.aria-level observation
+
+- **[T]** Per session: per-page `aria-level` + `aria-posinset` + `aria-setsize` + `aria-rowindex` + `aria-colindex` + `aria-rowcount` + `aria-colcount` + `aria-rowspan` + `aria-colspan` per-element distribution.
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL-21. Per-page Element.aria-controls observation
+
+- **[T]** Per session: per-page `aria-controls` + `aria-owns` + `aria-activedescendant` + `aria-flowto` per-element distribution.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM-23. Per-page Element.aria-live observation
+
+- **[T]** Per session: per-page `aria-live` ('off'|'polite'|'assertive') + `aria-atomic` + `aria-relevant` + `aria-busy` per-element distribution.
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN-24. Per-page Element.aria-orientation observation
+
+- **[T]** Per session: per-page `aria-orientation` ('horizontal'|'vertical'|'undefined') + `aria-sort` ('ascending'|'descending'|'other'|'none') per-element distribution.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO-25. Per-page Element.aria-multiselectable observation
+
+- **[T]** Per session: per-page `aria-multiselectable` + `aria-multiline` + `aria-autocomplete` ('inline'|'list'|'both'|'none') + `aria-haspopup` ('false'|'true'|'menu'|'listbox'|'tree'|'grid'|'dialog') per-element distribution.
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP-26. Per-page Element.aria-valuemin observation
+
+- **[T]** Per session: per-page `aria-valuemin` + `aria-valuemax` + `aria-valuenow` + `aria-valuetext` per-element distribution.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ-27. Per-página Element.aria-roledescription observation
+
+- **[T]** Per session: per-page `aria-roledescription` + `aria-keyshortcuts` + `aria-placeholder` + `aria-modal` per-element distribution.
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR-28. Per-page Element.aria-errormessage observation
+
+- **[T]** Per session: per-page `aria-errormessage` + `aria-dropeffect` + `aria-grabbed` per-element distribution.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS-29. Per-page Element.inert observation
+
+- **[T]** Per session: per-page `<element inert>` boolean per-element distribution.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT-30. Per-page Element.hidden observation
+
+- **[T]** Per session: per-page `<element hidden>` boolean + `<element hidden=until-found>` per-element distribution.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU-31. Per-page Element.popover observation
+
+- **[T]** Per session: per-page `<element popover>` per-attribute value ('auto'|'manual'|'hint') per-element distribution.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV-32. Per-page Element.popovertarget observation
+
+- **[T]** Per session: per-page `<button popovertarget>` + `<button popovertargetaction>` ('toggle'|'show'|'hide') per-element distribution.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW-33. Per-page Element.commandfor observation
+
+- **[T]** Per session: per-page `<button commandfor>` + `<button command>` per-element distribution.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX-36. Per-page Element.invoketarget observation
+
+- **[T]** Per session: per-page `<element invoketarget>` + `<element invokeaction>` per-element distribution.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY-41. Per-page Element.virtualKeyboardPolicy observation
+
+- **[T]** Per session: per-page `<element virtualkeyboardpolicy>` ('auto'|'manual') per-element distribution.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ-42. Per-página Element.autocapitalize observation
+
+- **[T]** Per session: per-page `<element autocapitalize>` ('none'|'off'|'on'|'sentences'|'words'|'characters') per-element distribution.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
