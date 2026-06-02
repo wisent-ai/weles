@@ -312,4 +312,39 @@ describe('LinkedIn register guard', () => {
     expect(proxySource).toMatch(/preflightPersona\?: LinkedInProbePersona/);
     expect(proxySource).toMatch(/probeLinkedinSignup\(url, 8, preflightPersona\)/);
   });
+
+  it('can run LinkedIn experiments with an explicit persistent browser profile', () => {
+    const asyncSource = readFileSync(new URL('../src/async_api.ts', import.meta.url), 'utf8');
+    const sessionSource = readFileSync(new URL('../src/session/wsession.ts', import.meta.url), 'utf8');
+    const warmSource = readFileSync(new URL('../scripts/debug/linkedin_warm_profile.mjs', import.meta.url), 'utf8');
+    expect(asyncSource).toMatch(/userDataDir\?: string/);
+    expect(asyncSource).toMatch(/WELES_USER_DATA_DIR/);
+    expect(asyncSource).toMatch(/launchPersistentContext\(persistentProfile/);
+    expect(asyncSource).toMatch(/custom-chromium-persistent/);
+    expect(sessionSource).toMatch(/userDataDir\?: string/);
+    expect(sessionSource).toMatch(/opts\.userDataDir \?\? process\.env\.WELES_USER_DATA_DIR/);
+    expect(warmSource).toMatch(/linkedin_register_warm_decodo_us/);
+    expect(warmSource).toMatch(/pageDiagnostics: false/);
+    expect(warmSource).not.toMatch(/humanFill|createAccount|verifyPassword/);
+  });
+
+  it('supports a real LinkedIn entry path before the signup form', () => {
+    const source = readFileSync(new URL('../scripts/trajectories/linkedin_register.mjs', import.meta.url), 'utf8');
+    expect(source).toMatch(/LINKEDIN_REGISTER_ENTRY_URL/);
+    expect(source).toMatch(/async function enterLinkedinSignup/);
+    expect(source).toMatch(/refusing trk=cold_join_sign_in/);
+    expect(source).toMatch(/LINKEDIN_REGISTER_STOP_AFTER_SIGNUP_READY/);
+    expect(source).toMatch(/entry_path_diagnostics/);
+    expect(source).not.toMatch(/entry_rendered_signup_form/);
+    expect(source).toMatch(/LINKEDIN_REGISTER_ALLOW_ENTRY_FALLBACK/);
+    expect(source).toMatch(/entry_path_no_signup_click/);
+    expect(source).toMatch(/signup_affordances/);
+    expect(source).toMatch(/\^Sign up\$/);
+    expect(source).toMatch(/\^Join now\$/);
+    expect(source).not.toMatch(/hasSignupForm/);
+    expect(source).toMatch(/document\.referrer/);
+    expect(source).toMatch(/clicked_signup_link/);
+    expect(source).toMatch(/clicked_signup_affordance/);
+    expect(source.indexOf('^Join now$')).toBeLessThan(source.indexOf('^Sign up$'));
+  });
 });

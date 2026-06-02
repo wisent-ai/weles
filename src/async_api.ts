@@ -57,6 +57,7 @@ export interface AsyncNewBrowserOptions {
   recordVideo?: boolean;
   excludeScripts?: string[];
   chromiumPath?: string;
+  userDataDir?: string;
   persona?: Persona;
   pageDiagnostics?: boolean;
 }
@@ -170,6 +171,7 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
 
   // Launch: custom Chromium with --weles-fingerprint, or stock Playwright
   const chromiumPath = options.chromiumPath ?? process.env.CHROMIUM_PATH ?? '';
+  const userDataDir = options.userDataDir ?? process.env.WELES_USER_DATA_DIR ?? '';
   const launchOpts: Record<string, any> = { headless };
   const args = [...CHROMIUM_ARGS];
 
@@ -217,10 +219,12 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
     console.log(`[async_api] headless=${headless} proxy=${!!options.proxy} recordVideo=${recordVideo}`);
     console.log(`[async_api] fingerprint config: ${fpFile}`);
     if (netLogPath) console.log(`[async_api] netlog: ${netLogPath} mode=${netlog.mode}`);
-    const pwBrowser = await chromium.launch(launchOpts);
-    const proc = (pwBrowser as any).process?.();
+    const persistentProfile = userDataDir.trim();
+    if (persistentProfile) mkdirSync(persistentProfile, { recursive: true });
+    const pwBrowser = persistentProfile ? null : await chromium.launch(launchOpts);
+    const proc = (pwBrowser as any)?.process?.();
     const pid = proc?.pid;
-    console.log(`[async_api] Browser launched, PID=${pid} hasProc=${!!proc} hasStdout=${!!proc?.stdout} hasStderr=${!!proc?.stderr}`);
+    console.log(`[async_api] Browser launched, PID=${pid} hasProc=${!!proc} hasStdout=${!!proc?.stdout} hasStderr=${!!proc?.stderr}${persistentProfile ? ' persistentProfile=true' : ''}`);
 
     if (proc?.stderr) proc.stderr.on('data', (c: Buffer) => { const l = c.toString().trim(); if (l) console.log(`[chromium:stderr] ${l.slice(0, 1000)}`); });
     if (proc?.stdout) proc.stdout.on('data', (c: Buffer) => { const l = c.toString().trim(); if (l) console.log(`[chromium:stdout] ${l.slice(0, 1000)}`); });
@@ -229,7 +233,7 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
       proc.on('close', (code: number | null, signal: string | null) => console.log(`[chromium:close] code=${code} signal=${signal}${netLogPath ? ' netlog=' + netLogPath : ''}`));
       proc.on('error', (err: Error) => console.log(`[chromium:error] ${err.message}`));
     }
-    pwBrowser.on('disconnected', () => console.log(`[chromium:disconnected] pwBrowser disconnected pid=${pid}`));
+    pwBrowser?.on('disconnected', () => console.log(`[chromium:disconnected] pwBrowser disconnected pid=${pid}`));
 
     // Custom Chromium handles userAgent/screen via C++ — only pass viewport, proxy, recordVideo. tz via TZ env, lang via --lang.
     const customCtxOpts: Record<string, any> = { viewport: { width: viewW, height: viewH }, deviceScaleFactor: dpr };
@@ -237,16 +241,19 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
     if (ctxOpts.recordVideo) customCtxOpts.recordVideo = ctxOpts.recordVideo;
     if (ctxOpts.extraHTTPHeaders) customCtxOpts.extraHTTPHeaders = ctxOpts.extraHTTPHeaders;
     if (pageDiagnostics && process.env.WELES_LABEL) customCtxOpts.recordHar = { path: join(process.cwd(), 'recordings', process.env.WELES_LABEL, 'session.har'), content: 'embed', mode: 'full' }; // Playwright HAR — every request/response timing + body, sealed at context.close.
-    console.log(`[async_api] Context opts: ${JSON.stringify(redactContextOpts(customCtxOpts))}`);
-    const context = await pwBrowser.newContext(customCtxOpts);
+    console.log(`[async_api] Context opts: ${JSON.stringify(redactContextOpts({ ...customCtxOpts, ...(persistentProfile ? { userDataDir: persistentProfile } : {}) }))}`);
+    const context = persistentProfile
+      ? await chromium.launchPersistentContext(persistentProfile, { ...launchOpts, ...customCtxOpts })
+      : await pwBrowser!.newContext(customCtxOpts);
     (context as any)._welesBrowserProvenance = browserProvenance({
       browserType,
-      source: 'custom-chromium',
+      source: persistentProfile ? 'custom-chromium-persistent' : 'custom-chromium',
       executablePath: chromiumPath,
       pid,
       customBinary: true,
       stockOverride: process.env.WELES_USE_STOCK_CHROMIUM === '1',
     });
+    if (persistentProfile) (context as any)._welesBrowserProvenance.user_data_dir = persistentProfile;
     context.setDefaultNavigationTimeout(0);
     console.log(`[async_api] Context created`);
     // Init-script injections. Chrome 147 stubs are fingerprint-parity shims;

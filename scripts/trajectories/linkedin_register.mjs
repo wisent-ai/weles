@@ -16,7 +16,8 @@ import { assertLinkedinAuthenticatedRegistration, assertLinkedinDedicatedIspProx
 import { fillPostRegisterOnboarding } from './_shared/linkedin/onboarding/work_school.mjs';
 // generateIdentity import removed — identity now created by WSession.start via opts.platform.
 
-const URL = 'https://www.linkedin.com/signup';
+const SIGNUP_URL = 'https://www.linkedin.com/signup';
+const DEFAULT_ENTRY_URL = SIGNUP_URL;
 
 import { autoBindCharacter } from './lib/character-bind.mjs';
 
@@ -145,6 +146,108 @@ async function writeSubmitDiagnostics(label, payload) {
   writeFileSync(join(dir, `${label}.json`), JSON.stringify(payload, null, 2));
 }
 
+async function enterLinkedinSignup(session, entryUrl) {
+  const entry = String(entryUrl || DEFAULT_ENTRY_URL);
+  if (/trk=cold_join_sign_in/i.test(entry)) {
+    throw new Error('bad_entry_path: refusing trk=cold_join_sign_in');
+  }
+  try {
+    const u = new URL(entry);
+    if (!/(^|\.)linkedin\.com$/i.test(u.hostname)) throw new Error(`non-linkedin host: ${u.hostname}`);
+  } catch (e) {
+    throw new Error(`bad_entry_path: ${String(e?.message ?? e).slice(0, 120)}`);
+  }
+  const direct = entry.replace(/\/$/, '') === SIGNUP_URL;
+  const diagnostics = {
+    mode: direct ? 'direct_signup' : 'entry_chain',
+    entry_url: entry,
+    signup_url: SIGNUP_URL,
+    transitions: [],
+  };
+  const record = async (stage) => {
+    diagnostics.transitions.push(await session.page.evaluate((s) => ({
+      stage: s,
+      url: location.href,
+      title: document.title,
+      referrer: document.referrer,
+      signup_links: Array.from(document.querySelectorAll('a[href*="/signup"], a[href*="/join"]')).slice(0, 20).map((a) => ({
+        text: (a.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 120),
+        href: a.href,
+        trk: a.getAttribute('data-tracking-control-name') || new URL(a.href, location.href).searchParams.get('trk') || '',
+        visible: !!(a.offsetWidth || a.offsetHeight || a.getClientRects().length),
+      })),
+      signup_affordances: Array.from(document.querySelectorAll('a, button')).map((el) => ({
+        tag: el.tagName.toLowerCase(),
+        text: (el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 120),
+        href: el instanceof HTMLAnchorElement ? el.href : '',
+        trk: el.getAttribute('data-tracking-control-name') || '',
+        visible: !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length),
+      })).filter((el) => /^(sign up|join now)$/i.test(el.text)).slice(0, 20),
+    }), stage).catch((e) => ({ stage, error: String(e?.message ?? e).slice(0, 200), url: session.page.url() })));
+  };
+
+  if (direct) {
+    await session.goto(SIGNUP_URL);
+    await record('after_direct_signup');
+    await writeSubmitDiagnostics('entry_path_diagnostics', diagnostics);
+    return diagnostics;
+  }
+
+  await session.runStep('goto_entry', async () => {
+    await session.page.goto(entry, { waitUntil: 'domcontentloaded', timeout: 45_000 });
+    return `entry ${session.page.url()}`;
+  });
+  await humanIdlePause('deliberate');
+  await record('after_entry');
+
+  const explicitSelector = process.env.LINKEDIN_REGISTER_ENTRY_CLICK_SELECTOR || '';
+  const clickCandidates = explicitSelector
+    ? [session.page.locator(explicitSelector).filter({ visible: true }).first()]
+    : [
+        session.page.getByRole('link', { name: /^Join now$/i }).first(),
+        session.page.getByRole('button', { name: /^Join now$/i }).first(),
+        session.page.getByRole('link', { name: /^Sign up$/i }).first(),
+        session.page.getByRole('button', { name: /^Sign up$/i }).first(),
+      ];
+  let clicked = false;
+  let clickError = '';
+  let clickedAffordance = null;
+  for (const loc of clickCandidates) {
+    try {
+      if (await loc.count() && await loc.isVisible({ timeout: 1500 })) {
+        clickedAffordance = await loc.evaluate((el) => ({
+          tag: el.tagName.toLowerCase(),
+          text: (el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 120),
+          href: el instanceof HTMLAnchorElement ? el.href : '',
+          trk: el.getAttribute('data-tracking-control-name') || '',
+        })).catch(() => null);
+        await humanClickLocator(session.page, loc);
+        clicked = true;
+        break;
+      }
+    } catch (e) {
+      clickError = String(e?.message ?? e).slice(0, 200);
+    }
+  }
+  diagnostics.clicked_signup_link = clicked;
+  diagnostics.clicked_signup_affordance = clickedAffordance;
+  diagnostics.click_error = clickError;
+  if (!clicked) {
+    if (process.env.LINKEDIN_REGISTER_ALLOW_ENTRY_FALLBACK === '1') {
+      await session.page.evaluate((url) => { window.location.assign(url); }, SIGNUP_URL).catch(() => {});
+      diagnostics.location_assign_fallback = true;
+    } else {
+      await writeSubmitDiagnostics('entry_path_diagnostics', diagnostics);
+      throw new Error(`entry_path_no_signup_click: ${session.page.url().slice(0, 180)}`);
+    }
+  }
+  await session.page.waitForURL(/\/signup(?:$|[/?#])/, { timeout: 20_000 }).catch(() => {});
+  await humanIdlePause('deliberate');
+  await record('after_signup_transition');
+  await writeSubmitDiagnostics('entry_path_diagnostics', diagnostics);
+  return diagnostics;
+}
+
 async function saveVerifiedLinkedinAccount(session, account) {
   const result = await session.saveAccount('linkedin', account);
   if (!String(result).startsWith('account saved:')) {
@@ -198,7 +301,10 @@ async function waitPastEmailVerification(page) {
 // WSession.start (platform: 'linkedin'). No browser/OS/input pin — rolls
 // naturally like the keeper does.
 const requestedProxy = process.env.LINKEDIN_REGISTER_PROXY ?? process.env.LINKEDIN_PROXY ?? process.env.PROXY_URL ?? 'isp decodo us';
+const requestedEntryUrl = process.env.LINKEDIN_REGISTER_ENTRY_URL ?? DEFAULT_ENTRY_URL;
+const stopAfterSignupReady = process.env.LINKEDIN_REGISTER_STOP_AFTER_SIGNUP_READY === '1';
 console.log(`[register] proxy request: ${requestedProxy.startsWith('http') ? '[url-form]' : requestedProxy}`);
+console.log(`[register] entry url: ${requestedEntryUrl}`);
 let s = null;
 let id = { first: '', last: '', handle: '', email: '', password: '' };
 let expectedExitIp = '';
@@ -218,11 +324,21 @@ try {
   expectedExitIp = s.proxyConfig?.exit_ip ?? '';
   console.log(`[register] identity generated email_hash=${hashValue(id.email)} handle_hash=${hashValue(id.handle)}`);
   assertLinkedinDedicatedIspProxy(s, requestedProxy);
-  await s.goto(URL);
+  await enterLinkedinSignup(s, requestedEntryUrl);
   await humanIdlePause('deliberate');
   expectedExitIp = await assertLinkedinProxyStable(s, 'after_goto', expectedExitIp);
   await assertNoLinkedinChallengePage(s, 'after_goto');
   const { emailLoc, pwdLoc } = await ensureLinkedinSignupForm(s);
+  if (stopAfterSignupReady) {
+    await writeSubmitDiagnostics('stop_after_signup_ready', {
+      url: s.page.url(),
+      entry_url: requestedEntryUrl,
+      expected_exit_ip: expectedExitIp,
+      state: await collectSubmitState(s.page, 'stop_after_signup_ready'),
+    });
+    console.log('DRY_RUN: stop_after_signup_ready');
+    process.exitCode = 0;
+  } else {
   await humanFill(s.page, emailLoc, id.email);
   await humanFill(s.page, pwdLoc, id.password);
   console.log(`[register] fill email+pwd: ok`);
@@ -337,6 +453,7 @@ try {
   console.log(`PASS: ${id.handle}`);
   const diagnostics = await getLinkedinFailureDiagnostics(s, requestedProxy, expectedExitIp);
   try { mkdirSync(join(process.cwd(), 'recordings', 'linkedin_register'), { recursive: true }); writeFileSync(join(process.cwd(), 'recordings', 'linkedin_register', 'ban_signal.json'), JSON.stringify({ action: 'linkedin_register', signal: 'healthy', healthy: true, details: { username_hash: hashValue(id.handle), email_hash: hashValue(id.email), final_url: s.page.url(), auth: authState, diagnostics }, ts: new Date().toISOString() }, null, 2)); } catch {}
+  }
 } catch (e) {
   const finalUrl = s?.page?.url?.() ?? '';
   const sig = classifyLinkedinRegisterFailure(e.message ?? '', finalUrl);
