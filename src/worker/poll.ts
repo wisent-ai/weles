@@ -12,7 +12,7 @@ import { captureVersions } from '../diagnostics/versions.js';
 
 export interface ActionLogRow {
   id: string;
-  account_id: string;
+  account_id: string | null;
   action: string;
   platform?: string;
   params?: Record<string, unknown>;
@@ -45,7 +45,14 @@ async function runTrajectory(row: ActionLogRow, path: string, extraEnv: Record<s
   const hardTimeoutMs = overrideMs > 0 ? overrideMs : defaultMs;
   return new Promise((resolve) => {
     const child = spawn('node', [path], {
-      env: { ...process.env, ...paramsToEnv(row.params ?? {}, row.action, path), ...extraEnv, ACCOUNT_ID: row.account_id, ACTION_LOG_ID: row.id, ACTION: row.action },
+      env: {
+        ...process.env,
+        ...paramsToEnv(row.params ?? {}, row.action, path),
+        ...extraEnv,
+        ...(row.account_id ? { ACCOUNT_ID: row.account_id } : {}),
+        ACTION_LOG_ID: row.id,
+        ACTION: row.action,
+      },
       cwd: process.cwd(), stdio: ['ignore', 'inherit', 'pipe'],
     });
     let stderr = '';
@@ -173,6 +180,7 @@ async function closeCampaignItem(params: Record<string, unknown> | undefined, fi
 }
 
 async function workersEnabled(): Promise<boolean> {
+  if (process.env.WELES_WORKER_FORCE_ENABLED === '1') return true;
   try {
     const res = await fetch(
       `${SUPABASE_URL}/rest/v1/system_settings?key=eq.workers_enabled&select=value`,
@@ -199,18 +207,29 @@ export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
     await writeResult(row.id, 'failed', {}, `no trajectory for action=${row.action}`);
     return 'claimed';
   }
-  console.log(`[worker] claimed ${row.id.slice(0, 8)} action=${row.action} account=${row.account_id.slice(0, 8)} -> ${trajPath}`);
+  console.log(`[worker] claimed ${row.id.slice(0, 8)} action=${row.action} account=${row.account_id?.slice(0, 8) ?? 'none'} -> ${trajPath}`);
 
   const runStart = new Date();
   const { exitCode, stderr } = await runTrajectory(row, trajPath);
   const banSignal = await readBanSignal(row.action);
   const result: Record<string, unknown> = { versions: captureVersions(trajPath) };
-  try { const m = JSON.parse(await readFile(join(RECORDINGS_ROOT, row.action, 'session_meta.json'), 'utf8')); result.session = { proxy_host: m.proxy_host, proxy_port: m.proxy_port, proxy_user: m.proxy_user, exit_ip: m.exit_ip, platform: m.platform, provider: m.provider }; } catch {}
+  try {
+    const m = JSON.parse(await readFile(join(RECORDINGS_ROOT, row.action, 'session_meta.json'), 'utf8'));
+    result.session = {
+      proxy_host: m.proxy_host,
+      proxy_port: m.proxy_port,
+      proxy_user_present: !!m.proxy_user_present,
+      proxy_user_hash: m.proxy_user_hash ?? null,
+      exit_ip: m.exit_ip,
+      platform: m.platform,
+      provider: m.provider,
+    };
+  } catch {}
   // IP-drift detection: first session stores observed exit_ip; subsequent sessions compare, mismatch -> ip_drift + pause.
   try { const ip = (result.session as any)?.exit_ip; if (ip && row.account_id) { const r = await fetch(`${SUPABASE_URL}/rest/v1/social_accounts?id=eq.${row.account_id}&select=metadata`, { headers: headers() }); if (r.ok) { const j = await r.json() as any[]; const m = j[0]?.metadata ?? {}; const stored = m.proxy?.exit_ip; if (!stored) { const nm = { ...m, proxy: { ...(m.proxy ?? {}), exit_ip: ip } }; await fetch(`${SUPABASE_URL}/rest/v1/social_accounts?id=eq.${row.account_id}`, { method: 'PATCH', headers: { ...headers(), Prefer: 'return=minimal' }, body: JSON.stringify({ metadata: nm }) }); } else if (stored !== ip) { result.ban_signal = { healthy: false, signal: 'ip_drift', details: { expected: stored, observed: ip } }; await pauseAccount(row.account_id, 'ip_drift'); } } } } catch (e) { console.log('[ip-drift]', e instanceof Error ? e.message : String(e)); }
   if (banSignal) {
     result.ban_signal = banSignal;
-    if (banSignal.healthy === false) await pauseAccount(row.account_id, banSignal.signal);
+    if (banSignal.healthy === false && row.account_id) await pauseAccount(row.account_id, banSignal.signal);
     // NOTE: previous version wrote unconditional IP burns on ip_blocked / proxy_auth_failed signals. That was paired-comparison-incorrect by symmetry with the _register burn writer reverted in 4cd2eb4. Removed for consistency — the burn-attribution cron (content-platform src/lib/burn-attribution/runner.ts) is now the sole writer to system_settings.burned_proxies, and only on paired counterfactuals.
     // NOTE: previous version wrote unconditional (domain, ip, host) burns on every _register failure. That was paired-comparison-incorrect — a single failure with no counterfactual cannot isolate which factor caused the failure. Removed b5235af → see this commit. Domain/IP attribution must come from a paired (fail, pass) matcher that observes one factor changed and outcome flipped.
   } else {
@@ -226,7 +245,7 @@ export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
     const finalStatus = exitCode === 0 ? 'completed' : 'failed';
     if (s?.provider) await recordOutcome(s.provider, row.action, finalStatus, finalSignal, row.platform);
   } catch { /* best-effort */ }
-  if (row.action.endsWith('_health')) {
+  if (row.action.endsWith('_health') && row.account_id) {
     const snap = await importHealthSnapshot(row.account_id, row.action.slice(0, -'_health'.length));
     if (snap) { result.health_snapshot = snap; result.ban_signal = { healthy: snap.signal === 'healthy', signal: snap.signal }; }
   }

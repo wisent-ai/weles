@@ -40,7 +40,7 @@ describe('LinkedIn register preflight', () => {
       });
       expect(signal.details).toMatchObject({
         final_url: '',
-        attempted_email: '',
+        attempted_email_hash: null,
         expected_exit_ip: '',
       });
       expect(signal.details.error).toMatch(/PROXY_NOT_DEDICATED_ISP: requested=direct/);

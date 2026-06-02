@@ -49,16 +49,18 @@ export async function claimOne(): Promise<ActionLogRow | null> {
   // possible. Social actions still get the lock because they share an
   // Oxylabs sticky session per account.
   const isParallelSafeScrape = (a: string) => /^(unusualwhales|volumeleaders|tradingview)_scrape$/.test(a);
+  const canRunWithoutAccount = (a: string) => /_register$|_balance$|_topup$/.test(a);
   for (const row of candidates) {
     if (!resolveTrajectory(row.action)) continue;
-    if (!row.account_id || !row.id) continue; // poison rows: legacy promote-cron sometimes emits orphans
-    if (inflightAccounts.has(row.account_id) && !isParallelSafeScrape(row.action)) continue;
+    if (!row.id) continue;
+    if (!row.account_id && !canRunWithoutAccount(row.action)) continue; // poison rows: legacy promote-cron sometimes emits orphans
+    if (row.account_id && inflightAccounts.has(row.account_id) && !isParallelSafeScrape(row.action)) continue;
     // staleAccounts blocks non-recovery actions; recovery actions (login,
     // register, health, balance, topup) MUST run to refresh stale cookies
     // — without this carve-out, _login rows for stale accounts get blocked
     // by the same flag they exist to clear, and the account stays dead.
     // (Same intent as the filter at stale.ts:31, applied per-row here.)
-    if (staleAccounts.has(row.account_id) && !recoveryRe.test(row.action)) continue;
+    if (row.account_id && staleAccounts.has(row.account_id) && !recoveryRe.test(row.action)) continue;
 
     const claim = await fetch(
       `${SUPABASE_URL}/rest/v1/account_action_logs?id=eq.${row.id}&status=eq.queued`,

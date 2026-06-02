@@ -9,6 +9,7 @@ import { WSession } from '../../dist/session/wsession.js';
 import { humanFill, humanType } from '../../dist/human/keyboard.js';
 import { humanClickLocator, humanIdlePause } from '../../dist/human/mouse.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import { confirmLinkedinEmail } from './_shared/linkedin/checkpoint.mjs';
 import { assertLinkedinAuthenticatedRegistration, assertLinkedinDedicatedIspProxy, assertLinkedinProxyStable, assertLinkedinRegisterProxyRequest, assertNoLinkedinChallengePage, classifyLinkedinRegisterFailure, ensureLinkedinSignupForm, getLinkedinFailureDiagnostics, linkedinRegisterExitCode } from './_shared/linkedin/register_guard.mjs';
@@ -18,6 +19,11 @@ import { fillPostRegisterOnboarding } from './_shared/linkedin/onboarding/work_s
 const URL = 'https://www.linkedin.com/signup';
 
 import { autoBindCharacter } from './lib/character-bind.mjs';
+
+function hashValue(value) {
+  if (typeof value !== 'string' || !value) return null;
+  return createHash('sha256').update(value).digest('hex').slice(0, 16);
+}
 
 async function saveVerifiedLinkedinAccount(session, account) {
   const result = await session.saveAccount('linkedin', account);
@@ -42,17 +48,13 @@ try {
   s = await WSession.start({ label: 'linkedin_register', proxy: requestedProxy, targetHost: 'www.linkedin.com', platform: 'linkedin' });
   id = { first: s.identity.firstName, last: s.identity.lastName, handle: s.identity.username, email: s.identity.email, password: s.identity.password };
   expectedExitIp = s.proxyConfig?.exit_ip ?? '';
-  console.log(`[register] identity: ${id.email} / ${id.first} ${id.last}`);
-  // Persist credentials so a captcha failure mid-run still leaves a way to log in via keeper.
-  try { const { writeFileSync: _wf } = await import('node:fs'); _wf('/tmp/linkedin_register_creds.txt', `email=${id.email}\nhandle=${id.handle}\npassword=${id.password}\nfirst=${id.first}\nlast=${id.last}\nproxy=${requestedProxy}\nts=${new Date().toISOString()}\n`); }
-  catch (e) { console.log(`[register] creds file err: ${e.message?.slice(0, 80)}`); }
+  console.log(`[register] identity generated email_hash=${hashValue(id.email)} handle_hash=${hashValue(id.handle)}`);
   assertLinkedinDedicatedIspProxy(s, requestedProxy);
   await s.goto(URL);
   await humanIdlePause('deliberate');
   expectedExitIp = await assertLinkedinProxyStable(s, 'after_goto', expectedExitIp);
   await assertNoLinkedinChallengePage(s, 'after_goto');
   const { emailLoc, pwdLoc } = await ensureLinkedinSignupForm(s);
-  await s.page.evaluate(() => { for (const el of document.querySelectorAll('input,textarea')) { el.setAttribute('autocomplete','off'); el.value=''; } }).catch(e => console.log(`[register] autofill-disable err: ${e.message?.slice(0, 80)}`));
   await humanFill(s.page, emailLoc, id.email);
   await humanFill(s.page, pwdLoc, id.password);
   console.log(`[register] fill email+pwd: ok`);
@@ -124,11 +126,6 @@ try {
   }
   const verifyUrl = s.page.url();
   console.log(`[register] post-name URL: ${verifyUrl}`);
-  process.env.LINKEDIN_NEW_EMAIL = id.email;
-  process.env.LINKEDIN_NEW_PASSWORD = id.password;
-  process.env.LINKEDIN_NEW_FIRSTNAME = id.first;
-  process.env.LINKEDIN_NEW_LASTNAME = id.last;
-  process.env.LINKEDIN_NEW_USERNAME = id.handle;
   // Reject /signup as success — silent reCAPTCHA-score rejection looks identical.
   expectedExitIp = await assertLinkedinProxyStable(s, 'before_success_validation', expectedExitIp);
   if (/^https?:\/\/www\.linkedin\.com\/signup\/?$/.test(verifyUrl) || verifyUrl.includes('/signup/api/')) {
@@ -158,12 +155,12 @@ try {
   await autoBindCharacter(id.handle, 'linkedin').then(r => console.log(`[bind] ${JSON.stringify(r)}`)).catch((e) => console.log(`[bind] err: ${e.message?.slice(0, 80)}`));
   console.log(`PASS: ${id.handle}`);
   const diagnostics = await getLinkedinFailureDiagnostics(s, requestedProxy, expectedExitIp);
-  try { mkdirSync(join(process.cwd(), 'recordings', 'linkedin_register'), { recursive: true }); writeFileSync(join(process.cwd(), 'recordings', 'linkedin_register', 'ban_signal.json'), JSON.stringify({ action: 'linkedin_register', signal: 'healthy', healthy: true, details: { username: id.handle, email: id.email, final_url: s.page.url(), auth: authState, diagnostics }, ts: new Date().toISOString() }, null, 2)); } catch {}
+  try { mkdirSync(join(process.cwd(), 'recordings', 'linkedin_register'), { recursive: true }); writeFileSync(join(process.cwd(), 'recordings', 'linkedin_register', 'ban_signal.json'), JSON.stringify({ action: 'linkedin_register', signal: 'healthy', healthy: true, details: { username_hash: hashValue(id.handle), email_hash: hashValue(id.email), final_url: s.page.url(), auth: authState, diagnostics }, ts: new Date().toISOString() }, null, 2)); } catch {}
 } catch (e) {
   const finalUrl = s?.page?.url?.() ?? '';
   const sig = classifyLinkedinRegisterFailure(e.message ?? '', finalUrl);
   const diagnostics = s ? await getLinkedinFailureDiagnostics(s, requestedProxy, expectedExitIp).catch(() => null) : { proxy: { requested: requestedProxy.startsWith('http') ? '[url-form]' : requestedProxy.slice(0, 80) } };
-  try { mkdirSync(join(process.cwd(), 'recordings', 'linkedin_register'), { recursive: true }); writeFileSync(join(process.cwd(), 'recordings', 'linkedin_register', 'ban_signal.json'), JSON.stringify({ action: 'linkedin_register', signal: sig, healthy: false, details: { final_url: finalUrl, error: e.message?.slice(0, 200), attempted_email: id.email, expected_exit_ip: expectedExitIp, diagnostics }, ts: new Date().toISOString() }, null, 2)); } catch {}
+  try { mkdirSync(join(process.cwd(), 'recordings', 'linkedin_register'), { recursive: true }); writeFileSync(join(process.cwd(), 'recordings', 'linkedin_register', 'ban_signal.json'), JSON.stringify({ action: 'linkedin_register', signal: sig, healthy: false, details: { final_url: finalUrl, error: e.message?.slice(0, 200), attempted_email_hash: hashValue(id.email), expected_exit_ip: expectedExitIp, diagnostics }, ts: new Date().toISOString() }, null, 2)); } catch {}
   console.log(`FAIL: ${e.message?.slice(0, 200)}`);
   // exitCode (not exit) so the finally block's await s.close() actually runs.
   // process.exit(1) kills pending async ops immediately, which prevents

@@ -18,6 +18,7 @@ import { generateIdentity as genId, type Identity } from '../utils/identity.js';
 import { markSignupSuccess } from '../utils/email/domain.js';
 import { getNumber, pollCode, type SmsNumber } from '../utils/sms.js';
 import { writeFileSync, mkdirSync, copyFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { startInstrumentation } from './wsession-helpers/net_record.js';
 import { join } from 'node:path';
 import { resolveProxy } from '../proxy/config.js';
@@ -40,6 +41,7 @@ export interface WSessionOptions {
   locale?: string;
   persona?: Persona;
   browser?: string;
+  pageDiagnostics?: boolean;
   // When set, WSession.start auto-invokes generateIdentity(platform) and
   // attaches the result to ws.identity. Register trajectories should pass
   // their platform here instead of importing generateIdentity themselves.
@@ -67,6 +69,11 @@ function redactProxyForLog(proxy: unknown): string {
     });
   }
   return String(proxy);
+}
+
+function hashDiagnosticValue(value: unknown): string | null {
+  if (typeof value !== 'string' || value.length === 0) return null;
+  return createHash('sha256').update(value).digest('hex').slice(0, 16);
 }
 
 const asV = (p: any) => p as unknown as ScreenshottablePage;
@@ -161,7 +168,8 @@ export class WSession {
       throw new Error(`proxy_unavailable: requested ${opts.proxy} for ${opts.targetHost ?? 'unknown target'}`);
     }
     const persona: Persona = opts.persona ?? generatePersona({ country: proxy?.country, os: opts.os as Persona['os'] | undefined, browser: opts.browser as Persona['browser'] | undefined });
-    const bOpts: AsyncNewBrowserOptions = { os: persona.os, browser: persona.browser, headless: opts.headless ?? false, recordVideo: opts.record ?? (process.env.WELES_DISABLE_RECORDING !== '1'), locale: opts.locale, persona, proxy };
+    const pageDiagnostics = opts.pageDiagnostics ?? (label !== 'linkedin_register');
+    const bOpts: AsyncNewBrowserOptions = { os: persona.os, browser: persona.browser, headless: opts.headless ?? false, recordVideo: opts.record ?? (process.env.WELES_DISABLE_RECORDING !== '1'), locale: opts.locale, persona, proxy, pageDiagnostics };
     const cp = opts.chromiumPath ?? process.env.CHROMIUM_PATH ?? findCustomBrowser(bOpts.browser);
     if (bOpts.browser === 'chromium' && !cp) throw new Error('Custom Chromium not found. Set CHROMIUM_PATH or install to a known location.');
     if (cp && bOpts.browser === 'chromium') bOpts.chromiumPath = cp;
@@ -171,14 +179,29 @@ export class WSession {
     const cap = new Capture({ newPage: async () => page } as any, label ? recordingsDir(label) : undefined);
     if (label) { const s = new SessionStore(); await s.injectPlaywright(ctx, label).catch(() => {}); }
     const ws = new WSession(ctx, page, label, cap); ws.proxyConfig = bOpts.proxy; ws.personaConfig = persona;
-    if (opts.platform) { ws.identity = await genId(opts.platform); console.log(`[wsession] identity ${ws.identity.email} (${ws.identity.firstName} ${ws.identity.lastName})`); }
+    if (opts.platform) { ws.identity = await genId(opts.platform); console.log(`[wsession] identity generated platform=${opts.platform} username_hash=${hashDiagnosticValue(ws.identity.username)}`); }
     if (bOpts.proxy?.server) {
       try {
         const r = await ctx.request.get('https://api.ipify.org', { timeout: 10_000 });
         if (r.ok()) { const t = (await r.text()).trim(); if (/^[0-9a-fA-F.:]+$/.test(t)) (bOpts.proxy as any).exit_ip = t; }
       } catch {}
     }
-    if (label && bOpts.proxy?.server) { try { const u = new URL(bOpts.proxy.server); writeFileSync(join(recordingsDir(label), 'session_meta.json'), JSON.stringify({ proxy_host: u.hostname, proxy_port: u.port, proxy_user: bOpts.proxy.username?.slice(0, 80), proxy_full: bOpts.proxy.server, exit_ip: bOpts.proxy.exit_ip, platform: bOpts.proxy.platform, provider: (bOpts.proxy as any).provider, started_at: new Date().toISOString() }, null, 2)); } catch {} }
+    if (label && bOpts.proxy?.server) {
+      try {
+        const u = new URL(bOpts.proxy.server);
+        writeFileSync(join(recordingsDir(label), 'session_meta.json'), JSON.stringify({
+          proxy_host: u.hostname,
+          proxy_port: u.port,
+          proxy_user_present: !!bOpts.proxy.username,
+          proxy_user_hash: hashDiagnosticValue(bOpts.proxy.username),
+          proxy_full: bOpts.proxy.server,
+          exit_ip: bOpts.proxy.exit_ip,
+          platform: bOpts.proxy.platform,
+          provider: (bOpts.proxy as any).provider,
+          started_at: new Date().toISOString(),
+        }, null, 2));
+      } catch {}
+    }
     // Complete-record network capture: NO domain filter, NO body truncation.
     // Captures every request/response (utf8 + base64), WebSocket frames in both
     // directions, TCP serverAddr, TLS securityDetails. Runs on every WSession —

@@ -179,6 +179,9 @@ describe('LinkedIn register guard', () => {
     expect(source).toMatch(/process\.exitCode = linkedinRegisterExitCode\(sig\)/);
     expect(source).not.toMatch(/process\.exitCode = e\.message\?\.startsWith\('DETECTION_TRIGGERED'\)/);
     expect(source).toMatch(/DETECTION_TRIGGERED: createAccount challengeUrl/);
+    expect(source).not.toMatch(/linkedin_register_creds|LINKEDIN_NEW_|autocomplete','off'|attempted_email: id\.email|details: \{[^}]*email: id\.email|details: \{[^}]*username: id\.handle/);
+    expect(source).toMatch(/attempted_email_hash/);
+    expect(source).toMatch(/email_hash/);
     expect(source).toMatch(/assertNoLinkedinChallengePage/);
     expect(source).toMatch(/after_submit_email_password/);
     expect(source).toMatch(/after_create_account/);
