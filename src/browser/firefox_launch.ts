@@ -11,7 +11,7 @@
 
 import { firefox, type Browser } from 'playwright';
 import { toFirefoxWelesPrefs, type FingerprintConfig } from '../fingerprint.js';
-import { findCustomBrowser } from '../session/find_browser.js';
+import { customBrowserSearchHint, findCustomBrowser } from '../session/find_browser.js';
 
 interface FirefoxLaunchInput {
   launchOpts: Record<string, any>;
@@ -43,7 +43,12 @@ export async function launchWelesFirefox(input: FirefoxLaunchInput): Promise<Bro
      toFirefoxWelesPrefs(fpConfig));
   // Firefox-specific proxy fix: must be set at launch level too.
   if (proxy) launchOpts.proxy = proxy;
-  const ffBin = findCustomBrowser('firefox');
-  if (ffBin) launchOpts.executablePath = ffBin;
+  if (!launchOpts.executablePath) {
+    const ffBin = findCustomBrowser('firefox');
+    if (ffBin) launchOpts.executablePath = ffBin;
+  }
+  if (!launchOpts.executablePath && process.env.WELES_ALLOW_PLAYWRIGHT_FIREFOX !== '1') {
+    throw new Error(`WELES_FIREFOX_BINARY_NOT_FOUND: ${customBrowserSearchHint('firefox')}. Set WELES_ALLOW_PLAYWRIGHT_FIREFOX=1 only if this host intentionally uses Playwright-managed Firefox.`);
+  }
   return firefox.launch(launchOpts);
 }
