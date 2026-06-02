@@ -29317,6 +29317,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per session: per-page `Storage.attributionReportingTriggerRegistered` event count + per-event registration metadata distribution.
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAF. Per-page form element observation
+
+- **[T]** Per session: per-page `<form>` element count + per-form `action`, `method` ('GET'|'POST'|'DIALOG'), `enctype` ('application/x-www-form-urlencoded'|'multipart/form-data'|'text/plain'), `target`, `autocomplete` ('on'|'off'), `novalidate`, `accept-charset`, `rel`, `name`, `id` distribution.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBG. Per-page input element observation
+
+- **[T]** Per session: per-page `<input>` element count + per-input `type` (`'text'`, `'password'`, `'email'`, `'tel'`, `'url'`, `'search'`, `'number'`, `'range'`, `'date'`, `'time'`, `'datetime-local'`, `'month'`, `'week'`, `'color'`, `'checkbox'`, `'radio'`, `'file'`, `'submit'`, `'reset'`, `'button'`, `'hidden'`, `'image'`), `name`, `id`, `class`, `placeholder`, `required`, `disabled`, `readonly`, `autocomplete`, `autocapitalize`, `autocorrect`, `autofocus`, `inputmode`, `enterkeyhint`, `pattern`, `min`, `max`, `step`, `maxlength`, `minlength`, `multiple`, `list`, `form`, `formaction`, `formmethod`, `formenctype`, `formtarget`, `formnovalidate`, `dirname`, `value`, `defaultValue`, `checked`, `defaultChecked` distribution.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCH. Per-page select element observation
+
+- **[T]** Per session: per-page `<select>` element count + per-select `name`, `multiple`, `size`, `required`, `disabled`, `autofocus`, `form`, `option`-list distribution.
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDI. Per-page textarea element observation
+
+- **[T]** Per session: per-page `<textarea>` element count + per-textarea `rows`, `cols`, `wrap`, `maxlength`, `minlength`, `placeholder`, `required`, `disabled`, `readonly`, `name` distribution.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEJ. Per-page button element observation
+
+- **[T]** Per session: per-page `<button>` element count + per-button `type` (`'submit'`|`'reset'`|`'button'`), `name`, `value`, `disabled`, `autofocus`, `form`, `formaction`, `formenctype`, `formmethod`, `formnovalidate`, `formtarget` distribution.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFK. Per-page iframe element observation
+
+- **[T]** Per session: per-page `<iframe>` element count + per-iframe `src`, `srcdoc`, `name`, `sandbox` (per-flag: `'allow-forms'`|`'allow-modals'`|`'allow-orientation-lock'`|`'allow-pointer-lock'`|`'allow-popups'`|`'allow-popups-to-escape-sandbox'`|`'allow-presentation'`|`'allow-same-origin'`|`'allow-scripts'`|`'allow-storage-access-by-user-activation'`|`'allow-top-navigation'`|`'allow-top-navigation-by-user-activation'`|`'allow-top-navigation-to-custom-protocols'`), `allow`, `allowfullscreen`, `referrerpolicy`, `loading` ('eager'|'lazy'), `csp`, `credentialless`, `width`, `height` distribution.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGL. Per-page img element observation
+
+- **[T]** Per session: per-page `<img>` element count + per-img `src`, `srcset`, `sizes`, `alt`, `width`, `height`, `loading` ('eager'|'lazy'), `decoding` ('sync'|'async'|'auto'), `fetchpriority` ('high'|'low'|'auto'), `crossorigin` ('anonymous'|'use-credentials'), `referrerpolicy`, `ismap`, `usemap`, `srcset` distribution.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHM. Per-page picture element observation
+
+- **[T]** Per session: per-page `<picture>` element count + per-picture `<source>` child element count + per-source `srcset`, `media`, `sizes`, `type`, `width`, `height` distribution.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIN. Per-page video element observation
+
+- **[T]** Per session: per-page `<video>` element count + per-video `src`, `poster`, `controls`, `autoplay`, `loop`, `muted`, `preload` ('none'|'metadata'|'auto'), `playsinline`, `width`, `height`, `crossorigin`, `controlslist`, `disablepictureinpicture`, `disableremoteplayback` distribution.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJO. Per-página audio element observation
+
+- **[T]** Per session: per-page `<audio>` element count + per-audio `src`, `controls`, `autoplay`, `loop`, `muted`, `preload`, `crossorigin`, `controlslist` distribution.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKP. Per-page canvas element observation
+
+- **[T]** Per session: per-page `<canvas>` element count + per-canvas `width`, `height`, `id`, `class`, computed display-size distribution.
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLQ. Per-page object element observation
+
+- **[T]** Per session: per-page `<object>` element count + per-object `data`, `type`, `width`, `height`, `usemap`, `form`, `name` distribution.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMR. Per-page embed element observation
+
+- **[T]** Per session: per-page `<embed>` element count + per-embed `src`, `type`, `width`, `height` distribution.
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNS. Per-page script element observation
+
+- **[T]** Per session: per-page `<script>` element count + per-script `src`, `type` ('text/javascript'|'module'|'importmap'|'speculationrules'|'application/json'|'application/ld+json'), `async`, `defer`, `crossorigin`, `integrity`, `referrerpolicy`, `nomodule`, `nonce`, `blocking` ('render') distribution.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOT. Per-page style element observation
+
+- **[T]** Per session: per-page `<style>` element count + per-style `media`, `nonce`, `type`, `title`, `disabled`, `blocking` distribution + per-style byte size + line count.
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPU. Per-page svg element observation
+
+- **[T]** Per session: per-page `<svg>` element count + per-svg `viewBox`, `width`, `height`, `xmlns`, `preserveAspectRatio`, `version`, `baseProfile` distribution + per-svg child-element-type-count distribution.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQV. Per-página math element observation
+
+- **[T]** Per session: per-page `<math>` element count + per-math child-element-type-count distribution.
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRW. Per-page table element observation
+
+- **[T]** Per session: per-page `<table>` element count + per-table `<thead>` + `<tbody>` + `<tfoot>` + `<tr>` row count + per-row `<td>`/`<th>` cell count distribution.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSX. Per-page ul/ol/dl element observation
+
+- **[T]** Per session: per-page `<ul>` + `<ol>` + `<dl>` element count + per-list `<li>` + `<dt>` + `<dd>` child-count distribution.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTY. Per-page detail/summary element observation
+
+- **[T]** Per session: per-page `<details>` + `<summary>` element count + per-details `open` boolean distribution.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUZ. Per-page dialog element observation
+
+- **[T]** Per session: per-page `<dialog>` element count + per-dialog `open` boolean + `closedby` ('any'|'closerequest'|'none') distribution.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV1. Per-page slot element observation
+
+- **[T]** Per session: per-page `<slot>` element count + per-slot `name` distribution + per-shadow-root assigned-node count.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW2. Per-page template element observation
+
+- **[T]** Per session: per-page `<template>` element count + per-template `shadowrootmode` ('open'|'closed'), `shadowrootdelegatesfocus`, `shadowrootclonable`, `shadowrootserializable` distribution.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX3. Per-page custom element observation
+
+- **[T]** Per session: per-page custom-element (tagName containing `-`) count + per-custom-tagName distribution + `customElements.get(name)` defined boolean snapshot.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY4. Per-page header/footer/nav/aside/section/article observation
+
+- **[T]** Per session: per-page `<header>` + `<footer>` + `<nav>` + `<aside>` + `<section>` + `<article>` + `<main>` + `<address>` + `<figure>` + `<figcaption>` element count distribution.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ5. Per-página input autofill state observation
+
+- **[T]** Per session: per-page per-`<input>` `:autofill` pseudo-class match boolean (signals which fields were autofilled by the password manager).
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
