@@ -27,6 +27,7 @@ describe('LinkedIn register guard', () => {
     expect(classifyLinkedinRegisterFailure('x', 'https://www.linkedin.com/checkpoint/challenge')).toBe('captcha_challenge');
     expect(classifyLinkedinRegisterFailure('signup_did_not_authenticate: stage=test', 'https://www.linkedin.com/feed/')).toBe('registration_not_accepted');
     expect(classifyLinkedinRegisterFailure('signup_verification_incomplete: stage=test', 'https://www.linkedin.com/feed/')).toBe('registration_not_accepted');
+    expect(classifyLinkedinRegisterFailure('signup_verification_incomplete: stage=test', 'https://www.linkedin.com/checkpoint/email-verification')).toBe('registration_not_accepted');
     expect(classifyLinkedinRegisterFailure('signup_form_unavailable: {}', 'https://www.linkedin.com/')).toBe('form_unavailable');
   });
 
