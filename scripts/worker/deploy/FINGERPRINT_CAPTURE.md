@@ -32541,6 +32541,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per session: per-page Wisent `/api/sms` endpoint per-call provider + country distribution.
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB2. Per-page WebDriver classic command observation
+
+- **[T]** Per session: per-page W3C WebDriver per-command (`newSession`, `deleteSession`, `getStatus`, `getTimeouts`, `setTimeouts`, `navigateTo`, `getCurrentUrl`, `back`, `forward`, `refresh`, `getTitle`, `getWindowHandle`, `closeWindow`, `switchToWindow`, `getWindowHandles`, `newWindow`, `switchToFrame`, `switchToParentFrame`, `getWindowRect`, `setWindowRect`, `maximizeWindow`, `minimizeWindow`, `fullscreenWindow`, `getActiveElement`, `getElementShadowRoot`, `findElement`, `findElements`, `findElementFromElement`, `findElementsFromElement`, `findElementFromShadowRoot`, `findElementsFromShadowRoot`, `isElementSelected`, `getElementAttribute`, `getElementProperty`, `getElementCSSValue`, `getElementText`, `getElementTagName`, `getElementRect`, `isElementEnabled`, `getComputedRole`, `getComputedLabel`, `elementClick`, `elementClear`, `elementSendKeys`, `getPageSource`, `executeScript`, `executeAsyncScript`, `getAllCookies`, `getNamedCookie`, `addCookie`, `deleteCookie`, `deleteAllCookies`, `performActions`, `releaseActions`, `dismissAlert`, `acceptAlert`, `getAlertText`, `sendAlertText`, `takeScreenshot`, `takeElementScreenshot`, `print`) invocation count distribution.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB2. Per-page Selenium WebDriver per-class invocation observation
+
+- **[T]** Per session: per-page Selenium per-class (`webdriver.Chrome`, `webdriver.Firefox`, `webdriver.Safari`, `webdriver.Edge`, `webdriver.Remote`) constructor invocation count distribution.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC2. Per-page Puppeteer per-class invocation observation
+
+- **[T]** Per session: per-page Puppeteer per-class (`puppeteer.launch`, `puppeteer.connect`, `Browser.newPage`, `Page.goto`, `Page.click`, `Page.type`, `Page.evaluate`, `Page.screenshot`, `Page.pdf`, `Page.waitForSelector`, `Page.waitForFunction`, `Page.cookies`, `Page.setCookie`) invocation count distribution.
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD2. Per-page BiDi WebDriver command observation
+
+- **[T]** Per session: per-page WebDriver BiDi (`browsingContext.create`, `browsingContext.navigate`, `browsingContext.captureScreenshot`, `browsingContext.handleUserPrompt`, `browsingContext.getTree`, `browsingContext.close`, `browsingContext.activate`, `browsingContext.reload`, `browsingContext.print`, `browsingContext.setViewport`, `browsingContext.locateNodes`, `script.evaluate`, `script.callFunction`, `script.disown`, `script.getRealms`, `script.addPreloadScript`, `script.removePreloadScript`, `network.continueRequest`, `network.continueResponse`, `network.continueWithAuth`, `network.failRequest`, `network.provideResponse`, `network.addIntercept`, `network.removeIntercept`, `storage.getCookies`, `storage.setCookie`, `storage.deleteCookies`, `input.performActions`, `input.releaseActions`, `input.setFiles`, `session.subscribe`, `session.unsubscribe`, `session.end`) invocation count distribution.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE2. Per-page Marionette protocol observation
+
+- **[T]** Per session: per-page Firefox Marionette per-command (`newSession`, `getMarionetteID`, `getCapabilities`, `setContext`, `getContext`, `executeScript`, `executeAsyncScript`, `findElement`, `findElements`, `click`, `singleTap`, `actionChain`, `multiAction`, `getElementText`, `getElementAttribute`, `getElementProperty`, `isElementSelected`, `isElementEnabled`, `isElementDisplayed`, `getElementTagName`, `getElementRect`, `sendKeysToElement`, `clearElement`, `get`, `getCurrentUrl`, `goBack`, `goForward`, `refresh`, `quitApplication`, `installAddon`, `uninstallAddon`) invocation count distribution.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF2. Per-page Juggler protocol observation
+
+- **[T]** Per session: per-page Playwright Firefox Juggler per-method invocation count distribution.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG2. Per-page Webkit Inspector protocol observation
+
+- **[T]** Per session: per-page WebKit Inspector per-method invocation count distribution.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH2. Per-page Camoufox protocol observation
+
+- **[T]** Per session: per-page Camoufox per-command invocation count distribution.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII2. Per-page undetected-chromedriver observation
+
+- **[T]** Per session: per-page undetected-chromedriver patches applied count.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ-1. Per-página puppeteer-extra-plugin-stealth observation
+
+- **[T]** Per session: per-page puppeteer-extra-plugin-stealth applied-evasion list distribution.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK-2. Per-page playwright-stealth observation
+
+- **[T]** Per session: per-page playwright-stealth applied-evasion list distribution.
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL-3. Per-page Chromium DevTools Console.evaluation observation
+
+- **[T]** Per session: per-page CDP `Runtime.evaluate({expression})` per-call invocation count + per-call returned-type distribution.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM-4. Per-page Chromium DevTools Console.callFunctionOn observation
+
+- **[T]** Per session: per-page CDP `Runtime.callFunctionOn({objectId, functionDeclaration, arguments})` per-call invocation count distribution.
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN-5. Per-page Chromium DevTools Console.getProperties observation
+
+- **[T]** Per session: per-page CDP `Runtime.getProperties({objectId, ownProperties, accessorPropertiesOnly, generatePreview})` per-call invocation count + per-call returned-property count distribution.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO-6. Per-page Chromium DevTools Console.releaseObjectGroup observation
+
+- **[T]** Per session: per-page CDP `Runtime.releaseObjectGroup({objectGroup})` per-call invocation count distribution.
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP-7. Per-page Chromium DevTools Debugger.setBreakpoint observation
+
+- **[T]** Per session: per-page CDP `Debugger.setBreakpointByUrl({lineNumber, url, urlRegex, scriptHash, columnNumber, condition})` + `Debugger.setBreakpoint({location, condition})` per-call invocation count distribution.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ-8. Per-página Chromium DevTools Debugger.removeBreakpoint observation
+
+- **[T]** Per session: per-page CDP `Debugger.removeBreakpoint({breakpointId})` per-call invocation count distribution.
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR-9. Per-page Chromium DevTools Debugger.stepOver observation
+
+- **[T]** Per session: per-page CDP `Debugger.stepOver()` + `Debugger.stepInto()` + `Debugger.stepOut()` + `Debugger.resume()` + `Debugger.pause()` per-call invocation count distribution.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS-10. Per-page Chromium DevTools Profiler.start observation
+
+- **[T]** Per session: per-page CDP `Profiler.start()` + `Profiler.stop()` per-call invocation count + per-call returned-CPU-profile node-count distribution.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT-11. Per-page Chromium DevTools Tracing.start observation
+
+- **[T]** Per session: per-page CDP `Tracing.start({categories, options, bufferUsageReportingInterval, transferMode, streamFormat, traceConfig})` + `Tracing.end()` per-call invocation count + per-call trace-buffer byte distribution.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU-12. Per-page Chromium DevTools Tracing.tracingComplete observation
+
+- **[T]** Per session: per-page CDP `Tracing.tracingComplete` event per-stream handle + dataLossOccurred + traceFormat distribution.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV-13. Per-page Chromium DevTools Audits.checkContrast observation
+
+- **[T]** Per session: per-page CDP `Audits.checkContrast()` per-call invocation count.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW-14. Per-page Chromium DevTools Audits.checkFormsIssues observation
+
+- **[T]** Per session: per-page CDP `Audits.checkFormsIssues()` per-call invocation count.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX-15. Per-page Chromium DevTools Animation.setPlaybackRate observation
+
+- **[T]** Per session: per-page CDP `Animation.setPlaybackRate({playbackRate})` per-call invocation count + per-call rate distribution.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY-16. Per-page Chromium DevTools Browser.crash observation
+
+- **[T]** Per session: per-page CDP `Browser.crash()` + `Browser.crashGpuProcess()` per-call invocation count.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ-17. Per-página Chromium DevTools Tracing.getCategories observation
+
+- **[T]** Per session: per-page CDP `Tracing.getCategories()` returned per-category list distribution.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
