@@ -31,6 +31,24 @@ if ! git diff --quiet HEAD --; then
   exit 0
 fi
 
+# Keep GitHub tokens out of git remote URLs. If an older host has a tokenized
+# origin URL, move that credential into the OS credential helper and rewrite the
+# remote before the next fetch. This keeps deploy working for private repos
+# without leaving the secret in routine command/log/transcript output.
+ORIGIN_URL=$(git remote get-url origin 2>/dev/null || true)
+case "$ORIGIN_URL" in
+  https://x-access-token:*@github.com/wisent-ai/weles.git)
+    GITHUB_REMOTE_TOKEN="${ORIGIN_URL#https://x-access-token:}"
+    GITHUB_REMOTE_TOKEN="${GITHUB_REMOTE_TOKEN%@github.com/wisent-ai/weles.git}"
+    git config --global credential.helper osxkeychain
+    printf 'protocol=https\nhost=github.com\nusername=x-access-token\npassword=%s\n\n' "$GITHUB_REMOTE_TOKEN" | git credential approve
+    printf 'protocol=https\nhost=github.com\npath=wisent-ai/weles\nusername=x-access-token\npassword=%s\n\n' "$GITHUB_REMOTE_TOKEN" | git credential approve
+    git remote set-url origin https://github.com/wisent-ai/weles.git
+    unset GITHUB_REMOTE_TOKEN
+    log "github-auth: moved origin credential into helper and scrubbed remote URL"
+    ;;
+esac
+
 # Ensure the gcloud CLI has an active service account so the worker's
 # `gcloud storage cp` calls in scripts/trajectories/*/persist*.mjs can
 # upload artifacts to GCS without a manual `gcloud auth login`. This

@@ -41,14 +41,15 @@ trap 'rm -rf "$TMP"' EXIT
 echo "[download-chromium] Fetching $ASSET from $REPO@$RELEASE_TAG" >&2
 
 # wisent-ai/weles is PRIVATE, so the plain releases/download URL 404s without
-# auth. Resolve a GitHub token (explicit env, else the token baked into the
-# weles git remote — the same creds auto-deploy already uses to pull main).
-REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+# auth. Use gh when present, otherwise require a token from the environment or
+# git's credential helper. Do not read credentials from git remote URLs; those
+# URLs are routinely logged by humans and tools.
 gh_token() {
   if [[ -n "${GH_TOKEN:-}" ]]; then printf '%s' "$GH_TOKEN"; return 0; fi
   if [[ -n "${GITHUB_TOKEN:-}" ]]; then printf '%s' "$GITHUB_TOKEN"; return 0; fi
-  git -C "$REPO_ROOT" remote get-url origin 2>/dev/null \
-    | sed -n 's#.*://[^:]*:\([^@]*\)@.*#\1#p'
+  printf 'protocol=https\nhost=github.com\npath=%s\n\n' "$REPO" \
+    | git credential fill 2>/dev/null \
+    | awk -F= '/^password=/ { print $2; exit }'
 }
 
 # Fetch one release asset to $2. Prefers gh; otherwise the GitHub assets API
@@ -61,7 +62,7 @@ fetch_asset() {
   fi
   local tok; tok="$(gh_token)"
   if [[ -z "$tok" ]]; then
-    echo "ERROR: no gh CLI and no token (set GH_TOKEN) to read private release $REPO@$RELEASE_TAG" >&2
+    echo "ERROR: no gh CLI and no token (set GH_TOKEN/GITHUB_TOKEN or git credential helper) to read private release $REPO@$RELEASE_TAG" >&2
     return 1
   fi
   local aid
