@@ -98,11 +98,15 @@ export async function ensureLinkedinSignupForm(session, maxAttempts = 3) {
 export async function assertLinkedinProxyStable(session, stage, expectedExitIp = '') {
   if (!session.proxyConfig?.server) throw new Error('PROXY_REQUIRED: linkedin_register requires proxied dedicated ISP traffic');
   let actual = '';
+  let probePage = null;
   try {
-    const res = await session.ctx.request.get('https://api.ipify.org', { timeout: 10000 });
-    if (res.ok()) actual = (await res.text()).trim();
+    probePage = await session.ctx.newPage();
+    await probePage.goto('https://api.ipify.org', { waitUntil: 'domcontentloaded', timeout: 15000 });
+    actual = (await probePage.locator('body').innerText({ timeout: 5000 })).trim();
   } catch (e) {
     throw new Error(`PROXY_DRIFT_CHECK_FAILED: stage=${stage} err=${e.message?.slice(0, 120)}`);
+  } finally {
+    await probePage?.close?.().catch(() => {});
   }
   const expected = expectedExitIp || session.proxyConfig.exit_ip || actual;
   if (expected && actual && expected !== actual) {
