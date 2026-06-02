@@ -123,6 +123,8 @@ describe('LinkedIn register guard', () => {
     expect(source).toMatch(/saveVerifiedLinkedinAccount/);
     expect(source).toMatch(/ACCOUNT_PERSIST_FAILED/);
     expect(source).toMatch(/getLinkedinFailureDiagnostics/);
+    expect(source).toMatch(/after_onboarding[\s\S]*saveVerifiedLinkedinAccount[\s\S]*PASS:/);
+    expect(source.slice(0, source.indexOf('after_onboarding'))).not.toMatch(/PASS:/);
     expect(source).not.toMatch(/post-redirect URL|persisted .*cookies/);
   });
 });
