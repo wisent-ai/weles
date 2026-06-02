@@ -346,5 +346,16 @@ describe('LinkedIn register guard', () => {
     expect(source).toMatch(/clicked_signup_link/);
     expect(source).toMatch(/clicked_signup_affordance/);
     expect(source.indexOf('^Join now$')).toBeLessThan(source.indexOf('^Sign up$'));
+    expect(source).toMatch(/LINKEDIN_REGISTER_PREWARM_URLS/);
+    expect(source).toMatch(/guest_prewarm_diagnostics/);
+    expect(source).toMatch(/prewarmLinkedinGuestSession/);
+    expect(source).toMatch(/new URL\(s, 'https:\/\/www\.linkedin\.com\/'\)/);
+    expect(source).toMatch(/submit2_diagnostics/);
+    expect(source).toMatch(/before_create_account/);
+    expect(source).toMatch(/after_create_account/);
+    expect(source).toMatch(/headers_redacted/);
+    expect(source).toMatch(/post_data_json_shape/);
+    expect(source).toMatch(/has_recaptcha/);
+    expect(source).toMatch(/redacted_truncated/);
   });
 });
