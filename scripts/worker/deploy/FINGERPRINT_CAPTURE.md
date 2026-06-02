@@ -27029,6 +27029,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per session: per-`log show --subsystem com.apple.security.trustedpeers` trusted-peers / iCloud-Keychain log-entry count.
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB. Per-page cgroup v2 cpu.stat
+
+- **[T]** Per session: per-`/sys/fs/cgroup/<cgroup>/cpu.stat` snapshot — `usage_usec`, `user_usec`, `system_usec`, `nr_periods`, `nr_throttled`, `throttled_usec` distribution.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBC. Per-page cgroup v2 cpu.weight
+
+- **[T]** Per session: per-`/sys/fs/cgroup/<cgroup>/cpu.weight` + `cpu.weight.nice` + `cpu.max` + `cpu.pressure` snapshot.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCD. Per-page cgroup v2 memory.current
+
+- **[T]** Per session: per-`/sys/fs/cgroup/<cgroup>/memory.current` + `memory.max` + `memory.low` + `memory.high` + `memory.swap.current` + `memory.swap.max` snapshot.
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDE. Per-page cgroup v2 memory.stat
+
+- **[T]** Per session: per-`/sys/fs/cgroup/<cgroup>/memory.stat` snapshot — per-line key/value (`anon`, `file`, `kernel`, `slab`, `sock`, `shmem`, `file_mapped`, `file_dirty`, `file_writeback`, `pgfault`, `pgmajfault`) distribution.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEF. Per-page cgroup v2 io.stat
+
+- **[T]** Per session: per-`/sys/fs/cgroup/<cgroup>/io.stat` snapshot — per-major:minor (`rbytes`, `wbytes`, `rios`, `wios`, `dbytes`, `dios`) distribution.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFG. Per-page cgroup v2 io.max
+
+- **[T]** Per session: per-`/sys/fs/cgroup/<cgroup>/io.max` + `io.weight` + `io.cost.qos` + `io.cost.model` snapshot.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGH. Per-page cgroup v2 pids.current
+
+- **[T]** Per session: per-`/sys/fs/cgroup/<cgroup>/pids.current` + `pids.max` + `pids.events` snapshot.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHI. Per-page cgroup v2 cpu.idle
+
+- **[T]** Per session: per-`/sys/fs/cgroup/<cgroup>/cpu.idle` + `cpuset.cpus` + `cpuset.mems` + `cpuset.cpus.effective` + `cpuset.mems.effective` snapshot.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIJ. Per-page cgroup v2 hugetlb
+
+- **[T]** Per session: per-`/sys/fs/cgroup/<cgroup>/hugetlb.<size>.current` + `hugetlb.<size>.max` + `hugetlb.<size>.events` snapshot.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJK. Per-página eBPF program list bpftool prog show
+
+- **[T]** Per session: per-`bpftool prog show` snapshot — per-loaded-program `id`, `type` ('KPROBE'|'TRACEPOINT'|'XDP'|'SCHED_CLS'|'SOCK_FILTER'|'SOCK_OPS'|'CGROUP_SKB'|'CGROUP_SOCK'|'PERF_EVENT'|'LSM'), `name`, `tag`, `jited`, `loaded_at` distribution.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKL. Per-page eBPF map list bpftool map show
+
+- **[T]** Per session: per-`bpftool map show` snapshot — per-map `id`, `type`, `name`, `key_size`, `value_size`, `max_entries`, `flags` distribution.
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLM. Per-page eBPF link list bpftool link show
+
+- **[T]** Per session: per-`bpftool link show` snapshot — per-link `id`, `type`, `prog_id`, `tracing.attach_type` distribution.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMN. Per-page eBPF perf-event list bpftool perf show
+
+- **[T]** Per session: per-`bpftool perf show` snapshot — per-perf-event `prog_id`, `attach_to` distribution.
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNO. Per-page eBPF cgroup attached programs bpftool cgroup tree
+
+- **[T]** Per session: per-`bpftool cgroup tree` snapshot — per-cgroup attached-program list + attach-type distribution.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOP. Per-page eBPF net link list bpftool net show
+
+- **[T]** Per session: per-`bpftool net show` snapshot — per-iface XDP/tc-attached eBPF program count distribution.
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPQ. Per-page AppleEvent class+id observation
+
+- **[T]** Per session: per-AppleEvent class (`'aevt'|'core'|'misc'|'GURL'|'odoc'|'pdoc'|'oapp'|'rapp'|'quit'`) + id (`'oapp'|'odoc'|'pdoc'|'rapp'|'GURL'|'quit'`) per-target-app invocation count + per-event responding-app distribution.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQR. Per-página XPC service registration launchctl list
+
+- **[T]** Per session: per-`launchctl list` snapshot — per-launchd service `Label`, `PID`, `LastExitStatus` distribution; signals which background services are running on the host.
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRS. Per-page Mach port list lsmp -p
+
+- **[T]** Per session: per-`lsmp -p <pid>` snapshot — per-Mach-port `name`, `right`, `urefs`, `nsrequest`, `nodrop`, `iname` distribution.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSST. Per-page kqueue / kevent list lsof -p
+
+- **[T]** Per session: per-`lsof -p <pid>` snapshot — per-FD `FD`, `TYPE` ('REG'|'CHR'|'BLK'|'DIR'|'IPv4'|'IPv6'|'KQUEUE'|'PSXSHM'|'systm'|'unix'|'FIFO'|'PIPE'|'NPOLICY'|'NEXUS'|'CHAN'|'KQUEUE'|'POSIX'|'PSXSEM'), `DEVICE`, `SIZE/OFF`, `NODE`, `NAME` distribution.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTU. Per-page CodeSign team-identifier observation
+
+- **[T]** Per session: per-`codesign -dvvv --extract-certificates=/tmp/cert /path/to/Chromium.app` snapshot — TeamIdentifier + Authority + Identifier + Format + CodeDirectory + Signature size + sha256 hash + DesignatedRequirement distribution.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUV. Per-page Gatekeeper assessment spctl
+
+- **[T]** Per session: per-`spctl --assess --verbose=4 /path/to/Chromium.app` snapshot — assessment verdict + source authority + signing-time + bundle-identifier distribution.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVW. Per-page macOS NSXPCConnection per-connection observation
+
+- **[T]** Per session: per-`NSXPCConnection` (Foundation XPC) snapshot — per-process XPC-connection count + per-connection `serviceName` + `endpoint` + `interface` distribution.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWX. Per-page macOS distributed-notification observation
+
+- **[T]** Per session: per-`NSDistributedNotificationCenter` registered-observer count + per-notification-name distribution; signals system-wide event subscribers.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXY. Per-page macOS userdefaults observation
+
+- **[T]** Per session: per-`defaults read NSGlobalDomain` snapshot — per-key-value (`AppleInterfaceStyle`, `AppleLanguages`, `AppleLocale`, `AppleMeasurementUnits`, `AppleMetricUnits`, `NSAutomaticCapitalizationEnabled`, `NSAutomaticDashSubstitutionEnabled`, `NSAutomaticPeriodSubstitutionEnabled`, `NSAutomaticQuoteSubstitutionEnabled`, `NSAutomaticSpellingCorrectionEnabled`, `NSAutomaticTextCompletionEnabled`) snapshot.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYZ. Per-page macOS LaunchServices URL handler observation
+
+- **[T]** Per session: per-`/usr/libexec/PlistBuddy -c "Print" ~/Library/Preferences/com.apple.LaunchServices/com.apple.launchservices.secure.plist` snapshot — per-bundle-identifier registered URL-scheme + content-type handler distribution.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ1. Per-página macOS DiskArbitration observation
+
+- **[T]** Per session: per-`DiskArbitration.framework` registered-callback count + per-disk-event ('disk-appeared'|'disk-disappeared'|'disk-mount'|'disk-unmount'|'disk-eject'|'disk-rename') subscription distribution.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
