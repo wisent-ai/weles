@@ -45,7 +45,9 @@ describe('LinkedIn register guard', () => {
     expect(() => assertLinkedinDedicatedIspProxy({ proxyConfig: { server: 'http://pr.oxylabs.io:7777', username: 'customer-x-cc-us-sessid-1' } }, 'http://x')).toThrow(/PROXY_NOT_DEDICATED_ISP/);
     expect(() => assertLinkedinDedicatedIspProxy({ proxyConfig: { server: 'http://127.0.0.1:8001', proxy_type: 'residential' } }, 'isp decodo us')).toThrow(/PROXY_NOT_DEDICATED_ISP/);
     expect(() => assertLinkedinDedicatedIspProxy({ proxyConfig: { server: 'http://127.0.0.1:8001', proxy_type: 'url_unclassified' } }, 'http://user:pass@proxy.example.test:8001')).toThrow(/PROXY_NOT_DEDICATED_ISP/);
-    expect(() => assertLinkedinDedicatedIspProxy(fakeSession('1.1.1.1'), 'isp oxylabs us')).not.toThrow();
+    expect(() => assertLinkedinDedicatedIspProxy(fakeSession('1.1.1.1'), 'isp oxylabs us')).toThrow(/retired_linkedin_proxy/);
+    expect(() => assertLinkedinDedicatedIspProxy({ proxyConfig: { server: 'http://isp.oxylabs.io:8003', proxy_type: 'isp' } }, 'isp decodo us')).toThrow(/retired_linkedin_proxy/);
+    expect(() => assertLinkedinDedicatedIspProxy({ proxyConfig: { server: 'http://127.0.0.1:8001', provider: 'oxylabs', proxy_type: 'isp' } }, 'isp decodo us')).toThrow(/retired_linkedin_proxy/);
     expect(() => assertLinkedinDedicatedIspProxy({ proxyConfig: { server: 'http://127.0.0.1:8001', proxy_type: 'isp' } }, 'isp decodo us')).not.toThrow();
   });
 
