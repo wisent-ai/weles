@@ -152,16 +152,11 @@ export async function verifyExitReputation(exitIp: string): Promise<{ result: Re
   }
 }
 
-// LinkedIn edge-classifier probe. Cited from 2026-05-04 8-sticky test:
-// LinkedIn returns ~52KB body containing name="session_key" when its
-// anti-bot path lets the request through; ~411-505KB body without form
-// markers when the anti-bot path serves the PerimeterX/reCAPTCHA challenge
-// page. Same exit IP that returns the form to plain curl returns the
-// challenge page to curl-with-Chrome-headers, so the probe MUST send the
-// same UA + sec-ch-ua headers Chromium sends — otherwise we false-positive
-// on stickies that pass plain curl but fail Chromium.
+// LinkedIn register edge-classifier probe. This must hit the same surface as
+// the register trajectory: /signup with browser navigation headers. /login is
+// only a loose IP-trust hint and can false-positive for registration.
 export type LinkedInProbeResult = 'form' | 'challenge' | 'unknown';
-export async function probeLinkedinLogin(proxyUrl: string, secs = 8): Promise<{
+export async function probeLinkedinSignup(proxyUrl: string, secs = 8): Promise<{
   result: LinkedInProbeResult;
   bytes?: number;
   request?: {
@@ -188,7 +183,8 @@ export async function probeLinkedinLogin(proxyUrl: string, secs = 8): Promise<{
   body_markers?: {
     login_form: boolean;
     signup_form: boolean;
-    challenge: boolean;
+    hard_challenge: boolean;
+    challenge_terms: boolean;
   };
   response_body?: {
     encoding: 'utf8';
@@ -200,15 +196,23 @@ export async function probeLinkedinLogin(proxyUrl: string, secs = 8): Promise<{
   error?: string;
 }> {
   if (!proxyUrl) return { result: 'unknown' };
-  const targetUrl = 'https://www.linkedin.com/login';
+  const targetUrl = 'https://www.linkedin.com/signup';
   const ua = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36';
   const headers: Record<string, string> = {
     'User-Agent': ua,
-    'sec-ch-ua': '"Google Chrome";v="147", "Not.A/Brand";v="8", "Chromium";v="147"',
+    Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+    'Accept-Language': 'en-US,en;q=0.9',
+    'Cache-Control': 'no-cache',
+    Pragma: 'no-cache',
+    Priority: 'u=0, i',
+    'sec-ch-ua': '"Chromium";v="147", "Not.A/Brand";v="8"',
     'sec-ch-ua-mobile': '?0',
     'sec-ch-ua-platform': '"macOS"',
-    Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9',
-    'Accept-Language': 'en-US,en;q=0.9',
+    'sec-fetch-dest': 'document',
+    'sec-fetch-mode': 'navigate',
+    'sec-fetch-site': 'none',
+    'sec-fetch-user': '?1',
+    'Upgrade-Insecure-Requests': '1',
   };
   const headerOrder = Object.keys(headers);
   const request = {
@@ -229,7 +233,7 @@ export async function probeLinkedinLogin(proxyUrl: string, secs = 8): Promise<{
     const features = lines.find(l => l.startsWith('Features:'));
     curlFeatures = features ? features.replace(/^Features:\s*/, '').split(/\s+/).filter(Boolean) : [];
 
-    const args = ['-sS', '--max-time', String(secs), '-x', proxyUrl,
+    const args = ['-sS', '--compressed', '--max-time', String(secs), '-x', proxyUrl,
       ...headerOrder.flatMap((name) => ['-H', `${name}: ${headers[name]}`]),
       '-w', '\n__CURL_META__%{json}',
       targetUrl];
@@ -252,7 +256,8 @@ export async function probeLinkedinLogin(proxyUrl: string, secs = 8): Promise<{
     const bodyMarkers = {
       login_form: /name="session_key"|id="username"|input type="email"/.test(body),
       signup_form: /name="email-address"|id="email-address"|join-form-submit/.test(body),
-      challenge: /checkpoint|challenge|captcha|recaptcha|security/i.test(body),
+      hard_challenge: /challenge-dialog|Security verification|checkpoint\/challenge|challengeIframe|g-recaptcha|google\.com\/recaptcha\/enterprise\/anchor|li\.protechts\.net|px-cloud/i.test(body),
+      challenge_terms: /checkpoint|challenge|captcha|recaptcha|security/i.test(body),
     };
     const transport = {
       curl_version: curlVersion,
@@ -267,8 +272,8 @@ export async function probeLinkedinLogin(proxyUrl: string, secs = 8): Promise<{
       time_starttransfer: typeof meta.time_starttransfer === 'number' ? meta.time_starttransfer : undefined,
       time_total: typeof meta.time_total === 'number' ? meta.time_total : undefined,
     };
-    if (bodyMarkers.login_form || bodyMarkers.signup_form) return { result: 'form', bytes, request, transport, body_markers: bodyMarkers, response_body: responseBody };
-    return { result: bodyMarkers.challenge ? 'challenge' : 'unknown', bytes, request, transport, body_markers: bodyMarkers, response_body: responseBody };
+    if (bodyMarkers.signup_form && !bodyMarkers.hard_challenge) return { result: 'form', bytes, request, transport, body_markers: bodyMarkers, response_body: responseBody };
+    return { result: bodyMarkers.hard_challenge ? 'challenge' : 'unknown', bytes, request, transport, body_markers: bodyMarkers, response_body: responseBody };
   } catch (e: any) {
     return {
       result: 'unknown',
