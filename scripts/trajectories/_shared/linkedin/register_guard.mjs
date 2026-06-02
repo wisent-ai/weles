@@ -120,6 +120,7 @@ export function summarizeLinkedinProxyState(session, requestedProxy = '', expect
     server_port: serverPort,
     server_scheme: serverScheme,
     provider: cfg.provider ?? '',
+    proxy_type: cfg.proxy_type ?? '',
     platform: cfg.platform ?? '',
     country: cfg.country ?? '',
     expected_exit_ip: expectedExitIp || '',
@@ -222,8 +223,12 @@ export function assertLinkedinDedicatedIspProxy(session, requestedProxy = '') {
   const server = String(session.proxyConfig?.server ?? '').toLowerCase();
   const username = String(session.proxyConfig?.username ?? '').toLowerCase();
   const proxyType = String(session.proxyConfig?.proxy_type ?? '').toLowerCase();
+  const isUrlForm = /^(https?:|socks)/.test(raw);
   if (/\b(residential|mobile|datacenter)\b/.test(raw) && !/\bisp\b/.test(raw)) {
     throw new Error(`PROXY_NOT_DEDICATED_ISP: requested=${raw.slice(0, 80)}`);
+  }
+  if (isUrlForm && !proxyType) {
+    throw new Error('PROXY_NOT_DEDICATED_ISP: unclassified_url_proxy');
   }
   if (proxyType && proxyType !== 'isp') {
     throw new Error(`PROXY_NOT_DEDICATED_ISP: proxy_type=${proxyType}`);

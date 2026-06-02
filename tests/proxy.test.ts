@@ -79,4 +79,9 @@ describe('resolveProxy URL policy', () => {
     await expect(resolveProxy('http://user:pass@isp.oxylabs.io:8003', 'www.linkedin.com')).resolves.toBeUndefined();
     await expect(resolveProxy('http://user:pass@proxy.example.test:7777', 'www.linkedin.com')).resolves.toBeUndefined();
   });
+
+  it('marks accepted URL-form proxies as unclassified', async () => {
+    await expect(resolveProxy('http://user:pass@proxy.example.test:8001', 'www.linkedin.com'))
+      .resolves.toMatchObject({ proxy_type: 'url_unclassified' });
+  });
 });
