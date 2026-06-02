@@ -26821,6 +26821,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per session: per-`chrome.processes.getProcessInfo()` snapshot — per-Chrome-process `osProcessId` + `cpu` + `network` + `privateMemory` + `jsMemoryAllocated` + `jsMemoryUsed` distribution.
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB. Per-page node.js core-module path
+
+- **[T]** Per session: per-`require('path')` invocation count + per-method (`path.join`, `path.resolve`, `path.dirname`, `path.basename`, `path.extname`, `path.parse`, `path.normalize`, `path.relative`, `path.isAbsolute`) count distribution.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBC. Per-page node.js core-module url
+
+- **[T]** Per session: per-`new URL()` constructor count + per-property access (`.href`, `.origin`, `.protocol`, `.host`, `.hostname`, `.port`, `.pathname`, `.search`, `.hash`, `.username`, `.password`) count.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCD. Per-page node.js core-module querystring
+
+- **[T]** Per session: per-`require('querystring')` `.parse()` + `.stringify()` + `.escape()` + `.unescape()` invocation count.
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDE. Per-page node.js core-module buffer
+
+- **[T]** Per session: per-`Buffer.from()` + `Buffer.alloc()` + `Buffer.allocUnsafe()` + `Buffer.concat()` + `Buffer.isBuffer()` invocation count + per-call byte-size distribution.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEF. Per-page node.js core-module fs
+
+- **[T]** Per session: per-`fs.readFileSync` + `fs.writeFileSync` + `fs.existsSync` + `fs.mkdirSync` + `fs.readdirSync` + `fs.statSync` + `fs.unlinkSync` + `fs.copyFileSync` + `fs.appendFileSync` invocation count + per-call path snapshot.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFG. Per-page node.js core-module fs/promises
+
+- **[T]** Per session: per-`fs.promises.readFile` + `writeFile` + `mkdir` + `readdir` + `stat` + `unlink` + `copyFile` + `appendFile` + `access` + `chmod` + `chown` invocation count.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGH. Per-page node.js core-module crypto
+
+- **[T]** Per session: per-`crypto.randomBytes` + `crypto.randomUUID` + `crypto.createHash` + `crypto.createHmac` + `crypto.createCipheriv` + `crypto.createDecipheriv` + `crypto.subtle.*` + `crypto.webcrypto.*` invocation count.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHI. Per-page node.js core-module zlib
+
+- **[T]** Per session: per-`zlib.gzip` + `gunzip` + `deflate` + `inflate` + `brotliCompress` + `brotliDecompress` invocation count + per-call input/output byte-size distribution.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIJ. Per-page node.js core-module http
+
+- **[T]** Per session: per-`http.request` + `http.get` + `http.createServer` + `server.listen` + `request.write` + `request.end` invocation count + per-call host/port/path/method distribution.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJK. Per-página node.js core-module https
+
+- **[T]** Per session: per-`https.request` + `https.get` + `https.createServer` invocation count + per-call host/port/path/method/SNI distribution.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKL. Per-page node.js core-module net
+
+- **[T]** Per session: per-`net.connect` + `net.createServer` + `net.Socket` constructor invocation count + per-call host/port + per-socket bytesRead/bytesWritten + remoteAddress/remotePort distribution.
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLM. Per-page node.js core-module tls
+
+- **[T]** Per session: per-`tls.connect` + `tls.createServer` + `tls.createSecureContext` invocation count + per-call (host, port, servername, ALPNProtocols, ciphers, ecdhCurve, minVersion, maxVersion, secureProtocol) snapshot.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMN. Per-page node.js core-module dns
+
+- **[T]** Per session: per-`dns.resolve` + `dns.lookup` + `dns.lookupService` + `dns.reverse` + `dns.resolveAny` invocation count + per-call hostname/record-type distribution.
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNO. Per-page node.js core-module dgram
+
+- **[T]** Per session: per-`dgram.createSocket` + `socket.send` + `socket.bind` invocation count + per-call (type, port, address) distribution.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOP. Per-page node.js core-module os
+
+- **[T]** Per session: per-`os.cpus` + `os.totalmem` + `os.freemem` + `os.hostname` + `os.userInfo` + `os.networkInterfaces` + `os.uptime` + `os.loadavg` + `os.tmpdir` + `os.homedir` + `os.platform` + `os.arch` + `os.release` invocation count + per-call return-value snapshot.
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPQ. Per-page node.js core-module child_process
+
+- **[T]** Per session: per-`child_process.spawn` + `exec` + `execFile` + `fork` + `execSync` + `spawnSync` + `execFileSync` invocation count + per-call (command, args, cwd, env-key-set, stdio, shell, detached) snapshot.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQR. Per-página node.js core-module cluster
+
+- **[T]** Per session: per-`cluster.fork` + `cluster.setupPrimary` + `cluster.workers` + `cluster.disconnect` invocation count + per-call (settings, exec, args, silent, env) snapshot.
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRS. Per-page node.js core-module worker_threads
+
+- **[T]** Per session: per-`worker_threads.Worker` constructor + `parentPort.postMessage` + `MessageChannel` + `MessagePort` invocation count + per-call (filename, workerData, transferList) snapshot.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSST. Per-page node.js core-module events
+
+- **[T]** Per session: per-`EventEmitter` constructor + `.on()` + `.emit()` + `.removeListener()` + `.removeAllListeners()` + `.once()` invocation count + per-event-name distribution.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTU. Per-page node.js core-module timers
+
+- **[T]** Per session: per-Node scheduler API (`setImmediate`, `clearImmediate`, `process.nextTick`, `queueMicrotask`) invocation count.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUV. Per-page node.js core-module util
+
+- **[T]** Per session: per-`util.promisify` + `util.callbackify` + `util.inspect` + `util.format` + `util.types.is*` + `util.deprecate` invocation count.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVW. Per-page node.js core-module assert
+
+- **[T]** Per session: per-`assert` + `assert.strictEqual` + `assert.deepStrictEqual` + `assert.throws` + `assert.rejects` + `assert.match` + `assert.notStrictEqual` invocation count.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWX. Per-page node.js core-module process.env keys
+
+- **[T]** Per session: per-`Object.keys(process.env)` snapshot — full env-var name list (signals which secrets / config are loaded).
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXY. Per-page node.js core-module process.versions
+
+- **[T]** Per session: per-`process.versions` snapshot — `node`, `v8`, `uv`, `zlib`, `ares`, `modules`, `nghttp2`, `napi`, `llhttp`, `openssl`, `cldr`, `icu`, `tz`, `unicode`, `acorn`, `brotli`, `simdutf`, `undici` field distribution.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYZ. Per-page node.js core-module process.config
+
+- **[T]** Per session: per-`process.config.variables` snapshot — Node build-time vars (`node_use_openssl`, `node_byteorder`, `host_arch`, `target_arch`, `v8_enable_inspector`, `node_module_version`, `OS`).
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ1. Per-página node.js core-module process.binding
+
+- **[T]** Per session: per-`process.binding('uv')` + `process.binding('contextify')` + `process.binding('fs')` + `process.binding('crypto')` + `process.binding('config')` access count (legacy V8 internal binding probe).
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
