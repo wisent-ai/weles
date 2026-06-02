@@ -152,6 +152,7 @@ try {
   try { const ob = await fillPostRegisterOnboarding(s.page); console.log(`[register] onboarding: ${JSON.stringify(ob)}`); } catch (obErr) { console.log(`[register] onboarding err: ${obErr.message?.slice(0, 100)}`); }
   await assertNoLinkedinChallengePage(s, 'after_onboarding');
   authState = await assertLinkedinAuthenticatedRegistration(s, 'after_onboarding');
+  expectedExitIp = await assertLinkedinProxyStable(s, 'before_account_persist', expectedExitIp);
   await saveVerifiedLinkedinAccount(s, { username: id.handle, email: id.email, password: id.password, name: `${id.first} ${id.last}` });
   await confirmLinkedinEmail(s.page, id.email).catch((e) => console.log(`[linkedin_register] email confirm err: ${e.message?.slice(0, 80)}`));
   await autoBindCharacter(id.handle, 'linkedin').then(r => console.log(`[bind] ${JSON.stringify(r)}`)).catch((e) => console.log(`[bind] err: ${e.message?.slice(0, 80)}`));
