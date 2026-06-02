@@ -8,7 +8,7 @@
 import { WSession } from '../../dist/session/wsession.js';
 import { humanFill, humanType } from '../../dist/human/keyboard.js';
 import { humanClickLocator, humanIdlePause } from '../../dist/human/mouse.js';
-import { writeFileSync, mkdirSync } from 'node:fs';
+import { writeFileSync, mkdirSync, readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import { confirmLinkedinEmail } from './_shared/linkedin/checkpoint.mjs';
@@ -23,6 +23,31 @@ import { autoBindCharacter } from './lib/character-bind.mjs';
 function hashValue(value) {
   if (typeof value !== 'string' || !value) return null;
   return createHash('sha256').update(value).digest('hex').slice(0, 16);
+}
+
+function loadProxyPreflightSummary() {
+  try {
+    const p = join(process.cwd(), 'recordings', 'linkedin_register', 'proxy_preflight.json');
+    const raw = JSON.parse(readFileSync(p, 'utf8'));
+    const attempts = Array.isArray(raw?.attempts) ? raw.attempts : [];
+    const countBy = (key) => attempts.reduce((acc, a) => {
+      const value = a?.[key] ?? 'missing';
+      acc[value] = (acc[value] ?? 0) + 1;
+      return acc;
+    }, {});
+    return {
+      selected: raw?.selected === true,
+      selected_provider: raw?.selected_provider ?? null,
+      failure_reason: raw?.failure_reason ?? null,
+      attempt_count: raw?.attempt_count ?? attempts.length,
+      linkedin_probe_results: countBy('linkedin_probe_result'),
+      rejected_reasons: countBy('rejected_reason'),
+      exit_ip_hashes: [...new Set(attempts.map(a => a?.exit_ip_hash).filter(Boolean))],
+      redacted: true,
+    };
+  } catch {
+    return null;
+  }
 }
 
 async function saveVerifiedLinkedinAccount(session, account) {
@@ -172,7 +197,8 @@ try {
 } catch (e) {
   const finalUrl = s?.page?.url?.() ?? '';
   const sig = classifyLinkedinRegisterFailure(e.message ?? '', finalUrl);
-  const diagnostics = s ? await getLinkedinFailureDiagnostics(s, requestedProxy, expectedExitIp).catch(() => null) : { proxy: { requested: requestedProxy.startsWith('http') ? '[url-form]' : requestedProxy.slice(0, 80) } };
+  const proxyPreflight = loadProxyPreflightSummary();
+  const diagnostics = s ? await getLinkedinFailureDiagnostics(s, requestedProxy, expectedExitIp).catch(() => null) : { proxy: { requested: requestedProxy.startsWith('http') ? '[url-form]' : requestedProxy.slice(0, 80), preflight: proxyPreflight } };
   try { mkdirSync(join(process.cwd(), 'recordings', 'linkedin_register'), { recursive: true }); writeFileSync(join(process.cwd(), 'recordings', 'linkedin_register', 'ban_signal.json'), JSON.stringify({ action: 'linkedin_register', signal: sig, healthy: false, details: { final_url: finalUrl, error: e.message?.slice(0, 200), attempted_email_hash: hashValue(id.email), expected_exit_ip: expectedExitIp, diagnostics }, ts: new Date().toISOString() }, null, 2)); } catch {}
   console.log(`FAIL: ${e.message?.slice(0, 200)}`);
   // exitCode (not exit) so the finally block's await s.close() actually runs.
