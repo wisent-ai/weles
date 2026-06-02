@@ -33581,6 +33581,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per session: per-page WebGPU `canvasContext.getCurrentTexture()` invocation count distribution.
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB12. Per-page AudioWorklet message observation
+
+- **[T]** Per session: per-page AudioWorklet `port.postMessage()` invocation count + per-message byte-size distribution.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB12. Per-page AudioWorkletProcessor process count observation
+
+- **[T]** Per session: per-page AudioWorkletProcessor `.process()` invocation count + per-call inputs.length + outputs.length distribution.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC12. Per-page OscillatorNode observation
+
+- **[T]** Per session: per-page `new OscillatorNode()` constructor count + per-instance type ('sine'|'square'|'sawtooth'|'triangle'|'custom') + frequency + detune distribution.
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD12. Per-page GainNode observation
+
+- **[T]** Per session: per-page `new GainNode()` constructor count + per-instance gain.value distribution.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE12. Per-page BiquadFilterNode observation
+
+- **[T]** Per session: per-page `new BiquadFilterNode()` constructor count + per-instance type ('lowpass'|'highpass'|'bandpass'|'lowshelf'|'highshelf'|'peaking'|'notch'|'allpass') + frequency + Q + gain distribution.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF12. Per-page DelayNode observation
+
+- **[T]** Per session: per-page `new DelayNode()` constructor count + per-instance delayTime distribution.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG12. Per-page DynamicsCompressorNode observation
+
+- **[T]** Per session: per-page `new DynamicsCompressorNode()` constructor count + per-instance (threshold, knee, ratio, attack, release, reduction) distribution.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH12. Per-page WaveShaperNode observation
+
+- **[T]** Per session: per-page `new WaveShaperNode()` constructor count + per-instance (curve.length, oversample) distribution.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII12. Per-page ConvolverNode observation
+
+- **[T]** Per session: per-page `new ConvolverNode()` constructor count + per-instance (buffer-byte-size, normalize) distribution.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ-5. Per-página PannerNode observation
+
+- **[T]** Per session: per-page `new PannerNode()` constructor count + per-instance (panningModel, distanceModel, refDistance, maxDistance, rolloffFactor, coneInnerAngle, coneOuterAngle, coneOuterGain, positionX/Y/Z, orientationX/Y/Z) distribution.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK-6. Per-page StereoPannerNode observation
+
+- **[T]** Per session: per-page `new StereoPannerNode()` constructor count + per-instance pan distribution.
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL-9. Per-page IIRFilterNode observation
+
+- **[T]** Per session: per-page `new IIRFilterNode()` constructor count + per-instance feedforward + feedback coefficient distribution.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM-11. Per-page MediaElementAudioSourceNode observation
+
+- **[T]** Per session: per-page `new MediaElementAudioSourceNode()` constructor count distribution.
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN-12. Per-page MediaStreamAudioSourceNode observation
+
+- **[T]** Per session: per-page `new MediaStreamAudioSourceNode()` constructor count distribution.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO-13. Per-page MediaStreamAudioDestinationNode observation
+
+- **[T]** Per session: per-page `new MediaStreamAudioDestinationNode()` constructor count distribution.
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP-14. Per-page ConstantSourceNode observation
+
+- **[T]** Per session: per-page `new ConstantSourceNode()` constructor count + per-instance offset distribution.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ-15. Per-página AudioBufferSourceNode observation
+
+- **[T]** Per session: per-page `new AudioBufferSourceNode()` constructor count + per-instance (buffer.duration, loop, loopStart, loopEnd, playbackRate, detune) distribution.
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR-16. Per-page ChannelSplitterNode observation
+
+- **[T]** Per session: per-page `new ChannelSplitterNode()` constructor count + per-instance numberOfOutputs distribution.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS-17. Per-page ChannelMergerNode observation
+
+- **[T]** Per session: per-page `new ChannelMergerNode()` constructor count + per-instance numberOfInputs distribution.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT-18. Per-page AudioListener observation
+
+- **[T]** Per session: per-page `audioContext.listener` (positionX/Y/Z, forwardX/Y/Z, upX/Y/Z) distribution.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU-19. Per-page AudioParam observation
+
+- **[T]** Per session: per-page `AudioParam.value` + `AudioParam.defaultValue` + `AudioParam.minValue` + `AudioParam.maxValue` distribution.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV-20. Per-page AudioParam automation observation
+
+- **[T]** Per session: per-page `AudioParam.linearRampToValueAtTime()` + `.exponentialRampToValueAtTime()` + `.setTargetAtTime()` + `.setValueCurveAtTime()` + `.cancelScheduledValues()` invocation count distribution.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW-21. Per-page AudioContext suspend observation
+
+- **[T]** Per session: per-page `audioContext.suspend()` + `audioContext.resume()` + `audioContext.close()` invocation count distribution.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX-24. Per-page AudioContext state observation
+
+- **[T]** Per session: per-page `audioContext.state` ('suspended'|'running'|'closed'|'interrupted') transition count distribution.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY-28. Per-page AudioContext setSinkId observation
+
+- **[T]** Per session: per-page `audioContext.setSinkId()` invocation count + per-call (deviceId, type) distribution.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ-29. Per-página AudioContext audioWorklet path observation
+
+- **[T]** Per session: per-page `audioContext.audioWorklet.addModule(path)` per-path distribution.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
