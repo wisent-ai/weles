@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { proxyUrl, toPlaywright, parseProxyUrl, ProxyPool } from '../src/proxy/config.js';
+import { proxyUrl, toPlaywright, parseProxyUrl, ProxyPool, resolveProxy } from '../src/proxy/config.js';
 
 describe('proxyUrl', () => {
   it('builds URL with auth', () => {
@@ -71,5 +71,12 @@ describe('ProxyPool', () => {
     expect(pool.length).toBe(0);
     pool.add({ host: 'a', port: 1, protocol: 'http' });
     expect(pool.length).toBe(1);
+  });
+});
+
+describe('resolveProxy URL policy', () => {
+  it('rejects retired URL-form proxy hosts and ports', async () => {
+    await expect(resolveProxy('http://user:pass@isp.oxylabs.io:8003', 'www.linkedin.com')).resolves.toBeUndefined();
+    await expect(resolveProxy('http://user:pass@proxy.example.test:7777', 'www.linkedin.com')).resolves.toBeUndefined();
   });
 });
