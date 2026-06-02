@@ -293,6 +293,7 @@ describe('LinkedIn register guard', () => {
     expect(source).toMatch(/const targetUrl = 'https:\/\/www\.linkedin\.com\/signup'/);
     expect(source).not.toMatch(/const targetUrl = 'https:\/\/www\.linkedin\.com\/login'/);
     expect(source).toMatch(/sec-fetch-mode/);
+    expect(source).toContain("'sec-ch-ua': `\"Google Chrome\";v=\"${chromeMajor}\", \"Not.A/Brand\";v=\"8\", \"Chromium\";v=\"${chromeMajor}\"`,");
     expect(source).toMatch(/join-form-submit/);
     expect(source).toMatch(/challenge_dialog_template/);
     expect(source).toMatch(/security_verification_template/);

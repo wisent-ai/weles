@@ -188,7 +188,7 @@ function linkedinProbeHeaders(persona?: LinkedInProbePersona): Record<string, st
     'Cache-Control': 'no-cache',
     Pragma: 'no-cache',
     Priority: 'u=0, i',
-    'sec-ch-ua': `"Chromium";v="${chromeMajor}", "Not.A/Brand";v="8"`,
+    'sec-ch-ua': `"Google Chrome";v="${chromeMajor}", "Not.A/Brand";v="8", "Chromium";v="${chromeMajor}"`,
     'sec-ch-ua-mobile': '?0',
     'sec-ch-ua-platform': chPlatform,
     'sec-fetch-dest': 'document',
