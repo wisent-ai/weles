@@ -30045,6 +30045,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per session: per-row `admin_users.email` whitelist + `is_active` boolean + `role` distribution.
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM. Per-page weles trajectory linkedin_register.mjs
+
+- **[T]** Per session: per-page `weles/scripts/trajectories/linkedin_register.mjs` invocation count + per-call `email_domain`, `proxy_filter`, `os_pin`, `signup_url`, `captcha_solver_enabled`, `pause_profile` parameter distribution.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBN. Per-page weles trajectory linkedin_login.mjs
+
+- **[T]** Per session: per-page `weles/scripts/trajectories/linkedin_login.mjs` invocation count + per-call `account_id`, `proxy_filter`, `cookies_loaded` boolean distribution.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCO. Per-page weles trajectory linkedin_edit_profile.mjs
+
+- **[T]** Per session: per-page `weles/scripts/trajectories/linkedin/edit_profile.mjs` invocation count + per-call edited-field-name distribution.
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDP. Per-page weles trajectory linkedin_scrape.mjs
+
+- **[T]** Per session: per-page `weles/scripts/trajectories/linkedin/scrape.mjs` invocation count + per-call profile URL list size + extracted-field count distribution.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEQ. Per-page weles trajectory tiktok_register.mjs
+
+- **[T]** Per session: per-page `weles/scripts/trajectories/tiktok_register.mjs` invocation count + per-call `vregion_preflight_passed` boolean + `region_routing` ('US-TTP1'|'US-TTP2'|'US-TTP3'|'unknown') distribution.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFR. Per-page weles trajectory tiktok_login.mjs
+
+- **[T]** Per session: per-page `weles/scripts/trajectories/tiktok_login.mjs` invocation count.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGS. Per-page weles trajectory tiktok_like.mjs
+
+- **[T]** Per session: per-page `weles/scripts/trajectories/tiktok/like.mjs` invocation count.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHT. Per-page weles trajectory instagram_register.mjs
+
+- **[T]** Per session: per-page `weles/scripts/trajectories/instagram_register.mjs` invocation count + per-call `dob_select_strategy` + `sms_provider` + `country_code` distribution.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIU. Per-page weles trajectory instagram_login.mjs
+
+- **[T]** Per session: per-page `weles/scripts/trajectories/instagram_login.mjs` invocation count.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJV. Per-página weles trajectory instagram_follow.mjs
+
+- **[T]** Per session: per-page `weles/scripts/trajectories/instagram/follow.mjs` invocation count.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKW. Per-page weles trajectory reddit_register.mjs
+
+- **[T]** Per session: per-page `weles/scripts/trajectories/reddit_register.mjs` invocation count.
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLX. Per-page weles trajectory reddit_organic_comment.mjs
+
+- **[T]** Per session: per-page `weles/scripts/trajectories/reddit/organic_comment.mjs` invocation count + per-call subreddit + post-id distribution.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMY. Per-page weles trajectory reddit_promote.mjs
+
+- **[T]** Per session: per-page `weles/scripts/trajectories/reddit/promote.mjs` invocation count.
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNZ. Per-page weles trajectory twitter_register.mjs
+
+- **[T]** Per session: per-page `weles/scripts/trajectories/twitter_register.mjs` invocation count + per-call Arkose-solver invocation + cookies-loaded count distribution.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO1. Per-page weles trajectory twitter_post.mjs
+
+- **[T]** Per session: per-page `weles/scripts/trajectories/twitter/post.mjs` invocation count + per-call text-length distribution.
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP2. Per-page weles trajectory github_star.mjs
+
+- **[T]** Per session: per-page `weles/scripts/trajectories/github/star/star.mjs` invocation count.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ3. Per-página weles trajectory github_login.mjs
+
+- **[T]** Per session: per-page `weles/scripts/trajectories/github_login.mjs` invocation count.
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR4. Per-page weles trajectory discord_register.mjs
+
+- **[T]** Per session: per-page `weles/scripts/trajectories/discord/register.mjs` invocation count + per-call hCaptcha-solver invocation + email-verification count distribution.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS5. Per-page weles trajectory discord_login.mjs
+
+- **[T]** Per session: per-page `weles/scripts/trajectories/discord/login.mjs` invocation count.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT6. Per-page weles trajectory youtube_register.mjs
+
+- **[T]** Per session: per-page `weles/scripts/trajectories/youtube/register.mjs` invocation count.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU7. Per-page weles trajectory producthunt_register.mjs
+
+- **[T]** Per session: per-page `weles/scripts/trajectories/producthunt/register.mjs` invocation count + per-call Twitter-SSO-handle + extracted PH-handle distribution.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV8. Per-page weles trajectory apple_asc_submit.mjs
+
+- **[T]** Per session: per-page `weles/scripts/trajectories/apple/asc/asc_submit.mjs` invocation count + per-call `app_id`, `version`, `build_id` distribution.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW9. Per-page weles trajectory google_play_submit.mjs
+
+- **[T]** Per session: per-page `weles/scripts/trajectories/google/play/play_submit.mjs` invocation count + per-call `package_name`, `track`, `aab_bytes` distribution.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX-1. Per-page weles trajectory google_balance.mjs
+
+- **[T]** Per session: per-page `weles/scripts/trajectories/<provider>_balance.mjs` per-provider (juicysms, packetstream, decodo, oxylabs, brightdata, iproyal, nocaptcha, capsolver, anticaptcha) invocation count.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY-2. Per-page weles trajectory avatar_upload.mjs
+
+- **[T]** Per session: per-page `weles/scripts/trajectories/_shared/runner/avatar-loader.mjs` invocation count + per-call platform + avatar-png-byte size distribution.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ-3. Per-página weles trajectory keeper_persist.mjs
+
+- **[T]** Per session: per-page `weles/scripts/keeper/persist.mjs` per-session cookie + localStorage + sessionStorage + fingerprint persistence invocation count.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
