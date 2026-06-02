@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { assertLinkedinAuthenticatedRegistration, assertLinkedinDedicatedIspProxy, assertLinkedinProxyStable, classifyLinkedinRegisterFailure, getLinkedinChallengeSignal, summarizeLinkedinProxyState } from '../scripts/trajectories/_shared/linkedin/register_guard.mjs';
+import { assertLinkedinAuthenticatedRegistration, assertLinkedinDedicatedIspProxy, assertLinkedinProxyStable, classifyLinkedinRegisterFailure, getLinkedinChallengeSignal, getLinkedinFailureDiagnostics, summarizeLinkedinProxyState } from '../scripts/trajectories/_shared/linkedin/register_guard.mjs';
 
 function fakeSession(exitIp, expectedIp = exitIp, options = {}) {
   return {
@@ -118,6 +118,29 @@ describe('LinkedIn register guard', () => {
       actual_exit_ip: '50.117.105.62',
     });
     expect(JSON.stringify(summary)).not.toMatch(/secret|user:pass/);
+  });
+
+  it('includes sanitized page and challenge diagnostics', async () => {
+    const diagnostics = await getLinkedinFailureDiagnostics({
+      proxyConfig: { server: 'http://127.0.0.1:8001', proxy_type: 'isp', provider: 'decodo', exit_ip: '50.117.105.62' },
+      page: {
+        url: () => 'https://www.linkedin.com/checkpoint/challengeIframe/AQH123',
+        evaluate: async () => ({
+          url: 'https://www.linkedin.com/checkpoint/challengeIframe/AQH123',
+          title: 'Security verification',
+          pageKey: '',
+          inputs: [{ name: 'email-address', id: 'email-address', type: 'email', autocomplete: 'off', visible: true }],
+          buttons: [{ tag: 'button', text: 'Continue', href: '' }],
+          iframes: [{ id: '', name: '', title: '', src: 'https://www.linkedin.com/checkpoint/challengeIframe/AQH123' }],
+          bodyText: 'Complete the security verification to continue',
+        }),
+      },
+      ctx: { cookies: async () => [] },
+    }, 'isp decodo us', '50.117.105.62');
+
+    expect(diagnostics.challenge_signal).toBe('challenge_page');
+    expect(diagnostics.page.inputs[0]).not.toHaveProperty('value');
+    expect(JSON.stringify(diagnostics)).not.toMatch(/secret|password|li_at=/);
   });
 
   it('does not wire CAPTCHA bypass into LinkedIn registration', () => {

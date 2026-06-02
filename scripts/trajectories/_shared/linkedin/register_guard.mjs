@@ -129,9 +129,12 @@ export function summarizeLinkedinProxyState(session, requestedProxy = '', expect
 }
 
 export async function getLinkedinFailureDiagnostics(session, requestedProxy = '', expectedExitIp = '') {
+  const page = await summarizeLinkedinPage(session.page).catch((e) => ({ error: e.message?.slice(0, 160) }));
   return {
     auth: await getLinkedinAuthState(session).catch((e) => ({ error: e.message?.slice(0, 160) })),
     proxy: summarizeLinkedinProxyState(session, requestedProxy, expectedExitIp),
+    challenge_signal: page?.error ? '' : getLinkedinChallengeSignal(page),
+    page,
   };
 }
 
