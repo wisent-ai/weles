@@ -49,6 +49,7 @@ try {
   console.log(`[register] click Agree & Join: ${submit1}`);
   if (!submit1) throw new Error('Agree & Join button not clickable');
   await humanIdlePause('deliberate');
+  await assertNoLinkedinChallengePage(s, 'after_submit_email_password');
 
   const hasV2 = await s.page.evaluate(() => !!document.querySelector('iframe[src*="recaptcha/api2"], iframe[src*="recaptcha/enterprise"], div.g-recaptcha[data-sitekey]') || Array.from(document.querySelectorAll('iframe')).some(f => /challengeIframe/.test(f.src ?? '')));
   if (hasV2) throw new Error('DETECTION_TRIGGERED: visible CAPTCHA challenge after email/password submit');
@@ -92,6 +93,7 @@ try {
       throw new Error(`DETECTION_TRIGGERED: createAccount challengeUrl=${challengeUrl.slice(0, 120)}`);
     }
     await humanIdlePause('long');
+    await assertNoLinkedinChallengePage(s, 'after_create_account');
   }
 
   // Wait for the post-signup redirect to /feed, /onboarding, or /checkpoint.
