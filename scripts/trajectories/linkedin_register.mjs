@@ -11,7 +11,7 @@ import { humanClickLocator, humanIdlePause } from '../../dist/human/mouse.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { confirmLinkedinEmail } from './_shared/linkedin/checkpoint.mjs';
-import { assertLinkedinDedicatedIspProxy, assertLinkedinProxyStable, assertNoLinkedinChallengePage, classifyLinkedinRegisterFailure, ensureLinkedinSignupForm } from './_shared/linkedin/register_guard.mjs';
+import { assertLinkedinAuthenticatedRegistration, assertLinkedinDedicatedIspProxy, assertLinkedinProxyStable, assertNoLinkedinChallengePage, classifyLinkedinRegisterFailure, ensureLinkedinSignupForm } from './_shared/linkedin/register_guard.mjs';
 import { fillPostRegisterOnboarding } from './_shared/linkedin/onboarding/work_school.mjs';
 // generateIdentity import removed — identity now created by WSession.start via opts.platform.
 
@@ -27,6 +27,7 @@ console.log(`[register] proxy request: ${requestedProxy.startsWith('http') ? '[u
 const s = await WSession.start({ label: 'linkedin_register', proxy: requestedProxy, targetHost: 'www.linkedin.com', platform: 'linkedin' });
 const id = { first: s.identity.firstName, last: s.identity.lastName, handle: s.identity.username, email: s.identity.email, password: s.identity.password };
 let expectedExitIp = s.proxyConfig?.exit_ip ?? '';
+let authState = null;
 console.log(`[register] identity: ${id.email} / ${id.first} ${id.last}`);
 // Persist credentials so a captcha failure mid-run still leaves a way to log in via keeper.
 try { const { writeFileSync: _wf } = await import('node:fs'); _wf('/tmp/linkedin_register_creds.txt', `email=${id.email}\nhandle=${id.handle}\npassword=${id.password}\nfirst=${id.first}\nlast=${id.last}\nproxy=${requestedProxy}\nts=${new Date().toISOString()}\n`); }
@@ -148,11 +149,13 @@ try {
     await humanType(s.page, code);
     await humanClickLocator(s.page, s.page.locator('button[type="submit"]:has-text("Submit"), button:has-text("Verify"), button[type="submit"]:has-text("Agree"), button#email-pin-submit-button').first());
     await s.page.waitForFunction(() => !/verify|email-verification|email_verification|checkpoint/.test(location.href), { timeout: 30000 }).catch(() => {});
+    authState = await assertLinkedinAuthenticatedRegistration(s, 'after_email_verification');
     await s.saveAccount('linkedin', { username: id.handle, email: id.email, password: id.password, name: `${id.first} ${id.last}` });
     await confirmLinkedinEmail(s.page, id.email).catch((e) => console.log(`[linkedin_register] email confirm err: ${e.message?.slice(0, 80)}`));
     await autoBindCharacter(id.handle, 'linkedin').then(r => console.log(`[bind] ${JSON.stringify(r)}`)).catch((e) => console.log(`[bind] err: ${e.message?.slice(0, 80)}`));
     console.log(`PASS: ${id.handle}`);
   } else {
+    authState = await assertLinkedinAuthenticatedRegistration(s, 'after_registration_redirect');
     await s.saveAccount('linkedin', { username: id.handle, email: id.email, password: id.password, name: `${id.first} ${id.last}` });
     await confirmLinkedinEmail(s.page, id.email).catch((e) => console.log(`[linkedin_register] email confirm err: ${e.message?.slice(0, 80)}`));
     await autoBindCharacter(id.handle, 'linkedin').then(r => console.log(`[bind] ${JSON.stringify(r)}`)).catch((e) => console.log(`[bind] err: ${e.message?.slice(0, 80)}`));
@@ -160,7 +163,7 @@ try {
   }
   // Fill "add a role/school" onboarding gate so stooge can view other profiles.
   try { const ob = await fillPostRegisterOnboarding(s.page); console.log(`[register] onboarding: ${JSON.stringify(ob)}`); } catch (obErr) { console.log(`[register] onboarding err: ${obErr.message?.slice(0, 100)}`); }
-  try { mkdirSync(join(process.cwd(), 'recordings', 'linkedin_register'), { recursive: true }); writeFileSync(join(process.cwd(), 'recordings', 'linkedin_register', 'ban_signal.json'), JSON.stringify({ action: 'linkedin_register', signal: 'healthy', healthy: true, details: { username: id.handle, email: id.email, final_url: s.page.url() }, ts: new Date().toISOString() }, null, 2)); } catch {}
+  try { mkdirSync(join(process.cwd(), 'recordings', 'linkedin_register'), { recursive: true }); writeFileSync(join(process.cwd(), 'recordings', 'linkedin_register', 'ban_signal.json'), JSON.stringify({ action: 'linkedin_register', signal: 'healthy', healthy: true, details: { username: id.handle, email: id.email, final_url: s.page.url(), auth: authState }, ts: new Date().toISOString() }, null, 2)); } catch {}
 } catch (e) {
   const finalUrl = s.page.url?.() ?? '';
   const sig = classifyLinkedinRegisterFailure(e.message ?? '', finalUrl);

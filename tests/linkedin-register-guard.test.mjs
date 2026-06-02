@@ -1,11 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { assertLinkedinDedicatedIspProxy, assertLinkedinProxyStable, classifyLinkedinRegisterFailure, getLinkedinChallengeSignal } from '../scripts/trajectories/_shared/linkedin/register_guard.mjs';
+import { assertLinkedinAuthenticatedRegistration, assertLinkedinDedicatedIspProxy, assertLinkedinProxyStable, classifyLinkedinRegisterFailure, getLinkedinChallengeSignal } from '../scripts/trajectories/_shared/linkedin/register_guard.mjs';
 
-function fakeSession(exitIp, expectedIp = exitIp) {
+function fakeSession(exitIp, expectedIp = exitIp, options = {}) {
   return {
     proxyConfig: { server: 'http://127.0.0.1:8001', exit_ip: expectedIp },
+    page: {
+      url: () => options.url ?? 'https://www.linkedin.com/feed/',
+    },
     ctx: {
+      cookies: async () => options.cookies ?? [],
       newPage: async () => ({
         goto: async () => {},
         locator: () => ({ innerText: async () => exitIp }),
@@ -21,6 +25,8 @@ describe('LinkedIn register guard', () => {
     expect(classifyLinkedinRegisterFailure('PROXY_NOT_DEDICATED_ISP: residential', 'https://www.linkedin.com/signup')).toBe('proxy_failed');
     expect(classifyLinkedinRegisterFailure('DETECTION_TRIGGERED: createAccount challengeUrl', 'https://www.linkedin.com/signup')).toBe('detection_triggered');
     expect(classifyLinkedinRegisterFailure('x', 'https://www.linkedin.com/checkpoint/challenge')).toBe('captcha_challenge');
+    expect(classifyLinkedinRegisterFailure('signup_did_not_authenticate: stage=test', 'https://www.linkedin.com/feed/')).toBe('registration_not_accepted');
+    expect(classifyLinkedinRegisterFailure('signup_verification_incomplete: stage=test', 'https://www.linkedin.com/feed/')).toBe('registration_not_accepted');
     expect(classifyLinkedinRegisterFailure('signup_form_unavailable: {}', 'https://www.linkedin.com/')).toBe('form_unavailable');
   });
 
@@ -55,10 +61,34 @@ describe('LinkedIn register guard', () => {
     })).toBe('');
   });
 
+  it('requires authenticated LinkedIn state before registration success', async () => {
+    const authed = fakeSession('1.1.1.1', '1.1.1.1', {
+      cookies: [{ domain: '.linkedin.com', name: 'li_at', value: 'cookie-value', expires: 123 }],
+      url: 'https://www.linkedin.com/feed/',
+    });
+    await expect(assertLinkedinAuthenticatedRegistration(authed, 'test')).resolves.toMatchObject({ has_li_at: true });
+
+    await expect(assertLinkedinAuthenticatedRegistration(fakeSession('1.1.1.1'), 'test'))
+      .rejects.toThrow(/signup_did_not_authenticate/);
+    await expect(assertLinkedinAuthenticatedRegistration(fakeSession('1.1.1.1', '1.1.1.1', {
+      cookies: [{ domain: '.linkedin.com', name: 'li_at', value: 'cookie-value' }],
+      url: 'https://www.linkedin.com/signup',
+    }), 'test')).rejects.toThrow(/signup_did_not_complete/);
+    await expect(assertLinkedinAuthenticatedRegistration(fakeSession('1.1.1.1', '1.1.1.1', {
+      cookies: [{ domain: '.linkedin.com', name: 'li_at', value: 'cookie-value' }],
+      url: 'https://www.linkedin.com/checkpoint/email-verification',
+    }), 'test')).rejects.toThrow(/signup_verification_incomplete/);
+    await expect(assertLinkedinAuthenticatedRegistration(fakeSession('1.1.1.1', '1.1.1.1', {
+      cookies: [{ domain: '.linkedin.com', name: 'li_at', value: 'cookie-value' }],
+      url: 'https://www.linkedin.com/checkpoint/challengeIframe/AQH123',
+    }), 'test')).rejects.toThrow(/DETECTION_TRIGGERED/);
+  });
+
   it('does not wire CAPTCHA bypass into LinkedIn registration', () => {
     const source = readFileSync(new URL('../scripts/trajectories/linkedin_register.mjs', import.meta.url), 'utf8');
     expect(source).not.toMatch(/CaptchaSolver|solveRecaptcha|solveLinkedinCheckpoint|LINKEDIN_REGISTER_TRY_CHALLENGE/);
     expect(source).toMatch(/DETECTION_TRIGGERED: createAccount challengeUrl/);
     expect(source).toMatch(/assertNoLinkedinChallengePage/);
+    expect(source).toMatch(/assertLinkedinAuthenticatedRegistration/);
   });
 });
