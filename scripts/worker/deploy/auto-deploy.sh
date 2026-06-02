@@ -127,6 +127,18 @@ if [ "$BEFORE_LOCK" != "$AFTER_LOCK" ]; then
 fi
 npm run build >> "$LOG" 2>&1
 
+# Ensure the pinned weles Chromium binary is present. download.sh no-ops when
+# the version dir already exists; bumping the pinned tag (WELES_CHROMIUM_RELEASE
+# or the script default) on a deploy pulls the new build, and find_browser.ts
+# auto-selects the newest installed version. Non-fatal: a download failure must
+# not block the code deploy or the worker restart — the worker keeps whatever
+# binary is already on disk.
+if CHROMIUM_BIN="$(bash "$WELES_DIR/scripts/chromium/download.sh" 2>>"$LOG")"; then
+  log "chromium ready: $CHROMIUM_BIN"
+else
+  log "chromium: download.sh failed (keeping existing on-disk binary)"
+fi
+
 # node-pty (claude-reauth drives `claude setup-token` on a real pty
 # via it) ships an INCOMPLETE darwin-arm64 prebuild — pty.node but no
 # spawn-helper — and `npm ci --ignore-scripts` above skips node-pty's
