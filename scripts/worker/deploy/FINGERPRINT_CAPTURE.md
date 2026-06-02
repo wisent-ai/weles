@@ -29837,6 +29837,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per session: per-page CSS `image-set(...)` function-call usage count + per-call per-resolution image-URL distribution.
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAK. Per-page weles src/agent/loop.ts invocation count
+
+- **[T]** Per session: per-page `weles/src/agent/loop.ts` `runAgentLoop()` invocation count + per-invocation `iterations`, `replayLoaded`, `replayHits`, `agentToolCalls`, `agentTextOutputBytes`, `agentTokens` distribution.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBL. Per-page weles src/session/wsession.ts launch path
+
+- **[T]** Per session: per-page `weles/src/session/wsession.ts` `WSession.start({label, browser, persona, proxy, recordDir})` per-call `label` + `browser` + `persona.os` + `persona.gpu` + `proxy.provider` + `recordDir` distribution.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCM. Per-page weles src/human/click.ts invocation
+
+- **[T]** Per session: per-page `weles/src/human/click.ts` `humanClick(...)` per-call `target`, `x`, `y`, `button`, `pressMs`, `hoverMs`, `jitter`, `bezierCurve` distribution.
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDN. Per-page weles src/human/type.ts invocation
+
+- **[T]** Per session: per-page `weles/src/human/type.ts` `humanType(...)` per-call `text`, `pressMs`, `interKeyJitter`, `mistakeRate`, `correctionDelayMs` distribution.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEO. Per-page weles src/human/scroll.ts invocation
+
+- **[T]** Per session: per-page `weles/src/human/scroll.ts` `humanScroll(...)` per-call deltaY, deltaX, inertia, stepCount distribution.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFP. Per-page weles src/human/fill.ts invocation
+
+- **[T]** Per session: per-page `weles/src/human/fill.ts` `humanFill(locator, value)` per-call locator-selector + value-byte-size distribution.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGQ. Per-page weles src/human/idle.ts invocation
+
+- **[T]** Per session: per-page `weles/src/human/idle.ts` `humanIdlePause('deliberate'|'fast'|'careful')` per-call duration distribution.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHR. Per-page weles src/human/native.ts cliclick path
+
+- **[T]** Per session: per-page `weles/src/human/native.ts` `nativeClick()` + `nativeType()` `cliclick` subprocess invocation count + per-call exit code distribution.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIS. Per-page weles src/fingerprint.ts generation
+
+- **[T]** Per session: per-page `weles/src/fingerprint.ts` `generateFingerprint()` per-call returned fingerprint-JSON byte snapshot.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJT. Per-página weles src/proxy/credentials.ts pick
+
+- **[T]** Per session: per-page `weles/src/proxy/credentials.ts` `pickProxy()` per-call filter-string + returned (provider, host, port, username, password, country, sticky, exit-IP) distribution.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKU. Per-page weles src/proxy/burned.ts read
+
+- **[T]** Per session: per-page `weles/src/proxy/burned.ts` `isBurned(ip, asn, cidr)` per-call returned boolean + multi-level burn-reason distribution.
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLV. Per-page weles src/proxy/burned.ts write
+
+- **[T]** Per session: per-page `weles/src/proxy/burned.ts` `markBurnedIp(ip, signal, level)` per-call distribution.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMW. Per-page weles src/proxy/cidr.ts derive
+
+- **[T]** Per session: per-page `weles/src/proxy/cidr.ts` `deriveCidrs(ip)` per-call returned /32, /28, /24, /20, /19, /16 list + ASN distribution.
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNX. Per-page weles src/worker/poll.ts claim
+
+- **[T]** Per session: per-page `weles/src/worker/poll.ts` per-claim `account_action_logs.id` + `verb` + `account.platform` + `account.id` + `proxy_filter` + `attempt_count` distribution.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOY. Per-page weles src/captcha/* solver invocation
+
+- **[T]** Per session: per-page `weles/src/captcha/recaptcha.ts` + `hcaptcha.ts` + `arkose.ts` per-solver provider-API call count + per-call submit/result distribution.
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPZ. Per-page weles src/utils/credentials.ts getSocialAccount
+
+- **[T]** Per session: per-page `weles/src/utils/credentials.ts` `getSocialAccount(platform, options)` per-call `platform` + filter-criteria + returned `social_accounts.id` distribution.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ1. Per-página weles src/utils/credentials.ts resolveAccountSession
+
+- **[T]** Per session: per-page `resolveAccountSession(account)` per-call returned `cookies[]`, `localStorage{}`, `sessionStorage{}`, `fingerprint{}`, `proxy{}` byte distribution.
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR2. Per-page weles src/platforms/* ban-signal detection
+
+- **[T]** Per session: per-page `weles/src/platforms/<platform>/ban.ts` per-platform ban-signal-detection function invocation count + per-detection signal-type distribution.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS3. Per-page weles scripts/trajectories/_shared/runner action-runner
+
+- **[T]** Per session: per-page `weles/scripts/trajectories/_shared/runner.mjs` `runAction(verb, account)` per-call elapsed time + per-step success/fail distribution.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT4. Per-page weles scripts/trajectories/_shared/llm helpers
+
+- **[T]** Per session: per-page `weles/scripts/trajectories/_shared/llm.mjs` LLM-helper per-call function invocation count + per-call model + prompt-byte-size + response-byte-size distribution.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU5. Per-page weles scripts/trajectories/_shared/benign helpers
+
+- **[T]** Per session: per-page `weles/scripts/trajectories/_shared/benign.mjs` benign-warmup-action per-call invocation count + per-step success distribution.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV6. Per-page weles scripts/worker/run.mjs entry
+
+- **[T]** Per session: per-page `weles/scripts/worker/run.mjs` entry-point invocation count + per-call argv + env-key-set + claimed-row count distribution.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW7. Per-page weles scripts/keeper/keeper.mjs spawn
+
+- **[T]** Per session: per-page `weles/scripts/keeper/keeper.mjs` spawn count + per-spawn label + chromium-args + recordDir + duration distribution.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX8. Per-page weles scripts/keeper/action.mjs spawn
+
+- **[T]** Per session: per-page `weles/scripts/keeper/action.mjs` sidecar spawn count + per-spawn debug-port + attached-target + actions-executed distribution.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY9. Per-page weles scripts/diagnostics/diff_trajectory.mjs run
+
+- **[T]** Per session: per-page `weles/scripts/debug/diff_trajectory.mjs` invocation count + per-call (trajectory.mjs path) + (chrome-ref json) + (instrumented json) + (diff json) byte distribution.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ-1. Per-página weles scripts/debug/instrument_chrome.mjs run
+
+- **[T]** Per session: per-page `weles/scripts/debug/instrument_chrome.mjs` invocation count + per-call (PLATFORM, TARGET_URL) + produced human-reference json byte distribution.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
