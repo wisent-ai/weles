@@ -23,6 +23,7 @@ const opt = (n, d) => { const i = argv.indexOf(n); return i >= 0 ? argv[i + 1] :
 const only = opt('--only', '');
 const vpOverride = opt('--viewport', '');
 const storagePath = opt('--storage', '');
+const click = opt('--click', ''); // optional: click a button/tab by its text before measuring
 const OUT = '.work/inspect/test-apps';
 if (!existsSync(OUT)) mkdirSync(OUT, { recursive: true });
 const ts = new Date().toISOString().replace(/[:.]/g, '-');
@@ -53,6 +54,15 @@ for (const t of targets) {
   let rec;
   try {
     const s = await gotoSettled(page, t.url);
+    if (click) {
+      try {
+        await page.getByRole('button', { name: click, exact: false }).first().click(); // allow-raw-playwright: own apps
+        // Let React commit + paint the new tab (two frames, no fixed timeout).
+        await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))); // allow-raw-playwright: own apps
+      } catch (e) {
+        console.error(`[test-apps] ${t.name}: --click "${click}" failed: ${e.message}`);
+      }
+    }
     const m = await measurePage(page);
     const shot = `${t.name}_${ts}.png`;
     await page.screenshot({ path: join(OUT, shot), fullPage: false }); // allow-raw-playwright: own apps
