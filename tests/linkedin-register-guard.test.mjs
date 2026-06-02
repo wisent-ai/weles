@@ -43,7 +43,9 @@ describe('LinkedIn register guard', () => {
   it('rejects obvious rotating proxy forms', () => {
     expect(() => assertLinkedinDedicatedIspProxy(fakeSession('1.1.1.1'), 'residential oxylabs us')).toThrow(/PROXY_NOT_DEDICATED_ISP/);
     expect(() => assertLinkedinDedicatedIspProxy({ proxyConfig: { server: 'http://pr.oxylabs.io:7777', username: 'customer-x-cc-us-sessid-1' } }, 'http://x')).toThrow(/PROXY_NOT_DEDICATED_ISP/);
+    expect(() => assertLinkedinDedicatedIspProxy({ proxyConfig: { server: 'http://127.0.0.1:8001', proxy_type: 'residential' } }, 'isp decodo us')).toThrow(/PROXY_NOT_DEDICATED_ISP/);
     expect(() => assertLinkedinDedicatedIspProxy(fakeSession('1.1.1.1'), 'isp oxylabs us')).not.toThrow();
+    expect(() => assertLinkedinDedicatedIspProxy({ proxyConfig: { server: 'http://127.0.0.1:8001', proxy_type: 'isp' } }, 'isp decodo us')).not.toThrow();
   });
 
   it('detects challenge pages without treating email verification as CAPTCHA', () => {
@@ -115,6 +117,8 @@ describe('LinkedIn register guard', () => {
   it('does not wire CAPTCHA bypass into LinkedIn registration', () => {
     const source = readFileSync(new URL('../scripts/trajectories/linkedin_register.mjs', import.meta.url), 'utf8');
     expect(source).not.toMatch(/CaptchaSolver|solveRecaptcha|solveLinkedinCheckpoint|LINKEDIN_REGISTER_TRY_CHALLENGE/);
+    expect(source).toMatch(/'isp decodo us'/);
+    expect(source).not.toMatch(/'isp oxylabs us'/);
     expect(source).toMatch(/DETECTION_TRIGGERED: createAccount challengeUrl/);
     expect(source).toMatch(/assertNoLinkedinChallengePage/);
     expect(source).toMatch(/after_submit_email_password/);
