@@ -27133,6 +27133,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per session: per-`DiskArbitration.framework` registered-callback count + per-disk-event ('disk-appeared'|'disk-disappeared'|'disk-mount'|'disk-unmount'|'disk-eject'|'disk-rename') subscription distribution.
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB. Per-page bash builtin invocation count
+
+- **[T]** Per session: per-host-`bash` builtin (`alias`, `bg`, `bind`, `break`, `builtin`, `caller`, `cd`, `command`, `compgen`, `complete`, `compopt`, `continue`, `declare`, `dirs`, `disown`, `echo`, `enable`, `eval`, `exec`, `exit`, `export`, `false`, `fc`, `fg`, `getopts`, `hash`, `help`, `history`, `jobs`, `kill`, `let`, `local`, `logout`, `mapfile`, `popd`, `printf`, `pushd`, `pwd`, `read`, `readarray`, `readonly`, `return`, `set`, `shift`, `shopt`, `source`, `suspend`, `test`, `times`, `trap`, `true`, `type`, `typeset`, `ulimit`, `umask`, `unalias`, `unset`, `wait`) per-invocation count snapshot via DTRACE probe.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBC. Per-page zsh builtin invocation count
+
+- **[T]** Per session: per-host-`zsh` builtin (`autoload`, `bindkey`, `bg`, `break`, `builtin`, `cd`, `command`, `compdef`, `compgen`, `continue`, `declare`, `dirs`, `disable`, `disown`, `echo`, `emulate`, `enable`, `eval`, `exec`, `exit`, `export`, `false`, `fc`, `fg`, `float`, `functions`, `getopts`, `hash`, `history`, `integer`, `jobs`, `kill`, `let`, `limit`, `local`, `logout`, `noglob`, `popd`, `print`, `printf`, `pushd`, `pwd`, `read`, `readonly`, `rehash`, `return`, `sched`, `set`, `setopt`, `shift`, `source`, `suspend`, `test`, `times`, `trap`, `true`, `type`, `typeset`, `ulimit`, `umask`, `unalias`, `unfunction`, `unhash`, `unlimit`, `unset`, `unsetopt`, `vared`, `wait`, `whence`, `where`, `which`, `zcompile`, `zformat`, `zftp`, `zle`, `zmodload`, `zparseopts`, `zstyle`) per-invocation count snapshot.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCD. Per-page POSIX coreutils per-command invocation count
+
+- **[T]** Per session: per-`ls`/`cat`/`echo`/`mv`/`cp`/`rm`/`mkdir`/`rmdir`/`touch`/`chmod`/`chown`/`stat`/`du`/`df`/`find`/`grep`/`awk`/`sed`/`sort`/`uniq`/`wc`/`head`/`tail`/`cut`/`paste`/`tr`/`tee`/`xargs`/`basename`/`dirname`/`readlink`/`realpath`/`true`/`false` per-host invocation count.
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDE. Per-page git porcelain command invocation count
+
+- **[T]** Per session: per-`git status`/`git add`/`git commit`/`git push`/`git pull`/`git fetch`/`git checkout`/`git switch`/`git merge`/`git rebase`/`git reset`/`git revert`/`git diff`/`git log`/`git show`/`git stash`/`git tag`/`git branch`/`git clone`/`git remote`/`git config`/`git submodule`/`git worktree`/`git cherry-pick`/`git bisect`/`git blame`/`git restore` per-host invocation count.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEF. Per-page docker command invocation count
+
+- **[T]** Per session: per-`docker run`/`docker build`/`docker pull`/`docker push`/`docker exec`/`docker stop`/`docker start`/`docker restart`/`docker rm`/`docker rmi`/`docker ps`/`docker images`/`docker logs`/`docker compose up`/`docker compose down`/`docker compose ps`/`docker compose logs`/`docker inspect`/`docker network`/`docker volume`/`docker system prune` per-host invocation count.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFG. Per-page curl flag distribution
+
+- **[T]** Per session: per-`curl` invocation flag (`-L`, `-X`, `-H`, `-d`, `-F`, `-o`, `-O`, `-i`, `-I`, `-v`, `-s`, `-S`, `-u`, `-x`, `-k`, `--resolve`, `--connect-to`, `--data-binary`, `--data-urlencode`, `--cookie`, `--cookie-jar`, `--referer`, `--user-agent`, `--retry`, `--retry-delay`, `--retry-max-time`, `--max-time`, `--connect-timeout`, `--ipv4`, `--ipv6`, `--http1.0`, `--http1.1`, `--http2`, `--http3`, `--tlsv1.2`, `--tlsv1.3`, `--ciphers`, `--cacert`, `--cert`, `--key`) per-invocation count.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGH. Per-page wget flag distribution
+
+- **[T]** Per session: per-`wget` invocation flag (`-O`, `-o`, `-a`, `-c`, `-N`, `-r`, `-R`, `-l`, `-q`, `-v`, `-w`, `--no-check-certificate`, `--user-agent`, `--header`, `--post-data`, `--post-file`, `--user`, `--password`, `--http-user`, `--http-password`, `--proxy`, `--proxy-user`, `--proxy-password`, `--limit-rate`, `--tries`, `--retry-connrefused`) per-invocation count.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHI. Per-page ssh per-host invocation observation
+
+- **[T]** Per session: per-`ssh <host>` command invocation count + per-host `~/.ssh/config` Match/Host entries + KexAlgorithms + Ciphers + MACs + HostKeyAlgorithms + PubkeyAcceptedKeyTypes + UserKnownHostsFile distribution.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIJ. Per-page rsync flag distribution
+
+- **[T]** Per session: per-`rsync` invocation flag (`-a`, `-v`, `-z`, `-r`, `-l`, `-p`, `-o`, `-g`, `-t`, `-D`, `--delete`, `--exclude`, `--include`, `--progress`, `--partial`, `--archive`, `--recursive`, `--checksum`, `--stats`, `--dry-run`, `-e ssh`, `--rsh`) per-invocation count.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJK. Per-página gh CLI subcommand invocation count
+
+- **[T]** Per session: per-`gh pr create`/`gh pr view`/`gh pr list`/`gh pr merge`/`gh pr review`/`gh pr checks`/`gh issue create`/`gh issue view`/`gh issue list`/`gh repo create`/`gh repo clone`/`gh repo fork`/`gh workflow run`/`gh workflow view`/`gh workflow list`/`gh run watch`/`gh run view`/`gh run list`/`gh release create`/`gh release view`/`gh api`/`gh auth login`/`gh auth status` per-host invocation count.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKL. Per-page npm subcommand invocation count
+
+- **[T]** Per session: per-`npm install`/`npm ci`/`npm run`/`npm test`/`npm publish`/`npm pack`/`npm version`/`npm audit`/`npm outdated`/`npm update`/`npm uninstall`/`npm link`/`npm cache`/`npm config`/`npm whoami`/`npm login`/`npm logout`/`npm view`/`npm search` per-host invocation count.
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLM. Per-page pip subcommand invocation count
+
+- **[T]** Per session: per-`pip install`/`pip uninstall`/`pip freeze`/`pip list`/`pip show`/`pip search`/`pip download`/`pip wheel`/`pip check`/`pip config` per-host invocation count.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMN. Per-page brew subcommand invocation count
+
+- **[T]** Per session: per-`brew install`/`brew uninstall`/`brew upgrade`/`brew update`/`brew search`/`brew info`/`brew list`/`brew tap`/`brew untap`/`brew cleanup`/`brew doctor`/`brew services` per-host invocation count.
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNO. Per-page apt subcommand invocation count
+
+- **[T]** Per session: per-`apt-get install`/`apt-get update`/`apt-get upgrade`/`apt-get remove`/`apt-get purge`/`apt search`/`apt show`/`apt list`/`dpkg -l`/`dpkg -i`/`dpkg -r` per-host invocation count.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOP. Per-page systemctl subcommand invocation count
+
+- **[T]** Per session: per-`systemctl start`/`stop`/`restart`/`reload`/`enable`/`disable`/`status`/`is-active`/`is-enabled`/`list-units`/`list-unit-files`/`mask`/`unmask`/`daemon-reload`/`isolate`/`reboot`/`poweroff` per-host invocation count.
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPQ. Per-page launchctl subcommand invocation count
+
+- **[T]** Per session: per-`launchctl load`/`launchctl unload`/`launchctl start`/`launchctl stop`/`launchctl bootstrap`/`launchctl bootout`/`launchctl enable`/`launchctl disable`/`launchctl print`/`launchctl list`/`launchctl kickstart` per-host invocation count.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQR. Per-página jq filter expression distribution
+
+- **[T]** Per session: per-`jq` invocation filter expression (`.`, `.[]`, `.<key>`, `.[<index>]`, `select(...)`, `map(...)`, `reduce(...)`, `to_entries`, `from_entries`, `with_entries`, `paths(...)`, `length`, `keys`, `keys_unsorted`, `values`, `type`, `empty`, `tostring`, `tonumber`, `tojson`, `fromjson`, `add`, `min`, `max`, `sort`, `sort_by`, `group_by`, `unique`, `unique_by`, `range`, `recurse`, `walk`) distribution.
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRS. Per-page openssl subcommand invocation count
+
+- **[T]** Per session: per-`openssl s_client`/`openssl s_server`/`openssl x509`/`openssl req`/`openssl genrsa`/`openssl genpkey`/`openssl rsa`/`openssl pkey`/`openssl pkcs12`/`openssl pkcs7`/`openssl pkcs8`/`openssl smime`/`openssl cms`/`openssl crl`/`openssl ca`/`openssl dgst`/`openssl enc`/`openssl rand`/`openssl base64`/`openssl ec`/`openssl ecparam`/`openssl asn1parse` per-host invocation count.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSST. Per-page ffmpeg flag distribution
+
+- **[T]** Per session: per-`ffmpeg` invocation flag (`-i`, `-f`, `-c:v`, `-c:a`, `-b:v`, `-b:a`, `-r`, `-s`, `-vf`, `-af`, `-filter_complex`, `-ss`, `-t`, `-to`, `-y`, `-loglevel`, `-hide_banner`, `-stats`, `-map`, `-map_metadata`, `-vcodec`, `-acodec`, `-preset`, `-crf`, `-pix_fmt`, `-vsync`, `-async`) per-invocation count.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTU. Per-page python interpreter flag distribution
+
+- **[T]** Per session: per-`python`/`python3` interpreter flag (`-c`, `-m`, `-V`, `-h`, `-i`, `-O`, `-OO`, `-B`, `-bb`, `-d`, `-E`, `-I`, `-P`, `-q`, `-s`, `-S`, `-u`, `-v`, `-W`, `-X`, `-x`) per-invocation count.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUV. Per-page node interpreter flag distribution
+
+- **[T]** Per session: per-`node` interpreter flag (`-e`, `-p`, `--print`, `--eval`, `-r`, `--require`, `--inspect`, `--inspect-brk`, `--no-warnings`, `--use-openssl-ca`, `--enable-source-maps`, `--experimental-modules`, `--experimental-loader`, `--loader`, `--zero-fill-buffers`, `--throw-deprecation`, `--trace-warnings`, `--trace-deprecation`, `--abort-on-uncaught-exception`) per-invocation count.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVW. Per-page sqlite3 subcommand invocation count
+
+- **[T]** Per session: per-`sqlite3` invocation command (`.help`, `.tables`, `.schema`, `.dump`, `.read`, `.import`, `.export`, `.headers`, `.mode`, `.separator`, `.show`, `.indices`, `.databases`, `.exit`, `.quit`, `SELECT`, `INSERT`, `UPDATE`, `DELETE`, `CREATE TABLE`, `CREATE INDEX`, `CREATE TRIGGER`, `CREATE VIEW`, `DROP TABLE`, `DROP INDEX`, `ALTER TABLE`, `ATTACH`, `DETACH`, `VACUUM`, `ANALYZE`, `REINDEX`) per-host invocation count.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWX. Per-page tmux subcommand invocation count
+
+- **[T]** Per session: per-`tmux new-session`/`tmux attach-session`/`tmux kill-session`/`tmux list-sessions`/`tmux new-window`/`tmux split-window`/`tmux send-keys`/`tmux capture-pane`/`tmux select-pane`/`tmux resize-pane`/`tmux switch-client`/`tmux rename-window`/`tmux set-option`/`tmux show-options` per-host invocation count.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXY. Per-page tar flag distribution
+
+- **[T]** Per session: per-`tar` invocation flag (`-x`, `-c`, `-t`, `-r`, `-u`, `-A`, `-d`, `-f`, `-v`, `-z`, `-j`, `-J`, `-Z`, `--gzip`, `--bzip2`, `--xz`, `--lzip`, `--lzma`, `--zstd`, `-C`, `--directory`, `-p`, `--preserve-permissions`, `--strip-components`, `--exclude`, `--include`) per-invocation count.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYZ. Per-page unzip flag distribution
+
+- **[T]** Per session: per-`unzip` invocation flag (`-d`, `-o`, `-n`, `-x`, `-l`, `-p`, `-c`, `-t`, `-v`, `-q`, `-P`, `-X`, `-Y`, `-Z`) per-invocation count.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ1. Per-página psql/redis-cli/mongo subcommand invocation count
+
+- **[T]** Per session: per-`psql`/`redis-cli`/`mongo` interactive-shell command (`\d`, `\dt`, `\du`, `\df`, `\dn`, `\dx`, `\l`, `\c`, `\q`, `\?`, `\h`, `\set`, `\unset`, `\timing`, `\watch`, `\x`, `\copy`, `\edit`, `\include`, `\g`, `\gset`, `\gexec`) per-host invocation count.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
