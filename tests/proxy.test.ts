@@ -1,5 +1,44 @@
-import { describe, it, expect } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { proxyUrl, toPlaywright, parseProxyUrl, ProxyPool, resolveProxy } from '../src/proxy/config.js';
+
+const ENV_KEYS = [
+  'SUPABASE_URL',
+  'SUPABASE_SERVICE_ROLE_KEY',
+  'NEXT_PUBLIC_SUPABASE_URL',
+  'NEXT_PUBLIC_SUPABASE_ANON_KEY',
+  'OXYLABS_ISP_USERNAME',
+  'OXYLABS_ISP_PASSWORD',
+  'OXYLABS_ISP_HOST',
+  'OXYLABS_ISP_PORT',
+  'DECODO_ISP_USERNAME',
+  'DECODO_ISP_PASSWORD',
+  'DECODO_ISP_HOST',
+  'DECODO_ISP_PORT',
+  'DECODO_ISP_PORTS',
+  'PROXY_SKIP_PREFLIGHT',
+] as const;
+
+let savedEnv: Partial<Record<(typeof ENV_KEYS)[number], string | undefined>>;
+let savedFetch: typeof globalThis.fetch;
+
+beforeEach(() => {
+  savedEnv = {};
+  for (const key of ENV_KEYS) {
+    savedEnv[key] = process.env[key];
+    delete process.env[key];
+  }
+  savedFetch = globalThis.fetch;
+});
+
+afterEach(() => {
+  for (const key of ENV_KEYS) {
+    const value = savedEnv[key];
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  }
+  globalThis.fetch = savedFetch;
+  vi.restoreAllMocks();
+});
 
 describe('proxyUrl', () => {
   it('builds URL with auth', () => {
@@ -83,5 +122,23 @@ describe('resolveProxy URL policy', () => {
   it('marks accepted URL-form proxies as unclassified', async () => {
     await expect(resolveProxy('http://user:pass@proxy.example.test:8001', 'www.linkedin.com'))
       .resolves.toMatchObject({ proxy_type: 'url_unclassified' });
+  });
+
+  it('skips retired database proxy rows before handing out LinkedIn ISP proxies', async () => {
+    process.env.SUPABASE_URL = 'https://supabase.example.test';
+    process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-role-key';
+    process.env.OXYLABS_ISP_USERNAME = 'user';
+    process.env.OXYLABS_ISP_PASSWORD = 'pass';
+    process.env.PROXY_SKIP_PREFLIGHT = '1';
+    globalThis.fetch = vi.fn(async () => new Response(JSON.stringify([{
+      display_name: 'Oxylabs ISP stored row',
+      proxy_host: 'isp.oxylabs.io',
+      proxy_port: '8003',
+      api_key_env_var: 'OXYLABS_ISP_USERNAME',
+      balance_usd: 10,
+      metadata: { country: 'us' },
+    }]), { status: 200, headers: { 'Content-Type': 'application/json' } })) as typeof globalThis.fetch;
+
+    await expect(resolveProxy('isp oxylabs us', 'www.linkedin.com')).resolves.toBeUndefined();
   });
 });
