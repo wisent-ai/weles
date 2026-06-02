@@ -34309,6 +34309,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per session: per-page SVG `preserveAspectRatio` per-element ('none'|'xMinYMin'|'xMidYMid'|'xMaxYMin'|'xMinYMid'|'xMaxYMid'|'xMinYMax'|'xMidYMax'|'xMaxYMax') + 'meet'/'slice' distribution.
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB19. Per-page MathML element observation
+
+- **[T]** Per session: per-page MathML per-element (`<mi>`, `<mn>`, `<mo>`, `<mtext>`, `<mspace>`, `<ms>`, `<mrow>`, `<mfrac>`, `<msqrt>`, `<mroot>`, `<mstyle>`, `<merror>`, `<mpadded>`, `<mphantom>`, `<mfenced>`, `<menclose>`, `<msub>`, `<msup>`, `<msubsup>`, `<munder>`, `<mover>`, `<munderover>`, `<mmultiscripts>`, `<mtable>`, `<mtr>`, `<mtd>`, `<mlabeledtr>`, `<maligngroup>`, `<malignmark>`, `<mglyph>`, `<mlongdiv>`, `<mscarries>`, `<mscarry>`, `<msgroup>`, `<msline>`, `<msrow>`, `<mstack>`, `<maction>`, `<semantics>`, `<annotation>`, `<annotation-xml>`) count distribution.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB19. Per-page MathML display attribute observation
+
+- **[T]** Per session: per-page `<math display>` ('block'|'inline') per-element distribution.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC19. Per-page MathML mathvariant observation
+
+- **[T]** Per session: per-page MathML `mathvariant` per-element value distribution.
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD19. Per-page Custom element lifecycle callback observation
+
+- **[T]** Per session: per-page custom-element per-lifecycle-callback (`connectedCallback`, `disconnectedCallback`, `adoptedCallback`, `attributeChangedCallback`, `formAssociatedCallback`, `formDisabledCallback`, `formResetCallback`, `formStateRestoreCallback`) invocation count distribution.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE19. Per-page Custom element registry observation
+
+- **[T]** Per session: per-page `customElements.define()` + `customElements.get()` + `customElements.upgrade()` + `customElements.whenDefined()` invocation count distribution.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF19. Per-page Shadow DOM mode observation
+
+- **[T]** Per session: per-page `element.attachShadow({mode})` per-mode ('open'|'closed') count + per-shadow `delegatesFocus`/`slotAssignment`/`clonable`/`serializable` distribution.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG19. Per-page ElementInternals observation
+
+- **[T]** Per session: per-page `this.attachInternals()` invocation count + per-instance `setFormValue` + `setValidity` + `states` invocation count distribution.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH19. Per-page CustomStateSet observation
+
+- **[T]** Per session: per-page `ElementInternals.states.add()` + `delete()` + `clear()` + `has()` invocation count + per-state-name distribution.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII19. Per-page Constructed Stylesheet observation
+
+- **[T]** Per session: per-page `new CSSStyleSheet()` constructor count + per-sheet `replace()` + `replaceSync()` invocation count + `document.adoptedStyleSheets` length distribution.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ-12. Per-página Declarative Shadow DOM observation
+
+- **[T]** Per session: per-page `<template shadowrootmode>` declarative-shadow-root count distribution.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK-13. Per-page Form-associated custom element observation
+
+- **[T]** Per session: per-page form-associated custom element count + per-element `formAssociated` static-property distribution.
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL-16. Per-page MutationRecord type observation
+
+- **[T]** Per session: per-page MutationObserver per-MutationRecord `type` ('childList'|'attributes'|'characterData') count distribution.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM-18. Per-page IntersectionObserverEntry observation
+
+- **[T]** Per session: per-page IntersectionObserverEntry `isIntersecting` + `intersectionRatio` + `boundingClientRect` + `intersectionRect` + `rootBounds` + `target` + `time` distribution.
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN-19. Per-page ResizeObserverEntry observation
+
+- **[T]** Per session: per-page ResizeObserverEntry `contentRect` + `borderBoxSize[]` + `contentBoxSize[]` + `devicePixelContentBoxSize[]` distribution.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO-20. Per-page PerformanceObserverEntryList observation
+
+- **[T]** Per session: per-page `PerformanceObserverEntryList.getEntries()` per-entry-type return count distribution.
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP-21. Per-page TaskAttributionTiming observation
+
+- **[T]** Per session: per-page `PerformanceObserver({entryTypes:['taskattribution']})` per-entry containerType + containerSrc + containerId + containerName distribution.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ-22. Per-página PaintTiming observation
+
+- **[T]** Per session: per-page `PerformanceObserver({entryTypes:['paint']})` per-entry name ('first-paint'|'first-contentful-paint') startTime distribution.
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR-23. Per-page LayoutShiftAttribution observation
+
+- **[T]** Per session: per-page LayoutShift per-entry `sources[]` per-source `node` + `previousRect` + `currentRect` distribution.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS-24. Per-page LargestContentfulPaint candidate observation
+
+- **[T]** Per session: per-page LargestContentfulPaint per-entry `element` + `url` + `size` + `loadTime` + `renderTime` + `id` distribution.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT-25. Per-page LongTask attribution observation
+
+- **[T]** Per session: per-page LongTask per-entry `attribution[]` `containerType` + `containerSrc` + `containerId` + `containerName` distribution.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU-26. Per-page InteractionTiming observation
+
+- **[T]** Per session: per-page InteractionTiming per-entry interactionId + processingStart + processingEnd + duration + target distribution.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV-27. Per-page LongAnimationFrame scripts observation
+
+- **[T]** Per session: per-page LongAnimationFrame per-entry `scripts[]` per-script `name` + `sourceURL` + `sourceFunctionName` + `sourceCharPosition` + `pauseDuration` + `forcedStyleAndLayoutDuration` distribution.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW-28. Per-page VisibilityState change observation
+
+- **[T]** Per session: per-page `PerformanceObserver({entryTypes:['visibility-state']})` per-entry visibilityState transition count distribution.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX-31. Per-page UserTiming mark+measure observation
+
+- **[T]** Per session: per-page `performance.mark()` + `performance.measure()` per-name invocation count distribution.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY-35. Per-page Performance.clearMarks observation
+
+- **[T]** Per session: per-page `performance.clearMarks()` + `performance.clearMeasures()` + `performance.clearResourceTimings()` invocation count distribution.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ-36. Per-página Performance.eventCounts observation
+
+- **[T]** Per session: per-page `performance.eventCounts` per-event-name count distribution.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
