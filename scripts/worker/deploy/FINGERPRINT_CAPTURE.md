@@ -27861,6 +27861,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per session: per-`Network.requestWillBeSentExtraInfo` event count + per-event `requestId`, `associatedCookies[]`, `headers`, `clientSecurityState`, `connectTiming.requestTime`, `siteHasCookieInOtherPartition` distribution.
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB. Per-page CDP Page.frameAttached event observation
+
+- **[T]** Per session: per-`Page.frameAttached` event count + per-event `frameId`, `parentFrameId`, `stack.callFrames[]` distribution.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBC. Per-page CDP Page.frameNavigated event observation
+
+- **[T]** Per session: per-`Page.frameNavigated` event count + per-event `frame.id`, `frame.parentId`, `frame.loaderId`, `frame.name`, `frame.url`, `frame.urlFragment`, `frame.domainAndRegistry`, `frame.securityOrigin`, `frame.mimeType`, `frame.unreachableUrl`, `frame.adFrameStatus`, `frame.secureContextType`, `frame.crossOriginIsolatedContextType`, `frame.gatedAPIFeatures`, `type` ('Navigation'|'BackForwardCacheRestore') distribution.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCD. Per-page CDP Page.frameDetached event observation
+
+- **[T]** Per session: per-`Page.frameDetached` event count + per-event `frameId`, `reason` ('remove'|'swap') distribution.
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDE. Per-page CDP Page.frameResized event observation
+
+- **[T]** Per session: per-`Page.frameResized` event count.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEF. Per-page CDP Page.loadEventFired event observation
+
+- **[T]** Per session: per-`Page.loadEventFired` event count + per-event `timestamp` distribution.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFG. Per-page CDP Page.domContentEventFired event observation
+
+- **[T]** Per session: per-`Page.domContentEventFired` event count + per-event `timestamp` distribution.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGH. Per-page CDP Page.lifecycleEvent event observation
+
+- **[T]** Per session: per-`Page.lifecycleEvent` event count + per-event `name` ('DOMContentLoaded'|'commit'|'firstContentfulPaint'|'firstImagePaint'|'firstMeaningfulPaint'|'firstMeaningfulPaintCandidate'|'firstPaint'|'firstTextPaint'|'init'|'load'|'networkAlmostIdle'|'networkIdle') + `timestamp` distribution.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHI. Per-page CDP Page.javascriptDialogOpening event observation
+
+- **[T]** Per session: per-`Page.javascriptDialogOpening` event count + per-event `url`, `message`, `type` ('alert'|'confirm'|'prompt'|'beforeunload'), `hasBrowserHandler`, `defaultPrompt` distribution.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIJ. Per-page CDP Page.javascriptDialogClosed event observation
+
+- **[T]** Per session: per-`Page.javascriptDialogClosed` event count + per-event `result`, `userInput` distribution.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJK. Per-página CDP Page.windowOpen event observation
+
+- **[T]** Per session: per-`Page.windowOpen` event count + per-event `url`, `windowName`, `windowFeatures[]`, `userGesture` distribution.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKL. Per-page CDP Page.fileChooserOpened event observation
+
+- **[T]** Per session: per-`Page.fileChooserOpened` event count + per-event `frameId`, `mode` ('selectSingle'|'selectMultiple'), `backendNodeId` distribution.
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLM. Per-page CDP Page.downloadWillBegin event observation
+
+- **[T]** Per session: per-`Page.downloadWillBegin` event count + per-event `frameId`, `guid`, `url`, `suggestedFilename` distribution.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMN. Per-page CDP Page.downloadProgress event observation
+
+- **[T]** Per session: per-`Page.downloadProgress` event count + per-event `guid`, `totalBytes`, `receivedBytes`, `state` ('inProgress'|'completed'|'canceled') distribution.
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNO. Per-page CDP Page.screencastFrame event observation
+
+- **[T]** Per session: per-`Page.screencastFrame` event count + per-event `data` byte size + `metadata.offsetTop`, `metadata.pageScaleFactor`, `metadata.deviceWidth`, `metadata.deviceHeight`, `metadata.scrollOffsetX`, `metadata.scrollOffsetY`, `metadata.timestamp` distribution.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOP. Per-page CDP Page.screencastVisibilityChanged event observation
+
+- **[T]** Per session: per-`Page.screencastVisibilityChanged` event count + per-event `visible` distribution.
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPQ. Per-page CDP Page.frameRequestedNavigation event observation
+
+- **[T]** Per session: per-`Page.frameRequestedNavigation` event count + per-event `frameId`, `reason` ('formSubmissionGet'|'formSubmissionPost'|'httpHeaderRefresh'|'scriptInitiated'|'metaTagRefresh'|'pageBlockInterstitial'|'reload'|'anchorClick'), `url`, `disposition` ('currentTab'|'newTab'|'newWindow'|'download') distribution.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQR. Per-página CDP Page.frameClearedScheduledNavigation event observation
+
+- **[T]** Per session: per-`Page.frameClearedScheduledNavigation` event count + per-event `frameId` distribution.
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRS. Per-page CDP Page.frameStartedLoading event observation
+
+- **[T]** Per session: per-`Page.frameStartedLoading` event count + per-event `frameId` distribution.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSST. Per-page CDP Page.frameStoppedLoading event observation
+
+- **[T]** Per session: per-`Page.frameStoppedLoading` event count + per-event `frameId` distribution.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTU. Per-page CDP Page.navigatedWithinDocument event observation
+
+- **[T]** Per session: per-`Page.navigatedWithinDocument` event count + per-event `frameId`, `url`, `navigationType` ('fragment'|'historyApi'|'other') distribution.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUV. Per-page CDP Page.documentOpened event observation
+
+- **[T]** Per session: per-`Page.documentOpened` event count + per-event `frame` distribution.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVW. Per-page CDP Page.backForwardCacheNotUsed event observation
+
+- **[T]** Per session: per-`Page.backForwardCacheNotUsed` event count + per-event `loaderId`, `frameId`, `notRestoredExplanations[].type`, `notRestoredExplanations[].reason` distribution.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWX. Per-page CDP Page.compilationCacheProduced event observation
+
+- **[T]** Per session: per-`Page.compilationCacheProduced` event count + per-event `url`, `data` byte size distribution.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXY. Per-page CDP Page.prefetchStatusUpdated event observation
+
+- **[T]** Per session: per-`Page.prefetchStatusUpdated` event count + per-event `initiatingFrameId`, `prefetchUrl`, `status` distribution.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYZ. Per-page CDP Page.prerenderStatusUpdated event observation
+
+- **[T]** Per session: per-`Page.prerenderStatusUpdated` event count + per-event `initiatingFrameId`, `prerenderingUrl`, `prerenderStatus`, `disallowedApiMethod` distribution.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ1. Per-página CDP Page.fetchTimedOut
+
+- **[T]** Per session: per-`Page.fetchTimedOut`-style stuck-network observation count via stalled-event signature.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
