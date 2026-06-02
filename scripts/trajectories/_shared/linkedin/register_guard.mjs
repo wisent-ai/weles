@@ -89,6 +89,38 @@ export async function assertNoLinkedinChallengePage(session, stage = '') {
   return summary;
 }
 
+export async function getLinkedinAuthState(session) {
+  const finalUrl = session.page.url?.() ?? '';
+  const cookies = await session.ctx.cookies().catch(() => []);
+  const linkedinCookies = cookies.filter((c) => /linkedin\.com$/.test(c.domain ?? ''));
+  const liAt = linkedinCookies.find((c) => c.name === 'li_at' && c.value);
+  return {
+    final_url: finalUrl,
+    linkedin_cookie_count: linkedinCookies.length,
+    has_li_at: Boolean(liAt),
+    li_at_domain: liAt?.domain ?? '',
+    li_at_expires: liAt?.expires ?? null,
+  };
+}
+
+export async function assertLinkedinAuthenticatedRegistration(session, stage = '') {
+  const state = await getLinkedinAuthState(session);
+  const challengeSignal = getLinkedinChallengeSignal({ url: state.final_url });
+  if (challengeSignal) {
+    throw new Error(`DETECTION_TRIGGERED: ${challengeSignal} stage=${stage} final_url=${state.final_url.slice(0, 160)}`);
+  }
+  if (/^https?:\/\/www\.linkedin\.com\/signup\/?$/.test(state.final_url) || state.final_url.includes('/signup/api/')) {
+    throw new Error(`signup_did_not_complete: stage=${stage} final_url=${state.final_url}`);
+  }
+  if (/verify|email-verification|email_verification|checkpoint/.test(state.final_url)) {
+    throw new Error(`signup_verification_incomplete: stage=${stage} final_url=${state.final_url}`);
+  }
+  if (!state.has_li_at) {
+    throw new Error(`signup_did_not_authenticate: stage=${stage} final_url=${state.final_url} linkedin_cookie_count=${state.linkedin_cookie_count}`);
+  }
+  return state;
+}
+
 async function nudgeIntoSignup(page) {
   const joinSelectors = [
     'a[href*="/signup"]:has-text("Join now")',
@@ -172,6 +204,7 @@ export function classifyLinkedinRegisterFailure(errorMessage = '', finalUrl = ''
   if (/^(PROXY_|PROXY_NOT_DEDICATED_ISP)/.test(errorMessage) || finalUrl.startsWith('chrome-error://')) return 'proxy_failed';
   if (errorMessage.startsWith('DETECTION_TRIGGERED')) return 'detection_triggered';
   if (/captcha|challenge|checkpoint/i.test(finalUrl) || /captcha|challenge|checkpoint/i.test(errorMessage)) return 'captcha_challenge';
+  if (/signup_(did_not_complete|verification_incomplete|did_not_authenticate)/.test(errorMessage)) return 'registration_not_accepted';
   if (/signup_form_unavailable/.test(errorMessage)) return 'form_unavailable';
   return 'action_failed';
 }
