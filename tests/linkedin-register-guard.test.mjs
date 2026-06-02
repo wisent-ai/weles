@@ -34,9 +34,14 @@ describe('LinkedIn register guard', () => {
 
   it('passes stable dedicated ISP exits and rejects drift', async () => {
     await expect(assertLinkedinProxyStable(fakeSession('50.117.105.62'), 'test')).resolves.toBe('50.117.105.62');
+    await expect(assertLinkedinProxyStable(fakeSession('2606:4700:4700::1111'), 'test')).resolves.toBe('2606:4700:4700::1111');
     await expect(assertLinkedinProxyStable(fakeSession('50.117.105.63', '50.117.105.62'), 'test'))
       .rejects.toThrow(/PROXY_DRIFT/);
     await expect(assertLinkedinProxyStable(fakeSession('proxy auth failed'), 'test'))
+      .rejects.toThrow(/invalid_exit_ip/);
+    await expect(assertLinkedinProxyStable(fakeSession('::::'), 'test'))
+      .rejects.toThrow(/invalid_exit_ip/);
+    await expect(assertLinkedinProxyStable(fakeSession('deadbeef'), 'test'))
       .rejects.toThrow(/invalid_exit_ip/);
   });
 

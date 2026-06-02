@@ -1,4 +1,5 @@
 import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
+import { isIP } from 'node:net';
 
 export const LINKEDIN_SIGNUP_EMAIL_SELECTOR = [
   'form.join-form input[name="email-address"]',
@@ -210,7 +211,7 @@ export async function assertLinkedinProxyStable(session, stage, expectedExitIp =
     await probePage?.close?.().catch(() => {});
   }
   if (!actual) throw new Error(`PROXY_DRIFT_CHECK_FAILED: stage=${stage} empty_exit_ip`);
-  if (!/^[0-9a-fA-F:.]+$/.test(actual)) {
+  if (!isIP(actual)) {
     throw new Error(`PROXY_DRIFT_CHECK_FAILED: stage=${stage} invalid_exit_ip=${actual.slice(0, 80)}`);
   }
   const expected = expectedExitIp || session.proxyConfig.exit_ip || actual;
