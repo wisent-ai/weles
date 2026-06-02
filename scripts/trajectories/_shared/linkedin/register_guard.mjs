@@ -202,6 +202,7 @@ export function assertLinkedinDedicatedIspProxy(session, requestedProxy = '') {
 
 export function classifyLinkedinRegisterFailure(errorMessage = '', finalUrl = '') {
   if (/^(PROXY_|PROXY_NOT_DEDICATED_ISP)/.test(errorMessage) || finalUrl.startsWith('chrome-error://')) return 'proxy_failed';
+  if (errorMessage.startsWith('ACCOUNT_PERSIST_FAILED')) return 'account_persist_failed';
   if (errorMessage.startsWith('DETECTION_TRIGGERED')) return 'detection_triggered';
   if (/signup_(did_not_complete|verification_incomplete|did_not_authenticate)/.test(errorMessage)) return 'registration_not_accepted';
   if (/captcha|challenge|checkpoint/i.test(finalUrl) || /captcha|challenge|checkpoint/i.test(errorMessage)) return 'captcha_challenge';

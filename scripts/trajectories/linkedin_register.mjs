@@ -19,6 +19,14 @@ const URL = 'https://www.linkedin.com/signup';
 
 import { autoBindCharacter } from './lib/character-bind.mjs';
 
+async function saveVerifiedLinkedinAccount(session, account) {
+  const result = await session.saveAccount('linkedin', account);
+  if (!String(result).startsWith('account saved:')) {
+    throw new Error(`ACCOUNT_PERSIST_FAILED: ${String(result).slice(0, 180)}`);
+  }
+  return result;
+}
+
 // Persona + identity + browser + OS + input rotation all centralized in
 // WSession.start (platform: 'linkedin'). No browser/OS/input pin — rolls
 // naturally like the keeper does.
@@ -109,26 +117,6 @@ try {
     if (/^https?:\/\/www\.linkedin\.com\/signup\/?$/.test(u)) break; // signup rejected, no point waiting
     await humanIdlePause('deliberate');
   }
-  // After redirect settles, persist cookies to social_accounts.metadata.cookies.
-  try {
-    const cookies = await s.ctx.cookies();
-    const linkedinCookies = cookies.filter(c => /linkedin\.com/.test(c.domain ?? ''));
-    const liAt = linkedinCookies.find(c => c.name === 'li_at')?.value ?? '';
-    console.log(`[register] post-redirect URL=${s.page.url()} cookies=${linkedinCookies.length} li_at=${liAt ? 'yes' : 'no'}`);
-    if (liAt) {
-      const supabaseUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
-      const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
-      if (supabaseUrl && supabaseKey) {
-        const lookup = await fetch(`${supabaseUrl}/rest/v1/social_accounts?platform=eq.linkedin&username=eq.${id.handle}&select=id,metadata`, { headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` } });
-        const rows = await lookup.json();
-        if (rows[0]) {
-          const merged = { ...(rows[0].metadata ?? {}), cookies: linkedinCookies };
-          await fetch(`${supabaseUrl}/rest/v1/social_accounts?id=eq.${rows[0].id}`, { method: 'PATCH', headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' }, body: JSON.stringify({ metadata: merged }) });
-          console.log(`[register] persisted ${linkedinCookies.length} cookies (incl. li_at) to account ${rows[0].id}`);
-        }
-      }
-    }
-  } catch (cookieErr) { console.log(`[register] cookie persist err: ${cookieErr.message?.slice(0, 100)}`); }
   const verifyUrl = s.page.url();
   console.log(`[register] post-name URL: ${verifyUrl}`);
   process.env.LINKEDIN_NEW_EMAIL = id.email;
@@ -152,13 +140,13 @@ try {
     await humanClickLocator(s.page, s.page.locator('button[type="submit"]:has-text("Submit"), button:has-text("Verify"), button[type="submit"]:has-text("Agree"), button#email-pin-submit-button').first());
     await s.page.waitForFunction(() => !/verify|email-verification|email_verification|checkpoint/.test(location.href), { timeout: 30000 }).catch(() => {});
     authState = await assertLinkedinAuthenticatedRegistration(s, 'after_email_verification');
-    await s.saveAccount('linkedin', { username: id.handle, email: id.email, password: id.password, name: `${id.first} ${id.last}` });
+    await saveVerifiedLinkedinAccount(s, { username: id.handle, email: id.email, password: id.password, name: `${id.first} ${id.last}` });
     await confirmLinkedinEmail(s.page, id.email).catch((e) => console.log(`[linkedin_register] email confirm err: ${e.message?.slice(0, 80)}`));
     await autoBindCharacter(id.handle, 'linkedin').then(r => console.log(`[bind] ${JSON.stringify(r)}`)).catch((e) => console.log(`[bind] err: ${e.message?.slice(0, 80)}`));
     console.log(`PASS: ${id.handle}`);
   } else {
     authState = await assertLinkedinAuthenticatedRegistration(s, 'after_registration_redirect');
-    await s.saveAccount('linkedin', { username: id.handle, email: id.email, password: id.password, name: `${id.first} ${id.last}` });
+    await saveVerifiedLinkedinAccount(s, { username: id.handle, email: id.email, password: id.password, name: `${id.first} ${id.last}` });
     await confirmLinkedinEmail(s.page, id.email).catch((e) => console.log(`[linkedin_register] email confirm err: ${e.message?.slice(0, 80)}`));
     await autoBindCharacter(id.handle, 'linkedin').then(r => console.log(`[bind] ${JSON.stringify(r)}`)).catch((e) => console.log(`[bind] err: ${e.message?.slice(0, 80)}`));
     console.log(`PASS: ${id.handle}`);

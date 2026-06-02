@@ -23,6 +23,7 @@ describe('LinkedIn register guard', () => {
   it('classifies proxy and challenge failures distinctly', () => {
     expect(classifyLinkedinRegisterFailure('PROXY_DRIFT: expected=1 actual=2', 'https://www.linkedin.com/signup')).toBe('proxy_failed');
     expect(classifyLinkedinRegisterFailure('PROXY_NOT_DEDICATED_ISP: residential', 'https://www.linkedin.com/signup')).toBe('proxy_failed');
+    expect(classifyLinkedinRegisterFailure('ACCOUNT_PERSIST_FAILED: error: no SUPABASE_URL', 'https://www.linkedin.com/feed/')).toBe('account_persist_failed');
     expect(classifyLinkedinRegisterFailure('DETECTION_TRIGGERED: createAccount challengeUrl', 'https://www.linkedin.com/signup')).toBe('detection_triggered');
     expect(classifyLinkedinRegisterFailure('x', 'https://www.linkedin.com/checkpoint/challenge')).toBe('captcha_challenge');
     expect(classifyLinkedinRegisterFailure('signup_did_not_authenticate: stage=test', 'https://www.linkedin.com/feed/')).toBe('registration_not_accepted');
@@ -93,5 +94,8 @@ describe('LinkedIn register guard', () => {
     expect(source).toMatch(/after_submit_email_password/);
     expect(source).toMatch(/after_create_account/);
     expect(source).toMatch(/assertLinkedinAuthenticatedRegistration/);
+    expect(source).toMatch(/saveVerifiedLinkedinAccount/);
+    expect(source).toMatch(/ACCOUNT_PERSIST_FAILED/);
+    expect(source).not.toMatch(/post-redirect URL|persisted .*cookies/);
   });
 });
