@@ -28485,6 +28485,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per session: per-page `audio.canPlayType()` per-MIME-type ('audio/mpeg', 'audio/ogg', 'audio/wav', 'audio/webm', 'audio/aac', 'audio/flac', 'audio/mp4; codecs="mp4a.40.2"', 'audio/ogg; codecs="vorbis"', 'audio/ogg; codecs="opus"', 'audio/webm; codecs="opus"') return-string distribution.
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB. Per-page WebRTC getStats inbound-rtp full snapshot
+
+- **[T]** Per session: per-page `pc.getStats()` per-`inbound-rtp` stat snapshot — `kind`, `mediaType`, `ssrc`, `transportId`, `codecId`, `packetsReceived`, `packetsLost`, `bytesReceived`, `jitter`, `framesDecoded`, `keyFramesDecoded`, `framesDropped`, `frameWidth`, `frameHeight`, `framesPerSecond`, `qpSum`, `totalDecodeTime`, `totalAssemblyTime`, `firCount`, `pliCount`, `nackCount`, `decoderImplementation`, `playoutId`, `powerEfficientDecoder` distribution.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBC. Per-page WebRTC getStats outbound-rtp full snapshot
+
+- **[T]** Per session: per-page `pc.getStats()` per-`outbound-rtp` stat snapshot — `kind`, `mediaType`, `ssrc`, `transportId`, `codecId`, `packetsSent`, `bytesSent`, `headerBytesSent`, `retransmittedPacketsSent`, `framesEncoded`, `keyFramesEncoded`, `frameWidth`, `frameHeight`, `framesPerSecond`, `qpSum`, `targetBitrate`, `totalEncodeTime`, `totalPacketSendDelay`, `encoderImplementation`, `qualityLimitationReason` ('cpu'|'bandwidth'|'other'|'none'), `mediaSourceId`, `nackCount`, `firCount`, `pliCount`, `powerEfficientEncoder` distribution.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCD. Per-page WebRTC getStats remote-inbound-rtp full snapshot
+
+- **[T]** Per session: per-page `pc.getStats()` per-`remote-inbound-rtp` stat — `kind`, `mediaType`, `ssrc`, `transportId`, `codecId`, `localId`, `packetsReceived`, `packetsLost`, `jitter`, `roundTripTime`, `totalRoundTripTime`, `fractionLost`, `roundTripTimeMeasurements` distribution.
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDE. Per-page WebRTC getStats remote-outbound-rtp full snapshot
+
+- **[T]** Per session: per-page `pc.getStats()` per-`remote-outbound-rtp` stat — `kind`, `mediaType`, `ssrc`, `transportId`, `codecId`, `localId`, `packetsSent`, `bytesSent`, `remoteTimestamp`, `reportsSent`, `roundTripTime`, `totalRoundTripTime`, `roundTripTimeMeasurements` distribution.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEF. Per-page WebRTC getStats candidate-pair full snapshot
+
+- **[T]** Per session: per-page `pc.getStats()` per-`candidate-pair` stat — `transportId`, `localCandidateId`, `remoteCandidateId`, `state` ('frozen'|'waiting'|'in-progress'|'failed'|'succeeded'), `priority`, `nominated`, `bytesSent`, `bytesReceived`, `lastPacketSentTimestamp`, `lastPacketReceivedTimestamp`, `currentRoundTripTime`, `totalRoundTripTime`, `availableOutgoingBitrate`, `availableIncomingBitrate`, `requestsReceived`, `requestsSent`, `responsesReceived`, `responsesSent`, `consentRequestsSent`, `packetsDiscardedOnSend`, `bytesDiscardedOnSend` distribution.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFG. Per-page WebRTC getStats local-candidate full snapshot
+
+- **[T]** Per session: per-page `pc.getStats()` per-`local-candidate` stat — `transportId`, `address`, `port`, `protocol` ('tcp'|'udp'), `candidateType` ('host'|'srflx'|'prflx'|'relay'), `priority`, `url`, `relayProtocol`, `foundation`, `relatedAddress`, `relatedPort`, `networkType` ('bluetooth'|'cellular'|'ethernet'|'wifi'|'wimax'|'vpn'|'unknown'), `usernameFragment`, `tcpType` ('active'|'passive'|'so'), `vpn`, `networkAdapterType` ('bluetooth'|'cellular'|'ethernet'|'loopback'|'tunnel'|'unknown'|'wifi'|'wimax') distribution.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGH. Per-page WebRTC getStats remote-candidate full snapshot
+
+- **[T]** Per session: per-page `pc.getStats()` per-`remote-candidate` stat — `transportId`, `address`, `port`, `protocol`, `candidateType`, `priority`, `url`, `relayProtocol`, `foundation`, `relatedAddress`, `relatedPort` distribution.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHI. Per-page WebRTC getStats transport full snapshot
+
+- **[T]** Per session: per-page `pc.getStats()` per-`transport` stat — `bytesSent`, `bytesReceived`, `dtlsState` ('new'|'connecting'|'connected'|'closed'|'failed'), `iceState` ('new'|'checking'|'connected'|'completed'|'failed'|'disconnected'|'closed'), `iceRole`, `iceLocalUsernameFragment`, `selectedCandidatePairId`, `localCertificateId`, `remoteCertificateId`, `tlsVersion`, `dtlsCipher`, `srtpCipher`, `dtlsRole`, `dtlsCipher`, `tlsGroup`, `selectedCandidatePairChanges`, `packetsSent`, `packetsReceived` distribution.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIJ. Per-page WebRTC getStats certificate full snapshot
+
+- **[T]** Per session: per-page `pc.getStats()` per-`certificate` stat — `fingerprint`, `fingerprintAlgorithm`, `base64Certificate`, `issuerCertificateId` distribution.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJK. Per-página WebRTC getStats codec full snapshot
+
+- **[T]** Per session: per-page `pc.getStats()` per-`codec` stat — `mimeType`, `clockRate`, `channels`, `sdpFmtpLine`, `payloadType`, `transportId` distribution.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKL. Per-page WebRTC getStats media-source full snapshot
+
+- **[T]** Per session: per-page `pc.getStats()` per-`media-source` stat — `kind`, `trackIdentifier`, `audioLevel`, `totalAudioEnergy`, `totalSamplesDuration`, `echoReturnLoss`, `echoReturnLossEnhancement`, `width`, `height`, `frames`, `framesPerSecond` distribution.
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLM. Per-page WebRTC getStats peer-connection full snapshot
+
+- **[T]** Per session: per-page `pc.getStats()` per-`peer-connection` stat — `dataChannelsOpened`, `dataChannelsClosed` distribution.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMN. Per-page WebRTC SDP offer/answer
+
+- **[T]** Per session: per-page `pc.localDescription.sdp` + `pc.remoteDescription.sdp` byte-level snapshot — per-line m=, a=, v=, o=, s=, t=, c=, b= line distribution.
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNO. Per-page WebRTC SDP a=fingerprint
+
+- **[T]** Per session: per-page SDP `a=fingerprint:` line algorithm + hash distribution.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOP. Per-page WebRTC SDP a=ice-options
+
+- **[T]** Per session: per-page SDP `a=ice-options:` line contents ('trickle', 'ice2', 'renomination') distribution.
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPQ. Per-page WebRTC SDP a=ufrag/a=pwd
+
+- **[T]** Per session: per-page SDP `a=ice-ufrag:` + `a=ice-pwd:` byte length distribution.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQR. Per-página WebRTC SDP a=msid-semantic
+
+- **[T]** Per session: per-page SDP `a=msid-semantic:` line + per-m-section MID distribution.
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRS. Per-page WebRTC SDP a=rtpmap
+
+- **[T]** Per session: per-page SDP `a=rtpmap:` per-codec entry distribution — payload-type + codec-name + clock-rate + (optional) channels.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSST. Per-page WebRTC SDP a=fmtp parameters
+
+- **[T]** Per session: per-page SDP `a=fmtp:<pt>` per-codec parameter list distribution — H264: profile-level-id, packetization-mode, level-asymmetry-allowed; VP9: profile-id, max-fr; AV1: profile, level-idx, tier; Opus: minptime, useinbandfec, stereo, sprop-stereo.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTU. Per-page WebRTC SDP a=rtcp-fb
+
+- **[T]** Per session: per-page SDP `a=rtcp-fb:` per-codec feedback distribution ('nack', 'nack pli', 'goog-remb', 'transport-cc', 'ccm fir').
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUV. Per-page WebRTC SDP a=extmap
+
+- **[T]** Per session: per-page SDP `a=extmap:` per-extension URI distribution (`urn:ietf:params:rtp-hdrext:toffset`, `urn:ietf:params:rtp-hdrext:ssrc-audio-level`, `urn:ietf:params:rtp-hdrext:framemarking`, `http://www.webrtc.org/experiments/rtp-hdrext/abs-send-time`).
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVW. Per-page WebRTC SDP a=ssrc
+
+- **[T]** Per session: per-page SDP `a=ssrc:<ssrc>` per-attribute distribution ('cname', 'msid', 'mslabel', 'label').
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWX. Per-page WebRTC SDP a=group
+
+- **[T]** Per session: per-page SDP `a=group:BUNDLE` per-MID list distribution.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXY. Per-page WebRTC SDP a=setup
+
+- **[T]** Per session: per-page SDP `a=setup:` value ('active'|'passive'|'actpass'|'holdconn') distribution.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYZ. Per-page WebRTC SDP a=mid
+
+- **[T]** Per session: per-page SDP `a=mid:` per-m-section MID value distribution.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ1. Per-página WebRTC SDP a=candidate
+
+- **[T]** Per session: per-page SDP `a=candidate:` per-ICE-candidate distribution — foundation, component, transport, priority, address, port, type, generation, ufrag, related-address, related-port.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
