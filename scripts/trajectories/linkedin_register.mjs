@@ -12,6 +12,7 @@ import { humanClickLocator, humanIdlePause } from '../../dist/human/mouse.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { confirmLinkedinEmail, solveLinkedinCheckpoint } from './_shared/linkedin/checkpoint.mjs';
+import { assertLinkedinDedicatedIspProxy, assertLinkedinProxyStable, classifyLinkedinRegisterFailure, ensureLinkedinSignupForm } from './_shared/linkedin/register_guard.mjs';
 import { fillPostRegisterOnboarding } from './_shared/linkedin/onboarding/work_school.mjs';
 // generateIdentity import removed — identity now created by WSession.start via opts.platform.
 
@@ -19,7 +20,6 @@ const URL = 'https://www.linkedin.com/signup';
 const RECAPTCHA_SITEKEY = '6LcIy_MqAAAAAMKiupFSbmzW3xjGSlIfRzNWYMjC';
 
 import { autoBindCharacter } from './lib/character-bind.mjs';
-import { generateIdentity } from '../../dist/utils/identity.js';
 
 async function getAndInjectRecaptcha(page, action) {
   const solver = new CaptchaSolver();
@@ -100,7 +100,9 @@ async function solveV2Modal(page) {
 // naturally like the keeper does.
 if (!process.env.PROXY_URL) { console.log('FAIL: PROXY_URL unset — LinkedIn register requires an explicit proxy (PROXY_URL).'); process.exit(2); }
 const s = await WSession.start({ label: 'linkedin_register', proxy: process.env.PROXY_URL, targetHost: 'www.linkedin.com', platform: 'linkedin' });
+assertLinkedinDedicatedIspProxy(s, process.env.PROXY_URL);
 const id = { first: s.identity.firstName, last: s.identity.lastName, handle: s.identity.username, email: s.identity.email, password: s.identity.password };
+let expectedExitIp = s.proxyConfig?.exit_ip ?? '';
 console.log(`[register] identity: ${id.email} / ${id.first} ${id.last}`);
 // Persist credentials so a captcha failure mid-run still leaves a way to log in via keeper.
 try { const { writeFileSync: _wf } = await import('node:fs'); _wf('/tmp/linkedin_register_creds.txt', `email=${id.email}\nhandle=${id.handle}\npassword=${id.password}\nfirst=${id.first}\nlast=${id.last}\nproxy=${process.env.PROXY_URL}\nts=${new Date().toISOString()}\n`); }
@@ -108,17 +110,13 @@ catch (e) { console.log(`[register] creds file err: ${e.message?.slice(0, 80)}`)
 try {
   await s.goto(URL);
   await humanIdlePause('deliberate');
-  // Force autocomplete=off + clear values on every input. 2026-05-11
-  // recording showed prior subprocess identities leaking via Chromium autofill.
+  expectedExitIp = await assertLinkedinProxyStable(s, 'after_goto', expectedExitIp);
+  const { emailLoc, pwdLoc } = await ensureLinkedinSignupForm(s);
   await s.page.evaluate(() => { for (const el of document.querySelectorAll('input,textarea')) { el.setAttribute('autocomplete','off'); el.value=''; } }).catch(e => console.log(`[register] autofill-disable err: ${e.message?.slice(0, 80)}`));
-  const emailLoc = s.page.locator('input[name="email-address"], input[autocomplete="email"], input#email-address').filter({ visible: true }).first();
-  const pwdLoc = s.page.locator('input[name="password"], input[autocomplete="new-password"], input#password').filter({ visible: true }).first();
-  const hasEmail = await emailLoc.count();
-  const hasPwd = await pwdLoc.count();
-  if (!hasEmail || !hasPwd) throw new Error(`email/password fields not found (hasEmail=${hasEmail} hasPwd=${hasPwd})`);
   await humanFill(s.page, emailLoc, id.email);
   await humanFill(s.page, pwdLoc, id.password);
   console.log(`[register] fill email+pwd: ok`);
+  expectedExitIp = await assertLinkedinProxyStable(s, 'before_submit_email_password', expectedExitIp);
 
   await getAndInjectRecaptcha(s.page, 'signup');
   await humanIdlePause('short');
@@ -158,6 +156,7 @@ try {
   if (fillBOk) {
     await getAndInjectRecaptcha(s.page, 'signup');
     await humanIdlePause('short');
+    expectedExitIp = await assertLinkedinProxyStable(s, 'before_create_account', expectedExitIp);
     // Capture /signup/api/cors/createAccount response BEFORE click. On a
     // challenged session LinkedIn returns HTTP 200 with body
     // {submissionId, challengeUrl:"/checkpoint/challengeIframe/..."} — the
@@ -243,6 +242,7 @@ try {
   process.env.LINKEDIN_NEW_LASTNAME = id.last;
   process.env.LINKEDIN_NEW_USERNAME = id.handle;
   // Reject /signup as success — silent reCAPTCHA-score rejection looks identical.
+  expectedExitIp = await assertLinkedinProxyStable(s, 'before_success_validation', expectedExitIp);
   if (/^https?:\/\/www\.linkedin\.com\/signup\/?$/.test(verifyUrl) || verifyUrl.includes('/signup/api/')) {
     throw new Error(`signup_did_not_complete: URL stayed at ${verifyUrl} — likely reCAPTCHA score too low or silent rejection`);
   }
@@ -271,11 +271,8 @@ try {
   try { mkdirSync(join(process.cwd(), 'recordings', 'linkedin_register'), { recursive: true }); writeFileSync(join(process.cwd(), 'recordings', 'linkedin_register', 'ban_signal.json'), JSON.stringify({ action: 'linkedin_register', signal: 'healthy', healthy: true, details: { username: id.handle, email: id.email, final_url: s.page.url() }, ts: new Date().toISOString() }, null, 2)); } catch {}
 } catch (e) {
   const finalUrl = s.page.url?.() ?? '';
-  let sig = 'action_failed';
-  if (e.message?.startsWith('DETECTION_TRIGGERED')) sig = 'detection_triggered';
-  else if (finalUrl.startsWith('chrome-error://')) sig = 'proxy_failed';
-  else if (/captcha|challenge|checkpoint/.test(finalUrl)) sig = 'captcha_challenge';
-  try { mkdirSync(join(process.cwd(), 'recordings', 'linkedin_register'), { recursive: true }); writeFileSync(join(process.cwd(), 'recordings', 'linkedin_register', 'ban_signal.json'), JSON.stringify({ action: 'linkedin_register', signal: sig, healthy: false, details: { final_url: finalUrl, error: e.message?.slice(0, 200), attempted_email: id.email }, ts: new Date().toISOString() }, null, 2)); } catch {}
+  const sig = classifyLinkedinRegisterFailure(e.message ?? '', finalUrl);
+  try { mkdirSync(join(process.cwd(), 'recordings', 'linkedin_register'), { recursive: true }); writeFileSync(join(process.cwd(), 'recordings', 'linkedin_register', 'ban_signal.json'), JSON.stringify({ action: 'linkedin_register', signal: sig, healthy: false, details: { final_url: finalUrl, error: e.message?.slice(0, 200), attempted_email: id.email, expected_exit_ip: expectedExitIp }, ts: new Date().toISOString() }, null, 2)); } catch {}
   console.log(`FAIL: ${e.message?.slice(0, 200)}`);
   // exitCode (not exit) so the finally block's await s.close() actually runs.
   // process.exit(1) kills pending async ops immediately, which prevents
