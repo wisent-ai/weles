@@ -16,6 +16,43 @@ import { attachServiceWorkers, attachCdpLifecycle, pollStorageState, buildSiblin
 import { startPcap, attachWorkerInventory } from './pcap_sidecar.js';
 import { buildCaptureCoverage } from './capture_coverage.js';
 
+function safeJsonStringify(value: unknown): string {
+  return JSON.stringify(value, (_k, v) => {
+    if (typeof v !== 'string') return v;
+    // Captured page/network payloads can contain lone UTF-16 surrogates.
+    // JSON.stringify will emit them as \uXXXX, but downstream parsers can
+    // still choke when paired incorrectly. Normalize them at the artifact edge.
+    return v.replace(/[\uD800-\uDFFF]/g, '\uFFFD');
+  });
+}
+
+function redactRequestBody(url: string, body: string): { body: string; redacted: boolean } {
+  if (!body) return { body, redacted: false };
+  const sensitiveUrl = /linkedin\.com\/signup\/api|linkedin\.com\/checkpoint|\/auth\/|\/login|\/register/i.test(url);
+  const sensitiveBody = /password|passwd|pwd|email|mail|phone|csrf|token|secret/i.test(body);
+  if (!sensitiveUrl && !sensitiveBody) return { body, redacted: false };
+  const sensitiveKeys = /^(password|passwd|pwd|passcode|secret|token|csrf|csrfToken|loginCsrfParam|email|emailAddress|mail|phone|username|session_key|session_password)$/i;
+  try {
+    const parsed = JSON.parse(body);
+    const scrub = (value: unknown): unknown => {
+      if (Array.isArray(value)) return value.map(scrub);
+      if (value && typeof value === 'object') {
+        return Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([k, v]) => [
+          k,
+          sensitiveKeys.test(k) ? (String(k).toLowerCase().includes('email') ? '<redacted-email>' : '<redacted>') : scrub(v),
+        ]));
+      }
+      return value;
+    };
+    return { body: JSON.stringify(scrub(parsed)), redacted: true };
+  } catch {}
+  let redacted = body
+    .replace(/(["']?(?:password|passwd|pwd|passcode|secret|token|csrfToken|loginCsrfParam|email|emailAddress|mail|phone|username|session_key|session_password)["']?\s*[:=]\s*)["']?([^&;,\s"'}]+)["']?/gi, '$1"<redacted>"')
+    .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '<redacted-email>');
+  if (redacted === body && (sensitiveUrl || sensitiveBody)) redacted = '<redacted-sensitive-body>';
+  return { body: redacted, redacted: redacted !== body };
+}
+
 // One merged fingerprint artifact per run, written under recordings/<label>/ so
 // the worker uploader (src/worker/upload-artifacts.ts) picks it up alongside
 // webm + DOM snapshots and pushes everything to Supabase Storage in one batch.
@@ -26,6 +63,12 @@ import { buildCaptureCoverage } from './capture_coverage.js';
 // filter, NO body truncation, and runs on every WSession (keepers and
 // trajectories) without exception per the 2026-05-24 standing instruction.
 export function startInstrumentation(ws: any, ctx: BrowserContext, label: string | undefined): any[] {
+  const fullDiagnostics = process.env.WELES_FULL_DIAGNOSTICS === '1';
+  const cdpDiagnostics = fullDiagnostics || process.env.WELES_CDP_DIAGNOSTICS === '1';
+  const storageDiagnostics = fullDiagnostics || process.env.WELES_STORAGE_DIAGNOSTICS === '1';
+  const pcapDiagnostics = fullDiagnostics || process.env.WELES_PCAP_DIAGNOSTICS === '1';
+  const workerDiagnostics = fullDiagnostics || process.env.WELES_WORKER_DIAGNOSTICS === '1';
+  const hostDiagnostics = fullDiagnostics || process.env.WELES_HOST_DIAGNOSTICS === '1';
   const dir = join(process.cwd(), 'recordings', label || 'session');
   mkdirSync(dir, { recursive: true });
   const ts = new Date().toISOString().replace(/[:.]/g, '-');
@@ -62,13 +105,23 @@ export function startInstrumentation(ws: any, ctx: BrowserContext, label: string
   attachCompleteNetRecord(ctx, reqs);
   attachPageDiagnostics(ws, consoleMsgs, pageErrors);
   attachServiceWorkers(ctx, swEvents);
-  attachCdpLifecycle(ws, ctx, targetEvents, frameEvents, metricsHistory);
-  pollStorageState(ws, ctx, storageHistory);
-  startPcap(ws, label);
-  attachWorkerInventory(ws);
-  captureHostSnapshots(ws);
+  if (cdpDiagnostics) {
+    attachCdpLifecycle(ws, ctx, targetEvents, frameEvents, metricsHistory);
+  }
+  if (storageDiagnostics) {
+    pollStorageState(ws, ctx, storageHistory);
+  }
+  if (pcapDiagnostics) {
+    startPcap(ws, label);
+  }
+  if (workerDiagnostics) {
+    attachWorkerInventory(ws);
+  }
+  if (hostDiagnostics) {
+    captureHostSnapshots(ws);
+  }
   attachPagePlaywrightEvents(ws);
-  setInterval(async () => {
+  const flushTimer = setInterval(async () => {
     try {
       for (const f of ws.page.frames()) {
         try {
@@ -80,9 +133,11 @@ export function startInstrumentation(ws: any, ctx: BrowserContext, label: string
           if (!prev || log.length > prev.log.length) accum.set(url, { url, log });
         } catch {}
       }
-      writeFileSync(fn, JSON.stringify(buildDumpPayload(ws)));
+      writeFileSync(fn, safeJsonStringify(buildDumpPayload(ws)));
     } catch {}
   }, 5000);
+  ws._instFlushTimer = flushTimer;
+  flushTimer.unref?.();
   return reqs;
 }
 
@@ -104,6 +159,10 @@ export async function finalDump(ws: any): Promise<void> {
   try { await captureFinalCdpSnapshots(ws); } catch {}
   try { const { stopPcap } = await import('./pcap_sidecar.js'); await stopPcap(ws); } catch {}
   try {
+    if (ws._instFlushTimer) {
+      clearInterval(ws._instFlushTimer);
+      ws._instFlushTimer = null;
+    }
     if (!ws.page?.isClosed?.()) {
       for (const f of ws.page.frames?.() ?? []) {
         try {
@@ -116,7 +175,7 @@ export async function finalDump(ws: any): Promise<void> {
         } catch {}
       }
     }
-    writeFileSync(ws._instFile, JSON.stringify(buildDumpPayload(ws, { closing: true })));
+    writeFileSync(ws._instFile, safeJsonStringify(buildDumpPayload(ws, { closing: true })));
     console.log(`[wsession] final inst dump -> ${ws._instFile}`);
   } catch (e: any) { console.log(`[wsession] finalDump err: ${e?.message?.slice(0, 120)}`); }
 }
@@ -146,12 +205,14 @@ function attachPageDiagnostics(ws: any, consoleMsgs: any[], pageErrors: any[]): 
 }
 
 export function attachCompleteNetRecord(ctx: BrowserContext, reqs: any[]): void {
+  const captureBodies = process.env.WELES_CAPTURE_RESPONSE_BODIES === '1' || process.env.WELES_FULL_DIAGNOSTICS === '1';
   ctx.on('request', (req) => {
     try {
       let post = '';
       try { post = req.postData() ?? ''; } catch {}
+      const redactedPost = redactRequestBody(req.url(), post);
       let postBytes = '';
-      try { const b = (req as any).postDataBuffer?.(); if (b) postBytes = Buffer.from(b).toString('base64'); } catch {}
+      try { const b = (req as any).postDataBuffer?.(); if (b && !redactedPost.redacted) postBytes = Buffer.from(b).toString('base64'); } catch {}
       reqs.push({
         t: Date.now(),
         phase: 'req',
@@ -159,7 +220,8 @@ export function attachCompleteNetRecord(ctx: BrowserContext, reqs: any[]): void 
         url: req.url(),
         resourceType: (req as any).resourceType?.(),
         headers: req.headers(),
-        postData: post,
+        postData: redactedPost.body,
+        postDataRedacted: redactedPost.redacted,
         postDataBase64: postBytes,
       });
     } catch {}
@@ -181,6 +243,7 @@ export function attachCompleteNetRecord(ctx: BrowserContext, reqs: any[]): void 
     try { entry.statusText = (resp as any).statusText?.(); } catch (e: any) { entry.statusText_err = String(e?.message ?? e); }
     try { entry.timing = (resp.request?.() as any).timing?.(); } catch (e: any) { entry.timing_err = String(e?.message ?? e); }
     reqs.push(entry);
+    if (!captureBodies) return;
     // Fire-and-forget body fetch; mutates entry in place when it lands.
     resp.body().then((buf) => {
       entry.bodyBase64 = Buffer.from(buf).toString('base64');
@@ -235,14 +298,40 @@ export function attachCompleteNetRecord(ctx: BrowserContext, reqs: any[]): void 
 // and from finalDump at close. Sources every channel that's been wired into
 // the merged inst dump; reads its inputs off ws._instXxx fields populated by
 // startInstrumentation + capture_extras helpers.
+function hashDiagnosticValue(value: unknown): string | null {
+  if (typeof value !== 'string' || value.length === 0) return null;
+  let h = 0x811c9dc5;
+  for (let i = 0; i < value.length; i++) {
+    h ^= value.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return (h >>> 0).toString(16).padStart(8, '0');
+}
+
+function sanitizeProxyConfig(proxy: any): any {
+  if (!proxy) return null;
+  return {
+    server: proxy.server,
+    username_present: !!proxy.username,
+    username_hash: hashDiagnosticValue(proxy.username),
+    password_present: !!proxy.password,
+    country: proxy.country,
+    exit_ip: proxy.exit_ip,
+    platform: proxy.platform,
+    provider: proxy.provider,
+    proxy_type: proxy.proxy_type,
+  };
+}
+
 function buildDumpPayload(ws: any, opts: { closing?: boolean } = {}): any {
   return {
     label: ws.label ?? null,
     started_at: ws._instStartedAt ?? null,
     closed_at: opts.closing ? new Date().toISOString() : null,
     host: ws._instHost ?? null,
+    browser_provenance: ws._browserProvenance ?? null,
     persona: ws.personaConfig ?? null,
-    proxy: ws.proxyConfig ?? null,
+    proxy: sanitizeProxyConfig(ws.proxyConfig),
     versions: ws._versions ?? null,
     accesses: ws._instAccum ? [...ws._instAccum.values()] : [],
     requests: ws._instRequests ?? [],

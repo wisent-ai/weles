@@ -10,6 +10,11 @@ function fakeSession(exitIp, expectedIp = exitIp, options = {}) {
     },
     ctx: {
       cookies: async () => options.cookies ?? [],
+      request: {
+        get: async () => ({
+          text: async () => exitIp,
+        }),
+      },
       newPage: async () => ({
         goto: async () => {},
         locator: () => ({ innerText: async () => exitIp }),
@@ -92,6 +97,33 @@ describe('LinkedIn register guard', () => {
       inputs: [{ autocomplete: 'one-time-code', name: 'pin' }],
       bodyText: 'Enter the confirmation code sent to your email',
     })).toBe('');
+    expect(getLinkedinChallengeSignal({
+      url: 'https://www.linkedin.com/signup',
+      title: 'Sign Up | LinkedIn',
+      pageKey: 'd_registration-signup',
+      inputs: [{ name: 'email-address', id: 'email-address', type: 'email', visible: true }],
+      iframes: [{ title: 'Security verification', src: 'about:blank', visible: false }],
+      bodyText: 'Join LinkedIn now Email Password Agree & Join',
+    })).toBe('');
+    expect(getLinkedinChallengeSignal({
+      url: 'https://www.linkedin.com/signup',
+      title: 'Sign Up | LinkedIn',
+      pageKey: 'd_registration-signup',
+      inputs: [
+        { name: 'email-address', id: 'email-address', type: 'email', visible: true },
+        { name: 'password', id: 'password', type: 'password', visible: true },
+      ],
+      iframes: [
+        { title: 'Security verification', src: 'about:blank', visible: false },
+        { title: '', src: 'https://li.protechts.net/index.html?uc=scraping', visible: false },
+        { title: 'reCAPTCHA', src: 'https://www.google.com/recaptcha/enterprise/anchor?ar=1&k=sitekey&size=invisible', visible: true },
+      ],
+      bodyText: 'Join LinkedIn now Email Password Agree & Join',
+    })).toBe('');
+    expect(getLinkedinChallengeSignal({
+      url: 'https://www.linkedin.com/signup',
+      iframes: [{ title: 'Security verification', src: 'about:blank', visible: true }],
+    })).toBe('challenge_page');
   });
 
   it('requires authenticated LinkedIn state before registration success', async () => {
@@ -180,7 +212,12 @@ describe('LinkedIn register guard', () => {
     expect(source).not.toMatch(/process\.exitCode = e\.message\?\.startsWith\('DETECTION_TRIGGERED'\)/);
     expect(source).toMatch(/DETECTION_TRIGGERED: createAccount challengeUrl/);
     expect(source).not.toMatch(/linkedin_register_creds|LINKEDIN_NEW_|autocomplete','off'|attempted_email: id\.email|details: \{[^}]*email: id\.email|details: \{[^}]*username: id\.handle/);
-    expect(source).not.toMatch(/page\.evaluate|waitForFunction/);
+    expect(source).not.toMatch(/waitForFunction/);
+    expect(source).toMatch(/searchParams\.get\('size'\) === 'invisible'/);
+    expect(source).toMatch(/getBoundingClientRect\(\)\.height > 120/);
+    expect(source).toMatch(/grecaptcha-badge/);
+    expect(source).not.toMatch(/\[class\*="captcha" i\]/);
+    expect(source).not.toMatch(/iframe\\\[src\\\*=.*recaptcha.*\\\][\s\S]*count\(\)/);
     expect(source).toMatch(/attempted_email_hash/);
     expect(source).toMatch(/email_hash/);
     expect(source).toMatch(/assertNoLinkedinChallengePage/);
@@ -190,6 +227,8 @@ describe('LinkedIn register guard', () => {
     expect(source).toMatch(/saveVerifiedLinkedinAccount/);
     expect(source).toMatch(/ACCOUNT_PERSIST_FAILED/);
     expect(source).toMatch(/getLinkedinFailureDiagnostics/);
+    expect(source).toMatch(/WELES_REGISTER_BROWSER/);
+    expect(source).toMatch(/WELES_REGISTER_OS/);
     expect(source).toMatch(/assertNoLinkedinChallengePage\(s, 'after_onboarding'\)[\s\S]*assertLinkedinAuthenticatedRegistration\(s, 'after_onboarding'\)[\s\S]*assertLinkedinProxyStable\(s, 'before_account_persist'/);
     expect(source).toMatch(/before_account_persist[\s\S]*saveVerifiedLinkedinAccount[\s\S]*PASS:/);
     expect(source.slice(0, source.indexOf('after_onboarding'))).not.toMatch(/PASS:/);
@@ -208,18 +247,52 @@ describe('LinkedIn register guard', () => {
     expect(source).not.toMatch(/proxy_full/);
     expect(source).toMatch(/proxy_user_hash/);
     expect(source).toMatch(/proxy_user_present/);
+    expect(source).toMatch(/resolveChromiumPathOverride/);
+    expect(source).toMatch(/ignoring missing Chromium path/);
+    expect(source).toMatch(/existsSync\(p\)/);
+    const guardSource = readFileSync(new URL('../scripts/trajectories/_shared/linkedin/register_guard.mjs', import.meta.url), 'utf8');
+    expect(guardSource).toMatch(/session\.ctx\.request\.get\('https:\/\/api\.ipify\.org'/);
+    expect(guardSource.slice(guardSource.indexOf('export async function assertLinkedinProxyStable'))).not.toMatch(/newPage\(/);
+  });
+
+  it('does not write raw proxy credentials into instrumentation dumps', () => {
+    const source = readFileSync(new URL('../src/session/wsession-helpers/net_record.ts', import.meta.url), 'utf8');
+    expect(source).toMatch(/sanitizeProxyConfig/);
+    expect(source).toMatch(/username_present/);
+    expect(source).toMatch(/username_hash/);
+    expect(source).toMatch(/password_present/);
+    expect(source).not.toMatch(/proxy: ws\.proxyConfig/);
+    expect(source).toMatch(/JSON\.parse\(body\)/);
+    expect(source).toMatch(/emailAddress/);
+    expect(source).toMatch(/session_password/);
+    expect(source).toMatch(/postDataRedacted/);
+    expect(source).toMatch(/if \(b && !redactedPost\.redacted\)/);
   });
 
   it('probes the LinkedIn register surface instead of accepting login false positives', () => {
     const source = readFileSync(new URL('../src/proxy/policy.ts', import.meta.url), 'utf8');
     expect(source).toMatch(/function probeLinkedinSignup/);
+    expect(source).toMatch(/persona\?: LinkedInProbePersona/);
+    expect(source).toMatch(/function linkedinProbeHeaders/);
     expect(source).toMatch(/const targetUrl = 'https:\/\/www\.linkedin\.com\/signup'/);
     expect(source).not.toMatch(/const targetUrl = 'https:\/\/www\.linkedin\.com\/login'/);
     expect(source).toMatch(/sec-fetch-mode/);
     expect(source).toMatch(/join-form-submit/);
+    expect(source).toMatch(/challenge_dialog_template/);
+    expect(source).toMatch(/security_verification_template/);
     expect(source).toMatch(/challenge-dialog/);
     expect(source).toMatch(/Security verification/);
     expect(source).toMatch(/bodyMarkers\.signup_form && !bodyMarkers\.hard_challenge/);
     expect(source).not.toMatch(/bodyMarkers\.login_form \|\| bodyMarkers\.signup_form/);
+  });
+
+  it('passes the browser persona into LinkedIn proxy preflight before launch', () => {
+    const sessionSource = readFileSync(new URL('../src/session/wsession.ts', import.meta.url), 'utf8');
+    const proxySource = readFileSync(new URL('../src/proxy/config.ts', import.meta.url), 'utf8');
+    expect(sessionSource.indexOf('const persona: Persona')).toBeLessThan(sessionSource.indexOf('await resolveProxy'));
+    expect(sessionSource).toMatch(/resolveProxy\(opts\.proxy!, opts\.targetHost, persona\)/);
+    expect(sessionSource).toMatch(/countryHintFromProxyRequest\(opts\.proxy\)/);
+    expect(proxySource).toMatch(/preflightPersona\?: LinkedInProbePersona/);
+    expect(proxySource).toMatch(/probeLinkedinSignup\(url, 8, preflightPersona\)/);
   });
 });

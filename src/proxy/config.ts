@@ -5,6 +5,7 @@
 import { createHash } from 'node:crypto';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import type { LinkedInProbePersona } from './policy.js';
 
 export interface ProxyConfig {
   host: string;
@@ -152,7 +153,7 @@ function platformFromTarget(host: string | undefined): string | undefined {
   return undefined;
 }
 
-export async function resolveProxy(proxy: string, targetHost?: string): Promise<{ server: string; username?: string; password?: string; country?: string; exit_ip?: string; platform?: string; provider?: string; proxy_type?: string } | undefined> {
+export async function resolveProxy(proxy: string, targetHost?: string, preflightPersona?: LinkedInProbePersona): Promise<{ server: string; username?: string; password?: string; country?: string; exit_ip?: string; platform?: string; provider?: string; proxy_type?: string } | undefined> {
   if (!proxy || proxy === 'none' || proxy === 'direct') return undefined;
   const attempts: ProxyPreflightAttempt[] = [];
   const startedAt = new Date().toISOString();
@@ -410,7 +411,7 @@ export async function resolveProxy(proxy: string, targetHost?: string): Promise<
               if (geo.result === 'mismatch') { attemptDiag.rejected_reason = 'geo_mismatch'; preflightContinue = true; }
               if (!preflightContinue && platform === 'linkedin') {
                 const url = `http://${encodeURIComponent(stickyUser)}:${encodeURIComponent(stickyPass)}@${host}:${p.proxy_port}`;
-                const probe = await probeLinkedinSignup(url);
+                const probe = await probeLinkedinSignup(url, 8, preflightPersona);
                 console.log(`[proxy] linkedin-probe exit=${exitIp} -> ${probe.result}${probe.bytes ? ` (${probe.bytes}B)` : ''}`);
                 attemptDiag.linkedin_probe_result = probe.result;
                 attemptDiag.linkedin_probe_bytes = probe.bytes;

@@ -57,6 +57,7 @@ async function summarizeLinkedinPage(page) {
         name: f.name,
         title: f.title,
         src: f.src,
+        visible: visible(f),
       })).slice(0, 20),
       bodyText: (document.body?.innerText ?? '').trim().replace(/\s+/g, ' ').slice(0, 240),
     };
@@ -64,9 +65,22 @@ async function summarizeLinkedinPage(page) {
 }
 
 export function getLinkedinChallengeSignal(summary = {}) {
+  const isDormantInvisibleRecaptcha = (f = {}) => {
+    try {
+      const u = new URL(f.src ?? '');
+      return /(^|\.)google\.com$/.test(u.hostname) &&
+        /\/recaptcha\/enterprise\/anchor/.test(u.pathname) &&
+        u.searchParams.get('size') === 'invisible';
+    } catch {
+      return false;
+    }
+  };
   const inputText = (summary.inputs ?? []).flatMap((i) => [i.name, i.id, i.type, i.autocomplete]).join(' ');
   const buttonText = (summary.buttons ?? []).flatMap((b) => [b.text, b.href]).join(' ');
-  const iframeText = (summary.iframes ?? []).flatMap((f) => [f.id, f.name, f.title, f.src]).join(' ');
+  const activeIframeText = (summary.iframes ?? [])
+    .filter((f) => !isDormantInvisibleRecaptcha(f))
+    .filter((f) => f.visible || /challengeiframe|\/checkpoint\/challenge|li\.protechts\.net|px-cloud|recaptcha/i.test(f.src ?? ''))
+    .flatMap((f) => [f.id, f.name, f.title, f.src]).join(' ');
   const haystack = [
     summary.url,
     summary.title,
@@ -74,7 +88,7 @@ export function getLinkedinChallengeSignal(summary = {}) {
     summary.bodyText,
     inputText,
     buttonText,
-    iframeText,
+    activeIframeText,
   ].join(' ').toLowerCase();
   if (/recaptcha|captcha|arkose|challengeiframe|\/checkpoint\/challenge|security verification/.test(haystack)) return 'challenge_page';
   if (/\/checkpoint|checkpoint/.test(haystack) && !/email[-_\s]?verification|confirmation code|one-time-code|\bpin\b/.test(haystack)) return 'checkpoint_page';
@@ -200,15 +214,11 @@ export async function ensureLinkedinSignupForm(session, maxAttempts = 3) {
 export async function assertLinkedinProxyStable(session, stage, expectedExitIp = '') {
   if (!session.proxyConfig?.server) throw new Error('PROXY_REQUIRED: linkedin_register requires proxied dedicated ISP traffic');
   let actual = '';
-  let probePage = null;
   try {
-    probePage = await session.ctx.newPage();
-    await probePage.goto('https://api.ipify.org', { waitUntil: 'domcontentloaded', timeout: 15000 });
-    actual = (await probePage.locator('body').innerText({ timeout: 5000 })).trim();
+    const res = await session.ctx.request.get('https://api.ipify.org', { timeout: 15000 });
+    actual = (await res.text()).trim();
   } catch (e) {
     throw new Error(`PROXY_DRIFT_CHECK_FAILED: stage=${stage} err=${e.message?.slice(0, 120)}`);
-  } finally {
-    await probePage?.close?.().catch(() => {});
   }
   if (!actual) throw new Error(`PROXY_DRIFT_CHECK_FAILED: stage=${stage} empty_exit_ip`);
   if (!isIP(actual)) {

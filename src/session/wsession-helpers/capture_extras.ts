@@ -30,6 +30,11 @@ export function attachServiceWorkers(ctx: BrowserContext, swEvents: any[]): void
 export function attachCdpLifecycle(ws: any, _ctx: BrowserContext, targetEvents: any[], frameEvents: any[], metricsHistory: any[]): void {
   void (async () => {
     try {
+      const cdpFeatureEnabled = (name: string): boolean => {
+        const value = process.env[`WELES_CDP_${name}`];
+        if (name === 'FIREHOSE') return value === '1';
+        return value !== '0';
+      };
       // The WSession constructor sets ws._cdp asynchronously; wait briefly.
       for (let i = 0; i < 20 && !ws._cdp; i++) await new Promise(r => setImmediate(r));
       const cdp = ws._cdp;
@@ -80,8 +85,10 @@ export function attachCdpLifecycle(ws: any, _ctx: BrowserContext, targetEvents: 
       // without enabling Tracing's verbose log-class which produces hundreds
       // of MB. Fail-quiet if the binary doesn't support Tracing.
       ws._instTracing = [];
-      cdp.on('Tracing.dataCollected', (e: any) => { try { for (const ev of (e?.value ?? [])) ws._instTracing.push(ev); } catch {} });
-      try { await cdp.send('Tracing.start', { categories: 'v8,blink,devtools.timeline,disabled-by-default-devtools.timeline,latencyInfo,toplevel', options: 'sampling-frequency=10000' }); } catch (e: any) { ws._instTracingError = String(e?.message ?? e); }
+      if (cdpFeatureEnabled('TRACING')) {
+        cdp.on('Tracing.dataCollected', (e: any) => { try { for (const ev of (e?.value ?? [])) ws._instTracing.push(ev); } catch {} });
+        try { await cdp.send('Tracing.start', { categories: 'v8,blink,devtools.timeline,disabled-by-default-devtools.timeline,latencyInfo,toplevel', options: 'sampling-frequency=10000' }); } catch (e: any) { ws._instTracingError = String(e?.message ?? e); }
+      }
       // JS coverage — which functions actually ran.
       try { await cdp.send('Profiler.enable'); await cdp.send('Profiler.startPreciseCoverage', { callCount: false, detailed: false }); } catch (e: any) { ws._instJsCoverageError = String(e?.message ?? e); }
       // CSS coverage — which rules matched.
@@ -152,21 +159,23 @@ export function attachCdpLifecycle(ws: any, _ctx: BrowserContext, targetEvents: 
       // one-channel-at-a-time wiring.
       ws._instCdpFirehose = [];
       ws._instCdpFirehoseOverflow = 0;
-      const enableDomains = new Set(CDP_EVENTS.map(e => e[0]));
-      for (const d of enableDomains) {
-        try { await cdp.send(`${d}.enable` as any); } catch {}
-      }
-      for (const [domain, event] of CDP_EVENTS) {
-        const key = `${domain}.${event}`;
-        try {
-          cdp.on(key, (payload: any) => {
-            try {
-              if (ws._instCdpFirehose.length >= 100000) { ws._instCdpFirehoseOverflow++; return; }
-              let stored: any = payload; try { const s = JSON.stringify(payload); if (s && s.length > 1048576) stored = { _truncated: true, original_size: s.length, preview: s.slice(0, 16384) }; } catch (err: any) { stored = { _stringify_error: String(err?.message ?? err) }; }
-              ws._instCdpFirehose.push({ t: Date.now(), domain, event, payload: stored });
-            } catch {}
-          });
-        } catch {}
+      if (cdpFeatureEnabled('FIREHOSE')) {
+        const enableDomains = new Set(CDP_EVENTS.map(e => e[0]));
+        for (const d of enableDomains) {
+          try { await cdp.send(`${d}.enable` as any); } catch {}
+        }
+        for (const [domain, event] of CDP_EVENTS) {
+          const key = `${domain}.${event}`;
+          try {
+            cdp.on(key, (payload: any) => {
+              try {
+                if (ws._instCdpFirehose.length >= 100000) { ws._instCdpFirehoseOverflow++; return; }
+                let stored: any = payload; try { const s = JSON.stringify(payload); if (s && s.length > 1048576) stored = { _truncated: true, original_size: s.length, preview: s.slice(0, 16384) }; } catch (err: any) { stored = { _stringify_error: String(err?.message ?? err) }; }
+                ws._instCdpFirehose.push({ t: Date.now(), domain, event, payload: stored });
+              } catch {}
+            });
+          } catch {}
+        }
       }
     } catch (e: any) { try { targetEvents.push({ t: Date.now(), phase: 'attach_error', err: String(e?.message ?? e) }); } catch {} }
   })();
