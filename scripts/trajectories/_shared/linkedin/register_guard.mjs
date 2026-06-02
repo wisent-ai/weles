@@ -51,8 +51,42 @@ async function summarizeLinkedinPage(page) {
         text: (b.innerText || b.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 60),
         href: b.getAttribute('href') ?? '',
       })).slice(0, 20),
+      iframes: Array.from(document.querySelectorAll('iframe')).map((f) => ({
+        id: f.id,
+        name: f.name,
+        title: f.title,
+        src: f.src,
+      })).slice(0, 20),
+      bodyText: (document.body?.innerText ?? '').trim().replace(/\s+/g, ' ').slice(0, 240),
     };
   }, url).catch(() => ({ url, title: '', pageKey: '', inputs: [], buttons: [] }));
+}
+
+export function getLinkedinChallengeSignal(summary = {}) {
+  const inputText = (summary.inputs ?? []).flatMap((i) => [i.name, i.id, i.type, i.autocomplete]).join(' ');
+  const buttonText = (summary.buttons ?? []).flatMap((b) => [b.text, b.href]).join(' ');
+  const iframeText = (summary.iframes ?? []).flatMap((f) => [f.id, f.name, f.title, f.src]).join(' ');
+  const haystack = [
+    summary.url,
+    summary.title,
+    summary.pageKey,
+    summary.bodyText,
+    inputText,
+    buttonText,
+    iframeText,
+  ].join(' ').toLowerCase();
+  if (/recaptcha|captcha|arkose|challengeiframe|\/checkpoint\/challenge|security verification/.test(haystack)) return 'challenge_page';
+  if (/\/checkpoint|checkpoint/.test(haystack) && !/email[-_\s]?verification|confirmation code|one-time-code|\bpin\b/.test(haystack)) return 'checkpoint_page';
+  return '';
+}
+
+export async function assertNoLinkedinChallengePage(session, stage = '') {
+  const summary = await summarizeLinkedinPage(session.page);
+  const signal = getLinkedinChallengeSignal(summary);
+  if (signal) {
+    throw new Error(`DETECTION_TRIGGERED: ${signal} stage=${stage} summary=${JSON.stringify(summary).slice(0, 700)}`);
+  }
+  return summary;
 }
 
 async function nudgeIntoSignup(page) {
