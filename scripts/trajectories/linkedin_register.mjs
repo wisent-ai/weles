@@ -53,7 +53,7 @@ function loadProxyPreflightSummary() {
 
 function redactDiagnosticText(text) {
   if (typeof text !== 'string') return text;
-  const sensitiveKeys = /^(password|passwd|pwd|passcode|secret|token|csrf|csrfToken|loginCsrfParam|email|emailAddress|mail|phone|username|session_key|session_password)$/i;
+  const sensitiveKeys = /^(password|passwd|pwd|passcode|secret|token|csrf|csrfToken|loginCsrfParam|email|emailAddress|mail|phone|username|firstName|lastName|first-name|last-name|session_key|session_password)$/i;
   try {
     const parsed = JSON.parse(text);
     const scrub = (value) => {
@@ -70,20 +70,86 @@ function redactDiagnosticText(text) {
   } catch {}
   return text
     .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '<redacted-email>')
-    .replace(/((?:password|passwd|pwd|passcode|secret|token|csrf|csrfToken|loginCsrfParam|email|emailAddress|mail|phone|username|session_key|session_password)[\]"']?\s*[:=]\s*)["']?([^&;,\s"'}]+)["']?/gi, '$1"<redacted>"');
+    .replace(/((?:password|passwd|pwd|passcode|secret|token|csrf|csrfToken|loginCsrfParam|email|emailAddress|mail|phone|username|firstName|lastName|first-name|last-name|session_key|session_password)[\]"']?\s*[:=]\s*)["']?([^&;,\s"'}]+)["']?/gi, '$1"<redacted>"');
+}
+
+function summarizeHeaders(headers = {}) {
+  const sensitiveHeader = /^(authorization|cookie|set-cookie|x-li-track|csrf-token|x-csrf-token|x-restli-protocol-version)$/i;
+  const entries = Object.entries(headers ?? {});
+  return {
+    names: entries.map(([name]) => name),
+    values: Object.fromEntries(entries.map(([name, value]) => [
+      name,
+      sensitiveHeader.test(name) ? '<redacted>' : redactDiagnosticText(String(value)).slice(0, 500),
+    ])),
+  };
+}
+
+function summarizePostData(postData = '') {
+  if (!postData) {
+    return {
+      present: false,
+      length: 0,
+      json_keys: null,
+      json_shape: null,
+      markers: {},
+      redacted: '',
+      redacted_truncated: false,
+    };
+  }
+  const summary = {
+    present: true,
+    length: postData.length,
+    json_keys: null,
+    json_shape: null,
+    markers: {
+      has_apfc: /\bapfc\b/.test(postData),
+      has_recaptcha: /recaptcha|g-recaptcha|captchaResponse/i.test(postData),
+      has_email: /emailAddress|email-address|email/i.test(postData),
+      has_password: /password/i.test(postData),
+    },
+    redacted: '',
+    redacted_truncated: false,
+  };
+  try {
+    const parsed = JSON.parse(postData);
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      summary.json_keys = Object.keys(parsed);
+      summary.json_shape = Object.fromEntries(Object.entries(parsed).map(([key, value]) => {
+        if (value === null) return [key, 'null'];
+        if (Array.isArray(value)) return [key, `array:${value.length}`];
+        if (typeof value === 'string') return [key, `string:${value.length}`];
+        if (typeof value === 'object') return [key, `object:${Object.keys(value).length}`];
+        return [key, typeof value];
+      }));
+    }
+  } catch {}
+  const redacted = redactDiagnosticText(postData);
+  const max = 20_000;
+  summary.redacted = redacted.slice(0, max);
+  summary.redacted_truncated = redacted.length > max;
+  return summary;
 }
 
 async function summarizeRequest(req) {
   if (!req) return null;
   let postData = '';
   try { postData = req.postData() ?? ''; } catch {}
+  const headers = summarizeHeaders(req.headers?.() ?? {});
+  const post = summarizePostData(postData);
   return {
     method: req.method?.() ?? null,
     url: req.url?.() ?? null,
     resource_type: req.resourceType?.() ?? null,
-    header_names: Object.keys(req.headers?.() ?? {}),
-    post_data_present: !!postData,
-    post_data_redacted: redactDiagnosticText(postData).slice(0, 2000),
+    header_names: headers.names,
+    headers_redacted: headers.values,
+    post_data_present: post.present,
+    post_data_length: post.length,
+    post_data_json_keys: post.json_keys,
+    post_data_json_shape: post.json_shape,
+    post_data_markers: post.markers,
+    post_data_redacted: post.redacted,
+    post_data_redacted_truncated: post.redacted_truncated,
   };
 }
 
@@ -96,10 +162,12 @@ async function summarizeResponse(res) {
     const parsed = JSON.parse(bodyText);
     if (parsed && typeof parsed === 'object') bodyJsonKeys = Object.keys(parsed).slice(0, 40);
   } catch {}
+  const headers = summarizeHeaders(res.headers?.() ?? {});
   return {
     status: res.status?.() ?? null,
     url: res.url?.() ?? null,
-    header_names: Object.keys(res.headers?.() ?? {}),
+    header_names: headers.names,
+    headers_redacted: headers.values,
     body_json_keys: bodyJsonKeys,
     body_text_redacted: redactDiagnosticText(bodyText).slice(0, 2000),
   };
@@ -144,6 +212,41 @@ async function writeSubmitDiagnostics(label, payload) {
   const dir = join(process.cwd(), 'recordings', 'linkedin_register');
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, `${label}.json`), JSON.stringify(payload, null, 2));
+}
+
+function parseLinkedinUrlList(value = '') {
+  return String(value)
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((s) => new URL(s, 'https://www.linkedin.com/').toString())
+    .filter((url) => /(^|\.)linkedin\.com$/i.test(new URL(url).hostname));
+}
+
+async function prewarmLinkedinGuestSession(session, urls) {
+  if (!urls.length) return null;
+  const diagnostics = {
+    urls,
+    transitions: [],
+  };
+  for (const url of urls) {
+    await session.runStep(`prewarm_${diagnostics.transitions.length}`, async () => {
+      await session.page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45_000 });
+      return `prewarm ${session.page.url()}`;
+    });
+    await humanIdlePause('deliberate');
+    diagnostics.transitions.push(await session.page.evaluate(() => ({
+      url: location.href,
+      title: document.title,
+      referrer: document.referrer,
+      cookie_count: document.cookie ? document.cookie.split(';').filter(Boolean).length : 0,
+      page_key: document.querySelector('meta[name="pageKey"]')?.getAttribute('content') || '',
+      authwall: /\/authwall/.test(location.href),
+      visible_text_sample: (document.body?.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 300),
+    })).catch((e) => ({ url: session.page.url(), error: String(e?.message ?? e).slice(0, 200) })));
+  }
+  await writeSubmitDiagnostics('guest_prewarm_diagnostics', diagnostics);
+  return diagnostics;
 }
 
 async function enterLinkedinSignup(session, entryUrl) {
@@ -303,6 +406,7 @@ async function waitPastEmailVerification(page) {
 const requestedProxy = process.env.LINKEDIN_REGISTER_PROXY ?? process.env.LINKEDIN_PROXY ?? process.env.PROXY_URL ?? 'isp decodo us';
 const requestedEntryUrl = process.env.LINKEDIN_REGISTER_ENTRY_URL ?? DEFAULT_ENTRY_URL;
 const stopAfterSignupReady = process.env.LINKEDIN_REGISTER_STOP_AFTER_SIGNUP_READY === '1';
+const guestPrewarmUrls = parseLinkedinUrlList(process.env.LINKEDIN_REGISTER_PREWARM_URLS ?? '');
 function safeRequestedProxy(value = '') {
   const raw = String(value ?? '');
   return /^(https?:|socks)/i.test(raw) ? '[url-form]' : raw.slice(0, 80);
@@ -380,6 +484,7 @@ function linkedinFailureReasons(signal, errorMessage = '', finalUrl = '', diagno
 
 console.log(`[register] proxy request: ${safeRequestedProxy(requestedProxy)}`);
 console.log(`[register] entry url: ${requestedEntryUrl}`);
+if (guestPrewarmUrls.length) console.log(`[register] guest prewarm urls: ${guestPrewarmUrls.length}`);
 let s = null;
 let id = { first: '', last: '', handle: '', email: '', password: '' };
 let expectedExitIp = '';
@@ -404,6 +509,8 @@ try {
   console.log(`[register] identity generated email_hash=${hashValue(id.email)} handle_hash=${hashValue(id.handle)}`);
   assertLinkedinDedicatedIspProxy(s, requestedProxy);
   recordStage('proxy_metadata_validated');
+  const prewarmDiagnostics = await prewarmLinkedinGuestSession(s, guestPrewarmUrls);
+  if (prewarmDiagnostics) recordStage('guest_prewarm_complete', { urls: guestPrewarmUrls.length });
   await enterLinkedinSignup(s, requestedEntryUrl);
   recordStage('signup_goto_complete', { entry_url: requestedEntryUrl });
   await humanIdlePause('deliberate');
@@ -472,6 +579,7 @@ try {
   if (fillBOk) {
     expectedExitIp = await assertLinkedinProxyStable(s, 'before_create_account', expectedExitIp);
     recordStage('proxy_stable_before_create_account');
+    const submit2Before = await collectSubmitState(s.page, 'before_create_account');
     // Capture /signup/api/cors/createAccount response BEFORE click. On a
     // challenged session LinkedIn returns HTTP 200 with body
     // {submissionId, challengeUrl:"/checkpoint/challengeIframe/..."} — the
@@ -480,22 +588,37 @@ try {
     // at /signup forever and the post-redirect loop times out as "rejected".
     // Diff harness 2026-05-06 .work/inst/linkedin_register_2026-05-06T17-59-19-014Z.json
     // captured this exact response shape on the 17:59 run.
-    const createAccountRes = s.page.waitForResponse((r) => /\/signup\/api\/cors\/createAccount/.test(r.url())).catch(() => null);
+    const createAccountReq = s.page.waitForRequest((r) => /\/signup\/api\/cors\/createAccount/.test(r.url()), { timeout: 20_000 }).catch(() => null);
+    const createAccountRes = s.page.waitForResponse((r) => /\/signup\/api\/cors\/createAccount/.test(r.url()), { timeout: 20_000 }).catch(() => null);
     const submit2 = await humanClickLocator(s.page, s.page.locator('button[type="submit"]:has-text("Continue"), button#join-form-submit').first()).then(() => true).catch(e => { console.log(`[register] submit2 err: ${e.message?.slice(0, 80)}`); return false; });
     console.log(`[register] click Continue: ${submit2}`);
     if (!submit2) throw new Error('Continue button not clickable');
     recordStage('create_account_submitted', { clicked: submit2 });
-    const apiRes = await createAccountRes;
+    const [apiReq, apiRes] = await Promise.all([createAccountReq, createAccountRes]);
     let challengeUrl = '';
     let createAccountStatus = null;
+    let createAccountBody = null;
     if (apiRes) {
       try {
-        const body = await apiRes.json();
-        challengeUrl = body?.challengeUrl ?? '';
+        createAccountBody = await apiRes.json();
+        challengeUrl = createAccountBody?.challengeUrl ?? '';
         createAccountStatus = apiRes.status();
-        console.log(`[register] createAccount status=${apiRes.status()} submissionId=${(body?.submissionId ?? '').slice(0, 12)} challengeUrl=${challengeUrl ? challengeUrl.slice(0, 60) + '...' : 'none'}`);
+        console.log(`[register] createAccount status=${apiRes.status()} submissionId=${(createAccountBody?.submissionId ?? '').slice(0, 12)} challengeUrl=${challengeUrl ? challengeUrl.slice(0, 60) + '...' : 'none'}`);
       } catch (e) { console.log(`[register] createAccount body parse err: ${e.message?.slice(0, 80)}`); }
     }
+    const submit2After = await collectSubmitState(s.page, 'after_create_account');
+    await writeSubmitDiagnostics('submit2_diagnostics', {
+      request: await summarizeRequest(apiReq),
+      response: await summarizeResponse(apiRes),
+      before: submit2Before,
+      after: submit2After,
+      create_account: {
+        status: createAccountStatus,
+        has_challenge_url: Boolean(challengeUrl),
+        challenge_url: challengeUrl ? challengeUrl.slice(0, 200) : '',
+        body_keys: createAccountBody && typeof createAccountBody === 'object' ? Object.keys(createAccountBody).slice(0, 40) : null,
+      },
+    });
     recordStage('create_account_response', { status: createAccountStatus, has_challenge_url: Boolean(challengeUrl) });
     if (challengeUrl) {
       throw new Error(`DETECTION_TRIGGERED: createAccount challengeUrl=${challengeUrl.slice(0, 120)}`);
