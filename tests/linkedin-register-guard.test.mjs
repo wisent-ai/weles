@@ -44,6 +44,7 @@ describe('LinkedIn register guard', () => {
     expect(() => assertLinkedinDedicatedIspProxy(fakeSession('1.1.1.1'), 'residential oxylabs us')).toThrow(/PROXY_NOT_DEDICATED_ISP/);
     expect(() => assertLinkedinDedicatedIspProxy({ proxyConfig: { server: 'http://pr.oxylabs.io:7777', username: 'customer-x-cc-us-sessid-1' } }, 'http://x')).toThrow(/PROXY_NOT_DEDICATED_ISP/);
     expect(() => assertLinkedinDedicatedIspProxy({ proxyConfig: { server: 'http://127.0.0.1:8001', proxy_type: 'residential' } }, 'isp decodo us')).toThrow(/PROXY_NOT_DEDICATED_ISP/);
+    expect(() => assertLinkedinDedicatedIspProxy({ proxyConfig: { server: 'http://127.0.0.1:8001', proxy_type: 'url_unclassified' } }, 'http://user:pass@proxy.example.test:8001')).toThrow(/PROXY_NOT_DEDICATED_ISP/);
     expect(() => assertLinkedinDedicatedIspProxy(fakeSession('1.1.1.1'), 'isp oxylabs us')).not.toThrow();
     expect(() => assertLinkedinDedicatedIspProxy({ proxyConfig: { server: 'http://127.0.0.1:8001', proxy_type: 'isp' } }, 'isp decodo us')).not.toThrow();
   });
@@ -95,6 +96,7 @@ describe('LinkedIn register guard', () => {
         username: 'secret-user',
         password: 'secret-pass',
         provider: 'oxylabs',
+        proxy_type: 'isp',
         platform: 'isp',
         country: 'US',
         exit_ip: '50.117.105.62',
@@ -106,6 +108,7 @@ describe('LinkedIn register guard', () => {
       server_port: '8001',
       server_scheme: 'http',
       provider: 'oxylabs',
+      proxy_type: 'isp',
       platform: 'isp',
       country: 'US',
       expected_exit_ip: '50.117.105.61',
