@@ -91,6 +91,19 @@ function browserProvenance(base: {
   };
 }
 
+function chromiumNetlogConfig(): { enabled: boolean; mode: string; includeCaptureMode: boolean } {
+  const requested = String(process.env.WELES_CHROMIUM_NETLOG ?? '').trim().toLowerCase();
+  const fullDiagnostics = process.env.WELES_FULL_DIAGNOSTICS === '1';
+  const disabled = requested === '0' || requested === 'false' || requested === 'off';
+  const enabled = !disabled && (fullDiagnostics || requested === '1' || requested === 'safe' || requested === 'default' || requested === 'everything');
+  const mode = (process.env.WELES_CHROMIUM_NETLOG_MODE ?? (requested === 'everything' ? 'everything' : 'safe')).trim().toLowerCase();
+  return {
+    enabled,
+    mode,
+    includeCaptureMode: mode === 'everything',
+  };
+}
+
 function redactContextOpts(opts: Record<string, any>): Record<string, any> {
   return JSON.parse(JSON.stringify(opts, (k, v) => {
     if (/username|password|authorization|cookie|token|apikey|api_key|secret/i.test(k)) return '<redacted>';
@@ -182,14 +195,14 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
     const fpFile = join(fpDir, 'config.json');
     writeFileSync(fpFile, JSON.stringify(cppConfig));
     args.push(`--weles-fingerprint=${fpFile}`);
-    const netLogEnabled = process.env.WELES_CHROMIUM_NETLOG === '1';
+    const netlog = chromiumNetlogConfig();
     let netLogPath = '';
-    if (netLogEnabled) {
+    if (netlog.enabled) {
       const diagDir = join(process.cwd(), 'recordings', process.env.WELES_LABEL || 'unnamed');
       mkdirSync(diagDir, { recursive: true });
       netLogPath = join(diagDir, 'netlog.json');
       args.push(`--log-net-log=${netLogPath}`);
-      args.push('--net-log-capture-mode=Everything');
+      if (netlog.includeCaptureMode) args.push('--net-log-capture-mode=Everything');
     }
     if (process.env.WELES_CHROMIUM_NETLOG_VERBOSE === '1') { args.push('--enable-logging=stderr'); args.push('--v=1'); args.push('--vmodule=*/net/*=2,*/proxy*=2,*/http/*=2'); }
     // Opt-in HTTP/1.1 mode via WELES_DISABLE_HTTP2=1 — only when a residential proxy drops h2 frames inside CONNECT tunnels. Keeps h2 on by default for TikTok mssdk / Akamai h2 parity.
@@ -203,7 +216,7 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
     console.log(`[async_api] Launching custom Chromium: ${chromiumPath}`);
     console.log(`[async_api] headless=${headless} proxy=${!!options.proxy} recordVideo=${recordVideo}`);
     console.log(`[async_api] fingerprint config: ${fpFile}`);
-    if (netLogPath) console.log(`[async_api] netlog: ${netLogPath}`);
+    if (netLogPath) console.log(`[async_api] netlog: ${netLogPath} mode=${netlog.mode}`);
     const pwBrowser = await chromium.launch(launchOpts);
     const proc = (pwBrowser as any).process?.();
     const pid = proc?.pid;

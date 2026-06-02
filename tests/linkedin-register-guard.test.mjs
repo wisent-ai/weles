@@ -269,6 +269,22 @@ describe('LinkedIn register guard', () => {
     expect(source).toMatch(/if \(b && !redactedPost\.redacted\)/);
   });
 
+  it('keeps previously toxic diagnostics in safe modes by default', () => {
+    const asyncSource = readFileSync(new URL('../src/async_api.ts', import.meta.url), 'utf8');
+    const cdpSource = readFileSync(new URL('../src/session/wsession-helpers/capture_extras.ts', import.meta.url), 'utf8');
+    const netSource = readFileSync(new URL('../src/session/wsession-helpers/net_record.ts', import.meta.url), 'utf8');
+    expect(asyncSource).toMatch(/function chromiumNetlogConfig/);
+    expect(asyncSource).toMatch(/WELES_FULL_DIAGNOSTICS/);
+    expect(asyncSource).toMatch(/includeCaptureMode: mode === 'everything'/);
+    expect(asyncSource).not.toMatch(/args\.push\('--net-log-capture-mode=Everything'\);[\s\S]{0,120}args\.push\('--log-net-log/);
+    expect(cdpSource).toMatch(/cdpFirehoseMode/);
+    expect(cdpSource).toMatch(/'passive'/);
+    expect(cdpSource).toMatch(/WELES_CDP_FIREHOSE_MODE=enable-domains/);
+    expect(cdpSource).toMatch(/ws\._instCdpFirehoseMode === 'enable-domains'/);
+    expect(cdpSource).toMatch(/WELES_CDP_FIREHOSE_LIMIT/);
+    expect(netSource).toMatch(/cdp_firehose_mode/);
+  });
+
   it('probes the LinkedIn register surface instead of accepting login false positives', () => {
     const source = readFileSync(new URL('../src/proxy/policy.ts', import.meta.url), 'utf8');
     expect(source).toMatch(/function probeLinkedinSignup/);
