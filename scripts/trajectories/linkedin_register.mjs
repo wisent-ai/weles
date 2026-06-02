@@ -50,6 +50,101 @@ function loadProxyPreflightSummary() {
   }
 }
 
+function redactDiagnosticText(text) {
+  if (typeof text !== 'string') return text;
+  const sensitiveKeys = /^(password|passwd|pwd|passcode|secret|token|csrf|csrfToken|loginCsrfParam|email|emailAddress|mail|phone|username|session_key|session_password)$/i;
+  try {
+    const parsed = JSON.parse(text);
+    const scrub = (value) => {
+      if (Array.isArray(value)) return value.map(scrub);
+      if (value && typeof value === 'object') {
+        return Object.fromEntries(Object.entries(value).map(([k, v]) => [
+          k,
+          sensitiveKeys.test(k) ? (String(k).toLowerCase().includes('email') ? '<redacted-email>' : '<redacted>') : scrub(v),
+        ]));
+      }
+      return value;
+    };
+    return JSON.stringify(scrub(parsed));
+  } catch {}
+  return text
+    .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '<redacted-email>')
+    .replace(/((?:password|passwd|pwd|passcode|secret|token|csrf|csrfToken|loginCsrfParam|email|emailAddress|mail|phone|username|session_key|session_password)[\]"']?\s*[:=]\s*)["']?([^&;,\s"'}]+)["']?/gi, '$1"<redacted>"');
+}
+
+async function summarizeRequest(req) {
+  if (!req) return null;
+  let postData = '';
+  try { postData = req.postData() ?? ''; } catch {}
+  return {
+    method: req.method?.() ?? null,
+    url: req.url?.() ?? null,
+    resource_type: req.resourceType?.() ?? null,
+    header_names: Object.keys(req.headers?.() ?? {}),
+    post_data_present: !!postData,
+    post_data_redacted: redactDiagnosticText(postData).slice(0, 2000),
+  };
+}
+
+async function summarizeResponse(res) {
+  if (!res) return null;
+  let bodyText = '';
+  try { bodyText = await res.text(); } catch (e) { bodyText = `<body-read-error:${e.message?.slice(0, 80)}>`; }
+  let bodyJsonKeys = null;
+  try {
+    const parsed = JSON.parse(bodyText);
+    if (parsed && typeof parsed === 'object') bodyJsonKeys = Object.keys(parsed).slice(0, 40);
+  } catch {}
+  return {
+    status: res.status?.() ?? null,
+    url: res.url?.() ?? null,
+    header_names: Object.keys(res.headers?.() ?? {}),
+    body_json_keys: bodyJsonKeys,
+    body_text_redacted: redactDiagnosticText(bodyText).slice(0, 2000),
+  };
+}
+
+async function collectSubmitState(page, stage) {
+  const safeText = async (loc, max = 500) => {
+    try { return redactDiagnosticText((await loc.innerText({ timeout: 1000 })).replace(/\s+/g, ' ').trim()).slice(0, max); } catch { return ''; }
+  };
+  const safeAttr = async (loc, name) => {
+    try { return await loc.getAttribute(name, { timeout: 1000 }); } catch { return null; }
+  };
+  const button = page.locator('button[type="submit"], button#join-form-submit').first();
+  const email = page.locator('input[name="email-address"], input#email-address, input[type="email"]').first();
+  const password = page.locator('input[name="password"], input#password, input[type="password"]').first();
+  const first = page.locator('input[name="first-name"], input#first-name').first();
+  const last = page.locator('input[name="last-name"], input#last-name').first();
+  const alertText = await safeText(page.locator('[role="alert"], .join-form__form-body-error, .alert, .error, [class*="error"]').first(), 800);
+  const visibleText = await safeText(page.locator('body').first(), 1200);
+  return {
+    stage,
+    url: page.url(),
+    submit_button: {
+      visible: await button.isVisible({ timeout: 1000 }).catch(() => false),
+      enabled: await button.isEnabled({ timeout: 1000 }).catch(() => false),
+      text: await safeText(button, 200),
+      disabled_attr: await safeAttr(button, 'disabled'),
+      aria_disabled: await safeAttr(button, 'aria-disabled'),
+    },
+    fields: {
+      email: { visible: await email.isVisible({ timeout: 1000 }).catch(() => false), disabled: await safeAttr(email, 'disabled'), aria_invalid: await safeAttr(email, 'aria-invalid') },
+      password: { visible: await password.isVisible({ timeout: 1000 }).catch(() => false), disabled: await safeAttr(password, 'disabled'), aria_invalid: await safeAttr(password, 'aria-invalid') },
+      first: { visible: await first.isVisible({ timeout: 1000 }).catch(() => false), count: await first.count().catch(() => 0) },
+      last: { visible: await last.isVisible({ timeout: 1000 }).catch(() => false), count: await last.count().catch(() => 0) },
+    },
+    alert_text: alertText,
+    body_text_sample: visibleText,
+  };
+}
+
+async function writeSubmitDiagnostics(label, payload) {
+  const dir = join(process.cwd(), 'recordings', 'linkedin_register');
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, `${label}.json`), JSON.stringify(payload, null, 2));
+}
+
 async function saveVerifiedLinkedinAccount(session, account) {
   const result = await session.saveAccount('linkedin', account);
   if (!String(result).startsWith('account saved:')) {
@@ -59,9 +154,37 @@ async function saveVerifiedLinkedinAccount(session, account) {
 }
 
 async function hasVisibleCaptchaChallenge(page) {
-  const captchaFrameCount = await page.locator('iframe[src*="recaptcha/api2"], iframe[src*="recaptcha/enterprise"], iframe[src*="challengeIframe"]').count().catch(() => 0);
-  const recaptchaDivCount = await page.locator('div.g-recaptcha[data-sitekey]').count().catch(() => 0);
-  return captchaFrameCount > 0 || recaptchaDivCount > 0;
+  return await page.evaluate(() => {
+    const visible = (el) => {
+      if (!el) return false;
+      const s = getComputedStyle(el);
+      const r = el.getBoundingClientRect();
+      return s.display !== 'none' &&
+        s.visibility !== 'hidden' &&
+        Number(s.opacity || 1) > 0 &&
+        r.width > 0 &&
+        r.height > 0;
+    };
+    const activeCaptchaIframe = Array.from(document.querySelectorAll('iframe')).some((f) => {
+      const src = f.src || '';
+      const title = f.title || '';
+      if (/\/checkpoint\/challengeIframe|challengeIframe/i.test(src)) return visible(f);
+      if (/recaptcha/i.test(src) || /recaptcha/i.test(title)) {
+        try {
+          const u = new URL(src);
+          if (/\/recaptcha\/enterprise\/anchor/.test(u.pathname) && u.searchParams.get('size') === 'invisible') return false;
+        } catch {}
+        return visible(f) && f.getBoundingClientRect().height > 120;
+      }
+      return false;
+    });
+    const activeCaptchaDiv = Array.from(document.querySelectorAll('div.g-recaptcha[data-sitekey], .challenge-dialog, #challenge-dialog')).some((el) => {
+      if (!visible(el)) return false;
+      if (el.classList?.contains('grecaptcha-badge')) return false;
+      return true;
+    });
+    return activeCaptchaIframe || activeCaptchaDiv || /complete (the )?(captcha|security verification)/i.test(document.body?.innerText ?? '');
+  }).catch(() => false);
 }
 
 async function waitPastEmailVerification(page) {
@@ -83,7 +206,14 @@ let authState = null;
 
 try {
   assertLinkedinRegisterProxyRequest(requestedProxy);
-  s = await WSession.start({ label: 'linkedin_register', proxy: requestedProxy, targetHost: 'www.linkedin.com', platform: 'linkedin' });
+  s = await WSession.start({
+    label: 'linkedin_register',
+    proxy: requestedProxy,
+    targetHost: 'www.linkedin.com',
+    platform: 'linkedin',
+    browser: process.env.WELES_REGISTER_BROWSER || undefined,
+    os: process.env.WELES_REGISTER_OS || undefined,
+  });
   id = { first: s.identity.firstName, last: s.identity.lastName, handle: s.identity.username, email: s.identity.email, password: s.identity.password };
   expectedExitIp = s.proxyConfig?.exit_ip ?? '';
   console.log(`[register] identity generated email_hash=${hashValue(id.email)} handle_hash=${hashValue(id.handle)}`);
@@ -98,10 +228,23 @@ try {
   console.log(`[register] fill email+pwd: ok`);
   expectedExitIp = await assertLinkedinProxyStable(s, 'before_submit_email_password', expectedExitIp);
 
+  const submit1Before = await collectSubmitState(s.page, 'before_submit_email_password');
+  const submit1ReqPromise = s.page.waitForRequest((r) => /\/signup\/api\//.test(r.url()), { timeout: 8000 }).catch(() => null);
+  const submit1ResPromise = s.page.waitForResponse((r) => /\/signup\/api\//.test(r.url()), { timeout: 8000 }).catch(() => null);
   const submit1 = await humanClickLocator(s.page, s.page.locator('button[type="submit"]:has-text("Agree"), button[type="submit"]:has-text("Continue"), button#join-form-submit, button[data-tracking-control-name*="signup"]').first()).then(() => true).catch(e => { console.log(`[register] submit1 err: ${e.message?.slice(0, 80)}`); return false; });
   console.log(`[register] click Agree & Join: ${submit1}`);
   if (!submit1) throw new Error('Agree & Join button not clickable');
   await humanIdlePause('deliberate');
+  const [submit1Req, submit1Res] = await Promise.all([submit1ReqPromise, submit1ResPromise]);
+  const submit1After = await collectSubmitState(s.page, 'after_submit_email_password');
+  const submit1Diagnostics = {
+    request: await summarizeRequest(submit1Req),
+    response: await summarizeResponse(submit1Res),
+    before: submit1Before,
+    after: submit1After,
+  };
+  await writeSubmitDiagnostics('submit1_diagnostics', submit1Diagnostics);
+  console.log(`[register] submit1 api=${submit1Diagnostics.request?.method ?? 'none'} status=${submit1Diagnostics.response?.status ?? 'none'} url=${submit1Diagnostics.response?.url ?? submit1Diagnostics.request?.url ?? 'none'}`);
   await assertNoLinkedinChallengePage(s, 'after_submit_email_password');
 
   const hasV2 = await hasVisibleCaptchaChallenge(s.page);

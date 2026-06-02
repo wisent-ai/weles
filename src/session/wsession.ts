@@ -17,7 +17,7 @@ import { CaptchaSolver } from '../captcha/solver.js';
 import { generateIdentity as genId, type Identity } from '../utils/identity.js';
 import { markSignupSuccess } from '../utils/email/domain.js';
 import { getNumber, pollCode, type SmsNumber } from '../utils/sms.js';
-import { writeFileSync, mkdirSync, copyFileSync } from 'node:fs';
+import { writeFileSync, mkdirSync, copyFileSync, existsSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { startInstrumentation } from './wsession-helpers/net_record.js';
 import { join } from 'node:path';
@@ -76,6 +76,42 @@ function hashDiagnosticValue(value: unknown): string | null {
   return createHash('sha256').update(value).digest('hex').slice(0, 16);
 }
 
+function countryHintFromProxyRequest(proxy: unknown): string | undefined {
+  if (typeof proxy !== 'string' || proxy.startsWith('http') || proxy.startsWith('socks')) return undefined;
+  const countryTokens = new Set(['us', 'uk', 'gb', 'br', 'de', 'fr', 'nl', 'ca', 'au']);
+  const tokens = proxy.toLowerCase().match(/\b[a-z]{2}\b/g) ?? [];
+  const cc = tokens.find(t => countryTokens.has(t));
+  return cc?.toUpperCase();
+}
+
+function resolveChromiumPathOverride(optsPath?: string): string | undefined {
+  const candidates = [
+    optsPath,
+    process.env.CHROMIUM_PATH,
+  ].filter((p): p is string => typeof p === 'string' && p.length > 0);
+  for (const p of candidates) {
+    if (existsSync(p)) return p;
+    console.log(`[wsession] ignoring missing Chromium path: ${p}`);
+  }
+  return findCustomBrowser('chromium');
+}
+
+function shouldCaptureResponseBody(res: any): boolean {
+  try {
+    if (process.env.WELES_CAPTURE_RESPONSE_BODIES !== '1') return false;
+    const req = res.request?.();
+    const resourceType = req?.resourceType?.();
+    if (['image', 'media', 'font', 'stylesheet'].includes(resourceType)) return false;
+    const headers = res.headers?.() ?? {};
+    const contentType = String(headers['content-type'] ?? '').toLowerCase();
+    if (contentType && !/json|text|javascript|xml|html|x-www-form-urlencoded/.test(contentType)) return false;
+    const len = Number(headers['content-length'] ?? 0);
+    return !len || len <= 256 * 1024;
+  } catch {
+    return false;
+  }
+}
+
 const asV = (p: any) => p as unknown as ScreenshottablePage;
 
 export class WSession {
@@ -110,7 +146,15 @@ export class WSession {
     const authPaths = ['/auth/register', '/auth/login'];
     page.on?.('request', (req: any) => { try { const u = req.url(); if (authPaths.some(p => u.includes(p)) && req.method() === 'POST') { this.captchaFormData = JSON.parse(req.postData() ?? '{}'); this.captchaEndpoint = u; const h = req.headers(); this.captchaHeaders = {}; for (const k of Object.keys(h)) { if (k.startsWith('x-')) this.captchaHeaders[k] = h[k]; } } } catch {} });
     page.on?.('response', async (res: any) => { try { const u = res.url(); if (authPaths.some(p => u.includes(p)) && res.status() >= 400) { const d = await res.json(); if (d.captcha_key !== undefined) { this.captchaResponse = d; console.log(`[wsession] Captured captcha data: sitekey=${d.captcha_sitekey?.slice(0, 12)}`); } const errs = d?.errors?.login?._errors ?? d?.errors?.email?._errors ?? []; const code = errs[0]?.code; if (code === 'ACCOUNT_PERMANENTLY_DISABLED' || code === 'ACCOUNT_DISABLED' || code === 'ACCOUNT_LOGIN_BLOCKED') { this.authBlocked = code; console.log(`[wsession] Auth blocked by platform: ${code}`); } } } catch {} });
-    ctx.on?.('response', async (res: any) => { try { if (this.capturedResponses.length >= 500) this.capturedResponses.shift(); let body = ''; try { body = (await res.text()).slice(0, 8192); } catch {} this.capturedResponses.push({ ts: Date.now(), method: res.request()?.method?.() ?? 'GET', url: res.url(), status: res.status(), headers: res.headers(), body }); } catch {} });
+    ctx.on?.('response', (res: any) => {
+      try {
+        if (this.capturedResponses.length >= 500) this.capturedResponses.shift();
+        const entry = { ts: Date.now(), method: res.request()?.method?.() ?? 'GET', url: res.url(), status: res.status(), headers: res.headers(), body: '' };
+        this.capturedResponses.push(entry);
+        if (!shouldCaptureResponseBody(res)) return;
+        void res.text().then((text: string) => { entry.body = text.slice(0, 8192); }, () => {});
+      } catch {}
+    });
     // CDP Network.dataReceived — accumulates bytes flowing through the proxy
     // upstream so we can compute per-trajectory egress cost in close().
     void (async () => {
@@ -164,14 +208,16 @@ export class WSession {
       return new WSession(ctx, page, label, new Capture({ newPage: async () => page } as any, label ? recordingsDir(label) : undefined));
     }
     const proxyRequested = !!opts.proxy && !['none', 'direct'].includes(String(opts.proxy).toLowerCase());
-    const proxy = proxyRequested ? await resolveProxy(opts.proxy!, opts.targetHost) : undefined;
+    const persona: Persona = opts.persona ?? generatePersona({ country: countryHintFromProxyRequest(opts.proxy), os: opts.os as Persona['os'] | undefined, browser: opts.browser as Persona['browser'] | undefined });
+    const proxy = proxyRequested ? await resolveProxy(opts.proxy!, opts.targetHost, persona) : undefined;
     if (proxyRequested && !proxy) {
       throw new Error(`proxy_unavailable: requested ${opts.proxy} for ${opts.targetHost ?? 'unknown target'}`);
     }
-    const persona: Persona = opts.persona ?? generatePersona({ country: proxy?.country, os: opts.os as Persona['os'] | undefined, browser: opts.browser as Persona['browser'] | undefined });
     const pageDiagnostics = opts.pageDiagnostics ?? (label !== 'linkedin_register');
     const bOpts: AsyncNewBrowserOptions = { os: persona.os, browser: persona.browser, headless: opts.headless ?? false, recordVideo: opts.record ?? (process.env.WELES_DISABLE_RECORDING !== '1'), locale: opts.locale, persona, proxy, pageDiagnostics };
-    const cp = opts.chromiumPath ?? process.env.CHROMIUM_PATH ?? findCustomBrowser(bOpts.browser);
+    const cp = bOpts.browser === 'chromium'
+      ? resolveChromiumPathOverride(opts.chromiumPath)
+      : (opts.chromiumPath ?? process.env.CHROMIUM_PATH ?? findCustomBrowser(bOpts.browser));
     if (bOpts.browser === 'chromium' && !cp) throw new Error('Custom Chromium not found. Set CHROMIUM_PATH or install to a known location.');
     if (cp && bOpts.browser === 'chromium') bOpts.chromiumPath = cp;
     if (label) { process.env.SSLKEYLOGFILE = join(recordingsDir(label), 'sslkey.log'); process.env.WELES_LABEL = label; } // SSLKEYLOGFILE = per-session key log for offline HTTP/2 frame decryption from a pcap (Chromium+Firefox both honor it). WELES_LABEL tells async_api where to put the always-on netlog.json. recordingsDir() also mkdirs the parent so Chrome can write at launch.
@@ -179,7 +225,7 @@ export class WSession {
     const page = ctx.pages()[0] || await ctx.newPage();
     const cap = new Capture({ newPage: async () => page } as any, label ? recordingsDir(label) : undefined);
     if (label) { const s = new SessionStore(); await s.injectPlaywright(ctx, label).catch(() => {}); }
-    const ws = new WSession(ctx, page, label, cap); ws.proxyConfig = bOpts.proxy; ws.personaConfig = persona;
+    const ws = new WSession(ctx, page, label, cap); ws.proxyConfig = bOpts.proxy; ws.personaConfig = persona; (ws as any)._browserProvenance = (ctx as any)._welesBrowserProvenance ?? null;
     if (opts.platform) { ws.identity = await genId(opts.platform); console.log(`[wsession] identity generated platform=${opts.platform} username_hash=${hashDiagnosticValue(ws.identity.username)}`); }
     if (bOpts.proxy?.server) {
       try {
@@ -198,6 +244,7 @@ export class WSession {
           exit_ip: bOpts.proxy.exit_ip,
           platform: bOpts.proxy.platform,
           provider: (bOpts.proxy as any).provider,
+          browser_provenance: (ws as any)._browserProvenance,
           started_at: new Date().toISOString(),
         }, null, 2));
       } catch {}

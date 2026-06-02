@@ -5,7 +5,7 @@
  */
 
 import { existsSync, writeFileSync, mkdtempSync, mkdirSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { chromium, type BrowserContext, type Browser } from 'playwright';
 import { generate, toConfig, toCppConfig } from './fingerprint.js';
@@ -59,6 +59,36 @@ export interface AsyncNewBrowserOptions {
   chromiumPath?: string;
   persona?: Persona;
   pageDiagnostics?: boolean;
+}
+
+function inferMacAppName(executablePath: string): string | null {
+  const m = executablePath.match(/\/([^/]+\.app)\//);
+  return m?.[1]?.replace(/\.app$/, '') ?? null;
+}
+
+function browserProvenance(base: {
+  browserType: string;
+  source: string;
+  executablePath?: string;
+  channel?: string | null;
+  pid?: number | null;
+  customBinary?: boolean;
+  stockOverride?: boolean;
+}): Record<string, any> {
+  const executablePath = base.executablePath || null;
+  return {
+    browser_type: base.browserType,
+    source: base.source,
+    executable_path: executablePath,
+    executable_basename: executablePath ? basename(executablePath) : null,
+    executable_dir: executablePath ? dirname(executablePath) : null,
+    mac_app_name: executablePath ? inferMacAppName(executablePath) : null,
+    channel: base.channel ?? null,
+    pid: base.pid ?? null,
+    custom_binary: base.customBinary ?? false,
+    stock_override: base.stockOverride ?? false,
+    playwright_default_chromium_path: base.browserType === 'chromium' ? chromium.executablePath() : null,
+  };
 }
 
 function redactContextOpts(opts: Record<string, any>): Record<string, any> {
@@ -152,13 +182,16 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
     const fpFile = join(fpDir, 'config.json');
     writeFileSync(fpFile, JSON.stringify(cppConfig));
     args.push(`--weles-fingerprint=${fpFile}`);
-    // NetLog ALWAYS-on per the standing full-capture instruction — Chrome dumps every socket open/close, DNS lookup, HTTP/2 frame, QUIC packet, cookie store mutation to netlog.json. Path lives in recordings/<label>/ so it rides the existing upload + sibling_files manifest. Verbose stderr stays behind WELES_CHROMIUM_NETLOG=1 (the noisy flag).
-    const diagDir = join(process.cwd(), 'recordings', process.env.WELES_LABEL || 'unnamed');
-    mkdirSync(diagDir, { recursive: true });
-    const netLogPath = join(diagDir, 'netlog.json');
-    args.push(`--log-net-log=${netLogPath}`);
-    args.push('--net-log-capture-mode=Everything');
-    if (process.env.WELES_CHROMIUM_NETLOG === '1') { args.push('--enable-logging=stderr'); args.push('--v=1'); args.push('--vmodule=*/net/*=2,*/proxy*=2,*/http/*=2'); }
+    const netLogEnabled = process.env.WELES_CHROMIUM_NETLOG === '1';
+    let netLogPath = '';
+    if (netLogEnabled) {
+      const diagDir = join(process.cwd(), 'recordings', process.env.WELES_LABEL || 'unnamed');
+      mkdirSync(diagDir, { recursive: true });
+      netLogPath = join(diagDir, 'netlog.json');
+      args.push(`--log-net-log=${netLogPath}`);
+      args.push('--net-log-capture-mode=Everything');
+    }
+    if (process.env.WELES_CHROMIUM_NETLOG_VERBOSE === '1') { args.push('--enable-logging=stderr'); args.push('--v=1'); args.push('--vmodule=*/net/*=2,*/proxy*=2,*/http/*=2'); }
     // Opt-in HTTP/1.1 mode via WELES_DISABLE_HTTP2=1 — only when a residential proxy drops h2 frames inside CONNECT tunnels. Keeps h2 on by default for TikTok mssdk / Akamai h2 parity.
     if (process.env.WELES_DISABLE_HTTP2 === '1') {
       args.push('--disable-http2');
@@ -193,6 +226,14 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
     if (pageDiagnostics && process.env.WELES_LABEL) customCtxOpts.recordHar = { path: join(process.cwd(), 'recordings', process.env.WELES_LABEL, 'session.har'), content: 'embed', mode: 'full' }; // Playwright HAR — every request/response timing + body, sealed at context.close.
     console.log(`[async_api] Context opts: ${JSON.stringify(redactContextOpts(customCtxOpts))}`);
     const context = await pwBrowser.newContext(customCtxOpts);
+    (context as any)._welesBrowserProvenance = browserProvenance({
+      browserType,
+      source: 'custom-chromium',
+      executablePath: chromiumPath,
+      pid,
+      customBinary: true,
+      stockOverride: process.env.WELES_USE_STOCK_CHROMIUM === '1',
+    });
     context.setDefaultNavigationTimeout(0);
     console.log(`[async_api] Context created`);
     // Init-script injections. Chrome 147 stubs are fingerprint-parity shims;
@@ -225,6 +266,14 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
       // Extensions only load via launchPersistentContext (verified 2026-05-03).
       const userData = mkdtempSync(join(tmpdir(), 'weles-pc-'));
       extContext = await chromium.launchPersistentContext(userData, { ...launchOpts, ...ctxOpts });
+      (extContext as any)._welesBrowserProvenance = browserProvenance({
+        browserType,
+        source: 'playwright-persistent-chromium',
+        executablePath: chromium.executablePath(),
+        pid: null,
+        customBinary: false,
+        stockOverride: true,
+      });
       console.log(`[async_api] launchPersistentContext userData=${userData}`);
     } else {
       pwBrowser = await chromium.launch(launchOpts);
@@ -234,6 +283,17 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
   }
 
   const context = extContext ?? await pwBrowser!.newContext(ctxOpts);
+  if (!(context as any)._welesBrowserProvenance) {
+    const proc = (pwBrowser as any)?.process?.();
+    (context as any)._welesBrowserProvenance = browserProvenance({
+      browserType,
+      source: isChromium ? 'playwright-chromium-default' : 'weles-firefox-launch',
+      executablePath: isChromium ? chromium.executablePath() : undefined,
+      pid: proc?.pid ?? null,
+      customBinary: false,
+      stockOverride: isChromium,
+    });
+  }
   context.setDefaultNavigationTimeout(0);
 
   // Strip Accept-Language on TikTok same-origin sub-requests (Chrome 147 default-on ReduceAcceptLanguage omits it; weles emits unconditionally; webmssdk signs into x-mssdk-info). EXCEPTION: passport/web/* CORS preflight needs it.

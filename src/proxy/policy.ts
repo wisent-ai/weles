@@ -156,7 +156,50 @@ export async function verifyExitReputation(exitIp: string): Promise<{ result: Re
 // the register trajectory: /signup with browser navigation headers. /login is
 // only a loose IP-trust hint and can false-positive for registration.
 export type LinkedInProbeResult = 'form' | 'challenge' | 'unknown';
-export async function probeLinkedinSignup(proxyUrl: string, secs = 8): Promise<{
+export type LinkedInProbePersona = {
+  os?: 'macos' | 'windows' | 'linux' | string;
+  browser?: 'chromium' | 'firefox' | 'webkit' | string;
+  chromeVersion?: string;
+  userAgentOs?: string;
+  acceptLanguage?: string;
+};
+
+function linkedinProbeHeaders(persona?: LinkedInProbePersona): Record<string, string> {
+  const browser = persona?.browser ?? 'chromium';
+  const acceptLanguage = persona?.acceptLanguage ?? (browser === 'firefox' ? 'en-US,en;q=0.5' : 'en-US,en;q=0.9');
+  const chromeMajor = (persona?.chromeVersion ?? '147.0.0.0').split('.')[0] || '147';
+  if (browser === 'firefox') {
+    const os = persona?.os === 'windows' ? 'Windows NT 10.0; Win64; x64'
+      : persona?.os === 'linux' ? 'X11; Linux x86_64'
+      : 'Macintosh; Intel Mac OS X 10.15';
+    return {
+      'User-Agent': `Mozilla/5.0 (${os}; rv:142.0) Gecko/20100101 Firefox/142.0`,
+      Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      'Accept-Language': acceptLanguage,
+      'Upgrade-Insecure-Requests': '1',
+    };
+  }
+  const uaOs = persona?.userAgentOs ?? 'Macintosh; Intel Mac OS X 10_15_7';
+  const chPlatform = persona?.os === 'windows' ? '"Windows"' : persona?.os === 'linux' ? '"Linux"' : '"macOS"';
+  return {
+    'User-Agent': `Mozilla/5.0 (${uaOs}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${chromeMajor}.0.0.0 Safari/537.36`,
+    Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+    'Accept-Language': acceptLanguage,
+    'Cache-Control': 'no-cache',
+    Pragma: 'no-cache',
+    Priority: 'u=0, i',
+    'sec-ch-ua': `"Chromium";v="${chromeMajor}", "Not.A/Brand";v="8"`,
+    'sec-ch-ua-mobile': '?0',
+    'sec-ch-ua-platform': chPlatform,
+    'sec-fetch-dest': 'document',
+    'sec-fetch-mode': 'navigate',
+    'sec-fetch-site': 'none',
+    'sec-fetch-user': '?1',
+    'Upgrade-Insecure-Requests': '1',
+  };
+}
+
+export async function probeLinkedinSignup(proxyUrl: string, secs = 8, persona?: LinkedInProbePersona): Promise<{
   result: LinkedInProbeResult;
   bytes?: number;
   request?: {
@@ -166,6 +209,12 @@ export async function probeLinkedinSignup(proxyUrl: string, secs = 8): Promise<{
     timeout_secs: number;
     header_order: string[];
     headers: Record<string, string>;
+    persona?: {
+      os?: string;
+      browser?: string;
+      user_agent_os?: string;
+      accept_language?: string;
+    };
   };
   transport?: {
     curl_version?: string;
@@ -183,6 +232,8 @@ export async function probeLinkedinSignup(proxyUrl: string, secs = 8): Promise<{
   body_markers?: {
     login_form: boolean;
     signup_form: boolean;
+    challenge_dialog_template: boolean;
+    security_verification_template: boolean;
     hard_challenge: boolean;
     challenge_terms: boolean;
   };
@@ -197,23 +248,7 @@ export async function probeLinkedinSignup(proxyUrl: string, secs = 8): Promise<{
 }> {
   if (!proxyUrl) return { result: 'unknown' };
   const targetUrl = 'https://www.linkedin.com/signup';
-  const ua = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36';
-  const headers: Record<string, string> = {
-    'User-Agent': ua,
-    Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-    'Accept-Language': 'en-US,en;q=0.9',
-    'Cache-Control': 'no-cache',
-    Pragma: 'no-cache',
-    Priority: 'u=0, i',
-    'sec-ch-ua': '"Chromium";v="147", "Not.A/Brand";v="8"',
-    'sec-ch-ua-mobile': '?0',
-    'sec-ch-ua-platform': '"macOS"',
-    'sec-fetch-dest': 'document',
-    'sec-fetch-mode': 'navigate',
-    'sec-fetch-site': 'none',
-    'sec-fetch-user': '?1',
-    'Upgrade-Insecure-Requests': '1',
-  };
+  const headers = linkedinProbeHeaders(persona);
   const headerOrder = Object.keys(headers);
   const request = {
     tool: 'curl' as const,
@@ -222,6 +257,12 @@ export async function probeLinkedinSignup(proxyUrl: string, secs = 8): Promise<{
     timeout_secs: secs,
     header_order: headerOrder,
     headers,
+    persona: persona ? {
+      os: persona.os,
+      browser: persona.browser,
+      user_agent_os: persona.userAgentOs,
+      accept_language: persona.acceptLanguage,
+    } : undefined,
   };
   let curlVersion = '';
   let curlFeatures: string[] = [];
@@ -256,7 +297,9 @@ export async function probeLinkedinSignup(proxyUrl: string, secs = 8): Promise<{
     const bodyMarkers = {
       login_form: /name="session_key"|id="username"|input type="email"/.test(body),
       signup_form: /name="email-address"|id="email-address"|join-form-submit/.test(body),
-      hard_challenge: /challenge-dialog|Security verification|checkpoint\/challenge|challengeIframe|g-recaptcha|google\.com\/recaptcha\/enterprise\/anchor|li\.protechts\.net|px-cloud/i.test(body),
+      challenge_dialog_template: /challenge-dialog/i.test(body),
+      security_verification_template: /Security verification/i.test(body),
+      hard_challenge: /checkpoint\/challenge|challengeIframe|g-recaptcha|google\.com\/recaptcha\/enterprise\/anchor|li\.protechts\.net|px-cloud/i.test(body),
       challenge_terms: /checkpoint|challenge|captcha|recaptcha|security/i.test(body),
     };
     const transport = {
