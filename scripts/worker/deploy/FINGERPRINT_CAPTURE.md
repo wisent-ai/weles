@@ -27237,6 +27237,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per session: per-`psql`/`redis-cli`/`mongo` interactive-shell command (`\d`, `\dt`, `\du`, `\df`, `\dn`, `\dx`, `\l`, `\c`, `\q`, `\?`, `\h`, `\set`, `\unset`, `\timing`, `\watch`, `\x`, `\copy`, `\edit`, `\include`, `\g`, `\gset`, `\gexec`) per-host invocation count.
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB. Per-page Window globalThis property keys
+
+- **[T]** Per session: per-`Object.getOwnPropertyNames(globalThis)` snapshot — full list of all window-level globals (signals injected weles helpers, polyfills, extension globals).
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBC. Per-page Window globalThis property descriptors
+
+- **[T]** Per session: per-`Object.getOwnPropertyDescriptors(globalThis)` snapshot — per-property `value`/`get`/`set`/`writable`/`enumerable`/`configurable` distribution; signals which properties are spoofed via getters.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCD. Per-page navigator property keys
+
+- **[T]** Per session: per-`Object.getOwnPropertyNames(Object.getPrototypeOf(navigator))` snapshot — full prototype-chain navigator property list (each prototype level: NavigatorPrototype, NavigatorIDPrototype, NavigatorLanguagePrototype, NavigatorOnLinePrototype, NavigatorContentUtilsPrototype, NavigatorStoragePrototype, NavigatorConcurrentHardwarePrototype, NavigatorPluginsPrototype).
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDE. Per-page navigator property descriptors
+
+- **[T]** Per session: per-`Object.getOwnPropertyDescriptors(navigator)` snapshot — per-property descriptor distribution; getter-spoofed properties leak via `descriptor.get.toString().length`.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEF. Per-page screen property keys
+
+- **[T]** Per session: per-`Object.getOwnPropertyNames(screen)` snapshot — full screen.* property list.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFG. Per-page screen property descriptors
+
+- **[T]** Per session: per-`Object.getOwnPropertyDescriptors(screen)` snapshot — per-property descriptor (signals spoofed `availTop`, `availLeft`, `availWidth`, `availHeight`, `colorDepth`, `pixelDepth` getters).
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGH. Per-page document property keys
+
+- **[T]** Per session: per-`Object.getOwnPropertyNames(document)` snapshot — full document.* property list at page load.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHI. Per-page document property descriptors
+
+- **[T]** Per session: per-`Object.getOwnPropertyDescriptors(document)` snapshot.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIJ. Per-page Element prototype property keys
+
+- **[T]** Per session: per-`Object.getOwnPropertyNames(Element.prototype)` snapshot — Element-prototype API list.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJK. Per-página HTMLElement prototype property keys
+
+- **[T]** Per session: per-`Object.getOwnPropertyNames(HTMLElement.prototype)` snapshot.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKL. Per-page CSSStyleDeclaration prototype property keys
+
+- **[T]** Per session: per-`Object.getOwnPropertyNames(CSSStyleDeclaration.prototype)` snapshot — all supported CSS property names as exposed via the JS API.
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLM. Per-page CSSRule prototype property keys
+
+- **[T]** Per session: per-`Object.getOwnPropertyNames(CSSRule.prototype)` snapshot + per-CSS-rule-type (CSSStyleRule, CSSMediaRule, CSSImportRule, CSSFontFaceRule, CSSKeyframesRule, CSSPageRule, CSSSupportsRule, CSSCounterStyleRule, CSSContainerRule, CSSLayerBlockRule, CSSLayerStatementRule) property-keys snapshot.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMN. Per-page Event prototype property keys
+
+- **[T]** Per session: per-`Object.getOwnPropertyNames(Event.prototype)` snapshot + per-Event-subclass (MouseEvent, KeyboardEvent, PointerEvent, TouchEvent, WheelEvent, FocusEvent, InputEvent, ProgressEvent, CustomEvent, MessageEvent, StorageEvent, BeforeUnloadEvent, ErrorEvent, PromiseRejectionEvent, ClipboardEvent, DragEvent) property-keys snapshot.
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNO. Per-page HTMLCanvasElement prototype property keys
+
+- **[T]** Per session: per-`Object.getOwnPropertyNames(HTMLCanvasElement.prototype)` snapshot — canvas API surface.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOP. Per-page CanvasRenderingContext2D prototype property keys
+
+- **[T]** Per session: per-`Object.getOwnPropertyNames(CanvasRenderingContext2D.prototype)` snapshot.
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPQ. Per-page WebGLRenderingContext prototype property keys
+
+- **[T]** Per session: per-`Object.getOwnPropertyNames(WebGLRenderingContext.prototype)` snapshot — WebGL1 API surface.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQR. Per-página WebGL2RenderingContext prototype property keys
+
+- **[T]** Per session: per-`Object.getOwnPropertyNames(WebGL2RenderingContext.prototype)` snapshot — WebGL2 API surface (signals WebGL2-only methods present/absent).
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRS. Per-page AudioContext prototype property keys
+
+- **[T]** Per session: per-`Object.getOwnPropertyNames(BaseAudioContext.prototype)` snapshot + per-AudioContext-subclass (AudioContext, OfflineAudioContext, AudioWorkletNode, OscillatorNode, GainNode, AnalyserNode, BiquadFilterNode, ConvolverNode, DelayNode, DynamicsCompressorNode, MediaElementAudioSourceNode, MediaStreamAudioSourceNode, MediaStreamAudioDestinationNode, PannerNode, StereoPannerNode, WaveShaperNode, ChannelSplitterNode, ChannelMergerNode, IIRFilterNode, AudioBufferSourceNode, ConstantSourceNode) property-keys snapshot.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSST. Per-page MediaDevices prototype property keys
+
+- **[T]** Per session: per-`Object.getOwnPropertyNames(MediaDevices.prototype)` snapshot.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTU. Per-page RTCPeerConnection prototype property keys
+
+- **[T]** Per session: per-`Object.getOwnPropertyNames(RTCPeerConnection.prototype)` snapshot — WebRTC API surface.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUV. Per-page Storage prototype property keys
+
+- **[T]** Per session: per-`Object.getOwnPropertyNames(Storage.prototype)` snapshot — localStorage/sessionStorage API surface.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVW. Per-page IDBDatabase prototype property keys
+
+- **[T]** Per session: per-`Object.getOwnPropertyNames(IDBDatabase.prototype)` snapshot + per-IDB-subclass (IDBObjectStore, IDBIndex, IDBTransaction, IDBCursor, IDBRequest, IDBOpenDBRequest, IDBVersionChangeEvent, IDBKeyRange) property-keys snapshot.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWX. Per-page Cache prototype property keys
+
+- **[T]** Per session: per-`Object.getOwnPropertyNames(Cache.prototype)` + `Object.getOwnPropertyNames(CacheStorage.prototype)` snapshot.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXY. Per-page Crypto prototype property keys
+
+- **[T]** Per session: per-`Object.getOwnPropertyNames(Crypto.prototype)` + `Object.getOwnPropertyNames(SubtleCrypto.prototype)` snapshot.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYZ. Per-page Performance prototype property keys
+
+- **[T]** Per session: per-`Object.getOwnPropertyNames(Performance.prototype)` + `Object.getOwnPropertyNames(PerformanceObserver.prototype)` + `Object.getOwnPropertyNames(PerformanceEntry.prototype)` snapshot.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ1. Per-página Permissions prototype property keys
+
+- **[T]** Per session: per-`Object.getOwnPropertyNames(Permissions.prototype)` + per-Permission-name (`'geolocation'`, `'notifications'`, `'camera'`, `'microphone'`, `'speaker-selection'`, `'midi'`, `'storage-access'`, `'window-management'`, `'persistent-storage'`, `'screen-wake-lock'`, `'system-wake-lock'`, `'usb'`, `'bluetooth'`, `'background-fetch'`, `'background-sync'`, `'periodic-background-sync'`, `'push'`, `'clipboard-read'`, `'clipboard-write'`, `'payment-handler'`, `'idle-detection'`, `'local-fonts'`, `'compute-pressure'`, `'top-level-storage-access'`, `'captured-surface-control'`) supported-or-not bit.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
