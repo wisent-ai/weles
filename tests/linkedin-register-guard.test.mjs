@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { assertLinkedinAuthenticatedRegistration, assertLinkedinDedicatedIspProxy, assertLinkedinProxyStable, assertLinkedinRegisterProxyRequest, classifyLinkedinRegisterFailure, getLinkedinChallengeSignal, getLinkedinFailureDiagnostics, summarizeLinkedinProxyState } from '../scripts/trajectories/_shared/linkedin/register_guard.mjs';
+import { assertLinkedinAuthenticatedRegistration, assertLinkedinDedicatedIspProxy, assertLinkedinProxyStable, assertLinkedinRegisterProxyRequest, classifyLinkedinRegisterFailure, getLinkedinChallengeSignal, getLinkedinFailureDiagnostics, linkedinRegisterExitCode, summarizeLinkedinProxyState } from '../scripts/trajectories/_shared/linkedin/register_guard.mjs';
 
 function fakeSession(exitIp, expectedIp = exitIp, options = {}) {
   return {
@@ -30,6 +30,16 @@ describe('LinkedIn register guard', () => {
     expect(classifyLinkedinRegisterFailure('signup_verification_incomplete: stage=test', 'https://www.linkedin.com/feed/')).toBe('registration_not_accepted');
     expect(classifyLinkedinRegisterFailure('signup_verification_incomplete: stage=test', 'https://www.linkedin.com/checkpoint/email-verification')).toBe('registration_not_accepted');
     expect(classifyLinkedinRegisterFailure('signup_form_unavailable: {}', 'https://www.linkedin.com/')).toBe('form_unavailable');
+  });
+
+  it('maps failure signals to deterministic exit codes', () => {
+    expect(linkedinRegisterExitCode('detection_triggered')).toBe(2);
+    expect(linkedinRegisterExitCode('captcha_challenge')).toBe(2);
+    expect(linkedinRegisterExitCode('proxy_failed')).toBe(3);
+    expect(linkedinRegisterExitCode('registration_not_accepted')).toBe(4);
+    expect(linkedinRegisterExitCode('account_persist_failed')).toBe(5);
+    expect(linkedinRegisterExitCode('form_unavailable')).toBe(1);
+    expect(linkedinRegisterExitCode('action_failed')).toBe(1);
   });
 
   it('passes stable dedicated ISP exits and rejects drift', async () => {
@@ -166,6 +176,8 @@ describe('LinkedIn register guard', () => {
     expect(source).toMatch(/assertLinkedinRegisterProxyRequest/);
     expect(source.indexOf('assertLinkedinRegisterProxyRequest(requestedProxy)')).toBeGreaterThan(-1);
     expect(source.indexOf('assertLinkedinRegisterProxyRequest(requestedProxy)')).toBeLessThan(source.indexOf('s = await WSession.start'));
+    expect(source).toMatch(/process\.exitCode = linkedinRegisterExitCode\(sig\)/);
+    expect(source).not.toMatch(/process\.exitCode = e\.message\?\.startsWith\('DETECTION_TRIGGERED'\)/);
     expect(source).toMatch(/DETECTION_TRIGGERED: createAccount challengeUrl/);
     expect(source).toMatch(/assertNoLinkedinChallengePage/);
     expect(source).toMatch(/after_submit_email_password/);

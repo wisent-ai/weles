@@ -285,3 +285,11 @@ export function classifyLinkedinRegisterFailure(errorMessage = '', finalUrl = ''
   if (/signup_form_unavailable/.test(errorMessage)) return 'form_unavailable';
   return 'action_failed';
 }
+
+export function linkedinRegisterExitCode(signal = '') {
+  if (signal === 'detection_triggered' || signal === 'captcha_challenge') return 2;
+  if (signal === 'proxy_failed') return 3;
+  if (signal === 'registration_not_accepted') return 4;
+  if (signal === 'account_persist_failed') return 5;
+  return 1;
+}

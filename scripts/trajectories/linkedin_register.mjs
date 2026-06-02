@@ -11,7 +11,7 @@ import { humanClickLocator, humanIdlePause } from '../../dist/human/mouse.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { confirmLinkedinEmail } from './_shared/linkedin/checkpoint.mjs';
-import { assertLinkedinAuthenticatedRegistration, assertLinkedinDedicatedIspProxy, assertLinkedinProxyStable, assertLinkedinRegisterProxyRequest, assertNoLinkedinChallengePage, classifyLinkedinRegisterFailure, ensureLinkedinSignupForm, getLinkedinFailureDiagnostics } from './_shared/linkedin/register_guard.mjs';
+import { assertLinkedinAuthenticatedRegistration, assertLinkedinDedicatedIspProxy, assertLinkedinProxyStable, assertLinkedinRegisterProxyRequest, assertNoLinkedinChallengePage, classifyLinkedinRegisterFailure, ensureLinkedinSignupForm, getLinkedinFailureDiagnostics, linkedinRegisterExitCode } from './_shared/linkedin/register_guard.mjs';
 import { fillPostRegisterOnboarding } from './_shared/linkedin/onboarding/work_school.mjs';
 // generateIdentity import removed — identity now created by WSession.start via opts.platform.
 
@@ -167,7 +167,7 @@ try {
   // exitCode (not exit) so the finally block's await s.close() actually runs.
   // process.exit(1) kills pending async ops immediately, which prevents
   // Playwright from flushing the recordVideo .webm to disk.
-  process.exitCode = e.message?.startsWith('DETECTION_TRIGGERED') ? 2 : 1;
+  process.exitCode = linkedinRegisterExitCode(sig);
 } finally {
   await s?.close?.();
 }
