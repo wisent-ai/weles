@@ -120,6 +120,7 @@ Location note: this file stays under `scripts/worker/deploy/` for continuity wit
 ## M. Provenance, dedup, and update protocol
 
 - **[W]** Weles, trajectory, dist, and artifact manifest provenance are captured.
+- **[W]** Runtime `capture_coverage` block reports emitted/attempted/missing collector coverage for each `inst.json`.
 - **[T]** Store capture schema version, collector version hashes, feature matrix version, CDP protocol version, dependency lockfile hash, browser binary signature/hash, system clock/timezone state, and all source files used to build the capture payload.
 - **[T]** Dedup artifacts by sha256 where the same body/script/style/srcdoc/font/image appears multiple times, while preserving per-use references and timing.
 - **[T]** Validate every run with a schema check and a diff-matrix smoke test.

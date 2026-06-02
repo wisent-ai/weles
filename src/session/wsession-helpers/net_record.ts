@@ -14,6 +14,7 @@ import { join } from 'node:path';
 import { platform as osPlatform, release as osRelease, arch as osArch, totalmem, cpus, hostname, version as osVersion } from 'node:os';
 import { attachServiceWorkers, attachCdpLifecycle, pollStorageState, buildSiblingManifest, attachStdoutCapture, sliceStdout, captureHostSnapshots, captureFinalCdpSnapshots, attachPagePlaywrightEvents } from './capture_extras.js';
 import { startPcap, attachWorkerInventory } from './pcap_sidecar.js';
+import { buildCaptureCoverage } from './capture_coverage.js';
 
 // One merged fingerprint artifact per run, written under recordings/<label>/ so
 // the worker uploader (src/worker/upload-artifacts.ts) picks it up alongside
@@ -291,6 +292,7 @@ function buildDumpPayload(ws: any, opts: { closing?: boolean } = {}): any {
     worker_events: ws._instWorkerEvents ?? [],
     host_snapshots: ws._instHostSnapshots ?? null,
     pcap: ws._instPcap ?? null,
+    capture_coverage: buildCaptureCoverage(ws),
     stdout: sliceStdout(ws),
     sibling_files: ws._instDir && ws._instFile ? buildSiblingManifest(ws._instDir, ws._instFile) : [],
   };
