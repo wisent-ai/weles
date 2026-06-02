@@ -32229,7 +32229,111 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per session: per-page V8 `--trace-incremental-marking` incremental-marking step count + per-step duration distribution.
 
-## GG. Disk usage of recordings
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA8. Per-page Linux /proc/net/tcp observation
+
+- **[T]** Per session: per-host `/proc/net/tcp` per-connection (`local_address`, `rem_address`, `st` (state), `tx_queue`, `rx_queue`, `tr` (timer), `tm->when`, `retrnsmt`, `uid`, `timeout`, `inode`) distribution.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB9. Per-page Linux /proc/net/tcp6 observation
+
+- **[T]** Per session: per-host `/proc/net/tcp6` IPv6-connection per-entry distribution.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC-1. Per-page Linux /proc/net/udp observation
+
+- **[T]** Per session: per-host `/proc/net/udp` + `/proc/net/udp6` per-socket distribution.
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD-2. Per-page Linux /proc/net/unix observation
+
+- **[T]** Per session: per-host `/proc/net/unix` per-Unix-socket distribution.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE-3. Per-page Linux /proc/net/route observation
+
+- **[T]** Per session: per-host `/proc/net/route` IPv4-routing table entry distribution.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF-4. Per-page Linux /proc/net/ipv6_route observation
+
+- **[T]** Per session: per-host `/proc/net/ipv6_route` IPv6-routing table entry distribution.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG-5. Per-page Linux /proc/net/dev observation
+
+- **[T]** Per session: per-host `/proc/net/dev` per-interface (rx_bytes, rx_packets, rx_errs, rx_drop, rx_fifo, rx_frame, rx_compressed, rx_multicast, tx_bytes, tx_packets, tx_errs, tx_drop, tx_fifo, tx_colls, tx_carrier, tx_compressed) distribution.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH-6. Per-page Linux /proc/net/arp observation
+
+- **[T]** Per session: per-host `/proc/net/arp` ARP-cache per-entry (`IP address`, `HW type`, `Flags`, `HW address`, `Mask`, `Device`) distribution.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII-7. Per-page Linux /proc/net/snmp observation
+
+- **[T]** Per session: per-host `/proc/net/snmp` per-protocol (Ip, Icmp, IcmpMsg, Tcp, Udp, UdpLite) per-counter distribution.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ-8. Per-página Linux /proc/net/netstat observation
+
+- **[T]** Per session: per-host `/proc/net/netstat` per-protocol (TcpExt, IpExt) per-counter distribution.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK-9. Per-page Linux /proc/net/wireless observation
+
+- **[T]** Per session: per-host `/proc/net/wireless` per-WiFi-interface (status, link quality, signal level, noise level, discarded packets) distribution.
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL-10. Per-page Linux /proc/net/sockstat observation
+
+- **[T]** Per session: per-host `/proc/net/sockstat` (sockets used, tcp inuse/orphan/tw/alloc/mem, udp inuse/mem, raw inuse, frag inuse/memory) distribution.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM-11. Per-page Linux /proc/net/protocols observation
+
+- **[T]** Per session: per-host `/proc/net/protocols` per-protocol (`name`, `size`, `sockets`, `memory`, `press`, `maxhdr`, `slab`, `module`) distribution.
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN-12. Per-page Linux /proc/net/fib_trie observation
+
+- **[T]** Per session: per-host `/proc/net/fib_trie` routing-table dump distribution.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO-13. Per-page Linux /proc/sys/net/ipv4/tcp_congestion_control observation
+
+- **[T]** Per session: per-host `/proc/sys/net/ipv4/tcp_congestion_control` (`cubic`|`bbr`|`bbr2`|`bbr3`|`reno`|`vegas`|`westwood`|`htcp`|`hybla`|`illinois`|`yeah`|`scalable`|`lp`|`veno`|`dctcp`|`cdg`|`nv`|`hstcp`|`highspeed`) snapshot.
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP-14. Per-page Linux /proc/sys/net/ipv4/tcp_window_scaling observation
+
+- **[T]** Per session: per-host `/proc/sys/net/ipv4/tcp_window_scaling` + `tcp_sack` + `tcp_dsack` + `tcp_timestamps` + `tcp_ecn` + `tcp_fastopen` + `tcp_syncookies` + `tcp_max_syn_backlog` + `tcp_retries1` + `tcp_retries2` + `tcp_keepalive_time` + `tcp_keepalive_intvl` + `tcp_keepalive_probes` + `tcp_fin_timeout` + `tcp_mtu_probing` + `tcp_base_mss` + `tcp_no_metrics_save` + `tcp_low_latency` + `tcp_rmem` + `tcp_wmem` + `tcp_mem` distribution.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ-15. Per-página Linux /proc/sys/net/core observation
+
+- **[T]** Per session: per-host `/proc/sys/net/core/` (`rmem_default`, `rmem_max`, `wmem_default`, `wmem_max`, `netdev_max_backlog`, `somaxconn`, `optmem_max`, `dev_weight`, `busy_poll`, `busy_read`, `flow_limit_cpu_bitmap`, `flow_limit_table_len`, `default_qdisc`) distribution.
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR-16. Per-page Linux /proc/sys/net/ipv4/ip_local_port_range observation
+
+- **[T]** Per session: per-host `/proc/sys/net/ipv4/ip_local_port_range` ephemeral-port-range snapshot.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS-17. Per-page Linux /proc/sys/net/ipv4/ip_default_ttl observation
+
+- **[T]** Per session: per-host `/proc/sys/net/ipv4/ip_default_ttl` value snapshot.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT-18. Per-page Linux /proc/sys/net/ipv4/conf/all/rp_filter observation
+
+- **[T]** Per session: per-host `/proc/sys/net/ipv4/conf/all/rp_filter` + `arp_announce` + `arp_ignore` + `accept_source_route` + `accept_redirects` + `send_redirects` + `forwarding` + `proxy_arp` distribution.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU-19. Per-page Linux /proc/sys/kernel observation
+
+- **[T]** Per session: per-host `/proc/sys/kernel/` (`hostname`, `domainname`, `osrelease`, `ostype`, `version`, `random/uuid`, `random/boot_id`, `random/entropy_avail`, `random/poolsize`, `random/read_wakeup_threshold`, `random/write_wakeup_threshold`, `panic`, `panic_on_oops`, `kptr_restrict`, `dmesg_restrict`, `ftrace_enabled`, `tracing_enabled`, `sched_*`) distribution.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV-20. Per-page Linux /proc/sys/fs observation
+
+- **[T]** Per session: per-host `/proc/sys/fs/` (`file-max`, `file-nr`, `nr_open`, `inode-nr`, `inode-state`, `aio-max-nr`, `aio-nr`, `epoll/max_user_watches`, `inotify/max_user_watches`, `inotify/max_user_instances`, `inotify/max_queued_events`, `mqueue/queues_max`, `mqueue/msg_max`, `mqueue/msgsize_max`) distribution.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW-21. Per-page Linux /proc/sys/vm observation
+
+- **[T]** Per session: per-host `/proc/sys/vm/` (`swappiness`, `vfs_cache_pressure`, `dirty_ratio`, `dirty_background_ratio`, `overcommit_memory`, `overcommit_ratio`, `max_map_count`, `min_free_kbytes`, `nr_hugepages`, `transparent_hugepage/enabled`, `transparent_hugepage/defrag`) distribution.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX-22. Per-page Linux /sys/firmware/dmi observation
+
+- **[T]** Per session: per-host `/sys/firmware/dmi/tables/` SMBIOS table byte snapshot + per-`/sys/class/dmi/id/` (`bios_date`, `bios_release`, `bios_vendor`, `bios_version`, `board_asset_tag`, `board_name`, `board_serial`, `board_vendor`, `board_version`, `chassis_asset_tag`, `chassis_serial`, `chassis_type`, `chassis_vendor`, `chassis_version`, `product_family`, `product_name`, `product_serial`, `product_sku`, `product_uuid`, `product_version`, `sys_vendor`) distribution.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY-23. Per-page Linux /sys/firmware/efi observation
+
+- **[T]** Per session: per-host `/sys/firmware/efi/vars/` per-EFI-variable name + value byte distribution.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ-24. Per-página Linux dmesg observation
+
+- **[T]** Per session: per-host `dmesg` kernel-ring-buffer recent-line count + per-log-level (KERN_EMERG|KERN_ALERT|KERN_CRIT|KERN_ERR|KERN_WARNING|KERN_NOTICE|KERN_INFO|KERN_DEBUG) distribution.
+
+## ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
 - **[T]** Fraction of bytes by artifact type (so we know what's dominating capture cost).
