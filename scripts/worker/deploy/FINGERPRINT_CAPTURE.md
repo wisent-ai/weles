@@ -31709,6 +31709,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per session: per-page TLS peetprint hash distribution (Discord's TLS fingerprint format).
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA3. Per-page TLS akamai-h2 fingerprint observation
+
+- **[T]** Per session: per-page TLS akamai-h2 hash distribution (Akamai-published HTTP/2 fingerprint format).
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB4. Per-page browser bcookie observation
+
+- **[T]** Per session: per-page LinkedIn `bcookie` byte distribution + `bscookie` + `JSESSIONID` + `lidc` + `li_at` + `liap` + `li_gc` + `li_mc` + `li_rm` + `UserMatchHistory` + `AnalyticsSyncHistory` distribution.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC5. Per-page browser TikTok cookie observation
+
+- **[T]** Per session: per-page TikTok `tt_csrf_token` + `s_v_web_id` + `ttwid` + `tt_chain_token` + `csrf_session_id` + `passport_csrf_token` + `sessionid` + `sid_guard` + `uid_tt` + `sid_tt` + `passport_auth_status` + `passport_fe_beating_status` + `MONITOR_WEB_ID` + `bm_sv` distribution.
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD6. Per-page browser Instagram cookie observation
+
+- **[T]** Per session: per-page Instagram `sessionid` + `ds_user_id` + `csrftoken` + `mid` + `ig_did` + `ig_nrcb` + `rur` + `shbid` + `shbts` + `datr` + `wd` distribution.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE7. Per-page browser Reddit cookie observation
+
+- **[T]** Per session: per-page Reddit `reddit_session` + `token_v2` + `loid` + `csv` + `edgebucket` + `recent_srs` + `over18` distribution.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF8. Per-page browser Twitter cookie observation
+
+- **[T]** Per session: per-page Twitter `auth_token` + `ct0` + `twid` + `guest_id` + `personalization_id` + `kdt` + `att` + `lang` + `dnt` + `_twitter_sess` distribution.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG9. Per-page browser GitHub cookie observation
+
+- **[T]** Per session: per-page GitHub `user_session` + `__Host-user_session_same_site` + `_gh_sess` + `dotcom_user` + `logged_in` + `tz` + `color_mode` + `preferred_color_mode` distribution.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH-1. Per-page browser Discord cookie observation
+
+- **[T]** Per session: per-page Discord `__Secure-recent_mention_channel_ids` + `__dcfduid` + `__sdcfduid` + `__cfruid` + `_gcl_au` + `OptanonConsent` distribution.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII-2. Per-page browser YouTube cookie observation
+
+- **[T]** Per session: per-page YouTube `VISITOR_INFO1_LIVE` + `YSC` + `PREF` + `SOCS` + `__Secure-1PSID` + `__Secure-3PSID` + `LOGIN_INFO` + `SID` + `HSID` + `SSID` + `APISID` + `SAPISID` distribution.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ-3. Per-página browser Google cookie observation
+
+- **[T]** Per session: per-page Google `NID` + `1P_JAR` + `CONSENT` + `AEC` + `__Secure-ENID` + `OGPC` + `OGP` + `OTZ` distribution.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK-4. Per-page browser ProductHunt cookie observation
+
+- **[T]** Per session: per-page ProductHunt `_producthunt_session_production` + `ph_referrer` + `ph_session_id` distribution.
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL-5. Per-page browser Apple ID cookie observation
+
+- **[T]** Per session: per-page Apple ID `myacinfo` + `aidsp` + `acn01` + `s_fid` + `s_pers` + `s_vi` + `geo` + `dssid2` + `dssf` + `pxro` distribution.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM-6. Per-page browser Microsoft cookie observation
+
+- **[T]** Per session: per-page Microsoft `MUID` + `_ga` + `_uetsid` + `_uetvid` + `MSCC` + `WLS` + `wlidperf` + `MS-CV` distribution.
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN-7. Per-page browser Stripe cookie observation
+
+- **[T]** Per session: per-page Stripe `__stripe_mid` + `__stripe_sid` + `m` + `__Host-stripe_*` distribution.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO-8. Per-page browser PayPal cookie observation
+
+- **[T]** Per session: per-page PayPal `LANG` + `tsrce` + `enforce_policy` + `l7_az` + `x-pp-s` + `_ga` + `s_cc` + `s_sq` + `s_vi` distribution.
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP-9. Per-page browser Cloudflare cookie observation
+
+- **[T]** Per session: per-page Cloudflare `__cf_bm` + `__cflb` + `cf_clearance` + `__cfwaitingroom` + `__cf_logged_in` distribution.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ-10. Per-página browser Datadome cookie observation
+
+- **[T]** Per session: per-page Datadome `datadome` + `_datadome` + `__dd_*` cookie distribution.
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR-11. Per-page browser PerimeterX cookie observation
+
+- **[T]** Per session: per-page PerimeterX `_px*` cookie set (`_px`, `_pxhd`, `_pxvid`, `_pxff_*`, `_pxff_fp`, `_pxff_cc`) distribution.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS-12. Per-page browser Akamai bot manager cookie observation
+
+- **[T]** Per session: per-page Akamai `bm_*` cookie set (`bm_sv`, `bm_so`, `bm_sz`, `bm_mi`, `bm_lso`, `bm_s`) distribution.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT-13. Per-page browser Imperva cookie observation
+
+- **[T]** Per session: per-page Imperva `incap_ses_*` + `visid_incap_*` + `nlbi_*` cookie distribution.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU-14. Per-page browser hCaptcha cookie observation
+
+- **[T]** Per session: per-page hCaptcha `hcaptcha_session_*` + `cfhc_*` cookie distribution.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV-15. Per-page browser reCAPTCHA cookie observation
+
+- **[T]** Per session: per-page reCAPTCHA `_GRECAPTCHA` + `NID` cookie distribution.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW-16. Per-page browser Arkose cookie observation
+
+- **[T]** Per session: per-page Arkose `arkose_*` + `funcaptcha_*` cookie distribution.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX-17. Per-page browser AWS WAF cookie observation
+
+- **[T]** Per session: per-page AWS WAF `aws-waf-token` cookie distribution.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY-18. Per-page browser kasada cookie observation
+
+- **[T]** Per session: per-page Kasada `KP_UIDz` cookie distribution.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ-19. Per-página browser Shape Security cookie observation
+
+- **[T]** Per session: per-page Shape Security `shape_session` cookie distribution.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
