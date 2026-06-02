@@ -100,9 +100,14 @@ export async function resolveProxy(proxy: string, targetHost?: string): Promise<
   if (proxy.startsWith('http://') || proxy.startsWith('https://') || proxy.startsWith('socks')) {
     const u = new URL(proxy);
     // Toxicity policy on URL-form path: reject providers blocked for target.
-    const { providerFromHost, isProviderBlockedForPlatform } = await import('./policy.js');
+    const { providerFromHost, isProviderBlockedForPlatform, retiredProviderReason } = await import('./policy.js');
     const platformForBlock = platformFromTarget(targetHost);
     const provFromUrl = providerFromHost(u.hostname, decodeURIComponent(u.username));
+    const retiredReason = retiredProviderReason(u.hostname, u.port);
+    if (retiredReason) {
+      console.log(`[proxy] BLOCKED: PROXY_URL host=${u.hostname}:${u.port} retired=${retiredReason} — refusing to hand out`);
+      return undefined;
+    }
     if (isProviderBlockedForPlatform(provFromUrl, platformForBlock)) {
       console.log(`[proxy] BLOCKED: PROXY_URL host=${u.hostname} maps to ${provFromUrl}, which is on the toxic list for ${platformForBlock} — refusing to hand out`);
       return undefined;
