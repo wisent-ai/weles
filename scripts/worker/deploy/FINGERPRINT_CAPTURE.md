@@ -27445,6 +27445,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per session: per-`navigator.contacts.getProperties()` snapshot — supported contact-property list (`'name'`, `'email'`, `'tel'`, `'address'`, `'icon'`).
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB. Per-page Intl.DateTimeFormat resolvedOptions full snapshot
+
+- **[T]** Per session: per-`new Intl.DateTimeFormat().resolvedOptions()` snapshot — `locale`, `calendar`, `numberingSystem`, `timeZone`, `hour12`, `hourCycle`, `weekday`, `era`, `year`, `month`, `day`, `dayPeriod`, `hour`, `minute`, `second`, `fractionalSecondDigits`, `timeZoneName`, `formatMatcher` distribution.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBC. Per-page Intl.NumberFormat resolvedOptions full snapshot
+
+- **[T]** Per session: per-`new Intl.NumberFormat().resolvedOptions()` snapshot — `locale`, `numberingSystem`, `style` ('decimal'|'currency'|'percent'|'unit'), `currency`, `currencyDisplay`, `currencySign`, `unit`, `unitDisplay`, `minimumIntegerDigits`, `minimumFractionDigits`, `maximumFractionDigits`, `minimumSignificantDigits`, `maximumSignificantDigits`, `useGrouping`, `notation` ('standard'|'scientific'|'engineering'|'compact'), `compactDisplay`, `signDisplay`, `roundingMode`, `roundingPriority`, `roundingIncrement`, `trailingZeroDisplay` distribution.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCD. Per-page Intl.Collator resolvedOptions snapshot
+
+- **[T]** Per session: per-`new Intl.Collator().resolvedOptions()` snapshot — `locale`, `usage` ('sort'|'search'), `sensitivity` ('base'|'accent'|'case'|'variant'), `ignorePunctuation`, `collation`, `numeric`, `caseFirst` ('upper'|'lower'|'false') distribution.
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDE. Per-page Intl.RelativeTimeFormat resolvedOptions
+
+- **[T]** Per session: per-`new Intl.RelativeTimeFormat().resolvedOptions()` snapshot — `locale`, `style` ('long'|'short'|'narrow'), `numeric` ('always'|'auto'), `numberingSystem` distribution.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEF. Per-page Intl.ListFormat resolvedOptions
+
+- **[T]** Per session: per-`new Intl.ListFormat().resolvedOptions()` snapshot — `locale`, `style` ('long'|'short'|'narrow'), `type` ('conjunction'|'disjunction'|'unit') distribution.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFG. Per-page Intl.DisplayNames resolvedOptions
+
+- **[T]** Per session: per-`new Intl.DisplayNames().resolvedOptions()` snapshot — `locale`, `style` ('long'|'short'|'narrow'), `type` ('language'|'region'|'script'|'currency'|'calendar'|'dateTimeField'), `fallback`, `languageDisplay` distribution.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGH. Per-page Intl.PluralRules resolvedOptions
+
+- **[T]** Per session: per-`new Intl.PluralRules().resolvedOptions()` snapshot — `locale`, `type` ('cardinal'|'ordinal'), `pluralCategories[]`, `minimumIntegerDigits`, `minimumFractionDigits`, `maximumFractionDigits`, `minimumSignificantDigits`, `maximumSignificantDigits` distribution.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHI. Per-page Intl.Segmenter resolvedOptions
+
+- **[T]** Per session: per-`new Intl.Segmenter().resolvedOptions()` snapshot — `locale`, `granularity` ('grapheme'|'word'|'sentence') distribution.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIJ. Per-page Intl.Locale resolvedOptions
+
+- **[T]** Per session: per-`new Intl.Locale().resolvedOptions()` snapshot — `language`, `script`, `region`, `numberingSystem`, `calendar`, `collation`, `hourCycle` ('h11'|'h12'|'h23'|'h24'), `caseFirst`, `numeric` distribution.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJK. Per-página Intl.supportedValuesOf calendar
+
+- **[T]** Per session: per-`Intl.supportedValuesOf('calendar')` snapshot — supported-calendar list ('buddhist', 'chinese', 'coptic', 'dangi', 'ethiopia', 'ethiopic', 'gregory', 'hebrew', 'indian', 'islamic', 'islamic-civil', 'islamic-rgsa', 'islamic-tbla', 'islamic-umalqura', 'iso8601', 'japanese', 'persian', 'roc').
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKL. Per-page Intl.supportedValuesOf collation
+
+- **[T]** Per session: per-`Intl.supportedValuesOf('collation')` snapshot — supported-collation list ('compat', 'dict', 'emoji', 'eor', 'phonebk', 'phonetic', 'pinyin', 'reformed', 'searchjl', 'standard', 'stroke', 'trad', 'unihan', 'zhuyin').
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLM. Per-page Intl.supportedValuesOf currency
+
+- **[T]** Per session: per-`Intl.supportedValuesOf('currency')` snapshot — supported-currency list size + sample distribution.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMN. Per-page Intl.supportedValuesOf numberingSystem
+
+- **[T]** Per session: per-`Intl.supportedValuesOf('numberingSystem')` snapshot — supported-numbering list ('adlm', 'ahom', 'arab', 'arabext', 'bali', 'beng', 'bhks', 'brah', 'cakm', 'cham', 'deva', 'gong', 'gonm', 'gujr', 'guru', 'hanidays', 'hanidec', 'hmng', 'hmnp', 'java', 'kali', 'khmr', 'knda', 'lana', 'lanatham', 'laoo', 'latn', 'lepc', 'limb', 'mathbold', 'mathdbl', 'mathmono', 'mathsanb', 'mathsans', 'mlym', 'modi', 'mong', 'mroo', 'mtei', 'mymr', 'mymrshan', 'mymrtlng', 'newa', 'nkoo', 'olck', 'orya', 'osma', 'rohg', 'saur', 'shrd', 'sind', 'sinh', 'sora', 'sund', 'takr', 'talu', 'tamldec', 'telu', 'thai', 'tibt', 'tirh', 'vaii', 'wara', 'wcho').
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNO. Per-page Intl.supportedValuesOf timeZone
+
+- **[T]** Per session: per-`Intl.supportedValuesOf('timeZone')` snapshot — supported-IANA-tz list size (typically 400+) + sample.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOP. Per-page Intl.supportedValuesOf unit
+
+- **[T]** Per session: per-`Intl.supportedValuesOf('unit')` snapshot — supported-unit list ('acre', 'bit', 'byte', 'celsius', 'centimeter', 'day', 'degree', 'fahrenheit', 'fluid-ounce', 'foot', 'gallon', 'gigabit', 'gigabyte', 'gram', 'hectare', 'hour', 'inch', 'kilobit', 'kilobyte', 'kilogram', 'kilometer', 'liter', 'megabit', 'megabyte', 'meter', 'mile', 'mile-scandinavian', 'milliliter', 'millimeter', 'millisecond', 'minute', 'month', 'ounce', 'percent', 'petabyte', 'pound', 'second', 'stone', 'terabit', 'terabyte', 'week', 'yard', 'year').
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPQ. Per-page Intl.getCanonicalLocales sample
+
+- **[T]** Per session: per-`Intl.getCanonicalLocales(<test-input>)` snapshot for `['en','en-US','EN-us','en_US','en-Latn-US-u-ca-gregory','zh-Hans-CN','de-Latf-DE','ja-JP-u-ca-japanese','ar-EG-u-nu-latn']` — round-trip canonical form distribution.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQR. Per-página Intl.NumberFormat formatToParts sample
+
+- **[T]** Per session: per-`new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).formatToParts(123456.789)` snapshot — per-part `type` ('currency'|'literal'|'integer'|'group'|'decimal'|'fraction'|'minusSign'|'plusSign'|'exponentSeparator'|'exponentInteger'|'exponentMinusSign'|'compact'|'percentSign'|'unit') + `value` distribution.
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRS. Per-page Intl.DateTimeFormat formatToParts sample
+
+- **[T]** Per session: per-`new Intl.DateTimeFormat('en-US',{dateStyle:'full',timeStyle:'full'}).formatToParts(<fixed-date>)` snapshot — per-part `type` ('year'|'month'|'day'|'weekday'|'hour'|'minute'|'second'|'dayPeriod'|'era'|'literal'|'fractionalSecond'|'timeZoneName') + `value` distribution.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSST. Per-page Intl.NumberFormat formatRangeToParts sample
+
+- **[T]** Per session: per-`new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).formatRangeToParts(100, 200)` snapshot — per-part `source` ('startRange'|'endRange'|'shared') + `type` + `value` distribution.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTU. Per-page Intl.PluralRules selectRange sample
+
+- **[T]** Per session: per-`new Intl.PluralRules('en-US').selectRange(1, 10)` snapshot — range-plural category ('one'|'other'|'few'|'many'|'two'|'zero') distribution.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUV. Per-page Date.prototype.toLocaleString sample
+
+- **[T]** Per session: per-`new Date(0).toLocaleString()` + `.toLocaleDateString()` + `.toLocaleTimeString()` snapshot — locale-implicit format distribution.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVW. Per-page Number.prototype.toLocaleString sample
+
+- **[T]** Per session: per-`(123456.789).toLocaleString()` snapshot.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWX. Per-page String.prototype.localeCompare sample
+
+- **[T]** Per session: per-`'a'.localeCompare('b')` + per-locale-option (`{sensitivity:'base'}`, `{sensitivity:'accent'}`, `{sensitivity:'case'}`, `{sensitivity:'variant'}`) snapshot.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXY. Per-page Date.UTC sample
+
+- **[T]** Per session: per-`Date.UTC(2020, 0, 1, 0, 0, 0, 0)` snapshot — UTC-conversion timestamp distribution.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYZ. Per-page Date.parse sample
+
+- **[T]** Per session: per-`Date.parse('2020-01-01T00:00:00.000Z')` snapshot — string-to-timestamp distribution.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ1. Per-página Date.now sample
+
+- **[T]** Per session: per-`Date.now()` snapshot — wall-clock-time distribution at trajectory start vs end + delta.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
