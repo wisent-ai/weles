@@ -29733,6 +29733,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per session: per-page `::before` + `::after` + `::first-letter` + `::first-line` + `::marker` + `::placeholder` + `::selection` + `::backdrop` + `::cue` + `::file-selector-button` + `::part(<name>)` + `::slotted(<sel>)` + `::view-transition` + `::view-transition-group()` + `::view-transition-image-pair()` + `::view-transition-old()` + `::view-transition-new()` per-page CSS-rule count distribution.
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAJ. Per-page CSS @container query observation
+
+- **[T]** Per session: per-page `@container` at-rule usage count + per-rule `container-name`, `container-type`, query-condition distribution.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBK. Per-page CSS @scope at-rule observation
+
+- **[T]** Per session: per-page `@scope` at-rule usage count + per-rule scope-root + scope-limit distribution.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCL. Per-page CSS @layer at-rule observation
+
+- **[T]** Per session: per-page `@layer` at-rule usage count + per-layer name + nesting depth distribution.
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDM. Per-page CSS @property at-rule observation
+
+- **[T]** Per session: per-page `@property` at-rule usage count + per-property `syntax`, `inherits`, `initial-value` distribution.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEN. Per-page CSS @font-face at-rule observation
+
+- **[T]** Per session: per-page `@font-face` at-rule count + per-rule `font-family`, `src`, `font-weight`, `font-style`, `font-stretch`, `font-display`, `unicode-range`, `font-feature-settings`, `font-variation-settings`, `ascent-override`, `descent-override`, `line-gap-override`, `size-adjust` distribution.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFO. Per-page CSS @font-feature-values at-rule observation
+
+- **[T]** Per session: per-page `@font-feature-values` at-rule count + per-`@stylistic`, `@styleset`, `@character-variant`, `@swash`, `@ornaments`, `@annotation` block usage distribution.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGP. Per-page CSS @counter-style at-rule observation
+
+- **[T]** Per session: per-page `@counter-style` at-rule count + per-rule `system`, `symbols`, `additive-symbols`, `range`, `pad`, `prefix`, `suffix`, `fallback`, `speak-as` distribution.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHQ. Per-page CSS @page at-rule observation
+
+- **[T]** Per session: per-page `@page` at-rule count + per-rule `size`, `margin`, `@top-left`, `@top-right`, `@bottom-left`, `@bottom-right`, `marks`, `bleed`, `page-orientation` distribution.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIR. Per-page CSS @keyframes at-rule observation
+
+- **[T]** Per session: per-page `@keyframes` at-rule count + per-rule named-animation + per-keyframe-offset (`0%`, `50%`, `100%`, etc.) declaration count distribution.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJS. Per-página CSS @starting-style at-rule observation
+
+- **[T]** Per session: per-page `@starting-style` at-rule count distribution (CSS transitions from display:none).
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKT. Per-page CSS @view-transition at-rule observation
+
+- **[T]** Per session: per-page `@view-transition` at-rule count + `navigation` field distribution.
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLU. Per-page CSS @position-try at-rule observation
+
+- **[T]** Per session: per-page `@position-try` at-rule count + per-rule `inset-area` + position-fallback declaration distribution.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMV. Per-page CSS @media at-rule observation
+
+- **[T]** Per session: per-page `@media` at-rule count + per-rule media-condition (`min-width`, `max-width`, `min-height`, `max-height`, `orientation`, `prefers-color-scheme`, `prefers-reduced-motion`, `prefers-contrast`, `forced-colors`, `inverted-colors`, `display-mode`, `color-gamut`, `dynamic-range`, `update`, `overflow-block`, `overflow-inline`, `pointer`, `any-pointer`, `hover`, `any-hover`, `scripting`, `device-width`, `device-height`, `aspect-ratio`, `device-aspect-ratio`, `resolution`, `scan`, `grid`, `color`, `color-index`, `monochrome`) distribution.
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNW. Per-page CSS @supports at-rule observation
+
+- **[T]** Per session: per-page `@supports` at-rule count + per-rule supports-condition + nested rule count distribution.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOX. Per-page CSS @import at-rule observation
+
+- **[T]** Per session: per-page `@import` at-rule count + per-rule url + media-list + supports-condition + layer-name distribution.
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPY. Per-page CSS @namespace at-rule observation
+
+- **[T]** Per session: per-page `@namespace` at-rule count + per-rule prefix + uri distribution.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQZ. Per-página CSS @charset at-rule observation
+
+- **[T]** Per session: per-page `@charset` at-rule presence + encoding distribution.
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR1. Per-page CSS @scroll-timeline at-rule observation
+
+- **[T]** Per session: per-page `@scroll-timeline` at-rule count + per-rule timeline-name + source + orientation + scroll-offsets distribution.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS2. Per-page CSS scroll-driven animation observation
+
+- **[T]** Per session: per-page `animation-timeline: scroll(...)` + `animation-timeline: view(...)` + `animation-range` declarations count distribution.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT3. Per-page CSS view-transition-name observation
+
+- **[T]** Per session: per-page elements with computed `view-transition-name: <ident>` count distribution.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU4. Per-page CSS color-mix() function observation
+
+- **[T]** Per session: per-page CSS rules using `color-mix(...)` function-call count distribution.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV5. Per-page CSS oklch()/oklab() observation
+
+- **[T]** Per session: per-page CSS rules using `oklch()` + `oklab()` + `lch()` + `lab()` + `color()` function-call count distribution.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW6. Per-page CSS env() function observation
+
+- **[T]** Per session: per-page CSS `env()` function-call usage count + per-call env-name (`safe-area-inset-top`, `safe-area-inset-right`, `safe-area-inset-bottom`, `safe-area-inset-left`, `titlebar-area-x`, `titlebar-area-y`, `titlebar-area-width`, `titlebar-area-height`, `keyboard-inset-top`, `keyboard-inset-right`, `keyboard-inset-bottom`, `keyboard-inset-left`, `keyboard-inset-width`, `keyboard-inset-height`, `viewport-segment-width`, `viewport-segment-height`, `viewport-segment-top`, `viewport-segment-right`, `viewport-segment-bottom`, `viewport-segment-left`) distribution.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX7. Per-page CSS var() function observation
+
+- **[T]** Per session: per-page CSS `var(--<name>)` function-call usage count + per-custom-property-name distribution.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY8. Per-page CSS calc() function observation
+
+- **[T]** Per session: per-page CSS `calc()` + `min()` + `max()` + `clamp()` + `mod()` + `rem()` + `round()` + `sin()` + `cos()` + `tan()` + `asin()` + `acos()` + `atan()` + `atan2()` + `pow()` + `sqrt()` + `hypot()` + `log()` + `exp()` + `abs()` + `sign()` function-call usage count distribution.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ9. Per-página CSS image-set() function observation
+
+- **[T]** Per session: per-page CSS `image-set(...)` function-call usage count + per-call per-resolution image-URL distribution.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
