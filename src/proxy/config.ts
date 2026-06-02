@@ -399,17 +399,18 @@ export async function resolveProxy(proxy: string, targetHost?: string): Promise<
               attemptDiag.rejected_reason = 'exit_ip_burned';
               preflightContinue = true;
             }
-            // Country + LinkedIn-probe verify. probeLinkedinLogin sends the
-            // same Chrome headers Chromium will send — predicts pass/fail.
+            // Country + LinkedIn register probe. The LinkedIn gate must test
+            // /signup, not /login, because login-form access can false-positive
+            // for register runs.
             if (!preflightContinue && exitIp) {
-              const { verifyExitCountry, probeLinkedinLogin } = await import('./policy.js');
+              const { verifyExitCountry, probeLinkedinSignup } = await import('./policy.js');
               const geo = cc ? await verifyExitCountry(exitIp, cc) : { result: 'unknown' as const };
               attemptDiag.geo_result = geo.result;
               attemptDiag.geo_exit_cc = geo.exitCc;
               if (geo.result === 'mismatch') { attemptDiag.rejected_reason = 'geo_mismatch'; preflightContinue = true; }
               if (!preflightContinue && platform === 'linkedin') {
                 const url = `http://${encodeURIComponent(stickyUser)}:${encodeURIComponent(stickyPass)}@${host}:${p.proxy_port}`;
-                const probe = await probeLinkedinLogin(url);
+                const probe = await probeLinkedinSignup(url);
                 console.log(`[proxy] linkedin-probe exit=${exitIp} -> ${probe.result}${probe.bytes ? ` (${probe.bytes}B)` : ''}`);
                 attemptDiag.linkedin_probe_result = probe.result;
                 attemptDiag.linkedin_probe_bytes = probe.bytes;

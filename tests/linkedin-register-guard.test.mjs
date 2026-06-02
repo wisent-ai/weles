@@ -209,4 +209,17 @@ describe('LinkedIn register guard', () => {
     expect(source).toMatch(/proxy_user_hash/);
     expect(source).toMatch(/proxy_user_present/);
   });
+
+  it('probes the LinkedIn register surface instead of accepting login false positives', () => {
+    const source = readFileSync(new URL('../src/proxy/policy.ts', import.meta.url), 'utf8');
+    expect(source).toMatch(/function probeLinkedinSignup/);
+    expect(source).toMatch(/const targetUrl = 'https:\/\/www\.linkedin\.com\/signup'/);
+    expect(source).not.toMatch(/const targetUrl = 'https:\/\/www\.linkedin\.com\/login'/);
+    expect(source).toMatch(/sec-fetch-mode/);
+    expect(source).toMatch(/join-form-submit/);
+    expect(source).toMatch(/challenge-dialog/);
+    expect(source).toMatch(/Security verification/);
+    expect(source).toMatch(/bodyMarkers\.signup_form && !bodyMarkers\.hard_challenge/);
+    expect(source).not.toMatch(/bodyMarkers\.login_form \|\| bodyMarkers\.signup_form/);
+  });
 });
