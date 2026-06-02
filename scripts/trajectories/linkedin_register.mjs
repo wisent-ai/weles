@@ -33,6 +33,19 @@ async function saveVerifiedLinkedinAccount(session, account) {
   return result;
 }
 
+async function hasVisibleCaptchaChallenge(page) {
+  const captchaFrameCount = await page.locator('iframe[src*="recaptcha/api2"], iframe[src*="recaptcha/enterprise"], iframe[src*="challengeIframe"]').count().catch(() => 0);
+  const recaptchaDivCount = await page.locator('div.g-recaptcha[data-sitekey]').count().catch(() => 0);
+  return captchaFrameCount > 0 || recaptchaDivCount > 0;
+}
+
+async function waitPastEmailVerification(page) {
+  for (let i = 0; i < 30; i++) {
+    if (!/verify|email-verification|email_verification|checkpoint/.test(page.url())) return;
+    await humanIdlePause('deliberate');
+  }
+}
+
 // Persona + identity + browser + OS + input rotation all centralized in
 // WSession.start (platform: 'linkedin'). No browser/OS/input pin — rolls
 // naturally like the keeper does.
@@ -66,7 +79,7 @@ try {
   await humanIdlePause('deliberate');
   await assertNoLinkedinChallengePage(s, 'after_submit_email_password');
 
-  const hasV2 = await s.page.evaluate(() => !!document.querySelector('iframe[src*="recaptcha/api2"], iframe[src*="recaptcha/enterprise"], div.g-recaptcha[data-sitekey]') || Array.from(document.querySelectorAll('iframe')).some(f => /challengeIframe/.test(f.src ?? '')));
+  const hasV2 = await hasVisibleCaptchaChallenge(s.page);
   if (hasV2) throw new Error('DETECTION_TRIGGERED: visible CAPTCHA challenge after email/password submit');
 
   const firstLoc = s.page.locator('input[name="first-name"], input#first-name').filter({ visible: true }).first();
@@ -140,7 +153,7 @@ try {
     await humanClickLocator(s.page, pinIn);
     await humanType(s.page, code);
     await humanClickLocator(s.page, s.page.locator('button[type="submit"]:has-text("Submit"), button:has-text("Verify"), button[type="submit"]:has-text("Agree"), button#email-pin-submit-button').first());
-    await s.page.waitForFunction(() => !/verify|email-verification|email_verification|checkpoint/.test(location.href), { timeout: 30000 }).catch(() => {});
+    await waitPastEmailVerification(s.page);
     authState = await assertLinkedinAuthenticatedRegistration(s, 'after_email_verification');
   } else {
     authState = await assertLinkedinAuthenticatedRegistration(s, 'after_registration_redirect');

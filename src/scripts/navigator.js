@@ -291,5 +291,5 @@ if (__weles.navigator && __weles.navigator.language) {
       if (regNS) regNS(di, 'decodingInfo');
       navigator.mediaCapabilities.decodingInfo = di;
     }
-  } catch (e) { window.__WELES_HEVC_ERR = String(e); }
+  } catch {}
 })();

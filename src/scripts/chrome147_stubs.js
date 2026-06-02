@@ -34,7 +34,7 @@
       class TimelineTriggerRangeList {}
       Object.defineProperty(window, 'TimelineTriggerRangeList', { value: TimelineTriggerRangeList, writable: true, configurable: true });
     }
-  } catch (e) { try { window.__WELES_STUBS_ERR = String(e); } catch {} }
+  } catch {}
 })();
 
 // Proprietary codec support shim. Chromium open-source builds compile with
@@ -130,5 +130,5 @@
         return origDec(config);
       };
     }
-  } catch (e) { try { window.__WELES_HEVC_ERR = String(e); } catch {} }
+  } catch {}
 })();
