@@ -47,8 +47,8 @@ echo "[download-chromium] Fetching $ASSET from $REPO@$RELEASE_TAG" >&2
 gh_token() {
   if [[ -n "${GH_TOKEN:-}" ]]; then printf '%s' "$GH_TOKEN"; return 0; fi
   if [[ -n "${GITHUB_TOKEN:-}" ]]; then printf '%s' "$GITHUB_TOKEN"; return 0; fi
-  printf 'protocol=https\nhost=github.com\npath=%s\n\n' "$REPO" \
-    | git credential fill 2>/dev/null \
+  { printf 'protocol=https\nhost=github.com\npath=%s\n\n' "$REPO" \
+    | git credential fill 2>/dev/null || true; } \
     | awk -F= '/^password=/ { print $2; exit }'
 }
 
