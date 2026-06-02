@@ -221,8 +221,12 @@ export function assertLinkedinDedicatedIspProxy(session, requestedProxy = '') {
   const raw = String(requestedProxy).toLowerCase();
   const server = String(session.proxyConfig?.server ?? '').toLowerCase();
   const username = String(session.proxyConfig?.username ?? '').toLowerCase();
+  const proxyType = String(session.proxyConfig?.proxy_type ?? '').toLowerCase();
   if (/\b(residential|mobile|datacenter)\b/.test(raw) && !/\bisp\b/.test(raw)) {
     throw new Error(`PROXY_NOT_DEDICATED_ISP: requested=${raw.slice(0, 80)}`);
+  }
+  if (proxyType && proxyType !== 'isp') {
+    throw new Error(`PROXY_NOT_DEDICATED_ISP: proxy_type=${proxyType}`);
   }
   const rotatingGateway = /pr\.oxylabs\.io|geo\.iproyal\.com|brd\.superproxy\.io|packetstream|pingproxies|:7777|:12321|:22225/.test(server);
   const stickyCredential = /sessid-|_session-|[-_]session[-_]|_s_\d+/.test(username);

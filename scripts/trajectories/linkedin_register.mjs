@@ -30,7 +30,7 @@ async function saveVerifiedLinkedinAccount(session, account) {
 // Persona + identity + browser + OS + input rotation all centralized in
 // WSession.start (platform: 'linkedin'). No browser/OS/input pin — rolls
 // naturally like the keeper does.
-const requestedProxy = process.env.LINKEDIN_REGISTER_PROXY ?? process.env.LINKEDIN_PROXY ?? process.env.PROXY_URL ?? 'isp oxylabs us';
+const requestedProxy = process.env.LINKEDIN_REGISTER_PROXY ?? process.env.LINKEDIN_PROXY ?? process.env.PROXY_URL ?? 'isp decodo us';
 console.log(`[register] proxy request: ${requestedProxy.startsWith('http') ? '[url-form]' : requestedProxy}`);
 const s = await WSession.start({ label: 'linkedin_register', proxy: requestedProxy, targetHost: 'www.linkedin.com', platform: 'linkedin' });
 const id = { first: s.identity.firstName, last: s.identity.lastName, handle: s.identity.username, email: s.identity.email, password: s.identity.password };

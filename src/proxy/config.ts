@@ -94,7 +94,7 @@ function platformFromTarget(host: string | undefined): string | undefined {
   return undefined;
 }
 
-export async function resolveProxy(proxy: string, targetHost?: string): Promise<{ server: string; username?: string; password?: string; country?: string; exit_ip?: string; platform?: string; provider?: string } | undefined> {
+export async function resolveProxy(proxy: string, targetHost?: string): Promise<{ server: string; username?: string; password?: string; country?: string; exit_ip?: string; platform?: string; provider?: string; proxy_type?: string } | undefined> {
   if (!proxy || proxy === 'none' || proxy === 'direct') return undefined;
 
   if (proxy.startsWith('http://') || proxy.startsWith('https://') || proxy.startsWith('socks')) {
@@ -144,6 +144,7 @@ export async function resolveProxy(proxy: string, targetHost?: string): Promise<
   const isResidential = /\bresidential\b/.test(typeFilter);
   const isMobile = /\bmobile\b/.test(typeFilter);
   const isIsp = /\bisp\b/.test(typeFilter);
+  const proxyType = isIsp ? 'isp' : isMobile ? 'mobile' : isResidential ? 'residential' : 'unknown';
   let filtered = isIsp ? providers.filter(p => p.display_name.toLowerCase().includes('isp'))
     : isResidential ? providers.filter(p => !p.display_name.toLowerCase().includes('mobile') && !p.display_name.toLowerCase().includes('isp'))
     : isMobile ? providers.filter(p => p.display_name.toLowerCase().includes('mobile'))
@@ -290,7 +291,7 @@ export async function resolveProxy(proxy: string, targetHost?: string): Promise<
         if (preflightContinue) continue;
       }
       console.log(`[proxy] Using: ${p.display_name} (${host}:${p.proxy_port}, $${p.balance_usd}, sticky=${sessId}, exit=${exitIp || '?'})`);
-      return { server: `http://${host}:${p.proxy_port}`, username: stickyUser, password: stickyPass, country: cc, exit_ip: exitIp || undefined, platform, provider: provKey };
+      return { server: `http://${host}:${p.proxy_port}`, username: stickyUser, password: stickyPass, country: cc, exit_ip: exitIp || undefined, platform, provider: provKey, proxy_type: proxyType };
     }
   }
 
