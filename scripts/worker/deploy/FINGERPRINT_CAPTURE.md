@@ -31189,6 +31189,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per session: per-page CDP `Page.navigateToHistoryEntry({entryId})` per-call invocation count.
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAX. Per-page Linux uname syscall observation
+
+- **[T]** Per session: per-host `uname()` syscall return — `sysname`, `nodename`, `release`, `version`, `machine`, `domainname` field distribution.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBY. Per-page Linux getrlimit syscall observation
+
+- **[T]** Per session: per-host `getrlimit(RLIMIT_NOFILE|RLIMIT_NPROC|RLIMIT_AS|RLIMIT_STACK|RLIMIT_CORE|RLIMIT_CPU|RLIMIT_DATA|RLIMIT_FSIZE|RLIMIT_LOCKS|RLIMIT_MEMLOCK|RLIMIT_MSGQUEUE|RLIMIT_NICE|RLIMIT_RSS|RLIMIT_RTPRIO|RLIMIT_RTTIME|RLIMIT_SIGPENDING)` per-resource rlim_cur + rlim_max snapshot.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCZ. Per-page Linux capget syscall observation
+
+- **[T]** Per session: per-host `capget()` syscall returned per-capability (`CAP_CHOWN`, `CAP_DAC_OVERRIDE`, `CAP_DAC_READ_SEARCH`, `CAP_FOWNER`, `CAP_FSETID`, `CAP_KILL`, `CAP_SETGID`, `CAP_SETUID`, `CAP_SETPCAP`, `CAP_LINUX_IMMUTABLE`, `CAP_NET_BIND_SERVICE`, `CAP_NET_BROADCAST`, `CAP_NET_ADMIN`, `CAP_NET_RAW`, `CAP_IPC_LOCK`, `CAP_IPC_OWNER`, `CAP_SYS_MODULE`, `CAP_SYS_RAWIO`, `CAP_SYS_CHROOT`, `CAP_SYS_PTRACE`, `CAP_SYS_PACCT`, `CAP_SYS_ADMIN`, `CAP_SYS_BOOT`, `CAP_SYS_NICE`, `CAP_SYS_RESOURCE`, `CAP_SYS_TIME`, `CAP_SYS_TTY_CONFIG`, `CAP_MKNOD`, `CAP_LEASE`, `CAP_AUDIT_WRITE`, `CAP_AUDIT_CONTROL`, `CAP_SETFCAP`, `CAP_MAC_OVERRIDE`, `CAP_MAC_ADMIN`, `CAP_SYSLOG`, `CAP_WAKE_ALARM`, `CAP_BLOCK_SUSPEND`, `CAP_AUDIT_READ`, `CAP_PERFMON`, `CAP_BPF`, `CAP_CHECKPOINT_RESTORE`) effective/permitted/inheritable bit distribution.
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD1. Per-page Linux prctl syscall observation
+
+- **[T]** Per session: per-host `prctl(PR_GET_NAME|PR_GET_DUMPABLE|PR_GET_KEEPCAPS|PR_GET_NO_NEW_PRIVS|PR_GET_PDEATHSIG|PR_GET_SECCOMP|PR_GET_SECUREBITS|PR_GET_TIMERSLACK|PR_GET_THP_DISABLE|PR_GET_CHILD_SUBREAPER|PR_GET_TID_ADDRESS|PR_GET_UNALIGN|PR_GET_ENDIAN|PR_GET_FP_MODE|PR_GET_FPEMU|PR_GET_FPEXC|PR_GET_TIMING|PR_GET_TSC|PR_MCE_KILL_GET|PR_GET_SPECULATION_CTRL|PR_GET_IO_FLUSHER|PR_GET_SYSCALL_USER_DISPATCH|PR_GET_TAGGED_ADDR_CTRL|PR_GET_AUXV|PR_GET_MDWE|PR_GET_MEMORY_MERGE|PR_GET_SHADOW_STACK_STATUS|PR_GET_PMA)` per-flag returned-value snapshot.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE2. Per-page Linux seccomp BPF filter observation
+
+- **[T]** Per session: per-host `/proc/<pid>/status` `Seccomp:` mode (`0`=disabled, `1`=strict, `2`=filter) + per-process seccomp BPF program count distribution.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF3. Per-page Linux apparmor profile observation
+
+- **[T]** Per session: per-host `/proc/<pid>/attr/current` apparmor profile-name snapshot.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG4. Per-page Linux selinux context observation
+
+- **[T]** Per session: per-host SELinux per-process `id -Z` security-context (`user_u:role_r:type_t:level_l`) snapshot.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH5. Per-page Linux namespace observation
+
+- **[T]** Per session: per-host per-process `/proc/<pid>/ns/<ns-type>` (mnt|uts|ipc|user|pid|net|cgroup|time) per-namespace inode-id snapshot.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII6. Per-page Linux cgroup observation
+
+- **[T]** Per session: per-host per-process `/proc/<pid>/cgroup` per-controller cgroup-path snapshot.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ7. Per-página Linux /proc/cpuinfo observation
+
+- **[T]** Per session: per-host `/proc/cpuinfo` per-CPU `processor`, `vendor_id`, `cpu family`, `model`, `model name`, `stepping`, `microcode`, `cpu MHz`, `cache size`, `physical id`, `siblings`, `core id`, `cpu cores`, `apicid`, `initial apicid`, `fpu`, `fpu_exception`, `cpuid level`, `wp`, `flags`, `bugs`, `bogomips`, `clflush size`, `cache_alignment`, `address sizes`, `power management` field distribution.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK8. Per-page Linux /proc/meminfo observation
+
+- **[T]** Per session: per-host `/proc/meminfo` per-field (`MemTotal`, `MemFree`, `MemAvailable`, `Buffers`, `Cached`, `SwapCached`, `Active`, `Inactive`, `Active(anon)`, `Inactive(anon)`, `Active(file)`, `Inactive(file)`, `Unevictable`, `Mlocked`, `SwapTotal`, `SwapFree`, `Dirty`, `Writeback`, `AnonPages`, `Mapped`, `Shmem`, `KReclaimable`, `Slab`, `SReclaimable`, `SUnreclaim`, `KernelStack`, `PageTables`, `NFS_Unstable`, `Bounce`, `WritebackTmp`, `CommitLimit`, `Committed_AS`, `VmallocTotal`, `VmallocUsed`, `VmallocChunk`, `Percpu`, `HardwareCorrupted`, `AnonHugePages`, `ShmemHugePages`, `ShmemPmdMapped`, `FileHugePages`, `FilePmdMapped`, `HugePages_Total`, `HugePages_Free`, `HugePages_Rsvd`, `HugePages_Surp`, `Hugepagesize`, `Hugetlb`, `DirectMap4k`, `DirectMap2M`, `DirectMap1G`) byte distribution.
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL9. Per-page Linux /proc/stat observation
+
+- **[T]** Per session: per-host `/proc/stat` per-line (`cpu`, `cpu0`...`cpuN`, `intr`, `ctxt`, `btime`, `processes`, `procs_running`, `procs_blocked`, `softirq`) value distribution.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM-1. Per-page Linux /proc/loadavg observation
+
+- **[T]** Per session: per-host `/proc/loadavg` per-field (1min, 5min, 15min, running/total, last_pid) distribution.
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN-2. Per-page Linux /proc/uptime observation
+
+- **[T]** Per session: per-host `/proc/uptime` (uptime + idle-time) distribution.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO-3. Per-page Linux /proc/version observation
+
+- **[T]** Per session: per-host `/proc/version` kernel-version snapshot.
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP-4. Per-page Linux /proc/cmdline observation
+
+- **[T]** Per session: per-host `/proc/cmdline` kernel command-line snapshot.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ-5. Per-página Linux /proc/modules observation
+
+- **[T]** Per session: per-host `/proc/modules` loaded-kernel-module count + per-module name distribution.
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR-6. Per-page Linux /proc/devices observation
+
+- **[T]** Per session: per-host `/proc/devices` per-character-device + per-block-device major-number list distribution.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS-7. Per-page Linux /proc/diskstats observation
+
+- **[T]** Per session: per-host `/proc/diskstats` per-disk per-field (`reads completed`, `reads merged`, `sectors read`, `time reading`, `writes completed`, `writes merged`, `sectors written`, `time writing`, `I/O in flight`, `time doing I/O`, `weighted time I/O`) distribution.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT-8. Per-page Linux /proc/mounts observation
+
+- **[T]** Per session: per-host `/proc/mounts` per-mount-entry (`device`, `mount-point`, `fs-type`, `mount-options`, `dump-frequency`, `fsck-pass-num`) distribution.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU-9. Per-page Linux /proc/swaps observation
+
+- **[T]** Per session: per-host `/proc/swaps` per-swap-device snapshot.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV-10. Per-page Linux /proc/zoneinfo observation
+
+- **[T]** Per session: per-host `/proc/zoneinfo` per-NUMA-zone snapshot.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW-11. Per-page Linux /proc/buddyinfo observation
+
+- **[T]** Per session: per-host `/proc/buddyinfo` per-zone free-block count distribution.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX-12. Per-page Linux /proc/iomem observation
+
+- **[T]** Per session: per-host `/proc/iomem` per-physical-address-range device-mapping snapshot.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY-13. Per-page Linux /proc/ioports observation
+
+- **[T]** Per session: per-host `/proc/ioports` per-IO-port-range device-mapping snapshot.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ-14. Per-página Linux /proc/interrupts observation
+
+- **[T]** Per session: per-host `/proc/interrupts` per-IRQ per-CPU count distribution.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
