@@ -28381,6 +28381,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per session: per-host IPSec ESP + AH packet observation count + per-packet SPI + sequence number distribution (signals active VPN tunnel).
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB. Per-page canvas toBlob output
+
+- **[T]** Per session: per-page `canvas.toBlob()` per-resolution + per-format (`image/png`, `image/jpeg`, `image/webp`, `image/avif`) Blob byte distribution + per-format sha256 hash.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBC. Per-page canvas toDataURL output
+
+- **[T]** Per session: per-page `canvas.toDataURL()` per-quality (0.1, 0.5, 0.92, 1.0) per-format string size + sha256.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCD. Per-page canvas getImageData per-coordinate
+
+- **[T]** Per session: per-page `ctx.getImageData(0,0,1,1).data` snapshot at 9 fixed pixels (corners + center + cardinal halves) — distinguishes anti-aliasing impl.
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDE. Per-page canvas measureText TextMetrics
+
+- **[T]** Per session: per-page `ctx.measureText('test')` snapshot per-font — `width`, `actualBoundingBoxAscent`, `actualBoundingBoxDescent`, `actualBoundingBoxLeft`, `actualBoundingBoxRight`, `fontBoundingBoxAscent`, `fontBoundingBoxDescent`, `emHeightAscent`, `emHeightDescent`, `hangingBaseline`, `alphabeticBaseline`, `ideographicBaseline` distribution.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEF. Per-page canvas drawImage source/dest scaling
+
+- **[T]** Per session: per-page `ctx.drawImage()` with scaling — sample pixels after up/downscale snapshot.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFG. Per-page canvas fillStyle gradient sample
+
+- **[T]** Per session: per-page `ctx.createLinearGradient()` + `ctx.createRadialGradient()` rendered output sample pixel snapshot.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGH. Per-page canvas filter operation sample
+
+- **[T]** Per session: per-page `ctx.filter = 'blur(2px)'` + `'brightness(0.5)'` + `'contrast(2)'` + `'drop-shadow(2px 2px 2px black)'` + `'grayscale(1)'` + `'hue-rotate(90deg)'` + `'invert(1)'` + `'opacity(0.5)'` + `'saturate(2)'` + `'sepia(1)'` rendered output sample pixel snapshot.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHI. Per-page canvas composite operation sample
+
+- **[T]** Per session: per-page `ctx.globalCompositeOperation` per-mode (`source-over`, `source-in`, `source-out`, `source-atop`, `destination-over`, `destination-in`, `destination-out`, `destination-atop`, `lighter`, `copy`, `xor`, `multiply`, `screen`, `overlay`, `darken`, `lighten`, `color-dodge`, `color-burn`, `hard-light`, `soft-light`, `difference`, `exclusion`, `hue`, `saturation`, `color`, `luminosity`) rendered output sample.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIJ. Per-page WebGL drawArrays render sample
+
+- **[T]** Per session: per-page WebGL fragment-shader render of fixed-input output — `gl.readPixels()` byte distribution post-render across multiple uniform-input cases.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJK. Per-página WebGL aliasedLineWidthRange sample
+
+- **[T]** Per session: per-page `gl.getParameter(gl.ALIASED_LINE_WIDTH_RANGE)` + `ALIASED_POINT_SIZE_RANGE` + `MAX_VIEWPORT_DIMS` + `MAX_TEXTURE_SIZE` + `MAX_CUBE_MAP_TEXTURE_SIZE` + `MAX_RENDERBUFFER_SIZE` + `MAX_VERTEX_ATTRIBS` + `MAX_VERTEX_UNIFORM_VECTORS` + `MAX_FRAGMENT_UNIFORM_VECTORS` + `MAX_VARYING_VECTORS` + `MAX_VERTEX_TEXTURE_IMAGE_UNITS` + `MAX_COMBINED_TEXTURE_IMAGE_UNITS` + `MAX_TEXTURE_IMAGE_UNITS` snapshot.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKL. Per-page WebGL shader precision format
+
+- **[T]** Per session: per-page `gl.getShaderPrecisionFormat(gl.VERTEX_SHADER, gl.LOW_FLOAT)` + per (shadertype, precision) combo — vertex/fragment × (low/medium/high) × (float/int) precision-format `rangeMin`, `rangeMax`, `precision` snapshot.
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLM. Per-page WebGL extension list
+
+- **[T]** Per session: per-page `gl.getSupportedExtensions()` snapshot — full extension list (`ANGLE_instanced_arrays`, `EXT_blend_minmax`, `EXT_color_buffer_half_float`, `EXT_disjoint_timer_query`, `EXT_disjoint_timer_query_webgl2`, `EXT_float_blend`, `EXT_frag_depth`, `EXT_shader_texture_lod`, `EXT_sRGB`, `EXT_texture_compression_bptc`, `EXT_texture_compression_rgtc`, `EXT_texture_filter_anisotropic`, `KHR_parallel_shader_compile`, `OES_element_index_uint`, `OES_fbo_render_mipmap`, `OES_standard_derivatives`, `OES_texture_float`, `OES_texture_float_linear`, `OES_texture_half_float`, `OES_texture_half_float_linear`, `OES_vertex_array_object`, `WEBGL_color_buffer_float`, `WEBGL_compressed_texture_etc`, `WEBGL_compressed_texture_etc1`, `WEBGL_compressed_texture_s3tc`, `WEBGL_compressed_texture_s3tc_srgb`, `WEBGL_debug_renderer_info`, `WEBGL_debug_shaders`, `WEBGL_depth_texture`, `WEBGL_draw_buffers`, `WEBGL_lose_context`, `WEBGL_multi_draw`, `WEBGL_provoking_vertex`).
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMN. Per-page WebGL_debug_renderer_info
+
+- **[T]** Per session: per-page `gl.getParameter(WEBGL_debug_renderer_info.UNMASKED_VENDOR_WEBGL)` + `gl.getParameter(WEBGL_debug_renderer_info.UNMASKED_RENDERER_WEBGL)` snapshot.
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNO. Per-page AudioContext default sampleRate
+
+- **[T]** Per session: per-page `new AudioContext().sampleRate` snapshot — system default sample rate (typically 44100 or 48000 Hz).
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOP. Per-page AudioContext baseLatency
+
+- **[T]** Per session: per-page `audioContext.baseLatency` + `audioContext.outputLatency` snapshot.
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPQ. Per-page AudioContext destination maxChannelCount
+
+- **[T]** Per session: per-page `audioContext.destination.maxChannelCount` + `audioContext.destination.numberOfInputs` + `audioContext.destination.numberOfOutputs` + `audioContext.destination.channelInterpretation` + `audioContext.destination.channelCount` + `audioContext.destination.channelCountMode` snapshot.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQR. Per-página AnalyserNode fftSize sample
+
+- **[T]** Per session: per-page `new AnalyserNode().fftSize` default value + per-fixed-input `getFloatFrequencyData()` first 16 bin values snapshot.
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRS. Per-page OfflineAudioContext render hash
+
+- **[T]** Per session: per-page `new OfflineAudioContext(1, 44100*5, 44100)` rendered output sha256 across fixed-oscillator input — canonical AudioContext fingerprint.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSST. Per-page DynamicsCompressorNode AudioContext fingerprint
+
+- **[T]** Per session: per-page DynamicsCompressorNode-driven canonical-test render output hash distribution.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTU. Per-page WebGPU GPUAdapter limits
+
+- **[T]** Per session: per-page `(await navigator.gpu.requestAdapter()).limits` snapshot — `maxTextureDimension1D`, `maxTextureDimension2D`, `maxTextureDimension3D`, `maxTextureArrayLayers`, `maxBindGroups`, `maxBindingsPerBindGroup`, `maxDynamicUniformBuffersPerPipelineLayout`, `maxDynamicStorageBuffersPerPipelineLayout`, `maxSampledTexturesPerShaderStage`, `maxSamplersPerShaderStage`, `maxStorageBuffersPerShaderStage`, `maxStorageTexturesPerShaderStage`, `maxUniformBuffersPerShaderStage`, `maxUniformBufferBindingSize`, `maxStorageBufferBindingSize`, `minUniformBufferOffsetAlignment`, `minStorageBufferOffsetAlignment`, `maxVertexBuffers`, `maxBufferSize`, `maxVertexAttributes`, `maxVertexBufferArrayStride`, `maxInterStageShaderComponents`, `maxInterStageShaderVariables`, `maxColorAttachments`, `maxColorAttachmentBytesPerSample`, `maxComputeWorkgroupStorageSize`, `maxComputeInvocationsPerWorkgroup`, `maxComputeWorkgroupSizeX`, `maxComputeWorkgroupSizeY`, `maxComputeWorkgroupSizeZ`, `maxComputeWorkgroupsPerDimension` distribution.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUV. Per-page WebGPU GPUAdapter features
+
+- **[T]** Per session: per-page `(await navigator.gpu.requestAdapter()).features` snapshot — set of supported `GPUFeatureName` ('depth-clip-control', 'depth32float-stencil8', 'texture-compression-bc', 'texture-compression-etc2', 'texture-compression-astc', 'timestamp-query', 'indirect-first-instance', 'shader-f16', 'rg11b10ufloat-renderable', 'bgra8unorm-storage', 'float32-filterable').
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVW. Per-page WebGPU compute-shader render hash
+
+- **[T]** Per session: per-page WebGPU compute-shader execution against fixed input — render output sha256 (canonical WebGPU fingerprint).
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWX. Per-page MediaCapabilities decodingInfo
+
+- **[T]** Per session: per-page `navigator.mediaCapabilities.decodingInfo({type:'media-source', video:{contentType:'video/mp4;codecs=avc1.42E01E', width:1280, height:720, bitrate:1000000, framerate:30}})` snapshot for each (codec, resolution, bitrate, framerate) tuple — `supported`, `smooth`, `powerEfficient` boolean distribution.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXY. Per-page MediaCapabilities encodingInfo
+
+- **[T]** Per session: per-page `navigator.mediaCapabilities.encodingInfo()` per-codec/resolution snapshot.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYZ. Per-page HTMLVideoElement.canPlayType
+
+- **[T]** Per session: per-page `video.canPlayType()` per-MIME-type ('video/mp4', 'video/webm', 'video/ogg', 'video/x-matroska', 'video/quicktime', 'video/mp4; codecs="avc1.42E01E"', 'video/mp4; codecs="hev1.1.6.L93.B0"', 'video/mp4; codecs="vp09.00.10.08"', 'video/mp4; codecs="av01.0.04M.08"', 'video/webm; codecs="vp8"', 'video/webm; codecs="vp9"', 'video/webm; codecs="av1"') return-string ('probably'|'maybe'|'') distribution.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ1. Per-página HTMLAudioElement.canPlayType
+
+- **[T]** Per session: per-page `audio.canPlayType()` per-MIME-type ('audio/mpeg', 'audio/ogg', 'audio/wav', 'audio/webm', 'audio/aac', 'audio/flac', 'audio/mp4; codecs="mp4a.40.2"', 'audio/ogg; codecs="vorbis"', 'audio/ogg; codecs="opus"', 'audio/webm; codecs="opus"') return-string distribution.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
