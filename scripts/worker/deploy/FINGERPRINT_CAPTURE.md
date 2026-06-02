@@ -33685,6 +33685,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per session: per-page `audioContext.audioWorklet.addModule(path)` per-path distribution.
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB13. Per-page RTCDataChannel observation
+
+- **[T]** Per session: per-page `pc.createDataChannel()` invocation count + per-channel (label, ordered, maxPacketLifeTime, maxRetransmits, protocol, negotiated, id, binaryType, bufferedAmount) distribution.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB13. Per-page RTCRtpSender observation
+
+- **[T]** Per session: per-page `pc.addTrack()` + sender stats per-RTCRtpSender (kind, track-id, dtmf, encodings[], transport, getParameters().encodings, codecPayloadType) distribution.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC13. Per-page RTCRtpReceiver observation
+
+- **[T]** Per session: per-page per-RTCRtpReceiver (track-id, transport, jitterBufferTarget, playoutDelayHint, codecs[], getContributingSources()[], getSynchronizationSources()[]) distribution.
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD13. Per-page RTCRtpTransceiver observation
+
+- **[T]** Per session: per-page `pc.addTransceiver()` invocation count + per-transceiver (direction, currentDirection, mid, stopped) distribution.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE13. Per-page RTCDtlsTransport observation
+
+- **[T]** Per session: per-page `pc.sctp.transport.iceTransport` + `pc.sctp.transport` state ('new'|'connecting'|'connected'|'closed'|'failed') transition count distribution.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF13. Per-page RTCSctpTransport observation
+
+- **[T]** Per session: per-page `pc.sctp` (state, maxChannels, maxMessageSize) distribution.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG13. Per-page RTCIceTransport state observation
+
+- **[T]** Per session: per-page `iceTransport.state` ('new'|'checking'|'connected'|'completed'|'disconnected'|'failed'|'closed') transition count distribution.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH13. Per-page RTCIceGatherer observation
+
+- **[T]** Per session: per-page `iceGatheringState` ('new'|'gathering'|'complete') transition count distribution.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII13. Per-page RTCPeerConnection signalingState observation
+
+- **[T]** Per session: per-page `pc.signalingState` ('stable'|'have-local-offer'|'have-remote-offer'|'have-local-pranswer'|'have-remote-pranswer'|'closed') transition count distribution.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ-6. Per-página RTCPeerConnection connectionState observation
+
+- **[T]** Per session: per-page `pc.connectionState` ('new'|'connecting'|'connected'|'disconnected'|'failed'|'closed') transition count distribution.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK-7. Per-page RTCConfiguration iceServers observation
+
+- **[T]** Per session: per-page `new RTCPeerConnection({iceServers:[]})` per-iceServer (urls[], username, credential) distribution.
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL-10. Per-page RTCConfiguration iceCandidatePoolSize observation
+
+- **[T]** Per session: per-page `RTCConfiguration.iceCandidatePoolSize` distribution.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM-12. Per-page RTCConfiguration iceTransportPolicy observation
+
+- **[T]** Per session: per-page `RTCConfiguration.iceTransportPolicy` ('all'|'relay') distribution.
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN-13. Per-page RTCConfiguration bundlePolicy observation
+
+- **[T]** Per session: per-page `RTCConfiguration.bundlePolicy` ('balanced'|'max-bundle'|'max-compat') distribution.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO-14. Per-page RTCConfiguration rtcpMuxPolicy observation
+
+- **[T]** Per session: per-page `RTCConfiguration.rtcpMuxPolicy` ('require'|'negotiate') distribution.
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP-15. Per-page RTCConfiguration certificates observation
+
+- **[T]** Per session: per-page `RTCConfiguration.certificates` per-certificate fingerprint distribution.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ-16. Per-página RTCSessionDescriptionInit observation
+
+- **[T]** Per session: per-page `pc.createOffer()` + `pc.createAnswer()` per-call (offerToReceiveAudio, offerToReceiveVideo, voiceActivityDetection, iceRestart) distribution.
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR-17. Per-page RTCInboundRtpStreamStats observation
+
+- **[T]** Per session: per-page RTCInboundRtpStreamStats `framesReceived` + `framesDropped` + `framesDecoded` + `keyFramesDecoded` + `framesPerSecond` + `qpSum` + `framesAssembledFromMultiplePackets` + `totalAssemblyTime` + `totalDecodeTime` + `totalProcessingDelay` + `totalInterFrameDelay` + `totalSquaredInterFrameDelay` + `pauseCount` + `totalPausesDuration` + `freezeCount` + `totalFreezesDuration` + `playoutId` distribution.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS-18. Per-page RTCOutboundRtpStreamStats observation
+
+- **[T]** Per session: per-page RTCOutboundRtpStreamStats `framesSent` + `framesEncoded` + `keyFramesEncoded` + `framesPerSecond` + `qpSum` + `totalEncodeTime` + `targetBitrate` + `headerBytesSent` + `retransmittedPacketsSent` + `retransmittedBytesSent` + `qualityLimitationReason` + `qualityLimitationDurations` + `qualityLimitationResolutionChanges` + `encoderImplementation` + `firCount` + `pliCount` + `nackCount` + `powerEfficientEncoder` distribution.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT-19. Per-page RTCDataChannelStats observation
+
+- **[T]** Per session: per-page per-RTCDataChannelStats (state, messagesSent, bytesSent, messagesReceived, bytesReceived) distribution.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU-20. Per-page RTCMediaSourceStats observation
+
+- **[T]** Per session: per-page per-RTCMediaSourceStats (kind, trackIdentifier, audioLevel, totalAudioEnergy, totalSamplesDuration, echoReturnLoss, echoReturnLossEnhancement, droppedSamplesDuration, droppedSamplesEvents, totalCaptureDelay, totalSamplesCaptured, width, height, frames, framesPerSecond) distribution.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV-21. Per-page RTCAudioPlayoutStats observation
+
+- **[T]** Per session: per-page per-RTCAudioPlayoutStats (kind, synthesizedSamplesDuration, synthesizedSamplesEvents, totalSamplesDuration, totalPlayoutDelay, totalSamplesCount) distribution.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW-22. Per-page RTCEncodedFrameMetadata observation
+
+- **[T]** Per session: per-page WebRTC Encoded-Frame Insertable-Streams per-RTCEncodedAudioFrame + per-RTCEncodedVideoFrame metadata (synchronizationSource, payloadType, mimeType, frameType, width, height, spatialIndex, temporalIndex, dependencies, rtpTimestamp, contributingSources) distribution.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX-25. Per-page RTCRtpScriptTransform observation
+
+- **[T]** Per session: per-page `new RTCRtpScriptTransform()` constructor count + per-transform worker-script-URL distribution.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY-29. Per-page RTCError observation
+
+- **[T]** Per session: per-page WebRTC `RTCError` `errorDetail` ('data-channel-failure'|'dtls-failure'|'fingerprint-failure'|'sctp-failure'|'sdp-syntax-error'|'hardware-encoder-not-available'|'hardware-encoder-error') count distribution.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ-30. Per-página RTCRtpHeaderExtensionMap observation
+
+- **[T]** Per session: per-page WebRTC `RTCRtpReceiver.getCapabilities('video').headerExtensions[].uri` distribution.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
