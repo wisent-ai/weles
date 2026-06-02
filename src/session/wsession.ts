@@ -194,7 +194,6 @@ export class WSession {
           proxy_port: u.port,
           proxy_user_present: !!bOpts.proxy.username,
           proxy_user_hash: hashDiagnosticValue(bOpts.proxy.username),
-          proxy_full: bOpts.proxy.server,
           exit_ip: bOpts.proxy.exit_ip,
           platform: bOpts.proxy.platform,
           provider: (bOpts.proxy as any).provider,

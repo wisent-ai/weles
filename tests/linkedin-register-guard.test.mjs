@@ -202,4 +202,11 @@ describe('LinkedIn register guard', () => {
     expect(chrome147).not.toMatch(/__WELES_/);
     expect(navigatorShim).not.toMatch(/__WELES_/);
   });
+
+  it('does not write full proxy strings into session metadata', () => {
+    const source = readFileSync(new URL('../src/session/wsession.ts', import.meta.url), 'utf8');
+    expect(source).not.toMatch(/proxy_full/);
+    expect(source).toMatch(/proxy_user_hash/);
+    expect(source).toMatch(/proxy_user_present/);
+  });
 });
