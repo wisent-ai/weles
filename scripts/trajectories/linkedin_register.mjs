@@ -1,99 +1,23 @@
 /**
- * LinkedIn signup with reCAPTCHA Enterprise v3 pre-solving. Linkedin's signup
- * flow uses INVISIBLE reCAPTCHA Enterprise v3 — no challenge popup, just
- * background scoring on the form-submit endpoint. The classic solve_captcha
- * agent tool only handles visible challenges; v3 needs explicit token
- * injection BEFORE each form submit.
+ * LinkedIn signup on dedicated ISP proxies.
+ *
+ * This trajectory does not attempt to solve or bypass CAPTCHA/checkpoint
+ * challenges. It records those states as detection failures so operators do
+ * not get false PASS signals from blocked registrations.
  */
 import { WSession } from '../../dist/session/wsession.js';
-import { CaptchaSolver } from '../../dist/captcha/solver.js';
 import { humanFill, humanType } from '../../dist/human/keyboard.js';
 import { humanClickLocator, humanIdlePause } from '../../dist/human/mouse.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { confirmLinkedinEmail, solveLinkedinCheckpoint } from './_shared/linkedin/checkpoint.mjs';
+import { confirmLinkedinEmail } from './_shared/linkedin/checkpoint.mjs';
 import { assertLinkedinDedicatedIspProxy, assertLinkedinProxyStable, classifyLinkedinRegisterFailure, ensureLinkedinSignupForm } from './_shared/linkedin/register_guard.mjs';
 import { fillPostRegisterOnboarding } from './_shared/linkedin/onboarding/work_school.mjs';
 // generateIdentity import removed — identity now created by WSession.start via opts.platform.
 
 const URL = 'https://www.linkedin.com/signup';
-const RECAPTCHA_SITEKEY = '6LcIy_MqAAAAAMKiupFSbmzW3xjGSlIfRzNWYMjC';
 
 import { autoBindCharacter } from './lib/character-bind.mjs';
-
-async function getAndInjectRecaptcha(page, action) {
-  const solver = new CaptchaSolver();
-  const token = await solver.solveRecaptchaV3(RECAPTCHA_SITEKEY, URL, action);
-  if (!token) { console.log(`[recaptcha:${action}] v3 solver returned null`); return null; }
-  const injected = await page.evaluate((tk) => {
-    const fields = Array.from(document.querySelectorAll('textarea[name="g-recaptcha-response"], input[name="g-recaptcha-response"]'));
-    for (const f of fields) {
-      const proto = f instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
-      const setter = Object.getOwnPropertyDescriptor(proto, 'value').set;
-      setter.call(f, tk);
-      f.dispatchEvent(new Event('input', { bubbles: true }));
-      f.dispatchEvent(new Event('change', { bubbles: true }));
-    }
-    window.__weles_recaptcha_token = tk;
-    return fields.length;
-  }, token);
-  console.log(`[recaptcha:v3 ${action}] token=${token.slice(0, 16)}... injected into ${injected} field(s)`);
-  return token;
-}
-
-async function solveV2Modal(page) {
-  // LinkedIn's V2 modal uses a DIFFERENT sitekey from the V3 invisible
-  // tracker. Wait up to 8s for the recaptcha bframe to load, then extract
-  // sitekey from its URL (pattern /recaptcha/(api2|enterprise)/(anchor|
-  // bframe)?...&k=<SITEKEY>) or from the page's [data-sitekey] attribute.
-  // Cited 2026-05-05 register-B failure: passing the V3 sitekey to a V2
-  // task causes CapMonster INVALID_SITEKEY and CapSolver returns a junk
-  // token that LinkedIn silently rejects post-submit.
-  // Match only V2 anchor/bframe iframes; V3 also lives at /enterprise/* but never under /anchor|/bframe.
-  let v2Sitekey = null;
-  for (let i = 0; i < 16; i++) {
-    for (const f of page.frames()) {
-      const url = f.url() || '';
-      if (!/recaptcha\/(api2|enterprise)\/(anchor|bframe)/i.test(url)) continue;
-      const m = url.match(/[?&]k=([0-9A-Za-z_-]+)/);
-      if (m && m[1] !== RECAPTCHA_SITEKEY) { v2Sitekey = m[1]; break; }
-    }
-    if (v2Sitekey) break;
-    try {
-      const dom = await page.evaluate((v3Key) => { for (const el of document.querySelectorAll('[data-sitekey]')) { const k = el.getAttribute('data-sitekey'); if (k && k !== v3Key) return k; } return null; }, RECAPTCHA_SITEKEY);
-      if (dom) { v2Sitekey = dom; break; }
-    } catch {}
-    await humanIdlePause('short');
-  }
-  if (!v2Sitekey) {
-    const allFrames = page.frames().map(f => (f.url() || '').slice(0, 100)).join(' | ');
-    console.log(`[recaptcha:v2] could not extract V2 sitekey — frames: ${allFrames.slice(0, 400)}`);
-    return false;
-  }
-  console.log(`[recaptcha:v2] extracted sitekey=${v2Sitekey.slice(0, 20)}...`);
-  const solver = new CaptchaSolver();
-  const token = await solver.solveRecaptchaV2(page, v2Sitekey, { enterprise: true });
-  if (!token || token === false) { console.log('[recaptcha:v2] solver returned null/false'); return false; }
-  const tokenStr = typeof token === 'string' ? token : '';
-  if (!tokenStr) { console.log('[recaptcha:v2] solver returned non-string'); return false; }
-  for (const f of [page.mainFrame(), ...page.frames()]) {
-    try {
-      const n = await f.evaluate((tk) => {
-        const fields = Array.from(document.querySelectorAll('textarea[name="g-recaptcha-response"], input[name="g-recaptcha-response"], textarea#g-recaptcha-response'));
-        for (const e of fields) {
-          const proto = e instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
-          Object.getOwnPropertyDescriptor(proto, 'value').set.call(e, tk);
-          e.dispatchEvent(new Event('input', { bubbles: true }));
-          e.dispatchEvent(new Event('change', { bubbles: true }));
-        }
-        if (typeof window.___grecaptcha_cfg === 'object') { try { Object.values(window.___grecaptcha_cfg.clients ?? {}).forEach(c => { for (const k in c) if (typeof c[k]?.callback === 'function') c[k].callback(tk); }); } catch {} }
-        return fields.length;
-      }, tokenStr);
-      if (n > 0) console.log(`[recaptcha:v2] token injected into ${n} field(s) in frame=${f.url().slice(0, 60)}`);
-    } catch { /* frame may have detached */ }
-  }
-  return true;
-}
 
 // Persona + identity + browser + OS + input rotation all centralized in
 // WSession.start (platform: 'linkedin'). No browser/OS/input pin — rolls
@@ -119,28 +43,13 @@ try {
   console.log(`[register] fill email+pwd: ok`);
   expectedExitIp = await assertLinkedinProxyStable(s, 'before_submit_email_password', expectedExitIp);
 
-  await getAndInjectRecaptcha(s.page, 'signup');
-  await humanIdlePause('short');
-
   const submit1 = await humanClickLocator(s.page, s.page.locator('button[type="submit"]:has-text("Agree"), button[type="submit"]:has-text("Continue"), button#join-form-submit, button[data-tracking-control-name*="signup"]').first()).then(() => true).catch(e => { console.log(`[register] submit1 err: ${e.message?.slice(0, 80)}`); return false; });
   console.log(`[register] click Agree & Join: ${submit1}`);
   if (!submit1) throw new Error('Agree & Join button not clickable');
   await humanIdlePause('deliberate');
 
-  // After Agree & Join, LinkedIn often presents a v2 "I'm not a robot" modal.
-  // Detect it and solve via API token (v2 solver's frame chain doesn't match
-  // LinkedIn's challengeIframe wrapper, so we inject directly).
   const hasV2 = await s.page.evaluate(() => !!document.querySelector('iframe[src*="recaptcha/api2"], iframe[src*="recaptcha/enterprise"], div.g-recaptcha[data-sitekey]') || Array.from(document.querySelectorAll('iframe')).some(f => /challengeIframe/.test(f.src ?? '')));
-  if (hasV2) {
-    console.log('[register] v2 modal detected — solving via API token');
-    const v2ok = await solveV2Modal(s.page);
-    if (v2ok) {
-      await humanIdlePause('deliberate');
-      const v2submit = await humanClickLocator(s.page, s.page.locator('button:has-text("Verify"), button:has-text("Continue"), button:has-text("Submit"), button[type="submit"]').last()).then(() => true).catch(() => false);
-      console.log(`[register] v2 submit: ${v2submit}`);
-      await humanIdlePause('deliberate');
-    }
-  }
+  if (hasV2) throw new Error('DETECTION_TRIGGERED: visible CAPTCHA challenge after email/password submit');
 
   const firstLoc = s.page.locator('input[name="first-name"], input#first-name').filter({ visible: true }).first();
   const lastLoc = s.page.locator('input[name="last-name"], input#last-name').filter({ visible: true }).first();
@@ -155,8 +64,6 @@ try {
     console.log(`[register] fill first+last skipped (hasFirst=${hasFirst} hasLast=${hasLast} url=${s.page.url()})`);
   }
   if (fillBOk) {
-    await getAndInjectRecaptcha(s.page, 'signup');
-    await humanIdlePause('short');
     expectedExitIp = await assertLinkedinProxyStable(s, 'before_create_account', expectedExitIp);
     // Capture /signup/api/cors/createAccount response BEFORE click. On a
     // challenged session LinkedIn returns HTTP 200 with body
@@ -180,24 +87,7 @@ try {
       } catch (e) { console.log(`[register] createAccount body parse err: ${e.message?.slice(0, 80)}`); }
     }
     if (challengeUrl) {
-      // createAccount challengeUrl = reCAPTCHA "Security verification", NOT an IP/
-      // fingerprint burn. The 2026-05-29 cold-vs-warm keeper test (same Oxylabs ISP
-      // exit + macOS persona) proved it is browser-identity-trust driven: cold (fresh
-      // bcookie) gets the challenge, warm (existing account's bcookie/bscookie) does
-      // not. A new identity can't have a trusted bcookie, so IP/fingerprint rotation
-      // won't clear it — only TRY_CHALLENGE=1 (solve) or pre-warmed trust works. THROW
-      // (not exit) so finally s.close() finalizes capture; catch keeps the prefix.
-      if (process.env.LINKEDIN_REGISTER_TRY_CHALLENGE !== '1') {
-        throw new Error('DETECTION_TRIGGERED: createAccount challengeUrl — cold identity, no trusted bcookie; IP/fingerprint rotation will not clear it (set LINKEDIN_REGISTER_TRY_CHALLENGE=1 to solve)');
-      }
-      const fullUrl = challengeUrl.startsWith('http') ? challengeUrl : `https://www.linkedin.com${challengeUrl}`;
-      console.log(`[register] navigating to challenge: ${fullUrl.slice(0, 80)}...`);
-      await s.page.goto(fullUrl, { waitUntil: 'domcontentloaded' }).catch(e => console.log(`[register] challenge goto err: ${e.message?.slice(0, 80)}`));
-      const captchaReady = await s.page.waitForSelector('iframe[src*="captchaInternal"], iframe[src*="recaptcha/api2"], iframe[src*="recaptcha/enterprise"]', { state: 'attached' }).then(() => true).catch(() => false);
-      console.log(`[register] captcha iframe attached: ${captchaReady}`);
-      await humanIdlePause('deliberate');
-      const cp = await solveLinkedinCheckpoint({ ctx: s.ctx, page: s.page }, 'register', id.email);
-      console.log(`[register] checkpoint solver returned: liAt=${cp?.liAt ? 'yes' : 'no'} finalUrl=${cp?.finalUrl?.slice(0, 80)}`);
+      throw new Error(`DETECTION_TRIGGERED: createAccount challengeUrl=${challengeUrl.slice(0, 120)}`);
     }
     await humanIdlePause('long');
   }
@@ -245,7 +135,7 @@ try {
   // Reject /signup as success — silent reCAPTCHA-score rejection looks identical.
   expectedExitIp = await assertLinkedinProxyStable(s, 'before_success_validation', expectedExitIp);
   if (/^https?:\/\/www\.linkedin\.com\/signup\/?$/.test(verifyUrl) || verifyUrl.includes('/signup/api/')) {
-    throw new Error(`signup_did_not_complete: URL stayed at ${verifyUrl} — likely reCAPTCHA score too low or silent rejection`);
+    throw new Error(`signup_did_not_complete: URL stayed at ${verifyUrl} — LinkedIn did not accept the registration`);
   }
   if (/verify|email-verification|email_verification|checkpoint/.test(verifyUrl)) {
     // Email verification: poll Resend for 6-digit code → fill PIN input → submit.
