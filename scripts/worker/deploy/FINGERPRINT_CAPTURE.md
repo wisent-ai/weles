@@ -28797,6 +28797,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per session: per-page `document.compatMode` ('CSS1Compat'|'BackCompat') snapshot.
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB. Per-page window.innerWidth/Height pair
+
+- **[T]** Per session: per-page `window.innerWidth` + `window.innerHeight` snapshot at each navigation boundary.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBC. Per-page window.outerWidth/Height pair
+
+- **[T]** Per session: per-page `window.outerWidth` + `window.outerHeight` snapshot — signals OS-chrome size.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCD. Per-page window.screenX/screenY pair
+
+- **[T]** Per session: per-page `window.screenX` + `window.screenY` (or `window.screenLeft`/`screenTop`) snapshot — signals window position.
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDE. Per-page window.devicePixelRatio
+
+- **[T]** Per session: per-page `window.devicePixelRatio` snapshot.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEF. Per-page window.scrollX/scrollY initial
+
+- **[T]** Per session: per-page `window.scrollX` + `window.scrollY` initial snapshot + per-scroll-event delta distribution.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFG. Per-page window.visualViewport observation
+
+- **[T]** Per session: per-page `window.visualViewport.width` + `height` + `pageLeft` + `pageTop` + `offsetLeft` + `offsetTop` + `scale` snapshot.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGH. Per-page window.history.length
+
+- **[T]** Per session: per-page `window.history.length` snapshot at navigation boundaries + per-`history.pushState`/`replaceState`/`back`/`forward` invocation count.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHI. Per-page window.location.* fields
+
+- **[T]** Per session: per-page `window.location.href` + `origin` + `protocol` + `host` + `hostname` + `port` + `pathname` + `search` + `hash` snapshot.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIJ. Per-page window.matchMedia probes
+
+- **[T]** Per session: per-page `window.matchMedia('(prefers-color-scheme: dark)').matches` + `(prefers-reduced-motion: reduce)` + `(prefers-reduced-data: reduce)` + `(prefers-reduced-transparency: reduce)` + `(prefers-contrast: more)` + `(forced-colors: active)` + `(inverted-colors: inverted)` + `(any-pointer: fine)` + `(any-pointer: coarse)` + `(any-hover: hover)` + `(any-hover: none)` + `(pointer: fine)` + `(pointer: coarse)` + `(hover: hover)` + `(hover: none)` + `(orientation: landscape)` + `(orientation: portrait)` + `(display-mode: browser)` + `(display-mode: fullscreen)` + `(display-mode: standalone)` + `(color-gamut: srgb)` + `(color-gamut: p3)` + `(color-gamut: rec2020)` + `(dynamic-range: standard)` + `(dynamic-range: high)` + `(video-dynamic-range: standard)` + `(video-dynamic-range: high)` boolean snapshot.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJK. Per-página window.getComputedStyle root font-size
+
+- **[T]** Per session: per-page `getComputedStyle(document.documentElement).fontSize` snapshot — signals user font-size preference.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKL. Per-page window.getComputedStyle root color
+
+- **[T]** Per session: per-page `getComputedStyle(document.documentElement).color` + `backgroundColor` + `font-family` snapshot.
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLM. Per-page window.CSS.supports probes
+
+- **[T]** Per session: per-page `CSS.supports()` per-property+value combo snapshot (e.g., `CSS.supports('display', 'grid')`, `CSS.supports('aspect-ratio', '1')`, `CSS.supports('container-type', 'inline-size')`, `CSS.supports('color', 'oklch(0% 0 0)')`, `CSS.supports('font-variation-settings', '"wght" 400')`, `CSS.supports('text-decoration-thickness', '1px')`, `CSS.supports('overscroll-behavior', 'contain')`, `CSS.supports('scroll-snap-type', 'x mandatory')`, `CSS.supports('content-visibility', 'auto')`, `CSS.supports('@container (min-width: 0)')`, `CSS.supports('@scope (.x)')`).
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMN. Per-page window.HTMLMediaElement.allowedToPlay
+
+- **[T]** Per session: per-page `<audio>.play()` `Promise.resolve` vs `Promise.reject(autoplay-policy-violation)` distribution + per-page autoplay-policy ('document-user-activation-required'|'no-user-gesture-required'|'user-gesture-required') snapshot.
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNO. Per-page window.HTMLVideoElement.requestVideoFrameCallback
+
+- **[T]** Per session: per-page `video.requestVideoFrameCallback()` per-callback `now`, `metadata.presentationTime`, `metadata.expectedDisplayTime`, `metadata.width`, `metadata.height`, `metadata.mediaTime`, `metadata.presentedFrames`, `metadata.processingDuration`, `metadata.captureTime`, `metadata.receiveTime`, `metadata.rtpTimestamp` distribution.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOP. Per-page window.requestIdleCallback observation
+
+- **[T]** Per session: per-page `requestIdleCallback()` invocation count + per-callback `didTimeout` + `timeRemaining()` initial distribution.
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPQ. Per-page window.requestAnimationFrame frame-rate
+
+- **[T]** Per session: per-page `requestAnimationFrame()` invocation count + per-frame `timestamp` delta distribution — actual rendered frame rate.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQR. Per-página window.matchMedia preferences-policy observation
+
+- **[T]** Per session: per-page `matchMedia('(min-resolution: 2dppx)')` + `(min-resolution: 3dppx)` + `(min-resolution: 96dpi)` + `(min-resolution: 192dpi)` + `(monochrome)` + `(min-color: 8)` + `(color-index)` + `(grid: 1)` + `(min-aspect-ratio: 16/9)` + `(scan: progressive)` + `(scan: interlace)` boolean snapshot.
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRS. Per-page window.print
+
+- **[T]** Per session: per-page `window.print()` invocation count + per-page `(beforeprint)` + `(afterprint)` event handler registration count.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSST. Per-page window.alert
+
+- **[T]** Per session: per-page `window.alert()` + `confirm()` + `prompt()` invocation count + per-call message distribution.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTU. Per-page window.find
+
+- **[T]** Per session: per-page `window.find()` invocation count + per-call query + boolean-return distribution.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUV. Per-page window.getSelection
+
+- **[T]** Per session: per-page `window.getSelection()` per-snapshot `rangeCount`, `anchorNode`, `focusNode`, `anchorOffset`, `focusOffset`, `isCollapsed`, `type` ('None'|'Caret'|'Range'), `toString()` byte size distribution.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVW. Per-page window.crypto.randomUUID
+
+- **[T]** Per session: per-page `window.crypto.randomUUID()` invocation count + per-call output uniqueness rate.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWX. Per-page window.crypto.getRandomValues
+
+- **[T]** Per session: per-page `window.crypto.getRandomValues()` invocation count + per-call `view.length` distribution.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXY. Per-page window.crypto.subtle algorithm support
+
+- **[T]** Per session: per-page `window.crypto.subtle.digest('SHA-256', ...)` + per-algorithm support (`'SHA-1'`, `'SHA-256'`, `'SHA-384'`, `'SHA-512'`, `'AES-CBC'`, `'AES-CTR'`, `'AES-GCM'`, `'AES-KW'`, `'HMAC'`, `'RSA-OAEP'`, `'RSA-PSS'`, `'RSASSA-PKCS1-v1_5'`, `'ECDH'`, `'ECDSA'`, `'Ed25519'`, `'X25519'`, `'HKDF'`, `'PBKDF2'`) boolean snapshot.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYZ. Per-page window.indexedDB observation
+
+- **[T]** Per session: per-page `window.indexedDB.databases()` snapshot — per-DB name + version distribution.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ1. Per-página window.localStorage size
+
+- **[T]** Per session: per-page `window.localStorage.length` + sum-of-key-value byte sizes + per-`window.sessionStorage.length` distribution.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
