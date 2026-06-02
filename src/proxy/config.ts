@@ -2,6 +2,10 @@
 // ProxyConfig interface & helpers
 // ---------------------------------------------------------------------------
 
+import { createHash } from 'node:crypto';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+
 export interface ProxyConfig {
   host: string;
   port: number;
@@ -78,6 +82,54 @@ export class ProxyPool {
   }
 }
 
+type ProxyPreflightAttempt = {
+  provider?: string;
+  display_name: string;
+  proxy_type: string;
+  country: string;
+  endpoint: { host: string; port: string };
+  sticky_hash: string;
+  connect_status?: number;
+  exit_ip_hash?: string;
+  exit_ip_present?: boolean;
+  geo_result?: string;
+  geo_exit_cc?: string;
+  linkedin_probe_result?: string;
+  linkedin_probe_bytes?: number;
+  tiktok_route_result?: string;
+  tiktok_vregion_present?: boolean;
+  rejected_reason?: string;
+};
+
+function diagHash(value: unknown): string | undefined {
+  const text = String(value ?? '');
+  if (!text) return undefined;
+  return createHash('sha256').update(text).digest('hex').slice(0, 16);
+}
+
+function proxyPreflightDir(): string | undefined {
+  const label = process.env.WELES_PROXY_DIAGNOSTICS_LABEL || process.env.WELES_LABEL;
+  if (!label) return undefined;
+  const dir = join(process.cwd(), 'recordings', label);
+  mkdirSync(dir, { recursive: true });
+  return dir;
+}
+
+function writeProxyPreflightDiagnostics(diag: Record<string, unknown>): void {
+  try {
+    const dir = proxyPreflightDir();
+    if (!dir) return;
+    writeFileSync(join(dir, 'proxy_preflight.json'), JSON.stringify({
+      ...diag,
+      redaction: {
+        proxy_credentials: 'omitted',
+        sticky_ids: 'sha256-prefix only',
+        exit_ips: 'sha256-prefix only',
+      },
+    }, null, 2));
+  } catch {}
+}
+
 function platformFromTarget(host: string | undefined): string | undefined {
   if (!host) return undefined;
   const h = host.toLowerCase();
@@ -96,6 +148,8 @@ function platformFromTarget(host: string | undefined): string | undefined {
 
 export async function resolveProxy(proxy: string, targetHost?: string): Promise<{ server: string; username?: string; password?: string; country?: string; exit_ip?: string; platform?: string; provider?: string; proxy_type?: string } | undefined> {
   if (!proxy || proxy === 'none' || proxy === 'direct') return undefined;
+  const attempts: ProxyPreflightAttempt[] = [];
+  const startedAt = new Date().toISOString();
 
   if (proxy.startsWith('http://') || proxy.startsWith('https://') || proxy.startsWith('socks')) {
     const u = new URL(proxy);
@@ -106,10 +160,31 @@ export async function resolveProxy(proxy: string, targetHost?: string): Promise<
     const retiredReason = retiredProviderReason(u.hostname, u.port);
     if (retiredReason) {
       console.log(`[proxy] BLOCKED: PROXY_URL host=${u.hostname}:${u.port} retired=${retiredReason} — refusing to hand out`);
+      writeProxyPreflightDiagnostics({
+        requested_proxy: '[url-form]',
+        target_host: targetHost ?? null,
+        started_at: startedAt,
+        completed_at: new Date().toISOString(),
+        selected: false,
+        failure_reason: 'retired_url_form_proxy',
+        retired_reason: retiredReason,
+        endpoint: { host: u.hostname, port: u.port },
+      });
       return undefined;
     }
     if (isProviderBlockedForPlatform(provFromUrl, platformForBlock)) {
       console.log(`[proxy] BLOCKED: PROXY_URL host=${u.hostname} maps to ${provFromUrl}, which is on the toxic list for ${platformForBlock} — refusing to hand out`);
+      writeProxyPreflightDiagnostics({
+        requested_proxy: '[url-form]',
+        target_host: targetHost ?? null,
+        started_at: startedAt,
+        completed_at: new Date().toISOString(),
+        selected: false,
+        failure_reason: 'provider_blocked_for_platform',
+        provider: provFromUrl,
+        platform: platformForBlock,
+        endpoint: { host: u.hostname, port: u.port },
+      });
       return undefined;
     }
     return { server: `${u.protocol}//${u.hostname}:${u.port}`, username: decodeURIComponent(u.username), password: decodeURIComponent(u.password), platform: platformForBlock, provider: provFromUrl, proxy_type: 'url_unclassified' };
@@ -174,6 +249,14 @@ export async function resolveProxy(proxy: string, targetHost?: string): Promise<
     const retiredReason = retiredProviderReason(p.proxy_host, p.proxy_port);
     if (retiredReason) {
       console.log(`[proxy] BLOCKED: ${p.display_name} host=${p.proxy_host}:${p.proxy_port} retired=${retiredReason} - skipping`);
+      attempts.push({
+        display_name: p.display_name,
+        proxy_type: proxyType,
+        country: '',
+        endpoint: { host: p.proxy_host, port: String(p.proxy_port) },
+        sticky_hash: '',
+        rejected_reason: `retired:${retiredReason}`,
+      });
       continue;
     }
 
@@ -183,6 +266,14 @@ export async function resolveProxy(proxy: string, targetHost?: string): Promise<
     const password = process.env[envPass] ?? '';
     if (!username || !password) {
       console.log(`[proxy] Skipping ${p.display_name}: missing env ${envUser}/${envPass}`);
+      attempts.push({
+        display_name: p.display_name,
+        proxy_type: proxyType,
+        country: '',
+        endpoint: { host: p.proxy_host, port: String(p.proxy_port) },
+        sticky_hash: '',
+        rejected_reason: 'missing_env',
+      });
       continue;
     }
     const { isBurned } = await import('./burned.js');
@@ -199,6 +290,15 @@ export async function resolveProxy(proxy: string, targetHost?: string): Promise<
     const provKey = name.includes('packetstream') ? 'packetstream' : name.includes('pingproxies') ? 'pingproxies' : name.includes('oxylabs') ? 'oxylabs' : name.includes('iproyal') ? 'iproyal' : name.includes('bright') ? 'brightdata' : name.includes('decodo') ? 'decodo' : undefined;
     if (isProviderBlockedForPlatform(provKey, platformFromTarget(targetHost))) {
       console.log(`[proxy] BLOCKED: ${p.display_name} is on toxic list for ${platformFromTarget(targetHost)} — skipping`);
+      attempts.push({
+        provider: provKey,
+        display_name: p.display_name,
+        proxy_type: proxyType,
+        country: cc,
+        endpoint: { host: p.proxy_host, port: String(p.proxy_port) },
+        sticky_hash: '',
+        rejected_reason: 'provider_blocked_for_platform',
+      });
       continue;
     }
     // 8 sticky tries per provider — each fresh sessId resolves to a different
@@ -217,6 +317,15 @@ export async function resolveProxy(proxy: string, targetHost?: string): Promise<
       // Bright Data: zone-prefixed user, sticky session via -session- suffix.
       else if (name.includes('bright')) stickyUser = `${username}-country-${cc}-session-${sessId}`;
       let host = p.proxy_host;
+      const attemptDiag: ProxyPreflightAttempt = {
+        provider: provKey,
+        display_name: p.display_name,
+        proxy_type: proxyType,
+        country: cc,
+        endpoint: { host: p.proxy_host, port: String(p.proxy_port) },
+        sticky_hash: diagHash(sessId) ?? '',
+      };
+      attempts.push(attemptDiag);
       // Pull all LB A records, filter burned, pick random survivor.
       try {
         const dns = await import('node:dns');
@@ -230,11 +339,19 @@ export async function resolveProxy(proxy: string, targetHost?: string): Promise<
         // platform — pre-218e2dd entries with platforms=[] become inert.
         const platformForBurn = platformFromTarget(targetHost);
         for (const ip of allIps) { if (!(await isBurned(ip, platformForBurn))) live.push(ip); }
-        if (live.length === 0) continue;
+        if (live.length === 0) {
+          attemptDiag.rejected_reason = 'all_dns_answers_burned';
+          continue;
+        }
         host = live[Math.floor(Math.random() * live.length)];
+        attemptDiag.endpoint = { host, port: String(p.proxy_port) };
       } catch {
         try { const dns = await import('node:dns'); host = await new Promise<string>((res, rej) => dns.lookup(p.proxy_host, (e: any, a: string) => e ? rej(e) : res(a))); } catch {}
-        if (await isBurned(host, platformFromTarget(targetHost))) continue;
+        attemptDiag.endpoint = { host, port: String(p.proxy_port) };
+        if (await isBurned(host, platformFromTarget(targetHost))) {
+          attemptDiag.rejected_reason = 'dns_answer_burned';
+          continue;
+        }
       }
       // Pre-flight CONNECT + exit_ip probe (skip via PROXY_SKIP_PREFLIGHT=1).
       let exitIp = '';
@@ -252,8 +369,10 @@ export async function resolveProxy(proxy: string, targetHost?: string): Promise<
             sock.once('error', () => { clearTimeout(timer); resolve(-1); });
           });
           const ok = status === 200;
+          attemptDiag.connect_status = status;
           if (!ok) {
             console.log(`[proxy] Pre-flight failed ${p.display_name} sticky=${sessId} status=${status}`);
+            attemptDiag.rejected_reason = `connect_status:${status}`;
             preflightContinue = true;
             // 407 = account unfunded/suspended. Same credential, all sticks fail. Enqueue topup now.
             if (status === 407) { const { enqueueProviderTopup } = await import('./policy.js'); await enqueueProviderTopup(p.display_name).catch(() => {}); break; }
@@ -266,9 +385,12 @@ export async function resolveProxy(proxy: string, targetHost?: string): Promise<
               exitIp = execSync(`curl -s --max-time 6 -x "${proxyAuth}" https://api.ipify.org`, { encoding: 'utf8' }).trim();
             } catch (e: any) { console.log(`[proxy] exit-ip probe err: ${e.message?.slice(0, 80)}`); }
             console.log(`[proxy] sampled exit_ip="${exitIp}" sticky=${sessId}`);
-            if (exitIp && /^82\.40\./.test(exitIp)) { console.log(`[proxy] Skipping IPXO exit ${exitIp}`); preflightContinue = true; }
+            attemptDiag.exit_ip_present = !!exitIp;
+            attemptDiag.exit_ip_hash = diagHash(exitIp);
+            if (exitIp && /^82\.40\./.test(exitIp)) { console.log(`[proxy] Skipping IPXO exit ${exitIp}`); attemptDiag.rejected_reason = 'ipxo_exit'; preflightContinue = true; }
             else if (exitIp && platform && (await isBurned(exitIp, platform))) {
               console.log(`[proxy] Exit ${exitIp} already burned for ${platform} — rerolling sticky`);
+              attemptDiag.rejected_reason = 'exit_ip_burned';
               preflightContinue = true;
             }
             // Country + LinkedIn-probe verify. probeLinkedinLogin sends the
@@ -276,12 +398,19 @@ export async function resolveProxy(proxy: string, targetHost?: string): Promise<
             if (!preflightContinue && exitIp) {
               const { verifyExitCountry, probeLinkedinLogin } = await import('./policy.js');
               const geo = cc ? await verifyExitCountry(exitIp, cc) : { result: 'unknown' as const };
-              if (geo.result === 'mismatch') preflightContinue = true;
+              attemptDiag.geo_result = geo.result;
+              attemptDiag.geo_exit_cc = geo.exitCc;
+              if (geo.result === 'mismatch') { attemptDiag.rejected_reason = 'geo_mismatch'; preflightContinue = true; }
               if (!preflightContinue && platform === 'linkedin') {
                 const url = `http://${encodeURIComponent(stickyUser)}:${encodeURIComponent(stickyPass)}@${host}:${p.proxy_port}`;
                 const probe = await probeLinkedinLogin(url);
                 console.log(`[proxy] linkedin-probe exit=${exitIp} -> ${probe.result}${probe.bytes ? ` (${probe.bytes}B)` : ''}`);
-                if (probe.result !== 'form') preflightContinue = true;
+                attemptDiag.linkedin_probe_result = probe.result;
+                attemptDiag.linkedin_probe_bytes = probe.bytes;
+                if (probe.result !== 'form') {
+                  attemptDiag.rejected_reason = `linkedin_probe:${probe.result}`;
+                  preflightContinue = true;
+                }
               }
             }
             // TikTok-specific: require US-TTP standard cluster. Reject
@@ -292,8 +421,11 @@ export async function resolveProxy(proxy: string, targetHost?: string): Promise<
               const proxyUrl = `http://${encodeURIComponent(stickyUser)}:${encodeURIComponent(stickyPass)}@${host}:${p.proxy_port}`;
               const route = await verifyTikTokRouting(proxyUrl);
               console.log(`[proxy] tiktok-route exit=${exitIp} -> ${route.result}${route.vregion ? ` (${route.vregion})` : ''}`);
+              attemptDiag.tiktok_route_result = route.result;
+              attemptDiag.tiktok_vregion_present = !!route.vregion;
               if (route.result !== 'standard') {
                 console.log(`[proxy] TikTok routing not standard (${route.result}${route.vregion ? `=${route.vregion}` : ''}) — rerolling sticky`);
+                attemptDiag.rejected_reason = `tiktok_route:${route.result}`;
                 preflightContinue = true;
               }
             }
@@ -302,10 +434,32 @@ export async function resolveProxy(proxy: string, targetHost?: string): Promise<
         if (preflightContinue) continue;
       }
       console.log(`[proxy] Using: ${p.display_name} (${host}:${p.proxy_port}, $${p.balance_usd}, sticky=${sessId}, exit=${exitIp || '?'})`);
+      writeProxyPreflightDiagnostics({
+        requested_proxy: proxy.startsWith('http') ? '[url-form]' : proxy,
+        target_host: targetHost ?? null,
+        started_at: startedAt,
+        completed_at: new Date().toISOString(),
+        selected: true,
+        selected_provider: p.display_name,
+        selected_endpoint: { host, port: String(p.proxy_port) },
+        selected_exit_ip_hash: diagHash(exitIp),
+        attempt_count: attempts.length,
+        attempts,
+      });
       return { server: `http://${host}:${p.proxy_port}`, username: stickyUser, password: stickyPass, country: cc, exit_ip: exitIp || undefined, platform, provider: provKey, proxy_type: proxyType };
     }
   }
 
   console.log(`[proxy] No working provider found for type="${proxy}"`);
+  writeProxyPreflightDiagnostics({
+    requested_proxy: proxy.startsWith('http') ? '[url-form]' : proxy,
+    target_host: targetHost ?? null,
+    started_at: startedAt,
+    completed_at: new Date().toISOString(),
+    selected: false,
+    failure_reason: 'no_working_provider',
+    attempt_count: attempts.length,
+    attempts,
+  });
   return undefined;
 }
