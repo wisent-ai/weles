@@ -31397,6 +31397,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per session: per-host `spctl --status` Gatekeeper-state snapshot + `spctl --assess --verbose` per-binary result distribution.
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAZ. Per-page Windows wmic os observation
+
+- **[T]** Per session: per-host `wmic os get *` returned `Caption`, `Version`, `BuildNumber`, `Manufacturer`, `OSArchitecture`, `OSLanguage`, `Locale`, `CountryCode`, `Status`, `RegisteredUser`, `SerialNumber`, `InstallDate`, `LastBootUpTime`, `LocalDateTime`, `Organization`, `WindowsDirectory`, `SystemDirectory`, `BootDevice`, `SystemDevice`, `SystemDrive`, `TotalVirtualMemorySize`, `TotalVisibleMemorySize`, `FreePhysicalMemory`, `FreeVirtualMemory`, `FreeSpaceInPagingFiles`, `SizeStoredInPagingFiles` distribution.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB1. Per-page Windows wmic cpu observation
+
+- **[T]** Per session: per-host `wmic cpu get *` returned `Caption`, `Name`, `Manufacturer`, `Family`, `Stepping`, `Architecture`, `AddressWidth`, `DataWidth`, `MaxClockSpeed`, `CurrentClockSpeed`, `ExtClock`, `L2CacheSize`, `L3CacheSize`, `NumberOfCores`, `NumberOfEnabledCore`, `NumberOfLogicalProcessors`, `ProcessorId`, `Revision`, `SocketDesignation`, `Status`, `ThreadCount`, `Voltage`, `VirtualizationFirmwareEnabled`, `VMMonitorModeExtensions` distribution.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC2. Per-page Windows wmic memorychip observation
+
+- **[T]** Per session: per-host `wmic memorychip get *` returned per-DIMM (`BankLabel`, `Capacity`, `DataWidth`, `DeviceLocator`, `FormFactor`, `Manufacturer`, `MemoryType`, `PartNumber`, `SerialNumber`, `Speed`, `TotalWidth`, `TypeDetail`) distribution.
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD3. Per-page Windows wmic diskdrive observation
+
+- **[T]** Per session: per-host `wmic diskdrive get *` returned per-disk (`Model`, `Manufacturer`, `SerialNumber`, `Size`, `InterfaceType`, `MediaType`, `Partitions`, `Status`, `FirmwareRevision`) distribution.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE4. Per-page Windows wmic videocontroller observation
+
+- **[T]** Per session: per-host `wmic path Win32_VideoController get *` returned per-GPU (`Name`, `DriverVersion`, `DriverDate`, `VideoProcessor`, `VideoArchitecture`, `VideoMemoryType`, `AdapterCompatibility`, `AdapterRAM`, `CurrentBitsPerPixel`, `CurrentHorizontalResolution`, `CurrentVerticalResolution`, `CurrentRefreshRate`, `MaxRefreshRate`, `MinRefreshRate`, `PNPDeviceID`, `DeviceID`, `Status`) distribution.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF5. Per-page Windows wmic networkadapter observation
+
+- **[T]** Per session: per-host `wmic nic get *` returned per-NIC (`Name`, `Manufacturer`, `MACAddress`, `Speed`, `NetEnabled`, `NetConnectionID`, `NetConnectionStatus`, `AdapterType`, `AdapterTypeId`, `MaxSpeed`, `PhysicalAdapter`, `PNPDeviceID`, `ServiceName`) distribution.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG6. Per-page Windows wmic baseboard observation
+
+- **[T]** Per session: per-host `wmic baseboard get *` returned (`Manufacturer`, `Product`, `Version`, `SerialNumber`, `Tag`) distribution.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH7. Per-page Windows wmic bios observation
+
+- **[T]** Per session: per-host `wmic bios get *` returned (`Manufacturer`, `Name`, `SMBIOSBIOSVersion`, `Version`, `ReleaseDate`, `SerialNumber`, `Status`, `SystemBiosMajorVersion`, `SystemBiosMinorVersion`) distribution.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII8. Per-page Windows wmic computersystem observation
+
+- **[T]** Per session: per-host `wmic computersystem get *` returned (`Manufacturer`, `Model`, `SystemFamily`, `SystemSKUNumber`, `Name`, `Domain`, `DomainRole`, `Workgroup`, `PartOfDomain`, `UserName`, `TotalPhysicalMemory`, `NumberOfProcessors`, `NumberOfLogicalProcessors`, `PCSystemType`, `SystemType`, `BootupState`, `Status`, `PrimaryOwnerName`, `PrimaryOwnerContact`) distribution.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ9. Per-página Windows wmic logicaldisk observation
+
+- **[T]** Per session: per-host `wmic logicaldisk get *` returned per-drive (`DeviceID`, `DriveType`, `FileSystem`, `Size`, `FreeSpace`, `VolumeName`, `VolumeSerialNumber`, `ProviderName`, `MediaType`, `Description`) distribution.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK-1. Per-page Windows wmic process observation
+
+- **[T]** Per session: per-host `wmic process get *` returned per-process (`Caption`, `Name`, `ProcessId`, `ParentProcessId`, `CommandLine`, `CreationDate`, `ExecutablePath`, `ExecutionState`, `HandleCount`, `KernelModeTime`, `MaximumWorkingSetSize`, `MinimumWorkingSetSize`, `PageFaults`, `PageFileUsage`, `PeakPageFileUsage`, `PeakVirtualSize`, `PeakWorkingSetSize`, `Priority`, `PrivatePageCount`, `QuotaNonPagedPoolUsage`, `QuotaPagedPoolUsage`, `QuotaPeakNonPagedPoolUsage`, `QuotaPeakPagedPoolUsage`, `ReadOperationCount`, `ReadTransferCount`, `SessionId`, `Status`, `TerminationDate`, `ThreadCount`, `UserModeTime`, `VirtualSize`, `WindowsVersion`, `WorkingSetSize`, `WriteOperationCount`, `WriteTransferCount`) distribution.
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL-2. Per-page Windows wmic service observation
+
+- **[T]** Per session: per-host `wmic service get *` returned per-service (`Name`, `DisplayName`, `State`, `StartMode`, `PathName`, `ServiceType`, `Status`, `Started`, `StartName`, `Description`) distribution.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM-3. Per-page Windows wmic startup observation
+
+- **[T]** Per session: per-host `wmic startup get *` returned per-startup-item (`Caption`, `Command`, `Location`, `Name`, `User`, `UserSID`) distribution.
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN-4. Per-page Windows wmic environment observation
+
+- **[T]** Per session: per-host `wmic environment get *` returned per-env-var (`Name`, `UserName`, `VariableValue`, `SystemVariable`) distribution.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO-5. Per-page Windows wmic useraccount observation
+
+- **[T]** Per session: per-host `wmic useraccount get *` returned per-user (`Name`, `FullName`, `Caption`, `Description`, `Disabled`, `LocalAccount`, `Lockout`, `PasswordChangeable`, `PasswordExpires`, `PasswordRequired`, `SID`, `Status`, `Domain`) distribution.
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP-6. Per-page Windows reg query HKLM observation
+
+- **[T]** Per session: per-host `reg query HKLM\Software\Microsoft\Windows NT\CurrentVersion` per-value (`ProductName`, `EditionID`, `ReleaseId`, `DisplayVersion`, `CurrentVersion`, `CurrentBuild`, `CurrentBuildNumber`, `UBR`, `BuildLab`, `BuildLabEx`, `InstallationType`, `InstallDate`, `ProductId`, `PathName`, `RegisteredOrganization`, `RegisteredOwner`, `DigitalProductId`, `BootDir`, `SystemRoot`, `PSP`, `EditionSubManufacturer`, `EditionSubType`, `EditionSubVersion`, `Branch`, `CompositionEditionID`) distribution.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ-7. Per-página Windows reg query HKCU observation
+
+- **[T]** Per session: per-host `reg query HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer` per-value distribution.
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR-8. Per-page Windows reg query HKLM Cryptography MachineGuid observation
+
+- **[T]** Per session: per-host `reg query HKLM\Software\Microsoft\Cryptography /v MachineGuid` returned MachineGuid snapshot.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS-9. Per-page Windows ipconfig observation
+
+- **[T]** Per session: per-host `ipconfig /all` per-interface (Description, Physical Address, DHCP Enabled, Autoconfiguration Enabled, IPv4/IPv6 Address, Subnet Mask, Lease Obtained, Lease Expires, Default Gateway, DHCP Server, DNS Servers, NetBIOS over Tcpip) distribution.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT-10. Per-page Windows netsh observation
+
+- **[T]** Per session: per-host `netsh wlan show interfaces` per-interface snapshot.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU-11. Per-page Windows systeminfo observation
+
+- **[T]** Per session: per-host `systeminfo` returned (`Host Name`, `OS Name`, `OS Version`, `OS Manufacturer`, `OS Configuration`, `OS Build Type`, `Registered Owner`, `Registered Organization`, `Product ID`, `Original Install Date`, `System Boot Time`, `System Manufacturer`, `System Model`, `System Type`, `Processor(s)`, `BIOS Version`, `Windows Directory`, `System Directory`, `Boot Device`, `System Locale`, `Input Locale`, `Time Zone`, `Total Physical Memory`, `Available Physical Memory`, `Virtual Memory Max Size`, `Virtual Memory Available`, `Virtual Memory In Use`, `Page File Location(s)`, `Domain`, `Logon Server`, `Hotfix(s)`, `Network Card(s)`, `Hyper-V Requirements`) distribution.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV-12. Per-page Windows tasklist observation
+
+- **[T]** Per session: per-host `tasklist /v /fo csv` per-process (Image Name, PID, Session Name, Session#, Mem Usage, Status, User Name, CPU Time, Window Title) distribution.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW-13. Per-page Windows powercfg observation
+
+- **[T]** Per session: per-host `powercfg /list` per-power-scheme + `powercfg /query` per-setting distribution.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX-14. Per-page Windows dxdiag observation
+
+- **[T]** Per session: per-host `dxdiag /t output.txt` returned DirectX runtime version + per-display-device adapter + driver snapshot.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY-15. Per-page Windows ETW provider observation
+
+- **[T]** Per session: per-host `logman query providers` per-ETW-provider GUID + name distribution.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ-16. Per-página Windows Get-WmiObject observation
+
+- **[T]** Per session: per-host PowerShell `Get-WmiObject -Class Win32_*` per-class enumeration count distribution.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
