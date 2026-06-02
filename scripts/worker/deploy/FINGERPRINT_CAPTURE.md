@@ -31293,6 +31293,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per session: per-host `/proc/interrupts` per-IRQ per-CPU count distribution.
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAY. Per-page macOS sysctl kern.ostype observation
+
+- **[T]** Per session: per-host `sysctl kern.ostype` + `kern.osrelease` + `kern.osversion` + `kern.version` + `kern.hostname` + `kern.uuid` + `kern.bootargs` distribution.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBZ. Per-page macOS sysctl hw.* observation
+
+- **[T]** Per session: per-host `sysctl hw.model` + `hw.machine` + `hw.cpufamily` + `hw.cpusubfamily` + `hw.cputype` + `hw.cpusubtype` + `hw.cpu64bit_capable` + `hw.ncpu` + `hw.physicalcpu` + `hw.logicalcpu` + `hw.activecpu` + `hw.physicalcpu_max` + `hw.logicalcpu_max` + `hw.byteorder` + `hw.pagesize` + `hw.cachelinesize` + `hw.l1icachesize` + `hw.l1dcachesize` + `hw.l2cachesize` + `hw.l3cachesize` + `hw.memsize` + `hw.busfrequency` + `hw.cpufrequency` + `hw.tbfrequency` distribution.
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC1. Per-page macOS sysctl machdep observation
+
+- **[T]** Per session: per-host `sysctl machdep.cpu.brand_string` + `machdep.cpu.vendor` + `machdep.cpu.family` + `machdep.cpu.model` + `machdep.cpu.stepping` + `machdep.cpu.features` + `machdep.cpu.leaf7_features` + `machdep.cpu.extfeatures` + `machdep.cpu.signature` + `machdep.cpu.brand` + `machdep.cpu.core_count` + `machdep.cpu.thread_count` distribution.
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD2. Per-page macOS ioreg observation
+
+- **[T]** Per session: per-host `ioreg -rd1 -c IOPlatformExpertDevice` returned `IOPlatformUUID` + `IOPlatformSerialNumber` + `model` + `board-id` + `manufacturer` snapshot.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE3. Per-page macOS system_profiler observation
+
+- **[T]** Per session: per-host `system_profiler SPHardwareDataType` returned (Model Name, Model Identifier, Chip, Total Number of Cores, Memory, System Firmware Version, OS Loader Version, Serial Number (system), Hardware UUID, Provisioning UDID, Activation Lock Status) snapshot.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF4. Per-page macOS system_profiler SPSoftwareDataType observation
+
+- **[T]** Per session: per-host `system_profiler SPSoftwareDataType` returned (System Version, Kernel Version, Boot Volume, Boot Mode, Computer Name, User Name, Secure Virtual Memory, System Integrity Protection, Time since boot) snapshot.
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG5. Per-page macOS system_profiler SPDisplaysDataType observation
+
+- **[T]** Per session: per-host `system_profiler SPDisplaysDataType` returned per-display (Chipset Model, Type, Bus, VRAM, Vendor, Device ID, Revision ID, Metal Support, Displays, Resolution, Pixel Depth, Main Display, Mirror, Online, Rotation, Automatically Adjust Brightness, Connection Type) distribution.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH6. Per-page macOS system_profiler SPMemoryDataType observation
+
+- **[T]** Per session: per-host `system_profiler SPMemoryDataType` returned (Memory Slots, ECC, Upgradeable Memory, per-slot Size + Type + Speed + Manufacturer + Part Number + Serial Number + Status) snapshot.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII7. Per-page macOS system_profiler SPStorageDataType observation
+
+- **[T]** Per session: per-host `system_profiler SPStorageDataType` returned per-volume (Mount Point, File System, Writable, Ignore Ownership, BSD Name, Capacity, Free, Device Tree Path, Physical Drive, Media Name, Medium Type, Protocol, Internal, Partition Map Type, S.M.A.R.T. Status) distribution.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ8. Per-página macOS system_profiler SPNetworkDataType observation
+
+- **[T]** Per session: per-host `system_profiler SPNetworkDataType` returned per-interface (Type, Hardware, BSD Device Name, IP Addresses (IPv4 + IPv6), MAC Address, MTU, Media Type, Media Subtype, Media Options, Active MTU, Configuration Method, Router, DNS Configuration, DHCP Server Identifier, Lease Duration) distribution.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK9. Per-page macOS system_profiler SPAirPortDataType observation
+
+- **[T]** Per session: per-host `system_profiler SPAirPortDataType` returned per-WiFi-interface snapshot (Status, Channel, BSSID, SSID, MCS Index, Network Type, Country Code, RSSI, Noise, Tx Rate, PHY Mode, Mode, Security, MAC, Cipher).
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL-1. Per-page macOS system_profiler SPUSBDataType observation
+
+- **[T]** Per session: per-host `system_profiler SPUSBDataType` returned per-USB-device (Product ID, Vendor ID, Version, Serial Number, Speed, Manufacturer, Location ID, Current Available, Current Required, Extra Operating Current) distribution.
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM-2. Per-page macOS system_profiler SPThunderboltDataType observation
+
+- **[T]** Per session: per-host `system_profiler SPThunderboltDataType` returned per-Thunderbolt-bus + per-device snapshot.
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN-3. Per-page macOS system_profiler SPApplicationsDataType observation
+
+- **[T]** Per session: per-host `system_profiler SPApplicationsDataType` returned installed-app list — per-app (Name, Path, Version, Last Modified, Get Info String, Architecture (Universal|Intel|Apple Silicon), Bundle ID) distribution.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO-4. Per-page macOS system_profiler SPInstallHistoryDataType observation
+
+- **[T]** Per session: per-host `system_profiler SPInstallHistoryDataType` returned recent-install list snapshot.
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP-5. Per-page macOS system_profiler SPBluetoothDataType observation
+
+- **[T]** Per session: per-host `system_profiler SPBluetoothDataType` returned per-Bluetooth-adapter + per-paired-device snapshot.
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ-6. Per-página macOS system_profiler SPCameraDataType observation
+
+- **[T]** Per session: per-host `system_profiler SPCameraDataType` returned per-camera (Model ID, Unique ID, Vendor, Product) distribution.
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR-7. Per-page macOS system_profiler SPAudioDataType observation
+
+- **[T]** Per session: per-host `system_profiler SPAudioDataType` returned per-audio-device (Default Audio Input Device, Default Audio Output Device, Default System Output Device, Manufacturer, Output Channels, Current SampleRate, Transport, Output Source) distribution.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS-8. Per-page macOS system_profiler SPPowerDataType observation
+
+- **[T]** Per session: per-host `system_profiler SPPowerDataType` returned (Battery Information, AC Charger Information, Sleep Schedule, Display Sleep, Wake on LAN, System Sleep Timer, Battery Cycle Count, Condition, Maximum Capacity, Charging, Fully Charged) snapshot.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT-9. Per-page macOS system_profiler SPDiagnosticsDataType observation
+
+- **[T]** Per session: per-host `system_profiler SPDiagnosticsDataType` returned recent-diagnostic-event list snapshot.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU-10. Per-page macOS pmset observation
+
+- **[T]** Per session: per-host `pmset -g` returned current power-management setting + `pmset -g log` recent-event count distribution.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV-11. Per-page macOS networksetup observation
+
+- **[T]** Per session: per-host `networksetup -listallnetworkservices` per-service + `networksetup -getinfo` per-service IP/router/DNS snapshot.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW-12. Per-page macOS scutil observation
+
+- **[T]** Per session: per-host `scutil --dns` per-resolver entry + `scutil --proxy` snapshot.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX-13. Per-page macOS dscl observation
+
+- **[T]** Per session: per-host `dscl . -list /Users` returned user-account list snapshot.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY-14. Per-page macOS xattr observation
+
+- **[T]** Per session: per-host `xattr -l <path>` returned per-extended-attribute snapshot (com.apple.quarantine, com.apple.metadata:_kMDItemUserTags, com.apple.FinderInfo).
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ-15. Per-página macOS spctl observation
+
+- **[T]** Per session: per-host `spctl --status` Gatekeeper-state snapshot + `spctl --assess --verbose` per-binary result distribution.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
