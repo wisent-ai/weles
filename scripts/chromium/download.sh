@@ -40,15 +40,41 @@ trap 'rm -rf "$TMP"' EXIT
 
 echo "[download-chromium] Fetching $ASSET from $REPO@$RELEASE_TAG" >&2
 
-if command -v gh >/dev/null 2>&1; then
-  # gh release download uses -D (dir) + -p (pattern); there is no --output.
-  gh release download "$RELEASE_TAG" --repo "$REPO" --pattern "$ASSET" --dir "$TMP" >&2
-  gh release download "$RELEASE_TAG" --repo "$REPO" --pattern "${ASSET}.sha256" --dir "$TMP" >&2 || true
-else
-  URL="https://github.com/$REPO/releases/download/$RELEASE_TAG/$ASSET"
-  curl -fL --progress-bar "$URL" -o "$TMP/$ASSET" >&2
-  curl -fL "$URL.sha256" -o "$TMP/${ASSET}.sha256" 2>/dev/null || true
-fi
+# wisent-ai/weles is PRIVATE, so the plain releases/download URL 404s without
+# auth. Resolve a GitHub token (explicit env, else the token baked into the
+# weles git remote — the same creds auto-deploy already uses to pull main).
+REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+gh_token() {
+  if [[ -n "${GH_TOKEN:-}" ]]; then printf '%s' "$GH_TOKEN"; return 0; fi
+  if [[ -n "${GITHUB_TOKEN:-}" ]]; then printf '%s' "$GITHUB_TOKEN"; return 0; fi
+  git -C "$REPO_ROOT" remote get-url origin 2>/dev/null \
+    | sed -n 's#.*://[^:]*:\([^@]*\)@.*#\1#p'
+}
+
+# Fetch one release asset to $2. Prefers gh; otherwise the GitHub assets API
+# with a bearer token (the only way curl can read a private release asset).
+fetch_asset() {
+  local name="$1" dest="$2"
+  if command -v gh >/dev/null 2>&1; then
+    gh release download "$RELEASE_TAG" --repo "$REPO" --pattern "$name" --dir "$(dirname "$dest")" >&2
+    return $?
+  fi
+  local tok; tok="$(gh_token)"
+  if [[ -z "$tok" ]]; then
+    echo "ERROR: no gh CLI and no token (set GH_TOKEN) to read private release $REPO@$RELEASE_TAG" >&2
+    return 1
+  fi
+  local aid
+  aid="$(curl -fsSL -H "Authorization: Bearer $tok" -H "Accept: application/vnd.github+json" \
+        "https://api.github.com/repos/$REPO/releases/tags/$RELEASE_TAG" \
+        | python3 -c "import sys,json; print(next((str(a['id']) for a in json.load(sys.stdin).get('assets',[]) if a['name']==sys.argv[1]), ''))" "$name")"
+  if [[ -z "$aid" ]]; then echo "ERROR: asset $name absent from release $RELEASE_TAG" >&2; return 1; fi
+  curl -fL -H "Authorization: Bearer $tok" -H "Accept: application/octet-stream" \
+    "https://api.github.com/repos/$REPO/releases/assets/$aid" -o "$dest" >&2
+}
+
+fetch_asset "$ASSET" "$TMP/$ASSET"
+fetch_asset "${ASSET}.sha256" "$TMP/${ASSET}.sha256" || true
 
 if [[ -f "$TMP/${ASSET}.sha256" ]]; then
   echo "[download-chromium] Verifying SHA256..." >&2
