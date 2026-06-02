@@ -28069,6 +28069,110 @@ The pwning surface bot detectors check — every one of these is a fingerprint c
 
 - **[T]** Per session: per-`Runtime.bindingCalled` event count + per-event `name`, `payload`, `executionContextId` distribution.
 
+## AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB. Per-page TLS ClientHello extension ID list
+
+- **[T]** Per session: per-page TLS ClientHello byte-stream — full extension ID list in wire order ('00=server_name', '0a=supported_groups', '0b=ec_point_formats', '0d=signature_algorithms', '10=application_layer_protocol_negotiation', '12=signed_certificate_timestamp', '15=padding', '16=encrypt_then_mac', '17=extended_master_secret', '1c=record_size_limit', '23=session_ticket', '29=pre_shared_key', '2a=early_data', '2b=supported_versions', '2c=cookie', '2d=psk_key_exchange_modes', '2f=certificate_authorities', '31=post_handshake_auth', '32=signature_algorithms_cert', '33=key_share', '34=transparency_info', '39=application_settings', '3a=encrypted_client_hello', '4469=encrypted_client_hello_outer_extensions', 'feff=padding_grease') distribution.
+
+## BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBC. Per-page TLS ClientHello cipher suite list
+
+- **[T]** Per session: per-page TLS ClientHello cipher suites — full list in wire order, including GREASE values (0x0a0a, 0x1a1a, 0x2a2a, 0x3a3a, 0x4a4a, 0x5a5a, 0x6a6a, 0x7a7a, 0x8a8a, 0x9a9a, 0xaaaa, 0xbaba, 0xcaca, 0xdada, 0xeaea, 0xfafa).
+
+## CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCD. Per-page TLS ClientHello signature algorithm list
+
+- **[T]** Per session: per-page TLS ClientHello `signature_algorithms` extension contents — full list in wire order ('0x0403=ecdsa_secp256r1_sha256', '0x0804=rsa_pss_rsae_sha256', '0x0401=rsa_pkcs1_sha256', '0x0503=ecdsa_secp384r1_sha384', '0x0805=rsa_pss_rsae_sha384', '0x0501=rsa_pkcs1_sha384', '0x0806=rsa_pss_rsae_sha512', '0x0601=rsa_pkcs1_sha512') distribution.
+
+## DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDE. Per-page TLS ClientHello supported_groups list
+
+- **[T]** Per session: per-page TLS ClientHello `supported_groups` extension contents — full list in wire order ('0x001d=x25519', '0x0017=secp256r1', '0x0018=secp384r1', '0x0019=secp521r1', '0x011a=ffdhe2048', '0x011b=ffdhe3072', '0x011c=ffdhe4096') + GREASE.
+
+## EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEF. Per-page TLS ClientHello supported_versions
+
+- **[T]** Per session: per-page TLS ClientHello `supported_versions` extension contents — list of TLS-version values ('0x0304=TLS1.3', '0x0303=TLS1.2', '0x0302=TLS1.1', '0x0301=TLS1.0') + GREASE distribution.
+
+## FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFG. Per-page TLS ClientHello ALPN protocols
+
+- **[T]** Per session: per-page TLS ClientHello `application_layer_protocol_negotiation` extension contents — list of ALPN strings ('h2', 'http/1.1', 'http/1.0', 'spdy/3.1', 'spdy/3', 'spdy/2', 'h2-fb', 'h2c').
+
+## GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGH. Per-page TLS ClientHello ALPS protocols
+
+- **[T]** Per session: per-page TLS ClientHello `application_settings` (ALPS) extension contents — list ('h2', etc.) — ALPS is a Chrome-specific signal.
+
+## HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHI. Per-page TLS ClientHello ec_point_formats
+
+- **[T]** Per session: per-page TLS ClientHello `ec_point_formats` extension contents — list of format values ('0x00=uncompressed', '0x01=ansiX962_compressed_prime', '0x02=ansiX962_compressed_char2') distribution.
+
+## IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIJ. Per-page TLS ClientHello PSK key exchange modes
+
+- **[T]** Per session: per-page TLS ClientHello `psk_key_exchange_modes` extension contents — list of mode values ('0x00=psk_ke', '0x01=psk_dhe_ke') distribution.
+
+## JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJK. Per-página TLS ClientHello key_share group list
+
+- **[T]** Per session: per-page TLS ClientHello `key_share` extension contents — list of groups offered ('0x001d=x25519', '0x0017=secp256r1') + GREASE per-group.
+
+## KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKL. Per-page TLS ClientHello padding length
+
+- **[T]** Per session: per-page TLS ClientHello `padding` extension byte length distribution (256-byte boundary signals).
+
+## LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLM. Per-page TLS ClientHello compression methods
+
+- **[T]** Per session: per-page TLS ClientHello compression-methods byte ('0x00=null') length + value distribution (TLS 1.3 mandates null only).
+
+## MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMN. Per-page TLS ClientHello session_id length
+
+- **[T]** Per session: per-page TLS ClientHello `session_id` byte length distribution (TLS 1.3 still echoes a 32-byte random for backwards compat).
+
+## NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNO. Per-page TLS ClientHello legacy_version
+
+- **[T]** Per session: per-page TLS ClientHello `legacy_version` byte (always 0x0303 for TLS 1.2 backward-compat) snapshot.
+
+## OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOP. Per-page TLS ClientHello random bytes pattern
+
+- **[T]** Per session: per-page TLS ClientHello `random` 32 bytes pattern — leading 4 bytes (typically gmt_unix_time in TLS 1.2; pure random in TLS 1.3) + remaining 28 bytes entropy.
+
+## PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPQ. Per-page TLS ClientHello record_size_limit
+
+- **[T]** Per session: per-page TLS ClientHello `record_size_limit` extension value distribution (Chrome sends 0x4001 = 16385).
+
+## QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQR. Per-página TLS ClientHello certificate_compression_algorithms
+
+- **[T]** Per session: per-page TLS ClientHello `compress_certificate` (RFC 8879) extension contents — list of supported algorithms ('0x0001=zlib', '0x0002=brotli', '0x0003=zstd') distribution.
+
+## RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRS. Per-page TLS ClientHello delegated_credentials
+
+- **[T]** Per session: per-page TLS ClientHello `delegated_credentials` extension presence + supported-signature-scheme list.
+
+## SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSST. Per-page TLS ClientHello encrypted_client_hello (ECH)
+
+- **[T]** Per session: per-page TLS ClientHello `encrypted_client_hello` extension presence + ECHConfig.cipher_suite + ECHConfig.config_id + ECHConfig.maximum_name_length + ECHConfig.public_name + ECHConfig.public_key snapshot.
+
+## TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTU. Per-page TLS ClientHello SNI server_name
+
+- **[T]** Per session: per-page TLS ClientHello `server_name` extension contents — host_name distribution.
+
+## UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUV. Per-page TLS ClientHello status_request OCSP type
+
+- **[T]** Per session: per-page TLS ClientHello `status_request` extension contents — `CertificateStatusType` ('0x01=ocsp') + responder_id_list + request_extensions distribution.
+
+## VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVW. Per-page TLS ClientHello quic_transport_parameters
+
+- **[T]** Per session: per-page TLS ClientHello `quic_transport_parameters` extension contents — per-parameter id + length + value (`initial_max_data`, `initial_max_stream_data_bidi_local`, `initial_max_stream_data_bidi_remote`, `initial_max_stream_data_uni`, `initial_max_streams_bidi`, `initial_max_streams_uni`, `ack_delay_exponent`, `max_ack_delay`, `disable_active_migration`, `active_connection_id_limit`, `initial_source_connection_id`, `retry_source_connection_id`) distribution.
+
+## WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWX. Per-page TLS ClientHello cookie length
+
+- **[T]** Per session: per-page TLS ClientHello `cookie` extension contents — server-sent HelloRetryRequest cookie byte size distribution.
+
+## XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXY. Per-page TLS ClientHello early_data length
+
+- **[T]** Per session: per-page TLS ClientHello `early_data` extension presence + 0-RTT max_early_data_size distribution.
+
+## YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYZ. Per-page TLS ClientHello pre_shared_key identity list
+
+- **[T]** Per session: per-page TLS ClientHello `pre_shared_key` extension contents — per-PSK identity byte size + obfuscated_ticket_age distribution.
+
+## ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ1. Per-página TLS ClientHello GREASE extension placement
+
+- **[T]** Per session: per-page TLS ClientHello GREASE extension placement positions — leading-position GREASE ID + trailing-position GREASE ID; signals Chrome's deterministic GREASE rotation.
+
 ## GG. Disk usage of recordings
 
 - **[T]** Per-session recording dir total byte size; per-artifact (pcap, sslkey, netlog, har, screenshots, webm, bodies, scripts, css, dom, cdp_firehose.ndjson) size individually.
