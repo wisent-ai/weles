@@ -222,6 +222,25 @@ export async function assertLinkedinProxyStable(session, stage, expectedExitIp =
   return actual;
 }
 
+export function assertLinkedinRegisterProxyRequest(requestedProxy = '') {
+  const raw = String(requestedProxy ?? '').trim().toLowerCase();
+  if (!raw || raw === 'none' || raw === 'direct') {
+    throw new Error(`PROXY_NOT_DEDICATED_ISP: requested=${raw || 'empty'}`);
+  }
+  if (/^(https?:|socks)/.test(raw)) {
+    throw new Error('PROXY_NOT_DEDICATED_ISP: url_form_proxy_request');
+  }
+  if (/\boxylabs\b/.test(raw) || /(?:^|[.:/])7777(?:\b|\/|$)/.test(raw) || /(?:^|\.)?(?:pr|isp|disp)\.oxylabs\.io\b/.test(raw)) {
+    throw new Error(`PROXY_NOT_DEDICATED_ISP: retired_linkedin_proxy requested=${raw.slice(0, 80)}`);
+  }
+  if (/\b(residential|mobile|datacenter)\b/.test(raw) && !/\bisp\b/.test(raw)) {
+    throw new Error(`PROXY_NOT_DEDICATED_ISP: requested=${raw.slice(0, 80)}`);
+  }
+  if (!/\bisp\b/.test(raw)) {
+    throw new Error(`PROXY_NOT_DEDICATED_ISP: missing_isp_request requested=${raw.slice(0, 80)}`);
+  }
+}
+
 export function assertLinkedinDedicatedIspProxy(session, requestedProxy = '') {
   const raw = String(requestedProxy).toLowerCase();
   const server = String(session.proxyConfig?.server ?? '').toLowerCase();

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { assertLinkedinAuthenticatedRegistration, assertLinkedinDedicatedIspProxy, assertLinkedinProxyStable, classifyLinkedinRegisterFailure, getLinkedinChallengeSignal, getLinkedinFailureDiagnostics, summarizeLinkedinProxyState } from '../scripts/trajectories/_shared/linkedin/register_guard.mjs';
+import { assertLinkedinAuthenticatedRegistration, assertLinkedinDedicatedIspProxy, assertLinkedinProxyStable, assertLinkedinRegisterProxyRequest, classifyLinkedinRegisterFailure, getLinkedinChallengeSignal, getLinkedinFailureDiagnostics, summarizeLinkedinProxyState } from '../scripts/trajectories/_shared/linkedin/register_guard.mjs';
 
 function fakeSession(exitIp, expectedIp = exitIp, options = {}) {
   return {
@@ -55,6 +55,16 @@ describe('LinkedIn register guard', () => {
     expect(() => assertLinkedinDedicatedIspProxy({ proxyConfig: { server: 'http://127.0.0.1:8001', provider: 'oxylabs', proxy_type: 'isp' } }, 'isp decodo us')).toThrow(/retired_linkedin_proxy/);
     expect(() => assertLinkedinDedicatedIspProxy({ proxyConfig: { server: 'http://127.0.0.1:8001' } }, 'isp decodo us')).toThrow(/missing_proxy_type/);
     expect(() => assertLinkedinDedicatedIspProxy({ proxyConfig: { server: 'http://127.0.0.1:8001', proxy_type: 'isp' } }, 'isp decodo us')).not.toThrow();
+  });
+
+  it('rejects invalid LinkedIn register proxy requests before launch', () => {
+    expect(() => assertLinkedinRegisterProxyRequest('isp decodo us')).not.toThrow();
+    expect(() => assertLinkedinRegisterProxyRequest('')).toThrow(/PROXY_NOT_DEDICATED_ISP/);
+    expect(() => assertLinkedinRegisterProxyRequest('direct')).toThrow(/PROXY_NOT_DEDICATED_ISP/);
+    expect(() => assertLinkedinRegisterProxyRequest('residential decodo us')).toThrow(/PROXY_NOT_DEDICATED_ISP/);
+    expect(() => assertLinkedinRegisterProxyRequest('http://user:pass@proxy.example.test:8001')).toThrow(/url_form_proxy_request/);
+    expect(() => assertLinkedinRegisterProxyRequest('isp oxylabs us')).toThrow(/retired_linkedin_proxy/);
+    expect(() => assertLinkedinRegisterProxyRequest('decodo us')).toThrow(/missing_isp_request/);
   });
 
   it('detects challenge pages without treating email verification as CAPTCHA', () => {
@@ -153,6 +163,9 @@ describe('LinkedIn register guard', () => {
     expect(source).not.toMatch(/CaptchaSolver|solveRecaptcha|solveLinkedinCheckpoint|LINKEDIN_REGISTER_TRY_CHALLENGE/);
     expect(source).toMatch(/'isp decodo us'/);
     expect(source).not.toMatch(/'isp oxylabs us'/);
+    expect(source).toMatch(/assertLinkedinRegisterProxyRequest/);
+    expect(source.indexOf('assertLinkedinRegisterProxyRequest(requestedProxy)')).toBeGreaterThan(-1);
+    expect(source.indexOf('assertLinkedinRegisterProxyRequest(requestedProxy)')).toBeLessThan(source.indexOf('s = await WSession.start'));
     expect(source).toMatch(/DETECTION_TRIGGERED: createAccount challengeUrl/);
     expect(source).toMatch(/assertNoLinkedinChallengePage/);
     expect(source).toMatch(/after_submit_email_password/);
