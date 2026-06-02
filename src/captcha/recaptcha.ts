@@ -46,8 +46,37 @@ function findBframe(page: Page) {
 }
 
 function findAnchorFrame(page: Page) {
-  for (const f of page.frames()) { if ((f.url?.() ?? '').includes('/anchor')) return f; }
-  return null;
+  const anchors = page.frames().filter((f: any) => (f.url?.() ?? '').includes('/anchor'));
+  for (const f of anchors) {
+    try {
+      const u = new URL(f.url());
+      if (u.searchParams.get('size') !== 'invisible') return f;
+    } catch {
+      return f;
+    }
+  }
+  return anchors[0] ?? null;
+}
+
+async function clickRecaptchaAnchor(page: Page): Promise<boolean> {
+  try {
+    const ci = page.frameLocator('iframe[src*="captchaInternal"]');
+    await ci.frameLocator('iframe[src*="anchor"]').first().locator('#recaptcha-anchor').click({ timeout: 10_000 });
+    console.log('[recaptcha] Clicked checkbox via captchaInternal wrapper');
+    return true;
+  } catch (e: any) {
+    console.log('[recaptcha] Wrapped checkbox click failed:', e.message?.slice(0, 60));
+  }
+  const af = findAnchorFrame(page);
+  if (!af) return false;
+  try {
+    await af.locator('#recaptcha-anchor').click({ timeout: 10_000 });
+    console.log('[recaptcha] Clicked checkbox via direct anchor frame');
+    return true;
+  } catch (e: any) {
+    console.log('[recaptcha] Direct checkbox click failed:', e.message?.slice(0, 60));
+    return false;
+  }
 }
 
 async function classifyGrid(bframe: any, instruction: string, gridSize: number): Promise<number[] | null> {
@@ -60,7 +89,7 @@ async function classifyGrid(bframe: any, instruction: string, gridSize: number):
   // round 1).
   let gridImgB64: string | null = null;
   try {
-    const targetSel = 'div.rc-imageselect-payload, table.rc-imageselect-table-33, table.rc-imageselect-table-44, table.rc-imageselect-table';
+    const targetSel = 'table.rc-imageselect-table-33, table.rc-imageselect-table-44, table.rc-imageselect-table, div.rc-imageselect-payload';
     const handle = await bframe.$(targetSel);
     if (handle) {
       // Race the screenshot with a deadline — main thread can be busy.
@@ -132,6 +161,7 @@ async function classifyGrid(bframe: any, instruction: string, gridSize: number):
   // rejected — both were systematically wrong. Adding Claude expands the
   // signal so a 3-of-4 majority can override a 2-solver mistake.
   async function claudeSolve(): Promise<number[] | null> {
+    if (process.env.WELES_RECAPTCHA_USE_CLAUDE !== '1') return null;
     try {
       const v = await import('../vision/analyze.js') as any;
       const ask = v.askClaude as ((b: Buffer, q: string, t?: string) => string) | undefined;
@@ -157,6 +187,7 @@ async function classifyGrid(bframe: any, instruction: string, gridSize: number):
   if (answers.length === 1) {
     // Claude tiebreaker — ask vision on the grid image, require 2-of-2.
     try {
+      if (process.env.WELES_RECAPTCHA_USE_CLAUDE !== '1') throw new Error('claude disabled');
       const v = await import('../vision/analyze.js') as any;
       const ask = v.askClaude as ((b: Buffer, q: string, t?: string) => string) | undefined;
       if (ask) {
@@ -168,15 +199,30 @@ async function classifyGrid(bframe: any, instruction: string, gridSize: number):
     } catch {}
     if (answers.length === 1) { console.log(`[recaptcha] Only ${answers[0].name} responded`); return answers[0].positions; }
   }
-  // Claude-first consensus. Verified 2026-05-09 on LinkedIn: NopeCha+2captcha
-  // agreed on cars 3x3 [5,6,8] and bicycles 4x4 [9,10] — both rejected by
-  // LinkedIn's grader. The two API solvers share the same flawed CNN backbone
-  // for these challenge classes, so their "agreement" doesn't mean correct;
-  // it means correlated wrong. Claude vision (multimodal LLM) is the
-  // strongest signal we have. Strategy:
-  //   1) If Claude returned an answer, submit Claude's answer (it picks tiles
-  //      most reliably on LinkedIn-style challenges).
-  //   2) Else fall back to ≥2-of-N majority of the API solvers.
+  const apiAnswers = answers.filter(a => a.name !== 'Claude');
+  const exactApi = new Map<string, { positions: number[]; names: string[] }>();
+  for (const a of apiAnswers) {
+    const key = JSON.stringify(a.positions.slice().sort((x, y) => x - y));
+    const prev = exactApi.get(key) ?? { positions: a.positions.slice().sort((x, y) => x - y), names: [] };
+    prev.names.push(a.name);
+    exactApi.set(key, prev);
+  }
+  for (const agreed of exactApi.values()) {
+    if (agreed.names.length >= 2) {
+      console.log(`[recaptcha] API exact agreement ${agreed.names.join('+')}: ${JSON.stringify(agreed.positions)}`);
+      return agreed.positions;
+    }
+  }
+  if (apiAnswers.length >= 2) {
+    const union = [...new Set(apiAnswers.flatMap(a => a.positions))].sort((a, b) => a - b);
+    if (union.length > 0) {
+      console.log(`[recaptcha] API union ${apiAnswers.map(a => a.name).join('+')}: ${JSON.stringify(union)}`);
+      return union;
+    }
+  }
+  // Claude is opt-in only. In live LinkedIn registration tests it either
+  // refused the CAPTCHA classification step or acted as an outlier; service
+  // classifiers are the default signal.
   const claudeAns = answers.find(a => a.name === 'Claude');
   if (claudeAns && claudeAns.positions.length > 0) {
     console.log(`[recaptcha] Submitting Claude's answer: ${JSON.stringify(claudeAns.positions)} (API solvers: ${answers.filter(a => a.name !== 'Claude').map(a => `${a.name}=${JSON.stringify(a.positions)}`).join(', ')})`);
@@ -198,11 +244,7 @@ export async function solveRecaptchaV2(page: Page): Promise<boolean> {
   const existingBframe = findBframe(page);
   const hasGrid = existingBframe ? await existingBframe.evaluate(`(() => !!document.querySelector('.rc-imageselect-desc'))()`).catch(() => false) : false;
   if (!hasGrid) {
-    try {
-      const ci = page.frameLocator('iframe[src*="captchaInternal"]');
-      await ci.frameLocator('iframe[src*="anchor"]').first().locator('#recaptcha-anchor').click();
-      console.log('[recaptcha] Clicked checkbox');
-    } catch (e: any) { console.log('[recaptcha] Checkbox failed:', e.message?.slice(0, 60)); return false; }
+    if (!(await clickRecaptchaAnchor(page))) return false;
     const af = findAnchorFrame(page);
     if (af) {
       const checked = await af.evaluate(`(() => document.querySelector('.recaptcha-checkbox')?.getAttribute('aria-checked') === 'true')()`).catch(() => false);
@@ -211,14 +253,11 @@ export async function solveRecaptchaV2(page: Page): Promise<boolean> {
     await page.waitForEvent('frameattached').catch(() => {});
   }
 
-  // Use frameLocator chain for clicking (trusted events through nested iframes)
-  const ci = page.frameLocator('iframe[src*="captchaInternal"]');
-  const bf = ci.frameLocator('iframe[src*="bframe"]').first();
-
-  // Single-shot solve. No retry on verify-reject — burning budget on the
-  // same image + flagged session just trips LinkedIn login-restriction.
-  {
-    const attempt = 0;
+  // Dynamic image grids often replace selected tiles and ask for another pass
+  // in the same challenge. Bound this so we do not blind-retry a rejected
+  // challenge forever.
+  const maxAttempts = Math.max(1, Math.min(5, parseInt(process.env.WELES_RECAPTCHA_VISUAL_ROUNDS ?? '3', 10) || 3));
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
     try {
     let bframe = findBframe(page);
     // Anchor-state recovery (restored 2026-05-08 from frame_5a0be1ec_last.png
@@ -242,9 +281,7 @@ export async function solveRecaptchaV2(page: Page): Promise<boolean> {
       await page.waitForLoadState('domcontentloaded').catch(() => {});
       // Re-click checkbox on new checkpoint page
       try {
-        const ci2 = page.frameLocator('iframe[src*="captchaInternal"]');
-        await ci2.frameLocator('iframe[src*="anchor"]').first().locator('#recaptcha-anchor').click();
-        console.log('[recaptcha] Re-clicked checkbox');
+        if (await clickRecaptchaAnchor(page)) console.log('[recaptcha] Re-clicked checkbox');
         await page.waitForEvent('frameattached').catch(() => {});
       } catch {}
       bframe = findBframe(page);
@@ -283,7 +320,7 @@ export async function solveRecaptchaV2(page: Page): Promise<boolean> {
         const row = Math.floor((pos - 1) / gridSize) + 1;
         const col = (pos - 1) % gridSize + 1;
         try {
-          await bf.locator(`table tr:nth-child(${row}) td:nth-child(${col})`).click({ force: true });
+          await bframe.locator(`table tr:nth-child(${row}) td:nth-child(${col})`).click({ force: true });
           console.log(`[recaptcha] Tile ${pos}`);
         } catch (e: any) {
           console.log(`[recaptcha] Tile ${pos} stalled (${e.message?.slice(0,40)})`);
@@ -322,13 +359,19 @@ export async function solveRecaptchaV2(page: Page): Promise<boolean> {
 
     const err = await bframe.evaluate(`(() => { const e = document.querySelector('.rc-imageselect-error-select-more, .rc-imageselect-incorrect-response'); return e?.offsetParent ? e.textContent : null; })()`).catch(() => null);
     if (err) console.log(`[recaptcha] Error: ${err}`);
+    const needsAnotherPass = await bframe.evaluate(`(() => /please also check|select all matching|click verify once/i.test(document.body?.innerText || ''))()`).catch(() => false);
+    if (needsAnotherPass && attempt < maxAttempts - 1) {
+      console.log('[recaptcha] Challenge still has replacement tiles — continuing');
+      await humanIdlePause('short');
+      continue;
+    }
     } catch (loopErr: any) {
       if (loopErr.message?.includes('detach') || loopErr.message?.includes('context') || loopErr.message?.includes('destroy')) {
         console.log('[recaptcha] Frame detached — SOLVED!'); return true;
       }
-      console.log(`[recaptcha] Single-shot error: ${loopErr.message?.slice(0, 80)}`);
+      console.log(`[recaptcha] Attempt error: ${loopErr.message?.slice(0, 80)}`);
     }
   }
-  console.log('[recaptcha] Single-shot did not solve — failing fast');
+  console.log('[recaptcha] Bounded visual solve did not pass');
   return false;
 }

@@ -33,7 +33,7 @@ export function instructionToCode(instruction: string): string | null {
 export async function classifyGrid(bframe: any, instruction: string, gridSize: number): Promise<number[] | null> {
   let gridImgB64: string | null = null;
   try {
-    const targetSel = 'div.rc-imageselect-payload, table.rc-imageselect-table-33, table.rc-imageselect-table-44, table.rc-imageselect-table';
+    const targetSel = 'table.rc-imageselect-table-33, table.rc-imageselect-table-44, table.rc-imageselect-table, div.rc-imageselect-payload';
     const handle = await bframe.$(targetSel);
     if (handle) {
       const shotP = handle.screenshot({ type: 'jpeg', quality: 90 });
@@ -94,6 +94,7 @@ export async function classifyGrid(bframe: any, instruction: string, gridSize: n
     return null;
   }
   async function claudeSolve(): Promise<number[] | null> {
+    if (process.env.WELES_RECAPTCHA_USE_CLAUDE !== '1') return null;
     try {
       const v = await import('../vision/analyze.js') as any;
       const ask = v.askClaude as ((b: Buffer, q: string, t?: string) => string) | undefined;
@@ -118,6 +119,7 @@ export async function classifyGrid(bframe: any, instruction: string, gridSize: n
   if (answers.length === 0) return null;
   if (answers.length === 1) {
     try {
+      if (process.env.WELES_RECAPTCHA_USE_CLAUDE !== '1') throw new Error('claude disabled');
       const v = await import('../vision/analyze.js') as any;
       const ask = v.askClaude as ((b: Buffer, q: string, t?: string) => string) | undefined;
       if (ask) {
@@ -128,6 +130,27 @@ export async function classifyGrid(bframe: any, instruction: string, gridSize: n
       }
     } catch {}
     if (answers.length === 1) { console.log(`[recaptcha] Only ${answers[0].name} responded`); return answers[0].positions; }
+  }
+  const apiAnswers = answers.filter(a => a.name !== 'Claude');
+  const exactApi = new Map<string, { positions: number[]; names: string[] }>();
+  for (const a of apiAnswers) {
+    const key = JSON.stringify(a.positions.slice().sort((x, y) => x - y));
+    const prev = exactApi.get(key) ?? { positions: a.positions.slice().sort((x, y) => x - y), names: [] };
+    prev.names.push(a.name);
+    exactApi.set(key, prev);
+  }
+  for (const agreed of exactApi.values()) {
+    if (agreed.names.length >= 2) {
+      console.log(`[recaptcha] API exact agreement ${agreed.names.join('+')}: ${JSON.stringify(agreed.positions)}`);
+      return agreed.positions;
+    }
+  }
+  if (apiAnswers.length >= 2) {
+    const union = [...new Set(apiAnswers.flatMap(a => a.positions))].sort((a, b) => a - b);
+    if (union.length > 0) {
+      console.log(`[recaptcha] API union ${apiAnswers.map(a => a.name).join('+')}: ${JSON.stringify(union)}`);
+      return union;
+    }
   }
   const claudeAns = answers.find(a => a.name === 'Claude');
   if (claudeAns && claudeAns.positions.length > 0) {
