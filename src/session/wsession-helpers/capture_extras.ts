@@ -35,6 +35,14 @@ export function attachCdpLifecycle(ws: any, _ctx: BrowserContext, targetEvents: 
         if (name === 'FIREHOSE') return value === '1';
         return value !== '0';
       };
+      const cdpFirehoseMode = (): 'off' | 'passive' | 'enable-domains' => {
+        const value = String(process.env.WELES_CDP_FIREHOSE ?? '').trim().toLowerCase();
+        const mode = String(process.env.WELES_CDP_FIREHOSE_MODE ?? '').trim().toLowerCase();
+        if (value === '0' || value === 'false' || value === 'off' || mode === 'off') return 'off';
+        if (mode === 'enable-domains' || mode === 'all' || value === 'enable-domains' || value === 'all') return 'enable-domains';
+        if (process.env.WELES_FULL_DIAGNOSTICS === '1' || value === '1' || value === 'passive' || mode === 'passive') return 'passive';
+        return 'off';
+      };
       // The WSession constructor sets ws._cdp asynchronously; wait briefly.
       for (let i = 0; i < 20 && !ws._cdp; i++) await new Promise(r => setImmediate(r));
       const cdp = ws._cdp;
@@ -152,24 +160,28 @@ export function attachCdpLifecycle(ws: any, _ctx: BrowserContext, targetEvents: 
       // Browser downloads.
       cdp.on('Browser.downloadWillBegin', (e: any) => { try { ws._instPageEvents.push({ t: Date.now(), phase: 'downloadBegin', frameId: e?.frameId, guid: e?.guid, url: e?.url, suggestedFilename: e?.suggestedFilename }); } catch {} });
       cdp.on('Browser.downloadProgress', (e: any) => { try { ws._instPageEvents.push({ t: Date.now(), phase: 'downloadProgress', guid: e?.guid, totalBytes: e?.totalBytes, receivedBytes: e?.receivedBytes, state: e?.state }); } catch {} });
-      // CDP firehose — subscribe to every documented event from
-      // protocol.d.ts via the generated list. Events from already-enabled
-      // domains land in ws._instCdpFirehose; events from un-enabled domains
-      // simply never fire. This is the bounded-set capture replacing the
-      // one-channel-at-a-time wiring.
+      // CDP firehose — subscribe to every documented event from protocol.d.ts.
+      // Safe/default mode is passive: it records events only from domains this
+      // diagnostics module already enabled. The old all-domains mode is still
+      // available via WELES_CDP_FIREHOSE_MODE=enable-domains, but is isolated
+      // because it reproduced Chromium navigation hangs.
       ws._instCdpFirehose = [];
       ws._instCdpFirehoseOverflow = 0;
-      if (cdpFeatureEnabled('FIREHOSE')) {
-        const enableDomains = new Set(CDP_EVENTS.map(e => e[0]));
-        for (const d of enableDomains) {
-          try { await cdp.send(`${d}.enable` as any); } catch {}
+      ws._instCdpFirehoseMode = cdpFirehoseMode();
+      if (ws._instCdpFirehoseMode !== 'off') {
+        if (ws._instCdpFirehoseMode === 'enable-domains') {
+          const enableDomains = new Set(CDP_EVENTS.map(e => e[0]));
+          for (const d of enableDomains) {
+            try { await cdp.send(`${d}.enable` as any); } catch {}
+          }
         }
+        const firehoseLimit = Math.max(1000, Number(process.env.WELES_CDP_FIREHOSE_LIMIT ?? 20000));
         for (const [domain, event] of CDP_EVENTS) {
           const key = `${domain}.${event}`;
           try {
             cdp.on(key, (payload: any) => {
               try {
-                if (ws._instCdpFirehose.length >= 100000) { ws._instCdpFirehoseOverflow++; return; }
+                if (ws._instCdpFirehose.length >= firehoseLimit) { ws._instCdpFirehoseOverflow++; return; }
                 let stored: any = payload; try { const s = JSON.stringify(payload); if (s && s.length > 1048576) stored = { _truncated: true, original_size: s.length, preview: s.slice(0, 16384) }; } catch (err: any) { stored = { _stringify_error: String(err?.message ?? err) }; }
                 ws._instCdpFirehose.push({ t: Date.now(), domain, event, payload: stored });
               } catch {}
