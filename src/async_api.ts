@@ -4,7 +4,8 @@
  * Launches Playwright with custom Chromium binary + fingerprint spoofing.
  */
 
-import { existsSync, writeFileSync, mkdtempSync, mkdirSync, readFileSync } from 'node:fs';
+import { existsSync, writeFileSync, mkdtempSync, mkdirSync, readFileSync, statSync } from 'node:fs';
+import { execSync } from 'node:child_process';
 import { basename, dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { chromium, type BrowserContext, type Browser } from 'playwright';
@@ -67,6 +68,32 @@ function inferMacAppName(executablePath: string): string | null {
   return m?.[1]?.replace(/\.app$/, '') ?? null;
 }
 
+// G16: identity of the exact browser BUILD that ran. The binary hash is the
+// expensive bit (shasum of a large Mach-O) so it is cached per path — the
+// worker is long-lived and the binary does not change mid-process.
+const _binaryIdentityCache = new Map<string, { sha256: string | null; mtime: string | null; bytes: number | null }>();
+function binaryIdentity(path: string): { sha256: string | null; mtime: string | null; bytes: number | null } {
+  const cached = _binaryIdentityCache.get(path);
+  if (cached) return cached;
+  const id: { sha256: string | null; mtime: string | null; bytes: number | null } = { sha256: null, mtime: null, bytes: null };
+  try {
+    const st = statSync(path);
+    id.mtime = st.mtime.toISOString();
+    id.bytes = st.size;
+  } catch { /* best-effort */ }
+  try {
+    const out = execSync(`shasum -a 256 ${JSON.stringify(path)}`, { encoding: 'utf8', maxBuffer: 1 << 20, stdio: ['ignore', 'pipe', 'ignore'] }).trim().split(/\s+/)[0];
+    if (/^[0-9a-f]{64}$/.test(out)) id.sha256 = out;
+  } catch { /* best-effort */ }
+  _binaryIdentityCache.set(path, id);
+  return id;
+}
+// Parse the weles build label from an install path, e.g.
+// ~/.local/share/weles-chromium/147.0.7727.108-weles.1/... -> 147.0.7727.108-weles.1
+function parseWelesBuild(path: string): string | null {
+  return path.match(/weles-(?:chromium|firefox)\/([^/]+)\//)?.[1] ?? null;
+}
+
 function browserProvenance(base: {
   browserType: string;
   source: string;
@@ -75,8 +102,11 @@ function browserProvenance(base: {
   pid?: number | null;
   customBinary?: boolean;
   stockOverride?: boolean;
+  version?: string | null;
+  launchArgs?: string[];
 }): Record<string, any> {
   const executablePath = base.executablePath || null;
+  const binId = executablePath ? binaryIdentity(executablePath) : { sha256: null, mtime: null, bytes: null };
   return {
     browser_type: base.browserType,
     source: base.source,
@@ -89,6 +119,14 @@ function browserProvenance(base: {
     custom_binary: base.customBinary ?? false,
     stock_override: base.stockOverride ?? false,
     playwright_default_chromium_path: base.browserType === 'chromium' ? chromium.executablePath() : null,
+    // G16: exact build identity — which weles build, its real reported version,
+    // a content hash + mtime/size of the binary, and the launch flags used.
+    weles_build: executablePath ? parseWelesBuild(executablePath) : null,
+    browser_version: base.version ?? null,
+    binary_sha256: binId.sha256,
+    binary_mtime: binId.mtime,
+    binary_bytes: binId.bytes,
+    launch_args: base.launchArgs ?? null,
   };
 }
 
@@ -260,6 +298,8 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
       pid,
       customBinary: true,
       stockOverride: process.env.WELES_USE_STOCK_CHROMIUM === '1',
+      version: (() => { try { return (pwBrowser ?? context.browser())?.version() ?? null; } catch { return null; } })(),
+      launchArgs: args,
     });
     if (persistentProfile) (context as any)._welesBrowserProvenance.user_data_dir = persistentProfile;
     context.setDefaultNavigationTimeout(0);
@@ -301,6 +341,8 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
         pid: null,
         customBinary: false,
         stockOverride: true,
+        version: (() => { try { return extContext.browser()?.version() ?? null; } catch { return null; } })(),
+        launchArgs: args,
       });
       console.log(`[async_api] launchPersistentContext userData=${userData}`);
     } else {
@@ -323,6 +365,10 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
       pid: proc?.pid ?? null,
       customBinary: false,
       stockOverride: isChromium,
+      version: (() => { try { return pwBrowser?.version() ?? null; } catch { return null; } })(),
+      // chromium `args` only; firefox launches with its own arg set inside
+      // launchWelesFirefox, so don't mislabel them here.
+      launchArgs: isChromium ? args : undefined,
     });
   }
   context.setDefaultNavigationTimeout(0);
