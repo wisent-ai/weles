@@ -839,6 +839,78 @@ function artifactFlags(run) {
   return flags;
 }
 
+function compactValue(value, max = 500) {
+  if (value === undefined || value === null || value === '') return null;
+  if (typeof value === 'string') return sanitizeText(value, max);
+  if (typeof value === 'number' || typeof value === 'boolean') return value;
+  return sanitizeText(JSON.stringify(value), max);
+}
+
+function pushEvidence(items, source, value, weight = 'medium') {
+  const compact = compactValue(value);
+  if (compact === null) return;
+  items.push({ source, value: compact, weight });
+}
+
+function artifactEvidence(run) {
+  const items = [];
+  for (const artifact of run.artifact_summaries ?? []) {
+    const summary = artifact.summary ?? {};
+    if (artifact.kind === 'dom' && summary.flags) {
+      pushEvidence(items, 'artifact.dom.title', summary.title, 'medium');
+      pushEvidence(items, 'artifact.dom.body_text_sample', summary.body_text_sample, 'medium');
+      for (const [key, value] of Object.entries(summary.flags)) {
+        if (value) pushEvidence(items, `artifact.dom.flags.${key}`, true, 'high');
+      }
+    }
+    if (artifact.kind === 'network' && summary.counters) {
+      for (const [key, value] of Object.entries(summary.counters)) {
+        if (value) pushEvidence(items, `artifact.network.counters.${key}`, value, value > 0 ? 'high' : 'low');
+      }
+      for (const sample of summary.samples ?? []) pushEvidence(items, 'artifact.network.sample', sample, 'medium');
+    }
+    if (artifact.kind === 'console_log') {
+      for (const sample of summary.samples ?? []) pushEvidence(items, 'artifact.console.sample', sample, 'medium');
+    }
+    if (artifact.kind === 'ban_signal') pushEvidence(items, 'artifact.ban_signal', summary, 'high');
+  }
+  return items;
+}
+
+function diagnoseRun(run) {
+  const details = run.ban_signal?.details && typeof run.ban_signal.details === 'object' ? run.ban_signal.details : {};
+  const evidence = [];
+  pushEvidence(evidence, 'ban_signal.signal', run.ban_signal?.signal, 'high');
+  pushEvidence(evidence, 'ban_signal.details.reason', details.reason, 'high');
+  pushEvidence(evidence, 'ban_signal.details.error', details.error, 'high');
+  pushEvidence(evidence, 'ban_signal.details.final_url', details.final_url, 'high');
+  pushEvidence(evidence, 'ban_signal.details.last_url', details.last_url, 'high');
+  pushEvidence(evidence, 'ban_signal.details.body_text_sample', details.body_text_sample, 'high');
+  pushEvidence(evidence, 'ban_signal.details.captcha_iframe_present', details.captcha_iframe_present, 'high');
+  pushEvidence(evidence, 'ban_signal.details.captured_response_count', details.captured_response_count, 'medium');
+  pushEvidence(evidence, 'ban_signal.details.agent_history_steps', details.agent_history_steps, 'medium');
+  pushEvidence(evidence, 'ban_signal.details.expected_exit_ip', details.expected_exit_ip, 'medium');
+  pushEvidence(evidence, 'session.exit_ip', run.session?.exit_ip, 'medium');
+  pushEvidence(evidence, 'session.proxy_host', run.session?.proxy_host, 'medium');
+  pushEvidence(evidence, 'session.proxy_type', run.session?.proxy_type, 'medium');
+  pushEvidence(evidence, 'fingerprint.browser', run.session?.persona?.browser, 'low');
+  pushEvidence(evidence, 'fingerprint.os', run.session?.persona?.os, 'low');
+  pushEvidence(evidence, 'fingerprint.platform', run.session?.persona?.platform, 'low');
+  pushEvidence(evidence, 'fingerprint.timezone', run.session?.persona?.timezone, 'low');
+  pushEvidence(evidence, 'fingerprint.gpu_renderer', run.session?.persona?.gpu_renderer, 'low');
+  for (const item of artifactEvidence(run)) evidence.push(item);
+
+  const primary = run.classification?.[0] ?? { code: 'unclassified', confidence: 'low', evidence: '' };
+  const highEvidence = evidence.filter((item) => item.weight === 'high').length;
+  return {
+    root_cause: primary.code,
+    confidence: highEvidence > 0 ? primary.confidence : 'low',
+    signal: run.ban_signal?.signal ?? '',
+    evidence,
+    evidence_sources: unique(evidence.map((item) => item.source)),
+  };
+}
+
 function classifyRun(run) {
   const text = failureText(run);
   const sig = run.ban_signal?.signal ?? '';
@@ -967,7 +1039,7 @@ function evidenceGaps(runs) {
   const noBan = runs.filter((r) => !r.ban_signal).length;
   const noArtifacts = runs.filter((r) => !r.artifact_inventory.items.length).length;
   const noPublicArtifacts = runs.filter((r) => r.artifact_inventory.items.length && !r.artifact_inventory.items.some((x) => x.public)).length;
-  const noStageEvents = runs.filter((r) => !Array.isArray(r.stage_events) || !r.stage_events.length).length;
+  const noDiagnosticEvidence = runs.filter((r) => !r.diagnosis || !r.diagnosis.evidence.length).length;
   const inaccessiblePublic = runs.filter((r) => (r.artifact_summaries ?? []).some((a) => a.public !== false && a.accessible === false)).length;
   const truncatedConsoleJson = runs.filter((r) => (r.console_previews ?? []).some((p) => p.truncated)).length;
   const apiAuthRequired = runs.filter((r) => /^401\b/.test(r.api_error ?? '')).length;
@@ -976,10 +1048,10 @@ function evidenceGaps(runs) {
   if (apiUnavailable) gaps.push({ code: 'api_unavailable', runs: apiUnavailable, impact: 'full JSON endpoint was unavailable, so this run used page scraping fallback' });
   if (noBan) gaps.push({ code: 'missing_ban_signal', runs: noBan, impact: 'cannot classify beyond console table/result text' });
   if (noArtifacts) gaps.push({ code: 'missing_artifacts', runs: noArtifacts, impact: 'no DOM/network/video evidence to locate first divergence' });
+  if (noDiagnosticEvidence) gaps.push({ code: 'missing_diagnostic_evidence', runs: noDiagnosticEvidence, impact: 'no ban_signal details, fingerprint fields, or artifact summaries were available for these runs' });
   if (noPublicArtifacts) gaps.push({ code: 'recordings_scheme_only', runs: noPublicArtifacts, impact: 'console lists recordings:// artifacts that this script cannot fetch remotely' });
   if (inaccessiblePublic) gaps.push({ code: 'public_artifacts_unreadable', runs: inaccessiblePublic, impact: 'artifact URL exists but fetch failed, often stale/misconfigured storage' });
   if (truncatedConsoleJson) gaps.push({ code: 'truncated_console_json', runs: truncatedConsoleJson, impact: 'console page displays shortened JSON preview instead of full fingerprint/result object' });
-  if (noStageEvents) gaps.push({ code: 'missing_stage_events', runs: noStageEvents, impact: 'cannot automatically identify first failing trajectory stage' });
   return gaps;
 }
 
@@ -1011,6 +1083,7 @@ async function runFromApiRow(row, aggregateReason, options, sourceMode = 'api') 
     },
   };
   run.classification = classifyRun(run);
+  run.diagnosis = diagnoseRun(run);
   run.fingerprint = fingerprintVector(run);
   return run;
 }
@@ -1065,6 +1138,7 @@ async function fetchRun(runId, aggregateReasonById, options) {
     } : null,
   };
   run.classification = classifyRun(run);
+  run.diagnosis = diagnoseRun(run);
   run.fingerprint = fingerprintVector(run);
   return run;
 }
@@ -1115,7 +1189,8 @@ function printHuman(report) {
   console.log('runs:');
   for (const run of report.runs.slice(0, 30)) {
     const reasons = run.classification.map((r) => `${r.code}/${r.confidence}`).join(',');
-    console.log(`- ${run.id.slice(0, 8)} source=${run.source_mode || '—'} reason=${reasons} signal=${run.ban_signal?.signal || '—'} proxy=${run.session.provider || '—'}:${run.session.exit_ip || run.session.proxy_host || '—'} browser=${run.session.persona.browser || '—'} os=${run.session.persona.os || '—'} artifacts=${JSON.stringify(run.artifacts.counts)}`);
+    const evidence = (run.diagnosis?.evidence ?? []).slice(0, 3).map((x) => `${x.source}=${x.value}`).join(' | ');
+    console.log(`- ${run.id.slice(0, 8)} source=${run.source_mode || '—'} reason=${reasons} root=${run.diagnosis?.root_cause || '—'} signal=${run.ban_signal?.signal || '—'} proxy=${run.session.provider || '—'}:${run.session.exit_ip || run.session.proxy_host || '—'} browser=${run.session.persona.browser || '—'} os=${run.session.persona.os || '—'} artifacts=${JSON.stringify(run.artifacts.counts)} evidence=${evidence || '—'}`);
   }
 }
 
@@ -1169,6 +1244,7 @@ try {
         details: run.ban_signal.details ? JSON.parse(JSON.stringify(run.ban_signal.details, (_, value) => typeof value === 'string' ? sanitizeText(value, 1000) : value)) : {},
       } : null,
       classification: run.classification,
+      diagnosis: run.diagnosis,
       fingerprint: run.fingerprint,
       session: run.session,
       versions: run.versions,
