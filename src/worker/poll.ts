@@ -120,12 +120,18 @@ async function readBanSignal(runId: string): Promise<BanSignal | null> {
 // full .inst.json is tens of MB/run — too large for PostgREST — so it goes over
 // a direct pooler connection. Returns null (write is skipped) when no DB
 // password is configured.
+//
+// PREFER SUPABASE_DB_URL: the Supavisor pooler host prefix (aws-0 / aws-1 / …)
+// is assigned per-project and is NOT derivable from the project ref, so the
+// reconstructed fallback below can target the wrong cluster ("Tenant or user
+// not found"). Set SUPABASE_DB_URL to the dashboard's session-pooler string and
+// this whole guessing game is skipped. SUPABASE_DB_REGION overrides the prefix.
 function pgConnectionString(): string | null {
   if (process.env.SUPABASE_DB_URL) return process.env.SUPABASE_DB_URL;
   const pw = process.env.SUPABASE_DB_PASSWORD;
   const ref = SUPABASE_URL.match(/https?:\/\/([a-z0-9]+)\.supabase\.co/)?.[1];
   if (!pw || !ref) return null;
-  const region = process.env.SUPABASE_DB_REGION ?? 'aws-0-us-east-1';
+  const region = process.env.SUPABASE_DB_REGION ?? 'aws-1-us-east-1';
   return `postgresql://postgres.${ref}:${encodeURIComponent(pw)}@${region}.pooler.supabase.com:5432/postgres?sslmode=require`;
 }
 
@@ -159,10 +165,22 @@ async function writeNetworkCapture(runId: string): Promise<void> {
     try { const raw = await readFile(f, 'utf8'); bytes += raw.length; parts.push(`${JSON.stringify(f.slice(root.length + 1))}:${raw}`); } catch { /* skip unreadable */ }
   }
   if (!parts.length) return;
-  const capture = `{${parts.join(',')}}`;
+  // Postgres jsonb cannot hold U+0000 nor unpaired UTF-16 surrogates, and
+  // captured request/response bodies contain both — a bare ::jsonb cast then
+  // dies with 22P05. Neutralize those escapes to U+FFFD before the cast; the
+  // pristine bytes still live in storage, this is only the SQL-queryable copy.
+  let capture = `{${parts.join(',')}}`;
+  capture = capture
+    .replace(/\\u0000/gi, '\\uFFFD')
+    .replace(/\\u(d[89ab][0-9a-f]{2})(?!\\ud[c-f][0-9a-f]{2})/gi, '\\uFFFD') // lone high surrogate
+    .replace(/(?<!\\ud[89ab][0-9a-f]{2})\\u(d[c-f][0-9a-f]{2})/gi, '\\uFFFD'); // lone low surrogate
   const sql = postgres(conn, { prepare: false, max: 1, idle_timeout: 5, connect_timeout: 15 });
   try {
-    await sql`insert into account_action_log_capture (log_id, capture, bytes) values (${runId}, ${capture}::jsonb, ${bytes})
+    // NB: ${capture}::text::jsonb, NOT ::jsonb. postgres.js JSON-encodes a JS
+    // string before a bare ::jsonb cast (storing it as a jsonb *string*); the
+    // ::text step forces it to send the already-JSON text verbatim so the cast
+    // yields a jsonb object. Verified against postgres.js 3.4.9.
+    await sql`insert into account_action_log_capture (log_id, capture, bytes) values (${runId}, ${capture}::text::jsonb, ${bytes})
               on conflict (log_id) do update set capture = excluded.capture, bytes = excluded.bytes, created_at = now()`;
     console.log(`[worker] ${runId.slice(0, 8)} network capture -> account_action_log_capture (${(bytes / 1e6).toFixed(1)}MB, ${files.length} inst)`);
   } catch (e) {
