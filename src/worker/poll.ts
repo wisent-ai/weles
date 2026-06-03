@@ -4,6 +4,7 @@
 import { spawn, execSync } from 'node:child_process';
 import { readFile, writeFile, readdir, unlink, stat } from 'node:fs/promises';
 import { join } from 'node:path';
+import os from 'node:os';
 import { uploadArtifacts } from './upload-artifacts.js';
 import { paramsToEnv, resolveTrajectory } from './dispatch.js';
 import { claimOne } from './claim.js';
@@ -299,12 +300,66 @@ async function workersEnabled(): Promise<boolean> {
   } catch { return true; }
 }
 
+// Enforcement: a worker must never run a workflow it cannot record. Before
+// claiming any job we verify BOTH log sinks are live — the 'recordings' Storage
+// bucket (forensic artifacts) and the direct-PG network-capture write. If either
+// is unreachable the worker claims nothing, so the job stays pending for a
+// healthy worker instead of running blind. Memoized for DIAG_PREFLIGHT_TTL_MS:
+// one probe per window for ok AND fail alike, which also bounds DB auth attempts
+// (a wrong/rotated password can't turn this into a fail2ban-tripping retry loop).
+let _diagPreflight: { ok: boolean; at: number; reason: string } | null = null;
+const DIAG_PREFLIGHT_TTL_MS = 5 * 60_000;
+
+async function diagnosticsUploadable(): Promise<{ ok: boolean; reason: string }> {
+  const now = Date.now();
+  if (_diagPreflight && now - _diagPreflight.at < DIAG_PREFLIGHT_TTL_MS) return _diagPreflight;
+
+  // 1. Storage: upsert a tiny marker into the recordings bucket (the same path
+  //    + service-role auth uploadArtifacts uses), proving artifacts can land.
+  let storageReason = '';
+  try {
+    const marker = `_preflight/${encodeURIComponent(os.hostname() || 'worker')}.txt`;
+    const res = await fetch(`${SUPABASE_URL}/storage/v1/object/recordings/${marker}`, {
+      method: 'POST',
+      headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'text/plain', 'x-upsert': 'true' },
+      body: `worker preflight ${new Date().toISOString()}`,
+    });
+    if (!res.ok) storageReason = `storage upload HTTP ${res.status}`;
+  } catch (e) { storageReason = `storage upload error: ${(e instanceof Error ? e.message : String(e)).slice(0, 100)}`; }
+
+  // 2. DB capture: connect and confirm INSERT privilege on the capture table
+  //    (a non-writing probe — proves connectivity + grant without polluting).
+  let dbReason = '';
+  const conn = pgConnectionString();
+  if (!conn) {
+    dbReason = 'no DB connection configured (set SUPABASE_DB_URL or SUPABASE_DB_PASSWORD)';
+  } else {
+    const sql = postgres(conn, { prepare: false, max: 1, idle_timeout: 5, connect_timeout: 15 });
+    try {
+      const r = await sql`select has_table_privilege('public.account_action_log_capture', 'INSERT') as can`;
+      if (r[0]?.can !== true) dbReason = 'no INSERT privilege on account_action_log_capture';
+    } catch (e) { dbReason = `capture probe failed: ${(e instanceof Error ? e.message : String(e)).slice(0, 100)}`; }
+    finally { await sql.end({ timeout: 5 }).catch(() => {}); }
+  }
+
+  const ok = !storageReason && !dbReason;
+  const reason = ok ? 'storage+capture ok' : [storageReason, dbReason].filter(Boolean).join('; ');
+  _diagPreflight = { ok, at: now, reason };
+  return _diagPreflight;
+}
+
 export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
   if (!SUPABASE_URL || !SUPABASE_KEY) {
     console.error('[worker] SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY missing');
     return 'error';
   }
   if (!(await workersEnabled())) return 'idle';
+  // Enforcement gate: refuse to claim/run anything unless logs are uploadable.
+  const diag = await diagnosticsUploadable();
+  if (!diag.ok) {
+    console.error(`[worker] REFUSING to claim — diagnostics not uploadable (${diag.reason}). Job left pending for a healthy worker.`);
+    return 'error';
+  }
   await sweepZombiesIfDue();
   const row = await claimOne();
   if (!row) return 'idle';
