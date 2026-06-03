@@ -45,6 +45,10 @@ async function runTrajectory(row: ActionLogRow, path: string, extraEnv: Record<s
     const child = spawn('node', [path], {
       env: {
         ...process.env,
+        // G17g: produce the FULL forensic surface by default — netlog + pcap +
+        // storage/worker/host diagnostics (overridable). HAR/video are already
+        // on by default. So a run captures everything it possibly can.
+        WELES_FULL_DIAGNOSTICS: process.env.WELES_FULL_DIAGNOSTICS ?? '1',
         ...paramsToEnv(row.params ?? {}, row.action, path),
         ...extraEnv,
         ...(row.account_id ? { ACCOUNT_ID: row.account_id } : {}),
@@ -55,10 +59,14 @@ async function runTrajectory(row: ActionLogRow, path: string, extraEnv: Record<s
     });
     let stderr = '';
     let killed = false;
+    // G17g: graceful timeout — SIGTERM first so WSession's handler can close the
+    // context (sealing HAR + video), then SIGKILL after a grace window. Avoids
+    // losing the whole HAR/video on a timed-out run.
     const killTimer = setTimeout(() => {
       killed = true;
-      stderr += `\nFAIL: worker hard timeout (${hardTimeoutMs}ms) — sent SIGKILL`;
-      try { child.kill('SIGKILL'); } catch { /* noop */ }
+      stderr += `\nFAIL: worker hard timeout (${hardTimeoutMs}ms) — SIGTERM, then SIGKILL after grace`;
+      try { child.kill('SIGTERM'); } catch { /* noop */ }
+      setTimeout(() => { try { child.kill('SIGKILL'); } catch { /* noop */ } }, 8000);
     }, hardTimeoutMs);
     child.stderr.on('data', (chunk) => { stderr += chunk.toString(); });
     child.on('close', (code) => {
