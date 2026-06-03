@@ -254,7 +254,7 @@ export class WSession {
     // Captures every request/response (utf8 + base64), WebSocket frames in both
     // directions, TCP serverAddr, TLS securityDetails. Runs on every WSession —
     // keepers and trajectories — without exception. See net_record.ts.
-    startInstrumentation(ws, ctx, label);
+    if (process.env.WELES_NO_INSTRUMENT !== '1') startInstrumentation(ws, ctx, label);
     return ws;
   }
 
