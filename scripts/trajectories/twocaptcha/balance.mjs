@@ -8,6 +8,7 @@ import { humanIdlePause } from '../../../dist/human/mouse.js';
 import { humanType } from '../../../dist/human/keyboard.js';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
 
 const LOGIN_URL = 'https://2captcha.com/auth/login';
 const DISPLAY_NAME = '2Captcha';
@@ -100,7 +101,7 @@ try {
   console.log(`[trajectory] dashboard text length=${text.length}`);
   const balance = parseBalanceFromText(text);
   if (balance == null) {
-    const dir = join(process.cwd(), '.work', 'twocaptcha_balance');
+    const dir = runRecordingsDir('twocaptcha_balance');
     mkdirSync(dir, { recursive: true });
     writeFileSync(join(dir, 'dashboard-text.txt'), text);
     try { writeFileSync(join(dir, 'dashboard.html'), await s.page.content()); } catch {}

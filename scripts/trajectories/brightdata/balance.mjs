@@ -9,6 +9,7 @@ import { patchEffectiveBalance } from '../_shared/services/proxy_probe.mjs';
 import { humanIdlePause } from '../../../dist/human/mouse.js';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
 
 const LOGIN_URL = 'https://brightdata.com/cp/login';
 const DASH_URL  = 'https://brightdata.com/cp/api_example';
@@ -37,7 +38,7 @@ try {
   console.log(`[trajectory] dashboard text length=${text.length}`);
   const balance = parseBalanceFromText(text);
   if (balance == null) {
-    const dir = join(process.cwd(), '.work', 'brightdata_balance');
+    const dir = runRecordingsDir('brightdata_balance');
     mkdirSync(dir, { recursive: true });
     writeFileSync(join(dir, 'dashboard-text.txt'), text);
     try { writeFileSync(join(dir, 'dashboard.html'), await s.page.content()); } catch {}
