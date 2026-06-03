@@ -97,7 +97,7 @@ function sessionFromMeta(meta, fallback) {
   };
 }
 
-export async function setupKeeperFlow({ session, platform, action, accountId, proxyUrl, sessionMeta, captureVersionsFn, uploadArtifactsFn, getLastUrl, closeSessionFn }) {
+export async function setupKeeperFlow({ session, platform, action, accountId, proxyUrl, sessionMeta, captureVersionsFn, uploadArtifactsFn, writeNetworkCaptureFn, getLastUrl, closeSessionFn }) {
   const runStart = new Date();
   const versionsAtStart = captureVersionsFn ? captureVersionsFn('scripts/_shared/keeper/keeper.mjs') : null;
   const sessionMetaInitial = sessionMeta ?? { provider: 'keeper', proxy_url: proxyUrl ?? null, platform: platform ?? null };
@@ -133,13 +133,31 @@ export async function setupKeeperFlow({ session, platform, action, accountId, pr
     if (typeof meta?.timing_seed === 'number') result.run = { timing_seed: meta.timing_seed };
     if (captcha) result.captcha = captcha;
     if (savedAccountId) result.account_id = savedAccountId;
+    // proxy_preflight: full provider/sticky selection history — the worker imports
+    // this too; the keeper import landed session_meta + captcha but missed it.
+    const pf = await readJsonInRun(flowRowId, 'proxy_preflight.json');
+    if (pf && result.session && typeof result.session === 'object') result.session.proxy_preflight = pf;
     await patchClose(flowRowId, { status, completed_at: new Date().toISOString(), result });
+    // G18 network capture — the full .inst.json into account_action_log_capture,
+    // exactly like the worker. The keeper provenance import never wrote this, so
+    // keeper runs had no SQL-queryable network traffic. Keyed by flowRowId
+    // (= recordings/<id>/ via ACTION_LOG_ID). Best-effort, never fails the close.
+    if (writeNetworkCaptureFn) {
+      try { await writeNetworkCaptureFn(flowRowId); }
+      catch (e) { console.log(`[keeper-bookkeeping] network capture threw: ${e?.message?.slice(0, 100) ?? String(e).slice(0, 100)}`); }
+    }
     console.log(`[keeper-bookkeeping] closed row=${flowRowId.slice(0, 8)} status=${status}`);
   }
   for (const sig of ['SIGINT', 'SIGTERM']) {
     process.on(sig, async () => {
-      const last = getLastUrl ? getLastUrl() : null;
-      await close('failed', { healthy: false, signal: 'keeper_abandoned', details: { last_url: last } }, null);
+      // getLastUrl() reads s.page.url(), which can throw once the context is torn
+      // down (WSession's own SIGTERM handler closes it) — guard it AND close() so
+      // an abandoned keeper still records its provenance + capture instead of
+      // dying before close() runs.
+      let last = null;
+      try { last = getLastUrl ? getLastUrl() : null; } catch { /* context closing */ }
+      try { await close('failed', { healthy: false, signal: 'keeper_abandoned', details: { last_url: last } }, null); }
+      catch (e) { console.log(`[keeper-bookkeeping] SIGTERM close threw: ${e?.message?.slice(0, 100) ?? String(e).slice(0, 100)}`); }
       process.exit(0);
     });
   }
