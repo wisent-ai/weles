@@ -38,6 +38,8 @@ if (!ARCHIVE || !OUT_PATH) {
   process.exit(2);
 }
 
+class SignedOutMidRun extends Error {}
+
 function log(...a) { console.error('[' + LABEL + ']', ...a); }
 function nowIso() { return new Date().toISOString(); }
 function sha256File(p) {
@@ -87,16 +89,31 @@ async function scrollSeries(tag, xFrac, yFrac) {
   }
 }
 
+// Anonymous Drive/Docs link-views render a top-bar "Sign in" link to
+// accounts.google.com instead of redirecting — URL checks alone miss this.
+async function isSignedOut() {
+  return (await s.page.locator('a[href*="accounts.google.com"]')
+    .filter({ visible: true }).count()) > 0;
+}
+
 async function ensureLoggedIn(url) {
   await s.page.goto(url, { waitUntil: 'domcontentloaded' });
   await humanIdlePause('deliberate');
-  if (/accounts\.google\.com|ServiceLogin|signin/.test(s.page.url())) {
-    log('logged out — running googleSso for', creds.email);
-    const ok = await googleSso(s, creds);
-    if (!ok) throw new Error('googleSso did not complete (url=' + s.page.url() + ')');
-    await humanIdlePause('long');
-    await s.page.goto(url, { waitUntil: 'domcontentloaded' });
+  const onLoginPage = /accounts\.google\.com|ServiceLogin|signin/.test(s.page.url());
+  if (!onLoginPage && !(await isSignedOut())) return;
+  if (!onLoginPage) {
+    await s.page.goto('https://accounts.google.com/ServiceLogin?continue=' +
+      encodeURIComponent(url), { waitUntil: 'domcontentloaded' });
     await humanIdlePause('deliberate');
+  }
+  log('signed out — running googleSso for', creds.email);
+  const ok = await googleSso(s, creds);
+  if (!ok) throw new Error('googleSso did not complete (url=' + s.page.url() + ')');
+  await humanIdlePause('long');
+  await s.page.goto(url, { waitUntil: 'domcontentloaded' });
+  await humanIdlePause('deliberate');
+  if (await isSignedOut()) {
+    throw new Error('still signed out after googleSso (url=' + s.page.url() + ')');
   }
 }
 
@@ -122,11 +139,16 @@ try {
     try {
       await s.page.goto(meta.webViewLink, { waitUntil: 'domcontentloaded' });
       await humanIdlePause('long');
+      if (await isSignedOut()) {
+        // Anonymous shots are not evidence — abort the whole run, loudly.
+        throw new SignedOutMidRun('signed out at ' + meta.webViewLink);
+      }
       await shot('file_' + meta.id);
       if (EDITOR_MIMES.has(meta.mimeType)) {
         await captureVersionPanel(meta);
       }
     } catch (e) {
+      if (e instanceof SignedOutMidRun) throw e;
       errors.push({ file: meta.id, name: meta.name, at: nowIso(),
                     step: 'capture', error: String(e) });
       log('  ERROR:', String(e));
