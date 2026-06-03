@@ -274,6 +274,7 @@ export class WSession {
           browser_provenance: unknown; persona: Persona; realized_fingerprint: Record<string, unknown>;
           env_flags: Record<string, string | undefined>;
           sticky_session_id?: string; sticky_hash?: string;
+          identity?: Identity;
           started_at: string;
         } = {
           proxy_host: u.hostname,
@@ -297,6 +298,12 @@ export class WSession {
           // providers populate it), so it is NOT forced non-null.
           sticky_session_id: (bOpts.proxy as any).sticky_session_id,
           sticky_hash: (bOpts.proxy as any).sticky_hash,
+          // G6: full raw generated identity (first/last/username/email/password/
+          // DOB) for EVERY run that has one — not just register. Raw values in
+          // the row are explicitly approved. Present whenever a platform was
+          // given (ws.identity is generated then); session_meta.json doubles as
+          // the storage backup for non-register runs that never call saveAccount.
+          identity: ws.identity,
           started_at: new Date().toISOString(),
         };
         writeFileSync(join(recordingsDir(label), 'session_meta.json'), JSON.stringify(meta, null, 2));
