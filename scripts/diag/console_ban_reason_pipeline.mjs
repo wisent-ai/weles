@@ -22,6 +22,7 @@ Options:
   --artifact-bytes=N        Max bytes fetched per public artifact. Default: 2000000.
   --no-artifacts            Do not fetch public DOM/network artifacts.
   --cookie=COOKIE           Console auth cookie. Defaults to WELES_CONSOLE_COOKIE.
+  --token=TOKEN             Console diagnostics bearer token. Defaults to WELES_CONSOLE_API_TOKEN.
   --no-api                  Do not call /api/weles/* JSON endpoints; scrape pages only.
 
 Examples:
@@ -74,6 +75,7 @@ function safeNumber(value, fallback = 0) {
 function consoleHeaders(options, accept = 'text/html') {
   const headers = { accept };
   if (options.cookie) headers.cookie = options.cookie;
+  if (options.token) headers.authorization = `Bearer ${options.token}`;
   return headers;
 }
 
@@ -1112,10 +1114,11 @@ const limit = safeNumber(argValue('--limit', '0'), 0);
 const artifactBytes = safeNumber(argValue('--artifact-bytes', '2000000'), 2_000_000);
 const fetchArtifacts = !flag('--no-artifacts');
 const cookie = argValue('--cookie', process.env.WELES_CONSOLE_COOKIE ?? '');
+const token = argValue('--token', process.env.WELES_CONSOLE_API_TOKEN ?? '');
 const useApi = !flag('--no-api');
 
 try {
-  const aggregate = await fetchAggregate(source, { cookie, useApi, limit });
+  const aggregate = await fetchAggregate(source, { cookie, token, useApi, limit });
   if (!aggregate.run_ids.length) throw new Error(`no /weles/<run-id> links found in ${source}`);
   const sourceUrl = new URL(source);
   const consoleBase = `${sourceUrl.protocol}//${sourceUrl.host}`;
@@ -1125,8 +1128,8 @@ try {
   const runs = [];
   for (const id of selectedIds) {
     const apiRow = apiRowsById.get(id);
-    if (apiRow) runs.push(await runFromApiRow(apiRow, reasonById.get(id) ?? '', { consoleBase, artifactBytes, fetchArtifacts, cookie, useApi }, 'aggregate_api'));
-    else runs.push(await fetchRun(id, reasonById, { consoleBase, artifactBytes, fetchArtifacts, cookie, useApi }));
+    if (apiRow) runs.push(await runFromApiRow(apiRow, reasonById.get(id) ?? '', { consoleBase, artifactBytes, fetchArtifacts, cookie, token, useApi }, 'aggregate_api'));
+    else runs.push(await fetchRun(id, reasonById, { consoleBase, artifactBytes, fetchArtifacts, cookie, token, useApi }));
   }
   const report = {
     source,
