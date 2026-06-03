@@ -29,6 +29,30 @@ import { costTracker } from '../utils/cost.js';
 import { installAtoms } from './wsession_atoms.js';  // installAtoms() is invoked at file end after WSession is declared
 function recordingsDir(label?: string): string { const d = join(process.cwd(), 'recordings', ...(label ? [label] : [])); mkdirSync(d, { recursive: true }); return d; }
 
+// G2: effective behavior-changing env vars snapshotted at session start. The
+// list is intentionally generous — any flag that alters input path, browser
+// selection/registration, instrumentation, recording, diagnostics, LinkedIn
+// egress policy, or proxy-pool wiring. Reads process.env directly so the value
+// reflects the live process at session start; unset flags surface as undefined.
+const ENV_FLAG_KEYS = [
+  'WELES_INPUT', 'WELES_INSTANT_INPUT', 'WELES_REGISTER_BROWSER',
+  'WELES_ENABLE_CHROME147_STUBS', 'WELES_DISABLE_HTTP2', 'WELES_USE_STOCK_CHROMIUM',
+  'WELES_NO_INSTRUMENT', 'WELES_FULL_DIAGNOSTICS', 'WELES_PCAP_DIAGNOSTICS',
+  'WELES_DISABLE_RECORDING', 'WELES_ALLOW_LINKEDIN_DIRECT', 'WELES_ALLOW_LINKEDIN_RESIDENTIAL',
+  'WELES_ALLOW_LINKEDIN_UNDECLARED_PROXY', 'LINKEDIN_REGISTER_PREWARM_URLS',
+  'DECODO_ISP_PORTS', 'DECODO_ISP_PORT', 'DECODO_ISP_HOST', 'CHROMIUM_PATH',
+  'WELES_FORCE_PROXY', 'WELES_ALLOW_PLAYWRIGHT_FIREFOX',
+  'WELES_CAPTURE_RESPONSE_BODIES', 'WELES_HOST_DIAGNOSTICS', 'WELES_STORAGE_DIAGNOSTICS',
+  'WELES_CDP_DIAGNOSTICS', 'WELES_CDP_FIREHOSE', 'WELES_CHROMIUM_NETLOG',
+  'WELES_PROXY_DIAGNOSTICS_LABEL', 'WELES_NOPECHA_EXT', 'WELES_USER_DATA_DIR',
+  'WELES_CACHE_DIR',
+] as const;
+function snapshotEnvFlags(): Record<string, string | undefined> {
+  const out: Record<string, string | undefined> = {};
+  for (const k of ENV_FLAG_KEYS) out[k] = process.env[k];
+  return out;
+}
+
 export interface WSessionOptions {
   label?: string;
   proxy?: string;
@@ -248,6 +272,7 @@ export class WSession {
           proxy_host: string; proxy_port: string; proxy_user_present: boolean;
           proxy_user_hash: unknown; exit_ip: unknown; platform: unknown; provider: unknown;
           browser_provenance: unknown; persona: Persona; realized_fingerprint: Record<string, unknown>;
+          env_flags: Record<string, string | undefined>;
           started_at: string;
         } = {
           proxy_host: u.hostname,
@@ -260,6 +285,12 @@ export class WSession {
           browser_provenance: (ws as any)._browserProvenance,
           persona,
           realized_fingerprint: (ctx as any)._welesFingerprintConfig,
+          // G2: snapshot the effective behavior-changing env vars at session
+          // start so a run's exact mode (input path, browser registration,
+          // diagnostics, LinkedIn egress policy, proxy pool wiring) is queryable.
+          // Required Record (never null); individual flags are undefined when
+          // unset — that absence is itself meaningful provenance.
+          env_flags: snapshotEnvFlags(),
           started_at: new Date().toISOString(),
         };
         writeFileSync(join(recordingsDir(label), 'session_meta.json'), JSON.stringify(meta, null, 2));
