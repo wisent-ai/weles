@@ -950,7 +950,9 @@ function evidenceGaps(runs) {
   const noStageEvents = runs.filter((r) => !Array.isArray(r.stage_events) || !r.stage_events.length).length;
   const inaccessiblePublic = runs.filter((r) => (r.artifact_summaries ?? []).some((a) => a.public !== false && a.accessible === false)).length;
   const truncatedConsoleJson = runs.filter((r) => (r.console_previews ?? []).some((p) => p.truncated)).length;
-  const apiUnavailable = runs.filter((r) => r.api_error).length;
+  const apiAuthRequired = runs.filter((r) => /^401\b/.test(r.api_error ?? '')).length;
+  const apiUnavailable = runs.filter((r) => r.api_error && !/^401\b/.test(r.api_error)).length;
+  if (apiAuthRequired) gaps.push({ code: 'api_auth_required', runs: apiAuthRequired, impact: 'full JSON endpoint is deployed but requires a console auth cookie; this run used page scraping fallback' });
   if (apiUnavailable) gaps.push({ code: 'api_unavailable', runs: apiUnavailable, impact: 'full JSON endpoint was unavailable, so this run used page scraping fallback' });
   if (noBan) gaps.push({ code: 'missing_ban_signal', runs: noBan, impact: 'cannot classify beyond console table/result text' });
   if (noArtifacts) gaps.push({ code: 'missing_artifacts', runs: noArtifacts, impact: 'no DOM/network/video evidence to locate first divergence' });
