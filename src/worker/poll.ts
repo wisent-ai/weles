@@ -1,8 +1,8 @@
 // Worker: poll account_action_logs, claim atomically, spawn weles trajectory
 // subprocess, import ban_signal + pending_review if present, write back. Pure
 // orchestration — trajectories own their own WSession + Capture.
-import { spawn } from 'node:child_process';
-import { readFile, readdir, unlink, stat } from 'node:fs/promises';
+import { spawn, execSync } from 'node:child_process';
+import { readFile, writeFile, readdir, unlink, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { uploadArtifacts } from './upload-artifacts.js';
 import { paramsToEnv, resolveTrajectory } from './dispatch.js';
@@ -213,6 +213,18 @@ export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
   const { exitCode, stderr } = await runTrajectory(row, trajPath);
   const banSignal = await readBanSignal(row.action);
   const result: Record<string, unknown> = { versions: captureVersions(trajPath) };
+  // G5: when the run executed against a dirty repo/trajectory, mirror the full
+  // working-tree diff (already captured in result.versions.dirty_diff) to
+  // recordings/<action>/source_diff.patch for the storage backup. upload-artifacts
+  // allowlists .patch -> 'logs'. Best-effort; never fails the run.
+  try {
+    const v = result.versions as Record<string, unknown>;
+    if (v.weles_dirty === true || v.trajectory_file_dirty === true) {
+      let diff = typeof v.dirty_diff === 'string' ? (v.dirty_diff as string) : '';
+      if (!diff) { try { diff = execSync('git diff', { encoding: 'utf8' }); } catch { /* best-effort */ } }
+      if (diff) await writeFile(join(RECORDINGS_ROOT, row.action, 'source_diff.patch'), diff);
+    }
+  } catch { /* best-effort */ }
   try {
     const m = JSON.parse(await readFile(join(RECORDINGS_ROOT, row.action, 'session_meta.json'), 'utf8'));
     result.session = {

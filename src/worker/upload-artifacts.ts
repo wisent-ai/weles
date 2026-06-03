@@ -52,6 +52,10 @@ const KIND_BY_EXT: Record<string, 'screenshots' | 'videos' | 'dom' | 'logs' | nu
   // one file. Uploaded as a 'logs' artifact so it appears in the existing
   // /weles inspection UI's logs column without a schema change.
   '.json': 'logs',
+  // G5: source_diff.patch — the full `git diff` captured when a run executed
+  // against a dirty repo/trajectory. Uploaded as 'logs' so the exact uncommitted
+  // source that produced the row is recoverable from storage.
+  '.patch': 'logs',
 }
 
 const CAPS: Record<string, number> = {
