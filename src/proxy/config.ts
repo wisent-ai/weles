@@ -153,7 +153,7 @@ function platformFromTarget(host: string | undefined): string | undefined {
   return undefined;
 }
 
-export async function resolveProxy(proxy: string, targetHost?: string, preflightPersona?: LinkedInProbePersona): Promise<{ server: string; username?: string; password?: string; country?: string; exit_ip?: string; platform?: string; provider?: string; proxy_type?: string } | undefined> {
+export async function resolveProxy(proxy: string, targetHost?: string, preflightPersona?: LinkedInProbePersona): Promise<{ server: string; username?: string; password?: string; country?: string; exit_ip?: string; platform?: string; provider?: string; proxy_type?: string; sticky_session_id?: string; sticky_hash?: string } | undefined> {
   if (!proxy || proxy === 'none' || proxy === 'direct') return undefined;
   const attempts: ProxyPreflightAttempt[] = [];
   const startedAt = new Date().toISOString();
@@ -459,7 +459,11 @@ export async function resolveProxy(proxy: string, targetHost?: string, preflight
         attempt_count: attempts.length,
         attempts,
       });
-      return { server: `http://${host}:${p.proxy_port}`, username: stickyUser, password: stickyPass, country: cc, exit_ip: exitIp || undefined, platform, provider: provKey, proxy_type: proxyType };
+      // G4: expose the chosen sticky session id (raw sessId) and its diag hash
+      // so the run row records which sticky exit the session pinned to. Only
+      // sticky-capable providers reach this success path with a sessId; the
+      // field is legitimately undefined for non-sticky/url-form proxies.
+      return { server: `http://${host}:${p.proxy_port}`, username: stickyUser, password: stickyPass, country: cc, exit_ip: exitIp || undefined, platform, provider: provKey, proxy_type: proxyType, sticky_session_id: String(sessId), sticky_hash: diagHash(sessId) };
     }
   }
 

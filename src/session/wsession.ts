@@ -273,6 +273,7 @@ export class WSession {
           proxy_user_hash: unknown; exit_ip: unknown; platform: unknown; provider: unknown;
           browser_provenance: unknown; persona: Persona; realized_fingerprint: Record<string, unknown>;
           env_flags: Record<string, string | undefined>;
+          sticky_session_id?: string; sticky_hash?: string;
           started_at: string;
         } = {
           proxy_host: u.hostname,
@@ -291,6 +292,11 @@ export class WSession {
           // Required Record (never null); individual flags are undefined when
           // unset — that absence is itself meaningful provenance.
           env_flags: snapshotEnvFlags(),
+          // G4: which sticky exit this session pinned to. Undefined for
+          // non-sticky / url-form proxies (legitimately — only sticky-capable
+          // providers populate it), so it is NOT forced non-null.
+          sticky_session_id: (bOpts.proxy as any).sticky_session_id,
+          sticky_hash: (bOpts.proxy as any).sticky_hash,
           started_at: new Date().toISOString(),
         };
         writeFileSync(join(recordingsDir(label), 'session_meta.json'), JSON.stringify(meta, null, 2));

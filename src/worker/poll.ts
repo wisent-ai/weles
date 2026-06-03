@@ -231,6 +231,10 @@ export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
       // G2: effective behavior-changing env flags snapshotted at session start,
       // verbatim. Always present on current session_meta; key omitted on legacy.
       env_flags: m.env_flags,
+      // G4: sticky exit the session pinned to (raw sessId + diag hash).
+      // Undefined for non-sticky / url-form proxies — legitimately absent.
+      sticky_session_id: m.sticky_session_id,
+      sticky_hash: m.sticky_hash,
     };
   } catch {}
   // IP-drift detection: first session stores observed exit_ip; subsequent sessions compare, mismatch -> ip_drift + pause.
