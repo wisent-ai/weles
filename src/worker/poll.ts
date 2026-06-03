@@ -223,6 +223,10 @@ export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
       exit_ip: m.exit_ip,
       platform: m.platform,
       provider: m.provider,
+      // G10: browser provenance (binary path, stock-vs-custom Chromium, launch
+      // args/version) already carried on session_meta by wsession but never
+      // imported. Copy it verbatim into the run row.
+      browser_provenance: m.browser_provenance,
       // G1: full persona + realized fingerprint, verbatim (no subset). Always
       // present on session_meta written by current code; absent only on legacy
       // pre-G1 runs (key simply omitted, not nulled).
