@@ -5,6 +5,7 @@ import { WSession } from '../../../dist/session/wsession.js';
 import { googleSso, getGoogleSsoCreds } from '../_shared/services/google_sso.mjs';
 import { topupOpts, dryRunExit } from '../_shared/services/topup_common.mjs';
 import { humanIdlePause, humanClickLocator } from '../../../dist/human/mouse.js';
+import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
 
 // Oxylabs Mobile Proxies plans
 const PLANS = [
@@ -86,7 +87,7 @@ try {
     console.log(`[trajectory] targeting ${targetGb} GB at $${GB_PRICE}/GB (total $${targetGb * GB_PRICE} for budget $${usd})`);
     await addTrafficBtn.click({ force: true }).catch(() => {});
     await humanIdlePause('long');
-    await s.page.screenshot({ path: '.work/oxylabs-add-traffic.png', fullPage: true }).catch(() => {});
+    await s.page.screenshot({ path: `${runRecordingsDir('oxylabs_topup')}/oxylabs-add-traffic.png`, fullPage: true }).catch(() => {});
     let amountSet = false;
     const sliderInput = s.page.locator('input[type="range"]').filter({ visible: true }).first();
     if (await sliderInput.isVisible().catch(() => false)) {
@@ -270,7 +271,7 @@ try {
 
   // Probe what's actually on the page before fill.
   try {
-    await s.page.screenshot({ path: '.work/oxylabs-stripe-state.png', fullPage: true }).catch(() => {});
+    await s.page.screenshot({ path: `${runRecordingsDir('oxylabs_topup')}/oxylabs-stripe-state.png`, fullPage: true }).catch(() => {});
     await humanIdlePause('deliberate');
     for (const f of s.page.frames()) {
       try {

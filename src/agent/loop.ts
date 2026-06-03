@@ -7,6 +7,7 @@ import { spawnSync } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { WSession } from '../session/wsession.js';
+import { runRecordingsDir } from '../session/run-recordings.js';
 import { dispatch } from './tools.js';
 import { Capture } from '../capture/capture.js';
 import { loadFlow, saveFlow, replayFlow, type FlowStep } from '../session/flows.js';
@@ -63,7 +64,7 @@ Credentials: use $VAR placeholders in fill/type_text values (e.g. $REDDIT_NEW_EM
 If a step fails, try something different. Do not repeat the same failing action.`;
 
 function visionDir(label?: string): string {
-  const dir = join(process.cwd(), 'recordings', ...(label ? [label, 'vision'] : ['vision']));
+  const dir = runRecordingsDir(...(label ? [label, 'vision'] : ['vision'])); // G17: recordings/<run_uuid>/...
   mkdirSync(dir, { recursive: true });
   return dir;
 }

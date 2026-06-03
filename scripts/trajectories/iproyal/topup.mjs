@@ -3,6 +3,7 @@ import { WSession } from '../../../dist/session/wsession.js';
 import { googleSso, getGoogleSsoCreds } from '../_shared/services/google_sso.mjs';
 import { topupOpts, dryRunExit } from '../_shared/services/topup_common.mjs';
 import { humanIdlePause } from '../../../dist/human/mouse.js';
+import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
 
 const { usd, confirm } = topupOpts();
 const login = await getGoogleSsoCreds();
@@ -47,7 +48,7 @@ try {
 
   // Probe: walk into each Stripe frame and list all inputs inside.
   try {
-    await s.page.screenshot({ path: '.work/iproyal-deposit-state.png', fullPage: true }).catch(() => {});
+    await s.page.screenshot({ path: `${runRecordingsDir('iproyal_topup')}/iproyal-deposit-state.png`, fullPage: true }).catch(() => {});
     await humanIdlePause('deliberate');
     for (const f of s.page.frames()) {
       if (!/js\.stripe\.com|m\.stripe\.network/.test(f.url())) continue;
@@ -79,7 +80,7 @@ try {
   console.log('[trajectory] clicking Deposit button');
   await depositBtn.click();
   for (let i = 0; i < 30 && !stripeChargeFired; i++) await humanIdlePause('short');
-  await s.page.screenshot({ path: '.work/iproyal-after-deposit.png', fullPage: true }).catch(() => {});
+  await s.page.screenshot({ path: `${runRecordingsDir('iproyal_topup')}/iproyal-after-deposit.png`, fullPage: true }).catch(() => {});
   // Probe for validation errors / captcha after the deposit click.
   try {
     const post = await s.page.evaluate(() => {
