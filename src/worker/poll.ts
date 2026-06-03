@@ -247,6 +247,8 @@ export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
       // G2: effective behavior-changing env flags snapshotted at session start,
       // verbatim. Always present on current session_meta; key omitted on legacy.
       env_flags: m.env_flags,
+      // G15: the COMPLETE runner env (all keys; secret values redacted).
+      env_all: m.env_all,
       // G4: sticky exit the session pinned to (raw sessId + diag hash).
       // Undefined for non-sticky / url-form proxies — legitimately absent.
       sticky_session_id: m.sticky_session_id,
