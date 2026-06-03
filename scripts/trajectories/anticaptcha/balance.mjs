@@ -6,6 +6,7 @@ import { googleSso, parseBalanceFromText, patchServiceBalance, getGoogleSsoCreds
 import { humanIdlePause } from '../../../dist/human/mouse.js';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
 
 const LOGIN_URL = 'https://anti-captcha.com/clients/';
 const DISPLAY_NAME = 'AntiCaptcha';
@@ -29,10 +30,10 @@ try {
   console.log(`[trajectory] dashboard text length=${text.length}`);
   const balance = parseBalanceFromText(text);
   if (balance == null) {
-    // Forensic dump on regex miss — full innerText, DOM, screenshot to
-    // .work/anticaptcha_balance/ so the regex can be repaired against the
+    // Forensic dump on regex miss — full innerText, DOM, screenshot to the
+    // per-run recordings dir so the regex can be repaired against the
     // real page layout without re-running the trajectory.
-    const dir = join(process.cwd(), '.work', 'anticaptcha_balance');
+    const dir = runRecordingsDir('anticaptcha_balance');
     mkdirSync(dir, { recursive: true });
     writeFileSync(join(dir, 'dashboard-text.txt'), text);
     try { writeFileSync(join(dir, 'dashboard.html'), await s.page.content()); } catch {}

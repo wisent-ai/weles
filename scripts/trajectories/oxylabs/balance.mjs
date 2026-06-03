@@ -6,6 +6,7 @@ import { patchEffectiveBalance } from '../_shared/services/proxy_probe.mjs';
 import { humanIdlePause, humanClickLocator } from '../../../dist/human/mouse.js';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
 
 const LOGIN_URL = 'https://dashboard.oxylabs.io/';
 const BILLING_URL = 'https://dashboard.oxylabs.io/en/billing-plans';
@@ -77,9 +78,9 @@ try {
   if (balance == null) balance = parseBalanceFromText(text);
   if (balance == null) {
     // Forensic dump on miss — same pattern as nopecha/balance.mjs. Writes
-    // full innerText, rendered HTML, screenshot to .work/oxylabs_balance/
+    // full innerText, rendered HTML, screenshot to the per-run recordings dir
     // so the regex can be fixed against the real text without rerunning.
-    const dir = join(process.cwd(), '.work', 'oxylabs_balance');
+    const dir = runRecordingsDir('oxylabs_balance');
     mkdirSync(dir, { recursive: true });
     writeFileSync(join(dir, 'dashboard-text.txt'), text);
     try {
