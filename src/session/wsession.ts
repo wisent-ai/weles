@@ -54,6 +54,20 @@ function snapshotEnvFlags(): Record<string, string | undefined> {
   return out;
 }
 
+// G15: full runner env snapshot — EVERY key with its RAW value, so the exact
+// environment a run executed under is fully recoverable. session_meta.json and
+// the account_action_logs rows are readable only by service-role-key holders
+// (the recordings bucket is private), i.e. the same trust boundary as the
+// secrets themselves — storing them here adds no exposure beyond who already
+// holds every key.
+function snapshotFullEnv(): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(process.env)) {
+    if (typeof v === 'string') out[k] = v;
+  }
+  return out;
+}
+
 export interface WSessionOptions {
   label?: string;
   proxy?: string;
@@ -285,6 +299,7 @@ export class WSession {
           proxy_user_hash: unknown; exit_ip: unknown; platform: unknown; provider: unknown;
           browser_provenance: unknown; persona: Persona; realized_fingerprint: Record<string, unknown>;
           env_flags: Record<string, string | undefined>;
+          env_all: Record<string, string>;
           sticky_session_id?: string; sticky_hash?: string;
           exit_reputation?: import('../proxy/policy.js').ExitReputation;
           identity?: Identity;
@@ -307,6 +322,8 @@ export class WSession {
           // Required Record (never null); individual flags are undefined when
           // unset — that absence is itself meaningful provenance.
           env_flags: snapshotEnvFlags(),
+          // G15: the COMPLETE runner env (all keys), secret values redacted.
+          env_all: snapshotFullEnv(),
           // G4: which sticky exit this session pinned to. Undefined for
           // non-sticky / url-form proxies (legitimately — only sticky-capable
           // providers populate it), so it is NOT forced non-null.
