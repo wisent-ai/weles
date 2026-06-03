@@ -1,6 +1,7 @@
 import { getSocialAccount } from '../../dist/utils/credentials.js';
 import { WSession } from '../../dist/session/wsession.js';
 import { persistFreshCookieJar } from './_shared/cookie-freshness.mjs';
+import { runRecordingsDir } from '../../dist/session/run-recordings.js';
 
 const URL = 'https://discord.com/login';
 
@@ -275,7 +276,7 @@ try {
   try {
     const path = await import('node:path');
     const fs = await import('node:fs');
-    const dir = path.join(process.cwd(), 'recordings', 'discord_login');
+    const dir = runRecordingsDir('discord_login');
     fs.mkdirSync(dir, { recursive: true });
     const finalUrl = s?.page?.url?.() ?? '';
     const msg = e.message ?? '';

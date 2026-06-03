@@ -14,6 +14,7 @@ import { getSocialAccount, resolveAccountSession } from '../../../dist/utils/cre
 import { WSession } from '../../../dist/session/wsession.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
 
 export async function runHealthProbe(cfg) {
   const acct = await getSocialAccount(cfg.platform);
@@ -135,7 +136,7 @@ export async function runHealthProbe(cfg) {
     signal, shadowbanned, is_suspended: extracted.is_suspended, karma: extracted.karma,
     logged_in: loggedIn, logged_out: loggedOut,
   };
-  const outDir = join(process.cwd(), 'recordings', `${cfg.platform}_health`);
+  const outDir = runRecordingsDir(`${cfg.platform}_health`);
   mkdirSync(outDir, { recursive: true });
   const filePath = join(outDir, `${acct.username}_${new Date().toISOString().replace(/[:.]/g, '-')}.json`);
   writeFileSync(filePath, JSON.stringify(snapshot, null, 2));

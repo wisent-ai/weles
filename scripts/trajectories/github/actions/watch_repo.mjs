@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { checkReachable } from '../../_shared/action-runner.mjs';
 import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
 import { assertAuthed, AuthProbeError } from '../../_shared/auth-probe.mjs';
+import { runRecordingsDir } from '../../../../dist/session/run-recordings.js';
 
 const REPO_URL_RAW = process.env.REPO_URL || process.env.TARGET_URL || '';
 const SEARCH_QUERY = process.env.SEARCH_QUERY || '';
@@ -70,6 +71,6 @@ try {
   console.log(`[ban-signal] ${ban?.signal}  FAIL: ${e.message?.slice(0, 200)}`);
   process.exitCode = 1;
 } finally {
-  if (ban) { try { const dir = join(process.cwd(), 'recordings', 'github_watch_repo'); mkdirSync(dir, { recursive: true }); writeFileSync(join(dir, 'ban_signal.json'), JSON.stringify({ account_id: acct.id, username: acct.username, action: 'github_watch_repo', ...ban, ts: new Date().toISOString() }, null, 2)); } catch {} }
+  if (ban) { try { const dir = runRecordingsDir('github_watch_repo'); mkdirSync(dir, { recursive: true }); writeFileSync(join(dir, 'ban_signal.json'), JSON.stringify({ account_id: acct.id, username: acct.username, action: 'github_watch_repo', ...ban, ts: new Date().toISOString() }, null, 2)); } catch {} }
   await s.close();
 }

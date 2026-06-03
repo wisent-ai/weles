@@ -21,6 +21,7 @@ import { detectDiscordBanSignals }   from '../../../dist/platforms/discord/ban_s
 import { detectGitHubBanSignals }    from '../../../dist/platforms/github/ban_signals.js';
 import { detectProductHuntBanSignals } from '../../../dist/platforms/producthunt/ban_signals.js';
 import { humanIdlePause, humanScroll } from '../../../dist/human/mouse.js';
+import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
 
 const DETECTORS = {
   reddit: detectRedditBanSignals, twitter: detectTwitterBanSignals,
@@ -188,7 +189,7 @@ try {
 } finally {
   if (banSignal) {
     try {
-      const dir = join(process.cwd(), 'recordings', label);
+      const dir = runRecordingsDir(label);
       mkdirSync(dir, { recursive: true });
       writeFileSync(join(dir, 'ban_signal.json'), JSON.stringify({ account_id: acct?.id ?? null, username: acct?.username ?? null, action: label, ...banSignal, ts: new Date().toISOString() }, null, 2));
     } catch (e) { console.log('[ban-signal] persist err:', e.message); }

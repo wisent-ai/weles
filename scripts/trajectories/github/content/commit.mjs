@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { checkReachable } from '../../_shared/action-runner.mjs';
 import { humanType } from '../../../../dist/human/keyboard.js';
 import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
+import { runRecordingsDir } from '../../../../dist/session/run-recordings.js';
 
 const REPO_URL = process.env.REPO_URL || '';
 const FILE_PATH = process.env.FILE_PATH || 'README.md';
@@ -81,6 +82,6 @@ try {
   console.log(`[ban-signal] ${ban?.signal}  FAIL: ${e.message?.slice(0, 200)}`);
   process.exitCode = 1;
 } finally {
-  if (ban) { try { const dir = join(process.cwd(), 'recordings', 'github_commit'); mkdirSync(dir, { recursive: true }); writeFileSync(join(dir, 'ban_signal.json'), JSON.stringify({ account_id: acct.id, username: acct.username, action: 'github_commit', repo_url: repoBase, file_path: FILE_PATH, ...ban, ts: new Date().toISOString() }, null, 2)); } catch {} }
+  if (ban) { try { const dir = runRecordingsDir('github_commit'); mkdirSync(dir, { recursive: true }); writeFileSync(join(dir, 'ban_signal.json'), JSON.stringify({ account_id: acct.id, username: acct.username, action: 'github_commit', repo_url: repoBase, file_path: FILE_PATH, ...ban, ts: new Date().toISOString() }, null, 2)); } catch {} }
   await s.close();
 }
