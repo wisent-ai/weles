@@ -77,21 +77,36 @@ export function getLinkedinChallengeSignal(summary = {}) {
   };
   const inputText = (summary.inputs ?? []).flatMap((i) => [i.name, i.id, i.type, i.autocomplete]).join(' ');
   const buttonText = (summary.buttons ?? []).flatMap((b) => [b.text, b.href]).join(' ');
-  const activeIframeText = (summary.iframes ?? [])
-    .filter((f) => !isDormantInvisibleRecaptcha(f))
-    .filter((f) => f.visible || /challengeiframe|\/checkpoint\/challenge|li\.protechts\.net|px-cloud|recaptcha/i.test(f.src ?? ''))
+  const visibleInputNames = new Set((summary.inputs ?? []).filter((i) => i.visible).flatMap((i) => [i.name, i.id]));
+  const hasVisibleSignupForm =
+    (visibleInputNames.has('email-address') || /email-address|\bemail\b/i.test(inputText)) &&
+    (visibleInputNames.has('password') || /password/i.test(inputText)) &&
+    /Agree & Join|Continue/i.test(buttonText);
+  const visibleIframeText = (summary.iframes ?? [])
+    .filter((f) => f.visible && !isDormantInvisibleRecaptcha(f))
     .flatMap((f) => [f.id, f.name, f.title, f.src]).join(' ');
-  const haystack = [
+  const allIframeText = (summary.iframes ?? [])
+    .filter((f) => !isDormantInvisibleRecaptcha(f))
+    .flatMap((f) => [f.id, f.name, f.title, f.src]).join(' ');
+  const pageText = [
     summary.url,
     summary.title,
     summary.pageKey,
     summary.bodyText,
+  ].join(' ').toLowerCase();
+  const haystack = [
+    pageText,
     inputText,
     buttonText,
-    activeIframeText,
+    allIframeText,
   ].join(' ').toLowerCase();
-  if (/recaptcha|captcha|arkose|challengeiframe|\/checkpoint\/challenge|security verification/.test(haystack)) return 'challenge_page';
-  if (/\/checkpoint|checkpoint/.test(haystack) && !/email[-_\s]?verification|confirmation code|one-time-code|\bpin\b/.test(haystack)) return 'checkpoint_page';
+  // The normal LinkedIn signup page embeds invisible reCAPTCHA Enterprise and
+  // ProTechTS/security-verification iframes while the form remains usable.
+  // Treat those as risk instrumentation, not a blocking challenge.
+  if (/\/checkpoint|checkpoint/.test(pageText) && !/email[-_\s]?verification|confirmation code|one-time-code|\bpin\b/.test(pageText)) return 'checkpoint_page';
+  if (/\/checkpoint\/challenge|challengeiframe|arkose/i.test(haystack) && !hasVisibleSignupForm) return 'challenge_page';
+  if (/recaptcha|captcha|security verification/i.test(visibleIframeText) && !hasVisibleSignupForm) return 'challenge_page';
+  if (/recaptcha|captcha|security verification|verify you are human|unusual activity/i.test(pageText) && !hasVisibleSignupForm) return 'challenge_page';
   return '';
 }
 
