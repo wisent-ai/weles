@@ -283,6 +283,7 @@ export class WSession {
           browser_provenance: unknown; persona: Persona; realized_fingerprint: Record<string, unknown>;
           env_flags: Record<string, string | undefined>;
           sticky_session_id?: string; sticky_hash?: string;
+          exit_reputation?: import('../proxy/policy.js').ExitReputation;
           identity?: Identity;
           timing_seed: number;
           started_at: string;
@@ -308,6 +309,10 @@ export class WSession {
           // providers populate it), so it is NOT forced non-null.
           sticky_session_id: (bOpts.proxy as any).sticky_session_id,
           sticky_hash: (bOpts.proxy as any).sticky_hash,
+          // G11: full ip-api enrichment of the winning exit IP (ASN, ISP/org,
+          // reverse-DNS, region/city/geo, proxy/hosting/mobile flags). Optional
+          // — ip-api can fail or the run may have no exit IP.
+          exit_reputation: (bOpts.proxy as any).exit_reputation,
           // G6: full raw generated identity (first/last/username/email/password/
           // DOB) for EVERY run that has one — not just register. Raw values in
           // the row are explicitly approved. Present whenever a platform was

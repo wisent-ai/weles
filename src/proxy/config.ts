@@ -153,7 +153,7 @@ function platformFromTarget(host: string | undefined): string | undefined {
   return undefined;
 }
 
-export async function resolveProxy(proxy: string, targetHost?: string, preflightPersona?: LinkedInProbePersona): Promise<{ server: string; username?: string; password?: string; country?: string; exit_ip?: string; platform?: string; provider?: string; proxy_type?: string; sticky_session_id?: string; sticky_hash?: string } | undefined> {
+export async function resolveProxy(proxy: string, targetHost?: string, preflightPersona?: LinkedInProbePersona): Promise<{ server: string; username?: string; password?: string; country?: string; exit_ip?: string; platform?: string; provider?: string; proxy_type?: string; sticky_session_id?: string; sticky_hash?: string; exit_reputation?: import('./policy.js').ExitReputation } | undefined> {
   if (!proxy || proxy === 'none' || proxy === 'direct') return undefined;
   const attempts: ProxyPreflightAttempt[] = [];
   const startedAt = new Date().toISOString();
@@ -447,6 +447,18 @@ export async function resolveProxy(proxy: string, targetHost?: string, preflight
         if (preflightContinue) continue;
       }
       console.log(`[proxy] Using: ${p.display_name} (${host}:${p.proxy_port}, $${p.balance_usd}, sticky=${sessId}, exit=${exitIp || '?'})`);
+      // G11: enrich the winning exit IP once via ip-api (ASN/ISP/org/reverse/
+      // geo + proxy/hosting/mobile flags). One call per successful resolve;
+      // attached to the returned proxy config so it lands in
+      // result.session.exit_reputation, and into the preflight storage backup.
+      let exitReputation: import('./policy.js').ExitReputation | undefined;
+      if (exitIp) {
+        try {
+          const { verifyExitReputation } = await import('./policy.js');
+          exitReputation = await verifyExitReputation(exitIp);
+          console.log(`[proxy] exit reputation ${exitIp} -> ${exitReputation.result}${exitReputation.asname ? ` ${exitReputation.asname}` : ''}`);
+        } catch (e: any) { console.log(`[proxy] exit reputation err: ${e?.message?.slice(0, 80)}`); }
+      }
       writeProxyPreflightDiagnostics({
         requested_proxy: proxy.startsWith('http') ? '[url-form]' : proxy,
         target_host: targetHost ?? null,
@@ -456,6 +468,7 @@ export async function resolveProxy(proxy: string, targetHost?: string, preflight
         selected_provider: p.display_name,
         selected_endpoint: { host, port: String(p.proxy_port) },
         selected_exit_ip_hash: diagHash(exitIp),
+        selected_exit_reputation: exitReputation,
         attempt_count: attempts.length,
         attempts,
       });
@@ -463,7 +476,7 @@ export async function resolveProxy(proxy: string, targetHost?: string, preflight
       // so the run row records which sticky exit the session pinned to. Only
       // sticky-capable providers reach this success path with a sessId; the
       // field is legitimately undefined for non-sticky/url-form proxies.
-      return { server: `http://${host}:${p.proxy_port}`, username: stickyUser, password: stickyPass, country: cc, exit_ip: exitIp || undefined, platform, provider: provKey, proxy_type: proxyType, sticky_session_id: String(sessId), sticky_hash: diagHash(sessId) };
+      return { server: `http://${host}:${p.proxy_port}`, username: stickyUser, password: stickyPass, country: cc, exit_ip: exitIp || undefined, platform, provider: provKey, proxy_type: proxyType, sticky_session_id: String(sessId), sticky_hash: diagHash(sessId), exit_reputation: exitReputation };
     }
   }
 

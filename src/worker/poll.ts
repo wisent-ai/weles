@@ -251,6 +251,10 @@ export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
       // Undefined for non-sticky / url-form proxies — legitimately absent.
       sticky_session_id: m.sticky_session_id,
       sticky_hash: m.sticky_hash,
+      // G11: full ip-api exit enrichment (ASN, ISP/org, reverse-DNS, geo,
+      // proxy/hosting/mobile reputation flags), verbatim. Absent when ip-api
+      // failed or the run had no exit IP.
+      exit_reputation: m.exit_reputation,
     };
     // G6: full raw identity for EVERY run (not just register), verbatim. Raw
     // values in the row are explicitly approved. Present whenever the run
