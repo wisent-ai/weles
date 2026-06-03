@@ -1,0 +1,25 @@
+#!/bin/sh
+set -eu
+
+if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  exit 0
+fi
+
+unstaged="$(git diff --name-only -- .)"
+untracked="$(git ls-files --others --exclude-standard)"
+
+if [ -n "$unstaged" ] || [ -n "$untracked" ]; then
+  printf '%s\n' "pre-commit blocked: worktree has unstaged or untracked files."
+  printf '%s\n' "Package every source change into this commit, or ignore generated artifacts, before committing."
+  if [ -n "$unstaged" ]; then
+    printf '%s\n' ""
+    printf '%s\n' "unstaged tracked files:"
+    printf '%s\n' "$unstaged"
+  fi
+  if [ -n "$untracked" ]; then
+    printf '%s\n' ""
+    printf '%s\n' "untracked files:"
+    printf '%s\n' "$untracked"
+  fi
+  exit 1
+fi
