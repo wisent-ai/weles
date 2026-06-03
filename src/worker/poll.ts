@@ -257,6 +257,9 @@ export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
     // generated one (a platform was given); session_meta.json is the storage
     // backup for non-register runs that never write account.json via saveAccount.
     if (m.identity) result.identity = m.identity;
+    // G9: per-run human-timing seed — makes the run's mouse/typing jitter
+    // reproducible from the row. Required non-null on current session_meta.
+    if (typeof m.timing_seed === 'number') result.run = { timing_seed: m.timing_seed };
   } catch {}
   // G7: full proxy preflight history — every provider/sticky attempt with its
   // connect status, geo/probe results, and rejection reason. Copied verbatim

@@ -6,7 +6,7 @@
 // ---------------------------------------------------------------------------
 
 import { cubicBezier } from '../utils/bezier.js';
-import { randomBetween, waitMs } from '../utils/timing.js';
+import { randomBetween, waitMs, humanRandom } from '../utils/timing.js';
 import { traceAvailable, nextPointerStepMs, nextReactionMs, nextInterClickMs, getMoveTemplate } from './trace.js';
 import { getOffsetFromPage, nativeClick, nativeBatchMove, nativeMove } from './mouse-native.js';
 
@@ -21,7 +21,7 @@ export interface MousePage {
 
 function sampleStepMs(): number {
   if (traceAvailable()) return nextPointerStepMs();
-  const r = Math.random();
+  const r = humanRandom();
   if (r < 0.25) return randomBetween(30, 120);
   if (r < 0.75) return randomBetween(10, 30);
   if (r < 0.95) return randomBetween(5, 12);
@@ -30,7 +30,7 @@ function sampleStepMs(): number {
 
 function sampleReactionMs(): number {
   if (traceAvailable()) return nextReactionMs();
-  const r = Math.random();
+  const r = humanRandom();
   if (r < 0.20) return randomBetween(180, 230);
   if (r < 0.80) return randomBetween(100, 250);
   return randomBetween(250, 500);
@@ -173,8 +173,8 @@ export async function humanClickLocator(page: any, locator: any): Promise<void> 
   if (!box) throw new Error('humanClickLocator: bounding box unavailable (element detached or off-screen)');
   const padX = Math.max(2, Math.floor(box.width * 0.15));
   const padY = Math.max(2, Math.floor(box.height * 0.15));
-  const tx = box.x + padX + Math.floor(Math.random() * Math.max(1, box.width - padX * 2));
-  const ty = box.y + padY + Math.floor(Math.random() * Math.max(1, box.height - padY * 2));
+  const tx = box.x + padX + Math.floor(humanRandom() * Math.max(1, box.width - padX * 2));
+  const ty = box.y + padY + Math.floor(humanRandom() * Math.max(1, box.height - padY * 2));
   await humanMove(page, tx, ty);
   const jx = Math.round(tx + randomBetween(-2, 2));
   const jy = Math.round(ty + randomBetween(-2, 2));
@@ -247,14 +247,14 @@ export async function humanHoverDwell(
   }
   const padX = Math.max(2, Math.floor(box.width * 0.2));
   const padY = Math.max(2, Math.floor(box.height * 0.2));
-  const tx = box.x + padX + Math.floor(Math.random() * Math.max(1, box.width - padX * 2));
-  const ty = box.y + padY + Math.floor(Math.random() * Math.max(1, box.height - padY * 2));
+  const tx = box.x + padX + Math.floor(humanRandom() * Math.max(1, box.width - padX * 2));
+  const ty = box.y + padY + Math.floor(humanRandom() * Math.max(1, box.height - padY * 2));
   await humanMove(page, tx, ty);
   await waitMs(randomBetween(minMs, maxMs));
   if (leave) {
     // Move off the element by ~80–160px in a random direction so mouseleave /
     // rpl-hovercard:after-hide fires. Stay in-viewport.
-    const dx = (Math.random() < 0.5 ? -1 : 1) * randomBetween(80, 160);
+    const dx = (humanRandom() < 0.5 ? -1 : 1) * randomBetween(80, 160);
     const dy = randomBetween(40, 120);
     const ox = Math.max(20, Math.min(tx + dx, viewportH > 0 ? 9999 : tx + dx));
     const oy = Math.max(20, Math.min(ty + dy, viewportH - 20));
