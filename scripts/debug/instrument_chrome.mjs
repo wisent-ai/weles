@@ -50,6 +50,16 @@ const ts = new Date().toISOString().replace(/[:.]/g, '-');
 const OUT = join(OUT_DIR, `chrome_${PLATFORM}_${ts}.json`);
 console.log(`[inst-chrome] platform=${PLATFORM} target=${TARGET_URL}`);
 console.log(`[inst-chrome] output -> ${OUT}`);
+writeFileSync(join(OUT_DIR, 'real_chrome_session.json'), JSON.stringify({
+  kind: 'instrument_chrome',
+  run_id: process.env.ACTION_LOG_ID || process.env.WELES_RUN_ID || null,
+  action: process.env.ACTION || null,
+  platform: PLATFORM,
+  target_url: TARGET_URL,
+  browser_binary: CHROME_BIN,
+  output_json: OUT,
+  launched_at: new Date().toISOString(),
+}, null, 2));
 
 const userDataDir = `/tmp/inst-chrome-${PLATFORM}-${Date.now()}`;
 const PROXY_URL = process.env.PROXY_URL || '';

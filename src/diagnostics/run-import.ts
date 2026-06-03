@@ -72,6 +72,11 @@ export async function importRunProvenance(runId: string, params?: Record<string,
     if (out.session) (out.session as Record<string, unknown>).proxy_preflight = pf;
     else out.session = { proxy_preflight: pf };
   }
+  const rc = await readJsonInRun(runId, 'real_chrome_session.json');
+  if (rc) {
+    if (out.session) (out.session as Record<string, unknown>).real_chrome = rc;
+    else out.session = { real_chrome: rc };
+  }
   return out;
 }
 
