@@ -10,6 +10,7 @@ import { paramsToEnv, resolveTrajectory } from './dispatch.js';
 import { claimOne } from './claim.js';
 import { sweepZombiesIfDue } from './stale.js';
 import { captureVersions } from '../diagnostics/versions.js';
+import { importRunProvenance, writeNetworkCapture, pgConnectionString } from '../diagnostics/run-import.js';
 import postgres from 'postgres';
 
 export interface ActionLogRow {
@@ -117,79 +118,9 @@ async function readBanSignal(runId: string): Promise<BanSignal | null> {
   return (await readJsonInRun(runId, 'ban_signal.json')) as BanSignal | null;
 }
 
-// Direct Postgres connection string for the heavy network-capture write. The
-// full .inst.json is tens of MB/run — too large for PostgREST — so it goes over
-// a direct pooler connection. Returns null (write is skipped) when no DB
-// password is configured.
-//
-// PREFER SUPABASE_DB_URL: the Supavisor pooler host prefix (aws-0 / aws-1 / …)
-// is assigned per-project and is NOT derivable from the project ref, so the
-// reconstructed fallback below can target the wrong cluster ("Tenant or user
-// not found"). Set SUPABASE_DB_URL to the dashboard's session-pooler string and
-// this whole guessing game is skipped. SUPABASE_DB_REGION overrides the prefix.
-function pgConnectionString(): string | null {
-  if (process.env.SUPABASE_DB_URL) return process.env.SUPABASE_DB_URL;
-  const pw = process.env.SUPABASE_DB_PASSWORD;
-  const ref = SUPABASE_URL.match(/https?:\/\/([a-z0-9]+)\.supabase\.co/)?.[1];
-  if (!pw || !ref) return null;
-  const region = process.env.SUPABASE_DB_REGION ?? 'aws-1-us-east-1';
-  return `postgresql://postgres.${ref}:${encodeURIComponent(pw)}@${region}.pooler.supabase.com:5432/postgres?sslmode=require`;
-}
-
-// G18: persist the FULL per-run network/instrumentation capture (every
-// *.inst.json under the run dir, raw — every request/response with bodies, WS
-// frames, TLS, DNS, JS access traps) into account_action_log_capture as a lazy
-// jsonb, keyed by run uuid. Written over a direct PG connection. Best-effort:
-// never fails the run. The bodies already live in storage; this makes them
-// SQL-queryable (capture->'<inst-file>'->'requests').
-async function writeNetworkCapture(runId: string): Promise<void> {
-  const conn = pgConnectionString();
-  if (!conn) return;
-  const root = join(RECORDINGS_ROOT, runId);
-  const files: string[] = [];
-  const walk = async (dir: string): Promise<void> => {
-    let entries: any[];
-    try { entries = (await readdir(dir, { withFileTypes: true } as any)) as any; } catch { return; }
-    for (const e of entries) {
-      const full = join(dir, e.name);
-      if (e.isDirectory()) await walk(full);
-      else if (e.name.endsWith('.inst.json')) files.push(full);
-    }
-  };
-  await walk(root);
-  if (!files.length) return;
-  // Build {"<relpath>": <raw json>, ...} by RAW embedding (no 47MB JS parse);
-  // each .inst.json is already valid JSON, so it slots in as a value verbatim.
-  const parts: string[] = [];
-  let bytes = 0;
-  for (const f of files) {
-    try { const raw = await readFile(f, 'utf8'); bytes += raw.length; parts.push(`${JSON.stringify(f.slice(root.length + 1))}:${raw}`); } catch { /* skip unreadable */ }
-  }
-  if (!parts.length) return;
-  // Postgres jsonb cannot hold U+0000 nor unpaired UTF-16 surrogates, and
-  // captured request/response bodies contain both — a bare ::jsonb cast then
-  // dies with 22P05. Neutralize those escapes to U+FFFD before the cast; the
-  // pristine bytes still live in storage, this is only the SQL-queryable copy.
-  let capture = `{${parts.join(',')}}`;
-  capture = capture
-    .replace(/\\u0000/gi, '\\uFFFD')
-    .replace(/\\u(d[89ab][0-9a-f]{2})(?!\\ud[c-f][0-9a-f]{2})/gi, '\\uFFFD') // lone high surrogate
-    .replace(/(?<!\\ud[89ab][0-9a-f]{2})\\u(d[c-f][0-9a-f]{2})/gi, '\\uFFFD'); // lone low surrogate
-  const sql = postgres(conn, { prepare: false, max: 1, idle_timeout: 5, connect_timeout: 15 });
-  try {
-    // NB: ${capture}::text::jsonb, NOT ::jsonb. postgres.js JSON-encodes a JS
-    // string before a bare ::jsonb cast (storing it as a jsonb *string*); the
-    // ::text step forces it to send the already-JSON text verbatim so the cast
-    // yields a jsonb object. Verified against postgres.js 3.4.9.
-    await sql`insert into account_action_log_capture (log_id, capture, bytes) values (${runId}, ${capture}::text::jsonb, ${bytes})
-              on conflict (log_id) do update set capture = excluded.capture, bytes = excluded.bytes, created_at = now()`;
-    console.log(`[worker] ${runId.slice(0, 8)} network capture -> account_action_log_capture (${(bytes / 1e6).toFixed(1)}MB, ${files.length} inst)`);
-  } catch (e) {
-    console.log(`[worker] network capture write failed: ${(e instanceof Error ? e.message : String(e)).slice(0, 140)}`);
-  } finally {
-    await sql.end({ timeout: 5 }).catch(() => {});
-  }
-}
+// pgConnectionString + writeNetworkCapture moved to ../diagnostics/run-import.ts
+// so the keeper shares the exact same capture write (no drift on the ::text::jsonb
+// cast / U+0000 sanitization). importRunProvenance lives there too.
 
 async function importHealthSnapshot(accountId: string, _platform: string, runId: string): Promise<{ signal: string; karma: number | null; shadowbanned: boolean } | null> {
   // G17: the health snapshot json is written somewhere under recordings/<run_uuid>/.
@@ -390,80 +321,15 @@ export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
       }
     }
   } catch { /* best-effort */ }
-  const m = await readJsonInRun(row.id, 'session_meta.json');
-  if (m) {
-    result.session = {
-      proxy_host: m.proxy_host,
-      proxy_port: m.proxy_port,
-      proxy_user_present: !!m.proxy_user_present,
-      proxy_user_hash: m.proxy_user_hash ?? null,
-      exit_ip: m.exit_ip,
-      platform: m.platform,
-      provider: m.provider,
-      // G10: browser provenance (binary path, stock-vs-custom Chromium, launch
-      // args/version) already carried on session_meta by wsession but never
-      // imported. Copy it verbatim into the run row.
-      browser_provenance: m.browser_provenance,
-      // G1: full persona + realized fingerprint, verbatim (no subset). Always
-      // present on session_meta written by current code; absent only on legacy
-      // pre-G1 runs (key simply omitted, not nulled).
-      persona: m.persona,
-      realized_fingerprint: m.realized_fingerprint,
-      // G2: effective behavior-changing env flags snapshotted at session start,
-      // verbatim. Always present on current session_meta; key omitted on legacy.
-      env_flags: m.env_flags,
-      // G15: the COMPLETE runner env (all keys; secret values redacted).
-      env_all: m.env_all,
-      // G4: sticky exit the session pinned to (raw sessId + diag hash).
-      // Undefined for non-sticky / url-form proxies — legitimately absent.
-      sticky_session_id: m.sticky_session_id,
-      sticky_hash: m.sticky_hash,
-      // G11: full ip-api exit enrichment (ASN, ISP/org, reverse-DNS, geo,
-      // proxy/hosting/mobile reputation flags), verbatim. Absent when ip-api
-      // failed or the run had no exit IP.
-      exit_reputation: m.exit_reputation,
-    };
-    // G6: full raw identity for EVERY run (not just register), verbatim. Raw
-    // values in the row are explicitly approved. Present whenever the run
-    // generated one (a platform was given); session_meta.json is the storage
-    // backup for non-register runs that never write account.json via saveAccount.
-    if (m.identity) result.identity = m.identity;
-    // G9: per-run human-timing seed — makes the run's mouse/typing jitter
-    // reproducible from the row. Required non-null on current session_meta.
-    if (typeof m.timing_seed === 'number') result.run = { timing_seed: m.timing_seed };
-  } else {
-    // G19 fallback: no session_meta.json means the trajectory exited before
-    // WSession.start ever wrote provenance — a trajectory-level early exit (e.g.
-    // a pre-session guard that process.exit()s, like linkedin_register's exit 3).
-    // Never leave the run a black hole: synthesize the minimal envelope the
-    // WORKER knows — the requested proxy, the full runner env (raw; the row is
-    // service-role-only, same trust boundary as session_meta), and a marker
-    // explaining why persona/realized_fingerprint are absent (no session existed).
-    // result.versions + error are captured separately, so the row is now always
-    // queryable for "what proxy/env did this failed run request, and why".
-    const envAll: Record<string, string> = {};
-    for (const [k, v] of Object.entries(process.env)) if (typeof v === 'string') envAll[k] = v;
-    result.session = {
-      meta_missing: true,
-      proxy_requested: (row.params as Record<string, unknown> | undefined)?.proxy_url_override ?? null,
-      env_all: envAll,
-    };
-  }
-  // G7: full proxy preflight history — every provider/sticky attempt with its
-  // connect status, geo/probe results, and rejection reason. Copied verbatim
-  // (full attempts array, no subset) into result.session.proxy_preflight so the
-  // exact selection path that produced this run's exit is queryable. Absent file
-  // (e.g. direct egress) => skipped, same best-effort pattern as session_meta.
-  {
-    const pf = await readJsonInRun(row.id, 'proxy_preflight.json');
-    if (pf) {
-      if (result.session && typeof result.session === 'object') {
-        (result.session as Record<string, unknown>).proxy_preflight = pf;
-      } else {
-        result.session = { proxy_preflight: pf };
-      }
-    }
-  }
+  // Rich per-run provenance: session_meta.json → persona / realized_fingerprint /
+  // browser_provenance / env / sticky / exit_reputation / identity / timing_seed,
+  // plus proxy_preflight.json, OR the meta_missing fallback when the run died
+  // before any session existed. Shared with the keeper via run-import.ts so both
+  // the worker and keeper paths import identically (no drift, no black holes).
+  const prov = await importRunProvenance(row.id, row.params);
+  if (prov.session) result.session = prov.session;
+  if (prov.identity) result.identity = prov.identity;
+  if (prov.run) result.run = prov.run;
   // G8: full per-run captcha event log — challenge_faced flag plus the complete
   // attempt/marker sequence (every solve, every all-providers-failed marker),
   // verbatim. Absent file (no session label) => skipped. A no-captcha run still

@@ -7,7 +7,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync, unlinkSync } from '
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
-const REPO = '/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles';
+const REPO = process.env.WELES_REPO || '/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles';
 const { WSession } = await import(`${REPO}/dist/session/wsession.js`);
 const { getSocialAccount, resolveAccountSession } = await import(`${REPO}/dist/utils/credentials.js`);
 const { humanType, humanFill } = await import(`${REPO}/dist/human/keyboard.js`);
@@ -16,6 +16,7 @@ const { wsSaveAccount } = await import(`${REPO}/dist/session/wsession-helpers/fi
 const { solveRecaptchaV2 } = await import(`${REPO}/dist/captcha/recaptcha.js`);
 const { captureVersions } = await import(`${REPO}/dist/diagnostics/versions.js`);
 const { uploadArtifacts } = await import(`${REPO}/dist/worker/upload-artifacts.js`);
+const { writeNetworkCapture } = await import(`${REPO}/dist/diagnostics/run-import.js`);
 const { setupKeeperFlow } = await import('./bookkeeping.mjs');
 
 const SESSION = process.env.SESSION || 'default';
@@ -60,6 +61,7 @@ const flow = await setupKeeperFlow({
   sessionMeta: { provider: 'keeper', proxy_url: proxy ?? null, platform: PLATFORM || null },
   captureVersionsFn: captureVersions,
   uploadArtifactsFn: uploadArtifacts,
+  writeNetworkCaptureFn: writeNetworkCapture,
   getLastUrl: () => s?.page?.url?.() ?? null,
   closeSessionFn: async () => {
     if (!s) return;
