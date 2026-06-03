@@ -237,7 +237,19 @@ export class WSession {
     if (label && bOpts.proxy?.server) {
       try {
         const u = new URL(bOpts.proxy.server);
-        writeFileSync(join(recordingsDir(label), 'session_meta.json'), JSON.stringify({
+        // Full per-run fingerprint provenance (G1): the randomized source
+        // persona AND the realized fingerprint actually presented (UA, full
+        // UA-CH brand list, navigator/screen/webgl), copied verbatim into
+        // account_action_logs.result.session by the worker importer.
+        // persona + realized_fingerprint are typed REQUIRED + non-null so a
+        // future edit cannot silently drop them to null: persona is always
+        // generated, and async_api always attaches a realized fingerprint.
+        const meta: {
+          proxy_host: string; proxy_port: string; proxy_user_present: boolean;
+          proxy_user_hash: unknown; exit_ip: unknown; platform: unknown; provider: unknown;
+          browser_provenance: unknown; persona: Persona; realized_fingerprint: Record<string, unknown>;
+          started_at: string;
+        } = {
           proxy_host: u.hostname,
           proxy_port: u.port,
           proxy_user_present: !!bOpts.proxy.username,
@@ -246,8 +258,11 @@ export class WSession {
           platform: bOpts.proxy.platform,
           provider: (bOpts.proxy as any).provider,
           browser_provenance: (ws as any)._browserProvenance,
+          persona,
+          realized_fingerprint: (ctx as any)._welesFingerprintConfig,
           started_at: new Date().toISOString(),
-        }, null, 2));
+        };
+        writeFileSync(join(recordingsDir(label), 'session_meta.json'), JSON.stringify(meta, null, 2));
       } catch {}
     }
     // Complete-record network capture: NO domain filter, NO body truncation.

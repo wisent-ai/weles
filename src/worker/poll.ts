@@ -223,6 +223,11 @@ export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
       exit_ip: m.exit_ip,
       platform: m.platform,
       provider: m.provider,
+      // G1: full persona + realized fingerprint, verbatim (no subset). Always
+      // present on session_meta written by current code; absent only on legacy
+      // pre-G1 runs (key simply omitted, not nulled).
+      persona: m.persona,
+      realized_fingerprint: m.realized_fingerprint,
     };
   } catch {}
   // IP-drift detection: first session stores observed exit_ip; subsequent sessions compare, mismatch -> ip_drift + pause.
