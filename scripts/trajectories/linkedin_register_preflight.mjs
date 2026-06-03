@@ -18,6 +18,13 @@ import {
 const ACTION = 'linkedin_register_preflight';
 const requestedProxy = process.env.LINKEDIN_REGISTER_PROXY ?? process.env.LINKEDIN_PROXY ?? process.env.PROXY_URL ?? 'isp decodo us';
 const outDir = join(process.cwd(), 'recordings', ACTION);
+const proxyResolverEvents = [];
+const originalConsoleLog = console.log.bind(console);
+console.log = (...args) => {
+  const line = args.map((arg) => typeof arg === 'string' ? arg : JSON.stringify(arg)).join(' ');
+  if (line.startsWith('[proxy]')) proxyResolverEvents.push(line.slice(0, 500));
+  originalConsoleLog(...args);
+};
 
 function safeRequestedProxy(value = '') {
   const raw = String(value ?? '');
@@ -44,8 +51,17 @@ function writeSignal(signal) {
 }
 
 function reasonFromError(errorMessage = '') {
+  const resolverText = proxyResolverEvents.join('\n');
   if (/Executable doesn't exist|browserType\.launch|WELES_FIREFOX_BINARY_NOT_FOUND|playwright install|missing.*browser|Nightly\.app/i.test(errorMessage)) {
     return { code: 'browser_launch_failed', message: errorMessage.slice(0, 240) };
+  }
+  if (/linkedin-probe .* -> challenge/i.test(resolverText)) {
+    const exitIps = [...resolverText.matchAll(/exit=([0-9a-fA-F:.]+)/g)].map((m) => m[1]);
+    const uniqueIps = [...new Set(exitIps)].join(',');
+    return {
+      code: 'linkedin_proxy_preflight_challenge',
+      message: `LinkedIn login probe returned challenge for exit_ip=${uniqueIps || 'unknown'}`,
+    };
   }
   if (/proxy_unavailable/i.test(errorMessage)) return { code: 'proxy_unavailable', message: errorMessage.slice(0, 240) };
   if (/PROXY_NOT_DEDICATED_ISP/.test(errorMessage)) return { code: 'proxy_not_dedicated_isp', message: errorMessage.slice(0, 240) };
@@ -90,6 +106,7 @@ try {
       diagnostics: {
         browser: browserSnapshot(session.browserName ?? process.env.WELES_BROWSER ?? 'firefox'),
         proxy: summarizeLinkedinProxyState(session, requestedProxy, expectedExitIp),
+        proxy_resolver_events: proxyResolverEvents,
       },
       failure_reasons: [],
       stage_events: stageEvents,
@@ -109,6 +126,7 @@ try {
       diagnostics: {
         browser: browserSnapshot(session?.browserName ?? process.env.WELES_BROWSER ?? 'firefox'),
         proxy: session ? summarizeLinkedinProxyState(session, requestedProxy, expectedExitIp) : { requested: safeRequestedProxy(requestedProxy) },
+        proxy_resolver_events: proxyResolverEvents,
       },
       failure_reasons: [reasonFromError(errorMessage)],
       stage_events: stageEvents,
