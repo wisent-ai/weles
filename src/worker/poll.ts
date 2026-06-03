@@ -30,10 +30,8 @@ function headers(): Record<string, string> {
 }
 
 async function runTrajectory(row: ActionLogRow, path: string, extraEnv: Record<string, string> = {}): Promise<{ exitCode: number; stderr: string }> {
-  // Delete stale ban_signal.json from prior run — same recordings/<action>/
-  // dir is shared across runs, so a killed predecessor would otherwise be
-  // attributed to this row.
-  try { await (await import('node:fs/promises')).unlink(join(RECORDINGS_ROOT, row.action, 'ban_signal.json')).catch(() => {}); } catch { /* noop */ }
+  // G17: recordings/<run_uuid>/ is unique per run, so there is no stale
+  // predecessor file to clear (the old shared recordings/<action>/ hazard is gone).
   // Hard wall-clock cap. Health/probe 90s; topup 360s; register/login 900s
   // (bumped from 600s 2026-05-05: CapMonster->CapSolver->AntiCaptcha V2
   // fall-through can take 12+ min). Override per-row via WORKER_HARD_TIMEOUT_MS.
@@ -84,25 +82,52 @@ async function diagnosticRetry(_row: ActionLogRow, _path: string): Promise<strin
   return null;
 }
 
-async function readBanSignal(action: string): Promise<BanSignal | null> {
-  const path = join(RECORDINGS_ROOT, action, 'ban_signal.json');
-  try {
-    const raw = await readFile(path, 'utf8');
-    return JSON.parse(raw) as BanSignal;
-  } catch { return null; }
+// G17: artifacts live under recordings/<run_uuid>/ (across varying
+// sub-action/label dirs). Find a file by name anywhere in the run's tree.
+async function findInRun(runId: string, filename: string): Promise<string | null> {
+  async function walk(dir: string): Promise<string | null> {
+    let entries: any[];
+    try { entries = (await readdir(dir, { withFileTypes: true } as any)) as any; } catch { return null; }
+    for (const e of entries) {
+      const full = join(dir, e.name);
+      if (e.isDirectory()) { const r = await walk(full); if (r) return r; }
+      else if (e.name === filename) return full;
+    }
+    return null;
+  }
+  return walk(join(RECORDINGS_ROOT, runId));
+}
+async function readJsonInRun(runId: string, filename: string): Promise<any | null> {
+  const p = await findInRun(runId, filename);
+  if (!p) return null;
+  try { return JSON.parse(await readFile(p, 'utf8')); } catch { return null; }
 }
 
-async function importHealthSnapshot(accountId: string, platform: string): Promise<{ signal: string; karma: number | null; shadowbanned: boolean } | null> {
-  const dir = join(RECORDINGS_ROOT, `${platform}_health`);
+async function readBanSignal(runId: string): Promise<BanSignal | null> {
+  return (await readJsonInRun(runId, 'ban_signal.json')) as BanSignal | null;
+}
+
+async function importHealthSnapshot(accountId: string, _platform: string, runId: string): Promise<{ signal: string; karma: number | null; shadowbanned: boolean } | null> {
+  // G17: the health snapshot json is written somewhere under recordings/<run_uuid>/.
+  // Collect all .json under the run tree (newest-first by mtime) and pick the
+  // health snapshot matching this account (has account_id + checked_at).
   let snapshot: any = null;
   try {
-    // Scan newest-first (by mtime); pick the file matching accountId. Plain
-    // alphabetical sort picks a different account's file and returns null.
-    const files = (await readdir(dir)).filter((f) => f.endsWith('.json'));
-    const stats = await Promise.all(files.map(async (f) => ({ f, m: (await stat(join(dir, f))).mtimeMs })));
-    for (const { f } of stats.sort((a, b) => b.m - a.m)) {
-      const parsed = JSON.parse(await readFile(join(dir, f), 'utf8'));
-      if (parsed.account_id === accountId) { snapshot = parsed; break; }
+    const root = join(RECORDINGS_ROOT, runId);
+    const found: Array<{ path: string; m: number }> = [];
+    const walk = async (dir: string): Promise<void> => {
+      let entries: any[];
+      try { entries = (await readdir(dir, { withFileTypes: true } as any)) as any; } catch { return; }
+      for (const e of entries) {
+        const full = join(dir, e.name);
+        if (e.isDirectory()) { await walk(full); continue; }
+        if (e.name.endsWith('.json')) { try { found.push({ path: full, m: (await stat(full)).mtimeMs }); } catch { /* skip */ } }
+      }
+    };
+    await walk(root);
+    for (const { path } of found.sort((a, b) => b.m - a.m)) {
+      const parsed = JSON.parse(await readFile(path, 'utf8'));
+      if (parsed.account_id === accountId && parsed.checked_at) { snapshot = parsed; break; }
     }
     if (!snapshot) return null;
   } catch { return null; }
@@ -119,11 +144,9 @@ async function importHealthSnapshot(accountId: string, platform: string): Promis
   return { signal: snapshot.signal, karma: snapshot.karma ?? null, shadowbanned: !!snapshot.shadowbanned };
 }
 
-async function importCreatedAccount(action: string): Promise<{ id: string; username: string; platform: string } | null> {
-  // WSession.saveAccount writes recordings/<label>/account.json after a successful
-  // POST to social_accounts. Label for register trajectories = action name.
-  const path = join(RECORDINGS_ROOT, action, 'account.json');
-  try { return JSON.parse(await readFile(path, 'utf8')); } catch { return null; }
+async function importCreatedAccount(runId: string): Promise<{ id: string; username: string; platform: string } | null> {
+  // WSession.saveAccount writes account.json under recordings/<run_uuid>/<label>/.
+  return (await readJsonInRun(runId, 'account.json')) as { id: string; username: string; platform: string } | null;
 }
 
 async function pauseAccount(accountId: string, signal?: string, hours = 24): Promise<void> {
@@ -211,7 +234,7 @@ export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
 
   const runStart = new Date();
   const { exitCode, stderr } = await runTrajectory(row, trajPath);
-  const banSignal = await readBanSignal(row.action);
+  const banSignal = await readBanSignal(row.id);
   const result: Record<string, unknown> = { versions: captureVersions(trajPath) };
   // G5: when the run executed against a dirty repo/trajectory, mirror the full
   // working-tree diff (already captured in result.versions.dirty_diff) to
@@ -222,11 +245,15 @@ export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
     if (v.weles_dirty === true || v.trajectory_file_dirty === true) {
       let diff = typeof v.dirty_diff === 'string' ? (v.dirty_diff as string) : '';
       if (!diff) { try { diff = execSync('git diff', { encoding: 'utf8' }); } catch { /* best-effort */ } }
-      if (diff) await writeFile(join(RECORDINGS_ROOT, row.action, 'source_diff.patch'), diff);
+      if (diff) {
+        const pdir = join(RECORDINGS_ROOT, row.id, row.action);
+        await (await import('node:fs/promises')).mkdir(pdir, { recursive: true });
+        await writeFile(join(pdir, 'source_diff.patch'), diff);
+      }
     }
   } catch { /* best-effort */ }
-  try {
-    const m = JSON.parse(await readFile(join(RECORDINGS_ROOT, row.action, 'session_meta.json'), 'utf8'));
+  const m = await readJsonInRun(row.id, 'session_meta.json');
+  if (m) {
     result.session = {
       proxy_host: m.proxy_host,
       proxy_port: m.proxy_port,
@@ -266,28 +293,30 @@ export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
     // G9: per-run human-timing seed — makes the run's mouse/typing jitter
     // reproducible from the row. Required non-null on current session_meta.
     if (typeof m.timing_seed === 'number') result.run = { timing_seed: m.timing_seed };
-  } catch {}
+  }
   // G7: full proxy preflight history — every provider/sticky attempt with its
   // connect status, geo/probe results, and rejection reason. Copied verbatim
   // (full attempts array, no subset) into result.session.proxy_preflight so the
   // exact selection path that produced this run's exit is queryable. Absent file
   // (e.g. direct egress) => skipped, same best-effort pattern as session_meta.
-  try {
-    const pf = JSON.parse(await readFile(join(RECORDINGS_ROOT, row.action, 'proxy_preflight.json'), 'utf8'));
-    if (result.session && typeof result.session === 'object') {
-      (result.session as Record<string, unknown>).proxy_preflight = pf;
-    } else {
-      result.session = { proxy_preflight: pf };
+  {
+    const pf = await readJsonInRun(row.id, 'proxy_preflight.json');
+    if (pf) {
+      if (result.session && typeof result.session === 'object') {
+        (result.session as Record<string, unknown>).proxy_preflight = pf;
+      } else {
+        result.session = { proxy_preflight: pf };
+      }
     }
-  } catch {}
+  }
   // G8: full per-run captcha event log — challenge_faced flag plus the complete
   // attempt/marker sequence (every solve, every all-providers-failed marker),
   // verbatim. Absent file (no session label) => skipped. A no-captcha run still
   // produces {challenge_faced:false, events:[]}, distinct from a missing file.
-  try {
-    const cap = JSON.parse(await readFile(join(RECORDINGS_ROOT, row.action, 'captcha_events.json'), 'utf8'));
-    result.captcha = cap;
-  } catch {}
+  {
+    const cap = await readJsonInRun(row.id, 'captcha_events.json');
+    if (cap) result.captcha = cap;
+  }
   // IP-drift detection: first session stores observed exit_ip; subsequent sessions compare, mismatch -> ip_drift + pause.
   try { const ip = (result.session as any)?.exit_ip; if (ip && row.account_id) { const r = await fetch(`${SUPABASE_URL}/rest/v1/social_accounts?id=eq.${row.account_id}&select=metadata`, { headers: headers() }); if (r.ok) { const j = await r.json() as any[]; const m = j[0]?.metadata ?? {}; const stored = m.proxy?.exit_ip; if (!stored) { const nm = { ...m, proxy: { ...(m.proxy ?? {}), exit_ip: ip } }; await fetch(`${SUPABASE_URL}/rest/v1/social_accounts?id=eq.${row.account_id}`, { method: 'PATCH', headers: { ...headers(), Prefer: 'return=minimal' }, body: JSON.stringify({ metadata: nm }) }); } else if (stored !== ip) { result.ban_signal = { healthy: false, signal: 'ip_drift', details: { expected: stored, observed: ip } }; await pauseAccount(row.account_id, 'ip_drift'); } } } } catch (e) { console.log('[ip-drift]', e instanceof Error ? e.message : String(e)); }
   if (banSignal) {
@@ -309,11 +338,11 @@ export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
     if (s?.provider) await recordOutcome(s.provider, row.action, finalStatus, finalSignal, row.platform);
   } catch { /* best-effort */ }
   if (row.action.endsWith('_health') && row.account_id) {
-    const snap = await importHealthSnapshot(row.account_id, row.action.slice(0, -'_health'.length));
+    const snap = await importHealthSnapshot(row.account_id, row.action.slice(0, -'_health'.length), row.id);
     if (snap) { result.health_snapshot = snap; result.ban_signal = { healthy: snap.signal === 'healthy', signal: snap.signal }; }
   }
   if (row.action.endsWith('_register')) {
-    const created = await importCreatedAccount(row.action);
+    const created = await importCreatedAccount(row.id);
     if (created) {
       result.account_id = created.id;
       // Back-link the action_log row to the new account so timeline queries work.
@@ -328,9 +357,9 @@ export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
   await uploadArtifacts(row.action, row.id, runStart, { force: true }).then(a => { if (a) result.artifacts = a }).catch(() => {});
   const costs = await readCosts(row.id);
   if (costs) console.log(`[worker] ${row.id.slice(0, 8)} cost=$${costs.cost_usd.toFixed(4)} services=${Object.keys(costs.service_costs).join(',')}`);
-  const pendingPath = join(RECORDINGS_ROOT, row.action, 'pending_review.json');
+  const pendingPath = await findInRun(row.id, 'pending_review.json');
   let pending: Record<string, unknown> | null = null;
-  try { pending = JSON.parse(await readFile(pendingPath, 'utf8')); await unlink(pendingPath); } catch { pending = null; }
+  if (pendingPath) { try { pending = JSON.parse(await readFile(pendingPath, 'utf8')); await unlink(pendingPath); } catch { pending = null; } }
   if (exitCode === 0 && pending) {
     result.pending_review = pending;
     await writeResult(row.id, 'pending_review', result, undefined, costs ?? undefined);
