@@ -228,6 +228,9 @@ export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
       // pre-G1 runs (key simply omitted, not nulled).
       persona: m.persona,
       realized_fingerprint: m.realized_fingerprint,
+      // G2: effective behavior-changing env flags snapshotted at session start,
+      // verbatim. Always present on current session_meta; key omitted on legacy.
+      env_flags: m.env_flags,
     };
   } catch {}
   // IP-drift detection: first session stores observed exit_ip; subsequent sessions compare, mismatch -> ip_drift + pause.
