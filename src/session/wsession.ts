@@ -267,9 +267,12 @@ export class WSession {
         if (r.ok()) { const t = (await r.text()).trim(); if (/^[0-9a-fA-F.:]+$/.test(t)) (bOpts.proxy as any).exit_ip = t; }
       } catch {}
     }
-    if (label && bOpts.proxy?.server) {
+    // G14: write provenance for EVERY labelled run, proxied or not. The whole
+    // block used to be gated on bOpts.proxy?.server, so direct (no-proxy)
+    // browser runs recorded none of it. Proxy-derived fields are now optional.
+    if (label) {
       try {
-        const u = new URL(bOpts.proxy.server);
+        const u = bOpts.proxy?.server ? new URL(bOpts.proxy.server) : null;
         // Full per-run fingerprint provenance (G1): the randomized source
         // persona AND the realized fingerprint actually presented (UA, full
         // UA-CH brand list, navigator/screen/webgl), copied verbatim into
@@ -278,7 +281,7 @@ export class WSession {
         // future edit cannot silently drop them to null: persona is always
         // generated, and async_api always attaches a realized fingerprint.
         const meta: {
-          proxy_host: string; proxy_port: string; proxy_user_present: boolean;
+          proxy_host?: string; proxy_port?: string; proxy_user_present: boolean;
           proxy_user_hash: unknown; exit_ip: unknown; platform: unknown; provider: unknown;
           browser_provenance: unknown; persona: Persona; realized_fingerprint: Record<string, unknown>;
           env_flags: Record<string, string | undefined>;
@@ -288,13 +291,13 @@ export class WSession {
           timing_seed: number;
           started_at: string;
         } = {
-          proxy_host: u.hostname,
-          proxy_port: u.port,
-          proxy_user_present: !!bOpts.proxy.username,
-          proxy_user_hash: hashDiagnosticValue(bOpts.proxy.username),
-          exit_ip: bOpts.proxy.exit_ip,
-          platform: bOpts.proxy.platform,
-          provider: (bOpts.proxy as any).provider,
+          proxy_host: u?.hostname,
+          proxy_port: u?.port,
+          proxy_user_present: !!bOpts.proxy?.username,
+          proxy_user_hash: hashDiagnosticValue(bOpts.proxy?.username),
+          exit_ip: bOpts.proxy?.exit_ip,
+          platform: bOpts.proxy?.platform,
+          provider: (bOpts.proxy as any)?.provider,
           browser_provenance: (ws as any)._browserProvenance,
           persona,
           realized_fingerprint: (ctx as any)._welesFingerprintConfig,
@@ -307,12 +310,12 @@ export class WSession {
           // G4: which sticky exit this session pinned to. Undefined for
           // non-sticky / url-form proxies (legitimately — only sticky-capable
           // providers populate it), so it is NOT forced non-null.
-          sticky_session_id: (bOpts.proxy as any).sticky_session_id,
-          sticky_hash: (bOpts.proxy as any).sticky_hash,
+          sticky_session_id: (bOpts.proxy as any)?.sticky_session_id,
+          sticky_hash: (bOpts.proxy as any)?.sticky_hash,
           // G11: full ip-api enrichment of the winning exit IP (ASN, ISP/org,
           // reverse-DNS, region/city/geo, proxy/hosting/mobile flags). Optional
           // — ip-api can fail or the run may have no exit IP.
-          exit_reputation: (bOpts.proxy as any).exit_reputation,
+          exit_reputation: (bOpts.proxy as any)?.exit_reputation,
           // G6: full raw generated identity (first/last/username/email/password/
           // DOB) for EVERY run that has one — not just register. Raw values in
           // the row are explicitly approved. Present whenever a platform was
