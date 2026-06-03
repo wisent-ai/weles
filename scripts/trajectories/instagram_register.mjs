@@ -1,4 +1,5 @@
 import { WSession } from '../../dist/session/wsession.js';
+import { runRecordingsDir } from '../../dist/session/run-recordings.js';
 import { humanType, humanFill } from '../../dist/human/keyboard.js';
 import { humanIdlePause } from '../../dist/human/mouse.js';
 import { autoBindCharacter } from './lib/character-bind.mjs';
@@ -81,7 +82,7 @@ async function signup(s, attempt = 1) {
   await sleep(1);
 
   // Take screenshot before submit to verify form state
-  await s.page.screenshot({ path: `/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/recordings/ig_before_submit.png` }).catch(() => {});
+  await s.page.screenshot({ path: `${runRecordingsDir('instagram_register')}/ig_before_submit.png` }).catch(() => {});
   // Click Sign up — IG renders the submit control as
   // <div role="button" tabindex="0"> containing a <span>Submit</span>;
   // there are no <button> tags on the page (verified 2026-05-19 in
@@ -93,7 +94,7 @@ async function signup(s, attempt = 1) {
   await s.click('Submit');
   await sleep(5);
   // Screenshot after submit
-  await s.page.screenshot({ path: `/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles/recordings/ig_after_submit.png` }).catch(() => {});
+  await s.page.screenshot({ path: `${runRecordingsDir('instagram_register')}/ig_after_submit.png` }).catch(() => {});
 
 
   // Wait for confirmation code page to appear (or any post-signup page)

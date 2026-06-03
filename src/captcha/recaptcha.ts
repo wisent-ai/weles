@@ -6,6 +6,7 @@ import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { askPage, type ScreenshottablePage } from '../vision/analyze.js';
 import { humanIdlePause } from '../human/mouse.js';
+import { runRecordingsDir } from '../session/run-recordings.js';
 
 type Page = any;
 // MAX_ATTEMPTS removed 2026-05-06: blind retries trip LinkedIn login-restriction.
@@ -72,7 +73,7 @@ async function classifyGrid(bframe: any, instruction: string, gridSize: number):
   } catch (e: any) { console.log(`[recaptcha] grid screenshot err: ${e?.message?.slice(0, 80)}`); }
   if (!gridImgB64) return null;
   // Save extracted grid for diagnostic comparison with displayed grid
-  const diagDir = join(process.cwd(), 'recordings', 'vision');
+  const diagDir = runRecordingsDir('vision'); // G17: recordings/<run_uuid>/vision/
   mkdirSync(diagDir, { recursive: true });
   writeFileSync(join(diagDir, 'extracted_grid_latest.png'), Buffer.from(gridImgB64, 'base64'));
   // Multi-solver consensus. Run NopeCha + CapSolver + 2captcha in parallel,
@@ -260,7 +261,7 @@ export async function solveRecaptchaV2(page: Page): Promise<boolean> {
     console.log(`[recaptcha] Attempt ${attempt+1}: "${instruction.replace(/\n/g,' ').slice(0,60)}" grid=${gridSize}`);
 
     // Save diagnostics: page screenshot + extracted grid image for comparison
-    const diagDir = join(process.cwd(), 'recordings', 'vision');
+    const diagDir = runRecordingsDir('vision'); // G17: recordings/<run_uuid>/vision/
     mkdirSync(diagDir, { recursive: true });
     const pageScreenshot = await page.screenshot().catch(() => Buffer.from(''));
     writeFileSync(join(diagDir, `captcha_attempt${attempt}_page.png`), pageScreenshot);

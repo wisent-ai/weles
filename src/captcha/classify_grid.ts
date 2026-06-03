@@ -6,6 +6,7 @@
 // replacement between rounds is reflected in the image sent to solvers.
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { runRecordingsDir } from '../session/run-recordings.js';
 
 const CATEGORY_CODES: Record<string, string> = {
   taxi: '/m/0pg52', taxis: '/m/0pg52', bus: '/m/01bjv', buses: '/m/01bjv',
@@ -43,7 +44,7 @@ export async function classifyGrid(bframe: any, instruction: string, gridSize: n
     }
   } catch (e: any) { console.log(`[recaptcha] grid screenshot err: ${e?.message?.slice(0, 80)}`); }
   if (!gridImgB64) return null;
-  const diagDir = join(process.cwd(), 'recordings', 'vision');
+  const diagDir = runRecordingsDir('vision'); // G17: recordings/<run_uuid>/vision/
   mkdirSync(diagDir, { recursive: true });
   writeFileSync(join(diagDir, 'extracted_grid_latest.png'), Buffer.from(gridImgB64, 'base64'));
   const { getCaptchaCredentials: getCreds } = await import('../utils/credentials.js');
