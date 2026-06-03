@@ -97,6 +97,16 @@ const records = {
   cdp_network: [],
   stdout: [],
 };
+writeFileSync(join(OUT_DIR, 'real_chrome_session.json'), JSON.stringify({
+  kind: 'linkedin_real_chrome_register_probe',
+  run_id: records.run_id,
+  action: records.action,
+  browser_binary: records.browser_binary,
+  browser_version: records.browser_version,
+  target_url: records.target_url,
+  output_json: outPath,
+  launched_at: records.started_at,
+}, null, 2));
 
 function log(line) {
   records.stdout.push({ t: Date.now(), line });
