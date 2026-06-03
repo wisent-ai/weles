@@ -33,8 +33,26 @@ export function instructionToCode(instruction: string): string | null {
 export async function classifyGrid(bframe: any, instruction: string, gridSize: number): Promise<number[] | null> {
   let gridImgB64: string | null = null;
   try {
-    const targetSel = 'table.rc-imageselect-table-33, table.rc-imageselect-table-44, table.rc-imageselect-table, div.rc-imageselect-payload';
-    const handle = await bframe.$(targetSel);
+    const selectors = [
+      'table.rc-imageselect-table-33',
+      'table.rc-imageselect-table-44',
+      'table.rc-imageselect-table',
+      'div.rc-imageselect-payload',
+    ];
+    await bframe.waitForFunction(`() => {
+      const table = document.querySelector('table.rc-imageselect-table-33, table.rc-imageselect-table-44, table.rc-imageselect-table');
+      if (!table) return false;
+      const rect = table.getBoundingClientRect();
+      const imgs = Array.from(table.querySelectorAll('img'));
+      return rect.width > 100 && rect.height > 100 && imgs.length > 0 &&
+        imgs.every((img) => img.complete && img.naturalWidth > 0 && img.naturalHeight > 0);
+    }`, null, { timeout: 8000 }).catch(() => {});
+    await new Promise(r => setTimeout(r, 500));
+    let handle: any = null;
+    for (const sel of selectors) {
+      handle = await bframe.$(sel);
+      if (handle) break;
+    }
     if (handle) {
       const shotP = handle.screenshot({ type: 'jpeg', quality: 90 });
       const deadline = new Promise<Buffer>((_, rej) => setTimeout(() => rej(new Error('screenshot_deadline')), 6000));
@@ -49,6 +67,7 @@ export async function classifyGrid(bframe: any, instruction: string, gridSize: n
   const { getCaptchaCredentials: getCreds } = await import('../utils/credentials.js');
   const creds = await getCreds();
   const instr = instruction.replace(/\n/g, ' ').trim();
+  const dynamicGrid = /verify once/i.test(instr);
 
   async function nopechaSolve(): Promise<number[] | null> {
     const k = creds.nopecha; if (!k) return null;
@@ -67,14 +86,15 @@ export async function classifyGrid(bframe: any, instruction: string, gridSize: n
     } catch {}
     return null;
   }
-  async function capsolverSolve(): Promise<number[] | null> {
-    const k = creds.capsolver; const q = instructionToCode(instruction); if (!k || !q) return null;
-    try {
-      const d = await (await fetch('https://api.capsolver.com/createTask', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clientKey: k, task: { type: 'ReCaptchaV2Classification', image: gridImgB64, question: q } }) })).json() as any;
-      return Array.isArray(d.solution?.objects) ? (d.solution.objects as number[]).map(i => i + 1) : null;
-    } catch { return null; }
-  }
+	  async function capsolverSolve(): Promise<number[] | null> {
+	    const k = creds.capsolver; const q = instructionToCode(instruction); if (!k || !q) return null;
+	    try {
+	      const d = await (await fetch('https://api.capsolver.com/createTask', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+	        body: JSON.stringify({ clientKey: k, task: { type: 'ReCaptchaV2Classification', websiteURL: 'https://www.linkedin.com/signup', image: gridImgB64, question: q } }) })).json() as any;
+	      if (d?.errorId) console.log(`[recaptcha] CapSolver error ${d.errorCode ?? d.errorId}: ${String(d.errorDescription ?? '').slice(0, 120)}`);
+	      return Array.isArray(d.solution?.objects) ? (d.solution.objects as number[]).map(i => i + 1) : null;
+	    } catch { return null; }
+	  }
   async function twocaptchaSolve(): Promise<number[] | null> {
     const k = creds.twocaptcha; if (!k) return null;
     const c = await (await fetch('https://api.2captcha.com/createTask', {
@@ -117,7 +137,7 @@ export async function classifyGrid(bframe: any, instruction: string, gridSize: n
     if (pos) answers.push({ name: labels[i], positions: pos });
   });
   if (answers.length === 0) return null;
-  if (answers.length === 1) {
+	  if (answers.length === 1) {
     try {
       if (process.env.WELES_RECAPTCHA_USE_CLAUDE !== '1') throw new Error('claude disabled');
       const v = await import('../vision/analyze.js') as any;
@@ -129,8 +149,12 @@ export async function classifyGrid(bframe: any, instruction: string, gridSize: n
         if (mm) { try { const cp = JSON.parse(mm[0]); if (Array.isArray(cp)) { console.log(`[recaptcha] Claude tiebreaker: ${JSON.stringify(cp)}`); answers.push({ name: 'Claude', positions: cp }); } } catch {} }
       }
     } catch {}
-    if (answers.length === 1) { console.log(`[recaptcha] Only ${answers[0].name} responded`); return answers[0].positions; }
-  }
+	    if (answers.length === 1) {
+	      console.log(`[recaptcha] Only ${answers[0].name} responded`);
+	      if (dynamicGrid || process.env.WELES_RECAPTCHA_ALLOW_SINGLE_SERVICE === '1') return answers[0].positions;
+	      return null;
+	    }
+	  }
   const apiAnswers = answers.filter(a => a.name !== 'Claude');
   const exactApi = new Map<string, { positions: number[]; names: string[] }>();
   for (const a of apiAnswers) {
@@ -146,11 +170,26 @@ export async function classifyGrid(bframe: any, instruction: string, gridSize: n
     }
   }
   if (apiAnswers.length >= 2) {
-    const union = [...new Set(apiAnswers.flatMap(a => a.positions))].sort((a, b) => a - b);
-    if (union.length > 0) {
-      console.log(`[recaptcha] API union ${apiAnswers.map(a => a.name).join('+')}: ${JSON.stringify(union)}`);
-      return union;
+    const tally = new Map<number, number>();
+    for (const a of apiAnswers) {
+      for (const p of new Set(a.positions)) tally.set(p, (tally.get(p) ?? 0) + 1);
     }
+    const agreed = [...tally.entries()].filter(([, c]) => c >= 2).map(([p]) => p).sort((a, b) => a - b);
+    if (agreed.length > 0) {
+      console.log(`[recaptcha] API tile agreement ${apiAnswers.map(a => a.name).join('+')}: ${JSON.stringify(agreed)}`);
+      return agreed;
+    }
+    if (dynamicGrid) {
+      const nonEmpty = apiAnswers.filter(a => a.positions.length > 0).sort((a, b) => a.positions.length - b.positions.length);
+      if (nonEmpty.length === 0) {
+        console.log('[recaptcha] Dynamic API agreement: no remaining tiles');
+        return [];
+      }
+      console.log(`[recaptcha] Dynamic API fallback ${nonEmpty[0].name}: ${JSON.stringify(nonEmpty[0].positions)}`);
+      return nonEmpty[0].positions;
+    }
+    console.log(`[recaptcha] API disagreement too wide: ${apiAnswers.map(a => `${a.name}=${JSON.stringify(a.positions)}`).join(', ')}`);
+    return null;
   }
   const claudeAns = answers.find(a => a.name === 'Claude');
   if (claudeAns && claudeAns.positions.length > 0) {

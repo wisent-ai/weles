@@ -288,7 +288,7 @@ async function injectRecaptchaToken(page, token) {
 
 const proxy = decodoProxy();
 const identity = genIdentity();
-const userDataDir = mkdtempSync(join(tmpdir(), 'linkedin-challenge-solve-probe-'));
+const userDataDir = process.env.LINKEDIN_PROBE_USER_DATA_DIR || mkdtempSync(join(tmpdir(), 'linkedin-challenge-solve-probe-'));
 const chromeVersion = execFileSync(CHROME_BIN, ['--version'], { encoding: 'utf8' }).trim();
 const records = {
   started_at: new Date().toISOString(),
@@ -350,7 +350,16 @@ try {
   const ipRes = await context.request.get('https://api.ipify.org', { timeout: 10_000 }).catch(() => null);
   records.exit_ip = ipRes?.ok?.() ? (await ipRes.text()).trim() : null;
 
-  await page.goto('https://www.linkedin.com/signup', { waitUntil: 'domcontentloaded', timeout: 45_000 });
+  if (process.env.LINKEDIN_PROBE_ENTRY_PATH === 'linkedin_home') {
+    await page.goto('https://www.linkedin.com/', { waitUntil: 'domcontentloaded', timeout: 45_000 });
+    await humanIdlePause('deliberate');
+    const joinLink = page.locator('a:has-text("Join now"), a:has-text("Join"), a[href*="/signup"]').filter({ visible: true }).first();
+    if (await joinLink.count().catch(() => 0)) await humanClickLocator(page, joinLink);
+    else await page.goto('https://www.linkedin.com/signup', { waitUntil: 'domcontentloaded', timeout: 45_000, referer: 'https://www.linkedin.com/' });
+  } else {
+    await page.goto('https://www.linkedin.com/signup', { waitUntil: 'domcontentloaded', timeout: 45_000 });
+  }
+  await page.waitForURL(/\/signup/, { timeout: 15_000 }).catch(() => {});
   await humanIdlePause('deliberate');
   await humanFill(page, page.locator('input[name="email-address"], input#email-address, input[type="email"]').first(), identity.email);
   await humanFill(page, page.locator('input[name="password"], input#password, input[type="password"]').first(), identity.password);
