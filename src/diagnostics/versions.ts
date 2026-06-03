@@ -8,7 +8,7 @@
 import { execSync } from 'node:child_process';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { createHash } from 'node:crypto';
-import { hostname, userInfo } from 'node:os';
+import { hostname, userInfo, release, cpus, totalmem, networkInterfaces } from 'node:os';
 import { isAbsolute, join, relative } from 'node:path';
 
 // Worker entry (scripts/worker/run.mjs) is invoked with cwd=weles repo root,
@@ -25,6 +25,37 @@ function safeExec(cmd: string): string | null {
 function getUser(): string | null {
   try { return userInfo().username; } catch { return process.env.USER ?? null; }
 }
+
+// G13: runner machine identity. Non-internal interface addresses (local/LAN IPs
+// + MACs) and a best-effort stable machine id.
+function getLocalIps(): Array<{ iface: string; address: string; mac: string; family: string }> {
+  const out: Array<{ iface: string; address: string; mac: string; family: string }> = [];
+  try {
+    for (const [iface, addrs] of Object.entries(networkInterfaces())) {
+      for (const a of addrs ?? []) {
+        if (a.internal) continue;
+        out.push({ iface, address: a.address, mac: a.mac, family: String(a.family) });
+      }
+    }
+  } catch { /* best-effort */ }
+  return out;
+}
+function getMachineId(): string | null {
+  return safeExec('cat /etc/machine-id')
+    || safeExec(`ioreg -rd1 -c IOPlatformExpertDevice | awk -F'"' '/IOPlatformUUID/{print $4}'`)
+    || null;
+}
+// The runner's REAL public/egress IP — a DIRECT (non-proxied) fetch, fired once
+// at module load in the long-lived worker process and cached, so it adds no
+// per-run latency and never leaks through a trajectory's proxy. Distinct from
+// result.session.exit_ip (the proxy exit). Stays null until the fetch resolves.
+let _publicIp: string | null = null;
+void (async () => {
+  try {
+    const r = await fetch('https://api.ipify.org', { signal: AbortSignal.timeout(5000) });
+    if (r.ok) _publicIp = (await r.text()).trim() || null;
+  } catch { /* best-effort; remains null */ }
+})();
 
 function getDirty(porcelain: string | null): boolean | null {
   if (porcelain === null) return null;
@@ -143,11 +174,31 @@ const STATIC = (() => {
     worker_user: getUser(),
     node_version: process.version,
     worker_started_at: new Date().toISOString(),
+    // G13: full runner machine identity (sync parts captured once; public_ip is
+    // merged in per-call by captureVersions from the cached async fetch). Lets
+    // you attribute a run to the exact physical box/site, OS, and hardware —
+    // not just the hostname (which can collide across the fleet).
+    machine: {
+      hostname: hostname(),
+      user: getUser(),
+      platform: process.platform,
+      arch: process.arch,
+      os_release: release(),
+      cpu_model: cpus()[0]?.model ?? null,
+      cpu_count: cpus().length,
+      total_mem_gb: Math.round((totalmem() / 1e9) * 10) / 10,
+      local_ips: getLocalIps(),
+      machine_id: getMachineId(),
+      pid: process.pid,
+    },
   };
 })();
 
 export function captureVersions(trajPath: string | null): Record<string, unknown> {
   const out: Record<string, unknown> = { ...STATIC, recorded_at: new Date().toISOString() };
+  // Merge the cached runner public IP (resolved async after module load) into a
+  // fresh machine object so we don't mutate the shared STATIC.machine.
+  out.machine = { ...(STATIC.machine as Record<string, unknown>), public_ip: _publicIp };
   if (!trajPath) return out;
   const absPath = isAbsolute(trajPath) ? trajPath : join(WELES_ROOT, trajPath);
   out.trajectory_path = trajPath;
