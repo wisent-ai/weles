@@ -4,6 +4,7 @@
 
 import { getServiceLogin } from '../../../dist/utils/credentials.js';
 import { WSession } from '../../../dist/session/wsession.js';
+import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
 import { googleSso } from '../_shared/services/google_sso.mjs';
 import { humanIdlePause } from '../../../dist/human/mouse.js';
 
@@ -57,7 +58,7 @@ try {
     if (!dismissed) break;
   }
 
-  await s.page.screenshot({ path: 'recordings/brightdata_enable_zone/before.png', fullPage: true }).catch(() => {});
+  await s.page.screenshot({ path: `${runRecordingsDir('brightdata_enable_zone')}/before.png`, fullPage: true }).catch(() => {});
 
   // The Disabled toggle is in the top-right of the page header. Find by
   // the [role="switch"] that's NOT in any dialog/modal.
@@ -109,7 +110,7 @@ try {
     }
   }
 
-  await s.page.screenshot({ path: 'recordings/brightdata_enable_zone/after.png', fullPage: true }).catch(() => {});
+  await s.page.screenshot({ path: `${runRecordingsDir('brightdata_enable_zone')}/after.png`, fullPage: true }).catch(() => {});
 
   // Verify enabled.
   const enabledNow = await s.page.evaluate(() => {

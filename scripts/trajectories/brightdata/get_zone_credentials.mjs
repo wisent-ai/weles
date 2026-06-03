@@ -15,6 +15,7 @@
 
 import { getServiceLogin } from '../../../dist/utils/credentials.js';
 import { WSession } from '../../../dist/session/wsession.js';
+import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
 import { googleSso } from '../_shared/services/google_sso.mjs';
 import { humanIdlePause } from '../../../dist/human/mouse.js';
 
@@ -98,7 +99,7 @@ try {
     await s.page.locator('button:has-text("Create Proxy")').first().click({ force: true }).catch((e) => console.log(`[trajectory] Create Proxy click err: ${e.message?.slice(0,80)}`));
     await humanIdlePause('long');
     console.log(`[trajectory] post-click url=${s.page.url()}`);
-    await s.page.screenshot({ path: 'recordings/brightdata_get_zone_credentials/after_create_proxy.png', fullPage: true }).catch(() => {});
+    await s.page.screenshot({ path: `${runRecordingsDir('brightdata_get_zone_credentials')}/after_create_proxy.png`, fullPage: true }).catch(() => {});
     const postClickButtons = await s.page.evaluate(() => Array.from(document.querySelectorAll('button, a, [role="button"]'))
       .filter(b => b.offsetParent !== null && (b.textContent || '').trim().length > 0)
       .slice(0, 40)
@@ -199,7 +200,7 @@ try {
   console.log(`[trajectory] click result:`, JSON.stringify(clicked));
   await humanIdlePause('long');
   console.log(`[trajectory] after-click url=${s.page.url()}`);
-  await s.page.screenshot({ path: 'recordings/brightdata_get_zone_credentials/zone_detail.png', fullPage: true }).catch(() => {});
+  await s.page.screenshot({ path: `${runRecordingsDir('brightdata_get_zone_credentials')}/zone_detail.png`, fullPage: true }).catch(() => {});
 
   // Skip any modals that appear on the zone detail page.
   for (const sel of ['button:has-text("Skip")', 'button:has-text("Got it")', 'button[aria-label="Close"]', '[aria-label="Close"]', 'button:has-text("Close")']) {
@@ -251,7 +252,7 @@ try {
     }
   }
   await humanIdlePause('short');
-  await s.page.screenshot({ path: 'recordings/brightdata_get_zone_credentials/after_reveal.png', fullPage: true }).catch(() => {});
+  await s.page.screenshot({ path: `${runRecordingsDir('brightdata_get_zone_credentials')}/after_reveal.png`, fullPage: true }).catch(() => {});
 
   // Scrape access params. BrightData typically renders them as labeled rows
   // ("Host: ... Port: ... User: brd-customer-... Password: ...").
