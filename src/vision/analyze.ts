@@ -2,6 +2,7 @@ import { execSync, spawnSync } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pruneRecordings } from '../prune.js';
+import { runRecordingsDir } from '../session/run-recordings.js';
 import { parseXY, parseElements, filterElements, centerCrop } from './escalation.js';
 
 // ---------------------------------------------------------------------------
@@ -58,7 +59,7 @@ export class VisionRefusedError extends Error {
 const VISION_TIMEOUT_MS = 2 * 60 * 1000;
 
 function visionDir(): string {
-  const dir = process.env.WELES_VISION_DIR ?? join(process.cwd(), 'recordings', 'vision');
+  const dir = process.env.WELES_VISION_DIR ?? runRecordingsDir('vision'); // G17: recordings/<run_uuid>/vision/
   mkdirSync(dir, { recursive: true });
   return dir;
 }

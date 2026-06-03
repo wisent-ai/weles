@@ -3,6 +3,7 @@
 // ---------------------------------------------------------------------------
 
 import { createHash } from 'node:crypto';
+import { runRecordingsDir } from '../session/run-recordings.js';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { LinkedInProbePersona } from './policy.js';
@@ -116,7 +117,7 @@ function diagHash(value: unknown): string | undefined {
 function proxyPreflightDir(): string | undefined {
   const label = process.env.WELES_PROXY_DIAGNOSTICS_LABEL || process.env.WELES_LABEL;
   if (!label) return undefined;
-  const dir = join(process.cwd(), 'recordings', label);
+  const dir = runRecordingsDir(label); // G17: recordings/<run_uuid>/<label>/proxy_preflight.json
   mkdirSync(dir, { recursive: true });
   return dir;
 }

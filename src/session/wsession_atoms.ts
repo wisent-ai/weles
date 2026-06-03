@@ -10,6 +10,7 @@
 import type { WSession } from './wsession.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { runRecordingsDir } from './run-recordings.js';
 
 declare module './wsession.js' {
   interface WSession {
@@ -71,7 +72,7 @@ W.prototype.fillSelector = function (css, value) {
 W.prototype.writeBanSignal = function (banSignal, extras) {
   const self = this as WSession;
   if (!self.label) return;
-  const dir = join(process.cwd(), 'recordings', self.label);
+  const dir = runRecordingsDir(self.label); // G17: recordings/<run_uuid>/<label>/
   try {
     mkdirSync(dir, { recursive: true });
     writeFileSync(

@@ -1,5 +1,6 @@
 // Pingproxies (Byteful) topup via Google SSO. Dry-run by default.
 import { WSession } from '../../../dist/session/wsession.js';
+import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
 import { googleSso, getGoogleSsoCreds } from '../_shared/services/google_sso.mjs';
 import { topupOpts, dryRunExit } from '../_shared/services/topup_common.mjs';
 import { humanIdlePause } from '../../../dist/human/mouse.js';
@@ -88,8 +89,8 @@ try {
       return dialogs.map(d => d.outerHTML).join('\n\n<!-- next dialog -->\n\n');
     });
     const fs = await import('node:fs');
-    fs.writeFileSync('/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/.work/topup-debug/pingproxies_modal.html', modalHtml);
-    console.log('[trajectory] dumped modal HTML to .work/topup-debug/pingproxies_modal.html');
+    fs.writeFileSync(`${runRecordingsDir('pingproxies_topup')}/pingproxies_modal.html`, modalHtml);
+    console.log('[trajectory] dumped modal HTML to recordings/<run>/pingproxies_topup/pingproxies_modal.html');
   } catch (e) { console.log('[diag] HTML dump err:', e.message?.slice(0, 80)); }
 
   if (!confirm) { await dryRunExit(s, 'pingproxies', usd); process.exit(0); }
