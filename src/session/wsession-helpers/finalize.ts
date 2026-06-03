@@ -212,6 +212,16 @@ export async function wsClose(s: WSession): Promise<void> {
     });
   }
   await s.ctx.close().catch((e: any) => console.log(`[wsession] ctx.close error: ${e.message?.slice(0, 200)}`));
+  // G8: persist the per-run captcha event log (challenge_faced + the full
+  // attempt/marker sequence) for storage backup + worker import. Always written
+  // so a no-captcha run is recorded as {challenge_faced:false, events:[]},
+  // distinguishable from a missing file.
+  if (s.label) {
+    try {
+      const { captchaSnapshot } = await import('../../captcha/events.js');
+      writeFileSync(join(recordingsDir(s.label), 'captcha_events.json'), JSON.stringify(captchaSnapshot(), null, 2));
+    } catch (e: any) { console.log(`[wsession] captcha_events write err: ${e?.message?.slice(0, 120)}`); }
+  }
   await costTracker.flush().catch(() => {});
   console.log(`[wsession] close() done`);
 }

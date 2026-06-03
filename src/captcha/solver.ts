@@ -6,6 +6,7 @@
 import { solveRecaptchaV2 } from './recaptcha.js';
 import { getCaptchaCredentials } from '../utils/credentials.js';
 import { costTracker } from '../utils/cost.js';
+import { markCaptchaChallenge, markAllProvidersFailed } from './events.js';
 
 type Page = any;
 
@@ -69,6 +70,7 @@ export class CaptchaSolver {
 
   async solveRecaptchaV2(page: Page, sitekey: string, options?: { enterprise?: boolean }): Promise<string | boolean | null> {
     await this._ensureInit();
+    markCaptchaChallenge();  // G8: a challenge was faced (flips challenge_faced even if every provider fails)
     // V2 chain: CapMonster → CapSolver → AntiCaptcha → image-grid.
     if (this._creds.capmonster) {
       const tType = options?.enterprise ? 'RecaptchaV2EnterpriseTaskProxyless' : 'NoCaptchaTaskProxyless';
@@ -92,11 +94,13 @@ export class CaptchaSolver {
     // Image-grid path for cases where API solvers fail and Google's
     // standard frame chain IS present (non-LinkedIn enterprise sites).
     if (options?.enterprise) return solveRecaptchaV2(page);
+    markAllProvidersFailed('recaptcha_v2');  // G8
     return null;
   }
 
   async solveRecaptchaV3(sitekey: string, url: string, action?: string): Promise<string | null> {
     await this._ensureInit();
+    markCaptchaChallenge();  // G8
     // CapSolver V3 first (enterprise + non-enterprise), then AntiCaptcha.
     if (this._creds.capsolver) {
       const token = await apiSolve('https://api.capsolver.com', this._creds.capsolver, {
@@ -117,18 +121,22 @@ export class CaptchaSolver {
       });
       if (token) { console.log('[captcha:solver] ReCaptchaV3 solved via anticaptcha'); costTracker.recordCaptcha('anticaptcha', 'recaptcha_v3'); return token; }
     }
+    markAllProvidersFailed('recaptcha_v3');  // G8
     return null;
   }
 
   async solveTurnstile(sitekey: string, url: string): Promise<string | null> {
     await this._ensureInit();
+    markCaptchaChallenge();  // G8
     if (this._creds.capsolver) {
       const token = await apiSolve('https://api.capsolver.com', this._creds.capsolver, {
         type: 'AntiTurnstileTaskProxyLess', websiteURL: url, websiteKey: sitekey,
       });
       if (token) costTracker.recordCaptcha('capsolver', 'turnstile');
+      if (!token) markAllProvidersFailed('turnstile');  // G8
       return token;
     }
+    markAllProvidersFailed('turnstile');  // G8: no provider configured / all failed
     return null;
   }
 
@@ -138,6 +146,7 @@ export class CaptchaSolver {
     proxy?: { server: string; username?: string; password?: string };
   }): Promise<string | null> {
     await this._ensureInit();
+    markCaptchaChallenge();  // G8
     const enterprise = !!options?.enterprisePayload;
     const useProxy = !!options?.proxy?.server;
     const baseTask: Record<string, any> = { type: useProxy ? 'HCaptchaTask' : 'HCaptchaTaskProxyless', websiteURL: url, websiteKey: sitekey };
@@ -169,6 +178,7 @@ export class CaptchaSolver {
       if (token) { console.log('[captcha:solver] Solved via capsolver'); costTracker.recordCaptcha('capsolver', 'hcaptcha'); return token; }
     }
     console.log('[captcha:solver] All services failed for hCaptcha');
+    markAllProvidersFailed('hcaptcha');  // G8
     return null;
   }
 
@@ -181,6 +191,7 @@ export class CaptchaSolver {
    */
   async solvePerimeterX(url: string, userAgent: string, cookies?: Array<{ name: string; value: string; domain?: string }>, proxy?: string): Promise<Array<{ name: string; value: string; domain: string; path: string }> | null> {
     await this._ensureInit();
+    markCaptchaChallenge();  // G8
     const u = new URL(url);
     const dotDom = u.hostname.startsWith('www.') ? u.hostname.slice(3) : ('.' + u.hostname);
     if (this._creds.capsolver) {
@@ -217,7 +228,7 @@ export class CaptchaSolver {
       } catch (e: any) { console.log(`[captcha:api] capsolver AntiPerimeterx fetch err: ${e.message?.slice(0, 100)}`); }
     }
     const token = this._creds.nocaptcha;
-    if (!token) { console.log('[captcha:solver] PerimeterX: no NOCAPTCHA_API_KEY (capsolver path returned no cookies)'); return null; }
+    if (!token) { console.log('[captcha:solver] PerimeterX: no NOCAPTCHA_API_KEY (capsolver path returned no cookies)'); markAllProvidersFailed('perimeterx'); return null; }  // G8
     const cookieMap: Record<string, string> = {};
     for (const c of cookies ?? []) if (c?.name && c?.value) cookieMap[c.name] = c.value;
     const body: Record<string, any> = { href: url, user_agent: userAgent, cookies: cookieMap };
@@ -233,7 +244,7 @@ export class CaptchaSolver {
         body: JSON.stringify(body),
       });
       const j = await r.json() as any;
-      if (j?.status !== 1) { console.log(`[captcha:api] nocaptcha PerimeterX err status=${j?.status} msg=${j?.msg ?? j?.message ?? JSON.stringify(j).slice(0, 200)}`); return null; }
+      if (j?.status !== 1) { console.log(`[captcha:api] nocaptcha PerimeterX err status=${j?.status} msg=${j?.msg ?? j?.message ?? JSON.stringify(j).slice(0, 200)}`); markAllProvidersFailed('perimeterx'); return null; }  // G8
       const out: Array<{ name: string; value: string; domain: string; path: string }> = [];
       const dot = u.hostname.startsWith('www.') ? u.hostname.slice(3) : ('.' + u.hostname);
       for (const [name, value] of Object.entries(j.data?.cookies ?? {})) out.push({ name, value: String(value), domain: dot, path: '/' });
@@ -248,6 +259,7 @@ export class CaptchaSolver {
 
   async solveFuncaptcha(publicKey: string, url: string, subdomain?: string, blob?: string): Promise<string | null> {
     await this._ensureInit();
+    markCaptchaChallenge();  // G8
     console.log(`[captcha:solver] solveFuncaptcha pkey=${publicKey.slice(0, 12)} subdomain=${subdomain?.slice(0, 30)} blob=${blob?.slice(0, 40)}...`);
     if (this._creds.anticaptcha) {
       const task: Record<string, any> = { type: 'FunCaptchaTaskProxyless', websiteURL: url, websitePublicKey: publicKey };
@@ -290,6 +302,7 @@ export class CaptchaSolver {
       if (token) { console.log('[captcha:solver] FunCaptcha solved via capsolver'); costTracker.recordCaptcha('capsolver', 'funcaptcha'); return token; }
     }
     console.log('[captcha:solver] All services failed for FunCaptcha');
+    markAllProvidersFailed('funcaptcha');  // G8
     return null;
   }
 }
