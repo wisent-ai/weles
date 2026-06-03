@@ -18,7 +18,7 @@
 // byte-by-byte net_record.ts capture was wired in to satisfy. Files older
 // than runStart are ignored (older runs' artifacts).
 
-import { readFile, readdir, stat } from 'node:fs/promises'
+import { readFile, readdir } from 'node:fs/promises'
 import { join, extname } from 'node:path'
 
 const SUPABASE_URL = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''
@@ -56,13 +56,12 @@ const KIND_BY_EXT: Record<string, 'screenshots' | 'videos' | 'dom' | 'logs' | nu
   // against a dirty repo/trajectory. Uploaded as 'logs' so the exact uncommitted
   // source that produced the row is recoverable from storage.
   '.patch': 'logs',
-}
-
-const CAPS: Record<string, number> = {
-  screenshots: 50,
-  videos: 50,
-  dom: 100,
-  logs: 100,
+  // G17: forensic captures — full HAR (request/response + bodies) and the raw
+  // packet capture (decryptable with the sibling sslkey.log). Previously
+  // excluded by extension; now uploaded so the capture is truly complete.
+  '.har': 'logs',
+  '.pcap': 'logs',
+  '.txt': 'logs',
 }
 
 function publicUrl(path: string): string {
@@ -102,57 +101,54 @@ function contentTypeFor(ext: string): string {
   return 'application/octet-stream'
 }
 
+type Kind = 'screenshots' | 'videos' | 'dom' | 'logs'
+
+// Recursively collect every file under a run directory, preserving the path
+// relative to it (so the storage layout mirrors the on-disk tree).
+async function collectTree(root: string, relBase: string, out: Array<{ path: string; rel: string; ext: string; kind: Kind }>): Promise<void> {
+  let entries: Awaited<ReturnType<typeof readdir>> = []
+  try { entries = await readdir(root, { withFileTypes: true } as any) as any } catch { return }
+  for (const e of entries as any[]) {
+    const name = e.name as string
+    const full = join(root, name)
+    const rel = relBase ? `${relBase}/${name}` : name
+    if (e.isDirectory()) { await collectTree(full, rel, out); continue }
+    const ext = extname(name).toLowerCase()
+    // Full capture: never skip by extension — unknown types upload as 'logs'.
+    const kind: Kind = (KIND_BY_EXT[ext] ?? 'logs') as Kind
+    out.push({ path: full, rel, ext, kind })
+  }
+}
+
 export async function uploadArtifacts(
-  action: string,
+  _action: string,
   logId: string,
-  runStart: Date,
+  _runStart: Date,
   _opts: { force?: boolean } = {},
 ): Promise<ArtifactUrls | null> {
-  // Was gated behind opts.force=true — only failures + health flips uploaded,
-  // happy paths skipped. The standing "ALL FINGERPRINTS, no truncation" rule
-  // means every run's full inst dump needs to be in Supabase Storage so the
-  // /weles inspection UI can render it, not just the failure paths. The opts
-  // arg is retained for callsite compatibility but no longer gates upload.
+  // G17: artifacts are keyed by run UUID. Recursively mirror the entire
+  // recordings/<run_uuid>/ tree to storage at <run_uuid>/<relative-path>, so
+  // EVERYTHING a run produced — across every sub-action/label dir — is uploaded.
+  // No extension allowlist filtering (unknown -> logs) and NO per-kind caps:
+  // nothing is silently truncated. The per-run dir makes the old mtime window
+  // unnecessary (every file under it belongs to this run).
   if (!SUPABASE_URL || !SUPABASE_KEY) return null
 
-  const dir = join(RECORDINGS_ROOT, action)
-  let entries: string[]
-  try { entries = await readdir(dir) } catch { return null }
-
-  // Stat each, keep those newer than runStart (minus 2s fudge for clock skew
-  // + trajectory startup) and one of the recognized kinds.
-  const since = runStart.getTime() - 2000
-  type Kind = 'screenshots' | 'videos' | 'dom' | 'logs'
-  const candidates: Array<{ path: string; name: string; ext: string; kind: Kind; mtime: number }> = []
-  for (const name of entries) {
-    const ext = extname(name).toLowerCase()
-    const kind = KIND_BY_EXT[ext]
-    if (!kind) continue
-    const full = join(dir, name)
-    try {
-      const s = await stat(full)
-      if (s.mtimeMs < since) continue
-      candidates.push({ path: full, name, ext, kind, mtime: s.mtimeMs })
-    } catch { /* skip */ }
-  }
-  // Newest first so caps keep the latest files per kind.
-  candidates.sort((a, b) => b.mtime - a.mtime)
+  const runDir = join(RECORDINGS_ROOT, logId)
+  const files: Array<{ path: string; rel: string; ext: string; kind: Kind }> = []
+  await collectTree(runDir, '', files)
+  if (files.length === 0) return null
 
   const urls: ArtifactUrls = { screenshots: [], video: null, videos: [], dom: [], logs: [] }
-  const counts: Record<Kind, number> = { screenshots: 0, videos: 0, dom: 0, logs: 0 }
-
-  for (const c of candidates) {
-    if (counts[c.kind] >= (CAPS[c.kind] ?? 1)) continue
-    const storagePath = `${action}/${logId}/${c.name}`
-    const ok = await uploadOne(c.path, storagePath, contentTypeFor(c.ext))
+  for (const f of files) {
+    const storagePath = `${logId}/${f.rel}`
+    const ok = await uploadOne(f.path, storagePath, contentTypeFor(f.ext))
     if (!ok) continue
-    counts[c.kind]++
-    const u = publicUrl(storagePath)
-    ;(urls[c.kind] as string[]).push(u)
+    ;(urls[f.kind] as string[]).push(publicUrl(storagePath))
   }
   // Back-compat alias: .video = newest webm = videos[0]
   urls.video = urls.videos[0] ?? null
 
-  if (counts.screenshots + counts.videos + counts.dom + counts.logs === 0) return null
+  if (urls.screenshots.length + urls.videos.length + urls.dom.length + urls.logs.length === 0) return null
   return urls
 }
