@@ -291,6 +291,10 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
     const context = persistentProfile
       ? await chromium.launchPersistentContext(persistentProfile, { ...launchOpts, ...customCtxOpts })
       : await pwBrowser!.newContext(customCtxOpts);
+    // G1 fix: the custom-Chromium branch returns before the shared attach point
+    // below, so attach the realized fingerprint here too — otherwise the
+    // production path silently drops result.session.realized_fingerprint.
+    (context as any)._welesFingerprintConfig = realizedFingerprint;
     (context as any)._welesBrowserProvenance = browserProvenance({
       browserType,
       source: persistentProfile ? 'custom-chromium-persistent' : 'custom-chromium',
