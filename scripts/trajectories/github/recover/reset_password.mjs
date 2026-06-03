@@ -16,6 +16,7 @@ import { humanClickLocator } from '../../../../dist/human/mouse.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import { join } from 'node:path';
+import { runRecordingsDir } from '../../../../dist/session/run-recordings.js';
 
 const acct = await getSocialAccount('github');
 if (!acct) { console.log('FAIL: no active github account'); process.exit(1); }
@@ -29,7 +30,7 @@ if (!resendKey) { console.log('FAIL: RESEND_RECEIVING_API_KEY not set'); process
 // here. Fail fast with a clear signal instead of polling 2 min for nothing.
 if (!/@wisentmedia\.com$/i.test(email)) {
   try {
-    const dir = join(process.cwd(), 'recordings', 'github_reset_password');
+    const dir = runRecordingsDir('github_reset_password');
     mkdirSync(dir, { recursive: true });
     writeFileSync(join(dir, 'ban_signal.json'), JSON.stringify({ account_id: acct.id, username: acct.username, action: 'github_reset_password', healthy: false, signal: 'unsupported_email_domain', error: `email ${email} is not on wisentmedia.com — Resend inbound MX won't receive reset link`, ts: new Date().toISOString() }, null, 2));
   } catch {}
@@ -136,7 +137,7 @@ try {
   }
   console.log(`PASS: password reset for ${acct.username}`);
 } catch (e) {
-  const dir = join(process.cwd(), 'recordings', 'github_reset_password');
+  const dir = runRecordingsDir('github_reset_password');
   try { mkdirSync(dir, { recursive: true }); writeFileSync(join(dir, 'ban_signal.json'), JSON.stringify({ account_id: acct.id, username: acct.username, action: 'github_reset_password', healthy: false, signal: 'reset_failed', error: e.message, ts: new Date().toISOString() }, null, 2)); } catch {}
   console.log(`FAIL: ${e.message?.slice(0, 200)}`);
   process.exitCode = 1;

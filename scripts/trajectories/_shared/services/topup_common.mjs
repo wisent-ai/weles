@@ -8,6 +8,7 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { humanIdlePause } from '../../../../dist/human/mouse.js';
 import { humanType } from '../../../../dist/human/keyboard.js';
+import { runRecordingsDir } from '../../../../dist/session/run-recordings.js';
 
 export function topupOpts() {
   const usd = Number(process.env.TOPUP_USD ?? '10');
@@ -21,7 +22,7 @@ export function topupOpts() {
 
 export async function dryRunExit(session, label, usd) {
   try {
-    const dir = join(process.cwd(), 'recordings', `${label}_topup`);
+    const dir = runRecordingsDir(`${label}_topup`);
     mkdirSync(dir, { recursive: true });
     const ts = new Date().toISOString().replace(/[:.]/g, '-');
     const path = join(dir, `dry-run-${ts}.png`);

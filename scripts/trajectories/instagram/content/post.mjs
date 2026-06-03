@@ -18,6 +18,7 @@ import { generateImageFile } from '../../_shared/media.mjs';
 import { writeFileSync, mkdirSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { checkReachable } from '../../_shared/action-runner.mjs';
+import { runRecordingsDir } from '../../../../dist/session/run-recordings.js';
 
 const ACTION = process.env.POST_PROMOTE === '1' ? 'post_promote' : 'post';
 
@@ -123,7 +124,7 @@ try {
   console.log(`[ban-signal] ${banSignal?.signal}  FAIL: ${e.message?.slice(0, 200)}`);
   process.exitCode = 1;
 } finally {
-  if (banSignal) { try { const dir = join(process.cwd(), 'recordings', `instagram_${ACTION}`); mkdirSync(dir, { recursive: true }); writeFileSync(join(dir, 'ban_signal.json'), JSON.stringify({ account_id: acct.id, username: acct.username, action: `instagram_${ACTION}`, character: character.name, product: product?.name, ...banSignal, ts: new Date().toISOString() }, null, 2)); } catch {} }
+  if (banSignal) { try { const dir = runRecordingsDir(`instagram_${ACTION}`); mkdirSync(dir, { recursive: true }); writeFileSync(join(dir, 'ban_signal.json'), JSON.stringify({ account_id: acct.id, username: acct.username, action: `instagram_${ACTION}`, character: character.name, product: product?.name, ...banSignal, ts: new Date().toISOString() }, null, 2)); } catch {} }
   try { unlinkSync(imagePath); } catch {}
   await s.close();
 }

@@ -3,6 +3,7 @@ import { WSession } from '../../dist/session/wsession.js';
 import { humanFill } from '../../dist/human/keyboard.js';
 import { humanClickLocator } from '../../dist/human/mouse.js';
 import { persistFreshCookieJar } from './_shared/cookie-freshness.mjs';
+import { runRecordingsDir } from '../../dist/session/run-recordings.js';
 
 const LOGIN_URL = 'https://x.com/i/flow/login';
 const HOME_URL = 'https://x.com/home';
@@ -104,7 +105,7 @@ try {
   // intercepts the password step, or simply because /home never loads after
   // submit (rate limit). Each surfaces with a distinct ban_signal below.
   try {
-    const dir = (await import('node:path')).join(process.cwd(), 'recordings', 'twitter_login');
+    const dir = runRecordingsDir('twitter_login');
     (await import('node:fs')).mkdirSync(dir, { recursive: true });
     const finalUrl = s.page?.url?.() ?? '';
     const msg = e.message ?? '';

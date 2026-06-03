@@ -17,6 +17,7 @@ import { checkReachable } from '../_shared/action-runner.mjs';
 import { detectRedditBanSignals } from '../../../dist/platforms/reddit/ban_signals.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
 
 const SUBREDDIT = process.env.SUBREDDIT || 'popular';
 const TARGET_URL = process.env.TARGET_URL || '';        // if set, skip listing pick
@@ -100,7 +101,7 @@ try {
   }
 
   if (REQUIRE_APPROVAL && !preapprovedText) {
-    const dir = join(process.cwd(), 'recordings', 'reddit_promote');
+    const dir = runRecordingsDir('reddit_promote');
     mkdirSync(dir, { recursive: true });
     writeFileSync(join(dir, 'pending_review.json'), JSON.stringify({
       account_id: acct.id, username: acct.username, action: 'reddit_promote',
@@ -145,7 +146,7 @@ try {
 } finally {
   if (banSignal) {
     try {
-      const dir = join(process.cwd(), 'recordings', 'reddit_promote');
+      const dir = runRecordingsDir('reddit_promote');
       mkdirSync(dir, { recursive: true });
       writeFileSync(join(dir, 'ban_signal.json'), JSON.stringify({ account_id: acct.id, username: acct.username, action: 'reddit_promote', subreddit: SUBREDDIT, product_id: PRODUCT_ID, variant: VARIANT, ...banSignal, ts: new Date().toISOString() }, null, 2));
     } catch (e) { console.log('[ban-signal] persist err:', e.message); }

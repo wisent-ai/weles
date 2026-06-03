@@ -5,6 +5,7 @@ import { humanIdlePause, humanClickLocator } from '../../dist/human/mouse.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { persistFreshCookieJar } from './_shared/cookie-freshness.mjs';
+import { runRecordingsDir } from '../../dist/session/run-recordings.js';
 
 const URL = 'https://www.instagram.com/accounts/login/';
 
@@ -74,7 +75,7 @@ try {
   // email page; surface the final URL so the operator can see whether it
   // hit a captcha, verify wall, or just timed out.
   try {
-    const dir = join(process.cwd(), 'recordings', 'instagram_login');
+    const dir = runRecordingsDir('instagram_login');
     mkdirSync(dir, { recursive: true });
     const finalUrl = s.page?.url?.() ?? '';
     // Suspended/disabled is the cleanest classification for an instagram

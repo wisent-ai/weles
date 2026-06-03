@@ -6,6 +6,7 @@ import { humanIdlePause, humanScroll, humanClickLocator } from '../../dist/human
 import { probeCommentVisibility, probeShadowban } from '../../dist/platforms/reddit/shadowban_probe.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { runRecordingsDir } from '../../dist/session/run-recordings.js';
 
 // Use old.reddit.com — comment composer is a plain visible <textarea name="text">
 // inside a normal form. New reddit.com puts the composer inside <shreddit-composer>'s
@@ -406,7 +407,7 @@ try {
 } finally {
   if (banSignal) {
     try {
-      const dir = join(process.cwd(), 'recordings', 'reddit_comment');
+      const dir = runRecordingsDir('reddit_comment');
       mkdirSync(dir, { recursive: true });
       writeFileSync(join(dir, 'ban_signal.json'), JSON.stringify({ account_id: acct.id, username: acct.username, ...banSignal, ts: new Date().toISOString() }, null, 2));
     } catch (e) { console.log('[ban-signal] persist err:', e.message); }
