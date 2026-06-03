@@ -264,6 +264,35 @@ export class WSession {
     // opts.browser still wins; unset rolls naturally (60/40 chromium/firefox).
     const persona: Persona = opts.persona ?? generatePersona({ country: countryHintFromProxyRequest(opts.proxy), os: opts.os as Persona['os'] | undefined, browser: (opts.browser ?? process.env.WELES_FORCE_BROWSER) as Persona['browser'] | undefined });
     const proxy = proxyRequested ? await resolveProxy(opts.proxy!, opts.targetHost, persona) : undefined;
+    // G19: shared per-run provenance writer — called EARLY (pre-launch) and again
+    // AFTER launch with the realized values. The early call guarantees that a
+    // pre-launch failure (proxy_unavailable, missing browser binary, launch
+    // crash) still leaves queryable provenance — persona, the proxy request and
+    // its resolution, the env snapshot, timing seed — instead of a black-hole row
+    // the diagnostics platform can't explain. realized_fingerprint / exit_ip /
+    // identity are null until the browser is up; the late call fills them in.
+    // Same builder both times so early and late writes can't drift on the keys
+    // the worker importer reads. session_meta lands in the ACTION dir (poll.ts
+    // imports + uploads from there), falling back to label for standalone runs.
+    const writeRunMeta = (proxyObj: any, realizedFp: Record<string, unknown> | null, browserProv: unknown, identity: Identity | undefined): void => {
+      if (!label) return;
+      try {
+        const pu = proxyObj?.server ? new URL(proxyObj.server) : null;
+        const meta = {
+          proxy_host: pu?.hostname, proxy_port: pu?.port,
+          proxy_user_present: !!proxyObj?.username, proxy_user_hash: hashDiagnosticValue(proxyObj?.username),
+          exit_ip: proxyObj?.exit_ip, platform: proxyObj?.platform, provider: proxyObj?.provider,
+          browser_provenance: browserProv, persona, realized_fingerprint: realizedFp,
+          proxy_requested: opts.proxy ?? null,
+          env_flags: snapshotEnvFlags(), env_all: snapshotFullEnv(),
+          sticky_session_id: proxyObj?.sticky_session_id, sticky_hash: proxyObj?.sticky_hash,
+          exit_reputation: proxyObj?.exit_reputation, identity,
+          timing_seed: timingSeed, started_at: new Date().toISOString(),
+        };
+        writeFileSync(join(recordingsDir(process.env.ACTION || label), 'session_meta.json'), JSON.stringify(meta, null, 2));
+      } catch { /* provenance is best-effort */ }
+    };
+    writeRunMeta(proxy, null, null, undefined);   // pre-launch envelope; overwritten with realized data after launch
     if (proxyRequested && !proxy) {
       throw new Error(`proxy_unavailable: requested ${opts.proxy} for ${opts.targetHost ?? 'unknown target'}`);
     }
@@ -307,6 +336,7 @@ export class WSession {
           proxy_host?: string; proxy_port?: string; proxy_user_present: boolean;
           proxy_user_hash: unknown; exit_ip: unknown; platform: unknown; provider: unknown;
           browser_provenance: unknown; persona: Persona; realized_fingerprint: Record<string, unknown>;
+          proxy_requested: unknown;
           env_flags: Record<string, string | undefined>;
           env_all: Record<string, string>;
           sticky_session_id?: string; sticky_hash?: string;
@@ -325,6 +355,7 @@ export class WSession {
           browser_provenance: (ws as any)._browserProvenance,
           persona,
           realized_fingerprint: (ctx as any)._welesFingerprintConfig,
+          proxy_requested: opts.proxy ?? null,
           // G2: snapshot the effective behavior-changing env vars at session
           // start so a run's exact mode (input path, browser registration,
           // diagnostics, LinkedIn egress policy, proxy pool wiring) is queryable.
