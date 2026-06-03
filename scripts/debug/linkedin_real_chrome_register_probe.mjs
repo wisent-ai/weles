@@ -7,12 +7,13 @@ import { tmpdir } from 'node:os';
 import { randomBytes } from 'node:crypto';
 import { humanFill } from '../../dist/human/keyboard.js';
 import { humanClickLocator, humanIdlePause } from '../../dist/human/mouse.js';
+import { runId, runRecordingsDir } from '../../dist/session/run-recordings.js';
 
 const CHROME_BIN = process.env.CHROME_BIN || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 if (!existsSync(CHROME_BIN)) throw new Error(`Chrome binary missing: ${CHROME_BIN}`);
 if (/Chrome for Testing/i.test(CHROME_BIN)) throw new Error(`Refusing Chrome for Testing baseline: ${CHROME_BIN}`);
 
-const OUT_DIR = join(process.cwd(), 'recordings', 'linkedin_register');
+const OUT_DIR = runRecordingsDir('real_chrome', 'linkedin_register_probe');
 mkdirSync(OUT_DIR, { recursive: true });
 const ts = new Date().toISOString().replace(/[:.]/g, '-');
 const outPath = join(OUT_DIR, `real_chrome_register_probe_${ts}.json`);
@@ -85,6 +86,8 @@ const records = {
   browser: 'real_google_chrome_playwright_controlled',
   browser_binary: CHROME_BIN,
   browser_version: chromeVersion,
+  run_id: runId(),
+  action: process.env.ACTION || null,
   target_url: TARGET_URL,
   proxy: { server: proxy.server, username_present: !!proxy.username, password_present: !!proxy.password },
   identity: { email_present: true, password_present: true, first: identity.first, last: identity.last },
@@ -107,6 +110,7 @@ const context = await chromium.launchPersistentContext(userDataDir, {
   deviceScaleFactor: 2,
   locale: 'en-US',
   timezoneId: 'America/New_York',
+  recordVideo: { dir: OUT_DIR, size: { width: 1280, height: 720 } },
   proxy: { server: proxy.server, username: proxy.username, password: proxy.password },
   args: ['--no-first-run', '--no-default-browser-check', '--lang=en-US'],
   ignoreDefaultArgs: ['--enable-automation'],

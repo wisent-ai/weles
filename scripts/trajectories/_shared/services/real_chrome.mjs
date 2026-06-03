@@ -6,10 +6,11 @@
 // are connecting only to our own providers' billing dashboards.
 
 import { chromium } from 'playwright';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { humanIdlePause } from '../../../../dist/human/mouse.js';
+import { runId, runRecordingsDir } from '../../../../dist/session/run-recordings.js';
 
 // Use Weles Chromium (147), which Google's signin flow recognizes as a
 // real Chrome browser (per scripts/trajectories/google/_export_cookies.mjs
@@ -30,12 +31,14 @@ function profileDir() {
 
 export async function launchRealChrome({ label = 'real_chrome' } = {}) {
   const dir = profileDir();
+  const diagnosticsDir = runRecordingsDir('real_chrome', label);
   const context = await chromium.launchPersistentContext(dir, {
     executablePath: WELES_CHROMIUM,
     headless: false,
     args: ['--disable-blink-features=AutomationControlled', '--no-sandbox'],
     ignoreDefaultArgs: ['--enable-automation'],
     viewport: { width: 1366, height: 768 },
+    recordVideo: { dir: diagnosticsDir, size: { width: 1280, height: 720 } },
   });
   await context.addInitScript(() => {
     try { Object.defineProperty(navigator, 'webdriver', { get: () => undefined }); } catch {}
@@ -47,6 +50,16 @@ export async function launchRealChrome({ label = 'real_chrome' } = {}) {
     } catch {}
   });
   const page = context.pages()[0] ?? await context.newPage();
+  try {
+    writeFileSync(join(diagnosticsDir, 'real_chrome_session.json'), JSON.stringify({
+      run_id: runId(),
+      action: process.env.ACTION || null,
+      label,
+      profile_dir: dir,
+      executable_path: WELES_CHROMIUM,
+      launched_at: new Date().toISOString(),
+    }, null, 2));
+  } catch {}
   console.log(`[real_chrome] launched (label=${label}, profile=${dir})`);
   return {
     context, page,

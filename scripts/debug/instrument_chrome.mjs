@@ -20,6 +20,7 @@ import { mkdirSync, existsSync, writeFileSync, readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { humanIdlePause } from '../../dist/human/mouse.js';
+import { runRecordingsDir } from '../../dist/session/run-recordings.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const WELES_ROOT = join(__dirname, '..', '..');
@@ -42,7 +43,8 @@ const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
 const CHROME_BIN = process.env.CHROME_BIN || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 if (!existsSync(CHROME_BIN)) throw new Error(`chrome binary missing: ${CHROME_BIN}`);
 
-const OUT_DIR = join(WELES_ROOT, '.work', 'inst');
+const hasRunId = Boolean(process.env.ACTION_LOG_ID || process.env.WELES_RUN_ID);
+const OUT_DIR = hasRunId ? runRecordingsDir('real_chrome', 'inst') : join(WELES_ROOT, '.work', 'inst');
 mkdirSync(OUT_DIR, { recursive: true });
 const ts = new Date().toISOString().replace(/[:.]/g, '-');
 const OUT = join(OUT_DIR, `chrome_${PLATFORM}_${ts}.json`);
@@ -62,6 +64,7 @@ const browser = await chromium.launchPersistentContext(userDataDir, {
   channel: 'chrome',
   headless: false,
   viewport: { width: 1280, height: 800 },
+  ...(hasRunId ? { recordVideo: { dir: OUT_DIR, size: { width: 1280, height: 720 } } } : {}),
   args: ['--no-sandbox', '--disable-blink-features=AutomationControlled', '--disable-infobars', '--lang=en-US'],
   ignoreDefaultArgs: ['--enable-automation', '--disable-breakpad'],
   ...(proxyOpt ? { proxy: proxyOpt } : {}),
@@ -120,6 +123,8 @@ const interval = setInterval(async () => {
       platform: PLATFORM,
       target: TARGET_URL,
       username: USERNAME || null,
+      run_id: process.env.ACTION_LOG_ID || process.env.WELES_RUN_ID || null,
+      action: process.env.ACTION || null,
       startedAt: new Date(t0).toISOString(),
       accesses: [...accum.values()],
       requests: reqs,
@@ -287,6 +292,8 @@ writeFileSync(OUT, JSON.stringify({
   platform: PLATFORM,
   target: TARGET_URL,
   username: USERNAME || null,
+  run_id: process.env.ACTION_LOG_ID || process.env.WELES_RUN_ID || null,
+  action: process.env.ACTION || null,
   startedAt: new Date(t0).toISOString(),
   endedAt: new Date().toISOString(),
   accesses: [...accum.values()],

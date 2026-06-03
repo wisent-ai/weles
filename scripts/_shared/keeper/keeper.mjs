@@ -49,12 +49,33 @@ if (!proxy && process.env.PROXY_URL) {
   console.log(`[keeper:${SESSION}] using PROXY_URL env override`);
 }
 
-const s = await WSession.start({ label: `keeper-${SESSION}`, proxy, persona, headless: HEADLESS, browser: BROWSER || undefined, os: process.env.PERSONA_OS || undefined });
-console.log(`[keeper:${SESSION}] WSession started`);
-
 const KEEPER_FLOW_ACTION = process.env.KEEPER_FLOW_ACTION || (PLATFORM ? `${PLATFORM}_keeper` : 'keeper_flow');
-const flow = await setupKeeperFlow({ session: SESSION, platform: PLATFORM || null, action: KEEPER_FLOW_ACTION, accountId: acct?.id ?? null, proxyUrl: proxy ?? null, sessionMeta: { provider: s.proxyConfig?.provider || 'keeper', proxy_url: proxy ?? null, platform: PLATFORM || null, exit_ip: s.proxyConfig?.exit_ip || null, proxy_host: s.proxyConfig?.server ? new URL(s.proxyConfig.server).hostname : null, proxy_port: s.proxyConfig?.server ? new URL(s.proxyConfig.server).port : null }, captureVersionsFn: captureVersions, uploadArtifactsFn: uploadArtifacts, getLastUrl: () => s.page.url(), closeSessionFn: async () => { try { await s.close(); } catch (e) { console.log(`[keeper:${SESSION}] s.close err: ${e?.message?.slice(0, 100) ?? String(e).slice(0, 100)}`); } } });
+let s = null;
+const flow = await setupKeeperFlow({
+  session: SESSION,
+  platform: PLATFORM || null,
+  action: KEEPER_FLOW_ACTION,
+  accountId: acct?.id ?? null,
+  proxyUrl: proxy ?? null,
+  sessionMeta: { provider: 'keeper', proxy_url: proxy ?? null, platform: PLATFORM || null },
+  captureVersionsFn: captureVersions,
+  uploadArtifactsFn: uploadArtifacts,
+  getLastUrl: () => s?.page?.url?.() ?? null,
+  closeSessionFn: async () => {
+    if (!s) return;
+    try { await s.close(); }
+    catch (e) { console.log(`[keeper:${SESSION}] s.close err: ${e?.message?.slice(0, 100) ?? String(e).slice(0, 100)}`); }
+  },
+});
 if (flow.rowId) console.log(`[keeper:${SESSION}] bookkeeping row=${flow.rowId.slice(0, 8)} action=${KEEPER_FLOW_ACTION}`);
+if (flow.rowId) {
+  process.env.ACTION_LOG_ID = flow.rowId;
+  process.env.WELES_RUN_ID = flow.rowId;
+}
+process.env.ACTION = KEEPER_FLOW_ACTION;
+
+s = await WSession.start({ label: `keeper-${SESSION}`, proxy, persona, headless: HEADLESS, browser: BROWSER || undefined, os: process.env.PERSONA_OS || undefined });
+console.log(`[keeper:${SESSION}] WSession started`);
 
 // Cookie injection: explicit JAR path wins, else use account's metadata.cookies.
 if (JAR_PATH && existsSync(JAR_PATH)) {
