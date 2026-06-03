@@ -324,7 +324,12 @@ export class WSession {
           timing_seed: timingSeed,
           started_at: new Date().toISOString(),
         };
-        writeFileSync(join(recordingsDir(label), 'session_meta.json'), JSON.stringify(meta, null, 2));
+        // G12: write provenance into the worker's ACTION dir (set by poll.ts on
+        // every spawned trajectory) so it lands where poll.ts imports + uploads
+        // from — even when this WSession's label differs from the dispatch action
+        // (health _in/_out, register _<attempt>, reddit submit, ticker scrapers).
+        // Falls back to label for standalone (non-worker) runs.
+        writeFileSync(join(recordingsDir(process.env.ACTION || label), 'session_meta.json'), JSON.stringify(meta, null, 2));
       } catch {}
     }
     // Complete-record network capture: NO domain filter, NO body truncation.
