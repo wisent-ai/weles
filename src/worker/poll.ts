@@ -431,6 +431,23 @@ export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
     // G9: per-run human-timing seed — makes the run's mouse/typing jitter
     // reproducible from the row. Required non-null on current session_meta.
     if (typeof m.timing_seed === 'number') result.run = { timing_seed: m.timing_seed };
+  } else {
+    // G19 fallback: no session_meta.json means the trajectory exited before
+    // WSession.start ever wrote provenance — a trajectory-level early exit (e.g.
+    // a pre-session guard that process.exit()s, like linkedin_register's exit 3).
+    // Never leave the run a black hole: synthesize the minimal envelope the
+    // WORKER knows — the requested proxy, the full runner env (raw; the row is
+    // service-role-only, same trust boundary as session_meta), and a marker
+    // explaining why persona/realized_fingerprint are absent (no session existed).
+    // result.versions + error are captured separately, so the row is now always
+    // queryable for "what proxy/env did this failed run request, and why".
+    const envAll: Record<string, string> = {};
+    for (const [k, v] of Object.entries(process.env)) if (typeof v === 'string') envAll[k] = v;
+    result.session = {
+      meta_missing: true,
+      proxy_requested: (row.params as Record<string, unknown> | undefined)?.proxy_url_override ?? null,
+      env_all: envAll,
+    };
   }
   // G7: full proxy preflight history — every provider/sticky attempt with its
   // connect status, geo/probe results, and rejection reason. Copied verbatim
