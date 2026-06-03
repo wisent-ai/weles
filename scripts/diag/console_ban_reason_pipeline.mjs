@@ -21,6 +21,8 @@ Options:
   --sample-per-bucket=N     Prefer up to N runs per aggregate failure bucket. Default: 4.
   --artifact-bytes=N        Max bytes fetched per public artifact. Default: 2000000.
   --no-artifacts            Do not fetch public DOM/network artifacts.
+  --cookie=COOKIE           Console auth cookie. Defaults to WELES_CONSOLE_COOKIE.
+  --no-api                  Do not call /api/weles/* JSON endpoints; scrape pages only.
 
 Examples:
   node scripts/diag/console_ban_reason_pipeline.mjs https://console.wisent.com/weles/testing/linkedin_register
@@ -67,6 +69,12 @@ function unique(values) {
 function safeNumber(value, fallback = 0) {
   const n = Number(value);
   return Number.isFinite(n) ? n : fallback;
+}
+
+function consoleHeaders(options, accept = 'text/html') {
+  const headers = { accept };
+  if (options.cookie) headers.cookie = options.cookie;
+  return headers;
 }
 
 function sanitizeText(value, max = 500) {
@@ -132,7 +140,125 @@ function parseJsonObject(text, label) {
   }
 }
 
-function objectAfter(decodedHtml, label) {
+function quotedStringAt(text, quoteIndex) {
+  if (text[quoteIndex] !== '"') return null;
+  let escaped = false;
+  for (let i = quoteIndex + 1; i < text.length; i++) {
+    const ch = text[i];
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (ch === '\\') {
+      escaped = true;
+      continue;
+    }
+    if (ch === '"') {
+      const raw = text.slice(quoteIndex, i + 1);
+      try {
+        return { value: JSON.parse(raw), end: i + 1 };
+      } catch {
+        return null;
+      }
+    }
+  }
+  return null;
+}
+
+function nextFlightPayloads(html) {
+  const out = [];
+  let searchFrom = 0;
+  const marker = 'self.__next_f.push([1,';
+  while (true) {
+    const idx = html.indexOf(marker, searchFrom);
+    if (idx < 0) break;
+    const quoteIndex = html.indexOf('"', idx + marker.length);
+    if (quoteIndex < 0) break;
+    const parsed = quotedStringAt(html, quoteIndex);
+    if (parsed) {
+      out.push(parsed.value);
+      searchFrom = parsed.end;
+    } else {
+      searchFrom = idx + marker.length;
+    }
+  }
+  return out;
+}
+
+function jsonChildrenFromFlightPayloads(html) {
+  const out = [];
+  for (const payload of nextFlightPayloads(html)) {
+    let searchFrom = 0;
+    const marker = '"children":"';
+    while (true) {
+      const idx = payload.indexOf(marker, searchFrom);
+      if (idx < 0) break;
+      const quoteIndex = idx + '"children":'.length;
+      const parsed = quotedStringAt(payload, quoteIndex);
+      if (!parsed) {
+        searchFrom = idx + marker.length;
+        continue;
+      }
+      const value = String(parsed.value ?? '');
+      const trimmed = value.trim();
+      if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+        const json = parseJsonObject(trimmed, 'next-flight children');
+        if (json) {
+          out.push({
+            json,
+            text: trimmed,
+            context: payload.slice(Math.max(0, idx - 1000), idx),
+          });
+        }
+      }
+      searchFrom = parsed.end;
+    }
+  }
+  return out;
+}
+
+function preObjectAfter(html, label) {
+  const idx = html.indexOf(label);
+  if (idx < 0) return null;
+  const section = html.slice(idx);
+  const m = section.match(/<pre[^>]*>([\s\S]*?)<\/pre>/i);
+  if (!m) return null;
+  const text = decodeHtml(m[1]);
+  if (text.includes('…')) return null;
+  return parseJsonObject(text, label);
+}
+
+function previewMetaAfter(html, label) {
+  const idx = html.indexOf(label);
+  if (idx < 0) return null;
+  const section = html.slice(idx, idx + 12000);
+  const declaredChars = safeNumber(stripTags(section.match(/<span[^>]*>\s*(\d+)ch\s*<\/span>/i)?.[0] ?? '').replace(/\D/g, ''), 0);
+  const pre = section.match(/<pre[^>]*>([\s\S]*?)<\/pre>/i)?.[1] ?? '';
+  const text = decodeHtml(pre);
+  if (!declaredChars && !text) return null;
+  return {
+    label,
+    declared_chars: declaredChars || null,
+    extracted_chars: text.length,
+    truncated: text.includes('…') || (declaredChars > 0 && text.length + 20 < declaredChars),
+  };
+}
+
+function consolePreviewMetas(html) {
+  return [
+    'session (proxy / persona / browser / exit_ip)',
+    'versions (weles commit / trajectory sha / dist)',
+    'params',
+    'result.artifacts (uploaded urls)',
+    'full result',
+  ].map((label) => previewMetaAfter(html, label)).filter(Boolean);
+}
+
+function objectAfter(html, decodedHtml, flightJsonChildren, label) {
+  const pre = preObjectAfter(html, label);
+  if (pre) return pre;
+  const flight = flightJsonChildren.find((item) => item.context.includes(label));
+  if (flight) return flight.json;
   const idx = decodedHtml.indexOf(label);
   if (idx < 0) return null;
   const brace = decodedHtml.indexOf('{', idx + label.length);
@@ -146,6 +272,18 @@ function lastObjectAfterKey(decodedHtml, key) {
   const brace = decodedHtml.indexOf('{', idx + key.length);
   const objectText = extractBalancedObject(decodedHtml, brace);
   return objectText ? parseJsonObject(objectText, key) : null;
+}
+
+function banSignalFromConsoleText(decodedHtml, aggregateReason = '') {
+  const text = stripTags(decodedHtml);
+  const m = text.match(/\bban_signal\s+([a-z0-9_:-]+)\s+Failure reasons/i);
+  const signal = m?.[1] ?? (aggregateReason && aggregateReason !== 'failed_without_reason' ? aggregateReason : '');
+  if (!signal) return null;
+  return {
+    signal,
+    details: {},
+    healthy: /keeper_completed|completed|healthy/i.test(signal),
+  };
 }
 
 function tableRowsAfterHeading(html, heading) {
@@ -166,6 +304,99 @@ function cellsFromRow(row) {
 function statFromHtml(html, label) {
   const m = html.match(new RegExp(`${escapeRegex(label)}:\\s*<b[^>]*>(\\d+)`, 'i'));
   return m ? Number(m[1]) : null;
+}
+
+function actionFromTestingUrl(source) {
+  try {
+    const u = new URL(source);
+    const m = u.pathname.match(/^\/weles\/testing\/(.+)$/);
+    return m ? decodeURIComponent(m[1]) : '';
+  } catch {
+    return '';
+  }
+}
+
+function aggregateApiUrl(source, limit) {
+  const action = actionFromTestingUrl(source);
+  if (!action) return '';
+  const u = new URL(source);
+  const api = new URL(`/api/weles/testing/${encodeURIComponent(action)}`, `${u.protocol}//${u.host}`);
+  if (limit) api.searchParams.set('limit', String(limit));
+  return api.toString();
+}
+
+async function fetchJson(url, options) {
+  const res = await fetch(url, { headers: consoleHeaders(options, 'application/json') });
+  const text = await res.text();
+  if (!res.ok) return { ok: false, status: res.status, error: `${res.status} ${res.statusText}`, text };
+  try {
+    return { ok: true, status: res.status, json: JSON.parse(text) };
+  } catch (e) {
+    return { ok: false, status: res.status, error: `invalid json: ${e.message}`, text };
+  }
+}
+
+function rawBanSignal(row) {
+  const result = row?.result && typeof row.result === 'object' ? row.result : {};
+  return row?.ban_signal ?? result.ban_signal ?? null;
+}
+
+function rawFailureReasons(row) {
+  if (Array.isArray(row?.failure_reasons) && row.failure_reasons.length > 0) return row.failure_reasons;
+  const sig = rawBanSignal(row);
+  const raw = sig?.details?.failure_reasons;
+  if (Array.isArray(raw)) return raw;
+  if (sig?.signal && sig.signal !== 'healthy') return [{ code: sig.signal, message: '' }];
+  if (row?.status === 'failed') return [{ code: 'failed_without_reason', message: '' }];
+  return [];
+}
+
+function rawStageEvents(row) {
+  if (Array.isArray(row?.stage_events)) return row.stage_events;
+  const sig = rawBanSignal(row);
+  const raw = sig?.details?.stage_events;
+  return Array.isArray(raw) ? raw : [];
+}
+
+function aggregateFromApi(payload, source) {
+  const rows = Array.isArray(payload?.rows) ? payload.rows : [];
+  const byReason = new Map();
+  for (const row of rows) {
+    for (const reason of rawFailureReasons(row)) {
+      const code = typeof reason?.code === 'string' && reason.code ? reason.code : 'unclassified';
+      const group = byReason.get(code) ?? { reason: code, runs: 0, signals: new Set(), last_stages: new Set(), examples: [], message: '' };
+      group.runs += 1;
+      const sig = rawBanSignal(row);
+      if (sig?.signal) group.signals.add(sig.signal);
+      const stages = rawStageEvents(row);
+      const last = stages.length ? stages[stages.length - 1]?.stage : '';
+      if (last) group.last_stages.add(last);
+      if (group.examples.length < 5) group.examples.push(String(row.id ?? '').slice(0, 8));
+      if (!group.message && typeof reason?.message === 'string') group.message = sanitizeText(reason.message, 300);
+      byReason.set(code, group);
+    }
+  }
+  return {
+    source,
+    action: payload?.action ?? actionFromTestingUrl(source),
+    source_mode: 'api',
+    stats: {
+      runs: rows.length,
+      completed: rows.filter((row) => row.status === 'completed').length,
+      failed: rows.filter((row) => row.status === 'failed').length,
+    },
+    failure_reasons: [...byReason.values()].map((group) => ({
+      reason: group.reason,
+      runs: group.runs,
+      signals: [...group.signals].join(', '),
+      last_stages: [...group.last_stages].join(', '),
+      examples: group.examples,
+      message: group.message,
+    })).sort((a, b) => b.runs - a.runs || a.reason.localeCompare(b.reason)),
+    proxy_outcomes: [],
+    run_ids: rows.map((row) => String(row.id ?? '')).filter(Boolean),
+    api_rows: rows,
+  };
 }
 
 function aggregateFromHtml(html, source) {
@@ -198,6 +429,7 @@ function aggregateFromHtml(html, source) {
   return {
     source,
     action,
+    source_mode: 'html',
     stats: {
       runs: statFromHtml(html, 'runs'),
       completed: statFromHtml(html, 'completed'),
@@ -472,6 +704,10 @@ function compactSession(session) {
 
 function looseSessionFromConsoleHtml(decodedHtml) {
   const pick = (key) => decodedHtml.match(new RegExp(`"${escapeRegex(key)}"\\s*:\\s*"([^"]*)"`, 'i'))?.[1] ?? '';
+  const pickNumber = (key, haystack = decodedHtml) => {
+    const raw = haystack.match(new RegExp(`"${escapeRegex(key)}"\\s*:\\s*([0-9.]+)`, 'i'))?.[1] ?? '';
+    return raw ? Number(raw) : null;
+  };
   const proxyServer = pick('server');
   const proxyHost = pick('host');
   const proxyPort = pick('port');
@@ -483,6 +719,7 @@ function looseSessionFromConsoleHtml(decodedHtml) {
   const timezone = pick('timezone');
   const gpuVendor = pick('vendor');
   const gpuRenderer = pick('renderer');
+  const screenBlock = decodedHtml.match(/"screen"\s*:\s*\{([\s\S]{0,300}?)\}/i)?.[1] ?? '';
   if (!proxyServer && !proxyHost && !exitIp && !browser && !os && !platform && !timezone) return null;
   return {
     proxy: {
@@ -497,6 +734,11 @@ function looseSessionFromConsoleHtml(decodedHtml) {
       platform,
       language,
       timezone,
+      screen: screenBlock ? {
+        width: pickNumber('width', screenBlock),
+        height: pickNumber('height', screenBlock),
+        dpr: pickNumber('dpr', screenBlock),
+      } : null,
       gpu: {
         vendor: gpuVendor,
         renderer: gpuRenderer,
@@ -707,38 +949,90 @@ function evidenceGaps(runs) {
   const noPublicArtifacts = runs.filter((r) => r.artifact_inventory.items.length && !r.artifact_inventory.items.some((x) => x.public)).length;
   const noStageEvents = runs.filter((r) => !Array.isArray(r.stage_events) || !r.stage_events.length).length;
   const inaccessiblePublic = runs.filter((r) => (r.artifact_summaries ?? []).some((a) => a.public !== false && a.accessible === false)).length;
+  const truncatedConsoleJson = runs.filter((r) => (r.console_previews ?? []).some((p) => p.truncated)).length;
+  const apiUnavailable = runs.filter((r) => r.api_error).length;
+  if (apiUnavailable) gaps.push({ code: 'api_unavailable', runs: apiUnavailable, impact: 'full JSON endpoint was unavailable, so this run used page scraping fallback' });
   if (noBan) gaps.push({ code: 'missing_ban_signal', runs: noBan, impact: 'cannot classify beyond console table/result text' });
   if (noArtifacts) gaps.push({ code: 'missing_artifacts', runs: noArtifacts, impact: 'no DOM/network/video evidence to locate first divergence' });
   if (noPublicArtifacts) gaps.push({ code: 'recordings_scheme_only', runs: noPublicArtifacts, impact: 'console lists recordings:// artifacts that this script cannot fetch remotely' });
   if (inaccessiblePublic) gaps.push({ code: 'public_artifacts_unreadable', runs: inaccessiblePublic, impact: 'artifact URL exists but fetch failed, often stale/misconfigured storage' });
+  if (truncatedConsoleJson) gaps.push({ code: 'truncated_console_json', runs: truncatedConsoleJson, impact: 'console page displays shortened JSON preview instead of full fingerprint/result object' });
   if (noStageEvents) gaps.push({ code: 'missing_stage_events', runs: noStageEvents, impact: 'cannot automatically identify first failing trajectory stage' });
   return gaps;
 }
 
+async function runFromApiRow(row, aggregateReason, options, sourceMode = 'api') {
+  const result = row?.result && typeof row.result === 'object' ? row.result : {};
+  const inlineBan = rawBanSignal(row);
+  const artifacts = row?.artifacts ?? resultArtifacts(result);
+  const inventory = artifactInventory(flattenArtifactUrls(artifacts));
+  const run = {
+    id: row.id,
+    url: row.detail_url || `${options.consoleBase}/weles/${row.id}`,
+    http_status: 200,
+    source_mode: sourceMode,
+    aggregate_reason: aggregateReason,
+    page_title: '',
+    page_text_sample: '',
+    ban_signal: inlineBan,
+    session: compactSession(row?.session ?? result.session ?? result?.run?.session ?? {}),
+    versions: compactVersions(row?.versions ?? result.versions ?? result?.run?.versions ?? {}),
+    params: compactParams(row?.params ?? result.params ?? result?.run?.params ?? {}),
+    console_previews: [],
+    artifact_inventory: inventory,
+    artifact_summaries: await fetchArtifactSummaries(inventory, options.artifactBytes, options.fetchArtifacts),
+    stage_events: rawStageEvents(row),
+    result: {
+      exit_code: result.run?.exit_code ?? result.exit_code ?? null,
+      action: sanitizeText(result.run?.action ?? result.action ?? row.action, 100),
+      error: sanitizeText(row.error ?? result.run?.error ?? result.error ?? result.reason, 500),
+    },
+  };
+  run.classification = classifyRun(run);
+  run.fingerprint = fingerprintVector(run);
+  return run;
+}
+
+async function fetchRunApi(runId, options) {
+  if (!options.useApi) return { ok: false, error: 'api disabled' };
+  return fetchJson(`${options.consoleBase}/api/weles/runs/${runId}`, options).catch((e) => ({ ok: false, status: 0, error: e.message }));
+}
+
 async function fetchRun(runId, aggregateReasonById, options) {
+  const aggregateReason = aggregateReasonById.get(runId) ?? '';
+  const api = await fetchRunApi(runId, options);
+  if (api.ok) return runFromApiRow(api.json, aggregateReason, options, 'run_api');
+
   const url = `${options.consoleBase}/weles/${runId}`;
-  const res = await fetch(url);
+  const res = await fetch(url, { headers: consoleHeaders(options, 'text/html') });
   const html = await res.text();
   const decoded = decodeHtml(html);
+  const flightJsonChildren = jsonChildrenFromFlightPayloads(html);
+  const consolePreviews = consolePreviewMetas(html);
   const pageText = stripTags(html);
-  const inlineBan = lastObjectAfterKey(decoded, '"ban_signal"');
-  const result = objectAfter(decoded, 'full result');
-  const session = compactSession(objectAfter(decoded, 'session (proxy / persona / browser / exit_ip)') ?? result?.session ?? result?.run?.session ?? looseSessionFromConsoleHtml(decoded) ?? {});
-  const versions = compactVersions(objectAfter(decoded, 'versions (weles commit / trajectory sha / dist)') ?? result?.versions ?? result?.run?.versions ?? {});
-  const params = compactParams(objectAfter(decoded, 'params') ?? result?.params ?? result?.run?.params ?? {});
+  const inlineBan = lastObjectAfterKey(decoded, '"ban_signal"') ?? banSignalFromConsoleText(decoded, aggregateReason);
+  const result = objectAfter(html, decoded, flightJsonChildren, 'full result');
+  const session = compactSession(objectAfter(html, decoded, flightJsonChildren, 'session (proxy / persona / browser / exit_ip)') ?? result?.session ?? result?.run?.session ?? looseSessionFromConsoleHtml(decoded) ?? {});
+  const versions = compactVersions(objectAfter(html, decoded, flightJsonChildren, 'versions (weles commit / trajectory sha / dist)') ?? result?.versions ?? result?.run?.versions ?? {});
+  const params = compactParams(objectAfter(html, decoded, flightJsonChildren, 'params') ?? result?.params ?? result?.run?.params ?? {});
+  const artifactObject = objectAfter(html, decoded, flightJsonChildren, 'result.artifacts (uploaded urls)');
   const artifactsFromResult = flattenArtifactUrls(resultArtifacts(result));
-  const inventory = artifactInventory(unique([...extractUrls(html), ...artifactsFromResult]));
+  const artifactsFromConsoleObject = flattenArtifactUrls(artifactObject);
+  const inventory = artifactInventory(unique([...extractUrls(html), ...artifactsFromResult, ...artifactsFromConsoleObject]));
   const run = {
     id: runId,
     url,
     http_status: res.status,
-    aggregate_reason: aggregateReasonById.get(runId) ?? '',
+    source_mode: 'html',
+    api_error: sanitizeText(api.error ?? '', 200),
+    aggregate_reason: aggregateReason,
     page_title: sanitizeText(html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] ?? '', 120),
     page_text_sample: sanitizeText(pageText, 1200),
     ban_signal: inlineBan ?? signalObject({ inline_ban_signal: null, result }),
     session,
     versions,
     params,
+    console_previews: consolePreviews,
     artifact_inventory: inventory,
     artifact_summaries: await fetchArtifactSummaries(inventory, options.artifactBytes, options.fetchArtifacts),
     stage_events: result?.stage_events ?? result?.run?.stage_events ?? result?.result?.stage_events ?? inlineBan?.details?.stage_events ?? [],
@@ -751,6 +1045,18 @@ async function fetchRun(runId, aggregateReasonById, options) {
   run.classification = classifyRun(run);
   run.fingerprint = fingerprintVector(run);
   return run;
+}
+
+async function fetchAggregate(source, options) {
+  const apiUrl = options.useApi ? aggregateApiUrl(source, options.limit || 500) : '';
+  if (apiUrl) {
+    const api = await fetchJson(apiUrl, options).catch((e) => ({ ok: false, status: 0, error: e.message }));
+    if (api.ok) return aggregateFromApi(api.json, source);
+  }
+  const aggregateRes = await fetch(source, { headers: consoleHeaders(options, 'text/html') });
+  if (!aggregateRes.ok) throw new Error(`fetch failed ${aggregateRes.status} ${aggregateRes.statusText}: ${source}`);
+  const aggregateHtml = await aggregateRes.text();
+  return aggregateFromHtml(aggregateHtml, source);
 }
 
 function runReasonIndex(aggregate) {
@@ -787,7 +1093,7 @@ function printHuman(report) {
   console.log('runs:');
   for (const run of report.runs.slice(0, 30)) {
     const reasons = run.classification.map((r) => `${r.code}/${r.confidence}`).join(',');
-    console.log(`- ${run.id.slice(0, 8)} reason=${reasons} signal=${run.ban_signal?.signal || '—'} proxy=${run.session.provider || '—'}:${run.session.exit_ip || run.session.proxy_host || '—'} browser=${run.session.persona.browser || '—'} os=${run.session.persona.os || '—'} artifacts=${JSON.stringify(run.artifacts.counts)}`);
+    console.log(`- ${run.id.slice(0, 8)} source=${run.source_mode || '—'} reason=${reasons} signal=${run.ban_signal?.signal || '—'} proxy=${run.session.provider || '—'}:${run.session.exit_ip || run.session.proxy_host || '—'} browser=${run.session.persona.browser || '—'} os=${run.session.persona.os || '—'} artifacts=${JSON.stringify(run.artifacts.counts)}`);
   }
 }
 
@@ -803,20 +1109,22 @@ const samplePerBucket = safeNumber(argValue('--sample-per-bucket', '4'), 4);
 const limit = safeNumber(argValue('--limit', '0'), 0);
 const artifactBytes = safeNumber(argValue('--artifact-bytes', '2000000'), 2_000_000);
 const fetchArtifacts = !flag('--no-artifacts');
+const cookie = argValue('--cookie', process.env.WELES_CONSOLE_COOKIE ?? '');
+const useApi = !flag('--no-api');
 
 try {
-  const aggregateRes = await fetch(source);
-  if (!aggregateRes.ok) throw new Error(`fetch failed ${aggregateRes.status} ${aggregateRes.statusText}: ${source}`);
-  const aggregateHtml = await aggregateRes.text();
-  const aggregate = aggregateFromHtml(aggregateHtml, source);
+  const aggregate = await fetchAggregate(source, { cookie, useApi, limit });
   if (!aggregate.run_ids.length) throw new Error(`no /weles/<run-id> links found in ${source}`);
   const sourceUrl = new URL(source);
   const consoleBase = `${sourceUrl.protocol}//${sourceUrl.host}`;
   const selectedIds = chooseRunIds(aggregate, samplePerBucket, limit);
   const reasonById = runReasonIndex(aggregate);
+  const apiRowsById = new Map((aggregate.api_rows ?? []).map((row) => [row.id, row]));
   const runs = [];
   for (const id of selectedIds) {
-    runs.push(await fetchRun(id, reasonById, { consoleBase, artifactBytes, fetchArtifacts }));
+    const apiRow = apiRowsById.get(id);
+    if (apiRow) runs.push(await runFromApiRow(apiRow, reasonById.get(id) ?? '', { consoleBase, artifactBytes, fetchArtifacts, cookie, useApi }, 'aggregate_api'));
+    else runs.push(await fetchRun(id, reasonById, { consoleBase, artifactBytes, fetchArtifacts, cookie, useApi }));
   }
   const report = {
     source,
@@ -829,6 +1137,8 @@ try {
     runs: runs.map((run) => ({
       id: run.id,
       url: run.url,
+      source_mode: run.source_mode,
+      api_error: run.api_error || undefined,
       aggregate_reason: run.aggregate_reason,
       ban_signal: run.ban_signal ? {
         signal: run.ban_signal.signal ?? '',
@@ -840,6 +1150,7 @@ try {
       session: run.session,
       versions: run.versions,
       params: run.params,
+      console_previews: run.console_previews,
       artifacts: {
         counts: run.artifact_inventory.counts,
         items: run.artifact_inventory.items.map(({ raw_url, ...item }) => item),
