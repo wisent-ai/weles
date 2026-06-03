@@ -122,6 +122,13 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
 
   const fp = generate({ os: targetOs, browser: browserType });
   const fpConfig = toConfig(fp, targetOs, browserType);
+  // Realized fingerprint actually presented to the page (UA, full UA-CH brand
+  // list, navigator/screen/webgl). Captured onto the context so WSession can
+  // persist it into session_meta -> account_action_logs.result (provenance).
+  // Initialized to fpConfig (always present) and upgraded to the exact cppConfig
+  // on the custom-Chromium path, so it is NEVER null — downstream persistence
+  // is non-nullable by construction.
+  let realizedFingerprint: Record<string, any> = fpConfig;
 
   // Persona overrides: apply coherent per-session fingerprint values.
   if (persona) {
@@ -193,6 +200,7 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
   if (isCustomBinary) {
     launchOpts.executablePath = chromiumPath;
     const cppConfig = toCppConfig(fpConfig, targetOs, { chromiumPath });
+    realizedFingerprint = cppConfig;
     const fpDir = mkdtempSync(join(tmpdir(), 'weles-fp-'));
     const fpFile = join(fpDir, 'config.json');
     writeFileSync(fpFile, JSON.stringify(cppConfig));
@@ -303,6 +311,9 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
   }
 
   const context = extContext ?? await pwBrowser!.newContext(ctxOpts);
+  // Realized fingerprint (cppConfig for custom Chromium; fpConfig otherwise) so
+  // the exact UA / UA-CH / navigator / screen / webgl presented is recoverable.
+  if (!(context as any)._welesFingerprintConfig) (context as any)._welesFingerprintConfig = realizedFingerprint;
   if (!(context as any)._welesBrowserProvenance) {
     const proc = (pwBrowser as any)?.process?.();
     (context as any)._welesBrowserProvenance = browserProvenance({
