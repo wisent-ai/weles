@@ -74,12 +74,45 @@ function hashTree(root: string): { digest: string; file_count: number; total_byt
   return { digest: h.digest('hex'), file_count: files.length, total_bytes: total };
 }
 
+// G3: hash the worker launcher(s) — every .mjs directly under scripts/worker/
+// (run.mjs and any sibling launcher). This is the actual process entrypoint the
+// worker is started with; it lives outside dist/ and outside scripts/trajectories/
+// so neither existing digest covers it. A change to the launcher (env wiring,
+// import path, run loop) flips runner_entry_sha256. Hash is over sorted
+// (relative-name + bytes) pairs so the single-file and multi-file cases are
+// stable and order-independent.
+function hashWorkerEntry(): { digest: string; file_count: number; total_bytes: number } | null {
+  const dir = join(WELES_ROOT, 'scripts', 'worker');
+  let names: string[];
+  try {
+    names = readdirSync(dir, { withFileTypes: true })
+      .filter((e) => e.isFile() && e.name.endsWith('.mjs'))
+      .map((e) => e.name)
+      .sort();
+  } catch { return null; }
+  if (names.length === 0) return null;
+  const h = createHash('sha256');
+  let total = 0;
+  for (const name of names) {
+    try {
+      const buf = readFileSync(join(dir, name));
+      h.update(name);
+      h.update('\0');
+      h.update(buf);
+      h.update('\0');
+      total += buf.byteLength;
+    } catch { return null; }
+  }
+  return { digest: h.digest('hex'), file_count: names.length, total_bytes: total };
+}
+
 const STATIC = (() => {
   const commit = safeExec('git rev-parse HEAD');
   const dirtyOut = safeExec('git status --porcelain');
   const branch = safeExec('git rev-parse --abbrev-ref HEAD');
   const dist = hashTree(join(WELES_ROOT, 'dist'));
   const trajTree = hashTree(join(WELES_ROOT, 'scripts', 'trajectories'));
+  const runnerEntry = hashWorkerEntry();
   return {
     weles_pkg_version: readPkgVersion(),
     weles_commit: commit,
@@ -100,6 +133,12 @@ const STATIC = (() => {
     trajectories_tree_sha256: trajTree?.digest ?? null,
     trajectories_tree_files: trajTree?.file_count ?? null,
     trajectories_tree_bytes: trajTree?.total_bytes ?? null,
+    // runner_entry_sha256 fingerprints the worker launcher(s) under
+    // scripts/worker/ (run.mjs + any sibling .mjs) — the exact process
+    // entrypoint, outside dist/ and outside scripts/trajectories/.
+    runner_entry_sha256: runnerEntry?.digest ?? null,
+    runner_entry_files: runnerEntry?.file_count ?? null,
+    runner_entry_bytes: runnerEntry?.total_bytes ?? null,
     worker_host: hostname(),
     worker_user: getUser(),
     node_version: process.version,
