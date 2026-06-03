@@ -1,0 +1,2002 @@
+{
+   "SMART 6R LISTA" : {
+      "note" : "limit 90 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART 6R OPIS" : {
+      "note" : "limit 2417 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART 6R WARIANT" : {
+      "note" : "limit 81 znakow",
+      "selector" : "TODO",
+      "type" : "select"
+   },
+   "SMART BRAK BARIER" : {
+      "note" : "limit 1485 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART BST BAZY" : {
+      "note" : "limit 320 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART BST DATA" : {
+      "note" : "limit 10 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART BST IPC" : {
+      "note" : "limit 205 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART BST SLOWA" : {
+      "note" : "limit 300 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART BST WYKONAWCA" : {
+      "note" : "limit 213 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART BST WYNIKI" : {
+      "note" : "limit 3241 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART CECHA 1 BAZA" : {
+      "note" : "limit 229 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART CECHA 1 DOCELOWA" : {
+      "note" : "limit 275 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART CECHA 1 KORZYSC" : {
+      "note" : "limit 479 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART CECHA 1 NAZWA" : {
+      "note" : "limit 136 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART CECHA 1 PARAMETR" : {
+      "note" : "limit 155 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART CECHA 1 REFERENCJA" : {
+      "note" : "limit 153 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART CECHA 1 WERYFIKACJA" : {
+      "note" : "limit 349 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART CECHA 2 BAZA" : {
+      "note" : "limit 268 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART CECHA 2 DOCELOWA" : {
+      "note" : "limit 262 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART CECHA 2 KORZYSC" : {
+      "note" : "limit 327 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART CECHA 2 NAZWA" : {
+      "note" : "limit 166 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART CECHA 2 PARAMETR" : {
+      "note" : "limit 165 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART CECHA 2 REFERENCJA" : {
+      "note" : "limit 128 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART CECHA 2 WERYFIKACJA" : {
+      "note" : "limit 348 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART CECHA 3 BAZA" : {
+      "note" : "limit 210 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART CECHA 3 DOCELOWA" : {
+      "note" : "limit 229 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART CECHA 3 KORZYSC" : {
+      "note" : "limit 359 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART CECHA 3 NAZWA" : {
+      "note" : "limit 159 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART CECHA 3 PARAMETR" : {
+      "note" : "limit 123 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART CECHA 3 REFERENCJA" : {
+      "note" : "limit 147 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART CECHA 3 WERYFIKACJA" : {
+      "note" : "limit 353 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART CECHA 4 BAZA" : {
+      "note" : "limit 237 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART CECHA 4 DOCELOWA" : {
+      "note" : "limit 260 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART CECHA 4 KORZYSC" : {
+      "note" : "limit 471 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART CECHA 4 NAZWA" : {
+      "note" : "limit 117 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART CECHA 4 PARAMETR" : {
+      "note" : "limit 155 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART CECHA 4 REFERENCJA" : {
+      "note" : "limit 84 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART CECHA 4 WERYFIKACJA" : {
+      "note" : "limit 403 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART CECHA 5 BAZA" : {
+      "note" : "limit 109 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART CECHA 5 DOCELOWA" : {
+      "note" : "limit 294 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART CECHA 5 KORZYSC" : {
+      "note" : "limit 390 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART CECHA 5 NAZWA" : {
+      "note" : "limit 164 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART CECHA 5 PARAMETR" : {
+      "note" : "limit 121 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART CECHA 5 REFERENCJA" : {
+      "note" : "limit 128 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART CECHA 5 WERYFIKACJA" : {
+      "note" : "limit 301 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART EKOINNOWACJA TAK" : {
+      "note" : "limit 3 znakow",
+      "selector" : "TODO",
+      "type" : "checkbox"
+   },
+   "SMART EKOINNOWACJA UZASADNIENIE" : {
+      "note" : "limit 1081 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART INNOWACJA CYFROWA TAK" : {
+      "note" : "limit 3 znakow",
+      "selector" : "TODO",
+      "type" : "checkbox"
+   },
+   "SMART INNOWACJA CYFROWA UZASADNIENIE" : {
+      "note" : "limit 1067 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART INNOWACJA CYFROWA WSKAZNIKI" : {
+      "note" : "limit 384 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART KOMPETENCJE TAK" : {
+      "note" : "limit 3 znakow",
+      "selector" : "TODO",
+      "type" : "checkbox"
+   },
+   "SMART KOMPETENCJE ZAKRES" : {
+      "note" : "limit 3025 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART KOSZTY POSREDNIE" : {
+      "note" : "limit 703 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART KPON" : {
+      "note" : "limit 2278 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART KPP" : {
+      "note" : "limit 2463 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART KROTKI OPIS" : {
+      "note" : "limit 2457 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART METODA BADAWCZA" : {
+      "note" : "limit 2141 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART NAZWA PRODUKTU" : {
+      "note" : "limit 88 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART OFERTA KONKURENCJI" : {
+      "note" : "limit 1136 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART OFERTA PRZEWAGI" : {
+      "note" : "limit 1262 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART OPIS INNOWACJI" : {
+      "note" : "limit 6801 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART OPLACALNOSC" : {
+      "note" : "limit 2534 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART OSOBA1 DOSWIADCZENIE" : {
+      "note" : "limit 1861 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART OSOBA1 IMIE" : {
+      "note" : "limit 6 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART OSOBA1 NAZWISKO" : {
+      "note" : "limit 10 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART OSOBA1 ROLA" : {
+      "note" : "limit 48 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART OSOBA1 STATUS" : {
+      "note" : "limit 124 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART OSOBA1 WYKSZTALCENIE" : {
+      "note" : "limit 300 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART OSOBA1 ZAANGAZOWANIE" : {
+      "note" : "limit 100 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART OSOBA2 DOSWIADCZENIE" : {
+      "note" : "limit 1379 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART OSOBA2 IMIE" : {
+      "note" : "limit 6 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART OSOBA2 NAZWISKO" : {
+      "note" : "limit 7 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART OSOBA2 ROLA" : {
+      "note" : "limit 36 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART OSOBA2 STATUS" : {
+      "note" : "limit 216 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART OSOBA2 TYTUL" : {
+      "note" : "limit 49 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART OSOBA2 WYKSZTALCENIE" : {
+      "note" : "limit 154 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART OSOBA2 ZAANGAZOWANIE" : {
+      "note" : "limit 135 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART OSOBA3 DOSWIADCZENIE" : {
+      "note" : "limit 1343 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART OSOBA3 IMIE" : {
+      "note" : "limit 5 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART OSOBA3 NAZWISKO" : {
+      "note" : "limit 7 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART OSOBA3 ROLA" : {
+      "note" : "limit 47 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART OSOBA3 STATUS" : {
+      "note" : "limit 34 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART OSOBA3 WYKSZTALCENIE" : {
+      "note" : "limit 91 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART OSOBA3 ZAANGAZOWANIE" : {
+      "note" : "limit 100 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART OSWIADCZENIA" : {
+      "note" : "limit 1425 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART P1 DOCELOWA" : {
+      "note" : "limit 1 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART P1 JEDNOSTKA" : {
+      "note" : "limit 6 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART P1 METODOLOGIA" : {
+      "note" : "limit 454 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART P1 NAZWA" : {
+      "note" : "limit 125 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART P1 WERYFIKACJA" : {
+      "note" : "limit 152 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART P2 DOCELOWA" : {
+      "note" : "limit 1 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART P2 JEDNOSTKA" : {
+      "note" : "limit 6 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART P2 METODOLOGIA" : {
+      "note" : "limit 378 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART P2 NAZWA" : {
+      "note" : "limit 100 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART P2 WERYFIKACJA" : {
+      "note" : "limit 102 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART P3 DOCELOWA" : {
+      "note" : "limit 1 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART P3 JEDNOSTKA" : {
+      "note" : "limit 6 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART P3 METODOLOGIA" : {
+      "note" : "limit 238 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART P3 NAZWA" : {
+      "note" : "limit 138 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART P3 WERYFIKACJA" : {
+      "note" : "limit 112 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART P4 DOCELOWA" : {
+      "note" : "limit 9 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART P4 JEDNOSTKA" : {
+      "note" : "limit 6 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART P4 METODOLOGIA" : {
+      "note" : "limit 300 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART P4 NAZWA" : {
+      "note" : "limit 89 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART P4 WERYFIKACJA" : {
+      "note" : "limit 72 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART P5 DOCELOWA" : {
+      "note" : "limit 1 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART P5 JEDNOSTKA" : {
+      "note" : "limit 6 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART P5 METODOLOGIA" : {
+      "note" : "limit 333 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART P5 NAZWA" : {
+      "note" : "limit 91 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART P5 WERYFIKACJA" : {
+      "note" : "limit 76 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART PERSONEL PLANOWANY" : {
+      "note" : "limit 1023 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART PLAN WDROZENIA" : {
+      "note" : "limit 3432 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART PODSUMOWANIE COMPUTE INFRA" : {
+      "note" : "limit 477 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART PODSUMOWANIE PERSONNEL" : {
+      "note" : "limit 372 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART PODWYKONAWCY TAK" : {
+      "note" : "limit 3 znakow",
+      "selector" : "TODO",
+      "type" : "checkbox"
+   },
+   "SMART PODWYKONAWCY UZASADNIENIE" : {
+      "note" : "limit 1339 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART POTRZEBY ODBIORCOW" : {
+      "note" : "limit 2062 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART POZOSTALI PERSONEL" : {
+      "note" : "limit 2068 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART PROBLEM BADAWCZY" : {
+      "note" : "limit 4886 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART PRZEDMIOT OCHRONY" : {
+      "note" : "limit 2351 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART R1 JEDNOSTKA" : {
+      "note" : "limit 7 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART R1 METODOLOGIA" : {
+      "note" : "limit 304 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART R1 NAZWA" : {
+      "note" : "limit 128 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART R1 ROK BAZOWY" : {
+      "note" : "limit 4 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART R1 ROK DOCELOWY" : {
+      "note" : "limit 4 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART R1 WARTOSC BAZOWA" : {
+      "note" : "limit 2 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART R1 WARTOSC DOCELOWA" : {
+      "note" : "limit 2 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART R1 WERYFIKACJA" : {
+      "note" : "limit 156 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART R2 JEDNOSTKA" : {
+      "note" : "limit 7 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART R2 METODOLOGIA" : {
+      "note" : "limit 269 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART R2 NAZWA" : {
+      "note" : "limit 138 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART R2 ROK BAZOWY" : {
+      "note" : "limit 4 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART R2 ROK DOCELOWY" : {
+      "note" : "limit 4 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART R2 WARTOSC BAZOWA" : {
+      "note" : "limit 2 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART R2 WARTOSC DOCELOWA" : {
+      "note" : "limit 1 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART R2 WERYFIKACJA" : {
+      "note" : "limit 103 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART R3 JEDNOSTKA" : {
+      "note" : "limit 20 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART R3 METODOLOGIA" : {
+      "note" : "limit 304 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART R3 NAZWA" : {
+      "note" : "limit 163 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART R3 ROK BAZOWY" : {
+      "note" : "limit 4 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART R3 ROK DOCELOWY" : {
+      "note" : "limit 4 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART R3 WARTOSC BAZOWA" : {
+      "note" : "limit 1 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART R3 WARTOSC DOCELOWA" : {
+      "note" : "limit 2 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART R3 WERYFIKACJA" : {
+      "note" : "limit 107 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART R4 JEDNOSTKA" : {
+      "note" : "limit 20 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART R4 METODOLOGIA" : {
+      "note" : "limit 327 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART R4 NAZWA" : {
+      "note" : "limit 148 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART R4 ROK BAZOWY" : {
+      "note" : "limit 4 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART R4 ROK DOCELOWY" : {
+      "note" : "limit 4 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART R4 WARTOSC BAZOWA" : {
+      "note" : "limit 1 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART R4 WARTOSC DOCELOWA" : {
+      "note" : "limit 2 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART R4 WERYFIKACJA" : {
+      "note" : "limit 132 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART R5 JEDNOSTKA" : {
+      "note" : "limit 6 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART R5 METODOLOGIA" : {
+      "note" : "limit 278 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART R5 NAZWA" : {
+      "note" : "limit 138 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART R5 ROK BAZOWY" : {
+      "note" : "limit 4 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART R5 ROK DOCELOWY" : {
+      "note" : "limit 4 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART R5 WARTOSC BAZOWA" : {
+      "note" : "limit 1 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART R5 WARTOSC DOCELOWA" : {
+      "note" : "limit 2 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART R5 WERYFIKACJA" : {
+      "note" : "limit 120 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART RODZAJ INNOWACJI" : {
+      "note" : "limit 20 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART RODZAJ PRAC" : {
+      "note" : "limit 53 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART ROWNOSC PLCI" : {
+      "note" : "limit 1549 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART ROWNOSC SZANS" : {
+      "note" : "limit 2982 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART RYNEK DOCELOWY" : {
+      "note" : "limit 3096 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART RYZYKO1 NAZWA" : {
+      "note" : "limit 79 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART RYZYKO1 OPIS" : {
+      "note" : "limit 481 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART RYZYKO1 TYP" : {
+      "note" : "limit 25 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART RYZYKO1 ZAPOBIEGANIE" : {
+      "note" : "limit 747 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART RYZYKO2 NAZWA" : {
+      "note" : "limit 95 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART RYZYKO2 OPIS" : {
+      "note" : "limit 429 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART RYZYKO2 TYP" : {
+      "note" : "limit 25 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART RYZYKO2 ZAPOBIEGANIE" : {
+      "note" : "limit 520 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART RYZYKO3 NAZWA" : {
+      "note" : "limit 139 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART RYZYKO3 OPIS" : {
+      "note" : "limit 332 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART RYZYKO3 TYP" : {
+      "note" : "limit 14 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART RYZYKO3 ZAPOBIEGANIE" : {
+      "note" : "limit 637 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART RYZYKO4 NAZWA" : {
+      "note" : "limit 101 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART RYZYKO4 OPIS" : {
+      "note" : "limit 222 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART RYZYKO4 TYP" : {
+      "note" : "limit 9 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART RYZYKO4 ZAPOBIEGANIE" : {
+      "note" : "limit 658 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART RYZYKO5 NAZWA" : {
+      "note" : "limit 85 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART RYZYKO5 OPIS" : {
+      "note" : "limit 297 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART RYZYKO5 TYP" : {
+      "note" : "limit 9 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART RYZYKO5 ZAPOBIEGANIE" : {
+      "note" : "limit 586 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART RYZYKO6 NAZWA" : {
+      "note" : "limit 95 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART RYZYKO6 OPIS" : {
+      "note" : "limit 360 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART RYZYKO6 TYP" : {
+      "note" : "limit 27 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART RYZYKO6 ZAPOBIEGANIE" : {
+      "note" : "limit 516 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART RYZYKO7 NAZWA" : {
+      "note" : "limit 53 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART RYZYKO7 OPIS" : {
+      "note" : "limit 338 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART RYZYKO7 TYP" : {
+      "note" : "limit 15 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART RYZYKO7 ZAPOBIEGANIE" : {
+      "note" : "limit 462 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART RYZYKO8 NAZWA" : {
+      "note" : "limit 93 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART RYZYKO8 OPIS" : {
+      "note" : "limit 272 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART RYZYKO8 TYP" : {
+      "note" : "limit 9 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART RYZYKO8 ZAPOBIEGANIE" : {
+      "note" : "limit 698 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART STAN WIEDZY" : {
+      "note" : "limit 2480 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART TRANSFORMACJA TAK" : {
+      "note" : "limit 3 znakow",
+      "selector" : "TODO",
+      "type" : "checkbox"
+   },
+   "SMART TRANSFORMACJA UZASADNIENIE" : {
+      "note" : "limit 1141 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART TYTUL" : {
+      "note" : "limit 117 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART UMIEDZYNARODOWIENIE TAK" : {
+      "note" : "limit 3 znakow",
+      "selector" : "TODO",
+      "type" : "checkbox"
+   },
+   "SMART UMIEDZYNARODOWIENIE ZAKRES" : {
+      "note" : "limit 2658 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART UREGULOWANIE PRAW" : {
+      "note" : "limit 1754 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART W1.1 KATEGORIA CST" : {
+      "note" : "limit 33 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART W1.1 KATEGORIA FENG" : {
+      "note" : "limit 64 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART W1.1 KWALIFIKOWALNE" : {
+      "note" : "limit 13 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART W1.1 METODA" : {
+      "note" : "limit 566 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART W1.1 NAZWA" : {
+      "note" : "limit 207 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART W1.1 OGOLEM" : {
+      "note" : "limit 13 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART W1.1 UZASADNIENIE" : {
+      "note" : "limit 1038 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART W1.1 ZADANIE" : {
+      "note" : "limit 78 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART W1.2 KATEGORIA CST" : {
+      "note" : "limit 33 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART W1.2 KATEGORIA FENG" : {
+      "note" : "limit 64 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART W1.2 KWALIFIKOWALNE" : {
+      "note" : "limit 13 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART W1.2 METODA" : {
+      "note" : "limit 425 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART W1.2 NAZWA" : {
+      "note" : "limit 181 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART W1.2 OGOLEM" : {
+      "note" : "limit 13 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART W1.2 UZASADNIENIE" : {
+      "note" : "limit 987 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART W1.2 ZADANIE" : {
+      "note" : "limit 46 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART W1.3 KATEGORIA CST" : {
+      "note" : "limit 33 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART W1.3 KATEGORIA FENG" : {
+      "note" : "limit 64 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART W1.3 KWALIFIKOWALNE" : {
+      "note" : "limit 13 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART W1.3 METODA" : {
+      "note" : "limit 232 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART W1.3 NAZWA" : {
+      "note" : "limit 191 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART W1.3 OGOLEM" : {
+      "note" : "limit 13 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART W1.3 UZASADNIENIE" : {
+      "note" : "limit 574 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART W1.3 ZADANIE" : {
+      "note" : "limit 35 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART W1.4 KATEGORIA CST" : {
+      "note" : "limit 33 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART W1.4 KATEGORIA FENG" : {
+      "note" : "limit 64 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART W1.4 KWALIFIKOWALNE" : {
+      "note" : "limit 13 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART W1.4 METODA" : {
+      "note" : "limit 208 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART W1.4 NAZWA" : {
+      "note" : "limit 133 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART W1.4 OGOLEM" : {
+      "note" : "limit 13 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART W1.4 UZASADNIENIE" : {
+      "note" : "limit 634 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART W1.4 ZADANIE" : {
+      "note" : "limit 39 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART W2.1 KATEGORIA CST" : {
+      "note" : "limit 30 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART W2.1 KATEGORIA FENG" : {
+      "note" : "limit 40 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART W2.1 KWALIFIKOWALNE" : {
+      "note" : "limit 13 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART W2.1 METODA" : {
+      "note" : "limit 439 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART W2.1 NAZWA" : {
+      "note" : "limit 156 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART W2.1 OGOLEM" : {
+      "note" : "limit 13 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART W2.1 UZASADNIENIE" : {
+      "note" : "limit 885 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART W2.1 ZADANIE" : {
+      "note" : "limit 59 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART W2.2 KATEGORIA CST" : {
+      "note" : "limit 43 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART W2.2 KATEGORIA FENG" : {
+      "note" : "limit 40 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART W2.2 KWALIFIKOWALNE" : {
+      "note" : "limit 11 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART W2.2 METODA" : {
+      "note" : "limit 452 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART W2.2 NAZWA" : {
+      "note" : "limit 158 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART W2.2 OGOLEM" : {
+      "note" : "limit 11 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART W2.2 UZASADNIENIE" : {
+      "note" : "limit 626 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART W2.2 ZADANIE" : {
+      "note" : "limit 36 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART W2.3 KATEGORIA CST" : {
+      "note" : "limit 33 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART W2.3 KATEGORIA FENG" : {
+      "note" : "limit 40 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART W2.3 KWALIFIKOWALNE" : {
+      "note" : "limit 11 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART W2.3 METODA" : {
+      "note" : "limit 359 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART W2.3 NAZWA" : {
+      "note" : "limit 162 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART W2.3 OGOLEM" : {
+      "note" : "limit 11 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART W2.3 UZASADNIENIE" : {
+      "note" : "limit 633 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART W2.3 ZADANIE" : {
+      "note" : "limit 60 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART W3.1 KATEGORIA CST" : {
+      "note" : "limit 31 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART W3.1 KATEGORIA FENG" : {
+      "note" : "limit 40 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART W3.1 KWALIFIKOWALNE" : {
+      "note" : "limit 11 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART W3.1 METODA" : {
+      "note" : "limit 337 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART W3.1 NAZWA" : {
+      "note" : "limit 169 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART W3.1 OGOLEM" : {
+      "note" : "limit 11 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART W3.1 UZASADNIENIE" : {
+      "note" : "limit 802 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART W3.1 ZADANIE" : {
+      "note" : "limit 60 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART W3.2 KATEGORIA CST" : {
+      "note" : "limit 26 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART W3.2 KATEGORIA FENG" : {
+      "note" : "limit 66 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART W3.2 KWALIFIKOWALNE" : {
+      "note" : "limit 11 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART W3.2 METODA" : {
+      "note" : "limit 184 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART W3.2 NAZWA" : {
+      "note" : "limit 246 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART W3.2 OGOLEM" : {
+      "note" : "limit 11 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART W3.2 UZASADNIENIE" : {
+      "note" : "limit 771 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART W3.2 ZADANIE" : {
+      "note" : "limit 42 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART W4 KATEGORIA CST" : {
+      "note" : "limit 34 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART W4 KATEGORIA FENG" : {
+      "note" : "limit 36 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART W4 KWALIFIKOWALNE" : {
+      "note" : "limit 11 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART W4 METODA" : {
+      "note" : "limit 318 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART W4 NAZWA" : {
+      "note" : "limit 234 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART W4 OGOLEM" : {
+      "note" : "limit 11 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART W4 UZASADNIENIE" : {
+      "note" : "limit 775 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART W4 ZADANIE" : {
+      "note" : "limit 42 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART W5 KATEGORIA CST" : {
+      "note" : "limit 31 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART W5 KATEGORIA FENG" : {
+      "note" : "limit 32 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART W5 KWALIFIKOWALNE" : {
+      "note" : "limit 11 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART W5 METODA" : {
+      "note" : "limit 235 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART W5 NAZWA" : {
+      "note" : "limit 192 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART W5 OGOLEM" : {
+      "note" : "limit 11 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART W5 UZASADNIENIE" : {
+      "note" : "limit 753 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART W5 ZADANIE" : {
+      "note" : "limit 64 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART W6.1 KATEGORIA CST" : {
+      "note" : "limit 24 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART W6.1 KATEGORIA FENG" : {
+      "note" : "limit 47 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART W6.1 KWALIFIKOWALNE" : {
+      "note" : "limit 13 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART W6.1 METODA" : {
+      "note" : "limit 310 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART W6.1 NAZWA" : {
+      "note" : "limit 163 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART W6.1 OGOLEM" : {
+      "note" : "limit 13 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART W6.1 UZASADNIENIE" : {
+      "note" : "limit 704 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART W6.1 ZADANIE" : {
+      "note" : "limit 17 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART W6.2 KATEGORIA CST" : {
+      "note" : "limit 39 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART W6.2 KATEGORIA FENG" : {
+      "note" : "limit 67 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART W6.2 KWALIFIKOWALNE" : {
+      "note" : "limit 13 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART W6.2 METODA" : {
+      "note" : "limit 371 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART W6.2 NAZWA" : {
+      "note" : "limit 258 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART W6.2 OGOLEM" : {
+      "note" : "limit 13 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART W6.2 UZASADNIENIE" : {
+      "note" : "limit 1044 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART W6.2 ZADANIE" : {
+      "note" : "limit 25 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART W7 KATEGORIA CST" : {
+      "note" : "limit 59 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART W7 KATEGORIA FENG" : {
+      "note" : "limit 32 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART W7 KWALIFIKOWALNE" : {
+      "note" : "limit 11 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART W7 METODA" : {
+      "note" : "limit 321 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART W7 NAZWA" : {
+      "note" : "limit 152 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART W7 OGOLEM" : {
+      "note" : "limit 11 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART W7 UZASADNIENIE" : {
+      "note" : "limit 1050 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART W7 ZADANIE" : {
+      "note" : "limit 59 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART WPLYW SPOLECZNY TAK" : {
+      "note" : "limit 3 znakow",
+      "selector" : "TODO",
+      "type" : "checkbox"
+   },
+   "SMART WPLYW SPOLECZNY UZASADNIENIE" : {
+      "note" : "limit 1068 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART WYDATKI BEZPOSREDNIE SUMA" : {
+      "note" : "limit 305 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART WYDATKI OGOLEM" : {
+      "note" : "limit 1330 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART Z1 KONIEC" : {
+      "note" : "limit 10 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART Z1 M1 NAZWA" : {
+      "note" : "limit 54 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART Z1 M1 PARAMETRY" : {
+      "note" : "limit 280 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART Z1 M1 WERYFIKACJA" : {
+      "note" : "limit 258 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART Z1 M1 WPLYW" : {
+      "note" : "limit 325 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART Z1 M2 NAZWA" : {
+      "note" : "limit 34 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART Z1 M2 PARAMETRY" : {
+      "note" : "limit 230 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART Z1 M2 WERYFIKACJA" : {
+      "note" : "limit 143 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART Z1 M2 WPLYW" : {
+      "note" : "limit 212 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART Z1 M3 NAZWA" : {
+      "note" : "limit 50 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART Z1 M3 PARAMETRY" : {
+      "note" : "limit 163 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART Z1 M3 WERYFIKACJA" : {
+      "note" : "limit 92 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART Z1 M3 WPLYW" : {
+      "note" : "limit 302 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART Z1 NAZWA" : {
+      "note" : "limit 68 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART Z1 OPIS METODY" : {
+      "note" : "limit 1065 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART Z1 RODZAJ" : {
+      "note" : "limit 19 znakow",
+      "selector" : "TODO",
+      "type" : "select"
+   },
+   "SMART Z1 START" : {
+      "note" : "limit 10 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART Z1 ZAKRES" : {
+      "note" : "limit 817 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART Z2 KONIEC" : {
+      "note" : "limit 10 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART Z2 M1 NAZWA" : {
+      "note" : "limit 46 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART Z2 M1 PARAMETRY" : {
+      "note" : "limit 201 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART Z2 M1 WERYFIKACJA" : {
+      "note" : "limit 106 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART Z2 M1 WPLYW" : {
+      "note" : "limit 309 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART Z2 M2 NAZWA" : {
+      "note" : "limit 50 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART Z2 M2 PARAMETRY" : {
+      "note" : "limit 125 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART Z2 M2 WERYFIKACJA" : {
+      "note" : "limit 149 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART Z2 M2 WPLYW" : {
+      "note" : "limit 267 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART Z2 NAZWA" : {
+      "note" : "limit 80 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART Z2 OPIS METODY" : {
+      "note" : "limit 659 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART Z2 RODZAJ" : {
+      "note" : "limit 19 znakow",
+      "selector" : "TODO",
+      "type" : "select"
+   },
+   "SMART Z2 START" : {
+      "note" : "limit 10 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART Z2 ZAKRES" : {
+      "note" : "limit 520 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART Z3 KONIEC" : {
+      "note" : "limit 10 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART Z3 M1 NAZWA" : {
+      "note" : "limit 65 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART Z3 M1 PARAMETRY" : {
+      "note" : "limit 133 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART Z3 M1 WERYFIKACJA" : {
+      "note" : "limit 71 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART Z3 M1 WPLYW" : {
+      "note" : "limit 326 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART Z3 M2 NAZWA" : {
+      "note" : "limit 40 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART Z3 M2 PARAMETRY" : {
+      "note" : "limit 111 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART Z3 M2 WERYFIKACJA" : {
+      "note" : "limit 108 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART Z3 M2 WPLYW" : {
+      "note" : "limit 237 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART Z3 NAZWA" : {
+      "note" : "limit 104 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART Z3 OPIS METODY" : {
+      "note" : "limit 659 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART Z3 RODZAJ" : {
+      "note" : "limit 15 znakow",
+      "selector" : "TODO",
+      "type" : "select"
+   },
+   "SMART Z3 START" : {
+      "note" : "limit 10 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART Z3 ZAKRES" : {
+      "note" : "limit 469 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART Z4 KONIEC" : {
+      "note" : "limit 10 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART Z4 M1 NAZWA" : {
+      "note" : "limit 57 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART Z4 M1 PARAMETRY" : {
+      "note" : "limit 112 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART Z4 M1 WERYFIKACJA" : {
+      "note" : "limit 127 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART Z4 M1 WPLYW" : {
+      "note" : "limit 169 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART Z4 M2 NAZWA" : {
+      "note" : "limit 50 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART Z4 M2 PARAMETRY" : {
+      "note" : "limit 190 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART Z4 M2 WERYFIKACJA" : {
+      "note" : "limit 85 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART Z4 M2 WPLYW" : {
+      "note" : "limit 202 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART Z4 NAZWA" : {
+      "note" : "limit 55 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART Z4 OPIS METODY" : {
+      "note" : "limit 504 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART Z4 RODZAJ" : {
+      "note" : "limit 15 znakow",
+      "selector" : "TODO",
+      "type" : "select"
+   },
+   "SMART Z4 START" : {
+      "note" : "limit 10 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART Z4 ZAKRES" : {
+      "note" : "limit 364 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART ZALACZNIKI ETAP1" : {
+      "note" : "limit 554 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART ZALACZNIKI ETAP2" : {
+      "note" : "limit 1107 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART ZAPOTRZEBOWANIE RYNKOWE" : {
+      "note" : "limit 3886 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART ZARZADZANIE" : {
+      "note" : "limit 1232 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART ZASOB1 NAZWA" : {
+      "note" : "limit 61 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART ZASOB1 PRZEZNACZENIE" : {
+      "note" : "limit 529 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART ZASOB1 TYP" : {
+      "note" : "limit 56 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART ZASOB2 NAZWA" : {
+      "note" : "limit 87 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART ZASOB2 PRZEZNACZENIE" : {
+      "note" : "limit 421 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART ZASOB2 TYP" : {
+      "note" : "limit 56 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART ZASOB3 NAZWA" : {
+      "note" : "limit 84 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART ZASOB3 PRZEZNACZENIE" : {
+      "note" : "limit 219 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART ZASOB3 TYP" : {
+      "note" : "limit 56 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART ZASOB4 NAZWA" : {
+      "note" : "limit 52 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART ZASOB4 PRZEZNACZENIE" : {
+      "note" : "limit 233 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART ZASOB4 TYP" : {
+      "note" : "limit 81 znakow",
+      "selector" : "TODO",
+      "type" : "text"
+   },
+   "SMART ZASOBY KADROWE" : {
+      "note" : "limit 1030 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART ZASOBY POZOSTALE" : {
+      "note" : "limit 1119 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART ZASOBY TECHNICZNE" : {
+      "note" : "limit 1010 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   },
+   "SMART ZRODLA FINANSOWANIA" : {
+      "note" : "limit 1830 znakow",
+      "selector" : "TODO",
+      "type" : "textarea"
+   }
+}
