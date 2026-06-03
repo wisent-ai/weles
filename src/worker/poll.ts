@@ -236,6 +236,11 @@ export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
       sticky_session_id: m.sticky_session_id,
       sticky_hash: m.sticky_hash,
     };
+    // G6: full raw identity for EVERY run (not just register), verbatim. Raw
+    // values in the row are explicitly approved. Present whenever the run
+    // generated one (a platform was given); session_meta.json is the storage
+    // backup for non-register runs that never write account.json via saveAccount.
+    if (m.identity) result.identity = m.identity;
   } catch {}
   // IP-drift detection: first session stores observed exit_ip; subsequent sessions compare, mismatch -> ip_drift + pause.
   try { const ip = (result.session as any)?.exit_ip; if (ip && row.account_id) { const r = await fetch(`${SUPABASE_URL}/rest/v1/social_accounts?id=eq.${row.account_id}&select=metadata`, { headers: headers() }); if (r.ok) { const j = await r.json() as any[]; const m = j[0]?.metadata ?? {}; const stored = m.proxy?.exit_ip; if (!stored) { const nm = { ...m, proxy: { ...(m.proxy ?? {}), exit_ip: ip } }; await fetch(`${SUPABASE_URL}/rest/v1/social_accounts?id=eq.${row.account_id}`, { method: 'PATCH', headers: { ...headers(), Prefer: 'return=minimal' }, body: JSON.stringify({ metadata: nm }) }); } else if (stored !== ip) { result.ban_signal = { healthy: false, signal: 'ip_drift', details: { expected: stored, observed: ip } }; await pauseAccount(row.account_id, 'ip_drift'); } } } } catch (e) { console.log('[ip-drift]', e instanceof Error ? e.message : String(e)); }
