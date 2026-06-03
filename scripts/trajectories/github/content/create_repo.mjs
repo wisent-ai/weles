@@ -7,6 +7,7 @@ import { randomBytes } from 'node:crypto';
 import { checkReachable } from '../../_shared/action-runner.mjs';
 import { humanFill } from '../../../../dist/human/keyboard.js';
 import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
+import { runRecordingsDir } from '../../../../dist/session/run-recordings.js';
 
 // Word pool used to generate organic-looking repo names when REPO_NAME isn't
 // supplied. Set WELES_GITHUB_REPO_WORDS to override (comma-separated) so the
@@ -65,6 +66,6 @@ try {
   console.log(`[ban-signal] ${ban?.signal}  FAIL: ${e.message?.slice(0, 200)}`);
   process.exitCode = 1;
 } finally {
-  if (ban) { try { const dir = join(process.cwd(), 'recordings', 'github_create_repo'); mkdirSync(dir, { recursive: true }); writeFileSync(join(dir, 'ban_signal.json'), JSON.stringify({ account_id: acct.id, username: acct.username, action: 'github_create_repo', repo_name: REPO_NAME, ...ban, ts: new Date().toISOString() }, null, 2)); } catch {} }
+  if (ban) { try { const dir = runRecordingsDir('github_create_repo'); mkdirSync(dir, { recursive: true }); writeFileSync(join(dir, 'ban_signal.json'), JSON.stringify({ account_id: acct.id, username: acct.username, action: 'github_create_repo', repo_name: REPO_NAME, ...ban, ts: new Date().toISOString() }, null, 2)); } catch {} }
   await s.close();
 }

@@ -8,6 +8,7 @@ import { checkReachable } from '../../_shared/action-runner.mjs';
 import { assertAuthed, AuthProbeError } from '../../_shared/auth-probe.mjs';
 import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../../_shared/cookie-freshness.mjs';
 import { markCookiesStale } from '../../../../dist/utils/credentials.js';
+import { runRecordingsDir } from '../../../../dist/session/run-recordings.js';
 
 // When TARGET_USER is unset, default to TikTok's official account — gives a
 // deterministic, always-populated profile page rather than relying on the
@@ -62,6 +63,6 @@ try {
   console.log(`[ban-signal] ${ban?.signal}  FAIL: ${e.message?.slice(0, 200)}`);
   process.exitCode = 1;
 } finally {
-  if (ban) { try { const dir = join(process.cwd(), 'recordings', 'tiktok_follow'); mkdirSync(dir, { recursive: true }); writeFileSync(join(dir, 'ban_signal.json'), JSON.stringify({ account_id: acct.id, username: acct.username, action: 'tiktok_follow', target_user: TARGET_USER, ...ban, ts: new Date().toISOString() }, null, 2)); } catch {} }
+  if (ban) { try { const dir = runRecordingsDir('tiktok_follow'); mkdirSync(dir, { recursive: true }); writeFileSync(join(dir, 'ban_signal.json'), JSON.stringify({ account_id: acct.id, username: acct.username, action: 'tiktok_follow', target_user: TARGET_USER, ...ban, ts: new Date().toISOString() }, null, 2)); } catch {} }
   await s.close();
 }

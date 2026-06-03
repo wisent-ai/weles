@@ -6,6 +6,7 @@ import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { assertAuthed, AuthProbeError } from './_shared/auth-probe.mjs';
 import { loadFreshCookieJarOrFail, CookieJarStaleError } from './_shared/cookie-freshness.mjs';
+import { runRecordingsDir } from '../../dist/session/run-recordings.js';
 
 const SUBREDDIT = (process.env.SUBREDDIT || 'CasualConversation').replace(/^r\//, '');
 
@@ -54,7 +55,7 @@ try {
 } finally {
   if (banSignal) {
     try {
-      const dir = join(process.cwd(), 'recordings', 'reddit_upvote');
+      const dir = runRecordingsDir('reddit_upvote');
       mkdirSync(dir, { recursive: true });
       writeFileSync(join(dir, 'ban_signal.json'), JSON.stringify({ account_id: acct.id, username: acct.username, action: 'reddit_upvote', subreddit: SUBREDDIT, ...banSignal, ts: new Date().toISOString() }, null, 2));
     } catch (e) { console.log('[ban-signal] persist err:', e.message); }

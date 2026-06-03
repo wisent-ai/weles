@@ -4,7 +4,8 @@
  * Launches Playwright with custom Chromium binary + fingerprint spoofing.
  */
 
-import { existsSync, writeFileSync, mkdtempSync, mkdirSync, readFileSync } from 'node:fs';
+import { existsSync, writeFileSync, mkdtempSync, mkdirSync, readFileSync, statSync } from 'node:fs';
+import { execSync } from 'node:child_process';
 import { basename, dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { chromium, type BrowserContext, type Browser } from 'playwright';
@@ -12,6 +13,7 @@ import { generate, toConfig, toCppConfig } from './fingerprint.js';
 import { buildInitScript } from './scripts/loader.js';
 import { pruneRecordings } from './prune.js';
 import { launchWelesFirefox } from './browser/firefox_launch.js';
+import { runRecordingsDir } from './session/run-recordings.js';
 import {
   WEBAUTHN_REJECT_SCRIPT,
   ARKOSE_OBSERVER_SCRIPT,
@@ -67,6 +69,32 @@ function inferMacAppName(executablePath: string): string | null {
   return m?.[1]?.replace(/\.app$/, '') ?? null;
 }
 
+// G16: identity of the exact browser BUILD that ran. The binary hash is the
+// expensive bit (shasum of a large Mach-O) so it is cached per path — the
+// worker is long-lived and the binary does not change mid-process.
+const _binaryIdentityCache = new Map<string, { sha256: string | null; mtime: string | null; bytes: number | null }>();
+function binaryIdentity(path: string): { sha256: string | null; mtime: string | null; bytes: number | null } {
+  const cached = _binaryIdentityCache.get(path);
+  if (cached) return cached;
+  const id: { sha256: string | null; mtime: string | null; bytes: number | null } = { sha256: null, mtime: null, bytes: null };
+  try {
+    const st = statSync(path);
+    id.mtime = st.mtime.toISOString();
+    id.bytes = st.size;
+  } catch { /* best-effort */ }
+  try {
+    const out = execSync(`shasum -a 256 ${JSON.stringify(path)}`, { encoding: 'utf8', maxBuffer: 1 << 20, stdio: ['ignore', 'pipe', 'ignore'] }).trim().split(/\s+/)[0];
+    if (/^[0-9a-f]{64}$/.test(out)) id.sha256 = out;
+  } catch { /* best-effort */ }
+  _binaryIdentityCache.set(path, id);
+  return id;
+}
+// Parse the weles build label from an install path, e.g.
+// ~/.local/share/weles-chromium/147.0.7727.108-weles.1/... -> 147.0.7727.108-weles.1
+function parseWelesBuild(path: string): string | null {
+  return path.match(/weles-(?:chromium|firefox)\/([^/]+)\//)?.[1] ?? null;
+}
+
 function browserProvenance(base: {
   browserType: string;
   source: string;
@@ -75,8 +103,11 @@ function browserProvenance(base: {
   pid?: number | null;
   customBinary?: boolean;
   stockOverride?: boolean;
+  version?: string | null;
+  launchArgs?: string[];
 }): Record<string, any> {
   const executablePath = base.executablePath || null;
+  const binId = executablePath ? binaryIdentity(executablePath) : { sha256: null, mtime: null, bytes: null };
   return {
     browser_type: base.browserType,
     source: base.source,
@@ -89,6 +120,14 @@ function browserProvenance(base: {
     custom_binary: base.customBinary ?? false,
     stock_override: base.stockOverride ?? false,
     playwright_default_chromium_path: base.browserType === 'chromium' ? chromium.executablePath() : null,
+    // G16: exact build identity — which weles build, its real reported version,
+    // a content hash + mtime/size of the binary, and the launch flags used.
+    weles_build: executablePath ? parseWelesBuild(executablePath) : null,
+    browser_version: base.version ?? null,
+    binary_sha256: binId.sha256,
+    binary_mtime: binId.mtime,
+    binary_bytes: binId.bytes,
+    launch_args: base.launchArgs ?? null,
   };
 }
 
@@ -122,6 +161,13 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
 
   const fp = generate({ os: targetOs, browser: browserType });
   const fpConfig = toConfig(fp, targetOs, browserType);
+  // Realized fingerprint actually presented to the page (UA, full UA-CH brand
+  // list, navigator/screen/webgl). Captured onto the context so WSession can
+  // persist it into session_meta -> account_action_logs.result (provenance).
+  // Initialized to fpConfig (always present) and upgraded to the exact cppConfig
+  // on the custom-Chromium path, so it is NEVER null — downstream persistence
+  // is non-nullable by construction.
+  let realizedFingerprint: Record<string, any> = fpConfig;
 
   // Persona overrides: apply coherent per-session fingerprint values.
   if (persona) {
@@ -159,7 +205,7 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
 
   const recordVideo = options.recordVideo ?? (process.env.WELES_DISABLE_RECORDING !== '1');
   if (recordVideo) {
-    const recDir = join(process.cwd(), 'recordings');
+    const recDir = runRecordingsDir(); // G17: recordings/<run_uuid>/<action>/
     // Frame size 1280x720 by default — at 1920x1080 each Arkose canvas repaint sends ~2MB RGBA over Playwright→webm pipe and saturates the CDP channel.
     const [vw, vh] = (process.env.WELES_VIDEO_SIZE ?? '1280x720').split('x').map(n => parseInt(n, 10));
     ctxOpts.recordVideo = { dir: recDir, size: { width: vw || 1280, height: vh || 720 } };
@@ -193,6 +239,7 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
   if (isCustomBinary) {
     launchOpts.executablePath = chromiumPath;
     const cppConfig = toCppConfig(fpConfig, targetOs, { chromiumPath });
+    realizedFingerprint = cppConfig;
     const fpDir = mkdtempSync(join(tmpdir(), 'weles-fp-'));
     const fpFile = join(fpDir, 'config.json');
     writeFileSync(fpFile, JSON.stringify(cppConfig));
@@ -200,7 +247,7 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
     const netlog = chromiumNetlogConfig();
     let netLogPath = '';
     if (netlog.enabled) {
-      const diagDir = join(process.cwd(), 'recordings', process.env.WELES_LABEL || 'unnamed');
+      const diagDir = runRecordingsDir(process.env.WELES_LABEL || 'unnamed'); // G17: recordings/<run_uuid>/<label>/
       mkdirSync(diagDir, { recursive: true });
       netLogPath = join(diagDir, 'netlog.json');
       args.push(`--log-net-log=${netLogPath}`);
@@ -240,11 +287,15 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
     if (ctxOpts.proxy) { customCtxOpts.proxy = ctxOpts.proxy; customCtxOpts.ignoreHTTPSErrors = true; }
     if (ctxOpts.recordVideo) customCtxOpts.recordVideo = ctxOpts.recordVideo;
     if (ctxOpts.extraHTTPHeaders) customCtxOpts.extraHTTPHeaders = ctxOpts.extraHTTPHeaders;
-    if (pageDiagnostics && process.env.WELES_LABEL) customCtxOpts.recordHar = { path: join(process.cwd(), 'recordings', process.env.WELES_LABEL, 'session.har'), content: 'embed', mode: 'full' }; // Playwright HAR — every request/response timing + body, sealed at context.close.
+    if (pageDiagnostics && process.env.WELES_LABEL) customCtxOpts.recordHar = { path: join(runRecordingsDir(process.env.WELES_LABEL), 'session.har'), content: 'embed', mode: 'full' }; // G17: recordings/<run_uuid>/<label>/session.har — sealed at context.close.
     console.log(`[async_api] Context opts: ${JSON.stringify(redactContextOpts({ ...customCtxOpts, ...(persistentProfile ? { userDataDir: persistentProfile } : {}) }))}`);
     const context = persistentProfile
       ? await chromium.launchPersistentContext(persistentProfile, { ...launchOpts, ...customCtxOpts })
       : await pwBrowser!.newContext(customCtxOpts);
+    // G1 fix: the custom-Chromium branch returns before the shared attach point
+    // below, so attach the realized fingerprint here too — otherwise the
+    // production path silently drops result.session.realized_fingerprint.
+    (context as any)._welesFingerprintConfig = realizedFingerprint;
     (context as any)._welesBrowserProvenance = browserProvenance({
       browserType,
       source: persistentProfile ? 'custom-chromium-persistent' : 'custom-chromium',
@@ -252,6 +303,8 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
       pid,
       customBinary: true,
       stockOverride: process.env.WELES_USE_STOCK_CHROMIUM === '1',
+      version: (() => { try { return (pwBrowser ?? context.browser())?.version() ?? null; } catch { return null; } })(),
+      launchArgs: args,
     });
     if (persistentProfile) (context as any)._welesBrowserProvenance.user_data_dir = persistentProfile;
     context.setDefaultNavigationTimeout(0);
@@ -293,6 +346,8 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
         pid: null,
         customBinary: false,
         stockOverride: true,
+        version: (() => { try { return extContext.browser()?.version() ?? null; } catch { return null; } })(),
+        launchArgs: args,
       });
       console.log(`[async_api] launchPersistentContext userData=${userData}`);
     } else {
@@ -303,6 +358,9 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
   }
 
   const context = extContext ?? await pwBrowser!.newContext(ctxOpts);
+  // Realized fingerprint (cppConfig for custom Chromium; fpConfig otherwise) so
+  // the exact UA / UA-CH / navigator / screen / webgl presented is recoverable.
+  if (!(context as any)._welesFingerprintConfig) (context as any)._welesFingerprintConfig = realizedFingerprint;
   if (!(context as any)._welesBrowserProvenance) {
     const proc = (pwBrowser as any)?.process?.();
     (context as any)._welesBrowserProvenance = browserProvenance({
@@ -312,6 +370,10 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
       pid: proc?.pid ?? null,
       customBinary: false,
       stockOverride: isChromium,
+      version: (() => { try { return pwBrowser?.version() ?? null; } catch { return null; } })(),
+      // chromium `args` only; firefox launches with its own arg set inside
+      // launchWelesFirefox, so don't mislabel them here.
+      launchArgs: isChromium ? args : undefined,
     });
   }
   context.setDefaultNavigationTimeout(0);

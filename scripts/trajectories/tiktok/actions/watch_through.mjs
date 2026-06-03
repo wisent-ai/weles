@@ -8,6 +8,7 @@ import { assertAuthed, AuthProbeError } from '../../_shared/auth-probe.mjs';
 import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../../_shared/cookie-freshness.mjs';
 import { markCookiesStale } from '../../../../dist/utils/credentials.js';
 import { humanIdlePause } from '../../../../dist/human/mouse.js';
+import { runRecordingsDir } from '../../../../dist/session/run-recordings.js';
 
 // Watch-through = sit on a single FYP video for its full duration plus one
 // replay, then advance. TikTok's recommender uses watch-through ratio as a
@@ -49,6 +50,6 @@ try {
   console.log(`[ban-signal] ${ban?.signal}  FAIL: ${e.message?.slice(0, 200)}`);
   process.exitCode = 1;
 } finally {
-  if (ban) { try { const dir = join(process.cwd(), 'recordings', 'tiktok_watch_through'); mkdirSync(dir, { recursive: true }); writeFileSync(join(dir, 'ban_signal.json'), JSON.stringify({ account_id: acct.id, username: acct.username, action: 'tiktok_watch_through', ...ban, ts: new Date().toISOString() }, null, 2)); } catch {} }
+  if (ban) { try { const dir = runRecordingsDir('tiktok_watch_through'); mkdirSync(dir, { recursive: true }); writeFileSync(join(dir, 'ban_signal.json'), JSON.stringify({ account_id: acct.id, username: acct.username, action: 'tiktok_watch_through', ...ban, ts: new Date().toISOString() }, null, 2)); } catch {} }
   await s.close();
 }

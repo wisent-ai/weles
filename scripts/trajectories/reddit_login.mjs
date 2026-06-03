@@ -6,6 +6,7 @@ import { humanIdlePause, humanClickLocator } from '../../dist/human/mouse.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { persistFreshCookieJar } from './_shared/cookie-freshness.mjs';
+import { runRecordingsDir } from '../../dist/session/run-recordings.js';
 
 const URL = 'https://www.reddit.com/login';
 
@@ -94,7 +95,7 @@ try {
 } finally {
   if (banSignal) {
     try {
-      const dir = join(process.cwd(), 'recordings', 'reddit_login');
+      const dir = runRecordingsDir('reddit_login');
       mkdirSync(dir, { recursive: true });
       writeFileSync(join(dir, 'ban_signal.json'), JSON.stringify({ account_id: acct.id, username: acct.username, ...banSignal, ts: new Date().toISOString() }, null, 2));
     } catch (e) { console.log('[ban-signal] persist err:', e.message); }

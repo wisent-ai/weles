@@ -8,6 +8,7 @@
 
 import { nativeType, nativeSelectAllAndDelete } from './mouse-native.js';
 import { cdpInput } from './mouse.js';
+import { humanRandom } from '../utils/timing.js';
 
 // Per-char CDP typing with empirical inter-key jitter. Used when
 // WELES_INPUT=cdp (parallel-safe per-page path) — page.keyboard
@@ -15,7 +16,7 @@ import { cdpInput } from './mouse.js';
 async function cdpType(page: any, text: string): Promise<void> {
   for (const ch of text) {
     await page.keyboard.type(ch);  // allow-raw-playwright: implementation file — defines the humanized atom's cdp transport
-    await new Promise((r) => setTimeout(r, 80 + Math.floor(Math.random() * 140)));
+    await new Promise((r) => setTimeout(r, 80 + Math.floor(humanRandom() * 140)));
   }
 }
 

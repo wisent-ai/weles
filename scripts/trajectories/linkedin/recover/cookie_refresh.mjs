@@ -5,6 +5,7 @@
  */
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { runRecordingsDir } from '../../../../dist/session/run-recordings.js';
 
 const SUPA_URL = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
 const SUPA_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
@@ -15,7 +16,7 @@ if (!ACCOUNT_ID) { console.log('FAIL: ACCOUNT_ID required'); process.exit(1); }
 
 function writeBan(signal, details) {
   try {
-    const dir = join(process.cwd(), 'recordings', 'linkedin_cookie_refresh');
+    const dir = runRecordingsDir('linkedin_cookie_refresh');
     mkdirSync(dir, { recursive: true });
     writeFileSync(join(dir, 'ban_signal.json'), JSON.stringify({ account_id: ACCOUNT_ID, action: 'linkedin_cookie_refresh', signal, healthy: signal === 'healthy', details: details ?? {}, ts: new Date().toISOString() }, null, 2));
   } catch {}

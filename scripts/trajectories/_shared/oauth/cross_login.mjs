@@ -27,6 +27,7 @@ import { persistFreshCookieJar } from '../cookie-freshness.mjs';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { humanIdlePause } from '../../../../dist/human/mouse.js';
+import { runRecordingsDir } from '../../../../dist/session/run-recordings.js';
 
 // Provider name on the OAuth button → social_accounts platform key for the
 // row that holds the cookies. Identity is the same for every provider here:
@@ -171,7 +172,7 @@ function fail(targetPlatform, provider, signal, msg) {
 function persistBanSignal(targetPlatform, provider, acct, banSignal) {
   if (!banSignal) return;
   try {
-    const dir = join(process.cwd(), 'recordings', `${targetPlatform}_login_via_${provider}`);
+    const dir = runRecordingsDir(`${targetPlatform}_login_via_${provider}`);
     mkdirSync(dir, { recursive: true });
     writeFileSync(join(dir, 'ban_signal.json'), JSON.stringify({
       action: `${targetPlatform}_login_via_${provider}`,

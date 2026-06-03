@@ -8,7 +8,7 @@
 import { execSync } from 'node:child_process';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { createHash } from 'node:crypto';
-import { hostname, userInfo } from 'node:os';
+import { hostname, userInfo, release, cpus, totalmem, networkInterfaces } from 'node:os';
 import { isAbsolute, join, relative } from 'node:path';
 
 // Worker entry (scripts/worker/run.mjs) is invoked with cwd=weles repo root,
@@ -25,6 +25,37 @@ function safeExec(cmd: string): string | null {
 function getUser(): string | null {
   try { return userInfo().username; } catch { return process.env.USER ?? null; }
 }
+
+// G13: runner machine identity. Non-internal interface addresses (local/LAN IPs
+// + MACs) and a best-effort stable machine id.
+function getLocalIps(): Array<{ iface: string; address: string; mac: string; family: string }> {
+  const out: Array<{ iface: string; address: string; mac: string; family: string }> = [];
+  try {
+    for (const [iface, addrs] of Object.entries(networkInterfaces())) {
+      for (const a of addrs ?? []) {
+        if (a.internal) continue;
+        out.push({ iface, address: a.address, mac: a.mac, family: String(a.family) });
+      }
+    }
+  } catch { /* best-effort */ }
+  return out;
+}
+function getMachineId(): string | null {
+  return safeExec('cat /etc/machine-id')
+    || safeExec(`ioreg -rd1 -c IOPlatformExpertDevice | awk -F'"' '/IOPlatformUUID/{print $4}'`)
+    || null;
+}
+// The runner's REAL public/egress IP — a DIRECT (non-proxied) fetch, fired once
+// at module load in the long-lived worker process and cached, so it adds no
+// per-run latency and never leaks through a trajectory's proxy. Distinct from
+// result.session.exit_ip (the proxy exit). Stays null until the fetch resolves.
+let _publicIp: string | null = null;
+void (async () => {
+  try {
+    const r = await fetch('https://api.ipify.org', { signal: AbortSignal.timeout(5000) });
+    if (r.ok) _publicIp = (await r.text()).trim() || null;
+  } catch { /* best-effort; remains null */ }
+})();
 
 function getDirty(porcelain: string | null): boolean | null {
   if (porcelain === null) return null;
@@ -74,12 +105,45 @@ function hashTree(root: string): { digest: string; file_count: number; total_byt
   return { digest: h.digest('hex'), file_count: files.length, total_bytes: total };
 }
 
+// G3: hash the worker launcher(s) — every .mjs directly under scripts/worker/
+// (run.mjs and any sibling launcher). This is the actual process entrypoint the
+// worker is started with; it lives outside dist/ and outside scripts/trajectories/
+// so neither existing digest covers it. A change to the launcher (env wiring,
+// import path, run loop) flips runner_entry_sha256. Hash is over sorted
+// (relative-name + bytes) pairs so the single-file and multi-file cases are
+// stable and order-independent.
+function hashWorkerEntry(): { digest: string; file_count: number; total_bytes: number } | null {
+  const dir = join(WELES_ROOT, 'scripts', 'worker');
+  let names: string[];
+  try {
+    names = readdirSync(dir, { withFileTypes: true })
+      .filter((e) => e.isFile() && e.name.endsWith('.mjs'))
+      .map((e) => e.name)
+      .sort();
+  } catch { return null; }
+  if (names.length === 0) return null;
+  const h = createHash('sha256');
+  let total = 0;
+  for (const name of names) {
+    try {
+      const buf = readFileSync(join(dir, name));
+      h.update(name);
+      h.update('\0');
+      h.update(buf);
+      h.update('\0');
+      total += buf.byteLength;
+    } catch { return null; }
+  }
+  return { digest: h.digest('hex'), file_count: names.length, total_bytes: total };
+}
+
 const STATIC = (() => {
   const commit = safeExec('git rev-parse HEAD');
   const dirtyOut = safeExec('git status --porcelain');
   const branch = safeExec('git rev-parse --abbrev-ref HEAD');
   const dist = hashTree(join(WELES_ROOT, 'dist'));
   const trajTree = hashTree(join(WELES_ROOT, 'scripts', 'trajectories'));
+  const runnerEntry = hashWorkerEntry();
   return {
     weles_pkg_version: readPkgVersion(),
     weles_commit: commit,
@@ -100,15 +164,41 @@ const STATIC = (() => {
     trajectories_tree_sha256: trajTree?.digest ?? null,
     trajectories_tree_files: trajTree?.file_count ?? null,
     trajectories_tree_bytes: trajTree?.total_bytes ?? null,
+    // runner_entry_sha256 fingerprints the worker launcher(s) under
+    // scripts/worker/ (run.mjs + any sibling .mjs) — the exact process
+    // entrypoint, outside dist/ and outside scripts/trajectories/.
+    runner_entry_sha256: runnerEntry?.digest ?? null,
+    runner_entry_files: runnerEntry?.file_count ?? null,
+    runner_entry_bytes: runnerEntry?.total_bytes ?? null,
     worker_host: hostname(),
     worker_user: getUser(),
     node_version: process.version,
     worker_started_at: new Date().toISOString(),
+    // G13: full runner machine identity (sync parts captured once; public_ip is
+    // merged in per-call by captureVersions from the cached async fetch). Lets
+    // you attribute a run to the exact physical box/site, OS, and hardware —
+    // not just the hostname (which can collide across the fleet).
+    machine: {
+      hostname: hostname(),
+      user: getUser(),
+      platform: process.platform,
+      arch: process.arch,
+      os_release: release(),
+      cpu_model: cpus()[0]?.model ?? null,
+      cpu_count: cpus().length,
+      total_mem_gb: Math.round((totalmem() / 1e9) * 10) / 10,
+      local_ips: getLocalIps(),
+      machine_id: getMachineId(),
+      pid: process.pid,
+    },
   };
 })();
 
 export function captureVersions(trajPath: string | null): Record<string, unknown> {
   const out: Record<string, unknown> = { ...STATIC, recorded_at: new Date().toISOString() };
+  // Merge the cached runner public IP (resolved async after module load) into a
+  // fresh machine object so we don't mutate the shared STATIC.machine.
+  out.machine = { ...(STATIC.machine as Record<string, unknown>), public_ip: _publicIp };
   if (!trajPath) return out;
   const absPath = isAbsolute(trajPath) ? trajPath : join(WELES_ROOT, trajPath);
   out.trajectory_path = trajPath;
@@ -135,6 +225,15 @@ export function captureVersions(trajPath: string | null): Record<string, unknown
     out.trajectory_file_dirty = fileDirty;
     const lastTs = safeExec(`git log -1 --format=%cI -- ${JSON.stringify(trajPath)}`);
     if (lastTs) out.trajectory_last_commit_at = lastTs;
+  }
+  // G5: when the repo or this trajectory is dirty, capture the FULL untruncated
+  // working-tree diff so the exact uncommitted source that produced this row is
+  // recoverable from the row itself (queryable) — not just the dist/traj digest.
+  // poll.ts mirrors this string to recordings/<action>/source_diff.patch for the
+  // storage backup. git diff is best-effort (safeExec swallows failures).
+  if (out.weles_dirty === true || out.trajectory_file_dirty === true) {
+    const diff = safeExec('git diff');
+    if (diff) out.dirty_diff = diff;
   }
   return out;
 }

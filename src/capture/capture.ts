@@ -1,6 +1,7 @@
 import { execSync } from 'node:child_process';
 import { mkdirSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { runRecordingsDir, runRecordingsRoot } from '../session/run-recordings.js';
 
 // ---------------------------------------------------------------------------
 // Minimal type interfaces
@@ -38,10 +39,9 @@ function timestamp(): string {
   );
 }
 
+// G17: per-run layout — recordings/<run_uuid>/<...segments>/.
 function recordingsDir(...segments: string[]): string {
-  const dir = join(process.cwd(), 'recordings', ...segments);
-  mkdirSync(dir, { recursive: true });
-  return dir;
+  return runRecordingsDir(...segments);
 }
 
 // ---------------------------------------------------------------------------
@@ -54,7 +54,7 @@ export class Capture {
   consoleLogs: string[] = [];
   responseBodies: ResponseRecord[] = [];
   constructor(context: CDPBrowserContext, outputDir?: string) { this._context = context; this._outDir = outputDir; }
-  private _dir(...segs: string[]): string { const d = join(this._outDir ?? join(process.cwd(), 'recordings'), ...segs); mkdirSync(d, { recursive: true }); return d; }
+  private _dir(...segs: string[]): string { const d = join(this._outDir ?? runRecordingsRoot(), ...segs); mkdirSync(d, { recursive: true }); return d; }
 
   // -----------------------------------------------------------------------
   // Page creation with automatic logging

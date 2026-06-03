@@ -14,6 +14,7 @@ import { join } from 'node:path';
 import { platform as osPlatform, release as osRelease, arch as osArch, totalmem, cpus, hostname, version as osVersion } from 'node:os';
 import { attachServiceWorkers, attachCdpLifecycle, pollStorageState, buildSiblingManifest, attachStdoutCapture, sliceStdout, captureHostSnapshots, captureFinalCdpSnapshots, attachPagePlaywrightEvents } from './capture_extras.js';
 import { startPcap, attachWorkerInventory } from './pcap_sidecar.js';
+import { runRecordingsDir } from '../run-recordings.js';
 import { buildCaptureCoverage } from './capture_coverage.js';
 
 function safeJsonStringify(value: unknown): string {
@@ -69,7 +70,7 @@ export function startInstrumentation(ws: any, ctx: BrowserContext, label: string
   const pcapDiagnostics = fullDiagnostics || process.env.WELES_PCAP_DIAGNOSTICS === '1';
   const workerDiagnostics = fullDiagnostics || process.env.WELES_WORKER_DIAGNOSTICS === '1';
   const hostDiagnostics = fullDiagnostics || process.env.WELES_HOST_DIAGNOSTICS === '1';
-  const dir = join(process.cwd(), 'recordings', label || 'session');
+  const dir = runRecordingsDir(label || 'session'); // G17: recordings/<run_uuid>/<label>/
   mkdirSync(dir, { recursive: true });
   const ts = new Date().toISOString().replace(/[:.]/g, '-');
   const fn = join(dir, `${label || 'session'}_${ts}.inst.json`);

@@ -20,6 +20,7 @@ import { loadFreshCookieJarOrFail, CookieJarStaleError } from './cookie-freshnes
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { humanIdlePause } from '../../../dist/human/mouse.js';
+import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
 
 // Re-exported assert used by the 27 specialized trajectories (linkedin/like, twitter/follow, instagram/save, github/star, etc) that don't go through runAction. Detects three failure modes that previously fell through to ban_signal:healthy: (1) chrome-error://chromewebdata/ from proxy CONNECT failure; (2) URL on a platform login wall (cookies stale); (3) platform-specific logged-out redirect (twitter/?failedScript, instagram/accounts/login, etc). Throws a typed error with a structured banSignal so the caller's catch can persist it.
 const _AUTH_WALL = /\/(login|signin|sessions\/new|uas\/login|checkpoint|accounts\/login)\b/;
@@ -223,7 +224,7 @@ export async function runAction(cfg) {
   } finally {
     if (banSignal) {
       try {
-        const dir = join(process.cwd(), 'recordings', label);
+        const dir = runRecordingsDir(label);
         mkdirSync(dir, { recursive: true });
         writeFileSync(join(dir, 'ban_signal.json'), JSON.stringify({ account_id: acct.id, username: acct.username, action: label, ...banSignal, ts: new Date().toISOString() }, null, 2));
       } catch (e) { console.log('[ban-signal] persist err:', e.message); }

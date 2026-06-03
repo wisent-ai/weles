@@ -22,12 +22,54 @@ import { createHash } from 'node:crypto';
 import { startInstrumentation } from './wsession-helpers/net_record.js';
 import { join } from 'node:path';
 import { resolveProxy } from '../proxy/config.js';
+import { seedHumanTiming } from '../utils/timing.js';
 import { getEmailApiKey } from '../utils/credentials.js';
 import { findCustomBrowser } from './find_browser.js';
 import { costTracker } from '../utils/cost.js';
 
 import { installAtoms } from './wsession_atoms.js';  // installAtoms() is invoked at file end after WSession is declared
-function recordingsDir(label?: string): string { const d = join(process.cwd(), 'recordings', ...(label ? [label] : [])); mkdirSync(d, { recursive: true }); return d; }
+import { runRecordingsDir, runRecordingsRoot } from './run-recordings.js';
+// G17: artifacts live under recordings/<run_uuid>/<label-or-action>/ — keyed by
+// the account_action_logs row id (ACTION_LOG_ID) so they map to the run 1:1.
+function recordingsDir(label?: string): string { return label ? runRecordingsDir(label) : runRecordingsRoot(); }
+
+// G2: effective behavior-changing env vars snapshotted at session start. The
+// list is intentionally generous — any flag that alters input path, browser
+// selection/registration, instrumentation, recording, diagnostics, LinkedIn
+// egress policy, or proxy-pool wiring. Reads process.env directly so the value
+// reflects the live process at session start; unset flags surface as undefined.
+const ENV_FLAG_KEYS = [
+  'WELES_INPUT', 'WELES_INSTANT_INPUT', 'WELES_REGISTER_BROWSER',
+  'WELES_ENABLE_CHROME147_STUBS', 'WELES_DISABLE_HTTP2', 'WELES_USE_STOCK_CHROMIUM',
+  'WELES_NO_INSTRUMENT', 'WELES_FULL_DIAGNOSTICS', 'WELES_PCAP_DIAGNOSTICS',
+  'WELES_DISABLE_RECORDING', 'WELES_ALLOW_LINKEDIN_DIRECT', 'WELES_ALLOW_LINKEDIN_RESIDENTIAL',
+  'WELES_ALLOW_LINKEDIN_UNDECLARED_PROXY', 'LINKEDIN_REGISTER_PREWARM_URLS',
+  'DECODO_ISP_PORTS', 'DECODO_ISP_PORT', 'DECODO_ISP_HOST', 'CHROMIUM_PATH',
+  'WELES_FORCE_PROXY', 'WELES_ALLOW_PLAYWRIGHT_FIREFOX',
+  'WELES_CAPTURE_RESPONSE_BODIES', 'WELES_HOST_DIAGNOSTICS', 'WELES_STORAGE_DIAGNOSTICS',
+  'WELES_CDP_DIAGNOSTICS', 'WELES_CDP_FIREHOSE', 'WELES_CHROMIUM_NETLOG',
+  'WELES_PROXY_DIAGNOSTICS_LABEL', 'WELES_NOPECHA_EXT', 'WELES_USER_DATA_DIR',
+  'WELES_CACHE_DIR',
+] as const;
+function snapshotEnvFlags(): Record<string, string | undefined> {
+  const out: Record<string, string | undefined> = {};
+  for (const k of ENV_FLAG_KEYS) out[k] = process.env[k];
+  return out;
+}
+
+// G15: full runner env snapshot — EVERY key with its RAW value, so the exact
+// environment a run executed under is fully recoverable. session_meta.json and
+// the account_action_logs rows are readable only by service-role-key holders
+// (the recordings bucket is private), i.e. the same trust boundary as the
+// secrets themselves — storing them here adds no exposure beyond who already
+// holds every key.
+function snapshotFullEnv(): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(process.env)) {
+    if (typeof v === 'string') out[k] = v;
+  }
+  return out;
+}
 
 export interface WSessionOptions {
   label?: string;
@@ -200,6 +242,14 @@ export class WSession {
 
   static async start(opts: WSessionOptions = {}): Promise<WSession> {
     const label = opts.label ?? '';
+    // G9: one per-run human-timing seed, generated at session start and routed
+    // into the shared seeded PRNG so every human mouse/typing jitter draw this
+    // run is reproducible from the recorded seed. Unseeded code paths fall back
+    // to Math.random, so this only makes behavior reproducible — it does not
+    // change the statistical distribution. Recorded into session_meta as a
+    // required non-null number (result.run.timing_seed).
+    const timingSeed = (Math.floor(Math.random() * 0xffffffff) >>> 0);
+    seedHumanTiming(timingSeed);
     const cdp = opts.cdpEndpoint ?? process.env.BRIGHTDATA_BROWSER_WS;
     console.log(`[wsession] start() label=${label} cdp=${!!cdp} proxy=${redactProxyForLog(opts.proxy)}`);
     if (label) process.env.WELES_LABEL = label;
@@ -209,7 +259,10 @@ export class WSession {
       return new WSession(ctx, page, label, new Capture({ newPage: async () => page } as any, label ? recordingsDir(label) : undefined));
     }
     const proxyRequested = !!opts.proxy && !['none', 'direct'].includes(String(opts.proxy).toLowerCase());
-    const persona: Persona = opts.persona ?? generatePersona({ country: countryHintFromProxyRequest(opts.proxy), os: opts.os as Persona['os'] | undefined, browser: opts.browser as Persona['browser'] | undefined });
+    // WELES_FORCE_BROWSER pins the persona's browser engine globally (e.g. on a
+    // host that only has the patched Chromium installed, not Firefox). Explicit
+    // opts.browser still wins; unset rolls naturally (60/40 chromium/firefox).
+    const persona: Persona = opts.persona ?? generatePersona({ country: countryHintFromProxyRequest(opts.proxy), os: opts.os as Persona['os'] | undefined, browser: (opts.browser ?? process.env.WELES_FORCE_BROWSER) as Persona['browser'] | undefined });
     const proxy = proxyRequested ? await resolveProxy(opts.proxy!, opts.targetHost, persona) : undefined;
     if (proxyRequested && !proxy) {
       throw new Error(`proxy_unavailable: requested ${opts.proxy} for ${opts.targetHost ?? 'unknown target'}`);
@@ -227,6 +280,9 @@ export class WSession {
     const cap = new Capture({ newPage: async () => page } as any, label ? recordingsDir(label) : undefined);
     if (label) { const s = new SessionStore(); await s.injectPlaywright(ctx, label).catch(() => {}); }
     const ws = new WSession(ctx, page, label, cap); ws.proxyConfig = bOpts.proxy; ws.personaConfig = persona; (ws as any)._browserProvenance = (ctx as any)._welesBrowserProvenance ?? null;
+    // G17g: on a worker SIGTERM (graceful timeout), close the context so
+    // Playwright seals the HAR + video before the process is hard-killed.
+    process.once('SIGTERM', () => { try { void (ctx as any).close?.(); } catch { /* noop */ } });
     if (opts.platform) { ws.identity = await genId(opts.platform); console.log(`[wsession] identity generated platform=${opts.platform} username_hash=${hashDiagnosticValue(ws.identity.username)}`); }
     if (bOpts.proxy?.server) {
       try {
@@ -234,20 +290,75 @@ export class WSession {
         if (r.ok()) { const t = (await r.text()).trim(); if (/^[0-9a-fA-F.:]+$/.test(t)) (bOpts.proxy as any).exit_ip = t; }
       } catch {}
     }
-    if (label && bOpts.proxy?.server) {
+    // G14: write provenance for EVERY labelled run, proxied or not. The whole
+    // block used to be gated on bOpts.proxy?.server, so direct (no-proxy)
+    // browser runs recorded none of it. Proxy-derived fields are now optional.
+    if (label) {
       try {
-        const u = new URL(bOpts.proxy.server);
-        writeFileSync(join(recordingsDir(label), 'session_meta.json'), JSON.stringify({
-          proxy_host: u.hostname,
-          proxy_port: u.port,
-          proxy_user_present: !!bOpts.proxy.username,
-          proxy_user_hash: hashDiagnosticValue(bOpts.proxy.username),
-          exit_ip: bOpts.proxy.exit_ip,
-          platform: bOpts.proxy.platform,
-          provider: (bOpts.proxy as any).provider,
+        const u = bOpts.proxy?.server ? new URL(bOpts.proxy.server) : null;
+        // Full per-run fingerprint provenance (G1): the randomized source
+        // persona AND the realized fingerprint actually presented (UA, full
+        // UA-CH brand list, navigator/screen/webgl), copied verbatim into
+        // account_action_logs.result.session by the worker importer.
+        // persona + realized_fingerprint are typed REQUIRED + non-null so a
+        // future edit cannot silently drop them to null: persona is always
+        // generated, and async_api always attaches a realized fingerprint.
+        const meta: {
+          proxy_host?: string; proxy_port?: string; proxy_user_present: boolean;
+          proxy_user_hash: unknown; exit_ip: unknown; platform: unknown; provider: unknown;
+          browser_provenance: unknown; persona: Persona; realized_fingerprint: Record<string, unknown>;
+          env_flags: Record<string, string | undefined>;
+          env_all: Record<string, string>;
+          sticky_session_id?: string; sticky_hash?: string;
+          exit_reputation?: import('../proxy/policy.js').ExitReputation;
+          identity?: Identity;
+          timing_seed: number;
+          started_at: string;
+        } = {
+          proxy_host: u?.hostname,
+          proxy_port: u?.port,
+          proxy_user_present: !!bOpts.proxy?.username,
+          proxy_user_hash: hashDiagnosticValue(bOpts.proxy?.username),
+          exit_ip: bOpts.proxy?.exit_ip,
+          platform: bOpts.proxy?.platform,
+          provider: (bOpts.proxy as any)?.provider,
           browser_provenance: (ws as any)._browserProvenance,
+          persona,
+          realized_fingerprint: (ctx as any)._welesFingerprintConfig,
+          // G2: snapshot the effective behavior-changing env vars at session
+          // start so a run's exact mode (input path, browser registration,
+          // diagnostics, LinkedIn egress policy, proxy pool wiring) is queryable.
+          // Required Record (never null); individual flags are undefined when
+          // unset — that absence is itself meaningful provenance.
+          env_flags: snapshotEnvFlags(),
+          // G15: the COMPLETE runner env (all keys), secret values redacted.
+          env_all: snapshotFullEnv(),
+          // G4: which sticky exit this session pinned to. Undefined for
+          // non-sticky / url-form proxies (legitimately — only sticky-capable
+          // providers populate it), so it is NOT forced non-null.
+          sticky_session_id: (bOpts.proxy as any)?.sticky_session_id,
+          sticky_hash: (bOpts.proxy as any)?.sticky_hash,
+          // G11: full ip-api enrichment of the winning exit IP (ASN, ISP/org,
+          // reverse-DNS, region/city/geo, proxy/hosting/mobile flags). Optional
+          // — ip-api can fail or the run may have no exit IP.
+          exit_reputation: (bOpts.proxy as any)?.exit_reputation,
+          // G6: full raw generated identity (first/last/username/email/password/
+          // DOB) for EVERY run that has one — not just register. Raw values in
+          // the row are explicitly approved. Present whenever a platform was
+          // given (ws.identity is generated then); session_meta.json doubles as
+          // the storage backup for non-register runs that never call saveAccount.
+          identity: ws.identity,
+          // G9: per-run human-timing seed (required non-null) — makes this run's
+          // mouse/typing jitter reproducible from the row.
+          timing_seed: timingSeed,
           started_at: new Date().toISOString(),
-        }, null, 2));
+        };
+        // G12: write provenance into the worker's ACTION dir (set by poll.ts on
+        // every spawned trajectory) so it lands where poll.ts imports + uploads
+        // from — even when this WSession's label differs from the dispatch action
+        // (health _in/_out, register _<attempt>, reddit submit, ticker scrapers).
+        // Falls back to label for standalone (non-worker) runs.
+        writeFileSync(join(recordingsDir(process.env.ACTION || label), 'session_meta.json'), JSON.stringify(meta, null, 2));
       } catch {}
     }
     // Complete-record network capture: NO domain filter, NO body truncation.
