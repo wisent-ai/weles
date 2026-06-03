@@ -214,6 +214,7 @@ function deriveReasons(sig, details) {
     message: typeof r.message === 'string' ? r.message : '',
   }));
   if (out.length) return out;
+  if (sig?.healthy === true) return [];
 
   const signal = String(sig?.signal ?? '');
   const error = String(details.error ?? '');
