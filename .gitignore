@@ -9,3 +9,8 @@ build/
 .env
 recordings/
 node_modules/
+.work/
+var/
+login_page_*.png
+*_trajectory_evidence.txt
+scripts/lib/cgevent_postpid
