@@ -256,7 +256,10 @@ export class WSession {
       return new WSession(ctx, page, label, new Capture({ newPage: async () => page } as any, label ? recordingsDir(label) : undefined));
     }
     const proxyRequested = !!opts.proxy && !['none', 'direct'].includes(String(opts.proxy).toLowerCase());
-    const persona: Persona = opts.persona ?? generatePersona({ country: countryHintFromProxyRequest(opts.proxy), os: opts.os as Persona['os'] | undefined, browser: opts.browser as Persona['browser'] | undefined });
+    // WELES_FORCE_BROWSER pins the persona's browser engine globally (e.g. on a
+    // host that only has the patched Chromium installed, not Firefox). Explicit
+    // opts.browser still wins; unset rolls naturally (60/40 chromium/firefox).
+    const persona: Persona = opts.persona ?? generatePersona({ country: countryHintFromProxyRequest(opts.proxy), os: opts.os as Persona['os'] | undefined, browser: (opts.browser ?? process.env.WELES_FORCE_BROWSER) as Persona['browser'] | undefined });
     const proxy = proxyRequested ? await resolveProxy(opts.proxy!, opts.targetHost, persona) : undefined;
     if (proxyRequested && !proxy) {
       throw new Error(`proxy_unavailable: requested ${opts.proxy} for ${opts.targetHost ?? 'unknown target'}`);
