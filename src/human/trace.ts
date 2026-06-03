@@ -7,6 +7,7 @@
 
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { humanRandom } from '../utils/timing.js';
 
 interface TraceEvent { t: number; type: string; x?: number|null; y?: number|null; code?: string|null; }
 
@@ -77,7 +78,7 @@ if (T.sourceCount > 0) {
 }
 
 function jitter(v: number, frac: number): number {
-  const f = 1 + (Math.random() * 2 - 1) * frac;
+  const f = 1 + (humanRandom() * 2 - 1) * frac;
   return Math.max(1, Math.round(v * f));
 }
 
@@ -107,10 +108,10 @@ export function getMoveTemplate(ax: number, ay: number, bx: number, by: number):
   // Pick segment with closest aspect within random top-3 for variety
   const sorted = T.segments.map(s => ({ s, d: Math.abs(s.aspect - targetAspect) })).sort((a, b) => a.d - b.d);
   const pool = sorted.slice(0, Math.min(5, sorted.length));
-  const pick = pool[Math.floor(Math.random() * pool.length)].s;
+  const pick = pool[Math.floor(humanRandom() * pool.length)].s;
   return pick.points.map(p => ({
-    x: Math.round(ax + p.u * rx + (Math.random() * 2 - 1) * 6),
-    y: Math.round(ay + p.v * ry + (Math.random() * 2 - 1) * 6),
+    x: Math.round(ax + p.u * rx + (humanRandom() * 2 - 1) * 6),
+    y: Math.round(ay + p.v * ry + (humanRandom() * 2 - 1) * 6),
     dt: jitter(Math.max(1, Math.round(p.dt)), 0.25),
   }));
 }

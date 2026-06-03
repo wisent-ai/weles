@@ -22,6 +22,7 @@ import { createHash } from 'node:crypto';
 import { startInstrumentation } from './wsession-helpers/net_record.js';
 import { join } from 'node:path';
 import { resolveProxy } from '../proxy/config.js';
+import { seedHumanTiming } from '../utils/timing.js';
 import { getEmailApiKey } from '../utils/credentials.js';
 import { findCustomBrowser } from './find_browser.js';
 import { costTracker } from '../utils/cost.js';
@@ -224,6 +225,14 @@ export class WSession {
 
   static async start(opts: WSessionOptions = {}): Promise<WSession> {
     const label = opts.label ?? '';
+    // G9: one per-run human-timing seed, generated at session start and routed
+    // into the shared seeded PRNG so every human mouse/typing jitter draw this
+    // run is reproducible from the recorded seed. Unseeded code paths fall back
+    // to Math.random, so this only makes behavior reproducible — it does not
+    // change the statistical distribution. Recorded into session_meta as a
+    // required non-null number (result.run.timing_seed).
+    const timingSeed = (Math.floor(Math.random() * 0xffffffff) >>> 0);
+    seedHumanTiming(timingSeed);
     const cdp = opts.cdpEndpoint ?? process.env.BRIGHTDATA_BROWSER_WS;
     console.log(`[wsession] start() label=${label} cdp=${!!cdp} proxy=${redactProxyForLog(opts.proxy)}`);
     if (label) process.env.WELES_LABEL = label;
@@ -275,6 +284,7 @@ export class WSession {
           env_flags: Record<string, string | undefined>;
           sticky_session_id?: string; sticky_hash?: string;
           identity?: Identity;
+          timing_seed: number;
           started_at: string;
         } = {
           proxy_host: u.hostname,
@@ -304,6 +314,9 @@ export class WSession {
           // given (ws.identity is generated then); session_meta.json doubles as
           // the storage backup for non-register runs that never call saveAccount.
           identity: ws.identity,
+          // G9: per-run human-timing seed (required non-null) — makes this run's
+          // mouse/typing jitter reproducible from the row.
+          timing_seed: timingSeed,
           started_at: new Date().toISOString(),
         };
         writeFileSync(join(recordingsDir(label), 'session_meta.json'), JSON.stringify(meta, null, 2));
