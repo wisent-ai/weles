@@ -7,6 +7,7 @@ import { patchEffectiveBalance } from '../_shared/services/proxy_probe.mjs';
 import { humanIdlePause } from '../../../dist/human/mouse.js';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
 
 const LOGIN_URL = 'https://app.packetstream.io/login';
 const DASH_URL  = 'https://app.packetstream.io';
@@ -52,7 +53,7 @@ try {
   const text = await s.page.evaluate(() => document.body.innerText);
   const balance = parseBalanceFromText(text);
   if (balance == null) {
-    const dir = join(process.cwd(), '.work', 'packetstream_balance');
+    const dir = runRecordingsDir('packetstream_balance');
     mkdirSync(dir, { recursive: true });
     writeFileSync(join(dir, 'dashboard-text.txt'), text);
     try { writeFileSync(join(dir, 'dashboard.html'), await s.page.content()); } catch {}

@@ -4,6 +4,7 @@ import { WSession } from '../../../dist/session/wsession.js';
 import { googleSso, parseBalanceFromText, patchServiceBalance, getGoogleSsoCreds } from '../_shared/services/google_sso.mjs';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
 import { humanIdlePause } from '../../../dist/human/mouse.js';
 
 const HOME_URL = 'https://nopecha.com/';
@@ -45,7 +46,7 @@ try {
   }
 
   // NopeCHA shows credits, not USD. Verified live 2026-05-08 against the
-  // /manage page layout (full innerText dumped to .work/nopecha_balance/
+  // /manage page layout (full innerText dumped to the per-run recordings dir
   // by the forensic dump branch below):
   //
   //   Available credits
@@ -61,7 +62,7 @@ try {
   if (balance == null) {
     // Forensic dump on regex miss — full innerText, DOM, screenshot. Reusable
     // shape for any other balance trajectory whose regex stops matching.
-    const dir = join(process.cwd(), '.work', 'nopecha_balance');
+    const dir = runRecordingsDir('nopecha_balance');
     mkdirSync(dir, { recursive: true });
     writeFileSync(join(dir, 'dashboard-text.txt'), text);
     try {
