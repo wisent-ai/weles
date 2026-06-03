@@ -10,6 +10,7 @@
  */
 import { getSocialAccount, resolveAccountSession } from '../../../dist/utils/credentials.js';
 import { WSession } from '../../../dist/session/wsession.js';
+import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
 import { humanIdlePause } from '../../../dist/human/mouse.js';
 
 const acct = await getSocialAccount('reddit');
@@ -35,7 +36,7 @@ try {
   await humanIdlePause('long');
   const homeUrl = s.page.url();
   const homeText = await s.page.evaluate(() => document.body?.innerText?.slice(0, 8000) ?? '');
-  await s.page.screenshot({ path: 'recordings/reddit_inspect_ban/homepage_logged_in.png' });
+  await s.page.screenshot({ path: `${runRecordingsDir('reddit_inspect_ban')}/homepage_logged_in.png` });
   console.log(`[inspect] homepage url: ${homeUrl}`);
   console.log(`[inspect] homepage text:\n${homeText}`);
 
@@ -63,7 +64,7 @@ try {
   await humanIdlePause('long');
   const finalUrl = s.page.url();
   const fullText = await s.page.evaluate(() => document.body?.innerText?.slice(0, 8000) ?? '');
-  await s.page.screenshot({ path: 'recordings/reddit_inspect_ban/profile_logged_in.png' });
+  await s.page.screenshot({ path: `${runRecordingsDir('reddit_inspect_ban')}/profile_logged_in.png` });
   console.log(`[inspect] profile url: ${finalUrl}`);
   console.log(`[inspect] profile text:\n${fullText}`);
 

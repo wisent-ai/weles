@@ -11,6 +11,7 @@
 
 import { spawn, type ChildProcess } from 'node:child_process';
 import { join } from 'node:path';
+import { runRecordingsDir } from '../run-recordings.js';
 
 const TCPDUMP_PATH = '/usr/sbin/tcpdump';
 
@@ -41,7 +42,7 @@ export function startPcap(ws: any, label: string | undefined): void {
   ws._instPcap = status;
   if (!label) { status.spawn_error = 'no label'; return; }
   const iface = defaultInterface();
-  const outPath = join(process.cwd(), 'recordings', label, 'traffic.pcap');
+  const outPath = join(runRecordingsDir(label), 'traffic.pcap'); // G17: recordings/<run_uuid>/<label>/
   status.iface = iface;
   status.path = outPath;
   let child: ChildProcess;

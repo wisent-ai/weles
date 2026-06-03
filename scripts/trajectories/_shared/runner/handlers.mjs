@@ -9,6 +9,7 @@ import { generateOrganicComment, generatePromoteComment, generatePost } from '..
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { humanIdlePause, humanScroll } from '../../../../dist/human/mouse.js';
+import { runRecordingsDir } from '../../../../dist/session/run-recordings.js';
 
 const REQUIRE_APPROVAL = process.env.REQUIRE_PROMOTE_APPROVAL !== '0';
 
@@ -37,7 +38,7 @@ export async function handlePost(s, cfg, ctx) {
     console.log(`[post-text] ${text.slice(0, 140)}...`);
   }
   if (cfg.action === 'post_promote' && REQUIRE_APPROVAL && !preapprovedText) {
-    const dir = join(process.cwd(), 'recordings', label);
+    const dir = runRecordingsDir(label);
     mkdirSync(dir, { recursive: true });
     writeFileSync(join(dir, 'pending_review.json'), JSON.stringify({
       account_id: acct.id, username: acct.username, action: label,
@@ -68,7 +69,7 @@ export async function handleComment(s, cfg, ctx) {
     console.log(`[preapproved] using operator-reviewed text (${text.length} chars)`);
   }
   if (cfg.action === 'promote' && REQUIRE_APPROVAL && !preapprovedText) {
-    const dir = join(process.cwd(), 'recordings', label);
+    const dir = runRecordingsDir(label);
     mkdirSync(dir, { recursive: true });
     writeFileSync(join(dir, 'pending_review.json'), JSON.stringify({
       account_id: acct.id, username: acct.username, action: label,

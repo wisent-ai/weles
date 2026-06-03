@@ -20,6 +20,7 @@ import { WSession } from '../../../dist/session/wsession.js';
 import { probeShadowban } from '../../../dist/platforms/reddit/shadowban_probe.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
 
 const acct = await getSocialAccount('reddit');
 if (!acct) { console.log('FAIL: no active reddit account'); process.exit(1); }
@@ -55,7 +56,7 @@ for (const v of result.vantages) {
   console.log(`[shadowban_check]   vantage=${v.vantage} status=${v.status} hasBody=${v.has_body} exit_ip=${v.exit_ip ?? '?'} err=${v.err ?? ''}`);
 }
 
-const dir = join(process.cwd(), 'recordings', 'reddit_shadowban_check');
+const dir = runRecordingsDir('reddit_shadowban_check');
 mkdirSync(dir, { recursive: true });
 const outPath = join(dir, `${acct.username}_${new Date().toISOString().replace(/[:.]/g, '-')}.json`);
 writeFileSync(outPath, JSON.stringify({ account_id: acct.id, username: acct.username, real_handle: realHandle, ...result }, null, 2));

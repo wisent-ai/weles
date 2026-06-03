@@ -3,6 +3,7 @@ import { WSession } from '../../dist/session/wsession.js';
 import { humanType } from '../../dist/human/keyboard.js';
 import { humanClickLocator, humanIdlePause } from '../../dist/human/mouse.js';
 import { persistFreshCookieJar } from './_shared/cookie-freshness.mjs';
+import { runRecordingsDir } from '../../dist/session/run-recordings.js';
 
 const PASSWORD_URL = 'https://www.tiktok.com/login/phone-or-email/email?lang=en';
 const FEED_URL = 'https://www.tiktok.com/foryou?lang=en';
@@ -536,7 +537,7 @@ try {
   try {
     const path = await import('node:path');
     const fs = await import('node:fs');
-    const dir = path.join(process.cwd(), 'recordings', 'tiktok_login');
+    const dir = runRecordingsDir('tiktok_login');
     fs.mkdirSync(dir, { recursive: true });
     const finalUrl = s?.page?.url?.() ?? '';
     const msg = e.message ?? '';

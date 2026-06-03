@@ -8,6 +8,7 @@ import { checkReachable } from '../../_shared/action-runner.mjs';
 import { assertAuthed, AuthProbeError } from '../../_shared/auth-probe.mjs';
 import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../../_shared/cookie-freshness.mjs';
 import { markCookiesStale } from '../../../../dist/utils/credentials.js';
+import { runRecordingsDir } from '../../../../dist/session/run-recordings.js';
 
 const TARGET_URL  = process.env.TARGET_URL || '';
 const TARGET_USER = (process.env.TARGET_USER || '').replace(/^@/, '');
@@ -73,6 +74,6 @@ try {
   console.log(`[ban-signal] ${ban?.signal}  FAIL: ${e.message?.slice(0, 200)}`);
   process.exitCode = 1;
 } finally {
-  if (ban) { try { const dir = join(process.cwd(), 'recordings', 'tiktok_like'); mkdirSync(dir, { recursive: true }); writeFileSync(join(dir, 'ban_signal.json'), JSON.stringify({ account_id: acct.id, username: acct.username, action: 'tiktok_like', target_url: TARGET_URL, target_user: TARGET_USER, search_query: SEARCH_QUERY, ...ban, ts: new Date().toISOString() }, null, 2)); } catch {} }
+  if (ban) { try { const dir = runRecordingsDir('tiktok_like'); mkdirSync(dir, { recursive: true }); writeFileSync(join(dir, 'ban_signal.json'), JSON.stringify({ account_id: acct.id, username: acct.username, action: 'tiktok_like', target_url: TARGET_URL, target_user: TARGET_USER, search_query: SEARCH_QUERY, ...ban, ts: new Date().toISOString() }, null, 2)); } catch {} }
   await s.close();
 }

@@ -9,6 +9,7 @@ import { persistFreshCookieJar } from './_shared/cookie-freshness.mjs';
 import { solveLinkedinCheckpoint, injectV3LoginToken, confirmLinkedinEmail } from './_shared/linkedin/checkpoint.mjs';
 import { captureLinkedinPxStorage, restoreLinkedinPxStorage } from './_shared/linkedin/px_storage.mjs';
 import { pageHasLoginForm, freshProviderUrl, PROVIDER_ROTATION, gotoLoginRotating } from './_shared/linkedin/proxy_rotation.mjs';
+import { runRecordingsDir } from '../../dist/session/run-recordings.js';
 
 const acct = await getSocialAccount('linkedin');
 if (!acct) { console.log('FAIL: no active linkedin account in DB'); process.exitCode = 1; }
@@ -140,7 +141,7 @@ async function captureCookies() {
 
 function writeBan(signal, details) {
   try {
-    const dir = join(process.cwd(), 'recordings', 'linkedin_login');
+    const dir = runRecordingsDir('linkedin_login');
     mkdirSync(dir, { recursive: true });
     writeFileSync(join(dir, 'ban_signal.json'), JSON.stringify({ account_id: acct.id, username: acct.username, action: 'linkedin_login', signal, healthy: signal === 'healthy', details: details ?? {}, ts: new Date().toISOString() }, null, 2));
   } catch {}

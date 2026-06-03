@@ -16,6 +16,7 @@ import { humanType } from '../../../dist/human/keyboard.js';
 import { probeCommentVisibility, probeShadowban } from '../../../dist/platforms/reddit/shadowban_probe.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
 
 // Newbie-tolerant subs — high comment volume, light AutoMod, no karma gate.
 // The default 'popular' lands on mega-threads where comments are routinely
@@ -180,7 +181,7 @@ try {
 } finally {
   if (banSignal) {
     try {
-      const dir = join(process.cwd(), 'recordings', 'reddit_organic_comment');
+      const dir = runRecordingsDir('reddit_organic_comment');
       mkdirSync(dir, { recursive: true });
       writeFileSync(join(dir, 'ban_signal.json'), JSON.stringify({ account_id: acct.id, username: acct.username, action: 'reddit_organic_comment', subreddit: SUBREDDIT, ...banSignal, ts: new Date().toISOString() }, null, 2));
     } catch (e) { console.log('[ban-signal] persist err:', e.message); }

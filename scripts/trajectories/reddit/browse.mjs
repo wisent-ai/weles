@@ -12,6 +12,7 @@ import { detectRedditBanSignals } from '../../../dist/platforms/reddit/ban_signa
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { humanIdlePause, humanScroll } from '../../../dist/human/mouse.js';
+import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
 
 const SUBREDDIT = process.env.SUBREDDIT || 'popular';
 const SCROLL_COUNT = parseInt(process.env.SCROLL_COUNT || '8', 10);
@@ -41,7 +42,7 @@ try {
 } finally {
   if (banSignal) {
     try {
-      const dir = join(process.cwd(), 'recordings', 'reddit_browse');
+      const dir = runRecordingsDir('reddit_browse');
       mkdirSync(dir, { recursive: true });
       writeFileSync(join(dir, 'ban_signal.json'), JSON.stringify({ account_id: acct.id, username: acct.username, action: 'reddit_browse', subreddit: SUBREDDIT, ...banSignal, ts: new Date().toISOString() }, null, 2));
     } catch (e) { console.log('[ban-signal] persist err:', e.message); }

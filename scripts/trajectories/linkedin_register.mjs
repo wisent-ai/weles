@@ -20,6 +20,7 @@ const SIGNUP_URL = 'https://www.linkedin.com/signup';
 const DEFAULT_ENTRY_URL = SIGNUP_URL;
 
 import { autoBindCharacter } from './lib/character-bind.mjs';
+import { runRecordingsDir } from '../../dist/session/run-recordings.js';
 
 function hashValue(value) {
   if (typeof value !== 'string' || !value) return null;
@@ -28,7 +29,7 @@ function hashValue(value) {
 
 function loadProxyPreflightSummary() {
   try {
-    const p = join(process.cwd(), 'recordings', 'linkedin_register', 'proxy_preflight.json');
+    const p = join(runRecordingsDir('linkedin_register'), 'proxy_preflight.json');
     const raw = JSON.parse(readFileSync(p, 'utf8'));
     const attempts = Array.isArray(raw?.attempts) ? raw.attempts : [];
     const countBy = (key) => attempts.reduce((acc, a) => {
@@ -209,7 +210,7 @@ async function collectSubmitState(page, stage) {
 }
 
 async function writeSubmitDiagnostics(label, payload) {
-  const dir = join(process.cwd(), 'recordings', 'linkedin_register');
+  const dir = runRecordingsDir('linkedin_register');
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, `${label}.json`), JSON.stringify(payload, null, 2));
 }
@@ -682,7 +683,7 @@ try {
   recordStage('pass');
   console.log(`PASS: ${id.handle}`);
   const diagnostics = await getLinkedinFailureDiagnostics(s, requestedProxy, expectedExitIp);
-  try { mkdirSync(join(process.cwd(), 'recordings', 'linkedin_register'), { recursive: true }); writeFileSync(join(process.cwd(), 'recordings', 'linkedin_register', 'ban_signal.json'), JSON.stringify({ action: 'linkedin_register', signal: 'healthy', healthy: true, details: { username_hash: hashValue(id.handle), email_hash: hashValue(id.email), final_url: s.page.url(), auth: authState, diagnostics, failure_reasons: [], stage_events: stageEvents }, ts: new Date().toISOString() }, null, 2)); } catch {}
+  try { mkdirSync(runRecordingsDir('linkedin_register'), { recursive: true }); writeFileSync(join(runRecordingsDir('linkedin_register'), 'ban_signal.json'), JSON.stringify({ action: 'linkedin_register', signal: 'healthy', healthy: true, details: { username_hash: hashValue(id.handle), email_hash: hashValue(id.email), final_url: s.page.url(), auth: authState, diagnostics, failure_reasons: [], stage_events: stageEvents }, ts: new Date().toISOString() }, null, 2)); } catch {}
   }
 } catch (e) {
   const finalUrl = s?.page?.url?.() ?? '';
@@ -692,7 +693,7 @@ try {
   const proxyPreflight = loadProxyPreflightSummary();
   const diagnostics = s ? await getLinkedinFailureDiagnostics(s, requestedProxy, expectedExitIp).catch(() => null) : { proxy: { requested: safeRequestedProxy(requestedProxy), preflight: proxyPreflight } };
   const failureReasons = linkedinFailureReasons(sig, errorMessage, finalUrl, diagnostics);
-  try { mkdirSync(join(process.cwd(), 'recordings', 'linkedin_register'), { recursive: true }); writeFileSync(join(process.cwd(), 'recordings', 'linkedin_register', 'ban_signal.json'), JSON.stringify({ action: 'linkedin_register', signal: sig, healthy: false, details: { final_url: finalUrl, error: errorMessage.slice(0, 200), attempted_email_hash: hashValue(id.email), expected_exit_ip: expectedExitIp, diagnostics, failure_reasons: failureReasons, stage_events: stageEvents }, ts: new Date().toISOString() }, null, 2)); } catch {}
+  try { mkdirSync(runRecordingsDir('linkedin_register'), { recursive: true }); writeFileSync(join(runRecordingsDir('linkedin_register'), 'ban_signal.json'), JSON.stringify({ action: 'linkedin_register', signal: sig, healthy: false, details: { final_url: finalUrl, error: errorMessage.slice(0, 200), attempted_email_hash: hashValue(id.email), expected_exit_ip: expectedExitIp, diagnostics, failure_reasons: failureReasons, stage_events: stageEvents }, ts: new Date().toISOString() }, null, 2)); } catch {}
   console.log(`FAIL: ${e.message?.slice(0, 200)}`);
   // exitCode (not exit) so the finally block's await s.close() actually runs.
   // process.exit(1) kills pending async ops immediately, which prevents

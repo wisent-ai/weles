@@ -20,6 +20,7 @@ import {
   PRICES as SHARED_PRICES,
   SupabaseSink,
 } from '@wisent/cost-tracker';
+import { recordCaptchaSolved } from '../captcha/events.js';
 
 // Re-export the canonical PRICES table for any in-repo code that read it.
 export const PRICES = SHARED_PRICES;
@@ -78,6 +79,14 @@ class WelesCostTracker {
 
   recordCaptcha(service: keyof typeof SHARED_PRICES.captcha, taskType: string, override?: number): void {
     this.inner.recordCaptcha(String(service), taskType, override);
+    // G8: mirror every successful solve into the per-run captcha event log
+    // (additive — does not affect cost accounting). Resolve the cost the same
+    // way the pricing table does so the event carries the real cost_usd.
+    try {
+      const table = (SHARED_PRICES.captcha as Record<string, Record<string, number>>)[String(service)] ?? {};
+      const cost = override ?? table[taskType] ?? table.default ?? 0;
+      recordCaptchaSolved(String(service), taskType, cost);
+    } catch { /* best-effort: never break cost tracking */ }
   }
 
   recordSms(provider: 'juicysms' | 'smsactivate', service: string, override?: number): void {

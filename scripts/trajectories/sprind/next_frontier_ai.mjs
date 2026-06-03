@@ -14,10 +14,11 @@
 import { WSession } from '../../../dist/session/wsession.js';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
 
 const URL = 'https://www.sprind.org/taten/challenges/submissions/next-frontier-ai';
 const LABEL = 'sprind_next_frontier_ai';
-const OUT_DIR = join(process.cwd(), 'recordings', LABEL);
+const OUT_DIR = runRecordingsDir(LABEL);
 mkdirSync(OUT_DIR, { recursive: true });
 
 const s = await WSession.start({ label: LABEL, proxy: process.env.PROXY_URL || undefined });

@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { checkReachable } from '../../_shared/action-runner.mjs';
 import { humanFill } from '../../../../dist/human/keyboard.js';
 import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
+import { runRecordingsDir } from '../../../../dist/session/run-recordings.js';
 
 const REPO_URL = process.env.REPO_URL || '';
 const ISSUE_TITLE = (process.env.ISSUE_TITLE || 'question about usage').slice(0, 250);
@@ -82,6 +83,6 @@ try {
   console.log(`[ban-signal] ${ban?.signal}  FAIL: ${e.message?.slice(0, 200)}`);
   process.exitCode = 1;
 } finally {
-  if (ban) { try { const dir = join(process.cwd(), 'recordings', 'github_open_issue'); mkdirSync(dir, { recursive: true }); writeFileSync(join(dir, 'ban_signal.json'), JSON.stringify({ account_id: acct.id, username: acct.username, action: 'github_open_issue', repo_url: repoBase, ...ban, ts: new Date().toISOString() }, null, 2)); } catch {} }
+  if (ban) { try { const dir = runRecordingsDir('github_open_issue'); mkdirSync(dir, { recursive: true }); writeFileSync(join(dir, 'ban_signal.json'), JSON.stringify({ account_id: acct.id, username: acct.username, action: 'github_open_issue', repo_url: repoBase, ...ban, ts: new Date().toISOString() }, null, 2)); } catch {} }
   await s.close();
 }

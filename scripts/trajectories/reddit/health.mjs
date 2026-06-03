@@ -12,6 +12,7 @@ import { WSession } from '../../../dist/session/wsession.js';
 import { detectRedditBanSignals } from '../../../dist/platforms/reddit/ban_signals.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
 
 const acct = await getSocialAccount('reddit');
 if (!acct) { console.log('FAIL: no active reddit account in DB'); process.exit(1); }
@@ -100,7 +101,7 @@ const snapshot = {
   logged_out: loggedOut,
 };
 
-const outDir = join(process.cwd(), 'recordings', 'reddit_health');
+const outDir = runRecordingsDir('reddit_health');
 mkdirSync(outDir, { recursive: true });
 const filePath = join(outDir, `${acct.username}_${new Date().toISOString().replace(/[:.]/g, '-')}.json`);
 writeFileSync(filePath, JSON.stringify(snapshot, null, 2));

@@ -136,17 +136,32 @@ export async function verifyExitCountry(exitIp: string, expectedCc: string, time
 // rejection cuts the wasted Chromium boot we'd otherwise burn on a flagged
 // exit before the post-goto form-render probe catches it.
 export type ReputationResult = 'clean' | 'proxy' | 'hosting' | 'mobile' | 'unknown';
-export async function verifyExitReputation(exitIp: string): Promise<{ result: ReputationResult; as?: string; asname?: string; reverse?: string }> {
+export interface ExitReputation {
+  result: ReputationResult;
+  country?: string; countryCode?: string; region?: string; city?: string;
+  lat?: number; lon?: number; timezone?: string;
+  isp?: string; org?: string; as?: string; asname?: string; reverse?: string;
+  proxy?: boolean; hosting?: boolean; mobile?: boolean;
+}
+// Full exit-IP enrichment via ip-api.com (free tier). Returns the derived
+// reputation `result` (proxy/hosting/mobile flags collapsed) AND the raw
+// geo/ASN/ISP/reverse-DNS fields so the exact exit identity is recorded.
+// `result` is what callers gate on; the rest is provenance stored per run.
+export async function verifyExitReputation(exitIp: string): Promise<ExitReputation> {
   if (!exitIp) return { result: 'unknown' };
   try {
-    const r = await fetch(`http://ip-api.com/json/${exitIp}?fields=status,proxy,hosting,mobile,as,asname,reverse`);
-    const j = (await r.json()) as { status?: string; proxy?: boolean; hosting?: boolean; mobile?: boolean; as?: string; asname?: string; reverse?: string };
+    const fields = 'status,country,countryCode,regionName,city,lat,lon,timezone,isp,org,as,asname,reverse,mobile,proxy,hosting';
+    const r = await fetch(`http://ip-api.com/json/${exitIp}?fields=${fields}`);
+    const j = (await r.json()) as Record<string, any>;
     if (j?.status !== 'success') return { result: 'unknown' };
-    const meta = { as: j.as, asname: j.asname, reverse: j.reverse };
-    if (j.proxy === true) return { result: 'proxy', ...meta };
-    if (j.hosting === true) return { result: 'hosting', ...meta };
-    if (j.mobile === true) return { result: 'mobile', ...meta };
-    return { result: 'clean', ...meta };
+    const result: ReputationResult = j.proxy === true ? 'proxy' : j.hosting === true ? 'hosting' : j.mobile === true ? 'mobile' : 'clean';
+    return {
+      result,
+      country: j.country, countryCode: j.countryCode, region: j.regionName, city: j.city,
+      lat: j.lat, lon: j.lon, timezone: j.timezone,
+      isp: j.isp, org: j.org, as: j.as, asname: j.asname, reverse: j.reverse,
+      proxy: j.proxy, hosting: j.hosting, mobile: j.mobile,
+    };
   } catch {
     return { result: 'unknown' };
   }
