@@ -20,15 +20,15 @@ import { humanClick, humanClickLocator } from '../../human/mouse.js';
 import { humanType } from '../../human/keyboard.js';
 import { findClickTarget, type ScreenshottablePage } from '../../vision/analyze.js';
 import type { WSession } from '../wsession.js';
+import { runRecordingsDir, runRecordingsRoot } from '../run-recordings.js';
 
 const VISIBILITY_PROBE_MS = 1500;
 
 const asV = (p: any) => p as unknown as ScreenshottablePage;
 
+// G17: per-run layout — recordings/<run_uuid>/<label>/.
 function recordingsDir(label?: string): string {
-  const d = join(process.cwd(), 'recordings', ...(label ? [label] : []));
-  mkdirSync(d, { recursive: true });
-  return d;
+  return label ? runRecordingsDir(label) : runRecordingsRoot();
 }
 
 function profileUrl(platform: string, username: string, name?: string): string {

@@ -28,7 +28,10 @@ import { findCustomBrowser } from './find_browser.js';
 import { costTracker } from '../utils/cost.js';
 
 import { installAtoms } from './wsession_atoms.js';  // installAtoms() is invoked at file end after WSession is declared
-function recordingsDir(label?: string): string { const d = join(process.cwd(), 'recordings', ...(label ? [label] : [])); mkdirSync(d, { recursive: true }); return d; }
+import { runRecordingsDir, runRecordingsRoot } from './run-recordings.js';
+// G17: artifacts live under recordings/<run_uuid>/<label-or-action>/ — keyed by
+// the account_action_logs row id (ACTION_LOG_ID) so they map to the run 1:1.
+function recordingsDir(label?: string): string { return label ? runRecordingsDir(label) : runRecordingsRoot(); }
 
 // G2: effective behavior-changing env vars snapshotted at session start. The
 // list is intentionally generous — any flag that alters input path, browser

@@ -13,6 +13,7 @@ import { generate, toConfig, toCppConfig } from './fingerprint.js';
 import { buildInitScript } from './scripts/loader.js';
 import { pruneRecordings } from './prune.js';
 import { launchWelesFirefox } from './browser/firefox_launch.js';
+import { runRecordingsDir } from './session/run-recordings.js';
 import {
   WEBAUTHN_REJECT_SCRIPT,
   ARKOSE_OBSERVER_SCRIPT,
@@ -204,7 +205,7 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
 
   const recordVideo = options.recordVideo ?? (process.env.WELES_DISABLE_RECORDING !== '1');
   if (recordVideo) {
-    const recDir = join(process.cwd(), 'recordings');
+    const recDir = runRecordingsDir(); // G17: recordings/<run_uuid>/<action>/
     // Frame size 1280x720 by default — at 1920x1080 each Arkose canvas repaint sends ~2MB RGBA over Playwright→webm pipe and saturates the CDP channel.
     const [vw, vh] = (process.env.WELES_VIDEO_SIZE ?? '1280x720').split('x').map(n => parseInt(n, 10));
     ctxOpts.recordVideo = { dir: recDir, size: { width: vw || 1280, height: vh || 720 } };
@@ -246,7 +247,7 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
     const netlog = chromiumNetlogConfig();
     let netLogPath = '';
     if (netlog.enabled) {
-      const diagDir = join(process.cwd(), 'recordings', process.env.WELES_LABEL || 'unnamed');
+      const diagDir = runRecordingsDir(process.env.WELES_LABEL || 'unnamed'); // G17: recordings/<run_uuid>/<label>/
       mkdirSync(diagDir, { recursive: true });
       netLogPath = join(diagDir, 'netlog.json');
       args.push(`--log-net-log=${netLogPath}`);
@@ -286,7 +287,7 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
     if (ctxOpts.proxy) { customCtxOpts.proxy = ctxOpts.proxy; customCtxOpts.ignoreHTTPSErrors = true; }
     if (ctxOpts.recordVideo) customCtxOpts.recordVideo = ctxOpts.recordVideo;
     if (ctxOpts.extraHTTPHeaders) customCtxOpts.extraHTTPHeaders = ctxOpts.extraHTTPHeaders;
-    if (pageDiagnostics && process.env.WELES_LABEL) customCtxOpts.recordHar = { path: join(process.cwd(), 'recordings', process.env.WELES_LABEL, 'session.har'), content: 'embed', mode: 'full' }; // Playwright HAR — every request/response timing + body, sealed at context.close.
+    if (pageDiagnostics && process.env.WELES_LABEL) customCtxOpts.recordHar = { path: join(runRecordingsDir(process.env.WELES_LABEL), 'session.har'), content: 'embed', mode: 'full' }; // G17: recordings/<run_uuid>/<label>/session.har — sealed at context.close.
     console.log(`[async_api] Context opts: ${JSON.stringify(redactContextOpts({ ...customCtxOpts, ...(persistentProfile ? { userDataDir: persistentProfile } : {}) }))}`);
     const context = persistentProfile
       ? await chromium.launchPersistentContext(persistentProfile, { ...launchOpts, ...customCtxOpts })
