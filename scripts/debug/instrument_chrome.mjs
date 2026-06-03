@@ -106,7 +106,7 @@ const interval = setInterval(async () => {
     for (const p of browser.pages()) {
       for (const f of p.frames()) {
         try {
-          const j = await f.evaluate('(window.__inst_flush)?window.__inst_flush():"[]"');
+          const j = await f.evaluate('(()=>{var a=globalThis[Symbol.for("weles.inst")];return a?a.flush():"[]"})()');  // allow-raw-playwright: instrumentation flush
           const log = JSON.parse(j);
           if (!log.length) continue;
           const url = f.url();
