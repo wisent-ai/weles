@@ -49,7 +49,8 @@ export async function googleSso(session, creds, opts = {}) {
     }
     if (pwInVisible > 0) break;
 
-    const enterPw = page.getByText(/^Enter your password$/i).first();
+    const enterPw = page.getByRole('button', { name: /^Enter your password$/i })
+      .or(page.getByText(/^Enter your password$/i)).first();
     if (await enterPw.isVisible().catch(() => false)) {
       console.log('[google_sso] clicking "Enter your password"');
       await humanClickLocator(page, enterPw);
@@ -57,7 +58,8 @@ export async function googleSso(session, creds, opts = {}) {
       continue;
     }
 
-    const tryAnother = page.getByText(/^Try another way$/i).first();
+    const tryAnother = page.getByRole('button', { name: /^Try another way$/i })
+      .or(page.getByText(/^Try another way$/i)).first();
     if (await tryAnother.isVisible().catch(() => false)) {
       console.log('[google_sso] clicking "Try another way"');
       await humanClickLocator(page, tryAnother);

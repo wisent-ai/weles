@@ -1,36 +1,19 @@
-// overleaf/pull_github.mjs — FULLY AUTOMATED: pull GitHub changes into the
-// Overleaf project that is linked to a specific GitHub repo. No human
-// step, no keeper, no manual login, no guessing between same-named
-// projects — the GitHub integration itself is the disambiguator.
-//
-// Evidence basis: .work/list_auto/overleaf_list_auto_failure.png shows the
-// automated Google-SSO flow reaching a fully authenticated Overleaf
-// dashboard. The automated SSO works end to end; this trajectory reuses
-// that exact proven auth path, then for every project whose title matches
-// PROJECT it opens the GitHub sync panel and pulls ONLY on the one whose
-// linked repository is REPO_SLUG.
+// overleaf/push_github.mjs — FULLY AUTOMATED: push the Overleaf project's
+// current state UP to its linked GitHub repo. Push-direction sibling of
+// pull_github.mjs; reuses its exact proven Google-SSO + project-open +
+// openGithubPanel scaffold and only changes the modal action: it clicks
+// "Push Overleaf changes to GitHub", fills the commit-message dialog, and
+// clicks "Sync". Non-destructive to the Overleaf source.
 //
 // Usage:
-//   node scripts/trajectories/overleaf/pull_github.mjs <PROJECT> <REPO_SLUG>
-//   PROJECT   = 24-hex Overleaf project id OR a case-insensitive title
-//               substring (argv[2] / OVERLEAF_PROJECT).
-//   REPO_SLUG = owner/name of the GitHub repo the right project is synced
-//               to, e.g. lbartoszcze/largelanguagemodels (argv[3] /
-//               OVERLEAF_GITHUB_REPO). This is the disambiguator: the only
-//               project acted on is the one whose GitHub panel names this
-//               repo. A non-unique title is resolved by it, not guessed.
-//
-// Env: HEADLESS=1 headless (default visible — Google heuristics, as list_auto).
-//
-// Exit codes:
-//   0 success — pulled on the project linked to REPO_SLUG
-//   1 no creds / SSO did not complete / bad args / no title match
-//   2 a UI step failed, or NO matched project is linked to REPO_SLUG —
-//     screenshots in .work/pull_github/ show the exact state (no recovery
-//     shortcuts, nothing skipped)
+//   node scripts/trajectories/overleaf/push_github.mjs <PROJECT> <REPO_SLUG>
+//   PROJECT   = 24-hex Overleaf project id OR title substring (argv[2]).
+//   REPO_SLUG = owner/name of the linked GitHub repo (argv[3]) — the
+//               disambiguator: only the project whose GitHub panel names
+//               this repo is acted on.
+// Env: HEADLESS=1 headless. Exit: 0 pushed · 1 creds/SSO/args · 2 UI step.
 
 import { WSession } from '../../../dist/session/wsession.js';
-import { SessionStore } from '../../../dist/session/store.js';
 import { googleSso, getGoogleSsoCreds } from '../_shared/services/google_sso.mjs';
 import { humanIdlePause, humanClickLocator } from '../../../dist/human/mouse.js';
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -46,15 +29,8 @@ if (!PROJECT || !REPO_SLUG) {
 const IS_ID = /^[0-9a-fA-F]{24}$/.test(PROJECT);
 const REPO_LC = REPO_SLUG.toLowerCase();
 
-const SHOT_DIR = `${process.env.HOME}/Documents/CodingProjects/Wisent/weles/.work/pull_github`;
+const SHOT_DIR = `${process.env.HOME}/Documents/CodingProjects/Wisent/weles/.work/push_github`;
 mkdirSync(SHOT_DIR, { recursive: true });
-const OVERLEAF_AUTH_LABEL = process.env.OVERLEAF_AUTH_LABEL || 'overleaf';
-const OVERLEAF_PROFILE_DIR = `${process.env.HOME}/Documents/CodingProjects/Wisent/weles/.work/overleaf_browser_profile`;
-if (process.env.WELES_OVERLEAF_PERSISTENT_PROFILE !== '0' && !process.env.WELES_USER_DATA_DIR) {
-  mkdirSync(OVERLEAF_PROFILE_DIR, { recursive: true });
-  process.env.WELES_USER_DATA_DIR = OVERLEAF_PROFILE_DIR;
-  console.log(`[pull_github] using persistent Overleaf browser profile: ${OVERLEAF_PROFILE_DIR}`);
-}
 let shotN = 0;
 async function shot(s, tag) {
   shotN += 1;
@@ -70,42 +46,12 @@ async function shot(s, tag) {
   console.log(`[pull_github] [${tag}] DOM ${p} (${html.length}b)`);
   return p;
 }
-function waitMs(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
 async function dieUI(s, tag, msg) {
   console.error(`\n[pull_github] STEP FAILED: ${tag} — ${msg}`);
   const p = await shot(s, `fail_${tag}`);
   console.error(`[pull_github] FAIL (exit 2). Inspect ${p} to correct the exact selector — do not guess.`);
   await s.close();
   process.exit(2);
-}
-async function captureOverleafAuth(store, s, why) {
-  const cookies = await store.capturePlaywright(s.ctx, OVERLEAF_AUTH_LABEL);
-  const overleafCookies = cookies.filter((c) => String(c.domain || '').includes('overleaf.com')).length;
-  console.log(`[pull_github] captured ${overleafCookies}/${cookies.length} cookies for ${OVERLEAF_AUTH_LABEL} (${why})`);
-}
-async function findGoogleSsoSurface(s, googleBtn) {
-  for (let attempt = 1; attempt <= 3; attempt += 1) {
-    console.log(`[pull_github] clicking Google SSO button (attempt ${attempt})`);
-    let popupCaught = null;
-    const popupPromise = s.page.waitForEvent('popup').then((p) => { popupCaught = p; return p; }, () => null);
-    await humanClickLocator(s.page, googleBtn);
-    const popup = await Promise.race([
-      popupPromise,
-      waitMs(5000),  // allow-raw-playwright: bounded popup detection
-    ]);
-    if (popup || popupCaught) return { mode: 'popup', page: popup || popupCaught };
-    for (let i = 0; i < 40; i += 1) {
-      for (const p of s.ctx.pages()) {
-        if (p !== s.page && /accounts\.google\.com/.test(p.url())) return { mode: 'popup', page: p };
-      }
-      if (/accounts\.google\.com/.test(s.page.url())) return { mode: 'main', page: s.page };
-      await s.page.waitForTimeout(250);  // allow-raw-playwright: SSO surface poll
-    }
-    await shot(s, `google_sso_not_opened_${attempt}`);
-  }
-  return null;
 }
 
 const login = await getGoogleSsoCreds();
@@ -116,16 +62,10 @@ if (!login) {
 console.log(`[pull_github] Google creds loaded for ${login.email}; target repo ${REPO_SLUG}`);
 
 const s = await WSession.start({
-  label: 'pull_github',
+  label: 'push_github',
   browser: 'chromium',
   headful: process.env.HEADLESS !== '1',
 });
-const sessionStore = new SessionStore();
-const injectedCookies = await sessionStore.injectPlaywright(s.ctx, OVERLEAF_AUTH_LABEL).catch((e) => {
-  console.log(`[pull_github] auth-cookie inject failed: ${e.message}`);
-  return false;
-});
-if (injectedCookies) console.log(`[pull_github] injected stored cookies for ${OVERLEAF_AUTH_LABEL}`);
 
 // Open the editor menu and the GitHub sync panel for the currently-open
 // project. Returns the GitHub-panel visible text so the caller can decide
@@ -182,7 +122,6 @@ try {
 
   if (/\/project(\?|$|\/)/.test(s.page.url())) {
     console.log('[pull_github] already authenticated via persisted cookies');
-    await captureOverleafAuth(sessionStore, s, 'already-authenticated');
   } else {
     const cookieBtn = s.page.getByRole('button', { name: /essential cookies only|accept all cookies/i }).first();
     if (await cookieBtn.count() > 0) {
@@ -194,15 +133,27 @@ try {
       s.page.getByRole('link', { name: /log in with google|sign in with google/i })
     ).first();
     await googleBtn.waitFor({ state: 'visible' });
-    const surface = await findGoogleSsoSurface(s, googleBtn);
-    if (!surface) {
-      await dieUI(s, 'google_sso_surface', 'clicking the Google login button did not open accounts.google.com in the main page or a popup');
+    await humanClickLocator(s.page, googleBtn);
+
+    // Overleaf opens Google SSO either as a popup or an in-place redirect.
+    // Poll observable state (no rejecting waitForEvent, no catch): a new
+    // context page on accounts.google.com is the popup; the main page
+    // navigating there is the in-place redirect. Absence of both is then
+    // an explicit, surfaced condition handled by googleSso().
+    let popup = null;
+    for (let i = 0; i < 20 && !popup; i += 1) {
+      for (const p of s.ctx.pages()) {
+        if (p !== s.page && /accounts\.google\.com/.test(p.url())) { popup = p; break; }
+      }
+      if (popup) break;
+      if (/accounts\.google\.com/.test(s.page.url())) break;
+      await s.page.waitForTimeout(250);  // allow-raw-playwright: SSO-surface poll
     }
 
-    if (surface.mode === 'popup') {
+    if (popup) {
       console.log('[pull_github] Google SSO in popup');
-      await surface.page.waitForLoadState('domcontentloaded');
-      const ok = await googleSso(s, login, { originHost: 'overleaf.com', page: surface.page });
+      await popup.waitForLoadState('domcontentloaded');
+      const ok = await googleSso(s, login, { originHost: 'overleaf.com', page: popup });
       if (!ok) { console.error('FAIL: Google SSO did not complete (popup)'); await s.close(); process.exit(1); }
     } else {
       console.log('[pull_github] Google SSO in-place redirect');
@@ -229,7 +180,6 @@ try {
     if (!/\/project(\?|$|\/)/.test(finalUrl)) {
       await s.goto('https://www.overleaf.com/project');
     }
-    await captureOverleafAuth(sessionStore, s, 'post-sso');
   }
 
   // Build the candidate list.
@@ -280,48 +230,49 @@ try {
     await shot(s, `github_${tag8}`);
     if (panelText.toLowerCase().includes(REPO_LC)) {
       console.log(`[pull_github] MATCH — project ${c.id} (${c.name}) is linked to ${REPO_SLUG}`);
-      const panelLow = panelText.toLowerCase();
-      if (/no new commits in github since last merge|already up[ -]?to[ -]?date|up to date/.test(panelLow)) {
-        const fin = await shot(s, `up_to_date_${tag8}`);
-        console.log(`\n[pull_github] OK — ${REPO_SLUG} is already up to date in ${c.id}.`);
-        console.log(`[pull_github] final URL: ${s.page.url()}`);
-        console.log(`[pull_github] up-to-date DOM: ${fin}`);
-        await captureOverleafAuth(sessionStore, s, 'up-to-date');
-        pulled = true;
-        break;
-      }
-      const pullBtn = s.page.getByRole('button', { name: /pull github changes/i })
-        .or(s.page.getByText(/pull github changes/i))
+      const pushBtn = s.page.getByRole('button', { name: /push overleaf changes to github/i })
+        .or(s.page.getByText(/push overleaf changes to github/i))
         .filter({ visible: true }).first();
-      await pullBtn.waitFor({ state: 'visible' });
-      await humanClickLocator(s.page, pullBtn);
+      await pushBtn.waitFor({ state: 'visible' });
+      await humanClickLocator(s.page, pushBtn);
       await humanIdlePause('deliberate');
-      // Self-verify the pull. Overleaf performs the merge then settles on
-      // either a success/up-to-date state or surfaces a conflict/error.
-      // Poll the page text until it leaves the in-progress state; HARD
-      // FAIL on any conflict/error so success is never claimed silently.
+      // The push button opens a commit dialog (message textarea + green Sync);
+      // the push does NOT run until Sync is clicked (frame_672c66b9_060.png).
+      const msgBox = s.page.getByPlaceholder(/commit message for changes made in overleaf/i)
+        .or(s.page.locator('.modal-dialog textarea')).filter({ visible: true }).first();
+      await msgBox.waitFor({ state: 'visible' });
+      await msgBox.fill('Sync Overleaf edits to GitHub');
+      await shot(s, `commit_dialog_${tag8}`);
+      const syncBtn = s.page.getByRole('button', { name: /^\s*sync\s*$/i }).filter({ visible: true }).first();
+      await syncBtn.waitFor({ state: 'visible' });
+      await humanClickLocator(s.page, syncBtn);
+      await humanIdlePause('deliberate');
+      // Self-verify the push. Overleaf commits the project's current state to
+      // GitHub then settles on either a success/up-to-date state or surfaces a
+      // conflict/error. Poll the page text until it leaves the in-progress
+      // state; HARD FAIL on any conflict/error so success is never claimed
+      // silently.
       let resultText = '';
       let settled = false;
       for (let i = 0; i < 90; i += 1) {
-        await s.page.waitForTimeout(1000);  // allow-raw-playwright: post-pull settle poll
+        await s.page.waitForTimeout(1000);  // allow-raw-playwright: post-push settle poll
         resultText = await s.page.evaluate(() => document.body.innerText);
         const low = resultText.toLowerCase();
-        if (/merge conflict|could not be (?:automatically )?merged|failed to (?:pull|merge|sync)|merge failed|unable to merge/.test(low)) {
-          await dieUI(s, `pull_conflict_${tag8}`, `Overleaf reported a conflict/error pulling ${REPO_SLUG} into ${c.id}`);
+        if (/merge conflict|could not be (?:automatically )?merged|failed to (?:push|merge|sync)|push failed|unable to (?:push|merge)/.test(low)) {
+          await dieUI(s, `push_conflict_${tag8}`, `Overleaf reported a conflict/error pushing ${c.id} to ${REPO_SLUG}`);
         }
-        if (!/checking project status in github|importing and merging changes in github/.test(low)) {
+        if (!/checking project status in github|pushing changes to github|importing and merging changes in github/.test(low)) {
           settled = true;
           break;
         }
       }
-      const fin = await shot(s, `after_pull_${tag8}`);
+      const fin = await shot(s, `after_push_${tag8}`);
       if (!settled) {
-        await dieUI(s, `pull_unsettled_${tag8}`, `pull did not settle for ${c.id} (still in progress after poll)`);
+        await dieUI(s, `push_unsettled_${tag8}`, `push did not settle for ${c.id} (still in progress after poll)`);
       }
-      console.log(`\n[pull_github] OK — pulled GitHub changes (${REPO_SLUG}) into ${c.id}; result settled with no conflict/error.`);
-      console.log(`[pull_github] final URL: ${s.page.url()}`);
-      console.log(`[pull_github] post-pull DOM: ${fin}`);
-      await captureOverleafAuth(sessionStore, s, 'post-pull');
+      console.log(`\n[push_github] OK — pushed Overleaf changes (${c.id}) to GitHub (${REPO_SLUG}); result settled with no conflict/error.`);
+      console.log(`[push_github] final URL: ${s.page.url()}`);
+      console.log(`[push_github] post-push DOM: ${fin}`);
       pulled = true;
       break;
     }
