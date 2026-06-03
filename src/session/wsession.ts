@@ -280,6 +280,9 @@ export class WSession {
     const cap = new Capture({ newPage: async () => page } as any, label ? recordingsDir(label) : undefined);
     if (label) { const s = new SessionStore(); await s.injectPlaywright(ctx, label).catch(() => {}); }
     const ws = new WSession(ctx, page, label, cap); ws.proxyConfig = bOpts.proxy; ws.personaConfig = persona; (ws as any)._browserProvenance = (ctx as any)._welesBrowserProvenance ?? null;
+    // G17g: on a worker SIGTERM (graceful timeout), close the context so
+    // Playwright seals the HAR + video before the process is hard-killed.
+    process.once('SIGTERM', () => { try { void (ctx as any).close?.(); } catch { /* noop */ } });
     if (opts.platform) { ws.identity = await genId(opts.platform); console.log(`[wsession] identity generated platform=${opts.platform} username_hash=${hashDiagnosticValue(ws.identity.username)}`); }
     if (bOpts.proxy?.server) {
       try {
