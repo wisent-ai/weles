@@ -222,16 +222,24 @@ export function toCppConfig(
   }
   const fullVersion = realVersion ?? CHROME_STABLE_VERSION;
   const major = fullVersion.split('.')[0];
-  const platformMap: Record<string, [string, string]> = {
-    macos: ['macOS', '10.15.7'], windows: ['Windows', '15.0.0'], linux: ['Linux', '6.5.0'],
+  // Sec-CH-UA high-entropy platform + arch. The UA string itself stays frozen at
+  // "Intel Mac OS X 10_15_7" (Chrome reduced-UA), but the high-entropy
+  // platformVersion must report the REAL macOS version — leaking 10.15.7 here was
+  // a stub tell. Architecture must match the GPU: macOS personas present an Apple
+  // M1 renderer (WEBGL_RENDERERS.macos = Apple Silicon), which reports arch 'arm',
+  // NOT 'x86'. A macOS fingerprint claiming an M1 GPU with x86 arch is physically
+  // impossible and trips detection (observed: LinkedIn checkpoint right after
+  // createAccount). Windows/Linux remain x86.
+  const platformMap: Record<string, [string, string, string]> = {
+    macos: ['macOS', '15.5.0', 'arm'], windows: ['Windows', '15.0.0', 'x86'], linux: ['Linux', '6.5.0', 'x86'],
   };
-  const [chPlatform, chPlatformVersion] = platformMap[targetOs] ?? platformMap.macos;
+  const [chPlatform, chPlatformVersion, chArchitecture] = platformMap[targetOs] ?? platformMap.macos;
   return {
     navigator: { userAgent: ua, platform: nav.platform, vendor: nav.vendor ?? 'Google Inc.', productSub: nav.productSub ?? '20030107', language: nav.language ?? 'en-US', languages, hardwareConcurrency: nav.hardwareConcurrency, deviceMemory: nav.deviceMemory, doNotTrack: nav.doNotTrack ?? null },
     screen: { width: scr.width, height: scr.height, availWidth: scr.availWidth, availHeight: scr.availHeight, colorDepth: scr.colorDepth },
     webgl: { unmaskedVendor: webgl.unmaskedVendor, unmaskedRenderer: webgl.unmaskedRenderer },
     canvas: config.canvas, audio: config.audio,
-    clientHints: { platform: chPlatform, platformVersion: chPlatformVersion, architecture: 'x86', bitness: '64', model: '', mobile: false, wow64: false, fullVersion,
+    clientHints: { platform: chPlatform, platformVersion: chPlatformVersion, architecture: chArchitecture, bitness: '64', model: '', mobile: false, wow64: false, fullVersion,
       // Chrome's sec-ch-ua brand ORDER is produced by a deterministic
       // version-keyed greasing algorithm. The empirical order for v147 (verified
       // 2026-04-18 via side-by-side real Chrome capture) is
