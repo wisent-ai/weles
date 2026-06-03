@@ -9,6 +9,7 @@ import { paramsToEnv, resolveTrajectory } from './dispatch.js';
 import { claimOne } from './claim.js';
 import { sweepZombiesIfDue } from './stale.js';
 import { captureVersions } from '../diagnostics/versions.js';
+import postgres from 'postgres';
 
 export interface ActionLogRow {
   id: string;
@@ -113,6 +114,80 @@ async function readJsonInRun(runId: string, filename: string): Promise<any | nul
 
 async function readBanSignal(runId: string): Promise<BanSignal | null> {
   return (await readJsonInRun(runId, 'ban_signal.json')) as BanSignal | null;
+}
+
+// Direct Postgres connection string for the heavy network-capture write. The
+// full .inst.json is tens of MB/run — too large for PostgREST — so it goes over
+// a direct pooler connection. Returns null (write is skipped) when no DB
+// password is configured.
+//
+// PREFER SUPABASE_DB_URL: the Supavisor pooler host prefix (aws-0 / aws-1 / …)
+// is assigned per-project and is NOT derivable from the project ref, so the
+// reconstructed fallback below can target the wrong cluster ("Tenant or user
+// not found"). Set SUPABASE_DB_URL to the dashboard's session-pooler string and
+// this whole guessing game is skipped. SUPABASE_DB_REGION overrides the prefix.
+function pgConnectionString(): string | null {
+  if (process.env.SUPABASE_DB_URL) return process.env.SUPABASE_DB_URL;
+  const pw = process.env.SUPABASE_DB_PASSWORD;
+  const ref = SUPABASE_URL.match(/https?:\/\/([a-z0-9]+)\.supabase\.co/)?.[1];
+  if (!pw || !ref) return null;
+  const region = process.env.SUPABASE_DB_REGION ?? 'aws-1-us-east-1';
+  return `postgresql://postgres.${ref}:${encodeURIComponent(pw)}@${region}.pooler.supabase.com:5432/postgres?sslmode=require`;
+}
+
+// G18: persist the FULL per-run network/instrumentation capture (every
+// *.inst.json under the run dir, raw — every request/response with bodies, WS
+// frames, TLS, DNS, JS access traps) into account_action_log_capture as a lazy
+// jsonb, keyed by run uuid. Written over a direct PG connection. Best-effort:
+// never fails the run. The bodies already live in storage; this makes them
+// SQL-queryable (capture->'<inst-file>'->'requests').
+async function writeNetworkCapture(runId: string): Promise<void> {
+  const conn = pgConnectionString();
+  if (!conn) return;
+  const root = join(RECORDINGS_ROOT, runId);
+  const files: string[] = [];
+  const walk = async (dir: string): Promise<void> => {
+    let entries: any[];
+    try { entries = (await readdir(dir, { withFileTypes: true } as any)) as any; } catch { return; }
+    for (const e of entries) {
+      const full = join(dir, e.name);
+      if (e.isDirectory()) await walk(full);
+      else if (e.name.endsWith('.inst.json')) files.push(full);
+    }
+  };
+  await walk(root);
+  if (!files.length) return;
+  // Build {"<relpath>": <raw json>, ...} by RAW embedding (no 47MB JS parse);
+  // each .inst.json is already valid JSON, so it slots in as a value verbatim.
+  const parts: string[] = [];
+  let bytes = 0;
+  for (const f of files) {
+    try { const raw = await readFile(f, 'utf8'); bytes += raw.length; parts.push(`${JSON.stringify(f.slice(root.length + 1))}:${raw}`); } catch { /* skip unreadable */ }
+  }
+  if (!parts.length) return;
+  // Postgres jsonb cannot hold U+0000 nor unpaired UTF-16 surrogates, and
+  // captured request/response bodies contain both — a bare ::jsonb cast then
+  // dies with 22P05. Neutralize those escapes to U+FFFD before the cast; the
+  // pristine bytes still live in storage, this is only the SQL-queryable copy.
+  let capture = `{${parts.join(',')}}`;
+  capture = capture
+    .replace(/\\u0000/gi, '\\uFFFD')
+    .replace(/\\u(d[89ab][0-9a-f]{2})(?!\\ud[c-f][0-9a-f]{2})/gi, '\\uFFFD') // lone high surrogate
+    .replace(/(?<!\\ud[89ab][0-9a-f]{2})\\u(d[c-f][0-9a-f]{2})/gi, '\\uFFFD'); // lone low surrogate
+  const sql = postgres(conn, { prepare: false, max: 1, idle_timeout: 5, connect_timeout: 15 });
+  try {
+    // NB: ${capture}::text::jsonb, NOT ::jsonb. postgres.js JSON-encodes a JS
+    // string before a bare ::jsonb cast (storing it as a jsonb *string*); the
+    // ::text step forces it to send the already-JSON text verbatim so the cast
+    // yields a jsonb object. Verified against postgres.js 3.4.9.
+    await sql`insert into account_action_log_capture (log_id, capture, bytes) values (${runId}, ${capture}::text::jsonb, ${bytes})
+              on conflict (log_id) do update set capture = excluded.capture, bytes = excluded.bytes, created_at = now()`;
+    console.log(`[worker] ${runId.slice(0, 8)} network capture -> account_action_log_capture (${(bytes / 1e6).toFixed(1)}MB, ${files.length} inst)`);
+  } catch (e) {
+    console.log(`[worker] network capture write failed: ${(e instanceof Error ? e.message : String(e)).slice(0, 140)}`);
+  } finally {
+    await sql.end({ timeout: 5 }).catch(() => {});
+  }
 }
 
 async function importHealthSnapshot(accountId: string, _platform: string, runId: string): Promise<{ signal: string; karma: number | null; shadowbanned: boolean } | null> {
@@ -363,6 +438,9 @@ export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
   }
   // Always upload so every run has recordings on the detail page.
   await uploadArtifacts(row.action, row.id, runStart, { force: true }).then(a => { if (a) result.artifacts = a }).catch(() => {});
+  // G18: persist the full network/instrumentation capture into the lazy
+  // account_action_log_capture table (direct PG; best-effort).
+  await writeNetworkCapture(row.id).catch(() => {});
   const costs = await readCosts(row.id);
   if (costs) console.log(`[worker] ${row.id.slice(0, 8)} cost=$${costs.cost_usd.toFixed(4)} services=${Object.keys(costs.service_costs).join(',')}`);
   const pendingPath = await findInRun(row.id, 'pending_review.json');
