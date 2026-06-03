@@ -175,5 +175,14 @@ export function captureVersions(trajPath: string | null): Record<string, unknown
     const lastTs = safeExec(`git log -1 --format=%cI -- ${JSON.stringify(trajPath)}`);
     if (lastTs) out.trajectory_last_commit_at = lastTs;
   }
+  // G5: when the repo or this trajectory is dirty, capture the FULL untruncated
+  // working-tree diff so the exact uncommitted source that produced this row is
+  // recoverable from the row itself (queryable) — not just the dist/traj digest.
+  // poll.ts mirrors this string to recordings/<action>/source_diff.patch for the
+  // storage backup. git diff is best-effort (safeExec swallows failures).
+  if (out.weles_dirty === true || out.trajectory_file_dirty === true) {
+    const diff = safeExec('git diff');
+    if (diff) out.dirty_diff = diff;
+  }
   return out;
 }
