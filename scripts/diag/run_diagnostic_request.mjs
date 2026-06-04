@@ -65,6 +65,19 @@ function diagnosticStage(row) {
   return String(params.diagnostic_stage || diagnostic.stage || '');
 }
 
+function banSignal(row) {
+  return objectOrNull(row?.result?.ban_signal);
+}
+
+function isLaunchableDiagnosticRequest(row) {
+  if (row?.status === 'queued' || row?.status === 'running') return true;
+  if (row?.status !== 'pending_review') return false;
+  if (String(banSignal(row)?.signal || '') === 'diagnostic_requested') return true;
+  const params = objectOrNull(row?.params) || {};
+  const diagnostic = objectOrNull(params.diagnostic) || {};
+  return String(diagnostic.status || '') === 'requested' && !row?.completed_at;
+}
+
 function stripSecrets(value) {
   return String(value ?? '')
     .replace(/\/\/[^@/\s]+@/g, '//[redacted]@')
@@ -178,15 +191,18 @@ async function fetchJson(url) {
 async function fetchRequestRow() {
   const rowId = argValue('--row-id', process.env.ACTION_LOG_ID || '');
   if (rowId) {
-    const rows = await fetchJson(`${SUPABASE_URL}/rest/v1/account_action_logs?select=id,action,platform,status,params,result&id=eq.${encodeURIComponent(rowId)}&limit=1`);
+    const rows = await fetchJson(`${SUPABASE_URL}/rest/v1/account_action_logs?select=id,action,platform,status,completed_at,params,result&id=eq.${encodeURIComponent(rowId)}&limit=1`);
     if (!rows[0]) throw new Error(`diagnostic row not found: ${rowId}`);
+    if (!isLaunchableDiagnosticRequest(rows[0]) && !flag('--backfill-row')) {
+      throw new Error(`diagnostic row is not a launchable request: ${rowId}`);
+    }
     return rows[0];
   }
   const action = argValue('--action', process.env.ACTION || 'linkedin_register');
   const stage = argValue('--stage', process.env.DIAGNOSTIC_STAGE || 'human_home_chrome');
-  const rows = await fetchJson(`${SUPABASE_URL}/rest/v1/account_action_logs?select=id,action,platform,status,params,result&action=eq.${encodeURIComponent(action)}&status=eq.pending_review&order=started_at.desc&limit=100`);
-  const row = rows.find((r) => diagnosticStage(r) === stage);
-  if (!row) throw new Error(`no pending diagnostic request for action=${action} stage=${stage}`);
+  const rows = await fetchJson(`${SUPABASE_URL}/rest/v1/account_action_logs?select=id,action,platform,status,completed_at,params,result&action=eq.${encodeURIComponent(action)}&status=eq.pending_review&order=started_at.desc&limit=100`);
+  const row = rows.find((r) => diagnosticStage(r) === stage && isLaunchableDiagnosticRequest(r));
+  if (!row) throw new Error(`no pending launchable diagnostic request for action=${action} stage=${stage}`);
   return row;
 }
 
@@ -457,7 +473,10 @@ await patchRow(row.id, {
 
 try {
   const { status, result } = await runHumanHomeChrome(row);
-  await patchRow(row.id, { status, completed_at: new Date().toISOString(), result, error: null });
+  const completionError = result.ban_signal.signal === 'human_home_chrome_no_operator_input'
+    ? 'diagnostic capture has no operator input trace'
+    : null;
+  await patchRow(row.id, { status, completed_at: new Date().toISOString(), result, error: completionError });
   console.log(JSON.stringify({ ok: true, row_id: row.id, stage, status, signal: result.ban_signal.signal }, null, 2));
 } catch (e) {
   await patchRow(row.id, {
