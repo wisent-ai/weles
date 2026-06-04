@@ -97,7 +97,7 @@ function sessionFromMeta(meta, fallback) {
   };
 }
 
-export async function setupKeeperFlow({ session, platform, action, accountId, proxyUrl, sessionMeta, diagnostic, captureVersionsFn, uploadArtifactsFn, writeNetworkCaptureFn, getLastUrl, closeSessionFn }) {
+export async function setupKeeperFlow({ session, platform, action, accountId, proxyUrl, sessionMeta, diagnostic, captureVersionsFn, uploadArtifactsFn, writeNetworkCaptureFn, challengeOutcomeFn, getLastUrl, closeSessionFn }) {
   const runStart = new Date();
   const versionsAtStart = captureVersionsFn ? captureVersionsFn('scripts/_shared/keeper/keeper.mjs') : null;
   const sessionMetaInitial = sessionMeta ?? { provider: 'keeper', proxy_url: proxyUrl ?? null, platform: platform ?? null };
@@ -149,6 +149,13 @@ export async function setupKeeperFlow({ session, platform, action, accountId, pr
     // this too; the keeper import landed session_meta + captcha but missed it.
     const pf = await readJsonInRun(flowRowId, 'proxy_preflight.json');
     if (pf && result.session && typeof result.session === 'object') result.session.proxy_preflight = pf;
+    // challenge_outcome: decode the reCAPTCHA/checkpoint flow from the HAR into
+    // a queryable verdict (challenge type, grid, objects, solve verdicts, whether
+    // LinkedIn accepted). Best-effort, never fails the close.
+    if (challengeOutcomeFn) {
+      try { const co = await challengeOutcomeFn(flowRowId); if (co) result.challenge_outcome = co; }
+      catch (e) { console.log(`[keeper-bookkeeping] challenge_outcome threw: ${e?.message?.slice(0, 100) ?? String(e).slice(0, 100)}`); }
+    }
     await patchClose(flowRowId, { status, completed_at: new Date().toISOString(), result });
     // G18 network capture — the full .inst.json into account_action_log_capture,
     // exactly like the worker. The keeper provenance import never wrote this, so

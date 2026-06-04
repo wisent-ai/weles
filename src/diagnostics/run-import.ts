@@ -6,6 +6,7 @@
 import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import postgres from 'postgres';
+import { analyzeChallengeOutcome, type ChallengeOutcome } from './challenge_outcome.js';
 
 const RECORDINGS_ROOT = process.env.RECORDINGS_ROOT ?? 'recordings';
 const SUPABASE_URL = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
@@ -35,6 +36,20 @@ export interface RunProvenance {
   session?: Record<string, unknown>;
   identity?: unknown;
   run?: { timing_seed: number };
+  challenge_outcome?: ChallengeOutcome;
+}
+
+// Decode the captcha/challenge outcome (type, grid, objects, verdicts, whether
+// LinkedIn accepted) from the run's HAR — the only artifact that carries the
+// reCAPTCHA response bodies. Best-effort; null when no HAR or no challenge.
+export async function readChallengeOutcome(runId: string): Promise<ChallengeOutcome | null> {
+  const har = await readJsonInRun(runId, 'session.har');
+  const entries = har?.log?.entries;
+  if (!Array.isArray(entries)) return null;
+  try {
+    const co = analyzeChallengeOutcome(entries);
+    return co.present ? co : null;
+  } catch { return null; }
 }
 
 // Build the rich result.session (+ identity + run) from session_meta.json /
@@ -77,6 +92,8 @@ export async function importRunProvenance(runId: string, params?: Record<string,
     if (out.session) (out.session as Record<string, unknown>).real_chrome = rc;
     else out.session = { real_chrome: rc };
   }
+  const co = await readChallengeOutcome(runId);
+  if (co) out.challenge_outcome = co;
   return out;
 }
 

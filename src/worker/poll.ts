@@ -330,6 +330,7 @@ export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
   if (prov.session) result.session = prov.session;
   if (prov.identity) result.identity = prov.identity;
   if (prov.run) result.run = prov.run;
+  if (prov.challenge_outcome) result.challenge_outcome = prov.challenge_outcome;
   // G8: full per-run captcha event log — challenge_faced flag plus the complete
   // attempt/marker sequence (every solve, every all-providers-failed marker),
   // verbatim. Absent file (no session label) => skipped. A no-captcha run still
