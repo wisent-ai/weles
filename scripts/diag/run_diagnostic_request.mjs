@@ -264,8 +264,9 @@ async function runHumanHomeChrome(row) {
   const signal = classify(records);
   const artifacts = await uploadArtifacts(row.action, row.id, new Date(records.started_at), { force: true }).catch(() => null);
   await writeNetworkCapture(row.id).catch(() => {});
+  const status = signal.healthy === true ? 'completed' : signal.healthy === false ? 'failed' : 'pending_review';
   return {
-    status: signal.healthy === false ? 'failed' : 'completed',
+    status,
     result: {
       versions: captureVersions('scripts/diag/run_diagnostic_request.mjs'),
       session: {
