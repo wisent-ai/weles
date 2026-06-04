@@ -100,7 +100,21 @@ async function finalizeOnWindowClose(via) {
   _finalizing = true;
   let lastUrl = null, authed = false;
   try { lastUrl = s?.page?.url?.() ?? null; } catch { /* context torn down */ }
-  try { authed = (await s.ctx.cookies()).some((c) => c.name === 'li_at'); } catch { /* ctx already gone */ }
+  // Capture the FULL session (cookies + localStorage) before the context tears
+  // down. li_at's VALUE — not just its presence — is the difference between a
+  // reusable account and a checkmark; persist the storageState to the run dir so
+  // a completed run yields a session you can resume, and the network capture
+  // (which redacts cookie headers) isn't the only record.
+  try {
+    const state = await s.ctx.storageState();
+    authed = (state.cookies || []).some((c) => c.name === 'li_at');
+    if (authed && flow.rowId) {
+      const dir = join(process.env.RECORDINGS_ROOT || 'recordings', flow.rowId);
+      try { mkdirSync(dir, { recursive: true }); } catch {}
+      try { writeFileSync(join(dir, 'storage_state.json'), JSON.stringify(state)); } catch {}
+      console.log(`[keeper:${SESSION}] saved storage_state.json (${(state.cookies || []).length} cookies, li_at present)`);
+    }
+  } catch { /* ctx already gone — best effort */ }
   const status = authed ? 'completed' : 'failed';
   console.log(`[keeper:${SESSION}] window closed (${via}) — finalizing as ${status} (li_at=${authed})`);
   try {
