@@ -97,7 +97,10 @@ function bodyMarkers(text) {
   return {
     challenge: /challenge-dialog|checkpoint\/challenge|challengeIframe|Security verification|quick security check/i.test(body),
     captcha: /captcha|recaptcha|g-recaptcha|google\.com\/recaptcha|arkose|funcaptcha/i.test(body),
-    phone_verification: /Phone Verification|phone verification|verify (your )?phone|phone number|verification code/i.test(body),
+    // structural phone signal: an actual <input type=tel> or LinkedIn's phone step
+    phone_input: /<input[^>]+type=["']?tel|isConfirmingPhone|enter your phone number|registrationPhoneChallenge/i.test(body),
+    // email-PIN confirm step (passable). LinkedIn RSC payload carries isConfirmingPin.
+    email_verification: /isConfirmingPin|confirm your email|enter the code [^.]{0,40}(sent|email)|emailPinChallenge/i.test(body),
     captcha_gauntlet: /Security verification|quick security check|captcha challenge|arkose|funcaptcha/i.test(body),
     signup_form: /name="email-address"|id="email-address"|join-form-submit/i.test(body),
     logged_in_or_onboarding: /\/feed\/|\/in\/|onboarding|checkpoint\/challenge\/verify/i.test(body),
@@ -112,7 +115,7 @@ function challengeEvidence(records) {
   const challengeRows = requests.filter((r) => {
     const url = String(r.url || '');
     const markers = r.body_markers || {};
-    return /checkpoint\/challenge|challengeIframe|createAccount/i.test(url) || markers.challenge || markers.phone_verification || markers.captcha_gauntlet;
+    return /checkpoint\/challenge|challengeIframe|createAccount/i.test(url) || markers.challenge || markers.phone_input || markers.email_verification || markers.captcha_gauntlet;
   });
   const challengeText = challengeRows.map((r) => `${r.url || ''}\n${r.body_prefix || ''}`).join('\n');
   let challengeUrl = '';
@@ -129,10 +132,15 @@ function challengeEvidence(records) {
   }
   const titleMatch = challengeText.match(/<title>\s*([^<]+?)\s*<\/title>/i);
   const challengeTitle = titleMatch ? titleMatch[1].replace(/\s+/g, ' ').trim() : '';
-  const phoneVerification = Boolean(pageMarkers.phone_verification) || /Phone Verification|phone verification|verify (your )?phone|phone number|verification code/i.test(challengeText);
+  // Phone verification ONLY when LinkedIn actually rendered a phone-number input
+  // somewhere in the capture — the capture is ground truth for every field shown,
+  // so no phone input => it cannot be phone verification (the #1 false positive).
+  const phoneInput = Boolean(pageMarkers.phone_input) || challengeRows.some((r) => r.body_markers?.phone_input) || /isConfirmingPhone|enter your phone number|<input[^>]+type=["']?tel/i.test(challengeText);
+  const emailVerification = Boolean(pageMarkers.email_verification) || challengeRows.some((r) => r.body_markers?.email_verification) || /isConfirmingPin|confirm your email/i.test(challengeText);
   const captchaGauntlet = Boolean(pageMarkers.captcha_gauntlet) || /Security verification|quick security check|captcha challenge|arkose|funcaptcha|checkpoint\/captcha/i.test(challengeText);
   const challenge = challengeRows.some((r) => r.body_markers?.challenge) || /checkpoint\/challenge|challengeIframe/i.test(challengeText);
-  if (phoneVerification) return { kind: 'phone_verification', url: challengeUrl || null, title: challengeTitle || 'Phone Verification' };
+  if (phoneInput) return { kind: 'phone_verification', url: challengeUrl || null, title: challengeTitle || 'Phone Verification' };
+  if (emailVerification) return { kind: 'email_verification', url: challengeUrl || null, title: challengeTitle || 'Confirm your email' };
   if (captchaGauntlet) return { kind: 'captcha_gauntlet', url: challengeUrl || null, title: challengeTitle || null };
   if (challenge) return { kind: 'challenge', url: challengeUrl || null, title: challengeTitle || null };
   return { kind: 'none', url: null, title: null };
@@ -163,11 +171,17 @@ function classify(records) {
   if (authenticated && challenge.kind !== 'captcha_gauntlet') {
     return { healthy: true, signal: 'human_home_chrome_passed', challenge };
   }
+  // Email-code verification is LinkedIn's normal new-account gate, not a block — a
+  // passable outcome. (phone_verification only fires when a real phone input was
+  // rendered; see challengeEvidence.)
+  if (challenge.kind === 'email_verification') {
+    return { healthy: true, signal: 'human_home_chrome_email_verification', challenge };
+  }
   const markerRows = [
     ...records.requests.map((r) => r.body_markers).filter(Boolean),
     records.page?.markers,
   ].filter(Boolean);
-  const challenged = challenge.kind !== 'none' || markerRows.some((m) => m.challenge || m.captcha_gauntlet || m.bot_flag_true);
+  const challenged = (challenge.kind !== 'none' && challenge.kind !== 'email_verification') || markerRows.some((m) => m.challenge || m.captcha_gauntlet || m.bot_flag_true);
   const passed = markerRows.some((m) => m.logged_in_or_onboarding) && !challenged;
   if (passed) return { healthy: true, signal: 'human_home_chrome_passed' };
   if (challenge.kind === 'phone_verification') return { healthy: null, signal: 'human_home_chrome_phone_verification', challenge };
@@ -214,7 +228,13 @@ async function snapshotPage(page) {
     markers: {
       challenge: /challenge-dialog|checkpoint\/challenge|challengeIframe|Security verification|quick security check/i.test(document.body?.innerText || ''),
       captcha: /captcha|recaptcha|g-recaptcha|arkose|funcaptcha/i.test(document.body?.innerText || document.documentElement.innerHTML || ''),
-      phone_verification: /Phone Verification|phone verification|verify (your )?phone|phone number|verification code/i.test(document.title + ' ' + (document.body?.innerText || '')),
+      // STRUCTURAL ground truth: does LinkedIn actually render a phone-number
+      // input? If not, the run CANNOT be phone verification. Replaces the old
+      // keyword marker that fired on the email-code step's "verification code".
+      phone_input: !!document.querySelector('input[type="tel" i], input[autocomplete*="tel" i], input[name*="phone" i], input[id*="phone" i]'),
+      // Email-PIN confirm step (passable normal flow): LinkedIn's real copy
+      // ("Confirm your email" / "the code … we've sent to …") AND no phone input.
+      email_verification: /confirm your email|enter the code [^.]{0,40}(we'?(ve| have)? sent|sent to)|we'?(ve| have)? (just )?(sent|emailed) [^.]{0,25}code/i.test(document.title + ' ' + (document.body?.innerText || '')) && !document.querySelector('input[type="tel" i], input[autocomplete*="tel" i], input[name*="phone" i]'),
       captcha_gauntlet: /Security verification|quick security check|captcha challenge|arkose|funcaptcha/i.test(document.body?.innerText || document.documentElement.innerHTML || ''),
       signup_form: !!document.querySelector('input[name="email-address"], #join-form-submit'),
       logged_in_or_onboarding: /\/feed\/|\/in\/|onboarding|checkpoint\/challenge\/verify/i.test(location.href + ' ' + (document.body?.innerText || '')),
