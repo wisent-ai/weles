@@ -97,14 +97,26 @@ function sessionFromMeta(meta, fallback) {
   };
 }
 
-export async function setupKeeperFlow({ session, platform, action, accountId, proxyUrl, sessionMeta, captureVersionsFn, uploadArtifactsFn, writeNetworkCaptureFn, getLastUrl, closeSessionFn }) {
+export async function setupKeeperFlow({ session, platform, action, accountId, proxyUrl, sessionMeta, diagnostic, captureVersionsFn, uploadArtifactsFn, writeNetworkCaptureFn, getLastUrl, closeSessionFn }) {
   const runStart = new Date();
   const versionsAtStart = captureVersionsFn ? captureVersionsFn('scripts/_shared/keeper/keeper.mjs') : null;
   const sessionMetaInitial = sessionMeta ?? { provider: 'keeper', proxy_url: proxyUrl ?? null, platform: platform ?? null };
+  const diagnosticParams = diagnostic && typeof diagnostic === 'object' && diagnostic.stage
+    ? {
+      diagnostic_stage: diagnostic.stage,
+      diagnostic: {
+        ...diagnostic,
+        requested_at: diagnostic.requested_at ?? runStart.toISOString(),
+        capture_contract: Array.isArray(diagnostic.capture_contract)
+          ? diagnostic.capture_contract
+          : ['ban_signal', 'session_fingerprint', 'sql_capture', 'network_artifact', 'video_artifact'],
+      },
+    }
+    : {};
   const flowRowId = await insertOpen({
     account_id: accountId ?? null, action, platform: platform ?? null,
     status: 'running', started_at: runStart.toISOString(), scheduled_at: runStart.toISOString(),
-    params: { keeper: true, keeper_session: session, proxy_url_override: proxyUrl ?? null, keeper_started_versions: versionsAtStart },
+    params: { keeper: true, keeper_session: session, proxy_url_override: proxyUrl ?? null, keeper_started_versions: versionsAtStart, ...diagnosticParams },
     result: { session: sessionMetaInitial, ban_signal: { healthy: null, signal: 'keeper_running' } },
   });
   let closed = false;

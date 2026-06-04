@@ -27,6 +27,7 @@ const HEADLESS = process.env.HEADLESS === '1';
 // Optional engine pin for debugging a specific browser (e.g. verifying the
 // Firefox fingerprint). Only applied when no PLATFORM persona is sourced.
 const BROWSER = process.env.BROWSER || '';
+const DIAGNOSTIC_STAGE = process.env.DIAGNOSTIC_STAGE || process.env.WELES_DIAGNOSTIC_STAGE || '';
 
 const KEEPER_DIR = join(homedir(), '.weles', 'keeper', SESSION);
 mkdirSync(KEEPER_DIR, { recursive: true });
@@ -59,6 +60,13 @@ const flow = await setupKeeperFlow({
   accountId: acct?.id ?? null,
   proxyUrl: proxy ?? null,
   sessionMeta: { provider: 'keeper', proxy_url: proxy ?? null, platform: PLATFORM || null },
+  diagnostic: DIAGNOSTIC_STAGE ? {
+    stage: DIAGNOSTIC_STAGE,
+    source: process.env.DIAGNOSTIC_SOURCE || 'keeper_env',
+    execution_mode: 'keeper_human_capture',
+    fixed_axes: (process.env.DIAGNOSTIC_FIXED_AXES || '').split(',').map(s => s.trim()).filter(Boolean),
+    variable_axis: process.env.DIAGNOSTIC_VARIABLE_AXIS || '',
+  } : null,
   captureVersionsFn: captureVersions,
   uploadArtifactsFn: uploadArtifacts,
   writeNetworkCaptureFn: writeNetworkCapture,
