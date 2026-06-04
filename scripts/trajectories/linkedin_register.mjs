@@ -215,6 +215,83 @@ async function writeSubmitDiagnostics(label, payload) {
   writeFileSync(join(dir, `${label}.json`), JSON.stringify(payload, null, 2));
 }
 
+async function inspectCreateAccountChallenge(session, challengeUrl) {
+  const absoluteUrl = new URL(challengeUrl, 'https://www.linkedin.com/').toString();
+  const out = {
+    challenge_url: absoluteUrl,
+    navigated: false,
+    url: '',
+    title: '',
+    page_key: '',
+    body_text_sample: '',
+    inputs: [],
+    buttons: [],
+    iframes: [],
+    kind: 'challenge',
+  };
+  try {
+    await session.page.goto(absoluteUrl, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+    await humanIdlePause('deliberate');
+    Object.assign(out, await session.page.evaluate(() => {
+      const visible = (el) => {
+        const r = el.getBoundingClientRect();
+        const s = getComputedStyle(el);
+        return r.width > 0 && r.height > 0 && s.visibility !== 'hidden' && s.display !== 'none';
+      };
+      return {
+        navigated: true,
+        url: location.href,
+        title: document.title,
+        page_key: document.querySelector('meta[name="pageKey"]')?.getAttribute('content') || '',
+        body_text_sample: (document.body?.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 1200),
+        inputs: Array.from(document.querySelectorAll('input')).map((input) => ({
+          id: input.id,
+          name: input.name,
+          type: input.type,
+          autocomplete: input.getAttribute('autocomplete') || '',
+          visible: visible(input),
+        })).slice(0, 30),
+        buttons: Array.from(document.querySelectorAll('button,a')).filter(visible).map((el) => ({
+          tag: el.tagName.toLowerCase(),
+          text: (el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 120),
+          href: el instanceof HTMLAnchorElement ? el.href : '',
+        })).slice(0, 30),
+        iframes: Array.from(document.querySelectorAll('iframe')).map((frame) => ({
+          id: frame.id,
+          name: frame.name,
+          title: frame.title,
+          src: frame.src,
+          visible: visible(frame),
+          width: frame.getBoundingClientRect().width,
+          height: frame.getBoundingClientRect().height,
+        })).slice(0, 30),
+      };
+    }));
+  } catch (e) {
+    out.error = String(e?.message ?? e).slice(0, 500);
+    out.url = session.page.url?.() ?? '';
+  }
+  const haystack = [
+    out.challenge_url,
+    out.url,
+    out.title,
+    out.page_key,
+    out.body_text_sample,
+    ...(out.inputs || []).flatMap((i) => [i.id, i.name, i.type, i.autocomplete]),
+    ...(out.buttons || []).flatMap((b) => [b.text, b.href]),
+    ...(out.iframes || []).flatMap((f) => [f.id, f.name, f.title, f.src]),
+  ].join(' ');
+  if (/Phone Verification|phone verification|verify (your )?phone|phone number|verification code|one-time code/i.test(haystack)) {
+    out.kind = 'phone_verification';
+  } else if (/Security verification|quick security check|captcha|recaptcha|arkose|funcaptcha|verify you are human|unusual activity/i.test(haystack)) {
+    out.kind = 'captcha_gauntlet';
+  } else if (/checkpoint|challengeIframe|challenge/i.test(haystack)) {
+    out.kind = 'checkpoint_challenge';
+  }
+  await writeSubmitDiagnostics('create_account_challenge_diagnostics', out);
+  return out;
+}
+
 function parseLinkedinUrlList(value = '') {
   return String(value)
     .split(',')
@@ -455,6 +532,9 @@ function linkedinFailureReasons(signal, errorMessage = '', finalUrl = '', diagno
   if (/DETECTION_TRIGGERED/.test(errorMessage) || signal === 'captcha_challenge') {
     addReason(reasons, 'linkedin_challenge_or_checkpoint', errorMessage || finalUrl);
   }
+  if (/PHONE_VERIFICATION_REQUIRED/.test(errorMessage) || signal === 'phone_verification_required') {
+    addReason(reasons, 'phone_verification_required', errorMessage || finalUrl);
+  }
   if (/signup_form_unavailable/.test(errorMessage)) {
     addReason(reasons, 'signup_form_unavailable', errorMessage);
   }
@@ -622,7 +702,16 @@ try {
     });
     recordStage('create_account_response', { status: createAccountStatus, has_challenge_url: Boolean(challengeUrl) });
     if (challengeUrl) {
-      throw new Error(`DETECTION_TRIGGERED: createAccount challengeUrl=${challengeUrl.slice(0, 120)}`);
+      const challenge = await inspectCreateAccountChallenge(s, challengeUrl);
+      recordStage('create_account_challenge_classified', {
+        challenge_kind: challenge.kind,
+        challenge_title: challenge.title || '',
+        challenge_url: challenge.challenge_url.slice(0, 200),
+      });
+      if (challenge.kind === 'phone_verification') {
+        throw new Error(`PHONE_VERIFICATION_REQUIRED: createAccount challengeUrl=${challenge.challenge_url.slice(0, 160)} title=${String(challenge.title || '').slice(0, 120)}`);
+      }
+      throw new Error(`DETECTION_TRIGGERED: createAccount ${challenge.kind} challengeUrl=${challenge.challenge_url.slice(0, 160)} title=${String(challenge.title || '').slice(0, 120)}`);
     }
     await humanIdlePause('long');
     await assertNoLinkedinChallengePage(s, 'after_create_account');
