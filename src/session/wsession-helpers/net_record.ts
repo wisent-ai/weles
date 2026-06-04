@@ -206,7 +206,15 @@ function attachPageDiagnostics(ws: any, consoleMsgs: any[], pageErrors: any[]): 
 }
 
 export function attachCompleteNetRecord(ctx: BrowserContext, reqs: any[]): void {
-  const captureBodies = process.env.WELES_CAPTURE_RESPONSE_BODIES === '1' || process.env.WELES_FULL_DIAGNOSTICS === '1';
+  // Response bodies are captured ALWAYS — never optional. The old flag gate
+  // (WELES_CAPTURE_RESPONSE_BODIES / WELES_FULL_DIAGNOSTICS) silently produced
+  // body-less captures for any caller that didn't set it (the keeper didn't),
+  // so the SQL-queryable copy lost every response payload — the createAccount
+  // challengeUrl, the captcha verdicts, LinkedIn error bodies. The body fetch
+  // below is fire-and-forget (never awaited inline), so it can't starve the
+  // event loop the way the original inline-await version did. Escape hatch:
+  // WELES_NO_RESPONSE_BODIES=1, for the rare case bodies genuinely can't be held.
+  const captureBodies = process.env.WELES_NO_RESPONSE_BODIES !== '1';
   ctx.on('request', (req) => {
     try {
       let post = '';
