@@ -164,6 +164,22 @@ function inputEventScript() {
   })()`;
 }
 
+async function snapshotPage(page) {
+  return await page.evaluate(() => ({
+    url: location.href,
+    title: document.title,
+    text_sample: (document.body?.innerText || '').slice(0, 1000),
+    markers: {
+      challenge: /challenge-dialog|checkpoint\/challenge|challengeIframe|Security verification|quick security check/i.test(document.body?.innerText || ''),
+      captcha: /captcha|recaptcha|g-recaptcha|arkose|funcaptcha/i.test(document.body?.innerText || document.documentElement.innerHTML || ''),
+      signup_form: !!document.querySelector('input[name="email-address"], #join-form-submit'),
+      logged_in_or_onboarding: /\/feed\/|\/in\/|onboarding|checkpoint\/challenge\/verify/i.test(location.href + ' ' + (document.body?.innerText || '')),
+      bot_flag_true: /data-is-bot="true"/i.test(document.documentElement.innerHTML || ''),
+      bot_flag_false: /data-is-bot="false"/i.test(document.documentElement.innerHTML || ''),
+    },
+  }));
+}
+
 async function patchRow(id, body) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/account_action_logs?id=eq.${encodeURIComponent(id)}`, {
     method: 'PATCH',
@@ -209,18 +225,40 @@ async function fetchRequestRow() {
 async function waitForOperator(page, records) {
   const holdMs = Number(process.env.DIAGNOSTIC_HOLD_MS || 0);
   const doneUrl = process.env.DIAGNOSTIC_DONE_URL_RE || '';
+  const allowStdinDone = process.env.DIAGNOSTIC_ALLOW_STDIN_DONE === '1';
   const started = Date.now();
-  process.stdin.setEncoding('utf8');
   let stdinDone = false;
-  process.stdin.on('data', (chunk) => {
-    const c = String(chunk).trim().toLowerCase();
-    if (c === 'q' || c === 'done') stdinDone = true;
-  });
-  while (!stdinDone) {
-    if (page.isClosed()) break;
+  let lastSnapshotAt = 0;
+  if (allowStdinDone) {
+    process.stdin.setEncoding('utf8');
+    process.stdin.on('data', (chunk) => {
+      const c = String(chunk).trim().toLowerCase();
+      if (c === 'q' || c === 'done') stdinDone = true;
+    });
+  }
+  for (;;) {
+    if (stdinDone) {
+      records.operator_stop_reason = 'stdin_done';
+      break;
+    }
+    if (page.isClosed()) {
+      records.operator_stop_reason = 'page_closed';
+      break;
+    }
+    if (Date.now() - lastSnapshotAt > 2000) {
+      const snap = await snapshotPage(page).catch(() => null);
+      if (snap) records.last_page_snapshot = snap;
+      lastSnapshotAt = Date.now();
+    }
     const url = page.url();
-    if (doneUrl && new RegExp(doneUrl).test(url)) break;
-    if (holdMs > 0 && Date.now() - started > holdMs) break;
+    if (doneUrl && new RegExp(doneUrl).test(url)) {
+      records.operator_stop_reason = 'done_url';
+      break;
+    }
+    if (holdMs > 0 && Date.now() - started > holdMs) {
+      records.operator_stop_reason = 'timeout';
+      break;
+    }
     await page.waitForTimeout(1000).catch(() => {});
   }
   records.operator_finished_at = new Date().toISOString();
@@ -318,22 +356,15 @@ async function runHumanHomeChrome(row) {
     });
     await page.evaluate(inputEventScript()).catch(() => {});
     console.log(`[diagnostic] row=${row.id.slice(0, 8)} stage=human_home_chrome opened ${targetUrl}`);
-    console.log('[diagnostic] drive the stock Chrome window; type q<enter> or done<enter> here when finished');
+    console.log('[diagnostic] drive the stock Chrome window; close the Chrome window when finished');
+    if (process.env.DIAGNOSTIC_ALLOW_STDIN_DONE === '1') {
+      console.log('[diagnostic] stdin q/done is enabled for local debugging only');
+    }
     await waitForOperator(page, records);
 
-    records.page = await page.evaluate(() => ({
-      url: location.href,
-      title: document.title,
-      text_sample: (document.body?.innerText || '').slice(0, 1000),
-      markers: {
-        challenge: /challenge-dialog|checkpoint\/challenge|challengeIframe|Security verification|quick security check/i.test(document.body?.innerText || ''),
-        captcha: /captcha|recaptcha|g-recaptcha|arkose|funcaptcha/i.test(document.body?.innerText || document.documentElement.innerHTML || ''),
-        signup_form: !!document.querySelector('input[name="email-address"], #join-form-submit'),
-        logged_in_or_onboarding: /\/feed\/|\/in\/|onboarding|checkpoint\/challenge\/verify/i.test(location.href + ' ' + (document.body?.innerText || '')),
-        bot_flag_true: /data-is-bot="true"/i.test(document.documentElement.innerHTML || ''),
-        bot_flag_false: /data-is-bot="false"/i.test(document.documentElement.innerHTML || ''),
-      },
-    })).catch((e) => ({ error: String(e?.message || e).slice(0, 500) }));
+    records.page = page.isClosed()
+      ? records.last_page_snapshot || { error: 'page closed before final snapshot' }
+      : await snapshotPage(page).catch((e) => records.last_page_snapshot || ({ error: String(e?.message || e).slice(0, 500) }));
   } finally {
     records.completed_at = new Date().toISOString();
     writeFileSync(outPath, JSON.stringify(records, null, 2));
@@ -373,6 +404,7 @@ async function runHumanHomeChrome(row) {
           output_json: outPath,
           request_events: records.requests.length,
           input_events: records.input_events.length,
+          operator_stop_reason: records.operator_stop_reason || null,
         },
       },
       artifacts,
@@ -420,6 +452,7 @@ async function backfillHumanHomeChrome(row) {
           output_json: outPath,
           request_events: Array.isArray(records.requests) ? records.requests.length : 0,
           input_events: Array.isArray(records.input_events) ? records.input_events.length : 0,
+          operator_stop_reason: records.operator_stop_reason || null,
         },
       },
       artifacts: artifacts || result.artifacts || null,
