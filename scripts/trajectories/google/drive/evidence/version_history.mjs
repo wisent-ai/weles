@@ -14,7 +14,7 @@
 
 import { WSession } from '../../../../../dist/session/wsession.js';
 import { googleSso, getGoogleSsoCreds } from '../../../_shared/services/google_sso.mjs';
-import { humanIdlePause } from '../../../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../../../dist/human/mouse.js';
 import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
@@ -89,10 +89,16 @@ async function scrollSeries(tag, xFrac, yFrac) {
   }
 }
 
-// Anonymous Drive/Docs link-views render a top-bar "Sign in" link to
-// accounts.google.com instead of redirecting — URL checks alone miss this.
+// Anonymous Drive/Docs link-views render a top-bar "Sign in" link to the
+// accounts.google.com ServiceLogin/signin endpoints instead of redirecting,
+// so URL checks alone miss the signed-out state. The signed-in avatar is ALSO
+// an accounts.google.com anchor (SignOutOptions) — match only sign-IN hrefs,
+// or the avatar itself reads as signed-out (proven by frame d3f8d813_last:
+// Share button + "Ł" avatar present, yet the broad selector threw).
 async function isSignedOut() {
-  return (await s.page.locator('a[href*="accounts.google.com"]')
+  return (await s.page.locator(
+    'a[href*="ServiceLogin"], a[href*="accounts.google.com/signin"], ' +
+    'a[href*="accounts.google.com/v3/signin"]')
     .filter({ visible: true }).count()) > 0;
 }
 
@@ -118,7 +124,19 @@ async function ensureLoggedIn(url) {
 }
 
 async function captureVersionPanel(meta) {
-  await s.page.keyboard.press('Meta+Alt+Shift+h');
+  // Open via the File menu, not the keyboard shortcut: Docs binds the chord
+  // by the persona's UA OS (Meta+… on mac, Ctrl+… on windows) and requires
+  // editor focus — the menu path depends on neither, and the click sequence
+  // is itself visible in the evidence recording.
+  const fileMenu = s.page.getByRole('menuitem', { name: 'File', exact: true }).first();
+  await fileMenu.waitFor({ state: 'visible' });
+  await humanClickLocator(s.page, fileMenu);
+  const vhItem = s.page.getByRole('menuitem', { name: /Version history/ }).first();
+  await vhItem.waitFor({ state: 'visible' });
+  await humanClickLocator(s.page, vhItem);
+  const seeItem = s.page.getByRole('menuitem', { name: /See version history/ }).first();
+  await seeItem.waitFor({ state: 'visible' });
+  await humanClickLocator(s.page, seeItem);
   await s.page.getByText('Version history', { exact: false }).first()
     .waitFor({ state: 'visible' });
   await humanIdlePause('deliberate');
