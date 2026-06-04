@@ -16,7 +16,7 @@ const { wsSaveAccount } = await import(`${REPO}/dist/session/wsession-helpers/fi
 const { solveRecaptchaV2 } = await import(`${REPO}/dist/captcha/recaptcha.js`);
 const { captureVersions } = await import(`${REPO}/dist/diagnostics/versions.js`);
 const { uploadArtifacts } = await import(`${REPO}/dist/worker/upload-artifacts.js`);
-const { writeNetworkCapture } = await import(`${REPO}/dist/diagnostics/run-import.js`);
+const { writeNetworkCapture, readChallengeOutcome } = await import(`${REPO}/dist/diagnostics/run-import.js`);
 const { setupKeeperFlow } = await import('./bookkeeping.mjs');
 
 const SESSION = process.env.SESSION || 'default';
@@ -70,6 +70,7 @@ const flow = await setupKeeperFlow({
   captureVersionsFn: captureVersions,
   uploadArtifactsFn: uploadArtifacts,
   writeNetworkCaptureFn: writeNetworkCapture,
+  challengeOutcomeFn: readChallengeOutcome,
   getLastUrl: () => s?.page?.url?.() ?? null,
   closeSessionFn: async () => {
     if (!s) return;
