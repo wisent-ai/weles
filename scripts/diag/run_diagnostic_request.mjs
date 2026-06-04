@@ -158,6 +158,11 @@ function classify(records) {
   const inputEvents = Array.isArray(records.input_events) ? records.input_events : [];
   if (inputEvents.length === 0) return { healthy: null, signal: 'human_home_chrome_no_operator_input' };
   const challenge = challengeEvidence(records);
+  const finalMarkers = records.page?.markers || records.last_page_snapshot?.markers || {};
+  const authenticated = records.auth?.has_li_at === true || finalMarkers.logged_in_or_onboarding === true;
+  if (authenticated && challenge.kind !== 'captcha_gauntlet') {
+    return { healthy: true, signal: 'human_home_chrome_passed', challenge };
+  }
   const markerRows = [
     ...records.requests.map((r) => r.body_markers).filter(Boolean),
     records.page?.markers,
@@ -404,6 +409,13 @@ async function runHumanHomeChrome(row) {
     records.page = page.isClosed()
       ? records.last_page_snapshot || { error: 'page closed before final snapshot' }
       : await snapshotPage(page).catch((e) => records.last_page_snapshot || ({ error: String(e?.message || e).slice(0, 500) }));
+    const cookies = await context.cookies('https://www.linkedin.com').catch(() => []);
+    const linkedinCookies = cookies.filter((c) => /linkedin\.com$/.test(String(c.domain || '')));
+    records.auth = {
+      linkedin_cookie_count: linkedinCookies.length,
+      cookie_names: [...new Set(linkedinCookies.map((c) => c.name).filter(Boolean))].sort(),
+      has_li_at: linkedinCookies.some((c) => c.name === 'li_at' && c.value),
+    };
   } finally {
     records.completed_at = new Date().toISOString();
     writeFileSync(outPath, JSON.stringify(records, null, 2));
@@ -447,6 +459,8 @@ async function runHumanHomeChrome(row) {
           challenge_kind: signal.challenge?.kind || null,
           challenge_url: signal.challenge?.url || null,
           challenge_title: signal.challenge?.title || null,
+          auth_has_li_at: records.auth?.has_li_at ?? null,
+          linkedin_cookie_count: records.auth?.linkedin_cookie_count ?? null,
         },
       },
       artifacts,
@@ -498,6 +512,8 @@ async function backfillHumanHomeChrome(row) {
           challenge_kind: signal.challenge?.kind || null,
           challenge_url: signal.challenge?.url || null,
           challenge_title: signal.challenge?.title || null,
+          auth_has_li_at: records.auth?.has_li_at ?? null,
+          linkedin_cookie_count: records.auth?.linkedin_cookie_count ?? null,
         },
       },
       artifacts: artifacts || result.artifacts || null,
