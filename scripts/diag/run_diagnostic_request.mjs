@@ -531,6 +531,38 @@ async function backfillHumanHomeChrome(row) {
   };
 }
 
+const classifyCapturePath = argValue('--classify-capture', '');
+if (classifyCapturePath) {
+  if (!existsSync(classifyCapturePath)) throw new Error(`capture json missing: ${classifyCapturePath}`);
+  const records = JSON.parse(readFileSync(classifyCapturePath, 'utf8'));
+  if (flag('--simulate-auth-li-at')) {
+    records.auth = {
+      ...(objectOrNull(records.auth) || {}),
+      has_li_at: true,
+      linkedin_cookie_count: Math.max(1, Number(records.auth?.linkedin_cookie_count || 0)),
+    };
+    records.page = objectOrNull(records.page) || objectOrNull(records.last_page_snapshot) || {};
+    records.page.markers = {
+      ...(objectOrNull(records.page.markers) || {}),
+      logged_in_or_onboarding: true,
+    };
+  }
+  const signal = classify(records);
+  console.log(JSON.stringify({
+    ok: true,
+    classify_capture: classifyCapturePath,
+    simulated_auth_li_at: flag('--simulate-auth-li-at'),
+    status: signal.healthy === true ? 'completed' : signal.healthy === false ? 'failed' : 'pending_review',
+    signal: signal.signal,
+    healthy: signal.healthy ?? null,
+    challenge_kind: signal.challenge?.kind || null,
+    input_events: Array.isArray(records.input_events) ? records.input_events.length : 0,
+    auth_has_li_at: records.auth?.has_li_at ?? null,
+    final_logged_in_or_onboarding: records.page?.markers?.logged_in_or_onboarding ?? null,
+  }, null, 2));
+  process.exit(0);
+}
+
 if (!SUPABASE_URL || !SUPABASE_KEY) throw new Error('SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY missing');
 
 const row = await fetchRequestRow();
