@@ -304,6 +304,7 @@ export function assertLinkedinDedicatedIspProxy(session, requestedProxy = '') {
 export function classifyLinkedinRegisterFailure(errorMessage = '', finalUrl = '') {
   if (/^(PROXY_|PROXY_NOT_DEDICATED_ISP)/.test(errorMessage) || finalUrl.startsWith('chrome-error://')) return 'proxy_failed';
   if (errorMessage.startsWith('ACCOUNT_PERSIST_FAILED')) return 'account_persist_failed';
+  if (errorMessage.startsWith('PHONE_VERIFICATION_REQUIRED')) return 'phone_verification_required';
   if (errorMessage.startsWith('DETECTION_TRIGGERED')) return 'detection_triggered';
   if (/signup_(did_not_complete|verification_incomplete|did_not_authenticate)/.test(errorMessage)) return 'registration_not_accepted';
   if (/captcha|challenge|checkpoint/i.test(finalUrl) || /captcha|challenge|checkpoint/i.test(errorMessage)) return 'captcha_challenge';
@@ -314,6 +315,7 @@ export function classifyLinkedinRegisterFailure(errorMessage = '', finalUrl = ''
 export function linkedinRegisterExitCode(signal = '') {
   if (signal === 'detection_triggered' || signal === 'captcha_challenge') return 2;
   if (signal === 'proxy_failed') return 3;
+  if (signal === 'phone_verification_required') return 4;
   if (signal === 'registration_not_accepted') return 4;
   if (signal === 'account_persist_failed') return 5;
   return 1;
