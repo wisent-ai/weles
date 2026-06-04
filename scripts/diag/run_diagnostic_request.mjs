@@ -366,28 +366,46 @@ async function runHumanHomeChrome(row) {
 
     page.on('console', (msg) => records.console.push({ t: Date.now(), type: msg.type(), text: stripSecrets(msg.text()).slice(0, 1000), location: msg.location() }));
     page.on('pageerror', (err) => records.pageerrors.push({ t: Date.now(), name: err.name, message: stripSecrets(err.message).slice(0, 1000) }));
+    // FULL capture (G18 parity): EVERY request/response, ALL hosts, with the
+    // COMPLETE response body — utf8 for text, base64 for binary. No host filter,
+    // no 1500-char truncation. Operator PII stays protected: text bodies go through
+    // stripSecrets (redacts emails/proxy creds), headers through safeHeaders
+    // (redacts cookie/authorization), and request POST bodies are NEVER captured —
+    // that is where the operator's typed email/password live. body_markers run only
+    // on document/xhr/fetch (real page/API responses), not on script/style/image,
+    // so a vendor JS bundle (e.g. the reCAPTCHA source containing "phone number")
+    // can't false-positive the challenge markers.
     page.on('request', (req) => {
-      const url = req.url();
-      if (!/linkedin|protechts|google|doubleclick|recaptcha|arkose/i.test(url)) return;
-      records.requests.push({ t: Date.now(), phase: 'request', method: req.method(), url: stripSecrets(url), resource_type: req.resourceType(), headers: safeHeaders(req.headers()) });
+      records.requests.push({ t: Date.now(), phase: 'request', method: req.method(), url: stripSecrets(req.url()), resource_type: req.resourceType(), headers: safeHeaders(req.headers()) });
     });
     page.on('response', async (res) => {
-      const url = res.url();
-      if (!/linkedin|protechts|google|doubleclick|recaptcha|arkose/i.test(url)) return;
-      let body = '';
-      if (/linkedin\.com|protechts|recaptcha|arkose/i.test(url)) {
-        try { body = await res.text(); } catch {}
-      }
-      records.requests.push({
+      let buf = null;
+      try { buf = await res.body(); } catch { /* redirect / opaque / already-consumed */ }
+      const resourceType = res.request().resourceType();
+      const rec = {
         t: Date.now(),
         phase: 'response',
         status: res.status(),
-        url: stripSecrets(url),
+        url: stripSecrets(res.url()),
+        resource_type: resourceType,
         headers: safeHeaders(res.headers()),
-        body_bytes: body.length,
-        body_markers: body ? bodyMarkers(body) : undefined,
-        body_prefix: stripSecrets(body).slice(0, 1500),
-      });
+        body_bytes: buf ? buf.length : 0,
+      };
+      if (buf && buf.length) {
+        const text = buf.toString('utf8');
+        const ctype = String(res.headers()['content-type'] || '').toLowerCase();
+        const isText = /text|json|xml|javascript|ecmascript|html|css|urlencoded|graphql|svg/.test(ctype) || !text.includes('�');
+        if (isText) {
+          const redacted = stripSecrets(text);
+          rec.body = redacted;                 // complete body (redacted), no truncation
+          rec.body_prefix = redacted.slice(0, 1500);
+          if (['document', 'xhr', 'fetch'].includes(resourceType)) rec.body_markers = bodyMarkers(text);
+        } else {
+          rec.body_base64 = buf.toString('base64');  // complete binary body
+          rec.body_encoding = 'base64';
+        }
+      }
+      records.requests.push(rec);
     });
 
     try {
