@@ -87,6 +87,30 @@ process.env.ACTION = KEEPER_FLOW_ACTION;
 s = await WSession.start({ label: `keeper-${SESSION}`, proxy, persona, headless: HEADLESS, browser: BROWSER || undefined, os: process.env.PERSONA_OS || undefined });
 console.log(`[keeper:${SESSION}] WSession started`);
 
+// Auto-finalize when the operator closes the browser window. Without this the
+// keeper parks on its idle socket loop and the row stays status='running' with
+// nothing uploaded — the diagnostic executor finalizes on window-close (it polls
+// page.isClosed()), the keeper had no equivalent. flow.close() flushes the
+// .inst.json (via wsClose), uploads artifacts, imports provenance, and writes the
+// SQL capture. Best-effort completed/failed: authenticated (li_at) => completed.
+let _finalizing = false;
+async function finalizeOnWindowClose(via) {
+  if (_finalizing) return;            // page/ctx/browser events fire near-simultaneously
+  _finalizing = true;
+  let lastUrl = null, authed = false;
+  try { lastUrl = s?.page?.url?.() ?? null; } catch { /* context torn down */ }
+  try { authed = (await s.ctx.cookies()).some((c) => c.name === 'li_at'); } catch { /* ctx already gone */ }
+  const status = authed ? 'completed' : 'failed';
+  console.log(`[keeper:${SESSION}] window closed (${via}) — finalizing as ${status} (li_at=${authed})`);
+  try {
+    await flow.close(status, { healthy: authed, signal: authed ? 'keeper_completed' : 'keeper_window_closed', details: { last_url: lastUrl, via } }, null);
+  } catch (e) { console.log(`[keeper:${SESSION}] window-close finalize threw: ${e?.message?.slice(0, 120) ?? String(e)}`); }
+  process.exit(0);
+}
+try { s.page.on('close', () => { void finalizeOnWindowClose('page_close'); }); } catch {}
+try { s.ctx.on('close', () => { void finalizeOnWindowClose('ctx_close'); }); } catch {}
+try { s.ctx.browser?.()?.on('disconnected', () => { void finalizeOnWindowClose('browser_disconnected'); }); } catch {}
+
 // Cookie injection: explicit JAR path wins, else use account's metadata.cookies.
 if (JAR_PATH && existsSync(JAR_PATH)) {
   try {
