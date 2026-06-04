@@ -4,10 +4,11 @@
 import type { ActionLogRow } from './poll.js';
 import { resolveTrajectory } from './dispatch.js';
 import { staleCookieAccounts } from './stale.js';
+import os from 'node:os';
 
 const SUPABASE_URL = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
-const INSTANCE_ID = process.env.INSTANCE_ID ?? `weles-${process.pid}`;
+const INSTANCE_ID = process.env.INSTANCE_ID ?? `weles-${os.hostname() || 'unknown'}-${process.pid}`;
 
 function headers(): Record<string, string> {
   return { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' };

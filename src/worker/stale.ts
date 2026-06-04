@@ -62,11 +62,16 @@ export async function sweepZombiesIfDue(): Promise<void> {
   _lastSweep = Date.now();
   if (!SUPABASE_URL || !SUPABASE_KEY) return;
   try {
-    const cutoff = new Date(Date.now() - 2 * 3600_000).toISOString();
-    const r = await fetch(`${SUPABASE_URL}/rest/v1/account_action_logs?status=eq.running&claimed_at=lt.${cutoff}&select=id,action,claimed_by`, { headers: headers() });
+    const cutoffMs = Date.now() - 2 * 3600_000;
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/account_action_logs?status=eq.running&select=id,action,claimed_by,claimed_at,started_at&limit=500`, { headers: headers() });
     if (!r.ok) return;
-    const rows = (await r.json()) as Array<{ id: string; action: string; claimed_by: string | null }>;
-    for (const row of rows) {
+    const rows = (await r.json()) as Array<{ id: string; action: string; claimed_by: string | null; claimed_at: string | null; started_at: string | null }>;
+    const stale = rows.filter((row) => {
+      const raw = row.claimed_at ?? row.started_at;
+      const t = raw ? Date.parse(raw) : NaN;
+      return !Number.isFinite(t) || t < cutoffMs;
+    });
+    for (const row of stale) {
       await fetch(`${SUPABASE_URL}/rest/v1/account_action_logs?id=eq.${row.id}&status=eq.running`, {
         method: 'PATCH', headers: { ...headers(), Prefer: 'return=minimal' },
         body: JSON.stringify({ status: 'failed', error: `orphaned: claimed_by ${row.claimed_by ?? '?'} stopped responding (>2h)`, completed_at: new Date().toISOString() }),
