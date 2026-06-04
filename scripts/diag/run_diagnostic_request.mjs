@@ -108,6 +108,8 @@ function sanitizeJsonb(value) {
 }
 
 function classify(records) {
+  const inputEvents = Array.isArray(records.input_events) ? records.input_events : [];
+  if (inputEvents.length === 0) return { healthy: null, signal: 'human_home_chrome_no_operator_input' };
   const markerRows = [
     ...records.requests.map((r) => r.body_markers).filter(Boolean),
     records.page?.markers,
@@ -117,6 +119,36 @@ function classify(records) {
   if (passed) return { healthy: true, signal: 'human_home_chrome_passed' };
   if (challenged) return { healthy: false, signal: 'human_home_chrome_challenge' };
   return { healthy: null, signal: 'human_home_chrome_captured' };
+}
+
+function inputEventScript() {
+  return `(() => {
+    if (window.__welesDiagnosticInputInstalled) return;
+    window.__welesDiagnosticInputInstalled = true;
+    const emit = (type, e) => {
+      try {
+        const t = e.target || {};
+        window.__welesDiagnosticInputEvent({
+          t: Date.now(),
+          type,
+          trusted: e.isTrusted === true,
+          x: typeof e.clientX === 'number' ? e.clientX : null,
+          y: typeof e.clientY === 'number' ? e.clientY : null,
+          key: typeof e.key === 'string' ? e.key : null,
+          code: typeof e.code === 'string' ? e.code : null,
+          target: {
+            tag: typeof t.tagName === 'string' ? t.tagName.toLowerCase() : '',
+            id: typeof t.id === 'string' ? t.id.slice(0, 80) : '',
+            name: typeof t.name === 'string' ? t.name.slice(0, 80) : '',
+            type: typeof t.type === 'string' ? t.type.slice(0, 40) : '',
+          },
+        });
+      } catch {}
+    };
+    for (const type of ['pointerdown', 'pointerup', 'click', 'keydown', 'keyup', 'input', 'change', 'submit']) {
+      window.addEventListener(type, (e) => emit(type, e), { capture: true, passive: true });
+    }
+  })()`;
 }
 
 async function patchRow(id, body) {
@@ -207,6 +239,7 @@ async function runHumanHomeChrome(row) {
     target_url: targetUrl,
     user_data_dir: userDataDir,
     requests: [],
+    input_events: [],
     console: [],
     pageerrors: [],
     page: null,
@@ -228,6 +261,10 @@ async function runHumanHomeChrome(row) {
     const page = context.pages()[0] || await context.newPage();
     page.setDefaultTimeout(30_000);
     page.setDefaultNavigationTimeout(45_000);
+    await page.exposeFunction('__welesDiagnosticInputEvent', (event) => {
+      records.input_events.push(event);
+    }).catch(() => {});
+    await page.addInitScript({ content: inputEventScript() }).catch(() => {});
 
     page.on('console', (msg) => records.console.push({ t: Date.now(), type: msg.type(), text: stripSecrets(msg.text()).slice(0, 1000), location: msg.location() }));
     page.on('pageerror', (err) => records.pageerrors.push({ t: Date.now(), name: err.name, message: stripSecrets(err.message).slice(0, 1000) }));
@@ -263,6 +300,7 @@ async function runHumanHomeChrome(row) {
     await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 45_000 }).catch((e) => {
       records.goto_error = String(e?.message || e).slice(0, 500);
     });
+    await page.evaluate(inputEventScript()).catch(() => {});
     console.log(`[diagnostic] row=${row.id.slice(0, 8)} stage=human_home_chrome opened ${targetUrl}`);
     console.log('[diagnostic] drive the stock Chrome window; type q<enter> or done<enter> here when finished');
     await waitForOperator(page, records);
@@ -318,6 +356,7 @@ async function runHumanHomeChrome(row) {
           page_title: records.page?.title || null,
           output_json: outPath,
           request_events: records.requests.length,
+          input_events: records.input_events.length,
         },
       },
       artifacts,
@@ -350,12 +389,34 @@ async function backfillHumanHomeChrome(row) {
   await insertCaptureSummary(row.id, capture, Buffer.byteLength(JSON.stringify(capture)));
   const artifacts = await uploadArtifacts(row.action, row.id, new Date(records.started_at || Date.now()), { force: true }).catch(() => null);
   const result = objectOrNull(row.result) || {};
-  await patchRow(row.id, { result: { ...result, artifacts: artifacts || result.artifacts || null } });
+  const signal = classify(records);
+  const status = signal.healthy === true ? 'completed' : signal.healthy === false ? 'failed' : 'pending_review';
+  await patchRow(row.id, {
+    status,
+    error: signal.signal === 'human_home_chrome_no_operator_input' ? 'diagnostic capture has no operator input trace' : null,
+    result: {
+      ...result,
+      ban_signal: {
+        ...signal,
+        details: {
+          ...(objectOrNull(objectOrNull(result.ban_signal)?.details) || {}),
+          diagnostic_stage: 'human_home_chrome',
+          output_json: outPath,
+          request_events: Array.isArray(records.requests) ? records.requests.length : 0,
+          input_events: Array.isArray(records.input_events) ? records.input_events.length : 0,
+        },
+      },
+      artifacts: artifacts || result.artifacts || null,
+    },
+  });
   return {
     ok: true,
     row_id: row.id,
     backfilled: true,
     network_events: Array.isArray(records.requests) ? records.requests.length : 0,
+    input_events: Array.isArray(records.input_events) ? records.input_events.length : 0,
+    status,
+    signal: signal.signal,
     artifacts,
   };
 }
