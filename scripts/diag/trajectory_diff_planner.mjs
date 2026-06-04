@@ -15,6 +15,7 @@ import { existsSync, readFileSync } from 'node:fs';
 
 const DEFAULT_SOURCE = 'https://console.wisent.com/weles/testing/linkedin_register';
 const SENSITIVE_KEY_RE = /password|passwd|pwd|secret|token|cookie|csrf|email|phone|first.?name|last.?name|username/i;
+const RUNNING_STALE_MS = 2 * 3600_000;
 
 function loadDotEnv(path = '.env') {
   if (!existsSync(path)) return;
@@ -185,7 +186,60 @@ function details(row) {
   return objectOrNull(banSignal(row)?.details) ?? {};
 }
 
+function runSignal(row) {
+  return String(banSignal(row)?.signal ?? '').toLowerCase();
+}
+
+function runStatus(row) {
+  return String(row?.status ?? '').toLowerCase();
+}
+
+function isRunningish(row) {
+  const status = runStatus(row);
+  if (['completed', 'failed', 'pending_review'].includes(status)) return false;
+  return ['running', 'in_progress'].includes(status) || (!status && /running/.test(runSignal(row)));
+}
+
+function claimAgeMs(row) {
+  if (!row?.claimed_at) return Infinity;
+  const t = Date.parse(row.claimed_at);
+  if (!Number.isFinite(t)) return Infinity;
+  return Date.now() - t;
+}
+
+function runAgeMs(row) {
+  const raw = row?.started_at ?? row?.scheduled_at;
+  if (!raw) return Infinity;
+  const t = Date.parse(raw);
+  if (!Number.isFinite(t)) return Infinity;
+  return Date.now() - t;
+}
+
+function isPending(row) {
+  return ['queued', 'pending'].includes(runStatus(row)) || /pending/.test(runSignal(row));
+}
+
+function isActiveRunning(row) {
+  if (!isRunningish(row)) return false;
+  if (!row?.claimed_by || !row?.claimed_at) return false;
+  const age = claimAgeMs(row);
+  return age >= 0 && age <= RUNNING_STALE_MS;
+}
+
+function isStaleRunning(row) {
+  if (!isRunningish(row) || isActiveRunning(row)) return false;
+  if (!row?.claimed_by || !row?.claimed_at) return runAgeMs(row) > RUNNING_STALE_MS;
+  return claimAgeMs(row) > RUNNING_STALE_MS;
+}
+
 function failureReasons(row) {
+  if (runStatus(row) === 'failed' && (/orphaned/i.test(row?.error ?? '') || /running/.test(runSignal(row)))) {
+    return [{ code: 'orphaned_running', message: sanitizeText(row?.error ?? 'running row was closed as orphaned') }];
+  }
+  if (isStaleRunning(row)) {
+    const claimed = row?.claimed_by ? `claimed_by=${sanitizeText(row.claimed_by)}` : 'unclaimed';
+    return [{ code: 'orphaned_running', message: `${claimed}; no active claim inside worker stale window` }];
+  }
   const fromRow = Array.isArray(row?.failure_reasons) ? row.failure_reasons : [];
   const fromDetails = Array.isArray(details(row).failure_reasons) ? details(row).failure_reasons : [];
   const raw = fromRow.length ? fromRow : fromDetails;
@@ -211,9 +265,7 @@ function isCompleted(row) {
 }
 
 function isInProgress(row) {
-  const signal = String(banSignal(row)?.signal ?? '').toLowerCase();
-  return ['running', 'in_progress', 'queued', 'pending'].includes(String(row?.status ?? '').toLowerCase()) ||
-    /running|pending/.test(signal);
+  return isActiveRunning(row);
 }
 
 function executionMode(row) {
@@ -355,7 +407,7 @@ function discriminatorRows(failed, completed) {
 function failureBuckets(rows) {
   const buckets = new Map();
   for (const row of rows) {
-    if (isCompleted(row) || isInProgress(row)) continue;
+    if (isCompleted(row) || isInProgress(row) || isPending(row)) continue;
     const reasons = failureReasons(row);
     for (const reason of reasons.length ? reasons : [{ code: 'unclassified', message: '' }]) {
       const key = reason.code;
@@ -419,7 +471,9 @@ function buildPlan(payload, source) {
     return withVector;
   });
   const completed = rows.filter(isCompleted);
-  const failed = rows.filter((row) => !isCompleted(row) && !isInProgress(row));
+  const pending = rows.filter((row) => !isCompleted(row) && !isInProgress(row) && isPending(row));
+  const staleRunning = rows.filter((row) => !isCompleted(row) && isStaleRunning(row));
+  const failed = rows.filter((row) => !isCompleted(row) && !isInProgress(row) && !isPending(row));
   const inProgress = rows.filter(isInProgress);
   const buckets = failureBuckets(rows);
   const bucketPlans = buckets.map((bucket) => {
@@ -450,6 +504,8 @@ function buildPlan(payload, source) {
       completed: completed.length,
       failed: failed.length,
       in_progress: inProgress.length,
+      pending: pending.length,
+      stale_running: staleRunning.length,
     },
     current_primary_reason: bucketPlans[0]?.reason ?? (completed.length ? 'completed' : 'no_runs'),
     completed_paths: completed.slice(0, 10).map(runSummary),
@@ -461,7 +517,7 @@ function buildPlan(payload, source) {
 function printHuman(plan) {
   console.log(`source: ${plan.source}`);
   console.log(`action: ${plan.action}`);
-  console.log(`runs: total=${plan.counts.total} completed=${plan.counts.completed} failed=${plan.counts.failed} in_progress=${plan.counts.in_progress}`);
+  console.log(`runs: total=${plan.counts.total} completed=${plan.counts.completed} failed=${plan.counts.failed} in_progress=${plan.counts.in_progress} pending=${plan.counts.pending ?? 0} stale_running=${plan.counts.stale_running ?? 0}`);
   console.log(`current_primary_reason: ${plan.current_primary_reason}`);
   console.log('completed_paths:');
   if (!plan.completed_paths.length) console.log('- none observed');
@@ -527,7 +583,7 @@ try {
       for (const plan of plans) {
         const firstBucket = plan.failure_buckets[0];
         const nearest = firstBucket?.nearest_completed_path?.completed_run;
-        console.log(`- ${plan.action}: total=${plan.counts.total} completed=${plan.counts.completed} failed=${plan.counts.failed} primary=${plan.current_primary_reason}${nearest ? ` nearest_pass=${nearest.id.slice(0, 8)}:${nearest.mode}` : ''}`);
+        console.log(`- ${plan.action}: total=${plan.counts.total} completed=${plan.counts.completed} failed=${plan.counts.failed} active=${plan.counts.in_progress} stale=${plan.counts.stale_running ?? 0} primary=${plan.current_primary_reason}${nearest ? ` nearest_pass=${nearest.id.slice(0, 8)}:${nearest.mode}` : ''}`);
       }
     }
   } else {
