@@ -149,11 +149,35 @@ async function openGithubPanel(s) {
   // GitHub control is present, click it to surface the linked repo + the
   // pull action. Its absence is fine — innerText still drives the
   // decision and a DOM dump is on record either way.
-  const ghEntry = s.page.locator(
-    '#ide-rail-tabs-tabpane-integrations :is(button,a):has-text("GitHub")'
-  ).filter({ visible: true }).first();
+  const ghEntry = s.page
+    .getByText('Sync with a GitHub repository.', { exact: true })
+    .locator('xpath=ancestor::button[contains(@class, "integrations-panel-card-button")][1]')
+    .or(
+      s.page.locator('#ide-rail-tabs-tabpane-integrations button.integrations-panel-card-button', {
+        hasText: 'Sync with a GitHub repository.',
+      })
+    )
+    .filter({ visible: true })
+    .first();
+  let clickedGithubEntry = false;
   if (await ghEntry.count() > 0) {
     await humanClickLocator(s.page, ghEntry);
+    clickedGithubEntry = true;
+  } else {
+    clickedGithubEntry = await s.page.evaluate(() => {
+      const pane = document.querySelector('#ide-rail-tabs-tabpane-integrations');
+      if (!pane) return false;
+      const buttons = Array.from(pane.querySelectorAll('button'));
+      const btn = buttons.find((b) => {
+        const txt = b.innerText || '';
+        return txt.includes('GitHub') && txt.includes('Sync with a GitHub repository');
+      });
+      if (!btn) return false;
+      btn.click();
+      return true;
+    });
+  }
+  if (clickedGithubEntry) {
     await humanIdlePause('short');
     await shot(s, 'github_detail');
     // Clicking the GitHub card opens the "Sync with GitHub" modal, which
@@ -278,9 +302,43 @@ try {
     await shot(s, `editor_${tag8}`);
     const panelText = await openGithubPanel(s);
     await shot(s, `github_${tag8}`);
-    if (panelText.toLowerCase().includes(REPO_LC)) {
+    const hasManualMergeContinue = await s.page
+      .getByRole('button', { name: /i have manually merged\.?\s*continue/i })
+      .filter({ visible: true })
+      .count() > 0;
+    if (panelText.toLowerCase().includes(REPO_LC) || (IS_ID && hasManualMergeContinue)) {
       console.log(`[pull_github] MATCH — project ${c.id} (${c.name}) is linked to ${REPO_SLUG}`);
       const panelLow = panelText.toLowerCase();
+      const manualMergeBtn = s.page.getByRole('button', { name: /i have manually merged\.?\s*continue/i })
+        .filter({ visible: true }).first();
+      if (await manualMergeBtn.count() > 0) {
+        await humanClickLocator(s.page, manualMergeBtn);
+        await humanIdlePause('deliberate');
+        let resultText = '';
+        let settled = false;
+        for (let i = 0; i < 90; i += 1) {
+          await s.page.waitForTimeout(1000);  // allow-raw-playwright: post-merge-continue settle poll
+          resultText = await s.page.evaluate(() => document.body.innerText);
+          const low = resultText.toLowerCase();
+          if (/merge conflict|could not be (?:automatically )?merged|failed to (?:pull|merge|sync)|merge failed|unable to merge/.test(low)) {
+            await dieUI(s, `merge_continue_conflict_${tag8}`, `Overleaf still reports a conflict/error after manual-merge continue for ${REPO_SLUG} in ${c.id}`);
+          }
+          if (!/checking project status in github|importing and merging changes in github|i have manually merged/.test(low)) {
+            settled = true;
+            break;
+          }
+        }
+        const fin = await shot(s, `after_merge_continue_${tag8}`);
+        if (!settled) {
+          await dieUI(s, `merge_continue_unsettled_${tag8}`, `manual-merge continue did not settle for ${c.id}`);
+        }
+        console.log(`\n[pull_github] OK — completed manual-merge continuation for ${REPO_SLUG} in ${c.id}.`);
+        console.log(`[pull_github] final URL: ${s.page.url()}`);
+        console.log(`[pull_github] post-continue DOM: ${fin}`);
+        await captureOverleafAuth(sessionStore, s, 'post-merge-continue');
+        pulled = true;
+        break;
+      }
       if (/no new commits in github since last merge|already up[ -]?to[ -]?date|up to date/.test(panelLow)) {
         const fin = await shot(s, `up_to_date_${tag8}`);
         console.log(`\n[pull_github] OK — ${REPO_SLUG} is already up to date in ${c.id}.`);
