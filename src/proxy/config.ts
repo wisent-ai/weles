@@ -166,7 +166,16 @@ export async function resolveProxy(proxy: string, targetHost?: string, preflight
     const platformForBlock = platformFromTarget(targetHost);
     const provFromUrl = providerFromHost(u.hostname, decodeURIComponent(u.username));
     const retiredReason = retiredProviderReason(u.hostname, u.port);
-    if (retiredReason) {
+    // Escape hatch for RE-VALIDATION: a retire/toxic verdict is learned from a
+    // point-in-time observation; a provider's underlying pool can rotate (e.g.
+    // Oxylabs disp.* moved from CenturyLink datacenter ASNs to Comcast
+    // residential since the 2026-05-12 block). WELES_ALLOW_RETIRED_PROXY=1
+    // deliberately bypasses the URL-form blocks so such an exit can be re-tested.
+    const allowRetired = process.env.WELES_ALLOW_RETIRED_PROXY === '1';
+    if (allowRetired && (retiredReason || isProviderBlockedForPlatform(provFromUrl, platformForBlock))) {
+      console.log(`[proxy] OVERRIDE: WELES_ALLOW_RETIRED_PROXY=1 — bypassing block for ${u.hostname}:${u.port} (would be: ${retiredReason ?? 'toxic_for_' + platformForBlock})`);
+    }
+    if (retiredReason && !allowRetired) {
       console.log(`[proxy] BLOCKED: PROXY_URL host=${u.hostname}:${u.port} retired=${retiredReason} — refusing to hand out`);
       writeProxyPreflightDiagnostics({
         requested_proxy: '[url-form]',
@@ -180,7 +189,7 @@ export async function resolveProxy(proxy: string, targetHost?: string, preflight
       });
       return undefined;
     }
-    if (isProviderBlockedForPlatform(provFromUrl, platformForBlock)) {
+    if (isProviderBlockedForPlatform(provFromUrl, platformForBlock) && !allowRetired) {
       console.log(`[proxy] BLOCKED: PROXY_URL host=${u.hostname} maps to ${provFromUrl}, which is on the toxic list for ${platformForBlock} — refusing to hand out`);
       writeProxyPreflightDiagnostics({
         requested_proxy: '[url-form]',
