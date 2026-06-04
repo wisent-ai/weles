@@ -102,6 +102,7 @@ export function startInstrumentation(ws: any, ctx: BrowserContext, label: string
     node_version: process.version, pid: process.pid,
   };
   ws._instStdout = [];
+  ws._instDomTimeline = [];
   attachStdoutCapture(ws);
   attachCompleteNetRecord(ctx, reqs);
   attachPageDiagnostics(ws, consoleMsgs, pageErrors);
@@ -134,6 +135,20 @@ export function startInstrumentation(ws: any, ctx: BrowserContext, label: string
           if (!prev || log.length > prev.log.length) accum.set(url, { url, log });
         } catch {}
       }
+      // Rendered-DOM snapshot (Playwright, main frame). Buffered live so it
+      // survives a window-closed teardown; deduped by url+length so idle
+      // periods don't bloat it; capped to the most recent 80 distinct states.
+      try {
+        if (ws.page && !ws.page.isClosed?.()) {
+          const html: string = await ws.page.content();  // allow-raw-playwright: dom timeline snapshot
+          const url = ws.page.url();
+          const last = ws._instDomTimeline[ws._instDomTimeline.length - 1];
+          if (!last || last.url !== url || last.len !== html.length) {
+            ws._instDomTimeline.push({ t: Date.now(), url, len: html.length, html });
+            if (ws._instDomTimeline.length > 80) ws._instDomTimeline.shift();
+          }
+        }
+      } catch {}
       writeFileSync(fn, safeJsonStringify(buildDumpPayload(ws)));
     } catch {}
   }, 5000);
@@ -371,6 +386,11 @@ function buildDumpPayload(ws: any, opts: { closing?: boolean } = {}): any {
     indexed_db: ws._instIndexedDb ?? [],
     indexed_db_error: ws._instIndexedDbError ?? null,
     dom_counters: ws._instDomCounters ?? [],
+    // Live rendered-DOM timeline (Playwright page.content polled every flush).
+    // Unlike dom_snapshot below — a single finalize-time CDP call that dies
+    // "Target closed" when a keeper window is closed before finalize — this is
+    // buffered during the session and persisted every 5s, so it is always present.
+    dom_timeline: ws._instDomTimeline ?? [],
     dom_snapshot: ws._instDomSnapshot ?? null,
     dom_snapshot_error: ws._instDomSnapshotError ?? null,
     dom_pierced_tree: ws._instDomPiercedTree ?? null,
