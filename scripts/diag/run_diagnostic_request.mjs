@@ -91,6 +91,22 @@ function bodyMarkers(text) {
   };
 }
 
+function sanitizeJsonb(value) {
+  if (typeof value === 'string') {
+    return value
+      .replace(/\u0000/g, '\uFFFD')
+      .replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/g, '\uFFFD')
+      .replace(/(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, '\uFFFD');
+  }
+  if (Array.isArray(value)) return value.map((item) => sanitizeJsonb(item));
+  if (value && typeof value === 'object') {
+    const out = {};
+    for (const [k, v] of Object.entries(value)) out[k] = sanitizeJsonb(v);
+    return out;
+  }
+  return value;
+}
+
 function classify(records) {
   const markerRows = [
     ...records.requests.map((r) => r.body_markers).filter(Boolean),
@@ -110,6 +126,15 @@ async function patchRow(id, body) {
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(`patch row ${id} HTTP ${res.status}: ${await res.text()}`);
+}
+
+async function insertCaptureSummary(rowId, capture, bytes) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/account_action_log_capture?on_conflict=log_id`, {
+    method: 'POST',
+    headers: { ...headers(), Prefer: 'resolution=merge-duplicates,return=minimal' },
+    body: JSON.stringify({ log_id: rowId, capture, bytes }),
+  });
+  if (!res.ok) throw new Error(`capture upsert HTTP ${res.status}: ${await res.text()}`);
 }
 
 async function fetchJson(url) {
@@ -166,6 +191,7 @@ async function runHumanHomeChrome(row) {
   mkdirSync(outDir, { recursive: true });
   const outPath = join(outDir, 'human_home_chrome_capture.json');
   const instPath = join(outDir, 'human_home_chrome.inst.json');
+  const networkPath = join(outDir, 'network.ndjson');
   const targetUrl = process.env.DIAGNOSTIC_TARGET_URL || TARGET_BY_ACTION[row.action] || 'about:blank';
   const chromeVersion = execFileSync(chromeBin, ['--version'], { encoding: 'utf8' }).trim();
   const userDataDir = process.env.DIAGNOSTIC_CHROME_PROFILE_DIR || mkdtempSync(join(tmpdir(), 'weles-human-home-chrome-'));
@@ -258,10 +284,16 @@ async function runHumanHomeChrome(row) {
     records.completed_at = new Date().toISOString();
     writeFileSync(outPath, JSON.stringify(records, null, 2));
     writeFileSync(instPath, JSON.stringify({ diagnostic: records }, null, 2));
+    writeFileSync(networkPath, records.requests.map((r) => JSON.stringify(r)).join('\n') + '\n');
     await context.close().catch(() => {});
   }
 
   const signal = classify(records);
+  const capture = {
+    'diagnostic/human_home_chrome/human_home_chrome.inst.json': sanitizeJsonb({ diagnostic: records }),
+    'diagnostic/human_home_chrome/network.ndjson': sanitizeJsonb(records.requests),
+  };
+  await insertCaptureSummary(row.id, capture, Buffer.byteLength(JSON.stringify(capture)));
   const artifacts = await uploadArtifacts(row.action, row.id, new Date(records.started_at), { force: true }).catch(() => null);
   await writeNetworkCapture(row.id).catch(() => {});
   const status = signal.healthy === true ? 'completed' : signal.healthy === false ? 'failed' : 'pending_review';
@@ -293,6 +325,41 @@ async function runHumanHomeChrome(row) {
   };
 }
 
+function existingCapturePath(row) {
+  const result = objectOrNull(row?.result) || {};
+  const signal = objectOrNull(result.ban_signal) || {};
+  const details = objectOrNull(signal.details) || {};
+  if (typeof details.output_json === 'string' && existsSync(details.output_json)) return details.output_json;
+  return join(process.cwd(), 'recordings', row.id, 'diagnostic', 'human_home_chrome', 'human_home_chrome_capture.json');
+}
+
+async function backfillHumanHomeChrome(row) {
+  const outPath = existingCapturePath(row);
+  if (!existsSync(outPath)) throw new Error(`capture json missing: ${outPath}`);
+  const records = JSON.parse(readFileSync(outPath, 'utf8'));
+  const outDir = join(process.cwd(), 'recordings', row.id, 'diagnostic', 'human_home_chrome');
+  mkdirSync(outDir, { recursive: true });
+  const instPath = join(outDir, 'human_home_chrome.inst.json');
+  const networkPath = join(outDir, 'network.ndjson');
+  writeFileSync(instPath, JSON.stringify({ diagnostic: records }, null, 2));
+  writeFileSync(networkPath, (Array.isArray(records.requests) ? records.requests : []).map((r) => JSON.stringify(r)).join('\n') + '\n');
+  const capture = {
+    'diagnostic/human_home_chrome/human_home_chrome.inst.json': sanitizeJsonb({ diagnostic: records }),
+    'diagnostic/human_home_chrome/network.ndjson': sanitizeJsonb(Array.isArray(records.requests) ? records.requests : []),
+  };
+  await insertCaptureSummary(row.id, capture, Buffer.byteLength(JSON.stringify(capture)));
+  const artifacts = await uploadArtifacts(row.action, row.id, new Date(records.started_at || Date.now()), { force: true }).catch(() => null);
+  const result = objectOrNull(row.result) || {};
+  await patchRow(row.id, { result: { ...result, artifacts: artifacts || result.artifacts || null } });
+  return {
+    ok: true,
+    row_id: row.id,
+    backfilled: true,
+    network_events: Array.isArray(records.requests) ? records.requests.length : 0,
+    artifacts,
+  };
+}
+
 if (!SUPABASE_URL || !SUPABASE_KEY) throw new Error('SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY missing');
 
 const row = await fetchRequestRow();
@@ -311,6 +378,12 @@ if (flag('--dry-run')) {
     status: row.status,
     would_claim_as: CLAIM_ID,
   }, null, 2));
+  process.exit(0);
+}
+
+if (flag('--backfill-row')) {
+  const result = await backfillHumanHomeChrome(row);
+  console.log(JSON.stringify(result, null, 2));
   process.exit(0);
 }
 
