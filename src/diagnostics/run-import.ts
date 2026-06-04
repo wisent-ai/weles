@@ -109,7 +109,11 @@ export async function writeNetworkCapture(runId: string): Promise<void> {
     for (const e of entries) {
       const full = join(dir, e.name);
       if (e.isDirectory()) await walk(full);
-      else if (e.name.endsWith('.inst.json')) files.push(full);
+      // .inst.json = the instrumentation dump; session.har = Playwright's HAR,
+      // the ONLY artifact that reliably carries every response body (captured at
+      // response time, not via best-effort post-hoc resp.body()). Embed both so
+      // the SQL copy is genuinely complete — never a body-less projection.
+      else if (e.name.endsWith('.inst.json') || e.name.endsWith('.har')) files.push(full);
     }
   };
   await walk(root);
