@@ -132,11 +132,23 @@ function challengeEvidence(records) {
   }
   const titleMatch = challengeText.match(/<title>\s*([^<]+?)\s*<\/title>/i);
   const challengeTitle = titleMatch ? titleMatch[1].replace(/\s+/g, ' ').trim() : '';
+  // Scan the FULL textual evidence the capture holds — the rendered page text AND
+  // every non-asset response body (full body, or old body_prefix) — not just the
+  // precomputed markers + the filtered challengeRows. The proof of an email-code
+  // step ("Confirm your email", isConfirmingPin) or a phone input can live in the
+  // page text or a non-"challenge" response (e.g. an RSC server-request), so
+  // looking only at markers/challengeRows missed evidence that was right there.
+  // Exclude script/style/image and vendor anti-bot JS (reCAPTCHA/arkose) so their
+  // source text can't false-positive. Works on old captures too (no markers needed).
+  const isAsset = (r) => /^(script|stylesheet|image|font|media|other)$/i.test(r.resource_type || '') || /recaptcha|arkose|gstatic|googleapis|google-analytics|doubleclick/i.test(String(r.url || ''));
+  const pageText = [records.page, records.last_page_snapshot].filter(Boolean).map((p) => p?.text_sample || '').join('\n');
+  const bodyText = requests.filter((r) => !isAsset(r)).map((r) => r.body || r.body_prefix || '').join('\n');
+  const evidence = `${pageText}\n${challengeText}\n${bodyText}`;
   // Phone verification ONLY when LinkedIn actually rendered a phone-number input
   // somewhere in the capture — the capture is ground truth for every field shown,
   // so no phone input => it cannot be phone verification (the #1 false positive).
-  const phoneInput = Boolean(pageMarkers.phone_input) || challengeRows.some((r) => r.body_markers?.phone_input) || /isConfirmingPhone|enter your phone number|<input[^>]+type=["']?tel/i.test(challengeText);
-  const emailVerification = Boolean(pageMarkers.email_verification) || challengeRows.some((r) => r.body_markers?.email_verification) || /isConfirmingPin|confirm your email/i.test(challengeText);
+  const phoneInput = Boolean(pageMarkers.phone_input) || requests.some((r) => r.body_markers?.phone_input) || /isConfirmingPhone|enter your phone number|<input[^>]+type=["']?tel/i.test(evidence);
+  const emailVerification = Boolean(pageMarkers.email_verification) || requests.some((r) => r.body_markers?.email_verification) || /isConfirmingPin|confirm your email|enter the code [^.]{0,40}(we'?(ve| have)? sent|sent to)/i.test(evidence);
   const captchaGauntlet = Boolean(pageMarkers.captcha_gauntlet) || /Security verification|quick security check|captcha challenge|arkose|funcaptcha|checkpoint\/captcha/i.test(challengeText);
   const challenge = challengeRows.some((r) => r.body_markers?.challenge) || /checkpoint\/challenge|challengeIframe/i.test(challengeText);
   if (phoneInput) return { kind: 'phone_verification', url: challengeUrl || null, title: challengeTitle || 'Phone Verification' };
