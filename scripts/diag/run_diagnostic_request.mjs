@@ -97,11 +97,45 @@ function bodyMarkers(text) {
   return {
     challenge: /challenge-dialog|checkpoint\/challenge|challengeIframe|Security verification|quick security check/i.test(body),
     captcha: /captcha|recaptcha|g-recaptcha|google\.com\/recaptcha|arkose|funcaptcha/i.test(body),
+    phone_verification: /Phone Verification|phone verification|verify (your )?phone|phone number|verification code/i.test(body),
+    captcha_gauntlet: /Security verification|quick security check|captcha challenge|arkose|funcaptcha/i.test(body),
     signup_form: /name="email-address"|id="email-address"|join-form-submit/i.test(body),
     logged_in_or_onboarding: /\/feed\/|\/in\/|onboarding|checkpoint\/challenge\/verify/i.test(body),
     bot_flag_true: /data-is-bot="true"/i.test(body),
     bot_flag_false: /data-is-bot="false"/i.test(body),
   };
+}
+
+function challengeEvidence(records) {
+  const requests = Array.isArray(records.requests) ? records.requests : [];
+  const pageMarkers = records.page?.markers || records.last_page_snapshot?.markers || {};
+  const challengeRows = requests.filter((r) => {
+    const url = String(r.url || '');
+    const markers = r.body_markers || {};
+    return /checkpoint\/challenge|challengeIframe|createAccount/i.test(url) || markers.challenge || markers.phone_verification || markers.captcha_gauntlet;
+  });
+  const challengeText = challengeRows.map((r) => `${r.url || ''}\n${r.body_prefix || ''}`).join('\n');
+  let challengeUrl = '';
+  const createAccount = challengeRows.find((r) => /createAccount/i.test(String(r.url || '')) && typeof r.body_prefix === 'string');
+  if (createAccount?.body_prefix) {
+    try {
+      const body = JSON.parse(createAccount.body_prefix);
+      if (typeof body.challengeUrl === 'string') challengeUrl = body.challengeUrl;
+    } catch {}
+  }
+  if (!challengeUrl) {
+    const iframe = challengeRows.find((r) => /checkpoint\/challengeIframe/i.test(String(r.url || '')));
+    challengeUrl = String(iframe?.url || '');
+  }
+  const titleMatch = challengeText.match(/<title>\s*([^<]+?)\s*<\/title>/i);
+  const challengeTitle = titleMatch ? titleMatch[1].replace(/\s+/g, ' ').trim() : '';
+  const phoneVerification = Boolean(pageMarkers.phone_verification) || /Phone Verification|phone verification|verify (your )?phone|phone number|verification code/i.test(challengeText);
+  const captchaGauntlet = Boolean(pageMarkers.captcha_gauntlet) || /Security verification|quick security check|captcha challenge|arkose|funcaptcha|checkpoint\/captcha/i.test(challengeText);
+  const challenge = challengeRows.some((r) => r.body_markers?.challenge) || /checkpoint\/challenge|challengeIframe/i.test(challengeText);
+  if (phoneVerification) return { kind: 'phone_verification', url: challengeUrl || null, title: challengeTitle || 'Phone Verification' };
+  if (captchaGauntlet) return { kind: 'captcha_gauntlet', url: challengeUrl || null, title: challengeTitle || null };
+  if (challenge) return { kind: 'challenge', url: challengeUrl || null, title: challengeTitle || null };
+  return { kind: 'none', url: null, title: null };
 }
 
 function sanitizeJsonb(value) {
@@ -123,14 +157,17 @@ function sanitizeJsonb(value) {
 function classify(records) {
   const inputEvents = Array.isArray(records.input_events) ? records.input_events : [];
   if (inputEvents.length === 0) return { healthy: null, signal: 'human_home_chrome_no_operator_input' };
+  const challenge = challengeEvidence(records);
   const markerRows = [
     ...records.requests.map((r) => r.body_markers).filter(Boolean),
     records.page?.markers,
   ].filter(Boolean);
-  const challenged = markerRows.some((m) => m.challenge || m.captcha || m.bot_flag_true);
+  const challenged = challenge.kind !== 'none' || markerRows.some((m) => m.challenge || m.captcha_gauntlet || m.bot_flag_true);
   const passed = markerRows.some((m) => m.logged_in_or_onboarding) && !challenged;
   if (passed) return { healthy: true, signal: 'human_home_chrome_passed' };
-  if (challenged) return { healthy: false, signal: 'human_home_chrome_challenge' };
+  if (challenge.kind === 'phone_verification') return { healthy: null, signal: 'human_home_chrome_phone_verification', challenge };
+  if (challenge.kind === 'captcha_gauntlet') return { healthy: false, signal: 'human_home_chrome_captcha_gauntlet', challenge };
+  if (challenged) return { healthy: false, signal: 'human_home_chrome_challenge', challenge };
   return { healthy: null, signal: 'human_home_chrome_captured' };
 }
 
@@ -172,6 +209,8 @@ async function snapshotPage(page) {
     markers: {
       challenge: /challenge-dialog|checkpoint\/challenge|challengeIframe|Security verification|quick security check/i.test(document.body?.innerText || ''),
       captcha: /captcha|recaptcha|g-recaptcha|arkose|funcaptcha/i.test(document.body?.innerText || document.documentElement.innerHTML || ''),
+      phone_verification: /Phone Verification|phone verification|verify (your )?phone|phone number|verification code/i.test(document.title + ' ' + (document.body?.innerText || '')),
+      captcha_gauntlet: /Security verification|quick security check|captcha challenge|arkose|funcaptcha/i.test(document.body?.innerText || document.documentElement.innerHTML || ''),
       signup_form: !!document.querySelector('input[name="email-address"], #join-form-submit'),
       logged_in_or_onboarding: /\/feed\/|\/in\/|onboarding|checkpoint\/challenge\/verify/i.test(location.href + ' ' + (document.body?.innerText || '')),
       bot_flag_true: /data-is-bot="true"/i.test(document.documentElement.innerHTML || ''),
@@ -405,6 +444,9 @@ async function runHumanHomeChrome(row) {
           request_events: records.requests.length,
           input_events: records.input_events.length,
           operator_stop_reason: records.operator_stop_reason || null,
+          challenge_kind: signal.challenge?.kind || null,
+          challenge_url: signal.challenge?.url || null,
+          challenge_title: signal.challenge?.title || null,
         },
       },
       artifacts,
@@ -453,6 +495,9 @@ async function backfillHumanHomeChrome(row) {
           request_events: Array.isArray(records.requests) ? records.requests.length : 0,
           input_events: Array.isArray(records.input_events) ? records.input_events.length : 0,
           operator_stop_reason: records.operator_stop_reason || null,
+          challenge_kind: signal.challenge?.kind || null,
+          challenge_url: signal.challenge?.url || null,
+          challenge_title: signal.challenge?.title || null,
         },
       },
       artifacts: artifacts || result.artifacts || null,
@@ -506,9 +551,9 @@ await patchRow(row.id, {
 
 try {
   const { status, result } = await runHumanHomeChrome(row);
-  const completionError = result.ban_signal.signal === 'human_home_chrome_no_operator_input'
-    ? 'diagnostic capture has no operator input trace'
-    : null;
+  let completionError = null;
+  if (result.ban_signal.signal === 'human_home_chrome_no_operator_input') completionError = 'diagnostic capture has no operator input trace';
+  else if (result.ban_signal.signal === 'human_home_chrome_phone_verification') completionError = 'phone verification required';
   await patchRow(row.id, { status, completed_at: new Date().toISOString(), result, error: completionError });
   console.log(JSON.stringify({ ok: true, row_id: row.id, stage, status, signal: result.ban_signal.signal }, null, 2));
 } catch (e) {
