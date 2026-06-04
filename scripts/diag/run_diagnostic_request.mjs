@@ -375,8 +375,18 @@ async function runHumanHomeChrome(row) {
     page: null,
   };
 
+  // Optional proxy (stock Chrome over a residential exit). Playwright handles the
+  // proxy-auth challenge that bare Chrome surfaces as a blocking dialog. Parsed
+  // from PROXY_URL so the same string works for keeper and stock-chrome paths.
+  let proxyOpt;
+  if (process.env.PROXY_URL) {
+    const pu = new URL(process.env.PROXY_URL);
+    proxyOpt = { server: `${pu.protocol}//${pu.host}`, username: decodeURIComponent(pu.username) || undefined, password: decodeURIComponent(pu.password) || undefined };
+    console.log(`[diag] stock Chrome via proxy ${pu.protocol}//${pu.host}`);
+  }
   const context = await chromium.launchPersistentContext(userDataDir, {
     executablePath: chromeBin,
+    proxy: proxyOpt,
     headless: false,
     viewport: { width: 1680, height: 1050 },
     deviceScaleFactor: 2,
@@ -395,6 +405,16 @@ async function runHumanHomeChrome(row) {
       records.input_events.push(event);
     }).catch(() => {});
     await page.addInitScript({ content: inputEventScript() }).catch(() => {});
+    // Playwright leaks navigator.webdriver=true on stock Chrome — a flag NO real
+    // human browser has, and which reCAPTCHA Enterprise harvests as an automation
+    // signal (it sank the first stock run: fresh, Google-accepted tokens rejected
+    // "noCAPTCHA user response code is missing or invalid"). Patch it to false so
+    // "stock chrome" actually represents a human's browser. Opt out: DIAGNOSTIC_KEEP_WEBDRIVER=1.
+    if (process.env.DIAGNOSTIC_KEEP_WEBDRIVER !== '1') {
+      await page.addInitScript(() => {
+        try { Object.defineProperty(Object.getPrototypeOf(navigator), 'webdriver', { get: () => false, configurable: true }); } catch { /* ignore */ }
+      }).catch(() => {});
+    }
 
     page.on('console', (msg) => records.console.push({ t: Date.now(), type: msg.type(), text: stripSecrets(msg.text()).slice(0, 1000), location: msg.location() }));
     page.on('pageerror', (err) => records.pageerrors.push({ t: Date.now(), name: err.name, message: stripSecrets(err.message).slice(0, 1000) }));
