@@ -30,6 +30,9 @@ const ROUTES: Record<string, (p: string) => string | null> = {
 
   browse: (p) => p === 'github' ? 'scripts/trajectories/github/actions/browse.mjs' : `scripts/trajectories/${p}/browse.mjs`,
   health: (p) => p === 'github' ? 'scripts/trajectories/github/health/run.mjs' : `scripts/trajectories/${p}/health.mjs`,
+  // Infra maintenance verbs (not social-account actions): resend_verify_domain_status
+  // re-verifies stale inbound domains + confirms real receiving (no browser).
+  verify_domain_status: (p) => `scripts/trajectories/${p}/verify_domain_status.mjs`,
   shadowban_check: (p) => `scripts/trajectories/${p}/shadowban_check.mjs`,
   organic_comment: (p) => `scripts/trajectories/${p}/organic_comment.mjs`,
   organic_reply: (p) => `scripts/trajectories/${p}/organic_reply.mjs`,
