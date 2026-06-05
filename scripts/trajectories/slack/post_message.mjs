@@ -17,8 +17,12 @@ const MESSAGE_FILE = process.env.MESSAGE_FILE
 const TARGET_NAME = (process.env.SLACK_TARGET_CHANNEL_NAME || 'jakub').toLowerCase();
 const TARGET_CHAN = process.env.SLACK_TARGET_CHANNEL || '';
 
-if (!existsSync(MESSAGE_FILE)) {
-  console.error(`MESSAGE_FILE not found: ${MESSAGE_FILE}`);
+// Message source: inline MESSAGE_TEXT (machine-independent — survives being
+// enqueued on one host and run on another) takes precedence over MESSAGE_FILE
+// (a path, only valid on the enqueuing machine's filesystem).
+const INLINE_MESSAGE = process.env.MESSAGE_TEXT || '';
+if (!INLINE_MESSAGE && !existsSync(MESSAGE_FILE)) {
+  console.error(`no MESSAGE_TEXT and MESSAGE_FILE not found: ${MESSAGE_FILE}`);
   process.exit(2);
 }
 
@@ -193,7 +197,7 @@ if (!channelId) {
 }
 if (!channelId) { console.error('[slack] no channel id'); await safeShutdown(); process.exit(4); }
 
-const messageText = readFileSync(MESSAGE_FILE, 'utf8');
+const messageText = INLINE_MESSAGE || readFileSync(MESSAGE_FILE, 'utf8');
 const post = await slackApi('chat.postMessage', { token: xoxb, channel: channelId, text: messageText });
 console.log(`[slack] ✓ posted as Swiatowid bot ts=${post.ts} channel=${channelId}`);
 

@@ -179,7 +179,10 @@ export function paramsToEnv(
   if (typeof params.scrolls === 'number') env.SCROLL_COUNT = String(params.scrolls);
   if (typeof params.posts_to_browse === 'number') env.SCROLL_COUNT = String(params.posts_to_browse);
   if (typeof params.search_query === 'string') env.SEARCH_QUERY = params.search_query;
-  // slack_post_message params: which file to post + where (default channel 'jakub').
+  // slack_post_message params: message body + where (default channel 'jakub').
+  // Inline `message` is machine-independent (survives cross-host enqueue);
+  // `message_file` is a path, only valid on the enqueuing machine.
+  if (typeof params.message === 'string') env.MESSAGE_TEXT = params.message;
   if (typeof params.message_file === 'string') env.MESSAGE_FILE = params.message_file;
   if (typeof params.slack_channel === 'string') env.SLACK_TARGET_CHANNEL_NAME = params.slack_channel;
   if (typeof params.target_user === 'string') env.TARGET_USER = params.target_user;
