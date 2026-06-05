@@ -16,6 +16,7 @@
 
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
+import { promises as dnsp } from 'node:dns';
 
 const RK = process.env.RESEND_API_KEY || '';
 const RRK = process.env.RESEND_RECEIVING_API_KEY || RK;
@@ -64,6 +65,27 @@ async function updateRow(domain, status) {
     method: 'PATCH', headers: { apikey: SK, Authorization: `Bearer ${SK}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
     body: JSON.stringify({ status, updated_at: new Date().toISOString() }),
   }).catch(() => {});
+}
+
+// Why is a domain not receiving? A live DNS lookup names the actual cause so the
+// alert is actionable instead of a generic "broken". The big one: a registrar
+// WHOIS/registrant-contact-verification hold repoints the nameservers to
+// failed-whois-verification.* / verify-contact-details.* and suspends DNS — no
+// API can clear it; a human must verify the registrant contact at the registrar.
+async function diagnoseBroken(domain) {
+  let ns = [];
+  try { ns = await dnsp.resolveNs(domain); }
+  catch (e) {
+    if (['ENOTFOUND', 'NXDOMAIN', 'ENODATA', 'SERVFAIL'].includes(e.code))
+      return { code: 'dns_unresolved', label: 'domain does not resolve (NXDOMAIN / no nameservers)' };
+  }
+  if (ns.some((h) => /verify|whois/i.test(h)))
+    return { code: 'whois_hold', label: `WHOIS/registrant-contact verification hold — registrar suspended DNS (ns: ${ns.join(', ')}); a human must verify the registrant contact at the registrar to restore` };
+  let mx = [];
+  try { mx = await dnsp.resolveMx(domain); } catch {}
+  if (!mx.length)
+    return { code: 'no_mx', label: 'no inbound MX record — add MX 10 inbound-smtp.us-east-1.amazonaws.com' };
+  return { code: 'mx_present_no_receive', label: `MX present (${mx.map((m) => m.exchange).join(', ')}) but probe mail not landing — SES routing / propagation` };
 }
 
 const main = async () => {
@@ -124,20 +146,32 @@ const main = async () => {
     for (const dom of suspects) { reprobes[dom] = await sendProbe(dom, 'recheck'); await sleep(600); }
     await pollInbox(reprobes, 12);
   }
-  // 3. classify + reconcile
+  // 3. classify + reconcile (diagnose the cause for anything broken)
   for (const d of targets) {
     const healthy = DRY ? d.status === 'verified' : landed.has(d.name);
     const rec = { domain: d.name, status: d.status, receives: DRY ? null : landed.has(d.name), repaired: !!d._repaired };
     if (healthy) { out.healthy.push(rec); if (d._repaired) out.repaired.push(rec); await updateRow(d.name, 'active'); }
-    else { out.broken.push(rec); await updateRow(d.name, 'mx_broken'); }
-    console.log(`[verify] ${d.name}: status=${d.status} receives=${rec.receives} -> ${healthy ? 'HEALTHY' : 'BROKEN'}${d._repaired ? ' (repaired)' : ''}`);
+    else {
+      rec.diagnosis = DRY ? { code: 'dry', label: 'not probed (dry-run)' } : await diagnoseBroken(d.name);
+      out.broken.push(rec); await updateRow(d.name, 'mx_broken');
+    }
+    console.log(`[verify] ${d.name}: status=${d.status} receives=${rec.receives} -> ${healthy ? 'HEALTHY' : 'BROKEN'}${rec.diagnosis ? ` [${rec.diagnosis.code}]` : ''}${d._repaired ? ' (repaired)' : ''}`);
   }
   // 4. Slack message
   const lines = [`*Resend email-domain health* — ${out.healthy.length}/${out.checked} healthy${DRY ? ' (dry-run)' : ''}`];
   if (out.healthy.length) lines.push(`:white_check_mark: healthy: ${out.healthy.map(r => r.domain).sort().join(', ')}`);
   if (out.repaired.length) lines.push(`:wrench: auto-repaired (re-verified): ${out.repaired.map(r => r.domain).join(', ')}`);
-  if (out.broken.length) lines.push(`:rotating_light: NEEDS A HUMAN: ${out.broken.map(r => r.domain).join(', ')}`);
-  else if (!out.healthy.length) lines.push(':grey_question: no receiving domains configured');
+  if (out.broken.length) {
+    const SHORT = {
+      whois_hold: 'WHOIS/registrant-contact verification hold — verify the registrant contact at the registrar (no API fix)',
+      no_mx: 'missing inbound MX record (add MX → inbound-smtp.us-east-1.amazonaws.com)',
+      mx_present_no_receive: 'MX present but mail not landing (SES routing / propagation)',
+      dns_unresolved: 'domain does not resolve (NXDOMAIN)',
+      dry: 'not probed (dry-run)',
+    };
+    lines.push(':rotating_light: NEEDS A HUMAN:');
+    for (const r of out.broken) lines.push(`   • ${r.domain} — ${SHORT[r.diagnosis?.code] || r.diagnosis?.label || 'not receiving'}`);
+  } else if (!out.healthy.length) lines.push(':grey_question: no receiving domains configured');
   const msg = lines.join('\n');
   try { mkdirSync(dirname(MESSAGE_FILE), { recursive: true }); writeFileSync(MESSAGE_FILE, msg + '\n'); } catch {}
 
