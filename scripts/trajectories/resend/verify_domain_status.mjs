@@ -120,8 +120,10 @@ const main = async () => {
     const ok = await fetch(`${SUPA}/rest/v1/account_action_logs`, {
       method: 'POST',
       headers: { apikey: SK, Authorization: `Bearer ${SK}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+      // Inline `message` so the Slack job can run on any host (the worker that
+      // posts may not be this machine); message_file stays as a same-host fallback.
       body: JSON.stringify({ action: 'slack_post_message', status: 'queued', scheduled_at: new Date().toISOString(),
-        params: { message_file: MESSAGE_FILE, slack_channel: SLACK_CHANNEL } }),
+        params: { message: msg, message_file: MESSAGE_FILE, slack_channel: SLACK_CHANNEL } }),
     }).then(r => r.ok).catch(() => false);
     console.log(`[slack] enqueued slack_post_message (channel=${SLACK_CHANNEL}) -> ${ok ? 'queued ✓' : 'FAILED'}`);
   }
