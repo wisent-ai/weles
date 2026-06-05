@@ -55,35 +55,60 @@ async function slackPost(method, form, token) {
   if (!j.ok) throw new Error(`${method}: ${j.error}${j.needed ? ` (needed ${j.needed})` : ''}`);
   return j;
 }
-async function resolveTargetWithToken(token) {
-  if (TARGET_CHAN) return TARGET_CHAN;                       // explicit channel id wins
-  if (process.env.SLACK_TARGET_USER_ID) return process.env.SLACK_TARGET_USER_ID; // explicit DM target
-  // try a public/private channel by name (needs channels:read; tolerated if missing)
-  try {
-    const list = await slackPost('conversations.list', { types: 'public_channel,private_channel', limit: '1000' }, token);
-    const c = (list.channels || []).find((x) => (x.name || '').toLowerCase() === TARGET_NAME);
-    if (c) return c.id;
-  } catch (e) { console.log(`[slack] conversations.list skipped: ${e.message}`); }
-  // DM a user resolved by matcher (chat.postMessage to a user id opens the DM)
-  const matchers = (process.env.SLACK_TARGET_USER_MATCHERS || 'jakub,kuba,towarek')
-    .toLowerCase().split(',').map((x) => x.trim()).filter(Boolean);
+// Default recipients: one user per matcher-group. We DM BOTH Jakub and Łukasz.
+// chat.postMessage to a user id opens/uses the DM, so no im:write needed.
+const RECIPIENT_GROUPS = [
+  ['jakub', 'towarek', 'kuba'],
+  ['lukasz', 'bartoszcze', 'łukasz'],
+];
+async function resolveTargets(token) {
+  if (TARGET_CHAN) return [TARGET_CHAN];                                 // explicit channel id wins
+  if (process.env.SLACK_TARGET_USER_IDS)                                 // explicit csv of DM targets
+    return process.env.SLACK_TARGET_USER_IDS.split(',').map((x) => x.trim()).filter(Boolean);
+  if (process.env.SLACK_TARGET_USER_ID) return [process.env.SLACK_TARGET_USER_ID];
+  // a real channel by name only if it actually resolves (the default 'jakub'
+  // is a DM, not a channel, so this falls through to the recipient groups).
+  if (process.env.SLACK_TARGET_CHANNEL_NAME) {
+    try {
+      const list = await slackPost('conversations.list', { types: 'public_channel,private_channel', limit: '1000' }, token);
+      const c = (list.channels || []).find((x) => (x.name || '').toLowerCase() === TARGET_NAME);
+      if (c) return [c.id];
+    } catch (e) { console.log(`[slack] conversations.list skipped: ${e.message}`); }
+  }
+  // DM one user per recipient group, resolved by name/email matcher.
+  const groups = process.env.SLACK_TARGET_USER_MATCHERS
+    ? [process.env.SLACK_TARGET_USER_MATCHERS.toLowerCase().split(',').map((x) => x.trim()).filter(Boolean)]
+    : RECIPIENT_GROUPS;
   const ul = await slackPost('users.list', { limit: '1000' }, token);
-  const hit = (ul.members || []).find((u) => {
-    if (u.deleted || u.is_bot) return false;
-    const fields = [u.name, u.real_name, u.profile && u.profile.email, u.profile && u.profile.display_name]
-      .filter(Boolean).map((x) => String(x).toLowerCase());
-    return matchers.some((m) => fields.some((f) => f.includes(m)));
-  });
-  if (!hit) throw new Error(`no channel "${TARGET_NAME}" and no user matching ${matchers.join('/')}`);
-  return hit.id;
+  const members = (ul.members || []).filter((u) => !u.deleted && !u.is_bot);
+  const ids = [];
+  for (const group of groups) {
+    const hit = members.find((u) => {
+      const fields = [u.name, u.real_name, u.profile && u.profile.email, u.profile && u.profile.display_name]
+        .filter(Boolean).map((x) => String(x).toLowerCase());
+      return group.some((m) => fields.some((f) => f.includes(m)));
+    });
+    if (hit && !ids.includes(hit.id)) { ids.push(hit.id); console.log(`[slack] recipient ${hit.real_name || hit.name} -> ${hit.id}`); }
+    else if (!hit) console.log(`[slack] WARN no user matched ${group.join('/')}`);
+  }
+  if (!ids.length) throw new Error(`no channel "${TARGET_NAME}" and no recipients matched`);
+  return ids;
 }
 const BOT_TOKEN = storedBotToken();
 if (BOT_TOKEN) {
   const who = await slackPost('auth.test', {}, BOT_TOKEN);
   console.log(`[slack] fast path: bot=${who.user} user_id=${who.user_id} team=${who.team}`);
-  const target = await resolveTargetWithToken(BOT_TOKEN);
-  const post = await slackPost('chat.postMessage', { channel: target, text: MESSAGE_BODY }, BOT_TOKEN);
-  console.log(`[slack] ✓ posted via stored token ts=${post.ts} channel=${post.channel}`);
+  const targets = await resolveTargets(BOT_TOKEN);
+  let posted = 0;
+  for (const target of targets) {
+    try {
+      const post = await slackPost('chat.postMessage', { channel: target, text: MESSAGE_BODY }, BOT_TOKEN);
+      console.log(`[slack] ✓ posted to ${target} ts=${post.ts}`);
+      posted++;
+    } catch (e) { console.error(`[slack] post to ${target} failed: ${e.message}`); }
+  }
+  if (!posted) { console.error('[slack] all posts failed'); process.exit(5); }
+  console.log(`[slack] ✓ delivered to ${posted}/${targets.length} recipient(s)`);
   process.exit(0);
 }
 console.log('[slack] no stored bot token — falling back to browser SSO + app creation');
