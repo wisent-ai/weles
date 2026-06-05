@@ -33,6 +33,9 @@ const ROUTES: Record<string, (p: string) => string | null> = {
   // Infra maintenance verbs (not social-account actions): resend_verify_domain_status
   // re-verifies stale inbound domains + confirms real receiving (no browser).
   verify_domain_status: (p) => `scripts/trajectories/${p}/verify_domain_status.mjs`,
+  // slack_post_message: Swiatowid posts MESSAGE_FILE to a channel/DM. Chained by
+  // health checks (e.g. resend_verify_domain_status) to alert a human.
+  post_message: (p) => `scripts/trajectories/${p}/post_message.mjs`,
   shadowban_check: (p) => `scripts/trajectories/${p}/shadowban_check.mjs`,
   organic_comment: (p) => `scripts/trajectories/${p}/organic_comment.mjs`,
   organic_reply: (p) => `scripts/trajectories/${p}/organic_reply.mjs`,
@@ -176,6 +179,9 @@ export function paramsToEnv(
   if (typeof params.scrolls === 'number') env.SCROLL_COUNT = String(params.scrolls);
   if (typeof params.posts_to_browse === 'number') env.SCROLL_COUNT = String(params.posts_to_browse);
   if (typeof params.search_query === 'string') env.SEARCH_QUERY = params.search_query;
+  // slack_post_message params: which file to post + where (default channel 'jakub').
+  if (typeof params.message_file === 'string') env.MESSAGE_FILE = params.message_file;
+  if (typeof params.slack_channel === 'string') env.SLACK_TARGET_CHANNEL_NAME = params.slack_channel;
   if (typeof params.target_user === 'string') env.TARGET_USER = params.target_user;
   if (typeof params.target_url === 'string') env.TARGET_URL = params.target_url;
   if (typeof params.invite_url === 'string') env.INVITE_URL = params.invite_url;
