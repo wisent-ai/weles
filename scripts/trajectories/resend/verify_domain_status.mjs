@@ -106,9 +106,10 @@ const main = async () => {
   }
   // 4. Slack message
   const lines = [`*Resend email-domain health* — ${out.healthy.length}/${out.checked} healthy${DRY ? ' (dry-run)' : ''}`];
+  if (out.healthy.length) lines.push(`:white_check_mark: healthy: ${out.healthy.map(r => r.domain).sort().join(', ')}`);
   if (out.repaired.length) lines.push(`:wrench: auto-repaired (re-verified): ${out.repaired.map(r => r.domain).join(', ')}`);
   if (out.broken.length) lines.push(`:rotating_light: NEEDS A HUMAN: ${out.broken.map(r => r.domain).join(', ')}`);
-  else lines.push(':white_check_mark: every receiving domain confirmed delivering');
+  else if (!out.healthy.length) lines.push(':grey_question: no receiving domains configured');
   const msg = lines.join('\n');
   try { mkdirSync(dirname(MESSAGE_FILE), { recursive: true }); writeFileSync(MESSAGE_FILE, msg + '\n'); } catch {}
 
