@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Daily email-domain health check. Enqueues resend_verify_domain_status once a
+     day; the weles worker on this host runs it and DMs the status to Jakub +
+     Łukasz via Swiatowid. Install:
+       cp scripts/worker/deploy/com.wisent.weles-domain-check.plist ~/Library/LaunchAgents/
+       launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.wisent.weles-domain-check.plist -->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.wisent.weles-domain-check</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>/Users/charles/weles/scripts/worker/cron/enqueue-verify-domains.sh</string>
+  </array>
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key><integer>9</integer>
+    <key>Minute</key><integer>0</integer>
+  </dict>
+  <key>RunAtLoad</key>
+  <false/>
+  <key>StandardOutPath</key>
+  <string>/Users/charles/weles/var/domain-check.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/charles/weles/var/domain-check.log</string>
+</dict>
+</plist>
