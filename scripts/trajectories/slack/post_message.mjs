@@ -1,13 +1,23 @@
-// Slack-post trajectory. Drive Google-SSO into wisent-workspace.slack.com, create app
-// via manifest, extract xoxb token, post the message at MESSAGE_FILE as the bot.
-// Does NOT touch ~/.claude/settings.json or any MCP config — the xoxb lives
-// only in process memory and is used immediately for the post.
-// Env: SLACK_EMAIL, SLACK_PASS, MESSAGE_FILE,
-//      SLACK_TARGET_CHANNEL or SLACK_TARGET_CHANNEL_NAME.
+// Slack-post trajectory. TWO paths:
+//   FAST (default): post directly via chat.postMessage with a stored bot token
+//     (the Swiatowid app already exists — Member ID U0B5SU2CULS, team Wisent).
+//     No browser, no Google SSO, no app re-creation. This is what runs on the
+//     mac-mini worker.
+//   FALLBACK (no token): the original browser flow — Google-SSO into
+//     wisent-workspace.slack.com, create the app via manifest, scrape a fresh
+//     xoxb, post. Only used when no bot token is configured.
+// Token source: SLACK_BOT_TOKEN env, else first line of ~/.swiatowid/bot-token.
+// IMPORTANT: do NOT re-create the app when a token exists — that spawns a
+// duplicate (logo-less) "Swiatowid" and posts from the wrong identity.
+// Env: SLACK_BOT_TOKEN, MESSAGE_TEXT | MESSAGE_FILE,
+//      SLACK_TARGET_CHANNEL (id) | SLACK_TARGET_CHANNEL_NAME | SLACK_TARGET_USER_ID,
+//      SLACK_TARGET_USER_MATCHERS (csv, default jakub,kuba,towarek),
+//      SLACK_EMAIL/SLACK_PASS (fallback browser flow only).
 
 import { existsSync, readFileSync, mkdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { homedir } from 'node:os';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const WELES = join(__dirname, '..', '..', '..');
@@ -25,6 +35,58 @@ if (!INLINE_MESSAGE && !existsSync(MESSAGE_FILE)) {
   console.error(`no MESSAGE_TEXT and MESSAGE_FILE not found: ${MESSAGE_FILE}`);
   process.exit(2);
 }
+const MESSAGE_BODY = INLINE_MESSAGE || readFileSync(MESSAGE_FILE, 'utf8');
+
+// ---- FAST PATH: stored bot token -> chat.postMessage (no browser) -----------
+function storedBotToken() {
+  if (process.env.SLACK_BOT_TOKEN) return process.env.SLACK_BOT_TOKEN.trim();
+  const f = join(homedir(), '.swiatowid', 'bot-token');
+  try { const t = readFileSync(f, 'utf8').split('\n')[0].trim(); if (t.startsWith('xoxb-')) return t; } catch {}
+  return '';
+}
+async function slackPost(method, form, token) {
+  const body = Object.entries(form).map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join('&');
+  const r = await fetch(`https://slack.com/api/${method}`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+    body,
+  });
+  const j = await r.json();
+  if (!j.ok) throw new Error(`${method}: ${j.error}${j.needed ? ` (needed ${j.needed})` : ''}`);
+  return j;
+}
+async function resolveTargetWithToken(token) {
+  if (TARGET_CHAN) return TARGET_CHAN;                       // explicit channel id wins
+  if (process.env.SLACK_TARGET_USER_ID) return process.env.SLACK_TARGET_USER_ID; // explicit DM target
+  // try a public/private channel by name (needs channels:read; tolerated if missing)
+  try {
+    const list = await slackPost('conversations.list', { types: 'public_channel,private_channel', limit: '1000' }, token);
+    const c = (list.channels || []).find((x) => (x.name || '').toLowerCase() === TARGET_NAME);
+    if (c) return c.id;
+  } catch (e) { console.log(`[slack] conversations.list skipped: ${e.message}`); }
+  // DM a user resolved by matcher (chat.postMessage to a user id opens the DM)
+  const matchers = (process.env.SLACK_TARGET_USER_MATCHERS || 'jakub,kuba,towarek')
+    .toLowerCase().split(',').map((x) => x.trim()).filter(Boolean);
+  const ul = await slackPost('users.list', { limit: '1000' }, token);
+  const hit = (ul.members || []).find((u) => {
+    if (u.deleted || u.is_bot) return false;
+    const fields = [u.name, u.real_name, u.profile && u.profile.email, u.profile && u.profile.display_name]
+      .filter(Boolean).map((x) => String(x).toLowerCase());
+    return matchers.some((m) => fields.some((f) => f.includes(m)));
+  });
+  if (!hit) throw new Error(`no channel "${TARGET_NAME}" and no user matching ${matchers.join('/')}`);
+  return hit.id;
+}
+const BOT_TOKEN = storedBotToken();
+if (BOT_TOKEN) {
+  const who = await slackPost('auth.test', {}, BOT_TOKEN);
+  console.log(`[slack] fast path: bot=${who.user} user_id=${who.user_id} team=${who.team}`);
+  const target = await resolveTargetWithToken(BOT_TOKEN);
+  const post = await slackPost('chat.postMessage', { channel: target, text: MESSAGE_BODY }, BOT_TOKEN);
+  console.log(`[slack] ✓ posted via stored token ts=${post.ts} channel=${post.channel}`);
+  process.exit(0);
+}
+console.log('[slack] no stored bot token — falling back to browser SSO + app creation');
 
 const { WSession } = await import(`${WELES}/dist/session/wsession.js`);
 const { humanFill } = await import(`${WELES}/dist/human/keyboard.js`);
