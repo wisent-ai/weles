@@ -15,7 +15,7 @@
 //      DRY_RUN=1, ALLOW_ANY_IP=1 (test escape hatch).
 
 import { writeFileSync, mkdirSync } from 'node:fs';
-import { dirname } from 'node:path';
+import { dirname, resolve } from 'node:path';
 
 const RK = process.env.RESEND_API_KEY || '';
 const RRK = process.env.RESEND_RECEIVING_API_KEY || RK;
@@ -23,7 +23,9 @@ const SUPA = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL ||
 const SK = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 const DRY = process.env.DRY_RUN === '1';
 const SEND_FROM = process.env.SEND_FROM || 'noreply@wisent.com';
-const MESSAGE_FILE = process.env.MESSAGE_FILE || '.work/resend-domains-status.txt';
+// Absolute so the chained slack_post_message job (separate process) can read it.
+const MESSAGE_FILE = resolve(process.env.MESSAGE_FILE || '.work/resend-domains-status.txt');
+const SLACK_CHANNEL = process.env.SLACK_CHANNEL || 'jakub';   // who Swiatowid messages
 const SKIP = new Set(['wisent.com','agents.trade.wisent.ai','ralph.agents.trade.wisent.ai',
   'testagent.agents.trade.wisent.ai','influencers.wisent.ai','needher.ai','macchiavelli.ai']);
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
@@ -109,6 +111,20 @@ const main = async () => {
   else lines.push(':white_check_mark: every receiving domain confirmed delivering');
   const msg = lines.join('\n');
   try { mkdirSync(dirname(MESSAGE_FILE), { recursive: true }); writeFileSync(MESSAGE_FILE, msg + '\n'); } catch {}
+
+  // 5. Swiatowid alert — when a domain needs a human, enqueue a slack_post_message
+  // job (the worker runs the browser Slack post). Messages SLACK_CHANNEL ('jakub').
+  // SLACK_NOTIFY_ALWAYS=1 posts even when all-healthy (e.g. a daily heartbeat).
+  const shouldNotify = !DRY && (out.broken.length > 0 || process.env.SLACK_NOTIFY_ALWAYS === '1');
+  if (shouldNotify && SUPA && SK) {
+    const ok = await fetch(`${SUPA}/rest/v1/account_action_logs`, {
+      method: 'POST',
+      headers: { apikey: SK, Authorization: `Bearer ${SK}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+      body: JSON.stringify({ action: 'slack_post_message', status: 'queued', scheduled_at: new Date().toISOString(),
+        params: { message_file: MESSAGE_FILE, slack_channel: SLACK_CHANNEL } }),
+    }).then(r => r.ok).catch(() => false);
+    console.log(`[slack] enqueued slack_post_message (channel=${SLACK_CHANNEL}) -> ${ok ? 'queued ✓' : 'FAILED'}`);
+  }
 
   console.log('\n=== SUMMARY ===\n' + JSON.stringify(out, null, 1));
   console.log('\n=== SLACK (' + MESSAGE_FILE + ') ===\n' + msg);
