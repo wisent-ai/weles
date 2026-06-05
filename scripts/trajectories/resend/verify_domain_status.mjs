@@ -78,14 +78,27 @@ const main = async () => {
   for (const d of targets) {
     if (d.status !== 'verified' && !DRY) { console.log(`[verify] ${d.name} status=${d.status} -> re-verifying`); if (await reverify(d.id)) { d.status = 'verified'; d._repaired = true; } }
   }
-  // 2. BATCH receiving probe: send all, then one inbox poll for all markers
+  // 2. receiving probe. Resend rate-limits sends (~2/s); firing all probes in a
+  // tight loop trips 429s, and a DROPPED SEND looks exactly like a broken domain.
+  // So throttle (~2/s) and retry 429s before giving up on a send.
+  const verifiedTargets = targets.filter(x => x.status === 'verified');
+  const sendProbe = async (dom, kind) => {
+    const marker = `${kind}-${Date.now()}-${Math.floor(Math.random()*1e6)}`;
+    for (let attempt = 0; attempt < 4; attempt++) {
+      const send = await rj('POST', '/emails', { from: SEND_FROM, to: `${marker}@${dom}`, subject: `domain-health ${marker}`, text: marker });
+      if (send.ok) return marker;
+      if (send.status === 429) { await sleep(1500); continue; }   // rate-limited: back off + retry
+      console.log(`[probe] ${dom} send failed: ${JSON.stringify(send.body).slice(0,80)}`);
+      return null;
+    }
+    console.log(`[probe] ${dom} send failed: rate-limited after retries`);
+    return null;
+  };
   const probes = {};            // domain -> marker
-  for (const d of targets.filter(x => x.status === 'verified')) {
+  for (const d of verifiedTargets) {
     if (DRY) { probes[d.name] = null; continue; }
-    const marker = `health-${Date.now()}-${Math.floor(Math.random()*1e6)}`;
-    const send = await rj('POST', '/emails', { from: SEND_FROM, to: `${marker}@${d.name}`, subject: `domain-health ${marker}`, text: marker });
-    probes[d.name] = send.ok ? marker : null;
-    if (!send.ok) console.log(`[probe] ${d.name} send failed: ${JSON.stringify(send.body).slice(0,80)}`);
+    probes[d.name] = await sendProbe(d.name, 'health');
+    await sleep(600);           // stay under Resend's ~2 req/s
   }
   const landed = new Set();
   const pollInbox = async (markers, maxIters) => {
@@ -100,19 +113,15 @@ const main = async () => {
     }
   };
   if (!DRY) await pollInbox(probes, 12);
-  // CONFIRMATION re-probe: a single missed probe is usually slow SES delivery,
-  // not a broken domain. Re-send only to the not-yet-landed verified domains and
-  // wait again — only domains that miss BOTH passes are flagged. Without this a
-  // healthy domain gets flipped to mx_broken (and alerts) on one slow run.
-  const suspects = Object.entries(probes).filter(([d, mk]) => mk && !landed.has(d)).map(([d]) => d);
+  // CONFIRMATION re-probe: re-send to EVERY verified domain not yet landed —
+  // covers BOTH a slow first delivery and a rate-limited first send — then poll
+  // again. Only domains that miss this second pass too get flagged broken, so a
+  // healthy domain is never flipped to mx_broken (and alerted) on one bad run.
+  const suspects = verifiedTargets.map((d) => d.name).filter((dom) => !landed.has(dom));
   if (!DRY && suspects.length) {
     console.log(`[probe] re-confirming ${suspects.length} not-yet-landed: ${suspects.join(', ')}`);
     const reprobes = {};
-    for (const dom of suspects) {
-      const marker = `recheck-${Date.now()}-${Math.floor(Math.random()*1e6)}`;
-      const send = await rj('POST', '/emails', { from: SEND_FROM, to: `${marker}@${dom}`, subject: `domain-health ${marker}`, text: marker });
-      reprobes[dom] = send.ok ? marker : null;
-    }
+    for (const dom of suspects) { reprobes[dom] = await sendProbe(dom, 'recheck'); await sleep(600); }
     await pollInbox(reprobes, 12);
   }
   // 3. classify + reconcile
