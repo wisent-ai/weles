@@ -88,13 +88,32 @@ const main = async () => {
     if (!send.ok) console.log(`[probe] ${d.name} send failed: ${JSON.stringify(send.body).slice(0,80)}`);
   }
   const landed = new Set();
-  if (!DRY) for (let i = 0; i < 15 && landed.size < Object.values(probes).filter(Boolean).length; i++) {
-    await sleep(10_000);
-    const inbox = ((await rj('GET', '/emails/receiving?limit=50', undefined, RRK)).body || {}).data || [];
-    for (const [dom, mk] of Object.entries(probes)) {
-      if (!mk || landed.has(dom)) continue;
-      if (inbox.some(m => String(m.subject||'').includes(mk) || (Array.isArray(m.to)?m.to:[]).map(x=>typeof x==='string'?x:x.email).join(',').includes(mk))) landed.add(dom);
+  const pollInbox = async (markers, maxIters) => {
+    const want = Object.values(markers).filter(Boolean).length;
+    for (let i = 0; i < maxIters && [...Object.keys(markers)].filter(d => landed.has(d)).length < want; i++) {
+      await sleep(10_000);
+      const inbox = ((await rj('GET', '/emails/receiving?limit=50', undefined, RRK)).body || {}).data || [];
+      for (const [dom, mk] of Object.entries(markers)) {
+        if (!mk || landed.has(dom)) continue;
+        if (inbox.some(m => String(m.subject||'').includes(mk) || (Array.isArray(m.to)?m.to:[]).map(x=>typeof x==='string'?x:x.email).join(',').includes(mk))) landed.add(dom);
+      }
     }
+  };
+  if (!DRY) await pollInbox(probes, 12);
+  // CONFIRMATION re-probe: a single missed probe is usually slow SES delivery,
+  // not a broken domain. Re-send only to the not-yet-landed verified domains and
+  // wait again — only domains that miss BOTH passes are flagged. Without this a
+  // healthy domain gets flipped to mx_broken (and alerts) on one slow run.
+  const suspects = Object.entries(probes).filter(([d, mk]) => mk && !landed.has(d)).map(([d]) => d);
+  if (!DRY && suspects.length) {
+    console.log(`[probe] re-confirming ${suspects.length} not-yet-landed: ${suspects.join(', ')}`);
+    const reprobes = {};
+    for (const dom of suspects) {
+      const marker = `recheck-${Date.now()}-${Math.floor(Math.random()*1e6)}`;
+      const send = await rj('POST', '/emails', { from: SEND_FROM, to: `${marker}@${dom}`, subject: `domain-health ${marker}`, text: marker });
+      reprobes[dom] = send.ok ? marker : null;
+    }
+    await pollInbox(reprobes, 12);
   }
   // 3. classify + reconcile
   for (const d of targets) {
