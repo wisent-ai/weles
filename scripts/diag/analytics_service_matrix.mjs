@@ -153,6 +153,22 @@ function writeSummary(outDir, rows) {
   ].join('\n'));
 }
 
+function enforceMatrixGate(rows, outDir) {
+  if (hasFlag('--allow-unhealthy')) return;
+  const allowPendingReview = hasFlag('--allow-pending-review');
+  const unhealthy = rows.filter((row) => {
+    if (row.outcome === 'healthy') return false;
+    return !(allowPendingReview && row.outcome === 'pending_review');
+  });
+  if (unhealthy.length === 0) return;
+  const counts = unhealthy.reduce((acc, row) => {
+    acc[row.outcome] = (acc[row.outcome] ?? 0) + 1;
+    return acc;
+  }, {});
+  console.error(`analytics matrix unhealthy: ${JSON.stringify(counts)}; summary=${join(outDir, 'summary.tsv')}`);
+  process.exitCode = 1;
+}
+
 function selectedActions() {
   const explicit = argValue('--actions');
   let actions = explicit ? explicit.split(',').map((a) => a.trim()).filter(Boolean) : [...ALL_ACTIONS];
@@ -275,6 +291,7 @@ function executeMatrix(actions) {
     writeSummary(outDir, rows);
     console.log(`${action}\t${rows[rows.length - 1].outcome}\t${rows[rows.length - 1].reason || rows[rows.length - 1].finalUrl || ''}`);
   }
+  enforceMatrixGate(rows, outDir);
   return outDir;
 }
 
@@ -288,6 +305,7 @@ if (hasFlag('--summary-existing')) {
     return summaryRow(action, source);
   });
   writeSummary(outDir, rows);
+  enforceMatrixGate(rows, outDir);
   console.log(outDir);
 } else {
   console.log(executeMatrix(selectedActions()));
