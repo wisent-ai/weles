@@ -52,9 +52,10 @@ export async function claimOne(): Promise<ActionLogRow | null> {
   const isParallelSafeScrape = (a: string) => /^(unusualwhales|volumeleaders|tradingview)_scrape$/.test(a);
   // Account-less actions the worker may claim: account creation, proxy provider
   // balance/topup, and infra maintenance (resend_verify_domain_status health check
-  // + the slack_post_message alert it chains). Everything else without an account
-  // is a poison orphan and is skipped.
-  const canRunWithoutAccount = (a: string) => /_register$|_balance$|_topup$|_verify_domain_status$|_post_message$/.test(a);
+  // + the slack_post_message alert it chains), plus analytics-service browser
+  // actions that use service credentials rather than a social account row.
+  // Everything else without an account is a poison orphan and is skipped.
+  const canRunWithoutAccount = (a: string) => /_register$|_balance$|_topup$|_verify_domain_status$|_post_message$/.test(a) || /^(umami|googleanalytics)_/.test(a);
   for (const row of candidates) {
     if (!resolveTrajectory(row.action)) continue;
     if (!row.id) continue;
