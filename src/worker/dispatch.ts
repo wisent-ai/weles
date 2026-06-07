@@ -17,6 +17,62 @@
 // return null and the queued row will be silently skipped at the claim step.
 
 const benignPath = 'scripts/trajectories/_shared/benign.mjs';
+const analyticsServicePath = 'scripts/trajectories/_shared/analytics-service.mjs';
+
+const ANALYTICS_SERVICE_ACTIONS = new Set([
+  'umami_login',
+  'umami_create_website',
+  'umami_find_website',
+  'umami_get_website_id',
+  'umami_get_tracking_snippet',
+  'umami_update_website_settings',
+  'umami_verify_tracking_script',
+  'umami_verify_realtime_event',
+  'umami_view_realtime',
+  'umami_view_summary',
+  'umami_view_pages',
+  'umami_view_referrers',
+  'umami_view_events',
+  'umami_track_custom_event',
+  'umami_view_sessions',
+  'umami_create_report',
+  'umami_view_funnels',
+  'umami_view_goals',
+  'umami_view_user_journeys',
+  'umami_view_retention',
+  'umami_view_cohorts',
+  'umami_view_utm_campaigns',
+  'umami_api_query',
+  'umami_create_share_url',
+  'umami_manage_user_access',
+  'umami_export_report',
+  'googleanalytics_login',
+  'googleanalytics_find_property',
+  'googleanalytics_create_account',
+  'googleanalytics_create_property',
+  'googleanalytics_create_web_stream',
+  'googleanalytics_get_measurement_id',
+  'googleanalytics_get_global_site_tag',
+  'googleanalytics_create_measurement_protocol_secret',
+  'googleanalytics_install_gtag',
+  'googleanalytics_verify_realtime',
+  'googleanalytics_view_debugview',
+  'googleanalytics_view_realtime',
+  'googleanalytics_run_data_api_report',
+  'googleanalytics_view_acquisition',
+  'googleanalytics_view_engagement',
+  'googleanalytics_view_pages',
+  'googleanalytics_create_key_event',
+  'googleanalytics_view_key_events',
+  'googleanalytics_create_audience',
+  'googleanalytics_create_custom_dimension',
+  'googleanalytics_create_custom_metric',
+  'googleanalytics_link_search_console',
+  'googleanalytics_link_google_ads',
+  'googleanalytics_update_data_retention',
+  'googleanalytics_add_user',
+  'googleanalytics_export_report',
+]);
 
 const PROXY_PROVIDERS = new Set([
   'iproyal', 'packetstream', 'brightdata', 'oxylabs',
@@ -124,6 +180,7 @@ const ROUTES: Record<string, (p: string) => string | null> = {
 export function resolveTrajectory(action: string): string | null {
   const firstUnderscore = action.indexOf('_');
   if (firstUnderscore < 0) return null;
+  if (ANALYTICS_SERVICE_ACTIONS.has(action)) return analyticsServicePath;
   const plat = action.slice(0, firstUnderscore);
   const verb = action.slice(firstUnderscore + 1);
   // Cross-login: collapse every login_via_<provider> verb onto a single
@@ -150,6 +207,64 @@ export function paramsToEnv(
     if (underscore > 0) {
       env.PLATFORM = action.slice(0, underscore);
       env.VERB = action.slice(underscore + 1);
+    }
+  }
+  if (trajPath.endsWith('/_shared/analytics-service.mjs')) {
+    const underscore = action.indexOf('_');
+    if (underscore > 0) {
+      env.PLATFORM = action.slice(0, underscore);
+      env.VERB = action.slice(underscore + 1);
+      env.SERVICE_ACTION = action;
+    }
+    const passthrough: Array<[string, string]> = [
+      ['domain', 'DOMAIN'],
+      ['display_name', 'DISPLAY_NAME'],
+      ['domain_or_name', 'DOMAIN_OR_NAME'],
+      ['website_id', 'WEBSITE_ID'],
+      ['settings_patch', 'SETTINGS_PATCH'],
+      ['site_url', 'SITE_URL'],
+      ['event_name', 'EVENT_NAME'],
+      ['selector_or_code_path', 'SELECTOR_OR_CODE_PATH'],
+      ['api_token_or_session', 'API_TOKEN_OR_SESSION'],
+      ['endpoint', 'ENDPOINT'],
+      ['query', 'QUERY'],
+      ['report_type', 'REPORT_TYPE'],
+      ['date_range', 'DATE_RANGE'],
+      ['funnel_name', 'FUNNEL_NAME'],
+      ['user_email', 'USER_EMAIL'],
+      ['role', 'ROLE'],
+      ['ga_account_id', 'GA_ACCOUNT_ID'],
+      ['account_name', 'ACCOUNT_NAME'],
+      ['property_id', 'PROPERTY_ID'],
+      ['property_name', 'PROPERTY_NAME'],
+      ['timezone', 'TIMEZONE'],
+      ['currency', 'CURRENCY'],
+      ['stream_id', 'STREAM_ID'],
+      ['stream_name', 'STREAM_NAME'],
+      ['measurement_id', 'MEASUREMENT_ID'],
+      ['nickname', 'NICKNAME'],
+      ['dimensions', 'DIMENSIONS'],
+      ['metrics', 'METRICS'],
+      ['debug_device_or_event', 'DEBUG_DEVICE_OR_EVENT'],
+      ['audience_definition', 'AUDIENCE_DEFINITION'],
+      ['dimension_name', 'DIMENSION_NAME'],
+      ['scope', 'SCOPE'],
+      ['parameter_name', 'PARAMETER_NAME'],
+      ['metric_name', 'METRIC_NAME'],
+      ['unit', 'UNIT'],
+      ['search_console_property', 'SEARCH_CONSOLE_PROPERTY'],
+      ['google_ads_customer_id', 'GOOGLE_ADS_CUSTOMER_ID'],
+      ['retention_duration', 'RETENTION_DURATION'],
+      ['report_name', 'REPORT_NAME'],
+    ];
+    for (const [key, envKey] of passthrough) {
+      const value = params[key];
+      if (typeof value === 'string') env[envKey] = value;
+      else if (typeof value === 'number' || typeof value === 'boolean') env[envKey] = String(value);
+      else if (value && typeof value === 'object') env[envKey] = JSON.stringify(value);
+    }
+    if (params.confirm === true || params.write_confirm === true || params.confirm === '1' || params.write_confirm === '1') {
+      env.WRITE_CONFIRM = '1';
     }
   }
   // Cross-login parametric dispatch: <platform>_login_via_<provider>
