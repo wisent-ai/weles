@@ -46,7 +46,7 @@ const ACTIONS = {
   googleanalytics_create_property: { platform: 'googleanalytics', risk: 'admin', url: GA_BASE, required: ['PROPERTY_NAME', 'TIMEZONE', 'CURRENCY'], objective: 'Create a GA4 property.' },
   googleanalytics_create_web_stream: { platform: 'googleanalytics', risk: 'admin', url: GA_BASE, required: ['PROPERTY_ID', 'SITE_URL', 'STREAM_NAME'], objective: 'Create a GA4 web data stream.' },
   googleanalytics_get_measurement_id: { platform: 'googleanalytics', risk: 'read', url: GA_BASE, required: ['PROPERTY_ID'], objective: 'Read the GA4 measurement id.' },
-  googleanalytics_get_global_site_tag: { platform: 'googleanalytics', risk: 'read', url: GA_BASE, required: ['PROPERTY_ID', 'STREAM_ID'], objective: 'Read the Google tag snippet.' },
+  googleanalytics_get_global_site_tag: { platform: 'googleanalytics', risk: 'read', url: GA_BASE, required: ['PROPERTY_ID'], objective: 'Read the Google tag snippet.' },
   googleanalytics_create_measurement_protocol_secret: { platform: 'googleanalytics', risk: 'admin', url: GA_BASE, required: ['PROPERTY_ID', 'STREAM_ID', 'NICKNAME'], objective: 'Create a Measurement Protocol API secret.' },
   googleanalytics_install_gtag: { platform: 'googleanalytics', risk: 'verify', url: () => input('SITE_URL', 'https://www.needher.ai'), required: ['SITE_URL', 'MEASUREMENT_ID'], objective: 'Verify a target app serves the GA4 tag.' },
   googleanalytics_verify_realtime: { platform: 'googleanalytics', risk: 'verify', url: GA_BASE, required: ['SITE_URL', 'MEASUREMENT_ID'], objective: 'Verify GA4 realtime tracking.' },
@@ -113,7 +113,7 @@ async function clickFirst(page, candidates) {
 }
 
 async function clickCardLike(page, name) {
-  const loc = page.locator('a, button, [role="button"], [role="link"], mat-card, .card, .admin-card, .admin-settings-card')
+  const loc = page.locator('a, button, tr, mat-row, [role="row"], [role="button"], [role="link"], mat-card, .card, .admin-card, .admin-settings-card')
     .filter({ hasText: name })
     .filter({ visible: true })
     .first();
@@ -121,6 +121,21 @@ async function clickCardLike(page, name) {
     await humanClickLocator(page, loc, { timeoutMs: 10000 }).catch(() => {});
     await humanIdlePause('deliberate');
     return true;
+  }
+  return false;
+}
+
+async function openDataStreamDetail(s) {
+  if (!/\/admin\/streams\/table/.test(s.page.url())) return false;
+  const streamId = input('STREAM_ID');
+  const streamName = input('STREAM_NAME');
+  const candidates = [];
+  if (streamId && streamId !== 'unknown-stream') candidates.push(new RegExp(streamId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  if (streamName) candidates.push(new RegExp(`^${streamName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'));
+  candidates.push(/\b\d{6,}\b/);
+  for (const candidate of candidates) {
+    if (await clickFirst(s.page, [candidate])) return true;
+    if (await clickCardLike(s.page, candidate)) return true;
   }
   return false;
 }
@@ -246,6 +261,7 @@ async function openExpectedDashboardSection(s) {
     googleanalytics_view_pages: [/^Reports$/i, /^Engagement$/i, /^Pages and screens$/i],
     googleanalytics_view_key_events: [/^Admin$/i, /^Events$/i],
     googleanalytics_view_debugview: [/^Admin$/i, /^DebugView$/i],
+    googleanalytics_get_global_site_tag: [/^Admin$/i, /^Data streams$/i],
   };
   const path = paths[action];
   if (!path) return;
@@ -257,7 +273,17 @@ async function openExpectedDashboardSection(s) {
       await clickCardLike(s.page, label);
       await waitRendered(s.page, 30).catch(() => '');
     }
+    if (action === 'googleanalytics_get_global_site_tag' && /Data streams/i.test(String(label)) && /\/admin$/.test(s.page.url())) {
+      await clickCardLike(s.page, label);
+      await waitRendered(s.page, 30).catch(() => '');
+    }
     await humanIdlePause('deliberate');
+  }
+  if (action === 'googleanalytics_get_global_site_tag') {
+    await openDataStreamDetail(s);
+    await waitRendered(s.page, 30).catch(() => '');
+    await clickFirst(s.page, [/View tag instructions/i, /Tag instructions/i, /^Google tag$/i]);
+    await waitRendered(s.page, 30).catch(() => '');
   }
 }
 
