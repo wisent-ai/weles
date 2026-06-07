@@ -293,7 +293,10 @@ async function verifyTargetSite(s, cfg) {
   if (action === 'umami_verify_tracking_script' && !text.includes(input('WEBSITE_ID'))) {
     throw new Error(`Umami website id ${input('WEBSITE_ID')} not found on target site`);
   }
-  if (action === 'googleanalytics_install_gtag' && !text.includes(input('MEASUREMENT_ID'))) {
+  if (action === 'umami_track_custom_event' && !/umami/i.test(text)) {
+    throw new Error('Umami tracking script not found on target site; custom event cannot be tracked');
+  }
+  if ((action === 'googleanalytics_install_gtag' || action === 'googleanalytics_verify_realtime') && !text.includes(input('MEASUREMENT_ID'))) {
     throw new Error(`GA measurement id ${input('MEASUREMENT_ID')} not found on target site`);
   }
   return data;
@@ -330,6 +333,25 @@ function assertExpectedEvidence(evidence) {
     && !/realtime|real time/i.test(evidence.url)
     && !/realtime overview/i.test(text)) {
     throw new Error(`GA realtime view did not open; final_url=${evidence.url}`);
+  }
+  if (action === 'googleanalytics_get_measurement_id' && !/Measurement ID:G-[A-Z0-9]+/i.test(text)) {
+    throw new Error('GA measurement id was not visible in the captured page');
+  }
+  if (action === 'googleanalytics_get_global_site_tag' && !/gtag\(|googletagmanager\.com\/gtag\/js|Google tag/i.test(text)) {
+    throw new Error('GA global site tag snippet was not visible in the captured page');
+  }
+  if (action === 'googleanalytics_view_debugview' && !/debugview/i.test(evidence.url)) {
+    throw new Error(`GA DebugView did not open; final_url=${evidence.url}`);
+  }
+  const expectedSections = {
+    googleanalytics_view_acquisition: /Acquisition/i,
+    googleanalytics_view_engagement: /Engagement/i,
+    googleanalytics_view_pages: /Pages and screens|Page title and screen name/i,
+    googleanalytics_view_key_events: /Key events/i,
+  };
+  const sectionPattern = expectedSections[action];
+  if (sectionPattern && (evidence.url.includes('/reports/intelligenthome') || !sectionPattern.test(text))) {
+    throw new Error(`${action} did not open the expected GA section; final_url=${evidence.url}`);
   }
 }
 
@@ -372,7 +394,12 @@ async function run() {
     }
 
     let extra = {};
-    if (name.includes('verify_tracking_script') || name === 'umami_track_custom_event' || name === 'googleanalytics_install_gtag') {
+    if (name === 'googleanalytics_verify_realtime') {
+      extra.targetSite = await verifyTargetSite(s, cfg);
+      await s.goto(resolvedUrl(cfg));
+      await humanIdlePause('long');
+      await openExpectedDashboardSection(s);
+    } else if (name.includes('verify_tracking_script') || name === 'umami_track_custom_event' || name === 'googleanalytics_install_gtag') {
       extra.targetSite = await verifyTargetSite(s, cfg);
     } else {
       await s.goto(resolvedUrl(cfg));
