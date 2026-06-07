@@ -237,6 +237,9 @@ function executeMatrix(actions) {
   const keepHeavy = hasFlag('--keep-heavy');
 
   const ordered = [...actions];
+  if (ordered.some((action) => action.startsWith('googleanalytics_')) && !process.env.ANALYTICS_MATRIX_PROPERTY_ID && !ordered.includes('googleanalytics_login')) {
+    ordered.unshift('googleanalytics_login');
+  }
   if (ordered.some((action) => action.startsWith('googleanalytics_')) && ordered.includes('googleanalytics_login')) {
     ordered.splice(ordered.indexOf('googleanalytics_login'), 1);
     ordered.unshift('googleanalytics_login');
