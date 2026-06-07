@@ -343,6 +343,12 @@ function assertExpectedEvidence(evidence) {
   if (action === 'googleanalytics_view_debugview' && !/debugview/i.test(evidence.url)) {
     throw new Error(`GA DebugView did not open; final_url=${evidence.url}`);
   }
+  if (action === 'googleanalytics_run_data_api_report' && evidence.url.includes('/reports/intelligenthome')) {
+    throw new Error(`GA data report did not run; final_url=${evidence.url}`);
+  }
+  if (action === 'googleanalytics_export_report' && evidence.url.includes('/reports/intelligenthome')) {
+    throw new Error(`GA export report did not open an exportable report; final_url=${evidence.url}`);
+  }
   const expectedSections = {
     googleanalytics_view_acquisition: /Acquisition/i,
     googleanalytics_view_engagement: /Engagement/i,
