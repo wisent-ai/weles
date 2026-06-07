@@ -11,6 +11,7 @@
     "lint": "npm run lint-trust && npm run lint-humanization && npm run lint-modules",
     "lint-modules": "node scripts/lint/check_module_load.mjs",
     "diag:run-request": "node scripts/diag/run_diagnostic_request.mjs",
+    "diag:analytics": "node scripts/diag/analytics_service_matrix.mjs",
     "dev": "tsc --watch",
     "test": "vitest run --exclude tests/trajectories.test.ts",
     "test:watch": "vitest --exclude tests/trajectories.test.ts",
