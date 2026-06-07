@@ -112,6 +112,19 @@ async function clickFirst(page, candidates) {
   return false;
 }
 
+async function clickCardLike(page, name) {
+  const loc = page.locator('a, button, [role="button"], [role="link"], mat-card, .card, .admin-card, .admin-settings-card')
+    .filter({ hasText: name })
+    .filter({ visible: true })
+    .first();
+  if (await loc.isVisible().catch(() => false)) {
+    await humanClickLocator(page, loc, { timeoutMs: 10000 }).catch(() => {});
+    await humanIdlePause('deliberate');
+    return true;
+  }
+  return false;
+}
+
 async function fillAny(page, value, labelPatterns) {
   if (!value) return false;
   for (const pattern of labelPatterns) {
@@ -225,6 +238,26 @@ async function openExpectedDashboardSection(s) {
   if (action === 'googleanalytics_view_realtime' || action === 'googleanalytics_verify_realtime') {
     await clickFirst(s.page, [/^View real time$/i, /^Realtime$/i, /^Real-time$/i]);
     await humanIdlePause('long');
+    return;
+  }
+  const paths = {
+    googleanalytics_view_acquisition: [/^Reports$/i, /^Acquisition$/i],
+    googleanalytics_view_engagement: [/^Reports$/i, /^Engagement$/i],
+    googleanalytics_view_pages: [/^Reports$/i, /^Engagement$/i, /^Pages and screens$/i],
+    googleanalytics_view_key_events: [/^Admin$/i, /^Events$/i],
+    googleanalytics_view_debugview: [/^Admin$/i, /^DebugView$/i],
+  };
+  const path = paths[action];
+  if (!path) return;
+  for (const label of path) {
+    const clicked = await clickFirst(s.page, [label]);
+    if (!clicked) await clickCardLike(s.page, label);
+    await waitRendered(s.page, 30).catch(() => '');
+    if (action === 'googleanalytics_view_key_events' && /Events/i.test(String(label)) && /\/admin$/.test(s.page.url())) {
+      await clickCardLike(s.page, label);
+      await waitRendered(s.page, 30).catch(() => '');
+    }
+    await humanIdlePause('deliberate');
   }
 }
 
@@ -343,6 +376,9 @@ function assertExpectedEvidence(evidence) {
   if (action === 'googleanalytics_view_debugview' && !/debugview/i.test(evidence.url)) {
     throw new Error(`GA DebugView did not open; final_url=${evidence.url}`);
   }
+  if (action === 'googleanalytics_view_key_events' && /\/admin$/.test(evidence.url)) {
+    throw new Error(`GA events settings did not open; final_url=${evidence.url}`);
+  }
   if (action === 'googleanalytics_run_data_api_report' && evidence.url.includes('/reports/intelligenthome')) {
     throw new Error(`GA data report did not run; final_url=${evidence.url}`);
   }
@@ -353,7 +389,7 @@ function assertExpectedEvidence(evidence) {
     googleanalytics_view_acquisition: /Acquisition/i,
     googleanalytics_view_engagement: /Engagement/i,
     googleanalytics_view_pages: /Pages and screens|Page title and screen name/i,
-    googleanalytics_view_key_events: /Key events/i,
+    googleanalytics_view_key_events: /Events|Key events/i,
   };
   const sectionPattern = expectedSections[action];
   if (sectionPattern && (evidence.url.includes('/reports/intelligenthome') || !sectionPattern.test(text))) {
