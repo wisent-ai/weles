@@ -26,7 +26,7 @@ const ACTIONS = {
   umami_view_pages: { platform: 'umami', risk: 'read', url: UMAMI_BASE, required: ['WEBSITE_ID', 'DATE_RANGE'], objective: 'Read Umami page performance.' },
   umami_view_referrers: { platform: 'umami', risk: 'read', url: UMAMI_BASE, required: ['WEBSITE_ID', 'DATE_RANGE'], objective: 'Read Umami referrers.' },
   umami_view_events: { platform: 'umami', risk: 'read', url: UMAMI_BASE, required: ['WEBSITE_ID', 'DATE_RANGE'], objective: 'Read Umami events.' },
-  umami_track_custom_event: { platform: 'umami', risk: 'write', url: () => input('SITE_URL', 'https://www.needher.ai'), required: ['SITE_URL', 'EVENT_NAME'], objective: 'Trigger or verify a custom Umami event on the target site.' },
+  umami_track_custom_event: { platform: 'umami', risk: 'verify', url: () => input('SITE_URL', 'https://www.needher.ai'), required: ['SITE_URL', 'EVENT_NAME'], objective: 'Trigger or verify a custom Umami event on the target site.' },
   umami_view_sessions: { platform: 'umami', risk: 'read', url: UMAMI_BASE, required: ['WEBSITE_ID', 'DATE_RANGE'], objective: 'Read Umami sessions.' },
   umami_create_report: { platform: 'umami', risk: 'write', url: UMAMI_BASE, required: ['WEBSITE_ID', 'REPORT_TYPE', 'DATE_RANGE'], objective: 'Create an Umami report.' },
   umami_view_funnels: { platform: 'umami', risk: 'read', url: UMAMI_BASE, required: ['WEBSITE_ID', 'FUNNEL_NAME', 'DATE_RANGE'], objective: 'Read Umami funnel performance.' },
@@ -48,7 +48,7 @@ const ACTIONS = {
   googleanalytics_get_measurement_id: { platform: 'googleanalytics', risk: 'read', url: GA_BASE, required: ['PROPERTY_ID'], objective: 'Read the GA4 measurement id.' },
   googleanalytics_get_global_site_tag: { platform: 'googleanalytics', risk: 'read', url: GA_BASE, required: ['PROPERTY_ID', 'STREAM_ID'], objective: 'Read the Google tag snippet.' },
   googleanalytics_create_measurement_protocol_secret: { platform: 'googleanalytics', risk: 'admin', url: GA_BASE, required: ['PROPERTY_ID', 'STREAM_ID', 'NICKNAME'], objective: 'Create a Measurement Protocol API secret.' },
-  googleanalytics_install_gtag: { platform: 'googleanalytics', risk: 'write', url: () => input('SITE_URL', 'https://www.needher.ai'), required: ['SITE_URL', 'MEASUREMENT_ID'], objective: 'Verify a target app serves the GA4 tag.' },
+  googleanalytics_install_gtag: { platform: 'googleanalytics', risk: 'verify', url: () => input('SITE_URL', 'https://www.needher.ai'), required: ['SITE_URL', 'MEASUREMENT_ID'], objective: 'Verify a target app serves the GA4 tag.' },
   googleanalytics_verify_realtime: { platform: 'googleanalytics', risk: 'verify', url: GA_BASE, required: ['SITE_URL', 'MEASUREMENT_ID'], objective: 'Verify GA4 realtime tracking.' },
   googleanalytics_view_debugview: { platform: 'googleanalytics', risk: 'read', url: GA_BASE, required: ['PROPERTY_ID', 'DEBUG_DEVICE_OR_EVENT'], objective: 'Open GA4 DebugView.' },
   googleanalytics_view_realtime: { platform: 'googleanalytics', risk: 'read', url: GA_BASE, required: ['PROPERTY_ID'], objective: 'Open GA4 realtime analytics.' },
@@ -220,6 +220,14 @@ function resolvedUrl(cfg) {
   return actionUrl(cfg);
 }
 
+async function openExpectedDashboardSection(s) {
+  const action = actionName();
+  if (action === 'googleanalytics_view_realtime' || action === 'googleanalytics_verify_realtime') {
+    await clickFirst(s.page, [/^View real time$/i, /^Realtime$/i, /^Real-time$/i]);
+    await humanIdlePause('long');
+  }
+}
+
 async function prepareWrite(s, cfg) {
   if (WRITE_CONFIRM) return false;
   const dir = runRecordingsDir(actionName());
@@ -315,6 +323,16 @@ async function captureEvidence(s, cfg, extra = {}) {
   return evidence;
 }
 
+function assertExpectedEvidence(evidence) {
+  const action = actionName();
+  const text = evidence.bodyText || '';
+  if ((action === 'googleanalytics_view_realtime' || action === 'googleanalytics_verify_realtime')
+    && !/realtime|real time/i.test(evidence.url)
+    && !/realtime overview/i.test(text)) {
+    throw new Error(`GA realtime view did not open; final_url=${evidence.url}`);
+  }
+}
+
 function writeBanSignal(signal, healthy, details = {}) {
   const dir = runRecordingsDir(actionName());
   mkdirSync(dir, { recursive: true });
@@ -359,11 +377,13 @@ async function run() {
     } else {
       await s.goto(resolvedUrl(cfg));
       await humanIdlePause('long');
+      if (cfg.platform === 'googleanalytics') await openExpectedDashboardSection(s);
       for (let i = 0; i < 2; i++) await humanScroll(s.page, 800, 2).catch(() => {});
       if (cfg.risk === 'write' || cfg.risk === 'admin') await performConfirmedWrite(s, cfg);
     }
 
     const evidence = await captureEvidence(s, cfg, extra);
+    assertExpectedEvidence(evidence);
     writeBanSignal('healthy', true, { final_url: evidence.url, evidence_file: 'service_action_result.json' });
     console.log(`PASS: ${name} ${cfg.objective}`);
   } finally {
