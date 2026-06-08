@@ -20,6 +20,7 @@ const benignPath = 'scripts/trajectories/_shared/benign.mjs';
 const analyticsServicePath = 'scripts/trajectories/_shared/analytics-service.mjs';
 
 const ANALYTICS_SERVICE_ACTIONS = new Set([
+  'umami_register',
   'umami_login',
   'umami_create_website',
   'umami_find_website',
@@ -46,6 +47,8 @@ const ANALYTICS_SERVICE_ACTIONS = new Set([
   'umami_create_share_url',
   'umami_manage_user_access',
   'umami_export_report',
+  'googleanalytics_register',
+  'googleanalytics_register_needher',
   'googleanalytics_login',
   'googleanalytics_find_property',
   'googleanalytics_create_account',
@@ -218,6 +221,8 @@ export function paramsToEnv(
     }
     const passthrough: Array<[string, string]> = [
       ['domain', 'DOMAIN'],
+      ['email', 'EMAIL'],
+      ['password', 'PASSWORD'],
       ['display_name', 'DISPLAY_NAME'],
       ['domain_or_name', 'DOMAIN_OR_NAME'],
       ['website_id', 'WEBSITE_ID'],
