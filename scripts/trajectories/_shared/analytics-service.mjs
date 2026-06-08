@@ -19,7 +19,7 @@ const ACTIONS = {
   umami_create_website: { platform: 'umami', risk: 'write', url: `${UMAMI_APP_BASE}/websites`, required: ['DOMAIN', 'DISPLAY_NAME'], objective: 'Create an Umami website entry.' },
   umami_find_website: { platform: 'umami', risk: 'read', url: `${UMAMI_APP_BASE}/websites`, required: ['DOMAIN_OR_NAME'], objective: 'Find an Umami website row by domain or name.' },
   umami_get_website_id: { platform: 'umami', risk: 'read', url: `${UMAMI_APP_BASE}/websites`, required: ['DOMAIN_OR_NAME'], objective: 'Read the Umami website id.' },
-  umami_get_tracking_snippet: { platform: 'umami', risk: 'read', url: `${UMAMI_BASE}/settings/websites`, required: ['WEBSITE_ID'], objective: 'Read the Umami tracking snippet.' },
+  umami_get_tracking_snippet: { platform: 'umami', risk: 'read', url: () => `${UMAMI_APP_BASE}/websites/${input('WEBSITE_ID')}/settings`, required: ['WEBSITE_ID'], objective: 'Read the Umami tracking snippet.' },
   umami_update_website_settings: { platform: 'umami', risk: 'write', url: `${UMAMI_APP_BASE}/websites`, required: ['WEBSITE_ID', 'SETTINGS_PATCH'], objective: 'Update Umami website settings.' },
   umami_verify_tracking_script: { platform: 'umami', risk: 'verify', url: () => input('SITE_URL', 'https://www.needher.ai'), required: ['SITE_URL', 'WEBSITE_ID'], objective: 'Verify the target site serves the expected Umami script.' },
   umami_verify_realtime_event: { platform: 'umami', risk: 'verify', url: UMAMI_BASE, required: ['SITE_URL', 'WEBSITE_ID'], objective: 'Verify a visit can appear in Umami realtime analytics.' },
@@ -605,15 +605,25 @@ async function umamiRegisterAccount(s) {
   const filledPassword = await fillWithinOrNth(scope, s.page, password, [/password/i], filledName ? 2 : 1);
   if (!filledEmail || !filledPassword) throw new Error('Umami sign-up fields were not fillable');
 
-  await clickRequired(s.page, [/create account/i, /sign up/i, /start free/i, /^continue$/i, /^submit$/i], 'Umami sign-up submit button');
+  if (!await clickDomElement(s.page, [
+    'button[data-umami-event="signup-button-click"]',
+    'form button[type="submit"]',
+    'form button',
+  ], /^Sign up$/i)) {
+    await clickRequired(s.page, [/create account/i, /^sign up$/i, /start free/i, /^continue$/i, /^submit$/i], 'Umami sign-up submit button');
+  }
   for (let i = 0; i < 40; i++) {
     const text = await bodyText(s.page);
-    if (/verify|verification|check your email|confirm your email|dashboard|websites|account/i.test(text) || !/signup|register/i.test(s.page.url())) {
+    const url = s.page.url();
+    if (/already exists|invalid|incorrect|required|failed|error/i.test(text)) {
+      throw new Error(`Umami sign-up failed: ${text.slice(0, 500).replace(/\s+/g, ' ')}`);
+    }
+    if (/verify|verification|check your email|confirm your email/i.test(text) || (!/signup|register/i.test(url) && /dashboard|websites|analytics\/us/i.test(text))) {
       return { registration: { email, status: 'submitted_or_verified' } };
     }
     await humanIdlePause('short');
   }
-  throw new Error(`Umami sign-up did not reach a verification or account state: ${s.page.url()}`);
+  throw new Error(`Umami sign-up did not reach a verification or dashboard state: ${s.page.url()}`);
 }
 
 async function umamiCreateWebsite(s) {
@@ -1181,6 +1191,11 @@ async function captureEvidence(s, cfg, extra = {}) {
   const dir = runRecordingsDir(actionName());
   mkdirSync(dir, { recursive: true });
   const text = await waitRendered(s.page);
+  const formValues = await s.page.evaluate(() => Array.from(document.querySelectorAll('input, textarea, select')).map((node) => ({
+    name: node.getAttribute('name') || '',
+    label: node.getAttribute('aria-label') || node.getAttribute('title') || '',
+    value: node.value || '',
+  })).filter((item) => item.value).slice(0, 50)).catch(() => []);
   const evidence = {
     action: actionName(),
     platform: cfg.platform,
@@ -1191,6 +1206,7 @@ async function captureEvidence(s, cfg, extra = {}) {
     required: cfg.required,
     inputs: Object.fromEntries(cfg.required.map((key) => [key, process.env[key] ?? null])),
     bodyText: text.slice(0, 12000),
+    formValues,
     capturedRequests: s.capturedResponses.slice(-50).map((r) => ({ method: r.method, url: r.url, status: r.status })),
     ...extra,
   };
@@ -1230,10 +1246,14 @@ function assertExpectedEvidence(evidence) {
   if ((action === 'umami_find_website' || action === 'umami_get_website_id') && !new RegExp(escapeRegExp(input('DOMAIN_OR_NAME')), 'i').test(text)) {
     throw new Error(`Umami website ${input('DOMAIN_OR_NAME')} was not visible in the captured page`);
   }
+  const valueText = JSON.stringify(evidence.formValues ?? {});
+  if (action === 'umami_get_tracking_snippet' && (!`${text} ${valueText}`.includes(input('WEBSITE_ID')) || !/data-website-id|\/script\.js|\/c\.js|Tracking code|Install/i.test(`${text} ${valueText}`))) {
+    throw new Error(`Umami tracking snippet was not visible for website ${input('WEBSITE_ID')}; final_url=${evidence.url}`);
+  }
   if (action === 'umami_create_website' && !new RegExp(escapeRegExp(input('DOMAIN')), 'i').test(text)) {
     throw new Error(`Umami website ${input('DOMAIN')} was not visible in the captured page`);
   }
-  if (action === 'umami_register' && !/verify|verification|check your email|confirm your email|dashboard|websites|account/i.test(text)) {
+  if (action === 'umami_register' && !/verify|verification|check your email|confirm your email|dashboard|websites|analytics\/us/i.test(text)) {
     throw new Error('Umami registration did not reach a verification or account state');
   }
   if ((action === 'googleanalytics_register' || action === 'googleanalytics_register_needher') && !extractGaMeasurementId(`${text} ${JSON.stringify(evidence.registration ?? {})}`)) {
