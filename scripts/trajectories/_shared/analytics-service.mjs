@@ -14,6 +14,7 @@ const GA_BASE = 'https://analytics.google.com/analytics/web/';
 const WRITE_CONFIRM = process.env.WRITE_CONFIRM === '1';
 
 const ACTIONS = {
+  umami_register: { platform: 'umami', risk: 'admin', url: `${UMAMI_BASE}/signup`, required: ['EMAIL', 'PASSWORD'], objective: 'Register a new Umami Cloud account.' },
   umami_login: { platform: 'umami', risk: 'verify', url: UMAMI_BASE, required: [], objective: 'Verify the Umami browser session is authenticated.' },
   umami_create_website: { platform: 'umami', risk: 'write', url: `${UMAMI_APP_BASE}/websites`, required: ['DOMAIN', 'DISPLAY_NAME'], objective: 'Create an Umami website entry.' },
   umami_find_website: { platform: 'umami', risk: 'read', url: `${UMAMI_APP_BASE}/websites`, required: ['DOMAIN_OR_NAME'], objective: 'Find an Umami website row by domain or name.' },
@@ -41,6 +42,8 @@ const ACTIONS = {
   umami_manage_user_access: { platform: 'umami', risk: 'admin', url: `${UMAMI_BASE}/settings`, required: ['WEBSITE_ID', 'USER_EMAIL', 'ROLE'], objective: 'Manage Umami user access.' },
   umami_export_report: { platform: 'umami', risk: 'read', url: UMAMI_BASE, required: ['WEBSITE_ID', 'DATE_RANGE'], objective: 'Export or capture an Umami report.' },
 
+  googleanalytics_register: { platform: 'googleanalytics', risk: 'admin', url: GA_BASE, required: ['ACCOUNT_NAME', 'PROPERTY_NAME', 'SITE_URL', 'STREAM_NAME'], objective: 'Create a GA4 account, property, and web stream from scratch.' },
+  googleanalytics_register_needher: { platform: 'googleanalytics', risk: 'admin', url: GA_BASE, required: [], objective: 'Create the NeedHer GA4 account, property, and web stream from scratch.' },
   googleanalytics_login: { platform: 'googleanalytics', risk: 'verify', url: GA_BASE, required: [], objective: 'Verify the Google Analytics browser session is authenticated.' },
   googleanalytics_find_property: { platform: 'googleanalytics', risk: 'read', url: GA_BASE, required: ['DOMAIN_OR_NAME'], objective: 'Find a GA4 property.' },
   googleanalytics_create_account: { platform: 'googleanalytics', risk: 'admin', url: GA_BASE, required: ['ACCOUNT_NAME'], objective: 'Create a Google Analytics account container.' },
@@ -73,8 +76,33 @@ function input(name, fallback = '') {
   return process.env[name] || fallback;
 }
 
+function defaultInput(name, fallback) {
+  const value = input(name);
+  return value || fallback;
+}
+
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function siteHost(url) {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '');
+  } catch {
+    return url.replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/.*$/, '');
+  }
+}
+
+function siteHostname(url) {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return url.replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+  }
+}
+
+function extractGaMeasurementId(text) {
+  return text.match(/\bG-[A-Z0-9]+\b/)?.[0] ?? null;
 }
 
 function actionName() {
@@ -169,6 +197,102 @@ async function clickLocator(page, loc, timeoutMs = 10000) {
   return true;
 }
 
+async function clickDirectLocator(page, loc, timeoutMs = 10000) {
+  const target = loc.filter({ visible: true }).first();
+  if (!await target.isVisible().catch(() => false)) return false;
+  const disabled = await target.evaluate((node) => (
+    node.hasAttribute('disabled')
+    || node.getAttribute('aria-disabled') === 'true'
+    || node.classList.contains('mat-mdc-button-disabled')
+    || node.classList.contains('mat-button-disabled')
+  )).catch(() => false);
+  if (disabled) return false;
+  await target.scrollIntoViewIfNeeded({ timeout: Math.min(timeoutMs, 5000) }).catch(() => {});
+  try {
+    await target.click({ timeout: timeoutMs });
+  } catch {
+    await target.click({ timeout: timeoutMs, force: true });
+  }
+  await humanIdlePause('deliberate');
+  return true;
+}
+
+async function clickAnyLocator(page, locators, description = '') {
+  for (const loc of locators) {
+    if (await clickDirectLocator(page, loc).catch(() => false)) return true;
+  }
+  if (description) throw new Error(`${description} was not clickable`);
+  return false;
+}
+
+async function clickDomElement(page, selectors, textPattern = null) {
+  const pattern = textPattern ? { source: textPattern.source, flags: textPattern.flags } : null;
+  const clicked = await page.evaluate(({ selectors: selectorList, pattern: patternSpec }) => {
+    const matcher = patternSpec ? new RegExp(patternSpec.source, patternSpec.flags) : null;
+    const visible = (node) => {
+      const style = window.getComputedStyle(node);
+      const box = node.getBoundingClientRect();
+      return style.visibility !== 'hidden'
+        && style.display !== 'none'
+        && box.width > 0
+        && box.height > 0
+        && !node.hasAttribute('disabled')
+        && node.getAttribute('aria-disabled') !== 'true'
+        && !node.classList.contains('mat-mdc-button-disabled')
+        && !node.classList.contains('mat-button-disabled');
+    };
+    const nodes = selectorList.flatMap((selector) => Array.from(document.querySelectorAll(selector)));
+    const target = nodes.find((node) => {
+      if (!visible(node)) return false;
+      if (!matcher) return true;
+      const label = `${node.textContent || ''} ${node.getAttribute('aria-label') || ''}`.replace(/\s+/g, ' ').trim();
+      return matcher.test(label);
+    });
+    if (!target) return false;
+    target.scrollIntoView({ block: 'center', inline: 'center' });
+    target.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true }));
+    target.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+    target.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true }));
+    target.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
+    target.click();
+    return true;
+  }, { selectors, pattern }).catch(() => false);
+  if (clicked) await humanIdlePause('deliberate');
+  return clicked;
+}
+
+async function fillDomInput(page, selectors, value) {
+  if (!value) return false;
+  const filled = await page.evaluate(({ selectors: selectorList, value: inputValue }) => {
+    const visible = (node) => {
+      const style = window.getComputedStyle(node);
+      const box = node.getBoundingClientRect();
+      return style.visibility !== 'hidden'
+        && style.display !== 'none'
+        && box.width > 0
+        && box.height > 0
+        && !node.hasAttribute('disabled')
+        && node.getAttribute('aria-disabled') !== 'true';
+    };
+    const field = selectorList
+      .flatMap((selector) => Array.from(document.querySelectorAll(selector)))
+      .find((node) => visible(node));
+    if (!field) return false;
+    field.scrollIntoView({ block: 'center', inline: 'center' });
+    field.focus();
+    const prototype = field instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+    const descriptor = Object.getOwnPropertyDescriptor(prototype, 'value');
+    if (descriptor?.set) descriptor.set.call(field, inputValue);
+    else field.value = inputValue;
+    field.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: inputValue }));
+    field.dispatchEvent(new Event('change', { bubbles: true }));
+    field.blur();
+    return true;
+  }, { selectors, value }).catch(() => false);
+  if (filled) await humanIdlePause('short');
+  return filled;
+}
+
 async function openDataStreamDetail(s) {
   if (!/\/admin\/streams\/table/.test(s.page.url())) return false;
   const streamId = input('STREAM_ID');
@@ -221,6 +345,275 @@ async function fillWithin(scope, page, value, labelPatterns) {
     }
   }
   return false;
+}
+
+async function fillWithinOrNth(scope, page, value, labelPatterns, index) {
+  if (await fillWithin(scope, page, value, labelPatterns)) return true;
+  const field = scope.locator('input:not([type="hidden"]), textarea').filter({ visible: true }).nth(index);
+  if (await field.isVisible().catch(() => false)) {
+    await humanFill(page, field, value);
+    return true;
+  }
+  return false;
+}
+
+async function clickRequired(page, candidates, description) {
+  if (await clickFirst(page, candidates)) return;
+  throw new Error(`${description} was not clickable`);
+}
+
+function activeStepPanel(page) {
+  return page
+    .locator('div[role="tabpanel"]:not([inert]):not([aria-hidden="true"])')
+    .filter({ visible: true })
+    .first();
+}
+
+async function selectedGaStep(page) {
+  return page.evaluate(() => {
+    const visible = (node) => {
+      const style = window.getComputedStyle(node);
+      const box = node.getBoundingClientRect();
+      return style.visibility !== 'hidden' && style.display !== 'none' && box.width > 0 && box.height > 0;
+    };
+    const labels = Array.from(document.querySelectorAll('.mat-step-header[aria-selected="true"] .mat-step-text-label'));
+    return labels.find((node) => visible(node))?.textContent?.replace(/\s+/g, ' ').trim() || '';
+  }).catch(() => '');
+}
+
+async function waitForGaStep(page, pattern, description) {
+  for (let i = 0; i < 50; i++) {
+    const step = await selectedGaStep(page);
+    if (pattern.test(step)) return;
+    await humanIdlePause('short');
+  }
+  const step = await selectedGaStep(page);
+  throw new Error(`${description} did not advance; selected_step=${JSON.stringify(step)}`);
+}
+
+async function waitForGaStepOrText(page, stepPattern, textPattern, description) {
+  for (let i = 0; i < 50; i++) {
+    const step = await selectedGaStep(page);
+    const text = await bodyText(page);
+    if (stepPattern.test(step) || textPattern.test(text)) return;
+    await humanIdlePause('short');
+  }
+  const step = await selectedGaStep(page);
+  const text = await bodyText(page);
+  throw new Error(`${description} did not advance; selected_step=${JSON.stringify(step)}; body_preview=${text.slice(0, 500).replace(/\s+/g, ' ')}`);
+}
+
+function enabledButtonLocator(root, pattern) {
+  return root
+    .getByRole('button', { name: pattern })
+    .or(root.locator('button, material-button, [role="button"], a[role="button"]').filter({ hasText: pattern }))
+    .filter({ visible: true })
+    .filter({ hasNot: root.locator('[disabled], [aria-disabled="true"]') });
+}
+
+async function visibleFormScope(page) {
+  const panel = activeStepPanel(page);
+  if (await panel.isVisible().catch(() => false)) return panel;
+  return page
+    .getByRole('dialog')
+    .or(page.locator('form, main, ga-admin-root, [role="main"], body'))
+    .filter({ visible: true })
+    .first();
+}
+
+async function dismissGoogleAnalyticsOverlays(page) {
+  for (const selector of [
+    'button[aria-label*="Close"]',
+    '[role="button"][aria-label*="Close"]',
+    'material-button.close',
+    'button.close',
+    '.close-button',
+  ]) {
+    await clickAnyLocator(page, [page.locator(selector)]).catch(() => false);
+  }
+  for (const labels of [
+    [/^Close$/i, /Got it/i, /Dismiss/i],
+    [/^Skip$/i, /No thanks/i, /Maybe later/i],
+  ]) {
+    await clickFirst(page, labels).catch(() => false);
+  }
+}
+
+async function clickGaNext(page, description = 'GA wizard next button', expectedStepPattern = null) {
+  await dismissGoogleAnalyticsOverlays(page);
+  const pattern = /^(Next|Continue|Save|Create|Create and continue|Submit|I accept|Accept)$/i;
+  const panel = activeStepPanel(page);
+  const locators = [];
+  if (await panel.isVisible().catch(() => false)) locators.push(enabledButtonLocator(panel, pattern));
+  locators.push(enabledButtonLocator(page, pattern));
+  if (!await clickAnyLocator(page, locators).catch(() => false)) {
+    if (!await clickFirst(page, [/^Next$/i, /^Continue$/i, /^Save$/i, /^Create$/i, /^Create and continue$/i, /^Submit$/i, /^I accept$/i, /^Accept$/i]).catch(() => false)) {
+      const text = await bodyText(page);
+      const buttons = await page.locator('button, material-button, [role="button"], a[role="button"]')
+        .filter({ visible: true })
+        .evaluateAll((nodes) => nodes.map((node) => ({
+          text: node.textContent?.replace(/\s+/g, ' ').trim() ?? '',
+          disabled: node.hasAttribute('disabled') || node.getAttribute('aria-disabled') === 'true',
+        })).filter((item) => item.text).slice(-20))
+        .catch(() => []);
+      throw new Error(`${description} was not clickable; visible_buttons=${JSON.stringify(buttons)}; body_preview=${text.slice(0, 500).replace(/\s+/g, ' ')}`);
+    }
+  }
+  if (expectedStepPattern) {
+    await waitForGaStep(page, expectedStepPattern, description);
+    return;
+  }
+  await waitRendered(page, 40).catch(() => '');
+}
+
+async function selectVisibleChoice(page, candidates) {
+  for (const candidate of candidates) {
+    if (await clickFirst(page, [candidate]).catch(() => false)) return true;
+  }
+  const controls = page.locator('mat-radio-button, mat-checkbox, [role="radio"], [role="checkbox"], label, button').filter({ visible: true });
+  const count = await controls.count().catch(() => 0);
+  if (count > 0) {
+    await clickLocator(page, controls.nth(0)).catch(() => false);
+    return true;
+  }
+  return false;
+}
+
+async function setOptionalDropdown(page, labelPatterns, value) {
+  if (!value) return false;
+  for (const pattern of labelPatterns) {
+    const control = page.getByLabel(pattern)
+      .or(page.locator('mat-select, [role="combobox"], input').filter({ hasText: pattern }))
+      .filter({ visible: true })
+      .first();
+    if (!await control.isVisible().catch(() => false)) continue;
+    await clickLocator(page, control).catch(() => false);
+    await humanIdlePause('short');
+    const search = page.locator('input:not([type="hidden"])').filter({ visible: true }).last();
+    if (await search.isVisible().catch(() => false)) {
+      await humanFill(page, search, value).catch(() => {});
+      await humanIdlePause('short');
+    }
+    if (await clickDomElement(page, [
+      '.cdk-overlay-container [debug-id="option-item"]',
+      '.cdk-overlay-container [role="option"]',
+      '.cdk-overlay-container mat-option',
+      '.cdk-overlay-container button',
+    ], new RegExp(escapeRegExp(value), 'i')).catch(() => false)) return true;
+    await page.keyboard.press('Escape').catch(() => {});
+  }
+  return false;
+}
+
+async function setGoogleAnalyticsIndustry(page) {
+  const business = page.locator('ga-business-info').filter({ visible: true }).first();
+  const trigger = business
+    .locator('industry-selector button[debug-id="menu-open-button"], searchable-select[required] button[debug-id="menu-open-button"]')
+    .filter({ visible: true })
+    .first();
+  if (!await clickDirectLocator(page, trigger).catch(() => false)) return false;
+  await humanIdlePause('short');
+
+  const search = page.locator('.cdk-overlay-container input:not([type="hidden"]), .cdk-overlay-container textarea')
+    .filter({ visible: true })
+    .first();
+  if (await search.isVisible().catch(() => false)) {
+    await humanFill(page, search, defaultInput('INDUSTRY_CATEGORY', 'Other')).catch(() => {});
+    await humanIdlePause('short');
+  }
+
+  const preferred = new RegExp(`^${escapeRegExp(defaultInput('INDUSTRY_CATEGORY', 'Other'))}$`, 'i');
+  return await clickDomElement(page, [
+    '.cdk-overlay-container [debug-id="option-item"]',
+    '.cdk-overlay-container [role="menuitem"]',
+    '.cdk-overlay-container [role="option"]',
+    '.cdk-overlay-container button',
+  ], preferred).catch(() => false)
+    || await clickDomElement(page, [
+      '.cdk-overlay-container [debug-id="option-item"]',
+      '.cdk-overlay-container [role="menuitem"]',
+      '.cdk-overlay-container [role="option"]',
+      '.cdk-overlay-container button',
+    ], /Other|Internet|Online|Technology|Community|Consumer/i).catch(() => false);
+}
+
+async function setGoogleAnalyticsBusinessSize(page) {
+  const business = page.locator('ga-business-info').filter({ visible: true }).first();
+  const value = defaultInput('BUSINESS_SIZE', '1');
+  const input = business.locator(`input[type="radio"][value="${escapeRegExp(value)}"]`).first();
+  if (await input.count().catch(() => 0)) {
+    await input.check({ force: true, timeout: 5000 }).catch(() => {});
+    await humanIdlePause('short');
+    if (await input.isChecked().catch(() => false)) return true;
+  }
+  return clickAnyLocator(page, [
+    business.locator('label').filter({ hasText: /Small|1 to 10/i }),
+    business.locator('mat-radio-button').filter({ hasText: /Small|1 to 10/i }),
+    business.locator('label').filter({ hasText: /Medium|11 to 100/i }),
+    business.locator('mat-radio-button').filter({ hasText: /Medium|11 to 100/i }),
+  ]).catch(() => false);
+}
+
+async function setGoogleAnalyticsObjective(page) {
+  const panel = activeStepPanel(page);
+  const objective = defaultInput('BUSINESS_OBJECTIVE', 'Understand web and/or app traffic');
+  const preferred = panel.locator(`input[type="checkbox"][name*="${objective.replace(/"/g, '\\"')}"]`).first();
+  if (await preferred.count().catch(() => 0)) {
+    await preferred.check({ force: true, timeout: 5000 }).catch(() => {});
+    await humanIdlePause('short');
+    if (await preferred.isChecked().catch(() => false)) return true;
+  }
+  const fallback = panel.locator('input[type="checkbox"][name*="Understand web"], input[type="checkbox"][name*="Other business"]').first();
+  if (await fallback.count().catch(() => 0)) {
+    await fallback.check({ force: true, timeout: 5000 }).catch(() => {});
+    await humanIdlePause('short');
+    if (await fallback.isChecked().catch(() => false)) return true;
+  }
+  return clickAnyLocator(page, [
+    panel.locator('slat').filter({ hasText: /Understand web|Other business objectives|View user engagement/i }),
+    panel.locator('mat-checkbox').filter({ hasText: /Understand web|Other business objectives|View user engagement/i }),
+  ]).catch(() => false);
+}
+
+async function clickGoogleAnalyticsCreateButton(page) {
+  const panel = activeStepPanel(page);
+  for (let i = 0; i < 30; i++) {
+    if (await clickAnyLocator(page, [
+      panel.locator('button[aria-label="Create an account with a property"], button.create-button'),
+      panel.getByRole('button', { name: /^Create$/i }),
+      panel.locator('button').filter({ hasText: /^Create$/i }),
+    ]).catch(() => false)) return;
+    await humanIdlePause('short');
+  }
+  throw new Error('GA objectives Create button was not enabled');
+}
+
+async function umamiRegisterAccount(s) {
+  await safeGoto(s, `${UMAMI_BASE}/signup`);
+  await humanIdlePause('long');
+  if (/404|not found/i.test(await bodyText(s.page))) {
+    await safeGoto(s, UMAMI_BASE);
+    await clickRequired(s.page, [/sign up/i, /start free/i, /get started/i, /create account/i], 'Umami sign-up entry point');
+  }
+
+  const scope = await visibleFormScope(s.page);
+  const email = input('EMAIL');
+  const password = input('PASSWORD');
+  const displayName = defaultInput('DISPLAY_NAME', email.split('@')[0] || 'Weles User');
+  const filledName = await fillWithinOrNth(scope, s.page, displayName, [/name/i, /full name/i], 0);
+  const filledEmail = await fillWithinOrNth(scope, s.page, email, [/email/i], filledName ? 1 : 0);
+  const filledPassword = await fillWithinOrNth(scope, s.page, password, [/password/i], filledName ? 2 : 1);
+  if (!filledEmail || !filledPassword) throw new Error('Umami sign-up fields were not fillable');
+
+  await clickRequired(s.page, [/create account/i, /sign up/i, /start free/i, /^continue$/i, /^submit$/i], 'Umami sign-up submit button');
+  for (let i = 0; i < 40; i++) {
+    const text = await bodyText(s.page);
+    if (/verify|verification|check your email|confirm your email|dashboard|websites|account/i.test(text) || !/signup|register/i.test(s.page.url())) {
+      return { registration: { email, status: 'submitted_or_verified' } };
+    }
+    await humanIdlePause('short');
+  }
+  throw new Error(`Umami sign-up did not reach a verification or account state: ${s.page.url()}`);
 }
 
 async function umamiCreateWebsite(s) {
@@ -294,6 +687,265 @@ async function umamiCreateWebsite(s) {
     await humanIdlePause('short');
   }
   throw new Error(`Umami website ${input('DOMAIN')} was not visible after save`);
+}
+
+function gaRegistrationInputs() {
+  const siteUrl = defaultInput('SITE_URL', 'https://www.needher.ai');
+  const propertyName = defaultInput('PROPERTY_NAME', 'NeedHer AI');
+  return {
+    accountName: defaultInput('ACCOUNT_NAME', propertyName),
+    propertyName,
+    siteUrl,
+    streamName: defaultInput('STREAM_NAME', `${propertyName} Web`),
+    timezone: defaultInput('TIMEZONE', 'United States'),
+    currency: defaultInput('CURRENCY', 'US Dollar'),
+    domain: siteHost(siteUrl),
+  };
+}
+
+async function openGoogleAnalyticsCreateAccount(s) {
+  await safeGoto(s, GA_BASE);
+  await humanIdlePause('long');
+  await dismissGoogleAnalyticsOverlays(s.page);
+
+  const currentHash = new URL(s.page.url()).hash;
+  const scope = currentHash.match(/^#\/(a\d+p\d+)\b/)?.[1];
+  const adminUrl = scope ? `${GA_BASE}#/${scope}/admin` : `${GA_BASE}#/admin`;
+  await safeGoto(s, adminUrl);
+  await humanIdlePause('long');
+  await dismissGoogleAnalyticsOverlays(s.page);
+  for (let i = 0; i < 40; i++) {
+    if (await s.page.locator('button[data-guidedhelpid="create-entity-trigger"], .create-entity-menu-trigger').filter({ visible: true }).first().isVisible().catch(() => false)) break;
+    if (/\/admin\b/i.test(s.page.url()) && /Account settings|Property settings|Data streams|Create/i.test(await bodyText(s.page))) break;
+    await humanIdlePause('short');
+  }
+
+  const createButton = [
+    s.page.locator('button[data-guidedhelpid="create-entity-trigger"]'),
+    s.page.locator('.create-entity-menu-trigger'),
+  ];
+  if (!await clickDomElement(s.page, ['button[data-guidedhelpid="create-entity-trigger"]', '.create-entity-menu-trigger'], /^Create\b/i)
+    && !await clickAnyLocator(s.page, createButton).catch(() => false)) {
+    await safeGoto(s, adminUrl);
+    await humanIdlePause('long');
+    await dismissGoogleAnalyticsOverlays(s.page);
+    if (!await clickDomElement(s.page, ['button[data-guidedhelpid="create-entity-trigger"]', '.create-entity-menu-trigger'], /^Create\b/i)) {
+      await clickAnyLocator(s.page, createButton, 'GA Admin Create button');
+    }
+  }
+  await humanIdlePause('deliberate');
+  if (!await clickDomElement(s.page, [
+    '.cdk-overlay-container [role="menuitem"]',
+    '.cdk-overlay-container button',
+    '.mat-mdc-menu-panel [role="menuitem"]',
+    '.mat-mdc-menu-panel button',
+    '[role="menuitem"]',
+  ], /^(Create account|Account)$/i)) {
+    await clickAnyLocator(s.page, [
+      s.page.getByRole('menuitem', { name: /^Account$/i }),
+      s.page.getByRole('menuitem', { name: /Create account/i }),
+    ], 'GA Create Account menu item');
+  }
+  await waitRendered(s.page, 40).catch(() => '');
+}
+
+async function fillGoogleAnalyticsAccountStep(s, values) {
+  const scope = await visibleFormScope(s.page);
+  const filled = await fillDomInput(s.page, [
+    'input[debug-id="account-name-input"]',
+    'ga-account-setup input:not([type="hidden"])',
+  ], values.accountName);
+  if (!filled && !await fillWithinOrNth(scope, s.page, values.accountName, [/account name/i, /^name$/i], 0)) {
+    throw new Error('GA account-name field was not fillable');
+  }
+  if (!await clickDomElement(s.page, ['button[debug-id="account-next-step-button"]'], /^Next$/i)) {
+    await clickGaNext(s.page, 'GA account setup next button', /Property creation/i);
+    return;
+  }
+  await waitForGaStep(s.page, /Property creation/i, 'GA account setup next button');
+}
+
+async function fillGoogleAnalyticsPropertyStep(s, values) {
+  const scope = await visibleFormScope(s.page);
+  const filled = await fillDomInput(s.page, [
+    'input[data-guidedhelpid="property-name-input"]',
+    'input[debug-id="property-name-input"]',
+    'ga-property-setup input:not([type="hidden"])',
+  ], values.propertyName);
+  if (!filled && !await fillWithinOrNth(scope, s.page, values.propertyName, [/property name/i, /^name$/i], 0)) {
+    throw new Error('GA property-name field was not fillable');
+  }
+  await setOptionalDropdown(s.page, [/reporting time zone/i, /time zone/i], values.timezone).catch(() => false);
+  await setOptionalDropdown(s.page, [/currency/i], values.currency).catch(() => false);
+  if (!await clickDomElement(s.page, ['button[debug-id="property-next-step-button"]'], /^Next$/i)) {
+    await clickGaNext(s.page, 'GA property setup next button', /Business details/i);
+    return;
+  }
+  await waitForGaStep(s.page, /Business details/i, 'GA property setup next button');
+}
+
+async function fillGoogleAnalyticsBusinessStep(s) {
+  await setGoogleAnalyticsIndustry(s.page).catch(() => false);
+  if (!await setGoogleAnalyticsBusinessSize(s.page).catch(() => false)) {
+    await selectVisibleChoice(s.page, [/small/i, /1 to 10/i, /medium/i]).catch(() => false);
+  }
+  await clickGaNext(s.page, 'GA business details next button', /Business objectives/i);
+}
+
+async function fillGoogleAnalyticsObjectivesStep(s) {
+  if (!await setGoogleAnalyticsObjective(s.page).catch(() => false)) {
+    await selectVisibleChoice(s.page, [/understand web/i, /other business objectives/i, /examine user behavior/i, /traffic/i]).catch(() => false);
+  }
+  await clickGoogleAnalyticsCreateButton(s.page);
+  await waitForGaStepOrText(s.page, /Data collection/i, /terms|service agreement|data collection|platform|web stream|website url/i, 'GA business objectives create button');
+}
+
+async function acceptGoogleAnalyticsTermsIfPresent(s) {
+  const text = await bodyText(s.page);
+  if (!/terms|service agreement|data processing|privacy/i.test(text)) return;
+
+  const dialog = s.page.getByRole('dialog')
+    .filter({ hasText: /Terms of Service Agreement|Data Processing Terms|I Accept/i })
+    .filter({ visible: true })
+    .first();
+  if (await dialog.isVisible().catch(() => false)) {
+    const requiredBox = dialog.locator('input[type="checkbox"]').first();
+    if (await requiredBox.count().catch(() => 0)) {
+      await requiredBox.check({ force: true, timeout: 5000 }).catch(() => {});
+      await humanIdlePause('short');
+    }
+    const acceptButton = dialog.locator('button[debug-id="accept-button"], button').filter({ hasText: /^I Accept$/i });
+    for (let i = 0; i < 30; i++) {
+      if (await clickAnyLocator(s.page, [acceptButton]).catch(() => false)) {
+        await waitForGaStepOrText(s.page, /Data collection/i, /data collection|platform|web stream|website url/i, 'GA terms accept button');
+        return;
+      }
+      await humanIdlePause('short');
+    }
+    throw new Error('GA Terms accept button was not enabled');
+  }
+
+  const boxes = s.page.locator('mat-checkbox, input[type="checkbox"], [role="checkbox"]').filter({ visible: true });
+  const count = await boxes.count().catch(() => 0);
+  for (let i = 0; i < Math.min(count, 6); i++) {
+    const box = boxes.nth(i);
+    const checked = await box.getAttribute('aria-checked').catch(() => null);
+    if (checked !== 'true') await clickLocator(s.page, box).catch(() => {});
+  }
+  await clickFirst(s.page, [/^I accept$/i, /^Accept$/i, /^Agree$/i, /^Create$/i]).catch(() => false);
+  await waitRendered(s.page, 40).catch(() => '');
+}
+
+async function fillGoogleAnalyticsWebStreamStep(s, values) {
+  for (let i = 0; i < 8; i++) {
+    const text = await bodyText(s.page);
+    if (await s.page.locator('ga-admin-web-stream-editor').filter({ visible: true }).first().isVisible().catch(() => false)) break;
+    if (/web stream|website url|stream name|choose a platform|data stream|set up a data stream/i.test(text)) {
+      await clickAnyLocator(s.page, [
+        s.page.locator('button[debug-id="create-web-stream-button"]'),
+        s.page.locator('[data-guidedhelpid="data-stream-choose-web"]'),
+        s.page.getByRole('button', { name: /^Web$/i }),
+        s.page.locator('button').filter({ hasText: /^Web$/i }),
+      ]).catch(() => false);
+    } else {
+      await clickFirst(s.page, [/^Web$/i, /Web stream/i, /Data streams/i, /Create stream/i]).catch(() => false);
+    }
+    await humanIdlePause('short');
+  }
+
+  const editor = s.page.locator('ga-admin-web-stream-editor').filter({ visible: true }).first();
+  if (!await editor.isVisible().catch(() => false)) {
+    await clickAnyLocator(s.page, [
+      s.page.locator('button[debug-id="create-web-stream-button"]'),
+      s.page.locator('[data-guidedhelpid="data-stream-choose-web"]'),
+      s.page.getByRole('button', { name: /^Web$/i }),
+      s.page.locator('button').filter({ hasText: /^Web$/i }),
+    ], 'GA Web stream platform button');
+  }
+  for (let i = 0; i < 30 && !await editor.isVisible().catch(() => false); i++) await humanIdlePause('short');
+  if (!await editor.isVisible().catch(() => false)) throw new Error('GA web stream editor did not open');
+
+  const website = editor.locator('input[debug-id="website-url-input"]').first();
+  const streamName = editor.locator('input[debug-id="stream-name-input"]').first();
+  if (!await website.isVisible().catch(() => false) || !await streamName.isVisible().catch(() => false)) {
+    throw new Error('GA web stream fields were not visible');
+  }
+  await humanFill(s.page, website, siteHostname(values.siteUrl));
+  await humanFill(s.page, streamName, values.streamName);
+  let clickedCreate = false;
+  for (let i = 0; i < 30; i++) {
+    if (await clickAnyLocator(s.page, [editor.locator('button[debug-id="create-stream-button"]')]).catch(() => false)) {
+      clickedCreate = true;
+      break;
+    }
+    await humanIdlePause('short');
+  }
+  if (!clickedCreate) throw new Error('GA web stream Create and continue button was not enabled');
+  await waitRendered(s.page, 80).catch(() => '');
+}
+
+async function openGoogleAnalyticsCreatedStreamDetail(s, values) {
+  const streamName = new RegExp(escapeRegExp(values.streamName), 'i');
+  let opened = false;
+  for (let i = 0; i < 30; i++) {
+    const text = await bodyText(s.page);
+    if (/Measurement ID|View tag instructions|Tag instructions|Stream details/i.test(text)) {
+      opened = true;
+      break;
+    }
+
+    const row = s.page.locator('mat-row, tr, [role="row"]')
+      .filter({ hasText: streamName })
+      .filter({ visible: true })
+      .first();
+    if (await row.isVisible().catch(() => false)) {
+      const streamId = await row.locator('[debug-id="stream-entity-id"]').first().innerText({ timeout: 2000 }).catch(() => '');
+      const arrow = row.locator('button[aria-label="Select stream"], button').filter({ visible: true }).last();
+      if (!await clickAnyLocator(s.page, [arrow]).catch(() => false)) await row.click({ timeout: 5000, force: true }).catch(() => {});
+      for (let j = 0; j < 30; j++) {
+        const detailText = await bodyText(s.page);
+        if (/Measurement ID|View tag instructions|Tag instructions|Stream details/i.test(detailText)) {
+          opened = true;
+          break;
+        }
+        await humanIdlePause('short');
+      }
+      if (opened || streamId) break;
+      break;
+    }
+    await humanIdlePause('short');
+  }
+
+  if (opened) {
+    await clickAnyLocator(s.page, [
+      s.page.getByRole('button', { name: /View tag instructions|Tag instructions|Google tag|Installation instructions/i }),
+      s.page.locator('button, [role="button"], a').filter({ hasText: /View tag instructions|Tag instructions|Google tag|Installation instructions/i }),
+    ]).catch(() => false);
+    await waitRendered(s.page, 80).catch(() => '');
+  }
+}
+
+async function googleAnalyticsRegisterSite(s) {
+  const values = gaRegistrationInputs();
+  await openGoogleAnalyticsCreateAccount(s);
+  await fillGoogleAnalyticsAccountStep(s, values);
+  await fillGoogleAnalyticsPropertyStep(s, values);
+  await fillGoogleAnalyticsBusinessStep(s, values);
+  await fillGoogleAnalyticsObjectivesStep(s, values);
+  await acceptGoogleAnalyticsTermsIfPresent(s);
+  await fillGoogleAnalyticsWebStreamStep(s, values);
+  await openGoogleAnalyticsCreatedStreamDetail(s, values);
+
+  for (let i = 0; i < 60; i++) {
+    const text = await bodyText(s.page);
+    const measurementId = extractGaMeasurementId(text);
+    if (measurementId) {
+      return { registration: { ...values, measurementId } };
+    }
+    await humanIdlePause('short');
+  }
+  const text = await bodyText(s.page);
+  throw new Error(`GA registration completed no visible measurement id; final_url=${s.page.url()}; body_preview=${text.slice(0, 800).replace(/\s+/g, ' ')}`);
 }
 
 async function umamiLogin(s) {
@@ -465,16 +1117,22 @@ async function prepareWrite(s, cfg) {
 
 async function performConfirmedWrite(s, cfg) {
   const action = actionName();
+  if (cfg.platform === 'umami' && action === 'umami_register') {
+    return umamiRegisterAccount(s);
+  }
   if (cfg.platform === 'umami' && action === 'umami_create_website') {
     await umamiCreateWebsite(s);
-    return;
+    return { registration: { domain: input('DOMAIN') } };
   }
   if (cfg.platform === 'umami' && action === 'umami_update_website_settings') {
     await clickFirst(s.page, [/settings/i, /edit/i]);
     const patch = input('SETTINGS_PATCH');
     if (patch) await fillAny(s.page, patch, [/name/i, /domain/i, /timezone/i]);
     await clickFirst(s.page, [/save/i, /update/i]);
-    return;
+    return {};
+  }
+  if (cfg.platform === 'googleanalytics' && (action === 'googleanalytics_register' || action === 'googleanalytics_register_needher')) {
+    return googleAnalyticsRegisterSite(s);
   }
   if (cfg.platform === 'googleanalytics') {
     await clickFirst(s.page, [/admin/i, /create/i, /new/i, /add/i]);
@@ -482,9 +1140,10 @@ async function performConfirmedWrite(s, cfg) {
     await fillAny(s.page, input('SITE_URL'), [/url/i, /website/i]);
     await fillAny(s.page, input('ROLE'), [/role/i]);
     await clickFirst(s.page, [/save/i, /create/i, /submit/i, /add/i, /next/i]);
-    return;
+    return {};
   }
   await clickFirst(s.page, [/create/i, /save/i, /add/i, /update/i]);
+  return {};
 }
 
 async function verifyTargetSite(s, cfg) {
@@ -574,6 +1233,12 @@ function assertExpectedEvidence(evidence) {
   if (action === 'umami_create_website' && !new RegExp(escapeRegExp(input('DOMAIN')), 'i').test(text)) {
     throw new Error(`Umami website ${input('DOMAIN')} was not visible in the captured page`);
   }
+  if (action === 'umami_register' && !/verify|verification|check your email|confirm your email|dashboard|websites|account/i.test(text)) {
+    throw new Error('Umami registration did not reach a verification or account state');
+  }
+  if ((action === 'googleanalytics_register' || action === 'googleanalytics_register_needher') && !extractGaMeasurementId(`${text} ${JSON.stringify(evidence.registration ?? {})}`)) {
+    throw new Error('GA registration did not expose a measurement id');
+  }
   const expectedSections = {
     googleanalytics_view_acquisition: /Acquisition/i,
     googleanalytics_view_engagement: /Engagement/i,
@@ -610,7 +1275,7 @@ async function run() {
   const store = new SessionStore();
   try {
     await store.injectPlaywright?.(s.ctx, cfg.platform).catch(() => {});
-    if (!name.includes('verify_tracking_script') && !name.includes('track_custom_event') && !name.includes('install_gtag')) {
+    if (name !== 'umami_register' && !name.includes('verify_tracking_script') && !name.includes('track_custom_event') && !name.includes('install_gtag')) {
       await ensureLoggedIn(s, cfg);
       await store.capturePlaywright?.(s.ctx, cfg.platform).catch(() => {});
     }
@@ -636,8 +1301,12 @@ async function run() {
       await safeGoto(s, resolvedUrl(cfg));
       await humanIdlePause('long');
       if (cfg.platform === 'googleanalytics') await openExpectedDashboardSection(s);
-      for (let i = 0; i < 2; i++) await humanScroll(s.page, 800, 2).catch(() => {});
-      if (cfg.risk === 'write' || cfg.risk === 'admin') await performConfirmedWrite(s, cfg);
+      if (name !== 'googleanalytics_register' && name !== 'googleanalytics_register_needher') {
+        for (let i = 0; i < 2; i++) await humanScroll(s.page, 800, 2).catch(() => {});
+      }
+      if (cfg.risk === 'write' || cfg.risk === 'admin') {
+        extra = { ...extra, ...await performConfirmedWrite(s, cfg) };
+      }
     }
 
     const evidence = await captureEvidence(s, cfg, extra);

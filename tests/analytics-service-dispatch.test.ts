@@ -4,6 +4,7 @@ import { paramsToEnv, resolveTrajectory } from '../src/worker/dispatch.js';
 const analyticsServicePath = 'scripts/trajectories/_shared/analytics-service.mjs';
 
 const analyticsActions = [
+  'umami_register',
   'umami_login',
   'umami_create_website',
   'umami_find_website',
@@ -30,6 +31,8 @@ const analyticsActions = [
   'umami_create_share_url',
   'umami_manage_user_access',
   'umami_export_report',
+  'googleanalytics_register',
+  'googleanalytics_register_needher',
   'googleanalytics_login',
   'googleanalytics_find_property',
   'googleanalytics_create_account',
@@ -60,7 +63,7 @@ const analyticsActions = [
 
 describe('analytics service dispatch', () => {
   it('routes every Umami and Google Analytics action to the shared browser runner', () => {
-    expect(analyticsActions).toHaveLength(52);
+    expect(analyticsActions).toHaveLength(55);
     for (const action of analyticsActions) {
       expect(resolveTrajectory(action), action).toBe(analyticsServicePath);
     }
@@ -70,6 +73,8 @@ describe('analytics service dispatch', () => {
     const env = paramsToEnv(
       {
         account_name: 'NeedHer',
+        email: 'operator@example.com',
+        password: 'secret-value',
         property_id: 12345,
         site_url: 'https://www.needher.ai',
         measurement_id: 'G-NEEDHER',
@@ -85,6 +90,8 @@ describe('analytics service dispatch', () => {
       VERB: 'install_gtag',
       SERVICE_ACTION: 'googleanalytics_install_gtag',
       ACCOUNT_NAME: 'NeedHer',
+      EMAIL: 'operator@example.com',
+      PASSWORD: 'secret-value',
       PROPERTY_ID: '12345',
       SITE_URL: 'https://www.needher.ai',
       MEASUREMENT_ID: 'G-NEEDHER',
