@@ -104,9 +104,11 @@ async function clickFirst(page, candidates) {
   for (const name of candidates) {
     const loc = page.getByRole('button', { name }).or(page.getByRole('link', { name })).or(page.getByText(name)).filter({ visible: true }).first();
     if (await loc.isVisible().catch(() => false)) {
-      await humanClickLocator(page, loc, { timeoutMs: 10000 }).catch(() => {});
-      await humanIdlePause('deliberate');
-      return true;
+      try {
+        await humanClickLocator(page, loc, { timeoutMs: 10000 });
+        await humanIdlePause('deliberate');
+        return true;
+      } catch {}
     }
   }
   return false;
@@ -118,9 +120,11 @@ async function clickCardLike(page, name) {
     .filter({ visible: true })
     .first();
   if (await loc.isVisible().catch(() => false)) {
-    await humanClickLocator(page, loc, { timeoutMs: 10000 }).catch(() => {});
-    await humanIdlePause('deliberate');
-    return true;
+    try {
+      await humanClickLocator(page, loc, { timeoutMs: 10000 });
+      await humanIdlePause('deliberate');
+      return true;
+    } catch {}
   }
   return false;
 }
@@ -171,7 +175,17 @@ async function umamiLogin(s) {
       ? { email: process.env.UMAMI_EMAIL, password: process.env.UMAMI_PASSWORD, loginMethod: 'email_password' }
       : null
   );
-  if (!login) throw new Error('no Umami credentials: set service_credentials display_name=Umami or UMAMI_EMAIL/UMAMI_PASSWORD');
+  if (!login) {
+    const googleCreds = await getGoogleSsoCreds();
+    const clickedGoogle = googleCreds
+      ? await clickFirst(s.page, [/continue with google/i, /sign in with google/i, /^google$/i])
+      : false;
+    if (clickedGoogle) {
+      const ok = await googleSso(s, googleCreds, { originHost: 'cloud.umami.is' });
+      if (ok) return true;
+    }
+    throw new Error('no usable Umami login: add service_credentials display_name=Umami or UMAMI_EMAIL/UMAMI_PASSWORD; Umami Cloud did not expose a Google SSO button');
+  }
   await fillAny(s.page, login.email, [/email/i, /user/i]);
   await fillAny(s.page, login.password, [/password/i]);
   await clickFirst(s.page, [/log in/i, /login/i, /sign in/i, /continue/i]);
@@ -236,9 +250,16 @@ function resolvedUrl(cfg) {
   if (cfg.platform === 'googleanalytics') {
     if (action.includes('realtime')) return propertyRoute('realtime');
     if (action.includes('debugview')) return propertyRoute('admin/debugview');
+    if (action === 'googleanalytics_get_global_site_tag') {
+      const streamId = input('STREAM_ID');
+      return streamId && streamId !== 'unknown-stream'
+        ? propertyRoute(`admin/streams/table/${streamId}`)
+        : propertyRoute('admin/streams/table');
+    }
     if (action.includes('acquisition')) return propertyRoute('reports/acquisition');
     if (action.includes('engagement')) return propertyRoute('reports/engagement');
     if (action.includes('pages')) return propertyRoute('reports/engagement/pages-and-screens');
+    if (action === 'googleanalytics_export_report') return propertyRoute('reports/engagement/pages-and-screens');
     if (action.includes('key_event')) return propertyRoute('admin/events/key-events');
     if (action.includes('audience')) return propertyRoute('admin/audiences');
     if (action.includes('custom_dimension') || action.includes('custom_metric')) return propertyRoute('admin/custom-definitions');
@@ -259,6 +280,7 @@ async function openExpectedDashboardSection(s) {
     googleanalytics_view_acquisition: [/^Reports$/i, /^Acquisition$/i],
     googleanalytics_view_engagement: [/^Reports$/i, /^Engagement$/i],
     googleanalytics_view_pages: [/^Reports$/i, /^Engagement$/i, /^Pages and screens$/i],
+    googleanalytics_export_report: [/^Reports$/i, /^Engagement$/i, /^Pages and screens$/i],
     googleanalytics_view_key_events: [/^Admin$/i, /^Events$/i],
     googleanalytics_view_debugview: [/^Admin$/i, /^DebugView$/i],
     googleanalytics_get_global_site_tag: [/^Admin$/i, /^Data streams$/i],
@@ -381,7 +403,7 @@ async function captureEvidence(s, cfg, extra = {}) {
   writeFileSync(join(dir, 'service_action_result.json'), JSON.stringify(evidence, null, 2));
   writeFileSync(join(dir, 'dashboard-text.txt'), text);
   try { writeFileSync(join(dir, 'dashboard.html'), await s.page.content()); } catch {}
-  try { await s.page.screenshot({ path: join(dir, 'dashboard.png'), fullPage: true }); } catch {}
+  try { await s.page.screenshot({ path: join(dir, 'dashboard.png'), fullPage: cfg.platform !== 'googleanalytics', timeout: 15000 }); } catch {}
   return evidence;
 }
 
