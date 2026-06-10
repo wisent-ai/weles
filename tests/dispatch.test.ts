@@ -6,6 +6,12 @@ describe('worker trajectory dispatch', () => {
     expect(resolveTrajectory('meta_ads_campaign')).toBe('scripts/trajectories/meta/ads_campaign.mjs');
     expect(resolveTrajectory('meta_ads_login')).toBe('scripts/trajectories/meta/ads_login.mjs');
     expect(resolveTrajectory('meta_ads_cli_campaign')).toBe('scripts/trajectories/meta/ads_cli_campaign.mjs');
+    expect(resolveTrajectory('meta_ads_api_campaign')).toBe('scripts/trajectories/meta/ads_api_campaign.mjs');
+    expect(resolveTrajectory('meta_ads_api_catalog')).toBe('scripts/trajectories/meta/ads_api_catalog.mjs');
+    expect(resolveTrajectory('meta_ads_api_audience')).toBe('scripts/trajectories/meta/ads_api_audience.mjs');
+    expect(resolveTrajectory('meta_ads_api_creative')).toBe('scripts/trajectories/meta/ads_api_creative.mjs');
+    expect(resolveTrajectory('meta_ads_api_lead_form')).toBe('scripts/trajectories/meta/ads_api_lead_form.mjs');
+    expect(resolveTrajectory('meta_ads_api_messaging')).toBe('scripts/trajectories/meta/ads_api_messaging.mjs');
     expect(resolveTrajectory('meta_ads_performance')).toBe('scripts/trajectories/meta/ads_performance.mjs');
     expect(resolveTrajectory('meta_ads_update_campaign')).toBe('scripts/trajectories/meta/ads_update_campaign.mjs');
     expect(resolveTrajectory('google_ads_campaign')).toBe('scripts/trajectories/google/ads/ads_campaign.mjs');
@@ -30,6 +36,8 @@ describe('worker trajectory dispatch', () => {
       business_id: 'biz_456',
       ad_account_name: 'Wisent',
       meta_ads_company_account_id: '849988068092449',
+      resource: 'stack',
+      action: 'create',
       campaign_id: '456',
       campaign_name: 'Launch',
       campaign_objective: 'Traffic',
@@ -52,6 +60,17 @@ describe('worker trajectory dispatch', () => {
       meta_facebook_page_id: '832900009911874',
       ad_set_name: 'Launch ad set',
       ad_name: 'Launch ad',
+      targeting_json: '{"geo_locations":{"countries":["US"]}}',
+      publisher_platforms: 'facebook,instagram',
+      facebook_positions: 'feed,story',
+      bid_strategy: 'LOWEST_COST_WITHOUT_CAP',
+      optimization_goal: 'LINK_CLICKS',
+      billing_event: 'IMPRESSIONS',
+      product_set_id: 'ps_123',
+      catalog_id: 'cat_123',
+      custom_audience_id: 'aud_123',
+      lead_form_id: 'form_123',
+      whatsapp_number: '15555550100',
       customer_id: '111-222-3333',
       login_customer_id: '999-888-7777',
       google_ads_api_version: 'v24',
@@ -75,6 +94,8 @@ describe('worker trajectory dispatch', () => {
     expect(env.BUSINESS_ID).toBe('biz_456');
     expect(env.AD_ACCOUNT_NAME).toBe('Wisent');
     expect(env.META_ADS_COMPANY_ACCOUNT_ID).toBe('849988068092449');
+    expect(env.RESOURCE).toBe('stack');
+    expect(env.META_ACTION).toBe('create');
     expect(env.CAMPAIGN_ID).toBe('456');
     expect(env.CAMPAIGN_NAME).toBe('Launch');
     expect(env.CAMPAIGN_OBJECTIVE).toBe('Traffic');
@@ -97,6 +118,17 @@ describe('worker trajectory dispatch', () => {
     expect(env.META_FACEBOOK_PAGE_ID).toBe('832900009911874');
     expect(env.AD_SET_NAME).toBe('Launch ad set');
     expect(env.AD_NAME).toBe('Launch ad');
+    expect(env.TARGETING_JSON).toBe('{"geo_locations":{"countries":["US"]}}');
+    expect(env.PUBLISHER_PLATFORMS).toBe('facebook,instagram');
+    expect(env.FACEBOOK_POSITIONS).toBe('feed,story');
+    expect(env.BID_STRATEGY).toBe('LOWEST_COST_WITHOUT_CAP');
+    expect(env.OPTIMIZATION_GOAL).toBe('LINK_CLICKS');
+    expect(env.BILLING_EVENT).toBe('IMPRESSIONS');
+    expect(env.PRODUCT_SET_ID).toBe('ps_123');
+    expect(env.CATALOG_ID).toBe('cat_123');
+    expect(env.CUSTOM_AUDIENCE_ID).toBe('aud_123');
+    expect(env.LEAD_FORM_ID).toBe('form_123');
+    expect(env.WHATSAPP_NUMBER).toBe('15555550100');
     expect(env.GOOGLE_ADS_CUSTOMER_ID).toBe('111-222-3333');
     expect(env.GOOGLE_ADS_LOGIN_CUSTOMER_ID).toBe('999-888-7777');
     expect(env.GOOGLE_ADS_API_VERSION).toBe('v24');

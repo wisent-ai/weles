@@ -16,6 +16,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { WSession } from '../../../dist/session/wsession.js';
 import { generatePersona } from '../../../dist/browser/persona.js';
+import { graphRequest } from './_marketing_api.mjs';
 
 const CAMPAIGN_ID = process.env.CAMPAIGN_ID;
 const AD_ACCOUNT_ID = (process.env.AD_ACCOUNT_ID || process.env.META_ADS_COMPANY_ACCOUNT_ID || '').replace(/^act_/, '');
@@ -26,6 +27,8 @@ const FIELDS = process.env.FIELDS;
 const META_ADS_CLI_ARGS = process.env.META_ADS_CLI_ARGS;
 const META_CLI_BIN = process.env.META_CLI_BIN || 'meta';
 const META_CLI_REQUIRED = process.env.META_CLI_REQUIRED === '1';
+const META_API_ONLY = process.env.META_API_ONLY === '1';
+const HAS_META_TOKEN = !!(process.env.META_ACCESS_TOKEN || process.env.FACEBOOK_ACCESS_TOKEN || process.env.META_SYSTEM_USER_ACCESS_TOKEN);
 const USER_DATA_DIR = process.env.WELES_USER_DATA_DIR || process.env.ADS_PROFILE_DIR || join(homedir(), '.weles', 'browser_profiles', 'meta_ads');
 mkdirSync(USER_DATA_DIR, { recursive: true });
 
@@ -114,6 +117,35 @@ async function browserPerformance() {
     console.log('PASS: Meta Ads performance read completed (browser)');
   } finally {
     await s.close().catch(() => {});
+  }
+}
+
+async function apiPerformance() {
+  if (!AD_ACCOUNT_ID && !CAMPAIGN_ID) {
+    console.log('FAIL: AD_ACCOUNT_ID/META_ADS_COMPANY_ACCOUNT_ID or CAMPAIGN_ID required for Meta API performance');
+    process.exit(1);
+  }
+  const fields = FIELDS || 'campaign_id,campaign_name,impressions,clicks,spend,actions,cost_per_action_type,date_start,date_stop';
+  const params = {
+    fields,
+    date_preset: DATE_PRESET,
+    level: process.env.LEVEL || (CAMPAIGN_ID ? 'campaign' : 'campaign'),
+    filtering: process.env.FILTERING_JSON ? JSON.parse(process.env.FILTERING_JSON) : undefined,
+    limit: process.env.LIMIT || 500,
+  };
+  const path = CAMPAIGN_ID ? `/${CAMPAIGN_ID}/insights` : `/${AD_ACCOUNT_ID.startsWith('act_') ? AD_ACCOUNT_ID : `act_${AD_ACCOUNT_ID}`}/insights`;
+  console.log(`[meta-ads-performance] API ${path} fields=${fields}`);
+  await graphRequest('GET', path, params, { dryRun: false, label: 'meta-ads-performance-api' });
+  console.log('PASS: Meta Ads performance read completed (api)');
+}
+
+if (HAS_META_TOKEN || META_API_ONLY) {
+  try {
+    await apiPerformance();
+    process.exit(0);
+  } catch (e) {
+    console.log('FAIL:', e.message?.slice(0, 1200));
+    process.exit(1);
   }
 }
 
