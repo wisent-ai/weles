@@ -92,6 +92,29 @@ const ROUTES: Record<string, (p: string) => string | null> = {
   // Infra maintenance verbs (not social-account actions): resend_verify_domain_status
   // re-verifies stale inbound domains + confirms real receiving (no browser).
   verify_domain_status: (p) => `scripts/trajectories/${p}/verify_domain_status.mjs`,
+  // Paid-growth/vendor workflows. Google Ads is browser-driven here; Meta has
+  // both a browser fallback and an official-CLI wrapper. App store releases
+  // are wired to the existing CLI-capable submission trajectories.
+  ads_campaign: (p) => p === 'meta' ? 'scripts/trajectories/meta/ads_campaign.mjs'
+    : p === 'google' ? 'scripts/trajectories/google/ads/ads_campaign.mjs'
+    : null,
+  ads_login: (p) => p === 'meta' ? 'scripts/trajectories/meta/ads_login.mjs'
+    : p === 'google' ? 'scripts/trajectories/google/ads/ads_login.mjs'
+    : null,
+  ads_cli_campaign: (p) => p === 'meta' ? 'scripts/trajectories/meta/ads_cli_campaign.mjs' : null,
+  ads_performance: (p) => p === 'meta' ? 'scripts/trajectories/meta/ads_performance.mjs'
+    : p === 'google' ? 'scripts/trajectories/google/ads/ads_performance.mjs'
+    : null,
+  ads_update_campaign: (p) => p === 'meta' ? 'scripts/trajectories/meta/ads_update_campaign.mjs'
+    : p === 'google' ? 'scripts/trajectories/google/ads/ads_update_campaign.mjs'
+    : null,
+  appstore_submit: (p) => p === 'apple' ? 'scripts/trajectories/apple/asc/asc_submit.mjs'
+    : p === 'google' ? 'scripts/trajectories/google/play/play_submit.mjs'
+    : null,
+  appstore_analytics: (p) => p === 'apple' ? 'scripts/trajectories/apple/asc_analytics.mjs' : null,
+  asc_submit: (p) => p === 'apple' ? 'scripts/trajectories/apple/asc/asc_submit.mjs' : null,
+  asc_analytics: (p) => p === 'apple' ? 'scripts/trajectories/apple/asc_analytics.mjs' : null,
+  play_submit: (p) => p === 'google' ? 'scripts/trajectories/google/play/play_submit.mjs' : null,
   // slack_post_message: Swiatowid posts MESSAGE_FILE to a channel/DM. Chained by
   // health checks (e.g. resend_verify_domain_status) to alert a human.
   post_message: (p) => `scripts/trajectories/${p}/post_message.mjs`,
@@ -310,6 +333,57 @@ export function paramsToEnv(
   if (typeof params.invite_url === 'string') env.INVITE_URL = params.invite_url;
   if (typeof params.repo_url === 'string') env.REPO_URL = params.repo_url;
   if (typeof params.text === 'string') env.SVC_TEXT = params.text;
+  // Paid ads / app store release parameters.
+  for (const [k, ek] of [
+    ['ad_account_id', 'AD_ACCOUNT_ID'],
+    ['ads_url', 'ADS_URL'],
+    ['campaign_name', 'CAMPAIGN_NAME'],
+    ['campaign_id', 'CAMPAIGN_ID'],
+    ['campaign_objective', 'CAMPAIGN_OBJECTIVE'],
+    ['daily_budget_usd', 'DAILY_BUDGET_USD'],
+    ['date_preset', 'DATE_PRESET'],
+    ['fields', 'FIELDS'],
+    ['query', 'GOOGLE_ADS_QUERY'],
+    ['status', 'STATUS'],
+    ['destination_url', 'DESTINATION_URL'],
+    ['final_url', 'FINAL_URL'],
+    ['headline', 'HEADLINE'],
+    ['description', 'DESCRIPTION'],
+    ['primary_text', 'PRIMARY_TEXT'],
+    ['page_id', 'PAGE_ID'],
+    ['meta_ads_cli_args', 'META_ADS_CLI_ARGS'],
+    ['customer_id', 'GOOGLE_ADS_CUSTOMER_ID'],
+    ['login_customer_id', 'GOOGLE_ADS_LOGIN_CUSTOMER_ID'],
+    ['google_ads_api_version', 'GOOGLE_ADS_API_VERSION'],
+    ['update_mask', 'UPDATE_MASK'],
+    ['campaign_resource_name', 'CAMPAIGN_RESOURCE_NAME'],
+    ['campaign_budget_id', 'CAMPAIGN_BUDGET_ID'],
+    ['campaign_budget_resource_name', 'CAMPAIGN_BUDGET_RESOURCE_NAME'],
+    ['campaign_type', 'CAMPAIGN_TYPE'],
+    ['network', 'NETWORK'],
+    ['keywords', 'KEYWORDS'],
+    ['locations', 'LOCATIONS'],
+    ['app_id', 'APP_ID'],
+    ['ipa_path', 'IPA_PATH'],
+    ['asc_key_id', 'ASC_KEY_ID'],
+    ['asc_issuer_id', 'ASC_ISSUER_ID'],
+    ['asc_key_p8', 'ASC_KEY_P8'],
+    ['apple_platform', 'APPLE_PLATFORM'],
+    ['version_string', 'VERSION_STRING'],
+    ['whats_new', 'WHATS_NEW'],
+    ['build_number', 'BUILD_NUMBER'],
+    ['bundle_path', 'BUNDLE_PATH'],
+    ['package_name', 'PACKAGE_NAME'],
+    ['play_release_url', 'PLAY_RELEASE_URL'],
+    ['track', 'TRACK'],
+    ['release_name', 'RELEASE_NAME'],
+    ['release_notes', 'RELEASE_NOTES'],
+  ]) {
+    if (typeof params[k] === 'string') env[ek] = params[k] as string;
+    else if (typeof params[k] === 'number') env[ek] = String(params[k]);
+  }
+  if (params.submit === true || params.submit === '1' || params.submit === 1) env.SUBMIT = '1';
+  else if (params.submit === false || params.submit === '0' || params.submit === 0) env.SUBMIT = '0';
   // Capability-bootstrap override: forces a specific proxy URL into the
   // trajectory so we can test (provider, action) cells deterministically.
   // credentials.ts respects PROXY_URL_FORCE=1 to ignore stored proxy.
