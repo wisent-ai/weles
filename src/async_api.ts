@@ -10,6 +10,7 @@ import { basename, dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { chromium, type BrowserContext, type Browser } from 'playwright';
 import { generate, toConfig, toCppConfig } from './fingerprint.js';
+import { hostHardware, honestHostEnabled } from './host_hardware.js';
 import { buildInitScript } from './scripts/loader.js';
 import { pruneRecordings } from './prune.js';
 import { launchWelesFirefox } from './browser/firefox_launch.js';
@@ -158,6 +159,12 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
   const isChromium = browserType === 'chromium';
   const headless = options.headless ?? false;
   const pageDiagnostics = options.pageDiagnostics !== false;
+  // Network/HAR capture is CDP-level (Network domain, already enabled for routing)
+  // and NOT visible to page JS — so it is decoupled from pageDiagnostics. A clean
+  // anti-detect run keeps pageDiagnostics=false (no page-visible traps) yet still
+  // records the HAR that challenge_outcome decoding needs. WELES_NO_RESPONSE_BODIES=1
+  // opts out of the heavy body capture entirely.
+  const captureHar = process.env.WELES_NO_RESPONSE_BODIES !== '1';
 
   const fp = generate({ os: targetOs, browser: browserType });
   const fpConfig = toConfig(fp, targetOs, browserType);
@@ -184,11 +191,64 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
     // Canvas noise NOT applied — LSB-flip makes canvas data URL 4x stock-Chrome size, TikTok mssdk flags.
   }
 
+  // Phase 1 honest-host override (project-weles-anti-detect-goal): when the
+  // target OS is the real host's OS, report the machine's ACTUAL physics
+  // (GPU/cores/RAM/OS-version) rather than a synthetic or stale persona value.
+  // The real silicon leaks through the WebGL pixel-hash + backend regardless of
+  // what we claim, so a spoofed value is a detectable contradiction, not a
+  // disguise. OS version is reported truthfully too (Phase 1 does not lie about
+  // it). WELES_HONEST_HOST=0 opts out (e.g. cross-OS personas for TikTok).
+  if (honestHostEnabled()) {
+    const hw = hostHardware();
+    if (hw.osFamily === targetOs) {
+      const n = (fpConfig.navigator ?? (fpConfig.navigator = {})) as Record<string, any>;
+      n.hardwareConcurrency = hw.cores;
+      n.deviceMemory = hw.deviceMemory;
+      if (hw.glRenderer) {
+        fpConfig.webgl = {
+          ...(fpConfig.webgl ?? {}),
+          renderer: hw.glRenderer,
+          unmaskedRenderer: hw.glRenderer,
+          ...(hw.glUnmaskedVendor ? { unmaskedVendor: hw.glUnmaskedVendor } : {}),
+        };
+      }
+      // Real display geometry: the synthetic persona's screen size + the forced
+      // colorDepth:24 are macOS tells (real Retina = 30, and the resolution/DPR
+      // must be the actual panel). Report the real Main Display when detected.
+      if (hw.screen) {
+        const sc = hw.screen;
+        fpConfig.screen = { ...(fpConfig.screen ?? {}),
+          width: sc.width, height: sc.height, availWidth: sc.availWidth, availHeight: sc.availHeight,
+          availLeft: 0, availTop: sc.availTop, colorDepth: sc.colorDepth, pixelDepth: sc.colorDepth };
+        fpConfig.window = { ...(fpConfig.window ?? {}), devicePixelRatio: sc.dpr };
+      } else if (hw.osFamily === 'macos' && fpConfig.screen) {
+        // Fallback: at least correct colorDepth to Retina 30 (matches fingerprint.ts:170).
+        fpConfig.screen = { ...fpConfig.screen, colorDepth: 30, pixelDepth: 30 };
+      }
+      // Carried to the cppConfig build below for the platformVersion override.
+      (fpConfig as any)._honestHost = hw;
+      console.log(`[async_api] honest-host: ${hw.chip ?? '?'} / ${hw.cores}c / ${hw.deviceMemory}GB / macOS ${hw.osVersion ?? '?'}`);
+    }
+  }
+
   const initScript = buildInitScript(fpConfig, options.excludeScripts);
   const nav = fpConfig.navigator ?? {};
-  const viewW = persona?.screen.width ?? 1920;
-  const viewH = persona?.screen.height ?? 1080;
-  const dpr = persona?.screen.dpr ?? 1;
+  const _hhScreen = (fpConfig as any)._honestHost?.screen;
+  // Window (viewport) must not exceed the real panel — a persona screen taller/
+  // wider than the honest screen (e.g. 2560x1600 persona on a 2560x1440 panel)
+  // is a window-larger-than-screen tell. Cap to the real avail area.
+  let viewW = persona?.screen.width ?? 1920;
+  let viewH = persona?.screen.height ?? 1080;
+  if (_hhScreen) { viewW = Math.min(viewW, _hhScreen.availWidth); viewH = Math.min(viewH, _hhScreen.availHeight); }
+  const viewportOverride = process.env.WELES_VIEWPORT?.match(/^(\d{3,4})x(\d{3,4})$/);
+  if (viewportOverride) {
+    viewW = Math.min(parseInt(viewportOverride[1], 10), _hhScreen?.availWidth ?? 4096);
+    viewH = Math.min(parseInt(viewportOverride[2], 10), _hhScreen?.availHeight ?? 2160);
+  }
+  // DPR must match the real panel (honest-host) so deviceScaleFactor renders at
+  // the true scale — a window claiming DPR 1 while screen reports DPR 2 (or the
+  // canvas/pixel-hash renders at the wrong scale) is a tell.
+  const dpr = _hhScreen?.dpr ?? persona?.screen.dpr ?? 1;
 
   // tz/locale NOT in ctxOpts (CDP Emulation -> TikTok mssdk detects). --lang + TZ env. Accept-Language IS set via extraHTTPHeaders (header only) so weles Firefox emits 'en-US,en;q=0.5', Chromium 'en-US,en;q=0.9' (computed in persona.ts).
   const ctxOpts: Record<string, any> = {
@@ -239,6 +299,10 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
   if (isCustomBinary) {
     launchOpts.executablePath = chromiumPath;
     const cppConfig = toCppConfig(fpConfig, targetOs, { chromiumPath });
+    // Honest OS version: replace toCppConfig's hardcoded platformVersion with the
+    // real host's (Phase 1 reports OS version truthfully). See honest-host block.
+    const _hh = (fpConfig as any)._honestHost;
+    if (_hh?.platformVersion && cppConfig.clientHints) cppConfig.clientHints.platformVersion = _hh.platformVersion;
     realizedFingerprint = cppConfig;
     const fpDir = mkdtempSync(join(tmpdir(), 'weles-fp-'));
     const fpFile = join(fpDir, 'config.json');
@@ -287,7 +351,7 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
     if (ctxOpts.proxy) { customCtxOpts.proxy = ctxOpts.proxy; customCtxOpts.ignoreHTTPSErrors = true; }
     if (ctxOpts.recordVideo) customCtxOpts.recordVideo = ctxOpts.recordVideo;
     if (ctxOpts.extraHTTPHeaders) customCtxOpts.extraHTTPHeaders = ctxOpts.extraHTTPHeaders;
-    if (pageDiagnostics && process.env.WELES_LABEL) customCtxOpts.recordHar = { path: join(runRecordingsDir(process.env.WELES_LABEL), 'session.har'), content: 'embed', mode: 'full' }; // G17: recordings/<run_uuid>/<label>/session.har — sealed at context.close.
+    if (captureHar && process.env.WELES_LABEL) customCtxOpts.recordHar = { path: join(runRecordingsDir(process.env.WELES_LABEL), 'session.har'), content: 'embed', mode: 'full' }; // G17: recordings/<run_uuid>/<label>/session.har — sealed at context.close. Decoupled from pageDiagnostics: HAR is CDP-level, not page-visible.
     console.log(`[async_api] Context opts: ${JSON.stringify(redactContextOpts({ ...customCtxOpts, ...(persistentProfile ? { userDataDir: persistentProfile } : {}) }))}`);
     const context = persistentProfile
       ? await chromium.launchPersistentContext(persistentProfile, { ...launchOpts, ...customCtxOpts })
@@ -325,7 +389,25 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
     }
     attachProtocolHandlerWatcher(context);
     const origClose = context.close.bind(context);
-    (context as any).close = async () => { await origClose(); await pwBrowser?.close(); };
+    (context as any).close = async () => {
+      // Graceful close, but time-boxed: a crashed/unresponsive Chromium makes
+      // origClose/pwBrowser.close hang, and since pwBrowser.process() is null
+      // for the custom binary we have no PID to fall back on.
+      const withTimeout = (p: Promise<unknown>, ms: number) =>
+        Promise.race([Promise.resolve(p).catch(() => {}), new Promise(r => setTimeout(r, ms))]);
+      await withTimeout(origClose(), 8000);
+      await withTimeout(pwBrowser?.close() ?? Promise.resolve(), 5000);
+      // Backstop reap: kill THIS run's Chromium tree by its unique
+      // --weles-fingerprint=<fpDir> arg. Concurrency-safe — the fpDir basename
+      // is unique per launch, so this never touches a sibling run's browser.
+      // No-op if the graceful close already terminated it.
+      try {
+        const { execFile } = await import('node:child_process');
+        const tag = fpDir.split('/').pop(); // e.g. weles-fp-Pf0jrD — unique per run
+        if (tag) await new Promise<void>(res => execFile('pkill', ['-f', tag], () => res()));
+      } catch { /* pkill unavailable / nothing to kill */ }
+      try { const { rmSync } = await import('node:fs'); rmSync(fpDir, { recursive: true, force: true }); } catch { /* already gone */ }
+    };
     return context;
   }
 
