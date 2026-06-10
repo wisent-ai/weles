@@ -102,6 +102,7 @@ const ROUTES: Record<string, (p: string) => string | null> = {
     : p === 'google' ? 'scripts/trajectories/google/ads/ads_login.mjs'
     : null,
   ads_cli_campaign: (p) => p === 'meta' ? 'scripts/trajectories/meta/ads_cli_campaign.mjs' : null,
+  ads_api_campaign: (p) => p === 'google' ? 'scripts/trajectories/google/ads/ads_api_campaign.mjs' : null,
   ads_performance: (p) => p === 'meta' ? 'scripts/trajectories/meta/ads_performance.mjs'
     : p === 'google' ? 'scripts/trajectories/google/ads/ads_performance.mjs'
     : null,
@@ -351,7 +352,9 @@ export function paramsToEnv(
     ['destination_url', 'DESTINATION_URL'],
     ['final_url', 'FINAL_URL'],
     ['headline', 'HEADLINE'],
+    ['headlines', 'HEADLINES'],
     ['description', 'DESCRIPTION'],
+    ['descriptions', 'DESCRIPTIONS'],
     ['primary_text', 'PRIMARY_TEXT'],
     ['page_id', 'PAGE_ID'],
     ['meta_ads_cli_args', 'META_ADS_CLI_ARGS'],
@@ -363,6 +366,15 @@ export function paramsToEnv(
     ['campaign_budget_id', 'CAMPAIGN_BUDGET_ID'],
     ['campaign_budget_resource_name', 'CAMPAIGN_BUDGET_RESOURCE_NAME'],
     ['campaign_type', 'CAMPAIGN_TYPE'],
+    ['ad_group_id', 'AD_GROUP_ID'],
+    ['ad_group_resource_name', 'AD_GROUP_RESOURCE_NAME'],
+    ['ad_group_name', 'AD_GROUP_NAME'],
+    ['ad_group_status', 'AD_GROUP_STATUS'],
+    ['ad_id', 'AD_ID'],
+    ['ad_group_ad_resource_name', 'AD_GROUP_AD_RESOURCE_NAME'],
+    ['ad_status', 'AD_STATUS'],
+    ['ad_name', 'AD_NAME'],
+    ['cpc_bid_usd', 'CPC_BID_USD'],
     ['network', 'NETWORK'],
     ['keywords', 'KEYWORDS'],
     ['locations', 'LOCATIONS'],

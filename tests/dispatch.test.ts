@@ -9,6 +9,7 @@ describe('worker trajectory dispatch', () => {
     expect(resolveTrajectory('meta_ads_performance')).toBe('scripts/trajectories/meta/ads_performance.mjs');
     expect(resolveTrajectory('meta_ads_update_campaign')).toBe('scripts/trajectories/meta/ads_update_campaign.mjs');
     expect(resolveTrajectory('google_ads_campaign')).toBe('scripts/trajectories/google/ads/ads_campaign.mjs');
+    expect(resolveTrajectory('google_ads_api_campaign')).toBe('scripts/trajectories/google/ads/ads_api_campaign.mjs');
     expect(resolveTrajectory('google_ads_login')).toBe('scripts/trajectories/google/ads/ads_login.mjs');
     expect(resolveTrajectory('google_ads_performance')).toBe('scripts/trajectories/google/ads/ads_performance.mjs');
     expect(resolveTrajectory('google_ads_update_campaign')).toBe('scripts/trajectories/google/ads/ads_update_campaign.mjs');
@@ -39,11 +40,21 @@ describe('worker trajectory dispatch', () => {
       query: 'SELECT campaign.id FROM campaign LIMIT 1',
       status: 'PAUSED',
       destination_url: 'https://example.com',
+      headline: 'Hello',
+      headlines: 'A|B|C',
+      description: 'Desc',
+      descriptions: 'D1|D2',
       customer_id: '111-222-3333',
       login_customer_id: '999-888-7777',
       google_ads_api_version: 'v24',
       update_mask: 'name,status',
       campaign_budget_id: '777',
+      ad_group_id: '888',
+      ad_group_name: 'Launch ad group',
+      ad_group_status: 'PAUSED',
+      ad_id: '999',
+      ad_status: 'PAUSED',
+      cpc_bid_usd: 1.25,
       keywords: 'alpha,beta',
       app_id: '6450000000',
       ipa_path: '/tmp/app.ipa',
@@ -66,11 +77,21 @@ describe('worker trajectory dispatch', () => {
     expect(env.GOOGLE_ADS_QUERY).toBe('SELECT campaign.id FROM campaign LIMIT 1');
     expect(env.STATUS).toBe('PAUSED');
     expect(env.DESTINATION_URL).toBe('https://example.com');
+    expect(env.HEADLINE).toBe('Hello');
+    expect(env.HEADLINES).toBe('A|B|C');
+    expect(env.DESCRIPTION).toBe('Desc');
+    expect(env.DESCRIPTIONS).toBe('D1|D2');
     expect(env.GOOGLE_ADS_CUSTOMER_ID).toBe('111-222-3333');
     expect(env.GOOGLE_ADS_LOGIN_CUSTOMER_ID).toBe('999-888-7777');
     expect(env.GOOGLE_ADS_API_VERSION).toBe('v24');
     expect(env.UPDATE_MASK).toBe('name,status');
     expect(env.CAMPAIGN_BUDGET_ID).toBe('777');
+    expect(env.AD_GROUP_ID).toBe('888');
+    expect(env.AD_GROUP_NAME).toBe('Launch ad group');
+    expect(env.AD_GROUP_STATUS).toBe('PAUSED');
+    expect(env.AD_ID).toBe('999');
+    expect(env.AD_STATUS).toBe('PAUSED');
+    expect(env.CPC_BID_USD).toBe('1.25');
     expect(env.KEYWORDS).toBe('alpha,beta');
     expect(env.APP_ID).toBe('6450000000');
     expect(env.IPA_PATH).toBe('/tmp/app.ipa');

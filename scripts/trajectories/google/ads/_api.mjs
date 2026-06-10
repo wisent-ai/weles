@@ -50,3 +50,12 @@ export async function googleAdsPost(path, body) {
   }
   return json;
 }
+
+export async function googleAdsMutate(customerIdValue, mutateOperations, opts = {}) {
+  return googleAdsPost(`/customers/${customerIdValue}/googleAds:mutate`, {
+    mutateOperations,
+    partialFailure: opts.partialFailure === true,
+    validateOnly: opts.validateOnly === true,
+    responseContentType: opts.responseContentType || 'MUTABLE_RESOURCE',
+  });
+}
