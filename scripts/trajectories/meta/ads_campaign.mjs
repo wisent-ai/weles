@@ -27,8 +27,10 @@ import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 const ADS_URL = process.env.ADS_URL;
-const RAW_AD_ACCOUNT_ID = process.env.AD_ACCOUNT_ID;
+const RAW_AD_ACCOUNT_ID = process.env.AD_ACCOUNT_ID || process.env.META_ADS_COMPANY_ACCOUNT_ID;
 const AD_ACCOUNT_ID = RAW_AD_ACCOUNT_ID?.replace(/^act_/, '');
+const BUSINESS_ID = process.env.BUSINESS_ID || process.env.META_BUSINESS_ID;
+const AD_ACCOUNT_NAME = process.env.AD_ACCOUNT_NAME || process.env.META_ADS_ACCOUNT_NAME;
 const CAMPAIGN_NAME = process.env.CAMPAIGN_NAME || `Wisent ${new Date().toISOString().slice(0, 19)}`;
 const CAMPAIGN_OBJECTIVE = process.env.CAMPAIGN_OBJECTIVE || 'Traffic';
 const DAILY_BUDGET_USD = process.env.DAILY_BUDGET_USD;
@@ -39,6 +41,7 @@ const DESCRIPTION = process.env.DESCRIPTION;
 const SUBMIT = process.env.SUBMIT === '1';
 const WAIT_FOR_LOGIN = process.env.WAIT_FOR_LOGIN === '1';
 const LOGIN_WAIT_MS = Number(process.env.LOGIN_WAIT_MS || 10 * 60 * 1000);
+const VERIFY_ACCOUNT_ONLY = process.env.VERIFY_ACCOUNT_ONLY === '1';
 const USER_DATA_DIR = process.env.WELES_USER_DATA_DIR || process.env.ADS_PROFILE_DIR || join(homedir(), '.weles', 'browser_profiles', 'meta_ads');
 mkdirSync(USER_DATA_DIR, { recursive: true });
 process.env.WELES_VIEWPORT ??= '1280x900';
@@ -59,6 +62,11 @@ if (!ADS_URL && !AD_ACCOUNT_ID && !WAIT_FOR_LOGIN) {
 const acct = await getSocialAccount('facebook');
 const session = acct ? await resolveAccountSession(acct) : { proxyUrl: undefined, persona: undefined };
 const profilePersona = process.env.ADS_PROFILE_PERSONA === 'account' && session.persona ? session.persona : stableProfilePersona();
+const objectiveLabels = Array.from(new Set([
+  CAMPAIGN_OBJECTIVE,
+  CAMPAIGN_OBJECTIVE === 'Traffic' ? 'Ruch' : null,
+  CAMPAIGN_OBJECTIVE === 'Ruch' ? 'Traffic' : null,
+].filter(Boolean)));
 
 async function clickAny(s, selectors, label, timeoutMs = 5000) {
   const deadline = Date.now() + timeoutMs;
@@ -68,10 +76,18 @@ async function clickAny(s, selectors, label, timeoutMs = 5000) {
       if (await withTimeout(loc.isVisible(), 1500, false).catch(() => false)) {
         const clicked = await withTimeout(humanClickLocator(s.page, loc), 5000, false).catch(() => false);
         if (!clicked) {
-          console.log(`[meta-ads] WARN: click timed out: ${label} (${sel})`);
-          continue;
+          const box = await loc.boundingBox().catch(() => null);
+          if (!box) {
+            console.log(`[meta-ads] WARN: click timed out: ${label} (${sel})`);
+            continue;
+          }
+          await s.page.mouse.move(box.x + box.width / 2, box.y + box.height / 2).catch(() => {});
+          await s.wait(0.2);
+          await s.page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+          console.log(`[meta-ads] clicked with mouse fallback: ${label}`);
+        } else {
+          console.log(`[meta-ads] clicked: ${label}`);
         }
-        console.log(`[meta-ads] clicked: ${label}`);
         await humanIdlePause('short');
         return true;
       }
@@ -79,6 +95,59 @@ async function clickAny(s, selectors, label, timeoutMs = 5000) {
     await s.wait(1);
   }
   return false;
+}
+
+async function clickVisibleTextInArea(s, textRe, label, area, timeoutMs = 5000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const candidate = await s.page.evaluate((source, flags, a) => {
+      const re = new RegExp(source, flags);
+      const els = Array.from(document.querySelectorAll('button, [role="button"], a, div, span'));
+      for (const el of els) {
+        const text = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+        if (!re.test(text)) continue;
+        const r = el.getBoundingClientRect();
+        const style = window.getComputedStyle(el);
+        if (!r.width || !r.height || style.visibility === 'hidden' || style.display === 'none') continue;
+        if (a?.minX != null && r.left < a.minX) continue;
+        if (a?.maxX != null && r.left > a.maxX) continue;
+        if (a?.minY != null && r.top < a.minY) continue;
+        if (a?.maxY != null && r.top > a.maxY) continue;
+        if (a?.minW != null && r.width < a.minW) continue;
+        if (a?.minH != null && r.height < a.minH) continue;
+        return { x: r.left + r.width / 2, y: r.top + r.height / 2, text, tag: el.tagName, role: el.getAttribute('role') };
+      }
+      return null;
+    }, textRe.source, textRe.flags, area).catch(() => null);
+    if (candidate) {
+      await s.page.mouse.move(candidate.x, candidate.y);
+      await s.wait(0.2);
+      await s.page.mouse.click(candidate.x, candidate.y);
+      console.log(`[meta-ads] clicked: ${label} (${candidate.text})`);
+      await humanIdlePause('short');
+      return true;
+    }
+    await s.wait(1);
+  }
+  return false;
+}
+
+async function clickPoint(s, x, y, label) {
+  await s.page.mouse.move(x, y).catch(() => {});
+  await s.wait(0.2);
+  await s.page.mouse.click(x, y);
+  console.log(`[meta-ads] clicked point: ${label} (${x},${y})`);
+  await humanIdlePause('short');
+  return true;
+}
+
+async function closeObstructingPanels(s) {
+  await clickVisibleTextInArea(s, /^×$|^Zamknij$/i, 'close panel', { minX: 1150, minY: 150 }, 1500);
+  await clickAny(s, [
+    '[aria-label="Close"]',
+    '[aria-label="Zamknij"]',
+    'div[role="button"]:has-text("×")',
+  ], 'close overlay', 1500);
 }
 
 async function fillAny(s, selectors, value, label) {
@@ -102,6 +171,27 @@ async function fillAny(s, selectors, value, label) {
 
 async function pageText(s) {
   return await s.page.evaluate(() => document.body?.innerText || '').catch(() => '');
+}
+
+async function visibleControlDebug(s) {
+  return await s.page.evaluate(() => Array.from(document.querySelectorAll('button,[role="button"],[role="radio"],div,span,a'))
+    .map((el) => {
+      const r = el.getBoundingClientRect();
+      const text = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+      const style = window.getComputedStyle(el);
+      return {
+        text: text.slice(0, 80),
+        x: Math.round(r.left),
+        y: Math.round(r.top),
+        w: Math.round(r.width),
+        h: Math.round(r.height),
+        tag: el.tagName,
+        role: el.getAttribute('role'),
+        visible: !!r.width && !!r.height && style.display !== 'none' && style.visibility !== 'hidden',
+      };
+    })
+    .filter((e) => e.visible && /Utwórz|Create|Ruch|Traffic|Kontynuuj|Continue|Przegląd konta|account/i.test(e.text))
+    .slice(0, 80)).catch(() => []);
 }
 
 function withTimeout(promise, timeoutMs, fallback) {
@@ -131,30 +221,49 @@ function currentAdAccountId(url) {
   }
 }
 
+async function visibleSelectedAdAccount(s) {
+  const text = await s.page.evaluate(() => document.body?.innerText || '').catch(() => '');
+  const accountLine = text.split('\n').map((line) => line.trim()).find((line) => /\(\d{6,}\)/.test(line));
+  const id = accountLine?.match(/\((\d{6,})\)/)?.[1] || null;
+  return { id, label: accountLine || null };
+}
+
 async function ensureAdAccount(s) {
   const before = currentAdAccountId(s.page.url?.() ?? '');
   console.log(`[meta-ads] current ad account=${before || 'unknown'} target=${AD_ACCOUNT_ID || 'unspecified'}`);
   if (!AD_ACCOUNT_ID) return before;
-  if (before === AD_ACCOUNT_ID) return before;
 
-  const switchUrl = `https://adsmanager.facebook.com/adsmanager/manage/campaigns?act=${AD_ACCOUNT_ID}`;
-  console.log(`[meta-ads] switching ad account -> ${AD_ACCOUNT_ID}`);
-  await s.goto(switchUrl);
-  await s.wait(8);
+  if (before !== AD_ACCOUNT_ID) {
+    const params = new URLSearchParams({ act: AD_ACCOUNT_ID });
+    if (BUSINESS_ID) params.set('business_id', BUSINESS_ID);
+    const switchUrl = `https://adsmanager.facebook.com/adsmanager/manage/campaigns?${params}`;
+    console.log(`[meta-ads] switching ad account -> ${AD_ACCOUNT_ID}`);
+    await s.goto(switchUrl);
+    await s.wait(8);
+  }
   const after = currentAdAccountId(s.page.url?.() ?? '');
-  console.log(`[meta-ads] ad account after switch=${after || 'unknown'}`);
+  const visible = await visibleSelectedAdAccount(s);
+  console.log(`[meta-ads] ad account after switch=${after || 'unknown'} visible=${visible.label || 'unknown'}`);
   if (after !== AD_ACCOUNT_ID) {
     console.log(`FAIL: wrong Meta ad account selected; expected=${AD_ACCOUNT_ID} actual=${after || 'unknown'} url=${s.page.url?.() ?? ''}`);
+    process.exit(1);
+  }
+  if (visible.id && visible.id !== AD_ACCOUNT_ID) {
+    console.log(`FAIL: Meta visible account mismatch; expected=${AD_ACCOUNT_ID} actual=${visible.id} label=${visible.label || ''}`);
+    process.exit(1);
+  }
+  if (AD_ACCOUNT_NAME && visible.label && !visible.label.toLowerCase().includes(AD_ACCOUNT_NAME.toLowerCase())) {
+    console.log(`FAIL: Meta visible account name mismatch; expected contains=${AD_ACCOUNT_NAME} label=${visible.label}`);
     process.exit(1);
   }
   return after;
 }
 
 const targetUrl = ADS_URL || (AD_ACCOUNT_ID
-  ? `https://adsmanager.facebook.com/adsmanager/manage/campaigns?act=${AD_ACCOUNT_ID}`
+  ? `https://adsmanager.facebook.com/adsmanager/manage/campaigns?${new URLSearchParams({ act: AD_ACCOUNT_ID, ...(BUSINESS_ID ? { business_id: BUSINESS_ID } : {}) })}`
   : 'https://adsmanager.facebook.com/adsmanager/manage/campaigns');
 console.log(`[meta-ads] profile=${USER_DATA_DIR} viewport=${process.env.WELES_VIEWPORT}`);
-const s = await WSession.start({ label: 'meta_ads_campaign', browser: process.env.BROWSER || 'chromium', proxy: process.env.PROXY_URL || session.proxyUrl || 'direct', persona: profilePersona, userDataDir: USER_DATA_DIR });
+const s = await WSession.start({ label: 'meta_ads_campaign', browser: process.env.BROWSER || 'chromium', proxy: process.env.PROXY_URL || session.proxyUrl || 'direct', persona: profilePersona, userDataDir: USER_DATA_DIR, pageDiagnostics: process.env.WELES_PAGE_DIAGNOSTICS === '1' });
 try {
   await bringBrowserToFront(s);
   await s.goto(targetUrl);
@@ -186,6 +295,12 @@ try {
   }
 
   await ensureAdAccount(s);
+  if (VERIFY_ACCOUNT_ONLY) {
+    const visible = await visibleSelectedAdAccount(s);
+    console.log(`PASS: Meta Ads account verified (${visible.label || AD_ACCOUNT_ID || 'unknown'})`);
+    process.exit(0);
+  }
+  await closeObstructingPanels(s);
 
   await clickAny(s, [
     'button:has-text("I Accept")',
@@ -197,7 +312,19 @@ try {
   ], 'policy modal accept', 4000);
   await s.wait(2);
 
-  const createClicked = await clickAny(s, [
+  let createClicked = await clickAny(s, [
+    'div[role="toolbar"] div[role="button"]:has-text("Create")',
+    'div[role="toolbar"] div[role="button"]:has-text("Utwórz")',
+    'div[role="toolbar"] button:has-text("Create")',
+    'div[role="toolbar"] button:has-text("Utwórz")',
+  ], 'campaign Create', 8000) || await clickVisibleTextInArea(s, /^(\+ )?(Create|Utwórz)$/i, 'campaign Create', {
+    minX: 40,
+    maxX: 220,
+    minY: 120,
+    maxY: 230,
+    minW: 80,
+    minH: 35,
+  }, 8000) || await clickAny(s, [
     'div[role="button"]:has-text("Create")',
     'div[role="button"]:has-text("Utwórz")',
     'button:has-text("Create")',
@@ -205,14 +332,49 @@ try {
     '[aria-label="Create"]',
     '[aria-label="Utwórz"]',
   ], 'Create', 12000);
+  if (!createClicked) {
+    createClicked = await clickPoint(s, 122, 233, 'campaign Create fallback');
+    await s.wait(4);
+  }
 
-  await clickAny(s, [
-    `div[role="radio"]:has-text("${CAMPAIGN_OBJECTIVE}")`,
-    `label:has-text("${CAMPAIGN_OBJECTIVE}")`,
-    `div[role="button"]:has-text("${CAMPAIGN_OBJECTIVE}")`,
-    `text="${CAMPAIGN_OBJECTIVE}"`,
-  ], `objective ${CAMPAIGN_OBJECTIVE}`, 8000);
+  let objectiveClicked = false;
+  for (const label of objectiveLabels) {
+    if (await clickAny(s, [
+      `div[role="radio"]:has-text("${label}")`,
+      `label:has-text("${label}")`,
+      `div[role="button"]:has-text("${label}")`,
+      `div[role="dialog"] div:has-text("${label}")`,
+      `text="${label}"`,
+    ], `objective ${label}`, 3000)) {
+      objectiveClicked = true;
+      break;
+    }
+    if (await clickVisibleTextInArea(s, new RegExp(`^${label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'), `objective ${label}`, {
+      minX: 250,
+      maxX: 700,
+      minY: 260,
+      maxY: 650,
+      minW: 20,
+      minH: 12,
+    }, 2000)) {
+      objectiveClicked = true;
+      break;
+    }
+  }
+  if (!objectiveClicked) {
+    const viewport = s.page.viewportSize?.() || { width: 1280, height: 900 };
+    await clickPoint(s, Math.round(viewport.width * 0.36), 455, 'objective Traffic/Ruch fallback');
+    await s.wait(1);
+    objectiveClicked = true;
+  }
+  if (!objectiveClicked) console.log(`[meta-ads] WARN: objective not selected: ${objectiveLabels.join('/')}`);
   await clickAny(s, ['div[role="button"]:has-text("Continue")', 'button:has-text("Continue")'], 'Continue', 5000);
+  const continued = await clickAny(s, ['div[role="button"]:has-text("Kontynuuj")', 'button:has-text("Kontynuuj")'], 'Kontynuuj', 5000);
+  if (!continued) {
+    const viewport = s.page.viewportSize?.() || { width: 1280, height: 900 };
+    await clickPoint(s, Math.round(viewport.width * 0.68), 785, 'Kontynuuj fallback');
+    await s.wait(4);
+  }
 
   let filledCount = 0;
   if (await fillAny(s, [
@@ -245,6 +407,12 @@ try {
   ], DESCRIPTION, 'description')) filledCount += 1;
 
   if (!createClicked || filledCount === 0) {
+    const text = await pageText(s);
+    if (/Potrzebne informacje o koncie|Needed account information|Przegląd konta|account review/i.test(text)) {
+      console.log(`FAIL: Meta account setup/review blocks campaign draft creation (createClicked=${createClicked}, filled=${filledCount}, url=${s.page.url?.() ?? ''})`);
+      process.exit(2);
+    }
+    console.log(`[meta-ads] visible controls debug: ${JSON.stringify(await visibleControlDebug(s)).slice(0, 6000)}`);
     console.log(`FAIL: Meta Ads campaign form was not reached (createClicked=${createClicked}, filled=${filledCount}, url=${s.page.url?.() ?? ''})`);
     process.exit(1);
   }

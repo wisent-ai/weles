@@ -10,6 +10,7 @@ import { join } from 'node:path';
 const REPO = process.env.WELES_REPO || '/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles';
 const { WSession } = await import(`${REPO}/dist/session/wsession.js`);
 const { getSocialAccount, resolveAccountSession } = await import(`${REPO}/dist/utils/credentials.js`);
+const { generatePersona } = await import(`${REPO}/dist/browser/persona.js`);
 const { humanType, humanFill } = await import(`${REPO}/dist/human/keyboard.js`);
 const { humanClickLocator, humanClick, humanScroll, humanMove, humanIdlePause } = await import(`${REPO}/dist/human/mouse.js`);
 const { wsSaveAccount } = await import(`${REPO}/dist/session/wsession-helpers/finalize.js`);
@@ -24,6 +25,7 @@ const PLATFORM = process.env.PLATFORM || '';
 const URL_ARG = process.env.URL || '';
 const JAR_PATH = process.env.JAR || '';
 const HEADLESS = process.env.HEADLESS === '1';
+const USER_DATA_DIR = process.env.KEEPER_USER_DATA_DIR || process.env.WELES_USER_DATA_DIR || '';
 // Optional engine pin for debugging a specific browser (e.g. verifying the
 // Firefox fingerprint). Only applied when no PLATFORM persona is sourced.
 const BROWSER = process.env.BROWSER || '';
@@ -49,6 +51,17 @@ if (PLATFORM) {
 if (!proxy && process.env.PROXY_URL) {
   proxy = process.env.PROXY_URL;
   console.log(`[keeper:${SESSION}] using PROXY_URL env override`);
+}
+// Geo-match tz/language to the proxy exit. Previous (account-bound) runs got this
+// from the account persona; an anonymous keeper has none, so it would leak the
+// HOST timezone (a US IP + Europe/Warsaw clock is a hard tell). Generate a persona
+// from the exit country (PROXY_COUNTRY, default US) — honest-host then overrides
+// the HARDWARE fields (GPU/cores/RAM/screen) on top, leaving tz/lang/Accept-Language
+// matched to the exit. PERSONA_OS pins the family to the real host (default macos).
+if (!persona) {
+  const _country = process.env.PROXY_COUNTRY || 'US';
+  persona = generatePersona({ country: _country, os: process.env.PERSONA_OS || 'macos', browser: BROWSER || 'chromium' });
+  console.log(`[keeper:${SESSION}] generated persona country=${_country} os=${persona.os} tz=${persona.timezone} lang=${persona.language} (honest-host overrides hardware)`);
 }
 
 const KEEPER_FLOW_ACTION = process.env.KEEPER_FLOW_ACTION || (PLATFORM ? `${PLATFORM}_keeper` : 'keeper_flow');
@@ -85,7 +98,15 @@ if (flow.rowId) {
 }
 process.env.ACTION = KEEPER_FLOW_ACTION;
 
-s = await WSession.start({ label: `keeper-${SESSION}`, proxy, persona, headless: HEADLESS, browser: BROWSER || undefined, os: process.env.PERSONA_OS || undefined });
+// Run CLEAN by default: page-visible JS traps (property_trap, surface_inventory,
+// fingerprint_hooks, input_recorder) are themselves the detection tells (non-native
+// getters) — injecting them contaminated the keeper's own anti-detect tests. HAR /
+// network capture is decoupled (CDP-level, undetectable) so forensics survive.
+// Opt back into the page traps with KEEPER_PAGE_TRAPS=1 for deliberate forensic runs.
+const _keeperTraps = process.env.KEEPER_PAGE_TRAPS === '1';
+s = await WSession.start({ label: `keeper-${SESSION}`, proxy, persona, headless: HEADLESS, browser: BROWSER || undefined, os: process.env.PERSONA_OS || undefined, pageDiagnostics: _keeperTraps, userDataDir: USER_DATA_DIR || undefined });
+console.log(`[keeper:${SESSION}] page traps ${_keeperTraps ? 'ON (forensic)' : 'OFF (clean)'}`);
+if (USER_DATA_DIR) console.log(`[keeper:${SESSION}] userDataDir=${USER_DATA_DIR}`);
 console.log(`[keeper:${SESSION}] WSession started`);
 
 // Auto-finalize when the operator closes the browser window. Without this the
