@@ -33,6 +33,7 @@ describe('worker trajectory dispatch', () => {
       campaign_id: '456',
       campaign_name: 'Launch',
       campaign_objective: 'Traffic',
+      campaign_destination: 'website',
       meta_ads_cli_args: 'ads campaign list --output json',
       daily_budget_usd: 25,
       date_preset: 'LAST_30_DAYS',
@@ -40,10 +41,17 @@ describe('worker trajectory dispatch', () => {
       query: 'SELECT campaign.id FROM campaign LIMIT 1',
       status: 'PAUSED',
       destination_url: 'https://example.com',
+      display_link: 'example.com',
+      url_params: 'utm_source=meta',
       headline: 'Hello',
       headlines: 'A|B|C',
       description: 'Desc',
       descriptions: 'D1|D2',
+      primary_text: 'Primary',
+      meta_facebook_page_name: 'Wisent',
+      meta_facebook_page_id: '832900009911874',
+      ad_set_name: 'Launch ad set',
+      ad_name: 'Launch ad',
       customer_id: '111-222-3333',
       login_customer_id: '999-888-7777',
       google_ads_api_version: 'v24',
@@ -70,6 +78,7 @@ describe('worker trajectory dispatch', () => {
     expect(env.CAMPAIGN_ID).toBe('456');
     expect(env.CAMPAIGN_NAME).toBe('Launch');
     expect(env.CAMPAIGN_OBJECTIVE).toBe('Traffic');
+    expect(env.CAMPAIGN_DESTINATION).toBe('website');
     expect(env.META_ADS_CLI_ARGS).toBe('ads campaign list --output json');
     expect(env.DAILY_BUDGET_USD).toBe('25');
     expect(env.DATE_PRESET).toBe('LAST_30_DAYS');
@@ -77,10 +86,17 @@ describe('worker trajectory dispatch', () => {
     expect(env.GOOGLE_ADS_QUERY).toBe('SELECT campaign.id FROM campaign LIMIT 1');
     expect(env.STATUS).toBe('PAUSED');
     expect(env.DESTINATION_URL).toBe('https://example.com');
+    expect(env.DISPLAY_LINK).toBe('example.com');
+    expect(env.URL_PARAMS).toBe('utm_source=meta');
     expect(env.HEADLINE).toBe('Hello');
     expect(env.HEADLINES).toBe('A|B|C');
     expect(env.DESCRIPTION).toBe('Desc');
     expect(env.DESCRIPTIONS).toBe('D1|D2');
+    expect(env.PRIMARY_TEXT).toBe('Primary');
+    expect(env.META_FACEBOOK_PAGE_NAME).toBe('Wisent');
+    expect(env.META_FACEBOOK_PAGE_ID).toBe('832900009911874');
+    expect(env.AD_SET_NAME).toBe('Launch ad set');
+    expect(env.AD_NAME).toBe('Launch ad');
     expect(env.GOOGLE_ADS_CUSTOMER_ID).toBe('111-222-3333');
     expect(env.GOOGLE_ADS_LOGIN_CUSTOMER_ID).toBe('999-888-7777');
     expect(env.GOOGLE_ADS_API_VERSION).toBe('v24');

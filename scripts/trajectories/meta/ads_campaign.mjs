@@ -5,9 +5,11 @@
 //   ADS_URL              optional direct Ads Manager creation URL
 //   CAMPAIGN_NAME        optional, defaults to timestamped name
 //   CAMPAIGN_OBJECTIVE   optional objective label text, e.g. Traffic, Leads
+//   CAMPAIGN_DESTINATION optional destination family. Supported: website
 //   DAILY_BUDGET_USD     optional daily budget
 //   DESTINATION_URL      optional landing page URL
 //   DISPLAY_LINK         optional visible display link
+//   URL_PARAMS           optional URL tracking params
 //   AD_NAME              optional ad name
 //   AD_SET_NAME          optional ad set name
 //   META_FACEBOOK_PAGE_NAME optional Facebook Page to select
@@ -15,6 +17,8 @@
 //   PRIMARY_TEXT         optional ad primary text
 //   HEADLINE             optional ad headline
 //   DESCRIPTION          optional ad description
+//   META_ADS_CAPABILITIES print supported params and exit
+//   ALLOW_UNVERIFIED_META_PARAMS set "1" to warn instead of failing for unsupported params
 //   SUBMIT               must be "1" to publish. Default stages only.
 //   PROXY_URL            optional proxy override
 //
@@ -38,9 +42,11 @@ const BUSINESS_ID = process.env.BUSINESS_ID || process.env.META_BUSINESS_ID;
 const AD_ACCOUNT_NAME = process.env.AD_ACCOUNT_NAME || process.env.META_ADS_ACCOUNT_NAME;
 const CAMPAIGN_NAME = process.env.CAMPAIGN_NAME || `Wisent ${new Date().toISOString().slice(0, 19)}`;
 const CAMPAIGN_OBJECTIVE = process.env.CAMPAIGN_OBJECTIVE || 'Traffic';
+const CAMPAIGN_DESTINATION = (process.env.CAMPAIGN_DESTINATION || process.env.DESTINATION_TYPE || 'website').toLowerCase();
 const DAILY_BUDGET_USD = process.env.DAILY_BUDGET_USD;
 const DESTINATION_URL = process.env.DESTINATION_URL || process.env.FINAL_URL;
 const DISPLAY_LINK = process.env.DISPLAY_LINK;
+const URL_PARAMS = process.env.URL_PARAMS;
 const AD_SET_NAME = process.env.AD_SET_NAME || `${CAMPAIGN_NAME} ad set`;
 const AD_NAME = process.env.AD_NAME || `${CAMPAIGN_NAME} ad`;
 const FACEBOOK_PAGE_NAME = process.env.META_FACEBOOK_PAGE_NAME || process.env.FACEBOOK_PAGE_NAME;
@@ -49,6 +55,8 @@ const PRIMARY_TEXT = process.env.PRIMARY_TEXT;
 const HEADLINE = process.env.HEADLINE;
 const DESCRIPTION = process.env.DESCRIPTION;
 const SUBMIT = process.env.SUBMIT === '1';
+const PRINT_CAPABILITIES = process.env.META_ADS_CAPABILITIES === '1';
+const ALLOW_UNVERIFIED_META_PARAMS = process.env.ALLOW_UNVERIFIED_META_PARAMS === '1';
 const WAIT_FOR_LOGIN = process.env.WAIT_FOR_LOGIN === '1';
 const LOGIN_WAIT_MS = Number(process.env.LOGIN_WAIT_MS || 10 * 60 * 1000);
 const VERIFY_ACCOUNT_ONLY = process.env.VERIFY_ACCOUNT_ONLY === '1';
@@ -64,19 +72,102 @@ function stableProfilePersona() {
   return persona;
 }
 
+const acct = await getSocialAccount('facebook');
+const session = acct ? await resolveAccountSession(acct) : { proxyUrl: undefined, persona: undefined };
+const profilePersona = process.env.ADS_PROFILE_PERSONA === 'account' && session.persona ? session.persona : stableProfilePersona();
+
+const OBJECTIVE_ALIASES = {
+  traffic: ['Traffic', 'Ruch'],
+  ruch: ['Ruch', 'Traffic'],
+  leads: ['Leads', 'Potencjalni klienci'],
+  lead: ['Leads', 'Potencjalni klienci'],
+  sales: ['Sales', 'Sprzedaż'],
+  sprzedaż: ['Sprzedaż', 'Sales'],
+  engagement: ['Engagement', 'Aktywność'],
+  awareness: ['Awareness', 'Świadomość'],
+  app: ['App promotion', 'Promocja aplikacji'],
+  app_promotion: ['App promotion', 'Promocja aplikacji'],
+};
+const objectiveKey = CAMPAIGN_OBJECTIVE.toLowerCase().replace(/\s+/g, '_');
+const objectiveLabels = Array.from(new Set([
+  CAMPAIGN_OBJECTIVE,
+  ...(OBJECTIVE_ALIASES[objectiveKey] || []),
+].filter(Boolean)));
+
+const CAPABILITIES = {
+  verified: {
+    create: ['website traffic campaign draft', 'existing draft configuration via ADS_URL'],
+    read: ['campaign table/performance browser fallback'],
+    update: ['existing draft fields via ADS_URL', 'CLI update when Meta CLI exists'],
+    publish: 'guarded by SUBMIT=1; not used in verification',
+  },
+  supportedParams: [
+    'AD_ACCOUNT_ID', 'META_ADS_COMPANY_ACCOUNT_ID', 'BUSINESS_ID', 'META_BUSINESS_ID', 'AD_ACCOUNT_NAME',
+    'ADS_URL', 'CAMPAIGN_NAME', 'CAMPAIGN_OBJECTIVE', 'CAMPAIGN_DESTINATION=website',
+    'AD_SET_NAME', 'AD_NAME', 'META_FACEBOOK_PAGE_NAME', 'META_FACEBOOK_PAGE_ID',
+    'DESTINATION_URL', 'DISPLAY_LINK', 'URL_PARAMS', 'DAILY_BUDGET_USD',
+    'PRIMARY_TEXT', 'HEADLINE', 'DESCRIPTION', 'SUBMIT',
+  ],
+  objectiveLabelsAcceptedForSelection: Object.values(OBJECTIVE_ALIASES).flat(),
+  unsupportedWithoutCustomExtension: [
+    'catalog/product-set campaigns',
+    'app install / app event setup',
+    'lead forms',
+    'WhatsApp / Messenger destinations',
+    'Advantage+ shopping end-to-end setup',
+    'custom audiences, lookalikes, detailed targeting',
+    'creative media upload',
+    'placement matrix and bid strategy tuning',
+  ],
+};
+
+function printCapabilitiesAndExit() {
+  console.log(JSON.stringify(CAPABILITIES, null, 2));
+  process.exit(0);
+}
+
+function guardUnsupportedParams() {
+  const unsupported = [];
+  const unsupportedEnv = [
+    'PRODUCT_SET_ID',
+    'CATALOG_ID',
+    'APP_ID',
+    'APP_EVENT',
+    'LEAD_FORM_ID',
+    'WHATSAPP_NUMBER',
+    'MESSENGER_DESTINATION',
+    'CUSTOM_AUDIENCE_ID',
+    'LOOKALIKE_SOURCE_ID',
+    'PLACEMENTS',
+    'BID_STRATEGY',
+    'OPTIMIZATION_GOAL',
+    'BILLING_EVENT',
+    'CREATIVE_ASSET_PATH',
+    'IMAGE_PATH',
+    'VIDEO_PATH',
+  ];
+  for (const key of unsupportedEnv) {
+    if (process.env[key]) unsupported.push(key);
+  }
+  if (CAMPAIGN_DESTINATION !== 'website') unsupported.push(`CAMPAIGN_DESTINATION=${CAMPAIGN_DESTINATION}`);
+  const knownObjective = OBJECTIVE_ALIASES[objectiveKey] || /^(traffic|ruch)$/i.test(CAMPAIGN_OBJECTIVE);
+  if (!knownObjective) unsupported.push(`CAMPAIGN_OBJECTIVE=${CAMPAIGN_OBJECTIVE}`);
+  if (!unsupported.length) return;
+  const msg = `unsupported/unverified Meta campaign params: ${unsupported.join(', ')}. Supported verified destination is website traffic draft/configuration.`;
+  if (!ALLOW_UNVERIFIED_META_PARAMS) {
+    console.log(`FAIL: ${msg}`);
+    process.exit(1);
+  }
+  console.log(`[meta-ads] WARN: ${msg}`);
+}
+
+if (PRINT_CAPABILITIES) printCapabilitiesAndExit();
+guardUnsupportedParams();
+
 if (!ADS_URL && !AD_ACCOUNT_ID && !WAIT_FOR_LOGIN) {
   console.log('FAIL: AD_ACCOUNT_ID or ADS_URL required');
   process.exit(1);
 }
-
-const acct = await getSocialAccount('facebook');
-const session = acct ? await resolveAccountSession(acct) : { proxyUrl: undefined, persona: undefined };
-const profilePersona = process.env.ADS_PROFILE_PERSONA === 'account' && session.persona ? session.persona : stableProfilePersona();
-const objectiveLabels = Array.from(new Set([
-  CAMPAIGN_OBJECTIVE,
-  CAMPAIGN_OBJECTIVE === 'Traffic' ? 'Ruch' : null,
-  CAMPAIGN_OBJECTIVE === 'Ruch' ? 'Traffic' : null,
-].filter(Boolean)));
 
 async function clickAny(s, selectors, label, timeoutMs = 5000) {
   const deadline = Date.now() + timeoutMs;
@@ -601,6 +692,11 @@ try {
     'input[placeholder*="Display link" i]',
     'input[placeholder="Wprowadź link, który ma być wyświetlany w reklamie"]',
   ], DISPLAY_LINK, 'display link')) filledCount += 1;
+  if (await fillAnyReliable(s, [
+    'input[aria-label*="URL parameters" i]',
+    'input[placeholder*="URL parameters" i]',
+    'input[placeholder="klucz1=wartość1&klucz2=wartość2"]',
+  ], URL_PARAMS, 'URL params')) filledCount += 1;
   if (await fillAnyReliable(s, [
     'textarea[aria-label*="Primary text" i]',
     'div[contenteditable="true"][aria-label*="Primary text" i]',
