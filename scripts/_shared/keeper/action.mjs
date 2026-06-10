@@ -15,6 +15,7 @@
 //   SESSION=linkedin node action.mjs cookies
 
 import net from 'node:net';
+import { existsSync, unlinkSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
@@ -81,4 +82,10 @@ conn.on('data', (chunk) => {
     process.exit(1);
   }
 });
-conn.on('error', (e) => { console.error(`[action:${SESSION}] socket err: ${e.message}`); process.exit(2); });
+conn.on('error', (e) => {
+  if (e.code === 'ECONNREFUSED' && existsSync(SOCK)) {
+    try { unlinkSync(SOCK); } catch {}
+  }
+  console.error(`[action:${SESSION}] socket err: ${e.message}`);
+  process.exit(2);
+});

@@ -26,6 +26,7 @@ const URL_ARG = process.env.URL || '';
 const JAR_PATH = process.env.JAR || '';
 const HEADLESS = process.env.HEADLESS === '1';
 const USER_DATA_DIR = process.env.KEEPER_USER_DATA_DIR || process.env.WELES_USER_DATA_DIR || '';
+const STAY_ALIVE_ON_SIGTERM = process.env.KEEPER_STAY_ALIVE_ON_SIGTERM === '1';
 // Optional engine pin for debugging a specific browser (e.g. verifying the
 // Firefox fingerprint). Only applied when no PLATFORM persona is sourced.
 const BROWSER = process.env.BROWSER || '';
@@ -35,6 +36,9 @@ const KEEPER_DIR = join(homedir(), '.weles', 'keeper', SESSION);
 mkdirSync(KEEPER_DIR, { recursive: true });
 const SOCK_PATH = join(KEEPER_DIR, 'socket');
 if (existsSync(SOCK_PATH)) unlinkSync(SOCK_PATH);
+process.on('exit', () => {
+  try { if (existsSync(SOCK_PATH)) unlinkSync(SOCK_PATH); } catch {}
+});
 
 let proxy, persona, acct = null;
 if (PLATFORM) {
@@ -97,6 +101,10 @@ if (flow.rowId) {
   process.env.WELES_RUN_ID = flow.rowId;
 }
 process.env.ACTION = KEEPER_FLOW_ACTION;
+if (STAY_ALIVE_ON_SIGTERM) {
+  process.removeAllListeners('SIGTERM');
+  process.on('SIGTERM', () => console.log(`[keeper:${SESSION}] ignoring SIGTERM because KEEPER_STAY_ALIVE_ON_SIGTERM=1`));
+}
 
 // Run CLEAN by default: page-visible JS traps (property_trap, surface_inventory,
 // fingerprint_hooks, input_recorder) are themselves the detection tells (non-native
@@ -105,6 +113,10 @@ process.env.ACTION = KEEPER_FLOW_ACTION;
 // Opt back into the page traps with KEEPER_PAGE_TRAPS=1 for deliberate forensic runs.
 const _keeperTraps = process.env.KEEPER_PAGE_TRAPS === '1';
 s = await WSession.start({ label: `keeper-${SESSION}`, proxy, persona, headless: HEADLESS, browser: BROWSER || undefined, os: process.env.PERSONA_OS || undefined, pageDiagnostics: _keeperTraps, userDataDir: USER_DATA_DIR || undefined });
+if (STAY_ALIVE_ON_SIGTERM) {
+  process.removeAllListeners('SIGTERM');
+  process.on('SIGTERM', () => console.log(`[keeper:${SESSION}] ignoring SIGTERM because KEEPER_STAY_ALIVE_ON_SIGTERM=1`));
+}
 console.log(`[keeper:${SESSION}] page traps ${_keeperTraps ? 'ON (forensic)' : 'OFF (clean)'}`);
 if (USER_DATA_DIR) console.log(`[keeper:${SESSION}] userDataDir=${USER_DATA_DIR}`);
 console.log(`[keeper:${SESSION}] WSession started`);
@@ -116,9 +128,38 @@ console.log(`[keeper:${SESSION}] WSession started`);
 // .inst.json (via wsClose), uploads artifacts, imports provenance, and writes the
 // SQL capture. Best-effort completed/failed: authenticated (li_at) => completed.
 let _finalizing = false;
+let _lastKnownUrl = URL_ARG || null;
+const _rememberUrl = () => {
+  try {
+    const u = s?.page?.url?.();
+    if (u && u !== 'about:blank') _lastKnownUrl = u;
+  } catch {}
+};
+let _rememberUrlTimer = null;
 async function finalizeOnWindowClose(via) {
   if (_finalizing) return;            // page/ctx/browser events fire near-simultaneously
+  if (STAY_ALIVE_ON_SIGTERM && via === 'page_close') {
+    _finalizing = true;
+    console.log(`[keeper:${SESSION}] page closed (${via}) — reopening because KEEPER_STAY_ALIVE_ON_SIGTERM=1`);
+    try {
+      const nextPage = await s.ctx.newPage();
+      s.page = nextPage;
+      attachPageCloseHandler(nextPage);
+      if (_lastKnownUrl) {
+        await nextPage.goto(_lastKnownUrl, { waitUntil: 'domcontentloaded' }).catch((e) =>
+          console.log(`[keeper:${SESSION}] reopen goto warn: ${e.message?.slice(0, 80)}`)
+        );
+      }
+      console.log(`[keeper:${SESSION}] reopened at ${s.page.url()}`);
+    } catch (e) {
+      console.log(`[keeper:${SESSION}] reopen after page close failed: ${e?.message?.slice(0, 120) ?? String(e)}`);
+    } finally {
+      _finalizing = false;
+    }
+    return;
+  }
   _finalizing = true;
+  if (_rememberUrlTimer) clearInterval(_rememberUrlTimer);
   let lastUrl = null, authed = false;
   try { lastUrl = s?.page?.url?.() ?? null; } catch { /* context torn down */ }
   // Capture the FULL session (cookies + localStorage) before the context tears
@@ -143,9 +184,14 @@ async function finalizeOnWindowClose(via) {
   } catch (e) { console.log(`[keeper:${SESSION}] window-close finalize threw: ${e?.message?.slice(0, 120) ?? String(e)}`); }
   process.exit(0);
 }
-try { s.page.on('close', () => { void finalizeOnWindowClose('page_close'); }); } catch {}
+function attachPageCloseHandler(page) {
+  try { page.on('framenavigated', _rememberUrl); } catch {}
+  try { page.on('close', () => { void finalizeOnWindowClose('page_close'); }); } catch {}
+}
+attachPageCloseHandler(s.page);
 try { s.ctx.on('close', () => { void finalizeOnWindowClose('ctx_close'); }); } catch {}
 try { s.ctx.browser?.()?.on('disconnected', () => { void finalizeOnWindowClose('browser_disconnected'); }); } catch {}
+_rememberUrlTimer = setInterval(_rememberUrl, 2000);
 
 // Cookie injection: explicit JAR path wins, else use account's metadata.cookies.
 if (JAR_PATH && existsSync(JAR_PATH)) {
