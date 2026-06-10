@@ -36,20 +36,51 @@ SIDS_LIST=(${@:-${(z)SIDS}})
 REPO=$(cd "$(dirname "$0")/../.." && pwd)
 RELAY="$REPO/scripts/diag/proxy_relay.mjs"
 SUMMARY=${SWEEP_SUMMARY:-/tmp/reddit_sweep_summary.txt}
+MAX_TRIES=${MAX_TRIES:-2}   # retry transient crashes/timeouts (not 403s) this many times
+
+# weles can't get a process handle to its custom Chromium (pwBrowser.process()
+# returns null), so close() cannot force-kill a crashed browser — it leaks as a
+# zombie. Leaked zombies pile up memory/GPU pressure and make the NEXT run's
+# renderer crash (CDP "Input.dispatchMouseEvent: Internal error" / target
+# closed), cascading. Reaping leftover Chromium + temp dirs between runs breaks
+# that cascade — it's the actual fix for the mid-run crashes.
+cleanup_browsers() {
+  pkill -f "weles-chromium" 2>/dev/null
+  sleep 1
+  find /private/var/folders -maxdepth 4 -type d -name 'weles-fp-*' -exec rm -rf {} + 2>/dev/null
+}
+# A verdict that is a transient local failure (worth retrying on the same IP),
+# as opposed to a clean reddit-gate read (403/PASS — re-running won't change it).
+is_transient() {
+  echo "$1" | grep -qiE "target page, context or browser has been closed|Protocol error|Internal error|ERR_TIMED_OUT|ERR_PROXY|<no verdict"
+}
+
 echo "===== reddit verify-init sweep (${#SIDS_LIST[@]} sessions) =====" | tee "$SUMMARY"
 cd "$REPO"
 for sid in $SIDS_LIST; do
   user=${NM_USER_TMPL/\{SID\}/$sid}
   export PROXY_UPSTREAM PROXY_CRED="${user}:${NM_PASS}"
   lsof -nP -iTCP:${RELAY_PORT:-8899} -sTCP:LISTEN -t 2>/dev/null | xargs -r kill 2>/dev/null
-  sleep 1
+  cleanup_browsers   # reap any leftover from the previous run BEFORE starting
   PROXY_UPSTREAM="$PROXY_UPSTREAM" PROXY_CRED="$PROXY_CRED" nohup node "$RELAY" > /tmp/sweep_relay.log 2>&1 &
   sleep 2
   ip=$(curl -s -x "$PROXY_URL" --max-time 20 https://api.ipify.org 2>/dev/null)
   LOG=/tmp/reddit_sweep_${sid}.log
   echo "\n--- sid-${sid} exit=${ip:-?} ---" | tee -a "$SUMMARY"
-  node scripts/trajectories/reddit_register.mjs > "$LOG" 2>&1
-  verdict=$(grep -iE "verify-init\] OK|verify_init_rejected|^PASS:|^FAIL:" "$LOG" | head -1)
-  echo "  ${verdict:-<no verdict; see $LOG>}" | tee -a "$SUMMARY"
+  try=1; verdict=""
+  while [ $try -le $MAX_TRIES ]; do
+    node scripts/trajectories/reddit_register.mjs > "$LOG" 2>&1
+    verdict=$(grep -iE "verify-init\] OK|verify_init_rejected|^PASS:|^FAIL:" "$LOG" | head -1)
+    verdict=${verdict:-"<no verdict; see $LOG>"}
+    if is_transient "$verdict" && [ $try -lt $MAX_TRIES ]; then
+      echo "  try $try transient ($verdict) — reaping + retrying" | tee -a "$SUMMARY"
+      cleanup_browsers
+    else
+      break
+    fi
+    try=$((try+1))
+  done
+  echo "  ${verdict}" | tee -a "$SUMMARY"
 done
+cleanup_browsers   # final reap
 echo "\n===== sweep done =====" | tee -a "$SUMMARY"
