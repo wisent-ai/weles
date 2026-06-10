@@ -1,4 +1,4 @@
-// Meta Ads CLI: read campaign/ad performance.
+// Meta Ads CLI/browser: read campaign/ad performance.
 //
 // Env:
 //   CAMPAIGN_ID         optional campaign id for campaign-scoped insights
@@ -7,16 +7,35 @@
 //   FIELDS              optional comma-separated fields
 //   META_ADS_CLI_ARGS   optional full arg string after `meta`; bypasses generated args
 //
-// Requires Meta's official Ads CLI installed and authenticated.
+// Uses Meta's official Ads CLI when installed/authenticated. Otherwise falls
+// back to the logged-in Ads Manager browser profile.
 
 import { spawn } from 'node:child_process';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
+import { WSession } from '../../../dist/session/wsession.js';
+import { generatePersona } from '../../../dist/browser/persona.js';
 
 const CAMPAIGN_ID = process.env.CAMPAIGN_ID;
-const AD_ACCOUNT_ID = process.env.AD_ACCOUNT_ID;
+const AD_ACCOUNT_ID = (process.env.AD_ACCOUNT_ID || process.env.META_ADS_COMPANY_ACCOUNT_ID || '').replace(/^act_/, '');
+const BUSINESS_ID = process.env.BUSINESS_ID || process.env.META_BUSINESS_ID;
+const AD_ACCOUNT_NAME = process.env.AD_ACCOUNT_NAME || process.env.META_ADS_ACCOUNT_NAME;
 const DATE_PRESET = process.env.DATE_PRESET || 'last_7d';
 const FIELDS = process.env.FIELDS;
 const META_ADS_CLI_ARGS = process.env.META_ADS_CLI_ARGS;
 const META_CLI_BIN = process.env.META_CLI_BIN || 'meta';
+const META_CLI_REQUIRED = process.env.META_CLI_REQUIRED === '1';
+const USER_DATA_DIR = process.env.WELES_USER_DATA_DIR || process.env.ADS_PROFILE_DIR || join(homedir(), '.weles', 'browser_profiles', 'meta_ads');
+mkdirSync(USER_DATA_DIR, { recursive: true });
+
+function stableProfilePersona() {
+  const p = join(USER_DATA_DIR, 'persona.json');
+  if (existsSync(p)) return JSON.parse(readFileSync(p, 'utf8'));
+  const persona = generatePersona({ os: 'macos', browser: 'chromium' });
+  writeFileSync(p, JSON.stringify(persona, null, 2));
+  return persona;
+}
 
 function splitArgs(s) {
   if (!s) return [];
@@ -50,11 +69,64 @@ function runMeta(args) {
   });
 }
 
-const auth = await runMeta(['auth', 'status']);
+async function browserPerformance() {
+  if (!AD_ACCOUNT_ID) {
+    console.log('FAIL: AD_ACCOUNT_ID or META_ADS_COMPANY_ACCOUNT_ID required for browser fallback');
+    process.exit(1);
+  }
+  const params = new URLSearchParams({ act: AD_ACCOUNT_ID });
+  if (BUSINESS_ID) params.set('business_id', BUSINESS_ID);
+  const url = `https://adsmanager.facebook.com/adsmanager/manage/campaigns?${params}`;
+  const s = await WSession.start({
+    label: 'meta_ads_performance',
+    browser: process.env.BROWSER || 'chromium',
+    proxy: process.env.PROXY_URL || 'direct',
+    persona: stableProfilePersona(),
+    userDataDir: USER_DATA_DIR,
+    pageDiagnostics: process.env.WELES_PAGE_DIAGNOSTICS === '1',
+  });
+  try {
+    await s.goto(url);
+    await s.wait(10);
+    const current = s.page.url?.() ?? '';
+    const text = await s.page.evaluate(() => document.body?.innerText || '').catch(() => '');
+    if (/login|checkpoint|security/i.test(current)) {
+      console.log(`FAIL: Meta Ads browser session is not logged in (${current})`);
+      process.exit(2);
+    }
+    const visibleAccount = text.match(/([^\n]*\((\d{6,})\))/);
+    const visibleLabel = visibleAccount?.[1]?.trim() || null;
+    const visibleId = visibleAccount?.[2] || null;
+    console.log(`[meta-ads-performance] browser account=${visibleLabel || 'unknown'} url=${current}`);
+    if (visibleId && visibleId !== AD_ACCOUNT_ID) {
+      console.log(`FAIL: wrong Meta ad account selected; expected=${AD_ACCOUNT_ID} actual=${visibleId}`);
+      process.exit(1);
+    }
+    if (AD_ACCOUNT_NAME && visibleLabel && !visibleLabel.toLowerCase().includes(AD_ACCOUNT_NAME.toLowerCase())) {
+      console.log(`FAIL: wrong Meta ad account label; expected contains=${AD_ACCOUNT_NAME} actual=${visibleLabel}`);
+      process.exit(1);
+    }
+    const rows = await s.page.evaluate(() => Array.from(document.querySelectorAll('[role="row"], tr'))
+      .map((row) => (row.innerText || row.textContent || '').replace(/\s+/g, ' ').trim())
+      .filter(Boolean)
+      .slice(0, 50)).catch(() => []);
+    console.log(JSON.stringify({ account: visibleLabel, rows, empty: /Brak wyników|No results|Nie utworzono/i.test(text) }, null, 2).slice(0, 8000));
+    console.log('PASS: Meta Ads performance read completed (browser)');
+  } finally {
+    await s.close().catch(() => {});
+  }
+}
+
+const auth = await runMeta(['auth', 'status']).catch((e) => ({ code: 127, out: '', err: e.message || String(e) }));
 if (auth.code !== 0) {
-  console.log('FAIL: Meta Ads CLI is not installed or not authenticated');
-  if (auth.err || auth.out) console.log((auth.err || auth.out).slice(0, 500));
-  process.exit(2);
+  if (META_CLI_REQUIRED) {
+    console.log('FAIL: Meta Ads CLI is not installed or not authenticated');
+    if (auth.err || auth.out) console.log((auth.err || auth.out).slice(0, 500));
+    process.exit(2);
+  }
+  console.log('[meta-ads-performance] Meta CLI unavailable; using browser fallback');
+  await browserPerformance();
+  process.exit(0);
 }
 
 const args = META_ADS_CLI_ARGS ? splitArgs(META_ADS_CLI_ARGS) : [
