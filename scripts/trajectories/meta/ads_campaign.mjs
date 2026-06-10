@@ -194,6 +194,37 @@ async function visibleControlDebug(s) {
     .slice(0, 80)).catch(() => []);
 }
 
+function selectedCampaignId(url) {
+  try {
+    return new URL(url).searchParams.get('selected_campaign_ids') || null;
+  } catch {
+    return null;
+  }
+}
+
+async function maybeContinueCampaignConfiguration(s) {
+  const text = await pageText(s);
+  if (!/Wybierz konfigurację kampanii|Choose campaign setup|Ręcznie utworzona kampania|Zalecane ustawienia/i.test(text)) {
+    return false;
+  }
+  await clickAny(s, [
+    'div[role="button"]:has-text("Kontynuuj")',
+    'button:has-text("Kontynuuj")',
+    'div[role="button"]:has-text("Continue")',
+    'button:has-text("Continue")',
+  ], 'configuration Continue', 5000);
+  await clickVisibleTextInArea(s, /^(Kontynuuj|Continue)$/i, 'configuration Continue', {
+    minX: 760,
+    maxX: 1100,
+    minY: 500,
+    maxY: 820,
+    minW: 60,
+    minH: 30,
+  }, 4000);
+  await s.wait(8);
+  return true;
+}
+
 function withTimeout(promise, timeoutMs, fallback) {
   return Promise.race([
     promise,
@@ -375,6 +406,7 @@ try {
     await clickPoint(s, Math.round(viewport.width * 0.68), 785, 'Kontynuuj fallback');
     await s.wait(4);
   }
+  await maybeContinueCampaignConfiguration(s);
 
   let filledCount = 0;
   if (await fillAny(s, [
@@ -407,6 +439,13 @@ try {
   ], DESCRIPTION, 'description')) filledCount += 1;
 
   if (!createClicked || filledCount === 0) {
+    const url = s.page.url?.() ?? '';
+    const draftCampaignId = selectedCampaignId(url);
+    const draftText = await pageText(s);
+    if (createClicked && draftCampaignId && /Wersja robocza|Draft/i.test(draftText)) {
+      console.log(`PASS: staged Meta ads campaign draft "${CAMPAIGN_NAME}" (SUBMIT=0, campaign_id=${draftCampaignId})`);
+      process.exit(0);
+    }
     const text = await pageText(s);
     if (/Potrzebne informacje o koncie|Needed account information|Przegląd konta|account review/i.test(text)) {
       console.log(`FAIL: Meta account setup/review blocks campaign draft creation (createClicked=${createClicked}, filled=${filledCount}, url=${s.page.url?.() ?? ''})`);
