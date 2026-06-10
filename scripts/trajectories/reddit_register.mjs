@@ -34,6 +34,32 @@ async function vpJitter() {
   await humanMove(s.page, 100 + Math.floor(Math.random() * (vp.width - 200)), 100 + Math.floor(Math.random() * (vp.height - 200)));
 }
 
+// Capture reddit's email-verify-initialize response. A 403 here with
+// recaptcha_token=INVALID means reddit's reCAPTCHA Enterprise scored the token
+// below threshold (driven by exit-IP reputation, not the browser) and never
+// dispatched the code — surfaced to the user as "Something went wrong sending
+// verification code." We catch it explicitly so the log shows the real cause
+// instead of a generic email-poll timeout.
+let verifyInit = null;
+s.page.on('response', async (resp) => {
+  if (!/register_email_verify_initialize/i.test(resp.url())) return;
+  const status = resp.status();
+  let body = '';
+  try { body = await resp.text(); } catch { /* body may be unavailable */ }
+  let reason = '', recaptcha = '';
+  try {
+    const j = JSON.parse(body);
+    reason = j?.error?.message || '';
+    recaptcha = j?.error?.params?.recaptcha_token || '';
+  } catch { /* non-JSON body */ }
+  verifyInit = { status, ok: resp.ok(), reason, recaptcha, body: body.slice(0, 300) };
+  if (resp.ok()) {
+    console.log(`[verify-init] OK status=${status} — reddit dispatched the code`);
+  } else {
+    console.log(`FAIL: verify_init_rejected status=${status} recaptcha_token=${recaptcha || 'n/a'} reason="${reason}" body=${verifyInit.body}`);
+  }
+});
+
 try {
   await s.page.goto(URL, { waitUntil: 'domcontentloaded' });
   await humanIdlePause('deliberate');
@@ -53,8 +79,18 @@ try {
 
   // Step 2: wait for verification code page, fetch code, fill it
   await humanIdlePause('deliberate');
+  // If verify-init already came back rejected, fail fast with the real reason
+  // (no code will ever arrive) rather than burning the full email-poll timeout.
+  if (verifyInit && !verifyInit.ok) {
+    throw new Error(`verify_init_rejected: status=${verifyInit.status} recaptcha_token=${verifyInit.recaptcha || 'n/a'} reason="${verifyInit.reason}"`);
+  }
   const code = await s.checkEmail(id.email, 'reddit');
-  if (/^error|^no code/.test(code)) throw new Error(`email_code_failed: ${code}`);
+  if (/^error|^no code/.test(code)) {
+    const detail = verifyInit && !verifyInit.ok
+      ? ` (verify_init status=${verifyInit.status} recaptcha_token=${verifyInit.recaptcha})`
+      : '';
+    throw new Error(`email_code_failed: ${code}${detail}`);
+  }
   console.log(`[register] got verification code: ${code}`);
   await humanIdlePause('short');
   await vpJitter();

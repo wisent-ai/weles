@@ -296,7 +296,13 @@ export class WSession {
     if (proxyRequested && !proxy) {
       throw new Error(`proxy_unavailable: requested ${opts.proxy} for ${opts.targetHost ?? 'unknown target'}`);
     }
-    const pageDiagnostics = opts.pageDiagnostics ?? (label !== 'linkedin_register');
+    // WELES_PAGE_DIAGNOSTICS=0 force-disables in-page instrumentation (property-trap,
+    // input-recorder) as a clean-room control for signup A/B tests. (Tested on
+    // reddit: toggling it changed nothing — the verify-init gate is exit-IP
+    // reputation, not in-page instrumentation. Kept as a knob regardless.)
+    const pageDiagnostics = process.env.WELES_PAGE_DIAGNOSTICS === '0'
+      ? false
+      : (opts.pageDiagnostics ?? (label !== 'linkedin_register'));
     const bOpts: AsyncNewBrowserOptions = { os: persona.os, browser: persona.browser, headless: opts.headless ?? false, recordVideo: opts.record ?? (process.env.WELES_DISABLE_RECORDING !== '1'), locale: opts.locale, persona, proxy, pageDiagnostics, userDataDir: opts.userDataDir ?? process.env.WELES_USER_DATA_DIR };
     const cp = bOpts.browser === 'chromium'
       ? resolveChromiumPathOverride(opts.chromiumPath)
