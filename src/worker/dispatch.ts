@@ -336,6 +336,9 @@ export function paramsToEnv(
   // Paid ads / app store release parameters.
   for (const [k, ek] of [
     ['ad_account_id', 'AD_ACCOUNT_ID'],
+    ['business_id', 'BUSINESS_ID'],
+    ['ad_account_name', 'AD_ACCOUNT_NAME'],
+    ['meta_ads_company_account_id', 'META_ADS_COMPANY_ACCOUNT_ID'],
     ['ads_url', 'ADS_URL'],
     ['campaign_name', 'CAMPAIGN_NAME'],
     ['campaign_id', 'CAMPAIGN_ID'],

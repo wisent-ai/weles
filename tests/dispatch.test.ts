@@ -26,6 +26,9 @@ describe('worker trajectory dispatch', () => {
   it('maps paid ads and app store params into trajectory env', () => {
     const env = paramsToEnv({
       ad_account_id: 'act_123',
+      business_id: 'biz_456',
+      ad_account_name: 'Wisent',
+      meta_ads_company_account_id: '849988068092449',
       campaign_id: '456',
       campaign_name: 'Launch',
       campaign_objective: 'Traffic',
@@ -50,6 +53,9 @@ describe('worker trajectory dispatch', () => {
     }, 'meta_ads_campaign', 'scripts/trajectories/meta/ads_campaign.mjs');
 
     expect(env.AD_ACCOUNT_ID).toBe('act_123');
+    expect(env.BUSINESS_ID).toBe('biz_456');
+    expect(env.AD_ACCOUNT_NAME).toBe('Wisent');
+    expect(env.META_ADS_COMPANY_ACCOUNT_ID).toBe('849988068092449');
     expect(env.CAMPAIGN_ID).toBe('456');
     expect(env.CAMPAIGN_NAME).toBe('Launch');
     expect(env.CAMPAIGN_OBJECTIVE).toBe('Traffic');
