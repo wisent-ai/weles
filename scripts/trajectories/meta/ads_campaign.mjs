@@ -7,6 +7,11 @@
 //   CAMPAIGN_OBJECTIVE   optional objective label text, e.g. Traffic, Leads
 //   DAILY_BUDGET_USD     optional daily budget
 //   DESTINATION_URL      optional landing page URL
+//   DISPLAY_LINK         optional visible display link
+//   AD_NAME              optional ad name
+//   AD_SET_NAME          optional ad set name
+//   META_FACEBOOK_PAGE_NAME optional Facebook Page to select
+//   META_FACEBOOK_PAGE_ID   optional Facebook Page id to select
 //   PRIMARY_TEXT         optional ad primary text
 //   HEADLINE             optional ad headline
 //   DESCRIPTION          optional ad description
@@ -35,6 +40,11 @@ const CAMPAIGN_NAME = process.env.CAMPAIGN_NAME || `Wisent ${new Date().toISOStr
 const CAMPAIGN_OBJECTIVE = process.env.CAMPAIGN_OBJECTIVE || 'Traffic';
 const DAILY_BUDGET_USD = process.env.DAILY_BUDGET_USD;
 const DESTINATION_URL = process.env.DESTINATION_URL || process.env.FINAL_URL;
+const DISPLAY_LINK = process.env.DISPLAY_LINK;
+const AD_SET_NAME = process.env.AD_SET_NAME || `${CAMPAIGN_NAME} ad set`;
+const AD_NAME = process.env.AD_NAME || `${CAMPAIGN_NAME} ad`;
+const FACEBOOK_PAGE_NAME = process.env.META_FACEBOOK_PAGE_NAME || process.env.FACEBOOK_PAGE_NAME;
+const FACEBOOK_PAGE_ID = process.env.META_FACEBOOK_PAGE_ID || process.env.FACEBOOK_PAGE_ID;
 const PRIMARY_TEXT = process.env.PRIMARY_TEXT;
 const HEADLINE = process.env.HEADLINE;
 const DESCRIPTION = process.env.DESCRIPTION;
@@ -167,6 +177,146 @@ async function fillAny(s, selectors, value, label) {
   }
   console.log(`[meta-ads] WARN: field not found: ${label}`);
   return false;
+}
+
+async function fillAnyReliable(s, selectors, value, label) {
+  if (!value) return false;
+  for (const sel of selectors) {
+    const loc = s.page.locator(sel).first();
+    if (!await withTimeout(loc.count(), 1500, 0).catch(() => 0)) continue;
+    await loc.scrollIntoViewIfNeeded().catch(() => {});
+    if (!await withTimeout(loc.isVisible(), 1500, false).catch(() => false)) continue;
+    const before = await loc.evaluate((el) => el.value ?? el.innerText ?? el.textContent ?? '').catch(() => '');
+    if (String(before).trim() === String(value).trim()) {
+      console.log(`[meta-ads] already filled: ${label}`);
+      return true;
+    }
+    await loc.fill(String(value), { timeout: 5000 }).catch(() => {});
+    await humanIdlePause('short');
+    const directFirst = await loc.evaluate((el) => el.value ?? el.innerText ?? el.textContent ?? '').catch(() => '');
+    if (String(directFirst).trim() === String(value).trim()) {
+      console.log(`[meta-ads] filled directly: ${label}`);
+      return true;
+    }
+    await loc.evaluate((el, v) => {
+      const proto = el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+      const desc = Object.getOwnPropertyDescriptor(proto, 'value');
+      if (desc?.set) desc.set.call(el, v);
+      else el.value = v;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    }, String(value)).catch(() => {});
+    await humanIdlePause('short');
+    const nativeFirst = await loc.evaluate((el) => el.value ?? el.innerText ?? el.textContent ?? '').catch(() => '');
+    if (String(nativeFirst).trim() === String(value).trim()) {
+      console.log(`[meta-ads] set native value: ${label}`);
+      return true;
+    }
+    const filled = await withTimeout(humanFill(s.page, loc, String(value)), 8000, false).catch(() => false);
+    await humanIdlePause('short');
+    const actual = await loc.evaluate((el) => el.value ?? el.innerText ?? el.textContent ?? '').catch(() => '');
+    if (filled && String(actual).trim() === String(value).trim()) {
+      console.log(`[meta-ads] filled: ${label}`);
+      return true;
+    }
+    console.log(`[meta-ads] WARN: field value mismatch: ${label} expected=${JSON.stringify(String(value))} actual=${JSON.stringify(String(actual || nativeFirst || directFirst).slice(0, 120))}`);
+    const box = await loc.boundingBox().catch(() => null);
+    if (!box) continue;
+    await s.page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+    await s.page.keyboard.press(process.platform === 'darwin' ? 'Meta+A' : 'Control+A').catch(() => {});
+    await s.page.keyboard.press('Backspace').catch(() => {});
+    await s.page.keyboard.type(String(value), { delay: 45 });
+    await humanIdlePause('short');
+    const typed = await loc.evaluate((el) => el.value ?? el.innerText ?? el.textContent ?? '').catch(() => '');
+    if (String(typed).trim() === String(value).trim()) {
+      console.log(`[meta-ads] typed: ${label}`);
+      return true;
+    }
+    console.log(`[meta-ads] WARN: field value mismatch: ${label} expected=${JSON.stringify(String(value))} actual=${JSON.stringify(String(typed).slice(0, 120))}`);
+  }
+  console.log(`[meta-ads] WARN: field not found: ${label}`);
+  return false;
+}
+
+async function clickNext(s, timeoutMs = 6000) {
+  return await clickAny(s, [
+    'div[role="button"]:has-text("Dalej")',
+    'button:has-text("Dalej")',
+    'div[role="button"]:has-text("Next")',
+    'button:has-text("Next")',
+  ], 'Next/Dalej', timeoutMs);
+}
+
+async function selectFacebookPage(s) {
+  if (!FACEBOOK_PAGE_NAME && !FACEBOOK_PAGE_ID) return false;
+  const opened = await clickAny(s, [
+    'div[role="combobox"]:has-text("Wybierz stronę")',
+    'div[role="combobox"]:has-text("Select a Page")',
+    'div[role="combobox"]:has-text("Select Page")',
+  ], 'Facebook Page selector', 5000);
+  if (!opened) {
+    const text = await pageText(s);
+    if (FACEBOOK_PAGE_NAME && text.includes(FACEBOOK_PAGE_NAME)) {
+      console.log(`[meta-ads] Facebook Page already selected: ${FACEBOOK_PAGE_NAME}`);
+      return true;
+    }
+    return false;
+  }
+  await s.wait(2);
+  const target = await s.page.evaluate(({ name, id }) => {
+    const norm = (s) => String(s || '').replace(/\s+/g, ' ').trim();
+    const els = Array.from(document.querySelectorAll('[role="menuitem"], [role="option"], div, span'));
+    for (const el of els) {
+      const text = norm(el.innerText || el.textContent || '');
+      if (!text) continue;
+      if (id && text.includes(id)) {
+        const r = el.getBoundingClientRect();
+        if (r.width && r.height) return { x: r.left + r.width / 2, y: r.top + Math.min(r.height / 2, 18), text };
+      }
+      if (name && (text === name || text.startsWith(`${name} Identyfikator:`) || text.startsWith(`${name} Identifier:`))) {
+        const r = el.getBoundingClientRect();
+        if (r.width && r.height) return { x: r.left + r.width / 2, y: r.top + Math.min(r.height / 2, 18), text };
+      }
+    }
+    return null;
+  }, { name: FACEBOOK_PAGE_NAME, id: FACEBOOK_PAGE_ID }).catch(() => null);
+  if (!target) {
+    console.log(`[meta-ads] WARN: Facebook Page option not found: name=${FACEBOOK_PAGE_NAME || ''} id=${FACEBOOK_PAGE_ID || ''}`);
+    return false;
+  }
+  await s.page.mouse.click(target.x, target.y);
+  console.log(`[meta-ads] selected Facebook Page: ${target.text.slice(0, 120)}`);
+  await s.wait(4);
+  return true;
+}
+
+async function verifyConfiguredDraft(s) {
+  await clickAny(s, [
+    'div[role="tab"]:has-text("Sprawdź")',
+    'div[role="tab"]:has-text("Review")',
+  ], 'Review/Sprawdź tab', 5000);
+  await s.wait(3);
+  const text = await pageText(s);
+  const checks = [
+    [CAMPAIGN_NAME, 'campaign name'],
+    [AD_SET_NAME, 'ad set name'],
+    [AD_NAME, 'ad name'],
+    [FACEBOOK_PAGE_NAME, 'Facebook Page'],
+    [DESTINATION_URL, 'destination URL'],
+  ].filter(([value]) => value);
+  const missing = checks.filter(([value]) => !text.includes(value)).map(([, label]) => label);
+  if (missing.length) {
+    console.log(`FAIL: Meta Ads draft verification missing ${missing.join(', ')}`);
+    process.exit(1);
+  }
+  if (!/Wersja robocza|Draft/i.test(text)) {
+    console.log('FAIL: Meta Ads draft verification did not find draft state');
+    process.exit(1);
+  }
+  if (!/Wszystkie zmiany zapisane|All changes saved/i.test(text)) {
+    console.log('[meta-ads] WARN: draft configured but save confirmation not visible');
+  }
+  return true;
 }
 
 async function pageText(s) {
@@ -343,7 +493,12 @@ try {
   ], 'policy modal accept', 4000);
   await s.wait(2);
 
-  let createClicked = await clickAny(s, [
+  const startingDraftUrl = s.page.url?.() ?? '';
+  let createClicked = /\/edit\/standalone/i.test(startingDraftUrl) && !!selectedCampaignId(startingDraftUrl);
+  if (createClicked) {
+    console.log(`[meta-ads] configuring existing draft campaign_id=${selectedCampaignId(startingDraftUrl)}`);
+  }
+  if (!createClicked) createClicked = await clickAny(s, [
     'div[role="toolbar"] div[role="button"]:has-text("Create")',
     'div[role="toolbar"] div[role="button"]:has-text("Utwórz")',
     'div[role="toolbar"] button:has-text("Create")',
@@ -368,72 +523,94 @@ try {
     await s.wait(4);
   }
 
-  let objectiveClicked = false;
-  for (const label of objectiveLabels) {
-    if (await clickAny(s, [
-      `div[role="radio"]:has-text("${label}")`,
-      `label:has-text("${label}")`,
-      `div[role="button"]:has-text("${label}")`,
-      `div[role="dialog"] div:has-text("${label}")`,
-      `text="${label}"`,
-    ], `objective ${label}`, 3000)) {
-      objectiveClicked = true;
-      break;
+  if (!/\/edit\/standalone/i.test(s.page.url?.() ?? '')) {
+    let objectiveClicked = false;
+    for (const label of objectiveLabels) {
+      if (await clickAny(s, [
+        `div[role="radio"]:has-text("${label}")`,
+        `label:has-text("${label}")`,
+        `div[role="button"]:has-text("${label}")`,
+        `div[role="dialog"] div:has-text("${label}")`,
+        `text="${label}"`,
+      ], `objective ${label}`, 3000)) {
+        objectiveClicked = true;
+        break;
+      }
+      if (await clickVisibleTextInArea(s, new RegExp(`^${label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'), `objective ${label}`, {
+        minX: 250,
+        maxX: 700,
+        minY: 260,
+        maxY: 650,
+        minW: 20,
+        minH: 12,
+      }, 2000)) {
+        objectiveClicked = true;
+        break;
+      }
     }
-    if (await clickVisibleTextInArea(s, new RegExp(`^${label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'), `objective ${label}`, {
-      minX: 250,
-      maxX: 700,
-      minY: 260,
-      maxY: 650,
-      minW: 20,
-      minH: 12,
-    }, 2000)) {
+    if (!objectiveClicked) {
+      const viewport = s.page.viewportSize?.() || { width: 1280, height: 900 };
+      await clickPoint(s, Math.round(viewport.width * 0.36), 455, 'objective Traffic/Ruch fallback');
+      await s.wait(1);
       objectiveClicked = true;
-      break;
     }
+    if (!objectiveClicked) console.log(`[meta-ads] WARN: objective not selected: ${objectiveLabels.join('/')}`);
+    await clickAny(s, ['div[role="button"]:has-text("Continue")', 'button:has-text("Continue")'], 'Continue', 5000);
+    const continued = await clickAny(s, ['div[role="button"]:has-text("Kontynuuj")', 'button:has-text("Kontynuuj")'], 'Kontynuuj', 5000);
+    if (!continued) {
+      const viewport = s.page.viewportSize?.() || { width: 1280, height: 900 };
+      await clickPoint(s, Math.round(viewport.width * 0.68), 785, 'Kontynuuj fallback');
+      await s.wait(4);
+    }
+    await maybeContinueCampaignConfiguration(s);
   }
-  if (!objectiveClicked) {
-    const viewport = s.page.viewportSize?.() || { width: 1280, height: 900 };
-    await clickPoint(s, Math.round(viewport.width * 0.36), 455, 'objective Traffic/Ruch fallback');
-    await s.wait(1);
-    objectiveClicked = true;
-  }
-  if (!objectiveClicked) console.log(`[meta-ads] WARN: objective not selected: ${objectiveLabels.join('/')}`);
-  await clickAny(s, ['div[role="button"]:has-text("Continue")', 'button:has-text("Continue")'], 'Continue', 5000);
-  const continued = await clickAny(s, ['div[role="button"]:has-text("Kontynuuj")', 'button:has-text("Kontynuuj")'], 'Kontynuuj', 5000);
-  if (!continued) {
-    const viewport = s.page.viewportSize?.() || { width: 1280, height: 900 };
-    await clickPoint(s, Math.round(viewport.width * 0.68), 785, 'Kontynuuj fallback');
-    await s.wait(4);
-  }
-  await maybeContinueCampaignConfiguration(s);
 
   let filledCount = 0;
-  if (await fillAny(s, [
+  if (await fillAnyReliable(s, [
     'input[aria-label*="Campaign name" i]',
     'input[placeholder*="Campaign name" i]',
+    'input[placeholder="Wprowadź tutaj nazwę kampanii..."]',
     'label:has-text("Campaign name") input',
   ], CAMPAIGN_NAME, 'campaign name')) filledCount += 1;
+  if (await clickNext(s, 3000)) await s.wait(3);
+  if (await fillAnyReliable(s, [
+    'input[aria-label*="Ad set name" i]',
+    'input[placeholder*="Ad set name" i]',
+    'input[placeholder="Wprowadź tutaj nazwę zestawu reklam..."]',
+  ], AD_SET_NAME, 'ad set name')) filledCount += 1;
   if (await fillAny(s, [
     'input[aria-label*="Budget" i]',
     'input[placeholder*="Budget" i]',
     'label:has-text("Daily budget") input',
   ], DAILY_BUDGET_USD, 'daily budget')) filledCount += 1;
-  if (await fillAny(s, [
+  if (await clickNext(s, 3000)) await s.wait(3);
+  if (await fillAnyReliable(s, [
+    'input[aria-label*="Ad name" i]',
+    'input[placeholder*="Ad name" i]',
+    'input[placeholder="Wprowadź tutaj nazwę reklamy..."]',
+  ], AD_NAME, 'ad name')) filledCount += 1;
+  if (await selectFacebookPage(s)) filledCount += 1;
+  if (await fillAnyReliable(s, [
     'input[aria-label*="Website URL" i]',
     'input[placeholder*="Website URL" i]',
+    'input[placeholder="http://www.przyklad.com/strona"]',
     'input[aria-label*="URL" i]',
   ], DESTINATION_URL, 'destination URL')) filledCount += 1;
-  if (await fillAny(s, [
+  if (await fillAnyReliable(s, [
+    'input[aria-label*="Display link" i]',
+    'input[placeholder*="Display link" i]',
+    'input[placeholder="Wprowadź link, który ma być wyświetlany w reklamie"]',
+  ], DISPLAY_LINK, 'display link')) filledCount += 1;
+  if (await fillAnyReliable(s, [
     'textarea[aria-label*="Primary text" i]',
     'div[contenteditable="true"][aria-label*="Primary text" i]',
     'textarea',
   ], PRIMARY_TEXT, 'primary text')) filledCount += 1;
-  if (await fillAny(s, [
+  if (await fillAnyReliable(s, [
     'input[aria-label*="Headline" i]',
     'textarea[aria-label*="Headline" i]',
   ], HEADLINE, 'headline')) filledCount += 1;
-  if (await fillAny(s, [
+  if (await fillAnyReliable(s, [
     'input[aria-label*="Description" i]',
     'textarea[aria-label*="Description" i]',
   ], DESCRIPTION, 'description')) filledCount += 1;
@@ -457,6 +634,7 @@ try {
   }
 
   if (!SUBMIT) {
+    await verifyConfiguredDraft(s);
     console.log(`PASS: staged Meta ads campaign draft "${CAMPAIGN_NAME}" (SUBMIT=0, filled=${filledCount})`);
     process.exit(0);
   }

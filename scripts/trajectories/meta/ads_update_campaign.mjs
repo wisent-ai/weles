@@ -2,6 +2,7 @@
 //
 // Env:
 //   CAMPAIGN_ID         required unless META_ADS_CLI_ARGS is set
+//   ADS_URL             optional existing Ads Manager draft/editor URL for browser fallback
 //   CAMPAIGN_NAME       optional new name
 //   STATUS              optional PAUSED | ACTIVE | ARCHIVED | DELETED
 //   DAILY_BUDGET_USD    optional budget value if supported by installed CLI
@@ -10,8 +11,11 @@
 //   SUBMIT              must be "1" to set ACTIVE. Other updates are allowed.
 
 import { spawn } from 'node:child_process';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const CAMPAIGN_ID = process.env.CAMPAIGN_ID;
+const ADS_URL = process.env.ADS_URL;
 const CAMPAIGN_NAME = process.env.CAMPAIGN_NAME;
 const STATUS = process.env.STATUS;
 const DAILY_BUDGET_USD = process.env.DAILY_BUDGET_USD;
@@ -20,8 +24,8 @@ const META_ADS_CLI_ARGS = process.env.META_ADS_CLI_ARGS;
 const SUBMIT = process.env.SUBMIT === '1';
 const META_CLI_BIN = process.env.META_CLI_BIN || 'meta';
 
-if (!META_ADS_CLI_ARGS && !CAMPAIGN_ID) {
-  console.log('FAIL: CAMPAIGN_ID or META_ADS_CLI_ARGS required');
+if (!META_ADS_CLI_ARGS && !CAMPAIGN_ID && !ADS_URL) {
+  console.log('FAIL: CAMPAIGN_ID, ADS_URL, or META_ADS_CLI_ARGS required');
   process.exit(1);
 }
 if (STATUS && /^active$/i.test(STATUS) && !SUBMIT) {
@@ -61,8 +65,30 @@ function runMeta(args) {
   });
 }
 
-const auth = await runMeta(['auth', 'status']);
+function runBrowserFallback() {
+  if (!ADS_URL) return false;
+  console.log('[meta-ads-update] Meta CLI unavailable; using browser fallback via ads_campaign.mjs');
+  const here = dirname(fileURLToPath(import.meta.url));
+  const script = resolve(here, 'ads_campaign.mjs');
+  const child = spawn(process.execPath, [script], {
+    stdio: 'inherit',
+    env: {
+      ...process.env,
+      ADS_URL,
+      SUBMIT: SUBMIT ? '1' : '0',
+    },
+  });
+  child.on('close', (code) => process.exit(code ?? 1));
+  child.on('error', (e) => {
+    console.log(`FAIL: browser fallback failed to launch (${e.message})`);
+    process.exit(1);
+  });
+  return true;
+}
+
+const auth = await runMeta(['auth', 'status']).catch((e) => ({ code: 127, out: '', err: e.message || String(e) }));
 if (auth.code !== 0) {
+  if (runBrowserFallback()) await new Promise(() => {});
   console.log('FAIL: Meta Ads CLI is not installed or not authenticated');
   if (auth.err || auth.out) console.log((auth.err || auth.out).slice(0, 500));
   process.exit(2);
