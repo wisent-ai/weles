@@ -38,7 +38,7 @@ const campaignCreate = () => compactObject({
   bid_strategy: process.env.CAMPAIGN_BID_STRATEGY || (RESOURCE === 'campaign' || process.env.CAMPAIGN_DAILY_BUDGET_USD || process.env.CAMPAIGN_LIFETIME_BUDGET_USD ? process.env.BID_STRATEGY : undefined),
   daily_budget: microsFromUsd(process.env.CAMPAIGN_DAILY_BUDGET_USD || (RESOURCE === 'campaign' ? process.env.DAILY_BUDGET_USD : undefined)),
   lifetime_budget: microsFromUsd(process.env.CAMPAIGN_LIFETIME_BUDGET_USD || (RESOURCE === 'campaign' ? process.env.LIFETIME_BUDGET_USD : undefined)),
-  is_adset_budget_sharing_enabled: process.env.IS_ADSET_BUDGET_SHARING_ENABLED || (RESOURCE === 'stack' && !process.env.CAMPAIGN_DAILY_BUDGET_USD && !process.env.CAMPAIGN_LIFETIME_BUDGET_USD ? false : undefined),
+  is_adset_budget_sharing_enabled: process.env.IS_ADSET_BUDGET_SHARING_ENABLED || (!process.env.CAMPAIGN_DAILY_BUDGET_USD && !process.env.CAMPAIGN_LIFETIME_BUDGET_USD ? false : undefined),
 });
 
 const targeting = () => parseJsonEnv('TARGETING_JSON', compactObject({
@@ -73,7 +73,7 @@ const adSetCreate = (campaignId = CAMPAIGN_ID) => compactObject({
   daily_budget: microsFromUsd(process.env.AD_SET_DAILY_BUDGET_USD || process.env.DAILY_BUDGET_USD),
   lifetime_budget: microsFromUsd(process.env.AD_SET_LIFETIME_BUDGET_USD || process.env.LIFETIME_BUDGET_USD),
   bid_amount: microsFromUsd(process.env.BID_AMOUNT_USD),
-  bid_strategy: process.env.BID_STRATEGY,
+  bid_strategy: process.env.BID_STRATEGY || 'LOWEST_COST_WITHOUT_CAP',
   billing_event: process.env.BILLING_EVENT || 'IMPRESSIONS',
   optimization_goal: process.env.OPTIMIZATION_GOAL || 'LINK_CLICKS',
   destination_type: process.env.CAMPAIGN_DESTINATION || process.env.DESTINATION_TYPE,
@@ -96,7 +96,7 @@ const objectStorySpec = () => parseJsonEnv('OBJECT_STORY_SPEC_JSON', compactObje
       value: compactObject({
         link: process.env.DESTINATION_URL || process.env.FINAL_URL,
         app_link: process.env.APP_LINK,
-        page: process.env.PAGE_ID || process.env.FACEBOOK_PAGE_ID || process.env.META_FACEBOOK_PAGE_ID,
+        page: process.env.CALL_TO_ACTION_PAGE_ID,
         whatsapp_number: process.env.WHATSAPP_NUMBER,
       }),
     } : undefined,
