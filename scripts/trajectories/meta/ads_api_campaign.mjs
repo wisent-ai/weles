@@ -35,9 +35,10 @@ const campaignCreate = () => compactObject({
   status,
   special_ad_categories: specialAdCategories,
   buying_type: process.env.BUYING_TYPE,
-  bid_strategy: process.env.BID_STRATEGY,
-  daily_budget: microsFromUsd(process.env.DAILY_BUDGET_USD),
-  lifetime_budget: microsFromUsd(process.env.LIFETIME_BUDGET_USD),
+  bid_strategy: process.env.CAMPAIGN_BID_STRATEGY || (RESOURCE === 'campaign' || process.env.CAMPAIGN_DAILY_BUDGET_USD || process.env.CAMPAIGN_LIFETIME_BUDGET_USD ? process.env.BID_STRATEGY : undefined),
+  daily_budget: microsFromUsd(process.env.CAMPAIGN_DAILY_BUDGET_USD || (RESOURCE === 'campaign' ? process.env.DAILY_BUDGET_USD : undefined)),
+  lifetime_budget: microsFromUsd(process.env.CAMPAIGN_LIFETIME_BUDGET_USD || (RESOURCE === 'campaign' ? process.env.LIFETIME_BUDGET_USD : undefined)),
+  is_adset_budget_sharing_enabled: process.env.IS_ADSET_BUDGET_SHARING_ENABLED || (RESOURCE === 'stack' && !process.env.CAMPAIGN_DAILY_BUDGET_USD && !process.env.CAMPAIGN_LIFETIME_BUDGET_USD ? false : undefined),
 });
 
 const targeting = () => parseJsonEnv('TARGETING_JSON', compactObject({
@@ -57,7 +58,7 @@ const targeting = () => parseJsonEnv('TARGETING_JSON', compactObject({
 const promotedObject = () => parseJsonEnv('PROMOTED_OBJECT_JSON', compactObject({
   application_id: process.env.APP_ID,
   object_store_url: process.env.OBJECT_STORE_URL,
-  page_id: process.env.PAGE_ID || process.env.FACEBOOK_PAGE_ID || process.env.META_FACEBOOK_PAGE_ID,
+  page_id: process.env.PROMOTED_PAGE_ID || (boolEnv('PROMOTED_OBJECT_USES_PAGE', false) ? (process.env.PAGE_ID || process.env.FACEBOOK_PAGE_ID || process.env.META_FACEBOOK_PAGE_ID) : undefined),
   pixel_id: process.env.PIXEL_ID,
   custom_event_type: process.env.APP_EVENT || process.env.CUSTOM_EVENT_TYPE,
   product_catalog_id: process.env.CATALOG_ID,
