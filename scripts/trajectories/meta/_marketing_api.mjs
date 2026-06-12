@@ -41,7 +41,9 @@ export function microsFromUsd(value) {
   if (value == null || value === '') return undefined;
   const n = Number(value);
   if (!Number.isFinite(n) || n < 0) throw new Error(`invalid USD amount: ${value}`);
-  return Math.round(n * 1_000_000);
+  // Meta Marketing API monetary fields use the account currency's minor unit
+  // for USD ad accounts, not micro-units.
+  return Math.round(n * 100);
 }
 
 export function splitList(value, sep = ',') {
@@ -59,7 +61,11 @@ export function parseJsonEnv(name, fallback = undefined) {
 }
 
 export function compactObject(obj) {
-  return Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined && v !== null && v !== ''));
+  return Object.fromEntries(Object.entries(obj).filter(([, v]) => {
+    if (v === undefined || v === null || v === '') return false;
+    if (v && typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length === 0) return false;
+    return true;
+  }));
 }
 
 export function stringifyGraphValue(v) {
