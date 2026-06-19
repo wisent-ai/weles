@@ -22,6 +22,7 @@
 //   AD_ID                       optional ad id for ad updates
 //   AD_GROUP_AD_RESOURCE_NAME   optional full customers/<id>/adGroupAds/<ad_group>~<ad>
 //   AD_STATUS                   optional ENABLED | PAUSED | REMOVED
+//   VALIDATE_ONLY               optional "1" to validate request shape without mutating
 //   SUBMIT                      must be "1" to set ENABLED.
 
 import { customerId, googleAdsPost, microsFromUsd } from './_api.mjs';
@@ -34,6 +35,7 @@ const status = process.env.STATUS?.toUpperCase();
 const adGroupStatus = process.env.AD_GROUP_STATUS?.toUpperCase();
 const adStatus = process.env.AD_STATUS?.toUpperCase();
 const submit = process.env.SUBMIT === '1';
+const validateOnly = process.env.VALIDATE_ONLY === '1';
 const updateMask = process.env.UPDATE_MASK;
 
 const hasBudgetTarget = !!process.env.DAILY_BUDGET_USD;
@@ -64,6 +66,7 @@ try {
       const body = {
         operations: [{ update: campaignUpdate, updateMask: updateMask || masks.join(',') }],
         partialFailure: false,
+        validateOnly,
       };
       console.log(`[google-ads-update] campaign ${campaignResourceName} mask=${body.operations[0].updateMask}`);
       const json = await googleAdsPost(`/customers/${cid}/campaigns:mutate`, body);
@@ -88,6 +91,7 @@ try {
         updateMask: 'amount_micros',
       }],
       partialFailure: false,
+      validateOnly,
     };
     console.log(`[google-ads-update] budget ${budgetResourceName} amount=${process.env.DAILY_BUDGET_USD} USD`);
     const json = await googleAdsPost(`/customers/${cid}/campaignBudgets:mutate`, body);
@@ -107,6 +111,7 @@ try {
       const body = {
         operations: [{ update: adGroupUpdate, updateMask: adGroupMasks.join(',') }],
         partialFailure: false,
+        validateOnly,
       };
       console.log(`[google-ads-update] ad group ${adGroupResourceName} mask=${body.operations[0].updateMask}`);
       const json = await googleAdsPost(`/customers/${cid}/adGroups:mutate`, body);
@@ -128,6 +133,7 @@ try {
       const body = {
         operations: [{ update: { resourceName: adGroupAdResourceName, status: adStatus }, updateMask: 'status' }],
         partialFailure: false,
+        validateOnly,
       };
       console.log(`[google-ads-update] ad ${adGroupAdResourceName} status=${adStatus}`);
       const json = await googleAdsPost(`/customers/${cid}/adGroupAds:mutate`, body);
