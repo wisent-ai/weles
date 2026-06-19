@@ -8,6 +8,10 @@
 //   CAMPAIGN_OBJECTIVE     optional objective label, e.g. Website traffic
 //   DAILY_BUDGET_USD       optional daily budget
 //   FINAL_URL              optional landing page URL
+//   APP_ID                 optional mobile app id for app install campaigns
+//   PACKAGE_NAME           optional Android package name for app install campaigns
+//   APP_NAME               optional app name for app install campaigns
+//   APP_PLATFORM           optional Android | iOS
 //   HEADLINE               optional ad headline
 //   DESCRIPTION            optional ad description
 //   KEYWORDS               optional comma-separated search keywords
@@ -32,7 +36,15 @@ const ADS_URL = process.env.ADS_URL;
 const CUSTOMER_ID = process.env.GOOGLE_ADS_CUSTOMER_ID;
 const CAMPAIGN_NAME = process.env.CAMPAIGN_NAME || `Wisent ${new Date().toISOString().slice(0, 19)}`;
 const CAMPAIGN_TYPE = process.env.CAMPAIGN_TYPE || 'Search';
-const CAMPAIGN_OBJECTIVE = process.env.CAMPAIGN_OBJECTIVE || 'Website traffic';
+const APP_ID = process.env.APP_ID;
+const PACKAGE_NAME = process.env.PACKAGE_NAME;
+const APP_NAME = process.env.APP_NAME;
+const APP_PLATFORM = process.env.APP_PLATFORM || process.env.PLATFORM;
+const IS_APP_INSTALL = /app/i.test(process.env.CAMPAIGN_OBJECTIVE || '')
+  || /app/i.test(process.env.CAMPAIGN_TYPE || '')
+  || !!(APP_ID || PACKAGE_NAME || APP_NAME);
+const CAMPAIGN_OBJECTIVE = process.env.CAMPAIGN_OBJECTIVE || (IS_APP_INSTALL ? 'App promotion' : 'Website traffic');
+const EFFECTIVE_CAMPAIGN_TYPE = process.env.CAMPAIGN_TYPE || (IS_APP_INSTALL ? 'App' : 'Search');
 const DAILY_BUDGET_USD = process.env.DAILY_BUDGET_USD;
 const FINAL_URL = process.env.FINAL_URL || process.env.DESTINATION_URL;
 const HEADLINE = process.env.HEADLINE;
@@ -42,6 +54,7 @@ const LOCATIONS = process.env.LOCATIONS;
 const SUBMIT = process.env.SUBMIT === '1';
 const WAIT_FOR_LOGIN = process.env.WAIT_FOR_LOGIN === '1';
 const LOGIN_WAIT_MS = Number(process.env.LOGIN_WAIT_MS || 10 * 60 * 1000);
+const NAV_TIMEOUT_MS = Number(process.env.NAV_TIMEOUT_MS || 60 * 1000);
 const USER_DATA_DIR = process.env.WELES_USER_DATA_DIR || process.env.ADS_PROFILE_DIR || join(homedir(), '.weles', 'browser_profiles', 'google_ads');
 mkdirSync(USER_DATA_DIR, { recursive: true });
 process.env.WELES_VIEWPORT ??= '1280x900';
@@ -71,8 +84,15 @@ async function clickAny(s, selectors, label, timeoutMs = 5000) {
       if (await withTimeout(loc.isVisible(), 1500, false).catch(() => false)) {
         const clicked = await withTimeout(humanClickLocator(s.page, loc), 5000, false).catch(() => false);
         if (!clicked) {
-          console.log(`[google-ads] WARN: click timed out: ${label} (${sel})`);
-          continue;
+          const jsClicked = await loc.evaluate((el) => {
+            const clickable = el.closest('button,[role="button"],material-button,material-list-item,material-radio,div[role="radio"]') || el;
+            clickable.click();
+            return true;
+          }).catch(() => false);
+          if (!jsClicked) {
+            console.log(`[google-ads] WARN: click timed out: ${label} (${sel})`);
+            continue;
+          }
         }
         console.log(`[google-ads] clicked: ${label}`);
         await humanIdlePause('short');
@@ -82,6 +102,33 @@ async function clickAny(s, selectors, label, timeoutMs = 5000) {
     await s.wait(1);
   }
   return false;
+}
+
+async function clickText(s, text, label = text, timeoutMs = 5000) {
+  const escaped = String(text).replaceAll('"', '\\"');
+  const clicked = await clickAny(s, [
+    `[role="radio"]:has-text("${escaped}")`,
+    `material-radio:has-text("${escaped}")`,
+    `material-list-item:has-text("${escaped}")`,
+  ], label, timeoutMs);
+  if (clicked) return true;
+  const jsClicked = await s.page.evaluate((needle) => {
+    const norm = (value) => String(value || '').replace(/\s+/g, ' ').trim();
+    const candidates = Array.from(document.querySelectorAll('button,[role="button"],[role="radio"],material-radio,material-list-item,div'))
+      .map((el) => ({ el, text: norm(el.innerText || el.textContent) }))
+      .filter(({ el, text }) => text.includes(needle) && !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length));
+    candidates.sort((a, b) => a.text.length - b.text.length);
+    const target = candidates[0]?.el;
+    if (!target) return false;
+    const clickable = target.closest('button,[role="button"],[role="radio"],material-radio,material-list-item') || target;
+    clickable.click();
+    return true;
+  }, text).catch(() => false);
+  if (jsClicked) {
+    console.log(`[google-ads] clicked: ${label}`);
+    await humanIdlePause('short');
+  }
+  return jsClicked;
 }
 
 async function fillAny(s, selectors, value, label) {
@@ -101,6 +148,34 @@ async function fillAny(s, selectors, value, label) {
   }
   console.log(`[google-ads] WARN: field not found: ${label}`);
   return false;
+}
+
+async function fillTextNearLabel(s, labelPattern, value, label) {
+  if (!value) return false;
+  const filled = await s.page.evaluate(({ pattern, value }) => {
+    const re = new RegExp(pattern, 'i');
+    const norm = (text) => String(text || '').replace(/\s+/g, ' ').trim();
+    const roots = Array.from(document.querySelectorAll('material-input, material-textarea, label, div, section, form'))
+      .filter((el) => re.test(norm(el.innerText || el.textContent || el.getAttribute('aria-label'))));
+    for (const root of roots) {
+      const input = root.querySelector?.('input,textarea,[contenteditable="true"]');
+      if (!input) continue;
+      input.focus();
+      if (input.isContentEditable) input.textContent = value;
+      else input.value = value;
+      input.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: value }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      return true;
+    }
+    return false;
+  }, { pattern: labelPattern.source, value: String(value) }).catch(() => false);
+  if (filled) {
+    console.log(`[google-ads] filled: ${label}`);
+    await humanIdlePause('short');
+  } else {
+    console.log(`[google-ads] WARN: field not found: ${label}`);
+  }
+  return filled;
 }
 
 async function typeListIntoFirstVisible(s, selectors, csv, label) {
@@ -126,6 +201,25 @@ async function typeListIntoFirstVisible(s, selectors, csv, label) {
 
 async function pageText(s) {
   return await s.page.evaluate(() => document.body?.innerText || '').catch(() => '');
+}
+
+async function waitForPageText(s, pattern, timeoutMs = 15000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const text = await pageText(s);
+    if (pattern.test(text)) return true;
+    await s.wait(1);
+  }
+  return false;
+}
+
+async function gotoWithTimeout(s, url, label) {
+  const ok = await withTimeout(s.goto(url), NAV_TIMEOUT_MS, false).catch(() => false);
+  if (!ok) {
+    console.log(`[google-ads] WARN: navigation timed out: ${label}`);
+    return false;
+  }
+  return true;
 }
 
 function withTimeout(promise, timeoutMs, fallback) {
@@ -168,7 +262,7 @@ async function ensureCustomer(s) {
 
   const switchUrl = `https://ads.google.com/aw/campaigns?ocid=${encodeURIComponent(target)}`;
   console.log(`[google-ads] switching customer -> ${target}`);
-  await s.goto(switchUrl);
+  await gotoWithTimeout(s, switchUrl, `customer ${target}`);
   await s.wait(8);
   const after = currentCustomerId(s.page.url?.() ?? '');
   console.log(`[google-ads] customer after switch=${after || 'unknown'}`);
@@ -186,7 +280,7 @@ console.log(`[google-ads] profile=${USER_DATA_DIR} viewport=${process.env.WELES_
 const s = await WSession.start({ label: 'google_ads_campaign', browser: process.env.BROWSER || 'chromium', proxy: process.env.PROXY_URL || session.proxyUrl || 'direct', persona: profilePersona, userDataDir: USER_DATA_DIR });
 try {
   await bringBrowserToFront(s);
-  await s.goto(baseUrl);
+  await gotoWithTimeout(s, baseUrl, 'campaign builder');
   await s.wait(10);
   let url = s.page.url?.() ?? '';
   if (isLoginUrl(url)) {
@@ -206,33 +300,45 @@ try {
       console.log(`FAIL: manual login did not complete (${url})`);
       process.exit(2);
     }
-    await s.goto(baseUrl);
+    await gotoWithTimeout(s, baseUrl, 'campaign builder after login');
     await s.wait(8);
   }
 
   await ensureCustomer(s);
 
-  const newCampaignClicked = await clickAny(s, [
+  const newCampaignClicked = /\/campaigns\/new/i.test(s.page.url?.() ?? '') || await clickAny(s, [
     'button:has-text("New campaign")',
     'material-button:has-text("New campaign")',
     '[aria-label*="New campaign" i]',
   ], 'New campaign', 12000);
-  await clickAny(s, [
-    `div[role="radio"]:has-text("${CAMPAIGN_OBJECTIVE}")`,
-    `button:has-text("${CAMPAIGN_OBJECTIVE}")`,
-    `text="${CAMPAIGN_OBJECTIVE}"`,
-  ], `objective ${CAMPAIGN_OBJECTIVE}`, 8000);
-  await clickAny(s, [
-    `div[role="radio"]:has-text("${CAMPAIGN_TYPE}")`,
-    `button:has-text("${CAMPAIGN_TYPE}")`,
-    `text="${CAMPAIGN_TYPE}"`,
-  ], `campaign type ${CAMPAIGN_TYPE}`, 8000);
+  await clickText(s, CAMPAIGN_OBJECTIVE, `objective ${CAMPAIGN_OBJECTIVE}`, 8000);
+  await waitForPageText(s, /Select a campaign type|Drive website traffic from Google Search|Performance Max|App installs|App engagement|App promotion/i, 15000);
+  if (EFFECTIVE_CAMPAIGN_TYPE && !/app$/i.test(EFFECTIVE_CAMPAIGN_TYPE)) {
+    await clickText(s, EFFECTIVE_CAMPAIGN_TYPE, `campaign type ${EFFECTIVE_CAMPAIGN_TYPE}`, 8000);
+  }
+  if (IS_APP_INSTALL) {
+    await clickText(s, process.env.APP_CAMPAIGN_SUBTYPE || 'App installs', `app campaign subtype ${process.env.APP_CAMPAIGN_SUBTYPE || 'App installs'}`, 5000);
+    if (APP_PLATFORM) await clickText(s, APP_PLATFORM, `app platform ${APP_PLATFORM}`, 5000);
+  }
   await clickAny(s, ['button:has-text("Continue")', 'material-button:has-text("Continue")'], 'Continue', 6000);
+  await s.wait(10);
 
   let filledCount = 0;
+  if (IS_APP_INSTALL) {
+    if (await fillAny(s, [
+      'input[aria-label*="app" i]',
+      'input[placeholder*="app" i]',
+      'input[aria-label*="package" i]',
+      'input[placeholder*="package" i]',
+    ], APP_NAME || PACKAGE_NAME || APP_ID, 'app')) filledCount += 1;
+    else if (await fillTextNearLabel(s, /app|package|Google Play|iOS|Android/, APP_NAME || PACKAGE_NAME || APP_ID, 'app')) filledCount += 1;
+  }
   if (await fillAny(s, [
     'input[aria-label*="Campaign name" i]',
     'input[placeholder*="Campaign name" i]',
+    'input[name*="campaign" i]',
+    'material-input:has-text("Campaign name") input',
+    'div:has-text("Campaign name") input',
     'label:has-text("Campaign name") input',
   ], CAMPAIGN_NAME, 'campaign name')) filledCount += 1;
   if (await fillAny(s, [
@@ -242,8 +348,14 @@ try {
   ], DAILY_BUDGET_USD, 'daily budget')) filledCount += 1;
   if (await fillAny(s, [
     'input[aria-label*="Final URL" i]',
+    'input[aria-label*="Website URL" i]',
     'input[aria-label*="Website" i]',
     'input[placeholder*="URL" i]',
+    'input[type="url"]',
+    'material-input:has-text("Final URL") input',
+    'material-input:has-text("Website URL") input',
+    'div:has-text("Final URL") input',
+    'div:has-text("Website URL") input',
   ], FINAL_URL, 'final URL')) filledCount += 1;
   if (await typeListIntoFirstVisible(s, [
     'input[aria-label*="location" i]',

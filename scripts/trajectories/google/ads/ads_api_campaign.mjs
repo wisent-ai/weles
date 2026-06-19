@@ -17,7 +17,12 @@
 //   CPC_BID_USD                  optional ad group CPC bid
 //   SUBMIT                       must be "1" to create resources. Default is validateOnly.
 
+import { spawnSync } from 'node:child_process';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { customerId, googleAdsMutate, microsFromUsd } from './_api.mjs';
+
+const here = dirname(fileURLToPath(import.meta.url));
 
 const cid = customerId();
 const submit = process.env.SUBMIT === '1';
@@ -147,6 +152,22 @@ try {
     console.log(`PASS: Google Ads Search campaign validateOnly completed (${campaignName})`);
   }
 } catch (e) {
+  if (process.env.GOOGLE_ADS_BROWSER_FALLBACK !== '0' && /Google Ads API (401|403)|PERMISSION_DENIED|UNAUTHENTICATED|Google OAuth refresh failed|invalid_grant|invalid_rapt/i.test(e.message || '')) {
+    console.log(`[google-ads-api-campaign] API unavailable; using browser campaign fallback (${String(e.message || '').slice(0, 240)})`);
+    const script = resolve(here, 'ads_campaign.mjs');
+    const r = spawnSync(process.execPath, [script], {
+      stdio: 'inherit',
+      env: {
+        ...process.env,
+        CAMPAIGN_NAME: process.env.CAMPAIGN_NAME || campaignName,
+        AD_GROUP_NAME: process.env.AD_GROUP_NAME || adGroupName,
+        AD_NAME: process.env.AD_NAME || adName,
+        FINAL_URL: finalUrl,
+        DAILY_BUDGET_USD: budgetUsd,
+      },
+    });
+    process.exit(r.status ?? 1);
+  }
   console.log('FAIL:', e.message?.slice(0, 1600));
   process.exit(1);
 }

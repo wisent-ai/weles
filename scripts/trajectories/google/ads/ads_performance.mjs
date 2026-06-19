@@ -21,6 +21,7 @@ const cid = customerId();
 const datePreset = process.env.DATE_PRESET || 'LAST_7_DAYS';
 const campaignFilter = process.env.CAMPAIGN_ID ? ` AND campaign.id = ${String(process.env.CAMPAIGN_ID).replace(/\D/g, '')}` : '';
 const browserFallback = process.env.GOOGLE_ADS_BROWSER_FALLBACK !== '0';
+const NAV_TIMEOUT_MS = Number(process.env.NAV_TIMEOUT_MS || 60 * 1000);
 const USER_DATA_DIR = process.env.WELES_USER_DATA_DIR || process.env.ADS_PROFILE_DIR || join(homedir(), '.weles', 'browser_profiles', 'google_ads');
 mkdirSync(USER_DATA_DIR, { recursive: true });
 const query = process.env.GOOGLE_ADS_QUERY || `
@@ -59,7 +60,13 @@ async function browserPerformance() {
     pageDiagnostics: process.env.WELES_PAGE_DIAGNOSTICS === '1',
   });
   try {
-    await s.goto(url);
+    const navigated = await Promise.race([
+      s.goto(url).then(() => true),
+      new Promise((resolve) => setTimeout(() => resolve(false), NAV_TIMEOUT_MS)),
+    ]).catch(() => false);
+    if (!navigated) {
+      console.log(`[google-ads-performance] WARN: navigation timed out; inspecting current page (${url})`);
+    }
     await s.wait(10);
     const current = s.page.url?.() ?? '';
     const text = await s.page.evaluate(() => document.body?.innerText || '').catch(() => '');
@@ -89,7 +96,7 @@ try {
   console.log(JSON.stringify(json, null, 2).slice(0, 20000));
   console.log('PASS: Google Ads performance read completed');
 } catch (e) {
-  if (browserFallback && /GOOGLE_ADS_ACCESS_TOKEN|required|gcloud|GOOGLE_ADS_DEVELOPER_TOKEN|401|403/i.test(e.message || '')) {
+  if (browserFallback && /GOOGLE_ADS_ACCESS_TOKEN|required|gcloud|GOOGLE_ADS_DEVELOPER_TOKEN|Google OAuth refresh failed|invalid_grant|invalid_rapt|401|403/i.test(e.message || '')) {
     console.log(`[google-ads-performance] API unavailable; using browser fallback (${String(e.message || '').slice(0, 240)})`);
     await browserPerformance();
     process.exit(0);
