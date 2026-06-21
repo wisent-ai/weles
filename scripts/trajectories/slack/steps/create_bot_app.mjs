@@ -22,12 +22,12 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 // no detail; JSON works).
 const SWIATOWID_MANIFEST = {
   display_information: {
-    name: 'Swiatowid',
+    name: 'Oko',
     description: 'Wisent macOS dock for Claude Code sessions - posts status updates.',
     background_color: '#1f1f1f',
   },
   features: {
-    bot_user: { display_name: 'Swiatowid', always_online: true },
+    bot_user: { display_name: 'Oko', always_online: true },
   },
   oauth_config: {
     scopes: {
