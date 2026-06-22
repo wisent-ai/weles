@@ -289,6 +289,7 @@ const ROUTES: Record<string, (p: string) => string | null> = {
   reset_password: (p) => p === 'github' ? 'scripts/trajectories/github/recover/reset_password.mjs' : `scripts/trajectories/${p}_reset_password.mjs`,
   balance: (p) => PROXY_PROVIDERS.has(p) ? `scripts/trajectories/${p}/balance.mjs` : `scripts/trajectories/${p}_balance.mjs`,
   topup: (p) => PROXY_PROVIDERS.has(p) ? `scripts/trajectories/${p}/topup.mjs` : null,
+  analyze_text: (p) => p === 'pangram' ? 'scripts/trajectories/pangram/analyze_text.mjs' : null,
   // On-demand ticker scrape: wisent-app inserts an account_action_logs row
   // with action='unusualwhales_scrape' or 'volumeleaders_scrape' and
   // params={ticker, page}; the worker spawns the existing scrape script.
@@ -425,6 +426,10 @@ export function paramsToEnv(
   if (typeof params.scrolls === 'number') env.SCROLL_COUNT = String(params.scrolls);
   if (typeof params.posts_to_browse === 'number') env.SCROLL_COUNT = String(params.posts_to_browse);
   if (typeof params.search_query === 'string') env.SEARCH_QUERY = params.search_query;
+  if (typeof params.pangram_text === 'string') env.PANGRAM_TEXT = params.pangram_text;
+  if (typeof params.pangram_text_file === 'string') env.PANGRAM_TEXT_FILE = params.pangram_text_file;
+  if (typeof params.text_file === 'string') env.TEXT_FILE = params.text_file;
+  if (typeof params.pangram_analyze_url === 'string') env.PANGRAM_ANALYZE_URL = params.pangram_analyze_url;
   // slack_post_message params: message body + where (default channel 'jakub').
   // Inline `message` is machine-independent (survives cross-host enqueue);
   // `message_file` is a path, only valid on the enqueuing machine.
