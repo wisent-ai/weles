@@ -1,6 +1,6 @@
 /**
  * Universal benign-activity trajectory. One file handles dwell /
- * notifications / search / profile_view across all 7 platforms.
+ * notifications / search / profile_view across supported platforms.
  *
  * Worker invokes with PLATFORM + VERB env vars; the config table below
  * picks the URL, scroll count, and dwell time per (platform, verb) pair.
@@ -20,6 +20,7 @@ import { detectLinkedInBanSignals }  from '../../../dist/platforms/linkedin/ban_
 import { detectDiscordBanSignals }   from '../../../dist/platforms/discord/ban_signals.js';
 import { detectGitHubBanSignals }    from '../../../dist/platforms/github/ban_signals.js';
 import { detectProductHuntBanSignals } from '../../../dist/platforms/producthunt/ban_signals.js';
+import { detectPangramBanSignals } from '../../../dist/platforms/pangram/ban_signals.js';
 import { humanIdlePause, humanScroll } from '../../../dist/human/mouse.js';
 import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
 
@@ -28,7 +29,18 @@ const DETECTORS = {
   instagram: detectInstagramBanSignals, tiktok: detectTikTokBanSignals,
   linkedin: detectLinkedInBanSignals, discord: detectDiscordBanSignals,
   github: detectGitHubBanSignals, producthunt: detectProductHuntBanSignals,
+  pangram: detectPangramBanSignals,
 };
+
+function baseUrl(raw, fallback) {
+  return String(raw || fallback).replace(/\/+$/, '');
+}
+
+function pangramUrl(path = '/') {
+  const base = baseUrl(process.env.PANGRAM_BASE_URL || process.env.PANGRAM_URL, 'https://www.pangram.com');
+  const suffix = path.startsWith('/') ? path : `/${path}`;
+  return `${base}${suffix}`;
+}
 
 // Per (platform, verb) config. `url` is the landing URL (static or a function
 // of the account's username/search query). `scrolls` is the number of scroll
@@ -83,6 +95,12 @@ const CONFIG = {
     notifications: { url: 'https://www.producthunt.com/notifications',         scrolls: 2,  dwellMs: [1500, 2500] },
     search:        { url: (_, q) => `https://www.producthunt.com/search?q=${encodeURIComponent(q)}`, scrolls: 5, dwellMs: [1500, 2500] },
     profile_view:  { url: (u) => `https://www.producthunt.com/@${encodeURIComponent(u)}`, scrolls: 4, dwellMs: [1500, 2500] },
+  },
+  pangram: {
+    dwell:         { url: () => pangramUrl('/'),                                scrolls: 6,  dwellMs: [2000, 3500] },
+    notifications: { url: () => pangramUrl('/notifications'),                   scrolls: 2,  dwellMs: [1500, 2500] },
+    search:        { url: (_, q) => pangramUrl(`/search?q=${encodeURIComponent(q)}`), scrolls: 5, dwellMs: [1500, 2500] },
+    profile_view:  { url: (u) => pangramUrl(`/@${encodeURIComponent(u)}`),       scrolls: 4,  dwellMs: [1500, 2500] },
   },
 };
 

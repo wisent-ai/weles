@@ -124,7 +124,7 @@ export async function resolveAccountSession(acct: SocialAccount): Promise<Accoun
     out.proxyUrl = process.env.PROXY_URL;
   } else if (!cfg) {
     const country = acct.platform === 'discord' ? '' : 'us';
-    const PHOST: Record<string, string> = { twitter: 'x.com', linkedin: 'www.linkedin.com', instagram: 'www.instagram.com', reddit: 'www.reddit.com', tiktok: 'www.tiktok.com', discord: 'discord.com', github: 'github.com', producthunt: 'www.producthunt.com' };
+    const PHOST: Record<string, string> = { twitter: 'x.com', linkedin: 'www.linkedin.com', instagram: 'www.instagram.com', reddit: 'www.reddit.com', tiktok: 'www.tiktok.com', discord: 'discord.com', github: 'github.com', producthunt: 'www.producthunt.com', pangram: 'www.pangram.com' };
     const targetHost = PHOST[acct.platform];
     try {
       const { selectByCapability } = await import('../proxy/capability.js');
