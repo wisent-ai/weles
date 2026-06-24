@@ -5,8 +5,8 @@
 // id, name, and a truncated description; prints one project per line.
 //
 // Doubles as a smoke test for get_api_key.mjs ("did the minted key
-// actually work?") and as the lookup the swiatowid wip-summarize.mjs
-// calls via swiatowid/scripts/linear-helper.mjs.
+// actually work?") and as the lookup the Oko wip-summarize.mjs
+// calls via oko/scripts/linear-helper.mjs.
 //
 // Run: node scripts/trajectories/linear/list_projects.mjs [name_filter]
 
