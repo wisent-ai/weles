@@ -11,7 +11,7 @@
 
 - Sourced from `service_credentials` row `display_name='Linear'` (`login_email`, `login_password`). If absent, the SSO falls back to `weles/.work/_sso.env` `SSO_EMAIL` / `SSO_PASS` exactly like the slack trajectory.
 - Personal API keys minted by `get_api_key.mjs` are persisted to:
-  - `~/.linear/token` (chmod 600) — the file the swiatowid `wip-summarize.mjs` reads.
+  - `~/.linear/token` (chmod 600) — the file the Oko `wip-summarize.mjs` reads.
   - `service_credentials` row `display_name='Linear'`, `api_key_env_var='LINEAR_API_KEY'` (env-var binding only; the actual key value still lives in `~/.linear/token` and is loaded into `LINEAR_API_KEY` at runtime by the caller).
 
 ## API

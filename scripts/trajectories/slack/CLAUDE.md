@@ -12,14 +12,14 @@
 
 ## App manifest
 
-- 12-scope bot manifest matching `swiatowid/scripts/slack-bootstrap.sh` (M58/M59): `chat:write, chat:write.public, channels:read, channels:history, groups:read, groups:history, im:history, mpim:history, users:read, users:read.email, reactions:read, reactions:write`.
+- 12-scope bot manifest matching `oko/scripts/slack-bootstrap.sh` (M58/M59): `chat:write, chat:write.public, channels:read, channels:history, groups:read, groups:history, im:history, mpim:history, users:read, users:read.email, reactions:read, reactions:write`.
 - App name: `Claude Code`. Display name: `Claude Code`.
 
 ## Posting
 
-- Target message: `swiatowid/.work/jakub-status.txt` (pre-rendered M59 status update).
-- Target user: `@3Qax` (Jakub Towarek, `kuba@towarek.pl`, swiatowid collaborator).
-- Posting mechanism: `swt-cli slack post --channel <C…> --text-file <PATH>` from the swiatowid repo. The trajectory does NOT post directly — it captures the token, injects it via env, then shells out to `swt-cli`. Avoids reimplementing chat.postMessage HTTP in the trajectory.
+- Target message: `oko/.work/jakub-status.txt` (pre-rendered M59 status update).
+- Target user: `@3Qax` (Jakub Towarek, `kuba@towarek.pl`, Oko collaborator).
+- Posting mechanism: `oko-cli slack post --channel <C…> --text-file <PATH>` from the Oko repo. The trajectory does NOT post directly — it captures the token, injects it via env, then shells out to `oko-cli`. Avoids reimplementing chat.postMessage HTTP in the trajectory.
 
 ## Channel resolution
 

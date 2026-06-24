@@ -1,14 +1,14 @@
 // Slack-post trajectory. TWO paths:
 //   FAST (default): post directly via chat.postMessage with a stored bot token
-//     (the Swiatowid app already exists — Member ID U0B5SU2CULS, team Wisent).
+//     (the Oko app already exists — Member ID U0B5SU2CULS, team Wisent).
 //     No browser, no Google SSO, no app re-creation. This is what runs on the
 //     mac-mini worker.
 //   FALLBACK (no token): the original browser flow — Google-SSO into
 //     wisent-workspace.slack.com, create the app via manifest, scrape a fresh
 //     xoxb, post. Only used when no bot token is configured.
-// Token source: SLACK_BOT_TOKEN env, else first line of ~/.swiatowid/bot-token.
+// Token source: SLACK_BOT_TOKEN env, else first line of ~/.oko/bot-token.
 // IMPORTANT: do NOT re-create the app when a token exists — that spawns a
-// duplicate (logo-less) "Swiatowid" and posts from the wrong identity.
+// duplicate (logo-less) "Oko" and posts from the wrong identity.
 // Env: SLACK_BOT_TOKEN, MESSAGE_TEXT | MESSAGE_FILE,
 //      SLACK_TARGET_CHANNEL (id) | SLACK_TARGET_CHANNEL_NAME | SLACK_TARGET_USER_ID,
 //      SLACK_TARGET_USER_MATCHERS (csv, default jakub,kuba,towarek),
@@ -21,9 +21,9 @@ import { homedir } from 'node:os';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const WELES = join(__dirname, '..', '..', '..');
-const SWIATOWID = join(WELES, '..', 'swiatowid');
+const OKO = join(WELES, '..', 'oko');
 const MESSAGE_FILE = process.env.MESSAGE_FILE
-  || join(SWIATOWID, '.work', 'jakub-status.txt');
+  || join(OKO, '.work', 'jakub-status.txt');
 const TARGET_NAME = (process.env.SLACK_TARGET_CHANNEL_NAME || 'jakub').toLowerCase();
 const TARGET_CHAN = process.env.SLACK_TARGET_CHANNEL || '';
 
@@ -40,7 +40,7 @@ const MESSAGE_BODY = INLINE_MESSAGE || readFileSync(MESSAGE_FILE, 'utf8');
 // ---- FAST PATH: stored bot token -> chat.postMessage (no browser) -----------
 function storedBotToken() {
   if (process.env.SLACK_BOT_TOKEN) return process.env.SLACK_BOT_TOKEN.trim();
-  const f = join(homedir(), '.swiatowid', 'bot-token');
+  const f = join(homedir(), '.oko', 'bot-token');
   try { const t = readFileSync(f, 'utf8').split('\n')[0].trim(); if (t.startsWith('xoxb-')) return t; } catch {}
   return '';
 }

@@ -2,7 +2,7 @@
 //
 // Drives Google Workspace SSO into linear.app (same path as login.mjs),
 // navigates to /settings/api, clicks "Create new" / "New API key",
-// enters a label (default: "swiatowid"), and scrapes the lin_api_… token
+// enters a label (default: "oko"), and scrapes the lin_api_… token
 // from the post-create reveal dialog.
 //
 // On success:
@@ -21,7 +21,7 @@ import { humanFill } from '../../../dist/human/keyboard.js';
 import { readFileSync, existsSync, mkdirSync, writeFileSync, chmodSync } from 'node:fs';
 import { dirname } from 'node:path';
 
-const LABEL = process.argv[2] || 'swiatowid';
+const LABEL = process.argv[2] || 'oko';
 const LOGIN_URL = 'https://linear.app/login';
 // Personal API keys are minted from the "Security & access" settings tab,
 // reachable via the inline "security & access settings" link in the Member
