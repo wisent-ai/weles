@@ -1,5 +1,13 @@
 # Agent Notes
 
+## When a trajectory does not work on the first run
+
+- A trajectory is a one-shot automation script. If it fails or needs iterative debugging, do not spam the same trajectory repeatedly to "see what happens".
+- Instead, use a **keeper**: a persistent Weles browser sidecar (`scripts/_shared/keeper/keeper.mjs`) that holds a live session and can be driven interactively via `scripts/_shared/keeper/action.mjs`.
+- Use the keeper to walk through the problematic flow manually, identify the exact selectors / pages / consent steps / redirects, and verify the state transitions.
+- Only convert the verified steps back into a trajectory once the path is known and stable.
+- This avoids burning credentials, triggering rate limits, and cluttering the recordings directory with dozens of failed runs.
+
 ## LinkedIn trajectory diagnostics workflow
 
 - Before every browser or trajectory test, clean up or explicitly verify there are no stale `linkedin_register`, Weles Chromium, Playwright Chrome for Testing, Firefox/Nightly, `playwright_chromiumdev_profile`, or `weles-fp-` processes. Stale browser state has caused misleading LinkedIn and navigation results.
