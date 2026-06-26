@@ -7,8 +7,6 @@
 // Usage:
 //   node scripts/trajectories/overleaf/version_history_ui_phrase.mjs <project-id-or-title> <queryText>
 
-import { WSession } from '../../../dist/session/wsession.js';
-import { SessionStore } from '../../../dist/session/store.js';
 import { googleSso, getGoogleSsoCreds } from '../_shared/services/google_sso.mjs';
 import { humanIdlePause, humanClickLocator } from '../../../dist/human/mouse.js';
 import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
@@ -25,6 +23,18 @@ mkdirSync(OUT_DIR, { recursive: true });
 const OUTPUT_PATH = process.env.OVERLEAF_OUTPUT || `${OUT_DIR}/summary.json`;
 const MAIN_TEX = process.env.OVERLEAF_MAIN_TEX || 'main.tex';
 const MAX_HISTORY_CLICKS = Math.max(0, Number.parseInt(process.env.OVERLEAF_HISTORY_MAX_CLICKS || '8', 10) || 0);
+
+process.env.WELES_DISABLE_RECORDING = '1';
+process.env.WELES_NO_RESPONSE_BODIES = '1';
+process.env.WELES_CHROMIUM_NETLOG = '0';
+process.env.WELES_FULL_DIAGNOSTICS = '0';
+process.env.WELES_NO_INSTRUMENT = '1';
+process.env.WELES_PAGE_DIAGNOSTICS = '0';
+
+const [{ WSession }, { SessionStore }] = await Promise.all([
+  import('../../../dist/session/wsession.js'),
+  import('../../../dist/session/store.js'),
+]);
 
 const PROFILE_DIR = `${process.env.HOME}/Documents/CodingProjects/Wisent/weles/.work/overleaf_browser_profile`;
 if (process.env.WELES_OVERLEAF_PERSISTENT_PROFILE !== '0' && !process.env.WELES_USER_DATA_DIR) {
@@ -229,9 +239,104 @@ async function openHistoryUi(s) {
 async function summarizeVisible(page, queryText) {
   return await page.evaluate((queryText) => {
     const normalize = (s) => String(s || '').replace(/\s+/g, ' ').trim();
+    const texts = [];
+    const addText = (label, value) => {
+      const text = String(value || '');
+      if (text.length < 20) return;
+      if (texts.some((entry) => entry.text === text)) return;
+      texts.push({ label, text });
+    };
+    const addDoc = (label, doc) => {
+      if (!doc) return;
+      try {
+        if (typeof doc === 'string') addText(label, doc);
+        else if (typeof doc.toString === 'function') addText(label, doc.toString());
+        else if (typeof doc.getValue === 'function') addText(label, doc.getValue());
+      } catch {
+        // Ignore inaccessible editor internals.
+      }
+    };
+    const seenObjects = new Set();
+    const inspectObject = (obj, label, depth = 0) => {
+      if (!obj || (typeof obj !== 'object' && typeof obj !== 'function')) return;
+      if (seenObjects.has(obj) || depth > 3) return;
+      seenObjects.add(obj);
+      try { if (typeof obj.getValue === 'function') addText(`${label}.getValue`, obj.getValue()); } catch {}
+      try { addDoc(`${label}.state.doc`, obj.state?.doc); } catch {}
+      try { addDoc(`${label}.view.state.doc`, obj.view?.state?.doc); } catch {}
+      try { if (typeof obj.doc?.getValue === 'function') addText(`${label}.doc.getValue`, obj.doc.getValue()); } catch {}
+      try { if (typeof obj.cm?.getValue === 'function') addText(`${label}.cm.getValue`, obj.cm.getValue()); } catch {}
+      for (const key of ['view', 'editor', 'sourceEditor', '_editor', 'cm', 'codeMirror', 'doc', 'state', 'model']) {
+        try { inspectObject(obj[key], `${label}.${key}`, depth + 1); } catch {}
+      }
+    };
+    const inspectDomEditorState = () => {
+      const selectors = [
+        '.cm-editor',
+        '.cm-content',
+        '.cm-scroller',
+        '.CodeMirror',
+        '.CodeMirror-code',
+        '[class*="cm-"]',
+        '[class*="CodeMirror"]',
+      ];
+      for (const el of Array.from(document.querySelectorAll(selectors.join(',')))) {
+        inspectObject(el, `dom.${el.className || el.tagName}`);
+        try {
+          for (const key of Reflect.ownKeys(el)) {
+            const value = el[key];
+            inspectObject(value, `dom.${String(key)}`);
+          }
+        } catch {
+          // Some browser objects reject property enumeration.
+        }
+      }
+    };
+    const inspectKnownGlobals = () => {
+      for (const key of ['_ide', 'ide', 'editor', 'editorManager', 'angular', 'webpackChunkoverleaf']) {
+        try { inspectObject(window[key], `window.${key}`); } catch {}
+      }
+      try {
+        const current = window._ide?.editorManager?.getCurrentEditor?.();
+        inspectObject(current, 'window._ide.editorManager.getCurrentEditor');
+      } catch {}
+      try {
+        const current = window.ide?.editorManager?.getCurrentEditor?.();
+        inspectObject(current, 'window.ide.editorManager.getCurrentEditor');
+      } catch {}
+    };
+    const tokenizeWithOffsets = (s) => {
+      const out = [];
+      const re = /[A-Za-z0-9]+/g;
+      let m;
+      while ((m = re.exec(String(s || '')))) {
+        out.push({ token: m[0].toLowerCase(), start: m.index, end: m.index + m[0].length });
+      }
+      return out;
+    };
+    const bestTokenWindow = (body, wanted) => {
+      const targetTokens = tokenizeWithOffsets(wanted).map((t) => t.token);
+      const bodyTokens = tokenizeWithOffsets(body);
+      if (targetTokens.length < 3 || bodyTokens.length < targetTokens.length) return null;
+      let best = null;
+      for (let i = 0; i <= bodyTokens.length - targetTokens.length; i += 1) {
+        let hits = 0;
+        for (let j = 0; j < targetTokens.length; j += 1) {
+          if (bodyTokens[i + j].token === targetTokens[j]) hits += 1;
+        }
+        const score = hits / targetTokens.length;
+        if (!best || score > best.score) {
+          best = { score, start: bodyTokens[i].start, end: bodyTokens[i + targetTokens.length - 1].end, hits };
+        }
+      }
+      const threshold = targetTokens.length >= 10 ? 0.82 : 0.9;
+      return best && best.score >= threshold ? best : null;
+    };
     const wanted = normalize(queryText);
     const body = document.body.innerText || '';
     const rawBody = document.documentElement.textContent || '';
+    inspectDomEditorState();
+    inspectKnownGlobals();
     const candidates = [];
     for (const el of Array.from(document.querySelectorAll('button,a,[role="button"],li,div'))) {
       const text = normalize(el.textContent || '');
@@ -242,17 +347,84 @@ async function summarizeVisible(page, queryText) {
       candidates.push(text);
       if (candidates.length >= 120) break;
     }
-    const nbody = normalize([body, rawBody].filter(Boolean).join(' '));
+    const editorText = texts.map((entry) => entry.text).join('\n\n');
+    const nbody = normalize([body, rawBody, editorText].filter(Boolean).join(' '));
     const idx = wanted ? nbody.indexOf(wanted) : -1;
+    const fuzzy = idx >= 0 ? null : bestTokenWindow(nbody, wanted);
+    const targetIndex = idx >= 0 ? idx : (fuzzy ? fuzzy.start : -1);
+    const targetEnd = idx >= 0 ? idx + wanted.length : (fuzzy ? fuzzy.end : -1);
     return {
       title: document.title,
       url: location.href,
-      targetIndex: idx,
-      targetContext: idx >= 0 ? nbody.slice(Math.max(0, idx - 500), idx + wanted.length + 500) : null,
+      targetIndex,
+      targetMatchKind: idx >= 0 ? 'exact' : (fuzzy ? 'token_window' : 'none'),
+      targetScore: idx >= 0 ? 1 : (fuzzy?.score ?? 0),
+      targetContext: targetIndex >= 0 ? nbody.slice(Math.max(0, targetIndex - 500), targetEnd + 500) : null,
+      editorTextSources: texts.map((entry) => ({ label: entry.label, length: entry.text.length })).slice(0, 20),
       visibleItems: Array.from(new Set(candidates)).slice(0, 80),
       bodyHead: nbody.slice(0, 3000),
     };
   }, queryText);
+}
+
+async function revealQueryInEditor(page, queryText) {
+  const wanted = norm(queryText);
+  if (!wanted) return { attempted: false, reason: 'empty-query' };
+
+  const before = await summarizeVisible(page, wanted);
+  if (before.targetIndex >= 0) {
+    return {
+      attempted: false,
+      reason: 'already-found',
+      targetMatchKind: before.targetMatchKind,
+      targetScore: before.targetScore,
+    };
+  }
+
+  const attempts = [];
+  for (const shortcut of ['Meta+f', 'Control+f']) {
+    try {
+      await page.keyboard.press(shortcut);
+      await page.waitForTimeout(300);
+      await page.keyboard.type(wanted, { delay: 1 });
+      await page.waitForTimeout(700);
+      await page.keyboard.press('Enter').catch(() => {});
+      await page.waitForTimeout(700);
+      await page.keyboard.press('Escape').catch(() => {});
+      await page.waitForTimeout(1000);
+      const after = await summarizeVisible(page, wanted);
+      attempts.push({
+        shortcut,
+        targetMatchKind: after.targetMatchKind,
+        targetScore: after.targetScore,
+        targetIndex: after.targetIndex,
+      });
+      if (after.targetIndex >= 0) return { attempted: true, method: shortcut, attempts };
+    } catch (err) {
+      attempts.push({ shortcut, error: err?.message || String(err) });
+    }
+  }
+
+  try {
+    const found = await page.evaluate((text) => {
+      if (typeof window.find !== 'function') return false;
+      return window.find(text, false, false, true, false, true, false);
+    }, wanted);
+    await page.waitForTimeout(1000);
+    const after = await summarizeVisible(page, wanted);
+    attempts.push({
+      method: 'window.find',
+      found,
+      targetMatchKind: after.targetMatchKind,
+      targetScore: after.targetScore,
+      targetIndex: after.targetIndex,
+    });
+    if (after.targetIndex >= 0) return { attempted: true, method: 'window.find', attempts };
+  } catch (err) {
+    attempts.push({ method: 'window.find', error: err?.message || String(err) });
+  }
+
+  return { attempted: true, method: null, attempts };
 }
 
 async function clickVisibleText(page, text, tag, exact = false) {
@@ -301,7 +473,8 @@ async function clickVisibleText(page, text, tag, exact = false) {
   return { tag, text, clicked: true, method: 'dom', clicked };
 }
 
-async function probeHistoryState(s, tag, queryText) {
+async function probeHistoryState(s, tag, queryText, reveal = false) {
+  const revealResult = reveal ? await revealQueryInEditor(s.page, queryText) : null;
   const d = await dump(s, tag);
   const summary = await summarizeVisible(s.page, queryText);
   return {
@@ -309,7 +482,11 @@ async function probeHistoryState(s, tag, queryText) {
     path: d.text,
     url: s.page.url(),
     targetIndex: summary.targetIndex,
+    targetMatchKind: summary.targetMatchKind,
+    targetScore: summary.targetScore,
     targetContext: summary.targetContext,
+    editorTextSources: summary.editorTextSources,
+    revealResult,
     bodyHead: summary.bodyHead,
     visibleItems: summary.visibleItems,
   };
@@ -349,7 +526,7 @@ try {
   probes.push(await probeHistoryState(s, 'probe_initial_history', queryText));
   if (MAIN_TEX) {
     clicks.push(await clickVisibleText(s.page, MAIN_TEX, 'click_current_main_tex', true));
-    probes.push(await probeHistoryState(s, 'probe_current_main_tex', queryText));
+    probes.push(await probeHistoryState(s, 'probe_current_main_tex', queryText, true));
   }
 
   const historyTargets = Array.from(new Set(summary.visibleItems || []))
@@ -363,7 +540,7 @@ try {
     probes.push(await probeHistoryState(s, `probe_history_${String(i + 1).padStart(2, '0')}`, queryText));
     if (MAIN_TEX) {
       clicks.push(await clickVisibleText(s.page, MAIN_TEX, `${label}_main_tex`, true));
-      probes.push(await probeHistoryState(s, `probe_history_${String(i + 1).padStart(2, '0')}_main_tex`, queryText));
+      probes.push(await probeHistoryState(s, `probe_history_${String(i + 1).padStart(2, '0')}_main_tex`, queryText, true));
     }
   }
 
