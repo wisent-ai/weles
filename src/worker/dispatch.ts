@@ -442,6 +442,12 @@ export function paramsToEnv(
     if (typeof params.max_history_clicks === 'string') env.OVERLEAF_HISTORY_MAX_CLICKS = params.max_history_clicks;
     if (typeof params.auth_label === 'string') env.OVERLEAF_AUTH_LABEL = params.auth_label;
     env.HEADLESS = params.headless === false || params.headless === '0' ? '0' : '1';
+    env.WELES_DISABLE_RECORDING = '1';
+    env.WELES_NO_RESPONSE_BODIES = '1';
+    env.WELES_CHROMIUM_NETLOG = '0';
+    env.WELES_FULL_DIAGNOSTICS = '0';
+    env.WELES_NO_INSTRUMENT = '1';
+    env.WELES_PAGE_DIAGNOSTICS = '0';
   }
   if (trajPath.endsWith('/overleaf/push_github.mjs') || trajPath.endsWith('/overleaf/pull_github.mjs')) {
     if (typeof params.project === 'string') env.OVERLEAF_PROJECT = params.project;
