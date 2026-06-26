@@ -55,7 +55,8 @@ export async function claimOne(): Promise<ActionLogRow | null> {
   // + the slack_post_message alert it chains), plus analytics-service browser
   // actions that use service credentials rather than a social account row.
   // Everything else without an account is a poison orphan and is skipped.
-  const canRunWithoutAccount = (a: string) => /_register$|_balance$|_topup$|_verify_domain_status$|_post_message$/.test(a) || a === 'pangram_analyze_text' || /^(umami|googleanalytics)_/.test(a);
+  const isOverleafAction = (a: string) => a.slice(0, 9) === 'overleaf_';
+  const canRunWithoutAccount = (a: string) => /_register$|_balance$|_topup$|_verify_domain_status$|_post_message$/.test(a) || a === 'pangram_analyze_text' || isOverleafAction(a) || /^(umami|googleanalytics)_/.test(a);
   for (const row of candidates) {
     if (!resolveTrajectory(row.action)) continue;
     if (!row.id) continue;

@@ -290,6 +290,9 @@ const ROUTES: Record<string, (p: string) => string | null> = {
   balance: (p) => PROXY_PROVIDERS.has(p) ? `scripts/trajectories/${p}/balance.mjs` : `scripts/trajectories/${p}_balance.mjs`,
   topup: (p) => PROXY_PROVIDERS.has(p) ? `scripts/trajectories/${p}/topup.mjs` : null,
   analyze_text: (p) => p === 'pangram' ? 'scripts/trajectories/pangram/analyze_text.mjs' : null,
+  version_history_scan: (p) => p === 'overleaf' ? 'scripts/trajectories/overleaf/version_history_ui_phrase.mjs' : null,
+  push_github: (p) => p === 'overleaf' ? 'scripts/trajectories/overleaf/push_github.mjs' : null,
+  pull_github: (p) => p === 'overleaf' ? 'scripts/trajectories/overleaf/pull_github.mjs' : null,
   // On-demand ticker scrape: wisent-app inserts an account_action_logs row
   // with action='unusualwhales_scrape' or 'volumeleaders_scrape' and
   // params={ticker, page}; the worker spawns the existing scrape script.
@@ -430,6 +433,23 @@ export function paramsToEnv(
   if (typeof params.pangram_text_file === 'string') env.PANGRAM_TEXT_FILE = params.pangram_text_file;
   if (typeof params.text_file === 'string') env.TEXT_FILE = params.text_file;
   if (typeof params.pangram_analyze_url === 'string') env.PANGRAM_ANALYZE_URL = params.pangram_analyze_url;
+  if (trajPath.endsWith('/overleaf/version_history_ui_phrase.mjs')) {
+    if (typeof params.project === 'string') env.OVERLEAF_PROJECT = params.project;
+    if (typeof params.query_text === 'string') env.OVERLEAF_QUERY_TEXT = params.query_text;
+    if (typeof params.output === 'string') env.OVERLEAF_OUTPUT = params.output;
+    if (typeof params.main_tex === 'string') env.OVERLEAF_MAIN_TEX = params.main_tex;
+    if (typeof params.max_history_clicks === 'number') env.OVERLEAF_HISTORY_MAX_CLICKS = String(params.max_history_clicks);
+    if (typeof params.max_history_clicks === 'string') env.OVERLEAF_HISTORY_MAX_CLICKS = params.max_history_clicks;
+    if (typeof params.auth_label === 'string') env.OVERLEAF_AUTH_LABEL = params.auth_label;
+    env.HEADLESS = params.headless === false || params.headless === '0' ? '0' : '1';
+  }
+  if (trajPath.endsWith('/overleaf/push_github.mjs') || trajPath.endsWith('/overleaf/pull_github.mjs')) {
+    if (typeof params.project === 'string') env.OVERLEAF_PROJECT = params.project;
+    if (typeof params.repo_slug === 'string') env.OVERLEAF_GITHUB_REPO = params.repo_slug;
+    if (typeof params.commit_message === 'string') env.OVERLEAF_COMMIT_MESSAGE = params.commit_message;
+    if (typeof params.auth_label === 'string') env.OVERLEAF_AUTH_LABEL = params.auth_label;
+    env.HEADLESS = params.headless === false || params.headless === '0' ? '0' : '1';
+  }
   // slack_post_message params: message body + where (default channel 'jakub').
   // Inline `message` is machine-independent (survives cross-host enqueue);
   // `message_file` is a path, only valid on the enqueuing machine.
