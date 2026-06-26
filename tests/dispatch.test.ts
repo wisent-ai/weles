@@ -310,4 +310,36 @@ describe('worker trajectory dispatch', () => {
     expect(env.PACKAGE_NAME).toBe('com.example.app');
     expect(env.SUBMIT).toBe('0');
   });
+
+  it('routes Overleaf service trajectories and maps queue params', () => {
+    const historyPath = 'scripts/trajectories/overleaf/version_history_ui_phrase.mjs';
+    expect(resolveTrajectory('overleaf_version_history_scan')).toBe(historyPath);
+    expect(resolveTrajectory('overleaf_push_github')).toBe('scripts/trajectories/overleaf/push_github.mjs');
+    expect(resolveTrajectory('overleaf_pull_github')).toBe('scripts/trajectories/overleaf/pull_github.mjs');
+
+    const historyEnv = paramsToEnv({
+      project: 'A General Theory',
+      query_text: 'The behavior of the model is not random.',
+      main_tex: 'main.tex',
+      max_history_clicks: 5,
+      auth_label: 'overleaf',
+    }, 'overleaf_version_history_scan', historyPath);
+    expect(historyEnv.OVERLEAF_PROJECT).toBe('A General Theory');
+    expect(historyEnv.OVERLEAF_QUERY_TEXT).toBe('The behavior of the model is not random.');
+    expect(historyEnv.OVERLEAF_MAIN_TEX).toBe('main.tex');
+    expect(historyEnv.OVERLEAF_HISTORY_MAX_CLICKS).toBe('5');
+    expect(historyEnv.OVERLEAF_AUTH_LABEL).toBe('overleaf');
+    expect(historyEnv.HEADLESS).toBe('1');
+
+    const pushEnv = paramsToEnv({
+      project: 'A General Theory',
+      repo_slug: 'wisent-ai/general-theory',
+      commit_message: 'Sync provenance evidence',
+      headless: false,
+    }, 'overleaf_push_github', 'scripts/trajectories/overleaf/push_github.mjs');
+    expect(pushEnv.OVERLEAF_PROJECT).toBe('A General Theory');
+    expect(pushEnv.OVERLEAF_GITHUB_REPO).toBe('wisent-ai/general-theory');
+    expect(pushEnv.OVERLEAF_COMMIT_MESSAGE).toBe('Sync provenance evidence');
+    expect(pushEnv.HEADLESS).toBe('0');
+  });
 });
