@@ -332,6 +332,14 @@ async function summarizeVisible(page, queryText) {
       const threshold = targetTokens.length >= 10 ? 0.82 : 0.9;
       return best && best.score >= threshold ? best : null;
     };
+    const bestDocumentText = () => {
+      const looksLikeLatex = (text) =>
+        /\\documentclass|\\begin\{document\}|\\title\{|\\section\{|\\subsection\{|\\paragraph\{/.test(text);
+      const docs = texts
+        .filter((entry) => entry.text.length >= 500 && looksLikeLatex(entry.text))
+        .sort((left, right) => right.text.length - left.text.length);
+      return docs[0] || null;
+    };
     const wanted = normalize(queryText);
     const body = document.body.innerText || '';
     const rawBody = document.documentElement.textContent || '';
@@ -348,6 +356,7 @@ async function summarizeVisible(page, queryText) {
       if (candidates.length >= 120) break;
     }
     const editorText = texts.map((entry) => entry.text).join('\n\n');
+    const documentText = bestDocumentText();
     const nbody = normalize([body, rawBody, editorText].filter(Boolean).join(' '));
     const idx = wanted ? nbody.indexOf(wanted) : -1;
     const fuzzy = idx >= 0 ? null : bestTokenWindow(nbody, wanted);
@@ -360,6 +369,9 @@ async function summarizeVisible(page, queryText) {
       targetMatchKind: idx >= 0 ? 'exact' : (fuzzy ? 'token_window' : 'none'),
       targetScore: idx >= 0 ? 1 : (fuzzy?.score ?? 0),
       targetContext: targetIndex >= 0 ? nbody.slice(Math.max(0, targetIndex - 500), targetEnd + 500) : null,
+      documentText: documentText?.text ?? null,
+      documentTextSource: documentText?.label ?? null,
+      documentTextLength: documentText?.text.length ?? 0,
       editorTextSources: texts.map((entry) => ({ label: entry.label, length: entry.text.length })).slice(0, 20),
       visibleItems: Array.from(new Set(candidates)).slice(0, 80),
       bodyHead: nbody.slice(0, 3000),
@@ -485,6 +497,9 @@ async function probeHistoryState(s, tag, queryText, reveal = false) {
     targetMatchKind: summary.targetMatchKind,
     targetScore: summary.targetScore,
     targetContext: summary.targetContext,
+    documentText: summary.documentText,
+    documentTextSource: summary.documentTextSource,
+    documentTextLength: summary.documentTextLength,
     editorTextSources: summary.editorTextSources,
     revealResult,
     bodyHead: summary.bodyHead,
