@@ -2,6 +2,30 @@ import { describe, expect, it } from 'vitest';
 import { paramsToEnv, resolveTrajectory } from '../src/worker/dispatch.js';
 
 describe('worker trajectory dispatch', () => {
+  it('routes Overleaf service trajectories and maps params', () => {
+    const historyRunner = 'scripts/trajectories/overleaf/version_history_ui_phrase.mjs';
+    expect(resolveTrajectory('overleaf_version_history_scan')).toBe(historyRunner);
+    expect(resolveTrajectory('overleaf_push_github')).toBe('scripts/trajectories/overleaf/push_github.mjs');
+    expect(resolveTrajectory('overleaf_pull_github')).toBe('scripts/trajectories/overleaf/pull_github.mjs');
+
+    const env = paramsToEnv({
+      project: '0123456789abcdef01234567',
+      phrase: 'The behavior of the model is not random.',
+      output_path: '/tmp/overleaf-summary.json',
+      main_tex: 'main.tex',
+      max_history_clicks: 12,
+      headless: true,
+    }, 'overleaf_version_history_scan', historyRunner);
+
+    expect(env.OVERLEAF_PROJECT).toBe('0123456789abcdef01234567');
+    expect(env.OVERLEAF_PHRASE).toBe('The behavior of the model is not random.');
+    expect(env.OVERLEAF_OUTPUT).toBe('/tmp/overleaf-summary.json');
+    expect(env.OVERLEAF_MAIN_TEX).toBe('main.tex');
+    expect(env.OVERLEAF_HISTORY_MAX_CLICKS).toBe('12');
+    expect(env.WELES_OVERLEAF_PERSISTENT_PROFILE).toBe('1');
+    expect(env.HEADLESS).toBe('1');
+  });
+
   it('routes paid ads campaign trajectories', () => {
     expect(resolveTrajectory('meta_ads_campaign')).toBe('scripts/trajectories/meta/ads_campaign.mjs');
     expect(resolveTrajectory('meta_ads_login')).toBe('scripts/trajectories/meta/ads_login.mjs');
@@ -14,11 +38,14 @@ describe('worker trajectory dispatch', () => {
     expect(resolveTrajectory('meta_ads_api_messaging')).toBe('scripts/trajectories/meta/ads_api_messaging.mjs');
     expect(resolveTrajectory('meta_ads_performance')).toBe('scripts/trajectories/meta/ads_performance.mjs');
     expect(resolveTrajectory('meta_ads_update_campaign')).toBe('scripts/trajectories/meta/ads_update_campaign.mjs');
+    expect(resolveTrajectory('meta_ads_verify_access')).toBe('scripts/trajectories/meta/ads_verify_access.mjs');
+    expect(resolveTrajectory('meta_ads_oauth_connect')).toBe('scripts/trajectories/meta/ads_oauth_connect_content_platform.mjs');
     expect(resolveTrajectory('google_ads_campaign')).toBe('scripts/trajectories/google/ads/ads_campaign.mjs');
     expect(resolveTrajectory('google_ads_api_campaign')).toBe('scripts/trajectories/google/ads/ads_api_campaign.mjs');
     expect(resolveTrajectory('google_ads_login')).toBe('scripts/trajectories/google/ads/ads_login.mjs');
     expect(resolveTrajectory('google_ads_performance')).toBe('scripts/trajectories/google/ads/ads_performance.mjs');
     expect(resolveTrajectory('google_ads_update_campaign')).toBe('scripts/trajectories/google/ads/ads_update_campaign.mjs');
+    expect(resolveTrajectory('google_ads_verify_access')).toBe('scripts/trajectories/google/ads/ads_verify_access.mjs');
   });
 
   it('routes app store submission aliases', () => {
@@ -32,6 +59,7 @@ describe('worker trajectory dispatch', () => {
 
   it('routes Apple Ads management trajectories', () => {
     const appleAdsRunner = 'scripts/trajectories/apple/ads/run.mjs';
+    expect(resolveTrajectory('apple_ads_api_setup_probe')).toBe('scripts/trajectories/apple/ads/api_client_setup_probe.mjs');
     for (const action of [
       'apple_ads_cli',
       'apple_ads_auth_status',
@@ -121,6 +149,30 @@ describe('worker trajectory dispatch', () => {
     ]) {
       expect(resolveTrajectory(action)).toBe(appleAdsRunner);
     }
+  });
+
+  it('maps Apple Ads setup probe params into trajectory env', () => {
+    const runner = 'scripts/trajectories/apple/ads/api_client_setup_probe.mjs';
+    const env = paramsToEnv({
+      apple_ads_keep_open_after_login_ms: 120000,
+      apple_ads_close_after_probe: true,
+      apple_ads_diag_dir: '.work/custom-apple-ads-probe',
+    }, 'apple_ads_api_setup_probe', runner);
+    expect(env.APPLE_ADS_KEEP_OPEN_AFTER_LOGIN_MS).toBe('120000');
+    expect(env.APPLE_ADS_CLOSE_AFTER_PROBE).toBe('1');
+    expect(env.APPLE_ADS_DIAG_DIR).toBe('.work/custom-apple-ads-probe');
+  });
+
+  it('routes Apple native trusted-device 2FA flow', () => {
+    const runner = 'scripts/trajectories/apple/native_2fa/run.mjs';
+    expect(resolveTrajectory('apple_native_2fa')).toBe(runner);
+
+    const env = paramsToEnv({
+      apple_2fa_code_file: '/tmp/custom-apple-2fa.txt',
+      apple_2fa_wait_ms: 45000,
+    }, 'apple_native_2fa', runner);
+    expect(env.APPLE_2FA_CODE_FILE).toBe('/tmp/custom-apple-2fa.txt');
+    expect(env.APPLE_2FA_WAIT_MS).toBe('45000');
   });
 
   it('maps Apple Ads params into trajectory env', () => {
@@ -224,6 +276,17 @@ describe('worker trajectory dispatch', () => {
       targeting_json: '{"geo_locations":{"countries":["US"]}}',
       publisher_platforms: 'facebook,instagram',
       facebook_positions: 'feed,story',
+      google_ads_developer_token: 'dev-token',
+      google_ads_access_token: 'access-token',
+      google_ads_customer_id: '222-333-4444',
+      google_ads_login_customer_id: '999-888-7777',
+      browser: 'chromium',
+      wait_for_login: true,
+      login_wait_ms: 1234,
+      date: '2026-06-17',
+      redirect_uri: 'https://www.facebook.com/connect/login_success.html',
+      content_platform_dir: '/tmp/content-platform',
+      verify_account_only: '1',
       bid_strategy: 'LOWEST_COST_WITHOUT_CAP',
       optimization_goal: 'LINK_CLICKS',
       billing_event: 'IMPRESSIONS',
@@ -233,7 +296,7 @@ describe('worker trajectory dispatch', () => {
       lead_form_id: 'form_123',
       whatsapp_number: '15555550100',
       customer_id: '111-222-3333',
-      login_customer_id: '999-888-7777',
+      login_customer_id: '888-777-6666',
       google_ads_api_version: 'v24',
       update_mask: 'name,status',
       campaign_budget_id: '777',
@@ -283,6 +346,15 @@ describe('worker trajectory dispatch', () => {
     expect(env.TARGETING_JSON).toBe('{"geo_locations":{"countries":["US"]}}');
     expect(env.PUBLISHER_PLATFORMS).toBe('facebook,instagram');
     expect(env.FACEBOOK_POSITIONS).toBe('feed,story');
+    expect(env.GOOGLE_ADS_DEVELOPER_TOKEN).toBe('dev-token');
+    expect(env.GOOGLE_ADS_ACCESS_TOKEN).toBe('access-token');
+    expect(env.BROWSER).toBe('chromium');
+    expect(env.WAIT_FOR_LOGIN).toBe('1');
+    expect(env.LOGIN_WAIT_MS).toBe('1234');
+    expect(env.DATE).toBe('2026-06-17');
+    expect(env.REDIRECT_URI).toBe('https://www.facebook.com/connect/login_success.html');
+    expect(env.CONTENT_PLATFORM_DIR).toBe('/tmp/content-platform');
+    expect(env.VERIFY_ACCOUNT_ONLY).toBe('1');
     expect(env.BID_STRATEGY).toBe('LOWEST_COST_WITHOUT_CAP');
     expect(env.OPTIMIZATION_GOAL).toBe('LINK_CLICKS');
     expect(env.BILLING_EVENT).toBe('IMPRESSIONS');
@@ -291,7 +363,7 @@ describe('worker trajectory dispatch', () => {
     expect(env.CUSTOM_AUDIENCE_ID).toBe('aud_123');
     expect(env.LEAD_FORM_ID).toBe('form_123');
     expect(env.WHATSAPP_NUMBER).toBe('15555550100');
-    expect(env.GOOGLE_ADS_CUSTOMER_ID).toBe('111-222-3333');
+    expect(env.GOOGLE_ADS_CUSTOMER_ID).toBe('222-333-4444');
     expect(env.GOOGLE_ADS_LOGIN_CUSTOMER_ID).toBe('999-888-7777');
     expect(env.GOOGLE_ADS_API_VERSION).toBe('v24');
     expect(env.UPDATE_MASK).toBe('name,status');

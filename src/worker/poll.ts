@@ -4,6 +4,7 @@
 import { spawn, execSync } from 'node:child_process';
 import { readFile, writeFile, readdir, unlink, stat } from 'node:fs/promises';
 import { join } from 'node:path';
+import { createHmac } from 'node:crypto';
 import os from 'node:os';
 import { uploadArtifacts } from './upload-artifacts.js';
 import { paramsToEnv, resolveTrajectory } from './dispatch.js';
@@ -12,6 +13,7 @@ import { sweepZombiesIfDue } from './stale.js';
 import { captureVersions } from '../diagnostics/versions.js';
 import { importRunProvenance, writeNetworkCapture, pgConnectionString } from '../diagnostics/run-import.js';
 import postgres from 'postgres';
+import { verifyRunArtifacts } from './verification.js';
 
 export interface ActionLogRow {
   id: string;
@@ -20,6 +22,9 @@ export interface ActionLogRow {
   platform?: string;
   params?: Record<string, unknown>;
   status?: string;
+  webhook_url?: string | null;
+  cancel_requested?: boolean | null;
+  priority?: number | null;
 }
 
 export interface BanSignal { healthy: boolean; signal: string; details?: Record<string, unknown>; }
@@ -33,7 +38,176 @@ function headers(): Record<string, string> {
   return { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' };
 }
 
-async function runTrajectory(row: ActionLogRow, path: string, extraEnv: Record<string, string> = {}): Promise<{ exitCode: number; stderr: string }> {
+type TrajectoryBuildRow = {
+  id: string;
+  tenant_id?: string | null;
+  name: string;
+  platform: string;
+  url: string;
+  objective: string;
+  constraints?: Record<string, unknown> | null;
+  env?: Record<string, unknown> | null;
+  trajectory_id?: string | null;
+  test_run_id?: string | null;
+};
+
+function recordOrEmpty(value: unknown): Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function textParam(record: Record<string, unknown> | undefined, key: string): string | null {
+  const value = record?.[key];
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null;
+}
+
+function trajectoryActionFromName(name: string): string {
+  const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 48);
+  if (!slug) return 'saved_browser_task';
+  return `saved_${slug}`;
+}
+
+async function patchTrajectoryBuild(buildId: string, patch: Record<string, unknown>): Promise<void> {
+  await fetch(`${SUPABASE_URL}/rest/v1/weles_trajectory_builds?id=eq.${buildId}`, {
+    method: 'PATCH',
+    headers: { ...headers(), Prefer: 'return=minimal' },
+    body: JSON.stringify({ ...patch, updated_at: new Date().toISOString() }),
+  }).catch(() => {});
+}
+
+async function fetchTrajectoryBuild(buildId: string): Promise<TrajectoryBuildRow | null> {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/weles_trajectory_builds?id=eq.${buildId}&select=id,tenant_id,name,platform,url,objective,constraints,env,trajectory_id,test_run_id`, { headers: headers() });
+    if (!res.ok) return null;
+    const rows = await res.json() as TrajectoryBuildRow[];
+    return rows[0] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+async function insertReturning<T>(table: string, row: Record<string, unknown>, select: string): Promise<T | null> {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?select=${encodeURIComponent(select)}`, {
+      method: 'POST',
+      headers: { ...headers(), Prefer: 'return=representation' },
+      body: JSON.stringify(row),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    const rows = await res.json() as T[];
+    return rows[0] ?? null;
+  } catch (e) {
+    console.log(`[builder] insert ${table} failed: ${e instanceof Error ? e.message.slice(0, 200) : String(e)}`);
+    return null;
+  }
+}
+
+async function promoteTrajectoryBuild(row: ActionLogRow, result: Record<string, unknown>): Promise<void> {
+  const params = row.params ?? {};
+  const buildId = textParam(params, 'trajectory_build_id');
+  if (!buildId || params.auto_promote_trajectory !== true) return;
+
+  const build = await fetchTrajectoryBuild(buildId);
+  if (!build) return;
+  if (build.trajectory_id && build.test_run_id) return;
+
+  const url = textParam(params, 'url') ?? build.url;
+  const objective = textParam(params, 'objective') ?? build.objective;
+  const name = textParam(params, 'promote_name') ?? build.name;
+  const action = trajectoryActionFromName(`${name} ${buildId.slice(0, 8)}`);
+  const genericResult = recordOrEmpty(result.generic_browser_task);
+  const definition = {
+    url,
+    objective,
+    constraints: recordOrEmpty(params.constraints ?? build.constraints),
+    env: recordOrEmpty(params.env ?? build.env),
+    flow_name: textParam(params, 'flow_name') ?? `promoted:${action}`,
+    max_steps: typeof params.max_steps === 'number' ? params.max_steps : 50,
+    proxy: textParam(params, 'proxy'),
+    headless: params.headless === true,
+    promoted_from: { run_id: row.id, status: 'completed', completed_at: new Date().toISOString() },
+    last_result: genericResult,
+  };
+  let site = 'unknown';
+  try { site = new URL(url).hostname; } catch { /* keep unknown */ }
+
+  const trajectory = build.trajectory_id ? { id: build.trajectory_id } : await insertReturning<{ id: string }>('weles_trajectories', {
+    tenant_id: build.tenant_id ?? null,
+    name,
+    action,
+    site,
+    url,
+    objective,
+    definition,
+    created_from_run_id: row.id,
+    status: 'active',
+    created_by: 'trajectory-builder',
+  }, 'id');
+  if (!trajectory?.id) {
+    await patchTrajectoryBuild(buildId, { status: 'failed', error: 'trajectory promotion failed', result: { source_run_id: row.id } });
+    return;
+  }
+
+  const testRun = build.test_run_id ? { id: build.test_run_id } : await insertReturning<{ id: string }>('account_action_logs', {
+    action: 'generic_saved_task',
+    platform: 'generic',
+    status: 'queued',
+    scheduled_at: new Date().toISOString(),
+    params: { trajectory_id: trajectory.id, trajectory_build_id: buildId, build_test: true },
+    tenant_id: build.tenant_id ?? null,
+    priority: row.priority ?? 10,
+    queued_by: 'trajectory-builder',
+  }, 'id');
+  if (!testRun?.id) {
+    await patchTrajectoryBuild(buildId, { status: 'failed', trajectory_id: trajectory.id, error: 'trajectory test enqueue failed' });
+    return;
+  }
+
+  await patchTrajectoryBuild(buildId, {
+    status: 'testing',
+    source_run_id: row.id,
+    trajectory_id: trajectory.id,
+    test_run_id: testRun.id,
+    result: { source_run_id: row.id, trajectory_id: trajectory.id, test_run_id: testRun.id },
+  });
+  console.log(`[builder] build=${buildId.slice(0, 8)} promoted trajectory=${trajectory.id.slice(0, 8)} test=${testRun.id.slice(0, 8)}`);
+}
+
+async function updateTrajectoryBuildAfterRun(row: ActionLogRow, status: 'completed' | 'failed' | 'cancelled' | 'pending_review', result: Record<string, unknown>, error?: string): Promise<void> {
+  const buildId = textParam(row.params, 'trajectory_build_id');
+  if (!buildId) return;
+  if (row.action === 'generic_browser_task') {
+    if (status === 'completed') {
+      await promoteTrajectoryBuild(row, result);
+    } else if (status === 'pending_review') {
+      await patchTrajectoryBuild(buildId, { status: 'pending_review', source_run_id: row.id, error: error ?? 'pending_review', result: { source_run_id: row.id, status, verification: result.verification ?? null } });
+    } else {
+      await patchTrajectoryBuild(buildId, { status: 'failed', source_run_id: row.id, error: error ?? status, result: { source_run_id: row.id, status } });
+    }
+    return;
+  }
+  if (row.action === 'generic_saved_task' && row.params?.build_test === true) {
+    await patchTrajectoryBuild(buildId, {
+      status: status === 'completed' ? 'completed' : status === 'pending_review' ? 'pending_review' : 'failed',
+      test_run_id: row.id,
+      error: status === 'completed' ? null : (error ?? status),
+      result: { test_run_id: row.id, status, generic_browser_task: result.generic_browser_task ?? null, ban_signal: result.ban_signal ?? null, verification: result.verification ?? null },
+    });
+  }
+}
+
+async function cancelRequested(jobId: string): Promise<boolean> {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/account_action_logs?id=eq.${jobId}&select=cancel_requested,status`, { headers: headers() });
+    if (!res.ok) return false;
+    const rows = await res.json() as Array<{ cancel_requested?: boolean; status?: string }>;
+    const row = rows[0];
+    return row?.cancel_requested === true || row?.status === 'cancelled';
+  } catch {
+    return false;
+  }
+}
+
+async function runTrajectory(row: ActionLogRow, path: string, extraEnv: Record<string, string> = {}): Promise<{ exitCode: number; stderr: string; cancelled: boolean }> {
   // G17: recordings/<run_uuid>/ is unique per run, so there is no stale
   // predecessor file to clear (the old shared recordings/<action>/ hazard is gone).
   // Hard wall-clock cap. Health/probe 90s; topup 360s; register/login 900s
@@ -66,19 +240,32 @@ async function runTrajectory(row: ActionLogRow, path: string, extraEnv: Record<s
     });
     let stderr = '';
     let killed = false;
-    // G17g: graceful timeout — SIGTERM first so WSession's handler can close the
-    // context (sealing HAR + video), then SIGKILL after a grace window. Avoids
-    // losing the whole HAR/video on a timed-out run.
-    const killTimer = setTimeout(() => {
+    let cancelled = false;
+    const requestStop = (message: string) => {
+      if (killed) return;
       killed = true;
-      stderr += `\nFAIL: worker hard timeout (${hardTimeoutMs}ms) — SIGTERM, then SIGKILL after grace`;
+      stderr += message;
       try { child.kill('SIGTERM'); } catch { /* noop */ }
       setTimeout(() => { try { child.kill('SIGKILL'); } catch { /* noop */ } }, 8000);
+    };
+    // Hard wall-clock cap. Health/probe 90s; topup 360s; register/login 900s
+    // (bumped from 600s 2026-05-05: CapMonster->CapSolver->AntiCaptcha V2
+    // fall-through can take 12+ min). Override per-row via WORKER_HARD_TIMEOUT_MS.
+    const killTimer = setTimeout(() => {
+      requestStop(`\nFAIL: worker hard timeout (${hardTimeoutMs}ms) — SIGTERM, then SIGKILL after grace`);
     }, hardTimeoutMs);
+    const cancelTimer = setInterval(() => {
+      void cancelRequested(row.id).then((requested) => {
+        if (!requested) return;
+        cancelled = true;
+        requestStop('\nFAIL: cancel_requested — SIGTERM, then SIGKILL after grace');
+      });
+    }, 5000);
     child.stderr.on('data', (chunk) => { stderr += chunk.toString(); });
     child.on('close', (code) => {
       clearTimeout(killTimer);
-      resolve({ exitCode: killed ? 137 : (code ?? -1), stderr: stderr.slice(-2000) });
+      clearInterval(cancelTimer);
+      resolve({ exitCode: killed ? 137 : (code ?? -1), stderr: stderr.slice(-2000), cancelled });
     });
   });
 }
@@ -182,7 +369,9 @@ async function pauseAccount(accountId: string, signal?: string, hours = 24): Pro
   await fetch(`${SUPABASE_URL}/rest/v1/social_accounts?id=eq.${accountId}`, { method: 'PATCH', headers: { ...headers(), Prefer: 'return=minimal' }, body: JSON.stringify(body) }).catch(() => {});
 }
 
-async function writeResult(jobId: string, status: 'completed' | 'failed' | 'pending_review', result: Record<string, unknown>, error?: string, costs?: { cost_usd: number; service_costs: Record<string, number> }): Promise<void> {
+type FinalRunStatus = 'completed' | 'failed' | 'pending_review' | 'cancelled';
+
+async function writeResult(jobId: string, status: FinalRunStatus, result: Record<string, unknown>, error?: string, costs?: { cost_usd: number; service_costs: Record<string, number> }): Promise<void> {
   const body: Record<string, unknown> = {
     status, result, error: error ?? null,
     completed_at: new Date().toISOString(),
@@ -196,6 +385,38 @@ async function writeResult(jobId: string, status: 'completed' | 'failed' | 'pend
     headers: { ...headers(), Prefer: 'return=minimal' },
     body: JSON.stringify(body),
   }).catch(() => {});
+}
+
+function validWebhookUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' || url.hostname === 'localhost' || url.hostname === '127.0.0.1' || url.hostname === '::1';
+  } catch {
+    return false;
+  }
+}
+
+async function sendRunWebhook(row: ActionLogRow, status: FinalRunStatus, result: Record<string, unknown>, error?: string): Promise<void> {
+  const webhookUrl = row.webhook_url;
+  if (!webhookUrl || !validWebhookUrl(webhookUrl)) return;
+  const body = JSON.stringify({
+    run_id: row.id,
+    action: row.action,
+    platform: row.platform ?? null,
+    account_id: row.account_id,
+    status,
+    error: error ?? null,
+    result,
+    completed_at: new Date().toISOString(),
+  });
+  const headersOut: Record<string, string> = {
+    'content-type': 'application/json',
+    'x-weles-event': 'run.finished',
+    'x-weles-run-id': row.id,
+  };
+  const secret = process.env.WELES_WEBHOOK_SECRET;
+  if (secret) headersOut['x-weles-signature'] = `sha256=${createHmac('sha256', secret).update(body).digest('hex')}`;
+  await fetch(webhookUrl, { method: 'POST', headers: headersOut, body }).catch(() => {});
 }
 
 async function readCosts(jobId: string): Promise<{ cost_usd: number; service_costs: Record<string, number> } | null> {
@@ -300,13 +521,15 @@ export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
   if (!row) return 'idle';
   const trajPath = resolveTrajectory(row.action);
   if (!trajPath) {
-    await writeResult(row.id, 'failed', {}, `no trajectory for action=${row.action}`);
+    const message = `no trajectory for action=${row.action}`;
+    await writeResult(row.id, 'failed', {}, message);
+    await sendRunWebhook(row, 'failed', {}, message);
     return 'claimed';
   }
   console.log(`[worker] claimed ${row.id.slice(0, 8)} action=${row.action} account=${row.account_id?.slice(0, 8) ?? 'none'} -> ${trajPath}`);
 
   const runStart = new Date();
-  const { exitCode, stderr } = await runTrajectory(row, trajPath);
+  const { exitCode, stderr, cancelled } = await runTrajectory(row, trajPath);
   const banSignal = await readBanSignal(row.id);
   const lightResultOnly = LIGHT_RESULT_ACTIONS.has(row.action);
   const result: Record<string, unknown> = lightResultOnly ? {} : { versions: captureVersions(trajPath) };
@@ -351,8 +574,20 @@ export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
     if (pangram) result.pangram = pangram;
   }
   {
+    const genericTask = await readJsonInRun(row.id, 'generic_task_result.json');
+    if (genericTask) result.generic_browser_task = genericTask;
+  }
+  {
     const overleafHistorySummary = await readJsonInRun(row.id, 'overleaf_version_history_summary.json');
     if (overleafHistorySummary) result.overleaf_version_history_summary = overleafHistorySummary;
+  }
+  {
+    const yahooRegister = await readJsonInRun(row.id, 'yahoo_register_result.json');
+    if (yahooRegister) result.yahoo_register = yahooRegister;
+  }
+  {
+    const serviceAction = await readJsonInRun(row.id, 'service_action_result.json');
+    if (serviceAction) result.service_action = serviceAction;
   }
   // IP-drift detection: first session stores observed exit_ip; subsequent sessions compare, mismatch -> ip_drift + pause.
   if (!lightResultOnly) try { const ip = (result.session as any)?.exit_ip; if (ip && row.account_id) { const r = await fetch(`${SUPABASE_URL}/rest/v1/social_accounts?id=eq.${row.account_id}&select=metadata`, { headers: headers() }); if (r.ok) { const j = await r.json() as any[]; const m = j[0]?.metadata ?? {}; const stored = m.proxy?.exit_ip; if (!stored) { const nm = { ...m, proxy: { ...(m.proxy ?? {}), exit_ip: ip } }; await fetch(`${SUPABASE_URL}/rest/v1/social_accounts?id=eq.${row.account_id}`, { method: 'PATCH', headers: { ...headers(), Prefer: 'return=minimal' }, body: JSON.stringify({ metadata: nm }) }); } else if (stored !== ip) { result.ban_signal = { healthy: false, signal: 'ip_drift', details: { expected: stored, observed: ip } }; await pauseAccount(row.account_id, 'ip_drift'); } } } } catch (e) { console.log('[ip-drift]', e instanceof Error ? e.message : String(e)); }
@@ -390,25 +625,44 @@ export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
       }).catch(() => {});
     }
   }
+  let verificationPending = false;
+  let verificationMessage: string | undefined;
   if (!lightResultOnly) {
     // Always upload so every run has recordings on the detail page.
     await uploadArtifacts(row.action, row.id, runStart, { force: true }).then(a => { if (a) result.artifacts = a }).catch(() => {});
     // G18: persist the full network/instrumentation capture into the lazy
     // account_action_log_capture table (direct PG; best-effort).
     await writeNetworkCapture(row.id).catch(() => {});
+    const verification = await verifyRunArtifacts(row, result);
+    if (verification) result.verification = verification;
+    verificationPending = verification ? !verification.passed : false;
+    verificationMessage = verificationPending ? `verification_${verification?.verdict}: ${verification?.reason}` : undefined;
   }
   const costs = await readCosts(row.id);
   if (costs) console.log(`[worker] ${row.id.slice(0, 8)} cost=$${costs.cost_usd.toFixed(4)} services=${Object.keys(costs.service_costs).join(',')}`);
   const pendingPath = await findInRun(row.id, 'pending_review.json');
   let pending: Record<string, unknown> | null = null;
   if (pendingPath) { try { pending = JSON.parse(await readFile(pendingPath, 'utf8')); await unlink(pendingPath); } catch { pending = null; } }
-  if (exitCode === 0 && pending) {
-    result.pending_review = pending;
-    await writeResult(row.id, 'pending_review', result, undefined, costs ?? undefined);
+  if (cancelled) {
+    const message = stderr || 'cancel_requested';
+    result.cancelled = true;
+    result.ban_signal = { healthy: false, signal: 'cancelled' };
+    await writeResult(row.id, 'cancelled', result, message, costs ?? undefined);
+    await updateTrajectoryBuildAfterRun(row, 'cancelled', result, message);
+    await closeCampaignItem(row.params, 'failed', message);
+    await sendRunWebhook(row, 'cancelled', result, message);
+    console.log(`[worker] ${row.id.slice(0, 8)} cancelled`);
+  } else if (exitCode === 0 && (pending || verificationPending)) {
+    if (pending) result.pending_review = pending;
+    await writeResult(row.id, 'pending_review', result, verificationMessage, costs ?? undefined);
+    await updateTrajectoryBuildAfterRun(row, 'pending_review', result, verificationMessage ?? 'pending_review');
+    await sendRunWebhook(row, 'pending_review', result, verificationMessage);
     console.log(`[worker] ${row.id.slice(0, 8)} pending_review`);
   } else if (exitCode === 0) {
     await writeResult(row.id, 'completed', result, undefined, costs ?? undefined);
+    await updateTrajectoryBuildAfterRun(row, 'completed', result);
     await closeCampaignItem(row.params, 'completed');
+    await sendRunWebhook(row, 'completed', result);
     console.log(`[worker] ${row.id.slice(0, 8)} completed signal=${(result.ban_signal as BanSignal).signal}`);
   } else {
     // Kick off diagnostic retry BEFORE writing the failure result so the
@@ -418,8 +672,11 @@ export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
     // moment someone investigates. Opt out with AUTO_INSTRUMENT_RETRIES=0.
     const dumpPath = await diagnosticRetry(row, trajPath);
     if (dumpPath) result.instrumented_dump = dumpPath;
-    await writeResult(row.id, 'failed', result, stderr || `exit ${exitCode}`, costs ?? undefined);
-    await closeCampaignItem(row.params, 'failed', stderr || `exit ${exitCode}`);
+    const message = stderr || `exit ${exitCode}`;
+    await writeResult(row.id, 'failed', result, message, costs ?? undefined);
+    await updateTrajectoryBuildAfterRun(row, 'failed', result, message);
+    await closeCampaignItem(row.params, 'failed', message);
+    await sendRunWebhook(row, 'failed', result, message);
     console.log(`[worker] ${row.id.slice(0, 8)} failed exit=${exitCode}`);
   }
   return 'claimed';

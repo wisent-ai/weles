@@ -12,7 +12,7 @@ const LOGIN_URL = 'https://dashboard.oxylabs.io/';
 const BILLING_URL = 'https://dashboard.oxylabs.io/en/billing-plans';
 
 const login = await getGoogleSsoCreds();
-if (!login) { console.log('FAIL: no Google SSO creds'); process.exit(1); }
+if (!login) { console.log('FAIL: no Google SSO creds'); throw new Error('no Google SSO creds'); }
 console.log(`[trajectory] Using Google SSO: ${login.email}`);
 
 const s = await WSession.start({ label: 'oxylabs_balance', browser: 'chromium' });
@@ -21,16 +21,16 @@ try {
   await humanIdlePause('long');
 
   const gsiFrame = s.page.frames().find(f => /gsi\/button/.test(f.url()));
-  if (!gsiFrame) { console.log('FAIL: Oxylabs Google GSI iframe not found'); process.exit(1); }
+  if (!gsiFrame) { console.log('FAIL: Oxylabs Google GSI iframe not found'); throw new Error('Oxylabs Google GSI iframe not found'); }
 
   const popupPromise = s.page.waitForEvent('popup').catch(() => null);
   await humanClickLocator(s.page, gsiFrame.locator('div[role="button"]').first());
   const popup = await Promise.race([popupPromise, new Promise(r => setTimeout(() => r(null), 15000))]);  // allow-raw-playwright: Promise.race deadline
-  if (!popup) { console.log('FAIL: Google login popup did not open'); process.exit(1); }
+  if (!popup) { console.log('FAIL: Google login popup did not open'); throw new Error('Google login popup did not open'); }
   await popup.waitForLoadState('domcontentloaded').catch(() => {});
 
   const ok = await googleSso(s, login, { originHost: 'oxylabs.io', page: popup });
-  if (!ok) { console.log('FAIL: Google SSO did not complete'); process.exit(1); }
+  if (!ok) { console.log('FAIL: Google SSO did not complete'); throw new Error('Google SSO did not complete'); }
 
   for (let i = 0; i < 60; i++) {
     await humanIdlePause('short');
@@ -39,12 +39,10 @@ try {
   }
   console.log(`[trajectory] post-login url=${s.page.url()}`);
 
-  // Oxylabs uses GB-based prepaid plans, not USD wallets. Click into the
-  // active product to see remaining traffic.
-  for (const txt of [/Mobile Proxies/i, /Residential/i, /Limits and Spending/i]) {
-    const btn = s.page.getByText(txt).first();
-    if (await btn.isVisible().catch(() => false)) { await btn.click({ force: true }).catch(() => {}); await humanIdlePause('deliberate'); break; }
-  }
+  // Oxylabs uses GB-based prepaid plans, not USD wallets. The overview page
+  // shows "Traffic available: X GB" for the active mobile/residential plan.
+  // Avoid clicking into product-specific tabs (they show "used / total"
+  // fractions that are easy to misread as remaining).
   await humanIdlePause('long');
 
   const text = await s.page.evaluate(() => document.body.innerText);
@@ -56,12 +54,11 @@ try {
   // in priority order, take the first match.
   // retry-allowed: regex-match ladder, not request retry
   const patterns = [
-    // Verified live 2026-05-05 against Oxylabs Mobile Proxies dashboard:
-    // "Traffic available: 2.8 GB" — the value renders in bold on its own
-    // line, so innerText separates label from number with a newline. Use
-    // [^0-9]{0,30} (no newline exclusion) so the prefix crosses lines.
-    // [^0-9] also prevents the prefix from greedily eating the leading
-    // digits of the capture group.
+    // Verified live 2026-06-23: overview shows "Traffic available: 2.8 GB".
+    // Most specific — try this before the generic labels so we don't grab a
+    // usage fraction from a product tab.
+    /traffic\s*(?:available|remaining|left)[^0-9]{0,30}([0-9]+(?:\.[0-9]+)?)\s*(?:GB|GiB|gigabytes?)/i,
+    // Generic "available/remaining/left X GB" fallback.
     /(?:remaining|left|available)[^0-9]{0,30}([0-9]+(?:\.[0-9]+)?)\s*(?:GB|GiB|gigabytes?)/i,
     // "12.34 GB remaining" / "12 GB left" / "12.34 gigabytes available"
     /([0-9]+(?:\.[0-9]+)?)\s*(?:GB|GiB|gigabytes?)\s+(?:remaining|left|available|of)/i,
@@ -101,11 +98,15 @@ try {
   // overrides balance to 0 so cron decisions reflect EFFECTIVE balance.
   const r1 = await patchEffectiveBalance('Oxylabs Residential', balance);
   const r2 = await patchEffectiveBalance('Oxylabs Mobile', balance);
-  if (!r1 || !r2) { console.log(`FAIL: PATCH residential=${r1} mobile=${r2}`); process.exit(1); }
+  if (!r1 || !r2) { console.log(`FAIL: PATCH residential=${r1} mobile=${r2}`); throw new Error(`PATCH residential=${r1} mobile=${r2}`); }
   console.log(`PASS: dashboard=$${balance} (effective balance written + probed)`);
 } catch (e) {
   console.log('FAIL:', e.message?.slice(0, 200));
+  if (process.env.KEEP_OPEN === '1') {
+    console.log('[trajectory] KEEP_OPEN=1 — browser left open for manual intervention');
+    await new Promise(() => {});
+  }
   process.exit(1);
 } finally {
-  await s.close();
+  if (process.env.KEEP_OPEN !== '1') await s.close();
 }

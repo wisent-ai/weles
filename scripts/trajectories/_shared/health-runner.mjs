@@ -16,6 +16,8 @@ import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
 
+const HEADLESS = process.env.HEADLESS === '1' || process.env.WELES_HEADLESS === '1';
+
 export async function runHealthProbe(cfg) {
   const acct = await getSocialAccount(cfg.platform);
   if (!acct) { console.log(`FAIL: no active ${cfg.platform} account`); process.exit(1); }
@@ -23,7 +25,7 @@ export async function runHealthProbe(cfg) {
   const { proxyUrl, persona } = await resolveAccountSession(acct);
 
   const loggedIn = { url: null, status: null, body: null, signal: null };
-  const sIn = await WSession.start({ label: `${cfg.platform}_health_in`, proxy: proxyUrl, persona });
+  const sIn = await WSession.start({ label: `${cfg.platform}_health_in`, proxy: proxyUrl, persona, headless: HEADLESS });
   try {
     // Inject stored auth cookies so the "logged in" probe actually is authed.
     // Without these the authed API endpoints 401 / redirect to authwall and
@@ -64,7 +66,7 @@ export async function runHealthProbe(cfg) {
     // WSession.start picks a random persona and may land on Firefox, which
     // breaks any platform that needs CDP (TikTok's network-bytes counter,
     // mssdk-info synthesis, etc.) and silently degrades the probe.
-    const sOut = await WSession.start({ label: `${cfg.platform}_health_out`, proxy: proxyUrl, persona });
+    const sOut = await WSession.start({ label: `${cfg.platform}_health_out`, proxy: proxyUrl, persona, headless: HEADLESS });
     try {
       await sOut.goto(cfg.loggedOutUrl(acct.username));
       const resp = sOut.capturedResponses.find(r => cfg.loggedOutRegex.test(r.url));

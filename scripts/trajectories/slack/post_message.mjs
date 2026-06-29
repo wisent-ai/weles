@@ -6,12 +6,13 @@
 //   FALLBACK (no token): the original browser flow — Google-SSO into
 //     wisent-workspace.slack.com, create the app via manifest, scrape a fresh
 //     xoxb, post. Only used when no bot token is configured.
-// Token source: SLACK_BOT_TOKEN env, else first line of ~/.oko/bot-token.
+// Token source: SLACK_BOT_TOKEN env, else ~/.oko/bot-token, else ~/.oko/slack.json.
 // IMPORTANT: do NOT re-create the app when a token exists — that spawns a
 // duplicate (logo-less) "Oko" and posts from the wrong identity.
-// Env: SLACK_BOT_TOKEN, MESSAGE_TEXT | MESSAGE_FILE,
+// Env: SLACK_BOT_TOKEN, MESSAGE_TEXT | MESSAGE_FILE, SLACK_DRY_RUN=1,
 //      SLACK_TARGET_CHANNEL (id) | SLACK_TARGET_CHANNEL_NAME | SLACK_TARGET_USER_ID,
 //      SLACK_TARGET_USER_MATCHERS (csv, default jakub,kuba,towarek),
+//      SLACK_ENABLE_TAGGING=0 | SLACK_MENTION_USER_IDS | SLACK_MENTION_USER_MATCHERS,
 //      SLACK_EMAIL/SLACK_PASS (fallback browser flow only).
 
 import { existsSync, readFileSync, mkdirSync } from 'node:fs';
@@ -26,6 +27,9 @@ const MESSAGE_FILE = process.env.MESSAGE_FILE
   || join(OKO, '.work', 'jakub-status.txt');
 const TARGET_NAME = (process.env.SLACK_TARGET_CHANNEL_NAME || 'jakub').toLowerCase();
 const TARGET_CHAN = process.env.SLACK_TARGET_CHANNEL || '';
+const DRY_RUN = process.env.SLACK_DRY_RUN === '1';
+const TAGGING_ENABLED = process.env.SLACK_ENABLE_TAGGING !== '0';
+const MENTION_MODE = (process.env.SLACK_MENTION_MODE || 'prefix').toLowerCase();
 
 // Message source: inline MESSAGE_TEXT (machine-independent — survives being
 // enqueued on one host and run on another) takes precedence over MESSAGE_FILE
@@ -39,13 +43,27 @@ const MESSAGE_BODY = INLINE_MESSAGE || readFileSync(MESSAGE_FILE, 'utf8');
 
 // ---- FAST PATH: stored bot token -> chat.postMessage (no browser) -----------
 function storedBotToken() {
-  if (process.env.SLACK_BOT_TOKEN) return process.env.SLACK_BOT_TOKEN.trim();
-  const f = join(homedir(), '.oko', 'bot-token');
-  try { const t = readFileSync(f, 'utf8').split('\n')[0].trim(); if (t.startsWith('xoxb-')) return t; } catch {}
+  if (process.env.SLACK_BOT_TOKEN?.trim()) return process.env.SLACK_BOT_TOKEN.trim();
+  const okoDir = join(homedir(), '.oko');
+  const botFile = join(okoDir, 'bot-token');
+  try {
+    const token = readFileSync(botFile, 'utf8').split('\n')[0].trim();
+    if (token.startsWith('xoxb-')) return token;
+  } catch {}
+  try {
+    const cfg = JSON.parse(readFileSync(join(okoDir, 'slack.json'), 'utf8'));
+    for (const key of ['bot_token', 'botToken', 'SLACK_BOT_TOKEN']) {
+      const token = typeof cfg?.[key] === 'string' ? cfg[key].trim() : '';
+      if (token.startsWith('xoxb-')) return token;
+    }
+  } catch {}
   return '';
 }
+function encodeForm(form) {
+  return Object.entries(form).map(([k, v]) => `${k}=${encodeURIComponent(String(v))}`).join('&');
+}
 async function slackPost(method, form, token) {
-  const body = Object.entries(form).map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join('&');
+  const body = encodeForm(form);
   const r = await fetch(`https://slack.com/api/${method}`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -61,6 +79,85 @@ const RECIPIENT_GROUPS = [
   ['jakub', 'towarek', 'kuba'],
   ['lukasz', 'bartoszcze', 'łukasz'],
 ];
+
+function parseCsv(value) {
+  return String(value || '').split(',').map((x) => x.trim()).filter(Boolean);
+}
+
+function parseMatcherGroups(value, fallback = RECIPIENT_GROUPS) {
+  if (!value) return fallback;
+  return String(value)
+    .toLowerCase()
+    .split(/[;|]/)
+    .map((group) => group.split(',').map((x) => x.trim()).filter(Boolean))
+    .filter((group) => group.length);
+}
+
+function memberFields(user) {
+  const profile = user.profile || {};
+  return [user.name, user.real_name, profile.email, profile.display_name]
+    .filter(Boolean)
+    .map((x) => String(x).toLowerCase());
+}
+
+function resolveUsersFromMembers(members, groups) {
+  const hits = [];
+  for (const group of groups) {
+    const hit = members.find((user) => {
+      const fields = memberFields(user);
+      return group.some((matcher) => fields.some((field) => field.includes(matcher)));
+    });
+    if (hit && !hits.some((u) => u.id === hit.id)) hits.push(hit);
+    else if (!hit) console.log(`[slack] WARN no user matched ${group.join('/')}`);
+  }
+  return hits;
+}
+
+function isChannelTarget(target) {
+  return /^[CG][A-Z0-9]+$/.test(String(target || ''));
+}
+
+function alreadyMentioned(text, id) {
+  return new RegExp(`<@${id}(?:\\|[^>]+)?>`).test(text);
+}
+
+function applyMentions(text, ids) {
+  if (!TAGGING_ENABLED || MENTION_MODE === 'none' || !ids.length) return text;
+  const missing = ids.filter((id) => !alreadyMentioned(text, id));
+  if (!missing.length) return text;
+  const prefix = missing.map((id) => `<@${id}>`).join(' ');
+  if (MENTION_MODE === 'append') return `${text.trimEnd()}\n\n${prefix}\n`;
+  return `${prefix}\n\n${text}`;
+}
+
+async function mentionIdsForTarget(target, loadMembers) {
+  if (!TAGGING_ENABLED || MENTION_MODE === 'none' || !isChannelTarget(target)) return [];
+  const explicit = parseCsv(process.env.SLACK_MENTION_USER_IDS || process.env.SLACK_MENTION_USER_ID);
+  if (explicit.length) return [...new Set(explicit)];
+
+  const groups = parseMatcherGroups(process.env.SLACK_MENTION_USER_MATCHERS, RECIPIENT_GROUPS);
+  const members = await loadMembers();
+  const hits = resolveUsersFromMembers(members, groups);
+  for (const hit of hits) console.log(`[slack] mention ${hit.real_name || hit.name} -> ${hit.id}`);
+  return hits.map((hit) => hit.id);
+}
+
+function dryPlan(targets, plans, who) {
+  console.log(JSON.stringify({
+    ok: true,
+    dry_run: true,
+    bot: who ? { team: who.team, team_id: who.team_id, user: who.user, user_id: who.user_id } : null,
+    targets: targets.map((target, index) => ({
+      id: target,
+      kind: isChannelTarget(target) ? 'channel' : (String(target).startsWith('D') ? 'dm_channel' : 'user_or_dm'),
+      mention_ids: plans[index].mentionIds,
+      tagging_applied: plans[index].text !== MESSAGE_BODY,
+      text_length: plans[index].text.length,
+      text_preview: plans[index].text.slice(0, 180),
+    })),
+  }, null, 2));
+}
+
 async function resolveTargets(token) {
   if (TARGET_CHAN) return [TARGET_CHAN];                                 // explicit channel id wins
   if (process.env.SLACK_TARGET_USER_IDS)                                 // explicit csv of DM targets
@@ -73,6 +170,7 @@ async function resolveTargets(token) {
       const list = await slackPost('conversations.list', { types: 'public_channel,private_channel', limit: '1000' }, token);
       const c = (list.channels || []).find((x) => (x.name || '').toLowerCase() === TARGET_NAME);
       if (c) return [c.id];
+      console.log(`[slack] no visible channel named "${TARGET_NAME}" — falling through to user targets`);
     } catch (e) { console.log(`[slack] conversations.list skipped: ${e.message}`); }
   }
   // DM one user per recipient group, resolved by name/email matcher.
@@ -83,11 +181,7 @@ async function resolveTargets(token) {
   const members = (ul.members || []).filter((u) => !u.deleted && !u.is_bot);
   const ids = [];
   for (const group of groups) {
-    const hit = members.find((u) => {
-      const fields = [u.name, u.real_name, u.profile && u.profile.email, u.profile && u.profile.display_name]
-        .filter(Boolean).map((x) => String(x).toLowerCase());
-      return group.some((m) => fields.some((f) => f.includes(m)));
-    });
+    const hit = resolveUsersFromMembers(members, [group])[0];
     if (hit && !ids.includes(hit.id)) { ids.push(hit.id); console.log(`[slack] recipient ${hit.real_name || hit.name} -> ${hit.id}`); }
     else if (!hit) console.log(`[slack] WARN no user matched ${group.join('/')}`);
   }
@@ -99,13 +193,29 @@ if (BOT_TOKEN) {
   const who = await slackPost('auth.test', {}, BOT_TOKEN);
   console.log(`[slack] fast path: bot=${who.user} user_id=${who.user_id} team=${who.team}`);
   const targets = await resolveTargets(BOT_TOKEN);
-  let posted = 0;
+  let memberCache = null;
+  const loadMembers = async () => {
+    if (memberCache) return memberCache;
+    const ul = await slackPost('users.list', { limit: '1000' }, BOT_TOKEN);
+    memberCache = (ul.members || []).filter((u) => !u.deleted && !u.is_bot);
+    return memberCache;
+  };
+  const plans = [];
   for (const target of targets) {
+    const mentionIds = await mentionIdsForTarget(target, loadMembers);
+    plans.push({ target, mentionIds, text: applyMentions(MESSAGE_BODY, mentionIds) });
+  }
+  if (DRY_RUN) {
+    dryPlan(targets, plans, who);
+    process.exit(0);
+  }
+  let posted = 0;
+  for (const plan of plans) {
     try {
-      const post = await slackPost('chat.postMessage', { channel: target, text: MESSAGE_BODY }, BOT_TOKEN);
-      console.log(`[slack] ✓ posted to ${target} ts=${post.ts}`);
+      const post = await slackPost('chat.postMessage', { channel: plan.target, text: plan.text, mrkdwn: true }, BOT_TOKEN);
+      console.log(`[slack] ✓ posted to ${plan.target} ts=${post.ts}`);
       posted++;
-    } catch (e) { console.error(`[slack] post to ${target} failed: ${e.message}`); }
+    } catch (e) { console.error(`[slack] post to ${plan.target} failed: ${e.message}`); }
   }
   if (!posted) { console.error('[slack] all posts failed'); process.exit(5); }
   console.log(`[slack] ✓ delivered to ${posted}/${targets.length} recipient(s)`);
@@ -238,7 +348,7 @@ console.log(`[slack] ✓ xoxb=${xoxb.slice(0, 18)}… len=${xoxb.length}`);
 // --- Step 3: resolve channel + post via Slack API using browser cookies ----
 const ctxReq = s.page.context().request;
 async function slackApi(method, form) {
-  const body = Object.entries(form).map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join('&');
+  const body = encodeForm(form);
   const r = await ctxReq.post(`https://wisent-workspace.slack.com/api/${method}?_x_id=${Date.now()}`, {
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     data: body,
@@ -285,7 +395,18 @@ if (!channelId) {
 if (!channelId) { console.error('[slack] no channel id'); await safeShutdown(); process.exit(4); }
 
 const messageText = INLINE_MESSAGE || readFileSync(MESSAGE_FILE, 'utf8');
-const post = await slackApi('chat.postMessage', { token: xoxb, channel: channelId, text: messageText });
+const fallbackMembers = async () => {
+  const ul = await slackApi('users.list', { token: xoxc, limit: '1000' });
+  return (ul.members || []).filter((u) => !u.deleted && !u.is_bot);
+};
+const fallbackMentionIds = await mentionIdsForTarget(channelId, fallbackMembers);
+const finalMessageText = applyMentions(messageText, fallbackMentionIds);
+if (DRY_RUN) {
+  dryPlan([channelId], [{ target: channelId, mentionIds: fallbackMentionIds, text: finalMessageText }], null);
+  await safeShutdown();
+  process.exit(0);
+}
+const post = await slackApi('chat.postMessage', { token: xoxb, channel: channelId, text: finalMessageText, mrkdwn: true });
 console.log(`[slack] ✓ posted as Swiatowid bot ts=${post.ts} channel=${channelId}`);
 
 await safeShutdown();

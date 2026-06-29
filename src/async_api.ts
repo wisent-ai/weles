@@ -49,6 +49,13 @@ const CHROMIUM_ARGS = [
   // proceed without opening the app handler.
   '--disable-features=AutoLaunchProtocolsFromOrigins',
   // HTTP/2 + QUIC + TLS1.3 early-data + DNS-HTTPS + HTTPS Upgrades are default-on in Chrome 147. Disabling emits ALPN/TLS-ext/akamaiH2 deltas TikTok+Akamai flag. Switch providers, never globally disable.
+  // WebRTC: without this, STUN can leak the real local/public IP even when a
+  // proxy is configured. disable_non_proxied_udp forces WebRTC traffic through
+  // the proxy/TURN and prevents UDP bypasses.
+  '--force-webrtc-ip-handling-policy=disable_non_proxied_udp',
+  // Encrypted ClientHello can add an extra TLS extension after the first ECH-
+  // capable site is visited, making JA4/peetprint drift within a single run.
+  '--disable-features=EncryptedClientHello',
 ];
 
 export interface AsyncNewBrowserOptions {
@@ -63,6 +70,7 @@ export interface AsyncNewBrowserOptions {
   userDataDir?: string;
   persona?: Persona;
   pageDiagnostics?: boolean;
+  userAgent?: string;
 }
 
 function inferMacAppName(executablePath: string): string | null {
@@ -168,6 +176,11 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
 
   const fp = generate({ os: targetOs, browser: browserType });
   const fpConfig = toConfig(fp, targetOs, browserType);
+  // Allow callers to pin the HTTP + JS userAgent (e.g. to match a captcha
+  // solver's UA so a returned clearance cookie stays valid).
+  if (options.userAgent) {
+    (fpConfig.navigator ?? (fpConfig.navigator = {})).userAgent = options.userAgent;
+  }
   // Realized fingerprint actually presented to the page (UA, full UA-CH brand
   // list, navigator/screen/webgl). Captured onto the context so WSession can
   // persist it into session_meta -> account_action_logs.result (provenance).
@@ -213,15 +226,17 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
         };
       }
       // Real display geometry: the synthetic persona's screen size + the forced
-      // colorDepth:24 are macOS tells (real Retina = 30, and the resolution/DPR
-      // must be the actual panel). Report the real Main Display when detected.
-      if (hw.screen) {
+      // colorDepth:24 are macOS tells in headed production. Headless parity
+      // audits need the opposite: real hardware, but viewport-sized screen.
+      const honestScreenValue = String(process.env.WELES_HONEST_SCREEN ?? (headless ? '0' : '1')).trim().toLowerCase();
+      const honestScreenEnabled = !['0', 'false', 'off', 'no'].includes(honestScreenValue);
+      if (hw.screen && honestScreenEnabled) {
         const sc = hw.screen;
         fpConfig.screen = { ...(fpConfig.screen ?? {}),
           width: sc.width, height: sc.height, availWidth: sc.availWidth, availHeight: sc.availHeight,
           availLeft: 0, availTop: sc.availTop, colorDepth: sc.colorDepth, pixelDepth: sc.colorDepth };
         fpConfig.window = { ...(fpConfig.window ?? {}), devicePixelRatio: sc.dpr };
-      } else if (hw.osFamily === 'macos' && fpConfig.screen) {
+      } else if (hw.osFamily === 'macos' && fpConfig.screen && honestScreenEnabled) {
         // Fallback: at least correct colorDepth to Retina 30 (matches fingerprint.ts:170).
         fpConfig.screen = { ...fpConfig.screen, colorDepth: 30, pixelDepth: 30 };
       }
@@ -233,7 +248,9 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
 
   const initScript = buildInitScript(fpConfig, options.excludeScripts);
   const nav = fpConfig.navigator ?? {};
-  const _hhScreen = (fpConfig as any)._honestHost?.screen;
+  const honestScreenValueForViewport = String(process.env.WELES_HONEST_SCREEN ?? (headless ? '0' : '1')).trim().toLowerCase();
+  const honestScreenForViewport = !['0', 'false', 'off', 'no'].includes(honestScreenValueForViewport);
+  const _hhScreen = honestScreenForViewport ? (fpConfig as any)._honestHost?.screen : null;
   // Window (viewport) must not exceed the real panel — a persona screen taller/
   // wider than the honest screen (e.g. 2560x1600 persona on a 2560x1440 panel)
   // is a window-larger-than-screen tell. Cap to the real avail area.
@@ -249,10 +266,31 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
   // the true scale — a window claiming DPR 1 while screen reports DPR 2 (or the
   // canvas/pixel-hash renders at the wrong scale) is a tell.
   const dpr = _hhScreen?.dpr ?? persona?.screen.dpr ?? 1;
+  if (headless && isChromium) {
+    fpConfig.screen = {
+      ...(fpConfig.screen ?? {}),
+      width: viewW,
+      height: viewH,
+      availWidth: viewW,
+      availHeight: viewH,
+      availLeft: 0,
+      availTop: 0,
+      colorDepth: 24,
+      pixelDepth: 24,
+    };
+    fpConfig.window = {
+      ...(fpConfig.window ?? {}),
+      devicePixelRatio: dpr,
+      outerWidth: viewW,
+      outerHeight: viewH,
+      innerWidth: viewW,
+      innerHeight: viewH,
+    };
+  }
 
   // tz/locale NOT in ctxOpts (CDP Emulation -> TikTok mssdk detects). --lang + TZ env. Accept-Language IS set via extraHTTPHeaders (header only) so weles Firefox emits 'en-US,en;q=0.5', Chromium 'en-US,en;q=0.9' (computed in persona.ts).
   const ctxOpts: Record<string, any> = {
-    userAgent: nav.userAgent,
+    userAgent: options.userAgent ?? nav.userAgent,
     viewport: { width: viewW, height: viewH },
     screen: { width: viewW, height: viewH },
     deviceScaleFactor: dpr,
@@ -280,6 +318,9 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
   const userDataDir = options.userDataDir ?? process.env.WELES_USER_DATA_DIR ?? '';
   const launchOpts: Record<string, any> = { headless };
   const args = [...CHROMIUM_ARGS];
+  if (process.env.WELES_CHROMIUM_PROFILE_DIRECTORY) {
+    args.push(`--profile-directory=${process.env.WELES_CHROMIUM_PROFILE_DIRECTORY}`);
+  }
 
   // Language + timezone as binary-level signals (real Chrome behavior), not CDP emulation.
   if (persona?.language) args.push(`--lang=${persona.language}`);
@@ -299,10 +340,23 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
   if (isCustomBinary) {
     launchOpts.executablePath = chromiumPath;
     const cppConfig = toCppConfig(fpConfig, targetOs, { chromiumPath });
-    // Honest OS version: replace toCppConfig's hardcoded platformVersion with the
-    // real host's (Phase 1 reports OS version truthfully). See honest-host block.
+    // Honest OS version: replace toCppConfig's default platformVersion with the
+    // real host's (Phase 1 reports OS version truthfully). Explicit audit pins
+    // still win so the Chrome-vs-Weles harness can compare equal surfaces.
     const _hh = (fpConfig as any)._honestHost;
-    if (_hh?.platformVersion && cppConfig.clientHints) cppConfig.clientHints.platformVersion = _hh.platformVersion;
+    const pinnedPlatformVersion = process.env.WELES_CLIENT_HINTS_PLATFORM_VERSION || process.env.WELES_MAC_PLATFORM_VERSION;
+    const pinnedArchitecture = process.env.WELES_CLIENT_HINTS_ARCHITECTURE;
+    if (cppConfig.clientHints) {
+      if (pinnedPlatformVersion) cppConfig.clientHints.platformVersion = pinnedPlatformVersion;
+      else if (_hh?.platformVersion) cppConfig.clientHints.platformVersion = _hh.platformVersion;
+      if (pinnedArchitecture) cppConfig.clientHints.architecture = pinnedArchitecture;
+    }
+    (fpConfig as any).clientHints = cppConfig.clientHints;
+    if (cppConfig.clientHints) {
+      (fpConfig.navigator as any).platformVersion = cppConfig.clientHints.platformVersion;
+      (fpConfig.navigator as any).architecture = cppConfig.clientHints.architecture;
+      (fpConfig.navigator as any).bitness = cppConfig.clientHints.bitness;
+    }
     realizedFingerprint = cppConfig;
     const fpDir = mkdtempSync(join(tmpdir(), 'weles-fp-'));
     const fpFile = join(fpDir, 'config.json');
@@ -326,6 +380,9 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
     launchOpts.args = args;
     // Re-enable breakpad so crash dumps appear in ~/Library/Logs/DiagnosticReports.
     launchOpts.ignoreDefaultArgs = ['--enable-automation', '--enable-unsafe-swiftshader', '--disable-breakpad'];
+    if (process.env.WELES_USE_NATIVE_KEYCHAIN === '1') {
+      launchOpts.ignoreDefaultArgs.push('--password-store=basic', '--use-mock-keychain');
+    }
     console.log(`[async_api] Launching custom Chromium: ${chromiumPath}`);
     console.log(`[async_api] headless=${headless} proxy=${!!options.proxy} recordVideo=${recordVideo}`);
     console.log(`[async_api] fingerprint config: ${fpFile}`);
@@ -378,6 +435,24 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
     // register because wrappers/traps are visible to page JavaScript.
     const _inject = async (path: string, label: string) => { try { await context.addInitScript(readFileSync(path, 'utf-8')); console.log(`[async_api] ${label} installed`); } catch (e) { console.log(`[async_api] ${label} install failed: ${(e as Error).message}`); } };
     await _inject(join(__dirname, 'scripts', 'chrome147_stubs.js'), 'chrome147-stubs');
+    // The custom Chromium binary handles most fingerprinting via --weles-fingerprint,
+    // but a few properties (screen.availTop/availLeft, WebRTC IP leak) are not
+    // overridden by the C++ path. Inject a small screen+WebRTC patch FIRST so it
+    // survives even if the larger navigator.js stub fails on a challenging page.
+    const screenPreamble = `const __weles = { screen: ${JSON.stringify(fpConfig.screen ?? {})} };`;
+    const screenPatch = screenPreamble + '\n' + readFileSync(join(__dirname, 'scripts', 'screen_webrtc_patch.js'), 'utf-8');
+    try { await context.addInitScript(screenPatch); console.log('[async_api] screen-webrtc-patch installed'); } catch (e) { console.log(`[async_api] screen-webrtc-patch install failed: ${(e as Error).message}`); }
+
+    // Then inject the full navigator.js stub (plugins, mediaDevices, surface
+    // APIs, etc.). Do NOT load automation.js here: it adds window properties
+    // like __nightmare / _phantom that the fingerprint probe reads as automation
+    // markers and flags as critical.
+    const navPreamble = `const __weles = ${JSON.stringify(fpConfig)};` +
+      `if (typeof _nativeOverrides === 'undefined') { var _nativeOverrides = new Set(); }` +
+      `if (!window.__welesDefine) { window.__welesDefine = function(obj, prop, getter) { try { Object.defineProperty(obj, prop, { get: getter, configurable: true, enumerable: true }); } catch {} }; };` +
+      `if (!window.__welesNativeString) { const _ns=new Set(); window.__welesNativeString=function(fn,name){_ns.add(fn);}; const _ots=Function.prototype.toString; Function.prototype.toString=function(){ if(_ns.has(this)) return 'function '+(this.name||'')+'() { [native code] }'; return _ots.call(this); }; }`;
+    const navScript = navPreamble + '\n' + readFileSync(join(__dirname, 'scripts', 'navigator.js'), 'utf-8');
+    try { await context.addInitScript(navScript); console.log('[async_api] navigator-stubs installed'); } catch (e) { console.log(`[async_api] navigator-stubs install failed: ${(e as Error).message}`); }
     if (pageDiagnostics) {
       await _inject(join(__dirname, 'diagnostics', 'property_trap.js'), 'property-trap');
       await _inject(join(__dirname, 'diagnostics', 'input_recorder.js'), 'input-recorder');
@@ -503,19 +578,28 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
  * launch a desktop client.
  */
 function attachProtocolHandlerWatcher(context: BrowserContext) {
+  const seen = new Set<string>();
+  const shouldLog = (kind: string, url: string, frameUrl = ''): boolean => {
+    if (process.env.WELES_LOG_CUSTOM_PROTOCOL === '1') return true;
+    const key = `${kind}:${url}:${frameUrl}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  };
   context.on('page', (page) => {
     page.on('framenavigated', (frame) => {
       const url = frame.url();
       const scheme = url.split(':', 1)[0];
       if (scheme && scheme !== 'http' && scheme !== 'https'
           && scheme !== 'about' && scheme !== 'data' && scheme !== 'blob') {
-        console.log(`[async_api] custom-protocol nav attempted: ${url.slice(0, 200)}`);
+        if (shouldLog('nav', url)) console.log(`[async_api] custom-protocol nav attempted: ${url.slice(0, 200)}`);
       }
     });
     page.on('request', (req) => {
       const url = req.url();
       if (url.startsWith('http') || url.startsWith('about:') || url.startsWith('data:') || url.startsWith('blob:')) return;
-      console.log(`[async_api] custom-protocol request: ${url.slice(0, 200)} (frame=${req.frame()?.url()?.slice(0, 80)})`);
+      const frameUrl = req.frame()?.url?.() ?? '';
+      if (shouldLog('request', url, frameUrl)) console.log(`[async_api] custom-protocol request: ${url.slice(0, 200)} (frame=${frameUrl.slice(0, 80)})`);
     });
   });
 }

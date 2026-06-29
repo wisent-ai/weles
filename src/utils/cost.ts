@@ -149,7 +149,13 @@ class WelesCostTracker {
         const stamped = snap.records.map(r => ({ ...r, agent_id: this.agent_id })) as any;
         await this._supabase.write(stamped);
       } catch (e: any) {
-        console.log(`[cost] Supabase flush err: ${e.message?.slice(0, 120)}`);
+        const msg = String(e?.message || e);
+        if (/PGRST205|cost_records/.test(msg)) {
+          console.log('[cost] cost_records table not found in schema; disabling Supabase sink for this process');
+          this._supabase = null;
+        } else {
+          console.log(`[cost] Supabase flush err: ${msg.slice(0, 120)}`);
+        }
       }
       // If we created the action_log row ourselves, also patch it with the
       // running cost_usd + service_costs so the budget query against

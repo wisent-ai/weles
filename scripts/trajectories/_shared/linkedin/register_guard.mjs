@@ -227,7 +227,10 @@ export async function ensureLinkedinSignupForm(session, maxAttempts = 3) {
 }
 
 export async function assertLinkedinProxyStable(session, stage, expectedExitIp = '') {
-  if (!session.proxyConfig?.server) throw new Error('PROXY_REQUIRED: linkedin_register requires proxied dedicated ISP traffic');
+  if (!session.proxyConfig?.server) {
+    if (process.env.LINKEDIN_ALLOW_NO_PROXY === '1') return session.proxyConfig?.exit_ip || '';
+    throw new Error('PROXY_REQUIRED: linkedin_register requires proxied dedicated ISP traffic');
+  }
   let actual = '';
   try {
     const res = await session.ctx.request.get('https://api.ipify.org', { timeout: 15000 });
@@ -249,6 +252,9 @@ export async function assertLinkedinProxyStable(session, stage, expectedExitIp =
 
 export function assertLinkedinRegisterProxyRequest(requestedProxy = '') {
   const raw = String(requestedProxy ?? '').trim().toLowerCase();
+  if (raw === 'none' || raw === 'direct') {
+    if (process.env.LINKEDIN_ALLOW_NO_PROXY === '1') return;
+  }
   if (!raw || raw === 'none' || raw === 'direct') {
     throw new Error(`PROXY_NOT_DEDICATED_ISP: requested=${raw || 'empty'}`);
   }
@@ -268,6 +274,9 @@ export function assertLinkedinRegisterProxyRequest(requestedProxy = '') {
 
 export function assertLinkedinDedicatedIspProxy(session, requestedProxy = '') {
   const raw = String(requestedProxy).toLowerCase();
+  if (raw === 'none' || raw === 'direct') {
+    if (process.env.LINKEDIN_ALLOW_NO_PROXY === '1') return;
+  }
   const server = String(session.proxyConfig?.server ?? '').toLowerCase();
   const username = String(session.proxyConfig?.username ?? '').toLowerCase();
   const provider = String(session.proxyConfig?.provider ?? '').toLowerCase();
@@ -302,9 +311,10 @@ export function assertLinkedinDedicatedIspProxy(session, requestedProxy = '') {
 }
 
 export function classifyLinkedinRegisterFailure(errorMessage = '', finalUrl = '') {
-  if (/^(PROXY_|PROXY_NOT_DEDICATED_ISP)/.test(errorMessage) || finalUrl.startsWith('chrome-error://')) return 'proxy_failed';
+  if (/^(PROXY_|PROXY_NOT_DEDICATED_ISP)|proxy_unavailable/i.test(errorMessage) || finalUrl.startsWith('chrome-error://')) return 'proxy_failed';
   if (errorMessage.startsWith('ACCOUNT_PERSIST_FAILED')) return 'account_persist_failed';
   if (errorMessage.startsWith('PHONE_VERIFICATION_REQUIRED')) return 'phone_verification_required';
+  if (errorMessage.startsWith('FINGERPRINT_INCONSISTENT')) return 'fingerprint_inconsistent';
   if (errorMessage.startsWith('DETECTION_TRIGGERED')) return 'detection_triggered';
   if (/signup_(did_not_complete|verification_incomplete|did_not_authenticate)/.test(errorMessage)) return 'registration_not_accepted';
   if (/captcha|challenge|checkpoint/i.test(finalUrl) || /captcha|challenge|checkpoint/i.test(errorMessage)) return 'captcha_challenge';

@@ -121,6 +121,20 @@ console.log(`[keeper:${SESSION}] page traps ${_keeperTraps ? 'ON (forensic)' : '
 if (USER_DATA_DIR) console.log(`[keeper:${SESSION}] userDataDir=${USER_DATA_DIR}`);
 console.log(`[keeper:${SESSION}] WSession started`);
 
+// Force the password sign-in path: make WebAuthn unavailable so Google never
+// fires its native passkey dialog (a browser-chrome dialog Playwright cannot
+// click). With it gone, Google presents the password field directly. Gated on
+// KEEPER_DISABLE_WEBAUTHN=1 so normal keeper runs are unaffected.
+if (process.env.KEEPER_DISABLE_WEBAUTHN === '1') {
+  try {
+    await s.ctx.addInitScript(() => {
+      try { Object.defineProperty(window, 'PublicKeyCredential', { value: undefined, configurable: true }); } catch (e) {}
+      try { if (navigator.credentials) { navigator.credentials.get = () => Promise.reject(new DOMException('webauthn disabled', 'NotAllowedError')); } } catch (e) {}
+    });
+    console.log(`[keeper:${SESSION}] WebAuthn disabled (KEEPER_DISABLE_WEBAUTHN=1) — Google offers password instead of passkey`);
+  } catch (e) { console.log(`[keeper:${SESSION}] webauthn disable err: ${e?.message?.slice(0, 80)}`); }
+}
+
 // Auto-finalize when the operator closes the browser window. Without this the
 // keeper parks on its idle socket loop and the row stays status='running' with
 // nothing uploaded — the diagnostic executor finalizes on window-close (it polls
@@ -221,190 +235,15 @@ if (URL_ARG) {
   console.log(`[keeper:${SESSION}] at ${s.page.url()}`);
 }
 
-async function dispatch(cmd) {
-  try {
-    if (cmd.action === 'screenshot') {
-      const dir = `.work/keeper/${SESSION}`;
-      mkdirSync(dir, { recursive: true });
-      const fp = `${dir}/shot_${new Date().toISOString().replace(/[:.]/g, '-')}.png`;
-      await s.page.screenshot({ path: fp });
-      return { ok: true, path: fp };
-    }
-    if (cmd.action === 'dump') {
-      const dir = `.work/keeper/${SESSION}`;
-      mkdirSync(dir, { recursive: true });
-      const fp = `${dir}/dump_${new Date().toISOString().replace(/[:.]/g, '-')}.html`;
-      const html = await s.page.evaluate(() => document.documentElement.outerHTML);
-      writeFileSync(fp, html);
-      return { ok: true, path: fp, length: html.length };
-    }
-    if (cmd.action === 'url') return { ok: true, url: s.page.url() };
-    if (cmd.action === 'nav') {
-      await s.page.goto(cmd.url, { waitUntil: 'domcontentloaded' });
-      return { ok: true, url: s.page.url() };
-    }
-    if (cmd.action === 'click') {
-      const loc = cmd.skipVisible
-        ? s.page.locator(cmd.selector).first()
-        : s.page.locator(cmd.selector).filter({ visible: true }).first();
-      await humanClickLocator(s.page, loc);
-      return { ok: true };
-    }
-    if (cmd.action === 'iframe_click') {
-      let popupResolve;
-      const popupPromise = new Promise((res) => { popupResolve = res; });
-      s.page.once('popup', (p) => popupResolve(p));
-      s.ctx.once('page', (p) => popupResolve(p));
-      const frame = s.page.frames().find(f => f.url().includes(cmd.iframe));
-      if (!frame) return { ok: false, error: `no frame matching url include "${cmd.iframe}"`, frame_urls: s.page.frames().map(f => f.url().slice(0, 120)) };
-      const loc = frame.locator(cmd.selector).first();
-      await humanClickLocator(s.page, loc);
-      const popup = await Promise.race([popupPromise, new Promise(r => setTimeout(r, 8000))]);  // allow-raw-playwright: popup-event deadline guard
-      const ctxPages = s.ctx.pages().map(p => p.url().slice(0, 100));
-      return { ok: true, popup: popup ? await popup.url() : null, ctxPages };
-    }
-    if (cmd.action === 'ctx_pages') {
-      return { ok: true, pages: s.ctx.pages().map((p, i) => ({ i, url: p.url(), main: p === s.page })) };
-    }
-    if (cmd.action === 'all_pages') {
-      // List pages across ALL contexts in the browser (catches popups that land
-      // in a separate BrowserContext that ctx.pages() doesn't track).
-      const browser = s.ctx.browser?.();
-      const out = [];
-      if (browser) {
-        const ctxs = browser.contexts();
-        for (let ci = 0; ci < ctxs.length; ci++) {
-          const pages = ctxs[ci].pages();
-          for (let pi = 0; pi < pages.length; pi++) {
-            out.push({ ctxIdx: ci, pageIdx: pi, url: pages[pi].url(), isMain: pages[pi] === s.page, isOurCtx: ctxs[ci] === s.ctx });
-          }
-        }
-      }
-      return { ok: true, pages: out };
-    }
-    if (cmd.action === 'switch_to_url') {
-      // Switch s.page to the first page across all contexts whose URL matches cmd.urlPattern.
-      const browser = s.ctx.browser?.();
-      if (!browser) return { ok: false, error: 'no browser handle' };
-      for (const c of browser.contexts()) {
-        for (const p of c.pages()) {
-          if (p.url().includes(cmd.urlPattern)) {
-            s.page = p;
-            if (c !== s.ctx) { s.ctx = c; }
-            return { ok: true, url: p.url(), switchedCtx: c !== s.ctx };
-          }
-        }
-      }
-      return { ok: false, error: `no page matching url include "${cmd.urlPattern}"` };
-    }
-    if (cmd.action === 'switch_page') {
-      const pages = s.ctx.pages();
-      if (cmd.index < 0 || cmd.index >= pages.length) return { ok: false, error: `index ${cmd.index} out of range (${pages.length} pages)` };
-      s.page = pages[cmd.index];
-      return { ok: true, url: s.page.url() };
-    }
-    if (cmd.action === 'fill') {
-      const loc = cmd.skipVisible
-        ? s.page.locator(cmd.selector).first()
-        : s.page.locator(cmd.selector).filter({ visible: true }).first();
-      await humanFill(s.page, loc, cmd.text);
-      return { ok: true };
-    }
-    if (cmd.action === 'humanclick') {
-      await humanClick(s.page, cmd.x, cmd.y);
-      return { ok: true, x: cmd.x, y: cmd.y };
-    }
-    if (cmd.action === 'humanscroll') {
-      await humanScroll(s.page, cmd.totalDeltaY ?? 1200, cmd.bursts ?? 3);
-      return { ok: true };
-    }
-    if (cmd.action === 'humanmove') {
-      await humanMove(s.page, cmd.x, cmd.y);
-      return { ok: true, x: cmd.x, y: cmd.y };
-    }
-    if (cmd.action === 'humanidle') {
-      await humanIdlePause(cmd.kind || 'deliberate');
-      return { ok: true };
-    }
-    // Composite captcha-solver loops removed — keeper exposes atomic actions only.
-    if (cmd.action === 'humanfill_email_password') {
-      const e = s.page.locator('input#username, input[name="session_key"], input[type="email"]:not([readonly])').filter({ visible: true }).first();
-      await humanFill(s.page, e, cmd.email);
-      await humanIdlePause('short');
-      const p = s.page.locator('input#password, input[name="session_password"], input[type="password"]:not([readonly])').filter({ visible: true }).first();
-      await humanFill(s.page, p, cmd.password);
-      return { ok: true };
-    }
-    if (cmd.action === 'click_signin_submit') {
-      // Avoid Apple/Google SSO buttons. Target the form's primary submit.
-      const btn = s.page.locator('form[action*="login-submit"] button[type="submit"], button[aria-label="Sign in" i]:not(:has-text("Apple")):not(:has-text("Google")), .login__form_action_container button[type="submit"]').filter({ visible: true }).first();
-      await humanClickLocator(s.page, btn);
-      return { ok: true };
-    }
-    if (cmd.action === 'iframes') {
-      const out = await s.page.evaluate(() => Array.from(document.querySelectorAll('iframe')).map(f => ({ src: f.src.slice(0, 80), id: f.id, w: f.offsetWidth, h: f.offsetHeight })));
-      return { ok: true, iframes: out };
-    }
-    if (cmd.action === 'type') { await humanType(s.page, cmd.text); return { ok: true }; }
-    if (cmd.action === 'press') { await s.page.keyboard.press(cmd.key); return { ok: true }; }
-    if (cmd.action === 'eval') {
-      const { isForbiddenEval } = await import('./eval_guard.mjs');
-      if (isForbiddenEval(cmd.js)) {
-        return { ok: false, error: 'eval contains DOM-interaction tokens — use humanized atoms (humanclick, humantype, humanscroll) instead' };
-      }
-      return { ok: true, result: await s.page.evaluate(cmd.js) };
-    }
-    if (cmd.action === 'cookies') { return { ok: true, cookies: await s.ctx.cookies() }; }
-    if (cmd.action === 'set_input_files') { await s.page.locator(cmd.selector).first().setInputFiles(cmd.path); return { ok: true }; }
-    if (cmd.action === 'api_post') {
-      // POST via browser context's request (carries cookies + fingerprint headers).
-      const r = await s.page.context().request.post(cmd.url, {
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded', ...(cmd.headers || {}) },
-        data: cmd.body || '', maxRedirects: cmd.maxRedirects ?? 5,
-      });
-      return { ok: true, status: r.status(), url: r.url(), body: (await r.text()).slice(0, 4000) };
-    }
-    if (cmd.action === 'solverecaptcha') {
-      const result = await solveRecaptchaV2(s.page);
-      return { ok: !!result?.passed, result };
-    }
-    if (cmd.action === 'solvecaptcha') {
-      // Generic detect+solve (hCaptcha/reCAPTCHA/Turnstile) via the
-      // capsolver/capmonster-backed solvePageCaptcha. Discord login uses
-      // hCaptcha which solveRecaptchaV2 cannot handle. Passing the WSession
-      // enables the Discord intercepted-API captcha path
-      // (session.captchaResponse.captcha_sitekey). Returns true/token on
-      // success, true when no captcha present.
-      const { solvePageCaptcha } = await import(`${REPO}/dist/captcha/detect.js`);
-      const result = await solvePageCaptcha(s.page, undefined, s);
-      return { ok: !!result, result: typeof result === 'string' ? result.slice(0, 40) : result };
-    }
-    if (cmd.action === 'save_account') {
-      const result = await wsSaveAccount(s, cmd.platform, {
-        username: cmd.username, email: cmd.email, password: cmd.password,
-        name: cmd.name, status: cmd.status,
-      });
-      const ok = !result.startsWith('error');
-      if (ok) await flow.close('completed', { healthy: true, signal: 'keeper_completed', details: { saved: result } }, null);
-      return { ok, result };
-    }
-    if (cmd.action === 'mark_failed') {
-      await flow.close('failed', { healthy: false, signal: cmd.signal || 'keeper_marked_failed', details: { reason: cmd.reason || null, last_url: s.page.url() } }, null);
-      return { ok: true };
-    }
-    if (cmd.action === 'fill_stripe') {
-      const { fillStripeElements } = await import(`${REPO}/scripts/trajectories/_shared/services/topup_common.mjs`);
-      const result = await fillStripeElements(s.page);
-      return result;
-    }
-    return { ok: false, error: `unknown action: ${cmd.action}` };
-  } catch (e) {
-    return { ok: false, error: e.message?.slice(0, 200) };
-  }
-}
+// Command dispatch lives in eval_guard.mjs (kept here would push this file over
+// the 300-line limit). Bind it to the live session + bookkeeping flow.
+const { makeDispatch } = await import('./eval_guard.mjs');
+const dispatch = makeDispatch({ s, flow, SESSION });
 
 const server = net.createServer((conn) => {
   let buf = '';
+  conn.on('error', (e) => console.log(`[keeper:${SESSION}] socket client err: ${e.message?.slice(0, 120) ?? String(e)}`));
+  conn.on('close', () => { conn.__keeperClosed = true; });
   conn.on('data', async (chunk) => {
     buf += chunk.toString();
     let nl;
@@ -414,9 +253,17 @@ const server = net.createServer((conn) => {
       try {
         const cmd = JSON.parse(line);
         const res = await dispatch(cmd);
-        conn.write(JSON.stringify(res) + '\n');
+        if (!conn.destroyed && !conn.__keeperClosed) {
+          conn.write(JSON.stringify(res) + '\n', (e) => {
+            if (e) console.log(`[keeper:${SESSION}] socket write err: ${e.message?.slice(0, 120) ?? String(e)}`);
+          });
+        }
       } catch (e) {
-        conn.write(JSON.stringify({ ok: false, error: e.message?.slice(0, 200) }) + '\n');
+        if (!conn.destroyed && !conn.__keeperClosed) {
+          conn.write(JSON.stringify({ ok: false, error: e.message?.slice(0, 200) }) + '\n', (writeErr) => {
+            if (writeErr) console.log(`[keeper:${SESSION}] socket error-response write err: ${writeErr.message?.slice(0, 120) ?? String(writeErr)}`);
+          });
+        }
       }
     }
   });

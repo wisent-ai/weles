@@ -127,13 +127,21 @@ export function toConfig(
 
   const platform = PLATFORM_MAP[targetOs] ?? 'MacIntel';
 
+  // maxTouchPoints: fingerprint-generator sometimes emits >0 for desktop OSes
+  // (observed 10 for Windows personas), which is unrealistic for non-touch
+  // desktops and flags reCAPTCHA. Force 0 for Windows/Linux desktop; leave
+  // macOS at the generator value (could be 0 for MacBooks or tied to trackpad).
+  const rawMtp = nav.maxTouchPoints ?? 0;
+  const isDesktopOs = targetOs === 'windows' || targetOs === 'linux';
+  const maxTouchPoints = isDesktopOs ? 0 : rawMtp;
+
   const navConfig: Record<string, any> = {
     userAgent: ua,
     platform,
     language: 'en-US',
     languages: ['en-US'],
     hardwareConcurrency: Math.min(nav.hardwareConcurrency ?? 8, 16),
-    maxTouchPoints: nav.maxTouchPoints ?? 0,
+    maxTouchPoints,
     doNotTrack: null,
   };
 
@@ -162,7 +170,7 @@ export function toConfig(
       // Windows is 0/0; Linux varies but usually 0/0. Their absence on weles
       // is a fingerprint tell PerimeterX/Akamai check via 'availTop' in screen.
       availLeft: scr.availLeft ?? 0,
-      availTop: scr.availTop ?? (targetOs === 'macos' ? 33 : 0),
+      availTop: scr.availTop ?? (targetOs === 'macos' ? 30 : 0),
       // macOS Retina/HDR displays report colorDepth=30 (10-bit per channel).
       // Diff'd 2026-04-25 vs real Chrome on M2 Mac: chrome=30, weles=24 (this
       // file's hardcoded value). PerimeterX li.protechts.net iframe reads it.
@@ -233,10 +241,30 @@ export function toCppConfig(
   const platformMap: Record<string, [string, string, string]> = {
     macos: ['macOS', '15.5.0', 'arm'], windows: ['Windows', '15.0.0', 'x86'], linux: ['Linux', '6.5.0', 'x86'],
   };
-  const [chPlatform, chPlatformVersion, chArchitecture] = platformMap[targetOs] ?? platformMap.macos;
+  const [chPlatform, defaultPlatformVersion, defaultArchitecture] = platformMap[targetOs] ?? platformMap.macos;
+  const chPlatformVersion =
+    process.env.WELES_CLIENT_HINTS_PLATFORM_VERSION
+    || process.env.WELES_MAC_PLATFORM_VERSION
+    || defaultPlatformVersion;
+  const chArchitecture =
+    process.env.WELES_CLIENT_HINTS_ARCHITECTURE
+    || defaultArchitecture;
   return {
     navigator: { userAgent: ua, platform: nav.platform, vendor: nav.vendor ?? 'Google Inc.', productSub: nav.productSub ?? '20030107', language: nav.language ?? 'en-US', languages, hardwareConcurrency: nav.hardwareConcurrency, deviceMemory: nav.deviceMemory, doNotTrack: nav.doNotTrack ?? null },
-    screen: { width: scr.width, height: scr.height, availWidth: scr.availWidth, availHeight: scr.availHeight, colorDepth: scr.colorDepth },
+    screen: (() => {
+      const top = scr.availTop ?? (targetOs === 'macos' ? 30 : 0);
+      const left = scr.availLeft ?? 0;
+      return {
+        width: scr.width,
+        height: scr.height,
+        availTop: top,
+        availLeft: left,
+        availWidth: scr.availWidth ?? (scr.width - left),
+        availHeight: scr.availHeight ?? (scr.height - top),
+        colorDepth: scr.colorDepth,
+        pixelDepth: scr.pixelDepth ?? scr.colorDepth,
+      };
+    })(),
     webgl: { unmaskedVendor: webgl.unmaskedVendor, unmaskedRenderer: webgl.unmaskedRenderer },
     canvas: config.canvas, audio: config.audio,
     clientHints: { platform: chPlatform, platformVersion: chPlatformVersion, architecture: chArchitecture, bitness: '64', model: '', mobile: false, wow64: false, fullVersion,

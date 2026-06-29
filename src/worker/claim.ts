@@ -20,7 +20,7 @@ export async function claimOne(): Promise<ActionLogRow | null> {
   // Symptom: 36 linkedin_login rows never claimed because the top 100 by
   // scheduled_at were all sim-cron rows (linkedin_browse / dwell / etc).
   const res = await fetch(
-    `${SUPABASE_URL}/rest/v1/account_action_logs?select=id,account_id,action,platform,params,status&status=eq.queued&or=(scheduled_at.is.null,scheduled_at.lte.now())&order=scheduled_at.asc.nullsfirst&limit=300`,
+    `${SUPABASE_URL}/rest/v1/account_action_logs?select=id,account_id,action,platform,params,status,webhook_url,cancel_requested,priority&status=eq.queued&or=(scheduled_at.is.null,scheduled_at.lte.now())&order=priority.desc,scheduled_at.asc.nullsfirst&limit=300`,
     { headers: headers() },
   );
   if (!res.ok) return null;
@@ -30,10 +30,10 @@ export async function claimOne(): Promise<ActionLogRow | null> {
   // downstream action for the same account; health detects bans; balance keeps
   // proxies funded. Stable-sort by scheduled_at within each priority tier.
   const recoveryRe = /_(login|register|health|balance|topup)$/;
-  const priority = (a: string) => recoveryRe.test(a) ? 0 : 1;
+  const priority = (row: ActionLogRow) => (recoveryRe.test(row.action) ? 1000 : 0) + Number(row.priority ?? 0);
   candidates = candidates
-    .map((r, i) => ({ r, i, p: priority(r.action) }))
-    .sort((x, y) => x.p - y.p || x.i - y.i)
+    .map((r, i) => ({ r, i, p: priority(r) }))
+    .sort((x, y) => y.p - x.p || x.i - y.i)
     .map((e) => e.r);
   // Per-account in-flight lock: each account has ONE stored sticky proxy session (Oxylabs sessid). Concurrent connections to one sticky session get refused with ERR_TUNNEL_CONNECTION_FAILED. Serialize per-account; deferred rows pick up next tick. Ignore rows older than 30 min — those are stuck-poison from killed workers and should not block their account forever.
   const inflightAccounts = new Set<string>();
@@ -55,8 +55,8 @@ export async function claimOne(): Promise<ActionLogRow | null> {
   // + the slack_post_message alert it chains), plus analytics-service browser
   // actions that use service credentials rather than a social account row.
   // Everything else without an account is a poison orphan and is skipped.
-  const isOverleafAction = (a: string) => a.slice(0, 9) === 'overleaf_';
-  const canRunWithoutAccount = (a: string) => /_register$|_balance$|_topup$|_verify_domain_status$|_post_message$/.test(a) || a === 'pangram_analyze_text' || isOverleafAction(a) || /^(umami|googleanalytics)_/.test(a);
+  const isOverleafAction = (a: string) => a.startsWith('overleaf_');
+  const canRunWithoutAccount = (a: string) => /_register$|_balance$|_topup$|_verify_domain_status$|_post_message$/.test(a) || a === 'pangram_analyze_text' || a === 'ncbr_pangram_audit_new_wniosek' || a === 'generic_browser_task' || a === 'generic_saved_task' || isOverleafAction(a) || /^(umami|googleanalytics)_/.test(a);
   for (const row of candidates) {
     if (!resolveTrajectory(row.action)) continue;
     if (!row.id) continue;

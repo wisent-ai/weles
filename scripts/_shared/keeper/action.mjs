@@ -31,11 +31,18 @@ switch (action) {
   case 'api_post':
     cmd = { action, url: args[0], body: args.slice(1).join(' ') }; break;
   case 'set_input_files':
-    cmd = { action, selector: args[0], path: args[1] }; break;
+    cmd = { action, selector: args[0], path: args[1] };
+    if (args[2]) cmd.force = args[2] === 'true' || args[2] === '1';
+    if (args[3]) cmd.timeout = parseInt(args[3], 10);
+    break;
   case 'nav':   cmd = { action, url: args[0] }; break;
   case 'click': cmd = { action, selector: args.join(' ') }; break;
+  case 'click_fast': cmd = { action, selector: args.join(' ') }; break;
+  case 'dispatch_click': cmd = { action, selector: args.join(' ') }; break;
   case 'click_any': cmd = { action: 'click', selector: args.join(' '), skipVisible: true }; break;
   case 'iframe_click': cmd = { action, iframe: args[0], selector: args.slice(1).join(' ') }; break;
+  case 'iframe_fill': cmd = { action, iframe: args[0], selector: args[1], text: args.slice(2).join(' ') }; break;
+  case 'iframe_fill_any': cmd = { action: 'iframe_fill', iframe: args[0], selector: args[1], text: args.slice(2).join(' '), skipVisible: true }; break;
   case 'ctx_pages': cmd = { action }; break;
   case 'all_pages': cmd = { action }; break;
   case 'switch_page': cmd = { action, index: parseInt(args[0], 10) }; break;
@@ -48,6 +55,8 @@ switch (action) {
   case 'click_signin_submit': cmd = { action }; break;
   case 'iframes': cmd = { action }; break;
   case 'fill':  cmd = { action, selector: args[0], text: args.slice(1).join(' ') }; break;
+  case 'fill_fast': cmd = { action, selector: args[0], text: args.slice(1).join(' ') }; break;
+  case 'set_value': cmd = { action, selector: args[0], text: args.slice(1).join(' ') }; break;
   case 'fill_any': cmd = { action: 'fill', selector: args[0], text: args.slice(1).join(' '), skipVisible: true }; break;
   case 'type':  cmd = { action, text: args.join(' ') }; break;
   case 'press': cmd = { action, key: args[0] }; break;

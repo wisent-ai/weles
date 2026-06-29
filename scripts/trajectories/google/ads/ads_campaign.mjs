@@ -30,7 +30,7 @@ import { humanFill, humanType } from '../../../../dist/human/keyboard.js';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { assertGoogleAdsProfileNotAlreadyOpen, closeAllowedByEnv } from './_profile_guard.mjs';
 
 const ADS_URL = process.env.ADS_URL;
 const CUSTOMER_ID = process.env.GOOGLE_ADS_CUSTOMER_ID;
@@ -58,6 +58,8 @@ const NAV_TIMEOUT_MS = Number(process.env.NAV_TIMEOUT_MS || 60 * 1000);
 const USER_DATA_DIR = process.env.WELES_USER_DATA_DIR || process.env.ADS_PROFILE_DIR || join(homedir(), '.weles', 'browser_profiles', 'google_ads');
 mkdirSync(USER_DATA_DIR, { recursive: true });
 process.env.WELES_VIEWPORT ??= '1280x900';
+process.env.WELES_DISABLE_RECORDING ??= '1';
+process.env.WELES_NO_INSTRUMENT ??= '1';
 
 function stableProfilePersona() {
   const p = join(USER_DATA_DIR, 'persona.json');
@@ -214,7 +216,11 @@ async function waitForPageText(s, pattern, timeoutMs = 15000) {
 }
 
 async function gotoWithTimeout(s, url, label) {
-  const ok = await withTimeout(s.goto(url), NAV_TIMEOUT_MS, false).catch(() => false);
+  const ok = await withTimeout(
+    s.page.goto(url, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT_MS }).then(() => true),
+    NAV_TIMEOUT_MS,
+    false,
+  ).catch(() => false);
   if (!ok) {
     console.log(`[google-ads] WARN: navigation timed out: ${label}`);
     return false;
@@ -231,9 +237,6 @@ function withTimeout(promise, timeoutMs, fallback) {
 
 async function bringBrowserToFront(s) {
   await s.page.bringToFront().catch(() => {});
-  if (process.platform !== 'darwin') return;
-  spawnSync('osascript', ['-e', 'tell application "Chromium" to activate'], { stdio: 'ignore' });
-  spawnSync('osascript', ['-e', 'tell application "System Events" to set frontmost of every process whose name is "Chromium" to true'], { stdio: 'ignore' });
 }
 
 function isLoginUrl(url) {
@@ -277,6 +280,7 @@ const baseUrl = ADS_URL || (CUSTOMER_ID
   ? `https://ads.google.com/aw/campaigns/new?ocid=${encodeURIComponent(CUSTOMER_ID)}`
   : 'https://ads.google.com/aw/campaigns');
 console.log(`[google-ads] profile=${USER_DATA_DIR} viewport=${process.env.WELES_VIEWPORT}`);
+assertGoogleAdsProfileNotAlreadyOpen(USER_DATA_DIR, 'google_ads_campaign');
 const s = await WSession.start({ label: 'google_ads_campaign', browser: process.env.BROWSER || 'chromium', proxy: process.env.PROXY_URL || session.proxyUrl || 'direct', persona: profilePersona, userDataDir: USER_DATA_DIR });
 try {
   await bringBrowserToFront(s);
@@ -404,5 +408,6 @@ try {
   console.log('FAIL:', e.message?.slice(0, 200));
   process.exit(1);
 } finally {
-  await s.close().catch(() => {});
+  if (closeAllowedByEnv('GOOGLE_ADS_CLOSE_AFTER_HARVEST')) await s.close().catch(() => {});
+  else console.log('[google-ads] leaving Google Ads profile open');
 }

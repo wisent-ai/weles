@@ -33,6 +33,8 @@ Required env (see `scripts/worker/deploy/README.md` for the full list):
 - `CRON_SECRET` (must match content-platform's)
 - `CHROMIUM_PATH` (where the custom binary lives)
 - `LLM_GENERATE_URL` (e.g. `https://content.wisent.ai/api/llm/generate`)
+- `MODEL_ROUTER_URL`, `WISENT_APP_AGENT_ID`, `WISENT_APP_AGENT_AUTH_SECRET` for the browser agent, or a `service_credentials.id = claude-reauth-config` row containing those values
+- `WELES_AGENT_MODEL` (default `claude-code-subscription`; worker deployments can override, e.g. `codex-subscription`)
 
 ## Directory layout
 
@@ -42,7 +44,7 @@ weles/
 │   ├── worker/poll.ts         # scheduler-driven work loop (atomic claim from account_action_logs)
 │   ├── session/wsession.ts    # Chromium launcher; picks up the custom binary
 │   ├── async_api.ts           # Playwright setup + fingerprint injection
-│   ├── agent/loop.ts          # claude -p browser-automation agent + flow replay
+│   ├── agent/loop.ts          # model-router browser-automation agent + flow replay
 │   ├── fingerprint.ts         # fingerprint config generator
 │   ├── platforms/             # per-platform ban-signal detectors
 │   ├── utils/credentials.ts   # getSocialAccount(), resolveAccountSession()

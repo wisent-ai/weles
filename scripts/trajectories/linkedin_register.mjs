@@ -7,17 +7,61 @@
  */
 import { WSession } from '../../dist/session/wsession.js';
 import { humanFill, humanType } from '../../dist/human/keyboard.js';
-import { humanClickLocator, humanIdlePause } from '../../dist/human/mouse.js';
-import { writeFileSync, mkdirSync, readFileSync } from 'node:fs';
+import { humanClickLocator, humanIdlePause, humanScroll } from '../../dist/human/mouse.js';
+import { writeFileSync, mkdirSync, readFileSync, existsSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import { confirmLinkedinEmail } from './_shared/linkedin/checkpoint.mjs';
+import { handleCreateAccountChallenge } from './_shared/linkedin/create_account_challenge.mjs';
 import { assertLinkedinAuthenticatedRegistration, assertLinkedinDedicatedIspProxy, assertLinkedinProxyStable, assertLinkedinRegisterProxyRequest, assertNoLinkedinChallengePage, classifyLinkedinRegisterFailure, ensureLinkedinSignupForm, getLinkedinFailureDiagnostics, linkedinRegisterExitCode } from './_shared/linkedin/register_guard.mjs';
 import { fillPostRegisterOnboarding } from './_shared/linkedin/onboarding/work_school.mjs';
+import { FP_SCRIPT, NETWORK_FP_URL, parseNetworkFingerprint } from '../../dist/diagnostics/fingerprint_probe.js';
+import { analyze, pickBaseline } from '../../dist/diagnostics/fingerprint_analyzer.js';
 // generateIdentity import removed — identity now created by WSession.start via opts.platform.
 
 const SIGNUP_URL = 'https://www.linkedin.com/signup';
 const DEFAULT_ENTRY_URL = SIGNUP_URL;
+// Default lowered to 10 so known persistent tells (e.g. screen.availTop,
+// WebRTC local-IP leak) trigger an early quit instead of burning an account
+// on LinkedIn. Operators can raise it once those signals are clean.
+const EARLY_FP_RISK_THRESHOLD = Number(process.env.WELES_EARLY_FP_RISK ?? 10);
+
+async function earlyFingerprintCheck(s) {
+  if (process.env.WELES_EARLY_FP === '0') return null;
+  const dir = runRecordingsDir('linkedin_register');
+  mkdirSync(dir, { recursive: true });
+  try {
+    await s.goto('about:blank');
+    const js = await s.page.evaluate(FP_SCRIPT);
+    await s.page.goto(NETWORK_FP_URL, { waitUntil: 'domcontentloaded', timeout: 20000 });
+    const raw = await s.page.evaluate(`document.body.innerText || document.body.textContent || ''`);
+    const network = parseNetworkFingerprint(raw);
+    const payload = { capturedAt: new Date().toISOString(), source: 'weles-early', browser: s._browserProvenance?.browser ?? 'unknown', js, network };
+    const baselineDir = process.env.WELES_BASELINE_DIR || join(process.cwd(), 'recordings', 'baselines');
+    let baseline;
+    let baselinePath;
+    if (existsSync(baselineDir)) {
+      ({ path: baselinePath, data: baseline } = pickBaseline(baselineDir, payload));
+    } else {
+      baseline = {};
+      baselinePath = '';
+    }
+    const report = analyze(payload, baseline);
+    report.meta.subjectPath = join(dir, 'early_fingerprint.json');
+    report.meta.baselinePath = baselinePath;
+    writeFileSync(report.meta.subjectPath, JSON.stringify(payload, null, 2));
+    writeFileSync(join(dir, 'early_detection_report.json'), JSON.stringify(report, null, 2));
+    console.log(`[register] early fingerprint risk=${report.summary.riskScore} critical=${report.summary.critical} baselineMatched=${report.meta.baselineMatched}`);
+    if (report.summary.riskScore >= EARLY_FP_RISK_THRESHOLD || report.summary.critical > 0) {
+      throw new Error(`FINGERPRINT_INCONSISTENT: early risk=${report.summary.riskScore} critical=${report.summary.critical} findings=${report.findings.map(f => f.id).join(',')}`);
+    }
+    return report;
+  } catch (e) {
+    if (String(e.message ?? e).startsWith('FINGERPRINT_INCONSISTENT')) throw e;
+    console.log(`[register] early fingerprint check skipped: ${String(e).slice(0, 120)}`);
+    return null;
+  }
+}
 
 import { autoBindCharacter } from './lib/character-bind.mjs';
 import { runRecordingsDir } from '../../dist/session/run-recordings.js';
@@ -308,11 +352,20 @@ async function prewarmLinkedinGuestSession(session, urls) {
     transitions: [],
   };
   for (const url of urls) {
-    await session.runStep(`prewarm_${diagnostics.transitions.length}`, async () => {
-      await session.page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45_000 });
-      return `prewarm ${session.page.url()}`;
-    });
-    await humanIdlePause('deliberate');
+    try {
+      await session.runStep(`prewarm_${diagnostics.transitions.length}`, async () => {
+        await session.page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+        return `prewarm ${session.page.url()}`;
+      });
+      // Fast scroll to generate behavioral signal without spending human-like time
+      // on a cold guest session. The goal is cookie/telemetry warm-up, not realism.
+      await session.scroll('down', 400).catch(() => {});
+      await humanIdlePause('deliberate');
+    } catch (prewarmErr) {
+      console.log(`[register] prewarm skip ${url}: ${prewarmErr.message?.slice(0, 120)}`);
+      diagnostics.transitions.push({ url, stage: 'prewarm_error', error: String(prewarmErr?.message ?? prewarmErr).slice(0, 200) });
+      continue;
+    }
     diagnostics.transitions.push(await session.page.evaluate(() => ({
       url: location.href,
       title: document.title,
@@ -368,7 +421,22 @@ async function enterLinkedinSignup(session, entryUrl) {
   };
 
   if (direct) {
-    await session.goto(SIGNUP_URL);
+    try {
+      await session.runStep('goto_signup', async () => {
+        await session.page.goto(SIGNUP_URL, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+        return `signup ${session.page.url()}`;
+      });
+    } catch (e) {
+      const formVisible = await session.page
+        .locator('input[name="email-address"], input#email-address, input[type="email"]')
+        .first()
+        .isVisible({ timeout: 1000 })
+        .catch(() => false);
+      if (!formVisible) throw e;
+      diagnostics.direct_signup_goto_timeout_form_visible = true;
+      diagnostics.direct_signup_goto_timeout_error = String(e?.message ?? e).slice(0, 300);
+      console.log('[register] signup goto timed out, but signup form is visible — continuing');
+    }
     await record('after_direct_signup');
     await writeSubmitDiagnostics('entry_path_diagnostics', diagnostics);
     return diagnostics;
@@ -483,8 +551,32 @@ async function waitPastEmailVerification(page) {
 // naturally like the keeper does.
 const requestedProxy = process.env.LINKEDIN_REGISTER_PROXY ?? process.env.LINKEDIN_PROXY ?? process.env.PROXY_URL ?? 'isp decodo us';
 const requestedEntryUrl = process.env.LINKEDIN_REGISTER_ENTRY_URL ?? DEFAULT_ENTRY_URL;
+const HEADLESS = process.env.HEADLESS === '1' || process.env.WELES_HEADLESS === '1' || process.env.LINKEDIN_REGISTER_HEADLESS === '1';
 const stopAfterSignupReady = process.env.LINKEDIN_REGISTER_STOP_AFTER_SIGNUP_READY === '1';
-const guestPrewarmUrls = parseLinkedinUrlList(process.env.LINKEDIN_REGISTER_PREWARM_URLS ?? '');
+const envPrewarmUrls = parseLinkedinUrlList(process.env.LINKEDIN_REGISTER_PREWARM_URLS ?? '');
+const defaultPrewarmUrls = process.env.LINKEDIN_REGISTER_DEFAULT_PREWARM === '1' && envPrewarmUrls.length === 0
+  ? ['https://www.linkedin.com/', 'https://www.linkedin.com/signup']
+  : [];
+const guestPrewarmUrls = [...envPrewarmUrls, ...defaultPrewarmUrls];
+const warmProfileDir = process.env.LINKEDIN_REGISTER_WARM_PROFILE_DIR || process.env.WELES_USER_DATA_DIR || '';
+function loadWarmManifest(dir = '') {
+  if (!dir) return null;
+  try {
+    const p = join(dir, 'warm_manifest.json');
+    if (!existsSync(p)) return null;
+    const raw = JSON.parse(readFileSync(p, 'utf8'));
+    if (raw?.schema !== 'linkedin_register_warm_profile.v1') return null;
+    return raw;
+  } catch {
+    return null;
+  }
+}
+const warmManifest = loadWarmManifest(warmProfileDir);
+const replayProxyUrl = warmManifest?.proxy_replay?.url || '';
+const sessionProxy = replayProxyUrl || requestedProxy;
+const registerBrowser = process.env.WELES_REGISTER_BROWSER || warmManifest?.persona?.browser || (warmProfileDir ? 'chromium' : undefined);
+const registerOs = process.env.WELES_REGISTER_OS || warmManifest?.persona?.os || (warmProfileDir ? 'windows' : undefined);
+const registerPersona = warmManifest?.persona || undefined;
 function safeRequestedProxy(value = '') {
   const raw = String(value ?? '');
   return /^(https?:|socks)/i.test(raw) ? '[url-form]' : raw.slice(0, 80);
@@ -566,6 +658,8 @@ function linkedinFailureReasons(signal, errorMessage = '', finalUrl = '', diagno
 console.log(`[register] proxy request: ${safeRequestedProxy(requestedProxy)}`);
 console.log(`[register] entry url: ${requestedEntryUrl}`);
 if (guestPrewarmUrls.length) console.log(`[register] guest prewarm urls: ${guestPrewarmUrls.length}`);
+if (warmProfileDir) console.log(`[register] warm profile dir: ${warmProfileDir}`);
+if (warmManifest) console.log('[register] warm manifest loaded: persona+proxy replay enabled');
 let s = null;
 let id = { first: '', last: '', handle: '', email: '', password: '' };
 let expectedExitIp = '';
@@ -577,13 +671,49 @@ try {
   recordStage('proxy_request_validated', { requested_proxy: safeRequestedProxy(requestedProxy) });
   s = await WSession.start({
     label: 'linkedin_register',
-    proxy: requestedProxy,
+    proxy: sessionProxy,
     targetHost: 'www.linkedin.com',
     platform: 'linkedin',
-    browser: process.env.WELES_REGISTER_BROWSER || undefined,
-    os: process.env.WELES_REGISTER_OS || undefined,
+    browser: registerBrowser,
+    os: registerOs,
+    persona: registerPersona,
+    headless: HEADLESS,
+    userDataDir: warmProfileDir || undefined,
   });
+  if (warmManifest?.proxy_metadata && s.proxyConfig) {
+    Object.assign(s.proxyConfig, Object.fromEntries(Object.entries({
+      exit_ip: warmManifest.proxy_metadata.exit_ip,
+      provider: warmManifest.proxy_metadata.provider,
+      proxy_type: warmManifest.proxy_metadata.proxy_type,
+      country: warmManifest.proxy_metadata.country,
+      platform: warmManifest.proxy_metadata.platform,
+      sticky_session_id: warmManifest.proxy_metadata.sticky_session_id,
+      sticky_hash: warmManifest.proxy_metadata.sticky_hash,
+      exit_reputation: warmManifest.proxy_metadata.exit_reputation,
+    }).filter(([, v]) => v !== null && v !== undefined && v !== '')));
+  }
+  if (warmManifest) {
+    await writeSubmitDiagnostics('warm_manifest_replay', {
+      manifest_schema: warmManifest.schema,
+      profile_dir: warmManifest.profile_dir,
+      persona_replayed: Boolean(registerPersona),
+      proxy_replayed: Boolean(replayProxyUrl),
+      persona: registerPersona,
+      proxy_metadata: warmManifest.proxy_metadata ?? null,
+      session_proxy: {
+        server: s.proxyConfig?.server ?? null,
+        provider: s.proxyConfig?.provider ?? null,
+        proxy_type: s.proxyConfig?.proxy_type ?? null,
+        country: s.proxyConfig?.country ?? null,
+        exit_ip: s.proxyConfig?.exit_ip ?? null,
+        sticky_session_id: s.proxyConfig?.sticky_session_id ?? null,
+        sticky_hash: s.proxyConfig?.sticky_hash ?? null,
+      },
+    });
+  }
   recordStage('session_started');
+  await earlyFingerprintCheck(s);
+  recordStage('early_fingerprint_ok');
   id = { first: s.identity.firstName, last: s.identity.lastName, handle: s.identity.username, email: s.identity.email, password: s.identity.password };
   expectedExitIp = s.proxyConfig?.exit_ip ?? '';
   recordStage('identity_ready', { identity_created: true, email_hash: hashValue(id.email), handle_hash: hashValue(id.handle) });
@@ -601,6 +731,9 @@ try {
   recordStage('no_challenge_after_goto');
   const { emailLoc, pwdLoc } = await ensureLinkedinSignupForm(s);
   recordStage('signup_form_ready');
+  // Simulate a human reading the signup form before interacting.
+  await humanScroll(s.page, 400, 2);
+  await humanIdlePause('deliberate');
   if (stopAfterSignupReady) {
     await writeSubmitDiagnostics('stop_after_signup_ready', {
       url: s.page.url(),
@@ -612,7 +745,9 @@ try {
     process.exitCode = 0;
   } else {
   await humanFill(s.page, emailLoc, id.email);
+  await humanIdlePause('short');
   await humanFill(s.page, pwdLoc, id.password);
+  await humanIdlePause('deliberate');
   recordStage('email_password_filled');
   console.log(`[register] fill email+pwd: ok`);
   expectedExitIp = await assertLinkedinProxyStable(s, 'before_submit_email_password', expectedExitIp);
@@ -650,7 +785,9 @@ try {
   let fillBOk = false;
   if (hasFirst && hasLast) {
     await humanFill(s.page, firstLoc, id.first);
+    await humanIdlePause('short');
     await humanFill(s.page, lastLoc, id.last);
+    await humanIdlePause('deliberate');
     fillBOk = true;
     recordStage('first_last_filled');
   } else {
@@ -702,16 +839,21 @@ try {
     });
     recordStage('create_account_response', { status: createAccountStatus, has_challenge_url: Boolean(challengeUrl) });
     if (challengeUrl) {
-      const challenge = await inspectCreateAccountChallenge(s, challengeUrl);
-      recordStage('create_account_challenge_classified', {
-        challenge_kind: challenge.kind,
-        challenge_title: challenge.title || '',
-        challenge_url: challenge.challenge_url.slice(0, 200),
-      });
-      if (challenge.kind === 'phone_verification') {
-        throw new Error(`PHONE_VERIFICATION_REQUIRED: createAccount challengeUrl=${challenge.challenge_url.slice(0, 160)} title=${String(challenge.title || '').slice(0, 120)}`);
-      }
-      throw new Error(`DETECTION_TRIGGERED: createAccount ${challenge.kind} challengeUrl=${challenge.challenge_url.slice(0, 160)} title=${String(challenge.title || '').slice(0, 120)}`);
+      // G19: captcha/challenge means the run is burned. Do not attempt to solve
+      // it (that hangs indefinitely and kills the close-time diagnostics). Instead
+      // classify the challenge page, record it, and fail fast so the finally block
+      // can flush the fingerprint + detection report.
+      let challengeKind = 'unknown';
+      try {
+        const challenge = await inspectCreateAccountChallenge(s, challengeUrl);
+        challengeKind = challenge.kind || 'unknown';
+        recordStage('create_account_challenge_classified', {
+          challenge_kind: challenge.kind,
+          challenge_title: challenge.title || '',
+          challenge_url: challenge.challenge_url.slice(0, 200),
+        });
+      } catch {}
+      throw new Error(`DETECTION_TRIGGERED: createAccount challenge detected (kind=${challengeKind})`);
     }
     await humanIdlePause('long');
     await assertNoLinkedinChallengePage(s, 'after_create_account');

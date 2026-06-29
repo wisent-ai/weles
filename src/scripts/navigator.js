@@ -75,9 +75,22 @@ if (__weles.navigator) {
       // (which is MacIntel/Win32/Linux x86_64). Diff'd 2026-04-25: weles emitted
       // 'MacIntel' as userAgentData.platform — wrong field — vs real Chrome 'macOS'.
       // Map navigator.platform → OS name so PerimeterX sees consistent values.
+      const clientHints = __weles.clientHints || {};
       const platformMap = { MacIntel: 'macOS', Win32: 'Windows', 'Linux x86_64': 'Linux' };
-      const platform = platformMap[nav.platform] || nav.platform || navigator.userAgentData.platform || '';
+      const platform = clientHints.platform || platformMap[nav.platform] || nav.platform || navigator.userAgentData.platform || '';
       const mobile = navigator.userAgentData.mobile || false;
+      const architecture = clientHints.architecture || (
+        platform === 'Windows' ? 'x86' :
+        platform === 'Linux' ? 'x86' :
+        nav.architecture || 'arm'
+      );
+      const bitness = clientHints.bitness || (
+        platform === 'Windows' ? '64' :
+        platform === 'Linux' ? '64' :
+        nav.bitness || ''
+      );
+      const platformVersion = clientHints.platformVersion || nav.platformVersion || '';
+      const model = clientHints.model || '';
 
       const uaData = {
         brands: Object.freeze(brands.map(function(b) { return Object.freeze(b); })),
@@ -89,10 +102,12 @@ if (__weles.navigator) {
             fullVersionList: fullBrands.map(function(b) { return Object.freeze(b); }),
             mobile: mobile,
             platform: platform,
-            platformVersion: nav.platformVersion || '',
-            architecture: nav.architecture || 'arm',
-            model: '',
+            platformVersion: platformVersion,
+            architecture: architecture,
+            bitness: bitness,
+            model: model,
             uaFullVersion: fullVersion,
+            wow64: Boolean(clientHints.wow64),
           });
         },
         toJSON: function() {
@@ -110,9 +125,31 @@ if (__weles.navigator) {
 if (__weles.screen) {
   const scr = __weles.screen;
   const define = window.__welesDefine;
-  for (const [prop, val] of Object.entries(scr)) {
-    if (val !== undefined) {
-      define(Screen.prototype, prop, function() { return val; });
+  // Screen.prototype properties are often non-configurable in Chromium, so
+  // Object.defineProperty on the prototype throws. Replacing window.screen with
+  // a Proxy that intercepts only the configured values keeps `screen instanceof
+  // Screen` true and avoids breaking native code that reads other fields.
+  try {
+    const screenProxy = new Proxy(screen, {
+      get(target, prop) {
+        if (prop === 'availTop' && scr.availTop !== undefined) return scr.availTop;
+        if (prop === 'availLeft' && scr.availLeft !== undefined) return scr.availLeft;
+        if (prop === 'availWidth' && scr.availWidth !== undefined) return scr.availWidth;
+        if (prop === 'availHeight' && scr.availHeight !== undefined) return scr.availHeight;
+        if (prop === 'width' && scr.width !== undefined) return scr.width;
+        if (prop === 'height' && scr.height !== undefined) return scr.height;
+        if (prop === 'colorDepth' && scr.colorDepth !== undefined) return scr.colorDepth;
+        if (prop === 'pixelDepth' && scr.pixelDepth !== undefined) return scr.pixelDepth;
+        return target[prop];
+      }
+    });
+    Object.defineProperty(window, 'screen', { get: function() { return screenProxy; }, configurable: true, enumerable: true });
+  } catch (screenErr) {
+    // Fallback: try prototype overrides for the fields that do allow it.
+    for (const [prop, val] of Object.entries(scr)) {
+      if (val !== undefined) {
+        try { define(Screen.prototype, prop, function() { return val; }); } catch {}
+      }
     }
   }
 }
@@ -135,6 +172,61 @@ if (__weles.window) {
   if (win.innerHeight !== undefined) { const v = win.innerHeight; define(window, 'innerHeight', function() { return v; }); }
   else if (win.outerHeight !== undefined) { const v = win.outerHeight - 80; define(window, 'innerHeight', function() { return v; }); }
 }
+
+// --- WebRTC IP-leak mitigation ---
+// Real Chrome exposes RTCPeerConnection, but on a proxied/automation run STUN
+// can leak the local network IP and sometimes bypass the proxy. We keep the
+// API present (removing it is a bot tell) but strip host/srflx candidates from
+// the SDP and suppress icecandidate events so the probe/anti-bot sees no IPs.
+(function blockWebRTCLeak() {
+  if (typeof RTCPeerConnection === 'undefined') return;
+  try {
+    const Original = RTCPeerConnection;
+    const stripHostSrflx = function(sdp) {
+      if (typeof sdp !== 'string') return sdp;
+      // Remove host and server-reflexive (srflx) candidates. Leave relay/TURN.
+      return sdp.replace(/a=candidate:[^\r\n]+\s+(host|srflx)[^\r\n]*(?:\r\n|\n)/g, '');
+    };
+    function RTCPeerConnectionShim(configuration) {
+      const pc = new Original(configuration);
+      // Filter createOffer/createAnswer SDP before it reaches the page.
+      const wrap = function(orig) {
+        return function() {
+          const p = orig.apply(pc, arguments);
+          return p.then(function(desc) {
+            if (desc && typeof desc.sdp === 'string') desc.sdp = stripHostSrflx(desc.sdp);
+            return desc;
+          });
+        };
+      };
+      pc.createOffer = wrap(pc.createOffer.bind(pc));
+      pc.createAnswer = wrap(pc.createAnswer.bind(pc));
+      // Filter manually-set local descriptions too.
+      const origSetLocal = pc.setLocalDescription.bind(pc);
+      pc.setLocalDescription = function(desc) {
+        if (desc && typeof desc.sdp === 'string') desc.sdp = stripHostSrflx(desc.sdp);
+        return origSetLocal(desc);
+      };
+      // Suppress icecandidate events — they carry the leaked addresses.
+      const origAddEventListener = pc.addEventListener.bind(pc);
+      pc.addEventListener = function(type, listener, options) {
+        if (type === 'icecandidate') return undefined;
+        return origAddEventListener(type, listener, options);
+      };
+      let userOnIceCandidate = null;
+      Object.defineProperty(pc, 'onicecandidate', {
+        get: function() { return userOnIceCandidate; },
+        set: function(fn) { userOnIceCandidate = (typeof fn === 'function' ? fn : null); },
+        configurable: true,
+        enumerable: true,
+      });
+      return pc;
+    }
+    RTCPeerConnectionShim.prototype = Original.prototype;
+    if (window.__welesNativeString) window.__welesNativeString(RTCPeerConnectionShim, 'RTCPeerConnection');
+    Object.defineProperty(window, 'RTCPeerConnection', { value: RTCPeerConnectionShim, configurable: true, writable: true, enumerable: true });
+  } catch (e) { /* leave native WebRTC */ }
+})();
 
 // --- Timezone ---
 if (__weles.timezone && __weles.timezone.offset !== undefined) {
@@ -198,6 +290,7 @@ if (__weles.timezone && __weles.timezone.offset !== undefined) {
 // the methods are getter-only and never called by PX (it just probes presence).
 (function exposeBluetoothKeyboard() {
   if (typeof navigator === 'undefined') return;
+  try {
   if (!('bluetooth' in navigator)) {
     const bluetooth = Object.create(null);
     Object.defineProperty(bluetooth, 'getAvailability', { value: function() { return Promise.resolve(false); }, configurable: false, enumerable: false });
@@ -215,6 +308,7 @@ if (__weles.timezone && __weles.timezone.offset !== undefined) {
     if (window.__welesNativeString) window.__welesNativeString(kbGet, 'get keyboard');
     Object.defineProperty(navigator, 'keyboard', { get: kbGet, configurable: true, enumerable: true });
   }
+  } catch { /* leave native bluetooth/keyboard */ }
 })();
 
 // --- Intl locale ---
@@ -290,6 +384,178 @@ if (__weles.navigator && __weles.navigator.language) {
       };
       if (regNS) regNS(di, 'decodingInfo');
       navigator.mediaCapabilities.decodingInfo = di;
+    }
+  } catch {}
+})();
+
+// --- OS-consistent navigator surface stubs ---
+// ReCAPTCHA Enterprise / PerimeterX probe many navigator APIs beyond the
+// basic UA/screen/webgl. If the host OS differs from the persona OS, the
+// real host leaks through these surfaces. Stub them to match the target OS.
+(function installNavigatorSurfaceStubs() {
+  try {
+    const nav = __weles.navigator;
+    const scr = __weles.screen;
+    const targetOs = (nav.platform || '').toLowerCase().includes('mac')
+      ? 'macos'
+      : (nav.platform || '').toLowerCase().includes('win')
+        ? 'windows'
+        : 'linux';
+    const regNS = window.__welesNativeString;
+    const define = window.__welesDefine;
+
+    // 1. speechSynthesis.getVoices — the host OS leaks HARD here (macOS voices
+    // are identifiable by the com.apple.* voiceURI). Return a small, realistic
+    // list matching the target OS.
+    (function stubSpeechVoices() {
+      if (typeof window === 'undefined' || !window.speechSynthesis) return;
+      const baseVoice = (name, lang, local = true) => ({
+        name,
+        lang,
+        default: name === 'Samantha' || name === 'Microsoft David' || name === 'Default',
+        localService: local,
+        voiceURI: name,
+      });
+      const voicesByOs = {
+        macos: [
+          baseVoice('Samantha', 'en-US'),
+          baseVoice('Alex', 'en-US'),
+          baseVoice('Daniel', 'en-GB'),
+          baseVoice('Fiona', 'en-scotland'),
+          baseVoice('Karen', 'en-AU'),
+          baseVoice('Moira', 'en-IE'),
+          baseVoice('Tessa', 'en-ZA'),
+          baseVoice('Veena', 'en-IN'),
+          baseVoice('Fred', 'en-US'),
+          baseVoice('Vicki', 'en-US'),
+        ],
+        windows: [
+          baseVoice('Microsoft David', 'en-US'),
+          baseVoice('Microsoft Zira', 'en-US'),
+          baseVoice('Microsoft Mark', 'en-US'),
+          baseVoice('Microsoft David Desktop', 'en-US'),
+          baseVoice('Microsoft Zira Desktop', 'en-US'),
+        ],
+        linux: [
+          baseVoice('English', 'en-US'),
+          baseVoice('English (Great Britain)', 'en-GB'),
+        ],
+      };
+      const voices = voicesByOs[targetOs] || voicesByOs.linux;
+      const getVoices = function() { return voices; };
+      if (regNS) regNS(getVoices, 'getVoices');
+      try {
+        Object.defineProperty(window.speechSynthesis, 'getVoices', {
+          value: getVoices,
+          configurable: true,
+          enumerable: true,
+        });
+      } catch {}
+    })();
+
+    // 2. navigator.mediaDevices — real Firefox/Chrome expose a MediaDevices
+    // object with getUserMedia/enumerateDevices. Weles currently leaves it as
+    // an empty {} on Firefox, which is a bot tell.
+    (function stubMediaDevices() {
+      if (typeof navigator === 'undefined') return;
+      try {
+      const devices = Object.create(typeof MediaDevices !== 'undefined' ? MediaDevices.prototype : Object.prototype);
+      const noop = function() { return Promise.reject(new DOMException('Permission denied', 'NotAllowedError')); };
+      // Real Chrome always exposes at least default audio + a video input even
+      // before permission. Empty list is a headless/container tell.
+      const defaultDevices = [
+        { deviceId: 'default', kind: 'audioinput', label: '', groupId: 'default' },
+        { deviceId: 'communications', kind: 'audioinput', label: '', groupId: 'communications' },
+        { deviceId: 'default', kind: 'audiooutput', label: '', groupId: 'default' },
+        { deviceId: 'communications', kind: 'audiooutput', label: '', groupId: 'communications' },
+        { deviceId: '', kind: 'videoinput', label: '', groupId: '' },
+      ];
+      Object.defineProperties(devices, {
+        getUserMedia: { value: noop, configurable: true, enumerable: true },
+        enumerateDevices: { value: function() { return Promise.resolve(defaultDevices); }, configurable: true, enumerable: true },
+        getSupportedConstraints: { value: function() { return {}; }, configurable: true, enumerable: true },
+        addEventListener: { value: function() {}, configurable: true, enumerable: true },
+        removeEventListener: { value: function() {}, configurable: true, enumerable: true },
+      });
+      const getDevices = function() { return devices; };
+      if (regNS) regNS(getDevices, 'get mediaDevices');
+      // Define on Navigator.prototype so it shadows any native getter; defining
+      // on the navigator instance can fail if the property is non-configurable
+      // (observed on weles Firefox).
+      Object.defineProperty(Navigator.prototype, 'mediaDevices', { get: getDevices, configurable: true, enumerable: true });
+      // Also set on the current navigator instance as a fallback.
+      try { Object.defineProperty(navigator, 'mediaDevices', { get: getDevices, configurable: true, enumerable: true }); } catch (_) {}
+      } catch { /* leave native mediaDevices */ }
+    })();
+
+    // 3. navigator.permissions — real browsers expose a Permissions object with
+    // query(). Empty {} is a bot tell.
+    (function stubPermissions() {
+      if (typeof navigator === 'undefined') return;
+      try {
+      const perms = Object.create(typeof Permissions !== 'undefined' ? Permissions.prototype : Object.prototype);
+      Object.defineProperties(perms, {
+        query: { value: function(p) {
+          const name = typeof p === 'string' ? p : p?.name;
+          if (name === 'notifications') return Promise.resolve({ state: 'prompt', onchange: null });
+          if (name === 'clipboard-read' || name === 'clipboard-write') return Promise.resolve({ state: 'prompt', onchange: null });
+          if (name === 'geolocation') return Promise.resolve({ state: 'prompt', onchange: null });
+          return Promise.resolve({ state: 'prompt', onchange: null });
+        }, configurable: true, enumerable: true },
+        addEventListener: { value: function() {}, configurable: true, enumerable: true },
+        removeEventListener: { value: function() {}, configurable: true, enumerable: true },
+      });
+      const getPerms = function() { return perms; };
+      if (regNS) regNS(getPerms, 'get permissions');
+      Object.defineProperty(Navigator.prototype, 'permissions', { get: getPerms, configurable: true, enumerable: true });
+      try { Object.defineProperty(navigator, 'permissions', { get: getPerms, configurable: true, enumerable: true }); } catch (_) {}
+      } catch { /* leave native permissions */ }
+    })();
+
+    // 4. navigator.mediaCapabilities — real browsers expose MediaCapabilities
+    // with decodingInfo/encodingInfo. Empty {} is a bot tell.
+    (function stubMediaCapabilities() {
+      if (typeof navigator === 'undefined') return;
+      try {
+      const caps = Object.create(typeof MediaCapabilities !== 'undefined' ? MediaCapabilities.prototype : Object.prototype);
+      Object.defineProperties(caps, {
+        decodingInfo: { value: function() { return Promise.resolve({ supported: false, smooth: false, powerEfficient: false }); }, configurable: true, enumerable: true },
+        encodingInfo: { value: function() { return Promise.resolve({ supported: false, smooth: false, powerEfficient: false }); }, configurable: true, enumerable: true },
+      });
+      const getCaps = function() { return caps; };
+      if (regNS) regNS(getCaps, 'get mediaCapabilities');
+      Object.defineProperty(Navigator.prototype, 'mediaCapabilities', { get: getCaps, configurable: true, enumerable: true });
+      try { Object.defineProperty(navigator, 'mediaCapabilities', { get: getCaps, configurable: true, enumerable: true }); } catch (_) {}
+      } catch { /* leave native mediaCapabilities */ }
+    })();
+
+    // 5. navigator.gpu — WebGPU adapter request. Empty {} is a bot tell.
+    (function stubGpu() {
+      if (typeof navigator === 'undefined') return;
+      try {
+      const gpu = Object.create(typeof GPU !== 'undefined' ? GPU.prototype : Object.prototype);
+      Object.defineProperties(gpu, {
+        requestAdapter: { value: function() { return Promise.resolve(null); }, configurable: true, enumerable: true },
+        getPreferredCanvasFormat: { value: function() { return 'rgba8unorm'; }, configurable: true, enumerable: true },
+        wgslLanguageFeatures: { value: { size: 0, has: function() { return false; }, keys: function() { return []; }, values: function() { return []; }, entries: function() { return []; }, forEach: function() {} }, configurable: true, enumerable: true },
+      });
+      const getGpu = function() { return gpu; };
+      if (regNS) regNS(getGpu, 'get gpu');
+      Object.defineProperty(Navigator.prototype, 'gpu', { get: getGpu, configurable: true, enumerable: true });
+      try { Object.defineProperty(navigator, 'gpu', { get: getGpu, configurable: true, enumerable: true }); } catch (_) {}
+      } catch { /* leave native gpu */ }
+    })();
+
+    // 6. maxTouchPoints consistency — Windows desktop should report 0 unless
+    // the persona explicitly wants a touchscreen. Linux/macOS can stay at the
+    // native value, but if the config value looks wrong for a desktop OS,
+    // force it to 0.
+    if (nav.maxTouchPoints !== undefined && (targetOs === 'windows' || targetOs === 'linux') && nav.maxTouchPoints > 0) {
+      const isDesktopScreen = scr && (scr.width || 0) >= 1024;
+      if (isDesktopScreen) {
+        const val = 0;
+        define(Navigator.prototype, 'maxTouchPoints', function() { return val; });
+      }
     }
   } catch {}
 })();

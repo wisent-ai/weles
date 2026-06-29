@@ -23,6 +23,11 @@ export async function detectLinkedInBanSignals(
       { signal: 'checkpoint', urlMatch: /\/voyager\/api\//, bodyMatch: /CHALLENGE|SECURITY_CHECKPOINT/ },
       { signal: 'rate_limited', urlMatch: /\/voyager\/api\//, bodyMatch: /TOO_MANY_REQUESTS|throttled/i },
     ],
+    // LinkedIn loads invisible reCAPTCHA Enterprise scoring on normal,
+    // authenticated feed pages. Treat only visible/challenge captcha frames
+    // as a challenge; the enterprise "anchor?size=invisible" frame alone is
+    // not a ban signal.
+    captchaFrameMatch: /hcaptcha|arkoselabs|funcaptcha|geetest|recaptcha\/(?:api2|enterprise)\/bframe/i,
     suspiciousApiEndpoints: /\/voyager\/api\/(invitation|messaging|growth|relationships)/,
   });
 }

@@ -1,9 +1,9 @@
 /**
  * Agent tool-use loop — the core control flow.
- * Screenshot → claude -p → parse JSON → dispatch tool → repeat.
+ * Browser state -> model-router -> parse JSON -> dispatch tool -> repeat.
  */
 
-import { spawnSync } from 'node:child_process';
+import { createHash, createHmac } from 'node:crypto';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { WSession } from '../session/wsession.js';
@@ -14,6 +14,18 @@ import { loadFlow, saveFlow, replayFlow, type FlowStep } from '../session/flows.
 import { humanIdlePause } from '../human/mouse.js';
 
 const MAX_ITERATIONS = 20;
+const DEFAULT_MODEL_ROUTER_URL = 'https://model-router-1080673333190.us-central1.run.app';
+const DEFAULT_AGENT_MODEL = 'claude-code-subscription';
+const ROUTER_CONFIG_ROW = 'claude-reauth-config';
+
+type ModelRouterConfig = {
+  routerUrl: string;
+  agentId: string;
+  hmacSecret: string;
+  model: string;
+};
+
+let modelRouterConfig: Promise<ModelRouterConfig> | null = null;
 
 export interface ToolCall {
   tool: string;
@@ -84,42 +96,143 @@ function parseJsonFrom(raw: string): Record<string, any> {
   return { tool: 'give_up', args: { reason: `unparseable LLM output: ${raw.slice(0, 200)}` } };
 }
 
-function askLlm(goal: string, state: string, screenshotPath: string, step: number, label?: string): Record<string, any> {
+function nonEmpty(value: unknown): string | null {
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null;
+}
+
+async function loadRouterConfigFromSupabase(): Promise<Partial<ModelRouterConfig>> {
+  const supabaseUrl = nonEmpty(process.env.SUPABASE_URL) ?? nonEmpty(process.env.NEXT_PUBLIC_SUPABASE_URL);
+  const supabaseKey = nonEmpty(process.env.SUPABASE_SERVICE_ROLE_KEY);
+  if (!supabaseUrl || !supabaseKey) return {};
+  const res = await fetch(`${supabaseUrl.replace(/\/$/, '')}/rest/v1/service_credentials?id=eq.${ROUTER_CONFIG_ROW}&select=metadata`, {
+    headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` },
+  });
+  if (!res.ok) throw new Error(`model-router config lookup failed: ${res.status} ${await res.text()}`);
+  const rows = await res.json() as Array<{ metadata?: Record<string, unknown> | null }>;
+  const metadata = rows[0]?.metadata ?? {};
+  return {
+    routerUrl: nonEmpty(metadata.MODEL_ROUTER_URL) ?? undefined,
+    agentId: nonEmpty(metadata.WISENT_APP_AGENT_ID) ?? undefined,
+    hmacSecret: nonEmpty(metadata.WISENT_APP_AGENT_AUTH_SECRET) ?? undefined,
+  };
+}
+
+async function loadModelRouterConfig(): Promise<ModelRouterConfig> {
+  if (modelRouterConfig) return modelRouterConfig;
+  modelRouterConfig = (async () => {
+    const envRouterUrl = nonEmpty(process.env.MODEL_ROUTER_URL);
+    const envAgentId = nonEmpty(process.env.WISENT_APP_AGENT_ID);
+    const envHmacSecret = nonEmpty(process.env.WISENT_APP_AGENT_AUTH_SECRET);
+    const db = envHmacSecret ? {} : await loadRouterConfigFromSupabase();
+    const routerUrl = (envRouterUrl ?? db.routerUrl ?? DEFAULT_MODEL_ROUTER_URL).replace(/\/+$/, '');
+    const agentId = envAgentId ?? db.agentId ?? 'wisent-app';
+    const hmacSecret = envHmacSecret ?? db.hmacSecret;
+    const model = nonEmpty(process.env.WELES_AGENT_MODEL) ?? nonEmpty(process.env.MODEL_ROUTER_MODEL) ?? DEFAULT_AGENT_MODEL;
+    if (!hmacSecret) {
+      throw new Error(`missing WISENT_APP_AGENT_AUTH_SECRET and ${ROUTER_CONFIG_ROW}.metadata.WISENT_APP_AGENT_AUTH_SECRET`);
+    }
+    return { routerUrl, agentId, hmacSecret, model };
+  })();
+  return modelRouterConfig;
+}
+
+function signedRouterHeaders(cfg: ModelRouterConfig, body: string): Record<string, string> {
+  const ts = String(Math.floor(Date.now() / 1000));
+  const bodyHash = createHash('sha256').update(body).digest('hex');
+  const sig = createHmac('sha256', cfg.hmacSecret).update(`${cfg.agentId}:${ts}:${bodyHash}`).digest('hex');
+  return {
+    'x-agent-id': cfg.agentId,
+    'x-agent-timestamp': ts,
+    'x-agent-signature': sig,
+    'content-type': 'application/json',
+  };
+}
+
+async function callModelRouter(prompt: string): Promise<{ raw: string; model: string; routerUrl: string }> {
+  const cfg = await loadModelRouterConfig();
+  const body = JSON.stringify({
+    model: cfg.model,
+    max_tokens: Number(process.env.WELES_AGENT_MAX_TOKENS ?? 1024),
+    messages: [{ role: 'user', content: prompt }],
+  });
+  const timeoutMs = Number(process.env.WELES_AGENT_LLM_TIMEOUT_MS ?? 120_000);
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), timeoutMs);
+  try {
+    const res = await fetch(`${cfg.routerUrl}/v1/chat/completions`, {
+      method: 'POST',
+      headers: signedRouterHeaders(cfg, body),
+      body,
+      signal: ac.signal,
+    });
+    const data = await res.json().catch(async () => ({ raw: await res.text().catch(() => '') })) as {
+      choices?: Array<{ message?: { content?: string } }>;
+      model?: string;
+      raw?: string;
+      error?: unknown;
+    };
+    if (!res.ok) throw new Error(`model-router ${res.status}: ${JSON.stringify(data).slice(0, 500)}`);
+    const raw = data.choices?.[0]?.message?.content?.trim() ?? '';
+    if (!raw) throw new Error(`model-router returned empty content: ${JSON.stringify(data).slice(0, 500)}`);
+    return { raw, model: data.model ?? cfg.model, routerUrl: cfg.routerUrl };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function askLlm(goal: string, state: string, screenshotPath: string, step: number, label?: string): Promise<Record<string, any>> {
   const dir = visionDir(label);
-  const imgBlock = screenshotPath ? `Read the current screenshot at ${screenshotPath}.\n\n` : '';
+  const imgBlock = screenshotPath ? `The current screenshot is saved locally at ${screenshotPath}; use the page observation below if image access is unavailable.\n\n` : '';
   const prompt = `${SYSTEM_PROMPT}\n\nGOAL: ${goal}\n\n${state}\n${imgBlock}Respond with ONLY the JSON object.`;
 
   let raw = '';
+  let routerMeta: Record<string, unknown> = {};
   try {
-    const proc = spawnSync('claude', ['-p', '--output-format', 'json'], {
-      input: prompt,
-      encoding: 'utf-8',
-      maxBuffer: 10 * 1024 * 1024,
-    });
-    raw = (proc.stdout ?? '').trim();
-    if (!raw && proc.stderr) {
-      console.log(`[loop] claude stderr: ${proc.stderr.slice(0, 200)}`);
-    }
-    for (const line of raw.split('\n')) {
-      if (line.includes('"type":"result"')) {
-        try { raw = JSON.parse(line).result ?? raw; break; } catch { /* skip */ }
-      }
-    }
-    try {
-      const parsed = JSON.parse(raw);
-      if (parsed.result) raw = parsed.result;
-    } catch { /* not wrapped */ }
+    const routed = await callModelRouter(prompt);
+    raw = routed.raw;
+    routerMeta = { model: routed.model, router_url: routed.routerUrl };
   } catch (e: any) {
-    raw = `{"tool":"give_up","args":{"reason":"claude cli error: ${e.message?.slice(0, 100)}"}}`;
+    raw = JSON.stringify({ tool: 'give_up', args: { reason: `model-router error: ${String(e.message ?? e).slice(0, 300)}` } });
+    routerMeta = { error: String(e.message ?? e).slice(0, 300) };
   }
 
   const logPath = join(dir, `loop_step${step}.json`);
   const decision = parseJsonFrom(raw);
-  try { writeFileSync(logPath, JSON.stringify({ step, raw, parsed: decision }, null, 2)); } catch { /* skip */ }
+  try { writeFileSync(logPath, JSON.stringify({ step, raw, parsed: decision, router: routerMeta }, null, 2)); } catch { /* skip */ }
   return decision;
 }
 
-function buildState(page: any, history: ToolCall[], envHints: Record<string, string>): string {
+async function pageObservation(page: any): Promise<string> {
+  try {
+    const data = await page.evaluate(() => {
+      const text = (document.body?.innerText ?? '').replace(/\s+/g, ' ').trim().slice(0, 4000);
+      const controls = Array.from(document.querySelectorAll('input, textarea, select, button, a, [role="button"], [role="link"]'))
+        .slice(0, 80)
+        .map((el) => {
+          const anyEl = el as HTMLElement & { value?: string; type?: string; name?: string; href?: string };
+          const label = anyEl.getAttribute('aria-label') || anyEl.getAttribute('placeholder') || anyEl.innerText || anyEl.getAttribute('title') || '';
+          return {
+            tag: anyEl.tagName.toLowerCase(),
+            role: anyEl.getAttribute('role') || '',
+            name: anyEl.name || '',
+            type: anyEl.type || '',
+            label: label.replace(/\s+/g, ' ').trim().slice(0, 120),
+            href: anyEl.href || '',
+          };
+        });
+      return { title: document.title, text, controls };
+    });
+    const controls = (data.controls ?? []).map((el: any, i: number) => {
+      const bits = [el.tag, el.role && `role=${el.role}`, el.name && `name=${el.name}`, el.type && `type=${el.type}`, el.label && `label=${el.label}`, el.href && `href=${el.href}`].filter(Boolean);
+      return `  [${i}] ${bits.join(' ')}`;
+    }).join('\n') || '  (none)';
+    return `TITLE: ${data.title ?? ''}\nVISIBLE TEXT: ${data.text ?? ''}\nCONTROLS:\n${controls}`;
+  } catch (e: any) {
+    return `PAGE OBSERVATION ERROR: ${String(e.message ?? e).slice(0, 300)}`;
+  }
+}
+
+async function buildState(page: any, history: ToolCall[], envHints: Record<string, string>): Promise<string> {
   const url = (typeof page.url === 'function' ? page.url() : page.url) ?? '';
   const recent = history.slice(-10);
   const hLines = recent.map((h, i) => {
@@ -127,7 +240,8 @@ function buildState(page: any, history: ToolCall[], envHints: Record<string, str
     return `  [${offset}] ${h.tool}(${JSON.stringify(h.args)}) -> ${h.error ?? h.result}`;
   }).join('\n') || '  (none)';
   const eLines = Object.entries(envHints).map(([k, v]) => `  ${k}=${v}`).join('\n') || '  (none)';
-  return `CURRENT URL: ${url}\n\nACTION HISTORY:\n${hLines}\n\nAVAILABLE ENV VARS:\n${eLines}\n`;
+  const observation = await pageObservation(page);
+  return `CURRENT URL: ${url}\n\nPAGE OBSERVATION:\n${observation}\n\nACTION HISTORY:\n${hLines}\n\nAVAILABLE ENV VARS:\n${eLines}\n`;
 }
 
 export async function execute(
@@ -188,8 +302,8 @@ export async function execute(
       const imgPath = await capture.screenshot(activePage, `loop_step${step}`).catch(() => {
         const p = join(visionDir(session.label), `loop_step${step}.png`); writeFileSync(p, screenshot); return p;
       });
-      const state = buildState(activePage, history, envHints);
-      decision = askLlm(goal, state, imgPath, step, session.label);
+      const state = await buildState(activePage, history, envHints);
+      decision = await askLlm(goal, state, imgPath, step, session.label);
     }
 
     const call: ToolCall = {
@@ -244,4 +358,4 @@ export async function execute(
   throw new AgentFailure(`max iterations (${maxSteps}) exceeded`, history);
 }
 
-export { parseJsonFrom };
+export { callModelRouter, parseJsonFrom, signedRouterHeaders };

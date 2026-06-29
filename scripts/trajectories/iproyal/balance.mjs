@@ -1,46 +1,53 @@
-// IPRoyal balance check via Google SSO. Popup-based GSI flow with consent
-// step handled by googleSso helper.
+// IPRoyal balance check via Google SSO.
+// IPRoyal's "Login with Google" button loads the Google Identity Services (GIS)
+// client conditionally; in the weles Chromium build the button is often rendered
+// without a working handler and the GIS script never executes. Instead of relying
+// on the button, we initiate the OAuth code flow directly with IPRoyal's own
+// client_id and redirect_uri, then drive the Google identifier/password sequence
+// and let Google redirect back to /social-login/google/success.
 import { WSession } from '../../../dist/session/wsession.js';
-import { googleSso, parseBalanceFromText, getGoogleSsoCreds } from '../_shared/services/google_sso.mjs';
+import { googleSso, getGoogleSsoCreds } from '../_shared/services/google_sso.mjs';
 import { patchEffectiveBalance } from '../_shared/services/proxy_probe.mjs';
 import { humanIdlePause } from '../../../dist/human/mouse.js';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
 
-const LOGIN_URL = 'https://dashboard.iproyal.com/login';
+const DASHBOARD_URL = 'https://dashboard.iproyal.com/';
+const GOOGLE_OAUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth?client_id=979254173035-cnuh89fv3k3285biuma7pk77ptup1t9b.apps.googleusercontent.com&redirect_uri=https://dashboard.iproyal.com/social-login/google/success&response_type=code&scope=email%20openid%20profile';
+
+function parseIproyalBalance(text) {
+  if (!text) return null;
+  const m = text.match(/\$([0-9]+(?:\.[0-9]{1,4})?)\s*Add funds/i);
+  return m ? Number(m[1]) : null;
+}
 
 const login = await getGoogleSsoCreds();
 if (!login) { console.log('FAIL: no Google SSO creds'); process.exit(1); }
 console.log(`[trajectory] Using Google SSO: ${login.email}`);
 
-const s = await WSession.start({ label: 'iproyal_balance', browser: 'chromium' });
+const s = await WSession.start({
+  label: 'iproyal_balance',
+  browser: 'chromium',
+  os: 'windows',
+});
 try {
-  await s.goto(LOGIN_URL);
-  await humanIdlePause('deliberate');
+  // Start the OAuth code flow directly. This lands on accounts.google.com where
+  // the shared googleSso driver can fill the identifier/password.
+  await s.page.goto(GOOGLE_OAUTH_URL, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+  await humanIdlePause('short');
 
-  const popupPromise = s.page.waitForEvent('popup').catch(() => null);
-  await s.page.locator('button:has-text("Login with Google"), button:has-text("Continue with Google")').filter({ visible: true }).first().click();
-  const popup = await Promise.race([popupPromise, new Promise(r => setTimeout(() => r(null), 15000))]);  // allow-raw-playwright: Promise.race deadline
-  if (!popup) { console.log('FAIL: Google login popup did not open'); process.exit(1); }
-  await popup.waitForLoadState('domcontentloaded').catch(() => {});
-
-  const ok = await googleSso(s, login, { originHost: 'iproyal.com', page: popup });
+  const ok = await googleSso(s, login, { originHost: 'iproyal.com' });
   if (!ok) { console.log('FAIL: Google SSO did not complete'); process.exit(1); }
 
-  for (let i = 0; i < 60; i++) {
-    await humanIdlePause('short');
-    if (!/\/login/.test(s.page.url())) break;
-  }
-  console.log(`[trajectory] post-login url=${s.page.url()}`);
-  if (/\/login/.test(s.page.url())) {
-    await s.page.goto('https://dashboard.iproyal.com/', { waitUntil: 'domcontentloaded' }).catch(() => {});
-    await humanIdlePause('long');
-  }
+  // After Google redirects back, the dashboard may land on /me/ or similar.
+  // Navigate explicitly to the dashboard root and wait for the balance widget.
+  await s.page.goto(DASHBOARD_URL, { waitUntil: 'domcontentloaded' }).catch(() => {});
+  await humanIdlePause('long');
 
   const text = await s.page.evaluate(() => document.body.innerText);
   console.log(`[trajectory] dashboard text length=${text.length}`);
-  const balance = parseBalanceFromText(text);
+  const balance = parseIproyalBalance(text);
   if (balance == null) {
     const dir = runRecordingsDir('iproyal_balance');
     mkdirSync(dir, { recursive: true });

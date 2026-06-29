@@ -49,7 +49,7 @@ if (__weles.browser !== 'firefox') {
 // weles after PX flags us → it then runs the deep probes).
 const _origToString = Function.prototype.toString;
 const _nativeStrings = new Map();
-const _nativeOverrides = new Set();
+var _nativeOverrides = new Set();
 
 Function.prototype.toString = function() {
   const exact = _nativeStrings.get(this);
@@ -72,11 +72,17 @@ window.__welesDefine = function(obj, prop, getter, kind) {
     ? 'function get ' + prop + '() { [native code] }'
     : 'function ' + prop + '() { [native code] }';
   _nativeStrings.set(getter, fakeStr);
-  Object.defineProperty(obj, prop, {
-    get: getter,
-    configurable: true,
-    enumerable: true,
-  });
+  try {
+    Object.defineProperty(obj, prop, {
+      get: getter,
+      configurable: true,
+      enumerable: true,
+    });
+  } catch (e) {
+    // Custom Chromium may already expose a non-configurable native getter for
+    // this property (e.g. navigator.webdriver set by the C++ fingerprint).
+    // Swallow the conflict so the rest of the init script keeps running.
+  }
 };
 
 // Register exact toString output for non-getter overrides (Date.prototype

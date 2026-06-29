@@ -20,7 +20,7 @@ const COUNTRY_PREFIX: Record<string, string> = {
 const SMSACTIVATE_SERVICES: Record<string, string> = {
   tiktok: 'lf', instagram: 'ig', discord: 'ds', reddit: 'dt',
   twitter: 'tw', google: 'go', telegram: 'tg', whatsapp: 'wa',
-  facebook: 'fb', yahoo: 'mj',
+  facebook: 'fb', yahoo: 'mj', linkedin: 'li',
 };
 const SMSACTIVATE_COUNTRIES: Record<string, string> = {
   US: '12', UK: '16', NL: '15', DE: '43',
@@ -32,7 +32,10 @@ function normalizePhone(raw: string, country: string): string {
   let p = raw.replace(/\D/g, '');
   if (country !== 'US' && p.startsWith('0')) p = p.slice(1);
   const pfx = COUNTRY_PREFIX[country] ?? '+1';
-  return p.startsWith('+') ? p : `${pfx}${p}`;
+  const pfxDigits = pfx.replace(/\D/g, '');
+  // Providers sometimes return the number already including the country code.
+  if (p.startsWith(pfxDigits) && p.length > pfxDigits.length) return `+${p}`;
+  return p.startsWith('+') ? p : `+${pfxDigits}${p}`;
 }
 
 export async function getNumber(service: string, country = 'UK'): Promise<SmsNumber | null> {
@@ -99,7 +102,13 @@ export async function pollCode(orderId: string, provider: 'juicysms' | 'smsactiv
       const jKey = process.env.JUICYSMS_API_KEY!;
       const r = await fetch(`${JUICY_BASE}/getsms?key=${jKey}&orderId=${orderId}`).catch(() => null);
       const text = (await r?.text())?.trim() ?? '';
-      if (text.startsWith('SUCCESS_')) { const code = text.replace('SUCCESS_', '').match(/(\d{4,8})/)?.[1]; if (code) { console.log(`[sms] code: ${code}`); return code; } }
+      if (text.startsWith('SUCCESS_')) {
+        // Instagram (and some other services) formats the code as '490 315'
+        // with a space in the middle, so strip all non-digits before matching.
+        const digits = text.replace('SUCCESS_', '').replace(/\D/g, '');
+        const code = digits.match(/^(\d{4,8})$/)?.[1];
+        if (code) { console.log(`[sms] code: ${code}`); return code; }
+      }
       // Log every distinct response: pool diagnostics need the WAIT_CODE
       // distribution to distinguish "polling fine but no SMS arrived"
       // from "JuicySMS rejecting the request" from "order expired".

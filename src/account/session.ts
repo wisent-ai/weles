@@ -41,10 +41,11 @@ export async function resolveAccountSession(acct: SocialAccount): Promise<Accoun
   const action = inferTrajectoryAction(acct.platform);
 
   // Direct egress for platforms with NO datacenter blacklist. GitHub and
-  // Producthunt accept VM IP. LinkedIn HEAD 200 from VM but actual load
-  // triggers PerimeterX immediately on datacenter — reverted 2026-04-26.
-  // Reddit/Twitter/Instagram/Discord/TikTok all 403 from datacenter.
-  const DIRECT_EGRESS_OK = new Set(['github', 'producthunt']);
+  // Producthunt accept VM IP. Pangram also works fine from direct egress in
+  // testing (no blocks / no CAPTCHA), and all ISP providers are currently
+  // retired/offline, so forcing proxy here just breaks the trajectory.
+  // Reddit/Twitter/Instagram/Discord/TikTok/LinkedIn all need proxy.
+  const DIRECT_EGRESS_OK = new Set(['github', 'producthunt', 'pangram']);
   if (DIRECT_EGRESS_OK.has(acct.platform) && process.env.WELES_FORCE_PROXY !== '1') {
     if (meta?.persona) out.persona = meta.persona as Persona;
     return out;

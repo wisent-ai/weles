@@ -17,7 +17,11 @@
 //   AUDIT_HEADLESS=1                           run baseline Chrome headless for CI/non-interactive probes
 //   AUDIT_TIMEOUT_MS=30000                     per-navigation/browser-operation timeout
 //   AUDIT_FP_TIMEOUT_MS=15000                  JS fingerprint probe timeout
-//   AUDIT_PROXY_SERVER=http://host:port        proxy for baseline Chrome
+//   AUDIT_PROXY_URL=http://user:pass@host:port full proxy URL for baseline Chrome
+//   AUDIT_PROXY_SERVER=http://host:port        proxy server for baseline Chrome
+//   AUDIT_PROXY_USERNAME=user                  proxy username when using AUDIT_PROXY_SERVER
+//   AUDIT_PROXY_PASSWORD=pass                  proxy password when using AUDIT_PROXY_SERVER
+//   AUDIT_HONEST_HOST=1                        keep Weles honest-host overrides enabled
 //   LINKEDIN_PROXY_COUNTRY=US                  Weles persona country
 //   WELES_CLIENT_HINTS_PLATFORM_VERSION=15.6.1 pin macOS client hints
 
@@ -44,6 +48,8 @@ const headless = process.env.AUDIT_HEADLESS === '1';
 const timeoutMs = Number(process.env.AUDIT_TIMEOUT_MS || 30_000);
 const fpTimeoutMs = Number(process.env.AUDIT_FP_TIMEOUT_MS || 15_000);
 const exactProxyRequired = process.env.AUDIT_REQUIRE_EXACT_PROXY !== '0';
+const auditHonestHost = process.env.AUDIT_HONEST_HOST === '1';
+if (!auditHonestHost && !process.env.WELES_HONEST_SCREEN) process.env.WELES_HONEST_SCREEN = '0';
 const sharedPersona = generatePersona({
   country: process.env.LINKEDIN_PROXY_COUNTRY || process.env.WELES_PROXY_COUNTRY || 'US',
   os: 'macos',
@@ -126,8 +132,69 @@ function hashValue(value) {
   return createHash('sha256').update(String(value)).digest('hex').slice(0, 16);
 }
 
+function redactProxy(raw) {
+  if (!raw || raw === 'direct') return raw || 'direct';
+  try {
+    const url = new URL(raw);
+    const hasAuth = Boolean(url.username || url.password);
+    url.username = hasAuth ? '<user>' : '';
+    url.password = hasAuth ? '<pass>' : '';
+    return url.toString();
+  } catch {
+    return '[unparseable-proxy]';
+  }
+}
+
+function proxySignature(raw, username = '', password = '') {
+  if (!raw || raw === 'direct') return 'direct';
+  try {
+    const url = new URL(raw);
+    const user = url.username || username;
+    const pass = url.password || password;
+    return `${url.protocol}//${url.hostname}:${url.port || (url.protocol === 'https:' ? '443' : '80')}:auth=${Boolean(user || pass)}`;
+  } catch {
+    return `unparseable:${hashValue(raw)}`;
+  }
+}
+
 function proxyConfigured(value) {
   return !!value && value !== 'direct';
+}
+
+function networkIpHost(value) {
+  const raw = String(value || '');
+  if (!raw) return '';
+  if (/^\[.*\]:\d+$/.test(raw)) return raw.replace(/^\[(.*)\]:\d+$/, '$1');
+  const ipv4WithPort = raw.match(/^(\d{1,3}(?:\.\d{1,3}){3})(?::\d+)?$/);
+  if (ipv4WithPort) return ipv4WithPort[1];
+  return raw;
+}
+
+function baselineProxyRaw() {
+  return process.env.AUDIT_PROXY_URL || process.env.AUDIT_PROXY_SERVER || '';
+}
+
+function baselineProxyForLaunch() {
+  const raw = baselineProxyRaw();
+  if (!raw || raw === 'direct') return null;
+  const fallbackUsername = process.env.AUDIT_PROXY_USERNAME || '';
+  const fallbackPassword = process.env.AUDIT_PROXY_PASSWORD || '';
+  try {
+    const url = new URL(raw);
+    const username = decodeURIComponent(url.username || fallbackUsername);
+    const password = decodeURIComponent(url.password || fallbackPassword);
+    url.username = '';
+    url.password = '';
+    const out = { server: url.toString().replace(/\/$/, '') };
+    if (username) out.username = username;
+    if (password) out.password = password;
+    return out;
+  } catch {
+    const out = { server: raw };
+    if (fallbackUsername) out.username = fallbackUsername;
+    if (fallbackPassword) out.password = fallbackPassword;
+    return out;
+  }
 }
 
 function extractVersion(capture) {
@@ -196,6 +263,7 @@ async function captureWeles() {
     arkoseCapture: false,
     authFetchCapture: false,
     pageInstrumentation: false,
+    headless,
     });
   try {
     await s.goto(loopbackUrl);
@@ -210,7 +278,12 @@ async function captureWeles() {
 }
 
 async function captureChrome() {
-  const launchOpts = { headless, timeout: timeoutMs };
+  const launchOpts = {
+    headless,
+    timeout: timeoutMs,
+    args: [`--lang=${sharedPersona.language}`],
+    env: { ...process.env, TZ: sharedPersona.timezone },
+  };
   if (chromePath) {
     if (!existsSync(chromePath)) {
       throw new Error(`AUDIT_CHROME_PATH does not exist: ${chromePath}`);
@@ -219,8 +292,9 @@ async function captureChrome() {
   } else {
     launchOpts.channel = chromeChannel;
   }
-  if (process.env.AUDIT_PROXY_SERVER) {
-    launchOpts.proxy = { server: process.env.AUDIT_PROXY_SERVER };
+  const baselineProxy = baselineProxyForLaunch();
+  if (baselineProxy) {
+    launchOpts.proxy = baselineProxy;
   }
   const browser = await chromium.launch(launchOpts);
   try {
@@ -245,7 +319,7 @@ async function captureChrome() {
       launch: {
         channel: chromePath ? null : chromeChannel,
         executablePath: chromePath || null,
-        proxy: process.env.AUDIT_PROXY_SERVER ? 'configured' : 'direct',
+        proxy: baselineProxy ? redactProxy(baselineProxyRaw()) : 'direct',
         headless,
       },
       browserVersion,
@@ -291,21 +365,23 @@ function assessComparability(chromeCapture, welesCapture) {
   });
   checks.push({
     id: 'same_network_path_configured',
-    ok: (process.env.AUDIT_PROXY_SERVER || 'direct') === (process.env.PROBE_PROXY || 'direct')
-      && (!exactProxyRequired || (proxyConfigured(process.env.AUDIT_PROXY_SERVER) && proxyConfigured(process.env.PROBE_PROXY))),
-    chromeProxy: process.env.AUDIT_PROXY_SERVER ? 'configured' : 'direct',
-    welesProxy: process.env.PROBE_PROXY ? 'configured' : 'direct',
+    ok: proxySignature(baselineProxyRaw(), process.env.AUDIT_PROXY_USERNAME, process.env.AUDIT_PROXY_PASSWORD) === proxySignature(process.env.PROBE_PROXY || '')
+      && (!exactProxyRequired || (proxyConfigured(baselineProxyRaw()) && proxyConfigured(process.env.PROBE_PROXY))),
+    chromeProxy: redactProxy(baselineProxyRaw()),
+    welesProxy: redactProxy(process.env.PROBE_PROXY || ''),
     exactProxyRequired,
-    detail: 'Set AUDIT_PROXY_SERVER and PROBE_PROXY to the same exact proxy when auditing LinkedIn parity.',
+    detail: 'Set AUDIT_PROXY_URL and PROBE_PROXY to the same full proxy URL when auditing LinkedIn parity. AUDIT_PROXY_SERVER + AUDIT_PROXY_USERNAME/PASSWORD is also supported.',
   });
-  const chromeNetworkIpHash = hashValue(chromeCapture?.network?.ip);
-  const welesNetworkIpHash = hashValue(welesCapture?.network?.ip);
+  const chromeNetworkIp = networkIpHost(chromeCapture?.network?.ip);
+  const welesNetworkIp = networkIpHost(welesCapture?.network?.ip);
+  const chromeNetworkIpHash = hashValue(chromeNetworkIp);
+  const welesNetworkIpHash = hashValue(welesNetworkIp);
   checks.push({
     id: 'same_observed_network_exit',
-    ok: !!chromeNetworkIpHash && chromeNetworkIpHash === welesNetworkIpHash,
+    ok: skipNetwork || (!!chromeNetworkIpHash && chromeNetworkIpHash === welesNetworkIpHash),
     chrome_ip_hash: chromeNetworkIpHash,
     weles_ip_hash: welesNetworkIpHash,
-    detail: skipNetwork ? 'network probe skipped' : 'tls.peet.ws reported IP hashes must match',
+    detail: skipNetwork ? 'network probe skipped' : 'tls.peet.ws reported IP hashes must match after stripping source ports',
   });
   const chromeTz = chromeCapture?.js?.intl?.timezone ?? chromeCapture?.js?.intl?.dateTimeFormat?.timeZone;
   const welesTz = welesCapture?.js?.intl?.timezone ?? welesCapture?.js?.intl?.dateTimeFormat?.timeZone;
@@ -390,7 +466,7 @@ try {
     launch: {
       channel: chromePath ? null : chromeChannel,
       executablePath: chromePath || null,
-      proxy: process.env.AUDIT_PROXY_SERVER ? 'configured' : 'direct',
+      proxy: baselineProxyForLaunch() ? redactProxy(baselineProxyRaw()) : 'direct',
       headless,
     },
     error: String(e.message || e),
@@ -435,6 +511,12 @@ const out = {
       WELES_CLIENT_HINTS_PLATFORM_VERSION: process.env.WELES_CLIENT_HINTS_PLATFORM_VERSION || null,
       WELES_MAC_PLATFORM_VERSION: process.env.WELES_MAC_PLATFORM_VERSION || null,
       WELES_CLIENT_HINTS_ARCHITECTURE: process.env.WELES_CLIENT_HINTS_ARCHITECTURE || null,
+      WELES_HONEST_HOST: process.env.WELES_HONEST_HOST || null,
+      WELES_HONEST_SCREEN: process.env.WELES_HONEST_SCREEN || null,
+      AUDIT_HONEST_HOST: process.env.AUDIT_HONEST_HOST || null,
+      AUDIT_PROXY: redactProxy(baselineProxyRaw()),
+      PROBE_PROXY: redactProxy(process.env.PROBE_PROXY || ''),
+      PROXY_SIGNATURES_MATCH: proxySignature(baselineProxyRaw(), process.env.AUDIT_PROXY_USERNAME, process.env.AUDIT_PROXY_PASSWORD) === proxySignature(process.env.PROBE_PROXY || ''),
     },
   },
   chrome: chromeCapture,

@@ -112,6 +112,9 @@ export const FP_SCRIPT = String.raw`(async () => {
   // ---- 9. chrome.* globals ----
   r.chrome = safe(() => ({ exists: typeof window.chrome !== 'undefined', runtime: !!window.chrome?.runtime, app: !!window.chrome?.app, csi: typeof window.chrome?.csi === 'function', loadTimes: typeof window.chrome?.loadTimes === 'function' }));
 
+  // ---- 9b. notification permission (checked explicitly by PerimeterX / BotD) ----
+  r.notification = safe(() => ({ permission: window.Notification?.permission }));
+
   // ---- 10. permissions (multiple) ----
   r.permissions = await (async () => {
     try {
@@ -132,6 +135,24 @@ export const FP_SCRIPT = String.raw`(async () => {
       const devs = await n.mediaDevices.enumerateDevices();
       return devs.map(d => ({ kind: d.kind, label: d.label ? 'present' : 'blank', deviceIdLen: d.deviceId.length, groupIdLen: d.groupId.length }));
     } catch (e) { return { _err: String(e).slice(0, 100) }; }
+  })();
+
+  // ---- 12b. WebRTC local IP leak (PerimeterX checks this) ----
+  r.webRTC = await (async () => {
+    try {
+      const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+      const ips = new Set();
+      pc.createDataChannel('weles-diag');
+      pc.onicecandidate = (e) => {
+        if (!e.candidate?.candidate) return;
+        const m = e.candidate.candidate.match(/([0-9]{1,3}\.){3}[0-9]{1,3}/);
+        if (m) ips.add(m[0]);
+      };
+      await pc.setLocalDescription(await pc.createOffer());
+      await new Promise(r => setTimeout(r, 1000));
+      pc.close();
+      return { localIPs: Array.from(ips) };
+    } catch (e) { return { _err: String(e).slice(0, 100), localIPs: [] }; }
   })();
 
   // ---- 13. speechSynthesis voices ----
@@ -186,10 +207,17 @@ export const FP_SCRIPT = String.raw`(async () => {
   }));
 
   // ---- 22. performance — time origin + now() precision ----
-  r.performance = safe(() => {
-    const samples = []; for (let i = 0; i < 5; i++) samples.push(performance.now());
-    return { timeOrigin: performance.timeOrigin, nowSamples: samples, nowMinDelta: Math.min(...samples.slice(1).map((v, i) => v - samples[i])) };
-  });
+  r.performance = await (async () => {
+    try {
+      const samples = [];
+      for (let i = 0; i < 5; i++) {
+        samples.push(performance.now());
+        if (i < 4) await new Promise(r => setTimeout(r, 5 + Math.floor(Math.random() * 10)));
+      }
+      const deltas = samples.slice(1).map((v, i) => v - samples[i]);
+      return { timeOrigin: performance.timeOrigin, nowSamples: samples, nowMinDelta: Math.min(...deltas), nowMaxDelta: Math.max(...deltas) };
+    } catch (e) { return { _err: String(e).slice(0, 100) }; }
+  })();
 
   // ---- 23. document attributes + cookies ----
   r.document = safe(() => ({

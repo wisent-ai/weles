@@ -199,12 +199,40 @@ async function clickText(values) {
     } catch (error) {
       last = error;
     }
+    const needle = JSON.stringify(String(value).toLowerCase());
+    const hit = await action({
+      action: 'eval',
+      js: `(() => {
+        const needle = ${needle};
+        const norm = (v) => String(v || '').replace(/\\s+/g, ' ').trim().toLowerCase();
+        const visible = (el) => {
+          const r = el.getBoundingClientRect?.();
+          if (!r || r.width < 2 || r.height < 2) return false;
+          const st = getComputedStyle(el);
+          return st.display !== 'none' && st.visibility !== 'hidden' && Number(st.opacity || '1') !== 0;
+        };
+        const nodes = Array.from(document.querySelectorAll('button, [role="button"], a, [role="link"], li, div[role="option"]'));
+        return nodes.map((el) => {
+          if (!visible(el)) return null;
+          const text = norm(el.innerText || el.textContent || el.getAttribute('aria-label') || '');
+          if (!text.includes(needle)) return null;
+          const r = el.getBoundingClientRect();
+          return { x: r.left + r.width / 2, y: r.top + r.height / 2, area: r.width * r.height };
+        }).filter(Boolean).sort((a, b) => a.area - b.area)[0] || null;
+      })()`,
+    }, 10_000).catch(() => null);
+    if (hit?.result) {
+      await action({ action: 'humanclick', x: hit.result.x, y: hit.result.y }, 30_000);
+      await idle('deliberate');
+      return value;
+    }
   }
   throw last || new Error(`clickText failed: ${list.join(', ')}`);
 }
 
 async function fill(selector, text) {
-  await action({ action: 'fill', selector, text }, 30_000);
+  await action({ action: 'fill_fast', selector, text }, 30_000)
+    .catch(() => action({ action: 'set_value', selector, text }, 30_000));
   await idle('short');
 }
 
@@ -212,6 +240,23 @@ async function press(key) {
   await action({ action: 'press', key }, 30_000);
   await idle('deliberate');
 }
+async function navigateStoredTotpChallenge(currentUrl) {
+  if (!/accounts\.google\.com/.test(currentUrl || '') || !/signin\/challenge\/selection/.test(currentUrl || '')) return false;
+  if (process.env.GOOGLE_SSO_ALLOW_DIRECT_TOTP !== '1') return false;
+  const target = currentUrl.replace(/\/signin\/challenge\/selection(?=[?#])/, '/signin/challenge/totp');
+  if (target === currentUrl) return false;
+  const attempts = navigateStoredTotpChallenge.attempts || (navigateStoredTotpChallenge.attempts = new Set());
+  const key = currentUrl.replace(/([?&](?:TL|rart|dsh)=)[^&]+/g, '$1');
+  if (attempts.has(key)) return false;
+  attempts.add(key);
+  console.log('[google-ads-totp-keeper] opening Google Authenticator TOTP challenge directly');
+  await nav(target);
+  const next = await state();
+  if (next.inputs.some((input) => input.visible && /totpPin|Pin|one-time-code|numeric|tel/i.test(`${input.name} ${input.autocomplete} ${input.type}`))) return true;
+  await nav(currentUrl);
+  return false;
+}
+
 
 function manualCodeFromFile() {
   const envCode = process.env.GOOGLE_SSO_MANUAL_TOTP_CODE || process.env.GOOGLE_TOTP_CODE || '';
@@ -249,12 +294,25 @@ async function submitManualGoogleCode(reason) {
   return true;
 }
 
+async function submitStoredGoogleCode(creds, offsetMs = 0) {
+  if (!creds?.totpSecret) return false;
+  const code = generateTotp(creds.totpSecret, offsetMs ? { now: Date.now() + offsetMs } : {});
+  await fill('input[type="tel"], input[type="text"], input[inputmode="numeric"], input[name="totpPin"], input[name="Pin"]', code);
+  await clickText(['Next', 'Verify', 'Done']).catch(async () => press('Enter'));
+  return true;
+}
+
 async function handleGoogleLogin(creds) {
   for (let step = 0; step < 40; step += 1) {
     const s = await state();
     const text = s.text || '';
     const url = s.url || '';
     if (!/accounts\.google\.com/.test(url)) return true;
+    if (/session ended|not signed in|Try signing in again|Try again/i.test(text)) {
+      await clickText('Try again').catch(() => {});
+      await idle('deliberate');
+      continue;
+    }
 
     if (/Email or phone|Sign in|Use your Google Account/i.test(text) && s.inputs.some((input) => /email|identifier/i.test(`${input.type} ${input.name} ${input.aria}`) && input.visible)) {
       await fill('input[type="email"], input[name="identifier"], input#identifierId', creds.email || EMAIL);
@@ -268,24 +326,40 @@ async function handleGoogleLogin(creds) {
       continue;
     }
 
-    if (/Tap Yes on your phone|Gmail app|Try another way|Choose how you want to sign in/i.test(text)) {
-      if (/Try another way/i.test(text)) await clickText('Try another way').catch(() => {});
-      await idle('deliberate');
-      const after = await state();
+    if (/Tap Yes on your phone|Gmail app|Try another way|More ways to verify|Choose how you want to sign in/i.test(text) && !/Enter code|verification code from the Google Authenticator app/i.test(text)) {
+      let after = s;
+      if (/Try another way|More ways to verify/i.test(text)) {
+        await clickText(['Try another way', 'More ways to verify']).catch(() => {});
+        await idle('deliberate');
+        after = await state();
+      }
+      if (/Tap Yes on your phone|Gmail app|phone or tablet/i.test(after.text || '') && !/Try another way|More ways to verify/i.test(after.text || '')) {
+        await clickText(['Tap Yes on your phone or tablet', 'Gmail app', 'phone or tablet']).catch(() => {});
+        await idle('deliberate');
+        continue;
+      }
       if (/Get a verification code from the Google Authenticator app|Google Authenticator app|Authenticator/i.test(after.text || '')) {
         await clickText(['Get a verification code from the Google Authenticator app', 'Google Authenticator app', 'Authenticator']).catch(() => {});
         await idle('deliberate');
+        if (await submitStoredGoogleCode(creds)) continue;
+      }
+      if (creds?.totpSecret && await navigateStoredTotpChallenge(after.url || url)) {
+        if (await submitStoredGoogleCode(creds)) continue;
       }
       continue;
     }
 
     if (/Get a verification code from the Google Authenticator app|Enter code|verification code/i.test(text)) {
-      if (!await submitManualGoogleCode('google_login_current_authenticator')) return false;
+      if (!await submitStoredGoogleCode(creds)) {
+        if (!await submitManualGoogleCode('google_login_current_authenticator')) return false;
+      }
       continue;
     }
 
     if (/Wrong code|Try again/i.test(text)) {
-      if (!await submitManualGoogleCode('google_login_retry_current_authenticator')) return false;
+      if (!await submitStoredGoogleCode(creds, 31_000)) {
+        if (!await submitManualGoogleCode('google_login_retry_current_authenticator')) return false;
+      }
       continue;
     }
 
