@@ -222,6 +222,9 @@ async function runTrajectory(row: ActionLogRow, path: string, extraEnv: Record<s
     : row.action.endsWith('_verify_domain_status') ? 600_000
     : 360_000;
   const hardTimeoutMs = overrideMs > 0 ? overrideMs : defaultMs;
+  const secretResultPath = row.action === 'slack_provision_user_token'
+    ? join(os.tmpdir(), `weles-secret-${row.id}.json`)
+    : '';
   return new Promise((resolve) => {
     const child = spawn('node', [path], {
       env: {
@@ -232,6 +235,7 @@ async function runTrajectory(row: ActionLogRow, path: string, extraEnv: Record<s
         WELES_FULL_DIAGNOSTICS: process.env.WELES_FULL_DIAGNOSTICS ?? '1',
         ...paramsToEnv(row.params ?? {}, row.action, path),
         ...extraEnv,
+        ...(secretResultPath ? { WELES_SECRET_RESULT_FILE: secretResultPath } : {}),
         ...(row.account_id ? { ACCOUNT_ID: row.account_id } : {}),
         ACTION_LOG_ID: row.id,
         ACTION: row.action,
@@ -533,6 +537,12 @@ export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
   const banSignal = await readBanSignal(row.id);
   const lightResultOnly = LIGHT_RESULT_ACTIONS.has(row.action);
   const result: Record<string, unknown> = lightResultOnly ? {} : { versions: captureVersions(trajPath) };
+  if (row.action === 'slack_provision_user_token') {
+    const secretPath = join(os.tmpdir(), `weles-secret-${row.id}.json`);
+    const secretResult = await readFile(secretPath, 'utf8').then(JSON.parse).catch(() => null);
+    await unlink(secretPath).catch(() => {});
+    if (secretResult && typeof secretResult === 'object') result.slack_user_token = secretResult;
+  }
   // G5: when the run executed against a dirty repo/trajectory, mirror the full
   // working-tree diff (already captured in result.versions.dirty_diff) to
   // recordings/<action>/source_diff.patch for the storage backup. upload-artifacts
