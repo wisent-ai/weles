@@ -12,7 +12,8 @@ import type { Page } from 'playwright';
 export type BanSignalKind =
   | 'healthy' | 'suspended' | 'rate_limited' | 'captcha_challenge'
   | 'checkpoint' | 'shadowban_suspected' | 'unknown_error'
-  | 'proxy_failed' | 'proxy_auth_failed' | 'ip_blocked';
+  | 'proxy_failed' | 'proxy_auth_failed' | 'ip_blocked'
+  | 'insufficient_credits';
 
 export interface BanSignal {
   healthy: boolean;

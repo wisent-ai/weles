@@ -66,13 +66,11 @@ const RETIRED_PROVIDER_HOSTS: { pattern: RegExp; reason: string }[] = [
   { pattern: /^195\.86\./,                      reason: 'oxylabs_residential_exit_range' },
   { pattern: /^152\.233\./,                     reason: 'oxylabs_residential_exit_range' },
   { pattern: /^209\.38\./,                      reason: 'legacy_lbartoszcze_relay' },
-  // Oxylabs Dedicated ISP — purchased as "Comcast" but live audit
-  // 2026-05-21 shows ports 8003-8005 exit on NetEnterprise (AS11563) and
-  // CenturyLink (AS3561) datacenter ASNs, not Comcast. Same pattern memory
-  // already documented in oxylabs_isp_is_datacenter_2026-05-12.md. Decodo
-  // ISP is the canonical static-residential pool now.
-  { pattern: /(^|\.)isp\.oxylabs\.io$/i,        reason: 'oxylabs_dedicated_isp_serves_datacenter' },
-  { pattern: /(^|\.)disp\.oxylabs\.io$/i,       reason: 'oxylabs_dedicated_isp_serves_datacenter' },
+  // Oxylabs shared ISP pool (isp.oxylabs.io) exits on datacenter ASNs
+  // (NetEnterprise AS11563, CenturyLink AS3561, EGIHosting AS32444) per live
+  // audit 2026-05-21. Oxylabs Dedicated ISP (disp.oxylabs.io) exits on
+  // Comcast (AS33667) and is viable for LinkedIn; do NOT retire it here.
+  { pattern: /(^|\.)isp\.oxylabs\.io$/i,        reason: 'oxylabs_shared_isp_serves_datacenter' },
 ];
 // Port-only signal: 7777 is the Oxylabs Residential rotating port across
 // every gateway hostname they expose. Matching by port catches CIDR drift.
@@ -92,6 +90,48 @@ export function retiredProviderReason(host: string | undefined, port: number | s
 export function isProviderBlockedForPlatform(provider: string | undefined, platform: string | undefined): boolean {
   if (!provider || !platform) return false;
   return (PROVIDER_PLATFORM_BLOCK[provider] ?? []).includes(platform);
+}
+
+// Signup-specific burned exits from the 2026-06-23 Chrome-vs-Weles A/B
+// diagnosis. These are intentionally NOT global LinkedIn burns: existing
+// account sessions can still be healthy on an exit that cold signup challenges.
+// Apply only when the current runner is linkedin_register.
+const LINKEDIN_SIGNUP_CHALLENGE_EXITS: Record<string, string> = {
+  // Decodo ISP: Chrome and Weles both hit captcha_gauntlet on createAccount.
+  '23.26.170.193': 'linkedin_signup_ab_challenge_decodo_2026_06_23',
+  // Decodo ISP extra static ports audited 2026-06-24: cold /signup probe
+  // returns challenge on every attempt, before browser launch.
+  '82.21.167.146': 'linkedin_signup_probe_challenge_decodo_10002_2026_06_24',
+  '48.44.47.67': 'linkedin_signup_probe_challenge_decodo_10003_2026_06_24',
+  // Oxylabs Dedicated ISP ports 8001-8005: all challenged in Chrome and Weles.
+  '135.132.88.221': 'linkedin_signup_ab_challenge_oxylabs_dedicated_8001_2026_06_23',
+  '135.132.88.223': 'linkedin_signup_ab_challenge_oxylabs_dedicated_8002_2026_06_23',
+  '135.132.89.213': 'linkedin_signup_ab_challenge_oxylabs_dedicated_8003_2026_06_23',
+  '135.132.90.216': 'linkedin_signup_ab_challenge_oxylabs_dedicated_8004_2026_06_23',
+  '135.132.91.205': 'linkedin_signup_ab_challenge_oxylabs_dedicated_8005_2026_06_23',
+  // Oxylabs Mobile A/B: challenge/inconclusive, not usable for signup.
+  '108.30.70.246': 'linkedin_signup_ab_challenge_oxylabs_mobile_2026_06_23',
+  '96.224.56.203': 'linkedin_signup_ab_challenge_oxylabs_mobile_2026_06_23',
+};
+
+export function isLinkedinSignupContext(): boolean {
+  const label = `${process.env.ACTION ?? ''} ${process.env.WELES_LABEL ?? ''} ${process.env.WELES_PROXY_DIAGNOSTICS_LABEL ?? ''}`;
+  return /\blinkedin_register\b/.test(label);
+}
+
+export function isLinkedinWarmedSignupExperiment(): boolean {
+  return isLinkedinSignupContext() &&
+    process.env.LINKEDIN_REGISTER_ALLOW_WARMED_SIGNUP_EXIT === '1' &&
+    !!process.env.LINKEDIN_REGISTER_WARM_PROFILE_DIR;
+}
+
+export function linkedinSignupExitBurnReason(exitIp: string | undefined): string | undefined {
+  if (!exitIp || !isLinkedinSignupContext()) return undefined;
+  // Explicit warm-signup experiment override. This is intentionally gated on a
+  // supplied warm profile dir so a normal cold linkedin_register cannot
+  // accidentally burn known challenged exits.
+  if (isLinkedinWarmedSignupExperiment()) return undefined;
+  return LINKEDIN_SIGNUP_CHALLENGE_EXITS[exitIp];
 }
 
 // Return the same data structure for callers (credentials.ts) that build
@@ -309,12 +349,18 @@ export async function probeLinkedinSignup(proxyUrl: string, secs = 8, persona?: 
       truncated: body.length > maxBodyBytes,
       max_bytes: maxBodyBytes,
     };
+    const invisibleRecaptchaEnterpriseAnchor =
+      /(?:google\.com\/)?recaptcha\/enterprise\/anchor[\s\S]{0,500}(?:[?&]|%26)size(?:=|%3D)invisible/i.test(body);
+    const hardCaptcha =
+      /checkpoint\/challenge|challengeIframe|px-cloud|arkoselabs|funcaptcha|hcaptcha/i.test(body) ||
+      ((/g-recaptcha|google\.com\/recaptcha|recaptcha/i.test(body)) && !invisibleRecaptchaEnterpriseAnchor);
     const bodyMarkers = {
       login_form: /name="session_key"|id="username"|input type="email"/.test(body),
       signup_form: /name="email-address"|id="email-address"|join-form-submit/.test(body),
       challenge_dialog_template: /challenge-dialog/i.test(body),
       security_verification_template: /Security verification/i.test(body),
-      hard_challenge: /checkpoint\/challenge|challengeIframe|g-recaptcha|google\.com\/recaptcha\/enterprise\/anchor|li\.protechts\.net|px-cloud/i.test(body),
+      invisible_recaptcha_enterprise_anchor: invisibleRecaptchaEnterpriseAnchor,
+      hard_challenge: hardCaptcha,
       challenge_terms: /checkpoint|challenge|captcha|recaptcha|security/i.test(body),
     };
     const transport = {

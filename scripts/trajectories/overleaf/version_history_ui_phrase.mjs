@@ -5,7 +5,7 @@
 // JSON/history endpoints directly.
 //
 // Usage:
-//   node scripts/trajectories/overleaf/version_history_ui_phrase.mjs <project-id-or-title> <queryText>
+//   node scripts/trajectories/overleaf/version_history_ui_phrase.mjs <project-id-or-title> <phrase-or-query-text>
 
 import { googleSso, getGoogleSsoCreds } from '../_shared/services/google_sso.mjs';
 import { humanIdlePause, humanClickLocator } from '../../../dist/human/mouse.js';
@@ -15,7 +15,7 @@ import { join } from 'node:path';
 
 const target = process.argv[2] || process.env.OVERLEAF_PROJECT ||
   'Classifier Decision Boundaries Yield Stronger Steering Vectors';
-const queryText = process.argv.slice(3).join(' ') || process.env.OVERLEAF_QUERY_TEXT || '';
+const queryText = process.argv.slice(3).join(' ') || process.env.OVERLEAF_QUERY_TEXT || process.env.OVERLEAF_PHRASE || '';
 const isId = /^[0-9a-fA-F]{24}$/.test(target);
 
 const OUT_DIR = `${process.env.HOME}/Documents/CodingProjects/Wisent/weles/.work/version_history_ui_phrase`;
@@ -563,6 +563,7 @@ try {
     target,
     projectId,
     queryText: norm(queryText),
+    phrase: norm(queryText),
     mainTex: MAIN_TEX,
     method,
     clicks,

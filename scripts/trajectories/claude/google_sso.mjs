@@ -94,7 +94,12 @@ export async function doGoogleSso({
   // Gate on editable+enabled (Playwright's `editable` waits past WIZ
   // hydration) and then verify the typed value actually landed; retype
   // up to 3 times if Google ate the keys.
-  const gEmailIn = page.locator('input[type="email"]').filter({ visible: true }).first();
+  // Google sign-in v2 renders the identifier field as input[type="text"]
+  // with autocomplete="username webauthn" (id="identifierId") rather than
+  // type="email". Match either variant so the locator survives A/B changes.
+  const gEmailIn = page.locator(
+    'input[type="text"][autocomplete*="username"], input#identifierId, input[name="identifier"], input[type="email"]'
+  ).filter({ visible: true }).first();
   await gEmailIn.waitFor({ state: 'visible' });
   await fillAndVerify(page, gEmailIn, login.email, humanClickLocator, humanType);
   // Google's WIZ Next button enables only after the input's blur+change

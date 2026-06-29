@@ -16,6 +16,7 @@ interface CaptchaCredentials {
   capsolver?: string;
   capmonster?: string;
   nocaptcha?: string;
+  nopecha?: string;
 }
 
 async function apiSolve(apiUrl: string, clientKey: string, task: Record<string, any>): Promise<string | null> {
@@ -57,6 +58,7 @@ export class CaptchaSolver {
       this._creds = { ...db, ...this._creds };
     }
     if (!this._creds.nocaptcha && process.env.NOCAPTCHA_API_KEY) this._creds.nocaptcha = process.env.NOCAPTCHA_API_KEY;
+    if (!this._creds.nopecha && process.env.NOPECHA_API_KEY) this._creds.nopecha = process.env.NOPECHA_API_KEY;
     this._initialized = true;
   }
 
@@ -65,42 +67,204 @@ export class CaptchaSolver {
     if (this._creds.anticaptcha) s.push('anticaptcha');
     if (this._creds.twocaptcha) s.push('twocaptcha');
     if (this._creds.capsolver) s.push('capsolver');
+    if (this._creds.capmonster) s.push('capmonster');
+    if (this._creds.nopecha) s.push('nopecha');
+    if (this._creds.nocaptcha) s.push('nocaptcha');
     return s;
   }
 
-  async solveRecaptchaV2(page: Page, sitekey: string, options?: { enterprise?: boolean }): Promise<string | boolean | null> {
+  private async _proxyTaskFields(proxy?: { server?: string; username?: string; password?: string }): Promise<Record<string, any> | null> {
+    if (!proxy?.server) return null;
+    const u = new URL(proxy.server);
+    const { lookup } = await import('node:dns');
+    const ip = await new Promise<string>((res, rej) => lookup(u.hostname, (e: any, a: string) => e ? rej(e) : res(a)));
+    return {
+      proxyType: u.protocol.replace(':', '') || 'http',
+      proxyAddress: ip,
+      proxyPort: parseInt(u.port, 10),
+      proxyLogin: proxy.username ?? '',
+      proxyPassword: proxy.password ?? '',
+    };
+  }
+
+  async solveRecaptchaV2(page: Page, sitekey: string, options?: { enterprise?: boolean; invisible?: boolean; url?: string; proxy?: { server?: string; username?: string; password?: string }; dataS?: string }): Promise<string | boolean | null> {
     await this._ensureInit();
     markCaptchaChallenge();  // G8: a challenge was faced (flips challenge_faced even if every provider fails)
-    // V2 chain: CapMonster → CapSolver → AntiCaptcha → image-grid.
+    const url = options?.url ?? (typeof page?.url === 'function' ? page.url() : page?.url) ?? '';
+    const isInv = !!options?.invisible;
+    const isEnt = !!options?.enterprise;
+    const proxy = await this._proxyTaskFields(options?.proxy).catch((e: any) => { console.log(`[captcha:solver] proxy parse skipped: ${e.message?.slice(0, 80)}`); return null; });
+
+    // NopeCHA Token API first — different token provenance may bypass LinkedIn rejection.
+    if (this._creds.nopecha) {
+      const token = await this._solveRecaptchaV2Nopecha(sitekey, url, isInv, isEnt, options?.proxy, options?.dataS);
+      if (token) { console.log('[captcha:solver] V2 solved via nopecha'); costTracker.recordCaptcha('nopecha', 'recaptcha_v2'); return token; }
+    }
+
+    // CapMonster: try enterprise first, then standard (with invisible flag when applicable).
     if (this._creds.capmonster) {
-      const tType = options?.enterprise ? 'RecaptchaV2EnterpriseTaskProxyless' : 'NoCaptchaTaskProxyless';
-      const t = await apiSolve('https://api.capmonster.cloud', this._creds.capmonster, { type: tType, websiteURL: page.url?.() ?? '', websiteKey: sitekey });
-      if (t) { console.log(`[captcha:solver] ${tType} solved via capmonster`); costTracker.recordCaptcha('capmonster', 'recaptcha_v2'); return t; }
+      const types: string[] = [];
+      if (isEnt) types.push(proxy ? 'RecaptchaV2EnterpriseTask' : 'RecaptchaV2EnterpriseTaskProxyless');
+      types.push(proxy ? 'NoCaptchaTask' : 'NoCaptchaTaskProxyless');
+      for (const tType of types) {
+        const task: Record<string, any> = { type: tType, websiteURL: url, websiteKey: sitekey };
+        if ((tType === 'NoCaptchaTask' || tType === 'NoCaptchaTaskProxyless') && isInv) task.isInvisible = true;
+        if (options?.dataS) {
+          if (tType === 'RecaptchaV2EnterpriseTask' || tType === 'RecaptchaV2EnterpriseTaskProxyless') {
+            task.enterprisePayload = { s: options.dataS };
+          } else {
+            task.recaptchaDataSValue = options.dataS;
+          }
+        }
+        if (proxy) Object.assign(task, proxy);
+        const t = await apiSolve('https://api.capmonster.cloud', this._creds.capmonster, task);
+        if (t) { console.log(`[captcha:solver] ${tType} solved via capmonster`); costTracker.recordCaptcha('capmonster', 'recaptcha_v2'); return t; }
+      }
     }
+    // CapSolver: try enterprise first, then standard (with invisible flag when applicable).
     if (this._creds.capsolver) {
-      const taskType = options?.enterprise ? 'ReCaptchaV2EnterpriseTaskProxyLess' : 'ReCaptchaV2TaskProxyLess';
-      const token = await apiSolve('https://api.capsolver.com', this._creds.capsolver, {
-        type: taskType, websiteURL: page.url?.() ?? '', websiteKey: sitekey,
-      });
-      if (token) { console.log(`[captcha:solver] ${taskType} solved via capsolver`); costTracker.recordCaptcha('capsolver', 'recaptcha_v2'); return token; }
+      const types: string[] = [];
+      if (isEnt) types.push(proxy ? 'ReCaptchaV2EnterpriseTask' : 'ReCaptchaV2EnterpriseTaskProxyLess');
+      types.push(proxy ? 'ReCaptchaV2Task' : 'ReCaptchaV2TaskProxyLess');
+      for (const taskType of types) {
+        const task: Record<string, any> = { type: taskType, websiteURL: url, websiteKey: sitekey };
+        if (isInv) task.isInvisible = true;
+        if (options?.dataS && (taskType === 'ReCaptchaV2EnterpriseTask' || taskType === 'ReCaptchaV2EnterpriseTaskProxyLess')) {
+          task.enterprisePayload = { s: options.dataS };
+        }
+        if (proxy) Object.assign(task, proxy);
+        const token = await apiSolve('https://api.capsolver.com', this._creds.capsolver, task);
+        if (token) { console.log(`[captcha:solver] ${taskType} solved via capsolver`); costTracker.recordCaptcha('capsolver', 'recaptcha_v2'); return token; }
+      }
     }
+    // AntiCaptcha.
     if (this._creds.anticaptcha) {
-      const token = await apiSolve('https://api.anti-captcha.com', this._creds.anticaptcha, {
-        type: 'RecaptchaV2TaskProxyless', websiteURL: page.url?.() ?? '', websiteKey: sitekey,
-        isEnterprise: !!options?.enterprise,
-      });
+      const task: Record<string, any> = { type: proxy ? 'RecaptchaV2Task' : 'RecaptchaV2TaskProxyless', websiteURL: url, websiteKey: sitekey, isEnterprise: isEnt };
+      if (isInv) task.isInvisible = true;
+      if (options?.dataS) task.recaptchaDataSValue = options.dataS;
+      if (proxy) Object.assign(task, proxy);
+      const token = await apiSolve('https://api.anti-captcha.com', this._creds.anticaptcha, task);
       if (token) { console.log(`[captcha:solver] V2 solved via anticaptcha`); costTracker.recordCaptcha('anticaptcha', 'recaptcha_v2'); return token; }
+    }
+    // 2captcha fallback.
+    if (this._creds.twocaptcha) {
+      const token = await this._solveRecaptchaV2TwoCaptcha(sitekey, url, isInv, isEnt, options?.proxy, options?.dataS);
+      if (token) { console.log('[captcha:solver] V2 solved via 2captcha'); costTracker.recordCaptcha('twocaptcha', 'recaptcha_v2'); return token; }
     }
     // Image-grid path for cases where API solvers fail and Google's
     // standard frame chain IS present (non-LinkedIn enterprise sites).
-    if (options?.enterprise) return solveRecaptchaV2(page);
+    if (isEnt) return solveRecaptchaV2(page);
     markAllProvidersFailed('recaptcha_v2');  // G8
     return null;
   }
 
-  async solveRecaptchaV3(sitekey: string, url: string, action?: string): Promise<string | null> {
+  private async _solveRecaptchaV2TwoCaptcha(sitekey: string, url: string, invisible: boolean, enterprise: boolean, proxy?: { server?: string; username?: string; password?: string }, dataS?: string): Promise<string | null> {
+    const params = new URLSearchParams({
+      key: this._creds.twocaptcha!,
+      method: 'userrecaptcha',
+      googlekey: sitekey,
+      pageurl: url,
+      json: '1',
+    });
+    if (invisible) params.set('invisible', '1');
+    if (enterprise) params.set('enterprise', '1');
+    if (dataS) params.set('data-s', dataS);
+    if (proxy?.server) {
+      const u = new URL(proxy.server);
+      const proxyAddr = `${u.hostname}:${u.port}`;
+      const proxyType = u.protocol.replace(':', '');
+      params.set('proxy', proxy.username ? `${encodeURIComponent(proxy.username)}:${encodeURIComponent(proxy.password ?? '')}@${proxyAddr}` : proxyAddr);
+      params.set('proxytype', proxyType);
+    }
+    console.log('[captcha:api] 2captcha recaptcha v2 create');
+    const cr = await (await fetch('https://2captcha.com/in.php?' + params.toString())).json().catch(() => ({})) as any;
+    if (cr.status !== 1 || !cr.request) { console.log(`[captcha:api] 2captcha create error: ${cr.request ?? cr.error_text ?? JSON.stringify(cr)}`); return null; }
+    const tid = cr.request;
+    console.log(`[captcha:api] 2captcha taskId=${tid}`);
+    for (let i = 0; i < 60; i++) {
+      await new Promise(r => setTimeout(r, 5000));  // allow-raw-playwright: polling/rate-limit loop
+      const res = await (await fetch(`https://2captcha.com/res.php?key=${this._creds.twocaptcha}&action=get&id=${tid}&json=1`)).json().catch(() => ({})) as any;
+      if (res.status === 1) { console.log('[captcha:api] 2captcha solved'); return res.request; }
+      if (res.request !== 'CAPCHA_NOT_READY') { console.log(`[captcha:api] 2captcha error: ${res.request}`); return null; }
+    }
+    console.log('[captcha:api] 2captcha timed out after 60 polls');
+    return null;
+  }
+
+  private _nopechaProxyFields(proxy?: { server?: string; username?: string; password?: string }): Record<string, any> | null {
+    if (!proxy?.server) return null;
+    const u = new URL(proxy.server);
+    const out: Record<string, any> = { scheme: u.protocol.replace(':', '') || 'http', host: u.hostname, port: parseInt(u.port, 10) };
+    if (proxy.username) out.username = proxy.username;
+    if (proxy.password) out.password = proxy.password;
+    return out;
+  }
+
+  private async _solveRecaptchaV2Nopecha(sitekey: string, url: string, invisible: boolean, enterprise: boolean, proxy?: { server?: string; username?: string; password?: string }, dataS?: string): Promise<string | null> {
+    const k = this._creds.nopecha; if (!k) return null;
+    const body: Record<string, any> = { sitekey, url };
+    const data: Record<string, any> = { theme: 'light' };
+    if (dataS) data.s = dataS;
+    if (invisible) data.invisible = true;
+    if (Object.keys(data).length) body.data = data;
+    if (enterprise) body.enterprise = true;
+    const np = this._nopechaProxyFields(proxy);
+    if (np) body.proxy = np;
+    console.log(`[captcha:api] nopecha recaptcha2 create enterprise=${enterprise} invisible=${invisible} proxy=${!!np}`);
+    try {
+      const post = await (await fetch('https://api.nopecha.com/v1/token/recaptcha2', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Basic ${k}` },
+        body: JSON.stringify(body),
+      })).json() as any;
+      const jobId = post?.data; if (!jobId) { console.log(`[captcha:api] nopecha recaptcha2 no jobId: ${JSON.stringify(post).slice(0, 200)}`); return null; }
+      console.log(`[captcha:api] nopecha recaptcha2 jobId=${jobId}`);
+      for (let i = 0; i < 60; i++) {
+        await new Promise(r => setTimeout(r, 5000));  // allow-raw-playwright: polling/rate-limit loop
+        const res = await (await fetch(`https://api.nopecha.com/v1/token/recaptcha2?id=${jobId}`, { headers: { 'Authorization': `Basic ${k}` } })).json() as any;
+        if (typeof res?.data === 'string' && res.data.length > 20) { console.log(`[captcha:api] nopecha recaptcha2 solved token=${res.data.slice(0, 20)}...`); return res.data; }
+        if (res?.error && res.error !== 14) { console.log(`[captcha:api] nopecha recaptcha2 error: ${JSON.stringify(res).slice(0, 200)}`); return null; }
+      }
+      console.log('[captcha:api] nopecha recaptcha2 timed out after 60 polls');
+    } catch (e: any) { console.log(`[captcha:api] nopecha recaptcha2 fetch err: ${e.message?.slice(0, 100)}`); }
+    return null;
+  }
+
+  private async _solveRecaptchaV3Nopecha(sitekey: string, url: string, action?: string, proxy?: { server?: string; username?: string; password?: string }, dataS?: string, enterprise?: boolean): Promise<string | null> {
+    const k = this._creds.nopecha; if (!k) return null;
+    const body: Record<string, any> = { sitekey, url };
+    const data: Record<string, any> = { action: action ?? 'verify', theme: 'light' };
+    if (dataS) data.s = dataS;
+    body.data = data;
+    if (enterprise) body.enterprise = true;
+    const np = this._nopechaProxyFields(proxy);
+    if (np) body.proxy = np;
+    console.log(`[captcha:api] nopecha recaptcha3 create action=${data.action} enterprise=${!!enterprise} proxy=${!!np}`);
+    try {
+      const post = await (await fetch('https://api.nopecha.com/v1/token/recaptcha3', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Basic ${k}` },
+        body: JSON.stringify(body),
+      })).json() as any;
+      const jobId = post?.data; if (!jobId) { console.log(`[captcha:api] nopecha recaptcha3 no jobId: ${JSON.stringify(post).slice(0, 200)}`); return null; }
+      console.log(`[captcha:api] nopecha recaptcha3 jobId=${jobId}`);
+      for (let i = 0; i < 60; i++) {
+        await new Promise(r => setTimeout(r, 5000));  // allow-raw-playwright: polling/rate-limit loop
+        const res = await (await fetch(`https://api.nopecha.com/v1/token/recaptcha3?id=${jobId}`, { headers: { 'Authorization': `Basic ${k}` } })).json() as any;
+        if (typeof res?.data === 'string' && res.data.length > 20) { console.log(`[captcha:api] nopecha recaptcha3 solved token=${res.data.slice(0, 20)}...`); return res.data; }
+        if (res?.error && res.error !== 14) { console.log(`[captcha:api] nopecha recaptcha3 error: ${JSON.stringify(res).slice(0, 200)}`); return null; }
+      }
+      console.log('[captcha:api] nopecha recaptcha3 timed out after 60 polls');
+    } catch (e: any) { console.log(`[captcha:api] nopecha recaptcha3 fetch err: ${e.message?.slice(0, 100)}`); }
+    return null;
+  }
+
+  async solveRecaptchaV3(sitekey: string, url: string, action?: string, options?: { proxy?: { server?: string; username?: string; password?: string }; dataS?: string; enterprise?: boolean }): Promise<string | null> {
     await this._ensureInit();
     markCaptchaChallenge();  // G8
+    // NopeCHA V3 first.
+    if (this._creds.nopecha) {
+      const token = await this._solveRecaptchaV3Nopecha(sitekey, url, action, options?.proxy, options?.dataS, options?.enterprise);
+      if (token) { console.log('[captcha:solver] ReCaptchaV3 solved via nopecha'); costTracker.recordCaptcha('nopecha', 'recaptcha_v3'); return token; }
+    }
     // CapSolver V3 first (enterprise + non-enterprise), then AntiCaptcha.
     if (this._creds.capsolver) {
       const token = await apiSolve('https://api.capsolver.com', this._creds.capsolver, {
@@ -137,6 +301,59 @@ export class CaptchaSolver {
       return token;
     }
     markAllProvidersFailed('turnstile');  // G8: no provider configured / all failed
+    return null;
+  }
+
+  /**
+   * Cloudflare managed/5s challenge (IUAM) via CapSolver AntiCloudflareTask.
+   * Returns the cf_clearance cookie value + the userAgent that solved the challenge.
+   * Caller MUST reuse the same proxy IP and userAgent when browsing with the cookie,
+   * otherwise Cloudflare invalidates the clearance.
+   */
+  async solveCloudflare(url: string, options?: { proxy?: { server?: string; username?: string; password?: string }; userAgent?: string }): Promise<{ token: string; userAgent: string; cookies: Record<string, string> } | null> {
+    await this._ensureInit();
+    markCaptchaChallenge();  // G8
+    if (!this._creds.capsolver) { markAllProvidersFailed('cloudflare'); return null; }
+    const proxy = options?.proxy;
+    let proxyStr = '';
+    if (proxy?.server) {
+      const u = new URL(proxy.server);
+      const user = encodeURIComponent(proxy.username ?? '');
+      const pass = encodeURIComponent(proxy.password ?? '');
+      proxyStr = `${u.hostname}:${u.port || '80'}:${user}:${pass}`;
+    }
+    const task: Record<string, any> = { type: 'AntiCloudflareTask', websiteURL: url };
+    if (proxyStr) task.proxy = proxyStr;
+    if (options?.userAgent) task.userAgent = options.userAgent;
+    console.log(`[captcha:solver] solveCloudflare url=${url.slice(0, 80)} proxy=${!!proxyStr} ua=${!!options?.userAgent}`);
+    const res = await (await fetch('https://api.capsolver.com/createTask', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ clientKey: this._creds.capsolver, task }),
+    })).json() as any;
+    if (res.errorId) { console.log(`[captcha:api] capsolver AntiCloudflare createTask err: ${res.errorCode} ${res.errorDescription}`); markAllProvidersFailed('cloudflare'); return null; }
+    const taskId = res.taskId;
+    if (!taskId) { console.log('[captcha:api] capsolver AntiCloudflare no taskId'); markAllProvidersFailed('cloudflare'); return null; }
+    console.log(`[captcha:api] capsolver AntiCloudflare taskId=${taskId}`);
+    for (let i = 0; i < 60; i++) {
+      await new Promise(r => setTimeout(r, 5000));  // allow-raw-playwright: polling/rate-limit loop
+      const tr = await (await fetch('https://api.capsolver.com/getTaskResult', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientKey: this._creds.capsolver, taskId }),
+      })).json() as any;
+      if (tr.errorId) { console.log(`[captcha:api] capsolver AntiCloudflare err: ${tr.errorCode} ${tr.errorDescription}`); markAllProvidersFailed('cloudflare'); return null; }
+      if (tr.status === 'ready') {
+        const sol = tr.solution ?? {};
+        const token = sol.token ?? '';
+        const userAgent = sol.userAgent ?? '';
+        const cookies = (sol.cookies && typeof sol.cookies === 'object') ? sol.cookies : {};
+        if (!token) { console.log('[captcha:api] capsolver AntiCloudflare returned no token'); markAllProvidersFailed('cloudflare'); return null; }
+        console.log(`[captcha:solver] Cloudflare solved via capsolver token=${token.slice(0, 20)}... ua=${userAgent.slice(0, 60)}`);
+        costTracker.recordCaptcha('capsolver', 'cloudflare');
+        return { token, userAgent, cookies };
+      }
+    }
+    console.log('[captcha:api] capsolver AntiCloudflare timed out after 60 polls');
+    markAllProvidersFailed('cloudflare');
     return null;
   }
 

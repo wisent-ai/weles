@@ -7,9 +7,9 @@
 
 ## Credentials
 
-- Sourced from **`weles/.work/_sso.env`** at runtime: `SSO_EMAIL`, `SSO_PASS`. Do NOT bake values into the trajectory or log them — only `process.env.SSO_EMAIL` / `process.env.SSO_PASS` after `set -a; . _sso.env; set +a`.
-- There is **no `slack` row in `social_accounts`** and no `xoxb`/`xoxe`/webhook stored anywhere (verified: searched every `.env` in every Wisent repo, the Mac Keychain, Supabase `service_credentials` + `oauth_credentials`, Vercel project env — all empty). The trajectory MUST mint a fresh bot token via the api.slack.com app-creation flow.
-
+- Default path is the existing Oko bot token: `SLACK_BOT_TOKEN` env, then `~/.oko/bot-token`, then `~/.oko/slack.json` (`bot_token`, `botToken`, or `SLACK_BOT_TOKEN`). Do NOT log token values.
+- Do **not** create a new Slack app when a bot token exists. Re-creating the app produces duplicate/wrong Slack identities.
+- Google Workspace SSO credentials from **`weles/.work/_sso.env`** (`SSO_EMAIL`, `SSO_PASS`) are fallback-only for the browser app-creation path when no bot token is configured.
 ## App manifest
 
 - 12-scope bot manifest matching `oko/scripts/slack-bootstrap.sh` (M58/M59): `chat:write, chat:write.public, channels:read, channels:history, groups:read, groups:history, im:history, mpim:history, users:read, users:read.email, reactions:read, reactions:write`.
@@ -17,9 +17,9 @@
 
 ## Posting
 
-- Target message: `oko/.work/jakub-status.txt` (pre-rendered M59 status update).
-- Target user: `@3Qax` (Jakub Towarek, `kuba@towarek.pl`, Oko collaborator).
-- Posting mechanism: `oko-cli slack post --channel <C…> --text-file <PATH>` from the Oko repo. The trajectory does NOT post directly — it captures the token, injects it via env, then shells out to `oko-cli`. Avoids reimplementing chat.postMessage HTTP in the trajectory.
+- Target message defaults to `oko/.work/jakub-status.txt`, but `MESSAGE_TEXT` takes precedence and is the preferred queue-safe input because it survives cross-host enqueue.
+- Fast path posts directly with `chat.postMessage` using the stored bot token. The trajectory resolves the target from `SLACK_TARGET_CHANNEL`, `SLACK_TARGET_CHANNEL_NAME`, `SLACK_TARGET_USER_ID`, or recipient matchers.
+- Browser/SSO app creation is only a last-resort fallback when no stored bot token is available.
 
 ## Channel resolution
 

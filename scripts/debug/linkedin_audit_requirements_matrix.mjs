@@ -50,6 +50,11 @@ function latestProductionRecentReport() {
   return reports.find((report) => !isFixtureRecentReport(report)) ?? null;
 }
 
+function localJsonReport(path) {
+  if (!existsSync(path)) return null;
+  return { path, name: basename(path), json: readJson(path) };
+}
+
 function get(obj, path) {
   let cur = obj;
   for (const part of path.split('.')) {
@@ -97,6 +102,7 @@ const reports = {
   eventProbe: latest('action_event_probe_'),
   recent: latestProductionRecentReport(),
   preflight: latest('linkedin_preflight_audit_'),
+  warmSignup: localJsonReport(join('recordings', 'local', 'linkedin_register_warm', 'warm_signup_profile.json')),
 };
 
 function recentSummary(report) {
@@ -293,11 +299,65 @@ const matrix = [];
 }
 
 {
+  const warm = reports.warmSignup?.json;
+  const manifestPath = typeof warm?.manifest_path === 'string' ? warm.manifest_path : null;
+  const manifest = manifestPath ? readJson(manifestPath) : null;
+  const signup = warm?.signup ?? {};
+  const storage = warm?.storage ?? {};
+  const signupReady = signup.signup_ready === true &&
+    /(^|\.)linkedin\.com\/signup/i.test(String(signup.url ?? '')) &&
+    signup.page_key === 'd_registration-signup';
+  const storageReady = (storage.linkedin_cookie_count ?? 0) > 0 &&
+    (storage.cookie_count ?? 0) >= (storage.linkedin_cookie_count ?? 0) &&
+    (storage.origin_count ?? 0) > 0;
+  const manifestReady = manifest?.schema === 'linkedin_register_warm_profile.v1' &&
+    manifest?.profile_dir === warm?.profile_dir &&
+    !!manifest?.persona &&
+    !!manifest?.proxy_replay?.server &&
+    manifest?.proxy_replay?.username_present === true &&
+    manifest?.proxy_replay?.password_present === true;
+  matrix.push(verdict('7. Warm signup/profile preconditioning', [
+    reports.warmSignup
+      ? evidence(reports.warmSignup.path, signupReady ? 'proved' : 'incomplete', signupReady ? 'warm profile reaches normal LinkedIn signup form' : 'warm profile does not prove a normal signup landing', {
+        created_at: warm?.created_at ?? null,
+        profile_dir_present: Boolean(warm?.profile_dir),
+        signup_url: signup.url ?? null,
+        signup_page_key: signup.page_key ?? null,
+        signup_ready: signup.signup_ready ?? null,
+      })
+      : evidence(null, 'missing', 'warm signup profile report missing'),
+    manifestPath
+      ? evidence(manifestPath, manifestReady ? 'proved' : 'incomplete', manifestReady ? 'warm manifest can replay the same profile, persona, and proxy credentials' : 'warm manifest is missing replay-critical profile/persona/proxy data', {
+        schema: manifest?.schema ?? null,
+        profile_dir_matches: manifest?.profile_dir === warm?.profile_dir,
+        persona_present: Boolean(manifest?.persona),
+        proxy_server_present: Boolean(manifest?.proxy_replay?.server),
+        proxy_auth_present: manifest?.proxy_replay?.username_present === true && manifest?.proxy_replay?.password_present === true,
+        proxy_metadata: manifest?.proxy_metadata ? {
+          provider: manifest.proxy_metadata.provider ?? null,
+          proxy_type: manifest.proxy_metadata.proxy_type ?? null,
+          country: manifest.proxy_metadata.country ?? null,
+          sticky_hash: manifest.proxy_metadata.sticky_hash ?? null,
+        } : null,
+      })
+      : evidence(null, 'missing', 'warm replay manifest missing'),
+    reports.warmSignup
+      ? evidence(reports.warmSignup.path, storageReady ? 'proved' : 'incomplete', storageReady ? 'warm profile has LinkedIn cookies/origin storage before submit' : 'warm profile storage is still cold or incomplete', {
+        cookie_count: storage.cookie_count ?? null,
+        linkedin_cookie_count: storage.linkedin_cookie_count ?? null,
+        origin_count: storage.origin_count ?? null,
+        origins: Array.isArray(storage.origins) ? storage.origins.slice(0, 5) : null,
+      })
+      : evidence(null, 'missing', 'warm storage report missing'),
+  ], (items) => items.every((item) => item.status === 'proved')));
+}
+
+{
   const diag = reports.diagnostics?.json;
   const decisive = Array.isArray(diag?.findings)
     ? diag.findings.every((f) => !/critical|high/i.test(String(f.severity ?? '')))
     : bool(diag?.overall_safe);
-  matrix.push(verdict('7. Diagnostics capture pipeline', [
+  matrix.push(verdict('8. Diagnostics capture pipeline', [
     reports.diagnostics
       ? evidence(reports.diagnostics.path, decisive ? 'proved' : 'incomplete', decisive ? 'diagnostics report proves no high-risk capture issues' : 'diagnostics report still has residual risks or requires production verification', {
         decisive_next_check: diag?.decisive_next_check ?? null,
@@ -310,7 +370,7 @@ const matrix = [];
 {
   const actionHigh = actionHighFindings(reports.action);
   const untrusted = reports.eventProbe?.json?.summary?.untrusted_count ?? reports.eventProbe?.json?.untrusted_count;
-  matrix.push(verdict('8. Action layer / humanization', [
+  matrix.push(verdict('9. Action layer / humanization', [
     reports.action
       ? evidence(reports.action.path, hasNoItems(actionHigh) ? 'proved' : 'incomplete', hasNoItems(actionHigh) ? 'static action audit has no high findings' : 'static action audit still has high findings', { high_findings: actionHigh })
       : evidence(null, 'missing', 'action surface report missing'),
@@ -326,7 +386,7 @@ const matrix = [];
   const nonPageRows = summary.non_page_visible_action_diagnostics_rows ?? 0;
   const actionHigh = actionHighFindings(reports.action);
   const captchaHigh = actionHigh.filter((id) => /captcha|arkose|passkey|webauthn|postmessage|token/i.test(id));
-  matrix.push(verdict('9. Captcha / challenge handling', [
+  matrix.push(verdict('10. Captcha / challenge handling', [
     reports.action
       ? evidence(reports.action.path, hasNoItems(captchaHigh) ? 'proved' : 'incomplete', hasNoItems(captchaHigh) ? 'static captcha/challenge audit has no high findings' : 'static captcha/challenge audit still has high findings', { high_findings: captchaHigh })
       : evidence(null, 'missing', 'action/captcha report missing'),
@@ -340,7 +400,7 @@ const matrix = [];
   const recent = reports.recent?.json;
   const summary = recentSummary(reports.recent);
   const readyRows = summary.post_hardening_evidence_ready_rows ?? 0;
-  matrix.push(verdict('10. Production last-run evidence', [
+  matrix.push(verdict('11. Production last-run evidence', [
     reports.recent
       ? evidence(reports.recent.path, readyRows > 0 ? 'proved' : 'missing', readyRows > 0 ? 'at least one production row is ready for root-cause analysis' : 'no production row is ready for root-cause analysis', {
         row_count: recent?.row_count ?? null,

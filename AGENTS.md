@@ -1,13 +1,5 @@
 # Agent Notes
 
-## When a trajectory does not work on the first run
-
-- A trajectory is a one-shot automation script. If it fails or needs iterative debugging, do not spam the same trajectory repeatedly to "see what happens".
-- Instead, use a **keeper**: a persistent Weles browser sidecar (`scripts/_shared/keeper/keeper.mjs`) that holds a live session and can be driven interactively via `scripts/_shared/keeper/action.mjs`.
-- Use the keeper to walk through the problematic flow manually, identify the exact selectors / pages / consent steps / redirects, and verify the state transitions.
-- Only convert the verified steps back into a trajectory once the path is known and stable.
-- This avoids burning credentials, triggering rate limits, and cluttering the recordings directory with dozens of failed runs.
-
 ## LinkedIn trajectory diagnostics workflow
 
 - Before every browser or trajectory test, clean up or explicitly verify there are no stale `linkedin_register`, Weles Chromium, Playwright Chrome for Testing, Firefox/Nightly, `playwright_chromiumdev_profile`, or `weles-fp-` processes. Stale browser state has caused misleading LinkedIn and navigation results.
@@ -56,7 +48,29 @@ jq '{cdp_firehose_mode, cdp_firehose_count:(.cdp_firehose|length), cdp_firehose_
 
 ls -lh recordings/linkedin_register/netlog.json recordings/linkedin_register/linkedin_register_*.inst.json
 
+# 7b. Fingerprint + detection-vector report is auto-generated at close.
+ls -lh recordings/linkedin_register/fingerprint.json recordings/linkedin_register/detection_report.json
+jq '{riskScore, critical, warning, info, top3: .findings[:3]}' recordings/linkedin_register/detection_report.json
+
 # 8. Clean up any lingering trajectory/browser process after close.
 ps -axo pid,ppid,command | rg 'linkedin_register|playwright_chromiumdev_profile|weles-fp-|Google Chrome for Testing|Chromium|firefox|Nightly'
 # kill <lingering_pid>
 ```
+
+## Trust and accuracy lessons
+
+- Never state a partial or intermittent blocker as a definitive fact. Use precise language:
+  - "I saw Cloudflare challenge on the screen" — OK.
+  - "Dashboard is blocked / nothing can be done" — NOT OK without proof that every path fails.
+- Distinguish observation from inference. If the state can change (Cloudflare may appear or disappear depending on URL, session, or time), say so explicitly.
+- If the user shows evidence that contradicts the previous summary, stop defending the old claim. Admit the mismatch briefly, update the diagnosis, and ask what to do next.
+- Do not declare something "impossible" or "blocked forever" until all reasonable alternatives have been tested and failed.
+- Keep escalation transparent: "I don't know yet" is better than a confident wrong answer.
+
+## When a trajectory does not work on the first run
+
+- A trajectory is a one-shot automation script. If it fails or needs iterative debugging, do not spam the same trajectory repeatedly to "see what happens".
+- Instead, use a **keeper**: a persistent Weles browser sidecar (`scripts/_shared/keeper/keeper.mjs`) that holds a live session and can be driven interactively via `scripts/_shared/keeper/action.mjs`.
+- Use the keeper to walk through the problematic flow manually, identify the exact selectors / pages / consent steps / redirects, and verify the state transitions.
+- Only convert the verified steps back into a trajectory once the path is known and stable.
+- This avoids burning credentials, triggering rate limits, and cluttering the recordings directory with dozens of failed runs.

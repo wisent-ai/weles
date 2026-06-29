@@ -1,10 +1,10 @@
 // Apple ID login via appstoreconnect.apple.com.
-// Flow: goto ASC -> redirects to idmsa.apple.com -> fill email -> Continue -> fill password -> Sign In -> 2FA -> trusted.
-// 2FA code must be fetched externally (iMessage gateway, trusted device, or manual input via 2FA_CODE env var).
+// Flow: goto ASC -> redirects to idmsa.apple.com -> fill email -> Continue -> fill password -> Sign In -> native trusted-device 2FA -> trusted.
 
 import { getSocialAccount, resolveAccountSession } from '../../../dist/utils/credentials.js';
 import { WSession } from '../../../dist/session/wsession.js';
 import { persistFreshCookieJar } from '../_shared/cookie-freshness.mjs';
+import { completeAppleNativeTwoFactorChallenge } from './native_2fa/native_2fa.mjs';
 
 const URL = 'https://appstoreconnect.apple.com';
 
@@ -80,26 +80,14 @@ try {
   const twoFaInput = await frame.locator('input[aria-label*="digit"], input[aria-label*="Digit"], input[id*="char"], input[type="tel"][maxlength="1"]').first().isVisible().catch(() => false);
   if (twoFaInput) {
     console.log('[apple-login] 2FA prompt detected');
-    const code = process.env.APPLE_2FA_CODE;
-    if (!code || !/^\d{6}$/.test(code)) {
-      console.log('FAIL: APPLE_2FA_CODE env var required (6 digits). Set it and rerun.');
+    const twoFa = await completeAppleNativeTwoFactorChallenge(s, frame, {
+      logPrefix: '[apple-login]',
+    });
+    if (!twoFa.ok) {
+      console.log(`FAIL: Apple native 2FA did not complete (${twoFa.codeFile || 'no code file'})`);
       process.exit(2);
     }
-    const inputs = await frame.locator('input[aria-label*="digit"], input[aria-label*="Digit"], input[id*="char"], input[type="tel"][maxlength="1"]').all();
-    if (inputs.length >= 6) {
-      for (let i = 0; i < 6; i++) await inputs[i].fill(code[i]);
-    } else if (inputs.length === 1) {
-      await inputs[0].fill(code);
-    } else {
-      console.log(`FAIL: unexpected 2FA input count: ${inputs.length}`);
-      process.exit(1);
-    }
-    await s.wait(3);
-    const trustBtn = frame.locator('button:has-text("Trust")').first();
-    if (await trustBtn.isVisible().catch(() => false)) {
-      await trustBtn.click();
-      console.log('[apple-login] clicked Trust');
-    }
+    console.log('[apple-login] native 2FA completed');
     await s.wait(5);
   }
 

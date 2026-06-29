@@ -28,6 +28,31 @@ function parseMajor(version) {
   return m ? m[1] : null;
 }
 
+function redactProxy(raw) {
+  if (!raw || raw === 'direct') return raw || 'direct';
+  try {
+    const url = new URL(raw);
+    const hasAuth = Boolean(url.username || url.password);
+    url.username = hasAuth ? '<user>' : '';
+    url.password = hasAuth ? '<pass>' : '';
+    return url.toString();
+  } catch {
+    return '[unparseable-proxy]';
+  }
+}
+
+function proxySignature(raw, username = '', password = '') {
+  if (!raw || raw === 'direct') return 'direct';
+  try {
+    const url = new URL(raw);
+    const user = url.username || username;
+    const pass = url.password || password;
+    return `${url.protocol}//${url.hostname}:${url.port || (url.protocol === 'https:' ? '443' : '80')}:auth=${Boolean(user || pass)}`;
+  } catch {
+    return `unparseable:${raw.length}`;
+  }
+}
+
 function executableCandidates() {
   const chrome = [];
   if (explicitChrome) chrome.push(explicitChrome);
@@ -61,18 +86,22 @@ function fileMeta(path) {
 }
 
 function proxyConfiguredSame() {
-  const chromeProxy = process.env.AUDIT_PROXY_SERVER ?? '';
+  const chromeProxy = process.env.AUDIT_PROXY_URL ?? process.env.AUDIT_PROXY_SERVER ?? '';
   const welesProxy = process.env.PROBE_PROXY ?? process.env.LINKEDIN_REGISTER_PROXY ?? process.env.WELES_LINKEDIN_PROXY ?? process.env.PROXY_URL ?? '';
+  const chromeSig = proxySignature(chromeProxy, process.env.AUDIT_PROXY_USERNAME, process.env.AUDIT_PROXY_PASSWORD);
+  const welesSig = proxySignature(welesProxy);
   return {
     chrome_proxy_configured: !!chromeProxy,
     weles_proxy_configured: !!welesProxy,
-    same_proxy_env: !!chromeProxy && !!welesProxy && chromeProxy === welesProxy,
-    chrome_proxy_source: chromeProxy ? 'AUDIT_PROXY_SERVER' : null,
+    same_proxy_env: !!chromeProxy && !!welesProxy && chromeSig === welesSig,
+    chrome_proxy_source: process.env.AUDIT_PROXY_URL ? 'AUDIT_PROXY_URL' : chromeProxy ? 'AUDIT_PROXY_SERVER' : null,
     weles_proxy_source: process.env.PROBE_PROXY ? 'PROBE_PROXY'
       : process.env.LINKEDIN_REGISTER_PROXY ? 'LINKEDIN_REGISTER_PROXY'
         : process.env.WELES_LINKEDIN_PROXY ? 'WELES_LINKEDIN_PROXY'
           : process.env.PROXY_URL ? 'PROXY_URL'
             : null,
+    chrome_proxy_redacted: redactProxy(chromeProxy),
+    weles_proxy_redacted: redactProxy(welesProxy),
   };
 }
 
@@ -156,7 +185,7 @@ const report = {
   ready_for_valid_linkedin_baseline: checks.every((c) => c.ok),
   blockers: checks.filter((c) => !c.ok).map((c) => c.id),
   next_command: checks.every((c) => c.ok)
-    ? 'AUDIT_CHROME_PATH="$AUDIT_CHROME_PATH" AUDIT_EXPECT_CHROME_MAJOR=147 AUDIT_EXPECT_WELES_MAJOR=147 AUDIT_PROXY_SERVER="$LINKEDIN_REGISTER_PROXY" PROBE_PROXY="$LINKEDIN_REGISTER_PROXY" node scripts/debug/audit_chrome_vs_weles.mjs'
+    ? 'AUDIT_CHROME_PATH="$AUDIT_CHROME_PATH" AUDIT_EXPECT_CHROME_MAJOR=147 AUDIT_EXPECT_WELES_MAJOR=147 AUDIT_PROXY_URL="$LINKEDIN_REGISTER_PROXY" PROBE_PROXY="$LINKEDIN_REGISTER_PROXY" node scripts/debug/audit_chrome_vs_weles.mjs'
     : null,
 };
 

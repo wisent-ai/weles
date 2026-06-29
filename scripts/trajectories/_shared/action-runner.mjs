@@ -22,6 +22,8 @@ import { join } from 'node:path';
 import { humanIdlePause } from '../../../dist/human/mouse.js';
 import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
 
+const HEADLESS = process.env.HEADLESS === '1' || process.env.WELES_HEADLESS === '1';
+
 // Re-exported assert used by the 27 specialized trajectories (linkedin/like, twitter/follow, instagram/save, github/star, etc) that don't go through runAction. Detects three failure modes that previously fell through to ban_signal:healthy: (1) chrome-error://chromewebdata/ from proxy CONNECT failure; (2) URL on a platform login wall (cookies stale); (3) platform-specific logged-out redirect (twitter/?failedScript, instagram/accounts/login, etc). Throws a typed error with a structured banSignal so the caller's catch can persist it.
 const _AUTH_WALL = /\/(login|signin|sessions\/new|uas\/login|checkpoint|accounts\/login)\b/;
 // Per-platform logged-out redirect markers. Includes both /login-style URLs AND the bare-root redirect that platforms use when an unauthed session asks for a logged-in path. The bare-root is critical: when an unauthed twitter user goes to x.com/home, the server redirects to plain x.com/, no /login marker — pre-fix the trajectory continued and the ban detector returned 'healthy' on what was clearly a logged-out landing page.
@@ -82,7 +84,7 @@ export async function runAction(cfg) {
 
   const { proxyUrl, persona } = await resolveAccountSession(acct);
   const label = `${cfg.platform}_${cfg.action}`;
-  const s = await WSession.start({ label, proxy: proxyUrl, persona });
+  const s = await WSession.start({ label, proxy: proxyUrl, persona, headless: HEADLESS });
   // Cookie injection — required for any authenticated surface (compose,
   // notifications, etc). Filters by the target-platform domain so Twitter
   // cookies don't leak to a Reddit session etc. Same pattern as the

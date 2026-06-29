@@ -3,7 +3,7 @@
 // By default this does not navigate to LinkedIn. Set WELES_EVIDENCE_RUN_LINKEDIN=1
 // to request a linkedin_register attempt after a successful non-LinkedIn preflight.
 
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { execFile } from 'node:child_process';
 
@@ -129,6 +129,10 @@ function parseLastJson(text) {
   try { return JSON.parse(candidate); } catch { return null; }
 }
 
+function readJson(path) {
+  try { return JSON.parse(readFileSync(path, 'utf8')); } catch { return null; }
+}
+
 function commandResult(result) {
   return {
     script: result.script,
@@ -213,6 +217,10 @@ for (const command of commands) {
 
 const recent = results.find((result) => result.name === 'recent_runs')?.parsed;
 const matrix = results.find((result) => result.name === 'requirements_matrix')?.parsed;
+const matrixReport = matrix?.outPath ? (readJson(matrix.outPath) ?? matrix) : matrix;
+const matrixCompletion = matrixReport?.completion ?? matrix;
+const matrixRequirements = Array.isArray(matrixReport?.matrix) ? matrixReport.matrix : [];
+const warmSignupRequirement = matrixRequirements.find((item) => /Warm signup\/profile preconditioning/i.test(item?.requirement ?? ''));
 const linkedin = results.find((result) => result.name === 'linkedin_register');
 const localRecording = results.find((result) => result.name === 'local_recording_audit')?.parsed;
 const dedicatedProxyDeclared = ['dedicated', 'dedicated_ip', 'static', 'static_ip'].includes(
@@ -255,8 +263,21 @@ const report = {
     recent_ready_rows: recent?.coverage?.post_hardening_evidence_ready_rows
       ?? recent?.summary?.post_hardening_evidence_ready_rows
       ?? null,
-    matrix_complete: matrix?.complete ?? matrix?.completion?.complete ?? null,
-    matrix_status_counts: matrix?.status_counts ?? matrix?.completion?.status_counts ?? null,
+    matrix_complete: matrixCompletion?.complete ?? null,
+    matrix_status_counts: matrixCompletion?.status_counts ?? null,
+    matrix_proved: matrixCompletion?.proved ?? [],
+    matrix_not_proved: (matrixCompletion?.not_proved ?? []).map((item) => ({
+      requirement: item.requirement,
+      status: item.status,
+      blockers: (item.blocking_checks ?? []).map((check) => check.summary),
+    })),
+    warm_signup_preconditioning: warmSignupRequirement ? {
+      status: warmSignupRequirement.status,
+      checks: (warmSignupRequirement.checks ?? []).map((check) => ({
+        status: check.status,
+        summary: check.summary,
+      })),
+    } : null,
   },
   required_followup: [
     !RUN_LINKEDIN ? 'Set WELES_EVIDENCE_RUN_LINKEDIN=1 for a controlled post-hardening LinkedIn attempt after preflight is acceptable.' : null,
@@ -294,5 +315,7 @@ console.log(JSON.stringify({
   recent_ready_rows: report.summary.recent_ready_rows,
   matrix_complete: report.summary.matrix_complete,
   matrix_status_counts: report.summary.matrix_status_counts,
+  matrix_proved: report.summary.matrix_proved,
+  warm_signup_preconditioning: report.summary.warm_signup_preconditioning,
   required_followup: report.required_followup,
 }, null, 2));

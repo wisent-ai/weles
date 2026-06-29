@@ -49,7 +49,7 @@ const ENV_FLAG_KEYS = [
   'WELES_CAPTURE_RESPONSE_BODIES', 'WELES_HOST_DIAGNOSTICS', 'WELES_STORAGE_DIAGNOSTICS',
   'WELES_CDP_DIAGNOSTICS', 'WELES_CDP_FIREHOSE', 'WELES_CHROMIUM_NETLOG',
   'WELES_PROXY_DIAGNOSTICS_LABEL', 'WELES_NOPECHA_EXT', 'WELES_USER_DATA_DIR',
-  'WELES_CACHE_DIR',
+  'WELES_CACHE_DIR', 'WELES_CHROMIUM_PROFILE_DIRECTORY', 'WELES_USE_NATIVE_KEYCHAIN',
 ] as const;
 function snapshotEnvFlags(): Record<string, string | undefined> {
   const out: Record<string, string | undefined> = {};
@@ -85,6 +85,7 @@ export interface WSessionOptions {
   persona?: Persona;
   browser?: string;
   pageDiagnostics?: boolean;
+  userAgent?: string;
   // When set, WSession.start auto-invokes generateIdentity(platform) and
   // attaches the result to ws.identity. Register trajectories should pass
   // their platform here instead of importing generateIdentity themselves.
@@ -303,7 +304,7 @@ export class WSession {
     const pageDiagnostics = process.env.WELES_PAGE_DIAGNOSTICS === '0'
       ? false
       : (opts.pageDiagnostics ?? (label !== 'linkedin_register'));
-    const bOpts: AsyncNewBrowserOptions = { os: persona.os, browser: persona.browser, headless: opts.headless ?? false, recordVideo: opts.record ?? (process.env.WELES_DISABLE_RECORDING !== '1'), locale: opts.locale, persona, proxy, pageDiagnostics, userDataDir: opts.userDataDir ?? process.env.WELES_USER_DATA_DIR };
+    const bOpts: AsyncNewBrowserOptions = { os: persona.os, browser: persona.browser, headless: opts.headless ?? false, recordVideo: opts.record ?? (process.env.WELES_DISABLE_RECORDING !== '1'), locale: opts.locale, persona, proxy, pageDiagnostics, userAgent: opts.userAgent, userDataDir: opts.userDataDir ?? process.env.WELES_USER_DATA_DIR };
     const cp = bOpts.browser === 'chromium'
       ? resolveChromiumPathOverride(opts.chromiumPath)
       : (opts.chromiumPath ?? process.env.CHROMIUM_PATH ?? findCustomBrowser(bOpts.browser));

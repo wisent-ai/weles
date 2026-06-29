@@ -7,7 +7,7 @@
 //
 // This module is the ONLY mouse/keyboard path for humanized atoms.
 
-import { execSync, spawnSync } from 'node:child_process';
+import { execFileSync, execSync, spawnSync } from 'node:child_process';
 import { randomBetween, waitMs } from '../utils/timing.js';
 
 export interface NativeOffset { winX: number; winY: number; chromeY: number; }
@@ -23,13 +23,39 @@ export function assertCliclickAvailable(): void {
   if (!nativeAvailable) throw new Error('cliclick missing — brew install cliclick (required)');  // allow-raw-playwright: implementation file — defines the humanized atom
 }
 
+function assertNativeInputTargetIsFrontmost(): void {
+  // Native input is global OS input. If another app is frontmost, cliclick will
+  // drive that app, not the intended Weles window. Fail closed unless the
+  // foreground process is explicitly allowed.
+  const allowAny = process.env.WELES_NATIVE_INPUT_ALLOW_ANY_FRONTMOST === '1';
+  if (allowAny) return;
+
+  let frontmost = '';
+  try {
+    frontmost = execFileSync('osascript', [
+      '-e',
+      'tell application "System Events" to get name of first application process whose frontmost is true',
+    ], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+  } catch {
+    throw new Error('native input blocked: cannot verify frontmost application');
+  }
+
+  const allowed = process.env.WELES_NATIVE_INPUT_FRONTMOST_RE ?? '^(Chromium|Google Chrome|Weles)$';
+  if (!new RegExp(allowed).test(frontmost)) {
+    throw new Error(`native input blocked: frontmost application is "${frontmost}", expected ${allowed}`);
+  }
+}
+
 // Get the browser window's screen position + chrome (title+url+tabs) height
 // by evaluating window.screenX/Y/outerHeight/innerHeight in the page. Hard
 // fails when the page can't return screenX/Y.
 export async function getOffsetFromPage(page: any): Promise<NativeOffset> {
-  const r = await page.evaluate(`(() => ({ sX: window.screenX, sY: window.screenY, iH: window.innerHeight, oH: window.outerHeight }))()`);  // allow-raw-playwright: implementation file — defines the humanized atom
+  const r = await page.evaluate(`(() => ({ sX: window.screenX, sY: window.screenY, iH: window.innerHeight, oH: window.outerHeight, visibility: document.visibilityState, focused: document.hasFocus(), href: location.href }))()`);  // allow-raw-playwright: implementation file — defines the humanized atom
   if (!r || typeof r.sX !== 'number') {
     throw new Error('cannot resolve window offset — humanized atoms require OS-coord translation');
+  }
+  if (process.env.WELES_NATIVE_INPUT_ALLOW_UNFOCUSED !== '1' && (r.visibility !== 'visible' || r.focused !== true)) {
+    throw new Error(`native input blocked: target page is not focused and visible (visibility=${r.visibility}, focused=${r.focused}, href=${r.href})`);
   }
   // Empirical 89px on macOS Chromium — outerHeight-innerHeight returns 80
   // but captured clientY is 9px off, consistent with chrome=89.
@@ -46,6 +72,7 @@ function toScreen(off: NativeOffset, cssX: number, cssY: number, jitter = 1): { 
 /** Single OS-event mouse move. */
 export function nativeMove(offset: NativeOffset, cssX: number, cssY: number): void {
   assertCliclickAvailable();
+  assertNativeInputTargetIsFrontmost();
   const { sx, sy } = toScreen(offset, cssX, cssY);
   spawnSync('cliclick', [`m:${sx},${sy}`], { stdio: 'ignore' });  // allow-raw-playwright: implementation file — defines the humanized atom
 }
@@ -56,6 +83,7 @@ export function nativeMove(offset: NativeOffset, cssX: number, cssY: number): vo
  */
 export async function nativeBatchMove(offset: NativeOffset, points: Array<{ x: number; y: number; dt?: number }>): Promise<void> {
   assertCliclickAvailable();
+  assertNativeInputTargetIsFrontmost();
   if (!points.length) return;
   for (const p of points) {
     const { sx, sy } = toScreen(offset, p.x, p.y);
@@ -67,6 +95,7 @@ export async function nativeBatchMove(offset: NativeOffset, points: Array<{ x: n
 /** OS-event click. Moves to (x,y) first then clicks at the same coord. */
 export async function nativeClick(offset: NativeOffset, cssX: number, cssY: number): Promise<void> {
   assertCliclickAvailable();
+  assertNativeInputTargetIsFrontmost();
   const { sx, sy } = toScreen(offset, cssX, cssY);
   spawnSync('cliclick', [`m:${sx},${sy}`, `c:${sx},${sy}`], { stdio: 'ignore' });  // allow-raw-playwright: implementation file — defines the humanized atom
 }
@@ -74,6 +103,7 @@ export async function nativeClick(offset: NativeOffset, cssX: number, cssY: numb
 /** OS-event typing — one char per spawn, with empirical inter-key timing. */
 export async function nativeType(text: string): Promise<void> {
   assertCliclickAvailable();
+  assertNativeInputTargetIsFrontmost();
   for (const ch of text) {
     spawnSync('cliclick', [`t:${ch}`], { stdio: 'ignore' });  // allow-raw-playwright: implementation file — defines the humanized atom
     await waitMs(randomBetween(80, 220));
@@ -88,6 +118,7 @@ export async function nativeType(text: string): Promise<void> {
  */
 export function nativeKeyPress(key: string): void {
   assertCliclickAvailable();
+  assertNativeInputTargetIsFrontmost();
   const k = key.toLowerCase();
   const map: Record<string, string> = {
     'enter': 'return', 'return': 'return',
@@ -108,6 +139,7 @@ export function nativeKeyPress(key: string): void {
 /** Select-all-and-delete via OS event queue. Cmd+A then Delete. */
 export function nativeSelectAllAndDelete(): void {
   assertCliclickAvailable();
+  assertNativeInputTargetIsFrontmost();
   spawnSync('cliclick', ['kd:cmd', 't:a', 'ku:cmd', 'kp:delete'], { stdio: 'ignore' });  // allow-raw-playwright: implementation file — defines the humanized atom
 }
 

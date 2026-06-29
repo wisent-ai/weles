@@ -1,0 +1,115 @@
+import { writeFileSync, mkdirSync } from 'node:fs';
+import { join } from 'node:path';
+import { WSession } from '../../../dist/session/wsession.js';
+import { execute, AgentFailure } from '../../../dist/agent/index.js';
+import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
+
+const label = process.env.GENERIC_TASK_LABEL || 'generic_browser_task';
+
+function envString(name, fallback = '') {
+  const value = process.env[name];
+  return typeof value === 'string' && value.length > 0 ? value : fallback;
+}
+
+function parseJsonEnv(name, fallback) {
+  const raw = process.env[name];
+  if (!raw) return fallback;
+  try { return JSON.parse(raw); } catch { return fallback; }
+}
+
+function requireHttpUrl(raw) {
+  let parsed;
+  try { parsed = new URL(raw); } catch { throw new Error('GENERIC_TASK_URL must be a valid URL'); }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') throw new Error('GENERIC_TASK_URL must be http(s)');
+  return parsed.toString();
+}
+
+function writeJson(name, value) {
+  const dir = runRecordingsDir(label);
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, name), JSON.stringify(value, null, 2));
+}
+
+function safeStringMap(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  const out = {};
+  for (const [key, raw] of Object.entries(value)) {
+    if (!/^[A-Z_][A-Z0-9_]*$/.test(key)) continue;
+    if (typeof raw === 'string' || typeof raw === 'number' || typeof raw === 'boolean') out[key] = String(raw);
+  }
+  return out;
+}
+
+const url = requireHttpUrl(envString('GENERIC_TASK_URL'));
+const objective = envString('GENERIC_TASK_OBJECTIVE');
+if (!objective.trim()) throw new Error('GENERIC_TASK_OBJECTIVE is required');
+
+const constraints = parseJsonEnv('GENERIC_TASK_CONSTRAINTS', {});
+const envHints = safeStringMap(parseJsonEnv('GENERIC_TASK_ENV', {}));
+for (const [key, value] of Object.entries(envHints)) process.env[key] = value;
+
+const maxStepsRaw = Number(envString('GENERIC_TASK_MAX_STEPS', '20'));
+const maxSteps = Number.isFinite(maxStepsRaw) ? Math.max(1, Math.min(50, Math.trunc(maxStepsRaw))) : 20;
+const flowName = envString('GENERIC_TASK_FLOW_NAME') || `generic:${new URL(url).hostname}:${objective.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 60)}`;
+const proxy = envString('GENERIC_TASK_PROXY', process.env.PROXY_URL_OVERRIDE || 'none');
+const headless = envString('GENERIC_TASK_HEADLESS') === '1';
+const browser = envString('GENERIC_TASK_BROWSER', 'chromium');
+
+let session = null;
+let result = null;
+try {
+  console.log(`[generic] url=${url} maxSteps=${maxSteps} flow=${flowName} browser=${browser}`);
+  session = await WSession.start({ label, proxy, targetHost: new URL(url).hostname, headless, browser });
+  await session.goto(url);
+  const goal = [
+    objective,
+    '',
+    'Initial URL: ' + url,
+    'Constraints: ' + JSON.stringify(constraints),
+    'Do not make purchases, submit payments, delete data, or perform irreversible/destructive actions unless the constraints explicitly say this is allowed.',
+    'When finished, call done(value) with a concise JSON-serializable summary and any extracted data.',
+  ].join('\n');
+  result = await execute(session, goal, { envHints, flowName, maxSteps });
+  const payload = {
+    ok: true,
+    url,
+    final_url: session.page.url?.() ?? null,
+    value: result.value ?? null,
+    history: result.history,
+    completed_at: new Date().toISOString(),
+  };
+  writeJson('generic_task_result.json', payload);
+  writeJson('ban_signal.json', {
+    action: label,
+    healthy: true,
+    signal: 'healthy',
+    details: { final_url: payload.final_url, steps: result.history.length },
+    ts: new Date().toISOString(),
+  });
+  console.log('PASS: generic_browser_task');
+} catch (error) {
+  const message = error instanceof Error ? error.message : String(error);
+  const history = error instanceof AgentFailure ? error.history : result?.history ?? [];
+  const finalUrl = session?.page?.url?.() ?? null;
+  writeJson('generic_task_result.json', {
+    ok: false,
+    url,
+    final_url: finalUrl,
+    error: message,
+    history,
+    completed_at: new Date().toISOString(),
+  });
+  writeJson('ban_signal.json', {
+    action: label,
+    healthy: false,
+    signal: 'task_failed',
+    details: { final_url: finalUrl, error: message, steps: history.length },
+    ts: new Date().toISOString(),
+  });
+  console.log('FAIL:', message.slice(0, 300));
+  process.exitCode = 1;
+} finally {
+  if (session) await session.close();
+}
+
+process.exit(process.exitCode ?? 0);

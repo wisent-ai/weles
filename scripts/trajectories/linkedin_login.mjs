@@ -4,17 +4,26 @@ import { CaptchaSolver } from '../../dist/captcha/solver.js';
 import { humanType } from '../../dist/human/keyboard.js';
 import { humanIdlePause, humanClickLocator } from '../../dist/human/mouse.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
 import { persistFreshCookieJar } from './_shared/cookie-freshness.mjs';
 import { solveLinkedinCheckpoint, injectV3LoginToken, confirmLinkedinEmail } from './_shared/linkedin/checkpoint.mjs';
 import { captureLinkedinPxStorage, restoreLinkedinPxStorage } from './_shared/linkedin/px_storage.mjs';
 import { pageHasLoginForm, freshProviderUrl, PROVIDER_ROTATION, gotoLoginRotating } from './_shared/linkedin/proxy_rotation.mjs';
 import { runRecordingsDir } from '../../dist/session/run-recordings.js';
+import { googleSso, getGoogleSsoCreds } from './_shared/services/google_sso.mjs';
+
+if (process.env.WELES_INPUT === 'native' && process.env.LINKEDIN_LOGIN_ALLOW_NATIVE !== '1') {
+  console.error('FAIL: native OS input is blocked for linkedin_login. Set LINKEDIN_LOGIN_ALLOW_NATIVE=1 only during an observed, isolated run.');
+  process.exit(2);
+}
 
 const acct = await getSocialAccount('linkedin');
 if (!acct) { console.log('FAIL: no active linkedin account in DB'); process.exitCode = 1; }
 process.env.SVC_EMAIL = acct.metadata.email ?? acct.username;
 process.env.SVC_PASSWORD = acct.metadata.password ?? '';
+const HEADLESS = process.env.HEADLESS === '1' || process.env.AB_HEADLESS === '1' || process.env.LINKEDIN_LOGIN_HEADLESS === '1';
+const USE_GOOGLE_SSO = process.env.LINKEDIN_LOGIN_GOOGLE_SSO === '1' || !process.env.SVC_PASSWORD;
 console.log(`[trajectory] Using account: ${acct.username}`);
 
 // 2026-05-03: removed WELES_DISABLE_HTTP2 + WELES_USE_STOCK_CHROMIUM defaults
@@ -109,7 +118,7 @@ if (!isStaticIsp(proxyUrl)) {
   console.log(`[linkedin_login] reusing stored static ISP sticky for ${acct.username}`);
 }
 console.log(`[linkedin_login:dbg] before WSession.start`);
-let s = await WSession.start({ label: 'linkedin_login', proxy: proxyUrl, persona });
+let s = await WSession.start({ label: 'linkedin_login', proxy: proxyUrl, persona, headless: HEADLESS, pageDiagnostics: false });
 console.log(`[linkedin_login:dbg] after WSession.start, s.page=${s?.page ? 'ok' : 'null'} url=${s?.page?.url?.() ?? 'unknown'}`);
 
 async function injectAccountCookies() { /* intentionally no-op */ }
@@ -126,7 +135,7 @@ async function gotoLogin() {
   // tears down the WSession, and restarts with a working proxy. Returns
   // the (possibly fresh) session + the proxyUrl actually in use, which
   // we persist in captureCookies via metadata.proxy.
-  const r = await gotoLoginRotating({ session: s, persona, restartFn: async (url, p) => WSession.start({ label: 'linkedin_login', proxy: url, persona: p }), maxRotations: 5, gotoTimeoutMs: GOTO_MS });
+  const r = await gotoLoginRotating({ session: s, persona, restartFn: async (url, p) => WSession.start({ label: 'linkedin_login', proxy: url, persona: p, headless: HEADLESS, pageDiagnostics: false }), maxRotations: 5, gotoTimeoutMs: GOTO_MS });
   s = r.session;
   if (r.proxyUrl) proxyUrl = r.proxyUrl;
 }
@@ -145,6 +154,100 @@ function writeBan(signal, details) {
     mkdirSync(dir, { recursive: true });
     writeFileSync(join(dir, 'ban_signal.json'), JSON.stringify({ account_id: acct.id, username: acct.username, action: 'linkedin_login', signal, healthy: signal === 'healthy', details: details ?? {}, ts: new Date().toISOString() }, null, 2));
   } catch {}
+}
+
+function withTimeout(promise, ms, label) {
+  return Promise.race([
+    promise,
+    new Promise((resolve) => setTimeout(() => {
+      console.log(`[linkedin_login] ${label} timed out after ${ms}ms`);
+      resolve(null);
+    }, ms)),
+  ]);
+}
+
+function currentWelesFingerprintTag() {
+  try {
+    const args = s?.ctx?._welesBrowserProvenance?.launch_args || [];
+    const fpArg = args.find((arg) => String(arg).startsWith('--weles-fingerprint='));
+    const match = String(fpArg || '').match(/weles-fp-[^/]+/);
+    return match?.[0] || null;
+  } catch {
+    return null;
+  }
+}
+
+function reapWelesFingerprintTag(tag) {
+  if (!tag) return;
+  try { execFileSync('pkill', ['-f', tag], { stdio: 'ignore' }); } catch {}
+}
+
+async function loginWithGoogleSso() {
+  const requestedGoogleEmail = process.env.LINKEDIN_GOOGLE_SSO_EMAIL || process.env.SVC_EMAIL || acct.metadata?.email || acct.username;
+  let login = await getGoogleSsoCreds(requestedGoogleEmail).catch(() => null);
+  if (!login && requestedGoogleEmail !== 'lukasz.bartoszcze@gmail.com') login = await getGoogleSsoCreds().catch(() => null);
+  if (!login) throw new Error(`google_sso_creds_missing:${requestedGoogleEmail}`);
+  console.log(`[linkedin_login] using Google SSO account ${login.email}`);
+
+  let best = null;
+  for (let i = 0; i < 40 && !best; i++) {
+    await humanIdlePause('short');
+    const candidates = [];
+    for (const frame of s.page.frames().filter((f) => /accounts\.google\.com\/gsi\/button|\/gsi\/button/.test(f.url()))) {
+      const btn = frame.locator('div[role="button"], button').filter({ visible: true }).first();
+      if (!(await btn.isVisible().catch(() => false))) continue;
+      const box = await btn.boundingBox().catch(() => null);
+      if (box && box.width >= 20 && box.height >= 20) candidates.push({ frame, btn, area: box.width * box.height });
+    }
+    candidates.sort((a, b) => b.area - a.area);
+    best = candidates[0] ?? null;
+  }
+
+  if (!best) {
+    const dir = runRecordingsDir('linkedin_login');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'google_sso_missing_button.txt'), await s.page.evaluate(() => document.body?.innerText || '').catch(() => ''));
+    await s.page.screenshot({ path: join(dir, 'google_sso_missing_button.png'), fullPage: true }).catch(() => {});
+    throw new Error('google_sso_button_not_found');
+  }
+
+  const dir = runRecordingsDir('linkedin_login');
+  mkdirSync(dir, { recursive: true });
+  await s.page.screenshot({ path: join(dir, 'google_sso_before_click.png'), fullPage: true }).catch(() => {});
+  try { writeFileSync(join(dir, 'google_sso_frame.html'), await best.frame.content()); } catch {}
+
+  const popupPromise = s.page.waitForEvent('popup', { timeout: 15000 }).catch(() => null);
+  const pagePromise = s.page.context().waitForEvent('page', { timeout: 15000 }).catch(() => null);
+  try {
+    await best.btn.click({ force: true, timeout: 5000 });
+  } catch (e) {
+    console.log(`[linkedin_login] frame button click failed, falling back to humanClickLocator: ${e.message?.slice(0, 120)}`);
+    await humanClickLocator(s.page, best.btn);
+  }
+  const oauthSurface = await Promise.race([popupPromise, pagePromise]);
+  const oauthPage = oauthSurface && typeof oauthSurface.url === 'function' ? oauthSurface : null;
+  if (!oauthPage) {
+    writeFileSync(join(dir, 'google_sso_popup_not_opened.txt'), await s.page.evaluate(() => document.body?.innerText || '').catch(() => ''));
+    await s.page.screenshot({ path: join(dir, 'google_sso_popup_not_opened.png'), fullPage: true }).catch(() => {});
+    throw new Error('google_sso_popup_not_opened');
+  }
+
+  for (let i = 0; i < 60; i++) {
+    const u = oauthPage.url();
+    if (/accounts\.google\.com/.test(u) && !/^about:blank/i.test(u)) break;
+    await humanIdlePause('short');
+  }
+
+  const ok = await googleSso(s, login, { originHost: 'linkedin.com', page: oauthPage });
+  if (!ok) throw new Error('google_sso_flow_failed');
+
+  for (let i = 0; i < 60; i++) {
+    const cookies = await s.ctx.cookies().catch(() => []);
+    if (cookies.some((c) => c.name === 'li_at' && c.value)) break;
+    const u = s.page.url?.() ?? '';
+    if (/\/feed|\/in\/|\/m\/feed|\/onboarding/.test(u)) break;
+    await humanIdlePause('short');
+  }
 }
 
 async function markStaleAndFail(reason, finalUrl, signal = 'checkpoint') {
@@ -194,38 +297,43 @@ try {
       throw new Error(`degraded_login_shell: 0 inputs after hydration window; body=${JSON.stringify(bodyText.slice(0, 200))}`);
     }
   }
-  // flagship3 SDUI (current 2026-05): id=":r3:" type="email" autocomplete=
-  // "username webauthn". Old shells: id=username, name=session_key.
-  // Use locator click+humanType so the React onChange fires.
-  const usernameSel = 'input#username, input[name="session_key"], input[type="email"][autocomplete*="username"], input[type="email"]';
-  const passwordSel = 'input#password, input[name="session_password"], input[type="password"][autocomplete*="current-password"], input[type="password"]';
-  const userLoc = s.page.locator(usernameSel).filter({ visible: true }).first();
-  await userLoc.waitFor({ state: 'visible' });
-  await humanClickLocator(s.page, userLoc);
-  await humanIdlePause('short');
-  await humanType(s.page, process.env.SVC_EMAIL ?? '');
-  await humanIdlePause('short');
-  const pwLoc = s.page.locator(passwordSel).filter({ visible: true }).first();
-  await humanClickLocator(s.page, pwLoc);
-  await humanIdlePause('short');
-  await humanType(s.page, process.env.SVC_PASSWORD ?? '');
-  await humanIdlePause('short');
-  // LinkedIn serves two login shells:
-  //   (A) Legacy checkpoint-frontend: <form> + <button type="submit">,
-  //       PerimeterX iframe gates the click handler that POSTs
-  //       /checkpoint/pk/initiateLogin then submits to /checkpoint/lg/login-submit.
-  //   (B) flagship3 SDUI: <button type="button"> with React onClick that
-  //       POSTs /flagship-web/rsc-action/actions/server-request.
-  // getByRole('button', name='Sign in') finds the submit on either shell.
-  // force:true + noWaitAfter avoids React-rerender deadlocks and missing
-  // navigation on SDUI's in-place fetch.
-  const submitBtn = s.page.getByRole('button', { name: /^\s*sign\s*in\s*$/i }).filter({ visible: true }).first();
-  await submitBtn.waitFor({ state: 'visible' });
-  await injectV3LoginToken(s.page);
-  await humanClickLocator(s.page, submitBtn);
-  for (let i = 0; i < 12; i++) {
+  if (USE_GOOGLE_SSO) {
+    console.log('[linkedin_login] using Google SSO path');
+    await loginWithGoogleSso();
+  } else {
+    // flagship3 SDUI (current 2026-05): id=":r3:" type="email" autocomplete=
+    // "username webauthn". Old shells: id=username, name=session_key.
+    // Use locator click+humanType so the React onChange fires.
+    const usernameSel = 'input#username, input[name="session_key"], input[type="email"][autocomplete*="username"], input[type="email"]';
+    const passwordSel = 'input#password, input[name="session_password"], input[type="password"][autocomplete*="current-password"], input[type="password"]';
+    const userLoc = s.page.locator(usernameSel).filter({ visible: true }).first();
+    await userLoc.waitFor({ state: 'visible' });
+    await humanClickLocator(s.page, userLoc);
     await humanIdlePause('short');
-    if (!/^https?:\/\/www\.linkedin\.com\/login\/?$/.test(s.page.url())) break;
+    await humanType(s.page, process.env.SVC_EMAIL ?? '');
+    await humanIdlePause('short');
+    const pwLoc = s.page.locator(passwordSel).filter({ visible: true }).first();
+    await humanClickLocator(s.page, pwLoc);
+    await humanIdlePause('short');
+    await humanType(s.page, process.env.SVC_PASSWORD ?? '');
+    await humanIdlePause('short');
+    // LinkedIn serves two login shells:
+    //   (A) Legacy checkpoint-frontend: <form> + <button type="submit">,
+    //       PerimeterX iframe gates the click handler that POSTs
+    //       /checkpoint/pk/initiateLogin then submits to /checkpoint/lg/login-submit.
+    //   (B) flagship3 SDUI: <button type="button"> with React onClick that
+    //       POSTs /flagship-web/rsc-action/actions/server-request.
+    // getByRole('button', name='Sign in') finds the submit on either shell.
+    // force:true + noWaitAfter avoids React-rerender deadlocks and missing
+    // navigation on SDUI's in-place fetch.
+    const submitBtn = s.page.getByRole('button', { name: /^\s*sign\s*in\s*$/i }).filter({ visible: true }).first();
+    await submitBtn.waitFor({ state: 'visible' });
+    await injectV3LoginToken(s.page);
+    await humanClickLocator(s.page, submitBtn);
+    for (let i = 0; i < 12; i++) {
+      await humanIdlePause('short');
+      if (!/^https?:\/\/www\.linkedin\.com\/login\/?$/.test(s.page.url())) break;
+    }
   }
   console.log(`[linkedin_login] post-submit url=${s.page.url()}`);
 
@@ -254,7 +362,7 @@ try {
     // still carry the unconfirmed-email yellow banner that suppresses feed
     // posts and triggers captcha_challenge on first write actions. The
     // helper is a no-op when no recent confirm-email is in the inbox.
-    await confirmLinkedinEmail(s.page, acct.metadata?.email ?? acct.username).catch(() => {});
+    await withTimeout(confirmLinkedinEmail(s.page, acct.metadata?.email ?? acct.username).catch(() => null), 10_000, 'confirmLinkedinEmail');
     writeBan('healthy', { final_url: finalUrl });
     console.log(`PASS: li_at cookie set — ${finalUrl}`);
   } else if (onCheckpoint) {
@@ -296,5 +404,8 @@ try {
   console.log('FAIL:', msg.slice(0, 200));
   process.exitCode = 1;
 } finally {
+  const fpTag = currentWelesFingerprintTag();
   await s.close();
+  reapWelesFingerprintTag(fpTag);
+  process.exit(process.exitCode ?? 0);
 }

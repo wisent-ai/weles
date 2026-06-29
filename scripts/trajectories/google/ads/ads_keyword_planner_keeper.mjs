@@ -1,4 +1,6 @@
 // Google Ads Keyword Planner through the persistent Weles keeper.
+// Do not reimplement this path with REST/developer-credential access;
+// keyword-volume collection for reports is intentionally UI-observed via Weles.
 // No CUA. No CDP attach. No short-lived WSession/profile launch.
 // The keeper owns the browser/profile; this runner drives it through the socket.
 //
@@ -10,7 +12,7 @@
 //   GOOGLE_ADS_EMAIL / SSO_EMAIL optional, defaults to lukasz.bartoszcze@wisent.ai
 
 import net from 'node:net';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { generateTotp, getGoogleSsoCreds } from '../../_shared/services/google_sso.mjs';
@@ -230,19 +232,67 @@ async function clickControl(patternSource, label, options = {}) {
 
 async function fillSelector(selector, text, label) {
   console.log(`[google-ads-keyword-planner-keeper] filling ${label || selector}`);
-  try {
-    await action({ action: 'fill', selector, text }, ACTION_TIMEOUT_MS);
-  } catch (error) {
-    const s = await evalState(4000).catch(() => null);
-    const joined = JSON.stringify(s?.inputs || []);
-    if (!joined.includes(text)) throw error;
+  for (const fillAction of ['fill', 'fill_fast', 'set_value']) {
+    try {
+      await action({ action: fillAction, selector, text }, Math.min(ACTION_TIMEOUT_MS, 30_000));
+    } catch (error) {
+      const s = await evalState(4000).catch(() => null);
+      const joined = JSON.stringify(s?.inputs || []);
+      if (!joined.includes(text)) {
+        if (fillAction === 'set_value') throw error;
+        continue;
+      }
+    }
+    await idle('deliberate');
+    return true;
   }
-  await idle('deliberate');
+  return false;
+}
+
+async function fillKeywordInput() {
+  const text = keywords.join('\n');
+  console.log('[google-ads-keyword-planner-keeper] filling keyword input');
+  for (const selector of [
+    'textarea[aria-label*="paste your keywords" i]',
+    'textarea[aria-label*="keywords" i]',
+    'textarea',
+    '[role="textbox"][aria-label*="keywords" i]',
+  ]) {
+    for (const fillAction of ['set_value', 'fill_fast', 'fill']) {
+      try {
+        await action({ action: fillAction, selector, text }, Math.min(ACTION_TIMEOUT_MS, 30_000));
+      } catch {
+        continue;
+      }
+      await idle('deliberate');
+      const s = await evalState(4000).catch(() => null);
+      const joined = JSON.stringify(s?.inputs || []);
+      if (joined.includes(text)) return true;
+    }
+  }
+  return false;
 }
 
 async function press(key) {
   await action({ action: 'press', key }, 30_000);
   await idle('deliberate');
+}
+
+async function navigateStoredTotpChallenge(currentUrl) {
+  if (!/accounts\.google\.com/i.test(currentUrl || '') || !/signin\/challenge\/selection/i.test(currentUrl || '')) return false;
+  if (process.env.GOOGLE_SSO_ALLOW_DIRECT_TOTP !== '1') return false;
+  const target = currentUrl.replace(/\/signin\/challenge\/selection(?=[?#])/, '/signin/challenge/totp');
+  if (target === currentUrl) return false;
+  const attempts = navigateStoredTotpChallenge.attempts || (navigateStoredTotpChallenge.attempts = new Set());
+  const key = currentUrl.replace(/([?&](?:TL|rart|dsh)=)[^&]+/g, '$1');
+  if (attempts.has(key)) return false;
+  attempts.add(key);
+  console.log('[google-ads-keyword-planner-keeper] opening Google Authenticator TOTP challenge directly');
+  await nav(target);
+  const next = await evalState(8000);
+  if (next.inputs.some((input) => input.visible && /totpPin|Pin|one-time-code|numeric|tel/i.test(`${input.name} ${input.autocomplete} ${input.type}`))) return true;
+  await nav(currentUrl);
+  return false;
 }
 
 async function dismissChrome() {
@@ -267,6 +317,11 @@ async function handleGoogleLogin(creds) {
     const text = s.text || '';
     const url = s.url || '';
     if (!/accounts\.google\.com/i.test(url)) return true;
+    if (/session ended|not signed in|Try signing in again|Try again/i.test(text)) {
+      await clickControl('Try again', 'session expired retry').catch(() => false);
+      await idle('deliberate');
+      continue;
+    }
 
     if (s.inputs.some((input) => input.visible && /email|identifier/i.test(`${input.type} ${input.name} ${input.aria}`))) {
       await fillSelector('input[type="email"], input[name="identifier"], input#identifierId', creds.email || preferredEmail(), 'Google email');
@@ -280,12 +335,30 @@ async function handleGoogleLogin(creds) {
       continue;
     }
 
-    if (/Try another way|Choose how you want to sign in|Tap Yes|Gmail app|phone or tablet/i.test(text)) {
-      await clickControl('Try another way', 'Try another way').catch(() => false);
-      await idle('deliberate');
-      const after = await evalState(8000);
-      if (/Authenticator|verification code/i.test(after.text || '')) {
+    if (/Try another way|More ways to verify|Choose how you want to sign in|Tap Yes|Gmail app|phone or tablet/i.test(text) && !/Enter code|verification code from the Google Authenticator app/i.test(text)) {
+      let after = s;
+      if (/Try another way|More ways to verify/i.test(text)) {
+        await clickControl('Try another way|More ways to verify', 'Try another way').catch(() => false);
+        await idle('deliberate');
+        after = await evalState(8000);
+      }
+      if (/Tap Yes on your phone|Gmail app|phone or tablet/i.test(after.text || '') && !/Try another way|More ways to verify/i.test(after.text || '')) {
+        await clickControl('Tap Yes on your phone|Gmail app|phone or tablet', 'phone prompt option').catch(() => false);
+        await idle('deliberate');
+        continue;
+      }
+      if (creds?.totpSecret && /Authenticator|verification code/i.test(after.text || '')) {
         await clickControl('Google Authenticator|Authenticator|verification code', 'Authenticator option').catch(() => false);
+        const code = generateTotp(creds.totpSecret);
+        await fillSelector('input[type="tel"], input[type="text"], input[inputmode="numeric"], input[name="totpPin"], input[name="Pin"]', code, 'Google TOTP');
+        await clickControl('^Next$|^Verify$', 'TOTP submit').catch(async () => press('Enter'));
+        continue;
+      }
+      if (creds?.totpSecret && await navigateStoredTotpChallenge(after.url || url)) {
+        const code = generateTotp(creds.totpSecret);
+        await fillSelector('input[type="tel"], input[type="text"], input[inputmode="numeric"], input[name="totpPin"], input[name="Pin"]', code, 'Google TOTP');
+        await clickControl('^Next$|^Verify$', 'TOTP submit').catch(async () => press('Enter'));
+        continue;
       }
       continue;
     }
@@ -312,8 +385,36 @@ async function handleGoogleLogin(creds) {
 function adsUrl(pathname) {
   const url = new URL(pathname, 'https://ads.google.com');
   url.searchParams.set('cid', cid);
-  url.searchParams.set('authuser', preferredEmail());
+  url.searchParams.set('authuser', process.env.GOOGLE_ADS_AUTHUSER || '1');
   return url.toString();
+}
+
+function savedPlannerUrls() {
+  const files = [
+    RESULT_FILE,
+    join(DIAG_DIR, `keywords-${cid}.json`),
+  ];
+  try {
+    for (const name of readdirSync(DIAG_DIR)) {
+      if (name.endsWith('.json')) files.push(join(DIAG_DIR, name));
+    }
+  } catch {}
+
+  const urls = [];
+  for (const file of [...new Set(files)]) {
+    if (!existsSync(file)) continue;
+    try {
+      const record = JSON.parse(readFileSync(file, 'utf8'));
+      for (const candidate of [record?.url, record?.report?.url, record?.browser?.report?.url]) {
+        if (/^https:\/\/ads\.google\.com\/aw\/keywordplanner\//i.test(candidate || '')) urls.push(candidate);
+      }
+    } catch {}
+  }
+  return [...new Set(urls)];
+}
+
+function plannerCandidates(paths) {
+  return [...paths.map((path) => adsUrl(path)), ...savedPlannerUrls()];
 }
 
 async function selectGoogleAdsAccount() {
@@ -333,17 +434,25 @@ async function selectGoogleAdsAccount() {
 }
 
 async function ensureAdsReady(creds) {
-  await nav(adsUrl('/aw/campaigns'));
-  if (/accounts\.google\.com/i.test((await evalState(4000)).url || '')) {
-    if (!await handleGoogleLogin(creds)) return false;
-    await nav(adsUrl('/aw/campaigns'));
+  for (const url of plannerCandidates(['/aw/keywordplanner/ideas/new', '/aw/keywordplanner/ideas', '/aw/keywordplanner', '/aw/campaigns'])) {
+    await nav(url);
+    const current = await evalState(6000);
+    if (/accounts\.google\.com/i.test(current.url || '')) {
+      if (!await handleGoogleLogin(creds)) return false;
+      await nav(url);
+    }
+    const after = await evalState(6000);
+    if (/Google Ads 2-step verification required/i.test(after.text || '') && !/\/aw\/campaigns/i.test(url)) continue;
+    if (/Keyword Planner|Discover new keywords|Get search volume|Campaigns|Create campaign/i.test(after.text || '')) {
+      return await selectGoogleAdsAccount();
+    }
   }
-  return await selectGoogleAdsAccount();
+  return false;
 }
 
 async function openKeywordPlanner() {
-  for (const path of ['/aw/keywordplanner/home', '/aw/keywordplanner/ideas/new', '/aw/keywordplanner/ideas', '/aw/keywordplanner']) {
-    await nav(adsUrl(path));
+  for (const url of plannerCandidates(['/aw/keywordplanner/ideas/new', '/aw/keywordplanner/ideas', '/aw/keywordplanner', '/aw/keywordplanner/home'])) {
+    await nav(url);
     await selectGoogleAdsAccount();
     await dismissChrome();
     let s = await evalState(9000);
@@ -352,7 +461,7 @@ async function openKeywordPlanner() {
       s = await evalState(9000);
     }
     if (/Discover new keywords|Get search volume|forecasts?|Avg\.? monthly searches|Saved keywords|Enter or paste your keywords/i.test(s.text || '')) {
-      return { ok: true, path, url: s.url, textPreview: norm(s.text).slice(0, 1000) };
+      return { ok: true, path: url, url: s.url, textPreview: norm(s.text).slice(0, 1000) };
     }
   }
   if (await clickControl('Tools|Planning|Keyword Planner', 'Keyword Planner navigation').catch(() => false)) {
@@ -378,6 +487,10 @@ async function keywordInputVisible() {
 async function chooseVolumeMode() {
   if (await keywordInputVisible()) return true;
   await dismissChrome();
+  if (await clickControl('Add keywords', 'Add keywords', { minY: 120, maxY: 420, maxArea: 80_000 }).catch(() => false)) {
+    await idle('deliberate');
+    if (await keywordInputVisible()) return true;
+  }
   if (await clickControl('Get search volume and forecasts|Get search volume|forecasts', 'Get search volume card', { minY: 100, maxY: 650, maxArea: 800_000 }).catch(() => false)) {
     await idle('deliberate');
   }
@@ -385,11 +498,9 @@ async function chooseVolumeMode() {
 }
 
 async function submitKeywords() {
-  await fillSelector('textarea[aria-label*="keyword" i], textarea, input[type="text"], [role="textbox"]', keywords.join('\n'), 'keyword input');
+  await fillKeywordInput();
   await dismissChrome();
-  if (await clickControl('Get.{0,4}tarted|Get started|Start|Get results|See results|View results|^Search$', 'planner submit', { minY: 180, maxY: 760, maxArea: 80_000 }).catch(() => false)) return true;
-  await press('Enter');
-  return true;
+  return await clickControl('^Save$|Get started|Get results|See results|View results|^Search$', 'planner submit', { minY: 180, maxY: 760, maxArea: 80_000 }).catch(() => false);
 }
 
 function parseMoney(value) {
@@ -438,6 +549,25 @@ async function waitForResults() {
   return { state: last || await evalState(20_000), rows: [] };
 }
 
+function writeKeywordReport(result, steps) {
+  const report = {
+    ok: result.rows.length > 0,
+    source: 'google_ads_keyword_planner_keeper_existing_window',
+    session: SESSION,
+    customer: cid,
+    customerDashed: dashedCustomerId(cid),
+    accountEmail: preferredEmail(),
+    keywords,
+    url: result.state?.url || '',
+    title: result.state?.title || '',
+    capturedAt: new Date().toISOString(),
+    rows: result.rows,
+    textPreview: norm(result.state?.text || '').slice(0, 3000),
+    steps,
+  };
+  writeResult(report, report.ok ? 0 : 7);
+}
+
 async function main() {
   applyEnvDefaults(loadEnvFile('.env'));
   applyEnvDefaults(loadEnvFile('.env.local'));
@@ -459,6 +589,13 @@ async function main() {
   steps.push({ step: 'planner_open', open });
   if (!open.ok) writeResult({ ok: false, blocked: 'keyword_planner_not_opened', session: SESSION, customer: cid, keywords, open, steps }, 5);
 
+  const already = await evalState(20_000);
+  const alreadyRows = parseRows(already.text || '');
+  if (alreadyRows.length) {
+    steps.push({ step: 'existing_results_ready', keywords });
+    writeKeywordReport({ state: already, rows: alreadyRows }, steps);
+  }
+
   if (!await chooseVolumeMode()) {
     const s = await evalState(6000);
     writeResult({ ok: false, blocked: 'keyword_volume_mode_not_opened', session: SESSION, customer: cid, keywords, url: s.url, textPreview: norm(s.text).slice(0, 1200), steps }, 6);
@@ -469,22 +606,7 @@ async function main() {
   steps.push({ step: 'keywords_submitted', keywords });
 
   const result = await waitForResults();
-  const report = {
-    ok: result.rows.length > 0,
-    source: 'google_ads_keyword_planner_keeper_existing_window',
-    session: SESSION,
-    customer: cid,
-    customerDashed: dashedCustomerId(cid),
-    accountEmail: preferredEmail(),
-    keywords,
-    url: result.state?.url || '',
-    title: result.state?.title || '',
-    capturedAt: new Date().toISOString(),
-    rows: result.rows,
-    textPreview: norm(result.state?.text || '').slice(0, 3000),
-    steps,
-  };
-  writeResult(report, report.ok ? 0 : 7);
+  writeKeywordReport(result, steps);
 }
 
 main().catch((error) => {

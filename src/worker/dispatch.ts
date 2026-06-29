@@ -86,6 +86,11 @@ const PROXY_PROVIDERS = new Set([
 const ROUTES: Record<string, (p: string) => string | null> = {
   // Generic surface ticks dispatch to the benign runner which reads PLATFORM/VERB env.
   dwell: () => benignPath, notifications: () => benignPath, search: () => benignPath, profile_view: () => benignPath,
+  browser_task: (p) => p === 'generic' ? 'scripts/trajectories/generic/browser_task.mjs' : null,
+  saved_task: (p) => p === 'generic' ? 'scripts/trajectories/generic/saved_task.mjs' : null,
+  version_history_scan: (p) => p === 'overleaf' ? 'scripts/trajectories/overleaf/version_history_ui_phrase.mjs' : null,
+  push_github: (p) => p === 'overleaf' ? 'scripts/trajectories/overleaf/push_github.mjs' : null,
+  pull_github: (p) => p === 'overleaf' ? 'scripts/trajectories/overleaf/pull_github.mjs' : null,
 
   browse: (p) => p === 'github' ? 'scripts/trajectories/github/actions/browse.mjs' : `scripts/trajectories/${p}/browse.mjs`,
   health: (p) => p === 'github' ? 'scripts/trajectories/github/health/run.mjs' : `scripts/trajectories/${p}/health.mjs`,
@@ -101,6 +106,10 @@ const ROUTES: Record<string, (p: string) => string | null> = {
   ads_login: (p) => p === 'meta' ? 'scripts/trajectories/meta/ads_login.mjs'
     : p === 'google' ? 'scripts/trajectories/google/ads/ads_login.mjs'
     : null,
+  ads_verify_access: (p) => p === 'meta' ? 'scripts/trajectories/meta/ads_verify_access.mjs'
+    : p === 'google' ? 'scripts/trajectories/google/ads/ads_verify_access.mjs'
+    : null,
+  ads_oauth_connect: (p) => p === 'meta' ? 'scripts/trajectories/meta/ads_oauth_connect_content_platform.mjs' : null,
   ads_cli_campaign: (p) => p === 'meta' ? 'scripts/trajectories/meta/ads_cli_campaign.mjs' : null,
   ads_api_campaign: (p) => p === 'meta' ? 'scripts/trajectories/meta/ads_api_campaign.mjs'
     : p === 'google' ? 'scripts/trajectories/google/ads/ads_api_campaign.mjs'
@@ -124,6 +133,7 @@ const ROUTES: Record<string, (p: string) => string | null> = {
   ads_auth_token: (p) => p === 'apple' ? 'scripts/trajectories/apple/ads/run.mjs' : null,
   ads_auth_switch: (p) => p === 'apple' ? 'scripts/trajectories/apple/ads/run.mjs' : null,
   ads_auth_logout: (p) => p === 'apple' ? 'scripts/trajectories/apple/ads/run.mjs' : null,
+  ads_api_setup_probe: (p) => p === 'apple' ? 'scripts/trajectories/apple/ads/api_client_setup_probe.mjs' : null,
   ads_me: (p) => p === 'apple' ? 'scripts/trajectories/apple/ads/run.mjs' : null,
   ads_acls: (p) => p === 'apple' ? 'scripts/trajectories/apple/ads/run.mjs' : null,
   ads_apps_search: (p) => p === 'apple' ? 'scripts/trajectories/apple/ads/run.mjs' : null,
@@ -202,6 +212,7 @@ const ROUTES: Record<string, (p: string) => string | null> = {
   ads_rejection_reasons: (p) => p === 'apple' ? 'scripts/trajectories/apple/ads/run.mjs' : null,
   ads_rejection_reason_view: (p) => p === 'apple' ? 'scripts/trajectories/apple/ads/run.mjs' : null,
   ads_api_request: (p) => p === 'apple' ? 'scripts/trajectories/apple/ads/run.mjs' : null,
+  native_2fa: (p) => p === 'apple' ? 'scripts/trajectories/apple/native_2fa/run.mjs' : null,
   appstore_submit: (p) => p === 'apple' ? 'scripts/trajectories/apple/asc/asc_submit.mjs'
     : p === 'google' ? 'scripts/trajectories/google/play/play_submit.mjs'
     : null,
@@ -290,9 +301,7 @@ const ROUTES: Record<string, (p: string) => string | null> = {
   balance: (p) => PROXY_PROVIDERS.has(p) ? `scripts/trajectories/${p}/balance.mjs` : `scripts/trajectories/${p}_balance.mjs`,
   topup: (p) => PROXY_PROVIDERS.has(p) ? `scripts/trajectories/${p}/topup.mjs` : null,
   analyze_text: (p) => p === 'pangram' ? 'scripts/trajectories/pangram/analyze_text.mjs' : null,
-  version_history_scan: (p) => p === 'overleaf' ? 'scripts/trajectories/overleaf/version_history_ui_phrase.mjs' : null,
-  push_github: (p) => p === 'overleaf' ? 'scripts/trajectories/overleaf/push_github.mjs' : null,
-  pull_github: (p) => p === 'overleaf' ? 'scripts/trajectories/overleaf/pull_github.mjs' : null,
+  pangram_audit_new_wniosek: (p) => p === 'ncbr' ? 'scripts/trajectories/ncbr/pangram_audit_new_wniosek.mjs' : null,
   // On-demand ticker scrape: wisent-app inserts an account_action_logs row
   // with action='unusualwhales_scrape' or 'volumeleaders_scrape' and
   // params={ticker, page}; the worker spawns the existing scrape script.
@@ -332,6 +341,58 @@ export function paramsToEnv(
       env.PLATFORM = action.slice(0, underscore);
       env.VERB = action.slice(underscore + 1);
     }
+  }
+  if (trajPath.endsWith('/generic/browser_task.mjs')) {
+    const passthrough: Array<[string, string]> = [
+      ['url', 'GENERIC_TASK_URL'],
+      ['objective', 'GENERIC_TASK_OBJECTIVE'],
+      ['flow_name', 'GENERIC_TASK_FLOW_NAME'],
+      ['proxy', 'GENERIC_TASK_PROXY'],
+    ];
+    for (const [key, envKey] of passthrough) {
+      const value = params[key];
+      if (typeof value === 'string') env[envKey] = value;
+    }
+    const maxSteps = params.max_steps;
+    if (typeof maxSteps === 'number' || typeof maxSteps === 'string') env.GENERIC_TASK_MAX_STEPS = String(maxSteps);
+    if (params.headless === true || params.headless === '1') env.GENERIC_TASK_HEADLESS = '1';
+    const constraints = params.constraints;
+    if (constraints && typeof constraints === 'object') env.GENERIC_TASK_CONSTRAINTS = JSON.stringify(constraints);
+    const taskEnv = params.env;
+    if (taskEnv && typeof taskEnv === 'object') env.GENERIC_TASK_ENV = JSON.stringify(taskEnv);
+  }
+  if (trajPath.endsWith('/generic/saved_task.mjs')) {
+    const trajectoryId = params.trajectory_id;
+    if (typeof trajectoryId === 'string') env.GENERIC_SAVED_TRAJECTORY_ID = trajectoryId;
+  }
+  if (trajPath.endsWith('/overleaf/version_history_ui_phrase.mjs')) {
+    const project = params.project ?? params.overleaf_project ?? params.project_id;
+    if (typeof project === 'string') env.OVERLEAF_PROJECT = project;
+    const queryText = params.query_text ?? params.overleaf_query_text ?? params.phrase ?? params.overleaf_phrase;
+    if (typeof queryText === 'string') {
+      env.OVERLEAF_QUERY_TEXT = queryText;
+      env.OVERLEAF_PHRASE = queryText;
+    }
+    const output = params.output_path ?? params.overleaf_output;
+    if (typeof output === 'string') env.OVERLEAF_OUTPUT = output;
+    const mainTex = params.main_tex ?? params.overleaf_main_tex;
+    if (typeof mainTex === 'string') env.OVERLEAF_MAIN_TEX = mainTex;
+    const authLabel = params.auth_label ?? params.overleaf_auth_label;
+    if (typeof authLabel === 'string') env.OVERLEAF_AUTH_LABEL = authLabel;
+    const maxClicks = params.max_history_clicks ?? params.overleaf_history_max_clicks;
+    if (typeof maxClicks === 'number' || typeof maxClicks === 'string') env.OVERLEAF_HISTORY_MAX_CLICKS = String(maxClicks);
+    if (params.persistent_profile === false || params.persistent_profile === '0') env.WELES_OVERLEAF_PERSISTENT_PROFILE = '0';
+    else env.WELES_OVERLEAF_PERSISTENT_PROFILE = '1';
+    env.HEADLESS = params.headless === false || params.headless === '0' ? '0' : '1';
+  }
+  if (trajPath.endsWith('/overleaf/push_github.mjs') || trajPath.endsWith('/overleaf/pull_github.mjs')) {
+    const project = params.project ?? params.overleaf_project ?? params.project_id;
+    if (typeof project === 'string') env.OVERLEAF_PROJECT = project;
+    const repo = params.repo_slug ?? params.github_repo ?? params.overleaf_github_repo;
+    if (typeof repo === 'string') env.OVERLEAF_GITHUB_REPO = repo;
+    const message = params.commit_message ?? params.overleaf_commit_message;
+    if (typeof message === 'string') env.OVERLEAF_COMMIT_MESSAGE = message;
+    env.HEADLESS = params.headless === false || params.headless === '0' ? '0' : '1';
   }
   if (trajPath.endsWith('/_shared/analytics-service.mjs')) {
     const underscore = action.indexOf('_');
@@ -412,6 +473,17 @@ export function paramsToEnv(
     if (typeof params.query === 'string') env.SEARCH_QUERY = params.query;
     if (typeof params.search_query === 'string') env.SEARCH_QUERY = params.search_query;
   }
+  if (trajPath.endsWith('/apple/ads/api_client_setup_probe.mjs')) {
+    if (typeof params.apple_ads_keep_open_after_login_ms === 'number') env.APPLE_ADS_KEEP_OPEN_AFTER_LOGIN_MS = String(params.apple_ads_keep_open_after_login_ms);
+    if (typeof params.apple_ads_keep_open_after_login_ms === 'string') env.APPLE_ADS_KEEP_OPEN_AFTER_LOGIN_MS = params.apple_ads_keep_open_after_login_ms;
+    if (params.apple_ads_close_after_probe === true || params.apple_ads_close_after_probe === '1') env.APPLE_ADS_CLOSE_AFTER_PROBE = '1';
+    if (typeof params.apple_ads_diag_dir === 'string') env.APPLE_ADS_DIAG_DIR = params.apple_ads_diag_dir;
+  }
+  if (trajPath.endsWith('/apple/native_2fa/run.mjs')) {
+    if (typeof params.apple_2fa_code_file === 'string') env.APPLE_2FA_CODE_FILE = params.apple_2fa_code_file;
+    if (typeof params.apple_2fa_wait_ms === 'number') env.APPLE_2FA_WAIT_MS = String(params.apple_2fa_wait_ms);
+    if (typeof params.apple_2fa_wait_ms === 'string') env.APPLE_2FA_WAIT_MS = params.apple_2fa_wait_ms;
+  }
   // Ticker-scrape parameters for the unusualwhales/volumeleaders/tradingview
   // scrape verb. Read by scrape.mjs scripts when invoked from the queue (no argv).
   if (typeof params.ticker === 'string') env.TICKER = params.ticker.toUpperCase();
@@ -434,14 +506,6 @@ export function paramsToEnv(
   if (typeof params.text_file === 'string') env.TEXT_FILE = params.text_file;
   if (typeof params.pangram_analyze_url === 'string') env.PANGRAM_ANALYZE_URL = params.pangram_analyze_url;
   if (trajPath.endsWith('/overleaf/version_history_ui_phrase.mjs')) {
-    if (typeof params.project === 'string') env.OVERLEAF_PROJECT = params.project;
-    if (typeof params.query_text === 'string') env.OVERLEAF_QUERY_TEXT = params.query_text;
-    if (typeof params.output === 'string') env.OVERLEAF_OUTPUT = params.output;
-    if (typeof params.main_tex === 'string') env.OVERLEAF_MAIN_TEX = params.main_tex;
-    if (typeof params.max_history_clicks === 'number') env.OVERLEAF_HISTORY_MAX_CLICKS = String(params.max_history_clicks);
-    if (typeof params.max_history_clicks === 'string') env.OVERLEAF_HISTORY_MAX_CLICKS = params.max_history_clicks;
-    if (typeof params.auth_label === 'string') env.OVERLEAF_AUTH_LABEL = params.auth_label;
-    env.HEADLESS = params.headless === false || params.headless === '0' ? '0' : '1';
     env.WELES_DISABLE_RECORDING = '1';
     env.WELES_NO_RESPONSE_BODIES = '1';
     env.WELES_CHROMIUM_NETLOG = '0';
@@ -449,12 +513,28 @@ export function paramsToEnv(
     env.WELES_NO_INSTRUMENT = '1';
     env.WELES_PAGE_DIAGNOSTICS = '0';
   }
-  if (trajPath.endsWith('/overleaf/push_github.mjs') || trajPath.endsWith('/overleaf/pull_github.mjs')) {
-    if (typeof params.project === 'string') env.OVERLEAF_PROJECT = params.project;
-    if (typeof params.repo_slug === 'string') env.OVERLEAF_GITHUB_REPO = params.repo_slug;
-    if (typeof params.commit_message === 'string') env.OVERLEAF_COMMIT_MESSAGE = params.commit_message;
-    if (typeof params.auth_label === 'string') env.OVERLEAF_AUTH_LABEL = params.auth_label;
-    env.HEADLESS = params.headless === false || params.headless === '0' ? '0' : '1';
+  if (params.pangram_auto_register === true || params.pangram_auto_register === '1') env.PANGRAM_AUTO_REGISTER = '1';
+  if (params.pangram_require_account === true || params.pangram_require_account === '1') env.PANGRAM_REQUIRE_ACCOUNT = '1';
+  if (typeof params.pangram_max_account_attempts === 'number') env.PANGRAM_MAX_ACCOUNT_ATTEMPTS = String(params.pangram_max_account_attempts);
+  if (typeof params.pangram_max_account_attempts === 'string') env.PANGRAM_MAX_ACCOUNT_ATTEMPTS = params.pangram_max_account_attempts;
+  if (typeof params.pangram_max_auto_registers === 'number') env.PANGRAM_MAX_AUTO_REGISTERS = String(params.pangram_max_auto_registers);
+  if (typeof params.pangram_max_auto_registers === 'string') env.PANGRAM_MAX_AUTO_REGISTERS = params.pangram_max_auto_registers;
+  if (typeof params.pangram_register_after_credit_failures === 'number') env.PANGRAM_REGISTER_AFTER_CREDIT_FAILURES = String(params.pangram_register_after_credit_failures);
+  if (typeof params.pangram_register_after_credit_failures === 'string') env.PANGRAM_REGISTER_AFTER_CREDIT_FAILURES = params.pangram_register_after_credit_failures;
+  if (trajPath.endsWith('/ncbr/pangram_audit_new_wniosek.mjs')) {
+    if (typeof params.ncbr_project_id === 'string') env.NCBR_PROJECT_ID = params.ncbr_project_id;
+    if (typeof params.ncbr_cdp_endpoint === 'string') env.NCBR_CDP_ENDPOINT = params.ncbr_cdp_endpoint;
+    if (typeof params.section_pattern === 'string') env.SECTION_PATTERN = params.section_pattern;
+    if (typeof params.min_chars === 'number') env.MIN_CHARS = String(params.min_chars);
+    if (typeof params.min_chars === 'string') env.MIN_CHARS = params.min_chars;
+    if (typeof params.max_sections === 'number') env.MAX_SECTIONS = String(params.max_sections);
+    if (typeof params.max_sections === 'string') env.MAX_SECTIONS = params.max_sections;
+    if (params.collect_only === true || params.collect_only === '1') env.COLLECT_ONLY = '1';
+    if (params.include_rows === true || params.include_rows === '1') env.INCLUDE_ROWS = '1';
+    if (typeof params.pangram_analyze_timeout_ms === 'number') env.PANGRAM_ANALYZE_TIMEOUT_MS = String(params.pangram_analyze_timeout_ms);
+    if (typeof params.pangram_analyze_timeout_ms === 'string') env.PANGRAM_ANALYZE_TIMEOUT_MS = params.pangram_analyze_timeout_ms;
+    if (typeof params.pangram_section_timeout_ms === 'number') env.PANGRAM_SECTION_TIMEOUT_MS = String(params.pangram_section_timeout_ms);
+    if (typeof params.pangram_section_timeout_ms === 'string') env.PANGRAM_SECTION_TIMEOUT_MS = params.pangram_section_timeout_ms;
   }
   // slack_post_message params: message body + where (default channel 'jakub').
   // Inline `message` is machine-independent (survives cross-host enqueue);
@@ -477,6 +557,8 @@ export function paramsToEnv(
     ['facebook_access_token', 'FACEBOOK_ACCESS_TOKEN'],
     ['meta_graph_api_version', 'META_GRAPH_API_VERSION'],
     ['meta_marketing_api_version', 'META_MARKETING_API_VERSION'],
+    ['google_ads_developer_token', 'GOOGLE_ADS_DEVELOPER_TOKEN'],
+    ['google_ads_access_token', 'GOOGLE_ADS_ACCESS_TOKEN'],
     ['resource', 'RESOURCE'],
     ['action', 'META_ACTION'],
     ['action_kind', 'ACTION_KIND'],
@@ -584,8 +666,18 @@ export function paramsToEnv(
     ['whatsapp_number', 'WHATSAPP_NUMBER'],
     ['live_read', 'LIVE_READ'],
     ['meta_ads_cli_args', 'META_ADS_CLI_ARGS'],
+    ['browser', 'BROWSER'],
+    ['ads_profile_dir', 'ADS_PROFILE_DIR'],
+    ['wait_for_login', 'WAIT_FOR_LOGIN'],
+    ['login_wait_ms', 'LOGIN_WAIT_MS'],
+    ['date', 'DATE'],
+    ['redirect_uri', 'REDIRECT_URI'],
+    ['content_platform_dir', 'CONTENT_PLATFORM_DIR'],
+    ['verify_account_only', 'VERIFY_ACCOUNT_ONLY'],
     ['customer_id', 'GOOGLE_ADS_CUSTOMER_ID'],
     ['login_customer_id', 'GOOGLE_ADS_LOGIN_CUSTOMER_ID'],
+    ['google_ads_customer_id', 'GOOGLE_ADS_CUSTOMER_ID'],
+    ['google_ads_login_customer_id', 'GOOGLE_ADS_LOGIN_CUSTOMER_ID'],
     ['google_ads_api_version', 'GOOGLE_ADS_API_VERSION'],
     ['update_mask', 'UPDATE_MASK'],
     ['campaign_resource_name', 'CAMPAIGN_RESOURCE_NAME'],

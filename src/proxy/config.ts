@@ -229,8 +229,8 @@ export async function resolveProxy(proxy: string, targetHost?: string, preflight
   const providers = await res.json() as Row[];
   // Decodo first — canonical static ISP (real residential ASNs). Skip-shuffle
   // branch below keeps this order deterministic for isIsp filters.
-  const { maybeOxylabsIspRow, maybeDecodoIspRow } = await import('./sources/isp_row.js');
-  for (const r of [maybeDecodoIspRow(), maybeOxylabsIspRow()]) if (r) providers.push(r);
+  const { maybeOxylabsIspRow, maybeOxylabsDedicatedIspRow, maybeDecodoIspRows } = await import('./sources/isp_row.js');
+  for (const r of [...maybeDecodoIspRows(), maybeOxylabsIspRow(), maybeOxylabsDedicatedIspRow()]) if (r) providers.push(r);
 
   const typeFilter = proxy.toLowerCase();
   // Tokens after 'residential'/'mobile' may include a 2-letter country code
@@ -318,9 +318,11 @@ export async function resolveProxy(proxy: string, targetHost?: string, preflight
       });
       continue;
     }
-    // 8 sticky tries per provider — each fresh sessId resolves to a different
-    // exit IP. Filters: isBurned LB-IP, dead-relay 502s (rerun_failed.mjs).
-    for (let attempt = 0; attempt < 8; attempt++) {
+    // 8 sticky tries for rotating/sticky providers — each fresh sessId can
+    // resolve to a different exit IP. ISP rows are static per port, so one
+    // attempt per row is enough; additional tries just resample the same exit.
+    const maxAttempts = proxyType === 'isp' ? 1 : 8;
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
       const sessId = Math.floor(Math.random() * 9000000 + 1000000);
       let stickyUser = username, stickyPass = password;
       if (name.includes('oxylabs') && !name.includes('isp')) {
@@ -410,6 +412,15 @@ export async function resolveProxy(proxy: string, targetHost?: string, preflight
               attemptDiag.rejected_reason = 'exit_ip_burned';
               preflightContinue = true;
             }
+            if (!preflightContinue && exitIp && platform === 'linkedin') {
+              const { linkedinSignupExitBurnReason } = await import('./policy.js');
+              const signupBurnReason = linkedinSignupExitBurnReason(exitIp);
+              if (signupBurnReason) {
+                console.log(`[proxy] LinkedIn signup exit ${exitIp} is known-challenged (${signupBurnReason}) — rerolling sticky`);
+                attemptDiag.rejected_reason = signupBurnReason;
+                preflightContinue = true;
+              }
+            }
             // Country + LinkedIn register probe. The LinkedIn gate must test
             // /signup, not /login, because login-form access can false-positive
             // for register runs.
@@ -420,19 +431,25 @@ export async function resolveProxy(proxy: string, targetHost?: string, preflight
               attemptDiag.geo_exit_cc = geo.exitCc;
               if (geo.result === 'mismatch') { attemptDiag.rejected_reason = 'geo_mismatch'; preflightContinue = true; }
               if (!preflightContinue && platform === 'linkedin') {
-                const url = `http://${encodeURIComponent(stickyUser)}:${encodeURIComponent(stickyPass)}@${host}:${p.proxy_port}`;
-                const probe = await probeLinkedinSignup(url, 8, preflightPersona);
-                console.log(`[proxy] linkedin-probe exit=${exitIp} -> ${probe.result}${probe.bytes ? ` (${probe.bytes}B)` : ''}`);
-                attemptDiag.linkedin_probe_result = probe.result;
-                attemptDiag.linkedin_probe_bytes = probe.bytes;
-                attemptDiag.linkedin_probe_request = probe.request;
-                attemptDiag.linkedin_probe_transport = probe.transport;
-                attemptDiag.linkedin_probe_body_markers = probe.body_markers;
-                attemptDiag.linkedin_probe_response_body = probe.response_body;
-                attemptDiag.linkedin_probe_error = probe.error;
-                if (probe.result !== 'form') {
-                  attemptDiag.rejected_reason = `linkedin_probe:${probe.result}`;
-                  preflightContinue = true;
+                const { isLinkedinWarmedSignupExperiment } = await import('./policy.js');
+                if (isLinkedinWarmedSignupExperiment()) {
+                  console.log(`[proxy] linkedin-probe skipped for warmed signup profile exit=${exitIp}`);
+                  attemptDiag.linkedin_probe_result = 'skipped_warm_profile';
+                } else {
+                  const url = `http://${encodeURIComponent(stickyUser)}:${encodeURIComponent(stickyPass)}@${host}:${p.proxy_port}`;
+                  const probe = await probeLinkedinSignup(url, 8, preflightPersona);
+                  console.log(`[proxy] linkedin-probe exit=${exitIp} -> ${probe.result}${probe.bytes ? ` (${probe.bytes}B)` : ''}`);
+                  attemptDiag.linkedin_probe_result = probe.result;
+                  attemptDiag.linkedin_probe_bytes = probe.bytes;
+                  attemptDiag.linkedin_probe_request = probe.request;
+                  attemptDiag.linkedin_probe_transport = probe.transport;
+                  attemptDiag.linkedin_probe_body_markers = probe.body_markers;
+                  attemptDiag.linkedin_probe_response_body = probe.response_body;
+                  attemptDiag.linkedin_probe_error = probe.error;
+                  if (probe.result !== 'form') {
+                    attemptDiag.rejected_reason = `linkedin_probe:${probe.result}`;
+                    preflightContinue = true;
+                  }
                 }
               }
             }

@@ -23,3 +23,19 @@ if [ -n "$unstaged" ] || [ -n "$untracked" ]; then
   fi
   exit 1
 fi
+
+# Block accidental Supabase CLI invocations from being committed.
+# Remote DDL and project management must be intentional, never buried in scripts.
+if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  staged_files="$(git diff --cached --name-only --diff-filter=ACMR)"
+  if [ -n "$staged_files" ]; then
+    matches="$(printf '%s' "$staged_files" | xargs -I{} git show :{} 2>/dev/null | grep -nE 'supabase[[:space:]]+(db|link|login|logout|projects|start|stop|status|migration|inspect|gen|types|sso|orgs|secrets|functions|storage|realtime|vectors|db|dump|pull|push|reset|lint|diff|test|bench|seed|snapshots|branches|completion|help)' || true)"
+    if [ -n "$matches" ]; then
+      printf '%s\n' "pre-commit blocked: staged files contain Supabase CLI usage."
+      printf '%s\n' "Remote database operations must be run intentionally, never committed as scripts."
+      printf '%s\n' "Matches:"
+      printf '%s\n' "$matches"
+      exit 1
+    fi
+  fi
+fi

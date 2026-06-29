@@ -212,6 +212,25 @@ async function clickGoogleAuthenticatorOption(page) {
   return false;
 }
 
+async function navigateGoogleAuthenticatorTotpChallenge(page) {
+  const current = page.url();
+  if (!/accounts\.google\.com/.test(current) || !/signin\/challenge\/selection/.test(current)) return false;
+  if (process.env.GOOGLE_SSO_ALLOW_DIRECT_TOTP !== '1') return false;
+  const target = current.replace(/\/signin\/challenge\/selection(?=[?#])/, '/signin/challenge/totp');
+  if (target === current) return false;
+  const attempts = navigateGoogleAuthenticatorTotpChallenge.attempts || (navigateGoogleAuthenticatorTotpChallenge.attempts = new Set());
+  const key = current.replace(/([?&](?:TL|rart|dsh)=)[^&]+/g, '$1');
+  if (attempts.has(key)) return false;
+  attempts.add(key);
+  console.log('[google_sso] opening Google Authenticator TOTP challenge directly');
+  await page.goto(target, { waitUntil: 'domcontentloaded', timeout: 30_000 }).catch(() => {});
+  await humanIdlePause('deliberate');
+  if (await visibleTotpInput(page)) return true;
+  await page.goto(current, { waitUntil: 'domcontentloaded', timeout: 30_000 }).catch(() => {});
+  await humanIdlePause('short');
+  return false;
+}
+
 async function visibleTotpInput(page) {
   const candidates = [
     'input[name="totpPin"]',
@@ -317,6 +336,19 @@ async function handleGoogleAuthenticatorTotp(page, creds) {
   }
   const filled = await fillGoogleAuthenticatorTotp(page, creds);
   if (filled) return true;
+  if (/signin\/challenge\/(dp|selection)/.test(page.url())) {
+    if (await clickTryAnotherWay(page)) {
+      if (await visibleTotpInput(page)) return await fillGoogleAuthenticatorTotp(page, creds);
+      if (await pageHasGoogleAuthenticatorOption(page)) {
+        const clicked = await clickGoogleAuthenticatorOption(page);
+        if (clicked && await fillGoogleAuthenticatorTotp(page, creds)) return true;
+      }
+    }
+    if (await navigateGoogleAuthenticatorTotpChallenge(page)) {
+      const directFilled = await fillGoogleAuthenticatorTotp(page, creds);
+      if (directFilled) return true;
+    }
+  }
   if (await pageHasGoogleAuthenticatorOption(page)) {
     await logGooglePageDiag(page, 'authenticator_code_input_missing');
   }
@@ -329,7 +361,7 @@ async function clickTryAnotherWay(page) {
     for (let i = 0; i < 20; i++) {
       const currentUrl = page.url();
       const text = await page.evaluate(() => document.body?.innerText || '').catch(() => '');
-      if (currentUrl !== beforeUrl || /choose another way|choose how|verification code|authenticator|backup code|security key|use your phone/i.test(text)) {
+      if (currentUrl !== beforeUrl || /choose another way|choose how|verification code|authenticator|backup code|security key|text message|phone call/i.test(text)) {
         return true;
       }
       await humanIdlePause('short');
@@ -619,6 +651,16 @@ export async function googleSso(session, creds, opts = {}) {
         totpAttempts += 1;
         continue;
       }
+      const phonePrompt = page.locator('li, div[role="option"], div[role="button"], button, a')
+        .filter({ hasText: /Tap Yes on your phone or tablet|Gmail app|phone or tablet/i })
+        .filter({ visible: true })
+        .first();
+      if (await phonePrompt.isVisible().catch(() => false)) {
+        console.log('[google_sso] selecting phone prompt before alternate-method menu');
+        await humanClickLocator(page, phonePrompt).catch(() => phonePrompt.click({ force: true, timeout: 5000 }));
+        await humanIdlePause('deliberate');
+        continue;
+      }
     }
     if (totpAttempts < 3 && await handleGoogleAuthenticatorTotp(page, creds)) {
       totpAttempts += 1;
@@ -636,6 +678,12 @@ export async function googleSso(session, creds, opts = {}) {
         console.log('[google_sso] waiting for Google device prompt approval');
       }
       if (resolveTotpSecret(creds) || manualTotpEnabled()) {
+        if (await navigateGoogleAuthenticatorTotpChallenge(page)) {
+          if (totpAttempts < 3 && await handleGoogleAuthenticatorTotp(page, creds)) {
+            totpAttempts += 1;
+            continue;
+          }
+        }
         const switchedMethod = await clickTryAnotherWay(page);
         await humanIdlePause('deliberate');
         if (switchedMethod) {
