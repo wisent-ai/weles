@@ -223,6 +223,7 @@ const ROUTES: Record<string, (p: string) => string | null> = {
   // slack_post_message: Swiatowid posts MESSAGE_FILE to a channel/DM. Chained by
   // health checks (e.g. resend_verify_domain_status) to alert a human.
   post_message: (p) => `scripts/trajectories/${p}/post_message.mjs`,
+  provision_user_token: (p) => p === 'slack' ? 'scripts/trajectories/slack/provision_user_token.mjs' : null,
   shadowban_check: (p) => `scripts/trajectories/${p}/shadowban_check.mjs`,
   organic_comment: (p) => `scripts/trajectories/${p}/organic_comment.mjs`,
   organic_reply: (p) => `scripts/trajectories/${p}/organic_reply.mjs`,
@@ -547,6 +548,8 @@ export function paramsToEnv(
   if (typeof params.invite_url === 'string') env.INVITE_URL = params.invite_url;
   if (typeof params.repo_url === 'string') env.REPO_URL = params.repo_url;
   if (typeof params.text === 'string') env.SVC_TEXT = params.text;
+  if (typeof params.slack_app_id === 'string') env.SLACK_APP_ID = params.slack_app_id;
+  if (typeof params.user_token_scopes === 'string') env.SLACK_USER_TOKEN_SCOPES = params.user_token_scopes;
   // Paid ads / app store release parameters.
   for (const [k, ek] of [
     ['ad_account_id', 'AD_ACCOUNT_ID'],
