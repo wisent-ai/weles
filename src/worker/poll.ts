@@ -27,6 +27,7 @@ export interface BanSignal { healthy: boolean; signal: string; details?: Record<
 const SUPABASE_URL = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
 const RECORDINGS_ROOT = process.env.RECORDINGS_ROOT ?? 'recordings';
+const LIGHT_RESULT_ACTIONS = new Set(['overleaf_version_history_scan']);
 
 function headers(): Record<string, string> {
   return { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' };
@@ -307,12 +308,13 @@ export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
   const runStart = new Date();
   const { exitCode, stderr } = await runTrajectory(row, trajPath);
   const banSignal = await readBanSignal(row.id);
-  const result: Record<string, unknown> = { versions: captureVersions(trajPath) };
+  const lightResultOnly = LIGHT_RESULT_ACTIONS.has(row.action);
+  const result: Record<string, unknown> = lightResultOnly ? {} : { versions: captureVersions(trajPath) };
   // G5: when the run executed against a dirty repo/trajectory, mirror the full
   // working-tree diff (already captured in result.versions.dirty_diff) to
   // recordings/<action>/source_diff.patch for the storage backup. upload-artifacts
   // allowlists .patch -> 'logs'. Best-effort; never fails the run.
-  try {
+  if (!lightResultOnly) try {
     const v = result.versions as Record<string, unknown>;
     if (v.weles_dirty === true || v.trajectory_file_dirty === true) {
       let diff = typeof v.dirty_diff === 'string' ? (v.dirty_diff as string) : '';
@@ -329,25 +331,31 @@ export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
   // plus proxy_preflight.json, OR the meta_missing fallback when the run died
   // before any session existed. Shared with the keeper via run-import.ts so both
   // the worker and keeper paths import identically (no drift, no black holes).
-  const prov = await importRunProvenance(row.id, row.params);
-  if (prov.session) result.session = prov.session;
-  if (prov.identity) result.identity = prov.identity;
-  if (prov.run) result.run = prov.run;
-  if (prov.challenge_outcome) result.challenge_outcome = prov.challenge_outcome;
+  if (!lightResultOnly) {
+    const prov = await importRunProvenance(row.id, row.params);
+    if (prov.session) result.session = prov.session;
+    if (prov.identity) result.identity = prov.identity;
+    if (prov.run) result.run = prov.run;
+    if (prov.challenge_outcome) result.challenge_outcome = prov.challenge_outcome;
+  }
   // G8: full per-run captcha event log — challenge_faced flag plus the complete
   // attempt/marker sequence (every solve, every all-providers-failed marker),
   // verbatim. Absent file (no session label) => skipped. A no-captcha run still
   // produces {challenge_faced:false, events:[]}, distinct from a missing file.
-  {
+  if (!lightResultOnly) {
     const cap = await readJsonInRun(row.id, 'captcha_events.json');
     if (cap) result.captcha = cap;
   }
-  {
+  if (!lightResultOnly) {
     const pangram = await readJsonInRun(row.id, 'pangram_result.json');
     if (pangram) result.pangram = pangram;
   }
+  {
+    const overleafHistorySummary = await readJsonInRun(row.id, 'overleaf_version_history_summary.json');
+    if (overleafHistorySummary) result.overleaf_version_history_summary = overleafHistorySummary;
+  }
   // IP-drift detection: first session stores observed exit_ip; subsequent sessions compare, mismatch -> ip_drift + pause.
-  try { const ip = (result.session as any)?.exit_ip; if (ip && row.account_id) { const r = await fetch(`${SUPABASE_URL}/rest/v1/social_accounts?id=eq.${row.account_id}&select=metadata`, { headers: headers() }); if (r.ok) { const j = await r.json() as any[]; const m = j[0]?.metadata ?? {}; const stored = m.proxy?.exit_ip; if (!stored) { const nm = { ...m, proxy: { ...(m.proxy ?? {}), exit_ip: ip } }; await fetch(`${SUPABASE_URL}/rest/v1/social_accounts?id=eq.${row.account_id}`, { method: 'PATCH', headers: { ...headers(), Prefer: 'return=minimal' }, body: JSON.stringify({ metadata: nm }) }); } else if (stored !== ip) { result.ban_signal = { healthy: false, signal: 'ip_drift', details: { expected: stored, observed: ip } }; await pauseAccount(row.account_id, 'ip_drift'); } } } } catch (e) { console.log('[ip-drift]', e instanceof Error ? e.message : String(e)); }
+  if (!lightResultOnly) try { const ip = (result.session as any)?.exit_ip; if (ip && row.account_id) { const r = await fetch(`${SUPABASE_URL}/rest/v1/social_accounts?id=eq.${row.account_id}&select=metadata`, { headers: headers() }); if (r.ok) { const j = await r.json() as any[]; const m = j[0]?.metadata ?? {}; const stored = m.proxy?.exit_ip; if (!stored) { const nm = { ...m, proxy: { ...(m.proxy ?? {}), exit_ip: ip } }; await fetch(`${SUPABASE_URL}/rest/v1/social_accounts?id=eq.${row.account_id}`, { method: 'PATCH', headers: { ...headers(), Prefer: 'return=minimal' }, body: JSON.stringify({ metadata: nm }) }); } else if (stored !== ip) { result.ban_signal = { healthy: false, signal: 'ip_drift', details: { expected: stored, observed: ip } }; await pauseAccount(row.account_id, 'ip_drift'); } } } } catch (e) { console.log('[ip-drift]', e instanceof Error ? e.message : String(e)); }
   if (banSignal) {
     result.ban_signal = banSignal;
     if (banSignal.healthy === false && row.account_id) await pauseAccount(row.account_id, banSignal.signal);
@@ -359,7 +367,7 @@ export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
   // Capability-matrix update: record (provider, action) outcome so the
   // selector self-heals as providers go bad / recover. Skips when provider
   // unknown (direct egress) or signal is non-classifying (script error).
-  try {
+  if (!lightResultOnly) try {
     const { recordOutcome } = await import('../proxy/capability.js');
     const s = result.session as any;
     const finalSignal = (result.ban_signal as BanSignal).signal;
@@ -382,11 +390,13 @@ export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
       }).catch(() => {});
     }
   }
-  // Always upload so every run has recordings on the detail page.
-  await uploadArtifacts(row.action, row.id, runStart, { force: true }).then(a => { if (a) result.artifacts = a }).catch(() => {});
-  // G18: persist the full network/instrumentation capture into the lazy
-  // account_action_log_capture table (direct PG; best-effort).
-  await writeNetworkCapture(row.id).catch(() => {});
+  if (!lightResultOnly) {
+    // Always upload so every run has recordings on the detail page.
+    await uploadArtifacts(row.action, row.id, runStart, { force: true }).then(a => { if (a) result.artifacts = a }).catch(() => {});
+    // G18: persist the full network/instrumentation capture into the lazy
+    // account_action_log_capture table (direct PG; best-effort).
+    await writeNetworkCapture(row.id).catch(() => {});
+  }
   const costs = await readCosts(row.id);
   if (costs) console.log(`[worker] ${row.id.slice(0, 8)} cost=$${costs.cost_usd.toFixed(4)} services=${Object.keys(costs.service_costs).join(',')}`);
   const pendingPath = await findInRun(row.id, 'pending_review.json');
