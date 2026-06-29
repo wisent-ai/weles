@@ -241,7 +241,7 @@ try {
       const msgBox = s.page.getByPlaceholder(/commit message for changes made in overleaf/i)
         .or(s.page.locator('.modal-dialog textarea')).filter({ visible: true }).first();
       await msgBox.waitFor({ state: 'visible' });
-      await msgBox.fill('Sync Overleaf edits to GitHub');
+      await msgBox.fill(process.env.OVERLEAF_COMMIT_MESSAGE || 'Sync Overleaf edits to GitHub');
       await shot(s, `commit_dialog_${tag8}`);
       const syncBtn = s.page.getByRole('button', { name: /^\s*sync\s*$/i }).filter({ visible: true }).first();
       await syncBtn.waitFor({ state: 'visible' });
