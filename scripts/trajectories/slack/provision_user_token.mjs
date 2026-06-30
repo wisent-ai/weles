@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 // Provision a Slack User OAuth Token (xoxp) through the logged-in workspace flow.
 //
-// Required env for the browser path: SLACK_EMAIL, SLACK_PASS.
+// Required env:
+//   WELES_SECRET_RESULT_FILE     JSON output path for the raw token; stdout stays redacted
 // Optional env:
+//   SLACK_EMAIL, SLACK_PASS      login through Google SSO; otherwise reuse existing Slack session
 //   SLACK_APP_ID                 reuse an existing app and scrape its User OAuth Token
 //   SLACK_USER_TOKEN_SCOPES      comma/space list; default is chat:write + read scopes
-//   WELES_SECRET_RESULT_FILE     JSON output path for the raw token; stdout stays redacted
-//   SLACK_DRY_RUN=1              validate env/plumbing without network or browser
 
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -19,7 +19,6 @@ process.env.WELES_ROOT = WELES;
 const SLACK_EMAIL = process.env.SLACK_EMAIL || '';
 const SLACK_PASS = process.env.SLACK_PASS || '';
 const RESULT_FILE = process.env.WELES_SECRET_RESULT_FILE || '';
-const DRY_RUN = process.env.SLACK_DRY_RUN === '1';
 
 function tokenSummary(token) {
   return { prefix: token.slice(0, 5), length: token.length };
@@ -34,22 +33,8 @@ function writeSecretResult(result) {
   console.log(`[slack-user-token] wrote secret result to ${RESULT_FILE}`);
 }
 
-if (DRY_RUN) {
-  writeSecretResult({
-    ok: true,
-    dry_run: true,
-    token: 'xoxp-dry-run-token',
-    token_prefix: 'xoxp-',
-    token_length: 18,
-    scopes: (process.env.SLACK_USER_TOKEN_SCOPES || 'default').split(/[\s,]+/).filter(Boolean),
-    created_at: new Date().toISOString(),
-  });
-  console.log('[slack-user-token] dry run complete');
-  process.exit(0);
-}
-
-if (!SLACK_EMAIL || !SLACK_PASS) {
-  console.error('SLACK_EMAIL / SLACK_PASS env required');
+if (!RESULT_FILE) {
+  console.error('WELES_SECRET_RESULT_FILE env required');
   process.exit(2);
 }
 
@@ -86,41 +71,47 @@ async function fillPasswordWhenAvailable() {
 }
 
 try {
-  console.log(`[slack-user-token] step 1: Google SSO as ${SLACK_EMAIL}`);
-  await s.page.goto('https://wisent-workspace.slack.com', { waitUntil: 'domcontentloaded' });
-  await humanIdlePause('deliberate');
-  await shot('01-slack-landing');
+  if (SLACK_EMAIL && SLACK_PASS) {
+    console.log(`[slack-user-token] step 1: Google SSO as ${SLACK_EMAIL}`);
+    await s.page.goto('https://wisent-workspace.slack.com', { waitUntil: 'domcontentloaded' });
+    await humanIdlePause('deliberate');
+    await shot('01-slack-landing');
 
-  const googleBtn = s.page.getByRole('button', { name: /^\s*google\s*$/i })
-    .or(s.page.getByRole('link', { name: /^\s*google\s*$/i }));
-  await humanClickLocator(s.page, googleBtn.first(), { timeoutMs: 15000 });
-  await humanIdlePause('long');
-
-  const emailInput = s.page.locator('input[type="email"]').first();
-  if (await emailInput.count() > 0) {
-    await humanFill(s.page, emailInput, SLACK_EMAIL);
-    await s.page.keyboard.press('Enter');
+    const googleBtn = s.page.getByRole('button', { name: /^\s*google\s*$/i })
+      .or(s.page.getByRole('link', { name: /^\s*google\s*$/i }));
+    await humanClickLocator(s.page, googleBtn.first(), { timeoutMs: 15000 });
     await humanIdlePause('long');
-  }
 
-  if (!await fillPasswordWhenAvailable()) {
-    const tryOther = s.page.getByRole('button', { name: /try another way/i })
-      .or(s.page.getByRole('link', { name: /try another way/i }));
-    if (await tryOther.count() > 0) {
-      await humanClickLocator(s.page, tryOther.first(), { timeoutMs: 10000 });
+    const emailInput = s.page.locator('input[type="email"]').first();
+    if (await emailInput.count() > 0) {
+      await humanFill(s.page, emailInput, SLACK_EMAIL);
+      await s.page.keyboard.press('Enter');
       await humanIdlePause('long');
-      const enterPwd = s.page.getByText(/enter your password/i).first();
-      if (await enterPwd.count() > 0) {
-        await humanClickLocator(s.page, enterPwd, { timeoutMs: 10000 });
+    }
+
+    if (!await fillPasswordWhenAvailable()) {
+      const tryOther = s.page.getByRole('button', { name: /try another way/i })
+        .or(s.page.getByRole('link', { name: /try another way/i }));
+      if (await tryOther.count() > 0) {
+        await humanClickLocator(s.page, tryOther.first(), { timeoutMs: 10000 });
         await humanIdlePause('long');
-        await fillPasswordWhenAvailable();
+        const enterPwd = s.page.getByText(/enter your password/i).first();
+        if (await enterPwd.count() > 0) {
+          await humanClickLocator(s.page, enterPwd, { timeoutMs: 10000 });
+          await humanIdlePause('long');
+          await fillPasswordWhenAvailable();
+        }
       }
     }
-  }
 
-  const continueBtn = s.page.getByRole('button', { name: /^\s*continue\s*$/i });
-  if (await continueBtn.count() > 0) {
-    await humanClickLocator(s.page, continueBtn.first(), { timeoutMs: 10000 });
+    const continueBtn = s.page.getByRole('button', { name: /^\s*continue\s*$/i });
+    if (await continueBtn.count() > 0) {
+      await humanClickLocator(s.page, continueBtn.first(), { timeoutMs: 10000 });
+      await humanIdlePause('long');
+    }
+  } else {
+    console.log('[slack-user-token] step 1: using existing Slack browser session; SLACK_EMAIL/SLACK_PASS unset');
+    await s.page.goto('https://wisent-workspace.slack.com/messages', { waitUntil: 'domcontentloaded' });
     await humanIdlePause('long');
   }
   console.log(`[slack-user-token] post-signin url=${s.page.url()}`);
@@ -158,12 +149,10 @@ try {
   };
   writeSecretResult(result);
   console.log(`[slack-user-token] ready ${JSON.stringify({ ...tokenSummary(provisioned.token), app_id: provisioned.appId, team: auth.team, user: auth.user })}`);
-  await shot('99-user-token-ready');
   await safeShutdown();
   process.exit(0);
 } catch (e) {
   console.error(`[slack-user-token] failed: ${e.message?.slice(0, 300)}`);
-  await shot('99-failed');
   await safeShutdown();
   process.exit(7);
 }
