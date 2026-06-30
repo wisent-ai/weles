@@ -81,11 +81,11 @@ async function submitInstallForm(page, shot) {
   }
 }
 
-async function extractXoxpFromOAuthPage(page, appId, shot) {
+async function extractXoxpFromOAuthPage(page, appId) {
   const { humanIdlePause } = await import(`${process.env.WELES_ROOT}/dist/human/mouse.js`);
   await page.goto(`https://api.slack.com/apps/${appId}/oauth`, { waitUntil: 'domcontentloaded' });
   await humanIdlePause('deliberate');
-  await shot?.('11-user-oauth-page');
+  console.log('[user-token] OAuth token page loaded; screenshot intentionally skipped');
   return await page.evaluate(() => {
     const values = Array.from(document.querySelectorAll('input,textarea')).map((i) => i.value || '');
     const fromInputs = values.find((value) => /^xoxp-/.test(value));
