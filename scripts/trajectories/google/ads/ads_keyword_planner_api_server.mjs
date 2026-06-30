@@ -16,8 +16,9 @@
 //   node scripts/trajectories/google/ads/ads_keyword_planner_api_server.mjs
 
 import http from 'node:http';
+import net from 'node:net';
 import { spawn } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { closeSync, existsSync, mkdirSync, openSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -32,6 +33,13 @@ let ALLOW_UNAUTH = process.env.WELES_KEYWORD_PLANNER_API_ALLOW_UNAUTH === '1';
 let TIMEOUT_MS = Number(process.env.WELES_KEYWORD_PLANNER_API_TIMEOUT_MS || 15 * 60 * 1000);
 let BODY_LIMIT_BYTES = Number(process.env.WELES_KEYWORD_PLANNER_API_BODY_LIMIT_BYTES || 128 * 1024);
 let DIAG_DIR = process.env.GOOGLE_ADS_DIAG_DIR || join(REPO, '.work/google-ads-keyword-planner/api');
+const KEEPER = join(REPO, 'scripts/_shared/keeper/keeper.mjs');
+let KEEPER_START = process.env.GOOGLE_ADS_KEEPER_START !== '0';
+let KEEPER_READY_TIMEOUT_MS = Number(process.env.GOOGLE_ADS_KEEPER_READY_TIMEOUT_MS || 90 * 1000);
+let KEEPER_USER_DATA_DIR = process.env.GOOGLE_ADS_KEEPER_USER_DATA_DIR
+  || process.env.KEEPER_USER_DATA_DIR
+  || process.env.WELES_USER_DATA_DIR
+  || join(process.env.HOME || '', '.weles', 'browser_profiles', 'google_ads');
 
 function loadEnvFile(path) {
   if (!existsSync(path)) return {};
@@ -64,6 +72,12 @@ ALLOW_UNAUTH = process.env.WELES_KEYWORD_PLANNER_API_ALLOW_UNAUTH === '1' || ALL
 TIMEOUT_MS = Number(process.env.WELES_KEYWORD_PLANNER_API_TIMEOUT_MS || TIMEOUT_MS);
 BODY_LIMIT_BYTES = Number(process.env.WELES_KEYWORD_PLANNER_API_BODY_LIMIT_BYTES || BODY_LIMIT_BYTES);
 DIAG_DIR = process.env.GOOGLE_ADS_DIAG_DIR || DIAG_DIR;
+KEEPER_START = process.env.GOOGLE_ADS_KEEPER_START !== '0' && KEEPER_START;
+KEEPER_READY_TIMEOUT_MS = Number(process.env.GOOGLE_ADS_KEEPER_READY_TIMEOUT_MS || KEEPER_READY_TIMEOUT_MS);
+KEEPER_USER_DATA_DIR = process.env.GOOGLE_ADS_KEEPER_USER_DATA_DIR
+  || process.env.KEEPER_USER_DATA_DIR
+  || process.env.WELES_USER_DATA_DIR
+  || KEEPER_USER_DATA_DIR;
 
 function json(res, status, body) {
   const text = JSON.stringify(body, null, 2);
@@ -144,6 +158,98 @@ function stripGoogleAdsApiEnv(env) {
   }
   return next;
 }
+function keeperSocketPath(session) {
+  return join(process.env.HOME || '', '.weles', 'keeper', session, 'socket');
+}
+
+function keeperAction(session, cmd, timeoutMs = 5000) {
+  return new Promise((resolveAction) => {
+    const socket = keeperSocketPath(session);
+    if (!existsSync(socket)) {
+      resolveAction({ ok: false, error: 'keeper_socket_missing', socket });
+      return;
+    }
+    const conn = net.createConnection(socket);
+    let done = false;
+    let buf = '';
+    const timer = setTimeout(() => {
+      if (done) return;
+      done = true;
+      try { conn.destroy(); } catch {}
+      resolveAction({ ok: false, error: 'keeper_action_timeout', socket });
+    }, timeoutMs);
+    conn.on('connect', () => conn.write(`${JSON.stringify(cmd)}\n`));
+    conn.on('data', (chunk) => {
+      buf += chunk.toString();
+      const nl = buf.indexOf('\n');
+      if (nl < 0 || done) return;
+      done = true;
+      clearTimeout(timer);
+      conn.end();
+      try {
+        resolveAction(JSON.parse(buf.slice(0, nl)));
+      } catch (error) {
+        resolveAction({ ok: false, error: String(error?.message || error), socket });
+      }
+    });
+    conn.on('error', (error) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      resolveAction({ ok: false, error: String(error?.message || error), socket });
+    });
+  });
+}
+
+async function waitForKeeper(session, timeoutMs = KEEPER_READY_TIMEOUT_MS) {
+  const deadline = Date.now() + timeoutMs;
+  let last = { ok: false, error: 'keeper_not_checked', socket: keeperSocketPath(session) };
+  while (Date.now() < deadline) {
+    last = await keeperAction(session, { action: 'url' }, 5000);
+    if (last?.ok) return { ready: true, socket: keeperSocketPath(session) };
+    await new Promise((resolveWait) => setTimeout(resolveWait, 500));
+  }
+  return { ready: false, socket: keeperSocketPath(session), lastError: last?.error || 'keeper_not_ready' };
+}
+
+async function ensureKeeper(session) {
+  const existing = await keeperAction(session, { action: 'url' }, 3000);
+  if (existing?.ok) return { ready: true, started: false, socket: keeperSocketPath(session) };
+  if (!KEEPER_START) {
+    return { ready: false, started: false, disabled: true, socket: keeperSocketPath(session), lastError: existing?.error || 'keeper_start_disabled' };
+  }
+  if (!existsSync(KEEPER)) {
+    return { ready: false, started: false, socket: keeperSocketPath(session), lastError: 'keeper_script_missing', keeper: KEEPER };
+  }
+
+  mkdirSync(DIAG_DIR, { recursive: true });
+  mkdirSync(dirname(KEEPER_USER_DATA_DIR), { recursive: true });
+  const logPath = join(DIAG_DIR, `keeper-${session}.log`);
+  const fd = openSync(logPath, 'a');
+  try {
+    const child = spawn(process.execPath, [KEEPER], {
+      cwd: REPO,
+      detached: true,
+      stdio: ['ignore', fd, fd],
+      env: {
+        ...process.env,
+        WELES_REPO: REPO,
+        SESSION: session,
+        KEEPER_FLOW_ACTION: process.env.GOOGLE_ADS_KEEPER_FLOW_ACTION || 'google_ads_keyword_planner_keeper',
+        KEEPER_USER_DATA_DIR,
+        WELES_USER_DATA_DIR: KEEPER_USER_DATA_DIR,
+        URL: process.env.GOOGLE_ADS_KEEPER_START_URL || 'https://ads.google.com/aw/overview',
+      },
+    });
+    child.unref();
+  } finally {
+    closeSync(fd);
+  }
+
+  const waited = await waitForKeeper(session);
+  return { ...waited, started: true, logPath, userDataDir: KEEPER_USER_DATA_DIR };
+}
+
 
 function validateRequest(body) {
   const customerId = normalizeCustomerId(body.customerId || body.customer_id || body.googleAdsCustomerId);
@@ -158,10 +264,31 @@ function validateRequest(body) {
   };
 }
 
-function runKeywordPlanner(input) {
-  return new Promise((resolveRun) => {
-    mkdirSync(DIAG_DIR, { recursive: true });
-    const resultFile = join(DIAG_DIR, `${Date.now()}-${process.pid}-${safeSlug(input.keywords[0])}.json`);
+async function runKeywordPlanner(input) {
+  mkdirSync(DIAG_DIR, { recursive: true });
+  const resultFile = join(DIAG_DIR, `${Date.now()}-${process.pid}-${safeSlug(input.keywords[0])}.json`);
+  const keeper = await ensureKeeper(input.session);
+  if (!keeper.ready) {
+    return {
+      ok: false,
+      exitCode: 3,
+      timedOut: false,
+      stdout: '',
+      stderr: '',
+      resultFile,
+      keeper,
+      report: {
+        ok: false,
+        blocked: 'keeper_not_ready',
+        session: input.session,
+        socket: keeper.socket,
+        started: Boolean(keeper.started),
+        lastError: keeper.lastError || null,
+      },
+    };
+  }
+
+  return await new Promise((resolveRun) => {
     const childEnv = stripGoogleAdsApiEnv({
       ...process.env,
       SESSION: input.session,
@@ -191,7 +318,7 @@ function runKeywordPlanner(input) {
       if (settled) return;
       settled = true;
       try { child.kill('SIGTERM'); } catch {}
-      resolveRun({ ok: false, exitCode: null, timedOut: true, stdout, stderr, resultFile, report: null });
+      resolveRun({ ok: false, exitCode: null, timedOut: true, stdout, stderr, resultFile, keeper, report: null });
     }, TIMEOUT_MS);
 
     child.stdout.on('data', (chunk) => { stdout += chunk.toString(); });
@@ -200,7 +327,7 @@ function runKeywordPlanner(input) {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
-      resolveRun({ ok: false, exitCode: 1, stdout, stderr: `${stderr}\n${error?.message || error}`, resultFile, report: null });
+      resolveRun({ ok: false, exitCode: 1, stdout, stderr: `${stderr}\n${error?.message || error}`, resultFile, keeper, report: null });
     });
     child.on('close', (code) => {
       if (settled) return;
@@ -215,7 +342,7 @@ function runKeywordPlanner(input) {
           report = null;
         }
       }
-      resolveRun({ ok: code === 0 && Boolean(report?.ok), exitCode: code, stdout, stderr, resultFile, report });
+      resolveRun({ ok: code === 0 && Boolean(report?.ok), exitCode: code, stdout, stderr, resultFile, keeper, report });
     });
   });
 }
@@ -270,6 +397,7 @@ const server = http.createServer(async (req, res) => {
       stdoutTail: redact(run.stdout).slice(-4000),
       stderrTail: redact(run.stderr).slice(-2000),
       report: run.report,
+      keeper: run.keeper,
     };
     json(res, response.ok ? 200 : 502, response);
   } catch (error) {
