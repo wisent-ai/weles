@@ -478,7 +478,7 @@ async function selectGoogleAdsAccount() {
   if (!/Select a Google Ads account|Select an active account|No account|Google Ads account/i.test(text)) return true;
   const patterns = [dashedCustomerId(cid).replace(/-/g, '[- ]?'), cid, preferredEmail().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')];
   for (const pattern of patterns) {
-    if (!await clickControl(pattern, 'Google Ads account', { maxArea: 80_000 }).catch(() => false)) continue;
+    if (!await clickControl(pattern, 'Google Ads account', { maxArea: 500_000 }).catch(() => false)) continue;
     for (let i = 0; i < 12; i += 1) {
       await idle('short');
       const after = await evalState(4000);
@@ -498,6 +498,10 @@ async function ensureAdsReady(creds) {
     }
     const after = await evalState(6000);
     if (/Google Ads 2-step verification required/i.test(after.text || '') && !/\/aw\/campaigns/i.test(url)) continue;
+    if (/selectaccount/i.test(after.url || '') || /Select a Google Ads account|Select an active account|Google Ads account/i.test(after.text || '')) {
+      if (await selectGoogleAdsAccount()) return true;
+      continue;
+    }
     if (/Keyword Planner|Discover new keywords|Get search volume|Campaigns|Create campaign/i.test(after.text || '')) {
       return await selectGoogleAdsAccount();
     }
