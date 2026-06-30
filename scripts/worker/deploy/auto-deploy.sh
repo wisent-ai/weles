@@ -193,6 +193,22 @@ if [ -d "$NODE_PTY_DIR" ] && [ ! -x "$NODE_PTY_DIR/build/Release/spawn-helper" ]
   fi
 fi
 
+# Keep the macOS worker LaunchAgent in source control too. Older hosts had
+# ~/Library/LaunchAgents/com.wisent.weles-worker.plist and launch-mac.sh as
+# hand-written local files, so a fresh clone could build successfully but fail
+# at the restart step or keep using a drifted wrapper.
+WORKER_PLIST_SRC="$WELES_DIR/scripts/worker/deploy/com.wisent.weles-worker.plist"
+WORKER_PLIST_DST="$HOME/Library/LaunchAgents/com.wisent.weles-worker.plist"
+if [ -f "$WORKER_PLIST_SRC" ]; then
+  if [ ! -f "$WORKER_PLIST_DST" ] || ! cmp -s "$WORKER_PLIST_SRC" "$WORKER_PLIST_DST"; then
+    cp "$WORKER_PLIST_SRC" "$WORKER_PLIST_DST"
+    chmod 644 "$WORKER_PLIST_DST"
+    log "worker-launchd: installed LaunchAgent from repo"
+  fi
+fi
+chmod +x "$WELES_DIR/scripts/worker/deploy/launch-mac.sh"
+
+
 UID_NUM=$(id -u)
 PLIST="$HOME/Library/LaunchAgents/com.wisent.weles-worker.plist"
 launchctl bootout "gui/$UID_NUM" "$PLIST" 2>/dev/null || true

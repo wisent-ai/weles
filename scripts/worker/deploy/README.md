@@ -48,6 +48,31 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now weles-worker
 ```
 
+## macOS worker + auto-deploy
+
+The Mac mini runs the same worker through launchd. The tracked files are:
+
+- `launch-mac.sh`: sources `~/weles/var/worker.env`, sets Homebrew `PATH`, and
+  execs `/opt/homebrew/bin/node` under `caffeinate`.
+- `com.wisent.weles-worker.plist`: launchd job for `launch-mac.sh`.
+- `com.wisent.weles-auto-deploy.plist`: 60-second poller that runs
+  `auto-deploy.sh`.
+
+Install or repair the launchd files from a clone on the Mac mini:
+
+```bash
+mkdir -p ~/Library/LaunchAgents ~/weles/var
+chmod +x ~/weles/scripts/worker/deploy/launch-mac.sh
+cp ~/weles/scripts/worker/deploy/com.wisent.weles-worker.plist ~/Library/LaunchAgents/com.wisent.weles-worker.plist
+cp ~/weles/scripts/worker/deploy/com.wisent.weles-auto-deploy.plist ~/Library/LaunchAgents/com.wisent.weles-auto-deploy.plist
+launchctl bootstrap "gui/$(id -u)" ~/Library/LaunchAgents/com.wisent.weles-worker.plist
+launchctl bootstrap "gui/$(id -u)" ~/Library/LaunchAgents/com.wisent.weles-auto-deploy.plist
+```
+
+`auto-deploy.sh` now also refreshes the worker plist from the repo before each
+restart, so the Mac mini no longer depends on an untracked local worker wrapper.
+
+
 ## Operate
 
 ```bash
@@ -68,4 +93,3 @@ psql "$DATABASE_URL" -c "
 Worker claims the oldest `queued` rows first (ordered by `scheduled_at`). If
 the queue has older stale rows, they drain before new campaign items — flush
 with a `UPDATE ... SET status='cancelled'` if needed.
-# auto-deploy smoke test 2026-05-06T01:55:50Z
