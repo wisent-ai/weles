@@ -74,6 +74,61 @@ function preferredEmail() {
   return process.env.GOOGLE_ADS_EMAIL || process.env.SSO_EMAIL || process.env.GM_EMAIL || DEFAULT_EMAIL;
 }
 
+async function resolveSsoCreds() {
+  const email = preferredEmail();
+  const fromDb = await getGoogleSsoCreds(email).catch(() => null);
+  const processPassword = process.env.SSO_PASS || process.env.SSO_PASSWORD || process.env.GM_PASSWORD;
+  if (processPassword) {
+    const processEmail = process.env.SSO_EMAIL || process.env.GOOGLE_ADS_EMAIL || process.env.GM_EMAIL || email;
+    if (processEmail.toLowerCase() === email.toLowerCase()) {
+      return {
+        email,
+        password: processPassword,
+        ...(fromDb?.totpSecret ? { totpSecret: fromDb.totpSecret } : {}),
+        source: fromDb?.totpSecret ? 'env+service_credentials_totp' : 'env',
+      };
+    }
+  }
+
+  const fileEnvs = [
+    loadEnvFile(join(process.cwd(), '.work', '_sso.env')),
+    loadEnvFile(join(process.cwd(), '..', 'weles', '.work', '_sso.env')),
+  ];
+  for (const fileEnv of fileEnvs) {
+    const filePassword = fileEnv.SSO_PASS || fileEnv.SSO_PASSWORD || fileEnv.GM_PASSWORD;
+    if (!filePassword) continue;
+    const fileEmail = fileEnv.SSO_EMAIL || fileEnv.GOOGLE_ADS_EMAIL || fileEnv.GM_EMAIL || email;
+    if (fileEmail.toLowerCase() === email.toLowerCase()) {
+      return {
+        email,
+        password: filePassword,
+        ...(fromDb?.totpSecret ? { totpSecret: fromDb.totpSecret } : {}),
+        source: fromDb?.totpSecret ? 'file_env+service_credentials_totp' : 'file_env',
+      };
+    }
+  }
+
+  if (fromDb?.password) return { ...fromDb, source: 'service_credentials' };
+  const sharedPasswordEmail = process.env.GOOGLE_ADS_SHARED_PASSWORD_EMAIL || '';
+  if (sharedPasswordEmail && sharedPasswordEmail.toLowerCase() !== email.toLowerCase()) {
+    const shared = await getGoogleSsoCreds(sharedPasswordEmail).catch(() => null);
+    if (shared?.password) {
+      return {
+        email,
+        password: shared.password,
+        ...(shared?.totpSecret ? { totpSecret: shared.totpSecret } : {}),
+        source: `shared_google_password:${sharedPasswordEmail}`,
+      };
+    }
+  }
+  if (!process.env.GOOGLE_ADS_EMAIL && !process.env.SSO_EMAIL && !process.env.GM_EMAIL) {
+    const fallback = await getGoogleSsoCreds().catch(() => null);
+    if (fallback?.password) return { ...fallback, source: 'service_credentials_default_email' };
+  }
+
+  return null;
+}
+
 function redact(text) {
   return String(text || '')
     .replace(/[A-Z2-7](?:\s?[A-Z2-7]){15,}/g, '<redacted-base32-secret>')
@@ -576,10 +631,14 @@ async function main() {
   applyEnvDefaults(loadEnvFile(join(process.cwd(), '..', 'content-platform', '.env.production')));
 
   if (!socketReady()) writeResult({ ok: false, blocked: 'keeper_socket_not_ready', session: SESSION, socket: SOCK }, 3);
-  const creds = await getGoogleSsoCreds(preferredEmail()).catch(() => null);
-  const steps = [];
+  const creds = await resolveSsoCreds();
+  if (!creds?.password) writeResult({ ok: false, blocked: 'missing_google_sso_password', session: SESSION, email: preferredEmail() }, 4);
+  if (creds.email && !process.env.GOOGLE_ADS_EMAIL && !process.env.SSO_EMAIL && !process.env.GM_EMAIL) {
+    process.env.GOOGLE_ADS_EMAIL = creds.email;
+  }
+  const steps = [{ step: 'sso_creds_resolved', source: creds.source || 'unknown' }];
 
-  if (!await ensureAdsReady({ ...creds, email: preferredEmail() })) {
+  if (!await ensureAdsReady(creds)) {
     const s = await evalState(6000).catch(() => ({}));
     writeResult({ ok: false, blocked: 'google_ads_login_not_ready', session: SESSION, url: s.url, textPreview: norm(s.text).slice(0, 1200) }, 4);
   }
