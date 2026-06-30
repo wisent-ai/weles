@@ -8,6 +8,10 @@
 //
 // Do not log the token. Callers decide where to persist or return it.
 
+import { readFileSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
+
 const DEFAULT_USER_SCOPES = [
   'chat:write',
   'channels:read',
@@ -23,6 +27,60 @@ function parseScopes(value) {
     .split(/[\s,]+/)
     .map((scope) => scope.trim())
     .filter(Boolean);
+}
+
+function firstXoxc(value) {
+  const m = String(value || '').match(/xoxc-[A-Za-z0-9-]+/);
+  return m ? m[0] : '';
+}
+
+function firstXoxcFromObject(value) {
+  if (!value || typeof value !== 'object') return '';
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const token = firstXoxcFromObject(item);
+      if (token) return token;
+    }
+    return '';
+  }
+  for (const [key, item] of Object.entries(value)) {
+    if (typeof item === 'string') {
+      const token = /xoxc|slack.*web.*token|web.*slack.*token/i.test(key) ? firstXoxc(item) : '';
+      if (token) return token;
+    } else {
+      const token = firstXoxcFromObject(item);
+      if (token) return token;
+    }
+  }
+  return '';
+}
+
+function readSlackWebTokenFromFile(path) {
+  try {
+    const raw = readFileSync(path, 'utf8');
+    const parsed = JSON.parse(raw);
+    return firstXoxcFromObject(parsed) || firstXoxc(raw);
+  } catch {
+    return '';
+  }
+}
+
+function readConfiguredXoxc() {
+  const envToken = firstXoxc(process.env.SLACK_WEB_USER_TOKEN)
+    || firstXoxc(process.env.SLACK_XOXC)
+    || firstXoxc(process.env.SLACK_XOXC_TOKEN);
+  if (envToken) return envToken;
+
+  const paths = [
+    process.env.SLACK_WEB_TOKEN_FILE,
+    process.env.SLACK_TOKENS_FILE,
+    join(homedir(), '.oko', 'slack_tokens.json'),
+  ].filter(Boolean);
+  for (const path of paths) {
+    const token = readSlackWebTokenFromFile(path);
+    if (token) return token;
+  }
+  return '';
 }
 
 function userTokenManifest(scopes) {
@@ -44,6 +102,12 @@ function userTokenManifest(scopes) {
 }
 
 async function extractXoxc(page) {
+  const configured = readConfiguredXoxc();
+  if (configured) {
+    console.log('[user-token] using configured Slack web token');
+    return configured;
+  }
+
   await page.goto('https://wisent-workspace.slack.com/messages', { waitUntil: 'domcontentloaded' });
   const { humanIdlePause } = await import(`${process.env.WELES_ROOT}/dist/human/mouse.js`);
   await humanIdlePause('long');
@@ -51,7 +115,7 @@ async function extractXoxc(page) {
     if (window.boot_data && window.boot_data.api_token) return window.boot_data.api_token;
     for (let i = 0; i < localStorage.length; i++) {
       const v = localStorage.getItem(localStorage.key(i)) || '';
-      const m = v.match(/xoxc-[\d]+-[\d]+-[\d]+-[a-f0-9]+/);
+      const m = v.match(/xoxc-[A-Za-z0-9-]+/);
       if (m) return m[0];
     }
     return '';
