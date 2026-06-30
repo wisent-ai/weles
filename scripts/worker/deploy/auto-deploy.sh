@@ -14,7 +14,7 @@
 
 set -euo pipefail
 
-export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
+export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 WELES_DIR="${WELES_DIR:-$HOME/weles}"
 LOG="$WELES_DIR/var/auto-deploy.log"
 mkdir -p "$WELES_DIR/var"
@@ -202,10 +202,10 @@ if [ -d "$NODE_PTY_DIR" ] && [ ! -x "$NODE_PTY_DIR/build/Release/spawn-helper" ]
   fi
 fi
 
-# Keep the macOS worker LaunchAgent in source control too. Older hosts had
-# ~/Library/LaunchAgents/com.wisent.weles-worker.plist and launch-mac.sh as
-# hand-written local files, so a fresh clone could build successfully but fail
-# at the restart step or keep using a drifted wrapper.
+# Keep the macOS LaunchAgents in source control too. Older hosts had
+# ~/Library/LaunchAgents/*.plist and launch-*.sh as hand-written local files,
+# so a fresh clone could build successfully but fail at restart or keep using
+# drifted wrappers.
 WORKER_PLIST_SRC="$WELES_DIR/scripts/worker/deploy/com.wisent.weles-worker.plist"
 WORKER_PLIST_DST="$HOME/Library/LaunchAgents/com.wisent.weles-worker.plist"
 if [ -f "$WORKER_PLIST_SRC" ]; then
@@ -215,13 +215,36 @@ if [ -f "$WORKER_PLIST_SRC" ]; then
     log "worker-launchd: installed LaunchAgent from repo"
   fi
 fi
+
+KEYWORD_API_PLIST_SRC="$WELES_DIR/scripts/worker/deploy/com.wisent.weles-keyword-planner-api.plist"
+KEYWORD_API_PLIST_DST="$HOME/Library/LaunchAgents/com.wisent.weles-keyword-planner-api.plist"
+if [ -f "$KEYWORD_API_PLIST_SRC" ]; then
+  if [ ! -f "$KEYWORD_API_PLIST_DST" ] || ! cmp -s "$KEYWORD_API_PLIST_SRC" "$KEYWORD_API_PLIST_DST"; then
+    cp "$KEYWORD_API_PLIST_SRC" "$KEYWORD_API_PLIST_DST"
+    chmod 644 "$KEYWORD_API_PLIST_DST"
+    log "keyword-planner-api: installed LaunchAgent from repo"
+  fi
+fi
 chmod +x "$WELES_DIR/scripts/worker/deploy/launch-mac.sh"
+chmod +x "$WELES_DIR/scripts/worker/deploy/launch-keyword-planner-api-mac.sh"
 
 
 UID_NUM=$(id -u)
 PLIST="$HOME/Library/LaunchAgents/com.wisent.weles-worker.plist"
 launchctl bootout "gui/$UID_NUM" "$PLIST" 2>/dev/null || true
 launchctl bootstrap "gui/$UID_NUM" "$PLIST"
+KEYWORD_API_PLIST="$HOME/Library/LaunchAgents/com.wisent.weles-keyword-planner-api.plist"
+if [ -f "$KEYWORD_API_PLIST" ]; then
+  launchctl bootout "gui/$UID_NUM" "$KEYWORD_API_PLIST" 2>/dev/null || true
+  # A previous manual verification run may still own :8787; clear it so launchd
+  # owns the long-lived API process after this deploy.
+  KEYWORD_API_PIDS=$(lsof -tiTCP:8787 -sTCP:LISTEN 2>/dev/null || true)
+  if [ -n "$KEYWORD_API_PIDS" ]; then
+    kill $KEYWORD_API_PIDS 2>/dev/null || true
+  fi
+  launchctl bootstrap "gui/$UID_NUM" "$KEYWORD_API_PLIST"
+  launchctl list | grep com.wisent.weles-keyword-planner-api >> "$LOG" 2>&1 || true
+fi
 launchctl list | grep com.wisent.weles-worker >> "$LOG" 2>&1 || true
 
 log "deploy ok: now at $REMOTE"
