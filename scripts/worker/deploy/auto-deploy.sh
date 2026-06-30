@@ -136,6 +136,35 @@ if [ -f "$REAUTH_SRC" ]; then
   fi
 fi
 
+# Ensure the keyword-planner API LaunchAgent is installed and loaded on every
+# tick. The first deploy that introduces this file is still running the old
+# script body, so the self-heal must live before the no-new-commit early-exit.
+KEYWORD_API_PLIST_SRC_PRE="$WELES_DIR/scripts/worker/deploy/com.wisent.weles-keyword-planner-api.plist"
+KEYWORD_API_PLIST_DST_PRE="$HOME/Library/LaunchAgents/com.wisent.weles-keyword-planner-api.plist"
+if [ -f "$KEYWORD_API_PLIST_SRC_PRE" ]; then
+  mkdir -p "$HOME/Library/LaunchAgents"
+  KEYWORD_API_NEEDS_BOOTSTRAP=0
+  if [ ! -f "$KEYWORD_API_PLIST_DST_PRE" ] || ! cmp -s "$KEYWORD_API_PLIST_SRC_PRE" "$KEYWORD_API_PLIST_DST_PRE"; then
+    cp "$KEYWORD_API_PLIST_SRC_PRE" "$KEYWORD_API_PLIST_DST_PRE"
+    chmod 644 "$KEYWORD_API_PLIST_DST_PRE"
+    chmod +x "$WELES_DIR/scripts/worker/deploy/launch-keyword-planner-api-mac.sh"
+    KEYWORD_API_NEEDS_BOOTSTRAP=1
+  fi
+  KU_UID=$(id -u)
+  if ! launchctl print "gui/$KU_UID/com.wisent.weles-keyword-planner-api" >/dev/null 2>&1; then
+    KEYWORD_API_NEEDS_BOOTSTRAP=1
+  fi
+  if [ "$KEYWORD_API_NEEDS_BOOTSTRAP" = "1" ]; then
+    launchctl bootout "gui/$KU_UID" "$KEYWORD_API_PLIST_DST_PRE" 2>/dev/null || true
+    KEYWORD_API_PIDS_PRE=$(lsof -tiTCP:8787 -sTCP:LISTEN 2>/dev/null || true)
+    if [ -n "$KEYWORD_API_PIDS_PRE" ]; then
+      kill $KEYWORD_API_PIDS_PRE 2>/dev/null || true
+    fi
+    launchctl bootstrap "gui/$KU_UID" "$KEYWORD_API_PLIST_DST_PRE"
+    log "keyword-planner-api: ensured LaunchAgent from repo"
+  fi
+fi
+
 git fetch --quiet origin main
 LOCAL=$(git rev-parse HEAD)
 REMOTE=$(git rev-parse origin/main)
