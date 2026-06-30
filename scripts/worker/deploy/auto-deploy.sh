@@ -32,8 +32,8 @@ if ! git diff --quiet HEAD --; then
 fi
 
 # Keep GitHub tokens out of git remote URLs. If an older host has a tokenized
-# origin URL, move that credential into the OS credential helper and rewrite the
-# remote before the next fetch. This keeps deploy working for private repos
+# origin URL, move that credential into a launchd-safe file helper and rewrite
+# the remote before the next fetch. This keeps deploy working for private repos
 # without leaving the secret in routine command/log/transcript output.
 ORIGIN_URL=$(git remote get-url origin 2>/dev/null || true)
 case "$ORIGIN_URL" in
@@ -43,12 +43,20 @@ case "$ORIGIN_URL" in
     GITHUB_CREDENTIAL_FILE="$HOME/.git-credentials-weles"
     umask 077
     printf 'https://x-access-token:%s@github.com\n' "$GITHUB_REMOTE_TOKEN" > "$GITHUB_CREDENTIAL_FILE"
-    git config --global credential.helper "store --file $GITHUB_CREDENTIAL_FILE"
+    git config --global --replace-all credential.helper "store --file $GITHUB_CREDENTIAL_FILE"
     git remote set-url origin https://github.com/wisent-ai/weles.git
     unset GITHUB_REMOTE_TOKEN
     log "github-auth: moved origin credential into helper and scrubbed remote URL"
     ;;
 esac
+
+# launchd cannot read the interactive osxkeychain session, and a repo-local
+# helper overrides the global file helper. A blank local helper resets inherited
+# system helpers; the following local store helper is then the only one tried.
+if [ -f "$HOME/.git-credentials-weles" ]; then
+  git config --local --replace-all credential.helper ""
+  git config --local --add credential.helper "store --file $HOME/.git-credentials-weles"
+fi
 
 # Ensure the gcloud CLI has an active service account so the worker's
 # `gcloud storage cp` calls in scripts/trajectories/*/persist*.mjs can
