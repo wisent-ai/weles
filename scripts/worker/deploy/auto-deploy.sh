@@ -40,9 +40,10 @@ case "$ORIGIN_URL" in
   https://x-access-token:*@github.com/wisent-ai/weles.git)
     GITHUB_REMOTE_TOKEN="${ORIGIN_URL#https://x-access-token:}"
     GITHUB_REMOTE_TOKEN="${GITHUB_REMOTE_TOKEN%@github.com/wisent-ai/weles.git}"
-    git config --global credential.helper osxkeychain
-    printf 'protocol=https\nhost=github.com\nusername=x-access-token\npassword=%s\n\n' "$GITHUB_REMOTE_TOKEN" | git credential approve
-    printf 'protocol=https\nhost=github.com\npath=wisent-ai/weles\nusername=x-access-token\npassword=%s\n\n' "$GITHUB_REMOTE_TOKEN" | git credential approve
+    GITHUB_CREDENTIAL_FILE="$HOME/.git-credentials-weles"
+    umask 077
+    printf 'https://x-access-token:%s@github.com\n' "$GITHUB_REMOTE_TOKEN" > "$GITHUB_CREDENTIAL_FILE"
+    git config --global credential.helper "store --file $GITHUB_CREDENTIAL_FILE"
     git remote set-url origin https://github.com/wisent-ai/weles.git
     unset GITHUB_REMOTE_TOKEN
     log "github-auth: moved origin credential into helper and scrubbed remote URL"
