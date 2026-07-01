@@ -267,10 +267,10 @@ function normalizeKeyword(value) {
 function reportStrategyPreset() {
   return {
     strategy: 'auto',
-    generatedCandidateCount: 40,
-    maxKeywordsToCheck: 18,
-    targetMetricRows: 8,
-    batchSize: 3,
+    generatedCandidateCount: 18,
+    maxKeywordsToCheck: 6,
+    targetMetricRows: 3,
+    batchSize: 2,
   };
 }
 
