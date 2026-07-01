@@ -10,7 +10,8 @@
 
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { homedir } from 'node:os';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const WELES = join(__dirname, '..', '..', '..');
@@ -31,6 +32,31 @@ function writeSecretResult(result) {
   }
   writeFileSync(RESULT_FILE, JSON.stringify(result, null, 2));
   console.log(`[slack-user-token] wrote secret result to ${RESULT_FILE}`);
+}
+
+function persistSlackUserTokenResult(result) {
+  const tokenPath = process.env.SLACK_TOKENS_FILE || join(homedir(), '.oko', 'slack_tokens.json');
+  let existing = {};
+  try {
+    if (existsSync(tokenPath)) existing = JSON.parse(readFileSync(tokenPath, 'utf8'));
+  } catch {
+    existing = {};
+  }
+  const updated = {
+    ...existing,
+    slack_user_token: result.token,
+    slack_user_token_app_id: result.app_id,
+    slack_user_token_team: result.team,
+    slack_user_token_team_id: result.team_id,
+    slack_user_token_user: result.user,
+    slack_user_token_user_id: result.user_id,
+    slack_user_token_scopes: result.scopes,
+    slack_user_token_created_at: result.created_at,
+  };
+  mkdirSync(dirname(tokenPath), { recursive: true });
+  writeFileSync(tokenPath, JSON.stringify(updated, null, 2));
+  try { chmodSync(tokenPath, 0o600); } catch {}
+  console.log(`[slack-user-token] persisted xoxp metadata to ${tokenPath}`);
 }
 
 if (!RESULT_FILE) {
@@ -148,6 +174,7 @@ try {
     created_at: new Date().toISOString(),
   };
   writeSecretResult(result);
+  persistSlackUserTokenResult(result);
   console.log(`[slack-user-token] ready ${JSON.stringify({ ...tokenSummary(provisioned.token), app_id: provisioned.appId, team: auth.team, user: auth.user })}`);
   await safeShutdown();
   process.exit(0);
