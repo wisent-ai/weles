@@ -264,15 +264,14 @@ function normalizeKeyword(value) {
   return String(value || '').replace(/\s+/g, ' ').trim();
 }
 
-function reportDepthPreset(value) {
-  const depth = String(value || 'standard').trim().toLowerCase();
-  if (['quick', 'fast', 'shallow'].includes(depth)) {
-    return { depth: 'quick', generatedCandidateCount: 12, maxKeywordsToCheck: 6, targetMetricRows: 3, batchSize: 2 };
-  }
-  if (['deep', 'thorough', 'full'].includes(depth)) {
-    return { depth: 'deep', generatedCandidateCount: 80, maxKeywordsToCheck: 40, targetMetricRows: 15, batchSize: 4 };
-  }
-  return { depth: 'standard', generatedCandidateCount: 40, maxKeywordsToCheck: 18, targetMetricRows: 8, batchSize: 3 };
+function reportStrategyPreset() {
+  return {
+    strategy: 'auto',
+    generatedCandidateCount: 40,
+    maxKeywordsToCheck: 18,
+    targetMetricRows: 8,
+    batchSize: 3,
+  };
 }
 
 function validateReportRequest(body) {
@@ -284,17 +283,11 @@ function validateReportRequest(body) {
   const subject = String(body.subject || body.product || body.niche || body.brief || body.landingPage || body.url || '').trim();
   if (!subject && !seedKeywords.length) throw new Error('subject/product/brief or seedKeywords required');
 
-  const preset = reportDepthPreset(body.depth || body.researchDepth || body.mode);
-  const legacyCount = body.count || body.keywordCount;
-  const maxKeywordsToCheck = clampInt(body.maxKeywordsToCheck || body.maxCheckedKeywords || legacyCount, preset.maxKeywordsToCheck, 1, 80);
-  const targetMetricRows = clampInt(body.targetMetricRows || body.minMetricRows, Math.min(preset.targetMetricRows, maxKeywordsToCheck), 1, maxKeywordsToCheck);
-  const batchSize = clampInt(body.batchSize, preset.batchSize, 1, 5);
-  const generatedCandidateCount = clampInt(
-    body.generatedCandidateCount || body.candidateCount || body.maxGeneratedKeywords,
-    legacyCount ? maxKeywordsToCheck : preset.generatedCandidateCount,
-    maxKeywordsToCheck,
-    120,
-  );
+  const preset = reportStrategyPreset();
+  const maxKeywordsToCheck = preset.maxKeywordsToCheck;
+  const targetMetricRows = preset.targetMetricRows;
+  const batchSize = preset.batchSize;
+  const generatedCandidateCount = preset.generatedCandidateCount;
 
   return {
     customerId,
@@ -305,7 +298,7 @@ function validateReportRequest(body) {
     landingPage: String(body.landingPage || body.url || '').trim(),
     goal: String(body.goal || 'Find paid search opportunities with real Google Ads Keyword Planner metrics.').trim(),
     seedKeywords,
-    depth: preset.depth,
+    strategy: preset.strategy,
     maxKeywordsToCheck,
     targetMetricRows,
     batchSize,
@@ -560,7 +553,7 @@ async function runKeywordReport(input, generation) {
       url,
       batches,
       controls: {
-        depth: input.depth,
+        strategy: input.strategy,
         generatedCandidateCount: input.generatedCandidateCount,
         maxKeywordsToCheck: input.maxKeywordsToCheck,
         targetMetricRows: input.targetMetricRows,
@@ -584,7 +577,7 @@ function buildKeywordReport(input, generation, run) {
     audience: input.audience || null,
     generated: generation,
     controls: run.report?.controls || {
-      depth: input.depth,
+      strategy: input.strategy,
       generatedCandidateCount: input.generatedCandidateCount,
       maxKeywordsToCheck: input.maxKeywordsToCheck,
       targetMetricRows: input.targetMetricRows,
