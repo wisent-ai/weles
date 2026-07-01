@@ -254,25 +254,11 @@ async function ensureKeeper(session) {
   return { ...waited, started: true, logPath, userDataDir: KEEPER_USER_DATA_DIR };
 }
 
-function clampInt(value, fallback, min, max) {
-  const n = Number(value);
-  if (!Number.isFinite(n)) return fallback;
-  return Math.max(min, Math.min(max, Math.trunc(n)));
-}
 
 function normalizeKeyword(value) {
   return String(value || '').replace(/\s+/g, ' ').trim();
 }
 
-function reportStrategyPreset() {
-  return {
-    strategy: 'auto',
-    generatedCandidateCount: 18,
-    maxKeywordsToCheck: 6,
-    targetMetricRows: 3,
-    batchSize: 2,
-  };
-}
 
 function validateReportRequest(body) {
   const customerId = normalizeCustomerId(body.customerId || body.customer_id || body.googleAdsCustomerId);
@@ -283,11 +269,6 @@ function validateReportRequest(body) {
   const subject = String(body.subject || body.product || body.niche || body.brief || body.landingPage || body.url || '').trim();
   if (!subject && !seedKeywords.length) throw new Error('subject/product/brief or seedKeywords required');
 
-  const preset = reportStrategyPreset();
-  const maxKeywordsToCheck = preset.maxKeywordsToCheck;
-  const targetMetricRows = preset.targetMetricRows;
-  const batchSize = preset.batchSize;
-  const generatedCandidateCount = preset.generatedCandidateCount;
 
   return {
     customerId,
@@ -298,11 +279,6 @@ function validateReportRequest(body) {
     landingPage: String(body.landingPage || body.url || '').trim(),
     goal: String(body.goal || 'Find paid search opportunities with real Google Ads Keyword Planner metrics.').trim(),
     seedKeywords,
-    strategy: preset.strategy,
-    maxKeywordsToCheck,
-    targetMetricRows,
-    batchSize,
-    generatedCandidateCount,
     email: String(body.email || body.googleAdsEmail || body.ssoEmail || process.env.GOOGLE_ADS_EMAIL || process.env.SSO_EMAIL || ''),
     session: String(body.session || SESSION),
   };
@@ -380,7 +356,7 @@ function parseGeneratedKeywords(raw) {
       const parsed = JSON.parse(candidate);
       const list = Array.isArray(parsed) ? parsed : parsed.keywords;
       if (Array.isArray(list)) {
-        return [...new Set(list.map(normalizeKeyword).filter((kw) => kw && kw.length <= 90))];
+        return [...new Set(list.map(normalizeKeyword).filter(Boolean))];
       }
     } catch {}
   }
@@ -393,7 +369,6 @@ async function generateKeywordsWithRouter(input) {
     'Generate Google Ads Keyword Planner seed keywords.',
     'Return ONLY valid JSON in this exact shape: {"keywords":["keyword one","keyword two"]}.',
     'Do not include metrics, commentary, markdown, or explanations.',
-    `Candidate budget: ${input.generatedCandidateCount}`,
     `Subject: ${input.subject || '(none)'}`,
     `Product: ${input.product || '(none)'}`,
     `Niche: ${input.niche || '(none)'}`,
@@ -421,7 +396,7 @@ async function generateKeywordsWithRouter(input) {
     const data = await res.json().catch(async () => ({ raw: await res.text().catch(() => '') }));
     if (!res.ok) throw new Error(`model-router ${res.status}: ${JSON.stringify(data).slice(0, 500)}`);
     const raw = data.choices?.[0]?.message?.content || data.raw || '';
-    const keywords = parseGeneratedKeywords(raw).slice(0, input.generatedCandidateCount);
+    const keywords = parseGeneratedKeywords(raw);
     if (!keywords.length) throw new Error(`model-router returned no parseable keywords: ${String(raw).slice(0, 300)}`);
     return {
       ok: true,
@@ -429,7 +404,6 @@ async function generateKeywordsWithRouter(input) {
       model: data.model || cfg.model,
       routerHost: new URL(cfg.routerUrl).host,
       configId: cfg.configId,
-      requestedCount: input.generatedCandidateCount,
       keywords,
     };
   } finally {
@@ -479,86 +453,25 @@ function uniqueKeywords(values) {
   return out;
 }
 
-function mergeRows(existingRows, newRows) {
-  const byKeyword = new Map(existingRows.map((row) => [normalizeKeyword(row.keyword).toLowerCase(), row]));
-  for (const row of newRows || []) {
-    const key = normalizeKeyword(row.keyword).toLowerCase();
-    if (!key || byKeyword.has(key)) continue;
-    byKeyword.set(key, row);
-  }
-  return [...byKeyword.values()];
-}
 
 async function runKeywordReport(input, generation) {
-  const candidates = uniqueKeywords([...input.seedKeywords, ...generation.keywords]);
-  const checkedCandidates = candidates.slice(0, input.maxKeywordsToCheck);
-  if (!checkedCandidates.length) throw new Error('no keyword candidates to check');
+  const keywords = uniqueKeywords([...input.seedKeywords, ...generation.keywords]);
+  if (!keywords.length) throw new Error('no keyword candidates to check');
 
-  const batches = [];
-  let rows = [];
-  let lastRun = null;
-  let accountEmail = input.email || null;
-  let capturedAt = null;
-  let url = null;
-  let stdout = '';
-  let stderr = '';
-
-  for (let i = 0; i < checkedCandidates.length && rows.length < input.targetMetricRows; i += input.batchSize) {
-    const keywords = checkedCandidates.slice(i, i + input.batchSize);
-    const run = await runKeywordPlanner({ ...input, keywords });
-    lastRun = run;
-    stdout += `\n--- batch ${batches.length + 1} stdout ---\n${run.stdout || ''}`;
-    stderr += `\n--- batch ${batches.length + 1} stderr ---\n${run.stderr || ''}`;
-
-    const batchRows = run.report?.rows || [];
-    rows = mergeRows(rows, batchRows);
-    accountEmail = run.report?.accountEmail || accountEmail;
-    capturedAt = run.report?.capturedAt || capturedAt;
-    url = run.report?.url || url;
-
-    batches.push({
-      index: batches.length + 1,
-      ok: Boolean(run.ok),
-      exitCode: run.exitCode,
-      timedOut: Boolean(run.timedOut),
-      keywords,
-      rowCount: batchRows.length,
-      blocked: run.report?.blocked || null,
-      resultFile: run.resultFile,
-    });
-
-    if (run.timedOut || run.report?.blocked === 'keeper_not_ready') break;
-  }
-
-  const uncheckedKeywords = checkedCandidates.slice(batches.reduce((sum, batch) => sum + batch.keywords.length, 0));
+  const run = await runKeywordPlanner({ ...input, keywords });
+  const rows = run.report?.rows || [];
   return {
+    ...run,
     ok: rows.length > 0,
-    exitCode: rows.length > 0 ? 0 : lastRun?.exitCode ?? 7,
-    timedOut: batches.some((batch) => batch.timedOut),
-    resultFile: lastRun?.resultFile || null,
-    stdout,
-    stderr,
-    keeper: lastRun?.keeper || null,
+    exitCode: rows.length > 0 ? 0 : run.exitCode,
     report: {
+      ...(run.report || {}),
       ok: rows.length > 0,
-      source: 'google_ads_keyword_planner_dynamic_batches',
-      session: input.session,
-      customer: input.customerId,
-      accountEmail,
-      keywords: checkedCandidates,
-      checkedKeywords: checkedCandidates.slice(0, checkedCandidates.length - uncheckedKeywords.length),
-      uncheckedKeywords,
+      source: 'google_ads_keyword_planner_report',
+      keywords,
+      checkedKeywords: keywords,
+      uncheckedKeywords: [],
       rows,
-      capturedAt,
-      url,
-      batches,
-      controls: {
-        strategy: input.strategy,
-        generatedCandidateCount: input.generatedCandidateCount,
-        maxKeywordsToCheck: input.maxKeywordsToCheck,
-        targetMetricRows: input.targetMetricRows,
-        batchSize: input.batchSize,
-      },
     },
   };
 }
@@ -576,13 +489,6 @@ function buildKeywordReport(input, generation, run) {
     niche: input.niche || null,
     audience: input.audience || null,
     generated: generation,
-    controls: run.report?.controls || {
-      strategy: input.strategy,
-      generatedCandidateCount: input.generatedCandidateCount,
-      maxKeywordsToCheck: input.maxKeywordsToCheck,
-      targetMetricRows: input.targetMetricRows,
-      batchSize: input.batchSize,
-    },
     metrics: {
       ok: Boolean(run.report?.ok),
       rowCount: rows.length,
@@ -595,7 +501,7 @@ function buildKeywordReport(input, generation, run) {
     checkedKeywords: run.report?.checkedKeywords || [],
     uncheckedKeywords: run.report?.uncheckedKeywords || [],
     batches: run.report?.batches || [],
-    topOpportunities: ranked.slice(0, Math.min(10, ranked.length)),
+    topOpportunities: ranked,
     rows,
     plannerReport: run.report,
   };
