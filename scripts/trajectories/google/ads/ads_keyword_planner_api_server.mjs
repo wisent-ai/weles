@@ -15,6 +15,7 @@
 //   WELES_KEYWORD_PLANNER_API_TOKEN="$WELES_CONSOLE_API_TOKEN" \
 //   node scripts/trajectories/google/ads/ads_keyword_planner_api_server.mjs
 
+import { createHash, createHmac } from 'node:crypto';
 import http from 'node:http';
 import net from 'node:net';
 import { spawn } from 'node:child_process';
@@ -40,6 +41,9 @@ let KEEPER_USER_DATA_DIR = process.env.GOOGLE_ADS_KEEPER_USER_DATA_DIR
   || process.env.KEEPER_USER_DATA_DIR
   || process.env.WELES_USER_DATA_DIR
   || join(process.env.HOME || '', '.weles', 'browser_profiles', 'google_ads');
+const DEFAULT_MODEL_ROUTER_URL = 'https://model-router-1080673333190.us-central1.run.app';
+const DEFAULT_ROUTER_CONFIG_IDS = ['codex-reauth-config', 'claude-reauth-config', 'kimi-reauth-config'];
+let routerConfig = null;
 
 function loadEnvFile(path) {
   if (!existsSync(path)) return {};
@@ -250,6 +254,222 @@ async function ensureKeeper(session) {
   return { ...waited, started: true, logPath, userDataDir: KEEPER_USER_DATA_DIR };
 }
 
+function clampInt(value, fallback, min, max) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(min, Math.min(max, Math.trunc(n)));
+}
+
+function normalizeKeyword(value) {
+  return String(value || '').replace(/\s+/g, ' ').trim();
+}
+
+function validateReportRequest(body) {
+  const customerId = normalizeCustomerId(body.customerId || body.customer_id || body.googleAdsCustomerId);
+  if (!customerId) throw new Error('customerId required');
+  const seedKeywords = parseKeywords(body.seedKeywords || body.seeds || body.keywords || body.keyword)
+    .map(normalizeKeyword)
+    .filter(Boolean);
+  const subject = String(body.subject || body.product || body.niche || body.brief || body.landingPage || body.url || '').trim();
+  if (!subject && !seedKeywords.length) throw new Error('subject/product/brief or seedKeywords required');
+  return {
+    customerId,
+    subject,
+    product: String(body.product || '').trim(),
+    niche: String(body.niche || '').trim(),
+    audience: String(body.audience || body.targetAudience || '').trim(),
+    landingPage: String(body.landingPage || body.url || '').trim(),
+    goal: String(body.goal || 'Find paid search opportunities with real Google Ads Keyword Planner metrics.').trim(),
+    seedKeywords,
+    count: clampInt(body.count || body.keywordCount, 20, 1, 80),
+    email: String(body.email || body.googleAdsEmail || body.ssoEmail || process.env.GOOGLE_ADS_EMAIL || process.env.SSO_EMAIL || ''),
+    session: String(body.session || SESSION),
+  };
+}
+
+function routerConfigPreference(model) {
+  if (/kimi/i.test(model || '')) return ['kimi-reauth-config', 'codex-reauth-config', 'claude-reauth-config'];
+  if (/codex|openai/i.test(model || '')) return ['codex-reauth-config', 'claude-reauth-config', 'kimi-reauth-config'];
+  return DEFAULT_ROUTER_CONFIG_IDS;
+}
+
+async function loadModelRouterConfig() {
+  if (routerConfig) return routerConfig;
+  const envRouterUrl = String(process.env.MODEL_ROUTER_URL || '').trim();
+  const envAgentId = String(process.env.WISENT_APP_AGENT_ID || '').trim();
+  const envHmacSecret = String(process.env.WISENT_APP_AGENT_AUTH_SECRET || '').trim();
+  const model = String(process.env.WELES_AGENT_MODEL || process.env.MODEL_ROUTER_MODEL || 'codex-subscription').trim();
+  if (envHmacSecret) {
+    routerConfig = {
+      routerUrl: (envRouterUrl || DEFAULT_MODEL_ROUTER_URL).replace(/\/+$/, ''),
+      agentId: envAgentId || 'wisent-app',
+      hmacSecret: envHmacSecret,
+      model,
+      configId: 'env',
+    };
+    return routerConfig;
+  }
+
+  const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+  if (!supabaseUrl || !supabaseKey) throw new Error('missing model-router env and Supabase config env');
+  const ids = DEFAULT_ROUTER_CONFIG_IDS.join(',');
+  const res = await fetch(`${supabaseUrl.replace(/\/$/, '')}/rest/v1/service_credentials?id=in.(${ids})&select=id,metadata`, {
+    headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` },
+  });
+  if (!res.ok) throw new Error(`model-router config lookup failed: ${res.status} ${await res.text()}`);
+  const rows = await res.json();
+  const byId = new Map(rows.map((row) => [row.id, row.metadata || {}]));
+  const preferredId = routerConfigPreference(model).find((id) => byId.get(id)?.WISENT_APP_AGENT_AUTH_SECRET);
+  if (!preferredId) throw new Error('model-router config row missing HMAC secret');
+  const metadata = byId.get(preferredId);
+  routerConfig = {
+    routerUrl: String(metadata.MODEL_ROUTER_URL || DEFAULT_MODEL_ROUTER_URL).replace(/\/+$/, ''),
+    agentId: String(metadata.WISENT_APP_AGENT_ID || 'wisent-app'),
+    hmacSecret: String(metadata.WISENT_APP_AGENT_AUTH_SECRET),
+    model,
+    configId: preferredId,
+  };
+  return routerConfig;
+}
+
+function signedRouterHeaders(cfg, body) {
+  const ts = String(Math.floor(Date.now() / 1000));
+  const bodyHash = createHash('sha256').update(body).digest('hex');
+  const sig = createHmac('sha256', cfg.hmacSecret).update(`${cfg.agentId}:${ts}:${bodyHash}`).digest('hex');
+  return {
+    'x-agent-id': cfg.agentId,
+    'x-agent-timestamp': ts,
+    'x-agent-signature': sig,
+    'content-type': 'application/json',
+  };
+}
+
+function parseGeneratedKeywords(raw) {
+  const text = String(raw || '').trim();
+  const candidates = [text];
+  const firstBrace = text.indexOf('{');
+  const lastBrace = text.lastIndexOf('}');
+  if (firstBrace >= 0 && lastBrace > firstBrace) candidates.push(text.slice(firstBrace, lastBrace + 1));
+  const firstBracket = text.indexOf('[');
+  const lastBracket = text.lastIndexOf(']');
+  if (firstBracket >= 0 && lastBracket > firstBracket) candidates.push(text.slice(firstBracket, lastBracket + 1));
+  for (const candidate of candidates) {
+    try {
+      const parsed = JSON.parse(candidate);
+      const list = Array.isArray(parsed) ? parsed : parsed.keywords;
+      if (Array.isArray(list)) {
+        return [...new Set(list.map(normalizeKeyword).filter((kw) => kw && kw.length <= 90))];
+      }
+    } catch {}
+  }
+  return [];
+}
+
+async function generateKeywordsWithRouter(input) {
+  const cfg = await loadModelRouterConfig();
+  const prompt = [
+    'Generate Google Ads Keyword Planner seed keywords.',
+    'Return ONLY valid JSON in this exact shape: {"keywords":["keyword one","keyword two"]}.',
+    'Do not include metrics, commentary, markdown, or explanations.',
+    `Count: ${input.count}`,
+    `Subject: ${input.subject || '(none)'}`,
+    `Product: ${input.product || '(none)'}`,
+    `Niche: ${input.niche || '(none)'}`,
+    `Audience: ${input.audience || '(none)'}`,
+    `Landing page: ${input.landingPage || '(none)'}`,
+    `Goal: ${input.goal}`,
+    `Seed keywords: ${input.seedKeywords.join(', ') || '(none)'}`,
+    'Prefer commercial-intent search phrases. Avoid duplicates, brands not present in the prompt, and policy-sensitive/adult-explicit terms.',
+  ].join('\n');
+  const body = JSON.stringify({
+    model: cfg.model,
+    max_tokens: Number(process.env.WELES_KEYWORD_REPORT_MAX_TOKENS || 1400),
+    messages: [{ role: 'user', content: prompt }],
+  });
+  const timeoutMs = Number(process.env.WELES_KEYWORD_REPORT_ROUTER_TIMEOUT_MS || 120_000);
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), timeoutMs);
+  try {
+    const res = await fetch(`${cfg.routerUrl}/v1/chat/completions`, {
+      method: 'POST',
+      headers: signedRouterHeaders(cfg, body),
+      body,
+      signal: ac.signal,
+    });
+    const data = await res.json().catch(async () => ({ raw: await res.text().catch(() => '') }));
+    if (!res.ok) throw new Error(`model-router ${res.status}: ${JSON.stringify(data).slice(0, 500)}`);
+    const raw = data.choices?.[0]?.message?.content || data.raw || '';
+    const keywords = parseGeneratedKeywords(raw).slice(0, input.count);
+    if (!keywords.length) throw new Error(`model-router returned no parseable keywords: ${String(raw).slice(0, 300)}`);
+    return {
+      ok: true,
+      source: 'model-router',
+      model: data.model || cfg.model,
+      routerHost: new URL(cfg.routerUrl).host,
+      configId: cfg.configId,
+      requestedCount: input.count,
+      keywords,
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function parseVolume(row) {
+  const explicit = Number(row?.avgMonthlySearches);
+  if (Number.isFinite(explicit)) return explicit;
+  const digits = String(row?.avgMonthlySearchesText || '').replace(/[^\d]/g, '');
+  return digits ? Number(digits) : 0;
+}
+
+function parseBid(row, key) {
+  const n = Number(String(row?.[key] || '').replace(/[^0-9.]/g, ''));
+  return Number.isFinite(n) ? n : null;
+}
+
+function parseSignedPercent(value) {
+  const n = Number(String(value || '').replace(/[^0-9.+-]/g, ''));
+  return Number.isFinite(n) ? n : 0;
+}
+
+function rankKeywordRows(rows) {
+  const competitionPenalty = new Map([['Low', 0], ['Medium', 0.2], ['High', 0.45]]);
+  return [...(rows || [])].map((row) => {
+    const volume = parseVolume(row);
+    const yoy = parseSignedPercent(row.yoyChange);
+    const lowBid = parseBid(row, 'topOfPageBidLow');
+    const competition = row.competition || null;
+    const score = Math.log10(volume + 1) + Math.max(-1, Math.min(2, yoy / 100)) - (competitionPenalty.get(competition) || 0) - (lowBid ? Math.min(0.4, lowBid / 25) : 0);
+    return { ...row, score: Number(score.toFixed(4)) };
+  }).sort((a, b) => b.score - a.score);
+}
+
+function buildKeywordReport(input, generation, run) {
+  const rows = run.report?.rows || [];
+  const ranked = rankKeywordRows(rows);
+  return {
+    ok: Boolean(run.ok),
+    source: 'weles_keyword_report',
+    customer: input.customerId,
+    accountEmail: run.report?.accountEmail || input.email || null,
+    subject: input.subject || null,
+    product: input.product || null,
+    niche: input.niche || null,
+    audience: input.audience || null,
+    generated: generation,
+    metrics: {
+      ok: Boolean(run.report?.ok),
+      rowCount: rows.length,
+      capturedAt: run.report?.capturedAt || null,
+      url: run.report?.url || null,
+    },
+    topOpportunities: ranked.slice(0, Math.min(10, ranked.length)),
+    rows,
+    plannerReport: run.report,
+  };
+}
+
 
 function validateRequest(body) {
   const customerId = normalizeCustomerId(body.customerId || body.customer_id || body.googleAdsCustomerId);
@@ -361,7 +581,9 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    if (req.method !== 'POST' || url.pathname !== '/google-ads/keyword-volume') {
+    const isKeywordVolume = req.method === 'POST' && url.pathname === '/google-ads/keyword-volume';
+    const isKeywordReport = req.method === 'POST' && url.pathname === '/google-ads/keyword-report';
+    if (!isKeywordVolume && !isKeywordReport) {
       json(res, 404, { ok: false, error: 'not_found' });
       return;
     }
@@ -380,15 +602,41 @@ const server = http.createServer(async (req, res) => {
     }
 
     const body = await readJsonBody(req);
-    const input = validateRequest(body);
     const startedAt = new Date().toISOString();
-    const run = await runKeywordPlanner(input);
+
+    if (isKeywordVolume) {
+      const input = validateRequest(body);
+      const run = await runKeywordPlanner(input);
+      const response = {
+        ok: Boolean(run.ok),
+        source: 'weles_mac_mini_keyword_planner_api',
+        session: input.session,
+        customer: input.customerId,
+        keywordCount: input.keywords.length,
+        startedAt,
+        finishedAt: new Date().toISOString(),
+        exitCode: run.exitCode,
+        timedOut: Boolean(run.timedOut),
+        resultFile: run.resultFile,
+        stdoutTail: redact(run.stdout).slice(-4000),
+        stderrTail: redact(run.stderr).slice(-2000),
+        report: run.report,
+        keeper: run.keeper,
+      };
+      json(res, response.ok ? 200 : 502, response);
+      return;
+    }
+
+    const input = validateReportRequest(body);
+    const generation = await generateKeywordsWithRouter(input);
+    const run = await runKeywordPlanner({ ...input, keywords: generation.keywords });
+    const report = buildKeywordReport(input, generation, run);
     const response = {
       ok: Boolean(run.ok),
-      source: 'weles_mac_mini_keyword_planner_api',
+      source: 'weles_mac_mini_keyword_report_api',
       session: input.session,
       customer: input.customerId,
-      keywordCount: input.keywords.length,
+      keywordCount: generation.keywords.length,
       startedAt,
       finishedAt: new Date().toISOString(),
       exitCode: run.exitCode,
@@ -396,7 +644,7 @@ const server = http.createServer(async (req, res) => {
       resultFile: run.resultFile,
       stdoutTail: redact(run.stdout).slice(-4000),
       stderrTail: redact(run.stderr).slice(-2000),
-      report: run.report,
+      report,
       keeper: run.keeper,
     };
     json(res, response.ok ? 200 : 502, response);
