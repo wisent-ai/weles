@@ -91,6 +91,7 @@ const ROUTES: Record<string, (p: string) => string | null> = {
   version_history_scan: (p) => p === 'overleaf' ? 'scripts/trajectories/overleaf/version_history_ui_phrase.mjs' : null,
   push_github: (p) => p === 'overleaf' ? 'scripts/trajectories/overleaf/push_github.mjs' : null,
   pull_github: (p) => p === 'overleaf' ? 'scripts/trajectories/overleaf/pull_github.mjs' : null,
+  reauth: (p) => (p === 'claude' || p === 'codex' || p === 'kimi') ? `scripts/trajectories/${p}/reauth.mjs` : null,
 
   browse: (p) => p === 'github' ? 'scripts/trajectories/github/actions/browse.mjs' : `scripts/trajectories/${p}/browse.mjs`,
   health: (p) => p === 'github' ? 'scripts/trajectories/github/health/run.mjs' : `scripts/trajectories/${p}/health.mjs`,
