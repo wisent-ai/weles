@@ -270,6 +270,27 @@ async function clickEmailRow(page, email) {
     if (hit) break;
     await page.waitForTimeout(100); // allow-raw-playwright: account-row appearance poll
   }
+  if (!hit) {
+    hit = await page.evaluate(() => {
+      const candidates = [];
+      const selectors = '[data-identifier], [role="link"], [role="button"], li, div';
+      for (const el of Array.from(document.querySelectorAll(selectors))) {
+        const txt = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+        if (!/@/.test(txt)) continue;
+        if (/use another account|użyj innego konta/i.test(txt)) continue;
+        const r = el.getBoundingClientRect();
+        if (r.width < 40 || r.height < 20) continue;
+        candidates.push({
+          x: r.x + r.width / 2,
+          y: r.y + r.height / 2,
+          area: r.width * r.height,
+          txt: txt.slice(0, 120),
+        });
+      }
+      candidates.sort((a, b) => a.area - b.area);
+      return candidates.length === 1 ? candidates[0] : null;
+    });
+  }
   if (!hit) throw new Error(`clickEmailRow: no row matching ${email} found`);
   // Humanized pointer move+click (not raw CDP dispatch) — same anti-block
   // rationale as waitForEnabledThenClick.
