@@ -55,21 +55,25 @@ function firstXoxcFromObject(value) {
   return '';
 }
 
-function readSlackWebTokenFromFile(path) {
+function readSlackWebAuthFromFile(path) {
   try {
     const raw = readFileSync(path, 'utf8');
     const parsed = JSON.parse(raw);
-    return firstXoxcFromObject(parsed) || firstXoxc(raw);
+    return {
+      token: firstXoxcFromObject(parsed) || firstXoxc(raw),
+      cookieD: String(parsed.slack_web_cookie_d || parsed.cookie_d || ''),
+    };
   } catch {
-    return '';
+    return { token: '', cookieD: '' };
   }
 }
 
-function readConfiguredXoxc() {
+function readConfiguredSlackWebAuth() {
   const envToken = firstXoxc(process.env.SLACK_WEB_USER_TOKEN)
     || firstXoxc(process.env.SLACK_XOXC)
     || firstXoxc(process.env.SLACK_XOXC_TOKEN);
-  if (envToken) return envToken;
+  const envCookieD = String(process.env.SLACK_WEB_COOKIE_D || process.env.SLACK_COOKIE_D || '');
+  if (envToken) return { token: envToken, cookieD: envCookieD };
 
   const paths = [
     process.env.SLACK_WEB_TOKEN_FILE,
@@ -77,10 +81,30 @@ function readConfiguredXoxc() {
     join(homedir(), '.oko', 'slack_tokens.json'),
   ].filter(Boolean);
   for (const path of paths) {
-    const token = readSlackWebTokenFromFile(path);
-    if (token) return token;
+    const auth = readSlackWebAuthFromFile(path);
+    if (auth.token) return auth;
   }
-  return '';
+  return { token: '', cookieD: '' };
+}
+
+async function installConfiguredSlackCookie(page, cookieD) {
+  if (!cookieD) return;
+  await page.context().addCookies([{
+    name: 'd',
+    value: cookieD,
+    domain: '.slack.com',
+    path: '/',
+    secure: true,
+    httpOnly: true,
+    sameSite: 'None',
+  }]);
+}
+
+function slackWebApiHeaders(xoxc) {
+  const headers = { Authorization: `Bearer ${xoxc}` };
+  const cookieD = readConfiguredSlackWebAuth().cookieD;
+  if (cookieD) headers.Cookie = `d=${cookieD}`;
+  return headers;
 }
 
 function userTokenManifest(scopes) {
@@ -102,10 +126,11 @@ function userTokenManifest(scopes) {
 }
 
 async function extractXoxc(page) {
-  const configured = readConfiguredXoxc();
-  if (configured) {
-    console.log('[user-token] using configured Slack web token');
-    return configured;
+  const configured = readConfiguredSlackWebAuth();
+  if (configured.token) {
+    await installConfiguredSlackCookie(page, configured.cookieD);
+    console.log(`[user-token] using configured Slack web token cookie=${configured.cookieD ? 'yes' : 'no'}`);
+    return configured.token;
   }
 
   await page.goto('https://wisent-workspace.slack.com/messages', { waitUntil: 'domcontentloaded' });
@@ -158,7 +183,6 @@ async function extractXoxpFromOAuthPage(page, appId) {
     return m ? m[0] : '';
   });
 }
-
 export async function createUserTokenApp({ page, shot, appId: requestedAppId = '' }) {
   const configuredScopes = parseScopes(process.env.SLACK_USER_TOKEN_SCOPES);
   const scopes = configuredScopes.length ? configuredScopes : DEFAULT_USER_SCOPES;
@@ -175,7 +199,7 @@ export async function createUserTokenApp({ page, shot, appId: requestedAppId = '
 
   const manifest = JSON.stringify(userTokenManifest(scopes));
   const validateResp = await page.context().request.post('https://slack.com/api/apps.manifest.validate', {
-    headers: { Authorization: `Bearer ${xoxc}` },
+    headers: slackWebApiHeaders(xoxc),
     multipart: { manifest, token: xoxc },
   });
   const validate = await validateResp.json();
@@ -183,7 +207,7 @@ export async function createUserTokenApp({ page, shot, appId: requestedAppId = '
   if (!validate.ok) throw new Error(`[user-token] apps.manifest.validate failed: ${JSON.stringify(validate).slice(0, 500)}`);
 
   const createResp = await page.context().request.post('https://slack.com/api/apps.manifest.create', {
-    headers: { Authorization: `Bearer ${xoxc}` },
+    headers: slackWebApiHeaders(xoxc),
     multipart: { manifest, token: xoxc },
   });
   const create = await createResp.json();
