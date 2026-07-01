@@ -29,7 +29,7 @@ export async function claimOne(): Promise<ActionLogRow | null> {
   // *_topup) before sim/promote rows. Login mints cookies and unblocks every
   // downstream action for the same account; health detects bans; balance keeps
   // proxies funded. Stable-sort by scheduled_at within each priority tier.
-  const recoveryRe = /_(login|register|health|balance|topup)$/;
+  const recoveryRe = /_(login|register|health|balance|topup|reauth)$/;
   const priority = (row: ActionLogRow) => (recoveryRe.test(row.action) ? 1000 : 0) + Number(row.priority ?? 0);
   candidates = candidates
     .map((r, i) => ({ r, i, p: priority(r) }))
@@ -56,7 +56,7 @@ export async function claimOne(): Promise<ActionLogRow | null> {
   // actions that use service credentials rather than a social account row.
   // Everything else without an account is a poison orphan and is skipped.
   const isOverleafAction = (a: string) => a.startsWith('overleaf_');
-  const canRunWithoutAccount = (a: string) => /_register$|_balance$|_topup$|_verify_domain_status$|_post_message$/.test(a) || a === 'slack_provision_user_token' || a === 'pangram_analyze_text' || a === 'ncbr_pangram_audit_new_wniosek' || a === 'generic_browser_task' || a === 'generic_saved_task' || isOverleafAction(a) || /^(umami|googleanalytics)_/.test(a);
+  const canRunWithoutAccount = (a: string) => /_register$|_balance$|_topup$|_reauth$|_verify_domain_status$|_post_message$/.test(a) || a === 'slack_provision_user_token' || a === 'pangram_analyze_text' || a === 'ncbr_pangram_audit_new_wniosek' || a === 'generic_browser_task' || a === 'generic_saved_task' || isOverleafAction(a) || /^(umami|googleanalytics)_/.test(a);
   for (const row of candidates) {
     if (!resolveTrajectory(row.action)) continue;
     if (!row.id) continue;
