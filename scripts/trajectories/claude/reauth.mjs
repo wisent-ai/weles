@@ -104,8 +104,11 @@ async function probePool(cfg) {
     messages: [{ role: 'user', content: 'Reply with the single word PROBE.' }],
     max_tokens: 10,
   });
-  const r = await fetch(`${cfg.routerUrl}/v1/chat/completions`,
-    { method: 'POST', headers: sign(cfg, body), body });
+  const r = await fetch(`${cfg.routerUrl}/v1/chat/completions`, {
+    method: 'POST',
+    headers: { ...sign(cfg, body), 'x-model-router-skip-weles-reauth': '1' },
+    body,
+  });
   let data;
   try { data = await r.json(); } catch { data = { raw: await r.text() }; }
   return { status: r.status, body: data };
