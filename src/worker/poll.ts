@@ -32,7 +32,7 @@ export interface BanSignal { healthy: boolean; signal: string; details?: Record<
 const SUPABASE_URL = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
 const RECORDINGS_ROOT = process.env.RECORDINGS_ROOT ?? 'recordings';
-const LIGHT_RESULT_ACTIONS = new Set(['overleaf_version_history_scan']);
+const LIGHT_RESULT_ACTIONS = new Set(['overleaf_version_history_scan', 'slack_provision_user_token']);
 
 function headers(): Record<string, string> {
   return { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' };
