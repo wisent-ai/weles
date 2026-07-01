@@ -366,9 +366,9 @@ function parseGeneratedKeywords(raw) {
 async function generateKeywordsWithRouter(input) {
   const cfg = await loadModelRouterConfig();
   const prompt = [
-    'Generate Google Ads Keyword Planner seed keywords.',
+    'Generate a compact Google Ads Keyword Planner seed-keyword shortlist.',
     'Return ONLY valid JSON in this exact shape: {"keywords":["keyword one","keyword two"]}.',
-    'Do not include metrics, commentary, markdown, or explanations.',
+    'Do not include metrics, commentary, markdown, explanations, or exhaustive variations.',
     `Subject: ${input.subject || '(none)'}`,
     `Product: ${input.product || '(none)'}`,
     `Niche: ${input.niche || '(none)'}`,
@@ -376,6 +376,7 @@ async function generateKeywordsWithRouter(input) {
     `Landing page: ${input.landingPage || '(none)'}`,
     `Goal: ${input.goal}`,
     `Seed keywords: ${input.seedKeywords.join(', ') || '(none)'}`,
+    'Include only keywords strong enough to submit to Google Ads immediately.',
     'Prefer commercial-intent search phrases. Avoid duplicates, brands not present in the prompt, and policy-sensitive/adult-explicit terms.',
   ].join('\n');
   const body = JSON.stringify({
