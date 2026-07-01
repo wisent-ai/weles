@@ -216,7 +216,7 @@ async function runTrajectory(row: ActionLogRow, path: string, extraEnv: Record<s
   const overrideMs = Number(process.env.WORKER_HARD_TIMEOUT_MS ?? 0);
   const defaultMs = row.action.endsWith('_health') || row.action.endsWith('_balance') ? 90_000
     : row.action.endsWith('_topup') ? 360_000
-    : row.action.endsWith('_register') || row.action.endsWith('_login') ? 900_000
+    : row.action.endsWith('_register') || row.action.endsWith('_login') || row.action.endsWith('_reauth') ? 900_000
     // verify_domain_status sends probes then polls receiving twice (batch +
     // confirmation re-probe), up to ~4-5 min; give it headroom over the default.
     : row.action.endsWith('_verify_domain_status') ? 600_000
