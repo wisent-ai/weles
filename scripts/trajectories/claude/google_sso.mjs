@@ -121,7 +121,7 @@ export async function doGoogleSso({
     if (!e.message.includes('Execution context was destroyed')) throw e;
   }
   await humanIdlePause('short');
-  await waitForEnabledThenClick(page,/next|continue/i);
+  await waitForEnabledThenClick(page,/next|continue|dalej/i);
   await humanIdlePause('deliberate');
 
   mark('google_password');
@@ -153,7 +153,7 @@ export async function doGoogleSso({
     if (!e.message.includes('Execution context was destroyed')) throw e;
   }
   await humanIdlePause('short');
-  await waitForEnabledThenClick(page,/next|sign in|continue/i);
+  await waitForEnabledThenClick(page,/next|sign in|continue|dalej|zaloguj/i);
   await humanIdlePause('long');
 
   mark('google_2fa_check');
@@ -202,7 +202,7 @@ export async function doGoogleSso({
           mark('gis_account_chooser_popup');
           await clickEmailRow(popupPage, login.email);
           await humanIdlePause('long');
-          try { await waitForEnabledThenClick(popupPage, /^continue$/i); }
+          try { await waitForEnabledThenClick(popupPage, /^(continue|next|dalej)$/i); }
           catch (e) { console.log(`[google_sso] no popup consent: ${e.message.slice(0, 50)}`); }
         }
         const st = await navEval(page, () => {
