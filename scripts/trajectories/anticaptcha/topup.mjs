@@ -2,7 +2,7 @@
 // TOPUP_USD is rounded to nearest preset. Clicking amount redirects to Stripe.
 import { WSession } from '../../../dist/session/wsession.js';
 import { googleSso, getGoogleSsoCreds } from '../_shared/services/google_sso.mjs';
-import { topupOpts, dryRunExit } from '../_shared/services/topup_common.mjs';
+import { topupOpts } from '../_shared/services/topup_common.mjs';
 import { humanIdlePause } from '../../../dist/human/mouse.js';
 
 const PRESETS = [10, 25, 50, 100, 500];
@@ -10,7 +10,7 @@ function nearestPreset(usd) {
   return PRESETS.reduce((a, b) => Math.abs(b - usd) < Math.abs(a - usd) ? b : a);
 }
 
-const { usd, confirm } = topupOpts();
+const { usd } = topupOpts();
 const amount = nearestPreset(usd);
 console.log(`[trajectory] requested $${usd}, using nearest preset $${amount}`);
 
@@ -48,7 +48,7 @@ try {
   }
   console.log(`[trajectory] found amount button $${amount}`);
 
-  if (!confirm) { await dryRunExit(s, 'anticaptcha', amount); process.exit(0); }
+  
 
   // CONFIRM: Click amount to redirect to Stripe checkout
   console.log(`[trajectory] CONFIRM: clicking $${amount} to proceed to Stripe`);

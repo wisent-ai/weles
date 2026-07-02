@@ -4,7 +4,7 @@
 //   1. Load model-router config from Weles service_credentials metadata.
 //   2. HMAC-probe kimi-subscription.
 //   3. If healthy: exit.
-//   4. If auth is missing/burnt: run login.mjs in an isolated HOME, smoke
+//   4. If auth is missing/burnt: run login.mjs in an isolated HOME, verify
 //      `kimi -p`, donate the fresh credentials JSON, and revoke stale rows.
 //   5. If the provider reports quota/usage limit, do not re-login: credentials
 //      are not the issue.

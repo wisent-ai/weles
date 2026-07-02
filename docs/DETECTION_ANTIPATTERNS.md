@@ -125,13 +125,13 @@ flagged IP poisons the whole cohort.
 provider from `[oxylabs, packetstream, pingproxies]` deterministically. Same
 account always pins to the same provider, fleet spreads evenly across three.
 
-## 7. Smoke tests firing destructive verbs at production accounts
+## 7. Destructive verification against production accounts
 
 The Tests tab used to pick the first active account and fire
 `create_repo` / `commit` / `organic_issue_comment` back-to-back against it.
 That IS the swiftwolf6387 shadowban pattern.
 
-**Enforcement**: `e2e-smoke` cron in content-platform refuses verbs in the
+**Enforcement**: the content-platform E2E guard refuses verbs in the
 `DESTRUCTIVE_VERBS` set against production accounts and enforces a cooldown
 gate at enqueue time.
 

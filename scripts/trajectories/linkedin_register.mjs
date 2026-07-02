@@ -552,7 +552,6 @@ async function waitPastEmailVerification(page) {
 const requestedProxy = process.env.LINKEDIN_REGISTER_PROXY ?? process.env.LINKEDIN_PROXY ?? process.env.PROXY_URL ?? 'isp decodo us';
 const requestedEntryUrl = process.env.LINKEDIN_REGISTER_ENTRY_URL ?? DEFAULT_ENTRY_URL;
 const HEADLESS = process.env.HEADLESS === '1' || process.env.WELES_HEADLESS === '1' || process.env.LINKEDIN_REGISTER_HEADLESS === '1';
-const stopAfterSignupReady = process.env.LINKEDIN_REGISTER_STOP_AFTER_SIGNUP_READY === '1';
 const envPrewarmUrls = parseLinkedinUrlList(process.env.LINKEDIN_REGISTER_PREWARM_URLS ?? '');
 const defaultPrewarmUrls = process.env.LINKEDIN_REGISTER_DEFAULT_PREWARM === '1' && envPrewarmUrls.length === 0
   ? ['https://www.linkedin.com/', 'https://www.linkedin.com/signup']
@@ -734,16 +733,6 @@ try {
   // Simulate a human reading the signup form before interacting.
   await humanScroll(s.page, 400, 2);
   await humanIdlePause('deliberate');
-  if (stopAfterSignupReady) {
-    await writeSubmitDiagnostics('stop_after_signup_ready', {
-      url: s.page.url(),
-      entry_url: requestedEntryUrl,
-      expected_exit_ip: expectedExitIp,
-      state: await collectSubmitState(s.page, 'stop_after_signup_ready'),
-    });
-    console.log('DRY_RUN: stop_after_signup_ready');
-    process.exitCode = 0;
-  } else {
   await humanFill(s.page, emailLoc, id.email);
   await humanIdlePause('short');
   await humanFill(s.page, pwdLoc, id.password);
@@ -915,7 +904,6 @@ try {
   console.log(`PASS: ${id.handle}`);
   const diagnostics = await getLinkedinFailureDiagnostics(s, requestedProxy, expectedExitIp);
   try { mkdirSync(runRecordingsDir('linkedin_register'), { recursive: true }); writeFileSync(join(runRecordingsDir('linkedin_register'), 'ban_signal.json'), JSON.stringify({ action: 'linkedin_register', signal: 'healthy', healthy: true, details: { username_hash: hashValue(id.handle), email_hash: hashValue(id.email), final_url: s.page.url(), auth: authState, diagnostics, failure_reasons: [], stage_events: stageEvents }, ts: new Date().toISOString() }, null, 2)); } catch {}
-  }
 } catch (e) {
   const finalUrl = s?.page?.url?.() ?? '';
   const errorMessage = e.message ?? '';

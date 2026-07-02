@@ -123,6 +123,6 @@ Location note: this file stays under `scripts/worker/deploy/` for continuity wit
 - **[W]** Runtime `capture_coverage` block reports emitted/attempted/missing collector coverage for each `inst.json`.
 - **[T]** Store capture schema version, collector version hashes, feature matrix version, CDP protocol version, dependency lockfile hash, browser binary signature/hash, system clock/timezone state, and all source files used to build the capture payload.
 - **[T]** Dedup artifacts by sha256 where the same body/script/style/srcdoc/font/image appears multiple times, while preserving per-use references and timing.
-- **[T]** Validate every run with a schema check and a diff-matrix smoke test.
+- **[T]** Validate every run with a schema check and a diff-matrix regression check.
 
 When wiring new capture, flip `[T]` to `[W]` here in the same commit that lands the code. Add a new bullet only when it names a new collector boundary, artifact boundary, or explicit matrix that is not already covered by an existing bullet.

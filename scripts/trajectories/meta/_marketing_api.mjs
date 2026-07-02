@@ -79,27 +79,19 @@ export function withValidateOnly(params, { submit = submitEnabled(), validateOnl
   return { ...params, execution_options: ['validate_only'] };
 }
 
-export function printDryRun(label, request) {
-  const redacted = JSON.parse(JSON.stringify(request));
-  if (redacted.params?.access_token) redacted.params.access_token = '[redacted]';
-  if (redacted.body?.access_token) redacted.body.access_token = '[redacted]';
-  console.log(`[${label}] SUBMIT=0 dry run`);
-  console.log(JSON.stringify(redacted, null, 2).slice(0, 20000));
+function requestEnabled(opts = {}) {
+  if (opts.submit != null) return Boolean(opts.submit);
+  if (opts.execute != null) return Boolean(opts.execute);
+  return submitEnabled();
 }
 
 export async function graphRequest(method, path, params = {}, opts = {}) {
-  const submit = opts.submit ?? submitEnabled();
-  const dryRun = opts.dryRun ?? !submit;
-  const label = opts.label || 'meta-marketing-api';
+  const execute = requestEnabled(opts);
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
-  const request = { method, url: `${graphBase()}${normalizedPath}`, params };
-  if (dryRun) {
-    printDryRun(label, request);
-    return { dryRun: true, request };
-  }
+  if (!execute) throw new Error('SUBMIT=1 required for Meta Marketing API request');
 
   const token = accessToken();
-  const url = new URL(request.url);
+  const url = new URL(`${graphBase()}${normalizedPath}`);
   const headers = {};
   const fetchOpts = { method, headers };
   const bodyParams = { ...params, access_token: token };
@@ -130,15 +122,9 @@ export async function graphRequest(method, path, params = {}, opts = {}) {
 }
 
 export async function graphUpload(path, fields, fileField, filePath, opts = {}) {
-  const submit = opts.submit ?? submitEnabled();
-  const dryRun = opts.dryRun ?? !submit;
-  const label = opts.label || 'meta-marketing-api-upload';
+  const execute = requestEnabled(opts);
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
-  const request = { method: 'POST', url: `${graphBase()}${normalizedPath}`, fields, fileField, filePath };
-  if (dryRun) {
-    printDryRun(label, request);
-    return { dryRun: true, request };
-  }
+  if (!execute) throw new Error('SUBMIT=1 required for Meta Marketing API upload');
 
   const form = new FormData();
   for (const [k, v] of Object.entries({ ...fields, access_token: accessToken() })) {

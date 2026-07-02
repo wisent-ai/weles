@@ -9,7 +9,6 @@
 #
 # Usage:
 #   bash scripts/chromium/build.sh             # build, then publish
-#   bash scripts/chromium/build.sh --dry-run   # build, then dry-run release
 #
 # Env overrides:
 #   CHROMIUM_BUILD_SRC    default ../chromium-build/src

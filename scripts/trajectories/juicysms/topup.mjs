@@ -1,11 +1,11 @@
-// JuicySMS topup via Google SSO. Dry-run by default.
+// JuicySMS topup via Google SSO.
 import { WSession } from '../../../dist/session/wsession.js';
 import { googleSso, getGoogleSsoCreds } from '../_shared/services/google_sso.mjs';
-import { topupOpts, dryRunExit } from '../_shared/services/topup_common.mjs';
+import { topupOpts } from '../_shared/services/topup_common.mjs';
 import { humanIdlePause } from '../../../dist/human/mouse.js';
 import { humanType } from '../../../dist/human/keyboard.js';
 
-const { usd, confirm } = topupOpts();
+const { usd } = topupOpts();
 const login = await getGoogleSsoCreds();
 if (!login) { console.log('FAIL: no Google SSO creds'); process.exit(1); }
 
@@ -23,7 +23,7 @@ try {
   // accounts.google.com/SetSID). The previous "break the moment URL leaves
   // /login" exited mid-Google-redirect, before the juicysms session cookie
   // was written — every subsequent goto bounced back to /login. Verified
-  // 2026-05-06 via the addfunds dry-run.
+  // 2026-05-06 via the addfunds flow.
   for (let i = 0; i < 30; i++) {
     await humanIdlePause('short');
     const u = s.page.url();
@@ -40,7 +40,7 @@ try {
     console.log(`[trajectory] amount filled: $${usd}`);
   }
 
-  if (!confirm) { await dryRunExit(s, 'juicysms', usd); process.exit(0); }
+  
 
   // The /addfunds page renders payment-method tiles ("Credit Card", "WeChat
   // Pay", "AliPay", ...) plus the green "ADD FUNDS" submit button. The

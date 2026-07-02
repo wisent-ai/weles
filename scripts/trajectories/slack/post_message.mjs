@@ -9,7 +9,7 @@
 // Token source: SLACK_BOT_TOKEN env, else ~/.oko/bot-token, else ~/.oko/slack.json.
 // IMPORTANT: do NOT re-create the app when a token exists — that spawns a
 // duplicate (logo-less) "Oko" and posts from the wrong identity.
-// Env: SLACK_BOT_TOKEN, MESSAGE_TEXT | MESSAGE_FILE, SLACK_DRY_RUN=1,
+// Env: SLACK_BOT_TOKEN, MESSAGE_TEXT | MESSAGE_FILE,
 //      SLACK_TARGET_CHANNEL (id) | SLACK_TARGET_CHANNEL_NAME | SLACK_TARGET_USER_ID,
 //      SLACK_TARGET_USER_MATCHERS (csv, default jakub,kuba,towarek),
 //      SLACK_ENABLE_TAGGING=0 | SLACK_MENTION_USER_IDS | SLACK_MENTION_USER_MATCHERS,
@@ -27,7 +27,6 @@ const MESSAGE_FILE = process.env.MESSAGE_FILE
   || join(OKO, '.work', 'jakub-status.txt');
 const TARGET_NAME = (process.env.SLACK_TARGET_CHANNEL_NAME || 'jakub').toLowerCase();
 const TARGET_CHAN = process.env.SLACK_TARGET_CHANNEL || '';
-const DRY_RUN = process.env.SLACK_DRY_RUN === '1';
 const TAGGING_ENABLED = process.env.SLACK_ENABLE_TAGGING !== '0';
 const MENTION_MODE = (process.env.SLACK_MENTION_MODE || 'prefix').toLowerCase();
 
@@ -142,21 +141,6 @@ async function mentionIdsForTarget(target, loadMembers) {
   return hits.map((hit) => hit.id);
 }
 
-function dryPlan(targets, plans, who) {
-  console.log(JSON.stringify({
-    ok: true,
-    dry_run: true,
-    bot: who ? { team: who.team, team_id: who.team_id, user: who.user, user_id: who.user_id } : null,
-    targets: targets.map((target, index) => ({
-      id: target,
-      kind: isChannelTarget(target) ? 'channel' : (String(target).startsWith('D') ? 'dm_channel' : 'user_or_dm'),
-      mention_ids: plans[index].mentionIds,
-      tagging_applied: plans[index].text !== MESSAGE_BODY,
-      text_length: plans[index].text.length,
-      text_preview: plans[index].text.slice(0, 180),
-    })),
-  }, null, 2));
-}
 
 async function resolveTargets(token) {
   if (TARGET_CHAN) return [TARGET_CHAN];                                 // explicit channel id wins
@@ -204,10 +188,6 @@ if (BOT_TOKEN) {
   for (const target of targets) {
     const mentionIds = await mentionIdsForTarget(target, loadMembers);
     plans.push({ target, mentionIds, text: applyMentions(MESSAGE_BODY, mentionIds) });
-  }
-  if (DRY_RUN) {
-    dryPlan(targets, plans, who);
-    process.exit(0);
   }
   let posted = 0;
   for (const plan of plans) {
@@ -401,11 +381,6 @@ const fallbackMembers = async () => {
 };
 const fallbackMentionIds = await mentionIdsForTarget(channelId, fallbackMembers);
 const finalMessageText = applyMentions(messageText, fallbackMentionIds);
-if (DRY_RUN) {
-  dryPlan([channelId], [{ target: channelId, mentionIds: fallbackMentionIds, text: finalMessageText }], null);
-  await safeShutdown();
-  process.exit(0);
-}
 const post = await slackApi('chat.postMessage', { token: xoxb, channel: channelId, text: finalMessageText, mrkdwn: true });
 console.log(`[slack] ✓ posted as Swiatowid bot ts=${post.ts} channel=${channelId}`);
 

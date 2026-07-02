@@ -1,5 +1,4 @@
 // Buy 10 US ISP proxies from Oxylabs via Google SSO + buy-locations flow.
-// DRY-RUN by default. Set ISP_BUY_CONFIRM=1 to commit charge.
 
 import { WSession } from '../../../../dist/session/wsession.js';
 import { googleSso, getGoogleSsoCreds } from '../../_shared/services/google_sso.mjs';
@@ -15,7 +14,7 @@ import { COMMIT_BUTTON_SELECTORS } from './selectors.mjs';
 const TOPUP_ENV_FILE = join(homedir(), '.weles', 'topup_card.env');
 if (existsSync(TOPUP_ENV_FILE)) for (const raw of readFileSync(TOPUP_ENV_FILE, 'utf8').split('\n')) { const line = raw.trim(); if (!line || line.startsWith('#')) continue; const eq = line.indexOf('='); if (eq < 0) continue; const k = line.slice(0, eq).trim(); const v = line.slice(eq + 1).trim().replace(/^["']|["']$/g, ''); if (k && v && !process.env[k]) process.env[k] = v; }
 
-const CONFIRM = process.env.ISP_BUY_CONFIRM === '1';
+if (process.env.ISP_BUY_CONFIRM !== '1') { console.log('FAIL: ISP_BUY_CONFIRM=1 required before buying ISP proxies'); process.exit(2); }
 const OUT_DIR = '.work/keeper/oxylabs_isp_buy_us';
 mkdirSync(OUT_DIR, { recursive: true });
 const stamp = () => new Date().toISOString().replace(/[:.]/g, '-');
@@ -64,10 +63,6 @@ try {
   await humanIdlePause('long');
   await shot(s, 'overview_isp');
 
-  if (!CONFIRM) {
-    console.log('[trajectory] DRY-RUN — set ISP_BUY_CONFIRM=1 to proceed.');
-    process.exit(0);
-  }
 
   // 2026-05-12: "Buy now" was removed from /overview/ISP. The new entry to
   // expand the plan is "Change IP setup" next to "Current plan 10 IPs".

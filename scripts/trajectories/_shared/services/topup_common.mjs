@@ -1,35 +1,25 @@
 // Shared scaffolding for service-credential topup trajectories.
-// Dry-run by default: fill amount + screenshot + exit. TOPUP_CONFIRM=1 to charge.
+// TOPUP_CONFIRM=1 is required before any provider topup flow can continue.
 
-import { mkdirSync, readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { homedir } from 'node:os';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { humanIdlePause } from '../../../../dist/human/mouse.js';
 import { humanType } from '../../../../dist/human/keyboard.js';
-import { runRecordingsDir } from '../../../../dist/session/run-recordings.js';
 
 export function topupOpts() {
   const usd = Number(process.env.TOPUP_USD ?? '10');
-  const confirm = process.env.TOPUP_CONFIRM === '1';
   if (!Number.isFinite(usd) || usd <= 0) {
     console.log(`FAIL: invalid TOPUP_USD=${process.env.TOPUP_USD}`);
     process.exit(1);
   }
-  return { usd, confirm };
-}
-
-export async function dryRunExit(session, label, usd) {
-  try {
-    const dir = runRecordingsDir(`${label}_topup`);
-    mkdirSync(dir, { recursive: true });
-    const ts = new Date().toISOString().replace(/[:.]/g, '-');
-    const path = join(dir, `dry-run-${ts}.png`);
-    await session.page.screenshot({ path, fullPage: true }).catch(() => {});
-    console.log(`PASS-DRY: would charge $${usd}; screenshot=${path}`);
-    console.log('Set TOPUP_CONFIRM=1 + TOPUP_USD=<amount> to actually submit payment.');
-  } catch (e) { console.log('[dry-run] screenshot err:', e.message); }
+  if (process.env.TOPUP_CONFIRM !== '1') {
+    console.log('FAIL: TOPUP_CONFIRM=1 required before charging');
+    process.exit(2);
+  }
+  return { usd };
 }
 
 // Generic pay button finder - tries common selectors for checkout buttons.

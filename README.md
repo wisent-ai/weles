@@ -57,7 +57,7 @@ weles/
 │   │   ├── github/            # github_login.mjs + github/star/, github/actions/
 │   │   ├── reddit/            # reddit/promote.mjs + reddit/actions/
 │   │   ├── tiktok/ instagram/ twitter/ linkedin/ discord/
-│   │   └── {platform}_{login|register|...}.mjs  # legacy flat smoke tests
+│   │   └── {platform}_{login|register|...}.mjs  # legacy flat trajectories
 │   └── chromium/download.sh   # install prebuilt custom Chromium
 ├── dist/                      # tsc output (git-ignored)
 ├── package.json

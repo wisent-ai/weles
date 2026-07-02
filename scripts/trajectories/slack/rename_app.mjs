@@ -4,11 +4,10 @@
 // Configuration Tokens". The bot xoxb token cannot do this (not_allowed_token_type).
 //
 // Env: SLACK_CONFIG_TOKEN (xoxe…, required), APP_ID (default A0B5UP3MRPT = Swiatowid),
-//      NEW_NAME (default Oko), DRY=1 (export + show only, no update).
+//      NEW_NAME (default Oko).
 const TOKEN = process.env.SLACK_CONFIG_TOKEN || '';
 const APP_ID = process.env.APP_ID || 'A0B5UP3MRPT';
 const NEW_NAME = process.env.NEW_NAME || 'Oko';
-const DRY = process.env.DRY === '1';
 if (!TOKEN) { console.log('FAIL: SLACK_CONFIG_TOKEN required (xoxe… from api.slack.com/apps)'); process.exit(2); }
 
 async function call(method, form) {
@@ -31,8 +30,6 @@ console.log(`current: name="${oldName}" bot_display_name="${oldBot}"`);
 
 manifest.display_information.name = NEW_NAME;
 if (manifest.features?.bot_user) manifest.features.bot_user.display_name = NEW_NAME;
-
-if (DRY) { console.log(`DRY: would set both to "${NEW_NAME}" on app ${APP_ID}`); process.exit(0); }
 
 await call('apps.manifest.update', { app_id: APP_ID, manifest: JSON.stringify(manifest) });
 const after = await call('apps.manifest.export', { app_id: APP_ID });

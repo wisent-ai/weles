@@ -13,7 +13,6 @@
 #
 # Usage:
 #   bash scripts/chromium/release.sh            # build must already exist
-#   bash scripts/chromium/release.sh --dry-run  # show the tag + size, no upload
 #
 # Env overrides: CHROMIUM_BUILD_OUT (default ../chromium-build/src/out/Weles).
 
@@ -22,8 +21,6 @@ set -euo pipefail
 REPO="wisent-ai/weles"
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 BUILD_OUT="${CHROMIUM_BUILD_OUT:-$REPO_ROOT/../chromium-build/src/out/Weles}"
-DRY=0
-if [[ "${1:-}" == "--dry-run" ]]; then DRY=1; fi
 
 uname_s=$(uname -s)
 uname_m=$(uname -m)
@@ -60,10 +57,6 @@ else
   sha256sum "$TMP/$ASSET" | awk '{print $1}' > "$TMP/$ASSET.sha256"
 fi
 
-if [[ $DRY -eq 1 ]]; then
-  echo "[release] DRY-RUN: would create $TAG — $ASSET ($(du -h "$TMP/$ASSET" | cut -f1)), sha $(cat "$TMP/$ASSET.sha256")" >&2
-  exit 0
-fi
 
 echo "[release] uploading release $TAG …" >&2
 gh release create "$TAG" "$TMP/$ASSET" "$TMP/$ASSET.sha256" \
