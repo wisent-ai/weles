@@ -86,7 +86,7 @@ export async function wsClick(s: WSession, target: string): Promise<string> {
       for (const role of ['button', 'link'] as const) {
         try { const r = await tryLoc(frame.getByRole(role, { name: reLoose }), `frame ${role}: `); if (r) return r; } catch {}
       }
-      if (/\b(submit|send|request|continue)\b/i.test(target)) {
+      if (/\b(submit|send)\b/i.test(target)) {
         const submit = await firstVisible(frame.locator?.('input[type="submit"], button[type="submit"], button, [role="button"]'));
         if (submit) {
           await humanClickLocator(s.page, submit);
@@ -118,6 +118,8 @@ export async function wsFill(s: WSession, target: string, value: string): Promis
   return s.runStep(`fill_${target}`, async () => {
     const v = s.resolveEnv(value);
     const { humanFill } = await import('../../human/keyboard.js');
+    const kws = target.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(w => w.length > 2);
+    const sels = kws.flatMap(k => ['input','textarea','[contenteditable]'].flatMap(t => [`${t}[name*="${k}"]`,`${t}[placeholder*="${k}" i]`,`${t}[aria-label*="${k}" i]`]));
     for (const frame of childFrames(s)) {
       try { const lbl = await firstVisible(frame.getByLabel?.(target, { exact: false })); if (lbl) { await humanFill(s.page, lbl, v); return 'filled frame label'; } } catch {}
       const emailHint = /\b(email|e-mail)\b/i.test(target);
@@ -125,10 +127,11 @@ export async function wsFill(s: WSession, target: string, value: string): Promis
         const emailInput = await firstVisible(frame.locator?.('input[type="email"], input[name*="email" i], input[autocomplete*="email" i]'));
         if (emailInput) { await humanFill(s.page, emailInput, v); return 'filled frame email'; }
       }
+      for (const sel of sels) {
+        try { const el = await firstVisible(frame.locator?.(sel)); if (el) { await humanFill(s.page, el, v); return `filled frame ${sel}`; } } catch {}
+      }
     }
     try { const lbl = s.page.getByLabel?.(target, { exact: false })?.first?.(); if (lbl && await lbl.isVisible({ timeout: VISIBILITY_PROBE_MS }).catch(() => false)) { await humanFill(s.page, lbl, v); return 'filled'; } } catch {}
-    const kws = target.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(w => w.length > 2);
-    const sels = kws.flatMap(k => ['input','textarea','[contenteditable]'].flatMap(t => [`${t}[name*="${k}"]`,`${t}[placeholder*="${k}" i]`,`${t}[aria-label*="${k}" i]`]));
     for (const sel of sels) { try { const el = s.page.locator?.(sel)?.first?.(); if (el && await el.isVisible()) { await humanFill(s.page, el, v); return 'filled'; } } catch {} }
     const tgt = JSON.stringify(target.toLowerCase());
     const c = await s.page.evaluate(`(()=>{var t=${tgt};for(var el of document.querySelectorAll('*')){var r=el.getBoundingClientRect();var ph=(el.getAttribute('placeholder')||'').toLowerCase();if(r.width>50&&r.height>10&&r.x>0&&ph&&ph.indexOf(t)>=0)return{x:r.x+r.width/2,y:r.y+r.height/2}}return null})()`).catch(() => null);
