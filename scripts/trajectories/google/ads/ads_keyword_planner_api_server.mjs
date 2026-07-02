@@ -454,79 +454,25 @@ function uniqueKeywords(values) {
   return out;
 }
 
-function mergeRows(existingRows, newRows) {
-  const byKeyword = new Map(existingRows.map((row) => [normalizeKeyword(row.keyword).toLowerCase(), row]));
-  for (const row of newRows || []) {
-    const key = normalizeKeyword(row.keyword).toLowerCase();
-    if (!key || byKeyword.has(key)) continue;
-    byKeyword.set(key, row);
-  }
-  return [...byKeyword.values()];
-}
-
 
 async function runKeywordReport(input, generation) {
   const keywords = uniqueKeywords([...input.seedKeywords, ...generation.keywords]);
   if (!keywords.length) throw new Error('no keyword candidates to check');
 
-  const checks = [];
-  const checkedKeywords = [];
-  let rows = [];
-  let lastRun = null;
-  let accountEmail = input.email || null;
-  let capturedAt = null;
-  let url = null;
-  let stdout = '';
-  let stderr = '';
-
-  for (const keyword of keywords) {
-    const run = await runKeywordPlanner({ ...input, keywords: [keyword] });
-    lastRun = run;
-    checkedKeywords.push(keyword);
-    stdout += `\n--- keyword ${keyword} stdout ---\n${run.stdout || ''}`;
-    stderr += `\n--- keyword ${keyword} stderr ---\n${run.stderr || ''}`;
-
-    const keywordRows = run.report?.rows || [];
-    rows = mergeRows(rows, keywordRows);
-    accountEmail = run.report?.accountEmail || accountEmail;
-    capturedAt = run.report?.capturedAt || capturedAt;
-    url = run.report?.url || url;
-
-    checks.push({
-      keyword,
-      ok: Boolean(run.ok),
-      exitCode: run.exitCode,
-      timedOut: Boolean(run.timedOut),
-      rowCount: keywordRows.length,
-      blocked: run.report?.blocked || null,
-      resultFile: run.resultFile,
-    });
-
-    if (run.timedOut || run.report?.blocked === 'keeper_not_ready') break;
-  }
-
-  const uncheckedKeywords = keywords.slice(checkedKeywords.length);
+  const run = await runKeywordPlanner({ ...input, keywords });
+  const rows = run.report?.rows || [];
   return {
+    ...run,
     ok: rows.length > 0,
-    exitCode: rows.length > 0 ? 0 : lastRun?.exitCode ?? 7,
-    timedOut: checks.some((check) => check.timedOut),
-    resultFile: lastRun?.resultFile || null,
-    stdout,
-    stderr,
-    keeper: lastRun?.keeper || null,
+    exitCode: rows.length > 0 ? 0 : run.exitCode,
     report: {
+      ...(run.report || {}),
       ok: rows.length > 0,
-      source: 'google_ads_keyword_planner_atomic_report',
-      session: input.session,
-      customer: input.customerId,
-      accountEmail,
+      source: 'google_ads_keyword_planner_report',
       keywords,
-      checkedKeywords,
-      uncheckedKeywords,
+      checkedKeywords: keywords,
+      uncheckedKeywords: [],
       rows,
-      capturedAt,
-      url,
-      checks,
     },
   };
 }
@@ -549,13 +495,13 @@ function buildKeywordReport(input, generation, run) {
       rowCount: rows.length,
       checkedKeywordCount: run.report?.checkedKeywords?.length || 0,
       uncheckedKeywordCount: run.report?.uncheckedKeywords?.length || 0,
-      checkCount: run.report?.checks?.length || 0,
+      batchCount: run.report?.batches?.length || 0,
       capturedAt: run.report?.capturedAt || null,
       url: run.report?.url || null,
     },
     checkedKeywords: run.report?.checkedKeywords || [],
     uncheckedKeywords: run.report?.uncheckedKeywords || [],
-    checks: run.report?.checks || [],
+    batches: run.report?.batches || [],
     topOpportunities: ranked,
     rows,
     plannerReport: run.report,
