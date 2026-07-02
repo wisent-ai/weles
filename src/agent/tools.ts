@@ -24,8 +24,9 @@ export async function dispatch(session: WSession, tool: string, args: ToolArgs):
     case 'solve_captcha': return session.solveCaptcha();
     case 'check_email': return session.checkEmail(args.email ?? '', args.sender ?? '');
     case 'generate_identity': {
+      if (session.identity) return 'generated identity already available as redacted $PLATFORM_NEW_* placeholders';
       const id = await session.generateIdentity(args.platform ?? 'reddit');
-      return `generated: username=${id.username} email=${id.email} name=${id.firstName} ${id.lastName}`;
+      return `generated identity available as redacted placeholders for ${args.platform ?? 'reddit'} username_hash=${id.username.length}:${id.username.slice(0, 2)}`;
     }
     case 'check_sms':   return session.checkSms(args.service ?? '', args.country ?? 'UK');
     case 'poll_sms_code': return session.pollSmsCode();

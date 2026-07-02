@@ -28,6 +28,25 @@ const VISIBILITY_PROBE_MS = 1500;
 
 const asV = (p: any) => p as unknown as ScreenshottablePage;
 
+function childFrames(s: WSession): any[] {
+  try {
+    return (s.page.frames?.() ?? []).filter((frame: any) => frame !== s.page.mainFrame?.());
+  } catch {
+    return [];
+  }
+}
+
+async function firstVisible(loc: any): Promise<any | null> {
+  try {
+    const first = loc?.first?.() ?? loc;
+    let count = 1;
+    if (typeof loc?.count === 'function') count = await loc.count().catch(() => 0);
+    if (count > 0 && await first.isVisible({ timeout: VISIBILITY_PROBE_MS }).catch(() => false)) return first;
+  } catch {}
+  return null;
+}
+
+
 // G17: per-run layout — recordings/<run_uuid>/<label>/.
 function recordingsDir(label?: string): string {
   return label ? runRecordingsDir(label) : runRecordingsRoot();
@@ -60,6 +79,21 @@ export async function wsClick(s: WSession, target: string): Promise<string> {
     const tEsc = target.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const reExact = new RegExp(`^\\s*${tEsc}\\s*$`, 'i');
     const reLoose = new RegExp(tEsc, 'i');
+    for (const frame of childFrames(s)) {
+      for (const role of ['button', 'link', 'checkbox'] as const) {
+        try { const r = await tryLoc(frame.getByRole(role, { name: reExact }), `frame ${role}: `); if (r) return r; } catch {}
+      }
+      for (const role of ['button', 'link'] as const) {
+        try { const r = await tryLoc(frame.getByRole(role, { name: reLoose }), `frame ${role}: `); if (r) return r; } catch {}
+      }
+      if (/\b(submit|send|request|continue)\b/i.test(target)) {
+        const submit = await firstVisible(frame.locator?.('input[type="submit"], button[type="submit"], button, [role="button"]'));
+        if (submit) {
+          await humanClickLocator(s.page, submit);
+          return `clicked frame submit: ${target}`;
+        }
+      }
+    }
     for (const role of ['button', 'link', 'checkbox'] as const) {
       try { const r = await tryLoc(s.page.getByRole(role, { name: reExact }), `${role}: `); if (r) return r; } catch {}
     }
@@ -84,6 +118,14 @@ export async function wsFill(s: WSession, target: string, value: string): Promis
   return s.runStep(`fill_${target}`, async () => {
     const v = s.resolveEnv(value);
     const { humanFill } = await import('../../human/keyboard.js');
+    for (const frame of childFrames(s)) {
+      try { const lbl = await firstVisible(frame.getByLabel?.(target, { exact: false })); if (lbl) { await humanFill(s.page, lbl, v); return 'filled frame label'; } } catch {}
+      const emailHint = /\b(email|e-mail)\b/i.test(target);
+      if (emailHint) {
+        const emailInput = await firstVisible(frame.locator?.('input[type="email"], input[name*="email" i], input[autocomplete*="email" i]'));
+        if (emailInput) { await humanFill(s.page, emailInput, v); return 'filled frame email'; }
+      }
+    }
     try { const lbl = s.page.getByLabel?.(target, { exact: false })?.first?.(); if (lbl && await lbl.isVisible({ timeout: VISIBILITY_PROBE_MS }).catch(() => false)) { await humanFill(s.page, lbl, v); return 'filled'; } } catch {}
     const kws = target.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(w => w.length > 2);
     const sels = kws.flatMap(k => ['input','textarea','[contenteditable]'].flatMap(t => [`${t}[name*="${k}"]`,`${t}[placeholder*="${k}" i]`,`${t}[aria-label*="${k}" i]`]));
@@ -102,7 +144,7 @@ export async function wsCheckEmail(s: WSession, email: string, sender: string): 
   if (!key) return 'error: no RESEND_RECEIVING_API_KEY';
   const addr = s.resolveEnv(email).toLowerCase();
   const earliestAcceptMs = Date.now() - 90_000;
-  for (let i = 0; i < 30; i++) {
+  while (true) {
     const r = await fetch('https://api.resend.com/emails/receiving?limit=10', { headers: { Authorization: `Bearer ${key}` } });
     for (const em of ((await r.json()) as any).data ?? []) {
       const to = (em.to ?? []).map((t: any) => (typeof t === 'string' ? t : t.email ?? '').toLowerCase());
@@ -116,7 +158,6 @@ export async function wsCheckEmail(s: WSession, email: string, sender: string): 
     }
     await new Promise(r => setTimeout(r, 10000));  // allow-raw-playwright: polling/rate-limit loop
   }
-  return 'no code received';
 }
 
 export async function wsSaveAccount(

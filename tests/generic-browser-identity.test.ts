@@ -128,6 +128,15 @@ describe('WSession platform identity', () => {
     expect(session.resolveEnv('${SEMANTIC_SCHOLAR_NEW_BIRTHDAY}')).toBe('10');
     expect(session.resolveEnv('${SEMANTIC_SCHOLAR_NEW_BIRTHYEAR}')).toBe('1991');
   });
+
+  it('fails fast instead of typing unresolved generated identity placeholders', async () => {
+    const { ctx } = fakeBrowserContext();
+    asyncNewBrowserMock.mockResolvedValueOnce(ctx);
+
+    const session = await WSession.start({ proxy: 'none', browser: 'firefox', headless: true, record: false });
+
+    expect(() => session.resolveEnv('$SEMANTIC_SCHOLAR_NEW_EMAIL')).toThrow('unresolved generated identity placeholder');
+  });
 });
 
 describe('generic browser task Semantic Scholar identity contract', () => {
