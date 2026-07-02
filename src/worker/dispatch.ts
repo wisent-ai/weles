@@ -88,6 +88,7 @@ const ROUTES: Record<string, (p: string) => string | null> = {
   dwell: () => benignPath, notifications: () => benignPath, search: () => benignPath, profile_view: () => benignPath,
   browser_task: (p) => p === 'generic' ? 'scripts/trajectories/generic/browser_task.mjs' : null,
   saved_task: (p) => p === 'generic' ? 'scripts/trajectories/generic/saved_task.mjs' : null,
+  keeper_task: (p) => p === 'generic' ? 'scripts/trajectories/generic/keeper_task.mjs' : null,
   version_history_scan: (p) => p === 'overleaf' ? 'scripts/trajectories/overleaf/version_history_ui_phrase.mjs' : null,
   push_github: (p) => p === 'overleaf' ? 'scripts/trajectories/overleaf/push_github.mjs' : null,
   pull_github: (p) => p === 'overleaf' ? 'scripts/trajectories/overleaf/pull_github.mjs' : null,
@@ -344,7 +345,7 @@ export function paramsToEnv(
       env.VERB = action.slice(underscore + 1);
     }
   }
-  if (trajPath.endsWith('/generic/browser_task.mjs')) {
+  if (trajPath.endsWith('/generic/browser_task.mjs') || trajPath.endsWith('/generic/keeper_task.mjs')) {
     const passthrough: Array<[string, string]> = [
       ['url', 'GENERIC_TASK_URL'],
       ['objective', 'GENERIC_TASK_OBJECTIVE'],
@@ -355,8 +356,6 @@ export function paramsToEnv(
       const value = params[key];
       if (typeof value === 'string') env[envKey] = value;
     }
-    const maxSteps = params.max_steps;
-    if (typeof maxSteps === 'number' || typeof maxSteps === 'string') env.GENERIC_TASK_MAX_STEPS = String(maxSteps);
     if (params.headless === true || params.headless === '1') env.GENERIC_TASK_HEADLESS = '1';
     const constraints = params.constraints;
     if (constraints && typeof constraints === 'object') env.GENERIC_TASK_CONSTRAINTS = JSON.stringify(constraints);

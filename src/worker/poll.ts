@@ -60,6 +60,90 @@ function textParam(record: Record<string, unknown> | undefined, key: string): st
   return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null;
 }
 
+function replayStepsFromHistory(value: unknown): Array<{ tool: string; args: Record<string, unknown>; result?: string }> {
+  if (!Array.isArray(value)) return [];
+  const steps: Array<{ tool: string; args: Record<string, unknown>; result?: string }> = [];
+  for (const raw of value) {
+    const record = recordOrEmpty(raw);
+    const tool = typeof record.tool === 'string' ? record.tool : '';
+    if (!tool) continue;
+    const args = recordOrEmpty(record.args);
+    const step: { tool: string; args: Record<string, unknown>; result?: string } = { tool, args };
+    if (typeof record.result === 'string') step.result = record.result;
+    steps.push(step);
+  }
+  return steps;
+}
+
+function secretCandidateFromValue(value: unknown): { field: string; value: string } | null {
+  const record = recordOrEmpty(value);
+  for (const [field, raw] of Object.entries(record)) {
+    if (typeof raw !== 'string') continue;
+    const name = field.toLowerCase();
+    if (!/(^|_)(api_)?key$|token|secret/.test(name)) continue;
+    const candidate = raw.trim();
+    if (candidate.length < 8) continue;
+    if (/pending|submitted|received|wait|email/i.test(candidate)) continue;
+    return { field, value: candidate };
+  }
+  return null;
+}
+
+function previewSecret(value: string): string {
+  if (value.length <= 12) return `${value.slice(0, 2)}…${value.slice(-2)}`;
+  return `${value.slice(0, 6)}…${value.slice(-4)}`;
+}
+
+async function persistServiceCredentialReference(row: ActionLogRow, result: Record<string, unknown>): Promise<void> {
+  const params = recordOrEmpty(row.params);
+  const constraints = recordOrEmpty(params.constraints);
+  if (constraints.store_secret_target !== 'service_credentials') return;
+  const generic = recordOrEmpty(result.generic_browser_task);
+  const value = recordOrEmpty(generic.value);
+  const secret = secretCandidateFromValue(value);
+  if (!secret) return;
+
+  const displayName = textParam(constraints, 'display_name') ?? textParam(params, 'promote_name') ?? 'Acquired API key';
+  const envVar = textParam(constraints, 'env_var');
+  const metadata = {
+    source: 'weles_secret_acquisition',
+    source_run_id: row.id,
+    key_field: secret.field,
+    value_status: typeof value.status === 'string' ? value.status : null,
+    captured_at: new Date().toISOString(),
+  };
+  const patch = {
+    display_name: displayName,
+    category: 'api',
+    api_key_env_var: envVar,
+    api_key_preview: previewSecret(secret.value),
+    notes: `Acquired by Weles run ${row.id}; plaintext remains in the source run result.`,
+    metadata,
+    updated_at: new Date().toISOString(),
+  };
+
+  try {
+    const match = await fetch(`${SUPABASE_URL}/rest/v1/service_credentials?display_name=eq.${encodeURIComponent(displayName)}&select=id&limit=1`, { headers: headers() });
+    const existing = match.ok ? (await match.json() as Array<{ id: string }>) : [];
+    const id = existing[0]?.id;
+    if (id) {
+      await fetch(`${SUPABASE_URL}/rest/v1/service_credentials?id=eq.${id}`, {
+        method: 'PATCH',
+        headers: { ...headers(), Prefer: 'return=minimal' },
+        body: JSON.stringify(patch),
+      });
+      return;
+    }
+    await fetch(`${SUPABASE_URL}/rest/v1/service_credentials`, {
+      method: 'POST',
+      headers: { ...headers(), Prefer: 'return=minimal' },
+      body: JSON.stringify(patch),
+    });
+  } catch (e) {
+    console.log(`[worker] service_credentials persistence skipped: ${e instanceof Error ? e.message.slice(0, 160) : String(e).slice(0, 160)}`);
+  }
+}
+
 function trajectoryActionFromName(name: string): string {
   const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 48);
   if (!slug) return 'saved_browser_task';
@@ -115,16 +199,21 @@ async function promoteTrajectoryBuild(row: ActionLogRow, result: Record<string, 
   const name = textParam(params, 'promote_name') ?? build.name;
   const action = trajectoryActionFromName(`${name} ${buildId.slice(0, 8)}`);
   const genericResult = recordOrEmpty(result.generic_browser_task);
+  const replay = replayStepsFromHistory(genericResult.history);
+  if (replay.length === 0) {
+    await patchTrajectoryBuild(buildId, { status: 'failed', source_run_id: row.id, error: 'trajectory promotion failed: no replayable history', result: { source_run_id: row.id } });
+    return;
+  }
   const definition = {
     url,
     objective,
     constraints: recordOrEmpty(params.constraints ?? build.constraints),
     env: recordOrEmpty(params.env ?? build.env),
     flow_name: textParam(params, 'flow_name') ?? `promoted:${action}`,
-    max_steps: typeof params.max_steps === 'number' ? params.max_steps : 50,
     proxy: textParam(params, 'proxy'),
     headless: params.headless === true,
     promoted_from: { run_id: row.id, status: 'completed', completed_at: new Date().toISOString() },
+    replay,
     last_result: genericResult,
   };
   let site = 'unknown';
@@ -175,7 +264,7 @@ async function promoteTrajectoryBuild(row: ActionLogRow, result: Record<string, 
 async function updateTrajectoryBuildAfterRun(row: ActionLogRow, status: 'completed' | 'failed' | 'cancelled' | 'pending_review', result: Record<string, unknown>, error?: string): Promise<void> {
   const buildId = textParam(row.params, 'trajectory_build_id');
   if (!buildId) return;
-  if (row.action === 'generic_browser_task') {
+  if (row.action === 'generic_browser_task' || row.action === 'generic_keeper_task') {
     if (status === 'completed') {
       await promoteTrajectoryBuild(row, result);
     } else if (status === 'pending_review') {
@@ -210,18 +299,6 @@ async function cancelRequested(jobId: string): Promise<boolean> {
 async function runTrajectory(row: ActionLogRow, path: string, extraEnv: Record<string, string> = {}): Promise<{ exitCode: number; stderr: string; cancelled: boolean }> {
   // G17: recordings/<run_uuid>/ is unique per run, so there is no stale
   // predecessor file to clear (the old shared recordings/<action>/ hazard is gone).
-  // Hard wall-clock cap. Health/probe 90s; topup 360s; register/login 900s
-  // (bumped from 600s 2026-05-05: CapMonster->CapSolver->AntiCaptcha V2
-  // fall-through can take 12+ min). Override per-row via WORKER_HARD_TIMEOUT_MS.
-  const overrideMs = Number(process.env.WORKER_HARD_TIMEOUT_MS ?? 0);
-  const defaultMs = row.action.endsWith('_health') || row.action.endsWith('_balance') ? 90_000
-    : row.action.endsWith('_topup') ? 360_000
-    : row.action.endsWith('_register') || row.action.endsWith('_login') || row.action.endsWith('_reauth') ? 900_000
-    // verify_domain_status sends probes then polls receiving twice (batch +
-    // confirmation re-probe), up to ~4-5 min; give it headroom over the default.
-    : row.action.endsWith('_verify_domain_status') ? 600_000
-    : 360_000;
-  const hardTimeoutMs = overrideMs > 0 ? overrideMs : defaultMs;
   const secretResultPath = row.action === 'slack_provision_user_token'
     ? join(os.tmpdir(), `weles-secret-${row.id}.json`)
     : '';
@@ -252,12 +329,6 @@ async function runTrajectory(row: ActionLogRow, path: string, extraEnv: Record<s
       try { child.kill('SIGTERM'); } catch { /* noop */ }
       setTimeout(() => { try { child.kill('SIGKILL'); } catch { /* noop */ } }, 8000);
     };
-    // Hard wall-clock cap. Health/probe 90s; topup 360s; register/login 900s
-    // (bumped from 600s 2026-05-05: CapMonster->CapSolver->AntiCaptcha V2
-    // fall-through can take 12+ min). Override per-row via WORKER_HARD_TIMEOUT_MS.
-    const killTimer = setTimeout(() => {
-      requestStop(`\nFAIL: worker hard timeout (${hardTimeoutMs}ms) — SIGTERM, then SIGKILL after grace`);
-    }, hardTimeoutMs);
     const cancelTimer = setInterval(() => {
       void cancelRequested(row.id).then((requested) => {
         if (!requested) return;
@@ -267,7 +338,6 @@ async function runTrajectory(row: ActionLogRow, path: string, extraEnv: Record<s
     }, 5000);
     child.stderr.on('data', (chunk) => { stderr += chunk.toString(); });
     child.on('close', (code) => {
-      clearTimeout(killTimer);
       clearInterval(cancelTimer);
       resolve({ exitCode: killed ? 137 : (code ?? -1), stderr: stderr.slice(-2000), cancelled });
     });
@@ -669,6 +739,7 @@ export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
     await sendRunWebhook(row, 'pending_review', result, verificationMessage);
     console.log(`[worker] ${row.id.slice(0, 8)} pending_review`);
   } else if (exitCode === 0) {
+    await persistServiceCredentialReference(row, result);
     await writeResult(row.id, 'completed', result, undefined, costs ?? undefined);
     await updateTrajectoryBuildAfterRun(row, 'completed', result);
     await closeCampaignItem(row.params, 'completed');
