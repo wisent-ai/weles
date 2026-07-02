@@ -66,12 +66,18 @@ function identityPlatformFromConstraints(value) {
 function identityInstructions(platform) {
   if (!platform) return [];
   const prefix = platform.toUpperCase().replace(/[^A-Z0-9]+/g, '_');
-  return [
+  const instructions = [
     `Weles generated a registration email identity through its domain rotator / Resend inbox for this run.`,
     `Use these placeholders when a form asks for identity fields: $${prefix}_NEW_FIRSTNAME, $${prefix}_NEW_LASTNAME, $${prefix}_NEW_USERNAME, $${prefix}_NEW_EMAIL, $${prefix}_NEW_PASSWORD. The fill/type tools resolve placeholders before typing; do not type literal placeholder text.`,
     `On Semantic Scholar's API page, fill and submit the HubSpot form embedded in the Request an API Key / api-key-form iframe; do not use the footer newsletter form.`,
     `If the site sends an email confirmation or API-key delivery email, call check_email("$${prefix}_NEW_EMAIL", "") and use the returned code/link/instructions.`,
   ];
+  if (platform === 'semantic_scholar') {
+    instructions.push(
+      'Semantic Scholar API-key iframe exact field plan: fill firstname, lastname, email, company, 0-2/website, country, message, api_endpoints, and api_requests_per_second; choose the Public application radio if the use case is a shared research assistant; tick the API acknowledgement/terms checkboxes; then click Submit inside that same iframe.',
+    );
+  }
+  return instructions;
 }
 
 
