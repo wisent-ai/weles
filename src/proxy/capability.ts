@@ -194,6 +194,7 @@ export async function recordOutcome(
 ): Promise<void> {
   if (!provider || !action) return;
   const sig = signal ?? '';
+  if (status === 'pending_review') return;
   let result: 'pass' | 'fail' | null = null;
   if (FAIL_SIGNALS.has(sig)) result = 'fail';
   else if (status === 'completed' && (HEALTHY_SIGNALS.has(sig) || sig === '')) result = 'pass';

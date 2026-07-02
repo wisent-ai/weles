@@ -669,6 +669,9 @@ export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
     const serviceAction = await readJsonInRun(row.id, 'service_action_result.json');
     if (serviceAction) result.service_action = serviceAction;
   }
+  const pendingPath = await findInRun(row.id, 'pending_review.json');
+  let pending: Record<string, unknown> | null = null;
+  if (pendingPath) { try { pending = JSON.parse(await readFile(pendingPath, 'utf8')); } catch { pending = null; } }
   // IP-drift detection: first session stores observed exit_ip; subsequent sessions compare, mismatch -> ip_drift + pause.
   if (!lightResultOnly) try { const ip = (result.session as any)?.exit_ip; if (ip && row.account_id) { const r = await fetch(`${SUPABASE_URL}/rest/v1/social_accounts?id=eq.${row.account_id}&select=metadata`, { headers: headers() }); if (r.ok) { const j = await r.json() as any[]; const m = j[0]?.metadata ?? {}; const stored = m.proxy?.exit_ip; if (!stored) { const nm = { ...m, proxy: { ...(m.proxy ?? {}), exit_ip: ip } }; await fetch(`${SUPABASE_URL}/rest/v1/social_accounts?id=eq.${row.account_id}`, { method: 'PATCH', headers: { ...headers(), Prefer: 'return=minimal' }, body: JSON.stringify({ metadata: nm }) }); } else if (stored !== ip) { result.ban_signal = { healthy: false, signal: 'ip_drift', details: { expected: stored, observed: ip } }; await pauseAccount(row.account_id, 'ip_drift'); } } } } catch (e) { console.log('[ip-drift]', e instanceof Error ? e.message : String(e)); }
   if (banSignal) {
@@ -679,16 +682,6 @@ export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
   } else {
     result.ban_signal = { healthy: exitCode === 0, signal: exitCode === 0 ? 'healthy' : 'unknown_error' };
   }
-  // Capability-matrix update: record (provider, action) outcome so the
-  // selector self-heals as providers go bad / recover. Skips when provider
-  // unknown (direct egress) or signal is non-classifying (script error).
-  if (!lightResultOnly) try {
-    const { recordOutcome } = await import('../proxy/capability.js');
-    const s = result.session as any;
-    const finalSignal = (result.ban_signal as BanSignal).signal;
-    const finalStatus = exitCode === 0 ? 'completed' : 'failed';
-    if (s?.provider) await recordOutcome(s.provider, row.action, finalStatus, finalSignal, row.platform);
-  } catch { /* best-effort */ }
   if (row.action.endsWith('_health') && row.account_id) {
     const snap = await importHealthSnapshot(row.account_id, row.action.slice(0, -'_health'.length), row.id);
     if (snap) { result.health_snapshot = snap; result.ban_signal = { healthy: snap.signal === 'healthy', signal: snap.signal }; }
@@ -718,11 +711,19 @@ export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
     verificationPending = verification ? !verification.passed : false;
     verificationMessage = verificationPending ? `verification_${verification?.verdict}: ${verification?.reason}` : undefined;
   }
+  // Capability-matrix update: record (provider, action) outcome so the
+  // selector self-heals as providers go bad / recover. Skips when provider
+  // unknown (direct egress) or signal is non-classifying (script error).
+  if (!lightResultOnly) try {
+    const { recordOutcome } = await import('../proxy/capability.js');
+    const s = result.session as any;
+    const finalSignal = (result.ban_signal as BanSignal).signal;
+    const finalStatus = exitCode === 0 && (pending || verificationPending) ? 'pending_review' : (exitCode === 0 ? 'completed' : 'failed');
+    if (s?.provider) await recordOutcome(s.provider, row.action, finalStatus, finalSignal, row.platform);
+  } catch { /* best-effort */ }
   const costs = await readCosts(row.id);
   if (costs) console.log(`[worker] ${row.id.slice(0, 8)} cost=$${costs.cost_usd.toFixed(4)} services=${Object.keys(costs.service_costs).join(',')}`);
-  const pendingPath = await findInRun(row.id, 'pending_review.json');
-  let pending: Record<string, unknown> | null = null;
-  if (pendingPath) { try { pending = JSON.parse(await readFile(pendingPath, 'utf8')); await unlink(pendingPath); } catch { pending = null; } }
+  if (pendingPath) await unlink(pendingPath).catch(() => {});
   if (cancelled) {
     const message = stderr || 'cancel_requested';
     result.cancelled = true;

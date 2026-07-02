@@ -341,6 +341,85 @@ describe('generic browser task Semantic Scholar identity contract', () => {
     expect(result.history).toEqual([{ tool: 'done', args: { value: { status: 'request_submitted' } }, result: 'done' }]);
   });
 
+  it('writes pending_review.json and exits 0 when the agent requires human approval', async () => {
+    vi.resetModules();
+    const recordingsDir = makeTempDir('weles-generic-pending-review-');
+    const startMock = vi.fn(async () => ({
+      identity: generatedIdentity,
+      goto: vi.fn(async () => undefined),
+      close: vi.fn(async () => undefined),
+      page: { url: vi.fn(() => 'https://www.semanticscholar.org/product/api#api-key-form') },
+    }));
+    class MockAgentFailure extends Error {
+      history: unknown[];
+
+      constructor(message: string, history: unknown[]) {
+        super(message);
+        this.history = history;
+      }
+    }
+    const history = [
+      {
+        tool: 'give_up',
+        args: { reason: 'needs_human_approval: CAPTCHA/TURNSTILE challenge requires a human' },
+        result: 'give_up',
+      },
+    ];
+    const executeMock = vi.fn(async () => {
+      throw new MockAgentFailure('needs_human_approval: CAPTCHA/TURNSTILE challenge requires a human', history);
+    });
+    const writeWelesTrajectoryDraftMock = vi.fn(async () => ({
+      source: 'keeper-first' as const,
+      steps: [],
+    }));
+
+    vi.doMock('../dist/session/wsession.js', () => ({ WSession: { start: startMock } }));
+    vi.doMock('../dist/agent/index.js', () => ({
+      AgentFailure: MockAgentFailure,
+      execute: executeMock,
+    }));
+    vi.doMock('../dist/session/run-recordings.js', () => ({
+      runRecordingsDir: vi.fn(() => recordingsDir),
+    }));
+    vi.doMock('../dist/trajectories/writer.js', () => ({
+      writeWelesTrajectoryDraft: writeWelesTrajectoryDraftMock,
+    }));
+
+    process.env = {
+      ...baseEnv,
+      GENERIC_TASK_URL: 'https://www.semanticscholar.org/product/api#api-key-form',
+      GENERIC_TASK_OBJECTIVE: 'Acquire Semantic Scholar API access for lem.',
+      GENERIC_TASK_CONSTRAINTS: JSON.stringify({ secret: 'semantic_scholar.api_key' }),
+      GENERIC_TASK_FLOW_NAME: 'semantic-scholar-api-key-request',
+      GENERIC_TASK_PROXY: 'none',
+      GENERIC_TASK_HEADLESS: '1',
+      GENERIC_TASK_BROWSER: 'firefox',
+      GENERIC_TASK_KEEPER_FIRST: '1',
+      WELES_NO_INSTRUMENT: '1',
+    };
+    process.exitCode = undefined;
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(((code?: string | number | null | undefined): never => {
+      throw new ProcessExit(code);
+    }) as typeof process.exit);
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+    await expect(import('../scripts/trajectories/generic/browser_task.mjs?semanticScholarPendingReview')).rejects.toMatchObject({ code: 0 });
+
+    expect(exitSpy).toHaveBeenCalledWith(0);
+    expect(executeMock).toHaveBeenCalledOnce();
+    const result = JSON.parse(readFileSync(join(recordingsDir, 'generic_task_result.json'), 'utf8'));
+    expect(result.ok).toBe(false);
+    expect(result.error).toContain('needs_human_approval');
+    expect(result.history).toEqual(history);
+    const pendingReview = JSON.parse(readFileSync(join(recordingsDir, 'pending_review.json'), 'utf8'));
+    expect(pendingReview).toEqual(expect.objectContaining({
+      status: 'needs_human_approval',
+      reason: expect.stringContaining('needs_human_approval'),
+      final_url: 'https://www.semanticscholar.org/product/api#api-key-form',
+      history_steps: 1,
+    }));
+  });
+
   it('replays saved trajectory steps from the promoted DB definition without LLM fallback', async () => {
     vi.resetModules();
     const recordingsDir = makeTempDir('weles-generic-saved-task-');
