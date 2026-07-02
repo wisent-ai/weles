@@ -319,7 +319,7 @@ export class WSession {
     // G17g: on a worker SIGTERM (graceful timeout), close the context so
     // Playwright seals the HAR + video before the process is hard-killed.
     process.once('SIGTERM', () => { try { void (ctx as any).close?.(); } catch { /* noop */ } });
-    if (opts.platform) { ws.identity = await genId(opts.platform); console.log(`[wsession] identity generated platform=${opts.platform} username_hash=${hashDiagnosticValue(ws.identity.username)}`); }
+    if (opts.platform) { ws.identity = await ws.generateIdentity(opts.platform); console.log(`[wsession] identity generated platform=${opts.platform} username_hash=${hashDiagnosticValue(ws.identity.username)}`); }
     if (bOpts.proxy?.server) {
       try {
         const r = await ctx.request.get('https://api.ipify.org', { timeout: 10_000 });
@@ -484,7 +484,11 @@ export class WSession {
   async saveAccount(platform: string, data: { username: string; email: string; password: string; name?: string; status?: string }): Promise<string> { const { wsSaveAccount } = await import('./wsession-helpers/finalize.js'); return wsSaveAccount(this, platform, data); }
   async close(): Promise<void> { const { wsClose } = await import('./wsession-helpers/finalize.js'); return wsClose(this); }
 
-  resolveEnv(v: string): string { return v.replace(/\$\{?([A-Z_][A-Z0-9_]*)\}?/g, (_, k) => this._env[k] ?? process.env[k] ?? v); }
+  resolveEnv(v: string): string {
+    const out = v.replace(/\$\{?([A-Z_][A-Z0-9_]*)\}?/g, (_, k) => this._env[k] ?? process.env[k] ?? `$${k}`);
+    if (/\$\{?[A-Z_][A-Z0-9_]*_NEW_[A-Z0-9_]*\}?/.test(out)) throw new Error('unresolved generated identity placeholder');
+    return out;
+  }
 
   /** Derive a stable proxy signature for cookie-jar binding (mirrors cookie-freshness.mjs). */
   private _proxySignature(): string | null {
