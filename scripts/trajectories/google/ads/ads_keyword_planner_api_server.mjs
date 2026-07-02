@@ -342,7 +342,7 @@ function signedRouterHeaders(cfg, body) {
   };
 }
 
-function parseGeneratedKeywords(raw) {
+function parseKeywordRouterResponse(raw) {
   const text = String(raw || '').trim();
   const candidates = [text];
   const firstBrace = text.indexOf('{');
@@ -356,19 +356,26 @@ function parseGeneratedKeywords(raw) {
       const parsed = JSON.parse(candidate);
       const list = Array.isArray(parsed) ? parsed : parsed.keywords;
       if (Array.isArray(list)) {
-        return [...new Set(list.map(normalizeKeyword).filter(Boolean))];
+        return {
+          saturated: Boolean(parsed.saturated),
+          keywords: [...new Set(list.map(normalizeKeyword).filter(Boolean))],
+          intents: Array.isArray(parsed.intents) ? parsed.intents : Array.isArray(parsed.clusters) ? parsed.clusters : [],
+          rationale: typeof parsed.rationale === 'string' ? parsed.rationale : null,
+        };
       }
     } catch {}
   }
-  return [];
+  return { saturated: false, keywords: [], intents: [], rationale: null };
 }
 
-async function generateKeywordsWithRouter(input) {
+async function generateKeywordsWithRouter(input, state = null) {
   const cfg = await loadModelRouterConfig();
-  const prompt = [
-    'Generate a compact Google Ads Keyword Planner seed-keyword shortlist.',
-    'Return ONLY valid JSON in this exact shape: {"keywords":["keyword one","keyword two"]}.',
-    'Do not include metrics, commentary, markdown, explanations, or exhaustive variations.',
+  const prompt = state ? [
+    'Continue Google Ads keyword research by checking intent saturation.',
+    'Return ONLY valid JSON in this exact shape: {"saturated":true,"keywords":[],"rationale":"why"} or {"saturated":false,"keywords":["canonical keyword"],"rationale":"what intent is still missing"}.',
+    'If all materially distinct paid-search intents are already covered, return saturated true and an empty keywords array.',
+    'If coverage is incomplete, return one canonical Google Ads seed keyword for each materially uncovered intent.',
+    'Do not include fixed counts, commentary, markdown, metrics, or near-duplicate variants of already checked intents.',
     `Subject: ${input.subject || '(none)'}`,
     `Product: ${input.product || '(none)'}`,
     `Niche: ${input.niche || '(none)'}`,
@@ -376,8 +383,26 @@ async function generateKeywordsWithRouter(input) {
     `Landing page: ${input.landingPage || '(none)'}`,
     `Goal: ${input.goal}`,
     `Seed keywords: ${input.seedKeywords.join(', ') || '(none)'}`,
-    'Include only keywords strong enough to submit to Google Ads immediately.',
-    'Prefer commercial-intent search phrases. Avoid duplicates, brands not present in the prompt, and policy-sensitive/adult-explicit terms.',
+    `Already checked keywords: ${state.checkedKeywords.join(', ') || '(none)'}`,
+    `Metric rows found: ${JSON.stringify(state.rows.map((row) => ({
+      keyword: row.keyword,
+      avgMonthlySearches: row.avgMonthlySearches,
+      competition: row.competition,
+      yoyChange: row.yoyChange,
+    })))}`,
+  ].join('\n') : [
+    'Identify the materially distinct paid-search intents for this product.',
+    'Return ONLY valid JSON in this exact shape: {"saturated":false,"keywords":["canonical keyword"],"rationale":"coverage plan"}.',
+    'Each keyword must be a canonical Google Ads seed keyword representing a different intent.',
+    'Do not include fixed counts, commentary, markdown, metrics, or near-duplicate long-tail variants.',
+    `Subject: ${input.subject || '(none)'}`,
+    `Product: ${input.product || '(none)'}`,
+    `Niche: ${input.niche || '(none)'}`,
+    `Audience: ${input.audience || '(none)'}`,
+    `Landing page: ${input.landingPage || '(none)'}`,
+    `Goal: ${input.goal}`,
+    `Seed keywords: ${input.seedKeywords.join(', ') || '(none)'}`,
+    'Prefer commercial-intent search phrases. Avoid brands not present in the prompt and policy-sensitive/adult-explicit terms.',
   ].join('\n');
   const body = JSON.stringify({
     model: cfg.model,
@@ -397,15 +422,18 @@ async function generateKeywordsWithRouter(input) {
     const data = await res.json().catch(async () => ({ raw: await res.text().catch(() => '') }));
     if (!res.ok) throw new Error(`model-router ${res.status}: ${JSON.stringify(data).slice(0, 500)}`);
     const raw = data.choices?.[0]?.message?.content || data.raw || '';
-    const keywords = parseGeneratedKeywords(raw);
-    if (!keywords.length) throw new Error(`model-router returned no parseable keywords: ${String(raw).slice(0, 300)}`);
+    const parsed = parseKeywordRouterResponse(raw);
+    if (!parsed.saturated && !parsed.keywords.length) throw new Error(`model-router returned no parseable keywords: ${String(raw).slice(0, 300)}`);
     return {
       ok: true,
       source: 'model-router',
       model: data.model || cfg.model,
       routerHost: new URL(cfg.routerUrl).host,
       configId: cfg.configId,
-      keywords,
+      saturated: parsed.saturated,
+      keywords: parsed.keywords,
+      intents: parsed.intents,
+      rationale: parsed.rationale,
     };
   } finally {
     clearTimeout(timer);
@@ -454,25 +482,107 @@ function uniqueKeywords(values) {
   return out;
 }
 
+function mergeRows(existingRows, newRows) {
+  const byKeyword = new Map(existingRows.map((row) => [normalizeKeyword(row.keyword).toLowerCase(), row]));
+  for (const row of newRows || []) {
+    const key = normalizeKeyword(row.keyword).toLowerCase();
+    if (!key || byKeyword.has(key)) continue;
+    byKeyword.set(key, row);
+  }
+  return [...byKeyword.values()];
+}
+
 
 async function runKeywordReport(input, generation) {
-  const keywords = uniqueKeywords([...input.seedKeywords, ...generation.keywords]);
+  let keywords = uniqueKeywords([...input.seedKeywords, ...generation.keywords]);
   if (!keywords.length) throw new Error('no keyword candidates to check');
 
-  const run = await runKeywordPlanner({ ...input, keywords });
-  const rows = run.report?.rows || [];
+  const generations = [generation];
+  const rounds = [];
+  const checkedKeywords = [];
+  const checkedKeys = new Set();
+  let rows = [];
+  let lastRun = null;
+  let accountEmail = input.email || null;
+  let capturedAt = null;
+  let url = null;
+  let stdout = '';
+  let stderr = '';
+  let saturated = Boolean(generation.saturated);
+  let saturationRationale = generation.rationale || null;
+
+  while (true) {
+    const pendingKeywords = keywords.filter((keyword) => !checkedKeys.has(keyword.toLowerCase()));
+    if (pendingKeywords.length) {
+      const run = await runKeywordPlanner({ ...input, keywords: pendingKeywords });
+      lastRun = run;
+      for (const keyword of pendingKeywords) {
+        checkedKeys.add(keyword.toLowerCase());
+        checkedKeywords.push(keyword);
+      }
+      stdout += `\n--- saturation round ${rounds.length + 1} stdout ---\n${run.stdout || ''}`;
+      stderr += `\n--- saturation round ${rounds.length + 1} stderr ---\n${run.stderr || ''}`;
+
+      const roundRows = run.report?.rows || [];
+      rows = mergeRows(rows, roundRows);
+      accountEmail = run.report?.accountEmail || accountEmail;
+      capturedAt = run.report?.capturedAt || capturedAt;
+      url = run.report?.url || url;
+
+      rounds.push({
+        keywords: pendingKeywords,
+        ok: Boolean(run.ok),
+        exitCode: run.exitCode,
+        timedOut: Boolean(run.timedOut),
+        rowCount: roundRows.length,
+        blocked: run.report?.blocked || null,
+        resultFile: run.resultFile,
+      });
+
+      if (run.timedOut || run.report?.blocked === 'keeper_not_ready') break;
+    }
+
+    if (saturated) break;
+
+    const nextGeneration = await generateKeywordsWithRouter(input, { checkedKeywords, rows });
+    generations.push(nextGeneration);
+    saturated = Boolean(nextGeneration.saturated);
+    saturationRationale = nextGeneration.rationale || saturationRationale;
+    const nextKeywords = uniqueKeywords(nextGeneration.keywords)
+      .filter((keyword) => !keywords.some((existing) => existing.toLowerCase() === keyword.toLowerCase()));
+    if (!nextKeywords.length) {
+      saturated = true;
+      saturationRationale = nextGeneration.rationale || 'model-router returned no new deduped intent keywords';
+      break;
+    }
+    keywords = uniqueKeywords([...keywords, ...nextKeywords]);
+  }
+
+  const uncheckedKeywords = keywords.filter((keyword) => !checkedKeys.has(keyword.toLowerCase()));
   return {
-    ...run,
     ok: rows.length > 0,
-    exitCode: rows.length > 0 ? 0 : run.exitCode,
+    exitCode: rows.length > 0 ? 0 : lastRun?.exitCode ?? 7,
+    timedOut: rounds.some((round) => round.timedOut),
+    resultFile: lastRun?.resultFile || null,
+    stdout,
+    stderr,
+    keeper: lastRun?.keeper || null,
     report: {
-      ...(run.report || {}),
       ok: rows.length > 0,
-      source: 'google_ads_keyword_planner_report',
+      source: 'google_ads_keyword_planner_saturation_report',
+      session: input.session,
+      customer: input.customerId,
+      accountEmail,
       keywords,
-      checkedKeywords: keywords,
-      uncheckedKeywords: [],
+      checkedKeywords,
+      uncheckedKeywords,
       rows,
+      capturedAt,
+      url,
+      rounds,
+      generations,
+      saturated,
+      saturationRationale,
     },
   };
 }
@@ -490,18 +600,21 @@ function buildKeywordReport(input, generation, run) {
     niche: input.niche || null,
     audience: input.audience || null,
     generated: generation,
+    generations: run.report?.generations || [generation],
+    saturated: Boolean(run.report?.saturated),
+    saturationRationale: run.report?.saturationRationale || null,
     metrics: {
       ok: Boolean(run.report?.ok),
       rowCount: rows.length,
       checkedKeywordCount: run.report?.checkedKeywords?.length || 0,
       uncheckedKeywordCount: run.report?.uncheckedKeywords?.length || 0,
-      batchCount: run.report?.batches?.length || 0,
+      roundCount: run.report?.rounds?.length || 0,
       capturedAt: run.report?.capturedAt || null,
       url: run.report?.url || null,
     },
     checkedKeywords: run.report?.checkedKeywords || [],
     uncheckedKeywords: run.report?.uncheckedKeywords || [],
-    batches: run.report?.batches || [],
+    rounds: run.report?.rounds || [],
     topOpportunities: ranked,
     rows,
     plannerReport: run.report,
