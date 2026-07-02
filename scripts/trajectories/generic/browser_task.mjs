@@ -153,6 +153,7 @@ try {
   const message = error instanceof Error ? error.message : String(error);
   const history = error instanceof AgentFailure ? error.history : result?.history ?? [];
   const finalUrl = session?.page?.url?.() ?? null;
+  const needsHumanApproval = /needs_human_approval/i.test(message) || history.some((step) => /needs_human_approval/i.test(String(step?.args?.reason ?? '')));
   writeJson('generic_task_result.json', {
     ok: false,
     url,
@@ -169,8 +170,17 @@ try {
     details: { final_url: finalUrl, error: message, steps: history.length },
     ts: new Date().toISOString(),
   });
+  if (needsHumanApproval) {
+    writeJson('pending_review.json', {
+      status: 'needs_human_approval',
+      reason: message,
+      final_url: finalUrl,
+      history_steps: history.length,
+      completed_at: new Date().toISOString(),
+    });
+  }
   console.log('FAIL:', message.slice(0, 300));
-  process.exitCode = 1;
+  process.exitCode = needsHumanApproval ? 0 : 1;
 } finally {
   if (session) await session.close();
 }
