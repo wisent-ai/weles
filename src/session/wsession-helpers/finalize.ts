@@ -147,7 +147,7 @@ export async function wsCheckEmail(s: WSession, email: string, sender: string): 
   if (!key) return 'error: no RESEND_RECEIVING_API_KEY';
   const addr = s.resolveEnv(email).toLowerCase();
   const earliestAcceptMs = Date.now() - 90_000;
-  while (true) {
+  for (let attempt = 0; attempt < 18; attempt++) {
     const r = await fetch('https://api.resend.com/emails/receiving?limit=10', { headers: { Authorization: `Bearer ${key}` } });
     for (const em of ((await r.json()) as any).data ?? []) {
       const to = (em.to ?? []).map((t: any) => (typeof t === 'string' ? t : t.email ?? '').toLowerCase());
@@ -156,11 +156,14 @@ export async function wsCheckEmail(s: WSession, email: string, sender: string): 
       const emAt = em.created_at ? new Date(em.created_at).getTime() : 0;
       if (emAt < earliestAcceptMs) continue;
       const d = await (await fetch(`https://api.resend.com/emails/receiving/${em.id}`, { headers: { Authorization: `Bearer ${key}` } })).json() as any;
-      const codes = `${d.subject ?? ''} ${d.text ?? ''} ${d.html ?? ''}`.match(/\b\d{5,6}\b/g);
+      const content = `${d.subject ?? ''}\n${d.text ?? ''}\n${d.html ?? ''}`;
+      const codes = content.match(/\b\d{5,6}\b/g);
       if (codes) return codes[0];
+      return `email received without numeric code: ${content.replace(/\s+/g, ' ').trim().slice(0, 2000)}`;
     }
-    await new Promise(r => setTimeout(r, 10000));  // allow-raw-playwright: polling/rate-limit loop
+    await new Promise(r => setTimeout(r, 10000));  // allow-raw-playwright: bounded polling/rate-limit loop
   }
+  return 'no matching email received within timeout';
 }
 
 export async function wsSaveAccount(
