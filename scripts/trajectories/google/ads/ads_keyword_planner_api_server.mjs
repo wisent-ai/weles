@@ -376,6 +376,7 @@ async function generateKeywordsWithRouter(input, state = null) {
     'If all materially distinct paid-search intents are already covered, return saturated true and an empty keywords array.',
     'If coverage is incomplete, return one canonical Google Ads seed keyword for each materially uncovered intent.',
     'Do not include fixed counts, commentary, markdown, metrics, or near-duplicate variants of already checked intents.',
+    'Avoid brands not present in the prompt and policy-sensitive/adult-explicit terms.',
     `Subject: ${input.subject || '(none)'}`,
     `Product: ${input.product || '(none)'}`,
     `Niche: ${input.niche || '(none)'}`,
