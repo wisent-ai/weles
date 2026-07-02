@@ -4,9 +4,8 @@
 // Calls https://api.linear.app/graphql to fetch the first 50 projects with
 // id, name, and a truncated description; prints one project per line.
 //
-// Doubles as a smoke test for get_api_key.mjs ("did the minted key
-// actually work?") and as the lookup the Oko wip-summarize.mjs
-// calls via oko/scripts/linear-helper.mjs.
+// Also verifies get_api_key.mjs ("did the minted key actually work?") and
+// serves as the lookup the Oko wip-summarize.mjs calls via oko/scripts/linear-helper.mjs.
 //
 // Run: node scripts/trajectories/linear/list_projects.mjs [name_filter]
 

@@ -163,9 +163,9 @@ try {
   console.log(`[decodo] page static/ISP=${/static|ISP/i.test(ispText)} dedicated=${/dedicated/i.test(ispText)}`);
 
   if (!CONFIRM) {
-    console.log('[decodo] DRY-RUN — SSO login OK, ISP pricing reached. Set DECODO_BUY_CONFIRM=1 to purchase US Dedicated Static Residential.');
+    console.log('[decodo] purchase confirmation missing after SSO login and ISP pricing reached. Set DECODO_BUY_CONFIRM=1 to purchase US Dedicated Static Residential.');
     console.log(`[decodo] artifacts in ${OUT_DIR}/ (03_isp_pricing.png/.txt)`);
-    process.exit(0);
+    process.exit(2);
   }
 
   // Pick USA where a country control exists, then walk buy -> checkout.

@@ -96,7 +96,7 @@ driver.
 
 Two paths to close the gap. Either is multi-session work.
 
-- [x] **P4.A — SHIPPED 2026-04-24.** Juggler v1.59.1 applied onto gecko-dev@5836a062. 58/69 `bootstrap.diff` files applied with fuzz; 4 `.rej`-casualty files reverted (`dom/media/systemservices/video_engine/desktop_capture_impl.{cc,h}`, `widget/InProcessCompositorWidget.cpp`, `widget/headless/HeadlessWidget.cpp`, `dom/base/nsContentUtils.cpp`); 1 include added manually (`nsDocShell.h` in `dom/html/HTMLInputElement.cpp`); `juggler/screencast/` subtree dropped from `juggler/moz.build` DIRS with `screencastService` stubbed to `null` in `juggler/TargetRegistry.js` at build time. One runtime fix needed beyond bootstrap.diff: `CanonicalBrowsingContext::LoadURI(nsIURI*, LoadURIOptions&, ErrorResult&)` also emits `juggler-navigation-started-browser` (bootstrap.diff only added it to `FixupAndLoadURIString`, but Playwright's `PageHandler.js::Page.navigate` calls the former, causing navigationId to return undefined). End-to-end verified: `weles/scripts/firefox/integration_test.mjs` PASSES — `WSession.start({ browser: 'firefox' })` → juggler pipe → `page.goto` → `navigator.webdriver === false` AND `navigator.platform === 'MacIntel'`. Artifact: `firefox-142.0a1-weles.4`.
+- [x] **P4.A — SHIPPED 2026-04-24.** Juggler v1.59.1 applied onto gecko-dev@5836a062. 58/69 `bootstrap.diff` files applied with fuzz; 4 `.rej`-casualty files reverted (`dom/media/systemservices/video_engine/desktop_capture_impl.{cc,h}`, `widget/InProcessCompositorWidget.cpp`, `widget/headless/HeadlessWidget.cpp`, `dom/base/nsContentUtils.cpp`); 1 include added manually (`nsDocShell.h` in `dom/html/HTMLInputElement.cpp`); `juggler/screencast/` subtree dropped from `juggler/moz.build` DIRS with `screencastService` set to `null` in `juggler/TargetRegistry.js` at build time. One runtime fix needed beyond bootstrap.diff: `CanonicalBrowsingContext::LoadURI(nsIURI*, LoadURIOptions&, ErrorResult&)` also emits `juggler-navigation-started-browser` (bootstrap.diff only patched the string overload).
 
 ### Historical P4.A reference
 
@@ -108,7 +108,7 @@ Two paths to close the gap. Either is multi-session work.
   structure is `juggler/` (the in-tree WebExtension + JSM) plus one
   monolithic `patches/bootstrap.diff` (2694 lines touching 69 files).
 
-  Dry-run against our tree with `patch -p1 --dry-run --fuzz=5` (2026-04-23):
+  Compatibility check against our tree with `patch -p1 --fuzz=5` on a disposable copy (2026-04-23):
   58 of 69 files apply with fuzz; 11 files need manual resolution
   (11 hunks total across them). Conflict list — these are where Mozilla
   refactored since Playwright's base was cut:

@@ -3,14 +3,12 @@
 // Flow:
 //   1. Login to dashboard.oxylabs.io via Google SSO (existing helper).
 //   2. Navigate to ISP product page; verify Starter tier price.
-//   3. DRY-RUN by default: take screenshot of subscribe screen + exit.
-//      Set ISP_BUY_CONFIRM=1 to proceed past the final Subscribe click.
+//   3. Require ISP_BUY_CONFIRM=1 before opening the paid subscribe checkout.
 //   4. After subscription, navigate to ISP overview, scrape assigned IPs
 //      into .work/keeper/oxylabs_isp_ips.json.
 //
 // This script does NOT charge money unless ISP_BUY_CONFIRM=1 is set.
-// Even with CONFIRM=1, screenshots are written before each click so the
-// caller can audit what was committed.
+// Screenshots are written before each click so the caller can audit what was committed.
 
 import { WSession } from '../../../dist/session/wsession.js';
 import { googleSso, getGoogleSsoCreds } from '../_shared/services/google_sso.mjs';
@@ -35,7 +33,7 @@ if (existsSync(TOPUP_ENV_FILE)) {
   }
 }
 
-const CONFIRM = process.env.ISP_BUY_CONFIRM === '1';
+if (process.env.ISP_BUY_CONFIRM !== '1') { console.log('FAIL: ISP_BUY_CONFIRM=1 required before subscribing'); process.exit(2); }
 const OUT_DIR = '.work/keeper/oxylabs_isp_buy';
 mkdirSync(OUT_DIR, { recursive: true });
 const stamp = () => new Date().toISOString().replace(/[:.]/g, '-');
@@ -78,7 +76,7 @@ try {
   await s.page.goto('https://dashboard.oxylabs.io/en/products', { waitUntil: 'domcontentloaded' }).catch(() => {});
   await humanIdlePause('long');
   console.log(`[trajectory] products url=${s.page.url()}`);
-  const productsShot = await shot(s, 'products_overview');
+  await shot(s, 'products_overview');
 
   // Dump page text so we know what's on screen and which selectors to try.
   const productsText = await s.page.evaluate(() => document.body.innerText);
@@ -93,21 +91,13 @@ try {
   await s.page.goto(ispUrl, { waitUntil: 'domcontentloaded' }).catch(() => {});
   await humanIdlePause('long');
   console.log(`[trajectory] /overview/ISP url=${s.page.url()}`);
-  const ispShot = await shot(s, 'overview_isp');
+  await shot(s, 'overview_isp');
   const ispText = await s.page.evaluate(() => document.body.innerText);
   writeFileSync(`${OUT_DIR}/${stamp()}_overview_isp_text.txt`, ispText);
 
   const hasStarter = /Starter\s*\$?16|10\s*IPs?\s*\$?16|\$1\.6\s*\/IP/i.test(ispText);
   console.log(`[trajectory] /overview/ISP has Starter $16 marker: ${hasStarter}`);
 
-  if (!CONFIRM) {
-    console.log('[trajectory] DRY-RUN — set ISP_BUY_CONFIRM=1 to proceed past the Subscribe click.');
-    console.log('[trajectory] artifacts:');
-    console.log(`  ${productsShot}`);
-    console.log(`  ${ispShot}`);
-    console.log(`  ${OUT_DIR}/<stamp>_overview_isp_text.txt`);
-    process.exit(0);
-  }
 
   // CONFIRM mode: click Buy now (opens 3-step checkout: plan → locations → review).
   console.log('[trajectory] CONFIRM mode — clicking Buy now');

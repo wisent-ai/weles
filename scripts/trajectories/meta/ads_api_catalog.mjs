@@ -29,7 +29,7 @@ try {
       await graphRequest('POST', `/${BUSINESS_ID}/owned_product_catalogs`, withValidateOnly(catalogPayload(), { validateOnly: false }), { label: 'meta-ads-api-catalog' });
     } else if (ACTION === 'read' || ACTION === 'list') {
       const path = CATALOG_ID ? `/${CATALOG_ID}` : `/${BUSINESS_ID}/owned_product_catalogs`;
-      await graphRequest('GET', path, { fields: process.env.FIELDS || 'id,name,vertical,product_count', limit: process.env.LIMIT || 50 }, { dryRun: !submitEnabled() && process.env.LIVE_READ !== '1', label: 'meta-ads-api-catalog-read' });
+      await graphRequest('GET', path, { fields: process.env.FIELDS || 'id,name,vertical,product_count', limit: process.env.LIMIT || 50 }, { execute: submitEnabled() || process.env.LIVE_READ === '1', label: 'meta-ads-api-catalog-read' });
     } else if (ACTION === 'update') {
       if (!CATALOG_ID) throw new Error('CATALOG_ID required for catalog update');
       await graphRequest('POST', `/${CATALOG_ID}`, withValidateOnly(catalogPayload(), { validateOnly: false }), { label: 'meta-ads-api-catalog-update' });
@@ -42,7 +42,7 @@ try {
       await graphRequest('POST', `/${CATALOG_ID}/product_sets`, withValidateOnly(productSetPayload(), { validateOnly: false }), { label: 'meta-ads-api-product-set' });
     } else if (ACTION === 'read' || ACTION === 'list') {
       const path = PRODUCT_SET_ID ? `/${PRODUCT_SET_ID}` : `/${CATALOG_ID}/product_sets`;
-      await graphRequest('GET', path, { fields: process.env.FIELDS || 'id,name,filter', limit: process.env.LIMIT || 50 }, { dryRun: !submitEnabled() && process.env.LIVE_READ !== '1', label: 'meta-ads-api-product-set-read' });
+      await graphRequest('GET', path, { fields: process.env.FIELDS || 'id,name,filter', limit: process.env.LIMIT || 50 }, { execute: submitEnabled() || process.env.LIVE_READ === '1', label: 'meta-ads-api-product-set-read' });
     } else if (ACTION === 'update') {
       if (!PRODUCT_SET_ID) throw new Error('PRODUCT_SET_ID required for product set update');
       await graphRequest('POST', `/${PRODUCT_SET_ID}`, withValidateOnly(productSetPayload(), { validateOnly: false }), { label: 'meta-ads-api-product-set-update' });

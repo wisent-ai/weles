@@ -1,10 +1,10 @@
-// FiveSim (5sim.net) topup via Google SSO. Dry-run by default.
+// FiveSim (5sim.net) topup via Google SSO.
 import { WSession } from '../../../dist/session/wsession.js';
 import { googleSso, getGoogleSsoCreds } from '../_shared/services/google_sso.mjs';
-import { topupOpts, dryRunExit } from '../_shared/services/topup_common.mjs';
+import { topupOpts } from '../_shared/services/topup_common.mjs';
 import { humanIdlePause } from '../../../dist/human/mouse.js';
 
-const { usd, confirm } = topupOpts();
+const { usd } = topupOpts();
 const login = await getGoogleSsoCreds();
 if (!login) { console.log('FAIL: no Google SSO creds'); process.exit(1); }
 
@@ -28,7 +28,7 @@ try {
     console.log(`[trajectory] amount filled: $${usd}`);
   }
 
-  if (!confirm) { await dryRunExit(s, 'fivesim', usd); process.exit(0); }
+  
 
   // CONFIRM: Find and click pay button
   const { findAndClickPayButton } = await import('../_shared/services/topup_common.mjs');

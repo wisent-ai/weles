@@ -25,7 +25,7 @@ try {
     await graphRequest('POST', `/${PAGE_ID}/leadgen_forms`, withValidateOnly(payload(), { validateOnly: false }), { label: 'meta-ads-api-lead-form' });
   } else if (ACTION === 'read' || ACTION === 'list') {
     const path = FORM_ID ? `/${FORM_ID}` : `/${PAGE_ID}/leadgen_forms`;
-    await graphRequest('GET', path, { fields: process.env.FIELDS || 'id,name,status,locale,leads_count,created_time', limit: process.env.LIMIT || 50 }, { dryRun: !submitEnabled() && process.env.LIVE_READ !== '1', label: 'meta-ads-api-lead-form-read' });
+    await graphRequest('GET', path, { fields: process.env.FIELDS || 'id,name,status,locale,leads_count,created_time', limit: process.env.LIMIT || 50 }, { execute: submitEnabled() || process.env.LIVE_READ === '1', label: 'meta-ads-api-lead-form-read' });
   } else if (ACTION === 'update') {
     if (!FORM_ID) throw new Error('LEAD_FORM_ID or FORM_ID required for update');
     await graphRequest('POST', `/${FORM_ID}`, withValidateOnly(payload(), { validateOnly: false }), { label: 'meta-ads-api-lead-form-update' });

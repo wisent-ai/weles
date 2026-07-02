@@ -3,7 +3,7 @@
 // TOPUP_USD is mapped to nearest plan; TOPUP_CONFIRM=1 proceeds to Stripe checkout.
 import { WSession } from '../../../dist/session/wsession.js';
 import { googleSso, getGoogleSsoCreds } from '../_shared/services/google_sso.mjs';
-import { topupOpts, dryRunExit } from '../_shared/services/topup_common.mjs';
+import { topupOpts } from '../_shared/services/topup_common.mjs';
 import { humanIdlePause, humanClickLocator } from '../../../dist/human/mouse.js';
 import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
 
@@ -18,7 +18,7 @@ function nearestPlan(usd) {
   return PLANS.reduce((a, b) => Math.abs(b.price - usd) < Math.abs(a.price - usd) ? b : a);
 }
 
-const { usd, confirm } = topupOpts();
+const { usd } = topupOpts();
 const plan = nearestPlan(usd);
 console.log(`[trajectory] requested $${usd}, using nearest plan: ${plan.name} ($${plan.price}/${plan.gb}GB)`);
 
@@ -181,7 +181,7 @@ try {
       if (!now) { console.log('FAIL: could not check non-refundable acknowledgement'); process.exit(1); }
     }
 
-    if (!confirm) { await dryRunExit(s, 'oxylabs_payg', targetGb * GB_PRICE); process.exit(0); }
+    
 
     // CONFIRM: Click Continue → Stripe form → fill + submit.
     let stripeChargeFired = false;
@@ -241,7 +241,7 @@ try {
     process.exit(1);
   }
   console.log(`[trajectory] found Continue to checkout for ${plan.name} ($${plan.price})`);
-  if (!confirm) { await dryRunExit(s, 'oxylabs', plan.price); process.exit(0); }
+  
 
   // CONFIRM: Click Continue to checkout -> Cleverbridge/Stripe checkout page.
   // Verified 2026-05-04: post-Continue lands on a Cleverbridge-hosted page

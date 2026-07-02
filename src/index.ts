@@ -30,3 +30,5 @@ export { solveRecaptchaV2 } from './captcha/recaptcha.js';
 export * as vision from './agent/vision.js';
 export * as agentLogin from './agent/login.js';
 export * as discover from './agent/discover.js';
+export { acquireSecret, buildSecretAcquisitionPlan } from './secrets/acquire.js';
+export type { AcquireSecretRequest, AcquireSecretResult } from './secrets/acquire.js';

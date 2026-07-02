@@ -54,7 +54,7 @@ try {
       await graphRequest('POST', `/${adAccountId()}/adcreatives`, withValidateOnly(creativePayload()), { label: 'meta-ads-api-creative' });
     } else if (ACTION === 'read' || ACTION === 'list') {
       const path = CREATIVE_ID ? `/${CREATIVE_ID}` : `/${adAccountId()}/adcreatives`;
-      await graphRequest('GET', path, { fields: process.env.FIELDS || 'id,name,status,object_story_spec,effective_object_story_id', limit: process.env.LIMIT || 50 }, { dryRun: !submitEnabled() && process.env.LIVE_READ !== '1', label: 'meta-ads-api-creative-read' });
+      await graphRequest('GET', path, { fields: process.env.FIELDS || 'id,name,status,object_story_spec,effective_object_story_id', limit: process.env.LIMIT || 50 }, { execute: submitEnabled() || process.env.LIVE_READ === '1', label: 'meta-ads-api-creative-read' });
     } else if (ACTION === 'delete') {
       if (!CREATIVE_ID) throw new Error('CREATIVE_ID required for delete');
       await graphRequest('DELETE', `/${CREATIVE_ID}`, {}, { label: 'meta-ads-api-creative-delete' });

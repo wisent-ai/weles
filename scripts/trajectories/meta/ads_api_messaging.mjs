@@ -1,4 +1,4 @@
-// Meta Marketing API: Messenger/WhatsApp destination ad stack dry-run/create wrapper.
+// Meta Marketing API: Messenger/WhatsApp destination ad stack create wrapper.
 
 import { compactObject, graphRequest, parseJsonEnv, submitEnabled, withValidateOnly, adAccountId, microsFromUsd } from './_marketing_api.mjs';
 
@@ -39,42 +39,15 @@ function creativePayload() {
   });
 }
 
-async function dryRunStack() {
-  const campaign = {
-    name: campaignName,
-    objective: process.env.CAMPAIGN_OBJECTIVE || 'OUTCOME_ENGAGEMENT',
-    status: 'PAUSED',
-    special_ad_categories: parseJsonEnv('SPECIAL_AD_CATEGORIES', ['NONE']),
-  };
-  const adset = compactObject({
-    name: process.env.AD_SET_NAME || `${campaignName} ad set`,
-    campaign_id: campaignId || '<campaign_id>',
-    billing_event: process.env.BILLING_EVENT || 'IMPRESSIONS',
-    optimization_goal: process.env.OPTIMIZATION_GOAL || (destination === 'whatsapp' ? 'CONVERSATIONS' : 'MESSAGING_CONVERSATIONS'),
-    destination_type: destination === 'whatsapp' ? 'WHATSAPP' : 'MESSENGER',
-    bid_strategy: process.env.BID_STRATEGY,
-    daily_budget: microsFromUsd(process.env.DAILY_BUDGET_USD),
-    targeting: parseJsonEnv('TARGETING_JSON', { geo_locations: { countries: ['US'] } }),
-    promoted_object: promotedObject(),
-    status: 'PAUSED',
-  });
-  const creative = creativePayload();
-  const ad = { name: process.env.AD_NAME || `${campaignName} ad`, adset_id: adsetId || '<adset_id>', creative: { creative_id: creativeId || '<creative_id>' }, status: 'PAUSED' };
-  console.log('[meta-ads-api-messaging] SUBMIT=0 dry run');
-  console.log(JSON.stringify({ campaign, adset, creative, ad }, null, 2).slice(0, 20000));
-}
 
 try {
   if (!['messenger', 'whatsapp'].includes(destination)) throw new Error('CAMPAIGN_DESTINATION must be messenger or whatsapp');
-  if (!submitEnabled()) {
-    await dryRunStack();
-  } else {
-    const campaign = await graphRequest('POST', `/${adAccountId()}/campaigns`, { name: campaignName, objective: process.env.CAMPAIGN_OBJECTIVE || 'OUTCOME_ENGAGEMENT', status: 'PAUSED', special_ad_categories: parseJsonEnv('SPECIAL_AD_CATEGORIES', ['NONE']) }, { submit: true, label: 'meta-ads-api-messaging-campaign' });
-    const adset = await graphRequest('POST', `/${adAccountId()}/adsets`, withValidateOnly({ name: process.env.AD_SET_NAME || `${campaignName} ad set`, campaign_id: campaign.id, billing_event: process.env.BILLING_EVENT || 'IMPRESSIONS', optimization_goal: process.env.OPTIMIZATION_GOAL || 'CONVERSATIONS', destination_type: destination.toUpperCase(), daily_budget: microsFromUsd(process.env.DAILY_BUDGET_USD), targeting: parseJsonEnv('TARGETING_JSON', { geo_locations: { countries: ['US'] } }), promoted_object: promotedObject(), status: 'PAUSED' }, { submit: true }), { submit: true, label: 'meta-ads-api-messaging-adset' });
-    const creative = await graphRequest('POST', `/${adAccountId()}/adcreatives`, creativePayload(), { submit: true, label: 'meta-ads-api-messaging-creative' });
-    const ad = await graphRequest('POST', `/${adAccountId()}/ads`, { name: process.env.AD_NAME || `${campaignName} ad`, adset_id: adset.id, creative: { creative_id: creative.id }, status: 'PAUSED' }, { submit: true, label: 'meta-ads-api-messaging-ad' });
-    console.log(`PASS: Meta messaging stack created campaign=${campaign.id} adset=${adset.id} creative=${creative.id} ad=${ad.id}`);
-  }
+  if (!submitEnabled()) throw new Error('SUBMIT=1 required to create Meta messaging stack');
+  const campaign = await graphRequest('POST', `/${adAccountId()}/campaigns`, { name: campaignName, objective: process.env.CAMPAIGN_OBJECTIVE || 'OUTCOME_ENGAGEMENT', status: 'PAUSED', special_ad_categories: parseJsonEnv('SPECIAL_AD_CATEGORIES', ['NONE']) }, { submit: true, label: 'meta-ads-api-messaging-campaign' });
+  const adset = await graphRequest('POST', `/${adAccountId()}/adsets`, withValidateOnly({ name: process.env.AD_SET_NAME || `${campaignName} ad set`, campaign_id: campaign.id, billing_event: process.env.BILLING_EVENT || 'IMPRESSIONS', optimization_goal: process.env.OPTIMIZATION_GOAL || 'CONVERSATIONS', destination_type: destination.toUpperCase(), daily_budget: microsFromUsd(process.env.DAILY_BUDGET_USD), targeting: parseJsonEnv('TARGETING_JSON', { geo_locations: { countries: ['US'] } }), promoted_object: promotedObject(), status: 'PAUSED' }, { submit: true }), { submit: true, label: 'meta-ads-api-messaging-adset' });
+  const creative = await graphRequest('POST', `/${adAccountId()}/adcreatives`, creativePayload(), { submit: true, label: 'meta-ads-api-messaging-creative' });
+  const ad = await graphRequest('POST', `/${adAccountId()}/ads`, { name: process.env.AD_NAME || `${campaignName} ad`, adset_id: adset.id, creative: { creative_id: creative.id }, status: 'PAUSED' }, { submit: true, label: 'meta-ads-api-messaging-ad' });
+  console.log(`PASS: Meta messaging stack created campaign=${campaign.id} adset=${adset.id} creative=${creative.id} ad=${ad.id}`);
   console.log('PASS: Meta messaging API completed');
 } catch (e) {
   console.log('FAIL:', e.message?.slice(0, 1600));

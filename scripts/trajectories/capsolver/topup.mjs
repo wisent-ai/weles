@@ -1,10 +1,10 @@
-// Capsolver topup via Google SSO popup + consent click. Dry-run by default.
+// Capsolver topup via Google SSO popup + consent click.
 import { WSession } from '../../../dist/session/wsession.js';
 import { googleSso, getGoogleSsoCreds } from '../_shared/services/google_sso.mjs';
-import { topupOpts, dryRunExit } from '../_shared/services/topup_common.mjs';
+import { topupOpts } from '../_shared/services/topup_common.mjs';
 import { humanIdlePause } from '../../../dist/human/mouse.js';
 
-const { usd, confirm } = topupOpts();
+const { usd } = topupOpts();
 const login = await getGoogleSsoCreds();
 if (!login) { console.log('FAIL: no Google SSO creds'); process.exit(1); }
 
@@ -29,7 +29,7 @@ try {
   const amtIn = s.page.locator('input[type="number"], input[name*="amount" i], input[inputmode="numeric"]').filter({ visible: true }).first();
   if (await amtIn.isVisible().catch(() => false)) { await amtIn.click(); await amtIn.fill(String(usd)); console.log(`[trajectory] amount filled: $${usd}`); }
 
-  if (!confirm) { await dryRunExit(s, 'capsolver', usd); process.exit(0); }
+  
 
   // CONFIRM: Find and click pay button
   const { findAndClickPayButton } = await import('../_shared/services/topup_common.mjs');

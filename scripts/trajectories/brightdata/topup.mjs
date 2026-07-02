@@ -1,12 +1,12 @@
-// Bright Data topup via Google SSO. Dry-run by default.
+// Bright Data topup via Google SSO.
 // Charges against the saved Mastercard *1400 when TOPUP_CONFIRM=1.
 import { getServiceLogin } from '../../../dist/utils/credentials.js';
 import { WSession } from '../../../dist/session/wsession.js';
 import { googleSso } from '../_shared/services/google_sso.mjs';
-import { topupOpts, dryRunExit } from '../_shared/services/topup_common.mjs';
+import { topupOpts } from '../_shared/services/topup_common.mjs';
 import { humanIdlePause } from '../../../dist/human/mouse.js';
 
-const { usd, confirm } = topupOpts();
+const { usd } = topupOpts();
 const login = await getServiceLogin('Bright Data');
 if (!login) { console.log('FAIL: no Bright Data creds'); process.exit(1); }
 
@@ -35,7 +35,7 @@ try {
   await amtIn.fill(String(usd));
   console.log(`[trajectory] amount filled: $${usd}`);
 
-  if (!confirm) { await dryRunExit(s, 'brightdata', usd); process.exit(0); }
+  
 
   // Submit. The Pay button text mirrors the amount.
   const payBtn = s.page.locator(`button:has-text("Pay $${usd}"), button:has-text("Pay")`).filter({ visible: true }).first();

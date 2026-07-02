@@ -5,13 +5,11 @@
 // profile fields can't be propagated from the character row.
 //
 // Run: node scripts/admin/backfill_character_bindings.mjs
-// Dry-run: DRY_RUN=1 node scripts/admin/backfill_character_bindings.mjs
 
 import { autoBindCharacter } from '../trajectories/lib/character-bind.mjs';
 
 const URL = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
-const DRY = process.env.DRY_RUN === '1';
 if (!URL || !KEY) { console.log('FAIL: SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY required'); process.exit(1); }
 const H = { apikey: KEY, Authorization: `Bearer ${KEY}` };
 
@@ -26,7 +24,6 @@ const rows = await unlinkedAccounts();
 console.log(`unlinked active accounts: ${rows.length}`);
 const byPlatform = rows.reduce((acc, r) => { acc[r.platform] = (acc[r.platform] || 0) + 1; return acc; }, {});
 console.log('by platform:', JSON.stringify(byPlatform));
-if (DRY) { console.log('DRY_RUN=1 — exiting without binding'); process.exit(0); }
 
 let bound = 0, generated = 0, errored = 0;
 const stats = {};

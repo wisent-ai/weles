@@ -31,7 +31,7 @@ try {
     await graphRequest('POST', `/${AUDIENCE_ID}`, withValidateOnly(payload(), { validateOnly: false }), { label: 'meta-ads-api-audience-update' });
   } else if (ACTION === 'read' || ACTION === 'list') {
     const path = AUDIENCE_ID ? `/${AUDIENCE_ID}` : `/${adAccountId()}/customaudiences`;
-    await graphRequest('GET', path, { fields: process.env.FIELDS || 'id,name,subtype,description,delivery_status,operation_status,time_created', limit: process.env.LIMIT || 50 }, { dryRun: !submitEnabled() && process.env.LIVE_READ !== '1', label: 'meta-ads-api-audience-read' });
+    await graphRequest('GET', path, { fields: process.env.FIELDS || 'id,name,subtype,description,delivery_status,operation_status,time_created', limit: process.env.LIMIT || 50 }, { execute: submitEnabled() || process.env.LIVE_READ === '1', label: 'meta-ads-api-audience-read' });
   } else if (ACTION === 'delete') {
     if (!AUDIENCE_ID) throw new Error('AUDIENCE_ID or CUSTOM_AUDIENCE_ID required for delete');
     await graphRequest('DELETE', `/${AUDIENCE_ID}`, {}, { label: 'meta-ads-api-audience-delete' });

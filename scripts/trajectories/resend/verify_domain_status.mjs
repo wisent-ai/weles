@@ -12,7 +12,7 @@
 // Exit: 0 all healthy · 3 a domain needs a human · 4 IP not whitelisted · 2 misconfig.
 // Env: RESEND_API_KEY, RESEND_RECEIVING_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY,
 //      WHITELISTED_IPS (csv; falls back to NAMECHEAP_CLIENT_IP), SEND_FROM, MESSAGE_FILE,
-//      DRY_RUN=1, ALLOW_ANY_IP=1 (test escape hatch).
+//      ALLOW_ANY_IP=1 (test escape hatch).
 
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
@@ -22,7 +22,6 @@ const RK = process.env.RESEND_API_KEY || '';
 const RRK = process.env.RESEND_RECEIVING_API_KEY || RK;
 const SUPA = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const SK = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
-const DRY = process.env.DRY_RUN === '1';
 const SEND_FROM = process.env.SEND_FROM || 'noreply@wisent.com';
 // Absolute so the chained slack_post_message job (separate process) can read it.
 const MESSAGE_FILE = resolve(process.env.MESSAGE_FILE || '.work/resend-domains-status.txt');
@@ -60,7 +59,6 @@ async function reverify(id) {
   return false;
 }
 async function updateRow(domain, status) {
-  if (DRY) return;
   await fetch(`${SUPA}/rest/v1/inbound_email_domains?domain=eq.${encodeURIComponent(domain)}`, {
     method: 'PATCH', headers: { apikey: SK, Authorization: `Bearer ${SK}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
     body: JSON.stringify({ status, updated_at: new Date().toISOString() }),
@@ -94,11 +92,11 @@ const main = async () => {
 
   const domains = (((await rj('GET', '/domains?limit=100')).body) || {}).data || [];
   const targets = domains.filter(d => !SKIP.has(d.name));
-  const out = { checked: targets.length, dry: DRY, healthy: [], repaired: [], broken: [] };
+  const out = { checked: targets.length, healthy: [], repaired: [], broken: [] };
 
   // 1. re-verify any stale domains
   for (const d of targets) {
-    if (d.status !== 'verified' && !DRY) { console.log(`[verify] ${d.name} status=${d.status} -> re-verifying`); if (await reverify(d.id)) { d.status = 'verified'; d._repaired = true; } }
+    if (d.status !== 'verified') { console.log(`[verify] ${d.name} status=${d.status} -> re-verifying`); if (await reverify(d.id)) { d.status = 'verified'; d._repaired = true; } }
   }
   // 2. receiving probe. Resend rate-limits sends (~2/s); firing all probes in a
   // tight loop trips 429s, and a DROPPED SEND looks exactly like a broken domain.
@@ -118,7 +116,6 @@ const main = async () => {
   };
   const probes = {};            // domain -> marker
   for (const d of verifiedTargets) {
-    if (DRY) { probes[d.name] = null; continue; }
     probes[d.name] = await sendProbe(d.name, 'health');
     await sleep(600);           // stay under Resend's ~2 req/s
   }
@@ -134,13 +131,13 @@ const main = async () => {
       }
     }
   };
-  if (!DRY) await pollInbox(probes, 12);
+  await pollInbox(probes, 12);
   // CONFIRMATION re-probe: re-send to EVERY verified domain not yet landed —
   // covers BOTH a slow first delivery and a rate-limited first send — then poll
   // again. Only domains that miss this second pass too get flagged broken, so a
   // healthy domain is never flipped to mx_broken (and alerted) on one bad run.
   const suspects = verifiedTargets.map((d) => d.name).filter((dom) => !landed.has(dom));
-  if (!DRY && suspects.length) {
+  if (suspects.length) {
     console.log(`[probe] re-confirming ${suspects.length} not-yet-landed: ${suspects.join(', ')}`);
     const reprobes = {};
     for (const dom of suspects) { reprobes[dom] = await sendProbe(dom, 'recheck'); await sleep(600); }
@@ -148,17 +145,17 @@ const main = async () => {
   }
   // 3. classify + reconcile (diagnose the cause for anything broken)
   for (const d of targets) {
-    const healthy = DRY ? d.status === 'verified' : landed.has(d.name);
-    const rec = { domain: d.name, status: d.status, receives: DRY ? null : landed.has(d.name), repaired: !!d._repaired };
+    const healthy = landed.has(d.name);
+    const rec = { domain: d.name, status: d.status, receives: landed.has(d.name), repaired: !!d._repaired };
     if (healthy) { out.healthy.push(rec); if (d._repaired) out.repaired.push(rec); await updateRow(d.name, 'active'); }
     else {
-      rec.diagnosis = DRY ? { code: 'dry', label: 'not probed (dry-run)' } : await diagnoseBroken(d.name);
+      rec.diagnosis = await diagnoseBroken(d.name);
       out.broken.push(rec); await updateRow(d.name, 'mx_broken');
     }
     console.log(`[verify] ${d.name}: status=${d.status} receives=${rec.receives} -> ${healthy ? 'HEALTHY' : 'BROKEN'}${rec.diagnosis ? ` [${rec.diagnosis.code}]` : ''}${d._repaired ? ' (repaired)' : ''}`);
   }
   // 4. Slack message
-  const lines = [`*Resend email-domain health* — ${out.healthy.length}/${out.checked} healthy${DRY ? ' (dry-run)' : ''}`];
+  const lines = [`*Resend email-domain health* — ${out.healthy.length}/${out.checked} healthy`];
   if (out.healthy.length) lines.push(`:white_check_mark: healthy: ${out.healthy.map(r => r.domain).sort().join(', ')}`);
   if (out.repaired.length) lines.push(`:wrench: auto-repaired (re-verified): ${out.repaired.map(r => r.domain).join(', ')}`);
   if (out.broken.length) {
@@ -167,7 +164,6 @@ const main = async () => {
       no_mx: 'missing inbound MX record (add MX → inbound-smtp.us-east-1.amazonaws.com)',
       mx_present_no_receive: 'MX present but mail not landing (SES routing / propagation)',
       dns_unresolved: 'domain does not resolve (NXDOMAIN)',
-      dry: 'not probed (dry-run)',
     };
     lines.push(':rotating_light: NEEDS A HUMAN:');
     for (const r of out.broken) lines.push(`   • ${r.domain} — ${SHORT[r.diagnosis?.code] || r.diagnosis?.label || 'not receiving'}`);
@@ -178,7 +174,7 @@ const main = async () => {
   // 5. Swiatowid alert — when a domain needs a human, enqueue a slack_post_message
   // job (the worker runs the browser Slack post). Messages SLACK_CHANNEL ('jakub').
   // SLACK_NOTIFY_ALWAYS=1 posts even when all-healthy (e.g. a daily heartbeat).
-  const shouldNotify = !DRY && (out.broken.length > 0 || process.env.SLACK_NOTIFY_ALWAYS === '1');
+  const shouldNotify = out.broken.length > 0 || process.env.SLACK_NOTIFY_ALWAYS === '1';
   if (shouldNotify && SUPA && SK) {
     const ok = await fetch(`${SUPA}/rest/v1/account_action_logs`, {
       method: 'POST',

@@ -46,7 +46,6 @@ binary can never lag the source:
 
 ```bash
 bash scripts/chromium/build.sh             # autoninja, then auto-upload + propagate
-bash scripts/chromium/build.sh --dry-run   # build, then preview the release (no upload)
 ```
 
 `build.sh` runs `autoninja` then chains to `release.sh`, which reads the version

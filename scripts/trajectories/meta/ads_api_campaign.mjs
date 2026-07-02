@@ -1,6 +1,6 @@
 // Meta Marketing API: dedicated campaign/ad set/ad stack wrapper.
 //
-// SUBMIT=0 prints/validates requests. SUBMIT=1 mutates using META_ACCESS_TOKEN.
+// SUBMIT=1 mutates using META_ACCESS_TOKEN.
 // Set RESOURCE=campaign|adset|ad|stack and ACTION=create|update|read|delete.
 
 import {
@@ -148,8 +148,9 @@ async function updateResource(resource) {
 async function readResource(resource) {
   const id = resource === 'campaign' ? CAMPAIGN_ID : resource === 'adset' ? AD_SET_ID : resource === 'ad' ? AD_ID : CREATIVE_ID;
   const fields = process.env.FIELDS || 'id,name,status,effective_status,created_time,updated_time';
-  if (id) return graphRequest('GET', `/${id}`, { fields }, { dryRun: !SUBMIT && !boolEnv('LIVE_READ', false), label: `meta-ads-api-${resource}-read` });
-  return graphRequest('GET', `/${adAccountId()}/${resource === 'adset' ? 'adsets' : resource === 'creative' ? 'adcreatives' : `${resource}s`}`, { fields, limit: process.env.LIMIT || 50 }, { dryRun: !SUBMIT && !boolEnv('LIVE_READ', false), label: `meta-ads-api-${resource}-list` });
+  const readOpts = { execute: SUBMIT || boolEnv('LIVE_READ', false), label: `meta-ads-api-${resource}-read` };
+  if (id) return graphRequest('GET', `/${id}`, { fields }, readOpts);
+  return graphRequest('GET', `/${adAccountId()}/${resource === 'adset' ? 'adsets' : resource === 'creative' ? 'adcreatives' : `${resource}s`}`, { fields, limit: process.env.LIMIT || 50 }, { ...readOpts, label: `meta-ads-api-${resource}-list` });
 }
 
 async function deleteResource(resource) {
@@ -159,16 +160,7 @@ async function deleteResource(resource) {
 }
 
 async function createStack() {
-  if (!SUBMIT) {
-    const campaign = campaignCreate();
-    const adset = adSetCreate('<campaign_id>');
-    const creative = creativeCreate();
-    const ad = adCreate('<adset_id>', '<creative_id>');
-    console.log('[meta-ads-api-stack] SUBMIT=0 dry run');
-    console.log(JSON.stringify({ campaign, adset, creative, ad }, null, 2).slice(0, 20000));
-    console.log('PASS: Meta Ads API stack dry run completed');
-    return;
-  }
+  if (!SUBMIT) throw new Error('SUBMIT=1 required for Meta Ads API stack create');
   const campaign = await graphRequest('POST', `/${adAccountId()}/campaigns`, campaignCreate(), { label: 'meta-ads-api-campaign', submit: true });
   const campaignId = campaign.id;
   const adset = await graphRequest('POST', `/${adAccountId()}/adsets`, adSetCreate(campaignId), { label: 'meta-ads-api-adset', submit: true });

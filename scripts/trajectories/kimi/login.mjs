@@ -358,7 +358,7 @@ async function driveKimiAuthorize(authorizeUrl, login, home) {
   }
 }
 
-function smokeKimi(home) {
+function verifyKimiCredential(home) {
   const res = spawnSync(KIMI_BIN, ['-p', 'Reply with exactly OK.', '--output-format', 'stream-json'], {
     cwd: home,
     env: { ...process.env, HOME: home },
@@ -366,10 +366,10 @@ function smokeKimi(home) {
     timeout: 60_000,
   });
   if (res.status !== 0) {
-    throw new Error(`kimi smoke failed status=${res.status} stderr=${String(res.stderr || '').slice(0, 800)} stdout=${String(res.stdout || '').slice(0, 800)}`);
+    throw new Error(`kimi credential verification failed status=${res.status} stderr=${String(res.stderr || '').slice(0, 800)} stdout=${String(res.stdout || '').slice(0, 800)}`);
   }
   if (!/OK/i.test(`${res.stdout}\n${res.stderr}`)) {
-    throw new Error(`kimi smoke returned unexpected output: ${String(res.stdout || '').slice(0, 800)}`);
+    throw new Error(`kimi credential verification returned unexpected output: ${String(res.stdout || '').slice(0, 800)}`);
   }
 }
 
@@ -390,13 +390,13 @@ try {
 
   await driveKimiAuthorize(authorizeUrl, login, LOGIN_HOME);
   const creds = await waitForCredentials(LOGIN_HOME);
-  smokeKimi(LOGIN_HOME);
+  verifyKimiCredential(LOGIN_HOME);
 
   clearTimeout(killer);
   try { proc.kill(); } catch {}
   await SESSION?.close?.();
   process.stdout.write(`\n__KIMI_CREDENTIALS_JSON_B64__${Buffer.from(creds, 'utf8').toString('base64')}\n`);
-  process.stderr.write('[kimi login] credentials emitted after smoke\n');
+  process.stderr.write('[kimi login] credentials emitted after verification\n');
   process.exit(0);
 } catch (e) {
   clearTimeout(killer);

@@ -135,7 +135,7 @@ async function apiPerformance() {
   };
   const path = CAMPAIGN_ID ? `/${CAMPAIGN_ID}/insights` : `/${AD_ACCOUNT_ID.startsWith('act_') ? AD_ACCOUNT_ID : `act_${AD_ACCOUNT_ID}`}/insights`;
   console.log(`[meta-ads-performance] API ${path} fields=${fields}`);
-  await graphRequest('GET', path, params, { dryRun: false, label: 'meta-ads-performance-api' });
+  await graphRequest('GET', path, params, { execute: true, label: 'meta-ads-performance-api' });
   console.log('PASS: Meta Ads performance read completed (api)');
 }
 

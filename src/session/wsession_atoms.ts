@@ -52,10 +52,10 @@ const LOGGED_OUT_SELECTORS: Record<string, string> = {
 export function installAtoms(W: typeof import('./wsession.js').WSession): void {
 W.prototype.waitFor = function (selector, opts) {
   const state = opts?.state ?? 'visible';
-  const timeout = opts?.timeoutMs ?? 30000;
+  const timeout = opts?.timeoutMs ?? 0;
   return this.runStep(`waitFor_${selector.slice(0, 30)}`, async () => {
     try { await (this as WSession).page.locator(selector).first().waitFor({ state, timeout }); return `waited ${state}: ${selector.slice(0, 60)}`; }
-    catch { return `timeout ${state}: ${selector.slice(0, 60)}`; }
+    catch { return `wait failed ${state}: ${selector.slice(0, 60)}`; }
   });
 };
 

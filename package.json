@@ -17,6 +17,7 @@
     "test:trajectories": "vitest run tests/trajectories.test.ts",
     "test:all": "vitest run",
     "health": "node scripts/trajectories/health/all.mjs",
+    "secrets:acquire": "node scripts/secrets/acquire.mjs",
     "health:login": "RUN_LOGIN=1 node scripts/trajectories/health/all.mjs",
     "health:register": "RUN_REGISTER=1 node scripts/trajectories/health/all.mjs"
   },

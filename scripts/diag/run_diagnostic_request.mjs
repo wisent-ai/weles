@@ -1360,18 +1360,6 @@ function completionErrorForSignal(signal) {
   return null;
 }
 
-if (flag('--dry-run')) {
-  console.log(JSON.stringify({
-    ok: true,
-    dry_run: true,
-    row_id: row.id,
-    action: row.action,
-    stage,
-    status: row.status,
-    would_claim_as: CLAIM_ID,
-  }, null, 2));
-  process.exit(0);
-}
 
 if (flag('--backfill-row')) {
   if (stage === 'fingerprint_diff') {

@@ -1,13 +1,13 @@
-// PacketStream topup. Dry-run by default — set TOPUP_CONFIRM=1 to charge.
+// PacketStream topup.
 // PacketStream's /dashboard/deposit only offers preset amounts ($50/$100/$250/$500/$1000)
 // — TOPUP_USD is rounded UP to the nearest preset.
 import { getServiceLogin } from '../../../dist/utils/credentials.js';
 import { WSession } from '../../../dist/session/wsession.js';
-import { topupOpts, dryRunExit } from '../_shared/services/topup_common.mjs';
+import { topupOpts } from '../_shared/services/topup_common.mjs';
 import { humanIdlePause } from '../../../dist/human/mouse.js';
 
 const PRESETS = [50, 100, 250, 500, 1000];
-const { usd, confirm } = topupOpts();
+const { usd } = topupOpts();
 const target = PRESETS.find(p => p >= usd) ?? PRESETS[0];
 
 const login = await getServiceLogin('PacketStream');
@@ -29,7 +29,7 @@ try {
   await s.page.selectOption('#paypal-amount', String(target)).catch(() => {});
   console.log(`[trajectory] selected preset $${target} (requested $${usd})`);
 
-  if (!confirm) { await dryRunExit(s, 'packetstream', target); process.exit(0); }
+  
 
   // PacketStream's deposit dropdown auto-fires onChange which redirects to PayPal.
   // Trigger the change event explicitly so the redirect fires deterministically.

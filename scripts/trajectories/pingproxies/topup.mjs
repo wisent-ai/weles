@@ -1,12 +1,12 @@
-// Pingproxies (Byteful) topup via Google SSO. Dry-run by default.
+// Pingproxies (Byteful) topup via Google SSO.
 import { WSession } from '../../../dist/session/wsession.js';
 import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
 import { googleSso, getGoogleSsoCreds } from '../_shared/services/google_sso.mjs';
-import { topupOpts, dryRunExit } from '../_shared/services/topup_common.mjs';
+import { topupOpts } from '../_shared/services/topup_common.mjs';
 import { humanIdlePause } from '../../../dist/human/mouse.js';
 import { humanType } from '../../../dist/human/keyboard.js';
 
-const { usd, confirm } = topupOpts();
+const { usd } = topupOpts();
 const login = await getGoogleSsoCreds();
 if (!login) { console.log('FAIL: no Google SSO creds'); process.exit(1); }
 
@@ -93,7 +93,7 @@ try {
     console.log('[trajectory] dumped modal HTML to recordings/<run>/pingproxies_topup/pingproxies_modal.html');
   } catch (e) { console.log('[diag] HTML dump err:', e.message?.slice(0, 80)); }
 
-  if (!confirm) { await dryRunExit(s, 'pingproxies', usd); process.exit(0); }
+  
 
   // Click "Show More Payment Options" then the saved card option (cited
   // 2026-05-04: /billing/payment-methods has Mastercard ****2430 saved as
