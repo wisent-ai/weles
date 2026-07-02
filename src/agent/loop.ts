@@ -13,7 +13,6 @@ import { Capture } from '../capture/capture.js';
 import { loadFlow, saveFlow, replayFlow, type FlowStep } from '../session/flows.js';
 import { humanIdlePause } from '../human/mouse.js';
 
-const MAX_ITERATIONS = 20;
 const DEFAULT_MODEL_ROUTER_URL = 'https://model-router-1080673333190.us-central1.run.app';
 const DEFAULT_AGENT_MODEL = 'claude-code-subscription';
 const ROUTER_CONFIG_ROW = 'claude-reauth-config';
@@ -152,32 +151,23 @@ async function callModelRouter(prompt: string): Promise<{ raw: string; model: st
   const cfg = await loadModelRouterConfig();
   const body = JSON.stringify({
     model: cfg.model,
-    max_tokens: Number(process.env.WELES_AGENT_MAX_TOKENS ?? 1024),
     messages: [{ role: 'user', content: prompt }],
   });
-  const timeoutMs = Number(process.env.WELES_AGENT_LLM_TIMEOUT_MS ?? 120_000);
-  const ac = new AbortController();
-  const timer = setTimeout(() => ac.abort(), timeoutMs);
-  try {
-    const res = await fetch(`${cfg.routerUrl}/v1/chat/completions`, {
-      method: 'POST',
-      headers: signedRouterHeaders(cfg, body),
-      body,
-      signal: ac.signal,
-    });
-    const data = await res.json().catch(async () => ({ raw: await res.text().catch(() => '') })) as {
-      choices?: Array<{ message?: { content?: string } }>;
-      model?: string;
-      raw?: string;
-      error?: unknown;
-    };
-    if (!res.ok) throw new Error(`model-router ${res.status}: ${JSON.stringify(data).slice(0, 500)}`);
-    const raw = data.choices?.[0]?.message?.content?.trim() ?? '';
-    if (!raw) throw new Error(`model-router returned empty content: ${JSON.stringify(data).slice(0, 500)}`);
-    return { raw, model: data.model ?? cfg.model, routerUrl: cfg.routerUrl };
-  } finally {
-    clearTimeout(timer);
-  }
+  const res = await fetch(`${cfg.routerUrl}/v1/chat/completions`, {
+    method: 'POST',
+    headers: signedRouterHeaders(cfg, body),
+    body,
+  });
+  const data = await res.json().catch(async () => ({ raw: await res.text().catch(() => '') })) as {
+    choices?: Array<{ message?: { content?: string } }>;
+    model?: string;
+    raw?: string;
+    error?: unknown;
+  };
+  if (!res.ok) throw new Error(`model-router ${res.status}: ${JSON.stringify(data).slice(0, 500)}`);
+  const raw = data.choices?.[0]?.message?.content?.trim() ?? '';
+  if (!raw) throw new Error(`model-router returned empty content: ${JSON.stringify(data).slice(0, 500)}`);
+  return { raw, model: data.model ?? cfg.model, routerUrl: cfg.routerUrl };
 }
 
 async function askLlm(goal: string, state: string, screenshotPath: string, step: number, label?: string): Promise<Record<string, any>> {
@@ -247,7 +237,7 @@ async function buildState(page: any, history: ToolCall[], envHints: Record<strin
 export async function execute(
   session: WSession,
   goal: string,
-  options?: { envHints?: Record<string, string>; replay?: ToolCall[]; flowName?: string; maxSteps?: number },
+  options?: { envHints?: Record<string, string>; replay?: ToolCall[]; flowName?: string; replayOnly?: boolean; skipSavedFlowReplay?: boolean },
 ): Promise<LoopResult> {
   const history: ToolCall[] = [];
   const envHints = options?.envHints ?? {};
@@ -256,8 +246,10 @@ export async function execute(
   const capture = new Capture({ newPage: async () => page } as any);
   const flowName = options?.flowName;
 
-  // Try replaying a saved flow before using the LLM
-  if (flowName && !replay) {
+  // Try replaying a saved flow before using the LLM unless this is an explicit
+  // keeper/discovery run. Keeper-first runs must map the live success path, not
+  // silently reuse a stale local cache entry under the same flow name.
+  if (flowName && !replay && !options?.skipSavedFlowReplay) {
     const saved = loadFlow(flowName);
     if (saved) {
       console.log(`[loop] Replaying saved flow: ${flowName} (${saved.steps.length} steps)`);
@@ -281,14 +273,15 @@ export async function execute(
   }
 
   let activePage = page;
-  const maxSteps = options?.maxSteps ?? MAX_ITERATIONS;
-  for (let step = 0; step < maxSteps; step++) {
+  for (let step = 0; ; step++) {
     activePage = getActivePage(activePage);
     let decision: Record<string, any>;
 
-    if (replay && step < replay.length && !['read', 'done'].includes(replay[step].tool)) {
+    if (replay && step < replay.length && (options?.replayOnly || !['read', 'done'].includes(replay[step].tool))) {
       decision = replay[step];
       console.log(`[loop] step ${step} REPLAY: ${decision.tool} ${JSON.stringify(decision.args)}`);
+    } else if (replay && options?.replayOnly && step >= replay.length) {
+      throw new AgentFailure('replay completed without done', history);
     } else {
       let screenshot: Buffer;
       try {
@@ -337,10 +330,15 @@ export async function execute(
     } catch (e: any) {
       call.error = String(e).slice(0, 500);
       console.log(`[loop] step ${step} error: ${call.error}`);
+      history.push(call);
+      if (replay && options?.replayOnly) {
+        throw new AgentFailure(`replay failed at step ${step}: ${call.error}`, history);
+      }
       if (call.error.toLowerCase().includes('closed')) {
         activePage = getActivePage(activePage);
         if (replay) { replay = null; console.log('[loop] replay aborted, switching to LLM'); }
       }
+      continue;
     }
     // Detect popup (Google SSO opens in new window)
     try {
@@ -354,8 +352,7 @@ export async function execute(
     history.push(call);
   }
 
-  await capture.save('agent_loop', activePage).catch(() => {});
-  throw new AgentFailure(`max iterations (${maxSteps}) exceeded`, history);
+  throw new AgentFailure('agent loop exited unexpectedly', history);
 }
 
 export { callModelRouter, parseJsonFrom, signedRouterHeaders };

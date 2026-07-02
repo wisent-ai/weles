@@ -26,6 +26,35 @@ describe('worker trajectory dispatch', () => {
     expect(env.HEADLESS).toBe('1');
   });
 
+  it('routes generic keeper-first trajectory discovery and maps generic params', () => {
+    const keeperPath = 'scripts/trajectories/generic/keeper_task.mjs';
+    expect(resolveTrajectory('generic_keeper_task')).toBe(keeperPath);
+
+    const env = paramsToEnv({
+      url: 'https://www.semanticscholar.org/product/api#api-key-form',
+      objective: 'Acquire Semantic Scholar API access.',
+      flow_name: 'semantic-scholar-api-key-request',
+      proxy: 'none',
+      headless: true,
+      constraints: { secret: 'semantic_scholar.api_key' },
+      env: { SEMANTIC_SCHOLAR_REQUEST_VOLUME: '1000' },
+    }, 'generic_keeper_task', keeperPath);
+
+    expect(env.GENERIC_TASK_URL).toBe('https://www.semanticscholar.org/product/api#api-key-form');
+    expect(env.GENERIC_TASK_OBJECTIVE).toBe('Acquire Semantic Scholar API access.');
+    expect(env.GENERIC_TASK_FLOW_NAME).toBe('semantic-scholar-api-key-request');
+    expect(env.GENERIC_TASK_PROXY).toBe('none');
+    expect(env.GENERIC_TASK_HEADLESS).toBe('1');
+    expect(JSON.parse(env.GENERIC_TASK_CONSTRAINTS)).toEqual({ secret: 'semantic_scholar.api_key' });
+    expect(JSON.parse(env.GENERIC_TASK_ENV)).toEqual({ SEMANTIC_SCHOLAR_REQUEST_VOLUME: '1000' });
+
+    const savedPath = 'scripts/trajectories/generic/saved_task.mjs';
+    expect(resolveTrajectory('generic_saved_task')).toBe(savedPath);
+    expect(paramsToEnv({ trajectory_id: 'traj-123' }, 'generic_saved_task', savedPath)).toEqual({
+      GENERIC_SAVED_TRAJECTORY_ID: 'traj-123',
+    });
+  });
+
   it('routes paid ads campaign trajectories', () => {
     expect(resolveTrajectory('meta_ads_campaign')).toBe('scripts/trajectories/meta/ads_campaign.mjs');
     expect(resolveTrajectory('meta_ads_login')).toBe('scripts/trajectories/meta/ads_login.mjs');
