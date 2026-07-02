@@ -177,14 +177,20 @@ async function askLlm(goal: string, state: string, screenshotPath: string, step:
 
   let raw = '';
   let routerMeta: Record<string, unknown> = {};
-  try {
-    const routed = await callModelRouter(prompt);
-    raw = routed.raw;
-    routerMeta = { model: routed.model, router_url: routed.routerUrl };
-  } catch (e: any) {
-    raw = JSON.stringify({ tool: 'give_up', args: { reason: `model-router error: ${String(e.message ?? e).slice(0, 300)}` } });
-    routerMeta = { error: String(e.message ?? e).slice(0, 300) };
+  let lastRouterError = '';
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const routed = await callModelRouter(prompt);
+      raw = routed.raw;
+      routerMeta = { model: routed.model, router_url: routed.routerUrl, attempt };
+      break;
+    } catch (e: any) {
+      lastRouterError = String(e.message ?? e).slice(0, 300);
+      routerMeta = { error: lastRouterError, attempt };
+      if (attempt < 3) await new Promise(r => setTimeout(r, attempt * 3000));
+    }
   }
+  if (!raw) raw = JSON.stringify({ tool: 'give_up', args: { reason: `model-router error after retries: ${lastRouterError}` } });
 
   const logPath = join(dir, `loop_step${step}.json`);
   const decision = parseJsonFrom(raw);
@@ -193,30 +199,46 @@ async function askLlm(goal: string, state: string, screenshotPath: string, step:
 }
 
 async function pageObservation(page: any): Promise<string> {
+  const summarizeControls = (controls: any[]): string => (controls ?? []).map((el: any, i: number) => {
+    const bits = [el.tag, el.role && `role=${el.role}`, el.name && `name=${el.name}`, el.type && `type=${el.type}`, el.label && `label=${el.label}`, el.href && `href=${el.href}`].filter(Boolean);
+    return `  [${i}] ${bits.join(' ')}`;
+  }).join('\n') || '  (none)';
+  const readFrame = async (frame: any): Promise<{ title?: string; text?: string; controls?: any[]; error?: string }> => {
+    try {
+      return await frame.evaluate(() => {
+        const text = (document.body?.innerText ?? '').replace(/\s+/g, ' ').trim().slice(0, 4000);
+        const controls = Array.from(document.querySelectorAll('input, textarea, select, button, a, [role="button"], [role="link"]'))
+          .slice(0, 80)
+          .map((el) => {
+            const anyEl = el as HTMLElement & { value?: string; type?: string; name?: string; href?: string };
+            const label = anyEl.getAttribute('aria-label') || anyEl.getAttribute('placeholder') || anyEl.innerText || anyEl.getAttribute('title') || '';
+            return {
+              tag: anyEl.tagName.toLowerCase(),
+              role: anyEl.getAttribute('role') || '',
+              name: anyEl.name || '',
+              type: anyEl.type || '',
+              label: label.replace(/\s+/g, ' ').trim().slice(0, 120),
+              href: anyEl.href || '',
+            };
+          });
+        return { title: document.title, text, controls };
+      });
+    } catch (e: any) {
+      return { error: String(e.message ?? e).slice(0, 160) };
+    }
+  };
   try {
-    const data = await page.evaluate(() => {
-      const text = (document.body?.innerText ?? '').replace(/\s+/g, ' ').trim().slice(0, 4000);
-      const controls = Array.from(document.querySelectorAll('input, textarea, select, button, a, [role="button"], [role="link"]'))
-        .slice(0, 80)
-        .map((el) => {
-          const anyEl = el as HTMLElement & { value?: string; type?: string; name?: string; href?: string };
-          const label = anyEl.getAttribute('aria-label') || anyEl.getAttribute('placeholder') || anyEl.innerText || anyEl.getAttribute('title') || '';
-          return {
-            tag: anyEl.tagName.toLowerCase(),
-            role: anyEl.getAttribute('role') || '',
-            name: anyEl.name || '',
-            type: anyEl.type || '',
-            label: label.replace(/\s+/g, ' ').trim().slice(0, 120),
-            href: anyEl.href || '',
-          };
-        });
-      return { title: document.title, text, controls };
-    });
-    const controls = (data.controls ?? []).map((el: any, i: number) => {
-      const bits = [el.tag, el.role && `role=${el.role}`, el.name && `name=${el.name}`, el.type && `type=${el.type}`, el.label && `label=${el.label}`, el.href && `href=${el.href}`].filter(Boolean);
-      return `  [${i}] ${bits.join(' ')}`;
-    }).join('\n') || '  (none)';
-    return `TITLE: ${data.title ?? ''}\nVISIBLE TEXT: ${data.text ?? ''}\nCONTROLS:\n${controls}`;
+    const data = await readFrame(page.mainFrame?.() ?? page);
+    const frameSummaries: string[] = [];
+    const frames = (page.frames?.() ?? []).filter((frame: any) => frame !== page.mainFrame?.()).slice(0, 12);
+    for (const frame of frames) {
+      const frameData = await readFrame(frame);
+      const controls = summarizeControls(frameData.controls ?? []);
+      if (frameData.text || controls !== '  (none)') {
+        frameSummaries.push(`FRAME name=${frame.name?.() ?? ''} url=${frame.url?.() ?? ''}\nTEXT: ${frameData.text ?? ''}\nCONTROLS:\n${controls}`);
+      }
+    }
+    return `TITLE: ${data.title ?? ''}\nVISIBLE TEXT: ${data.text ?? ''}\nCONTROLS:\n${summarizeControls(data.controls ?? [])}${frameSummaries.length ? `\n\nFRAMES:\n${frameSummaries.join('\n\n')}` : ''}`;
   } catch (e: any) {
     return `PAGE OBSERVATION ERROR: ${String(e.message ?? e).slice(0, 300)}`;
   }
