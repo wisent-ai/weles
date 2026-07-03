@@ -80,10 +80,10 @@ export async function wsClick(s: WSession, target: string): Promise<string> {
     const reExact = new RegExp(`^\\s*${tEsc}\\s*$`, 'i');
     const reLoose = new RegExp(tEsc, 'i');
     for (const frame of childFrames(s)) {
-      for (const role of ['button', 'link', 'checkbox'] as const) {
+      for (const role of ['button', 'link', 'checkbox', 'radio'] as const) {
         try { const r = await tryLoc(frame.getByRole(role, { name: reExact }), `frame ${role}: `); if (r) return r; } catch {}
       }
-      for (const role of ['button', 'link'] as const) {
+      for (const role of ['button', 'link', 'radio'] as const) {
         try { const r = await tryLoc(frame.getByRole(role, { name: reLoose }), `frame ${role}: `); if (r) return r; } catch {}
       }
       if (/\b(submit|send)\b/i.test(target)) {
