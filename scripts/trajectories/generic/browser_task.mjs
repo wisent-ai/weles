@@ -70,7 +70,7 @@ function identityInstructions(platform) {
     `Weles generated a registration email identity through its domain rotator / Resend inbox for this run.`,
     `Use these placeholders when a form asks for identity fields: $${prefix}_NEW_FIRSTNAME, $${prefix}_NEW_LASTNAME, $${prefix}_NEW_USERNAME, $${prefix}_NEW_EMAIL, $${prefix}_NEW_PASSWORD. The fill/type tools resolve placeholders before typing; do not type literal placeholder text.`,
     `On Semantic Scholar's API page, fill and submit the HubSpot form embedded in the Request an API Key / api-key-form iframe; do not use the footer newsletter form.`,
-    `If the site sends an email confirmation or API-key delivery email, call check_email("$${prefix}_NEW_EMAIL", "") and use the returned code/link/instructions.`,
+    `If the site sends an email confirmation before submission, call check_email("$${prefix}_NEW_EMAIL", "") and use the returned code/link/instructions. Do not return raw API keys in done(value); post-submit key-delivery email is handled by the server-side Semantic Scholar follow-up scanner.`,
   ];
   if (platform === 'semantic_scholar') {
     instructions.push(

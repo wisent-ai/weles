@@ -122,6 +122,7 @@ describe('secret acquisition', () => {
       const body = typeof init?.body === 'string' ? JSON.parse(init.body) as Record<string, unknown> : undefined;
       requests.push({ url: String(url), init, body });
       if (String(url).includes('/rest/v1/service_credentials')) return jsonResponse([]);
+      if (String(url).includes('/rest/v1/account_action_logs?action=eq.generic_keeper_task')) return jsonResponse([]);
       if (String(url).includes('/rest/v1/weles_trajectory_builds')) return jsonResponse([{ id: 'build-123' }], 201);
       if (String(url).includes('/rest/v1/account_action_logs')) return jsonResponse([{ id: 'log-456' }], 201);
       throw new Error(`unexpected fetch ${String(url)}`);
@@ -142,11 +143,12 @@ describe('secret acquisition', () => {
     });
     expect(requests.map((request) => request.url)).toEqual([
       'https://supabase.example.test/rest/v1/service_credentials?select=id,display_name,category,api_key_env_var,api_key_preview,notes',
+      'https://supabase.example.test/rest/v1/account_action_logs?action=eq.generic_keeper_task&platform=eq.generic&status=eq.completed&select=id,params,result&order=completed_at.desc&limit=20',
       'https://supabase.example.test/rest/v1/weles_trajectory_builds?select=id',
       'https://supabase.example.test/rest/v1/account_action_logs?select=id',
     ]);
 
-    const buildInsert = requests[1];
+    const buildInsert = requests[2];
     expect(buildInsert.init?.method).toBe('POST');
     expect(buildInsert.init?.headers).toMatchObject({
       apikey: 'service-role-key',
@@ -168,7 +170,7 @@ describe('secret acquisition', () => {
     expect(buildInsert.body?.constraints).not.toHaveProperty('trajectory_writer');
     expectPayloadOmitsDraftOnlyControlsAndGeneratedIdentity(buildInsert.body);
 
-    const actionLogInsert = requests[2];
+    const actionLogInsert = requests[3];
     expect(actionLogInsert.init?.method).toBe('POST');
     expect(actionLogInsert.body).toMatchObject({
       action: 'generic_keeper_task',
@@ -195,5 +197,81 @@ describe('secret acquisition', () => {
     expect(actionConstraints).not.toHaveProperty('identity_policy');
     expect(actionConstraints).not.toHaveProperty('trajectory_writer');
     expectPayloadOmitsDraftOnlyControlsAndGeneratedIdentity(actionLogInsert.body);
+  });
+
+  it('queues a Semantic Scholar mailbox follow-up when a completed submission already exists', async () => {
+    process.env.SUPABASE_URL = 'https://supabase.example.test/';
+    process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-role-key';
+    const sourceActionLogId = 'submitted-semantic-scholar-run';
+    const requests: Array<{ url: string; init?: RequestInit; body?: Record<string, unknown> }> = [];
+
+    const fetchMock = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      const body = typeof init?.body === 'string' ? JSON.parse(init.body) as Record<string, unknown> : undefined;
+      requests.push({ url: String(url), init, body });
+      if (String(url).includes('/rest/v1/service_credentials')) return jsonResponse([]);
+      if (String(url).includes('/rest/v1/account_action_logs?action=eq.generic_keeper_task')) {
+        return jsonResponse([{
+          id: sourceActionLogId,
+          params: {
+            constraints: {
+              secret: 'semantic_scholar.api_key',
+              purpose: 'lem',
+            },
+          },
+          result: {
+            generic_browser_task: {
+              value: {
+                status: 'submitted',
+                confirmation: 'Semantic Scholar API request submitted.',
+                next_steps: 'Semantic Scholar will email the API key after review.',
+              },
+            },
+          },
+        }]);
+      }
+      if (String(url).includes('/rest/v1/account_action_logs?action=eq.semanticscholar_key_followup')) return jsonResponse([]);
+      if (String(url).includes('/rest/v1/account_action_logs')) return jsonResponse([{ id: 'followup-log-789' }], 201);
+      throw new Error(`unexpected fetch ${String(url)}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await acquireSecret({ secret: 'semantic_scholar.api_key', purpose: 'lem', tenantId: 'tenant-1' });
+
+    expect(result).toMatchObject({
+      status: 'followup_queued',
+      secret: 'semantic_scholar.api_key',
+      provider: 'semantic_scholar',
+      sourceActionLogId,
+      actionLogId: 'followup-log-789',
+      action: 'semanticscholar_key_followup',
+      flowName: 'semantic-scholar-key-followup',
+      alreadyQueued: false,
+      message: 'Semantic Scholar API key mailbox follow-up queued',
+    });
+    if (result.status !== 'followup_queued') return;
+    expect(Date.parse(result.scheduledAt ?? '')).not.toBeNaN();
+    expect(requests.map((request) => request.url)).toEqual([
+      'https://supabase.example.test/rest/v1/service_credentials?select=id,display_name,category,api_key_env_var,api_key_preview,notes',
+      'https://supabase.example.test/rest/v1/account_action_logs?action=eq.generic_keeper_task&platform=eq.generic&status=eq.completed&select=id,params,result&order=completed_at.desc&limit=20',
+      'https://supabase.example.test/rest/v1/account_action_logs?action=eq.semanticscholar_key_followup&status=in.(queued,running)&select=id,params&limit=50',
+      'https://supabase.example.test/rest/v1/account_action_logs?select=id',
+    ]);
+    expect(requests.some((request) => request.url.includes('/rest/v1/weles_trajectory_builds'))).toBe(false);
+    const followupInsert = requests[3];
+    expect(followupInsert.init?.method).toBe('POST');
+    expect(followupInsert.body).toMatchObject({
+      action: 'semanticscholar_key_followup',
+      platform: 'semanticscholar',
+      status: 'queued',
+      priority: 25,
+      queued_by: 'secret-acquisition-followup',
+      params: {
+        source_action_log_id: sourceActionLogId,
+        attempt: 0,
+        secret: 'semantic_scholar.api_key',
+        purpose: 'lem',
+      },
+    });
+    expect(followupInsert.body?.scheduled_at).toBe(result.scheduledAt);
   });
 });
