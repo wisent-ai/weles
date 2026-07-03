@@ -234,6 +234,7 @@ describe('generic browser task Semantic Scholar identity contract', () => {
     expect(goal).toEqual(expect.stringContaining('$SEMANTIC_SCHOLAR_NEW_EMAIL'));
     expect(goal).toEqual(expect.stringContaining('$SEMANTIC_SCHOLAR_NEW_PASSWORD'));
     expect(goal).toEqual(expect.stringContaining('check_email("$SEMANTIC_SCHOLAR_NEW_EMAIL", "")'));
+    expect(goal).toEqual(expect.stringContaining('call solve_captcha before giving up'));
     expect(goal).toEqual(expect.stringContaining(modelRouterGuidance));
     expect(goal).not.toContain(generatedIdentity.email);
     expect(goal).not.toContain(generatedIdentity.password);
@@ -325,6 +326,7 @@ describe('generic browser task Semantic Scholar identity contract', () => {
     expect(goal).toEqual(expect.stringContaining('Acquire Semantic Scholar API access for lem.'));
     expect(goal).toEqual(expect.stringContaining('Keeper-first discovery mode'));
     expect(goal).toEqual(expect.stringContaining('check_email("$SEMANTIC_SCHOLAR_NEW_EMAIL", "")'));
+    expect(goal).toEqual(expect.stringContaining('call solve_captcha before giving up'));
     const executeOptions = executeMock.mock.calls[0]?.[2];
     expect(executeOptions).toEqual(expect.objectContaining({
       flowName: 'semantic-scholar-api-key-request',
