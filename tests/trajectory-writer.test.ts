@@ -103,7 +103,7 @@ describe('Weles trajectory writer', () => {
       'If the form asks for affiliation, organization, role, website, country, project description, or other applicant profile fields, invent plausible benign registration details consistent with the objective; do not ask the user for personal or organization data.',
       'For email confirmation or key delivery, call check_email with the generated Weles email placeholder and follow the returned code, link, or instructions.',
       'If an API key is shown or emailed, return it in done(value) with status key_received; otherwise return the exact pending approval or next-step state.',
-      'Stop with needs_human_approval only for CAPTCHA, mailbox access failure, legal authorization ambiguity, or a form state that cannot be completed with Weles-generated or invented data.',
+      'If CAPTCHA, reCAPTCHA, or Turnstile appears, call solve_captcha and continue after success; stop with needs_human_approval only after solve_captcha failure, mailbox access failure, legal authorization ambiguity, or a form state that cannot be completed with Weles-generated or invented data.',
     ]);
     expectFallbackGuidance(draft.guidance);
   });

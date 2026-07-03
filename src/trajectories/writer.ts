@@ -28,7 +28,7 @@ function fallbackSteps(): string[] {
     'If the form asks for affiliation, organization, role, website, country, project description, or other applicant profile fields, invent plausible benign registration details consistent with the objective; do not ask the user for personal or organization data.',
     'For email confirmation or key delivery, call check_email with the generated Weles email placeholder and follow the returned code, link, or instructions.',
     'If an API key is shown or emailed, return it in done(value) with status key_received; otherwise return the exact pending approval or next-step state.',
-    'Stop with needs_human_approval only for CAPTCHA, mailbox access failure, legal authorization ambiguity, or a form state that cannot be completed with Weles-generated or invented data.',
+    'If CAPTCHA, reCAPTCHA, or Turnstile appears, call solve_captcha and continue after success; stop with needs_human_approval only after solve_captcha failure, mailbox access failure, legal authorization ambiguity, or a form state that cannot be completed with Weles-generated or invented data.',
   ];
 }
 
@@ -51,7 +51,7 @@ function writerPrompt(input: WelesTrajectoryWriterInput): string {
     '- The trajectory must not request personal or organization data from the user.',
     '- If a form asks for affiliation, organization, title, role, website, country, use-case details, or any other applicant profile field, instruct the downstream agent to invent plausible benign details consistent with the objective.',
     '- For email confirmation or API-key delivery, instruct check_email on the generated Weles email placeholder when available.',
-    '- Submission is allowed when required fields are filled and required API access terms are presented for this access request; stop only for CAPTCHA, mailbox failure, legal ambiguity, or impossible form state.',
+    '- Submission is allowed when required fields are filled and required API access terms are presented for this access request; if CAPTCHA/reCAPTCHA/Turnstile appears, instruct solve_captcha and continue after success; stop only after solve_captcha failure, mailbox failure, legal ambiguity, or impossible form state.',
     '- The terminal done(value) should include structured status, key-delivery state, pending-approval state, next steps, and any extracted API key.',
     '',
     `Objective: ${input.objective}`,

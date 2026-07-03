@@ -211,7 +211,7 @@ function purposeFor(request: AcquireSecretRequest, def: SecretDefinition): strin
 
 function objectiveFor(def: SecretDefinition, request: AcquireSecretRequest): string {
   const purpose = purposeFor(request, def);
-  const mode = 'Submit the request after all required fields are filled. Use Weles-generated or invented applicant details for identity, affiliation, organization, role, website, country, and other registration profile fields; do not ask the user for personal or organization data. Return the final confirmation state, any issued key-delivery instructions, and any next-step instructions. If mailbox access or CAPTCHA cannot be completed, stop and return needs_human_approval.';
+  const mode = 'Submit the request after all required fields are filled. Use Weles-generated or invented applicant details for identity, affiliation, organization, role, website, country, and other registration profile fields; do not ask the user for personal or organization data. If CAPTCHA, reCAPTCHA, or Turnstile appears, call solve_captcha and continue after it reports success; only return needs_human_approval after solve_captcha reports failure or mailbox/key-delivery access cannot be completed. Return the final confirmation state, any issued key-delivery instructions, and any next-step instructions.';
   return [
     `Acquire ${def.displayName} API access for ${purpose}.`,
     `Use case: ${def.usageText}`,

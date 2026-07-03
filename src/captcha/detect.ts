@@ -25,7 +25,7 @@ const FRAME_DETECT_SCRIPT = `
     const rcDiv = document.querySelector('.g-recaptcha[data-sitekey]');
     if (rcDiv) { const dk = rcDiv.getAttribute('data-sitekey') || ''; if (dk) return { type: 'recaptcha', sitekey: dk }; }
     const cf = document.querySelector('iframe[src*="challenges.cloudflare.com"], .cf-turnstile');
-    if (cf) { const ck = cf.getAttribute('data-sitekey') || ''; if (ck) return { type: 'turnstile', sitekey: ck }; }
+    if (cf) { const csrc = cf.getAttribute('src') || ''; const ck = cf.getAttribute('data-sitekey') || (csrc.match(/[?&](?:sitekey|k)=([^&]+)/) || [])[1] || ''; if (ck) return { type: 'turnstile', sitekey: decodeURIComponent(ck) }; }
     const hc = document.querySelector('iframe[src*="hcaptcha.com"], .h-captcha');
     if (hc) { const hsrc = hc.getAttribute('src') || ''; const hk = hc.getAttribute('data-sitekey') || (hsrc.match(/sitekey=([^&]+)/) || [])[1] || ''; return { type: 'hcaptcha', sitekey: hk }; }
     const fc = document.querySelector('iframe[src*="arkoselabs"], iframe[src*="funcaptcha"]');
@@ -56,6 +56,61 @@ export async function detectCaptcha(page: Page): Promise<CaptchaInfo | null> {
   return null;
 }
 
+async function framesFor(page: Page): Promise<any[]> {
+  return page.frames?.() ?? [page.mainFrame?.() ?? page];
+}
+
+async function injectCaptchaToken(page: Page, selectors: string[], token: string): Promise<boolean> {
+  let injected = false;
+  for (const frame of await framesFor(page)) {
+    const ok = await frame.evaluate?.(
+      ({ selectors, token }: { selectors: string[]; token: string }) => {
+        let touched = false;
+        for (const selector of selectors) {
+          for (const el of Array.from(document.querySelectorAll(selector)) as Array<HTMLInputElement | HTMLTextAreaElement>) {
+            el.value = token;
+            el.dispatchEvent(new Event('input', { bubbles: true }));
+            el.dispatchEvent(new Event('change', { bubbles: true }));
+            touched = true;
+          }
+        }
+        return touched;
+      },
+      { selectors, token },
+    ).catch(() => false);
+    injected ||= !!ok;
+  }
+  return injected;
+}
+
+async function invokeCaptchaCallbacks(page: Page, token: string): Promise<boolean> {
+  let invoked = false;
+  for (const frame of await framesFor(page)) {
+    const ok = await frame.evaluate?.((token: string) => {
+      let touched = false;
+      const callbackKey = /(^|[-_])(callback|promise-callback|expired-callback|error-callback)$/i;
+      const visit = (value: unknown, depth: number, seen: Set<unknown>) => {
+        if (depth > 5 || !value || seen.has(value)) return;
+        if (typeof value !== 'object') return;
+        seen.add(value);
+        for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
+          if (typeof entry === 'function') {
+            if (!callbackKey.test(key)) continue;
+            try { (entry as (token: string) => void)(token); touched = true; } catch { /* ignore non-token callbacks */ }
+          } else {
+            visit(entry, depth + 1, seen);
+          }
+        }
+      };
+      visit((window as any).___grecaptcha_cfg?.clients, 0, new Set<unknown>());
+      visit((window as any).___turnstile_cfg?.clients, 0, new Set<unknown>());
+      return touched;
+    }, token).catch(() => false);
+    invoked ||= !!ok;
+  }
+  return invoked;
+}
+
 /** Detect captcha, solve it, and inject the token. Session is optional — provides intercepted API data. */
 export async function solvePageCaptcha(page: Page, solver?: CaptchaSolver, session?: any): Promise<boolean> {
   // Check MutationObserver-captured Arkose data first (Twitter pattern: iframe appears and disappears quickly)
@@ -75,15 +130,32 @@ export async function solvePageCaptcha(page: Page, solver?: CaptchaSolver, sessi
   if (!info) return true;
   const s = solver ?? new CaptchaSolver();
   switch (info.type) {
-    case 'recaptcha-enterprise':
-      return !!(await s.solveRecaptchaV2(page, info.sitekey, { enterprise: true }));
+    case 'recaptcha-enterprise': {
+      const token = await s.solveRecaptchaV2(page, info.sitekey, { enterprise: true });
+      if (!token) return false;
+      if (typeof token !== 'string') return true;
+      const injected = await injectCaptchaToken(page, ['#g-recaptcha-response', 'textarea[name="g-recaptcha-response"]'], token);
+      const invoked = await invokeCaptchaCallbacks(page, token);
+      if (!injected && !invoked) console.log('[captcha] reCAPTCHA token solved but no page field/callback accepted it');
+      return injected || invoked;
+    }
     case 'recaptcha': {
       const token = await s.solveRecaptchaV2(page, info.sitekey);
       if (!token) return false;
-      if (typeof token === 'string') await page.evaluate(`document.getElementById('g-recaptcha-response').value = ${JSON.stringify(token)}`).catch(() => {});
-      return true;
+      if (typeof token !== 'string') return true;
+      const injected = await injectCaptchaToken(page, ['#g-recaptcha-response', 'textarea[name="g-recaptcha-response"]'], token);
+      const invoked = await invokeCaptchaCallbacks(page, token);
+      if (!injected && !invoked) console.log('[captcha] reCAPTCHA token solved but no page field/callback accepted it');
+      return injected || invoked;
     }
-    case 'turnstile': return !!(await s.solveTurnstile(info.sitekey, page.url?.() ?? ''));
+    case 'turnstile': {
+      const token = await s.solveTurnstile(info.sitekey, page.url?.() ?? '');
+      if (!token) return false;
+      const injected = await injectCaptchaToken(page, ['input[name="cf-turnstile-response"]', 'textarea[name="cf-turnstile-response"]', '.cf-turnstile-response'], token);
+      const invoked = await invokeCaptchaCallbacks(page, token);
+      if (!injected && !invoked) console.log('[captcha] Turnstile token solved but no page field/callback accepted it');
+      return injected || invoked;
+    }
     case 'hcaptcha': return solveHcaptchaEnterprise(page, info.sitekey, s, session);
     case 'funcaptcha': return solveFuncaptchaOnPage(page, info.sitekey, info.blob, info.subdomain, s);
   }
