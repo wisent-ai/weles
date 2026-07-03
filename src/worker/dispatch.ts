@@ -89,6 +89,7 @@ const ROUTES: Record<string, (p: string) => string | null> = {
   browser_task: (p) => p === 'generic' ? 'scripts/trajectories/generic/browser_task.mjs' : null,
   saved_task: (p) => p === 'generic' ? 'scripts/trajectories/generic/saved_task.mjs' : null,
   keeper_task: (p) => p === 'generic' ? 'scripts/trajectories/generic/keeper_task.mjs' : null,
+  key_followup: (p) => p === 'semanticscholar' ? 'scripts/trajectories/semanticscholar/key_followup.mjs' : null,
   version_history_scan: (p) => p === 'overleaf' ? 'scripts/trajectories/overleaf/version_history_ui_phrase.mjs' : null,
   push_github: (p) => p === 'overleaf' ? 'scripts/trajectories/overleaf/push_github.mjs' : null,
   pull_github: (p) => p === 'overleaf' ? 'scripts/trajectories/overleaf/pull_github.mjs' : null,
@@ -365,6 +366,12 @@ export function paramsToEnv(
   if (trajPath.endsWith('/generic/saved_task.mjs')) {
     const trajectoryId = params.trajectory_id;
     if (typeof trajectoryId === 'string') env.GENERIC_SAVED_TRAJECTORY_ID = trajectoryId;
+  }
+  if (trajPath.endsWith('/semanticscholar/key_followup.mjs')) {
+    const sourceActionLogId = params.source_action_log_id;
+    if (typeof sourceActionLogId === 'string') env.SOURCE_ACTION_LOG_ID = sourceActionLogId;
+    const attempt = params.attempt;
+    if (typeof attempt === 'number' || typeof attempt === 'string') env.ATTEMPT = String(attempt);
   }
   if (trajPath.endsWith('/overleaf/version_history_ui_phrase.mjs')) {
     const project = params.project ?? params.overleaf_project ?? params.project_id;

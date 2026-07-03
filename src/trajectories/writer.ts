@@ -26,8 +26,8 @@ function fallbackSteps(): string[] {
     'Complete the access request described by the objective end to end.',
     'Use Weles-generated identity placeholders for personal identity fields when present.',
     'If the form asks for affiliation, organization, role, website, country, project description, or other applicant profile fields, invent plausible benign registration details consistent with the objective; do not ask the user for personal or organization data.',
-    'For email confirmation or key delivery, call check_email with the generated Weles email placeholder and follow the returned code, link, or instructions.',
-    'If an API key is shown or emailed, return it in done(value) with status key_received; otherwise return the exact pending approval or next-step state.',
+    'For email confirmation before submission, call check_email with the generated Weles email placeholder and follow the returned code, link, or instructions.',
+    'Do not return raw API keys in done(value), history, notes, or logs. If an API key is displayed during browser execution, report only status key_visible and stop so the server-side secret scanner can capture/store/validate it without exposing plaintext.',
     'If CAPTCHA, reCAPTCHA, or Turnstile appears, call solve_captcha and continue after success; stop with needs_human_approval only after solve_captcha failure, mailbox access failure, legal authorization ambiguity, or a form state that cannot be completed with Weles-generated or invented data.',
   ];
 }
@@ -50,9 +50,9 @@ function writerPrompt(input: WelesTrajectoryWriterInput): string {
     '- The trajectory must follow only the objective below.',
     '- The trajectory must not request personal or organization data from the user.',
     '- If a form asks for affiliation, organization, title, role, website, country, use-case details, or any other applicant profile field, instruct the downstream agent to invent plausible benign details consistent with the objective.',
-    '- For email confirmation or API-key delivery, instruct check_email on the generated Weles email placeholder when available.',
+    '- For email confirmation before submission, instruct check_email on the generated Weles email placeholder when available.',
     '- Submission is allowed when required fields are filled and required API access terms are presented for this access request; if CAPTCHA/reCAPTCHA/Turnstile appears, instruct solve_captcha and continue after success; stop only after solve_captcha failure, mailbox failure, legal ambiguity, or impossible form state.',
-    '- The terminal done(value) should include structured status, key-delivery state, pending-approval state, next steps, and any extracted API key.',
+    '- The terminal done(value) should include structured status, key-delivery state, pending-approval state, and next steps. It must never include a raw API key, token, password, or secret.',
     '',
     `Objective: ${input.objective}`,
   ].join('\n');

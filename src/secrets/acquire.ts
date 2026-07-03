@@ -1,3 +1,5 @@
+import { queueSemanticScholarFollowup } from './semantic-scholar-followup.js';
+
 type SecretDefinition = {
   secret: string;
   provider: string;
@@ -64,6 +66,18 @@ export type AcquireSecretResult =
       actionLogId: string;
       action: 'generic_keeper_task';
       flowName: string;
+      message: string;
+    }
+  | {
+      status: 'followup_queued';
+      secret: string;
+      provider: string;
+      sourceActionLogId: string;
+      actionLogId?: string;
+      action: 'semanticscholar_key_followup';
+      flowName: 'semantic-scholar-key-followup';
+      scheduledAt?: string;
+      alreadyQueued: boolean;
       message: string;
     }
   | {
@@ -259,6 +273,27 @@ async function insertReturning(table: string, row: Record<string, unknown>): Pro
   return id;
 }
 
+function semanticSubmissionFromRow(row: ActionLogLike, def: SecretDefinition): boolean {
+  const params = row.params && typeof row.params === 'object' ? row.params as Record<string, unknown> : {};
+  const constraints = params.constraints && typeof params.constraints === 'object' ? params.constraints as Record<string, unknown> : {};
+  if (constraints.secret === def.secret) return true;
+  const result = row.result && typeof row.result === 'object' ? row.result as Record<string, unknown> : {};
+  const generic = result.generic_browser_task && typeof result.generic_browser_task === 'object' ? result.generic_browser_task as Record<string, unknown> : {};
+  const value = generic.value && typeof generic.value === 'object' ? generic.value as Record<string, unknown> : {};
+  return value.status === 'submitted' && /Semantic Scholar/i.test(`${value.confirmation ?? ''} ${value.next_steps ?? ''}`);
+}
+
+type ActionLogLike = { id?: string | null; params?: unknown; result?: unknown };
+
+async function latestSubmittedSemanticScholarRun(def: SecretDefinition): Promise<string | null> {
+  const supabaseUrl = env('SUPABASE_URL') || env('NEXT_PUBLIC_SUPABASE_URL');
+  if (!supabaseUrl) return null;
+  const res = await fetch(`${supabaseUrl.replace(/\/$/, '')}/rest/v1/account_action_logs?action=eq.generic_keeper_task&platform=eq.generic&status=eq.completed&select=id,params,result&order=completed_at.desc&limit=20`, { headers: headers() });
+  if (!res.ok) return null;
+  const rows = await res.json() as ActionLogLike[];
+  return rows.find((row) => row.id && semanticSubmissionFromRow(row, def))?.id ?? null;
+}
+
 async function queueAcquisition(def: SecretDefinition, request: AcquireSecretRequest): Promise<AcquireSecretResult> {
   const params = paramsFor(def, request);
   if (request.dryRun === true) {
@@ -284,6 +319,25 @@ async function queueAcquisition(def: SecretDefinition, request: AcquireSecretReq
       provider: def.provider,
       missing,
       message: `Cannot enqueue Weles acquisition without ${missing.join(', ')}`,
+    };
+  }
+
+  const submittedRunId = await latestSubmittedSemanticScholarRun(def);
+  if (submittedRunId) {
+    const followup = await queueSemanticScholarFollowup(submittedRunId, 0, 0);
+    return {
+      status: 'followup_queued',
+      secret: def.secret,
+      provider: def.provider,
+      sourceActionLogId: submittedRunId,
+      actionLogId: followup.action_log_id,
+      action: 'semanticscholar_key_followup',
+      flowName: 'semantic-scholar-key-followup',
+      scheduledAt: followup.scheduled_at,
+      alreadyQueued: !followup.queued,
+      message: followup.queued
+        ? `${def.displayName} API key mailbox follow-up queued`
+        : `${def.displayName} API key mailbox follow-up is already queued or running`,
     };
   }
 
