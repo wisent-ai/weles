@@ -246,6 +246,8 @@ async function persistServiceCredential(source: ActionLogRow, sourceEmailId: str
     source_action_log_id: source.id,
     source_email_id: sourceEmailId,
     validation_status: validationStatus,
+    provider: 'semantic_scholar',
+    capabilities: ['paper_search', 'citation_metadata', 'related_papers'],
     runtime_env_installed: true,
     captured_at: new Date().toISOString(),
   };
