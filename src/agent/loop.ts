@@ -60,7 +60,8 @@ Tools:
   wait(seconds)            Pause.
   read(question)           Ask a question about the current page.
   select_option(target, value) Select dropdown option. Use for date pickers.
-  js_click(selector, text)   LAST RESORT click via selector or text. Prefer click(target) — js_click historically used a JS-evaluated el.click() which produces isTrusted=false events that bot classifiers (PerimeterX/Arkose/TikTok) reject. Use only when click(target) and focus()+press_key() can't reach the element (Reddit shadow-DOM vote buttons being the canonical case).
+  set_control(selector, value?, checked?) Set and verify an input/select/textarea by CSS selector in the main page or any iframe; dispatches input/change and reports resulting state plus visible validation text. Use when fill/click/select_option cannot make a form control stick.
+  js_click(selector, text)   LAST RESORT click via selector or text. Prefer click(target) — js_click historically used a JS-evaluated el.click() which produces isTrusted=false events that bot classifiers (PerimeterX/Arkose/TikTok) reject. Use only when click(target), set_control(), and focus()+press_key() can't reach the element (Reddit shadow-DOM vote buttons being the canonical case).
   solve_captcha(sitekey)   Solve CAPTCHA/reCAPTCHA/Turnstile on current page via configured providers.
   check_email(email, sender) Poll for verification code sent to email.
   generate_identity(platform) Generate random identity: username/email/password/firstName/lastName/DOB.
@@ -200,7 +201,7 @@ async function askLlm(goal: string, state: string, screenshotPath: string, step:
 
 async function pageObservation(page: any): Promise<string> {
   const summarizeControls = (controls: any[]): string => (controls ?? []).map((el: any, i: number) => {
-    const bits = [el.tag, el.role && `role=${el.role}`, el.name && `name=${el.name}`, el.type && `type=${el.type}`, el.label && `label=${el.label}`, el.href && `href=${el.href}`].filter(Boolean);
+    const bits = [el.tag, el.role && `role=${el.role}`, el.name && `name=${el.name}`, el.type && `type=${el.type}`, el.label && `label=${el.label}`, el.value_state && `value=${el.value_state}`, typeof el.checked === 'boolean' && `checked=${el.checked}`, el.href && `href=${el.href}`].filter(Boolean);
     return `  [${i}] ${bits.join(' ')}`;
   }).join('\n') || '  (none)';
   const readFrame = async (frame: any): Promise<{ title?: string; text?: string; controls?: any[]; error?: string }> => {
@@ -210,14 +211,24 @@ async function pageObservation(page: any): Promise<string> {
         const controls = Array.from(document.querySelectorAll('input, textarea, select, button, a, [role="button"], [role="link"]'))
           .slice(0, 80)
           .map((el) => {
-            const anyEl = el as HTMLElement & { value?: string; type?: string; name?: string; href?: string };
+            const anyEl = el as HTMLElement & { value?: string; type?: string; name?: string; href?: string; checked?: boolean; selectedOptions?: HTMLCollectionOf<HTMLOptionElement> };
             const label = anyEl.getAttribute('aria-label') || anyEl.getAttribute('placeholder') || anyEl.innerText || anyEl.getAttribute('title') || '';
+            const type = anyEl.type || '';
+            const name = anyEl.name || '';
+            const value = typeof anyEl.value === 'string' ? anyEl.value.replace(/\s+/g, ' ').trim() : '';
+            const sensitive = /password|token|key|secret|email|captcha|cookie|authorization/i.test(`${type} ${name} ${label}`);
+            const selected = anyEl.tagName.toLowerCase() === 'select' && anyEl.selectedOptions?.[0]?.text
+              ? anyEl.selectedOptions[0].text.replace(/\s+/g, ' ').trim().slice(0, 80)
+              : '';
+            const value_state = !value ? '' : (sensitive ? `[set len=${value.length}]` : (selected || `[set len=${value.length}]`));
             return {
               tag: anyEl.tagName.toLowerCase(),
               role: anyEl.getAttribute('role') || '',
-              name: anyEl.name || '',
-              type: anyEl.type || '',
+              name,
+              type,
               label: label.replace(/\s+/g, ' ').trim().slice(0, 120),
+              value_state,
+              checked: typeof anyEl.checked === 'boolean' ? anyEl.checked : undefined,
               href: anyEl.href || '',
             };
           });

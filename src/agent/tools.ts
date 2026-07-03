@@ -20,6 +20,7 @@ export async function dispatch(session: WSession, tool: string, args: ToolArgs):
     case 'wait':        return session.wait(Number(args.seconds ?? 1));
     case 'read':        return session.read(args.question ?? '');
     case 'select_option': return session.select(args.target ?? '', args.value ?? '');
+    case 'set_control': return session.setControl(args.selector ?? '', args.value, args.checked);
     case 'js_click':    return session.jsClick(args.selector, args.text);
     case 'solve_captcha': return session.solveCaptcha();
     case 'check_email': return session.checkEmail(args.email ?? '', args.sender ?? '');

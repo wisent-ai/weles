@@ -74,7 +74,7 @@ function identityInstructions(platform) {
   ];
   if (platform === 'semantic_scholar') {
     instructions.push(
-      'Semantic Scholar API-key iframe exact field plan: fill firstname, lastname, email, company, 0-2/website, country, message, api_endpoints, and api_requests_per_second; choose the Public application radio if the use case is a shared research assistant; tick the API acknowledgement/terms checkboxes; if CAPTCHA/Turnstile/reCAPTCHA appears, call solve_captcha before giving up; then click Submit inside that same iframe.',
+      'Semantic Scholar API-key iframe exact field plan: fill firstname, lastname, email, company, 0-2/website, country_choice, message, api_endpoints, and api_requests_per_second; choose the Public application radio (input[name="application"]); tick every API acknowledgement/terms checkbox, especially input[name="api_successful_unauth_requests"]; if CAPTCHA/Turnstile/reCAPTCHA appears, call solve_captcha before giving up; then click Submit inside that same iframe. If validation errors remain, repair those exact fields before retrying submit.',
     );
   }
   return instructions;
