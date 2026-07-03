@@ -1,4 +1,4 @@
-import { chmod, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -22,6 +22,13 @@ type ResendMessage = {
 
 type ServiceCredentialRow = { id: string };
 
+type RuntimeInstallStatus = {
+  secrets_env_written: boolean;
+  secrets_env_mode: string | null;
+  launchctl_present: boolean | null;
+  launchctl_value_length: number | null;
+};
+
 type ScannerResult =
   | {
       status: 'validated';
@@ -32,6 +39,7 @@ type ScannerResult =
       source_action_log_id: string;
       source_email_id: string;
       runtime_installed: boolean;
+      runtime_install: RuntimeInstallStatus;
       next_scheduled_at?: never;
     }
   | {
@@ -201,7 +209,7 @@ async function validateCandidate(candidate: string): Promise<{ ok: boolean; stat
   }
 }
 
-async function installForLemRuntime(secret: string): Promise<boolean> {
+async function installForLemRuntime(secret: string): Promise<RuntimeInstallStatus> {
   const secretsPath = join(homedir(), '.lem', 'secrets.env');
   await mkdir(dirname(secretsPath), { recursive: true });
   let existing = '';
@@ -211,13 +219,25 @@ async function installForLemRuntime(secret: string): Promise<boolean> {
   retained.push(`S2_API_KEY=${shellSingleQuote(secret)}`);
   await writeFile(secretsPath, `${retained.join('\n')}\n`, { mode: 0o600 });
   await chmod(secretsPath, 0o600).catch(() => {});
+  let launchctlPresent: boolean | null = null;
+  let launchctlValueLength: number | null = null;
   if (process.platform === 'darwin') {
     spawnSync('/bin/launchctl', ['setenv', 'SEMANTIC_SCHOLAR_API_KEY', secret], { stdio: 'ignore' });
     spawnSync('/bin/launchctl', ['setenv', 'S2_API_KEY', secret], { stdio: 'ignore' });
+    const getenv = spawnSync('/bin/launchctl', ['getenv', 'SEMANTIC_SCHOLAR_API_KEY'], { encoding: 'utf8' });
+    const value = typeof getenv.stdout === 'string' ? getenv.stdout.trim() : '';
+    launchctlPresent = value.length > 0;
+    launchctlValueLength = value.length;
   }
   process.env.SEMANTIC_SCHOLAR_API_KEY = secret;
   process.env.S2_API_KEY = secret;
-  return true;
+  const fileStat = await stat(secretsPath).catch(() => null);
+  return {
+    secrets_env_written: !!fileStat,
+    secrets_env_mode: fileStat ? `0${(fileStat.mode & 0o777).toString(8)}` : null,
+    launchctl_present: launchctlPresent,
+    launchctl_value_length: launchctlValueLength,
+  };
 }
 
 async function persistServiceCredential(source: ActionLogRow, sourceEmailId: string, secret: string, validationStatus: string): Promise<string | null> {
@@ -328,7 +348,7 @@ export async function runSemanticScholarKeyFollowup(sourceActionLogId?: string, 
 
   const scan = await scanMailboxForValidKey(source);
   if (scan.secret) {
-    await installForLemRuntime(scan.secret);
+    const runtimeInstall = await installForLemRuntime(scan.secret);
     const serviceCredentialId = await persistServiceCredential(source, scan.emailId, scan.secret, scan.validationStatus);
     return {
       status: 'validated',
@@ -338,7 +358,8 @@ export async function runSemanticScholarKeyFollowup(sourceActionLogId?: string, 
       service_credential_id: serviceCredentialId,
       source_action_log_id: source.id,
       source_email_id: scan.emailId,
-      runtime_installed: true,
+      runtime_installed: runtimeInstall.secrets_env_written && (runtimeInstall.launchctl_present !== false),
+      runtime_install: runtimeInstall,
     };
   }
 
