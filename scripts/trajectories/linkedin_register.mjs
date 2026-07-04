@@ -666,6 +666,7 @@ let expectedExitIp = '';
 let authState = null;
 
 try {
+main: {
   recordStage('proxy_request_received', { requested_proxy: safeRequestedProxy(requestedProxy) });
   assertLinkedinRegisterProxyRequest(requestedProxy);
   recordStage('proxy_request_validated', { requested_proxy: safeRequestedProxy(requestedProxy) });
@@ -728,7 +729,7 @@ try {
     await writeSubmitDiagnostics('entry_path_stop_after_signup_ready', { url: s.page.url(), entry_url: requestedEntryUrl });
     console.log('[register] LINKEDIN_REGISTER_STOP_AFTER_SIGNUP_READY reached');
     process.exitCode = 0;
-    return;
+    break main;
   }
   await humanIdlePause('deliberate');
   expectedExitIp = await assertLinkedinProxyStable(s, 'after_goto', expectedExitIp);
@@ -911,6 +912,7 @@ try {
   console.log(`PASS: ${id.handle}`);
   const diagnostics = await getLinkedinFailureDiagnostics(s, requestedProxy, expectedExitIp);
   try { mkdirSync(runRecordingsDir('linkedin_register'), { recursive: true }); writeFileSync(join(runRecordingsDir('linkedin_register'), 'ban_signal.json'), JSON.stringify({ action: 'linkedin_register', signal: 'healthy', healthy: true, details: { username_hash: hashValue(id.handle), email_hash: hashValue(id.email), final_url: s.page.url(), auth: authState, diagnostics, failure_reasons: [], stage_events: stageEvents }, ts: new Date().toISOString() }, null, 2)); } catch {}
+}
 } catch (e) {
   const finalUrl = s?.page?.url?.() ?? '';
   const errorMessage = e.message ?? '';
