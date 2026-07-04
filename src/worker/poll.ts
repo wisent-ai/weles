@@ -38,6 +38,77 @@ function headers(): Record<string, string> {
   return { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' };
 }
 
+export function redactSlackUserTokenResult(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== 'object') return null;
+  const input = value as Record<string, unknown>;
+  const token = typeof input.token === 'string' ? input.token : '';
+  const tokenType = token.startsWith('xoxp-') || input.token_prefix === 'xoxp-'
+    ? 'slack_user_oauth'
+    : typeof input.token_prefix === 'string'
+      ? 'redacted'
+      : undefined;
+  const tokenLength = typeof input.token_length === 'number'
+    ? input.token_length
+    : token
+      ? token.length
+      : undefined;
+  const redacted: Record<string, unknown> = {
+    ...input,
+    token_type: tokenType,
+    token_length: tokenLength,
+  };
+  delete redacted.token;
+  delete redacted.token_prefix;
+  return redacted;
+}
+
+async function persistSlackUserTokenPreview(value: Record<string, unknown>, jobId: string): Promise<void> {
+  const token = typeof value.token === 'string' ? value.token : '';
+  if (!token || !SUPABASE_URL || !SUPABASE_KEY) return;
+  const appId = typeof value.app_id === 'string' ? value.app_id : 'unknown';
+  const displayName = `Slack User OAuth Token ${appId}`;
+  const now = new Date().toISOString();
+  const body = {
+    category: 'slack',
+    display_name: displayName,
+    api_key_env_var: 'SLACK_USER_TOKEN',
+    api_key_preview: token ? `redacted:${token.length}` : null,
+    dashboard_url: 'https://api.slack.com/apps',
+    metadata: {
+      provider: 'slack',
+      credential_type: 'user_oauth_token',
+      plaintext_storage: 'worker_local_slack_tokens_file',
+      app_id: value.app_id ?? null,
+      team: value.team ?? null,
+      team_id: value.team_id ?? null,
+      user: value.user ?? null,
+      user_id: value.user_id ?? null,
+      scopes: value.scopes ?? null,
+      source_action_log_id: jobId,
+      created_at: value.created_at ?? now,
+    },
+    updated_at: now,
+  };
+  try {
+    const existing = await fetch(`${SUPABASE_URL}/rest/v1/service_credentials?display_name=eq.${encodeURIComponent(displayName)}&select=id&limit=1`, {
+      headers: headers(),
+    });
+    const rows = existing.ok ? await existing.json() as Array<{ id?: string }> : [];
+    const id = rows[0]?.id;
+    const url = id
+      ? `${SUPABASE_URL}/rest/v1/service_credentials?id=eq.${encodeURIComponent(id)}`
+      : `${SUPABASE_URL}/rest/v1/service_credentials`;
+    const res = await fetch(url, {
+      method: id ? 'PATCH' : 'POST',
+      headers: { ...headers(), Prefer: 'return=minimal' },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) console.error(`[worker] slack token preview persist HTTP ${res.status}: ${(await res.text()).slice(0, 200)}`);
+  } catch (e) {
+    console.error(`[worker] slack token preview persist failed: ${(e instanceof Error ? e.message : String(e)).slice(0, 200)}`);
+  }
+}
+
 type TrajectoryBuildRow = {
   id: string;
   tenant_id?: string | null;
@@ -611,7 +682,10 @@ export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
     const secretPath = join(os.tmpdir(), `weles-secret-${row.id}.json`);
     const secretResult = await readFile(secretPath, 'utf8').then(JSON.parse).catch(() => null);
     await unlink(secretPath).catch(() => {});
-    if (secretResult && typeof secretResult === 'object') result.slack_user_token = secretResult;
+    if (secretResult && typeof secretResult === 'object') {
+      await persistSlackUserTokenPreview(secretResult as Record<string, unknown>, row.id);
+      result.slack_user_token = redactSlackUserTokenResult(secretResult);
+    }
   }
   // G5: when the run executed against a dirty repo/trajectory, mirror the full
   // working-tree diff (already captured in result.versions.dirty_diff) to
