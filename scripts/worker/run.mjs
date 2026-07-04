@@ -13,11 +13,13 @@
  * account_id in parallel.
  */
 import { pollOnce } from '../../dist/worker/poll.js';
+import { startDeploymentVersionHeartbeat } from '../../dist/worker/deployment_version.js';
 
 let shuttingDown = false;
 const stop = () => { shuttingDown = true; console.log('[worker] shutting down'); };
 process.on('SIGINT', stop);
 process.on('SIGTERM', stop);
+startDeploymentVersionHeartbeat();
 
 const IDLE_MIN_MS = 3000;
 const IDLE_MAX_MS = 8000;
