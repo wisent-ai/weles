@@ -14,7 +14,6 @@ console.log = (...a) => process.stderr.write(a.map(String).join(' ') + '\n');
 const { WSession } = await import('../../../dist/session/wsession.js');
 const { loadEnv } = await import('./_envload.mjs');
 const { persistContext } = await import('./_persist.mjs');
-const { SessionStore } = await import('../../../dist/session/store.js');
 
 loadEnv();
 
@@ -102,34 +101,9 @@ const proxyUrl = process.env.PROXY_URL || 'direct';
 const s = await WSession.start({ label: `uw_scrape_${ticker}`, proxy: proxyUrl });
 global._s = s;
 
-// Stable label so a captured UW session is reused across every ticker/page
-// scrape, not siloed per `uw_scrape_${ticker}` run label.
-const UW_SESSION_LABEL = 'unusualwhales';
-const uwStore = new SessionStore();
-
-// Try to reuse a previously captured UW session. UW's login page renders a
-// risk-based Google reCAPTCHA v2 checkbox that silently auto-passes for
-// low-risk sessions but demands an image challenge otherwise — so the robust
-// path is to avoid running login at all while a cached session is still valid,
-// and only pay for a captcha solve on a genuine fresh login.
-async function tryCookieReuse(sess) {
-  const injected = await uwStore.injectPlaywright(sess.ctx, UW_SESSION_LABEL).catch(() => false);
-  if (!injected) return false;
-  console.error('[uw_scrape] injected cached UW cookies; probing session');
-  await sess.goto('https://unusualwhales.com/login');
-  await sess.wait(3);
-  if (!sess.page.url().includes('/login')) {
-    console.error(`[uw_scrape] cookie session valid, at ${sess.page.url()}`);
-    return true;
-  }
-  console.error('[uw_scrape] cached cookies stale — falling back to fresh login');
-  return false;
-}
-
 async function doLogin(sess) {
-  if (await tryCookieReuse(sess)) return;
   console.error('[uw_scrape] logging in');
-  if (!sess.page.url().includes('/login')) await sess.goto('https://unusualwhales.com/login');
+  await sess.goto('https://unusualwhales.com/login');
   for (let i = 0; i < 30; i++) {
     const count = await sess.page.evaluate('document.querySelectorAll("input").length').catch(() => 0);
     if (count >= 2) break;
@@ -143,15 +117,15 @@ async function doLogin(sess) {
     process.exit(1);
   }
   const sel = (i) => i.name ? `input[name="${i.name}"]` : i.id ? `input[id="${i.id}"]` : `input[placeholder="${i.ph}"]`;
-  // Up to 2 attempts: fill -> solve any reCAPTCHA -> submit -> wait for redirect.
+  // UW's login renders a risk-based Google reCAPTCHA v2 checkbox: it silently
+  // auto-passes for low-risk sessions but demands a challenge otherwise, which
+  // blocks the form submit and leaves us stuck on /login. Up to 2 attempts:
+  // fill -> solve any reCAPTCHA -> submit -> wait for redirect.
   for (let attempt = 0; attempt < 2; attempt++) {
     await sess.fillSelector(sel(emailIn), email);
     await sess.wait(1);
     await sess.fillSelector(sel(passIn), password);
     await sess.wait(1);
-    // Solve the login reCAPTCHA if a challenge is present. Injects a valid
-    // g-recaptcha-response token; a no-op fast path when the widget already
-    // auto-passed.
     try { console.error(`[uw_scrape] captcha: ${await sess.solveCaptcha()}`); }
     catch (e) { console.error(`[uw_scrape] captcha solve threw: ${e.message}`); }
     const submitLoc = sess.page.locator('button[type="submit"], input[type="submit"]').first();
@@ -160,15 +134,10 @@ async function doLogin(sess) {
     for (let i = 0; i < 30; i++) {
       await sess.wait(2);
       const u = sess.page.url();
-      if (!u.includes('/login')) {
-        console.error(`[uw_scrape] logged in, now at ${u}`);
-        await uwStore.capturePlaywright(sess.ctx, UW_SESSION_LABEL)
-          .then(() => console.error('[uw_scrape] captured UW session cookies'))
-          .catch((e) => console.error(`[uw_scrape] cookie capture threw: ${e.message}`));
-        return;
-      }
+      if (!u.includes('/login')) { console.error(`[uw_scrape] logged in, now at ${u}`); return; }
     }
     console.error(`[uw_scrape] login attempt ${attempt + 1} did not redirect`);
+    if (attempt === 0) await sess.goto('https://unusualwhales.com/login');
   }
   console.error('FAIL: login did not redirect');
   process.exit(1);
