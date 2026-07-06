@@ -165,6 +165,29 @@ if [ -f "$KEYWORD_API_PLIST_SRC_PRE" ]; then
   fi
 fi
 
+# Ensure the pinned weles browser binaries are present. download.sh no-ops when
+# the version dir already exists; bumping the pinned tag in scripts/{chromium,
+# firefox}/download.sh pulls the new build, and find_browser.ts auto-selects
+# the newest installed version. Runs before the no-new-commit early exit so a
+# host with missing binaries self-heals even when code is already current.
+# Non-fatal: a download failure must not block deploy or worker restart — the
+# worker keeps whatever binary is already on disk, and missing-browser errors
+# stay visible in worker.log.
+ensure_browser_binaries() {
+  if CHROMIUM_BIN="$(bash "$WELES_DIR/scripts/chromium/download.sh" 2>>"$LOG")"; then
+    log "chromium ready: $CHROMIUM_BIN"
+  else
+    log "chromium: download.sh failed (keeping existing on-disk binary)"
+  fi
+  if FIREFOX_BIN="$(bash "$WELES_DIR/scripts/firefox/download.sh" 2>>"$LOG")"; then
+    log "firefox ready: $FIREFOX_BIN"
+  else
+    log "firefox: download.sh failed (keeping existing on-disk binary)"
+  fi
+}
+
+ensure_browser_binaries
+
 git fetch --quiet origin main
 LOCAL=$(git rev-parse HEAD)
 REMOTE=$(git rev-parse origin/main)
@@ -183,17 +206,7 @@ if [ "$BEFORE_LOCK" != "$AFTER_LOCK" ]; then
 fi
 npm run build >> "$LOG" 2>&1
 
-# Ensure the pinned weles Chromium binary is present. download.sh no-ops when
-# the version dir already exists; bumping the pinned tag (WELES_CHROMIUM_RELEASE
-# or the script default) on a deploy pulls the new build, and find_browser.ts
-# auto-selects the newest installed version. Non-fatal: a download failure must
-# not block the code deploy or the worker restart — the worker keeps whatever
-# binary is already on disk.
-if CHROMIUM_BIN="$(bash "$WELES_DIR/scripts/chromium/download.sh" 2>>"$LOG")"; then
-  log "chromium ready: $CHROMIUM_BIN"
-else
-  log "chromium: download.sh failed (keeping existing on-disk binary)"
-fi
+ensure_browser_binaries
 
 # node-pty (claude-reauth drives `claude setup-token` on a real pty
 # via it) ships an INCOMPLETE darwin-arm64 prebuild — pty.node but no
