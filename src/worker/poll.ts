@@ -557,8 +557,11 @@ async function diagnosticsUploadable(): Promise<{ ok: boolean; reason: string }>
     if (!res.ok) storageReason = `storage upload HTTP ${res.status}`;
   } catch (e) { storageReason = `storage upload error: ${(e instanceof Error ? e.message : String(e)).slice(0, 100)}`; }
 
-  // 2. DB capture: connect and confirm INSERT privilege on the capture table
-  //    (a non-writing probe — proves connectivity + grant without polluting).
+  // 2. DB capture: optional diagnostics import path. This must not block queue
+  //    claiming: uploadArtifacts() stores the primary run evidence in Supabase
+  //    Storage, while account_action_log_capture is a secondary query/indexing
+  //    aid. A rotated/missing Postgres pooler password should degrade capture
+  //    import, not dead-stop the worker.
   let dbReason = '';
   const conn = pgConnectionString();
   if (!conn) {
@@ -572,8 +575,9 @@ async function diagnosticsUploadable(): Promise<{ ok: boolean; reason: string }>
     finally { await sql.end({ timeout: 5 }).catch(() => {}); }
   }
 
-  const ok = !storageReason && !dbReason;
-  const reason = ok ? 'storage+capture ok' : [storageReason, dbReason].filter(Boolean).join('; ');
+  if (dbReason) console.error(`[worker] diagnostics capture degraded: ${dbReason}`);
+  const ok = !storageReason;
+  const reason = ok ? (dbReason ? `storage ok; capture degraded: ${dbReason}` : 'storage+capture ok') : [storageReason, dbReason].filter(Boolean).join('; ');
   _diagPreflight = { ok, at: now, reason };
   return _diagPreflight;
 }
