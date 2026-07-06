@@ -7,6 +7,7 @@ console.log = (...a) => process.stderr.write(a.map(String).join(' ') + '\n');
 const { WSession } = await import('../../../dist/session/wsession.js');
 const { loadEnv } = await import('./_envload.mjs');
 const { persistContext } = await import('../unusualwhales/_persist.mjs');
+const { SessionStore } = await import('../../../dist/session/store.js');
 loadEnv();
 
 const args = {};
@@ -60,23 +61,54 @@ if (!PAGE_URLS[pageKey]) {
 // Default direct; override via PROXY_URL or params.proxy_url_override.
 const s = await WSession.start({ label: `vl_scrape_${ticker}_${pageKey}`, proxy: process.env.PROXY_URL || 'direct' });
 
-async function login() {
-  console.error('[vl] logging in');
+// Stable label so a captured VL session is reused across every ticker/page
+// scrape, not siloed per `vl_scrape_${ticker}_${pageKey}` run label.
+const VL_SESSION_LABEL = 'volumeleaders';
+const vlStore = new SessionStore();
+
+async function tryCookieReuse() {
+  const injected = await vlStore.injectPlaywright(s.ctx, VL_SESSION_LABEL).catch(() => false);
+  if (!injected) return false;
+  console.error('[vl] injected cached VL cookies; probing session');
   await s.goto(`${base}/Login`);
+  await s.wait(3);
+  if (!s.page.url().toLowerCase().includes('/login')) {
+    console.error(`[vl] cookie session valid, at ${s.page.url()}`);
+    return true;
+  }
+  console.error('[vl] cached cookies stale — falling back to fresh login');
+  return false;
+}
+
+async function login() {
+  if (await tryCookieReuse()) return;
+  console.error('[vl] logging in');
+  if (!s.page.url().toLowerCase().includes('/login')) await s.goto(`${base}/Login`);
   for (let i = 0; i < 30; i++) {
     const ok = await s.page.evaluate('document.querySelector("input[name=Email]") && document.querySelector("input[name=Password]")').catch(() => false);
     if (ok) break;
     await s.wait(1);
   }
   const fill = (sel, val) => s.page.evaluate(`(({ sel, val }) => { const el = document.querySelector(sel); if (!el) return false; el.focus(); const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; setter.call(el, val); el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); return true; })(${JSON.stringify({ sel, val })})`);
-  await fill('input[name="Email"]', email); await s.wait(1);
-  await fill('input[name="Password"]', password); await s.wait(1);
-  const submitLoc = s.page.locator('button[type="submit"], input[type="submit"]').first();
-  if (await submitLoc.count()) await submitLoc.click().catch(() => {});
-  else await s.page.evaluate('document.querySelector("form")?.requestSubmit()').catch(() => {});
-  for (let i = 0; i < 30; i++) {
-    await s.wait(2);
-    if (!s.page.url().toLowerCase().includes('/login')) return;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    await fill('input[name="Email"]', email); await s.wait(1);
+    await fill('input[name="Password"]', password); await s.wait(1);
+    // No-op fast path when VL shows no challenge; solves if one appears.
+    try { console.error(`[vl] captcha: ${await s.solveCaptcha()}`); }
+    catch (e) { console.error(`[vl] captcha solve threw: ${e.message}`); }
+    const submitLoc = s.page.locator('button[type="submit"], input[type="submit"]').first();
+    if (await submitLoc.count()) await submitLoc.click().catch(() => {});
+    else await s.page.evaluate('document.querySelector("form")?.requestSubmit()').catch(() => {});
+    for (let i = 0; i < 30; i++) {
+      await s.wait(2);
+      if (!s.page.url().toLowerCase().includes('/login')) {
+        await vlStore.capturePlaywright(s.ctx, VL_SESSION_LABEL)
+          .then(() => console.error('[vl] captured VL session cookies'))
+          .catch((e) => console.error(`[vl] cookie capture threw: ${e.message}`));
+        return;
+      }
+    }
+    console.error(`[vl] login attempt ${attempt + 1} did not redirect`);
   }
   throw new Error('login did not redirect');
 }
