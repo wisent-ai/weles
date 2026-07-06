@@ -55,20 +55,62 @@ elif [[ -f "$LOCAL_ARTIFACT_DIR/$ASSET" ]]; then
   echo "using local Firefox artifact $LOCAL_ARTIFACT_DIR/$ASSET ..." >&2
   cp "$LOCAL_ARTIFACT_DIR/$ASSET" "$TMP/$ASSET"
 else
-  echo "downloading $ASSET from $REPO@$RELEASE_TAG ..." >&2
-  # Prefer `gh release download` — handles auth for private repos + public.
-  # Falls back to plain curl for environments without gh installed.
-  if command -v gh >/dev/null 2>&1; then
-    ( cd "$TMP" && gh release download "$RELEASE_TAG" --repo "$REPO" --pattern "$ASSET" )
+  echo "[download-firefox] Fetching $ASSET from $REPO@$RELEASE_TAG" >&2
+
+  gh_token() {
+    if [[ -n "${GH_TOKEN:-}" ]]; then printf '%s' "$GH_TOKEN"; return 0; fi
+    if [[ -n "${GITHUB_TOKEN:-}" ]]; then printf '%s' "$GITHUB_TOKEN"; return 0; fi
+    { printf 'protocol=https\nhost=github.com\npath=%s\n\n' "$REPO" \
+      | git credential fill 2>/dev/null || true; } \
+      | awk -F= '/^password=/ { print $2; exit }'
+  }
+
+  fetch_asset() {
+    local name="$1" dest="$2"
+    if command -v gh >/dev/null 2>&1; then
+      gh release download "$RELEASE_TAG" --repo "$REPO" --pattern "$name" --dir "$(dirname "$dest")" >&2
+      return $?
+    fi
+    local tok; tok="$(gh_token)"
+    if [[ -z "$tok" ]]; then
+      echo "ERROR: no gh CLI and no token (set GH_TOKEN/GITHUB_TOKEN or git credential helper) to read private release $REPO@$RELEASE_TAG" >&2
+      return 1
+    fi
+    local aid
+    aid="$(curl -fsSL -H "Authorization: Bearer $tok" -H "Accept: application/vnd.github+json" \
+          "https://api.github.com/repos/$REPO/releases/tags/$RELEASE_TAG" \
+          | python3 -c "import sys,json; print(next((str(a['id']) for a in json.load(sys.stdin).get('assets',[]) if a['name']==sys.argv[1]), ''))" "$name")"
+    if [[ -z "$aid" ]]; then echo "ERROR: asset $name absent from release $RELEASE_TAG" >&2; return 1; fi
+    curl -fL -H "Authorization: Bearer $tok" -H "Accept: application/octet-stream" \
+      "https://api.github.com/repos/$REPO/releases/assets/$aid" -o "$dest" >&2
+  }
+
+  fetch_asset "$ASSET" "$TMP/$ASSET"
+  fetch_asset "${ASSET}.sha256" "$TMP/${ASSET}.sha256" || true
+fi
+
+if [[ -f "$TMP/${ASSET}.sha256" ]]; then
+  echo "[download-firefox] Verifying SHA256..." >&2
+  expected=$(awk '{print $1}' < "$TMP/${ASSET}.sha256")
+  if command -v shasum >/dev/null 2>&1; then
+    actual=$(shasum -a 256 "$TMP/$ASSET" | awk '{print $1}')
   else
-    URL="https://github.com/$REPO/releases/download/$RELEASE_TAG/$ASSET"
-    curl -fSL -o "$TMP/$ASSET" "$URL"
+    actual=$(sha256sum "$TMP/$ASSET" | awk '{print $1}')
+  fi
+  if [[ "$expected" != "$actual" ]]; then
+    echo "ERROR: sha256 mismatch: expected=$expected actual=$actual" >&2
+    exit 1
   fi
 fi
+
 tar -xzf "$TMP/$ASSET" -C "$INSTALL_DIR" --strip-components=0
 
 if [[ ! -x "$BIN" ]]; then
   echo "ERROR: expected binary at $BIN not found after extract" >&2
   exit 1
+fi
+
+if [[ "$uname_s" == "Darwin" ]]; then
+  xattr -dr com.apple.quarantine "$INSTALL_DIR" 2>/dev/null || true
 fi
 echo "$BIN"
