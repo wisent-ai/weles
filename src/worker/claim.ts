@@ -9,6 +9,15 @@ import os from 'node:os';
 const SUPABASE_URL = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
 const INSTANCE_ID = process.env.INSTANCE_ID ?? `weles-${os.hostname() || 'unknown'}-${process.pid}`;
+const ACTION_ALLOW_RE = (() => {
+  const raw = process.env.WELES_ACTION_ALLOW_RE?.trim();
+  if (!raw) return null;
+  try { return new RegExp(raw); }
+  catch (e) {
+    console.error(`[worker] invalid WELES_ACTION_ALLOW_RE=${JSON.stringify(raw)}: ${e instanceof Error ? e.message : String(e)}`);
+    return /^$/;
+  }
+})();
 
 function headers(): Record<string, string> {
   return { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' };
@@ -64,6 +73,7 @@ export async function claimOne(): Promise<ActionLogRow | null> {
   const isOverleafAction = (a: string) => a.startsWith('overleaf_');
   const canRunWithoutAccount = (a: string) => isParallelSafeScrape(a) || /_register$|_balance$|_topup$|_reauth$|_verify_domain_status$|_post_message$/.test(a) || a === 'slack_provision_user_token' || a === 'pangram_analyze_text' || a === 'ncbr_pangram_audit_new_wniosek' || a === 'generic_browser_task' || a === 'generic_keeper_task' || a === 'generic_saved_task' || a === 'semanticscholar_key_followup' || isOverleafAction(a) || /^(umami|googleanalytics)_/.test(a);
   for (const row of candidates) {
+    if (ACTION_ALLOW_RE && !ACTION_ALLOW_RE.test(row.action)) continue;
     if (!resolveTrajectory(row.action)) continue;
     if (!row.id) continue;
     if (!row.account_id && !canRunWithoutAccount(row.action)) continue; // poison rows: legacy promote-cron sometimes emits orphans

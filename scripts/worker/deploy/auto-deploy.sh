@@ -165,6 +165,30 @@ if [ -f "$KEYWORD_API_PLIST_SRC_PRE" ]; then
   fi
 fi
 
+# Ensure the content-platform scrape worker LaunchAgent is installed. It uses a
+# separate env file and an action allowlist, so the existing Weles worker keeps
+# serving the legacy queue while this scoped worker serves Byk/content scrapes.
+CONTENT_WORKER_PLIST_SRC="$WELES_DIR/scripts/worker/deploy/com.wisent.weles-content-worker.plist"
+CONTENT_WORKER_PLIST_DST="$HOME/Library/LaunchAgents/com.wisent.weles-content-worker.plist"
+if [ -f "$CONTENT_WORKER_PLIST_SRC" ] && [ -f "$WELES_DIR/var/worker-content.env" ]; then
+  CONTENT_WORKER_NEEDS_BOOTSTRAP=0
+  if [ ! -f "$CONTENT_WORKER_PLIST_DST" ] || ! cmp -s "$CONTENT_WORKER_PLIST_SRC" "$CONTENT_WORKER_PLIST_DST"; then
+    cp "$CONTENT_WORKER_PLIST_SRC" "$CONTENT_WORKER_PLIST_DST"
+    chmod 644 "$CONTENT_WORKER_PLIST_DST"
+    chmod +x "$WELES_DIR/scripts/worker/deploy/launch-mac.sh"
+    CONTENT_WORKER_NEEDS_BOOTSTRAP=1
+  fi
+  CW_UID=$(id -u)
+  if ! launchctl print "gui/$CW_UID/com.wisent.weles-content-worker" >/dev/null 2>&1; then
+    CONTENT_WORKER_NEEDS_BOOTSTRAP=1
+  fi
+  if [ "$CONTENT_WORKER_NEEDS_BOOTSTRAP" = "1" ]; then
+    launchctl bootout "gui/$CW_UID" "$CONTENT_WORKER_PLIST_DST" 2>/dev/null || true
+    launchctl bootstrap "gui/$CW_UID" "$CONTENT_WORKER_PLIST_DST"
+    log "content-worker: ensured LaunchAgent from repo"
+  fi
+fi
+
 # Ensure the pinned weles browser binaries are present. download.sh no-ops when
 # the version dir already exists; bumping the pinned tag in scripts/{chromium,
 # firefox}/download.sh pulls the new build, and find_browser.ts auto-selects
@@ -258,6 +282,16 @@ if [ -f "$WORKER_PLIST_SRC" ]; then
   fi
 fi
 
+CONTENT_WORKER_PLIST_SRC="$WELES_DIR/scripts/worker/deploy/com.wisent.weles-content-worker.plist"
+CONTENT_WORKER_PLIST_DST="$HOME/Library/LaunchAgents/com.wisent.weles-content-worker.plist"
+if [ -f "$CONTENT_WORKER_PLIST_SRC" ] && [ -f "$WELES_DIR/var/worker-content.env" ]; then
+  if [ ! -f "$CONTENT_WORKER_PLIST_DST" ] || ! cmp -s "$CONTENT_WORKER_PLIST_SRC" "$CONTENT_WORKER_PLIST_DST"; then
+    cp "$CONTENT_WORKER_PLIST_SRC" "$CONTENT_WORKER_PLIST_DST"
+    chmod 644 "$CONTENT_WORKER_PLIST_DST"
+    log "content-worker: installed LaunchAgent from repo"
+  fi
+fi
+
 KEYWORD_API_PLIST_SRC="$WELES_DIR/scripts/worker/deploy/com.wisent.weles-keyword-planner-api.plist"
 KEYWORD_API_PLIST_DST="$HOME/Library/LaunchAgents/com.wisent.weles-keyword-planner-api.plist"
 if [ -f "$KEYWORD_API_PLIST_SRC" ]; then
@@ -275,6 +309,12 @@ UID_NUM=$(id -u)
 PLIST="$HOME/Library/LaunchAgents/com.wisent.weles-worker.plist"
 launchctl bootout "gui/$UID_NUM" "$PLIST" 2>/dev/null || true
 launchctl bootstrap "gui/$UID_NUM" "$PLIST"
+CONTENT_WORKER_PLIST="$HOME/Library/LaunchAgents/com.wisent.weles-content-worker.plist"
+if [ -f "$CONTENT_WORKER_PLIST" ] && [ -f "$WELES_DIR/var/worker-content.env" ]; then
+  launchctl bootout "gui/$UID_NUM" "$CONTENT_WORKER_PLIST" 2>/dev/null || true
+  launchctl bootstrap "gui/$UID_NUM" "$CONTENT_WORKER_PLIST"
+  launchctl list | grep com.wisent.weles-content-worker >> "$LOG" 2>&1 || true
+fi
 KEYWORD_API_PLIST="$HOME/Library/LaunchAgents/com.wisent.weles-keyword-planner-api.plist"
 if [ -f "$KEYWORD_API_PLIST" ]; then
   launchctl bootout "gui/$UID_NUM" "$KEYWORD_API_PLIST" 2>/dev/null || true
