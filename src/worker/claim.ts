@@ -15,22 +15,28 @@ function headers(): Record<string, string> {
 }
 
 export async function claimOne(): Promise<ActionLogRow | null> {
-  // Lookahead 300 rows so the per-account in-flight + stale skip lists don't
-  // starve out high-priority recovery rows that sit deep in the queue.
-  // Symptom: 36 linkedin_login rows never claimed because the top 100 by
-  // scheduled_at were all sim-cron rows (linkedin_browse / dwell / etc).
+  // Lookahead 1000 rows so large legacy backlogs don't hide fresh trading
+  // scrape rows behind the first page. Keep the SELECT schema-minimal:
+  // content-platform's account_action_logs currently has no webhook_url,
+  // cancel_requested, or priority columns; selecting them makes PostgREST
+  // return 400 and the worker appear idle forever.
   const res = await fetch(
-    `${SUPABASE_URL}/rest/v1/account_action_logs?select=id,account_id,action,platform,params,status,webhook_url,cancel_requested,priority&status=eq.queued&or=(scheduled_at.is.null,scheduled_at.lte.now())&order=priority.desc,scheduled_at.asc.nullsfirst&limit=300`,
+    `${SUPABASE_URL}/rest/v1/account_action_logs?select=id,account_id,action,platform,params,status&status=eq.queued&or=(scheduled_at.is.null,scheduled_at.lte.now())&order=scheduled_at.asc.nullsfirst&limit=1000`,
     { headers: headers() },
   );
-  if (!res.ok) return null;
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    console.error(`[worker] claim candidate query failed ${res.status}: ${body.slice(0, 300)}`);
+    return null;
+  }
   let candidates = (await res.json()) as ActionLogRow[];
   // Priority sort: recovery rows (*_login, *_register, *_health, *_balance,
-  // *_topup) before sim/promote rows. Login mints cookies and unblocks every
-  // downstream action for the same account; health detects bans; balance keeps
-  // proxies funded. Stable-sort by scheduled_at within each priority tier.
+  // *_topup) before trading scrapes, then everything else. Login mints
+  // cookies and unblocks downstream social actions; trading scrapes are
+  // parallel-safe direct jobs and should not be buried behind stale dwell rows.
   const recoveryRe = /_(login|register|health|balance|topup|reauth)$/;
-  const priority = (row: ActionLogRow) => (recoveryRe.test(row.action) ? 1000 : 0) + Number(row.priority ?? 0);
+  const isParallelSafeScrape = (a: string) => /^(unusualwhales|volumeleaders|tradingview)_scrape$/.test(a);
+  const priority = (row: ActionLogRow) => (recoveryRe.test(row.action) ? 1000 : 0) + (isParallelSafeScrape(row.action) ? 900 : 0) + Number(row.priority ?? 0);
   candidates = candidates
     .map((r, i) => ({ r, i, p: priority(r) }))
     .sort((x, y) => y.p - x.p || x.i - y.i)
@@ -49,7 +55,6 @@ export async function claimOne(): Promise<ActionLogRow | null> {
   // for the same sentinel account is what makes parallel trading scrapes
   // possible. Social actions still get the lock because they share an
   // Oxylabs sticky session per account.
-  const isParallelSafeScrape = (a: string) => /^(unusualwhales|volumeleaders|tradingview)_scrape$/.test(a);
   // Account-less actions the worker may claim: account creation, proxy provider
   // balance/topup, and infra maintenance (resend_verify_domain_status health check
   // + the slack_post_message alert it chains), plus analytics-service browser
@@ -67,7 +72,7 @@ export async function claimOne(): Promise<ActionLogRow | null> {
     // — without this carve-out, _login rows for stale accounts get blocked
     // by the same flag they exist to clear, and the account stays dead.
     // (Same intent as the filter at stale.ts:31, applied per-row here.)
-    if (row.account_id && staleAccounts.has(row.account_id) && !recoveryRe.test(row.action)) continue;
+    if (row.account_id && staleAccounts.has(row.account_id) && !recoveryRe.test(row.action) && !isParallelSafeScrape(row.action)) continue;
 
     const claim = await fetch(
       `${SUPABASE_URL}/rest/v1/account_action_logs?id=eq.${row.id}&status=eq.queued`,
