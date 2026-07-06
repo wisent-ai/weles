@@ -55,13 +55,14 @@ export async function claimOne(): Promise<ActionLogRow | null> {
   // for the same sentinel account is what makes parallel trading scrapes
   // possible. Social actions still get the lock because they share an
   // Oxylabs sticky session per account.
-  // Account-less actions the worker may claim: account creation, proxy provider
-  // balance/topup, and infra maintenance (resend_verify_domain_status health check
-  // + the slack_post_message alert it chains), plus analytics-service browser
-  // actions that use service credentials rather than a social account row.
-  // Everything else without an account is a poison orphan and is skipped.
+  // Account-less actions the worker may claim: direct trading scrapes (the
+  // scripts use ticker/page params, not ACCOUNT_ID), account creation, proxy
+  // provider balance/topup, and infra maintenance (resend_verify_domain_status
+  // health check + the slack_post_message alert it chains), plus analytics
+  // service browser actions that use service credentials rather than a social
+  // account row. Everything else without an account is a poison orphan.
   const isOverleafAction = (a: string) => a.startsWith('overleaf_');
-  const canRunWithoutAccount = (a: string) => /_register$|_balance$|_topup$|_reauth$|_verify_domain_status$|_post_message$/.test(a) || a === 'slack_provision_user_token' || a === 'pangram_analyze_text' || a === 'ncbr_pangram_audit_new_wniosek' || a === 'generic_browser_task' || a === 'generic_keeper_task' || a === 'generic_saved_task' || a === 'semanticscholar_key_followup' || isOverleafAction(a) || /^(umami|googleanalytics)_/.test(a);
+  const canRunWithoutAccount = (a: string) => isParallelSafeScrape(a) || /_register$|_balance$|_topup$|_reauth$|_verify_domain_status$|_post_message$/.test(a) || a === 'slack_provision_user_token' || a === 'pangram_analyze_text' || a === 'ncbr_pangram_audit_new_wniosek' || a === 'generic_browser_task' || a === 'generic_keeper_task' || a === 'generic_saved_task' || a === 'semanticscholar_key_followup' || isOverleafAction(a) || /^(umami|googleanalytics)_/.test(a);
   for (const row of candidates) {
     if (!resolveTrajectory(row.action)) continue;
     if (!row.id) continue;
