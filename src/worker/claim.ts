@@ -30,13 +30,13 @@ export async function claimOne(): Promise<ActionLogRow | null> {
     return null;
   }
   let candidates = (await res.json()) as ActionLogRow[];
-  // Priority sort: recovery rows (*_login, *_register, *_health, *_balance,
-  // *_topup) before trading scrapes, then everything else. Login mints
-  // cookies and unblocks downstream social actions; trading scrapes are
-  // parallel-safe direct jobs and should not be buried behind stale dwell rows.
+  // Priority sort: trading scrapes first, then recovery rows (*_login,
+  // *_register, *_health, *_balance, *_topup), then everything else.
+  // Scrapes are parallel-safe direct jobs and must not be buried behind a
+  // legacy social recovery backlog; login still beats ordinary social rows.
   const recoveryRe = /_(login|register|health|balance|topup|reauth)$/;
   const isParallelSafeScrape = (a: string) => /^(unusualwhales|volumeleaders|tradingview)_scrape$/.test(a);
-  const priority = (row: ActionLogRow) => (recoveryRe.test(row.action) ? 1000 : 0) + (isParallelSafeScrape(row.action) ? 900 : 0) + Number(row.priority ?? 0);
+  const priority = (row: ActionLogRow) => (isParallelSafeScrape(row.action) ? 2000 : 0) + (recoveryRe.test(row.action) ? 1000 : 0) + Number(row.priority ?? 0);
   candidates = candidates
     .map((r, i) => ({ r, i, p: priority(r) }))
     .sort((x, y) => y.p - x.p || x.i - y.i)
