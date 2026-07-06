@@ -112,5 +112,6 @@ fi
 
 if [[ "$uname_s" == "Darwin" ]]; then
   xattr -dr com.apple.quarantine "$INSTALL_DIR" 2>/dev/null || true
+  codesign --force --deep --sign - "$INSTALL_DIR/Firefox.app" 2>/dev/null || true
 fi
 echo "$BIN"
