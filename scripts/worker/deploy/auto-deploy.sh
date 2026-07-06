@@ -212,6 +212,35 @@ ensure_browser_binaries() {
 
 ensure_browser_binaries
 
+# Ensure the Weles HTTP API LaunchAgent is installed and loaded on every tick.
+# Same self-heal pattern as keyword-planner-api: must run before the
+# no-new-commit early-exit so a reboot/bootout is repaired without a commit.
+WELES_API_PLIST_SRC_PRE="$WELES_DIR/scripts/worker/deploy/com.wisent.weles-api.plist"
+WELES_API_PLIST_DST_PRE="$HOME/Library/LaunchAgents/com.wisent.weles-api.plist"
+if [ -f "$WELES_API_PLIST_SRC_PRE" ]; then
+  mkdir -p "$HOME/Library/LaunchAgents"
+  WELES_API_NEEDS_BOOTSTRAP=0
+  if [ ! -f "$WELES_API_PLIST_DST_PRE" ] || ! cmp -s "$WELES_API_PLIST_SRC_PRE" "$WELES_API_PLIST_DST_PRE"; then
+    cp "$WELES_API_PLIST_SRC_PRE" "$WELES_API_PLIST_DST_PRE"
+    chmod 644 "$WELES_API_PLIST_DST_PRE"
+    chmod +x "$WELES_DIR/scripts/worker/deploy/launch-weles-api-mac.sh"
+    WELES_API_NEEDS_BOOTSTRAP=1
+  fi
+  WA_UID=$(id -u)
+  if ! launchctl print "gui/$WA_UID/com.wisent.weles-api" >/dev/null 2>&1; then
+    WELES_API_NEEDS_BOOTSTRAP=1
+  fi
+  if [ "$WELES_API_NEEDS_BOOTSTRAP" = "1" ]; then
+    launchctl bootout "gui/$WA_UID" "$WELES_API_PLIST_DST_PRE" 2>/dev/null || true
+    WELES_API_PIDS_PRE=$(lsof -tiTCP:8788 -sTCP:LISTEN 2>/dev/null || true)
+    if [ -n "$WELES_API_PIDS_PRE" ]; then
+      kill $WELES_API_PIDS_PRE 2>/dev/null || true
+    fi
+    launchctl bootstrap "gui/$WA_UID" "$WELES_API_PLIST_DST_PRE"
+    log "weles-api: ensured LaunchAgent from repo"
+  fi
+fi
+
 git fetch --quiet origin main
 LOCAL=$(git rev-parse HEAD)
 REMOTE=$(git rev-parse origin/main)
@@ -304,6 +333,17 @@ fi
 chmod +x "$WELES_DIR/scripts/worker/deploy/launch-mac.sh"
 chmod +x "$WELES_DIR/scripts/worker/deploy/launch-keyword-planner-api-mac.sh"
 
+WELES_API_PLIST_SRC="$WELES_DIR/scripts/worker/deploy/com.wisent.weles-api.plist"
+WELES_API_PLIST_DST="$HOME/Library/LaunchAgents/com.wisent.weles-api.plist"
+if [ -f "$WELES_API_PLIST_SRC" ]; then
+  if [ ! -f "$WELES_API_PLIST_DST" ] || ! cmp -s "$WELES_API_PLIST_SRC" "$WELES_API_PLIST_DST"; then
+    cp "$WELES_API_PLIST_SRC" "$WELES_API_PLIST_DST"
+    chmod 644 "$WELES_API_PLIST_DST"
+    log "weles-api: installed LaunchAgent from repo"
+  fi
+fi
+chmod +x "$WELES_DIR/scripts/worker/deploy/launch-weles-api-mac.sh"
+
 
 UID_NUM=$(id -u)
 PLIST="$HOME/Library/LaunchAgents/com.wisent.weles-worker.plist"
@@ -326,6 +366,18 @@ if [ -f "$KEYWORD_API_PLIST" ]; then
   fi
   launchctl bootstrap "gui/$UID_NUM" "$KEYWORD_API_PLIST"
   launchctl list | grep com.wisent.weles-keyword-planner-api >> "$LOG" 2>&1 || true
+fi
+WELES_API_PLIST="$HOME/Library/LaunchAgents/com.wisent.weles-api.plist"
+if [ -f "$WELES_API_PLIST" ]; then
+  launchctl bootout "gui/$UID_NUM" "$WELES_API_PLIST" 2>/dev/null || true
+  # A previous manual verification run may still own :8788; clear it so launchd
+  # owns the long-lived API process after this deploy.
+  WELES_API_PIDS=$(lsof -tiTCP:8788 -sTCP:LISTEN 2>/dev/null || true)
+  if [ -n "$WELES_API_PIDS" ]; then
+    kill $WELES_API_PIDS 2>/dev/null || true
+  fi
+  launchctl bootstrap "gui/$UID_NUM" "$WELES_API_PLIST"
+  launchctl list | grep com.wisent.weles-api >> "$LOG" 2>&1 || true
 fi
 launchctl list | grep com.wisent.weles-worker >> "$LOG" 2>&1 || true
 
