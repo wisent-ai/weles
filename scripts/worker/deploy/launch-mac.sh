@@ -2,6 +2,9 @@
 # Mac launchd wrapper: sources worker.env then execs node.
 # PATH must include /opt/homebrew/bin so worker-spawned trajectories can use bare `node`.
 export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
+# Required by the patched Firefox Playwright/Juggler path on macOS; mirrors
+# .github/workflows/firefox-integration.yml.
+export MOZ_DISABLE_CONTENT_SANDBOX="${MOZ_DISABLE_CONTENT_SANDBOX:-1}"
 set -a
 . "$HOME/weles/var/worker.env"
 set +a
