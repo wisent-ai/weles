@@ -117,28 +117,46 @@ async function doLogin(sess) {
     process.exit(1);
   }
   const sel = (i) => i.name ? `input[name="${i.name}"]` : i.id ? `input[id="${i.id}"]` : `input[placeholder="${i.ph}"]`;
-  // UW's login renders a risk-based Google reCAPTCHA v2 checkbox: it silently
-  // auto-passes for low-risk sessions but demands a challenge otherwise, which
-  // blocks the form submit and leaves us stuck on /login. Up to 2 attempts:
-  // fill -> solve any reCAPTCHA -> submit -> wait for redirect.
-  for (let attempt = 0; attempt < 2; attempt++) {
-    await sess.fillSelector(sel(emailIn), email);
-    await sess.wait(1);
-    await sess.fillSelector(sel(passIn), password);
-    await sess.wait(1);
-    try { console.error(`[uw_scrape] captcha: ${await sess.solveCaptcha()}`); }
-    catch (e) { console.error(`[uw_scrape] captcha solve threw: ${e.message}`); }
+  const submit = async () => {
     const submitLoc = sess.page.locator('button[type="submit"], input[type="submit"]').first();
     if (await submitLoc.count()) await submitLoc.click().catch(() => {});
     else await sess.page.evaluate('document.querySelector("form")?.requestSubmit()').catch(() => {});
-    for (let i = 0; i < 30; i++) {
+  };
+  const redirected = async (secs) => {
+    for (let i = 0; i < secs; i += 2) {
       await sess.wait(2);
-      const u = sess.page.url();
-      if (!u.includes('/login')) { console.error(`[uw_scrape] logged in, now at ${u}`); return; }
+      if (!sess.page.url().includes('/login')) { console.error(`[uw_scrape] logged in, now at ${sess.page.url()}`); return true; }
     }
-    console.error(`[uw_scrape] login attempt ${attempt + 1} did not redirect`);
-    if (attempt === 0) await sess.goto('https://unusualwhales.com/login');
-  }
+    return false;
+  };
+  // UW's login carries a risk-based Google reCAPTCHA v2 checkbox that silently
+  // auto-passes for low-risk sessions and only demands an image challenge
+  // otherwise. So submit with plain credentials first (the common case), and
+  // only pay for a captcha solve when that submit is actually blocked. The
+  // solve is time-bounded: a hard image challenge can burn 5min+ per provider
+  // across the solver chain, which must never wedge the worker.
+  await sess.fillSelector(sel(emailIn), email);
+  await sess.wait(1);
+  await sess.fillSelector(sel(passIn), password);
+  await sess.wait(1);
+  await submit();
+  if (await redirected(30)) return;
+  console.error('[uw_scrape] plain submit blocked — attempting captcha solve');
+  await sess.goto('https://unusualwhales.com/login');
+  await sess.fillSelector(sel(emailIn), email);
+  await sess.wait(1);
+  await sess.fillSelector(sel(passIn), password);
+  await sess.wait(1);
+  const CAPTCHA_TIMEOUT_MS = 150_000;
+  try {
+    const res = await Promise.race([
+      sess.solveCaptcha(),
+      new Promise((_, rej) => setTimeout(() => rej(new Error(`captcha solve exceeded ${CAPTCHA_TIMEOUT_MS}ms`)), CAPTCHA_TIMEOUT_MS)),
+    ]);
+    console.error(`[uw_scrape] captcha: ${res}`);
+  } catch (e) { console.error(`[uw_scrape] captcha solve aborted: ${e.message}`); }
+  await submit();
+  if (await redirected(30)) return;
   console.error('FAIL: login did not redirect');
   process.exit(1);
 }
