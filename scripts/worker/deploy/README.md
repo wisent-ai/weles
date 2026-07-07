@@ -96,14 +96,21 @@ with a `UPDATE ... SET status='cancelled'` if needed.
 
 ## skarbiec vault bridge
 
-Platform login material is served from an encrypted skarbiec vault, not a
-plaintext file. The skarbiec source is vendored at `vendor/skarbiec`; a CI
-workflow builds it on a macOS runner and publishes the arm64 binary, with a
-`sha256` sidecar, to the rolling release `skarbiec-bin-latest` in this repo.
-On each launch `launch-mac.sh` downloads that binary using the worker's
-existing weles token (via `curl` and the node helper `gh_release_asset_url.mjs`,
-no `gh`/`jq` needed), verifies the checksum, rebuilds a local encrypted vault
-from the credential table the worker already reads, and points
-`WELES_SERVICE_CREDENTIALS_FILE` at an owner-only view. The keypair is generated
-on the box and never leaves it. Full detail is in the rotator repo at
-`docs/SKARBIEC-MIGRATION.md`.
+Platform login material comes from an encrypted skarbiec vault — skarbiec is the
+source of truth, and no plaintext copy is consulted at runtime. The skarbiec
+source is vendored at `vendor/skarbiec`; a CI workflow builds the arm64 binary
+and publishes it, with a `sha256` sidecar, to the rolling release
+`skarbiec-bin-latest`. The encrypted vault ciphertext is published to the
+release `skarbiec-vault-latest` (gpg, encrypted to the owner and recovery keys;
+the release alone cannot decrypt it). On each launch `launch-mac.sh` downloads
+the binary and the vault with the worker's existing weles access, imports the
+owner private half from `~/.weles-secrets/skarbiec-owner.asc` when the keyring
+lacks it, decrypts the real vault with the unlock value (a login-keychain item
+or `SKARBIEC_UNLOCK` from the worker configuration), and points
+`WELES_SERVICE_CREDENTIALS_FILE` at an owner-only view.
+
+Provisioning happens once, out-of-band, at the same tier as the gcloud
+service-account material and the worker configuration. The passphrase-protected
+owner private half is placed at `~/.weles-secrets/skarbiec-owner.asc`. The
+unlock value is provided as `SKARBIEC_UNLOCK` in `~/weles/var/worker.env`. When
+the vault changes, re-publish its ciphertext to `skarbiec-vault-latest`.
