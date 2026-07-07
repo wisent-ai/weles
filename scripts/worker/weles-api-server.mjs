@@ -164,7 +164,7 @@ async function storeCredential(action, params, creds, runId) {
   const id = `weles-api-${provider}-${runId.slice(0, 8)}`;
   const row = {
     id,
-    category: 'account',
+    category: 'auth',
     display_name: `${provider} account (weles-api ${runId.slice(0, 8)})`,
     login_method: 'email_password',
     login_email: loginEmail,
