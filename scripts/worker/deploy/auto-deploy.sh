@@ -136,6 +136,49 @@ if [ -f "$REAUTH_SRC" ]; then
   fi
 fi
 
+# Ensure the codex-reauth LaunchAgent is installed, executable, and healthy on
+# every tick (BEFORE the no-new-commit early-exit). Unlike a plist-diff-gated
+# heal, the wrapper chmod +x runs UNCONDITIONALLY: the wrapper is committed
+# 0644 in older trees and a `git reset --hard` strips the exec bit, so launchd
+# cannot exec it (exit 78 EX_CONFIG) with the plist unchanged — the exact fault
+# that stranded codex-reauth and let the token expire. `test -x` before the
+# chmod detects that state and forces a re-bootstrap; a positive post-bootstrap
+# load check alerts loudly instead of silently claiming "healed".
+CODEX_REAUTH_SRC="$WELES_DIR/scripts/worker/deploy/codex-reauth/com.wisent.codex-reauth.plist"
+CODEX_REAUTH_DST="$HOME/Library/LaunchAgents/com.wisent.codex-reauth.plist"
+CODEX_REAUTH_WRAPPER="$WELES_DIR/scripts/worker/deploy/codex-reauth/reauth-launch.sh"
+if [ -f "$CODEX_REAUTH_SRC" ]; then
+  mkdir -p "$HOME/Library/LaunchAgents"
+  CODEX_REAUTH_NEEDS_BOOTSTRAP=0
+  if [ ! -x "$CODEX_REAUTH_WRAPPER" ]; then
+    CODEX_REAUTH_NEEDS_BOOTSTRAP=1
+    log "codex-reauth: wrapper was not executable (launchd exit 78 cause) — fixing + re-bootstrapping"
+  fi
+  chmod +x "$CODEX_REAUTH_WRAPPER" 2>/dev/null || true
+  CR_UID=$(id -u)
+  if [ ! -f "$CODEX_REAUTH_DST" ] || ! cmp -s "$CODEX_REAUTH_SRC" "$CODEX_REAUTH_DST"; then
+    cp "$CODEX_REAUTH_SRC" "$CODEX_REAUTH_DST"
+    chmod 644 "$CODEX_REAUTH_DST"
+    CODEX_REAUTH_NEEDS_BOOTSTRAP=1
+  fi
+  if ! launchctl print "gui/$CR_UID/com.wisent.codex-reauth" >/dev/null 2>&1; then
+    CODEX_REAUTH_NEEDS_BOOTSTRAP=1
+  fi
+  if [ "$CODEX_REAUTH_NEEDS_BOOTSTRAP" = "1" ]; then
+    launchctl bootout "gui/$CR_UID" "$CODEX_REAUTH_DST" 2>/dev/null || true
+    launchctl bootstrap "gui/$CR_UID" "$CODEX_REAUTH_DST"
+    log "codex-reauth: (re)installed LaunchAgent from repo"
+    sleep 3
+    if launchctl print "gui/$CR_UID/com.wisent.codex-reauth" >/dev/null 2>&1; then
+      if [ ! -x "$CODEX_REAUTH_WRAPPER" ]; then
+        log "codex-reauth: ALERT wrapper still not executable after chmod — NOT healthy"
+      fi
+    else
+      log "codex-reauth: ALERT not loaded after bootstrap — check worker.env / codex-reauth.log"
+    fi
+  fi
+fi
+
 # Ensure the keyword-planner API LaunchAgent is installed and loaded on every
 # tick. The first deploy that introduces this file is still running the old
 # script body, so the self-heal must live before the no-new-commit early-exit.
