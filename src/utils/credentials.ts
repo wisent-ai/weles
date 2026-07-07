@@ -144,19 +144,21 @@ export async function markCookiesStale(accountId: string): Promise<void> {
 }
 
 /** Get service credentials for balance checks (login_email + login_password from DB). */
-export async function getServiceLogin(displayName: string): Promise<{ email: string; password: string; loginMethod: string } | null> {
+export async function getServiceLogin(displayName: string): Promise<{ email: string; password: string; loginMethod: string; totpSecret?: string } | null> {
   const supabaseUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
   if (!supabaseUrl || !supabaseKey) return null;
   const res = await fetch(
-    `${supabaseUrl}/rest/v1/service_credentials?display_name=ilike.${encodeURIComponent(displayName)}&select=login_email,login_password,login_method&limit=1`,
+    `${supabaseUrl}/rest/v1/service_credentials?display_name=ilike.${encodeURIComponent(displayName)}&select=login_email,login_password,login_method,metadata&limit=1`,
     { headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` } },
   );
   if (!res.ok) return null;
-  const rows = await res.json() as { login_email: string | null; login_password: string | null; login_method: string | null }[];
-  const row = rows[0];
+  const rows = await res.json() as { login_email: string | null; login_password: string | null; login_method: string | null; metadata: Record<string, unknown> | null }[];
+  const [row] = rows;
   if (!row?.login_email || !row?.login_password) return null;
-  return { email: row.login_email, password: row.login_password, loginMethod: row.login_method ?? 'email_password' };
+  const meta = row.metadata && typeof row.metadata === 'object' ? row.metadata as { google_totp_secret?: unknown } : null;
+  const totpSecret = meta && typeof meta.google_totp_secret === 'string' ? meta.google_totp_secret : undefined;
+  return { email: row.login_email, password: row.login_password, loginMethod: row.login_method ?? 'email_password', totpSecret };
 }
 
 export type { ServiceCredential, SocialAccount };
