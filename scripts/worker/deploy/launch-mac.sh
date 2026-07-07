@@ -30,23 +30,33 @@ SECRETS_DIR="$HOME/.weles-secrets"
 mkdir -p "$SECRETS_DIR"; chmod go-rwx "$SECRETS_DIR"
 SKARBIEC_LOG="$HOME/weles/var/skarbiec.log"
 
-# --- skarbiec binary self-provision (pull-only; no SSH) --------------------
-# Download the CI-built arm64 binary from the entitlements-rotator rolling
-# release and verify its checksum before trusting it. gh uses the ambient
-# value loaded above. Best-effort: on any failure the previous binary is kept.
+# --- skarbiec binary self-provision (from the weles rolling release) -------
+# Download the CI-built arm64 binary from this repo's rolling release and verify
+# its checksum before trusting it. Uses the worker's existing weles token (the
+# file credential auto-deploy installs), curl, and node — no gh, no jq, no
+# cross-repo auth. Best-effort: on any failure the previous binary is kept.
 SKARBIEC_BIN="${SKARBIEC_BIN:-$SECRETS_DIR/skarbiec-entitlements-router}"
-SKARBIEC_REPO="${SKARBIEC_REPO:-lbartoszcze/entitlements-rotator}"
-if command -v gh >/dev/null; then
-  STAGE="$(mktemp -d)"
-  if gh release download skarbiec-bin-latest -R "$SKARBIEC_REPO" -D "$STAGE" -p 'skarbiec-entitlements-router' -p 'skarbiec-entitlements-router.sha256' --clobber >>"$SKARBIEC_LOG" 2>&1; then
-    WANT="$(cat "$STAGE/skarbiec-entitlements-router.sha256" 2>/dev/null)"
-    GOT="$(openssl dgst -sha256 "$STAGE/skarbiec-entitlements-router" 2>/dev/null | awk '{print $NF}')"
+SKARBIEC_ASSET_HELPER="${SKARBIEC_ASSET_HELPER:-$HOME/weles/scripts/worker/deploy/gh_release_asset_url.mjs}"
+SKARBIEC_CRED_FILE="${SKARBIEC_CRED_FILE:-$HOME/.git-credentials-weles}"
+SKARBIEC_RELEASE_API="${SKARBIEC_RELEASE_API:-https://api.github.com/repos/wisent-ai/weles/releases/tags/skarbiec-bin-latest}"
+if [ -f "$SKARBIEC_CRED_FILE" ] && [ -f "$SKARBIEC_ASSET_HELPER" ]; then
+  TOK="$(sed -E 's#^https://[^:]*:([^@]*)@.*#\1#' "$SKARBIEC_CRED_FILE" | awk 'NF{print; exit}')"
+  REL="$(curl -fsSL -H "Authorization: Bearer $TOK" -H "Accept: application/vnd.github+json" "$SKARBIEC_RELEASE_API" 2>>"$SKARBIEC_LOG")"
+  BURL="$(printf '%s' "$REL" | node "$SKARBIEC_ASSET_HELPER" skarbiec-entitlements-router)"
+  SURL="$(printf '%s' "$REL" | node "$SKARBIEC_ASSET_HELPER" skarbiec-entitlements-router.sha256)"
+  if [ -n "$BURL" ] && [ -n "$SURL" ]; then
+    STAGE="$(mktemp -d)"
+    curl -fsSL -H "Authorization: Bearer $TOK" -H "Accept: application/octet-stream" "$BURL" -o "$STAGE/bin" 2>>"$SKARBIEC_LOG"
+    curl -fsSL -H "Authorization: Bearer $TOK" -H "Accept: application/octet-stream" "$SURL" -o "$STAGE/sha" 2>>"$SKARBIEC_LOG"
+    WANT="$(awk 'NF{print $1; exit}' "$STAGE/sha" 2>/dev/null)"
+    GOT="$(openssl dgst -sha256 "$STAGE/bin" 2>/dev/null | awk '{print $NF}')"
     if [ -n "$WANT" ] && [ "$WANT" = "$GOT" ]; then
-      chmod +x "$STAGE/skarbiec-entitlements-router"
-      mv -f "$STAGE/skarbiec-entitlements-router" "$SKARBIEC_BIN"
+      chmod +x "$STAGE/bin"
+      mv -f "$STAGE/bin" "$SKARBIEC_BIN"
     fi
+    rm -rf "$STAGE"
   fi
-  rm -rf "$STAGE"
+  unset TOK
 fi
 
 # --- skarbiec vault: rebuild from the authoring store each launch ----------

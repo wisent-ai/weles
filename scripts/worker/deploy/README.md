@@ -97,9 +97,13 @@ with a `UPDATE ... SET status='cancelled'` if needed.
 ## skarbiec vault bridge
 
 Platform login material is served from an encrypted skarbiec vault, not a
-plaintext file. On each launch `launch-mac.sh` downloads the CI-built
-`skarbiec-entitlements-router` binary from the rotator rolling release
-(verified by digest), rebuilds a local encrypted vault from the credential
-table the worker already reads, and points `WELES_SERVICE_CREDENTIALS_FILE` at
-an owner-only view. The keypair is generated on the box and never leaves it.
-Full detail lives in the rotator repo at `docs/SKARBIEC-MIGRATION.md`.
+plaintext file. The skarbiec source is vendored at `vendor/skarbiec`; a CI
+workflow builds it on a macOS runner and publishes the arm64 binary, with a
+`sha256` sidecar, to the rolling release `skarbiec-bin-latest` in this repo.
+On each launch `launch-mac.sh` downloads that binary using the worker's
+existing weles token (via `curl` and the node helper `gh_release_asset_url.mjs`,
+no `gh`/`jq` needed), verifies the checksum, rebuilds a local encrypted vault
+from the credential table the worker already reads, and points
+`WELES_SERVICE_CREDENTIALS_FILE` at an owner-only view. The keypair is generated
+on the box and never leaves it. Full detail is in the rotator repo at
+`docs/SKARBIEC-MIGRATION.md`.
