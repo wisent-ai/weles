@@ -346,19 +346,21 @@ export async function doGoogleSso({
             await waitForEnabledThenClick(page, /^(continue|dalej|next)$/i);
             await humanIdlePause('long');
           } catch (e) {
-            console.log(`[google_sso] accountchooser handling: ${e.message.slice(0, 120)}`);
-            // First-time account: no matching chooser row. Click "Use another
-            // account" and enter it fresh (once) instead of looping forever.
+            console.log(`[google_sso] accountchooser handling (path=${st.pathname}): ${e.message.slice(0, 120)}`);
+            // First-time account: no matching chooser row. Two page shapes are
+            // possible: (a) a row chooser needing "Use another account", or (b)
+            // the identifier (email-input) page with no rows at all. Try the
+            // button (harmless no-op on shape b), then always try entering the
+            // account fresh (fills the email input on either shape). Once only.
             if (!chooserFreshTried) {
               chooserFreshTried = true;
+              try { await clickUseAnotherAccount(page); mark('gis_use_another_account'); await humanIdlePause('long'); }
+              catch (e2) { console.log(`[google_sso] no use-another-account (path=${st.pathname}): ${e2.message.slice(0, 80)}`); }
               try {
-                await clickUseAnotherAccount(page);
-                mark('gis_use_another_account');
-                await humanIdlePause('long');
                 await enterGoogleCredentials({ page, login, mark, humanFill, humanClickLocator, humanIdlePause, humanType });
                 await humanIdlePause('long');
-              } catch (e2) {
-                console.log(`[google_sso] use-another-account failed: ${e2.message.slice(0, 120)}`);
+              } catch (e3) {
+                console.log(`[google_sso] fresh-entry failed (path=${st.pathname}): ${e3.message.slice(0, 120)}`);
               }
             }
           }
