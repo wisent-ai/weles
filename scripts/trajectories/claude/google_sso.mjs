@@ -7,6 +7,13 @@
 // Google session at accounts.google.com FIRST, then load claude.ai's
 // authorize URL — GIS then has an account and the click completes.
 import { humanClick } from '../../../dist/human/mouse.js';
+import crypto from 'node:crypto';
+
+// RFC 6238 TOTP (SHA1, 6-digit, 30s) from a base32 secret; verified vs RFC vectors.
+function b32decode(s){const A='ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';const clean=String(s).replace(/=+$/,'').toUpperCase().replace(/\s/g,'');let bits='';const out=[];for(const c of clean){const v=A.indexOf(c);if(v<0)continue;bits+=v.toString(2).padStart(5,'0');}for(let i=0;i+8<=bits.length;i+=8)out.push(parseInt(bits.slice(i,i+8),2));return Buffer.from(out);}
+function totp(secretB32,forTime=Date.now(),digits=6,step=30){const key=b32decode(secretB32);let tt=Math.floor((forTime/1000)/step);const buf=Buffer.alloc(8);for(let i=7;i>=0;i-=1){buf[i]=tt&0xff;tt=Math.floor(tt/256);}const h=crypto.createHmac('sha1',key).update(buf).digest();const o=h[h.length-1]&0xf;const n=((h[o]&0x7f)<<24)|((h[o+1]&0xff)<<16)|((h[o+2]&0xff)<<8)|(h[o+3]&0xff);return String(n%(10**digits)).padStart(digits,'0');}
+function resolveOtp(login){if(login&&login.totpSecret){try{return totp(login.totpSecret);}catch(e){console.log(`[google_sso] totp gen failed: ${e.message}`);}}return process.env.CLAUDE_2FA_CODE||null;}
+async function clickUseAnotherAccount(page){let hit=null;for(let i=0;i<40;i+=1){hit=await page.evaluate(()=>{const re=/use another account|add account|dodaj konto|inne konto/i;const els=Array.from(document.querySelectorAll('div,button,[role="button"],li,a'));for(const el of els){const txt=(el.innerText||el.textContent||'').trim();if(!re.test(txt)||txt.length>40)continue;const r=el.getBoundingClientRect();if(r.width<4||r.height<4)continue;return{x:r.x+r.width/2,y:r.y+r.height/2};}return null;});if(hit)break;await page.waitForTimeout(150);}if(!hit)throw new Error('clickUseAnotherAccount: no "Use another account" control found');await humanClick(page,Math.round(hit.x),Math.round(hit.y));}
 
 // Email/password fields: humanType (CDP default = page.keyboard.type
 // per char) emits the full keydown/keyup/input sequence, which
@@ -78,14 +85,10 @@ export async function waitForEnabledThenClick(page, namePattern) {
   throw new Error(`waitForEnabledThenClick: button stuck unclickable for /${patternSrc}/i, lastState=${JSON.stringify(lastState)}`);
 }
 
-export async function doGoogleSso({
-  page, login, authorizeUrl, mark,
+async function enterGoogleCredentials({
+  page, login, mark,
   humanFill, humanClickLocator, humanIdlePause, humanType,
 }) {
-  mark('google_prelogin_goto');
-  await page.goto('https://accounts.google.com/ServiceLogin?hl=en', { waitUntil: 'commit' });
-  await humanIdlePause('deliberate');
-
   mark('google_email');
   // Video evidence (2026-05-17): visible-wait passed the moment the
   // input rendered, but Google's WIZ controller binds the keydown
@@ -166,15 +169,25 @@ export async function doGoogleSso({
     console.log(`[google_sso] 2fa visibility probe threw (treated absent): ${e.message}`);
   }
   if (otpVisible) {
-    const otp = process.env.CLAUDE_2FA_CODE;
+    const otp = resolveOtp(login);
     if (!otp) {
-      console.log('FAIL: Google 2FA prompt visible but CLAUDE_2FA_CODE env not set');
+      console.log('FAIL: Google 2FA prompt visible but no login.totpSecret and no CLAUDE_2FA_CODE env');
       process.exit(1);
     }
     await humanFill(page, gOtp, otp);
     await humanClickLocator(page, page.locator('#totpNext button, button:has-text("Next"), button[type="submit"]').filter({ visible: true }).first());
     await humanIdlePause('long');
-  }
+  }}
+
+export async function doGoogleSso({
+  page, login, authorizeUrl, mark,
+  humanFill, humanClickLocator, humanIdlePause, humanType,
+}) {
+  mark('google_prelogin_goto');
+  await page.goto('https://accounts.google.com/ServiceLogin?hl=en', { waitUntil: 'commit' });
+  await humanIdlePause('deliberate');
+
+  await enterGoogleCredentials({ page, login, mark, humanFill, humanClickLocator, humanIdlePause, humanType });
 
   // Session established. Now load claude.ai's OAuth — GIS sees the account.
   mark('goto_authorize');
@@ -187,6 +200,7 @@ export async function doGoogleSso({
   // marker; if none, reload authorizeUrl and retry.
   // retry-allowed: bounded recovery for the non-deterministic claude.ai GIS handoff, not a flaky retry.
   let popupPage = null;
+  let chooserFreshTried = false;
   const onPopup = (p) => { if (!popupPage) popupPage = p; };
   page.context().on('page', onPopup);
   try {
@@ -209,9 +223,31 @@ export async function doGoogleSso({
           const b = Array.from(document.querySelectorAll('button,[role="button"]'));
           const c = b.find((x) => /^(authorize|allow)$/i.test((x.innerText || x.textContent || '').trim())
             && !(x.disabled || x.getAttribute('aria-disabled') === 'true'));
-          return { host: location.host, consent: !!c };
-        }, { host: '', consent: false });
+          return { host: location.host, pathname: location.pathname, consent: !!c };
+        }, { host: '', pathname: '', consent: false });
         if (st.host === 'platform.claude.com') { mark('code_page'); return page; }
+        // First-time account: Google shows its account chooser / identifier
+        // (email-input) page. Select the row if present; otherwise enter the
+        // account fresh (once) so a not-yet-seen account isn't an infinite loop.
+        if (st.host === 'accounts.google.com' && /accountchooser|identifier/.test(st.pathname)) {
+          try {
+            await clickEmailRow(page, login.email);
+            mark('gis_account_chooser');
+            await humanIdlePause('long');
+            await waitForEnabledThenClick(page, /^(continue|next|dalej)$/i);
+            await humanIdlePause('long');
+          } catch (e) {
+            console.log(`[google_sso] accountchooser handling (path=${st.pathname}): ${e.message.slice(0, 120)}`);
+            if (!chooserFreshTried) {
+              chooserFreshTried = true;
+              try { await clickUseAnotherAccount(page); mark('gis_use_another_account'); await humanIdlePause('long'); }
+              catch (e2) { console.log(`[google_sso] no use-another-account (path=${st.pathname}): ${e2.message.slice(0, 80)}`); }
+              try { await enterGoogleCredentials({ page, login, mark, humanFill, humanClickLocator, humanIdlePause, humanType }); await humanIdlePause('long'); }
+              catch (e3) { console.log(`[google_sso] fresh-entry failed (path=${st.pathname}): ${e3.message.slice(0, 120)}`); }
+            }
+          }
+          continue;
+        }
         if (st.consent) {
           mark('oauth_consent_click');
           await waitForEnabledThenClick(page, /^authorize$|^allow$/i);
