@@ -142,7 +142,19 @@ async function pickLruRow() {
 // also recorded in metadata.last_login_error / .at for diagnosis.
 async function markRowAttempted(rowId, errMsg) {
   const patch = { updated_at: new Date().toISOString() };
-  if (errMsg) patch.metadata = { last_login_error: String(errMsg).slice(0, 500), last_login_error_at: patch.updated_at };
+  if (errMsg) {
+    // MERGE existing metadata first — a bare {metadata} PATCH clobbers
+    // google_totp_secret and every other key (real data-loss bug). If the
+    // read fails, skip the metadata write entirely (fail closed) rather than
+    // risk clobbering with an empty base — only updated_at is touched then.
+    try {
+      const cur = await sbGet(`service_credentials?id=eq.${encodeURIComponent(rowId)}&select=metadata`);
+      const existingMeta = (cur[0] && cur[0].metadata) || {};
+      patch.metadata = { ...existingMeta, last_login_error: String(errMsg).slice(0, 500), last_login_error_at: patch.updated_at };
+    } catch (e) {
+      console.error(`mark_row_attempted: metadata read failed, skipping metadata write to avoid clobber: ${e.message}`);
+    }
+  }
   const r = await fetch(
     `${SUPABASE_URL}/rest/v1/service_credentials?id=eq.${encodeURIComponent(rowId)}`,
     {
