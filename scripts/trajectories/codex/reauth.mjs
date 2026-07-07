@@ -258,9 +258,21 @@ async function main() {
   console.log(`[codex reauth] pool=${poolBefore.length} probe=${probe.status} burnt=${burnt} exp_ms=${expMs} reason=${reason ?? 'none'}`);
   if (probe.status !== 200) console.error(`[codex reauth] probe_body ${JSON.stringify(probe.body).slice(0, 1500)}`);
   const probeStr = JSON.stringify(probe.body ?? {}).toLowerCase();
-  if (probe.status !== 200 && (probeStr.includes('usage limit') || probeStr.includes('weekly limit'))) {
-    console.log('[codex reauth] account quota exhausted — auth is valid, only quota is spent; re-login cannot restore it, skipping');
-    return;
+  const quotaBurnt = probe.status !== 200 && (probeStr.includes('usage limit') || probeStr.includes('weekly limit'));
+  if (quotaBurnt) {
+    // Quota is spent on the pool's current account. Re-logging THAT account
+    // cannot restore it. But if a fresh auth.json is already on disk (a
+    // different account was just logged in), donate it to onboard that account
+    // into the pool so the router can rotate onto its quota. Crucially we only
+    // proceed when auth.json already exists — we NEVER trigger a login on a
+    // burnt tick, so this cannot re-spam the 2FA prompt.
+    const fresh = readExistingAuthJson();
+    if (!fresh) {
+      console.log('[codex reauth] quota exhausted and no fresh auth.json on disk — skipping (no login, no 2FA push)');
+      return;
+    }
+    console.log('[codex reauth] quota exhausted but fresh auth.json present — onboarding it to the pool (no login)');
+    // fall through: the existingAuth branch below donates it without a login.
   }
   if (!reason) { console.log('[codex reauth] healthy & not near expiry — nothing to do'); return; }
 
