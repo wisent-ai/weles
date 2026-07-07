@@ -164,11 +164,11 @@ async function markRowAttempted(rowId, errMsg) {
   if (r.status >= 400) console.error(`mark_row_attempted PATCH ${r.status}: ${await r.text()}`);
 }
 
-async function donate(cfg, authJson) {
+async function donate(cfg, authJson, label) {
   const body = {
     user_id: cfg.donorUserId,
     provider: 'codex',
-    label: `reauth-macmini ${new Date().toISOString()}`,
+    label: label || `reauth-macmini ${new Date().toISOString()}`,
     api_key: authJson,
   };
   const r = await fetch(`${cfg.routerUrl}/v1/subscriptions/${cfg.agentId}`, {
@@ -253,12 +253,14 @@ async function main() {
   if (!reason) { console.log('[codex reauth] healthy & not near expiry — nothing to do'); return; }
 
   let authJson;
+  let account = process.env.CODEX_DISPLAY_NAME || 'Codex';
   const existingAuth = readExistingAuthJson();
   if (existingAuth) {
     authJson = existingAuth;
     console.log(`[codex reauth] ${reason} — using existing ${CODEX_AUTH_PATH}`);
   } else {
     const row = await pickLruRow();
+    account = row.display_name || account;
     console.log(`[codex reauth] ${reason} — reauthing LRU row ${row.display_name}`);
     const maxTries = Number(process.env.CODEX_REAUTH_LOGIN_TRIES || 3);
     for (let attempt = 1; ; attempt += 1) {
@@ -276,16 +278,28 @@ async function main() {
   }
   console.log(`[codex reauth] got auth.json len=${authJson.length}`);
 
-  const newSub = await donate(cfg, authJson);
+  const donateLabel = `codex-reauth ${account} ${new Date().toISOString()}`;
+  const newSub = await donate(cfg, authJson, donateLabel);
   console.log(`[codex reauth] donated new sub id=${newSub.id ?? '?'}`);
   const newExp = authExpiresAt(authJson);
   if (newExp > 0) await persistActiveExpiry(cfg.rawMeta, newExp);
 
+  // Revoke only THIS account's prior rows (+ legacy unlabeled reauth rows),
+  // never another account's active subscription. This is what lets a
+  // multi-account pool survive so the router can rotate across accounts;
+  // with a single account it collapses to the same net-one-active as before.
+  const accountPrefix = `codex-reauth ${account} `;
   let deleted = 0;
+  let kept = 0;
   for (const old of poolBefore) {
-    if (await deleteSubscription(cfg, old)) deleted += 1;
+    const lbl = old.key_label || '';
+    if (lbl.startsWith(accountPrefix) || lbl.startsWith('reauth-macmini ')) {
+      if (await deleteSubscription(cfg, old)) deleted += 1;
+    } else {
+      kept += 1;
+    }
   }
-  console.log(`[codex reauth] revoked ${deleted}/${poolBefore.length} stale rows`);
+  console.log(`[codex reauth] revoked ${deleted}/${poolBefore.length} stale rows; kept ${kept} other-account active`);
 }
 
 main().catch((e) => {

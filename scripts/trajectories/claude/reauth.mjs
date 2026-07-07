@@ -153,11 +153,11 @@ async function markRowAttempted(rowId, errMsg) {
   if (r.status >= 400) console.error(`mark_row_attempted PATCH ${r.status}: ${await r.text()}`);
 }
 
-async function donate(cfg, blobJson) {
+async function donate(cfg, blobJson, label) {
   const body = {
     user_id: cfg.donorUserId,
     provider: 'claude_code',
-    label: `reauth-macmini ${new Date().toISOString()}`, // model-router reads `label`, not key_label
+    label: label || `reauth-macmini ${new Date().toISOString()}`, // model-router reads `label`, not key_label
     api_key: blobJson,
   };
   const r = await fetch(`${cfg.routerUrl}/v1/subscriptions/${cfg.agentId}`, {
@@ -265,6 +265,7 @@ async function main() {
   if (!reason) { console.log('[reauth] healthy & not near expiry — nothing to do'); return; }
 
   const row = await pickLruRow();
+  const account = row.display_name || 'Claude';
   console.log(`[reauth] ${reason} — reauthing LRU row ${row.display_name} (updated ${row.updated_at})`);
   let blob;
   // Google's "browser may not be secure" block is intermittent per launch
@@ -290,17 +291,29 @@ async function main() {
   }
   console.log(`[reauth] got OAuth blob len=${blob.length} for ${row.display_name}`);
 
-  const newSub = await donate(cfg, blob);
+  const donateLabel = `claude-reauth ${account} ${new Date().toISOString()}`;
+  const newSub = await donate(cfg, blob, donateLabel);
   console.log(`[reauth] donated new sub id=${newSub.id ?? '?'}`);
   await markRowAttempted(row.id);
   const newExp = blobExpiresAt(blob);
   if (newExp > 0) await persistActiveExpiry(cfg.rawMeta, newExp);
 
+  // Revoke only THIS account's prior rows (+ legacy unlabeled reauth rows),
+  // never another account's active subscription — lets a multi-account pool
+  // survive for the router to rotate across; single account collapses to the
+  // same net-one-active as before.
+  const accountPrefix = `claude-reauth ${account} `;
   let deleted = 0;
+  let kept = 0;
   for (const old of poolBefore) {
-    if (await deleteSubscription(cfg, old.id)) deleted += 1;
+    const lbl = old.key_label || '';
+    if (lbl.startsWith(accountPrefix) || lbl.startsWith('reauth-macmini ')) {
+      if (await deleteSubscription(cfg, old.id)) deleted += 1;
+    } else {
+      kept += 1;
+    }
   }
-  console.log(`[reauth] revoked ${deleted}/${poolBefore.length} stale rows — rotation complete`);
+  console.log(`[reauth] revoked ${deleted}/${poolBefore.length} stale rows; kept ${kept} other-account active — rotation complete`);
 }
 
 main().catch((e) => {
