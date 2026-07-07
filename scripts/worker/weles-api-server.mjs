@@ -38,7 +38,7 @@ import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { dirname, resolve, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(__dirname, '../..');
@@ -259,6 +259,46 @@ function runTrajectory(action, params, accountId, timeoutMs) {
   });
 }
 
+// Providers whose reauth trajectory can run on the host on demand. This is the
+// "call Weles on the host to authenticate" step: the broker decides WHICH
+// provider + method, weles-api runs that provider's reauth trajectory locally,
+// and only the run status leaves the process.
+const REAUTH_PROVIDERS = new Set(['codex', 'claude', 'kimi']);
+
+function runReauth(provider, timeoutMs) {
+  return new Promise((resolveRun) => {
+    const trajPath = resolve(REPO, 'scripts/trajectories', provider, 'reauth.mjs');
+    if (!existsSync(trajPath)) { resolveRun({ ok: false, error: 'no_reauth_trajectory', provider }); return; }
+    const runId = randomUUID();
+    const child = spawn('node', [trajPath], {
+      cwd: REPO,
+      env: { ...process.env, ACTION_LOG_ID: runId, ACTION: `${provider}_reauth` },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    let stdout = ''; let stderr = ''; let killed = false;
+    const timer = setTimeout(() => {
+      killed = true;
+      try { child.kill('SIGTERM'); } catch { /* noop */ }
+      setTimeout(() => { try { child.kill('SIGKILL'); } catch { /* noop */ } }, 8000);
+    }, timeoutMs);
+    child.stdout.on('data', (c) => { stdout += c.toString(); });
+    child.stderr.on('data', (c) => { stderr += c.toString(); });
+    child.on('close', (code) => {
+      clearTimeout(timer);
+      const exitCode = killed ? 137 : (code ?? -1);
+      resolveRun({
+        ok: exitCode === 0,
+        exitCode,
+        provider,
+        run_id: runId,
+        stdout_tail: stdout.slice(-4000),
+        stderr_tail: stderr.slice(-2000),
+        timed_out: killed,
+      });
+    });
+  });
+}
+
 const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url || '/', `http://${req.headers.host || `${HOST}:${PORT}`}`);
@@ -268,8 +308,27 @@ const server = http.createServer(async (req, res) => {
         source: 'weles_api',
         authConfigured: Boolean(TOKEN || ALLOW_UNAUTH),
         rawCredsAllowed: ALLOW_RAW_CREDS,
-        routes: ['GET /healthz', 'POST /run', 'POST /weles-builder'],
+        routes: ['GET /healthz', 'POST /run', 'POST /weles-builder', 'POST /reauth'],
       });
+      return;
+    }
+    // reauth: run a provider's reauth trajectory ON THE HOST. Body:
+    // { provider: "codex"|"claude"|"kimi", timeout_ms? }. Returns run status
+    // only.
+    if (req.method === 'POST' && url.pathname === '/reauth') {
+      if (!authorized(req)) {
+        json(res, TOKEN || ALLOW_UNAUTH ? 401 : 500, { ok: false, error: TOKEN || ALLOW_UNAUTH ? 'unauthorized' : 'missing_WELES_API_TOKEN' });
+        return;
+      }
+      let body;
+      try { body = await readBody(req); }
+      catch (e) { json(res, 400, { ok: false, error: e.message }); return; }
+      const provider = typeof body.provider === 'string' ? body.provider.trim().toLowerCase() : '';
+      if (!REAUTH_PROVIDERS.has(provider)) { json(res, 400, { ok: false, error: 'provider must be codex|claude|kimi' }); return; }
+      const timeoutMs = Number(body.timeout_ms) > 0 ? Number(body.timeout_ms) : TIMEOUT_MS;
+      const out = await runReauth(provider, timeoutMs);
+      if (out.error === 'no_reauth_trajectory') { json(res, 404, out); return; }
+      json(res, out.ok ? 200 : 502, out);
       return;
     }
     // weles-builder: instructions-only. Body = the goal string (text/plain;
