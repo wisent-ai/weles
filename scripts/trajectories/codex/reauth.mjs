@@ -245,6 +245,11 @@ async function main() {
     : (expMs > 0 && Date.now() >= expMs - marginMs ? 'expiring-soon' : null);
   console.log(`[codex reauth] pool=${poolBefore.length} probe=${probe.status} burnt=${burnt} exp_ms=${expMs} reason=${reason ?? 'none'}`);
   if (probe.status !== 200) console.error(`[codex reauth] probe_body ${JSON.stringify(probe.body).slice(0, 1500)}`);
+  const probeStr = JSON.stringify(probe.body ?? {}).toLowerCase();
+  if (probe.status !== 200 && (probeStr.includes('usage limit') || probeStr.includes('weekly limit'))) {
+    console.log('[codex reauth] account quota exhausted — auth is valid, only quota is spent; re-login cannot restore it, skipping');
+    return;
+  }
   if (!reason) { console.log('[codex reauth] healthy & not near expiry — nothing to do'); return; }
 
   let authJson;
