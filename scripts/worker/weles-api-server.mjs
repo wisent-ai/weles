@@ -52,6 +52,18 @@ const ALLOW_UNAUTH = process.env.WELES_API_ALLOW_UNAUTH === '1';
 const ALLOW_RAW_CREDS = (process.env.WELES_API_ALLOW_RAW_CREDS ?? '1') === '1';
 const TIMEOUT_MS = Number(process.env.WELES_API_TIMEOUT_MS || 15 * 60 * 1000);
 const BODY_LIMIT = Number(process.env.WELES_API_BODY_LIMIT_BYTES || 256 * 1024);
+const BUILDER_BOOTSTRAP_URL = process.env.WELES_BUILDER_BOOTSTRAP_URL || 'https://duckduckgo.com/';
+// Prepended to the caller's instructions so the agent self-navigates: the
+// caller supplies NO url, only the goal. The agent lands on a neutral
+// bootstrap page and drives itself to whatever site the task implies.
+const BUILDER_PREAMBLE = [
+  'You are given a task in natural language. You start on a neutral bootstrap page.',
+  'FIRST decide which website accomplishes the task and go there yourself with the navigate tool; if you do not know the exact URL, search from the current page.',
+  'If the task needs an account, call generate_identity(platform) and use the $PLATFORM_NEW_* placeholders in fill/type_text; do not type literal placeholder text.',
+  'If the site emails a confirmation code, call check_email. Solve CAPTCHAs with solve_captcha.',
+  'Do not make purchases, submit payments, delete data, or perform irreversible/destructive actions.',
+  'When finished, call done(value) with a concise JSON-serializable summary plus any data or credentials the task asked for.',
+].join(' ');
 
 function authorized(req) {
   if (ALLOW_UNAUTH) return true;
@@ -94,6 +106,21 @@ function readBody(req) {
       if (!text.trim()) { resolveBody({}); return; }
       try { resolveBody(JSON.parse(text)); } catch (e) { reject(new Error('invalid_json')); }
     });
+    req.on('error', reject);
+  });
+}
+
+// Raw body reader for /weles-builder: the body IS the instructions string
+// (text/plain). No JSON envelope required.
+function readText(req) {
+  return new Promise((resolveBody, reject) => {
+    let size = 0; const chunks = [];
+    req.on('data', (c) => {
+      size += c.length;
+      if (size > BODY_LIMIT) { reject(new Error('body_too_large')); req.destroy(); return; }
+      chunks.push(c);
+    });
+    req.on('end', () => resolveBody(Buffer.concat(chunks).toString('utf8')));
     req.on('error', reject);
   });
 }
@@ -241,7 +268,45 @@ const server = http.createServer(async (req, res) => {
         source: 'weles_api',
         authConfigured: Boolean(TOKEN || ALLOW_UNAUTH),
         rawCredsAllowed: ALLOW_RAW_CREDS,
+        routes: ['GET /healthz', 'POST /run', 'POST /weles-builder'],
       });
+      return;
+    }
+    // weles-builder: instructions-only. Body = the goal string (text/plain;
+    // {"instructions": "..."} JSON also accepted). No url, no params. The agent
+    // self-navigates and, on success, its executed steps are saved as a new
+    // reusable trajectory (generic browser_task draft-first behavior).
+    if (req.method === 'POST' && url.pathname === '/weles-builder') {
+      if (!authorized(req)) {
+        json(res, TOKEN || ALLOW_UNAUTH ? 401 : 500, { ok: false, error: TOKEN || ALLOW_UNAUTH ? 'unauthorized' : 'missing_WELES_API_TOKEN' });
+        return;
+      }
+      let raw;
+      try { raw = await readText(req); }
+      catch (e) { json(res, 400, { ok: false, error: e.message }); return; }
+      let instructions = (raw || '').trim();
+      if (instructions.startsWith('{')) {
+        try { const j = JSON.parse(instructions); if (typeof j.instructions === 'string') instructions = j.instructions.trim(); } catch { /* treat as raw text */ }
+      }
+      if (!instructions) { json(res, 400, { ok: false, error: 'missing_instructions' }); return; }
+      const objective = `${BUILDER_PREAMBLE}\n\nTASK:\n${instructions}`;
+      const out = await runTrajectory('generic_browser_task', { url: BUILDER_BOOTSTRAP_URL, objective }, null, TIMEOUT_MS);
+      if (out.error === 'no_trajectory') { json(res, 500, { ok: false, error: 'builder_trajectory_missing' }); return; }
+      const doc = out.result && typeof out.result === 'object' ? out.result : {};
+      const payload = {
+        ok: out.ok,
+        run_id: out.run_id,
+        exitCode: out.exitCode,
+        final_url: doc.final_url ?? null,
+        value: doc.value ?? null,
+        trajectory_draft: doc.trajectory_draft ?? null,
+        stdout_tail: out.stdout_tail,
+        stderr_tail: out.stderr_tail,
+        timed_out: out.timed_out,
+      };
+      // Return unredacted by default (the whole point is to get the result/creds
+      // the task asked for); redact only when raw creds are globally forbidden.
+      json(res, out.ok ? 200 : 502, payload, { redact: !ALLOW_RAW_CREDS });
       return;
     }
     if (!(req.method === 'POST' && url.pathname === '/run')) {
