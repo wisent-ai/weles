@@ -273,12 +273,13 @@ async function enterGoogleCredentials({
 
   mark('google_2fa_check');
   const gOtp = page.locator('input[type="tel"][autocomplete="one-time-code"], input[name="totpPin"], input[autocomplete="one-time-code"]').filter({ visible: true }).first();
-  let otpVisible;
+  let otpVisible = false;
   try {
-    otpVisible = await gOtp.isVisible();
+    await gOtp.waitFor({ state: 'visible' });
+    otpVisible = true;
   } catch (e) {
     otpVisible = false;
-    console.log(`[google_sso] 2fa visibility probe threw (treated absent): ${e.message}`);
+    console.log(`[google_sso] 2fa field not visible within wait (treated absent): ${e.message}`);
   }
   if (otpVisible) {
     const otp = resolveOtp(login);
