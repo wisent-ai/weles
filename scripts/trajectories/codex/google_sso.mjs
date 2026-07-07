@@ -67,33 +67,56 @@ async function clickUseAnotherAccount(page) {
 // account has no 2FA at all). This lets the login answer 2FA from a stored TOTP
 // secret instead of a push/SMS prompt the headless automation can't complete.
 async function selectAuthenticatorMethod(page) {
-  const clickByText = async (re) => {
-    for (let i = 0; i < 30; i += 1) {
-      const hit = await page.evaluate((src) => {
+  // Click the SMALLEST visible element matching `matchSrc`. Exact mode anchors
+  // the whole label (so "Try another way" never matches a parent card whose
+  // text is "Resend it\nTry another way" — clicking that centered the wrong
+  // control and re-sent the push). Smallest-box preference picks the leaf.
+  const clickBest = async (matchSrc, mode, maxTries) => {
+    for (let i = 0; i < maxTries; i += 1) {
+      const hit = await page.evaluate(([src, m]) => {
         const rx = new RegExp(src, 'i');
-        const els = Array.from(document.querySelectorAll('div,button,[role="button"],li,a,span'));
-        for (const el of els) {
+        let best = null;
+        for (const el of Array.from(document.querySelectorAll('button,[role="button"],a,li,span,div,[role="link"]'))) {
           const txt = (el.innerText || el.textContent || '').trim();
-          if (!rx.test(txt) || txt.length > 60) continue;
+          if (!txt || txt.length > 70) continue;
+          if (!rx.test(txt)) continue;
+          if (m === 'exact' && txt.length > 30) continue;
           const r = el.getBoundingClientRect();
-          if (r.width < 4 || r.height < 4) continue;
-          return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+          if (r.width < 8 || r.height < 8) continue;
+          const area = r.width * r.height;
+          if (!best || area < best.area) best = { x: r.x + r.width / 2, y: r.y + r.height / 2, area };
         }
-        return null;
-      }, re.source);
+        return best;
+      }, [matchSrc, mode]);
       if (hit) { await humanClick(page, Math.round(hit.x), Math.round(hit.y)); return true; }
       await page.waitForTimeout(150); // allow-raw-playwright: challenge-render poll
     }
     return false;
   };
-  // "Try another way" only exists when a 2FA challenge is on screen.
-  const opened = await clickByText(/try another way|more ways to verify|inny sposob|wiecej sposobow/i);
-  if (!opened) return false;
-  await page.waitForTimeout(800); // allow-raw-playwright: method-list render
-  // Pick the authenticator-app option (Google Authenticator / authenticator app).
-  const picked = await clickByText(/authenticator app|google authenticator|authenticator/i);
-  if (picked) await page.waitForTimeout(800); // allow-raw-playwright: otp-field render
-  return picked;
+  // Every Google 2FA page is labelled "2-Step Verification"; absent it, there
+  // is no challenge to answer.
+  const challengePresent = await page.evaluate(() =>
+    /2-step verification|weryfikacja dwuetapowa/i.test(document.body ? document.body.innerText : ''));
+  if (!challengePresent) return 'no-2fa';
+  const opened = await clickBest('^try another way$|^wyprobuj inny sposob$|^more ways to verify$', 'exact', 30);
+  if (!opened) return 'stuck';
+  await page.waitForTimeout(1200); // allow-raw-playwright: method-list render
+  try {
+    const opts = await page.evaluate(() => {
+      const out = [];
+      for (const el of Array.from(document.querySelectorAll('li,[role="link"],[role="button"],div'))) {
+        const t = (el.innerText || el.textContent || '').trim();
+        if (!t || t.length > 70 || out.includes(t)) continue;
+        out.push(t); if (out.length >= 20) break;
+      }
+      return { path: location.pathname, texts: out };
+    });
+    console.log(`[google_sso] 2fa-methods path=${opts.path} options=${JSON.stringify(opts.texts)}`);
+  } catch (e) { console.log(`[google_sso] 2fa-methods diag failed: ${e.message.slice(0, 80)}`); }
+  const picked = await clickBest('authenticator|verification code from|google authenticator', 'contains', 20);
+  if (!picked) return 'stuck';
+  await page.waitForTimeout(1000); // allow-raw-playwright: otp-field render
+  return 'switched';
 }
 
 // Email/password fields: humanType (CDP default = page.keyboard.type
@@ -335,10 +358,15 @@ async function enterGoogleCredentials({
     // No code field yet. Either Google defaulted to push/SMS (switch to the
     // authenticator method to force a TOTP field) or this account has no 2FA
     // (no method-chooser present) — then there is nothing to answer.
-    const switched = await selectAuthenticatorMethod(page);
-    if (!switched) {
-      console.log('[google_sso] no 2fa method-chooser — treating as no 2FA on this account');
+    const result = await selectAuthenticatorMethod(page);
+    if (result === 'no-2fa') {
+      console.log('[google_sso] no 2fa challenge present — nothing to answer');
       return;
+    }
+    if (result === 'stuck') {
+      const err = new Error('google 2FA present but could not switch to authenticator — aborting to avoid push/sms loop');
+      err.fatal2fa = true;
+      throw err;
     }
     console.log('[google_sso] selected authenticator (TOTP) method via "Try another way"');
     otpVisible = await waitOtp(15000);
