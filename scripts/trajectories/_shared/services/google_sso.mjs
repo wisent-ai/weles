@@ -759,6 +759,18 @@ export function parseBalanceFromText(text) {
 // login_password (per the 'use google sso then' workflow). Picks any row
 // whose login_email matches the shared SSO email and login_password is set.
 export async function getGoogleSsoCreds(email = 'lukasz.bartoszcze@gmail.com') {
+  // Vault-first: skarbiec is the source of truth. When the worker configuration
+  // points at the decrypted vault view, resolve the shared login from there and
+  // consult no plaintext store. Only when no vault view is configured does this
+  // fall through to the store below.
+  try {
+    const mod = await import('../../../lib/service_credentials.mjs');
+    const row = mod.consolidatedByEmailWithPassword(email);
+    if (row && row.login_password) {
+      const seed = findTotpSecret(row);
+      return { email: row.login_email, password: row.login_password, ...(seed ? { totpSecret: seed } : {}) };
+    }
+  } catch { /* no vault view configured; use the store */ }
   const supabaseUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
   if (!supabaseUrl || !key) return null;
