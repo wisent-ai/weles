@@ -256,6 +256,7 @@ async function main() {
   const reason = burnt ? 'burnt'
     : (expMs > 0 && Date.now() >= expMs - marginMs ? 'expiring-soon' : null);
   console.log(`[reauth] pool=${poolBefore.length} probe=${probe.status} burnt=${burnt} exp_ms=${expMs} reason=${reason ?? 'none'}`);
+  if (probe.status !== 200) console.error(`[reauth] probe_body ${JSON.stringify(probe.body).slice(0, 1500)}`);
   if (!reason) { console.log('[reauth] healthy & not near expiry — nothing to do'); return; }
 
   const row = await pickLruRow();
