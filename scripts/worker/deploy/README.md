@@ -93,3 +93,13 @@ psql "$DATABASE_URL" -c "
 Worker claims the oldest `queued` rows first (ordered by `scheduled_at`). If
 the queue has older stale rows, they drain before new campaign items — flush
 with a `UPDATE ... SET status='cancelled'` if needed.
+
+## skarbiec vault bridge
+
+Platform login material is served from an encrypted skarbiec vault, not a
+plaintext file. On each launch `launch-mac.sh` downloads the CI-built
+`skarbiec-entitlements-router` binary from the rotator rolling release
+(verified by digest), rebuilds a local encrypted vault from the credential
+table the worker already reads, and points `WELES_SERVICE_CREDENTIALS_FILE` at
+an owner-only view. The keypair is generated on the box and never leaves it.
+Full detail lives in the rotator repo at `docs/SKARBIEC-MIGRATION.md`.
