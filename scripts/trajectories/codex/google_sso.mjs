@@ -61,6 +61,41 @@ async function clickUseAnotherAccount(page) {
   await humanClick(page, Math.round(hit.x), Math.round(hit.y));
 }
 
+// On a Google 2FA challenge, switch to the authenticator-app (TOTP) method:
+// click "Try another way", then the authenticator option. Returns true if a
+// method switch was performed, false if no method-chooser is present (e.g. the
+// account has no 2FA at all). This lets the login answer 2FA from a stored TOTP
+// secret instead of a push/SMS prompt the headless automation can't complete.
+async function selectAuthenticatorMethod(page) {
+  const clickByText = async (re) => {
+    for (let i = 0; i < 30; i += 1) {
+      const hit = await page.evaluate((src) => {
+        const rx = new RegExp(src, 'i');
+        const els = Array.from(document.querySelectorAll('div,button,[role="button"],li,a,span'));
+        for (const el of els) {
+          const txt = (el.innerText || el.textContent || '').trim();
+          if (!rx.test(txt) || txt.length > 60) continue;
+          const r = el.getBoundingClientRect();
+          if (r.width < 4 || r.height < 4) continue;
+          return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+        }
+        return null;
+      }, re.source);
+      if (hit) { await humanClick(page, Math.round(hit.x), Math.round(hit.y)); return true; }
+      await page.waitForTimeout(150); // allow-raw-playwright: challenge-render poll
+    }
+    return false;
+  };
+  // "Try another way" only exists when a 2FA challenge is on screen.
+  const opened = await clickByText(/try another way|more ways to verify|inny sposob|wiecej sposobow/i);
+  if (!opened) return false;
+  await page.waitForTimeout(800); // allow-raw-playwright: method-list render
+  // Pick the authenticator-app option (Google Authenticator / authenticator app).
+  const picked = await clickByText(/authenticator app|google authenticator|authenticator/i);
+  if (picked) await page.waitForTimeout(800); // allow-raw-playwright: otp-field render
+  return picked;
+}
+
 // Email/password fields: humanType (CDP default = page.keyboard.type
 // per char) emits the full keydown/keyup/input sequence, which
 // Google's WIZ validator needs to enable Next — Input.insertText
@@ -272,25 +307,41 @@ async function enterGoogleCredentials({
   await humanIdlePause('long');
 
   mark('google_2fa_check');
-  const gOtp = page.locator('input[type="tel"][autocomplete="one-time-code"], input[name="totpPin"], input[autocomplete="one-time-code"]').filter({ visible: true }).first();
-  let otpVisible = false;
-  try {
-    await gOtp.waitFor({ state: 'visible' });
-    otpVisible = true;
-  } catch (e) {
-    otpVisible = false;
-    console.log(`[google_sso] 2fa field not visible within wait (treated absent): ${e.message}`);
-  }
-  if (otpVisible) {
-    const otp = resolveOtp(login);
-    if (!otp) {
-      console.log('FAIL: Google 2FA prompt visible but no login.totpSecret and no CODEX_2FA_CODE env');
-      process.exit(1);
+  const otpSel = 'input[type="tel"][autocomplete="one-time-code"], input[name="totpPin"], input[autocomplete="one-time-code"]';
+  const gOtp = () => page.locator(otpSel).filter({ visible: true }).first();
+  const waitOtp = async (ms) => {
+    try { await gOtp().waitFor({ state: 'visible', timeout: ms }); return true; } catch { return false; }
+  };
+  let otpVisible = await waitOtp(15000);
+  if (!otpVisible) {
+    // No code field yet. Either Google defaulted to push/SMS (switch to the
+    // authenticator method to force a TOTP field) or this account has no 2FA
+    // (no method-chooser present) — then there is nothing to answer.
+    const switched = await selectAuthenticatorMethod(page);
+    if (!switched) {
+      console.log('[google_sso] no 2fa method-chooser — treating as no 2FA on this account');
+      return;
     }
-    await humanFill(page, gOtp, otp);
-    await humanClickLocator(page, page.locator('#totpNext button, button:has-text("Next"), button[type="submit"]').filter({ visible: true }).first());
-    await humanIdlePause('long');
+    console.log('[google_sso] selected authenticator (TOTP) method via "Try another way"');
+    otpVisible = await waitOtp(15000);
+    if (!otpVisible) {
+      const err = new Error('google 2FA: authenticator selected but no code field appeared');
+      err.fatal2fa = true;
+      throw err;
+    }
   }
+  // A code field is showing — it MUST be answered now. Aborting here (rather
+  // than falling through) prevents the authorize->chooser->re-enter loop from
+  // re-submitting the password and re-triggering another push/SMS to the user.
+  const otp = resolveOtp(login);
+  if (!otp) {
+    const err = new Error('google 2FA required but no login.totpSecret and no CODEX_2FA_CODE — aborting to avoid re-triggering push/SMS');
+    err.fatal2fa = true;
+    throw err;
+  }
+  await humanFill(page, gOtp(), otp);
+  await humanClickLocator(page, page.locator('#totpNext button, button:has-text("Next"), button[type="submit"]').filter({ visible: true }).first());
+  await humanIdlePause('long');
 }
 
 export async function doGoogleSso({
@@ -361,6 +412,7 @@ export async function doGoogleSso({
                 await enterGoogleCredentials({ page, login, mark, humanFill, humanClickLocator, humanIdlePause, humanType });
                 await humanIdlePause('long');
               } catch (e3) {
+                if (e3 && e3.fatal2fa) throw e3; // abort — do not loop back and re-trigger push/SMS
                 console.log(`[google_sso] fresh-entry failed (path=${st.pathname}): ${e3.message.slice(0, 120)}`);
               }
             }

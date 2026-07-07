@@ -14,6 +14,33 @@ function b32decode(s){const A='ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';const clean=Str
 function totp(secretB32,forTime=Date.now(),digits=6,step=30){const key=b32decode(secretB32);let tt=Math.floor((forTime/1000)/step);const buf=Buffer.alloc(8);for(let i=7;i>=0;i-=1){buf[i]=tt&0xff;tt=Math.floor(tt/256);}const h=crypto.createHmac('sha1',key).update(buf).digest();const o=h[h.length-1]&0xf;const n=((h[o]&0x7f)<<24)|((h[o+1]&0xff)<<16)|((h[o+2]&0xff)<<8)|(h[o+3]&0xff);return String(n%(10**digits)).padStart(digits,'0');}
 function resolveOtp(login){if(login&&login.totpSecret){try{return totp(login.totpSecret);}catch(e){console.log(`[google_sso] totp gen failed: ${e.message}`);}}return process.env.CLAUDE_2FA_CODE||null;}
 async function clickUseAnotherAccount(page){let hit=null;for(let i=0;i<40;i+=1){hit=await page.evaluate(()=>{const re=/use another account|add account|dodaj konto|inne konto/i;const els=Array.from(document.querySelectorAll('div,button,[role="button"],li,a'));for(const el of els){const txt=(el.innerText||el.textContent||'').trim();if(!re.test(txt)||txt.length>40)continue;const r=el.getBoundingClientRect();if(r.width<4||r.height<4)continue;return{x:r.x+r.width/2,y:r.y+r.height/2};}return null;});if(hit)break;await page.waitForTimeout(150);}if(!hit)throw new Error('clickUseAnotherAccount: no "Use another account" control found');await humanClick(page,Math.round(hit.x),Math.round(hit.y));}
+async function selectAuthenticatorMethod(page) {
+  const clickByText = async (re) => {
+    for (let i = 0; i < 30; i += 1) {
+      const hit = await page.evaluate((src) => {
+        const rx = new RegExp(src, 'i');
+        const els = Array.from(document.querySelectorAll('div,button,[role="button"],li,a,span'));
+        for (const el of els) {
+          const txt = (el.innerText || el.textContent || '').trim();
+          if (!rx.test(txt) || txt.length > 60) continue;
+          const r = el.getBoundingClientRect();
+          if (r.width < 4 || r.height < 4) continue;
+          return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+        }
+        return null;
+      }, re.source);
+      if (hit) { await humanClick(page, Math.round(hit.x), Math.round(hit.y)); return true; }
+      await page.waitForTimeout(150); // allow-raw-playwright: challenge-render poll
+    }
+    return false;
+  };
+  const opened = await clickByText(/try another way|more ways to verify|inny sposob|wiecej sposobow/i);
+  if (!opened) return false;
+  await page.waitForTimeout(800); // allow-raw-playwright: method-list render
+  const picked = await clickByText(/authenticator app|google authenticator|authenticator/i);
+  if (picked) await page.waitForTimeout(800); // allow-raw-playwright: otp-field render
+  return picked;
+}
 
 // Email/password fields: humanType (CDP default = page.keyboard.type
 // per char) emits the full keydown/keyup/input sequence, which
@@ -160,25 +187,36 @@ async function enterGoogleCredentials({
   await humanIdlePause('long');
 
   mark('google_2fa_check');
-  const gOtp = page.locator('input[type="tel"][autocomplete="one-time-code"], input[name="totpPin"], input[autocomplete="one-time-code"]').filter({ visible: true }).first();
-  let otpVisible = false;
-  try {
-    await gOtp.waitFor({ state: 'visible' });
-    otpVisible = true;
-  } catch (e) {
-    otpVisible = false;
-    console.log(`[google_sso] 2fa field not visible within wait (treated absent): ${e.message}`);
-  }
-  if (otpVisible) {
-    const otp = resolveOtp(login);
-    if (!otp) {
-      console.log('FAIL: Google 2FA prompt visible but no login.totpSecret and no CLAUDE_2FA_CODE env');
-      process.exit(1);
+  const otpSel = 'input[type="tel"][autocomplete="one-time-code"], input[name="totpPin"], input[autocomplete="one-time-code"]';
+  const gOtp = () => page.locator(otpSel).filter({ visible: true }).first();
+  const waitOtp = async (ms) => {
+    try { await gOtp().waitFor({ state: 'visible', timeout: ms }); return true; } catch { return false; }
+  };
+  let otpVisible = await waitOtp(15000);
+  if (!otpVisible) {
+    const switched = await selectAuthenticatorMethod(page);
+    if (!switched) {
+      console.log('[google_sso] no 2fa method-chooser — treating as no 2FA on this account');
+      return;
     }
-    await humanFill(page, gOtp, otp);
-    await humanClickLocator(page, page.locator('#totpNext button, button:has-text("Next"), button[type="submit"]').filter({ visible: true }).first());
-    await humanIdlePause('long');
-  }}
+    console.log('[google_sso] selected authenticator (TOTP) method via "Try another way"');
+    otpVisible = await waitOtp(15000);
+    if (!otpVisible) {
+      const err = new Error('google 2FA: authenticator selected but no code field appeared');
+      err.fatal2fa = true;
+      throw err;
+    }
+  }
+  const otp = resolveOtp(login);
+  if (!otp) {
+    const err = new Error('google 2FA required but no login.totpSecret and no CLAUDE_2FA_CODE — aborting to avoid re-triggering push/SMS');
+    err.fatal2fa = true;
+    throw err;
+  }
+  await humanFill(page, gOtp(), otp);
+  await humanClickLocator(page, page.locator('#totpNext button, button:has-text("Next"), button[type="submit"]').filter({ visible: true }).first());
+  await humanIdlePause('long');
+}
 
 export async function doGoogleSso({
   page, login, authorizeUrl, mark,
@@ -244,7 +282,7 @@ export async function doGoogleSso({
               try { await clickUseAnotherAccount(page); mark('gis_use_another_account'); await humanIdlePause('long'); }
               catch (e2) { console.log(`[google_sso] no use-another-account (path=${st.pathname}): ${e2.message.slice(0, 80)}`); }
               try { await enterGoogleCredentials({ page, login, mark, humanFill, humanClickLocator, humanIdlePause, humanType }); await humanIdlePause('long'); }
-              catch (e3) { console.log(`[google_sso] fresh-entry failed (path=${st.pathname}): ${e3.message.slice(0, 120)}`); }
+              catch (e3) { if (e3 && e3.fatal2fa) throw e3; console.log(`[google_sso] fresh-entry failed (path=${st.pathname}): ${e3.message.slice(0, 120)}`); }
             }
           }
           continue;
