@@ -328,7 +328,7 @@ const server = http.createServer(async (req, res) => {
       const timeoutMs = Number(body.timeout_ms) > 0 ? Number(body.timeout_ms) : TIMEOUT_MS;
       const out = await runReauth(provider, timeoutMs);
       if (out.error === 'no_reauth_trajectory') { json(res, 404, out); return; }
-      json(res, out.ok ? 200 : 502, out);
+      json(res, out.ok ? 200 : 502, { ...out, refreshed: out.ok });
       return;
     }
     // weles-builder: instructions-only. Body = the goal string (text/plain;
