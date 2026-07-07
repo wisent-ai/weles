@@ -194,6 +194,24 @@ async function enterGoogleCredentials({
   };
   let otpVisible = await waitOtp(15000);
   if (!otpVisible) {
+    // DIAGNOSTIC: dump what is actually on screen so the selector can be fixed
+    // without guessing. Logs the URL path + visible clickable labels (Google UI
+    // chrome text — account emails/codes are not button labels, so no secrets).
+    try {
+      const diag = await page.evaluate(() => {
+        const texts = [];
+        for (const el of Array.from(document.querySelectorAll('button,[role="button"],a,li,span,div'))) {
+          const t = (el.innerText || el.textContent || '').trim();
+          if (!t || t.length > 45) continue;
+          const r = el.getBoundingClientRect();
+          if (r.width < 8 || r.height < 8) continue;
+          if (!texts.includes(t)) texts.push(t);
+          if (texts.length >= 25) break;
+        }
+        return { path: location.pathname, host: location.host, texts };
+      });
+      console.log(`[google_sso] 2fa-diag host=${diag.host} path=${diag.path} clickables=${JSON.stringify(diag.texts)}`);
+    } catch (e) { console.log(`[google_sso] 2fa-diag failed: ${e.message.slice(0, 80)}`); }
     const switched = await selectAuthenticatorMethod(page);
     if (!switched) {
       console.log('[google_sso] no 2fa method-chooser — treating as no 2FA on this account');
