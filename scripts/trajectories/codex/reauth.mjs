@@ -281,7 +281,15 @@ async function main() {
   const existingAuth = readExistingAuthJson();
   if (existingAuth) {
     authJson = existingAuth;
-    console.log(`[codex reauth] ${reason} — using existing ${CODEX_AUTH_PATH}`);
+    // Prefer the sidecar account written by login.mjs so an onboarded on-disk
+    // token is labeled by its TRUE account, not the env default. Without this a
+    // second account's reauth would collide on the shared "codex-reauth Codex "
+    // label prefix during scoped-revoke and delete the wrong account's rows.
+    try {
+      const sidecar = readFileSync(`${CODEX_AUTH_PATH}.account`, 'utf8').trim();
+      if (sidecar) account = sidecar;
+    } catch { /* no sidecar — keep env default */ }
+    console.log(`[codex reauth] ${reason} — using existing ${CODEX_AUTH_PATH} (account=${account})`);
   } else {
     const row = await pickLruRow();
     account = row.display_name || account;
@@ -312,12 +320,20 @@ async function main() {
   // never another account's active subscription. This is what lets a
   // multi-account pool survive so the router can rotate across accounts;
   // with a single account it collapses to the same net-one-active as before.
-  const accountPrefix = `codex-reauth ${account} `;
+  //
+  // Match the account EXACTLY. The label is `codex-reauth <account> <ISO>`
+  // (ISO has no spaces; account may). A prefix test would make "Codex" match
+  // "Codex Wisent" and wrongly revoke the other account's rows, so parse out
+  // the account segment and compare for equality.
+  const accountOfLabel = (lbl) => {
+    const m = /^codex-reauth (.+) (\S+)$/.exec(lbl);
+    return m ? m[1] : null;
+  };
   let deleted = 0;
   let kept = 0;
   for (const old of poolBefore) {
     const lbl = old.key_label || '';
-    if (lbl.startsWith(accountPrefix) || lbl.startsWith('reauth-macmini ')) {
+    if (accountOfLabel(lbl) === account || lbl.startsWith('reauth-macmini ')) {
       if (await deleteSubscription(cfg, old)) deleted += 1;
     } else {
       kept += 1;
