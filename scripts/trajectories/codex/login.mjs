@@ -11,7 +11,7 @@
 //      blob on stdout for reauth.mjs to donate.
 
 import { spawn as ptySpawn } from 'node-pty';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -224,6 +224,10 @@ try {
   const authJson = await waitForAuthJson(priorAuth);
   process.stdout.write(authJson);
   process.stderr.write('[codex login] auth.json emitted\n');
+  // Sidecar: record which account this auth.json belongs to so reauth can
+  // label a donated on-disk token by its true account (not a generic
+  // default), keeping scoped-revoke collision-safe across accounts.
+  try { writeFileSync(`${CODEX_AUTH_PATH}.account`, DISPLAY_NAME); } catch { /* best-effort */ }
 } catch (e) {
   if (e?.code === 'CODEX_DEVICE_AUTH_DISABLED') {
     process.stderr.write(`FAIL: ${e.message}\nTo fix this, enable "Device code authorization for Codex" in ChatGPT Security Settings (https://chatgpt.com/#settings/security) while signed in as ${login.email}.\n`);
