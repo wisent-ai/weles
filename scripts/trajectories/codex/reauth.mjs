@@ -123,6 +123,14 @@ async function listSubscriptions(cfg) {
   return subs.filter((sub) => sub.provider === 'codex');
 }
 
+// Account name embedded in a donation label `codex-reauth <account> <ISO>`
+// (ISO has no spaces; account may). Returns null for non-matching labels.
+// Matched EXACTLY (not by prefix) so "Codex" never matches "Codex Wisent".
+function accountOfLabel(lbl) {
+  const m = /^codex-reauth (.+) (\S+)$/.exec(lbl || '');
+  return m ? m[1] : null;
+}
+
 async function probePool(cfg) {
   const body = JSON.stringify({
     model: 'codex-subscription',
@@ -290,6 +298,18 @@ async function main() {
       if (sidecar) account = sidecar;
     } catch { /* no sidecar — keep env default */ }
     console.log(`[codex reauth] ${reason} — using existing ${CODEX_AUTH_PATH} (account=${account})`);
+    // A refresh-capable token already live in the pool needs no re-mint: the
+    // router refreshes it via refresh_token, so exp_ms (access-token expiry)
+    // near/past does NOT mean the pool is degraded. Skip re-donation when the
+    // pool is healthy AND this account already has an active sub — stops the
+    // per-tick donate/revoke churn and duplicate accumulation.
+    if (!burnt && probe.status === 200) {
+      const alreadyActive = poolBefore.some((s) => accountOfLabel(s.key_label) === account && (s.status ?? 'active') === 'active');
+      if (alreadyActive) {
+        console.log(`[codex reauth] pool healthy and ${account} already active — no re-mint needed`);
+        return;
+      }
+    }
   } else {
     const row = await pickLruRow();
     account = row.display_name || account;
@@ -321,14 +341,6 @@ async function main() {
   // multi-account pool survive so the router can rotate across accounts;
   // with a single account it collapses to the same net-one-active as before.
   //
-  // Match the account EXACTLY. The label is `codex-reauth <account> <ISO>`
-  // (ISO has no spaces; account may). A prefix test would make "Codex" match
-  // "Codex Wisent" and wrongly revoke the other account's rows, so parse out
-  // the account segment and compare for equality.
-  const accountOfLabel = (lbl) => {
-    const m = /^codex-reauth (.+) (\S+)$/.exec(lbl);
-    return m ? m[1] : null;
-  };
   let deleted = 0;
   let kept = 0;
   for (const old of poolBefore) {
