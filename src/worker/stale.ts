@@ -1,3 +1,5 @@
+import os from 'node:os';
+
 // Pre-claim stale-cookie filter. The trajectory marks
 // metadata.cookies_stale_at when checkpoint fires; getSocialAccount honours
 // the same window for fresh picks. Without this gate the queue chokes —
@@ -58,6 +60,7 @@ export async function staleCookieAccounts(candidates: CandidateRow[]): Promise<S
 // in-flight slot. Throttled to once per 5 min across all workers' polls.
 let _lastSweep = 0;
 export async function sweepZombiesIfDue(): Promise<void> {
+  armWedgeWatchdog();
   if (Date.now() - _lastSweep < 5 * 60_000) return;
   _lastSweep = Date.now();
   if (!SUPABASE_URL || !SUPABASE_KEY) return;
@@ -79,4 +82,45 @@ export async function sweepZombiesIfDue(): Promise<void> {
       console.log(`[worker] zombie sweep: failed ${row.id.slice(0, 8)} action=${row.action} (claimed_by=${row.claimed_by})`);
     }
   } catch { /* best-effort */ }
+}
+
+// INSTANCE_ID mirrors claim.ts so the wedge-watchdog matches this instance's own
+// claimed_by rows.
+const INSTANCE_ID = process.env.INSTANCE_ID ?? `weles-${os.hostname() || 'unknown'}-${process.pid}`;
+
+// Independent wedge-watchdog. runTrajectory (poll.ts) has no wall-clock kill and
+// account_action_logs has no cancel_requested column, so a hung trajectory
+// subprocess blocks its poll loop with no way out; once every concurrent slot is
+// wedged the worker claims nothing while the deployment-version heartbeat keeps
+// ticking (the day-scale silent-idle bug diagnosed on the mac-mini worker). This
+// runs on its OWN interval, NOT inside the wedged poll loop, and when this
+// instance's own running rows have ALL been stuck past the hard cap (every slot
+// wedged) it SIGKILLs itself so launchd (KeepAlive) restarts the job — which reaps
+// the wedged process group and lets the fresh worker's zombie sweep re-queue the
+// stuck rows. Values are env-tunable; armed once from the first sweep (startup).
+const HARD_CAP_MS = Number(process.env.WELES_TRAJECTORY_HARD_CAP_MS ?? '1800000');
+const WEDGE_CHECK_MS = Number(process.env.WELES_WEDGE_CHECK_MS ?? '120000');
+const SLOT_COUNT = Number(process.env.WORKER_CONCURRENCY ?? '1');
+let _watchdogArmed = false;
+function armWedgeWatchdog(): void {
+  if (_watchdogArmed) return;
+  _watchdogArmed = true;
+  const t = setInterval(() => { void checkWedge(); }, WEDGE_CHECK_MS);
+  t.unref();
+}
+async function checkWedge(): Promise<void> {
+  if (!SUPABASE_URL || !SUPABASE_KEY) return;
+  try {
+    const cutoff = new Date(Date.now() - HARD_CAP_MS).toISOString();
+    const r = await fetch(
+      `${SUPABASE_URL}/rest/v1/account_action_logs?status=eq.running&claimed_by=eq.${encodeURIComponent(INSTANCE_ID)}&claimed_at=lt.${cutoff}&select=id&limit=${SLOT_COUNT}`,
+      { headers: headers() },
+    );
+    if (!r.ok) return;
+    const stuck = (await r.json()) as Array<{ id: string }>;
+    if (stuck.length >= SLOT_COUNT) {
+      console.error(`[worker] wedge-watchdog: ${stuck.length} running rows for ${INSTANCE_ID} stuck past the hard cap (every one of the ${SLOT_COUNT} slots wedged on hung trajectories); SIGKILLing self for launchd restart`);
+      process.kill(process.pid, 'SIGKILL');
+    }
+  } catch { /* next tick re-checks */ }
 }
