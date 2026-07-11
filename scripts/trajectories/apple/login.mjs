@@ -97,22 +97,42 @@ try {
   await passwordField.focus();
   await passwordField.pressSequentially(password);
   console.log('[apple-login] password filled');
-  await passwordField.press('Enter');
-  await s.wait(2);
-  if (await passwordField.isVisible().catch(() => false)) {
-    const signInState = await frame.locator('#sign-in').evaluate((button) => ({
-      disabled: button.disabled,
-      ariaDisabled: button.getAttribute('aria-disabled'),
-      className: button.className,
-    })).catch(() => null);
-    console.log('[apple-login] password Enter left form visible:', JSON.stringify(signInState));
-    if (!signInState || signInState.disabled || signInState.ariaDisabled === 'true') {
-      console.log('FAIL: Apple password form stayed disabled after typed credentials');
-      process.exit(1);
-    }
-    await frame.locator('#sign-in').evaluate((button) => button.click());
-    console.log('[apple-login] submitted password via enabled Sign In button');
+  const formState = await frame.evaluate(({ emailLength, passwordLength }) => {
+    const emailInput = document.querySelector('#account_name_text_field');
+    const passwordInput = document.querySelector('#password_text_field');
+    const signIn = document.querySelector('#sign-in');
+    return {
+      emailLength: emailInput?.value.length ?? -1,
+      expectedEmailLength: emailLength,
+      emailValid: emailInput?.checkValidity() ?? false,
+      passwordLength: passwordInput?.value.length ?? -1,
+      expectedPasswordLength: passwordLength,
+      passwordValid: passwordInput?.checkValidity() ?? false,
+      disabled: signIn?.disabled ?? null,
+      className: signIn?.className ?? null,
+    };
+  }, { emailLength: email.length, passwordLength: password.length });
+  console.log('[apple-login] credential form state:', JSON.stringify(formState));
+  if (formState.emailLength !== formState.expectedEmailLength || formState.passwordLength !== formState.expectedPasswordLength) {
+    console.log('FAIL: typed credential length mismatch');
+    process.exit(1);
   }
+  await passwordField.evaluate((input) => {
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+    input.blur();
+  });
+  const signInEnabled = await frame.waitForFunction(() => {
+    const button = document.querySelector('#sign-in');
+    return button && !button.disabled && button.getAttribute('aria-disabled') !== 'true';
+  }, null, { timeout: 10_000 }).then(() => true).catch(() => false);
+  console.log('[apple-login] Sign In enabled after validation:', signInEnabled);
+  if (!signInEnabled) {
+    console.log('FAIL: Apple password form stayed disabled after complete, valid-length credentials');
+    process.exit(1);
+  }
+  await frame.locator('#sign-in').evaluate((button) => button.click());
+  console.log('[apple-login] submitted password via enabled Sign In button');
   await s.wait(3);
 
   // Probe what's on screen post-password: either dashboard redirect, 2FA, or error
