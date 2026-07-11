@@ -7,7 +7,7 @@ import os from 'node:os';
 // before failing identically. Always allow register/health (no cookies / probe
 // IS the refresh signal).
 
-const SUPABASE_URL = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
+export const SUPABASE_URL = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
 const STALE_HOURS = 24;
 
@@ -16,7 +16,7 @@ interface CandidateRow {
   action: string;
 }
 
-function headers(): Record<string, string> {
+export function headers(): Record<string, string> {
   return { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' };
 }
 
