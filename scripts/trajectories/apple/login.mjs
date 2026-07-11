@@ -32,9 +32,13 @@ try {
 
   // Step 1: fill email (Apple ID)
   await frame.waitForSelector('#account_name_text_field', { timeout: 15_000 });
-  await frame.locator('#account_name_text_field').fill(email);
+  await frame.locator('#account_name_text_field').click();
+  await frame.locator('#account_name_text_field').pressSequentially(email);
   console.log('[apple-login] email filled');
-  await frame.locator('#sign-in').click();
+  // The Continue button (#sign-in) is Angular-bound and stays `disabled` until
+  // the field validates; .fill() doesn't fire the keystroke it waits for, so
+  // clicking it hangs. Submit via Enter instead — Apple's form advances on it.
+  await frame.locator('#account_name_text_field').press('Enter');
   await s.wait(5);
 
   // Step 2: Apple now shows a choice: "Continue with Password" / "Sign in with Passkey".
@@ -62,9 +66,10 @@ try {
     console.log('FAIL: password field not found'); process.exit(1);
   }
   console.log(`[apple-login] password selector: ${pwField}`);
-  await frame.locator(pwField).first().fill(password);
+  await frame.locator(pwField).first().click();
+  await frame.locator(pwField).first().pressSequentially(password);
   console.log('[apple-login] password filled');
-  await frame.locator('#sign-in').click();
+  await frame.locator(pwField).first().press('Enter');
   await s.wait(5);
 
   // Probe what's on screen post-password: either dashboard redirect, 2FA, or error
