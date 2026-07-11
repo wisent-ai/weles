@@ -10,6 +10,7 @@ import { uploadArtifacts } from './upload-artifacts.js';
 import { paramsToEnv, resolveTrajectory } from './dispatch.js';
 import { claimOne } from './claim.js';
 import { sweepZombiesIfDue } from './stale.js';
+import { loadWelesPolicy } from './stado-routing.js';
 import { captureVersions } from '../diagnostics/versions.js';
 import { importRunProvenance, writeNetworkCapture, pgConnectionString } from '../diagnostics/run-import.js';
 import postgres from 'postgres';
@@ -583,6 +584,14 @@ async function diagnosticsUploadable(): Promise<{ ok: boolean; reason: string }>
 }
 
 export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
+  let policy;
+  try {
+    policy = await loadWelesPolicy();
+  } catch (error) {
+    console.error(`[worker] Stado routing unavailable: ${error instanceof Error ? error.message : 'unknown error'}`);
+    return 'error';
+  }
+  if (!policy.enabled) return 'idle';
   if (!SUPABASE_URL || !SUPABASE_KEY) {
     console.error('[worker] SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY missing');
     return 'error';
@@ -595,7 +604,7 @@ export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
     return 'error';
   }
   await sweepZombiesIfDue();
-  const row = await claimOne();
+  const row = await claimOne(policy);
   if (!row) return 'idle';
   const trajPath = resolveTrajectory(row.action);
   if (!trajPath) {
