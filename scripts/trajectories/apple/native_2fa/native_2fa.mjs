@@ -54,7 +54,7 @@ export function captureAppleNativeTwoFactor(options = {}) {
     cwd: options.cwd || process.cwd(),
     env: { ...process.env, ...(options.env || {}), APPLE_2FA_CODE_FILE: codeFile },
     encoding: 'utf8',
-    timeout: options.timeoutMs || 30000,
+    timeout: options.timeoutMs || 60000,
   });
 
   if (result.status !== 0) {
@@ -64,7 +64,7 @@ export function captureAppleNativeTwoFactor(options = {}) {
       codeCaptured: false,
       clicked: [],
       outputFile: null,
-      error: (result.stderr || result.stdout || `swift exited ${result.status}`).slice(0, 1000),
+      error: (result.error?.message || result.stderr || result.stdout || `swift exited ${result.status} signal=${result.signal || 'none'}`).slice(0, 1000),
     };
   }
 
