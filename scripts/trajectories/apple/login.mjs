@@ -36,19 +36,24 @@ try {
   console.log('[apple-login] auth iframe loaded');
 
   // Step 1: fill email (Apple ID)
+  console.log('[apple-login] > waitForSelector email');
   await frame.waitForSelector('#account_name_text_field', { timeout: 15_000 });
+  console.log('[apple-login] > click email');
   await frame.locator('#account_name_text_field').click();
+  console.log('[apple-login] > type email');
   await frame.locator('#account_name_text_field').pressSequentially(email);
   console.log('[apple-login] email filled');
   // The Continue button (#sign-in) is Angular-bound and stays `disabled` until
   // the field validates; .fill() doesn't fire the keystroke it waits for, so
   // clicking it hangs. Submit via Enter instead — Apple's form advances on it.
+  console.log('[apple-login] > submit email (Enter)');
   await frame.locator('#account_name_text_field').press('Enter');
   await s.wait(5);
 
   // Step 2: Apple now shows a choice: "Continue with Password" / "Sign in with Passkey".
   // Click Continue with Password to reveal the password input.
   const continuePwBtn = frame.locator('#continue-password');
+  console.log('[apple-login] > check continue-password');
   if (await continuePwBtn.isVisible().catch(() => false)) {
     await continuePwBtn.click();
     console.log('[apple-login] clicked Continue with Password');
@@ -58,6 +63,7 @@ try {
   // Step 3: fill password — try known selectors in order
   const pwSelectors = ['#password_text_field', 'input[type="password"]', 'input[name="password"]', 'input[aria-label*="assword"]'];
   let pwField = null;
+  console.log('[apple-login] > find password field');
   for (const sel of pwSelectors) {
     const visible = await frame.locator(sel).first().isVisible().catch(() => false);
     if (visible) { pwField = sel; break; }
