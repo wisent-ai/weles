@@ -37,10 +37,27 @@ try {
   // Step 1: fill email (Apple ID)
   console.log('[apple-login] > waitForSelector email');
   await frame.waitForSelector('#account_name_text_field', { timeout: 15_000 });
-  console.log('[apple-login] > click email');
-  await frame.locator('#account_name_text_field').click();
+  const emailField = frame.locator('#account_name_text_field');
+  const emailActionability = await emailField.evaluate((el) => {
+    const rect = el.getBoundingClientRect();
+    const style = getComputedStyle(el);
+    const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+    return {
+      rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
+      display: style.display,
+      visibility: style.visibility,
+      opacity: style.opacity,
+      disabled: el.disabled,
+      readOnly: el.readOnly,
+      hit: hit?.outerHTML.slice(0, 300) ?? null,
+      field: el.outerHTML.slice(0, 300),
+    };
+  });
+  console.log('[apple-login] email actionability:', JSON.stringify(emailActionability));
+  console.log('[apple-login] > focus email');
+  await emailField.focus();
   console.log('[apple-login] > type email');
-  await frame.locator('#account_name_text_field').pressSequentially(email);
+  await emailField.pressSequentially(email);
   console.log('[apple-login] email filled');
   // The Continue button (#sign-in) is Angular-bound and stays `disabled` until
   // the field validates; .fill() doesn't fire the keystroke it waits for, so
