@@ -35,8 +35,42 @@ CHROMIUM_PATH=/home/<user>/.cache/ms-playwright/chromium-1217/chrome-linux64/chr
 LLM_GENERATE_URL=https://content.wisent.ai/api/llm/generate
 INSTANCE_ID=<hostname>-worker
 RECORDINGS_ROOT=/home/<user>/weles/recordings
+WELES_STADO_ROUTING=required
+STADO_REGISTRY_URI=gs://wisent-compute/registry.json
 EOF
 chmod 600 ~/weles/var/worker.env
+```
+
+## Stado placement policy
+
+Production workers fail closed unless their normalized OS hostname resolves to
+exactly one `kind: "local"` target in the canonical Stado registry. Placement
+configuration is non-secret and belongs in `gs://wisent-compute/registry.json`:
+
+```json
+{
+  "schema_version": 2,
+  "targets": [{
+    "name": "browser-worker-1",
+    "kind": "local",
+    "hostnames": ["browser-worker-1.local"],
+    "weles": { "enabled": true, "actions": ["generic_browser_task"] }
+  }]
+}
+```
+
+Use `actions: ["*"]` for all dispatchable actions. Exact action lists partition
+work; overlaps intentionally load-share through the existing conditional
+`queued` to `running` claim. Set `enabled: false` to drain new claims. Missing,
+invalid, ambiguous, expired, or unreachable policy denies claims. Registry
+changes propagate within 30 seconds. Keep Supabase and browser credentials only
+in the host-local `worker.env`; never put secrets in Stado.
+
+Validate before publishing:
+
+```bash
+wc registry validate registry.json
+wc registry push registry.json
 ```
 
 ## Install the launch wrapper + unit
