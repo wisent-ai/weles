@@ -40,13 +40,18 @@ export async function resolveAccountSession(acct: SocialAccount): Promise<Accoun
   let cfg: ProxyConfig | null = null;
   const action = inferTrajectoryAction(acct.platform);
 
-  // Direct egress for platforms with NO datacenter blacklist. GitHub and
-  // Producthunt accept VM IP. Pangram also works fine from direct egress in
-  // testing (no blocks / no CAPTCHA), and all ISP providers are currently
-  // retired/offline, so forcing proxy here just breaks the trajectory.
-  // Reddit/Twitter/Instagram/Discord/TikTok/LinkedIn all need proxy.
-  const DIRECT_EGRESS_OK = new Set(['github', 'producthunt', 'pangram']);
-  if (DIRECT_EGRESS_OK.has(acct.platform) && process.env.WELES_FORCE_PROXY !== '1') {
+  // Direct egress (NO proxy) for platforms that don't need IP-masking. Two
+  // kinds: platforms with no datacenter blacklist that accept the VM IP
+  // (GitHub, Producthunt, Pangram — no blocks / no CAPTCHA in testing); and
+  // first-party accounts we own and log into authentically, where masking our
+  // real IP is pointless and even harmful — Apple / App Store Connect signs in
+  // as our OWN account from this trusted Mac Mini (the native two-factor
+  // device), so a proxy just injects a foreign IP that Apple distrusts. ISP
+  // providers are unset here anyway, so forcing a proxy only breaks the run.
+  // Managed multi-account social platforms (Reddit/Twitter/Instagram/Discord/
+  // TikTok/LinkedIn) still REQUIRE a proxy for IP diversity / anti-ban.
+  const DIRECT_EGRESS_OK: Record<string, true> = { github: true, producthunt: true, pangram: true, apple: true };
+  if (DIRECT_EGRESS_OK[acct.platform] && process.env.WELES_FORCE_PROXY !== '1') {
     if (meta?.persona) out.persona = meta.persona as Persona;
     return out;
   }
