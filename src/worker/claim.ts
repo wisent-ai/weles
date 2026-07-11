@@ -4,33 +4,29 @@
 import type { ActionLogRow } from './poll.js';
 import { resolveTrajectory } from './dispatch.js';
 import { staleCookieAccounts } from './stale.js';
-import os from 'node:os';
+import { INSTANCE_ID } from './identity.js';
+import type { WelesActionPolicy } from './stado-routing.js';
 
 const SUPABASE_URL = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
-const INSTANCE_ID = process.env.INSTANCE_ID ?? `weles-${os.hostname() || 'unknown'}-${process.pid}`;
-const ACTION_ALLOW_RE = (() => {
-  const raw = process.env.WELES_ACTION_ALLOW_RE?.trim();
-  if (!raw) return null;
-  try { return new RegExp(raw); }
-  catch (e) {
-    console.error(`[worker] invalid WELES_ACTION_ALLOW_RE=${JSON.stringify(raw)}: ${e instanceof Error ? e.message : String(e)}`);
-    return /^$/;
-  }
-})();
 
 function headers(): Record<string, string> {
   return { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' };
 }
 
-export async function claimOne(): Promise<ActionLogRow | null> {
+export async function claimOne(policy: WelesActionPolicy): Promise<ActionLogRow | null> {
+  if (!policy.enabled || policy.actions.length === 0) return null;
+  const allowedActions = policy.wildcard ? null : new Set(policy.actions);
+  const actionFilter = policy.wildcard
+    ? ''
+    : `&action=in.(${policy.actions.map((action) => encodeURIComponent(`"${action.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`)).join(',')})`;
   // Lookahead 1000 rows so large legacy backlogs don't hide fresh trading
   // scrape rows behind the first page. Keep the SELECT schema-minimal:
   // content-platform's account_action_logs currently has no webhook_url,
   // cancel_requested, or priority columns; selecting them makes PostgREST
   // return 400 and the worker appear idle forever.
   const res = await fetch(
-    `${SUPABASE_URL}/rest/v1/account_action_logs?select=id,account_id,action,platform,params,status&status=eq.queued&or=(scheduled_at.is.null,scheduled_at.lte.now())&order=scheduled_at.asc.nullsfirst&limit=1000`,
+    `${SUPABASE_URL}/rest/v1/account_action_logs?select=id,account_id,action,platform,params,status&status=eq.queued&or=(scheduled_at.is.null,scheduled_at.lte.now())${actionFilter}&order=scheduled_at.asc.nullsfirst&limit=1000`,
     { headers: headers() },
   );
   if (!res.ok) {
@@ -38,7 +34,8 @@ export async function claimOne(): Promise<ActionLogRow | null> {
     console.error(`[worker] claim candidate query failed ${res.status}: ${body.slice(0, 300)}`);
     return null;
   }
-  let candidates = (await res.json()) as ActionLogRow[];
+  let candidates = ((await res.json()) as ActionLogRow[])
+    .filter((row) => !allowedActions || allowedActions.has(row.action));
   // Priority sort: trading scrapes first, then recovery rows (*_login,
   // *_register, *_health, *_balance, *_topup), then everything else.
   // Scrapes are parallel-safe direct jobs and must not be buried behind a
@@ -73,7 +70,8 @@ export async function claimOne(): Promise<ActionLogRow | null> {
   const isOverleafAction = (a: string) => a.startsWith('overleaf_');
   const canRunWithoutAccount = (a: string) => isParallelSafeScrape(a) || /_register$|_balance$|_topup$|_reauth$|_verify_domain_status$|_post_message$/.test(a) || a === 'slack_provision_user_token' || a === 'pangram_analyze_text' || a === 'ncbr_pangram_audit_new_wniosek' || a === 'generic_browser_task' || a === 'generic_keeper_task' || a === 'generic_saved_task' || a === 'semanticscholar_key_followup' || isOverleafAction(a) || /^(umami|googleanalytics)_/.test(a);
   for (const row of candidates) {
-    if (ACTION_ALLOW_RE && !ACTION_ALLOW_RE.test(row.action)) continue;
+    // Defend independently of PostgREST decoding/filter semantics.
+    if (allowedActions && !allowedActions.has(row.action)) continue;
     if (!resolveTrajectory(row.action)) continue;
     if (!row.id) continue;
     if (!row.account_id && !canRunWithoutAccount(row.action)) continue; // poison rows: legacy promote-cron sometimes emits orphans

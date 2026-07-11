@@ -1,4 +1,4 @@
-import os from 'node:os';
+import { INSTANCE_ID } from './identity.js';
 
 // Pre-claim stale-cookie filter. The trajectory marks
 // metadata.cookies_stale_at when checkpoint fires; getSocialAccount honours
@@ -84,9 +84,6 @@ export async function sweepZombiesIfDue(): Promise<void> {
   } catch { /* best-effort */ }
 }
 
-// INSTANCE_ID mirrors claim.ts so the wedge-watchdog matches this instance's own
-// claimed_by rows.
-const INSTANCE_ID = process.env.INSTANCE_ID ?? `weles-${os.hostname() || 'unknown'}-${process.pid}`;
 
 // Independent wedge-watchdog. runTrajectory (poll.ts) has no wall-clock kill and
 // account_action_logs has no cancel_requested column, so a hung trajectory
