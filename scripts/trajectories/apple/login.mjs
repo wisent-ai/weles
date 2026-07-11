@@ -1,12 +1,12 @@
 // Apple ID login via appstoreconnect.apple.com.
-// Flow: goto ASC -> redirects to idmsa.apple.com -> fill email -> Continue -> fill password -> Sign In -> native trusted-device 2FA -> trusted.
+// Flow: load ASC login document -> idmsa iframe -> email -> password -> native trusted-device 2FA -> trusted.
 
 import { getSocialAccount, resolveAccountSession } from '../../../dist/utils/credentials.js';
 import { WSession } from '../../../dist/session/wsession.js';
 import { persistFreshCookieJar } from '../_shared/cookie-freshness.mjs';
 import { completeAppleNativeTwoFactorChallenge } from './native_2fa/native_2fa.mjs';
 
-const URL = 'https://appstoreconnect.apple.com';
+const URL = 'https://appstoreconnect.apple.com/login?targetUrl=%2Fapps&authResult=FAILED';
 
 const acct = await getSocialAccount('apple');
 if (!acct) { console.log('FAIL: no active apple account in DB'); process.exit(1); }
@@ -19,11 +19,10 @@ console.log(`[apple-login] using account: ${acct.username} (${email})`);
 const { proxyUrl, persona } = await resolveAccountSession(acct);
 const s = await WSession.start({ label: 'apple_login', proxy: proxyUrl ?? (process.env.PROXY_URL || undefined), persona });
 try {
-  // WSession.goto sets no navigation timeout and then awaits waitCloudflare,
-  // which can hang indefinitely on the ASC SPA (observed: a long wedge stuck in
-  // this exact step). ASC is not Cloudflare-fronted, so navigate directly with
-  // a bounded domcontentloaded wait — a stalled load then fails fast and the
-  // worker retries, instead of wedging the slot until the watchdog restarts.
+  // The unauthenticated root shell references protected /access/static assets.
+  // ASC redirects those asset requests to HTML login responses, so the shell
+  // cannot bootstrap and never inserts the idmsa iframe. Load the login
+  // document directly, with bounded navigation, instead.
   await s.page.goto(URL, { waitUntil: 'domcontentloaded', timeout: Number(process.env.WELES_APPLE_NAV_TIMEOUT_MS ?? '60000') });
   await s.wait(5);
 
