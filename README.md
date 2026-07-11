@@ -35,6 +35,7 @@ Required env (see `scripts/worker/deploy/README.md` for the full list):
 - `LLM_GENERATE_URL` (e.g. `https://content.wisent.ai/api/llm/generate`)
 - `MODEL_ROUTER_URL`, `WISENT_APP_AGENT_ID`, `WISENT_APP_AGENT_AUTH_SECRET` for the browser agent, or a `service_credentials.id = claude-reauth-config` row containing those values
 - `WELES_AGENT_MODEL` (default `claude-code-subscription`; worker deployments can override, e.g. `codex-subscription`)
+- `WELES_STADO_ROUTING=required` in deployments; the worker resolves its hostname against `gs://wisent-compute/registry.json` and claims only actions allowed by that target's `weles` policy. `off` is a local-development escape hatch.
 
 ## Directory layout
 
