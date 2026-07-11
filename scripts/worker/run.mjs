@@ -14,12 +14,14 @@
  */
 import { pollOnce } from '../../dist/worker/poll.js';
 import { startDeploymentVersionHeartbeat } from '../../dist/worker/deployment_version.js';
+import { ensureAscIssuer } from '../../dist/worker/asc/issuer-ensure.js';
 
 let shuttingDown = false;
 const stop = () => { shuttingDown = true; console.log('[worker] shutting down'); };
 process.on('SIGINT', stop);
 process.on('SIGTERM', stop);
 startDeploymentVersionHeartbeat();
+void ensureAscIssuer();
 
 const IDLE_MIN_MS = 3000;
 const IDLE_MAX_MS = 8000;
