@@ -15,12 +15,14 @@
 import { pollOnce } from '../../dist/worker/poll.js';
 import { startDeploymentVersionHeartbeat } from '../../dist/worker/deployment_version.js';
 import { ensureAscIssuer } from '../../dist/worker/asc/issuer-ensure.js';
+import { reclaimOrphansOnce } from '../../dist/worker/stale.js';
 
 let shuttingDown = false;
 const stop = () => { shuttingDown = true; console.log('[worker] shutting down'); };
 process.on('SIGINT', stop);
 process.on('SIGTERM', stop);
 startDeploymentVersionHeartbeat();
+try { await reclaimOrphansOnce(); } catch (e) { console.error('[worker] orphan reclaim failed:', e instanceof Error ? e.message : String(e)); }
 void ensureAscIssuer();
 
 const IDLE_MIN_MS = 3000;

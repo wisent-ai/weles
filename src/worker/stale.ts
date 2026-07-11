@@ -124,3 +124,45 @@ async function checkWedge(): Promise<void> {
     }
   } catch { /* next tick re-checks */ }
 }
+
+// Startup orphan reclaim. When launchd restarts this worker (deploy, OOM, the
+// wedge-watchdog's own SIGKILL), the dead process's in-flight rows stay
+// status=running with nothing awaiting them until the 2h zombie sweep — which
+// keeps their account's per-account slot (and any dependent queued row, e.g. the
+// account-bound ASC issuer read behind apple_login) blocked for hours. Fail them
+// fast, but ONLY rows THIS host claimed whose claiming pid is provably dead:
+// never another live worker's or a manual run's. Runs once; errors propagate to
+// the caller, which logs and continues startup.
+const HOST_PREFIX = `weles-${os.hostname() || 'unknown'}-`;
+const RECLAIM_LIMIT = process.env.WELES_ORPHAN_RECLAIM_LIMIT ?? '500';
+let _orphanReclaimed = false;
+export async function reclaimOrphansOnce(): Promise<void> {
+  if (_orphanReclaimed) return;
+  _orphanReclaimed = true;
+  if (!SUPABASE_URL || !SUPABASE_KEY) return;
+  const res = await fetch(
+    `${SUPABASE_URL}/rest/v1/account_action_logs?status=eq.running&claimed_by=like.${encodeURIComponent(HOST_PREFIX)}*&select=id,action,claimed_by&limit=${RECLAIM_LIMIT}`,
+    { headers: headers() },
+  );
+  if (!res.ok) return;
+  const rows = (await res.json()) as Array<{ id: string; action: string; claimed_by: string | null }>;
+  for (const row of rows) {
+    const cb = row.claimed_by;
+    if (!cb || cb === INSTANCE_ID) continue;
+    // pid = the segment after the LAST hyphen (the host itself may contain hyphens).
+    const pidStr = cb.split('-').pop() ?? '';
+    const pid = Number(pidStr);
+    if (!Number.isInteger(pid) || pid <= Number('0')) continue;
+    // signal 0 probes existence: no throw / EPERM => claimer alive, leave it be.
+    let claimerAlive = true;
+    try { process.kill(pid, Number('0')); }
+    catch (e) { claimerAlive = typeof e === 'object' && e !== null && 'code' in e && e.code === 'EPERM'; }
+    if (claimerAlive) continue;
+    const patch = await fetch(`${SUPABASE_URL}/rest/v1/account_action_logs?id=eq.${row.id}&status=eq.running`, {
+      method: 'PATCH', headers: { ...headers(), Prefer: 'return=minimal' },
+      body: JSON.stringify({ status: 'failed', error: `orphaned: claiming worker ${cb} is dead (reclaimed by ${INSTANCE_ID} at startup)`, completed_at: new Date().toISOString() }),
+    });
+    if (!patch.ok) { console.error(`[worker] orphan reclaim: PATCH ${row.id} rejected ${patch.status}`); continue; }
+    console.log(`[worker] orphan reclaim: failed ${row.id} action=${row.action} (dead claimer ${cb})`);
+  }
+}
