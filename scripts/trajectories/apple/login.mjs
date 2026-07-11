@@ -19,7 +19,12 @@ console.log(`[apple-login] using account: ${acct.username} (${email})`);
 const { proxyUrl, persona } = await resolveAccountSession(acct);
 const s = await WSession.start({ label: 'apple_login', proxy: proxyUrl ?? (process.env.PROXY_URL || undefined), persona });
 try {
-  await s.goto(URL);
+  // WSession.goto sets no navigation timeout and then awaits waitCloudflare,
+  // which can hang indefinitely on the ASC SPA (observed: a long wedge stuck in
+  // this exact step). ASC is not Cloudflare-fronted, so navigate directly with
+  // a bounded domcontentloaded wait — a stalled load then fails fast and the
+  // worker retries, instead of wedging the slot until the watchdog restarts.
+  await s.page.goto(URL, { waitUntil: 'domcontentloaded', timeout: Number(process.env.WELES_APPLE_NAV_TIMEOUT_MS ?? '60000') });
   await s.wait(5);
 
   // The ASC page embeds an iframe at idmsa.apple.com/appleauth/auth/signin.
