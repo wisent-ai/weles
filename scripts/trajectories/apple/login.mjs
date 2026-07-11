@@ -97,8 +97,23 @@ try {
   await passwordField.focus();
   await passwordField.pressSequentially(password);
   console.log('[apple-login] password filled');
-  await frame.locator(pwField).first().press('Enter');
-  await s.wait(5);
+  await passwordField.press('Enter');
+  await s.wait(2);
+  if (await passwordField.isVisible().catch(() => false)) {
+    const signInState = await frame.locator('#sign-in').evaluate((button) => ({
+      disabled: button.disabled,
+      ariaDisabled: button.getAttribute('aria-disabled'),
+      className: button.className,
+    })).catch(() => null);
+    console.log('[apple-login] password Enter left form visible:', JSON.stringify(signInState));
+    if (!signInState || signInState.disabled || signInState.ariaDisabled === 'true') {
+      console.log('FAIL: Apple password form stayed disabled after typed credentials');
+      process.exit(1);
+    }
+    await frame.locator('#sign-in').evaluate((button) => button.click());
+    console.log('[apple-login] submitted password via enabled Sign In button');
+  }
+  await s.wait(3);
 
   // Probe what's on screen post-password: either dashboard redirect, 2FA, or error
   await s.wait(3);
