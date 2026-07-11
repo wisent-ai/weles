@@ -93,8 +93,9 @@ try {
     console.log('FAIL: password field not found'); process.exit(1);
   }
   console.log(`[apple-login] password selector: ${pwField}`);
-  await frame.locator(pwField).first().click();
-  await frame.locator(pwField).first().pressSequentially(password);
+  const passwordField = frame.locator(pwField).first();
+  await passwordField.focus();
+  await passwordField.pressSequentially(password);
   console.log('[apple-login] password filled');
   await frame.locator(pwField).first().press('Enter');
   await s.wait(5);
