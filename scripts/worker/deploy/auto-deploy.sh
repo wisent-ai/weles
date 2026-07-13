@@ -23,6 +23,13 @@ log() { echo "[$(date -u +%FT%TZ)] $*" >> "$LOG"; }
 
 cd "$WELES_DIR"
 
+# Legacy Semantic Scholar follow-up versions copied API keys into the GUI
+# launchd environment. Remove both aliases before any worker bootstrap so
+# third-party credentials cannot be inherited by unrelated long-lived jobs.
+launchctl unsetenv SEMANTIC_SCHOLAR_API_KEY 2>/dev/null || true
+launchctl unsetenv S2_API_KEY 2>/dev/null || true
+unset SEMANTIC_SCHOLAR_API_KEY S2_API_KEY || true
+
 # Avoid clobbering uncommitted work on the mac-mini if someone is
 # debugging there. If status shows tracked-file modifications, log
 # and skip this tick.
