@@ -27,6 +27,11 @@ fi
 set -a
 . "$WELES_WORKER_ENV_FILE"
 set +a
+
+# Semantic Scholar keys are resolved through Skarbiec, not inherited as
+# process-wide environment variables. Clear legacy aliases after worker.env
+# sourcing so stale launchd or sourced values cannot reach the Node worker.
+unset SEMANTIC_SCHOLAR_API_KEY S2_API_KEY || true
 mkdir -p "$HOME/weles/var"
 SECRETS_DIR="$HOME/.weles-secrets"
 mkdir -p "$SECRETS_DIR"; chmod go-rwx "$SECRETS_DIR"

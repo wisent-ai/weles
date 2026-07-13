@@ -7,6 +7,7 @@ if [ -f "$HOME/weles/var/worker.env" ]; then
   . "$HOME/weles/var/worker.env"
 fi
 set +a
+unset SEMANTIC_SCHOLAR_API_KEY S2_API_KEY || true
 mkdir -p "$HOME/weles/var" "$HOME/.weles/browser_profiles/google_ads"
 export WELES_REPO="$HOME/weles"
 export WELES_KEYWORD_PLANNER_API_HOST="${WELES_KEYWORD_PLANNER_API_HOST:-0.0.0.0}"
