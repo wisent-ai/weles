@@ -7,6 +7,7 @@ WELES_DIR="${WELES_DIR:-$HOME/weles}"
 set -a
 . "$WELES_DIR/var/worker.env"
 set +a
+unset SEMANTIC_SCHOLAR_API_KEY S2_API_KEY || true
 mkdir -p "$WELES_DIR/var"
 exec /usr/bin/caffeinate -dimsu /opt/homebrew/bin/node \
   "$WELES_DIR/scripts/trajectories/codex/reauth.mjs"

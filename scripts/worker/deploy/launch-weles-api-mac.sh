@@ -17,6 +17,7 @@ if [ -f "$HOME/.weles/secrets.env" ]; then
   . "$HOME/.weles/secrets.env"
 fi
 set +a
+unset SEMANTIC_SCHOLAR_API_KEY S2_API_KEY || true
 mkdir -p "$HOME/weles/var"
 export WELES_REPO="$HOME/weles"
 export WELES_API_HOST="${WELES_API_HOST:-0.0.0.0}"
