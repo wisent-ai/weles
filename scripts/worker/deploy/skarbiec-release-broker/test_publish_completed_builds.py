@@ -336,6 +336,39 @@ class PublishCompletedBuildsContractTests(unittest.TestCase):
             with self.subTest(name=name):
                 self.assert_rejected(self.make_harness(handoff_mutator=mutate), message)
 
+    def test_provenance_accepts_canonical_lowercase_builder_for_mixed_case_repository(self):
+        def mutate(provenance):
+            provenance["predicate"]["runDetails"]["builder"]["id"] = (
+                f"https://github.com/wisent-ai/jeden/actions/runs/{RUN_ID}"
+            )
+
+        with mock.patch.object(BROKER, "REPOSITORY", "Wisent-AI/jeden"):
+            harness = self.make_harness(provenance_mutator=mutate)
+            harness.run_main()
+
+        self.assertEqual(len(harness.publisher_calls), 1)
+
+    def test_provenance_builder_requires_exact_repository_and_run_binding(self):
+        cases = {
+            "wrong host": f"https://github.example.com/wisent-ai/jeden/actions/runs/{RUN_ID}",
+            "wrong scheme": f"http://github.com/wisent-ai/jeden/actions/runs/{RUN_ID}",
+            "noncanonical host casing": f"https://GitHub.com/wisent-ai/jeden/actions/runs/{RUN_ID}",
+            "noncanonical path casing": f"https://github.com/wisent-ai/jeden/Actions/runs/{RUN_ID}",
+            "wrong repository": f"https://github.com/wisent-ai/jeden-evil/actions/runs/{RUN_ID}",
+            "wrong run ID": f"https://github.com/wisent-ai/jeden/actions/runs/{RUN_ID + 1}",
+            "extra suffix": f"https://github.com/wisent-ai/jeden/actions/runs/{RUN_ID}/attempts/{RUN_ATTEMPT}",
+            "malformed builder": "not-a-builder-url",
+        }
+        for name, builder_id in cases.items():
+            with self.subTest(name=name):
+                def mutate(provenance):
+                    provenance["predicate"]["runDetails"]["builder"]["id"] = builder_id
+
+                self.assert_rejected(
+                    self.make_harness(provenance_mutator=mutate),
+                    "provenance source SHA or workflow run binding mismatch",
+                )
+
     def test_provenance_run_binding_mismatch_is_rejected(self):
         def mutate(provenance):
             provenance["predicate"]["runDetails"]["metadata"]["invocationId"] = f"{RUN_ID}-99"

@@ -239,9 +239,15 @@ def validate_bundle(root: pathlib.Path, token: str, run_id: int, attempt: int, s
     builder = details.get("builder") or {}
     dependencies = build.get("resolvedDependencies") or []
     expected_repo = f"git+https://github.com/{REPOSITORY}@{sha}".lower()
+    builder_id = builder.get("id")
+    builder_prefix = "https://github.com/"
+    builder_suffix = f"/actions/runs/{run_id}"
+    builder_matches = (isinstance(builder_id, str) and builder_id.startswith(builder_prefix)
+                       and builder_id.endswith(builder_suffix)
+                       and builder_id[len(builder_prefix):-len(builder_suffix)].lower() == REPOSITORY.lower())
     if (not isinstance(subjects, list) or len(subjects) != 1 or subjects[0].get("name") != archive.name or
             (subjects[0].get("digest") or {}).get("sha256") != digest(archive) or
-            builder.get("id") != f"https://github.com/{REPOSITORY}/actions/runs/{run_id}" or
+            not builder_matches or
             metadata.get("invocationId") != f"{run_id}-{attempt}" or
             not any(isinstance(item, dict) and str(item.get("uri", "")).lower() == expected_repo for item in dependencies)):
         fail("provenance source SHA or workflow run binding mismatch")
