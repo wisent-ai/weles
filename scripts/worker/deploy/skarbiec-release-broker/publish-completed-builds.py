@@ -294,7 +294,7 @@ def main() -> None:
     for run in runs:
         repository = run.get("head_repository") or {}
         if (run.get("conclusion") != "success" or run.get("status") != "completed" or run.get("head_branch") != "main" or
-                run.get("event") != "workflow_run" or run.get("name") != "Signed canary release" or
+                run.get("event") != "workflow_run" or run.get("name") != "Canary build evidence" or
                 run.get("path") != ".github/workflows/release.yml" or repository.get("full_name", "").lower() != REPOSITORY.lower()):
             continue
         run_id, attempt, sha = run.get("id"), run.get("run_attempt"), run.get("head_sha")

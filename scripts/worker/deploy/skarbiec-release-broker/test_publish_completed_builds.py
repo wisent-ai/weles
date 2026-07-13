@@ -70,7 +70,7 @@ class BrokerHarness:
             "conclusion": "success",
             "status": "completed",
             "event": "workflow_run",
-            "name": "Signed canary release",
+            "name": "Canary build evidence",
             "path": ".github/workflows/release.yml",
         }
         if run_mutator:
@@ -230,10 +230,20 @@ class PublishCompletedBuildsContractTests(unittest.TestCase):
         self.assertEqual(harness.publisher_calls, [])
         self.assertFalse(harness.poll_state.exists())
 
+    def test_current_release_workflow_run_is_selected(self):
+        harness = self.make_harness()
+
+        harness.run_main()
+
+        self.assertIn(f"/actions/runs/{RUN_ID}/artifacts?per_page=100", harness.api_paths)
+        self.assertEqual(len(harness.publisher_calls), 1)
+
     def test_untrusted_release_workflow_runs_are_ignored(self):
         cases = {
+            "stale workflow name": lambda run: run.__setitem__("name", "Signed canary release"),
             "wrong workflow name": lambda run: run.__setitem__("name", "contractual-ci"),
             "wrong workflow path": lambda run: run.__setitem__("path", ".github/workflows/other.yml"),
+            "wrong event": lambda run: run.__setitem__("event", "push"),
             "wrong repository": lambda run: run["head_repository"].__setitem__("full_name", "attacker/fork"),
             "wrong branch": lambda run: run.__setitem__("head_branch", "feature"),
             "failed conclusion": lambda run: run.__setitem__("conclusion", "failure"),
