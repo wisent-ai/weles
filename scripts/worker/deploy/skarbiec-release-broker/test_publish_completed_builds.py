@@ -75,6 +75,7 @@ class BrokerHarness:
         }
         if run_mutator:
             run_mutator(self.run)
+        self.workflow_runs = [self.run]
         self.ci_run = {
             "name": "contractual-ci",
             "path": ".github/workflows/ci.yml",
@@ -148,6 +149,13 @@ class BrokerHarness:
             "interface-equivalence-report.json": canonical_bytes(reports["interface"]),
             "migration-matrix-report.json": canonical_bytes(reports["migration"]),
         })
+        self.release_artifacts = {
+            RUN_ID: [{"id": ARTIFACT_ID, "name": f"release-{SHA}", "expired": False}],
+        }
+        self.artifact_downloads = {
+            ARTIFACT_ID: self.release_zip,
+            REPORTS_ID: self.reports_zip,
+        }
         self.reports_present = reports_present
 
     @property
@@ -167,9 +175,10 @@ class BrokerHarness:
         if token != "fake-github-token":
             raise AssertionError("API did not receive credential-helper token")
         if path.startswith("/actions/workflows/"):
-            return {"workflow_runs": [copy.deepcopy(self.run)]}
-        if path == f"/actions/runs/{RUN_ID}/artifacts?per_page=100":
-            return {"artifacts": [{"id": ARTIFACT_ID, "name": f"release-{SHA}", "expired": False}]}
+            return {"workflow_runs": copy.deepcopy(self.workflow_runs)}
+        for run_id, artifacts in self.release_artifacts.items():
+            if path == f"/actions/runs/{run_id}/artifacts?per_page=100":
+                return {"artifacts": copy.deepcopy(artifacts)}
         if path == f"/actions/runs/{CI_RUN_ID}":
             return copy.deepcopy(self.ci_run)
         if path == f"/actions/runs/{CI_RUN_ID}/artifacts?per_page=100":
@@ -187,12 +196,11 @@ class BrokerHarness:
         self.download_urls.append(url)
         if token != "fake-github-token":
             raise AssertionError("download did not receive credential-helper token")
-        if url.endswith(f"/{ARTIFACT_ID}/zip"):
-            destination.write_bytes(self.release_zip)
-        elif url.endswith(f"/{REPORTS_ID}/zip"):
-            destination.write_bytes(self.reports_zip)
-        else:
-            raise AssertionError(f"unexpected download URL: {url}")
+        for artifact_id, payload in self.artifact_downloads.items():
+            if url.endswith(f"/{artifact_id}/zip"):
+                destination.write_bytes(payload)
+                return
+        raise AssertionError(f"unexpected download URL: {url}")
 
     def subprocess_run(self, command, **kwargs):
         if command == ["/usr/bin/git", "credential", "fill"]:
@@ -236,6 +244,61 @@ class PublishCompletedBuildsContractTests(unittest.TestCase):
         harness.run_main()
 
         self.assertIn(f"/actions/runs/{RUN_ID}/artifacts?per_page=100", harness.api_paths)
+        self.assertEqual(len(harness.publisher_calls), 1)
+
+    def add_older_eligible_run(self, harness):
+        older = copy.deepcopy(harness.run)
+        older["id"] = RUN_ID - 1
+        older["run_attempt"] = RUN_ATTEMPT + 5
+        older["head_sha"] = "b" * 40
+        harness.workflow_runs = [older, harness.run]
+        return older
+
+    def test_only_newest_of_multiple_eligible_runs_is_published(self):
+        harness = self.make_harness()
+        older = self.add_older_eligible_run(harness)
+
+        harness.run_main()
+
+        newest_identity = f"{RUN_ID}:{RUN_ATTEMPT}:{SHA}"
+        self.assertNotIn(f"/actions/runs/{older['id']}/artifacts?per_page=100", harness.api_paths)
+        self.assertIn(f"/actions/runs/{RUN_ID}/artifacts?per_page=100", harness.api_paths)
+        self.assertEqual(len(harness.publisher_calls), 1)
+        self.assertEqual(json.loads(harness.poll_state.read_text(encoding="utf-8")), {"published": [newest_identity]})
+
+    def test_published_newest_identity_does_not_fall_back_to_older_unpublished_run(self):
+        harness = self.make_harness()
+        older = self.add_older_eligible_run(harness)
+        newest_identity = f"{RUN_ID}:{RUN_ATTEMPT}:{SHA}"
+        harness.poll_state.write_text(json.dumps({"published": [newest_identity]}) + "\n", encoding="utf-8")
+        harness.poll_state.chmod(0o600)
+
+        harness.run_main()
+
+        self.assertNotIn(f"/actions/runs/{older['id']}/artifacts?per_page=100", harness.api_paths)
+        self.assertNotIn(f"/actions/runs/{RUN_ID}/artifacts?per_page=100", harness.api_paths)
+        self.assertEqual(harness.download_urls, [])
+        self.assertEqual(harness.publisher_calls, [])
+        self.assertEqual(json.loads(harness.poll_state.read_text(encoding="utf-8")), {"published": [newest_identity]})
+
+    def test_stale_malformed_older_artifact_is_never_downloaded(self):
+        harness = self.make_harness()
+        older = self.add_older_eligible_run(harness)
+        stale_artifact_id = ARTIFACT_ID + 99
+        harness.release_artifacts[older["id"]] = [{
+            "id": stale_artifact_id,
+            "name": f"release-{older['head_sha']}",
+            "expired": False,
+        }]
+        harness.artifact_downloads[stale_artifact_id] = b"not a zip archive"
+
+        harness.run_main()
+
+        stale_listing = f"/actions/runs/{older['id']}/artifacts?per_page=100"
+        stale_download = f"{BROKER.API}/actions/artifacts/{stale_artifact_id}/zip"
+        self.assertNotIn(stale_listing, harness.api_paths)
+        self.assertNotIn(stale_download, harness.download_urls)
+        self.assertIn(f"{BROKER.API}/actions/artifacts/{ARTIFACT_ID}/zip", harness.download_urls)
         self.assertEqual(len(harness.publisher_calls), 1)
 
     def test_untrusted_release_workflow_runs_are_ignored(self):

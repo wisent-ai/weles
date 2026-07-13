@@ -290,7 +290,7 @@ def main() -> None:
     runs = api_json(f"/actions/workflows/{WORKFLOW}/runs?branch=main&status=completed&per_page=20", token).get("workflow_runs")
     if not isinstance(runs, list):
         fail("GitHub workflow runs response is invalid")
-    candidates = []
+    eligible = []
     for run in runs:
         repository = run.get("head_repository") or {}
         if (run.get("conclusion") != "success" or run.get("status") != "completed" or run.get("head_branch") != "main" or
@@ -301,9 +301,9 @@ def main() -> None:
         if not isinstance(run_id, int) or not isinstance(attempt, int) or not isinstance(sha, str) or not SHA_RE.fullmatch(sha):
             fail("successful workflow run has invalid immutable identity")
         identity = f"{run_id}:{attempt}:{sha}"
-        if identity not in published:
-            candidates.append((run_id, attempt, sha, identity))
-    candidates.sort()
+        eligible.append((run_id, attempt, sha, identity))
+    eligible.sort()
+    candidates = eligible[-1:] if eligible and eligible[-1][3] not in published else []
 
     for run_id, attempt, sha, identity in candidates:
         listing = api_json(f"/actions/runs/{run_id}/artifacts?per_page=100", token).get("artifacts")
