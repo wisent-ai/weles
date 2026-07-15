@@ -37,7 +37,7 @@ SECRETS_DIR="$HOME/.weles-secrets"
 mkdir -p "$SECRETS_DIR"; chmod go-rwx "$SECRETS_DIR"
 SKARBIEC_LOG="$HOME/weles/var/skarbiec.log"
 SKARBIEC_ASSET_HELPER="${SKARBIEC_ASSET_HELPER:-$HOME/weles/scripts/worker/deploy/gh_release_asset_url.mjs}"
-SKARBIEC_CRED_FILE="${SKARBIEC_CRED_FILE:-$HOME/.git-credentials-weles}"
+export SKARBIEC_CRED_FILE="${SKARBIEC_CRED_FILE:-$HOME/.git-credentials-weles}"
 SKARBIEC_REPO_API="${SKARBIEC_REPO_API:-https://api.github.com/repos/wisent-ai/weles}"
 
 # fetch_release_asset <tag> <asset-name> <dest>: download a release asset from
@@ -55,6 +55,9 @@ fetch_release_asset() {
 
 # --- skarbiec binary self-provision (from the weles rolling release) -------
 SKARBIEC_BIN="${SKARBIEC_BIN:-$SECRETS_DIR/skarbiec-entitlements-router}"
+export SKARBIEC_CREDENTIAL_RETURN_COMMAND="${SKARBIEC_CREDENTIAL_RETURN_COMMAND:-$SKARBIEC_BIN}"
+export SKARBIEC_PUBLISH_VAULT_AFTER_RETURN="${SKARBIEC_PUBLISH_VAULT_AFTER_RETURN:-1}"
+export SKARBIEC_WELES_REPO="${SKARBIEC_WELES_REPO:-wisent-ai/weles}"
 STAGE="$(mktemp -d)"
 if fetch_release_asset skarbiec-bin-latest skarbiec-entitlements-router "$STAGE/bin" \
    && fetch_release_asset skarbiec-bin-latest skarbiec-entitlements-router.sha256 "$STAGE/sha"; then
@@ -83,7 +86,7 @@ fi
 # release; otherwise the previously staged copy is used.
 export SKARBIEC_VAULT_FILE="${SKARBIEC_VAULT_FILE:-$SECRETS_DIR/skarbiec.vault.json}"
 STAGEV="$(mktemp -d)"
-if fetch_release_asset skarbiec-vault-latest skarbiec.vault.json "$STAGEV/v"; then
+if fetch_release_asset skarbiec-vault-latest latest-vault:skarbiec.vault.json "$STAGEV/v"; then
   mv -f "$STAGEV/v" "$SKARBIEC_VAULT_FILE"
   chmod go-rwx "$SKARBIEC_VAULT_FILE"
 fi
