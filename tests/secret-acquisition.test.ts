@@ -274,4 +274,34 @@ describe('secret acquisition', () => {
     });
     expect(followupInsert.body?.scheduled_at).toBe(result.scheduledAt);
   });
+  it('builds a Brave Search acquisition that returns the key to the matching Skarbiec request', () => {
+    const result = buildSecretAcquisitionPlan({
+      goal: 'request Brave Search key for the content platform',
+      purpose: 'content-platform-blog-research',
+      skarbiecRequestId: 'a'.repeat(64),
+      skarbiecCredentialId: 'BRAVE_SEARCH_API_KEY',
+    });
+
+    expect(result.status).toBe('acquisition_plan');
+    if (result.status !== 'acquisition_plan') return;
+    expect(result).toMatchObject({
+      secret: 'brave.search_api_key',
+      provider: 'brave',
+      url: 'https://api-dashboard.search.brave.com/app/keys',
+      params: {
+        flow_name: 'brave-search-api-key-acquisition',
+        headless: false,
+        constraints: {
+          secret: 'brave.search_api_key',
+          store_secret_target: 'skarbiec',
+          env_var: 'BRAVE_SEARCH_API_KEY',
+          skarbiec_request_id: 'a'.repeat(64),
+          skarbiec_credential_id: 'BRAVE_SEARCH_API_KEY',
+          skarbiec_provider: 'brave',
+        },
+      },
+    });
+    expect(result.objective).toContain('auditable editorial research pipeline');
+  });
+
 });
