@@ -13,6 +13,8 @@ type SecretDefinition = {
   usageText: string;
   dailyRequests: string;
   validationUrl: string;
+  validationHeader: 'x-api-key' | 'x-subscription-token';
+  defaultHeadless: boolean;
 };
 
 type ServiceCredentialRow = {
@@ -36,6 +38,8 @@ export type AcquireSecretRequest = {
   headless?: boolean;
   priority?: number;
   tenantId?: string | null;
+  skarbiecRequestId?: string;
+  skarbiecCredentialId?: string;
 };
 
 export type AcquireSecretResult =
@@ -106,6 +110,25 @@ const SEMANTIC_SCHOLAR: SecretDefinition = {
   usageText: 'We use the Semantic Scholar Academic Graph API to retrieve paper metadata, abstracts, authors, venues, citation counts, identifiers, and related-paper signals for a local research-paper assistant. Requests are used for indexing and contextualizing academic papers selected by the user, not for bulk redistribution.',
   dailyRequests: '1000',
   validationUrl: 'https://api.semanticscholar.org/graph/v1/paper/search?query=test&limit=1&fields=title',
+  validationHeader: 'x-api-key',
+  defaultHeadless: false,
+};
+
+const BRAVE_SEARCH: SecretDefinition = {
+  secret: 'brave.search_api_key',
+  provider: 'brave',
+  displayName: 'Brave Search API',
+  envVars: ['BRAVE_SEARCH_API_KEY'],
+  defaultPurpose: 'content-platform-blog-research',
+  formUrl: 'https://api-dashboard.search.brave.com/app/keys',
+  flowName: 'brave-search-api-key-acquisition',
+  serviceCredentialNames: ['brave search', 'brave-search', 'brave api'],
+  endpoints: ['/res/v1/web/search'],
+  usageText: 'We use the Brave Search API to discover current, attributable public sources for an auditable editorial research pipeline. Search results provide candidate URLs and metadata; the pipeline fetches selected sources separately, preserves provenance, and requires citations for factual claims.',
+  dailyRequests: '1000',
+  validationUrl: 'https://api.search.brave.com/res/v1/web/search?q=test&count=1',
+  validationHeader: 'x-subscription-token',
+  defaultHeadless: false,
 };
 
 const SECRET_REGISTRY: Record<string, SecretDefinition> = {
@@ -113,6 +136,10 @@ const SECRET_REGISTRY: Record<string, SecretDefinition> = {
   semantic_scholar_api_key: SEMANTIC_SCHOLAR,
   semantic_scholar: SEMANTIC_SCHOLAR,
   s2_api_key: SEMANTIC_SCHOLAR,
+  [BRAVE_SEARCH.secret]: BRAVE_SEARCH,
+  brave_search_api_key: BRAVE_SEARCH,
+  brave_search: BRAVE_SEARCH,
+  brave: BRAVE_SEARCH,
 };
 
 function env(name: string): string {
@@ -125,6 +152,9 @@ function normalizeSecret(request: AcquireSecretRequest): string {
   const goal = request.goal?.toLowerCase() ?? '';
   if ((goal.includes('semantic') && goal.includes('scholar')) || goal.includes('semanticscholar') || goal.includes('s2')) {
     return SEMANTIC_SCHOLAR.secret;
+  }
+  if (goal.includes('brave') && (goal.includes('search') || goal.includes('api') || goal.includes('key') || goal.includes('klucz'))) {
+    return BRAVE_SEARCH.secret;
   }
   return '';
 }
@@ -152,7 +182,7 @@ async function serviceCredentialRows(): Promise<ServiceCredentialRow[]> {
 
 async function validateKey(def: SecretDefinition, key: string): Promise<{ validated: boolean; status: string }> {
   try {
-    const res = await fetch(def.validationUrl, { headers: { 'x-api-key': key } });
+    const res = await fetch(def.validationUrl, { headers: { [def.validationHeader]: key } });
     if (res.ok) return { validated: true, status: `HTTP ${res.status}` };
     return { validated: false, status: `HTTP ${res.status}` };
   } catch (error) {
@@ -236,24 +266,29 @@ function objectiveFor(def: SecretDefinition, request: AcquireSecretRequest): str
 }
 
 function paramsFor(def: SecretDefinition, request: AcquireSecretRequest): Record<string, unknown> {
+  const skarbiecReturn = Boolean(request.skarbiecRequestId && request.skarbiecCredentialId);
   const autoPromote = request.autoPromoteTrajectory !== false;
-  const flowName = def.flowName;
   return {
     url: def.formUrl,
     objective: objectiveFor(def, request),
-    flow_name: flowName,
+    flow_name: def.flowName,
     execution_mode: 'keeper_first',
     proxy: request.proxy ?? 'none',
-    headless: request.headless === true,
+    headless: request.headless ?? def.defaultHeadless,
     auto_promote_trajectory: autoPromote,
     constraints: {
       secret: def.secret,
       purpose: purposeFor(request, def),
-      store_secret_target: 'service_credentials',
+      store_secret_target: skarbiecReturn ? 'skarbiec' : 'service_credentials',
       display_name: def.displayName,
       env_var: def.envVars[0],
       requested_endpoints: def.endpoints,
       expected_daily_requests: def.dailyRequests,
+      ...(skarbiecReturn ? {
+        skarbiec_request_id: request.skarbiecRequestId,
+        skarbiec_credential_id: request.skarbiecCredentialId,
+        skarbiec_provider: def.provider,
+      } : {}),
     },
     env: {},
   };
@@ -322,7 +357,9 @@ async function queueAcquisition(def: SecretDefinition, request: AcquireSecretReq
     };
   }
 
-  const submittedRunId = await latestSubmittedSemanticScholarRun(def);
+  const submittedRunId = def.secret === SEMANTIC_SCHOLAR.secret
+    ? await latestSubmittedSemanticScholarRun(def)
+    : null;
   if (submittedRunId) {
     const followup = await queueSemanticScholarFollowup(submittedRunId, 0, 0);
     return {
@@ -383,7 +420,7 @@ export async function acquireSecret(request: AcquireSecretRequest): Promise<Acqu
   }
 
   const existing = await existingSecret(def);
-  if (existing) return existing;
+  if (existing && !(request.skarbiecRequestId && existing.status === 'existing_secret_found' && existing.source === 'service_credentials_reference')) return existing;
   return queueAcquisition(def, request);
 }
 

@@ -2,7 +2,7 @@
 // subprocess, import ban_signal + pending_review if present, write back. Pure
 // orchestration — trajectories own their own WSession + Capture.
 import { spawn, execSync } from 'node:child_process';
-import { readFile, writeFile, readdir, unlink, stat } from 'node:fs/promises';
+import { readFile, writeFile, readdir, unlink, stat, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { createHmac } from 'node:crypto';
 import os from 'node:os';
@@ -15,6 +15,8 @@ import { captureVersions } from '../diagnostics/versions.js';
 import { importRunProvenance, writeNetworkCapture, pgConnectionString } from '../diagnostics/run-import.js';
 import postgres from 'postgres';
 import { verifyRunArtifacts } from './verification.js';
+import { returnCredentialToSkarbiec } from '../secrets/skarbiec-return.js';
+import { finalizeCredentialCompletion, prepareCredentialCompletion, type CredentialTransfer } from './credential-completion.js';
 
 export interface ActionLogRow {
   id: string;
@@ -95,14 +97,43 @@ function previewSecret(value: string): string {
   return `${value.slice(0, 6)}…${value.slice(-4)}`;
 }
 
-async function persistServiceCredentialReference(row: ActionLogRow, result: Record<string, unknown>): Promise<void> {
+async function persistServiceCredentialReference(row: ActionLogRow, result: Record<string, unknown>): Promise<CredentialTransfer> {
   const params = recordOrEmpty(row.params);
   const constraints = recordOrEmpty(params.constraints);
-  if (constraints.store_secret_target !== 'service_credentials') return;
+  const target = textParam(constraints, 'store_secret_target');
   const generic = recordOrEmpty(result.generic_browser_task);
   const value = recordOrEmpty(generic.value);
   const secret = secretCandidateFromValue(value);
-  if (!secret) return;
+
+  if (target === 'skarbiec') {
+    if (!secret) {
+      return { secretValue: null, error: 'Weles completed without an acquired credential value' };
+    }
+    const requestId = textParam(constraints, 'skarbiec_request_id');
+    const credentialId = textParam(constraints, 'skarbiec_credential_id');
+    const provider = textParam(constraints, 'skarbiec_provider');
+    if (!requestId || !credentialId || !provider) {
+      return { secretValue: secret.value, error: 'Weles Skarbiec destination metadata is incomplete' };
+    }
+    try {
+      await returnCredentialToSkarbiec({
+        credentialId,
+        requestId,
+        provider,
+        value: secret.value,
+      });
+      return { secretValue: secret.value, error: null };
+    } catch (error) {
+      return {
+        secretValue: secret.value,
+        error: error instanceof Error ? error.message.slice(0, 160) : 'Skarbiec credential return failed',
+      };
+    }
+  }
+
+  if (target !== 'service_credentials' || !secret) {
+    return { secretValue: null, error: null };
+  }
 
   const displayName = textParam(constraints, 'display_name') ?? textParam(params, 'promote_name') ?? 'Acquired API key';
   const envVar = textParam(constraints, 'env_var');
@@ -133,16 +164,17 @@ async function persistServiceCredentialReference(row: ActionLogRow, result: Reco
         headers: { ...headers(), Prefer: 'return=minimal' },
         body: JSON.stringify(patch),
       });
-      return;
+    } else {
+      await fetch(`${SUPABASE_URL}/rest/v1/service_credentials`, {
+        method: 'POST',
+        headers: { ...headers(), Prefer: 'return=minimal' },
+        body: JSON.stringify(patch),
+      });
     }
-    await fetch(`${SUPABASE_URL}/rest/v1/service_credentials`, {
-      method: 'POST',
-      headers: { ...headers(), Prefer: 'return=minimal' },
-      body: JSON.stringify(patch),
-    });
-  } catch (e) {
-    console.log(`[worker] service_credentials persistence skipped: ${e instanceof Error ? e.message.slice(0, 160) : String(e).slice(0, 160)}`);
+  } catch (error) {
+    console.log(`[worker] service_credentials persistence skipped: ${error instanceof Error ? error.message.slice(0, 160) : String(error).slice(0, 160)}`);
   }
+  return { secretValue: null, error: null };
 }
 
 function trajectoryActionFromName(name: string): string {
@@ -619,7 +651,7 @@ export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
   const { exitCode, stderr, cancelled } = await runTrajectory(row, trajPath);
   const banSignal = await readBanSignal(row.id);
   const lightResultOnly = LIGHT_RESULT_ACTIONS.has(row.action);
-  const result: Record<string, unknown> = lightResultOnly ? {} : { versions: captureVersions(trajPath) };
+  let result: Record<string, unknown> = lightResultOnly ? {} : { versions: captureVersions(trajPath) };
   if (row.action === 'slack_provision_user_token') {
     const secretPath = join(os.tmpdir(), `weles-secret-${row.id}.json`);
     const secretResult = await readFile(secretPath, 'utf8').then(JSON.parse).catch(() => null);
@@ -711,9 +743,25 @@ export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
       }).catch(() => {});
     }
   }
+  const resultConstraints = recordOrEmpty(recordOrEmpty(row.params).constraints);
+  const skarbiecTarget = textParam(resultConstraints, 'store_secret_target') === 'skarbiec';
+  const preparedCredential = await prepareCredentialCompletion(result, skarbiecTarget, async () => {
+    if (exitCode === 0) return persistServiceCredentialReference(row, result);
+    const generic = recordOrEmpty(result.generic_browser_task);
+    const failedSecret = secretCandidateFromValue(recordOrEmpty(generic.value));
+    return { secretValue: failedSecret?.value ?? null, error: null };
+  });
+  result = preparedCredential.safeResult;
+  if (skarbiecTarget && preparedCredential.transfer.secretValue && !preparedCredential.transfer.error) {
+    pending = null;
+  }
+  if (!preparedCredential.allowArtifactPersistence) {
+    await rm(join(RECORDINGS_ROOT, row.id), { recursive: true, force: true }).catch(() => {});
+  }
+
   let verificationPending = false;
   let verificationMessage: string | undefined;
-  if (!lightResultOnly) {
+  if (!lightResultOnly && preparedCredential.allowArtifactPersistence) {
     // Always upload so every run has recordings on the detail page.
     await uploadArtifacts(row.action, row.id, runStart, { force: true }).then(a => { if (a) result.artifacts = a }).catch(() => {});
     // G18: persist the full network/instrumentation capture into the lazy
@@ -753,19 +801,30 @@ export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
     await sendRunWebhook(row, 'pending_review', result, verificationMessage);
     console.log(`[worker] ${row.id.slice(0, 8)} pending_review`);
   } else if (exitCode === 0) {
-    await persistServiceCredentialReference(row, result);
-    await writeResult(row.id, 'completed', result, undefined, costs ?? undefined);
-    await updateTrajectoryBuildAfterRun(row, 'completed', result);
-    await closeCampaignItem(row.params, 'completed');
-    await sendRunWebhook(row, 'completed', result);
-    console.log(`[worker] ${row.id.slice(0, 8)} completed signal=${(result.ban_signal as BanSignal).signal}`);
+    if (!skarbiecTarget) await persistServiceCredentialReference(row, result);
+    await finalizeCredentialCompletion(preparedCredential, {
+      completed: async (safeResult) => {
+        await writeResult(row.id, 'completed', safeResult, undefined, costs ?? undefined);
+        await updateTrajectoryBuildAfterRun(row, 'completed', safeResult);
+        await closeCampaignItem(row.params, 'completed');
+        await sendRunWebhook(row, 'completed', safeResult);
+        console.log(`[worker] ${row.id.slice(0, 8)} completed signal=${(safeResult.ban_signal as BanSignal).signal}`);
+      },
+      failed: async (safeResult, message) => {
+        await writeResult(row.id, 'failed', safeResult, message, costs ?? undefined);
+        await updateTrajectoryBuildAfterRun(row, 'failed', safeResult, message);
+        await closeCampaignItem(row.params, 'failed', message);
+        await sendRunWebhook(row, 'failed', safeResult, message);
+        console.log(`[worker] ${row.id.slice(0, 8)} credential return failed`);
+      },
+    });
   } else {
     // Kick off diagnostic retry BEFORE writing the failure result so the
     // dump path can be attached to result.instrumented_dump. This doubles
     // the cost of failed runs (one extra trajectory invocation with
     // WELES_INSTRUMENT=1 set) but ensures the diff harness has data the
     // moment someone investigates. Opt out with AUTO_INSTRUMENT_RETRIES=0.
-    const dumpPath = await diagnosticRetry(row, trajPath);
+    const dumpPath = preparedCredential.allowArtifactPersistence ? await diagnosticRetry(row, trajPath) : null;
     if (dumpPath) result.instrumented_dump = dumpPath;
     const message = stderr || `exit ${exitCode}`;
     await writeResult(row.id, 'failed', result, message, costs ?? undefined);

@@ -4,6 +4,7 @@
 // counts/lengths arrive from argv via parse(), never as source constants.
 
 mod core;
+mod credential;
 mod access;
 mod runtime;
 mod net;
@@ -166,8 +167,11 @@ fn main() -> Result<()> {
         "generate" => cmd_generate(&flags),
         "import" => cmd_import(&positionals),
         "export" => cmd_export(&flags, &positionals),
-        "help" => { emit(&json!({"commands": ["init","set","get","list","delete","restore","purge","restore-version","generate","add-user","share","revoke","users","export-key","token-mint","token-revoke","token-verify","tokens","recovery-status","emergency-grant","emergency-cancel","emergency-list","emergency-activate","policy-set","policy-get","policy-check-length","audit","verify-chain","resolve","expand","totp","breach-check","sync-init","sync-push","sync-pull","serve"]})) }
+        "help" => { emit(&json!({"commands": ["init","set","get","list","delete","restore","purge","restore-version","generate","add-user","share","revoke","users","export-key","token-mint","token-revoke","token-verify","tokens","recovery-status","emergency-grant","emergency-cancel","emergency-list","emergency-activate","policy-set","policy-get","policy-check-length","audit","verify-chain","resolve","expand","totp","breach-check","sync-init","sync-push","sync-pull","serve","credential-request","credential-return"]})) }
         other => {
+            if let Some(v) = credential::dispatch(&vault_path(), other, &flags, &positionals)? {
+                return emit(&v);
+            }
             if let Some(v) = access::dispatch(other, &flags, &positionals)? {
                 emit(&v)
             } else if let Some(v) = runtime::dispatch(other, &flags, &positionals)? {
