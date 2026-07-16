@@ -1,4 +1,4 @@
-import { callModelRouter, parseJsonFrom } from '../agent/loop.js';
+import { callJeden, parseJsonFrom } from '../agent/loop.js';
 import type { ActionLogRow } from './poll.js';
 
 export type VerificationVerdict = 'pass' | 'fail' | 'uncertain';
@@ -99,7 +99,7 @@ ${JSON.stringify(summary, null, 2)}`;
 export async function verifyRunArtifacts(row: ActionLogRow, result: Record<string, unknown>): Promise<RunVerification | null> {
   if (!shouldVerifyRun(row)) return null;
   try {
-    const routed = await callModelRouter(verificationPrompt(row, result));
+    const routed = await callJeden(verificationPrompt(row, result));
     const parsed = parseJsonFrom(routed.raw);
     const verdict = normalizeVerdict(parsed.verdict);
     const confidence = clampConfidence(parsed.confidence);
