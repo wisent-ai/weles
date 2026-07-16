@@ -31,10 +31,36 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, '..', '..', '..');
 const VAR = join(REPO, 'var');
 mkdirSync(VAR, { recursive: true });
-const KIMI_BIN = process.env.KIMI_BIN
-  || [join(process.env.HOME || '', '.local', 'bin', 'kimi'), '/opt/homebrew/bin/kimi']
-    .find((candidate) => existsSync(candidate))
-  || 'kimi';
+function resolveKimiBin() {
+  const configured = process.env.KIMI_BIN;
+  if (configured) {
+    if (existsSync(configured)) return configured;
+    throw new Error(`KIMI_BIN does not exist: ${configured}`);
+  }
+  const candidates = [
+    join(process.env.HOME || '', '.local', 'bin', 'kimi'),
+    '/opt/homebrew/bin/kimi',
+  ];
+  const existing = candidates.find((candidate) => existsSync(candidate));
+  if (existing) return existing;
+  const uv = ['/opt/homebrew/bin/uv', '/usr/local/bin/uv']
+    .find((candidate) => existsSync(candidate));
+  if (!uv) throw new Error('Kimi CLI is missing and uv is unavailable');
+  const binDir = join(VAR, 'bin');
+  mkdirSync(binDir, { recursive: true });
+  const install = spawnSync(uv, ['tool', 'install', '--force', 'kimi-cli==0.20.2'], {
+    encoding: 'utf8',
+    env: { ...process.env, UV_TOOL_BIN_DIR: binDir },
+    timeout: 120_000,
+  });
+  const installed = join(binDir, 'kimi');
+  if (install.status !== 0 || !existsSync(installed)) {
+    throw new Error(`Kimi CLI install failed status=${install.status} stderr=${String(install.stderr || '').slice(0, 800)}`);
+  }
+  return installed;
+}
+
+const KIMI_BIN = resolveKimiBin();
 const DISPLAY_NAME = process.env.KIMI_DISPLAY_NAME || 'Kimi';
 const SERVICE_CREDENTIAL_ID = process.env.KIMI_SERVICE_CREDENTIAL_ID || 'kimi-lukasz-google-sso';
 const LOGIN_HOME = process.env.KIMI_LOGIN_HOME || mkdtempSync(join(VAR, 'kimi-login-'));
