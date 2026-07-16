@@ -65,6 +65,35 @@ if [ -f "$HOME/.git-credentials-weles" ]; then
   git config --local --add credential.helper "store --file $HOME/.git-credentials-weles"
 fi
 
+# Keep the encrypted Skarbiec sync mirror ready on every deploy tick. All
+# values come from the owner-only worker.env; Git authentication remains in
+# the existing owner-only Weles credential file and never enters the remote URL.
+SKARBIEC_WORKER_ENV="$WELES_DIR/var/worker.env"
+if [ -f "$SKARBIEC_WORKER_ENV" ] && [ ! -L "$SKARBIEC_WORKER_ENV" ]; then
+  set -a
+  # shellcheck disable=SC1090
+  . "$SKARBIEC_WORKER_ENV"
+  set +a
+  if [ -n "${SKARBIEC_SYNC_DIR:-}" ] && [ -n "${SKARBIEC_SYNC_REMOTE:-}" ]; then
+    if [ ! -d "$SKARBIEC_SYNC_DIR/.git" ]; then
+      if [ -e "$SKARBIEC_SYNC_DIR" ]; then
+        log "skarbiec-sync: refusing to replace non-repository path $SKARBIEC_SYNC_DIR"
+        exit 1
+      fi
+      GIT_TERMINAL_PROMPT=0 git clone --quiet "$SKARBIEC_SYNC_REMOTE" "$SKARBIEC_SYNC_DIR"
+      log "skarbiec-sync: cloned encrypted vault mirror"
+    else
+      git -C "$SKARBIEC_SYNC_DIR" remote set-url origin "$SKARBIEC_SYNC_REMOTE"
+    fi
+    if [ -f "$HOME/.git-credentials-weles" ]; then
+      git -C "$SKARBIEC_SYNC_DIR" config --local --replace-all credential.helper ""
+      git -C "$SKARBIEC_SYNC_DIR" config --local --add credential.helper "store --file $HOME/.git-credentials-weles"
+    fi
+    GIT_TERMINAL_PROMPT=0 git -C "$SKARBIEC_SYNC_DIR" fetch --quiet origin main
+    log "skarbiec-sync: repository and non-interactive Git authentication ready"
+  fi
+fi
+
 # Ensure the gcloud CLI has an active service account so the worker's
 # `gcloud storage cp` calls in scripts/trajectories/*/persist*.mjs can
 # upload artifacts to GCS without a manual `gcloud auth login`. This

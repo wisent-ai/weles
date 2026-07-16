@@ -31,6 +31,7 @@ beforeEach(() => {
   delete process.env.NEXT_PUBLIC_SUPABASE_URL;
   delete process.env.SUPABASE_SERVICE_ROLE_KEY;
   delete process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  delete process.env.SUPABASE_ACCESS_TOKEN;
 });
 
 afterEach(() => {
@@ -302,6 +303,61 @@ describe('secret acquisition', () => {
       },
     });
     expect(result.objective).toContain('auditable editorial research pipeline');
+  });
+
+  it('builds a Supabase token acquisition for an existing account and returns it to Skarbiec', () => {
+    const result = buildSecretAcquisitionPlan({
+      secret: 'supabase.personal_access_token',
+      purpose: 'administer Supabase projects through the Management API',
+      accountEmail: 'Lukasz.Bartoszcze@Gmail.com',
+      skarbiecRequestId: 'b'.repeat(64),
+      skarbiecCredentialId: 'SUPABASE_ACCESS_TOKEN',
+    });
+
+    expect(result.status).toBe('acquisition_plan');
+    if (result.status !== 'acquisition_plan') return;
+    expect(result).toMatchObject({
+      secret: 'supabase.personal_access_token',
+      provider: 'supabase',
+      url: 'https://supabase.com/dashboard/account/tokens',
+      params: {
+        flow_name: 'supabase-personal-access-token-acquisition',
+        headless: false,
+        constraints: {
+          account_email: 'lukasz.bartoszcze@gmail.com',
+          secret: 'supabase.personal_access_token',
+          store_secret_target: 'skarbiec',
+          env_var: 'SUPABASE_ACCESS_TOKEN',
+          skarbiec_request_id: 'b'.repeat(64),
+          skarbiec_credential_id: 'SUPABASE_ACCESS_TOKEN',
+          skarbiec_provider: 'supabase',
+        },
+      },
+    });
+    expect(result.objective).toContain('Use the existing authenticated account lukasz.bartoszcze@gmail.com.');
+    expect(result.objective).toContain('never request or expose its password');
+  });
+
+  it('validates an existing Supabase personal access token with bearer authentication', async () => {
+    process.env.SUPABASE_ACCESS_TOKEN = 'sbp_existing_value_must_not_escape';
+    const fetchMock = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      expect(String(url)).toBe('https://api.supabase.com/v1/projects');
+      expect(init?.headers).toEqual({ authorization: 'Bearer sbp_existing_value_must_not_escape' });
+      return jsonResponse([]);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await acquireSecret({ secret: 'supabase.personal_access_token' });
+
+    expect(result).toMatchObject({
+      status: 'existing_secret_found',
+      secret: 'supabase.personal_access_token',
+      provider: 'supabase',
+      source: 'env',
+      envVar: 'SUPABASE_ACCESS_TOKEN',
+      validated: true,
+    });
+    expect(JSON.stringify(result)).not.toContain('sbp_existing_value_must_not_escape');
   });
 
 });
