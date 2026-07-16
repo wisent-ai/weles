@@ -60,12 +60,13 @@ async function loadConfig() {
   const byId = new Map(rows.map((row) => [row.id, row.metadata || {}]));
   const m = byId.get('kimi-reauth-config') || byId.get('codex-reauth-config') || byId.get('claude-reauth-config');
   if (!m) throw new Error('missing kimi/codex/claude reauth config metadata');
-  for (const k of ['MODEL_ROUTER_URL', 'WISENT_APP_AGENT_ID', 'WISENT_APP_AGENT_AUTH_SECRET', 'WISENT_DONOR_USER_ID']) {
+  for (const k of ['MODEL_ROUTER_URL', 'BRAMA_SUBSCRIPTION_BROKER_URL', 'WISENT_APP_AGENT_ID', 'WISENT_APP_AGENT_AUTH_SECRET', 'WISENT_DONOR_USER_ID']) {
     if (!m[k]) throw new Error(`reauth config metadata missing ${k}`);
   }
   return {
     configId: byId.has('kimi-reauth-config') ? 'kimi-reauth-config' : (byId.has('codex-reauth-config') ? 'codex-reauth-config' : 'claude-reauth-config'),
     routerUrl: String(m.MODEL_ROUTER_URL).replace(/\/+$/, ''),
+    brokerUrl: String(m.BRAMA_SUBSCRIPTION_BROKER_URL).replace(/\/+$/, ''),
     agentId: String(m.WISENT_APP_AGENT_ID),
     hmacSecret: String(m.WISENT_APP_AGENT_AUTH_SECRET),
     donorUserId: String(m.WISENT_DONOR_USER_ID),
@@ -88,7 +89,7 @@ function sign(cfg, body) {
 }
 
 async function listSubscriptions(cfg) {
-  const r = await fetch(`${cfg.routerUrl}/v1/subscriptions/${cfg.agentId}`);
+  const r = await fetch(`${cfg.brokerUrl}/v1/subscriptions/${cfg.agentId}`);
   if (!r.ok) throw new Error(`list subscriptions -> ${r.status} ${await r.text()}`);
   const subs = (await r.json()).subscriptions ?? [];
   return subs.filter((sub) => sub.provider === 'kimi');
@@ -170,7 +171,7 @@ async function donate(cfg, credentialsJson) {
     label: `reauth-macmini kimi credentials-json ${new Date().toISOString()}`,
     api_key: credentialsJson,
   };
-  const r = await fetch(`${cfg.routerUrl}/v1/subscriptions/${cfg.agentId}`, {
+  const r = await fetch(`${cfg.brokerUrl}/v1/subscriptions/${cfg.agentId}`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body),
@@ -181,7 +182,7 @@ async function donate(cfg, credentialsJson) {
 }
 
 async function deleteSubscription(cfg, sub) {
-  const r = await fetch(`${cfg.routerUrl}/v1/subscriptions/${cfg.agentId}`, {
+  const r = await fetch(`${cfg.brokerUrl}/v1/subscriptions/${cfg.agentId}`, {
     method: 'DELETE',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ user_id: sub.donor_id || cfg.donorUserId, subscription_id: sub.id }),
