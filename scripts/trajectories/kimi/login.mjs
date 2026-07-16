@@ -4,7 +4,7 @@
 // HOME with PATH-front open/xdg-open shims and BROWSER pointing at the same
 // shim. The shim records the authorize URL; WSession drives that URL in its
 // own isolated Chromium profile, then this script waits for Kimi CLI to write
-// .kimi-code/credentials/kimi-code.json, validates `kimi -p`, and emits the
+// .kimi/credentials/kimi-code.json, validates `kimi -p`, and emits the
 // credential JSON on stdout for reauth.mjs to donate.
 
 import { spawn, spawnSync } from 'node:child_process';
@@ -127,10 +127,8 @@ function prepareKimiHome(home) {
   if (resolve(home) === resolve(process.env.HOME || '')) {
     throw new Error('refusing to run kimi login in the operator HOME');
   }
-  mkdirSync(join(home, '.kimi-code', 'credentials'), { recursive: true });
-  mkdirSync(join(home, '.kimi-code', 'oauth'), { recursive: true });
-  writeFileSync(join(home, '.kimi-code', 'config.toml'), kimiConfigToml(), { mode: 0o600 });
-  writeFileSync(join(home, '.kimi-code', 'oauth', 'kimi-code'), '', { mode: 0o600 });
+  mkdirSync(join(home, '.kimi', 'credentials'), { recursive: true });
+  writeFileSync(join(home, '.kimi', 'config.toml'), kimiConfigToml(), { mode: 0o600 });
 }
 
 function noOpenEnv(home) {
@@ -247,7 +245,7 @@ async function waitForAuthorizeUrl(getOut, urlFile, timeoutSec = 90) {
 }
 
 function credentialsPath(home) {
-  return join(home, '.kimi-code', 'credentials', 'kimi-code.json');
+  return join(home, '.kimi', 'credentials', 'kimi-code.json');
 }
 
 function readCredentials(home) {
