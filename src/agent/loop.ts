@@ -308,19 +308,6 @@ export async function execute(
   const page = session.page;
   const capture = new Capture({ newPage: async () => page } as any);
   const flowName = options?.flowName;
-  let autoStoreCredential = false;
-  try {
-    const constraints: unknown = JSON.parse(process.env.GENERIC_TASK_CONSTRAINTS ?? '{}');
-    autoStoreCredential = Boolean(
-      constraints
-      && typeof constraints === 'object'
-      && !Array.isArray(constraints)
-      && 'store_secret_target' in constraints
-      && constraints.store_secret_target === 'skarbiec',
-    );
-  } catch {
-    // Invalid constraints are rejected by the storage tool if it is invoked.
-  }
 
 
   // Try replaying a saved flow before using the LLM unless this is an explicit
@@ -352,43 +339,6 @@ export async function execute(
   let activePage = page;
   for (let step = 0; ; step++) {
     activePage = getActivePage(activePage);
-    if (autoStoreCredential) {
-      const previouslyStored = session.takeStoredCredentialReceipt();
-      if (previouslyStored) {
-        history.push({
-          tool: 'store_credential',
-          args: { target: 'generated credential', field_class: 'token' },
-          result: previouslyStored,
-        });
-        if (flowName) {
-          const steps = history.map((entry) => ({ tool: entry.tool, args: entry.args, result: entry.result }));
-          saveFlow(flowName, steps);
-          console.log(`[loop] Flow saved after secure credential storage: ${flowName} (${steps.length} steps)`);
-        }
-        return { value: previouslyStored, history };
-      }
-      try {
-        const stored = await session.storeCredential('generated credential', 'token');
-        history.push({
-          tool: 'store_credential',
-          args: { target: 'generated credential', field_class: 'token' },
-          result: stored,
-        });
-        if (flowName) {
-          const steps = history.map((entry) => ({ tool: entry.tool, args: entry.args, result: entry.result }));
-          saveFlow(flowName, steps);
-          console.log(`[loop] Flow saved after secure credential storage: ${flowName} (${steps.length} steps)`);
-        }
-        return { value: stored, history };
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        const credentialNotPresent = message === 'credential source origin mismatch'
-          || message === 'credential element was not found or did not match the required secret shape';
-        if (!credentialNotPresent) {
-          throw new AgentFailure(`secure credential capture failed: ${message}`, history);
-        }
-      }
-    }
     let decision: Record<string, any>;
 
     if (replay && step < replay.length && (options?.replayOnly || !['read', 'done'].includes(replay[step].tool))) {
