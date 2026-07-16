@@ -70,11 +70,11 @@ let SESSION = null;
 let CHILD = null;
 
 process.on('uncaughtException', (e) => {
-  process.stderr.write(`FAIL: uncaught ${e?.stack || e}\n`);
+  process.stderr.write(`FAIL: uncaught ${e?.message || e}\n`);
   cleanupAndExit(1);
 });
 process.on('unhandledRejection', (e) => {
-  process.stderr.write(`FAIL: unhandled ${e?.stack || e}\n`);
+  process.stderr.write(`FAIL: unhandled ${e?.message || e}\n`);
   cleanupAndExit(1);
 });
 
