@@ -167,7 +167,7 @@ fn cmd_request(vault_path: &Path, flags: &HashMap<String, String>, positionals: 
     let credential_id = positionals
         .first()
         .map(String::as_str)
-        .context("usage: credential-request <CREDENTIAL_ID> --provider <provider> --consumer <consumer> [--purpose <purpose>]")?;
+        .context("usage: credential-request <CREDENTIAL_ID> --provider <provider> --consumer <consumer> [--purpose <purpose>] [--request-id <id> --register-only]")?;
     validate_credential_id(credential_id)?;
     let provider = required_flag(flags, "provider")?;
     let consumer = required_flag(flags, "consumer")?;
@@ -177,6 +177,15 @@ fn cmd_request(vault_path: &Path, flags: &HashMap<String, String>, positionals: 
     if purpose.is_empty() || purpose.len() > 512 || purpose.chars().any(char::is_control) {
         bail!("purpose must be 1-512 printable characters");
     }
+    let register_only = flags.contains_key("register-only");
+    let request_id = match flags.get("request-id") {
+        Some(value) => {
+            validate_request_id(value)?;
+            value.clone()
+        }
+        None if register_only => bail!("--register-only requires --request-id"),
+        None => new_request_id(),
+    };
 
     let mut vault = Vault::open(vault_path.to_path_buf())?;
     if live_item_exists(&vault, credential_id) {
@@ -186,17 +195,20 @@ fn cmd_request(vault_path: &Path, flags: &HashMap<String, String>, positionals: 
     let request_item = request_item_id(credential_id);
     if let Ok(existing) = vault.get_item(&request_item) {
         if existing.get("status").and_then(Value::as_str) == Some("pending") {
+            let existing_id = existing.get("request_id").and_then(Value::as_str);
+            if register_only && existing_id != Some(request_id.as_str()) {
+                bail!("a different credential request is already pending");
+            }
             return Ok(json!({
                 "ok": true,
                 "status": "pending",
                 "credential": credential_id,
-                "request_id": existing.get("request_id").and_then(Value::as_str),
+                "request_id": existing_id,
                 "weles": existing.get("weles"),
             }));
         }
     }
 
-    let request_id = new_request_id();
     let request = json!({
         "version": REQUEST_WIRE_VERSION,
         "request_id": request_id,
@@ -207,11 +219,24 @@ fn cmd_request(vault_path: &Path, flags: &HashMap<String, String>, positionals: 
         "status": "pending",
         "created_at": Utc::now().to_rfc3339(),
     });
+    let recipient_uids = std::env::var("SKARBIEC_WELES_RECIPIENT")
+        .ok()
+        .filter(|value| !value.is_empty())
+        .map(|value| vec![value])
+        .unwrap_or_default();
+    if register_only {
+        let recipient = recipient_uids
+            .first()
+            .context("SKARBIEC_WELES_RECIPIENT is required for --register-only")?;
+        if vault.recipient_fpr(recipient).is_none() {
+            bail!("SKARBIEC_WELES_RECIPIENT is not registered in the vault");
+        }
+    }
     vault.set_item(
         &request_item,
         "credential_request",
         &request,
-        &[],
+        &recipient_uids,
         &["credential-request".to_string(), provider.to_string()],
     )?;
     drop(vault);
@@ -219,6 +244,15 @@ fn cmd_request(vault_path: &Path, flags: &HashMap<String, String>, positionals: 
         "credential-request",
         &json!({"request_id": request_id, "credential": credential_id, "provider": provider, "consumer": consumer}),
     )?;
+
+    if register_only {
+        return Ok(json!({
+            "ok": true,
+            "status": "pending",
+            "credential": credential_id,
+            "request_id": request_id,
+        }));
+    }
 
     let response = match run_weles(&request) {
         Ok(response) => response,

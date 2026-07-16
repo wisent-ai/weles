@@ -58,6 +58,7 @@ SKARBIEC_BIN="${SKARBIEC_BIN:-$SECRETS_DIR/skarbiec-entitlements-router}"
 export SKARBIEC_CREDENTIAL_RETURN_COMMAND="${SKARBIEC_CREDENTIAL_RETURN_COMMAND:-$SKARBIEC_BIN}"
 export SKARBIEC_PUBLISH_VAULT_AFTER_RETURN="${SKARBIEC_PUBLISH_VAULT_AFTER_RETURN:-1}"
 export SKARBIEC_WELES_REPO="${SKARBIEC_WELES_REPO:-wisent-ai/weles}"
+export SKARBIEC_WELES_RECIPIENT="${SKARBIEC_WELES_RECIPIENT:-jeden-release-authority}"
 STAGE="$(mktemp -d)"
 if fetch_release_asset skarbiec-bin-latest skarbiec-entitlements-router "$STAGE/bin" \
    && fetch_release_asset skarbiec-bin-latest skarbiec-entitlements-router.sha256 "$STAGE/sha"; then
@@ -69,6 +70,13 @@ if fetch_release_asset skarbiec-bin-latest skarbiec-entitlements-router "$STAGE/
   fi
 fi
 rm -rf "$STAGE"
+
+# Public recipient keys are safe to keep in the repository and are required
+# whenever the worker re-encrypts a changed vault for owner + recovery.
+SKARBIEC_RECIPIENT_KEYS="$WELES_DIR/vendor/skarbiec/skarbiec-recipients.asc"
+if [ -f "$SKARBIEC_RECIPIENT_KEYS" ]; then
+  gpg --batch --import "$SKARBIEC_RECIPIENT_KEYS" >>"$SKARBIEC_LOG" 2>&1 || true
+fi
 
 # --- skarbiec owner material self-heal (out-of-band, like the gcloud SA) ----
 # The passphrase-protected owner private half is placed once at this path (same

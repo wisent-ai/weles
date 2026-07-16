@@ -33,8 +33,12 @@ for await (const chunk of process.stdin) chunks.push(chunk);
 const args = process.argv.slice(2);
 const credential = args[1];
 const requestId = args[args.indexOf('--request-id') + 1];
-await writeFile(${JSON.stringify(capture)}, JSON.stringify({ args, stdin: Buffer.concat(chunks).toString('utf8') }));
-console.log(JSON.stringify({ ok: true, status: 'ready', credential, request_id: requestId }));
+if (args[0] === 'credential-request') {
+  console.log(JSON.stringify({ ok: true, status: 'pending', credential, request_id: requestId }));
+} else {
+  await writeFile(${JSON.stringify(capture)}, JSON.stringify({ args, stdin: Buffer.concat(chunks).toString('utf8') }));
+  console.log(JSON.stringify({ ok: true, status: 'ready', credential, request_id: requestId }));
+}
 `);
     await chmod(command, 0o700);
     process.env.SKARBIEC_CREDENTIAL_RETURN_COMMAND = command;
@@ -79,6 +83,8 @@ for await (const chunk of process.stdin) chunks.push(chunk);
 await appendFile(${JSON.stringify(capture)}, JSON.stringify({ operation: args[0], stdinBytes: Buffer.concat(chunks).length }) + '\\n');
 if (args[0] === 'sync-pull' || args[0] === 'sync-push') {
   console.log(JSON.stringify({ ok: true }));
+} else if (args[0] === 'credential-request') {
+  console.log(JSON.stringify({ ok: true, status: 'pending', credential: args[1], request_id: args[args.indexOf('--request-id') + 1] }));
 } else {
   console.log(JSON.stringify({ ok: true, status: 'ready', credential: args[1], request_id: args[args.indexOf('--request-id') + 1] }));
 }
@@ -100,6 +106,7 @@ if (args[0] === 'sync-pull' || args[0] === 'sync-push') {
       .map((line) => JSON.parse(line) as { operation: string; stdinBytes: number });
     expect(operations).toEqual([
       { operation: 'sync-pull', stdinBytes: 0 },
+      { operation: 'credential-request', stdinBytes: 0 },
       { operation: 'credential-return', stdinBytes: 21 },
       { operation: 'sync-push', stdinBytes: 0 },
     ]);

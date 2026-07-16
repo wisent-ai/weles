@@ -92,6 +92,70 @@ async function synchronizeVault(command: string, operation: 'sync-pull' | 'sync-
   }
 }
 
+async function registerCredentialRequest(command: string, input: ReturnCredentialInput): Promise<void> {
+  const response = await new Promise<Buffer>((resolve, reject) => {
+    const child = spawn(command, [
+      'credential-request',
+      input.credentialId,
+      '--provider',
+      input.provider,
+      '--consumer',
+      'weles',
+      '--purpose',
+      'Weles credential acquisition',
+      '--request-id',
+      input.requestId,
+      '--register-only',
+    ], {
+      env: process.env,
+      stdio: ['ignore', 'pipe', 'ignore'],
+    });
+    const output: Buffer[] = [];
+    let outputBytes = 0;
+    let settled = false;
+    const fail = () => {
+      if (settled) return;
+      settled = true;
+      reject(new Error('Skarbiec credential request registration failed'));
+    };
+    child.once('error', fail);
+    child.stdout.on('data', (chunk: Buffer) => {
+      outputBytes += chunk.length;
+      if (outputBytes > MAX_RESPONSE_BYTES) {
+        child.kill();
+        fail();
+        return;
+      }
+      output.push(chunk);
+    });
+    child.once('close', (code) => {
+      if (settled) return;
+      if (code !== 0) {
+        fail();
+        return;
+      }
+      settled = true;
+      resolve(Buffer.concat(output));
+    });
+  });
+  try {
+    const parsed = JSON.parse(response.toString('utf8')) as {
+      ok?: unknown;
+      status?: unknown;
+      credential?: unknown;
+      request_id?: unknown;
+    };
+    if (
+      parsed.ok !== true
+      || parsed.status !== 'pending'
+      || parsed.credential !== input.credentialId
+      || parsed.request_id !== input.requestId
+    ) throw new Error();
+  } catch {
+    throw new Error('Skarbiec did not confirm credential request registration');
+  }
+}
+
 export async function returnCredentialToSkarbiec(input: ReturnCredentialInput): Promise<ReturnCredentialResult> {
   validateCredentialId(input.credentialId);
   validateRequestId(input.requestId);
@@ -101,6 +165,7 @@ export async function returnCredentialToSkarbiec(input: ReturnCredentialInput): 
   }
   const command = await checkedCommand();
   await synchronizeVault(command, 'sync-pull');
+  await registerCredentialRequest(command, input);
   const args = [
     'credential-return',
     input.credentialId,
