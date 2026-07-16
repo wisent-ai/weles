@@ -48,7 +48,7 @@ function resolveKimiBin() {
   if (!uv) throw new Error('Kimi CLI is missing and uv is unavailable');
   const binDir = join(VAR, 'bin');
   mkdirSync(binDir, { recursive: true });
-  const install = spawnSync(uv, ['tool', 'install', '--force', 'kimi-cli==0.20.2'], {
+  const install = spawnSync(uv, ['tool', 'install', '--force', 'kimi-cli==1.49.0'], {
     encoding: 'utf8',
     env: { ...process.env, UV_TOOL_BIN_DIR: binDir },
     timeout: 120_000,
