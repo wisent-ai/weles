@@ -232,6 +232,26 @@ async function waitForCredentials(home, timeoutSec = 180) {
   throw new Error('Kimi credentials did not materialize with non-empty OAuth tokens');
 }
 
+async function waitForLoginSuccess(proc, getOut, timeoutSec = 180) {
+  for (let i = 0; i < timeoutSec * 2; i += 1) {
+    for (const line of stripAnsi(getOut()).split(/\r?\n/).reverse()) {
+      try {
+        const event = JSON.parse(line);
+        if (event?.type === 'success') return;
+        if (event?.type === 'error') throw new Error(`Kimi login failed: ${event.message || line}`);
+      } catch (error) {
+        if (error instanceof SyntaxError) continue;
+        throw error;
+      }
+    }
+    if (proc.exitCode !== null) {
+      throw new Error(`Kimi login exited before success status=${proc.exitCode}; out_tail=${JSON.stringify(stripAnsi(getOut()).slice(-800))}`);
+    }
+    await new Promise((r) => setTimeout(r, 500));
+  }
+  throw new Error(`Kimi login did not finish after authorization; out_tail=${JSON.stringify(stripAnsi(getOut()).slice(-800))}`);
+}
+
 async function clickEmailRow(page, email) {
   let hit = null;
   for (let i = 0; i < 100; i += 1) {
@@ -383,6 +403,7 @@ try {
   process.stderr.write(`[kimi login] authorize URL captured host=${new URL(authorizeUrl).host}\n`);
 
   await driveKimiAuthorize(authorizeUrl, login, LOGIN_HOME);
+  await waitForLoginSuccess(proc, getOut);
   const creds = await waitForCredentials(LOGIN_HOME);
   verifyKimiCredential(LOGIN_HOME);
 
