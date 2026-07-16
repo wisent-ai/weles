@@ -237,8 +237,12 @@ async function waitForLoginSuccess(proc, getOut, timeoutSec = 180) {
     for (const line of stripAnsi(getOut()).split(/\r?\n/).reverse()) {
       try {
         const event = JSON.parse(line);
-        if (event?.type === 'success') return;
-        if (event?.type === 'error') throw new Error(`Kimi login failed: ${event.message || line}`);
+        if (event?.type === 'success') return true;
+        if (event?.type === 'error') {
+          const message = String(event.message || line);
+          if (/Failed to get models: 402\b/.test(message)) return false;
+          throw new Error(`Kimi login failed: ${message}`);
+        }
       } catch (error) {
         if (error instanceof SyntaxError) continue;
         throw error;
@@ -372,7 +376,32 @@ async function driveKimiAuthorize(authorizeUrl, login, home) {
   }
 }
 
-function verifyKimiCredential(home) {
+async function verifyKimiCredential(home, credentialsJson, modelCatalogReady) {
+  if (!modelCatalogReady) {
+    const credentials = JSON.parse(credentialsJson);
+    const response = await fetch('https://api.kimi.com/coding/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${credentials.access_token}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'kimi-for-coding',
+        messages: [{ role: 'user', content: 'Reply with exactly OK.' }],
+        max_tokens: 16,
+        stream: false,
+      }),
+    });
+    const text = await response.text();
+    if (!response.ok) {
+      throw new Error(`Kimi credential verification failed HTTP ${response.status}: ${text.slice(0, 800)}`);
+    }
+    if (!/OK/i.test(text)) {
+      throw new Error(`Kimi credential verification returned unexpected output: ${text.slice(0, 800)}`);
+    }
+    return;
+  }
+
   const res = spawnSync(KIMI_BIN, ['--print', '-p', 'Reply with exactly OK.', '--output-format', 'stream-json'], {
     cwd: home,
     env: { ...process.env, HOME: home },
@@ -403,9 +432,9 @@ try {
   process.stderr.write(`[kimi login] authorize URL captured host=${new URL(authorizeUrl).host}\n`);
 
   await driveKimiAuthorize(authorizeUrl, login, LOGIN_HOME);
-  await waitForLoginSuccess(proc, getOut);
+  const modelCatalogReady = await waitForLoginSuccess(proc, getOut);
   const creds = await waitForCredentials(LOGIN_HOME);
-  verifyKimiCredential(LOGIN_HOME);
+  await verifyKimiCredential(LOGIN_HOME, creds, modelCatalogReady);
 
   clearTimeout(killer);
   try { proc.kill(); } catch {}
