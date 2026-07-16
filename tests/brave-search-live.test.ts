@@ -111,6 +111,7 @@ it.skipIf(process.env.RUN_LIVE_BRAVE_CREDENTIAL_TEST !== '1')(
       const request = {
         secret: 'brave.search_api_key',
         purpose: 'content-platform-blog-research',
+
         skarbiecRequestId: requestId,
         skarbiecCredentialId: credentialId,
         autoPromoteTrajectory: true,
