@@ -18,7 +18,6 @@ import {
   symlinkSync,
   writeFileSync,
 } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -31,10 +30,14 @@ import { establishGoogleSession, waitForEnabledThenClick } from '../codex/google
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, '..', '..', '..');
 const VAR = join(REPO, 'var');
-const KIMI_BIN = process.env.KIMI_BIN || 'kimi';
+mkdirSync(VAR, { recursive: true });
+const KIMI_BIN = process.env.KIMI_BIN
+  || [join(process.env.HOME || '', '.local', 'bin', 'kimi'), '/opt/homebrew/bin/kimi']
+    .find((candidate) => existsSync(candidate))
+  || 'kimi';
 const DISPLAY_NAME = process.env.KIMI_DISPLAY_NAME || 'Kimi';
 const SERVICE_CREDENTIAL_ID = process.env.KIMI_SERVICE_CREDENTIAL_ID || 'kimi-lukasz-google-sso';
-const LOGIN_HOME = process.env.KIMI_LOGIN_HOME || mkdtempSync(join(tmpdir(), 'kimi-login-'));
+const LOGIN_HOME = process.env.KIMI_LOGIN_HOME || mkdtempSync(join(VAR, 'kimi-login-'));
 const OVERALL_SEC = Number(process.env.KIMI_LOGIN_OVERALL_SEC || 420);
 
 let SESSION = null;
