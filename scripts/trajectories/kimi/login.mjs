@@ -7,8 +7,7 @@
 // .kimi-code/credentials/kimi-code.json, validates `kimi -p`, and emits the
 // credential JSON on stdout for reauth.mjs to donate.
 
-import { spawn as ptySpawn } from 'node-pty';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import {
   chmodSync,
   existsSync,
@@ -178,15 +177,14 @@ async function loadLogin() {
 
 function spawnKimiLogin(home) {
   const { env, urlFile } = noOpenEnv(home);
-  const proc = ptySpawn(KIMI_BIN, ['login', '--json'], {
-    name: 'xterm-256color',
-    cols: 200,
-    rows: 40,
+  const proc = spawn(KIMI_BIN, ['login', '--json'], {
     env,
+    stdio: ['ignore', 'pipe', 'pipe'],
   });
   CHILD = proc;
   let out = '';
-  proc.onData((d) => { out += d; });
+  proc.stdout.on('data', (data) => { out += data.toString(); });
+  proc.stderr.on('data', (data) => { out += data.toString(); });
   return { proc, getOut: () => out, urlFile };
 }
 
