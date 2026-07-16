@@ -113,5 +113,8 @@ if [ -x "$SKARBIEC_BIN" ] && [ -f "$SKARBIEC_VAULT_FILE" ]; then
   fi
   unset UNLOCK
 fi
+# The owner unlock is only for the one-time export above. Credential returns
+# decrypt request items with the worker's dedicated recipient key instead.
+unset SKARBIEC_UNLOCK
 
 exec /usr/bin/caffeinate -dimsu /opt/homebrew/bin/node "$HOME/weles/scripts/worker/run.mjs"
