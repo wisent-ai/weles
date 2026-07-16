@@ -178,7 +178,7 @@ async function loadLogin() {
 
 function spawnKimiLogin(home) {
   const { env, urlFile } = noOpenEnv(home);
-  const proc = ptySpawn(KIMI_BIN, ['login'], {
+  const proc = ptySpawn(KIMI_BIN, ['login', '--json'], {
     name: 'xterm-256color',
     cols: 200,
     rows: 40,
@@ -196,6 +196,15 @@ function stripAnsi(s) {
 
 function firstLoginUrl(text) {
   const clean = stripAnsi(text);
+  for (const line of clean.split(/\r?\n/).reverse()) {
+    try {
+      const event = JSON.parse(line);
+      const url = event?.data?.verification_url;
+      if (event?.type === 'verification_url' && typeof url === 'string' && /^https:\/\//.test(url)) {
+        return url;
+      }
+    } catch {}
+  }
   const matches = clean.match(/https?:\/\/[^\s"'<>]+/g) || [];
   return matches.find((url) => /kimi|moonshot|accounts\.google\.com|oauth|auth|login/i.test(url)) || null;
 }
