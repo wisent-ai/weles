@@ -49,6 +49,49 @@ async function checkedCommand(): Promise<string> {
   return realpath(configured);
 }
 
+async function synchronizeVault(command: string, operation: 'sync-pull' | 'sync-push'): Promise<void> {
+  if (!process.env.SKARBIEC_SYNC_DIR?.trim()) return;
+  const response = await new Promise<Buffer>((resolve, reject) => {
+    const child = spawn(command, [operation, ...(operation === 'sync-push' ? ['--message=weles credential return'] : [])], {
+      env: process.env,
+      stdio: ['ignore', 'pipe', 'ignore'],
+    });
+    const output: Buffer[] = [];
+    let outputBytes = 0;
+    let settled = false;
+    const fail = () => {
+      if (settled) return;
+      settled = true;
+      reject(new Error(`Skarbiec ${operation} failed`));
+    };
+    child.once('error', fail);
+    child.stdout.on('data', (chunk: Buffer) => {
+      outputBytes += chunk.length;
+      if (outputBytes > MAX_RESPONSE_BYTES) {
+        child.kill();
+        fail();
+        return;
+      }
+      output.push(chunk);
+    });
+    child.once('close', (code) => {
+      if (settled) return;
+      if (code !== 0) {
+        fail();
+        return;
+      }
+      settled = true;
+      resolve(Buffer.concat(output));
+    });
+  });
+  try {
+    const parsed = JSON.parse(response.toString('utf8')) as { ok?: unknown };
+    if (parsed.ok !== true) throw new Error();
+  } catch {
+    throw new Error(`Skarbiec ${operation} did not confirm synchronization`);
+  }
+}
+
 export async function returnCredentialToSkarbiec(input: ReturnCredentialInput): Promise<ReturnCredentialResult> {
   validateCredentialId(input.credentialId);
   validateRequestId(input.requestId);
@@ -57,6 +100,7 @@ export async function returnCredentialToSkarbiec(input: ReturnCredentialInput): 
     throw new Error('invalid credential value');
   }
   const command = await checkedCommand();
+  await synchronizeVault(command, 'sync-pull');
   const args = [
     'credential-return',
     input.credentialId,
@@ -110,6 +154,7 @@ export async function returnCredentialToSkarbiec(input: ReturnCredentialInput): 
     child.stdin.once('error', () => fail(new Error('could not pipe credential to Skarbiec')));
     child.stdin.end(input.value, 'utf8');
   });
+  await synchronizeVault(command, 'sync-push');
   await publishReturnedSkarbiecVault(input.requestId);
   return returned;
 }

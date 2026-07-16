@@ -13,7 +13,7 @@ type SecretDefinition = {
   usageText: string;
   dailyRequests: string;
   validationUrl: string;
-  validationHeader: 'x-api-key' | 'x-subscription-token';
+  validationHeader: 'x-api-key' | 'x-subscription-token' | 'authorization';
   defaultHeadless: boolean;
 };
 
@@ -40,6 +40,7 @@ export type AcquireSecretRequest = {
   tenantId?: string | null;
   skarbiecRequestId?: string;
   skarbiecCredentialId?: string;
+  accountEmail?: string;
 };
 
 export type AcquireSecretResult =
@@ -131,6 +132,23 @@ const BRAVE_SEARCH: SecretDefinition = {
   defaultHeadless: false,
 };
 
+const SUPABASE_ACCESS_TOKEN: SecretDefinition = {
+  secret: 'supabase.personal_access_token',
+  provider: 'supabase',
+  displayName: 'Supabase',
+  envVars: ['SUPABASE_ACCESS_TOKEN'],
+  defaultPurpose: 'administer Supabase projects through the Management API',
+  formUrl: 'https://supabase.com/dashboard/account/tokens',
+  flowName: 'supabase-personal-access-token-acquisition',
+  serviceCredentialNames: ['supabase personal access token', 'supabase management api'],
+  endpoints: ['/v1/projects'],
+  usageText: 'We use the Supabase Management API to administer projects owned by the authenticated account. The personal access token is stored directly in the encrypted Skarbiec vault and is never returned in the Weles result.',
+  dailyRequests: '100',
+  validationUrl: 'https://api.supabase.com/v1/projects',
+  validationHeader: 'authorization',
+  defaultHeadless: false,
+};
+
 const SECRET_REGISTRY: Record<string, SecretDefinition> = {
   [SEMANTIC_SCHOLAR.secret]: SEMANTIC_SCHOLAR,
   semantic_scholar_api_key: SEMANTIC_SCHOLAR,
@@ -140,6 +158,11 @@ const SECRET_REGISTRY: Record<string, SecretDefinition> = {
   brave_search_api_key: BRAVE_SEARCH,
   brave_search: BRAVE_SEARCH,
   brave: BRAVE_SEARCH,
+  [SUPABASE_ACCESS_TOKEN.secret]: SUPABASE_ACCESS_TOKEN,
+  supabase_personal_access_token: SUPABASE_ACCESS_TOKEN,
+  supabase_access_token: SUPABASE_ACCESS_TOKEN,
+  supabase_api_key: SUPABASE_ACCESS_TOKEN,
+  supabase: SUPABASE_ACCESS_TOKEN,
 };
 
 function env(name: string): string {
@@ -155,6 +178,9 @@ function normalizeSecret(request: AcquireSecretRequest): string {
   }
   if (goal.includes('brave') && (goal.includes('search') || goal.includes('api') || goal.includes('key') || goal.includes('klucz'))) {
     return BRAVE_SEARCH.secret;
+  }
+  if (goal.includes('supabase') && (goal.includes('api') || goal.includes('key') || goal.includes('token') || goal.includes('klucz'))) {
+    return SUPABASE_ACCESS_TOKEN.secret;
   }
   return '';
 }
@@ -182,7 +208,8 @@ async function serviceCredentialRows(): Promise<ServiceCredentialRow[]> {
 
 async function validateKey(def: SecretDefinition, key: string): Promise<{ validated: boolean; status: string }> {
   try {
-    const res = await fetch(def.validationUrl, { headers: { [def.validationHeader]: key } });
+    const value = def.validationHeader === 'authorization' ? `Bearer ${key}` : key;
+    const res = await fetch(def.validationUrl, { headers: { [def.validationHeader]: value } });
     if (res.ok) return { validated: true, status: `HTTP ${res.status}` };
     return { validated: false, status: `HTTP ${res.status}` };
   } catch (error) {
@@ -253,16 +280,30 @@ function purposeFor(request: AcquireSecretRequest, def: SecretDefinition): strin
   return def.defaultPurpose;
 }
 
+function accountEmailFor(request: AcquireSecretRequest): string {
+  const email = request.accountEmail?.trim().toLowerCase() ?? '';
+  if (!email) return '';
+  if (email.length > 254 || !email.includes('@') || /\s|[\u0000-\u001f\u007f]/.test(email)) {
+    throw new Error('invalid credential account email');
+  }
+  return email;
+}
+
 function objectiveFor(def: SecretDefinition, request: AcquireSecretRequest): string {
   const purpose = purposeFor(request, def);
+  const accountEmail = accountEmailFor(request);
+  const accountInstruction = accountEmail
+    ? `Use the existing authenticated account ${accountEmail}. If sign-in is required, choose that account and use only configured credential capabilities or the saved browser session; never request or expose its password.`
+    : '';
   const mode = 'Submit the request after all required fields are filled. Use Weles-generated or invented applicant details for identity, affiliation, organization, role, website, country, and other registration profile fields; do not ask the user for personal or organization data. If CAPTCHA, reCAPTCHA, or Turnstile appears, call solve_captcha and continue after it reports success; only return needs_human_approval after solve_captcha reports failure or mailbox/key-delivery access cannot be completed. Return the final confirmation state, any issued key-delivery instructions, and any next-step instructions.';
   return [
     `Acquire ${def.displayName} API access for ${purpose}.`,
+    accountInstruction,
     `Use case: ${def.usageText}`,
     `Requested endpoints: ${def.endpoints.join(', ')}.`,
     `Expected daily requests: ${def.dailyRequests}.`,
     mode,
-  ].join(' ');
+  ].filter(Boolean).join(' ');
 }
 
 function paramsFor(def: SecretDefinition, request: AcquireSecretRequest): Record<string, unknown> {
@@ -279,6 +320,7 @@ function paramsFor(def: SecretDefinition, request: AcquireSecretRequest): Record
     constraints: {
       secret: def.secret,
       purpose: purposeFor(request, def),
+      ...(accountEmailFor(request) ? { account_email: accountEmailFor(request) } : {}),
       store_secret_target: skarbiecReturn ? 'skarbiec' : 'service_credentials',
       display_name: def.displayName,
       env_var: def.envVars[0],
@@ -420,7 +462,11 @@ export async function acquireSecret(request: AcquireSecretRequest): Promise<Acqu
   }
 
   const existing = await existingSecret(def);
-  if (existing && !(request.skarbiecRequestId && existing.status === 'existing_secret_found' && existing.source === 'service_credentials_reference')) return existing;
+  if (
+    existing
+    && !(request.skarbiecRequestId && def.secret === SUPABASE_ACCESS_TOKEN.secret)
+    && !(request.skarbiecRequestId && existing.status === 'existing_secret_found' && existing.source === 'service_credentials_reference')
+  ) return existing;
   return queueAcquisition(def, request);
 }
 
