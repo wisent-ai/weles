@@ -353,7 +353,7 @@ async function driveKimiAuthorize(authorizeUrl, login, home) {
 }
 
 function verifyKimiCredential(home) {
-  const res = spawnSync(KIMI_BIN, ['-p', 'Reply with exactly OK.', '--output-format', 'stream-json'], {
+  const res = spawnSync(KIMI_BIN, ['--print', '-p', 'Reply with exactly OK.', '--output-format', 'stream-json'], {
     cwd: home,
     env: { ...process.env, HOME: home },
     encoding: 'utf8',
