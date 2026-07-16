@@ -1,9 +1,9 @@
 /**
  * Agent tool-use loop — the core control flow.
- * Browser state -> model-router -> parse JSON -> dispatch tool -> repeat.
+ * Browser state -> Jeden -> Brama -> parse JSON -> dispatch tool -> repeat.
  */
 
-import { createHash, createHmac } from 'node:crypto';
+import { execFile } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { WSession } from '../session/wsession.js';
@@ -13,7 +13,7 @@ import { Capture } from '../capture/capture.js';
 import { loadFlow, saveFlow, replayFlow, type FlowStep } from '../session/flows.js';
 import { humanIdlePause } from '../human/mouse.js';
 
-const DEFAULT_MODEL_ROUTER_URL = 'https://model-router-1080673333190.us-central1.run.app';
+const DEFAULT_BRAMA_URL = 'https://model-router-1080673333190.us-central1.run.app';
 const DEFAULT_AGENT_MODEL = 'claude-code-subscription';
 const ROUTER_CONFIG_ROW = 'claude-reauth-config';
 
@@ -51,17 +51,20 @@ const SYSTEM_PROMPT = `You are a browser automation agent. Choose the single nex
 
 Tools:
   click(target)            Click an element described in plain English.
-  fill(target, value)      Type value into an input described in plain English.
+  fill(target, value)      Type a literal non-credential value into an input. Environment placeholders are forbidden.
+  fill_credential(target, field_class, capability) Fill a password/email/username/token/api-key using an opaque typed Weles capability reference. Never request or provide plaintext.
+  store_credential(target, field_class) Read a newly issued token/api-key from the named page element and write it directly to the task-authorized Skarbiec item. The value never enters tool arguments or results.
   focus(selector)          Focus an input by name/type/placeholder (for shadow DOM).
-  type_text(value)         Type via keyboard after focusing. Use for signup forms.
+  type_text(value)         Type literal non-credential text after focusing. Environment placeholders are forbidden.
   press_key(key)           Press a key (Enter, Tab, Escape).
   navigate(url)            Go to a URL.
   scroll(direction, amount) Scroll up/down by pixels.
   wait(seconds)            Pause.
   read(question)           Ask a question about the current page.
   select_option(target, value) Select dropdown option. Use for date pickers.
-  js_click(selector, text)   LAST RESORT click via selector or text. Prefer click(target) — js_click historically used a JS-evaluated el.click() which produces isTrusted=false events that bot classifiers (PerimeterX/Arkose/TikTok) reject. Use only when click(target) and focus()+press_key() can't reach the element (Reddit shadow-DOM vote buttons being the canonical case).
-  solve_captcha(sitekey)   Solve reCAPTCHA on current page via API.
+  set_control(selector, value?, checked?) Set and verify an input/select/textarea by CSS selector in the main page or any iframe; dispatches input/change and reports resulting state plus visible validation text. Use when fill/click/select_option cannot make a form control stick.
+  js_click(selector, text)   LAST RESORT click via selector or text. Prefer click(target) — js_click historically used a JS-evaluated el.click() which produces isTrusted=false events that bot classifiers (PerimeterX/Arkose/TikTok) reject. Use only when click(target), set_control(), and focus()+press_key() can't reach the element (Reddit shadow-DOM vote buttons being the canonical case).
+  solve_captcha(sitekey)   Solve CAPTCHA/reCAPTCHA/Turnstile on current page via configured providers.
   check_email(email, sender) Poll for verification code sent to email.
   generate_identity(platform) Generate random identity: username/email/password/firstName/lastName/DOB.
   save_account(platform, username, email, password, name) Save account to database after registration.
@@ -71,7 +74,7 @@ Tools:
 Reply with ONLY a JSON object:
   {"thought": "...", "tool": "<tool_name>", "args": {...}}
 
-Credentials: use $VAR placeholders in fill/type_text values (e.g. $REDDIT_NEW_EMAIL).
+Credentials: use only fill_credential with an opaque capability reference whose target is weles; never place secrets or $ENV_VAR placeholders in fill/type_text. For task-authorized credential acquisition, use store_credential on the newly issued page element and never read or return its value.
 If a step fails, try something different. Do not repeat the same failing action.`;
 
 function visionDir(label?: string): string {
@@ -110,7 +113,7 @@ async function loadRouterConfigFromSupabase(): Promise<Partial<ModelRouterConfig
   const rows = await res.json() as Array<{ metadata?: Record<string, unknown> | null }>;
   const metadata = rows[0]?.metadata ?? {};
   return {
-    routerUrl: nonEmpty(metadata.MODEL_ROUTER_URL) ?? undefined,
+    routerUrl: nonEmpty(metadata.BRAMA_URL) ?? undefined,
     agentId: nonEmpty(metadata.WISENT_APP_AGENT_ID) ?? undefined,
     hmacSecret: nonEmpty(metadata.WISENT_APP_AGENT_AUTH_SECRET) ?? undefined,
   };
@@ -119,11 +122,11 @@ async function loadRouterConfigFromSupabase(): Promise<Partial<ModelRouterConfig
 async function loadModelRouterConfig(): Promise<ModelRouterConfig> {
   if (modelRouterConfig) return modelRouterConfig;
   modelRouterConfig = (async () => {
-    const envRouterUrl = nonEmpty(process.env.MODEL_ROUTER_URL);
+    const envRouterUrl = nonEmpty(process.env.BRAMA_URL);
     const envAgentId = nonEmpty(process.env.WISENT_APP_AGENT_ID);
     const envHmacSecret = nonEmpty(process.env.WISENT_APP_AGENT_AUTH_SECRET);
     const db = envHmacSecret ? {} : await loadRouterConfigFromSupabase();
-    const routerUrl = (envRouterUrl ?? db.routerUrl ?? DEFAULT_MODEL_ROUTER_URL).replace(/\/+$/, '');
+    const routerUrl = (envRouterUrl ?? db.routerUrl ?? DEFAULT_BRAMA_URL).replace(/\/+$/, '');
     const agentId = envAgentId ?? db.agentId ?? 'wisent-app';
     const hmacSecret = envHmacSecret ?? db.hmacSecret;
     const model = nonEmpty(process.env.WELES_AGENT_MODEL) ?? nonEmpty(process.env.MODEL_ROUTER_MODEL) ?? DEFAULT_AGENT_MODEL;
@@ -135,39 +138,67 @@ async function loadModelRouterConfig(): Promise<ModelRouterConfig> {
   return modelRouterConfig;
 }
 
-function signedRouterHeaders(cfg: ModelRouterConfig, body: string): Record<string, string> {
-  const ts = String(Math.floor(Date.now() / 1000));
-  const bodyHash = createHash('sha256').update(body).digest('hex');
-  const sig = createHmac('sha256', cfg.hmacSecret).update(`${cfg.agentId}:${ts}:${bodyHash}`).digest('hex');
-  return {
-    'x-agent-id': cfg.agentId,
-    'x-agent-timestamp': ts,
-    'x-agent-signature': sig,
-    'content-type': 'application/json',
-  };
+function runJedenProcess(
+  binary: string,
+  args: string[],
+  env: NodeJS.ProcessEnv,
+): Promise<{ stdout: string; stderr: string }> {
+  const configuredTimeout = Number.parseInt(process.env.WELES_JEDEN_TIMEOUT_MS ?? '', 10);
+  const timeout = Number.isFinite(configuredTimeout) && configuredTimeout > 0
+    ? configuredTimeout
+    : 300_000;
+  return new Promise((resolve, reject) => {
+    execFile(binary, args, {
+      cwd: process.cwd(),
+      env,
+      encoding: 'utf8',
+      maxBuffer: 4 * 1024 * 1024,
+      timeout,
+    }, (error, stdout, stderr) => {
+      if (error) {
+        reject(new Error(`Jeden failed: ${String(stderr || error.message).trim().slice(0, 500)}`));
+        return;
+      }
+      resolve({ stdout, stderr });
+    });
+  });
 }
 
-async function callModelRouter(prompt: string): Promise<{ raw: string; model: string; routerUrl: string }> {
+async function callJeden(prompt: string): Promise<{ raw: string; model: string; routerUrl: string }> {
   const cfg = await loadModelRouterConfig();
-  const body = JSON.stringify({
-    model: cfg.model,
-    messages: [{ role: 'user', content: prompt }],
+  const binary = nonEmpty(process.env.WELES_JEDEN_BIN) ?? 'jeden';
+  const sessionRoot = nonEmpty(process.env.WELES_JEDEN_SESSION_ROOT)
+    ?? join(runRecordingsDir('jeden'), 'sessions');
+  mkdirSync(sessionRoot, { recursive: true });
+  const { stdout } = await runJedenProcess(binary, [
+    'run',
+    prompt,
+    '--json',
+    '--model-only',
+    '--model',
+    cfg.model,
+    '--max-steps',
+    '1',
+    '--cwd',
+    process.cwd(),
+  ], {
+    ...process.env,
+    BRAMA_URL: cfg.routerUrl,
+    WISENT_APP_AGENT_ID: cfg.agentId,
+    WISENT_APP_AGENT_AUTH_SECRET: cfg.hmacSecret,
+    JEDEN_SESSION_ROOT: sessionRoot,
   });
-  const res = await fetch(`${cfg.routerUrl}/v1/chat/completions`, {
-    method: 'POST',
-    headers: signedRouterHeaders(cfg, body),
-    body,
-  });
-  const data = await res.json().catch(async () => ({ raw: await res.text().catch(() => '') })) as {
-    choices?: Array<{ message?: { content?: string } }>;
-    model?: string;
-    raw?: string;
-    error?: unknown;
-  };
-  if (!res.ok) throw new Error(`model-router ${res.status}: ${JSON.stringify(data).slice(0, 500)}`);
-  const raw = data.choices?.[0]?.message?.content?.trim() ?? '';
-  if (!raw) throw new Error(`model-router returned empty content: ${JSON.stringify(data).slice(0, 500)}`);
-  return { raw, model: data.model ?? cfg.model, routerUrl: cfg.routerUrl };
+  let envelope: { ok?: boolean; text?: unknown; originalError?: unknown };
+  try {
+    envelope = JSON.parse(stdout) as typeof envelope;
+  } catch {
+    throw new Error(`Jeden returned invalid JSON: ${stdout.trim().slice(0, 500)}`);
+  }
+  const raw = typeof envelope.text === 'string' ? envelope.text.trim() : '';
+  if (envelope.ok !== true || !raw) {
+    throw new Error(`Jeden returned no model output: ${JSON.stringify(envelope).slice(0, 500)}`);
+  }
+  return { raw, model: cfg.model, routerUrl: cfg.routerUrl };
 }
 
 async function askLlm(goal: string, state: string, screenshotPath: string, step: number, label?: string): Promise<Record<string, any>> {
@@ -180,7 +211,7 @@ async function askLlm(goal: string, state: string, screenshotPath: string, step:
   let lastRouterError = '';
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
-      const routed = await callModelRouter(prompt);
+      const routed = await callJeden(prompt);
       raw = routed.raw;
       routerMeta = { model: routed.model, router_url: routed.routerUrl, attempt };
       break;
@@ -190,7 +221,7 @@ async function askLlm(goal: string, state: string, screenshotPath: string, step:
       if (attempt < 3) await new Promise(r => setTimeout(r, attempt * 3000));
     }
   }
-  if (!raw) raw = JSON.stringify({ tool: 'give_up', args: { reason: `model-router error after retries: ${lastRouterError}` } });
+  if (!raw) raw = JSON.stringify({ tool: 'give_up', args: { reason: `Jeden/Brama error after retries: ${lastRouterError}` } });
 
   const logPath = join(dir, `loop_step${step}.json`);
   const decision = parseJsonFrom(raw);
@@ -200,7 +231,7 @@ async function askLlm(goal: string, state: string, screenshotPath: string, step:
 
 async function pageObservation(page: any): Promise<string> {
   const summarizeControls = (controls: any[]): string => (controls ?? []).map((el: any, i: number) => {
-    const bits = [el.tag, el.role && `role=${el.role}`, el.name && `name=${el.name}`, el.type && `type=${el.type}`, el.label && `label=${el.label}`, el.href && `href=${el.href}`].filter(Boolean);
+    const bits = [el.tag, el.role && `role=${el.role}`, el.name && `name=${el.name}`, el.type && `type=${el.type}`, el.label && `label=${el.label}`, el.value_state && `value=${el.value_state}`, typeof el.checked === 'boolean' && `checked=${el.checked}`, el.href && `href=${el.href}`].filter(Boolean);
     return `  [${i}] ${bits.join(' ')}`;
   }).join('\n') || '  (none)';
   const readFrame = async (frame: any): Promise<{ title?: string; text?: string; controls?: any[]; error?: string }> => {
@@ -210,14 +241,24 @@ async function pageObservation(page: any): Promise<string> {
         const controls = Array.from(document.querySelectorAll('input, textarea, select, button, a, [role="button"], [role="link"]'))
           .slice(0, 80)
           .map((el) => {
-            const anyEl = el as HTMLElement & { value?: string; type?: string; name?: string; href?: string };
+            const anyEl = el as HTMLElement & { value?: string; type?: string; name?: string; href?: string; checked?: boolean; selectedOptions?: HTMLCollectionOf<HTMLOptionElement> };
             const label = anyEl.getAttribute('aria-label') || anyEl.getAttribute('placeholder') || anyEl.innerText || anyEl.getAttribute('title') || '';
+            const type = anyEl.type || '';
+            const name = anyEl.name || '';
+            const value = typeof anyEl.value === 'string' ? anyEl.value.replace(/\s+/g, ' ').trim() : '';
+            const sensitive = /password|token|key|secret|email|captcha|cookie|authorization/i.test(`${type} ${name} ${label}`);
+            const selected = anyEl.tagName.toLowerCase() === 'select' && anyEl.selectedOptions?.[0]?.text
+              ? anyEl.selectedOptions[0].text.replace(/\s+/g, ' ').trim().slice(0, 80)
+              : '';
+            const value_state = !value ? '' : (sensitive ? `[set len=${value.length}]` : (selected || `[set len=${value.length}]`));
             return {
               tag: anyEl.tagName.toLowerCase(),
               role: anyEl.getAttribute('role') || '',
-              name: anyEl.name || '',
-              type: anyEl.type || '',
+              name,
+              type,
               label: label.replace(/\s+/g, ' ').trim().slice(0, 120),
+              value_state,
+              checked: typeof anyEl.checked === 'boolean' ? anyEl.checked : undefined,
               href: anyEl.href || '',
             };
           });
@@ -251,7 +292,7 @@ async function buildState(page: any, history: ToolCall[], envHints: Record<strin
     const offset = history.length - recent.length + i;
     return `  [${offset}] ${h.tool}(${JSON.stringify(h.args)}) -> ${h.error ?? h.result}`;
   }).join('\n') || '  (none)';
-  const eLines = Object.entries(envHints).map(([k, v]) => `  ${k}=${v}`).join('\n') || '  (none)';
+  const eLines = Object.keys(envHints).map((key) => `  ${key}=[value unavailable to model]`).join('\n') || '  (none)';
   const observation = await pageObservation(page);
   return `CURRENT URL: ${url}\n\nPAGE OBSERVATION:\n${observation}\n\nACTION HISTORY:\n${hLines}\n\nAVAILABLE ENV VARS:\n${eLines}\n`;
 }
@@ -267,6 +308,20 @@ export async function execute(
   const page = session.page;
   const capture = new Capture({ newPage: async () => page } as any);
   const flowName = options?.flowName;
+  let autoStoreCredential = false;
+  try {
+    const constraints: unknown = JSON.parse(process.env.GENERIC_TASK_CONSTRAINTS ?? '{}');
+    autoStoreCredential = Boolean(
+      constraints
+      && typeof constraints === 'object'
+      && !Array.isArray(constraints)
+      && 'store_secret_target' in constraints
+      && constraints.store_secret_target === 'skarbiec',
+    );
+  } catch {
+    // Invalid constraints are rejected by the storage tool if it is invoked.
+  }
+
 
   // Try replaying a saved flow before using the LLM unless this is an explicit
   // keeper/discovery run. Keeper-first runs must map the live success path, not
@@ -297,6 +352,43 @@ export async function execute(
   let activePage = page;
   for (let step = 0; ; step++) {
     activePage = getActivePage(activePage);
+    if (autoStoreCredential) {
+      const previouslyStored = session.takeStoredCredentialReceipt();
+      if (previouslyStored) {
+        history.push({
+          tool: 'store_credential',
+          args: { target: 'generated credential', field_class: 'token' },
+          result: previouslyStored,
+        });
+        if (flowName) {
+          const steps = history.map((entry) => ({ tool: entry.tool, args: entry.args, result: entry.result }));
+          saveFlow(flowName, steps);
+          console.log(`[loop] Flow saved after secure credential storage: ${flowName} (${steps.length} steps)`);
+        }
+        return { value: previouslyStored, history };
+      }
+      try {
+        const stored = await session.storeCredential('generated credential', 'token');
+        history.push({
+          tool: 'store_credential',
+          args: { target: 'generated credential', field_class: 'token' },
+          result: stored,
+        });
+        if (flowName) {
+          const steps = history.map((entry) => ({ tool: entry.tool, args: entry.args, result: entry.result }));
+          saveFlow(flowName, steps);
+          console.log(`[loop] Flow saved after secure credential storage: ${flowName} (${steps.length} steps)`);
+        }
+        return { value: stored, history };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        const credentialNotPresent = message === 'credential source origin mismatch'
+          || message === 'credential element was not found or did not match the required secret shape';
+        if (!credentialNotPresent) {
+          throw new AgentFailure(`secure credential capture failed: ${message}`, history);
+        }
+      }
+    }
     let decision: Record<string, any>;
 
     if (replay && step < replay.length && (options?.replayOnly || !['read', 'done'].includes(replay[step].tool))) {
@@ -377,4 +469,4 @@ export async function execute(
   throw new AgentFailure('agent loop exited unexpectedly', history);
 }
 
-export { callModelRouter, parseJsonFrom, signedRouterHeaders };
+export { callJeden, parseJsonFrom };
