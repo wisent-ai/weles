@@ -83,52 +83,12 @@ function cleanupAndExit(code) {
   Promise.resolve(SESSION?.close?.()).finally(() => process.exit(code));
 }
 
-function kimiConfigToml() {
-  const local = join(process.env.HOME || '', '.kimi-code', 'config.toml');
-  if (existsSync(local)) return readFileSync(local, 'utf8');
-  return `default_model = "kimi-code/kimi-for-coding"
-default_thinking = true
-
-[providers."managed:kimi-code"]
-type = "kimi"
-api_key = ""
-base_url = "https://api.kimi.com/coding/v1"
-
-[providers."managed:kimi-code".oauth]
-storage = "file"
-key = "oauth/kimi-code"
-
-[models."kimi-code/kimi-for-coding"]
-provider = "managed:kimi-code"
-model = "kimi-for-coding"
-max_context_size = 262144
-capabilities = [ "thinking", "always_thinking", "image_in", "video_in", "tool_use" ]
-display_name = "K2.7 Code"
-
-[services.moonshot_search]
-base_url = "https://api.kimi.com/coding/v1/search"
-api_key = ""
-
-[services.moonshot_search.oauth]
-storage = "file"
-key = "oauth/kimi-code"
-
-[services.moonshot_fetch]
-base_url = "https://api.kimi.com/coding/v1/fetch"
-api_key = ""
-
-[services.moonshot_fetch.oauth]
-storage = "file"
-key = "oauth/kimi-code"
-`;
-}
 
 function prepareKimiHome(home) {
   if (resolve(home) === resolve(process.env.HOME || '')) {
     throw new Error('refusing to run kimi login in the operator HOME');
   }
-  mkdirSync(join(home, '.kimi', 'credentials'), { recursive: true });
-  writeFileSync(join(home, '.kimi', 'config.toml'), kimiConfigToml(), { mode: 0o600 });
+  mkdirSync(join(home, '.kimi'), { recursive: true });
 }
 
 function noOpenEnv(home) {
