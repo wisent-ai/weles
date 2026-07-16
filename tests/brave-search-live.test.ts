@@ -50,11 +50,8 @@ function runProcess(
 }
 
 it.skipIf(process.env.RUN_LIVE_BRAVE_CREDENTIAL_TEST !== '1')(
-  'acquires one real Brave Search credential into Skarbiec and validates it against the Brave API',
+  'autonomously acquires one real Brave Search credential into Skarbiec and validates it against the Brave API',
   async () => {
-    const accountEmail = process.env.BRAVE_ACCOUNT_EMAIL?.trim();
-    if (!accountEmail) throw new Error('BRAVE_ACCOUNT_EMAIL is required for the live Brave Search test');
-
     const home = homedir();
     const skarbiecCLI = process.env.SKARBIEC_CLI?.trim()
       || resolve('vendor/skarbiec/target/release/skarbiec-entitlements-router');
@@ -114,7 +111,6 @@ it.skipIf(process.env.RUN_LIVE_BRAVE_CREDENTIAL_TEST !== '1')(
       const request = {
         secret: 'brave.search_api_key',
         purpose: 'content-platform-blog-research',
-        accountEmail,
         skarbiecRequestId: requestId,
         skarbiecCredentialId: credentialId,
         autoPromoteTrajectory: true,
