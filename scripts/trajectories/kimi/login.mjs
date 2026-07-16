@@ -231,7 +231,7 @@ function firstLoginUrl(text) {
     } catch {}
   }
   const matches = clean.match(/https?:\/\/[^\s"'<>]+/g) || [];
-  return matches.find((url) => /kimi|moonshot|accounts\.google\.com|oauth|auth|login/i.test(url)) || null;
+  return matches.find((url) => /(?:kimi\.com\/code\?[^#\s]*track_id=|auth\.kimi\.com\/authorize_device\?)/i.test(url)) || null;
 }
 
 async function waitForAuthorizeUrl(getOut, urlFile, timeoutSec = 90) {
