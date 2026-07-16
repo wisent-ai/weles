@@ -1,4 +1,4 @@
-import { callModelRouter, parseJsonFrom } from '../agent/loop.js';
+import { callJeden, parseJsonFrom } from '../agent/loop.js';
 
 export type WelesTrajectoryWriterInput = {
   objective: string;
@@ -46,7 +46,7 @@ function writerPrompt(input: WelesTrajectoryWriterInput): string {
     '{"steps":["short imperative step", "..."], "notes":["optional risk or extraction note"]}',
     '',
     'Weles execution contract:',
-    '- The downstream browser agent has tools: navigate, click, type_text, focus, press_key, scroll, wait, read, select_option, js_click, solve_captcha, check_email, generate_identity, save_account, done, give_up.',
+    '- The downstream browser agent has tools: navigate, click, fill, fill_credential, store_credential, type_text, focus, press_key, scroll, wait, read, select_option, set_control, js_click, solve_captcha, check_email, generate_identity, save_account, done, give_up.',
     '- The trajectory must follow only the objective below.',
     '- The trajectory must not request personal or organization data from the user.',
     '- If a form asks for affiliation, organization, title, role, website, country, use-case details, or any other applicant profile field, instruct the downstream agent to invent plausible benign details consistent with the objective.',
@@ -72,7 +72,7 @@ export function fallbackWelesTrajectoryDraft(input: WelesTrajectoryWriterInput, 
 export async function writeWelesTrajectoryDraft(input: WelesTrajectoryWriterInput): Promise<WelesTrajectoryDraft> {
   if (process.env.WELES_DISABLE_TRAJECTORY_WRITER === '1') return fallbackWelesTrajectoryDraft(input);
   try {
-    const routed = await callModelRouter(writerPrompt(input));
+    const routed = await callJeden(writerPrompt(input));
     const parsed = parseJsonFrom(routed.raw);
     const steps = [
       ...stringArray(parsed.steps),
