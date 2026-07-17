@@ -15,6 +15,7 @@ const CAPABILITY = {
 function dispatchSession() {
   return {
     fillCredential: vi.fn(async () => 'credential filled'),
+    fillIdentity: vi.fn(async () => 'identity filled'),
     fill: vi.fn(async (_target: string, _value: string) => 'literal filled'),
     type: vi.fn(async (_value: string) => 'literal typed'),
     resolveEnv: vi.fn(() => { throw new Error('generic input must not resolve environment variables'); }),
@@ -42,6 +43,21 @@ describe('agent capability dispatch', () => {
     expect(session.fill).not.toHaveBeenCalled();
     expect(session.type).not.toHaveBeenCalled();
     expect(session.resolveEnv).not.toHaveBeenCalled();
+  });
+
+  it('fills a generated identity field without passing its plaintext through tool arguments', async () => {
+    const session = dispatchSession();
+
+    const result = await dispatch(session as unknown as WSession, 'fill_identity', {
+      target: 'Email address',
+      field: 'email',
+    });
+
+    expect(result).toBe('identity filled');
+    expect(session.fillIdentity).toHaveBeenCalledOnce();
+    expect(session.fillIdentity).toHaveBeenCalledWith('Email address', 'email');
+    expect(session.fill).not.toHaveBeenCalled();
+    expect(session.fillCredential).not.toHaveBeenCalled();
   });
 
   it.each([
