@@ -15,6 +15,7 @@ type SecretDefinition = {
   validationUrl: string;
   validationHeader: 'x-api-key' | 'x-subscription-token' | 'authorization';
   defaultHeadless: boolean;
+  credentialPrefix?: string;
 };
 
 type ServiceCredentialRow = {
@@ -129,6 +130,7 @@ const BRAVE_SEARCH: SecretDefinition = {
   dailyRequests: '1000',
   validationUrl: 'https://api.search.brave.com/res/v1/web/search?q=test&count=1',
   validationHeader: 'x-subscription-token',
+  credentialPrefix: 'BSAI',
   defaultHeadless: false,
 };
 
@@ -330,6 +332,10 @@ function paramsFor(def: SecretDefinition, request: AcquireSecretRequest): Record
         skarbiec_request_id: request.skarbiecRequestId,
         skarbiec_credential_id: request.skarbiecCredentialId,
         skarbiec_provider: def.provider,
+        vault_item_id: request.skarbiecCredentialId,
+        expected_secret_prefix: def.credentialPrefix,
+        secret_source_origin: new URL(def.formUrl).origin,
+        identity_platform: def.provider,
       } : {}),
     },
     env: {},

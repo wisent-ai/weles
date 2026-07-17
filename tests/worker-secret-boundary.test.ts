@@ -1,5 +1,6 @@
 import type { SpawnOptions } from 'node:child_process';
 import { afterAll, describe, expect, it, vi } from 'vitest';
+import { acquireSecret } from '../src/secrets/acquire.js';
 
 const mocks = vi.hoisted(() => {
   const originalEnv = { ...process.env };
@@ -179,5 +180,24 @@ describe('worker secret acquisition boundary', () => {
     expect(completedBody.result.generic_browser_task.value.nested.confirmation).toBe(
       'Acquired [redacted]; do not persist [redacted]',
     );
+  });
+
+  it('binds Brave credential capture to the requested vault item and provider origin', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('[]', { status: 200 })));
+    const planned = await acquireSecret({
+      secret: 'brave.search_api_key',
+      dryRun: true,
+      skarbiecRequestId: 'request-1',
+      skarbiecCredentialId: 'BRAVE_SEARCH_API_KEY',
+    });
+    expect(planned.status).toBe('acquisition_plan');
+    if (planned.status !== 'acquisition_plan') throw new Error('expected acquisition plan');
+    expect(planned.params.constraints).toMatchObject({
+      store_secret_target: 'skarbiec',
+      vault_item_id: 'BRAVE_SEARCH_API_KEY',
+      expected_secret_prefix: 'BSAI',
+      secret_source_origin: 'https://api-dashboard.search.brave.com',
+      identity_platform: 'brave',
+    });
   });
 });
