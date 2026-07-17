@@ -145,17 +145,36 @@ async function braveProofOfWorkState(page: Page): Promise<BraveProofOfWorkState 
 }
 
 async function solveBraveProofOfWork(page: Page, initial: BraveProofOfWorkState): Promise<boolean> {
-  if (!initial.formValid) {
+  let ready = initial;
+  if (!ready.formValid) {
     console.log('[captcha] Brave proof-of-work blocked: registration form is invalid');
     return false;
   }
 
-  let started = /verifying/i.test(initial.buttonText);
-  if (!started && initial.solutionLength === 0) {
-    if (initial.buttonDisabled) {
-      console.log('[captcha] Brave proof-of-work button is disabled despite a valid form');
+  if (ready.buttonDisabled && ready.solutionLength === 0) {
+    console.log('[captcha] Brave proof-of-work waiting for registration validation');
+    for (let attempt = 0; attempt < 60 && ready.buttonDisabled; attempt++) {
+      await humanIdlePause('short');
+      const state = await braveProofOfWorkState(page);
+      if (!state) return false;
+      ready = state;
+      if (!ready.formValid) {
+        console.log('[captcha] Brave proof-of-work blocked: registration form became invalid');
+        return false;
+      }
+      if (ready.errorText) {
+        console.log(`[captcha] Brave proof-of-work validation failed: ${ready.errorText.slice(0, 160)}`);
+        return false;
+      }
+    }
+    if (ready.buttonDisabled) {
+      console.log('[captcha] Brave proof-of-work button remained disabled after validation');
       return false;
     }
+  }
+
+  let started = /verifying/i.test(ready.buttonText);
+  if (!started && ready.solutionLength === 0) {
     try {
       await page.locator('#captcha-button').click({ timeout: 10_000 });
       started = true;
@@ -166,8 +185,8 @@ async function solveBraveProofOfWork(page: Page, initial: BraveProofOfWorkState)
     }
   }
 
-  if (initial.solutionLength > 0 || /verified/i.test(initial.buttonText)) return true;
-  const initialURL = initial.url;
+  if (ready.solutionLength > 0 || /verified/i.test(ready.buttonText)) return true;
+  const initialURL = ready.url;
   for (let attempt = 0; attempt < 240; attempt++) {
     await humanIdlePause('short');
     const state = await braveProofOfWorkState(page);
