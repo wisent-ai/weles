@@ -17,19 +17,18 @@ function acquiredResult(): Record<string, unknown> {
 }
 
 describe('worker credential completion', () => {
-  it('hands plaintext to Skarbiec before withholding artifacts and redacting every persistence sink', async () => {
+  it('hands plaintext to Skarbiec before redacting every result persistence sink', async () => {
     const original = acquiredResult();
     const transfer = vi.fn(async () => {
       expect(JSON.stringify(original)).toContain(canary);
       return { secretValue: canary, error: null };
     });
 
-    const prepared = await prepareCredentialCompletion(original, true, transfer);
+    const prepared = await prepareCredentialCompletion(original, transfer);
 
     expect(transfer).toHaveBeenCalledOnce();
-    expect(prepared.allowArtifactPersistence).toBe(false);
     expect(JSON.stringify(prepared.safeResult)).not.toContain(canary);
-    expect(JSON.stringify(prepared.safeResult)).toContain('[REDACTED]');
+    expect(JSON.stringify(prepared.safeResult)).toContain('[redacted]');
 
     const writeResult = vi.fn(async (_result: Record<string, unknown>) => {});
     const updateTrajectory = vi.fn(async (_result: Record<string, unknown>) => {});
@@ -53,7 +52,7 @@ describe('worker credential completion', () => {
   });
 
   it('fails closed with only redacted payloads when Skarbiec rejects the credential', async () => {
-    const prepared = await prepareCredentialCompletion(acquiredResult(), true, async () => ({
+    const prepared = await prepareCredentialCompletion(acquiredResult(), async () => ({
       secretValue: canary,
       error: 'Skarbiec credential return failed',
     }));
@@ -67,6 +66,5 @@ describe('worker credential completion', () => {
     expect(failed).toHaveBeenCalledOnce();
     expect(JSON.stringify(failed.mock.calls[0]?.[0])).not.toContain(canary);
     expect(failed.mock.calls[0]?.[1]).toBe('Skarbiec credential return failed');
-    expect(prepared.allowArtifactPersistence).toBe(false);
   });
 });

@@ -206,7 +206,7 @@ export class WSession {
         if (this.capturedResponses.length >= 500) this.capturedResponses.shift();
         const entry = { ts: Date.now(), method: res.request()?.method?.() ?? 'GET', url: res.url(), status: res.status(), headers: res.headers(), body: '' };
         this.capturedResponses.push(entry);
-        if (this._secureCredentialTask || !shouldCaptureResponseBody(res)) return;
+        if (!shouldCaptureResponseBody(res)) return;
         void res.text().then((text: string) => { entry.body = text.slice(0, 8192); }, () => {});
       } catch {}
     });
@@ -234,10 +234,8 @@ export class WSession {
     const closed = this.page.isClosed?.() ?? false;
     const vs = this.page.viewportSize?.() ?? {};
     console.log(`[wsession] ${label} START url=${url.slice(0, 80)} closed=${closed} viewport=${vs.width}x${vs.height}`);
-    if (!this._secureCredentialTask) {
-      await this._cap.screenshot(this.page, `before_${label}`).catch(() => {});
-      await this._saveDom(`before_${label}`);
-    }
+    await this._cap.screenshot(this.page, `before_${label}`).catch(() => {});
+    await this._saveDom(`before_${label}`);
     try {
       const result = await fn();
       if (this._secureCredentialTask) {
@@ -245,18 +243,14 @@ export class WSession {
         if (stored) this._storedCredentialReceipt = stored;
       }
       console.log(`[wsession] ${label} OK result=${String(result).slice(0, 100)}`);
-      if (!this._secureCredentialTask) {
-        await this._cap.screenshot(this.page, `after_${label}`).catch(() => {});
-        await this._saveDom(`after_${label}`);
-      }
+      await this._cap.screenshot(this.page, `after_${label}`).catch(() => {});
+      await this._saveDom(`after_${label}`);
       return result;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       console.log(`[wsession] ${label} ERROR ${message.slice(0, 300)}`);
-      if (!this._secureCredentialTask) {
-        await this._cap.screenshot(this.page, `error_${label}`).catch(() => {});
-        await this._saveDom(`error_${label}`);
-      }
+      await this._cap.screenshot(this.page, `error_${label}`).catch(() => {});
+      await this._saveDom(`error_${label}`);
       throw error;
     }
   }
@@ -272,7 +266,6 @@ export class WSession {
   static async start(opts: WSessionOptions = {}): Promise<WSession> {
     enforceWelesExecutionBoundary('WSession.start');
     const label = opts.label ?? '';
-    const secureCredentialTask = isSkarbiecCredentialTask();
     // G9: one per-run human-timing seed, generated at session start and routed
     // into the shared seeded PRNG so every human mouse/typing jitter draw this
     // run is reproducible from the recorded seed. Unseeded code paths fall back
@@ -283,7 +276,7 @@ export class WSession {
     seedHumanTiming(timingSeed);
     const cdp = opts.cdpEndpoint ?? process.env.BRIGHTDATA_BROWSER_WS;
     console.log(`[wsession] start() label=${label} cdp=${!!cdp} proxy=${redactProxyForLog(opts.proxy)}`);
-    if (label && !secureCredentialTask) process.env.WELES_LABEL = label;
+    if (label) process.env.WELES_LABEL = label;
     if (cdp) {
       const browser = await chromium.connectOverCDP(cdp);
       const ctx = browser.contexts()[0] || await browser.newContext({ locale: 'en-US' }); const page = ctx.pages()[0] || await ctx.newPage();
@@ -331,19 +324,16 @@ export class WSession {
     // input-recorder) as a clean-room control for signup A/B tests. (Tested on
     // reddit: toggling it changed nothing — the verify-init gate is exit-IP
     // reputation, not in-page instrumentation. Kept as a knob regardless.)
-    const pageDiagnostics = secureCredentialTask || process.env.WELES_PAGE_DIAGNOSTICS === '0'
+    const pageDiagnostics = process.env.WELES_PAGE_DIAGNOSTICS === '0'
       ? false
       : (opts.pageDiagnostics ?? (label !== 'linkedin_register'));
-    const bOpts: AsyncNewBrowserOptions = { os: persona.os, browser: persona.browser, headless: opts.headless ?? false, recordVideo: secureCredentialTask ? false : (opts.record ?? (process.env.WELES_DISABLE_RECORDING !== '1')), locale: opts.locale, persona, proxy, pageDiagnostics, userAgent: opts.userAgent, userDataDir: opts.userDataDir ?? process.env.WELES_USER_DATA_DIR };
+    const bOpts: AsyncNewBrowserOptions = { os: persona.os, browser: persona.browser, headless: opts.headless ?? false, recordVideo: opts.record ?? (process.env.WELES_DISABLE_RECORDING !== '1'), locale: opts.locale, persona, proxy, pageDiagnostics, userAgent: opts.userAgent, userDataDir: opts.userDataDir ?? process.env.WELES_USER_DATA_DIR };
     const cp = bOpts.browser === 'chromium'
       ? resolveChromiumPathOverride(opts.chromiumPath)
       : (opts.chromiumPath ?? process.env.CHROMIUM_PATH ?? findCustomBrowser(bOpts.browser));
     if (bOpts.browser === 'chromium' && !cp) throw new Error('Custom Chromium not found. Set CHROMIUM_PATH or install to a known location.');
     if (cp && bOpts.browser === 'chromium') bOpts.chromiumPath = cp;
-    if (secureCredentialTask) {
-      delete process.env.SSLKEYLOGFILE;
-      delete process.env.WELES_LABEL;
-    } else if (label) {
+    if (label) {
       process.env.SSLKEYLOGFILE = join(recordingsDir(label), 'sslkey.log');
       process.env.WELES_LABEL = label;
     }
@@ -439,7 +429,7 @@ export class WSession {
     // Captures every request/response (utf8 + base64), WebSocket frames in both
     // directions, TCP serverAddr, TLS securityDetails. Runs on every WSession —
     // keepers and trajectories — without exception. See net_record.ts.
-    if (!ws._secureCredentialTask && process.env.WELES_NO_INSTRUMENT !== '1') startInstrumentation(ws, ctx, label);
+    if (process.env.WELES_NO_INSTRUMENT !== '1') startInstrumentation(ws, ctx, label);
     return ws;
   }
 

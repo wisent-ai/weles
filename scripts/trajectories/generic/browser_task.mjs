@@ -127,12 +127,6 @@ if (!objective.trim()) throw new Error('GENERIC_TASK_OBJECTIVE is required');
 
 const constraints = parseJsonEnv('GENERIC_TASK_CONSTRAINTS', {});
 const storesCredentialInSkarbiec = constraints.store_secret_target === 'skarbiec';
-if (storesCredentialInSkarbiec) {
-  process.env.WELES_SECURE_CREDENTIAL_TASK = '1';
-  process.env.WELES_NO_INSTRUMENT = '1';
-  process.env.WELES_DISABLE_RECORDING = '1';
-  process.env.WELES_PAGE_DIAGNOSTICS = '0';
-}
 const envHints = safeStringMap(parseJsonEnv('GENERIC_TASK_ENV', {}));
 for (const [key, value] of Object.entries(envHints)) process.env[key] = value;
 
