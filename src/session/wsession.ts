@@ -602,7 +602,13 @@ export class WSession {
 
   async wait(seconds: number): Promise<string> { await new Promise(r => setTimeout(r, seconds * 1000)); return `waited ${seconds}s`; }  // allow-raw-playwright: review — context-dependent timer
   async read(question: string): Promise<string> { return await askPage(asV(this.page), question) ?? 'NONE'; }
-  async solveCaptcha(): Promise<string> { return this.runStep('solveCaptcha', async () => (await solvePageCaptcha(this.page, this._solver, this)) ? 'captcha solved' : 'captcha failed'); }
+  async solveCaptcha(): Promise<string> {
+    return this.runStep('solveCaptcha', async () => {
+      const result = await solvePageCaptcha(this.page, this._solver, this);
+      if (result === null) return 'no supported captcha detected';
+      return result ? 'captcha solved' : 'captcha failed';
+    });
+  }
 
   async checkEmail(email: string, sender: string): Promise<string> { const { wsCheckEmail } = await import('./wsession-helpers/finalize.js'); return wsCheckEmail(this, email, sender); }
   async checkSms(service: string, country = 'UK'): Promise<string> { this._smsOrder = await getNumber(service, country); if (!this._smsOrder) return 'error: no SMS number available'; this._env[`${service.toUpperCase()}_NEW_PHONE`] = this._smsOrder.phone; return `phone: ${this._smsOrder.phone}`; }
