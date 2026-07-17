@@ -126,9 +126,17 @@ export async function wsClick(s: WSession, target: string): Promise<string> {
 
 async function fillPage(s: WSession, target: string, value: string, allowedOrigin?: string): Promise<string> {
   const v = value;
-  const kws = target.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(w => w.length > 2);
+  const explicitSelector = target.trim().match(/^(?:input|textarea)(?:\[[^\]]+\])+/)?.[0];
+  const description = explicitSelector ? target.slice(explicitSelector.length) : target;
+  const kws = description.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(w => w.length > 2);
   const sels = kws.flatMap(k => ['input','textarea','[contenteditable]'].flatMap(t => [`${t}[name*="${k}"]`,`${t}[placeholder*="${k}" i]`,`${t}[aria-label*="${k}" i]`]));
   for (const frame of childFrames(s, allowedOrigin)) {
+    if (explicitSelector) {
+      try {
+        const explicit = await firstVisible(frame.locator?.(explicitSelector));
+        if (explicit) { await humanFill(s.page, explicit, v); return `filled frame ${explicitSelector}`; }
+      } catch {}
+    }
     try { const lbl = await firstVisible(frame.getByLabel?.(target, { exact: false })); if (lbl) { await humanFill(s.page, lbl, v); return 'filled frame label'; } } catch {}
     const emailHint = /\b(email|e-mail)\b/i.test(target);
     if (emailHint) {
@@ -138,6 +146,12 @@ async function fillPage(s: WSession, target: string, value: string, allowedOrigi
     for (const sel of sels) {
       try { const el = await firstVisible(frame.locator?.(sel)); if (el) { await humanFill(s.page, el, v); return `filled frame ${sel}`; } } catch {}
     }
+  }
+  if (explicitSelector) {
+    try {
+      const explicit = s.page.locator?.(explicitSelector)?.first?.();
+      if (explicit && await explicit.isVisible()) { await humanFill(s.page, explicit, v); return `filled ${explicitSelector}`; }
+    } catch {}
   }
   try { const lbl = s.page.getByLabel?.(target, { exact: false })?.first?.(); if (lbl && await lbl.isVisible({ timeout: VISIBILITY_PROBE_MS }).catch(() => false)) { await humanFill(s.page, lbl, v); return 'filled'; } } catch {}
   for (const sel of sels) { try { const el = s.page.locator?.(sel)?.first?.(); if (el && await el.isVisible()) { await humanFill(s.page, el, v); return 'filled'; } } catch {} }
