@@ -28,17 +28,17 @@
 //   plus the usual worker env (SUPABASE_URL/KEY, CHROMIUM_PATH, proxy creds, ...)
 //
 // Routes:
-//   GET  /healthz  -> liveness + config summary (no secrets)
-//   POST /run      -> { action, params?, account_id?, timeout_ms?, creds? }
-//                     runs the trajectory, returns { ok, exitCode, action,
-//                     run_id, result|credential, stdout_tail, stderr_tail }
+//   GET  /healthz                         -> liveness + config summary
+//   POST /run                             -> synchronous trajectory execution
+//   GET  /diagnostics/:run_id             -> authenticated artifact manifest
+//   GET  /diagnostics/:run_id/file?path=  -> authenticated artifact download
 
 import http from 'node:http';
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { dirname, resolve, join } from 'node:path';
+import { dirname, resolve, join, extname, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
+import { createReadStream, readFileSync, readdirSync, statSync, existsSync, lstatSync, realpathSync } from 'node:fs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(__dirname, '../..');
@@ -65,11 +65,14 @@ const BUILDER_PREAMBLE = [
   'When finished, call done(value) with a concise JSON-serializable summary plus any data or credentials the task asked for.',
 ].join(' ');
 
-function authorized(req) {
-  if (ALLOW_UNAUTH) return true;
+function tokenAuthorized(req) {
   if (!TOKEN) return false;
   if (String(req.headers.authorization || '') === `Bearer ${TOKEN}`) return true;
   return String(req.headers['x-api-key'] || '') === TOKEN;
+}
+
+function authorized(req) {
+  return ALLOW_UNAUTH || tokenAuthorized(req);
 }
 
 function json(res, code, obj, { redact = true } = {}) {
@@ -91,6 +94,111 @@ function redactSecrets(obj) {
     .replace(/\b(AKIA|ASIA)[0-9A-Z]{16}\b/g, '[redacted-aws]')
     .replace(/\b[a-z]{1,12}_(secret|key|token|pat|api|db)_[A-Za-z0-9]{12,}/gi, '[redacted-secret]');
   try { return JSON.parse(s); } catch { return obj; }
+}
+
+const SAFE_RUN_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/;
+
+function diagnosticsContentType(path) {
+  switch (extname(path).toLowerCase()) {
+    case '.png': return 'image/png';
+    case '.jpg':
+    case '.jpeg': return 'image/jpeg';
+    case '.webm': return 'video/webm';
+    case '.mp4': return 'video/mp4';
+    case '.html': return 'text/html; charset=utf-8';
+    case '.json': return 'application/json; charset=utf-8';
+    case '.ndjson': return 'application/x-ndjson; charset=utf-8';
+    case '.har': return 'application/json; charset=utf-8';
+    case '.log':
+    case '.txt':
+    case '.patch': return 'text/plain; charset=utf-8';
+    case '.pcap': return 'application/vnd.tcpdump.pcap';
+    default: return 'application/octet-stream';
+  }
+}
+
+function decodeRunId(raw) {
+  try {
+    const runId = decodeURIComponent(raw);
+    return SAFE_RUN_ID.test(runId) ? runId : null;
+  } catch {
+    return null;
+  }
+}
+
+function diagnosticsRoot(runId) {
+  let recordingsRoot;
+  let runRoot;
+  try {
+    recordingsRoot = realpathSync(join(REPO, 'recordings'));
+    runRoot = realpathSync(join(recordingsRoot, runId));
+  } catch {
+    return null;
+  }
+  return runRoot.startsWith(`${recordingsRoot}${sep}`) ? runRoot : null;
+}
+
+function diagnosticsManifest(runId) {
+  const root = diagnosticsRoot(runId);
+  if (!root) return null;
+  const files = [];
+  const stack = [{ dir: root, rel: '' }];
+  while (stack.length) {
+    const current = stack.pop();
+    let entries;
+    try { entries = readdirSync(current.dir, { withFileTypes: true }); } catch { continue; }
+    for (const entry of entries) {
+      if (entry.isSymbolicLink()) continue;
+      const full = join(current.dir, entry.name);
+      const rel = current.rel ? `${current.rel}/${entry.name}` : entry.name;
+      if (entry.isDirectory()) {
+        stack.push({ dir: full, rel });
+        continue;
+      }
+      if (!entry.isFile()) continue;
+      let stat;
+      try { stat = statSync(full); } catch { continue; }
+      files.push({
+        path: rel,
+        bytes: stat.size,
+        modified_at: stat.mtime.toISOString(),
+        content_type: diagnosticsContentType(rel),
+        download_url: `/diagnostics/${encodeURIComponent(runId)}/file?path=${encodeURIComponent(rel)}`,
+      });
+    }
+  }
+  files.sort((a, b) => a.path.localeCompare(b.path));
+  return {
+    ok: true,
+    run_id: runId,
+    total_files: files.length,
+    total_bytes: files.reduce((sum, file) => sum + file.bytes, 0),
+    files,
+  };
+}
+
+function diagnosticFile(runId, requestedPath) {
+  if (typeof requestedPath !== 'string' || requestedPath.length === 0 || requestedPath.includes('\0')) return null;
+  const root = diagnosticsRoot(runId);
+  if (!root) return null;
+  const candidate = resolve(root, requestedPath);
+  if (!candidate.startsWith(`${root}${sep}`)) return null;
+  try {
+    const lstat = lstatSync(candidate);
+    if (lstat.isSymbolicLink() || !lstat.isFile()) return null;
+    const real = realpathSync(candidate);
+    if (!real.startsWith(`${root}${sep}`)) return null;
+    const stat = statSync(real);
+    return { path: real, stat };
+  } catch {
+    return null;
+  }
+}
+
+function requireDiagnosticsAuthorization(req, res) {
+  if (tokenAuthorized(req)) return true;
+  json(res, TOKEN ? 401 : 500, { ok: false, error: TOKEN ? 'unauthorized' : 'missing_WELES_API_TOKEN' });
+  return false;
 }
 
 function readBody(req) {
@@ -308,8 +416,34 @@ const server = http.createServer(async (req, res) => {
         source: 'weles_api',
         authConfigured: Boolean(TOKEN || ALLOW_UNAUTH),
         rawCredsAllowed: ALLOW_RAW_CREDS,
-        routes: ['GET /healthz', 'POST /run', 'POST /weles-builder', 'POST /reauth'],
+        routes: ['GET /healthz', 'POST /run', 'GET /diagnostics/:run_id', 'GET /diagnostics/:run_id/file?path=', 'POST /weles-builder', 'POST /reauth'],
       });
+      return;
+    }
+    const diagnosticFileMatch = /^\/diagnostics\/([^/]+)\/file$/.exec(url.pathname);
+    if (req.method === 'GET' && diagnosticFileMatch) {
+      if (!requireDiagnosticsAuthorization(req, res)) return;
+      const runId = decodeRunId(diagnosticFileMatch[1]);
+      if (!runId) { json(res, 400, { ok: false, error: 'invalid_run_id' }); return; }
+      const file = diagnosticFile(runId, url.searchParams.get('path'));
+      if (!file) { json(res, 404, { ok: false, error: 'diagnostic_file_not_found' }); return; }
+      res.writeHead(200, {
+        'Content-Type': diagnosticsContentType(file.path),
+        'Content-Length': String(file.stat.size),
+        'Cache-Control': 'private, no-store',
+        'X-Content-Type-Options': 'nosniff',
+      });
+      createReadStream(file.path).on('error', () => res.destroy()).pipe(res);
+      return;
+    }
+    const diagnosticsMatch = /^\/diagnostics\/([^/]+)$/.exec(url.pathname);
+    if (req.method === 'GET' && diagnosticsMatch) {
+      if (!requireDiagnosticsAuthorization(req, res)) return;
+      const runId = decodeRunId(diagnosticsMatch[1]);
+      if (!runId) { json(res, 400, { ok: false, error: 'invalid_run_id' }); return; }
+      const manifest = diagnosticsManifest(runId);
+      if (!manifest) { json(res, 404, { ok: false, error: 'diagnostics_not_found' }); return; }
+      json(res, 200, manifest);
       return;
     }
     // reauth: run a provider's reauth trajectory ON THE HOST. Body:
