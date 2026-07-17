@@ -156,33 +156,63 @@ export async function wsFill(s: WSession, target: string, value: string): Promis
   return s.runStep(`fill_${target}`, () => fillPage(s, target, literal, pageUrl.origin));
 }
 
-export async function wsFillCredential(
+type CredentialFieldClass = 'password' | 'email' | 'username' | 'token' | 'api-key';
+type IdentityField = 'email' | 'password' | 'username' | 'first_name' | 'last_name' | 'birth_month' | 'birth_day' | 'birth_year';
+
+async function fillProtectedValue(
   s: WSession,
   target: string,
-  fieldClass: 'password' | 'email' | 'username' | 'token' | 'api-key',
-  capability: CapabilityRef,
+  value: string,
+  expectedHint: RegExp,
 ): Promise<string> {
   const pageUrl = new URL(s.page.url());
   const origin = pageUrl.origin;
   if (!['https:', 'http:'].includes(pageUrl.protocol)) throw new Error('credential fill requires an HTTP(S) origin');
-  const targetText = target.toLowerCase();
-  const expectedHints: Record<typeof fieldClass, RegExp> = {
+  if (!expectedHint.test(target.toLowerCase())) throw new Error('credential field class mismatch');
+  try {
+    const result = await fillPage(s, target, value, origin);
+    return result.startsWith('filled') ? `credential ${result}` : result;
+  } catch {
+    throw new Error('credential fill failed');
+  }
+}
+
+export async function wsFillCredential(
+  s: WSession,
+  target: string,
+  fieldClass: CredentialFieldClass,
+  capability: CapabilityRef,
+): Promise<string> {
+  const origin = new URL(s.page.url()).origin;
+  const expectedHints: Record<CredentialFieldClass, RegExp> = {
     password: /password|passcode|secret/,
     email: /email|e-mail/,
     username: /username|user name|login/,
     token: /token|verification code|one-time code|otp/,
     'api-key': /api.?key|access key/,
   };
-  if (!expectedHints[fieldClass].test(targetText)) throw new Error('credential field class mismatch');
   const expected = { purpose: 'weles.browser.fill' as const, resource: `origin:${origin}/${fieldClass}` };
-  return withCapability(capability, expected, async (secret) => {
-    try {
-      const result = await fillPage(s, target, secret, origin);
-      return result.startsWith('filled') ? `credential ${result}` : result;
-    } catch {
-      throw new Error('credential fill failed');
-    }
-  });
+  return withCapability(capability, expected, (secret) =>
+    fillProtectedValue(s, target, secret, expectedHints[fieldClass]));
+}
+
+export async function wsFillIdentity(
+  s: WSession,
+  target: string,
+  field: IdentityField,
+  value: string,
+): Promise<string> {
+  const expectedHints: Record<IdentityField, RegExp> = {
+    email: /email|e-mail/,
+    password: /password|passcode|secret/,
+    username: /username|user name|login/,
+    first_name: /first.?name|given.?name/,
+    last_name: /last.?name|family.?name|surname/,
+    birth_month: /birth.*month|month/,
+    birth_day: /birth.*day|day/,
+    birth_year: /birth.*year|year/,
+  };
+  return fillProtectedValue(s, target, value, expectedHints[field]);
 }
 
 export async function wsCheckEmail(s: WSession, email: string, sender: string): Promise<string> {

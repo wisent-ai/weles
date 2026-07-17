@@ -70,7 +70,7 @@ function identityInstructions(platform) {
   const prefix = platform.toUpperCase().replace(/[^A-Z0-9]+/g, '_');
   const instructions = [
     'Weles generated a registration email identity through its domain rotator / Resend inbox for this run.',
-    `Use these placeholders when a form asks for identity fields: $${prefix}_NEW_FIRSTNAME, $${prefix}_NEW_LASTNAME, $${prefix}_NEW_USERNAME, $${prefix}_NEW_EMAIL, $${prefix}_NEW_PASSWORD. The fill/type tools resolve placeholders before typing; do not type literal placeholder text.`,
+    'Use fill_identity(target, field) for generated email, password, username, first_name, last_name, and birth-date fields. The generated values stay inside WSession and never appear in model tool arguments or results.',
     `If the site sends an email confirmation, call check_email("$${prefix}_NEW_EMAIL", "") and follow the returned code, link, or instructions before attempting to sign in.`,
     'Do not return raw API keys in done(value). Store newly issued token or API-key material only through store_credential.',
   ];

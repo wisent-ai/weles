@@ -53,6 +53,7 @@ Tools:
   click(target)            Click an element described in plain English.
   fill(target, value)      Type a literal non-credential value into an input. Environment placeholders are forbidden.
   fill_credential(target, field_class, capability) Fill a password/email/username/token/api-key using an opaque typed Weles capability reference. Never request or provide plaintext.
+  fill_identity(target, field) Fill one field from the current run-generated identity without exposing it. Field: email, password, username, first_name, last_name, birth_month, birth_day, or birth_year.
   store_credential(target, field_class) Read a newly issued token/api-key from the named page element and write it directly to the task-authorized Skarbiec item. The value never enters tool arguments or results.
   focus(selector)          Focus an input by name/type/placeholder (for shadow DOM).
   type_text(value)         Type literal non-credential text after focusing. Environment placeholders are forbidden.
@@ -74,7 +75,7 @@ Tools:
 Reply with ONLY a JSON object:
   {"thought": "...", "tool": "<tool_name>", "args": {...}}
 
-Credentials: use only fill_credential with an opaque capability reference whose target is weles; never place secrets or $ENV_VAR placeholders in fill/type_text. For task-authorized credential acquisition, use store_credential on the newly issued page element and never read or return its value.
+Credentials: use fill_identity only for the current run-generated identity; use fill_credential with an opaque capability reference whose target is weles for all externally supplied credentials. Never place secrets or $ENV_VAR placeholders in fill/type_text. For task-authorized credential acquisition, use store_credential on the newly issued page element and never read or return its value.
 If a step fails, try something different. Do not repeat the same failing action.`;
 
 function visionDir(label?: string): string {

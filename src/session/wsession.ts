@@ -31,7 +31,7 @@ import { costTracker } from '../utils/cost.js';
 
 import { installAtoms } from './wsession_atoms.js';  // installAtoms() is invoked at file end after WSession is declared
 import { runRecordingsDir, runRecordingsRoot } from './run-recordings.js';
-import { wsClick, wsFill, wsFillCredential } from './wsession-helpers/finalize.js';
+import { wsClick, wsFill, wsFillCredential, wsFillIdentity } from './wsession-helpers/finalize.js';
 import { isSkarbiecCredentialTask, wsAutoStoreCredential, wsStoreCredential } from './wsession-helpers/credential-store.js';
 import type { CapabilityRef } from '../utils/capability.js';
 import { assertNonCredentialInput } from '../utils/capability.js';
@@ -460,6 +460,23 @@ export class WSession {
     fieldClass: 'password' | 'email' | 'username' | 'token' | 'api-key',
     capability: CapabilityRef,
   ): Promise<string> { return wsFillCredential(this, target, fieldClass, capability); }
+  async fillIdentity(
+    target: string,
+    field: 'email' | 'password' | 'username' | 'first_name' | 'last_name' | 'birth_month' | 'birth_day' | 'birth_year',
+  ): Promise<string> {
+    const identity = this.identity;
+    if (!identity) throw new Error('generated identity is unavailable');
+    switch (field) {
+      case 'email': return wsFillIdentity(this, target, field, identity.email);
+      case 'password': return wsFillIdentity(this, target, field, identity.password);
+      case 'username': return wsFillIdentity(this, target, field, identity.username);
+      case 'first_name': return wsFillIdentity(this, target, field, identity.firstName);
+      case 'last_name': return wsFillIdentity(this, target, field, identity.lastName);
+      case 'birth_month': return wsFillIdentity(this, target, field, identity.birthMonth);
+      case 'birth_day': return wsFillIdentity(this, target, field, identity.birthDay);
+      case 'birth_year': return wsFillIdentity(this, target, field, identity.birthYear);
+    }
+  }
   async storeCredential(target: string, fieldClass: 'token' | 'api-key'): Promise<string> {
     return wsStoreCredential(this, target, fieldClass);
   }
