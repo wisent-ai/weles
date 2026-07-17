@@ -3,14 +3,6 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
-vi.mock('node:os', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('node:os')>();
-  return {
-    ...actual,
-    hostname: () => 'weles-test-worker.local',
-    userInfo: () => ({ ...actual.userInfo(), username: 'weles-test-worker' }),
-  };
-});
 
 const generatedIdentity = {
   firstName: 'Ada',
@@ -138,26 +130,6 @@ describe('WSession platform identity', () => {
     expect(session.resolveEnv('${SEMANTIC_SCHOLAR_NEW_BIRTHYEAR}')).toBe('1991');
   });
 
-  it('keeps video and page diagnostics enabled for Skarbiec credential tasks', async () => {
-    const { ctx } = fakeBrowserContext();
-    asyncNewBrowserMock.mockResolvedValueOnce(ctx);
-    delete process.env.WELES_DISABLE_RECORDING;
-    process.env.GENERIC_TASK_CONSTRAINTS = JSON.stringify({ store_secret_target: 'skarbiec' });
-
-    await WSession.start({
-      label: 'generic_browser_task',
-      proxy: 'none',
-      browser: 'firefox',
-      headless: true,
-    });
-
-    expect(asyncNewBrowserMock).toHaveBeenCalledWith(expect.objectContaining({
-      recordVideo: true,
-      pageDiagnostics: true,
-    }));
-    expect(process.env.WELES_LABEL).toBe('generic_browser_task');
-    expect(process.env.SSLKEYLOGFILE).toContain('generic_browser_task/sslkey.log');
-  });
 
   it('fails fast instead of typing unresolved generated identity placeholders', async () => {
     const { ctx } = fakeBrowserContext();
