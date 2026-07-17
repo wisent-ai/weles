@@ -16,6 +16,7 @@ import { solvePageCaptcha } from '../captcha/detect.js';
 import { CaptchaSolver } from '../captcha/solver.js';
 import { generateIdentity as genId, type Identity } from '../utils/identity.js';
 import { markSignupSuccess } from '../utils/email/domain.js';
+import { snapshotSanitizedEnvironment } from '../utils/sanitize-env.js';
 import { getNumber, pollCode, type SmsNumber } from '../utils/sms.js';
 import { writeFileSync, mkdirSync, copyFileSync, existsSync } from 'node:fs';
 import { createHash } from 'node:crypto';
@@ -30,6 +31,10 @@ import { costTracker } from '../utils/cost.js';
 
 import { installAtoms } from './wsession_atoms.js';  // installAtoms() is invoked at file end after WSession is declared
 import { runRecordingsDir, runRecordingsRoot } from './run-recordings.js';
+import { wsClick, wsFill, wsFillCredential } from './wsession-helpers/finalize.js';
+import { isSkarbiecCredentialTask, wsAutoStoreCredential, wsStoreCredential } from './wsession-helpers/credential-store.js';
+import type { CapabilityRef } from '../utils/capability.js';
+import { assertNonCredentialInput } from '../utils/capability.js';
 // G17: artifacts live under recordings/<run_uuid>/<label-or-action>/ — keyed by
 // the account_action_logs row id (ACTION_LOG_ID) so they map to the run 1:1.
 function recordingsDir(label?: string): string { return label ? runRecordingsDir(label) : runRecordingsRoot(); }
@@ -58,18 +63,10 @@ function snapshotEnvFlags(): Record<string, string | undefined> {
   return out;
 }
 
-// G15: full runner env snapshot — EVERY key with its RAW value, so the exact
-// environment a run executed under is fully recoverable. session_meta.json and
-// the account_action_logs rows are readable only by service-role-key holders
-// (the recordings bucket is private), i.e. the same trust boundary as the
-// secrets themselves — storing them here adds no exposure beyond who already
-// holds every key.
+// Keep the complete runner key set for reproducibility, but never persist
+// passwords, tokens, capability identifiers, cookies, or credential URLs.
 function snapshotFullEnv(): Record<string, string> {
-  const out: Record<string, string> = {};
-  for (const [k, v] of Object.entries(process.env)) {
-    if (typeof v === 'string') out[k] = v;
-  }
-  return out;
+  return snapshotSanitizedEnvironment();
 }
 
 export interface WSessionOptions {
@@ -193,10 +190,13 @@ export class WSession {
   private _smsOrder: SmsNumber | null = null;
   private _proxyBytes = 0;
   private _cdp: any = null;
+  private _secureCredentialTask = false;
+  private _storedCredentialReceipt: string | null = null;
 
   private constructor(ctx: BrowserContext, page: any, label: string, cap: Capture) {
     this.ctx = ctx; this.page = page; this.label = label; this._cap = cap;
     this._store = new SessionStore(); this._solver = new CaptchaSolver();
+    this._secureCredentialTask = isSkarbiecCredentialTask();
     // Intercept API responses to capture captcha data (Discord register + login)
     const authPaths = ['/auth/register', '/auth/login'];
     page.on?.('request', (req: any) => { try { const u = req.url(); if (authPaths.some(p => u.includes(p)) && req.method() === 'POST') { this.captchaFormData = JSON.parse(req.postData() ?? '{}'); this.captchaEndpoint = u; const h = req.headers(); this.captchaHeaders = {}; for (const k of Object.keys(h)) { if (k.startsWith('x-')) this.captchaHeaders[k] = h[k]; } } } catch {} });
@@ -206,7 +206,7 @@ export class WSession {
         if (this.capturedResponses.length >= 500) this.capturedResponses.shift();
         const entry = { ts: Date.now(), method: res.request()?.method?.() ?? 'GET', url: res.url(), status: res.status(), headers: res.headers(), body: '' };
         this.capturedResponses.push(entry);
-        if (!shouldCaptureResponseBody(res)) return;
+        if (this._secureCredentialTask || !shouldCaptureResponseBody(res)) return;
         void res.text().then((text: string) => { entry.body = text.slice(0, 8192); }, () => {});
       } catch {}
     });
@@ -234,20 +234,37 @@ export class WSession {
     const closed = this.page.isClosed?.() ?? false;
     const vs = this.page.viewportSize?.() ?? {};
     console.log(`[wsession] ${label} START url=${url.slice(0, 80)} closed=${closed} viewport=${vs.width}x${vs.height}`);
-    await this._cap.screenshot(this.page, `before_${label}`).catch(() => {});
-    await this._saveDom(`before_${label}`);
+    if (!this._secureCredentialTask) {
+      await this._cap.screenshot(this.page, `before_${label}`).catch(() => {});
+      await this._saveDom(`before_${label}`);
+    }
     try {
       const result = await fn();
+      if (this._secureCredentialTask) {
+        const stored = await wsAutoStoreCredential(this);
+        if (stored) this._storedCredentialReceipt = stored;
+      }
       console.log(`[wsession] ${label} OK result=${String(result).slice(0, 100)}`);
-      await this._cap.screenshot(this.page, `after_${label}`).catch(() => {});
-      await this._saveDom(`after_${label}`);
+      if (!this._secureCredentialTask) {
+        await this._cap.screenshot(this.page, `after_${label}`).catch(() => {});
+        await this._saveDom(`after_${label}`);
+      }
       return result;
-    } catch (e: any) {
-      console.log(`[wsession] ${label} ERROR ${e.message?.slice(0, 300)}`);
-      await this._cap.screenshot(this.page, `error_${label}`).catch(() => {});
-      await this._saveDom(`error_${label}`);
-      throw e;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.log(`[wsession] ${label} ERROR ${message.slice(0, 300)}`);
+      if (!this._secureCredentialTask) {
+        await this._cap.screenshot(this.page, `error_${label}`).catch(() => {});
+        await this._saveDom(`error_${label}`);
+      }
+      throw error;
     }
+  }
+
+  takeStoredCredentialReceipt(): string | null {
+    const receipt = this._storedCredentialReceipt;
+    this._storedCredentialReceipt = null;
+    return receipt;
   }
 
   private async _saveDom(label: string): Promise<void> { const html = await this.page.content?.().catch(() => null); if (html) writeFileSync(join(recordingsDir(this.label || undefined), `${label}_dom.html`), html); }
@@ -255,6 +272,7 @@ export class WSession {
   static async start(opts: WSessionOptions = {}): Promise<WSession> {
     enforceWelesExecutionBoundary('WSession.start');
     const label = opts.label ?? '';
+    const secureCredentialTask = isSkarbiecCredentialTask();
     // G9: one per-run human-timing seed, generated at session start and routed
     // into the shared seeded PRNG so every human mouse/typing jitter draw this
     // run is reproducible from the recorded seed. Unseeded code paths fall back
@@ -265,7 +283,7 @@ export class WSession {
     seedHumanTiming(timingSeed);
     const cdp = opts.cdpEndpoint ?? process.env.BRIGHTDATA_BROWSER_WS;
     console.log(`[wsession] start() label=${label} cdp=${!!cdp} proxy=${redactProxyForLog(opts.proxy)}`);
-    if (label) process.env.WELES_LABEL = label;
+    if (label && !secureCredentialTask) process.env.WELES_LABEL = label;
     if (cdp) {
       const browser = await chromium.connectOverCDP(cdp);
       const ctx = browser.contexts()[0] || await browser.newContext({ locale: 'en-US' }); const page = ctx.pages()[0] || await ctx.newPage();
@@ -313,16 +331,22 @@ export class WSession {
     // input-recorder) as a clean-room control for signup A/B tests. (Tested on
     // reddit: toggling it changed nothing — the verify-init gate is exit-IP
     // reputation, not in-page instrumentation. Kept as a knob regardless.)
-    const pageDiagnostics = process.env.WELES_PAGE_DIAGNOSTICS === '0'
+    const pageDiagnostics = secureCredentialTask || process.env.WELES_PAGE_DIAGNOSTICS === '0'
       ? false
       : (opts.pageDiagnostics ?? (label !== 'linkedin_register'));
-    const bOpts: AsyncNewBrowserOptions = { os: persona.os, browser: persona.browser, headless: opts.headless ?? false, recordVideo: opts.record ?? (process.env.WELES_DISABLE_RECORDING !== '1'), locale: opts.locale, persona, proxy, pageDiagnostics, userAgent: opts.userAgent, userDataDir: opts.userDataDir ?? process.env.WELES_USER_DATA_DIR };
+    const bOpts: AsyncNewBrowserOptions = { os: persona.os, browser: persona.browser, headless: opts.headless ?? false, recordVideo: secureCredentialTask ? false : (opts.record ?? (process.env.WELES_DISABLE_RECORDING !== '1')), locale: opts.locale, persona, proxy, pageDiagnostics, userAgent: opts.userAgent, userDataDir: opts.userDataDir ?? process.env.WELES_USER_DATA_DIR };
     const cp = bOpts.browser === 'chromium'
       ? resolveChromiumPathOverride(opts.chromiumPath)
       : (opts.chromiumPath ?? process.env.CHROMIUM_PATH ?? findCustomBrowser(bOpts.browser));
     if (bOpts.browser === 'chromium' && !cp) throw new Error('Custom Chromium not found. Set CHROMIUM_PATH or install to a known location.');
     if (cp && bOpts.browser === 'chromium') bOpts.chromiumPath = cp;
-    if (label) { process.env.SSLKEYLOGFILE = join(recordingsDir(label), 'sslkey.log'); process.env.WELES_LABEL = label; } // SSLKEYLOGFILE = per-session key log for offline HTTP/2 frame decryption from a pcap (Chromium+Firefox both honor it). WELES_LABEL tells async_api where optional Chromium netlog.json belongs. recordingsDir() also mkdirs the parent so Chrome can write at launch.
+    if (secureCredentialTask) {
+      delete process.env.SSLKEYLOGFILE;
+      delete process.env.WELES_LABEL;
+    } else if (label) {
+      process.env.SSLKEYLOGFILE = join(recordingsDir(label), 'sslkey.log');
+      process.env.WELES_LABEL = label;
+    }
     const ctx = await AsyncNewBrowser(bOpts);
     const page = ctx.pages()[0] || await ctx.newPage();
     const cap = new Capture({ newPage: async () => page } as any, label ? recordingsDir(label) : undefined);
@@ -415,7 +439,7 @@ export class WSession {
     // Captures every request/response (utf8 + base64), WebSocket frames in both
     // directions, TCP serverAddr, TLS securityDetails. Runs on every WSession —
     // keepers and trajectories — without exception. See net_record.ts.
-    if (process.env.WELES_NO_INSTRUMENT !== '1') startInstrumentation(ws, ctx, label);
+    if (!ws._secureCredentialTask && process.env.WELES_NO_INSTRUMENT !== '1') startInstrumentation(ws, ctx, label);
     return ws;
   }
 
@@ -429,8 +453,17 @@ export class WSession {
 
   // Method bodies extracted to ./wsession-helpers/finalize.ts to fit the
   // 300-line per-file cap. wsClose has the BD provider classifier fix.
-  async click(target: string): Promise<string> { const { wsClick } = await import('./wsession-helpers/finalize.js'); return wsClick(this, target); }
-  async fill(target: string, value: string): Promise<string> { const { wsFill } = await import('./wsession-helpers/finalize.js'); return wsFill(this, target, value); }
+  async click(target: string): Promise<string> { return wsClick(this, target); }
+  async fill(target: string, value: string): Promise<string> { return wsFill(this, target, value); }
+  async fillCredential(
+    target: string,
+    fieldClass: 'password' | 'email' | 'username' | 'token' | 'api-key',
+    capability: CapabilityRef,
+  ): Promise<string> { return wsFillCredential(this, target, fieldClass, capability); }
+  async storeCredential(target: string, fieldClass: 'token' | 'api-key'): Promise<string> {
+    return wsStoreCredential(this, target, fieldClass);
+  }
+
 
   async focus(selector: string): Promise<string> {
     return this.runStep(`focus_${selector}`, async () => {
@@ -475,7 +508,10 @@ export class WSession {
   }
 
   async clickSelector(selector: string): Promise<string> { return this.runStep(`clickSel_${selector.slice(0,30)}`, async () => { const loc = this.page.locator(selector).first(); if (!(await loc.count())) return 'no-element-found'; const { humanClickLocator } = await import('../human/mouse.js'); await humanClickLocator(this.page, loc); return `clicked ${selector.slice(0,60)}`; }); }
-  async type(value: string): Promise<string> { return this.runStep('type', async () => { await humanType(this.page, this.resolveEnv(value)); return 'typed'; }); }
+  async type(value: string): Promise<string> {
+    const literal = assertNonCredentialInput(value);
+    return this.runStep('type', async () => { await humanType(this.page, literal); return 'typed'; });
+  }
   async press(key: string): Promise<string> { return this.runStep(`press_${key}`, async () => { await this.page.keyboard.press(key); return `pressed ${key}`; }); }
   async select(target: string, value: string): Promise<string> { return this.runStep(`select_${target}_${value}`, async () => { const result = await selectOption(this.page, target, this.resolveEnv(value)); return result ? `selected: ${result}` : 'no-select-found'; }); }
 

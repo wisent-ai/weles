@@ -15,7 +15,7 @@ export type PreparedCredentialCompletion = {
 };
 
 function redactValue(value: unknown, secret: string): unknown {
-  if (typeof value === 'string') return value.includes(secret) ? value.split(secret).join('[REDACTED]') : value;
+  if (typeof value === 'string') return value.includes(secret) ? value.split(secret).join('[redacted]') : value;
   if (Array.isArray(value)) return value.map((item) => redactValue(item, secret));
   if (value !== null && typeof value === 'object') {
     return Object.fromEntries(
@@ -35,18 +35,11 @@ export async function prepareCredentialCompletion(
   skarbiecTarget: boolean,
   transfer: () => Promise<CredentialTransfer>,
 ): Promise<PreparedCredentialCompletion> {
-  if (!skarbiecTarget) {
-    return {
-      safeResult: result,
-      transfer: { secretValue: null, error: null },
-      allowArtifactPersistence: true,
-    };
-  }
   const transferred = await transfer();
   return {
     safeResult: redactCredentialResult(result, transferred.secretValue),
     transfer: transferred,
-    allowArtifactPersistence: false,
+    allowArtifactPersistence: !skarbiecTarget,
   };
 }
 

@@ -163,7 +163,7 @@ function frameWithDocument(document: ReturnType<typeof makeDocument>) {
 afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
-  delete process.env.MODEL_ROUTER_URL;
+  delete process.env.BRAMA_URL;
   delete process.env.WISENT_APP_AGENT_ID;
   delete process.env.WISENT_APP_AGENT_AUTH_SECRET;
   delete process.env.WELES_RUN_ID;
@@ -331,7 +331,7 @@ describe('browser frame primitives', () => {
   });
 
   it('execute page observation redacts sensitive values while preserving checked state and selected option text', async () => {
-    process.env.MODEL_ROUTER_URL = 'https://router.example.test';
+    process.env.BRAMA_URL = 'https://router.example.test';
     process.env.WISENT_APP_AGENT_ID = 'unit-test-agent';
     process.env.WISENT_APP_AGENT_AUTH_SECRET = 'unit-test-secret';
     process.env.WELES_RUN_ID = `browser-primitives-${Date.now()}`;
@@ -350,27 +350,28 @@ describe('browser frame primitives', () => {
       new FakeElement('select', { name: 'plan', value: 'enterprise', selectedText: selectedPlan, attrs: { 'aria-label': 'Plan' } }),
     ];
     const mainFrame = frameWithDocument(makeDocument(controls, { title: 'Settings', text: 'Configure Semantic Scholar access' }));
-    const page: any = {
+    const page = {
       url: vi.fn(() => 'https://example.test/settings'),
       screenshot: vi.fn(async () => Buffer.from('png')),
       mainFrame: vi.fn(() => mainFrame),
       frames: vi.fn(() => [mainFrame]),
-      context: vi.fn(() => ({ pages: () => [page] })),
+      context: vi.fn<() => { pages: () => object[] }>(() => ({ pages: () => [] })),
       isClosed: vi.fn(() => false),
       waitForLoadState: vi.fn(async () => undefined),
     };
+    page.context.mockReturnValue({ pages: () => [page] });
     const prompts: string[] = [];
-    const fetchMock = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
-      const body = JSON.parse(String(init?.body)) as { messages: Array<{ content: string }> };
-      prompts.push(body.messages[0].content);
-      return new Response(JSON.stringify({
-        model: 'unit-test-model',
-        choices: [{ message: { content: '{"tool":"done","args":{"value":"ok"}}' } }],
-      }), { status: 200, headers: { 'content-type': 'application/json' } });
-    });
-    vi.stubGlobal('fetch', fetchMock);
 
-    const result = await execute({ page, label: '', resolveEnv: (value: string) => value } as any, 'inspect the page');
+    const result = await execute({ page, label: '', resolveEnv: (value: string) => value } as unknown as WSession, 'inspect the page', {
+      modelDecision: async (prompt) => {
+        prompts.push(prompt);
+        return {
+          raw: '{"tool":"done","args":{"value":"ok"}}',
+          model: 'unit-test-model',
+          routerUrl: 'https://router.example.test',
+        };
+      },
+    });
 
     expect(result.value).toBe('ok');
     expect(prompts).toHaveLength(1);

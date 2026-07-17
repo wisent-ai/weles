@@ -92,43 +92,27 @@ function secretCandidateFromValue(value: unknown): { field: string; value: strin
   return null;
 }
 
-function previewSecret(value: string): string {
-  if (value.length <= 12) return `${value.slice(0, 2)}…${value.slice(-2)}`;
-  return `${value.slice(0, 6)}…${value.slice(-4)}`;
-}
 
 async function persistServiceCredentialReference(row: ActionLogRow, result: Record<string, unknown>): Promise<CredentialTransfer> {
   const params = recordOrEmpty(row.params);
   const constraints = recordOrEmpty(params.constraints);
   const target = textParam(constraints, 'store_secret_target');
   const generic = recordOrEmpty(result.generic_browser_task);
-  const value = recordOrEmpty(generic.value);
+  const rawValue = generic.value;
+  const value = recordOrEmpty(rawValue);
   const secret = secretCandidateFromValue(value);
 
   if (target === 'skarbiec') {
+    const storedReceipt = typeof rawValue === 'string'
+      && /^credential stored in Skarbiec item [A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$/.test(rawValue);
+    if (storedReceipt) return { secretValue: null, error: null };
     if (!secret) {
-      return { secretValue: null, error: 'Weles completed without an acquired credential value' };
+      return { secretValue: null, error: 'Weles completed without a Skarbiec storage receipt' };
     }
-    const requestId = textParam(constraints, 'skarbiec_request_id');
-    const credentialId = textParam(constraints, 'skarbiec_credential_id');
-    const provider = textParam(constraints, 'skarbiec_provider');
-    if (!requestId || !credentialId || !provider) {
-      return { secretValue: secret.value, error: 'Weles Skarbiec destination metadata is incomplete' };
-    }
-    try {
-      await returnCredentialToSkarbiec({
-        credentialId,
-        requestId,
-        provider,
-        value: secret.value,
-      });
-      return { secretValue: secret.value, error: null };
-    } catch (error) {
-      return {
-        secretValue: secret.value,
-        error: error instanceof Error ? error.message.slice(0, 160) : 'Skarbiec credential return failed',
-      };
-    }
+    return {
+      secretValue: secret.value,
+      error: 'Weles returned plaintext for a Skarbiec destination instead of storing it at the browser boundary',
+    };
   }
 
   if (target !== 'service_credentials' || !secret) {
@@ -143,13 +127,14 @@ async function persistServiceCredentialReference(row: ActionLogRow, result: Reco
     key_field: secret.field,
     value_status: typeof value.status === 'string' ? value.status : null,
     captured_at: new Date().toISOString(),
+    runtime_env_installed: false,
   };
   const patch = {
     display_name: displayName,
     category: 'api',
     api_key_env_var: envVar,
-    api_key_preview: previewSecret(secret.value),
-    notes: `Acquired by Weles run ${row.id}; plaintext remains in the source run result.`,
+    api_key_preview: null,
+    notes: `Acquired by Weles run ${row.id}; plaintext was redacted from the persisted action result and was not installed into the worker environment.`,
     metadata,
     updated_at: new Date().toISOString(),
   };
@@ -174,7 +159,7 @@ async function persistServiceCredentialReference(row: ActionLogRow, result: Reco
   } catch (error) {
     console.log(`[worker] service_credentials persistence skipped: ${error instanceof Error ? error.message.slice(0, 160) : String(error).slice(0, 160)}`);
   }
-  return { secretValue: null, error: null };
+  return { secretValue: secret.value, error: null };
 }
 
 function trajectoryActionFromName(name: string): string {
@@ -801,7 +786,6 @@ export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
     await sendRunWebhook(row, 'pending_review', result, verificationMessage);
     console.log(`[worker] ${row.id.slice(0, 8)} pending_review`);
   } else if (exitCode === 0) {
-    if (!skarbiecTarget) await persistServiceCredentialReference(row, result);
     await finalizeCredentialCompletion(preparedCredential, {
       completed: async (safeResult) => {
         await writeResult(row.id, 'completed', safeResult, undefined, costs ?? undefined);
