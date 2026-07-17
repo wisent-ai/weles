@@ -11,7 +11,6 @@ type CompletionCallbacks = {
 export type PreparedCredentialCompletion = {
   safeResult: Record<string, unknown>;
   transfer: CredentialTransfer;
-  allowArtifactPersistence: boolean;
 };
 
 function redactValue(value: unknown, secret: string): unknown {
@@ -32,14 +31,12 @@ export function redactCredentialResult(result: Record<string, unknown>, secret: 
 
 export async function prepareCredentialCompletion(
   result: Record<string, unknown>,
-  skarbiecTarget: boolean,
   transfer: () => Promise<CredentialTransfer>,
 ): Promise<PreparedCredentialCompletion> {
   const transferred = await transfer();
   return {
     safeResult: redactCredentialResult(result, transferred.secretValue),
     transfer: transferred,
-    allowArtifactPersistence: !skarbiecTarget,
   };
 }
 

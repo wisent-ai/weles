@@ -2,7 +2,7 @@
 // subprocess, import ban_signal + pending_review if present, write back. Pure
 // orchestration — trajectories own their own WSession + Capture.
 import { spawn, execSync } from 'node:child_process';
-import { readFile, writeFile, readdir, unlink, stat, rm } from 'node:fs/promises';
+import { readFile, writeFile, readdir, unlink, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { createHmac } from 'node:crypto';
 import os from 'node:os';
@@ -730,7 +730,7 @@ export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
   }
   const resultConstraints = recordOrEmpty(recordOrEmpty(row.params).constraints);
   const skarbiecTarget = textParam(resultConstraints, 'store_secret_target') === 'skarbiec';
-  const preparedCredential = await prepareCredentialCompletion(result, skarbiecTarget, async () => {
+  const preparedCredential = await prepareCredentialCompletion(result, async () => {
     if (exitCode === 0) return persistServiceCredentialReference(row, result);
     const generic = recordOrEmpty(result.generic_browser_task);
     const failedSecret = secretCandidateFromValue(recordOrEmpty(generic.value));
@@ -740,13 +740,10 @@ export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
   if (skarbiecTarget && preparedCredential.transfer.secretValue && !preparedCredential.transfer.error) {
     pending = null;
   }
-  if (!preparedCredential.allowArtifactPersistence) {
-    await rm(join(RECORDINGS_ROOT, row.id), { recursive: true, force: true }).catch(() => {});
-  }
 
   let verificationPending = false;
   let verificationMessage: string | undefined;
-  if (!lightResultOnly && preparedCredential.allowArtifactPersistence) {
+  if (!lightResultOnly) {
     // Always upload so every run has recordings on the detail page.
     await uploadArtifacts(row.action, row.id, runStart, { force: true }).then(a => { if (a) result.artifacts = a }).catch(() => {});
     // G18: persist the full network/instrumentation capture into the lazy
@@ -808,7 +805,7 @@ export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
     // the cost of failed runs (one extra trajectory invocation with
     // WELES_INSTRUMENT=1 set) but ensures the diff harness has data the
     // moment someone investigates. Opt out with AUTO_INSTRUMENT_RETRIES=0.
-    const dumpPath = preparedCredential.allowArtifactPersistence ? await diagnosticRetry(row, trajPath) : null;
+    const dumpPath = await diagnosticRetry(row, trajPath);
     if (dumpPath) result.instrumented_dump = dumpPath;
     const message = stderr || `exit ${exitCode}`;
     await writeResult(row.id, 'failed', result, message, costs ?? undefined);

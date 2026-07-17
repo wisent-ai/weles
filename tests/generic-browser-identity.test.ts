@@ -3,6 +3,15 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
+vi.mock('node:os', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:os')>();
+  return {
+    ...actual,
+    hostname: () => 'weles-test-worker.local',
+    userInfo: () => ({ ...actual.userInfo(), username: 'weles-test-worker' }),
+  };
+});
+
 const generatedIdentity = {
   firstName: 'Ada',
   lastName: 'Lovelace',
@@ -129,6 +138,27 @@ describe('WSession platform identity', () => {
     expect(session.resolveEnv('${SEMANTIC_SCHOLAR_NEW_BIRTHYEAR}')).toBe('1991');
   });
 
+  it('keeps video and page diagnostics enabled for Skarbiec credential tasks', async () => {
+    const { ctx } = fakeBrowserContext();
+    asyncNewBrowserMock.mockResolvedValueOnce(ctx);
+    delete process.env.WELES_DISABLE_RECORDING;
+    process.env.GENERIC_TASK_CONSTRAINTS = JSON.stringify({ store_secret_target: 'skarbiec' });
+
+    await WSession.start({
+      label: 'generic_browser_task',
+      proxy: 'none',
+      browser: 'firefox',
+      headless: true,
+    });
+
+    expect(asyncNewBrowserMock).toHaveBeenCalledWith(expect.objectContaining({
+      recordVideo: true,
+      pageDiagnostics: true,
+    }));
+    expect(process.env.WELES_LABEL).toBe('generic_browser_task');
+    expect(process.env.SSLKEYLOGFILE).toContain('generic_browser_task/sslkey.log');
+  });
+
   it('fails fast instead of typing unresolved generated identity placeholders', async () => {
     const { ctx } = fakeBrowserContext();
     asyncNewBrowserMock.mockResolvedValueOnce(ctx);
@@ -228,11 +258,7 @@ describe('generic browser task Semantic Scholar identity contract', () => {
     const goal = executeMock.mock.calls[0]?.[1];
     expect(goal).toEqual(expect.stringContaining('Acquire Semantic Scholar API access for lem.'));
     expect(goal).toEqual(expect.stringContaining('Weles generated a registration email identity through its domain rotator / Resend inbox for this run.'));
-    expect(goal).toEqual(expect.stringContaining('$SEMANTIC_SCHOLAR_NEW_FIRSTNAME'));
-    expect(goal).toEqual(expect.stringContaining('$SEMANTIC_SCHOLAR_NEW_LASTNAME'));
-    expect(goal).toEqual(expect.stringContaining('$SEMANTIC_SCHOLAR_NEW_USERNAME'));
-    expect(goal).toEqual(expect.stringContaining('$SEMANTIC_SCHOLAR_NEW_EMAIL'));
-    expect(goal).toEqual(expect.stringContaining('$SEMANTIC_SCHOLAR_NEW_PASSWORD'));
+    expect(goal).toEqual(expect.stringContaining('Use fill_identity(target, field) for generated email, password, username, first_name, last_name, and birth-date fields.'));
     expect(goal).toEqual(expect.stringContaining('check_email("$SEMANTIC_SCHOLAR_NEW_EMAIL", "")'));
     expect(goal).toEqual(expect.stringContaining('call solve_captcha before giving up'));
     expect(goal).toEqual(expect.stringContaining(modelRouterGuidance));
