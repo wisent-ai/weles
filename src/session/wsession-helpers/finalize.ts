@@ -11,15 +11,18 @@
  * sum against the budget shows real BD spend.
  */
 
+import type { Frame } from 'playwright';
 import { writeFileSync, mkdirSync, copyFileSync, existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { costTracker } from '../../utils/cost.js';
 import { FP_SCRIPT, NETWORK_FP_URL, parseNetworkFingerprint } from '../../diagnostics/fingerprint_probe.js';
 import { analyze, pickBaseline } from '../../diagnostics/fingerprint_analyzer.js';
 import { markSignupSuccess } from '../../utils/email/domain.js';
+import { assertNonCredentialInput, withCapability } from '../../utils/capability.js';
+import type { CapabilityRef } from '../../utils/capability.js';
 import { getEmailApiKey } from '../../utils/credentials.js';
 import { humanClick, humanClickLocator } from '../../human/mouse.js';
-import { humanType } from '../../human/keyboard.js';
+import { humanFill, humanType } from '../../human/keyboard.js';
 import { findClickTarget, type ScreenshottablePage } from '../../vision/analyze.js';
 import type { WSession } from '../wsession.js';
 import { runRecordingsDir, runRecordingsRoot } from '../run-recordings.js';
@@ -28,9 +31,16 @@ const VISIBILITY_PROBE_MS = 1500;
 
 const asV = (p: any) => p as unknown as ScreenshottablePage;
 
-function childFrames(s: WSession): any[] {
+function childFrames(s: WSession, allowedOrigin?: string): Frame[] {
   try {
-    return (s.page.frames?.() ?? []).filter((frame: any) => frame !== s.page.mainFrame?.());
+    const frames: Frame[] = s.page.frames?.() ?? [];
+    const mainFrame = s.page.mainFrame?.();
+    return frames.filter((frame) => {
+      if (frame === mainFrame) return false;
+      if (!allowedOrigin) return true;
+      try { return new URL(frame.url()).origin === allowedOrigin; }
+      catch { return false; }
+    });
   } catch {
     return [];
   }
@@ -114,31 +124,64 @@ export async function wsClick(s: WSession, target: string): Promise<string> {
   });
 }
 
-export async function wsFill(s: WSession, target: string, value: string): Promise<string> {
-  return s.runStep(`fill_${target}`, async () => {
-    const v = s.resolveEnv(value);
-    const { humanFill } = await import('../../human/keyboard.js');
-    const kws = target.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(w => w.length > 2);
-    const sels = kws.flatMap(k => ['input','textarea','[contenteditable]'].flatMap(t => [`${t}[name*="${k}"]`,`${t}[placeholder*="${k}" i]`,`${t}[aria-label*="${k}" i]`]));
-    for (const frame of childFrames(s)) {
-      try { const lbl = await firstVisible(frame.getByLabel?.(target, { exact: false })); if (lbl) { await humanFill(s.page, lbl, v); return 'filled frame label'; } } catch {}
-      const emailHint = /\b(email|e-mail)\b/i.test(target);
-      if (emailHint) {
-        const emailInput = await firstVisible(frame.locator?.('input[type="email"], input[name*="email" i], input[autocomplete*="email" i]'));
-        if (emailInput) { await humanFill(s.page, emailInput, v); return 'filled frame email'; }
-      }
-      for (const sel of sels) {
-        try { const el = await firstVisible(frame.locator?.(sel)); if (el) { await humanFill(s.page, el, v); return `filled frame ${sel}`; } } catch {}
-      }
+async function fillPage(s: WSession, target: string, value: string, allowedOrigin?: string): Promise<string> {
+  const v = value;
+  const kws = target.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(w => w.length > 2);
+  const sels = kws.flatMap(k => ['input','textarea','[contenteditable]'].flatMap(t => [`${t}[name*="${k}"]`,`${t}[placeholder*="${k}" i]`,`${t}[aria-label*="${k}" i]`]));
+  for (const frame of childFrames(s, allowedOrigin)) {
+    try { const lbl = await firstVisible(frame.getByLabel?.(target, { exact: false })); if (lbl) { await humanFill(s.page, lbl, v); return 'filled frame label'; } } catch {}
+    const emailHint = /\b(email|e-mail)\b/i.test(target);
+    if (emailHint) {
+      const emailInput = await firstVisible(frame.locator?.('input[type="email"], input[name*="email" i], input[autocomplete*="email" i]'));
+      if (emailInput) { await humanFill(s.page, emailInput, v); return 'filled frame email'; }
     }
-    try { const lbl = s.page.getByLabel?.(target, { exact: false })?.first?.(); if (lbl && await lbl.isVisible({ timeout: VISIBILITY_PROBE_MS }).catch(() => false)) { await humanFill(s.page, lbl, v); return 'filled'; } } catch {}
-    for (const sel of sels) { try { const el = s.page.locator?.(sel)?.first?.(); if (el && await el.isVisible()) { await humanFill(s.page, el, v); return 'filled'; } } catch {} }
-    const tgt = JSON.stringify(target.toLowerCase());
-    const c = await s.page.evaluate(`(()=>{var t=${tgt};for(var el of document.querySelectorAll('*')){var r=el.getBoundingClientRect();var ph=(el.getAttribute('placeholder')||'').toLowerCase();if(r.width>50&&r.height>10&&r.x>0&&ph&&ph.indexOf(t)>=0)return{x:r.x+r.width/2,y:r.y+r.height/2}}return null})()`).catch(() => null);
-    if (c) { await humanClick(s.page, c.x, c.y); await s.page.keyboard.press('Meta+a').catch(() => {}); await humanType(s.page, v); return 'filled'; }
-    const vc = await findClickTarget(asV(s.page), target);
-    if (vc) { await humanClick(s.page, vc.x, vc.y); await s.page.keyboard.press('Meta+a').catch(() => {}); await humanType(s.page, v); return 'filled'; }
-    return 'no-field-found';
+    for (const sel of sels) {
+      try { const el = await firstVisible(frame.locator?.(sel)); if (el) { await humanFill(s.page, el, v); return `filled frame ${sel}`; } } catch {}
+    }
+  }
+  try { const lbl = s.page.getByLabel?.(target, { exact: false })?.first?.(); if (lbl && await lbl.isVisible({ timeout: VISIBILITY_PROBE_MS }).catch(() => false)) { await humanFill(s.page, lbl, v); return 'filled'; } } catch {}
+  for (const sel of sels) { try { const el = s.page.locator?.(sel)?.first?.(); if (el && await el.isVisible()) { await humanFill(s.page, el, v); return 'filled'; } } catch {} }
+  const tgt = JSON.stringify(target.toLowerCase());
+  const c = await s.page.evaluate(`(()=>{var t=${tgt};for(var el of document.querySelectorAll('*')){var r=el.getBoundingClientRect();var ph=(el.getAttribute('placeholder')||'').toLowerCase();if(r.width>50&&r.height>10&&r.x>0&&ph&&ph.indexOf(t)>=0)return{x:r.x+r.width/2,y:r.y+r.height/2}}return null})()`).catch(() => null);
+  if (c) { await humanClick(s.page, c.x, c.y); await s.page.keyboard.press('Meta+a').catch(() => {}); await humanType(s.page, v); return 'filled'; }
+  const vc = await findClickTarget(asV(s.page), target);
+  if (vc) { await humanClick(s.page, vc.x, vc.y); await s.page.keyboard.press('Meta+a').catch(() => {}); await humanType(s.page, v); return 'filled'; }
+  return 'no-field-found';
+}
+
+export async function wsFill(s: WSession, target: string, value: string): Promise<string> {
+  const pageUrl = new URL(s.page.url());
+  if (!['https:', 'http:'].includes(pageUrl.protocol)) throw new Error('fill requires an HTTP(S) origin');
+  const literal = assertNonCredentialInput(value, target);
+  return s.runStep(`fill_${target}`, () => fillPage(s, target, literal, pageUrl.origin));
+}
+
+export async function wsFillCredential(
+  s: WSession,
+  target: string,
+  fieldClass: 'password' | 'email' | 'username' | 'token' | 'api-key',
+  capability: CapabilityRef,
+): Promise<string> {
+  const pageUrl = new URL(s.page.url());
+  const origin = pageUrl.origin;
+  if (!['https:', 'http:'].includes(pageUrl.protocol)) throw new Error('credential fill requires an HTTP(S) origin');
+  const targetText = target.toLowerCase();
+  const expectedHints: Record<typeof fieldClass, RegExp> = {
+    password: /password|passcode|secret/,
+    email: /email|e-mail/,
+    username: /username|user name|login/,
+    token: /token|verification code|one-time code|otp/,
+    'api-key': /api.?key|access key/,
+  };
+  if (!expectedHints[fieldClass].test(targetText)) throw new Error('credential field class mismatch');
+  const expected = { purpose: 'weles.browser.fill' as const, resource: `origin:${origin}/${fieldClass}` };
+  return withCapability(capability, expected, async (secret) => {
+    try {
+      const result = await fillPage(s, target, secret, origin);
+      return result.startsWith('filled') ? `credential ${result}` : result;
+    } catch {
+      throw new Error('credential fill failed');
+    }
   });
 }
 

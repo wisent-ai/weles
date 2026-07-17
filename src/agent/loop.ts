@@ -201,7 +201,9 @@ async function callJeden(prompt: string): Promise<{ raw: string; model: string; 
   return { raw, model: cfg.model, routerUrl: cfg.routerUrl };
 }
 
-async function askLlm(goal: string, state: string, screenshotPath: string, step: number, label?: string): Promise<Record<string, any>> {
+type ModelDecisionProvider = (prompt: string) => Promise<{ raw: string; model: string; routerUrl: string }>;
+
+async function askLlm(goal: string, state: string, screenshotPath: string, step: number, label?: string, modelDecision: ModelDecisionProvider = callJeden): Promise<Record<string, any>> {
   const dir = visionDir(label);
   const imgBlock = screenshotPath ? `The current screenshot is saved locally at ${screenshotPath}; use the page observation below if image access is unavailable.\n\n` : '';
   const prompt = `${SYSTEM_PROMPT}\n\nGOAL: ${goal}\n\n${state}\n${imgBlock}Respond with ONLY the JSON object.`;
@@ -211,7 +213,7 @@ async function askLlm(goal: string, state: string, screenshotPath: string, step:
   let lastRouterError = '';
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
-      const routed = await callJeden(prompt);
+      const routed = await modelDecision(prompt);
       raw = routed.raw;
       routerMeta = { model: routed.model, router_url: routed.routerUrl, attempt };
       break;
@@ -300,7 +302,7 @@ async function buildState(page: any, history: ToolCall[], envHints: Record<strin
 export async function execute(
   session: WSession,
   goal: string,
-  options?: { envHints?: Record<string, string>; replay?: ToolCall[]; flowName?: string; replayOnly?: boolean; skipSavedFlowReplay?: boolean },
+  options?: { envHints?: Record<string, string>; replay?: ToolCall[]; flowName?: string; replayOnly?: boolean; skipSavedFlowReplay?: boolean; modelDecision?: ModelDecisionProvider; maxSteps?: number },
 ): Promise<LoopResult> {
   const history: ToolCall[] = [];
   const envHints = options?.envHints ?? {};
@@ -308,6 +310,7 @@ export async function execute(
   const page = session.page;
   const capture = new Capture({ newPage: async () => page } as any);
   const flowName = options?.flowName;
+  const maxSteps = options?.maxSteps ?? 40;
 
 
   // Try replaying a saved flow before using the LLM unless this is an explicit
@@ -337,7 +340,7 @@ export async function execute(
   }
 
   let activePage = page;
-  for (let step = 0; ; step++) {
+  for (let step = 0; step < maxSteps; step++) {
     activePage = getActivePage(activePage);
     let decision: Record<string, any>;
 
@@ -360,7 +363,7 @@ export async function execute(
         const p = join(visionDir(session.label), `loop_step${step}.png`); writeFileSync(p, screenshot); return p;
       });
       const state = await buildState(activePage, history, envHints);
-      decision = await askLlm(goal, state, imgPath, step, session.label);
+      decision = await askLlm(goal, state, imgPath, step, session.label, options?.modelDecision);
     }
 
     const call: ToolCall = {
@@ -416,7 +419,7 @@ export async function execute(
     history.push(call);
   }
 
-  throw new AgentFailure('agent loop exited unexpectedly', history);
+  throw new AgentFailure(`browser agent exceeded ${maxSteps} steps`, history);
 }
 
 export { callJeden, parseJsonFrom };
