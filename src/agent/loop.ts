@@ -65,7 +65,7 @@ Tools:
   select_option(target, value) Select dropdown option. Use for date pickers.
   set_control(selector, value?, checked?) Set and verify an input/select/textarea by CSS selector in the main page or any iframe; dispatches input/change and reports resulting state plus visible validation text. Use when fill/click/select_option cannot make a form control stick.
   js_click(selector, text)   LAST RESORT click via selector or text. Prefer click(target) — js_click historically used a JS-evaluated el.click() which produces isTrusted=false events that bot classifiers (PerimeterX/Arkose/TikTok) reject. Use only when click(target), set_control(), and focus()+press_key() can't reach the element (Reddit shadow-DOM vote buttons being the canonical case).
-  solve_captcha(sitekey)   Solve CAPTCHA/reCAPTCHA/Turnstile on current page via configured providers.
+  solve_captcha(sitekey)   Solve a detected CAPTCHA, including Brave proof-of-work. It may click the site's verification control and wait for automatic submission. Returns solved, failed, or no supported captcha detected.
   check_email(email, sender) Poll for verification code sent to email.
   generate_identity(platform) Generate random identity: username/email/password/firstName/lastName/DOB.
   save_account(platform, username, email, password, name) Save account to database after registration.

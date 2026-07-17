@@ -82,7 +82,7 @@ function identityInstructions(platform) {
   }
   if (platform === 'brave') {
     instructions.push(
-      'Brave Search exact plan: create one account with the generated Brave identity, solve the registration CAPTCHA once, then check the generated mailbox for Brave verification before trying to log in. Keep using that same identity; never restart registration with invented credentials. After verification, sign in, open the API Keys area, select only a no-payment/free Search API option when required, create one key, and call store_credential on the displayed key.',
+      'Brave Search exact plan: create one account with the generated Brave identity and fill every required registration field. Call solve_captcha exactly once after the form is valid; Brave uses a proof-of-work Register control, so solve_captcha clicks it, waits for the proof, and automatically submits the form. After solve_captcha succeeds, do not click Register again: wait for the registration response, then check the generated mailbox for Brave verification before trying to log in. Keep using that same identity; never restart registration with invented credentials. After verification, sign in, open the API Keys area, select only a no-payment/free Search API option when required, create one key, and call store_credential on the displayed key.',
     );
   }
   return instructions;
