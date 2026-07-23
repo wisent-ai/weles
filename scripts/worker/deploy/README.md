@@ -105,6 +105,23 @@ launchctl bootstrap "gui/$(id -u)" ~/Library/LaunchAgents/com.wisent.weles-auto-
 
 `auto-deploy.sh` now also refreshes the worker plist from the repo before each
 restart, so the Mac mini no longer depends on an untracked local worker wrapper.
+The tracked Weles HTTP API provides the control plane for the worker LaunchAgent.
+Lifecycle routes require `WELES_API_TOKEN` even when general trajectory routes
+allow unauthenticated access:
+
+```bash
+curl -fsS -H "Authorization: Bearer $WELES_API_TOKEN" \
+  http://<mac-mini>:8788/worker/status
+curl -fsS -X POST -H "Authorization: Bearer $WELES_API_TOKEN" \
+  http://<mac-mini>:8788/worker/start
+curl -fsS -X POST -H "Authorization: Bearer $WELES_API_TOKEN" \
+  http://<mac-mini>:8788/worker/restart
+```
+
+`start` is idempotent. `restart` always uses `launchctl kickstart -k` when the
+agent is loaded. Both operations wait up to five seconds for a running process
+and return the observed pre/post state; concurrent lifecycle mutations return
+HTTP 409. No endpoint accepts a command, label, plist path, or shell fragment.
 
 
 ## Operate

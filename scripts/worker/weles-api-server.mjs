@@ -32,10 +32,14 @@
 //   POST /run                             -> synchronous trajectory execution
 //   GET  /diagnostics/:run_id             -> authenticated artifact manifest
 //   GET  /diagnostics/:run_id/file?path=  -> authenticated artifact download
+//   GET  /worker/status                   -> authenticated launchd worker state
+//   POST /worker/start                    -> authenticated idempotent start
+//   POST /worker/restart                  -> authenticated forced restart
 
 import http from 'node:http';
-import { spawn } from 'node:child_process';
+import { spawn, execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
+import { homedir } from 'node:os';
 import { dirname, resolve, join, extname, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createReadStream, readFileSync, readdirSync, statSync, existsSync, lstatSync, realpathSync } from 'node:fs';
@@ -195,7 +199,7 @@ function diagnosticFile(runId, requestedPath) {
   }
 }
 
-function requireDiagnosticsAuthorization(req, res) {
+function requireTokenAuthorization(req, res) {
   if (tokenAuthorized(req)) return true;
   json(res, TOKEN ? 401 : 500, { ok: false, error: TOKEN ? 'unauthorized' : 'missing_WELES_API_TOKEN' });
   return false;
@@ -407,6 +411,120 @@ function runReauth(provider, timeoutMs) {
   });
 }
 
+const WORKER_LABEL = process.env.WELES_WORKER_LAUNCHD_LABEL || 'com.wisent.weles-worker';
+const WORKER_TARGET = `gui/${typeof process.getuid === 'function' ? process.getuid() : 0}/${WORKER_LABEL}`;
+const WORKER_DOMAIN = WORKER_TARGET.slice(0, WORKER_TARGET.lastIndexOf('/'));
+const WORKER_PLIST = process.env.WELES_WORKER_LAUNCHD_PLIST
+  || join(process.env.HOME || homedir(), 'Library', 'LaunchAgents', `${WORKER_LABEL}.plist`);
+let workerControlBusy = false;
+
+function runLaunchctl(args) {
+  return new Promise((resolveCommand) => {
+    execFile('/bin/launchctl', args, { encoding: 'utf8', timeout: 10_000, maxBuffer: 256 * 1024 }, (error, stdout, stderr) => {
+      resolveCommand({
+        ok: !error,
+        code: error ? (error.code ?? -1) : 0,
+        stdout: String(stdout || ''),
+        stderr: String(stderr || '').trim().slice(0, 1000),
+      });
+    });
+  });
+}
+
+function parseWorkerStatus(command) {
+  if (!command.ok) {
+    return {
+      supported: true,
+      label: WORKER_LABEL,
+      loaded: false,
+      running: false,
+      pid: null,
+      state: 'unloaded',
+      last_exit_status: null,
+    };
+  }
+  const state = /^\s*state = (.+)$/m.exec(command.stdout)?.[1]?.trim() || 'unknown';
+  const pidMatch = /^\s*pid = (\d+)$/m.exec(command.stdout);
+  const exitMatch = /^\s*last exit code = (-?\d+)$/m.exec(command.stdout);
+  return {
+    supported: true,
+    label: WORKER_LABEL,
+    loaded: true,
+    running: state === 'running',
+    pid: pidMatch ? Number(pidMatch[1]) : null,
+    state,
+    last_exit_status: exitMatch ? Number(exitMatch[1]) : null,
+  };
+}
+
+async function workerStatus() {
+  if (process.platform !== 'darwin') {
+    return {
+      supported: false,
+      label: WORKER_LABEL,
+      loaded: false,
+      running: false,
+      pid: null,
+      state: 'unsupported_platform',
+      last_exit_status: null,
+    };
+  }
+  return parseWorkerStatus(await runLaunchctl(['print', WORKER_TARGET]));
+}
+
+async function waitForWorkerRunning(timeoutMs = 5000) {
+  const deadline = Date.now() + timeoutMs;
+  let status = await workerStatus();
+  while (!status.running && Date.now() < deadline) {
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, 250));
+    status = await workerStatus();
+  }
+  return status;
+}
+
+async function controlWorker(action) {
+  const before = await workerStatus();
+  if (!before.supported) {
+    return { ok: false, error: 'worker_control_requires_macos', action, before };
+  }
+  if (action === 'start' && before.running) {
+    return { ok: true, action, changed: false, before, after: before };
+  }
+
+  let command;
+  if (!before.loaded) {
+    if (!existsSync(WORKER_PLIST)) {
+      return { ok: false, error: 'worker_launchagent_plist_missing', action, plist: WORKER_PLIST, before };
+    }
+    command = await runLaunchctl(['bootstrap', WORKER_DOMAIN, WORKER_PLIST]);
+  } else {
+    command = await runLaunchctl(action === 'restart'
+      ? ['kickstart', '-k', WORKER_TARGET]
+      : ['kickstart', WORKER_TARGET]);
+  }
+  if (!command.ok) {
+    return {
+      ok: false,
+      error: 'launchctl_failed',
+      action,
+      launchctl_code: command.code,
+      launchctl_stderr: command.stderr,
+      before,
+      after: await workerStatus(),
+    };
+  }
+
+  const after = await waitForWorkerRunning();
+  return {
+    ok: after.running,
+    ...(after.running ? {} : { error: 'worker_not_running_after_control_action' }),
+    action,
+    changed: true,
+    before,
+    after,
+  };
+}
+
 const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url || '/', `http://${req.headers.host || `${HOST}:${PORT}`}`);
@@ -416,13 +534,46 @@ const server = http.createServer(async (req, res) => {
         source: 'weles_api',
         authConfigured: Boolean(TOKEN || ALLOW_UNAUTH),
         rawCredsAllowed: ALLOW_RAW_CREDS,
-        routes: ['GET /healthz', 'POST /run', 'GET /diagnostics/:run_id', 'GET /diagnostics/:run_id/file?path=', 'POST /weles-builder', 'POST /reauth'],
+        routes: ['GET /healthz', 'GET /worker/status', 'POST /worker/start', 'POST /worker/restart', 'POST /run', 'GET /diagnostics/:run_id', 'GET /diagnostics/:run_id/file?path=', 'POST /weles-builder', 'POST /reauth'],
       });
+      return;
+    }
+    if (req.method === 'GET' && url.pathname === '/worker/status') {
+      if (!requireTokenAuthorization(req, res)) return;
+      const status = await workerStatus();
+      json(res, status.supported ? 200 : 501, { ok: status.supported, worker: status });
+      return;
+    }
+    const workerControlMatch = /^\/worker\/(start|restart)$/.exec(url.pathname);
+    if (req.method === 'POST' && workerControlMatch) {
+      if (!requireTokenAuthorization(req, res)) return;
+      if (workerControlBusy) {
+        json(res, 409, { ok: false, error: 'worker_control_in_progress' });
+        return;
+      }
+      workerControlBusy = true;
+      try {
+        const action = workerControlMatch[1];
+        const out = await controlWorker(action);
+        console.log(JSON.stringify({
+          event: 'worker_control',
+          action,
+          ok: out.ok,
+          changed: out.changed ?? false,
+          remote: req.socket.remoteAddress || null,
+          before: out.before,
+          after: out.after,
+        }));
+        const statusCode = out.ok ? 200 : (out.error === 'worker_control_requires_macos' ? 501 : 502);
+        json(res, statusCode, out);
+      } finally {
+        workerControlBusy = false;
+      }
       return;
     }
     const diagnosticFileMatch = /^\/diagnostics\/([^/]+)\/file$/.exec(url.pathname);
     if (req.method === 'GET' && diagnosticFileMatch) {
-      if (!requireDiagnosticsAuthorization(req, res)) return;
+      if (!requireTokenAuthorization(req, res)) return;
       const runId = decodeRunId(diagnosticFileMatch[1]);
       if (!runId) { json(res, 400, { ok: false, error: 'invalid_run_id' }); return; }
       const file = diagnosticFile(runId, url.searchParams.get('path'));
@@ -438,7 +589,7 @@ const server = http.createServer(async (req, res) => {
     }
     const diagnosticsMatch = /^\/diagnostics\/([^/]+)$/.exec(url.pathname);
     if (req.method === 'GET' && diagnosticsMatch) {
-      if (!requireDiagnosticsAuthorization(req, res)) return;
+      if (!requireTokenAuthorization(req, res)) return;
       const runId = decodeRunId(diagnosticsMatch[1]);
       if (!runId) { json(res, 400, { ok: false, error: 'invalid_run_id' }); return; }
       const manifest = diagnosticsManifest(runId);
