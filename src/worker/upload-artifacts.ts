@@ -18,13 +18,15 @@
 // byte-by-byte net_record.ts capture was wired in to satisfy. Files older
 // than runStart are ignored (older runs' artifacts).
 
-import { readFile, readdir } from 'node:fs/promises'
+import { readFile, readdir, stat, writeFile } from 'node:fs/promises'
 import { join, extname } from 'node:path'
+import { createHash } from 'node:crypto'
 
 const SUPABASE_URL = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? ''
-const RECORDINGS_ROOT = process.env.RECORDINGS_ROOT ?? 'recordings'
+const RECORDINGS_ROOT = process.env.WELES_RECORDINGS_ROOT ?? process.env.RECORDINGS_ROOT ?? 'recordings'
 const BUCKET = 'recordings'
+const UPLOAD_PROOF_NAME = '.uploaded.json'
 
 export interface ArtifactUrls {
   screenshots: string[]
@@ -110,6 +112,9 @@ async function collectTree(root: string, relBase: string, out: Array<{ path: str
   try { entries = await readdir(root, { withFileTypes: true } as any) as any } catch { return }
   for (const e of entries as any[]) {
     const name = e.name as string
+    // The upload-proof marker belongs to the mirror contract, not to the
+    // run's artifacts — never upload it.
+    if (name === UPLOAD_PROOF_NAME) continue
     const full = join(root, name)
     const rel = relBase ? `${relBase}/${name}` : name
     if (e.isDirectory()) { await collectTree(full, rel, out); continue }
@@ -140,15 +145,49 @@ export async function uploadArtifacts(
   if (files.length === 0) return null
 
   const urls: ArtifactUrls = { screenshots: [], video: null, videos: [], dom: [], logs: [] }
+  let failed = 0
   for (const f of files) {
     const storagePath = `${logId}/${f.rel}`
     const ok = await uploadOne(f.path, storagePath, contentTypeFor(f.ext))
-    if (!ok) continue
+    if (!ok) { failed += 1; continue }
     ;(urls[f.kind] as string[]).push(publicUrl(storagePath))
   }
   // Back-compat alias: .video = newest webm = videos[0]
   urls.video = urls.videos[0] ?? null
 
   if (urls.screenshots.length + urls.videos.length + urls.dom.length + urls.logs.length === 0) return null
+  if (failed === 0) await writeUploadProof(runDir, logId, files)
   return urls
+}
+
+// Durable whole-run proof that the local recordings/<run>/ tree is fully
+// mirrored to storage. stado's weles_recordings cleaner requires this marker
+// before it may delete a run directory (unless the host opts into
+// allow_missing_upload_proof). Written only when EVERY collected file
+// uploaded; a later write into the run dir invalidates the proof (the
+// cleaner compares child mtimes against uploaded_at).
+async function writeUploadProof(
+  runDir: string,
+  logId: string,
+  files: Array<{ path: string; rel: string }>,
+): Promise<void> {
+  const manifest: string[] = []
+  let totalBytes = 0
+  for (const f of files) {
+    const info = await stat(f.path).catch(() => null)
+    if (!info) return // a collected file vanished mid-upload: no proof
+    totalBytes += info.size
+    manifest.push(`${f.rel}:${info.size}`)
+  }
+  manifest.sort()
+  const proof = {
+    version: 1,
+    run: logId,
+    uploaded_at: new Date().toISOString(),
+    file_count: files.length,
+    total_bytes: totalBytes,
+    sha256: createHash('sha256').update(manifest.join('\n')).digest('hex'),
+    destination: `${BUCKET}/${logId}/`,
+  }
+  await writeFile(join(runDir, UPLOAD_PROOF_NAME), `${JSON.stringify(proof, null, 2)}\n`, 'utf8')
 }
