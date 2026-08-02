@@ -51,9 +51,19 @@ if [[ -n "$LOCAL_TARBALL" ]]; then
   fi
   echo "using local Firefox artifact $LOCAL_TARBALL ..." >&2
   cp "$LOCAL_TARBALL" "$TMP/$ASSET"
+  if [[ ! -f "${LOCAL_TARBALL}.sha256" ]]; then
+    echo "ERROR: local Firefox checksum does not exist: ${LOCAL_TARBALL}.sha256" >&2
+    exit 1
+  fi
+  cp "${LOCAL_TARBALL}.sha256" "$TMP/${ASSET}.sha256"
 elif [[ -f "$LOCAL_ARTIFACT_DIR/$ASSET" ]]; then
   echo "using local Firefox artifact $LOCAL_ARTIFACT_DIR/$ASSET ..." >&2
   cp "$LOCAL_ARTIFACT_DIR/$ASSET" "$TMP/$ASSET"
+  if [[ ! -f "$LOCAL_ARTIFACT_DIR/${ASSET}.sha256" ]]; then
+    echo "ERROR: local Firefox checksum does not exist: $LOCAL_ARTIFACT_DIR/${ASSET}.sha256" >&2
+    exit 1
+  fi
+  cp "$LOCAL_ARTIFACT_DIR/${ASSET}.sha256" "$TMP/${ASSET}.sha256"
 else
   echo "[download-firefox] Fetching $ASSET from $REPO@$RELEASE_TAG" >&2
 
@@ -86,21 +96,19 @@ else
   }
 
   fetch_asset "$ASSET" "$TMP/$ASSET"
-  fetch_asset "${ASSET}.sha256" "$TMP/${ASSET}.sha256" || true
+  fetch_asset "${ASSET}.sha256" "$TMP/${ASSET}.sha256"
 fi
 
-if [[ -f "$TMP/${ASSET}.sha256" ]]; then
-  echo "[download-firefox] Verifying SHA256..." >&2
-  expected=$(awk '{print $1}' < "$TMP/${ASSET}.sha256")
-  if command -v shasum >/dev/null 2>&1; then
-    actual=$(shasum -a 256 "$TMP/$ASSET" | awk '{print $1}')
-  else
-    actual=$(sha256sum "$TMP/$ASSET" | awk '{print $1}')
-  fi
-  if [[ "$expected" != "$actual" ]]; then
-    echo "ERROR: sha256 mismatch: expected=$expected actual=$actual" >&2
-    exit 1
-  fi
+echo "[download-firefox] Verifying SHA256..." >&2
+expected=$(awk '{print $1}' < "$TMP/${ASSET}.sha256")
+if command -v shasum >/dev/null 2>&1; then
+  actual=$(shasum -a 256 "$TMP/$ASSET" | awk '{print $1}')
+else
+  actual=$(sha256sum "$TMP/$ASSET" | awk '{print $1}')
+fi
+if [[ "$expected" != "$actual" ]]; then
+  echo "ERROR: sha256 mismatch: expected=$expected actual=$actual" >&2
+  exit 1
 fi
 
 tar -xzf "$TMP/$ASSET" -C "$INSTALL_DIR" --strip-components=0

@@ -10,6 +10,16 @@ TypeScript + Node package that drives a custom-patched Chromium binary to run pe
 - **Runtime**: Playwright-driven Chromium, agent loop via Claude Code CLI, flow replay cache for faster repeat runs.
 - **Content-platform integration**: content-platform's `/api/cron/*-simulation` crons enqueue work; its `/api/cron/campaign-scheduler` drains operator-defined campaigns into the same queue; this worker drains the queue.
 
+## Worker releases
+
+Immutable worker bundles belong to this repository's `worker-vX.Y.Z` GitHub
+Releases channel. `.github/workflows/release-worker.yml` builds the tagged
+source, embeds source provenance, and publishes a checksum sidecar. See
+[`scripts/worker/deploy/README.md`](scripts/worker/deploy/README.md) for exact
+installation and rollback coordinates. Browser binaries and Skarbiec remain
+separately installed integrations; Weles neither republishes nor requires their
+release channels to publish its own worker.
+
 ## Install + build
 
 ```bash
@@ -35,7 +45,9 @@ Required env (see `scripts/worker/deploy/README.md` for the full list):
 - `LLM_GENERATE_URL` (e.g. `https://content.wisent.ai/api/llm/generate`)
 - `MODEL_ROUTER_URL`, `WISENT_APP_AGENT_ID`, `WISENT_APP_AGENT_AUTH_SECRET` for the browser agent, or a `service_credentials.id = claude-reauth-config` row containing those values
 - `WELES_AGENT_MODEL` (default `claude-code-subscription`; worker deployments can override, e.g. `codex-subscription`)
-- `WELES_STADO_ROUTING=required` in deployments; the worker resolves its hostname against `gs://wisent-compute/registry.json` and claims only actions allowed by that target's `weles` policy. `off` is a local-development escape hatch.
+- `WELES_PLACEMENT_MODE=required` and `WELES_PLACEMENT_POLICY_FILE`; the worker
+  claims only actions assigned to its OS hostname in the product-owned local
+  policy. `off` is a local-development escape hatch.
 
 ## Directory layout
 

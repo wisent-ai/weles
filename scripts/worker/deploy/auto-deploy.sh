@@ -215,44 +215,6 @@ if [ -f "$CODEX_REAUTH_SRC" ]; then
   fi
 fi
 
-# Pull-only release publisher. It polls completed successful Jeden workflow
-# runs using the host's existing GitHub credential helper, then hands exact-SHA
-# artifacts to the local Skarbiec. There is no inbound listener or tunnel.
-RELEASE_PUBLISHER_DIR="$WELES_DIR/scripts/worker/deploy/skarbiec-release-broker"
-RELEASE_PUBLISHER_SRC="$RELEASE_PUBLISHER_DIR/com.wisent.skarbiec-release-publisher.plist"
-RELEASE_PUBLISHER_DST="$HOME/Library/LaunchAgents/com.wisent.skarbiec-release-publisher.plist"
-RELEASE_PUBLISHER_LAUNCHER="$RELEASE_PUBLISHER_DIR/launch-publisher.sh"
-RELEASE_PUBLISHER_PROGRAM="$RELEASE_PUBLISHER_DIR/publish-completed-builds.py"
-if [ -f "$RELEASE_PUBLISHER_SRC" ] && [ -f "$RELEASE_PUBLISHER_LAUNCHER" ] && [ -f "$RELEASE_PUBLISHER_PROGRAM" ]; then
-  mkdir -p "$HOME/Library/LaunchAgents"
-  RELEASE_PUBLISHER_NEEDS_BOOTSTRAP=0
-  if ! /bin/bash -n "$RELEASE_PUBLISHER_LAUNCHER" 2>/dev/null || \
-     ! PYTHONPYCACHEPREFIX="$WELES_DIR/var/pycache" /usr/bin/python3 -m py_compile "$RELEASE_PUBLISHER_PROGRAM" 2>/dev/null || \
-     ! /usr/bin/plutil -lint "$RELEASE_PUBLISHER_SRC" >/dev/null 2>&1; then
-    log "skarbiec-release-publisher: candidate failed validation; leaving loaded agent untouched"
-  else
-    chmod +x "$RELEASE_PUBLISHER_LAUNCHER" "$RELEASE_PUBLISHER_PROGRAM"
-    if [ ! -f "$RELEASE_PUBLISHER_DST" ] || ! cmp -s "$RELEASE_PUBLISHER_SRC" "$RELEASE_PUBLISHER_DST"; then
-      cp "$RELEASE_PUBLISHER_SRC" "$RELEASE_PUBLISHER_DST"
-      chmod 644 "$RELEASE_PUBLISHER_DST"
-      RELEASE_PUBLISHER_NEEDS_BOOTSTRAP=1
-    fi
-    RP_UID=$(id -u)
-    if ! launchctl print "gui/$RP_UID/com.wisent.skarbiec-release-publisher" >/dev/null 2>&1; then
-      RELEASE_PUBLISHER_NEEDS_BOOTSTRAP=1
-    fi
-    if [ "$RELEASE_PUBLISHER_NEEDS_BOOTSTRAP" = "1" ]; then
-      launchctl bootout "gui/$RP_UID" "$RELEASE_PUBLISHER_DST" 2>/dev/null || true
-      if launchctl bootstrap "gui/$RP_UID" "$RELEASE_PUBLISHER_DST"; then
-        log "skarbiec-release-publisher: ensured pull-only LaunchAgent from repo"
-      else
-        log "skarbiec-release-publisher: ALERT LaunchAgent bootstrap failed"
-      fi
-    fi
-  fi
-fi
-
-
 # Ensure the keyword-planner API LaunchAgent is installed and loaded on every
 # tick. The first deploy that introduces this file is still running the old
 # script body, so the self-heal must live before the no-new-commit early-exit.

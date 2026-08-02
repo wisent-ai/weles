@@ -5,7 +5,7 @@ import type { ActionLogRow } from './poll.js';
 import { resolveTrajectory } from './dispatch.js';
 import { staleCookieAccounts } from './stale.js';
 import { INSTANCE_ID } from './identity.js';
-import type { WelesActionPolicy } from './stado-routing.js';
+import type { WelesActionPolicy } from './placement-policy.js';
 
 const SUPABASE_URL = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';

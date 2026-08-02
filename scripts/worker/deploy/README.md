@@ -14,10 +14,34 @@ sim crons enqueue.
   `~/.cache/ms-playwright/chromium-*/chrome-linux64/chrome`
   (`npx playwright install chromium --with-deps`)
 
-## Clone + build
+## Immutable worker release
+
+Production worker bytes are published only by this repository under
+`worker-vX.Y.Z` GitHub Releases. The tag must equal `worker-v` plus the
+`package.json` version. Each release contains
+`weles-worker-X.Y.Z.tar.gz`, its SHA-256 sidecar, and embedded provenance.
+
+Install an exact release rather than a moving branch:
 
 ```bash
-git clone https://<token>@github.com/wisent-ai/weles.git ~/weles
+version=0.4.0
+mkdir -p ~/weles-release && cd ~/weles-release
+gh release download "worker-v$version" --repo wisent-ai/weles \
+  --pattern "weles-worker-$version.tar.gz*"
+shasum -a 256 -c "weles-worker-$version.tar.gz.sha256"
+tar -xzf "weles-worker-$version.tar.gz"
+cd weles-worker
+npm ci
+```
+
+No worker release is delegated to Stado, a browser repository, Skarbiec, or
+another product channel. Browser and secret integrations retain their own
+release and provisioning paths.
+
+## Development checkout
+
+```bash
+git clone https://github.com/wisent-ai/weles.git ~/weles
 cd ~/weles
 npm install
 npm run build
@@ -35,43 +59,47 @@ CHROMIUM_PATH=/home/<user>/.cache/ms-playwright/chromium-1217/chrome-linux64/chr
 LLM_GENERATE_URL=https://content.wisent.ai/api/llm/generate
 INSTANCE_ID=<hostname>-worker
 RECORDINGS_ROOT=/home/<user>/weles/recordings
-WELES_STADO_ROUTING=required
-STADO_REGISTRY_URI=gs://wisent-compute/registry.json
+WELES_PLACEMENT_MODE=required
+WELES_PLACEMENT_POLICY_FILE=/etc/weles/placement-policy.json
 EOF
 chmod 600 ~/weles/var/worker.env
 ```
 
-## Stado placement policy
+## Product-owned placement policy
 
 Production workers fail closed unless their normalized OS hostname resolves to
-exactly one `kind: "local"` target in the canonical Stado registry. Placement
-configuration is non-secret and belongs in `gs://wisent-compute/registry.json`:
+exactly one entry in the local Weles placement document. The host operator owns
+this non-secret file independently of fleet control planes:
 
 ```json
 {
-  "schema_version": 2,
-  "targets": [{
-    "name": "browser-worker-1",
-    "kind": "local",
-    "hostnames": ["browser-worker-1.local"],
-    "weles": { "enabled": true, "actions": ["generic_browser_task"] }
+  "schema_version": 1,
+  "hosts": [{
+    "hostname": "browser-worker-1.local",
+    "aliases": ["browser-worker-1"],
+    "enabled": true,
+    "actions": ["generic_browser_task"]
   }]
 }
 ```
 
-Use `actions: ["*"]` for all dispatchable actions. Exact action lists partition
-work; overlaps intentionally load-share through the existing conditional
-`queued` to `running` claim. Set `enabled: false` to drain new claims. Missing,
-invalid, ambiguous, expired, or unreachable policy denies claims. Registry
-changes propagate within 30 seconds. Keep Supabase and browser credentials only
-in the host-local `worker.env`; never put secrets in Stado.
+Use `actions: ["*"]` for every dispatchable action. Exact action lists
+partition work; overlaps intentionally load-share through the existing
+conditional `queued` to `running` claim. Set `enabled: false` to drain new
+claims. Missing, invalid, ambiguous, or unreadable policy denies claims.
+Changes propagate within 30 seconds.
 
-Validate before publishing:
+Install the tracked example as an operator-owned file, then edit its hostname
+and action assignment:
 
 ```bash
-wc registry validate registry.json
-wc registry push registry.json
+sudo install -d -m 0755 /etc/weles
+sudo install -m 0644 scripts/worker/deploy/placement-policy.example.json \
+  /etc/weles/placement-policy.json
 ```
+
+Keep Supabase and browser credentials only in the host-local `worker.env`;
+placement policy is non-secret and must never contain credentials.
 
 ## Install the launch wrapper + unit
 
@@ -145,23 +173,24 @@ Worker claims the oldest `queued` rows first (ordered by `scheduled_at`). If
 the queue has older stale rows, they drain before new campaign items — flush
 with a `UPDATE ... SET status='cancelled'` if needed.
 
-## skarbiec vault bridge
+## Skarbiec vault bridge
 
-Platform login material comes from an encrypted skarbiec vault — skarbiec is the
-source of truth, and no plaintext copy is consulted at runtime. The skarbiec
-source is vendored at `vendor/skarbiec`; a CI workflow builds the arm64 binary
-and publishes it, with a `sha256` sidecar, to the rolling release
-`skarbiec-bin-latest`. The encrypted vault ciphertext is published to the
-release `skarbiec-vault-latest` (gpg, encrypted to the owner and recovery keys;
-the release alone cannot decrypt it). On each launch `launch-mac.sh` downloads
-the binary and the vault with the worker's existing weles access, imports the
-owner private half from `~/.weles-secrets/skarbiec-owner.asc` when the keyring
-lacks it, decrypts the real vault with the unlock value (a login-keychain item
-or `SKARBIEC_UNLOCK` from the worker configuration), and points
-`WELES_SERVICE_CREDENTIALS_FILE` at an owner-only view.
+Platform login material comes from an encrypted Skarbiec vault. Skarbiec is the
+source of truth; Weles neither vendors its source nor publishes its binaries or
+vaults.
 
-Provisioning happens once, out-of-band, at the same tier as the gcloud
-service-account material and the worker configuration. The passphrase-protected
-owner private half is placed at `~/.weles-secrets/skarbiec-owner.asc`. The
-unlock value is provided as `SKARBIEC_UNLOCK` in `~/weles/var/worker.env`. When
-the vault changes, re-publish its ciphertext to `skarbiec-vault-latest`.
+The host operator provisions the Skarbiec binary, encrypted vault, optional
+public recipient-key bundle, and owner private key through Skarbiec's own
+installation and recovery process. Configure only their absolute local paths:
+
+```bash
+SKARBIEC_BIN=/usr/local/bin/skarbiec-entitlements-router
+SKARBIEC_VAULT_FILE=/Users/<user>/.local/share/skarbiec/skarbiec.vault.json
+SKARBIEC_RECIPIENT_KEYS=/Users/<user>/.local/share/skarbiec/skarbiec-recipients.asc
+```
+
+`launch-mac.sh` refuses to start without an executable `SKARBIEC_BIN` and a
+present vault. It imports optional public recipient keys, unlocks the vault
+through the login keychain or `SKARBIEC_UNLOCK`, and exposes an owner-only
+runtime view through `WELES_SERVICE_CREDENTIALS_FILE`. Credential return invokes
+Skarbiec's own `sync-push`; Weles does not upload Skarbiec release assets.
