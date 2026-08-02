@@ -161,11 +161,10 @@ export async function uploadArtifacts(
 }
 
 // Durable whole-run proof that the local recordings/<run>/ tree is fully
-// mirrored to storage. stado's weles_recordings cleaner requires this marker
-// before it may delete a run directory (unless the host opts into
-// allow_missing_upload_proof). Written only when EVERY collected file
-// uploaded; a later write into the run dir invalidates the proof (the
-// cleaner compares child mtimes against uploaded_at).
+// mirrored to storage. Host cleanup automation may require this marker before
+// deleting a run directory. Written only when EVERY collected file uploaded; a
+// later write into the run directory invalidates the proof because cleanup
+// compares child mtimes against uploaded_at.
 async function writeUploadProof(
   runDir: string,
   logId: string,

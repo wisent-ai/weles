@@ -13,7 +13,7 @@ set -euo pipefail
 
 RELEASE_TAG="${WELES_CHROMIUM_RELEASE:-chromium-147.0.7727.108-weles.1}"
 VERSION="${RELEASE_TAG#chromium-}"
-REPO="wisent-ai/weles"
+REPO="wisent-ai/weles-chromium"
 INSTALL_ROOT="${WELES_CHROMIUM_DIR:-$HOME/.local/share/weles-chromium}"
 INSTALL_DIR="$INSTALL_ROOT/$VERSION"
 
@@ -23,9 +23,9 @@ if [[ "${1:-}" == "--force" ]]; then FORCE=1; fi
 uname_s=$(uname -s)
 uname_m=$(uname -m)
 case "$uname_s/$uname_m" in
-  Darwin/arm64)   ASSET="weles-chromium-147-macos-arm64.tar.gz";   BIN="$INSTALL_DIR/Chromium.app/Contents/MacOS/Chromium" ;;
-  Darwin/x86_64)  ASSET="weles-chromium-147-macos-x86_64.tar.gz";  BIN="$INSTALL_DIR/Chromium.app/Contents/MacOS/Chromium" ;;
-  Linux/x86_64)   ASSET="weles-chromium-147-linux-x86_64.tar.gz";  BIN="$INSTALL_DIR/chromium/chrome" ;;
+  Darwin/arm64)   ASSET="weles-chromium-${VERSION}-macos-arm64.tar.gz";  BIN="$INSTALL_DIR/Chromium.app/Contents/MacOS/Chromium" ;;
+  Darwin/x86_64)  ASSET="weles-chromium-${VERSION}-macos-x86_64.tar.gz"; BIN="$INSTALL_DIR/Chromium.app/Contents/MacOS/Chromium" ;;
+  Linux/x86_64)   ASSET="weles-chromium-${VERSION}-linux-x86_64.tar.gz"; BIN="$INSTALL_DIR/chromium/chrome" ;;
   *) echo "ERROR: unsupported platform $uname_s/$uname_m" >&2; exit 1 ;;
 esac
 

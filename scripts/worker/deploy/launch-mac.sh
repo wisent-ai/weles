@@ -36,45 +36,17 @@ mkdir -p "$HOME/weles/var"
 SECRETS_DIR="$HOME/.weles-secrets"
 mkdir -p "$SECRETS_DIR"; chmod go-rwx "$SECRETS_DIR"
 SKARBIEC_LOG="$HOME/weles/var/skarbiec.log"
-SKARBIEC_ASSET_HELPER="${SKARBIEC_ASSET_HELPER:-$HOME/weles/scripts/worker/deploy/gh_release_asset_url.mjs}"
-export SKARBIEC_CRED_FILE="${SKARBIEC_CRED_FILE:-$HOME/.git-credentials-weles}"
-SKARBIEC_REPO_API="${SKARBIEC_REPO_API:-https://api.github.com/repos/wisent-ai/weles}"
-
-# fetch_release_asset <tag> <asset-name> <dest>: download a release asset from
-# this repo using the worker's existing weles token, curl, and node — no gh, no
-# jq, no cross-repo auth. Returns nonzero on any miss so callers keep prior state.
-fetch_release_asset() {
-  [ -f "$SKARBIEC_CRED_FILE" ] && [ -f "$SKARBIEC_ASSET_HELPER" ] || return 1
-  local tok rel url
-  tok="$(sed -E 's#^https://[^:]*:([^@]*)@.*#\1#' "$SKARBIEC_CRED_FILE" | awk 'NF{print; exit}')"
-  rel="$(curl -fsSL -H "Authorization: Bearer $tok" -H "Accept: application/vnd.github+json" "$SKARBIEC_REPO_API/releases/tags/$1" 2>>"$SKARBIEC_LOG")"
-  url="$(printf '%s' "$rel" | node "$SKARBIEC_ASSET_HELPER" "$2")"
-  [ -n "$url" ] || return 1
-  curl -fsSL -H "Authorization: Bearer $tok" -H "Accept: application/octet-stream" "$url" -o "$3" 2>>"$SKARBIEC_LOG"
-}
-
-# --- skarbiec binary self-provision (from the weles rolling release) -------
-SKARBIEC_BIN="${SKARBIEC_BIN:-$SECRETS_DIR/skarbiec-entitlements-router}"
-export SKARBIEC_CREDENTIAL_RETURN_COMMAND="${SKARBIEC_CREDENTIAL_RETURN_COMMAND:-$SKARBIEC_BIN}"
-export SKARBIEC_PUBLISH_VAULT_AFTER_RETURN="${SKARBIEC_PUBLISH_VAULT_AFTER_RETURN:-1}"
-export SKARBIEC_WELES_REPO="${SKARBIEC_WELES_REPO:-wisent-ai/weles}"
-export SKARBIEC_WELES_RECIPIENT="${SKARBIEC_WELES_RECIPIENT:-jeden-release-authority}"
-STAGE="$(mktemp -d)"
-if fetch_release_asset skarbiec-bin-latest skarbiec-entitlements-router "$STAGE/bin" \
-   && fetch_release_asset skarbiec-bin-latest skarbiec-entitlements-router.sha256 "$STAGE/sha"; then
-  WANT="$(awk 'NF{print $1; exit}' "$STAGE/sha" 2>/dev/null)"
-  GOT="$(openssl dgst -sha256 "$STAGE/bin" 2>/dev/null | awk '{print $NF}')"
-  if [ -n "$WANT" ] && [ "$WANT" = "$GOT" ]; then
-    chmod +x "$STAGE/bin"
-    mv -f "$STAGE/bin" "$SKARBIEC_BIN"
-  fi
+SKARBIEC_BIN="${SKARBIEC_BIN:-/usr/local/bin/skarbiec-entitlements-router}"
+if [ ! -x "$SKARBIEC_BIN" ]; then
+  echo "missing executable operator-provisioned Skarbiec binary: $SKARBIEC_BIN" >&2
+  exit 1
 fi
-rm -rf "$STAGE"
+export SKARBIEC_CREDENTIAL_RETURN_COMMAND="${SKARBIEC_CREDENTIAL_RETURN_COMMAND:-$SKARBIEC_BIN}"
 
-# Public recipient keys are safe to keep in the repository and are required
-# whenever the worker re-encrypts a changed vault for owner + recovery.
-SKARBIEC_RECIPIENT_KEYS="$WELES_DIR/vendor/skarbiec/skarbiec-recipients.asc"
-if [ -f "$SKARBIEC_RECIPIENT_KEYS" ]; then
+# Public recipient keys may be supplied by the Skarbiec installation. Weles
+# neither vendors nor publishes them.
+SKARBIEC_RECIPIENT_KEYS="${SKARBIEC_RECIPIENT_KEYS:-}"
+if [ -n "$SKARBIEC_RECIPIENT_KEYS" ] && [ -f "$SKARBIEC_RECIPIENT_KEYS" ]; then
   gpg --batch --import "$SKARBIEC_RECIPIENT_KEYS" >>"$SKARBIEC_LOG" 2>&1 || true
 fi
 
@@ -88,17 +60,12 @@ if [ -f "$SKARBIEC_OWNER_KEY" ] && ! gpg --list-keys skarbiec-owner >/dev/null 2
   gpg --batch --import "$SKARBIEC_OWNER_KEY" >>"$SKARBIEC_LOG" 2>&1 || true
 fi
 
-# --- skarbiec vault delivery (ciphertext from the weles release) -----------
-# The vault is gpg ciphertext (encrypted to owner + recovery), safe to publish;
-# reading the release alone cannot decrypt it. Refreshed each launch from the
-# release; otherwise the previously staged copy is used.
-export SKARBIEC_VAULT_FILE="${SKARBIEC_VAULT_FILE:-$SECRETS_DIR/skarbiec.vault.json}"
-STAGEV="$(mktemp -d)"
-if fetch_release_asset skarbiec-vault-latest latest-vault:skarbiec.vault.json "$STAGEV/v"; then
-  mv -f "$STAGEV/v" "$SKARBIEC_VAULT_FILE"
-  chmod go-rwx "$SKARBIEC_VAULT_FILE"
+# --- operator-provisioned Skarbiec vault -----------------------------------
+export SKARBIEC_VAULT_FILE="${SKARBIEC_VAULT_FILE:-}"
+if [ -z "$SKARBIEC_VAULT_FILE" ] || [ ! -f "$SKARBIEC_VAULT_FILE" ]; then
+  echo "missing operator-provisioned SKARBIEC_VAULT_FILE" >&2
+  exit 1
 fi
-rm -rf "$STAGEV"
 
 # --- decrypt the real vault -> owner-only view -----------------------------
 # skarbiec is the source of truth: decrypt the delivered vault ciphertext with

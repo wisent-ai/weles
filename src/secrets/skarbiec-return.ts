@@ -1,7 +1,6 @@
 import { spawn } from 'node:child_process';
 import { lstat, realpath, stat } from 'node:fs/promises';
 import { isAbsolute } from 'node:path';
-import { publishReturnedSkarbiecVault } from './skarbiec-vault-publish.js';
 
 const COMMAND_ENV = 'SKARBIEC_CREDENTIAL_RETURN_COMMAND';
 const MAX_SECRET_BYTES = 16 * 1024;
@@ -220,6 +219,5 @@ export async function returnCredentialToSkarbiec(input: ReturnCredentialInput): 
     child.stdin.end(input.value, 'utf8');
   });
   await synchronizeVault(command, 'sync-push');
-  await publishReturnedSkarbiecVault(input.requestId);
   return returned;
 }

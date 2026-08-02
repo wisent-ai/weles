@@ -32,8 +32,8 @@ export function runRecordingsRoot(): string {
 
 // Where recordings live. Default: <cwd>/recordings (the worker runs from the
 // repo root). WELES_RECORDINGS_ROOT relocates the whole store — e.g. onto a
-// larger data volume — and is what stado's weles.recordings_dir registry
-// field propagates into the worker's launch environment.
+// larger data volume. The host service environment owns this deployment
+// setting; the worker does not read a fleet registry.
 function recordingsBase(): string {
   return process.env.WELES_RECORDINGS_ROOT || join(process.cwd(), 'recordings');
 }

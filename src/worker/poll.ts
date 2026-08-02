@@ -10,7 +10,7 @@ import { uploadArtifacts } from './upload-artifacts.js';
 import { paramsToEnv, resolveTrajectory } from './dispatch.js';
 import { claimOne } from './claim.js';
 import { sweepZombiesIfDue } from './stale.js';
-import { loadWelesPolicy } from './stado-routing.js';
+import { loadWelesPolicy } from './placement-policy.js';
 import { captureVersions } from '../diagnostics/versions.js';
 import { importRunProvenance, writeNetworkCapture, pgConnectionString } from '../diagnostics/run-import.js';
 import postgres from 'postgres';
@@ -605,7 +605,7 @@ export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
   try {
     policy = await loadWelesPolicy();
   } catch (error) {
-    console.error(`[worker] Stado routing unavailable: ${error instanceof Error ? error.message : 'unknown error'}`);
+    console.error(`[worker] placement policy unavailable: ${error instanceof Error ? error.message : 'unknown error'}`);
     return 'error';
   }
   if (!policy.enabled) return 'idle';

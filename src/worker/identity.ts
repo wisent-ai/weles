@@ -1,11 +1,11 @@
 import os from 'node:os';
 
-/** Normalize registry and OS host names without changing their DNS identity. */
+/** Normalize configured and OS host names without changing their DNS identity. */
 export function normalizeHostname(value: string): string {
   return value.trim().toLowerCase().replace(/\.+$/, '');
 }
 
-/** The host used for Stado placement. INSTANCE_ID must never affect routing. */
+/** The host used for product-owned placement. INSTANCE_ID never affects routing. */
 export const HOSTNAME = normalizeHostname(os.hostname());
 
 /** Stable claim/watchdog identity, preserving the worker's existing semantics. */
