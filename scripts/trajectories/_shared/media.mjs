@@ -2,15 +2,15 @@
  * Worker-side helper for generating media attachments.
  *
  * Two code paths:
- * 1. Default: POSTs to content-platform's /api/worker/media/{image,video}
- *    (which currently hosts the generation logic).
+ * 1. Default: POSTs to Echo's /api/worker/media/{image,video}
+ *    routes (which currently host the generation logic).
  * 2. IMAGE_VIDEO_ROUTER_URL set: POSTs directly to the standalone router
- *    service at that base URL. Skips content-platform entirely — important
- *    for /image because content-platform on Vercel times out before
+ *    service at that base URL. Skips Echo entirely — important
+ *    for /image because Echo on Vercel times out before
  *    synchronous ComfyUI calls complete.
  *
  * Env required: CRON_SECRET. Optional: IMAGE_VIDEO_ROUTER_URL (direct),
- * LLM_GENERATE_URL (overrides content-platform base URL).
+ *   LLM_GENERATE_URL (overrides the Echo base URL).
  */
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -22,14 +22,14 @@ function imageRoute() {
   if (process.env.IMAGE_VIDEO_ROUTER_URL) {
     return { base: process.env.IMAGE_VIDEO_ROUTER_URL.replace(/\/$/, ''), path: '/image' };
   }
-  const llm = process.env.LLM_GENERATE_URL || 'https://content.wisent.ai/api/llm/generate';
+  const llm = process.env.LLM_GENERATE_URL || 'https://api.echo.wisent.ai/api/llm/generate';
   return { base: llm.replace(/\/api\/llm\/generate$/, ''), path: '/api/worker/media/image' };
 }
 function videoRoute() {
   if (process.env.IMAGE_VIDEO_ROUTER_URL) {
     return { base: process.env.IMAGE_VIDEO_ROUTER_URL.replace(/\/$/, ''), path: '/video' };
   }
-  const llm = process.env.LLM_GENERATE_URL || 'https://content.wisent.ai/api/llm/generate';
+  const llm = process.env.LLM_GENERATE_URL || 'https://api.echo.wisent.ai/api/llm/generate';
   return { base: llm.replace(/\/api\/llm\/generate$/, ''), path: '/api/worker/media/video' };
 }
 function secret() {
@@ -38,13 +38,13 @@ function secret() {
   return s;
 }
 
-// content-platform's image route returns output_url as a relative
+// Echo's image route returns output_url as a relative
 // /api/gcs-image?path=... path. fetch() in Node needs an absolute URL —
 // resolve against the LLM_GENERATE_URL host. Worker's secret is required for
 // /api/gcs-image since it's a protected route.
 function absolutizeMediaUrl(url) {
   if (/^https?:\/\//.test(url)) return url;
-  const base = (process.env.LLM_GENERATE_URL || 'https://content.wisent.ai/api/llm/generate')
+  const base = (process.env.LLM_GENERATE_URL || 'https://api.echo.wisent.ai/api/llm/generate')
     .replace(/\/api\/llm\/generate$/, '');
   return `${base}${url.startsWith('/') ? url : `/${url}`}`;
 }
@@ -95,7 +95,7 @@ export async function generateVideoFile(params, { timeoutMs = 480000, pollMs = 5
   const jobId = data.job_id;
   console.log(`[media] video job ${jobId} — polling`);
   const deadline = Date.now() + timeoutMs;
-  // Status URL differs: router is REST-style /video/<id>; content-platform is query-param.
+  // Status URL differs: router is REST-style /video/<id>; Echo is query-param.
   const statusUrl = process.env.IMAGE_VIDEO_ROUTER_URL
     ? `${base}${path}/${encodeURIComponent(jobId)}`
     : `${base}${path}?job_id=${encodeURIComponent(jobId)}`;

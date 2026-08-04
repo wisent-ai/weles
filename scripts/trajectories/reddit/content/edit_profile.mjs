@@ -25,7 +25,7 @@ const character = linkRes?.[0]?.characters;
 if (!character) { console.log(`FAIL: no character linked to reddit/${acct.username}`); process.exit(1); }
 console.log(`[rd-profile] character: ${character.name} (niche=${character.niche})`);
 const rawAvatar = character.avatar_url || (Array.isArray(character.training_images) ? character.training_images[0] : null);
-const avatarUrl = rawAvatar ? (rawAvatar.startsWith('http') ? rawAvatar : `https://content.wisent.ai${rawAvatar}`) : null;
+const avatarUrl = rawAvatar ? (rawAvatar.startsWith('http') ? rawAvatar : `https://api.echo.wisent.ai${rawAvatar}`) : null;
 
 const targetName = (character.name || '').slice(0, 30); // reddit display name cap
 const targetBio = (character.bio || '').slice(0, 200);  // reddit "about" cap

@@ -1,6 +1,6 @@
 /**
  * Instagram original-post trajectory. Unlike text-only platforms, IG requires
- * a media attachment — we generate one via the content-platform's /api/worker/
+ * a media attachment — we generate one via Echo's /api/worker/
  * media/image route (ComfyUI), then drive the Create-post flow on
  * instagram.com to upload + caption + share.
  *

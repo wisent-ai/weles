@@ -36,7 +36,7 @@ const WELES_ROOT = '/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/wele
 const MD_TO_HTML = WELES_ROOT + '/scripts/lib/md_to_html.mjs';
 const UPLOAD = WELES_ROOT + '/scripts/lib/upload_doc_api.py';
 const PYTHON = '/Library/Frameworks/Python.framework/Versions/3.12/bin/python3.12';
-const OUT_DIR = '/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/content-platform/.work/paste_doc';
+const OUT_DIR = '/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/echo/.work/paste_doc';
 const HTML_PATH = OUT_DIR + '/last_upload.html';
 
 mkdirSync(OUT_DIR, { recursive: true });

@@ -86,8 +86,8 @@ export async function writeDeploymentVersion(options: {
   instanceId?: string;
 } = {}): Promise<{ ok: boolean; skipped?: string; error?: string; status?: number; value?: DeploymentVersionValue }> {
   const env = options.env ?? process.env;
-  const supabaseUrl = envValue(env, 'CONTENT_PLATFORM_SUPABASE_URL', 'SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_URL');
-  const supabaseKey = envValue(env, 'CONTENT_PLATFORM_SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_SERVICE_ROLE_KEY');
+  const supabaseUrl = envValue(env, 'ECHO_SUPABASE_URL', 'SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_URL');
+  const supabaseKey = envValue(env, 'ECHO_SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_SERVICE_ROLE_KEY');
   if (!supabaseUrl || !supabaseKey) return { ok: false, skipped: 'missing_supabase_config' };
 
   const value = buildDeploymentVersionValue(options.versions ?? captureVersions(null), options.now ?? new Date(), options.instanceId ?? deploymentInstanceId(env));

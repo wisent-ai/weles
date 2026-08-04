@@ -1,15 +1,15 @@
 /**
  * Persona-voiced comment generator. Replaces the former
  * api.wisentmedia.com/api/llm/messages Claude-proxy call. Posts to the
- * content-platform /api/llm/generate route, which wraps the AuthorMist
+ * Echo /api/llm/generate route, which wraps the AuthorMist
  * RunPod endpoint and returns synchronously when the job completes.
  *
  * Env required:
- *   CRON_SECRET                 — matches content-platform's CRON_SECRET
+ *   CRON_SECRET                 — matches Echo's CRON_SECRET
  *   LLM_GENERATE_URL (optional) — overrides the default production URL
  */
 
-const DEFAULT_URL = 'https://content.wisent.ai/api/llm/generate';
+const DEFAULT_URL = 'https://api.echo.wisent.ai/api/llm/generate';
 
 function endpoint() {
   return process.env.LLM_GENERATE_URL || DEFAULT_URL;

@@ -9,8 +9,8 @@ the counterfactual, the failure is logged but no burn is written.
 
 | Where | What |
 |---|---|
-| `content-platform/src/lib/burn-attribution/runner.ts` | The matcher. Reads recent `_register` rows from `account_action_logs`, finds paired rows differing in exactly one factor (domain or exit_ip), and writes the burn against the differing factor. Singleton failures with no pair produce nothing. |
-| `content-platform/src/app/api/(infra)/(jobs)/cron/(automation)/burn-attribution/route.ts` | Cron handler. Vercel schedule `17 */4 * * *` (every four hours). |
+| `echo/src/lib/burn-attribution/runner.ts` | The matcher. Reads recent `_register` rows from `account_action_logs`, finds paired rows differing in exactly one factor (domain or exit_ip), and writes the burn against the differing factor. Singleton failures with no pair produce nothing. |
+| `echo/src/app/api/(infra)/(jobs)/cron/(automation)/burn-attribution/route.ts` | Cron handler. Vercel schedule `17 */4 * * *` (every four hours). |
 | `weles/scripts/debug/paired/run.mjs` | Test-row queuer CLI. Inserts N paired rows into `account_action_logs` with the right `params.proxy_url_override` + `params.force_email_domain` for the desired isolation experiment. |
 | `weles/scripts/debug/instrument_chrome.mjs` | Human-reference capture. Accepts `PROXY_URL` so the chrome reference runs from the same IP as the weles trajectory under test — required for isolating browser-context delta from IP delta. |
 | `weles/src/worker/dispatch.ts` | Translates `params.force_email_domain` → `FORCE_EMAIL_DOMAIN` env var, consumed by `pickDomain()` so the trajectory respects the pinned domain. |

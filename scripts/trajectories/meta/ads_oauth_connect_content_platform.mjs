@@ -1,8 +1,8 @@
-// Meta Ads OAuth connector for Content Platform.
+// Meta Ads OAuth connector for Echo.
 //
 // Uses a Weles browser session to obtain a Meta user access token via OAuth,
-// validates it against /me/adaccounts, then stores it in Content Platform's
-// Supabase ad_accounts rows. Output is sanitized: no token or secret values.
+// validates it against /me/adaccounts, then stores it in Echo's Supabase
+// ad_accounts rows. Output is sanitized: no token or secret values.
 
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
@@ -11,8 +11,8 @@ import { generatePersona } from '../../../dist/browser/persona.js';
 import { WSession } from '../../../dist/session/wsession.js';
 
 const META_BASE_URL = 'https://graph.facebook.com/v21.0';
-const DEFAULT_CONTENT_PLATFORM_DIR = '/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/content-platform';
-const CONTENT_PLATFORM_DIR = process.env.CONTENT_PLATFORM_DIR || DEFAULT_CONTENT_PLATFORM_DIR;
+const DEFAULT_ECHO_DIR = '/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/echo';
+const ECHO_DIR = process.env.ECHO_DIR || DEFAULT_ECHO_DIR;
 const SOURCE_USER_DATA_DIR = process.env.WELES_USER_DATA_DIR || process.env.ADS_PROFILE_DIR || join(homedir(), '.weles', 'browser_profiles', 'meta_ads');
 const REDIRECT_URI = process.env.REDIRECT_URI || 'https://www.facebook.com/connect/login_success.html';
 const WAIT_MS = Number(process.env.LOGIN_WAIT_MS || 600000);
@@ -38,11 +38,11 @@ function loadEnvFile(path) {
   return env;
 }
 
-function loadContentPlatformEnv() {
+function loadEchoEnv() {
   return {
     ...process.env,
-    ...loadEnvFile(resolve(CONTENT_PLATFORM_DIR, '.env.production')),
-    ...loadEnvFile(resolve(CONTENT_PLATFORM_DIR, '.env.local')),
+    ...loadEnvFile(resolve(ECHO_DIR, '.env.production')),
+    ...loadEnvFile(resolve(ECHO_DIR, '.env.local')),
   };
 }
 
@@ -428,9 +428,9 @@ async function getTokenWithWeles(appId, env) {
   }
 }
 
-const env = loadContentPlatformEnv();
+const env = loadEchoEnv();
 if (!env.NEXT_PUBLIC_SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) {
-  console.log('FAIL: missing Content Platform Supabase env');
+  console.log('FAIL: missing Echo Supabase env');
   process.exit(1);
 }
 
@@ -451,7 +451,7 @@ if (!appId) {
 
 console.log(JSON.stringify({
   stage: 'oauth_start',
-  contentPlatformDir: CONTENT_PLATFORM_DIR,
+  echoDir: ECHO_DIR,
   appIdPresent: true,
   redirectUri: REDIRECT_URI,
   sourceProfile: SOURCE_USER_DATA_DIR,
@@ -515,7 +515,7 @@ try {
     accounts: upserted,
     reach,
   }, null, 2));
-  console.log('PASS: Meta Ads connected to Content Platform');
+  console.log('PASS: Meta Ads connected to Echo');
 } catch (error) {
   console.log(`FAIL: ${error.message || String(error)}`);
   process.exit(1);

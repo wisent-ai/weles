@@ -35,7 +35,7 @@ const targetLocation = [character.home_city, character.home_country].filter(Bool
 // hasn't merged yet. Path is either a /api/gcs-image proxy URL or absolute.
 const rawAvatar = character.avatar_url || (Array.isArray(character.training_images) ? character.training_images[0] : null);
 const avatarUrl = rawAvatar
-  ? (rawAvatar.startsWith('http') ? rawAvatar : `https://content.wisent.ai${rawAvatar}`)
+  ? (rawAvatar.startsWith('http') ? rawAvatar : `https://api.echo.wisent.ai${rawAvatar}`)
   : null;
 
 const { proxyUrl, persona } = await resolveAccountSession(acct);

@@ -491,8 +491,8 @@ async function main() {
   applyEnvDefaults(loadEnvFile(join(process.cwd(), '.env')));
   applyEnvDefaults(loadEnvFile(join(process.cwd(), '.env.local')));
   applyEnvDefaults(loadEnvFile(join(process.cwd(), '.env.production')));
-  applyEnvDefaults(loadEnvFile(join(process.cwd(), '..', 'content-platform', '.env.local')));
-  applyEnvDefaults(loadEnvFile(join(process.cwd(), '..', 'content-platform', '.env.production')));
+  applyEnvDefaults(loadEnvFile(join(process.cwd(), '..', 'echo', '.env.local')));
+  applyEnvDefaults(loadEnvFile(join(process.cwd(), '..', 'echo', '.env.production')));
 
   const creds = await getGoogleSsoCreds(EMAIL);
   if (!creds?.password) writeResult({ ok: false, blocked: 'missing_google_sso_password', email: EMAIL }, 2);

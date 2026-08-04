@@ -8,7 +8,7 @@
 //   node parse_drafts.mjs <draft_root_dir> > /tmp/values.json
 //
 // Domyślny katalog jeśli arg nie podany:
-//   ../../../content-platform/applications/feng-sciezka-smart/sprind-version
+//   ../../../echo/applications/feng-sciezka-smart/sprind-version
 
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
@@ -17,7 +17,7 @@ import { fileURLToPath } from 'node:url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_ROOT = resolve(
   __dirname,
-  '../../../../content-platform/applications/feng-sciezka-smart/sprind-version',
+  '../../../../echo/applications/feng-sciezka-smart/sprind-version',
 );
 
 function walkMd(root) {

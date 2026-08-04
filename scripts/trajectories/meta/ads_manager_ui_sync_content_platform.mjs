@@ -1,4 +1,4 @@
-// Sync the Meta Ads account that is accessible in Ads Manager UI into Content Platform.
+// Sync the Meta Ads account that is accessible in Ads Manager UI into Echo.
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
@@ -7,8 +7,8 @@ import { spawnSync } from 'node:child_process';
 import { generatePersona } from '../../../dist/browser/persona.js';
 import { WSession } from '../../../dist/session/wsession.js';
 
-const DEFAULT_CONTENT_PLATFORM_DIR = '/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/content-platform';
-const CONTENT_PLATFORM_DIR = process.env.CONTENT_PLATFORM_DIR || DEFAULT_CONTENT_PLATFORM_DIR;
+const DEFAULT_ECHO_DIR = '/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/echo';
+const ECHO_DIR = process.env.ECHO_DIR || DEFAULT_ECHO_DIR;
 const USER_DATA_DIR = process.env.WELES_USER_DATA_DIR || process.env.ADS_PROFILE_DIR || join(homedir(), '.weles', 'browser_profiles', 'meta_ads');
 const REQUESTED_AD_ACCOUNT_ID = (process.env.AD_ACCOUNT_ID || process.env.META_AD_ACCOUNT_ID || '849988068092449').replace(/^act_/, '');
 const FALLBACK_AD_ACCOUNT_ID = (process.env.META_UI_AD_ACCOUNT_ID || '934480871580707').replace(/^act_/, '');
@@ -34,11 +34,11 @@ function loadEnvFile(path) {
   return env;
 }
 
-function loadContentPlatformEnv() {
+function loadEchoEnv() {
   return {
     ...process.env,
-    ...loadEnvFile(resolve(CONTENT_PLATFORM_DIR, '.env.production')),
-    ...loadEnvFile(resolve(CONTENT_PLATFORM_DIR, '.env.local')),
+    ...loadEnvFile(resolve(ECHO_DIR, '.env.production')),
+    ...loadEnvFile(resolve(ECHO_DIR, '.env.local')),
   };
 }
 
@@ -104,7 +104,7 @@ function extractAdsManagerSnapshot(rawUrl, bodyText) {
 
 async function scrapeAdsManager() {
   const s = await WSession.start({
-    label: 'meta_ads_manager_ui_sync_content_platform',
+    label: 'meta_ads_manager_ui_sync_echo',
     browser: process.env.BROWSER || 'chromium',
     proxy: process.env.PROXY_URL || 'direct',
     persona: stableProfilePersona(),
@@ -143,7 +143,7 @@ async function getPrimaryUser(env) {
     '/ad_accounts?select=id,user_id,platform,account_id,account_name,currency,metadata,access_token,refresh_token,is_active&order=created_at.desc',
   );
   const primary = fallbackRows.find((row) => row.platform === 'meta') || fallbackRows[0];
-  if (!primary?.user_id) throw new Error('No Content Platform ad account row exists to infer user_id');
+  if (!primary?.user_id) throw new Error('No Echo ad account row exists to infer user_id');
   return { userId: primary.user_id, rows: fallbackRows };
 }
 
@@ -166,7 +166,7 @@ async function upsertUiAccount(env, userId, snapshot) {
       ...(existing?.metadata || {}),
       platform_id: `act_${snapshot.accountId}`,
       connection_mode: 'weles_ads_manager_ui',
-      source: 'ads_manager_ui_sync_content_platform',
+      source: 'ads_manager_ui_sync_echo',
       requested_account_id: snapshot.requestedAccountId,
       redirected_from_requested_account: String(snapshot.redirected),
       date_range_label: snapshot.dateRangeLabel || '',
@@ -208,7 +208,7 @@ async function upsertUiAccount(env, userId, snapshot) {
   return inserted[0];
 }
 
-function syncViaContentPlatform(snapshot) {
+function syncViaEcho(snapshot) {
   const args = [
     'exec',
     '--',
@@ -224,14 +224,14 @@ function syncViaContentPlatform(snapshot) {
     `--no-business-asset-access=${String(snapshot.noBusinessAssetAccess)}`,
   ];
   const result = spawnSync('npm', args, {
-    cwd: CONTENT_PLATFORM_DIR,
+    cwd: ECHO_DIR,
     encoding: 'utf8',
     maxBuffer: 10 * 1024 * 1024,
   });
   if (result.stdout) process.stdout.write(result.stdout);
   if (result.stderr) process.stderr.write(result.stderr);
   if (result.status !== 0) {
-    throw new Error(`Content Platform UI account sync failed with exit ${result.status}`);
+    throw new Error(`Echo UI account sync failed with exit ${result.status}`);
   }
   const start = result.stdout.indexOf('{');
   return { raw: result.stdout, parsed: start >= 0 ? JSON.parse(result.stdout.slice(start)) : null };
@@ -240,15 +240,15 @@ function syncViaContentPlatform(snapshot) {
 console.log(JSON.stringify({
   stage: 'start',
   userDataDir: USER_DATA_DIR,
-  contentPlatformDir: CONTENT_PLATFORM_DIR,
+  echoDir: ECHO_DIR,
   requestedAccountId: REQUESTED_AD_ACCOUNT_ID,
   fallbackAccountId: FALLBACK_AD_ACCOUNT_ID,
   headless: process.env.META_BUSINESS_HEADLESS !== '0',
 }, null, 2));
 
-const env = loadContentPlatformEnv();
+const env = loadEchoEnv();
 if (!env.NEXT_PUBLIC_SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) {
-  console.log('FAIL: missing Content Platform Supabase env');
+  console.log('FAIL: missing Echo Supabase env');
   process.exit(1);
 }
 
@@ -259,13 +259,13 @@ try {
   if (snapshot.noBusinessAssetAccess && !snapshot.hasCampaignWorkspace) {
     throw new Error(`Ads Manager did not expose an account workspace for requested account ${REQUESTED_AD_ACCOUNT_ID}`);
   }
-  const synced = syncViaContentPlatform(snapshot);
+  const synced = syncViaEcho(snapshot);
   const row = synced.parsed?.account;
   console.log(JSON.stringify({
-    stage: 'content_platform_synced',
+    stage: 'echo_synced',
     account: row,
   }, null, 2));
-  console.log('PASS: Meta Ads Manager UI account synced to Content Platform');
+  console.log('PASS: Meta Ads Manager UI account synced to Echo');
 } catch (error) {
   exitCode = 1;
   console.log(`FAIL: ${error.message || String(error)}`);

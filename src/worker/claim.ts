@@ -22,7 +22,7 @@ export async function claimOne(policy: WelesActionPolicy): Promise<ActionLogRow 
     : `&action=in.(${policy.actions.map((action) => encodeURIComponent(`"${action.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`)).join(',')})`;
   // Lookahead 1000 rows so large legacy backlogs don't hide fresh trading
   // scrape rows behind the first page. Keep the SELECT schema-minimal:
-  // content-platform's account_action_logs currently has no webhook_url,
+  // Echo's account_action_logs currently has no webhook_url,
   // cancel_requested, or priority columns; selecting them makes PostgREST
   // return 400 and the worker appear idle forever.
   const res = await fetch(

@@ -16,8 +16,8 @@ sequence, and captcha/challenge behavior.
   `WSession.start()` and the Playwright custom Chromium path.
 - Local Weles Chromium bundle:
   `/Users/jakubtowarek/.local/share/weles-chromium/147.0.7727.108-weles.1/Chromium.app/Contents/MacOS/Chromium`.
-- Native patch material exists in the content-platform repo:
-  `/Users/jakubtowarek/Projects/wisent-content-platform/scripts/chromium-arm64`.
+- Native patch material exists in the Echo repo:
+  `/Users/jakubtowarek/Projects/echo/scripts/chromium-arm64`.
 - A local side-by-side audit run was saved at:
   `recordings/audits/chrome_vs_weles_2026-06-01T22-04-19-887Z.json`.
 - Native patch/binary audit report:
@@ -509,7 +509,7 @@ The current best ranking from
 
 This ranking is about what LinkedIn or LinkedIn-loaded challenge providers can
 observe directly or infer from browser/network behavior. It excludes
-Enterprise/Content Platform access-control concerns.
+Echo/Enterprise access-control concerns.
 
 ## Native Chromium Findings
 
@@ -518,7 +518,7 @@ calling the native layer audited.
 
 - `gh repo list wisent-ai --limit 200` and `gh search repos 'weles-chromium'`
   did not find a `wisent-ai/weles-chromium` repo. The only Chromium source hits
-  from GitHub code search are `wisent-ai/content-platform/scripts/chromium-arm64`
+  from GitHub code search are `wisent-ai/echo/scripts/chromium-arm64`
   plus release/download references in `wisent-ai/weles`.
 - The Weles release body for `chromium-147.0.7727.108-weles.1` says the source
   was `chromium-build/src` branch `weles-147`, with Linux fixup commits
@@ -538,10 +538,10 @@ calling the native layer audited.
   `local_patch_material_contains_debug_markers`, and
   `local_patch_material_contains_build_errors`.
 - The same source provenance report saw only these relevant `wisent-ai` repos:
-  `weles`, `content-platform`, `wisent-supabase-content-platform`, and
+  `weles`, `echo`, `wisent-supabase-echo`, and
   `weles-firefox`; none is an exact Chromium source repo. The only local patch
   dir found was
-  `/Users/jakubtowarek/Projects/wisent-content-platform/scripts/chromium-arm64`.
+  `/Users/jakubtowarek/Projects/echo/scripts/chromium-arm64`.
 - `weles-patches.diff` contains hardcoded renderer debug file writes to
   `/Users/lukaszbartoszcze/.../recordings/weles_debug.log` and
   `/tmp/weles_brands.log`.
@@ -917,7 +917,7 @@ captured:
 
 - Added repeatable diagnostics pipeline audit:
   `node scripts/debug/diagnostics_pipeline_audit.mjs`. It scans Weles capture,
-  session, worker upload, Content Platform artifact rendering, and Enterprise
+  session, worker upload, Echo artifact rendering, and Enterprise
   artifact rendering code. It does not fetch artifact bodies.
 - Latest report:
   `recordings/audits/diagnostics_pipeline_audit_2026-06-02T08-33-01-949Z.json`.
@@ -953,7 +953,7 @@ captured:
 - Artifact refs default to private `recordings://...`; setting
   `WELES_ARTIFACT_PUBLIC_URLS=1` is the escape hatch back to public storage URLs
   and should stay off for LinkedIn diagnostics.
-- Content Platform and Enterprise artifact views both resolve
+- Echo and Enterprise artifact views both resolve
   `recordings://...` or historical public refs through Supabase signed URLs for
   display.
 - Supabase storage metadata audit:
@@ -971,12 +971,12 @@ captured:
   proven retention/lifecycle/delete policy in the audited code paths. Local
   pruning exists for some worker-side captures, but signed URL expiry is access
   expiry, not object retention.
-- Content Platform and Enterprise Weles reporting read diagnostics with
+- Echo and Enterprise Weles reporting read diagnostics with
   server-side service-role/admin clients and render redacted result JSON plus
   signed artifact URLs. This is not LinkedIn-visible, but RLS is bypassed in
   those reporting paths.
 - Static reporting guard evidence now distinguishes the surfaces:
-  Content Platform action detail is protected by Supabase auth, the
+  Echo action detail is protected by Supabase auth, the
   `admin_users` middleware check, and an `account_id`/route consistency check.
   Enterprise Weles pages are protected by Enterprise session middleware, and
   `/api/weles/latest-success` explicitly requires an authenticated Enterprise
@@ -996,7 +996,7 @@ captured:
 
 ## Production Last-Run Evidence
 
-Queried Content Platform `account_action_logs` on 2026-06-02 for
+Queried Echo `account_action_logs` on 2026-06-02 for
 `action = 'linkedin_register'`, without reading raw account metadata or captured
 response bodies.
 
