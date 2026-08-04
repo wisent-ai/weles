@@ -1,7 +1,7 @@
 # Weles worker — VM deployment
 
 Runs `node scripts/worker/run.mjs` as a systemd service. Drains
-`account_action_logs` rows the content-platform campaign scheduler + lifecycle
+`account_action_logs` rows the Echo campaign scheduler + lifecycle
 sim crons enqueue.
 
 ## Host prerequisites
@@ -54,9 +54,9 @@ mkdir -p ~/weles/var
 cat > ~/weles/var/worker.env <<EOF
 SUPABASE_URL=https://<project>.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=sb_secret_...
-CRON_SECRET=<same value as content-platform Vercel env>
+CRON_SECRET=<same value as Echo's Vercel env>
 CHROMIUM_PATH=/home/<user>/.cache/ms-playwright/chromium-1217/chrome-linux64/chrome
-LLM_GENERATE_URL=https://content.wisent.ai/api/llm/generate
+LLM_GENERATE_URL=https://api.echo.wisent.ai/api/llm/generate
 INSTANCE_ID=<hostname>-worker
 RECORDINGS_ROOT=/home/<user>/weles/recordings
 WELES_PLACEMENT_MODE=required

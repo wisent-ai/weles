@@ -631,8 +631,8 @@ async function main() {
   applyEnvDefaults(loadEnvFile('.env'));
   applyEnvDefaults(loadEnvFile('.env.local'));
   applyEnvDefaults(loadEnvFile('.env.production'));
-  applyEnvDefaults(loadEnvFile(join(process.cwd(), '..', 'content-platform', '.env.local')));
-  applyEnvDefaults(loadEnvFile(join(process.cwd(), '..', 'content-platform', '.env.production')));
+  applyEnvDefaults(loadEnvFile(join(process.cwd(), '..', 'echo', '.env.local')));
+  applyEnvDefaults(loadEnvFile(join(process.cwd(), '..', 'echo', '.env.production')));
 
   if (!socketReady()) writeResult({ ok: false, blocked: 'keeper_socket_not_ready', session: SESSION, socket: SOCK }, 3);
   const creds = await resolveSsoCreds();

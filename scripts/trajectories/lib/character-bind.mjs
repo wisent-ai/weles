@@ -44,15 +44,15 @@ Return ONLY valid JSON:
 
 async function generateCharacter(_supabaseUrl, _serviceKey, platform) {
   // 2026-05-06: api.wisentmedia.com decommissioned. Delegate to the
-  // content-platform /api/characters/generate route which uses the same
+  // Echo /api/characters/generate route which uses the same
   // Claude-via-OAuth client as the UI and writes the characters row +
   // character_states server-side. Auth via x-cron-secret matches the
   // /api/llm/generate cron-flow pattern. Keeps prompt + insert logic in
   // one place (route.ts) so future schema changes don't drift between
-  // weles and content-platform.
+  // Weles and Echo.
   const t = TYPOLOGY[platform];
   if (!t) return null;
-  const charGenUrl = process.env.CHARACTER_GENERATE_URL || 'https://content.wisent.ai/api/characters/generate';
+  const charGenUrl = process.env.CHARACTER_GENERATE_URL || 'https://api.echo.wisent.ai/api/characters/generate';
   const cronSecret = process.env.CRON_SECRET;
   if (!cronSecret) { console.log('[char-gen] CRON_SECRET not set in env'); return null; }
   const res = await fetch(charGenUrl, {

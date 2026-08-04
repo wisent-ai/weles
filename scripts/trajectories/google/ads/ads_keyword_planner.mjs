@@ -99,8 +99,8 @@ async function resolveSsoCreds() {
   applyEnvDefaults(loadEnvFile(join(process.cwd(), '.env')));
   applyEnvDefaults(loadEnvFile(join(process.cwd(), '.env.local')));
   applyEnvDefaults(loadEnvFile(join(process.cwd(), '.env.production')));
-  applyEnvDefaults(loadEnvFile(join(process.cwd(), '..', 'content-platform', '.env.local')));
-  applyEnvDefaults(loadEnvFile(join(process.cwd(), '..', 'content-platform', '.env.production')));
+  applyEnvDefaults(loadEnvFile(join(process.cwd(), '..', 'echo', '.env.local')));
+  applyEnvDefaults(loadEnvFile(join(process.cwd(), '..', 'echo', '.env.production')));
   const fileEnvs = [
     loadEnvFile(join(process.cwd(), '.work', '_sso.env')),
     loadEnvFile(join(process.cwd(), '..', 'weles', '.work', '_sso.env')),

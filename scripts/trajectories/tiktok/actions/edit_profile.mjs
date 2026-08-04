@@ -29,7 +29,7 @@ const character = linkRes?.[0]?.characters;
 if (!character) { console.log(`FAIL: no character linked to tiktok/${acct.username}`); process.exit(1); }
 console.log(`[tt-profile] character: ${character.name} (niche=${character.niche})`);
 const rawAvatar = character.avatar_url || (Array.isArray(character.training_images) ? character.training_images[0] : null);
-const avatarUrl = rawAvatar ? (rawAvatar.startsWith('http') ? rawAvatar : `https://content.wisent.ai${rawAvatar}`) : null;
+const avatarUrl = rawAvatar ? (rawAvatar.startsWith('http') ? rawAvatar : `https://api.echo.wisent.ai${rawAvatar}`) : null;
 
 // TikTok bio cap is 80 chars.
 const targetBio = (character.bio || '').slice(0, 80);

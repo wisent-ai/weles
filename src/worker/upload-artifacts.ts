@@ -1,6 +1,6 @@
 // Uploads trajectory artifacts to the 'recordings' Supabase Storage bucket
 // after a run completes. Keyed by action + account_action_logs id so the
-// content-platform Artifacts viewer at /accounts/[id]/actions/[log_id] can
+// Echo's Artifacts viewer at /accounts/[id]/actions/[log_id] can
 // render them from direct storage URLs.
 //
 // Volume control: only uploads when the caller passes opts.force=true (worker

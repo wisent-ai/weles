@@ -43,8 +43,8 @@ function applyEnvDefaults(env) {
 
 async function resolveSsoCreds() {
   applyEnvDefaults(loadEnvFile(join(process.cwd(), '.env')));
-  applyEnvDefaults(loadEnvFile(join(process.cwd(), '..', 'content-platform', '.env.local')));
-  applyEnvDefaults(loadEnvFile(join(process.cwd(), '..', 'content-platform', '.env.production')));
+  applyEnvDefaults(loadEnvFile(join(process.cwd(), '..', 'echo', '.env.local')));
+  applyEnvDefaults(loadEnvFile(join(process.cwd(), '..', 'echo', '.env.production')));
   const fileEnv = loadEnvFile(join(process.cwd(), '.work', '_sso.env'));
   const email = process.env.GOOGLE_ADS_EMAIL || process.env.SSO_EMAIL || process.env.GM_EMAIL || fileEnv.SSO_EMAIL || DEFAULT_GOOGLE_ADS_EMAIL;
   const explicitPassword = process.env.SSO_PASS || process.env.SSO_PASSWORD || process.env.GM_PASSWORD;

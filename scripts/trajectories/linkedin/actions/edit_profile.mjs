@@ -27,7 +27,7 @@ const character = linkRes?.[0]?.characters;
 if (!character) { console.log(`FAIL: no character linked to linkedin/${acct.username}`); process.exit(1); }
 console.log(`[li-profile] character: ${character.name} (niche=${character.niche})`);
 const rawAvatar = character.avatar_url || (Array.isArray(character.training_images) ? character.training_images[0] : null);
-const avatarUrl = rawAvatar ? (rawAvatar.startsWith('http') ? rawAvatar : `https://content.wisent.ai${rawAvatar}`) : null;
+const avatarUrl = rawAvatar ? (rawAvatar.startsWith('http') ? rawAvatar : `https://api.echo.wisent.ai${rawAvatar}`) : null;
 
 const targetName = character.name || '';
 // Headline = occupation if present, else niche. Caps at 220 chars.

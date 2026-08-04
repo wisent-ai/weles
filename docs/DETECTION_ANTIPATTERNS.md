@@ -101,7 +101,7 @@ await s.goto('https://reddit.com/');
 - TikTok slider on every login after fresh signup
 
 **Enforcement**: the `warming → mature` gate in
-`content-platform/src/lib/platform/_shared/lifecycle.ts` now requires
+`echo/src/lib/platform/_shared/lifecycle.ts` now requires
 platform-specific graph signatures (GitHub: 10 stars, 3 follows, 5
 profile_views; Reddit: 5 organic_comments) before any write verb is in
 the action menu.
@@ -131,7 +131,7 @@ The Tests tab used to pick the first active account and fire
 `create_repo` / `commit` / `organic_issue_comment` back-to-back against it.
 That IS the swiftwolf6387 shadowban pattern.
 
-**Enforcement**: the content-platform E2E guard refuses verbs in the
+**Enforcement**: the Echo E2E guard refuses verbs in the
 `DESTRUCTIVE_VERBS` set against production accounts and enforces a cooldown
 gate at enqueue time.
 

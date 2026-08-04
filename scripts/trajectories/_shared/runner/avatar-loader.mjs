@@ -1,5 +1,5 @@
 // Fetches a character avatar (typically a 1.5MB+ training image) from
-// content-platform's /api/gcs-image proxy, downscales it and writes a temp
+// Echo's /api/gcs-image proxy, downscales it and writes a temp
 // JPEG suitable for platform avatar upload. github is the strictest at 1MB,
 // so 512px JPEG quality 88 (50-150KB typical) clears every platform.
 //
@@ -13,7 +13,7 @@ import sharp from 'sharp';
 
 function absolutizeMediaUrl(url) {
   if (/^https?:\/\//.test(url)) return url;
-  const base = (process.env.LLM_GENERATE_URL || 'https://content.wisent.ai/api/llm/generate')
+  const base = (process.env.LLM_GENERATE_URL || 'https://api.echo.wisent.ai/api/llm/generate')
     .replace(/\/api\/llm\/generate$/, '');
   return `${base}${url.startsWith('/') ? url : `/${url}`}`;
 }

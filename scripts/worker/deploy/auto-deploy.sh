@@ -244,7 +244,7 @@ if [ -f "$KEYWORD_API_PLIST_SRC_PRE" ]; then
   fi
 fi
 
-# Ensure the content-platform scrape worker LaunchAgent is installed. It uses a
+# Ensure the Echo scrape worker LaunchAgent is installed. It uses a
 # separate env file and an action allowlist, so the existing Weles worker keeps
 # serving the legacy queue while this scoped worker serves Byk/content scrapes.
 CONTENT_WORKER_PLIST_SRC="$WELES_DIR/scripts/worker/deploy/com.wisent.weles-content-worker.plist"
