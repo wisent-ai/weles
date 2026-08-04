@@ -1,8 +1,9 @@
-// Usage: TOKEN=<discord_auth_token> node --env-file=.env scripts/discord_join_servers.mjs
+// Uses the exact Weles Discord bot grant; no ambient platform token.
 import { WSession } from '../dist/session/wsession.js';
+import { readScopedSecret } from './_shared/scoped-secrets.mjs';
 
-const token = process.env.DISCORD_TOKEN;
-if (!token) { console.log('FAIL: set DISCORD_TOKEN env var'); process.exit(1); }
+const token = readScopedSecret('discordBot', 'api_key');
+if (!token) { console.log('FAIL: exact Discord bot grant unavailable'); process.exit(Number('1')); }
 
 const SERVERS = [
   { code: 'python', name: 'Python' },

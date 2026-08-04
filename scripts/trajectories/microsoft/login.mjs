@@ -3,6 +3,7 @@
 // Used by linkedin_login_via_microsoft + the cross_login periodic refresher.
 
 import { getSocialAccount, resolveAccountSession } from '../../../dist/utils/credentials.js';
+import { readWelesManagedCredential } from '../../../dist/secrets/scoped-service.js';
 import { WSession } from '../../../dist/session/wsession.js';
 import { humanType } from '../../../dist/human/keyboard.js';
 import { humanClickLocator, humanIdlePause } from '../../../dist/human/mouse.js';
@@ -13,8 +14,20 @@ const URL = 'https://login.live.com/login.srf';
 const acct = await getSocialAccount('microsoft');
 if (!acct) { console.log('FAIL: no active microsoft account in DB'); process.exit(1); }
 const email = acct.metadata?.email ?? acct.username;
-const password = acct.metadata?.password;
-if (!email || !password) { console.log('FAIL: microsoft account missing email/password'); process.exit(1); }
+const credentialId = acct.metadata?.skarbiec_credential_id;
+const tenantId = typeof acct.metadata?.skarbiec_tenant_id === 'string'
+  ? acct.metadata.skarbiec_tenant_id
+  : null;
+if (credentialId && !process.env.WELES_CREDENTIAL_CONSTRAINTS) {
+  process.env.WELES_CREDENTIAL_CONSTRAINTS = JSON.stringify({ store_secret_target: 'skarbiec' });
+}
+const password = credentialId
+  ? readWelesManagedCredential(credentialId, 'password', tenantId)
+  : undefined;
+if (!email || !password) {
+  console.log('FAIL: Microsoft account has no managed Skarbiec password');
+  process.exit(1);
+}
 console.log(`[ms-login] using account: ${acct.username} <${email}>`);
 
 const { proxyUrl, persona } = await resolveAccountSession(acct);

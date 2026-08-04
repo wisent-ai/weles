@@ -1,15 +1,23 @@
-import { spawn } from 'node:child_process';
-import { constants as fsConstants } from 'node:fs';
-import { access } from 'node:fs/promises';
-import { resolve } from 'node:path';
 import type { WSession } from '../wsession.js';
+import {
+  acquiredSecretContract,
+  isWelesAcquiredSecretValue,
+  writeWelesAcquiredSecret,
+  type WelesAcquiredSecret,
+} from '../../secrets/scoped-service.js';
 
-type CredentialFieldClass = 'token' | 'api-key';
+type CredentialFieldClass = 'token' | 'api-key' | 'password';
 
 type StoreConstraints = {
+  secretName: WelesAcquiredSecret;
   itemId: string;
-  expectedPrefix: string;
+  field: string;
+  fieldClass: CredentialFieldClass;
   sourceOrigin: string;
+  tenantId: string | null;
+  accountEmail: string;
+  requestId: string;
+  operation: string;
 };
 
 type CredentialLocator = {
@@ -20,6 +28,7 @@ type CredentialLocator = {
 };
 
 type CredentialFrame = {
+  url: () => string;
   locator: (selector: string) => CredentialLocator;
   getByLabel: (text: string, options: { exact: boolean }) => CredentialLocator;
   getByRole: (role: string, options: { name: RegExp }) => CredentialLocator;
@@ -31,9 +40,24 @@ type CredentialPage = {
   context?: () => { pages: () => CredentialPage[] };
 };
 
+function credentialConstraintsText(): string {
+  const configured = [
+    process.env.GENERIC_TASK_CONSTRAINTS,
+    process.env.WELES_CREDENTIAL_CONSTRAINTS,
+  ].filter((value): value is string => typeof value === 'string' && value.length > Number('0'));
+  if (configured.length > Number('1')) {
+    throw new Error('multiple credential constraint sources are not allowed');
+  }
+  return configured[0] ?? '{}';
+}
+
 export function isSkarbiecCredentialTask(): boolean {
+  if (typeof process.env.WELES_CREDENTIAL_CONSTRAINTS === 'string'
+      && process.env.WELES_CREDENTIAL_CONSTRAINTS.length > Number('0')) {
+    return true;
+  }
   try {
-    const constraints: unknown = JSON.parse(process.env.GENERIC_TASK_CONSTRAINTS ?? '{}');
+    const constraints: unknown = JSON.parse(credentialConstraintsText());
     return Boolean(
       constraints
       && typeof constraints === 'object'
@@ -42,14 +66,15 @@ export function isSkarbiecCredentialTask(): boolean {
       && constraints.store_secret_target === 'skarbiec',
     );
   } catch {
-    return false;
+    return typeof process.env.GENERIC_TASK_CONSTRAINTS === 'string'
+      && process.env.GENERIC_TASK_CONSTRAINTS.length > Number('0');
   }
 }
 
 function storeConstraints(): StoreConstraints {
   let raw: unknown;
   try {
-    raw = JSON.parse(process.env.GENERIC_TASK_CONSTRAINTS ?? '{}');
+    raw = JSON.parse(credentialConstraintsText());
   } catch {
     throw new Error('credential storage constraints are invalid');
   }
@@ -60,43 +85,50 @@ function storeConstraints(): StoreConstraints {
   if (record.store_secret_target !== 'skarbiec') {
     throw new Error('credential storage is not authorized for this task');
   }
+  const secretName = typeof record.secret === 'string' ? record.secret : '';
   const itemId = typeof record.vault_item_id === 'string' ? record.vault_item_id : '';
-  const expectedPrefix = typeof record.expected_secret_prefix === 'string' ? record.expected_secret_prefix : '';
+  const field = typeof record.vault_field === 'string' ? record.vault_field : '';
   const sourceOrigin = typeof record.secret_source_origin === 'string' ? record.secret_source_origin : '';
-  if (!itemId || itemId.length > 256 || /[\u0000-\u001f\u007f]/.test(itemId)) {
-    throw new Error('credential storage item id is invalid');
+  const tenantId = typeof record.tenant_id === 'string' ? record.tenant_id : null;
+  const accountEmail = typeof record.account_email === 'string' ? record.account_email.trim().toLowerCase() : '';
+  const requestId = typeof record.request_id === 'string' ? record.request_id : '';
+  const operation = typeof record.operation === 'string' ? record.operation : '';
+  const contract = acquiredSecretContract(secretName);
+  if (!contract
+    || itemId !== contract.item
+    || field !== contract.field
+    || sourceOrigin !== contract.sourceOrigin) {
+    throw new Error('credential storage target is not in the exact Weles acquisition allowlist');
   }
-  if (!expectedPrefix || expectedPrefix.length > 32 || /\s/.test(expectedPrefix)) {
-    throw new Error('credential storage prefix is invalid');
+  const fieldClass: CredentialFieldClass = field === 'api_key'
+    ? 'api-key'
+    : field === 'password'
+      ? 'password'
+      : 'token';
+  if (fieldClass === 'password' && !accountEmail) {
+    throw new Error('password credential storage requires an exact account email');
   }
-  if (!/^https:\/\/[A-Za-z0-9.-]+$/.test(sourceOrigin)) {
-    throw new Error('credential storage source origin is invalid');
+  if (!/^[a-f0-9]{64}$/i.test(requestId)
+      || !['acquire', 'rotate', 'verify'].includes(operation)) {
+    throw new Error('credential storage requires an exact request id and operation');
   }
-  return { itemId, expectedPrefix, sourceOrigin };
-}
-
-async function skarbiecCLI(): Promise<string> {
-  const configured = process.env.SKARBIEC_CLI?.trim();
-  const candidates = [
-    configured,
-    resolve(__dirname, '../../../../entitlements-rotator/target/release/skarbiec-entitlements-router'),
-    resolve(__dirname, '../../../../entitlements-rotator/target/debug/skarbiec-entitlements-router'),
-  ].filter((value): value is string => Boolean(value));
-  for (const candidate of candidates) {
-    try {
-      await access(candidate, fsConstants.X_OK);
-      return candidate;
-    } catch {
-      // Continue to the next explicit, release, or debug candidate.
-    }
-  }
-  throw new Error('Skarbiec credential backend is unavailable');
+  return {
+    secretName: secretName as WelesAcquiredSecret,
+    itemId,
+    field,
+    fieldClass,
+    sourceOrigin,
+    tenantId,
+    accountEmail,
+    requestId,
+    operation,
+  };
 }
 
 async function captureCandidate(
   session: WSession,
   target: string,
-  expectedPrefix: string,
+  secretName: WelesAcquiredSecret,
   sourceOrigin: string,
 ): Promise<Buffer> {
   const rootPage = session.page as CredentialPage;
@@ -109,7 +141,15 @@ async function captureCandidate(
     }
   });
   if (authorizedPages.length === 0) throw new Error('credential source origin mismatch');
-  const frames = authorizedPages.flatMap((page) => page.frames());
+  const frames = authorizedPages
+    .flatMap((page) => page.frames())
+    .filter((frame) => {
+      try {
+        return new URL(frame.url()).origin === sourceOrigin;
+      } catch {
+        return false;
+      }
+    });
   const keyword = target.toLowerCase().replace(/[^a-z0-9_-]+/g, ' ').trim().split(/\s+/).find((part) => part.length >= 3) ?? '';
   for (const frame of frames) {
     const locators: CredentialLocator[] = [];
@@ -140,113 +180,51 @@ async function captureCandidate(
           return element.textContent ?? '';
         }).catch(() => '');
         const value = String(candidate).trim();
-        if (!value.startsWith(expectedPrefix) || value.length < expectedPrefix.length + 12 || value.length > 8192 || /\s/.test(value)) continue;
-        return Buffer.from(value, 'utf8');
+        const secret = Buffer.from(value, 'utf8');
+        if (isWelesAcquiredSecretValue(secretName, secret)) return secret;
+        secret.fill(Number('0'));
       }
     }
-    const bodyText = await frame.locator('body').nth(0).evaluate((element: Element) => element.textContent ?? '').catch(() => '');
-    const escapedPrefix = expectedPrefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const bodyMatch = String(bodyText).match(new RegExp(`${escapedPrefix}[A-Za-z0-9._-]{12,8180}`));
-    if (bodyMatch) return Buffer.from(bodyMatch[0], 'utf8');
   }
   throw new Error('credential element was not found or did not match the required secret shape');
 }
 
-async function runSkarbiec(
-  cli: string,
-  arguments_: string[],
-  childEnvironment: Record<string, string>,
-  standardInput: Buffer | null,
-  operation: string,
-): Promise<Buffer> {
-  return new Promise<Buffer>((resolvePromise, reject) => {
-    const child = spawn(cli, arguments_, {
-      env: childEnvironment,
-      stdio: ['pipe', 'pipe', 'pipe'],
-    });
-    const stdout: Buffer[] = [];
-    const stderr: Buffer[] = [];
-    child.stdout.on('data', (chunk: Buffer) => {
-      if (stdout.reduce((total, part) => total + part.length, 0) < 65_536) stdout.push(Buffer.from(chunk));
-    });
-    child.stderr.on('data', (chunk: Buffer) => {
-      if (stderr.reduce((total, part) => total + part.length, 0) < 4096) stderr.push(Buffer.from(chunk));
-    });
-    child.once('error', reject);
-    child.once('close', (code) => {
-      if (code === 0) {
-        resolvePromise(Buffer.concat(stdout));
-        return;
-      }
-      const detail = Buffer.concat(stderr).toString('utf8').replace(/\s+/g, ' ').trim().slice(0, 240);
-      reject(new Error(detail ? `Skarbiec ${operation} failed: ${detail}` : `Skarbiec ${operation} failed with exit ${code ?? 'unknown'}`));
-    });
-    child.stdin.end(standardInput ?? undefined);
-  });
-}
 
-function requireSuccessfulSync(output: Buffer, operation: string): void {
-  let response: { ok?: unknown; detail?: unknown };
-  try {
-    response = JSON.parse(output.toString('utf8')) as { ok?: unknown; detail?: unknown };
-  } catch {
-    throw new Error(`Skarbiec ${operation} returned malformed JSON`);
-  }
-  if (response.ok !== true) {
-    const detail = typeof response.detail === 'string' ? response.detail.replace(/\s+/g, ' ').trim().slice(0, 240) : '';
-    throw new Error(detail ? `Skarbiec ${operation} failed: ${detail}` : `Skarbiec ${operation} failed`);
-  }
-}
-
-async function writeCredential(cli: string, itemId: string, secret: Buffer): Promise<void> {
-  const childEnvironment: Record<string, string> = {
-    PATH: process.env.PATH ?? '/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin',
-    HOME: process.env.HOME ?? '',
-  };
-  for (const key of ['GNUPGHOME', 'SKARBIEC_VAULT_FILE', 'SKARBIEC_AUDIT_FILE', 'SKARBIEC_UNLOCK', 'SKARBIEC_SYNC_DIR']) {
-    const value = process.env[key]?.trim();
-    if (value) childEnvironment[key] = value;
-  }
-  if (childEnvironment.SKARBIEC_SYNC_DIR) {
-    const pullOutput = await runSkarbiec(cli, ['sync-pull'], childEnvironment, null, 'credential sync pull');
-    requireSuccessfulSync(pullOutput, 'credential sync pull');
-  }
-  await runSkarbiec(cli, ['credential-put', itemId], childEnvironment, secret, 'credential write');
-  if (childEnvironment.SKARBIEC_SYNC_DIR) {
-    const pushOutput = await runSkarbiec(
-      cli,
-      ['sync-push', '--message=weles credential acquisition'],
-      childEnvironment,
-      null,
-      'credential sync push',
-    );
-    requireSuccessfulSync(pushOutput, 'credential sync push');
-  }
-}
 
 export async function wsStoreCredential(
   session: WSession,
   target: string,
   fieldClass: CredentialFieldClass,
 ): Promise<string> {
-  if (!target.trim() || target.length > 256) throw new Error('credential target is invalid');
-  if (fieldClass !== 'token' && fieldClass !== 'api-key') throw new Error('credential field class is invalid');
+  if (!target.trim() || target.length > Number('256')) throw new Error('credential target is invalid');
   const constraints = storeConstraints();
-
-  const secret = await captureCandidate(session, target, constraints.expectedPrefix, constraints.sourceOrigin);
-  try {
-    const cli = await skarbiecCLI();
-    await writeCredential(cli, constraints.itemId, secret);
-  } finally {
-    secret.fill(0);
+  if (fieldClass !== constraints.fieldClass) {
+    throw new Error('credential field class does not match the exact Weles acquisition allowlist');
   }
-  return `credential stored in Skarbiec item ${constraints.itemId}`;
+
+  const secret = await captureCandidate(session, target, constraints.secretName, constraints.sourceOrigin);
+  try {
+    writeWelesAcquiredSecret(
+      constraints.secretName,
+      constraints.field,
+      secret,
+      constraints.tenantId,
+      {
+        accountEmail: constraints.accountEmail,
+        requestId: constraints.requestId,
+        operation: constraints.operation,
+      },
+    );
+  } finally {
+    secret.fill(Number('0'));
+  }
+  return `credential stored in Skarbiec item ${constraints.itemId} field ${constraints.field}`;
 }
 
 export async function wsAutoStoreCredential(session: WSession): Promise<string | null> {
   if (!isSkarbiecCredentialTask()) return null;
   try {
-    return await wsStoreCredential(session, 'generated credential', 'token');
+    return await wsStoreCredential(session, 'generated credential', storeConstraints().fieldClass);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     if (
