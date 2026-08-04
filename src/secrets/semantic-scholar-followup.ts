@@ -7,6 +7,7 @@ type ActionLogRow = {
   id: string;
   status?: string | null;
   started_at?: string | null;
+  tenant_id?: string | null;
   completed_at?: string | null;
   params?: Record<string, unknown> | null;
   result?: Record<string, unknown> | null;
@@ -306,16 +307,46 @@ async function scanMailboxForValidKey(source: ActionLogRow): Promise<{ secret: s
   }
   return { secret: null, emailsScanned, matchedEmails };
 }
-async function hasQueuedFollowup(sourceActionLogId: string): Promise<boolean> {
-  const currentActionLogId = env('ACTION_LOG_ID');
-  const rows = await restGet<ActionLogRow[]>(`account_action_logs?action=eq.${FOLLOWUP_ACTION}&status=in.(queued,running)&select=id,params&limit=50`);
-  return rows.some((row) => row.id !== currentActionLogId && text(record(row.params).source_action_log_id) === sourceActionLogId);
+async function currentTenantId(): Promise<string | undefined> {
+  const actionLogId = env('ACTION_LOG_ID');
+  if (!actionLogId) return undefined;
+  const rows = await restGet<ActionLogRow[]>(
+    `account_action_logs?id=eq.${encodeURIComponent(actionLogId)}&select=tenant_id&limit=1`,
+  );
+  return text(rows[0]?.tenant_id).trim() || undefined;
 }
 
-export async function queueSemanticScholarFollowup(sourceActionLogId: string, delayMs = 0, attempt = 0): Promise<{ queued: boolean; action_log_id?: string; scheduled_at?: string }> {
-  if (await hasQueuedFollowup(sourceActionLogId)) return { queued: false };
+async function queuedFollowup(
+  sourceActionLogId: string,
+  tenantId?: string,
+): Promise<ActionLogRow | null> {
+  const currentActionLogId = env('ACTION_LOG_ID');
+  const tenantFilter = tenantId ? `&tenant_id=eq.${encodeURIComponent(tenantId)}` : '';
+  const rows = await restGet<ActionLogRow[]>(
+    `account_action_logs?action=eq.${FOLLOWUP_ACTION}&status=in.(queued,running)${tenantFilter}&select=id,params&limit=50`,
+  );
+  return rows.find(
+    (row) => row.id !== currentActionLogId
+      && text(record(row.params).source_action_log_id) === sourceActionLogId,
+  ) ?? null;
+}
+
+export async function queueSemanticScholarFollowup(
+  sourceActionLogId: string,
+  delayMs = 0,
+  attempt = 0,
+  tenantId?: string,
+): Promise<{ queued: boolean; action_log_id: string; scheduled_at?: string }> {
+  const existing = await queuedFollowup(sourceActionLogId, tenantId);
+  if (existing) {
+    return {
+      queued: false,
+      action_log_id: existing.id,
+    };
+  }
   const scheduledAt = new Date(Date.now() + delayMs).toISOString();
   const rows = await restPost<ServiceCredentialRow[]>('account_action_logs?select=id', {
+    ...(tenantId ? { tenant_id: tenantId } : {}),
     action: FOLLOWUP_ACTION,
     platform: FOLLOWUP_PLATFORM,
     status: 'queued',
@@ -329,7 +360,9 @@ export async function queueSemanticScholarFollowup(sourceActionLogId: string, de
       purpose: 'lem',
     },
   });
-  return { queued: true, action_log_id: rows[0]?.id, scheduled_at: scheduledAt };
+  const actionLogId = rows[0]?.id;
+  if (!actionLogId) throw new Error('Semantic Scholar follow-up queue insert returned no action log id');
+  return { queued: true, action_log_id: actionLogId, scheduled_at: scheduledAt };
 }
 
 function nextBackoffMs(attempt: number): number {
@@ -370,6 +403,11 @@ export async function runSemanticScholarKeyFollowup(sourceActionLogId?: string, 
   if (attempt + 1 >= maxAttempts) {
     return { status: 'expired', validated: false, reason: 'no Semantic Scholar key email found before follow-up expiry', source_action_log_id: source.id, emails_scanned: scan.emailsScanned, matched_emails: scan.matchedEmails, next_scheduled_at: null };
   }
-  const queued = await queueSemanticScholarFollowup(source.id, nextBackoffMs(attempt), attempt + 1);
+  const queued = await queueSemanticScholarFollowup(
+    source.id,
+    nextBackoffMs(attempt),
+    attempt + 1,
+    await currentTenantId(),
+  );
   return { status: 'pending', validated: false, reason: 'no Semantic Scholar key email found yet', source_action_log_id: source.id, emails_scanned: scan.emailsScanned, matched_emails: scan.matchedEmails, next_scheduled_at: queued.scheduled_at ?? null };
 }
