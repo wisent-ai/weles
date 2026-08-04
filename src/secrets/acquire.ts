@@ -324,7 +324,6 @@ function objectiveFor(def: SecretDefinition, request: AcquireSecretRequest, acco
 }
 
 function paramsFor(def: SecretDefinition, request: AcquireSecretRequest): Record<string, unknown> {
-  const skarbiecReturn = Boolean(request.skarbiecRequestId && request.skarbiecCredentialId);
   const autoPromote = request.autoPromoteTrajectory !== false;
   const accountEmail = request.accountEmail?.trim().toLowerCase()
     ?? request.goal?.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0]?.toLowerCase()
@@ -581,7 +580,12 @@ async function queueAcquisition(def: SecretDefinition, request: AcquireSecretReq
     ? await latestSubmittedSemanticScholarRun(def, request.requestId, request.tenantId)
     : null;
   if (submittedRunId) {
-    const followup = await queueSemanticScholarFollowup(submittedRunId, ''.length, ''.length, request.tenantId);
+    const followup = await queueSemanticScholarFollowup(
+      submittedRunId,
+      ''.length,
+      ''.length,
+      request.tenantId ?? undefined,
+    );
     return {
       status: 'operation_queued',
       operation: 'acquire',
