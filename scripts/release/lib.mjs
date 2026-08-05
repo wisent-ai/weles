@@ -24,6 +24,9 @@ const REVISION = /^[0-9a-f]{40}$/;
 const SEMVER = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z.-]+)?$/;
 const API_SCHEMA = /^weles\.[a-z0-9-]+\.v[1-9][0-9]*$/;
 const PLATFORMS = { 'darwin-arm64': true, 'darwin-x64': true, 'linux-x64': true };
+const SLSA_PROVENANCE_V1 = 'https://slsa.dev/provenance/v1';
+const BROWSER_CANDIDATE_ATTESTATION_V1 = 'https://weles.wisent.com/attestations/browser-candidate/v1';
+const DEPLOYMENT_MANIFEST_ATTESTATION_V1 = 'https://weles.wisent.com/attestations/deployment-manifest/v1';
 export const RELEASE_RINGS = Object.freeze(['candidate', 'development', 'canary', 'production']);
 
 export function parseArgs(argv = process.argv.slice(2)) {
@@ -255,11 +258,16 @@ export async function download(url, destination) {
   await pipeline(Readable.fromWeb(response.body), createWriteStream(destination, { mode: 0o600 }));
 }
 
-export function verifyAttestation(path, repository, bundlePath) {
+export function verifyAttestation(path, repository, bundlePath, predicateType = SLSA_PROVENANCE_V1) {
   if ((process.env.WELES_VERIFY_ATTESTATIONS ?? '1') !== '1') {
     throw new Error('artifact attestation verification cannot be disabled for immutable releases');
   }
-  execFileSync('gh', ['attestation', 'verify', path, '--bundle', bundlePath, '--repo', repository], {
+  execFileSync('gh', [
+    'attestation', 'verify', path,
+    '--bundle', bundlePath,
+    '--repo', repository,
+    '--predicate-type', predicateType,
+  ], {
     stdio: ['ignore', 'pipe', 'pipe'],
     env: { ...process.env, GH_TOKEN: process.env.WELES_RELEASE_TOKEN ?? process.env.GH_TOKEN ?? '' },
   });
@@ -288,7 +296,7 @@ export async function fetchManifest(url, expectedSha256, root) {
   provenanceUrl.pathname = `${provenanceUrl.pathname}.sigstore.json`;
   await download(provenanceUrl, provenanceTemporary);
   try {
-    verifyAttestation(temporary, 'wisent-ai/weles', provenanceTemporary);
+    verifyAttestation(temporary, 'wisent-ai/weles', provenanceTemporary, DEPLOYMENT_MANIFEST_ATTESTATION_V1);
   } finally {
     await rm(provenanceTemporary, { force: true });
   }
@@ -383,7 +391,10 @@ export async function installArtifact(options) {
     if (digest !== selected.sha256) throw new Error(`${component} digest mismatch: expected ${selected.sha256}, received ${digest}`);
     const provenancePath = join(stagingRoot, 'provenance.sigstore.json');
     await download(selected.provenanceUrl, provenancePath);
-    verifyAttestation(archivePath, selected.provenanceRepository, provenancePath);
+    const predicateType = component === 'chromium' || component === 'firefox'
+      ? BROWSER_CANDIDATE_ATTESTATION_V1
+      : SLSA_PROVENANCE_V1;
+    verifyAttestation(archivePath, selected.provenanceRepository, provenancePath, predicateType);
     safeArchiveEntries(archivePath);
     const extracted = join(stagingRoot, 'extracted');
     await mkdir(extracted);
