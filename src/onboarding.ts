@@ -2,10 +2,12 @@ import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { homedir, hostname, userInfo } from 'node:os';
 import { join } from 'node:path';
+import journeyDefinition from './onboarding/journeys/weles-first-use-2026-08-04.1.json';
 import type {
   JourneyAssignment,
   JourneyAssignmentInput,
   JourneyBundle,
+  JourneyDefinition,
   JourneyClient as SharedJourneyClient,
   JourneyProgress,
   JourneyRuntimeEvent,
@@ -18,7 +20,7 @@ const PRODUCT_ID = 'weles';
 const JOURNEY_ID = 'first-use';
 const JOURNEY_VERSION = '2026-08-04.1';
 const JOURNEY_VERSION_ID = '3a2ba59e-8a7e-4da4-9a76-bb4abf286e6d';
-const SOURCE_REVISION = 'weles:first-use:2026-08-04.1';
+const SOURCE_REVISION_PATTERN = /^[0-9a-f]{40}$/;
 const TOKEN_ENVIRONMENT_KEY = 'WELES_STADO_INTEGRATION_TOKEN';
 const SHA256 = /^[0-9a-f]{64}$/i;
 
@@ -69,83 +71,14 @@ export type WelesOnboardingView = {
   };
 };
 
-const definition = {
-  schema_version: 1,
-  product_id: PRODUCT_ID,
-  journey_id: JOURNEY_ID,
-  journey_version: JOURNEY_VERSION,
-  entry_screen_id: 'authorization-boundary',
-  first_success_fact: 'authorized_browser_workflow_completed',
-  published_at: '2026-08-04T00:00:00.000Z',
-  source_revision: SOURCE_REVISION,
-  screens: [
-    {
-      screen_id: 'authorization-boundary',
-      screen_kind: 'explanation',
-      title_key: 'authorization_boundary.title',
-      body_key: 'authorization_boundary.body',
-      required: true,
-      actions: ['next'],
-      transitions: [
-        { next_screen_id: 'host-execution', reason_code: 'authorization_boundary_understood', priority: 10 },
-      ],
-      presentation: { surface: 'operator_cli' },
-    },
-    {
-      screen_id: 'host-execution',
-      screen_kind: 'explanation',
-      title_key: 'host_execution.title',
-      body_key: 'host_execution.body',
-      required: true,
-      actions: ['next'],
-      transitions: [
-        { next_screen_id: 'receipt-verification', reason_code: 'host_execution_understood', priority: 10 },
-      ],
-      presentation: { surface: 'operator_cli' },
-    },
-    {
-      screen_id: 'receipt-verification',
-      screen_kind: 'first_success',
-      title_key: 'receipt_verification.title',
-      body_key: 'receipt_verification.body',
-      required: true,
-      completion_evidence: { kind: 'fact', fact: 'authorized_browser_workflow_completed', operator: 'eq', value: true },
-      actions: ['verify'],
-      transitions: [],
-      presentation: { surface: 'operator_cli' },
-    },
-  ],
-  analytics_contract: {
-    contract_version: '1',
-    surface: 'operator_cli',
-    exposure_event: 'onboarding_step_viewed',
-    primary_action_event: 'onboarding_first_action_completed',
-    completion_event: 'onboarding_completed',
-    first_success_event: 'onboarding_first_success_observed',
-  },
-  experiment_contract: {
-    experiment_id: 'weles_first_use_2026_08_04_1',
-    control_variant_id: 'canonical',
-    eligible_variant_ids: ['canonical'],
-    variant_configs: {
-      canonical: {
-        authorization_presentation: 'explicit_boundary',
-        execution_presentation: 'approved_host',
-        proof_presentation: 'signed_receipt',
-      },
-    },
-    assignment_unit: 'device',
-    reward_event: 'onboarding_first_success_observed',
-    reward_window_hours: 168,
-    guardrails: [
-      { event_name: 'onboarding_abandoned', direction: 'max', bound: 0.25, window_hours: 168 },
-    ],
-    minimum_exposure_per_variant: 50,
-    exploration_floor: 0.05,
-    owner: 'weles',
-    kill_switch: false,
-  },
-} as const;
+const definition = journeyDefinition as unknown as JourneyDefinition;
+if (definition.product_id !== PRODUCT_ID
+  || definition.journey_id !== JOURNEY_ID
+  || definition.journey_version !== JOURNEY_VERSION
+  || !SOURCE_REVISION_PATTERN.test(definition.source_revision)) {
+  throw new Error('bundled Weles first-use journey identity is invalid');
+}
+const SOURCE_REVISION = definition.source_revision;
 
 function canonicalize(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(canonicalize);
