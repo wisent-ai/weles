@@ -93,8 +93,25 @@ channels; none of those releases independently changes the running worker.
      --public-key /secure/path/probierz-receipt-signing-key.pub.pem
    ```
 
-   Repeat with the next ring and its host. Add `--legacy-drained true` only to
-   the first production cutover.
+   Repeat with `development` and `canary`. For the first production cutover,
+   use the baseline-verifying migration command instead of writing the mode file
+   by hand:
++
+   ```bash
+   node scripts/release/cutover-legacy.mjs \
+     --baseline ~/.local/state/weles-release/legacy-baseline.json \
+     --manifest-sha256 <sha256> --host <production-stado-host> \
+     --probierz-root ../probierz \
+     --evidence-receipt /secure/path/weles-evidence-receipt.json \
+     --run-ids <comma-separated-run-ids> \
+     --public-key /secure/path/probierz-receipt-signing-key.pub.pem \
+     --confirm 'LEGACY TO IMMUTABLE'
+   ```
++
+   The command re-hashes the retained rollback archive, atomically disables
+   legacy branch polling, and restores the previous deployment mode if
+   production activation fails. Use `--check-only true` to validate the plan
+   without changing the host.
 6. Inspect one persistent ring/host state:
 
    ```bash
@@ -122,10 +139,10 @@ and a fresh per-activation instance must report the exact manifest heartbeat
 before success is recorded. Activation restores the prior lease and unit if
 any later step fails.
 
-`scripts/worker/deploy/auto-deploy.sh` and its LaunchAgent are an emergency legacy
-baseline only. Set `~/.config/weles/deployment-mode` to `immutable-manifest` before
-cutover; the mode file overrides LaunchAgent environment and prevents branch
-polling from returning.
+`scripts/worker/deploy/auto-deploy.sh` and its LaunchAgent are an emergency
+legacy baseline only. `cutover-legacy.mjs` writes
+`~/.config/weles/deployment-mode` as `immutable-manifest`; the mode file
+overrides LaunchAgent environment and prevents branch polling from returning.
 
 ## Immutable worker component release
 
