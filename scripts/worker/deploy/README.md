@@ -29,8 +29,9 @@ channels; none of those releases independently changes the running worker.
      --out ~/.local/state/weles-release/legacy-baseline.json \
      --archive-out ~/.local/state/weles-release/legacy-baseline.tar.gz
    ```
-   The first `activate.mjs` invocation additionally requires
-   `--legacy-drained true`; later immutable generations use worker drain markers.
+   Only the first production `activate.mjs` invocation additionally requires
+   `--legacy-drained true`; candidate, development, and canary workers never
+   claim queue rows.
 
 2. Normalize each approved component release into the fragment shape required by
    `release/deployment-manifest.schema.json`. Assemble one manifest:
@@ -58,20 +59,68 @@ channels; none of those releases independently changes the running worker.
    The release workflow validates its source-bound identity and emits GitHub artifact
    provenance. After that attestation succeeds, install the asset by exact URL and
    SHA-256 with `scripts/release/install.mjs`.
-4. Activate the already installed manifest with `scripts/release/activate.mjs`.
-   Candidate, development, canary, and production are explicit rings. Promotion
-   must reuse the same manifest SHA-256 and is blocked until the approved evidence
-   gate exists.
-5. Inspect `scripts/release/status.mjs`. The active runtime reports worker,
-   browser, database, API-schema, manifest, and lease-generation identity.
-6. Roll back with `scripts/release/rollback.mjs`. It reactivates the retained
-   previous manifest through Stado and records a `rolled_back` receipt.
+4. Stage the Weles product manifest and release journeys in Probierz, then run
+   the exact candidate bytes and endpoints:
 
-The active database lease rejects queued-to-running claims from any deployment
-other than the active manifest generation. During activation the old worker drains,
-the lease advances, Stado replaces the unit, and a fresh per-activation instance must
-report the exact manifest heartbeat before success is recorded. Activation restores the
-prior lease and unit if any later step fails.
+   ```bash
+   node scripts/release/prepare-probierz.mjs --probierz-root ../probierz
+   cd ../probierz
+   PROBIERZ_BUILD_PATH=/absolute/path/to/deployment.json \
+   BASE_URL=https://candidate.weles.example \
+   WELES_WORKER_URL=https://candidate-worker.weles.example \
+   WELES_WORKER_API_TOKEN='<candidate token>' \
+   node agent/cli.mjs run web --app weles --spec weles-release.spec.mjs --record
+   node agent/cli.mjs source-identity weles
+   node agent/cli.mjs receipt weles 2026-08-04.1 <harness-sha256> \
+     --source-sha <app-source-sha256> --runs <comma-separated-run-ids> \
+     > /secure/path/weles-evidence-receipt.json
+   ```
+
+   The release receipt must be signed by Probierz and cover `web-contract`,
+   `worker-contract`, `chromium-candidate`, and `firefox-candidate` at E3.
+5. Activate the installed manifest in strict order: `candidate`,
+   `development`, `canary`, then `production`. Every activation re-verifies the
+   signed Probierz receipt, exact run IDs, clean Weles source revision, and
+   manifest build digest. The same manifest SHA-256 must advance through every
+   ring:
+
+   ```bash
+   node scripts/release/activate.mjs \
+     --manifest-sha256 <sha256> --host <stado-host> --ring candidate \
+     --probierz-root ../probierz \
+     --evidence-receipt /secure/path/weles-evidence-receipt.json \
+     --run-ids <comma-separated-run-ids> \
+     --public-key /secure/path/probierz-receipt-signing-key.pub.pem
+   ```
+
+   Repeat with the next ring and its host. Add `--legacy-drained true` only to
+   the first production cutover.
+6. Inspect one persistent ring/host state:
+
+   ```bash
+   node scripts/release/status.mjs --ring canary --host <stado-host>
+   ```
+
+   The active runtime reports worker, browser, database, API-schema, manifest,
+   claim mode, and lease-generation identity. Non-production heartbeats use
+   per-instance keys and cannot overwrite the canonical production heartbeat.
+7. Roll back one ring to its retained previous manifest:
+
+   ```bash
+   node scripts/release/rollback.mjs --ring production --host <stado-host>
+   ```
+
+   Rollback reactivates the exact retained wrapper through Stado and records a
+   `rolled_back` receipt. It does not loosen promotion ordering for new
+   manifests.
+
+The production database lease rejects queued-to-running claims from any
+deployment other than the active production generation. Non-production
+workers are additionally built with queue claiming disabled. During production
+activation the old worker drains, the lease advances, Stado replaces the unit,
+and a fresh per-activation instance must report the exact manifest heartbeat
+before success is recorded. Activation restores the prior lease and unit if
+any later step fails.
 
 `scripts/worker/deploy/auto-deploy.sh` and its LaunchAgent are an emergency legacy
 baseline only. Set `~/.config/weles/deployment-mode` to `immutable-manifest` before

@@ -24,6 +24,7 @@ const REVISION = /^[0-9a-f]{40}$/;
 const SEMVER = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z.-]+)?$/;
 const API_SCHEMA = /^weles\.[a-z0-9-]+\.v[1-9][0-9]*$/;
 const PLATFORMS = { 'darwin-arm64': true, 'darwin-x64': true, 'linux-x64': true };
+export const RELEASE_RINGS = Object.freeze(['candidate', 'development', 'canary', 'production']);
 
 export function parseArgs(argv = process.argv.slice(2)) {
   const values = new Map();
@@ -48,6 +49,28 @@ export function releaseRoot(args) {
 
 export function stateRoot(args) {
   return resolve(args.get('state-root') ?? process.env.WELES_RELEASE_STATE_ROOT ?? join(homedir(), '.local/state/weles-release'));
+}
+
+export function ringStateRoot(state, ring, host) {
+  if (!RELEASE_RINGS.includes(ring)) throw new Error('ring must be candidate, development, canary, or production');
+  if (!/^[A-Za-z0-9._:-]+$/.test(host)) throw new Error('host must be a safe state-path segment');
+  return join(state, 'rings', ring, host);
+}
+
+export function assertPromotionTransition(promotion, ring, receiptStatus = 'activated') {
+  if (!RELEASE_RINGS.includes(ring)) throw new Error('ring must be candidate, development, canary, or production');
+  if (receiptStatus === 'rolled_back') return;
+  const targetIndex = RELEASE_RINGS.indexOf(ring);
+  if (targetIndex === 0) {
+    if (promotion && promotion.ring !== ring) {
+      throw new Error(`manifest already advanced to ${promotion.ring}; it cannot return to candidate`);
+    }
+    return;
+  }
+  const requiredPreviousRing = RELEASE_RINGS[targetIndex - 1];
+  if (promotion?.ring !== requiredPreviousRing && promotion?.ring !== ring) {
+    throw new Error(`${ring} promotion requires the same manifest to be active in ${requiredPreviousRing}`);
+  }
 }
 
 export function hostPlatform() {

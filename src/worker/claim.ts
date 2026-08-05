@@ -11,6 +11,7 @@ const SUPABASE_URL = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABAS
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
 const LEASE_DEPLOYMENT_ID = process.env.WELES_DEPLOYMENT_ID?.trim() ?? '';
 const LEASE_GENERATION = Number(process.env.WELES_DEPLOYMENT_GENERATION ?? '');
+const CLAIMS_ENABLED = (process.env.WELES_CLAIMS_ENABLED ?? '1') === '1';
 if ((LEASE_DEPLOYMENT_ID && (!Number.isSafeInteger(LEASE_GENERATION) || LEASE_GENERATION < 1))
     || (!LEASE_DEPLOYMENT_ID && process.env.WELES_DEPLOYMENT_GENERATION)) {
   throw new Error('immutable worker lease requires WELES_DEPLOYMENT_ID and a positive WELES_DEPLOYMENT_GENERATION');
@@ -21,7 +22,7 @@ function headers(): Record<string, string> {
 }
 
 export async function claimOne(policy: WelesActionPolicy): Promise<ActionLogRow | null> {
-  if (!policy.enabled || policy.actions.length === 0) return null;
+  if (!CLAIMS_ENABLED || !policy.enabled || policy.actions.length === 0) return null;
   const allowedActions = policy.wildcard ? null : new Set(policy.actions);
   const actionFilter = policy.wildcard
     ? ''

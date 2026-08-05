@@ -1,7 +1,7 @@
 import os from 'node:os';
 import { captureVersions } from '../diagnostics/versions.js';
 
-const SETTING_KEY = 'weles_deployment_version';
+const PRODUCTION_SETTING_KEY = 'weles_deployment_version';
 const DEFAULT_HEARTBEAT_MS = 60_000;
 
 type FetchLike = typeof fetch;
@@ -14,6 +14,9 @@ export type ImmutableReleaseIdentity = {
   source_revision: string;
   artifact_sha256: string;
   deployment_manifest_sha256: string;
+  deployment_id: string;
+  ring: 'candidate' | 'development' | 'canary' | 'production';
+  claims_enabled: boolean;
   chromium_release: string;
   chromium_sha256: string;
   firefox_release: string;
@@ -62,6 +65,9 @@ function immutableReleaseIdentity(env: EnvLike): ImmutableReleaseIdentity | unde
   const sourceRevision = envValue(env, 'WELES_SOURCE_REVISION');
   const artifactSha256 = envValue(env, 'WELES_WORKER_ARTIFACT_SHA256');
   const manifestSha256 = envValue(env, 'WELES_DEPLOYMENT_MANIFEST_SHA256');
+  const deploymentId = envValue(env, 'WELES_DEPLOYMENT_ID');
+  const ring = envValue(env, 'WELES_DEPLOYMENT_RING');
+  const claimsEnabled = envValue(env, 'WELES_CLAIMS_ENABLED');
   const chromiumRelease = envValue(env, 'WELES_CHROMIUM_RELEASE');
   const chromiumSha256 = envValue(env, 'WELES_CHROMIUM_SHA256');
   const firefoxRelease = envValue(env, 'WELES_FIREFOX_RELEASE');
@@ -73,6 +79,9 @@ function immutableReleaseIdentity(env: EnvLike): ImmutableReleaseIdentity | unde
     sourceRevision,
     artifactSha256,
     manifestSha256,
+    deploymentId,
+    ring,
+    claimsEnabled,
     chromiumRelease,
     chromiumSha256,
     firefoxRelease,
@@ -88,12 +97,22 @@ function immutableReleaseIdentity(env: EnvLike): ImmutableReleaseIdentity | unde
   if (!Number.isInteger(databaseSchemaVersion) || databaseSchemaVersion < 1) {
     throw new Error('WELES_DATABASE_SCHEMA_VERSION must be a positive integer');
   }
+  if (!['candidate', 'development', 'canary', 'production'].includes(ring)) {
+    throw new Error('WELES_DEPLOYMENT_RING must name a release ring');
+  }
+  if (!['0', '1'].includes(claimsEnabled)) throw new Error('WELES_CLAIMS_ENABLED must be 0 or 1');
+  if ((ring === 'production') !== (claimsEnabled === '1')) {
+    throw new Error('only the production release ring may claim queued work');
+  }
   return {
     schema: 'weles.release-identity.v1',
     worker_version: workerVersion,
     source_revision: sourceRevision,
     artifact_sha256: artifactSha256,
     deployment_manifest_sha256: manifestSha256,
+    deployment_id: deploymentId,
+    ring: ring as ImmutableReleaseIdentity['ring'],
+    claims_enabled: claimsEnabled === '1',
     chromium_release: chromiumRelease,
     chromium_sha256: chromiumSha256,
     firefox_release: firefoxRelease,
@@ -154,7 +173,10 @@ export async function writeDeploymentVersion(options: {
   const supabaseKey = envValue(env, 'CONTENT_PLATFORM_SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_SERVICE_ROLE_KEY');
   if (!supabaseUrl || !supabaseKey) return { ok: false, skipped: 'missing_supabase_config' };
 
-  const value = buildDeploymentVersionValue(options.versions ?? captureVersions(null), options.now ?? new Date(), options.instanceId ?? deploymentInstanceId(env), env);
+  const instanceId = options.instanceId ?? deploymentInstanceId(env);
+  const ring = envValue(env, 'WELES_DEPLOYMENT_RING') || 'production';
+  const settingKey = ring === 'production' ? PRODUCTION_SETTING_KEY : `${PRODUCTION_SETTING_KEY}:${ring}:${instanceId}`;
+  const value = buildDeploymentVersionValue(options.versions ?? captureVersions(null), options.now ?? new Date(), instanceId, env);
   const fetchImpl = options.fetchImpl ?? fetch;
   const url = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/system_settings?on_conflict=key`;
   try {
@@ -166,7 +188,7 @@ export async function writeDeploymentVersion(options: {
         'Content-Type': 'application/json',
         Prefer: 'resolution=merge-duplicates',
       },
-      body: JSON.stringify({ key: SETTING_KEY, value, updated_at: value.updated_at }),
+      body: JSON.stringify({ key: settingKey, value, updated_at: value.updated_at }),
     });
     if (!response.ok) return { ok: false, status: response.status, error: await response.text().catch(() => response.statusText), value };
     return { ok: true, status: response.status, value };

@@ -198,6 +198,49 @@ describe('Weles deployment version heartbeat', () => {
     expect(JSON.stringify(requests[0].body)).not.toContain('diff --git');
   });
 
+  it('isolates non-production heartbeats and makes their no-claim identity explicit', async () => {
+    const bodies: string[] = [];
+    const fetchMock = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      if (typeof init?.body === 'string') bodies.push(init.body);
+      return new Response(null, { status: 204 });
+    });
+    const env = {
+      SUPABASE_URL: 'https://supabase.example.test',
+      SUPABASE_SERVICE_ROLE_KEY: 'service-role-secret',
+      WELES_INSTANCE_ID: 'candidate-1',
+      WELES_WORKER_VERSION: '0.5.0',
+      WELES_SOURCE_REVISION: '0123456789abcdef0123456789abcdef01234567',
+      WELES_WORKER_ARTIFACT_SHA256: 'a'.repeat(64),
+      WELES_DEPLOYMENT_MANIFEST_SHA256: 'b'.repeat(64),
+      WELES_DEPLOYMENT_ID: '2026-08-05.1',
+      WELES_DEPLOYMENT_RING: 'candidate',
+      WELES_CLAIMS_ENABLED: '0',
+      WELES_CHROMIUM_RELEASE: '147.0.1',
+      WELES_CHROMIUM_SHA256: 'c'.repeat(64),
+      WELES_FIREFOX_RELEASE: '147.0.1',
+      WELES_FIREFOX_SHA256: 'd'.repeat(64),
+      WELES_DATABASE_SCHEMA_VERSION: '5',
+      WELES_API_SCHEMAS: 'weles.task.v1,weles.receipt.v1',
+    };
+
+    const result = await writeDeploymentVersion({
+      env,
+      fetchImpl: fetchMock as typeof fetch,
+      versions: versionProbe,
+      now: fixedDeploymentNow,
+    });
+
+    expect(result.ok).toBe(true);
+    const body = JSON.parse(bodies[0]);
+    expect(body.key).toBe('weles_deployment_version:candidate:candidate-1');
+    expect(body.value.release).toMatchObject({
+      deployment_id: '2026-08-05.1',
+      ring: 'candidate',
+      claims_enabled: false,
+      deployment_manifest_sha256: 'b'.repeat(64),
+    });
+  });
+
   it('skips cleanly without touching the network when Supabase configuration is absent', async () => {
     const fetchMock = vi.fn();
 
