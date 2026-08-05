@@ -25,7 +25,6 @@ jobs:
     permissions:
       contents: read
       id-token: write
-      attestations: write
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Require allowlisted release operator
@@ -77,25 +76,41 @@ jobs:
             --arg nodeVersion "$(node --version)" \
             '{schema: $schema, product: $product, version: $version, sourceRevision: $sourceRevision, platform: $platform, nodeVersion: $nodeVersion}' \
             > "$stage/component-manifest.json"
+          built_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           jq -n \
-            --arg builder "$GITHUB_WORKFLOW@$GITHUB_SHA" \
-            --arg source "https://github.com/$GITHUB_REPOSITORY/tree/$GITHUB_SHA" \
-            --arg builtAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-            '{schema: "weles.provenance.v1", builder: $builder, source: $source, builtAt: $builtAt}' \
-            > "$stage/provenance.json"
+            --arg buildType "https://weles.wisent.com/build-types/worker/v1" \
+            --arg builder "https://github.com/$GITHUB_REPOSITORY/.github/workflows/release-worker.yml@$GITHUB_REF" \
+            --arg source "git+https://github.com/$GITHUB_REPOSITORY@$GITHUB_SHA" \
+            --arg sourceRevision "$GITHUB_SHA" \
+            --arg invocationId "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT" \
+            --arg tag "$GITHUB_REF_NAME" \
+            --arg platform "$PLATFORM" \
+            --arg nodeVersion "$(node --version)" \
+            --arg builtAt "$built_at" \
+            '{buildDefinition:{buildType:$buildType,externalParameters:{tag:$tag,platform:$platform,nodeVersion:$nodeVersion},internalParameters:{},resolvedDependencies:[{uri:$source,digest:{gitCommit:$sourceRevision}}]},runDetails:{builder:{id:$builder},metadata:{invocationId:$invocationId,startedOn:$builtAt,finishedOn:$builtAt}}}' \
+            > "$RUNNER_TEMP/worker-provenance.json"
+          cp "$RUNNER_TEMP/worker-provenance.json" "$stage/provenance.json"
           archive="weles-worker-$version-$PLATFORM.tar.gz"
           tar -C "$RUNNER_TEMP" -czf "$archive" weles-worker
           openssl dgst -sha256 -r "$archive" > "$archive.sha256"
-          printf 'ARCHIVE=%s\n' "$archive" >> "$GITHUB_ENV"
-      - uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2
-        with:
-          subject-path: ${{ env.ARCHIVE }}
+          printf 'ARCHIVE=%s\nPROVENANCE=%s\n' "$archive" "$RUNNER_TEMP/worker-provenance.json" >> "$GITHUB_ENV"
+      - uses: sigstore/cosign-installer@398d4b0eeef1380460a10c8013a76f728fb906ac # v3
+      - name: Sign SLSA provenance with GitHub OIDC
+        shell: bash
+        run: |
+          set -euo pipefail
+          cosign attest-blob --yes \
+            --predicate "$PROVENANCE" \
+            --type slsaprovenance1 \
+            --bundle "$ARCHIVE.sigstore.json" \
+            "$ARCHIVE"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: worker-${{ matrix.platform }}
           path: |
             ${{ env.ARCHIVE }}
             ${{ env.ARCHIVE }}.sha256
+            ${{ env.ARCHIVE }}.sigstore.json
           if-no-files-found: error
           retention-days: 7
 
