@@ -60,13 +60,14 @@ jobs:
           npm ci
           npm run build
           node scripts/release/surface.mjs > "$RUNNER_TEMP/released-surface.json"
+          npm sbom --omit=dev --sbom-format cyclonedx > "$RUNNER_TEMP/sbom.cyclonedx.json"
           npm prune --omit=dev
           stage="$RUNNER_TEMP/weles-worker"
           mkdir -p "$stage"
           cp -R dist scripts node_modules release "$stage/"
           cp package.json package-lock.json LICENSE README.md "$stage/"
           cp "$RUNNER_TEMP/released-surface.json" "$stage/released-surface.json"
-          npm sbom --omit=dev --sbom-format cyclonedx > "$stage/sbom.cyclonedx.json"
+          cp "$RUNNER_TEMP/sbom.cyclonedx.json" "$stage/sbom.cyclonedx.json"
           jq -n \
             --arg schema "weles.worker-component.v1" \
             --arg product "weles-worker" \
