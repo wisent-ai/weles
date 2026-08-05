@@ -56,6 +56,10 @@ function isFile(path: string): boolean {
 function customBrowserCandidates(browser: string = 'chromium'): string[] {
   const layout = LAYOUTS[browser];
   if (!layout) return [];
+  if (process.env.WELES_DEPLOYMENT_MANIFEST_SHA256?.trim()) {
+    const exact = process.env[layout.envBins[0]]?.trim();
+    return exact ? [exact] : [];
+  }
   const home = process.env.HOME ?? '';
   const installRoot = process.env[layout.envDir] ?? join(home, '.local/share', layout.installDirName);
   const candidates = layout.envBins
@@ -107,6 +111,9 @@ export function findCustomBrowser(browser: string = 'chromium'): string | undefi
 export function customBrowserSearchHint(browser: string = 'chromium'): string {
   const layout = LAYOUTS[browser];
   if (!layout) return `unknown browser family "${browser}"`;
+  if (process.env.WELES_DEPLOYMENT_MANIFEST_SHA256?.trim()) {
+    return `immutable deployment requires ${layout.envBins[0]} to name the exact manifest-selected executable`;
+  }
   const envText = [...layout.envBins, layout.envDir].join(' / ');
   const searched = customBrowserCandidates(browser).slice(0, 16).join(', ');
   return `set ${layout.envBins[0]} to the executable or ${layout.envDir} to the install root/app bundle; searched ${envText}: ${searched}`;

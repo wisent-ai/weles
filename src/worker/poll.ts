@@ -28,6 +28,8 @@ export interface ActionLogRow {
   webhook_url?: string | null;
   cancel_requested?: boolean | null;
   priority?: number | null;
+  lease_generation?: number | null;
+  lease_deployment_id?: string | null;
 }
 
 export interface BanSignal { healthy: boolean; signal: string; details?: Record<string, unknown>; }

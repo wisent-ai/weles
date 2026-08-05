@@ -6,51 +6,99 @@ on:
       - "worker-v*"
 
 jobs:
-  release:
-    runs-on: ubuntu-latest
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            platform: linux-x64
+          - runner: macos-15
+            platform: darwin-arm64
+          - runner: macos-15-intel
+            platform: darwin-x64
+    runs-on: ${{ matrix.runner }}
     permissions:
-      contents: write
+      contents: read
+      id-token: write
+      attestations: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-      - name: Match tag to product version
+      - name: Build immutable worker bytes
         shell: bash
+        env:
+          PLATFORM: ${{ matrix.platform }}
         run: |
+          set -euo pipefail
           version="$(node -p "require('./package.json').version")"
-          test "$GITHUB_REF_NAME" = "worker-v$version"
-      - name: Build worker bundle
-        shell: bash
-        run: |
-          npm ci --ignore-scripts
+          if [ "$GITHUB_REF_NAME" != "worker-v$version" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match package version $version"
+            exit 1
+          fi
+          npm ci
           npm run build
-          test -f dist/worker/poll.js
+          node scripts/release/surface.mjs > "$RUNNER_TEMP/released-surface.json"
+          npm prune --omit=dev
           stage="$RUNNER_TEMP/weles-worker"
           mkdir -p "$stage"
-          cp -R dist scripts "$stage/"
+          cp -R dist scripts node_modules release "$stage/"
           cp package.json package-lock.json LICENSE README.md "$stage/"
+          cp "$RUNNER_TEMP/released-surface.json" "$stage/released-surface.json"
+          npm sbom --omit=dev --sbom-format cyclonedx > "$stage/sbom.cyclonedx.json"
           jq -n \
+            --arg schema "weles.worker-component.v1" \
             --arg product "weles-worker" \
-            --arg version "${GITHUB_REF_NAME#worker-v}" \
-            --arg source_revision "$GITHUB_SHA" \
-            --arg built_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-            '{product: $product, version: $version, source_revision: $source_revision, platform: "node22", built_at: $built_at}' \
+            --arg version "$version" \
+            --arg sourceRevision "$GITHUB_SHA" \
+            --arg platform "$PLATFORM" \
+            --arg nodeVersion "$(node --version)" \
+            '{schema: $schema, product: $product, version: $version, sourceRevision: $sourceRevision, platform: $platform, nodeVersion: $nodeVersion}' \
+            > "$stage/component-manifest.json"
+          jq -n \
+            --arg builder "$GITHUB_WORKFLOW@$GITHUB_SHA" \
+            --arg source "https://github.com/$GITHUB_REPOSITORY/tree/$GITHUB_SHA" \
+            --arg builtAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '{schema: "weles.provenance.v1", builder: $builder, source: $source, builtAt: $builtAt}' \
             > "$stage/provenance.json"
-          archive="weles-worker-${GITHUB_REF_NAME#worker-v}.tar.gz"
+          archive="weles-worker-$version-$PLATFORM.tar.gz"
           tar -C "$RUNNER_TEMP" -czf "$archive" weles-worker
           openssl dgst -sha256 -r "$archive" > "$archive.sha256"
           printf 'ARCHIVE=%s\n' "$archive" >> "$GITHUB_ENV"
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: ${{ env.ARCHIVE }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: worker-${{ matrix.platform }}
+          path: |
+            ${{ env.ARCHIVE }}
+            ${{ env.ARCHIVE }}.sha256
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: worker-*
+          path: artifacts
+          merge-multiple: true
       - name: Publish immutable worker release
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
+          set -euo pipefail
           gh release create "$GITHUB_REF_NAME" \
             --repo "$GITHUB_REPOSITORY" \
             --title "Weles worker ${GITHUB_REF_NAME#worker-v}" \
-            --generate-notes
-          gh release upload "$GITHUB_REF_NAME" \
-            "$ARCHIVE" "$ARCHIVE.sha256" \
-            --repo "$GITHUB_REPOSITORY"
+            --generate-notes \
+            artifacts/*

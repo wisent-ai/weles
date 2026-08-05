@@ -13,25 +13,67 @@ simulation crons enqueue.
 - `~/weles` prepared as a symlink target; auto-deploy refuses to replace a
   mutable checkout or directory.
 
-## Immutable worker release
+
+## Canonical release and rollback runbook
+
+Production is manifest-driven. Component repositories publish immutable worker,
+Chromium, Firefox, web, client, and desktop artifacts through their own release
+channels; none of those releases independently changes the running worker.
+
+1. Capture the current baseline before the first cutover. Include executable
+   rollback bytes, not only a descriptive hash:
+
+   ```bash
+   node scripts/release/capture-baseline.mjs \
+     --out ~/.local/state/weles-release/legacy-baseline.json \
+     --archive-out ~/.local/state/weles-release/legacy-baseline.tar.gz
+   ```
+
+2. Normalize each approved component release into the fragment shape required by
+   `release/deployment-manifest.schema.json`. Assemble one manifest:
+
+   ```bash
+   node scripts/release/assemble-manifest.mjs \
+     --deployment-id 2026-08-04.1 \
+     --created-at 2026-08-04T12:00:00Z \
+     --source-revision <weles-full-sha> \
+     --worker worker.json --web web.json --database database.json \
+     --client client.json --chromium chromium.json --firefox firefox.json \
+     --compatibility compatibility.json --output deployment.json
+   ```
+
+3. Publish and attest `deployment.json` without changing its bytes. Install it by
+   exact URL and SHA-256 with `scripts/release/install.mjs`.
+4. Activate the already installed manifest with `scripts/release/activate.mjs`.
+   Candidate, development, canary, and production are explicit rings. Promotion
+   must reuse the same manifest SHA-256 and is blocked until the approved evidence
+   gate exists.
+5. Inspect `scripts/release/status.mjs`. The active runtime reports worker,
+   browser, database, API-schema, manifest, and lease-generation identity.
+6. Roll back with `scripts/release/rollback.mjs`. It reactivates the retained
+   previous manifest through Stado and records a `rolled_back` receipt.
+
+The active database lease rejects queued-to-running claims from any deployment
+other than the active manifest generation. The manifest activation writes that
+lease before Stado replaces the unit and restores the prior lease if activation
+fails.
+
+`scripts/worker/deploy/auto-deploy.sh` and its LaunchAgent are an emergency legacy
+baseline only. Set `~/.config/weles/deployment-mode` to `immutable-manifest` before
+cutover; the mode file overrides LaunchAgent environment and prevents branch
+polling from returning.
+
+## Immutable worker component release
 
 Production worker bytes are published only by this repository under
 `worker-vX.Y.Z` GitHub Releases. The tag must equal `worker-v` plus the
 `package.json` version. Each release contains
 `weles-worker-X.Y.Z.tar.gz`, its SHA-256 sidecar, and embedded provenance.
 
-Install an exact release rather than a moving branch:
-
-```bash
-version=0.4.0
-mkdir -p ~/weles-release && cd ~/weles-release
-gh release download "worker-v$version" --repo wisent-ai/weles \
-  --pattern "weles-worker-$version.tar.gz*"
-shasum -a 256 -c "weles-worker-$version.tar.gz.sha256"
-tar -xzf "weles-worker-$version.tar.gz"
-cd weles-worker
-npm ci
-```
+Do not unpack this component into a live path or run a package manager after
+release. Record the release URL, archive SHA-256, entrypoint, provenance URL,
+and source repository in the worker fragment; the manifest install agent
+downloads and verifies the exact archive.
 
 No worker release is delegated to Stado, a browser repository, Skarbiec, or
 another product channel. Browser and secret integrations retain their own
@@ -233,7 +275,7 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now weles-worker
 ```
 
-## macOS worker + auto-deploy
+## Legacy macOS worker and auto-deploy baseline
 
 The Mac worker uses `~/.config/weles/worker.env` as its operator-controlled
 deployment contract. `auto-deploy.sh` fetches the exact configured

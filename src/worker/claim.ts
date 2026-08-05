@@ -9,6 +9,12 @@ import type { WelesActionPolicy } from './placement-policy.js';
 
 const SUPABASE_URL = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
+const LEASE_DEPLOYMENT_ID = process.env.WELES_DEPLOYMENT_ID?.trim() ?? '';
+const LEASE_GENERATION = Number(process.env.WELES_DEPLOYMENT_GENERATION ?? '');
+if ((LEASE_DEPLOYMENT_ID && (!Number.isSafeInteger(LEASE_GENERATION) || LEASE_GENERATION < 1))
+    || (!LEASE_DEPLOYMENT_ID && process.env.WELES_DEPLOYMENT_GENERATION)) {
+  throw new Error('immutable worker lease requires WELES_DEPLOYMENT_ID and a positive WELES_DEPLOYMENT_GENERATION');
+}
 
 function headers(): Record<string, string> {
   return { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' };
@@ -89,8 +95,14 @@ export async function claimOne(policy: WelesActionPolicy): Promise<ActionLogRow 
         method: 'PATCH',
         headers: { ...headers(), Prefer: 'return=representation' },
         body: JSON.stringify({
-          status: 'running', claimed_by: INSTANCE_ID,
-          claimed_at: new Date().toISOString(), started_at: new Date().toISOString(),
+          status: 'running',
+          claimed_by: INSTANCE_ID,
+          claimed_at: new Date().toISOString(),
+          started_at: new Date().toISOString(),
+          ...(LEASE_DEPLOYMENT_ID ? {
+            lease_deployment_id: LEASE_DEPLOYMENT_ID,
+            lease_generation: LEASE_GENERATION,
+          } : {}),
         }),
       },
     );
