@@ -75,7 +75,7 @@ const definition = {
   journey_id: JOURNEY_ID,
   journey_version: JOURNEY_VERSION,
   entry_screen_id: 'authorization-boundary',
-  first_success_fact: 'workflow_receipt_verified',
+  first_success_fact: 'authorized_browser_workflow_completed',
   published_at: '2026-08-04T00:00:00.000Z',
   source_revision: SOURCE_REVISION,
   screens: [
@@ -109,7 +109,7 @@ const definition = {
       title_key: 'receipt_verification.title',
       body_key: 'receipt_verification.body',
       required: true,
-      completion_evidence: { kind: 'fact', fact: 'workflow_receipt_verified', operator: 'eq', value: true },
+      completion_evidence: { kind: 'fact', fact: 'authorized_browser_workflow_completed', operator: 'eq', value: true },
       actions: ['verify'],
       transitions: [],
       presentation: { surface: 'operator_cli' },
@@ -124,12 +124,24 @@ const definition = {
     first_success_event: 'onboarding_first_success_observed',
   },
   experiment_contract: {
-    experiment_id: 'weles-first-use-2026-08-04',
-    control_variant_id: 'control',
-    eligible_variant_ids: ['control'],
+    experiment_id: 'weles_first_use_2026_08_04_1',
+    control_variant_id: 'canonical',
+    eligible_variant_ids: ['canonical'],
+    variant_configs: {
+      canonical: {
+        authorization_presentation: 'explicit_boundary',
+        execution_presentation: 'approved_host',
+        proof_presentation: 'signed_receipt',
+      },
+    },
     assignment_unit: 'device',
     reward_event: 'onboarding_first_success_observed',
-    guardrail_events: ['onboarding_abandoned'],
+    reward_window_hours: 168,
+    guardrails: [
+      { event_name: 'onboarding_abandoned', direction: 'max', bound: 0.25, window_hours: 168 },
+    ],
+    minimum_exposure_per_variant: 50,
+    exploration_floor: 0.05,
     owner: 'weles',
     kill_switch: false,
   },
@@ -193,7 +205,7 @@ class VersionPinnedTransport implements JourneyTransport {
         return screen.actions.length === 1 && screen.actions[0] === expectedAction;
       });
     if (bundle.definition.journey_version !== JOURNEY_VERSION
-      || bundle.definition.first_success_fact !== 'workflow_receipt_verified'
+      || bundle.definition.first_success_fact !== 'authorized_browser_workflow_completed'
       || bundle.definition.entry_screen_id !== definition.entry_screen_id
       || !productSurfaceMatches) {
       throw new Error('central Weles journey identity or product surface is invalid');
@@ -501,7 +513,7 @@ export async function runWelesOnboarding(input: WelesOnboardingInput = {}): Prom
       ? `sha256:${claims.evidenceDigest.toLowerCase()}`
       : `receipt:${createHash('sha256').update(claims.evidenceDigest).digest('hex')}`;
     const completed = await client.complete(
-      { workflow_receipt_verified: true },
+      { authorized_browser_workflow_completed: true },
       receiptRevision,
       {
         task_id: claims.taskId,
