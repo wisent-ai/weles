@@ -32,3 +32,9 @@ export * as agentLogin from './agent/login.js';
 export * as discover from './agent/discover.js';
 export { acquireSecret, buildSecretAcquisitionPlan } from './secrets/acquire.js';
 export type { AcquireSecretRequest, AcquireSecretResult } from './secrets/acquire.js';
+export { loadArtifactDeliveryClientConfig, requestSignedArtifactUrls } from './worker/artifact-delivery-client.js';
+export type { ArtifactDeliveryClientConfig } from './worker/artifact-delivery-client.js';
+export type { ArtifactLocatorSet, SignedArtifactResponse } from './worker/artifact-delivery.js';
+
+export { FileJourneyStorage, runWelesOnboarding, WELES_FIRST_USE_FALLBACK } from './onboarding.js';
+export type { WelesOnboardingInput, WelesOnboardingView } from './onboarding.js';
