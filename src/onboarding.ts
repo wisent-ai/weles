@@ -3,18 +3,18 @@ import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { homedir, hostname, userInfo } from 'node:os';
 import { join } from 'node:path';
 import journeyDefinition from './onboarding/journeys/weles-first-use-2026-08-04.1.json';
-import type {
-  JourneyAssignment,
-  JourneyAssignmentInput,
-  JourneyBundle,
-  JourneyDefinition,
-  JourneyClient as SharedJourneyClient,
-  JourneyProgress,
-  JourneyRuntimeEvent,
-  JourneyStorage,
-  JourneyTransport,
-  StadoJourneyTransport as SharedStadoJourneyTransport,
-} from '@wisent-ai/onboarding-web';
+import {
+  JourneyClient,
+  StadoJourneyTransport,
+  type JourneyAssignment,
+  type JourneyAssignmentInput,
+  type JourneyBundle,
+  type JourneyDefinition,
+  type JourneyProgress,
+  type JourneyRuntimeEvent,
+  type JourneyStorage,
+  type JourneyTransport,
+} from './onboarding-runtime';
 
 const PRODUCT_ID = 'weles';
 const JOURNEY_ID = 'first-use';
@@ -25,10 +25,6 @@ const TOKEN_ENVIRONMENT_KEY = 'WELES_STADO_INTEGRATION_TOKEN';
 const SHA256 = /^[0-9a-f]{64}$/i;
 
 type OnboardingAction = 'status' | 'next' | 'verify' | 'reset';
-type RuntimeModule = {
-  JourneyClient: typeof SharedJourneyClient;
-  StadoJourneyTransport: typeof SharedStadoJourneyTransport;
-};
 
 type ReceiptClaims = {
   taskId: string;
@@ -293,11 +289,6 @@ function stateDirectory(input: WelesOnboardingInput, environment: NodeJS.Process
     || join(homedir(), '.weles', 'onboarding');
 }
 
-async function loadRuntime(): Promise<RuntimeModule> {
-  // The shared package is TypeScript source. The Weles build compiles that exact package into this private runtime directory.
-  const runtimePath = './onboarding-runtime/index.js';
-  return await import(runtimePath) as RuntimeModule;
-}
 
 async function loadReceiptVerifier(): Promise<{
   verifyReceipt(receipt: unknown, keys: Readonly<Record<string, string>>): unknown;
@@ -372,7 +363,7 @@ export async function runWelesOnboarding(input: WelesOnboardingInput = {}): Prom
   }
   const configured = Boolean(baseUrl && token);
   const baseTransport: JourneyTransport = baseUrl && token
-    ? new runtime.StadoJourneyTransport({
+    ? new StadoJourneyTransport({
         baseUrl,
         token,
         fetch: input.fetch,
@@ -380,7 +371,7 @@ export async function runWelesOnboarding(input: WelesOnboardingInput = {}): Prom
     : new OfflineJourneyTransport();
   const transport = new VersionPinnedTransport(baseTransport);
   const storage = new FileJourneyStorage(stateDirectory(input, environment));
-  const client = new runtime.JourneyClient({
+  const client = new JourneyClient({
     productId: PRODUCT_ID,
     journeyId: JOURNEY_ID,
     subjectHash,
@@ -401,7 +392,7 @@ export async function runWelesOnboarding(input: WelesOnboardingInput = {}): Prom
         transport.assignExperiment({
           product_id: PRODUCT_ID,
           app_id: 'weles',
-          platform: 'web',
+          platform: 'operator',
           surface: 'operator_cli',
           subject,
         }),
@@ -442,6 +433,9 @@ export async function runWelesOnboarding(input: WelesOnboardingInput = {}): Prom
     }
     const { verifyReceipt } = await loadReceiptVerifier();
     const claims = requireVerifiedClaims(verifyReceipt(input.receipt, input.receiptKeys));
+    if (claims.outcome !== 'completed') {
+      throw new Error(`verified receipt outcome is not a completed Weles workflow: ${claims.outcome}`);
+    }
     const receiptRevision = SHA256.test(claims.evidenceDigest)
       ? `sha256:${claims.evidenceDigest.toLowerCase()}`
       : `receipt:${createHash('sha256').update(claims.evidenceDigest).digest('hex')}`;
@@ -456,6 +450,16 @@ export async function runWelesOnboarding(input: WelesOnboardingInput = {}): Prom
       },
     );
     if (!completed) throw new Error('verified receipt did not satisfy the Weles first-success contract');
+    await client.observeFirstSuccess(
+      { authorized_browser_workflow_completed: true },
+      receiptRevision,
+      {
+        task_id: claims.taskId,
+        outcome: claims.outcome,
+        evidence_digest: claims.evidenceDigest,
+        receipt_key_id: claims.keyId,
+      },
+    );
     return render(client, connected, claims);
   }
 
