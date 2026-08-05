@@ -24,6 +24,7 @@ alter table account_action_logs add column if not exists evidence_policy text no
 alter table account_action_logs add column if not exists justification text;
 alter table account_action_logs add column if not exists cancel_reason text;
 alter table account_action_logs add column if not exists cancel_idempotency_key text;
+alter table account_action_logs add column if not exists request_fingerprint text;
 alter table account_action_logs add column if not exists receipt jsonb;
 alter table account_action_logs add column if not exists lease_generation bigint not null default 0;
 alter table account_action_logs add column if not exists lease_deployment_id text;

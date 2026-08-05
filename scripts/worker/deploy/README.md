@@ -20,14 +20,17 @@ Production is manifest-driven. Component repositories publish immutable worker,
 Chromium, Firefox, web, client, and desktop artifacts through their own release
 channels; none of those releases independently changes the running worker.
 
-1. Capture the current baseline before the first cutover. Include executable
-   rollback bytes, not only a descriptive hash:
+1. Pause legacy queue producers, wait for every in-flight legacy job to finish, and
+   capture the current baseline before the first cutover. Include executable rollback
+   bytes, not only a descriptive hash:
 
    ```bash
    node scripts/release/capture-baseline.mjs \
      --out ~/.local/state/weles-release/legacy-baseline.json \
      --archive-out ~/.local/state/weles-release/legacy-baseline.tar.gz
    ```
+   The first `activate.mjs` invocation additionally requires
+   `--legacy-drained true`; later immutable generations use worker drain markers.
 
 2. Normalize each approved component release into the fragment shape required by
    `release/deployment-manifest.schema.json`. Assemble one manifest:
@@ -42,8 +45,19 @@ channels; none of those releases independently changes the running worker.
      --compatibility compatibility.json --output deployment.json
    ```
 
-3. Publish and attest `deployment.json` without changing its bytes. Install it by
-   exact URL and SHA-256 with `scripts/release/install.mjs`.
+3. Publish the exact manifest as a prerelease candidate:
+
+   ```bash
+   node scripts/release/publish-manifest.mjs --manifest deployment.json
+   ```
+
+   Publication fails before creating a GitHub Release unless tracked release
+   inputs match `HEAD` and the authenticated `gh` actor appears in the
+   repository's `WELES_RELEASE_APPROVERS` variable.
+
+   The release workflow validates its source-bound identity and emits GitHub artifact
+   provenance. After that attestation succeeds, install the asset by exact URL and
+   SHA-256 with `scripts/release/install.mjs`.
 4. Activate the already installed manifest with `scripts/release/activate.mjs`.
    Candidate, development, canary, and production are explicit rings. Promotion
    must reuse the same manifest SHA-256 and is blocked until the approved evidence
@@ -54,9 +68,10 @@ channels; none of those releases independently changes the running worker.
    previous manifest through Stado and records a `rolled_back` receipt.
 
 The active database lease rejects queued-to-running claims from any deployment
-other than the active manifest generation. The manifest activation writes that
-lease before Stado replaces the unit and restores the prior lease if activation
-fails.
+other than the active manifest generation. During activation the old worker drains,
+the lease advances, Stado replaces the unit, and a fresh per-activation instance must
+report the exact manifest heartbeat before success is recorded. Activation restores the
+prior lease and unit if any later step fails.
 
 `scripts/worker/deploy/auto-deploy.sh` and its LaunchAgent are an emergency legacy
 baseline only. Set `~/.config/weles/deployment-mode` to `immutable-manifest` before
@@ -69,6 +84,9 @@ Production worker bytes are published only by this repository under
 `worker-vX.Y.Z` GitHub Releases. The tag must equal `worker-v` plus the
 `package.json` version. Each release contains
 `weles-worker-X.Y.Z.tar.gz`, its SHA-256 sidecar, and embedded provenance.
+The release workflow accepts the tag only when its pushing actor appears in the
+comma-separated `WELES_RELEASE_APPROVERS` repository variable. A missing or
+empty allowlist fails before dependency installation and artifact construction.
 
 Do not unpack this component into a live path or run a package manager after
 release. Record the release URL, archive SHA-256, entrypoint, provenance URL,
