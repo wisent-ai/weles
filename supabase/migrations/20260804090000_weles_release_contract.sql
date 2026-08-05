@@ -14,7 +14,8 @@ values
   (1, '001_weles_schema.sql', 'baseline', '181188e29c91ff2016d1b0a6a9e733626b87ec60078b37e748cbacab44ba57f2', '005_weles_release_contract.sql'),
   (2, '002_weles_public_api.sql', 'baseline', 'b13d77863658bf95c4745c55e2d415919fad6fcd401cbd777e02a08456b8383a', '005_weles_release_contract.sql'),
   (3, '003_weles_saved_trajectories.sql', 'baseline', 'b99aca041b753f8964f29cd8c9141ce621ed3d26ac1dfa43d5d49a3b437907fd', '005_weles_release_contract.sql'),
-  (4, '004_weles_trajectory_builds.sql', 'baseline', '8ceb390efe9f9113414df2ca49b0d87b969d71a923e67d9609543c3ecfafdc77', '005_weles_release_contract.sql')
+  (4, '004_weles_trajectory_builds.sql', 'baseline', '8ceb390efe9f9113414df2ca49b0d87b969d71a923e67d9609543c3ecfafdc77', '005_weles_release_contract.sql'),
+  (5, '005_weles_release_contract.sql', '0a727938e0376bc892f49136319a5744dafbcbad', '504a5f9f6d2149ea5f3786c0c71a0c329ec97b534908c79161fd1fe2ec4c15ef', '005_weles_release_contract.sql')
 on conflict (version) do nothing;
 
 alter table account_action_logs add column if not exists api_schema text;
