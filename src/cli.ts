@@ -1,9 +1,11 @@
 #!/usr/bin/env node
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { runWelesOnboarding } from './onboarding.js';
+import type { WelesOnboardingInput } from './onboarding.js';
 import type { AsyncNewBrowserOptions } from './async_api.js';
 
-type CliCommand = 'help' | 'version' | 'doctor' | 'open' | 'screenshot' | 'mcp';
+type CliCommand = 'help' | 'version' | 'doctor' | 'open' | 'screenshot' | 'mcp' | 'onboarding';
 
 type ParsedCli = {
   command: CliCommand;
@@ -14,6 +16,8 @@ type ParsedCli = {
 const HELP = `Weles CLI
 
 Usage:
+  weles onboarding [status|next|verify|reset] [--subject <stable-id>]
+  weles onboarding verify --receipt <receipt.json> --keys <receipt-keys.json> [--subject <stable-id>]
   weles open <url> [--headless] [--browser chromium|firefox] [--text] [--screenshot <file>] [--timeout <ms>]
   weles screenshot <url> <file> [--headless] [--browser chromium|firefox] [--timeout <ms>]
   weles mcp
@@ -21,16 +25,24 @@ Usage:
   weles version
 
 Options:
-  --headless             Launch without a visible browser window.
-  --browser <name>       Browser engine passed to AsyncNewBrowser (default: chromium).
-  --os <name>            Persona OS passed to AsyncNewBrowser (default: macos).
-  --locale <locale>      Locale passed to AsyncNewBrowser.
-  --chromium-path <path> Custom Chromium binary path.
-  --user-data-dir <dir>  Browser profile directory.
-  --proxy <url>          Proxy server URL.
-  --text                 Print document body text after navigation.
-  --screenshot <file>    Save a screenshot after navigation.
-  --timeout <ms>         Navigation timeout in milliseconds.
+  --subject <stable-id>   Stable operator/device scope for durable onboarding progress.
+  --receipt <file>        Real terminal Weles service receipt JSON to verify.
+  --keys <file>           JSON map of trusted receipt key IDs to PEM public keys.
+  --state-dir <dir>       Override the durable onboarding state directory.
+  --headless              Launch without a visible browser window.
+  --browser <name>        Browser engine passed to AsyncNewBrowser (default: chromium).
+  --os <name>             Persona OS passed to AsyncNewBrowser (default: macos).
+  --locale <locale>       Locale passed to AsyncNewBrowser.
+  --chromium-path <path>  Custom Chromium binary path.
+  --user-data-dir <dir>   Browser profile directory.
+  --proxy <url>           Proxy server URL.
+  --text                  Print document body text after navigation.
+  --screenshot <file>     Save a screenshot after navigation.
+  --timeout <ms>          Navigation timeout in milliseconds.
+
+Onboarding explains the authorization boundary and approved host execution. It
+does not launch browser automation. Completion requires cryptographic verification
+of a real workflow receipt and its bound evidence digest.
 `;
 
 function readPackageJson(): { version?: string; bin?: unknown } {
@@ -88,12 +100,12 @@ export function parseCliArgs(argv: string[]): ParsedCli {
 function normalizeCommand(command?: string): CliCommand {
   if (!command || command === '--help' || command === '-h' || command === 'help') return 'help';
   if (command === '--version' || command === '-v' || command === 'version') return 'version';
-  if (command === 'doctor' || command === 'open' || command === 'screenshot' || command === 'mcp') return command;
+  if (command === 'doctor' || command === 'open' || command === 'screenshot' || command === 'mcp' || command === 'onboarding') return command;
   throw new Error(`unknown command: ${command}`);
 }
 
 function optionTakesValue(key: string): boolean {
-  return ['browser', 'os', 'locale', 'chromium-path', 'user-data-dir', 'proxy', 'screenshot', 'timeout'].includes(key);
+  return ['browser', 'os', 'locale', 'chromium-path', 'user-data-dir', 'proxy', 'screenshot', 'timeout', 'subject', 'receipt', 'keys', 'state-dir'].includes(key);
 }
 
 function cliOptionsToBrowserOptions(options: Record<string, string | boolean>): AsyncNewBrowserOptions {
@@ -170,6 +182,59 @@ function runDoctor(): void {
   process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
 }
 
+function readJsonFile(path: string, label: string): unknown {
+  try {
+    return JSON.parse(readFileSync(path, 'utf8')) as unknown;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`cannot read ${label}: ${message}`);
+  }
+}
+
+function readReceiptKeys(path: string): Readonly<Record<string, string>> {
+  const value = readJsonFile(path, 'receipt key map');
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error('receipt key map must be a JSON object');
+  }
+  const entries = Object.entries(value);
+  if (entries.length === 0) throw new Error('receipt key map must not be empty');
+  const keys: Record<string, string> = {};
+  for (const [key, publicKey] of entries) {
+    if (!key || typeof publicKey !== 'string' || !publicKey.trim()) {
+      throw new Error('receipt key map must contain non-empty key IDs and PEM public keys');
+    }
+    keys[key] = publicKey;
+  }
+  return keys;
+}
+
+function isOnboardingAction(value: string): value is NonNullable<WelesOnboardingInput['action']> {
+  return value === 'status' || value === 'next' || value === 'verify' || value === 'reset';
+}
+
+async function runOnboarding(parsed: ParsedCli): Promise<void> {
+  const action = parsed.positional[0] ?? 'status';
+  if (!isOnboardingAction(action) || parsed.positional.length > 1) {
+    throw new Error('onboarding action must be status, next, verify, or reset');
+  }
+  const receiptPath = parsed.options.receipt;
+  const keysPath = parsed.options.keys;
+  if (action === 'verify' && (typeof receiptPath !== 'string' || typeof keysPath !== 'string')) {
+    throw new Error('onboarding verify requires --receipt <file> and --keys <file>');
+  }
+  const receiptDocument = typeof receiptPath === 'string' ? readJsonFile(receiptPath, 'workflow receipt') : undefined;
+  const receipt = receiptDocument && typeof receiptDocument === 'object' && 'receipt' in receiptDocument
+    ? receiptDocument.receipt
+    : receiptDocument;
+  const view = await runWelesOnboarding({
+    action,
+    subject: typeof parsed.options.subject === 'string' ? parsed.options.subject : undefined,
+    stateDirectory: typeof parsed.options['state-dir'] === 'string' ? parsed.options['state-dir'] : undefined,
+    receipt,
+    receiptKeys: typeof keysPath === 'string' ? readReceiptKeys(keysPath) : undefined,
+  });
+  process.stdout.write(`${JSON.stringify(view, null, 2)}\n`);
+}
 export async function runCli(argv = process.argv.slice(2)): Promise<void> {
   const parsed = parseCliArgs(argv);
   if (parsed.command === 'help') {
@@ -190,6 +255,10 @@ export async function runCli(argv = process.argv.slice(2)): Promise<void> {
   }
   if (parsed.command === 'screenshot') {
     await runScreenshot(parsed);
+    return;
+  }
+  if (parsed.command === 'onboarding') {
+    await runOnboarding(parsed);
     return;
   }
   if (parsed.command === 'mcp') {
