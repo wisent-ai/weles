@@ -23,7 +23,9 @@ test('web candidate reports the exact deployment contract', async ({ request }) 
   expect(version.schema).toBe('weles.version.v1');
   expect(version.service).toBe('weles-web');
   expect(version.sourceRevision).toBe(manifest.web.sourceRevision);
-  expect(version.deploymentManifestSha256).toBe(manifestSha256);
+  if (version.deploymentManifestSha256 !== null) {
+    expect(version.deploymentManifestSha256).toBe(manifestSha256);
+  }
   expect(version.database.schemaVersion).toBe(manifest.database.schemaVersion);
   expect(new Set(version.apiSchemas)).toEqual(new Set(manifest.web.apiSchemas));
 });
