@@ -52,6 +52,17 @@ journeys:
     value: The installed Firefox candidate launches from the manifest-selected explicit path.
 secretRefs:
   WELES_WORKER_API_TOKEN: vault://wisent/weles/worker-api-token
+matrix:
+  release:
+    targets: [web]
+    record: true
+    timeoutMs: 120000
+    maximumParallel: 1
+    maxCells: 1
+    minimumCellEvidence: E3
+    artifactEncryption: required
+    removePlaintextAfterProtection: true
+    requiredMatrixProfile: release
 artifacts:
   retain:
     pullRequestDays: 14
@@ -68,6 +79,8 @@ releasePolicy:
   minimumEvidence: E3
   requiredJourneys: [web-contract, worker-contract, chromium-candidate, firefox-candidate]
   requiredTargets: [web]
+  requiredMatrixProfile: release
+  requireProtectedArtifacts: true
   requireSecretScan: true
 `;
 const manifestPath = join(appDirectory, 'probierz.yaml');
