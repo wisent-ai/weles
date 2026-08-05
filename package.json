@@ -8,7 +8,7 @@
     "weles-mcp": "dist/mcp.js"
   },
   "scripts": {
-    "build": "tsc && cp src/scripts/*.js dist/scripts/ && mkdir -p dist/scripts/firefox && cp src/scripts/firefox/*.js dist/scripts/firefox/ && mkdir -p dist/diagnostics && cp -f src/diagnostics/*.js dist/diagnostics/ 2>/dev/null; true",
+    "build": "tsc && cp src/scripts/*.js dist/scripts/ && mkdir -p dist/scripts/firefox && cp src/scripts/firefox/*.js dist/scripts/firefox/ && mkdir -p dist/diagnostics && (cp -f src/diagnostics/*.js dist/diagnostics/ 2>/dev/null || true)",
     "postinstall": "node scripts/postinstall/playwright_scrub.mjs",
     "lint-trust": "node scripts/lint/check_trust.mjs",
     "lint-humanization": "node scripts/lint/check_humanization.mjs",

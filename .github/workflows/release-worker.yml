@@ -5,6 +5,10 @@ on:
     tags:
       - "worker-v*"
 
+concurrency:
+  group: weles-worker-release
+  cancel-in-progress: false
+
 jobs:
   build:
     strategy:
@@ -23,10 +27,24 @@ jobs:
       id-token: write
       attestations: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Require allowlisted release operator
+        env:
+          ACTOR: ${{ github.actor }}
+          APPROVERS: ${{ vars.WELES_RELEASE_APPROVERS }}
+        run: |
+          test -n "$APPROVERS" || {
+            echo "WELES_RELEASE_APPROVERS repository variable is empty" >&2
+            exit 1
+          }
+          printf '%s\n' "$APPROVERS" | tr ',' '\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' \
+            | grep -Fqx "$ACTOR" || {
+              echo "$ACTOR is not an allowlisted Weles release operator" >&2
+              exit 1
+            }
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: 22
+          node-version: 22.23.2
           cache: npm
       - name: Build immutable worker bytes
         shell: bash
@@ -68,10 +86,10 @@ jobs:
           tar -C "$RUNNER_TEMP" -czf "$archive" weles-worker
           openssl dgst -sha256 -r "$archive" > "$archive.sha256"
           printf 'ARCHIVE=%s\n' "$archive" >> "$GITHUB_ENV"
-      - uses: actions/attest-build-provenance@v2
+      - uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2
         with:
           subject-path: ${{ env.ARCHIVE }}
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: worker-${{ matrix.platform }}
           path: |
@@ -86,7 +104,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           pattern: worker-*
           path: artifacts

@@ -474,11 +474,15 @@ async function writeResult(jobId: string, status: FinalRunStatus, result: Record
     body.cost_usd = costs.cost_usd;
     body.service_costs = costs.service_costs;
   }
-  await fetch(`${SUPABASE_URL}/rest/v1/account_action_logs?id=eq.${jobId}`, {
+  const response = await fetch(`${SUPABASE_URL}/rest/v1/account_action_logs?id=eq.${jobId}`, {
     method: 'PATCH',
     headers: { ...headers(), Prefer: 'return=minimal' },
     body: JSON.stringify(body),
-  }).catch(() => {});
+  });
+  if (!response.ok) {
+    const details = await response.text().catch(() => '');
+    throw new Error(`action result persistence failed (${response.status}): ${details.slice(0, 300)}`);
+  }
 }
 
 function validWebhookUrl(value: string): boolean {

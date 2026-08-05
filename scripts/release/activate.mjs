@@ -43,6 +43,9 @@ if (manifest.database.schemaVersion < compatibility.minimum || manifest.database
 const currentPath = join(state, 'current.json');
 let previous = null;
 try { previous = JSON.parse(await readFile(currentPath, 'utf8')); } catch (error) { if (error?.code !== 'ENOENT') throw error; }
+if (!previous && args.get('legacy-drained') !== 'true') {
+  throw new Error('first immutable activation requires --legacy-drained true after producers are paused and in-flight legacy work is complete');
+}
 const drainTimeoutMs = Number(args.get('drain-timeout-ms') ?? 15 * 60 * 1000);
 const drainPath = await waitForDrain(state, manifestSha256, drainTimeoutMs);
 const deploymentGeneration = Number(manifest.deploymentId.slice(0, 10).replaceAll('-', '')) * 1_000_000
@@ -53,6 +56,7 @@ const runtimeDirectory = join(state, 'launch', manifestSha256);
 const runtimeEnvPath = join(runtimeDirectory, 'runtime.env');
 const wrapperPath = join(runtimeDirectory, 'weles-worker');
 const apiSchemas = manifest.web.apiSchemas.join(',');
+const activationInstanceId = `weles-${manifest.deploymentId}-${Date.now()}-${process.pid}`;
 const environment = {
   WELES_WORKER_VERSION: manifest.worker.version,
   WELES_SOURCE_REVISION: manifest.worker.sourceRevision,
@@ -61,6 +65,7 @@ const environment = {
   WELES_DEPLOYMENT_ID: manifest.deploymentId,
   WELES_DEPLOYMENT_GENERATION: String(deploymentGeneration),
   WELES_DEPLOYMENT_RING: ring,
+  WELES_INSTANCE_ID: activationInstanceId,
   WELES_CHROMIUM_RELEASE: manifest.browsers.chromium.release,
   WELES_CHROMIUM_SHA256: chromiumArtifact.sha256,
   WELES_CHROMIUM_BIN: installation.components.chromium.entrypoint,
@@ -83,12 +88,24 @@ const legacyWorkerEnv = resolve(join(home, 'weles/var/worker.env'));
 const wrapper = `#!/bin/sh\nset -eu\nset -a\nif [ -f ${shellQuote(configuredWorkerEnv)} ]; then\n  . ${shellQuote(configuredWorkerEnv)}\nelif [ -f ${shellQuote(legacyWorkerEnv)} ]; then\n  . ${shellQuote(legacyWorkerEnv)}\nelse\n  echo "weles worker env file is missing" >&2\n  exit 1\nfi\n. ${shellQuote(runtimeEnvPath)}\nset +a\nexec /usr/bin/env node ${shellQuote(installation.components.worker.entrypoint)}\n`;
 await writeAtomic(wrapperPath, wrapper, 0o700);
 
-function deploy(path) {
-  const stado = process.env.STADO_BIN ?? 'stado';
-  return execFileSync(stado, ['service', 'deploy', 'weles-worker', '--host', host, '--from', path, '--json'], {
+function stadoCommand(commandArgs) {
+  return execFileSync(process.env.STADO_BIN ?? 'stado', commandArgs, {
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
   });
+}
+function deploy(path) {
+  let retired = null;
+  try {
+    retired = JSON.parse(stadoCommand(['service', 'retire', 'weles-worker', '--host', host, '--json']));
+  } catch (error) {
+    const detail = `${error?.message ?? ''}\n${error?.stdout ?? ''}\n${error?.stderr ?? ''}`;
+    if (!detail.includes('is not a registry-managed service')) throw error;
+  }
+  const deployed = JSON.parse(stadoCommand([
+    'service', 'deploy', 'weles-worker', '--host', host, '--from', path, '--json',
+  ]));
+  return JSON.stringify({ retired, deployed });
 }
 async function setActiveLease(deploymentId, generation, activeManifestSha256) {
   const baseUrl = (process.env.SUPABASE_URL ?? '').replace(/\/$/, '');
@@ -116,9 +133,24 @@ async function setActiveLease(deploymentId, generation, activeManifestSha256) {
   });
   if (!response.ok) throw new Error(`failed to set active worker lease (${response.status})`);
 }
+async function clearActiveLease() {
+  const baseUrl = (process.env.SUPABASE_URL ?? '').replace(/\/$/, '');
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
+  if (!baseUrl || !serviceKey) throw new Error('worker lease rollback requires SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY');
+  const response = await fetch(`${baseUrl}/rest/v1/system_settings?key=eq.weles_active_worker_lease`, {
+    method: 'DELETE',
+    headers: {
+      apikey: serviceKey,
+      Authorization: `Bearer ${serviceKey}`,
+      Prefer: 'return=minimal',
+    },
+  });
+  if (!response.ok) throw new Error(`failed to clear active worker lease (${response.status})`);
+}
 
 
-async function waitForHeartbeat(expectedSha256) {
+
+async function waitForHeartbeat(expectedSha256, expectedInstanceId) {
   const baseUrl = (process.env.SUPABASE_URL ?? '').replace(/\/$/, '');
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
   if (!baseUrl || !serviceKey) throw new Error('release health gate requires SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY');
@@ -130,11 +162,12 @@ async function waitForHeartbeat(expectedSha256) {
     });
     if (response.ok) {
       const rows = await response.json();
-      if (rows[0]?.value?.release?.deployment_manifest_sha256 === expectedSha256) return rows[0].value;
+      if (rows[0]?.value?.release?.deployment_manifest_sha256 === expectedSha256
+          && rows[0]?.value?.instance_id === expectedInstanceId) return rows[0].value;
     }
     await new Promise((resolveDelay) => setTimeout(resolveDelay, 2000));
   }
-  throw new Error(`worker heartbeat did not report manifest ${expectedSha256}`);
+  throw new Error(`worker heartbeat did not report manifest ${expectedSha256} from instance ${expectedInstanceId}`);
 }
 
 async function recordReceipt(status, evidence, previousManifestSha256 = null) {
@@ -181,13 +214,14 @@ async function recordReceipt(status, evidence, previousManifestSha256 = null) {
 try {
   await setActiveLease(manifest.deploymentId, deploymentGeneration, manifestSha256);
   const stadoEvidence = JSON.parse(deploy(wrapperPath));
-  const heartbeat = await waitForHeartbeat(manifestSha256);
+  const heartbeat = await waitForHeartbeat(manifestSha256, activationInstanceId);
   const current = {
     schema: 'weles.active-deployment.v1',
     manifestSha256,
     deploymentId: manifest.deploymentId,
     ring,
     leaseGeneration: deploymentGeneration,
+    instanceId: activationInstanceId,
     host,
     installationPath,
     wrapperPath,
@@ -212,6 +246,9 @@ try {
     await writeAtomic(drainPath, `${previous.manifestSha256}\n`);
     deploy(previous.wrapperPath);
     await writeAtomic(currentPath, `${JSON.stringify(previous, null, 2)}\n`);
+    await rm(drainPath, { force: true });
+  } else {
+    await clearActiveLease();
     await rm(drainPath, { force: true });
   }
   throw error;
