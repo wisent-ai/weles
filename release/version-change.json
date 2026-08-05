@@ -1,0 +1,7 @@
+{
+  "schema": "weles.version-change.v1",
+  "current": "0.4.0",
+  "candidate": "0.5.0",
+  "breaking": true,
+  "reason": "The immutable worker distribution replaces the mutable-checkout deployment contract and adds versioned task, cancellation, receipt, status, and service-version schemas."
+}
