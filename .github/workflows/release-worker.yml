@@ -95,6 +95,8 @@ jobs:
           openssl dgst -sha256 -r "$archive" > "$archive.sha256"
           printf 'ARCHIVE=%s\nPROVENANCE=%s\n' "$archive" "$RUNNER_TEMP/worker-provenance.json" >> "$GITHUB_ENV"
       - uses: sigstore/cosign-installer@398d4b0eeef1380460a10c8013a76f728fb906ac # v3
+        with:
+          cosign-release: v3.1.2
       - name: Sign SLSA provenance with GitHub OIDC
         shell: bash
         run: |
