@@ -20,11 +20,12 @@ const PRODUCT_ID = 'weles';
 const JOURNEY_ID = 'first-use';
 const JOURNEY_VERSION = '2026-08-04.1';
 const JOURNEY_VERSION_ID = '3a2ba59e-8a7e-4da4-9a76-bb4abf286e6d';
-const SOURCE_REVISION_PATTERN = /^[0-9a-f]{40}$/;
+const SOURCE_REVISION = 'weles:first-use:2026-08-04.1';
 const TOKEN_ENVIRONMENT_KEY = 'WELES_STADO_INTEGRATION_TOKEN';
 const SHA256 = /^[0-9a-f]{64}$/i;
 
 type OnboardingAction = 'status' | 'next' | 'verify' | 'reset';
+
 
 type ReceiptClaims = {
   taskId: string;
@@ -71,10 +72,9 @@ const definition = journeyDefinition as unknown as JourneyDefinition;
 if (definition.product_id !== PRODUCT_ID
   || definition.journey_id !== JOURNEY_ID
   || definition.journey_version !== JOURNEY_VERSION
-  || !SOURCE_REVISION_PATTERN.test(definition.source_revision)) {
+  || definition.source_revision !== SOURCE_REVISION) {
   throw new Error('bundled Weles first-use journey identity is invalid');
 }
-const SOURCE_REVISION = definition.source_revision;
 
 function canonicalize(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(canonicalize);
@@ -134,7 +134,7 @@ class VersionPinnedTransport implements JourneyTransport {
         return screen.actions.length === 1 && screen.actions[0] === expectedAction;
       });
     if (bundle.definition.journey_version !== JOURNEY_VERSION
-      || bundle.definition.first_success_fact !== 'authorized_browser_workflow_completed'
+      || bundle.definition.first_success_fact !== 'workflow_receipt_verified'
       || bundle.definition.entry_screen_id !== definition.entry_screen_id
       || !productSurfaceMatches) {
       throw new Error('central Weles journey identity or product surface is invalid');
@@ -290,6 +290,7 @@ function stateDirectory(input: WelesOnboardingInput, environment: NodeJS.Process
 }
 
 
+
 async function loadReceiptVerifier(): Promise<{
   verifyReceipt(receipt: unknown, keys: Readonly<Record<string, string>>): unknown;
 }> {
@@ -440,7 +441,7 @@ export async function runWelesOnboarding(input: WelesOnboardingInput = {}): Prom
       ? `sha256:${claims.evidenceDigest.toLowerCase()}`
       : `receipt:${createHash('sha256').update(claims.evidenceDigest).digest('hex')}`;
     const completed = await client.complete(
-      { authorized_browser_workflow_completed: true },
+      { workflow_receipt_verified: true },
       receiptRevision,
       {
         task_id: claims.taskId,
@@ -451,7 +452,7 @@ export async function runWelesOnboarding(input: WelesOnboardingInput = {}): Prom
     );
     if (!completed) throw new Error('verified receipt did not satisfy the Weles first-success contract');
     await client.observeFirstSuccess(
-      { authorized_browser_workflow_completed: true },
+      { workflow_receipt_verified: true },
       receiptRevision,
       {
         task_id: claims.taskId,

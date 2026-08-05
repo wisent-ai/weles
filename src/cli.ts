@@ -235,6 +235,7 @@ async function runOnboarding(parsed: ParsedCli): Promise<void> {
   });
   process.stdout.write(`${JSON.stringify(view, null, 2)}\n`);
 }
+
 export async function runCli(argv = process.argv.slice(2)): Promise<void> {
   const parsed = parseCliArgs(argv);
   if (parsed.command === 'help') {
