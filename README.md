@@ -11,7 +11,7 @@ client and is not a general-purpose authorization to automate a website.
 [Capture inventory](scripts/worker/deploy/FINGERPRINT_CAPTURE.md) ·
 [Public client](https://github.com/wisent-ai/weles-client)
 
-Current boundary: package version `0.4.0` is an internal operated surface. No
+Current boundary: package version `0.5.0` is an internal operated surface. No
 public executor package, self-service hosted workflow, target authorization, or
 SLA is promised from this repository.
 
@@ -171,7 +171,7 @@ that authorization chain.
 
 ## Project status and support
 
-- **Maturity:** private operated executor, package version `0.4.0`.
+- **Maturity:** private operated executor, package version `0.5.0`.
 - **Distribution:** no public executor release or support commitment.
 - **Public integration:** use `wisent-ai/weles-client`; source availability of a
   client does not imply availability of the executor service.
