@@ -248,13 +248,36 @@ export async function writeAtomic(path, content, mode = 0o600) {
 }
 
 export async function download(url, destination) {
-  const headers = {};
-  const token = process.env.WELES_RELEASE_TOKEN?.trim();
+  const parsed = new URL(url);
+  const token = process.env.WELES_RELEASE_TOKEN?.trim() || process.env.GH_TOKEN?.trim();
+  await mkdir(dirname(destination), { recursive: true });
+  const releaseAsset = parsed.hostname === 'github.com'
+    ? parsed.pathname.match(/^\/([^/]+)\/([^/]+)\/releases\/download\/([^/]+)\/([^/]+)$/)
+    : null;
+  if (releaseAsset) {
+    const [, owner, repository, encodedTag, encodedAsset] = releaseAsset;
+    const tag = decodeURIComponent(encodedTag);
+    const asset = decodeURIComponent(encodedAsset);
+    if (![owner, repository, tag, asset].every((part) => /^[A-Za-z0-9._-]+$/.test(part))) {
+      throw new Error(`invalid GitHub release asset URL: ${url}`);
+    }
+    execFileSync('gh', [
+      'release', 'download', tag,
+      '--repo', `${owner}/${repository}`,
+      '--pattern', asset,
+      '--output', destination,
+    ], {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: { ...process.env, ...(token ? { GH_TOKEN: token } : {}) },
+    });
+    await chmod(destination, 0o600);
+    return;
+  }
+  const headers = { Accept: 'application/octet-stream' };
   if (token) headers.Authorization = `Bearer ${token}`;
-  const response = await fetch(url, { headers, redirect: 'follow' });
+  const response = await fetch(parsed, { headers, redirect: 'follow' });
   if (!response.ok || !response.body) throw new Error(`download failed ${response.status} ${url}`);
   if (new URL(response.url).protocol !== 'https:') throw new Error(`download redirected outside HTTPS: ${response.url}`);
-  await mkdir(dirname(destination), { recursive: true });
   await pipeline(Readable.fromWeb(response.body), createWriteStream(destination, { mode: 0o600 }));
 }
 
