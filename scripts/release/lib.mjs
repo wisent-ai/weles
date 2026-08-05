@@ -394,8 +394,15 @@ export async function installArtifact(options) {
   try {
     const record = JSON.parse(await readFile(recordPath, 'utf8'));
     const observedTreeSha256 = await treeSha256(destination);
-    if (record.sha256 !== selected.sha256 || record.manifestSha256 !== manifestSha256
-        || !SHA256.test(record.treeSha256) || record.treeSha256 !== observedTreeSha256) {
+    if (record.schema !== 'weles.installed-component.v1'
+        || record.component !== component
+        || record.releaseId !== releaseId
+        || record.platform !== selected.platform
+        || record.sha256 !== selected.sha256
+        || record.sourceUrl !== selected.url
+        || record.entrypoint !== selected.entrypoint
+        || !SHA256.test(record.treeSha256)
+        || record.treeSha256 !== observedTreeSha256) {
       throw new Error(`installed ${component} destination has different provenance or content`);
     }
     const entrypoint = join(destination, selected.entrypoint);
