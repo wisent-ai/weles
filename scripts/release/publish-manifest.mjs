@@ -56,9 +56,9 @@ try {
   ], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
   const manifestUrl = execFileSync('gh', [
     'api', `repos/wisent-ai/weles/releases/tags/${tag}`,
-    '--jq', '.assets[] | select(.name == "deployment-manifest.json") | .url',
+    '--jq', '.assets[] | select(.name == "deployment-manifest.json") | .browser_download_url',
   ], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
-  if (!manifestUrl.startsWith('https://api.github.com/')) throw new Error('release manifest asset URL is missing');
+  if (!manifestUrl.startsWith('https://github.com/')) throw new Error('release manifest asset URL is missing');
   process.stdout.write(`${JSON.stringify({ tag, releaseUrl, manifestUrl, sha256: loaded.sha256 }, null, 2)}\n`);
 } finally {
   await rm(staging, { recursive: true, force: true });

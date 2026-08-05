@@ -255,11 +255,11 @@ export async function download(url, destination) {
   await pipeline(Readable.fromWeb(response.body), createWriteStream(destination, { mode: 0o600 }));
 }
 
-export function verifyAttestation(path, repository) {
+export function verifyAttestation(path, repository, bundlePath) {
   if ((process.env.WELES_VERIFY_ATTESTATIONS ?? '1') !== '1') {
     throw new Error('artifact attestation verification cannot be disabled for immutable releases');
   }
-  execFileSync('gh', ['attestation', 'verify', path, '--repo', repository], {
+  execFileSync('gh', ['attestation', 'verify', path, '--bundle', bundlePath, '--repo', repository], {
     stdio: ['ignore', 'pipe', 'pipe'],
     env: { ...process.env, GH_TOKEN: process.env.WELES_RELEASE_TOKEN ?? process.env.GH_TOKEN ?? '' },
   });
@@ -280,10 +280,18 @@ export async function fetchManifest(url, expectedSha256, root) {
   if (expectedSha256 && !SHA256.test(expectedSha256)) throw new Error('--manifest-sha256 must be lowercase SHA-256');
   await mkdir(root, { recursive: true, mode: 0o700 });
   const temporary = join(root, `.manifest-${process.pid}.json`);
+  const provenanceTemporary = join(root, `.manifest-${process.pid}.sigstore.json`);
   await download(url, temporary);
   const loaded = await loadManifest(temporary);
   if (expectedSha256 && loaded.sha256 !== expectedSha256) throw new Error(`manifest digest mismatch: expected ${expectedSha256}, received ${loaded.sha256}`);
-  verifyAttestation(temporary, 'wisent-ai/weles');
+  const provenanceUrl = new URL(url);
+  provenanceUrl.pathname = `${provenanceUrl.pathname}.sigstore.json`;
+  await download(provenanceUrl, provenanceTemporary);
+  try {
+    verifyAttestation(temporary, 'wisent-ai/weles', provenanceTemporary);
+  } finally {
+    await rm(provenanceTemporary, { force: true });
+  }
   const destination = join(root, 'manifests', `${loaded.sha256}.json`);
   await mkdir(dirname(destination), { recursive: true, mode: 0o700 });
   try {
@@ -373,7 +381,9 @@ export async function installArtifact(options) {
     await download(selected.url, archivePath);
     const digest = await sha256(archivePath);
     if (digest !== selected.sha256) throw new Error(`${component} digest mismatch: expected ${selected.sha256}, received ${digest}`);
-    verifyAttestation(archivePath, selected.provenanceRepository);
+    const provenancePath = join(stagingRoot, 'provenance.sigstore.json');
+    await download(selected.provenanceUrl, provenancePath);
+    verifyAttestation(archivePath, selected.provenanceRepository, provenancePath);
     safeArchiveEntries(archivePath);
     const extracted = join(stagingRoot, 'extracted');
     await mkdir(extracted);

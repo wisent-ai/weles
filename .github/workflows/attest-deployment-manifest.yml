@@ -13,9 +13,8 @@ jobs:
     if: github.event.release.prerelease && startsWith(github.event.release.tag_name, 'candidate-deployment-')
     runs-on: ubuntu-24.04
     permissions:
-      contents: read
+      contents: write
       id-token: write
-      attestations: write
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -52,6 +51,19 @@ jobs:
             --source-revision "$TARGET" \
             --candidate-tag "$TAG"
           sha256sum --check --strict deployment-manifest.json.sha256
-      - uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2
+      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
         with:
-          subject-path: deployment-manifest.json
+          cosign-release: v3.1.2
+      - name: Sign portable deployment provenance
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          cosign attest-blob --yes \
+            --predicate deployment-manifest.json \
+            --type https://weles.wisent.com/attestations/deployment-manifest/v1 \
+            --bundle deployment-manifest.json.sigstore.json \
+            deployment-manifest.json
+          gh release upload "$TAG" deployment-manifest.json.sigstore.json \
+            --repo "$GITHUB_REPOSITORY" --clobber

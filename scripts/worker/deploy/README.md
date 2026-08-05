@@ -56,9 +56,10 @@ channels; none of those releases independently changes the running worker.
    inputs match `HEAD` and the authenticated `gh` actor appears in the
    repository's `WELES_RELEASE_APPROVERS` variable.
 
-   The release workflow validates its source-bound identity and emits GitHub artifact
-   provenance. After that attestation succeeds, install the asset by exact URL and
-   SHA-256 with `scripts/release/install.mjs`.
+   The release workflow validates its source-bound identity and uploads a portable
+   Sigstore bundle beside the manifest. After that attestation succeeds, install
+   the asset by exact URL and SHA-256 with `scripts/release/install.mjs`; installation
+   verifies the downloaded bundle even though the repositories remain private.
 4. Stage the Weles product manifest and release journeys in Probierz, then run
    the exact candidate bytes and endpoints:
 
