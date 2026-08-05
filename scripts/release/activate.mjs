@@ -38,6 +38,45 @@ const chromiumArtifact = selectArtifact(manifest.browsers.chromium, platform);
 const firefoxArtifact = selectArtifact(manifest.browsers.firefox, platform);
 for (const component of Object.values(installation.components)) await access(component.entrypoint);
 
+const workerCredentialHelper = resolve(
+  installation.components.worker.entrypoint,
+  '../deploy/skarbiec-acquire.mjs',
+);
+const workerCredentialScopes = resolve(
+  installation.components.worker.entrypoint,
+  '../deploy/skarbiec-acquisition-scopes.conf',
+);
+await access(workerCredentialHelper);
+await access(workerCredentialScopes);
+
+function acquireDatabaseCredential(consumer, item, field) {
+  const endpoint = process.env.WC_SKARBIEC_URL?.trim();
+  if (!endpoint) throw new Error('release activation requires WC_SKARBIEC_URL');
+  return execFileSync(process.execPath, [
+    workerCredentialHelper,
+    endpoint,
+    workerCredentialScopes,
+    consumer,
+    item,
+    field,
+  ], {
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+    env: process.env,
+  }).trim();
+}
+
+process.env.SUPABASE_URL ||= acquireDatabaseCredential(
+  'weles-database-url-bootstrap',
+  'weles-database',
+  'url',
+);
+process.env.SUPABASE_SERVICE_ROLE_KEY ||= acquireDatabaseCredential(
+  'weles-database-service-role-bootstrap',
+  'weles-database',
+  'service_role_key',
+);
+
 const compatibility = manifest.compatibility.workerDatabase;
 if (manifest.database.schemaVersion < compatibility.minimum || manifest.database.schemaVersion > compatibility.maximum) {
   throw new Error(`manifest database schema ${manifest.database.schemaVersion} is outside worker range ${compatibility.minimum}..${compatibility.maximum}`);
@@ -131,7 +170,33 @@ await writeAtomic(runtimeEnvPath, `${envText}\n`);
 const home = homedir();
 const configuredWorkerEnv = resolve(args.get('worker-env-file') ?? process.env.WELES_WORKER_ENV_FILE ?? join(home, '.config/weles/worker.env'));
 const legacyWorkerEnv = resolve(join(home, 'weles/var/worker.env'));
-const wrapper = `#!/bin/sh\nset -eu\nset -a\nif [ -f ${shellQuote(configuredWorkerEnv)} ]; then\n  . ${shellQuote(configuredWorkerEnv)}\nelif [ -f ${shellQuote(legacyWorkerEnv)} ]; then\n  . ${shellQuote(legacyWorkerEnv)}\nelse\n  echo "weles worker env file is missing" >&2\n  exit 1\nfi\n. ${shellQuote(runtimeEnvPath)}\nset +a\nexec /usr/bin/env node ${shellQuote(installation.components.worker.entrypoint)}\n`;
+const wrapper = `#!/bin/sh
+set -eu
+export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
+set -a
+if [ -f ${shellQuote(configuredWorkerEnv)} ]; then
+  . ${shellQuote(configuredWorkerEnv)}
+elif [ -f ${shellQuote(legacyWorkerEnv)} ]; then
+  . ${shellQuote(legacyWorkerEnv)}
+else
+  echo "weles worker env file is missing" >&2
+  exit 1
+fi
+. ${shellQuote(runtimeEnvPath)}
+set +a
+NODE_BIN="\${WELES_NODE_BIN:-$(command -v node || true)}"
+if [ -z "$NODE_BIN" ] || [ ! -x "$NODE_BIN" ]; then
+  echo "Weles worker Node runtime is missing" >&2
+  exit 1
+fi
+if [ -z "\${SUPABASE_URL:-}" ]; then
+  export SUPABASE_URL="$("$NODE_BIN" ${shellQuote(workerCredentialHelper)} "\${WC_SKARBIEC_URL:?WC_SKARBIEC_URL is required}" ${shellQuote(workerCredentialScopes)} weles-database-url-bootstrap weles-database url)"
+fi
+if [ -z "\${SUPABASE_SERVICE_ROLE_KEY:-}" ]; then
+  export SUPABASE_SERVICE_ROLE_KEY="$("$NODE_BIN" ${shellQuote(workerCredentialHelper)} "\${WC_SKARBIEC_URL:?WC_SKARBIEC_URL is required}" ${shellQuote(workerCredentialScopes)} weles-database-service-role-bootstrap weles-database service_role_key)"
+fi
+exec "$NODE_BIN" ${shellQuote(installation.components.worker.entrypoint)}
+`;
 await writeAtomic(wrapperPath, wrapper, 0o700);
 
 function stadoCommand(commandArgs) {
