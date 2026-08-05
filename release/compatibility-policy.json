@@ -1,0 +1,30 @@
+{
+  "schema": "weles.compatibility-policy.v1",
+  "api": {
+    "supportedSchemas": [
+      "weles.task.v1",
+      "weles.cancellation.v1",
+      "weles.task-status.v1",
+      "weles.receipt.v1",
+      "weles.version.v1",
+      "weles.task.current",
+      "weles.cancellation.current",
+      "weles.receipt.current"
+    ],
+    "minimumClientVersion": "0.1.0",
+    "retainedGenerations": 2
+  },
+  "database": {
+    "targetSchemaVersion": 5,
+    "worker": { "minimum": 4, "maximum": 5 },
+    "web": { "minimum": 4, "maximum": 5 },
+    "migrationPolicy": "expand-contract",
+    "automaticDownMigrations": false
+  },
+  "rollout": {
+    "rings": ["candidate", "development", "canary", "production"],
+    "productionRequiresEnvironmentApproval": true,
+    "candidateBytesMustEqualPromotedBytes": true,
+    "partialComponentActivation": false
+  }
+}

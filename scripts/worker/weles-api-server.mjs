@@ -48,6 +48,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(__dirname, '../..');
 
 const { resolveTrajectory, paramsToEnv } = await import(`${REPO}/dist/worker/dispatch.js`);
+const { buildDeploymentVersionValue } = await import(`${REPO}/dist/worker/deployment_version.js`);
 
 const HOST = process.env.WELES_API_HOST || '127.0.0.1';
 const PORT = Number(process.env.WELES_API_PORT || 8788);
@@ -534,8 +535,13 @@ const server = http.createServer(async (req, res) => {
         source: 'weles_api',
         authConfigured: Boolean(TOKEN || ALLOW_UNAUTH),
         rawCredsAllowed: ALLOW_RAW_CREDS,
-        routes: ['GET /healthz', 'GET /worker/status', 'POST /worker/start', 'POST /worker/restart', 'POST /run', 'GET /diagnostics/:run_id', 'GET /diagnostics/:run_id/file?path=', 'POST /weles-builder', 'POST /reauth'],
+        routes: ['GET /healthz', 'GET /worker/version', 'GET /worker/status', 'POST /worker/start', 'POST /worker/restart', 'POST /run', 'GET /diagnostics/:run_id', 'GET /diagnostics/:run_id/file?path=', 'POST /weles-builder', 'POST /reauth'],
       });
+      return;
+    }
+    if (req.method === 'GET' && url.pathname === '/worker/version') {
+      if (!requireTokenAuthorization(req, res)) return;
+      json(res, 200, { ok: true, identity: buildDeploymentVersionValue() });
       return;
     }
     if (req.method === 'GET' && url.pathname === '/worker/status') {

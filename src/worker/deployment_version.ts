@@ -8,10 +8,25 @@ type FetchLike = typeof fetch;
 
 type EnvLike = Record<string, string | undefined>;
 
+export type ImmutableReleaseIdentity = {
+  schema: 'weles.release-identity.v1';
+  worker_version: string;
+  source_revision: string;
+  artifact_sha256: string;
+  deployment_manifest_sha256: string;
+  chromium_release: string;
+  chromium_sha256: string;
+  firefox_release: string;
+  firefox_sha256: string;
+  database_schema_version: number;
+  api_schemas: string[];
+};
+
 export type DeploymentVersionValue = {
   source: 'weles-worker';
   instance_id: string;
   updated_at: string;
+  release?: ImmutableReleaseIdentity;
   deployment: {
     weles_pkg_version: unknown;
     weles_commit: unknown;
@@ -42,6 +57,52 @@ function envValue(env: EnvLike, ...keys: string[]): string {
   return '';
 }
 
+function immutableReleaseIdentity(env: EnvLike): ImmutableReleaseIdentity | undefined {
+  const workerVersion = envValue(env, 'WELES_WORKER_VERSION');
+  const sourceRevision = envValue(env, 'WELES_SOURCE_REVISION');
+  const artifactSha256 = envValue(env, 'WELES_WORKER_ARTIFACT_SHA256');
+  const manifestSha256 = envValue(env, 'WELES_DEPLOYMENT_MANIFEST_SHA256');
+  const chromiumRelease = envValue(env, 'WELES_CHROMIUM_RELEASE');
+  const chromiumSha256 = envValue(env, 'WELES_CHROMIUM_SHA256');
+  const firefoxRelease = envValue(env, 'WELES_FIREFOX_RELEASE');
+  const firefoxSha256 = envValue(env, 'WELES_FIREFOX_SHA256');
+  const databaseSchema = envValue(env, 'WELES_DATABASE_SCHEMA_VERSION');
+  const apiSchemas = envValue(env, 'WELES_API_SCHEMAS');
+  const values = [
+    workerVersion,
+    sourceRevision,
+    artifactSha256,
+    manifestSha256,
+    chromiumRelease,
+    chromiumSha256,
+    firefoxRelease,
+    firefoxSha256,
+    databaseSchema,
+    apiSchemas,
+  ];
+  if (values.every((value) => !value)) return undefined;
+  if (values.some((value) => !value)) {
+    throw new Error('immutable release identity is partially configured');
+  }
+  const databaseSchemaVersion = Number(databaseSchema);
+  if (!Number.isInteger(databaseSchemaVersion) || databaseSchemaVersion < 1) {
+    throw new Error('WELES_DATABASE_SCHEMA_VERSION must be a positive integer');
+  }
+  return {
+    schema: 'weles.release-identity.v1',
+    worker_version: workerVersion,
+    source_revision: sourceRevision,
+    artifact_sha256: artifactSha256,
+    deployment_manifest_sha256: manifestSha256,
+    chromium_release: chromiumRelease,
+    chromium_sha256: chromiumSha256,
+    firefox_release: firefoxRelease,
+    firefox_sha256: firefoxSha256,
+    database_schema_version: databaseSchemaVersion,
+    api_schemas: apiSchemas.split(',').map((value) => value.trim()).filter(Boolean),
+  };
+}
+
 export function deploymentInstanceId(env: EnvLike = process.env): string {
   return env.WELES_INSTANCE_ID?.trim() || env.INSTANCE_ID?.trim() || `weles-${os.hostname() || 'host'}-${process.pid}`;
 }
@@ -50,11 +111,14 @@ export function buildDeploymentVersionValue(
   versions: Record<string, any> = captureVersions(null),
   now = new Date(),
   instanceId = deploymentInstanceId(),
+  env: EnvLike = process.env,
 ): DeploymentVersionValue {
+  const release = immutableReleaseIdentity(env);
   return {
     source: 'weles-worker',
     instance_id: instanceId,
     updated_at: now.toISOString(),
+    ...(release ? { release } : {}),
     deployment: {
       weles_pkg_version: versions.weles_pkg_version ?? null,
       weles_commit: versions.weles_commit ?? null,
@@ -90,7 +154,7 @@ export async function writeDeploymentVersion(options: {
   const supabaseKey = envValue(env, 'CONTENT_PLATFORM_SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_SERVICE_ROLE_KEY');
   if (!supabaseUrl || !supabaseKey) return { ok: false, skipped: 'missing_supabase_config' };
 
-  const value = buildDeploymentVersionValue(options.versions ?? captureVersions(null), options.now ?? new Date(), options.instanceId ?? deploymentInstanceId(env));
+  const value = buildDeploymentVersionValue(options.versions ?? captureVersions(null), options.now ?? new Date(), options.instanceId ?? deploymentInstanceId(env), env);
   const fetchImpl = options.fetchImpl ?? fetch;
   const url = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/system_settings?on_conflict=key`;
   try {
@@ -122,7 +186,7 @@ export function startDeploymentVersionHeartbeat(options: {
   const intervalMs = options.intervalMs ?? Number(env.WELES_DEPLOYMENT_VERSION_HEARTBEAT_MS || DEFAULT_HEARTBEAT_MS);
   const write = async () => {
     const result = await writeDeploymentVersion({ env, fetchImpl: options.fetchImpl });
-    if (result.ok) logger.log(`[deployment-version] wrote ${result.value?.deployment.weles_commit_short ?? 'unknown'} instance=${result.value?.instance_id}`);
+    if (result.ok) logger.log(`[deployment-version] wrote ${result.value?.release?.source_revision.slice(0, 8) ?? result.value?.deployment.weles_commit_short ?? 'unknown'} instance=${result.value?.instance_id}`);
     else if (result.skipped) logger.log(`[deployment-version] skipped: ${result.skipped}`);
     else logger.error(`[deployment-version] failed: ${result.status ?? ''} ${result.error ?? 'unknown_error'}`.trim());
   };

@@ -21,6 +21,23 @@ mkdir -p "$WELES_DIR/var"
 
 log() { echo "[$(date -u +%FT%TZ)] $*" >> "$LOG"; }
 
+# Emergency cutover guard. Legacy behavior remains the default until an operator
+# explicitly activates immutable-manifest mode on the host. The file wins over
+# the environment so a checked-in plist cannot silently re-enable branch deploys.
+DEPLOYMENT_MODE_FILE="${WELES_DEPLOYMENT_MODE_FILE:-$HOME/.config/weles/deployment-mode}"
+DEPLOYMENT_MODE="${WELES_DEPLOYMENT_MODE:-legacy-main-poll}"
+if [ -f "$DEPLOYMENT_MODE_FILE" ]; then
+  IFS= read -r DEPLOYMENT_MODE < "$DEPLOYMENT_MODE_FILE"
+fi
+case "${WELES_AUTO_DEPLOY_ENABLED:-true}:$DEPLOYMENT_MODE" in
+  true:legacy-main-poll)
+    ;;
+  *)
+    log "disabled: WELES_AUTO_DEPLOY_ENABLED=${WELES_AUTO_DEPLOY_ENABLED:-true} deployment_mode=$DEPLOYMENT_MODE"
+    exit 0
+    ;;
+esac
+
 cd "$WELES_DIR"
 
 # Legacy Semantic Scholar follow-up versions copied API keys into the GUI
