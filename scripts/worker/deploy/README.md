@@ -148,9 +148,10 @@ overrides LaunchAgent environment and prevents branch polling from returning.
 ## Immutable worker component release
 
 Production worker bytes are published only by this repository under
-`worker-vX.Y.Z` GitHub Releases. The tag must equal `worker-v` plus the
-`package.json` version. Each release contains
-`weles-worker-X.Y.Z.tar.gz`, its SHA-256 sidecar, and embedded provenance.
+`worker-vX.Y.Z` GitHub Releases. The tag carries the independently versioned
+worker component release; `package.json` continues to version the broader Weles
+API surface. Each release contains `weles-worker-X.Y.Z.tar.gz`, its SHA-256
+sidecar, and embedded provenance.
 The release workflow accepts the tag only when its pushing actor appears in the
 comma-separated `WELES_RELEASE_APPROVERS` repository variable. A missing or
 empty allowlist fails before dependency installation and artifact construction.

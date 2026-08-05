@@ -51,9 +51,9 @@ jobs:
           PLATFORM: ${{ matrix.platform }}
         run: |
           set -euo pipefail
-          version="$(node -p "require('./package.json').version")"
-          if [ "$GITHUB_REF_NAME" != "worker-v$version" ]; then
-            echo "::error::tag $GITHUB_REF_NAME does not match package version $version"
+          version="${GITHUB_REF_NAME#worker-v}"
+          if ! [[ "$version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::tag $GITHUB_REF_NAME does not contain a valid worker version"
             exit 1
           fi
           npm ci
@@ -91,7 +91,7 @@ jobs:
             > "$RUNNER_TEMP/worker-provenance.json"
           cp "$RUNNER_TEMP/worker-provenance.json" "$stage/provenance.json"
           archive="weles-worker-$version-$PLATFORM.tar.gz"
-          tar -C "$RUNNER_TEMP" -czf "$archive" weles-worker
+          tar -C "$RUNNER_TEMP" -chzf "$archive" weles-worker
           openssl dgst -sha256 -r "$archive" > "$archive.sha256"
           printf 'ARCHIVE=%s\nPROVENANCE=%s\n' "$archive" "$RUNNER_TEMP/worker-provenance.json" >> "$GITHUB_ENV"
       - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
