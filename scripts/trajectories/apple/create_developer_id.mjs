@@ -217,21 +217,23 @@ try {
   if (postPasswordState === 'two_factor') {
     await markAppleAuthChallengeOpen(guardId, actionLogId);
     await assertAppleAuthChallengeOpen(guardId, accountId, actionLogId);
-    const twoFactorCapability = capabilities.two_factor.capability;
+    const relayConfigured = !!(process.env.APPLE_2FA_RELAY_COMMAND?.trim());
     const twoFactorOptions = {
       logPrefix: '[apple-create-developer-id]',
-      nativeOnly: true,
-      withCode: (consume) => withCapabilityPendingRetry(twoFactorCapability, {
-        purpose: 'weles.apple.2fa', resource: challengeResource, authorization_id: guardId,
-      }, async (code) => {
-        await recordAppleAuthChallengeRedeemed(guardId, actionLogId);
-        return consume(code);
-      }, {
-        timeoutMs: Number(process.env.WELES_APPLE_2FA_PENDING_TIMEOUT_MS ?? '120000'),
-        intervalMs: Number(process.env.WELES_APPLE_2FA_PENDING_INTERVAL_MS ?? '1000'),
-      }),
+      ...(relayConfigured ? {
+        nativeOnly: true,
+        withCode: (consume) => withCapabilityPendingRetry(capabilities.two_factor.capability, {
+          purpose: 'weles.apple.2fa', resource: challengeResource, authorization_id: guardId,
+        }, async (code) => {
+          await recordAppleAuthChallengeRedeemed(guardId, actionLogId);
+          return consume(code);
+        }, {
+          timeoutMs: Number(process.env.WELES_APPLE_2FA_PENDING_TIMEOUT_MS ?? '120000'),
+          intervalMs: Number(process.env.WELES_APPLE_2FA_PENDING_INTERVAL_MS ?? '1000'),
+        }),
+      } : {}),
     };
-    requestTrustedMacChallengeRelay();
+    if (relayConfigured) requestTrustedMacChallengeRelay();
     const twoFactor = await completeAppleNativeTwoFactorChallenge(s, frame, twoFactorOptions);
     if (!twoFactor.ok) throw new Error(`Apple 2FA did not complete (${twoFactor.source || 'unknown source'})`);
   }
