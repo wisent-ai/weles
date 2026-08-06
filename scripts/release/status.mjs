@@ -3,7 +3,7 @@
 import { execFileSync } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { parseArgs, requiredArg, ringStateRoot, stateRoot } from './lib.mjs';
+import { createDatabaseCredentials, parseArgs, requiredArg, ringStateRoot, stateRoot } from './lib.mjs';
 
 const args = parseArgs();
 const host = requiredArg(args, 'host');
@@ -27,11 +27,20 @@ try {
 } catch (error) {
   stado = { error: error instanceof Error ? error.message : String(error) };
 }
-const baseUrl = (process.env.SUPABASE_URL ?? '').replace(/\/$/, '');
-const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
+const databaseCredentials = createDatabaseCredentials();
 let heartbeat = null;
 let activeLease = null;
-if (baseUrl && serviceKey && current?.instanceId) {
+let databaseError = null;
+let credentials = null;
+if (current?.instanceId) {
+  // Status is diagnostic, so an unreachable Skarbiec degrades the report instead of aborting it,
+  // but the reason is always stated rather than reported as an absent heartbeat.
+  try { credentials = databaseCredentials(); } catch (error) {
+    databaseError = error instanceof Error ? error.message : String(error);
+  }
+}
+if (credentials) {
+  const { baseUrl, serviceKey } = credentials;
   const key = ring === 'production' ? 'weles_deployment_version' : `weles_deployment_version:${ring}:${current.instanceId}`;
   const heartbeatResponse = await fetch(`${baseUrl}/rest/v1/system_settings?key=eq.${encodeURIComponent(key)}&select=value`, {
     headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, Accept: 'application/json' },
@@ -54,5 +63,6 @@ process.stdout.write(`${JSON.stringify({
   drainTarget: await optionalText(join(ringState, 'drain-target')),
   heartbeat,
   activeLease,
+  databaseError,
   stado,
 }, null, 2)}\n`);

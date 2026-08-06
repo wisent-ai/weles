@@ -82,6 +82,56 @@ export function hostPlatform() {
   return `${platform}-${arch}`;
 }
 
+export const DATABASE_CREDENTIAL_SCOPES = Object.freeze({
+  url: Object.freeze({ consumer: 'weles-database-url-bootstrap', item: 'weles-database', field: 'url' }),
+  serviceRoleKey: Object.freeze({ consumer: 'weles-database-service-role-bootstrap', item: 'weles-database', field: 'service_role_key' }),
+});
+
+function skarbiecScopeLabel(scope) {
+  return `${scope.consumer} (${scope.item}/${scope.field})`;
+}
+
+function acquireSkarbiecField(helper, scopeFile, scope) {
+  const endpoint = process.env.WC_SKARBIEC_URL?.trim();
+  if (!endpoint) throw new Error(`Skarbiec scope ${skarbiecScopeLabel(scope)} cannot be acquired without WC_SKARBIEC_URL`);
+  let value;
+  try {
+    value = execFileSync(process.execPath, [helper, endpoint, scopeFile, scope.consumer, scope.item, scope.field], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: process.env,
+    }).trim();
+  } catch (error) {
+    // Only the helper's own diagnostics are surfaced; its stdout carries the secret and is never quoted.
+    const stderr = typeof error?.stderr === 'string' ? error.stderr : '';
+    const detail = stderr.split(/\r?\n/).find((line) => /^[A-Za-z]*Error\b/.test(line))?.trim()
+      ?? (error?.code ? `helper exited with ${error.code}` : 'helper failed');
+    throw new Error(`Skarbiec acquisition failed for scope ${skarbiecScopeLabel(scope)}: ${detail}`);
+  }
+  if (!value) throw new Error(`Skarbiec returned an empty value for scope ${skarbiecScopeLabel(scope)}`);
+  return value;
+}
+
+// Single resolution point for the worker database credentials: the ambient environment when the
+// operator already exported it, otherwise the same Skarbiec contract the worker wrapper uses. The
+// resolved pair stays in process memory and must never be logged, written to disk, or embedded in a
+// receipt.
+export function createDatabaseCredentials({
+  helper = resolve(import.meta.dirname, '../worker/deploy/skarbiec-acquire.mjs'),
+  scopeFile = resolve(import.meta.dirname, '../worker/deploy/skarbiec-acquisition-scopes.conf'),
+} = {}) {
+  let resolved = null;
+  return function databaseCredentials() {
+    if (resolved) return resolved;
+    const baseUrl = process.env.SUPABASE_URL?.trim()
+      || acquireSkarbiecField(helper, scopeFile, DATABASE_CREDENTIAL_SCOPES.url);
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()
+      || acquireSkarbiecField(helper, scopeFile, DATABASE_CREDENTIAL_SCOPES.serviceRoleKey);
+    resolved = Object.freeze({ baseUrl: baseUrl.replace(/\/$/, ''), serviceKey });
+    return resolved;
+  };
+}
+
 function object(value, name) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error(`${name} must be an object`);
   return value;
