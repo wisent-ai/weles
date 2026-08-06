@@ -1,7 +1,7 @@
 // Buy 10 US ISP proxies from Oxylabs via Google SSO + buy-locations flow.
 
 import { WSession } from '../../../../dist/session/wsession.js';
-import { googleSso, getGoogleSsoCreds } from '../../_shared/services/google_sso.mjs';
+import { googleSso, getScopedGoogleLogin } from '../../_shared/services/google_sso.mjs'
 import { fillStripeElements } from '../../_shared/services/topup_common.mjs';
 import { mkdirSync, writeFileSync, existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -30,7 +30,7 @@ async function isVisible(loc) {
   try { return await loc.isVisible(); } catch { return false; }
 }
 
-const login = await getGoogleSsoCreds();
+const login = await getScopedGoogleLogin('oxylabsDashboard');
 if (!login) { console.log('FAIL: no Google SSO creds'); process.exit(1); }
 
 const s = await WSession.start({ label: 'isp_us', browser: 'chromium' });

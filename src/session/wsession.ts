@@ -16,19 +16,27 @@ import { solvePageCaptcha } from '../captcha/detect.js';
 import { CaptchaSolver } from '../captcha/solver.js';
 import { generateIdentity as genId, type Identity } from '../utils/identity.js';
 import { markSignupSuccess } from '../utils/email/domain.js';
+import { snapshotSanitizedEnvironment } from '../utils/sanitize-env.js';
 import { getNumber, pollCode, type SmsNumber } from '../utils/sms.js';
-import { writeFileSync, mkdirSync, copyFileSync, existsSync } from 'node:fs';
+import { writeFileSync, mkdirSync, copyFileSync, existsSync, chmodSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { startInstrumentation } from './wsession-helpers/net_record.js';
 import { join } from 'node:path';
+import { userInfo } from 'node:os';
 import { resolveProxy } from '../proxy/config.js';
 import { seedHumanTiming } from '../utils/timing.js';
 import { getEmailApiKey } from '../utils/credentials.js';
 import { findCustomBrowser } from './find_browser.js';
 import { costTracker } from '../utils/cost.js';
+import { loadOperatorCdpConfig } from './operator-cdp.js';
+import { enforceWelesServicePlacement } from './service-placement.js';
 
 import { installAtoms } from './wsession_atoms.js';  // installAtoms() is invoked at file end after WSession is declared
 import { runRecordingsDir, runRecordingsRoot } from './run-recordings.js';
+import { wsClick, wsFill, wsFillCredential } from './wsession-helpers/finalize.js';
+import { isSkarbiecCredentialTask, wsAutoStoreCredential, wsStoreCredential } from './wsession-helpers/credential-store.js';
+import type { CapabilityRef } from '../utils/capability.js';
+import { assertNonCredentialInput } from '../utils/capability.js';
 // G17: artifacts live under recordings/<run_uuid>/<label-or-action>/ — keyed by
 // the account_action_logs row id (ACTION_LOG_ID) so they map to the run 1:1.
 function recordingsDir(label?: string): string { return label ? runRecordingsDir(label) : runRecordingsRoot(); }
@@ -40,16 +48,17 @@ function recordingsDir(label?: string): string { return label ? runRecordingsDir
 // reflects the live process at session start; unset flags surface as undefined.
 const ENV_FLAG_KEYS = [
   'WELES_INPUT', 'WELES_INSTANT_INPUT', 'WELES_REGISTER_BROWSER',
-  'WELES_ENABLE_CHROME147_STUBS', 'WELES_DISABLE_HTTP2', 'WELES_USE_STOCK_CHROMIUM',
+  'WELES_ENABLE_CHROME147_STUBS', 'WELES_DISABLE_HTTP2',
   'WELES_NO_INSTRUMENT', 'WELES_FULL_DIAGNOSTICS', 'WELES_PCAP_DIAGNOSTICS',
   'WELES_DISABLE_RECORDING', 'WELES_ALLOW_LINKEDIN_DIRECT', 'WELES_ALLOW_LINKEDIN_RESIDENTIAL',
   'WELES_ALLOW_LINKEDIN_UNDECLARED_PROXY', 'LINKEDIN_REGISTER_PREWARM_URLS',
-  'DECODO_ISP_PORTS', 'DECODO_ISP_PORT', 'DECODO_ISP_HOST', 'CHROMIUM_PATH',
-  'WELES_FORCE_PROXY', 'WELES_ALLOW_PLAYWRIGHT_FIREFOX',
+  'DECODO_ISP_PORTS', 'DECODO_ISP_PORT', 'DECODO_ISP_HOST',
+  'WELES_FORCE_PROXY',
   'WELES_CAPTURE_RESPONSE_BODIES', 'WELES_HOST_DIAGNOSTICS', 'WELES_STORAGE_DIAGNOSTICS',
   'WELES_CDP_DIAGNOSTICS', 'WELES_CDP_FIREHOSE', 'WELES_CHROMIUM_NETLOG',
   'WELES_PROXY_DIAGNOSTICS_LABEL', 'WELES_NOPECHA_EXT', 'WELES_USER_DATA_DIR',
-  'WELES_CACHE_DIR', 'WELES_CHROMIUM_PROFILE_DIRECTORY', 'WELES_USE_NATIVE_KEYCHAIN',
+  'WELES_BROWSER_PROFILE_ROOT', 'WELES_CACHE_DIR', 'WELES_CHROMIUM_PROFILE_DIRECTORY',
+  'WELES_USE_NATIVE_KEYCHAIN',
 ] as const;
 function snapshotEnvFlags(): Record<string, string | undefined> {
   const out: Record<string, string | undefined> = {};
@@ -57,18 +66,10 @@ function snapshotEnvFlags(): Record<string, string | undefined> {
   return out;
 }
 
-// G15: full runner env snapshot — EVERY key with its RAW value, so the exact
-// environment a run executed under is fully recoverable. session_meta.json and
-// the account_action_logs rows are readable only by service-role-key holders
-// (the recordings bucket is private), i.e. the same trust boundary as the
-// secrets themselves — storing them here adds no exposure beyond who already
-// holds every key.
+// Keep the complete runner key set for reproducibility, but never persist
+// passwords, tokens, capability identifiers, cookies, or credential URLs.
 function snapshotFullEnv(): Record<string, string> {
-  const out: Record<string, string> = {};
-  for (const [k, v] of Object.entries(process.env)) {
-    if (typeof v === 'string') out[k] = v;
-  }
-  return out;
+  return snapshotSanitizedEnvironment();
 }
 
 export interface WSessionOptions {
@@ -78,7 +79,7 @@ export interface WSessionOptions {
   userDataDir?: string;
   headless?: boolean;
   record?: boolean;
-  cdpEndpoint?: string;
+  operatorCdp?: boolean;
   targetHost?: string;
   os?: string;
   locale?: string;
@@ -91,6 +92,7 @@ export interface WSessionOptions {
   // their platform here instead of importing generateIdentity themselves.
   platform?: string;
 }
+
 
 function redactProxyForLog(proxy: unknown): string {
   if (!proxy) return 'undefined';
@@ -128,17 +130,6 @@ function countryHintFromProxyRequest(proxy: unknown): string | undefined {
   return cc?.toUpperCase();
 }
 
-function resolveChromiumPathOverride(optsPath?: string): string | undefined {
-  const candidates = [
-    optsPath,
-    process.env.CHROMIUM_PATH,
-  ].filter((p): p is string => typeof p === 'string' && p.length > 0);
-  for (const p of candidates) {
-    if (existsSync(p)) return p;
-    console.log(`[wsession] ignoring missing Chromium path: ${p}`);
-  }
-  return findCustomBrowser('chromium');
-}
 
 function shouldCaptureResponseBody(res: any): boolean {
   try {
@@ -182,10 +173,13 @@ export class WSession {
   private _smsOrder: SmsNumber | null = null;
   private _proxyBytes = 0;
   private _cdp: any = null;
+  private _secureCredentialTask = false;
+  private _storedCredentialReceipt: string | null = null;
 
   private constructor(ctx: BrowserContext, page: any, label: string, cap: Capture) {
     this.ctx = ctx; this.page = page; this.label = label; this._cap = cap;
     this._store = new SessionStore(); this._solver = new CaptchaSolver();
+    this._secureCredentialTask = isSkarbiecCredentialTask();
     // Intercept API responses to capture captcha data (Discord register + login)
     const authPaths = ['/auth/register', '/auth/login'];
     page.on?.('request', (req: any) => { try { const u = req.url(); if (authPaths.some(p => u.includes(p)) && req.method() === 'POST') { this.captchaFormData = JSON.parse(req.postData() ?? '{}'); this.captchaEndpoint = u; const h = req.headers(); this.captchaHeaders = {}; for (const k of Object.keys(h)) { if (k.startsWith('x-')) this.captchaHeaders[k] = h[k]; } } } catch {} });
@@ -195,7 +189,7 @@ export class WSession {
         if (this.capturedResponses.length >= 500) this.capturedResponses.shift();
         const entry = { ts: Date.now(), method: res.request()?.method?.() ?? 'GET', url: res.url(), status: res.status(), headers: res.headers(), body: '' };
         this.capturedResponses.push(entry);
-        if (!shouldCaptureResponseBody(res)) return;
+        if (this._secureCredentialTask || !shouldCaptureResponseBody(res)) return;
         void res.text().then((text: string) => { entry.body = text.slice(0, 8192); }, () => {});
       } catch {}
     });
@@ -223,26 +217,65 @@ export class WSession {
     const closed = this.page.isClosed?.() ?? false;
     const vs = this.page.viewportSize?.() ?? {};
     console.log(`[wsession] ${label} START url=${url.slice(0, 80)} closed=${closed} viewport=${vs.width}x${vs.height}`);
-    await this._cap.screenshot(this.page, `before_${label}`).catch(() => {});
-    await this._saveDom(`before_${label}`);
+    if (!this._secureCredentialTask) {
+      await this._cap.screenshot(this.page, `before_${label}`).catch(() => {});
+      await this._saveDom(`before_${label}`);
+    }
     try {
       const result = await fn();
+      if (this._secureCredentialTask) {
+        const stored = await wsAutoStoreCredential(this);
+        if (stored) this._storedCredentialReceipt = stored;
+      }
       console.log(`[wsession] ${label} OK result=${String(result).slice(0, 100)}`);
-      await this._cap.screenshot(this.page, `after_${label}`).catch(() => {});
-      await this._saveDom(`after_${label}`);
+      if (!this._secureCredentialTask) {
+        await this._cap.screenshot(this.page, `after_${label}`).catch(() => {});
+        await this._saveDom(`after_${label}`);
+      }
       return result;
-    } catch (e: any) {
-      console.log(`[wsession] ${label} ERROR ${e.message?.slice(0, 300)}`);
-      await this._cap.screenshot(this.page, `error_${label}`).catch(() => {});
-      await this._saveDom(`error_${label}`);
-      throw e;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.log(`[wsession] ${label} ERROR ${message.slice(0, 300)}`);
+      if (!this._secureCredentialTask) {
+        await this._cap.screenshot(this.page, `error_${label}`).catch(() => {});
+        await this._saveDom(`error_${label}`);
+      }
+      throw error;
     }
+  }
+
+  takeStoredCredentialReceipt(): string | null {
+    const receipt = this._storedCredentialReceipt;
+    this._storedCredentialReceipt = null;
+    return receipt;
   }
 
   private async _saveDom(label: string): Promise<void> { const html = await this.page.content?.().catch(() => null); if (html) writeFileSync(join(recordingsDir(this.label || undefined), `${label}_dom.html`), html); }
 
+  private static automaticUserDataDir(opts: WSessionOptions, browser: string): string | undefined {
+    const accountId = process.env.ACCOUNT_ID?.trim();
+    if (!accountId) return undefined;
+    const action = process.env.ACTION?.trim() ?? '';
+    const inferredPlatform = opts.platform?.trim()
+      || action.split('_').at(Number(false))?.trim()
+      || opts.targetHost?.trim()
+      || 'unknown';
+    const safePlatform = inferredPlatform.toLowerCase().replace(/[^\w.-]+/g, '-');
+    const safeBrowser = browser.toLowerCase().replace(/[^\w.-]+/g, '-');
+    const accountKey = createHash('sha256').update(accountId).digest('hex');
+    const root = process.env.WELES_BROWSER_PROFILE_ROOT?.trim()
+      || join(userInfo().homedir, '.local', 'state', 'weles', 'browser-profiles');
+    const directory = join(root, safePlatform, safeBrowser, accountKey);
+    const ownerOnly = Number.parseInt('700', Number('8'));
+    mkdirSync(directory, { recursive: true, mode: ownerOnly });
+    chmodSync(directory, ownerOnly);
+    return directory;
+  }
+
   static async start(opts: WSessionOptions = {}): Promise<WSession> {
+    enforceWelesServicePlacement('WSession.start');
     const label = opts.label ?? '';
+    const secureCredentialTask = isSkarbiecCredentialTask();
     // G9: one per-run human-timing seed, generated at session start and routed
     // into the shared seeded PRNG so every human mouse/typing jitter draw this
     // run is reproducible from the recorded seed. Unseeded code paths fall back
@@ -251,12 +284,15 @@ export class WSession {
     // required non-null number (result.run.timing_seed).
     const timingSeed = (Math.floor(Math.random() * 0xffffffff) >>> 0);
     seedHumanTiming(timingSeed);
-    const cdp = opts.cdpEndpoint ?? process.env.BRIGHTDATA_BROWSER_WS;
-    console.log(`[wsession] start() label=${label} cdp=${!!cdp} proxy=${redactProxyForLog(opts.proxy)}`);
-    if (label) process.env.WELES_LABEL = label;
-    if (cdp) {
-      const browser = await chromium.connectOverCDP(cdp);
-      const ctx = browser.contexts()[0] || await browser.newContext({ locale: 'en-US' }); const page = ctx.pages()[0] || await ctx.newPage();
+    const operatorCdp = opts.operatorCdp ? loadOperatorCdpConfig() : null;
+    console.log(`[wsession] start() label=${label} operatorCdp=${Boolean(operatorCdp)} proxy=${redactProxyForLog(opts.proxy)}`);
+    if (label && !secureCredentialTask) process.env.WELES_LABEL = label;
+    if (operatorCdp) {
+      const browser = await chromium.connectOverCDP(operatorCdp.endpoint, {
+        headers: { Authorization: `Bearer ${operatorCdp.token}` },
+      });
+      const ctx = browser.contexts().at(Number(false)) || await browser.newContext({ locale: 'en-US' });
+      const page = ctx.pages().at(Number(false)) || await ctx.newPage();
       return new WSession(ctx, page, label, new Capture({ newPage: async () => page } as any, label ? recordingsDir(label) : undefined));
     }
     const proxyRequested = !!opts.proxy && !['none', 'direct'].includes(String(opts.proxy).toLowerCase());
@@ -301,16 +337,23 @@ export class WSession {
     // input-recorder) as a clean-room control for signup A/B tests. (Tested on
     // reddit: toggling it changed nothing — the verify-init gate is exit-IP
     // reputation, not in-page instrumentation. Kept as a knob regardless.)
-    const pageDiagnostics = process.env.WELES_PAGE_DIAGNOSTICS === '0'
+    const pageDiagnostics = secureCredentialTask || process.env.WELES_PAGE_DIAGNOSTICS === '0'
       ? false
       : (opts.pageDiagnostics ?? (label !== 'linkedin_register'));
-    const bOpts: AsyncNewBrowserOptions = { os: persona.os, browser: persona.browser, headless: opts.headless ?? false, recordVideo: opts.record ?? (process.env.WELES_DISABLE_RECORDING !== '1'), locale: opts.locale, persona, proxy, pageDiagnostics, userAgent: opts.userAgent, userDataDir: opts.userDataDir ?? process.env.WELES_USER_DATA_DIR };
-    const cp = bOpts.browser === 'chromium'
-      ? resolveChromiumPathOverride(opts.chromiumPath)
-      : (opts.chromiumPath ?? process.env.CHROMIUM_PATH ?? findCustomBrowser(bOpts.browser));
-    if (bOpts.browser === 'chromium' && !cp) throw new Error('Custom Chromium not found. Set CHROMIUM_PATH or install to a known location.');
-    if (cp && bOpts.browser === 'chromium') bOpts.chromiumPath = cp;
-    if (label) { process.env.SSLKEYLOGFILE = join(recordingsDir(label), 'sslkey.log'); process.env.WELES_LABEL = label; } // SSLKEYLOGFILE = per-session key log for offline HTTP/2 frame decryption from a pcap (Chromium+Firefox both honor it). WELES_LABEL tells async_api where optional Chromium netlog.json belongs. recordingsDir() also mkdirs the parent so Chrome can write at launch.
+    const userDataDir = opts.userDataDir ?? process.env.WELES_USER_DATA_DIR ?? WSession.automaticUserDataDir(opts, persona.browser);
+    const bOpts: AsyncNewBrowserOptions = { os: persona.os, browser: persona.browser, headless: opts.headless ?? (process.env.WELES_HEADLESS === '1'), recordVideo: secureCredentialTask ? false : (opts.record ?? (process.env.WELES_DISABLE_RECORDING !== '1')), locale: opts.locale, persona, proxy, pageDiagnostics, userAgent: opts.userAgent, userDataDir };
+    if (opts.chromiumPath || process.env.CHROMIUM_PATH) {
+      throw new Error('Explicit browser path overrides are retired; configure the exact Stado browser release version and SHA-256');
+    }
+    const cp = findCustomBrowser(bOpts.browser);
+    if (!cp) throw new Error(`Verified ${bOpts.browser} release not found`);
+    if (secureCredentialTask) {
+      delete process.env.SSLKEYLOGFILE;
+      delete process.env.WELES_LABEL;
+    } else if (label) {
+      process.env.SSLKEYLOGFILE = join(recordingsDir(label), 'sslkey.log');
+      process.env.WELES_LABEL = label;
+    }
     const ctx = await AsyncNewBrowser(bOpts);
     const page = ctx.pages()[0] || await ctx.newPage();
     const cap = new Capture({ newPage: async () => page } as any, label ? recordingsDir(label) : undefined);
@@ -403,7 +446,7 @@ export class WSession {
     // Captures every request/response (utf8 + base64), WebSocket frames in both
     // directions, TCP serverAddr, TLS securityDetails. Runs on every WSession —
     // keepers and trajectories — without exception. See net_record.ts.
-    if (process.env.WELES_NO_INSTRUMENT !== '1') startInstrumentation(ws, ctx, label);
+    if (!ws._secureCredentialTask && process.env.WELES_NO_INSTRUMENT !== '1') startInstrumentation(ws, ctx, label);
     return ws;
   }
 
@@ -417,8 +460,17 @@ export class WSession {
 
   // Method bodies extracted to ./wsession-helpers/finalize.ts to fit the
   // 300-line per-file cap. wsClose has the BD provider classifier fix.
-  async click(target: string): Promise<string> { const { wsClick } = await import('./wsession-helpers/finalize.js'); return wsClick(this, target); }
-  async fill(target: string, value: string): Promise<string> { const { wsFill } = await import('./wsession-helpers/finalize.js'); return wsFill(this, target, value); }
+  async click(target: string): Promise<string> { return wsClick(this, target); }
+  async fill(target: string, value: string): Promise<string> { return wsFill(this, target, value); }
+  async fillCredential(
+    target: string,
+    fieldClass: 'password' | 'email' | 'username' | 'token' | 'api-key',
+    capability: CapabilityRef,
+  ): Promise<string> { return wsFillCredential(this, target, fieldClass, capability); }
+  async storeCredential(target: string, fieldClass: 'token' | 'api-key'): Promise<string> {
+    return wsStoreCredential(this, target, fieldClass);
+  }
+
 
   async focus(selector: string): Promise<string> {
     return this.runStep(`focus_${selector}`, async () => {
@@ -435,6 +487,26 @@ export class WSession {
       const sel = JSON.stringify(selector ?? ''), txt = JSON.stringify((text ?? '').toLowerCase());
       const sr = await this.page.evaluate(`(()=>{var t=${txt};function F(r){var a=[];r.querySelectorAll('*').forEach(function(e){if(e.shadowRoot){var sr=e.shadowRoot;a=a.concat(Array.from(sr.querySelectorAll('[data-post-click-location] button')));a=a.concat(F(sr))}});return a}var bs=F(document);if(t&&t.indexOf('upvote')>=0&&bs.length>0){bs[0].click();return'clicked upvote (shadow)'}if(t&&t.indexOf('downvote')>=0&&bs.length>1){bs[1].click();return'clicked downvote (shadow)'}return null})()`).catch(() => null);
       if (sr) return sr;
+      for (const frame of this.page.frames?.() ?? []) {
+        if (frame === this.page.mainFrame?.()) continue;
+        if (selector) {
+          try {
+            const loc = frame.locator(selector).first();
+            if (await loc.count()) { await loc.click(); return `clicked frame: ${selector.slice(0, 60)}`; }
+          } catch { /* try frame eval */ }
+        }
+        if (text) {
+          try {
+            const loc = frame.getByText(new RegExp(text, 'i')).first();
+            if (await loc.count() && await loc.isVisible({ timeout: 1500 }).catch(() => false)) {
+              await humanClickLocator(this.page, loc);
+              return `clicked frame text: ${text.slice(0, 60)}`;
+            }
+          } catch { /* try frame eval */ }
+        }
+        const frameHit = await frame.evaluate(`(()=>{function F(r,s){var a=Array.from(r.querySelectorAll(s));r.querySelectorAll('*').forEach(function(e){if(e.shadowRoot)a=a.concat(F(e.shadowRoot,s))});return a}var s=${sel},t=${txt};function fire(e){e.click();if((e instanceof HTMLInputElement)&&(e.type==='checkbox'||e.type==='radio')){e.checked=true;e.dispatchEvent(new Event('input',{bubbles:true}));e.dispatchEvent(new Event('change',{bubbles:true}))}}if(s){try{var e=F(document,s)[0];if(e){fire(e);return'clicked-frame-untrusted: '+s}}catch(e){}}if(t){var els=F(document,'label,button,a,[role="button"],[role="checkbox"],[role="radio"],input[type="checkbox"],input[type="radio"]');for(var i=0;i<els.length;i++){var x=((els[i].textContent||'')+(els[i].getAttribute('aria-label')||'')+(els[i].getAttribute('name')||'')).toLowerCase();if(x.indexOf(t)>=0){fire(els[i]);var forId=els[i].getAttribute&&els[i].getAttribute('for');if(forId){var input=document.getElementById(forId);if(input)fire(input)}return'clicked-frame-untrusted: '+x.trim().slice(0,40)}}}return null})()`).catch(() => null);
+        if (frameHit) return frameHit;
+      }
       if (selector) { try { const loc = this.page.locator(selector).first(); if (await loc.count()) { await loc.click(); return `clicked: ${selector.slice(0, 60)}`; } } catch { /* try eval */ } }
       if (text) { try { const loc = this.page.getByRole('button', { name: new RegExp(text, 'i') }).first(); if (await loc.count()) { await loc.click(); return `clicked text: ${text.slice(0, 60)}`; } } catch { /* try eval */ } }
       const r = await this.page.evaluate(`(()=>{function F(r,s){var a=Array.from(r.querySelectorAll(s));r.querySelectorAll('*').forEach(function(e){if(e.shadowRoot)a=a.concat(F(e.shadowRoot,s))});return a}var s=${sel},t=${txt};if(s){try{var e=F(document,s)[0];if(e){e.click();return'clicked-untrusted: '+s}}catch(e){}}if(t){var els=F(document,'button,a,[role="button"],[class*="vote"],[class*="like"],[class*="star"],[class*="follow"]');for(var i=0;i<els.length;i++){var x=((els[i].textContent||'')+(els[i].getAttribute('aria-label')||'')).toLowerCase();if(x.indexOf(t)>=0){els[i].click();return'clicked-untrusted: '+(els[i].getAttribute('aria-label')||els[i].textContent||'').trim().slice(0,40)}}}return null})()`).catch(() => null);
@@ -443,9 +515,82 @@ export class WSession {
   }
 
   async clickSelector(selector: string): Promise<string> { return this.runStep(`clickSel_${selector.slice(0,30)}`, async () => { const loc = this.page.locator(selector).first(); if (!(await loc.count())) return 'no-element-found'; const { humanClickLocator } = await import('../human/mouse.js'); await humanClickLocator(this.page, loc); return `clicked ${selector.slice(0,60)}`; }); }
-  async type(value: string): Promise<string> { return this.runStep('type', async () => { await humanType(this.page, this.resolveEnv(value)); return 'typed'; }); }
+  async type(value: string): Promise<string> {
+    const literal = assertNonCredentialInput(value);
+    return this.runStep('type', async () => { await humanType(this.page, literal); return 'typed'; });
+  }
   async press(key: string): Promise<string> { return this.runStep(`press_${key}`, async () => { await this.page.keyboard.press(key); return `pressed ${key}`; }); }
   async select(target: string, value: string): Promise<string> { return this.runStep(`select_${target}_${value}`, async () => { const result = await selectOption(this.page, target, this.resolveEnv(value)); return result ? `selected: ${result}` : 'no-select-found'; }); }
+
+  async setControl(selector: string, value?: unknown, checked?: unknown): Promise<string> {
+    return this.runStep(`setControl_${selector.slice(0, 60)}`, async () => {
+      if (!selector.trim()) return 'no-selector';
+      const resolvedValue = typeof value === 'string' ? this.resolveEnv(value) : value;
+      const desiredChecked = typeof checked === 'boolean' ? checked : undefined;
+      const frames = [this.page.mainFrame?.(), ...(this.page.frames?.() ?? [])]
+        .filter((frame, index, all) => frame && all.indexOf(frame) === index);
+      for (const frame of frames) {
+        const result = await frame.evaluate((args: { selector: string; value: unknown; checked?: boolean }) => {
+          const { selector, value, checked } = args;
+          const el = document.querySelector(selector) as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement | null;
+          if (!el) return null;
+          el.scrollIntoView?.({ block: 'center', inline: 'center' });
+          const tag = el.tagName.toLowerCase();
+          const input = el as HTMLInputElement;
+          const fire = () => {
+            el.dispatchEvent(new Event('input', { bubbles: true }));
+            el.dispatchEvent(new Event('change', { bubbles: true }));
+            el.dispatchEvent(new Event('blur', { bubbles: true }));
+          };
+          if (tag === 'select') {
+            const select = el as HTMLSelectElement;
+            const wanted = String(value ?? '').toLowerCase();
+            let matched = false;
+            for (const option of Array.from(select.options)) {
+              const text = option.text.toLowerCase();
+              const optionValue = option.value.toLowerCase();
+              if (text === wanted || optionValue === wanted || text.includes(wanted) || optionValue.includes(wanted)) {
+                select.value = option.value;
+                matched = true;
+                break;
+              }
+            }
+            if (!matched && value != null) select.value = String(value);
+            fire();
+          } else if (input.type === 'checkbox' || input.type === 'radio') {
+            input.checked = typeof checked === 'boolean' ? checked : true;
+            fire();
+          } else {
+            const v = String(value ?? '');
+            const proto = input instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+            const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+            if (setter) setter.call(el, v);
+            else (el as HTMLInputElement | HTMLTextAreaElement).value = v;
+            fire();
+          }
+          const selectedText = tag === 'select'
+            ? ((el as HTMLSelectElement).selectedOptions[0]?.text ?? '')
+            : '';
+          const validation = Array.from(document.querySelectorAll('.hs-error-msg, .hs-error-msgs label, [role="alert"], .error, .invalid, .field-error'))
+            .map((node) => (node.textContent ?? '').replace(/\s+/g, ' ').trim())
+            .filter(Boolean)
+            .slice(0, 6);
+          return {
+            tag,
+            type: input.type || '',
+            name: input.name || '',
+            valuePresent: 'value' in input ? Boolean(input.value) : false,
+            valueLength: 'value' in input ? String(input.value ?? '').length : 0,
+            selectedText,
+            checked: typeof input.checked === 'boolean' ? input.checked : undefined,
+            validation,
+          };
+        }, { selector, value: resolvedValue, checked: desiredChecked }).catch((error: Error) => ({ error: error.message.slice(0, 160) }));
+        if (result) return `set_control ${JSON.stringify(result).slice(0, 500)}`;
+      }
+      return 'no-element-found';
+    });
+  }
 
   async scroll(direction: string, amount?: number): Promise<string> {
     return this.runStep(`scroll_${direction}`, async () => {

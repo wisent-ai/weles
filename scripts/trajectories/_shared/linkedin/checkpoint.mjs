@@ -2,6 +2,7 @@ import { CaptchaSolver } from '../../../../dist/captcha/solver.js';
 import { solveRecaptchaV2 as solveRecaptchaV2InPage } from '../../../../dist/captcha/recaptcha.js';
 import { humanIdlePause, humanClickLocator } from '../../../../dist/human/mouse.js';
 import { humanType } from '../../../../dist/human/keyboard.js';
+import { readScopedSecret } from '../../../_shared/scoped-secrets.mjs';
 
 const RECAPTCHA_SITEKEY = '6LcIy_MqAAAAAMKiupFSbmzW3xjGSlIfRzNWYMjC';
 const CHECKPOINT_RE = /\/(checkpoint|uas\/login|login\/recovery)/;
@@ -14,7 +15,7 @@ async function solveEmailPinChallenge({ page }, email) {
   const pageKey = await page.evaluate(`(()=>document.querySelector('meta[name="pageKey"]')?.content||'')()`).catch(() => '');
   if (!pageKey.includes('emailPinChallenge')) return { ok: false, reason: 'not_email_pin_challenge' };
   console.log(`[linkedin_login] emailPinChallenge detected for ${email} — fetching code from Resend`);
-  const RESEND_KEY = process.env.RESEND_RECEIVING_API_KEY;
+  const RESEND_KEY = readScopedSecret('resendReceiving', 'api_key');
   if (!RESEND_KEY) return { ok: false, reason: 'no_resend_api_key' };
   // Only accept emails that arrived AFTER /checkpoint was loaded — earlier
   // PINs from prior login attempts are expired. LinkedIn issues a fresh
@@ -170,8 +171,8 @@ export async function solveLinkedinCheckpoint({ ctx, page }, reason, email) {
 // the banner.
 const CONFIRM_GOTO_MS = 30 * 1000;
 export async function confirmLinkedinEmail(page, email) {
-  const RESEND_KEY = process.env.RESEND_RECEIVING_API_KEY;
-  if (!RESEND_KEY) { console.log('[linkedin_register] no RESEND_RECEIVING_API_KEY — skipping email confirmation'); return { ok: false, reason: 'no_resend_key' }; }
+  const RESEND_KEY = readScopedSecret('resendReceiving', 'api_key');
+  if (!RESEND_KEY) { console.log('[linkedin_register] exact Resend receiving grant unavailable'); return { ok: false, reason: 'no_resend_key' }; }
   const start = Date.now() - 10 * 60 * 1000;
   let confirmUrl = null;
   for (let i = 0; i < 18; i++) {

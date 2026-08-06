@@ -13,12 +13,12 @@
 // closes — re-running this trajectory mints a fresh key.
 //
 // Run: node scripts/trajectories/linear/get_api_key.mjs [label]
-import { getServiceLogin } from '../../../dist/utils/credentials.js';
+import { readScopedLogin } from '../../_shared/scoped-secrets.mjs';
 import { WSession } from '../../../dist/session/wsession.js';
 import { SessionStore } from '../../../dist/session/store.js';
 import { humanIdlePause, humanClickLocator } from '../../../dist/human/mouse.js';
 import { humanFill } from '../../../dist/human/keyboard.js';
-import { readFileSync, existsSync, mkdirSync, writeFileSync, chmodSync } from 'node:fs';
+import { mkdirSync, writeFileSync, chmodSync } from 'node:fs';
 import { dirname } from 'node:path';
 
 const LABEL = process.argv[2] || 'oko';
@@ -37,20 +37,11 @@ const TOKEN_PATH = `${process.env.HOME}/.linear/token`;
 const PRINT_SECRETS = process.env.PRINT_SECRETS === '1';
 
 async function resolveCreds() {
-  const svc = await getServiceLogin(DISPLAY_NAME);
-  if (svc?.email && svc?.password) return { email: svc.email, password: svc.password, source: 'service_credentials' };
-  const ssoEnv = `${process.env.HOME}/Documents/CodingProjects/Wisent/weles/.work/_sso.env`;
-  if (existsSync(ssoEnv)) {
-    const txt = readFileSync(ssoEnv, 'utf8');
-    const email = (txt.match(/^SSO_EMAIL=(.+)$/m) || [])[1];
-    const pass = (txt.match(/^SSO_PASS=(.+)$/m) || [])[1];
-    if (email && pass) return { email, password: pass, source: '_sso.env' };
-  }
-  return null;
+  return { ...readScopedLogin('linearDashboard'), source: 'skarbiec' };
 }
 
 const creds = await resolveCreds();
-if (!creds) { console.log(`FAIL: no Linear credentials (service_credentials + _sso.env both empty)`); process.exit(1); }
+if (!creds) throw new Error('scoped Linear credentials are unavailable');
 console.log(`[linear-key] credentials from ${creds.source}: ${creds.email}`);
 console.log(`[linear-key] label="${LABEL}"`);
 

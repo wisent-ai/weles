@@ -5,8 +5,9 @@ import { humanIdlePause, humanClickLocator } from '../../dist/human/mouse.js';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-const OUT = join(process.cwd(), '.work', 'oxylabs_replace_ips_inspect');
+const OUT = join(process.cwd(), '.work', 'oxylabs_replace_ips_inspect')
 mkdirSync(OUT, { recursive: true });
+
 
 const login = await getGoogleSsoCreds();
 if (!login) { console.log('FAIL: no Google SSO creds'); process.exit(1); }

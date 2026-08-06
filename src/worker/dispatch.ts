@@ -16,6 +16,8 @@
 // New trajectories MUST add a branch here; otherwise resolveTrajectory will
 // return null and the queued row will be silently skipped at the claim step.
 
+import { parseAppleLoginCapabilities } from '../utils/apple-login-capabilities.js';
+
 const benignPath = 'scripts/trajectories/_shared/benign.mjs';
 const analyticsServicePath = 'scripts/trajectories/_shared/analytics-service.mjs';
 
@@ -89,10 +91,10 @@ const ROUTES: Record<string, (p: string) => string | null> = {
   browser_task: (p) => p === 'generic' ? 'scripts/trajectories/generic/browser_task.mjs' : null,
   saved_task: (p) => p === 'generic' ? 'scripts/trajectories/generic/saved_task.mjs' : null,
   keeper_task: (p) => p === 'generic' ? 'scripts/trajectories/generic/keeper_task.mjs' : null,
+  key_followup: (p) => p === 'semanticscholar' ? 'scripts/trajectories/semanticscholar/key_followup.mjs' : null,
   version_history_scan: (p) => p === 'overleaf' ? 'scripts/trajectories/overleaf/version_history_ui_phrase.mjs' : null,
   push_github: (p) => p === 'overleaf' ? 'scripts/trajectories/overleaf/push_github.mjs' : null,
   pull_github: (p) => p === 'overleaf' ? 'scripts/trajectories/overleaf/pull_github.mjs' : null,
-  reauth: (p) => (p === 'claude' || p === 'codex' || p === 'kimi') ? `scripts/trajectories/${p}/reauth.mjs` : null,
 
   browse: (p) => p === 'github' ? 'scripts/trajectories/github/actions/browse.mjs' : `scripts/trajectories/${p}/browse.mjs`,
   health: (p) => p === 'github' ? 'scripts/trajectories/github/health/run.mjs' : `scripts/trajectories/${p}/health.mjs`,
@@ -111,7 +113,6 @@ const ROUTES: Record<string, (p: string) => string | null> = {
   ads_verify_access: (p) => p === 'meta' ? 'scripts/trajectories/meta/ads_verify_access.mjs'
     : p === 'google' ? 'scripts/trajectories/google/ads/ads_verify_access.mjs'
     : null,
-  ads_oauth_connect: (p) => p === 'meta' ? 'scripts/trajectories/meta/ads_oauth_connect_content_platform.mjs' : null,
   ads_cli_campaign: (p) => p === 'meta' ? 'scripts/trajectories/meta/ads_cli_campaign.mjs' : null,
   ads_api_campaign: (p) => p === 'meta' ? 'scripts/trajectories/meta/ads_api_campaign.mjs'
     : p === 'google' ? 'scripts/trajectories/google/ads/ads_api_campaign.mjs'
@@ -214,7 +215,7 @@ const ROUTES: Record<string, (p: string) => string | null> = {
   ads_rejection_reasons: (p) => p === 'apple' ? 'scripts/trajectories/apple/ads/run.mjs' : null,
   ads_rejection_reason_view: (p) => p === 'apple' ? 'scripts/trajectories/apple/ads/run.mjs' : null,
   ads_api_request: (p) => p === 'apple' ? 'scripts/trajectories/apple/ads/run.mjs' : null,
-  native_2fa: (p) => p === 'apple' ? 'scripts/trajectories/apple/native_2fa/run.mjs' : null,
+  native_2fa: (_p) => null,
   appstore_submit: (p) => p === 'apple' ? 'scripts/trajectories/apple/asc/asc_submit.mjs'
     : p === 'google' ? 'scripts/trajectories/google/play/play_submit.mjs'
     : null,
@@ -248,6 +249,8 @@ const ROUTES: Record<string, (p: string) => string | null> = {
     if (p === 'facebook' || p === 'threads') return `scripts/trajectories/meta/${p}_login.mjs`;
     return `scripts/trajectories/${p}_login.mjs`;
   },
+  create_developer_id: (p) => p === 'apple' ? 'scripts/trajectories/apple/create_developer_id.mjs' : null,
+  login_search: (p) => p === 'gmail' ? 'scripts/trajectories/gmail/gmail_login_search.mjs' : null,
   // Cross-platform OAuth login. Action shape: <platform>_login_via_<provider>,
   // e.g. reddit_login_via_apple, tiktok_login_via_google, linkedin_login_via_microsoft.
   // The verb-side dispatcher below catches `login_via_<provider>` and routes to
@@ -301,6 +304,14 @@ const ROUTES: Record<string, (p: string) => string | null> = {
   bookmark: (p) => `scripts/trajectories/${p}/actions/bookmark.mjs`,
   save: (p) => `scripts/trajectories/${p}/actions/save.mjs`,
   reset_password: (p) => p === 'github' ? 'scripts/trajectories/github/recover/reset_password.mjs' : `scripts/trajectories/${p}_reset_password.mjs`,
+  verify_password: (p) => p === 'microsoft' ? 'scripts/trajectories/microsoft_verify_password.mjs' : null,
+  // Entra directory identities are a separate lifecycle from consumer Microsoft
+  // accounts: <platform>_<verb> splits on the first underscore, so the verb here
+  // is entra_adopt_password / entra_reset_password / entra_verify_password on
+  // platform microsoft.
+  entra_adopt_password: (p) => p === 'microsoft' ? 'scripts/trajectories/microsoft_entra_adopt_password.mjs' : null,
+  entra_reset_password: (p) => p === 'microsoft' ? 'scripts/trajectories/microsoft_entra_reset_password.mjs' : null,
+  entra_verify_password: (p) => p === 'microsoft' ? 'scripts/trajectories/microsoft_entra_verify_password.mjs' : null,
   balance: (p) => PROXY_PROVIDERS.has(p) ? `scripts/trajectories/${p}/balance.mjs` : `scripts/trajectories/${p}_balance.mjs`,
   topup: (p) => PROXY_PROVIDERS.has(p) ? `scripts/trajectories/${p}/topup.mjs` : null,
   analyze_text: (p) => p === 'pangram' ? 'scripts/trajectories/pangram/analyze_text.mjs' : null,
@@ -351,20 +362,59 @@ export function paramsToEnv(
       ['objective', 'GENERIC_TASK_OBJECTIVE'],
       ['flow_name', 'GENERIC_TASK_FLOW_NAME'],
       ['proxy', 'GENERIC_TASK_PROXY'],
+            ['session_label', 'GENERIC_TASK_LABEL'],
+            ['admin_credential_id', 'GENERIC_TASK_ADMIN_CREDENTIAL_ID'],
     ];
     for (const [key, envKey] of passthrough) {
       const value = params[key];
       if (typeof value === 'string') env[envKey] = value;
     }
     if (params.headless === true || params.headless === '1') env.GENERIC_TASK_HEADLESS = '1';
+        // People-lifecycle runs reuse one seeded admin session per platform. Derive
+        // the canonical WSession label + admin credential id from the platform_key
+        // the payload already carries, unless the payload set them explicitly.
+        const lifecycleEnv = params.env && typeof params.env === 'object' ? params.env as Record<string, unknown> : {};
+        const lifecyclePlatform = typeof lifecycleEnv.platform_key === 'string' ? lifecycleEnv.platform_key : '';
+        const lifecycleFlow = typeof params.flow_name === 'string' ? params.flow_name : '';
+        if (lifecyclePlatform && lifecycleFlow.startsWith('people_')) {
+          if (!env.GENERIC_TASK_LABEL) env.GENERIC_TASK_LABEL = `people-admin-${lifecyclePlatform}`;
+          if (!env.GENERIC_TASK_ADMIN_CREDENTIAL_ID) env.GENERIC_TASK_ADMIN_CREDENTIAL_ID = `platform-admin-${lifecyclePlatform}`;
+        }
     const constraints = params.constraints;
     if (constraints && typeof constraints === 'object') env.GENERIC_TASK_CONSTRAINTS = JSON.stringify(constraints);
     const taskEnv = params.env;
     if (taskEnv && typeof taskEnv === 'object') env.GENERIC_TASK_ENV = JSON.stringify(taskEnv);
   }
+  if (trajPath.endsWith('/microsoft_reset_password.mjs')
+      || trajPath.endsWith('/microsoft_verify_password.mjs')
+      || trajPath.endsWith('/microsoft_entra_adopt_password.mjs')
+      || trajPath.endsWith('/microsoft_entra_reset_password.mjs')
+      || trajPath.endsWith('/microsoft_entra_verify_password.mjs')) {
+    const constraints = params.constraints;
+    if (constraints && typeof constraints === 'object') {
+      env.WELES_CREDENTIAL_CONSTRAINTS = JSON.stringify(constraints);
+    }
+  }
+  if (trajPath.endsWith('/gmail/gmail_login_search.mjs')) {
+    const query = params.query ?? params.q;
+    if (typeof query === 'string') env.GM_QUERY = query;
+    const max = params.max;
+    if (typeof max === 'number' || typeof max === 'string') env.GM_MAX = String(max);
+    if (params.open === false || params.open === '0') env.GM_OPEN = '0';
+    else env.GM_OPEN = '1';
+  }
   if (trajPath.endsWith('/generic/saved_task.mjs')) {
     const trajectoryId = params.trajectory_id;
     if (typeof trajectoryId === 'string') env.GENERIC_SAVED_TRAJECTORY_ID = trajectoryId;
+  }
+  if (trajPath.endsWith('/semanticscholar/key_followup.mjs')) {
+    const sourceActionLogId = params.source_action_log_id;
+    if (typeof sourceActionLogId === 'string') env.SOURCE_ACTION_LOG_ID = sourceActionLogId;
+    const attempt = params.attempt;
+    if (typeof attempt === 'number' || typeof attempt === 'string') env.ATTEMPT = String(attempt);
+    env.SEMANTIC_SCHOLAR_TENANT_ID = typeof params.tenant_id === 'string'
+      ? params.tenant_id
+      : '';
   }
   if (trajPath.endsWith('/overleaf/version_history_ui_phrase.mjs')) {
     const project = params.project ?? params.overleaf_project ?? params.project_id;
@@ -480,6 +530,41 @@ export function paramsToEnv(
     if (params.apple_ads_close_after_probe === true || params.apple_ads_close_after_probe === '1') env.APPLE_ADS_CLOSE_AFTER_PROBE = '1';
     if (typeof params.apple_ads_diag_dir === 'string') env.APPLE_ADS_DIAG_DIR = params.apple_ads_diag_dir;
   }
+  if (trajPath.endsWith('/apple/login.mjs') || trajPath.endsWith('/apple/create_developer_id.mjs')) {
+    const guardId = params.apple_auth_guard_id;
+    if (typeof guardId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(guardId)) {
+      throw new Error('apple_auth_guard_id must be a valid UUID for apple_login');
+    }
+    const executionHost = params.apple_execution_host;
+    const executionAgent = params.apple_execution_agent;
+    if (typeof executionHost !== 'string' || !/^[A-Za-z0-9](?:[A-Za-z0-9._-]{0,251}[A-Za-z0-9])?$/.test(executionHost)) {
+      throw new Error('apple_execution_host is required for apple_login');
+    }
+    if (typeof executionAgent !== 'string' || !/^[A-Za-z0-9](?:[A-Za-z0-9._-]{0,198}[A-Za-z0-9])?$/.test(executionAgent)) {
+      throw new Error('apple_execution_agent is required for apple_login');
+    }
+    if (params.apple_login_capabilities === undefined) {
+      throw new Error('apple_login_capabilities are required for apple_login');
+    }
+    env.APPLE_AUTH_GUARD_ID = guardId;
+    env.APPLE_EXECUTION_HOST = executionHost;
+    env.APPLE_EXECUTION_AGENT = executionAgent;
+    env.APPLE_LOGIN_CAPABILITIES_JSON = JSON.stringify(
+      parseAppleLoginCapabilities(params.apple_login_capabilities, guardId),
+    );
+    // Apple credentials and capability identifiers must never enter videos,
+    // HAR/netlog, CDP dumps, page snapshots, or response-body recordings.
+    env.WELES_DISABLE_RECORDING = '1';
+    env.WELES_NO_RESPONSE_BODIES = '1';
+    env.WELES_CHROMIUM_NETLOG = '0';
+    env.WELES_FULL_DIAGNOSTICS = '0';
+    env.WELES_NO_INSTRUMENT = '1';
+    env.WELES_PAGE_DIAGNOSTICS = '0';
+    if (trajPath.endsWith('/apple/create_developer_id.mjs')) {
+      if (typeof params.apple_csr_path === 'string') env.APPLE_CSR_PATH = params.apple_csr_path;
+      if (typeof params.apple_certificate_path === 'string') env.APPLE_CERTIFICATE_PATH = params.apple_certificate_path;
+    }
+  }
   if (trajPath.endsWith('/apple/native_2fa/run.mjs')) {
     if (typeof params.apple_2fa_code_file === 'string') env.APPLE_2FA_CODE_FILE = params.apple_2fa_code_file;
     if (typeof params.apple_2fa_wait_ms === 'number') env.APPLE_2FA_WAIT_MS = String(params.apple_2fa_wait_ms);
@@ -524,7 +609,6 @@ export function paramsToEnv(
   if (typeof params.pangram_register_after_credit_failures === 'string') env.PANGRAM_REGISTER_AFTER_CREDIT_FAILURES = params.pangram_register_after_credit_failures;
   if (trajPath.endsWith('/ncbr/pangram_audit_new_wniosek.mjs')) {
     if (typeof params.ncbr_project_id === 'string') env.NCBR_PROJECT_ID = params.ncbr_project_id;
-    if (typeof params.ncbr_cdp_endpoint === 'string') env.NCBR_CDP_ENDPOINT = params.ncbr_cdp_endpoint;
     if (typeof params.section_pattern === 'string') env.SECTION_PATTERN = params.section_pattern;
     if (typeof params.min_chars === 'number') env.MIN_CHARS = String(params.min_chars);
     if (typeof params.min_chars === 'string') env.MIN_CHARS = params.min_chars;

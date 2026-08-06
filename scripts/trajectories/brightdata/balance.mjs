@@ -1,8 +1,8 @@
 // Bright Data balance check via real browser login. Account was created with
 // Google SSO so the customer portal refuses password login ("You already
-// created an account using Google"). Drive Google SSO; password stored in
-// service_credentials.login_password IS the Google password.
-import { getServiceLogin } from '../../../dist/utils/credentials.js';
+// created an account using Google"). The exact dashboard login is resolved
+// only through the dedicated Bright Data Skarbiec consumer.
+import { getScopedGoogleLogin } from '../_shared/services/google_sso.mjs'
 import { WSession } from '../../../dist/session/wsession.js';
 import { googleSso, parseBalanceFromText } from '../_shared/services/google_sso.mjs';
 import { patchEffectiveBalance } from '../_shared/services/proxy_probe.mjs';
@@ -15,8 +15,8 @@ const LOGIN_URL = 'https://brightdata.com/cp/login';
 const DASH_URL  = 'https://brightdata.com/cp/api_example';
 const DISPLAY_NAME = 'Bright Data';
 
-const login = await getServiceLogin(DISPLAY_NAME);
-if (!login) { console.log('FAIL: no Bright Data credentials in DB'); process.exit(1); }
+const login = await getScopedGoogleLogin('brightdataDashboard');
+if (!login) { console.log('FAIL: dedicated Bright Data login is unavailable'); process.exit(Number('1')); }
 console.log(`[trajectory] Using service login: ${login.email}`);
 
 const s = await WSession.start({ label: 'brightdata_balance', browser: 'chromium' });

@@ -55,8 +55,8 @@ function redactRequestBody(url: string, body: string): { body: string; redacted:
 }
 
 // One merged fingerprint artifact per run, written under recordings/<label>/ so
-// the worker uploader (src/worker/upload-artifacts.ts) picks it up alongside
-// webm + DOM snapshots and pushes everything to Supabase Storage in one batch.
+// the worker uploader (src/worker/upload-artifacts.ts) preserves it with webm
+// and DOM snapshots under the private stado://weles/recordings/ tree.
 // The dump shape ({accesses, requests, console, pageerrors, persona, proxy,
 // versions, label, started_at}) covers every page-side + network channel
 // captured by WSession; the screenshots/DOM/webm artifacts in the same dir are

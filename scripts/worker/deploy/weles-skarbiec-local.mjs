@@ -2,6 +2,36 @@
 
 import { lstatSync, readFileSync } from 'node:fs';
 
+const WIRE_VERSION = 'skarbiec.credential-operation.v3';
+const ENTRA_PROVIDER = 'microsoft_entra';
+const ENTRA_ORIGIN = 'https://login.microsoftonline.com';
+const FLOW_NAME = 'microsoft-entra-password-lifecycle';
+const CREDENTIAL_ID = /^weles-microsoft-[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?-password$/;
+const LOWER_UUID = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/;
+const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+const DIAGNOSTIC_CODE = /^[A-Z][A-Z0-9_]{0,63}$/;
+const CONTROL_CHARACTERS = /[\u0000-\u001f\u007f]+/g;
+const PHASES = Object.freeze([
+  'admission',
+  'placement',
+  'credential_read',
+  'entra_sign_in',
+  'identity_verification',
+  'password_change',
+  'fresh_login_verification',
+  'skarbiec_stage',
+  'skarbiec_commit',
+  'rollback',
+]);
+const ROLLBACK_STATUSES = Object.freeze(['none', 'completed', 'failed', 'unknown']);
+const OPERATIONS = Object.freeze(['adopt', 'rotate', 'reset', 'verify']);
+const PROVIDER_EFFECTS = Object.freeze(['none', 'changed', 'unknown']);
+const APPROVAL_ID = /^[A-Za-z\d._-]{1,64}$/;
+const RESUME_TOKEN = /^[A-Za-z\d._-]{1,128}$/;
+const ISO_TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?Z$/;
+const HEX_64 = /^[a-f\d]{64}$/i;
+const ACTION_LOG_ID = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i;
+
 const chunks = [];
 let received = Number('0');
 for await (const chunk of process.stdin) {
@@ -17,16 +47,35 @@ try {
   bytes.fill(Number('0'));
   for (const chunk of chunks) chunk.fill(Number('0'));
 }
-if (!request || typeof request !== 'object' || Array.isArray(request)
-    || request.version !== 'skarbiec.credential-operation.v1'
-    || !/^[a-f\d]{64}$/i.test(request.request_id ?? '')
-    || !/^weles-microsoft-[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?-password$/.test(request.credential_id ?? '')
-    || !['rotate', 'verify'].includes(request.operation)
-    || request.provider !== 'microsoft'
-    || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(request.account_email ?? '')
-    || !['submit', 'status'].includes(request.mode)) {
-  throw new Error('invalid Microsoft credential lifecycle request');
+if (!request || typeof request !== 'object' || Array.isArray(request)) {
+  throw new Error('invalid Entra credential lifecycle request');
 }
+// The directory identity is the item's own contract, so the request carries the
+// whole canonical block or none of it, and nothing outside it names the identity.
+const directory = objectOrEmpty(request.directory);
+if (request.version !== WIRE_VERSION
+    || !/^[a-f\d]{64}$/i.test(request.request_id ?? '')
+    || !CREDENTIAL_ID.test(request.credential_id ?? '')
+    || !OPERATIONS.includes(request.operation)
+    || request.provider !== ENTRA_PROVIDER
+    || request.field !== 'password'
+    || directory.provider !== ENTRA_PROVIDER
+    || !EMAIL.test(directory.account_upn ?? '')
+    || !LOWER_UUID.test(directory.tenant_id ?? '')
+    || !LOWER_UUID.test(directory.principal_object_id ?? '')
+    || (request.account_email !== null && request.account_email !== undefined
+      && !EMAIL.test(request.account_email))
+    || !['submit', 'status'].includes(request.mode)) {
+  throw new Error('invalid Entra credential lifecycle request');
+}
+
+const requestId = request.request_id.toLowerCase();
+const accountUpn = directory.account_upn.trim().toLowerCase();
+const tenantId = directory.tenant_id.trim().toLowerCase();
+const principalObjectId = directory.principal_object_id.trim().toLowerCase();
+const accountEmail = typeof request.account_email === 'string'
+  ? request.account_email.trim().toLowerCase()
+  : '';
 
 const databaseUrl = process.env.WELES_DATABASE_URL?.replace(/\/+$/, '') ?? '';
 const databaseToken = process.env.WELES_DATABASE_TOKEN ?? '';
@@ -46,60 +95,194 @@ function safeOwnedFile(path, label) {
   }
 }
 
+function sanitizedText(value, limit) {
+  if (typeof value !== 'string') return '';
+  return value.replace(CONTROL_CHARACTERS, ' ').trim().slice(Number('0'), limit);
+}
+
+function objectOrEmpty(value) {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+}
+
+// An approval is a lease, so it is all six fields or nothing: a partial object
+// has no resumable identity and is dropped instead of forwarded.
+function approvalResource(source) {
+  const approval = objectOrEmpty(source.approval);
+  const approvalId = sanitizedText(approval.approval_id, Number('64'));
+  const providerEffect = sanitizedText(approval.provider_effect, Number('16'));
+  const expiresAt = sanitizedText(approval.expires_at, Number('64'));
+  const resumeToken = sanitizedText(approval.resume_token, Number('128'));
+  const instruction = sanitizedText(approval.instruction, Number('512'));
+  if (!APPROVAL_ID.test(approvalId)
+      || !PHASES.includes(approval.phase)
+      || !PROVIDER_EFFECTS.includes(providerEffect)
+      || !ISO_TIMESTAMP.test(expiresAt)
+      || !RESUME_TOKEN.test(resumeToken)
+      || !instruction) {
+    return null;
+  }
+  return {
+    approval_id: approvalId,
+    phase: approval.phase,
+    provider_effect: providerEffect,
+    expires_at: expiresAt,
+    resume_token: resumeToken,
+    instruction,
+  };
+}
+
+// The receipt answers 'was exactly this principal rotated', so one naming
+// another identity, request, or operation is a protocol violation rather than a
+// droppable field. It never carries the password or anything derived from it.
+function receiptResource(source) {
+  const receipt = objectOrEmpty(source.receipt);
+  if (!Object.keys(receipt).length) return null;
+  const reportedTenant = sanitizedText(receipt.tenant_id, Number('64')).toLowerCase();
+  const reportedPrincipal = sanitizedText(receipt.principal_object_id, Number('64')).toLowerCase();
+  const reportedUpn = sanitizedText(receipt.account_upn, Number('320')).toLowerCase();
+  const reportedRequest = sanitizedText(receipt.request_id, Number('64')).toLowerCase();
+  if (reportedTenant !== tenantId
+      || reportedPrincipal !== principalObjectId
+      || reportedUpn !== accountUpn
+      || reportedRequest !== requestId
+      || receipt.operation !== request.operation) {
+    throw new Error('Weles reported a credential receipt for a different Entra identity, request, or operation');
+  }
+  const digest = sanitizedText(receipt.evidence_digest, Number('64')).toLowerCase();
+  const executionHost = sanitizedText(receipt.execution_host, Number('128'));
+  const verifiedAt = sanitizedText(receipt.verified_at, Number('64'));
+  const changedAt = receipt.changed_at === null ? null : sanitizedText(receipt.changed_at, Number('64'));
+  const actionLogId = sanitizedText(receipt.action_log_id, Number('64'));
+  if (!HEX_64.test(digest)
+      || !executionHost
+      || !ISO_TIMESTAMP.test(verifiedAt)
+      || (changedAt !== null && !ISO_TIMESTAMP.test(changedAt))
+      || !ACTION_LOG_ID.test(actionLogId)) {
+    return null;
+  }
+  return {
+    tenant_id: reportedTenant,
+    principal_object_id: reportedPrincipal,
+    account_upn: reportedUpn,
+    operation: request.operation,
+    request_id: reportedRequest,
+    evidence_digest: digest,
+    execution_host: executionHost,
+    changed_at: changedAt,
+    verified_at: verifiedAt,
+    action_log_id: actionLogId,
+  };
+}
+
+// The worker lifts the trajectory evidence file into result.service_action and
+// the human-approval file into result.pending_review, so the typed diagnostics
+// live in exactly those two places. Anything outside the contract vocabulary is
+// dropped rather than forwarded.
+function diagnostics(result) {
+  const root = objectOrEmpty(result);
+  const operationResult = objectOrEmpty(objectOrEmpty(root.service_action).credential_operation);
+  const source = Object.keys(operationResult).length ? operationResult : objectOrEmpty(root.pending_review);
+  const code = sanitizedText(source.code, Number('64'));
+  const executionHost = sanitizedText(source.executionHost, Number('128'));
+  const message = sanitizedText(source.message ?? source.reason, Number('512'));
+  const providerEffect = sanitizedText(source.providerEffect, Number('16'));
+  const reportedTenant = sanitizedText(source.tenantId, Number('64')).toLowerCase();
+  const reportedPrincipal = sanitizedText(source.principalObjectId, Number('64')).toLowerCase();
+  if ((reportedTenant && reportedTenant !== tenantId)
+      || (reportedPrincipal && reportedPrincipal !== principalObjectId)) {
+    throw new Error('Weles reported a different Entra identity than the credential request');
+  }
+  const approval = approvalResource(source);
+  const receipt = receiptResource(source);
+  return {
+    ...(DIAGNOSTIC_CODE.test(code) ? { code } : {}),
+    ...(PHASES.includes(source.phase) ? { phase: source.phase } : {}),
+    ...(typeof source.retryable === 'boolean' ? { retryable: source.retryable } : {}),
+    ...(PROVIDER_EFFECTS.includes(providerEffect) ? { providerEffect } : {}),
+    ...(ROLLBACK_STATUSES.includes(source.rollbackStatus)
+      ? { rollbackStatus: source.rollbackStatus }
+      : {}),
+    ...(approval ? { approval } : {}),
+    ...(receipt ? { receipt } : {}),
+    ...(executionHost ? { executionHost } : {}),
+    ...(message ? { message } : {}),
+  };
+}
+
 let output;
 if (request.mode === 'submit') {
   const writerTokenFile = process.env.WELES_MICROSOFT_WRITER_TOKEN_FILE ?? '';
   const scopeFile = process.env.SKARBIEC_WELES_ACQUISITION_SCOPES_FILE ?? '';
-  safeOwnedFile(writerTokenFile, 'Microsoft writer token file');
-  safeOwnedFile(scopeFile, 'Microsoft acquisition scope catalog');
+  safeOwnedFile(writerTokenFile, 'Entra writer token file');
+  safeOwnedFile(scopeFile, 'Entra acquisition scope catalog');
   const expectedScope = `${request.credential_id}-reader-password|${request.credential_id}|password`;
   const scopes = readFileSync(scopeFile, 'utf8').split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
-  if (!scopes.includes(expectedScope)) throw new Error('missing exact Microsoft credential reader scope');
+  if (!scopes.includes(expectedScope)) throw new Error('missing exact Entra credential reader scope');
 
   const accountsResponse = await fetch(
     `${databaseUrl}/rest/v1/social_accounts?platform=eq.microsoft&select=id,username,is_active,metadata&limit=500`,
     { headers: databaseHeaders, signal: AbortSignal.timeout(Number('30000')) },
   );
-  if (!accountsResponse.ok) throw new Error(`Microsoft account lookup failed: HTTP ${accountsResponse.status}`);
-  const accountEmail = request.account_email.trim().toLowerCase();
+  if (!accountsResponse.ok) throw new Error(`Entra account lookup failed: HTTP ${accountsResponse.status}`);
   const matches = (await accountsResponse.json()).filter((row) => {
-    const metadata = row?.metadata && typeof row.metadata === 'object' ? row.metadata : {};
+    const metadata = objectOrEmpty(row?.metadata);
     const email = String(metadata.email ?? row.username ?? '').trim().toLowerCase();
-    return row.is_active === true && email === accountEmail
+    return row.is_active === true
+      && String(metadata.entra_upn ?? '').trim().toLowerCase() === accountUpn
+      && (email === accountUpn || (Boolean(accountEmail) && email === accountEmail))
+      && String(metadata.entra_tenant_id ?? '').trim().toLowerCase() === tenantId
+      && String(metadata.entra_principal_object_id ?? '').trim().toLowerCase() === principalObjectId
       && metadata.skarbiec_credential_id === request.credential_id
       && (metadata.skarbiec_tenant_id ?? null) === null;
   });
-  if (matches.length !== Number('1') || !matches[0]?.id) {
-    throw new Error('Microsoft account is not uniquely bound to the managed credential');
+  if (matches.length !== Number('1') || !matches[Number('0')]?.id) {
+    throw new Error('no account row is uniquely bound to the requested Entra identity and managed credential');
   }
   const constraints = {
     secret: request.credential_id,
     operation: request.operation,
     request_id: request.request_id,
     purpose: request.purpose,
-    account_email: accountEmail,
+    account_email: accountEmail || undefined,
+    // The directory identity is the item's own write-once contract and the only
+    // source the trajectory reads it from. The Entra directory id is not a Weles
+    // Skarbiec binding tenant, so the scoped reader and writer stay untenanted.
+    directory: {
+      provider: ENTRA_PROVIDER,
+      tenant_id: tenantId,
+      principal_object_id: principalObjectId,
+      account_upn: accountUpn,
+    },
+    weles_tenant_id: null,
     store_secret_target: 'skarbiec',
     vault_item_id: request.credential_id,
     vault_field: 'password',
-    secret_source_origin: 'https://account.live.com',
-    display_name: 'Microsoft account password',
-    provider: 'microsoft',
-    capabilities: ['password_rotation', 'fresh_login_verification'],
+    secret_source_origin: ENTRA_ORIGIN,
+    display_name: 'Microsoft Entra account password',
+    provider: ENTRA_PROVIDER,
+    capabilities: ['password_adoption', 'password_rotation', 'password_reset', 'fresh_login_verification'],
   };
+  const action = request.operation === 'verify'
+    ? 'microsoft_entra_verify_password'
+    : request.operation === 'adopt'
+      ? 'microsoft_entra_adopt_password'
+      : 'microsoft_entra_reset_password';
   const insertResponse = await fetch(`${databaseUrl}/rest/v1/account_action_logs?select=id`, {
     method: 'POST',
     headers: { ...databaseHeaders, Prefer: 'return=representation' },
     body: JSON.stringify({
-      account_id: matches[0].id,
-      action: request.operation === 'rotate' ? 'microsoft_reset_password' : 'microsoft_verify_password',
+      account_id: matches[Number('0')].id,
+      action,
       platform: 'microsoft',
       status: 'queued',
       scheduled_at: new Date().toISOString(),
       priority: Number('1000'),
       params: {
-        url: 'https://account.live.com/password/Change',
-        objective: `${request.operation} the exact Microsoft account password and commit it only after fresh authentication succeeds.`,
-        flow_name: 'microsoft-password-lifecycle',
+        url: ENTRA_ORIGIN,
+        objective: request.operation === 'adopt'
+          ? 'adopt the exact Microsoft Entra directory password already staged in Skarbiec: prove it with a fresh sign-in and the full tenant, principal object id, and UPN assertion, and never change it in the directory.'
+          : `${request.operation} the exact Microsoft Entra directory password and commit it only after the signed-in tenant, principal object id, and UPN are confirmed by a fresh login.`,
+        flow_name: FLOW_NAME,
         execution_mode: 'keeper_first',
         proxy: 'none',
         headless: false,
@@ -112,8 +295,8 @@ if (request.mode === 'submit') {
     }),
     signal: AbortSignal.timeout(Number('30000')),
   });
-  if (!insertResponse.ok) throw new Error(`Microsoft credential queue failed: HTTP ${insertResponse.status}`);
-  const actionLogId = (await insertResponse.json())[0]?.id;
+  if (!insertResponse.ok) throw new Error(`Entra credential queue failed: HTTP ${insertResponse.status}`);
+  const actionLogId = (await insertResponse.json())[Number('0')]?.id;
   if (!/^[a-f\d-]{36}$/i.test(actionLogId ?? '')) throw new Error('Weles queue returned an invalid action id');
   output = {
     status: 'operation_queued',
@@ -121,7 +304,10 @@ if (request.mode === 'submit') {
     provider: request.provider,
     actionLogId,
     vaultItemId: request.credential_id,
-    message: `Microsoft password ${request.operation} queued`,
+    flowName: FLOW_NAME,
+    tenantId,
+    principalObjectId,
+    message: `Entra password ${request.operation} queued`,
   };
 } else {
   if (!/^[a-f\d-]{36}$/i.test(request.action_log_id ?? '')) {
@@ -132,7 +318,7 @@ if (request.mode === 'submit') {
     { headers: databaseHeaders, signal: AbortSignal.timeout(Number('30000')) },
   );
   if (!response.ok) throw new Error(`Weles status lookup failed: HTTP ${response.status}`);
-  const row = (await response.json())[0];
+  const row = (await response.json())[Number('0')];
   if (!row || row.id !== request.action_log_id) throw new Error('Weles action log was not found');
   const status = ['queued', 'claimed', 'running', 'accepted', 'pending'].includes(row.status)
     ? 'operation_queued'
@@ -141,13 +327,20 @@ if (request.mode === 'submit') {
       : ['pending_review', 'needs_human_approval'].includes(row.status)
         ? 'needs_human_approval'
         : 'operation_failed';
+  const reported = diagnostics(row.result);
   output = {
     status,
     operation: request.operation,
     provider: request.provider,
     actionLogId: request.action_log_id,
     vaultItemId: request.credential_id,
-    message: row.error || `Weles credential operation is ${row.status}`,
+    flowName: FLOW_NAME,
+    tenantId,
+    principalObjectId,
+    ...reported,
+    message: reported.message
+      || sanitizedText(row.error, Number('512'))
+      || `Weles credential operation is ${row.status}`,
   };
 }
 process.stdout.write(`${JSON.stringify(output)}\n`);

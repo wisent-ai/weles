@@ -125,7 +125,7 @@ try {
     screenshotPath: outPath,
     metadata: { source: 'chart.mjs' },
   });
-  console.error(`[chart] persisted row id=${persisted.id} gcs=${persisted.gcs_url || 'none'}`);
+  console.error(`[chart] persisted row id=${persisted.id} uri=${persisted.screenshot_uri || 'none'}`);
 } catch (e) {
   console.error(`FAIL: ${e.message}`);
   process.exit(1);

@@ -73,8 +73,8 @@ try {
   const success = outcome.includes('sent');
   console.log(`[friend_request] outcome=${outcome.slice(0, 120)}`);
 
-  const supaUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supaKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const supaUrl = process.env.WELES_DATABASE_URL;
+  const supaKey = process.env.WELES_DATABASE_TOKEN;
   if (supaUrl && supaKey) {
     const cur = await (await fetch(`${supaUrl}/rest/v1/social_accounts?platform=eq.discord&username=eq.${encodeURIComponent(acct.username)}&select=id,metadata`, { headers: { apikey: supaKey, Authorization: `Bearer ${supaKey}` } })).json();
     if (cur && cur[0]) {

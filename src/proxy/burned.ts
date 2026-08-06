@@ -1,3 +1,5 @@
+import { optionalWelesDatabase } from '../utils/weles-database.js';
+
 /**
  * Burned-proxy registry. Stored on the existing system_settings table at
  * key 'burned_proxies' so no schema migration is required.
@@ -20,17 +22,17 @@ interface BurnedEntry {
 }
 interface BurnedValue { hosts: Record<string, BurnedEntry> }
 
-const SUPABASE_URL = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
-const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
+const DATABASE_URL = optionalWelesDatabase()?.url ?? '';
+const DATABASE_TOKEN = optionalWelesDatabase()?.token ?? '';
 
 let cache: { value: BurnedValue; loadedAt: number } | null = null;
 const CACHE_TTL_MS = 60_000;
 
 async function load(): Promise<BurnedValue> {
   if (cache && Date.now() - cache.loadedAt < CACHE_TTL_MS) return cache.value;
-  if (!SUPABASE_URL || !SUPABASE_KEY) return { hosts: {} };
+  if (!DATABASE_URL || !DATABASE_TOKEN) return { hosts: {} };
   try {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/system_settings?key=eq.burned_proxies&select=value`, { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } });
+    const res = await fetch(`${DATABASE_URL}/rest/v1/system_settings?key=eq.burned_proxies&select=value`, { headers: { apikey: DATABASE_TOKEN, Authorization: `Bearer ${DATABASE_TOKEN}` } });
     const rows = await res.json() as { value: BurnedValue }[];
     const value = rows?.[0]?.value ?? { hosts: {} };
     cache = { value, loadedAt: Date.now() };
@@ -39,11 +41,11 @@ async function load(): Promise<BurnedValue> {
 }
 
 async function save(value: BurnedValue): Promise<void> {
-  if (!SUPABASE_URL || !SUPABASE_KEY) return;
+  if (!DATABASE_URL || !DATABASE_TOKEN) return;
   try {
-    await fetch(`${SUPABASE_URL}/rest/v1/system_settings?on_conflict=key`, {
+    await fetch(`${DATABASE_URL}/rest/v1/system_settings?on_conflict=key`, {
       method: 'POST',
-      headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates,return=minimal' },
+      headers: { apikey: DATABASE_TOKEN, Authorization: `Bearer ${DATABASE_TOKEN}`, 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates,return=minimal' },
       body: JSON.stringify({ key: 'burned_proxies', value }),
     });
     cache = { value, loadedAt: Date.now() };

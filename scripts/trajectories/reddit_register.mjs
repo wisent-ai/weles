@@ -163,10 +163,10 @@ try {
   console.log(`[register] saveAccount: ${result}`);
   await autoBindCharacter(id.username, 'reddit').then(r => console.log(`[bind] ${JSON.stringify(r)}`)).catch((e) => console.log(`[bind] err: ${e.message?.slice(0, 80)}`));
 
-  const supabaseUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
-  if (supabaseUrl && key) {
-    const r = await fetch(`${supabaseUrl}/rest/v1/social_accounts?platform=eq.reddit&username=eq.${encodeURIComponent(id.username)}&select=id,metadata`, { headers: { apikey: key, Authorization: `Bearer ${key}` } });
+  const databaseUrl = process.env.WELES_DATABASE_URL ?? '';
+  const key = process.env.WELES_DATABASE_TOKEN ?? '';
+  if (databaseUrl && key) {
+    const r = await fetch(`${databaseUrl}/rest/v1/social_accounts?platform=eq.reddit&username=eq.${encodeURIComponent(id.username)}&select=id,metadata`, { headers: { apikey: key, Authorization: `Bearer ${key}` } });
     const rows = await r.json();
     if (!rows?.[0]) { console.log(`FAIL: saveAccount returned ok but no DB row for ${id.username}`); process.exitCode = 1; }
     const cookies = rows[0].metadata?.cookies ?? [];
@@ -174,7 +174,7 @@ try {
     if (!hasSession) { console.log(`FAIL: row ${rows[0].id} saved but no reddit_session cookie — signup didn't authenticate`); process.exitCode = 1; }
     console.log(`PASS: ${id.username} (db_row=${rows[0].id} cookies=${cookies.length} reddit_session=yes)`);
   } else {
-    console.log(`PASS: ${id.username} (no DB verification — SUPABASE_URL not set)`);
+    console.log(`PASS: ${id.username} (no DB verification — WELES_DATABASE_URL not set)`);
   }
 } catch (e) {
   console.log('FAIL:', e.message?.slice(0, 300));

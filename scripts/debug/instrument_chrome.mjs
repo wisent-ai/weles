@@ -37,8 +37,8 @@ const TARGET_URL = process.env.TARGET_URL || (
 if (!TARGET_URL) throw new Error('TARGET_URL env required (no default for platform=' + PLATFORM + ')');
 
 const USERNAME = process.env.USERNAME || process.env.REDDIT_USERNAME || '';
-const SUPABASE_URL = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
-const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
+const SUPABASE_URL = process.env.WELES_SUPABASE_URL ?? '';
+const SUPABASE_KEY = process.env.WELES_SUPABASE_SERVICE_ROLE_KEY ?? '';
 
 const CHROME_BIN = process.env.CHROME_BIN || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 if (!existsSync(CHROME_BIN)) throw new Error(`chrome binary missing: ${CHROME_BIN}`);

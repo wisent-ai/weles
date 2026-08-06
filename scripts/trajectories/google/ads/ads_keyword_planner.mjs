@@ -5,7 +5,7 @@
 //   GOOGLE_ADS_CUSTOMER_ID       required
 //   GOOGLE_ADS_KEYWORDS          required, comma/newline separated
 //   GOOGLE_ADS_RESULT_FILE       optional JSON output path
-//   GOOGLE_ADS_EMAIL / SSO_EMAIL optional, defaults to lukasz.bartoszcze@wisent.ai
+//   Login identity/password/MFA are read only from the dedicated Google Ads Skarbiec item.
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
@@ -13,10 +13,11 @@ import { join } from 'node:path';
 import { generatePersona } from '../../../../dist/browser/persona.js';
 import { WSession } from '../../../../dist/session/wsession.js';
 import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
-import { googleSso, getGoogleSsoCreds } from '../../_shared/services/google_sso.mjs';
+import { googleSso } from '../../_shared/services/google_sso.mjs';
 import { assertGoogleAdsProfileNotAlreadyOpen, closeAllowedByEnv } from './_profile_guard.mjs';
+import { readScopedLogin } from '../../../_shared/scoped-secrets.mjs';
 
-const DEFAULT_GOOGLE_ADS_EMAIL = 'lukasz.bartoszcze@wisent.ai';
+const GOOGLE_ADS_LOGIN = readScopedLogin('googleAds');
 const NAV_TIMEOUT_MS = Number(process.env.NAV_TIMEOUT_MS || 60 * 1000);
 const USER_DATA_DIR = process.env.WELES_USER_DATA_DIR || process.env.ADS_PROFILE_DIR || join(homedir(), '.weles', 'browser_profiles', 'google_ads');
 const DIAG_DIR = process.env.GOOGLE_ADS_DIAG_DIR || '.work/google-ads-keyword-planner';
@@ -60,7 +61,7 @@ function norm(value) {
 }
 
 function preferredGoogleAdsEmail() {
-  return process.env.GOOGLE_ADS_EMAIL || process.env.SSO_EMAIL || process.env.GM_EMAIL || DEFAULT_GOOGLE_ADS_EMAIL;
+  return GOOGLE_ADS_LOGIN.email;
 }
 
 function stableProfilePersona() {
@@ -71,80 +72,9 @@ function stableProfilePersona() {
   return persona;
 }
 
-function loadEnvFile(file) {
-  if (!existsSync(file)) return {};
-  const env = {};
-  for (const rawLine of readFileSync(file, 'utf8').split(/\r?\n/)) {
-    const line = rawLine.trim();
-    if (!line || line.startsWith('#')) continue;
-    const equals = line.indexOf('=');
-    if (equals < 0) continue;
-    const key = line.slice(0, equals).trim();
-    let value = line.slice(equals + 1).trim();
-    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
-      value = value.slice(1, -1);
-    }
-    env[key] = value;
-  }
-  return env;
-}
-
-function applyEnvDefaults(env) {
-  for (const [key, value] of Object.entries(env)) {
-    if (!process.env[key]) process.env[key] = value;
-  }
-}
 
 async function resolveSsoCreds() {
-  applyEnvDefaults(loadEnvFile(join(process.cwd(), '.env')));
-  applyEnvDefaults(loadEnvFile(join(process.cwd(), '.env.local')));
-  applyEnvDefaults(loadEnvFile(join(process.cwd(), '.env.production')));
-  applyEnvDefaults(loadEnvFile(join(process.cwd(), '..', 'content-platform', '.env.local')));
-  applyEnvDefaults(loadEnvFile(join(process.cwd(), '..', 'content-platform', '.env.production')));
-  const fileEnvs = [
-    loadEnvFile(join(process.cwd(), '.work', '_sso.env')),
-    loadEnvFile(join(process.cwd(), '..', 'weles', '.work', '_sso.env')),
-  ];
-  const email = preferredGoogleAdsEmail();
-  const fromDb = await getGoogleSsoCreds(email).catch(() => null);
-  const processPassword = process.env.SSO_PASS || process.env.SSO_PASSWORD || process.env.GM_PASSWORD;
-  if (processPassword) {
-    const processEmail = process.env.SSO_EMAIL || process.env.GOOGLE_ADS_EMAIL || process.env.GM_EMAIL || email;
-    if (processEmail.toLowerCase() === email.toLowerCase()) {
-      return {
-        email,
-        password: processPassword,
-        ...(fromDb?.totpSecret ? { totpSecret: fromDb.totpSecret } : {}),
-        source: fromDb?.totpSecret ? 'env+service_credentials_totp' : 'env',
-      };
-    }
-  }
-  for (const fileEnv of fileEnvs) {
-    const filePassword = fileEnv.SSO_PASS || fileEnv.SSO_PASSWORD || fileEnv.GM_PASSWORD;
-    if (!filePassword) continue;
-    const fileEmail = fileEnv.SSO_EMAIL || fileEnv.GOOGLE_ADS_EMAIL || fileEnv.GM_EMAIL || email;
-    if (fileEmail.toLowerCase() === email.toLowerCase()) {
-      return {
-        email,
-        password: filePassword,
-        ...(fromDb?.totpSecret ? { totpSecret: fromDb.totpSecret } : {}),
-        source: fromDb?.totpSecret ? 'file_env+service_credentials_totp' : 'file_env',
-      };
-    }
-  }
-  if (fromDb?.password) return { ...fromDb, source: 'service_credentials' };
-  const sharedPasswordEmail = process.env.GOOGLE_ADS_SHARED_PASSWORD_EMAIL || '';
-  if (sharedPasswordEmail && sharedPasswordEmail.toLowerCase() !== email.toLowerCase()) {
-    const shared = await getGoogleSsoCreds(sharedPasswordEmail).catch(() => null);
-    if (shared?.password) {
-      return {
-        email,
-        password: shared.password,
-        source: `shared_google_password:${sharedPasswordEmail}`,
-      };
-    }
-  }
-  return null;
+  return { ...GOOGLE_ADS_LOGIN, source: 'skarbiec' };
 }
 
 function hasGoogleAuthCookie(cookies) {
@@ -205,9 +135,9 @@ async function runPreferredGoogleSso(s, returnUrl) {
   if (!creds?.password) {
     console.log(`[google-ads-keyword-planner] FAIL: no SSO credentials available for ${email}`);
     authFailure = {
-      blocked: 'missing_google_sso_credentials',
+      blocked: 'missing_google_ads_credentials',
       email,
-      detail: 'No matching SSO_PASS/SSO_PASSWORD/GM_PASSWORD env or service_credentials row exists for this email.',
+      detail: 'The dedicated Google Ads Skarbiec item is unavailable or incomplete.',
     };
     return false;
   }

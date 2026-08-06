@@ -6,8 +6,9 @@ import { join } from 'node:path';
 import { generatePersona } from '../../../../dist/browser/persona.js';
 import { WSession } from '../../../../dist/session/wsession.js';
 import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
-import { getGoogleSsoCreds } from '../../_shared/services/google_sso.mjs';
+import { readScopedLogin } from '../../../_shared/scoped-secrets.mjs';
 import { assertGoogleAdsProfileNotAlreadyOpen, closeAllowedByEnv } from './_profile_guard.mjs';
+const GOOGLE_ADS_LOGIN = readScopedLogin('googleAds');
 
 const USER_DATA_DIR = process.env.WELES_USER_DATA_DIR || process.env.ADS_PROFILE_DIR || join(homedir(), '.weles', 'browser_profiles', 'google_ads');
 const DIAG_DIR = process.env.GOOGLE_MFA_DIAG_DIR || '.work/google-mfa-setup';
@@ -82,10 +83,7 @@ async function clickButton(page, pattern, label) {
 }
 
 async function loadPassword() {
-  const explicit = process.env.SSO_PASS || process.env.SSO_PASSWORD || process.env.GM_PASSWORD;
-  if (explicit) return explicit;
-  const creds = await getGoogleSsoCreds(process.env.SSO_EMAIL || process.env.GM_EMAIL || 'lukasz.bartoszcze@gmail.com').catch(() => null);
-  return creds?.password || '';
+  return GOOGLE_ADS_LOGIN.password;
 }
 
 async function handleReauth(page) {

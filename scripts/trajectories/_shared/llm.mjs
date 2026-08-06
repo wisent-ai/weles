@@ -1,51 +1,48 @@
 /**
- * Persona-voiced comment generator. Replaces the former
- * api.wisentmedia.com/api/llm/messages Claude-proxy call. Posts to the
- * content-platform /api/llm/generate route, which wraps the AuthorMist
- * RunPod endpoint and returns synchronously when the job completes.
- *
- * Env required:
- *   CRON_SECRET                 — matches content-platform's CRON_SECRET
- *   LLM_GENERATE_URL (optional) — overrides the default production URL
+ * Persona-voiced generation through Weles's scoped Stado model-router client.
+ * Provider credentials and product CRON secrets never enter this process.
  */
 
-const DEFAULT_URL = 'https://content.wisent.ai/api/llm/generate';
+const MODEL_ALIAS = 'weles-organic';
 
-function endpoint() {
-  return process.env.LLM_GENERATE_URL || DEFAULT_URL;
+function routerConfig() {
+  const rawUrl = String(process.env.STADO_MODEL_ROUTER_URL || '').trim();
+  const token = String(process.env.WELES_STADO_MODEL_ROUTER_TOKEN || '').trim();
+  if (!rawUrl || !token) throw new Error('missing exact Weles model-router configuration');
+  const endpoint = new URL(rawUrl);
+  if (endpoint.username || endpoint.password || endpoint.search || endpoint.hash
+      || (endpoint.pathname !== '/' && endpoint.pathname !== '')) {
+    throw new Error('invalid Weles model-router origin');
+  }
+  return { endpoint: endpoint.origin, token };
 }
 
 async function callGenerate(body) {
-  const secret = process.env.CRON_SECRET;
-  if (!secret) throw new Error('CRON_SECRET not set on worker env');
-  // Server-side POLL_BUDGET in /api/llm/generate is 360_000ms because RunPod
-  // cold-starts run ~4min when the worker pool has scaled to 0. Client
-  // timeout must clear that, plus a buffer for the network round-trip and
-  // RunPod's submit step. 380_000ms keeps us under Vercel's 800s maxDuration
-  // for /api/** while leaving room above the server poll budget.
-  const timeoutMs = Number(process.env.LLM_GENERATE_TIMEOUT_MS ?? 380_000);
+  const { endpoint, token } = routerConfig();
+  const timeoutMs = Number(process.env.LLM_GENERATE_TIMEOUT_MS ?? '380000');
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), timeoutMs);
   let res;
   try {
-    res = await fetch(endpoint(), {
+    res = await fetch(`${endpoint}/v1/chat/completions`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-cron-secret': secret },
-      body: JSON.stringify(body),
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        model: MODEL_ALIAS,
+        messages: [{ role: 'user', content: JSON.stringify(body) }],
+      }),
       signal: ac.signal,
     });
-  } catch (e) {
-    if (e?.name === 'AbortError') throw new Error(`llm.generate timed out after ${timeoutMs}ms`);
-    throw e;
+  } catch (error) {
+    if (error?.name === 'AbortError') throw new Error(`Stado model generation timed out after ${timeoutMs}ms`);
+    throw error;
   } finally {
     clearTimeout(timer);
   }
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    throw new Error(`llm.generate ${res.status}: ${data.error ?? (await res.text().catch(() => '')).slice(0, 200)}`);
-  }
-  const text = (data.text || '').trim();
-  if (!text) throw new Error('llm.generate returned empty text');
+  if (!res.ok) throw new Error(`Stado model generation ${res.status}: ${String(data.error?.message ?? '').slice(Number('0'), Number('200'))}`);
+  const text = String(data.choices?.[Number('0')]?.message?.content ?? '').trim();
+  if (!text) throw new Error('Stado model generation returned empty text');
   return text;
 }
 

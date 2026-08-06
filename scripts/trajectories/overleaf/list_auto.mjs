@@ -33,8 +33,8 @@ const OUT      = process.env.OUT_JSONL ? createWriteStream(process.env.OUT_JSONL
 
 const login = await getGoogleSsoCreds();
 if (!login) {
-  console.error('FAIL: getGoogleSsoCreds() returned null. Check SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY env, and that service_credentials has a row with login_email=lukasz.bartoszcze@gmail.com and login_password populated.');
-  process.exit(1);
+  console.error('FAIL: exact weles-google-sso-login grant unavailable.');
+  process.exit(Number('1'));
 }
 console.log(`[list_auto] Google creds loaded for ${login.email}`);
 

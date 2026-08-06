@@ -240,8 +240,8 @@ export function loadFreshCookieJarOrFail(acct, { platform, label, currentProxyUr
  * happened, not just that some cookies got copied around.
  */
 export async function persistFreshCookieJar(acct, cookies, { currentProxyUrl, currentPersona, persistProxy = false } = {}) {
-  const url = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SERVICE_KEY ?? '';
+  const url = process.env.WELES_DATABASE_URL ?? '';
+  const key = process.env.WELES_DATABASE_TOKEN ?? '';
   if (!url || !key || !acct?.id) {
     return { ok: false, reason: 'no_supabase_env_or_acct_id' };
   }

@@ -11,7 +11,7 @@
 // Screenshots are written before each click so the caller can audit what was committed.
 
 import { WSession } from '../../../dist/session/wsession.js';
-import { googleSso, getGoogleSsoCreds } from '../_shared/services/google_sso.mjs';
+import { googleSso, getScopedGoogleLogin } from '../_shared/services/google_sso.mjs'
 import { fillStripeElements } from '../_shared/services/topup_common.mjs';
 import { mkdirSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
 import { homedir } from 'node:os';
@@ -45,7 +45,7 @@ async function shot(s, label) {
   return fp;
 }
 
-const login = await getGoogleSsoCreds();
+const login = await getScopedGoogleLogin('oxylabsDashboard');
 if (!login) { console.log('FAIL: no Google SSO creds'); process.exit(1); }
 
 const s = await WSession.start({ label: 'oxylabs_isp_subscribe', browser: 'chromium' });

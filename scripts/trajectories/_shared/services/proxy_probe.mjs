@@ -14,6 +14,7 @@
 
 import net from 'node:net';
 import tls from 'node:tls';
+import { readScopedProxy, readScopedSecret } from '../../../_shared/scoped-secrets.mjs';
 
 // CONNECT a known endpoint (api.ipify.org:443) through the proxy and report
 // the proxy's response code. 200 = auth accepted; 407 = auth rejected (no
@@ -46,37 +47,47 @@ export async function probeProxyAuth({ host, port, username, password, timeoutMs
 }
 
 // Resolve upstream proxy creds from env vars per provider.
-export function probeCredsFor(displayName) {
-  const e = process.env;
+export async function probeCredsFor(displayName) {
   switch (displayName) {
-    case 'Bright Data':
-      if (!e.BRIGHTDATA_USERNAME || !e.BRIGHTDATA_PASSWORD) return null;
+    case 'Bright Data': {
+      const creds = readScopedProxy('brightdataProxy');
+      const zone = readScopedSecret('brightdataProxy', 'zone');
       return {
         host: 'brd.superproxy.io',
-        port: 22225,
-        username: e.BRIGHTDATA_USERNAME.startsWith('brd-customer-')
-          ? e.BRIGHTDATA_USERNAME
-          : `brd-customer-${e.BRIGHTDATA_USERNAME}-zone-${e.BRIGHTDATA_ZONE ?? 'isp'}`,
-        password: e.BRIGHTDATA_PASSWORD,
+        port: Number('22225'),
+        username: creds.username.startsWith('brd-customer-')
+          ? creds.username
+          : `brd-customer-${creds.username}-zone-${zone}`,
+        password: creds.password,
       };
-    case 'PacketStream':
+    }
+    case 'Oxylabs Residential': {
+      const creds = readScopedProxy('oxylabsResidential');
+      return { host: 'pr.oxylabs.io', port: Number('7777'), ...creds };
+    }
+    case 'Oxylabs Mobile': {
+      const creds = readScopedProxy('oxylabsMobile');
+      return { host: 'pr.oxylabs.io', port: Number('7777'), ...creds };
+    }
+    case 'PacketStream': {
+      const e = process.env;
       return e.PACKETSTREAM_USERNAME && e.PACKETSTREAM_PASSWORD
-        ? { host: 'proxy.packetstream.io', port: 31112, username: e.PACKETSTREAM_USERNAME, password: e.PACKETSTREAM_PASSWORD }
+        ? { host: 'proxy.packetstream.io', port: Number('31112'), username: e.PACKETSTREAM_USERNAME, password: e.PACKETSTREAM_PASSWORD }
         : null;
-    case 'Oxylabs Residential':
-    case 'Oxylabs Mobile':
-      return e.OXYLABS_USERNAME && e.OXYLABS_PASSWORD
-        ? { host: 'pr.oxylabs.io', port: 7777, username: e.OXYLABS_USERNAME, password: e.OXYLABS_PASSWORD }
-        : null;
+    }
     case 'IPRoyal Residential':
-    case 'IPRoyal Mobile':
+    case 'IPRoyal Mobile': {
+      const e = process.env;
       return e.IPROYAL_USERNAME && e.IPROYAL_PASSWORD
-        ? { host: 'geo.iproyal.com', port: 12321, username: e.IPROYAL_USERNAME, password: e.IPROYAL_PASSWORD }
+        ? { host: 'geo.iproyal.com', port: Number('12321'), username: e.IPROYAL_USERNAME, password: e.IPROYAL_PASSWORD }
         : null;
-    case 'Pingproxies':
+    }
+    case 'Pingproxies': {
+      const e = process.env;
       return e.PINGPROXIES_USERNAME && e.PINGPROXIES_PASSWORD
-        ? { host: 'residential.pingproxies.com', port: 8000, username: e.PINGPROXIES_USERNAME, password: e.PINGPROXIES_PASSWORD }
+        ? { host: 'residential.pingproxies.com', port: Number('8000'), username: e.PINGPROXIES_USERNAME, password: e.PINGPROXIES_PASSWORD }
         : null;
+    }
     default:
       return null;
   }
@@ -87,11 +98,11 @@ export function probeCredsFor(displayName) {
 // the operator can see the discrepancy. The cron's topup decision is then
 // driven by EFFECTIVE balance (= 0 when unusable), not dashboard claim.
 export async function patchEffectiveBalance(displayName, dashboardBalance) {
-  const supabaseUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
-  if (!supabaseUrl || !key) return false;
+  const databaseUrl = process.env.WELES_DATABASE_URL ?? '';
+  const key = process.env.WELES_DATABASE_TOKEN ?? '';
+  if (!databaseUrl || !key) return false;
 
-  const creds = probeCredsFor(displayName);
+  const creds = await probeCredsFor(displayName);
   let probe = null;
   if (creds) probe = await probeProxyAuth(creds);
 
@@ -120,7 +131,7 @@ export async function patchEffectiveBalance(displayName, dashboardBalance) {
   // operator may have written. Only update notes when we just observed a
   // probe failure (positive signal) — successful probe leaves notes alone.
   if (note) {
-    const r0 = await fetch(`${supabaseUrl}/rest/v1/service_credentials?display_name=eq.${encodeURIComponent(displayName)}&select=notes`, {
+    const r0 = await fetch(`${databaseUrl}/rest/v1/service_credentials?display_name=eq.${encodeURIComponent(displayName)}&select=notes`, {
       headers: { apikey: key, Authorization: `Bearer ${key}` },
     });
     if (r0.ok) {
@@ -130,7 +141,7 @@ export async function patchEffectiveBalance(displayName, dashboardBalance) {
     }
   }
 
-  const r = await fetch(`${supabaseUrl}/rest/v1/service_credentials?display_name=eq.${encodeURIComponent(displayName)}`, {
+  const r = await fetch(`${databaseUrl}/rest/v1/service_credentials?display_name=eq.${encodeURIComponent(displayName)}`, {
     method: 'PATCH',
     headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
     body: JSON.stringify(update),

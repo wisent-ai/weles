@@ -1,64 +1,41 @@
 /**
- * Worker-side helper for generating media attachments.
- *
- * Two code paths:
- * 1. Default: POSTs to content-platform's /api/worker/media/{image,video}
- *    (which currently hosts the generation logic).
- * 2. IMAGE_VIDEO_ROUTER_URL set: POSTs directly to the standalone router
- *    service at that base URL. Skips content-platform entirely — important
- *    for /image because content-platform on Vercel times out before
- *    synchronous ComfyUI calls complete.
- *
- * Env required: CRON_SECRET. Optional: IMAGE_VIDEO_ROUTER_URL (direct),
- * LLM_GENERATE_URL (overrides content-platform base URL).
+ * Weles media client. All generation, status, and content transfer stays
+ * behind the product-scoped Stado media-router bearer.
  */
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { tmpdir } from 'node:os';
 
-// { base, path } — base URL + endpoint path, for one of the two code paths.
-function imageRoute() {
-  if (process.env.IMAGE_VIDEO_ROUTER_URL) {
-    return { base: process.env.IMAGE_VIDEO_ROUTER_URL.replace(/\/$/, ''), path: '/image' };
+function mediaConfig() {
+  const rawUrl = String(process.env.STADO_MEDIA_ROUTER_URL || '').trim();
+  const token = String(process.env.WELES_STADO_MEDIA_ROUTER_TOKEN || '').trim();
+  if (!rawUrl || !token) throw new Error('missing exact Weles media-router configuration');
+  const endpoint = new URL(rawUrl);
+  if (endpoint.username || endpoint.password || endpoint.search || endpoint.hash
+      || (endpoint.pathname !== '/' && endpoint.pathname !== '')) {
+    throw new Error('invalid Weles media-router origin');
   }
-  const llm = process.env.LLM_GENERATE_URL || 'https://content.wisent.ai/api/llm/generate';
-  return { base: llm.replace(/\/api\/llm\/generate$/, ''), path: '/api/worker/media/image' };
-}
-function videoRoute() {
-  if (process.env.IMAGE_VIDEO_ROUTER_URL) {
-    return { base: process.env.IMAGE_VIDEO_ROUTER_URL.replace(/\/$/, ''), path: '/video' };
-  }
-  const llm = process.env.LLM_GENERATE_URL || 'https://content.wisent.ai/api/llm/generate';
-  return { base: llm.replace(/\/api\/llm\/generate$/, ''), path: '/api/worker/media/video' };
-}
-function secret() {
-  const s = process.env.CRON_SECRET;
-  if (!s) throw new Error('CRON_SECRET not set on worker env');
-  return s;
+  return { endpoint: endpoint.origin, token };
 }
 
-// content-platform's image route returns output_url as a relative
-// /api/gcs-image?path=... path. fetch() in Node needs an absolute URL —
-// resolve against the LLM_GENERATE_URL host. Worker's secret is required for
-// /api/gcs-image since it's a protected route.
-function absolutizeMediaUrl(url) {
-  if (/^https?:\/\//.test(url)) return url;
-  const base = (process.env.LLM_GENERATE_URL || 'https://content.wisent.ai/api/llm/generate')
-    .replace(/\/api\/llm\/generate$/, '');
-  return `${base}${url.startsWith('/') ? url : `/${url}`}`;
+function authHeaders(token) {
+  return { Authorization: `Bearer ${token}` };
 }
 
-async function downloadTo(url, ext) {
-  const absUrl = absolutizeMediaUrl(url);
-  const r = await fetch(absUrl, absUrl.includes('/api/') ? { headers: { 'x-cron-secret': secret() } } : {});
-  if (!r.ok) throw new Error(`media download ${r.status} from ${absUrl}`);
+async function downloadTo(path, ext, config) {
+  const target = new URL(path, config.endpoint);
+  if (target.origin !== config.endpoint) {
+    throw new Error('media-router returned a provider locator instead of router-owned content');
+  }
+  const r = await fetch(target, { headers: authHeaders(config.token) });
+  if (!r.ok) throw new Error(`media-router content download failed HTTP ${r.status}`);
   const buf = Buffer.from(await r.arrayBuffer());
   const dir = join(tmpdir(), 'weles-media');
   mkdirSync(dir, { recursive: true });
-  const path = join(dir, `${randomUUID()}.${ext}`);
-  writeFileSync(path, buf);
-  return path;
+  const pathName = join(dir, `${randomUUID()}.${ext}`);
+  writeFileSync(pathName, buf);
+  return pathName;
 }
 
 /**
@@ -66,16 +43,17 @@ async function downloadTo(url, ext) {
  * @param {{prompt: string, style?: string, width?: number, height?: number, character_id?: string, account_id?: string}} params
  */
 export async function generateImageFile(params) {
-  const { base, path } = imageRoute();
-  const r = await fetch(`${base}${path}`, {
+  const config = mediaConfig();
+  const r = await fetch(`${config.endpoint}/image`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-cron-secret': secret() },
+    headers: { 'Content-Type': 'application/json', ...authHeaders(config.token) },
     body: JSON.stringify(params),
   });
   const data = await r.json().catch(() => ({}));
-  if (!r.ok || !data.success || !data.url) throw new Error(`image gen ${r.status}: ${data.error ?? 'no url'}`);
-  console.log(`[media] image: ${data.url.slice(0, 80)}`);
-  return downloadTo(data.url, 'png');
+  if (!r.ok || !data.success || !data.content_url) {
+    throw new Error(`image generation ${r.status}: ${data.error ?? 'router-owned content unavailable'}`);
+  }
+  return downloadTo(data.content_url, 'png', config);
 }
 
 /**
@@ -83,31 +61,25 @@ export async function generateImageFile(params) {
  * Video gen is async — poll the job until done or timeout (default 8 minutes).
  * @param {{prompt: string, mode?: string, pipeline?: string, reference_image_url?: string, character_id?: string, account_id?: string}} params
  */
-export async function generateVideoFile(params, { timeoutMs = 480000, pollMs = 5000 } = {}) {
-  const { base, path } = videoRoute();
-  const r = await fetch(`${base}${path}`, {
+export async function generateVideoFile(params, { timeoutMs = Number('480000'), pollMs = Number('5000') } = {}) {
+  const config = mediaConfig();
+  const r = await fetch(`${config.endpoint}/video`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-cron-secret': secret() },
+    headers: { 'Content-Type': 'application/json', ...authHeaders(config.token) },
     body: JSON.stringify(params),
   });
   const data = await r.json().catch(() => ({}));
   if (!r.ok || !data.success || !data.job_id) throw new Error(`video submit ${r.status}: ${data.error ?? 'no job_id'}`);
   const jobId = data.job_id;
-  console.log(`[media] video job ${jobId} — polling`);
   const deadline = Date.now() + timeoutMs;
-  // Status URL differs: router is REST-style /video/<id>; content-platform is query-param.
-  const statusUrl = process.env.IMAGE_VIDEO_ROUTER_URL
-    ? `${base}${path}/${encodeURIComponent(jobId)}`
-    : `${base}${path}?job_id=${encodeURIComponent(jobId)}`;
   while (Date.now() < deadline) {
-    await new Promise(res => setTimeout(res, pollMs));  // allow-raw-playwright: polling/rate-limit loop
-    const s = await fetch(statusUrl, { headers: { 'x-cron-secret': secret() } });
-    const sd = await s.json().catch(() => ({}));
-    if (sd.status === 'completed' && sd.url) {
-      console.log(`[media] video: ${sd.url.slice(0, 80)}`);
-      return downloadTo(sd.url, 'mp4');
+    await new Promise((resolve) => setTimeout(resolve, pollMs));
+    const status = await fetch(`${config.endpoint}/video/${encodeURIComponent(jobId)}`, { headers: authHeaders(config.token) });
+    const state = await status.json().catch(() => ({}));
+    if (state.status === 'completed') {
+      return downloadTo(`/video/${encodeURIComponent(jobId)}/content`, 'mp4', config);
     }
-    if (sd.status === 'failed') throw new Error(`video gen failed: ${sd.error ?? 'unknown'}`);
+    if (state.status === 'failed') throw new Error(`video generation failed: ${state.error ?? 'unknown'}`);
   }
-  throw new Error(`video gen timeout after ${timeoutMs}ms (job ${jobId})`);
+  throw new Error(`video generation timed out after ${timeoutMs}ms`);
 }

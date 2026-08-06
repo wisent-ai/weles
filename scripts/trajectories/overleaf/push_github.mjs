@@ -56,8 +56,8 @@ async function dieUI(s, tag, msg) {
 
 const login = await getGoogleSsoCreds();
 if (!login) {
-  console.error('FAIL: getGoogleSsoCreds() returned null. Check SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY and the service_credentials row for lukasz.bartoszcze@gmail.com.');
-  process.exit(1);
+  console.error('FAIL: exact weles-google-sso-login grant unavailable.');
+  process.exit(Number('1'));
 }
 console.log(`[pull_github] Google creds loaded for ${login.email}; target repo ${REPO_SLUG}`);
 

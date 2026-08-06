@@ -25,35 +25,35 @@ if (!/^https?:\/\//.test(PROXY_URL)) {
   process.exit(2);
 }
 
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-if (!SUPABASE_URL || !SUPABASE_KEY) {
-  console.error('SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY required');
+const DATABASE_URL = process.env.WELES_DATABASE_URL;
+const DATABASE_TOKEN = process.env.WELES_DATABASE_TOKEN;
+if (!DATABASE_URL || !DATABASE_TOKEN) {
+  console.error('WELES_DATABASE_URL and WELES_DATABASE_TOKEN required');
   process.exit(2);
 }
 
 const headers = {
-  apikey: SUPABASE_KEY,
-  Authorization: `Bearer ${SUPABASE_KEY}`,
+  apikey: DATABASE_TOKEN,
+  Authorization: `Bearer ${DATABASE_TOKEN}`,
   'Content-Type': 'application/json',
   Prefer: 'return=representation',
 };
 
 async function fetchRow(id) {
-  const r = await fetch(`${SUPABASE_URL}/rest/v1/social_accounts?id=eq.${id}&select=id,platform,username,metadata`, { headers });
+  const r = await fetch(`${DATABASE_URL}/rest/v1/social_accounts?id=eq.${id}&select=id,platform,username,metadata`, { headers });
   if (!r.ok) throw new Error(`fetch ${id}: ${r.status} ${await r.text()}`);
   const rows = await r.json();
   return rows[0] ?? null;
 }
 
 async function fetchByCharacter(characterId) {
-  const r = await fetch(`${SUPABASE_URL}/rest/v1/social_accounts?metadata->>character_id=eq.${characterId}&select=id,platform,username,metadata`, { headers });
+  const r = await fetch(`${DATABASE_URL}/rest/v1/social_accounts?metadata->>character_id=eq.${characterId}&select=id,platform,username,metadata`, { headers });
   if (!r.ok) throw new Error(`fetch character ${characterId}: ${r.status} ${await r.text()}`);
   return await r.json();
 }
 
 async function patchRow(id, newMeta) {
-  const r = await fetch(`${SUPABASE_URL}/rest/v1/social_accounts?id=eq.${id}`, {
+  const r = await fetch(`${DATABASE_URL}/rest/v1/social_accounts?id=eq.${id}`, {
     method: 'PATCH', headers, body: JSON.stringify({ metadata: newMeta }),
   });
   if (!r.ok) throw new Error(`patch ${id}: ${r.status} ${await r.text()}`);

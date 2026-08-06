@@ -385,10 +385,10 @@ try {
         },
       };
       // Auto-flag in social_accounts to pull from rotation.
-      const supabaseUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
-      const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
-      if (supabaseUrl && key && acct.id) {
-        await fetch(`${supabaseUrl}/rest/v1/social_accounts?id=eq.${acct.id}`, {
+      const databaseUrl = process.env.WELES_DATABASE_URL ?? '';
+      const key = process.env.WELES_DATABASE_TOKEN ?? '';
+      if (databaseUrl && key && acct.id) {
+        await fetch(`${databaseUrl}/rest/v1/social_accounts?id=eq.${acct.id}`, {
           method: 'PATCH',
           headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
           body: JSON.stringify({ status: 'shadowbanned' }),

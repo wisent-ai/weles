@@ -8,6 +8,8 @@
 //   WELES_KEYWORD_PLANNER_API_HOST  optional, default 127.0.0.1
 //   WELES_KEYWORD_PLANNER_API_PORT  optional, default 8787
 //   SESSION                         optional, default google_ads
+//   STADO_MODEL_ROUTER_URL          required model-router endpoint
+//   WELES_STADO_MODEL_ROUTER_TOKEN  required server-side model-router bearer
 //
 // Example on Mac mini:
 //   cd ~/Documents/CodingProjects/Wisent/weles
@@ -15,7 +17,6 @@
 //   WELES_KEYWORD_PLANNER_API_TOKEN="$WELES_CONSOLE_API_TOKEN" \
 //   node scripts/trajectories/google/ads/ads_keyword_planner_api_server.mjs
 
-import { createHash, createHmac } from 'node:crypto';
 import http from 'node:http';
 import net from 'node:net';
 import { spawn } from 'node:child_process';
@@ -41,33 +42,8 @@ let KEEPER_USER_DATA_DIR = process.env.GOOGLE_ADS_KEEPER_USER_DATA_DIR
   || process.env.KEEPER_USER_DATA_DIR
   || process.env.WELES_USER_DATA_DIR
   || join(process.env.HOME || '', '.weles', 'browser_profiles', 'google_ads');
-const DEFAULT_MODEL_ROUTER_URL = 'https://model-router-1080673333190.us-central1.run.app';
-const DEFAULT_ROUTER_CONFIG_IDS = ['codex-reauth-config', 'claude-reauth-config', 'kimi-reauth-config'];
 let routerConfig = null;
 
-function loadEnvFile(path) {
-  if (!existsSync(path)) return {};
-  const env = {};
-  for (const rawLine of readFileSync(path, 'utf8').split(/\r?\n/)) {
-    const line = rawLine.trim();
-    if (!line || line.startsWith('#')) continue;
-    const equals = line.indexOf('=');
-    if (equals < 0) continue;
-    const key = line.slice(0, equals).trim();
-    let value = line.slice(equals + 1).trim();
-    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) value = value.slice(1, -1);
-    env[key] = value;
-  }
-  return env;
-}
-
-function applyEnvDefaults(env) {
-  for (const [key, value] of Object.entries(env)) if (process.env[key] === undefined) process.env[key] = value;
-}
-
-applyEnvDefaults(loadEnvFile(join(REPO, '.env')));
-applyEnvDefaults(loadEnvFile(join(REPO, '.env.local')));
-applyEnvDefaults(loadEnvFile(join(REPO, '.env.production')));
 HOST = process.env.WELES_KEYWORD_PLANNER_API_HOST || HOST;
 PORT = Number(process.env.WELES_KEYWORD_PLANNER_API_PORT || PORT);
 SESSION = process.env.SESSION || process.env.GOOGLE_ADS_KEEPER_SESSION || SESSION;
@@ -144,21 +120,40 @@ function redact(text) {
     .replace(/ya29\.[A-Za-z0-9._-]+/g, '<redacted-google-access-token>')
     .replace(/GOCSPX-[A-Za-z0-9_-]+/g, '<redacted-google-client-secret>')
     .replace(/[A-Z2-7](?:\s?[A-Z2-7]){15,}/g, '<redacted-base32-secret>')
-    .replace(/Warszawa\d*!?/g, '<redacted-password>')
     .replace(/"refresh_token"\s*:\s*"[^"]+"/g, '"refresh_token":"<redacted-google-refresh-token>"')
     .replace(/"google_totp_secret"\s*:\s*"[^"]+"/g, '"google_totp_secret":"<redacted>"');
 }
 
-function stripGoogleAdsApiEnv(env) {
+function stripAmbientCredentialEnv(env) {
   const next = { ...env };
-  for (const key of [
+  const exactAmbientKeys = [
     'GOOGLE_ADS_ACCESS_TOKEN',
     'GOOGLE_ADS_CLIENT_ID',
     'GOOGLE_ADS_CLIENT_SECRET',
     'GOOGLE_ADS_DEVELOPER_TOKEN',
     'GOOGLE_ADS_REFRESH_TOKEN',
-  ]) {
-    delete next[key];
+    'GOOGLE_ADS_EMAIL',
+    'GOOGLE_PASSWORD',
+    'GOOGLE_TOTP_SECRET',
+    'GOOGLE_AUTHENTICATOR_SECRET',
+    'GOOGLE_SSO_MANUAL_TOTP_CODE',
+    'GOOGLE_SSO_MANUAL_TOTP',
+    'GOOGLE_SSO_MANUAL_TOTP_FILE',
+    'GOOGLE_SSO_MANUAL_TOTP_READY_FILE',
+    'GOOGLE_TOTP_CODE',
+    'SSO_EMAIL',
+    'SSO_PASS',
+    'SSO_PASSWORD',
+    'SSO_TOTP_SECRET',
+    'GM_EMAIL',
+    'GM_PASSWORD',
+    'GM_TOTP_SECRET',
+    'BRIGHTDATA_ZONE',
+    'BRIGHTDATA_BROWSER_WS',
+  ];
+  for (const key of exactAmbientKeys) delete next[key];
+  for (const key of Object.keys(next)) {
+    if (/^(?:OXYLABS|BRIGHTDATA)_(?:.*(?:USERNAME|PASSWORD|USER|PASS))$/.test(key)) delete next[key];
   }
   return next;
 }
@@ -235,7 +230,7 @@ async function ensureKeeper(session) {
       cwd: REPO,
       detached: true,
       stdio: ['ignore', fd, fd],
-      env: {
+      env: stripAmbientCredentialEnv({
         ...process.env,
         WELES_REPO: REPO,
         SESSION: session,
@@ -243,7 +238,7 @@ async function ensureKeeper(session) {
         KEEPER_USER_DATA_DIR,
         WELES_USER_DATA_DIR: KEEPER_USER_DATA_DIR,
         URL: process.env.GOOGLE_ADS_KEEPER_START_URL || 'https://ads.google.com/aw/overview',
-      },
+      }),
     });
     child.unref();
   } finally {
@@ -279,65 +274,29 @@ function validateReportRequest(body) {
     landingPage: String(body.landingPage || body.url || '').trim(),
     goal: String(body.goal || 'Find paid search opportunities with real Google Ads Keyword Planner metrics.').trim(),
     seedKeywords,
-    email: String(body.email || body.googleAdsEmail || body.ssoEmail || process.env.GOOGLE_ADS_EMAIL || process.env.SSO_EMAIL || ''),
     session: String(body.session || SESSION),
   };
 }
 
-function routerConfigPreference(model) {
-  if (/kimi/i.test(model || '')) return ['kimi-reauth-config', 'codex-reauth-config', 'claude-reauth-config'];
-  if (/codex|openai/i.test(model || '')) return ['codex-reauth-config', 'claude-reauth-config', 'kimi-reauth-config'];
-  return DEFAULT_ROUTER_CONFIG_IDS;
-}
 
-async function loadModelRouterConfig() {
+function loadModelRouterConfig() {
   if (routerConfig) return routerConfig;
-  const envRouterUrl = String(process.env.MODEL_ROUTER_URL || '').trim();
-  const envAgentId = String(process.env.WISENT_APP_AGENT_ID || '').trim();
-  const envHmacSecret = String(process.env.WISENT_APP_AGENT_AUTH_SECRET || '').trim();
-  const model = String(process.env.WELES_AGENT_MODEL || process.env.MODEL_ROUTER_MODEL || 'codex-subscription').trim();
-  if (envHmacSecret) {
-    routerConfig = {
-      routerUrl: (envRouterUrl || DEFAULT_MODEL_ROUTER_URL).replace(/\/+$/, ''),
-      agentId: envAgentId || 'wisent-app',
-      hmacSecret: envHmacSecret,
-      model,
-      configId: 'env',
-    };
-    return routerConfig;
-  }
-
-  const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
-  if (!supabaseUrl || !supabaseKey) throw new Error('missing model-router env and Supabase config env');
-  const ids = DEFAULT_ROUTER_CONFIG_IDS.join(',');
-  const res = await fetch(`${supabaseUrl.replace(/\/$/, '')}/rest/v1/service_credentials?id=in.(${ids})&select=id,metadata`, {
-    headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` },
-  });
-  if (!res.ok) throw new Error(`model-router config lookup failed: ${res.status} ${await res.text()}`);
-  const rows = await res.json();
-  const byId = new Map(rows.map((row) => [row.id, row.metadata || {}]));
-  const preferredId = routerConfigPreference(model).find((id) => byId.get(id)?.WISENT_APP_AGENT_AUTH_SECRET);
-  if (!preferredId) throw new Error('model-router config row missing HMAC secret');
-  const metadata = byId.get(preferredId);
+  const routerUrl = String(process.env.STADO_MODEL_ROUTER_URL || '').trim().replace(/\/+$/, '');
+  const routerToken = String(process.env.WELES_STADO_MODEL_ROUTER_TOKEN || '').trim();
+  if (!routerUrl) throw new Error('missing required STADO_MODEL_ROUTER_URL');
+  if (!routerToken) throw new Error('missing required WELES_STADO_MODEL_ROUTER_TOKEN');
   routerConfig = {
-    routerUrl: String(metadata.MODEL_ROUTER_URL || DEFAULT_MODEL_ROUTER_URL).replace(/\/+$/, ''),
-    agentId: String(metadata.WISENT_APP_AGENT_ID || 'wisent-app'),
-    hmacSecret: String(metadata.WISENT_APP_AGENT_AUTH_SECRET),
-    model,
-    configId: preferredId,
+    routerUrl,
+    routerToken,
+    model: String(process.env.WELES_AGENT_MODEL || process.env.MODEL_ROUTER_MODEL || 'any').trim(),
+    configId: 'stado-env',
   };
   return routerConfig;
 }
 
-function signedRouterHeaders(cfg, body) {
-  const ts = String(Math.floor(Date.now() / 1000));
-  const bodyHash = createHash('sha256').update(body).digest('hex');
-  const sig = createHmac('sha256', cfg.hmacSecret).update(`${cfg.agentId}:${ts}:${bodyHash}`).digest('hex');
+function routerHeaders(cfg) {
   return {
-    'x-agent-id': cfg.agentId,
-    'x-agent-timestamp': ts,
-    'x-agent-signature': sig,
+    Authorization: `Bearer ${cfg.routerToken}`,
     'content-type': 'application/json',
   };
 }
@@ -369,7 +328,7 @@ function parseKeywordRouterResponse(raw) {
 }
 
 async function generateKeywordsWithRouter(input, state = null) {
-  const cfg = await loadModelRouterConfig();
+  const cfg = loadModelRouterConfig();
   const prompt = state ? [
     'Continue Google Ads keyword research by checking intent saturation.',
     'Return ONLY valid JSON in this exact shape: {"saturated":true,"keywords":[],"rationale":"why"} or {"saturated":false,"keywords":["canonical keyword"],"rationale":"what intent is still missing"}.',
@@ -416,7 +375,7 @@ async function generateKeywordsWithRouter(input, state = null) {
   try {
     const res = await fetch(`${cfg.routerUrl}/v1/chat/completions`, {
       method: 'POST',
-      headers: signedRouterHeaders(cfg, body),
+      headers: routerHeaders(cfg),
       body,
       signal: ac.signal,
     });
@@ -504,7 +463,7 @@ async function runKeywordReport(input, generation) {
   const checkedKeys = new Set();
   let rows = [];
   let lastRun = null;
-  let accountEmail = input.email || null;
+  let accountEmail = null;
   let capturedAt = null;
   let url = null;
   let stdout = '';
@@ -595,7 +554,7 @@ function buildKeywordReport(input, generation, run) {
     ok: Boolean(run.ok),
     source: 'weles_keyword_report',
     customer: input.customerId,
-    accountEmail: run.report?.accountEmail || input.email || null,
+    accountEmail: run.report?.accountEmail || null,
     subject: input.subject || null,
     product: input.product || null,
     niche: input.niche || null,
@@ -631,7 +590,6 @@ function validateRequest(body) {
   return {
     customerId,
     keywords,
-    email: String(body.email || body.googleAdsEmail || body.ssoEmail || process.env.GOOGLE_ADS_EMAIL || process.env.SSO_EMAIL || ''),
     session: String(body.session || SESSION),
   };
 }
@@ -661,7 +619,7 @@ async function runKeywordPlanner(input) {
   }
 
   return await new Promise((resolveRun) => {
-    const childEnv = stripGoogleAdsApiEnv({
+    const childEnv = stripAmbientCredentialEnv({
       ...process.env,
       SESSION: input.session,
       GOOGLE_ADS_CUSTOMER_ID: input.customerId,
@@ -673,10 +631,6 @@ async function runKeywordPlanner(input) {
       WELES_NO_INSTRUMENT: process.env.WELES_NO_INSTRUMENT || '1',
       GOOGLE_SSO_NO_SCREENSHOTS: process.env.GOOGLE_SSO_NO_SCREENSHOTS || '1',
     });
-    if (input.email) {
-      childEnv.GOOGLE_ADS_EMAIL = input.email;
-      childEnv.SSO_EMAIL = input.email;
-    }
 
     const child = spawn(process.execPath, [RUNNER], {
       cwd: REPO,

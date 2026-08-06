@@ -1,26 +1,15 @@
-// Supabase dashboard login probe.
-//
-// Reads service_credentials row display_name='Supabase' (login_email +
-// login_password), drives the email+password form at
-// supabase.com/dashboard/sign-in, and verifies we land on /dashboard/projects.
-//
-// If the Supabase account is GitHub-SSO-only (no password set), this will
-// fail at the password step — wire a separate `login_github_sso.mjs` if/when
-// that's needed. For now we assume an email+password user exists.
-//
+// Supabase dashboard login through the exact Weles Supabase dashboard item.
 // Run: node scripts/trajectories/supabase/login.mjs
-import { getServiceLogin } from '../../../dist/utils/credentials.js';
+import { readScopedLogin } from '../../_shared/scoped-secrets.mjs';
 import { WSession } from '../../../dist/session/wsession.js';
 import { humanIdlePause, humanClickLocator } from '../../../dist/human/mouse.js';
 import { humanFill } from '../../../dist/human/keyboard.js';
 
 const SIGNIN_URL = 'https://supabase.com/dashboard/sign-in';
 const SUCCESS_URL_RE = /supabase\.com\/dashboard\/(projects|organizations|org|account)/;
-const DISPLAY_NAME = 'Supabase';
 
-const login = await getServiceLogin(DISPLAY_NAME);
-if (!login) { console.log(`FAIL: no '${DISPLAY_NAME}' row in service_credentials`); process.exit(1); }
-console.log(`[trajectory] Using service login: ${login.email}`);
+const login = readScopedLogin('supabaseDashboard');
+console.log(`[trajectory] Using exact Supabase dashboard login: ${login.email}`);
 
 const s = await WSession.start({ label: 'supabase_login', browser: 'chromium' });
 try {

@@ -12,8 +12,8 @@ const CF_CHECK_INTERVAL_MS = 3000;
 
 // Fast-path DOM check: real Cloudflare challenge pages always contain one of
 // these strings in title/body. If none match, skip the vision call entirely
-// (askClaude shells out to the LLM router and adds 5-15s per page on every
-// goto, even on platforms that never serve CF). Verified 2026-05-02:
+// (the authenticated vision route adds latency on every page, even on
+// platforms that never serve Cloudflare). Verified 2026-05-02:
 // LinkedIn /feed/ on stale cookies stalled WSession.goto for 70+ s in this
 // path because LinkedIn doesn't use Cloudflare and the vision call hung.
 async function looksLikeCloudflareDom(page: any): Promise<boolean> {

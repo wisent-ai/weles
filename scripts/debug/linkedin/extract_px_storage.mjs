@@ -14,8 +14,8 @@ import { humanIdlePause } from '../../../dist/human/mouse.js';
 const ACCOUNT_ID = process.env.ACCOUNT_ID;
 if (!ACCOUNT_ID) { console.error('ACCOUNT_ID env required'); process.exit(2); }
 
-const supabaseUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
+const supabaseUrl = process.env.WELES_SUPABASE_URL ?? '';
+const supabaseKey = process.env.WELES_SUPABASE_SERVICE_ROLE_KEY ?? '';
 if (!supabaseUrl || !supabaseKey) { console.error('SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY required'); process.exit(2); }
 
 const PX_LS_KEY_RE = /^(PXdOjV695v_|_pxvid|pxsid|_?px_|rc::|_grecaptcha)/;

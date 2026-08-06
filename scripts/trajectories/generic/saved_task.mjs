@@ -1,9 +1,9 @@
-const SUPABASE_URL = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+const DATABASE_URL = process.env.WELES_DATABASE_URL || '';
+const DATABASE_TOKEN = process.env.WELES_DATABASE_TOKEN || '';
 const trajectoryId = process.env.GENERIC_SAVED_TRAJECTORY_ID || '';
 
 function headers() {
-  return { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, 'content-type': 'application/json' };
+  return { apikey: DATABASE_TOKEN, Authorization: `Bearer ${DATABASE_TOKEN}`, 'content-type': 'application/json' };
 }
 
 function isObject(value) {
@@ -28,10 +28,10 @@ function replaySteps(definition) {
   return steps;
 }
 
-if (!SUPABASE_URL || !SUPABASE_KEY) throw new Error('SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY required');
+if (!DATABASE_URL || !DATABASE_TOKEN) throw new Error('WELES_DATABASE_URL and WELES_DATABASE_TOKEN required');
 if (!trajectoryId) throw new Error('GENERIC_SAVED_TRAJECTORY_ID required');
 
-const res = await fetch(`${SUPABASE_URL}/rest/v1/weles_trajectories?id=eq.${encodeURIComponent(trajectoryId)}&status=eq.active&select=id,name,action,url,objective,definition`, { headers: headers() });
+const res = await fetch(`${DATABASE_URL}/rest/v1/weles_trajectories?id=eq.${encodeURIComponent(trajectoryId)}&status=eq.active&select=id,name,action,url,objective,definition`, { headers: headers() });
 if (!res.ok) throw new Error(`load saved trajectory HTTP ${res.status}: ${await res.text()}`);
 const rows = await res.json();
 const row = rows[0];

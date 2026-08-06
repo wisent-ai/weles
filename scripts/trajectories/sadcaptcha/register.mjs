@@ -51,9 +51,9 @@ try {
     process.exit(1);
   }
 
-  const supabaseUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
-  const r = await fetch(`${supabaseUrl}/rest/v1/service_credentials?display_name=eq.SadCaptcha`, {
+  const databaseUrl = process.env.WELES_DATABASE_URL ?? '';
+  const key = process.env.WELES_DATABASE_TOKEN ?? '';
+  const r = await fetch(`${databaseUrl}/rest/v1/service_credentials?display_name=eq.SadCaptcha`, {
     method: 'PATCH',
     headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
     body: JSON.stringify({ login_email: EMAIL, login_password: password, updated_at: new Date().toISOString() }),

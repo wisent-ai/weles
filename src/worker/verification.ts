@@ -76,13 +76,12 @@ function verificationPrompt(row: ActionLogRow, result: Record<string, unknown>):
     artifacts: {
       screenshots: stringArray(artifacts.screenshots, 8),
       videos: stringArray(artifacts.videos, 4),
-      video: typeof artifacts.video === 'string' ? artifacts.video : null,
       dom: stringArray(artifacts.dom, 4),
       logs: stringArray(artifacts.logs, 8),
     },
   };
 
-  return `You are the Weles post-run verification gate. Decide whether the browser run actually satisfied its objective using the run result and artifact URLs. Prefer direct visual/browser evidence from screenshots, video, DOM, and logs. Do not pass a run only because the automation script exited successfully. If artifact access is unavailable or evidence is insufficient, use verdict "uncertain".
+  return `You are the Weles post-run verification gate. Decide whether the browser run actually satisfied its objective using the run result and private artifact locators. Prefer direct visual/browser evidence from screenshots, video, DOM, and logs. Do not pass a run only because the automation script exited successfully. If artifact access is unavailable or evidence is insufficient, use verdict "uncertain".
 
 Return ONLY JSON with this exact shape:
 {"verdict":"pass|fail|uncertain","confidence":0.0,"reason":"short reason","evidence":["specific evidence item"]}

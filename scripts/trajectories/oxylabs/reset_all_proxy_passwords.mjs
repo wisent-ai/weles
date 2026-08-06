@@ -1,17 +1,12 @@
-// Reset/set known passwords for Oxylabs proxy users so env credentials match reality.
-// Products covered: Mobile Proxies, ISP Proxies, Dedicated ISP Proxies.
-// Writes updated credentials to .work/keeper/oxylabs_creds.json (NOT to .env).
+// Reset Oxylabs proxy-user passwords and replace only their exact
+// dedicated Skarbiec items. Missing read/write grants block before login.
 import { WSession } from '../../../dist/session/wsession.js';
-import { googleSso, getGoogleSsoCreds } from '../_shared/services/google_sso.mjs';
+import { googleSso, getScopedGoogleLogin } from '../_shared/services/google_sso.mjs'
 import { humanIdlePause, humanClickLocator } from '../../../dist/human/mouse.js';
 import { humanType } from '../../../dist/human/keyboard.js';
-import { mkdirSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { assertScopedSecretWriter, readScopedProxy, readScopedSecret, writeScopedSecretItem } from '../../_shared/scoped-secrets.mjs';
 import { randomBytes } from 'node:crypto';
 
-const OUT_DIR = join(process.cwd(), '.work', 'keeper');
-mkdirSync(OUT_DIR, { recursive: true });
-const OUT_FILE = join(OUT_DIR, 'oxylabs_creds.json');
 
 function generatePassword() {
   // Oxylabs password rules observed 2026-06-23: allowed special symbols are
@@ -23,7 +18,22 @@ function generatePassword() {
   return `${base}Aa1_`;
 }
 
-const login = await getGoogleSsoCreds();
+const mobileProxy = readScopedProxy('oxylabsMobile');
+const dedicatedIspProxy = {
+  ...readScopedProxy('oxylabsDedicatedIsp'),
+  host: readScopedSecret('oxylabsDedicatedIsp', 'host'),
+  ports: readScopedSecret('oxylabsDedicatedIsp', 'ports'),
+};
+const ispProxy = {
+  ...readScopedProxy('oxylabsIsp'),
+  host: readScopedSecret('oxylabsIsp', 'host'),
+  ports: readScopedSecret('oxylabsIsp', 'ports'),
+};
+for (const serviceName of ['oxylabsMobile', 'oxylabsDedicatedIsp', 'oxylabsIsp']) {
+  assertScopedSecretWriter(serviceName);
+}
+
+const login = await getScopedGoogleLogin('oxylabsDashboard');
 if (!login) { console.log('FAIL: no Google SSO creds'); process.exit(1); }
 console.log(`[reset] Using Google SSO: ${login.email}`);
 
@@ -51,8 +61,9 @@ try {
   }
   console.log(`[reset] post-login url=${s.page.url()}`);
 
-  async function resetPassword({ productLabel, usersUrl, username, product }) {
-    console.log(`[reset] starting ${product} user=${username}`);
+  async function resetPassword({ usersUrl, product, serviceName, current }) {
+    const username = current.username;
+    console.log(`[reset] starting ${product}`);
     try {
       await s.page.goto(usersUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
       await humanIdlePause('long');
@@ -62,7 +73,7 @@ try {
       const editVisible = await editBtn.isVisible().catch(() => false);
       console.log(`[reset] ${product} edit/change visible=${editVisible}`);
       if (!editVisible) {
-        results.push({ product, username, status: 'edit_button_not_found' });
+        results.push({ product, status: 'edit_button_not_found' });
         return;
       }
       await editBtn.waitFor({ state: 'visible', timeout: 15000 });
@@ -76,7 +87,7 @@ try {
       const passVisible = await passInput.isVisible().catch(() => false);
       console.log(`[reset] ${product} password input visible=${passVisible}`);
       if (!passVisible) {
-        results.push({ product, username, status: 'no_password_input' });
+        results.push({ product, status: 'no_password_input' });
         return;
       }
 
@@ -103,24 +114,24 @@ try {
       const hasSuccess = /success|updated successfully|password changed/i.test(bodyText.slice(0, 3000));
       const hasError = /error|failed|incorrect|invalid|weak password|must contain/i.test(bodyText.slice(0, 3000));
       const status = hasSuccess && !hasError ? 'password_set' : hasError ? 'possible_error' : 'unknown';
-      results.push({ product, username, status, passwordLength: newPassword.length, password: newPassword });
+      if (status === 'password_set') {
+        writeScopedSecretItem(serviceName, { ...current, password: newPassword });
+      }
+      results.push({ product, status });
       console.log(`[reset] ${product} done status=${status}`);
     } catch (e) {
       console.log(`[reset] ${product} err: ${(e.message || String(e)).slice(0, 150)}`);
-      results.push({ product, username, status: 'error', error: e.message });
+      results.push({ product, status: 'error', error: e.message });
     }
   }
 
-  await resetPassword({ productLabel: 'Mobile Proxies', usersUrl: 'https://dashboard.oxylabs.io/en/overview/MP/users', username: 'userinho_sHJzQ', product: 'mobile' });
-  await resetPassword({ productLabel: 'Dedicated ISP Proxies', usersUrl: 'https://dashboard.oxylabs.io/en/overview/dedicated-isp/users', username: 'wisentdisp_Bkgs5', product: 'dedicated_isp' });
-  // Shared ISP users page crashed in inspection; try the direct URL.
-  await resetPassword({ productLabel: 'ISP Proxies', usersUrl: 'https://dashboard.oxylabs.io/en/overview/ISP/users', username: 'wisentispcbpc7l_DtWYI', product: 'isp' });
+  await resetPassword({ usersUrl: 'https://dashboard.oxylabs.io/en/overview/MP/users', product: 'mobile', serviceName: 'oxylabsMobile', current: mobileProxy });
+  await resetPassword({ usersUrl: 'https://dashboard.oxylabs.io/en/overview/dedicated-isp/users', product: 'dedicated_isp', serviceName: 'oxylabsDedicatedIsp', current: dedicatedIspProxy });
+  await resetPassword({ usersUrl: 'https://dashboard.oxylabs.io/en/overview/ISP/users', product: 'isp', serviceName: 'oxylabsIsp', current: ispProxy });
 
-  writeFileSync(OUT_FILE, JSON.stringify({ created_at: new Date().toISOString(), creds: results }, null, 2));
-  console.log(`[reset] wrote ${OUT_FILE}`);
   console.log('Results:');
   for (const r of results) {
-    console.log(`  ${r.product}: ${r.username} -> ${r.status}`);
+    console.log(`  ${r.product}: ${r.status}`);
   }
 } catch (e) {
   console.log('FAIL:', (e.message || String(e)).slice(0, 200));

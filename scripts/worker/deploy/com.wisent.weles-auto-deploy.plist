@@ -13,9 +13,9 @@
   <key>RunAtLoad</key>
   <true/>
   <key>StandardOutPath</key>
-  <string>/Users/charles/weles/var/auto-deploy.log</string>
+  <string>/Users/charles/.local/state/weles/auto-deploy.log</string>
   <key>StandardErrorPath</key>
-  <string>/Users/charles/weles/var/auto-deploy.log</string>
+  <string>/Users/charles/.local/state/weles/auto-deploy.log</string>
   <key>EnvironmentVariables</key>
   <dict>
     <key>PATH</key>

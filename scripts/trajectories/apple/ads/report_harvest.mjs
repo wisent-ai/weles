@@ -1,8 +1,7 @@
 // Apple Ads report harvester.
 //
-// Uses a Weles browser session and reads DOM/network only. It intentionally
-// avoids screenshots/OCR/SMS/resend flows. If Apple login is required, it uses
-// the native trusted-device 2FA AX flow once via native_2fa.
+// Uses a Weles browser session and reads DOM/network only. Authentication is
+// delegated exclusively to an explicitly authorized apple_login run.
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
@@ -10,8 +9,6 @@ import { join } from 'node:path';
 import { getSocialAccount, resolveAccountSession } from '../../../../dist/utils/credentials.js';
 import { WSession } from '../../../../dist/session/wsession.js';
 import { generatePersona } from '../../../../dist/browser/persona.js';
-import { humanIdlePause } from '../../../../dist/human/mouse.js';
-import { completeAppleNativeTwoFactorChallenge, DEFAULT_APPLE_2FA_CODE_FILE } from '../native_2fa/native_2fa.mjs';
 
 const USER_DATA_DIR = process.env.WELES_USER_DATA_DIR || process.env.ADS_PROFILE_DIR || join(homedir(), '.weles', 'browser_profiles', 'apple_ads');
 const DIAG_DIR = process.env.APPLE_ADS_DIAG_DIR || '.work/apple-ads-report-harvest';
@@ -65,66 +62,30 @@ function isAppleLoginUrl(url) {
   return /idmsa\.apple\.com|appleid\.apple\.com|signin|login/i.test(url || '');
 }
 
-async function loginIfNeeded(s, acct) {
-  if ((s.page.url?.() || '') === 'about:blank') return false;
-  if (!isAppleLoginUrl(s.page.url?.())) return true;
+async function requireAuthenticatedSession(s) {
+  const url = s.page.url?.() || '';
+  if (url === 'about:blank') return false;
 
-  const email = acct?.metadata?.email;
-  const password = acct?.metadata?.password;
-  if (!email || !password) {
-    console.log('FAIL: Apple account is not logged in and stored email/password are missing');
+  const loginUrl = isAppleLoginUrl(url);
+  const authIframe = await s.page.locator('iframe[src*="idmsa.apple.com"], iframe[src*="appleid.apple.com"]').count() > 0;
+  let authPrompt = false;
+  for (const frame of s.page.frames()) {
+    authPrompt ||= await frame.locator([
+      '#account_name_text_field',
+      '#password_text_field',
+      'input[type="password"]',
+      'input[aria-label*="digit"]',
+      'input[aria-label*="Digit"]',
+      'input[type="tel"][maxlength="1"]',
+    ].join(', ')).first().isVisible().catch(() => false);
+    authPrompt ||= await frame.getByText(/Two-Factor Authentication|verification code sent to your Apple devices/i).first().isVisible().catch(() => false);
+    if (authPrompt) break;
+  }
+  if (loginUrl || authIframe || authPrompt) {
+    console.log('FAIL_CLOSED: Apple login/password/2FA is required; this harvester will not authenticate. An explicitly authorized apple_login is the only permitted login path.');
     return false;
   }
-
-  const frameHandle = await s.page.waitForSelector('iframe[src*="idmsa.apple.com"], iframe[src*="appleid.apple.com"]', { timeout: 15000 }).catch(() => null);
-  const frame = frameHandle ? await frameHandle.contentFrame() : s.page;
-  const emailInput = frame.locator([
-    '#account_name_text_field',
-    'input[type="email"]',
-    'input[type="text"][placeholder*="Email" i]',
-    'input[aria-label*="Email" i]',
-    'input[name="accountName"]',
-    'input[name="email"]',
-  ].join(', ')).filter({ visible: true }).first();
-  if (await emailInput.isVisible().catch(() => false)) {
-    await emailInput.fill(email);
-    await frame.locator('#sign-in, button[type="submit"], button:has-text("Continue")').filter({ visible: true }).first().click();
-    await humanIdlePause('deliberate');
-  }
-
-  const continuePassword = frame.locator('#continue-password, button:has-text("Continue with Password")').filter({ visible: true }).first();
-  if (await continuePassword.isVisible().catch(() => false)) {
-    await continuePassword.click();
-    await humanIdlePause('short');
-  }
-
-  let passwordSubmitted = false;
-  const passwordInput = frame.locator('#password_text_field, input[type="password"], input[name="password"]').filter({ visible: true }).first();
-  if (await passwordInput.isVisible().catch(() => false)) {
-    await passwordInput.fill(password);
-    await frame.locator('#sign-in, button[type="submit"], button:has-text("Sign In")').filter({ visible: true }).first().click();
-    passwordSubmitted = true;
-    await humanIdlePause('deliberate');
-  }
-
-  const twoFaVisible = await frame.locator('input[aria-label*="digit"], input[type="tel"][maxlength="1"]').first().isVisible().catch(() => false)
-    || await s.page.getByText(/Two-Factor Authentication|verification code sent to your Apple devices/i).first().isVisible().catch(() => false);
-  if (twoFaVisible || passwordSubmitted) {
-    const twoFa = await completeAppleNativeTwoFactorChallenge(s, frame, {
-      logPrefix: '[apple-ads-report-harvest]',
-    });
-    if (!twoFa.ok) {
-      console.log(`APPLE_2FA_REQUIRED: ${twoFa.codeFile || process.env.APPLE_2FA_CODE_FILE || DEFAULT_APPLE_2FA_CODE_FILE}`);
-      return false;
-    }
-    await humanIdlePause('short');
-  }
-
-  for (let i = 0; i < 30; i += 1) {
-    if (!isAppleLoginUrl(s.page.url?.())) return true;
-    await s.wait(1);
-  }
-  return !isAppleLoginUrl(s.page.url?.());
+  return true;
 }
 
 async function gotoAndWait(page, url) {
@@ -634,7 +595,7 @@ async function main() {
       await gotoAndWait(s.page, REPORT_URL);
     }
     console.log(`[apple-ads-report-harvest] before login check url=${s.page.url?.() || ''}`);
-    const loggedIn = await loginIfNeeded(s, acct);
+    const loggedIn = await requireAuthenticatedSession(s);
     console.log(`[apple-ads-report-harvest] login check loggedIn=${loggedIn} url=${s.page.url?.() || ''}`);
     if (!loggedIn) {
       exitCode = 2;
@@ -649,6 +610,18 @@ async function main() {
     if (!await ensureReportPage(s.page)) {
       const currentUrl = s.page.url?.() || '';
       console.log(`FAIL: Apple Ads report page not loaded (${currentUrl})`);
+      exitCode = 4;
+      return;
+    }
+    const protectedUrl = new URL(s.page.url?.() || 'about:blank');
+    const protectedText = await s.page.evaluate(() => document.body?.innerText || '').catch(() => '');
+    const protectedMarker = protectedText.match(/Manage Your Campaigns|Reporting is not in real time|Create Campaign|Campaign end date reached/i)?.[0];
+    const authenticatedProtectedPage = protectedUrl.hostname === 'app-ads.apple.com'
+      && !/signin|login/i.test(protectedUrl.pathname)
+      && /\/report(?:\/|$)/i.test(protectedUrl.pathname)
+      && Boolean(protectedMarker);
+    if (!authenticatedProtectedPage) {
+      console.log('FAIL_CLOSED: authenticated Apple Ads report page was not confirmed; run an explicitly authorized apple_login before retrying.');
       exitCode = 4;
       return;
     }

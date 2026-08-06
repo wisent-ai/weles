@@ -1,74 +1,56 @@
-// Open App Store Connect in a PERSISTENT profile (so the manual login survives
-// across runs), then generate an App Store Connect API key with the App Manager
-// role and capture the one-time .p8 download. The download capture is armed
-// before the clicks, so it works whether the Generate/Download is triggered by
-// this script or by the user in the window — a flaky selector never loses the key.
+// Generate an App Store Connect API key through an already authenticated persistent profile.
+// Authentication is delegated exclusively to an explicitly authorized apple_login run.
 //
 // Usage:
 //   node scripts/trajectories/apple/asc/asc_create_api_key.mjs
 import { WSession } from '../../../../dist/session/wsession.js';
-import { getSocialAccount } from '../../../../dist/utils/credentials.js';
 import { humanClickLocator } from '../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../dist/human/keyboard.js';
 import { setTimeout } from 'node:timers/promises';
 import { homedir } from 'node:os';
 
-// Auto-fill the Apple ID email + password (from the stored account) on the idmsa
-// login iframe, so the only remaining step is the on-screen 2FA — which the
-// orchestrator handles natively (click Allow, read the code, type it). Raw fills
-// mirror the existing apple manual_2fa trajectory (Apple idmsa, not a bot-scored
-// surface), hence the per-line allow-raw-playwright bypass.
-async function fillLogin(s) {
-  const acct = await getSocialAccount('apple');
-  const email = acct?.metadata?.email;
-  const password = acct?.metadata?.password;
-  if (!email || !password) { console.log('[asc-create] brak email/hasła konta apple — pomijam autofill'); return; }
-  await s.wait(5);
-  // Already logged in via the persistent profile? Then there is no idmsa iframe — skip.
-  if (await s.page.locator('iframe[src*="idmsa.apple.com"]').count() === 0) {
-    console.log('[asc-create] brak ekranu logowania (już zalogowany w profilu) — pomijam autofill');
-    return;
+async function requireAuthenticatedSession(s) {
+  await s.wait(3);
+  const url = s.page.url?.() ?? '';
+  const loginUrl = /idmsa\.apple\.com|appleid\.apple\.com|\/login(?:[/?#]|$)|signin/i.test(url);
+  const authIframe = await s.page.locator('iframe[src*="idmsa.apple.com"], iframe[src*="appleid.apple.com"]').count() > 0;
+  let authPrompt = false;
+  for (const frame of s.page.frames()) {
+    authPrompt ||= await frame.locator([
+      '#account_name_text_field',
+      '#password_text_field',
+      'input[type="password"]',
+      'input[aria-label*="digit"]',
+      'input[aria-label*="Digit"]',
+      'input[type="tel"][maxlength="1"]',
+    ].join(', ')).first().isVisible().catch(() => false);
+    authPrompt ||= await frame.getByText(/Two-Factor Authentication|verification code sent to your Apple devices/i).first().isVisible().catch(() => false);
+    if (authPrompt) break;
   }
-  const authFrame = await s.page.$('iframe[src*="idmsa.apple.com"]');
-  const frame = await authFrame.contentFrame();
-  if (!frame) { console.log('[asc-create] brak iframe idmsa'); return; }
-  await frame.waitForSelector('#account_name_text_field');
-  await frame.locator('#account_name_text_field').fill(email); // allow-raw-playwright: apple idmsa, same as manual_2fa
-  await frame.locator('#sign-in').click(); // allow-raw-playwright: apple idmsa, same as manual_2fa
-  await s.wait(5);
-  const cont = frame.locator('#continue-password');
-  if (await cont.count() > 0) { await cont.click(); await s.wait(3); } // allow-raw-playwright: apple idmsa, same as manual_2fa
-  for (const sel of ['#password_text_field', 'input[type="password"]', 'input[name="password"]']) {
-    if (await frame.locator(sel).first().count() > 0) {
-      await frame.locator(sel).first().fill(password); // allow-raw-playwright: apple idmsa, same as manual_2fa
-      await frame.locator('#sign-in').click(); // allow-raw-playwright: apple idmsa, same as manual_2fa
-      break;
-    }
+  if (loginUrl || authIframe || authPrompt) {
+    throw new Error('FAIL_CLOSED: Apple login/password/2FA is required; this trajectory will not authenticate. An explicitly authorized apple_login is the only permitted login path.');
   }
-  console.log('[asc-create] email+hasło wpisane — teraz 2FA (obsługuję natywnie)');
 }
 
 const API_URL = 'https://appstoreconnect.apple.com/access/integrations/api';
 const KEY_NAME = process.env.KEY_NAME || 'swiatowid-ios-ci';
 const OUT_DIR = `${homedir()}/.swiatowid`;
-const LOGIN_TIMEOUT_MS = 10 * 60 * 1000;
 const DOWNLOAD_TIMEOUT_MS = 10 * 60 * 1000;
 
-async function waitForApiPage(s) {
-  console.log('[asc-create] ZALOGUJ SIĘ w oknie jeśli poprosi (email + hasło + 2FA + Trust)…');
-  const deadline = Date.now() + LOGIN_TIMEOUT_MS;
-  let renavigated = false;
-  while (Date.now() < deadline) {
-    const url = s.page.url?.() ?? '';
-    const authed = url.includes('appstoreconnect.apple.com') && !url.includes('/login') && !url.includes('idmsa');
-    if (authed && url.includes('/access/integrations/api')) { console.log(`[asc-create] strona API — ${url}`); return; }
-    if (authed && !renavigated) {
-      renavigated = true;
-      try { await s.goto(API_URL); } catch (e) { console.log('[asc-create] re-nav:', e.message?.slice(0, 80)); }
-    }
-    await setTimeout(2000);
+async function requireApiPage(s) {
+  await requireAuthenticatedSession(s);
+  let parsedUrl = new URL(s.page.url?.() || 'about:blank');
+  const authenticatedHost = parsedUrl.hostname === 'appstoreconnect.apple.com' && !/\/login(?:\/|$)|idmsa/i.test(parsedUrl.pathname);
+  if (authenticatedHost && !parsedUrl.pathname.startsWith('/access/integrations/api')) {
+    await s.goto(API_URL);
+    await s.wait(3);
+    await requireAuthenticatedSession(s);
+    parsedUrl = new URL(s.page.url?.() || 'about:blank');
   }
-  throw new Error('Timed out waiting for the App Store Connect API page');
+  if (parsedUrl.hostname !== 'appstoreconnect.apple.com' || !parsedUrl.pathname.startsWith('/access/integrations/api')) {
+    throw new Error('FAIL_CLOSED: authenticated App Store Connect API integrations page was not confirmed; run an explicitly authorized apple_login before retrying.');
+  }
+  console.log(`[asc-create] strona API — ${parsedUrl.href}`);
 }
 
 // Best-effort UI clicks. Uses count() gates (which never throw) so a missing
@@ -111,8 +93,7 @@ const s = await WSession.start({
 });
 try {
   await s.goto(API_URL);
-  await fillLogin(s);
-  await waitForApiPage(s);
+  await requireApiPage(s);
   await setTimeout(3000);
 
   // Arm the download capture FIRST, then attempt the clicks. Whichever path

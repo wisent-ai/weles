@@ -11,6 +11,7 @@ import type { WSession } from './wsession.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { runRecordingsDir } from './run-recordings.js';
+import { optionalWelesDatabase } from '../utils/weles-database.js';
 
 declare module './wsession.js' {
   interface WSession {
@@ -105,8 +106,8 @@ W.prototype.dwell = async function (scrolls, dwellMsRange) {
 };
 
 W.prototype.patchAccount = async function (accountId, patch) {
-  const url = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
+  const url = optionalWelesDatabase()?.url ?? '';
+  const key = optionalWelesDatabase()?.token ?? '';
   if (!url || !key || !accountId) return false;
   try {
     const getRes = await fetch(`${url}/rest/v1/social_accounts?id=eq.${accountId}&select=metadata`, { headers: { apikey: key, Authorization: `Bearer ${key}` } });

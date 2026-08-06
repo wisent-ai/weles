@@ -3,14 +3,14 @@
 // Pairs with the persona.ts default flip (always chromium now) and the
 // roadmap commitment to patch Firefox to the same standard as Chromium.
 
-const supabaseUrl = process.env.SUPABASE_URL ?? '';
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
-if (!supabaseUrl || !supabaseKey) { console.error('SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not set'); process.exit(1); }
+const databaseUrl = process.env.WELES_DATABASE_URL ?? '';
+const databaseToken = process.env.WELES_DATABASE_TOKEN ?? '';
+if (!databaseUrl || !databaseToken) { console.error('WELES_DATABASE_URL / WELES_DATABASE_TOKEN not set'); process.exit(Number('1')); }
 
-const headers = { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}`, 'content-type': 'application/json' };
+const headers = { apikey: databaseToken, Authorization: `Bearer ${databaseToken}`, 'content-type': 'application/json' };
 
 // 1) Fetch every row with persona.browser=firefox (only id + metadata)
-const listUrl = `${supabaseUrl}/rest/v1/social_accounts?select=id,platform,username,metadata&metadata->persona->>browser=eq.firefox&limit=2000`;
+const listUrl = `${databaseUrl}/rest/v1/social_accounts?select=id,platform,username,metadata&metadata->persona->>browser=eq.firefox&limit=2000`;
 const rows = await fetch(listUrl, { headers }).then(r => r.json());
 if (!Array.isArray(rows)) { console.error('list failed:', rows); process.exit(1); }
 console.log(`before: ${rows.length} rows with persona.browser=firefox`);
@@ -21,7 +21,7 @@ for (const row of rows) {
   const meta = row.metadata ?? {};
   const persona = meta.persona ?? {};
   const newMeta = { ...meta, persona: { ...persona, browser: 'chromium' } };
-  const url = `${supabaseUrl}/rest/v1/social_accounts?id=eq.${encodeURIComponent(row.id)}`;
+  const url = `${databaseUrl}/rest/v1/social_accounts?id=eq.${encodeURIComponent(row.id)}`;
   const res = await fetch(url, {
     method: 'PATCH',
     headers: { ...headers, Prefer: 'return=minimal' },

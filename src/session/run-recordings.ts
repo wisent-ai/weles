@@ -25,9 +25,17 @@ export function runId(): string {
 
 // recordings/<run_uuid>/ — the root for everything this run produces.
 export function runRecordingsRoot(): string {
-  const d = join(process.cwd(), 'recordings', runId());
+  const d = join(recordingsBase(), runId());
   mkdirSync(d, { recursive: true });
   return d;
+}
+
+// Where recordings live. Default: <cwd>/recordings (the worker runs from the
+// repo root). WELES_RECORDINGS_ROOT relocates the whole store — e.g. onto a
+// larger data volume — and is what stado's weles.recordings_dir registry
+// field propagates into the worker's launch environment.
+function recordingsBase(): string {
+  return process.env.WELES_RECORDINGS_ROOT || join(process.cwd(), 'recordings');
 }
 
 // recordings/<run_uuid>/<...segments>/ (mkdir -p). Callers pass the action
@@ -36,7 +44,7 @@ export function runRecordingsRoot(): string {
 // ACTION when called with none and ACTION is set.
 export function runRecordingsDir(...segments: string[]): string {
   const segs = segments.length === 0 && process.env.ACTION ? [process.env.ACTION] : segments;
-  const d = join(process.cwd(), 'recordings', runId(), ...segs);
+  const d = join(recordingsBase(), runId(), ...segs);
   mkdirSync(d, { recursive: true });
   return d;
 }

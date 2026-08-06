@@ -6,7 +6,7 @@
 // This is a deliberate, user-authorized external send — the message text
 // is a constant in this file and is not generated dynamically.
 import { WSession } from '../../../../dist/session/wsession.js';
-import { googleSso, getGoogleSsoCreds } from '../../_shared/services/google_sso.mjs';
+import { googleSso, getScopedGoogleLogin } from '../../_shared/services/google_sso.mjs'
 import { humanIdlePause, humanClickLocator } from '../../../../dist/human/mouse.js';
 import { humanType } from '../../../../dist/human/keyboard.js';
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -18,7 +18,7 @@ const LOGIN_URL = 'https://dashboard.oxylabs.io/';
 const OUT = join(process.cwd(), '.work', 'oxylabs_contact_am');
 mkdirSync(OUT, { recursive: true });
 
-const login = await getGoogleSsoCreds();
+const login = await getScopedGoogleLogin('oxylabsDashboard');
 if (!login) { console.log('FAIL: no Google SSO creds'); process.exit(1); }
 console.log(`[contact-am] Using Google SSO: ${login.email}`);
 

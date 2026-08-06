@@ -1,10 +1,12 @@
 import { WSession } from '../../../dist/session/wsession.js';
 import { SessionStore } from '../../../dist/session/store.js';
 import { humanIdlePause } from '../../../dist/human/mouse.js';
+import { readScopedLogin } from '../../_shared/scoped-secrets.mjs';
 
 const LABEL = 'vast';
-const EMAIL = process.env.VAST_GOOGLE_EMAIL ?? 'lukasz.bartoszcze@wisent.ai';
-const PWD = process.env.VAST_GOOGLE_PASSWORD ?? '';
+const VAST_LOGIN = readScopedLogin('vastDashboard');
+const EMAIL = VAST_LOGIN.email;
+const PWD = VAST_LOGIN.password;
 const PRICE_GPU = process.env.PRICE_GPU ?? '0.80';
 
 const ws = await WSession.start({ label: LABEL, headless: false });

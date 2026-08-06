@@ -2,6 +2,7 @@ import { WSession } from '../../../dist/session/wsession.js';
 import { solveFunCaptcha } from './_funcaptcha.mjs';
 import { solveAudioPuzzle } from './_audio_solver.mjs';
 import { solveRotationViaCoords } from './_coords_solver.mjs';
+import { requireStadoModelRouterConfig } from './_stado_model_router.mjs';
 import { humanClick, humanClickLocator, nextInterClickMs } from '../../../dist/human/mouse.js'; import { humanType } from '../../../dist/human/keyboard.js';
 import { autoBindCharacter } from '../lib/character-bind.mjs';
 
@@ -191,24 +192,13 @@ try {
   const keepAlive = (async () => { while (!keepAliveAbort) { await new Promise(r => setTimeout(r, 3000)); try { await s.page.evaluate('Date.now()'); } catch {} } })();  // allow-raw-playwright: review — context-dependent timer
 
   let solved = false;
-  const isBD = !!process.env.BRIGHTDATA_BROWSER_WS;
-  // BD Browser API: invoke Captcha.waitForSolve CDP method (auto-solver must be explicitly triggered)
-  if (isBD) {
-    console.log('[register] BD: invoking Captcha.waitForSolve via CDP');
-    try {
-      const cdp = await s.ctx.newCDPSession(s.page);
-      const res = await cdp.send('Captcha.waitForSolve', { detectTimeout: 240000 });
-      console.log(`[register] BD CDP Captcha.waitForSolve: ${JSON.stringify(res)}`);
-      const u = s.page.url?.() ?? '';
-      if (res.status === 'solved' || /signup_emailsent|verif|launch-code|account_verif/.test(u)) { console.log(`[register] BD solved, url=${u}`); solved = true; }
-    } catch (e) { console.log(`[register] BD CDP error: ${e.message?.slice(0, 120)}`); }
-  }
-  if (!solved && !isBD) {
-    for (const fn of [solveAudioPuzzle, solveRotationViaCoords]) {
-      if (solved) break;
-      const ok = await fn(s.page).catch(() => false);
-      if (ok) { await s.wait(5); const u = s.page.url?.() ?? ''; if (/signup_emailsent|verif|launch-code|account_verif/.test(u)) solved = true; }
-    }
+  // The retired Bright Data Browser path depended on an ambient WebSocket
+  // credential. Use only the provider-neutral Stado-backed solvers.
+  requireStadoModelRouterConfig();
+  for (const fn of [solveAudioPuzzle, solveRotationViaCoords]) {
+    if (solved) break;
+    const ok = await fn(s.page).catch(() => false);
+    if (ok) { await s.wait(Number('5')); const u = s.page.url?.() ?? ''; if (/signup_emailsent|verif|launch-code|account_verif/.test(u)) solved = true; }
   }
   // External solvers (anticaptcha/2captcha) return UNSOLVABLE on Arkose basket puzzles — opt-in only.
   const token = (solved || process.env.WELES_EXTERNAL_FUNCAPTCHA !== '1') ? null : (await solveFunCaptcha({ websiteURL: URL, publicKey: captcha.pkey, apiSub: captcha.apiSub, blob: captcha.blob, userAgent: ua, proxy: s.proxyConfig })).token;

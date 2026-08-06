@@ -2,15 +2,15 @@
 // "Disabled" state (toggle off in the dashboard header), causing every CONNECT
 // to fail with "client_10002: zone not found". Flip the toggle.
 
-import { getServiceLogin } from '../../../dist/utils/credentials.js';
+import { getScopedGoogleLogin, googleSso } from '../_shared/services/google_sso.mjs';
 import { WSession } from '../../../dist/session/wsession.js';
 import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
-import { googleSso } from '../_shared/services/google_sso.mjs';
+import { readScopedSecret } from '../../_shared/scoped-secrets.mjs';
 import { humanIdlePause } from '../../../dist/human/mouse.js';
 
-const ZONE = process.env.BRIGHTDATA_ZONE || 'residential_proxy1';
+const ZONE = readScopedSecret('brightdataProxy', 'zone');
 
-const login = await getServiceLogin('Bright Data');
+const login = await getScopedGoogleLogin('brightdataDashboard');
 if (!login) { console.log('FAIL: no Bright Data creds'); process.exit(1); }
 
 const s = await WSession.start({ label: 'brightdata_enable_zone', browser: 'chromium' });

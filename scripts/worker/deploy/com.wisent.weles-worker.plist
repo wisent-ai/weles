@@ -20,8 +20,8 @@
     <true/>
   </dict>
   <key>StandardOutPath</key>
-  <string>/Users/charles/weles/var/worker.log</string>
+  <string>/Users/charles/.local/state/weles/worker.log</string>
   <key>StandardErrorPath</key>
-  <string>/Users/charles/weles/var/worker.log</string>
+  <string>/Users/charles/.local/state/weles/worker.log</string>
 </dict>
 </plist>

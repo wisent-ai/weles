@@ -3,8 +3,10 @@ import { findProfileByEmail } from '../../../dist/chrome/cookies.js';
 import { cpSync, mkdirSync, rmSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { readScopedLogin } from '../../_shared/scoped-secrets.mjs';
 
-const EMAIL = 'lukasz.bartoszcze@wisent.ai';
+const VAST_LOGIN = readScopedLogin('vastDashboard');
+const EMAIL = VAST_LOGIN.email;
 const PRICE_GPU = process.env.PRICE_GPU || '0.80';
 const profile = findProfileByEmail(EMAIL);
 if (!profile) { console.log('FAIL: no chrome profile'); process.exit(1); }
@@ -45,8 +47,7 @@ try {
         if (path.includes('/signin/identifier')) {
           try { await popup.fill('input[type="email"]', EMAIL); await popup.click('#identifierNext, button:has-text("Next")').catch(() => {}); } catch {}
         } else if (path.includes('/challenge/pwd') || path.includes('/challenge/password')) {
-          const pw = process.env.VAST_GOOGLE_PASSWORD || '';
-          if (!pw) { console.log('FAIL: no password'); break; }
+          const pw = VAST_LOGIN.password;
           try { await popup.fill('input[type="password"]', pw); await popup.click('#passwordNext, button:has-text("Next")').catch(() => {}); } catch {}
         } else if (path.includes('/signin/oauth/') || path.includes('/oauthconsent')) {
           await popup.locator('button, [role="button"], a').filter({ hasText: /^(continue|allow|confirm)$/i }).first().click().catch(() => {});

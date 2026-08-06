@@ -1,6 +1,5 @@
-// Drive the apple_asc keeper through Apple ID login, let the user complete
-// 2FA + Trust manually in the browser, then navigate to Turbot and extract
-// the App Store Connect rejection details.
+// Inspect Turbot rejection details through an already authenticated apple_asc keeper.
+// Authentication is delegated exclusively to an explicitly authorized apple_login run.
 
 import net from 'node:net';
 import { homedir } from 'node:os';
@@ -10,21 +9,6 @@ import { setTimeout as sleep } from 'node:timers/promises';
 const APP_ID = process.env.APP_ID || '6502873271';
 const SESSION = process.env.SESSION || 'apple_asc';
 const SOCK = join(homedir(), '.weles', 'keeper', SESSION, 'socket');
-const DASHBOARD_TIMEOUT_MS = 5 * 60 * 1000;
-
-const SUPABASE_URL = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
-
-async function getAppleAccount() {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/social_accounts?platform=eq.apple&is_active=eq.true&select=username,metadata&order=created_at.desc&limit=1`, {
-    headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` },
-  });
-  if (!res.ok) throw new Error(`supabase fetch failed: ${res.status}`);
-  const rows = await res.json();
-  if (!rows.length) throw new Error('no active apple account');
-  const m = rows[0].metadata || {};
-  return { username: rows[0].username, email: m.email, password: m.password };
-}
 
 function sendCmd(cmd) {
   return new Promise((resolve, reject) => {
@@ -49,14 +33,17 @@ function sendCmd(cmd) {
   });
 }
 
-async function waitFor(condition, msg, timeoutMs = 30000, intervalMs = 2000) {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    if (await condition()) return true;
-    console.log(msg);
-    await sleep(intervalMs);
+async function assertAuthenticatedSession() {
+  const url = await currentUrl();
+  const loginUrl = /idmsa\.apple\.com|appleid\.apple\.com|\/login(?:[/?#]|$)|signin/i.test(url || '');
+  const authPrompt = await evalJs(`(() => {
+    const selector = 'iframe[src*="idmsa.apple.com"], iframe[src*="appleid.apple.com"], #account_name_text_field, #password_text_field, input[type="password"], input[aria-label*="digit"], input[aria-label*="Digit"], input[type="tel"][maxlength="1"]';
+    const text = document.body?.innerText || '';
+    return Boolean(document.querySelector(selector)) || /Two-Factor Authentication|verification code sent to your Apple devices/i.test(text);
+  })()`);
+  if (loginUrl || authPrompt) {
+    throw new Error('FAIL_CLOSED: Apple login/password/2FA is required; this keeper trajectory will not authenticate. An explicitly authorized apple_login is the only permitted login path.');
   }
-  throw new Error(`timeout: ${msg}`);
 }
 
 async function currentUrl() {
@@ -76,29 +63,6 @@ async function nav(url) {
   return r.url;
 }
 
-async function fill(selector, text) {
-  const r = await sendCmd({ action: 'fill', selector, text });
-  console.log(`[keeper] fill ${selector} -> ${r.ok ? 'ok' : r.error}`);
-  if (!r.ok) throw new Error(r.error);
-}
-
-async function iframeFill(selector, text) {
-  const r = await sendCmd({ action: 'iframe_fill', iframe: 'idmsa.apple.com', selector, text });
-  console.log(`[keeper] iframe_fill ${selector} -> ${r.ok ? 'ok' : r.error}`);
-  if (!r.ok) throw new Error(r.error);
-}
-
-async function click(selector) {
-  const r = await sendCmd({ action: 'click', selector });
-  console.log(`[keeper] click ${selector} -> ${r.ok ? 'ok' : r.error}`);
-  if (!r.ok) throw new Error(r.error);
-}
-
-async function iframeClick(selector) {
-  const r = await sendCmd({ action: 'iframe_click', iframe: 'idmsa.apple.com', selector });
-  console.log(`[keeper] iframe_click ${selector} -> ${r.ok ? 'ok' : r.error}`);
-  if (!r.ok) throw new Error(r.error);
-}
 
 async function screenshot(name) {
   const r = await sendCmd({ action: 'screenshot' });
@@ -106,42 +70,13 @@ async function screenshot(name) {
   return r;
 }
 
-const acct = await getAppleAccount();
-if (!acct.email || !acct.password) throw new Error('apple account missing email or password');
-console.log(`[keeper] using account: ${acct.username} (${acct.email})`);
 
-// Step 1: make sure we are on the App Store Connect login page.
-const currentU = await currentUrl();
-if (!currentU.includes('appstoreconnect.apple.com/login')) {
-  console.log('[keeper] navigating to ASC login');
-  await nav('https://appstoreconnect.apple.com/login?targetUrl=%2Fapps');
-  await sleep(4000);
-}
-
-// Step 2: fill email inside the Apple ID auth iframe and continue.
-await iframeFill('input#account_name_text_field', acct.email);
-await sleep(1000);
-await iframeClick('button#sign-in');
-
-// Step 3: wait for password field and fill it.
-await sleep(3000);
-await screenshot('password_prompt');
-await iframeFill('input#password_text_field', acct.password);
-await sleep(1000);
-await iframeClick('button#sign-in');
-
-// Step 4: wait for user to complete 2FA + Trust.
-console.log('[keeper] email+password submitted. Please complete 2FA and click Trust in the browser. I will wait.');
-await waitFor(async () => {
-  const u = await currentUrl();
-  return u.includes('appstoreconnect.apple.com') && !u.includes('/login') && !u.includes('idmsa');
-}, 'waiting for App Store Connect dashboard after 2FA/Trust...', DASHBOARD_TIMEOUT_MS, 3000);
-
-// Step 5: navigate to Turbot distribution/review page.
+// Navigate directly to the protected page and refuse any authentication prompt.
 const reviewUrl = `https://appstoreconnect.apple.com/apps/${APP_ID}/distribution`;
 console.log(`[keeper] navigating to ${reviewUrl}`);
 await nav(reviewUrl);
 await sleep(6000);
+await assertAuthenticatedSession();
 
 // Step 6: extract review info.
 const info = await evalJs(`(() => {
@@ -172,6 +107,15 @@ console.log('\n=== BUTTONS ===');
 console.log(JSON.stringify(info.buttons.slice(0, 50), null, 2));
 console.log('\n=== RELEVANT SNIPPETS ===');
 console.log(JSON.stringify([...new Set(snippets)], null, 2));
+
+const protectedUrl = new URL(await currentUrl() || 'about:blank');
+const expectedPath = `/apps/${APP_ID}/distribution`;
+const authenticatedProtectedPage = protectedUrl.hostname === 'appstoreconnect.apple.com'
+  && protectedUrl.pathname.startsWith(expectedPath)
+  && snippets.length > 0;
+if (!authenticatedProtectedPage) {
+  throw new Error('FAIL_CLOSED: authenticated App Store Connect distribution page was not confirmed; run an explicitly authorized apple_login before retrying.');
+}
 
 await screenshot('turbot_review');
 console.log('[keeper] DONE');

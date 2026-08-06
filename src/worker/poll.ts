@@ -3,17 +3,22 @@
 // orchestration — trajectories own their own WSession + Capture.
 import { spawn, execSync } from 'node:child_process';
 import { readFile, writeFile, readdir, unlink, stat } from 'node:fs/promises';
-import { join } from 'node:path';
+import { isAbsolute, join } from 'node:path';
 import { createHmac } from 'node:crypto';
 import os from 'node:os';
-import { uploadArtifacts } from './upload-artifacts.js';
+import { putPrivateWelesObject, uploadArtifacts } from './upload-artifacts.js';
 import { paramsToEnv, resolveTrajectory } from './dispatch.js';
 import { claimOne } from './claim.js';
 import { sweepZombiesIfDue } from './stale.js';
 import { captureVersions } from '../diagnostics/versions.js';
-import { importRunProvenance, writeNetworkCapture, pgConnectionString } from '../diagnostics/run-import.js';
-import postgres from 'postgres';
+import { importRunProvenance } from '../diagnostics/run-import.js';
 import { verifyRunArtifacts } from './verification.js';
+import { platformAdminSessionReady } from '../utils/credentials.js';
+import { cancelAppleAuthAuthorization, claimAppleAuthAuthorization, getAppleAuthCapabilityEnvelope, markAppleAuthFailedOpenByActionLog } from '../auth/apple-submit-guard.js';
+import { cancelCapability } from '../utils/capability.js';
+import { optionalWelesDatabase } from '../utils/weles-database.js';
+import { queueSemanticScholarFollowup } from '../secrets/semantic-scholar-followup.js';
+import { hasWelesAcquiredSecretWriter } from '../secrets/scoped-service.js';
 
 export interface ActionLogRow {
   id: string;
@@ -25,17 +30,18 @@ export interface ActionLogRow {
   webhook_url?: string | null;
   cancel_requested?: boolean | null;
   priority?: number | null;
+  tenant_id?: string | null;
 }
 
 export interface BanSignal { healthy: boolean; signal: string; details?: Record<string, unknown>; }
 
-const SUPABASE_URL = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
-const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
+const DATABASE_URL = optionalWelesDatabase()?.url ?? '';
+const DATABASE_TOKEN = optionalWelesDatabase()?.token ?? '';
 const RECORDINGS_ROOT = process.env.RECORDINGS_ROOT ?? 'recordings';
 const LIGHT_RESULT_ACTIONS = new Set(['overleaf_version_history_scan', 'slack_provision_user_token']);
 
 function headers(): Record<string, string> {
-  return { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' };
+  return { apikey: DATABASE_TOKEN, Authorization: `Bearer ${DATABASE_TOKEN}`, 'Content-Type': 'application/json' };
 }
 
 type TrajectoryBuildRow = {
@@ -75,74 +81,9 @@ function replayStepsFromHistory(value: unknown): Array<{ tool: string; args: Rec
   return steps;
 }
 
-function secretCandidateFromValue(value: unknown): { field: string; value: string } | null {
-  const record = recordOrEmpty(value);
-  for (const [field, raw] of Object.entries(record)) {
-    if (typeof raw !== 'string') continue;
-    const name = field.toLowerCase();
-    if (!/(^|_)(api_)?key$|token|secret/.test(name)) continue;
-    const candidate = raw.trim();
-    if (candidate.length < 8) continue;
-    if (/pending|submitted|received|wait|email/i.test(candidate)) continue;
-    return { field, value: candidate };
-  }
-  return null;
-}
 
-function previewSecret(value: string): string {
-  if (value.length <= 12) return `${value.slice(0, 2)}…${value.slice(-2)}`;
-  return `${value.slice(0, 6)}…${value.slice(-4)}`;
-}
 
-async function persistServiceCredentialReference(row: ActionLogRow, result: Record<string, unknown>): Promise<void> {
-  const params = recordOrEmpty(row.params);
-  const constraints = recordOrEmpty(params.constraints);
-  if (constraints.store_secret_target !== 'service_credentials') return;
-  const generic = recordOrEmpty(result.generic_browser_task);
-  const value = recordOrEmpty(generic.value);
-  const secret = secretCandidateFromValue(value);
-  if (!secret) return;
 
-  const displayName = textParam(constraints, 'display_name') ?? textParam(params, 'promote_name') ?? 'Acquired API key';
-  const envVar = textParam(constraints, 'env_var');
-  const metadata = {
-    source: 'weles_secret_acquisition',
-    source_run_id: row.id,
-    key_field: secret.field,
-    value_status: typeof value.status === 'string' ? value.status : null,
-    captured_at: new Date().toISOString(),
-  };
-  const patch = {
-    display_name: displayName,
-    category: 'api',
-    api_key_env_var: envVar,
-    api_key_preview: previewSecret(secret.value),
-    notes: `Acquired by Weles run ${row.id}; plaintext remains in the source run result.`,
-    metadata,
-    updated_at: new Date().toISOString(),
-  };
-
-  try {
-    const match = await fetch(`${SUPABASE_URL}/rest/v1/service_credentials?display_name=eq.${encodeURIComponent(displayName)}&select=id&limit=1`, { headers: headers() });
-    const existing = match.ok ? (await match.json() as Array<{ id: string }>) : [];
-    const id = existing[0]?.id;
-    if (id) {
-      await fetch(`${SUPABASE_URL}/rest/v1/service_credentials?id=eq.${id}`, {
-        method: 'PATCH',
-        headers: { ...headers(), Prefer: 'return=minimal' },
-        body: JSON.stringify(patch),
-      });
-      return;
-    }
-    await fetch(`${SUPABASE_URL}/rest/v1/service_credentials`, {
-      method: 'POST',
-      headers: { ...headers(), Prefer: 'return=minimal' },
-      body: JSON.stringify(patch),
-    });
-  } catch (e) {
-    console.log(`[worker] service_credentials persistence skipped: ${e instanceof Error ? e.message.slice(0, 160) : String(e).slice(0, 160)}`);
-  }
-}
 
 function trajectoryActionFromName(name: string): string {
   const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 48);
@@ -151,7 +92,7 @@ function trajectoryActionFromName(name: string): string {
 }
 
 async function patchTrajectoryBuild(buildId: string, patch: Record<string, unknown>): Promise<void> {
-  await fetch(`${SUPABASE_URL}/rest/v1/weles_trajectory_builds?id=eq.${buildId}`, {
+  await fetch(`${DATABASE_URL}/rest/v1/weles_trajectory_builds?id=eq.${buildId}`, {
     method: 'PATCH',
     headers: { ...headers(), Prefer: 'return=minimal' },
     body: JSON.stringify({ ...patch, updated_at: new Date().toISOString() }),
@@ -160,7 +101,7 @@ async function patchTrajectoryBuild(buildId: string, patch: Record<string, unkno
 
 async function fetchTrajectoryBuild(buildId: string): Promise<TrajectoryBuildRow | null> {
   try {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/weles_trajectory_builds?id=eq.${buildId}&select=id,tenant_id,name,platform,url,objective,constraints,env,trajectory_id,test_run_id`, { headers: headers() });
+    const res = await fetch(`${DATABASE_URL}/rest/v1/weles_trajectory_builds?id=eq.${buildId}&select=id,tenant_id,name,platform,url,objective,constraints,env,trajectory_id,test_run_id`, { headers: headers() });
     if (!res.ok) return null;
     const rows = await res.json() as TrajectoryBuildRow[];
     return rows[0] ?? null;
@@ -171,7 +112,7 @@ async function fetchTrajectoryBuild(buildId: string): Promise<TrajectoryBuildRow
 
 async function insertReturning<T>(table: string, row: Record<string, unknown>, select: string): Promise<T | null> {
   try {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?select=${encodeURIComponent(select)}`, {
+    const res = await fetch(`${DATABASE_URL}/rest/v1/${table}?select=${encodeURIComponent(select)}`, {
       method: 'POST',
       headers: { ...headers(), Prefer: 'return=representation' },
       body: JSON.stringify(row),
@@ -286,7 +227,7 @@ async function updateTrajectoryBuildAfterRun(row: ActionLogRow, status: 'complet
 
 async function cancelRequested(jobId: string): Promise<boolean> {
   try {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/account_action_logs?id=eq.${jobId}&select=cancel_requested,status`, { headers: headers() });
+    const res = await fetch(`${DATABASE_URL}/rest/v1/account_action_logs?id=eq.${jobId}&select=cancel_requested,status`, { headers: headers() });
     if (!res.ok) return false;
     const rows = await res.json() as Array<{ cancel_requested?: boolean; status?: string }>;
     const row = rows[0];
@@ -296,7 +237,12 @@ async function cancelRequested(jobId: string): Promise<boolean> {
   }
 }
 
-async function runTrajectory(row: ActionLogRow, path: string, extraEnv: Record<string, string> = {}): Promise<{ exitCode: number; stderr: string; cancelled: boolean }> {
+async function runTrajectory(
+  row: ActionLogRow,
+  path: string,
+  trajectoryEnv: Record<string, string>,
+  extraEnv: Record<string, string> = {},
+): Promise<{ exitCode: number; stderr: string; cancelled: boolean }> {
   // G17: recordings/<run_uuid>/ is unique per run, so there is no stale
   // predecessor file to clear (the old shared recordings/<action>/ hazard is gone).
   const secretResultPath = row.action === 'slack_provision_user_token'
@@ -310,7 +256,7 @@ async function runTrajectory(row: ActionLogRow, path: string, extraEnv: Record<s
         // storage/worker/host diagnostics (overridable). HAR/video are already
         // on by default. So a run captures everything it possibly can.
         WELES_FULL_DIAGNOSTICS: process.env.WELES_FULL_DIAGNOSTICS ?? '1',
-        ...paramsToEnv(row.params ?? {}, row.action, path),
+        ...trajectoryEnv,
         ...extraEnv,
         ...(secretResultPath ? { WELES_SECRET_RESULT_FILE: secretResultPath } : {}),
         ...(row.account_id ? { ACCOUNT_ID: row.account_id } : {}),
@@ -336,7 +282,11 @@ async function runTrajectory(row: ActionLogRow, path: string, extraEnv: Record<s
         requestStop('\nFAIL: cancel_requested — SIGTERM, then SIGKILL after grace');
       });
     }, 5000);
-    child.stderr.on('data', (chunk) => { stderr += chunk.toString(); });
+    child.stderr.on('data', (chunk) => {
+      const text = chunk.toString();
+      stderr += text;
+      process.stderr.write(text);
+    });
     child.on('close', (code) => {
       clearInterval(cancelTimer);
       resolve({ exitCode: killed ? 137 : (code ?? -1), stderr: stderr.slice(-2000), cancelled });
@@ -383,9 +333,6 @@ async function readBanSignal(runId: string): Promise<BanSignal | null> {
   return (await readJsonInRun(runId, 'ban_signal.json')) as BanSignal | null;
 }
 
-// pgConnectionString + writeNetworkCapture moved to ../diagnostics/run-import.ts
-// so the keeper shares the exact same capture write (no drift on the ::text::jsonb
-// cast / U+0000 sanitization). importRunProvenance lives there too.
 
 async function importHealthSnapshot(accountId: string, _platform: string, runId: string): Promise<{ signal: string; karma: number | null; shadowbanned: boolean } | null> {
   // G17: the health snapshot json is written somewhere under recordings/<run_uuid>/.
@@ -411,7 +358,7 @@ async function importHealthSnapshot(accountId: string, _platform: string, runId:
     }
     if (!snapshot) return null;
   } catch { return null; }
-  await fetch(`${SUPABASE_URL}/rest/v1/account_health_snapshots`, {
+  await fetch(`${DATABASE_URL}/rest/v1/account_health_snapshots`, {
     method: 'POST',
     headers: { ...headers(), Prefer: 'return=minimal' },
     body: JSON.stringify({
@@ -440,7 +387,7 @@ async function pauseAccount(accountId: string, signal?: string, hours = 24): Pro
   const hard = signal ? ['suspended', 'shadowbanned', 'account_missing'].includes(signal) : false;
   const body: Record<string, unknown> = { paused_until: new Date(Date.now() + hours * 3600_000).toISOString() };
   if (hard) { body.status = 'flagged'; body.is_active = false; }
-  await fetch(`${SUPABASE_URL}/rest/v1/social_accounts?id=eq.${accountId}`, { method: 'PATCH', headers: { ...headers(), Prefer: 'return=minimal' }, body: JSON.stringify(body) }).catch(() => {});
+  await fetch(`${DATABASE_URL}/rest/v1/social_accounts?id=eq.${accountId}`, { method: 'PATCH', headers: { ...headers(), Prefer: 'return=minimal' }, body: JSON.stringify(body) }).catch(() => {});
 }
 
 type FinalRunStatus = 'completed' | 'failed' | 'pending_review' | 'cancelled';
@@ -454,7 +401,7 @@ async function writeResult(jobId: string, status: FinalRunStatus, result: Record
     body.cost_usd = costs.cost_usd;
     body.service_costs = costs.service_costs;
   }
-  await fetch(`${SUPABASE_URL}/rest/v1/account_action_logs?id=eq.${jobId}`, {
+  await fetch(`${DATABASE_URL}/rest/v1/account_action_logs?id=eq.${jobId}`, {
     method: 'PATCH',
     headers: { ...headers(), Prefer: 'return=minimal' },
     body: JSON.stringify(body),
@@ -509,7 +456,7 @@ async function readCosts(jobId: string): Promise<{ cost_usd: number; service_cos
 async function closeCampaignItem(params: Record<string, unknown> | undefined, finalStatus: 'completed' | 'failed', error?: string): Promise<void> {
   const itemId = params?.campaign_item_id as string | undefined;
   if (!itemId) return;
-  await fetch(`${SUPABASE_URL}/rest/v1/campaign_items?id=eq.${itemId}`, {
+  await fetch(`${DATABASE_URL}/rest/v1/campaign_items?id=eq.${itemId}`, {
     method: 'PATCH',
     headers: { ...headers(), Prefer: 'return=minimal' },
     body: JSON.stringify({ status: finalStatus, error: error ?? null, completed_at: new Date().toISOString() }),
@@ -520,7 +467,7 @@ async function workersEnabled(): Promise<boolean> {
   if (process.env.WELES_WORKER_FORCE_ENABLED === '1') return true;
   try {
     const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/system_settings?key=eq.workers_enabled&select=value`,
+      `${DATABASE_URL}/rest/v1/system_settings?key=eq.workers_enabled&select=value`,
       { headers: headers() },
     );
     if (!res.ok) return true;
@@ -531,12 +478,11 @@ async function workersEnabled(): Promise<boolean> {
 }
 
 // Enforcement: a worker must never run a workflow it cannot record. Before
-// claiming any job we verify BOTH log sinks are live — the 'recordings' Storage
-// bucket (forensic artifacts) and the direct-PG network-capture write. If either
-// is unreachable the worker claims nothing, so the job stays pending for a
-// healthy worker instead of running blind. Memoized for DIAG_PREFLIGHT_TTL_MS:
-// one probe per window for ok AND fail alike, which also bounds DB auth attempts
-// (a wrong/rotated password can't turn this into a fail2ban-tripping retry loop).
+// claiming any job we verify both log sinks are live: the authenticated Weles
+// Stado object namespace for forensic artifacts and the direct-PG capture write.
+// If either is unreachable the worker claims nothing, so the job stays pending
+// for a healthy worker instead of running blind. The result is memoized for
+// DIAG_PREFLIGHT_TTL_MS to bound storage and database authentication attempts.
 let _diagPreflight: { ok: boolean; at: number; reason: string } | null = null;
 const DIAG_PREFLIGHT_TTL_MS = 5 * 60_000;
 
@@ -544,43 +490,31 @@ async function diagnosticsUploadable(): Promise<{ ok: boolean; reason: string }>
   const now = Date.now();
   if (_diagPreflight && now - _diagPreflight.at < DIAG_PREFLIGHT_TTL_MS) return _diagPreflight;
 
-  // 1. Storage: upsert a tiny marker into the recordings bucket (the same path
-  //    + service-role auth uploadArtifacts uses), proving artifacts can land.
+  // Write through the same authenticated private-object path used by the
+  // artifact uploader. Exact URI acknowledgement proves the Weles namespace
+  // is writable without creating a public or provider-specific locator.
   let storageReason = '';
   try {
-    const marker = `_preflight/${encodeURIComponent(os.hostname() || 'worker')}.txt`;
-    const res = await fetch(`${SUPABASE_URL}/storage/v1/object/recordings/${marker}`, {
-      method: 'POST',
-      headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'text/plain', 'x-upsert': 'true' },
-      body: `worker preflight ${new Date().toISOString()}`,
-    });
-    if (!res.ok) storageReason = `storage upload HTTP ${res.status}`;
-  } catch (e) { storageReason = `storage upload error: ${(e instanceof Error ? e.message : String(e)).slice(0, 100)}`; }
-
-  // 2. DB capture: connect and confirm INSERT privilege on the capture table
-  //    (a non-writing probe — proves connectivity + grant without polluting).
-  let dbReason = '';
-  const conn = pgConnectionString();
-  if (!conn) {
-    dbReason = 'no DB connection configured (set SUPABASE_DB_URL or SUPABASE_DB_PASSWORD)';
-  } else {
-    const sql = postgres(conn, { prepare: false, max: 1, idle_timeout: 5, connect_timeout: 15 });
-    try {
-      const r = await sql`select has_table_privilege('public.account_action_log_capture', 'INSERT') as can`;
-      if (r[0]?.can !== true) dbReason = 'no INSERT privilege on account_action_log_capture';
-    } catch (e) { dbReason = `capture probe failed: ${(e instanceof Error ? e.message : String(e)).slice(0, 100)}`; }
-    finally { await sql.end({ timeout: 5 }).catch(() => {}); }
+    const markerHost = (os.hostname() || 'worker').replace(/[^\w.-]/g, '-');
+    await putPrivateWelesObject(
+      `recordings/_preflight/${markerHost}.txt`,
+      `worker preflight ${new Date().toISOString()}`,
+      'text/plain',
+    );
+  } catch (e) {
+    storageReason = `Stado object upload error: ${(e instanceof Error ? e.message : String(e)).slice(Number(false), Number('100'))}`;
   }
 
-  const ok = !storageReason && !dbReason;
-  const reason = ok ? 'storage+capture ok' : [storageReason, dbReason].filter(Boolean).join('; ');
+
+  const ok = !storageReason;
+  const reason = ok ? 'private artifact storage ok' : storageReason;
   _diagPreflight = { ok, at: now, reason };
   return _diagPreflight;
 }
 
 export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
-  if (!SUPABASE_URL || !SUPABASE_KEY) {
-    console.error('[worker] SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY missing');
+  if (!DATABASE_URL || !DATABASE_TOKEN) {
+    console.error('[worker] weles-database launcher configuration missing');
     return 'error';
   }
   if (!(await workersEnabled())) return 'idle';
@@ -593,6 +527,22 @@ export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
   await sweepZombiesIfDue();
   const row = await claimOne();
   if (!row) return 'idle';
+  const acquisitionParams = recordOrEmpty(row.params);
+  const acquisitionConstraints = recordOrEmpty(acquisitionParams.constraints);
+  const acquisitionSecret = typeof acquisitionConstraints.secret === 'string' ? acquisitionConstraints.secret : '';
+  const acquisitionTenant = typeof acquisitionConstraints.tenant_id === 'string'
+    ? acquisitionConstraints.tenant_id
+    : row.tenant_id ?? null;
+  if (row.action === 'generic_keeper_task'
+    && acquisitionConstraints.store_secret_target === 'skarbiec'
+    && (!acquisitionSecret || !hasWelesAcquiredSecretWriter(acquisitionSecret, acquisitionTenant))) {
+    const message = 'tenant-bound scoped Skarbiec writer is unavailable for this acquisition contract';
+    const result = { infrastructure_error: 'tenant_skarbiec_writer_unavailable' };
+    await writeResult(row.id, 'failed', result, message);
+    await sendRunWebhook(row, 'failed', result, message);
+    console.log(`[worker] ${row.id.slice(0, 8)} refused: ${message}`);
+    return 'claimed';
+  }
   const trajPath = resolveTrajectory(row.action);
   if (!trajPath) {
     const message = `no trajectory for action=${row.action}`;
@@ -602,8 +552,147 @@ export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
   }
   console.log(`[worker] claimed ${row.id.slice(0, 8)} action=${row.action} account=${row.account_id?.slice(0, 8) ?? 'none'} -> ${trajPath}`);
 
-  const runStart = new Date();
-  const { exitCode, stderr, cancelled } = await runTrajectory(row, trajPath);
+  // Fail-closed admin gate: a people-lifecycle platform run must have a usable
+    // authenticated path (seeded session cookies or a console credential) before
+    // we open the admin console. Otherwise refuse — never drive an unauthenticated
+    // admin surface.
+    {
+      const paramsRec = recordOrEmpty(row.params);
+      const flowName = typeof paramsRec.flow_name === 'string' ? paramsRec.flow_name : '';
+      const lifecycleEnv = recordOrEmpty(paramsRec.env);
+      const platformKey = typeof lifecycleEnv.platform_key === 'string' ? lifecycleEnv.platform_key : '';
+      const isGenericLifecycle = trajPath.endsWith('/generic/browser_task.mjs') || trajPath.endsWith('/generic/keeper_task.mjs');
+      if (isGenericLifecycle && platformKey && flowName.startsWith('people_')) {
+        
+        const readiness = await platformAdminSessionReady(`platform-admin-${platformKey}`);
+        if (!readiness.ready) {
+          const message = `platform admin credential not ready for ${platformKey} (source=${readiness.source}); provision the exact scoped Skarbiec item and consumer grant before lifecycle runs`;
+          await writeResult(row.id, 'failed', { admin_credential_missing: { platform: platformKey, source: readiness.source } }, message);
+          await sendRunWebhook(row, 'failed', {}, message);
+          console.log(`[worker] ${row.id.slice(0, 8)} refused: ${message}`);
+          return 'claimed';
+        }
+      }
+    }
+  
+  let trajectoryEnv: Record<string, string>;
+  try {
+    if (row.action === 'apple_ads_api_setup_probe') {
+      throw new Error('apple_ads_api_setup_probe is disabled because it can submit an Apple password; use an explicitly authorized apple_login action');
+    }
+    if (row.action === 'apple_login') {
+      if (!row.account_id) throw new Error('apple_login requires account_id');
+      const params = recordOrEmpty(row.params);
+      const guardId = typeof params.apple_auth_guard_id === 'string' ? params.apple_auth_guard_id : '';
+      const executionHost = typeof params.apple_execution_host === 'string' ? params.apple_execution_host : '';
+      const executionAgent = typeof params.apple_execution_agent === 'string' ? params.apple_execution_agent : '';
+      const relayCommand = process.env.APPLE_2FA_RELAY_COMMAND?.trim() ?? '';
+      if (!relayCommand || !isAbsolute(relayCommand)) {
+        throw new Error('capability-backed Apple 2FA requires APPLE_2FA_RELAY_COMMAND');
+      }
+      const relayStat = await stat(relayCommand);
+      if (!relayStat.isFile() || (relayStat.mode & 0o100) === 0 || (relayStat.mode & 0o022) !== 0
+          || (typeof process.getuid === 'function' && relayStat.uid !== process.getuid())) {
+        throw new Error('APPLE_2FA_RELAY_COMMAND is not a worker-owned non-writable file');
+      }
+      const actualHost = os.hostname();
+      const actualAgent = process.env.WELES_EXECUTION_AGENT ?? 'weles-worker';
+      if (executionHost !== actualHost || executionAgent !== actualAgent) {
+        throw new Error(`apple_login execution binding mismatch (actual host=${actualHost}, agent=${actualAgent})`);
+      }
+      const leaseOwner = `${actualAgent}:${actualHost}:${process.pid}:${row.id}`;
+      await claimAppleAuthAuthorization(
+        guardId,
+        row.account_id,
+        row.id,
+        executionHost,
+        executionAgent,
+        leaseOwner,
+      );
+      const capabilityEnvelope = await getAppleAuthCapabilityEnvelope(guardId, row.account_id, row.id);
+      trajectoryEnv = paramsToEnv(
+        { ...params, apple_login_capabilities: capabilityEnvelope },
+        row.action,
+        trajPath,
+      );
+      trajectoryEnv.APPLE_AUTH_LEASE_OWNER = leaseOwner;
+    } else {
+      trajectoryEnv = paramsToEnv(row.params ?? {}, row.action, trajPath);
+    }
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    let reason = `pre_spawn_authorization_failed: ${detail.slice(0, 300)}`;
+    let appleCleanupConfirmed = row.action !== 'apple_login';
+    if (row.action === 'apple_login' && row.account_id) {
+      try {
+        const params = recordOrEmpty(row.params);
+        const guardId = typeof params.apple_auth_guard_id === 'string' ? params.apple_auth_guard_id : '';
+        const envelope = await getAppleAuthCapabilityEnvelope(guardId, row.account_id, row.id);
+        const cancellations = await Promise.allSettled([
+          cancelCapability(envelope.email.capability_id, guardId),
+          cancelCapability(envelope.password.capability_id, guardId),
+          cancelCapability(envelope.two_factor.capability.capability_id, guardId),
+        ]);
+        if (cancellations.some((result) => result.status === 'rejected')) {
+          throw new Error('one or more Apple capability cancellations were not acknowledged');
+        }
+        await cancelAppleAuthAuthorization(guardId, `Pre-spawn failure cleaned up: ${detail.slice(0, 300)}`);
+        appleCleanupConfirmed = true;
+      } catch (cleanupError) {
+        console.error(`[worker] Apple pre-spawn cleanup unconfirmed for ${row.id.slice(0, 8)}: ${cleanupError instanceof Error ? cleanupError.message : String(cleanupError)}`);
+      }
+    }
+    if (!appleCleanupConfirmed) {
+      reason += '; Apple authorization cleanup is unconfirmed and requires owner action';
+    }
+    const result = { non_retryable: true, requires_owner_action: true, reason };
+    await writeResult(row.id, 'failed', result, reason);
+    await sendRunWebhook(row, 'failed', result, reason);
+    console.log(`[worker] ${row.id.slice(0, 8)} refused before spawn: ${reason}`);
+    return 'claimed';
+  }
+
+  const { exitCode, stderr, cancelled } = await runTrajectory(row, trajPath, trajectoryEnv);
+  if (row.action === 'apple_login' && (exitCode !== 0 || cancelled)) {
+    let failedOpenPersisted = false;
+    try {
+      const guard = await markAppleAuthFailedOpenByActionLog(
+        row.id,
+        cancelled
+          ? 'Apple login worker was cancelled; post-submit cleanup is unconfirmed'
+          : `Apple login trajectory exited ${exitCode}; post-submit cleanup is unconfirmed`,
+      );
+      failedOpenPersisted = guard?.state === 'failed_open';
+    } catch (error) {
+      console.error(`[worker] Apple fail-open fallback failed for ${row.id.slice(0, 8)}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+    try {
+      const envelope = JSON.parse(trajectoryEnv.APPLE_LOGIN_CAPABILITIES_JSON) as {
+        email?: { capability_id?: string };
+        password?: { capability_id?: string };
+        two_factor?: { mode?: string; capability?: { capability_id?: string } };
+      };
+      const capabilityIds = [
+        envelope.email?.capability_id,
+        envelope.password?.capability_id,
+        envelope.two_factor?.mode === 'capability' ? envelope.two_factor.capability?.capability_id : undefined,
+      ].filter((value): value is string => typeof value === 'string');
+      const cancellations = await Promise.allSettled(capabilityIds.map((capabilityId) =>
+        cancelCapability(capabilityId, trajectoryEnv.APPLE_AUTH_GUARD_ID)
+      ));
+      if (cancellations.some((result) => result.status === 'rejected')) {
+        throw new Error('one or more Apple capability cancellations were not acknowledged');
+      }
+      if (!failedOpenPersisted) {
+        await cancelAppleAuthAuthorization(
+          trajectoryEnv.APPLE_AUTH_GUARD_ID,
+          'Pre-submit Apple worker failure capabilities cancelled; no password submission was recorded',
+        );
+      }
+    } catch (error) {
+      console.error(`[worker] Apple capability cleanup fallback failed for ${row.id.slice(0, 8)}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
   const banSignal = await readBanSignal(row.id);
   const lightResultOnly = LIGHT_RESULT_ACTIONS.has(row.action);
   const result: Record<string, unknown> = lightResultOnly ? {} : { versions: captureVersions(trajPath) };
@@ -613,10 +702,9 @@ export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
     await unlink(secretPath).catch(() => {});
     if (secretResult && typeof secretResult === 'object') result.slack_user_token = secretResult;
   }
-  // G5: when the run executed against a dirty repo/trajectory, mirror the full
-  // working-tree diff (already captured in result.versions.dirty_diff) to
-  // recordings/<action>/source_diff.patch for the storage backup. upload-artifacts
-  // allowlists .patch -> 'logs'. Best-effort; never fails the run.
+  // When the run executed against a dirty repo/trajectory, mirror the full
+  // working-tree diff (already captured in result.versions.dirty_diff) to the
+  // run tree so uploadArtifacts preserves it in private Stado storage.
   if (!lightResultOnly) try {
     const v = result.versions as Record<string, unknown>;
     if (v.weles_dirty === true || v.trajectory_file_dirty === true) {
@@ -673,11 +761,11 @@ export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
   let pending: Record<string, unknown> | null = null;
   if (pendingPath) { try { pending = JSON.parse(await readFile(pendingPath, 'utf8')); } catch { pending = null; } }
   // IP-drift detection: first session stores observed exit_ip; subsequent sessions compare, mismatch -> ip_drift + pause.
-  if (!lightResultOnly) try { const ip = (result.session as any)?.exit_ip; if (ip && row.account_id) { const r = await fetch(`${SUPABASE_URL}/rest/v1/social_accounts?id=eq.${row.account_id}&select=metadata`, { headers: headers() }); if (r.ok) { const j = await r.json() as any[]; const m = j[0]?.metadata ?? {}; const stored = m.proxy?.exit_ip; if (!stored) { const nm = { ...m, proxy: { ...(m.proxy ?? {}), exit_ip: ip } }; await fetch(`${SUPABASE_URL}/rest/v1/social_accounts?id=eq.${row.account_id}`, { method: 'PATCH', headers: { ...headers(), Prefer: 'return=minimal' }, body: JSON.stringify({ metadata: nm }) }); } else if (stored !== ip) { result.ban_signal = { healthy: false, signal: 'ip_drift', details: { expected: stored, observed: ip } }; await pauseAccount(row.account_id, 'ip_drift'); } } } } catch (e) { console.log('[ip-drift]', e instanceof Error ? e.message : String(e)); }
+  if (!lightResultOnly) try { const ip = (result.session as any)?.exit_ip; if (ip && row.account_id) { const r = await fetch(`${DATABASE_URL}/rest/v1/social_accounts?id=eq.${row.account_id}&select=metadata`, { headers: headers() }); if (r.ok) { const j = await r.json() as any[]; const m = j[0]?.metadata ?? {}; const stored = m.proxy?.exit_ip; if (!stored) { const nm = { ...m, proxy: { ...(m.proxy ?? {}), exit_ip: ip } }; await fetch(`${DATABASE_URL}/rest/v1/social_accounts?id=eq.${row.account_id}`, { method: 'PATCH', headers: { ...headers(), Prefer: 'return=minimal' }, body: JSON.stringify({ metadata: nm }) }); } else if (stored !== ip) { result.ban_signal = { healthy: false, signal: 'ip_drift', details: { expected: stored, observed: ip } }; await pauseAccount(row.account_id, 'ip_drift'); } } } } catch (e) { console.log('[ip-drift]', e instanceof Error ? e.message : String(e)); }
   if (banSignal) {
     result.ban_signal = banSignal;
     if (banSignal.healthy === false && row.account_id) await pauseAccount(row.account_id, banSignal.signal);
-    // NOTE: previous version wrote unconditional IP burns on ip_blocked / proxy_auth_failed signals. That was paired-comparison-incorrect by symmetry with the _register burn writer reverted in 4cd2eb4. Removed for consistency — the burn-attribution cron (content-platform src/lib/burn-attribution/runner.ts) is now the sole writer to system_settings.burned_proxies, and only on paired counterfactuals.
+    // NOTE: previous version wrote unconditional IP burns on ip_blocked / proxy_auth_failed signals. That was paired-comparison-incorrect by symmetry with the _register burn writer reverted in 4cd2eb4. Removed for consistency — the burn-attribution cron (Echo src/lib/burn-attribution/runner.ts) is now the sole writer to system_settings.burned_proxies, and only on paired counterfactuals.
     // NOTE: previous version wrote unconditional (domain, ip, host) burns on every _register failure. That was paired-comparison-incorrect — a single failure with no counterfactual cannot isolate which factor caused the failure. Removed b5235af → see this commit. Domain/IP attribution must come from a paired (fail, pass) matcher that observes one factor changed and outcome flipped.
   } else {
     result.ban_signal = { healthy: exitCode === 0, signal: exitCode === 0 ? 'healthy' : 'unknown_error' };
@@ -691,7 +779,7 @@ export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
     if (created) {
       result.account_id = created.id;
       // Back-link the action_log row to the new account so timeline queries work.
-      await fetch(`${SUPABASE_URL}/rest/v1/account_action_logs?id=eq.${row.id}`, {
+      await fetch(`${DATABASE_URL}/rest/v1/account_action_logs?id=eq.${row.id}`, {
         method: 'PATCH',
         headers: { ...headers(), Prefer: 'return=minimal' },
         body: JSON.stringify({ account_id: created.id }),
@@ -701,15 +789,28 @@ export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
   let verificationPending = false;
   let verificationMessage: string | undefined;
   if (!lightResultOnly) {
-    // Always upload so every run has recordings on the detail page.
-    await uploadArtifacts(row.action, row.id, runStart, { force: true }).then(a => { if (a) result.artifacts = a }).catch(() => {});
-    // G18: persist the full network/instrumentation capture into the lazy
-    // account_action_log_capture table (direct PG; best-effort).
-    await writeNetworkCapture(row.id).catch(() => {});
+    // Always upload the complete run tree before publishing result locators.
+    const artifacts = await uploadArtifacts(row.id);
+    if (artifacts) result.artifacts = artifacts;
     const verification = await verifyRunArtifacts(row, result);
     if (verification) result.verification = verification;
     verificationPending = verification ? !verification.passed : false;
     verificationMessage = verificationPending ? `verification_${verification?.verdict}: ${verification?.reason}` : undefined;
+    const constraints = recordOrEmpty(row.params?.constraints);
+    const semanticAcquisition = row.action === 'generic_keeper_task'
+      && constraints.secret === 'semantic_scholar.api_key';
+    if (exitCode === ''.length && !pending && semanticAcquisition) {
+      const tenantId = typeof constraints.tenant_id === 'string'
+        ? constraints.tenant_id
+        : row.tenant_id ?? null;
+      try {
+        const followup = await queueSemanticScholarFollowup(row.id, ''.length, ''.length, tenantId);
+        result.semantic_scholar_followup = followup;
+      } catch (error) {
+        verificationPending = true;
+        verificationMessage = `semantic_scholar_followup_enqueue_failed: ${error instanceof Error ? error.message : String(error)}`;
+      }
+    }
   }
   // Capability-matrix update: record (provider, action) outcome so the
   // selector self-heals as providers go bad / recover. Skips when provider
@@ -718,7 +819,7 @@ export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
     const { recordOutcome } = await import('../proxy/capability.js');
     const s = result.session as any;
     const finalSignal = (result.ban_signal as BanSignal).signal;
-    const finalStatus = exitCode === 0 && (pending || verificationPending) ? 'pending_review' : (exitCode === 0 ? 'completed' : 'failed');
+    const finalStatus = exitCode === ''.length && (pending || verificationPending) ? 'pending_review' : (exitCode === ''.length ? 'completed' : 'failed');
     if (s?.provider) await recordOutcome(s.provider, row.action, finalStatus, finalSignal, row.platform);
   } catch { /* best-effort */ }
   const costs = await readCosts(row.id);
@@ -733,14 +834,13 @@ export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
     await closeCampaignItem(row.params, 'failed', message);
     await sendRunWebhook(row, 'cancelled', result, message);
     console.log(`[worker] ${row.id.slice(0, 8)} cancelled`);
-  } else if (exitCode === 0 && (pending || verificationPending)) {
+  } else if (exitCode === ''.length && (pending || verificationPending)) {
     if (pending) result.pending_review = pending;
     await writeResult(row.id, 'pending_review', result, verificationMessage, costs ?? undefined);
     await updateTrajectoryBuildAfterRun(row, 'pending_review', result, verificationMessage ?? 'pending_review');
     await sendRunWebhook(row, 'pending_review', result, verificationMessage);
     console.log(`[worker] ${row.id.slice(0, 8)} pending_review`);
-  } else if (exitCode === 0) {
-    await persistServiceCredentialReference(row, result);
+  } else if (exitCode === ''.length) {
     await writeResult(row.id, 'completed', result, undefined, costs ?? undefined);
     await updateTrajectoryBuildAfterRun(row, 'completed', result);
     await closeCampaignItem(row.params, 'completed');

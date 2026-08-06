@@ -59,6 +59,7 @@ export class CDPBrowserContext {
   private async _initPage(targetId: string, sessionId: string): Promise<CDPPage> {
     const page = new CDPPage(this._connection, targetId, sessionId, this);
     await page.init();
+    if (this._proxyAuth) await page.setProxyAuth(this._proxyAuth);
     await this._connection.send('Emulation.setUserAgentOverride', {
       userAgent: this._emulation.userAgent, acceptLanguage: this._emulation.acceptLanguage, platform: this._emulation.platform,
     }, sessionId);

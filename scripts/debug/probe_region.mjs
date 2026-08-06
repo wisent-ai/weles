@@ -1,6 +1,5 @@
 // Probe TikTok's /passport/web/region/ from inside the page context.
-// Run under Bright Data (BRIGHTDATA_BROWSER_WS set) AND our custom Chromium,
-// compare the two responses.
+// Runs only under the custom Weles browser boundary.
 
 import { WSession } from '../../dist/session/wsession.js';
 import { generatePersona } from '../../dist/browser/persona.js';
@@ -81,7 +80,7 @@ try {
     return { status: res.status, bodyLen: text.length, body: text, headers };
   });
 
-  console.log('ENVIRONMENT:', process.env.BRIGHTDATA_BROWSER_WS ? 'BRIGHT_DATA' : 'CUSTOM_CHROMIUM');
+  console.log('ENVIRONMENT: CUSTOM_CHROMIUM');
   console.log('status:', result.status);
   console.log('body length:', result.bodyLen);
   console.log('body:', result.body.slice(0, 800));

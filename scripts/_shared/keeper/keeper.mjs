@@ -6,6 +6,9 @@ import net from 'node:net';
 import { existsSync, mkdirSync, readFileSync, writeFileSync, unlinkSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { enforceWelesServicePlacement } from './service-placement.mjs';
+
+enforceWelesServicePlacement('keeper/keeper.mjs');
 
 const REPO = process.env.WELES_REPO || '/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles';
 const { WSession } = await import(`${REPO}/dist/session/wsession.js`);
@@ -17,7 +20,7 @@ const { wsSaveAccount } = await import(`${REPO}/dist/session/wsession-helpers/fi
 const { solveRecaptchaV2 } = await import(`${REPO}/dist/captcha/recaptcha.js`);
 const { captureVersions } = await import(`${REPO}/dist/diagnostics/versions.js`);
 const { uploadArtifacts } = await import(`${REPO}/dist/worker/upload-artifacts.js`);
-const { writeNetworkCapture, readChallengeOutcome } = await import(`${REPO}/dist/diagnostics/run-import.js`);
+const { readChallengeOutcome } = await import(`${REPO}/dist/diagnostics/run-import.js`);
 const { setupKeeperFlow } = await import('./bookkeeping.mjs');
 
 const SESSION = process.env.SESSION || 'default';
@@ -86,7 +89,6 @@ const flow = await setupKeeperFlow({
   } : null,
   captureVersionsFn: captureVersions,
   uploadArtifactsFn: uploadArtifacts,
-  writeNetworkCaptureFn: writeNetworkCapture,
   challengeOutcomeFn: readChallengeOutcome,
   getLastUrl: () => s?.page?.url?.() ?? null,
   closeSessionFn: async () => {

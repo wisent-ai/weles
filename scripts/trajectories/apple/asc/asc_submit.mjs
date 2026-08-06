@@ -7,14 +7,8 @@
 // poll until the just-uploaded build finishes processing and is selectable ->
 // pick it -> "Add for Review" -> "Submit for Review" -> verify status.
 //
-// Args (env):
-//   APP_ID         (required) numeric App Store app id, e.g. 6450000000
-//   IPA_PATH       (optional) local .ipa to upload via altool before submitting.
-//                  When set, ASC_KEY_ID + ASC_ISSUER_ID + ASC_KEY_P8 are required.
-//   ASC_KEY_ID     App Store Connect API key id (the AuthKey_<id>.p8 name)
-//   ASC_ISSUER_ID  App Store Connect API issuer id
-//   ASC_KEY_P8     path to the .p8 private key
-//   APPLE_PLATFORM (optional) ios | osx | appletvos (default ios)
+// APP_ID is required; IPA_PATH optionally enables binary upload. Upload
+// credentials come only from the exact Weles App Store Connect API item.
 //   VERSION_STRING (optional) marketing version to create if none is editable
 //   WHATS_NEW      (optional) release notes for this version
 //   BUILD_NUMBER   (optional) specific build to attach; else newest selectable
@@ -28,6 +22,7 @@ import { WSession } from '../../../../dist/session/wsession.js';
 import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../dist/human/keyboard.js';
 import { uploadIpa } from './altool_upload.mjs';
+import { readScopedSecret } from '../../../_shared/scoped-secrets.mjs';
 
 const APP_ID = process.env.APP_ID;
 if (!APP_ID || !/^\d+$/.test(APP_ID)) { console.log('FAIL: APP_ID env var (numeric app id) required'); process.exit(1); }
@@ -46,9 +41,9 @@ if (!acct) { console.log('FAIL: no apple account'); process.exit(1); }
 if (IPA_PATH) {
   await uploadIpa({
     ipaPath: IPA_PATH,
-    keyId: process.env.ASC_KEY_ID,
-    issuerId: process.env.ASC_ISSUER_ID,
-    p8Path: process.env.ASC_KEY_P8,
+    keyId: readScopedSecret('appleAppStoreConnectApi', 'key_id'),
+    issuerId: readScopedSecret('appleAppStoreConnectApi', 'issuer_id'),
+    privateKey: readScopedSecret('appleAppStoreConnectApi', 'private_key'),
     platform: process.env.APPLE_PLATFORM || 'ios',
   });
 }

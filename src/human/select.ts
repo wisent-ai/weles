@@ -92,8 +92,13 @@ async function tryCssDropdown(page: Page, target: string, value: string): Promis
  * the caller (WSession.select wraps this in runStep). */
 export async function selectOption(page: Page, target: string, value: string): Promise<string | null> {
   console.log(`[select] target="${target}" value="${value}"`);
-  const native = await tryNativeSelect(page, value);
-  if (native) { console.log(`[select] native hit: ${native}`); return native; }
+  const frames = typeof page.frames === 'function'
+    ? [page.mainFrame?.(), ...page.frames()].filter((frame, index, all) => frame && all.indexOf(frame) === index)
+    : [page];
+  for (const frame of frames) {
+    const native = await tryNativeSelect(frame, value);
+    if (native) { console.log(`[select] native hit: ${native}`); return native; }
+  }
   const aria = await tryAriaCombobox(page, target, value);
   if (aria) { console.log(`[select] combobox hit: ${aria}`); return aria; }
   const css = await tryCssDropdown(page, target, value);

@@ -24,11 +24,12 @@
 import { WSession } from '../../../../dist/session/wsession.js';
 import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
 import { getSocialAccount, resolveAccountSession } from '../../../../dist/utils/credentials.js';
+import { readScopedSecret } from '../../../_shared/scoped-secrets.mjs';
 
 const ACCT_USERNAME = process.env.ACCOUNT_USERNAME;
 const TIMEOUT_S = parseInt(process.env.DISCORD_EMAIL_VERIFY_TIMEOUT || '90', 10);
-const RESEND_KEY = process.env.RESEND_RECEIVING_API_KEY;
-if (!RESEND_KEY) { console.log('FAIL: RESEND_RECEIVING_API_KEY env required'); process.exit(1); }
+const RESEND_KEY = readScopedSecret('resendReceiving', 'api_key');
+if (!RESEND_KEY) { console.log('FAIL: exact Resend receiving grant unavailable'); process.exit(Number('1')); }
 
 const acct = ACCT_USERNAME
   ? await getSocialAccount('discord', { username: ACCT_USERNAME })
@@ -131,8 +132,8 @@ try {
   if (!verifiedText) { console.log('FAIL: "Email Verified" text not found on verify page'); process.exit(1); }
   console.log(`[email_verify] page shows: ${verifiedText}`);
 
-  const supaUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supaKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const supaUrl = process.env.WELES_DATABASE_URL;
+  const supaKey = process.env.WELES_DATABASE_TOKEN;
   if (supaUrl && supaKey) {
     const cur = await (await fetch(`${supaUrl}/rest/v1/social_accounts?platform=eq.discord&username=eq.${encodeURIComponent(acct.username)}&select=id,metadata`, { headers: { apikey: supaKey, Authorization: `Bearer ${supaKey}` } })).json();
     if (cur && cur[0]) {

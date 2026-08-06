@@ -8,16 +8,17 @@
 // session recording lands in recordings/<label>/ as continuous evidence.
 //
 // Run:
-//   GM_EMAIL=lukasz.bartoszcze@wisent.ai WELES_NO_INSTRUMENT=1 \
+//   WELES_NO_INSTRUMENT=1 \
 //   node weles/scripts/trajectories/google/drive/evidence/version_history.mjs \
 //     --archive <drive_preserve output dir> --out <manifest.json path>
 
 import { WSession } from '../../../../../dist/session/wsession.js';
-import { googleSso, getGoogleSsoCreds } from '../../../_shared/services/google_sso.mjs';
+import { googleSso } from '../../../_shared/services/google_sso.mjs';
 import { humanClickLocator, humanIdlePause } from '../../../../../dist/human/mouse.js';
 import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
+import { readScopedLogin } from '../../../../_shared/scoped-secrets.mjs';
 
 function arg(name) {
   const i = process.argv.indexOf(name);
@@ -54,12 +55,7 @@ const metas = readdirSync(join(ARCHIVE, 'files'))
   .sort((a, b) => a.name.localeCompare(b.name));
 
 async function resolveCreds() {
-  const email = process.env.GM_EMAIL;
-  if (!email) throw new Error('GM_EMAIL required for this evidence capture');
-  if (process.env.GM_PASSWORD) return { email, password: process.env.GM_PASSWORD };
-  const fromDb = await getGoogleSsoCreds(email);
-  if (fromDb?.password) return fromDb;
-  throw new Error('No service_credentials row with password for ' + email);
+  return readScopedLogin('googleDrive');
 }
 
 const creds = await resolveCreds();

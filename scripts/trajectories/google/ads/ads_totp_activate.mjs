@@ -1,5 +1,5 @@
 // Activate a Google Authenticator setup key for the Google Ads account.
-// Uses Weles browser automation only; secrets are read from service_credentials/env and redacted from diagnostics.
+// Uses Weles browser automation only; password and MFA material come from the dedicated Google Ads Skarbiec item.
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
@@ -8,11 +8,12 @@ import { generatePersona } from '../../../../dist/browser/persona.js';
 import { WSession } from '../../../../dist/session/wsession.js';
 import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../dist/human/keyboard.js';
-import { generateTotp, getGoogleSsoCreds, googleSso } from '../../_shared/services/google_sso.mjs';
+import { generateTotp, googleSso } from '../../_shared/services/google_sso.mjs';
 import { assertGoogleAdsProfileNotAlreadyOpen, closeAllowedByEnv } from './_profile_guard.mjs';
+import { readScopedLogin } from '../../../_shared/scoped-secrets.mjs';
 
-const DEFAULT_EMAIL = 'lukasz.bartoszcze@wisent.ai';
-const EMAIL = process.env.GOOGLE_ADS_EMAIL || process.env.SSO_EMAIL || process.env.GM_EMAIL || DEFAULT_EMAIL;
+const GOOGLE_ADS_LOGIN = readScopedLogin('googleAds');
+const EMAIL = GOOGLE_ADS_LOGIN.email;
 const USER_DATA_DIR = process.env.WELES_USER_DATA_DIR || process.env.ADS_PROFILE_DIR || join(homedir(), '.weles', 'browser_profiles', 'google_ads');
 const DIAG_DIR = process.env.GOOGLE_TOTP_ACTIVATION_DIAG_DIR || '.work/google-totp-activation';
 const RESULT_FILE = process.env.GOOGLE_TOTP_ACTIVATION_RESULT_FILE || join(DIAG_DIR, 'result.json');
@@ -25,29 +26,6 @@ process.env.GOOGLE_SSO_NO_SCREENSHOTS ??= '1';
 mkdirSync(USER_DATA_DIR, { recursive: true });
 mkdirSync(DIAG_DIR, { recursive: true });
 
-function loadEnvFile(file) {
-  if (!existsSync(file)) return {};
-  const env = {};
-  for (const rawLine of readFileSync(file, 'utf8').split(/\r?\n/)) {
-    const line = rawLine.trim();
-    if (!line || line.startsWith('#')) continue;
-    const equals = line.indexOf('=');
-    if (equals < 0) continue;
-    const key = line.slice(0, equals).trim();
-    let value = line.slice(equals + 1).trim();
-    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
-      value = value.slice(1, -1);
-    }
-    env[key] = value;
-  }
-  return env;
-}
-
-function applyEnvDefaults(env) {
-  for (const [key, value] of Object.entries(env)) {
-    if (!process.env[key]) process.env[key] = value;
-  }
-}
 
 function stableProfilePersona() {
   const p = join(USER_DATA_DIR, 'persona.json');
@@ -77,7 +55,6 @@ function redact(value, secret = '') {
   if (escaped) text = text.replace(new RegExp(escaped, 'gi'), '<redacted-totp-secret>');
   text = text
     .replace(/[A-Z2-7](?:\s?[A-Z2-7]){15,}/g, '<redacted-base32-secret>')
-    .replace(/Warszawa\d*!?/g, '<redacted-password>')
     .replace(/"login_password"\s*:\s*"[^"]+"/g, '"login_password":"<redacted>"')
     .replace(/"google_totp_secret"\s*:\s*"[^"]+"/g, '"google_totp_secret":"<redacted>"');
   return text;
@@ -490,17 +467,12 @@ async function activateAuthenticator(s, creds) {
 }
 
 async function main() {
-  applyEnvDefaults(loadEnvFile(join(process.cwd(), '.env')));
-  applyEnvDefaults(loadEnvFile(join(process.cwd(), '.env.local')));
-  applyEnvDefaults(loadEnvFile(join(process.cwd(), '.env.production')));
-  applyEnvDefaults(loadEnvFile(join(process.cwd(), '..', 'content-platform', '.env.local')));
-  applyEnvDefaults(loadEnvFile(join(process.cwd(), '..', 'content-platform', '.env.production')));
 
-  const creds = await getGoogleSsoCreds(EMAIL);
+  const creds = GOOGLE_ADS_LOGIN;
   if (!creds?.password || !creds?.totpSecret) {
     const report = {
       ok: false,
-      blocked: 'missing_google_sso_password_or_totp_secret',
+      blocked: 'missing_google_ads_password_or_totp_secret',
       email: EMAIL,
       hasPassword: Boolean(creds?.password),
       hasTotpSecret: Boolean(creds?.totpSecret),

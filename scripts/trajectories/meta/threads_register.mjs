@@ -2,12 +2,12 @@ import { WSession } from '../../../dist/session/wsession.js';
 import { injectProviderCookies } from '../../../dist/platforms/_shared/cross_platform_oauth.js';
 
 async function findUsableInstagramAccount() {
-  const supabaseUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
-  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
-  if (!supabaseUrl || !supabaseKey) return null;
+  const databaseUrl = process.env.WELES_DATABASE_URL ?? '';
+  const databaseToken = process.env.WELES_DATABASE_TOKEN ?? '';
+  if (!databaseUrl || !databaseToken) return null;
   const res = await fetch(
-    `${supabaseUrl}/rest/v1/social_accounts?platform=eq.instagram&is_active=eq.true&select=id,platform,username,metadata&order=created_at.desc&limit=20`,
-    { headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` } },
+    `${databaseUrl}/rest/v1/social_accounts?platform=eq.instagram&is_active=eq.true&select=id,platform,username,metadata&order=created_at.desc&limit=20`,
+    { headers: { apikey: databaseToken, Authorization: `Bearer ${databaseToken}` } },
   );
   if (!res.ok) return null;
   const rows = await res.json();
@@ -26,8 +26,7 @@ async function findUsableInstagramAccount() {
 
 const URL = 'https://www.threads.net/login';
 const MAX_RETRIES = 5;
-const USE_BRIGHTDATA = !!process.env.BRIGHTDATA_BROWSER_WS;
-const proxy = USE_BRIGHTDATA ? 'none' : (process.env.PROXY_URL || 'none');
+const proxy = process.env.PROXY_URL || 'none';
 const sleep = (s) => new Promise(r => setTimeout(r, s * 1000));  // allow-raw-playwright: utility sleep shim — usages should migrate to humanIdlePause
 
 async function readPage(s) {

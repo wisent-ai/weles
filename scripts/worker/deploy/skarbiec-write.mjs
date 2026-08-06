@@ -8,7 +8,7 @@ const [endpointText, consumer, item, field, tokenFile, operation, operationId] =
 const exactName = /^[A-Za-z\d._-]+$/;
 if (!endpointText || !consumer || !item || !field || !tokenFile || !operation || !operationId
     || !exactName.test(consumer) || !exactName.test(item) || !exactName.test(field)
-    || !['acquire', 'rotate', 'verify', 'rollback'].includes(operation)
+    || !['acquire', 'adopt', 'rotate', 'reset', 'verify', 'rollback'].includes(operation)
     || !/^[a-f\d]{64}$/i.test(operationId) || !isAbsolute(tokenFile)) {
   throw new Error(
     'usage: skarbiec-write.mjs <endpoint> <consumer> <item> <field> <absolute-token-file> <operation> <operation-id>'

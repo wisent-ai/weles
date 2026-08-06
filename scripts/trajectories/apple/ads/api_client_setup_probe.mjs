@@ -1,8 +1,7 @@
 // Apple Ads API client setup probe.
 //
-// Opens Apple Ads Account Settings/API, using the stored Apple social account
-// when a fresh login is required. The first pass is diagnostic/read-mostly:
-// it reports whether the API client form is reachable and captures page state.
+// Opens Apple Ads Account Settings/API only through an already authenticated session.
+// Authentication is delegated exclusively to an explicitly authorized apple_login run.
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
@@ -11,7 +10,6 @@ import { getSocialAccount, resolveAccountSession } from '../../../../dist/utils/
 import { WSession } from '../../../../dist/session/wsession.js';
 import { generatePersona } from '../../../../dist/browser/persona.js';
 import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
-import { completeAppleNativeTwoFactorChallenge, DEFAULT_APPLE_2FA_CODE_FILE } from '../native_2fa/native_2fa.mjs';
 
 const USER_DATA_DIR = process.env.WELES_USER_DATA_DIR || process.env.ADS_PROFILE_DIR || join(homedir(), '.weles', 'browser_profiles', 'apple_ads');
 const PUBLIC_KEY_PATH = process.env.ASC_ADS_PUBLIC_KEY_PATH || join(homedir(), '.apple-ads', 'public-key.pem');
@@ -223,68 +221,31 @@ async function keepOpen(session, loggedIn) {
   await new Promise(() => {});
 }
 
-async function loginIfNeeded(s, acct) {
-  if (!/idmsa\.apple\.com|appleid\.apple\.com|signin|login/i.test(s.page.url?.() ?? '')) return true;
-  const email = acct?.metadata?.email;
-  const password = acct?.metadata?.password;
-  if (!email || !password) {
-    console.log('FAIL: Apple account is not logged in and stored email/password are missing');
+async function requireAuthenticatedSession(s) {
+  const url = s.page.url?.() ?? '';
+  if (url === 'about:blank') return false;
+
+  const loginUrl = /idmsa\.apple\.com|appleid\.apple\.com|signin|login/i.test(url);
+  const authIframe = await s.page.locator('iframe[src*="idmsa.apple.com"], iframe[src*="appleid.apple.com"]').count() > 0;
+  let authPrompt = false;
+  for (const frame of s.page.frames()) {
+    authPrompt ||= await frame.locator([
+      '#account_name_text_field',
+      '#password_text_field',
+      'input[type="password"]',
+      'input[aria-label*="digit"]',
+      'input[aria-label*="Digit"]',
+      'input[type="tel"][maxlength="1"]',
+    ].join(', ')).first().isVisible().catch(() => false);
+    authPrompt ||= await frame.getByText(/Two-Factor Authentication|verification code sent to your Apple devices/i).first().isVisible().catch(() => false);
+    if (authPrompt) break;
+  }
+  if (loginUrl || authIframe || authPrompt) {
+    console.log('FAIL_CLOSED: Apple login/password/2FA is required; this probe will not authenticate. An explicitly authorized apple_login is the only permitted login path.');
+    await pageDiag(s.page, 'apple_login_required');
     return false;
   }
-
-  const frameHandle = await s.page.waitForSelector('iframe[src*="idmsa.apple.com"], iframe[src*="appleid.apple.com"]', { timeout: 15000 }).catch(() => null);
-  const frame = frameHandle ? await frameHandle.contentFrame() : s.page;
-  const emailInput = frame.locator([
-    '#account_name_text_field',
-    'input[type="email"]',
-    'input[type="text"][placeholder*="Email" i]',
-    'input[aria-label*="Email" i]',
-    'input[name="accountName"]',
-    'input[name="email"]',
-  ].join(', ')).filter({ visible: true }).first();
-  if (await emailInput.isVisible().catch(() => false)) {
-    await emailInput.fill(email);
-    await frame.locator('#sign-in, button[type="submit"], button:has-text("Continue")').filter({ visible: true }).first().click();
-    await humanIdlePause('deliberate');
-  } else {
-    await pageDiag(s.page, 'apple_email_input_not_found');
-  }
-
-  const continuePassword = frame.locator('#continue-password, button:has-text("Continue with Password")').filter({ visible: true }).first();
-  if (await continuePassword.isVisible().catch(() => false)) {
-    await continuePassword.click();
-    await humanIdlePause('short');
-  }
-
-  let passwordSubmitted = false;
-  const passwordInput = frame.locator('#password_text_field, input[type="password"], input[name="password"]').filter({ visible: true }).first();
-  if (await passwordInput.isVisible().catch(() => false)) {
-    await passwordInput.fill(password);
-    await frame.locator('#sign-in, button[type="submit"], button:has-text("Sign In")').filter({ visible: true }).first().click();
-    passwordSubmitted = true;
-    await humanIdlePause('deliberate');
-  }
-
-  const twoFaVisible = await frame.locator('input[aria-label*="digit"], input[type="tel"][maxlength="1"]').first().isVisible().catch(() => false)
-    || await s.page.getByText(/Two-Factor Authentication|verification code sent to your Apple devices/i).first().isVisible().catch(() => false);
-  if (twoFaVisible || passwordSubmitted) {
-    const twoFa = await completeAppleNativeTwoFactorChallenge(s, frame, {
-      logPrefix: '[apple-ads-api-setup]',
-    });
-    if (!twoFa.ok) {
-      console.log(`APPLE_2FA_REQUIRED: ${twoFa.codeFile || process.env.APPLE_2FA_CODE_FILE || DEFAULT_APPLE_2FA_CODE_FILE}`);
-      await pageDiag(s.page, 'apple_2fa_required');
-      return false;
-    }
-    await humanIdlePause('short');
-  }
-
-  for (let i = 0; i < 30; i += 1) {
-    if (!/idmsa\.apple\.com|appleid\.apple\.com|signin|login/i.test(s.page.url?.() ?? '')) return true;
-    await s.wait(1);
-  }
-  await pageDiag(s.page, 'apple_login_not_completed');
-  return !/idmsa\.apple\.com|appleid\.apple\.com|signin|login/i.test(s.page.url?.() ?? '');
+  return true;
 }
 
 async function main() {
@@ -314,7 +275,7 @@ async function main() {
 
     await s.goto('https://app-ads.apple.com/cm/app/');
     await s.wait(8);
-    loggedIn = await loginIfNeeded(s, acct);
+    loggedIn = await requireAuthenticatedSession(s);
     if (!loggedIn) {
       exitCode = 2;
       return;
@@ -348,6 +309,15 @@ async function main() {
       console.log('FAIL: Apple Ads API setup page not reached');
       exitCode = 3;
       return;
+    }
+
+    const protectedUrl = new URL(s.page.url?.() ?? 'about:blank');
+    const authenticatedProtectedPage = protectedUrl.hostname === 'app-ads.apple.com'
+      && !/signin|login/i.test(protectedUrl.pathname)
+      && (existing.hasExistingAppleAdsApiClient || existing.canGenerateApiClient || existing.hasAppleAdsApiSurface);
+    if (!authenticatedProtectedPage) {
+      console.log('FAIL_CLOSED: authenticated Apple Ads API page was not confirmed; run an explicitly authorized apple_login before retrying.');
+      exitCode = 3;
     }
   } finally {
     process.exitCode = exitCode;

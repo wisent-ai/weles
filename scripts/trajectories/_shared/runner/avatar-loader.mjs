@@ -1,9 +1,5 @@
-// Fetches a character avatar (typically a 1.5MB+ training image) from
-// content-platform's /api/gcs-image proxy, downscales it and writes a temp
-// JPEG suitable for platform avatar upload. github is the strictest at 1MB,
-// so 512px JPEG quality 88 (50-150KB typical) clears every platform.
-//
-// Returns the absolute temp path or null on failure.
+// Loads a private Weles avatar through the exact Stado object client.
+// Provider URLs and cross-product proxy paths are rejected.
 
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -11,11 +7,16 @@ import { randomUUID } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import sharp from 'sharp';
 
-function absolutizeMediaUrl(url) {
-  if (/^https?:\/\//.test(url)) return url;
-  const base = (process.env.LLM_GENERATE_URL || 'https://content.wisent.ai/api/llm/generate')
-    .replace(/\/api\/llm\/generate$/, '');
-  return `${base}${url.startsWith('/') ? url : `/${url}`}`;
+function stadoObjectConfig() {
+  const rawUrl = String(process.env.STADO_API_URL || '').trim();
+  const token = String(process.env.WELES_STADO_OBJECT_API_TOKEN || '').trim();
+  if (!rawUrl || !token) throw new Error('missing exact Weles object client configuration');
+  const endpoint = new URL(rawUrl);
+  if (endpoint.username || endpoint.password || endpoint.search || endpoint.hash
+      || (endpoint.pathname !== '/' && endpoint.pathname !== '')) {
+    throw new Error('invalid Weles Stado object origin');
+  }
+  return { endpoint: endpoint.origin, token };
 }
 
 export async function loadAvatarFile(rawUrl, opts = {}) {
@@ -24,14 +25,15 @@ export async function loadAvatarFile(rawUrl, opts = {}) {
   const format = opts.format || 'jpeg';
   const quality = opts.quality || 88;
 
-  const absUrl = absolutizeMediaUrl(rawUrl);
-  const headers = {};
-  if (absUrl.includes('/api/') && process.env.CRON_SECRET) {
-    headers['x-cron-secret'] = process.env.CRON_SECRET;
+  if (!/^stado:\/\/weles\/avatars\/[^?#]+$/.test(rawUrl)) {
+    throw new Error('avatar locator must be a private stado://weles/avatars object');
   }
-  const r = await fetch(absUrl, { headers });
+  const config = stadoObjectConfig();
+  const r = await fetch(`${config.endpoint}/api/object?uri=${encodeURIComponent(rawUrl)}`, {
+    headers: { Authorization: `Bearer ${config.token}` },
+  });
   if (!r.ok) {
-    console.log(`[avatar-loader] fetch ${r.status} from ${absUrl}`);
+    console.log(`[avatar-loader] Stado object fetch failed HTTP ${r.status}`);
     return null;
   }
   const buf = Buffer.from(await r.arrayBuffer());

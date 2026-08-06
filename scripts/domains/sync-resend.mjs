@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 // Sync receiving-enabled domains from Resend into the rotator table.
 // Inserts as status=pending so you can review + verify selectively.
+import { readScopedSecret } from '../_shared/scoped-secrets.mjs';
 
-const resendKey = process.env.RESEND_API_KEY;
-const sbUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
-const sbKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-if (!resendKey || !sbUrl || !sbKey) { console.error('Missing RESEND_API_KEY or SUPABASE_SERVICE_ROLE_KEY'); process.exit(1); }
+const resendKey = readScopedSecret('resendManagement', 'api_key');
+const sbUrl = process.env.WELES_DATABASE_URL;
+const sbKey = process.env.WELES_DATABASE_TOKEN;
+if (!resendKey || !sbUrl || !sbKey) { console.error('Missing exact Resend management grant or Weles database configuration'); process.exit(Number('1')); }
 
 const res = await fetch('https://api.resend.com/domains', { headers: { Authorization: `Bearer ${resendKey}` } });
 if (!res.ok) { console.error(`Resend list failed: ${res.status}`); process.exit(1); }

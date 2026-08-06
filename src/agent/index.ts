@@ -2,7 +2,7 @@
  * Weles agent layer — tool-use loop + declarative task API.
  */
 
-// Tool-use loop (screenshot → claude -p → dispatch → repeat)
+// Authenticated Stado-routed tool-use loop (screenshot → model → dispatch → repeat)
 export { execute, AgentFailure, parseJsonFrom } from './loop.js';
 export type { ToolCall, LoopResult } from './loop.js';
 export { dispatch } from './tools.js';

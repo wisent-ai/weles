@@ -18,17 +18,17 @@
 import { readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
-const SUPABASE_URL = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+const DATABASE_URL = process.env.WELES_DATABASE_URL || '';
+const DATABASE_TOKEN = process.env.WELES_DATABASE_TOKEN || '';
 const RECORDINGS_ROOT = process.env.RECORDINGS_ROOT || 'recordings';
 
 function headers() {
-  return { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' };
+  return { apikey: DATABASE_TOKEN, Authorization: `Bearer ${DATABASE_TOKEN}`, 'Content-Type': 'application/json' };
 }
 
 async function insertOpen(body) {
-  if (!SUPABASE_URL || !SUPABASE_KEY) return null;
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/account_action_logs`, {
+  if (!DATABASE_URL || !DATABASE_TOKEN) return null;
+  const res = await fetch(`${DATABASE_URL}/rest/v1/account_action_logs`, {
     method: 'POST', headers: { ...headers(), Prefer: 'return=representation' }, body: JSON.stringify(body),
   });
   if (!res.ok) { console.log(`[keeper-bookkeeping] open INSERT failed http=${res.status}`); return null; }
@@ -37,19 +37,14 @@ async function insertOpen(body) {
 }
 
 async function patchClose(rowId, body) {
-  if (!SUPABASE_URL || !SUPABASE_KEY || !rowId) return false;
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/account_action_logs?id=eq.${rowId}`, {
+  if (!DATABASE_URL || !DATABASE_TOKEN || !rowId) return false;
+  const res = await fetch(`${DATABASE_URL}/rest/v1/account_action_logs?id=eq.${rowId}`, {
     method: 'PATCH', headers: { ...headers(), Prefer: 'return=minimal' }, body: JSON.stringify(body),
   });
   if (!res.ok) { console.log(`[keeper-bookkeeping] close PATCH failed http=${res.status}`); return false; }
   return true;
 }
 
-async function uploadOrNull(uploadFn, label, rowId, runStart) {
-  if (!uploadFn) return null;
-  try { return await uploadFn(label, rowId, runStart, { force: true }); }
-  catch (e) { console.log(`[keeper-bookkeeping] uploadArtifacts threw: ${e?.message?.slice(0, 100) ?? String(e).slice(0, 100)}`); return null; }
-}
 
 async function findInRun(rowId, filename) {
   async function walk(dir) {
@@ -97,7 +92,7 @@ function sessionFromMeta(meta, fallback) {
   };
 }
 
-export async function setupKeeperFlow({ session, platform, action, accountId, proxyUrl, sessionMeta, diagnostic, captureVersionsFn, uploadArtifactsFn, writeNetworkCaptureFn, challengeOutcomeFn, getLastUrl, closeSessionFn }) {
+export async function setupKeeperFlow({ session, platform, action, accountId, proxyUrl, sessionMeta, diagnostic, captureVersionsFn, uploadArtifactsFn, challengeOutcomeFn, getLastUrl, closeSessionFn }) {
   const runStart = new Date();
   const versionsAtStart = captureVersionsFn ? captureVersionsFn('scripts/_shared/keeper/keeper.mjs') : null;
   const sessionMetaInitial = sessionMeta ?? { provider: 'keeper', proxy_url: proxyUrl ?? null, platform: platform ?? null };
@@ -109,7 +104,7 @@ export async function setupKeeperFlow({ session, platform, action, accountId, pr
         requested_at: diagnostic.requested_at ?? runStart.toISOString(),
         capture_contract: Array.isArray(diagnostic.capture_contract)
           ? diagnostic.capture_contract
-          : ['ban_signal', 'session_fingerprint', 'sql_capture', 'network_artifact', 'video_artifact'],
+          : ['ban_signal', 'session_fingerprint', 'network_artifact', 'video_artifact'],
       },
     }
     : {};
@@ -131,7 +126,8 @@ export async function setupKeeperFlow({ session, platform, action, accountId, pr
       try { await closeSessionFn(); }
       catch (e) { console.log(`[keeper-bookkeeping] closeSession err: ${e?.message?.slice(0, 100) ?? String(e).slice(0, 100)}`); }
     }
-    const artifacts = await uploadOrNull(uploadArtifactsFn, `keeper-${session}`, flowRowId, runStart);
+    if (!uploadArtifactsFn) throw new Error('private Stado artifact uploader is required');
+    const artifacts = await uploadArtifactsFn(flowRowId);
     const versionsAtEnd = captureVersionsFn ? captureVersionsFn('scripts/_shared/keeper/keeper.mjs') : null;
     const meta = await readJsonInRun(flowRowId, 'session_meta.json');
     const captcha = await readJsonInRun(flowRowId, 'captcha_events.json');
@@ -157,14 +153,6 @@ export async function setupKeeperFlow({ session, platform, action, accountId, pr
       catch (e) { console.log(`[keeper-bookkeeping] challenge_outcome threw: ${e?.message?.slice(0, 100) ?? String(e).slice(0, 100)}`); }
     }
     await patchClose(flowRowId, { status, completed_at: new Date().toISOString(), result });
-    // G18 network capture — the full .inst.json into account_action_log_capture,
-    // exactly like the worker. The keeper provenance import never wrote this, so
-    // keeper runs had no SQL-queryable network traffic. Keyed by flowRowId
-    // (= recordings/<id>/ via ACTION_LOG_ID). Best-effort, never fails the close.
-    if (writeNetworkCaptureFn) {
-      try { await writeNetworkCaptureFn(flowRowId); }
-      catch (e) { console.log(`[keeper-bookkeeping] network capture threw: ${e?.message?.slice(0, 100) ?? String(e).slice(0, 100)}`); }
-    }
     console.log(`[keeper-bookkeeping] closed row=${flowRowId.slice(0, 8)} status=${status}`);
   }
   for (const sig of ['SIGINT', 'SIGTERM']) {

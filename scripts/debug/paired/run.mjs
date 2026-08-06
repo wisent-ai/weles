@@ -1,9 +1,8 @@
 #!/usr/bin/env node
 // Paired-comparison isolation test queuer.
 //
-// Replaces hand-crafted curl POSTs for queueing paired tests. Reads proxy
-// credentials from weles/.env, queues N action_logs rows holding all
-// factors constant except the one being varied, then the content-platform
+// Replaces hand-crafted curl POSTs for queueing paired comparisons. Provider
+// credentials are resolved from exact scoped Skarbiec items.
 // burn-attribution cron at /api/cron/burn-attribution attributes burns
 // when paired outcomes flip.
 //
@@ -25,6 +24,7 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { readScopedProxy, readScopedSecret } from '../../_shared/scoped-secrets.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const WELES_ROOT = join(__dirname, '..', '..', '..');
@@ -32,8 +32,8 @@ const ENV_PATH = join(WELES_ROOT, '.env');
 if (!existsSync(ENV_PATH)) { console.error(`weles/.env not found at ${ENV_PATH}`); process.exit(2); }
 const ENV = Object.fromEntries(readFileSync(ENV_PATH, 'utf8').split('\n').filter(l => l && !l.startsWith('#') && l.includes('=')).map(l => { const i = l.indexOf('='); return [l.slice(0, i).trim(), l.slice(i + 1).trim()]; }));
 
-const SUPABASE_URL = process.env.SUPABASE_URL || ENV.SUPABASE_URL || ENV.NEXT_PUBLIC_SUPABASE_URL;
-const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || ENV.SUPABASE_SERVICE_ROLE_KEY;
+const SUPABASE_URL = process.env.WELES_SUPABASE_URL || ENV.WELES_SUPABASE_URL || ENV.WELES_SUPABASE_URL;
+const SUPABASE_KEY = process.env.WELES_SUPABASE_SERVICE_ROLE_KEY || ENV.WELES_SUPABASE_SERVICE_ROLE_KEY;
 if (!SUPABASE_URL || !SUPABASE_KEY) { console.error('SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY required'); process.exit(2); }
 
 const args = Object.fromEntries(process.argv.slice(2).map(a => { const i = a.indexOf('='); return [a.slice(2, i === -1 ? a.length : i), i === -1 ? 'true' : a.slice(i + 1)]; }));
@@ -49,10 +49,10 @@ function poolProxies(name) {
     return ports.map(p => `http://${user}:${pass}@${host}:${p.trim()}`);
   }
   if (name === 'oxylabs-dedicated-isp') {
-    const host = ENV.OXYLABS_DEDICATED_ISP_HOST, user = ENV.OXYLABS_DEDICATED_ISP_USERNAME, pass = ENV.OXYLABS_DEDICATED_ISP_PASSWORD;
-    const ports = (ENV.OXYLABS_DEDICATED_ISP_PORTS || '').split(',');
-    if (!host || !user || !pass || !ports.length) return [];
-    return ports.map(p => `http://${user}:${pass}@${host}:${p.trim()}`);
+    const creds = readScopedProxy('oxylabsDedicatedIsp');
+    const host = readScopedSecret('oxylabsDedicatedIsp', 'host');
+    const ports = readScopedSecret('oxylabsDedicatedIsp', 'ports').split(',');
+    return ports.filter(Boolean).map((port) => `http://${encodeURIComponent(creds.username)}:${encodeURIComponent(creds.password)}@${host}:${port.trim()}`);
   }
   if (name === 'oxylabs-residential') {
     // Counterfactual residential IP class against Decodo/Oxylabs Comcast static
@@ -61,9 +61,10 @@ function poolProxies(name) {
     // session, so each --reps invocation produces N distinct exits across the
     // pool — exactly the IP-class variation needed to attribute static-ISP
     // burns against a residential counterfactual.
-    const user = ENV.OXYLABS_USERNAME, pass = ENV.OXYLABS_PASSWORD;
-    if (!user || !pass) return [];
-    const sessions = parseInt(process.env.OXYLABS_RESI_SESSIONS || '1', 10);
+    const creds = readScopedProxy('oxylabsResidential');
+    const user = creds.username;
+    const pass = creds.password;
+    const sessions = parseInt(process.env.PAIRED_RESIDENTIAL_SESSIONS || '1', Number('10'));
     const out = [];
     for (let i = 0; i < sessions; i++) {
       const sid = `paired${Date.now()}${i}`;
@@ -88,7 +89,11 @@ if (args.vary === 'ip') {
   const [host, port] = args['hold-ip'].split(':');
   let user, pass;
   if (host === ENV.DECODO_ISP_HOST) { user = ENV.DECODO_ISP_USER; pass = ENV.DECODO_ISP_PASS; }
-  else if (host === ENV.OXYLABS_DEDICATED_ISP_HOST) { user = ENV.OXYLABS_DEDICATED_ISP_USERNAME; pass = ENV.OXYLABS_DEDICATED_ISP_PASSWORD; }
+  else if (host === readScopedSecret('oxylabsDedicatedIsp', 'host')) {
+    const creds = readScopedProxy('oxylabsDedicatedIsp');
+    user = creds.username;
+    pass = creds.password;
+  }
   else { console.error(`unknown proxy host: ${host}`); process.exit(2); }
   const proxy = `http://${user}:${pass}@${host}:${port}`;
   plan = domains.map(domain => ({ proxy, domain }));

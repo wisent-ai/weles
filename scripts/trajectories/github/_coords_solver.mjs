@@ -1,13 +1,13 @@
 // Arkose FunCaptcha rotation puzzle solver.
-// Tier 1: Gemini 2.5 Pro vision (fast, free with API key) — single-call (x,y) pick.
-// Tier 2: 2captcha CoordinatesTask human workers (slow, paid, but not AI-fatigued).
-// Both strategies consume the same iframe screenshot and emit a pixel center to
-// click. We try Gemini first each round and fall back only if it declines.
+// Tier 1: authenticated Stado multimodal model routing for a single-call
+// coordinate pick. Tier 2: explicitly enabled 2captcha human workers.
+// Both strategies consume the same iframe screenshot and emit a pixel center.
 
 const POLL_SECONDS = 300;
 
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { humanClick, humanIdlePause } from '../../../dist/human/mouse.js';
+import { completeMultimodal, requireStadoModelRouterConfig } from './_stado_model_router.mjs';
 
 async function waitForCaptchaUI(page) {
   // Force-strip `v-hidden`/`d-none` classes and inline visibility so puzzle iframe becomes visible.
@@ -55,11 +55,7 @@ async function waitForCaptchaUI(page) {
   return null;
 }
 
-async function solveViaGemini(apiKey, imageBase64, width, height) {
-  // Classifies Arkose screen and recommends action. Uses 2.5-pro with a capped
-  // thinking budget: 2.5-pro refuses thinkingBudget=0 entirely, but 512-2048
-  // lets it reason enough to describe contents accurately. 2.5-flash was
-  // hallucinating "submit" on loading/error screens with ~60% accuracy.
+async function solveViaStadoModelRouter(imageBase64, width, height) {
   const prompt = `You are solving an Arkose FunCaptcha. Screenshot ${width}x${height} px.
 
 TRIAGE FIRST (stop at first match):
@@ -81,37 +77,38 @@ Be conservative: if the right panel is a loading spinner or placeholder, action=
 
 Emit ONLY the JSON on a single line — no prose, no markdown, no explanation before or after. Keep "why" to 6 words max. "score" only matters for screen E.
 {"screen":"A"|"B"|"C"|"D"|"E"|"F"|"G","action":"visual"|"tile"|"back_to_visual"|"next"|"submit"|"try_again"|"none","x":<int>,"y":<int>,"score":<0-10>,"why":"<6 words>"}`;
-  // Gemini 3.1 Pro Preview: current-gen vision model (2.5 is a generation behind). Override via WELES_GEMINI_MODEL.
-  const model = process.env.WELES_GEMINI_MODEL ?? 'gemini-3.1-pro-preview';
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-  const body = {
-    contents: [{ role: 'user', parts: [{ inlineData: { mimeType: 'image/png', data: imageBase64 } }, { text: prompt }] }],
-    generationConfig: { temperature: 0, maxOutputTokens: 2048, thinkingConfig: { thinkingBudget: 256 } },
-    safetySettings: ['HARM_CATEGORY_HARASSMENT', 'HARM_CATEGORY_HATE_SPEECH', 'HARM_CATEGORY_SEXUALLY_EXPLICIT', 'HARM_CATEGORY_DANGEROUS_CONTENT'].map(c => ({ category: c, threshold: 'BLOCK_NONE' })),
-  };
   try {
-    const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-    const res = await r.json();
-    const cand = res.candidates?.[0];
-    const text = cand?.content?.parts?.map(p => p.text).filter(Boolean).join(' ') ?? '';
-    const finish = cand?.finishReason ?? 'unknown';
+    const { text, model } = await completeMultimodal({
+      base64: imageBase64,
+      mimeType: 'image/png',
+      prompt,
+      maxTokens: Number('2048'),
+    });
     const sMatch = text.match(/"screen"\s*:\s*"([ABCDEFG])"/);
     const aMatch = text.match(/"action"\s*:\s*"([a-z_]+)"/);
     const xMatch = text.match(/"x"\s*:\s*(-?\d+)/);
     const yMatch = text.match(/"y"\s*:\s*(-?\d+)/);
     if (!sMatch) {
-      console.log(`[gemini] no-screen finish=${finish} text="${text.slice(0, 200).replace(/\n/g, ' ')}"`);
-      return { err: `no-screen finish=${finish}` };
+      console.log(`[stado-model] no-screen text="${text.slice(Number(false), Number('200')).replace(/\n/g, ' ')}"`);
+      return { err: 'no-screen completion' };
     }
-    const screen = sMatch[1]; const action = aMatch?.[1] ?? 'none';
-    let x = parseInt(xMatch?.[1] ?? '0', 10), y = parseInt(yMatch?.[1] ?? '0', 10);
-    if (x >= width * 2 || y >= height * 2) { x = Math.round(x * width / 1000); y = Math.round(y * height / 1000); }
-    x = Math.max(0, Math.min(width - 1, x)); y = Math.max(0, Math.min(height - 1, y));
-    const score = parseInt(text.match(/"score"\s*:\s*(\d+)/)?.[1] ?? '0', 10);
-    const why = (text.match(/"why"\s*:\s*"([^"]*)"/)?.[1] ?? '').slice(0, 80);
-    console.log(`[gemini] screen=${screen} action=${action} score=${score} model(${x},${y}) — ${why}`);
+    const screen = sMatch.at(Number(true));
+    const action = aMatch?.at(Number(true)) ?? 'none';
+    let x = Number(xMatch?.at(Number(true)) ?? '0');
+    let y = Number(yMatch?.at(Number(true)) ?? '0');
+    if (x >= width * Number('2') || y >= height * Number('2')) {
+      x = Math.round(x * width / Number('1000'));
+      y = Math.round(y * height / Number('1000'));
+    }
+    x = Math.max(Number(false), Math.min(width - Number(true), x));
+    y = Math.max(Number(false), Math.min(height - Number(true), y));
+    const score = Number(text.match(/"score"\s*:\s*(\d+)/)?.at(Number(true)) ?? '0');
+    const why = (text.match(/"why"\s*:\s*"([^"]*)"/)?.at(Number(true)) ?? '').slice(Number(false), Number('80'));
+    console.log(`[stado-model] screen=${screen} action=${action} score=${score} model=${model} coords(${x},${y}) — ${why}`);
     return { x, y, screen, action, score };
-  } catch (e) { return { err: `network: ${e.message?.slice(0, 80)}` }; }
+  } catch (error) {
+    return { err: `router: ${String(error?.message || error).slice(Number(false), Number('120'))}` };
+  }
 }
 
 async function submitCoords(apiKey, imageBase64, comment) {
@@ -204,8 +201,7 @@ async function clickVisualPuzzleInEnforcement(page) {
 
 export async function solveRotationViaCoords(page, { maxRounds = 80 } = {}) {
   const twoKey = process.env.TWOCAPTCHA_API_KEY;
-  const gemKey = process.env.GEMINI_API_KEY;
-  if (!twoKey && !gemKey) { console.log('[coords] no TWOCAPTCHA_API_KEY or GEMINI_API_KEY'); return false; }
+  requireStadoModelRouterConfig();
   // Step 0: click "Visual puzzle" button inside the enforcement iframe to dismiss the
   // puzzle-type chooser screen. Without this, every screenshot is the chooser.
   await clickVisualPuzzleInEnforcement(page);
@@ -226,12 +222,12 @@ export async function solveRotationViaCoords(page, { maxRounds = 80 } = {}) {
     try { mkdirSync('/tmp/gh_shots', { recursive: true }); writeFileSync(`/tmp/gh_shots/round_${round}.png`, buf); } catch {}
     console.log(`[coords] R${round}: ${Math.round(buf.length / 1024)}KB image (${Math.round(box.width)}x${Math.round(box.height)}) -> /tmp/gh_shots/round_${round}.png`);
     let clickXY = null;
-    // Tier 1: Gemini classifies the screen and we dispatch to hardcoded or model coords.
-    if (gemKey) {
-      const g = await solveViaGemini(gemKey, b64, Math.round(box.width), Math.round(box.height));
+    // Tier 1: Stado's authenticated model router classifies the screen.
+    {
+      const g = await solveViaStadoModelRouter(b64, Math.round(box.width), Math.round(box.height));
       const w = Math.round(box.width), h = Math.round(box.height);
-      if (g.screen === 'A') clickXY = { x: Math.round(w / 2), y: 262, src: 'gemini-A' };
-      else if (g.screen === 'D') clickXY = { x: 120, y: 418, src: 'gemini-D' };
+      if (g.screen === 'A') clickXY = { x: Math.round(w / 2), y: Number('262'), src: 'stado-model-A' };
+      else if (g.screen === 'D') clickXY = { x: Number('120'), y: Number('418'), src: 'stado-model-D' };
       else if (g.screen === 'E') {
         if (g.action === 'none') { console.log(`[coords] R${round} E-none — waiting for puzzle to load`); await new Promise(r => setTimeout(r, 3000)); continue; }  // allow-raw-playwright: review — context-dependent timer
         if (navCount > 20) { console.log(`IP_FLAGGED: Arkose nav=${navCount} on single puzzle without match — carousel exhausted, rotate`); process.exit(42); }
@@ -242,7 +238,7 @@ export async function solveRotationViaCoords(page, { maxRounds = 80 } = {}) {
         const domResult = await clickInEnforcement(page, needles);
         if (domResult?.ok) { await humanClick(page, Math.round(box.x + domResult.x), Math.round(box.y + domResult.y)); console.log(`[coords] R${round} E-${submitNow?'submit':'next'} (score=${g.score} thresh=${threshold} nav=${navCount} submits=${totalSubmits}) humanClick: ${domResult.sig?.txt || domResult.sig?.aria}`); if (submitNow) { totalSubmits++; navCount = 0; bestScore = 0; if (totalSubmits > SUBMIT_BUDGET) { console.log(`IP_FLAGGED: Arkose served ${totalSubmits} puzzles without URL advance — treat as flagged, rotate proxy`); process.exit(42); } } else navCount++; await new Promise(r => setTimeout(r, 1500)); const u = page.url?.() ?? ''; if (/signup_emailsent|verif|launch-code|account_verif/.test(u)) return true; continue; }  // allow-raw-playwright: review — context-dependent timer
         const ex = g.x || (submitNow ? 226 : 370); const ey = g.y || (submitNow ? 340 : 300);
-        clickXY = submitNow ? { x: ex, y: ey, src: 'gemini-E-submit-coord' } : { x: ex, y: ey, src: 'gemini-E-next-swipe', swipe: -100 };
+        clickXY = submitNow ? { x: ex, y: ey, src: 'stado-model-E-submit-coord' } : { x: ex, y: ey, src: 'stado-model-E-next-swipe', swipe: -100 };
       }
       else if (g.screen === 'G') {
         // Any non-E screen ends the current puzzle — reset nav state so the next
@@ -250,17 +246,16 @@ export async function solveRotationViaCoords(page, { maxRounds = 80 } = {}) {
         navCount = 0; bestScore = 0;
         const r = await clickInEnforcement(page, ['try again', 'reload', 'restart']);
         if (r?.ok) { await humanClick(page, Math.round(box.x + r.x), Math.round(box.y + r.y)); console.log(`[coords] R${round} G recover humanClick: ${JSON.stringify(r.sig ?? r.text)}`); await new Promise(r2 => setTimeout(r2, 4000)); continue; }  // allow-raw-playwright: review — context-dependent timer
-        clickXY = { x: g.x || Math.round(w / 2), y: g.y || 340, src: 'gemini-G-try-coord' };
+        clickXY = { x: g.x || Math.round(w / 2), y: g.y || 340, src: 'stado-model-G-try-coord' };
       }
-      else if ((g.screen === 'B' || g.screen === 'F') && g.action !== 'none' && g.x) { navCount = 0; bestScore = 0; clickXY = { x: g.x, y: g.y, src: `gemini-${g.screen}` }; }
+      else if ((g.screen === 'B' || g.screen === 'F') && g.action !== 'none' && g.x) { navCount = 0; bestScore = 0; clickXY = { x: g.x, y: g.y, src: `stado-model-${g.screen}` }; }
       else if ((g.screen === 'B' || g.screen === 'F' || g.screen === 'C') && g.action === 'none') { navCount = 0; bestScore = 0; console.log(`[coords] R${round} ${g.screen}-none — waiting for UI`); await new Promise(r => setTimeout(r, 3000)); continue; }  // allow-raw-playwright: review — context-dependent timer
-      else console.log(`[coords] R${round} gemini screen=${g.screen ?? '?'} err=${g.err ?? '-'}, falling back`);
+      else console.log(`[coords] R${round} Stado model-router screen=${g.screen ?? '?'} err=${g.err ?? '-'}, falling back`);
       if (clickXY) console.log(`[coords] R${round} ${clickXY.src}: (${clickXY.x},${clickXY.y})`);
     }
-    // 2captcha Coords path is opt-in (WELES_2CAPTCHA_COORDS=1). Workers
-    // empirically return UNSOLVABLE on Arkose basket/pipeline puzzles and each
-    // 3-retry cycle burns ~180s against Arkose's own puzzle timer. Skip unless
-    // Gemini is completely unavailable and the operator wants to try anyway.
+    // The 2captcha path remains explicit opt-in. It is attempted only when the
+    // authenticated model router cannot produce coordinates and the operator
+    // has enabled the human-worker service.
     if (!clickXY && twoKey && process.env.WELES_2CAPTCHA_COORDS === '1') {
       const res = await submitCoords(twoKey, b64, `Arkose FunCaptcha. Return (x,y) of the correct tile center.`);
       if (res.coords?.length) { clickXY = { x: res.coords[0].x, y: res.coords[0].y, src: '2captcha' }; console.log(`[coords] R${round} 2captcha: (${res.coords[0].x},${res.coords[0].y})`); }

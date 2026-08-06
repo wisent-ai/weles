@@ -8,9 +8,9 @@
 //   node scripts/domains/manage.mjs retire <domain>
 //   node scripts/domains/manage.mjs recheck            — 3-attempt MX validation for every mx_broken row; auto-promote any that now resolves. Mirrors the auto-heal that pickFromDb runs on each call.
 
-const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const key = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
-if (!url || !key) { console.error('Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY'); process.exit(1); }
+const url = process.env.WELES_DATABASE_URL || '';
+const key = process.env.WELES_DATABASE_TOKEN || '';
+if (!url || !key) { console.error('Missing WELES_DATABASE_URL or WELES_DATABASE_TOKEN'); process.exit(Number('1')); }
 
 const hdr = { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' };
 const now = () => new Date().toISOString();

@@ -99,9 +99,11 @@ async function waitOneSecond(session) {
 }
 
 export async function waitForAppleNativeTwoFactorCode(session, options = {}) {
-  const envCode = process.env.APPLE_2FA_CODE;
-  if (/^\d{6}$/.test(envCode || '')) {
-    return { ok: true, code: envCode, source: 'env', codeFile: null, capture: null };
+  if (options.nativeOnly !== true) {
+    const envCode = process.env.APPLE_2FA_CODE;
+    if (/^\d{6}$/.test(envCode || '')) {
+      return { ok: true, code: envCode, source: 'env', codeFile: null, capture: null };
+    }
   }
 
   const codeFile = codeFilePath(options.codeFile);
@@ -120,11 +122,13 @@ export async function waitForAppleNativeTwoFactorCode(session, options = {}) {
 
     const code = readCapturedCode(codeFile);
     if (code) {
-      return { ok: true, code, source: 'native_followup_ax', codeFile, capture: lastCapture };
+      if (options.removeCodeFile !== false) rmSync(codeFile, { force: true });
+      return { ok: true, code, source: 'native_followup_ax', codeFile: null, capture: lastCapture };
     }
     await waitOneSecond(session);
   }
 
+  if (options.removeCodeFile !== false) rmSync(codeFile, { force: true });
   return { ok: false, code: null, source: null, codeFile, capture: lastCapture };
 }
 
@@ -193,24 +197,34 @@ export async function clickAppleTrustBrowser(page, frame, options = {}) {
   return false;
 }
 
-export async function completeAppleNativeTwoFactorChallenge(session, frame, options = {}) {
-  const codeResult = await waitForAppleNativeTwoFactorCode(session, options);
-  if (!codeResult.ok) return { ...codeResult, filled: false, trustClicked: false };
-
+async function completeAppleTwoFactorCode(session, frame, options, code, metadata) {
+  if (!/^\d{6}$/.test(code || '')) throw new Error('Apple 2FA provider returned an invalid code');
   const page = options.page || session?.page;
-  const fillResult = await fillAppleTwoFactorCode(frame || page, page, codeResult.code);
+  const fillResult = await fillAppleTwoFactorCode(frame || page, page, code);
   if (!fillResult.ok) {
-    return { ...codeResult, ok: false, filled: false, fillResult, trustClicked: false };
+    return { ...metadata, ok: false, filled: false, fillResult, trustClicked: false };
   }
 
   if (session?.wait) await session.wait(2);
   const trustClicked = await clickAppleTrustBrowser(page, frame, options).catch(() => false);
   if (trustClicked && options.logPrefix) console.log(`${options.logPrefix} clicked trust browser`);
+  return { ...metadata, ok: true, filled: true, fillResult, trustClicked };
+}
 
-  return {
-    ...codeResult,
-    filled: true,
-    fillResult,
-    trustClicked,
-  };
+export async function completeAppleNativeTwoFactorChallenge(session, frame, options = {}) {
+  if (options.withCode !== undefined) {
+    if (typeof options.withCode !== 'function') throw new Error('invalid Apple 2FA capability provider');
+    return options.withCode((code) => completeAppleTwoFactorCode(
+      session,
+      frame,
+      options,
+      code,
+      { source: 'capability', codeFile: null, capture: null },
+    ));
+  }
+
+  const codeResult = await waitForAppleNativeTwoFactorCode(session, options);
+  const { code, ...metadata } = codeResult;
+  if (!metadata.ok) return { ...metadata, filled: false, trustClicked: false };
+  return completeAppleTwoFactorCode(session, frame, options, code, metadata);
 }

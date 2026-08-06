@@ -57,8 +57,6 @@ export class CaptchaSolver {
       const db = await getCaptchaCredentials();
       this._creds = { ...db, ...this._creds };
     }
-    if (!this._creds.nocaptcha && process.env.NOCAPTCHA_API_KEY) this._creds.nocaptcha = process.env.NOCAPTCHA_API_KEY;
-    if (!this._creds.nopecha && process.env.NOPECHA_API_KEY) this._creds.nopecha = process.env.NOPECHA_API_KEY;
     this._initialized = true;
   }
 

@@ -1,108 +1,131 @@
 #!/usr/bin/env bash
-# Download the prebuilt weles custom Chromium binary for the host OS.
+# Install one explicitly selected Weles Chromium release from Stado.
 #
-# Usage:
-#   bash scripts/chromium/download.sh          # download if missing
-#   bash scripts/chromium/download.sh --force  # re-download even if installed
+# Required nonsecret deployment coordinates:
+#   STADO_RELEASE_LOCAL_ROOT or STADO_RELEASE_API_URL
+#   WELES_CHROMIUM_RELEASE_VERSION
+#   WELES_CHROMIUM_RELEASE_SHA256
 #
-# Installs to: $HOME/.local/share/weles-chromium/<version>/
-# Prints the Chromium binary path on stdout when done.
-# wsession.ts findCustomChromium() picks it up from that path automatically.
+# The operator must publish:
+#   stado://releases/weles-chromium/<version>/<platform>/weles-chromium.tar.gz
 
 set -euo pipefail
 
-RELEASE_TAG="${WELES_CHROMIUM_RELEASE:-chromium-147.0.7727.108-weles.1}"
-VERSION="${RELEASE_TAG#chromium-}"
-REPO="wisent-ai/weles"
+fail() {
+  printf '%s\n' "ERROR: $*" > /dev/stderr
+  false
+}
+
+require() {
+  local name="$1"
+  [[ -n "${!name:-}" ]] || fail "$name must be explicitly configured"
+}
+
+if [[ -z "${STADO_RELEASE_LOCAL_ROOT:-}" ]]; then
+  require STADO_RELEASE_API_URL
+fi
+require WELES_CHROMIUM_RELEASE_VERSION
+require WELES_CHROMIUM_RELEASE_SHA256
+
+if [[ -n "${STADO_RELEASE_LOCAL_ROOT:-}" ]]; then
+  case "$STADO_RELEASE_LOCAL_ROOT" in
+    /*) ;;
+    *) fail "STADO_RELEASE_LOCAL_ROOT must be an absolute path" ;;
+  esac
+elif [[ "${STADO_RELEASE_API_URL:-}" != https://* ]]; then
+  fail "STADO_RELEASE_API_URL must use HTTPS"
+fi
+case "$WELES_CHROMIUM_RELEASE_VERSION" in
+  *[![:alnum:]._-]*|"") fail "invalid WELES_CHROMIUM_RELEASE_VERSION" ;;
+esac
+HEX_PAIR_PATTERN='[[:xdigit:]][[:xdigit:]]'
+HEX_QUAD_PATTERN="$HEX_PAIR_PATTERN$HEX_PAIR_PATTERN"
+HEX_OCTET_PATTERN="$HEX_QUAD_PATTERN$HEX_QUAD_PATTERN"
+HEX_BLOCK_PATTERN="$HEX_OCTET_PATTERN$HEX_OCTET_PATTERN$HEX_OCTET_PATTERN$HEX_OCTET_PATTERN"
+HEX_SHA256_PATTERN="$HEX_BLOCK_PATTERN$HEX_BLOCK_PATTERN"
+if [[ ! "$WELES_CHROMIUM_RELEASE_SHA256" =~ ^${HEX_SHA256_PATTERN}$ ]]; then
+  fail "WELES_CHROMIUM_RELEASE_SHA256 must be one complete hexadecimal SHA-256 digest"
+fi
+
+VERSION="$WELES_CHROMIUM_RELEASE_VERSION"
+EXPECTED_SHA256="$(printf '%s' "$WELES_CHROMIUM_RELEASE_SHA256" | tr '[:upper:]' '[:lower:]')"
 INSTALL_ROOT="${WELES_CHROMIUM_DIR:-$HOME/.local/share/weles-chromium}"
 INSTALL_DIR="$INSTALL_ROOT/$VERSION"
+ASSET="weles-chromium.tar.gz"
 
-FORCE=0
-if [[ "${1:-}" == "--force" ]]; then FORCE=1; fi
-
-uname_s=$(uname -s)
-uname_m=$(uname -m)
+uname_s="$(uname -s)"
+uname_m="$(uname -m)"
 case "$uname_s/$uname_m" in
-  Darwin/arm64)   ASSET="weles-chromium-147-macos-arm64.tar.gz";   BIN="$INSTALL_DIR/Chromium.app/Contents/MacOS/Chromium" ;;
-  Darwin/x86_64)  ASSET="weles-chromium-147-macos-x86_64.tar.gz";  BIN="$INSTALL_DIR/Chromium.app/Contents/MacOS/Chromium" ;;
-  Linux/x86_64)   ASSET="weles-chromium-147-linux-x86_64.tar.gz";  BIN="$INSTALL_DIR/chromium/chrome" ;;
-  *) echo "ERROR: unsupported platform $uname_s/$uname_m" >&2; exit 1 ;;
+  Darwin/arm64)  PLATFORM="darwin-arm64"; BIN_REL="Chromium.app/Contents/MacOS/Chromium" ;;
+  Darwin/x86_64) PLATFORM="darwin-amd64"; BIN_REL="Chromium.app/Contents/MacOS/Chromium" ;;
+  Linux/x86_64)  PLATFORM="linux-amd64";  BIN_REL="chromium/chrome" ;;
+  *) fail "unsupported platform $uname_s/$uname_m" ;;
 esac
 
-if [[ $FORCE -eq 0 && -x "$BIN" ]]; then
-  echo "$BIN"
-  exit 0
+RELEASE_URI="stado://releases/weles-chromium/$VERSION/$PLATFORM/$ASSET"
+BIN="$INSTALL_DIR/$BIN_REL"
+RECEIPT="$INSTALL_DIR/.weles-release"
+EXPECTED_RECEIPT="release_uri=$RELEASE_URI
+archive_sha256=$EXPECTED_SHA256
+platform=$PLATFORM"
+
+FORCE=false
+if [[ "${*:-}" == "--force" ]]; then
+  FORCE=true
+elif [[ -n "${*:-}" ]]; then
+  fail "unsupported arguments: $*"
 fi
 
-mkdir -p "$INSTALL_DIR"
-TMP=$(mktemp -d)
+if ! $FORCE && [[ -x "$BIN" && -f "$RECEIPT" ]] \
+  && [[ "$(cat "$RECEIPT")" == "$EXPECTED_RECEIPT" ]]; then
+  echo "$BIN"
+  exit
+fi
+
+mkdir -p "$INSTALL_ROOT"
+TMP="$(mktemp -d "$INSTALL_ROOT/.chromium-download.XXXXXX")"
 trap 'rm -rf "$TMP"' EXIT
 
-echo "[download-chromium] Fetching $ASSET from $REPO@$RELEASE_TAG" >&2
-
-# wisent-ai/weles is PRIVATE, so the plain releases/download URL 404s without
-# auth. Use gh when present, otherwise require a token from the environment or
-# git's credential helper. Do not read credentials from git remote URLs; those
-# URLs are routinely logged by humans and tools.
-gh_token() {
-  if [[ -n "${GH_TOKEN:-}" ]]; then printf '%s' "$GH_TOKEN"; return 0; fi
-  if [[ -n "${GITHUB_TOKEN:-}" ]]; then printf '%s' "$GITHUB_TOKEN"; return 0; fi
-  { printf 'protocol=https\nhost=github.com\npath=%s\n\n' "$REPO" \
-    | git credential fill 2>/dev/null || true; } \
-    | awk -F= '/^password=/ { print $2; exit }'
-}
-
-# Fetch one release asset to $2. Prefers gh; otherwise the GitHub assets API
-# with a bearer token (the only way curl can read a private release asset).
-fetch_asset() {
-  local name="$1" dest="$2"
-  if command -v gh >/dev/null 2>&1; then
-    gh release download "$RELEASE_TAG" --repo "$REPO" --pattern "$name" --dir "$(dirname "$dest")" >&2
-    return $?
-  fi
-  local tok; tok="$(gh_token)"
-  if [[ -z "$tok" ]]; then
-    echo "ERROR: no gh CLI and no token (set GH_TOKEN/GITHUB_TOKEN or git credential helper) to read private release $REPO@$RELEASE_TAG" >&2
-    return 1
-  fi
-  local aid
-  aid="$(curl -fsSL -H "Authorization: Bearer $tok" -H "Accept: application/vnd.github+json" \
-        "https://api.github.com/repos/$REPO/releases/tags/$RELEASE_TAG" \
-        | python3 -c "import sys,json; print(next((str(a['id']) for a in json.load(sys.stdin).get('assets',[]) if a['name']==sys.argv[1]), ''))" "$name")"
-  if [[ -z "$aid" ]]; then echo "ERROR: asset $name absent from release $RELEASE_TAG" >&2; return 1; fi
-  curl -fL -H "Authorization: Bearer $tok" -H "Accept: application/octet-stream" \
-    "https://api.github.com/repos/$REPO/releases/assets/$aid" -o "$dest" >&2
-}
-
-fetch_asset "$ASSET" "$TMP/$ASSET"
-fetch_asset "${ASSET}.sha256" "$TMP/${ASSET}.sha256" || true
-
-if [[ -f "$TMP/${ASSET}.sha256" ]]; then
-  echo "[download-chromium] Verifying SHA256..." >&2
-  expected=$(awk '{print $1}' < "$TMP/${ASSET}.sha256")
-  if command -v shasum >/dev/null 2>&1; then
-    actual=$(shasum -a 256 "$TMP/$ASSET" | awk '{print $1}')
-  else
-    actual=$(sha256sum "$TMP/$ASSET" | awk '{print $1}')
-  fi
-  if [[ "$expected" != "$actual" ]]; then
-    echo "ERROR: sha256 mismatch: expected=$expected actual=$actual" >&2
-    exit 1
-  fi
+if [[ -n "${STADO_RELEASE_LOCAL_ROOT:-}" ]]; then
+  SOURCE_ARCHIVE="$STADO_RELEASE_LOCAL_ROOT/weles-chromium/$VERSION/$PLATFORM/$ASSET"
+  [[ -f "$SOURCE_ARCHIVE" && ! -L "$SOURCE_ARCHIVE" ]] \
+    || fail "missing regular staged release archive: $SOURCE_ARCHIVE"
+  cp "$SOURCE_ARCHIVE" "$TMP/$ASSET"
+else
+  echo "[download-chromium] Fetching immutable $RELEASE_URI" > /dev/stderr
+  curl --fail --silent --show-error --location --get \
+    --data-urlencode "uri=$RELEASE_URI" \
+    "${STADO_RELEASE_API_URL%/}/api/release/object" \
+    --output "$TMP/$ASSET"
 fi
 
-echo "[download-chromium] Extracting to $INSTALL_DIR" >&2
-tar -xzf "$TMP/$ASSET" -C "$INSTALL_DIR"
-
-if [[ ! -x "$BIN" ]]; then
-  echo "ERROR: expected binary not found after extract: $BIN" >&2
-  exit 1
+command -v openssl > /dev/null || fail "openssl is required for SHA-256 verification"
+ACTUAL_SHA256_LINE="$(openssl dgst -sha256 -r "$TMP/$ASSET")"
+ACTUAL_SHA256="${ACTUAL_SHA256_LINE%% *}"
+if [[ "$ACTUAL_SHA256" != "$EXPECTED_SHA256" ]]; then
+  fail "SHA-256 mismatch for $RELEASE_URI: expected=$EXPECTED_SHA256 actual=$ACTUAL_SHA256"
 fi
 
-# Clear macOS Gatekeeper quarantine so the binary launches without a prompt
+STAGED="$TMP/install"
+mkdir -p "$STAGED"
+echo "[download-chromium] Checksum verified; extracting to $INSTALL_DIR" > /dev/stderr
+tar -xzf "$TMP/$ASSET" -C "$STAGED"
+[[ -x "$STAGED/$BIN_REL" ]] || fail "verified archive did not contain executable $BIN_REL"
+printf '%s\n' "$EXPECTED_RECEIPT" > "$STAGED/.weles-release"
+
+BACKUP="$INSTALL_ROOT/.${VERSION}.previous.$$"
+if [[ -e "$INSTALL_DIR" ]]; then
+  mv "$INSTALL_DIR" "$BACKUP"
+fi
+if ! mv "$STAGED" "$INSTALL_DIR"; then
+  if [[ -e "$BACKUP" ]]; then mv "$BACKUP" "$INSTALL_DIR"; fi
+  false
+fi
+rm -rf "$BACKUP"
+
 if [[ "$uname_s" == "Darwin" ]]; then
-  xattr -dr com.apple.quarantine "$INSTALL_DIR" 2>/dev/null || true
+  xattr -dr com.apple.quarantine "$INSTALL_DIR" || true
 fi
 
-echo "[download-chromium] Installed: $BIN" >&2
+echo "[download-chromium] Installed verified $RELEASE_URI at $BIN" > /dev/stderr
 echo "$BIN"

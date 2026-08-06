@@ -17,16 +17,15 @@
 // threads and scrape their bodies -> structured PASS report.
 //
 // Run:  node scripts/trajectories/gmail/gmail_login_search.mjs
-// Env:  GM_EMAIL     Google account (default lukasz.bartoszcze@gmail.com)
-//       GM_PASSWORD  password; if unset, sourced from service_credentials
-//                    via getGoogleSsoCreds()
+// Credentials are resolved from the dedicated Gmail Skarbiec item.
 //       GM_QUERY     Gmail search query (default: the rent/maintenance query)
 //       GM_OPEN=0    list only, skip opening thread bodies
 //       GM_MAX       max threads to open for body capture (default 6)
 //       BROWSER      'firefox' | 'chromium' to pin the engine (default: roll)
 import { WSession } from '../../../dist/session/wsession.js';
-import { googleSso, getGoogleSsoCreds } from '../_shared/services/google_sso.mjs';
+import { googleSso } from '../_shared/services/google_sso.mjs';
 import { humanClickLocator, humanIdlePause } from '../../../dist/human/mouse.js';
+import { readScopedLogin } from '../../_shared/scoped-secrets.mjs';
 
 const DEFAULT_QUERY =
   '"rent board" OR "brick + timber" OR "brick and timber" OR radiator';
@@ -52,20 +51,7 @@ async function visible(loc) {
 }
 
 async function resolveCreds() {
-  const email = process.env.GM_EMAIL || 'lukasz.bartoszcze@gmail.com';
-  if (process.env.GM_PASSWORD) {
-    return { email, password: process.env.GM_PASSWORD };
-  }
-  let fromDb = null;
-  try {
-    fromDb = await getGoogleSsoCreds(email);
-  } catch (e) {
-    log('getGoogleSsoCreds error: ' + (e.message || e));
-  }
-  if (fromDb?.password) return fromDb;
-  throw new Error(
-    'No password: set GM_PASSWORD or add a service_credentials row for ' + email,
-  );
+  return readScopedLogin('gmail');
 }
 
 // Some accounts hit a post-login "speedbump" (passkey enrolment, recovery

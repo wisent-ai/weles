@@ -10,9 +10,8 @@
 //   4. emits a Slack-ready summary to MESSAGE_FILE for Swiatowid to post.
 //
 // Exit: 0 all healthy · 3 a domain needs a human · 4 IP not whitelisted · 2 misconfig.
-// Env: RESEND_API_KEY, RESEND_RECEIVING_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY,
-//      WHITELISTED_IPS (csv; falls back to NAMECHEAP_CLIENT_IP), SEND_FROM, MESSAGE_FILE,
-//      ALLOW_ANY_IP=1 (test escape hatch).
+// Env: WELES_DATABASE_URL, WELES_DATABASE_TOKEN, WHITELISTED_IPS,
+//      SEND_FROM, MESSAGE_FILE, ALLOW_ANY_IP=1 (test escape hatch).
 
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
@@ -20,8 +19,8 @@ import { promises as dnsp } from 'node:dns';
 
 const RK = process.env.RESEND_API_KEY || '';
 const RRK = process.env.RESEND_RECEIVING_API_KEY || RK;
-const SUPA = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const SK = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+const SUPA = process.env.WELES_DATABASE_URL || '';
+const SK = process.env.WELES_DATABASE_TOKEN || '';
 const SEND_FROM = process.env.SEND_FROM || 'noreply@wisent.com';
 // Absolute so the chained slack_post_message job (separate process) can read it.
 const MESSAGE_FILE = resolve(process.env.MESSAGE_FILE || '.work/resend-domains-status.txt');

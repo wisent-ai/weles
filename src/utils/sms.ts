@@ -4,8 +4,15 @@
  */
 
 import { costTracker } from './cost.js';
+import { readOptionalWelesServiceSecret } from '../secrets/scoped-service.js';
 
 const JUICY_BASE = 'https://juicysms.com/api';
+function juicyApiKey(): string | undefined {
+  return readOptionalWelesServiceSecret('juicySms', 'api_key');
+}
+function smsActivateApiKey(): string | undefined {
+  return readOptionalWelesServiceSecret('smsActivate', 'api_key');
+}
 
 const SERVICE_IDS: Record<string, string> = {
   twitter: '4', tiktok: '76', instagram: '6', discord: '10',
@@ -40,7 +47,7 @@ function normalizePhone(raw: string, country: string): string {
 
 export async function getNumber(service: string, country = 'UK'): Promise<SmsNumber | null> {
   // Try JuicySMS — only the requested country (caller handles rotation)
-  const jKey = process.env.JUICYSMS_API_KEY;
+  const jKey = juicyApiKey();
   if (jKey) {
     const sid = SERVICE_IDS[service.toLowerCase()] ?? service;
     const url = `${JUICY_BASE}/makeorder?key=${jKey}&serviceId=${sid}&country=${country}`;
@@ -66,7 +73,7 @@ export async function getNumber(service: string, country = 'UK'): Promise<SmsNum
     console.log(`[sms] juicysms (${country}): ${text.slice(0, 60)}`);
   }
   // Try sms-activate
-  const saKey = process.env.SMSACTIVATE_API_KEY;
+  const saKey = smsActivateApiKey();
   if (saKey) {
     const svc = SMSACTIVATE_SERVICES[service.toLowerCase()] ?? service;
     const cc = SMSACTIVATE_COUNTRIES[country] ?? '12';
@@ -99,7 +106,8 @@ export async function pollCode(orderId: string, provider: 'juicysms' | 'smsactiv
   let _lastJuicy = '';
   while (Date.now() - start < waitSecs * 1000) {
     if (provider === 'juicysms') {
-      const jKey = process.env.JUICYSMS_API_KEY!;
+      const jKey = juicyApiKey();
+      if (!jKey) return null;
       const r = await fetch(`${JUICY_BASE}/getsms?key=${jKey}&orderId=${orderId}`).catch(() => null);
       const text = (await r?.text())?.trim() ?? '';
       if (text.startsWith('SUCCESS_')) {
@@ -114,7 +122,8 @@ export async function pollCode(orderId: string, provider: 'juicysms' | 'smsactiv
       // from "JuicySMS rejecting the request" from "order expired".
       if (text !== _lastJuicy) { console.log(`[sms] juicysms poll: ${text.slice(0, 80)}`); _lastJuicy = text; }
     } else {
-      const saKey = process.env.SMSACTIVATE_API_KEY!;
+      const saKey = smsActivateApiKey();
+      if (!saKey) return null;
       const r = await fetch(`https://api.sms-activate.org/stubs/handler_api.php?api_key=${saKey}&action=getStatus&id=${orderId}`).catch(() => null);
       const text = (await r?.text())?.trim() ?? '';
       if (text.startsWith('STATUS_OK:')) { const code = text.split(':')[1].match(/(\d{4,8})/)?.[1]; if (code) { console.log(`[sms] code: ${code}`); return code; } }
@@ -126,15 +135,20 @@ export async function pollCode(orderId: string, provider: 'juicysms' | 'smsactiv
   }
   // Skip (not cancel) — prevents getting the same dead number again. Free if SMS wasn't delivered.
   if (provider === 'juicysms') {
-    await fetch(`${JUICY_BASE}/skipnumber?key=${process.env.JUICYSMS_API_KEY}&orderId=${orderId}`).catch(() => {});
+    const jKey = juicyApiKey();
+    if (jKey) await fetch(`${JUICY_BASE}/skipnumber?key=${jKey}&orderId=${orderId}`).catch(() => {});
   } else { await cancelOrder(orderId, provider); }
   return null;
 }
 
 export async function cancelOrder(orderId: string, provider: 'juicysms' | 'smsactivate'): Promise<void> {
   if (provider === 'juicysms') {
-    await fetch(`${JUICY_BASE}/cancelorder?key=${process.env.JUICYSMS_API_KEY}&orderId=${orderId}`).catch(() => {});
+    const jKey = juicyApiKey();
+    if (jKey) await fetch(`${JUICY_BASE}/cancelorder?key=${jKey}&orderId=${orderId}`).catch(() => {});
   } else {
-    await fetch(`https://api.sms-activate.org/stubs/handler_api.php?api_key=${process.env.SMSACTIVATE_API_KEY}&action=setStatus&status=8&id=${orderId}`).catch(() => {});
+    const saKey = smsActivateApiKey();
+    if (saKey) {
+      await fetch(`https://api.sms-activate.org/stubs/handler_api.php?api_key=${saKey}&action=setStatus&status=8&id=${orderId}`).catch(() => {});
+    }
   }
 }

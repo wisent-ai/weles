@@ -1,3 +1,5 @@
+import { optionalWelesDatabase } from '../utils/weles-database.js';
+
 // Provider-platform toxicity policy. Lifted from credentials.ts so the
 // check can fire from both the per-account path (resolveAccountSession)
 // AND the URL-form path inside resolveProxy. Without this lift, a caller
@@ -59,13 +61,10 @@ export function providerFromHost(host: string | undefined, username?: string): s
 //     rotating gateway. Banned for LinkedIn and every account-bound flow
 //     since the exit IP changes per request, which breaks persona<->IP
 //     binding the platforms key on.
-//   - 209.38.*: legacy lbartoszcze weles relay (Digital Ocean datacenter).
-//     Decommissioned with the Python account-api stack 2026-04-24.
 const RETIRED_PROVIDER_HOSTS: { pattern: RegExp; reason: string }[] = [
   { pattern: /(^|\.)pr\.oxylabs\.io$/i,        reason: 'oxylabs_residential_rotating' },
   { pattern: /^195\.86\./,                      reason: 'oxylabs_residential_exit_range' },
   { pattern: /^152\.233\./,                     reason: 'oxylabs_residential_exit_range' },
-  { pattern: /^209\.38\./,                      reason: 'legacy_lbartoszcze_relay' },
   // Oxylabs shared ISP pool (isp.oxylabs.io) exits on datacenter ASNs
   // (NetEnterprise AS11563, CenturyLink AS3561, EGIHosting AS32444) per live
   // audit 2026-05-21. Oxylabs Dedicated ISP (disp.oxylabs.io) exits on
@@ -458,8 +457,8 @@ export async function enqueueProviderTopup(displayName: string): Promise<{ ok: b
   if (_enqueuedTopupThisProcess.has(displayName)) return { ok: false, reason: 'already_enqueued_this_process' };
   const slug = _TOPUP_SLUG[displayName];
   if (!slug) return { ok: false, reason: 'no_slug' };
-  const url = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
+  const url = optionalWelesDatabase()?.url ?? '';
+  const key = optionalWelesDatabase()?.token ?? '';
   if (!url || !key) return { ok: false, reason: 'no_supabase_env' };
   let accountId = '';
   try {

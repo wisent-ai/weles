@@ -65,11 +65,11 @@ console.log(`[shadowban_check] snapshot -> ${outPath}`);
 // Auto-flag in social_accounts when verdict is shadowbanned. Pull from rotation
 // by setting status='shadowbanned' so the routine cron skips this account.
 if (result.verdict === 'shadowbanned' && acct.id) {
-  const supabaseUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
-  if (supabaseUrl && key) {
+  const databaseUrl = process.env.WELES_DATABASE_URL ?? '';
+  const key = process.env.WELES_DATABASE_TOKEN ?? '';
+  if (databaseUrl && key) {
     try {
-      const r = await fetch(`${supabaseUrl}/rest/v1/social_accounts?id=eq.${acct.id}`, {
+      const r = await fetch(`${databaseUrl}/rest/v1/social_accounts?id=eq.${acct.id}`, {
         method: 'PATCH',
         headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
         body: JSON.stringify({ status: 'shadowbanned' }),

@@ -15,6 +15,7 @@ import { buildInitScript } from './scripts/loader.js';
 import { pruneRecordings } from './prune.js';
 import { launchWelesFirefox } from './browser/firefox_launch.js';
 import { runRecordingsDir } from './session/run-recordings.js';
+import { findCustomBrowser } from './session/find_browser.js';
 import {
   WEBAUTHN_REJECT_SCRIPT,
   ARKOSE_OBSERVER_SCRIPT,
@@ -128,7 +129,7 @@ function browserProvenance(base: {
     pid: base.pid ?? null,
     custom_binary: base.customBinary ?? false,
     stock_override: base.stockOverride ?? false,
-    playwright_default_chromium_path: base.browserType === 'chromium' ? chromium.executablePath() : null,
+    playwright_default_chromium_path: null,
     // G16: exact build identity — which weles build, its real reported version,
     // a content hash + mtime/size of the binary, and the launch flags used.
     weles_build: executablePath ? parseWelesBuild(executablePath) : null,
@@ -313,8 +314,12 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
     } catch { /* skip */ }
   }
 
-  // Launch: custom Chromium with --weles-fingerprint, or stock Playwright
-  const chromiumPath = options.chromiumPath ?? process.env.CHROMIUM_PATH ?? '';
+  // Launch only the checksum-verified, deployment-selected browser release.
+  const selectedChromiumPath = isChromium ? findCustomBrowser('chromium') : undefined;
+  if (isChromium && !selectedChromiumPath) {
+    throw new Error('WELES_CHROMIUM_BINARY_NOT_FOUND: install the configured immutable Stado release');
+  }
+  const chromiumPath = selectedChromiumPath ?? '';
   const userDataDir = options.userDataDir ?? process.env.WELES_USER_DATA_DIR ?? '';
   const launchOpts: Record<string, any> = { headless };
   const args = [...CHROMIUM_ARGS];
@@ -326,16 +331,13 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
   if (persona?.language) args.push(`--lang=${persona.language}`);
   if (persona?.timezone) launchOpts.env = { ...process.env, TZ: persona.timezone };
 
-  // NopeCha auto-solver loads via launchPersistentContext only (chromium.launch+--load-extension yields empty serviceWorkers). Mutually exclusive with weles binary.
   const nopechaDir = process.env.WELES_NOPECHA_EXT === '1' ? (process.env.WELES_NOPECHA_EXT_DIR ?? '') : '';
-  const useNopecha = nopechaDir && existsSync(nopechaDir) && headless === false;
+  const useNopecha = Boolean(nopechaDir && existsSync(nopechaDir) && headless === false);
   if (useNopecha) {
-    args.push(`--disable-extensions-except=${nopechaDir}`);
-    args.push(`--load-extension=${nopechaDir}`);
-    console.log(`[async_api] loading NopeCha extension from ${nopechaDir}`);
+    throw new Error('NopeCha stock-browser launch is retired; Weles requires the verified Chromium release');
   }
 
-  const isCustomBinary = isChromium && chromiumPath && existsSync(chromiumPath) && process.env.WELES_USE_STOCK_CHROMIUM !== '1' && !useNopecha;
+  const isCustomBinary = isChromium;
 
   if (isCustomBinary) {
     launchOpts.executablePath = chromiumPath;
@@ -423,7 +425,7 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
       executablePath: chromiumPath,
       pid,
       customBinary: true,
-      stockOverride: process.env.WELES_USE_STOCK_CHROMIUM === '1',
+      stockOverride: false,
       version: (() => { try { return (pwBrowser ?? context.browser())?.version() ?? null; } catch { return null; } })(),
       launchArgs: args,
     });
@@ -486,53 +488,28 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
     return context;
   }
 
-  // Stock Playwright: full fingerprint spoofing via JS init scripts
-  let pwBrowser: Browser | null = null;
-  let extContext: any = null;
-  if (isChromium) {
-    launchOpts.args = args;
-    launchOpts.ignoreDefaultArgs = ['--enable-automation', '--enable-unsafe-swiftshader'];
-    if (useNopecha) {
-      // Extensions only load via launchPersistentContext (verified 2026-05-03).
-      const userData = mkdtempSync(join(tmpdir(), 'weles-pc-'));
-      extContext = await chromium.launchPersistentContext(userData, { ...launchOpts, ...ctxOpts });
-      (extContext as any)._welesBrowserProvenance = browserProvenance({
-        browserType,
-        source: 'playwright-persistent-chromium',
-        executablePath: chromium.executablePath(),
-        pid: null,
-        customBinary: false,
-        stockOverride: true,
-        version: (() => { try { return extContext.browser()?.version() ?? null; } catch { return null; } })(),
-        launchArgs: args,
-      });
-      console.log(`[async_api] launchPersistentContext userData=${userData}`);
-    } else {
-      pwBrowser = await chromium.launch(launchOpts);
-    }
-  } else {
-    pwBrowser = await launchWelesFirefox({ launchOpts, persona, nav, fpConfig, proxy: options.proxy });
+  // The only non-Chromium branch is the verified Weles Firefox release.
+  const firefoxPath = findCustomBrowser('firefox');
+  if (!firefoxPath) {
+    throw new Error('WELES_FIREFOX_BINARY_NOT_FOUND: install the configured immutable Stado release');
   }
-
-  const context = extContext ?? await pwBrowser!.newContext(ctxOpts);
-  // Realized fingerprint (cppConfig for custom Chromium; fpConfig otherwise) so
-  // the exact UA / UA-CH / navigator / screen / webgl presented is recoverable.
-  if (!(context as any)._welesFingerprintConfig) (context as any)._welesFingerprintConfig = realizedFingerprint;
-  if (!(context as any)._welesBrowserProvenance) {
-    const proc = (pwBrowser as any)?.process?.();
-    (context as any)._welesBrowserProvenance = browserProvenance({
-      browserType,
-      source: isChromium ? 'playwright-chromium-default' : 'weles-firefox-launch',
-      executablePath: isChromium ? chromium.executablePath() : undefined,
-      pid: proc?.pid ?? null,
-      customBinary: false,
-      stockOverride: isChromium,
-      version: (() => { try { return pwBrowser?.version() ?? null; } catch { return null; } })(),
-      // chromium `args` only; firefox launches with its own arg set inside
-      // launchWelesFirefox, so don't mislabel them here.
-      launchArgs: isChromium ? args : undefined,
-    });
-  }
+  const pwBrowser = await launchWelesFirefox({ launchOpts, persona, nav, fpConfig, proxy: options.proxy });
+  const context = await pwBrowser.newContext(ctxOpts);
+  // Playwright's public type omits Weles-owned context metadata fields.
+  const annotatedContext = context as unknown as BrowserContext & {
+    _welesFingerprintConfig: unknown;
+    _welesBrowserProvenance: unknown;
+  };
+  annotatedContext._welesFingerprintConfig = realizedFingerprint;
+  annotatedContext._welesBrowserProvenance = browserProvenance({
+    browserType,
+    source: 'weles-firefox-release',
+    executablePath: firefoxPath,
+    pid: null,
+    customBinary: true,
+    stockOverride: false,
+    version: (() => { try { return pwBrowser.version(); } catch { return null; } })(),
+  });
   context.setDefaultNavigationTimeout(0);
 
   // Strip Accept-Language on TikTok same-origin sub-requests (Chrome 147 default-on ReduceAcceptLanguage omits it; weles emits unconditionally; webmssdk signs into x-mssdk-info). EXCEPTION: passport/web/* CORS preflight needs it.

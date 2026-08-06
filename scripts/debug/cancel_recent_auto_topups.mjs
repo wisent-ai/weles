@@ -20,8 +20,8 @@ function loadDotEnv(path = '.env') {
 
 loadDotEnv();
 
-const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const key = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+const url = process.env.WELES_SUPABASE_URL || '';
+const key = process.env.WELES_SUPABASE_SERVICE_ROLE_KEY || '';
 if (!url || !key) throw new Error('Supabase env missing');
 
 const actions = process.argv.slice(2).filter(Boolean);

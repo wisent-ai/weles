@@ -26,9 +26,9 @@ import { join } from 'node:path';
 import { humanClickLocator } from '../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../dist/human/keyboard.js';
 
-const SUPABASE_URL = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
-const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SERVICE_KEY ?? '';
-if (!SUPABASE_URL || !SUPABASE_KEY) { console.error('FAIL: SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY required'); process.exit(2); }
+const DATABASE_URL = process.env.WELES_DATABASE_URL ?? '';
+const DATABASE_TOKEN = process.env.WELES_DATABASE_TOKEN ?? '';
+if (!DATABASE_URL || !DATABASE_TOKEN) { console.error('FAIL: WELES_DATABASE_URL + WELES_DATABASE_TOKEN required'); process.exit(Number('2')); }
 
 const ACCOUNT_ID = process.env.ACCOUNT_ID ?? '';
 const USERNAME = process.env.USERNAME ?? '';
@@ -39,7 +39,7 @@ if (!existsSync(CHROME_BIN)) { console.error(`FAIL: chrome binary missing at ${C
 
 // Resolve the account row up-front so we fail fast on bad ID/username.
 const idFilter = ACCOUNT_ID ? `id=eq.${ACCOUNT_ID}` : `platform=eq.linkedin&username=eq.${encodeURIComponent(USERNAME)}`;
-const acctRes = await fetch(`${SUPABASE_URL}/rest/v1/social_accounts?${idFilter}&select=id,username,metadata`, { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } });
+const acctRes = await fetch(`${DATABASE_URL}/rest/v1/social_accounts?${idFilter}&select=id,username,metadata`, { headers: { apikey: DATABASE_TOKEN, Authorization: `Bearer ${DATABASE_TOKEN}` } });
 const accts = await acctRes.json();
 if (!accts?.[0]?.id) { console.error(`FAIL: no social_accounts row for ${ACCOUNT_ID || USERNAME}`); process.exit(2); }
 const acct = accts[0];
@@ -139,9 +139,9 @@ if (cookies.length) {
   merged.cookies_minted_at = now;
   delete merged.cookies_stale_at;
 }
-const patchRes = await fetch(`${SUPABASE_URL}/rest/v1/social_accounts?id=eq.${acct.id}`, {
+const patchRes = await fetch(`${DATABASE_URL}/rest/v1/social_accounts?id=eq.${acct.id}`, {
   method: 'PATCH',
-  headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+  headers: { apikey: DATABASE_TOKEN, Authorization: `Bearer ${DATABASE_TOKEN}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
   body: JSON.stringify({ metadata: merged }),
 });
 if (!patchRes.ok) { console.error(`FAIL: PATCH returned ${patchRes.status}: ${(await patchRes.text()).slice(0, 200)}`); process.exit(1); }

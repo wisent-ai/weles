@@ -1,6 +1,7 @@
 import ApplicationServices
 import Cocoa
 import CoreGraphics
+import Darwin
 import Foundation
 
 let env = ProcessInfo.processInfo.environment
@@ -26,6 +27,17 @@ struct Target {
   let name: String
   let bundle: String
   let source: String
+}
+
+struct PromptSnapshot {
+  let target: Target
+  let root: AXUIElement
+  let rows: [(AXUIElement, CapturedNode)]
+  let text: String
+}
+
+enum CaptureFailure: Error {
+  case message(String)
 }
 
 func jsonPrint(_ value: [String: Any]) {
@@ -56,8 +68,18 @@ func axChildren(_ element: AXUIElement, _ attr: CFString) -> [AXUIElement] {
   return raw as? [AXUIElement] ?? []
 }
 
-func capture(_ element: AXUIElement, depth: Int = 0) -> [(AXUIElement, CapturedNode)] {
-  if depth > maxDepth { return [] }
+func sameElement(_ lhs: AXUIElement, _ rhs: AXUIElement) -> Bool {
+  CFEqual(lhs, rhs)
+}
+
+func capture(
+  _ element: AXUIElement,
+  depth: Int = 0,
+  seen: inout [AXUIElement]
+) -> [(AXUIElement, CapturedNode)] {
+  if depth > maxDepth || seen.contains(where: { sameElement($0, element) }) { return [] }
+  seen.append(element)
+
   let node = CapturedNode(
     role: axString(element, kAXRoleAttribute as CFString),
     title: axString(element, kAXTitleAttribute as CFString),
@@ -74,7 +96,7 @@ func capture(_ element: AXUIElement, depth: Int = 0) -> [(AXUIElement, CapturedN
   ]
   for attr in childAttrs {
     for child in axChildren(element, attr) {
-      rows.append(contentsOf: capture(child, depth: depth + 1))
+      rows.append(contentsOf: capture(child, depth: depth + 1, seen: &seen))
     }
   }
   return rows
@@ -181,134 +203,239 @@ func processTargets() -> [Target] {
   return byPid.values.sorted { $0.pid < $1.pid }
 }
 
-func isAppleTrustedDevicePrompt(_ text: String) -> Bool {
-  let lower = text.lowercased()
-  return lower.contains("apple")
-    && lower.contains("sign in")
-    && lower.contains("allow")
-    && lower.contains("do not allow")
-}
-
-func extractCode(_ text: String) -> String {
-  let lower = text.lowercased()
-  if !lower.contains("apple") && !lower.contains("verification") && !lower.contains("sign in") && !lower.contains("code") {
-    return ""
-  }
-
-  var current = ""
-  var best = ""
-  for scalar in text.unicodeScalars {
-    if CharacterSet.decimalDigits.contains(scalar) {
-      current.append(Character(scalar))
-      if current.count == 6 {
-        best = current
-      } else if current.count > 6 {
-        current = String(Character(scalar))
-      }
-    } else if CharacterSet.whitespacesAndNewlines.contains(scalar) || scalar.value == 0x00a0 {
-      continue
-    } else {
-      if current.count != 6 {
-        current = ""
-      }
-    }
-  }
-  return best
-}
-
 func normalizedLabel(_ node: CapturedNode) -> String {
-  return [node.title, node.value, node.description, node.help]
+  [node.title, node.value, node.description, node.help]
     .joined(separator: " ")
     .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
     .trimmingCharacters(in: .whitespacesAndNewlines)
 }
 
-func pressButton(in rows: [(AXUIElement, CapturedNode)], exactLabels: [String], fallbackNeedles: [String] = []) -> String {
-  let buttons = rows.filter { $0.1.role == "AXButton" }
-  for (element, node) in buttons {
+func exactButtons(
+  in rows: [(AXUIElement, CapturedNode)],
+  labels: [String]
+) -> [(AXUIElement, String)] {
+  rows.compactMap { element, node in
+    guard node.role == "AXButton" else { return nil }
     let label = normalizedLabel(node)
-    if exactLabels.contains(where: { label.caseInsensitiveCompare($0) == .orderedSame }) {
-      let err = AXUIElementPerformAction(element, kAXPressAction as CFString)
-      return err == .success ? label : ""
+    guard labels.contains(where: { label.caseInsensitiveCompare($0) == .orderedSame }) else {
+      return nil
     }
+    return (element, label)
   }
-  for (element, node) in buttons {
-    let label = normalizedLabel(node)
-    if label.localizedCaseInsensitiveContains("Do Not Allow") {
+}
+
+func promptText(_ rows: [(AXUIElement, CapturedNode)]) -> String {
+  rows
+    .flatMap { row in [row.1.title, row.1.value, row.1.description, row.1.help] }
+    .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    .joined(separator: "\n")
+}
+
+func isAppleTrustedDeviceAllowPrompt(_ snapshot: PromptSnapshot) -> Bool {
+  let lower = snapshot.text.lowercased()
+  return lower.contains("apple")
+    && (lower.contains("sign in") || lower.contains("sign-in"))
+    && lower.contains("allow")
+    && lower.contains("do not allow")
+    && exactButtons(in: snapshot.rows, labels: ["Allow"]).count == 1
+    && exactButtons(in: snapshot.rows, labels: ["Do Not Allow"]).count == 1
+}
+
+func isAppleVerificationCodePrompt(_ snapshot: PromptSnapshot) -> Bool {
+  let lower = snapshot.text.lowercased()
+  return lower.contains("apple") && lower.contains("verification") && lower.contains("code")
+}
+
+func sixDigitCodes(_ text: String) -> Set<String> {
+  var candidates = Set<String>()
+  var current = ""
+
+  func finishCandidate() {
+    if current.count == 6 { candidates.insert(current) }
+    current = ""
+  }
+
+  for scalar in text.unicodeScalars {
+    if CharacterSet.decimalDigits.contains(scalar) {
+      current.append(Character(scalar))
+    } else if (CharacterSet.whitespacesAndNewlines.contains(scalar) || scalar.value == 0x00a0)
+      && !current.isEmpty
+      && current.count < 6 {
       continue
-    }
-    for needle in fallbackNeedles where label.localizedCaseInsensitiveContains(needle) {
-      let err = AXUIElementPerformAction(element, kAXPressAction as CFString)
-      return err == .success ? label : ""
+    } else {
+      finishCandidate()
     }
   }
-  return ""
+  finishCandidate()
+  return candidates
+}
+
+var processSummaries: [[String: Any]] = []
+
+func promptSnapshots() -> [PromptSnapshot] {
+  processSummaries = []
+  var snapshots: [PromptSnapshot] = []
+
+  for target in processTargets() {
+    let application = AXUIElementCreateApplication(target.pid)
+    let windows = axChildren(application, kAXWindowsAttribute as CFString)
+    var roots = windows.isEmpty ? [application] : windows
+    var uniqueRoots: [AXUIElement] = []
+    for root in roots where !uniqueRoots.contains(where: { sameElement($0, root) }) {
+      uniqueRoots.append(root)
+    }
+    roots = uniqueRoots
+
+    for (windowIndex, root) in roots.enumerated() {
+      var seen: [AXUIElement] = []
+      let rows = capture(root, seen: &seen)
+      let snapshot = PromptSnapshot(target: target, root: root, rows: rows, text: promptText(rows))
+      snapshots.append(snapshot)
+      processSummaries.append([
+        "pid": target.pid,
+        "name": target.name,
+        "bundle": target.bundle,
+        "source": target.source,
+        "windowIndex": windowIndex,
+        "nodes": rows.count,
+      ])
+    }
+  }
+
+  return snapshots
+}
+
+func pressUniqueButton(
+  in snapshot: PromptSnapshot,
+  labels: [String],
+  actionName: String
+) throws -> String {
+  let matches = exactButtons(in: snapshot.rows, labels: labels)
+  guard matches.count == 1 else {
+    throw CaptureFailure.message("verified Apple prompt has \(matches.count) exact \(actionName) buttons")
+  }
+  let result = AXUIElementPerformAction(matches[0].0, kAXPressAction as CFString)
+  guard result == .success else {
+    throw CaptureFailure.message("failed to press the unique \(actionName) button")
+  }
+  return matches[0].1
+}
+
+func writeOwnerOnlyCode(_ code: String, to path: String) throws {
+  var bytes = Data(code.utf8)
+  defer {
+    if !bytes.isEmpty { bytes.resetBytes(in: 0..<bytes.count) }
+  }
+  guard bytes.count == 6 else { throw CaptureFailure.message("captured code is not six digits") }
+
+  let descriptor = open(path, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, S_IRUSR | S_IWUSR)
+  guard descriptor >= 0 else {
+    throw CaptureFailure.message("refused to create the owner-only challenge file")
+  }
+
+  var complete = false
+  defer {
+    close(descriptor)
+    if !complete { unlink(path) }
+  }
+
+  var attributes = stat()
+  guard fstat(descriptor, &attributes) == 0,
+        (attributes.st_mode & S_IFMT) == S_IFREG,
+        (attributes.st_mode & 0o077) == 0,
+        attributes.st_uid == geteuid() else {
+    throw CaptureFailure.message("challenge file ownership or permissions are unsafe")
+  }
+
+  let written = bytes.withUnsafeBytes { rawBuffer -> Int in
+    guard let base = rawBuffer.baseAddress else { return -1 }
+    return Darwin.write(descriptor, base, rawBuffer.count)
+  }
+  guard written == bytes.count, fsync(descriptor) == 0 else {
+    throw CaptureFailure.message("failed to persist the challenge code")
+  }
+  complete = true
 }
 
 let trusted = AXIsProcessTrusted()
-var processSummaries: [[String: Any]] = []
-var allText = ""
 var clicked: [String] = []
+var clickedAllow = false
+var clickedDone = false
+var code = ""
+var errorMessage: String?
 
-@discardableResult
-func captureTargets(pressAllow: Bool, pressDone: Bool) -> String {
-  var passText = ""
-  for target in processTargets() {
-    let root = AXUIElementCreateApplication(target.pid)
-    let rows = capture(root)
-    let text = rows
-      .flatMap { row in [row.1.title, row.1.value, row.1.description, row.1.help] }
-      .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
-      .joined(separator: "\n")
-    allText += "\n" + text
-    passText += "\n" + text
-    processSummaries.append([
-      "pid": target.pid,
-      "name": target.name,
-      "bundle": target.bundle,
-      "source": target.source,
-      "nodes": rows.count,
-      "textPreview": String(text.prefix(800)),
-    ])
+if !trusted {
+  errorMessage = "Accessibility permission is not granted"
+} else {
+  do {
+    let initialSnapshots = promptSnapshots()
+    var verifiedPid: pid_t?
 
-    if pressAllow && isAppleTrustedDevicePrompt(text) {
-      let label = pressButton(in: rows, exactLabels: ["Allow"], fallbackNeedles: ["Allow"])
-      if !label.isEmpty { clicked.append(label) }
+    if clickAllow {
+      let allowPrompts = initialSnapshots.filter(isAppleTrustedDeviceAllowPrompt)
+      guard allowPrompts.count == 1 else {
+        throw CaptureFailure.message("expected exactly one Apple trusted-device Allow prompt, found \(allowPrompts.count)")
+      }
+      let allowPrompt = allowPrompts[0]
+      let label = try pressUniqueButton(in: allowPrompt, labels: ["Allow"], actionName: "Allow")
+      clicked.append(label)
+      clickedAllow = true
+      verifiedPid = allowPrompt.target.pid
     }
-    if pressDone && !extractCode(text).isEmpty {
-      let label = pressButton(in: rows, exactLabels: ["Done", "OK"])
-      if !label.isEmpty { clicked.append(label) }
+
+    let attempts = clickAllow ? 50 : 1
+    for attempt in 0..<attempts {
+      if clickAllow && attempt > 0 { Thread.sleep(forTimeInterval: 0.2) }
+      let snapshots = clickAllow || attempt > 0 ? promptSnapshots() : initialSnapshots
+      let codePrompts = snapshots.filter(isAppleVerificationCodePrompt)
+      if codePrompts.count > 1 {
+        throw CaptureFailure.message("multiple Apple verification-code prompts are visible")
+      }
+      guard let codePrompt = codePrompts.first else { continue }
+
+      if let verifiedPid {
+        guard codePrompt.target.pid == verifiedPid else {
+          throw CaptureFailure.message("Apple verification code appeared in a different process")
+        }
+      }
+
+      let candidates = sixDigitCodes(codePrompt.text)
+      if candidates.count > 1 {
+        throw CaptureFailure.message("Apple verification prompt contains multiple six-digit codes")
+      }
+      guard let capturedCode = candidates.first else { continue }
+      code = capturedCode
+
+      if clickDone {
+        if let label = try? pressUniqueButton(in: codePrompt, labels: ["Done", "OK"], actionName: "Done/OK") {
+          clicked.append(label)
+          clickedDone = true
+        }
+      }
+      break
     }
+
+    guard !code.isEmpty else {
+      throw CaptureFailure.message("expected exactly one Apple verification-code prompt with one code, found none")
+    }
+    try writeOwnerOnlyCode(code, to: outputFile)
+  } catch CaptureFailure.message(let message) {
+    errorMessage = message
+    code = ""
+  } catch {
+    errorMessage = "native Apple challenge capture failed closed"
+    code = ""
   }
-  return passText
-}
-
-if trusted {
-  captureTargets(pressAllow: clickAllow, pressDone: clickDone)
-}
-
-var code = extractCode(allText)
-if code.isEmpty && clicked.contains(where: { $0.caseInsensitiveCompare("Allow") == .orderedSame }) {
-  for _ in 0..<50 {
-    Thread.sleep(forTimeInterval: 0.2)
-    allText = ""
-    processSummaries = []
-    captureTargets(pressAllow: false, pressDone: clickDone)
-    code = extractCode(allText)
-    if !code.isEmpty { break }
-  }
-}
-
-if !code.isEmpty {
-  try? "\(code)\n".write(toFile: outputFile, atomically: true, encoding: .utf8)
-  try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: outputFile)
 }
 
 jsonPrint([
-  "ok": trusted,
+  "ok": trusted && errorMessage == nil,
   "accessibilityTrusted": trusted,
-  "codeCaptured": !code.isEmpty,
-  "outputFile": !code.isEmpty ? outputFile : NSNull(),
   "clicked": clicked,
+  "clickedAllow": clickedAllow,
+  "clickedDone": clickedDone,
+  "codeCaptured": !code.isEmpty && errorMessage == nil,
+  "outputFile": !code.isEmpty && errorMessage == nil ? outputFile : NSNull(),
+  "error": errorMessage ?? NSNull(),
   "processes": processSummaries,
 ])

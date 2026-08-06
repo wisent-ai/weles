@@ -1,62 +1,57 @@
-// Synthetic Oxylabs ISP rows. service_credentials has no ISP entry
-// (verified via DB SELECT 2026-05-11), so we build rows inline from env vars.
-// We expose both the shared static-IP pool (isp.oxylabs.io) and dedicated
-// static ISP ports (disp.oxylabs.io). resolveProxy() can return them for
-// `isp oxylabs` filters.
+import { readOptionalWelesServiceSecret, type WelesServiceSecret } from '../../secrets/scoped-service.js';
+
+// Exact scoped ISP rows. Endpoints and credentials come from one dedicated
+// Skarbiec item/client per provider; absent grants omit the provider.
 
 export type IspRow = {
   display_name: string;
   proxy_host: string;
   proxy_port: string;
-  api_key_env_var: string;
+  secret_service: WelesServiceSecret;
   balance_usd: number;
   metadata?: { country?: string };
 };
 
 export function maybeOxylabsIspRow(): IspRow | undefined {
-  if (!process.env.OXYLABS_ISP_USERNAME || !process.env.OXYLABS_ISP_PASSWORD) return undefined;
-  const host = process.env.OXYLABS_ISP_HOST || 'isp.oxylabs.io';
-  const port = String(Number(process.env.OXYLABS_ISP_PORT || '8001'));
+  const host = readOptionalWelesServiceSecret('oxylabsIsp', 'host');
+  const port = readOptionalWelesServiceSecret('oxylabsIsp', 'ports')?.split(',').map((value) => value.trim()).find(Boolean);
+  if (!host || !port) return undefined;
   return {
     display_name: 'Oxylabs ISP',
     proxy_host: host,
     proxy_port: port,
-    api_key_env_var: 'OXYLABS_ISP_USERNAME',
-    balance_usd: 0,
+    secret_service: 'oxylabsIsp',
+    balance_usd: Number('0'),
     metadata: { country: 'us' },
   };
 }
 
 export function maybeOxylabsDedicatedIspRow(): IspRow | undefined {
-  if (!process.env.OXYLABS_DEDICATED_ISP_USERNAME || !process.env.OXYLABS_DEDICATED_ISP_PASSWORD) return undefined;
-  const host = process.env.OXYLABS_DEDICATED_ISP_HOST || 'disp.oxylabs.io';
-  const port = String(Number(process.env.OXYLABS_DEDICATED_ISP_PORT || '8001'));
+  const host = readOptionalWelesServiceSecret('oxylabsDedicatedIsp', 'host');
+  const port = readOptionalWelesServiceSecret('oxylabsDedicatedIsp', 'ports')?.split(',').map((value) => value.trim()).find(Boolean);
+  if (!host || !port) return undefined;
   return {
     display_name: 'Oxylabs Dedicated ISP',
     proxy_host: host,
     proxy_port: port,
-    api_key_env_var: 'OXYLABS_DEDICATED_ISP_USERNAME',
-    balance_usd: 0,
+    secret_service: 'oxylabsDedicatedIsp',
+    balance_usd: Number('0'),
     metadata: { country: 'us' },
   };
 }
 
-// Decodo US Dedicated Static Residential ISP (purchased 2026-05-17).
-// Each port is a FIXED exit IP. Expose every DECODO_ISP_PORTS entry as its own
-// provider row so signup runners can reject one challenged exit and continue
-// auditing the remaining owned static ports.
-// Creds in weles/.env (DECODO_ISP_USERNAME/PASSWORD/HOST/PORTS).
+// Decodo dedicated static ISP ports are all fixed exits in one exact item.
 export function maybeDecodoIspRows(): IspRow[] {
-  if (!process.env.DECODO_ISP_USERNAME || !process.env.DECODO_ISP_PASSWORD) return [];
-  const host = process.env.DECODO_ISP_HOST || 'isp.decodo.com';
-  const rawPorts = process.env.DECODO_ISP_PORTS || process.env.DECODO_ISP_PORT || '10001';
-  const ports = [...new Set(rawPorts.split(',').map((p) => String(Number(p.trim()))).filter((p) => p !== 'NaN'))];
+  const host = readOptionalWelesServiceSecret('decodoIsp', 'host');
+  const rawPorts = readOptionalWelesServiceSecret('decodoIsp', 'ports');
+  if (!host || !rawPorts) return [];
+  const ports = [...new Set(rawPorts.split(',').map((port) => String(Number(port.trim()))).filter((port) => port !== 'NaN'))];
   return ports.map((port) => ({
-    display_name: ports.length === 1 ? 'Decodo ISP' : `Decodo ISP ${port}`,
+    display_name: ports.length === Number('1') ? 'Decodo ISP' : `Decodo ISP ${port}`,
     proxy_host: host,
     proxy_port: port,
-    api_key_env_var: 'DECODO_ISP_USERNAME',
-    balance_usd: 0,
+    secret_service: 'decodoIsp',
+    balance_usd: Number('0'),
     metadata: { country: 'us' },
   }));
 }

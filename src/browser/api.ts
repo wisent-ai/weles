@@ -1,4 +1,5 @@
 import { type ChildProcess } from 'node:child_process';
+import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { createServer, request as httpRequest, type Server } from 'node:http';
 import { connect } from 'node:net';
 import { CDPConnection } from '../cdp/connection.js';
@@ -34,6 +35,12 @@ function getSystemLocale(): string {
   }
 }
 
+function securelyEqual(left: string, right: string): boolean {
+  const leftDigest = createHash('sha256').update(left).digest();
+  const rightDigest = createHash('sha256').update(right).digest();
+  return timingSafeEqual(leftDigest, rightDigest);
+}
+
 export class CDPWeles {
   private _process: ChildProcess;
   private _connection: CDPConnection;
@@ -65,35 +72,87 @@ export class CDPWeles {
     let proxyForChrome: string | undefined;
     let localProxy: Server | undefined;
     if (options.proxy) {
+      let proxyUrl: URL;
       try {
-        const pu = new URL(options.proxy);
-        if (pu.username) {
-          const upstream = { host: pu.hostname, port: Number(pu.port), auth: `${decodeURIComponent(pu.username)}:${decodeURIComponent(pu.password)}` };
-          const srv = createServer((req, res) => {
-            const opts = { host: upstream.host, port: upstream.port, path: req.url, method: req.method, headers: { ...req.headers, 'Proxy-Authorization': `Basic ${Buffer.from(upstream.auth).toString('base64')}` } };
-            const proxy = httpRequest(opts, (pRes) => { res.writeHead(pRes.statusCode ?? 502, pRes.headers); pRes.pipe(res); });
-            req.pipe(proxy);
-            proxy.on('error', () => res.destroy());
-          });
-          srv.on('connect', (req, clientSocket, head) => {
-            const [host, port] = (req.url ?? '').split(':');
-            const authHeader = `Basic ${Buffer.from(upstream.auth).toString('base64')}`;
-            const connReq = `CONNECT ${req.url} HTTP/1.1\r\nHost: ${req.url}\r\nProxy-Authorization: ${authHeader}\r\n\r\n`;
-            const upSocket = connect(upstream.port, upstream.host, () => { upSocket.write(connReq); upSocket.write(head); });
-            upSocket.on('error', () => clientSocket.destroy());
-            clientSocket.on('error', () => upSocket.destroy());
-            let gotResponse = false;
-            upSocket.on('data', (chunk: Buffer) => {
-              if (!gotResponse) { gotResponse = true; const s = chunk.toString(); if (s.includes('200')) { clientSocket.write('HTTP/1.1 200 Connection Established\r\n\r\n'); const rest = chunk.subarray(s.indexOf('\r\n\r\n') + 4); if (rest.length) clientSocket.write(rest); upSocket.pipe(clientSocket); clientSocket.pipe(upSocket); } else { clientSocket.destroy(); upSocket.destroy(); } } });
-          });
-          await new Promise<void>(r => srv.listen(0, '127.0.0.1', r));
-          const addr = srv.address() as { port: number };
-          proxyForChrome = `http://127.0.0.1:${addr.port}`;
-          localProxy = srv;
-        } else {
-          proxyForChrome = options.proxy;
-        }
+        proxyUrl = new URL(options.proxy);
       } catch {
+        throw new Error('Proxy URL must be valid');
+      }
+      if (proxyUrl.username) {
+        const upstream = {
+          host: proxyUrl.hostname,
+          port: Number(proxyUrl.port),
+          auth: `${decodeURIComponent(proxyUrl.username)}:${decodeURIComponent(proxyUrl.password)}`,
+        };
+        const localAuth = {
+          username: 'weles',
+          password: randomBytes(Number('32')).toString('base64url'),
+        };
+        const expectedLocalAuthorization = `Basic ${Buffer.from(`${localAuth.username}:${localAuth.password}`).toString('base64')}`;
+        const isAuthorized = (header: string | string[] | undefined): boolean =>
+          typeof header === 'string' && securelyEqual(header, expectedLocalAuthorization);
+        const srv = createServer((req, res) => {
+          if (!isAuthorized(req.headers['proxy-authorization'])) {
+            res.writeHead(Number('407'), {
+              'Connection': 'close',
+              'Proxy-Authenticate': 'Basic realm="weles-local-proxy"',
+            });
+            res.end('Proxy authentication required');
+            return;
+          }
+          const opts = {
+            host: upstream.host,
+            port: upstream.port,
+            path: req.url,
+            method: req.method,
+            headers: {
+              ...req.headers,
+              'Proxy-Authorization': `Basic ${Buffer.from(upstream.auth).toString('base64')}`,
+            },
+          };
+          const proxy = httpRequest(opts, (pRes) => {
+            res.writeHead(pRes.statusCode ?? Number('502'), pRes.headers);
+            pRes.pipe(res);
+          });
+          req.pipe(proxy);
+          proxy.on('error', () => res.destroy());
+        });
+        srv.on('connect', (req, clientSocket, head) => {
+          if (!isAuthorized(req.headers['proxy-authorization'])) {
+            clientSocket.end('HTTP/1.1 407 Proxy Authentication Required\r\nProxy-Authenticate: Basic realm="weles-local-proxy"\r\nConnection: close\r\n\r\n');
+            return;
+          }
+          const authHeader = `Basic ${Buffer.from(upstream.auth).toString('base64')}`;
+          const connReq = `CONNECT ${req.url} HTTP/1.1\r\nHost: ${req.url}\r\nProxy-Authorization: ${authHeader}\r\n\r\n`;
+          const upSocket = connect(upstream.port, upstream.host, () => {
+            upSocket.write(connReq);
+            upSocket.write(head);
+          });
+          upSocket.on('error', () => clientSocket.destroy());
+          clientSocket.on('error', () => upSocket.destroy());
+          let gotResponse = false;
+          upSocket.on('data', (chunk: Buffer) => {
+            if (gotResponse) return;
+            gotResponse = true;
+            const responseHead = chunk.toString();
+            if (!responseHead.includes('200')) {
+              clientSocket.destroy();
+              upSocket.destroy();
+              return;
+            }
+            clientSocket.write('HTTP/1.1 200 Connection Established\r\n\r\n');
+            const headerEnd = responseHead.indexOf('\r\n\r\n');
+            const rest = headerEnd >= Number(false) ? chunk.subarray(headerEnd + Number('4')) : Buffer.alloc(Number(false));
+            if (rest.length) clientSocket.write(rest);
+            upSocket.pipe(clientSocket);
+            clientSocket.pipe(upSocket);
+          });
+        });
+        await new Promise<void>(resolve => srv.listen(Number(false), '127.0.0.1', resolve));
+        const addr = srv.address() as { port: number };
+        proxyForChrome = `http://${encodeURIComponent(localAuth.username)}:${encodeURIComponent(localAuth.password)}@127.0.0.1:${addr.port}`;
+        localProxy = srv;
+      } else {
         proxyForChrome = options.proxy;
       }
     }
@@ -104,7 +163,7 @@ export class CDPWeles {
       const cppConfig = toCppConfig(config, targetOs, { chromiumPath: options.chromiumPath });
       extraArgs.push(`--weles-fingerprint=${JSON.stringify(cppConfig)}`);
     }
-    const { process: proc, wsUrl } = await launchChromium({
+    const { process: proc, wsUrl, proxyAuth } = await launchChromium({
       headless: options.headless,
       chromiumPath: options.chromiumPath,
       userDataDir: options.userDataDir,
@@ -122,6 +181,7 @@ export class CDPWeles {
     // 7. Create CDPBrowserContext
     const context = new CDPBrowserContext(connection, browserContextId, {
       recordVideo: options.recordVideo,
+      proxyAuth,
     });
 
     // 8. Set emulation — skip UA/platform for custom binary (C++ handles it)

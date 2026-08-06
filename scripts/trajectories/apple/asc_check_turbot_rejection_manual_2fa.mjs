@@ -1,5 +1,5 @@
-// Log into App Store Connect, let the user complete 2FA manually in the browser,
-// then navigate to Turbot and extract rejection details.
+// Inspect Turbot rejection details through an already authenticated App Store Connect session.
+// Authentication is intentionally delegated exclusively to an explicitly authorized apple_login run.
 //
 // Usage:
 //   node scripts/trajectories/apple/asc_check_turbot_rejection_manual_2fa.mjs
@@ -9,29 +9,33 @@ import { WSession } from '../../../dist/session/wsession.js';
 import { persistFreshCookieJar } from '../_shared/cookie-freshness.mjs';
 import { setTimeout } from 'node:timers/promises';
 
+
 const APP_ID = process.env.APP_ID || '6502873271';
-const DASHBOARD_TIMEOUT_MS = 5 * 60 * 1000;
 
 const acct = await getSocialAccount('apple');
 if (!acct) { console.log('FAIL: no active apple account in DB'); process.exit(1); }
-if (!acct.metadata?.email || !acct.metadata?.password) { console.log('FAIL: apple account missing email/password'); process.exit(1); }
+console.log(`[turbot-review] using existing session for account: ${acct.username}`);
 
-const email = acct.metadata.email;
-const password = acct.metadata.password;
-console.log(`[turbot-review] using account: ${acct.username} (${email})`);
-
-async function waitForDashboard(s) {
-  console.log('[turbot-review] waiting for you to complete 2FA and click Trust in the browser...');
-  const deadline = Date.now() + DASHBOARD_TIMEOUT_MS;
-  while (Date.now() < deadline) {
-    const url = s.page.url?.() ?? '';
-    if (url.includes('appstoreconnect.apple.com') && !url.includes('/login') && !url.includes('idmsa')) {
-      console.log(`[turbot-review] dashboard detected — ${url}`);
-      return true;
-    }
-    await setTimeout(2000);
+async function assertAuthenticatedAppleSession(page) {
+  const url = page.url?.() ?? '';
+  const loginUrl = /idmsa\.apple\.com|appleid\.apple\.com|\/login(?:[/?#]|$)|signin/i.test(url);
+  const authIframe = await page.locator('iframe[src*="idmsa.apple.com"], iframe[src*="appleid.apple.com"]').count() > 0;
+  let authPrompt = false;
+  for (const frame of page.frames()) {
+    authPrompt ||= await frame.locator([
+      '#account_name_text_field',
+      '#password_text_field',
+      'input[type="password"]',
+      'input[aria-label*="digit"]',
+      'input[aria-label*="Digit"]',
+      'input[type="tel"][maxlength="1"]',
+    ].join(', ')).first().isVisible().catch(() => false);
+    authPrompt ||= await frame.getByText(/Two-Factor Authentication|verification code sent to your Apple devices/i).first().isVisible().catch(() => false);
+    if (authPrompt) break;
   }
-  throw new Error('Timed out waiting for App Store Connect dashboard');
+  if (loginUrl || authIframe || authPrompt) {
+    throw new Error('FAIL_CLOSED: Apple login/password/2FA is required; this trajectory will not authenticate. An explicitly authorized apple_login is the only permitted login path.');
+  }
 }
 
 async function extractReviewInfo(page) {
@@ -83,6 +87,7 @@ async function extractReviewInfo(page) {
   } catch (e) {
     console.log('[turbot-review] screenshot failed:', e.message?.slice(0, 120));
   }
+  return { info, snippets };
 }
 
 const { proxyUrl, persona } = await resolveAccountSession(acct);
@@ -92,36 +97,7 @@ try {
   await s.goto('https://appstoreconnect.apple.com');
   await s.wait(5);
 
-  const authFrame = await s.page.waitForSelector('iframe[src*="idmsa.apple.com"]', { timeout: 30_000 }).catch(() => null);
-  if (!authFrame) { console.log('FAIL: no idmsa auth iframe found'); process.exit(1); }
-  const frame = await authFrame.contentFrame();
-  if (!frame) { console.log('FAIL: could not access auth iframe'); process.exit(1); }
-  console.log('[turbot-review] auth iframe loaded');
-
-  await frame.waitForSelector('#account_name_text_field', { timeout: 15_000 });
-  await frame.locator('#account_name_text_field').fill(email);
-  await frame.locator('#sign-in').click();
-  await s.wait(5);
-
-  const continuePwBtn = frame.locator('#continue-password');
-  if (await continuePwBtn.isVisible().catch(() => false)) {
-    await continuePwBtn.click();
-    await s.wait(4);
-  }
-
-  const pwSelectors = ['#password_text_field', 'input[type="password"]', 'input[name="password"]', 'input[aria-label*="assword"]'];
-  let pwField = null;
-  for (const sel of pwSelectors) {
-    const visible = await frame.locator(sel).first().isVisible().catch(() => false);
-    if (visible) { pwField = sel; break; }
-  }
-  if (!pwField) { console.log('FAIL: password field not found'); process.exit(1); }
-  await frame.locator(pwField).first().fill(password);
-  await frame.locator('#sign-in').click();
-  await s.wait(5);
-
-  console.log('[turbot-review] email+password submitted. Complete 2FA in the browser if prompted.');
-  await waitForDashboard(s);
+  await assertAuthenticatedAppleSession(s.page);
 
   try {
     const cookies = await s.ctx.cookies();
@@ -131,7 +107,15 @@ try {
   const reviewUrl = `https://appstoreconnect.apple.com/apps/${APP_ID}/distribution`;
   console.log(`[turbot-review] navigating to ${reviewUrl}`);
   await s.goto(reviewUrl);
-  await extractReviewInfo(s.page);
+  const reviewInfo = await extractReviewInfo(s.page);
+  const protectedUrl = new URL(s.page.url?.() ?? 'about:blank');
+  const expectedPath = `/apps/${APP_ID}/distribution`;
+  const authenticatedProtectedPage = protectedUrl.hostname === 'appstoreconnect.apple.com'
+    && protectedUrl.pathname.startsWith(expectedPath)
+    && reviewInfo.snippets.length > 0;
+  if (!authenticatedProtectedPage) {
+    throw new Error('FAIL_CLOSED: authenticated App Store Connect distribution page was not confirmed; run an explicitly authorized apple_login before retrying.');
+  }
 
   console.log('PASS: Turbot review info extracted');
   process.exit(0);

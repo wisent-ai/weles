@@ -1,14 +1,12 @@
 #!/usr/bin/env bash
-# Build the patched weles Chromium and immediately publish it. One command, so
-# a rebuild can never leave the published GitHub release behind the source.
-#
-# This is the ~4h step. It runs autoninja in the chromium-build source tree
-# (where the weles C++ fingerprint patch lives) and, on success, chains to
-# release.sh which packages, uploads under a fresh -weles.N tag, bumps the
-# download.sh pin, and commits+pushes so every host auto-deploys it.
+# Build the patched Weles Chromium and package it locally for operator
+# publication. The packaging step requires an explicit immutable release
+# version and output directory; it does not upload or change deployment state.
 #
 # Usage:
-#   bash scripts/chromium/build.sh             # build, then publish
+#   WELES_CHROMIUM_RELEASE_VERSION=... \
+#   WELES_CHROMIUM_RELEASE_OUTPUT_DIR=... \
+#   bash scripts/chromium/build.sh
 #
 # Env overrides:
 #   CHROMIUM_BUILD_SRC    default ../chromium-build/src
@@ -35,5 +33,5 @@ fi
 echo "[build] autoninja -C out/Weles $TARGET  (this is the long step) …" >&2
 ( cd "$SRC" && autoninja -C out/Weles "$TARGET" )
 
-echo "[build] build ok → publishing" >&2
+echo "[build] build ok; packaging exact Stado release artifact" > /dev/stderr
 exec bash "$REPO_ROOT/scripts/chromium/release.sh" "$@"
