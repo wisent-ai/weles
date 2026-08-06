@@ -13,42 +13,81 @@ import { join } from 'node:path';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir, hostname } from 'node:os';
 
-function loadDotEnv(path = '.env') {
-  if (!existsSync(path)) return;
-  const text = readFileSync(path, 'utf8');
-  for (const line of text.split(/\n/)) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith('#')) continue;
-    const m = trimmed.match(/^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/);
-    if (!m || process.env[m[1]] !== undefined) continue;
-    let value = m[2].trim();
-    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) value = value.slice(1, -1);
-    process.env[m[1]] = value;
+let contentDiagnosticsConfig = null;
+
+function loadContentDiagnosticsConfig() {
+  if (contentDiagnosticsConfig) return contentDiagnosticsConfig;
+  const rawUrl = String(process.env.CONTENT_DIAGNOSTICS_API_URL || '').trim();
+  const token = String(process.env.CONTENT_DIAGNOSTICS_API_TOKEN || '').trim();
+  if (!rawUrl) throw new Error('CONTENT_DIAGNOSTICS_API_URL missing');
+  if (Buffer.byteLength(token) < Number('32')) {
+    throw new Error('CONTENT_DIAGNOSTICS_API_TOKEN must contain at least 32 bytes');
   }
+  for (const siblingName of [
+    'WELES_DATABASE_TOKEN',
+    'WELES_STADO_OBJECT_API_TOKEN',
+    'WELES_STADO_MODEL_ROUTER_TOKEN',
+    'WELES_ARTIFACT_DELIVERY_TOKEN',
+  ]) {
+    const sibling = String(process.env[siblingName] || '').trim();
+    if (sibling && sibling === token) {
+      throw new Error(`CONTENT_DIAGNOSTICS_API_TOKEN must be distinct from ${siblingName}`);
+    }
+  }
+  let endpoint;
+  try {
+    endpoint = new URL(rawUrl);
+  } catch {
+    throw new Error('CONTENT_DIAGNOSTICS_API_URL must be a valid URL');
+  }
+  const loopback = endpoint.hostname === 'localhost' || endpoint.hostname === '127.0.0.1'
+    || endpoint.hostname === '::1' || endpoint.hostname === '[::1]';
+  if (endpoint.protocol !== 'https:' && !(endpoint.protocol === 'http:' && loopback)) {
+    throw new Error('CONTENT_DIAGNOSTICS_API_URL must use HTTPS, except for authenticated loopback HTTP');
+  }
+  if (endpoint.username || endpoint.password || endpoint.search || endpoint.hash
+    || !endpoint.pathname.endsWith('/api/weles/diagnostics')) {
+    throw new Error('CONTENT_DIAGNOSTICS_API_URL must be a credential-free /api/weles/diagnostics endpoint');
+  }
+  contentDiagnosticsConfig = { endpoint: endpoint.toString(), token };
+  return contentDiagnosticsConfig;
 }
 
-loadDotEnv();
-loadDotEnv('../backends/wisent-enterprise/.env.local.production');
-
+async function contentDiagnosticsRequest(operation, payload = {}) {
+  const config = loadContentDiagnosticsConfig();
+  const response = await fetch(config.endpoint, {
+    method: 'POST',
+    redirect: 'error',
+    headers: {
+      Authorization: `Bearer ${config.token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ operation, ...payload }),
+    signal: AbortSignal.timeout(Number('30000')),
+  });
+  const text = await response.text();
+  let body;
+  try {
+    body = JSON.parse(text);
+  } catch {
+    throw new Error(`Content diagnostics API returned invalid JSON (HTTP ${response.status})`);
+  }
+  if (!response.ok || !body || body.ok !== true) {
+    const detail = typeof body?.error === 'string' ? body.error : `HTTP ${response.status}`;
+    throw new Error(`Content diagnostics API request failed: ${detail.slice(0, Number('500'))}`);
+  }
+  return body;
+}
 const { runRecordingsDir } = await import('../../dist/session/run-recordings.js');
 const { WSession } = await import('../../dist/session/wsession.js');
 const { captureVersions } = await import('../../dist/diagnostics/versions.js');
 const { uploadArtifacts } = await import('../../dist/worker/upload-artifacts.js');
-const { writeNetworkCapture } = await import('../../dist/diagnostics/run-import.js');
 
-const CONTENT_PLATFORM_SUPABASE_URL = process.env.CONTENT_PLATFORM_SUPABASE_URL || 'https://yqizdfkfnmhddfemdxtq.supabase.co';
-const SUPABASE_URL = process.env.CONTENT_PLATFORM_SUPABASE_SERVICE_ROLE_KEY
-  ? CONTENT_PLATFORM_SUPABASE_URL
-  : (process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '');
-const SUPABASE_KEY = process.env.CONTENT_PLATFORM_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 const CLAIM_ID = `diagnostic-executor-${hostname() || 'host'}-${process.pid}`;
 const TARGET_BY_ACTION = {
   linkedin_register: 'https://www.linkedin.com/signup',
 };
 
-function headers() {
-  return { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' };
-}
 
 function argValue(name, fallback = '') {
   const prefix = `${name}=`;
@@ -62,6 +101,18 @@ function flag(name) {
 
 function objectOrNull(value) {
   return value && typeof value === 'object' && !Array.isArray(value) ? value : null;
+}
+function privateArtifactUri(runId, relativePath) {
+  const cleanRunId = String(runId || '');
+  const cleanPath = String(relativePath || '');
+  const forbidden = (value) => value.includes('\\') || value.includes('\0') || value.includes('?') || value.includes('#')
+    || [...value].some((character) => character.charCodeAt(Number(false)) < Number('32'));
+  if (!cleanRunId || cleanRunId.trim() !== cleanRunId || cleanRunId.includes('/') || forbidden(cleanRunId)
+    || !cleanPath || cleanPath.startsWith('/') || cleanPath.endsWith('/') || forbidden(cleanPath)
+    || cleanPath.split('/').some((part) => !part || part === '.' || part === '..')) {
+    throw new Error(`invalid private artifact locator: run=${runId} path=${relativePath}`);
+  }
+  return `stado://weles/recordings/${cleanRunId}/${cleanPath}`;
 }
 
 function diagnosticStage(row) {
@@ -268,27 +319,11 @@ async function snapshotPage(page) {
 }
 
 async function patchRow(id, body) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/account_action_logs?id=eq.${encodeURIComponent(id)}`, {
-    method: 'PATCH',
-    headers: { ...headers(), Prefer: 'return=minimal' },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) throw new Error(`patch row ${id} HTTP ${res.status}: ${await res.text()}`);
+  await contentDiagnosticsRequest('patch_request', { row_id: id, patch: body });
 }
 
 async function insertCaptureSummary(rowId, capture, bytes) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/account_action_log_capture?on_conflict=log_id`, {
-    method: 'POST',
-    headers: { ...headers(), Prefer: 'resolution=merge-duplicates,return=minimal' },
-    body: JSON.stringify({ log_id: rowId, capture, bytes }),
-  });
-  if (!res.ok) throw new Error(`capture upsert HTTP ${res.status}: ${await res.text()}`);
-}
-
-async function fetchJson(url) {
-  const res = await fetch(url, { headers: headers() });
-  if (!res.ok) throw new Error(`fetch HTTP ${res.status}: ${await res.text()}`);
-  return await res.json();
+  await contentDiagnosticsRequest('upsert_capture', { row_id: rowId, capture, bytes });
 }
 
 async function fetchExitIp(requestClient, label = 'browser_context') {
@@ -318,13 +353,17 @@ async function fetchExitIp(requestClient, label = 'browser_context') {
 }
 
 async function fetchCaptureRow(logId) {
-  const rows = await fetchJson(`${SUPABASE_URL}/rest/v1/account_action_log_capture?select=log_id,created_at,bytes,capture&log_id=eq.${encodeURIComponent(logId)}&limit=1`);
-  if (!rows[0]) throw new Error(`capture row missing: ${logId}`);
-  return rows[0];
+  const response = await contentDiagnosticsRequest('get_capture', { row_id: logId });
+  if (!response.row || typeof response.row !== 'object') {
+    throw new Error(`capture row missing: ${logId}`);
+  }
+  return response.row;
 }
 
-async function fetchRowsForAction(action, limit = 500) {
-  return await fetchJson(`${SUPABASE_URL}/rest/v1/account_action_logs?select=id,action,platform,status,started_at,completed_at,params,result&action=eq.${encodeURIComponent(action)}&order=started_at.desc&limit=${limit}`);
+async function fetchRowsForAction(action, limit = Number('500')) {
+  const response = await contentDiagnosticsRequest('list_action', { action, limit });
+  if (!Array.isArray(response.rows)) throw new Error('Content diagnostics API returned no request rows');
+  return response.rows;
 }
 
 function signalText(row) {
@@ -511,18 +550,21 @@ function buildFingerprintDiffReport(homeRow, welesRow, homeCaptureRow, welesCapt
 async function fetchRequestRow() {
   const rowId = argValue('--row-id', process.env.ACTION_LOG_ID || '');
   if (rowId) {
-    const rows = await fetchJson(`${SUPABASE_URL}/rest/v1/account_action_logs?select=id,action,platform,status,started_at,completed_at,params,result&id=eq.${encodeURIComponent(rowId)}&limit=1`);
-    if (!rows[0]) throw new Error(`diagnostic row not found: ${rowId}`);
-    if (!isLaunchableDiagnosticRequest(rows[0]) && !flag('--backfill-row')) {
+    const response = await contentDiagnosticsRequest('get_request', { row_id: rowId });
+    const row = response.row;
+    if (!row || typeof row !== 'object') throw new Error(`diagnostic row not found: ${rowId}`);
+    if (!isLaunchableDiagnosticRequest(row) && !flag('--backfill-row')) {
       throw new Error(`diagnostic row is not a launchable request: ${rowId}`);
     }
-    return rows[0];
+    return row;
   }
   const action = argValue('--action', process.env.ACTION || 'linkedin_register');
   const stage = argValue('--stage', process.env.DIAGNOSTIC_STAGE || 'human_home_chrome');
-  const rows = await fetchJson(`${SUPABASE_URL}/rest/v1/account_action_logs?select=id,action,platform,status,completed_at,params,result&action=eq.${encodeURIComponent(action)}&status=eq.pending_review&order=started_at.desc&limit=100`);
-  const row = rows.find((r) => diagnosticStage(r) === stage && isLaunchableDiagnosticRequest(r));
-  if (!row) throw new Error(`no pending launchable diagnostic request for action=${action} stage=${stage}`);
+  const response = await contentDiagnosticsRequest('find_request', { action, stage });
+  const row = response.row;
+  if (!row || typeof row !== 'object' || !isLaunchableDiagnosticRequest(row)) {
+    throw new Error(`no pending launchable diagnostic request for action=${action} stage=${stage}`);
+  }
   return row;
 }
 
@@ -741,17 +783,7 @@ async function runHumanHomeChrome(row) {
   await insertCaptureSummary(row.id, capture, Buffer.byteLength(JSON.stringify(capture))).catch((e) => {
     captureUpsertError = e instanceof Error ? e.message : String(e);
   });
-  const artifacts = await uploadArtifacts(row.action, row.id, new Date(records.started_at), { force: true }).catch(() => null);
-  const artifactLogs = Array.isArray(artifacts?.logs) ? artifacts.logs : [];
-  const artifactsWithLocalDiagnostics = {
-    ...(artifacts || {}),
-    logs: [
-      ...artifactLogs,
-      `recordings://${row.id}/diagnostic/human_home_chrome/network.ndjson`,
-      `recordings://${row.id}/diagnostic/human_home_chrome/human_home_chrome_capture.json`,
-    ],
-  };
-  await writeNetworkCapture(row.id).catch(() => {});
+  const artifacts = await uploadArtifacts(row.id);
   const status = signal.healthy === true ? 'completed' : signal.healthy === false ? 'failed' : 'pending_review';
   return {
     status,
@@ -776,7 +808,7 @@ async function runHumanHomeChrome(row) {
           diagnostic_stage: 'human_home_chrome',
           final_url: records.page?.url || null,
           page_title: records.page?.title || null,
-          output_json: outPath,
+          output_json: privateArtifactUri(row.id, 'diagnostic/human_home_chrome/human_home_chrome_capture.json'),
           proxy_requested: records.proxy_requested,
           phone_tether_iface: records.phone_tether_iface,
           phone_tether_remote_ssh: records.phone_tether_remote_ssh,
@@ -794,7 +826,7 @@ async function runHumanHomeChrome(row) {
           linkedin_cookie_count: records.auth?.linkedin_cookie_count ?? null,
         },
       },
-      artifacts: artifactsWithLocalDiagnostics,
+      artifacts,
     },
   };
 }
@@ -939,8 +971,7 @@ async function runHumanWeles(row, stage) {
     [`diagnostic/${stage}/network.ndjson`]: sanitizeJsonb(records.requests),
   };
   await insertCaptureSummary(row.id, capture, Buffer.byteLength(JSON.stringify(capture)));
-  const artifacts = await uploadArtifacts(row.action, row.id, new Date(records.started_at), { force: true }).catch(() => null);
-  await writeNetworkCapture(row.id).catch(() => {});
+  const artifacts = await uploadArtifacts(row.id);
   const status = signal.healthy === true ? 'completed' : signal.healthy === false ? 'failed' : 'pending_review';
   return {
     status,
@@ -965,7 +996,7 @@ async function runHumanWeles(row, stage) {
           diagnostic_stage: stage,
           final_url: records.page?.url || null,
           page_title: records.page?.title || null,
-          output_json: outPath,
+          output_json: privateArtifactUri(row.id, `diagnostic/${stage}/${stage}_capture.json`),
           proxy_requested: records.proxy_requested,
           phone_tether_iface: records.phone_tether_iface,
           phone_tether_remote_ssh: records.phone_tether_remote_ssh,
@@ -1032,6 +1063,7 @@ function summarizeRequestsForCapture(requests) {
 async function backfillHumanWeles(row, stage) {
   const instPath = findLatestWelesInstPath(row, stage);
   if (!instPath) throw new Error(`weles inst json missing for row=${row.id} stage=${stage}`);
+  const sourceInstUri = privateArtifactUri(row.id, `diagnostic_${stage}/${instPath.split('/').at(-Number(true))}`);
   const inst = JSON.parse(readFileSync(instPath, 'utf8'));
   const rawRequests = Array.isArray(inst.requests) ? inst.requests : [];
   const requests = rawRequests.map((r) => {
@@ -1105,17 +1137,7 @@ async function backfillHumanWeles(row, stage) {
   await insertCaptureSummary(row.id, capture, Buffer.byteLength(JSON.stringify(capture))).catch((e) => {
     captureUpsertError = e instanceof Error ? e.message : String(e);
   });
-  const artifacts = await uploadArtifacts(row.action, row.id, new Date(records.started_at), { force: true }).catch(() => null);
-  const artifactLogs = Array.isArray(artifacts?.logs) ? artifacts.logs : [];
-  const artifactsWithLocalDiagnostics = {
-    ...(artifacts || {}),
-    logs: [
-      ...artifactLogs,
-      `recordings://${row.id}/diagnostic/${stage}/network.ndjson`,
-      `recordings://${row.id}/diagnostic/${stage}/${stage}_capture.json`,
-    ],
-  };
-  await writeNetworkCapture(row.id).catch(() => {});
+  const artifacts = await uploadArtifacts(row.id);
   const status = signal.healthy === true ? 'completed' : signal.healthy === false ? 'failed' : 'pending_review';
   await patchRow(row.id, {
     status,
@@ -1130,7 +1152,7 @@ async function backfillHumanWeles(row, stage) {
         exit_ip: null,
         target_url: records.target_url,
         proxy_requested: records.proxy_requested,
-        source_inst_json: instPath,
+        source_inst_json: sourceInstUri,
       },
       ban_signal: {
         ...signal,
@@ -1138,7 +1160,7 @@ async function backfillHumanWeles(row, stage) {
           diagnostic_stage: stage,
           final_url: records.page?.url || null,
           page_title: records.page?.title || null,
-          output_json: outPath,
+          output_json: privateArtifactUri(row.id, `diagnostic/${stage}/${stage}_capture.json`),
           request_events: requests.length,
           input_events: 0,
           operator_stop_reason: records.operator_stop_reason,
@@ -1147,11 +1169,11 @@ async function backfillHumanWeles(row, stage) {
           challenge_title: signal.challenge?.title || null,
           auth_has_li_at: false,
           linkedin_cookie_count: 0,
-          backfilled_from_inst_json: instPath,
+          backfilled_from_inst_json: sourceInstUri,
           capture_upsert_error: captureUpsertError,
         },
       },
-      artifacts: artifactsWithLocalDiagnostics,
+      artifacts,
     },
   });
   return {
@@ -1163,7 +1185,7 @@ async function backfillHumanWeles(row, stage) {
     signal: signal.signal,
     challenge_kind: signal.challenge?.kind || null,
     capture_upsert_error: captureUpsertError,
-    artifacts: artifactsWithLocalDiagnostics,
+    artifacts,
   };
 }
 
@@ -1190,7 +1212,7 @@ async function backfillHumanHomeChrome(row) {
     'diagnostic/human_home_chrome/network.ndjson': sanitizeJsonb(Array.isArray(records.requests) ? records.requests : []),
   };
   await insertCaptureSummary(row.id, capture, Buffer.byteLength(JSON.stringify(capture)));
-  const artifacts = await uploadArtifacts(row.action, row.id, new Date(records.started_at || Date.now()), { force: true }).catch(() => null);
+  const artifacts = await uploadArtifacts(row.id);
   const result = objectOrNull(row.result) || {};
   const signal = classify(records, records.diagnostic_stage || 'human_home_chrome');
   const status = signal.healthy === true ? 'completed' : signal.healthy === false ? 'failed' : 'pending_review';
@@ -1204,7 +1226,7 @@ async function backfillHumanHomeChrome(row) {
         details: {
           ...(objectOrNull(objectOrNull(result.ban_signal)?.details) || {}),
           diagnostic_stage: 'human_home_chrome',
-          output_json: outPath,
+          output_json: privateArtifactUri(row.id, 'diagnostic/human_home_chrome/human_home_chrome_capture.json'),
           exit_ip: records.exit_ip || null,
           exit_ip_source: records.exit_ip_source || null,
           exit_ip_errors: records.exit_ip_errors || [],
@@ -1218,7 +1240,7 @@ async function backfillHumanHomeChrome(row) {
           linkedin_cookie_count: records.auth?.linkedin_cookie_count ?? null,
         },
       },
-      artifacts: artifacts || result.artifacts || null,
+      artifacts,
     },
   });
   return {
@@ -1265,15 +1287,7 @@ async function runFingerprintDiff(row) {
     captureUpsertError = e instanceof Error ? e.message : String(e);
   });
 
-  const artifacts = await uploadArtifacts(row.action, row.id, new Date(row.started_at || Date.now()), { force: true }).catch(() => null);
-  const artifactLogs = Array.isArray(artifacts?.logs) ? artifacts.logs : [];
-  const artifactsWithLocalDiagnostics = {
-    ...(artifacts || {}),
-    logs: [
-      ...artifactLogs,
-      `recordings://${row.id}/diagnostic/fingerprint_diff/fingerprint_diff.json`,
-    ],
-  };
+  const artifacts = await uploadArtifacts(row.id);
   const sameIp = report.axis_control.same_exit_ip_observed;
   const signal = sameIp === true
     ? { healthy: true, signal: 'fingerprint_diff_completed' }
@@ -1295,7 +1309,7 @@ async function runFingerprintDiff(row) {
         ...signal,
         details: {
           diagnostic_stage: 'fingerprint_diff',
-          output_json: outPath,
+          output_json: privateArtifactUri(row.id, 'diagnostic/fingerprint_diff/fingerprint_diff.json'),
           home_chrome_row_id: homeRow.id,
           weles_same_ip_row_id: welesRow.id,
           home_exit_ip: report.axis_control.home_exit_ip,
@@ -1306,7 +1320,7 @@ async function runFingerprintDiff(row) {
         },
       },
       fingerprint_diff: report,
-      artifacts: artifactsWithLocalDiagnostics,
+      artifacts,
     },
   };
 }
@@ -1343,7 +1357,7 @@ if (classifyCapturePath) {
   process.exit(0);
 }
 
-if (!SUPABASE_URL || !SUPABASE_KEY) throw new Error('SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY missing');
+loadContentDiagnosticsConfig();
 
 const row = await fetchRequestRow();
 const stage = diagnosticStage(row);

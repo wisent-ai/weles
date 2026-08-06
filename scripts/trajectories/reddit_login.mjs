@@ -17,15 +17,15 @@ process.env.SVC_PASSWORD = acct.metadata.password ?? '';
 console.log(`[trajectory] Using account: ${acct.username}`);
 
 async function wipeStoredProxy(accountId) {
-  const supabaseUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
-  if (!supabaseUrl || !key || !accountId) return;
+  const databaseUrl = process.env.WELES_DATABASE_URL ?? '';
+  const key = process.env.WELES_DATABASE_TOKEN ?? '';
+  if (!databaseUrl || !key || !accountId) return;
   try {
-    const r = await fetch(`${supabaseUrl}/rest/v1/social_accounts?id=eq.${accountId}&select=metadata`, { headers: { apikey: key, Authorization: `Bearer ${key}` } });
+    const r = await fetch(`${databaseUrl}/rest/v1/social_accounts?id=eq.${accountId}&select=metadata`, { headers: { apikey: key, Authorization: `Bearer ${key}` } });
     const rows = await r.json();
     const meta = rows?.[0]?.metadata ?? {};
     const { proxy: _drop, ...rest } = meta;
-    await fetch(`${supabaseUrl}/rest/v1/social_accounts?id=eq.${accountId}`, {
+    await fetch(`${databaseUrl}/rest/v1/social_accounts?id=eq.${accountId}`, {
       method: 'PATCH',
       headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
       body: JSON.stringify({ metadata: rest }),

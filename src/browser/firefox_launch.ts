@@ -43,12 +43,10 @@ export async function launchWelesFirefox(input: FirefoxLaunchInput): Promise<Bro
      toFirefoxWelesPrefs(fpConfig));
   // Firefox-specific proxy fix: must be set at launch level too.
   if (proxy) launchOpts.proxy = proxy;
-  if (!launchOpts.executablePath) {
-    const ffBin = findCustomBrowser('firefox');
-    if (ffBin) launchOpts.executablePath = ffBin;
+  const ffBin = findCustomBrowser('firefox');
+  if (!ffBin) {
+    throw new Error(`WELES_FIREFOX_BINARY_NOT_FOUND: ${customBrowserSearchHint('firefox')}`);
   }
-  if (!launchOpts.executablePath && process.env.WELES_ALLOW_PLAYWRIGHT_FIREFOX !== '1') {
-    throw new Error(`WELES_FIREFOX_BINARY_NOT_FOUND: ${customBrowserSearchHint('firefox')}. Set WELES_ALLOW_PLAYWRIGHT_FIREFOX=1 only if this host intentionally uses Playwright-managed Firefox.`);
-  }
+  launchOpts.executablePath = ffBin;
   return firefox.launch(launchOpts);
 }

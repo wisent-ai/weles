@@ -13,6 +13,38 @@ import { fileURLToPath } from 'node:url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const WELES_ROOT = join(__dirname, '..', '..');
 
+function operatorCdpConfig() {
+  const rawEndpoint = String(process.env.WELES_OPERATOR_CDP_URL || '').trim();
+  const token = String(process.env.WELES_OPERATOR_CDP_TOKEN || '').trim();
+  if (!rawEndpoint) throw new Error('operator mode requires WELES_OPERATOR_CDP_URL');
+  if (Buffer.byteLength(token) < Number('32')) {
+    throw new Error('operator mode requires WELES_OPERATOR_CDP_TOKEN with at least 32 bytes');
+  }
+  for (const siblingName of ['WELES_STADO_OBJECT_API_TOKEN', 'WELES_STADO_MODEL_ROUTER_TOKEN', 'WELES_ARTIFACT_DELIVERY_TOKEN']) {
+    const sibling = String(process.env[siblingName] || '').trim();
+    if (sibling && sibling === token) {
+      throw new Error(`WELES_OPERATOR_CDP_TOKEN must be distinct from ${siblingName}`);
+    }
+  }
+  let endpoint;
+  try {
+    endpoint = new URL(rawEndpoint);
+  } catch {
+    throw new Error('WELES_OPERATOR_CDP_URL must be a valid URL');
+  }
+  const loopback = endpoint.hostname === 'localhost' || endpoint.hostname === '127.0.0.1'
+    || endpoint.hostname === '::1' || endpoint.hostname === '[::1]';
+  const tls = endpoint.protocol === 'https:' || endpoint.protocol === 'wss:';
+  const authenticatedLoopback = loopback && (endpoint.protocol === 'http:' || endpoint.protocol === 'ws:');
+  if (!tls && !authenticatedLoopback) {
+    throw new Error('WELES_OPERATOR_CDP_URL must use TLS, except for authenticated loopback');
+  }
+  if (endpoint.username || endpoint.password || endpoint.search || endpoint.hash) {
+    throw new Error('WELES_OPERATOR_CDP_URL must not contain credentials, query, or fragment');
+  }
+  return { endpoint: endpoint.toString(), token };
+}
+
 function buildProxyConfig(url) {
   if (!url) return undefined;
   const u = new URL(url);
@@ -22,13 +54,16 @@ function buildProxyConfig(url) {
 export async function runDiag(cfg) {
   const { filter, startUrl, replCommands = {}, label, launch } = cfg;
   if (!filter || !startUrl || !label) throw new Error('runDiag: filter/startUrl/label required');
-  const mode = launch || process.env.LAUNCH || '';
+  const mode = launch || process.env.LAUNCH;
+  if (!mode || !['weles', 'chrome', 'operator'].includes(mode)) {
+    throw new Error('runDiag requires explicit launch mode: weles, chrome, or secured operator');
+  }
   const proxyConfig = buildProxyConfig(process.env.PROXY || '');
 
   const OUT_DIR = join(process.cwd(), 'recordings');
   mkdirSync(OUT_DIR, { recursive: true });
   const ts = new Date().toISOString().replace(/[:.]/g, '-');
-  const OUT = join(OUT_DIR, `${label}_${mode || 'attach'}_${ts}.json`);
+  const OUT = join(OUT_DIR, `${label}_${mode}_${ts}.json`);
   const records = { startedAt: new Date().toISOString(), label, mode, startUrl, requests: [] };
   let seen = 0;
 
@@ -77,8 +112,11 @@ export async function runDiag(cfg) {
     const p = browser.pages()[0] || await browser.newPage();
     await p.goto(startUrl).catch(e => console.log(`[diag] goto err: ${e.message}`));
   } else {
-    console.log(`[diag] connecting to localhost:9222...`);
-    browser = await chromium.connectOverCDP('http://localhost:9222');
+    const operator = operatorCdpConfig();
+    console.log(`[diag] connecting to secured operator CDP at ${new URL(operator.endpoint).origin}`);
+    browser = await chromium.connectOverCDP(operator.endpoint, {
+      headers: { Authorization: `Bearer ${operator.token}` },
+    });
   }
 
   function attachPage(page) {

@@ -18,7 +18,6 @@ import { WSession } from '../../dist/session/wsession.js';
 import { FP_SCRIPT, NETWORK_FP_URL, parseNetworkFingerprint } from '../../dist/diagnostics/fingerprint_probe.js';
 import { writeFileSync, createWriteStream } from 'node:fs';
 
-delete process.env.BRIGHTDATA_BROWSER_WS;
 const wait = process.env.PROBE_WAIT === '1';
 const startUrl = process.env.PROBE_URL || '';
 // PROBE_BROWSER=firefox captures via Playwright-managed Firefox for the

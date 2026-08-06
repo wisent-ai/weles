@@ -1,5 +1,5 @@
-const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const url = process.env.WELES_DATABASE_URL;
+const key = process.env.WELES_DATABASE_TOKEN;
 const h = { apikey: key, Authorization: 'Bearer ' + key };
 
 const r1 = await fetch(url + '/rest/v1/service_credentials?select=id,login_email', { headers: h });

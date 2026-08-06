@@ -1,3 +1,5 @@
+import { optionalWelesDatabase } from '../utils/weles-database.js';
+
 /**
  * Cost × capability proxy selection.
  *
@@ -24,8 +26,8 @@
  *   - platform_routine_paused : { [platform]: { paused_at, reason } }       (default empty)
  */
 
-const SUPABASE_URL = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
-const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
+const DATABASE_URL = optionalWelesDatabase()?.url ?? '';
+const DATABASE_TOKEN = optionalWelesDatabase()?.token ?? '';
 
 // Rate cards. DB row at system_settings.proxy_rate_cards overrides.
 // Verified 2026-04-29 from each provider's pricing page. PacketStream is
@@ -75,13 +77,13 @@ let _ratesCache: { v: RatesValue; at: number } | null = null;
 let _pausedCache: { v: PausedValue; at: number } | null = null;
 
 function headers(): Record<string, string> {
-  return { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` };
+  return { apikey: DATABASE_TOKEN, Authorization: `Bearer ${DATABASE_TOKEN}` };
 }
 
 async function loadSetting<T>(key: string, fallback: T): Promise<T> {
-  if (!SUPABASE_URL || !SUPABASE_KEY) return fallback;
+  if (!DATABASE_URL || !DATABASE_TOKEN) return fallback;
   try {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/system_settings?key=eq.${key}&select=value`, { headers: headers() });
+    const res = await fetch(`${DATABASE_URL}/rest/v1/system_settings?key=eq.${key}&select=value`, { headers: headers() });
     if (!res.ok) return fallback;
     const rows = await res.json() as { value: T }[];
     return rows[0]?.value ?? fallback;
@@ -89,9 +91,9 @@ async function loadSetting<T>(key: string, fallback: T): Promise<T> {
 }
 
 async function saveSetting<T>(key: string, value: T): Promise<void> {
-  if (!SUPABASE_URL || !SUPABASE_KEY) return;
+  if (!DATABASE_URL || !DATABASE_TOKEN) return;
   try {
-    await fetch(`${SUPABASE_URL}/rest/v1/system_settings?on_conflict=key`, {
+    await fetch(`${DATABASE_URL}/rest/v1/system_settings?on_conflict=key`, {
       method: 'POST',
       headers: { ...headers(), 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates,return=minimal' },
       body: JSON.stringify({ key, value }),
@@ -230,6 +232,41 @@ export async function recordOutcome(
     _pausedCache = { v: paused, at: Date.now() };
     console.log(`[capability] CIRCUIT-BREAKER: cleared platform=${platform}`);
   }
+}
+
+export interface TaskNetworkRequirements {
+  route: 'direct' | 'proxy';
+  proxyType?: 'isp' | 'residential' | 'mobile';
+  country?: string;
+  reason: string;
+}
+
+const DIRECT_EGRESS_PLATFORMS: Readonly<Record<string, true>> = Object.freeze({
+  github: true,
+  producthunt: true,
+  pangram: true,
+});
+
+/**
+ * Resolve network capabilities from task identity instead of allowing
+ * trajectories to improvise fallback behavior. Account-bound platforms use a
+ * stable ISP route; platforms that accept worker egress stay direct unless an
+ * operator explicitly forces a proxy.
+ */
+export function taskNetworkRequirements(action: string, platform: string): TaskNetworkRequirements {
+  const normalizedPlatform = platform.trim().toLowerCase();
+  if (DIRECT_EGRESS_PLATFORMS[normalizedPlatform]) {
+    return {
+      route: 'direct',
+      reason: `direct egress is sufficient for ${normalizedPlatform || action}`,
+    };
+  }
+  return {
+    route: 'proxy',
+    proxyType: 'isp',
+    country: normalizedPlatform === 'discord' ? undefined : 'us',
+    reason: `stable account-bound egress required for ${action || normalizedPlatform}`,
+  };
 }
 
 /** Returns true if generic-routine should skip enqueueing for this platform. */

@@ -1,118 +1,107 @@
-// Resolve a locally-installed weles-patched browser binary.
-//
-// Resolution order (first existing path wins):
-//   1. $WELES_CHROMIUM_BIN / $WELES_FIREFOX_BIN (if set)
-//   2. $WELES_CHROMIUM_DIR / $WELES_FIREFOX_DIR (if set)
-//      else ~/.local/share/weles-{chromium,firefox}/<version>/...
-//      — where scripts/{chromium,firefox}/download.sh installs release tarballs.
-//   3. ../chromium-build/src/out/Weles/          (local Chromium build tree)
-//      ../firefox-build/obj-weles/dist/          (local Firefox build tree)
-//   4. /opt/chromium/*                           /opt/firefox/*
-//
-// Returns undefined if no binary is found; callers decide whether to error.
+// Resolve only a checksum-verified, deployment-selected Weles browser release.
+// The download scripts install the exact Stado coordinate and write a receipt
+// only after the release archive checksum and executable layout are verified.
 
-import { readdirSync, statSync } from 'node:fs';
+import { readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
 interface BrowserLayout {
-  envBins: string[];
   envDir: string;
+  envVersion: string;
+  envSha256: string;
   installDirName: string;
-  appSubpaths: string[];
-  appRootSubpaths: string[];
-  localBuildSubpath: string;
-  optPaths: string[];
+  product: string;
+  asset: string;
+  appSubpath: string;
 }
 
 const LAYOUTS: Record<string, BrowserLayout> = {
   chromium: {
-    envBins: ['WELES_CHROMIUM_BIN', 'CHROMIUM_PATH', 'PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH'],
     envDir: 'WELES_CHROMIUM_DIR',
+    envVersion: 'WELES_CHROMIUM_RELEASE_VERSION',
+    envSha256: 'WELES_CHROMIUM_RELEASE_SHA256',
     installDirName: 'weles-chromium',
-    appSubpaths: ['Chromium.app/Contents/MacOS/Chromium', 'chromium/chrome'],
-    appRootSubpaths: ['Contents/MacOS/Chromium'],
-    localBuildSubpath: 'chromium-build/src/out/Weles/Chromium.app/Contents/MacOS/Chromium',
-    optPaths: ['/opt/chromium/Chromium', '/opt/chromium/chrome'],
+    product: 'weles-chromium',
+    asset: 'weles-chromium.tar.gz',
+    appSubpath: process.platform === 'darwin'
+      ? 'Chromium.app/Contents/MacOS/Chromium'
+      : 'chromium/chrome',
   },
   firefox: {
-    envBins: ['WELES_FIREFOX_BIN', 'FIREFOX_PATH', 'PLAYWRIGHT_FIREFOX_EXECUTABLE_PATH'],
     envDir: 'WELES_FIREFOX_DIR',
+    envVersion: 'WELES_FIREFOX_RELEASE_VERSION',
+    envSha256: 'WELES_FIREFOX_RELEASE_SHA256',
     installDirName: 'weles-firefox',
-    appSubpaths: ['Firefox.app/Contents/MacOS/firefox', 'firefox/firefox'],
-    appRootSubpaths: ['Contents/MacOS/firefox'],
-    localBuildSubpath: 'firefox-build/mozilla-central/obj-weles/dist/Nightly.app/Contents/MacOS/firefox',
-    optPaths: ['/opt/firefox/firefox'],
+    product: 'weles-firefox',
+    asset: 'weles-firefox.tar.gz',
+    appSubpath: process.platform === 'darwin'
+      ? 'Firefox.app/Contents/MacOS/firefox'
+      : 'firefox/firefox',
   },
 };
 
-function isFile(path: string): boolean {
-  try {
-    return statSync(path).isFile();
-  } catch {
-    return false;
-  }
+const HEX_PAIR_PATTERN = '[a-f\\d][a-f\\d]';
+const HEX_QUAD_PATTERN = `${HEX_PAIR_PATTERN}${HEX_PAIR_PATTERN}`;
+const HEX_OCTET_PATTERN = `${HEX_QUAD_PATTERN}${HEX_QUAD_PATTERN}`;
+const HEX_BLOCK_PATTERN = `${HEX_OCTET_PATTERN}${HEX_OCTET_PATTERN}${HEX_OCTET_PATTERN}${HEX_OCTET_PATTERN}`;
+const SHA256_PATTERN = new RegExp(`^${HEX_BLOCK_PATTERN}${HEX_BLOCK_PATTERN}$`);
+
+function releasePlatform(): string | undefined {
+  if (process.platform === 'darwin' && process.arch === 'arm64') return 'darwin-arm64';
+  if (process.platform === 'darwin' && process.arch === 'x64') return 'darwin-amd64';
+  if (process.platform === 'linux' && process.arch === 'x64') return 'linux-amd64';
+  return undefined;
 }
 
-function customBrowserCandidates(browser: string = 'chromium'): string[] {
+
+function exactReleaseCandidate(browser: string): { binary: string; receipt: string; expectedReceipt: string } | undefined {
   const layout = LAYOUTS[browser];
-  if (!layout) return [];
+  const platform = releasePlatform();
+  if (!layout || !platform) return undefined;
+
+  const version = process.env[layout.envVersion]?.trim();
+  const digest = process.env[layout.envSha256]?.trim().toLowerCase();
+  if (!version || !digest || !SHA256_PATTERN.test(digest)) return undefined;
+
   const home = process.env.HOME ?? '';
-  const installRoot = process.env[layout.envDir] ?? join(home, '.local/share', layout.installDirName);
-  const candidates = layout.envBins
-    .map((env) => process.env[env]?.trim())
-    .filter((path): path is string => Boolean(path));
-
-  // Support both installed-version roots and directly provided app bundles.
-  candidates.push(installRoot);
-  for (const sub of layout.appSubpaths) candidates.push(join(installRoot, sub));
-  for (const sub of layout.appRootSubpaths) candidates.push(join(installRoot, sub));
-
-  // Newest version first. Compare the numeric components (chromium a.b.c.d then
-  // the -weles.N suffix) numerically, NOT lexicographically — otherwise
-  // "147...-weles.10" would sort before "...-weles.2" and pick an older build.
-  const verKey = (s: string): number[] => (s.match(/\d+/g) ?? []).map(Number);
-  const newestFirst = (a: string, b: string): number => {
-    const ka = verKey(a);
-    const kb = verKey(b);
-    for (let i = 0; i < Math.max(ka.length, kb.length); i++) {
-      const d = (kb[i] ?? 0) - (ka[i] ?? 0);
-      if (d !== 0) return d;
-    }
-    return 0;
+  const installRoot = process.env[layout.envDir]?.trim()
+    || join(home, '.local/share', layout.installDirName);
+  const installDir = join(installRoot, version);
+  const releaseUri = `stado://releases/${layout.product}/${version}/${platform}/${layout.asset}`;
+  return {
+    binary: join(installDir, layout.appSubpath),
+    receipt: join(installDir, '.weles-release'),
+    expectedReceipt: `release_uri=${releaseUri}\narchive_sha256=${digest}\nplatform=${platform}\n`,
   };
-
-  try {
-    for (const v of readdirSync(installRoot).sort(newestFirst)) {
-      for (const sub of layout.appSubpaths) candidates.push(join(installRoot, v, sub));
-    }
-  } catch { /* install root may not exist yet */ }
-
-  candidates.push(
-    join(home, 'Documents/CodingProjects/Wisent', layout.localBuildSubpath),
-    ...layout.optPaths,
-  );
-
-  return candidates;
 }
 
 /**
- * Find a locally-installed weles-patched browser binary. Returns the first
- * existing path (most-recent version from the install root wins) or undefined.
+ * Find the exact deployment-selected browser only when its verified release
+ * receipt matches the requested immutable Stado coordinate and checksum.
  */
 export function findCustomBrowser(browser: string = 'chromium'): string | undefined {
-  for (const p of customBrowserCandidates(browser)) if (isFile(p)) return p;
-  return undefined;
+  const candidate = exactReleaseCandidate(browser);
+  if (!candidate) return undefined;
+  try {
+    if (!statSync(candidate.binary).isFile()) return undefined;
+    return readFileSync(candidate.receipt, 'utf8') === candidate.expectedReceipt
+      ? candidate.binary
+      : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 export function customBrowserSearchHint(browser: string = 'chromium'): string {
   const layout = LAYOUTS[browser];
   if (!layout) return `unknown browser family "${browser}"`;
-  const envText = [...layout.envBins, layout.envDir].join(' / ');
-  const searched = customBrowserCandidates(browser).slice(0, 16).join(', ');
-  return `set ${layout.envBins[0]} to the executable or ${layout.envDir} to the install root/app bundle; searched ${envText}: ${searched}`;
+  const candidate = exactReleaseCandidate(browser);
+  if (!candidate) {
+    return `set ${layout.envVersion} and ${layout.envSha256}, then install the exact Stado release with scripts/${browser}/download.sh`;
+  }
+  return `verified executable not found for the configured release; expected ${candidate.binary} with matching ${candidate.receipt}`;
 }
 
-/** Back-compat wrapper — old callers expect findCustomChromium(). */
 export function findCustomChromium(): string | undefined {
   return findCustomBrowser('chromium');
 }

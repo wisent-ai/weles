@@ -1,5 +1,26 @@
 # Firefox Patching Plan
 
+## Current immutable runtime release contract
+
+Historical sections below describe how the first patched builds were produced;
+they are not the current distribution contract. Runtime installation now
+requires deployment-owned, nonsecret `STADO_RELEASE_API_URL`,
+`WELES_FIREFOX_RELEASE_VERSION`, and `WELES_FIREFOX_RELEASE_SHA256` values.
+The publisher must upload the exact platform archive at:
+
+```text
+stado://releases/weles-firefox/<version>/darwin-arm64/weles-firefox.tar.gz
+stado://releases/weles-firefox/<version>/darwin-amd64/weles-firefox.tar.gz
+stado://releases/weles-firefox/<version>/linux-amd64/weles-firefox.tar.gz
+```
+
+The macOS archive must contain `Firefox.app/Contents/MacOS/firefox`; the Linux
+archive must contain `firefox/firefox`. `scripts/firefox/download.sh` fetches
+only that canonical Stado object, verifies the configured SHA-256 before
+extraction, and writes the receipt required by browser discovery. GitHub
+credentials, provider release tags, local artifact directories, explicit
+binary overrides, and newest-installed-version selection are retired.
+
 Close the Firefox vs. Chromium fingerprint-defense gap. Pairs with the README
 Roadmap entry. Once Phase 3 is validated, `src/browser/persona.ts` can flip
 back to a 60/40 chromium/firefox rotation.
@@ -73,13 +94,13 @@ left for Phase 2:
 - [x] **P2.3** WebGL vendor/renderer un-normalized. Real patch at `../firefox-build/patches/0003-weles-webgl-vendor-renderer.patch`. Gecko's vendor/renderer code actually lives in `dom/canvas/ClientWebGLContext.cpp` (not `WebGLContext.cpp`). Patch inserts `weles.fingerprint.webgl.{vendor,renderer}` reads in the `UNMASKED_*_WEBGL` branches of `ClientWebGLContext::GetParameter` before Firefox's `webgl::SanitizeRenderer`. Verified applies cleanly.
 - [x] **P2.4** Screen overrides. Real patch at `../firefox-build/patches/0004-weles-nsScreen-overrides.patch`. Gecko's file is `dom/base/nsScreen.cpp` (not `Screen.cpp`). Patch adds the `mozilla/Preferences.h` include and inserts `weles.fingerprint.screen.*` reads at the top of `GetRect` and `GetAvailRect`. Verified applies cleanly.
 - [x] **P2.5** Window-outer overrides. Real patch at `../firefox-build/patches/0005-weles-window-outer-overrides.patch`. Inserts `weles.fingerprint.window.*` reads at the top of `GetOuterSize` and `GetScreenXY` in `dom/base/nsGlobalWindowOuter.cpp`. Verified applies cleanly.
-- [x] **P2.6** Release pipeline. **Shipped end to end 2026-04-23.** Repo: `wisent-ai/weles-firefox` (private). First release: `firefox-142.0a1-weles.1` with asset `weles-firefox-142.0a1-weles.1-macos-arm64.tar.gz` (91 MB, sha256 `9766b2041e366aa342cba62076e3bc614bf88dda0f476ee8a5e34402c34386d1`). `scripts/firefox/download.sh` defaults `WELES_FIREFOX_RELEASE=firefox-142.0a1-weles.1` and uses `gh release download` (private-repo capable) with a curl path for environments without the gh CLI. `findCustomBrowser('firefox')` picks up the installed binary at `~/.local/share/weles-firefox/142.0a1-weles.1/Firefox.app/Contents/MacOS/firefox`. Verified end to end: fresh install directory → `bash scripts/firefox/download.sh` → extracted → `firefox --version` reports "Mozilla Firefox 142.0a1".
+- [x] **P2.6** A patched Firefox archive was produced. Distribution has since cut over to the immutable Stado release contract documented above; the historical provider-release path is retired and must not be used by workers.
 
 ## Phase 3 — Validation + rotation flip
 
 - [x] **P3.1** Per-patch surface verification. `firefox-build/verify.mjs` launches the patched binary with a synthetic `weles.fingerprint.*` pref set via a profile `user.js`, opens a loopback HTTP page that reads each surface (navigator.webdriver, webgl UNMASKED_VENDOR/RENDERER, screen.{width,height,availWidth,availHeight}, window.{outer{Width,Height},screen{X,Y}}), POSTs the results, and asserts per-surface. **Run 2026-04-23 against `obj-weles/dist/Nightly.app`: 11/11 OK.** Every Phase 2 patch confirmed live. Does not need Playwright juggler so it can run against the raw mozilla-central build.
 - [x] **P3.2** Side-by-side patched vs stock capture. `../firefox-build/scripts/diff_patched_vs_stock.mjs` drives both binaries against the same loopback HTTP test page with the same weles pref set and diffs every surface. Ran 2026-04-23 — every surface a weles patch targets is `DIFF`ed (webdriver, webgl vendor/renderer, screen.*, window.outer.*), untouched surfaces (platform, hardwareConcurrency, deviceMemory) correctly match. BotD / creepjs / amiunique / JA4 diffs not yet run — can reuse the same harness by swapping the test page URL.
-- [x] **P3.3** CI auto-probe — **PASSING 2026-04-24**. `.github/workflows/firefox-integration.yml` runs on `workflow_dispatch` (`gh workflow run firefox-integration.yml -f tag=firefox-142.0a1-weles.N`) or `repository_dispatch firefox-release-published`. macOS-15 runner downloads the tarball from `wisent-ai/weles-firefox` (cross-repo PAT in `WELES_FIREFOX_TOKEN` secret), strips quarantine + ad-hoc codesigns, runs `scripts/firefox/minimal_test.mjs` (bare Playwright launch sanity) then `scripts/firefox/integration_test.mjs` (full WSession path — navigator.webdriver + navigator.platform assertions). `MOZ_DISABLE_CONTENT_SANDBOX=1` is set because the macos-15 runner is VMAPPLE-backed and content-sandbox seatbelt fails on content-process fork; the env var is the canonical escape hatch. Artifact step uploads `recordings/` on failure for post-mortem. Companion `wisent-ai/weles-firefox` has `notify-weles-on-release` workflow that fires `repository_dispatch` on every new release (needs `WELES_WELES_DISPATCH_TOKEN` secret, already set).
+- [x] **P3.3** Historical release integration was exercised. Current release consumers use only the exact Stado version, platform, and SHA-256 selected by deployment.
 - [x] **P3.4** `src/browser/persona.ts` rotation is back to `br < 0.60 ? 'chromium' : 'firefox'` (2026-04-24). Existing accounts stay on chromium — the 107-row migration is NOT reversed, because switching live accounts' browser mid-life would itself be a detection signal. Only NEW accounts get the 60/40 roll.
 
 ## Phase 4 — Playwright integration for the patched binary

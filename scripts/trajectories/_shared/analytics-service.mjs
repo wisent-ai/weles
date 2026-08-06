@@ -2,7 +2,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { WSession } from '../../../dist/session/wsession.js';
 import { SessionStore } from '../../../dist/session/store.js';
-import { getServiceLogin } from '../../../dist/utils/credentials.js';
+import { readScopedLogin } from '../../_shared/scoped-secrets.mjs';
 import { humanFill } from '../../../dist/human/keyboard.js';
 import { humanClickLocator, humanIdlePause, humanScroll } from '../../../dist/human/mouse.js';
 import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
@@ -962,22 +962,8 @@ async function umamiLogin(s) {
   await s.goto(UMAMI_BASE);
   await humanIdlePause('deliberate');
   if (!/login|signin/i.test(s.page.url()) && !await s.page.locator('input[type="password"]').first().isVisible().catch(() => false)) return true;
-  const login = await getServiceLogin('Umami') ?? (
-    process.env.UMAMI_EMAIL && process.env.UMAMI_PASSWORD
-      ? { email: process.env.UMAMI_EMAIL, password: process.env.UMAMI_PASSWORD, loginMethod: 'email_password' }
-      : null
-  );
-  if (!login) {
-    const googleCreds = await getGoogleSsoCreds();
-    const clickedGoogle = googleCreds
-      ? await clickFirst(s.page, [/continue with google/i, /sign in with google/i, /^google$/i])
-      : false;
-    if (clickedGoogle) {
-      const ok = await googleSso(s, googleCreds, { originHost: 'cloud.umami.is' });
-      if (ok) return true;
-    }
-    throw new Error('no usable Umami login: add service_credentials display_name=Umami or UMAMI_EMAIL/UMAMI_PASSWORD; Umami Cloud did not expose a Google SSO button');
-  }
+  const scopedLogin = readScopedLogin('umamiDashboard');
+  const login = { email: scopedLogin.email, password: scopedLogin.password, loginMethod: 'email_password' };
   await fillAny(s.page, login.email, [/email/i, /user/i]);
   await fillAny(s.page, login.password, [/password/i]);
   await clickFirst(s.page, [/^log in$/i, /^login$/i, /^sign in$/i, /^continue$/i]);

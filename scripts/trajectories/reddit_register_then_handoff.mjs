@@ -9,7 +9,7 @@
  * chrome reference for the diff against an automated weles run.
  *
  *   WELES_INSTRUMENT=1 SUBREDDIT=CasualConversation \
- *     node --env-file=.env --env-file=../content-platform/.env.local \
+ *     node --env-file=.env --env-file=../echo/.env.local \
  *     scripts/trajectories/reddit_register_then_handoff.mjs
  *
  * On success this script:

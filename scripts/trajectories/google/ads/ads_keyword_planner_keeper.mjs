@@ -9,15 +9,16 @@
 //   GOOGLE_ADS_KEYWORDS          required, comma/newline separated
 //   GOOGLE_ADS_RESULT_FILE       optional JSON output path
 //   SESSION                      optional keeper session, default google_ads
-//   GOOGLE_ADS_EMAIL / SSO_EMAIL optional, defaults to lukasz.bartoszcze@wisent.ai
+//   Login identity/password/MFA are read only from the dedicated Google Ads Skarbiec item.
 
 import net from 'node:net';
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { generateTotp, getGoogleSsoCreds } from '../../_shared/services/google_sso.mjs';
+import { generateTotp } from '../../_shared/services/google_sso.mjs';
+import { readScopedLogin } from '../../../_shared/scoped-secrets.mjs';
 
-const DEFAULT_EMAIL = 'lukasz.bartoszcze@wisent.ai';
+const GOOGLE_ADS_LOGIN = readScopedLogin('googleAds');
 const SESSION = process.env.SESSION || process.env.GOOGLE_ADS_KEEPER_SESSION || 'google_ads';
 const SOCK = join(homedir(), '.weles', 'keeper', SESSION, 'socket');
 const DIAG_DIR = process.env.GOOGLE_ADS_DIAG_DIR || '.work/google-ads-keyword-planner';
@@ -32,25 +33,6 @@ if (!keywords.length) throw new Error('GOOGLE_ADS_KEYWORDS required');
 mkdirSync(DIAG_DIR, { recursive: true });
 mkdirSync(dirname(RESULT_FILE), { recursive: true });
 
-function loadEnvFile(path) {
-  if (!existsSync(path)) return {};
-  const env = {};
-  for (const rawLine of readFileSync(path, 'utf8').split(/\r?\n/)) {
-    const line = rawLine.trim();
-    if (!line || line.startsWith('#')) continue;
-    const equals = line.indexOf('=');
-    if (equals < 0) continue;
-    const key = line.slice(0, equals).trim();
-    let value = line.slice(equals + 1).trim();
-    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) value = value.slice(1, -1);
-    env[key] = value;
-  }
-  return env;
-}
-
-function applyEnvDefaults(env) {
-  for (const [key, value] of Object.entries(env)) if (!process.env[key]) process.env[key] = value;
-}
 
 function parseKeywords(value) {
   return [...new Set(String(value || '').split(/[\n,]+/).map((keyword) => keyword.trim()).filter(Boolean))];
@@ -71,68 +53,16 @@ function norm(value) {
 }
 
 function preferredEmail() {
-  return process.env.GOOGLE_ADS_EMAIL || process.env.SSO_EMAIL || process.env.GM_EMAIL || DEFAULT_EMAIL;
+  return GOOGLE_ADS_LOGIN.email;
 }
 
 async function resolveSsoCreds() {
-  const email = preferredEmail();
-  const fromDb = await getGoogleSsoCreds(email).catch(() => null);
-  const processPassword = process.env.SSO_PASS || process.env.SSO_PASSWORD || process.env.GM_PASSWORD;
-  if (processPassword) {
-    const processEmail = process.env.SSO_EMAIL || process.env.GOOGLE_ADS_EMAIL || process.env.GM_EMAIL || email;
-    if (processEmail.toLowerCase() === email.toLowerCase()) {
-      return {
-        email,
-        password: processPassword,
-        ...(fromDb?.totpSecret ? { totpSecret: fromDb.totpSecret } : {}),
-        source: fromDb?.totpSecret ? 'env+service_credentials_totp' : 'env',
-      };
-    }
-  }
-
-  const fileEnvs = [
-    loadEnvFile(join(process.cwd(), '.work', '_sso.env')),
-    loadEnvFile(join(process.cwd(), '..', 'weles', '.work', '_sso.env')),
-  ];
-  for (const fileEnv of fileEnvs) {
-    const filePassword = fileEnv.SSO_PASS || fileEnv.SSO_PASSWORD || fileEnv.GM_PASSWORD;
-    if (!filePassword) continue;
-    const fileEmail = fileEnv.SSO_EMAIL || fileEnv.GOOGLE_ADS_EMAIL || fileEnv.GM_EMAIL || email;
-    if (fileEmail.toLowerCase() === email.toLowerCase()) {
-      return {
-        email,
-        password: filePassword,
-        ...(fromDb?.totpSecret ? { totpSecret: fromDb.totpSecret } : {}),
-        source: fromDb?.totpSecret ? 'file_env+service_credentials_totp' : 'file_env',
-      };
-    }
-  }
-
-  if (fromDb?.password) return { ...fromDb, source: 'service_credentials' };
-  const sharedPasswordEmail = process.env.GOOGLE_ADS_SHARED_PASSWORD_EMAIL || '';
-  if (sharedPasswordEmail && sharedPasswordEmail.toLowerCase() !== email.toLowerCase()) {
-    const shared = await getGoogleSsoCreds(sharedPasswordEmail).catch(() => null);
-    if (shared?.password) {
-      return {
-        email,
-        password: shared.password,
-        ...(shared?.totpSecret ? { totpSecret: shared.totpSecret } : {}),
-        source: `shared_google_password:${sharedPasswordEmail}`,
-      };
-    }
-  }
-  if (!process.env.GOOGLE_ADS_EMAIL && !process.env.SSO_EMAIL && !process.env.GM_EMAIL) {
-    const fallback = await getGoogleSsoCreds().catch(() => null);
-    if (fallback?.password) return { ...fallback, source: 'service_credentials_default_email' };
-  }
-
-  return null;
+  return { ...GOOGLE_ADS_LOGIN, source: 'skarbiec' };
 }
 
 function redact(text) {
   return String(text || '')
     .replace(/[A-Z2-7](?:\s?[A-Z2-7]){15,}/g, '<redacted-base32-secret>')
-    .replace(/Warszawa\d*!?/g, '<redacted-password>')
     .replace(/"login_password"\s*:\s*"[^"]+"/g, '"login_password":"<redacted>"')
     .replace(/"google_totp_secret"\s*:\s*"[^"]+"/g, '"google_totp_secret":"<redacted>"');
 }
@@ -628,18 +558,9 @@ function writeKeywordReport(result, steps) {
 }
 
 async function main() {
-  applyEnvDefaults(loadEnvFile('.env'));
-  applyEnvDefaults(loadEnvFile('.env.local'));
-  applyEnvDefaults(loadEnvFile('.env.production'));
-  applyEnvDefaults(loadEnvFile(join(process.cwd(), '..', 'content-platform', '.env.local')));
-  applyEnvDefaults(loadEnvFile(join(process.cwd(), '..', 'content-platform', '.env.production')));
-
   if (!socketReady()) writeResult({ ok: false, blocked: 'keeper_socket_not_ready', session: SESSION, socket: SOCK }, 3);
   const creds = await resolveSsoCreds();
-  if (!creds?.password) writeResult({ ok: false, blocked: 'missing_google_sso_password', session: SESSION, email: preferredEmail() }, 4);
-  if (creds.email && !process.env.GOOGLE_ADS_EMAIL && !process.env.SSO_EMAIL && !process.env.GM_EMAIL) {
-    process.env.GOOGLE_ADS_EMAIL = creds.email;
-  }
+  if (!creds?.password) writeResult({ ok: false, blocked: 'missing_google_ads_password', session: SESSION, email: preferredEmail() }, Number('4'));
   const steps = [{ step: 'sso_creds_resolved', source: creds.source || 'unknown' }];
 
   if (!await ensureAdsReady(creds)) {

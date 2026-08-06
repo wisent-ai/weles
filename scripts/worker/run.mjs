@@ -2,8 +2,8 @@
 /**
  * Long-running Node worker. Polls account_action_logs and runs the
  * corresponding weles trajectory. Replaces the Python worker_pool for every
- * action that maps to a weles trajectory. Start with:
- *   SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... node scripts/worker/run.mjs
+ * action that maps to a Weles trajectory. Use the deployment launcher; it
+ * resolves the exact weles-database and per-boundary Stado clients.
  *
  * Parallelism: WORKER_CONCURRENCY env (default 1) controls the number of
  * concurrent pollOnce loops within this single Node process. Each loop
@@ -13,9 +13,31 @@
  * account_id in parallel.
  */
 import { pollOnce } from '../../dist/worker/poll.js';
+import { createArtifactDeliveryServer, loadArtifactDeliveryConfig } from '../../dist/worker/artifact-delivery.js';
+
+const artifactDeliveryConfig = loadArtifactDeliveryConfig();
+const artifactDeliveryServer = createArtifactDeliveryServer(artifactDeliveryConfig);
+await new Promise((resolve, reject) => {
+  const failed = (error) => reject(error);
+  artifactDeliveryServer.once('error', failed);
+  artifactDeliveryServer.listen(
+    artifactDeliveryConfig.port,
+    artifactDeliveryConfig.host,
+    () => {
+      artifactDeliveryServer.off('error', failed);
+      resolve();
+    },
+  );
+});
+console.log(`[worker] signed artifact delivery listening on ${artifactDeliveryConfig.host}:${artifactDeliveryConfig.port}`);
 
 let shuttingDown = false;
-const stop = () => { shuttingDown = true; console.log('[worker] shutting down'); };
+const stop = () => {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  artifactDeliveryServer.close();
+  console.log('[worker] shutting down');
+};
 process.on('SIGINT', stop);
 process.on('SIGTERM', stop);
 
@@ -55,4 +77,7 @@ async function loop(slot) {
 
 console.log(`[worker] starting ${CONCURRENCY} concurrent pollOnce loops`);
 await Promise.all(Array.from({ length: CONCURRENCY }, (_, i) => loop(i)));
+if (artifactDeliveryServer.listening) {
+  await new Promise((resolve) => artifactDeliveryServer.close(resolve));
+}
 console.log('[worker] exited');

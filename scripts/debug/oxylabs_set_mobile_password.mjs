@@ -6,9 +6,10 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import net from 'node:net';
 
-const TEST_PASSWORD = 'WisentTest1_';
+const TEST_PASSWORD = 'WisentTest1_'
 const OUT = join(process.cwd(), '.work', 'oxylabs_set_mobile_password');
 mkdirSync(OUT, { recursive: true });
+
 
 const login = await getGoogleSsoCreds();
 if (!login) { console.log('FAIL: no Google SSO creds'); process.exit(1); }

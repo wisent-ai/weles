@@ -7,8 +7,8 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { humanIdlePause } from '../../../dist/human/mouse.js';
 
-const supaUrl = process.env.SUPABASE_URL ?? '';
-const supaKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
+const supaUrl = process.env.WELES_SUPABASE_URL ?? '';
+const supaKey = process.env.WELES_SUPABASE_SERVICE_ROLE_KEY ?? '';
 
 async function getAccount(platform) {
   const r = await fetch(`${supaUrl}/rest/v1/social_accounts?platform=eq.${platform}&is_active=eq.true&select=username,metadata&order=created_at.desc&limit=1`,

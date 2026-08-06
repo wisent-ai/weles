@@ -1,13 +1,10 @@
 /**
- * LLM-driven domain name suggestion.
- *
- * Calls claude -p to generate topical, brand-like domain names
- * (connected to Wisent, Polish tech, Pilates, California, SF),
- * then checks availability via Namecheap.
+ * LLM-driven domain name suggestion through the Jeden agent runtime.
  */
 
-import { spawnSync } from 'node:child_process';
 import { checkDomain } from './provision.js';
+import { callJeden } from '../../agent/jeden.js';
+import { optionalWelesDatabase } from '../weles-database.js';
 
 const DOMAIN_TOPICS = [
   'Wisent (the European bison species, nature conservation)',
@@ -31,24 +28,7 @@ Rules:
 - Return ONLY a JSON array of strings, nothing else. Example: ["wisentlabs", "polskahub"]`;
 }
 
-const CLAUDE_CLI_TIMEOUT = 60000;
 
-function callClaude(prompt: string): string {
-  const proc = spawnSync('claude', ['-p', '--output-format', 'json'], {
-    input: prompt,
-    timeout: CLAUDE_CLI_TIMEOUT,
-    encoding: 'utf-8',
-    maxBuffer: 1024 * 1024,
-  });
-  if (proc.error) throw proc.error;
-  if (proc.status !== 0) throw new Error(`claude -p exited ${proc.status}: ${proc.stderr?.slice(0, 200)}`);
-  try {
-    const wrapped = JSON.parse(proc.stdout);
-    return wrapped.result ?? proc.stdout;
-  } catch {
-    return proc.stdout;
-  }
-}
 
 function parseNamesFromLlm(raw: string): string[] {
   const match = raw.match(/\[[\s\S]*\]/);
@@ -63,8 +43,8 @@ function parseNamesFromLlm(raw: string): string[] {
 }
 
 async function listExistingDomains(): Promise<string[]> {
-  const url = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
+  const url = optionalWelesDatabase()?.url ?? '';
+  const key = optionalWelesDatabase()?.token ?? '';
   if (!url || !key) return [];
   try {
     const res = await fetch(`${url}/rest/v1/inbound_email_domains?select=domain`, {
@@ -94,7 +74,7 @@ export async function suggestDomainName(tld = '.com'): Promise<string> {
   for (let batch = 0; batch < 3; batch++) {
     let candidates: string[] = [];
     try {
-      const raw = callClaude(buildDomainPrompt(12, existing));
+      const raw = (await callJeden(buildDomainPrompt(12, existing))).raw;
       candidates = parseNamesFromLlm(raw);
     } catch (e: any) {
       lastError = e.message?.slice(0, 120) ?? 'unknown';
@@ -119,5 +99,5 @@ export async function suggestDomainName(tld = '.com'): Promise<string> {
     }
   }
 
-  throw new Error(`LLM domain suggestion failed after 3 batches${lastError ? ` — last error: ${lastError}` : ''}. Fix the LLM call (check claude CLI availability and quota) and retry.`);
+  throw new Error(`LLM domain suggestion failed after 3 batches${lastError ? ` — last error: ${lastError}` : ''}. Fix Jeden/Brama availability and retry.`);
 }

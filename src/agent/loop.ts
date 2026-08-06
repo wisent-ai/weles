@@ -3,7 +3,6 @@
  * Browser state -> Jeden -> Brama -> parse JSON -> dispatch tool -> repeat.
  */
 
-import { execFile } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { WSession } from '../session/wsession.js';
@@ -12,19 +11,8 @@ import { dispatch } from './tools.js';
 import { Capture } from '../capture/capture.js';
 import { loadFlow, saveFlow, replayFlow, type FlowStep } from '../session/flows.js';
 import { humanIdlePause } from '../human/mouse.js';
+import { callJeden } from './jeden.js';
 
-const DEFAULT_BRAMA_URL = 'https://model-router-1080673333190.us-central1.run.app';
-const DEFAULT_AGENT_MODEL = 'claude-code-subscription';
-const ROUTER_CONFIG_ROW = 'claude-reauth-config';
-
-type ModelRouterConfig = {
-  routerUrl: string;
-  agentId: string;
-  hmacSecret: string;
-  model: string;
-};
-
-let modelRouterConfig: Promise<ModelRouterConfig> | null = null;
 
 export interface ToolCall {
   tool: string;
@@ -98,108 +86,6 @@ function parseJsonFrom(raw: string): Record<string, any> {
   return { tool: 'give_up', args: { reason: `unparseable LLM output: ${raw.slice(0, 200)}` } };
 }
 
-function nonEmpty(value: unknown): string | null {
-  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null;
-}
-
-async function loadRouterConfigFromSupabase(): Promise<Partial<ModelRouterConfig>> {
-  const supabaseUrl = nonEmpty(process.env.SUPABASE_URL) ?? nonEmpty(process.env.NEXT_PUBLIC_SUPABASE_URL);
-  const supabaseKey = nonEmpty(process.env.SUPABASE_SERVICE_ROLE_KEY);
-  if (!supabaseUrl || !supabaseKey) return {};
-  const res = await fetch(`${supabaseUrl.replace(/\/$/, '')}/rest/v1/service_credentials?id=eq.${ROUTER_CONFIG_ROW}&select=metadata`, {
-    headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` },
-  });
-  if (!res.ok) throw new Error(`model-router config lookup failed: ${res.status} ${await res.text()}`);
-  const rows = await res.json() as Array<{ metadata?: Record<string, unknown> | null }>;
-  const metadata = rows[0]?.metadata ?? {};
-  return {
-    routerUrl: nonEmpty(metadata.BRAMA_URL) ?? undefined,
-    agentId: nonEmpty(metadata.WISENT_APP_AGENT_ID) ?? undefined,
-    hmacSecret: nonEmpty(metadata.WISENT_APP_AGENT_AUTH_SECRET) ?? undefined,
-  };
-}
-
-async function loadModelRouterConfig(): Promise<ModelRouterConfig> {
-  if (modelRouterConfig) return modelRouterConfig;
-  modelRouterConfig = (async () => {
-    const envRouterUrl = nonEmpty(process.env.BRAMA_URL);
-    const envAgentId = nonEmpty(process.env.WISENT_APP_AGENT_ID);
-    const envHmacSecret = nonEmpty(process.env.WISENT_APP_AGENT_AUTH_SECRET);
-    const db = envHmacSecret ? {} : await loadRouterConfigFromSupabase();
-    const routerUrl = (envRouterUrl ?? db.routerUrl ?? DEFAULT_BRAMA_URL).replace(/\/+$/, '');
-    const agentId = envAgentId ?? db.agentId ?? 'wisent-app';
-    const hmacSecret = envHmacSecret ?? db.hmacSecret;
-    const model = nonEmpty(process.env.WELES_AGENT_MODEL) ?? nonEmpty(process.env.MODEL_ROUTER_MODEL) ?? DEFAULT_AGENT_MODEL;
-    if (!hmacSecret) {
-      throw new Error(`missing WISENT_APP_AGENT_AUTH_SECRET and ${ROUTER_CONFIG_ROW}.metadata.WISENT_APP_AGENT_AUTH_SECRET`);
-    }
-    return { routerUrl, agentId, hmacSecret, model };
-  })();
-  return modelRouterConfig;
-}
-
-function runJedenProcess(
-  binary: string,
-  args: string[],
-  env: NodeJS.ProcessEnv,
-): Promise<{ stdout: string; stderr: string }> {
-  const configuredTimeout = Number.parseInt(process.env.WELES_JEDEN_TIMEOUT_MS ?? '', 10);
-  const timeout = Number.isFinite(configuredTimeout) && configuredTimeout > 0
-    ? configuredTimeout
-    : 300_000;
-  return new Promise((resolve, reject) => {
-    execFile(binary, args, {
-      cwd: process.cwd(),
-      env,
-      encoding: 'utf8',
-      maxBuffer: 4 * 1024 * 1024,
-      timeout,
-    }, (error, stdout, stderr) => {
-      if (error) {
-        reject(new Error(`Jeden failed: ${String(stderr || error.message).trim().slice(0, 500)}`));
-        return;
-      }
-      resolve({ stdout, stderr });
-    });
-  });
-}
-
-async function callJeden(prompt: string): Promise<{ raw: string; model: string; routerUrl: string }> {
-  const cfg = await loadModelRouterConfig();
-  const binary = nonEmpty(process.env.WELES_JEDEN_BIN) ?? 'jeden';
-  const sessionRoot = nonEmpty(process.env.WELES_JEDEN_SESSION_ROOT)
-    ?? join(runRecordingsDir('jeden'), 'sessions');
-  mkdirSync(sessionRoot, { recursive: true });
-  const { stdout } = await runJedenProcess(binary, [
-    'run',
-    prompt,
-    '--json',
-    '--model-only',
-    '--model',
-    cfg.model,
-    '--max-steps',
-    '1',
-    '--cwd',
-    process.cwd(),
-  ], {
-    ...process.env,
-    BRAMA_URL: cfg.routerUrl,
-    WISENT_APP_AGENT_ID: cfg.agentId,
-    WISENT_APP_AGENT_AUTH_SECRET: cfg.hmacSecret,
-    JEDEN_SESSION_ROOT: sessionRoot,
-  });
-  let envelope: { ok?: boolean; text?: unknown; originalError?: unknown };
-  try {
-    envelope = JSON.parse(stdout) as typeof envelope;
-  } catch {
-    throw new Error(`Jeden returned invalid JSON: ${stdout.trim().slice(0, 500)}`);
-  }
-  const raw = typeof envelope.text === 'string' ? envelope.text.trim() : '';
-  if (envelope.ok !== true || !raw) {
-    throw new Error(`Jeden returned no model output: ${JSON.stringify(envelope).slice(0, 500)}`);
-  }
-  return { raw, model: cfg.model, routerUrl: cfg.routerUrl };
-}
 
 async function askLlm(goal: string, state: string, screenshotPath: string, step: number, label?: string): Promise<Record<string, any>> {
   const dir = visionDir(label);

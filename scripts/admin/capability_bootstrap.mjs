@@ -7,10 +7,10 @@
 // Usage:  node scripts/admin/capability_bootstrap.mjs
 import { resolveProxy } from '../../dist/proxy/config.js';
 
-const SUPABASE_URL = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
-const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-if (!SUPABASE_URL || !SUPABASE_KEY) { console.error('SUPABASE creds missing'); process.exit(1); }
-const H = { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' };
+const DATABASE_URL = process.env.WELES_DATABASE_URL;
+const DATABASE_TOKEN = process.env.WELES_DATABASE_TOKEN;
+if (!DATABASE_URL || !DATABASE_TOKEN) { console.error('SUPABASE creds missing'); process.exit(1); }
+const H = { apikey: DATABASE_TOKEN, Authorization: `Bearer ${DATABASE_TOKEN}`, 'Content-Type': 'application/json' };
 
 const PROVIDERS = ['packetstream', 'pingproxies', 'iproyal', 'oxylabs', 'brightdata'];
 const PLATFORMS = ['reddit', 'instagram', 'twitter', 'linkedin', 'tiktok', 'discord', 'producthunt'];
@@ -18,7 +18,7 @@ const PHOST = { reddit: 'www.reddit.com', instagram: 'www.instagram.com', twitte
 
 // Pick one active account per platform to host the test run.
 async function pickAccount(platform) {
-  const r = await fetch(`${SUPABASE_URL}/rest/v1/social_accounts?platform=eq.${platform}&is_active=eq.true&select=id,username&limit=1`, { headers: H });
+  const r = await fetch(`${DATABASE_URL}/rest/v1/social_accounts?platform=eq.${platform}&is_active=eq.true&select=id,username&limit=1`, { headers: H });
   const rows = await r.json();
   return rows[0] ?? null;
 }
@@ -40,7 +40,7 @@ for (const platform of PLATFORMS) {
       scheduled_at: new Date().toISOString(),
       params: { proxy_url_override: proxy_url, test_batch: 'capability_bootstrap', test_provider: provider },
     };
-    const ins = await fetch(`${SUPABASE_URL}/rest/v1/account_action_logs`, { method: 'POST', headers: { ...H, Prefer: 'return=representation' }, body: JSON.stringify(row) });
+    const ins = await fetch(`${DATABASE_URL}/rest/v1/account_action_logs`, { method: 'POST', headers: { ...H, Prefer: 'return=representation' }, body: JSON.stringify(row) });
     if (!ins.ok) { console.log(` ENQUEUE FAILED: ${ins.status}`); skipped.push(`${provider}/${platform}: enqueue ${ins.status}`); continue; }
     const created = await ins.json();
     console.log(` enqueued ${created[0].id.slice(0,8)} on ${acct.username}`);

@@ -13,13 +13,14 @@
 //     --doc https://docs.google.com/document/d/<id>/edit \
 //     --title "New title"
 //
-// Env mirror: DOC_URL, DOC_TITLE, GM_EMAIL, GM_PASSWORD, BROWSER.
+// Env mirror: DOC_URL, DOC_TITLE, BROWSER.
 
 import { WSession } from '../../../../dist/session/wsession.js';
-import { googleSso, getGoogleSsoCreds } from '../../_shared/services/google_sso.mjs';
+import { googleSso } from '../../_shared/services/google_sso.mjs';
 import { humanClick, humanIdlePause } from '../../../../dist/human/mouse.js';
 import { humanType } from '../../../../dist/human/keyboard.js';
 import { nativeKeyPress } from '../../../../dist/human/mouse-native.js';
+import { readScopedLogin } from '../../../_shared/scoped-secrets.mjs';
 
 function arg(name) {
   const i = process.argv.indexOf(name);
@@ -36,11 +37,7 @@ if (!TITLE) { console.log('FAIL: --title (or DOC_TITLE) required'); process.exit
 function log(...a) { console.log('[drive_rename_doc]', ...a); }
 
 async function resolveCreds() {
-  const email = process.env.GM_EMAIL || 'lukasz.bartoszcze@gmail.com';
-  if (process.env.GM_PASSWORD) return { email, password: process.env.GM_PASSWORD };
-  const fromDb = await getGoogleSsoCreds(email);
-  if (fromDb?.password) return fromDb;
-  throw new Error('No password: set GM_PASSWORD or add a service_credentials row for ' + email);
+  return readScopedLogin('googleDrive');
 }
 
 const creds = await resolveCreds();

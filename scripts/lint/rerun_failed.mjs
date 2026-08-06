@@ -4,22 +4,31 @@
 // (those are correct trajectory behavior, not bugs).
 import { readFileSync } from 'node:fs';
 
-const url = process.env.SUPABASE_URL;
-const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const url = process.env.WELES_DATABASE_URL;
+const key = process.env.WELES_DATABASE_TOKEN;
 const newBatch = process.env.NEW_BATCH;
 const failedPath = process.env.FAILED_PATH ?? '/tmp/failed_to_rerun.json';
 const productId = process.env.PRODUCT_ID ?? '61c52cc5-dd85-45cb-9ad2-b34c13b71936';
 
-if (!url || !key || !newBatch) { console.log('missing env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, NEW_BATCH'); process.exit(1); }
+if (!url || !key || !newBatch) { console.log('missing env: WELES_DATABASE_URL, WELES_DATABASE_TOKEN, NEW_BATCH'); process.exit(Number('1')); }
 
 const rows = JSON.parse(readFileSync(failedPath, 'utf8'));
-let ok = 0, skipped = 0, skippedOrphan = 0;
+const APPLE_PASSWORD_SUBMIT_ACTIONS = new Set([
+  'apple_login',
+  'apple_ads_api_setup_probe',
+]);
+let ok = 0, skipped = 0, skippedOrphan = 0, skippedOwnerAction = 0;
 for (const r of rows) {
   if (!r.account_id) { skippedOrphan++; continue; }
+  const a = r.action;
+  if (APPLE_PASSWORD_SUBMIT_ACTIONS.has(a)) {
+    skippedOwnerAction++;
+    console.log(`OWNER_ACTION_REQUIRED ${a} account_id=${r.account_id}; retry not enqueued`);
+    continue;
+  }
   const sig = r.result?.ban_signal?.signal;
   if (sig && /shadowbanned|suspended|ip_blocked|checkpoint|reset_failed/.test(sig)) { skipped++; continue; }
   const params = { test_batch: newBatch };
-  const a = r.action;
   if (a === 'reddit_submit' || a === 'reddit_submit_promote') params.subreddit = 'test';
   // octocat/Hello-World is read-only; commit/open_issue 403 there. Default to a
   // sandbox repo owned by one of our github accounts (reggiestreich5124).
@@ -43,4 +52,4 @@ for (const r of rows) {
   if (res.ok || res.status === 201) ok++;
   else console.log('FAIL', a, res.status);
 }
-console.log(`enqueued=${ok} skipped_envblock=${skipped} skipped_orphan=${skippedOrphan}`);
+console.log(`enqueued=${ok} skipped_envblock=${skipped} skipped_orphan=${skippedOrphan} skipped_owner_action=${skippedOwnerAction}`);

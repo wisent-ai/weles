@@ -4,8 +4,8 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 
 const OUT_DIR = 'recordings/audits';
-const SUPABASE_URL = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
-const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
+const SUPABASE_URL = process.env.WELES_SUPABASE_URL ?? '';
+const SUPABASE_KEY = process.env.WELES_SUPABASE_SERVICE_ROLE_KEY ?? '';
 const LIMIT = Number(process.env.LINKEDIN_RECENT_RUNS_LIMIT ?? process.argv[2] ?? 80);
 const MAX_AGE_DAYS = Number(process.env.LINKEDIN_RECENT_RUNS_DAYS ?? process.argv[3] ?? 14);
 const FIXTURE_PATH = process.env.LINKEDIN_RECENT_RUNS_FIXTURE ?? '';

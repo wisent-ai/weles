@@ -7,9 +7,9 @@
  * `recordings/_costs/<ACTION_LOG_ID>.json` unchanged. Call sites in
  * captcha/solver.ts, utils/sms.ts, and session/wsession.ts are unmodified.
  *
- * If COST_SUPABASE_URL + COST_SUPABASE_KEY are set, records are also written
- * to the central cost_records table at flush time. When unset, only the
- * local file is written.
+ * When the launcher provides the exact weles-database configuration, records
+ * are also written to Weles's cost_records table at flush time. When absent,
+ * only the local file is written.
  */
 
 import { mkdir, writeFile } from 'node:fs/promises';
@@ -21,6 +21,7 @@ import {
   SupabaseSink,
 } from '@wisent/cost-tracker';
 import { recordCaptchaSolved } from '../captcha/events.js';
+import { optionalWelesDatabase } from './weles-database.js';
 
 // Re-export the canonical PRICES table for any in-repo code that read it.
 export const PRICES = SHARED_PRICES;
@@ -31,44 +32,42 @@ class WelesCostTracker {
   private inner: SharedCostTracker;
   private agent_id: string;
 
-  private _supabaseUrl: string | null = null;
-  private _supabaseKey: string | null = null;
+  private _databaseUrl: string | null = null;
+  private _databaseToken: string | null = null;
   private _autoCreatedRow: boolean = false;
 
   constructor() {
-    const supabaseUrl = process.env.COST_SUPABASE_URL ?? process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseKey = process.env.COST_SUPABASE_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const databaseUrl = optionalWelesDatabase()?.url;
+    const databaseToken = optionalWelesDatabase()?.token;
     const agent_id = process.env.ACTION_LOG_ID ?? `weles-${process.pid}`;
     this.agent_id = agent_id;
-    if (supabaseUrl && supabaseKey) { this._supabaseUrl = supabaseUrl; this._supabaseKey = supabaseKey; }
-    // We use 'memory' sink internally and add Supabase persistence ourselves
-    // in flush(); this lets us write the legacy recordings/_costs file and
-    // the central table in one shot.
+    if (databaseUrl && databaseToken) { this._databaseUrl = databaseUrl; this._databaseToken = databaseToken; }
+    // We use a memory sink internally and add Weles database persistence
+    // in flush(); this writes the legacy recordings/_costs file and
+    // the central table in one operation.
     this.inner = new SharedCostTracker({
       agent_id,
       reference_id: process.env.ACTION_LOG_ID,
       sink: 'memory',
       autoFlush: false,
     });
-    // Save Supabase config for flush(). Don't fail if creds are missing —
-    // CI / dev environments without Supabase still get the local file.
-    if (supabaseUrl && supabaseKey) {
-      this._supabase = new SupabaseSink({ url: supabaseUrl, key: supabaseKey });
+    // Save exact Weles database config for flush(). Local-only development
+    // still writes the local file when launcher configuration is absent.
+    if (databaseUrl && databaseToken) {
+      this._databaseSink = new SupabaseSink({ url: databaseUrl, key: databaseToken });
     }
     // Auto-flush on process exit.
     // beforeExit only fires on natural event-loop drain; process.exit(N) skips
-    // it. Trajectories call process.exit(0|1) on every code path, so without
-    // the 'exit' handler below the local-file flush never runs and the worker
-    // sees empty service_costs. 'exit' fires synchronously even on
-    // process.exit, so we use a sync local-file flush there. Supabase
-    // (cost_records) is REST-only — async — so it stays on beforeExit/signals.
+    // Trajectories call process.exit(0|1), which skips beforeExit. The exit
+    // handler keeps local files complete; remote persistence remains on the
+    // asynchronous beforeExit/signal paths.
     process.on('exit', () => { try { this.flushLocalSync(); } catch {} });
     process.on('beforeExit', () => { void this.flush(); });
     process.on('SIGINT', () => { void this.flush().finally(() => process.exit(130)); });
     process.on('SIGTERM', () => { void this.flush().finally(() => process.exit(143)); });
   }
 
-  private _supabase: SupabaseSink | null = null;
+  private _databaseSink: SupabaseSink | null = null;
 
   // Legacy weles API surface — call sites in solver.ts, sms.ts, wsession.ts
   // expect these exact method shapes.
@@ -137,7 +136,7 @@ class WelesCostTracker {
       } catch { /* best-effort */ }
     }
 
-    if (this._supabase) {
+    if (this._databaseSink) {
       // Auto-attach to an account_action_logs row before writing cost_records,
       // so every record ties to a budget row. Without this, ad-hoc weles
       // invocations (no ACTION_LOG_ID env) end up as 'weles-<pid>' agents
@@ -147,14 +146,14 @@ class WelesCostTracker {
       await this.ensureActionLogRow();
       try {
         const stamped = snap.records.map(r => ({ ...r, agent_id: this.agent_id })) as any;
-        await this._supabase.write(stamped);
+        await this._databaseSink.write(stamped);
       } catch (e: any) {
         const msg = String(e?.message || e);
         if (/PGRST205|cost_records/.test(msg)) {
-          console.log('[cost] cost_records table not found in schema; disabling Supabase sink for this process');
-          this._supabase = null;
+          console.log('[cost] cost_records table not found in schema; disabling Weles database sink for this process');
+          this._databaseSink = null;
         } else {
-          console.log(`[cost] Supabase flush err: ${msg.slice(0, 120)}`);
+          console.log(`[cost] Weles database flush err: ${msg.slice(0, 120)}`);
         }
       }
       // If we created the action_log row ourselves, also patch it with the
@@ -173,14 +172,14 @@ class WelesCostTracker {
   private async ensureActionLogRow(): Promise<void> {
     if (this._autoCreatedRow) return;
     if (process.env.ACTION_LOG_ID) return; // caller anchored us already
-    if (!this._supabaseUrl || !this._supabaseKey) return;
-    const headers = { apikey: this._supabaseKey, Authorization: `Bearer ${this._supabaseKey}`, 'Content-Type': 'application/json' };
+    if (!this._databaseUrl || !this._databaseToken) return;
+    const headers = { apikey: this._databaseToken, Authorization: `Bearer ${this._databaseToken}`, 'Content-Type': 'application/json' };
     try {
-      const probe = await fetch(`${this._supabaseUrl}/rest/v1/social_accounts?is_active=eq.true&select=id,platform&limit=1`, { headers });
+      const probe = await fetch(`${this._databaseUrl}/rest/v1/social_accounts?is_active=eq.true&select=id,platform&limit=1`, { headers });
       const accts = await probe.json() as Array<{ id: string; platform: string }>;
       if (!Array.isArray(accts) || accts.length === 0) return;
       const label = process.env.WSESSION_LABEL ?? process.env.npm_package_name ?? `pid-${process.pid}`;
-      const ins = await fetch(`${this._supabaseUrl}/rest/v1/account_action_logs`, {
+      const ins = await fetch(`${this._databaseUrl}/rest/v1/account_action_logs`, {
         method: 'POST',
         headers: { ...headers, Prefer: 'return=representation' },
         body: JSON.stringify({
@@ -208,15 +207,15 @@ class WelesCostTracker {
   /** PATCH the auto-created account_action_logs row with the running cost
    *  rollup. Done after every flush so the budget query sees current spend. */
   private async patchActionLogRow(snap: { cost_usd: number; service_costs: Record<string, number> }): Promise<void> {
-    if (!this._supabaseUrl || !this._supabaseKey) return;
-    const headers = { apikey: this._supabaseKey, Authorization: `Bearer ${this._supabaseKey}`, 'Content-Type': 'application/json' };
+    if (!this._databaseUrl || !this._databaseToken) return;
+    const headers = { apikey: this._databaseToken, Authorization: `Bearer ${this._databaseToken}`, 'Content-Type': 'application/json' };
     try {
-      const r = await fetch(`${this._supabaseUrl}/rest/v1/account_action_logs?id=eq.${this.agent_id}&select=cost_usd,service_costs`, { headers });
+      const r = await fetch(`${this._databaseUrl}/rest/v1/account_action_logs?id=eq.${this.agent_id}&select=cost_usd,service_costs`, { headers });
       const cur = (await r.json() as Array<{ cost_usd: number | null; service_costs: Record<string, number> | null }>)[0] ?? { cost_usd: 0, service_costs: {} };
       const merged: Record<string, number> = { ...(cur.service_costs ?? {}) };
       for (const [k, v] of Object.entries(snap.service_costs)) merged[k] = round4((merged[k] ?? 0) + v);
       const newTotal = round4(Number(cur.cost_usd ?? 0) + snap.cost_usd);
-      await fetch(`${this._supabaseUrl}/rest/v1/account_action_logs?id=eq.${this.agent_id}`, {
+      await fetch(`${this._databaseUrl}/rest/v1/account_action_logs?id=eq.${this.agent_id}`, {
         method: 'PATCH', headers, body: JSON.stringify({ cost_usd: newTotal, service_costs: merged }),
       });
     } catch (e: any) { console.log(`[cost] patchActionLogRow err: ${e.message?.slice(0, 120)}`); }

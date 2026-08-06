@@ -103,7 +103,7 @@ try {
     screenshotPath,
     metadata: { source: 'tradingview/scrape.mjs', symbolId },
   });
-  console.error(`[tv] persisted row id=${persisted.id} gcs=${persisted.gcs_url || 'none'}`);
+  console.error(`[tv] persisted row id=${persisted.id} uri=${persisted.screenshot_uri || 'none'}`);
 
   process.stdout.write(JSON.stringify({ ticker, page: `tv_${pageKey}`, ...data, stock_context: persisted }) + '\n');
   process.exit(0);

@@ -3,13 +3,14 @@
 // Run:
 //   node weles/scripts/trajectories/google/drive/search.mjs --q "grantland"
 //
-// Env mirror: GD_QUERY. Other env: GD_LIMIT, GM_EMAIL, GM_PASSWORD, BROWSER.
+// Env mirror: GD_QUERY. Other env: GD_LIMIT, BROWSER.
 //
 // Output: JSON array on stdout with each result's title, url, fileId.
 
 import { WSession } from '../../../../dist/session/wsession.js';
-import { googleSso, getGoogleSsoCreds } from '../../_shared/services/google_sso.mjs';
+import { googleSso } from '../../_shared/services/google_sso.mjs';
 import { humanIdlePause } from '../../../../dist/human/mouse.js';
+import { readScopedLogin } from '../../../_shared/scoped-secrets.mjs';
 
 function arg(name) {
   const i = process.argv.indexOf(name);
@@ -25,11 +26,7 @@ if (!QUERY) { console.log('FAIL: --q (or GD_QUERY) required'); process.exit(2); 
 function log(...a) { console.log('[drive_search]', ...a); }
 
 async function resolveCreds() {
-  const email = process.env.GM_EMAIL || 'lukasz.bartoszcze@gmail.com';
-  if (process.env.GM_PASSWORD) return { email, password: process.env.GM_PASSWORD };
-  const fromDb = await getGoogleSsoCreds(email);
-  if (fromDb?.password) return fromDb;
-  throw new Error('No password: set GM_PASSWORD or add a service_credentials row for ' + email);
+  return readScopedLogin('googleDrive');
 }
 
 const creds = await resolveCreds();

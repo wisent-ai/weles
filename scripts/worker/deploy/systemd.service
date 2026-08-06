@@ -7,12 +7,12 @@ Wants=network-online.target
 Type=simple
 User=lukaszbartoszcze
 WorkingDirectory=/home/lukaszbartoszcze/weles
-EnvironmentFile=/home/lukaszbartoszcze/weles/var/worker.env
+EnvironmentFile=/home/lukaszbartoszcze/.config/weles/worker.env
 ExecStart=/usr/local/bin/weles-worker-launch
 Restart=on-failure
 RestartSec=10
-StandardOutput=append:/home/lukaszbartoszcze/weles/var/worker.log
-StandardError=append:/home/lukaszbartoszcze/weles/var/worker.log
+StandardOutput=append:/home/lukaszbartoszcze/.local/state/weles/worker.log
+StandardError=append:/home/lukaszbartoszcze/.local/state/weles/worker.log
 
 [Install]
 WantedBy=multi-user.target

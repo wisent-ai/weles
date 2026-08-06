@@ -15,6 +15,9 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { readScopedLogin } from '../_shared/scoped-secrets.mjs';
+
+const ADMIN_LOGIN = readScopedLogin('googleWorkspaceAdmin');
 
 const WG_SRC = process.env.WG_SRC;
 const WG_DST = process.env.WG_DST;
@@ -33,7 +36,7 @@ const cfg = existsSync(PROFILES_CFG)
 const USER_DATA_DIR = cfg.user_data_dir.startsWith('~/')
   ? join(homedir(), cfg.user_data_dir.slice(2))
   : cfg.user_data_dir;
-const REQUESTED_EMAIL = (process.env.GOOGLE_ADMIN_EMAIL || cfg.default_email || 'lukasz.bartoszcze@wisent.ai').toLowerCase();
+const REQUESTED_EMAIL = ADMIN_LOGIN.email.toLowerCase();
 
 function discoverProfileDir(email) {
   const localState = JSON.parse(readFileSync(join(USER_DATA_DIR, 'Local State'), 'utf8'));
@@ -141,16 +144,12 @@ await sleep(4);
 const finalUrl = getTabUrl();
 console.log(`[gw] post-render url (active tab): ${finalUrl}`);
 
-// Workspace policy forces a password re-challenge for admin console access
-// even on the trusted device. Fill it with GOOGLE_PASSWORD if Google routed us there.
+// Workspace policy forces a password re-challenge for admin console access.
+// The owning admin script resolves its dedicated credential in memory.
 async function handlePasswordChallenge() {
   const u = getTabUrl();
   if (!u.includes('signin/challenge/pwd')) return u;
-  const pw = process.env.GOOGLE_PASSWORD;
-  if (!pw) {
-    console.error('FAIL: Google admin console requires fresh password verification. Set GOOGLE_PASSWORD env var to lukasz.bartoszcze@wisent.ai password and re-run.');
-    process.exit(3);
-  }
+  const pw = ADMIN_LOGIN.password;
   // Workspace-managed Chrome refuses JS-from-Apple-Events (security policy that
   // user defaults can't override). Strategy: enable AXEnhancedUserInterface
   // (exposes web-content AX), find the AXSecureTextField, cliclick its exact

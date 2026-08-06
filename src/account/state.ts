@@ -1,3 +1,5 @@
+import { optionalWelesDatabase } from '../utils/weles-database.js';
+
 /**
  * Mark a social_accounts row inactive so getSocialAccount stops handing it
  * out. Called by login trajectories when the platform returns a hard ban
@@ -10,8 +12,8 @@ export async function deactivateAccount(
   reason: string,
 ): Promise<void> {
   if (!accountId) return;
-  const url = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SERVICE_KEY ?? '';
+  const url = optionalWelesDatabase()?.url ?? '';
+  const key = optionalWelesDatabase()?.token ?? '';
   if (!url || !key) return;
   const merged = { ...(currentMetadata ?? {}), banned_reason: reason, banned_at: new Date().toISOString() };
   try {

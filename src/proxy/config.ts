@@ -6,7 +6,21 @@ import { createHash } from 'node:crypto';
 import { runRecordingsDir } from '../session/run-recordings.js';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { LinkedInProbePersona } from './policy.js';
+import type { ExitReputation, LinkedInProbePersona } from './policy.js';
+import { optionalWelesDatabase } from '../utils/weles-database.js';
+import { readOptionalPinnedProxyCredential, readOptionalWelesServiceSecret } from '../secrets/scoped-service.js';
+import type { WelesServiceSecret } from '../secrets/scoped-service.js';
+import { providerFromHost } from './policy.js';
+
+const PROXY_SECRET_SERVICE_BY_DISPLAY_NAME: Readonly<Record<string, WelesServiceSecret>> = Object.freeze({
+  'Bright Data': 'brightdataProxy',
+  'Oxylabs Residential': 'oxylabsResidential',
+  'Oxylabs Mobile': 'oxylabsMobile',
+  PacketStream: 'packetstreamProxy',
+  'IPRoyal Residential': 'iproyalProxy',
+  'IPRoyal Mobile': 'iproyalMobileProxy',
+  Pingproxies: 'pingproxiesProxy',
+});
 
 export interface ProxyConfig {
   host: string;
@@ -17,6 +31,27 @@ export interface ProxyConfig {
   country?: string;
   provider?: string;
   sticky?: boolean;
+  proxy_type?: string;
+  sticky_session_id?: string;
+  sticky_hash?: string;
+  city?: string;
+  credential_ref?: string;
+  credential_mode?: 'base' | 'exact';
+}
+
+export interface ResolvedProxy {
+  server: string;
+  username?: string;
+  password?: string;
+  country?: string;
+  exit_ip?: string;
+  platform?: string;
+  provider?: string;
+  proxy_type?: string;
+  sticky_session_id?: string;
+  sticky_hash?: string;
+  city?: string;
+  exit_reputation?: ExitReputation;
 }
 
 /**
@@ -67,6 +102,64 @@ export function parseProxyUrl(url: string): ProxyConfig {
     port: Number(parsed.port),
     username: parsed.username ? decodeURIComponent(parsed.username) : undefined,
     password: parsed.password ? decodeURIComponent(parsed.password) : undefined,
+  };
+}
+
+export function hydratePinnedProxy(pin: ProxyConfig): ProxyConfig | undefined {
+  if (pin.username && pin.password) return pin;
+  const accountCredential = pin.credential_ref
+    ? readOptionalPinnedProxyCredential(pin.credential_ref)
+    : undefined;
+  if (accountCredential && pin.credential_mode === 'exact') {
+    return { ...pin, username: accountCredential.username, password: accountCredential.password };
+  }
+
+  const provider = pin.provider ?? providerFromHost(pin.host);
+  if (!provider) return undefined;
+  const proxyType = pin.proxy_type ?? (provider === 'decodo' ? 'isp' : 'residential');
+  let username = accountCredential?.username;
+  let password = accountCredential?.password;
+  if (!username || !password) {
+    let secretService: WelesServiceSecret;
+    if (provider === 'decodo') secretService = 'decodoIsp';
+    else if (provider === 'oxylabs' && proxyType === 'isp') secretService = 'oxylabsDedicatedIsp';
+    else if (provider === 'oxylabs' && proxyType === 'mobile') secretService = 'oxylabsMobile';
+    else if (provider === 'oxylabs') secretService = 'oxylabsResidential';
+    else if (provider === 'packetstream') secretService = 'packetstreamProxy';
+    else if (provider === 'iproyal' && proxyType === 'mobile') secretService = 'iproyalMobileProxy';
+    else if (provider === 'iproyal') secretService = 'iproyalProxy';
+    else if (provider === 'pingproxies') secretService = 'pingproxiesProxy';
+    else if (provider === 'brightdata') secretService = 'brightdataProxy';
+    else return undefined;
+    username = readOptionalWelesServiceSecret(secretService, 'username');
+    password = readOptionalWelesServiceSecret(secretService, 'password');
+  }
+  if (!username || !password) return undefined;
+  if (proxyType === 'isp') return { ...pin, provider, proxy_type: proxyType, username, password };
+
+  const sessionId = pin.sticky_session_id;
+  if (!sessionId) return undefined;
+  const country = (pin.country ?? 'us').toLowerCase();
+  let stickyUsername = username;
+  let stickyPassword = password;
+  if (provider === 'oxylabs') {
+    const cityPart = pin.city ? `-city-${pin.city}` : '';
+    stickyUsername = `customer-${username}-cc-${country}${cityPart}-sessid-${sessionId}`;
+  } else if (provider === 'packetstream') {
+    stickyPassword = `${password}_country-${country.toUpperCase()}_session-${sessionId}`;
+  } else if (provider === 'iproyal') {
+    stickyPassword = `${password}_country-${country}_session-${sessionId}`;
+  } else if (provider === 'pingproxies') {
+    stickyUsername = `${username}_c_${country}_s_${sessionId}`;
+  } else if (provider === 'brightdata') {
+    stickyUsername = `${username}-country-${country}-session-${sessionId}`;
+  }
+  return {
+    ...pin,
+    provider,
+    proxy_type: proxyType,
+    username: stickyUsername,
+    password: stickyPassword,
   };
 }
 
@@ -154,7 +247,7 @@ function platformFromTarget(host: string | undefined): string | undefined {
   return undefined;
 }
 
-export async function resolveProxy(proxy: string, targetHost?: string, preflightPersona?: LinkedInProbePersona): Promise<{ server: string; username?: string; password?: string; country?: string; exit_ip?: string; platform?: string; provider?: string; proxy_type?: string; sticky_session_id?: string; sticky_hash?: string; exit_reputation?: import('./policy.js').ExitReputation } | undefined> {
+export async function resolveProxy(proxy: string, targetHost?: string, preflightPersona?: LinkedInProbePersona): Promise<ResolvedProxy | undefined> {
   if (!proxy || proxy === 'none' || proxy === 'direct') return undefined;
   const attempts: ProxyPreflightAttempt[] = [];
   const startedAt = new Date().toISOString();
@@ -207,25 +300,25 @@ export async function resolveProxy(proxy: string, targetHost?: string, preflight
     return { server: `${u.protocol}//${u.hostname}:${u.port}`, username: decodeURIComponent(u.username), password: decodeURIComponent(u.password), platform: platformForBlock, provider: provFromUrl, proxy_type: 'url_unclassified' };
   }
 
-  const supabaseUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
-  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
-  if (!supabaseUrl || !supabaseKey) {
-    console.log('[proxy] No Supabase credentials — cannot fetch providers');
+  const databaseUrl = optionalWelesDatabase()?.url ?? '';
+  const databaseToken = optionalWelesDatabase()?.token ?? '';
+  if (!databaseUrl || !databaseToken) {
+    console.log('[proxy] No weles-database launcher configuration — cannot fetch providers');
     return undefined;
   }
 
   // Don't gate on balance_usd > 0. The balance is auto-refreshed by the
   // *_balance.mjs trajectories which themselves break (Oxylabs dashboard
   // captcha, etc.) — stale 0 balance kicks otherwise-working providers out
-  // of rotation. The credential filter (env vars present + proxy_host set)
-  // is the real liveness check; an empty balance trigger falls through
-  // when the provider 407s on auth.
+  // of rotation. Exact per-provider Skarbiec grants plus proxy_host are the
+  // liveness gate; an empty balance trigger falls through when provider auth
+  // is rejected.
   const res = await fetch(
-    `${supabaseUrl}/rest/v1/service_credentials?category=eq.proxy&proxy_host=not.is.null&select=display_name,proxy_host,proxy_port,api_key_env_var,balance_usd,metadata&order=balance_usd.desc.nullslast`,
-    { headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` } },
+    `${databaseUrl}/rest/v1/service_credentials?category=eq.proxy&proxy_host=not.is.null&select=display_name,proxy_host,proxy_port,balance_usd,metadata&order=balance_usd.desc.nullslast`,
+    { headers: { apikey: databaseToken, Authorization: `Bearer ${databaseToken}` } },
   );
   if (!res.ok) { console.log(`[proxy] Failed to fetch providers: ${res.status}`); return undefined; }
-  type Row = { display_name: string; proxy_host: string; proxy_port: string; api_key_env_var: string; balance_usd: number; metadata?: { country?: string } };
+  type Row = { display_name: string; proxy_host: string; proxy_port: string; secret_service?: WelesServiceSecret; balance_usd: number; metadata?: { country?: string } };
   const providers = await res.json() as Row[];
   // Decodo first — canonical static ISP (real residential ASNs). Skip-shuffle
   // branch below keeps this order deterministic for isIsp filters.
@@ -277,19 +370,18 @@ export async function resolveProxy(proxy: string, targetHost?: string, preflight
       continue;
     }
 
-    const envUser = p.api_key_env_var;
-    const envPass = envUser?.replace('USERNAME', 'PASSWORD').replace('API_KEY', 'PASSWORD');
-    const username = process.env[envUser] ?? '';
-    const password = process.env[envPass] ?? '';
-    if (!username || !password) {
-      console.log(`[proxy] Skipping ${p.display_name}: missing env ${envUser}/${envPass}`);
+    const secretService = p.secret_service ?? PROXY_SECRET_SERVICE_BY_DISPLAY_NAME[p.display_name];
+    const username = secretService ? readOptionalWelesServiceSecret(secretService, 'username') ?? '' : '';
+    const password = secretService ? readOptionalWelesServiceSecret(secretService, 'password') ?? '' : '';
+    if (!secretService || !username || !password) {
+      console.log(`[proxy] Skipping ${p.display_name}: exact provider grant unavailable`);
       attempts.push({
         display_name: p.display_name,
         proxy_type: proxyType,
         country: '',
         endpoint: { host: p.proxy_host, port: String(p.proxy_port) },
         sticky_hash: '',
-        rejected_reason: 'missing_env',
+        rejected_reason: secretService ? 'missing_exact_provider_grant' : 'unscoped_provider',
       });
       continue;
     }
@@ -478,7 +570,7 @@ export async function resolveProxy(proxy: string, targetHost?: string, preflight
       // geo + proxy/hosting/mobile flags). One call per successful resolve;
       // attached to the returned proxy config so it lands in
       // result.session.exit_reputation, and into the preflight storage backup.
-      let exitReputation: import('./policy.js').ExitReputation | undefined;
+      let exitReputation: ExitReputation | undefined;
       if (exitIp) {
         try {
           const { verifyExitReputation } = await import('./policy.js');
@@ -503,7 +595,7 @@ export async function resolveProxy(proxy: string, targetHost?: string, preflight
       // so the run row records which sticky exit the session pinned to. Only
       // sticky-capable providers reach this success path with a sessId; the
       // field is legitimately undefined for non-sticky/url-form proxies.
-      return { server: `http://${host}:${p.proxy_port}`, username: stickyUser, password: stickyPass, country: cc, exit_ip: exitIp || undefined, platform, provider: provKey, proxy_type: proxyType, sticky_session_id: String(sessId), sticky_hash: diagHash(sessId), exit_reputation: exitReputation };
+      return { server: `http://${host}:${p.proxy_port}`, username: stickyUser, password: stickyPass, country: cc, city, exit_ip: exitIp || undefined, platform, provider: provKey, proxy_type: proxyType, sticky_session_id: String(sessId), sticky_hash: diagHash(sessId), exit_reputation: exitReputation };
     }
   }
 

@@ -1,74 +1,131 @@
 #!/usr/bin/env bash
-# Download the prebuilt weles-patched Firefox binary for the host OS.
+# Install one explicitly selected Weles Firefox release from Stado.
 #
-# Usage:
-#   bash scripts/firefox/download.sh          # download if missing
-#   bash scripts/firefox/download.sh --force  # re-download even if installed
+# Required nonsecret deployment coordinates:
+#   STADO_RELEASE_LOCAL_ROOT or STADO_RELEASE_API_URL
+#   WELES_FIREFOX_RELEASE_VERSION
+#   WELES_FIREFOX_RELEASE_SHA256
 #
-# Installs to: $HOME/.local/share/weles-firefox/<version>/
-# Prints the Firefox binary path on stdout when done.
-#
-# Local artifacts are preferred before network download:
-#   WELES_FIREFOX_TARBALL=/path/to/weles-firefox-...tar.gz
-#   WELES_FIREFOX_ARTIFACT_DIR=/path/to/artifacts
+# The operator must publish:
+#   stado://releases/weles-firefox/<version>/<platform>/weles-firefox.tar.gz
 
 set -euo pipefail
 
-RELEASE_TAG="${WELES_FIREFOX_RELEASE:-firefox-142.0a1-weles.5}"
-REPO="wisent-ai/weles-firefox"
+fail() {
+  printf '%s\n' "ERROR: $*" > /dev/stderr
+  false
+}
+
+require() {
+  local name="$1"
+  [[ -n "${!name:-}" ]] || fail "$name must be explicitly configured"
+}
+
+if [[ -z "${STADO_RELEASE_LOCAL_ROOT:-}" ]]; then
+  require STADO_RELEASE_API_URL
+fi
+require WELES_FIREFOX_RELEASE_VERSION
+require WELES_FIREFOX_RELEASE_SHA256
+
+if [[ -n "${STADO_RELEASE_LOCAL_ROOT:-}" ]]; then
+  case "$STADO_RELEASE_LOCAL_ROOT" in
+    /*) ;;
+    *) fail "STADO_RELEASE_LOCAL_ROOT must be an absolute path" ;;
+  esac
+elif [[ "${STADO_RELEASE_API_URL:-}" != https://* ]]; then
+  fail "STADO_RELEASE_API_URL must use HTTPS"
+fi
+case "$WELES_FIREFOX_RELEASE_VERSION" in
+  *[![:alnum:]._-]*|"") fail "invalid WELES_FIREFOX_RELEASE_VERSION" ;;
+esac
+HEX_PAIR_PATTERN='[[:xdigit:]][[:xdigit:]]'
+HEX_QUAD_PATTERN="$HEX_PAIR_PATTERN$HEX_PAIR_PATTERN"
+HEX_OCTET_PATTERN="$HEX_QUAD_PATTERN$HEX_QUAD_PATTERN"
+HEX_BLOCK_PATTERN="$HEX_OCTET_PATTERN$HEX_OCTET_PATTERN$HEX_OCTET_PATTERN$HEX_OCTET_PATTERN"
+HEX_SHA256_PATTERN="$HEX_BLOCK_PATTERN$HEX_BLOCK_PATTERN"
+if [[ ! "$WELES_FIREFOX_RELEASE_SHA256" =~ ^${HEX_SHA256_PATTERN}$ ]]; then
+  fail "WELES_FIREFOX_RELEASE_SHA256 must be one complete hexadecimal SHA-256 digest"
+fi
+
+VERSION="$WELES_FIREFOX_RELEASE_VERSION"
+EXPECTED_SHA256="$(printf '%s' "$WELES_FIREFOX_RELEASE_SHA256" | tr '[:upper:]' '[:lower:]')"
 INSTALL_ROOT="${WELES_FIREFOX_DIR:-$HOME/.local/share/weles-firefox}"
-LOCAL_ARTIFACT_DIR="${WELES_FIREFOX_ARTIFACT_DIR:-$HOME/Documents/CodingProjects/Wisent/firefox-build/artifacts}"
-LOCAL_TARBALL="${WELES_FIREFOX_TARBALL:-}"
-
-VERSION="${RELEASE_TAG#firefox-}"
 INSTALL_DIR="$INSTALL_ROOT/$VERSION"
+ASSET="weles-firefox.tar.gz"
 
-FORCE=0
-if [[ "${1:-}" == "--force" ]]; then FORCE=1; fi
-
-uname_s=$(uname -s)
-uname_m=$(uname -m)
+uname_s="$(uname -s)"
+uname_m="$(uname -m)"
 case "$uname_s/$uname_m" in
-  Darwin/arm64)   ASSET="weles-firefox-${VERSION}-macos-arm64.tar.gz";   BIN="$INSTALL_DIR/Firefox.app/Contents/MacOS/firefox" ;;
-  Darwin/x86_64)  ASSET="weles-firefox-${VERSION}-macos-x86_64.tar.gz";  BIN="$INSTALL_DIR/Firefox.app/Contents/MacOS/firefox" ;;
-  Linux/x86_64)   ASSET="weles-firefox-${VERSION}-linux-x86_64.tar.gz";  BIN="$INSTALL_DIR/firefox/firefox" ;;
-  *) echo "ERROR: unsupported platform $uname_s/$uname_m" >&2; exit 1 ;;
+  Darwin/arm64)  PLATFORM="darwin-arm64"; BIN_REL="Firefox.app/Contents/MacOS/firefox" ;;
+  Darwin/x86_64) PLATFORM="darwin-amd64"; BIN_REL="Firefox.app/Contents/MacOS/firefox" ;;
+  Linux/x86_64)  PLATFORM="linux-amd64";  BIN_REL="firefox/firefox" ;;
+  *) fail "unsupported platform $uname_s/$uname_m" ;;
 esac
 
-if [[ $FORCE -eq 0 && -x "$BIN" ]]; then
-  echo "$BIN"
-  exit 0
+RELEASE_URI="stado://releases/weles-firefox/$VERSION/$PLATFORM/$ASSET"
+BIN="$INSTALL_DIR/$BIN_REL"
+RECEIPT="$INSTALL_DIR/.weles-release"
+EXPECTED_RECEIPT="release_uri=$RELEASE_URI
+archive_sha256=$EXPECTED_SHA256
+platform=$PLATFORM"
+
+FORCE=false
+if [[ "${*:-}" == "--force" ]]; then
+  FORCE=true
+elif [[ -n "${*:-}" ]]; then
+  fail "unsupported arguments: $*"
 fi
 
-mkdir -p "$INSTALL_DIR"
-TMP=$(mktemp -d)
+if ! $FORCE && [[ -x "$BIN" && -f "$RECEIPT" ]] \
+  && [[ "$(cat "$RECEIPT")" == "$EXPECTED_RECEIPT" ]]; then
+  echo "$BIN"
+  exit
+fi
+
+mkdir -p "$INSTALL_ROOT"
+TMP="$(mktemp -d "$INSTALL_ROOT/.firefox-download.XXXXXX")"
 trap 'rm -rf "$TMP"' EXIT
 
-if [[ -n "$LOCAL_TARBALL" ]]; then
-  if [[ ! -f "$LOCAL_TARBALL" ]]; then
-    echo "ERROR: WELES_FIREFOX_TARBALL does not exist: $LOCAL_TARBALL" >&2
-    exit 1
-  fi
-  echo "using local Firefox artifact $LOCAL_TARBALL ..." >&2
-  cp "$LOCAL_TARBALL" "$TMP/$ASSET"
-elif [[ -f "$LOCAL_ARTIFACT_DIR/$ASSET" ]]; then
-  echo "using local Firefox artifact $LOCAL_ARTIFACT_DIR/$ASSET ..." >&2
-  cp "$LOCAL_ARTIFACT_DIR/$ASSET" "$TMP/$ASSET"
+if [[ -n "${STADO_RELEASE_LOCAL_ROOT:-}" ]]; then
+  SOURCE_ARCHIVE="$STADO_RELEASE_LOCAL_ROOT/weles-firefox/$VERSION/$PLATFORM/$ASSET"
+  [[ -f "$SOURCE_ARCHIVE" && ! -L "$SOURCE_ARCHIVE" ]] \
+    || fail "missing regular staged release archive: $SOURCE_ARCHIVE"
+  cp "$SOURCE_ARCHIVE" "$TMP/$ASSET"
 else
-  echo "downloading $ASSET from $REPO@$RELEASE_TAG ..." >&2
-  # Prefer `gh release download` — handles auth for private repos + public.
-  # Falls back to plain curl for environments without gh installed.
-  if command -v gh >/dev/null 2>&1; then
-    ( cd "$TMP" && gh release download "$RELEASE_TAG" --repo "$REPO" --pattern "$ASSET" )
-  else
-    URL="https://github.com/$REPO/releases/download/$RELEASE_TAG/$ASSET"
-    curl -fSL -o "$TMP/$ASSET" "$URL"
-  fi
+  echo "[download-firefox] Fetching immutable $RELEASE_URI" > /dev/stderr
+  curl --fail --silent --show-error --location --get \
+    --data-urlencode "uri=$RELEASE_URI" \
+    "${STADO_RELEASE_API_URL%/}/api/release/object" \
+    --output "$TMP/$ASSET"
 fi
-tar -xzf "$TMP/$ASSET" -C "$INSTALL_DIR" --strip-components=0
 
-if [[ ! -x "$BIN" ]]; then
-  echo "ERROR: expected binary at $BIN not found after extract" >&2
-  exit 1
+command -v openssl > /dev/null || fail "openssl is required for SHA-256 verification"
+ACTUAL_SHA256_LINE="$(openssl dgst -sha256 -r "$TMP/$ASSET")"
+ACTUAL_SHA256="${ACTUAL_SHA256_LINE%% *}"
+if [[ "$ACTUAL_SHA256" != "$EXPECTED_SHA256" ]]; then
+  fail "SHA-256 mismatch for $RELEASE_URI: expected=$EXPECTED_SHA256 actual=$ACTUAL_SHA256"
 fi
+
+STAGED="$TMP/install"
+mkdir -p "$STAGED"
+echo "[download-firefox] Checksum verified; extracting to $INSTALL_DIR" > /dev/stderr
+tar -xzf "$TMP/$ASSET" -C "$STAGED"
+[[ -x "$STAGED/$BIN_REL" ]] || fail "verified archive did not contain executable $BIN_REL"
+printf '%s\n' "$EXPECTED_RECEIPT" > "$STAGED/.weles-release"
+
+BACKUP="$INSTALL_ROOT/.${VERSION}.previous.$$"
+if [[ -e "$INSTALL_DIR" ]]; then
+  mv "$INSTALL_DIR" "$BACKUP"
+fi
+if ! mv "$STAGED" "$INSTALL_DIR"; then
+  if [[ -e "$BACKUP" ]]; then mv "$BACKUP" "$INSTALL_DIR"; fi
+  false
+fi
+rm -rf "$BACKUP"
+
+if [[ "$uname_s" == "Darwin" ]]; then
+  xattr -dr com.apple.quarantine "$INSTALL_DIR" || true
+fi
+
+echo "[download-firefox] Installed verified $RELEASE_URI at $BIN" > /dev/stderr
 echo "$BIN"

@@ -1,7 +1,7 @@
 // Oxylabs balance check via Google GSI iframe button + popup-based OAuth.
 // One scrape covers BOTH 'Oxylabs Residential' and 'Oxylabs Mobile' rows.
 import { WSession } from '../../../dist/session/wsession.js';
-import { googleSso, parseBalanceFromText, getGoogleSsoCreds } from '../_shared/services/google_sso.mjs';
+import { googleSso, parseBalanceFromText, getScopedGoogleLogin } from '../_shared/services/google_sso.mjs'
 import { patchEffectiveBalance } from '../_shared/services/proxy_probe.mjs';
 import { humanIdlePause, humanClickLocator } from '../../../dist/human/mouse.js';
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -11,7 +11,7 @@ import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
 const LOGIN_URL = 'https://dashboard.oxylabs.io/';
 const BILLING_URL = 'https://dashboard.oxylabs.io/en/billing-plans';
 
-const login = await getGoogleSsoCreds();
+const login = await getScopedGoogleLogin('oxylabsDashboard');
 if (!login) { console.log('FAIL: no Google SSO creds'); throw new Error('no Google SSO creds'); }
 console.log(`[trajectory] Using Google SSO: ${login.email}`);
 

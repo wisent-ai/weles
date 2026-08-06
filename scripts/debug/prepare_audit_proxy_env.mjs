@@ -80,8 +80,8 @@ function sampleExit(proxyUrl) {
 }
 
 async function fetchRows() {
-  const supabaseUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
-  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
+  const supabaseUrl = process.env.WELES_SUPABASE_URL ?? '';
+  const supabaseKey = process.env.WELES_SUPABASE_SERVICE_ROLE_KEY ?? '';
   if (!supabaseUrl || !supabaseKey) throw new Error('missing Supabase env');
   const url = `${supabaseUrl}/rest/v1/service_credentials?category=eq.proxy&proxy_host=not.is.null&select=display_name,proxy_host,proxy_port,api_key_env_var,metadata&order=display_name.asc`;
   const res = await fetch(url, { headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` } });

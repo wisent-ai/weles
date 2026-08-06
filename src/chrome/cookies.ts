@@ -17,7 +17,7 @@ import {
   readFileSync, copyFileSync, readdirSync, statSync, existsSync, unlinkSync,
 } from 'node:fs';
 import { join } from 'node:path';
-import { pbkdf2Sync, createDecipheriv } from 'node:crypto';
+import { pbkdf2Sync, createDecipheriv, createHash } from 'node:crypto';
 
 const CHROME_ROOT = join(homedir(), 'Library', 'Application Support', 'Google', 'Chrome');
 const GOOGLE_HOST_PATTERNS = ['%google.com%', '%youtube.com%', '%googleusercontent.com%'];
@@ -104,12 +104,20 @@ function unpadPkcs7(buf: Buffer): Buffer {
   return buf;
 }
 
-function decryptV10(blob: Buffer, key: Buffer): string {
+function decryptV10(blob: Buffer, key: Buffer, host: string): string {
   const ct = blob.subarray(3);
   const iv = Buffer.alloc(16, 0x20);
   const d = createDecipheriv('aes-128-cbc', key, iv);
   d.setAutoPadding(false);
-  return unpadPkcs7(Buffer.concat([d.update(ct), d.final()])).toString('utf8');
+  const plaintext = unpadPkcs7(Buffer.concat([d.update(ct), d.final()]));
+  const hostDigest = createHash('sha256').update(host).digest();
+  if (
+    plaintext.length >= hostDigest.length
+    && plaintext.subarray(plaintext.length - plaintext.length, hostDigest.length).equals(hostDigest)
+  ) {
+    return plaintext.subarray(hostDigest.length).toString('utf8');
+  }
+  return plaintext.toString('utf8');
 }
 
 function sameSiteMap(n: number): 'Lax' | 'Strict' | 'None' {
@@ -160,7 +168,7 @@ export function exportCookies(
         if (enc.length === 0) continue;
         const prefix = enc.subarray(0, 3).toString('ascii');
         if (prefix === 'v10' || prefix === 'v11') {
-          try { value = decryptV10(enc, key); } catch { continue; }
+          try { value = decryptV10(enc, key, host); } catch { continue; }
         } else if (prefix === 'v20') {
           v20Skipped++;
           continue;

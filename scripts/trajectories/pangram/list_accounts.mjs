@@ -1,7 +1,7 @@
 // Read-only Pangram account pool diagnostic. Prints non-secret account metadata only.
 
-const url = (process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '').replace(/\/+$/, '');
-const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+const url = (process.env.WELES_DATABASE_URL || '').replace(/\/+$/, '');
+const key = process.env.WELES_DATABASE_TOKEN || '';
 
 if (!url || !key) {
   console.log(JSON.stringify({ error: 'missing_supabase_env' }, null, 2));

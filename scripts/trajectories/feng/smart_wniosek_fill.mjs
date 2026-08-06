@@ -123,13 +123,13 @@ async function main() {
   const fieldMap = loadFieldMap();
   console.log(`[feng] ${Object.keys(values).length} wartości w drafcie, ${Object.keys(fieldMap).length} mapowań w field_map`);
 
-  const cdp = process.env.FENG_CDP_ENDPOINT || process.env.CDP_ENDPOINT;
+  const operatorCdp = Boolean(process.env.WELES_OPERATOR_CDP_URL);
   const s = await WSession.start({
     label: 'feng_smart_wniosek_fill',
     proxy: process.env.PROXY_URL,
-    cdpEndpoint: cdp,
+    operatorCdp,
   });
-  if (cdp) console.log(`[feng] podłączony przez CDP do ${cdp}`);
+  if (operatorCdp) console.log('[feng] podłączony przez uwierzytelnioną bramę operatora CDP');
 
   console.log(`[feng] otwieram generator: ${GENERATOR_URL}`);
   await s.goto(GENERATOR_URL);

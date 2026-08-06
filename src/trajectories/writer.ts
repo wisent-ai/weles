@@ -34,7 +34,7 @@ function fallbackSteps(): string[] {
 
 function formatGuidance(steps: string[], source: WelesTrajectoryDraft['source'], model?: string): string {
   const header = source === 'model-router'
-    ? `Model-router trajectory draft${model ? ` (${model})` : ''}:`
+    ? `Brama trajectory draft${model ? ` (${model})` : ''}:`
     : 'Fallback Weles trajectory draft:';
   return [header, ...steps.map((step, index) => `${index + 1}. ${step}`)].join('\n');
 }

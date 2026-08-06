@@ -7,12 +7,13 @@
 // Run:
 //   node weles/scripts/trajectories/google/drive/read_doc.mjs --doc <url-or-id> [--out path]
 //
-// Env mirror: DOC_URL, DOC_ID. Other env: GM_EMAIL, GM_PASSWORD, BROWSER.
+// Env mirror: DOC_URL, DOC_ID. Other env: BROWSER.
 
 import { WSession } from '../../../../dist/session/wsession.js';
-import { googleSso, getGoogleSsoCreds } from '../../_shared/services/google_sso.mjs';
+import { googleSso } from '../../_shared/services/google_sso.mjs';
 import { humanIdlePause } from '../../../../dist/human/mouse.js';
 import { writeFileSync } from 'node:fs';
+import { readScopedLogin } from '../../../_shared/scoped-secrets.mjs';
 
 function arg(name) {
   const i = process.argv.indexOf(name);
@@ -38,11 +39,7 @@ if (!DOC_ID) { console.log('FAIL: could not extract doc id from "' + DOC_INPUT +
 function log(...a) { console.error('[drive_read_doc]', ...a); }
 
 async function resolveCreds() {
-  const email = process.env.GM_EMAIL || 'lukasz.bartoszcze@gmail.com';
-  if (process.env.GM_PASSWORD) return { email, password: process.env.GM_PASSWORD };
-  const fromDb = await getGoogleSsoCreds(email);
-  if (fromDb?.password) return fromDb;
-  throw new Error('No password: set GM_PASSWORD or add a service_credentials row for ' + email);
+  return readScopedLogin('googleDrive');
 }
 
 const creds = await resolveCreds();

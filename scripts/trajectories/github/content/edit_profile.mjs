@@ -12,16 +12,16 @@ import { assertAuthed, AuthProbeError } from '../../_shared/auth-probe.mjs';
 import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../../_shared/cookie-freshness.mjs';
 import { loadAvatarFile } from '../../_shared/runner/avatar-loader.mjs';
 
-const SUPABASE_URL = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
-const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
+const DATABASE_URL = process.env.WELES_DATABASE_URL ?? '';
+const DATABASE_TOKEN = process.env.WELES_DATABASE_TOKEN ?? '';
 
 const acct = await getSocialAccount('github');
 if (!acct) { console.log('FAIL: no active github account in DB'); process.exit(1); }
 console.log(`[gh-profile] using account: ${acct.username}`);
 
 const linkRes = await fetch(
-  `${SUPABASE_URL}/rest/v1/character_social_accounts?social_account_id=eq.${acct.id}&select=characters(id,name,bio,niche,occupation,home_city,home_country,avatar_url,training_images)`,
-  { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } },
+  `${DATABASE_URL}/rest/v1/character_social_accounts?social_account_id=eq.${acct.id}&select=characters(id,name,bio,niche,occupation,home_city,home_country,avatar_url,training_images)`,
+  { headers: { apikey: DATABASE_TOKEN, Authorization: `Bearer ${DATABASE_TOKEN}` } },
 ).then(r => r.ok ? r.json() : []);
 const character = linkRes?.[0]?.characters;
 if (!character) { console.log(`FAIL: no character linked to github/${acct.username}`); process.exit(1); }
@@ -30,13 +30,9 @@ console.log(`[gh-profile] character: ${character.name} (niche=${character.niche}
 const targetName = character.name || '';
 const targetBio = (character.bio || '').slice(0, 160);
 const targetLocation = [character.home_city, character.home_country].filter(Boolean).join(', ');
-// Avatar source: avatar_url first; fall back to training_images[0] for the
-// 74 chars that have training images but the avatar_url backfill migration
-// hasn't merged yet. Path is either a /api/gcs-image proxy URL or absolute.
-const rawAvatar = character.avatar_url || (Array.isArray(character.training_images) ? character.training_images[0] : null);
-const avatarUrl = rawAvatar
-  ? (rawAvatar.startsWith('http') ? rawAvatar : `https://content.wisent.ai${rawAvatar}`)
-  : null;
+// Avatar metadata must already contain a private Weles Stado object locator.
+const avatarUrl = character.avatar_url
+  || (Array.isArray(character.training_images) ? character.training_images[Number('0')] : null);
 
 const { proxyUrl, persona } = await resolveAccountSession(acct);
 const s = await WSession.start({ label: 'github_edit_profile', proxy: proxyUrl, persona });
@@ -135,9 +131,9 @@ try {
 
   // Mirror to social_accounts even on no-op so the DB row catches up to the
   // platform side regardless of whether this run wrote anything to the form.
-  await fetch(`${SUPABASE_URL}/rest/v1/social_accounts?id=eq.${acct.id}`, {
+  await fetch(`${DATABASE_URL}/rest/v1/social_accounts?id=eq.${acct.id}`, {
     method: 'PATCH',
-    headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+    headers: { apikey: DATABASE_TOKEN, Authorization: `Bearer ${DATABASE_TOKEN}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
     body: JSON.stringify({
       display_name: targetName || null,
       profile_url: `https://github.com/${acct.username}`,

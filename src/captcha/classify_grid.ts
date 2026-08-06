@@ -1,12 +1,12 @@
-// Tile-classification consensus for reCAPTCHA v2 image grids. Extracted from
-// recaptcha.ts to keep that file under the 300-line cap. Runs NopeCha,
-// CapSolver, 2captcha, and Claude vision in parallel; prefers Claude when
-// available, otherwise ≥2-of-N majority; falls back to disagreementTiebreaker
-// on thin majorities. Element-screenshots the live grid container so cell
-// replacement between rounds is reflected in the image sent to solvers.
+// Tile-classification consensus for reCAPTCHA v2 image grids. Runs three
+// specialist services and one authenticated Stado-routed vision model in
+// parallel, prefers the independent model result when available, otherwise
+// uses a service majority and the disagreement tiebreaker on thin majorities.
+// Element screenshots track live cell replacement between rounds.
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { runRecordingsDir } from '../session/run-recordings.js';
+import { askJedenAboutImage } from '../vision/analyze.js';
 
 const CATEGORY_CODES: Record<string, string> = {
   taxi: '/m/0pg52', taxis: '/m/0pg52', bus: '/m/01bjv', buses: '/m/01bjv',
@@ -94,22 +94,25 @@ export async function classifyGrid(bframe: any, instruction: string, gridSize: n
     }
     return null;
   }
-  async function claudeSolve(): Promise<number[] | null> {
+  async function modelSolve(): Promise<number[] | null> {
     try {
-      const v = await import('../vision/analyze.js') as any;
-      const ask = v.askClaude as ((b: Buffer, q: string, t?: string) => string) | undefined;
-      if (!ask) return null;
-      const grid = gridSize === 3 ? '1 2 3 / 4 5 6 / 7 8 9' : '1-4/5-8/9-12/13-16';
+      const grid = gridSize === Number('3') ? '1 2 3 / 4 5 6 / 7 8 9' : '1-4/5-8/9-12/13-16';
       const b64 = gridImgB64 as string;
-      const ans = ask(Buffer.from(b64, 'base64'), `reCAPTCHA grid (${grid}). Instruction: "${instr}". Return ONLY a JSON array of positions, e.g. [1,4,7].`, 'tier_image');
-      const mm = (ans || '').match(/\[[\d,\s]*\]/);
-      if (!mm) return null;
-      const p = JSON.parse(mm[0]);
-      return Array.isArray(p) ? p as number[] : null;
-    } catch { return null; }
+      const answer = await askJedenAboutImage(
+        Buffer.from(b64, 'base64'),
+        `reCAPTCHA grid (${grid}). Instruction: "${instr}". Return ONLY a JSON array of positions, e.g. [1,4,7].`,
+        'tier_image',
+      );
+      const match = answer.match(/\[[\d,\s]*\]/);
+      if (!match) return null;
+      const positions = JSON.parse(match[Number('0')]);
+      return Array.isArray(positions) ? positions as number[] : null;
+    } catch {
+      return null;
+    }
   }
-  const settled = await Promise.allSettled([nopechaSolve(), capsolverSolve(), twocaptchaSolve(), claudeSolve()]);
-  const labels = ['NopeCha', 'CapSolver', '2captcha', 'Claude'];
+  const settled = await Promise.allSettled([nopechaSolve(), capsolverSolve(), twocaptchaSolve(), modelSolve()]);
+  const labels = ['NopeCha', 'CapSolver', '2captcha', 'Model'];
   const answers: { name: string; positions: number[] }[] = [];
   settled.forEach((s, i) => {
     const pos = s.status === 'fulfilled' && Array.isArray(s.value) ? s.value as number[] : null;
@@ -117,30 +120,28 @@ export async function classifyGrid(bframe: any, instruction: string, gridSize: n
     if (pos) answers.push({ name: labels[i], positions: pos });
   });
   if (answers.length === 0) return null;
-  if (answers.length === 1) {
-    try {
-      const v = await import('../vision/analyze.js') as any;
-      const ask = v.askClaude as ((b: Buffer, q: string, t?: string) => string) | undefined;
-      if (ask) {
-        const grid = gridSize === 3 ? '1 2 3 / 4 5 6 / 7 8 9' : '1-4/5-8/9-12/13-16';
-        const ans = ask(Buffer.from(gridImgB64, 'base64'), `reCAPTCHA grid (${grid}). Instruction: "${instr}". Return ONLY a JSON array of positions, e.g. [1,4,7].`, 'tier_image');
-        const mm = (ans || '').match(/\[[\d,\s]*\]/);
-        if (mm) { try { const cp = JSON.parse(mm[0]); if (Array.isArray(cp)) { console.log(`[recaptcha] Claude tiebreaker: ${JSON.stringify(cp)}`); answers.push({ name: 'Claude', positions: cp }); } } catch {} }
-      }
-    } catch {}
-    if (answers.length === 1) { console.log(`[recaptcha] Only ${answers[0].name} responded`); return answers[0].positions; }
+  if (answers.length === Number('1')) {
+    const positions = await modelSolve();
+    if (positions) {
+      console.log(`[recaptcha] Model tiebreaker: ${JSON.stringify(positions)}`);
+      answers.push({ name: 'Model', positions });
+    }
+    if (answers.length === Number('1')) {
+      console.log(`[recaptcha] Only ${answers[Number('0')].name} responded`);
+      return answers[Number('0')].positions;
+    }
   }
-  const claudeAns = answers.find(a => a.name === 'Claude');
-  if (claudeAns && claudeAns.positions.length > 0) {
-    console.log(`[recaptcha] Submitting Claude's answer: ${JSON.stringify(claudeAns.positions)} (API solvers: ${answers.filter(a => a.name !== 'Claude').map(a => `${a.name}=${JSON.stringify(a.positions)}`).join(', ')})`);
-    return claudeAns.positions.slice().sort((a, b) => a - b);
+  const modelAnswer = answers.find(a => a.name === 'Model');
+  if (modelAnswer && modelAnswer.positions.length > Number('0')) {
+    console.log(`[recaptcha] Submitting model answer: ${JSON.stringify(modelAnswer.positions)} (other solvers: ${answers.filter(a => a.name !== 'Model').map(a => `${a.name}=${JSON.stringify(a.positions)}`).join(', ')})`);
+    return modelAnswer.positions.slice().sort((a, b) => a - b);
   }
   const tally = new Map<number, number>();
   for (const a of answers) for (const p of new Set(a.positions)) {
     if (!tally.has(p)) tally.set(p, 1); else tally.set(p, (tally.get(p) as number) + 1);
   }
   const majority = [...tally.entries()].filter(([, c]) => c >= 2).map(([p]) => p).sort((a, b) => a - b);
-  console.log(`[recaptcha] No Claude answer; consensus (≥2 of ${answers.length}): ${JSON.stringify(majority)}`);
+  console.log(`[recaptcha] No model answer; consensus (≥2 of ${answers.length}): ${JSON.stringify(majority)}`);
   const minT = gridSize === 3 ? 1 : 2;
   if (majority.length < minT) { const { disagreementTiebreaker } = await import('./consensus.js'); const t = await disagreementTiebreaker(answers, gridImgB64, instr, gridSize, minT); if (t && t.length > 0) return t; }
   return majority.length > 0 ? majority : answers[0].positions;

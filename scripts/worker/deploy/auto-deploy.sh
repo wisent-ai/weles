@@ -1,279 +1,223 @@
 #!/bin/bash
-# Polled auto-deploy for the mac-mini weles worker. Runs on a 60-second
-# launchd schedule (com.wisent.weles-auto-deploy.plist). Each tick:
-#   1. fetch origin/main
-#   2. if local HEAD != origin/main, git reset --hard, npm ci if
-#      package-lock changed, npm run build
-#   3. bootout + bootstrap the weles-worker LaunchAgent so the new
-#      dist/ goes live in the running worker.
-#
-# This replaces a self-hosted GitHub Actions runner (which fails on
-# macOS 26 with CoreCLR HRESULT 0x8007000C — bundled .NET incompat
-# with the new OS). The polling design is fully self-contained on
-# the mac-mini and doesn't need an externally-reachable webhook.
+# Install and activate one explicitly selected immutable Weles worker release.
+# This script never discovers source branches, tags, channels, or provider
+# releases. The deployment-owned env file selects every release coordinate.
 
 set -euo pipefail
 
 export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
-WELES_DIR="${WELES_DIR:-$HOME/weles}"
-LOG="$WELES_DIR/var/auto-deploy.log"
-mkdir -p "$WELES_DIR/var"
+WELES_WORKER_ENV_FILE="${WELES_WORKER_ENV_FILE:-$HOME/.config/weles/worker.env}"
+STATE_DIR="${WELES_STATE_DIR:-$HOME/.local/state/weles}"
+LOG="$STATE_DIR/auto-deploy.log"
+mkdir -p "$STATE_DIR"
 
-log() { echo "[$(date -u +%FT%TZ)] $*" >> "$LOG"; }
+log() {
+  echo "[$(date -u +%FT%TZ)] $*" >> "$LOG"
+}
 
-cd "$WELES_DIR"
+fail() {
+  log "ERROR: $*"
+  printf '%s\n' "ERROR: $*" > /dev/stderr
+  false
+}
 
-# Avoid clobbering uncommitted work on the mac-mini if someone is
-# debugging there. If status shows tracked-file modifications, log
-# and skip this tick.
-if ! git diff --quiet HEAD --; then
-  log "skip: uncommitted tracked changes in $WELES_DIR"
-  exit 0
+if [[ ! -r "$WELES_WORKER_ENV_FILE" || -L "$WELES_WORKER_ENV_FILE" ]]; then
+  fail "missing owner-controlled regular deployment env file: $WELES_WORKER_ENV_FILE"
+fi
+if ! bash -n "$WELES_WORKER_ENV_FILE"; then
+  fail "deployment env file has invalid shell syntax: $WELES_WORKER_ENV_FILE"
+fi
+set -a
+. "$WELES_WORKER_ENV_FILE"
+set +a
+
+require() {
+  local name="$1"
+  [[ -n "${!name:-}" ]] || fail "$name must be explicitly configured"
+}
+
+if [[ -z "${STADO_RELEASE_LOCAL_ROOT:-}" ]]; then
+  require STADO_RELEASE_API_URL
+fi
+require WELES_WORKER_RELEASE_VERSION
+require WELES_WORKER_RELEASE_SHA256
+require WELES_CHROMIUM_RELEASE_VERSION
+require WELES_CHROMIUM_RELEASE_SHA256
+require WELES_FIREFOX_RELEASE_VERSION
+require WELES_FIREFOX_RELEASE_SHA256
+
+if [[ -n "${STADO_RELEASE_LOCAL_ROOT:-}" ]]; then
+  case "$STADO_RELEASE_LOCAL_ROOT" in
+    /*) ;;
+    *) fail "STADO_RELEASE_LOCAL_ROOT must be an absolute path" ;;
+  esac
+elif [[ "${STADO_RELEASE_API_URL:-}" != https://* ]]; then
+  fail "STADO_RELEASE_API_URL must use HTTPS"
+fi
+case "$WELES_WORKER_RELEASE_VERSION" in
+  *[![:alnum:]._-]*|"") fail "invalid WELES_WORKER_RELEASE_VERSION" ;;
+esac
+HEX_PAIR_PATTERN='[[:xdigit:]][[:xdigit:]]'
+HEX_QUAD_PATTERN="$HEX_PAIR_PATTERN$HEX_PAIR_PATTERN"
+HEX_OCTET_PATTERN="$HEX_QUAD_PATTERN$HEX_QUAD_PATTERN"
+HEX_BLOCK_PATTERN="$HEX_OCTET_PATTERN$HEX_OCTET_PATTERN$HEX_OCTET_PATTERN$HEX_OCTET_PATTERN"
+HEX_SHA256_PATTERN="$HEX_BLOCK_PATTERN$HEX_BLOCK_PATTERN"
+if [[ ! "$WELES_WORKER_RELEASE_SHA256" =~ ^${HEX_SHA256_PATTERN}$ ]]; then
+  fail "WELES_WORKER_RELEASE_SHA256 must be one complete hexadecimal SHA-256 digest"
 fi
 
-# Keep GitHub tokens out of git remote URLs. If an older host has a tokenized
-# origin URL, move that credential into a launchd-safe file helper and rewrite
-# the remote before the next fetch. This keeps deploy working for private repos
-# without leaving the secret in routine command/log/transcript output.
-ORIGIN_URL=$(git remote get-url origin 2>/dev/null || true)
-case "$ORIGIN_URL" in
-  https://x-access-token:*@github.com/wisent-ai/weles.git)
-    GITHUB_REMOTE_TOKEN="${ORIGIN_URL#https://x-access-token:}"
-    GITHUB_REMOTE_TOKEN="${GITHUB_REMOTE_TOKEN%@github.com/wisent-ai/weles.git}"
-    GITHUB_CREDENTIAL_FILE="$HOME/.git-credentials-weles"
-    umask 077
-    printf 'https://x-access-token:%s@github.com\n' "$GITHUB_REMOTE_TOKEN" > "$GITHUB_CREDENTIAL_FILE"
-    git config --global --replace-all credential.helper "store --file $GITHUB_CREDENTIAL_FILE"
-    git remote set-url origin https://github.com/wisent-ai/weles.git
-    unset GITHUB_REMOTE_TOKEN
-    log "github-auth: moved origin credential into helper and scrubbed remote URL"
-    ;;
+uname_s="$(uname -s)"
+uname_m="$(uname -m)"
+case "$uname_s/$uname_m" in
+  Darwin/arm64)  PLATFORM="darwin-arm64" ;;
+  Darwin/x86_64) PLATFORM="darwin-amd64" ;;
+  Linux/x86_64)  PLATFORM="linux-amd64" ;;
+  *) fail "unsupported platform $uname_s/$uname_m" ;;
 esac
 
-# launchd cannot read the interactive osxkeychain session, and a repo-local
-# helper overrides the global file helper. A blank local helper resets inherited
-# system helpers; the following local store helper is then the only one tried.
-if [ -f "$HOME/.git-credentials-weles" ]; then
-  git config --local --replace-all credential.helper ""
-  git config --local --add credential.helper "store --file $HOME/.git-credentials-weles"
+VERSION="$WELES_WORKER_RELEASE_VERSION"
+EXPECTED_SHA256="$(printf '%s' "$WELES_WORKER_RELEASE_SHA256" | tr '[:upper:]' '[:lower:]')"
+ASSET="weles-worker.tar.gz"
+RELEASE_URI="stado://releases/weles-worker/$VERSION/$PLATFORM/$ASSET"
+RELEASE_ROOT="${WELES_WORKER_RELEASE_ROOT:-$HOME/.local/share/weles-worker}"
+INSTALL_DIR="$RELEASE_ROOT/$VERSION/$PLATFORM"
+CURRENT_LINK="${WELES_CURRENT_LINK:-$HOME/weles}"
+RECEIPT="$INSTALL_DIR/.weles-release"
+EXPECTED_RECEIPT="release_uri=$RELEASE_URI
+archive_sha256=$EXPECTED_SHA256
+platform=$PLATFORM"
+
+mkdir -p "$RELEASE_ROOT"
+if [[ -e "$CURRENT_LINK" && ! -L "$CURRENT_LINK" ]]; then
+  fail "$CURRENT_LINK must be an operator-created symlink, not a mutable checkout or directory"
 fi
 
-# Ensure the gcloud CLI has an active service account so the worker's
-# `gcloud storage cp` calls in scripts/trajectories/*/persist*.mjs can
-# upload artifacts to GCS without a manual `gcloud auth login`. This
-# block runs BEFORE the new-commit check so the activation is verified
-# on every 60-second tick, not just on deploy ticks. Self-heals across
-# reboots, macOS upgrades, `brew upgrade google-cloud-sdk`, `gcloud
-# auth revoke`, full disk reprovisioning, and service-account key
-# rotations — anything that wipes ~/.config/gcloud/ gets caught at the
-# next tick rather than waiting for the next git commit to land.
-# Without this, `gcloud auth list` returns "No credentialed accounts"
-# and every persist call fails with `gcloud storage cp failed (1):
-# You do not currently have an active account selected.` — which is
-# exactly the silent failure mode that ate the 2026-05-13 UW
-# screenshot uploads.
-GCLOUD_SA_KEY="$HOME/.config/gcloud/application_default_credentials.json"
-GCLOUD_SA_MIRROR_DIR="$HOME/.weles-secrets"
-GCLOUD_SA_MIRROR="$GCLOUD_SA_MIRROR_DIR/droid-441-adc.json"
-mkdir -p "$GCLOUD_SA_MIRROR_DIR"
-chmod 700 "$GCLOUD_SA_MIRROR_DIR"
-
-# Self-heal layer 1: mirror the canonical ADC to a stable secondary
-# location each tick so an accidental wipe of ~/.config/gcloud/ is
-# recoverable. Only writes when the contents differ — no churn.
-if [ -f "$GCLOUD_SA_KEY" ]; then
-  if [ ! -f "$GCLOUD_SA_MIRROR" ] || ! cmp -s "$GCLOUD_SA_KEY" "$GCLOUD_SA_MIRROR"; then
-    cp "$GCLOUD_SA_KEY" "$GCLOUD_SA_MIRROR"
-    chmod 600 "$GCLOUD_SA_MIRROR"
-    log "gcloud: mirrored ADC to $GCLOUD_SA_MIRROR"
-  fi
+release_ready=false
+if [[ -f "$RECEIPT" ]] && [[ "$(cat "$RECEIPT")" == "$EXPECTED_RECEIPT" ]] \
+  && [[ -f "$INSTALL_DIR/scripts/worker/run.mjs" ]] \
+  && [[ -f "$INSTALL_DIR/dist/worker/poll.js" ]] \
+  && [[ -d "$INSTALL_DIR/node_modules" ]] \
+  && [[ -f "$INSTALL_DIR/scripts/worker/deploy/com.wisent.weles-worker.plist" ]] \
+  && [[ -f "$INSTALL_DIR/scripts/worker/deploy/launch-mac.sh" ]] \
+  && [[ -f "$INSTALL_DIR/scripts/worker/deploy/launch-echo-api-mac.sh" ]] \
+  && [[ -f "$INSTALL_DIR/scripts/worker/deploy/launch-keyword-planner-api-mac.sh" ]] \
+  && [[ -f "$INSTALL_DIR/scripts/worker/deploy/skarbiec-acquire.mjs" ]] \
+  && [[ -f "$INSTALL_DIR/scripts/worker/deploy/skarbiec-acquisition-scopes.conf" ]]; then
+  release_ready=true
 fi
 
-# Self-heal layer 2: if the canonical ADC was deleted (or the
-# ~/.config/gcloud/ dir was wiped by macOS upgrade) but the mirror
-# survives, restore the canonical from the mirror before activation.
-if [ ! -f "$GCLOUD_SA_KEY" ] && [ -f "$GCLOUD_SA_MIRROR" ]; then
-  mkdir -p "$(dirname "$GCLOUD_SA_KEY")"
-  cp "$GCLOUD_SA_MIRROR" "$GCLOUD_SA_KEY"
-  chmod 600 "$GCLOUD_SA_KEY"
-  log "gcloud: restored ADC from mirror $GCLOUD_SA_MIRROR -> $GCLOUD_SA_KEY"
-fi
-
-# Self-heal layer 3: ensure gcloud CLI has an active service account.
-# Runs even when ADC is missing — gcloud will emit an actionable error
-# to the log if the activate call has no key to read, rather than
-# silently no-oping. With layers 1+2 above, ADC is present in all
-# scenarios except simultaneous wipe of both canonical and mirror —
-# which is below the threshold of automatable recovery and is the only
-# state requiring out-of-band SA key provisioning.
-if [ -f "$GCLOUD_SA_KEY" ]; then
-  ACTIVE_SA=$(gcloud auth list --filter=status:ACTIVE --format='value(account)' 2>/dev/null || true)
-  if [ -z "$ACTIVE_SA" ]; then
-    log "gcloud: no active account — activating from $GCLOUD_SA_KEY"
-    gcloud auth activate-service-account --key-file="$GCLOUD_SA_KEY" >> "$LOG" 2>&1
-  fi
-else
-  log "gcloud: BOTH $GCLOUD_SA_KEY and $GCLOUD_SA_MIRROR missing — uploads will fail until provisioning runs"
-fi
-
-# Ensure the claude-reauth LaunchAgent is installed and current. Like
-# the gcloud self-heal above, this runs every tick (BEFORE the
-# no-new-commit early-exit) so the agent survives reboots / accidental
-# bootout without waiting for the next commit. Acts ONLY when the
-# installed plist differs from the repo copy, so steady-state ticks are
-# a no-op and never bootout an in-flight reauth run.
-REAUTH_SRC="$WELES_DIR/scripts/worker/deploy/claude-reauth/com.wisent.claude-reauth.plist"
-REAUTH_DST="$HOME/Library/LaunchAgents/com.wisent.claude-reauth.plist"
-if [ -f "$REAUTH_SRC" ]; then
-  if [ ! -f "$REAUTH_DST" ] || ! cmp -s "$REAUTH_SRC" "$REAUTH_DST"; then
-    cp "$REAUTH_SRC" "$REAUTH_DST"
-    chmod 644 "$REAUTH_DST"
-    chmod +x "$WELES_DIR/scripts/worker/deploy/claude-reauth/reauth-launch.sh"
-    RU_UID=$(id -u)
-    launchctl bootout "gui/$RU_UID" "$REAUTH_DST" 2>/dev/null || true
-    launchctl bootstrap "gui/$RU_UID" "$REAUTH_DST"
-    log "claude-reauth: (re)installed LaunchAgent from repo"
-  fi
-fi
-
-# Ensure the keyword-planner API LaunchAgent is installed and loaded on every
-# tick. The first deploy that introduces this file is still running the old
-# script body, so the self-heal must live before the no-new-commit early-exit.
-KEYWORD_API_PLIST_SRC_PRE="$WELES_DIR/scripts/worker/deploy/com.wisent.weles-keyword-planner-api.plist"
-KEYWORD_API_PLIST_DST_PRE="$HOME/Library/LaunchAgents/com.wisent.weles-keyword-planner-api.plist"
-if [ -f "$KEYWORD_API_PLIST_SRC_PRE" ]; then
-  mkdir -p "$HOME/Library/LaunchAgents"
-  KEYWORD_API_NEEDS_BOOTSTRAP=0
-  if [ ! -f "$KEYWORD_API_PLIST_DST_PRE" ] || ! cmp -s "$KEYWORD_API_PLIST_SRC_PRE" "$KEYWORD_API_PLIST_DST_PRE"; then
-    cp "$KEYWORD_API_PLIST_SRC_PRE" "$KEYWORD_API_PLIST_DST_PRE"
-    chmod 644 "$KEYWORD_API_PLIST_DST_PRE"
-    chmod +x "$WELES_DIR/scripts/worker/deploy/launch-keyword-planner-api-mac.sh"
-    KEYWORD_API_NEEDS_BOOTSTRAP=1
-  fi
-  KU_UID=$(id -u)
-  if ! launchctl print "gui/$KU_UID/com.wisent.weles-keyword-planner-api" >/dev/null 2>&1; then
-    KEYWORD_API_NEEDS_BOOTSTRAP=1
-  fi
-  if [ "$KEYWORD_API_NEEDS_BOOTSTRAP" = "1" ]; then
-    launchctl bootout "gui/$KU_UID" "$KEYWORD_API_PLIST_DST_PRE" 2>/dev/null || true
-    KEYWORD_API_PIDS_PRE=$(lsof -tiTCP:8787 -sTCP:LISTEN 2>/dev/null || true)
-    if [ -n "$KEYWORD_API_PIDS_PRE" ]; then
-      kill $KEYWORD_API_PIDS_PRE 2>/dev/null || true
-    fi
-    launchctl bootstrap "gui/$KU_UID" "$KEYWORD_API_PLIST_DST_PRE"
-    log "keyword-planner-api: ensured LaunchAgent from repo"
-  fi
-fi
-
-git fetch --quiet origin main
-LOCAL=$(git rev-parse HEAD)
-REMOTE=$(git rev-parse origin/main)
-if [ "$LOCAL" = "$REMOTE" ]; then
-  exit 0
-fi
-
-log "deploy: $LOCAL → $REMOTE"
-
-BEFORE_LOCK=$(shasum package-lock.json 2>/dev/null | awk '{print $1}' || echo none)
-git reset --hard origin/main
-AFTER_LOCK=$(shasum package-lock.json 2>/dev/null | awk '{print $1}' || echo none)
-if [ "$BEFORE_LOCK" != "$AFTER_LOCK" ]; then
-  log "package-lock.json changed — running npm ci"
-  npm ci --ignore-scripts >> "$LOG" 2>&1
-fi
-npm run build >> "$LOG" 2>&1
-
-# Ensure the pinned weles Chromium binary is present. download.sh no-ops when
-# the version dir already exists; bumping the pinned tag (WELES_CHROMIUM_RELEASE
-# or the script default) on a deploy pulls the new build, and find_browser.ts
-# auto-selects the newest installed version. Non-fatal: a download failure must
-# not block the code deploy or the worker restart — the worker keeps whatever
-# binary is already on disk.
-if CHROMIUM_BIN="$(bash "$WELES_DIR/scripts/chromium/download.sh" 2>>"$LOG")"; then
-  log "chromium ready: $CHROMIUM_BIN"
-else
-  log "chromium: download.sh failed (keeping existing on-disk binary)"
-fi
-
-# node-pty (claude-reauth drives `claude setup-token` on a real pty
-# via it) ships an INCOMPLETE darwin-arm64 prebuild — pty.node but no
-# spawn-helper — and `npm ci --ignore-scripts` above skips node-pty's
-# own install/build. Without build/Release/spawn-helper, pty.spawn()
-# dies "posix_spawnp failed" (observed locally) and the reauth login
-# cannot start. Build the native addon explicitly. Idempotent: skips
-# when spawn-helper is already present; logs FAILED (not silent) if
-# the toolchain is missing so it is diagnosable on the next tick.
-# Claude Code CLI (the real `claude` binary) is what login.mjs drives
-# via `claude auth login --claudeai` for the reauth flow. Without it,
-# login.mjs's existsSync guard fails fast with
-# "FAIL: claude binary not at $HOME/.local/bin/claude" and the
-# claude-reauth LaunchAgent loops on every tick (observed on mac mini
-# 2026-05-19 06:50Z claude-reauth.log). Install via the official
-# installer if missing — it places the binary at
-# $HOME/.local/bin/claude -> $HOME/.local/share/claude/versions/X.Y.Z,
-# the exact path login.mjs resolves. Idempotent: skips when present.
-if [ ! -x "$HOME/.local/bin/claude" ]; then
-  log "claude-code: installing CLI (missing at \$HOME/.local/bin/claude)"
-  if curl -fsSL https://claude.ai/install.sh | bash >> "$LOG" 2>&1; then
-    log "claude-code: install ok ($($HOME/.local/bin/claude --version 2>/dev/null | head -1))"
+if ! $release_ready; then
+  TMP="$(mktemp -d "$RELEASE_ROOT/.worker-download.XXXXXX")"
+  trap 'rm -rf "$TMP"' EXIT
+  if [[ -n "${STADO_RELEASE_LOCAL_ROOT:-}" ]]; then
+    source_archive="$STADO_RELEASE_LOCAL_ROOT/weles-worker/$VERSION/$PLATFORM/$ASSET"
+    [[ -f "$source_archive" && ! -L "$source_archive" ]] \
+      || fail "missing regular staged release archive: $source_archive"
+    cp "$source_archive" "$TMP/$ASSET"
   else
-    log "claude-code: install FAILED — claude-reauth will not function until fixed"
+    log "fetching immutable $RELEASE_URI"
+    curl --fail --silent --show-error --location --get \
+      --data-urlencode "uri=$RELEASE_URI" \
+      "${STADO_RELEASE_API_URL%/}/api/release/object" \
+      --output "$TMP/$ASSET"
   fi
+
+  command -v openssl > /dev/null || fail "openssl is required for SHA-256 verification"
+  ACTUAL_SHA256_LINE="$(openssl dgst -sha256 -r "$TMP/$ASSET")"
+  ACTUAL_SHA256="${ACTUAL_SHA256_LINE%% *}"
+  if [[ "$ACTUAL_SHA256" != "$EXPECTED_SHA256" ]]; then
+    fail "SHA-256 mismatch for $RELEASE_URI: expected=$EXPECTED_SHA256 actual=$ACTUAL_SHA256"
+  fi
+
+  STAGED="$TMP/install"
+  mkdir -p "$STAGED"
+  tar -xzf "$TMP/$ASSET" -C "$STAGED"
+  [[ -f "$STAGED/scripts/worker/run.mjs" ]] \
+    || fail "verified worker archive is missing scripts/worker/run.mjs"
+  [[ -f "$STAGED/scripts/worker/deploy/launch-mac.sh" ]] \
+    || fail "verified worker archive is missing scripts/worker/deploy/launch-mac.sh"
+  [[ -f "$STAGED/scripts/worker/deploy/skarbiec-acquire.mjs" ]] \
+    || fail "verified worker archive is missing its Skarbiec acquisition client"
+  [[ -f "$STAGED/scripts/worker/deploy/skarbiec-acquisition-scopes.conf" ]] \
+    || fail "verified worker archive is missing its exact Skarbiec acquisition scope catalog"
+  [[ -f "$STAGED/scripts/worker/deploy/launch-echo-api-mac.sh" ]] \
+    || fail "verified worker archive is missing its Echo API launch helper"
+  [[ -f "$STAGED/scripts/worker/deploy/launch-keyword-planner-api-mac.sh" ]] \
+    || fail "verified worker archive is missing its keyword-planner launch helper"
+  [[ -f "$STAGED/dist/worker/poll.js" ]] \
+    || fail "verified worker archive is missing built dist/worker/poll.js"
+  [[ -d "$STAGED/node_modules" ]] \
+    || fail "verified worker archive is missing its runtime dependency tree"
+  [[ -f "$STAGED/scripts/worker/deploy/com.wisent.weles-worker.plist" ]] \
+    || fail "verified worker archive is missing its worker service definition"
+  [[ -f "$STAGED/scripts/chromium/download.sh" ]] \
+    || fail "verified worker archive is missing scripts/chromium/download.sh"
+  [[ -f "$STAGED/scripts/firefox/download.sh" ]] \
+    || fail "verified worker archive is missing scripts/firefox/download.sh"
+  printf '%s\n' "$EXPECTED_RECEIPT" > "$STAGED/.weles-release"
+
+  BACKUP="$RELEASE_ROOT/.${VERSION}-${PLATFORM}.previous.$$"
+  if [[ -e "$INSTALL_DIR" ]]; then
+    mv "$INSTALL_DIR" "$BACKUP"
+  fi
+  mkdir -p "$(dirname "$INSTALL_DIR")"
+  if ! mv "$STAGED" "$INSTALL_DIR"; then
+    if [[ -e "$BACKUP" ]]; then mv "$BACKUP" "$INSTALL_DIR"; fi
+    false
+  fi
+  rm -rf "$BACKUP"
+  log "verified worker release staged: $RELEASE_URI"
 fi
 
-NODE_PTY_DIR="$WELES_DIR/node_modules/node-pty"
-if [ -d "$NODE_PTY_DIR" ] && [ ! -x "$NODE_PTY_DIR/build/Release/spawn-helper" ]; then
-  log "node-pty: building native addon (spawn-helper missing)"
-  if ( cd "$NODE_PTY_DIR" && npx --yes node-gyp rebuild ) >> "$LOG" 2>&1; then
-    log "node-pty: build ok"
-  else
-    log "node-pty: build FAILED — claude-reauth will not function until fixed"
-  fi
+# Browser installers fail closed on absent coordinates, release objects, or
+# checksum mismatches. Do not activate or restart the worker unless both exact
+# browser releases are present with matching receipts.
+CHROMIUM_BIN="$(bash "$INSTALL_DIR/scripts/chromium/download.sh")" \
+  || fail "required Weles Chromium release is unavailable or invalid"
+FIREFOX_BIN="$(bash "$INSTALL_DIR/scripts/firefox/download.sh")" \
+  || fail "required Weles Firefox release is unavailable or invalid"
+CHROMIUM_SHA256="$(printf '%s' "$WELES_CHROMIUM_RELEASE_SHA256" | tr '[:upper:]' '[:lower:]')"
+FIREFOX_SHA256="$(printf '%s' "$WELES_FIREFOX_RELEASE_SHA256" | tr '[:upper:]' '[:lower:]')"
+CHROMIUM_URI="stado://releases/weles-chromium/$WELES_CHROMIUM_RELEASE_VERSION/$PLATFORM/weles-chromium.tar.gz"
+FIREFOX_URI="stado://releases/weles-firefox/$WELES_FIREFOX_RELEASE_VERSION/$PLATFORM/weles-firefox.tar.gz"
+DEPLOYMENT_RECEIPT_FILE="$STATE_DIR/deployment.release"
+EXPECTED_DEPLOYMENT_RECEIPT="worker_uri=$RELEASE_URI
+worker_sha256=$EXPECTED_SHA256
+chromium_uri=$CHROMIUM_URI
+chromium_sha256=$CHROMIUM_SHA256
+firefox_uri=$FIREFOX_URI
+firefox_sha256=$FIREFOX_SHA256"
+log "verified browser releases ready: chromium=$CHROMIUM_URI firefox=$FIREFOX_URI"
+
+previous_target=""
+if [[ -L "$CURRENT_LINK" ]]; then
+  previous_target="$(readlink "$CURRENT_LINK")"
+fi
+previous_deployment=""
+if [[ -f "$DEPLOYMENT_RECEIPT_FILE" ]]; then
+  previous_deployment="$(cat "$DEPLOYMENT_RECEIPT_FILE")"
+fi
+ln -sfn "$INSTALL_DIR" "$CURRENT_LINK"
+if [[ "$previous_target" == "$INSTALL_DIR" && "$previous_deployment" == "$EXPECTED_DEPLOYMENT_RECEIPT" ]]; then
+  exit
 fi
 
-# Keep the macOS LaunchAgents in source control too. Older hosts had
-# ~/Library/LaunchAgents/*.plist and launch-*.sh as hand-written local files,
-# so a fresh clone could build successfully but fail at restart or keep using
-# drifted wrappers.
-WORKER_PLIST_SRC="$WELES_DIR/scripts/worker/deploy/com.wisent.weles-worker.plist"
-WORKER_PLIST_DST="$HOME/Library/LaunchAgents/com.wisent.weles-worker.plist"
-if [ -f "$WORKER_PLIST_SRC" ]; then
-  if [ ! -f "$WORKER_PLIST_DST" ] || ! cmp -s "$WORKER_PLIST_SRC" "$WORKER_PLIST_DST"; then
-    cp "$WORKER_PLIST_SRC" "$WORKER_PLIST_DST"
-    chmod 644 "$WORKER_PLIST_DST"
-    log "worker-launchd: installed LaunchAgent from repo"
+mkdir -p "$HOME/Library/LaunchAgents"
+UID_NUM="$(id -u)"
+AGENT_DOMAIN="user/$UID_NUM"
+for label in weles-worker weles-keyword-planner-api weles-echo-api; do
+  src="$INSTALL_DIR/scripts/worker/deploy/com.wisent.$label.plist"
+  dst="$HOME/Library/LaunchAgents/com.wisent.$label.plist"
+  if [[ ! -f "$src" ]]; then
+    continue
   fi
-fi
-
-KEYWORD_API_PLIST_SRC="$WELES_DIR/scripts/worker/deploy/com.wisent.weles-keyword-planner-api.plist"
-KEYWORD_API_PLIST_DST="$HOME/Library/LaunchAgents/com.wisent.weles-keyword-planner-api.plist"
-if [ -f "$KEYWORD_API_PLIST_SRC" ]; then
-  if [ ! -f "$KEYWORD_API_PLIST_DST" ] || ! cmp -s "$KEYWORD_API_PLIST_SRC" "$KEYWORD_API_PLIST_DST"; then
-    cp "$KEYWORD_API_PLIST_SRC" "$KEYWORD_API_PLIST_DST"
-    chmod 644 "$KEYWORD_API_PLIST_DST"
-    log "keyword-planner-api: installed LaunchAgent from repo"
+  cp "$src" "$dst"
+  chmod u=rw,go=r "$dst"
+  launchctl bootout "$AGENT_DOMAIN" "$dst" > /dev/null || true
+  if ! launchctl bootstrap "$AGENT_DOMAIN" "$dst"; then
+    log "launchd bootstrap deferred to Stado service management: $dst"
   fi
-fi
-chmod +x "$WELES_DIR/scripts/worker/deploy/launch-mac.sh"
-chmod +x "$WELES_DIR/scripts/worker/deploy/launch-keyword-planner-api-mac.sh"
+done
 
-
-UID_NUM=$(id -u)
-PLIST="$HOME/Library/LaunchAgents/com.wisent.weles-worker.plist"
-launchctl bootout "gui/$UID_NUM" "$PLIST" 2>/dev/null || true
-launchctl bootstrap "gui/$UID_NUM" "$PLIST"
-KEYWORD_API_PLIST="$HOME/Library/LaunchAgents/com.wisent.weles-keyword-planner-api.plist"
-if [ -f "$KEYWORD_API_PLIST" ]; then
-  launchctl bootout "gui/$UID_NUM" "$KEYWORD_API_PLIST" 2>/dev/null || true
-  # A previous manual verification run may still own :8787; clear it so launchd
-  # owns the long-lived API process after this deploy.
-  KEYWORD_API_PIDS=$(lsof -tiTCP:8787 -sTCP:LISTEN 2>/dev/null || true)
-  if [ -n "$KEYWORD_API_PIDS" ]; then
-    kill $KEYWORD_API_PIDS 2>/dev/null || true
-  fi
-  launchctl bootstrap "gui/$UID_NUM" "$KEYWORD_API_PLIST"
-  launchctl list | grep com.wisent.weles-keyword-planner-api >> "$LOG" 2>&1 || true
-fi
-launchctl list | grep com.wisent.weles-worker >> "$LOG" 2>&1 || true
-
-log "deploy ok: now at $REMOTE"
+printf '%s\n' "$EXPECTED_DEPLOYMENT_RECEIPT" > "$DEPLOYMENT_RECEIPT_FILE"
+log "deploy ok: activated immutable $RELEASE_URI"

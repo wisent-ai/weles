@@ -153,14 +153,14 @@ async function topbarHandle(s) {
 // via PH row metadata.linked_twitter_username (set by stampLinkedTwitter
 // below) AND a legacy match on PH row username for pre-handle-fix rows.
 export async function findUsableTwitterAccount() {
-  const supabaseUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
-  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
-  if (!supabaseUrl || !supabaseKey) return null;
-  const headers = { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` };
+  const databaseUrl = process.env.WELES_DATABASE_URL ?? '';
+  const databaseToken = process.env.WELES_DATABASE_TOKEN ?? '';
+  if (!databaseUrl || !databaseToken) return null;
+  const headers = { apikey: databaseToken, Authorization: `Bearer ${databaseToken}` };
   const linkedTwitter = new Set();
   try {
     const phRows = await fetch(
-      `${supabaseUrl}/rest/v1/social_accounts?platform=eq.producthunt&select=username,metadata`,
+      `${databaseUrl}/rest/v1/social_accounts?platform=eq.producthunt&select=username,metadata`,
       { headers },
     ).then(r => r.ok ? r.json() : []);
     for (const ph of phRows) {
@@ -170,7 +170,7 @@ export async function findUsableTwitterAccount() {
     }
   } catch {}
   const res = await fetch(
-    `${supabaseUrl}/rest/v1/social_accounts?platform=eq.twitter&is_active=eq.true&select=id,platform,username,metadata&order=created_at.desc&limit=50`,
+    `${databaseUrl}/rest/v1/social_accounts?platform=eq.twitter&is_active=eq.true&select=id,platform,username,metadata&order=created_at.desc&limit=50`,
     { headers },
   );
   if (!res.ok) return null;
@@ -197,12 +197,12 @@ export async function findUsableTwitterAccount() {
 // Stamp linked_twitter_username on the PH row that saveAccount just inserted,
 // so future findUsableTwitterAccount() calls can skip this Twitter.
 export async function stampLinkedTwitter(phUsername, twUsername) {
-  const supabaseUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
-  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
-  if (!supabaseUrl || !supabaseKey) return;
-  const headers = { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}`, 'Content-Type': 'application/json' };
+  const databaseUrl = process.env.WELES_DATABASE_URL ?? '';
+  const databaseToken = process.env.WELES_DATABASE_TOKEN ?? '';
+  if (!databaseUrl || !databaseToken) return;
+  const headers = { apikey: databaseToken, Authorization: `Bearer ${databaseToken}`, 'Content-Type': 'application/json' };
   const res = await fetch(
-    `${supabaseUrl}/rest/v1/social_accounts?platform=eq.producthunt&username=eq.${encodeURIComponent(phUsername)}&select=id,metadata`,
+    `${databaseUrl}/rest/v1/social_accounts?platform=eq.producthunt&username=eq.${encodeURIComponent(phUsername)}&select=id,metadata`,
     { headers },
   );
   if (!res.ok) return;
@@ -210,7 +210,7 @@ export async function stampLinkedTwitter(phUsername, twUsername) {
   if (!rows[0]) return;
   const merged = { ...(rows[0].metadata ?? {}), linked_twitter_username: twUsername };
   await fetch(
-    `${supabaseUrl}/rest/v1/social_accounts?id=eq.${rows[0].id}`,
+    `${databaseUrl}/rest/v1/social_accounts?id=eq.${rows[0].id}`,
     { method: 'PATCH', headers: { ...headers, Prefer: 'return=minimal' }, body: JSON.stringify({ metadata: merged }) },
   ).catch(() => {});
   console.log(`[ph] stamped linked_twitter_username="${twUsername}" on PH row id=${rows[0].id}`);

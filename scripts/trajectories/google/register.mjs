@@ -5,8 +5,7 @@ import { humanClickLocator } from '../../../dist/human/mouse.js';
 
 const SIGNUP_URL = 'https://accounts.google.com/signup/v2/createaccount?biz=false&cc=US&continue=https%3A%2F%2Fwww.youtube.com%2Fsignin%3Faction_handle_signin%3Dtrue&dsh=S0&flowEntry=SignUp&flowName=GlifWebSignIn&hl=en&service=youtube';
 const MAX_RETRIES = 15;
-const USE_BRIGHTDATA = !!process.env.BRIGHTDATA_BROWSER_WS;
-const BASE_PROXY = USE_BRIGHTDATA ? 'none' : (process.env.PROXY_URL || 'residential');
+const BASE_PROXY = process.env.PROXY_URL || 'residential';
 const sleep = (s) => new Promise(r => setTimeout(r, s * 1000));  // allow-raw-playwright: utility sleep shim — usages should migrate to humanIdlePause
 
 // Rotate sticky-session id per attempt; works for PacketStream / IPRoyal / Pingproxies / Oxylabs URL formats embedding session-NNNN.

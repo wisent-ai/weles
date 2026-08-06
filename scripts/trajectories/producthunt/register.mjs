@@ -11,8 +11,7 @@ import { assertAuthed, AuthProbeError } from '../_shared/auth-probe.mjs';
 // from the social_accounts table (inject cookies → OAuth through → onboard).
 
 const URL = 'https://www.producthunt.com/';
-const USE_BRIGHTDATA = !!process.env.BRIGHTDATA_BROWSER_WS;
-const proxy = USE_BRIGHTDATA ? 'none' : (process.env.PROXY_URL || 'none');
+const proxy = process.env.PROXY_URL || 'none';
 const sleep = (s) => new Promise(r => setTimeout(r, s * 1000));  // allow-raw-playwright: utility sleep shim — usages should migrate to humanIdlePause
 
 // findUsableTwitterAccount + stampLinkedTwitter live in _session.mjs.
@@ -246,12 +245,12 @@ async function signup(s) {
   // re-authenticates the same PH user when the Twitter account already
   // has a linked PH identity, so a re-run of register.mjs against the same
   // Twitter would otherwise produce N rows pointing at the same PH user.
-  const supabaseUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
-  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
-  if (supabaseUrl && supabaseKey) {
+  const databaseUrl = process.env.WELES_DATABASE_URL ?? '';
+  const databaseToken = process.env.WELES_DATABASE_TOKEN ?? '';
+  if (databaseUrl && databaseToken) {
     const exists = await fetch(
-      `${supabaseUrl}/rest/v1/social_accounts?platform=eq.producthunt&username=eq.${encodeURIComponent(phUsername)}&is_active=eq.true&select=id,username`,
-      { headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` } },
+      `${databaseUrl}/rest/v1/social_accounts?platform=eq.producthunt&username=eq.${encodeURIComponent(phUsername)}&is_active=eq.true&select=id,username`,
+      { headers: { apikey: databaseToken, Authorization: `Bearer ${databaseToken}` } },
     ).then(r => r.ok ? r.json() : []).catch(() => []);
     if (exists.length > 0) {
       console.log(`[ph] active PH row already exists for username="${phUsername}" id=${exists[0].id} — skipping saveAccount (would dup)`);

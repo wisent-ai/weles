@@ -40,22 +40,6 @@ if (process.env.WELES_NOPECHA_EXT == null) process.env.WELES_NOPECHA_EXT = '0';
 // that Oxylabs/PacketStream/direct return HTTP 200 on linkedin.com/login while
 // BrightData returns HTTP 000 (LinkedIn edge-blocks brightdata residential
 // for this customer's IP range).
-function freshBrightdataUrl() {
-  if (process.env.OXYLABS_USERNAME && process.env.OXYLABS_PASSWORD) {
-    const sess = Math.floor(Math.random() * 9000000 + 1000000);
-    const stickyUser = `customer-${process.env.OXYLABS_USERNAME}-cc-us-sessid-${sess}`;
-    return `http://${encodeURIComponent(stickyUser)}:${encodeURIComponent(process.env.OXYLABS_PASSWORD)}@pr.oxylabs.io:7777`;
-  }
-  if (process.env.BRIGHTDATA_USERNAME && process.env.BRIGHTDATA_PASSWORD) {
-    const u = process.env.BRIGHTDATA_USERNAME.startsWith('brd-customer-')
-      ? process.env.BRIGHTDATA_USERNAME
-      : `brd-customer-${process.env.BRIGHTDATA_USERNAME}-zone-${process.env.BRIGHTDATA_ZONE ?? 'residential_proxy1'}`;
-    const sess = Math.floor(Math.random() * 9000000 + 1000000);
-    const stickyUser = `${u}-country-us-session-${sess}`;
-    return `http://${encodeURIComponent(stickyUser)}:${encodeURIComponent(process.env.BRIGHTDATA_PASSWORD)}@brd.superproxy.io:22225`;
-  }
-  return null;
-}
 // 2026-05-03: removed unconditional fresh-sticky override. The previous
 // `freshBrightdataUrl() => PROXY_URL_FORCE=1` block ALWAYS picked a new
 // Oxylabs sticky session, bypassing metadata.proxy. That made every login

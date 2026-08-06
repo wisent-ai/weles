@@ -458,6 +458,9 @@ if (__weles.navigator && __weles.navigator.language) {
     // an empty {} on Firefox, which is a bot tell.
     (function stubMediaDevices() {
       if (typeof navigator === 'undefined') return;
+      if (navigator.mediaDevices
+          && typeof navigator.mediaDevices.getUserMedia === 'function'
+          && typeof navigator.mediaDevices.enumerateDevices === 'function') return;
       try {
       const devices = Object.create(typeof MediaDevices !== 'undefined' ? MediaDevices.prototype : Object.prototype);
       const noop = function() { return Promise.reject(new DOMException('Permission denied', 'NotAllowedError')); };

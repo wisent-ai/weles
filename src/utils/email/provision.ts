@@ -1,3 +1,6 @@
+import { optionalWelesDatabase } from '../weles-database.js';
+import { readOptionalWelesServiceSecret } from '../../secrets/scoped-service.js';
+
 /**
  * Auto-provisioner for new inbound email domains.
  *
@@ -11,18 +14,19 @@
  */
 
 const MAX_PRICE_USD = 20;
+function resendManagementKey(): string | undefined {
+  return readOptionalWelesServiceSecret('resendManagement', 'api_key');
+}
 
 type NcEnv = { apiKey: string; apiUser: string; username: string; clientIp: string };
 
 function ncEnv(): NcEnv {
-  const apiKey = process.env.NAMECHEAP_API_KEY ?? '';
-  const apiUser = process.env.NAMECHEAP_API_USER ?? '';
-  const username = process.env.NAMECHEAP_USERNAME ?? apiUser;
-  const clientIp = process.env.NAMECHEAP_CLIENT_IP ?? '';
-  if (!apiKey || !apiUser || !username || !clientIp) {
-    throw new Error('Missing NAMECHEAP_API_KEY / NAMECHEAP_API_USER / NAMECHEAP_USERNAME / NAMECHEAP_CLIENT_IP');
-  }
-  return { apiKey, apiUser, username, clientIp };
+  return {
+    apiKey: readOptionalWelesServiceSecret('namecheap', 'api_key') ?? '',
+    apiUser: readOptionalWelesServiceSecret('namecheap', 'api_user') ?? '',
+    username: readOptionalWelesServiceSecret('namecheap', 'username') ?? '',
+    clientIp: readOptionalWelesServiceSecret('namecheap', 'client_ip') ?? '',
+  };
 }
 
 function ncBase(sandbox = false): string {
@@ -83,8 +87,8 @@ interface ResendDnsRecord { record: string; name: string; type: string; value: s
 interface ResendDomain { id: string; name: string; status: string; records: ResendDnsRecord[] }
 
 export async function createResendDomain(domain: string, region = 'us-east-1'): Promise<ResendDomain> {
-  const key = process.env.RESEND_API_KEY;
-  if (!key) throw new Error('Missing RESEND_API_KEY');
+  const key = resendManagementKey();
+  if (!key) throw new Error('Missing exact Weles Resend management grant');
   const res = await fetch('https://api.resend.com/domains', {
     method: 'POST',
     headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
@@ -96,8 +100,8 @@ export async function createResendDomain(domain: string, region = 'us-east-1'): 
 }
 
 export async function enableResendReceiving(domainId: string): Promise<ResendDomain> {
-  const key = process.env.RESEND_API_KEY;
-  if (!key) throw new Error('Missing RESEND_API_KEY');
+  const key = resendManagementKey();
+  if (!key) throw new Error('Missing exact Weles Resend management grant');
   const res = await fetch(`https://api.resend.com/domains/${domainId}`, {
     method: 'PATCH',
     headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
@@ -108,8 +112,8 @@ export async function enableResendReceiving(domainId: string): Promise<ResendDom
 }
 
 export async function getResendDomain(domainId: string): Promise<ResendDomain> {
-  const key = process.env.RESEND_API_KEY;
-  if (!key) throw new Error('Missing RESEND_API_KEY');
+  const key = resendManagementKey();
+  if (!key) throw new Error('Missing exact Weles Resend management grant');
   const res = await fetch(`https://api.resend.com/domains/${domainId}`, { headers: { Authorization: `Bearer ${key}` } });
   const body = await res.json() as ResendDomain & { message?: string };
   if (!res.ok) throw new Error(`Resend get domain: ${res.status} ${body.message ?? ''}`);
@@ -147,8 +151,8 @@ export async function verifyResendDomain(domainId: string, pollSeconds = 20, max
 }
 
 export async function insertRotatorRow(domain: string, resendId: string, chargedUsd: number, status: 'pending' | 'active' = 'active'): Promise<void> {
-  const url = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
+  const url = optionalWelesDatabase()?.url ?? '';
+  const key = optionalWelesDatabase()?.token ?? '';
   if (!url || !key) throw new Error('Missing Supabase creds');
   const now = new Date().toISOString();
   const row = {

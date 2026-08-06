@@ -4,11 +4,11 @@
 import { getSocialAccount } from '../../../dist/utils/credentials.js';
 
 async function serviceCredentialProbe() {
-  const supabaseUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
-  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
-  if (!supabaseUrl || !supabaseKey) return { available: false, reason: 'missing_supabase_env' };
-  const url = `${supabaseUrl}/rest/v1/service_credentials?display_name=ilike.*pangram*&select=display_name,login_email,login_password,login_method`;
-  const res = await fetch(url, { headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` } });
+  const databaseUrl = process.env.WELES_DATABASE_URL ?? '';
+  const databaseToken = process.env.WELES_DATABASE_TOKEN ?? '';
+  if (!databaseUrl || !databaseToken) return { available: false, reason: 'missing_supabase_env' };
+  const url = `${databaseUrl}/rest/v1/service_credentials?display_name=ilike.*pangram*&select=display_name,login_email,login_password,login_method`;
+  const res = await fetch(url, { headers: { apikey: databaseToken, Authorization: `Bearer ${databaseToken}` } });
   if (!res.ok) return { available: false, reason: `fetch_failed_${res.status}` };
   const rows = await res.json();
   return {

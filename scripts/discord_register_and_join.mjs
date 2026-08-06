@@ -1,4 +1,5 @@
 import { WSession } from '../dist/session/wsession.js';
+import { readScopedSecret } from './_shared/scoped-secrets.mjs';
 
 const SERVERS_TO_JOIN = [
   'https://discord.gg/python',      // Python community
@@ -63,7 +64,7 @@ try {
   const formData = s.captchaFormData;
   const ua = await s.page.evaluate('navigator.userAgent').catch(() => '');
   const proxy = s.proxyConfig;
-  const apiKey = process.env.ANTICAPTCHA_API_KEY;
+  const apiKey = readScopedSecret('antiCaptcha', 'api_key');
   const proxyFields = {};
   if (proxy) {
     const u = new URL(proxy.server);
@@ -104,7 +105,7 @@ try {
   console.log(`[join] Registered: ${id.username} (token=${authToken.slice(0, 30)}...)`);
 
   // Step 2: Verify email
-  const resendKey = process.env.RESEND_RECEIVING_API_KEY;
+  const resendKey = readScopedSecret('resendReceiving', 'api_key');
   let verified = false;
   for (let poll = 0; poll < 20 && !verified; poll++) {
     await s.wait(5);

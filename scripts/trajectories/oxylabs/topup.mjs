@@ -2,7 +2,7 @@
 // billing: Starter($30/4GB), Basic($100/15GB), Standard($270/45GB), Advanced($500/100GB).
 // TOPUP_USD is mapped to nearest plan; TOPUP_CONFIRM=1 proceeds to Stripe checkout.
 import { WSession } from '../../../dist/session/wsession.js';
-import { googleSso, getGoogleSsoCreds } from '../_shared/services/google_sso.mjs';
+import { googleSso, getScopedGoogleLogin } from '../_shared/services/google_sso.mjs'
 import { topupOpts } from '../_shared/services/topup_common.mjs';
 import { humanIdlePause, humanClickLocator } from '../../../dist/human/mouse.js';
 import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
@@ -22,7 +22,7 @@ const { usd } = topupOpts();
 const plan = nearestPlan(usd);
 console.log(`[trajectory] requested $${usd}, using nearest plan: ${plan.name} ($${plan.price}/${plan.gb}GB)`);
 
-const login = await getGoogleSsoCreds();
+const login = await getScopedGoogleLogin('oxylabsDashboard');
 if (!login) { console.log('FAIL: no Google SSO creds'); process.exit(1); }
 
 const s = await WSession.start({ label: 'oxylabs_topup', browser: 'chromium' });

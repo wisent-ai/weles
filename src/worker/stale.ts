@@ -1,3 +1,8 @@
+import os from 'node:os';
+import { cancelAppleAuthAuthorization, getAppleAuthCapabilityEnvelope, markAppleAuthFailedOpenByActionLog } from '../auth/apple-submit-guard.js';
+import { cancelCapability } from '../utils/capability.js';
+import { optionalWelesDatabase } from '../utils/weles-database.js';
+
 // Pre-claim stale-cookie filter. The trajectory marks
 // metadata.cookies_stale_at when checkpoint fires; getSocialAccount honours
 // the same window for fresh picks. Without this gate the queue chokes —
@@ -5,8 +10,8 @@
 // before failing identically. Always allow register/health (no cookies / probe
 // IS the refresh signal).
 
-const SUPABASE_URL = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
-const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
+const DATABASE_URL = optionalWelesDatabase()?.url ?? '';
+const DATABASE_TOKEN = optionalWelesDatabase()?.token ?? '';
 const STALE_HOURS = 24;
 
 interface CandidateRow {
@@ -15,7 +20,7 @@ interface CandidateRow {
 }
 
 function headers(): Record<string, string> {
-  return { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' };
+  return { apikey: DATABASE_TOKEN, Authorization: `Bearer ${DATABASE_TOKEN}`, 'Content-Type': 'application/json' };
 }
 
 export async function staleCookieAccounts(candidates: CandidateRow[]): Promise<Set<string>> {
@@ -33,7 +38,7 @@ export async function staleCookieAccounts(candidates: CandidateRow[]): Promise<S
   )].slice(0, 50);
   if (ids.length === 0) return stale;
   const res = await fetch(
-    `${SUPABASE_URL}/rest/v1/social_accounts?id=in.(${ids.join(',')})&select=id,metadata`,
+    `${DATABASE_URL}/rest/v1/social_accounts?id=in.(${ids.join(',')})&select=id,metadata`,
     { headers: headers() },
   );
   if (!res.ok) return stale;
@@ -58,25 +63,106 @@ export async function staleCookieAccounts(candidates: CandidateRow[]): Promise<S
 // in-flight slot. Throttled to once per 5 min across all workers' polls.
 let _lastSweep = 0;
 export async function sweepZombiesIfDue(): Promise<void> {
+  armWedgeWatchdog();
   if (Date.now() - _lastSweep < 5 * 60_000) return;
   _lastSweep = Date.now();
-  if (!SUPABASE_URL || !SUPABASE_KEY) return;
+  if (!DATABASE_URL || !DATABASE_TOKEN) return;
   try {
     const cutoffMs = Date.now() - 2 * 3600_000;
-    const r = await fetch(`${SUPABASE_URL}/rest/v1/account_action_logs?status=eq.running&select=id,action,claimed_by,claimed_at,started_at&limit=500`, { headers: headers() });
+    const r = await fetch(`${DATABASE_URL}/rest/v1/account_action_logs?status=eq.running&select=id,account_id,action,claimed_by,claimed_at,started_at,params&limit=500`, { headers: headers() });
     if (!r.ok) return;
-    const rows = (await r.json()) as Array<{ id: string; action: string; claimed_by: string | null; claimed_at: string | null; started_at: string | null }>;
+    const rows = (await r.json()) as Array<{ id: string; account_id: string | null; action: string; claimed_by: string | null; claimed_at: string | null; started_at: string | null; params: Record<string, unknown> | null }>;
     const stale = rows.filter((row) => {
       const raw = row.claimed_at ?? row.started_at;
       const t = raw ? Date.parse(raw) : NaN;
       return !Number.isFinite(t) || t < cutoffMs;
     });
     for (const row of stale) {
-      await fetch(`${SUPABASE_URL}/rest/v1/account_action_logs?id=eq.${row.id}&status=eq.running`, {
+      if (row.action === 'apple_login') {
+        let failedOpenPersisted = false;
+        try {
+          const guard = await markAppleAuthFailedOpenByActionLog(
+            row.id,
+            `Zombie Apple login worker stopped responding; cleanup and challenge state are unconfirmed`,
+          );
+          failedOpenPersisted = guard?.state === 'failed_open';
+        } catch (error) {
+          console.error(`[worker] zombie Apple fail-open persistence failed for ${row.id.slice(0, 8)}: ${error instanceof Error ? error.message : String(error)}`);
+        }
+        try {
+          const params = row.params ?? {};
+          const guardId = params.apple_auth_guard_id;
+          if (typeof guardId !== 'string' || !row.account_id) {
+            throw new Error('Apple authorization identity is unavailable');
+          }
+          const envelope = await getAppleAuthCapabilityEnvelope(guardId, row.account_id, row.id);
+          const capabilityIds = [
+            envelope.email.capability_id,
+            envelope.password.capability_id,
+            envelope.two_factor.capability.capability_id,
+          ];
+          const cancellations = await Promise.allSettled(capabilityIds.map((capabilityId) =>
+            cancelCapability(capabilityId, guardId)
+          ));
+          if (cancellations.some((result) => result.status === 'rejected')) {
+            throw new Error('one or more zombie Apple capability cancellations were not acknowledged');
+          }
+          if (!failedOpenPersisted) {
+            await cancelAppleAuthAuthorization(
+              guardId,
+              'Pre-submit zombie worker capabilities cancelled; no password submission was recorded',
+            );
+          }
+        } catch (error) {
+          console.error(`[worker] zombie Apple capability cleanup failed for ${row.id.slice(0, 8)}: ${error instanceof Error ? error.message : String(error)}`);
+        }
+      }
+      await fetch(`${DATABASE_URL}/rest/v1/account_action_logs?id=eq.${row.id}&status=eq.running`, {
         method: 'PATCH', headers: { ...headers(), Prefer: 'return=minimal' },
         body: JSON.stringify({ status: 'failed', error: `orphaned: claimed_by ${row.claimed_by ?? '?'} stopped responding (>2h)`, completed_at: new Date().toISOString() }),
       }).catch(() => {});
       console.log(`[worker] zombie sweep: failed ${row.id.slice(0, 8)} action=${row.action} (claimed_by=${row.claimed_by})`);
     }
   } catch { /* best-effort */ }
+}
+
+// INSTANCE_ID mirrors claim.ts so the wedge-watchdog matches this instance's own
+// claimed_by rows.
+const INSTANCE_ID = process.env.INSTANCE_ID ?? `weles-${os.hostname() || 'unknown'}-${process.pid}`;
+
+// Independent wedge-watchdog. runTrajectory (poll.ts) has no wall-clock kill and
+// account_action_logs has no cancel_requested column, so a hung trajectory
+// subprocess blocks its poll loop with no way out; once every concurrent slot is
+// wedged the worker claims nothing while the deployment-version heartbeat keeps
+// ticking (the day-scale silent-idle bug diagnosed on the mac-mini worker). This
+// runs on its OWN interval, NOT inside the wedged poll loop, and when this
+// instance's own running rows have ALL been stuck past the hard cap (every slot
+// wedged) it SIGKILLs itself so launchd (KeepAlive) restarts the job — which reaps
+// the wedged process group and lets the fresh worker's zombie sweep re-queue the
+// stuck rows. Values are env-tunable; armed once from the first sweep (startup).
+const HARD_CAP_MS = Number(process.env.WELES_TRAJECTORY_HARD_CAP_MS ?? '1800000');
+const WEDGE_CHECK_MS = Number(process.env.WELES_WEDGE_CHECK_MS ?? '120000');
+const SLOT_COUNT = Number(process.env.WORKER_CONCURRENCY ?? '1');
+let _watchdogArmed = false;
+function armWedgeWatchdog(): void {
+  if (_watchdogArmed) return;
+  _watchdogArmed = true;
+  const t = setInterval(() => { void checkWedge(); }, WEDGE_CHECK_MS);
+  t.unref();
+}
+async function checkWedge(): Promise<void> {
+  if (!DATABASE_URL || !DATABASE_TOKEN) return;
+  try {
+    const cutoff = new Date(Date.now() - HARD_CAP_MS).toISOString();
+    const r = await fetch(
+      `${DATABASE_URL}/rest/v1/account_action_logs?status=eq.running&claimed_by=eq.${encodeURIComponent(INSTANCE_ID)}&claimed_at=lt.${cutoff}&select=id&limit=${SLOT_COUNT}`,
+      { headers: headers() },
+    );
+    if (!r.ok) return;
+    const stuck = (await r.json()) as Array<{ id: string }>;
+    if (stuck.length >= SLOT_COUNT) {
+      console.error(`[worker] wedge-watchdog: ${stuck.length} running rows for ${INSTANCE_ID} stuck past the hard cap (every one of the ${SLOT_COUNT} slots wedged on hung trajectories); SIGKILLing self for launchd restart`);
+      process.kill(process.pid, 'SIGKILL');
+    }
+  } catch { /* next tick re-checks */ }
 }

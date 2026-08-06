@@ -1,20 +1,17 @@
-// Create the App Store Connect app record for bundle id ai.wisent.swiatowid so
-// TestFlight uploads stop failing with -19000 "No suitable application records".
-// Builds an ES256 JWT from the App Manager .p8 (passed via env, never committed),
-// finds-or-registers the bundle id, then POSTs /v1/apps. Run:
-//   ASC_KEY_ID=... ASC_ISSUER=... APPLE_TEAM_ID=... ASC_P8="$(cat key.p8)" node asc_register_app.mjs
+// Creates the App Store Connect app record using the exact Weles ASC API item.
 import crypto from 'node:crypto';
+import { readScopedSecret } from '../../../_shared/scoped-secrets.mjs';
 
-const KEY_ID = process.env.ASC_KEY_ID;
-const ISSUER = process.env.ASC_ISSUER;
-const PEM = process.env.ASC_P8;
-const TEAM = process.env.APPLE_TEAM_ID;
+const KEY_ID = readScopedSecret('appleAppStoreConnectApi', 'key_id');
+const ISSUER = readScopedSecret('appleAppStoreConnectApi', 'issuer_id');
+const PEM = readScopedSecret('appleAppStoreConnectApi', 'private_key');
+const TEAM = readScopedSecret('appleAppStoreConnectApi', 'team_id');
 const BUNDLE = process.env.ASC_BUNDLE || 'ai.wisent.swiatowid';
 const NAME = process.env.ASC_APP_NAME || 'Swiatowid';
 const SKU = process.env.ASC_SKU || 'swiatowidios2026';
 if (!KEY_ID || !ISSUER || !PEM || !TEAM) {
-  console.error('Missing one of ASC_KEY_ID / ASC_ISSUER / ASC_P8 / APPLE_TEAM_ID');
-  process.exit(2);
+  console.error('Exact Weles App Store Connect API grant unavailable');
+  process.exit(Number('2'));
 }
 
 const b64url = (b) =>

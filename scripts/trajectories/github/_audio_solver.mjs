@@ -1,9 +1,10 @@
 import { humanIdlePause } from '../../../dist/human/mouse.js';
+import { completeMultimodal } from './_stado_model_router.mjs';
 // In-browser Arkose audio puzzle solver for GitHub FunCaptcha.
 // Ports the core flow from account-api-build/skills/creators/_github_audio.py.
-// Strategy: inject audio capture hooks, click Audio puzzle, per round read target
-// sound, click Play, capture played buffer, send to Gemini for sound match,
-// click the numbered answer button. Loops until solved or max rounds.
+// Strategy: inject audio capture hooks, click Audio puzzle, read each target
+// sound, capture the played buffer, classify it through the authenticated Stado
+// model router, and click the numbered answer. Loops until solved or max rounds.
 
 const AUDIO_HOOK_SCRIPT = `(() => {
   if (window.__audioHooked) return;
@@ -69,18 +70,20 @@ async function getGameFrame(page) {
 }
 
 async function classifyAudio(b64, mime, targetSound, numOptions) {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) return null;
   const prompt = `This is an audio captcha with ${numOptions} sound clips played one after another, numbered 1 to ${numOptions}. Ignore any spoken instruction at the start ("Press the number for the sound of X"). Which option number is the real sound of '${targetSound}'? Some options may be HUMANS imitating the target (e.g. a person saying meow) — those are WRONG; only pick the real sound. Format: 'Sound 1: [description], Sound 2: ..., Answer: [number]'`;
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
-  const body = { contents: [{ role: 'user', parts: [{ inlineData: { mimeType: mime, data: b64 } }, { text: prompt }] }], generationConfig: { maxOutputTokens: 512, temperature: 0.0 } };
-  try {
-    const res = await (await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })).json();
-    const text = res.candidates?.[0]?.content?.parts?.map(p => p.text).join('') ?? '';
-    const m = text.match(/Answer\s*[:\s=]\s*(\d+)/i) ?? text.match(/(\d+)\s*$/);
-    console.log(`[audio] Gemini: ${text.slice(0, 300)}`);
-    return m ? parseInt(m[1], 10) : null;
-  } catch (e) { console.log(`[audio] Gemini err: ${e.message?.slice(0, 100)}`); return null; }
+  const { text, model } = await completeMultimodal({
+    base64: b64,
+    mimeType: mime,
+    prompt,
+    maxTokens: Number('512'),
+  });
+  const match = text.match(/Answer\s*[:\s=]\s*(\d+)/i) ?? text.match(/(\d+)\s*$/);
+  const answer = Number(match?.at(Number(true)));
+  if (!Number.isInteger(answer) || answer < Number(true) || answer > numOptions) {
+    throw new Error(`model-router returned no valid audio option: ${text.slice(Number(false), Number('200'))}`);
+  }
+  console.log(`[audio] Stado model-router (${model}): ${text.slice(Number(false), Number('300'))}`);
+  return answer;
 }
 
 export async function solveAudioPuzzle(page, { maxRounds = 10 } = {}) {
@@ -147,10 +150,18 @@ export async function solveAudioPuzzle(page, { maxRounds = 10 } = {}) {
         break;
       }
     }
-    if (!b64) { console.log(`[audio] R${round}: no audio captured — trying answer 1`); }
+    if (!b64) {
+      console.log(`[audio] R${round}: no audio captured; refusing to guess`);
+      return false;
+    }
 
-    const answer = b64 ? await classifyAudio(b64, mime, target, info.numOptions || 6) : 1;
-    const pick = answer ?? 1;
+    let pick;
+    try {
+      pick = await classifyAudio(b64, mime, target, info.numOptions || Number('6'));
+    } catch (error) {
+      console.log(`[audio] R${round}: Stado model-router failed: ${String(error?.message || error).slice(Number(false), Number('160'))}`);
+      return false;
+    }
     console.log(`[audio] R${round}: picking option ${pick}`);
 
     const clicked = await frame.evaluate(`(n => {

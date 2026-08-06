@@ -1,4 +1,5 @@
 import { getSocialAccount } from '../../dist/utils/credentials.js';
+import { resolveAccountSession } from '../../dist/account/session.js';
 import { WSession } from '../../dist/session/wsession.js';
 import { persistFreshCookieJar } from './_shared/cookie-freshness.mjs';
 import { runRecordingsDir } from '../../dist/session/run-recordings.js';
@@ -10,25 +11,12 @@ if (!acct) { console.log('FAIL: no active discord account in DB'); process.exitC
 if (!acct.metadata.password) { console.log(`FAIL: account ${acct.username} has no password`); process.exitCode = 1; }
 process.env.SVC_EMAIL = acct.metadata.email ?? acct.username;
 process.env.SVC_PASSWORD = acct.metadata.password;
-// Use the same proxy provider but with a fresh sticky session (old sessid expired)
-const savedProxy = acct.metadata.proxy;
-let proxyUrl = process.env.PROXY_URL || 'residential';
-// An explicit PROXY_URL filter (e.g. 'residential oxylabs us') wins over the
-// account's savedProxy. The savedProxy rebuild silently overrode PROXY_URL,
-// so an expired/burned saved provider could never be rotated away from —
-// the login then failed before the browser even mounted. When PROXY_URL is
-// set, hand the filter string straight to WSession's resolver (reroll path,
-// same as linkedin_register); only rebuild from savedProxy otherwise.
+const accountSession = await resolveAccountSession(acct);
+const proxyUrl = process.env.PROXY_URL || accountSession.proxyUrl || 'residential';
 if (process.env.PROXY_URL) {
-  console.log(`[trajectory] PROXY_URL override: "${proxyUrl}" (savedProxy bypassed for reroll)`);
-} else if (savedProxy?.server && savedProxy?.username) {
-  const u = new globalThis.URL(savedProxy.server);
-  // Generate new sticky session ID for the same provider
-  const newSessId = Math.floor(Math.random() * 9000000 + 1000000);
-  // Always use cc-us for login (Brazilian IPs get Cloudflare JS challenge on login page)
-  const newUsername = savedProxy.username.replace(/sessid-\d+/, `sessid-${newSessId}`).replace(/cc-[a-z]{2}/, 'cc-us');
-  proxyUrl = `${u.protocol}//${newUsername}:${savedProxy.password}@${u.hostname}:${u.port}`;
-  console.log(`[trajectory] Using saved proxy provider: ${u.hostname}:${u.port} new sessid=${newSessId}`);
+  console.log(`[trajectory] PROXY_URL override: "${proxyUrl}"`);
+} else {
+  console.log(`[trajectory] Using persisted account proxy pin`);
 }
 console.log(`[trajectory] Using account: ${acct.username} (${process.env.SVC_EMAIL})`);
 
@@ -38,7 +26,7 @@ for (let retry = 0; retry < 3; retry++) {
     // targetHost lets resolveProxy map a filter string ("residential
     // oxylabs us") to the right provider row + Discord country policy.
     // Without it, filter-form PROXY_URL throws proxy_unavailable.
-    s = await WSession.start({ label: 'discord_login', proxy: proxyUrl, targetHost: 'discord.com' });
+    s = await WSession.start({ label: 'discord_login', proxy: proxyUrl, persona: accountSession.persona, targetHost: 'discord.com' });
     // Visit register page first to pass Cloudflare challenge and set cf_clearance cookie
     await s.goto('https://discord.com/register');
     await s.wait(3);
@@ -51,7 +39,7 @@ for (let retry = 0; retry < 3; retry++) {
   await s?.close().catch(() => {});
   s = null;
 }
-if (!s) { console.log('FAIL: SPA never mounted after 3 attempts'); process.exitCode = 1; }
+if (!s) console.log('FAIL: SPA never mounted after 3 attempts');
 
 async function captureCookies() {
   if (!acct.id) return;
@@ -62,6 +50,7 @@ async function captureCookies() {
 }
 
 try {
+  if (!s) throw new Error('SPA never mounted after 3 attempts');
   // Wait for login form to render (SPA mount != form ready)
   for (let i = 0; i < 30; i++) {
     const hasInputs = await s.page.evaluate('document.querySelectorAll("input").length > 0').catch(() => false);
@@ -147,9 +136,9 @@ try {
           // the health probe (and future action trajectories) can re-inject it.
           // Cookies alone don't auth Discord — the token lives in localStorage,
           // and without it every /channels/@me nav bounces to /login.
-          if (acct.id && process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
-            const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-            const url = process.env.SUPABASE_URL;
+          if (acct.id && process.env.WELES_DATABASE_URL && process.env.WELES_DATABASE_TOKEN) {
+            const key = process.env.WELES_DATABASE_TOKEN;
+            const url = process.env.WELES_DATABASE_URL;
             fetch(`${url}/rest/v1/social_accounts?id=eq.${acct.id}&select=metadata`, { headers: { apikey: key, Authorization: `Bearer ${key}` } })
               .then(r => r.json())
               .then(rows => fetch(`${url}/rest/v1/social_accounts?id=eq.${acct.id}`, {
@@ -223,9 +212,9 @@ try {
           if (retryResult?.status === 200 && retryResult?.data?.token) {
             console.log(`[login] SUCCESS — token received after IP authorize`);
             await s.page.evaluate(`localStorage.setItem("token", JSON.stringify(${JSON.stringify(retryResult.data.token)}))`).catch(() => {});
-            if (acct.id && process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
-              const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-              const supaUrl = process.env.SUPABASE_URL;
+            if (acct.id && process.env.WELES_DATABASE_URL && process.env.WELES_DATABASE_TOKEN) {
+              const key = process.env.WELES_DATABASE_TOKEN;
+              const supaUrl = process.env.WELES_DATABASE_URL;
               const md = await (await fetch(`${supaUrl}/rest/v1/social_accounts?id=eq.${acct.id}&select=metadata`, { headers: { apikey: key, Authorization: `Bearer ${key}` } })).json();
               await fetch(`${supaUrl}/rest/v1/social_accounts?id=eq.${acct.id}`, {
                 method: 'PATCH',
@@ -290,5 +279,5 @@ try {
   console.log('FAIL:', e.message?.slice(0, 200));
   process.exitCode = 1;
 } finally {
-  await s.close();
+  if (s) await s.close();
 }

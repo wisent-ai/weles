@@ -1,13 +1,13 @@
 // Bright Data topup via Google SSO.
 // Charges against the saved Mastercard *1400 when TOPUP_CONFIRM=1.
-import { getServiceLogin } from '../../../dist/utils/credentials.js';
+import { getScopedGoogleLogin } from '../_shared/services/google_sso.mjs'
 import { WSession } from '../../../dist/session/wsession.js';
 import { googleSso } from '../_shared/services/google_sso.mjs';
 import { topupOpts } from '../_shared/services/topup_common.mjs';
 import { humanIdlePause } from '../../../dist/human/mouse.js';
 
 const { usd } = topupOpts();
-const login = await getServiceLogin('Bright Data');
+const login = await getScopedGoogleLogin('brightdataDashboard');
 if (!login) { console.log('FAIL: no Bright Data creds'); process.exit(1); }
 
 const s = await WSession.start({ label: 'brightdata_topup', browser: 'chromium' });

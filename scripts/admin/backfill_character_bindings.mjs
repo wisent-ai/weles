@@ -8,9 +8,9 @@
 
 import { autoBindCharacter } from '../trajectories/lib/character-bind.mjs';
 
-const URL = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
-const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
-if (!URL || !KEY) { console.log('FAIL: SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY required'); process.exit(1); }
+const URL = process.env.WELES_DATABASE_URL ?? '';
+const KEY = process.env.WELES_DATABASE_TOKEN ?? '';
+if (!URL || !KEY) { console.log('FAIL: WELES_DATABASE_URL + WELES_DATABASE_TOKEN required'); process.exit(Number('1')); }
 const H = { apikey: KEY, Authorization: `Bearer ${KEY}` };
 
 async function unlinkedAccounts() {

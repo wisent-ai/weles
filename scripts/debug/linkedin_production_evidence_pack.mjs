@@ -189,7 +189,7 @@ if ((RUN_LINKEDIN && !linkedinAttemptBlockedByPreflight) || FORCE_VALIDATE_LOCAL
   });
 }
 
-if (!SKIP_RECENT && (process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL) && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+if (!SKIP_RECENT && (process.env.WELES_SUPABASE_URL) && process.env.WELES_SUPABASE_SERVICE_ROLE_KEY) {
   commands.push({
     name: 'recent_runs',
     script: 'scripts/debug/linkedin_recent_runs_audit.mjs',
@@ -239,7 +239,7 @@ const report = {
   skipped: {
     browser_checks: SKIP_BROWSER,
     github_checks: SKIP_GITHUB,
-    recent_runs: SKIP_RECENT || !(process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL) || !process.env.SUPABASE_SERVICE_ROLE_KEY,
+    recent_runs: SKIP_RECENT || !(process.env.WELES_SUPABASE_URL) || !process.env.WELES_SUPABASE_SERVICE_ROLE_KEY,
     linkedin_attempt: linkedinAttemptBlockedByPreflight ? 'preflight_not_operationally_ready' : null,
   },
   redaction: {

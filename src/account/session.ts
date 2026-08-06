@@ -10,12 +10,27 @@
 
 import type { Persona } from '../browser/persona.js';
 import { generatePersona } from '../browser/persona.js';
-import { proxyUrl as buildProxyUrl, type ProxyConfig } from '../proxy/config.js';
+import { hydratePinnedProxy, proxyUrl as buildProxyUrl, resolveProxy } from '../proxy/config.js';
+import type { ProxyConfig, ResolvedProxy } from '../proxy/config.js';
 import { isBurned } from '../proxy/burned.js';
+import { selectByCapability, taskNetworkRequirements } from '../proxy/capability.js';
 import { refreshStickyIfDead } from '../proxy/sticky.js';
 import type { SocialAccount } from '../utils/credentials.js';
+import { optionalWelesDatabase } from '../utils/weles-database.js';
 
 export interface AccountSession { proxyUrl?: string; persona?: Persona; }
+
+const PLATFORM_HOSTS: Record<string, string> = {
+  twitter: 'x.com',
+  linkedin: 'www.linkedin.com',
+  instagram: 'www.instagram.com',
+  reddit: 'www.reddit.com',
+  tiktok: 'www.tiktok.com',
+  discord: 'discord.com',
+  github: 'github.com',
+  producthunt: 'www.producthunt.com',
+  pangram: 'www.pangram.com',
+};
 
 function inferTrajectoryAction(platform: string): string {
   const explicit = process.env.ACTION?.trim();
@@ -39,114 +54,144 @@ export async function resolveAccountSession(acct: SocialAccount): Promise<Accoun
   const out: AccountSession = {};
   let cfg: ProxyConfig | null = null;
   const action = inferTrajectoryAction(acct.platform);
+  const targetHost = PLATFORM_HOSTS[acct.platform];
 
-  // Direct egress for platforms with NO datacenter blacklist. GitHub and
-  // Producthunt accept VM IP. Pangram also works fine from direct egress in
-  // testing (no blocks / no CAPTCHA), and all ISP providers are currently
-  // retired/offline, so forcing proxy here just breaks the trajectory.
-  // Reddit/Twitter/Instagram/Discord/TikTok/LinkedIn all need proxy.
-  const DIRECT_EGRESS_OK = new Set(['github', 'producthunt', 'pangram']);
-  if (DIRECT_EGRESS_OK.has(acct.platform) && process.env.WELES_FORCE_PROXY !== '1') {
-    if (meta?.persona) out.persona = meta.persona as Persona;
-    return out;
-  }
+  const network = taskNetworkRequirements(action, acct.platform);
+  const savedProxy = meta?.proxy as (Partial<ProxyConfig> & { server?: string; exit_ip_url?: string }) | undefined;
+  const hasSavedProxy = Boolean(savedProxy?.exit_ip_url
+    || (savedProxy?.host && savedProxy?.port)
+    || savedProxy?.server);
 
-  // Capability-bootstrap force-override: test a specific provider regardless
-  // of stored proxy. Set by worker/poll when params.proxy_url_override is
-  // present. Highest priority so we get deterministic provider control.
+  // Capability-bootstrap force-override: exercise one explicit provider without
+  // mutating the account's permanent pin.
   if (process.env.PROXY_URL && process.env.PROXY_URL_FORCE === '1') {
     out.proxyUrl = process.env.PROXY_URL;
     out.persona = (meta?.persona as Persona | undefined) ?? generatePersona({});
     return out;
   }
 
-  // Static-IP pin per account. When metadata.proxy.exit_ip_url is set, the
-  // account has a dedicated /32 (ISP/static-residential product) reserved.
-  // Bypass all rotation logic and use that exact URL. If the row also has
-  // a persisted persona, return both immediately. If the static URL is set
-  // but unreachable, refuse rather than silently fall back to a rotating
-  // sticky — drift is exactly what static IPs exist to prevent.
-  if (typeof meta?.proxy?.exit_ip_url === 'string' && meta.proxy.exit_ip_url) {
-    out.proxyUrl = meta.proxy.exit_ip_url as string;
-    out.persona = (meta?.persona as Persona | undefined) ?? generatePersona({ country: meta?.proxy?.country });
+  if (network.route === 'direct' && !hasSavedProxy && process.env.WELES_FORCE_PROXY !== '1') {
+    if (meta?.persona) out.persona = meta.persona as Persona;
     return out;
   }
 
-  if (meta?.proxy?.host && meta?.proxy?.port && !(await isBurned(meta.proxy.host))) {
-    // Retired-provider gate. Each account is pinned to one dedicated ISP IP
-    // at registration; when the pinned pool retires (Oxylabs Residential
-    // rotating port 7777, legacy lbartoszcze 209.38.* relay), the account
-    // retires with it. Mark is_active=false and refuse the run rather than
-    // rerouting through any other provider — the principle is "one dedicated
-    // ISP per account, no shuffle" pinned 2026-05-21 by user mandate.
-    const policy = await import('../proxy/policy.js');
-    // Defensive: if dist/ is stale and the new export isn't there, skip the
-    // retired gate rather than crash the trajectory with "is not a function".
-    const retiredReason = typeof policy.retiredProviderReason === 'function'
-      ? policy.retiredProviderReason(meta.proxy.host as string, meta.proxy.port as number)
-      : undefined;
-    if (retiredReason) {
-      console.log(`[identity] retiring account ${acct.username}: stored proxy ${meta.proxy.host}:${meta.proxy.port} is from a retired pool (${retiredReason})`);
-      await burnAccount(acct, `retired_proxy:${retiredReason}`);
-      throw new Error(`retired_proxy:${retiredReason}:${meta.proxy.host}:${meta.proxy.port}`);
-    }
-    const storedProvider = policy.providerFromHost(meta.proxy.host as string, meta.proxy.username as string);
-    const isLegacyRelay = !storedProvider && (meta.proxy.username === 'lbartoszcze' || /^209\.38\./.test(meta.proxy.host as string));
-    let storedFailing = false;
-    if (storedProvider) {
-      try {
-        const { isCellFail } = await import('../proxy/capability.js');
-        storedFailing = await isCellFail(storedProvider, action);
-      } catch { /* capability lookup best-effort */ }
-    }
-    if (isLegacyRelay) {
-      console.log(`[identity] dropping stored legacy/datacenter proxy ${meta.proxy.host}:${meta.proxy.port} — falling through to provider selection`);
-    } else if (storedFailing) {
-      console.log(`[identity] capability matrix marks ${storedProvider}/${action} as fail — dropping stored proxy`);
-    } else {
-      const refreshed = await refreshStickyIfDead(meta.proxy as ProxyConfig);
-      if (refreshed) { cfg = refreshed; if (refreshed !== meta.proxy) await backfillProxy(acct, refreshed); }
-    }
-  } else if (meta?.proxy?.server) {
+  const policy = await import('../proxy/policy.js');
+  if (savedProxy?.exit_ip_url) {
     try {
-      const u = new URL(meta.proxy.server as string);
-      cfg = {
-        host: u.hostname,
-        port: Number(u.port),
-        protocol: u.protocol.replace(/:$/, ''),
-        username: meta.proxy.username,
-        password: meta.proxy.password,
-      };
+      const parsed = new URL(savedProxy.exit_ip_url);
+      const provider = savedProxy.provider ?? policy.providerFromHost(parsed.hostname, parsed.username);
+      if (!provider) throw new Error('unknown_provider');
+      cfg = hydratePinnedProxy({
+        host: parsed.hostname,
+        port: Number(parsed.port),
+        protocol: parsed.protocol.replace(/:$/, ''),
+        username: parsed.username ? decodeURIComponent(parsed.username) : undefined,
+        password: parsed.password ? decodeURIComponent(parsed.password) : undefined,
+        country: savedProxy.country,
+        provider,
+        proxy_type: savedProxy.proxy_type ?? 'isp',
+        sticky_session_id: savedProxy.sticky_session_id,
+        sticky_hash: savedProxy.sticky_hash,
+        city: savedProxy.city,
+      }) ?? null;
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      throw new Error(`pinned_proxy_invalid:${action}:${reason}`);
+    }
+  } else if (savedProxy?.host && savedProxy?.port) {
+    const host = savedProxy.host;
+    if (await isBurned(host, acct.platform)) throw new Error(`pinned_proxy_burned:${action}:${host}:${savedProxy.port}`);
+    const retiredReason = policy.retiredProviderReason(host, savedProxy.port);
+    if (retiredReason) {
+      console.log(`[identity] retiring account ${acct.username}: stored proxy ${host}:${savedProxy.port} is from a retired pool (${retiredReason})`);
+      await burnAccount(acct, `retired_proxy:${retiredReason}`);
+      throw new Error(`retired_proxy:${retiredReason}:${host}:${savedProxy.port}`);
+    }
+    const provider = savedProxy.provider ?? policy.providerFromHost(host, savedProxy.username);
+    const isLegacyRelay = !provider && (savedProxy.username === 'lbartoszcze' || host.startsWith('209.38.'));
+    if (isLegacyRelay || !provider) {
+      await burnAccount(acct, isLegacyRelay ? 'retired_proxy:legacy_relay' : 'retired_proxy:unknown_provider');
+      throw new Error(`pinned_proxy_unavailable:${action}:${host}:${savedProxy.port}`);
+    }
+    try {
+      const { isCellFail } = await import('../proxy/capability.js');
+      if (await isCellFail(provider, action)) {
+        throw new Error(`capability_failed:${provider}:${action}`);
+      }
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      if (reason.startsWith('capability_failed:')) throw error;
+    }
+    const proxyType = savedProxy.proxy_type
+      ?? (provider === 'decodo' || host.toLowerCase().includes('isp') ? 'isp' : 'residential');
+    cfg = hydratePinnedProxy({
+      ...savedProxy,
+      host,
+      port: savedProxy.port,
+      protocol: savedProxy.protocol ?? 'http',
+      provider,
+      proxy_type: proxyType,
+    }) ?? null;
+  } else if (savedProxy?.server) {
+    try {
+      const parsed = new URL(savedProxy.server);
+      const provider = savedProxy.provider ?? policy.providerFromHost(parsed.hostname, savedProxy.username);
+      if (!provider) throw new Error('unknown_provider');
+      cfg = hydratePinnedProxy({
+        host: parsed.hostname,
+        port: Number(parsed.port),
+        protocol: parsed.protocol.replace(/:$/, ''),
+        username: savedProxy.username,
+        password: savedProxy.password,
+        country: savedProxy.country,
+        provider,
+        proxy_type: savedProxy.proxy_type,
+        sticky_session_id: savedProxy.sticky_session_id,
+        sticky_hash: savedProxy.sticky_hash,
+        city: savedProxy.city,
+      }) ?? null;
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      throw new Error(`pinned_proxy_invalid:${action}:${reason}`);
+    }
+  }
+  if (hasSavedProxy && cfg) {
+    const refreshed = await refreshStickyIfDead(cfg, targetHost);
+    if (refreshed) {
+      cfg = refreshed;
       await backfillProxy(acct, cfg);
-    } catch { /* bad server url, fall through */ }
+    } else {
+      const reason = `dead_pinned_proxy:${action}:${cfg.provider ?? 'unknown'}`;
+      console.log(`[identity] failing over account ${acct.username}: ${reason}`);
+      await clearDeadProxy(acct, reason);
+      cfg = null;
+    }
   }
 
   if (!cfg && process.env.PROXY_URL) {
     out.proxyUrl = process.env.PROXY_URL;
+  } else if (!cfg && process.env.WELES_ALLOW_DIRECT_ACCOUNT_SESSION === '1') {
+    console.log(`[identity] explicit direct account session action=${action} platform=${acct.platform}`);
   } else if (!cfg) {
-    const country = acct.platform === 'discord' ? '' : 'us';
-    const PHOST: Record<string, string> = { twitter: 'x.com', linkedin: 'www.linkedin.com', instagram: 'www.instagram.com', reddit: 'www.reddit.com', tiktok: 'www.tiktok.com', discord: 'discord.com', github: 'github.com', producthunt: 'www.producthunt.com', pangram: 'www.pangram.com' };
-    const targetHost = PHOST[acct.platform];
+    const country = network.country ?? '';
     try {
-      const { selectByCapability } = await import('../proxy/capability.js');
-      const mod = await import('../proxy/config.js');
       const tried: string[] = [];
-      let pw: Awaited<ReturnType<typeof mod.resolveProxy>> | undefined;
+      let pw: ResolvedProxy | undefined;
       for (let i = 0; i < 5; i++) {
         const winner = await selectByCapability(action, tried);
         if (!winner) {
           console.log(`[identity] no provider passes capability for action=${action} platform=${acct.platform}`);
           break;
         }
-        const filter = `isp ${winner.provider} ${country}`.trim();
-        pw = await mod.resolveProxy(filter, targetHost);
+        const filter = `${network.proxyType ?? 'isp'} ${winner.provider} ${country}`.trim();
+        pw = await resolveProxy(filter, targetHost);
         if (pw) {
-          console.log(`[identity] capability pick ${winner.provider} ($${winner.cost_per_gb}/GB) for action=${action}`);
+          console.log(`[identity] capability pick ${winner.provider} ($${winner.cost_per_gb}/GB) route=${network.proxyType ?? 'isp'} action=${action}`);
           break;
         }
         tried.push(winner.provider);
       }
-      if (!pw) { console.error(`[identity] no isp proxy resolved for action=${action} platform=${acct.platform} country=${country}; user rule: ISP for everything`); throw new Error('no_isp_proxy'); }
+      if (!pw) throw new Error(`proxy_unavailable:${network.proxyType ?? 'isp'}:${action}:${acct.platform}:${country}`);
       if (pw?.server) {
         const u = new URL(pw.server);
         cfg = {
@@ -156,11 +201,18 @@ export async function resolveAccountSession(acct: SocialAccount): Promise<Accoun
           username: pw.username,
           password: pw.password,
           country: pw.country,
+          provider: pw.provider,
+          proxy_type: pw.proxy_type,
+          sticky_session_id: pw.sticky_session_id,
+          sticky_hash: pw.sticky_hash,
+          city: pw.city,
         };
         await backfillProxy(acct, cfg);
       }
     } catch (e) {
-      console.error('[identity] dynamic proxy assignment failed:', (e as Error).message);
+      const reason = e instanceof Error ? e.message : String(e);
+      console.error('[identity] dynamic proxy assignment failed:', reason);
+      throw new Error(`proxy_resolution_failed:${action}:${reason}`);
     }
   }
 
@@ -174,28 +226,55 @@ export async function resolveAccountSession(acct: SocialAccount): Promise<Accoun
   return out;
 }
 
+async function clearDeadProxy(acct: SocialAccount, reason: string): Promise<void> {
+  const metadata = { ...((acct.metadata ?? {}) as Record<string, any>) };
+  const previous = metadata.proxy as Partial<ProxyConfig> | undefined;
+  delete metadata.proxy;
+  metadata.proxy_failover = {
+    at: new Date().toISOString(),
+    reason,
+    previous: previous ? {
+      host: previous.host,
+      port: previous.port,
+      provider: previous.provider,
+      proxy_type: previous.proxy_type,
+    } : null,
+  };
+  (acct as any).metadata = metadata;
+
+  if (!acct.id) return;
+  const url = optionalWelesDatabase()?.url ?? '';
+  const key = optionalWelesDatabase()?.token ?? '';
+  if (!url || !key) return;
+  try {
+    const response = await fetch(`${url}/rest/v1/social_accounts?id=eq.${acct.id}`, {
+      method: 'PATCH',
+      headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+      body: JSON.stringify({ metadata }),
+    });
+    if (!response.ok) console.error(`[identity] clearDeadProxy failed: HTTP ${response.status}`);
+  } catch (e) {
+    console.error('[identity] clearDeadProxy failed:', (e as Error).message);
+  }
+}
+
 async function backfillProxy(acct: SocialAccount, cfg: ProxyConfig): Promise<void> {
   if (!acct.id) return;
-  const url = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
+  const url = optionalWelesDatabase()?.url ?? '';
+  const key = optionalWelesDatabase()?.token ?? '';
   if (!url || !key) return;
-  // True backfill: never overwrite a registration-time proxy with a different
-  // host. Only update when the existing row is absent OR the host matches
-  // (sticky-session-id refresh on the same provider host). This preserves the
-  // IP binding established at saveAccount/registration time across rotations
-  // through dynamic selectByCapability fallthroughs and legacy-filter drops.
-  // Without this guard, every login attempt that fell through clobbered the
-  // registration value, destroying the cookies<->exit-IP binding that
-  // LinkedIn (and every PerimeterX-protected platform) reads on session
-  // resume — see metadata.proxy on sagekoepp7919 going from PacketStream
-  // 209.38.175.14 → Oxylabs 195.86.126.156 within one session.
+  // Registration-time endpoints stay pinned until an authenticated CONNECT
+  // preflight proves the route is dead and clearDeadProxy records the failover.
   const existingHost = (acct.metadata as any)?.proxy?.host;
   const existingPort = (acct.metadata as any)?.proxy?.port;
   if (existingHost && (existingHost !== cfg.host || existingPort !== cfg.port)) {
     console.log(`[identity] backfillProxy: preserving registration-time proxy ${existingHost}:${existingPort} (refusing overwrite to ${cfg.host}:${cfg.port})`);
     return;
   }
-  const merged = { ...((acct.metadata ?? {}) as any), proxy: cfg };
+  const pin = { ...cfg };
+  delete pin.username;
+  delete pin.password;
+  const merged = { ...(acct.metadata ?? {}), proxy: pin };
   try {
     await fetch(`${url}/rest/v1/social_accounts?id=eq.${acct.id}`, {
       method: 'PATCH',
@@ -212,8 +291,8 @@ async function backfillProxy(acct: SocialAccount, cfg: ProxyConfig): Promise<voi
 // dashboards surface the retired_reason for reassignment.
 async function burnAccount(acct: SocialAccount, reason: string): Promise<void> {
   if (!acct.id) return;
-  const url = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
+  const url = optionalWelesDatabase()?.url ?? '';
+  const key = optionalWelesDatabase()?.token ?? '';
   if (!url || !key) return;
   const meta = (acct.metadata ?? {}) as Record<string, unknown>;
   const merged = {
@@ -234,8 +313,8 @@ async function burnAccount(acct: SocialAccount, reason: string): Promise<void> {
 
 async function backfillPersona(acct: SocialAccount, persona: Persona): Promise<void> {
   if (!acct.id) return;
-  const url = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
+  const url = optionalWelesDatabase()?.url ?? '';
+  const key = optionalWelesDatabase()?.token ?? '';
   if (!url || !key) return;
   const merged = { ...((acct.metadata ?? {}) as any), persona };
   try {

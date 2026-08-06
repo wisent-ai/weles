@@ -61,7 +61,7 @@ async function request(page, method, url) {
 
 const s = await WSession.start({
   label: LABEL,
-  cdpEndpoint: process.env.NCBR_CDP_ENDPOINT || 'http://127.0.0.1:9223',
+  operatorCdp: true,
   record: false,
 });
 

@@ -3,45 +3,53 @@
 
 import net from 'node:net';
 import { spawn } from 'node:child_process';
-import { existsSync, mkdirSync, openSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, openSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
-import { generateTotp, getGoogleSsoCreds } from '../../_shared/services/google_sso.mjs';
+import { generateTotp } from '../../_shared/services/google_sso.mjs';
+import { assertScopedSecretWriter, readScopedLogin, writeScopedLogin } from '../../../_shared/scoped-secrets.mjs';
 
+const GOOGLE_ADS_LOGIN = readScopedLogin('googleAds');
 const REPO = process.env.WELES_REPO || resolve(process.cwd(), '..', 'weles');
 const SESSION = process.env.SESSION || process.env.GOOGLE_ADS_KEEPER_SESSION || 'google_ads';
-const EMAIL = process.env.GOOGLE_ADS_EMAIL || process.env.SSO_EMAIL || 'lukasz.bartoszcze@wisent.ai';
+const EMAIL = GOOGLE_ADS_LOGIN.email;
 const USER_DATA_DIR = process.env.WELES_USER_DATA_DIR || process.env.ADS_PROFILE_DIR || join(homedir(), '.weles', 'browser_profiles', 'google_ads');
 const KEEPER = join(REPO, 'scripts', '_shared', 'keeper', 'keeper.mjs');
 const SOCK = join(homedir(), '.weles', 'keeper', SESSION, 'socket');
 const DIAG_DIR = process.env.GOOGLE_TOTP_KEEPER_DIAG_DIR || '.work/google-totp-keeper';
 const RESULT_FILE = process.env.GOOGLE_TOTP_KEEPER_RESULT_FILE || join(DIAG_DIR, 'result.json');
-const CODE_FILE = process.env.GOOGLE_SSO_MANUAL_TOTP_FILE || join(DIAG_DIR, 'manual-code.txt');
-const READY_FILE = process.env.GOOGLE_SSO_MANUAL_TOTP_READY_FILE || `${CODE_FILE}.ready`;
 const AUTHENTICATOR_URL = 'https://myaccount.google.com/u/1/two-step-verification/authenticator';
 const SECURITY_URL = 'https://myaccount.google.com/u/1/security';
 
 mkdirSync(DIAG_DIR, { recursive: true });
-mkdirSync(dirname(CODE_FILE), { recursive: true });
 
-function loadEnvFile(path) {
-  if (!existsSync(path)) return {};
-  const env = {};
-  for (const rawLine of readFileSync(path, 'utf8').split(/\r?\n/)) {
-    const line = rawLine.trim();
-    if (!line || line.startsWith('#')) continue;
-    const equals = line.indexOf('=');
-    if (equals < 0) continue;
-    const key = line.slice(0, equals).trim();
-    let value = line.slice(equals + 1).trim();
-    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) value = value.slice(1, -1);
-    env[key] = value;
+function scopedChildEnvironment(overrides) {
+  const env = { ...process.env, ...overrides };
+  const exactAmbientKeys = [
+    'GOOGLE_ADS_EMAIL',
+    'GOOGLE_PASSWORD',
+    'GOOGLE_TOTP_SECRET',
+    'GOOGLE_AUTHENTICATOR_SECRET',
+    'GOOGLE_SSO_MANUAL_TOTP_CODE',
+    'GOOGLE_SSO_MANUAL_TOTP',
+    'GOOGLE_SSO_MANUAL_TOTP_FILE',
+    'GOOGLE_SSO_MANUAL_TOTP_READY_FILE',
+    'GOOGLE_TOTP_CODE',
+    'SSO_EMAIL',
+    'SSO_PASS',
+    'SSO_PASSWORD',
+    'SSO_TOTP_SECRET',
+    'GM_EMAIL',
+    'GM_PASSWORD',
+    'GM_TOTP_SECRET',
+    'BRIGHTDATA_ZONE',
+    'BRIGHTDATA_BROWSER_WS',
+  ];
+  for (const key of exactAmbientKeys) delete env[key];
+  for (const key of Object.keys(env)) {
+    if (/^(?:OXYLABS|BRIGHTDATA)_(?:.*(?:USERNAME|PASSWORD|USER|PASS))$/.test(key)) delete env[key];
   }
   return env;
-}
-
-function applyEnvDefaults(env) {
-  for (const [key, value] of Object.entries(env)) if (!process.env[key]) process.env[key] = value;
 }
 
 function redact(text, secret = '') {
@@ -50,7 +58,6 @@ function redact(text, secret = '') {
   if (escaped) out = out.replace(new RegExp(escaped, 'gi'), '<redacted-totp-secret>');
   return out
     .replace(/[A-Z2-7](?:\s?[A-Z2-7]){15,}/g, '<redacted-base32-secret>')
-    .replace(/Warszawa\d*!?/g, '<redacted-password>')
     .replace(/"login_password"\s*:\s*"[^"]+"/g, '"login_password":"<redacted>"')
     .replace(/"google_totp_secret"\s*:\s*"[^"]+"/g, '"google_totp_secret":"<redacted>"');
 }
@@ -124,8 +131,7 @@ function startKeeperIfNeeded() {
     cwd: REPO,
     detached: true,
     stdio: ['ignore', fd, fd],
-    env: {
-      ...process.env,
+    env: scopedChildEnvironment({
       SESSION,
       KEEPER_FLOW_ACTION: 'google_ads_totp_keeper',
       KEEPER_USER_DATA_DIR: USER_DATA_DIR,
@@ -136,7 +142,7 @@ function startKeeperIfNeeded() {
       WELES_NO_INSTRUMENT: process.env.WELES_NO_INSTRUMENT || '1',
       GOOGLE_SSO_NO_SCREENSHOTS: '1',
       URL: AUTHENTICATOR_URL,
-    },
+    }),
   });
   child.unref();
   return true;
@@ -258,41 +264,6 @@ async function navigateStoredTotpChallenge(currentUrl) {
 }
 
 
-function manualCodeFromFile() {
-  const envCode = process.env.GOOGLE_SSO_MANUAL_TOTP_CODE || process.env.GOOGLE_TOTP_CODE || '';
-  if (/^\d{6}$/.test(envCode)) return envCode;
-  if (!existsSync(CODE_FILE)) return '';
-  const match = readFileSync(CODE_FILE, 'utf8').match(/\b(\d{6})\b/);
-  return match ? match[1] : '';
-}
-
-function clearManualCode() {
-  rmSync(CODE_FILE, { force: true });
-  rmSync(READY_FILE, { force: true });
-}
-
-async function waitManualCode(reason) {
-  writeFileSync(READY_FILE, `${new Date().toISOString()} ${reason}\n`);
-  console.log(`[google-ads-totp-keeper] PODAJ KOD reason=${reason} file=${CODE_FILE}`);
-  const deadline = Date.now() + Number(process.env.GOOGLE_SSO_MANUAL_TOTP_WAIT_MS || 10 * 60_000);
-  while (Date.now() < deadline) {
-    const code = manualCodeFromFile();
-    if (code) {
-      clearManualCode();
-      return code;
-    }
-    await sleep(750);
-  }
-  return '';
-}
-
-async function submitManualGoogleCode(reason) {
-  const code = await waitManualCode(reason);
-  if (!code) return false;
-  await fill('input[type="tel"], input[type="text"], input[inputmode="numeric"], input[name="totpPin"], input[name="Pin"]', code);
-  await clickText(['Next', 'Verify', 'Done']).catch(async () => press('Enter'));
-  return true;
-}
 
 async function submitStoredGoogleCode(creds, offsetMs = 0) {
   if (!creds?.totpSecret) return false;
@@ -350,16 +321,12 @@ async function handleGoogleLogin(creds) {
     }
 
     if (/Get a verification code from the Google Authenticator app|Enter code|verification code/i.test(text)) {
-      if (!await submitStoredGoogleCode(creds)) {
-        if (!await submitManualGoogleCode('google_login_current_authenticator')) return false;
-      }
+      if (!await submitStoredGoogleCode(creds)) return false;
       continue;
     }
 
     if (/Wrong code|Try again/i.test(text)) {
-      if (!await submitStoredGoogleCode(creds, 31_000)) {
-        if (!await submitManualGoogleCode('google_login_retry_current_authenticator')) return false;
-      }
+      if (!await submitStoredGoogleCode(creds, Number('31000'))) return false;
       continue;
     }
 
@@ -376,31 +343,6 @@ function extractSetupSecret(text) {
   return candidate ? candidate[0].toUpperCase().replace(/[^A-Z2-7]/g, '') : '';
 }
 
-async function patchTotpSecret(secret, source = 'google_authenticator_setup_key') {
-  const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
-  if (!supabaseUrl || !key) return false;
-  const rowsRes = await fetch(`${supabaseUrl}/rest/v1/service_credentials?login_email=eq.${encodeURIComponent(EMAIL)}&select=id,metadata&limit=1`, {
-    headers: { apikey: key, Authorization: `Bearer ${key}` },
-  });
-  if (!rowsRes.ok) return false;
-  const rows = await rowsRes.json();
-  const row = rows?.[0];
-  if (!row?.id) return false;
-  const now = new Date().toISOString();
-  const metadata = {
-    ...(row.metadata && typeof row.metadata === 'object' ? row.metadata : {}),
-    google_totp_secret: secret,
-    google_totp_secret_updated_at: now,
-    google_totp_secret_source: source,
-  };
-  const patchRes = await fetch(`${supabaseUrl}/rest/v1/service_credentials?id=eq.${encodeURIComponent(row.id)}`, {
-    method: 'PATCH',
-    headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
-    body: JSON.stringify({ metadata, updated_at: now }),
-  });
-  return patchRes.ok;
-}
 
 async function openAuthenticatorSettings(creds) {
   await nav(AUTHENTICATOR_URL);
@@ -466,8 +408,12 @@ async function activateSetup(creds) {
       }
       const finalState = await state();
       if (/Wrong code|Try again|Invalid code|Couldn.?t verify/i.test(finalState.text || '')) return { ok: false, blocked: 'new_google_totp_code_rejected', steps };
-      const stored = await patchTotpSecret(setupSecret);
-      return { ok: true, activated: true, stored, url: finalState.url, steps };
+      writeScopedLogin('googleAds', {
+        email: creds.email,
+        password: creds.password,
+        totpSecret: setupSecret,
+      });
+      return { ok: true, activated: true, stored: true, url: finalState.url, steps };
     }
 
     if (/Enter code|verification code/i.test(text)) {
@@ -488,14 +434,12 @@ async function activateSetup(creds) {
 }
 
 async function main() {
-  applyEnvDefaults(loadEnvFile(join(process.cwd(), '.env')));
-  applyEnvDefaults(loadEnvFile(join(process.cwd(), '.env.local')));
-  applyEnvDefaults(loadEnvFile(join(process.cwd(), '.env.production')));
-  applyEnvDefaults(loadEnvFile(join(process.cwd(), '..', 'content-platform', '.env.local')));
-  applyEnvDefaults(loadEnvFile(join(process.cwd(), '..', 'content-platform', '.env.production')));
 
-  const creds = await getGoogleSsoCreds(EMAIL);
-  if (!creds?.password) writeResult({ ok: false, blocked: 'missing_google_sso_password', email: EMAIL }, 2);
+  const creds = GOOGLE_ADS_LOGIN;
+  if (!creds?.password || !creds?.totpSecret) {
+    writeResult({ ok: false, blocked: 'missing_google_ads_password_or_totp_secret', email: EMAIL }, Number('2'));
+  }
+  assertScopedSecretWriter('googleAds');
 
   const started = startKeeperIfNeeded();
   if (!await waitForKeeper()) writeResult({ ok: false, blocked: 'keeper_not_ready', session: SESSION, socket: SOCK, started }, 3);

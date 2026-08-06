@@ -124,8 +124,8 @@ try {
   if (!onSuccess && errText) throw new Error(`password change rejected: ${errText}`);
   console.log(`[reset] After change: ${finalUrl}`);
 
-  const url = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
+  const url = process.env.WELES_DATABASE_URL ?? '';
+  const key = process.env.WELES_DATABASE_TOKEN ?? '';
   if (url && key && acct.id) {
     const merged = { ...acct.metadata, password: newPassword, password_recorded_at: new Date().toISOString(), reset_via: 'github_reset_password' };
     const res = await fetch(`${url}/rest/v1/social_accounts?id=eq.${acct.id}`, {

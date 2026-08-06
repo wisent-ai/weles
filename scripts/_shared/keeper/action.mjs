@@ -18,6 +18,9 @@ import net from 'node:net';
 import { existsSync, unlinkSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { enforceWelesServicePlacement } from './service-placement.mjs';
+
+enforceWelesServicePlacement('keeper/action.mjs');
 
 const SESSION = process.env.SESSION || 'default';
 const SOCK = join(homedir(), '.weles', 'keeper', SESSION, 'socket');

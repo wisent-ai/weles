@@ -13,6 +13,7 @@ import * as login from './login.js';
 import * as vision from './vision.js';
 import { waitCloudflare } from '../cloudflare/challenge.js';
 import { SessionStore } from '../session/store.js';
+import { readOptionalWelesServiceSecret, type WelesServiceSecret } from '../secrets/scoped-service.js';
 
 // ---------------------------------------------------------------------------
 // Trajectory cache
@@ -68,8 +69,7 @@ export interface FetchAccountValueConfig {
   service: string;
   url: string;
   what: string;
-  usernameEnv: string;
-  passwordEnv: string;
+  secretService: WelesServiceSecret;
   osTarget?: string;
   depth?: number;
 }
@@ -78,8 +78,7 @@ export class FetchAccountValue {
   service: string;
   url: string;
   what: string;
-  usernameEnv: string;
-  passwordEnv: string;
+  secretService: WelesServiceSecret;
   osTarget: string;
   depth: number;
 
@@ -87,8 +86,7 @@ export class FetchAccountValue {
     this.service = config.service;
     this.url = config.url;
     this.what = config.what;
-    this.usernameEnv = config.usernameEnv;
-    this.passwordEnv = config.passwordEnv;
+    this.secretService = config.secretService;
     this.osTarget = config.osTarget ?? 'macos';
     this.depth = config.depth ?? 4;
   }
@@ -173,10 +171,10 @@ export class FetchAccountValue {
   }
 
   private async _loginInline(page: any): Promise<boolean> {
-    const username = process.env[this.usernameEnv] ?? '';
-    const password = process.env[this.passwordEnv] ?? '';
+    const username = readOptionalWelesServiceSecret(this.secretService, 'username') ?? '';
+    const password = readOptionalWelesServiceSecret(this.secretService, 'password') ?? '';
     if (!username || !password) {
-      console.log(`[task] ${this.service}: missing credentials (${this.usernameEnv}, ${this.passwordEnv})`);
+      console.log(`[task] ${this.service}: exact scoped login grant unavailable`);
       return false;
     }
     const ok = await login.run(page, username, password);
@@ -228,14 +226,15 @@ export class FetchAccountValue {
 // ---------------------------------------------------------------------------
 
 function _getProxy(): { server: string; username: string; password: string } | undefined {
-  const providers: Array<[string, string, string, (u: string, p: string) => [string, string]]> = [
-    ['OXYLABS_USERNAME', 'OXYLABS_PASSWORD', 'http://pr.oxylabs.io:7777', (u, p) => [`customer-${u}-cc-US`, p]],
-    ['PINGPROXIES_USERNAME', 'PINGPROXIES_PASSWORD', 'http://residential.pingproxies.com:8000', (u, p) => [`${u}_c_us`, p]],
-    ['PACKETSTREAM_USERNAME', 'PACKETSTREAM_PASSWORD', 'http://proxy.packetstream.io:31112', (u, p) => [u, `${p}_country-US`]],
+  const providers: Array<[WelesServiceSecret, string, (u: string, p: string) => [string, string]]> = [
+    ['oxylabsResidential', 'http://pr.oxylabs.io:7777', (u, p) => [`customer-${u}-cc-US`, p]],
+    ['pingproxiesProxy', 'http://residential.pingproxies.com:8000', (u, p) => [`${u}_c_us`, p]],
+    ['packetstreamProxy', 'http://proxy.packetstream.io:31112', (u, p) => [u, `${p}_country-US`]],
   ];
-  for (const [uEnv, pEnv, server, build] of providers) {
-    const u = process.env[uEnv], p = process.env[pEnv];
-    if (u && p) { const [user, pass] = build(u, p); return { server, username: user, password: pass }; }
+  for (const [service, server, build] of providers) {
+    const username = readOptionalWelesServiceSecret(service, 'username');
+    const password = readOptionalWelesServiceSecret(service, 'password');
+    if (username && password) { const [user, pass] = build(username, password); return { server, username: user, password: pass }; }
   }
   return undefined;
 }

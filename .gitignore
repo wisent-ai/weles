@@ -14,3 +14,7 @@ var/
 login_page_*.png
 *_trajectory_evidence.txt
 scripts/lib/cgevent_postpid
+.worktrees/
+.tmp/
+.jeden/
+.tama-disabled

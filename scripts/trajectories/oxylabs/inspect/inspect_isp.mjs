@@ -5,7 +5,7 @@
 // pages and dumps text+HTML+screenshot for inspection. Does NOT create,
 // reset, subscribe, top up, or buy anything — strictly look-and-dump.
 import { WSession } from '../../../../dist/session/wsession.js';
-import { googleSso, getGoogleSsoCreds } from '../../_shared/services/google_sso.mjs';
+import { googleSso, getScopedGoogleLogin } from '../../_shared/services/google_sso.mjs'
 import { humanIdlePause, humanClickLocator } from '../../../../dist/human/mouse.js';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -14,7 +14,7 @@ const LOGIN_URL = 'https://dashboard.oxylabs.io/';
 const OUT = join(process.cwd(), '.work', 'oxylabs_inspect_isp');
 mkdirSync(OUT, { recursive: true });
 
-const login = await getGoogleSsoCreds();
+const login = await getScopedGoogleLogin('oxylabsDashboard');
 if (!login) { console.log('FAIL: no Google SSO creds'); process.exit(1); }
 console.log(`[inspect] Using Google SSO: ${login.email}`);
 

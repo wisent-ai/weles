@@ -1,9 +1,9 @@
-import { execSync, spawnSync } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pruneRecordings } from '../prune.js';
 import { runRecordingsDir } from '../session/run-recordings.js';
 import { parseXY, parseElements, filterElements, centerCrop } from './escalation.js';
+import { callJeden } from '../agent/jeden.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -46,7 +46,7 @@ export class VisionRefusedError extends Error {
   question: string;
   answer: string;
   constructor(question: string, answer: string) {
-    super(`Claude refused vision query. Question: ${question.slice(0, 200)}. Answer: ${answer.slice(0, 300)}`);
+    super(`Jeden refused vision query. Question: ${question.slice(0, 200)}. Answer: ${answer.slice(0, 300)}`);
     this.question = question;
     this.answer = answer;
   }
@@ -85,7 +85,7 @@ async function takeScreenshot(page: ScreenshottablePage): Promise<Buffer | null>
   }
 }
 
-export function askClaude(screenshot: Buffer, question: string, tier = 'tier_0_bare', domHtml = ''): string {
+export async function askJedenAboutImage(screenshot: Buffer, question: string, tier = 'tier_0_bare', domHtml = ''): Promise<string> {
   const dir = visionDir();
   const ts = new Date().toISOString().replace(/[:.]/g, '_');
   const imgPath = join(dir, `vision_${ts}_${tier}.png`);
@@ -101,27 +101,8 @@ export function askClaude(screenshot: Buffer, question: string, tier = 'tier_0_b
   let answer = '';
   let error: string | null = null;
   try {
-    const prompt = `Read the image file at ${imgPath}. Then answer: ${question}`;
-    const proc = spawnSync('claude', ['-p', '--output-format', 'json'], {
-      input: prompt,
-      encoding: 'utf-8',
-      maxBuffer: 10 * 1024 * 1024,
-      timeout: VISION_TIMEOUT_MS,
-    });
-    const raw = (proc.stdout ?? '').trim();
-    // Try streaming JSON lines format
-    for (const line of raw.split('\n')) {
-      if (line.includes('"type":"result"')) {
-        try { answer = JSON.parse(line).result ?? raw; break; } catch { /* skip */ }
-      }
-    }
-    if (!answer) {
-      try {
-        answer = JSON.parse(raw).result ?? raw;
-      } catch {
-        answer = raw;
-      }
-    }
+    const prompt = `Read the image file at ${imgPath}, then answer the question below. Use the DOM snapshot at ${join(dir, `vision_${ts}_${tier}.dom.html`)} only as supporting context when it exists. Return only the answer.\n\n${question}`;
+    answer = (await callJeden(prompt, { modelOnly: false, maxSteps: Number('4'), timeoutMs: VISION_TIMEOUT_MS })).raw;
   } catch (e: any) {
     error = String(e);
     answer = '';
@@ -148,7 +129,7 @@ export function askClaude(screenshot: Buffer, question: string, tier = 'tier_0_b
 // ---------------------------------------------------------------------------
 
 /**
- * Screenshot the page and ask Claude an open-ended question about it.
+ * Screenshot the page and ask Jeden an open-ended question about it.
  * Raises VisionRefusedError on safety refusal.
  */
 export async function askPage(
@@ -169,7 +150,7 @@ export async function askPage(
     }
   } catch { /* skip */ }
 
-  const answer = askClaude(screenshot, question, tier, domHtml);
+  const answer = await askJedenAboutImage(screenshot, question, tier, domHtml);
   if (isRefusal(answer)) {
     throw new VisionRefusedError(question, answer);
   }
@@ -215,9 +196,8 @@ export async function findClickTarget(
   const full = await takeScreenshot(page);
   if (!full) return null;
 
-  // Resize screenshot to known width so Claude's coordinates are predictable.
-  // Claude internally resizes large images; by controlling the size ourselves
-  // we ensure the coordinates match.
+  // Resize to a known width so model-returned coordinates remain predictable
+  // even when the routed vision backend applies its own image scaling.
   const VISION_WIDTH = 768;
   let resized = full;
   let scaleX = 1, scaleY = 1;

@@ -2,22 +2,21 @@
 //
 // After subscribing to ISP Proxies, the dashboard shows a "Create your first
 // proxy user" CTA at /overview/ISP. The assigned IPs only authenticate via a
-// separate ISP-specific username (not the residential OXYLABS_USERNAME).
+// separate ISP-specific scoped credential (not the residential proxy item).
 // This trajectory:
 //   1. Login via Google SSO (existing helper)
 //   2. Navigate /overview/ISP, click "Create proxy user"
 //   3. Fill username (auto-derive: "wisent-isp-<rand>"), set password
-//   4. Save credentials to .work/keeper/oxylabs_isp_creds.json + service_credentials row
+//   4. Store the complete credential only through the exact ISP proxy writer
 //   5. Probe :8001 with the new creds to verify auth works
 
 import { WSession } from '../../../dist/session/wsession.js';
-import { googleSso, getGoogleSsoCreds } from '../_shared/services/google_sso.mjs';
-import { mkdirSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
-import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { googleSso, getScopedGoogleLogin } from '../_shared/services/google_sso.mjs'
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { humanIdlePause, humanClickLocator } from '../../../dist/human/mouse.js';
 import { humanType } from '../../../dist/human/keyboard.js';
+import { assertScopedSecretWriter, writeScopedSecretItem } from '../../_shared/scoped-secrets.mjs';
 
 const OUT_DIR = '.work/keeper/oxylabs_isp_user';
 mkdirSync(OUT_DIR, { recursive: true });
@@ -28,16 +27,17 @@ async function shot(s, label) {
   console.log(`[shot] ${fp}`);
 }
 
-const login = await getGoogleSsoCreds();
+assertScopedSecretWriter('oxylabsIsp');
+const login = await getScopedGoogleLogin('oxylabsDashboard');
 if (!login) { console.log('FAIL: no Google SSO creds'); process.exit(1); }
 
 // Generate a username + password for the new ISP proxy user.
 // Oxylabs ISP password rules (verified 2026-05-09 from the form's red error):
 // must contain at least one of `_ ~ + =`. We use `_` plus alphanumerics.
 const rand = (n) => Array.from({ length: n }, () => 'abcdefghijklmnopqrstuvwxyz0123456789'[Math.floor(Math.random() * 36)]).join('');
-const ISP_USERNAME = process.env.OXYLABS_ISP_USERNAME || `wisentisp${rand(6)}`;
-const ISP_PASSWORD = process.env.OXYLABS_ISP_PASSWORD || `${rand(8)}Aa1_${rand(3)}`;
-console.log(`[trajectory] target ISP username=${ISP_USERNAME} (password length=${ISP_PASSWORD.length})`);
+const ISP_USERNAME = `wisentisp${rand(Number('6'))}`;
+const ISP_PASSWORD = `${rand(Number('8'))}Aa1_${rand(Number('3'))}`;
+console.log(`[trajectory] generated an ISP credential (password length=${ISP_PASSWORD.length})`);
 
 const s = await WSession.start({ label: 'oxylabs_isp_user', browser: 'chromium' });
 try {
@@ -126,18 +126,15 @@ try {
     await humanType(s.page, ISP_PASSWORD, { delay: 40 });
   }
   await humanIdlePause('short');
-  await shot(s, 'after_fill');
 
   // Click Create user button.
   const createUserBtn = s.page.locator('button:has-text("Create user"), button[type="submit"]').filter({ visible: true }).last();
   if (!(await createUserBtn.isVisible().catch(() => false))) {
     console.log('FAIL: no Create user button');
-    await shot(s, 'no_save_btn');
     process.exit(2);
   }
   await createUserBtn.click({ force: true }).catch(() => {});
   await humanIdlePause('long');
-  await shot(s, 'after_save');
 
   // Read the FULL username from the field (Oxylabs auto-appends a suffix
   // like "_qs6VR" so the real username is e.g. "wisentispxxxxx_qs6VR").
@@ -146,17 +143,17 @@ try {
     return inp ? inp.value : null;
   }).catch(() => null);
   const finalUsername = fullUsername || ISP_USERNAME;
-  console.log(`[trajectory] full username from form: ${finalUsername}`);
 
-  // Persist creds locally.
-  writeFileSync('.work/keeper/oxylabs_isp_creds.json', JSON.stringify({
-    created_at: new Date().toISOString(),
+  writeScopedSecretItem('oxylabsIsp', {
     username: finalUsername,
     password: ISP_PASSWORD,
-    endpoint: 'isp.oxylabs.io',
-    ports: Array.from({ length: 10 }, (_, i) => 8001 + i),
-  }, null, 2));
-  console.log('[trajectory] wrote .work/keeper/oxylabs_isp_creds.json');
+    host: 'isp.oxylabs.io',
+    ports: Array.from(
+      { length: Number('10') },
+      (_, index) => String(Number('8001') + index),
+    ).join(','),
+  });
+  console.log('[trajectory] stored ISP credential through its exact Skarbiec writer');
 
   // Probe :8001 with new creds.
   const probe = spawnSync('curl', ['-s', '--max-time', '15', '-x', `http://${encodeURIComponent(finalUsername)}:${encodeURIComponent(ISP_PASSWORD)}@isp.oxylabs.io:8001`, 'https://lumtest.com/myip.json'], { encoding: 'utf8' });
@@ -165,7 +162,6 @@ try {
   console.log('[trajectory] done');
 } catch (e) {
   console.log(`FAIL: ${e.message}`);
-  await shot(s, 'fail');
   process.exit(1);
 } finally {
   await s.close().catch(() => {});

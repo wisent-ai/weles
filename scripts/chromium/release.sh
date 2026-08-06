@@ -1,75 +1,50 @@
 #!/usr/bin/env bash
-# Publish the locally-built weles Chromium as a fresh GitHub release and make
-# every host pick it up — fully automated so the published binary can never lag
-# the compiled source.
-#
-# What it does:
-#   1. read the version straight from the built binary (source of truth)
-#   2. auto-increment the -weles.N tag from existing releases for that version
-#   3. tar the Chromium.app + sha256
-#   4. gh release create <new-tag> with both assets
-#   5. bump the pinned default tag in download.sh
-#   6. commit + push that bump → each host's 60s auto-deploy installs it
-#
-# Usage:
-#   bash scripts/chromium/release.sh            # build must already exist
-#
-# Env overrides: CHROMIUM_BUILD_OUT (default ../chromium-build/src/out/Weles).
+# Package a locally built Chromium for operator publication to one exact Stado
+# release coordinate. This script never publishes, discovers a version, mutates
+# deployment configuration, or invokes a source/provider CLI.
 
 set -euo pipefail
 
-REPO="wisent-ai/weles"
+fail() {
+  printf '%s\n' "ERROR: $*" > /dev/stderr
+  false
+}
+
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 BUILD_OUT="${CHROMIUM_BUILD_OUT:-$REPO_ROOT/../chromium-build/src/out/Weles}"
-
-uname_s=$(uname -s)
-uname_m=$(uname -m)
-case "$uname_s/$uname_m" in
-  Darwin/arm64)   ASSET="weles-chromium-147-macos-arm64.tar.gz";  APP="Chromium.app"; BIN="$BUILD_OUT/Chromium.app/Contents/MacOS/Chromium" ;;
-  Darwin/x86_64)  ASSET="weles-chromium-147-macos-x86_64.tar.gz"; APP="Chromium.app"; BIN="$BUILD_OUT/Chromium.app/Contents/MacOS/Chromium" ;;
-  Linux/x86_64)   ASSET="weles-chromium-147-linux-x86_64.tar.gz"; APP="chromium";     BIN="$BUILD_OUT/chromium/chrome" ;;
-  *) echo "ERROR: unsupported platform $uname_s/$uname_m" >&2; exit 1 ;;
+[[ -n "${WELES_CHROMIUM_RELEASE_VERSION:-}" ]] \
+  || fail "WELES_CHROMIUM_RELEASE_VERSION must be explicitly configured"
+[[ -n "${WELES_CHROMIUM_RELEASE_OUTPUT_DIR:-}" ]] \
+  || fail "WELES_CHROMIUM_RELEASE_OUTPUT_DIR must be explicitly configured"
+case "$WELES_CHROMIUM_RELEASE_VERSION" in
+  *[![:alnum:]._-]*|"") fail "invalid WELES_CHROMIUM_RELEASE_VERSION" ;;
 esac
 
-if [[ ! -x "$BIN" ]]; then echo "ERROR: built binary not found at $BIN — build first" >&2; exit 1; fi
-if ! command -v gh >/dev/null 2>&1; then echo "ERROR: gh CLI required to create releases" >&2; exit 1; fi
+uname_s="$(uname -s)"
+uname_m="$(uname -m)"
+case "$uname_s/$uname_m" in
+  Darwin/arm64)  PLATFORM="darwin-arm64"; PACKAGE_ROOT="Chromium.app"; BIN_REL="Chromium.app/Contents/MacOS/Chromium" ;;
+  Darwin/x86_64) PLATFORM="darwin-amd64"; PACKAGE_ROOT="Chromium.app"; BIN_REL="Chromium.app/Contents/MacOS/Chromium" ;;
+  Linux/x86_64)  PLATFORM="linux-amd64";  PACKAGE_ROOT="chromium";     BIN_REL="chromium/chrome" ;;
+  *) fail "unsupported platform $uname_s/$uname_m" ;;
+esac
 
-# Source of truth: the version the built binary actually reports.
-FULLVER="$("$BIN" --version | awk '{print $NF}')"
-if [[ -z "$FULLVER" ]]; then echo "ERROR: could not read version from $BIN" >&2; exit 1; fi
+[[ -x "$BUILD_OUT/$BIN_REL" ]] || fail "built binary not found at $BUILD_OUT/$BIN_REL"
+command -v openssl > /dev/null || fail "openssl is required for SHA-256 generation"
 
-# Highest existing -weles.N for this version, then +1 (1 when none yet).
-PREFIX="chromium-$FULLVER-weles."
-PREFIX_RE="$(printf '%s' "$PREFIX" | sed 's/\./\\./g')"
-MAXN="$(gh release list --repo "$REPO" --json tagName -q '.[].tagName' 2>/dev/null \
-  | sed -n "s#^${PREFIX_RE}\([0-9][0-9]*\)\$#\1#p" | sort -n | tail -1)"
-NEXTN=$(( ${MAXN:-0} + 1 ))
-TAG="${PREFIX}${NEXTN}"
-echo "[release] built $FULLVER → new tag $TAG" >&2
+VERSION="$WELES_CHROMIUM_RELEASE_VERSION"
+OUTPUT_DIR="${WELES_CHROMIUM_RELEASE_OUTPUT_DIR%/}/$VERSION/$PLATFORM"
+ASSET="weles-chromium.tar.gz"
+ARCHIVE="$OUTPUT_DIR/$ASSET"
+RELEASE_URI="stado://releases/weles-chromium/$VERSION/$PLATFORM/$ASSET"
+mkdir -p "$OUTPUT_DIR"
 
-TMP=$(mktemp -d)
-trap 'rm -rf "$TMP"' EXIT
-echo "[release] packaging $APP …" >&2
-tar -czf "$TMP/$ASSET" -C "$BUILD_OUT" "$APP"
-if command -v shasum >/dev/null 2>&1; then
-  shasum -a 256 "$TMP/$ASSET" | awk '{print $1}' > "$TMP/$ASSET.sha256"
-else
-  sha256sum "$TMP/$ASSET" | awk '{print $1}' > "$TMP/$ASSET.sha256"
-fi
+tar -czf "$ARCHIVE" -C "$BUILD_OUT" "$PACKAGE_ROOT"
+DIGEST_LINE="$(openssl dgst -sha256 -r "$ARCHIVE")"
+DIGEST="${DIGEST_LINE%% *}"
+printf '%s\n' "$DIGEST" > "$ARCHIVE.sha256"
 
-
-echo "[release] uploading release $TAG …" >&2
-gh release create "$TAG" "$TMP/$ASSET" "$TMP/$ASSET.sha256" \
-  --repo "$REPO" --title "$TAG" \
-  --notes "Automated weles Chromium $FULLVER (weles.$NEXTN). Built+published by scripts/chromium/release.sh."
-
-# Bump the pinned default so download.sh / auto-deploy fetch the new tag.
-DL="$REPO_ROOT/scripts/chromium/download.sh"
-sed -i.bak "s#WELES_CHROMIUM_RELEASE:-chromium-[0-9.]*-weles\.[0-9][0-9]*#WELES_CHROMIUM_RELEASE:-$TAG#" "$DL"
-rm -f "$DL.bak"
-echo "[release] pinned download.sh → $TAG" >&2
-
-git -C "$REPO_ROOT" add scripts/chromium/download.sh
-git -C "$REPO_ROOT" commit -m "chromium: release $TAG"
-git -C "$REPO_ROOT" push origin HEAD
-echo "[release] done — hosts will auto-deploy $TAG within ~60s" >&2
+printf '%s\n' \
+  "archive=$ARCHIVE" \
+  "sha256=$DIGEST" \
+  "publish_uri=$RELEASE_URI"

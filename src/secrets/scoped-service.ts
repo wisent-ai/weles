@@ -94,6 +94,16 @@ export type WelesAcquiredSecretContract = {
 };
 
 const MICROSOFT_PASSWORD_ID = /^weles-microsoft-[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?-password$/;
+// Entra work accounts are a different provider surface from consumer Microsoft
+// accounts: their password lifecycle runs at login.microsoftonline.com, never at
+// account.live.com. The exact ids are enumerated so a new id cannot silently
+// inherit the consumer origin.
+const MICROSOFT_ENTRA_PASSWORD_IDS: ReadonlySet<string> = new Set([
+  'weles-microsoft-jakub-wisent-com-password',
+  'weles-microsoft-lukasz-wisent-com-password',
+]);
+const MICROSOFT_ENTRA_ORIGIN = 'https://login.microsoftonline.com';
+const MICROSOFT_CONSUMER_ORIGIN = 'https://account.live.com';
 
 function resolvedAcquiredSecretContract(secret: string): InternalAcquiredSecretContract | null {
   const fixed = (ACQUIRED_SECRET_CONTRACTS as Readonly<Record<string, InternalAcquiredSecretContract>>)[secret];
@@ -105,7 +115,9 @@ function resolvedAcquiredSecretContract(secret: string): InternalAcquiredSecretC
     writerConsumer: `${secret}-writer`,
     writerTokenFile: `${secret}-writer-skarbiec-token`,
     readerConsumer: `${secret}-reader`,
-    sourceOrigin: 'https://account.live.com',
+    sourceOrigin: MICROSOFT_ENTRA_PASSWORD_IDS.has(secret)
+      ? MICROSOFT_ENTRA_ORIGIN
+      : MICROSOFT_CONSUMER_ORIGIN,
     shape: 'password',
   };
 }
@@ -476,11 +488,15 @@ export function writeWelesAcquiredSecret(
   const requestId = context.requestId ?? '';
   const operation = context.operation ?? '';
   if (!/^[a-f0-9]{64}$/i.test(requestId)
-      || !['acquire', 'rotate', 'verify', 'rollback'].includes(operation)) {
+      || !['acquire', 'adopt', 'rotate', 'reset', 'verify', 'rollback'].includes(operation)) {
     throw new Error(`credential write requires an exact request id and operation for ${secretName}`);
   }
-  if (operation === 'rollback' && contract.shape !== 'password') {
-    throw new Error(`rollback writes are only allowed for password contracts: ${secretName}`);
+  // A reset commits a value whose predecessor was never known to us, an adopt
+  // commits one the operator already knew, and a rollback restores one: all
+  // three only make sense for a password contract.
+  if ((operation === 'rollback' || operation === 'reset' || operation === 'adopt')
+      && contract.shape !== 'password') {
+    throw new Error(`${operation} writes are only allowed for password contracts: ${secretName}`);
   }
   if (!isUtf8(secret)) {
     throw new Error(`credential value must be valid UTF-8 text: ${secretName}`);

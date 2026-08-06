@@ -146,8 +146,8 @@ export async function runHealthProbe(cfg) {
   console.log(`[health:${cfg.platform}] snapshot -> ${filePath}`);
   // Self-heal: when the probe detects checkpoint (cookies stale), enqueue
   // a {platform}_login row for THIS account so the next worker tick refreshes
-  // cookies. Without this, cookies-stale persists until a manual intervention
-  // — every subsequent routine probe re-reports checkpoint forever.
+  // cookies. Apple authentication always requires an explicit owner action, so
+  // health probes report the required action without recreating apple_login.
   // BUT: skip auto-recovery for accounts whose registration never completed.
   // metadata.status in {captcha_blocked, unverified, needs_verification,
   // captcha_signup_failed} means the saveAccount stub got written but the
@@ -158,10 +158,12 @@ export async function runHealthProbe(cfg) {
   // stub gets written.
   const acctStatus = acct.metadata?.status;
   const brokenRegistration = ['captcha_blocked', 'unverified', 'needs_verification', 'captcha_signup_failed'].includes(acctStatus);
-  if (signal === 'checkpoint' && acct.id && !brokenRegistration) {
+  if (signal === 'checkpoint' && cfg.platform.toLowerCase() === 'apple') {
+    console.log(`[health:${cfg.platform}] OWNER_ACTION_REQUIRED: Apple cookies are stale; apple_login was not auto-enqueued for ${acct.username}`);
+  } else if (signal === 'checkpoint' && acct.id && !brokenRegistration) {
     try {
-      const url = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
-      const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
+      const url = process.env.WELES_DATABASE_URL ?? '';
+      const key = process.env.WELES_DATABASE_TOKEN ?? '';
       // Don't re-enqueue if a login was attempted for this account in the
       // past hour — gives the previous attempt time to land before piling on.
       const since = new Date(Date.now() - 3600_000).toISOString();

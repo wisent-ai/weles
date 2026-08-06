@@ -113,15 +113,15 @@ console.log(`[health] snapshot -> ${filePath}`);
 // proxy so the next probe/login rolls a fresh one. Without this, every retry
 // reuses the same burned IP and stays blocked.
 if (signal === 'ip_blocked' && acct.id) {
-  const supabaseUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
-  if (supabaseUrl && key) {
+  const databaseUrl = process.env.WELES_DATABASE_URL ?? '';
+  const key = process.env.WELES_DATABASE_TOKEN ?? '';
+  if (databaseUrl && key) {
     try {
-      const r = await fetch(`${supabaseUrl}/rest/v1/social_accounts?id=eq.${acct.id}&select=metadata`, { headers: { apikey: key, Authorization: `Bearer ${key}` } });
+      const r = await fetch(`${databaseUrl}/rest/v1/social_accounts?id=eq.${acct.id}&select=metadata`, { headers: { apikey: key, Authorization: `Bearer ${key}` } });
       const rows = await r.json();
       const meta = rows?.[0]?.metadata ?? {};
       const { proxy: _drop, ...rest } = meta;
-      await fetch(`${supabaseUrl}/rest/v1/social_accounts?id=eq.${acct.id}`, {
+      await fetch(`${databaseUrl}/rest/v1/social_accounts?id=eq.${acct.id}`, {
         method: 'PATCH',
         headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
         body: JSON.stringify({ metadata: rest }),

@@ -31,8 +31,8 @@ mkdirSync(SHOT_DIR, { recursive: true });
 
 const login = await getGoogleSsoCreds();
 if (!login) {
-  console.error('FAIL: getGoogleSsoCreds() returned null. Check SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY and the service_credentials row.');
-  process.exit(1);
+  console.error('FAIL: exact weles-google-sso-login grant unavailable.');
+  process.exit(Number('1'));
 }
 console.log(`[history_scan] Google creds loaded for ${login.email}; project ${PROJECT}`);
 

@@ -15,10 +15,11 @@ import { randomBytes } from 'node:crypto';
 import { CaptchaSolver } from '../../../../dist/captcha/solver.js';
 import { humanFill, humanType } from '../../../../dist/human/keyboard.js';
 import { humanClickLocator, humanIdlePause, humanScroll } from '../../../../dist/human/mouse.js';
+import { readScopedProxy } from '../../../_shared/scoped-secrets.mjs';
 
-const SUPABASE_URL = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
-const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
-if (!SUPABASE_URL || !SUPABASE_KEY) { console.error('FAIL: SUPABASE env required'); process.exit(2); }
+const DATABASE_URL = process.env.WELES_DATABASE_URL ?? '';
+const DATABASE_TOKEN = process.env.WELES_DATABASE_TOKEN ?? '';
+if (!DATABASE_URL || !DATABASE_TOKEN) { console.error('FAIL: SUPABASE env required'); process.exit(2); }
 const AGENT_DOMAIN = process.env.AGENT_DOMAIN ?? 'wisentmedia.com';
 const CHROME_BIN = process.env.CHROME_BIN || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 if (!existsSync(CHROME_BIN)) { console.error(`FAIL: chrome binary missing at ${CHROME_BIN}`); process.exit(2); }
@@ -41,20 +42,15 @@ console.log(`[reg-real] identity: ${id.email} / ${id.first} ${id.last}`);
 const NOPECHA_EXT_DIR = process.env.NOPECHA_EXT_DIR || `${process.env.HOME}/weles/var/nopecha-ext`;
 const NOPECHA_KEY = process.env.NOPECHA_API_KEY || '';
 const userDataDir = mkdtempSync(join(tmpdir(), 'reg-real-'));
-// Route real Chrome through Oxylabs Mobile sticky if creds present.
-// Without a proxy the local Mac IP gets silently rejected by LinkedIn at
-// /signup (cited 2026-05-06 .work/reg-real-2.log: V3 token solved + injected
-// twice, post-join + post-name URL both stayed at /signup).
-let proxyOpt;
-if (process.env.OXYLABS_MOBILE_USERNAME && process.env.OXYLABS_MOBILE_PASSWORD) {
-  const sess = Math.floor(Math.random() * 9000000 + 1000000);
-  proxyOpt = {
-    server: 'http://pr.oxylabs.io:7777',
-    username: `customer-${process.env.OXYLABS_MOBILE_USERNAME}-cc-us-sessid-${sess}`,
-    password: process.env.OXYLABS_MOBILE_PASSWORD,
-  };
-  console.log(`[reg-real] using Oxylabs Mobile sticky=${sess}`);
-}
+// This flow owns a dedicated Oxylabs Mobile grant and cannot run without it.
+const oxylabsMobile = readScopedProxy('oxylabsMobile');
+const proxySession = Math.floor(Math.random() * Number('9000000') + Number('1000000'));
+const proxyOpt = {
+  server: 'http://pr.oxylabs.io:7777',
+  username: `customer-${oxylabsMobile.username}-cc-us-sessid-${proxySession}`,
+  password: oxylabsMobile.password,
+};
+console.log(`[reg-real] using Oxylabs Mobile sticky=${proxySession}`);
 const browser = await chromium.launchPersistentContext(userDataDir, {
   executablePath: CHROME_BIN,
   channel: 'chrome',
@@ -288,9 +284,9 @@ const metadata = {
   cookies, cookies_minted_at: now, cookies_updated_at: now, cookies_minted_persona: 'real-chrome-macos',
   linkedin_px_storage: lsItems, linkedin_px_storage_at: now,
 };
-const insertRes = await fetch(`${SUPABASE_URL}/rest/v1/social_accounts`, {
+const insertRes = await fetch(`${DATABASE_URL}/rest/v1/social_accounts`, {
   method: 'POST',
-  headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json', Prefer: 'return=representation' },
+  headers: { apikey: DATABASE_TOKEN, Authorization: `Bearer ${DATABASE_TOKEN}`, 'Content-Type': 'application/json', Prefer: 'return=representation' },
   body: JSON.stringify({ platform: 'linkedin', username: id.handle, display_name: `${id.first} ${id.last}`, is_active: true, metadata }),
 });
 if (!insertRes.ok) { console.error(`FAIL: INSERT returned ${insertRes.status}: ${(await insertRes.text()).slice(0, 200)}`); process.exit(1); }

@@ -1,41 +1,27 @@
 // Linear login probe via Google Workspace SSO (Wisent org uses Workspace).
 //
-// Reads service_credentials row display_name='Linear' for login_email +
-// login_password; if absent falls back to weles/.work/_sso.env (SSO_EMAIL,
-// SSO_PASS) — same path as the slack trajectory.
+// Resolves the exact Linear Workspace login through its scoped Skarbiec grant.
 //
 // Drives linear.app/login → "Continue with Google" → Google OAuth →
 // Workspace landing. Exits 0 on a Linear-workspace URL, 1 otherwise.
 //
 // Run: node scripts/trajectories/linear/login.mjs
-import { getServiceLogin } from '../../../dist/utils/credentials.js';
+import { readScopedLogin } from '../../_shared/scoped-secrets.mjs';
 import { WSession } from '../../../dist/session/wsession.js';
 import { humanIdlePause, humanClickLocator } from '../../../dist/human/mouse.js';
 import { humanFill } from '../../../dist/human/keyboard.js';
-import { readFileSync, existsSync } from 'node:fs';
 
 const LOGIN_URL = 'https://linear.app/login';
 const SUCCESS_URL_RE = /linear\.app\/[^/]+\/(team|my|issues|inbox|settings)/;
 const DISPLAY_NAME = 'Linear';
 
-// Resolve credentials: service_credentials first, then weles/.work/_sso.env.
 async function resolveCreds() {
-  const svc = await getServiceLogin(DISPLAY_NAME);
-  if (svc?.email && svc?.password) return { email: svc.email, password: svc.password, source: 'service_credentials' };
-  const ssoEnv = `${process.env.HOME}/Documents/CodingProjects/Wisent/weles/.work/_sso.env`;
-  if (existsSync(ssoEnv)) {
-    const txt = readFileSync(ssoEnv, 'utf8');
-    const email = (txt.match(/^SSO_EMAIL=(.+)$/m) || [])[1];
-    const pass = (txt.match(/^SSO_PASS=(.+)$/m) || [])[1];
-    if (email && pass) return { email, password: pass, source: '_sso.env' };
-  }
-  return null;
+  return { ...readScopedLogin('linearDashboard'), source: 'skarbiec' };
 }
 
 const creds = await resolveCreds();
 if (!creds) {
-  console.log(`FAIL: no '${DISPLAY_NAME}' row in service_credentials and no weles/.work/_sso.env`);
-  process.exit(1);
+  throw new Error('scoped Linear credentials are unavailable');
 }
 console.log(`[linear-login] credentials from ${creds.source}: ${creds.email}`);
 

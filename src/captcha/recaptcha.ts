@@ -1,10 +1,10 @@
 /**
  * reCAPTCHA v2 Enterprise image challenge solver.
- * Uses CapSolver API for tile classification, with Claude vision as secondary.
+ * Uses four independent tile classifiers and provider-neutral model routing.
  */
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { askPage, type ScreenshottablePage } from '../vision/analyze.js';
+import { askJedenAboutImage, askPage, type ScreenshottablePage } from '../vision/analyze.js';
 import { humanIdlePause } from '../human/mouse.js';
 import { runRecordingsDir } from '../session/run-recordings.js';
 
@@ -76,11 +76,10 @@ async function classifyGrid(bframe: any, instruction: string, gridSize: number):
   const diagDir = runRecordingsDir('vision'); // G17: recordings/<run_uuid>/vision/
   mkdirSync(diagDir, { recursive: true });
   writeFileSync(join(diagDir, 'extracted_grid_latest.png'), Buffer.from(gridImgB64, 'base64'));
-  // Multi-solver consensus. Run NopeCha + CapSolver + 2captcha in parallel,
-  // majority-vote per tile (tile selected iff ≥2 solvers picked it). 2026-05-06
-  // run had NopeCha return [4,9] for fire-hydrant 3x3 while ground truth was
-  // [1,7,9] — first-response-wins committed the wrong answer and burned the
-  // session. Consensus catches single-solver miscounts before submit.
+  // Four-solver consensus. Run three specialist services and the authenticated
+  // Stado-routed vision model in parallel, then retain the existing per-tile
+  // majority behavior. The independent model signal can override correlated
+  // specialist-service mistakes.
   const { getCaptchaCredentials: getCreds } = await import('../utils/credentials.js');
   const creds = await getCreds();
   const instr = instruction.replace(/\n/g, ' ').trim();
@@ -128,26 +127,23 @@ async function classifyGrid(bframe: any, instruction: string, gridSize: number):
     }
     return null;
   }
-  // Claude vision as a parallel 4th solver (not just tiebreaker). API solvers
-  // agreed on cars 3x3 [5,6,8] in 2026-05-09 LinkedIn run but LinkedIn
-  // rejected — both were systematically wrong. Adding Claude expands the
-  // signal so a 3-of-4 majority can override a 2-solver mistake.
-  async function claudeSolve(): Promise<number[] | null> {
+  async function modelSolve(): Promise<number[] | null> {
     try {
-      const v = await import('../vision/analyze.js') as any;
-      const ask = v.askClaude as ((b: Buffer, q: string, t?: string) => string) | undefined;
-      if (!ask) return null;
-      const grid = gridSize === 3 ? '1 2 3 / 4 5 6 / 7 8 9' : '1-4/5-8/9-12/13-16';
-      const b64 = gridImgB64 as string; // narrowed: line 72 returns null if falsy
-      const ans = ask(Buffer.from(b64, 'base64'), `reCAPTCHA grid (${grid}). Instruction: "${instr}". Return ONLY a JSON array of positions, e.g. [1,4,7].`, 'tier_image');
-      const mm = (ans || '').match(/\[[\d,\s]*\]/);
-      if (!mm) return null;
-      const p = JSON.parse(mm[0]);
-      return Array.isArray(p) ? p as number[] : null;
-    } catch { return null; }
+      const grid = gridSize === Number('3') ? '1 2 3 / 4 5 6 / 7 8 9' : '1-4/5-8/9-12/13-16';
+      const b64 = gridImgB64 as string;
+      const answer = await askJedenAboutImage(
+        Buffer.from(b64, 'base64'),
+        `reCAPTCHA grid (${grid}). Instruction: "${instr}". Return ONLY a JSON array of positions, e.g. [1,4,7].`,
+        'tier_image',
+      );
+      const positions = parsePositions(answer);
+      return Array.isArray(positions) ? positions : null;
+    } catch {
+      return null;
+    }
   }
-  const settled = await Promise.allSettled([nopechaSolve(), capsolverSolve(), twocaptchaSolve(), claudeSolve()]);
-  const labels = ['NopeCha', 'CapSolver', '2captcha', 'Claude'];
+  const settled = await Promise.allSettled([nopechaSolve(), capsolverSolve(), twocaptchaSolve(), modelSolve()]);
+  const labels = ['NopeCha', 'CapSolver', '2captcha', 'Model'];
   const answers: { name: string; positions: number[] }[] = [];
   settled.forEach((s, i) => {
     const pos = s.status === 'fulfilled' && Array.isArray(s.value) ? s.value as number[] : null;
@@ -155,38 +151,30 @@ async function classifyGrid(bframe: any, instruction: string, gridSize: number):
     if (pos) answers.push({ name: labels[i], positions: pos });
   });
   if (answers.length === 0) return null;
-  if (answers.length === 1) {
-    // Claude tiebreaker — ask vision on the grid image, require 2-of-2.
-    try {
-      const v = await import('../vision/analyze.js') as any;
-      const ask = v.askClaude as ((b: Buffer, q: string, t?: string) => string) | undefined;
-      if (ask) {
-        const grid = gridSize === 3 ? '1 2 3 / 4 5 6 / 7 8 9' : '1-4/5-8/9-12/13-16';
-        const ans = ask(Buffer.from(gridImgB64, 'base64'), `reCAPTCHA grid (${grid}). Instruction: "${instr}". Return ONLY a JSON array of positions, e.g. [1,4,7].`, 'tier_image');
-        const mm = (ans || '').match(/\[[\d,\s]*\]/);
-        if (mm) { try { const cp = JSON.parse(mm[0]); if (Array.isArray(cp)) { console.log(`[recaptcha] Claude tiebreaker: ${JSON.stringify(cp)}`); answers.push({ name: 'Claude', positions: cp }); } } catch {} }
-      }
-    } catch {}
-    if (answers.length === 1) { console.log(`[recaptcha] Only ${answers[0].name} responded`); return answers[0].positions; }
+  if (answers.length === Number('1')) {
+    // Retry the authenticated model signal once and require agreement with the
+    // sole specialist response before treating it as a two-solver result.
+    const positions = await modelSolve();
+    if (positions) {
+      console.log(`[recaptcha] Model tiebreaker: ${JSON.stringify(positions)}`);
+      answers.push({ name: 'Model', positions });
+    }
+    if (answers.length === Number('1')) {
+      console.log(`[recaptcha] Only ${answers[Number('0')].name} responded`);
+      return answers[Number('0')].positions;
+    }
   }
-  // Claude-first consensus. Verified 2026-05-09 on LinkedIn: NopeCha+2captcha
-  // agreed on cars 3x3 [5,6,8] and bicycles 4x4 [9,10] — both rejected by
-  // LinkedIn's grader. The two API solvers share the same flawed CNN backbone
-  // for these challenge classes, so their "agreement" doesn't mean correct;
-  // it means correlated wrong. Claude vision (multimodal LLM) is the
-  // strongest signal we have. Strategy:
-  //   1) If Claude returned an answer, submit Claude's answer (it picks tiles
-  //      most reliably on LinkedIn-style challenges).
-  //   2) Else fall back to ≥2-of-N majority of the API solvers.
-  const claudeAns = answers.find(a => a.name === 'Claude');
-  if (claudeAns && claudeAns.positions.length > 0) {
-    console.log(`[recaptcha] Submitting Claude's answer: ${JSON.stringify(claudeAns.positions)} (API solvers: ${answers.filter(a => a.name !== 'Claude').map(a => `${a.name}=${JSON.stringify(a.positions)}`).join(', ')})`);
-    return claudeAns.positions.slice().sort((a, b) => a - b);
+  // Prefer the authenticated model signal when available; otherwise fall back
+  // to the existing specialist-service majority.
+  const modelAnswer = answers.find(a => a.name === 'Model');
+  if (modelAnswer && modelAnswer.positions.length > Number('0')) {
+    console.log(`[recaptcha] Submitting model answer: ${JSON.stringify(modelAnswer.positions)} (other solvers: ${answers.filter(a => a.name !== 'Model').map(a => `${a.name}=${JSON.stringify(a.positions)}`).join(', ')})`);
+    return modelAnswer.positions.slice().sort((a, b) => a - b);
   }
   const tally = new Map<number, number>();
   for (const a of answers) for (const p of new Set(a.positions)) tally.set(p, (tally.get(p) ?? 0) + 1);
   const majority = [...tally.entries()].filter(([, c]) => c >= 2).map(([p]) => p).sort((a, b) => a - b);
-  console.log(`[recaptcha] No Claude answer; consensus (≥2 of ${answers.length}): ${JSON.stringify(majority)}`);
+  console.log(`[recaptcha] No model answer; consensus (≥2 of ${answers.length}): ${JSON.stringify(majority)}`);
   const minT = gridSize === 3 ? 1 : 2;
   if (majority.length < minT) { const { disagreementTiebreaker } = await import('./consensus.js'); const t = await disagreementTiebreaker(answers, gridImgB64, instr, gridSize, minT); if (t && t.length > 0) return t; }
   return majority.length > 0 ? majority : answers[0].positions;
@@ -269,13 +257,13 @@ export async function solveRecaptchaV2(page: Page): Promise<boolean> {
     // Classify tiles via 2captcha/CapSolver (uses extracted grid image from bframe)
     let positions = await classifyGrid(bframe, instruction, gridSize);
     if (positions) console.log(`[recaptcha] Solver: ${JSON.stringify(positions)}`);
-    // Claude vision secondary — uses shared askPage() from vision/analyze.ts
+    // Authenticated Stado-routed vision fallback.
     if (!positions) {
-      const grid = gridSize === 3 ? '1 2 3\n4 5 6\n7 8 9' : '1  2  3  4\n5  6  7  8\n9  10 11 12\n13 14 15 16';
+      const grid = gridSize === Number('3') ? '1 2 3\n4 5 6\n7 8 9' : '1  2  3  4\n5  6  7  8\n9  10 11 12\n13 14 15 16';
       const prompt = `reCAPTCHA: "${instruction.replace(/\n/g,' ')}"\nGrid: ${grid}\nReturn ONLY JSON array of positions. Example: [1,4,7]`;
       const answer = await askPage(page as unknown as ScreenshottablePage, prompt, pageScreenshot).catch(() => '');
       positions = parsePositions(answer);
-      if (positions) console.log(`[recaptcha] Claude: ${JSON.stringify(positions)}`);
+      if (positions) console.log(`[recaptcha] Model: ${JSON.stringify(positions)}`);
     }
     // Click each tile once. No re-classify-and-click loop on dynamic
     // replacement — that's another retry pattern that just burns budget.

@@ -1,65 +1,57 @@
 # Weles Custom Chromium
 
-Weles needs a patched Chromium binary — the fingerprint fixes (canvas noise removal, WebGL renderer, codec shims, ALPS/HTTP2, etc.) live in the C++ source, not just init scripts. Team members should **download the prebuilt binary**, not rebuild from source.
+Weles runs only the deployment-selected patched Chromium release. Browser
+discovery does not search for a newest install, a local build, a stock browser,
+or a Playwright cache fallback.
 
-## Download
+## Immutable release contract
+
+Before installation, set these nonsecret coordinates in the deployment env:
+
+```bash
+STADO_RELEASE_API_URL=
+WELES_CHROMIUM_RELEASE_VERSION=
+WELES_CHROMIUM_RELEASE_SHA256=
+```
+
+Do not commit values. The release publisher must upload exactly one archive for
+each supported deployment platform:
+
+```text
+stado://releases/weles-chromium/<version>/darwin-arm64/weles-chromium.tar.gz
+stado://releases/weles-chromium/<version>/darwin-amd64/weles-chromium.tar.gz
+stado://releases/weles-chromium/<version>/linux-amd64/weles-chromium.tar.gz
+```
+
+The SHA-256 configured for the host is the digest of that exact archive. The
+archive layout must contain `Chromium.app/Contents/MacOS/Chromium` on macOS or
+`chromium/chrome` on Linux.
 
 ```bash
 bash scripts/chromium/download.sh
 ```
 
-This:
+The installer reads only the canonical public Stado release endpoint. Missing
+coordinates, a missing object, an unsupported platform, a checksum mismatch, or
+a missing executable aborts before installation. Extraction happens only after
+the configured digest matches. A matching release receipt is written beside
+the installation and is required by `findCustomBrowser()` before launch.
 
-1. Detects your OS/arch
-2. Downloads the matching tarball from GitHub Releases
-3. Verifies its SHA256
-4. Extracts to `$HOME/.local/share/weles-chromium/<version>/`
-5. Prints the resulting binary path
+`WELES_CHROMIUM_DIR` may override the install root. It does not select a
+release and does not bypass the exact version, platform, checksum, or receipt.
+`CHROMIUM_PATH`, provider tokens, Git credentials, release tags, and newest
+installed-version discovery are not part of the runtime contract.
 
-`wsession.ts`'s `findCustomChromium()` picks up the install automatically — no env vars needed.
+## Building
 
-## Environment variables
-
-- `WELES_CHROMIUM_DIR` — override install root (default `$HOME/.local/share/weles-chromium`)
-- `WELES_CHROMIUM_RELEASE` — override release tag (default `chromium-147.0.7727.108-weles.1`)
-- `CHROMIUM_PATH` — override the resolved binary path entirely (takes precedence over `findCustomChromium()`)
-
-## Release tag scheme
-
-`chromium-<upstream-version>-weles.<iter>` — e.g. `chromium-147.0.7727.108-weles.1`. Bump `.1 → .2` when the weles patch changes but the upstream Chromium version stays the same; bump the upstream version on a rebase.
-
-## Platforms
-
-| Platform | Asset | Size | Status |
-|---|---|---|---|
-| macOS arm64 | `weles-chromium-147-macos-arm64.tar.gz` | 170 MB | ✅ published |
-| Linux x86_64 | `weles-chromium-147-linux-x86_64.tar.gz` | 193 MB | ✅ published |
-| macOS x86_64 | — | — | not planned (use Rosetta) |
-
-## Building & publishing from source
-
-Only needed if you're modifying the C++ fingerprint code. The patch lives in
-`chromium-build/src` (branch `weles-147`) + `chromium-build/weles_patch_backup_*/all_changes.patch`.
-
-**One command builds (~4 h on a 16-core host) AND publishes** — so the released
-binary can never lag the source:
+The patched source lives in the sibling `chromium-build/src` checkout. A build
+may be packaged locally with:
 
 ```bash
-bash scripts/chromium/build.sh             # autoninja, then auto-upload + propagate
+bash scripts/chromium/build.sh
 ```
 
-`build.sh` runs `autoninja` then chains to `release.sh`, which reads the version
-from the built binary, creates a fresh `chromium-<ver>-weles.N` GitHub release
-(N auto-incremented), bumps the pinned tag in `download.sh`, and commits+pushes.
-Every host's 60 s auto-deploy then installs the new binary via `download.sh` and
-`find_browser.ts` auto-selects the newest version.
-
-If the binary is already built, publish on its own:
-
-```bash
-bash scripts/chromium/release.sh           # package + upload + bump pin + commit + push
-```
-
-Never `gh release upload --clobber` onto an existing tag: hosts key on the tag
-(the install dir is per-version) and won't notice an in-place replacement. Each
-build gets a new `-weles.N` tag — that is what `release.sh` does automatically.
+Packaging does not publish or mutate deployment coordinates. An operator must
+publish the generated archive at the exact Stado URI above and independently
+place its SHA-256 in deployment configuration. Stado release objects are
+immutable; publish a new version rather than replacing an existing object.

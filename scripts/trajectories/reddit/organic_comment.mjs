@@ -45,8 +45,8 @@ const acct = await getSocialAccount('reddit');
 if (!acct) { console.log('FAIL: no active reddit account'); process.exit(1); }
 
 async function fetchCharacter(accountId) {
-  const url = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
+  const url = process.env.WELES_DATABASE_URL ?? '';
+  const key = process.env.WELES_DATABASE_TOKEN ?? '';
   if (!url || !key || !accountId) return null;
   const r = await fetch(`${url}/rest/v1/character_social_accounts?social_account_id=eq.${accountId}&select=characters(name,bio,personality,niche,handle)&limit=1`, {
     headers: { apikey: key, Authorization: `Bearer ${key}` },
@@ -159,10 +159,10 @@ try {
       if (probe.verdict === 'shadowbanned') {
         banSignal = { signal: 'shadowbanned', healthy: false, details: { real_handle: realHandle, reason: 'multi-vantage about.json 404 after deferred verify', vantages: probe.vantages } };
         // Auto-flag: pull from rotation.
-        const supabaseUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
-        const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
-        if (supabaseUrl && key && acct.id) {
-          await fetch(`${supabaseUrl}/rest/v1/social_accounts?id=eq.${acct.id}`, {
+        const databaseUrl = process.env.WELES_DATABASE_URL ?? '';
+        const key = process.env.WELES_DATABASE_TOKEN ?? '';
+        if (databaseUrl && key && acct.id) {
+          await fetch(`${databaseUrl}/rest/v1/social_accounts?id=eq.${acct.id}`, {
             method: 'PATCH',
             headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
             body: JSON.stringify({ status: 'shadowbanned' }),

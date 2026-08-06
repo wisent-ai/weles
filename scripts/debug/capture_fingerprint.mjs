@@ -2,13 +2,13 @@
 // Same probe + network capture as capture_fingerprint_local.mjs, so the two
 // outputs can be diffed directly to find weles-specific fingerprint leaks.
 //
-// Usage: BRIGHTDATA_BROWSER_WS=<wss://...> node scripts/debug/capture_fingerprint.mjs
+// Uses the dedicated Bright Data Browser Skarbiec credential.
 import { chromium } from 'playwright';
 import { FP_SCRIPT, NETWORK_FP_URL, parseNetworkFingerprint } from '../../dist/diagnostics/fingerprint_probe.js';
 import { writeFileSync } from 'node:fs';
+import { readScopedSecret } from '../_shared/scoped-secrets.mjs';
 
-const ws = process.env.BRIGHTDATA_BROWSER_WS;
-if (!ws) { console.error('Set BRIGHTDATA_BROWSER_WS'); process.exit(1); }
+const ws = readScopedSecret('brightdataBrowser', 'websocket_url');
 
 console.log('Connecting to Bright Data...');
 const browser = await chromium.connectOverCDP(ws);

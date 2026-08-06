@@ -5,41 +5,74 @@ import type { ActionLogRow } from './poll.js';
 import { resolveTrajectory } from './dispatch.js';
 import { staleCookieAccounts } from './stale.js';
 import os from 'node:os';
+import { optionalWelesDatabase } from '../utils/weles-database.js';
 
-const SUPABASE_URL = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
-const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
+const DATABASE_URL = optionalWelesDatabase()?.url ?? '';
+const DATABASE_TOKEN = optionalWelesDatabase()?.token ?? '';
 const INSTANCE_ID = process.env.INSTANCE_ID ?? `weles-${os.hostname() || 'unknown'}-${process.pid}`;
+const ACTION_ALLOWLIST_VALUES = (process.env.WELES_ACTION_ALLOWLIST ?? '')
+  .split(',')
+  .map((action) => action.trim())
+  .filter(Boolean);
+if (!ACTION_ALLOWLIST_VALUES.length
+    || new Set(ACTION_ALLOWLIST_VALUES).size !== ACTION_ALLOWLIST_VALUES.length
+    || ACTION_ALLOWLIST_VALUES.some((action) => !/^[a-z_]+$/.test(action))) {
+  throw new Error('WELES_ACTION_ALLOWLIST must contain unique exact lowercase Weles action names');
+}
+const ACTION_ALLOWLIST = new Set(ACTION_ALLOWLIST_VALUES);
+const ACTION_FILTER = `&action=in.(${ACTION_ALLOWLIST_VALUES.map((action) =>
+  encodeURIComponent(`"${action.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`)
+).join(',')})`;
 
 function headers(): Record<string, string> {
-  return { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' };
+  return { apikey: DATABASE_TOKEN, Authorization: `Bearer ${DATABASE_TOKEN}`, 'Content-Type': 'application/json' };
 }
 
 export async function claimOne(): Promise<ActionLogRow | null> {
-  // Lookahead 300 rows so the per-account in-flight + stale skip lists don't
-  // starve out high-priority recovery rows that sit deep in the queue.
-  // Symptom: 36 linkedin_login rows never claimed because the top 100 by
-  // scheduled_at were all sim-cron rows (linkedin_browse / dwell / etc).
+  // Lookahead 1000 rows so large legacy backlogs don't hide fresh trading
+  // scrape rows behind the first page. Keep the SELECT schema-minimal:
+  // Echo's account_action_logs currently has no webhook_url,
+  // cancel_requested, or priority columns; selecting them makes PostgREST
+  // return 400 and the worker appear idle forever.
   const res = await fetch(
-    `${SUPABASE_URL}/rest/v1/account_action_logs?select=id,account_id,action,platform,params,status,webhook_url,cancel_requested,priority&status=eq.queued&or=(scheduled_at.is.null,scheduled_at.lte.now())&order=priority.desc,scheduled_at.asc.nullsfirst&limit=300`,
+    `${DATABASE_URL}/rest/v1/account_action_logs?select=id,account_id,action,platform,params,status&status=eq.queued&or=(scheduled_at.is.null,scheduled_at.lte.now())${ACTION_FILTER}&order=scheduled_at.asc.nullsfirst&limit=1000`,
     { headers: headers() },
   );
-  if (!res.ok) return null;
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    console.error(`[worker] claim candidate query failed ${res.status}: ${body.slice(0, 300)}`);
+    return null;
+  }
   let candidates = (await res.json()) as ActionLogRow[];
+  if (ACTION_ALLOWLIST.size > 0) {
+    candidates = candidates.filter((row) => ACTION_ALLOWLIST.has(row.action));
+  }
   // Priority sort: recovery rows (*_login, *_register, *_health, *_balance,
-  // *_topup) before sim/promote rows. Login mints cookies and unblocks every
-  // downstream action for the same account; health detects bans; balance keeps
-  // proxies funded. Stable-sort by scheduled_at within each priority tier.
+  // *_topup) before trading scrapes, then everything else. Login mints
+  // cookies and unblocks downstream social actions; trading scrapes are
+  // parallel-safe direct jobs and should not be buried behind stale dwell rows.
   const recoveryRe = /_(login|register|health|balance|topup|reauth)$/;
-  const priority = (row: ActionLogRow) => (recoveryRe.test(row.action) ? 1000 : 0) + Number(row.priority ?? 0);
+  const isParallelSafeScrape = (a: string) => /^(unusualwhales|volumeleaders|tradingview)_scrape$/.test(a);
+  const priority = (row: ActionLogRow) => (recoveryRe.test(row.action) ? 1000 : 0) + (isParallelSafeScrape(row.action) ? 900 : 0) + Number(row.priority ?? 0);
   candidates = candidates
     .map((r, i) => ({ r, i, p: priority(r) }))
     .sort((x, y) => y.p - x.p || x.i - y.i)
     .map((e) => e.r);
+  const executionHost = os.hostname();
+  const executionAgent = process.env.WELES_EXECUTION_AGENT ?? 'weles-worker';
+  candidates = candidates.filter((row) => {
+    if (row.action !== 'apple_login') return true;
+    const params = row.params && typeof row.params === 'object' && !Array.isArray(row.params)
+      ? row.params as Record<string, unknown>
+      : {};
+    return params.apple_execution_host === executionHost
+      && params.apple_execution_agent === executionAgent;
+  });
   // Per-account in-flight lock: each account has ONE stored sticky proxy session (Oxylabs sessid). Concurrent connections to one sticky session get refused with ERR_TUNNEL_CONNECTION_FAILED. Serialize per-account; deferred rows pick up next tick. Ignore rows older than 30 min — those are stuck-poison from killed workers and should not block their account forever.
   const inflightAccounts = new Set<string>();
   if (candidates.length) {
     const cutoff = new Date(Date.now() - 30 * 60_000).toISOString();
-    const r = await fetch(`${SUPABASE_URL}/rest/v1/account_action_logs?select=account_id,claimed_at&status=eq.running&claimed_at=gte.${cutoff}`, { headers: headers() });
+    const r = await fetch(`${DATABASE_URL}/rest/v1/account_action_logs?select=account_id,claimed_at&status=eq.running&claimed_at=gte.${cutoff}`, { headers: headers() });
     if (r.ok) for (const row of (await r.json()) as { account_id: string | null }[]) if (row.account_id) inflightAccounts.add(row.account_id);
   }
   const staleAccounts = await staleCookieAccounts(candidates);
@@ -49,14 +82,13 @@ export async function claimOne(): Promise<ActionLogRow | null> {
   // for the same sentinel account is what makes parallel trading scrapes
   // possible. Social actions still get the lock because they share an
   // Oxylabs sticky session per account.
-  const isParallelSafeScrape = (a: string) => /^(unusualwhales|volumeleaders|tradingview)_scrape$/.test(a);
   // Account-less actions the worker may claim: account creation, proxy provider
   // balance/topup, and infra maintenance (resend_verify_domain_status health check
   // + the slack_post_message alert it chains), plus analytics-service browser
   // actions that use service credentials rather than a social account row.
   // Everything else without an account is a poison orphan and is skipped.
   const isOverleafAction = (a: string) => a.startsWith('overleaf_');
-  const canRunWithoutAccount = (a: string) => /_register$|_balance$|_topup$|_reauth$|_verify_domain_status$|_post_message$/.test(a) || a === 'slack_provision_user_token' || a === 'pangram_analyze_text' || a === 'ncbr_pangram_audit_new_wniosek' || a === 'generic_browser_task' || a === 'generic_keeper_task' || a === 'generic_saved_task' || isOverleafAction(a) || /^(umami|googleanalytics)_/.test(a);
+  const canRunWithoutAccount = (a: string) => /_register$|_balance$|_topup$|_reauth$|_verify_domain_status$|_post_message$/.test(a) || a === 'slack_provision_user_token' || a === 'pangram_analyze_text' || a === 'ncbr_pangram_audit_new_wniosek' || a === 'generic_browser_task' || a === 'generic_keeper_task' || a === 'generic_saved_task' || a === 'semanticscholar_key_followup' || isOverleafAction(a) || /^(umami|googleanalytics)_/.test(a);
   for (const row of candidates) {
     if (!resolveTrajectory(row.action)) continue;
     if (!row.id) continue;
@@ -70,7 +102,7 @@ export async function claimOne(): Promise<ActionLogRow | null> {
     if (row.account_id && staleAccounts.has(row.account_id) && !recoveryRe.test(row.action)) continue;
 
     const claim = await fetch(
-      `${SUPABASE_URL}/rest/v1/account_action_logs?id=eq.${row.id}&status=eq.queued`,
+      `${DATABASE_URL}/rest/v1/account_action_logs?id=eq.${row.id}&status=eq.queued`,
       {
         method: 'PATCH',
         headers: { ...headers(), Prefer: 'return=representation' },

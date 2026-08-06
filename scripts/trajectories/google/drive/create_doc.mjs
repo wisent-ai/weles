@@ -13,19 +13,19 @@
 // Env (alternative to flags):
 //   DOC_TITLE         document title
 //   DOC_CONTENT_PATH  path to a UTF-8 text/markdown file
-//   GM_EMAIL          google account (default lukasz.bartoszcze@gmail.com)
-//   GM_PASSWORD       google account password (else sourced from service_credentials)
+//   Login credentials are read from the dedicated Google Drive Skarbiec item.
 //   BROWSER           'chromium' | 'firefox' to pin engine
 //
 // Output:
 //   URL: https://docs.google.com/document/d/<id>/edit on success.
 
 import { WSession } from '../../../../dist/session/wsession.js';
-import { googleSso, getGoogleSsoCreds } from '../../_shared/services/google_sso.mjs';
+import { googleSso } from '../../_shared/services/google_sso.mjs';
 import { humanClick, humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
 import { humanType, humanFill } from '../../../../dist/human/keyboard.js';
 import { nativeSelectAllAndDelete } from '../../../../dist/human/mouse-native.js';
 import { readFileSync } from 'node:fs';
+import { readScopedLogin } from '../../../_shared/scoped-secrets.mjs';
 
 function arg(name) {
   const i = process.argv.indexOf(name);
@@ -44,11 +44,7 @@ const LABEL = 'drive_create_doc';
 function log(...a) { console.log('[drive_create_doc]', ...a); }
 
 async function resolveCreds() {
-  const email = process.env.GM_EMAIL || 'lukasz.bartoszcze@gmail.com';
-  if (process.env.GM_PASSWORD) return { email, password: process.env.GM_PASSWORD };
-  const fromDb = await getGoogleSsoCreds(email);
-  if (fromDb?.password) return fromDb;
-  throw new Error('No password: set GM_PASSWORD or add a service_credentials row for ' + email);
+  return readScopedLogin('googleDrive');
 }
 
 const creds = await resolveCreds();

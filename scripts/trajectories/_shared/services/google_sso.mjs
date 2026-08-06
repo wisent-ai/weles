@@ -4,9 +4,10 @@
 // and the page must now be on accounts.google.com (or about to redirect there).
 import { humanFill } from '../../../../dist/human/keyboard.js';
 import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { createHmac } from 'node:crypto';
+import { readScopedLogin } from '../../../_shared/scoped-secrets.mjs';
 
 async function logGooglePageDiag(page, label) {
   const diag = await page.evaluate(() => {
@@ -108,12 +109,7 @@ function findTotpSecret(value, seen = new Set()) {
 }
 
 function resolveTotpSecret(creds) {
-  return findTotpSecret(creds)
-    || extractTotpSecretFromValue(process.env.GOOGLE_TOTP_SECRET)
-    || extractTotpSecretFromValue(process.env.GOOGLE_AUTHENTICATOR_SECRET)
-    || extractTotpSecretFromValue(process.env.SSO_TOTP_SECRET)
-    || extractTotpSecretFromValue(process.env.GM_TOTP_SECRET)
-    || '';
+  return findTotpSecret(creds);
 }
 
 function decodeBase32Secret(secret) {
@@ -261,49 +257,18 @@ async function submitGoogleSecondFactor(page) {
   }
 }
 
-function manualTotpEnabled() {
-  return process.env.GOOGLE_SSO_MANUAL_TOTP === '1';
-}
-
-function manualTotpCodeFile() {
-  return process.env.GOOGLE_SSO_MANUAL_TOTP_FILE || '.work/google-sso-manual-totp.txt';
-}
-
-function manualTotpReadyFile() {
-  return process.env.GOOGLE_SSO_MANUAL_TOTP_READY_FILE || `${manualTotpCodeFile()}.ready`;
-}
-
-async function waitForManualTotpCode() {
-  const file = manualTotpCodeFile();
-  const readyFile = manualTotpReadyFile();
-  writeFileSync(readyFile, String(Date.now()));
-  console.log(`[google_sso] waiting for manual Google Authenticator code file=${file} ready=${readyFile}`);
-  for (let i = 0; i < 240; i++) {
-    if (existsSync(file)) {
-      const raw = readFileSync(file, 'utf8').trim();
-      rmSync(file, { force: true });
-      rmSync(readyFile, { force: true });
-      const match = raw.match(/\b(\d{6})\b/);
-      if (match) return match[1];
-      console.log('[google_sso] manual TOTP file did not contain a 6-digit code; waiting for replacement');
-    }
-    await humanIdlePause('short');
-  }
-  return '';
-}
 
 async function fillGoogleAuthenticatorTotp(page, creds) {
   const secret = resolveTotpSecret(creds);
-  const manual = manualTotpEnabled();
-  if (!secret && !manual) return false;
+  if (!secret) return false;
   for (let i = 0; i < 20; i++) {
     const input = await visibleTotpInput(page);
     if (input) {
       const text = await page.evaluate(() => document.body?.innerText || '').catch(() => '');
       const existing = await input.inputValue().catch(() => '');
-      let code = manual ? await waitForManualTotpCode() : generateTotp(secret);
+      let code = generateTotp(secret);
       if (!code) return false;
-      if (!manual && (/Wrong code|Try again/i.test(text) || /^\d{6}$/.test(existing))) {
+      if (/Wrong code|Try again/i.test(text) || (/^\d+$/.test(existing) && existing.length === Number('6'))) {
         for (let j = 0; j < 35; j++) {
           code = generateTotp(secret);
           if (code !== existing) break;
@@ -312,7 +277,7 @@ async function fillGoogleAuthenticatorTotp(page, creds) {
       }
       await input.fill('').catch(() => {});
       await humanFill(page, input, code);
-      console.log(`[google_sso] filled Google Authenticator TOTP code source=${manual ? 'manual' : 'generated'}`);
+      console.log('[google_sso] filled Google Authenticator TOTP code from the exact scoped secret');
       await submitGoogleSecondFactor(page);
       return true;
     }
@@ -323,7 +288,7 @@ async function fillGoogleAuthenticatorTotp(page, creds) {
 
 async function handleGoogleAuthenticatorTotp(page, creds) {
   const secret = resolveTotpSecret(creds);
-  if (!secret && !manualTotpEnabled()) return false;
+  if (!secret) return false;
   if (await visibleTotpInput(page)) {
     return await fillGoogleAuthenticatorTotp(page, creds);
   }
@@ -646,7 +611,7 @@ export async function googleSso(session, creds, opts = {}) {
       console.log(`[google_sso] main page returned to ${originHost}`);
       return true;
     }
-    if (/signin\/challenge\/selection/.test(u) && (manualTotpEnabled() || resolveTotpSecret(creds))) {
+    if (/signin\/challenge\/selection/.test(u) && resolveTotpSecret(creds)) {
       if (await handleGoogleAuthenticatorTotp(page, creds)) {
         totpAttempts += 1;
         continue;
@@ -677,7 +642,7 @@ export async function googleSso(session, creds, opts = {}) {
         await logGooglePageDiag(page, 'device_prompt_waiting');
         console.log('[google_sso] waiting for Google device prompt approval');
       }
-      if (resolveTotpSecret(creds) || manualTotpEnabled()) {
+      if (resolveTotpSecret(creds)) {
         if (await navigateGoogleAuthenticatorTotpChallenge(page)) {
           if (totpAttempts < 3 && await handleGoogleAuthenticatorTotp(page, creds)) {
             totpAttempts += 1;
@@ -754,36 +719,26 @@ export function parseBalanceFromText(text) {
   return null;
 }
 
-// Fetch the shared Google account credentials (lukasz.bartoszcze@gmail.com).
-// Used by service trajectories whose own row in service_credentials has no
-// login_password (per the 'use google sso then' workflow). Picks any row
-// whose login_email matches the shared SSO email and login_password is set.
-export async function getGoogleSsoCreds(email = 'lukasz.bartoszcze@gmail.com') {
-  const supabaseUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
-  if (!supabaseUrl || !key) return null;
-  const r = await fetch(
-    `${supabaseUrl}/rest/v1/service_credentials?login_email=eq.${encodeURIComponent(email)}&login_password=not.is.null&select=*&limit=1`,
-    { headers: { apikey: key, Authorization: `Bearer ${key}` } },
-  );
-  if (!r.ok) return null;
-  const rows = await r.json();
-  const row = rows?.[0];
-  if (!row?.login_password) return null;
-  const totpSecret = findTotpSecret(row);
-  return {
-    email: row.login_email,
-    password: row.login_password,
-    ...(totpSecret ? { totpSecret } : {}),
-  };
+// Resolve the shared Google SSO identity through its exact Skarbiec consumer.
+// Callers for Ads, Gmail, Drive, and Workspace admin use their own service
+// identities instead of reusing this grant.
+export async function getGoogleSsoCreds(email) {
+  const login = readScopedLogin('googleSso');
+  if (email && login.email.toLowerCase() !== String(email).toLowerCase()) {
+    throw new Error('scoped Google SSO identity does not match the requested account');
+  }
+  return login;
+}
+export async function getScopedGoogleLogin(serviceName) {
+  return readScopedLogin(serviceName);
 }
 
 export async function patchServiceBalance(displayName, balance) {
-  const supabaseUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
-  if (!supabaseUrl || !key) return false;
+  const databaseUrl = process.env.WELES_DATABASE_URL ?? '';
+  const key = process.env.WELES_DATABASE_TOKEN ?? '';
+  if (!databaseUrl || !key) return false;
   const now = new Date().toISOString();
-  const r = await fetch(`${supabaseUrl}/rest/v1/service_credentials?display_name=eq.${encodeURIComponent(displayName)}`, {
+  const r = await fetch(`${databaseUrl}/rest/v1/service_credentials?display_name=eq.${encodeURIComponent(displayName)}`, {
     method: 'PATCH',
     headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
     body: JSON.stringify({ balance_usd: balance, last_balance_check: now, updated_at: now }),
