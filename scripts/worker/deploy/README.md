@@ -267,7 +267,7 @@ bridge. Unknown item/provider/operation combinations fail closed.
 Microsoft Entra work accounts use their own provider `microsoft_entra`, origin
 `https://login.microsoftonline.com`, actions `microsoft_entra_adopt_password`,
 `microsoft_entra_reset_password` and `microsoft_entra_verify_password`, and the
-exact items `weles-microsoft-jakub-wisent-com-password` and
+exact items `weles-microsoft-jakub-wisent-ai-password` and
 `weles-microsoft-lukasz-wisent-com-password`. `adopt` takes over a password the
 operator already knows: Skarbiec stages that candidate under the item, Weles
 proves it with a fresh login plus the full identity assertion and writes nothing,
