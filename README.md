@@ -142,6 +142,42 @@ terminal result and whose receipt and evidence digest verify against the
 configured public key. Do not use a synthetic public target as a substitute for
 that authorization chain.
 
+## Database schema
+
+The worker database schema is owned by
+[`wisent-ai/wisent-supabase-echo`](https://github.com/wisent-ai/wisent-supabase-echo),
+which is the only source of truth for the Supabase project `yqizdfkfnmhddfemdxtq`.
+Every DDL change — tables, columns, indexes, policies, functions, and the
+`weles_schema_migrations` ledger row that records it — is proposed as a pull
+request in that repository and applied only by its CI on `main`. This repository
+holds no migrations, no `supabase/config.toml`, and no linked-project state;
+`supabase/` is gitignored so a local `supabase`-CLI `link` cannot reintroduce
+them.
+
+No one runs the `supabase` CLI locally against production. Applying DDL by hand
+from a workstation — `db query`, `db push`, or any other write subcommand
+against the production project — bypasses the review and deployment gate and is
+prohibited. The repository pre-commit hook additionally refuses to commit
+`supabase`-CLI invocations.
+
+What this repository declares is the schema version it requires. At startup
+`src/worker/schema_compatibility.ts` reads the highest `version` from the
+`weles_schema_migrations` table over the Supabase REST endpoint
+(`/rest/v1/weles_schema_migrations?select=version&order=version.desc&limit=1`)
+and refuses to run unless that version falls inside an inclusive range:
+
+- `WELES_DATABASE_SCHEMA_MINIMUM`, default `4`
+- `WELES_DATABASE_SCHEMA_MAXIMUM`, default `5`
+
+Both defaults are the literals in `assertDatabaseCompatibility`
+(`env.WELES_DATABASE_SCHEMA_MINIMUM ?? '4'`, `env.WELES_DATABASE_SCHEMA_MAXIMUM ?? '5'`),
+so an unconfigured deployment accepts schema versions `4..5`; the deployment
+environment may narrow or advance the range, but only positive integers with
+minimum not greater than maximum are accepted. A ledger that is empty,
+unreadable, or outside the range is a startup failure, not a warning. Widening
+that range is a code change here; producing the schema version it points at is a
+change in `wisent-supabase-echo`.
+
 ## Primary interfaces
 
 - **Worker process:** `node scripts/worker/run.mjs` for the deployment-managed

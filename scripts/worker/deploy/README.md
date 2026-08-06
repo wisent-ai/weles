@@ -46,6 +46,21 @@ channels; none of those releases independently changes the running worker.
      --compatibility compatibility.json --output deployment.json
    ```
 
+   `database.json` is not produced from this repository. Its `schemaVersion` is
+   the highest `version` present in the `weles_schema_migrations` ledger after
+   the corresponding pull request has merged in
+   [`wisent-ai/wisent-supabase-echo`](https://github.com/wisent-ai/wisent-supabase-echo),
+   and its `migrationSetSha256` is the SHA-256 of that merged migration file's
+   exact bytes:
+
+   ```bash
+   shasum -a 256 supabase/migrations/<merged-migration>.sql
+   ```
+
+   Take both from the merged commit, never from a local working copy or an
+   unmerged branch: a manifest that claims a schema version the deployed
+   database does not have will fail every worker's startup compatibility check.
+
 3. Publish the exact manifest as a prerelease candidate:
 
    ```bash
