@@ -99,7 +99,7 @@ const MICROSOFT_PASSWORD_ID = /^weles-microsoft-[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-
 // account.live.com. The exact ids are enumerated so a new id cannot silently
 // inherit the consumer origin.
 const MICROSOFT_ENTRA_PASSWORD_IDS: ReadonlySet<string> = new Set([
-  'weles-microsoft-jakub-wisent-com-password',
+  'weles-microsoft-jakub-wisent-ai-password',
   'weles-microsoft-lukasz-wisent-com-password',
 ]);
 const MICROSOFT_ENTRA_ORIGIN = 'https://login.microsoftonline.com';
