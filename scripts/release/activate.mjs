@@ -7,6 +7,7 @@ import { homedir, hostname } from 'node:os';
 import { join, resolve } from 'node:path';
 import {
   assertPromotionTransition,
+  createDatabaseCredentials,
   hostPlatform,
   loadManifest,
   parseArgs,
@@ -49,33 +50,12 @@ const workerCredentialScopes = resolve(
 await access(workerCredentialHelper);
 await access(workerCredentialScopes);
 
-function acquireDatabaseCredential(consumer, item, field) {
-  const endpoint = process.env.WC_SKARBIEC_URL?.trim();
-  if (!endpoint) throw new Error('release activation requires WC_SKARBIEC_URL');
-  return execFileSync(process.execPath, [
-    workerCredentialHelper,
-    endpoint,
-    workerCredentialScopes,
-    consumer,
-    item,
-    field,
-  ], {
-    encoding: 'utf8',
-    stdio: ['ignore', 'pipe', 'pipe'],
-    env: process.env,
-  }).trim();
-}
-
-process.env.SUPABASE_URL ||= acquireDatabaseCredential(
-  'weles-database-url-bootstrap',
-  'weles-database',
-  'url',
-);
-process.env.SUPABASE_SERVICE_ROLE_KEY ||= acquireDatabaseCredential(
-  'weles-database-service-role-bootstrap',
-  'weles-database',
-  'service_role_key',
-);
+// Resolved lazily, cached in memory for the lifetime of this activation, and deliberately kept out
+// of process.env so no child process, log line, or receipt can observe the service role key.
+const databaseCredentials = createDatabaseCredentials({
+  helper: workerCredentialHelper,
+  scopeFile: workerCredentialScopes,
+});
 
 const compatibility = manifest.compatibility.workerDatabase;
 if (manifest.database.schemaVersion < compatibility.minimum || manifest.database.schemaVersion > compatibility.maximum) {
@@ -217,9 +197,7 @@ function deploy(path) {
   return { retired, deployed };
 }
 async function setActiveLease(deploymentId, generation, activeManifestSha256) {
-  const baseUrl = (process.env.SUPABASE_URL ?? '').replace(/\/$/, '');
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
-  if (!baseUrl || !serviceKey) throw new Error('worker lease cutover requires SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY');
+  const { baseUrl, serviceKey } = databaseCredentials();
   const response = await fetch(`${baseUrl}/rest/v1/system_settings?on_conflict=key`, {
     method: 'POST',
     headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates,return=minimal' },
@@ -232,9 +210,7 @@ async function setActiveLease(deploymentId, generation, activeManifestSha256) {
   if (!response.ok) throw new Error(`failed to set active worker lease (${response.status})`);
 }
 async function clearActiveLease() {
-  const baseUrl = (process.env.SUPABASE_URL ?? '').replace(/\/$/, '');
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
-  if (!baseUrl || !serviceKey) throw new Error('worker lease rollback requires SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY');
+  const { baseUrl, serviceKey } = databaseCredentials();
   const response = await fetch(`${baseUrl}/rest/v1/system_settings?key=eq.weles_active_worker_lease`, {
     method: 'DELETE',
     headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, Prefer: 'return=minimal' },
@@ -244,9 +220,7 @@ async function clearActiveLease() {
 
 const heartbeatKey = ring === 'production' ? 'weles_deployment_version' : `weles_deployment_version:${ring}:${activationInstanceId}`;
 async function waitForHeartbeat(expectedSha256, expectedInstanceId) {
-  const baseUrl = (process.env.SUPABASE_URL ?? '').replace(/\/$/, '');
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
-  if (!baseUrl || !serviceKey) throw new Error('release health gate requires SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY');
+  const { baseUrl, serviceKey } = databaseCredentials();
   const timeout = Number(args.get('health-timeout-ms') ?? 120_000);
   const healthDeadline = Date.now() + timeout;
   while (Date.now() < healthDeadline) {
@@ -286,16 +260,13 @@ async function recordReceipt(status, evidence, previousManifestSha256 = null) {
     recorded_at: new Date().toISOString(),
   };
   await writeAtomic(join(state, 'receipts', ring, host, `${Date.now()}-${manifestSha256}-${status}.json`), `${JSON.stringify(receipt, null, 2)}\n`);
-  const baseUrl = (process.env.SUPABASE_URL ?? '').replace(/\/$/, '');
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
-  if (baseUrl && serviceKey) {
-    const response = await fetch(`${baseUrl}/rest/v1/weles_deployment_receipts`, {
-      method: 'POST',
-      headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
-      body: JSON.stringify(receipt),
-    });
-    if (!response.ok) throw new Error(`failed to persist deployment receipt (${response.status})`);
-  }
+  const { baseUrl, serviceKey } = databaseCredentials();
+  const response = await fetch(`${baseUrl}/rest/v1/weles_deployment_receipts`, {
+    method: 'POST',
+    headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+    body: JSON.stringify(receipt),
+  });
+  if (!response.ok) throw new Error(`failed to persist deployment receipt (${response.status})`);
   return receipt;
 }
 
@@ -337,7 +308,13 @@ try {
   process.stdout.write(`${JSON.stringify({ current, receipt }, null, 2)}\n`);
 } catch (error) {
   const message = error instanceof Error ? error.message : String(error);
-  await recordReceipt('failed', { error: message, probierz: evidenceApproval }, previous?.manifestSha256 ?? null).catch(() => undefined);
+  // The failure receipt stays best-effort so the rollback below always runs, but a receipt that was
+  // not durably recorded is announced instead of being lost silently.
+  await recordReceipt('failed', { error: message, probierz: evidenceApproval }, previous?.manifestSha256 ?? null)
+    .catch((receiptError) => {
+      const receiptMessage = receiptError instanceof Error ? receiptError.message : String(receiptError);
+      process.stderr.write(`failed deployment receipt for manifest ${manifestSha256} was not persisted to weles_deployment_receipts: ${receiptMessage}\n`);
+    });
   if (!cutoverAttempted) {
     await rm(drainPath, { force: true });
     throw error;
