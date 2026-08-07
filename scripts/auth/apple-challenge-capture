@@ -47,7 +47,30 @@ if [ ! -f "$relay" ] || [ -L "$relay" ]; then
   false
 fi
 
+# The channel runs this with a login environment, not the operator's interactive
+# shell, so `node` is frequently not on PATH here even on a machine where the whole
+# Weles installation sits ready. Resolving it explicitly is the difference between
+# "this host cannot capture a code" and "this program did not look properly".
+# NODE_BIN wins when the operator set it; otherwise the two locations a Mac actually
+# installs node into are tried, and PATH is the last resort rather than the first.
+node_bin=${NODE_BIN:-}
+if [ -z "$node_bin" ]; then
+  for candidate in /opt/homebrew/bin/node /usr/local/bin/node; do
+    if [ -x "$candidate" ]; then
+      node_bin=$candidate
+      break
+    fi
+  done
+fi
+if [ -z "$node_bin" ]; then
+  node_bin=$(command -v node || true)
+fi
+if [ -z "$node_bin" ] || [ ! -x "$node_bin" ]; then
+  printf '%s\n' "no usable node interpreter; set NODE_BIN on this host" > /dev/stderr
+  false
+fi
+
 # `exec` so the relay's exit status and its acknowledgement on stdout reach Stado
 # unaltered: the caller checks both, and a wrapper that summarised either would be
 # one more place for the two ends of this flow to disagree.
-exec node "$relay" "$guard_id"
+exec "$node_bin" "$relay" "$guard_id"
