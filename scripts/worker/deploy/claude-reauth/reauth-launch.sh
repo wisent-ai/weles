@@ -28,5 +28,32 @@ unset SEMANTIC_SCHOLAR_API_KEY S2_API_KEY || true
 WELES_STATE_DIR="${WELES_STATE_DIR:-$HOME/.local/state/weles}"
 export WELES_STATE_DIR
 mkdir -p "$WELES_STATE_DIR"
+
+# The trajectory reads the Weles database through SUPABASE_URL and
+# SUPABASE_SERVICE_ROLE_KEY, and the deployment env deliberately holds neither: a
+# service-role key on disk is what the acquisition client exists to avoid. The
+# main launcher acquires the same two values from the same scoped consumers, so
+# this does too rather than asking an operator to paste them somewhere.
+NODE_BIN="${NODE_BIN:-/opt/homebrew/bin/node}"
+acquire_helper="$WELES_DIR/scripts/worker/deploy/skarbiec-acquire.mjs"
+acquire_scopes="$WELES_DIR/scripts/worker/deploy/skarbiec-acquisition-scopes.conf"
+acquire_url="${WC_SKARBIEC_URL:-${WELES_CREDENTIAL_SKARBIEC_URL:-}}"
+if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ]; then
+  if [ ! -f "$acquire_helper" ] || [ -z "$acquire_url" ]; then
+    printf '%s\n' "no Skarbiec acquisition client or URL, so the Weles database cannot be reached" >/dev/stderr
+    false
+  fi
+  SUPABASE_URL="$("$NODE_BIN" "$acquire_helper" "$acquire_url" "$acquire_scopes" \
+    weles-database-url-bootstrap weles-database url)" || {
+    printf '%s\n' "Skarbiec acquisition failed for weles-database/url" >/dev/stderr
+    false
+  }
+  SUPABASE_SERVICE_ROLE_KEY="$("$NODE_BIN" "$acquire_helper" "$acquire_url" "$acquire_scopes" \
+    weles-database-service-role-bootstrap weles-database service_role_key)" || {
+    printf '%s\n' "Skarbiec acquisition failed for weles-database/service_role_key" >/dev/stderr
+    false
+  }
+  export SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY
+fi
 exec /usr/bin/caffeinate -dimsu /opt/homebrew/bin/node \
   "$WELES_DIR/scripts/trajectories/claude/reauth.mjs"
