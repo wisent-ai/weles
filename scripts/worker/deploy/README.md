@@ -287,25 +287,30 @@ an absolute, owner-owned executable bridge:
 
 ```bash
 APPLE_2FA_RELAY_COMMAND=/home/<user>/weles/scripts/auth/request-apple-challenge-relay.mjs
-APPLE_2FA_MAC_HOST=<trusted-mac-host>
-APPLE_2FA_MAC_USER=<ssh-user>
-APPLE_2FA_MAC_PORT=22
-APPLE_2FA_MAC_IDENTITY_FILE=/home/<user>/.ssh/apple-2fa
-APPLE_2FA_MAC_KNOWN_HOSTS_FILE=/home/<user>/.ssh/apple-2fa-known-hosts
-APPLE_2FA_MAC_RELAY_COMMAND=/Users/<user>/weles/scripts/auth/relay-apple-challenge.mjs
+APPLE_2FA_ACCOUNT_IDENTITY=<apple-id>
+APPLE_2FA_RELAY_HELPER=apple-challenge-capture   # optional; this is the default
 ```
 
-The fixed command on the trusted Mac requires its own pinned SSH configuration
-for Skarbiec (`APPLE_2FA_SKARBIEC_HOST`, `APPLE_2FA_SKARBIEC_USER`,
-`APPLE_2FA_SKARBIEC_PORT`, `APPLE_2FA_SKARBIEC_IDENTITY_FILE`,
-`APPLE_2FA_SKARBIEC_KNOWN_HOSTS_FILE`, and
-`APPLE_2FA_SKARBIEC_COMMAND`). The Mac-to-Skarbiec SSH key must be a forced,
-write-only command restricted to `apple-challenge-put`; it must not expose any
-vault read or general CLI surface. The bridge captures the native trusted-device
-prompt, stores the six-digit code directly under the authorization-bound
-challenge resource, and returns only an acknowledgement. Private keys and env
-files must be mode `0600`; bridge scripts must be owner-owned, executable, and
-not group/world writable.
+That is the whole contract. The bridge no longer takes a host, a user, a port,
+a key file, a known-hosts file or a remote path: it asks
+`stado identity verify --kind apple-account` which machine currently holds the
+account, accepts only an observed holder, and runs the named helper there with
+`stado host run-helper`. The registry channel authenticates and logs that call,
+and the guard id travels as a UUID, which is the only argument shape it carries.
+
+Six hand-written variables described a channel that existed nowhere in the
+registry, and the host among them went stale the moment the account moved: an
+Apple account signs out on a password change, and a name written down once keeps
+pointing at a Mac that will never show a prompt again. The flow then died on a
+connection timeout rather than saying the binding was unsatisfied.
+
+Install the capture helper on the holder with
+`stado host install-helper <target> <source> apple-challenge-capture`. It runs
+as the target's own Stado helper, captures the native trusted-device prompt,
+stores the six-digit code directly under the authorization-bound challenge
+resource, and returns only an acknowledgement. It must not expose any vault read
+or general CLI surface. Env files must be mode `0600`; helper scripts must be
+owner-owned, executable, and not group/world writable.
 
 Authorize exactly one queued login from an authorized host:
 
