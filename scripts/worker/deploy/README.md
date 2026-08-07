@@ -496,14 +496,60 @@ follow-up, and Skarbiec write must match end to end.
 The public bridge distributed from
 [`wisent-ai/weles-client`](https://github.com/wisent-ai/weles-client) is the
 only supported Skarbiec lifecycle bridge. It submits the strict
-`skarbiec.credential-operation.v1` contract to the hosted task endpoint and
-polls the returned action-log ID without returning task payloads.
+`skarbiec.credential-operation.v3` contract to the hosted task endpoint and
+polls the returned action-log ID without returning task payloads. The bridge
+resolves that endpoint from the Stado forward file
+`${STADO_FORWARDS_DIR:-$HOME/.stado/forwards}/weles-admission.local`, which must
+be an owner-only regular file holding exactly one URL; `WELES_URL` is no longer
+read and an unresolved endpoint fails closed as `needs_configuration` with code
+`WELES_ENDPOINT_UNRESOLVED`.
 
 Configure Skarbiec with the absolute installed bridge path through
-`SKARBIEC_WELES_CREDENTIAL_COMMAND`. `credential acquire`, `rotate`, and
-`verify` carry only bounded identifiers, account binding, and purpose; password
-material never crosses the bridge. Unknown item/provider/operation combinations
-fail closed.
+`SKARBIEC_WELES_CREDENTIAL_COMMAND`. `credential acquire`, `adopt`, `rotate`,
+`reset`, and `verify` carry only bounded identifiers, account binding, purpose,
+and the canonical `directory` block (`provider`, `tenant_id`,
+`principal_object_id`, `account_upn`); password material never crosses the
+bridge. Unknown item/provider/operation combinations fail closed.
+
+Microsoft Entra work accounts use their own provider `microsoft_entra`, origin
+`https://login.microsoftonline.com`, actions `microsoft_entra_adopt_password`,
+`microsoft_entra_reset_password` and `microsoft_entra_verify_password`, and the
+exact items `weles-microsoft-jakub-wisent-ai-password` and
+`weles-microsoft-lukasz-wisent-com-password`. `adopt` takes over a password the
+operator already knows: Skarbiec stages that candidate under the item, Weles
+proves it with a fresh login plus the full identity assertion and writes nothing,
+and Skarbiec activates the staged revision on success. `rotate` requires the
+known managed password so a compensating rollback stays possible; `reset` is the
+separate operation for an unknown current password. Consumer Microsoft accounts
+keep provider `microsoft` and origin `https://account.live.com`.
+
+The directory identity is the item's own write-once contract, never a call
+argument. The lifecycle request carries no flat `account_upn`, `tenant_id`, or
+`principal_object_id`: Skarbiec reads them from the item and sends the whole
+`directory` block, the trajectory takes the identity from exactly that block, and
+a missing or partial block is a refusal instead of a default.
+
+Every terminal answer states one three-valued `provider_effect`: `none` when the
+directory password was left untouched, `changed` when the directory accepted a
+new value, and `unknown` when the run cannot prove which value the directory now
+holds. Only `none` may be retried automatically; `changed` needs an explicit
+`verify` or a confirmed rollback first, and `unknown` quarantines the item. The
+former `provider_password_changed` flag is gone.
+
+`needs_human_approval` carries an `approval` resource with `approval_id`,
+`phase`, `provider_effect`, `expires_at` (a bounded four-hour lease),
+`resume_token`, and `instruction`. All six fields travel together or the object
+is dropped; resubmitting is not a resume path, and an expired lease releases the
+operation instead of leaving a zombie.
+
+`operation_completed` carries a `receipt` with `tenant_id`,
+`principal_object_id`, `account_upn`, `operation`, `request_id`,
+`evidence_digest` (SHA-256 over the canonical session evidence of that run),
+`execution_host`, `changed_at` (null when nothing changed), `verified_at`, and
+`action_log_id`, so `credential status` answers whether exactly this principal
+was rotated without reading a mailbox or a log. No password and no value derived
+from one is ever part of it, and a receipt naming another identity, request, or
+operation is rejected as a protocol violation.
 
 Snap Kit production API-token acquisition uses item
 `weles-snapchat-snap-kit-api`, field `api_token`, writer consumer

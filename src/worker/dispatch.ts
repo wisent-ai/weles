@@ -302,6 +302,13 @@ const ROUTES: Record<string, (p: string) => string | null> = {
   bookmark: (p) => `scripts/trajectories/${p}/actions/bookmark.mjs`,
   save: (p) => `scripts/trajectories/${p}/actions/save.mjs`,
   reset_password: (p) => p === 'github' ? 'scripts/trajectories/github/recover/reset_password.mjs' : `scripts/trajectories/${p}_reset_password.mjs`,
+  // Entra work accounts are their own provider surface, not the consumer
+  // Microsoft flow: resolveTrajectory splits an action on its first underscore,
+  // so microsoft_entra_reset_password arrives here as entra_reset_password on
+  // platform microsoft.
+  entra_adopt_password: (p) => p === 'microsoft' ? 'scripts/trajectories/microsoft_entra_adopt_password.mjs' : null,
+  entra_reset_password: (p) => p === 'microsoft' ? 'scripts/trajectories/microsoft_entra_reset_password.mjs' : null,
+  entra_verify_password: (p) => p === 'microsoft' ? 'scripts/trajectories/microsoft_entra_verify_password.mjs' : null,
   balance: (p) => PROXY_PROVIDERS.has(p) ? `scripts/trajectories/${p}/balance.mjs` : `scripts/trajectories/${p}_balance.mjs`,
   topup: (p) => PROXY_PROVIDERS.has(p) ? `scripts/trajectories/${p}/topup.mjs` : null,
   analyze_text: (p) => p === 'pangram' ? 'scripts/trajectories/pangram/analyze_text.mjs' : null,
@@ -362,6 +369,17 @@ export function paramsToEnv(
     if (constraints && typeof constraints === 'object') env.GENERIC_TASK_CONSTRAINTS = JSON.stringify(constraints);
     const taskEnv = params.env;
     if (taskEnv && typeof taskEnv === 'object') env.GENERIC_TASK_ENV = JSON.stringify(taskEnv);
+  }
+  // The Entra password lifecycle reads its whole contract from this variable:
+  // the sealed directory identity, the operation and the request id. Without it
+  // the trajectory refuses to run rather than guessing an account.
+  if (trajPath.endsWith('/microsoft_entra_adopt_password.mjs')
+      || trajPath.endsWith('/microsoft_entra_reset_password.mjs')
+      || trajPath.endsWith('/microsoft_entra_verify_password.mjs')) {
+    const constraints = params.constraints;
+    if (constraints && typeof constraints === 'object') {
+      env.WELES_CREDENTIAL_CONSTRAINTS = JSON.stringify(constraints);
+    }
   }
   if (trajPath.endsWith('/generic/saved_task.mjs')) {
     const trajectoryId = params.trajectory_id;

@@ -24,8 +24,10 @@ type SecretDefinition = {
 type InsertedId = { id: string };
 
 
+export type CredentialOperation = 'acquire' | 'adopt' | 'rotate' | 'verify' | 'remove' | 'reset';
+
 export type AcquireSecretRequest = {
-  operation?: 'acquire' | 'rotate' | 'verify' | 'remove';
+  operation?: CredentialOperation;
   credentialId?: string;
   provider?: string;
   requestId?: string;
@@ -40,12 +42,14 @@ export type AcquireSecretRequest = {
   tenantId?: string | null;
 
   accountEmail?: string;
+  accountUpn?: string;
+  principalObjectId?: string;
 };
 
 export type AcquireSecretResult =
   | {
       status: 'operation_plan';
-      operation: 'acquire' | 'rotate' | 'verify' | 'remove';
+      operation: CredentialOperation;
       secret: string;
       provider: string;
       vaultItemId: string;
@@ -103,8 +107,19 @@ export type AcquireSecretResult =
       message: string;
     }
   | {
+      status: 'operation_queued';
+      operation: 'adopt' | 'rotate' | 'verify' | 'reset';
+      secret: string;
+      provider: 'microsoft_entra';
+      actionLogId: string;
+      action: 'microsoft_entra_adopt_password' | 'microsoft_entra_reset_password' | 'microsoft_entra_verify_password';
+      flowName: 'microsoft-entra-password-lifecycle';
+      vaultItemId: string;
+      message: string;
+    }
+  | {
       status: 'needs_configuration';
-      operation?: 'acquire' | 'rotate' | 'verify' | 'remove';
+      operation?: CredentialOperation;
       secret: string;
       provider: string;
       vaultItemId: string;
@@ -113,14 +128,14 @@ export type AcquireSecretResult =
     }
   | {
       status: 'unsupported_operation';
-      operation: 'acquire' | 'rotate' | 'verify' | 'remove';
+      operation: CredentialOperation;
       secret: string;
       provider: string;
       message: string;
     }
   | {
       status: 'unsupported_secret';
-      operation?: 'acquire' | 'rotate' | 'verify' | 'remove';
+      operation?: CredentialOperation;
       secret: string;
       message: string;
     };
@@ -145,6 +160,36 @@ function microsoftPasswordDefinition(credentialId: string): SecretDefinition {
     headless: false,
     storeSecretTarget: 'skarbiec',
     operations: ['rotate', 'verify'],
+  };
+}
+
+const ENTRA_PROVIDER = 'microsoft_entra';
+const ENTRA_ORIGIN = 'https://login.microsoftonline.com';
+const ENTRA_UPN = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+const LOWER_UUID = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/;
+
+// Entra directory items share the managed-password credential id shape with
+// consumer Microsoft accounts (MICROSOFT_PASSWORD_ID); the requested provider
+// selects which lifecycle owns the item, so a directory identity is never
+// administered through a consumer-account surface.
+function entraPasswordDefinition(credentialId: string): SecretDefinition {
+  return {
+    secret: credentialId,
+    provider: ENTRA_PROVIDER,
+    displayName: 'Microsoft Entra account password',
+    envVars: [],
+    defaultPurpose: 'entra-account-security',
+    formUrl: ENTRA_ORIGIN,
+    flowName: 'microsoft-entra-password-lifecycle',
+    endpoints: ['Microsoft Entra sign-in'],
+    usageText: 'Adopt, rotate, reset, or verify one exact Microsoft Entra directory password and commit it to Skarbiec only after the signed-in tenant, principal object id, and UPN are confirmed by a fresh login.',
+    dailyRequests: '1',
+    requestedScopes: [],
+    capabilities: ['password_adoption', 'password_rotation', 'password_reset', 'fresh_login_verification'],
+    runtimeInstall: false,
+    headless: false,
+    storeSecretTarget: 'skarbiec',
+    operations: ['adopt', 'rotate', 'reset', 'verify'],
   };
 }
 
@@ -263,7 +308,11 @@ function normalizeSecret(request: AcquireSecretRequest): string {
 function definitionFor(request: AcquireSecretRequest): SecretDefinition | null {
   const normalized = normalizeSecret(request);
   if (!normalized) return null;
-  if (MICROSOFT_PASSWORD_ID.test(normalized)) return microsoftPasswordDefinition(normalized);
+  if (MICROSOFT_PASSWORD_ID.test(normalized)) {
+    return request.provider === ENTRA_PROVIDER
+      ? entraPasswordDefinition(normalized)
+      : microsoftPasswordDefinition(normalized);
+  }
   return SECRET_REGISTRY[normalized] ?? SECRET_REGISTRY[normalized.replace(/\./g, '_')] ?? null;
 }
 
@@ -289,6 +338,24 @@ function objectiveFor(def: SecretDefinition, request: AcquireSecretRequest, acco
   const purpose = purposeFor(request, def);
   const contract = acquiredSecretContract(def.secret);
   if (!contract) throw new Error(`missing exact Skarbiec acquisition contract for ${def.secret}`);
+  if (def.provider === ENTRA_PROVIDER) {
+    const operation = request.operation ?? 'acquire';
+    const accountUpn = request.accountUpn?.trim().toLowerCase() ?? '';
+    return [
+      `${operation} the Microsoft Entra directory password for the exact identity ${accountUpn}.`,
+      `Confirm that the authorized session claims carry tenant ${request.tenantId ?? ''} and principal object id ${request.principalObjectId ?? ''} before any password write and again after the fresh login.`,
+      operation === 'verify'
+        ? 'Perform a fresh password authentication and rewrite the same managed value only after Entra accepts it.'
+        : operation === 'adopt'
+          ? 'The current password is already known to the operator and staged in Skarbiec: read that staged candidate, prove it with a fresh Entra login, and never change the password in the directory.'
+          : operation === 'reset'
+            ? 'The current password is unknown: drive the Entra self-service reset and return needs_human_approval for every interactive identity verification instead of attempting to satisfy it.'
+            : 'Generate a new strong password in-process, change it in the Entra directory, perform a fresh password authentication, and only then commit it to Skarbiec.',
+      'If any step after the directory accepts the candidate fails, restore the previous password and verify the restored password before returning operation_failed.',
+      'If Entra requires interactive identity approval, stop as needs_human_approval without changing Skarbiec.',
+      `The encrypted target is ${contract.item} field ${contract.field}; never emit the password in logs or task results.`,
+    ].join(' ');
+  }
   if (def.provider === 'microsoft') {
     const operation = request.operation ?? 'acquire';
     return [
@@ -348,7 +415,27 @@ function paramsFor(def: SecretDefinition, request: AcquireSecretRequest): Record
       vault_item_id: contract.item,
       vault_field: contract.field,
       secret_source_origin: contract.sourceOrigin,
-      tenant_id: request.tenantId ?? undefined,
+      // For microsoft_entra the directory block below is the only source of the
+      // identity, so the flat binding tenant stays empty for that provider.
+      tenant_id: def.provider === ENTRA_PROVIDER ? undefined : (request.tenantId ?? undefined),
+      ...(def.provider === ENTRA_PROVIDER
+        ? {
+            // The directory identity is the item's own write-once contract, not a
+            // call argument: the trajectory reads it from exactly this block. The
+            // Entra directory id here is not a Weles Skarbiec binding tenant, so
+            // the scoped reader and writer stay on the untenanted host binding.
+            // Always these four keys: the block is a fixed-shape contract, so a
+            // request without coordinates emits empty strings that fail closed at
+            // the bridge rather than dropping keys JSON.stringify would erase.
+            directory: {
+              provider: ENTRA_PROVIDER,
+              tenant_id: request.tenantId?.trim().toLowerCase() ?? '',
+              principal_object_id: request.principalObjectId?.trim().toLowerCase() ?? '',
+              account_upn: request.accountUpn?.trim().toLowerCase() ?? '',
+            },
+            weles_tenant_id: null,
+          }
+        : {}),
       display_name: def.displayName,
       env_var: def.envVars[0],
       env_vars: def.envVars,
@@ -501,6 +588,166 @@ async function queueMicrosoftPasswordOperation(
     flowName: 'microsoft-password-lifecycle',
     vaultItemId: def.secret,
     message: `Microsoft password ${operation} queued; Skarbiec remains pending until fresh-login verification rewrites the managed item`,
+  };
+}
+
+type EntraAccountRow = {
+  id?: string;
+  username?: string;
+  is_active?: boolean;
+  metadata?: {
+    email?: string;
+    skarbiec_credential_id?: string;
+    skarbiec_tenant_id?: string;
+    entra_upn?: string;
+    entra_tenant_id?: string;
+    entra_principal_object_id?: string;
+  };
+};
+
+// An Entra directory identity is only bindable when the account row states the
+// exact directory coordinates. A row that merely shares the mailbox address is
+// rejected with the reason, never silently treated as a zero-match.
+async function entraAccountBinding(
+  accountUpn: string,
+  credentialId: string,
+  tenantId: string,
+  principalObjectId: string,
+  skarbiecTenantId: string | null,
+): Promise<{ accountId: string | null; error?: string }> {
+  const database = optionalWelesDatabase();
+  if (!database) return { accountId: null };
+  const response = await fetch(
+    `${database.url}/rest/v1/social_accounts?platform=eq.microsoft&select=id,username,is_active,metadata&limit=${Number('500')}`,
+    { headers: headers() },
+  );
+  if (!response.ok) throw new Error(`Entra account lookup failed: HTTP ${response.status}`);
+  const rows = await response.json() as EntraAccountRow[];
+  const scoped = rows.filter((row) => (row.metadata?.skarbiec_tenant_id ?? null) === skarbiecTenantId);
+  const named = scoped.filter((row) => {
+    const upn = row.metadata?.entra_upn?.trim().toLowerCase() ?? '';
+    const email = row.metadata?.email?.trim().toLowerCase() ?? row.username?.trim().toLowerCase() ?? '';
+    return row.is_active === true && (upn === accountUpn || email === accountUpn);
+  });
+  if (named.length > Number('1')) {
+    return { accountId: null, error: 'more than one active account claims the requested Entra UPN' };
+  }
+  const account = named[Number('0')];
+  const accountId = account?.id;
+  if (!account || !accountId) return { accountId: null };
+  const metadata = account.metadata ?? {};
+  if (metadata.entra_upn?.trim().toLowerCase() !== accountUpn) {
+    return { accountId: null, error: `account row is missing metadata entra_upn ${accountUpn}` };
+  }
+  if (metadata.entra_tenant_id?.trim().toLowerCase() !== tenantId) {
+    return { accountId: null, error: `account row is missing metadata entra_tenant_id ${tenantId}` };
+  }
+  if (metadata.entra_principal_object_id?.trim().toLowerCase() !== principalObjectId) {
+    return { accountId: null, error: `account row is missing metadata entra_principal_object_id ${principalObjectId}` };
+  }
+  const otherOwner = scoped.find((row) => row.id !== accountId
+    && row.metadata?.skarbiec_credential_id === credentialId);
+  if (otherOwner) {
+    return { accountId: null, error: 'credential item is already bound to another Entra account' };
+  }
+  const boundCredential = metadata.skarbiec_credential_id;
+  if (boundCredential && boundCredential !== credentialId) {
+    return { accountId: null, error: 'Entra account is already bound to another credential item' };
+  }
+  if (boundCredential !== credentialId) {
+    return { accountId: null, error: 'Entra account is not bound to the requested managed credential' };
+  }
+  return { accountId };
+}
+
+async function queueEntraPasswordOperation(
+  def: SecretDefinition,
+  request: AcquireSecretRequest,
+): Promise<AcquireSecretResult> {
+  const operation = request.operation ?? 'acquire';
+  if (operation !== 'adopt' && operation !== 'rotate' && operation !== 'reset' && operation !== 'verify') {
+    return {
+      status: 'unsupported_operation',
+      secret: def.secret,
+      operation,
+      provider: def.provider,
+      message: `${operation} is not supported for a Microsoft Entra directory password`,
+    };
+  }
+  const accountUpn = request.accountUpn?.trim().toLowerCase() ?? '';
+  const tenantId = request.tenantId?.trim().toLowerCase() ?? '';
+  const principalObjectId = request.principalObjectId?.trim().toLowerCase() ?? '';
+  const contract = acquiredSecretContract(def.secret);
+  // The Entra directory id addresses the identity, not a Weles Skarbiec tenant.
+  const skarbiecTenantId = null;
+  const coordinatesReady = ENTRA_UPN.test(accountUpn)
+    && LOWER_UUID.test(tenantId)
+    && LOWER_UUID.test(principalObjectId);
+  const database = optionalWelesDatabase();
+  const binding = database && coordinatesReady
+    ? await entraAccountBinding(accountUpn, def.secret, tenantId, principalObjectId, skarbiecTenantId)
+    : { accountId: null } as { accountId: string | null; error?: string };
+  const missing = [
+    ...(!database ? ['weles-database launcher configuration'] : []),
+    ...(!/^[a-f0-9]{64}$/i.test(request.requestId ?? '') ? ['one exact credential operation request id'] : []),
+    ...(!ENTRA_UPN.test(accountUpn) ? ['one exact Entra account UPN'] : []),
+    ...(!LOWER_UUID.test(tenantId) ? ['one exact lowercase Entra tenant id'] : []),
+    ...(!LOWER_UUID.test(principalObjectId) ? ['one exact lowercase Entra principal object id'] : []),
+    ...(contract?.field !== 'password' || contract.item !== def.secret
+      ? [`exact Skarbiec password contract for ${def.secret}`]
+      : []),
+    ...(contract?.sourceOrigin !== ENTRA_ORIGIN
+      ? [`Entra credential source origin ${ENTRA_ORIGIN} for ${def.secret}`]
+      : []),
+    ...(coordinatesReady && !binding.accountId && !binding.error
+      ? ['one uniquely matching active account bound to the requested Entra identity']
+      : []),
+    ...(binding.error ? [binding.error] : []),
+    ...(!hasWelesAcquiredSecretWriter(def.secret, skarbiecTenantId)
+      ? [`scoped Skarbiec writer for ${def.secret}`]
+      : []),
+    ...(operation !== 'reset' && !hasWelesManagedCredentialReader(def.secret, 'password', skarbiecTenantId)
+      ? [`scoped Skarbiec reader for ${def.secret}/password`]
+      : []),
+  ];
+  if (missing.length) {
+    return {
+      status: 'needs_configuration',
+      operation,
+      secret: def.secret,
+      vaultItemId: def.secret,
+      provider: def.provider,
+      missing,
+      message: `Cannot enqueue Entra password ${operation} without ${missing.join(', ')}`,
+    };
+  }
+  const params = paramsFor(def, { ...request, accountUpn, tenantId, principalObjectId });
+  const action = operation === 'verify'
+    ? 'microsoft_entra_verify_password'
+    : operation === 'adopt'
+      ? 'microsoft_entra_adopt_password'
+      : 'microsoft_entra_reset_password';
+  const actionLogId = await insertReturning('account_action_logs', {
+    account_id: binding.accountId,
+    action,
+    platform: 'microsoft',
+    status: 'queued',
+    scheduled_at: new Date().toISOString(),
+    priority: request.priority ?? Number('10'),
+    params,
+    tenant_id: skarbiecTenantId,
+    queued_by: 'skarbiec-credential-operation',
+  });
+  return {
+    status: 'operation_queued',
+    operation,
+    secret: def.secret,
+    provider: ENTRA_PROVIDER,
+    actionLogId,
+    action,
+    flowName: 'microsoft-entra-password-lifecycle',
+    vaultItemId: def.secret,
+    message: `Entra password ${operation} queued; Skarbiec remains pending until the fresh-login identity assertion rewrites the managed item`,
   };
 }
 
@@ -663,6 +910,9 @@ export async function acquireSecret(request: AcquireSecretRequest): Promise<Acqu
       message: `${operation} is not supported for ${def.secret}`,
     };
   }
+  if (def.provider === ENTRA_PROVIDER) {
+    return queueEntraPasswordOperation(def, request);
+  }
   if (def.provider === 'microsoft') {
     return queueMicrosoftPasswordOperation(def, request);
   }
@@ -703,6 +953,30 @@ export function buildSecretAcquisitionPlan(request: AcquireSecretRequest): Acqui
       provider: def.provider,
       message: `${operation} is not supported for ${def.secret}`,
     };
+  }
+  // A plan for a directory provider without its sealed coordinates would
+  // describe an operation nobody can execute: the queue path rejects it, and
+  // the emitted directory block would carry empty identity fields. Refuse here
+  // rather than hand back a plan the caller cannot act on.
+  if (def.provider === ENTRA_PROVIDER) {
+    const missing = [
+      ...(ENTRA_UPN.test(request.accountUpn?.trim().toLowerCase() ?? '') ? [] : ['one exact account UPN']),
+      ...(LOWER_UUID.test(request.tenantId?.trim().toLowerCase() ?? '') ? [] : ['one exact tenant id']),
+      ...(LOWER_UUID.test(request.principalObjectId?.trim().toLowerCase() ?? '')
+        ? []
+        : ['one exact principal object id']),
+    ];
+    if (missing.length) {
+      return {
+        status: 'needs_configuration',
+        operation,
+        secret: def.secret,
+        vaultItemId: def.secret,
+        provider: def.provider,
+        missing,
+        message: `Cannot plan ${operation} for ${def.secret} without ${missing.join(', ')}`,
+      };
+    }
   }
   const params = paramsFor(def, { ...request, dryRun: true });
   return {
