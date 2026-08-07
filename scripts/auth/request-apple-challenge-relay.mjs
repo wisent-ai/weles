@@ -39,6 +39,42 @@ function ownerOnlyFile(path, name) {
   return path;
 }
 
+// Ask Stado which host currently holds the Apple account, instead of trusting a
+// hand-written address.
+//
+// APPLE_2FA_MAC_HOST names a machine because someone believed, once, that it was the
+// trusted device. Nothing re-checks that: an Apple account signs out on a password
+// change and the variable keeps pointing at a Mac that will never show a prompt
+// again, so the flow dies on the ssh timeout below instead of saying the binding is
+// unsatisfied. `stado identity verify` probes the hosts and fails with the host to
+// enroll, which turns that timeout into a sentence.
+//
+// The environment still wins when set, because an operator debugging one machine
+// must be able to aim this by hand.
+function resolveHolder(identity) {
+  const stado = process.env.STADO_BIN ?? `${process.env.HOME ?? ''}/.local/bin/stado`;
+  const result = spawnSync(stado, [
+    'identity', 'verify', '--kind', 'apple-account', '--identity', identity, '--json',
+  ], { encoding: 'utf8' });
+  if (result.error || typeof result.stdout !== 'string') {
+    throw new Error('Stado could not be asked which host holds the Apple account');
+  }
+  let report;
+  try { report = JSON.parse(result.stdout); } catch {
+    throw new Error('Stado returned an unreadable identity report');
+  }
+  if (!report || report.satisfied !== true || !Array.isArray(report.bindings)) {
+    throw new Error(`no host holds apple-account ${identity}`);
+  }
+  // Only an observed holder may be used. A declared-but-unverified binding is the
+  // exact state that produced the stale variable this function replaces.
+  const holder = report.bindings.find((row) => row && row.observed === true
+    && typeof row.ssh === 'string' && row.ssh.includes('@'));
+  if (!holder) throw new Error(`no verified host holds apple-account ${identity}`);
+  const [sshUser, sshHost] = holder.ssh.split('@');
+  return { user: sshUser, host: sshHost };
+}
+
 const parsed = flags(process.argv.slice(2));
 const guardId = (parsed.get('--guard-id') ?? '').toLowerCase();
 const accountId = (parsed.get('--account-id') ?? '').toLowerCase();
@@ -47,8 +83,14 @@ for (const [name, value] of [['--guard-id', guardId], ['--account-id', accountId
   if (!UUID_PATTERN.test(value)) throw new Error(`${name} must be a valid UUID`);
 }
 
-const host = process.env.APPLE_2FA_MAC_HOST ?? '';
-const user = process.env.APPLE_2FA_MAC_USER ?? '';
+// An explicitly configured host wins; otherwise the holder is resolved from Stado,
+// which is the only party that re-checks the binding.
+const configuredHost = process.env.APPLE_2FA_MAC_HOST ?? '';
+const resolved = configuredHost
+  ? { host: configuredHost, user: process.env.APPLE_2FA_MAC_USER ?? '' }
+  : resolveHolder(process.env.APPLE_2FA_ACCOUNT_IDENTITY ?? '');
+const host = resolved.host;
+const user = resolved.user;
 const portText = process.env.APPLE_2FA_MAC_PORT ?? '';
 const identityFile = ownerOnlyFile(process.env.APPLE_2FA_MAC_IDENTITY_FILE ?? '', 'APPLE_2FA_MAC_IDENTITY_FILE');
 const knownHostsFile = ownerOnlyFile(process.env.APPLE_2FA_MAC_KNOWN_HOSTS_FILE ?? '', 'APPLE_2FA_MAC_KNOWN_HOSTS_FILE');
