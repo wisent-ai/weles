@@ -362,7 +362,13 @@ function claimedIdentities(values) {
       if (!LOWER_UUID.test(tid) || !LOWER_UUID.test(oid)) continue;
       const named = [claims.preferred_username, claims.upn, claims.unique_name]
         .find((candidate) => typeof candidate === 'string' && EMAIL.test(candidate.trim()));
-      identities.push({ tid, oid, upn: named ? named.trim().toLowerCase() : '' });
+      // idp is present only when the signing identity provider differs from the
+      // resource tenant, which is exactly the guest case this trajectory must
+      // refuse: a federated principal carries the resource tenant in tid and its
+      // guest object id in oid, so tid and oid alone cannot tell it apart from a
+      // directory-managed member.
+      const idp = typeof claims.idp === 'string' ? claims.idp.trim().toLowerCase() : '';
+      identities.push({ tid, oid, upn: named ? named.trim().toLowerCase() : '', idp });
     }
   }
   return identities;
@@ -433,6 +439,21 @@ async function assertEntraIdentity(session, contract, sink) {
       code: 'ENTRA_IDENTITY_MISMATCH',
       retryable: false,
       reason: 'the signed-in Entra identity does not match the queued tenant, principal object id, and UPN',
+    };
+  }
+  // A guest federated from another identity provider -- in practice a personal
+  // Microsoft account homed in the consumer tenant 9188040d-6c67-4c5b-b112-36a304b66dad
+  // -- satisfies tid, oid and UPN while its password lives outside this
+  // directory. Entra's ChangePassword surface does not administer it, so the run
+  // would reach the write, fail to prove what the directory holds, and quarantine
+  // a credential. Refuse before any write, and name the surface that does own it.
+  const federated = identities.find((identity) => identity.idp);
+  if (federated) {
+    return {
+      ok: false,
+      code: 'ENTRA_IDENTITY_NOT_DIRECTORY_MANAGED',
+      retryable: false,
+      reason: `the signed-in principal is a guest federated from ${federated.idp}, whose password this directory does not hold; a consumer Microsoft account is rotated through the microsoft_reset_password lifecycle, not the Entra one`,
     };
   }
   return { ok: true };
