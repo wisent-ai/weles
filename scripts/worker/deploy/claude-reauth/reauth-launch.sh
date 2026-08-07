@@ -55,5 +55,18 @@ if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ]; then
   }
   export SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY
 fi
+
+# The gateway resolves the caller's client identity from a bearer and only then
+# checks the signed agent trio against it, so the trio alone is refused before the
+# signature is read — `401 unauthorized`, which says none of that. The donating
+# agent's own router token is what makes the two agree.
+if [ -z "${WISENT_APP_MODEL_ROUTER_TOKEN:-}" ]; then
+  WISENT_APP_MODEL_ROUTER_TOKEN="$("$NODE_BIN" "$acquire_helper" "$acquire_url" "$acquire_scopes" \
+    weles-wisent-app-router-token-bootstrap wisent-app-model-router token)" || {
+    printf '%s\n' "Skarbiec acquisition failed for wisent-app-model-router/token" >/dev/stderr
+    false
+  }
+  export WISENT_APP_MODEL_ROUTER_TOKEN
+fi
 exec /usr/bin/caffeinate -dimsu /opt/homebrew/bin/node \
   "$WELES_DIR/scripts/trajectories/claude/reauth.mjs"
