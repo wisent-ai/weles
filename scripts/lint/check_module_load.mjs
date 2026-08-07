@@ -2,7 +2,7 @@
 // Reports any module that crashes at load time. Catches circular-import and
 // prototype-augmentation bugs of the same class as the 5960e6f → 9319340 atoms
 // regression. Side-effect-free: never opens a browser, never POSTs anywhere.
-import { readdirSync, statSync } from 'node:fs';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
@@ -10,6 +10,21 @@ import { fileURLToPath } from 'node:url';
 const here = dirname(fileURLToPath(import.meta.url));
 const distRoot = join(here, '..', '..', 'dist');
 const req = createRequire(import.meta.url);
+
+// Some worker modules refuse to load without their deployment contract, on
+// purpose: a worker booted without an action allowlist must die at import
+// rather than at the first claim. That fail-closed check is right, so this
+// walk supplies the contract instead of weakening it — and it takes the value
+// from the tracked catalog the launcher itself reads, so there is one source
+// of truth and no second copy to drift.
+process.env.WELES_ACTION_ALLOWLIST ??= readFileSync(
+  join(here, '..', 'worker', 'deploy', 'weles-action-allowlist.txt'),
+  'utf8',
+)
+  .split(/\r?\n/)
+  .map((action) => action.trim())
+  .filter(Boolean)
+  .join(',');
 
 // dist/scripts/ and dist/diagnostics/property_trap.js are page-side init
 // scripts injected via addInitScript, not Node modules — skip them.
