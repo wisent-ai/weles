@@ -305,8 +305,11 @@ pointing at a Mac that will never show a prompt again. The flow then died on a
 connection timeout rather than saying the binding was unsatisfied.
 
 Install the capture helper on the holder with
-`stado host install-helper <target> <source> apple-challenge-capture`. It runs
-as the target's own Stado helper, captures the native trusted-device prompt,
+`stado host install-helper <target> scripts/auth/apple-challenge-capture apple-challenge-capture`.
+It is a seam, not the capture: `run-helper` hands a program one bare UUID and no
+environment the caller chose, so the helper resolves the Weles installation on that
+machine and delegates to `scripts/auth/relay-apple-challenge.mjs`, which
+captures the native trusted-device prompt,
 stores the six-digit code directly under the authorization-bound challenge
 resource, and returns only an acknowledgement. It must not expose any vault read
 or general CLI surface. Env files must be mode `0600`; helper scripts must be
