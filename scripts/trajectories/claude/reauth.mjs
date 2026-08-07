@@ -81,7 +81,9 @@ async function persistActiveExpiry(rawMeta, expiresAtMs) {
 
 function sign(cfg, body) {
   const ts = String(Math.floor(Date.now() / 1000));
-  const bodyHash = crypto.createHash('sha256').update(body).digest('hex');
+  // The verifier hashes an absent body to the empty string, not to the digest of
+  // no bytes, so a request with no body signed with sha256('') never matches.
+  const bodyHash = body ? crypto.createHash('sha256').update(body).digest('hex') : '';
   const msg = `${cfg.agentId}:${ts}:${bodyHash}`;
   const sig = crypto.createHmac('sha256', cfg.hmacSecret).update(msg).digest('hex');
   return {
@@ -93,7 +95,12 @@ function sign(cfg, body) {
 }
 
 async function listSubscriptions(cfg) {
-  const r = await fetch(`${cfg.routerUrl}/v1/subscriptions/${cfg.agentId}`);
+  // Signed like every other call: the gateway resolves the caller's identity from
+  // this trio, and an unsigned request is refused before the route is reached —
+  // which reads as a missing endpoint from out here.
+  const r = await fetch(`${cfg.routerUrl}/v1/subscriptions/${cfg.agentId}`, {
+    headers: sign(cfg, ''),
+  });
   if (!r.ok) throw new Error(`list subscriptions -> ${r.status}`);
   return (await r.json()).subscriptions ?? [];
 }
@@ -172,10 +179,11 @@ async function donate(cfg, blobJson, label) {
     label: label || `reauth-macmini ${new Date().toISOString()}`, // model-router reads `label`, not key_label
     api_key: blobJson,
   };
+  const payload = JSON.stringify(body);
   const r = await fetch(`${cfg.routerUrl}/v1/subscriptions/${cfg.agentId}`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(body),
+    headers: sign(cfg, payload),
+    body: payload,
   });
   if (!r.ok) throw new Error(`donate -> ${r.status} ${await r.text()}`);
   const j = await r.json();
@@ -183,10 +191,11 @@ async function donate(cfg, blobJson, label) {
 }
 
 async function deleteSubscription(cfg, subId) {
+  const payload = JSON.stringify({ user_id: cfg.donorUserId, subscription_id: subId });
   const r = await fetch(`${cfg.routerUrl}/v1/subscriptions/${cfg.agentId}`, {
     method: 'DELETE',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ user_id: cfg.donorUserId, subscription_id: subId }),
+    headers: sign(cfg, payload),
+    body: payload,
   });
   return r.status < 400;
 }
