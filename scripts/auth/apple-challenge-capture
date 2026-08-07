@@ -1,0 +1,53 @@
+#!/bin/sh
+# Capture the active Apple two-factor prompt on the machine that holds the account.
+#
+# Installed on that machine with
+#   stado host install-helper <target> scripts/auth/apple-challenge-capture apple-challenge-capture
+# and invoked by the Weles relay with
+#   stado host run-helper <target> apple-challenge-capture --uuid <guard-id>
+#
+# `run-helper` executes one program out of the target's owner-only Stado directory
+# and hands it a bare UUID: no flags, no paths, no environment the caller chose.
+# That is deliberate, and it is why the capture itself cannot live in this file --
+# it needs the Weles installation, its native two-factor helper, and the Skarbiec
+# destination the operator configured on this machine. This is the seam between the
+# registry channel and that installation: one fixed path in, and nothing else.
+#
+# WELES_HOME exists for a machine that keeps the installation somewhere other than
+# the default, and for nothing else; it names a directory, never a program.
+set -eu
+
+# Exactly one argument, read by walking them rather than by index, so a second one
+# is refused here instead of being silently ignored on the way through.
+guard_id=
+for argument in "$@"; do
+  if [ -n "$guard_id" ]; then
+    printf '%s\n' "exactly one guard id is required" > /dev/stderr
+    false
+  fi
+  guard_id=$argument
+done
+if [ -z "$guard_id" ]; then
+  printf '%s\n' "exactly one guard id is required" > /dev/stderr
+  false
+fi
+
+weles_home=${WELES_HOME:-$HOME/weles}
+case $weles_home in
+  /*) ;;
+  *)
+    printf '%s\n' "WELES_HOME must be an absolute path: $weles_home" > /dev/stderr
+    false
+    ;;
+esac
+
+relay=$weles_home/scripts/auth/relay-apple-challenge.mjs
+if [ ! -f "$relay" ] || [ -L "$relay" ]; then
+  printf '%s\n' "missing regular Weles relay program: $relay" > /dev/stderr
+  false
+fi
+
+# `exec` so the relay's exit status and its acknowledgement on stdout reach Stado
+# unaltered: the caller checks both, and a wrapper that summarised either would be
+# one more place for the two ends of this flow to disagree.
+exec node "$relay" "$guard_id"
