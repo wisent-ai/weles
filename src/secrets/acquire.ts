@@ -105,6 +105,18 @@ export type AcquireSecretResult =
       message: string;
     }
   | {
+      status: 'followup_queued';
+      secret: string;
+      provider: string;
+      sourceActionLogId: string;
+      actionLogId?: string;
+      action: 'semanticscholar_key_followup';
+      flowName: 'semantic-scholar-key-followup';
+      scheduledAt?: string;
+      alreadyQueued: boolean;
+      message: string;
+    }
+  | {
       status: 'needs_configuration';
       operation?: CredentialOperation;
       secret: string;
@@ -179,7 +191,6 @@ function entraPasswordDefinition(credentialId: string): SecretDefinition {
     operations: ['adopt', 'rotate', 'reset', 'verify'],
   };
 }
-
 const SEMANTIC_SCHOLAR: SecretDefinition = {
   secret: 'semantic_scholar.api_key',
   provider: 'semantic_scholar',
@@ -307,6 +318,7 @@ function headers(): Record<string, string> {
   const database = requireWelesDatabase();
   return welesDatabaseHeaders(database, { 'Content-Type': 'application/json' });
 }
+
 
 
 
@@ -736,7 +748,6 @@ async function queueEntraPasswordOperation(
     message: `Entra password ${operation} queued; Skarbiec remains pending until the fresh-login identity assertion rewrites the managed item`,
   };
 }
-
 function semanticSubmissionFromRow(row: ActionLogLike, def: SecretDefinition, requestId: string): boolean {
   const params = row.params && typeof row.params === 'object' ? row.params as Record<string, unknown> : {};
   const constraints = params.constraints && typeof params.constraints === 'object' ? params.constraints as Record<string, unknown> : {};
@@ -906,6 +917,7 @@ export async function acquireSecret(request: AcquireSecretRequest): Promise<Acqu
       message: `${operation} is not supported for ${def.secret}`,
     };
   }
+
 
   return queueAcquisition(def, request);
 }

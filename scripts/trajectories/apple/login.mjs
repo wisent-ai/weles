@@ -1,5 +1,6 @@
 // Canonical Apple ID login. One durable authorization permits one real password submit.
 // Any unconfirmed post-submit cleanup remains failed_open and blocks future attempts.
+// Flow: load ASC login document -> idmsa iframe -> email -> password -> native trusted-device 2FA -> trusted.
 
 import { spawnSync } from 'node:child_process';
 import { statSync } from 'node:fs';
@@ -120,6 +121,10 @@ try {
   ];
   s = await WSession.start({ label: 'apple_login', headless: process.env.WELES_HEADLESS === '1' });
   sessionClosed = false;
+  // The unauthenticated root shell references protected /access/static assets.
+  // ASC redirects those asset requests to HTML login responses, so the shell
+  // cannot bootstrap and never inserts the idmsa iframe. Load the login
+  // document directly, with bounded navigation, instead.
   await s.page.goto(LOGIN_URL, {
     waitUntil: 'domcontentloaded',
     timeout: Number(process.env.WELES_APPLE_NAV_TIMEOUT_MS ?? '60000'),
@@ -131,31 +136,62 @@ try {
   const frame = await authFrame.contentFrame();
   if (!frame) throw new Error('could not access auth iframe');
 
+  // Step 1: fill email (Apple ID)
+  console.log('[apple-login] > waitForSelector email');
   const emailField = frame.locator('#account_name_text_field');
   await emailField.waitFor({ state: 'visible', timeout: 15_000 });
+  const emailActionability = await emailField.evaluate((el) => {
+    const rect = el.getBoundingClientRect();
+    const style = getComputedStyle(el);
+    const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+    return {
+      rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
+      display: style.display,
+      visibility: style.visibility,
+      opacity: style.opacity,
+      disabled: el.disabled,
+      readOnly: el.readOnly,
+      hit: hit?.outerHTML.slice(0, 300) ?? null,
+      field: el.outerHTML.slice(0, 300),
+    };
+  });
+  console.log('[apple-login] email actionability:', JSON.stringify(emailActionability));
+  // The Continue button (#sign-in) is Angular-bound and stays `disabled` until
+  // the field validates; .fill() doesn't fire the keystroke it waits for, so
+  // clicking it hangs. Submit via Enter instead — Apple's form advances on it.
   const emailLength = await withCapability(capabilities.email, {
     purpose: 'weles.browser.fill',
     resource: 'origin:https://idmsa.apple.com/email',
     authorization_id: guardId,
   }, async (email) => {
+    console.log('[apple-login] > focus email');
     await emailField.focus();
+    console.log('[apple-login] > type email');
     await emailField.pressSequentially(email);
+    console.log('[apple-login] > submit email (Enter)');
     await emailField.press('Enter');
     return email.length;
   });
+  console.log('[apple-login] email filled');
   await s.wait(5);
 
+  // Step 2: Apple now shows a choice: "Continue with Password" / "Sign in with Passkey".
+  // Click Continue with Password to reveal the password input.
   const continuePassword = frame.locator('#continue-password');
   const signInButton = frame.locator('#sign-in');
+  console.log('[apple-login] > check continue-password');
   const legacyContinueVisible = await continuePassword.isVisible().catch(() => false);
   const signInLabel = await signInButton.innerText().catch(() => '');
   if (legacyContinueVisible || signInLabel.trim() === 'Continue') {
     await (legacyContinueVisible ? continuePassword : signInButton).click();
+    console.log('[apple-login] clicked Continue with Password');
     await s.wait(4);
   }
 
+  // Step 3: fill password — try known selectors in order
   const passwordSelectors = ['#password_text_field', 'input[type="password"]', 'input[name="password"]', 'input[aria-label*="assword"]'];
   let passwordField = null;
+  console.log('[apple-login] > find password field');
   for (const selector of passwordSelectors) {
     const candidate = frame.locator(selector).first();
     if (await candidate.isVisible().catch(() => false)) { passwordField = candidate; break; }
@@ -176,6 +212,7 @@ try {
     });
     return password.length;
   });
+  console.log('[apple-login] password filled');
 
   const formState = await frame.evaluate(({ expectedEmailLength, expectedPasswordLength }) => {
     const email = document.querySelector('#account_name_text_field');
@@ -200,7 +237,9 @@ try {
 
   await consumeAppleAuthAuthorization(guardId, accountId, actionLogId, leaseOwner);
   passwordSubmitted = true;
-  await frame.locator('#sign-in').click();
+  // Playwright's actionability-checked click hangs on Apple's Angular-bound
+  // Sign In control, so submit the validated form with a DOM click.
+  await frame.locator('#sign-in').evaluate((button) => button.click());
   console.log('[apple-login] submitted exactly one authorized password attempt');
 
   const postPasswordState = await waitForPostPasswordState(s, frame);

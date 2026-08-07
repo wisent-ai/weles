@@ -2,31 +2,29 @@ import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { homedir, hostname, userInfo } from 'node:os';
 import { join } from 'node:path';
-import type {
-  JourneyAssignment,
-  JourneyAssignmentInput,
-  JourneyBundle,
-  JourneyClient as SharedJourneyClient,
-  JourneyProgress,
-  JourneyRuntimeEvent,
-  JourneyStorage,
-  JourneyTransport,
-  StadoJourneyTransport as SharedStadoJourneyTransport,
-} from '@wisent-ai/onboarding-web';
+import journeyDefinition from './onboarding/journeys/weles-first-use-2026-08-04.1.json';
+import {
+  JourneyClient,
+  StadoJourneyTransport,
+  type JourneyAssignment,
+  type JourneyAssignmentInput,
+  type JourneyBundle,
+  type JourneyDefinition,
+  type JourneyProgress,
+  type JourneyRuntimeEvent,
+  type JourneyStorage,
+  type JourneyTransport,
+} from './onboarding-runtime';
 
 const PRODUCT_ID = 'weles';
 const JOURNEY_ID = 'first-use';
 const JOURNEY_VERSION = '2026-08-04.1';
 const JOURNEY_VERSION_ID = '3a2ba59e-8a7e-4da4-9a76-bb4abf286e6d';
-const SOURCE_REVISION = 'weles:first-use:2026-08-04.1';
+const SOURCE_REVISION_PATTERN = /^[0-9a-f]{40}$/;
 const TOKEN_ENVIRONMENT_KEY = 'WELES_STADO_INTEGRATION_TOKEN';
 const SHA256 = /^[0-9a-f]{64}$/i;
 
 type OnboardingAction = 'status' | 'next' | 'verify' | 'reset';
-type RuntimeModule = {
-  JourneyClient: typeof SharedJourneyClient;
-  StadoJourneyTransport: typeof SharedStadoJourneyTransport;
-};
 
 type ReceiptClaims = {
   taskId: string;
@@ -69,71 +67,14 @@ export type WelesOnboardingView = {
   };
 };
 
-const definition = {
-  schema_version: 1,
-  product_id: PRODUCT_ID,
-  journey_id: JOURNEY_ID,
-  journey_version: JOURNEY_VERSION,
-  entry_screen_id: 'authorization-boundary',
-  first_success_fact: 'workflow_receipt_verified',
-  published_at: '2026-08-04T00:00:00.000Z',
-  source_revision: SOURCE_REVISION,
-  screens: [
-    {
-      screen_id: 'authorization-boundary',
-      screen_kind: 'explanation',
-      title_key: 'authorization_boundary.title',
-      body_key: 'authorization_boundary.body',
-      required: true,
-      actions: ['next'],
-      transitions: [
-        { next_screen_id: 'host-execution', reason_code: 'authorization_boundary_understood', priority: 10 },
-      ],
-      presentation: { surface: 'operator_cli' },
-    },
-    {
-      screen_id: 'host-execution',
-      screen_kind: 'explanation',
-      title_key: 'host_execution.title',
-      body_key: 'host_execution.body',
-      required: true,
-      actions: ['next'],
-      transitions: [
-        { next_screen_id: 'receipt-verification', reason_code: 'host_execution_understood', priority: 10 },
-      ],
-      presentation: { surface: 'operator_cli' },
-    },
-    {
-      screen_id: 'receipt-verification',
-      screen_kind: 'first_success',
-      title_key: 'receipt_verification.title',
-      body_key: 'receipt_verification.body',
-      required: true,
-      completion_evidence: { kind: 'fact', fact: 'workflow_receipt_verified', operator: 'eq', value: true },
-      actions: ['verify'],
-      transitions: [],
-      presentation: { surface: 'operator_cli' },
-    },
-  ],
-  analytics_contract: {
-    contract_version: '1',
-    surface: 'operator_cli',
-    exposure_event: 'onboarding_step_viewed',
-    primary_action_event: 'onboarding_first_action_completed',
-    completion_event: 'onboarding_completed',
-    first_success_event: 'onboarding_first_success_observed',
-  },
-  experiment_contract: {
-    experiment_id: 'weles-first-use-2026-08-04',
-    control_variant_id: 'control',
-    eligible_variant_ids: ['control'],
-    assignment_unit: 'device',
-    reward_event: 'onboarding_first_success_observed',
-    guardrail_events: ['onboarding_abandoned'],
-    owner: 'weles',
-    kill_switch: false,
-  },
-} as const;
+const definition = journeyDefinition as unknown as JourneyDefinition;
+if (definition.product_id !== PRODUCT_ID
+  || definition.journey_id !== JOURNEY_ID
+  || definition.journey_version !== JOURNEY_VERSION
+  || !SOURCE_REVISION_PATTERN.test(definition.source_revision)) {
+  throw new Error('bundled Weles first-use journey identity is invalid');
+}
+const SOURCE_REVISION = definition.source_revision;
 
 function canonicalize(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(canonicalize);
@@ -193,7 +134,7 @@ class VersionPinnedTransport implements JourneyTransport {
         return screen.actions.length === 1 && screen.actions[0] === expectedAction;
       });
     if (bundle.definition.journey_version !== JOURNEY_VERSION
-      || bundle.definition.first_success_fact !== 'workflow_receipt_verified'
+      || bundle.definition.first_success_fact !== 'authorized_browser_workflow_completed'
       || bundle.definition.entry_screen_id !== definition.entry_screen_id
       || !productSurfaceMatches) {
       throw new Error('central Weles journey identity or product surface is invalid');
@@ -348,11 +289,6 @@ function stateDirectory(input: WelesOnboardingInput, environment: NodeJS.Process
     || join(homedir(), '.weles', 'onboarding');
 }
 
-async function loadRuntime(): Promise<RuntimeModule> {
-  // The shared package is TypeScript source. The Weles build compiles that exact package into this private runtime directory.
-  const runtimePath = './onboarding-runtime/index.js';
-  return await import(runtimePath) as RuntimeModule;
-}
 
 async function loadReceiptVerifier(): Promise<{
   verifyReceipt(receipt: unknown, keys: Readonly<Record<string, string>>): unknown;
@@ -427,7 +363,7 @@ export async function runWelesOnboarding(input: WelesOnboardingInput = {}): Prom
   }
   const configured = Boolean(baseUrl && token);
   const baseTransport: JourneyTransport = baseUrl && token
-    ? new runtime.StadoJourneyTransport({
+    ? new StadoJourneyTransport({
         baseUrl,
         token,
         fetch: input.fetch,
@@ -435,7 +371,7 @@ export async function runWelesOnboarding(input: WelesOnboardingInput = {}): Prom
     : new OfflineJourneyTransport();
   const transport = new VersionPinnedTransport(baseTransport);
   const storage = new FileJourneyStorage(stateDirectory(input, environment));
-  const client = new runtime.JourneyClient({
+  const client = new JourneyClient({
     productId: PRODUCT_ID,
     journeyId: JOURNEY_ID,
     subjectHash,
@@ -456,7 +392,7 @@ export async function runWelesOnboarding(input: WelesOnboardingInput = {}): Prom
         transport.assignExperiment({
           product_id: PRODUCT_ID,
           app_id: 'weles',
-          platform: 'web',
+          platform: 'operator',
           surface: 'operator_cli',
           subject,
         }),
@@ -497,11 +433,14 @@ export async function runWelesOnboarding(input: WelesOnboardingInput = {}): Prom
     }
     const { verifyReceipt } = await loadReceiptVerifier();
     const claims = requireVerifiedClaims(verifyReceipt(input.receipt, input.receiptKeys));
+    if (claims.outcome !== 'completed') {
+      throw new Error(`verified receipt outcome is not a completed Weles workflow: ${claims.outcome}`);
+    }
     const receiptRevision = SHA256.test(claims.evidenceDigest)
       ? `sha256:${claims.evidenceDigest.toLowerCase()}`
       : `receipt:${createHash('sha256').update(claims.evidenceDigest).digest('hex')}`;
     const completed = await client.complete(
-      { workflow_receipt_verified: true },
+      { authorized_browser_workflow_completed: true },
       receiptRevision,
       {
         task_id: claims.taskId,
@@ -511,6 +450,16 @@ export async function runWelesOnboarding(input: WelesOnboardingInput = {}): Prom
       },
     );
     if (!completed) throw new Error('verified receipt did not satisfy the Weles first-success contract');
+    await client.observeFirstSuccess(
+      { authorized_browser_workflow_completed: true },
+      receiptRevision,
+      {
+        task_id: claims.taskId,
+        outcome: claims.outcome,
+        evidence_digest: claims.evidenceDigest,
+        receipt_key_id: claims.keyId,
+      },
+    );
     return render(client, connected, claims);
   }
 

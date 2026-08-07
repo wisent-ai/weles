@@ -62,7 +62,6 @@ function exactReleaseCandidate(browser: string): { binary: string; receipt: stri
   const version = process.env[layout.envVersion]?.trim();
   const digest = process.env[layout.envSha256]?.trim().toLowerCase();
   if (!version || !digest || !SHA256_PATTERN.test(digest)) return undefined;
-
   const home = process.env.HOME ?? '';
   const installRoot = process.env[layout.envDir]?.trim()
     || join(home, '.local/share', layout.installDirName);

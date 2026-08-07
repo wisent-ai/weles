@@ -13,7 +13,6 @@ import { loadFlow, saveFlow, replayFlow, type FlowStep } from '../session/flows.
 import { humanIdlePause } from '../human/mouse.js';
 import { callJeden } from './jeden.js';
 
-
 export interface ToolCall {
   tool: string;
   args: Record<string, any>;
@@ -41,6 +40,7 @@ Tools:
   click(target)            Click an element described in plain English.
   fill(target, value)      Type a literal non-credential value into an input. Environment placeholders are forbidden.
   fill_credential(target, field_class, capability) Fill a password/email/username/token/api-key using an opaque typed Weles capability reference. Never request or provide plaintext.
+  fill_identity(target, field) Fill one field from the current run-generated identity without exposing it. Field: email, password, username, first_name, last_name, birth_month, birth_day, or birth_year.
   store_credential(target, field_class) Read a newly issued token/api-key from the named page element and write it directly to the task-authorized Skarbiec item. The value never enters tool arguments or results.
   focus(selector)          Focus an input by name/type/placeholder (for shadow DOM).
   type_text(value)         Type literal non-credential text after focusing. Environment placeholders are forbidden.
@@ -52,7 +52,7 @@ Tools:
   select_option(target, value) Select dropdown option. Use for date pickers.
   set_control(selector, value?, checked?) Set and verify an input/select/textarea by CSS selector in the main page or any iframe; dispatches input/change and reports resulting state plus visible validation text. Use when fill/click/select_option cannot make a form control stick.
   js_click(selector, text)   LAST RESORT click via selector or text. Prefer click(target) — js_click historically used a JS-evaluated el.click() which produces isTrusted=false events that bot classifiers (PerimeterX/Arkose/TikTok) reject. Use only when click(target), set_control(), and focus()+press_key() can't reach the element (Reddit shadow-DOM vote buttons being the canonical case).
-  solve_captcha(sitekey)   Solve CAPTCHA/reCAPTCHA/Turnstile on current page via configured providers.
+  solve_captcha(sitekey)   Solve a detected CAPTCHA, including Brave proof-of-work. It may click the site's verification control and wait for automatic submission. Returns solved, failed, or no supported captcha detected.
   check_email(email, sender) Poll for verification code sent to email.
   generate_identity(platform) Generate random identity: username/email/password/firstName/lastName/DOB.
   save_account(platform, username, email, password, name) Save account to database after registration.
@@ -62,7 +62,7 @@ Tools:
 Reply with ONLY a JSON object:
   {"thought": "...", "tool": "<tool_name>", "args": {...}}
 
-Credentials: use only fill_credential with an opaque capability reference whose target is weles; never place secrets or $ENV_VAR placeholders in fill/type_text. For task-authorized credential acquisition, use store_credential on the newly issued page element and never read or return its value.
+Credentials: use fill_identity only for the current run-generated identity; use fill_credential with an opaque capability reference whose target is weles for all externally supplied credentials. Never place secrets or $ENV_VAR placeholders in fill/type_text. For task-authorized credential acquisition, use store_credential on the newly issued page element and never read or return its value.
 If a step fails, try something different. Do not repeat the same failing action.`;
 
 function visionDir(label?: string): string {
@@ -86,8 +86,9 @@ function parseJsonFrom(raw: string): Record<string, any> {
   return { tool: 'give_up', args: { reason: `unparseable LLM output: ${raw.slice(0, 200)}` } };
 }
 
+type ModelDecisionProvider = (prompt: string) => Promise<{ raw: string; model: string; routerUrl: string }>;
 
-async function askLlm(goal: string, state: string, screenshotPath: string, step: number, label?: string): Promise<Record<string, any>> {
+async function askLlm(goal: string, state: string, screenshotPath: string, step: number, label?: string, modelDecision: ModelDecisionProvider = callJeden): Promise<Record<string, any>> {
   const dir = visionDir(label);
   const imgBlock = screenshotPath ? `The current screenshot is saved locally at ${screenshotPath}; use the page observation below if image access is unavailable.\n\n` : '';
   const prompt = `${SYSTEM_PROMPT}\n\nGOAL: ${goal}\n\n${state}\n${imgBlock}Respond with ONLY the JSON object.`;
@@ -97,7 +98,7 @@ async function askLlm(goal: string, state: string, screenshotPath: string, step:
   let lastRouterError = '';
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
-      const routed = await callJeden(prompt);
+      const routed = await modelDecision(prompt);
       raw = routed.raw;
       routerMeta = { model: routed.model, router_url: routed.routerUrl, attempt };
       break;
@@ -186,7 +187,7 @@ async function buildState(page: any, history: ToolCall[], envHints: Record<strin
 export async function execute(
   session: WSession,
   goal: string,
-  options?: { envHints?: Record<string, string>; replay?: ToolCall[]; flowName?: string; replayOnly?: boolean; skipSavedFlowReplay?: boolean },
+  options?: { envHints?: Record<string, string>; replay?: ToolCall[]; flowName?: string; replayOnly?: boolean; skipSavedFlowReplay?: boolean; modelDecision?: ModelDecisionProvider; maxSteps?: number },
 ): Promise<LoopResult> {
   const history: ToolCall[] = [];
   const envHints = options?.envHints ?? {};
@@ -194,19 +195,7 @@ export async function execute(
   const page = session.page;
   const capture = new Capture({ newPage: async () => page } as any);
   const flowName = options?.flowName;
-  let autoStoreCredential = false;
-  try {
-    const constraints: unknown = JSON.parse(process.env.GENERIC_TASK_CONSTRAINTS ?? '{}');
-    autoStoreCredential = Boolean(
-      constraints
-      && typeof constraints === 'object'
-      && !Array.isArray(constraints)
-      && 'store_secret_target' in constraints
-      && constraints.store_secret_target === 'skarbiec',
-    );
-  } catch {
-    // Invalid constraints are rejected by the storage tool if it is invoked.
-  }
+  const maxSteps = options?.maxSteps ?? 40;
 
 
   // Try replaying a saved flow before using the LLM unless this is an explicit
@@ -236,45 +225,8 @@ export async function execute(
   }
 
   let activePage = page;
-  for (let step = 0; ; step++) {
+  for (let step = 0; step < maxSteps; step++) {
     activePage = getActivePage(activePage);
-    if (autoStoreCredential) {
-      const previouslyStored = session.takeStoredCredentialReceipt();
-      if (previouslyStored) {
-        history.push({
-          tool: 'store_credential',
-          args: { target: 'generated credential', field_class: 'token' },
-          result: previouslyStored,
-        });
-        if (flowName) {
-          const steps = history.map((entry) => ({ tool: entry.tool, args: entry.args, result: entry.result }));
-          saveFlow(flowName, steps);
-          console.log(`[loop] Flow saved after secure credential storage: ${flowName} (${steps.length} steps)`);
-        }
-        return { value: previouslyStored, history };
-      }
-      try {
-        const stored = await session.storeCredential('generated credential', 'token');
-        history.push({
-          tool: 'store_credential',
-          args: { target: 'generated credential', field_class: 'token' },
-          result: stored,
-        });
-        if (flowName) {
-          const steps = history.map((entry) => ({ tool: entry.tool, args: entry.args, result: entry.result }));
-          saveFlow(flowName, steps);
-          console.log(`[loop] Flow saved after secure credential storage: ${flowName} (${steps.length} steps)`);
-        }
-        return { value: stored, history };
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        const credentialNotPresent = message === 'credential source origin mismatch'
-          || message === 'credential element was not found or did not match the required secret shape';
-        if (!credentialNotPresent) {
-          throw new AgentFailure(`secure credential capture failed: ${message}`, history);
-        }
-      }
-    }
     let decision: Record<string, any>;
 
     if (replay && step < replay.length && (options?.replayOnly || !['read', 'done'].includes(replay[step].tool))) {
@@ -296,7 +248,7 @@ export async function execute(
         const p = join(visionDir(session.label), `loop_step${step}.png`); writeFileSync(p, screenshot); return p;
       });
       const state = await buildState(activePage, history, envHints);
-      decision = await askLlm(goal, state, imgPath, step, session.label);
+      decision = await askLlm(goal, state, imgPath, step, session.label, options?.modelDecision);
     }
 
     const call: ToolCall = {
@@ -352,7 +304,7 @@ export async function execute(
     history.push(call);
   }
 
-  throw new AgentFailure('agent loop exited unexpectedly', history);
+  throw new AgentFailure(`browser agent exceeded ${maxSteps} steps`, history);
 }
 
 export { callJeden, parseJsonFrom };

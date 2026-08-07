@@ -31,6 +31,41 @@ set -a
 . "$WELES_WORKER_ENV_FILE"
 set +a
 
+# Operator kill switch. A host stops taking new releases by setting this in the
+# deployment env file, without editing or unloading its launchd job.
+if [[ "${WELES_AUTO_DEPLOY_ENABLED:-true}" != "true" ]]; then
+  log "disabled: WELES_AUTO_DEPLOY_ENABLED=${WELES_AUTO_DEPLOY_ENABLED:-true}"
+  exit 0
+fi
+
+# Legacy Semantic Scholar follow-up versions copied API keys into the GUI
+# launchd environment. Remove both aliases before any worker bootstrap so
+# third-party credentials cannot be inherited by unrelated long-lived jobs.
+launchctl unsetenv SEMANTIC_SCHOLAR_API_KEY 2> /dev/null || true
+launchctl unsetenv S2_API_KEY 2> /dev/null || true
+unset SEMANTIC_SCHOLAR_API_KEY S2_API_KEY
+
+# Keep the encrypted Skarbiec sync mirror ready on every deploy tick. Every
+# value comes from the owner-controlled deployment env; Git authentication
+# stays in the owner-only credential file and never enters the remote URL.
+if [[ -n "${SKARBIEC_SYNC_DIR:-}" && -n "${SKARBIEC_SYNC_REMOTE:-}" ]]; then
+  if [[ ! -d "$SKARBIEC_SYNC_DIR/.git" ]]; then
+    if [[ -e "$SKARBIEC_SYNC_DIR" ]]; then
+      fail "skarbiec-sync: refusing to replace non-repository path $SKARBIEC_SYNC_DIR"
+    fi
+    GIT_TERMINAL_PROMPT=0 git clone --quiet "$SKARBIEC_SYNC_REMOTE" "$SKARBIEC_SYNC_DIR"
+    log "skarbiec-sync: cloned encrypted vault mirror"
+  else
+    git -C "$SKARBIEC_SYNC_DIR" remote set-url origin "$SKARBIEC_SYNC_REMOTE"
+  fi
+  if [[ -f "$HOME/.git-credentials-weles" ]]; then
+    git -C "$SKARBIEC_SYNC_DIR" config --local --replace-all credential.helper ""
+    git -C "$SKARBIEC_SYNC_DIR" config --local --add credential.helper "store --file $HOME/.git-credentials-weles"
+  fi
+  GIT_TERMINAL_PROMPT=0 git -C "$SKARBIEC_SYNC_DIR" fetch --quiet origin main
+  log "skarbiec-sync: repository and non-interactive Git authentication ready"
+fi
+
 require() {
   local name="$1"
   [[ -n "${!name:-}" ]] || fail "$name must be explicitly configured"
@@ -202,14 +237,36 @@ if [[ "$previous_target" == "$INSTALL_DIR" && "$previous_deployment" == "$EXPECT
   exit
 fi
 
+# launchd refuses to start a service whose program is not executable and dies
+# with exit 78 (EX_CONFIG), which strands a service silently. Restore the exec
+# bit on every launcher in the verified release before bootstrapping.
+chmod u+x "$INSTALL_DIR"/scripts/worker/deploy/launch-*.sh
+
 mkdir -p "$HOME/Library/LaunchAgents"
 UID_NUM="$(id -u)"
 AGENT_DOMAIN="user/$UID_NUM"
-for label in weles-worker weles-keyword-planner-api weles-echo-api; do
+for label in weles-worker weles-api weles-content-worker weles-keyword-planner-api weles-echo-api; do
   src="$INSTALL_DIR/scripts/worker/deploy/com.wisent.$label.plist"
   dst="$HOME/Library/LaunchAgents/com.wisent.$label.plist"
   if [[ ! -f "$src" ]]; then
     continue
+  fi
+  # The content worker only exists on hosts that carry its own scoped env file.
+  if [[ "$label" == "weles-content-worker" && ! -f "$CURRENT_LINK/var/worker-content.env" ]]; then
+    continue
+  fi
+  # A previous manual verification run may still own the API port; clear it so
+  # launchd owns the long-lived process after this deploy.
+  case "$label" in
+    weles-keyword-planner-api) stale_port=8787 ;;
+    weles-api) stale_port=8788 ;;
+    *) stale_port="" ;;
+  esac
+  if [[ -n "$stale_port" ]]; then
+    stale_pids="$(lsof -tiTCP:"$stale_port" -sTCP:LISTEN 2> /dev/null || true)"
+    if [[ -n "$stale_pids" ]]; then
+      kill $stale_pids 2> /dev/null || true
+    fi
   fi
   cp "$src" "$dst"
   chmod u=rw,go=r "$dst"

@@ -170,11 +170,22 @@ const SERVICE_LOGIN_CONTRACTS: Readonly<Record<string, ServiceLoginContract>> = 
   'vast.ai': { service: 'vastDashboard', loginMethod: 'email_password' },
 });
 
-export async function getServiceLogin(displayName: string): Promise<{ email: string; password: string; loginMethod: string } | null> {
+/**
+ * Get service login material for balance checks. Email, password and the
+ * Google TOTP seed come from the exact scoped Skarbiec grant for the service,
+ * never from plaintext Weles DB columns.
+ */
+export async function getServiceLogin(displayName: string): Promise<{ email: string; password: string; loginMethod: string; totpSecret?: string } | null> {
   const contract = SERVICE_LOGIN_CONTRACTS[displayName.trim().toLowerCase()];
   if (!contract) return null;
   const login = readOptionalWelesServiceLogin(contract.service);
-  return login ? { email: login.email, password: login.password, loginMethod: contract.loginMethod } : null;
+  if (!login) return null;
+  return {
+    email: login.email,
+    password: login.password,
+    loginMethod: contract.loginMethod,
+    ...(login.totpSecret ? { totpSecret: login.totpSecret } : {}),
+  };
 }
 
 const PLATFORM_ADMIN_LOGIN_CONTRACTS: Readonly<Record<string, WelesServiceSecret>> = Object.freeze({

@@ -108,6 +108,10 @@ unset WELES_ARTIFACT_DELIVERY_TOKEN WELES_ARTIFACT_SIGNING_SECRET
 unset OKO_WELES_SUBSCRIPTIONS_TOKEN CONTENT_DIAGNOSTICS_API_TOKEN
 unset TRADING_TOOLS_INGEST_TOKEN TRADING_TOOLS_INGEST_HMAC_SECRET
 unset CONTENT_PLATFORM_SUPABASE_URL CONTENT_PLATFORM_SUPABASE_SERVICE_ROLE_KEY
+# Semantic Scholar keys are resolved through Skarbiec, not inherited as
+# process-wide environment variables. Clear legacy aliases after worker.env
+# sourcing so stale launchd or sourced values cannot reach the Node worker.
+unset SEMANTIC_SCHOLAR_API_KEY S2_API_KEY
 
 acquire_startup_field() {
   local consumer="$1"

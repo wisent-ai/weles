@@ -1,0 +1,140 @@
+name: release-worker
+
+on:
+  push:
+    tags:
+      - "worker-v*"
+
+concurrency:
+  group: weles-worker-release
+  cancel-in-progress: false
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            platform: linux-x64
+          - runner: macos-15
+            platform: darwin-arm64
+          - runner: macos-15-intel
+            platform: darwin-x64
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Require allowlisted release operator
+        env:
+          ACTOR: ${{ github.actor }}
+          APPROVERS: ${{ vars.WELES_RELEASE_APPROVERS }}
+        run: |
+          test -n "$APPROVERS" || {
+            echo "WELES_RELEASE_APPROVERS repository variable is empty" >&2
+            exit 1
+          }
+          printf '%s\n' "$APPROVERS" | tr ',' '\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' \
+            | grep -Fqx "$ACTOR" || {
+              echo "$ACTOR is not an allowlisted Weles release operator" >&2
+              exit 1
+            }
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22.23.2
+          cache: npm
+      - name: Build immutable worker bytes
+        shell: bash
+        env:
+          PLATFORM: ${{ matrix.platform }}
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#worker-v}"
+          if ! [[ "$version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::tag $GITHUB_REF_NAME does not contain a valid worker version"
+            exit 1
+          fi
+          npm ci
+          npm run build
+          node scripts/release/surface.mjs > "$RUNNER_TEMP/released-surface.json"
+          npm sbom --omit=dev --sbom-format cyclonedx > "$RUNNER_TEMP/sbom.cyclonedx.json"
+          npm prune --omit=dev
+          stage="$RUNNER_TEMP/weles-worker"
+          mkdir -p "$stage"
+          cp -R dist scripts node_modules release "$stage/"
+          cp package.json package-lock.json LICENSE README.md "$stage/"
+          cp "$RUNNER_TEMP/released-surface.json" "$stage/released-surface.json"
+          cp "$RUNNER_TEMP/sbom.cyclonedx.json" "$stage/sbom.cyclonedx.json"
+          jq -n \
+            --arg schema "weles.worker-component.v1" \
+            --arg product "weles-worker" \
+            --arg version "$version" \
+            --arg sourceRevision "$GITHUB_SHA" \
+            --arg platform "$PLATFORM" \
+            --arg nodeVersion "$(node --version)" \
+            '{schema: $schema, product: $product, version: $version, sourceRevision: $sourceRevision, platform: $platform, nodeVersion: $nodeVersion}' \
+            > "$stage/component-manifest.json"
+          built_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          jq -n \
+            --arg buildType "https://weles.wisent.com/build-types/worker/v1" \
+            --arg builder "https://github.com/$GITHUB_REPOSITORY/.github/workflows/release-worker.yml@$GITHUB_REF" \
+            --arg source "git+https://github.com/$GITHUB_REPOSITORY@$GITHUB_SHA" \
+            --arg sourceRevision "$GITHUB_SHA" \
+            --arg invocationId "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT" \
+            --arg tag "$GITHUB_REF_NAME" \
+            --arg platform "$PLATFORM" \
+            --arg nodeVersion "$(node --version)" \
+            --arg builtAt "$built_at" \
+            '{buildDefinition:{buildType:$buildType,externalParameters:{tag:$tag,platform:$platform,nodeVersion:$nodeVersion},internalParameters:{},resolvedDependencies:[{uri:$source,digest:{gitCommit:$sourceRevision}}]},runDetails:{builder:{id:$builder},metadata:{invocationId:$invocationId,startedOn:$builtAt,finishedOn:$builtAt}}}' \
+            > "$RUNNER_TEMP/worker-provenance.json"
+          cp "$RUNNER_TEMP/worker-provenance.json" "$stage/provenance.json"
+          archive="weles-worker-$version-$PLATFORM.tar.gz"
+          tar -C "$RUNNER_TEMP" -chzf "$archive" weles-worker
+          openssl dgst -sha256 -r "$archive" > "$archive.sha256"
+          printf 'ARCHIVE=%s\nPROVENANCE=%s\n' "$archive" "$RUNNER_TEMP/worker-provenance.json" >> "$GITHUB_ENV"
+      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+        with:
+          cosign-release: v3.1.2
+      - name: Sign SLSA provenance with GitHub OIDC
+        shell: bash
+        run: |
+          set -euo pipefail
+          cosign attest-blob --yes \
+            --predicate "$PROVENANCE" \
+            --type slsaprovenance1 \
+            --bundle "$ARCHIVE.sigstore.json" \
+            "$ARCHIVE"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: worker-${{ matrix.platform }}
+          path: |
+            ${{ env.ARCHIVE }}
+            ${{ env.ARCHIVE }}.sha256
+            ${{ env.ARCHIVE }}.sigstore.json
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: worker-*
+          path: artifacts
+          merge-multiple: true
+      - name: Publish immutable worker release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release create "$GITHUB_REF_NAME" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "Weles worker ${GITHUB_REF_NAME#worker-v}" \
+            --generate-notes \
+            artifacts/*

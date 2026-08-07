@@ -9,16 +9,17 @@ import os from 'node:os';
 import { putPrivateWelesObject, uploadArtifacts } from './upload-artifacts.js';
 import { paramsToEnv, resolveTrajectory } from './dispatch.js';
 import { claimOne } from './claim.js';
-import { sweepZombiesIfDue } from './stale.js';
+import { DATABASE_TOKEN, DATABASE_URL, headers, sweepZombiesIfDue } from './stale.js';
+import { loadWelesPolicy } from './placement-policy.js';
 import { captureVersions } from '../diagnostics/versions.js';
 import { importRunProvenance } from '../diagnostics/run-import.js';
 import { verifyRunArtifacts } from './verification.js';
 import { platformAdminSessionReady } from '../utils/credentials.js';
 import { cancelAppleAuthAuthorization, claimAppleAuthAuthorization, getAppleAuthCapabilityEnvelope, markAppleAuthFailedOpenByActionLog } from '../auth/apple-submit-guard.js';
 import { cancelCapability } from '../utils/capability.js';
-import { optionalWelesDatabase } from '../utils/weles-database.js';
 import { queueSemanticScholarFollowup } from '../secrets/semantic-scholar-followup.js';
 import { hasWelesAcquiredSecretWriter } from '../secrets/scoped-service.js';
+import { finalizeCredentialCompletion, prepareCredentialCompletion, type CredentialTransfer } from './credential-completion.js';
 
 export interface ActionLogRow {
   id: string;
@@ -31,18 +32,14 @@ export interface ActionLogRow {
   cancel_requested?: boolean | null;
   priority?: number | null;
   tenant_id?: string | null;
+  lease_generation?: number | null;
+  lease_deployment_id?: string | null;
 }
 
 export interface BanSignal { healthy: boolean; signal: string; details?: Record<string, unknown>; }
 
-const DATABASE_URL = optionalWelesDatabase()?.url ?? '';
-const DATABASE_TOKEN = optionalWelesDatabase()?.token ?? '';
 const RECORDINGS_ROOT = process.env.RECORDINGS_ROOT ?? 'recordings';
 const LIGHT_RESULT_ACTIONS = new Set(['overleaf_version_history_scan', 'slack_provision_user_token']);
-
-function headers(): Record<string, string> {
-  return { apikey: DATABASE_TOKEN, Authorization: `Bearer ${DATABASE_TOKEN}`, 'Content-Type': 'application/json' };
-}
 
 type TrajectoryBuildRow = {
   id: string;
@@ -83,7 +80,88 @@ function replayStepsFromHistory(value: unknown): Array<{ tool: string; args: Rec
 
 
 
+function secretCandidateFromValue(value: unknown): { field: string; value: string } | null {
+  const record = recordOrEmpty(value);
+  for (const [field, raw] of Object.entries(record)) {
+    if (typeof raw !== 'string') continue;
+    const name = field.toLowerCase();
+    if (!/(^|_)(api_)?key$|token|secret/.test(name)) continue;
+    const candidate = raw.trim();
+    if (candidate.length < 8) continue;
+    if (/pending|submitted|received|wait|email/i.test(candidate)) continue;
+    return { field, value: candidate };
+  }
+  return null;
+}
 
+async function persistServiceCredentialReference(row: ActionLogRow, result: Record<string, unknown>): Promise<CredentialTransfer> {
+  const params = recordOrEmpty(row.params);
+  const constraints = recordOrEmpty(params.constraints);
+  const target = textParam(constraints, 'store_secret_target');
+  const generic = recordOrEmpty(result.generic_browser_task);
+  const rawValue = generic.value;
+  const value = recordOrEmpty(rawValue);
+  const secret = secretCandidateFromValue(value);
+
+  if (target === 'skarbiec') {
+    const storedReceipt = typeof rawValue === 'string'
+      && /^credential stored in Skarbiec item [A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$/.test(rawValue);
+    if (storedReceipt) return { secretValue: null, error: null };
+    if (!secret) {
+      return { secretValue: null, error: 'Weles completed without a Skarbiec storage receipt' };
+    }
+    return {
+      secretValue: secret.value,
+      error: 'Weles returned plaintext for a Skarbiec destination instead of storing it at the browser boundary',
+    };
+  }
+
+  if (target !== 'service_credentials' || !secret) {
+    return { secretValue: null, error: null };
+  }
+
+  const displayName = textParam(constraints, 'display_name') ?? textParam(params, 'promote_name') ?? 'Acquired API key';
+  const envVar = textParam(constraints, 'env_var');
+  const metadata = {
+    source: 'weles_secret_acquisition',
+    source_run_id: row.id,
+    key_field: secret.field,
+    value_status: typeof value.status === 'string' ? value.status : null,
+    captured_at: new Date().toISOString(),
+    runtime_env_installed: false,
+  };
+  const patch = {
+    display_name: displayName,
+    category: 'api',
+    api_key_env_var: envVar,
+    api_key_preview: null,
+    notes: `Acquired by Weles run ${row.id}; plaintext was redacted from the persisted action result and was not installed into the worker environment.`,
+    metadata,
+    updated_at: new Date().toISOString(),
+  };
+
+  try {
+    const match = await fetch(`${DATABASE_URL}/rest/v1/service_credentials?display_name=eq.${encodeURIComponent(displayName)}&select=id&limit=1`, { headers: headers() });
+    const existing = match.ok ? (await match.json() as Array<{ id: string }>) : [];
+    const id = existing[0]?.id;
+    if (id) {
+      await fetch(`${DATABASE_URL}/rest/v1/service_credentials?id=eq.${id}`, {
+        method: 'PATCH',
+        headers: { ...headers(), Prefer: 'return=minimal' },
+        body: JSON.stringify(patch),
+      });
+    } else {
+      await fetch(`${DATABASE_URL}/rest/v1/service_credentials`, {
+        method: 'POST',
+        headers: { ...headers(), Prefer: 'return=minimal' },
+        body: JSON.stringify(patch),
+      });
+    }
+  } catch (error) {
+    console.log(`[worker] service_credentials persistence skipped: ${error instanceof Error ? error.message.slice(0, 160) : String(error).slice(0, 160)}`);
+  }
+  return { secretValue: secret.value, error: null };
+}
 
 function trajectoryActionFromName(name: string): string {
   const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 48);
@@ -401,11 +479,15 @@ async function writeResult(jobId: string, status: FinalRunStatus, result: Record
     body.cost_usd = costs.cost_usd;
     body.service_costs = costs.service_costs;
   }
-  await fetch(`${DATABASE_URL}/rest/v1/account_action_logs?id=eq.${jobId}`, {
+  const response = await fetch(`${DATABASE_URL}/rest/v1/account_action_logs?id=eq.${jobId}`, {
     method: 'PATCH',
     headers: { ...headers(), Prefer: 'return=minimal' },
     body: JSON.stringify(body),
-  }).catch(() => {});
+  });
+  if (!response.ok) {
+    const details = await response.text().catch(() => '');
+    throw new Error(`action result persistence failed (${response.status}): ${details.slice(0, 300)}`);
+  }
 }
 
 function validWebhookUrl(value: string): boolean {
@@ -505,7 +587,6 @@ async function diagnosticsUploadable(): Promise<{ ok: boolean; reason: string }>
     storageReason = `Stado object upload error: ${(e instanceof Error ? e.message : String(e)).slice(Number(false), Number('100'))}`;
   }
 
-
   const ok = !storageReason;
   const reason = ok ? 'private artifact storage ok' : storageReason;
   _diagPreflight = { ok, at: now, reason };
@@ -513,6 +594,14 @@ async function diagnosticsUploadable(): Promise<{ ok: boolean; reason: string }>
 }
 
 export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
+  let policy;
+  try {
+    policy = await loadWelesPolicy();
+  } catch (error) {
+    console.error(`[worker] placement policy unavailable: ${error instanceof Error ? error.message : 'unknown error'}`);
+    return 'error';
+  }
+  if (!policy.enabled) return 'idle';
   if (!DATABASE_URL || !DATABASE_TOKEN) {
     console.error('[worker] weles-database launcher configuration missing');
     return 'error';
@@ -525,7 +614,7 @@ export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
     return 'error';
   }
   await sweepZombiesIfDue();
-  const row = await claimOne();
+  const row = await claimOne(policy);
   if (!row) return 'idle';
   const acquisitionParams = recordOrEmpty(row.params);
   const acquisitionConstraints = recordOrEmpty(acquisitionParams.constraints);
@@ -695,7 +784,7 @@ export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
   }
   const banSignal = await readBanSignal(row.id);
   const lightResultOnly = LIGHT_RESULT_ACTIONS.has(row.action);
-  const result: Record<string, unknown> = lightResultOnly ? {} : { versions: captureVersions(trajPath) };
+  let result: Record<string, unknown> = lightResultOnly ? {} : { versions: captureVersions(trajPath) };
   if (row.action === 'slack_provision_user_token') {
     const secretPath = join(os.tmpdir(), `weles-secret-${row.id}.json`);
     const secretResult = await readFile(secretPath, 'utf8').then(JSON.parse).catch(() => null);
@@ -786,6 +875,19 @@ export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
       }).catch(() => {});
     }
   }
+  const resultConstraints = recordOrEmpty(recordOrEmpty(row.params).constraints);
+  const skarbiecTarget = textParam(resultConstraints, 'store_secret_target') === 'skarbiec';
+  const preparedCredential = await prepareCredentialCompletion(result, async () => {
+    if (exitCode === 0) return persistServiceCredentialReference(row, result);
+    const generic = recordOrEmpty(result.generic_browser_task);
+    const failedSecret = secretCandidateFromValue(recordOrEmpty(generic.value));
+    return { secretValue: failedSecret?.value ?? null, error: null };
+  });
+  result = preparedCredential.safeResult;
+  if (skarbiecTarget && preparedCredential.transfer.secretValue && !preparedCredential.transfer.error) {
+    pending = null;
+  }
+
   let verificationPending = false;
   let verificationMessage: string | undefined;
   if (!lightResultOnly) {
@@ -841,11 +943,22 @@ export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
     await sendRunWebhook(row, 'pending_review', result, verificationMessage);
     console.log(`[worker] ${row.id.slice(0, 8)} pending_review`);
   } else if (exitCode === ''.length) {
-    await writeResult(row.id, 'completed', result, undefined, costs ?? undefined);
-    await updateTrajectoryBuildAfterRun(row, 'completed', result);
-    await closeCampaignItem(row.params, 'completed');
-    await sendRunWebhook(row, 'completed', result);
-    console.log(`[worker] ${row.id.slice(0, 8)} completed signal=${(result.ban_signal as BanSignal).signal}`);
+    await finalizeCredentialCompletion(preparedCredential, {
+      completed: async (safeResult) => {
+        await writeResult(row.id, 'completed', safeResult, undefined, costs ?? undefined);
+        await updateTrajectoryBuildAfterRun(row, 'completed', safeResult);
+        await closeCampaignItem(row.params, 'completed');
+        await sendRunWebhook(row, 'completed', safeResult);
+        console.log(`[worker] ${row.id.slice(0, 8)} completed signal=${(safeResult.ban_signal as BanSignal).signal}`);
+      },
+      failed: async (safeResult, message) => {
+        await writeResult(row.id, 'failed', safeResult, message, costs ?? undefined);
+        await updateTrajectoryBuildAfterRun(row, 'failed', safeResult, message);
+        await closeCampaignItem(row.params, 'failed', message);
+        await sendRunWebhook(row, 'failed', safeResult, message);
+        console.log(`[worker] ${row.id.slice(0, 8)} credential return failed`);
+      },
+    });
   } else {
     // Kick off diagnostic retry BEFORE writing the failure result so the
     // dump path can be attached to result.instrumented_dump. This doubles

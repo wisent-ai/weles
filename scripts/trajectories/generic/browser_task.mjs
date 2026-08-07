@@ -70,7 +70,7 @@ function identityInstructions(platform) {
   const prefix = platform.toUpperCase().replace(/[^A-Z0-9]+/g, '_');
   const instructions = [
     'Weles generated a registration email identity through its domain rotator / Resend inbox for this run.',
-    `Use these placeholders when a form asks for identity fields: $${prefix}_NEW_FIRSTNAME, $${prefix}_NEW_LASTNAME, $${prefix}_NEW_USERNAME, $${prefix}_NEW_EMAIL, $${prefix}_NEW_PASSWORD. The fill/type tools resolve placeholders before typing; do not type literal placeholder text.`,
+    'Use fill_identity(target, field) for generated email, password, username, first_name, last_name, and birth-date fields. The generated values stay inside WSession and never appear in model tool arguments or results.',
     `If the site sends an email confirmation, call check_email("$${prefix}_NEW_EMAIL", "") and follow the returned code, link, or instructions before attempting to sign in.`,
     'Do not return raw API keys in done(value). Store newly issued token or API-key material only through store_credential.',
   ];
@@ -82,7 +82,7 @@ function identityInstructions(platform) {
   }
   if (platform === 'brave') {
     instructions.push(
-      'Brave Search exact plan: create one account with the generated Brave identity, solve the registration CAPTCHA once, then check the generated mailbox for Brave verification before trying to log in. Keep using that same identity; never restart registration with invented credentials. After verification, sign in, open the API Keys area, select only a no-payment/free Search API option when required, create one key, and call store_credential on the displayed key.',
+      'Brave Search exact plan: create one account with the generated Brave identity and fill every required registration field. Call solve_captcha exactly once after the form is valid; Brave uses a proof-of-work Register control, so solve_captcha clicks it, waits for the proof, and automatically submits the form. After solve_captcha succeeds, do not click Register again: wait for the registration response, then check the generated mailbox for Brave verification before trying to log in. Keep using that same identity; never restart registration with invented credentials. After verification, sign in, open the API Keys area, select only a no-payment/free Search API option when required, create one key, and call store_credential on the displayed key.',
     );
   }
   return instructions;
