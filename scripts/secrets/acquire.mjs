@@ -93,6 +93,8 @@ const request = {
   secret: stdinRequest.secret || arg('secret') || process.env.WELES_SECRET || undefined,
   purpose: stdinRequest.purpose || arg('purpose') || process.env.WELES_SECRET_PURPOSE || undefined,
   accountEmail: stdinRequest.accountEmail || arg('account-email') || undefined,
+  skarbiecRequestId: stdinRequest.skarbiecRequestId || arg('skarbiec-request-id') || undefined,
+  skarbiecCredentialId: stdinRequest.skarbiecCredentialId || arg('skarbiec-credential-id') || undefined,
   dryRun: Boolean(stdinRequest.dryRun) || boolArg('dry-run') || process.env.WELES_SECRET_DRY_RUN === '1',
   autoPromoteTrajectory: stdinRequest.autoPromoteTrajectory !== false && !boolArg('no-auto-promote'),
   proxy: stdinRequest.proxy || arg('proxy') || undefined,
@@ -102,5 +104,8 @@ const request = {
 };
 
 const result = await acquireSecret(request);
-console.log(JSON.stringify(result, null, 2));
+console.log(JSON.stringify({
+  ...result,
+  ...(request.skarbiecCredentialId ? { vaultItemId: request.skarbiecCredentialId } : {}),
+}, null, 2));
 process.exit(result.status === 'unsupported_secret' || result.status === 'needs_configuration' ? 2 : 0);

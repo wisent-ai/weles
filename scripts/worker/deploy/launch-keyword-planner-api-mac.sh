@@ -15,7 +15,7 @@ export STADO_SKARBIEC_URI=stado://service/skarbiec
 export STADO_BRAMA_URI=stado://service/brama
 export WC_SKARBIEC_URL=http://127.0.0.1:17602
 export STADO_MODEL_ROUTER_URL=http://127.0.0.1:17601
-mkdir -p "$HOME/.local/state/weles" "$HOME/.weles/browser_profiles/google_ads"
+mkdir -p "$HOME/.local/state/weles" "$HOME/weles/var" "$HOME/.weles/browser_profiles/google_ads"
 # Password, MFA, and proxy material is never sourced from worker.env. The API
 # process resolves each exact item later through its owning script and token.
 unset GOOGLE_ADS_EMAIL GOOGLE_PASSWORD GOOGLE_TOTP_SECRET GOOGLE_AUTHENTICATOR_SECRET
@@ -28,6 +28,7 @@ unset OXYLABS_DEDICATED_ISP_USERNAME OXYLABS_DEDICATED_ISP_PASSWORD
 unset BRIGHTDATA_USERNAME BRIGHTDATA_PASSWORD BRIGHTDATA_ZONE BRIGHTDATA_BROWSER_WS
 unset WELES_STADO_OBJECT_API_TOKEN WELES_STADO_MODEL_ROUTER_TOKEN
 unset WELES_KEYWORD_PLANNER_API_TOKEN WELES_KEYWORD_PLANNER_API_ALLOW_UNAUTH
+unset SEMANTIC_SCHOLAR_API_KEY S2_API_KEY || true
 STADO_BIN="${STADO_BIN:-/usr/local/bin/stado}"
 : "${WC_SKARBIEC_URL:?WC_SKARBIEC_URL must be explicitly configured}"
 : "${SKARBIEC_WORKLOAD_ID:?SKARBIEC_WORKLOAD_ID must be explicitly configured}"

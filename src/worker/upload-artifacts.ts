@@ -183,7 +183,9 @@ export async function uploadArtifacts(logId: string): Promise<ArtifactLocatorSet
 // mirrored to private Stado objects. The Stado weles_recordings cleaner
 // requires this marker before it may delete a run directory (unless the host
 // explicitly opts into allow_missing_upload_proof). Written only after every
-// collected file has been acknowledged with its exact canonical URI.
+// collected file has been acknowledged with its exact canonical URI. A later
+// write into the run directory invalidates the proof, because the cleaner
+// compares child mtimes against uploaded_at.
 async function writeUploadProof(
   runDir: string,
   logId: string,

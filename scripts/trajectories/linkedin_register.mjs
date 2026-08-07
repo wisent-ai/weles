@@ -551,6 +551,7 @@ async function waitPastEmailVerification(page) {
 // naturally like the keeper does.
 const requestedProxy = process.env.LINKEDIN_REGISTER_PROXY ?? process.env.LINKEDIN_PROXY ?? process.env.PROXY_URL ?? 'isp decodo us';
 const requestedEntryUrl = process.env.LINKEDIN_REGISTER_ENTRY_URL ?? DEFAULT_ENTRY_URL;
+const STOP_AFTER_SIGNUP_READY = process.env.LINKEDIN_REGISTER_STOP_AFTER_SIGNUP_READY === '1';
 const HEADLESS = process.env.HEADLESS === '1' || process.env.WELES_HEADLESS === '1' || process.env.LINKEDIN_REGISTER_HEADLESS === '1';
 const envPrewarmUrls = parseLinkedinUrlList(process.env.LINKEDIN_REGISTER_PREWARM_URLS ?? '');
 const defaultPrewarmUrls = process.env.LINKEDIN_REGISTER_DEFAULT_PREWARM === '1' && envPrewarmUrls.length === 0
@@ -665,6 +666,7 @@ let expectedExitIp = '';
 let authState = null;
 
 try {
+main: {
   recordStage('proxy_request_received', { requested_proxy: safeRequestedProxy(requestedProxy) });
   assertLinkedinRegisterProxyRequest(requestedProxy);
   recordStage('proxy_request_validated', { requested_proxy: safeRequestedProxy(requestedProxy) });
@@ -723,6 +725,12 @@ try {
   if (prewarmDiagnostics) recordStage('guest_prewarm_complete', { urls: guestPrewarmUrls.length });
   await enterLinkedinSignup(s, requestedEntryUrl);
   recordStage('signup_goto_complete', { entry_url: requestedEntryUrl });
+  if (STOP_AFTER_SIGNUP_READY) {
+    await writeSubmitDiagnostics('entry_path_stop_after_signup_ready', { url: s.page.url(), entry_url: requestedEntryUrl });
+    console.log('[register] LINKEDIN_REGISTER_STOP_AFTER_SIGNUP_READY reached');
+    process.exitCode = 0;
+    break main;
+  }
   await humanIdlePause('deliberate');
   expectedExitIp = await assertLinkedinProxyStable(s, 'after_goto', expectedExitIp);
   recordStage('proxy_stable_after_goto');
@@ -842,7 +850,7 @@ try {
           challenge_url: challenge.challenge_url.slice(0, 200),
         });
       } catch {}
-      throw new Error(`DETECTION_TRIGGERED: createAccount challenge detected (kind=${challengeKind})`);
+      throw new Error(`DETECTION_TRIGGERED: createAccount challengeUrl detected (kind=${challengeKind})`);
     }
     await humanIdlePause('long');
     await assertNoLinkedinChallengePage(s, 'after_create_account');
@@ -904,6 +912,7 @@ try {
   console.log(`PASS: ${id.handle}`);
   const diagnostics = await getLinkedinFailureDiagnostics(s, requestedProxy, expectedExitIp);
   try { mkdirSync(runRecordingsDir('linkedin_register'), { recursive: true }); writeFileSync(join(runRecordingsDir('linkedin_register'), 'ban_signal.json'), JSON.stringify({ action: 'linkedin_register', signal: 'healthy', healthy: true, details: { username_hash: hashValue(id.handle), email_hash: hashValue(id.email), final_url: s.page.url(), auth: authState, diagnostics, failure_reasons: [], stage_events: stageEvents }, ts: new Date().toISOString() }, null, 2)); } catch {}
+}
 } catch (e) {
   const finalUrl = s?.page?.url?.() ?? '';
   const errorMessage = e.message ?? '';

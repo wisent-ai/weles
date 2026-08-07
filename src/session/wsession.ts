@@ -33,7 +33,7 @@ import { enforceWelesServicePlacement } from './service-placement.js';
 
 import { installAtoms } from './wsession_atoms.js';  // installAtoms() is invoked at file end after WSession is declared
 import { runRecordingsDir, runRecordingsRoot } from './run-recordings.js';
-import { wsClick, wsFill, wsFillCredential } from './wsession-helpers/finalize.js';
+import { wsClick, wsFill, wsFillCredential, wsFillIdentity } from './wsession-helpers/finalize.js';
 import { isSkarbiecCredentialTask, wsAutoStoreCredential, wsStoreCredential } from './wsession-helpers/credential-store.js';
 import type { CapabilityRef } from '../utils/capability.js';
 import { assertNonCredentialInput } from '../utils/capability.js';
@@ -92,6 +92,7 @@ export interface WSessionOptions {
   // their platform here instead of importing generateIdentity themselves.
   platform?: string;
 }
+
 
 
 function redactProxyForLog(proxy: unknown): string {
@@ -467,6 +468,23 @@ export class WSession {
     fieldClass: 'password' | 'email' | 'username' | 'token' | 'api-key',
     capability: CapabilityRef,
   ): Promise<string> { return wsFillCredential(this, target, fieldClass, capability); }
+  async fillIdentity(
+    target: string,
+    field: 'email' | 'password' | 'username' | 'first_name' | 'last_name' | 'birth_month' | 'birth_day' | 'birth_year',
+  ): Promise<string> {
+    const identity = this.identity;
+    if (!identity) throw new Error('generated identity is unavailable');
+    switch (field) {
+      case 'email': return wsFillIdentity(this, target, field, identity.email);
+      case 'password': return wsFillIdentity(this, target, field, identity.password);
+      case 'username': return wsFillIdentity(this, target, field, identity.username);
+      case 'first_name': return wsFillIdentity(this, target, field, identity.firstName);
+      case 'last_name': return wsFillIdentity(this, target, field, identity.lastName);
+      case 'birth_month': return wsFillIdentity(this, target, field, identity.birthMonth);
+      case 'birth_day': return wsFillIdentity(this, target, field, identity.birthDay);
+      case 'birth_year': return wsFillIdentity(this, target, field, identity.birthYear);
+    }
+  }
   async storeCredential(target: string, fieldClass: 'token' | 'api-key'): Promise<string> {
     return wsStoreCredential(this, target, fieldClass);
   }
@@ -602,7 +620,13 @@ export class WSession {
 
   async wait(seconds: number): Promise<string> { await new Promise(r => setTimeout(r, seconds * 1000)); return `waited ${seconds}s`; }  // allow-raw-playwright: review — context-dependent timer
   async read(question: string): Promise<string> { return await askPage(asV(this.page), question) ?? 'NONE'; }
-  async solveCaptcha(): Promise<string> { return this.runStep('solveCaptcha', async () => (await solvePageCaptcha(this.page, this._solver, this)) ? 'captcha solved' : 'captcha failed'); }
+  async solveCaptcha(): Promise<string> {
+    return this.runStep('solveCaptcha', async () => {
+      const result = await solvePageCaptcha(this.page, this._solver, this);
+      if (result === null) return 'no supported captcha detected';
+      return result ? 'captcha solved' : 'captcha failed';
+    });
+  }
 
   async checkEmail(email: string, sender: string): Promise<string> { const { wsCheckEmail } = await import('./wsession-helpers/finalize.js'); return wsCheckEmail(this, email, sender); }
   async checkSms(service: string, country = 'UK'): Promise<string> { this._smsOrder = await getNumber(service, country); if (!this._smsOrder) return 'error: no SMS number available'; this._env[`${service.toUpperCase()}_NEW_PHONE`] = this._smsOrder.phone; return `phone: ${this._smsOrder.phone}`; }

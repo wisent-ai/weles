@@ -64,7 +64,7 @@ export function captureAppleNativeTwoFactor(options = {}) {
       codeCaptured: false,
       clicked: [],
       outputFile: null,
-      error: (result.stderr || result.stdout || `swift exited ${result.status}`).slice(0, 1000),
+      error: (result.error?.message || result.stderr || result.stdout || `swift exited ${result.status} signal=${result.signal || 'none'}`).slice(0, 1000),
     };
   }
 
@@ -84,9 +84,20 @@ export function captureAppleNativeTwoFactor(options = {}) {
 
 function logCapture(logPrefix, capture) {
   if (!logPrefix || (!capture.clicked?.length && !capture.codeCaptured && capture.ok !== false)) return;
-  const summary = capture.ok === false
-    ? { ok: false, error: String(capture.error || '').slice(0, 240) }
-    : { clicked: capture.clicked || [], codeCaptured: Boolean(capture.codeCaptured) };
+  const summary = {
+    ok: capture.ok !== false,
+    accessibilityTrusted: Boolean(capture.accessibilityTrusted),
+    codeCaptured: Boolean(capture.codeCaptured),
+    clicked: capture.clicked || [],
+    error: String(capture.error || '').slice(0, 240),
+    processes: (capture.processes || []).slice(0, 8).map((process) => ({
+      pid: process.pid,
+      name: process.name,
+      bundle: process.bundle,
+      nodes: process.nodes,
+      textPreview: String(process.textPreview || '').slice(0, 160),
+    })),
+  };
   console.log(`${logPrefix} native 2FA ${JSON.stringify(summary)}`);
 }
 

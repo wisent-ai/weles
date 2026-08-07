@@ -103,10 +103,10 @@ export function getLinkedinChallengeSignal(summary = {}) {
   // The normal LinkedIn signup page embeds invisible reCAPTCHA Enterprise and
   // ProTechTS/security-verification iframes while the form remains usable.
   // Treat those as risk instrumentation, not a blocking challenge.
-  if (/\/checkpoint|checkpoint/.test(pageText) && !/email[-_\s]?verification|confirmation code|one-time-code|\bpin\b/.test(pageText)) return 'checkpoint_page';
   if (/\/checkpoint\/challenge|challengeiframe|arkose/i.test(haystack) && !hasVisibleSignupForm) return 'challenge_page';
   if (/recaptcha|captcha|security verification/i.test(visibleIframeText) && !hasVisibleSignupForm) return 'challenge_page';
   if (/recaptcha|captcha|security verification|verify you are human|unusual activity/i.test(pageText) && !hasVisibleSignupForm) return 'challenge_page';
+  if (/\/checkpoint|checkpoint/.test(pageText) && !/email[-_\s]?verification|confirmation code|one-time-code|\bpin\b/.test(pageText)) return 'checkpoint_page';
   return '';
 }
 

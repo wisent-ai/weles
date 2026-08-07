@@ -1,7 +1,7 @@
-import os from 'node:os';
 import { cancelAppleAuthAuthorization, getAppleAuthCapabilityEnvelope, markAppleAuthFailedOpenByActionLog } from '../auth/apple-submit-guard.js';
 import { cancelCapability } from '../utils/capability.js';
 import { optionalWelesDatabase } from '../utils/weles-database.js';
+import { INSTANCE_ID } from './identity.js';
 
 // Pre-claim stale-cookie filter. The trajectory marks
 // metadata.cookies_stale_at when checkpoint fires; getSocialAccount honours
@@ -10,8 +10,12 @@ import { optionalWelesDatabase } from '../utils/weles-database.js';
 // before failing identically. Always allow register/health (no cookies / probe
 // IS the refresh signal).
 
-const DATABASE_URL = optionalWelesDatabase()?.url ?? '';
-const DATABASE_TOKEN = optionalWelesDatabase()?.token ?? '';
+// Shared worker REST plumbing. The launcher exports the weles-database
+// Skarbiec item as WELES_DATABASE_*; the release activation wrapper still
+// exports the same item as SUPABASE_*.
+const database = optionalWelesDatabase();
+export const DATABASE_URL = database?.url ?? process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
+export const DATABASE_TOKEN = database?.token ?? process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
 const STALE_HOURS = 24;
 
 interface CandidateRow {
@@ -19,7 +23,7 @@ interface CandidateRow {
   action: string;
 }
 
-function headers(): Record<string, string> {
+export function headers(): Record<string, string> {
   return { apikey: DATABASE_TOKEN, Authorization: `Bearer ${DATABASE_TOKEN}`, 'Content-Type': 'application/json' };
 }
 
@@ -126,9 +130,7 @@ export async function sweepZombiesIfDue(): Promise<void> {
   } catch { /* best-effort */ }
 }
 
-// INSTANCE_ID mirrors claim.ts so the wedge-watchdog matches this instance's own
-// claimed_by rows.
-const INSTANCE_ID = process.env.INSTANCE_ID ?? `weles-${os.hostname() || 'unknown'}-${process.pid}`;
+
 
 // Independent wedge-watchdog. runTrajectory (poll.ts) has no wall-clock kill and
 // account_action_logs has no cancel_requested column, so a hung trajectory
@@ -165,4 +167,36 @@ async function checkWedge(): Promise<void> {
       process.kill(process.pid, 'SIGKILL');
     }
   } catch { /* next tick re-checks */ }
+}
+
+// Startup orphan reclaim. account_action_logs rows are tagged claimed_by =
+// INSTANCE_ID (on the mac-mini that is the fixed "mac-mini-worker" — the same
+// identity the wedge-watchdog matches with claimed_by=eq). launchd runs ONE
+// instance, so at startup THIS process has claimed nothing yet and every
+// status=running row still tagged with our own INSTANCE_ID is a zombie the dead
+// predecessor left behind. Fail them BEFORE the poll loops start — otherwise
+// they keep counting as wedged slots and the wedge-watchdog SIGKILLs the fresh
+// worker within one check interval (the ~2-minute crash loop that stopped
+// apple_login — and every other run — from ever finishing). Runs once per process.
+const RECLAIM_LIMIT = process.env.WELES_ORPHAN_RECLAIM_LIMIT ?? '500';
+let _orphanReclaimed = false;
+export async function reclaimOrphansOnce(): Promise<void> {
+  if (_orphanReclaimed) return;
+  _orphanReclaimed = true;
+  if (!DATABASE_URL || !DATABASE_TOKEN) return;
+  const res = await fetch(
+    `${DATABASE_URL}/rest/v1/account_action_logs?status=eq.running&claimed_by=eq.${encodeURIComponent(INSTANCE_ID)}&select=id,action&limit=${RECLAIM_LIMIT}`,
+    { headers: headers() },
+  );
+  if (!res.ok) { console.error(`[worker] orphan reclaim: candidate query failed ${res.status}`); return; }
+  const rows = (await res.json()) as Array<{ id: string; action: string }>;
+  console.log(`[worker] orphan reclaim: ${rows.length} zombie row(s) tagged ${INSTANCE_ID} to fail at startup`);
+  for (const row of rows) {
+    const patch = await fetch(`${DATABASE_URL}/rest/v1/account_action_logs?id=eq.${row.id}&status=eq.running`, {
+      method: 'PATCH', headers: { ...headers(), Prefer: 'return=minimal' },
+      body: JSON.stringify({ status: 'failed', error: `orphaned: ${INSTANCE_ID} predecessor died before completing (startup reclaim)`, completed_at: new Date().toISOString() }),
+    });
+    if (!patch.ok) { console.error(`[worker] orphan reclaim: update ${row.id} rejected ${patch.status}`); continue; }
+    console.log(`[worker] orphan reclaim: failed ${row.id} action=${row.action}`);
+  }
 }

@@ -127,9 +127,17 @@ export async function wsClick(s: WSession, target: string): Promise<string> {
 
 async function fillPage(s: WSession, target: string, value: string, allowedOrigin?: string): Promise<string> {
   const v = value;
-  const kws = target.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(w => w.length > 2);
+  const explicitSelector = target.trim().match(/^(?:input|textarea)(?:\[[^\]]+\])+/)?.[0];
+  const description = explicitSelector ? target.slice(explicitSelector.length) : target;
+  const kws = description.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(w => w.length > 2);
   const sels = kws.flatMap(k => ['input','textarea','[contenteditable]'].flatMap(t => [`${t}[name*="${k}"]`,`${t}[placeholder*="${k}" i]`,`${t}[aria-label*="${k}" i]`]));
   for (const frame of childFrames(s, allowedOrigin)) {
+    if (explicitSelector) {
+      try {
+        const explicit = await firstVisible(frame.locator?.(explicitSelector));
+        if (explicit) { await humanFill(s.page, explicit, v); return `filled frame ${explicitSelector}`; }
+      } catch {}
+    }
     try { const lbl = await firstVisible(frame.getByLabel?.(target, { exact: false })); if (lbl) { await humanFill(s.page, lbl, v); return 'filled frame label'; } } catch {}
     const emailHint = /\b(email|e-mail)\b/i.test(target);
     if (emailHint) {
@@ -139,6 +147,12 @@ async function fillPage(s: WSession, target: string, value: string, allowedOrigi
     for (const sel of sels) {
       try { const el = await firstVisible(frame.locator?.(sel)); if (el) { await humanFill(s.page, el, v); return `filled frame ${sel}`; } } catch {}
     }
+  }
+  if (explicitSelector) {
+    try {
+      const explicit = s.page.locator?.(explicitSelector)?.first?.();
+      if (explicit && await explicit.isVisible()) { await humanFill(s.page, explicit, v); return `filled ${explicitSelector}`; }
+    } catch {}
   }
   try { const lbl = s.page.getByLabel?.(target, { exact: false })?.first?.(); if (lbl && await lbl.isVisible({ timeout: VISIBILITY_PROBE_MS }).catch(() => false)) { await humanFill(s.page, lbl, v); return 'filled'; } } catch {}
   for (const sel of sels) { try { const el = s.page.locator?.(sel)?.first?.(); if (el && await el.isVisible()) { await humanFill(s.page, el, v); return 'filled'; } } catch {} }
@@ -157,50 +171,98 @@ export async function wsFill(s: WSession, target: string, value: string): Promis
   return s.runStep(`fill_${target}`, () => fillPage(s, target, literal, pageUrl.origin));
 }
 
-export async function wsFillCredential(
+type CredentialFieldClass = 'password' | 'email' | 'username' | 'token' | 'api-key';
+type IdentityField = 'email' | 'password' | 'username' | 'first_name' | 'last_name' | 'birth_month' | 'birth_day' | 'birth_year';
+
+const CREDENTIAL_FIELD_HINTS: Record<CredentialFieldClass, RegExp> = {
+  password: /password|passcode|secret/,
+  email: /email|e-mail/,
+  username: /username|user name|login/,
+  token: /token|verification code|one-time code|otp/,
+  'api-key': /api.?key|access key/,
+};
+
+async function fillProtectedValue(
   s: WSession,
   target: string,
-  fieldClass: 'password' | 'email' | 'username' | 'token' | 'api-key',
-  capability: CapabilityRef,
+  value: string,
+  expectedHint: RegExp,
 ): Promise<string> {
   const pageUrl = new URL(s.page.url());
   const origin = pageUrl.origin;
   if (!['https:', 'http:'].includes(pageUrl.protocol)) throw new Error('credential fill requires an HTTP(S) origin');
-  const targetText = target.toLowerCase();
-  const expectedHints: Record<typeof fieldClass, RegExp> = {
-    password: /password|passcode|secret/,
-    email: /email|e-mail/,
-    username: /username|user name|login/,
-    token: /token|verification code|one-time code|otp/,
-    'api-key': /api.?key|access key/,
-  };
-  if (!expectedHints[fieldClass].test(targetText)) throw new Error('credential field class mismatch');
+  if (!expectedHint.test(target.toLowerCase())) throw new Error('credential field class mismatch');
+  try {
+    const result = await fillPage(s, target, value, origin);
+    return result.startsWith('filled') ? `credential ${result}` : result;
+  } catch {
+    throw new Error('credential fill failed');
+  }
+}
+
+export async function wsFillCredential(
+  s: WSession,
+  target: string,
+  fieldClass: CredentialFieldClass,
+  capability: CapabilityRef,
+): Promise<string> {
+  // Validate the origin and the field class BEFORE withCapability: redeeming
+  // burns a one-shot capability and materializes the plaintext secret. A bad
+  // target or a non-HTTP(S) page must be refused while no secret exists.
+  const pageUrl = new URL(s.page.url());
+  const origin = pageUrl.origin;
+  if (!['https:', 'http:'].includes(pageUrl.protocol)) throw new Error('credential fill requires an HTTP(S) origin');
+  const expectedHint = CREDENTIAL_FIELD_HINTS[fieldClass];
+  if (!expectedHint.test(target.toLowerCase())) throw new Error('credential field class mismatch');
   const expected = { purpose: 'weles.browser.fill' as const, resource: `origin:${origin}/${fieldClass}` };
-  return withCapability(capability, expected, async (secret) => {
-    try {
-      const result = await fillPage(s, target, secret, origin);
-      return result.startsWith('filled') ? `credential ${result}` : result;
-    } catch {
-      throw new Error('credential fill failed');
-    }
-  });
+  return withCapability(capability, expected, (secret) =>
+    fillProtectedValue(s, target, secret, expectedHint));
+}
+
+export async function wsFillIdentity(
+  s: WSession,
+  target: string,
+  field: IdentityField,
+  value: string,
+): Promise<string> {
+  const expectedHints: Record<IdentityField, RegExp> = {
+    email: /email|e-mail/,
+    password: /password|passcode|secret/,
+    username: /username|user name|login/,
+    first_name: /first.?name|given.?name/,
+    last_name: /last.?name|family.?name|surname/,
+    birth_month: /birth.*month|month/,
+    birth_day: /birth.*day|day/,
+    birth_year: /birth.*year|year/,
+  };
+  return fillProtectedValue(s, target, value, expectedHints[field]);
 }
 
 export async function wsCheckEmail(s: WSession, email: string, sender: string): Promise<string> {
   const key = await getEmailApiKey() ?? '';
   if (!key) return 'error: no RESEND_RECEIVING_API_KEY';
   const addr = s.resolveEnv(email).toLowerCase();
+  const senderHint = sender.toLowerCase();
   const earliestAcceptMs = Date.now() - 90_000;
   for (let attempt = 0; attempt < 18; attempt++) {
     const r = await fetch('https://api.resend.com/emails/receiving?limit=10', { headers: { Authorization: `Bearer ${key}` } });
     for (const em of ((await r.json()) as any).data ?? []) {
       const to = (em.to ?? []).map((t: any) => (typeof t === 'string' ? t : t.email ?? '').toLowerCase());
       if (!to.includes(addr)) continue;
-      if (sender && !(em.from ?? '').toLowerCase().includes(sender)) continue;
+      if (senderHint && !(em.from ?? '').toLowerCase().includes(senderHint)) continue;
       const emAt = em.created_at ? new Date(em.created_at).getTime() : 0;
       if (emAt < earliestAcceptMs) continue;
       const d = await (await fetch(`https://api.resend.com/emails/receiving/${em.id}`, { headers: { Authorization: `Bearer ${key}` } })).json() as any;
       const content = `${d.subject ?? ''}\n${d.text ?? ''}\n${d.html ?? ''}`;
+      const verificationMatch = content.match(/https:\/\/api-dashboard\.search\.brave\.com\/verification[^\s"'<>\]]+/);
+      if (verificationMatch) {
+        const verificationURL = verificationMatch[0].replace(/&amp;/g, '&').replace(/[),.;]+$/, '');
+        const target = new URL(verificationURL);
+        if (target.hostname === 'api-dashboard.search.brave.com' && target.pathname === '/verification') {
+          await s.page.goto(target.href, { waitUntil: 'domcontentloaded' });
+          return `verification email opened on ${target.origin}${target.pathname}`;
+        }
+      }
       const codes = content.match(/\b\d{5,6}\b/g);
       if (codes) return codes[0];
       return `email received without numeric code: ${content.replace(/\s+/g, ' ').trim().slice(0, 2000)}`;

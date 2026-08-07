@@ -24,6 +24,183 @@ stado://releases/weles-chromium/<version>/<platform>/weles-chromium.tar.gz
 stado://releases/weles-firefox/<version>/<platform>/weles-firefox.tar.gz
 ```
 
+## Canonical release and rollback runbook
+
+Production is manifest-driven. Component repositories publish immutable worker,
+Chromium, Firefox, web, client, and desktop artifacts through their own release
+channels; none of those releases independently changes the running worker.
+
+1. Pause legacy queue producers, wait for every in-flight legacy job to finish, and
+   capture the current baseline before the first cutover. Include executable rollback
+   bytes, not only a descriptive hash:
+
+   ```bash
+   node scripts/release/capture-baseline.mjs \
+     --out ~/.local/state/weles-release/legacy-baseline.json \
+     --archive-out ~/.local/state/weles-release/legacy-baseline.tar.gz
+   ```
+   Only the first production `activate.mjs` invocation additionally requires
+   `--legacy-drained true`; candidate, development, and canary workers never
+   claim queue rows.
+
+2. Normalize each approved component release into the fragment shape required by
+   `release/deployment-manifest.schema.json`. Assemble one manifest:
+
+   ```bash
+   node scripts/release/assemble-manifest.mjs \
+     --deployment-id 2026-08-04.1 \
+     --created-at 2026-08-04T12:00:00Z \
+     --source-revision <weles-full-sha> \
+     --worker worker.json --web web.json --database database.json \
+     --client client.json --chromium chromium.json --firefox firefox.json \
+     --compatibility compatibility.json --output deployment.json
+   ```
+
+   `database.json` is not produced from this repository. Its `schemaVersion` is
+   the highest `version` present in the `weles_schema_migrations` ledger after
+   the corresponding pull request has merged in
+   [`wisent-ai/wisent-supabase-echo`](https://github.com/wisent-ai/wisent-supabase-echo),
+   and its `migrationSetSha256` is the SHA-256 of that merged migration file's
+   exact bytes:
+
+   ```bash
+   shasum -a 256 supabase/migrations/<merged-migration>.sql
+   ```
+
+   Take both from the merged commit, never from a local working copy or an
+   unmerged branch: a manifest that claims a schema version the deployed
+   database does not have will fail every worker's startup compatibility check.
+
+3. Publish the exact manifest as a prerelease candidate:
+
+   ```bash
+   node scripts/release/publish-manifest.mjs --manifest deployment.json
+   ```
+
+   Publication fails before creating a GitHub Release unless tracked release
+   inputs match `HEAD` and the authenticated `gh` actor appears in the
+   repository's `WELES_RELEASE_APPROVERS` variable.
+
+   The release workflow validates its source-bound identity and uploads a portable
+   Sigstore bundle beside the manifest. After that attestation succeeds, install
+   the asset by exact URL and SHA-256 with `scripts/release/install.mjs`; installation
+   verifies the downloaded bundle even though the repositories remain private.
+4. Stage the Weles product manifest and release journeys in Probierz, then run
+   the exact candidate bytes and endpoints:
+
+   ```bash
+   node scripts/release/prepare-probierz.mjs --probierz-root ../probierz
+   cd ../probierz
+   PROBIERZ_BUILD_PATH=/absolute/path/to/deployment.json \
+   BASE_URL=https://candidate.weles.example \
+   WELES_WORKER_URL=https://candidate-worker.weles.example \
+   WELES_WORKER_API_TOKEN='<candidate token>' \
+   node agent/cli.mjs run web --app weles --spec weles-release.spec.mjs --record
+   node agent/cli.mjs source-identity weles
+   node agent/cli.mjs receipt weles 2026-08-04.1 <harness-sha256> \
+     --source-sha <app-source-sha256> --runs <comma-separated-run-ids> \
+     > /secure/path/weles-evidence-receipt.json
+   ```
+
+   The release receipt must be signed by Probierz and cover `web-contract`,
+   `worker-contract`, `chromium-candidate`, and `firefox-candidate` at E3.
+5. Activate the installed manifest in strict order: `candidate`,
+   `development`, `canary`, then `production`. Every activation re-verifies the
+   signed Probierz receipt, exact run IDs, clean Weles source revision, and
+   manifest build digest. The same manifest SHA-256 must advance through every
+   ring:
+
+   ```bash
+   node scripts/release/activate.mjs \
+     --manifest-sha256 <sha256> --host <stado-host> --ring candidate \
+     --probierz-root ../probierz \
+     --evidence-receipt /secure/path/weles-evidence-receipt.json \
+     --run-ids <comma-separated-run-ids> \
+     --public-key /secure/path/probierz-receipt-signing-key.pub.pem
+   ```
+
+   Repeat with `development` and `canary`. For the first production cutover,
+   use the baseline-verifying migration command instead of writing the mode file
+   by hand:
+
+   ```bash
+   node scripts/release/cutover-legacy.mjs \
+     --baseline ~/.local/state/weles-release/legacy-baseline.json \
+     --manifest-sha256 <sha256> --host <production-stado-host> \
+     --probierz-root ../probierz \
+     --evidence-receipt /secure/path/weles-evidence-receipt.json \
+     --run-ids <comma-separated-run-ids> \
+     --public-key /secure/path/probierz-receipt-signing-key.pub.pem \
+     --confirm 'LEGACY TO IMMUTABLE'
+   ```
+
+   The command re-hashes the retained rollback archive, atomically records the
+   `immutable-manifest` deployment mode, and restores the previous mode if
+   production activation fails. Use `--check-only true` to validate the plan
+   without changing the host.
+6. Inspect one persistent ring/host state:
+
+   ```bash
+   node scripts/release/status.mjs --ring canary --host <stado-host>
+   ```
+
+   The active runtime reports worker, browser, database, API-schema, manifest,
+   claim mode, and lease-generation identity. Non-production heartbeats use
+   per-instance keys and cannot overwrite the canonical production heartbeat.
+7. Roll back one ring to its retained previous manifest:
+
+   ```bash
+   node scripts/release/rollback.mjs --ring production --host <stado-host>
+   ```
+
+   Rollback reactivates the exact retained wrapper through Stado and records a
+   `rolled_back` receipt. It does not loosen promotion ordering for new
+   manifests.
+
+The production database lease rejects queued-to-running claims from any
+deployment other than the active production generation. Non-production
+workers are additionally built with queue claiming disabled. During production
+activation the old worker drains, the lease advances, Stado replaces the unit,
+and a fresh per-activation instance must report the exact manifest heartbeat
+before success is recorded. Activation restores the prior lease and unit if
+any later step fails.
+
+`scripts/worker/deploy/auto-deploy.sh` and its LaunchAgent are the host-side
+baseline. Each tick installs the exact release coordinates named in the
+deployment env file; it never polls a branch, clones, or builds. `WELES_AUTO_DEPLOY_ENABLED=false`
+in that file stops a host from taking new releases. `cutover-legacy.mjs` writes
+`~/.config/weles/deployment-mode` as `immutable-manifest` when a host leaves the
+legacy baseline.
+
+## Immutable worker component release
+
+Production worker bytes are published only by this repository under
+`worker-vX.Y.Z` GitHub Releases. The tag carries the independently versioned
+worker component release; `package.json` continues to version the broader Weles
+API surface. Each release contains `weles-worker-X.Y.Z.tar.gz`, its SHA-256
+sidecar, and embedded provenance.
+The release workflow accepts the tag only when its pushing actor appears in the
+comma-separated `WELES_RELEASE_APPROVERS` repository variable. A missing or
+empty allowlist fails before dependency installation and artifact construction.
+
+Do not unpack this component into a live path or run a package manager after
+release. Record the release URL, archive SHA-256, entrypoint, provenance URL,
+and source repository in the worker fragment; the manifest install agent
+downloads and verifies the exact archive.
+
+No worker release is delegated to Stado, a browser repository, Skarbiec, or
+another product channel. Browser and secret integrations retain their own
+release and provisioning paths.
+
+## Development checkout
+
+```bash
+git clone https://github.com/wisent-ai/weles.git ~/weles
+cd ~/weles
+npm install
+npm run build
+```
+
 The worker archive is a deployable runtime, not a source checkout: it must
 contain the built `dist/` tree, runtime `node_modules/`,
 `scripts/worker/run.mjs`, the tracked launchers and LaunchAgents, and both
@@ -148,6 +325,59 @@ after independently confirming the browser is closed, the Apple challenge is
 gone, and all three capabilities are inactive. Resolution deletes the private
 capability envelope and unlocks the account.
 
+## Worker environment
+
+`worker.env` carries nonsecret runtime settings and release coordinates only.
+The launcher rejects a database service-role key, provider API key, or platform
+password from this file; every credential is acquired from Skarbiec at launch.
+`release.env.example` lists the release coordinates; the runtime settings are:
+
+```bash
+mkdir -p ~/.config/weles
+cat >> ~/.config/weles/worker.env <<EOF
+INSTANCE_ID=<hostname>-worker
+RECORDINGS_ROOT=/home/<user>/weles/recordings
+WELES_PLACEMENT_MODE=required
+WELES_PLACEMENT_POLICY_FILE=/etc/weles/placement-policy.json
+EOF
+chmod 600 ~/.config/weles/worker.env
+```
+
+## Product-owned placement policy
+
+Production workers fail closed unless their normalized OS hostname resolves to
+exactly one entry in the local Weles placement document. The host operator owns
+this non-secret file independently of fleet control planes:
+
+```json
+{
+  "schema_version": 1,
+  "hosts": [{
+    "hostname": "browser-worker-1.local",
+    "aliases": ["browser-worker-1"],
+    "enabled": true,
+    "actions": ["generic_browser_task"]
+  }]
+}
+```
+
+Use `actions: ["*"]` for every dispatchable action. Exact action lists
+partition work; overlaps intentionally load-share through the existing
+conditional `queued` to `running` claim. Set `enabled: false` to drain new
+claims. Missing, invalid, ambiguous, or unreadable policy denies claims.
+Changes propagate within 30 seconds.
+
+Install the tracked example as an operator-owned file, then edit its hostname
+and action assignment:
+
+```bash
+sudo install -d -m 0755 /etc/weles
+sudo install -m 0644 scripts/worker/deploy/placement-policy.example.json \
+  /etc/weles/placement-policy.json
+```
+
+Placement policy is non-secret and must never contain credentials.
+
 ## Install the launch wrapper + unit
 
 ```bash
@@ -157,7 +387,7 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now weles-worker
 ```
 
-## macOS worker + auto-deploy
+## Legacy macOS worker and auto-deploy baseline
 
 The Mac worker uses `~/.config/weles/worker.env` as its operator-controlled
 deployment contract. `auto-deploy.sh` fetches the exact configured
@@ -171,10 +401,30 @@ objects and checksums. A missing or mismatched worker or browser artifact leaves
 the currently active release untouched and aborts the deployment.
 
 After every artifact is verified, `~/weles` is atomically repointed to the exact
-worker release. The tracked worker, keyword-planner, and Echo LaunchAgents are
-then copied from that immutable release and restarted. No GitHub CLI, Git
-credential helper, ambient provider token, source checkout, package install, or
-host-side build participates in deployment.
+worker release. The tracked worker, Weles API, content-worker, keyword-planner,
+and Echo LaunchAgents are then copied from that immutable release and restarted;
+the content worker is installed only on a host that carries its own scoped
+`var/worker-content.env`. No GitHub CLI, Git credential helper, ambient provider
+token, source checkout, package install, or host-side build participates in
+deployment.
+
+The tracked Weles HTTP API provides the control plane for the worker LaunchAgent.
+Lifecycle routes require `WELES_API_TOKEN` even when general trajectory routes
+allow unauthenticated access:
+
+```bash
+curl -fsS -H "Authorization: Bearer $WELES_API_TOKEN" \
+  http://<mac-mini>:8788/worker/status
+curl -fsS -X POST -H "Authorization: Bearer $WELES_API_TOKEN" \
+  http://<mac-mini>:8788/worker/start
+curl -fsS -X POST -H "Authorization: Bearer $WELES_API_TOKEN" \
+  http://<mac-mini>:8788/worker/restart
+```
+
+`start` is idempotent. `restart` always uses `launchctl kickstart -k` when the
+agent is loaded. Both operations wait up to five seconds for a running process
+and return the observed pre/post state; concurrent lifecycle mutations return
+HTTP 409. No endpoint accepts a command, label, plist path, or shell fragment.
 
 The auto-deploy LaunchAgent itself is the stable bootstrap. Initial provisioning
 must install it from an operator-reviewed release, create `~/weles` as a symlink,

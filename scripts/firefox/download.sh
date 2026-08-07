@@ -125,6 +125,7 @@ rm -rf "$BACKUP"
 
 if [[ "$uname_s" == "Darwin" ]]; then
   xattr -dr com.apple.quarantine "$INSTALL_DIR" || true
+  codesign --force --deep --sign - "$INSTALL_DIR/Firefox.app" 2>/dev/null || true
 fi
 
 echo "[download-firefox] Installed verified $RELEASE_URI at $BIN" > /dev/stderr

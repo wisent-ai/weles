@@ -10,6 +10,7 @@ import { assertNonCredentialInput } from '../utils/capability.js';
 
 export type ToolArgs = Record<string, unknown>;
 type CredentialFieldClass = 'password' | 'email' | 'username' | 'token' | 'api-key';
+type IdentityField = 'email' | 'password' | 'username' | 'first_name' | 'last_name' | 'birth_month' | 'birth_day' | 'birth_year';
 
 const CAPABILITY_PURPOSES: Record<WelesCapabilityPurpose, true> = {
   'weles.browser.fill': true,
@@ -28,12 +29,27 @@ const CREDENTIAL_FIELD_CLASSES: Record<CredentialFieldClass, true> = {
   'api-key': true,
 };
 
+const IDENTITY_FIELDS: Record<IdentityField, true> = {
+  email: true,
+  password: true,
+  username: true,
+  first_name: true,
+  last_name: true,
+  birth_month: true,
+  birth_day: true,
+  birth_year: true,
+};
+
 function isCapabilityPurpose(value: string): value is WelesCapabilityPurpose {
   return Object.hasOwn(CAPABILITY_PURPOSES, value);
 }
 
 function isCredentialFieldClass(value: string): value is CredentialFieldClass {
   return Object.hasOwn(CREDENTIAL_FIELD_CLASSES, value);
+}
+
+function isIdentityField(value: string): value is IdentityField {
+  return Object.hasOwn(IDENTITY_FIELDS, value);
 }
 
 function stringArg(args: ToolArgs, key: string, fallback = ''): string {
@@ -81,6 +97,11 @@ export async function dispatch(session: WSession, tool: string, args: ToolArgs):
         capabilityArg(args.capability),
       );
     }
+    case 'fill_identity': {
+      const field = stringArg(args, 'field');
+      if (!isIdentityField(field)) throw new Error('invalid identity field');
+      return session.fillIdentity(stringArg(args, 'target'), field);
+    }
     case 'store_credential': {
       const fieldClass = stringArg(args, 'field_class');
       if (fieldClass !== 'token' && fieldClass !== 'api-key') throw new Error('invalid credential storage field_class');
@@ -103,10 +124,10 @@ export async function dispatch(session: WSession, tool: string, args: ToolArgs):
     case 'solve_captcha': return session.solveCaptcha();
     case 'check_email': return session.checkEmail(stringArg(args, 'email'), stringArg(args, 'sender'));
     case 'generate_identity': {
-      if (session.identity) return 'generated identity already available as redacted $PLATFORM_NEW_* placeholders';
+      if (session.identity) return 'generated identity already available; use fill_identity for its fields';
       const platform = stringArg(args, 'platform', 'reddit');
       const id = await session.generateIdentity(platform);
-      return `generated identity available as redacted placeholders for ${platform} username_hash=${id.username.length}:${id.username.slice(0, 2)}`;
+      return `generated identity ready for fill_identity platform=${platform} username_hash=${id.username.length}:${id.username.slice(0, 2)}`;
     }
     case 'check_sms': return session.checkSms(stringArg(args, 'service'), stringArg(args, 'country', 'UK'));
     case 'poll_sms_code': return session.pollSmsCode();

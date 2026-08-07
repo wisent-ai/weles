@@ -62,6 +62,20 @@ export async function resolveAccountSession(acct: SocialAccount): Promise<Accoun
     || (savedProxy?.host && savedProxy?.port)
     || savedProxy?.server);
 
+  // First-party direct egress (NO proxy). taskNetworkRequirements already routes
+  // the platforms with no datacenter blacklist — GitHub, Producthunt, Pangram —
+  // straight to `route: 'direct'`. Apple is the separate, first-party case: we
+  // sign into our OWN account authentically from this trusted Mac Mini, which is
+  // the native two-factor device, so masking the real IP is pointless and even
+  // harmful — a proxy just injects a foreign IP that Apple distrusts, and ISP
+  // providers are unset for it anyway, so forcing one only breaks the run.
+  // Managed multi-account social platforms (Reddit/Twitter/Instagram/Discord/
+  // TikTok/LinkedIn) still REQUIRE a proxy for IP diversity / anti-ban.
+  if (acct.platform === 'apple' && process.env.WELES_FORCE_PROXY !== '1') {
+    if (meta?.persona) out.persona = meta.persona as Persona;
+    return out;
+  }
+
   // Capability-bootstrap force-override: exercise one explicit provider without
   // mutating the account's permanent pin.
   if (process.env.PROXY_URL && process.env.PROXY_URL_FORCE === '1') {
