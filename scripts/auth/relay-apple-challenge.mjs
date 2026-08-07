@@ -23,11 +23,37 @@ const ALLOWED_FLAGS = new Set([
 
 function usage() {
   console.error(
-    'Usage: node scripts/auth/relay-apple-challenge.mjs '
+    'Usage: node scripts/auth/relay-apple-challenge.mjs <guard-id-uuid>\n'
+    + '  (as installed for `stado host run-helper`; the Skarbiec destination comes '
+    + 'from APPLE_2FA_SKARBIEC_HOST, _USER, _PORT, _IDENTITY_FILE, '
+    + '_KNOWN_HOSTS_FILE and _COMMAND)\n'
+    + 'Legacy flag form, for an operator driving it by hand: '
     + '--guard-id <uuid> --ssh-host <host> --ssh-user <user> --ssh-port <port> '
     + '--ssh-identity-file <absolute-path> --ssh-known-hosts-file <absolute-path> '
     + '--remote-skarbiec-command <absolute-path>',
   );
+}
+
+// Everything after the executable and this script. Derived rather than counted, so
+// the offset cannot drift from what `process.argv` actually holds.
+function commandArguments() {
+  const [, , ...rest] = process.argv;
+  return rest;
+}
+
+// `stado host run-helper` carries exactly one argument shape: a bare UUID. The
+// registry channel refuses anything with shell grammar in it, which is what makes it
+// safe to run this unattended as the target's own user -- and it is why the caller
+// can no longer hand over flags. A lone positional argument is therefore read as the
+// guard id, and the Skarbiec destination comes from the environment the operator set
+// when installing this helper, which is where it belonged: the machine that captures
+// the code should not be told by the far side where to send it.
+function parseArguments(argv) {
+  const [first, ...rest] = argv;
+  if (first !== undefined && !rest.length && !first.startsWith('--')) {
+    return new Map([['--guard-id', first]]);
+  }
+  return parseFlags(argv);
 }
 
 function parseFlags(argv) {
@@ -121,7 +147,7 @@ function sixDigitCode(path) {
 
 async function main() {
   if (process.platform !== 'darwin') throw new Error('Apple challenge relay requires macOS');
-  const config = configuration(parseFlags(process.argv.slice(2)));
+  const config = configuration(parseArguments(commandArguments()));
   const resource = `challenge:apple/${config.guardId}`;
   const tempDirectory = mkdtempSync(join(tmpdir(), 'weles-apple-challenge-'));
   chmodSync(tempDirectory, 0o700);
