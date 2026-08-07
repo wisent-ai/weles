@@ -86,12 +86,19 @@ function sign(cfg, body) {
   const bodyHash = body ? crypto.createHash('sha256').update(body).digest('hex') : '';
   const msg = `${cfg.agentId}:${ts}:${bodyHash}`;
   const sig = crypto.createHmac('sha256', cfg.hmacSecret).update(msg).digest('hex');
-  return {
+  const headers = {
     'x-agent-id': cfg.agentId,
     'x-agent-timestamp': ts,
     'x-agent-signature': sig,
     'content-type': 'application/json',
   };
+  // The gateway reads the client identity from the bearer first and only then
+  // checks that this signed agent belongs to it. Without the bearer the request is
+  // refused before the signature is looked at, and the answer is a bare
+  // `unauthorized` that names neither half.
+  const bearer = process.env.WISENT_APP_MODEL_ROUTER_TOKEN;
+  if (bearer) headers.authorization = `Bearer ${bearer}`;
+  return headers;
 }
 
 async function listSubscriptions(cfg) {
