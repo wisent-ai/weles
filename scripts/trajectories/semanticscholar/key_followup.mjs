@@ -21,6 +21,11 @@ if (!['pending', 'validated'].includes(result.status)) {
 console.log(JSON.stringify({
   status: result.status,
   validated: result.validated,
-  service_credential_id: 'service_credential_id' in result ? result.service_credential_id : undefined,
+  // Skarbiec v2 returns a vault coordinate, never a credential row id. The
+  // dropped `service_credential_id` belonged to the plaintext service_credentials
+  // path and could not populate under either merge parent.
+  validation_status: 'validation_status' in result ? result.validation_status : undefined,
+  vault_item_id: 'vault_item_id' in result ? result.vault_item_id : undefined,
+  vault_field: 'vault_field' in result ? result.vault_field : undefined,
   next_scheduled_at: 'next_scheduled_at' in result ? result.next_scheduled_at : undefined,
 }));
