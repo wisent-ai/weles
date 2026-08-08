@@ -162,6 +162,9 @@ const SERVICE_LOGIN_CONTRACTS: Readonly<Record<string, ServiceLoginContract>> = 
   umami: { service: 'umamiDashboard', loginMethod: 'email_password' },
   'google analytics': { service: 'googleSso', loginMethod: 'google_sso' },
   claude: { service: 'googleSso', loginMethod: 'google_sso' },
+  // The pool row carries the account in its name, and its credentials live in
+  // their own vault item rather than the shared Google SSO one.
+  claude_controlyourai: { service: 'claudeControlYourAi', loginMethod: 'google_sso' },
   codex: { service: 'googleSso', loginMethod: 'google_sso' },
   linear: { service: 'linearDashboard', loginMethod: 'email_password' },
   supabase: { service: 'supabaseDashboard', loginMethod: 'email_password' },
