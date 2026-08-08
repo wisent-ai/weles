@@ -222,7 +222,10 @@ async function deleteSubscription(cfg, subId) {
 // GCE. login.mjs writes the {"claudeAiOauth":...} blob to stdout.
 function runLogin(displayName) {
   return new Promise((resolve, reject) => {
-    const child = spawn('node', [LOGIN_MJS], {
+    // The interpreter running this file is the one to run the login with: spawning
+    // the bare name `node` made the step depend on the caller's PATH, and it fails
+    // with ENOENT under any launcher that does not export Homebrew's bin directory.
+    const child = spawn(process.execPath, [LOGIN_MJS], {
       env: {
         ...process.env,
         CLAUDE_DISPLAY_NAME: displayName,
