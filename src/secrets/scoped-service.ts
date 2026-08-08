@@ -12,6 +12,11 @@ const BASIC_PROXY_FIELDS = Object.freeze({ username: true, password: true });
 const BRIGHTDATA_PROXY_FIELDS = Object.freeze({ username: true, password: true, zone: true });
 const SERVICE_CONTRACTS = Object.freeze({
   googleSso: Object.freeze({ consumer: 'weles-google-sso-client', item: 'weles-google-sso-login', fields: LOGIN_FIELDS }),
+  // The Claude Max pool row in the database is `Claude_controlyourai` and it has
+  // its own vault item, so it must not borrow the shared googleSso login: that
+  // would sign into a different Google account and mint a credential for the
+  // wrong subscription.
+  claudeControlYourAi: Object.freeze({ consumer: 'weles-claude-controlyourai-client', item: 'claude_controlyourai', fields: LOGIN_FIELDS }),
   googleWorkspaceAdmin: Object.freeze({ consumer: 'weles-google-workspace-admin-client', item: 'weles-google-workspace-admin-login', fields: LOGIN_WITH_TOTP_FIELDS }),
   brightdataDashboard: Object.freeze({ consumer: 'weles-brightdata-dashboard-client', item: 'weles-brightdata-dashboard-login', fields: LOGIN_WITH_TOTP_FIELDS }),
   oxylabsDashboard: Object.freeze({ consumer: 'weles-oxylabs-dashboard-client', item: 'weles-oxylabs-dashboard-login', fields: LOGIN_WITH_TOTP_FIELDS }),
