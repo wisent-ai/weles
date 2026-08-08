@@ -20,8 +20,14 @@ import crypto from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { mkdirSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
+const STATE_DIR = process.env.WELES_STATE_DIR
+  // `~/weles` is a symlink into an immutable release, so a sibling `var/` cannot be
+  // created, and an absolute path under one account's home does not survive a host.
+  || join(process.env.HOME || tmpdir(), '.local', 'state', 'weles');
 const LOGIN_MJS = join(HERE, 'login.mjs');
 
 const SUPABASE_URL = process.env.SUPABASE_URL ?? '';
@@ -114,7 +120,10 @@ async function listSubscriptions(cfg) {
 
 async function probePool(cfg) {
   const body = JSON.stringify({
-    model: 'claude-code-subscription',
+    // The gateway refuses anything that is not a canonical provider/model route
+    // or a supported selector, so the previous name made every probe a 400 and
+    // every run conclude "burnt" from a malformed request.
+    model: 'claude-code/claude-opus-4-6',
     messages: [{ role: 'user', content: 'Reply with the single word PROBE.' }],
     max_tokens: 10,
   });
@@ -258,8 +267,9 @@ function runLogin(displayName) {
       // actually wrote (e.g. token-exchange error from claude.ai).
       try {
         import('node:fs').then((fs) => {
-          fs.writeFileSync('/Users/charles/weles/var/manual-seed-claude.out', out);
-          fs.writeFileSync('/Users/charles/weles/var/manual-seed-claude.err', err);
+          mkdirSync(STATE_DIR, { recursive: true });
+    fs.writeFileSync(join(STATE_DIR, 'manual-seed-claude.out'), out);
+          fs.writeFileSync(join(STATE_DIR, 'manual-seed-claude.err'), err);
         });
       } catch {}
       for (const line of out.split('\n').reverse()) {
