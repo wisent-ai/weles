@@ -1,6 +1,6 @@
 # Weles
 
-Weles executes one explicitly authorized, reviewed browser workflow on a Stado-selected host, then returns a terminal result with retained evidence.
+Browser Use Harness. Your AI Agents Can Now Use Internet. Cutting Token Use by 99% by caching trajectories. A harness to stimulate bypassing captchas and accessing all parts of the internet without any problems.
 
 [Public client](https://github.com/wisent-ai/weles-client) · [Operator runbook](scripts/worker/deploy/README.md) · [Capture inventory](scripts/worker/deploy/FINGERPRINT_CAPTURE.md) · [Worker releases](https://github.com/wisent-ai/weles/releases)
 
