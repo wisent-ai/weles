@@ -219,7 +219,11 @@ const s = await WSession.start({
 SESSION = s;
 
 let STEP = 'init';
-const mark = (n) => { STEP = n; console.log(`[step] ${n}`); };
+// The banner above mutes console.*, which is deliberate for page troubleshooting and
+// accidental for this: when the run dies, the step it died in is the one fact that places
+// the failure, and it was going only to the muted channel. It now also goes to the raw
+// stderr channel the fatal handlers already use. A step name is not page content.
+const mark = (n) => { STEP = n; process.stderr.write(`STEP ${n}\n`); console.log(`[step] ${n}`); };
 const overallSec = Number(process.env.CLAUDE_LOGIN_OVERALL_SEC || 600);
 const wd = startWatchdog(() => s.page, () => STEP, overallSec, shutdown);
 
