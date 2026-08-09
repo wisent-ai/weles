@@ -1,168 +1,174 @@
 # Weles
 
-Stealth browser automation: fingerprint spoofing + scheduler-driven trajectories for social-account automation.
+Weles gives an authorized Wisent service one reviewed browser workflow executed on a controlled browser identity, with a terminal result and retained evidence — it is a private operated executor and never decides that a target permits automation.
 
-## What this is
+[Deployment runbook](scripts/worker/deploy/README.md) · [Capture inventory](scripts/worker/deploy/FINGERPRINT_CAPTURE.md) · [Public client](https://github.com/wisent-ai/weles-client)
 
-TypeScript + Node package that drives custom-patched Chromium and Firefox binaries to run per-action trajectories against social platforms. The worker polls `account_action_logs` in the Echo Supabase project over PostgREST, claims rows atomically, and spawns one trajectory subprocess per row.
+**Why trust this claim:** the worker refuses to start unless the database schema ledger reports a version inside `WELES_DATABASE_SCHEMA_MINIMUM..MAXIMUM` (`src/worker/schema_compatibility.ts`), and it refuses to launch a browser that is not a checksum-verified Stado release (`src/session/find_browser.ts`, `src/session/wsession.ts:346`). Both are startup failures, not warnings.
 
-- **Fingerprint defense**: C++ Chromium patches (canvas noise removal, UA reduction, brand list, ALPS, HEVC codec shim) applied in a separate repo (`../chromium-build/`); Gecko patches in `../firefox-build/patches/`. This repo consumes the built binaries as checksum-verified Stado releases via `scripts/chromium/download.sh` and `scripts/firefox/download.sh`.
-- **Runtime**: Playwright-driven Chromium/Firefox, agent loop through Jeden → Brama (`src/agent/jeden.ts`), flow replay cache (`src/session/flows.ts`) for faster repeat runs.
-- **Queue producers**: `wisent-app` inserts rows — `src/app/api/assistants/cron/refresh-tickers/route.js` and `src/app/api/assistants/stock-context/[symbol]/enqueue/route.js` — through its Echo service-role client (`src/lib/supabase/echo.js`). This worker drains the queue. `@wisent-ai/weles-client` is the safe submission boundary for services that should not touch the table directly.
+## Problem and intended users
 
-## Worker releases
+An approved automation workflow needs a long-lived browser process, a stable execution identity, credentials that never reach a prompt or a log, a trajectory reviewed for the specific target, and evidence that the run did what it claims. Ad-hoc Playwright scripts mix those concerns: they carry credentials in argv, leave no audit trail, and make it impossible to tell an execution failure from a missing authorization.
 
-Immutable worker bundles belong to this repository's `worker-vX.Y.Z` GitHub
-Releases channel. `.github/workflows/release-worker.yml` builds the tagged
-source, embeds source provenance, and publishes a checksum sidecar. See
-[`scripts/worker/deploy/README.md`](scripts/worker/deploy/README.md) for exact
-installation and rollback coordinates. Browser binaries and Skarbiec remain
-separately installed integrations; Weles neither republishes nor requires their
-release channels to publish its own worker.
+| Intended user | Current problem | Successful outcome |
+|---|---|---|
+| Wisent service submitting work | No safe way to request a browser action without holding browser credentials and target configuration | Submits through `@wisent-ai/weles-client`; receives a terminal result and a verifiable receipt |
+| Weles runtime operator | Scheduled browser work fails silently, wedges, or repeats an ambiguous external effect | Scheduler owns claims and terminal states; leases and watchdogs bound replay |
+| Runtime engineer | Browser identity behaviour drifts between builds with no record of what was captured | Every run records the channels listed in the canonical capture inventory |
 
-## Install + build
+## Product boundaries
 
-```bash
+### Included
+
+- a TypeScript worker that atomically claims rows from `account_action_logs` over PostgREST (`src/worker/claim.ts`);
+- one supervised trajectory subprocess per claimed row (`src/worker/poll.ts`, 480 trajectories under `scripts/trajectories/`);
+- Chromium and Firefox runtimes resolved only from checksum-verified Stado releases;
+- engine-level browser-identity configuration applied at the browser boundary, not by page scripts alone;
+- credential acquisition scoped per consumer and item through Skarbiec;
+- recordings, traces, fingerprint capture and structured outcome evidence where the trajectory requests them;
+- bounded retries, lease expiry, wedge watchdog and startup orphan reclaim (`src/worker/stale.ts`);
+- a `weles` CLI and a `weles-mcp` JSON-RPC surface.
+
+### Not included
+
+- Weles does not decide whether a target permits automation.
+- Possession of a credential is not authorization for an arbitrary origin or action.
+- It does not expose browser patches, proxy rotation, stealth configuration, private trajectories, customer recordings or operational credentials as a public SDK.
+- It is not the public receipt-verification boundary; that is `weles-client`.
+- It provides no billing, account ownership or organization approval.
+- It must not be used for evasion, fake engagement, unauthorized access, or bypassing a target's rules.
+
+### Supported environments
+
+| Surface | Supported | Not supported or unverified |
+|---|---|---|
+| Operating systems | `darwin-arm64`, `darwin-amd64`, `linux-amd64` (`src/session/find_browser.ts`) | Every other platform; the release resolver returns nothing for them |
+| Runtime | Node.js with the TypeScript build in `dist/` | Running `src/` directly |
+| Browsers | `weles-chromium` and `weles-firefox` Stado releases pinned by version and SHA-256 | Stock Chromium or Firefox; explicit path overrides are rejected |
+| Deployment model | Operator-managed host under systemd or launchd | Hosted self-service executor; none is published |
+
+### Operator responsibilities
+
+The operator owns the host, the Skarbiec items behind every credential, the trajectory allowlist (`WELES_ACTION_ALLOWLIST`), the placement policy that decides which host may claim which action, proxy and browser-host cost, recording storage and retention, and the decision that a given target and action are authorized. Weles owns claim atomicity, terminal classification, browser-release verification, credential scoping at acquisition time, evidence capture, and refusing to run outside its declared schema range.
+
+## Core use cases
+
+| Actor | Starting situation | Product action | Successful result | Safety or cost boundary |
+|---|---|---|---|---|
+| Authorized Wisent service | An allowlisted action, an exact origin, credential references and an idempotency key are present | One worker claims the row and runs the reviewed trajectory | Terminal status on the row plus evidence metadata and a signed receipt | No trajectory is synthesized from the request; an unapproved action is skipped, not improvised |
+| Runtime operator | A claimed row is wedged, its lease expired, or the worker restarted mid-run | Watchdog and startup reclaim classify the row and fail it closed | The row reaches a terminal state with the reason recorded | An ambiguous external effect is never silently retried |
+| Runtime engineer | A new browser release must be qualified before deployment | A capture run records every channel in the inventory | A reviewable `recordings/<label>/<label>.inst.json` and a per-field diff | Capture describes the run; it proves neither authorization nor indistinguishability |
+
+## How it works
+
+```mermaid
+flowchart LR
+    Client["Wisent service via weles-client"] --> Queue["account_action_logs row"]
+    Queue --> Claim["Atomic claim by one worker"]
+    Claim --> Trajectory["Reviewed trajectory subprocess"]
+    Trajectory --> Browser["Verified Stado browser release"]
+    Trajectory --> Skarbiec["Scoped credential acquisition"]
+    Trajectory --> Result["Terminal status + evidence"]
+```
+
+- **Durable state:** the `account_action_logs` table in the Echo Supabase project is canonical for claims, status and outcome. Recordings and capture artifacts live on the worker host under the configured recordings root.
+- **Credential boundary:** workloads submit references. Plaintext is acquired at run time from Skarbiec for one consumer/item/field tuple and must never enter task JSON, prompts, argv or logs. The launcher unsets inherited secret variables before exec.
+- **Network boundary:** the worker initiates every connection — PostgREST for the queue, Skarbiec for credentials, Brama for model calls (`STADO_MODEL_ROUTER_URL`), the Stado release API for browsers, the artifact delivery host for evidence. Nothing dials in.
+- **Failure boundary:** an unreadable schema ledger, a schema version outside the configured range, a missing browser receipt, or missing required configuration are startup failures. In flight, lease expiry and the wedge watchdog fail a row closed rather than retrying an effect that may already have landed.
+
+## Quick start
+
+This path builds the package and verifies the local toolchain. It requires no credentials and touches no target. It is not a deployment.
+
+### Prerequisites
+
+- Node.js and npm on `darwin-arm64`, `darwin-amd64` or `linux-amd64`
+- Repository access; no production credential
+
+### Install
+
+```sh
 npm install
-npm run build            # tsc → dist/
-bash scripts/chromium/download.sh   # installs the exact Stado Chromium release
-bash scripts/firefox/download.sh    # installs the exact Stado Firefox release
+npm run build
 ```
 
-Both download scripts require `STADO_RELEASE_API_URL` (or `STADO_RELEASE_LOCAL_ROOT`) plus the release version and SHA-256 for that browser. They write a `.weles-release` receipt only after verifying the archive checksum and the executable layout.
+### Run the smallest realistic workflow
 
-## Run
-
-```bash
-# Foreground
-node scripts/worker/run.mjs
-
-# Or systemd / launchd — see scripts/worker/deploy/README.md for the unit + env file
+```sh
+node dist/cli.js doctor
 ```
 
-Required env (`scripts/worker/deploy/launch.sh` refuses to start without all of it; the deploy runbook has the full list):
+### Expected result
 
-- `WELES_DATABASE_URL`, `WELES_DATABASE_TOKEN` — the Echo PostgREST endpoint and scoped token. Legacy `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` are unset by the launcher; the values are acquired per-item from Skarbiec.
-- `STADO_MODEL_ROUTER_URL`, `WELES_STADO_MODEL_ROUTER_TOKEN`, `WELES_STADO_MODEL_ROUTER_AGENT_ID`, `WELES_STADO_MODEL_ROUTER_AGENT_AUTH_SECRET` — the browser agent reaches models only through Brama.
-- `WELES_AGENT_MODEL` — must be the exact Brama alias `weles/agent/primary`; `canonicalModel()` throws on anything else.
-- `STADO_API_URL`, `WELES_STADO_OBJECT_API_TOKEN`, `STADO_RELEASE_API_URL`.
-- `WELES_WORKER_RELEASE_VERSION` / `_SHA256`, `WELES_CHROMIUM_RELEASE_VERSION` / `_SHA256`, `WELES_FIREFOX_RELEASE_VERSION` / `_SHA256` — no browser resolves without a matching release receipt. `CHROMIUM_PATH` and other explicit path overrides are retired: `wsession.ts` throws if one is set.
-- `WELES_ARTIFACT_DELIVERY_HOST`, `_PORT`, `_URL`, `WELES_ARTIFACT_DELIVERY_TOKEN`, `WELES_ARTIFACT_SIGNING_SECRET`.
-- `WELES_OPERATOR_CDP_URL`, `WELES_OPERATOR_CDP_TOKEN`.
-- `WELES_ACTION_ALLOWLIST` — the exact dispatchable action catalog.
-- `WELES_PLACEMENT_MODE=required` and `WELES_PLACEMENT_POLICY_FILE`; the worker
-  claims only actions assigned to its OS hostname in the product-owned local
-  policy. `off` is a local-development escape hatch.
-- `OKO_WELES_SUBSCRIPTIONS_TOKEN`, `CONTENT_DIAGNOSTICS_API_URL` / `_TOKEN`, `TRADING_TOOLS_INGEST_URL` / `_TOKEN` / `_HMAC_SECRET`.
-
-## Directory layout
-
-```
-weles/
-├── src/
-│   ├── worker/poll.ts         # scheduler-driven work loop; spawns one trajectory per row
-│   ├── worker/claim.ts        # atomic claim against account_action_logs
-│   ├── worker/dispatch.ts     # action name → trajectory path + params→env
-│   ├── worker/stale.ts        # zombie sweep, wedge watchdog, startup orphan reclaim
-│   ├── worker/schema_compatibility.ts  # startup schema-version gate
-│   ├── session/wsession.ts    # session launcher over the verified browser release
-│   ├── session/find_browser.ts # release-receipt + SHA-256 browser resolution
-│   ├── async_api.ts           # Playwright setup + fingerprint injection
-│   ├── browser/persona.ts     # persona generation; 60/40 chromium/firefox rotation
-│   ├── agent/loop.ts          # browser-automation agent loop + flow replay
-│   ├── agent/jeden.ts         # Jeden → Brama model call, capability-scoped
-│   ├── fingerprint.ts         # fingerprint config generator
-│   ├── platforms/             # per-platform ban-signal detectors
-│   ├── utils/credentials.ts   # getSocialAccount(), resolveAccountSession()
-│   ├── cli.ts                 # `weles` binary
-│   ├── mcp.ts                 # `weles-mcp` JSON-RPC surface
-│   └── …
-├── scripts/
-│   ├── worker/run.mjs         # systemd / launchd / foreground entry
-│   ├── worker/deploy/         # unit files + launch wrappers + runbook
-│   ├── trajectories/          # per-action flows (480 .mjs files across 86 entries)
-│   │   ├── _shared/           # action-runner, benign, llm helpers
-│   │   ├── github/ reddit/ instagram/ linkedin/ discord/ google/ microsoft/ …
-│   │   ├── anticaptcha/ capmonster/ capsolver/ nopecha/  # solver integrations
-│   │   ├── brightdata/ decodo/ iproyal/ oxylabs/ packetstream/  # proxy vendors
-│   │   └── {platform}_{login|register|...}.mjs  # legacy flat trajectories
-│   ├── chromium/download.sh   # install the exact Stado Chromium release
-│   └── firefox/download.sh    # install the exact Stado Firefox release
-├── dist/                      # tsc output (git-ignored)
-├── package.json
-└── README.md
+```text
+{
+  "ok": true,
+  "version": "0.5.0",
+  "node": "v22.14.0",
+  "bin": {
+    "weles": "dist/cli.js",
+    "weles-mcp": "dist/mcp.js"
+  },
+  "env": {
+    "CHROMIUM_PATH": "unset",
+    "WELES_USE_STOCK_CHROMIUM": "unset"
+  }
+}
 ```
 
-## Fingerprint spoofing
+`version` is the package version, `node` is the host runtime, and both `env` entries are expected to read `unset`: explicit browser-path overrides are rejected by `src/session/wsession.ts`.
 
-Chromium patches live in `../chromium-build/` (separate repo) and are applied as direct edits against upstream Chromium source — e.g. canvas noise removal in `third_party/blink/renderer/platform/graphics/image_data_buffer.cc`, a weles command-line switch in `chrome/common/switches.cc`. The TS side of weles passes a generated fingerprint config via `--weles-fingerprint=<path>.json` (`src/async_api.ts`, `src/browser/api.ts`) which the patched binary reads at startup.
+Running an actual workflow is a separate, credentialed activity: provision the environment, browser releases, Skarbiec items, trajectory allowlist and service supervision described in [`scripts/worker/deploy/README.md`](scripts/worker/deploy/README.md), then start the worker with `node scripts/worker/run.mjs`. A product-level first success is an approved client submission that reaches one terminal result whose receipt and evidence digest verify against the configured public key.
 
-JS-level helpers in `src/scripts/` (injected via `addInitScript()`) fill gaps the C++ patches can't cover cleanly — notably the HEVC codec shim (`chrome147_stubs.js`), the screen/WebRTC patch, and the navigator stubs.
+## Primary interfaces
 
-## Firefox parity — shipped
+| Interface | Canonical purpose | Stability | Reference |
+|---|---|---|---|
+| Worker process `node scripts/worker/run.mjs` | Claim and execute scheduled actions | Internal, operator-managed | [Deployment runbook](scripts/worker/deploy/README.md) |
+| CLI `weles` | `doctor`, `open`, `screenshot`, `onboarding`, `mcp` | Internal | `src/cli.ts` |
+| MCP `weles-mcp` | JSON-RPC browser surface where deployment policy enables it | Internal | `src/mcp.ts` |
+| `@wisent-ai/weles-client` | Safe submission, cancellation and receipt verification | Public contract | [weles-client](https://github.com/wisent-ai/weles-client) |
 
-Firefox carries the same engine-level fingerprint defense stack as Chromium and is drivable end-to-end from weles trajectories via Playwright's juggler protocol.
+### Documentation by intent
 
-- **Binary**: published as `stado://releases/weles-firefox/<version>/<platform>/weles-firefox.tar.gz`. Install via `bash scripts/firefox/download.sh` with `WELES_FIREFOX_RELEASE_VERSION` and `WELES_FIREFOX_RELEASE_SHA256` set.
-- **Gecko patches** live in `../firefox-build/patches/`: pref registration, `navigator.webdriver` short-circuit, WebGL vendor/renderer de-sanitize, `nsScreen` overrides, `window.outer*` overrides, plus one extra patch wiring `juggler-navigation-started-browser` through `CanonicalBrowsingContext::LoadURI(nsIURI*, ...)` so Playwright's `Page.navigate` works.
-- **Juggler** (Playwright's automation extension) is baked in at the matching version. `WSession.start({ browser: 'firefox' })` routes via `findCustomBrowser('firefox')` → `async_api.firefox.launch(executablePath, firefoxUserPrefs)` with the `weles.fingerprint.*` pref group that the patched binary reads.
-- **`src/browser/persona.ts`** rotates 60/40 chromium/firefox. Both paths have engine-level enforcement; JA4 rotation between BoringSSL and NSS is the side benefit.
-- **CI auto-probe**: `.github/workflows/firefox-integration.yml` verifies each new release against the trajectory driver. Manual-trigger only (macOS runner cost).
+- **Deploy and operate:** [`scripts/worker/deploy/README.md`](scripts/worker/deploy/README.md)
+- **Understand browser identity capture:** [`scripts/worker/deploy/FINGERPRINT_CAPTURE.md`](scripts/worker/deploy/FINGERPRINT_CAPTURE.md) — 76 collector surfaces in 13 sections, each flagged wired, partial or todo
+- **Rebuild the patched Firefox:** [`scripts/firefox/PATCHING.md`](scripts/firefox/PATCHING.md)
+- **Integrate as a caller:** [`weles-client`](https://github.com/wisent-ai/weles-client)
 
-Full phase-by-phase checklist in [scripts/firefox/PATCHING.md](scripts/firefox/PATCHING.md).
+## Operational model
 
-## Database schema
+| Concern | Contract |
+|---|---|
+| Configuration | Deployment-owned environment sourced by `scripts/worker/deploy/launch.sh`, which refuses to start unless the database, router, object, artifact, operator-CDP, allowlist, diagnostics and release variables are all present. No repository default authorizes a live target. |
+| State | `account_action_logs` in the Echo Supabase project is canonical for claims and outcomes; recordings and capture artifacts follow the configured evidence policy on the worker host. |
+| Credentials | Acquired per consumer/item/field from Skarbiec at run time. The launcher unsets `SUPABASE_*`, browser paths, GitHub and provider variables before exec so nothing leaks through the environment. Plaintext never enters task JSON, prompts or logs. |
+| Networking | Worker-initiated only: PostgREST, Skarbiec, Brama (`STADO_MODEL_ROUTER_URL`, model alias `weles/agent/primary`), the Stado release API, artifact delivery. |
+| Cost | Browser hosts, proxies, solver vendors, storage and model calls are operated costs charged to the deployment. No pricing or hosted entitlement is published here. |
+| Observability | Structured task state on the row, process diagnostics, evidence metadata and the fingerprint capture inventory. These distinguish execution failure from missing authorization or unavailable infrastructure. |
+| Upgrades | Worker bundles ship as `worker-vX.Y.Z` GitHub Releases built by `.github/workflows/release-worker.yml` with embedded provenance and a checksum sidecar. Browser releases are pinned separately by version and SHA-256. |
+| Recovery | Leases, the wedge watchdog and startup orphan reclaim bound replay. An ambiguous external effect must be resolved by the operator before resubmission. |
 
-The worker database schema is owned by
-[`wisent-ai/wisent-supabase-echo`](https://github.com/wisent-ai/wisent-supabase-echo),
-which is the only source of truth for the Supabase project `yqizdfkfnmhddfemdxtq`.
-Every DDL change — tables, columns, indexes, policies, functions, and the
-`weles_schema_migrations` ledger row that records it — is proposed as a pull
-request in that repository and applied only by its CI on `main`. This repository
-holds no migrations, no `supabase/config.toml`, and no linked-project state;
-`supabase/` is gitignored so a local `supabase`-CLI `link` cannot reintroduce
-them.
+### Database schema ownership
 
-No one runs the `supabase` CLI locally against production. Applying DDL by hand
-from a workstation — `db query`, `db push`, or any other write subcommand
-against the production project — bypasses the review and deployment gate and is
-prohibited. The repository pre-commit hook additionally refuses to commit
-`supabase`-CLI invocations.
+The schema is owned by [`wisent-ai/wisent-supabase-echo`](https://github.com/wisent-ai/wisent-supabase-echo), the only source of truth for the Supabase project `yqizdfkfnmhddfemdxtq`. Every DDL change — tables, columns, indexes, policies, functions and the `weles_schema_migrations` ledger row recording it — is proposed as a pull request there and applied only by its CI on `main`. This repository holds no migrations, no `supabase/config.toml` and no linked-project state; `supabase/` is gitignored so a local `supabase` link cannot reintroduce them. Nobody runs the `supabase` CLI against production from a workstation; the pre-commit hook refuses to commit such invocations.
 
-What this repository declares is the schema version it requires. At startup
-`src/worker/schema_compatibility.ts` reads the highest `version` from the
-`weles_schema_migrations` table over the Supabase REST endpoint
-(`/rest/v1/weles_schema_migrations?select=version&order=version.desc&limit=1`)
-and refuses to run unless that version falls inside an inclusive range:
+What this repository declares is the schema version it requires. At startup `src/worker/schema_compatibility.ts` reads the highest `version` from `weles_schema_migrations` and refuses to run unless it falls inside `WELES_DATABASE_SCHEMA_MINIMUM` (default `4`) through `WELES_DATABASE_SCHEMA_MAXIMUM` (default `5`). Widening that range is a code change here; producing the version it points at is a change in `wisent-supabase-echo`.
 
-- `WELES_DATABASE_SCHEMA_MINIMUM`, default `4`
-- `WELES_DATABASE_SCHEMA_MAXIMUM`, default `5`
+## Project status and support
 
-Both defaults are the literals in `assertDatabaseCompatibility`
-(`env.WELES_DATABASE_SCHEMA_MINIMUM ?? '4'`, `env.WELES_DATABASE_SCHEMA_MAXIMUM ?? '5'`),
-so an unconfigured deployment accepts schema versions `4..5`; the deployment
-environment may narrow or advance the range, but only positive integers with
-minimum not greater than maximum are accepted. A ledger that is empty,
-unreadable, or outside the range is a startup failure, not a warning. Widening
-that range is a code change here; producing the schema version it points at is a
-change in `wisent-supabase-echo`.
+| Property | Current contract |
+|---|---|
+| Maturity | Private operated executor |
+| Latest supported release | Package version `0.5.0`; worker bundles on the `worker-v*` release channel |
+| Compatibility | Database schema versions `4..5` by default; browser releases pinned per deployment |
+| Distribution | No public executor package. Public integration is `@wisent-ai/weles-client`; source availability of that client does not imply availability of this service. |
+| License | [MIT](LICENSE). Distribution and browser-patch obligations require separate review before any executor release. |
 
-## License
-
-MIT
-
----
+- **Reproducible defects:** repository issue tracker, with the action name, row id and worker instance id.
+- **Security reports:** the repository's private GitHub Security Advisory channel. Never place credentials, trajectories, recordings or target details in a public issue.
+- **Releases:** `worker-v*` GitHub Releases in this repository.
 
 ### History note
 
-The `weles` repo briefly hosted a parallel Python implementation (Playwright Firefox + JS-level spoofing) alongside this TypeScript one. The Python tree was deleted after every consumer of it in the Wisent codebase was either ported or accepted as breakage — the TypeScript rewrite has been the production-automation path since early April 2026 (commit *"Rewrite weles from Python to TypeScript"*).
-
-If you hit a script elsewhere in the Wisent monorepo that does `from weles import AsyncWeles`, that script is broken until it's ported to shell out to this TypeScript package or rewritten.
-
----
-
-## Fingerprint capture inventory
-
-Canonical inventory of every channel captured per WSession run is one file: **[`scripts/worker/deploy/FINGERPRINT_CAPTURE.md`](scripts/worker/deploy/FINGERPRINT_CAPTURE.md)**.
-
-That file enumerates 76 collector surfaces across 13 sections (A–M): JS-runtime property/observer hooks, rendering/graphics/media/audio fingerprint, the CDP firehose and browser-internal state, network and transport (pcap, SSL keylog, NetLog, HAR, decoded HTTP/2, JA4 family), host OS and hardware, weles/browser launch provenance, DOM and accessibility structure, per-origin storage and identity, workers and cross-context messaging, WebRTC and peer transport, trajectory/input/visual evidence, crash and diagnostics, and the provenance/dedup/update protocol. Each item flagged **[W]** wired, **[P]** partial, or **[T]** todo. Source of truth for what is captured per WSession run — matches the `buildDumpPayload` field set in `src/session/wsession-helpers/net_record.ts`. Items land in the merged `recordings/<label>/<label>.inst.json` (large payloads via sibling-file path references). `scripts/debug/fp_matrix/diff.mjs <a.inst.json> <b.inst.json>` produces a per-field PASS-vs-FAIL delta over this shape.
+The `weles` repository briefly hosted a parallel Python implementation alongside this TypeScript one. The Python tree was deleted after every consumer was ported or accepted as breakage; the TypeScript rewrite has been the production path since early April 2026. A script elsewhere doing `from weles import AsyncWeles` is broken until it is rewritten.
