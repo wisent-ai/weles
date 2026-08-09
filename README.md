@@ -1,174 +1,128 @@
 # Weles
 
-Weles gives an authorized Wisent service one reviewed browser workflow executed on a controlled browser identity, with a terminal result and retained evidence — it is a private operated executor and never decides that a target permits automation.
+Weles executes one explicitly authorized, reviewed browser workflow on a Stado-selected host, then returns a terminal result with retained evidence.
 
-[Deployment runbook](scripts/worker/deploy/README.md) · [Capture inventory](scripts/worker/deploy/FINGERPRINT_CAPTURE.md) · [Public client](https://github.com/wisent-ai/weles-client)
+[Public client](https://github.com/wisent-ai/weles-client) · [Operator runbook](scripts/worker/deploy/README.md) · [Capture inventory](scripts/worker/deploy/FINGERPRINT_CAPTURE.md) · [Worker releases](https://github.com/wisent-ai/weles/releases)
 
-**Why trust this claim:** the worker refuses to start unless the database schema ledger reports a version inside `WELES_DATABASE_SCHEMA_MINIMUM..MAXIMUM` (`src/worker/schema_compatibility.ts`), and it refuses to launch a browser that is not a checksum-verified Stado release (`src/session/find_browser.ts`, `src/session/wsession.ts:346`). Both are startup failures, not warnings.
+> **Why this boundary is enforced, not promised:** before claiming work, the worker requires a valid placement policy, queue access, worker enablement and writable diagnostic sinks ([`src/worker/poll.ts`](src/worker/poll.ts)). Browser launch accepts only an executable whose local receipt matches the exact Stado release coordinate and checksum ([`src/session/find_browser.ts`](src/session/find_browser.ts)).
 
-## Problem and intended users
+## Why Weles exists
 
-An approved automation workflow needs a long-lived browser process, a stable execution identity, credentials that never reach a prompt or a log, a trajectory reviewed for the specific target, and evidence that the run did what it claims. Ad-hoc Playwright scripts mix those concerns: they carry credentials in argv, leave no audit trail, and make it impossible to tell an execution failure from a missing authorization.
+Some approved operations still require a real browser session: an authenticated administrative surface has no suitable API, the target binds state to a browser identity, or the result needs visual and network evidence. A one-off browser script can perform the click sequence, but it usually combines authorization, credentials, host choice, browser provenance, retries and evidence in one unreviewed process.
 
-| Intended user | Current problem | Successful outcome |
-|---|---|---|
-| Wisent service submitting work | No safe way to request a browser action without holding browser credentials and target configuration | Submits through `@wisent-ai/weles-client`; receives a terminal result and a verifiable receipt |
-| Weles runtime operator | Scheduled browser work fails silently, wedges, or repeats an ambiguous external effect | Scheduler owns claims and terminal states; leases and watchdogs bound replay |
-| Runtime engineer | Browser identity behaviour drifts between builds with no record of what was captured | Every run records the channels listed in the canonical capture inventory |
+Weles separates those concerns. The caller submits an exact origin and action through the public client; a Stado-placed worker leases the task; a checked-in trajectory runs with a verified browser release; and the result closes with evidence that can be tied back to the request.
 
-## Product boundaries
+Weles is for:
 
-### Included
+- **Wisent service owners** submitting a separately authorized browser-only operation;
+- **trajectory authors and reviewers** maintaining the finite action catalog;
+- **runtime operators** promoting exact worker and browser artifacts through controlled rings.
 
-- a TypeScript worker that atomically claims rows from `account_action_logs` over PostgREST (`src/worker/claim.ts`);
-- one supervised trajectory subprocess per claimed row (`src/worker/poll.ts`, 480 trajectories under `scripts/trajectories/`);
-- Chromium and Firefox runtimes resolved only from checksum-verified Stado releases;
-- engine-level browser-identity configuration applied at the browser boundary, not by page scripts alone;
-- credential acquisition scoped per consumer and item through Skarbiec;
-- recordings, traces, fingerprint capture and structured outcome evidence where the trajectory requests them;
-- bounded retries, lease expiry, wedge watchdog and startup orphan reclaim (`src/worker/stale.ts`);
-- a `weles` CLI and a `weles-mcp` JSON-RPC surface.
+It is not a public browser-automation service, an authorization oracle, or a way to run arbitrary Playwright code on demand.
 
-### Not included
-
-- Weles does not decide whether a target permits automation.
-- Possession of a credential is not authorization for an arbitrary origin or action.
-- It does not expose browser patches, proxy rotation, stealth configuration, private trajectories, customer recordings or operational credentials as a public SDK.
-- It is not the public receipt-verification boundary; that is `weles-client`.
-- It provides no billing, account ownership or organization approval.
-- It must not be used for evasion, fake engagement, unauthorized access, or bypassing a target's rules.
-
-### Supported environments
-
-| Surface | Supported | Not supported or unverified |
-|---|---|---|
-| Operating systems | `darwin-arm64`, `darwin-amd64`, `linux-amd64` (`src/session/find_browser.ts`) | Every other platform; the release resolver returns nothing for them |
-| Runtime | Node.js with the TypeScript build in `dist/` | Running `src/` directly |
-| Browsers | `weles-chromium` and `weles-firefox` Stado releases pinned by version and SHA-256 | Stock Chromium or Firefox; explicit path overrides are rejected |
-| Deployment model | Operator-managed host under systemd or launchd | Hosted self-service executor; none is published |
-
-### Operator responsibilities
-
-The operator owns the host, the Skarbiec items behind every credential, the trajectory allowlist (`WELES_ACTION_ALLOWLIST`), the placement policy that decides which host may claim which action, proxy and browser-host cost, recording storage and retention, and the decision that a given target and action are authorized. Weles owns claim atomicity, terminal classification, browser-release verification, credential scoping at acquisition time, evidence capture, and refusing to run outside its declared schema range.
-
-## Core use cases
-
-| Actor | Starting situation | Product action | Successful result | Safety or cost boundary |
-|---|---|---|---|---|
-| Authorized Wisent service | An allowlisted action, an exact origin, credential references and an idempotency key are present | One worker claims the row and runs the reviewed trajectory | Terminal status on the row plus evidence metadata and a signed receipt | No trajectory is synthesized from the request; an unapproved action is skipped, not improvised |
-| Runtime operator | A claimed row is wedged, its lease expired, or the worker restarted mid-run | Watchdog and startup reclaim classify the row and fail it closed | The row reaches a terminal state with the reason recorded | An ambiguous external effect is never silently retried |
-| Runtime engineer | A new browser release must be qualified before deployment | A capture run records every channel in the inventory | A reviewable `recordings/<label>/<label>.inst.json` and a per-field diff | Capture describes the run; it proves neither authorization nor indistinguishability |
-
-## How it works
+## How one workflow runs
 
 ```mermaid
 flowchart LR
-    Client["Wisent service via weles-client"] --> Queue["account_action_logs row"]
-    Queue --> Claim["Atomic claim by one worker"]
-    Claim --> Trajectory["Reviewed trajectory subprocess"]
-    Trajectory --> Browser["Verified Stado browser release"]
-    Trajectory --> Skarbiec["Scoped credential acquisition"]
-    Trajectory --> Result["Terminal status + evidence"]
+    caller["Authorized Wisent service"] -->|"origin · action · justification · idempotency"| admission["Weles admission"]
+    admission --> queue[("Echo action log")]
+    queue -->|"lease and claim"| worker["Weles worker<br/>Stado-selected host"]
+    worker --> trajectory["Reviewed trajectory<br/>verified browser release"]
+    skarbiec["Skarbiec"] -. "scoped credential references" .-> trajectory
+    trajectory --> evidence["Terminal state<br/>retained evidence"]
+    evidence -->|"status and signed receipt"| caller
 ```
 
-- **Durable state:** the `account_action_logs` table in the Echo Supabase project is canonical for claims, status and outcome. Recordings and capture artifacts live on the worker host under the configured recordings root.
-- **Credential boundary:** workloads submit references. Plaintext is acquired at run time from Skarbiec for one consumer/item/field tuple and must never enter task JSON, prompts, argv or logs. The launcher unsets inherited secret variables before exec.
-- **Network boundary:** the worker initiates every connection — PostgREST for the queue, Skarbiec for credentials, Brama for model calls (`STADO_MODEL_ROUTER_URL`), the Stado release API for browsers, the artifact delivery host for evidence. Nothing dials in.
-- **Failure boundary:** an unreadable schema ledger, a schema version outside the configured range, a missing browser receipt, or missing required configuration are startup failures. In flight, lease expiry and the wedge watchdog fail a row closed rather than retrying an effect that may already have landed.
+1. The public [`@wisent-ai/weles-client`](https://github.com/wisent-ai/weles-client) binds the organization, origin, allowlisted action, credential references, evidence policy, justification and idempotency key.
+2. Admission records the request in the Echo-owned action log. The database lease permits claims only from the active production generation.
+3. The worker refuses to claim when placement policy, schema compatibility, queue access or evidence persistence is unavailable.
+4. The action name resolves to one checked-in trajectory. Login material is resolved through exact Skarbiec item, consumer and field grants rather than plaintext service-login columns.
+5. The worker records a terminal status, imports trajectory evidence and costs when present, and exposes the result through the client contract. Onboarding completes only after the client verifies a signed receipt and its bound evidence digest.
 
-## Quick start
+## Enforced boundaries
 
-This path builds the package and verifies the local toolchain. It requires no credentials and touches no target. It is not a deployment.
+| Boundary | What Weles enforces | Failure behavior |
+| --- | --- | --- |
+| Admission | Exact organization, origin, action, credential references, justification and idempotency | Reject before queueing |
+| Placement | Stado policy selects whether this worker may claim and where it may run | Stay idle or return an infrastructure error |
+| Action catalog | An action must resolve to a checked-in trajectory | Close the task as failed; never improvise a workflow |
+| Credentials | Service secrets resolve through scoped Skarbiec contracts | Refuse before opening the protected surface |
+| Browser provenance | Chromium or Firefox must match the configured immutable release receipt | Refuse browser launch |
+| Evidence | Forensic object storage and direct capture persistence must both be writable | Leave the queued task for a healthy worker |
+| Terminal state | Completion, failure, cancellation and pending review are explicit action-log states | Preserve the original failure even when diagnostic instrumentation is retried |
 
-### Prerequisites
+Authorization remains outside Weles. A target-specific trajectory and a technically successful run do not establish that a target permits automation.
 
-- Node.js and npm on `darwin-arm64`, `darwin-amd64` or `linux-amd64`
-- Repository access; no production credential
+## Start at the right interface
 
-### Install
+| Reader | Start here | Successful result |
+| --- | --- | --- |
+| Service integrator | [`weles-client`](https://github.com/wisent-ai/weles-client) | Submit, cancel and inspect an authorized task; verify its signed receipt |
+| Runtime operator | [Worker deployment runbook](scripts/worker/deploy/README.md) | Install immutable artifacts, promote one manifest and observe its ring/host state |
+| Trajectory reviewer | [`src/platforms/`](src/platforms) and [`scripts/trajectories/`](scripts/trajectories) | Trace an action name to the reviewed browser workflow it executes |
+| Incident investigator | [Capture inventory](scripts/worker/deploy/FINGERPRINT_CAPTURE.md) | Identify which run artifact answers a browser, network or host question |
+| Contributor | Local package inspection below | Build the package and confirm the CLI surface without starting a worker |
 
-```sh
-npm install
+### Inspect a source checkout
+
+Prerequisites: Node.js 22, npm and a checkout of this private repository.
+
+```bash
+npm ci
 npm run build
-```
-
-### Run the smallest realistic workflow
-
-```sh
 node dist/cli.js doctor
 ```
 
-### Expected result
+The final command prints JSON containing `"ok": true`, the source package version, the Node runtime and the installed `weles` / `weles-mcp` binary paths. It does not launch a browser, claim a task or authorize a target.
 
-```text
-{
-  "ok": true,
-  "version": "0.5.0",
-  "node": "v22.14.0",
-  "bin": {
-    "weles": "dist/cli.js",
-    "weles-mcp": "dist/mcp.js"
-  },
-  "env": {
-    "CHROMIUM_PATH": "unset",
-    "WELES_USE_STOCK_CHROMIUM": "unset"
-  }
-}
-```
-
-`version` is the package version, `node` is the host runtime, and both `env` entries are expected to read `unset`: explicit browser-path overrides are rejected by `src/session/wsession.ts`.
-
-Running an actual workflow is a separate, credentialed activity: provision the environment, browser releases, Skarbiec items, trajectory allowlist and service supervision described in [`scripts/worker/deploy/README.md`](scripts/worker/deploy/README.md), then start the worker with `node scripts/worker/run.mjs`. A product-level first success is an approved client submission that reaches one terminal result whose receipt and evidence digest verify against the configured public key.
+There is intentionally no production `npm start` shortcut. Operators install immutable release artifacts and start the deployment-managed worker described in the [runbook](scripts/worker/deploy/README.md); launching `scripts/worker/run.mjs` from a mutable checkout is not the production path.
 
 ## Primary interfaces
 
-| Interface | Canonical purpose | Stability | Reference |
-|---|---|---|---|
-| Worker process `node scripts/worker/run.mjs` | Claim and execute scheduled actions | Internal, operator-managed | [Deployment runbook](scripts/worker/deploy/README.md) |
-| CLI `weles` | `doctor`, `open`, `screenshot`, `onboarding`, `mcp` | Internal | `src/cli.ts` |
-| MCP `weles-mcp` | JSON-RPC browser surface where deployment policy enables it | Internal | `src/mcp.ts` |
-| `@wisent-ai/weles-client` | Safe submission, cancellation and receipt verification | Public contract | [weles-client](https://github.com/wisent-ai/weles-client) |
+| Interface | Purpose | Contract source |
+| --- | --- | --- |
+| `@wisent-ai/weles-client` | Task submission, cancellation, status and signed-receipt verification | [Public client repository](https://github.com/wisent-ai/weles-client) |
+| `weles` | Local inspection, first-use receipt verification and contributor browser tooling | [`src/cli.ts`](src/cli.ts) |
+| `weles-mcp` | MCP adapter for the local browser surface | [`src/mcp.ts`](src/mcp.ts) |
+| Worker process | Lease, authorize, execute and close action-log rows | [`src/worker/poll.ts`](src/worker/poll.ts) |
+| Release scripts | Assemble, attest, install, activate, inspect and roll back one manifest | [`scripts/release/`](scripts/release) |
 
-### Documentation by intent
+The CLI and MCP commands are source surfaces, not a public entitlement to the operated executor. Production callers use the client contract; production workers use deployment-owned configuration.
 
-- **Deploy and operate:** [`scripts/worker/deploy/README.md`](scripts/worker/deploy/README.md)
-- **Understand browser identity capture:** [`scripts/worker/deploy/FINGERPRINT_CAPTURE.md`](scripts/worker/deploy/FINGERPRINT_CAPTURE.md) — 76 collector surfaces in 13 sections, each flagged wired, partial or todo
-- **Rebuild the patched Firefox:** [`scripts/firefox/PATCHING.md`](scripts/firefox/PATCHING.md)
-- **Integrate as a caller:** [`weles-client`](https://github.com/wisent-ai/weles-client)
+## Release and compatibility
 
-## Operational model
+Worker releases are immutable `worker-v*` GitHub Releases with archives, SHA-256 sidecars and Sigstore bundles for `linux-x64`, `darwin-x64` and `darwin-arm64`. A release does not change a running worker by itself: one deployment manifest must advance through `candidate`, `development`, `canary` and `production`, with the same manifest digest at every ring.
 
-| Concern | Contract |
-|---|---|
-| Configuration | Deployment-owned environment sourced by `scripts/worker/deploy/launch.sh`, which refuses to start unless the database, router, object, artifact, operator-CDP, allowlist, diagnostics and release variables are all present. No repository default authorizes a live target. |
-| State | `account_action_logs` in the Echo Supabase project is canonical for claims and outcomes; recordings and capture artifacts follow the configured evidence policy on the worker host. |
-| Credentials | Acquired per consumer/item/field from Skarbiec at run time. The launcher unsets `SUPABASE_*`, browser paths, GitHub and provider variables before exec so nothing leaks through the environment. Plaintext never enters task JSON, prompts or logs. |
-| Networking | Worker-initiated only: PostgREST, Skarbiec, Brama (`STADO_MODEL_ROUTER_URL`, model alias `weles/agent/primary`), the Stado release API, artifact delivery. |
-| Cost | Browser hosts, proxies, solver vendors, storage and model calls are operated costs charged to the deployment. No pricing or hosted entitlement is published here. |
-| Observability | Structured task state on the row, process diagnostics, evidence metadata and the fingerprint capture inventory. These distinguish execution failure from missing authorization or unavailable infrastructure. |
-| Upgrades | Worker bundles ship as `worker-vX.Y.Z` GitHub Releases built by `.github/workflows/release-worker.yml` with embedded provenance and a checksum sidecar. Browser releases are pinned separately by version and SHA-256. |
-| Recovery | Leases, the wedge watchdog and startup orphan reclaim bound replay. An ambiguous external effect must be resolved by the operator before resubmission. |
+| Concern | Current repository contract |
+| --- | --- |
+| API schemas | Versioned: `weles.task.v1`, `weles.cancellation.v1`, `weles.task-status.v1`, `weles.receipt.v1`, `weles.version.v1`; aliases: `weles.task.current`, `weles.cancellation.current`, `weles.receipt.current` |
+| Minimum client | `0.1.0` |
+| Database | Target schema `5`; worker compatibility range `4..5`; expand-contract migrations; no automatic down-migrations |
+| Rollout | Ordered four-ring promotion; candidate bytes must equal promoted bytes; no partial component activation |
+| Production pointer | The manifest-based pointer in [`release/current-production.json`](release/current-production.json) is currently `uninitialized` |
+| Distribution | Private operated executor; public integration code lives in `weles-client` |
 
-### Database schema ownership
+The compatibility source of truth is [`release/compatibility-policy.json`](release/compatibility-policy.json). Runtime state comes from `node scripts/release/status.mjs --ring <ring> --host <stado-host>`, not from the branch tip or package version.
 
-The schema is owned by [`wisent-ai/wisent-supabase-echo`](https://github.com/wisent-ai/wisent-supabase-echo), the only source of truth for the Supabase project `yqizdfkfnmhddfemdxtq`. Every DDL change — tables, columns, indexes, policies, functions and the `weles_schema_migrations` ledger row recording it — is proposed as a pull request there and applied only by its CI on `main`. This repository holds no migrations, no `supabase/config.toml` and no linked-project state; `supabase/` is gitignored so a local `supabase` link cannot reintroduce them. Nobody runs the `supabase` CLI against production from a workstation; the pre-commit hook refuses to commit such invocations.
+## Repository map
 
-What this repository declares is the schema version it requires. At startup `src/worker/schema_compatibility.ts` reads the highest `version` from `weles_schema_migrations` and refuses to run unless it falls inside `WELES_DATABASE_SCHEMA_MINIMUM` (default `4`) through `WELES_DATABASE_SCHEMA_MAXIMUM` (default `5`). Widening that range is a code change here; producing the version it points at is a change in `wisent-supabase-echo`.
+| Path | Owns |
+| --- | --- |
+| [`src/api/`](src/api) | Admission and worker HTTP surfaces |
+| [`src/worker/`](src/worker) | Queue claims, placement, execution and terminal-state writes |
+| [`src/session/`](src/session) | Browser selection, lifecycle, capture and replay |
+| [`src/platforms/`](src/platforms) | Platform-specific runtime modules |
+| [`src/secrets/`](src/secrets) | Scoped secret acquisition and service contracts |
+| [`scripts/trajectories/`](scripts/trajectories) | Reviewed executable workflows |
+| [`scripts/worker/deploy/`](scripts/worker/deploy) | Host prerequisites, service launch and operational recovery |
+| [`scripts/release/`](scripts/release) | Immutable manifest publication, promotion and rollback |
+| [`release/`](release) | Machine-readable API, database and rollout compatibility |
 
-## Project status and support
+Detailed operational procedures belong in the runbook; capture field definitions belong in the capture inventory. The root README stays focused on the product boundary and the shortest safe route for each reader.
 
-| Property | Current contract |
-|---|---|
-| Maturity | Private operated executor |
-| Latest supported release | Package version `0.5.0`; worker bundles on the `worker-v*` release channel |
-| Compatibility | Database schema versions `4..5` by default; browser releases pinned per deployment |
-| Distribution | No public executor package. Public integration is `@wisent-ai/weles-client`; source availability of that client does not imply availability of this service. |
-| License | [MIT](LICENSE). Distribution and browser-patch obligations require separate review before any executor release. |
+## Support, security and license
 
-- **Reproducible defects:** repository issue tracker, with the action name, row id and worker instance id.
-- **Security reports:** the repository's private GitHub Security Advisory channel. Never place credentials, trajectories, recordings or target details in a public issue.
-- **Releases:** `worker-v*` GitHub Releases in this repository.
-
-### History note
-
-The `weles` repository briefly hosted a parallel Python implementation alongside this TypeScript one. The Python tree was deleted after every consumer was ported or accepted as breakage; the TypeScript rewrite has been the production path since early April 2026. A script elsewhere doing `from weles import AsyncWeles` is broken until it is rewritten.
+- **Operational defects:** use this repository's issue tracker with the action-log row ID, worker instance ID and release coordinate. Do not attach recordings or credentials.
+- **Sensitive reports:** use a [private GitHub Security Advisory](https://github.com/wisent-ai/weles/security/advisories/new). Never place credentials, trajectories, recordings or target details in a public issue.
+- **Releases:** use the immutable [`worker-v*` channel](https://github.com/wisent-ai/weles/releases); do not deploy a branch tip.
+- **License:** [MIT](LICENSE). Source availability does not grant access to the private operated service or authorize automation of any target.
