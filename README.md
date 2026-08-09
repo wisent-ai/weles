@@ -3,17 +3,15 @@
   <img src="assets/readme-banner.webp" alt="Weles — Browser Use Harness for AI agents with cached trajectories" width="100%">
 </p>
 <!-- wisent-banner:end -->
-<p align="center">
-  <a href="https://weles.wisent.com"><img alt="Weles website" src="https://img.shields.io/badge/Website-weles.wisent.com-0B0B0B?style=for-the-badge"></a>
-  <a href="https://github.com/wisent-ai/weles/releases/latest"><img alt="Latest Weles worker release" src="https://img.shields.io/github/v/release/wisent-ai/weles?filter=worker-v*&amp;style=for-the-badge&amp;label=release"></a>
-  <a href="https://github.com/wisent-ai/weles/releases"><img alt="Weles release downloads" src="https://img.shields.io/github/downloads/wisent-ai/weles/total?style=for-the-badge"></a>
-  <a href="https://github.com/wisent-ai/weles/actions/workflows/build-check.yml?query=branch%3Amain"><img alt="Weles main build status" src="https://img.shields.io/github/actions/workflow/status/wisent-ai/weles/build-check.yml?branch=main&amp;style=for-the-badge&amp;label=build"></a>
-  <a href="LICENSE"><img alt="Weles MIT license" src="https://img.shields.io/github/license/wisent-ai/weles?style=for-the-badge"></a>
-  <a href="https://discord.gg/qRjpkthq54"><img alt="Join Wisent on Discord" src="https://img.shields.io/badge/Discord-Join-5865F2?style=for-the-badge&amp;logo=discord&amp;logoColor=white"></a>
-  <a href="https://www.linkedin.com/company/wisentai/"><img alt="Follow Wisent on LinkedIn" src="https://img.shields.io/badge/LinkedIn-Follow-0A66C2?style=for-the-badge&amp;logo=linkedin&amp;logoColor=white"></a>
-  <a href="https://x.com/wisentai"><img alt="Follow Wisent on X" src="https://img.shields.io/badge/X-Follow-000000?style=for-the-badge&amp;logo=x&amp;logoColor=white"></a>
-  <a href="https://calendly.com/lbartoszcze"><img alt="Book a call for enterprise Weles implementation" src="https://img.shields.io/badge/Enterprise-Book_a_call-B8F2C2?style=for-the-badge&amp;logo=calendly&amp;logoColor=0B0B0B"></a>
-</p>
+[![Weles website](assets/readme-badges/website.svg)](https://weles.wisent.com)
+[![Latest Weles worker release](assets/readme-badges/release.svg)](https://github.com/wisent-ai/weles/releases/latest)
+[![Weles release downloads](assets/readme-badges/downloads.svg)](https://github.com/wisent-ai/weles/releases)
+[![Weles main build status](assets/readme-badges/build.svg)](https://github.com/wisent-ai/weles/actions/workflows/build-check.yml?query=branch%3Amain)
+[![Weles MIT license](assets/readme-badges/license.svg)](LICENSE)
+[![Join Wisent on Discord](assets/readme-badges/discord.svg)](https://discord.gg/qRjpkthq54)
+[![Follow Wisent on LinkedIn](assets/readme-badges/linkedin.svg)](https://www.linkedin.com/company/wisentai/)
+[![Follow Wisent on X](assets/readme-badges/x.svg)](https://x.com/wisentai)
+[![Book a call for enterprise Weles implementation](assets/readme-badges/enterprise.svg)](https://calendly.com/lbartoszcze)
 
 # Weles
 
