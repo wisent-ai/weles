@@ -1,3 +1,9 @@
+<!-- wisent-banner:start -->
+<p align="center">
+  <img src="assets/readme-banner.webp" alt="Weles — Browser Use Harness for AI agents with cached trajectories" width="100%">
+</p>
+<!-- wisent-banner:end -->
+
 # Weles
 
 Browser Use Harness. Your AI Agents Can Now Use Internet. Cutting Token Use by 99% by caching trajectories. A harness to stimulate bypassing captchas and accessing all parts of the internet without any problems.
