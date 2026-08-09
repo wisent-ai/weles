@@ -298,23 +298,19 @@ export async function doGoogleSso({
       for (let i = 0; i < 200; i += 1) {
         if (popupPage && !popupHandled) {
           popupHandled = true;
-          // The GIS popup closes itself the moment an account is chosen, so every call
-          // against it races its own success and throws `Target page, context or browser has
-          // been closed`. That is the handoff working. The terminal state is read from the
-          // parent page below either way, so a vanished popup is not a failure here.
+          // Driving this popup takes the whole browser context down with it: tolerating its
+          // closure moved the failure from waitForLoadState to page.evaluate on the *parent*
+          // page, which is the context reporting itself gone. The loop below already handles
+          // the same decision when Google renders its chooser in the page, so the popup is
+          // closed here and that path makes the choice.
           try {
-            console.log(`[google_sso] GIS popup: ${popupPage.url()}`);
-            await popupPage.waitForLoadState('domcontentloaded');
-            mark('gis_account_chooser_popup');
-            await clickEmailRow(popupPage, login.email);
-            await humanIdlePause('long');
-            try { await waitForEnabledThenClick(popupPage, /^(continue|next|dalej)$/i); }
-            catch (e) { console.log(`[google_sso] no popup consent: ${e.message.slice(0, 50)}`); }
+            console.log(`[google_sso] GIS popup appeared: ${popupPage.url()}`);
+            mark('gis_popup_closed_by_us');
+            await popupPage.close();
           } catch (e) {
-            const closed = popupPage.isClosed?.() ?? true;
-            mark(closed ? 'gis_popup_closed_itself' : 'gis_popup_error');
-            console.log(`[google_sso] popup ended early closed=${closed}: ${e.message.slice(0, 80)}`);
+            console.log(`[google_sso] popup would not close: ${e.message.slice(0, 80)}`);
           }
+          await humanIdlePause('deliberate');
         }
         const st = await navEval(page, () => {
           const b = Array.from(document.querySelectorAll('button,[role="button"]'));
