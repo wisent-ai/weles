@@ -1,146 +1,115 @@
 # Weles
 
-**Weles is a private browser-workflow executor for explicitly authorized,
-reviewed actions that require controlled browser identity, scheduling, and
-verifiable execution evidence.**
+Stealth browser automation: fingerprint spoofing + scheduler-driven trajectories for social-account automation.
 
-This repository contains the execution service. It is not the public Weles
-client and is not a general-purpose authorization to automate a website.
+## What this is
 
-[Runtime deployment](scripts/worker/deploy/README.md) ·
-[Capture inventory](scripts/worker/deploy/FINGERPRINT_CAPTURE.md) ·
-[Public client](https://github.com/wisent-ai/weles-client)
+TypeScript + Node package that drives custom-patched Chromium and Firefox binaries to run per-action trajectories against social platforms. The worker polls `account_action_logs` in the Echo Supabase project over PostgREST, claims rows atomically, and spawns one trajectory subprocess per row.
 
-Current boundary: package version `0.5.0` is an internal operated surface. No
-public executor package, self-service hosted workflow, target authorization, or
-SLA is promised from this repository.
+- **Fingerprint defense**: C++ Chromium patches (canvas noise removal, UA reduction, brand list, ALPS, HEVC codec shim) applied in a separate repo (`../chromium-build/`); Gecko patches in `../firefox-build/patches/`. This repo consumes the built binaries as checksum-verified Stado releases via `scripts/chromium/download.sh` and `scripts/firefox/download.sh`.
+- **Runtime**: Playwright-driven Chromium/Firefox, agent loop through Jeden → Brama (`src/agent/jeden.ts`), flow replay cache (`src/session/flows.ts`) for faster repeat runs.
+- **Queue producers**: `wisent-app` inserts rows — `src/app/api/assistants/cron/refresh-tickers/route.js` and `src/app/api/assistants/stock-context/[symbol]/enqueue/route.js` — through its Echo service-role client (`src/lib/supabase/echo.js`). This worker drains the queue. `@wisent-ai/weles-client` is the safe submission boundary for services that should not touch the table directly.
 
-## Problem and intended users
+## Worker releases
 
-Some approved workflows require a long-lived browser process, a stable execution
-identity, bounded credentials, target-specific trajectories, and retained
-outcome evidence. Ad hoc Playwright scripts mix those concerns, leak operational
-configuration, and make authorization or replay difficult to audit.
+Immutable worker bundles belong to this repository's `worker-vX.Y.Z` GitHub
+Releases channel. `.github/workflows/release-worker.yml` builds the tagged
+source, embeds source provenance, and publishes a checksum sidecar. See
+[`scripts/worker/deploy/README.md`](scripts/worker/deploy/README.md) for exact
+installation and rollback coordinates. Browser binaries and Skarbiec remain
+separately installed integrations; Weles neither republishes nor requires their
+release channels to publish its own worker.
 
-Weles serves:
-
-- **workflow operators** who admit exact origins, actions, accounts, and
-  trajectories;
-- **Wisent services** that submit already-authorized work through the safe Weles
-  client contract;
-- **runtime engineers** who maintain browser patches, identity generation,
-  scheduling, capture, and recovery.
-
-## Product boundaries
-
-### Included
-
-- a TypeScript worker that atomically claims scheduled action rows;
-- one supervised trajectory subprocess per claimed action;
-- Chromium and Firefox runtimes selected by deployment policy;
-- browser-identity and fingerprint configuration applied at the browser
-  boundary;
-- scoped credential acquisition through the configured secret boundary;
-- screenshots, recordings, traces, fingerprint capture, and structured outcome
-  evidence where the selected trajectory requests them;
-- bounded retries and explicit terminal failure states owned by the scheduler;
-- diagnostics and lint rules for trust, browser-boundary, and trajectory code.
-
-### Explicit non-goals
-
-- Weles does not decide whether a target permits automation.
-- It does not turn possession of a credential into authorization for arbitrary
-  origins or actions.
-- It does not expose browser patches, provider rotation, stealth configuration,
-  private trajectories, customer recordings, or operational credentials as a
-  public SDK.
-- It is not the public receipt-verification boundary; that belongs to
-  `weles-client`.
-- It does not provide billing, account ownership, or organization approval.
-- It must not be used for evasion, fake engagement, unauthorized access, or
-  bypassing a target's rules.
-
-### Supported environment and status
-
-| Surface | Environment | Current state |
-|---|---|---|
-| Worker and scheduler | deployment-managed Node.js/TypeScript host | Implemented |
-| Chromium execution | approved patched binary selected by deployment | Implemented |
-| Firefox execution | approved patched binary selected by deployment | Implemented |
-| Public submission and receipt verification | `weles-client` | Separate public contract |
-| Hosted self-service executor | — | Not published |
-| Arbitrary website automation | — | Not supported |
-
-## Core use cases
-
-### Execute one approved trajectory
-
-- **Actor:** an authorized service submitting through the safe client boundary.
-- **Initial state:** organization, exact origin, allowlisted action, credential
-  references, justification, idempotency key, and evidence policy are present.
-- **Outcome:** one worker claims the task, executes the reviewed trajectory, and
-  records a terminal result with evidence metadata.
-- **Boundary:** no trajectory is synthesized from the request and no unapproved
-  origin or action is substituted.
-
-### Recover a scheduled worker
-
-- **Actor:** a Weles runtime operator.
-- **Initial state:** a claimed task or browser process has failed, timed out, or
-  lost its lease.
-- **Outcome:** scheduler state classifies the failure and permits only the
-  configured bounded recovery path.
-- **Boundary:** an ambiguous effect is not silently retried as if nothing
-  happened.
-
-### Verify browser-identity capture
-
-- **Actor:** a runtime engineer qualifying an approved browser build.
-- **Initial state:** the deployment selects an exact browser binary and capture
-  policy.
-- **Outcome:** the run records the channels listed in the canonical fingerprint
-  capture inventory for review.
-- **Boundary:** capture evidence describes the run; it does not prove target
-  authorization or universal browser indistinguishability.
-
-## How Weles works
-
-```text
-safe Weles client
-  -> admitted organization + origin + action + credential references
-  -> scheduler row and atomic claim
-  -> supervised worker
-  -> deployment-selected browser and reviewed trajectory
-  -> result + evidence metadata + signed service receipt
-```
-
-The scheduler is authoritative for task ownership and terminal state. The
-trajectory owns target-specific interaction. The browser runtime owns
-engine-level identity behavior. The secret boundary owns credential material.
-The public client owns input validation and receipt verification. None of these
-layers may silently assume another layer's authority.
-
-## Operator quick start
-
-There is no public executor quick start. A source build alone is not an
-authorized deployment. Runtime operators must use the reviewed deployment path:
+## Install + build
 
 ```bash
 npm install
-npm run build
-node scripts/worker/run.mjs
+npm run build            # tsc → dist/
+bash scripts/chromium/download.sh   # installs the exact Stado Chromium release
+bash scripts/firefox/download.sh    # installs the exact Stado Firefox release
 ```
 
-Before starting the worker, provision the exact environment, database contract,
-approved browser binaries, credential sources, trajectory allowlist, and service
-supervision described in
-[`scripts/worker/deploy/README.md`](scripts/worker/deploy/README.md). Starting
-without those inputs is configuration work, not a successful Weles workflow.
+Both download scripts require `STADO_RELEASE_API_URL` (or `STADO_RELEASE_LOCAL_ROOT`) plus the release version and SHA-256 for that browser. They write a `.weles-release` receipt only after verifying the archive checksum and the executable layout.
 
-A product-level first success is an approved client submission that reaches one
-terminal result and whose receipt and evidence digest verify against the
-configured public key. Do not use a synthetic public target as a substitute for
-that authorization chain.
+## Run
+
+```bash
+# Foreground
+node scripts/worker/run.mjs
+
+# Or systemd / launchd — see scripts/worker/deploy/README.md for the unit + env file
+```
+
+Required env (`scripts/worker/deploy/launch.sh` refuses to start without all of it; the deploy runbook has the full list):
+
+- `WELES_DATABASE_URL`, `WELES_DATABASE_TOKEN` — the Echo PostgREST endpoint and scoped token. Legacy `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` are unset by the launcher; the values are acquired per-item from Skarbiec.
+- `STADO_MODEL_ROUTER_URL`, `WELES_STADO_MODEL_ROUTER_TOKEN`, `WELES_STADO_MODEL_ROUTER_AGENT_ID`, `WELES_STADO_MODEL_ROUTER_AGENT_AUTH_SECRET` — the browser agent reaches models only through Brama.
+- `WELES_AGENT_MODEL` — must be the exact Brama alias `weles/agent/primary`; `canonicalModel()` throws on anything else.
+- `STADO_API_URL`, `WELES_STADO_OBJECT_API_TOKEN`, `STADO_RELEASE_API_URL`.
+- `WELES_WORKER_RELEASE_VERSION` / `_SHA256`, `WELES_CHROMIUM_RELEASE_VERSION` / `_SHA256`, `WELES_FIREFOX_RELEASE_VERSION` / `_SHA256` — no browser resolves without a matching release receipt. `CHROMIUM_PATH` and other explicit path overrides are retired: `wsession.ts` throws if one is set.
+- `WELES_ARTIFACT_DELIVERY_HOST`, `_PORT`, `_URL`, `WELES_ARTIFACT_DELIVERY_TOKEN`, `WELES_ARTIFACT_SIGNING_SECRET`.
+- `WELES_OPERATOR_CDP_URL`, `WELES_OPERATOR_CDP_TOKEN`.
+- `WELES_ACTION_ALLOWLIST` — the exact dispatchable action catalog.
+- `WELES_PLACEMENT_MODE=required` and `WELES_PLACEMENT_POLICY_FILE`; the worker
+  claims only actions assigned to its OS hostname in the product-owned local
+  policy. `off` is a local-development escape hatch.
+- `OKO_WELES_SUBSCRIPTIONS_TOKEN`, `CONTENT_DIAGNOSTICS_API_URL` / `_TOKEN`, `TRADING_TOOLS_INGEST_URL` / `_TOKEN` / `_HMAC_SECRET`.
+
+## Directory layout
+
+```
+weles/
+├── src/
+│   ├── worker/poll.ts         # scheduler-driven work loop; spawns one trajectory per row
+│   ├── worker/claim.ts        # atomic claim against account_action_logs
+│   ├── worker/dispatch.ts     # action name → trajectory path + params→env
+│   ├── worker/stale.ts        # zombie sweep, wedge watchdog, startup orphan reclaim
+│   ├── worker/schema_compatibility.ts  # startup schema-version gate
+│   ├── session/wsession.ts    # session launcher over the verified browser release
+│   ├── session/find_browser.ts # release-receipt + SHA-256 browser resolution
+│   ├── async_api.ts           # Playwright setup + fingerprint injection
+│   ├── browser/persona.ts     # persona generation; 60/40 chromium/firefox rotation
+│   ├── agent/loop.ts          # browser-automation agent loop + flow replay
+│   ├── agent/jeden.ts         # Jeden → Brama model call, capability-scoped
+│   ├── fingerprint.ts         # fingerprint config generator
+│   ├── platforms/             # per-platform ban-signal detectors
+│   ├── utils/credentials.ts   # getSocialAccount(), resolveAccountSession()
+│   ├── cli.ts                 # `weles` binary
+│   ├── mcp.ts                 # `weles-mcp` JSON-RPC surface
+│   └── …
+├── scripts/
+│   ├── worker/run.mjs         # systemd / launchd / foreground entry
+│   ├── worker/deploy/         # unit files + launch wrappers + runbook
+│   ├── trajectories/          # per-action flows (480 .mjs files across 86 entries)
+│   │   ├── _shared/           # action-runner, benign, llm helpers
+│   │   ├── github/ reddit/ instagram/ linkedin/ discord/ google/ microsoft/ …
+│   │   ├── anticaptcha/ capmonster/ capsolver/ nopecha/  # solver integrations
+│   │   ├── brightdata/ decodo/ iproyal/ oxylabs/ packetstream/  # proxy vendors
+│   │   └── {platform}_{login|register|...}.mjs  # legacy flat trajectories
+│   ├── chromium/download.sh   # install the exact Stado Chromium release
+│   └── firefox/download.sh    # install the exact Stado Firefox release
+├── dist/                      # tsc output (git-ignored)
+├── package.json
+└── README.md
+```
+
+## Fingerprint spoofing
+
+Chromium patches live in `../chromium-build/` (separate repo) and are applied as direct edits against upstream Chromium source — e.g. canvas noise removal in `third_party/blink/renderer/platform/graphics/image_data_buffer.cc`, a weles command-line switch in `chrome/common/switches.cc`. The TS side of weles passes a generated fingerprint config via `--weles-fingerprint=<path>.json` (`src/async_api.ts`, `src/browser/api.ts`) which the patched binary reads at startup.
+
+JS-level helpers in `src/scripts/` (injected via `addInitScript()`) fill gaps the C++ patches can't cover cleanly — notably the HEVC codec shim (`chrome147_stubs.js`), the screen/WebRTC patch, and the navigator stubs.
+
+## Firefox parity — shipped
+
+Firefox carries the same engine-level fingerprint defense stack as Chromium and is drivable end-to-end from weles trajectories via Playwright's juggler protocol.
+
+- **Binary**: published as `stado://releases/weles-firefox/<version>/<platform>/weles-firefox.tar.gz`. Install via `bash scripts/firefox/download.sh` with `WELES_FIREFOX_RELEASE_VERSION` and `WELES_FIREFOX_RELEASE_SHA256` set.
+- **Gecko patches** live in `../firefox-build/patches/`: pref registration, `navigator.webdriver` short-circuit, WebGL vendor/renderer de-sanitize, `nsScreen` overrides, `window.outer*` overrides, plus one extra patch wiring `juggler-navigation-started-browser` through `CanonicalBrowsingContext::LoadURI(nsIURI*, ...)` so Playwright's `Page.navigate` works.
+- **Juggler** (Playwright's automation extension) is baked in at the matching version. `WSession.start({ browser: 'firefox' })` routes via `findCustomBrowser('firefox')` → `async_api.firefox.launch(executablePath, firefoxUserPrefs)` with the `weles.fingerprint.*` pref group that the patched binary reads.
+- **`src/browser/persona.ts`** rotates 60/40 chromium/firefox. Both paths have engine-level enforcement; JA4 rotation between BoringSSL and NSS is the side benefit.
+- **CI auto-probe**: `.github/workflows/firefox-integration.yml` verifies each new release against the trajectory driver. Manual-trigger only (macOS runner cost).
+
+Full phase-by-phase checklist in [scripts/firefox/PATCHING.md](scripts/firefox/PATCHING.md).
 
 ## Database schema
 
@@ -178,41 +147,22 @@ unreadable, or outside the range is a startup failure, not a warning. Widening
 that range is a code change here; producing the schema version it points at is a
 change in `wisent-supabase-echo`.
 
-## Primary interfaces
+## License
 
-- **Worker process:** `node scripts/worker/run.mjs` for the deployment-managed
-  scheduler loop.
-- **CLI:** the built `weles` binary for explicitly exposed operator actions.
-- **MCP:** the built `weles-mcp` surface where enabled by deployment policy.
-- **Public client:** `@wisent-ai/weles-client` for safe submission,
-  cancellation, and receipt verification.
-- **Deployment contract:** `scripts/worker/deploy/README.md` for environment,
-  service supervision, and browser selection.
+MIT
 
-## Operational model
+---
 
-- **Configuration:** deployment-owned environment and reviewed trajectory
-  inventory; no repository default authorizes a live target.
-- **State:** scheduler rows are canonical for claims and outcomes; recordings
-  and capture artifacts follow the configured evidence policy.
-- **Credentials:** workloads submit opaque references. Runtime acquisition is
-  scoped and credential plaintext must not enter prompts, task JSON, or logs.
-- **Observability:** structured task state, process diagnostics, evidence
-  metadata, and the fingerprint capture inventory distinguish execution failure
-  from missing authorization or unavailable infrastructure.
-- **Recovery:** leases and terminal classifications bound replay. Operators must
-  resolve ambiguous external effects before resubmission.
-- **Cost:** browser hosts, proxies, storage, and external services are operated
-  costs; this repository does not publish pricing or a hosted entitlement.
+### History note
 
-## Project status and support
+The `weles` repo briefly hosted a parallel Python implementation (Playwright Firefox + JS-level spoofing) alongside this TypeScript one. The Python tree was deleted after every consumer of it in the Wisent codebase was either ported or accepted as breakage — the TypeScript rewrite has been the production-automation path since early April 2026 (commit *"Rewrite weles from Python to TypeScript"*).
 
-- **Maturity:** private operated executor, package version `0.5.0`.
-- **Distribution:** no public executor release or support commitment.
-- **Public integration:** use `wisent-ai/weles-client`; source availability of a
-  client does not imply availability of the executor service.
-- **Security:** report vulnerabilities through the repository's private GitHub
-  Security Advisory channel; never place credentials, trajectories, recordings,
-  or target details in a public issue.
-- **License:** the current repository declares MIT; distribution and browser
-  patch obligations require separate review before any executor release.
+If you hit a script elsewhere in the Wisent monorepo that does `from weles import AsyncWeles`, that script is broken until it's ported to shell out to this TypeScript package or rewritten.
+
+---
+
+## Fingerprint capture inventory
+
+Canonical inventory of every channel captured per WSession run is one file: **[`scripts/worker/deploy/FINGERPRINT_CAPTURE.md`](scripts/worker/deploy/FINGERPRINT_CAPTURE.md)**.
+
+That file enumerates 76 collector surfaces across 13 sections (A–M): JS-runtime property/observer hooks, rendering/graphics/media/audio fingerprint, the CDP firehose and browser-internal state, network and transport (pcap, SSL keylog, NetLog, HAR, decoded HTTP/2, JA4 family), host OS and hardware, weles/browser launch provenance, DOM and accessibility structure, per-origin storage and identity, workers and cross-context messaging, WebRTC and peer transport, trajectory/input/visual evidence, crash and diagnostics, and the provenance/dedup/update protocol. Each item flagged **[W]** wired, **[P]** partial, or **[T]** todo. Source of truth for what is captured per WSession run — matches the `buildDumpPayload` field set in `src/session/wsession-helpers/net_record.ts`. Items land in the merged `recordings/<label>/<label>.inst.json` (large payloads via sibling-file path references). `scripts/debug/fp_matrix/diff.mjs <a.inst.json> <b.inst.json>` produces a per-field PASS-vs-FAIL delta over this shape.
