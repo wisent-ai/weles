@@ -1,9 +1,0 @@
-{
-  "schema_version": 1,
-  "releases": true,
-  "type": "cross-platform-node-worker-archives",
-  "manifest": "package.json",
-  "publisher": [
-    "github-releases"
-  ]
-}

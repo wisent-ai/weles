@@ -13,7 +13,7 @@ const fragments = Object.fromEntries(await Promise.all(fragmentNames.map(async (
   return [name, JSON.parse(await readFile(path, 'utf8'))];
 })));
 const manifest = validateManifest({
-  schema: 'weles.deployment.v1',
+  schema: 'weles.deployment.v2',
   deploymentId: requiredArg(args, 'deployment-id'),
   createdAt: requiredArg(args, 'created-at'),
   sourceRevision: requiredArg(args, 'source-revision'),

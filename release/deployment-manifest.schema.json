@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://weles.wisent.com/schemas/deployment-manifest.v1.json",
-  "title": "Weles immutable deployment manifest",
+  "$id": "https://weles.wisent.com/schemas/deployment-manifest.v2.json",
+  "title": "Weles immutable Stado deployment manifest",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -17,7 +17,7 @@
     "compatibility"
   ],
   "properties": {
-    "schema": { "const": "weles.deployment.v1" },
+    "schema": { "const": "weles.deployment.v2" },
     "deploymentId": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}\\.[1-9][0-9]*$" },
     "createdAt": { "type": "string", "format": "date-time" },
     "sourceRevision": { "$ref": "#/$defs/gitSha" },
@@ -97,18 +97,20 @@
     "gitSha": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
     "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
     "apiSchema": { "type": "string", "pattern": "^weles\\.[a-z0-9-]+\\.v[1-9][0-9]*$" },
-    "platform": { "type": "string", "enum": ["darwin-arm64", "darwin-x64", "linux-x64"] },
+    "platform": { "type": "string", "enum": ["darwin-arm64", "darwin-amd64", "linux-amd64"] },
     "artifact": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["platform", "url", "sha256", "entrypoint", "provenanceUrl", "provenanceRepository"],
+      "required": ["platform", "uri", "sha256", "entrypoint"],
       "properties": {
         "platform": { "$ref": "#/$defs/platform" },
-        "url": { "type": "string", "format": "uri", "pattern": "^https://" },
+        "uri": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^stado://releases/[A-Za-z0-9._-]+/[A-Za-z0-9._-]+/[a-z0-9-]+/[A-Za-z0-9._-]+$"
+        },
         "sha256": { "$ref": "#/$defs/sha256" },
-        "entrypoint": { "type": "string", "pattern": "^[A-Za-z0-9._/-]+$", "not": { "pattern": "(^/|(^|/)\\.\\.(/|$))" } },
-        "provenanceUrl": { "type": "string", "format": "uri", "pattern": "^https://" },
-        "provenanceRepository": { "type": "string", "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$" }
+        "entrypoint": { "type": "string", "pattern": "^[A-Za-z0-9._/-]+$", "not": { "pattern": "(^/|(^|/)\\.\\.(/|$))" } }
       }
     },
     "browserRelease": {

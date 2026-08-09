@@ -85,13 +85,13 @@ There is intentionally no production `npm start` shortcut. Operators install imm
 | `weles` | Local inspection, first-use receipt verification and contributor browser tooling | [`src/cli.ts`](src/cli.ts) |
 | `weles-mcp` | MCP adapter for the local browser surface | [`src/mcp.ts`](src/mcp.ts) |
 | Worker process | Lease, authorize, execute and close action-log rows | [`src/worker/poll.ts`](src/worker/poll.ts) |
-| Release scripts | Assemble, attest, install, activate, inspect and roll back one manifest | [`scripts/release/`](scripts/release) |
+| Release scripts | Assemble, bind to Stado receipts, install, activate, inspect and roll back one manifest | [`scripts/release/`](scripts/release) |
 
 The CLI and MCP commands are source surfaces, not a public entitlement to the operated executor. Production callers use the client contract; production workers use deployment-owned configuration.
 
 ## Release and compatibility
 
-Worker releases are immutable `worker-v*` GitHub Releases with archives, SHA-256 sidecars and Sigstore bundles for `linux-x64`, `darwin-x64` and `darwin-arm64`. A release does not change a running worker by itself: one deployment manifest must advance through `candidate`, `development`, `canary` and `production`, with the same manifest digest at every ring.
+Worker releases are immutable Stado objects addressed by exact `stado://releases/weles-worker/<version>/<platform>/weles-worker.tar.gz` URI and SHA-256 digest. `.wisent-release.json` builds and promotes `darwin-arm64` and `linux-amd64`; the checked-in refusal records that native dependencies still require a real Darwin AMD64 fleet runner for that existing output. A release does not change a running worker by itself: one deployment manifest must advance through `candidate`, `development`, `canary` and `production`, with the same manifest digest at every ring.
 
 | Concern | Current repository contract |
 | --- | --- |

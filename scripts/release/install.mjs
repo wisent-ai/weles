@@ -14,12 +14,12 @@ import {
 } from './lib.mjs';
 
 const args = parseArgs();
-const manifestUrl = requiredArg(args, 'manifest-url');
+const manifestUri = requiredArg(args, 'manifest-uri');
 const expectedManifestSha256 = requiredArg(args, 'manifest-sha256');
 const platform = args.get('platform') ?? hostPlatform();
 const releases = releaseRoot(args);
 const state = stateRoot(args);
-const loaded = await fetchManifest(manifestUrl, expectedManifestSha256, releases);
+const loaded = await fetchManifest(manifestUri, expectedManifestSha256, releases);
 const { manifest } = loaded;
 
 const worker = await installArtifact({
@@ -45,7 +45,7 @@ const firefox = await installArtifact({
 });
 
 const installation = {
-  schema: 'weles.installation.v1',
+  schema: 'weles.installation.v2',
   manifestSha256: loaded.sha256,
   manifestPath: loaded.path,
   deploymentId: manifest.deploymentId,

@@ -45,6 +45,8 @@ channels; none of those releases independently changes the running worker.
 
 2. Normalize each approved component release into the fragment shape required by
    `release/deployment-manifest.schema.json`. Assemble one manifest:
+   Every worker and browser artifact is `{platform,uri,sha256,entrypoint}`; `uri`
+   must be an exact immutable `stado://releases/...` coordinate.
 
    ```bash
    node scripts/release/assemble-manifest.mjs \
@@ -71,20 +73,21 @@ channels; none of those releases independently changes the running worker.
    unmerged branch: a manifest that claims a schema version the deployed
    database does not have will fail every worker's startup compatibility check.
 
-3. Publish the exact manifest as a prerelease candidate:
+3. Publish the exact manifest and its source-bound Stado/Skarbiec receipt:
 
    ```bash
-   node scripts/release/publish-manifest.mjs --manifest deployment.json
+   node scripts/release/publish-manifest.mjs \
+     --manifest deployment.json \
+     --stado-receipt deployment.receipt.json \
+     --source-revision <exact-40-hex-source-revision>
    ```
 
-   Publication fails before creating a GitHub Release unless tracked release
-   inputs match `HEAD` and the authenticated `gh` actor appears in the
-   repository's `WELES_RELEASE_APPROVERS` variable.
-
-   The release workflow validates its source-bound identity and uploads a portable
-   Sigstore bundle beside the manifest. After that attestation succeeds, install
-   the asset by exact URL and SHA-256 with `scripts/release/install.mjs`; installation
-   verifies the downloaded bundle even though the repositories remain private.
+   Publication is create-only at the derived
+   `stado://releases/weles-deployment/<deployment-id>/composite/` coordinate.
+   The receipt must bind that URI, the exact manifest SHA-256, and the source
+   revision. Remote publication accepts only a product-scoped Stado token
+   acquired from Skarbiec. Install by exact Stado URI and SHA-256 with
+   `scripts/release/install.mjs --manifest-uri ... --manifest-sha256 ...`.
 4. Stage the Weles product manifest and release journeys in Probierz, then run
    the exact candidate bytes and endpoints:
 
@@ -174,22 +177,23 @@ legacy baseline.
 
 ## Immutable worker component release
 
-Production worker bytes are published only by this repository under
-`worker-vX.Y.Z` GitHub Releases. The tag carries the independently versioned
-worker component release; `package.json` continues to version the broader Weles
-API surface. Each release contains `weles-worker-X.Y.Z.tar.gz`, its SHA-256
-sidecar, and embedded provenance.
-The release workflow accepts the tag only when its pushing actor appears in the
-comma-separated `WELES_RELEASE_APPROVERS` repository variable. A missing or
-empty allowlist fails before dependency installation and artifact construction.
+Production worker bytes are built from `.wisent-release.json` and published
+create-only beneath
+`stado://releases/weles-worker/<version>/<platform>/weles-worker.tar.gz`.
+`package.json` is the exact version source. The staged payload retains the
+compiled worker, production dependencies, component manifest, CycloneDX SBOM,
+in-toto/SLSA provenance, and DSSE evidence request; Stado records the immutable
+archive digest and Skarbiec-backed release receipt.
 
 Do not unpack this component into a live path or run a package manager after
-release. Record the release URL, archive SHA-256, entrypoint, provenance URL,
-and source repository in the worker fragment; the manifest install agent
-downloads and verifies the exact archive.
+release. Record the release URI, archive SHA-256, and entrypoint in the worker
+fragment. The manifest install agent downloads only through the Stado release
+API and rejects any digest mismatch.
 
-No worker release is delegated to Stado, a browser repository, Skarbiec, or
-another product channel. Browser and secret integrations retain their own
+The Darwin ARM64 and Linux AMD64 outputs have matching fleet runners. The
+existing Darwin AMD64 output contains native Node dependencies; until Stado has
+a Darwin AMD64 runner, `scripts/release/package-darwin-amd64.sh` refuses rather
+than cross-labeling ARM bytes. Browser and secret integrations retain their own
 release and provisioning paths.
 
 ## Development checkout

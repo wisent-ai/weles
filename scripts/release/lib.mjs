@@ -15,7 +15,7 @@ import {
   writeFile,
 } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { basename, dirname, join, resolve, sep } from 'node:path';
+import { basename, dirname, isAbsolute, join, resolve, sep } from 'node:path';
 import { pipeline } from 'node:stream/promises';
 import { Readable } from 'node:stream';
 
@@ -23,10 +23,7 @@ const SHA256 = /^[0-9a-f]{64}$/;
 const REVISION = /^[0-9a-f]{40}$/;
 const SEMVER = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z.-]+)?$/;
 const API_SCHEMA = /^weles\.[a-z0-9-]+\.v[1-9][0-9]*$/;
-const PLATFORMS = { 'darwin-arm64': true, 'darwin-x64': true, 'linux-x64': true };
-const SLSA_PROVENANCE_V1 = 'https://slsa.dev/provenance/v1';
-const BROWSER_CANDIDATE_ATTESTATION_V1 = 'https://weles.wisent.com/attestations/browser-candidate/v1';
-const DEPLOYMENT_MANIFEST_ATTESTATION_V1 = 'https://weles.wisent.com/attestations/deployment-manifest/v1';
+const PLATFORMS = { 'darwin-arm64': true, 'darwin-amd64': true, 'linux-amd64': true };
 export const RELEASE_RINGS = Object.freeze(['candidate', 'development', 'canary', 'production']);
 
 export function parseArgs(argv = process.argv.slice(2)) {
@@ -77,7 +74,7 @@ export function assertPromotionTransition(promotion, ring, receiptStatus = 'acti
 }
 
 export function hostPlatform() {
-  const arch = process.arch === 'arm64' ? 'arm64' : process.arch === 'x64' ? 'x64' : process.arch;
+  const arch = process.arch === 'arm64' ? 'arm64' : process.arch === 'x64' ? 'amd64' : process.arch;
   const platform = process.platform === 'darwin' ? 'darwin' : process.platform === 'linux' ? 'linux' : process.platform;
   return `${platform}-${arch}`;
 }
@@ -159,24 +156,26 @@ function exactSha(value, name) {
   return candidate;
 }
 
+function stadoReleaseUri(value, name) {
+  const parsed = new URL(text(value, name));
+  const parts = parsed.pathname.split('/').filter(Boolean);
+  if (parsed.protocol !== 'stado:' || parsed.hostname !== 'releases'
+      || parsed.username || parsed.password || parsed.search || parsed.hash
+      || parts.length !== 4 || parts.some((part) => !/^[A-Za-z0-9._-]+$/.test(part))) {
+    throw new Error(`${name} must be an exact stado://releases/<product>/<version>/<platform>/<object> URI`);
+  }
+  return { parsed, parts };
+}
+
 function artifact(value, name) {
-  const item = exactProperties(value, ['platform', 'url', 'sha256', 'entrypoint', 'provenanceUrl', 'provenanceRepository'], name);
+  const item = exactProperties(value, ['platform', 'uri', 'sha256', 'entrypoint'], name);
   const platform = text(item.platform, `${name}.platform`);
   if (!PLATFORMS[platform]) throw new Error(`${name}.platform is unsupported`);
-  const url = new URL(text(item.url, `${name}.url`));
-  if (url.protocol !== 'https:' || url.username || url.password || url.hash) {
-    throw new Error(`${name}.url must be credential-free HTTPS without a fragment`);
-  }
+  const identity = stadoReleaseUri(item.uri, `${name}.uri`);
+  if (identity.parts[2] !== platform) throw new Error(`${name}.uri platform does not match ${name}.platform`);
   exactSha(item.sha256, `${name}.sha256`);
   const entrypoint = text(item.entrypoint, `${name}.entrypoint`);
   if (entrypoint.startsWith('/') || entrypoint.split('/').includes('..')) throw new Error(`${name}.entrypoint must stay inside the artifact`);
-  const provenance = new URL(text(item.provenanceUrl, `${name}.provenanceUrl`));
-  if (provenance.protocol !== 'https:' || provenance.username || provenance.password || provenance.hash) {
-    throw new Error(`${name}.provenanceUrl must be credential-free HTTPS without a fragment`);
-  }
-  if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(text(item.provenanceRepository, `${name}.provenanceRepository`))) {
-    throw new Error(`${name}.provenanceRepository is invalid`);
-  }
   return item;
 }
 function revision(value, name) {
@@ -211,7 +210,7 @@ export function validateManifest(value) {
     'schema', 'deploymentId', 'createdAt', 'sourceRevision', 'worker', 'web',
     'database', 'client', 'browsers', 'compatibility',
   ], 'manifest');
-  if (manifest.schema !== 'weles.deployment.v1') throw new Error('unsupported deployment manifest schema');
+  if (manifest.schema !== 'weles.deployment.v2') throw new Error('unsupported deployment manifest schema');
   if (!/^\d{4}-\d{2}-\d{2}\.[1-9]\d*$/.test(text(manifest.deploymentId, 'deploymentId'))) throw new Error('deploymentId is invalid');
   const createdAt = text(manifest.createdAt, 'createdAt');
   if (!Number.isFinite(Date.parse(createdAt))) throw new Error('createdAt must be an ISO date-time');
@@ -297,53 +296,28 @@ export async function writeAtomic(path, content, mode = 0o600) {
   await rename(temporary, path);
 }
 
-export async function download(url, destination) {
-  const parsed = new URL(url);
-  const token = process.env.WELES_RELEASE_TOKEN?.trim() || process.env.GH_TOKEN?.trim();
+export async function download(uri, destination) {
+  const identity = stadoReleaseUri(uri, 'release URI');
   await mkdir(dirname(destination), { recursive: true });
-  const releaseAsset = parsed.hostname === 'github.com'
-    ? parsed.pathname.match(/^\/([^/]+)\/([^/]+)\/releases\/download\/([^/]+)\/([^/]+)$/)
-    : null;
-  if (releaseAsset) {
-    const [, owner, repository, encodedTag, encodedAsset] = releaseAsset;
-    const tag = decodeURIComponent(encodedTag);
-    const asset = decodeURIComponent(encodedAsset);
-    if (![owner, repository, tag, asset].every((part) => /^[A-Za-z0-9._-]+$/.test(part))) {
-      throw new Error(`invalid GitHub release asset URL: ${url}`);
-    }
-    execFileSync('gh', [
-      'release', 'download', tag,
-      '--repo', `${owner}/${repository}`,
-      '--pattern', asset,
-      '--output', destination,
-    ], {
-      stdio: ['ignore', 'pipe', 'pipe'],
-      env: { ...process.env, ...(token ? { GH_TOKEN: token } : {}) },
-    });
+  const localRoot = process.env.STADO_RELEASE_LOCAL_ROOT?.trim();
+  if (localRoot) {
+    if (!isAbsolute(localRoot)) throw new Error('STADO_RELEASE_LOCAL_ROOT must be absolute');
+    await copyFile(join(resolve(localRoot), ...identity.parts), destination);
     await chmod(destination, 0o600);
     return;
   }
-  const headers = { Accept: 'application/octet-stream' };
-  if (token) headers.Authorization = `Bearer ${token}`;
-  const response = await fetch(parsed, { headers, redirect: 'follow' });
-  if (!response.ok || !response.body) throw new Error(`download failed ${response.status} ${url}`);
-  if (new URL(response.url).protocol !== 'https:') throw new Error(`download redirected outside HTTPS: ${response.url}`);
-  await pipeline(Readable.fromWeb(response.body), createWriteStream(destination, { mode: 0o600 }));
-}
-
-export function verifyAttestation(path, repository, bundlePath, predicateType = SLSA_PROVENANCE_V1) {
-  if ((process.env.WELES_VERIFY_ATTESTATIONS ?? '1') !== '1') {
-    throw new Error('artifact attestation verification cannot be disabled for immutable releases');
+  const endpoint = process.env.STADO_RELEASE_API_URL?.trim() || process.env.STADO_API_URL?.trim();
+  if (!endpoint) throw new Error('STADO_RELEASE_API_URL or STADO_API_URL is required');
+  const base = new URL(endpoint);
+  if (base.protocol !== 'https:' || base.username || base.password || base.search || base.hash) {
+    throw new Error('the Stado release API must use credential-free HTTPS');
   }
-  execFileSync('gh', [
-    'attestation', 'verify', path,
-    '--bundle', bundlePath,
-    '--repo', repository,
-    '--predicate-type', predicateType,
-  ], {
-    stdio: ['ignore', 'pipe', 'pipe'],
-    env: { ...process.env, GH_TOKEN: process.env.WELES_RELEASE_TOKEN ?? process.env.GH_TOKEN ?? '' },
-  });
+  const objectUrl = new URL('/api/release/object', base);
+  objectUrl.searchParams.set('uri', uri);
+  const response = await fetch(objectUrl, { headers: { Accept: 'application/octet-stream' }, redirect: 'error' });
+  if (!response.ok || !response.body) throw new Error(`Stado release download failed ${response.status}`);
+  await pipeline(Readable.fromWeb(response.body), createWriteStream(destination, { mode: 0o600 }));
+  await chmod(destination, 0o600);
 }
 
 export function selectArtifact(component, platform = hostPlatform()) {
@@ -357,22 +331,14 @@ export async function loadManifest(path) {
   return { raw, manifest: validateManifest(JSON.parse(raw.toString('utf8'))), sha256: createHash('sha256').update(raw).digest('hex') };
 }
 
-export async function fetchManifest(url, expectedSha256, root) {
+export async function fetchManifest(uri, expectedSha256, root) {
   if (expectedSha256 && !SHA256.test(expectedSha256)) throw new Error('--manifest-sha256 must be lowercase SHA-256');
+  stadoReleaseUri(uri, 'manifest URI');
   await mkdir(root, { recursive: true, mode: 0o700 });
   const temporary = join(root, `.manifest-${process.pid}.json`);
-  const provenanceTemporary = join(root, `.manifest-${process.pid}.sigstore.json`);
-  await download(url, temporary);
+  await download(uri, temporary);
   const loaded = await loadManifest(temporary);
   if (expectedSha256 && loaded.sha256 !== expectedSha256) throw new Error(`manifest digest mismatch: expected ${expectedSha256}, received ${loaded.sha256}`);
-  const provenanceUrl = new URL(url);
-  provenanceUrl.pathname = `${provenanceUrl.pathname}.sigstore.json`;
-  await download(provenanceUrl, provenanceTemporary);
-  try {
-    verifyAttestation(temporary, 'wisent-ai/weles', provenanceTemporary, DEPLOYMENT_MANIFEST_ATTESTATION_V1);
-  } finally {
-    await rm(provenanceTemporary, { force: true });
-  }
   const destination = join(root, 'manifests', `${loaded.sha256}.json`);
   await mkdir(dirname(destination), { recursive: true, mode: 0o700 });
   try {
@@ -444,12 +410,12 @@ export async function installArtifact(options) {
   try {
     const record = JSON.parse(await readFile(recordPath, 'utf8'));
     const observedTreeSha256 = await treeSha256(destination);
-    if (record.schema !== 'weles.installed-component.v1'
+    if (record.schema !== 'weles.installed-component.v2'
         || record.component !== component
         || record.releaseId !== releaseId
         || record.platform !== selected.platform
         || record.sha256 !== selected.sha256
-        || record.sourceUrl !== selected.url
+        || record.sourceUri !== selected.uri
         || record.entrypoint !== selected.entrypoint
         || !SHA256.test(record.treeSha256)
         || record.treeSha256 !== observedTreeSha256) {
@@ -464,17 +430,11 @@ export async function installArtifact(options) {
   }
 
   const stagingRoot = await mkdtemp(join(root, `.install-${component}-`));
-  const archivePath = join(stagingRoot, basename(new URL(selected.url).pathname) || `${component}.tar.gz`);
+  const archivePath = join(stagingRoot, basename(stadoReleaseUri(selected.uri, `${component}.uri`).parsed.pathname) || `${component}.tar.gz`);
   try {
-    await download(selected.url, archivePath);
+    await download(selected.uri, archivePath);
     const digest = await sha256(archivePath);
     if (digest !== selected.sha256) throw new Error(`${component} digest mismatch: expected ${selected.sha256}, received ${digest}`);
-    const provenancePath = join(stagingRoot, 'provenance.sigstore.json');
-    await download(selected.provenanceUrl, provenancePath);
-    const predicateType = component === 'chromium' || component === 'firefox'
-      ? BROWSER_CANDIDATE_ATTESTATION_V1
-      : SLSA_PROVENANCE_V1;
-    verifyAttestation(archivePath, selected.provenanceRepository, provenancePath, predicateType);
     safeArchiveEntries(archivePath);
     const extracted = join(stagingRoot, 'extracted');
     await mkdir(extracted);
@@ -485,14 +445,14 @@ export async function installArtifact(options) {
     if (!(await lstat(entrypoint)).isFile()) throw new Error(`${component} entrypoint is not a regular file`);
     const installedTreeSha256 = await treeSha256(extracted);
     const record = {
-      schema: 'weles.installed-component.v1',
+      schema: 'weles.installed-component.v2',
       component,
       releaseId,
       platform: selected.platform,
       sha256: selected.sha256,
       manifestSha256,
       treeSha256: installedTreeSha256,
-      sourceUrl: selected.url,
+      sourceUri: selected.uri,
       entrypoint: selected.entrypoint,
       installedAt: new Date().toISOString(),
     };

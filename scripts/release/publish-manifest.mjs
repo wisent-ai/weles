@@ -1,65 +1,62 @@
 #!/usr/bin/env node
-
+import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
-import { copyFile, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { readFileSync, rmSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { loadManifest, parseArgs, requiredArg } from './lib.mjs';
 
 const args = parseArgs();
 const sourcePath = resolve(requiredArg(args, 'manifest'));
-const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
+const receiptPath = resolve(requiredArg(args, 'stado-receipt'));
+const sourceRevision = requiredArg(args, 'source-revision');
 const loaded = await loadManifest(sourcePath);
-const sourceRevision = execFileSync('git', ['rev-parse', 'HEAD'], {
-  cwd: repositoryRoot,
-  encoding: 'utf8',
-  stdio: ['ignore', 'pipe', 'pipe'],
-}).trim();
 if (loaded.manifest.sourceRevision !== sourceRevision) {
-  throw new Error(`manifest sourceRevision ${loaded.manifest.sourceRevision} does not match checkout ${sourceRevision}`);
+  throw new Error(`manifest sourceRevision ${loaded.manifest.sourceRevision} does not match ${sourceRevision}`);
 }
-const trackedChanges = execFileSync('git', ['status', '--porcelain', '--untracked-files=no'], {
-  cwd: repositoryRoot,
-  encoding: 'utf8',
-  stdio: ['ignore', 'pipe', 'pipe'],
-}).trim();
-if (trackedChanges) throw new Error('commit tracked Weles release inputs before publishing a manifest');
-const actor = execFileSync('gh', ['api', 'user', '--jq', '.login'], {
-  encoding: 'utf8',
-  stdio: ['ignore', 'pipe', 'pipe'],
-}).trim();
-const approvers = execFileSync('gh', [
-  'variable', 'get', 'WELES_RELEASE_APPROVERS', '--repo', 'wisent-ai/weles',
-], {
-  encoding: 'utf8',
-  stdio: ['ignore', 'pipe', 'pipe'],
-}).split(',').map((value) => value.trim()).filter(Boolean);
-if (!approvers.includes(actor)) {
-  throw new Error(`${actor || 'current GitHub actor'} is not an allowlisted Weles release operator`);
+const manifestUri = `stado://releases/weles-deployment/${loaded.manifest.deploymentId}/composite/deployment-manifest.json`;
+const expectedUri = args.get('manifest-uri');
+if (expectedUri && expectedUri !== manifestUri) {
+  throw new Error(`manifest URI must be ${manifestUri}`);
 }
-const tag = `candidate-deployment-${loaded.manifest.deploymentId}-${sourceRevision.slice(0, 8)}`;
-const staging = await mkdtemp(join(tmpdir(), 'weles-manifest-'));
-try {
-  const asset = join(staging, 'deployment-manifest.json');
-  const sidecar = `${asset}.sha256`;
-  await copyFile(sourcePath, asset);
-  await writeFile(sidecar, `${loaded.sha256}  deployment-manifest.json\n`, { mode: 0o600 });
-  const releaseUrl = execFileSync('gh', [
-    'release', 'create', tag,
-    asset, sidecar,
-    '--repo', 'wisent-ai/weles',
-    '--target', sourceRevision,
-    '--prerelease',
-    '--title', tag,
-    '--notes', 'Attested deployment-manifest candidate. Production activation must reuse these exact bytes after the protected evidence gate approves the manifest SHA-256.',
-  ], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
-  const manifestUrl = execFileSync('gh', [
-    'api', `repos/wisent-ai/weles/releases/tags/${tag}`,
-    '--jq', '.assets[] | select(.name == "deployment-manifest.json") | .browser_download_url',
-  ], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
-  if (!manifestUrl.startsWith('https://github.com/')) throw new Error('release manifest asset URL is missing');
-  process.stdout.write(`${JSON.stringify({ tag, releaseUrl, manifestUrl, sha256: loaded.sha256 }, null, 2)}\n`);
-} finally {
-  await rm(staging, { recursive: true, force: true });
+const receiptBytes = readFileSync(receiptPath);
+const receipt = JSON.parse(receiptBytes.toString('utf8'));
+if (receipt.schema_version !== 1
+    || receipt.manifest_uri !== manifestUri
+    || receipt.manifest_sha256 !== loaded.sha256
+    || receipt.source_revision !== sourceRevision) {
+  throw new Error('Stado receipt is not bound to the exact manifest URI, digest, and source revision');
 }
+const receiptSha256 = createHash('sha256').update(receiptBytes).digest('hex');
+const receiptUri = `stado://releases/weles-deployment/${loaded.manifest.deploymentId}/composite/deployment-manifest.receipt.json`;
+const stado = process.env.STADO_BIN?.trim() || 'stado';
+if (process.env.STADO_API_URL && !process.env.STADO_API_TOKEN) {
+  throw new Error('remote publication requires a product-scoped STADO_API_TOKEN acquired from Skarbiec');
+}
+
+function publish(uri, path) {
+  try {
+    execFileSync(stado, ['storage', 'put', uri, path, '--if-absent'], { stdio: ['ignore', 'pipe', 'pipe'] });
+    return;
+  } catch (error) {
+    const existing = join(tmpdir(), `weles-release-${process.pid}-${createHash('sha256').update(uri).digest('hex')}`);
+    try {
+      execFileSync(stado, ['storage', 'get', uri, existing], { stdio: ['ignore', 'pipe', 'pipe'] });
+      const expected = createHash('sha256').update(readFileSync(path)).digest('hex');
+      const observed = createHash('sha256').update(readFileSync(existing)).digest('hex');
+      if (expected !== observed) throw new Error(`immutable Stado collision at ${uri}`);
+    } finally {
+      rmSync(existing, { force: true });
+    }
+  }
+}
+
+publish(manifestUri, sourcePath);
+publish(receiptUri, receiptPath);
+process.stdout.write(`${JSON.stringify({
+  manifestUri,
+  manifestSha256: loaded.sha256,
+  receiptUri,
+  receiptSha256,
+  sourceRevision,
+}, null, 2)}\n`);

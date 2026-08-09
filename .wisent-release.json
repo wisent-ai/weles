@@ -1,0 +1,82 @@
+{
+  "schema_version": 1,
+  "product": "weles-worker",
+  "releases": true,
+  "version_source": {
+    "kind": "json",
+    "path": "package.json",
+    "pointer": "/version"
+  },
+  "platforms": {
+    "darwin-arm64": {
+      "runner_platform": "darwin-arm64",
+      "quality": [
+        {
+          "name": "worker-compile",
+          "argv": ["scripts/release/quality-build.sh"]
+        }
+      ],
+      "build": {
+        "argv": ["scripts/release/build-worker.sh"]
+      },
+      "stage": {
+        ".wisent-release/darwin-arm64/payload/dist": "dist",
+        ".wisent-release/darwin-arm64/payload/dist/cli.js": "dist/cli.js",
+        ".wisent-release/darwin-arm64/payload/scripts": "scripts",
+        ".wisent-release/darwin-arm64/payload/scripts/worker/deploy/launch.sh": "scripts/worker/deploy/launch.sh",
+        ".wisent-release/darwin-arm64/payload/node_modules": "node_modules",
+        ".wisent-release/darwin-arm64/payload/release": "release",
+        ".wisent-release/darwin-arm64/payload/supabase": "supabase",
+        ".wisent-release/darwin-arm64/payload/package.json": "package.json",
+        ".wisent-release/darwin-arm64/payload/package-lock.json": "package-lock.json",
+        ".wisent-release/darwin-arm64/payload/tsconfig.json": "tsconfig.json",
+        ".wisent-release/darwin-arm64/payload/LICENSE": "LICENSE",
+        ".wisent-release/darwin-arm64/payload/README.md": "README.md",
+        ".wisent-release/darwin-arm64/payload/released-surface.json": "released-surface.json",
+        ".wisent-release/darwin-arm64/payload/component-manifest.json": "component-manifest.json",
+        ".wisent-release/darwin-arm64/payload/receipts": "receipts"
+      }
+    },
+    "linux-amd64": {
+      "runner_platform": "linux-amd64",
+      "quality": [
+        {
+          "name": "worker-compile",
+          "argv": ["scripts/release/quality-build.sh"]
+        }
+      ],
+      "build": {
+        "argv": ["scripts/release/build-worker.sh"]
+      },
+      "stage": {
+        ".wisent-release/linux-amd64/payload/dist": "dist",
+        ".wisent-release/linux-amd64/payload/dist/cli.js": "dist/cli.js",
+        ".wisent-release/linux-amd64/payload/scripts": "scripts",
+        ".wisent-release/linux-amd64/payload/scripts/worker/deploy/launch.sh": "scripts/worker/deploy/launch.sh",
+        ".wisent-release/linux-amd64/payload/node_modules": "node_modules",
+        ".wisent-release/linux-amd64/payload/release": "release",
+        ".wisent-release/linux-amd64/payload/supabase": "supabase",
+        ".wisent-release/linux-amd64/payload/package.json": "package.json",
+        ".wisent-release/linux-amd64/payload/package-lock.json": "package-lock.json",
+        ".wisent-release/linux-amd64/payload/tsconfig.json": "tsconfig.json",
+        ".wisent-release/linux-amd64/payload/LICENSE": "LICENSE",
+        ".wisent-release/linux-amd64/payload/README.md": "README.md",
+        ".wisent-release/linux-amd64/payload/released-surface.json": "released-surface.json",
+        ".wisent-release/linux-amd64/payload/component-manifest.json": "component-manifest.json",
+        ".wisent-release/linux-amd64/payload/receipts": "receipts"
+      }
+    }
+  },
+  "runtime": {
+    "binary": "dist/cli.js",
+    "launcher": "scripts/worker/deploy/launch.sh",
+    "config_schema": 1,
+    "state_schema": 1,
+    "minimum_stado_version": "0.6.1",
+    "rollback_compatible_with": []
+  },
+  "promotion": {
+    "channels": ["candidate", "stable"],
+    "reconcile": true
+  }
+}
