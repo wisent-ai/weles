@@ -3,6 +3,7 @@
   <img src="assets/readme-banner.webp" alt="Weles — Browser Use Harness for AI agents with cached trajectories" width="100%">
 </p>
 <!-- wisent-banner:end -->
+
 [![Weles website](https://img.shields.io/badge/Website-weles.wisent.com-0B0B0B?style=for-the-badge)](https://weles.wisent.com)
 [![Latest Weles worker release](https://img.shields.io/badge/Release-worker--v0.5.6-2E7D32?style=for-the-badge)](https://github.com/wisent-ai/weles/releases/latest)
 [![Weles release downloads](https://img.shields.io/badge/Downloads-69-1F6FEB?style=for-the-badge)](https://github.com/wisent-ai/weles/releases)
