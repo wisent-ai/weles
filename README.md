@@ -29,127 +29,156 @@ and how it can be fixed.
 Give your AI the keys to the internet. The browser-use experience your AI
 deserves.
 
-[Public client](https://github.com/wisent-ai/weles-client) · [Operator runbook](scripts/worker/deploy/README.md) · [Capture inventory](scripts/worker/deploy/FINGERPRINT_CAPTURE.md) · [Worker releases](https://github.com/wisent-ai/weles/releases)
+## Evidence from every run
 
-> **Why this boundary is enforced, not promised:** before claiming work, the worker requires a valid placement policy, queue access, worker enablement and writable diagnostic sinks ([`src/worker/poll.ts`](src/worker/poll.ts)). Browser launch accepts only an executable whose local receipt matches the exact Stado release coordinate and checksum ([`src/session/find_browser.ts`](src/session/find_browser.ts)).
+Weles keeps the execution evidence beside the action that produced it instead
+of turning private account state into a public demo. A run can retain:
 
-## Why Weles exists
+| Evidence | What it answers |
+| --- | --- |
+| Video | What the browser displayed and when the state changed |
+| Final instrumented DOM dump | Which page state the trajectory actually reached |
+| HAR and safe Chromium netlog | Which network requests succeeded or failed |
+| Fingerprint manifest and browser receipt | Which browser identity and verified build ran |
+| Action-log terminal state and signed receipt | Which request ran, its outcome, and the evidence digest |
 
-Some approved operations still require a real browser session: an authenticated administrative surface has no suitable API, the target binds state to a browser identity, or the result needs visual and network evidence. A one-off browser script can perform the click sequence, but it usually combines authorization, credentials, host choice, browser provenance, retries and evidence in one unreviewed process.
+For example, recorded action `3ed81927` on 2026-08-10 reached its terminal state
+in 30.0 seconds and retained video, a safe network log, a final instrumented DOM
+dump, and a fingerprint manifest. The artifacts stay private because they can
+contain authenticated target state; the caller verifies the signed result
+through `weles-client`.
 
-Weles separates those concerns. The caller submits an exact origin and action through the public client; a Stado-placed worker leases the task; a checked-in trajectory runs with a verified browser release; and the result closes with evidence that can be tied back to the request.
+## Request access
 
-Weles is for:
+Weles is an operated service. Access starts with a conversation through
+[weles.wisent.com](https://weles.wisent.com) or by
+[booking a call](https://calendly.com/lbartoszcze). An approved deployment
+provides its endpoint, organization identifier, and organization-scoped token:
 
-- **Wisent service owners** submitting a separately authorized browser-only operation;
-- **trajectory authors and reviewers** maintaining the finite action catalog;
-- **runtime operators** promoting exact worker and browser artifacts through controlled rings.
+```sh
+export WELES_API_BASE=<deployment-endpoint>
+export WISENT_ORGANIZATION_ID=<organization-uuid>
+export WELES_TOKEN=<organization-scoped-token>
+```
 
-It is not a public browser-automation service, an authorization oracle, or a way to run arbitrary Playwright code on demand.
+From there your agents submit authorized workflows through the public
+[`@wisent-ai/weles-client`](https://github.com/wisent-ai/weles-client):
 
-## How one workflow runs
+```js
+import { WelesClient } from '@wisent-ai/weles-client';
+
+const client = new WelesClient({
+  endpoint: process.env.WELES_API_BASE,
+  bearer: process.env.WELES_TOKEN,
+  organizationId: process.env.WISENT_ORGANIZATION_ID,
+  allowedOrigins: ['https://console.example.com'],
+  allowedActions: ['export-approved-report'],
+});
+
+const accepted = await client.submit({
+  origin: 'https://console.example.com',
+  action: 'export-approved-report',
+  input: { report: 'monthly' },
+  credentialRefs: ['customer-console-account'],
+  evidencePolicy: 'receipt',
+  justification: 'Export authorized by the account owner.',
+}, { idempotencyKey: 'caller-retained-operation-id' });
+```
+
+An accepted production action resolves to its reviewed trajectory and closes
+with an explicit terminal state. When receipt issuance is configured, the
+client verifies the signed outcome and evidence digest offline without reading
+worker logs.
+
+The client repository is public development source. A source checkout does not
+promise a hosted endpoint, an approved trajectory, evidence retention, or an
+SLA; those exist only when they are provisioned for an organization.
+
+## Enterprise
+
+Weles Enterprise is the operated path for teams that need browser work to be a
+reviewed production capability rather than an unowned automation script. An
+engagement defines the exact origins and actions, turns approved journeys into
+versioned trajectories, provisions the client and worker boundary, and binds
+credentials and retained evidence to the organization.
+
+The scope can include trajectory design and review, deployment-ring policy,
+credential lifecycle integration, evidence-retention policy, and operational
+support for the agreed workflows. It does not grant blanket authorization to
+automate a website, and it does not turn the private executor into a
+self-hostable community edition.
+
+[Book an enterprise implementation call](https://calendly.com/lbartoszcze).
+
+## What your agents can do
+
+- **Browse like a human.** Custom C++-patched Chromium and Firefox forks with
+  rotating fingerprints keep your agents out of CAPTCHA loops and away from
+  bans.
+- **Cache every website as a trajectory.** The first run maps the journey;
+  later approved runs replay the cached route instead of paying the discovery
+  cost again.
+- **Recover from failure fast.** Every failed run is recorded with the exact
+  point of failure marked, so you see what happened and how to fix it.
+- **Prove what happened.** Every run closes with a terminal action-log state;
+  deployments with receipt issuance add a signed outcome and evidence digest
+  that `weles-client` verifies offline.
+- **Operate credentials safely.** API keys and passwords move through the
+  Skarbiec lifecycle — acquire, adopt, rotate, reset, verify — without
+  plaintext ever touching a prompt or a log.
+- **Stay in bounds.** Exact origin and action allowlists, idempotency keys,
+  and a required human-readable justification on every submission.
+
+## How it works
 
 ```mermaid
 flowchart LR
-    caller["Authorized Wisent service"] -->|"origin · action · justification · idempotency"| admission["Weles admission"]
-    admission --> queue[("Echo action log")]
-    queue -->|"lease and claim"| worker["Weles worker<br/>Stado-selected host"]
+    caller["Your service"] -->|"origin · action · justification · idempotency"| admission["Weles admission"]
+    admission --> queue[("Action log")]
+    queue -->|"lease and claim"| worker["Weles worker<br/>approved host"]
     worker --> trajectory["Reviewed trajectory<br/>verified browser release"]
     skarbiec["Skarbiec"] -. "scoped credential references" .-> trajectory
-    trajectory --> evidence["Terminal state<br/>retained evidence"]
-    evidence -->|"status and signed receipt"| caller
+    trajectory --> evidence["Terminal state<br/>recorded evidence"]
+    evidence -->|"status · optional signed receipt"| caller
 ```
 
-1. The public [`@wisent-ai/weles-client`](https://github.com/wisent-ai/weles-client) binds the organization, origin, allowlisted action, credential references, evidence policy, justification and idempotency key.
-2. Admission records the request in the Echo-owned action log. The database lease permits claims only from the active production generation.
-3. The worker refuses to claim when placement policy, schema compatibility, queue access or evidence persistence is unavailable.
-4. The action name resolves to one checked-in trajectory. Login material is resolved through exact Skarbiec item, consumer and field grants rather than plaintext service-login columns.
-5. The worker records a terminal status, imports trajectory evidence and costs when present, and exposes the result through the client contract. Onboarding completes only after the client verifies a signed receipt and its bound evidence digest.
+Your service submits an exact origin and action; a worker on an approved host
+claims the task; and the production action resolves to a checked-in trajectory
+executed in a verified browser build. Credentials resolve through scoped
+Skarbiec grants — never through plaintext in the request. Draft discovery can
+map a new journey, but it does not authorize that journey as a production
+action. Authorization for the target remains with you: a technically successful
+run does not establish that the target permits automation.
 
-## Enforced boundaries
+## Compatibility and status
 
-| Boundary | What Weles enforces | Failure behavior |
-| --- | --- | --- |
-| Admission | Exact organization, origin, action, credential references, justification and idempotency | Reject before queueing |
-| Placement | Stado policy selects whether this worker may claim and where it may run | Stay idle or return an infrastructure error |
-| Action catalog | An action must resolve to a checked-in trajectory | Close the task as failed; never improvise a workflow |
-| Credentials | Service secrets resolve through scoped Skarbiec contracts | Refuse before opening the protected surface |
-| Browser provenance | Chromium or Firefox must match the configured immutable release receipt | Refuse browser launch |
-| Evidence | Forensic object storage and direct capture persistence must both be writable | Leave the queued task for a healthy worker |
-| Terminal state | Completion, failure, cancellation and pending review are explicit action-log states | Preserve the original failure even when diagnostic instrumentation is retried |
+- **Client contract:** the public
+  [`weles-client`](https://github.com/wisent-ai/weles-client) source currently
+  defines the `0.1.0` minimum contract. It has no immutable package release or
+  hosted-endpoint promise until an operator provisions them.
+- **API:** versioned task, cancellation, status, and receipt schemas expose
+  stable `current` aliases.
+- **Executor:** the private operated worker ships as immutable `worker-v*`
+  artifacts promoted through candidate, development, canary, and production
+  rings.
+- **Browsers:** Chromium and Firefox launch only when the local receipt matches
+  the exact Stado release coordinate and checksum selected for the worker.
 
-Authorization remains outside Weles. A target-specific trajectory and a technically successful run do not establish that a target permits automation.
+## Community and support
 
-## Start at the right interface
+- **Discussion and integration help:** the [Wisent Discord](https://discord.gg/qRjpkthq54).
+- **Operational defects:** this repository's issue tracker with the action-log
+  row ID, worker instance ID, and release coordinate. Never attach recordings
+  or credentials.
 
-| Reader | Start here | Successful result |
-| --- | --- | --- |
-| Service integrator | [`weles-client`](https://github.com/wisent-ai/weles-client) | Submit, cancel and inspect an authorized task; verify its signed receipt |
-| Runtime operator | [Worker deployment runbook](scripts/worker/deploy/README.md) | Install immutable artifacts, promote one manifest and observe its ring/host state |
-| Trajectory reviewer | [`src/platforms/`](src/platforms) and [`scripts/trajectories/`](scripts/trajectories) | Trace an action name to the reviewed browser workflow it executes |
-| Incident investigator | [Capture inventory](scripts/worker/deploy/FINGERPRINT_CAPTURE.md) | Identify which run artifact answers a browser, network or host question |
-| Contributor | Local package inspection below | Build the package and confirm the CLI surface without starting a worker |
+## Security
 
-### Inspect a source checkout
+Report vulnerabilities through a
+[private GitHub Security Advisory](https://github.com/wisent-ai/weles/security/advisories/new).
+Never place credentials, trajectories, recordings, or target details in a
+public issue.
 
-Prerequisites: Node.js 22, npm and a checkout of this private repository.
+## License
 
-```bash
-npm ci
-npm run build
-node dist/cli.js doctor
-```
-
-The final command prints JSON containing `"ok": true`, the source package version, the Node runtime and the installed `weles` / `weles-mcp` binary paths. It does not launch a browser, claim a task or authorize a target.
-
-There is intentionally no production `npm start` shortcut. Operators install immutable release artifacts and start the deployment-managed worker described in the [runbook](scripts/worker/deploy/README.md); launching `scripts/worker/run.mjs` from a mutable checkout is not the production path.
-
-## Primary interfaces
-
-| Interface | Purpose | Contract source |
-| --- | --- | --- |
-| `@wisent-ai/weles-client` | Task submission, cancellation, status and signed-receipt verification | [Public client repository](https://github.com/wisent-ai/weles-client) |
-| `weles` | Local inspection, first-use receipt verification and contributor browser tooling | [`src/cli.ts`](src/cli.ts) |
-| `weles-mcp` | MCP adapter for the local browser surface | [`src/mcp.ts`](src/mcp.ts) |
-| Worker process | Lease, authorize, execute and close action-log rows | [`src/worker/poll.ts`](src/worker/poll.ts) |
-| Release scripts | Assemble, attest, install, activate, inspect and roll back one manifest | [`scripts/release/`](scripts/release) |
-
-The CLI and MCP commands are source surfaces, not a public entitlement to the operated executor. Production callers use the client contract; production workers use deployment-owned configuration.
-
-## Release and compatibility
-
-Worker releases are immutable `worker-v*` GitHub Releases with archives, SHA-256 sidecars and Sigstore bundles for `linux-x64`, `darwin-x64` and `darwin-arm64`. A release does not change a running worker by itself: one deployment manifest must advance through `candidate`, `development`, `canary` and `production`, with the same manifest digest at every ring.
-
-| Concern | Current repository contract |
-| --- | --- |
-| API schemas | Versioned: `weles.task.v1`, `weles.cancellation.v1`, `weles.task-status.v1`, `weles.receipt.v1`, `weles.version.v1`; aliases: `weles.task.current`, `weles.cancellation.current`, `weles.receipt.current` |
-| Minimum client | `0.1.0` |
-| Database | Target schema `5`; worker compatibility range `4..5`; expand-contract migrations; no automatic down-migrations |
-| Rollout | Ordered four-ring promotion; candidate bytes must equal promoted bytes; no partial component activation |
-| Production pointer | The manifest-based pointer in [`release/current-production.json`](release/current-production.json) is currently `uninitialized` |
-| Distribution | Private operated executor; public integration code lives in `weles-client` |
-
-The compatibility source of truth is [`release/compatibility-policy.json`](release/compatibility-policy.json). Runtime state comes from `node scripts/release/status.mjs --ring <ring> --host <stado-host>`, not from the branch tip or package version.
-
-## Repository map
-
-| Path | Owns |
-| --- | --- |
-| [`src/api/`](src/api) | Admission and worker HTTP surfaces |
-| [`src/worker/`](src/worker) | Queue claims, placement, execution and terminal-state writes |
-| [`src/session/`](src/session) | Browser selection, lifecycle, capture and replay |
-| [`src/platforms/`](src/platforms) | Platform-specific runtime modules |
-| [`src/secrets/`](src/secrets) | Scoped secret acquisition and service contracts |
-| [`scripts/trajectories/`](scripts/trajectories) | Reviewed executable workflows |
-| [`scripts/worker/deploy/`](scripts/worker/deploy) | Host prerequisites, service launch and operational recovery |
-| [`scripts/release/`](scripts/release) | Immutable manifest publication, promotion and rollback |
-| [`release/`](release) | Machine-readable API, database and rollout compatibility |
-
-Detailed operational procedures belong in the runbook; capture field definitions belong in the capture inventory. The root README stays focused on the product boundary and the shortest safe route for each reader.
-
-## Support, security and license
-
-- **Operational defects:** use this repository's issue tracker with the action-log row ID, worker instance ID and release coordinate. Do not attach recordings or credentials.
-- **Sensitive reports:** use a [private GitHub Security Advisory](https://github.com/wisent-ai/weles/security/advisories/new). Never place credentials, trajectories, recordings or target details in a public issue.
-- **Releases:** use the immutable [`worker-v*` channel](https://github.com/wisent-ai/weles/releases); do not deploy a branch tip.
-- **License:** [MIT](LICENSE). Source availability does not grant access to the private operated service or authorize automation of any target.
+[MIT](LICENSE). Source availability does not grant access to the operated
+service or authorize automation of any target.
