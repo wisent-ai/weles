@@ -110,10 +110,9 @@ try {
   await humanIdlePause('deliberate');
 
   if (await needsGoogleLogin(s.page)) {
-    const signIn = s.page.getByRole('link', { name: /^Sign in$/i }).filter({ visible: true }).first();
-    if (await visible(signIn)) {
+    if (await needsGoogleLogin(s.page) && !/accounts\.google\.com/.test(s.page.url())) {
       log('opening Gmail sign-in');
-      await humanClickLocator(s.page, signIn);
+      await s.page.goto('https://accounts.google.com/ServiceLogin?service=mail', { waitUntil: 'domcontentloaded' });
       await humanIdlePause('deliberate');
     }
     log('logged out — running googleSso for', creds.email);
