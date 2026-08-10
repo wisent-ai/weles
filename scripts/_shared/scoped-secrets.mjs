@@ -12,7 +12,7 @@ const API_KEY_FIELDS = Object.freeze({ api_key: true });
 const SERVICES = Object.freeze({
   googleSso: Object.freeze({ consumer: 'weles-google-sso-client', item: 'weles-google-sso-login', tokenFile: 'weles-google-sso-client-skarbiec-token', fields: LOGIN_FIELDS }),
   googleAds: Object.freeze({ consumer: 'weles-google-ads-client', item: 'weles-google-ads-login', tokenFile: 'weles-google-ads-client-skarbiec-token', writerConsumer: 'weles-google-ads-writer', writerTokenFile: 'weles-google-ads-writer-skarbiec-token', fields: LOGIN_WITH_TOTP_FIELDS }),
-  gmail: Object.freeze({ consumer: 'weles-gmail-client', item: 'weles-gmail-login', tokenFile: 'weles-gmail-client-skarbiec-token', fields: LOGIN_WITH_TOTP_FIELDS }),
+  gmail: Object.freeze({ consumer: 'weles-gmail-client', item: 'weles-gmail-login', tokenFile: 'weles-gmail-client-skarbiec-token', fields: LOGIN_FIELDS }),
   googleDrive: Object.freeze({ consumer: 'weles-google-drive-client', item: 'weles-google-drive-login', tokenFile: 'weles-google-drive-client-skarbiec-token', fields: LOGIN_WITH_TOTP_FIELDS }),
   googleWorkspaceAdmin: Object.freeze({ consumer: 'weles-google-workspace-admin-client', item: 'weles-google-workspace-admin-login', tokenFile: 'weles-google-workspace-admin-client-skarbiec-token', fields: LOGIN_WITH_TOTP_FIELDS }),
   oxylabsDashboard: Object.freeze({ consumer: 'weles-oxylabs-dashboard-client', item: 'weles-oxylabs-dashboard-login', tokenFile: 'weles-oxylabs-dashboard-client-skarbiec-token', fields: LOGIN_WITH_TOTP_FIELDS }),
