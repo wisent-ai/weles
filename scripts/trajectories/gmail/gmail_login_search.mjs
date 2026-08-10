@@ -91,6 +91,14 @@ async function detectSession(page) {
   return 'unknown';
 }
 
+async function needsGoogleLogin(page) {
+  if (/accounts\.google\.com|ServiceLogin|signin|challenge/.test(page.url())) return true;
+  const heading = await page.getByRole('heading', { name: /^Sign in$/i }).count().catch(() => 0);
+  if (heading > 0) return true;
+  const identifier = await page.locator('input[type="email"], input[name="identifier"], input#identifierId').count().catch(() => 0);
+  return identifier > 0;
+}
+
 const creds = await resolveCreds();
 const s = await WSession.start({
   label: 'gmail_login_search',
@@ -101,7 +109,7 @@ try {
   await s.page.goto(INBOX_URL, { waitUntil: 'domcontentloaded' });
   await humanIdlePause('deliberate');
 
-  if (/accounts\.google\.com|ServiceLogin|signin/.test(s.page.url())) {
+  if (await needsGoogleLogin(s.page)) {
     log('logged out — running googleSso for', creds.email);
     const ok = await googleSso(s, creds);
     if (!ok) {
