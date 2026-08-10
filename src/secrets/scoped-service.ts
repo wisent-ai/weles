@@ -102,10 +102,11 @@ const MICROSOFT_PASSWORD_ID = /^weles-microsoft-[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-
 // Entra work accounts are a different provider surface from consumer Microsoft
 // accounts: their password lifecycle runs at login.microsoftonline.com, never at
 // account.live.com. The exact ids are enumerated so a new id cannot silently
-// inherit the consumer origin.
+// inherit the consumer origin. weles-microsoft-lukasz-wisent-com-password is a
+// personal Microsoft account that only guests in the Entra tenant, so its
+// lifecycle is the consumer one and it stays off this list.
 const MICROSOFT_ENTRA_PASSWORD_IDS: ReadonlySet<string> = new Set([
   'weles-microsoft-jakub-wisent-ai-password',
-  'weles-microsoft-lukasz-wisent-com-password',
 ]);
 const MICROSOFT_ENTRA_ORIGIN = 'https://login.microsoftonline.com';
 const MICROSOFT_CONSUMER_ORIGIN = 'https://account.live.com';

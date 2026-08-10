@@ -496,6 +496,47 @@ export async function verifyMicrosoftPassword() {
   }
 }
 
+// adopt takes over a password the operator already knows. Skarbiec stages that
+// candidate under the item, bound to this request id; this run reads the staged
+// value through the scoped managed-credential reader and proves it with a fresh
+// login. Skarbiec activates the staged revision itself on operation_completed
+// and refuses every Weles write for an adopt, so this run writes nothing and
+// never touches the value the provider holds.
+export async function adoptMicrosoftPassword() {
+  const operation = 'adopt';
+  const contract = constraints(operation);
+  const account = await getSocialAccount('microsoft');
+  if (!account || !accountMatchesContract(account, contract)) {
+    throw new Error('queued Microsoft account does not match the exact credential account');
+  }
+  let candidate;
+  try {
+    candidate = readWelesManagedCredential(
+      contract.credentialId,
+      PASSWORD_FIELD,
+      contract.tenantId,
+    );
+  } catch {
+    candidate = undefined;
+  }
+  if (!candidate) throw new Error('staged Microsoft password candidate is unavailable from Skarbiec');
+  const { session, proxyUrl } = await openSession(account, 'microsoft_adopt_password');
+  try {
+    if (!await verifyPassword(session, contract.accountEmail, candidate)) {
+      if (await hasIdentityChallenge(session.page)) {
+        pendingReview('Microsoft requires interactive identity approval before the staged password candidate can be adopted', session.page);
+        return { status: 'needs_human_approval' };
+      }
+      throw new Error('staged Microsoft password candidate failed a fresh Microsoft login');
+    }
+    const cookies = await session.ctx.cookies();
+    await persistFreshCookieJar(account, cookies, { currentProxyUrl: proxyUrl });
+    return { status: 'adopted' };
+  } finally {
+    await session.close().catch(() => {});
+  }
+}
+
 export async function rotateMicrosoftPassword() {
   const operation = 'rotate';
   const contract = constraints(operation);

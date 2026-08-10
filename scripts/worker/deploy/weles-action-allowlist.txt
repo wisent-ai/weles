@@ -132,6 +132,7 @@ linkedin_story_view
 linkedin_upvote
 linkedin_watch_repo
 linkedin_watch_through
+microsoft_adopt_password
 microsoft_entra_adopt_password
 microsoft_entra_reset_password
 microsoft_entra_verify_password

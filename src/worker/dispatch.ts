@@ -305,6 +305,7 @@ const ROUTES: Record<string, (p: string) => string | null> = {
   save: (p) => `scripts/trajectories/${p}/actions/save.mjs`,
   reset_password: (p) => p === 'github' ? 'scripts/trajectories/github/recover/reset_password.mjs' : `scripts/trajectories/${p}_reset_password.mjs`,
   verify_password: (p) => p === 'microsoft' ? 'scripts/trajectories/microsoft_verify_password.mjs' : null,
+  adopt_password: (p) => p === 'microsoft' ? 'scripts/trajectories/microsoft_adopt_password.mjs' : null,
   // Entra directory identities are a separate lifecycle from consumer Microsoft
   // accounts: <platform>_<verb> splits on the first underscore, so the verb here
   // is entra_adopt_password / entra_reset_password / entra_verify_password on
@@ -387,6 +388,7 @@ export function paramsToEnv(
   }
   if (trajPath.endsWith('/microsoft_reset_password.mjs')
       || trajPath.endsWith('/microsoft_verify_password.mjs')
+      || trajPath.endsWith('/microsoft_adopt_password.mjs')
       || trajPath.endsWith('/microsoft_entra_adopt_password.mjs')
       || trajPath.endsWith('/microsoft_entra_reset_password.mjs')
       || trajPath.endsWith('/microsoft_entra_verify_password.mjs')) {
