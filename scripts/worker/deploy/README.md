@@ -386,6 +386,13 @@ sudo install -m 0644 scripts/worker/deploy/placement-policy.example.json \
 
 Placement policy is non-secret and must never contain credentials.
 
+The desktop execution-host selector uses the same policy contract through three
+audited Stado helpers. Install the tracked helper under the names
+`weles-execution-status`, `weles-execution-enable`, and
+`weles-execution-disable` on every registered Weles worker. Status is read-only;
+enable and disable preserve an existing host action list, and a newly configured
+host starts with the worker launcher's action allowlist wildcard.
+
 ## Install the launch wrapper + unit
 
 ```bash
