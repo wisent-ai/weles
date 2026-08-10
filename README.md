@@ -12,7 +12,22 @@
 
 # Weles: Undetectable Browser for Perfect AI Agent Internet Use
 
-Browser Use Harness. Your AI Agents Can Now Use Internet. Cutting Token Use by 99% by caching trajectories. A harness to stimulate bypassing captchas and accessing all parts of the internet without any problems.
+Your AI agents deserve to explore the entire internet. AI can now write
+software, reason for hours, and order your groceries, but it still fails or
+takes ages when you ask it to open a website and log in to your account.
+
+Weles is the solution. We turn the open internet into an API.
+
+Weles is an undetectable browser that combines custom C++-patched Chromium and
+Firefox forks with rotating fingerprints to stop your AI from running into
+CAPTCHAs and bans. Every time you crawl a website, it gets mapped into a
+trajectory, allowing future runs to use the cached traversal instead of having
+to rediscover how the website works. When a run fails, Weles records videos
+showing the points of failure to give you a clear understanding of what happened
+and how it can be fixed.
+
+Give your AI the keys to the internet. The browser-use experience your AI
+deserves.
 
 [Public client](https://github.com/wisent-ai/weles-client) · [Operator runbook](scripts/worker/deploy/README.md) · [Capture inventory](scripts/worker/deploy/FINGERPRINT_CAPTURE.md) · [Worker releases](https://github.com/wisent-ai/weles/releases)
 
