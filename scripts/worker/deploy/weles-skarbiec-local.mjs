@@ -70,7 +70,7 @@ if (request.version !== WIRE_VERSION
     || request.field !== 'password'
     || (request.account_email !== null && request.account_email !== undefined
       && !EMAIL.test(request.account_email))
-    || !['submit', 'status'].includes(request.mode)) {
+    || !['submit', 'status', 'resume'].includes(request.mode)) {
   throw new Error('invalid Microsoft credential lifecycle request');
 }
 if (isEntra
@@ -236,7 +236,10 @@ function diagnostics(result) {
 }
 
 let output;
-if (request.mode === 'submit') {
+// A resume queues the operation afresh: the human finished the interactive
+// step out of band, so the trajectory reruns against the staged candidate and
+// settles the same request it started.
+if (request.mode === 'submit' || request.mode === 'resume') {
   const writerTokenFile = process.env.WELES_MICROSOFT_WRITER_TOKEN_FILE ?? '';
   const scopeFile = process.env.SKARBIEC_WELES_ACQUISITION_SCOPES_FILE ?? '';
   safeOwnedFile(writerTokenFile, 'Microsoft writer token file');
