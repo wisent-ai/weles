@@ -12,7 +12,17 @@
 
 # Weles: Undetectable Browser for Perfect AI Agent Internet Use
 
-Browser Use Harness. Your AI Agents Can Now Use Internet. Cutting Token Use by 99% by caching trajectories. A harness to stimulate bypassing captchas and accessing all parts of the internet without any problems.
+Your AI agents should not stop at the edge of an API. Weles gives them a stealth
+browser built for authenticated, high-friction workflows across the real
+internet. Reviewed trajectories turn complex browser tasks into repeatable
+actions and cut token use by up to 99% through caching. Patched Chromium and
+Firefox builds defend browser fingerprints and help agents get through surfaces
+that block ordinary automation. Stado places each task on an approved machine,
+while Skarbiec injects only the exact credentials the action needs. Every run
+follows a checked-in workflow and returns a signed receipt with evidence you can
+inspect, so your agents never have to improvise behind the screen. From admin
+panels with no API to long, stateful web flows, Weles makes the browser a
+reliable part of your AI agent stack.
 
 [Public client](https://github.com/wisent-ai/weles-client) · [Operator runbook](scripts/worker/deploy/README.md) · [Capture inventory](scripts/worker/deploy/FINGERPRINT_CAPTURE.md) · [Worker releases](https://github.com/wisent-ai/weles/releases)
 
