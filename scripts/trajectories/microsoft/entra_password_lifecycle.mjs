@@ -290,6 +290,15 @@ async function fill(page, locator, value) {
   await humanType(page, value);
 }
 
+// The converged control re-renders during hydration and can silently drop the
+// first keystrokes of a human-typed value, so every fill is read back and
+// retried once before the form moves on.
+async function fillVerified(page, locator, value) {
+  await fill(page, locator, value);
+  const typed = await locator.inputValue().catch(() => '');
+  if (typed !== value) await fill(page, locator, value);
+}
+
 async function hasIdentityChallenge(page) {
   const body = await page.locator('body').innerText().catch(() => '');
   return IDENTITY_CHALLENGE.test(body);
@@ -494,7 +503,7 @@ async function signIn(session, contract, password) {
   const emailInput = page.locator('input[name="loginfmt"], input#i0116, input[type="email"]').first();
   await emailInput.waitFor({ state: 'visible', timeout: Number('45000') }).catch(() => {});
   if (!await visible(emailInput)) return 'unavailable';
-  await fill(page, emailInput, contract.accountUpn);
+  await fillVerified(page, emailInput, contract.accountUpn);
   await humanClickLocator(page, page.locator('input[type="submit"]#idSIButton9, button[type="submit"]').first());
   await humanIdlePause('deliberate');
   await choosePasswordSignIn(page);
@@ -503,7 +512,7 @@ async function signIn(session, contract, password) {
   if (!await visible(passwordInput)) {
     return await hasIdentityChallenge(page) ? 'identity_challenge' : 'unavailable';
   }
-  await fill(page, passwordInput, password);
+  await fillVerified(page, passwordInput, password);
   await humanClickLocator(page, page.locator('input[type="submit"]#idSIButton9, button[type="submit"]').first());
   await humanIdlePause('long');
   const body = await page.locator('body').innerText().catch(() => '');
