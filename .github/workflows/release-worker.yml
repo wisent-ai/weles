@@ -17,10 +17,16 @@ jobs:
         include:
           - runner: ubuntu-24.04
             platform: linux-x64
-          - runner: macos-15
+          # The fleet's Macs are both arm64, and this repository owns an arm64
+          # macOS runner, so the platform every worker actually installs is built
+          # on hardware we already pay for. GitHub's macOS runners bill at ten
+          # times the Linux rate, which made this the most expensive line here.
+          - runner: weles-builder
             platform: darwin-arm64
-          - runner: macos-15-intel
-            platform: darwin-x64
+          # darwin-x64 is not built: no registry target runs it. Every host is
+          # arm64 macOS or linux-x64, so that artifact was signed, published and
+          # never installed -- on the other ten-times runner. Add the entry back
+          # together with the Intel host that needs it, not before.
     runs-on: ${{ matrix.runner }}
     permissions:
       contents: read
