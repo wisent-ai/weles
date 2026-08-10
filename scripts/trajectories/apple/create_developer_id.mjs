@@ -10,16 +10,18 @@
 //   APPLE_LOGIN_CAPABILITIES_JSON — capability envelope (email, password, 2FA)
 //   APPLE_CSR_PATH              — absolute path to the CSR PEM
 //   APPLE_CERTIFICATE_PATH      — absolute path for the downloaded .cer
-//   APPLE_2FA_RELAY_COMMAND     — trusted-Mac relay executable (required)
 //   WELES_HEADLESS              — "1" for headless
 
 import { spawnSync } from 'node:child_process';
 import { statSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { WSession } from '../../../dist/session/wsession.js';
 import { withCapability, withCapabilityPendingRetry, cancelCapability } from '../../../dist/utils/capability.js';
 import { parseAppleLoginCapabilities } from '../../../dist/utils/apple-login-capabilities.js';
 import { completeAppleNativeTwoFactorChallenge } from './native_2fa/native_2fa.mjs';
+import { getSocialAccount } from '../../../dist/utils/credentials.js';
+import { appleChallengeRelayTarget } from '../../auth/apple-account-placement.mjs';
 import {
   assertAppleAuthChallengeOpen,
   beginAppleAuthClosing,
@@ -81,15 +83,26 @@ async function cancelSessionCapabilities() {
   if (failures.length > 0) throw new Error(`capability cleanup unconfirmed: ${failures.join('; ')}`);
 }
 
+// Ask the machine that holds the account to catch the prompt and put the digits in
+// Skarbiec. Nothing comes back through here: this returns once the code is stored.
+//
+// The program is the one shipped beside this trajectory, found relative to this
+// module rather than named by an environment variable. APPLE_2FA_RELAY_COMMAND was
+// an absolute path written into one host's configuration, which is a second way of
+// saying where this installation is -- and the way that goes stale when the release
+// symlink moves. Resolving it from `import.meta.url` cannot point outside the release
+// currently running, which is a stronger guarantee than the mode bits it replaced.
 function requestTrustedMacChallengeRelay() {
-  const command = process.env.APPLE_2FA_RELAY_COMMAND?.trim() ?? '';
-  if (!command || !isAbsolute(command)) throw new Error('APPLE_2FA_RELAY_COMMAND must be a configured absolute executable');
+  const command = fileURLToPath(new URL('../../auth/request-apple-challenge-relay.mjs', import.meta.url));
   const stat = statSync(command);
-  if (!stat.isFile() || (stat.mode & 0o100) === 0 || (stat.mode & 0o022) !== 0
+  if (!stat.isFile() || (stat.mode & 0o022) !== 0
       || (typeof process.getuid === 'function' && stat.uid !== process.getuid())) {
-    throw new Error('APPLE_2FA_RELAY_COMMAND must be a non-writable executable owned by the worker');
+    throw new Error('the Apple challenge relay must be a non-writable file owned by the worker');
   }
-  const result = spawnSync(command, ['--guard-id', guardId, '--account-id', accountId, '--action-log-id', actionLogId], {
+  // Run it through this same interpreter. Spawning the file directly would also
+  // require an executable bit to survive packaging, which is a property of how the
+  // release was built rather than of whether the relay is intact.
+  const result = spawnSync(process.execPath, [command, '--guard-id', guardId, '--account-id', accountId, '--action-log-id', actionLogId], {
     cwd: process.cwd(), env: process.env, encoding: 'utf8',
     timeout: Number(process.env.WELES_APPLE_2FA_RELAY_TIMEOUT_MS ?? '75000'),
     maxBuffer: 64 * 1024, stdio: ['ignore', 'pipe', 'pipe'],
@@ -217,10 +230,15 @@ try {
   if (postPasswordState === 'two_factor') {
     await markAppleAuthChallengeOpen(guardId, actionLogId);
     await assertAppleAuthChallengeOpen(guardId, accountId, actionLogId);
-    const relayConfigured = !!(process.env.APPLE_2FA_RELAY_COMMAND?.trim());
+    // Whether this prompt needs relaying is a fact about the fleet, not a setting, so
+    // it is asked rather than configured: the registry knows which host is signed into
+    // this account and which host this is. A `relayConfigured` flag in one host's env
+    // said the same thing by hand, and kept saying it after the answer changed.
+    const account = await getSocialAccount('apple');
+    const relayTarget = appleChallengeRelayTarget((account?.metadata?.email ?? account?.username ?? '').trim());
     const twoFactorOptions = {
       logPrefix: '[apple-create-developer-id]',
-      ...(relayConfigured ? {
+      ...(relayTarget ? {
         nativeOnly: true,
         withCode: (consume) => withCapabilityPendingRetry(capabilities.two_factor.capability, {
           purpose: 'weles.apple.2fa', resource: challengeResource, authorization_id: guardId,
@@ -233,7 +251,7 @@ try {
         }),
       } : {}),
     };
-    if (relayConfigured) requestTrustedMacChallengeRelay();
+    if (relayTarget) requestTrustedMacChallengeRelay();
     const twoFactor = await completeAppleNativeTwoFactorChallenge(s, frame, twoFactorOptions);
     if (!twoFactor.ok) throw new Error(`Apple 2FA did not complete (${twoFactor.source || 'unknown source'})`);
   }

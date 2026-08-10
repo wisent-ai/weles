@@ -24,9 +24,10 @@ const ALLOWED_FLAGS = new Set([
 function usage() {
   console.error(
     'Usage: node scripts/auth/relay-apple-challenge.mjs <guard-id-uuid>\n'
-    + '  (as installed for `stado host run-helper`; the Skarbiec destination comes '
-    + 'from APPLE_2FA_SKARBIEC_HOST, _USER, _PORT, _IDENTITY_FILE, '
-    + '_KNOWN_HOSTS_FILE and _COMMAND)\n'
+    + '  (as installed for `stado host run-helper`)\n'
+    + 'Skarbiec on this same machine: APPLE_2FA_SKARBIEC_COMMAND alone.\n'
+    + 'Skarbiec on another machine: APPLE_2FA_SKARBIEC_HOST, _USER, _PORT, '
+    + '_IDENTITY_FILE, _KNOWN_HOSTS_FILE and _COMMAND.\n'
     + 'Legacy flag form, for an operator driving it by hand: '
     + '--guard-id <uuid> --ssh-host <host> --ssh-user <user> --ssh-port <port> '
     + '--ssh-identity-file <absolute-path> --ssh-known-hosts-file <absolute-path> '
@@ -82,16 +83,46 @@ function requireRegularFile(path, name, ownerOnly) {
   return path;
 }
 
+// The local destination names a program this process is about to run, so it is
+// checked here on this disk: present, a regular file, and executable. An ssh
+// destination is a path on the far side and cannot be checked from this end at all.
+// That asymmetry is the whole reason only one of the two shapes looks.
+function requireExecutableFile(path, name) {
+  requireRegularFile(path, name, false);
+  if ((statSync(path).mode & 0o111) === 0) {
+    throw new Error(`${name} must name an executable program`);
+  }
+  return path;
+}
+
+// Two destination shapes, told apart by whether a host was named.
+//
+// Skarbiec frequently runs on the very machine that holds the Apple account: the Mac
+// showing the two-factor prompt is the Mac with the vault on it. Reaching it over ssh
+// there costs a host key, an owner-only private key and Remote Login switched on --
+// three ways for a purely local write to fail closed, bought for no isolation at all,
+// because both ends are the same user on the same disk. The code travels on stdin in
+// either shape, which is the property that actually keeps it out of argv and out of
+// `ps`, so the local shape drops the transport and keeps the contract unchanged.
 function configuration(flags) {
   const guardId = (flags.get('--guard-id') ?? '').toLowerCase();
   const host = flags.get('--ssh-host') ?? process.env.APPLE_2FA_SKARBIEC_HOST ?? '';
+  const skarbiecCommand = flags.get('--remote-skarbiec-command') ?? process.env.APPLE_2FA_SKARBIEC_COMMAND ?? '';
+
+  if (!UUID_PATTERN.test(guardId)) throw new Error('--guard-id must be a valid UUID');
+  if (!SAFE_REMOTE_PATH_PATTERN.test(skarbiecCommand) || skarbiecCommand.split('/').includes('..')) {
+    throw new Error('--remote-skarbiec-command must be a safe absolute path');
+  }
+  if (!host) {
+    requireExecutableFile(skarbiecCommand, 'APPLE_2FA_SKARBIEC_COMMAND');
+    return { guardId, local: true, skarbiecCommand };
+  }
+
   const user = flags.get('--ssh-user') ?? process.env.APPLE_2FA_SKARBIEC_USER ?? '';
   const portText = flags.get('--ssh-port') ?? process.env.APPLE_2FA_SKARBIEC_PORT ?? '';
   const identityFile = flags.get('--ssh-identity-file') ?? process.env.APPLE_2FA_SKARBIEC_IDENTITY_FILE ?? '';
   const knownHostsFile = flags.get('--ssh-known-hosts-file') ?? process.env.APPLE_2FA_SKARBIEC_KNOWN_HOSTS_FILE ?? '';
-  const skarbiecCommand = flags.get('--remote-skarbiec-command') ?? process.env.APPLE_2FA_SKARBIEC_COMMAND ?? '';
 
-  if (!UUID_PATTERN.test(guardId)) throw new Error('--guard-id must be a valid UUID');
   if (!SAFE_HOST_PATTERN.test(host) || host.startsWith('-') || host.includes('..')) {
     throw new Error('--ssh-host is invalid');
   }
@@ -100,10 +131,7 @@ function configuration(flags) {
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('--ssh-port must be an integer from 1 to 65535');
   requireRegularFile(identityFile, '--ssh-identity-file', true);
   requireRegularFile(knownHostsFile, '--ssh-known-hosts-file', true);
-  if (!SAFE_REMOTE_PATH_PATTERN.test(skarbiecCommand) || skarbiecCommand.split('/').includes('..')) {
-    throw new Error('--remote-skarbiec-command must be a safe absolute path');
-  }
-  return { guardId, host, user, port, identityFile, knownHostsFile, skarbiecCommand };
+  return { guardId, local: false, host, user, port, identityFile, knownHostsFile, skarbiecCommand };
 }
 
 function sshArguments(config, resource) {
@@ -123,6 +151,15 @@ function sshArguments(config, resource) {
     'apple-challenge-put',
     resource,
   ];
+}
+
+// The program and argv that put the code into Skarbiec, for whichever destination
+// shape was configured. Both end in the same three words, because both are the same
+// write: only the transport in front of them differs.
+function storeCommand(config, resource) {
+  return config.local
+    ? [config.skarbiecCommand, ['apple-challenge-put', resource]]
+    : ['ssh', sshArguments(config, resource)];
 }
 
 function sixDigitCode(path) {
@@ -174,7 +211,8 @@ async function main() {
     code = sixDigitCode(codeFile);
     rmSync(codeFile, { force: true });
 
-    const result = spawnSync('ssh', sshArguments(config, resource), {
+    const [program, argv] = storeCommand(config, resource);
+    const result = spawnSync(program, argv, {
       cwd: process.cwd(),
       env: process.env,
       input: code,
@@ -183,19 +221,19 @@ async function main() {
       maxBuffer: 64 * 1024,
       stdio: ['pipe', 'pipe', 'pipe'],
     });
-    if (result.error || result.status !== 0) throw new Error('Remote Apple challenge store failed closed');
+    if (result.error || result.status !== 0) throw new Error('Apple challenge store failed closed');
 
     let acknowledgement;
     try {
       acknowledgement = JSON.parse(result.stdout);
     } catch {
-      throw new Error('Remote Apple challenge store returned invalid JSON');
+      throw new Error('Apple challenge store returned invalid JSON');
     }
     if (!acknowledgement || typeof acknowledgement !== 'object' || Array.isArray(acknowledgement)
       || Object.keys(acknowledgement).sort().join(',') !== 'resource,status'
       || acknowledgement.status !== 'stored'
       || acknowledgement.resource !== resource) {
-      throw new Error('Remote Apple challenge store did not acknowledge the exact resource');
+      throw new Error('Apple challenge store did not acknowledge the exact resource');
     }
     console.log(JSON.stringify({ status: 'stored', resource }));
   } finally {
