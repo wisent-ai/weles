@@ -63,6 +63,7 @@ const ANY_UUID = /[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}/i;
 const JWT_SCAN = /eyJ[\w-]{8,}\.[\w-]{8,}\.[\w-]*/g;
 const IDENTITY_CHALLENGE = /verify your identity|get a code|approve (?:a )?sign.?in|enter.{0,20}code|passkey|security key|authenticator app|text my mobile|call my (?:mobile|office)|verification (?:step|method)/i;
 const PASSWORD_REJECTED = /your account or password is incorrect|password is incorrect|wrong password|password is invalid/i;
+const USERNAME_UNKNOWN = /isn.t in our system|couldn.t find your account|try entering your details again/i;
 const CHANGE_CONFIRMED = /password (?:has been |was )?(?:changed|updated)|password change (?:was )?successful|you (?:have )?(?:successfully )?changed your password/i;
 const CHANGE_REJECTED = /(?:current|old) password (?:is )?(?:incorrect|wrong)|(?:doesn.t|does not) meet|couldn.t (?:be )?chang|password (?:is )?(?:incorrect|invalid)|try again/i;
 const RESET_VERIFICATION = /verification step|email my alternate email|text my mobile phone|call my (?:mobile|office) phone|approve a notification|enter a code from my authenticator|enter the characters (?:in|you see)|security check/i;
@@ -290,13 +291,17 @@ async function fill(page, locator, value) {
   await humanType(page, value);
 }
 
-// The converged control re-renders during hydration and can silently drop the
-// first keystrokes of a human-typed value, so every fill is read back and
-// retried once before the form moves on.
+// The converged control re-renders during hydration and can silently drop
+// keystrokes of a human-typed value — sometimes after an immediate readback
+// already looked right — so every fill settles, reads back, and retries
+// before the form moves on.
 async function fillVerified(page, locator, value) {
-  await fill(page, locator, value);
-  const typed = await locator.inputValue().catch(() => '');
-  if (typed !== value) await fill(page, locator, value);
+  for (let attempt = Number('0'); attempt < Number('3'); attempt += Number('1')) {
+    await fill(page, locator, value);
+    await page.waitForTimeout(Number('800'));
+    const typed = await locator.inputValue().catch(() => '');
+    if (typed === value) return;
+  }
 }
 
 async function hasIdentityChallenge(page) {
@@ -503,9 +508,16 @@ async function signIn(session, contract, password) {
   const emailInput = page.locator('input[name="loginfmt"], input#i0116, input[type="email"]').first();
   await emailInput.waitFor({ state: 'visible', timeout: Number('45000') }).catch(() => {});
   if (!await visible(emailInput)) return 'unavailable';
-  await fillVerified(page, emailInput, contract.accountUpn);
-  await humanClickLocator(page, page.locator('input[type="submit"]#idSIButton9, button[type="submit"]').first());
-  await humanIdlePause('deliberate');
+  // A truncated username submit lands on the "isn't in our system" surface,
+  // which still renders a (hidden) password input; detect it and resubmit the
+  // full UPN instead of letting the password stage type into that page.
+  for (let attempt = Number('0'); attempt < Number('3'); attempt += Number('1')) {
+    await fillVerified(page, emailInput, contract.accountUpn);
+    await humanClickLocator(page, page.locator('input[type="submit"]#idSIButton9, button[type="submit"]').first());
+    await humanIdlePause('deliberate');
+    const body = await page.locator('body').innerText().catch(() => '');
+    if (!USERNAME_UNKNOWN.test(body)) break;
+  }
   await choosePasswordSignIn(page);
   const passwordInput = page.locator('input[name="passwd"], input#i0118, input[type="password"]').first();
   await passwordInput.waitFor({ state: 'visible', timeout: Number('45000') }).catch(() => {});
