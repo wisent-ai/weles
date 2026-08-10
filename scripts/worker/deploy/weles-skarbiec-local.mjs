@@ -6,6 +6,9 @@ const WIRE_VERSION = 'skarbiec.credential-operation.v3';
 const ENTRA_PROVIDER = 'microsoft_entra';
 const ENTRA_ORIGIN = 'https://login.microsoftonline.com';
 const FLOW_NAME = 'microsoft-entra-password-lifecycle';
+const MICROSOFT_PROVIDER = 'microsoft';
+const MICROSOFT_ORIGIN = 'https://account.live.com';
+const MICROSOFT_FLOW_NAME = 'microsoft-password-lifecycle';
 const CREDENTIAL_ID = /^weles-microsoft-[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?-password$/;
 const LOWER_UUID = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/;
 const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
@@ -25,6 +28,10 @@ const PHASES = Object.freeze([
 ]);
 const ROLLBACK_STATUSES = Object.freeze(['none', 'completed', 'failed', 'unknown']);
 const OPERATIONS = Object.freeze(['adopt', 'rotate', 'reset', 'verify']);
+// The consumer Microsoft lifecycle has no reset: a consumer surface cannot take
+// over an unknown current password without interactive recovery, which is what
+// the directory-owned reset exists for.
+const MICROSOFT_OPERATIONS = Object.freeze(['adopt', 'rotate', 'verify']);
 const PROVIDER_EFFECTS = Object.freeze(['none', 'changed', 'unknown']);
 const APPROVAL_ID = /^[A-Za-z\d._-]{1,64}$/;
 const RESUME_TOKEN = /^[A-Za-z\d._-]{1,128}$/;
@@ -53,26 +60,45 @@ if (!request || typeof request !== 'object' || Array.isArray(request)) {
 // The directory identity is the item's own contract, so the request carries the
 // whole canonical block or none of it, and nothing outside it names the identity.
 const directory = objectOrEmpty(request.directory);
+const isEntra = request.provider === ENTRA_PROVIDER;
+const isMicrosoft = request.provider === MICROSOFT_PROVIDER;
 if (request.version !== WIRE_VERSION
     || !/^[a-f\d]{64}$/i.test(request.request_id ?? '')
     || !CREDENTIAL_ID.test(request.credential_id ?? '')
     || !OPERATIONS.includes(request.operation)
-    || request.provider !== ENTRA_PROVIDER
+    || (!isEntra && !isMicrosoft)
     || request.field !== 'password'
-    || directory.provider !== ENTRA_PROVIDER
-    || !EMAIL.test(directory.account_upn ?? '')
-    || !LOWER_UUID.test(directory.tenant_id ?? '')
-    || !LOWER_UUID.test(directory.principal_object_id ?? '')
     || (request.account_email !== null && request.account_email !== undefined
       && !EMAIL.test(request.account_email))
     || !['submit', 'status'].includes(request.mode)) {
+  throw new Error('invalid Microsoft credential lifecycle request');
+}
+if (isEntra
+    && (directory.provider !== ENTRA_PROVIDER
+      || !EMAIL.test(directory.account_upn ?? '')
+      || !LOWER_UUID.test(directory.tenant_id ?? '')
+      || !LOWER_UUID.test(directory.principal_object_id ?? ''))) {
   throw new Error('invalid Entra credential lifecycle request');
+}
+// A consumer Microsoft account is bound by its exact account email alone: it
+// carries no directory block, because no directory holds its password.
+if (isMicrosoft
+    && (!MICROSOFT_OPERATIONS.includes(request.operation)
+      || !EMAIL.test(request.account_email ?? '')
+      || (request.directory !== null && request.directory !== undefined))) {
+  throw new Error('invalid Microsoft credential lifecycle request');
 }
 
 const requestId = request.request_id.toLowerCase();
-const accountUpn = directory.account_upn.trim().toLowerCase();
-const tenantId = directory.tenant_id.trim().toLowerCase();
-const principalObjectId = directory.principal_object_id.trim().toLowerCase();
+const accountUpn = typeof directory.account_upn === 'string'
+  ? directory.account_upn.trim().toLowerCase()
+  : '';
+const tenantId = typeof directory.tenant_id === 'string'
+  ? directory.tenant_id.trim().toLowerCase()
+  : '';
+const principalObjectId = typeof directory.principal_object_id === 'string'
+  ? directory.principal_object_id.trim().toLowerCase()
+  : '';
 const accountEmail = typeof request.account_email === 'string'
   ? request.account_email.trim().toLowerCase()
   : '';
@@ -213,20 +239,28 @@ let output;
 if (request.mode === 'submit') {
   const writerTokenFile = process.env.WELES_MICROSOFT_WRITER_TOKEN_FILE ?? '';
   const scopeFile = process.env.SKARBIEC_WELES_ACQUISITION_SCOPES_FILE ?? '';
-  safeOwnedFile(writerTokenFile, 'Entra writer token file');
-  safeOwnedFile(scopeFile, 'Entra acquisition scope catalog');
+  safeOwnedFile(writerTokenFile, 'Microsoft writer token file');
+  safeOwnedFile(scopeFile, 'Microsoft acquisition scope catalog');
   const expectedScope = `${request.credential_id}-reader-password|${request.credential_id}|password`;
   const scopes = readFileSync(scopeFile, 'utf8').split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
-  if (!scopes.includes(expectedScope)) throw new Error('missing exact Entra credential reader scope');
+  if (!scopes.includes(expectedScope)) {
+    throw new Error(`missing exact ${isEntra ? 'Entra' : 'Microsoft'} credential reader scope`);
+  }
 
   const accountsResponse = await fetch(
     `${databaseUrl}/rest/v1/social_accounts?platform=eq.microsoft&select=id,username,is_active,metadata&limit=500`,
     { headers: databaseHeaders, signal: AbortSignal.timeout(Number('30000')) },
   );
-  if (!accountsResponse.ok) throw new Error(`Entra account lookup failed: HTTP ${accountsResponse.status}`);
+  if (!accountsResponse.ok) throw new Error(`Microsoft account lookup failed: HTTP ${accountsResponse.status}`);
   const matches = (await accountsResponse.json()).filter((row) => {
     const metadata = objectOrEmpty(row?.metadata);
     const email = String(metadata.email ?? row.username ?? '').trim().toLowerCase();
+    if (isMicrosoft) {
+      return row.is_active === true
+        && email === accountEmail
+        && metadata.skarbiec_credential_id === request.credential_id
+        && (metadata.skarbiec_tenant_id ?? null) === null;
+    }
     return row.is_active === true
       && String(metadata.entra_upn ?? '').trim().toLowerCase() === accountUpn
       && (email === accountUpn || (Boolean(accountEmail) && email === accountEmail))
@@ -236,37 +270,61 @@ if (request.mode === 'submit') {
       && (metadata.skarbiec_tenant_id ?? null) === null;
   });
   if (matches.length !== Number('1') || !matches[Number('0')]?.id) {
-    throw new Error('no account row is uniquely bound to the requested Entra identity and managed credential');
+    throw new Error(`no account row is uniquely bound to the requested ${isEntra ? 'Entra' : 'Microsoft'} identity and managed credential`);
   }
-  const constraints = {
-    secret: request.credential_id,
-    operation: request.operation,
-    request_id: request.request_id,
-    purpose: request.purpose,
-    account_email: accountEmail || undefined,
-    // The directory identity is the item's own write-once contract and the only
-    // source the trajectory reads it from. The Entra directory id is not a Weles
-    // Skarbiec binding tenant, so the scoped reader and writer stay untenanted.
-    directory: {
-      provider: ENTRA_PROVIDER,
-      tenant_id: tenantId,
-      principal_object_id: principalObjectId,
-      account_upn: accountUpn,
-    },
-    weles_tenant_id: null,
-    store_secret_target: 'skarbiec',
-    vault_item_id: request.credential_id,
-    vault_field: 'password',
-    secret_source_origin: ENTRA_ORIGIN,
-    display_name: 'Microsoft Entra account password',
-    provider: ENTRA_PROVIDER,
-    capabilities: ['password_adoption', 'password_rotation', 'password_reset', 'fresh_login_verification'],
-  };
-  const action = request.operation === 'verify'
-    ? 'microsoft_entra_verify_password'
-    : request.operation === 'adopt'
-      ? 'microsoft_entra_adopt_password'
-      : 'microsoft_entra_reset_password';
+  const constraints = isEntra
+    ? {
+        secret: request.credential_id,
+        operation: request.operation,
+        request_id: request.request_id,
+        purpose: request.purpose,
+        account_email: accountEmail || undefined,
+        // The directory identity is the item's own write-once contract and the only
+        // source the trajectory reads it from. The Entra directory id is not a Weles
+        // Skarbiec binding tenant, so the scoped reader and writer stay untenanted.
+        directory: {
+          provider: ENTRA_PROVIDER,
+          tenant_id: tenantId,
+          principal_object_id: principalObjectId,
+          account_upn: accountUpn,
+        },
+        weles_tenant_id: null,
+        store_secret_target: 'skarbiec',
+        vault_item_id: request.credential_id,
+        vault_field: 'password',
+        secret_source_origin: ENTRA_ORIGIN,
+        display_name: 'Microsoft Entra account password',
+        provider: ENTRA_PROVIDER,
+        capabilities: ['password_adoption', 'password_rotation', 'password_reset', 'fresh_login_verification'],
+      }
+    : {
+        secret: request.credential_id,
+        operation: request.operation,
+        request_id: request.request_id,
+        purpose: request.purpose,
+        // The consumer account email is the whole account binding; there is no
+        // directory block because no directory holds this password.
+        account_email: accountEmail,
+        tenant_id: null,
+        store_secret_target: 'skarbiec',
+        vault_item_id: request.credential_id,
+        vault_field: 'password',
+        secret_source_origin: MICROSOFT_ORIGIN,
+        display_name: 'Microsoft account password',
+        provider: MICROSOFT_PROVIDER,
+        capabilities: ['password_adoption', 'password_rotation', 'fresh_login_verification'],
+      };
+  const action = isMicrosoft
+    ? request.operation === 'adopt'
+      ? 'microsoft_adopt_password'
+      : request.operation === 'verify'
+        ? 'microsoft_verify_password'
+        : 'microsoft_reset_password'
+    : request.operation === 'verify'
+      ? 'microsoft_entra_verify_password'
+      : request.operation === 'adopt'
+        ? 'microsoft_entra_adopt_password'
+        : 'microsoft_entra_reset_password';
   const insertResponse = await fetch(`${databaseUrl}/rest/v1/account_action_logs?select=id`, {
     method: 'POST',
     headers: { ...databaseHeaders, Prefer: 'return=representation' },
@@ -278,11 +336,15 @@ if (request.mode === 'submit') {
       scheduled_at: new Date().toISOString(),
       priority: Number('1000'),
       params: {
-        url: ENTRA_ORIGIN,
+        url: isEntra ? ENTRA_ORIGIN : MICROSOFT_ORIGIN,
         objective: request.operation === 'adopt'
-          ? 'adopt the exact Microsoft Entra directory password already staged in Skarbiec: prove it with a fresh sign-in and the full tenant, principal object id, and UPN assertion, and never change it in the directory.'
-          : `${request.operation} the exact Microsoft Entra directory password and commit it only after the signed-in tenant, principal object id, and UPN are confirmed by a fresh login.`,
-        flow_name: FLOW_NAME,
+          ? isEntra
+            ? 'adopt the exact Microsoft Entra directory password already staged in Skarbiec: prove it with a fresh sign-in and the full tenant, principal object id, and UPN assertion, and never change it in the directory.'
+            : 'adopt the exact Microsoft account password already staged in Skarbiec: prove it with a fresh sign-in and never change it at the provider.'
+          : isEntra
+            ? `${request.operation} the exact Microsoft Entra directory password and commit it only after the signed-in tenant, principal object id, and UPN are confirmed by a fresh login.`
+            : `${request.operation} the exact Microsoft account password and commit it only after a fresh login with the resulting password succeeds.`,
+        flow_name: isEntra ? FLOW_NAME : MICROSOFT_FLOW_NAME,
         execution_mode: 'keeper_first',
         proxy: 'none',
         headless: false,
@@ -295,7 +357,7 @@ if (request.mode === 'submit') {
     }),
     signal: AbortSignal.timeout(Number('30000')),
   });
-  if (!insertResponse.ok) throw new Error(`Entra credential queue failed: HTTP ${insertResponse.status}`);
+  if (!insertResponse.ok) throw new Error(`Microsoft credential queue failed: HTTP ${insertResponse.status}`);
   const actionLogId = (await insertResponse.json())[Number('0')]?.id;
   if (!/^[a-f\d-]{36}$/i.test(actionLogId ?? '')) throw new Error('Weles queue returned an invalid action id');
   output = {
@@ -304,10 +366,9 @@ if (request.mode === 'submit') {
     provider: request.provider,
     actionLogId,
     vaultItemId: request.credential_id,
-    flowName: FLOW_NAME,
-    tenantId,
-    principalObjectId,
-    message: `Entra password ${request.operation} queued`,
+    flowName: isEntra ? FLOW_NAME : MICROSOFT_FLOW_NAME,
+    ...(isEntra ? { tenantId, principalObjectId } : {}),
+    message: `${isEntra ? 'Entra' : 'Microsoft'} password ${request.operation} queued`,
   };
 } else {
   if (!/^[a-f\d-]{36}$/i.test(request.action_log_id ?? '')) {
@@ -334,9 +395,8 @@ if (request.mode === 'submit') {
     provider: request.provider,
     actionLogId: request.action_log_id,
     vaultItemId: request.credential_id,
-    flowName: FLOW_NAME,
-    tenantId,
-    principalObjectId,
+    flowName: isEntra ? FLOW_NAME : MICROSOFT_FLOW_NAME,
+    ...(isEntra ? { tenantId, principalObjectId } : {}),
     ...reported,
     message: reported.message
       || sanitizedText(row.error, Number('512'))

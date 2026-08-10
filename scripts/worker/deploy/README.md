@@ -525,8 +525,13 @@ bridge. Unknown item/provider/operation combinations fail closed.
 Microsoft Entra work accounts use their own provider `microsoft_entra`, origin
 `https://login.microsoftonline.com`, actions `microsoft_entra_adopt_password`,
 `microsoft_entra_reset_password` and `microsoft_entra_verify_password`, and the
-exact items `weles-microsoft-jakub-wisent-ai-password` and
-`weles-microsoft-lukasz-wisent-com-password`. `adopt` takes over a password the
+exact item `weles-microsoft-jakub-wisent-ai-password`.
+`weles-microsoft-lukasz-wisent-com-password` is a personal Microsoft account
+that only guests in the Entra tenant, so the directory does not hold its
+password: its lifecycle is provider `microsoft`, origin
+`https://account.live.com`, actions `microsoft_adopt_password`,
+`microsoft_reset_password` and `microsoft_verify_password`. `adopt` takes over a
+password the
 operator already knows: Skarbiec stages that candidate under the item, Weles
 proves it with a fresh login plus the full identity assertion and writes nothing,
 and Skarbiec activates the staged revision on success. `rotate` requires the

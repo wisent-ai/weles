@@ -84,11 +84,11 @@ export type AcquireSecretResult =
     }
   | {
       status: 'operation_queued';
-      operation: 'rotate' | 'verify';
+      operation: 'adopt' | 'rotate' | 'verify';
       secret: string;
       provider: 'microsoft';
       actionLogId: string;
-      action: 'microsoft_reset_password' | 'microsoft_verify_password';
+      action: 'microsoft_adopt_password' | 'microsoft_reset_password' | 'microsoft_verify_password';
       flowName: 'microsoft-password-lifecycle';
       vaultItemId: string;
       message: string;
@@ -151,14 +151,14 @@ function microsoftPasswordDefinition(credentialId: string): SecretDefinition {
     formUrl: 'https://account.live.com/password/Change',
     flowName: 'microsoft-password-lifecycle',
     endpoints: ['Microsoft account sign-in'],
-    usageText: 'Rotate or verify one exact Microsoft account password and commit it to Skarbiec only after a fresh password login succeeds.',
+    usageText: 'Adopt, rotate, or verify one exact Microsoft account password and commit it to Skarbiec only after a fresh password login succeeds.',
     dailyRequests: '1',
     requestedScopes: [],
-    capabilities: ['password_rotation', 'fresh_login_verification'],
+    capabilities: ['password_adoption', 'password_rotation', 'fresh_login_verification'],
     runtimeInstall: false,
     headless: false,
     storeSecretTarget: 'skarbiec',
-    operations: ['rotate', 'verify'],
+    operations: ['adopt', 'rotate', 'verify'],
   };
 }
 
@@ -361,7 +361,9 @@ function objectiveFor(def: SecretDefinition, request: AcquireSecretRequest, acco
       'Use only the queued account session and the exact Skarbiec credential contract.',
       operation === 'verify'
         ? 'Perform a fresh password authentication and rewrite the same managed value only after Microsoft accepts it.'
-        : 'Generate a new strong password in-process, change it at Microsoft, perform a fresh password authentication, and only then commit it to Skarbiec.',
+        : operation === 'adopt'
+          ? 'The current password is already known to the operator and staged in Skarbiec: read that staged candidate, prove it with a fresh Microsoft login, and never change the password at the provider.'
+          : 'Generate a new strong password in-process, change it at Microsoft, perform a fresh password authentication, and only then commit it to Skarbiec.',
       'If any step after Microsoft accepts the candidate fails, restore the previous password through its opaque capability and verify the restored password before returning operation_failed. If that rollback cannot be verified, return needs_human_approval and leave the staged Skarbiec candidate intact.',
       'If Microsoft requires interactive identity approval, stop as needs_human_approval without changing Skarbiec.',
       `The encrypted target is ${contract.item} field ${contract.field}; never emit the password in logs or task results.`,
@@ -514,7 +516,7 @@ async function queueMicrosoftPasswordOperation(
   request: AcquireSecretRequest,
 ): Promise<AcquireSecretResult> {
   const operation = request.operation ?? 'acquire';
-  if (operation !== 'rotate' && operation !== 'verify') {
+  if (operation !== 'adopt' && operation !== 'rotate' && operation !== 'verify') {
     return {
       status: 'unsupported_operation',
       secret: def.secret,
@@ -564,7 +566,11 @@ async function queueMicrosoftPasswordOperation(
     };
   }
   const params = paramsFor(def, { ...request, accountEmail });
-  const action = operation === 'verify' ? 'microsoft_verify_password' : 'microsoft_reset_password';
+  const action = operation === 'adopt'
+    ? 'microsoft_adopt_password'
+    : operation === 'verify'
+      ? 'microsoft_verify_password'
+      : 'microsoft_reset_password';
   const actionLogId = await insertReturning('account_action_logs', {
     account_id: accountId,
     action,
@@ -585,7 +591,7 @@ async function queueMicrosoftPasswordOperation(
     action,
     flowName: 'microsoft-password-lifecycle',
     vaultItemId: def.secret,
-    message: `Microsoft password ${operation} queued; Skarbiec remains pending until fresh-login verification rewrites the managed item`,
+    message: `Microsoft password ${operation} queued; Skarbiec remains pending until fresh-login verification ${operation === 'adopt' ? 'activates the staged candidate' : 'rewrites the managed item'}`,
   };
 }
 
