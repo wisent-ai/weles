@@ -32,9 +32,9 @@ const DEFAULT_QUERY =
 const QUERY = process.env.GM_QUERY || DEFAULT_QUERY;
 const OPEN_BODIES = process.env.GM_OPEN !== '0';
 const MAX_OPEN = parseInt(process.env.GM_MAX || '6', 10);
-const INBOX_URL = 'https://mail.google.com/mail/u/0/?pli=1&authuser=jakub@wisent.ai#inbox';
+const INBOX_URL = 'https://mail.google.com/mail/u/0/h/?authuser=jakub@wisent.ai';
 const SEARCH_URL =
-  'https://mail.google.com/mail/u/0/?pli=1&authuser=jakub@wisent.ai#search/' + encodeURIComponent(QUERY);
+  'https://mail.google.com/mail/u/0/h/?authuser=jakub@wisent.ai&q=' + encodeURIComponent(QUERY);
 
 function log(...a) { console.log('[gmail_login_search]', ...a); }
 
@@ -81,9 +81,9 @@ async function detectSession(page) {
     if (/accounts\.google\.com|ServiceLogin|signin|challenge/.test(page.url())) {
       return 'login';
     }
-    const rows = await page.locator('tr.zA').count();
+    const rows = await page.locator('tr.zA, table[role="grid"] tr, form[action*="search"] table tr').count();
     const empty = await visible(
-      page.getByText(/No messages matched|No results found/i).first(),
+      page.getByText(/No messages matched|No results found|did not match any messages/i).first(),
     );
     if (rows > 0 || empty) return 'in';
     await humanIdlePause('short');
@@ -138,20 +138,19 @@ try {
     process.exit(2);
   }
 
-  const rows = await s.page.evaluate(() => { // allow-raw-playwright: read-only DOM text scrape of the inbox result list, no synthetic interaction
+  const rows = await s.page.evaluate(() => { // allow-raw-playwright: read-only DOM text scrape of the basic Gmail result list, no synthetic interaction
     const out = [];
-    const trs = Array.from(document.querySelectorAll('tr.zA')).slice(0, 40);
+    const trs = Array.from(document.querySelectorAll('tr.zA, table[role="grid"] tr, form[action*="search"] table tr')).slice(0, 40);
     for (const r of trs) {
-      const fEl = r.querySelector('.yW span[email]') ||
-                  r.querySelector('.yW span') || r.querySelector('.zF');
-      const sEl = r.querySelector('.bog');
-      const dEl = r.querySelector('.xW span[title]') || r.querySelector('.xW span');
-      const snEl = r.querySelector('.y2');
+      const cells = Array.from(r.querySelectorAll('td')).map((cell) => (cell.textContent || '').trim()).filter(Boolean);
+      if (!cells.length) continue;
+      const link = r.querySelector('a[href]');
       out.push({
-        from: fEl ? (fEl.getAttribute('email') || fEl.textContent || '').trim() : '',
-        subject: sEl ? (sEl.textContent || '').trim() : '',
-        date: dEl ? (dEl.getAttribute('title') || dEl.textContent || '').trim() : '',
-        snippet: snEl ? (snEl.textContent || '').trim() : '',
+        from: cells[0] || '',
+        subject: cells[1] || '',
+        date: cells[cells.length - 1] || '',
+        snippet: cells.join(' '),
+        href: link ? link.href : '',
       });
     }
     return out;
@@ -170,8 +169,12 @@ try {
     const n = Math.min(rows.length, MAX_OPEN);
     for (let idx = 0; idx < n; idx++) {
       try {
-        await humanClickLocator(s.page, s.page.locator('tr.zA').nth(idx));
-        await s.page.locator('.a3s, div[role="listitem"] .ii').first()
+        if (rows[idx].href) {
+          await s.page.goto(rows[idx].href, { waitUntil: 'domcontentloaded' });
+        } else {
+          await humanClickLocator(s.page, s.page.locator('tr.zA, table[role="grid"] tr, form[action*="search"] table tr').nth(idx));
+        }
+        await s.page.locator('.a3s, div[role="listitem"] .ii, table[role="presentation"]').first()
           .waitFor({ state: 'visible' });
         await humanIdlePause('short');
         const body = await s.page.evaluate(() => { // allow-raw-playwright: read-only DOM text scrape of an opened email body, no synthetic interaction
@@ -186,7 +189,7 @@ try {
         console.log(`\n>>> THREAD #${idx + 1}: ${body.subj}`);
         console.log(body.text);
         await s.page.goBack({ waitUntil: 'domcontentloaded' }); // allow-raw-playwright: navigate back to the result list, no bot-classified interaction
-        await s.page.locator('tr.zA').first().waitFor({ state: 'visible' });
+        await s.page.locator('tr.zA, table[role="grid"] tr, form[action*="search"] table tr').first().waitFor({ state: 'visible' });
       } catch (e) {
         console.log(`\n>>> THREAD #${idx + 1}: (failed to open: ${e.message})`);
       }
