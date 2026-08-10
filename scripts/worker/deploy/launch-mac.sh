@@ -31,8 +31,8 @@ export STADO_RESOLVER_API_URL=http://127.0.0.1:17600
 export STADO_SKARBIEC_URI=stado://service/skarbiec
 export STADO_BRAMA_URI=stado://service/brama
 export STADO_OBJECT_API_URI=stado://service/stado-object-api
-export WC_SKARBIEC_URL=http://127.0.0.1:17602
-export WELES_CREDENTIAL_SKARBIEC_URL=http://127.0.0.1:17602
+export WC_SKARBIEC_URL="${WC_SKARBIEC_URL:-http://127.0.0.1:17602}"
+export WELES_CREDENTIAL_SKARBIEC_URL="${WELES_CREDENTIAL_SKARBIEC_URL:-$WC_SKARBIEC_URL}"
 export STADO_MODEL_ROUTER_URL=http://127.0.0.1:17601
 export STADO_API_URL=http://127.0.0.1:17603
 mkdir -p "${WELES_STATE_DIR:-$HOME/.local/state/weles}"

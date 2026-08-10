@@ -1,8 +1,12 @@
 #!/usr/bin/env node
 
 import { readFile } from 'node:fs/promises';
+import { execFile } from 'node:child_process';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
+import { promisify } from 'node:util';
+
+const execFileAsync = promisify(execFile);
 
 const LIMIT = 60;
 
@@ -89,10 +93,17 @@ function artifactInventory(row) {
   };
   const records = [];
   for (const [key, [title, kind]] of Object.entries(kinds)) {
-    const value = artifacts[key];
-    const count = Array.isArray(value) ? value.length : value && typeof value === 'object' ? Object.keys(value).length : 0;
-    for (let index = 0; index < count; index += 1) {
-      records.push({ id: `${row.id}-${key}-${index + 1}`, title: `${title}-${index + 1}`, kind });
+    const locators = Array.isArray(artifacts[key])
+      ? artifacts[key].filter((entry) => typeof entry === 'string' && entry.startsWith('stado://weles/recordings/'))
+      : [];
+    for (let index = 0; index < locators.length; index += 1) {
+      records.push({
+        id: `${row.id}-${key}-${index + 1}`,
+        title: `${title}-${index + 1}`,
+        kind,
+        delivery_kind: key,
+        locator: locators[index],
+      });
     }
   }
   return records;
@@ -123,22 +134,94 @@ function sanitizeRow(row) {
   };
 }
 
-const repositoryRoot = resolve(process.argv[2] ?? process.cwd());
-const env = await loadEnvironment(repositoryRoot);
-const baseUrl = (env.WELES_DATABASE_URL ?? '').replace(/\/$/, '');
-const token = env.WELES_DATABASE_TOKEN ?? '';
-if (!baseUrl || !token) throw new Error('Weles managed-run credentials are unavailable');
+async function artifactDeliveryToken(repositoryRoot, env) {
+  const configured = String(env.WELES_ARTIFACT_DELIVERY_TOKEN ?? '').trim();
+  if (configured) return configured;
 
-const columns = 'id,action,platform,status,result,started_at,completed_at,claimed_at,claimed_by,scheduled_at';
-const endpoint = new URL(`${baseUrl}/rest/v1/account_action_logs`);
-endpoint.searchParams.set('select', columns);
-endpoint.searchParams.set('order', 'claimed_at.desc.nullslast');
-endpoint.searchParams.set('limit', String(LIMIT));
-const response = await fetch(endpoint, {
-  headers: { apikey: token, Authorization: `Bearer ${token}` },
-  signal: AbortSignal.timeout(15_000),
-});
-if (!response.ok) throw new Error(`Weles managed-run read failed (${response.status})`);
-const rows = await response.json();
-if (!Array.isArray(rows)) throw new Error('Weles managed-run response is not an array');
-process.stdout.write(`${JSON.stringify({ source: 'managed_queue', runs: rows.map(sanitizeRow) })}\n`);
+  const endpoint = env.WC_SKARBIEC_URL ?? env.WELES_CREDENTIAL_SKARBIEC_URL;
+  const workloadId = env.SKARBIEC_WORKLOAD_ID;
+  const signingKeyFile = env.SKARBIEC_WORKLOAD_SIGNING_KEY_FILE;
+  if (!endpoint || !workloadId || !signingKeyFile) {
+    throw new Error('Weles artifact delivery acquisition is unavailable');
+  }
+
+  const helper = join(repositoryRoot, 'scripts', 'worker', 'deploy', 'skarbiec-acquire.mjs');
+  const scopes = join(repositoryRoot, 'scripts', 'worker', 'deploy', 'skarbiec-acquisition-scopes.conf');
+  const { stdout } = await execFileAsync(process.execPath, [
+    helper,
+    endpoint,
+    scopes,
+    'weles-artifact-delivery-token-bootstrap',
+    'weles-artifact-delivery',
+    'token',
+  ], {
+    encoding: 'utf8',
+    env: {
+      SKARBIEC_WORKLOAD_ID: workloadId,
+      SKARBIEC_WORKLOAD_SIGNING_KEY_FILE: signingKeyFile,
+    },
+    maxBuffer: 8_192,
+    timeout: 15_000,
+  });
+  const token = stdout.trim();
+  if (Buffer.byteLength(token) < 32 || /\s/.test(token)) {
+    throw new Error('Skarbiec returned an invalid artifact delivery credential');
+  }
+  return token;
+}
+
+async function signArtifact(repositoryRoot, deliveryKind, locator) {
+  const allowedKinds = new Set(['screenshots', 'videos', 'dom', 'logs']);
+  if (!allowedKinds.has(deliveryKind) || !locator.startsWith('stado://weles/recordings/')) {
+    throw new Error('Managed artifact reference is invalid');
+  }
+  const env = await loadEnvironment(repositoryRoot);
+  const baseUrl = (env.WELES_ARTIFACT_DELIVERY_URL ?? '').replace(/\/$/, '');
+  const token = await artifactDeliveryToken(repositoryRoot, env);
+  if (!baseUrl) throw new Error('Weles artifact delivery endpoint is unavailable');
+  const artifacts = { screenshots: [], videos: [], dom: [], logs: [] };
+  artifacts[deliveryKind].push(locator);
+  const response = await fetch(new URL('/v1/artifacts/sign', baseUrl), {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    redirect: 'error',
+    body: JSON.stringify({ artifacts }),
+    signal: AbortSignal.timeout(15_000),
+  });
+  const payload = await response.json();
+  if (!response.ok) throw new Error(`Weles artifact signing failed (${response.status})`);
+  const signedUrl = payload?.artifacts?.[deliveryKind]?.[0];
+  if (typeof signedUrl !== 'string' || new URL(signedUrl).protocol !== 'https:') {
+    throw new Error('Weles artifact signing returned an invalid URL');
+  }
+  process.stdout.write(`${JSON.stringify({ url: signedUrl, expires_at: payload.expires_at })}\n`);
+}
+
+async function listManagedRuns(repositoryRoot) {
+  const env = await loadEnvironment(repositoryRoot);
+  const baseUrl = (env.WELES_DATABASE_URL ?? '').replace(/\/$/, '');
+  const token = env.WELES_DATABASE_TOKEN ?? '';
+  if (!baseUrl || !token) throw new Error('Weles managed-run credentials are unavailable');
+  const columns = 'id,action,platform,status,result,started_at,completed_at,claimed_at,claimed_by,scheduled_at';
+  const endpoint = new URL(`${baseUrl}/rest/v1/account_action_logs`);
+  endpoint.searchParams.set('select', columns);
+  endpoint.searchParams.set('order', 'claimed_at.desc.nullslast');
+  endpoint.searchParams.set('limit', String(LIMIT));
+  const response = await fetch(endpoint, {
+    headers: { apikey: token, Authorization: `Bearer ${token}` },
+    signal: AbortSignal.timeout(15_000),
+  });
+  if (!response.ok) throw new Error(`Weles managed-run read failed (${response.status})`);
+  const rows = await response.json();
+  if (!Array.isArray(rows)) throw new Error('Weles managed-run response is not an array');
+  process.stdout.write(`${JSON.stringify({ source: 'managed_queue', runs: rows.map(sanitizeRow) })}\n`);
+}
+
+if (process.argv[2] === '--sign') {
+  await signArtifact(resolve(process.argv[3] ?? process.cwd()), process.argv[4] ?? '', process.argv[5] ?? '');
+} else {
+  await listManagedRuns(resolve(process.argv[2] ?? process.cwd()));
+}
