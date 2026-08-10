@@ -29,25 +29,27 @@ and how it can be fixed.
 Give your AI the keys to the internet. The browser-use experience your AI
 deserves.
 
-## Execution evidence contract
+## Proven production outcomes
 
-Weles keeps execution evidence beside the action that produced it instead of
-turning private account state into a public demo. A run can retain:
+These are completed actions from the production action log, not demonstrations
+or planned capabilities. Each login below exited successfully with a healthy
+signal, and a later health action for the same stored account independently
+confirmed that the authenticated session remained usable.
 
-| Evidence | What it answers |
-| --- | --- |
-| Video | What the browser displayed and when the state changed |
-| Final instrumented DOM dump | Which page state the trajectory actually reached |
-| HAR and safe Chromium netlog | Which network requests succeeded or failed |
-| Fingerprint manifest and browser receipt | Which browser identity and verified build ran |
-| Action-log terminal state | Whether the request completed, failed, was cancelled, or needs review |
-| Signed receipt, when configured | Which outcome and evidence digest the caller can verify offline |
+| Outcome | Executed action | Recorded proof |
+| --- | --- | --- |
+| GitHub authenticated session | `defc2099-5f61-4986-b472-1ed1fbcd8492`, 2026-05-20 | Completed healthy in 50.1 seconds; retained a DOM dump, run log, video, and 8 screenshots. `d56a28c6-d029-485c-8909-f7da74a7476a` checked the same account 14 hours later and also completed healthy. |
+| Reddit authenticated session | `85f56287-fb96-499a-8316-5a61774165d0`, 2026-05-20 | Completed healthy in 40.3 seconds; retained a DOM dump, run log, video, and 5 screenshots. `b3b28e86-76a2-44a7-bcec-4212c47d214b` checked the same account 21 hours later and also completed healthy. |
+| LinkedIn authenticated session | `3098659b-5978-4205-a3d5-913ac15c4062`, 2026-05-07 | Completed healthy in 158.6 seconds with a run log and video. `16cce874-8238-49c2-b86d-4009d0f4fe4b` checked the same account 3 hours later and also completed healthy. |
+| Slack notification delivered | `36f1435a-a5ef-46fd-9865-3dece87fc09e`, 2026-07-13 | Completed healthy in 1.6 seconds. Its recorded trajectory calls `chat.postMessage`, accepts only Slack's `ok` response, and exits non-zero when no recipient accepts the post. |
 
-These artifacts prove what Weles executed; they do not by themselves prove that
-the requested business objective succeeded. Recordings remain private because
-they can contain authenticated target state. This README cites no showcase run
-until one records a complete objective with evidence that supports the product
-claim.
+The worker writes `completed` only after the trajectory exits with code zero;
+failures, cancellations, and review-required outcomes use separate terminal
+states. Account identifiers and artifacts remain private because recordings can
+contain authenticated target state; the action IDs preserve the internal audit
+trail. These historical records predate signed outcome receipts, so this proof
+is the stored terminal state, success signal, follow-up correlation, retained
+artifacts, and recorded trajectory—not a claim of cryptographic attestation.
 
 ## Request access
 
