@@ -38,14 +38,6 @@
       "extract": false
     }
   },
-  "runtime": {
-    "binary": "payload/weles-worker.tar.gz",
-    "launcher": "bin/start",
-    "config_schema": 1,
-    "state_schema": 1,
-    "minimum_stado_version": "0.7.0",
-    "rollback_compatible_with": []
-  },
   "promotion": {
     "channels": [
       "candidate",
