@@ -132,7 +132,7 @@ if (!baseUrl || !token) throw new Error('Weles managed-run credentials are unava
 const columns = 'id,action,platform,status,result,started_at,completed_at,claimed_at,claimed_by,scheduled_at';
 const endpoint = new URL(`${baseUrl}/rest/v1/account_action_logs`);
 endpoint.searchParams.set('select', columns);
-endpoint.searchParams.set('order', 'scheduled_at.desc');
+endpoint.searchParams.set('order', 'claimed_at.desc.nullslast');
 endpoint.searchParams.set('limit', String(LIMIT));
 const response = await fetch(endpoint, {
   headers: { apikey: token, Authorization: `Bearer ${token}` },
