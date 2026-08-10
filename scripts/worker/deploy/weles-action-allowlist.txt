@@ -1,4 +1,5 @@
 anticaptcha_balance
+apple_create_developer_id
 apple_login
 brightdata_balance
 brightdata_topup
