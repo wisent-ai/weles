@@ -295,37 +295,55 @@ async function hasIdentityChallenge(page) {
   return IDENTITY_CHALLENGE.test(body);
 }
 
+// Walks the converged sign-in surfaces until the password credential is
+// chosen. The passkey-first page cancels into an error surface whose
+// "Other ways to sign in" carries the password tile; the bare "Sign-in
+// options" chooser (passkey + organization) does not, so it is backed out of
+// and the email is resubmitted for another pass at the error surface.
 async function choosePasswordSignIn(page) {
-  const passkeyPage = page.getByText(/Face, fingerprint, PIN or security key|device will open a security window/i).first();
-  if (await visible(passkeyPage)) {
-    await page.keyboard.press('Escape').catch(() => {});
-    await page.waitForTimeout(Number('500'));
-    const resume = await page.evaluate(
-      () => globalThis.$Config?.urlCancel ?? globalThis.$Config?.urlResume ?? '',
-    ).catch(() => '');
-    if (resume) {
-      const target = new URL(resume, page.url());
-      if (!SIGN_IN_HOSTS.includes(target.hostname)) {
-        throw new Error('Entra passkey resume URL escaped the sign-in origin');
-      }
-      await page.goto(target.href, { waitUntil: 'domcontentloaded' });
+  for (let attempt = Number('0'); attempt < Number('4'); attempt += Number('1')) {
+    const passwordInput = page.locator('input[name="passwd"], input#i0118, input[type="password"]').first();
+    if (await visible(passwordInput)) return;
+    const passwordChoice = page.getByText(/^Use (?:your )?password$/i).first();
+    if (await visible(passwordChoice)) {
+      await passwordChoice.click();
       await page.waitForTimeout(Number('1000'));
-    } else {
-      const back = page.locator('#idBtn_Back, button[aria-label="Back"]').first();
-      if (await visible(back)) {
-        await back.click();
+      return;
+    }
+    const passkeyFailed = page.getByText(/couldn.t sign you in with your passkey|something went wrong/i).first();
+    const passkeyPage = page.getByText(/Face, fingerprint, PIN or security key|device will open a security window/i).first();
+    const bareChooser = page.getByText(/Sign in to an organization/i).first();
+    const emailInput = page.locator('input[name="loginfmt"], input#i0116, input[type="email"]').first();
+    if (await visible(passkeyFailed)) {
+      const otherWays = page.getByText(/Other ways to sign in|Use another way/i).first();
+      if (await visible(otherWays)) {
+        await otherWays.click();
         await page.waitForTimeout(Number('1000'));
+        continue;
       }
     }
-  }
-  const otherWays = page.getByText(/Other ways to sign in|Sign-in options|Use another way/i).first();
-  if (await visible(otherWays)) {
+    if (await visible(passkeyPage)) {
+      await page.keyboard.press('Escape').catch(() => {});
+      await page.waitForTimeout(Number('2500'));
+      continue;
+    }
+    if (await visible(bareChooser)) {
+      const back = page.locator('#idBtn_Back, button[aria-label="Back"]').first();
+      if (!await visible(back)) return;
+      await back.click();
+      await page.waitForTimeout(Number('1000'));
+      continue;
+    }
+    if (await visible(emailInput)) {
+      const next = page.locator('input[type="submit"]#idSIButton9, button[type="submit"]').first();
+      if (!await visible(next)) return;
+      await next.click();
+      await page.waitForTimeout(Number('2500'));
+      continue;
+    }
+    const otherWays = page.getByText(/Other ways to sign in|Use another way/i).first();
+    if (!await visible(otherWays)) return;
     await otherWays.click();
-    await page.waitForTimeout(Number('1000'));
-  }
-  const passwordChoice = page.getByText(/Use (?:your )?password|Password/i).first();
-  if (await visible(passwordChoice)) {
-    await passwordChoice.click();
     await page.waitForTimeout(Number('1000'));
   }
 }
