@@ -32,9 +32,9 @@ const DEFAULT_QUERY =
 const QUERY = process.env.GM_QUERY || DEFAULT_QUERY;
 const OPEN_BODIES = process.env.GM_OPEN !== '0';
 const MAX_OPEN = parseInt(process.env.GM_MAX || '6', 10);
-const INBOX_URL = 'https://mail.google.com/mail/u/0/#inbox';
+const INBOX_URL = 'https://mail.google.com/mail/u/0/#inbox?authuser=jakub@wisent.ai';
 const SEARCH_URL =
-  'https://mail.google.com/mail/u/0/#search/' + encodeURIComponent(QUERY);
+  'https://mail.google.com/mail/u/0/?authuser=jakub@wisent.ai#search/' + encodeURIComponent(QUERY);
 
 function log(...a) { console.log('[gmail_login_search]', ...a); }
 
