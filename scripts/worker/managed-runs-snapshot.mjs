@@ -176,9 +176,14 @@ async function signArtifact(repositoryRoot, deliveryKind, locator) {
     throw new Error('Managed artifact reference is invalid');
   }
   const env = await loadEnvironment(repositoryRoot);
-  const baseUrl = (env.WELES_ARTIFACT_DELIVERY_URL ?? '').replace(/\/$/, '');
+  const baseUrl = new URL(env.WELES_DESKTOP_ARTIFACT_DELIVERY_URL ?? 'http://127.0.0.1:17615');
+  const loopback = new Set(['localhost', '127.0.0.1', '::1', '[::1]']).has(baseUrl.hostname);
+  if (baseUrl.username || baseUrl.password || baseUrl.search || baseUrl.hash
+      || (baseUrl.pathname !== '/' && baseUrl.pathname !== '')
+      || (baseUrl.protocol !== 'https:' && !(baseUrl.protocol === 'http:' && loopback))) {
+    throw new Error('Weles artifact delivery endpoint is invalid');
+  }
   const token = await artifactDeliveryToken(repositoryRoot, env);
-  if (!baseUrl) throw new Error('Weles artifact delivery endpoint is unavailable');
   const artifacts = { screenshots: [], videos: [], dom: [], logs: [] };
   artifacts[deliveryKind].push(locator);
   const response = await fetch(new URL('/v1/artifacts/sign', baseUrl), {
@@ -193,11 +198,19 @@ async function signArtifact(repositoryRoot, deliveryKind, locator) {
   });
   const payload = await response.json();
   if (!response.ok) throw new Error(`Weles artifact signing failed (${response.status})`);
-  const signedUrl = payload?.artifacts?.[deliveryKind]?.[0];
-  if (typeof signedUrl !== 'string' || new URL(signedUrl).protocol !== 'https:') {
+  const signedUrlText = payload?.artifacts?.[deliveryKind]?.[0];
+  if (typeof signedUrlText !== 'string') {
     throw new Error('Weles artifact signing returned an invalid URL');
   }
-  process.stdout.write(`${JSON.stringify({ url: signedUrl, expires_at: payload.expires_at })}\n`);
+  const signedUrl = new URL(signedUrlText);
+  if (!['https:', 'http:'].includes(signedUrl.protocol)
+      || signedUrl.username || signedUrl.password || !signedUrl.searchParams.has('signature')) {
+    throw new Error('Weles artifact signing returned an invalid URL');
+  }
+  signedUrl.protocol = baseUrl.protocol;
+  signedUrl.hostname = baseUrl.hostname;
+  signedUrl.port = baseUrl.port;
+  process.stdout.write(`${JSON.stringify({ url: signedUrl.href, expires_at: payload.expires_at })}\n`);
 }
 
 async function listManagedRuns(repositoryRoot) {
