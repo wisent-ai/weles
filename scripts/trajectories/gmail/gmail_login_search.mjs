@@ -109,12 +109,13 @@ try {
   await s.page.goto(INBOX_URL, { waitUntil: 'domcontentloaded' });
   await humanIdlePause('deliberate');
 
-  if (await needsGoogleLogin(s.page)) {
-    if (await needsGoogleLogin(s.page) && !/accounts\.google\.com/.test(s.page.url())) {
-      log('opening Gmail sign-in');
-      await s.page.goto('https://accounts.google.com/ServiceLogin?service=mail', { waitUntil: 'domcontentloaded' });
-      await humanIdlePause('deliberate');
-    }
+  const gmailNeedsLogin = await needsGoogleLogin(s.page);
+  if (gmailNeedsLogin && !/accounts\.google\.com/.test(s.page.url())) {
+    log('opening Gmail sign-in');
+    await s.page.goto('https://accounts.google.com/ServiceLogin?service=mail', { waitUntil: 'domcontentloaded' });
+    await humanIdlePause('deliberate');
+  }
+  if (gmailNeedsLogin) {
     log('logged out — running googleSso for', creds.email);
     const ok = await googleSso(s, creds);
     if (!ok) {
