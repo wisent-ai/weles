@@ -7,6 +7,7 @@
 
 import { spawnSync } from 'node:child_process';
 import { assertAppleAuthChallengeOpen, recordAppleAuthChallengeCaptured } from '../../dist/auth/apple-submit-guard.js';
+import { appleAccountHolder, stadoBinary } from './apple-account-placement.mjs';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const ALLOWED_FLAGS = new Set(['--guard-id', '--account-id', '--action-log-id']);
@@ -24,41 +25,12 @@ function flags(argv) {
   return parsed;
 }
 
-// Ask Stado which host currently holds the Apple account, instead of trusting a
-// hand-written address.
-//
-// APPLE_2FA_MAC_HOST named a machine because someone believed, once, that it was the
-// trusted device. Nothing re-checked that: an Apple account signs out on a password
-// change and the variable keeps pointing at a Mac that will never show a prompt
-// again, so the flow died on a connection timeout instead of saying the binding is
-// unsatisfied. `stado identity verify` probes the hosts and names the host to enroll,
-// which turns that timeout into a sentence.
-//
-// What comes back is the registry's name for the machine, not an address: the channel
-// that runs the helper resolves the target itself, so an address here would be a
-// second way to say where a host is, and the one that goes stale.
-function resolveHolder(identity) {
-  const stado = process.env.STADO_BIN ?? `${process.env.HOME ?? ''}/.local/bin/stado`;
-  const result = spawnSync(stado, [
-    'identity', 'verify', '--kind', 'apple-account', '--identity', identity, '--json',
-  ], { encoding: 'utf8' });
-  if (result.error || typeof result.stdout !== 'string') {
-    throw new Error('Stado could not be asked which host holds the Apple account');
-  }
-  let report;
-  try { report = JSON.parse(result.stdout); } catch {
-    throw new Error('Stado returned an unreadable identity report');
-  }
-  if (!report || report.satisfied !== true || !Array.isArray(report.bindings)) {
-    throw new Error(`no host holds apple-account ${identity}`);
-  }
-  // Only an observed holder may be used. A declared-but-unverified binding is the
-  // exact state that produced the stale variable this function replaces.
-  const holder = report.bindings.find((row) => row && row.observed === true
-    && typeof row.host === 'string' && row.host);
-  if (!holder) throw new Error(`no verified host holds apple-account ${identity}`);
-  return holder.host;
-}
+// Which host holds the account is asked of Stado, in the one place that asks it:
+// `apple-account-placement.mjs`. The resolution used to be copied here, and a copy of
+// this particular question is worse than most, because the two callers that ask it --
+// the trajectory deciding whether it needs a relay at all, and this program choosing
+// where to send one -- have to reach the same host or the capture goes to a machine
+// nobody is waiting on.
 
 const parsed = flags(process.argv.slice(2));
 const guardId = (parsed.get('--guard-id') ?? '').toLowerCase();
@@ -89,11 +61,11 @@ for (const [name, value] of [['--guard-id', guardId], ['--account-id', accountId
 // safe basename. Re-checking them here would be a second opinion that can only drift
 // from the one actually enforced.
 const helper = process.env.APPLE_2FA_RELAY_HELPER ?? 'apple-challenge-capture';
-const host = resolveHolder(process.env.APPLE_2FA_ACCOUNT_IDENTITY ?? '');
+const host = appleAccountHolder(process.env.APPLE_2FA_ACCOUNT_IDENTITY ?? '');
 
 await assertAppleAuthChallengeOpen(guardId, accountId, actionLogId);
 
-const stado = process.env.STADO_BIN ?? `${process.env.HOME ?? ''}/.local/bin/stado`;
+const stado = stadoBinary();
 const result = spawnSync(stado, [
   'host', 'run-helper', host, helper, '--uuid', guardId, '--json',
 ], { cwd: process.cwd(), env: process.env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });

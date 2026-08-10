@@ -32,6 +32,20 @@ if [ -z "$guard_id" ]; then
   false
 fi
 
+# The registry channel hands this program a bare UUID and nothing else -- never an
+# environment the caller chose, which is exactly the property that makes it safe to
+# run unattended. That leaves this machine's own configuration as the only honest
+# source for where its Skarbiec is, so read the file Weles already owns on this host
+# instead of inventing a second one beside it. Absent is fine and stays quiet: a
+# holder whose Skarbiec sits on another machine is configured through that file too,
+# and the relay says plainly when it has been given neither destination.
+env_file=${WELES_ENV_FILE:-$HOME/.config/weles/worker.env}
+if [ -f "$env_file" ] && [ ! -L "$env_file" ]; then
+  set -a
+  . "$env_file"
+  set +a
+fi
+
 weles_home=${WELES_HOME:-$HOME/weles}
 case $weles_home in
   /*) ;;
