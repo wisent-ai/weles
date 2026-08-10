@@ -29,10 +29,10 @@ and how it can be fixed.
 Give your AI the keys to the internet. The browser-use experience your AI
 deserves.
 
-## Evidence from every run
+## Execution evidence contract
 
-Weles keeps the execution evidence beside the action that produced it instead
-of turning private account state into a public demo. A run can retain:
+Weles keeps execution evidence beside the action that produced it instead of
+turning private account state into a public demo. A run can retain:
 
 | Evidence | What it answers |
 | --- | --- |
@@ -40,13 +40,14 @@ of turning private account state into a public demo. A run can retain:
 | Final instrumented DOM dump | Which page state the trajectory actually reached |
 | HAR and safe Chromium netlog | Which network requests succeeded or failed |
 | Fingerprint manifest and browser receipt | Which browser identity and verified build ran |
-| Action-log terminal state and signed receipt | Which request ran, its outcome, and the evidence digest |
+| Action-log terminal state | Whether the request completed, failed, was cancelled, or needs review |
+| Signed receipt, when configured | Which outcome and evidence digest the caller can verify offline |
 
-For example, recorded action `3ed81927` on 2026-08-10 reached its terminal state
-in 30.0 seconds and retained video, a safe network log, a final instrumented DOM
-dump, and a fingerprint manifest. The artifacts stay private because they can
-contain authenticated target state; the caller verifies the signed result
-through `weles-client`.
+These artifacts prove what Weles executed; they do not by themselves prove that
+the requested business objective succeeded. Recordings remain private because
+they can contain authenticated target state. This README cites no showcase run
+until one records a complete objective with evidence that supports the product
+claim.
 
 ## Request access
 
