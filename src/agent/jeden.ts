@@ -185,6 +185,8 @@ export async function callJeden(prompt: string, options: JedenCallOptions = {}):
     ...jedenEnv,
     STADO_MODEL_ROUTER_URL: cfg.routerUrl,
     STADO_MODEL_ROUTER_TOKEN: cfg.routerToken,
+    BRAMA_URL: cfg.routerUrl,
+    BRAMA_TOKEN: cfg.routerToken,
     WISENT_APP_AGENT_ID: cfg.agentId,
     WISENT_APP_AGENT_AUTH_SECRET: cfg.agentAuthSecret,
     JEDEN_SESSION_ROOT: sessionRoot,
