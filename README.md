@@ -36,18 +36,20 @@ or planned capabilities. Each login below exited successfully with a healthy
 signal, and a later health action for the same stored account independently
 confirmed that the authenticated session remained usable.
 
-| Outcome | Executed action | Recorded proof |
+| Outcome | Public audit reference | Recorded proof |
 | --- | --- | --- |
-| GitHub authenticated session | `defc2099-5f61-4986-b472-1ed1fbcd8492`, 2026-05-20 | Completed healthy in 50.1 seconds; retained a DOM dump, run log, video, and 8 screenshots. `d56a28c6-d029-485c-8909-f7da74a7476a` checked the same account 14 hours later and also completed healthy. |
-| Reddit authenticated session | `85f56287-fb96-499a-8316-5a61774165d0`, 2026-05-20 | Completed healthy in 40.3 seconds; retained a DOM dump, run log, video, and 5 screenshots. `b3b28e86-76a2-44a7-bcec-4212c47d214b` checked the same account 21 hours later and also completed healthy. |
-| LinkedIn authenticated session | `3098659b-5978-4205-a3d5-913ac15c4062`, 2026-05-07 | Completed healthy in 158.6 seconds with a run log and video. `16cce874-8238-49c2-b86d-4009d0f4fe4b` checked the same account 3 hours later and also completed healthy. |
-| Slack notification delivered | `36f1435a-a5ef-46fd-9865-3dece87fc09e`, 2026-07-13 | Completed healthy in 1.6 seconds. Its recorded trajectory calls `chat.postMessage`, accepts only Slack's `ok` response, and exits non-zero when no recipient accepts the post. |
+| GitHub authenticated session | `59c16cd8c79ac670`, 2026-05-20 | Completed healthy in 50.1 seconds; retained a DOM dump, run log, video, and 8 screenshots. A health check for the same account 14 hours later also completed healthy. |
+| Reddit authenticated session | `ac0480be066925a0`, 2026-05-20 | Completed healthy in 40.3 seconds; retained a DOM dump, run log, video, and 5 screenshots. A health check for the same account 21 hours later also completed healthy. |
+| LinkedIn authenticated session | `748159b6b7e53910`, 2026-05-07 | Completed healthy in 158.6 seconds with a run log and video. A health check for the same account 3 hours later also completed healthy. |
+| Slack notification delivered | `4ce446385b3918bf`, 2026-07-13 | Completed healthy in 1.6 seconds. Its recorded trajectory calls `chat.postMessage`, accepts only Slack's `ok` response, and exits non-zero when no recipient accepts the post. |
 
 The worker writes `completed` only after the trajectory exits with code zero;
 failures, cancellations, and review-required outcomes use separate terminal
 states. Account identifiers and artifacts remain private because recordings can
-contain authenticated target state; the action IDs preserve the internal audit
-trail. These historical records predate signed outcome receipts, so this proof
+contain authenticated target state. Each public audit reference is the first 16
+hexadecimal characters of SHA-256 over the corresponding private record ID or
+correlated record pair. These historical records predate signed outcome
+receipts, so this proof
 is the stored terminal state, success signal, follow-up correlation, retained
 artifacts, and recorded trajectory—not a claim of cryptographic attestation.
 
