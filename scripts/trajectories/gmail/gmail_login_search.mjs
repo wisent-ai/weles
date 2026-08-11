@@ -92,6 +92,7 @@ async function detectSession(page) {
 }
 
 async function needsGoogleLogin(page) {
+  if (new URL(page.url()).hostname !== 'mail.google.com') return true;
   if (/accounts\.google\.com|ServiceLogin|signin|challenge/.test(page.url())) return true;
   const heading = await page.getByRole('heading', { name: /^Sign in$/i }).count().catch(() => 0);
   if (heading > 0) return true;
@@ -129,7 +130,10 @@ try {
     log('already signed in (existing session)');
   }
 
-  await s.page.goto(SEARCH_URL, { waitUntil: 'domcontentloaded' });
+  const searchBox = s.page.locator('input[placeholder="Search mail"], input[name="q"]').first();
+  await searchBox.waitFor({ state: 'visible', timeout: 30_000 });
+  await searchBox.fill(QUERY);
+  await searchBox.press('Enter');
   const status = await detectSession(s.page);
   if (status !== 'in') {
     log('FAIL: search did not render (status=' + status + ', url='
@@ -195,6 +199,7 @@ try {
 
   log('done.');
   await s.close();
+  process.exit(0);
 } catch (e) {
   log('ERROR: ' + (e && e.stack || e));
   try { await s.close(); } catch (ce) { log('close failed: ' + ce.message); }

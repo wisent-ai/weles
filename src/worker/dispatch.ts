@@ -402,7 +402,7 @@ export function paramsToEnv(
     if (typeof query === 'string') env.GM_QUERY = query;
     const max = params.max;
     if (typeof max === 'number' || typeof max === 'string') env.GM_MAX = String(max);
-    if (params.open === false || params.open === '0') env.GM_OPEN = '0';
+    if (params.open === false || params.open === 0 || params.open === '0') env.GM_OPEN = '0';
     else env.GM_OPEN = '1';
   }
   if (trajPath.endsWith('/generic/saved_task.mjs')) {
