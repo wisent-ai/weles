@@ -101,6 +101,7 @@ export async function putPrivateWelesObject(
       'Content-Length': String(bytes.byteLength),
     },
     body: bytes as unknown as BodyInit,
+    signal: AbortSignal.timeout(Number('60000')),
   })
   const responseText = await response.text()
   if (!response.ok) {
