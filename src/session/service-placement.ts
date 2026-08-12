@@ -10,8 +10,12 @@ type ServiceStatusRow = {
 
 function stado(arguments_: string[]): string {
   const binary = process.env.STADO_BIN?.trim() || join(homedir(), '.local', 'bin', 'stado');
+  const environment = { ...process.env };
+  delete environment.STADO_API_URL;
+  delete environment.STADO_API_TOKEN;
   return execFileSync(binary, arguments_, {
     encoding: 'utf8',
+    env: environment,
     stdio: ['ignore', 'pipe', 'pipe'],
   }).trim();
 }
