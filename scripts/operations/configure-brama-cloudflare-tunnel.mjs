@@ -29,7 +29,7 @@ const objective = [
 const body = {
   action: 'generic_keeper_task',
   creds: 'redact',
-  timeout_ms: '600000',
+  timeout_ms: '1800000',
   params: {
     url: 'https://dash.cloudflare.com/login',
     objective,
@@ -58,7 +58,7 @@ const responseBody = await new Promise((resolve, reject) => {
     incoming.on('data', (chunk) => chunks.push(chunk));
     incoming.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
   });
-  request.setTimeout(Number(body.timeout_ms), () => request.destroy(new Error('Weles API request timed out')));
+  request.setTimeout(Number(body.timeout_ms) + Number('60000'), () => request.destroy(new Error('Weles API request timed out')));
   request.on('error', reject);
   request.end(payload);
 });
