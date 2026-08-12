@@ -135,6 +135,35 @@ async function applyCredentialPrefill(activeSession, taskConstraints) {
     await activeSession.fillCredential(target, fieldClass, capability);
   }
 }
+async function dismissCookieConsent(activeSession, taskConstraints) {
+  const labels = Array.isArray(taskConstraints.cookie_consent_buttons)
+    ? taskConstraints.cookie_consent_buttons.filter((value) => typeof value === 'string' && value)
+    : [];
+  if (!labels.length) return;
+  const candidates = labels.map((name) => (
+    activeSession.page.getByRole('button', { name, exact: true }).filter({ visible: true }).first()
+  ));
+  let button = null;
+  for (let attempt = 0; attempt < 10 && !button; attempt += 1) {
+    for (const candidate of candidates) {
+      if (await candidate.isVisible().catch(() => false)) {
+        button = candidate;
+        break;
+      }
+    }
+    if (!button) await activeSession.page.waitForTimeout(500);
+  }
+  if (!button) return;
+  await button.click({ force: true });
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const visible = await Promise.all(candidates.map((candidate) => (
+      candidate.isVisible().catch(() => false)
+    )));
+    if (!visible.some(Boolean)) return;
+    await activeSession.page.waitForTimeout(500);
+  }
+  throw new Error('cookie consent banner did not close after one deterministic click');
+}
 
 
 
@@ -185,6 +214,7 @@ try {
       : await writeWelesTrajectoryDraft({ objective });
   session = await WSession.start({ label, proxy, targetHost: new URL(url).hostname, headless, browser, platform: identityPlatformFromConstraints(constraints) || undefined, pageDiagnostics: keeperFirst ? false : undefined });
   await session.goto(url);
+  await dismissCookieConsent(session, constraints);
   await applyCredentialPrefill(session, constraints);
   await ensureSupabaseSession(session, constraints);
   const goal = [
