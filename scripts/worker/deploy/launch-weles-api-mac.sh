@@ -4,6 +4,10 @@
 # Supabase enqueue -> poll queue. Reuses the worker's resolveTrajectory/paramsToEnv.
 export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
 set -a
+# release pins and workload identity owned by the managed worker deployment
+if [ -f "$HOME/.config/weles/worker.env" ]; then
+  . "$HOME/.config/weles/worker.env"
+fi
 # base worker runtime (proxy, chromium path, captcha keys, supabase creds)
 if [ -f "$HOME/weles/var/worker.env" ]; then
   . "$HOME/weles/var/worker.env"
