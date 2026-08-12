@@ -226,6 +226,24 @@ async function navigateGoogleAuthenticatorTotpChallenge(page) {
   await humanIdlePause('short');
   return false;
 }
+async function navigateGooglePasswordChallenge(page) {
+  const current = page.url();
+  if (!/^https:\/\/accounts\.google\.com\//.test(current)
+      || !/\/signin\/challenge\/pk(?=[/?#])/.test(current)) return false;
+  const target = current.replace(/\/signin\/challenge\/pk(?=[/?#])/, '/signin/challenge/pwd');
+  if (target === current) return false;
+  console.log('[google_sso] opening password challenge from the passkey page');
+  await page.goto(target, { waitUntil: 'domcontentloaded', timeout: 30_000 }).catch(() => {});
+  await humanIdlePause('deliberate');
+  const visible = await page.locator('input[type="password"], input[name="Passwd"]')
+    .filter({ visible: true })
+    .count()
+    .catch(() => 0);
+  if (visible > 0) return true;
+  await page.goto(current, { waitUntil: 'domcontentloaded', timeout: 30_000 }).catch(() => {});
+  await humanIdlePause('short');
+  return false;
+}
 
 async function visibleTotpInput(page) {
   const candidates = [
@@ -522,6 +540,12 @@ export async function googleSso(session, creds, opts = {}) {
       if (pwInVisible > 0) break;
     }
     if (pwInVisible > 0) break;
+    if (/\/signin\/challenge\/pk(?=[/?#])/.test(page.url())
+        && await navigateGooglePasswordChallenge(page)) {
+      pwInVisible = 1;
+      break;
+    }
+
 
     // Google's "Welcome" / challenge selection page lists sign-in methods.
     // Explicitly pick "Enter your password" / "Use your password" instead of
