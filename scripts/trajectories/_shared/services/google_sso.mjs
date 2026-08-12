@@ -333,6 +333,10 @@ async function clickTryAnotherWay(page) {
     }
     return false;
   };
+  const tryAnotherController = page
+    .locator('[data-secondary-action-label="Try another way"] [jsaction*="click:"]')
+    .filter({ visible: true })
+    .first();
   const tryAnotherSemantic = page.getByRole('button', { name: /Try another way/i })
     .or(page.getByRole('link', { name: /Try another way/i }))
     .filter({ visible: true })
@@ -341,7 +345,11 @@ async function clickTryAnotherWay(page) {
     .filter({ hasText: /^\s*Try another way\s*$/i })
     .filter({ visible: true })
     .first();
-  const tryAnother = await tryAnotherSemantic.isVisible().catch(() => false) ? tryAnotherSemantic : tryAnotherTextual;
+  const tryAnother = await tryAnotherController.isVisible().catch(() => false)
+    ? tryAnotherController
+    : await tryAnotherSemantic.isVisible().catch(() => false)
+      ? tryAnotherSemantic
+      : tryAnotherTextual;
   if (await tryAnother.isVisible().catch(() => false)) {
     console.log('[google_sso] clicking "Try another way"');
     await humanClickLocator(page, tryAnother).catch(async () => {
@@ -418,8 +426,58 @@ export async function googleSso(session, creds, opts = {}) {
     return false;
   }
 
+  if (/signin\/accountchooser/.test(page.url())) {
+    const accountOption = page.locator('[data-identifier]')
+      .filter({ hasText: new RegExp(creds.email.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i') })
+      .or(page.getByText(creds.email, { exact: true }))
+      .filter({ visible: true })
+      .first();
+    if (await accountOption.isVisible().catch(() => false)) {
+      console.log(`[google_sso] selecting known account (${creds.email})`);
+      await humanClickLocator(page, accountOption).catch(() => accountOption.click({ force: true }));
+      for (let i = 0; i < 30; i++) {
+        await humanIdlePause('short');
+        if (!/signin\/accountchooser/.test(page.url())) break;
+      }
+    }
+  }
+  if (!/accounts\.google\.com/.test(page.url())) {
+    console.log(`[google_sso] known account returned to ${page.url()}`);
+    return true;
+  }
+  if (/\/signin\/oauth\/(consent|id)/.test(page.url())) {
+    const continueButton = page.getByRole('button', { name: /^(Continue|Allow)$/i })
+      .filter({ visible: true })
+      .first();
+    if (await continueButton.isVisible().catch(() => false)) {
+      await humanClickLocator(page, continueButton).catch(() => continueButton.click({ force: true }));
+      for (let i = 0; i < 30; i++) {
+        await humanIdlePause('short');
+        if (!/accounts\.google\.com/.test(page.url())) {
+          console.log(`[google_sso] consent returned to ${page.url()}`);
+          return true;
+        }
+      }
+    }
+  }
+
   const emailIn = page.locator('input[type="email"], input[name="identifier"], input#identifierId').filter({ visible: true }).first();
   let pwInVisible = await page.locator('input[type="password"], input[name="Passwd"]').filter({ visible: true }).count().catch(() => 0);
+  if (!await emailIn.isVisible().catch(() => false) && pwInVisible === 0) {
+    for (let i = 0; i < 30; i++) {
+      await humanIdlePause('short');
+      if (!/accounts\.google\.com/.test(page.url())) {
+        console.log(`[google_sso] account selection returned to ${page.url()}`);
+        return true;
+      }
+      if (await emailIn.isVisible().catch(() => false)) break;
+      pwInVisible = await page.locator('input[type="password"], input[name="Passwd"]')
+        .filter({ visible: true })
+        .count()
+        .catch(() => 0);
+      if (pwInVisible > 0) break;
+    }
+  }
   if (await emailIn.isVisible().catch(() => false)) {
     await humanFill(page, emailIn, creds.email);
     console.log(`[google_sso] identifier filled (${creds.email})`);
@@ -435,6 +493,10 @@ export async function googleSso(session, creds, opts = {}) {
   } else if (pwInVisible > 0) {
     console.log('[google_sso] starting from visible password challenge');
   } else {
+    if (!/accounts\.google\.com/.test(page.url())) {
+      console.log(`[google_sso] delayed account selection returned to ${page.url()}`);
+      return true;
+    }
     await logGooglePageDiag(page, 'no_identifier_or_password_input');
     console.log(`[google_sso] FAIL: no identifier or password input visible (url=${page.url()})`);
     return false;
