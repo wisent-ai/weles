@@ -18,12 +18,15 @@ function runSkarbiec(args) {
 }
 
 const apiToken = runSkarbiec(['get', 'weles-api-operator']).fields.token;
+const accountId = '35acdbe68affc7b249aa289cd2a21130';
+const tunnelId = 'd16253a5-1d70-4d32-876a-b483a6c0004a';
+const tunnelUrl = `https://dash.cloudflare.com/${accountId}/tunnels/${tunnelId}`;
 const objective = [
-  'The Cloudflare session is established through the account Google SSO identity before this objective begins.',
-  'Open Zero Trust, then Networks, then Tunnels, and edit tunnel 17010c0f-a708-404c-b2f0-2c60eaf2f866.',
-  'Add or update brama.wisent.ai with service http://127.0.0.1:8080.',
+  `Open ${tunnelUrl} directly and edit the existing wisent-backend-rtx tunnel.`,
+  'Open its Public Hostnames configuration.',
+  'Add or update brama.wisent.ai with service type HTTP and URL 127.0.0.1:8080.',
   'Preserve every existing public hostname and its service unchanged.',
-  'Save and finish only after brama.wisent.ai is visibly listed with that exact service.',
+  'Save and finish only after brama.wisent.ai is visibly listed with service http://127.0.0.1:8080.',
   'Do not alter any other Cloudflare resource.',
 ].join(' ');
 const body = {
@@ -31,7 +34,7 @@ const body = {
   creds: 'redact',
   timeout_ms: '1800000',
   params: {
-    url: 'https://dash.cloudflare.com/login',
+    url: tunnelUrl,
     objective,
     flow_name: 'cloudflare-brama-public-hostname',
     headless: false,
@@ -39,7 +42,7 @@ const body = {
       cookie_consent_buttons: ['Reject All But Necessary', 'Confirm My Choices'],
       cloudflare_login: true,
       account_email: 'lukasz.bartoszcze@gmail.com',
-      allowed_tunnel_id: '17010c0f-a708-404c-b2f0-2c60eaf2f866',
+      allowed_tunnel_id: tunnelId,
       allowed_hostnames: ['brama.wisent.ai'],
     },
   },
