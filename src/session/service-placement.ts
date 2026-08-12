@@ -10,9 +10,14 @@ type ServiceStatusRow = {
 
 function stado(arguments_: string[]): string {
   const binary = process.env.STADO_BIN?.trim() || join(homedir(), '.local', 'bin', 'stado');
-  const environment = { ...process.env };
-  delete environment.STADO_API_URL;
+  const environment = {
+    ...process.env,
+    STADO_CONFIG: join(homedir(), '.stado', 'local-placement-config.absent'),
+    WC_STORAGE_BACKEND: 'local',
+    WC_LOCAL_STORAGE_PATH: join(homedir(), '.stado', 'local-storage'),
+  };
   delete environment.STADO_API_TOKEN;
+  delete environment.STADO_API_URL;
   return execFileSync(binary, arguments_, {
     encoding: 'utf8',
     env: environment,
