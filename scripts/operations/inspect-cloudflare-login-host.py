@@ -8,12 +8,8 @@ from html.parser import HTMLParser
 from pathlib import Path
 
 root = Path.home() / ".stado" / "build-work" / "weles-api-managed" / "recordings"
-results = sorted(root.rglob("generic_task_result.json"), key=lambda path: path.stat().st_mtime)
-if not results:
-    raise SystemExit("Cloudflare task result is unavailable")
-run_root = results[-1].parent
 paths = sorted(
-    [*run_root.glob("session_dom_*.html"), *run_root.glob("after_*_dom.html")],
+    [*root.rglob("session_dom_*.html"), *root.rglob("after_*_dom.html")],
     key=lambda path: path.stat().st_mtime,
 )
 if not paths:
@@ -55,7 +51,7 @@ phrases = [
     "Verify",
 ]
 signals = [phrase for phrase in phrases if re.search(re.escape(phrase), visible_text, flags=re.IGNORECASE)]
-match = re.search(r".{0,100}Try another way.{0,300}", source, flags=re.IGNORECASE | re.DOTALL)
+match = re.search(r".{0,120}(?:Try another way|Enter your password|Use your password|Confirm).{0,500}", source, flags=re.IGNORECASE | re.DOTALL)
 markup = match.group(0) if match else ""
 markup = re.sub(r"[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}", "[email]", markup, flags=re.IGNORECASE)
 markup = re.sub(r"""(\bvalue=)(["']).*?\2""", r'\1"[redacted]"', markup, flags=re.DOTALL)
@@ -63,5 +59,6 @@ markup = " ".join(markup.split())
 print(json.dumps({
     "path": path.name,
     "text_signals": signals,
-    "try_another_markup": markup[:500],
+    "signal_markup": markup[:700],
+    "controls": inspector.controls[-20:],
 }, indent=2))
