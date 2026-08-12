@@ -9,6 +9,8 @@ vault="$home/.stado/weles-skarbiec.vault.json"
 private_key="$home/.stado/weles-credential-workload-private.pem"
 catalog="$home/.stado/build-work/weles-api-managed/scripts/worker/deploy/skarbiec-acquisition-scopes.conf"
 openssl="/opt/homebrew/opt/openssl@3/bin/openssl"
+PATH="/opt/homebrew/opt/openssl@3/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+export PATH
 public_key=$(mktemp "$home/.stado/weles-acquisition-public.XXXXXX")
 new_private_key=
 cleanup() {
