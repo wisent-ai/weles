@@ -99,9 +99,15 @@ try {
   } else {
     if (initial.hostname) throw new Error(`existing ${hostname} route does not target ${originUrl}`);
 
+    const addRoute = page.getByRole('button', { name: 'Add route', exact: true }).filter({ visible: true }).first();
+    await addRoute.waitFor({ state: 'visible', timeout: 30_000 });
     const addResult = await session.click('Add route');
     if (addResult === 'no-target-found') throw new Error('Cloudflare Add route control is unavailable');
 
+    const publishedApplication = page.getByRole('button', { name: 'Published application', exact: true })
+      .filter({ visible: true })
+      .first();
+    await publishedApplication.waitFor({ state: 'visible', timeout: 10_000 });
     const publishedResult = await session.click('Published application');
     if (publishedResult === 'no-target-found') {
       const visibleText = (await page.locator('body').innerText().catch(() => '')).replace(/\s+/g, ' ').slice(0, 2000);
