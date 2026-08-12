@@ -16,3 +16,9 @@ else
 fi
 printf 'capability_state=%s\n' "$HOME/.stado/weles-api-capabilities.json"
 printf 'capability_routes=%s\n' "$HOME/.stado/weles-api-capability-routes.json"
+SKARBIEC_VAULT_FILE="$HOME/.stado/weles-skarbiec.vault.json" \
+  "$HOME/.stado/bin/skarbiec" tokens \
+  | jq -r 'any(.[]; .consumer == "weles-credential-worker-local") | "weles_vault_workload=\(.)"'
+SKARBIEC_VAULT_FILE="$HOME/.stado/weles-skarbiec.vault.json" \
+  "$HOME/.stado/bin/skarbiec" list \
+  | jq -r 'any(.[]; .id == "platform-admin-cloudflare" and .state == "active") | "weles_vault_cloudflare_login=\(.)"'
