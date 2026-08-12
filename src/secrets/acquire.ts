@@ -245,6 +245,35 @@ const SUPABASE_PERSONAL_ACCESS_TOKEN: SecretDefinition = {
   storeSecretTarget: 'skarbiec',
 };
 
+const FIGMA_PERSONAL_ACCESS_TOKEN: SecretDefinition = {
+  secret: 'figma.personal_access_token',
+  provider: 'figma',
+  displayName: 'Figma Personal Access Token',
+  envVars: ['FIGMA_ACCESS_TOKEN'],
+  defaultPurpose: 'design-assets-export',
+  formUrl: 'https://www.figma.com/settings?tab=security',
+  flowName: 'figma-personal-access-token-acquisition',
+  endpoints: ['/v1/me', '/v1/files/{file_key}', '/v1/images/{file_key}', '/v1/files/{file_key}/versions', '/v1/folders/{folder_id}/files'],
+  usageText: 'We use the read-only Figma REST API to archive company design files, version metadata, published libraries, and rendered image assets in the Wisent design-assets repository. The token is stored directly in Skarbiec and is never returned in Weles results.',
+  dailyRequests: '500',
+  requestedScopes: [
+    'current_user:read',
+    'file_content:read',
+    'file_metadata:read',
+    'file_versions:read',
+    'folders:read',
+    'folder_metadata:read',
+    'library_assets:read',
+    'library_content:read',
+    'team_library_content:read',
+  ],
+  capabilities: ['company_design_archive', 'file_content_export', 'asset_rendering', 'version_inventory'],
+  runtimeInstall: false,
+  headless: false,
+  storeSecretTarget: 'skarbiec',
+};
+
+
 const SNAPCHAT_SNAP_KIT_API_TOKEN: SecretDefinition = {
   secret: 'snapchat.snap_kit_api_token',
   provider: 'snapchat',
@@ -276,6 +305,10 @@ const SECRET_REGISTRY: Record<string, SecretDefinition> = {
   supabase_personal_access_token: SUPABASE_PERSONAL_ACCESS_TOKEN,
   supabase_api_key: SUPABASE_PERSONAL_ACCESS_TOKEN,
   supabase_token: SUPABASE_PERSONAL_ACCESS_TOKEN,
+  [FIGMA_PERSONAL_ACCESS_TOKEN.secret]: FIGMA_PERSONAL_ACCESS_TOKEN,
+  figma_personal_access_token: FIGMA_PERSONAL_ACCESS_TOKEN,
+  figma_access_token: FIGMA_PERSONAL_ACCESS_TOKEN,
+  figma_api_token: FIGMA_PERSONAL_ACCESS_TOKEN,
   [SNAPCHAT_SNAP_KIT_API_TOKEN.secret]: SNAPCHAT_SNAP_KIT_API_TOKEN,
   snapchat_snap_kit_api_token: SNAPCHAT_SNAP_KIT_API_TOKEN,
   snapchat_api_token: SNAPCHAT_SNAP_KIT_API_TOKEN,
@@ -296,6 +329,9 @@ function normalizeSecret(request: AcquireSecretRequest): string {
   }
   if (goal.includes('supabase') && (goal.includes('api') || goal.includes('key') || goal.includes('token') || goal.includes('klucz'))) {
     return SUPABASE_PERSONAL_ACCESS_TOKEN.secret;
+  }
+  if (goal.includes('figma') && (goal.includes('api') || goal.includes('token') || goal.includes('asset') || goal.includes('design'))) {
+    return FIGMA_PERSONAL_ACCESS_TOKEN.secret;
   }
   if (goal.includes('snapchat') && (goal.includes('api') || goal.includes('token') || goal.includes('snap kit'))) {
     return SNAPCHAT_SNAP_KIT_API_TOKEN.secret;
@@ -368,6 +404,20 @@ function objectiveFor(def: SecretDefinition, request: AcquireSecretRequest, acco
       'If Microsoft requires interactive identity approval, stop as needs_human_approval without changing Skarbiec.',
       `The encrypted target is ${contract.item} field ${contract.field}; never emit the password in logs or task results.`,
     ].join(' ');
+  }
+  if (def.provider === 'figma') {
+    return [
+      `Acquire ${def.displayName} for ${purpose}.`,
+      accountEmail
+        ? `Use the existing authenticated account ${accountEmail}. If sign-in is required, use only the configured Google SSO credential capability or saved browser session; never ask for or expose its password.`
+        : '',
+      'Open account Settings, select Security, and scroll to Personal access tokens.',
+      'Create one token named "Wisent design-assets export" with the longest offered expiration.',
+      `Grant exactly these read-only scopes and no write scope: ${def.requestedScopes.join(', ')}.`,
+      `The token will access only these endpoints: ${def.endpoints.join(', ')}.`,
+      `When the generated token is visible, call store_credential(target, 'api-key') on the token element. Never pass the token to done, logs, tool arguments, clipboard, or normal result data.`,
+      `Finish only after store_credential confirms the exact encrypted Skarbiec item ${contract.item} field ${contract.field} write.`,
+    ].filter(Boolean).join(' ');
   }
   const fieldClass = contract.field === 'api_key'
     ? 'api-key'
