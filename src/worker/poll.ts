@@ -8,7 +8,7 @@ import { createHmac } from 'node:crypto';
 import os from 'node:os';
 import { putPrivateWelesObject, uploadArtifacts } from './upload-artifacts.js';
 import { paramsToEnv, resolveTrajectory } from './dispatch.js';
-import { claimOne, reportClaimDenial } from './claim.js';
+import { claimOne, reportClaimDenial, POLICY_DISABLED_REASON } from './claim.js';
 import { DATABASE_TOKEN, DATABASE_URL, headers, sweepZombiesIfDue } from './stale.js';
 import { loadWelesPolicy } from './placement-policy.js';
 import { captureVersions } from '../diagnostics/versions.js';
@@ -617,7 +617,7 @@ export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
   // record — otherwise a host the control plane switched off reports plain
   // 'idle' forever, exactly like a host with an empty queue.
   if (!policy.enabled) {
-    reportClaimDenial('the host placement policy is disabled for this host, so no queued row is eligible');
+    reportClaimDenial(POLICY_DISABLED_REASON);
     return 'idle';
   }
   if (!DATABASE_URL || !DATABASE_TOKEN) {
@@ -632,8 +632,16 @@ export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
     return 'error';
   }
   await sweepZombiesIfDue();
-  const row = await claimOne(policy);
-  if (!row) return 'idle';
+  // The one place a ClaimDecision is consumed, and therefore the one place a
+  // denial is written down. claimOne produces the reason; this reports it
+  // through the cooldown so a standing condition stays visible without
+  // flooding a loop that polls every few seconds.
+  const decision = await claimOne(policy);
+  if (decision.kind === 'idle') {
+    reportClaimDenial(decision.reason);
+    return 'idle';
+  }
+  const row = decision.row;
   const acquisitionParams = recordOrEmpty(row.params);
   const acquisitionConstraints = recordOrEmpty(acquisitionParams.constraints);
   const acquisitionSecret = typeof acquisitionConstraints.secret === 'string' ? acquisitionConstraints.secret : '';
