@@ -1,6 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { lstatSync } from 'node:fs';
 
 const LOGIN_FIELDS = Object.freeze({ username: true, password: true });
@@ -79,10 +80,13 @@ function stadoBinary() {
   return process.env.WELES_STADO_BIN || join(homedir(), '.stado', 'bin', 'stado');
 }
 
+const SCRIPT_ROOT = dirname(fileURLToPath(import.meta.url));
+
 function acquisitionPaths() {
+  const deploy = join(SCRIPT_ROOT, '..', 'worker', 'deploy');
   return {
-    helper: join(homedir(), 'weles', 'scripts', 'worker', 'deploy', 'skarbiec-acquire.mjs'),
-    scopes: join(homedir(), 'weles', 'scripts', 'worker', 'deploy', 'skarbiec-acquisition-scopes.conf'),
+    helper: join(deploy, 'skarbiec-acquire.mjs'),
+    scopes: join(deploy, 'skarbiec-acquisition-scopes.conf'),
   };
 }
 
