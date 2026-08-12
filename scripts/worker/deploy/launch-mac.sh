@@ -34,7 +34,23 @@ export STADO_OBJECT_API_URI=stado://service/stado-object-api
 export WC_SKARBIEC_URL="${WC_SKARBIEC_URL:-http://127.0.0.1:17602}"
 export WELES_CREDENTIAL_SKARBIEC_URL="${WELES_CREDENTIAL_SKARBIEC_URL:-$WC_SKARBIEC_URL}"
 export STADO_MODEL_ROUTER_URL=http://127.0.0.1:17601
-export STADO_API_URL=http://127.0.0.1:17603
+# The object API this worker uploads its forensic artifacts to, and therefore the
+# thing the diagnostics preflight gates every claim on.
+#
+# This addressed the local Stado forward for stado://service/stado-object-api.
+# The registry declares that service active on a laptop, and the schema requires
+# service-directory endpoints be host-relative loopback, so every other host
+# reaches it through a forward -- which has no upstream when the laptop sleeps,
+# changes network or answers no inbound SSH. Node reports that as a bare "fetch
+# failed", the preflight fails, and the worker claims nothing at all, correctly
+# refusing to run work it cannot record. charless-mac-mini sat that way for
+# twelve days and 29,616 log lines.
+#
+# Addressing the always-on host's own object API instead turns that into an
+# answer: the same worker now gets HTTP 503 from a server that replied, which is
+# a different and much smaller problem. Overridable, because the durable fix is
+# to declare the service on a host that is always up and let this resolve.
+export STADO_API_URL="${STADO_API_URL:-http://127.0.0.1:8765}"
 mkdir -p "${WELES_STATE_DIR:-$HOME/.local/state/weles}"
 NODE_BIN="${NODE_BIN:-/opt/homebrew/bin/node}"
 if [ ! -x "$NODE_BIN" ]; then
