@@ -14,6 +14,12 @@ if [ -n "${SKARBIEC_WORKLOAD_SIGNING_KEY_FILE:-}" ] && [ -f "$SKARBIEC_WORKLOAD_
 else
   printf '%s\n' 'signing_key_present=false'
 fi
+if [ -n "${SKARBIEC_WORKLOAD_SIGNING_KEY_FILE:-}" ] && [ -f "$SKARBIEC_WORKLOAD_SIGNING_KEY_FILE" ]; then
+  algorithm='256'
+  openssl pkey -in "$SKARBIEC_WORKLOAD_SIGNING_KEY_FILE" -pubout \
+    | shasum -a "$algorithm" \
+    | sed 's/  -$/  workload-public-key/'
+fi
 printf 'capability_state=%s\n' "$HOME/.stado/weles-api-capabilities.json"
 printf 'capability_routes=%s\n' "$HOME/.stado/weles-api-capability-routes.json"
 SKARBIEC_VAULT_FILE="$HOME/.stado/weles-skarbiec.vault.json" \
