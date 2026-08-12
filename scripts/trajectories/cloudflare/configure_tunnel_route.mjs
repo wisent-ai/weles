@@ -114,10 +114,20 @@ try {
     await hostnameInput.waitFor({ state: 'visible', timeout: 10_000 });
     await hostnameInput.fill(subdomain);
 
-    const domainResult = await session.click('Select domain');
-    if (domainResult === 'no-target-found') throw new Error('Cloudflare domain chooser is unavailable');
-    const optionResult = await session.click(domain);
-    if (optionResult === 'no-target-found') throw new Error(`Cloudflare domain ${domain} is unavailable`);
+    const domainButton = page.getByRole('combobox', { name: 'Select domain', exact: true })
+      .filter({ visible: true })
+      .first();
+    await domainButton.click({ force: true });
+    if (await domainButton.getAttribute('aria-expanded') !== 'true') {
+      await domainButton.focus();
+      await page.keyboard.press('ArrowDown');
+    }
+    const domainOption = page.getByRole('option', { name: domain, exact: true })
+      .or(page.getByText(domain, { exact: true }))
+      .filter({ visible: true })
+      .first();
+    await domainOption.waitFor({ state: 'visible', timeout: 15_000 });
+    await domainOption.click({ force: true });
 
     const originInput = page.locator('input[placeholder="https://localhost:8080"]').filter({ visible: true }).first();
     await originInput.fill(originUrl);
