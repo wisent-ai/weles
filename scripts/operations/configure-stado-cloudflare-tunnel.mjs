@@ -43,7 +43,7 @@ const reference = (capabilityId, resource) => ({
   target: 'weles',
 });
 const objective = [
-  'The Email and Password fields are already securely filled when this objective begins; submit the sign-in form.',
+  'The Email and Password fields are already securely filled when this objective begins. For the login form, do not click the submit button: first call focus with selector input[name=password], then call press_key with key Enter, and wait for navigation.',
   'If a CAPTCHA or Turnstile appears, call solve_captcha.',
   'Open Zero Trust, then Networks, then Tunnels, and edit tunnel 17010c0f-a708-404c-b2f0-2c60eaf2f866.',
   'Preserve its bobloo.com public hostname but change that hostname service to http://100.120.25.24:3000.',
