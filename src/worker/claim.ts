@@ -26,15 +26,56 @@ if (!ACTION_ALLOWLIST_VALUES.length
 }
 const ACTION_ALLOWLIST = new Set(ACTION_ALLOWLIST_VALUES);
 
+// Why any of this exists: a placement policy that excludes every allowlisted
+// action is a decision the control plane made about this host, and a decision
+// that leaves no record is indistinguishable from an empty queue — both look
+// like an idle poll. That ambiguity is how charless-mac-mini sat claiming
+// nothing for twelve days without anyone noticing. So every path that ends in
+// "this host deliberately claimed nothing" says so, in the same voice as the
+// diagnostics gate in poll.ts. The poll loop runs forever, so an unchanged
+// reason is reported once and then only when it changes or the cooldown
+// elapses; the point is a visible standing condition, not a log flood.
+const DENIAL_REPORT_COOLDOWN_MS = 5 * 60_000;
+const DENIAL_EXAMPLE_ACTIONS = 3;
+let lastDenial: { reason: string; at: number } | null = null;
+
+export function reportClaimDenial(reason: string): void {
+  const now = Date.now();
+  if (lastDenial && lastDenial.reason === reason && now - lastDenial.at < DENIAL_REPORT_COOLDOWN_MS) return;
+  lastDenial = { reason, at: now };
+  console.error(`[worker] claiming nothing — ${reason}`);
+}
+
+function exampleActions(actions: Iterable<string>): string {
+  const all = [...actions];
+  if (!all.length) return 'none';
+  const shown = all.slice(0, DENIAL_EXAMPLE_ACTIONS);
+  return shown.join(', ') + (all.length > shown.length ? `, +${all.length - shown.length} more` : '');
+}
+
 export async function claimOne(policy: WelesActionPolicy): Promise<ActionLogRow | null> {
-  if (!CLAIMS_ENABLED || !policy.enabled || policy.actions.length === 0) return null;
+  if (!CLAIMS_ENABLED) {
+    reportClaimDenial('claims are disabled on this host by the launcher (WELES_CLAIMS_ENABLED=0)');
+    return null;
+  }
+  if (!policy.enabled) {
+    reportClaimDenial('the host placement policy is disabled for this host, so no queued row is eligible');
+    return null;
+  }
+  if (policy.actions.length === 0) {
+    reportClaimDenial(`the host placement policy lists 0 actions for this host; the launcher allowlist has ${ACTION_ALLOWLIST.size} (${exampleActions(ACTION_ALLOWLIST)}). This host is configured to claim nothing.`);
+    return null;
+  }
   // The launcher allowlist is the hard bound on what this binary may ever run;
   // the host placement policy narrows it further, and a wildcard host policy
   // claims the whole allowlist.
   const allowedActions = policy.wildcard
     ? ACTION_ALLOWLIST
     : new Set(policy.actions.filter((action) => ACTION_ALLOWLIST.has(action)));
-  if (allowedActions.size === 0) return null;
+  if (allowedActions.size === 0) {
+    reportClaimDenial(`the host placement policy and the launcher allowlist do not intersect — policy lists ${policy.actions.length} action(s) (${exampleActions(policy.actions)}), allowlist has ${ACTION_ALLOWLIST.size} (${exampleActions(ACTION_ALLOWLIST)}). This host is configured to claim nothing, which is not the same as an empty queue.`);
+    return null;
+  }
   const actionFilter = `&action=in.(${[...allowedActions].map((action) =>
     encodeURIComponent(`"${action.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`)).join(',')})`;
   // Lookahead 1000 rows so large legacy backlogs don't hide fresh trading
@@ -51,8 +92,16 @@ export async function claimOne(policy: WelesActionPolicy): Promise<ActionLogRow 
     console.error(`[worker] claim candidate query failed ${res.status}: ${body.slice(0, 300)}`);
     return null;
   }
+  // Tally, never per-row logging: one poll can look at a thousand rows and the
+  // operator only needs to know that all of them were dropped and by which rule.
+  const dropped = new Map<string, number>();
+  const drop = (reason: string) => { dropped.set(reason, (dropped.get(reason) ?? 0) + 1); };
   let candidates = ((await res.json()) as ActionLogRow[])
-    .filter((row) => allowedActions.has(row.action));
+    .filter((row) => {
+      if (allowedActions.has(row.action)) return true;
+      drop('outside this host\'s allowed actions');
+      return false;
+    });
   // Priority sort: trading scrapes first, then recovery rows (*_login,
   // *_register, *_health, *_balance, *_topup), then everything else.
   // Scrapes are parallel-safe direct jobs and must not be buried behind a
@@ -71,8 +120,10 @@ export async function claimOne(policy: WelesActionPolicy): Promise<ActionLogRow 
     const params = row.params && typeof row.params === 'object' && !Array.isArray(row.params)
       ? row.params as Record<string, unknown>
       : {};
-    return params.apple_execution_host === executionHost
-      && params.apple_execution_agent === executionAgent;
+    if (params.apple_execution_host === executionHost
+      && params.apple_execution_agent === executionAgent) return true;
+    drop('apple_login pinned to another execution host');
+    return false;
   });
   // Per-account in-flight lock: each account has ONE stored sticky proxy session (Oxylabs sessid). Concurrent connections to one sticky session get refused with ERR_TUNNEL_CONNECTION_FAILED. Serialize per-account; deferred rows pick up next tick. Ignore rows older than 30 min — those are stuck-poison from killed workers and should not block their account forever.
   const inflightAccounts = new Set<string>();
@@ -98,17 +149,17 @@ export async function claimOne(policy: WelesActionPolicy): Promise<ActionLogRow 
   const canRunWithoutAccount = (a: string) => isParallelSafeScrape(a) || /_register$|_balance$|_topup$|_reauth$|_verify_domain_status$|_post_message$/.test(a) || a === 'slack_provision_user_token' || a === 'pangram_analyze_text' || a === 'ncbr_pangram_audit_new_wniosek' || a === 'generic_browser_task' || a === 'generic_keeper_task' || a === 'generic_saved_task' || a === 'semanticscholar_key_followup' || isOverleafAction(a) || /^(umami|googleanalytics)_/.test(a);
   for (const row of candidates) {
     // Defend independently of PostgREST decoding/filter semantics.
-    if (!allowedActions.has(row.action)) continue;
-    if (!resolveTrajectory(row.action)) continue;
-    if (!row.id) continue;
-    if (!row.account_id && !canRunWithoutAccount(row.action)) continue; // poison rows: legacy promote-cron sometimes emits orphans
-    if (row.account_id && inflightAccounts.has(row.account_id) && !isParallelSafeScrape(row.action)) continue;
+    if (!allowedActions.has(row.action)) { drop('outside this host\'s allowed actions'); continue; }
+    if (!resolveTrajectory(row.action)) { drop('no dispatch route for the action'); continue; }
+    if (!row.id) { drop('row has no id'); continue; }
+    if (!row.account_id && !canRunWithoutAccount(row.action)) { drop('no account on an action that needs one'); continue; } // poison rows: legacy promote-cron sometimes emits orphans
+    if (row.account_id && inflightAccounts.has(row.account_id) && !isParallelSafeScrape(row.action)) { drop('account already in flight'); continue; }
     // staleAccounts blocks non-recovery actions; recovery actions (login,
     // register, health, balance, topup) MUST run to refresh stale cookies
     // — without this carve-out, _login rows for stale accounts get blocked
     // by the same flag they exist to clear, and the account stays dead.
     // (Same intent as the filter at stale.ts:31, applied per-row here.)
-    if (row.account_id && staleAccounts.has(row.account_id) && !recoveryRe.test(row.action) && !isParallelSafeScrape(row.action)) continue;
+    if (row.account_id && staleAccounts.has(row.account_id) && !recoveryRe.test(row.action) && !isParallelSafeScrape(row.action)) { drop('cookie-stale account'); continue; }
 
     const claim = await fetch(
       `${DATABASE_URL}/rest/v1/account_action_logs?id=eq.${row.id}&status=eq.queued`,
@@ -127,9 +178,14 @@ export async function claimOne(policy: WelesActionPolicy): Promise<ActionLogRow 
         }),
       },
     );
-    if (!claim.ok) continue;
+    if (!claim.ok) { drop(`claim PATCH rejected (${claim.status})`); continue; }
     const claimed = (await claim.json()) as ActionLogRow[];
     if (claimed.length > 0) return claimed[0];
+    drop('lost the claim race to another worker');
+  }
+  if (dropped.size) {
+    const detail = [...dropped].sort((a, b) => b[1] - a[1]).map(([reason, count]) => `${count} ${reason}`).join(', ');
+    reportClaimDenial(`every queued candidate was filtered out — ${detail}`);
   }
   return null;
 }

@@ -8,7 +8,7 @@ import { createHmac } from 'node:crypto';
 import os from 'node:os';
 import { putPrivateWelesObject, uploadArtifacts } from './upload-artifacts.js';
 import { paramsToEnv, resolveTrajectory } from './dispatch.js';
-import { claimOne } from './claim.js';
+import { claimOne, reportClaimDenial } from './claim.js';
 import { DATABASE_TOKEN, DATABASE_URL, headers, sweepZombiesIfDue } from './stale.js';
 import { loadWelesPolicy } from './placement-policy.js';
 import { captureVersions } from '../diagnostics/versions.js';
@@ -613,7 +613,13 @@ export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
     console.error(`[worker] placement policy unavailable: ${error instanceof Error ? error.message : 'unknown error'}`);
     return 'error';
   }
-  if (!policy.enabled) return 'idle';
+  // pollOnce short-circuits before claimOne here, so this exit needs its own
+  // record — otherwise a host the control plane switched off reports plain
+  // 'idle' forever, exactly like a host with an empty queue.
+  if (!policy.enabled) {
+    reportClaimDenial('the host placement policy is disabled for this host, so no queued row is eligible');
+    return 'idle';
+  }
   if (!DATABASE_URL || !DATABASE_TOKEN) {
     console.error('[worker] weles-database launcher configuration missing');
     return 'error';
