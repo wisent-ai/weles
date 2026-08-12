@@ -38,7 +38,7 @@ const body = {
     constraints: {
       cookie_consent_buttons: ['Reject All But Necessary', 'Confirm My Choices'],
       cloudflare_login: true,
-      account_email: 'lgb2127@columbia.edu',
+      account_email: 'lukasz.bartoszcze@gmail.com',
       allowed_tunnel_id: '17010c0f-a708-404c-b2f0-2c60eaf2f866',
       allowed_hostnames: ['brama.wisent.ai'],
     },
