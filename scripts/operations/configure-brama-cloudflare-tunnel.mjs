@@ -62,6 +62,7 @@ const body = {
     headless: true,
     constraints: {
       cookie_consent_buttons: ['Reject All But Necessary', 'Confirm My Choices'],
+      cloudflare_login: true,
       credential_prefill: [
         {
           target: 'input[name=email]',
