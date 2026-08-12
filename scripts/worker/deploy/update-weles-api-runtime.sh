@@ -2,7 +2,7 @@
 # Build the Weles API runtime from one exact reviewed repository revision.
 set -eu
 
-REVISION='69dd83b5228a113816d5b20809da76bffb5bc4c2'
+REVISION='439eb7aa69a56d2ed805978677dfdb35ffa2af4f'
 REPOSITORY='https://github.com/wisent-ai/weles.git'
 WORK="$HOME/.stado/build-work/weles-api-managed"
 PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
