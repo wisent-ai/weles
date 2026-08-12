@@ -1,5 +1,6 @@
 import { WSession } from '../../../dist/session/wsession.js';
 import { getGoogleSsoCreds, googleSso } from '../_shared/services/google_sso.mjs';
+import { humanClickLocator } from '../../../dist/human/mouse.js';
 
 const accountId = process.env.CLOUDFLARE_ACCOUNT_ID || '';
 const tunnelId = process.env.CLOUDFLARE_TUNNEL_ID || '';
@@ -98,35 +99,30 @@ try {
   } else {
     if (initial.hostname) throw new Error(`existing ${hostname} route does not target ${originUrl}`);
 
-    const addRoute = page.getByRole('button', { name: 'Add route', exact: true }).filter({ visible: true }).first();
-    await addRoute.waitFor({ state: 'visible', timeout: 15_000 });
-    await addRoute.click();
+    const addResult = await session.click('Add route');
+    if (addResult === 'no-target-found') throw new Error('Cloudflare Add route control is unavailable');
 
-    const publishedApplication = page.getByRole('button', { name: 'Published application', exact: true })
-      .filter({ visible: true })
-      .first();
-    await publishedApplication.waitFor({ state: 'visible', timeout: 10_000 });
-    await publishedApplication.click();
+    const publishedResult = await session.click('Published application');
+    if (publishedResult === 'no-target-found') {
+      const visibleText = (await page.locator('body').innerText().catch(() => '')).replace(/\s+/g, ' ').slice(0, 2000);
+      throw new Error(`Cloudflare route type chooser is unavailable: ${visibleText}`);
+    }
 
     const hostnameInput = page.locator('input[placeholder="www"]').filter({ visible: true }).first();
     await hostnameInput.waitFor({ state: 'visible', timeout: 10_000 });
     await hostnameInput.fill(subdomain);
 
-    const domainButton = page.getByRole('button', { name: 'Select domain', exact: true }).filter({ visible: true }).first();
-    await domainButton.click();
-    const domainOption = page.getByRole('option', { name: domain, exact: true })
-      .or(page.getByText(domain, { exact: true }))
-      .filter({ visible: true })
-      .first();
-    await domainOption.waitFor({ state: 'visible', timeout: 10_000 });
-    await domainOption.click();
+    const domainResult = await session.click('Select domain');
+    if (domainResult === 'no-target-found') throw new Error('Cloudflare domain chooser is unavailable');
+    const optionResult = await session.click(domain);
+    if (optionResult === 'no-target-found') throw new Error(`Cloudflare domain ${domain} is unavailable`);
 
     const originInput = page.locator('input[placeholder="https://localhost:8080"]').filter({ visible: true }).first();
     await originInput.fill(originUrl);
 
     const submit = page.locator('button[type="submit"]').filter({ visible: true }).last();
     await submit.waitFor({ state: 'visible', timeout: 10_000 });
-    await submit.click();
+    await humanClickLocator(page, submit);
 
     let final = { hostname: false, origin: false };
     for (let attempt = 0; attempt < 60; attempt += 1) {
