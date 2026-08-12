@@ -27,11 +27,12 @@ fi
 set +a
 unset SEMANTIC_SCHOLAR_API_KEY S2_API_KEY || true
 export WC_SKARBIEC_URL='http://127.0.0.1:8787'
+export WELES_REPO="$HOME/.stado/build-work/weles-api-managed"
 NODE_BIN=/opt/homebrew/bin/node
 acquire_startup_field() {
   local consumer="$1" item="$2" field="$3"
-  local scopes="$HOME/weles/scripts/worker/deploy/skarbiec-acquisition-scopes.conf"
-  local helper="$HOME/weles/scripts/worker/deploy/skarbiec-acquire.mjs"
+  local scopes="$WELES_REPO/scripts/worker/deploy/skarbiec-acquisition-scopes.conf"
+  local helper="$WELES_REPO/scripts/worker/deploy/skarbiec-acquire.mjs"
   local value
   value="$("$NODE_BIN" "$helper" "$WC_SKARBIEC_URL" "$scopes" "$consumer" "$item" "$field")"
   [ -n "$value" ] || { printf '%s\n' "empty Skarbiec field $item/$field" >&2; return 1; }
@@ -50,7 +51,6 @@ fi
 export WELES_STADO_OBJECT_API_TOKEN WELES_STADO_MODEL_ROUTER_TOKEN
 export WELES_STADO_MODEL_ROUTER_AGENT_ID WELES_STADO_MODEL_ROUTER_AGENT_AUTH_SECRET
 mkdir -p "$HOME/weles/var"
-export WELES_REPO="$HOME/.stado/build-work/weles-api-managed"
 export WELES_AGENT_MODEL=weles/agent/primary
 export STADO_MODEL_ROUTER_URL='http://127.0.0.1:8080'
 export STADO_API_URL='https://lukaszs-macbook-pro-4007-2.tail6443b3.ts.net'
