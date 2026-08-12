@@ -20,6 +20,10 @@ fi
 if [ -f "$HOME/.weles/secrets.env" ]; then
   . "$HOME/.weles/secrets.env"
 fi
+# deployment-local model identity installed through `stado host install-secret`
+if [ -f "$HOME/.stado/weles-model.env" ]; then
+  . "$HOME/.stado/weles-model.env"
+fi
 set +a
 unset SEMANTIC_SCHOLAR_API_KEY S2_API_KEY || true
 NODE_BIN=/opt/homebrew/bin/node
@@ -32,13 +36,18 @@ acquire_startup_field() {
   [ -n "$value" ] || { printf '%s\n' "empty Skarbiec field $item/$field" >&2; return 1; }
   printf '%s' "$value"
 }
-WELES_STADO_MODEL_ROUTER_TOKEN="$(acquire_startup_field weles-model-router-token-bootstrap weles-model-router token)"
-WELES_STADO_MODEL_ROUTER_AGENT_ID="$(acquire_startup_field weles-model-agent-id-bootstrap weles-model-agent-auth id)"
-WELES_STADO_MODEL_ROUTER_AGENT_AUTH_SECRET="$(acquire_startup_field weles-model-agent-secret-bootstrap weles-model-agent-auth agent_auth_secret)"
+if [ -z "${WELES_STADO_MODEL_ROUTER_TOKEN:-}" ] \
+  || [ -z "${WELES_STADO_MODEL_ROUTER_AGENT_ID:-}" ] \
+  || [ -z "${WELES_STADO_MODEL_ROUTER_AGENT_AUTH_SECRET:-}" ]; then
+  WELES_STADO_MODEL_ROUTER_TOKEN="$(acquire_startup_field weles-model-router-token-bootstrap weles-model-router token)"
+  WELES_STADO_MODEL_ROUTER_AGENT_ID="$(acquire_startup_field weles-model-agent-id-bootstrap weles-model-agent-auth id)"
+  WELES_STADO_MODEL_ROUTER_AGENT_AUTH_SECRET="$(acquire_startup_field weles-model-agent-secret-bootstrap weles-model-agent-auth agent_auth_secret)"
+fi
 export WELES_STADO_MODEL_ROUTER_TOKEN WELES_STADO_MODEL_ROUTER_AGENT_ID
 export WELES_STADO_MODEL_ROUTER_AGENT_AUTH_SECRET
 mkdir -p "$HOME/weles/var"
 export WELES_REPO="$HOME/weles"
+export WELES_AGENT_MODEL=weles/agent/primary
 export WELES_API_HOST="${WELES_API_HOST:-0.0.0.0}"
 export WELES_API_PORT="${WELES_API_PORT:-8788}"
 exec /opt/homebrew/bin/node "$HOME/weles/scripts/worker/weles-api-server.mjs"
