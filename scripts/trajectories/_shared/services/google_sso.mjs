@@ -226,24 +226,6 @@ async function navigateGoogleAuthenticatorTotpChallenge(page) {
   await humanIdlePause('short');
   return false;
 }
-async function navigateGooglePasswordChallenge(page) {
-  const current = page.url();
-  if (!/^https:\/\/accounts\.google\.com\//.test(current)
-      || !/\/signin\/challenge\/pk(?=[/?#])/.test(current)) return false;
-  const target = current.replace(/\/signin\/challenge\/pk(?=[/?#])/, '/signin/challenge/pwd');
-  if (target === current) return false;
-  console.log('[google_sso] opening password challenge from the passkey page');
-  await page.goto(target, { waitUntil: 'domcontentloaded', timeout: 30_000 }).catch(() => {});
-  await humanIdlePause('deliberate');
-  const visible = await page.locator('input[type="password"], input[name="Passwd"]')
-    .filter({ visible: true })
-    .count()
-    .catch(() => 0);
-  if (visible > 0) return true;
-  await page.goto(current, { waitUntil: 'domcontentloaded', timeout: 30_000 }).catch(() => {});
-  await humanIdlePause('short');
-  return false;
-}
 
 async function visibleTotpInput(page) {
   const candidates = [
@@ -340,93 +322,61 @@ async function handleGoogleAuthenticatorTotp(page, creds) {
 
 async function clickTryAnotherWay(page) {
   const beforeUrl = page.url();
-  const waitForTryAnotherResult = async () => {
+  const transitioned = async () => {
     for (let i = 0; i < 20; i++) {
       const currentUrl = page.url();
       const text = await page.evaluate(() => document.body?.innerText || '').catch(() => '');
-      if (currentUrl !== beforeUrl || /choose another way|choose how|verification code|authenticator|backup code|security key|text message|phone call/i.test(text)) {
+      if (currentUrl !== beforeUrl
+          || /choose another way|choose how|verification code|authenticator|backup code|security key|text message|phone call/i.test(text)) {
         return true;
       }
       await humanIdlePause('short');
     }
     return false;
   };
-  const tryAnotherController = page
-    .locator('[data-secondary-action-label="Try another way"] [jsaction*="click:"]')
-    .filter({ visible: true })
-    .first();
-  const tryAnotherSemantic = page.getByRole('button', { name: /Try another way/i })
+
+  const controller = page.locator(
+    '[data-secondary-action-label="Try another way"] [jsaction*="click:"], '
+      + '[data-secondary-action-label="Try another way"][jsaction*="click:"]',
+  ).first();
+  const semantic = page.getByRole('button', { name: /Try another way/i })
     .or(page.getByRole('link', { name: /Try another way/i }))
-    .filter({ visible: true })
     .first();
-  const tryAnotherTextual = page.locator('button, [role="button"], a, [role="link"], div, span')
+  const textual = page.locator('button, [role="button"], a, [role="link"], div, span')
     .filter({ hasText: /^\s*Try another way\s*$/i })
-    .filter({ visible: true })
     .first();
-  const controllerVisible = await tryAnotherController.isVisible().catch(() => false);
-  const tryAnother = controllerVisible
-    ? tryAnotherController
-    : await tryAnotherSemantic.isVisible().catch(() => false)
-      ? tryAnotherSemantic
-      : tryAnotherTextual;
-  if (await tryAnother.isVisible().catch(() => false)) {
-    console.log('[google_sso] clicking "Try another way"');
-    if (controllerVisible) {
-      await tryAnother.click({ force: true, timeout: 5000 }).catch(() => humanClickLocator(page, tryAnother));
-    } else {
-      await humanClickLocator(page, tryAnother).catch(() => tryAnother.click({ force: true, timeout: 5000 }));
-    }
+
+  for (const [name, candidate] of [
+    ['controller', controller],
+    ['semantic control', semantic],
+    ['text control', textual],
+  ]) {
+    if (!await candidate.isVisible().catch(() => false)) continue;
+    console.log(`[google_sso] clicking "Try another way" via ${name}`);
+    await humanClickLocator(page, candidate)
+      .catch(() => candidate.click({ force: true, timeout: 5000 }))
+      .catch(() => {});
     await humanIdlePause('deliberate');
-  } else {
-    const clickedByJs = await page.evaluate(() => {
-      const norm = (value) => String(value || '').replace(/\s+/g, ' ').trim();
-      const nodes = Array.from(document.querySelectorAll('button, [role="button"], a, [role="link"], div, span'));
-      const target = nodes.find((el) => /^Try another way$/i.test(norm(el.innerText || el.textContent || '')));
-      if (!target) return false;
-      target.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
-      target.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
-      target.dispatchEvent(new PointerEvent('pointerup', { bubbles: true }));
-      target.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
-      target.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-      return true;
-    }).catch(() => false);
-    if (!clickedByJs) return false;
-    console.log('[google_sso] clicked "Try another way" via JS event dispatch');
-    await humanIdlePause('deliberate');
+    if (await transitioned()) return true;
   }
-  if (await waitForTryAnotherResult()) return true;
-  if (controllerVisible) {
-    console.log('[google_sso] retrying Google secondary action controller');
-    await tryAnotherController.click({ force: true, timeout: 5000 }).catch(() => {});
-    await humanIdlePause('deliberate');
-    if (await waitForTryAnotherResult()) return true;
-  }
+
   const clickedByJs = await page.evaluate(() => {
     const norm = (value) => String(value || '').replace(/\s+/g, ' ').trim();
-    const nodes = Array.from(document.querySelectorAll('button, [role="button"], a, [role="link"], div, span, li'));
-    const textNode = nodes.find((el) => /^Try another way$/i.test(norm(el.innerText || el.textContent || '')));
-    if (!textNode) return false;
-    let target = textNode;
-    while (target && target !== document.body) {
-      const tag = target.tagName.toLowerCase();
-      const role = target.getAttribute('role');
-      if (tag === 'button' || tag === 'a' || role === 'button' || role === 'link' || role === 'option' || tag === 'li') break;
-      target = target.parentElement;
-    }
-    if (!target) return false;
-    target.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
-    target.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
-    target.dispatchEvent(new PointerEvent('pointerup', { bubbles: true }));
-    target.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
-    target.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    const owner = document.querySelector('[data-secondary-action-label="Try another way"]');
+    const textNode = Array.from(
+      document.querySelectorAll('button, [role="button"], a, [role="link"], div, span, li'),
+    ).find((element) => /^Try another way$/i.test(norm(element.innerText || element.textContent || '')));
+    const target = owner?.querySelector('[jsaction*="click:"]')
+      || owner
+      || textNode?.closest('[jsaction*="click:"], button, [role="button"], a, [role="link"], li');
+    if (!target || target === document.body) return false;
+    target.click();
     return true;
   }).catch(() => false);
-  if (clickedByJs) {
-    console.log('[google_sso] retried "Try another way" via JS ancestor click');
-    await humanIdlePause('deliberate');
-    return await waitForTryAnotherResult();
-  }
-  return page.url() !== beforeUrl;
+  if (!clickedByJs) return false;
+  console.log('[google_sso] clicked "Try another way" through the Google action controller');
+  await humanIdlePause('deliberate');
+  return transitioned();
 }
 
 /**
@@ -540,12 +490,6 @@ export async function googleSso(session, creds, opts = {}) {
       if (pwInVisible > 0) break;
     }
     if (pwInVisible > 0) break;
-    if (/\/signin\/challenge\/pk(?=[/?#])/.test(page.url())
-        && await navigateGooglePasswordChallenge(page)) {
-      pwInVisible = 1;
-      break;
-    }
-
 
     // Google's "Welcome" / challenge selection page lists sign-in methods.
     // Explicitly pick "Enter your password" / "Use your password" instead of
