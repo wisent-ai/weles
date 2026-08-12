@@ -8,6 +8,16 @@ import os from 'node:os';
 import { INSTANCE_ID } from './identity.js';
 import type { WelesActionPolicy } from './placement-policy.js';
 
+// A claim attempt has exactly two outcomes and neither of them is silent.
+// `claimOne` used to return `ActionLogRow | null`; `null` is a value with no
+// room for a reason, so every "this host claimed nothing" exit had to remember
+// to narrate itself on the way out, and the one that forgot looked exactly like
+// an empty queue. The idle variant cannot be constructed without the sentence
+// that explains it, which is why the next skip anyone adds cannot be silent.
+export type ClaimDecision =
+  | { kind: 'claimed'; row: ActionLogRow }
+  | { kind: 'idle'; reason: string };
+
 const LEASE_DEPLOYMENT_ID = process.env.WELES_DEPLOYMENT_ID?.trim() ?? '';
 const LEASE_GENERATION = Number(process.env.WELES_DEPLOYMENT_GENERATION ?? '');
 const CLAIMS_ENABLED = (process.env.WELES_CLAIMS_ENABLED ?? '1') === '1';
@@ -32,9 +42,15 @@ const ACTION_ALLOWLIST = new Set(ACTION_ALLOWLIST_VALUES);
 // like an idle poll. That ambiguity is how charless-mac-mini sat claiming
 // nothing for twelve days without anyone noticing. So every path that ends in
 // "this host deliberately claimed nothing" says so, in the same voice as the
-// diagnostics gate in poll.ts. The poll loop runs forever, so an unchanged
-// reason is reported once and then only when it changes or the cooldown
-// elapses; the point is a visible standing condition, not a log flood.
+// diagnostics gate in poll.ts.
+//
+// Reporting happens once, at the single consumer of ClaimDecision (pollOnce),
+// rather than at each exit: the reason a row was not claimed and the reason
+// printed to the operator are then the same string by construction and cannot
+// drift apart the way a `reportClaimDenial(...)` next to a `return null` can.
+// The poll loop runs forever, so an unchanged reason is reported once and then
+// only when it changes or the cooldown elapses; the point is a visible standing
+// condition, not a log flood.
 const DENIAL_REPORT_COOLDOWN_MS = 5 * 60_000;
 const DENIAL_EXAMPLE_ACTIONS = 3;
 let lastDenial: { reason: string; at: number } | null = null;
@@ -46,6 +62,12 @@ export function reportClaimDenial(reason: string): void {
   console.error(`[worker] claiming nothing — ${reason}`);
 }
 
+// pollOnce gates on policy.enabled before it ever reaches claimOne, and
+// claimOne gates again for any other caller. Both describe the same standing
+// condition, so they must describe it in the same words.
+export const POLICY_DISABLED_REASON =
+  'the host placement policy is disabled for this host, so no queued row is eligible';
+
 function exampleActions(actions: Iterable<string>): string {
   const all = [...actions];
   if (!all.length) return 'none';
@@ -53,18 +75,15 @@ function exampleActions(actions: Iterable<string>): string {
   return shown.join(', ') + (all.length > shown.length ? `, +${all.length - shown.length} more` : '');
 }
 
-export async function claimOne(policy: WelesActionPolicy): Promise<ActionLogRow | null> {
+export async function claimOne(policy: WelesActionPolicy): Promise<ClaimDecision> {
   if (!CLAIMS_ENABLED) {
-    reportClaimDenial('claims are disabled on this host by the launcher (WELES_CLAIMS_ENABLED=0)');
-    return null;
+    return { kind: 'idle', reason: 'claims are disabled on this host by the launcher (WELES_CLAIMS_ENABLED=0)' };
   }
   if (!policy.enabled) {
-    reportClaimDenial('the host placement policy is disabled for this host, so no queued row is eligible');
-    return null;
+    return { kind: 'idle', reason: POLICY_DISABLED_REASON };
   }
   if (policy.actions.length === 0) {
-    reportClaimDenial(`the host placement policy lists 0 actions for this host; the launcher allowlist has ${ACTION_ALLOWLIST.size} (${exampleActions(ACTION_ALLOWLIST)}). This host is configured to claim nothing.`);
-    return null;
+    return { kind: 'idle', reason: `the host placement policy lists 0 actions for this host; the launcher allowlist has ${ACTION_ALLOWLIST.size} (${exampleActions(ACTION_ALLOWLIST)}). This host is configured to claim nothing.` };
   }
   // The launcher allowlist is the hard bound on what this binary may ever run;
   // the host placement policy narrows it further, and a wildcard host policy
@@ -73,8 +92,7 @@ export async function claimOne(policy: WelesActionPolicy): Promise<ActionLogRow 
     ? ACTION_ALLOWLIST
     : new Set(policy.actions.filter((action) => ACTION_ALLOWLIST.has(action)));
   if (allowedActions.size === 0) {
-    reportClaimDenial(`the host placement policy and the launcher allowlist do not intersect — policy lists ${policy.actions.length} action(s) (${exampleActions(policy.actions)}), allowlist has ${ACTION_ALLOWLIST.size} (${exampleActions(ACTION_ALLOWLIST)}). This host is configured to claim nothing, which is not the same as an empty queue.`);
-    return null;
+    return { kind: 'idle', reason: `the host placement policy and the launcher allowlist do not intersect — policy lists ${policy.actions.length} action(s) (${exampleActions(policy.actions)}), allowlist has ${ACTION_ALLOWLIST.size} (${exampleActions(ACTION_ALLOWLIST)}). This host is configured to claim nothing, which is not the same as an empty queue.` };
   }
   const actionFilter = `&action=in.(${[...allowedActions].map((action) =>
     encodeURIComponent(`"${action.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`)).join(',')})`;
@@ -89,8 +107,7 @@ export async function claimOne(policy: WelesActionPolicy): Promise<ActionLogRow 
   );
   if (!res.ok) {
     const body = await res.text().catch(() => '');
-    console.error(`[worker] claim candidate query failed ${res.status}: ${body.slice(0, 300)}`);
-    return null;
+    return { kind: 'idle', reason: `claim candidate query failed ${res.status}: ${body.slice(0, 300)}` };
   }
   // Tally, never per-row logging: one poll can look at a thousand rows and the
   // operator only needs to know that all of them were dropped and by which rule.
@@ -180,12 +197,12 @@ export async function claimOne(policy: WelesActionPolicy): Promise<ActionLogRow 
     );
     if (!claim.ok) { drop(`claim PATCH rejected (${claim.status})`); continue; }
     const claimed = (await claim.json()) as ActionLogRow[];
-    if (claimed.length > 0) return claimed[0];
+    if (claimed.length > 0) return { kind: 'claimed', row: claimed[0] };
     drop('lost the claim race to another worker');
   }
   if (dropped.size) {
     const detail = [...dropped].sort((a, b) => b[1] - a[1]).map(([reason, count]) => `${count} ${reason}`).join(', ');
-    reportClaimDenial(`every queued candidate was filtered out — ${detail}`);
+    return { kind: 'idle', reason: `every queued candidate was filtered out — ${detail}` };
   }
-  return null;
+  return { kind: 'idle', reason: 'the queue holds no row this host is eligible to claim' };
 }
