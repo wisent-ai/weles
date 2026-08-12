@@ -1,5 +1,6 @@
 #!/opt/homebrew/bin/node
 import { execFileSync } from 'node:child_process';
+import http from 'node:http';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
@@ -77,11 +78,24 @@ const body = {
     },
   },
 };
-const response = await fetch('http://100.120.25.24:8788/run', {
-  method: 'POST',
-  headers: { authorization: `Bearer ${apiToken}`, 'content-type': 'application/json' },
-  body: JSON.stringify(body),
+const payload = JSON.stringify(body);
+const responseBody = await new Promise((resolve, reject) => {
+  const request = http.request('http://100.120.25.24:8788/run', {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${apiToken}`,
+      'content-type': 'application/json',
+      'content-length': Buffer.byteLength(payload),
+    },
+  }, (incoming) => {
+    const chunks = [];
+    incoming.on('data', (chunk) => chunks.push(chunk));
+    incoming.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
+  });
+  request.setTimeout(Number(body.timeout_ms), () => request.destroy(new Error('Weles API request timed out')));
+  request.on('error', reject);
+  request.end(payload);
 });
-const result = await response.json();
+const result = JSON.parse(responseBody);
 console.log(JSON.stringify(result, null, '\t'));
-if (!response.ok || result.ok !== true) throw new Error('Cloudflare tunnel operation failed');
+if (result.ok !== true) throw new Error('Cloudflare tunnel operation failed');
