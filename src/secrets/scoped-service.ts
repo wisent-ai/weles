@@ -72,6 +72,14 @@ const ACQUIRED_SECRET_CONTRACTS = Object.freeze({
     sourceOrigin: 'https://supabase.com',
     shape: 'supabase',
   }),
+  'figma.personal_access_token': Object.freeze({
+    item: 'weles-figma-personal-access-token',
+    field: 'api_key',
+    writerConsumer: 'weles-figma-personal-access-token-writer',
+    writerTokenFile: 'weles-figma-personal-access-token-writer-skarbiec-token',
+    sourceOrigin: 'https://www.figma.com',
+    shape: 'opaque-token',
+  }),
   'snapchat.snap_kit_api_token': Object.freeze({
     item: 'weles-snapchat-snap-kit-api',
     field: 'api_key',
@@ -552,14 +560,26 @@ export function writeWelesAcquiredSecret(
     ], {
       input,
       maxBuffer: Number('65536'),
-      stdio: ['pipe', 'ignore', 'ignore'],
+      stdio: ['pipe', 'ignore', 'pipe'],
       env: {
         HOME: homedir(),
         PATH: process.env.PATH || '/usr/local/bin:/usr/bin:/bin',
       },
     });
     if (result.error || result.status !== Number('0')) {
-      throw new Error(`scoped Skarbiec write failed for ${secretName}/${field}`);
+      const stderr = Buffer.isBuffer(result.stderr)
+        ? result.stderr.toString('utf8')
+        : String(result.stderr ?? '');
+      const httpStatus = stderr.match(/HTTP \d{3}/)?.[0];
+      const transport = stderr.match(
+        /(?:ECONNREFUSED|ECONNRESET|UND_ERR_[A-Z_]+)[^\r\n]{0,160}/,
+      )?.[0];
+      const safeReason = stderr.match(/Error: ([^\r\n]{1,240})/)?.[1]
+        ?.replace(/[A-Za-z0-9_-]{32,}/g, '[redacted]');
+      const detail = httpStatus ?? transport ?? safeReason ?? 'without diagnostic detail';
+      throw new Error(
+        `scoped Skarbiec write failed for ${secretName}/${field} via ${skarbiecEndpoint(tenantId)}: ${detail}`,
+      );
     }
   } finally {
     input.fill(Number('0'));

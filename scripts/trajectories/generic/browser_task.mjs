@@ -118,6 +118,113 @@ async function ensureSupabaseSession(activeSession, taskConstraints) {
   if (!signedIn) throw new Error(`Google SSO failed for ${accountEmail}`);
   await page.waitForURL(/supabase\.com\/dashboard/, { timeout: 30_000 }).catch(() => {});
 }
+
+async function ensureFigmaSession(activeSession, taskConstraints) {
+  if (taskConstraints.secret !== 'figma.personal_access_token') return;
+
+  const accountEmail = typeof taskConstraints.account_email === 'string'
+    ? taskConstraints.account_email.trim().toLowerCase()
+    : '';
+  if (!accountEmail) throw new Error('Figma token acquisition requires an exact account email');
+
+  const page = activeSession.page;
+  const context = page.context();
+  let recoveryPage = null;
+  await page.waitForLoadState?.('domcontentloaded').catch(() => {});
+  const googleButton = page.getByRole('button', { name: /continue with google|log in with google|sign in with google/i })
+    .or(page.getByRole('link', { name: /continue with google|log in with google|sign in with google/i }))
+    .first();
+  const requiresSignIn = /\/login(?:[/?#]|$)|accounts\.google\.com/i.test(page.url())
+    || await googleButton.isVisible().catch(() => false);
+  if (!requiresSignIn) return;
+
+  const credentials = await getGoogleSsoCreds(accountEmail);
+  if (!credentials) throw new Error(`Google SSO credentials are unavailable for ${accountEmail}`);
+  const keepOAuthPageOpen = () => {
+    Object.defineProperty(window, 'close', {
+      configurable: false,
+      value: () => undefined,
+      writable: false,
+    });
+  };
+  await context.addInitScript(keepOAuthPageOpen);
+  await page.evaluate(keepOAuthPageOpen).catch(() => {});
+
+  const emailInput = page.locator('input[type="email"], input[name="email"]').filter({ visible: true }).first();
+  if (await emailInput.isVisible().catch(() => false)) {
+    await emailInput.fill(credentials.email);
+    const continueButton = page.getByRole('button', { name: /^(continue|log in)$/i })
+      .filter({ visible: true })
+      .first();
+    if (await continueButton.isVisible().catch(() => false)) {
+      await continueButton.click();
+      const passwordInput = page.locator('input[type="password"], input[name="password"]')
+        .filter({ visible: true })
+        .first();
+      await passwordInput.waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {});
+      if (await passwordInput.isVisible().catch(() => false)) {
+        await passwordInput.fill(credentials.password);
+        await page.keyboard.press('Enter');
+        await page.waitForURL((current) => !/figma\.com\/login(?:[/?#]|$)/i.test(current.href), {
+          timeout: 15_000,
+        }).catch(() => {});
+        if (!/figma\.com\/login(?:[/?#]|$)/i.test(page.url())) {
+          console.log('[figma_sso] established Figma session with direct credentials');
+          return;
+        }
+        console.log('[figma_sso] direct credential login did not establish a session; using Google SSO');
+      }
+    }
+  }
+
+  let authPage = page;
+  if (!/accounts\.google\.com/i.test(page.url())) {
+    recoveryPage = await context.newPage();
+    await recoveryPage.goto('about:blank');
+    const popupPromise = context.waitForEvent('page', { timeout: 10_000 }).catch(() => null);
+    const buttonMetadata = await googleButton.evaluate((element) => ({
+      tag: element.tagName,
+      href: element instanceof HTMLAnchorElement ? element.href : '',
+      target: element instanceof HTMLAnchorElement ? element.target : '',
+    })).catch(() => ({ tag: 'unknown', href: '', target: '' }));
+    console.log(`[figma_sso] Google control=${JSON.stringify(buttonMetadata)}`);
+    let clickError = null;
+    await googleButton.click({ noWaitAfter: true }).catch((error) => {
+      clickError = error;
+    });
+    authPage = await popupPromise
+      ?? context.pages().find((candidate) => /accounts\.google\.com/i.test(candidate.url()))
+      ?? page;
+    if (clickError && !/accounts\.google\.com/i.test(authPage.url())) throw clickError;
+  }
+  const signedIn = await googleSso(activeSession, credentials, { page: authPage, originHost: 'figma.com' });
+  if (!signedIn) throw new Error(`Figma Google SSO failed for ${accountEmail}`);
+  const availablePages = context.pages();
+  const liveFigmaPages = availablePages.filter((candidate) => (
+    !candidate.isClosed?.() && /figma\.com/i.test(candidate.url())
+  ));
+  const liveFigmaPage = liveFigmaPages.find((candidate) => (
+    !/figma\.com\/login(?:[/?#]|$)/i.test(candidate.url())
+  )) ?? liveFigmaPages[0];
+  console.log(`[figma_sso] pages after Google SSO=${JSON.stringify(availablePages.map((candidate) => ({
+    closed: candidate.isClosed?.() ?? false,
+    url: candidate.url(),
+  })))}`);
+  const targetPage = page.isClosed?.() ? (liveFigmaPage ?? recoveryPage) : page;
+  if (targetPage !== page) activeSession.page = targetPage;
+  if (!targetPage || targetPage.isClosed?.()) {
+    throw new Error(`Figma closed every recoverable page after Google SSO for ${accountEmail}`);
+  }
+  await targetPage.waitForURL(/figma\.com\/(files|settings)/, { timeout: 30_000 }).catch(() => {});
+  if (/figma\.com\/login(?:[/?#]|$)/i.test(targetPage.url())) {
+    await targetPage.goto('https://www.figma.com/settings?tab=security');
+    await targetPage.waitForLoadState?.('domcontentloaded').catch(() => {});
+  }
+  if (/figma\.com\/login(?:[/?#]|$)/i.test(targetPage.url())) {
+    throw new Error(`Figma did not establish a session for ${accountEmail}`);
+  }
+}
+
 async function applyCredentialPrefill(activeSession, taskConstraints) {
   const entries = Array.isArray(taskConstraints.credential_prefill)
     ? taskConstraints.credential_prefill
@@ -164,7 +271,6 @@ async function dismissCookieConsent(activeSession, taskConstraints) {
   }
   throw new Error('cookie consent banner did not close after one deterministic click');
 }
-
 async function ensureCloudflareSession(activeSession, taskConstraints) {
   if (taskConstraints.cloudflare_login !== true) return;
   const page = activeSession.page;
@@ -266,6 +372,7 @@ try {
   await applyCredentialPrefill(session, constraints);
   await ensureCloudflareSession(session, constraints);
   await ensureSupabaseSession(session, constraints);
+  await ensureFigmaSession(session, constraints);
   const goal = [
     objective,
     '',
