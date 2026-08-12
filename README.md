@@ -29,25 +29,29 @@ and how it can be fixed.
 Give your AI the keys to the internet. The browser-use experience your AI
 deserves.
 
-## What Weles has already done
+## Proven production outcomes
 
-Weles is already completing real workflows on live services—not staged demos:
+These are completed actions from the production action log, not demonstrations
+or planned capabilities. Each login below exited successfully with a healthy
+signal, and a later health action for the same stored account independently
+confirmed that the authenticated session remained usable.
 
-- **GitHub:** signed in to an account in 50 seconds. The same authenticated
-  session was still healthy 14 hours later. The run retained a video, a DOM
-  snapshot, a run log, and eight screenshots.
-- **Reddit:** signed in to an account in 40 seconds. The same authenticated
-  session was still healthy 21 hours later. The run retained a video, a DOM
-  snapshot, a run log, and five screenshots.
-- **LinkedIn:** signed in to an account in under three minutes. A separate
-  check confirmed the same session was healthy three hours later. The run
-  retained a video and execution log.
-- **Slack:** delivered an operational notification in 1.6 seconds, with Slack
-  confirming that it accepted the message.
+| Outcome | Public audit reference | Recorded proof |
+| --- | --- | --- |
+| GitHub authenticated session | `59c16cd8c79ac670`, 2026-05-20 | Completed healthy in 50.1 seconds; retained a DOM dump, run log, video, and 8 screenshots. A health check for the same account 14 hours later also completed healthy. |
+| Reddit authenticated session | `ac0480be066925a0`, 2026-05-20 | Completed healthy in 40.3 seconds; retained a DOM dump, run log, video, and 5 screenshots. A health check for the same account 21 hours later also completed healthy. |
+| LinkedIn authenticated session | `748159b6b7e53910`, 2026-05-07 | Completed healthy in 158.6 seconds with a run log and video. A health check for the same account 3 hours later also completed healthy. |
+| Slack notification delivered | `4ce446385b3918bf`, 2026-07-13 | Completed healthy in 1.6 seconds. Its recorded trajectory calls `chat.postMessage`, accepts only Slack's `ok` response, and exits non-zero when no recipient accepts the post. |
 
-These results come from Weles's production action history. The recordings stay
-private because they contain authenticated account state, but the outcome,
-timing, follow-up health check, and retained evidence are recorded for each run.
+The worker writes `completed` only after the trajectory exits with code zero;
+failures, cancellations, and review-required outcomes use separate terminal
+states. Account identifiers and artifacts remain private because recordings can
+contain authenticated target state. Each public audit reference is the first 16
+hexadecimal characters of SHA-256 over the corresponding private record ID or
+correlated record pair. These historical records predate signed outcome
+receipts, so this proof
+is the stored terminal state, success signal, follow-up correlation, retained
+artifacts, and recorded trajectory—not a claim of cryptographic attestation.
 
 ## Request access
 
