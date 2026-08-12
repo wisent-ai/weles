@@ -14,6 +14,6 @@ JSON
 chmod u=rw,go= "$SKARBIEC_CAPABILITY_ROUTES_FILE"
 
 skarbiec="$HOME/.stado/bin/skarbiec"
-email="$($skarbiec capability-issue --agent weles-credential-worker-local --purpose weles.browser.fill --resource origin:https://dash.cloudflare.com/email --target weles)"
-password="$($skarbiec capability-issue --agent weles-credential-worker-local --purpose weles.browser.fill --resource origin:https://dash.cloudflare.com/password --target weles)"
+email="$($skarbiec capability-issue --agent weles-object-token-bootstrap --purpose weles.browser.fill --resource origin:https://dash.cloudflare.com/email --target weles)"
+password="$($skarbiec capability-issue --agent weles-object-token-bootstrap --purpose weles.browser.fill --resource origin:https://dash.cloudflare.com/password --target weles)"
 printf '{"email":%s,"password":%s}\n' "$email" "$password"

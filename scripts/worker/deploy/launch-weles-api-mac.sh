@@ -59,6 +59,7 @@ export SKARBIEC_VAULT_FILE="$HOME/.stado/skarbiec.vault.json"
 export SKARBIEC_CAPABILITY_FILE="$HOME/.stado/weles-api-capabilities.json"
 export SKARBIEC_CAPABILITY_ROUTES_FILE="$HOME/.stado/weles-api-capability-routes.json"
 export SKARBIEC_CAP_SOCKET="$HOME/.stado/run/weles-api-capability.sock"
+export SKARBIEC_WORKLOAD_ID='weles-object-token-bootstrap'
 mkdir -p "$(dirname "$SKARBIEC_CAP_SOCKET")"
 export WELES_API_HOST="${WELES_API_HOST:-0.0.0.0}"
 export WELES_API_PORT="${WELES_API_PORT:-8788}"
