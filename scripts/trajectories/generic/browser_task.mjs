@@ -165,6 +165,54 @@ async function dismissCookieConsent(activeSession, taskConstraints) {
   throw new Error('cookie consent banner did not close after one deterministic click');
 }
 
+async function ensureCloudflareSession(activeSession, taskConstraints) {
+  if (taskConstraints.cloudflare_login !== true) return;
+  const page = activeSession.page;
+  if (!/^https:\/\/dash\.cloudflare\.com\/login(?:[/?#]|$)/i.test(page.url())) return;
+
+  const email = page.locator('input[name="email"]').first();
+  const password = page.locator('input[name="password"]').first();
+  await password.waitFor({ state: 'visible', timeout: 15_000 });
+  const populated = await Promise.all([email, password].map((field) => (
+    field.evaluate((element) => element instanceof HTMLInputElement && element.value.length > 0)
+      .catch(() => false)
+  )));
+  if (!populated.every(Boolean)) {
+    throw new Error(`Cloudflare credential prefill is incomplete: email=${populated[0]} password=${populated[1]}`);
+  }
+
+  const leaveLogin = page.waitForURL(
+    (current) => !/^https:\/\/dash\.cloudflare\.com\/login(?:[/?#]|$)/i.test(current.toString()),
+    { timeout: 30_000 },
+  ).catch(() => null);
+  await password.focus();
+  await password.press('Enter');
+  await leaveLogin;
+  if (!/^https:\/\/dash\.cloudflare\.com\/login(?:[/?#]|$)/i.test(page.url())) return;
+
+  const captcha = await activeSession.solveCaptcha();
+  if (captcha === 'captcha solved') {
+    const captchaNavigation = page.waitForURL(
+      (current) => !/^https:\/\/dash\.cloudflare\.com\/login(?:[/?#]|$)/i.test(current.toString()),
+      { timeout: 30_000 },
+    ).catch(() => null);
+    await password.focus();
+    await password.press('Enter');
+    await captchaNavigation;
+  }
+  if (!/^https:\/\/dash\.cloudflare\.com\/login(?:[/?#]|$)/i.test(page.url())) return;
+
+  const submit = page.getByRole('button', { name: /^log in$/i }).filter({ visible: true }).first();
+  const submitVisible = await submit.isVisible().catch(() => false);
+  const submitDisabled = submitVisible ? await submit.isDisabled().catch(() => false) : null;
+  const alerts = await page.locator('[role="alert"]').allTextContents().catch(() => []);
+  throw new Error(
+    `Cloudflare login did not navigate: submit_visible=${submitVisible} submit_disabled=${submitDisabled} `
+    + `captcha=${captcha} alerts=${JSON.stringify(alerts.map((value) => value.trim()).filter(Boolean).slice(0, 4))}`,
+  );
+}
+
+
 
 
 
@@ -216,6 +264,7 @@ try {
   await session.goto(url);
   await dismissCookieConsent(session, constraints);
   await applyCredentialPrefill(session, constraints);
+  await ensureCloudflareSession(session, constraints);
   await ensureSupabaseSession(session, constraints);
   const goal = [
     objective,
