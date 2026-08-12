@@ -64,7 +64,7 @@ const body = {
     url: 'https://dash.cloudflare.com/login',
     objective,
     flow_name: 'cloudflare-stado-public-hostname',
-    headless: false,
+    headless: true,
     constraints: {
       email_capability: reference(emailCapability, emailResource),
       password_capability: reference(passwordCapability, passwordResource),
