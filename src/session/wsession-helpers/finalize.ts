@@ -87,6 +87,16 @@ export async function wsClick(s: WSession, target: string): Promise<string> {
       } catch {}
       return null;
     };
+    const labelledButton = target.trim().match(/^button\[label=['"]([^'"]+)['"]\]/)?.[1];
+    if (labelledButton) {
+      const labelledExact = new RegExp(`^\\s*${labelledButton.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*$`, 'i');
+      for (const frame of childFrames(s)) {
+        const clicked = await tryLoc(frame.getByRole('button', { name: labelledExact }), 'frame button label: ');
+        if (clicked) return clicked;
+      }
+      const clicked = await tryLoc(s.page.getByRole('button', { name: labelledExact }), 'button label: ');
+      if (clicked) return clicked;
+    }
     const explicitSelector = target.trim().match(/^(?:button|a|input|label|select|textarea|\[[^\]]+\])(?:\[[^\]]+\])*/)?.[0];
     if (explicitSelector) {
       for (const frame of childFrames(s)) {
