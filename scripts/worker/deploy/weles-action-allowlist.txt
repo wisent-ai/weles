@@ -26,6 +26,7 @@ discord_organic_reply
 discord_post
 discord_profile_view
 discord_promote
+cloudflare_configure_tunnel_route
 discord_react
 discord_register
 discord_save

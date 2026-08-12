@@ -20,32 +20,16 @@ function runSkarbiec(args) {
 const apiToken = runSkarbiec(['get', 'weles-api-operator']).fields.token;
 const accountId = '35acdbe68affc7b249aa289cd2a21130';
 const tunnelId = 'd16253a5-1d70-4d32-876a-b483a6c0004a';
-const tunnelUrl = `https://dash.cloudflare.com/${accountId}/tunnels/${tunnelId}/routes`;
-const objective = [
-  `Open ${tunnelUrl} directly for the existing wisent-backend-rtx tunnel.`,
-  'Click Add route, then choose Published application.',
-  'In the published application form, fill the Hostname input whose placeholder is www with only brama, select wisent.ai from Select domain, leave Path empty, and fill the Service URL input whose placeholder is https://localhost:8080 with http://127.0.0.1:8080.',
-  'Submit the form exactly once; do not reopen Add route after the form appears.',
-  'Preserve every existing route and its service unchanged.',
-  'Finish only after brama.wisent.ai is visibly listed as a published application route to http://127.0.0.1:8080.',
-  'Do not alter any other Cloudflare resource.',
-].join(' ');
 const body = {
-  action: 'generic_keeper_task',
+  action: 'cloudflare_configure_tunnel_route',
   creds: 'redact',
   timeout_ms: '1800000',
   params: {
-    url: tunnelUrl,
-    objective,
-    flow_name: 'cloudflare-brama-public-hostname',
-    headless: false,
-    constraints: {
-      cookie_consent_buttons: ['Reject All But Necessary', 'Confirm My Choices'],
-      cloudflare_login: true,
-      account_email: 'lukasz.bartoszcze@gmail.com',
-      allowed_tunnel_id: tunnelId,
-      allowed_hostnames: ['brama.wisent.ai'],
-    },
+    account_id: accountId,
+    tunnel_id: tunnelId,
+    hostname: 'brama.wisent.ai',
+    origin_url: 'http://127.0.0.1:8080',
+    account_email: 'lukasz.bartoszcze@gmail.com',
   },
 };
 const payload = JSON.stringify(body);
