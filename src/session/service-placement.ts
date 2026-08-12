@@ -10,7 +10,7 @@ type ServiceStatusRow = {
 
 function stado(arguments_: string[]): string {
   const binary = process.env.STADO_BIN?.trim() || join(homedir(), '.local', 'bin', 'stado');
-  const environment = {
+  const environment: NodeJS.ProcessEnv = {
     ...process.env,
     STADO_CONFIG: join(homedir(), '.stado', 'local-placement-config.absent'),
     WC_STORAGE_BACKEND: 'local',
