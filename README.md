@@ -29,29 +29,50 @@ and how it can be fixed.
 Give your AI the keys to the internet. The browser-use experience your AI
 deserves.
 
-## Proven production outcomes
+## See Weles work
 
-These are completed actions from the production action log, not demonstrations
-or planned capabilities. Each login below exited successfully with a healthy
-signal, and a later health action for the same stored account independently
-confirmed that the authenticated session remained usable.
+These are public, redacted cuts from real production runs. Dark boxes cover
+credentials and account identifiers; the browser interaction is otherwise
+unchanged.
 
-| Outcome | Public audit reference | Recorded proof |
-| --- | --- | --- |
-| GitHub authenticated session | `59c16cd8c79ac670`, 2026-05-20 | Completed healthy in 50.1 seconds; retained a DOM dump, run log, video, and 8 screenshots. A health check for the same account 14 hours later also completed healthy. |
-| Reddit authenticated session | `ac0480be066925a0`, 2026-05-20 | Completed healthy in 40.3 seconds; retained a DOM dump, run log, video, and 5 screenshots. A health check for the same account 21 hours later also completed healthy. |
-| LinkedIn authenticated session | `748159b6b7e53910`, 2026-05-07 | Completed healthy in 158.6 seconds with a run log and video. A health check for the same account 3 hours later also completed healthy. |
-| Slack notification delivered | `4ce446385b3918bf`, 2026-07-13 | Completed healthy in 1.6 seconds. Its recorded trajectory calls `chat.postMessage`, accepts only Slack's `ok` response, and exits non-zero when no recipient accepts the post. |
+### Sign in to GitHub
 
-The worker writes `completed` only after the trajectory exits with code zero;
-failures, cancellations, and review-required outcomes use separate terminal
-states. Account identifiers and artifacts remain private because recordings can
-contain authenticated target state. Each public audit reference is the first 16
-hexadecimal characters of SHA-256 over the corresponding private record ID or
-correlated record pair. These historical records predate signed outcome
-receipts, so this proof
-is the stored terminal state, success signal, follow-up correlation, retained
-artifacts, and recorded trajectory—not a claim of cryptographic attestation.
+Weles opens GitHub, enters the account credentials, submits the form, and
+reaches the authenticated dashboard.
+
+<p align="center">
+  <img src="assets/demos/github-login.gif" width="800" alt="Weles signing in to GitHub and reaching the authenticated dashboard">
+</p>
+
+### Sign in to Reddit
+
+Weles opens Reddit and completes the credential-entry flow. The retained video
+ends at the enabled **Log In** button; the production action then completed
+healthy, and a later health action confirmed that the stored session remained
+usable.
+
+<p align="center">
+  <img src="assets/demos/reddit-login.gif" width="800" alt="Weles filling the Reddit login form with the credential fields redacted">
+</p>
+
+### Sign in to LinkedIn
+
+Weles enters the LinkedIn credentials and reaches the authenticated home feed.
+The public cut also hides the demo account's profile card.
+
+<p align="center">
+  <img src="assets/demos/linkedin-login.gif" width="800" alt="Weles signing in to LinkedIn and reaching the authenticated home feed">
+</p>
+
+### Deliver a Slack notification
+
+This action uses Slack's API rather than a browser, so it produced no screen
+recording. The production run called `chat.postMessage`, received `ok: true`,
+and completed in 1.6 seconds; its message body is not public.
+
+<p align="center">
+  <img src="assets/demos/slack-delivery.svg" width="800" alt="Weles delivering a Slack message through chat.postMessage and receiving an ok response">
+</p>
 
 ## Request access
 
