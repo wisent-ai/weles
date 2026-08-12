@@ -55,6 +55,17 @@ export WELES_AGENT_MODEL=weles/agent/primary
 export STADO_MODEL_ROUTER_URL='http://127.0.0.1:8080'
 export STADO_API_URL='https://lukaszs-macbook-pro-4007-2.tail6443b3.ts.net'
 export STADO_API_TOKEN="$WELES_STADO_OBJECT_API_TOKEN"
+export SKARBIEC_VAULT_FILE="$HOME/.stado/skarbiec.vault.json"
+export SKARBIEC_CAPABILITY_FILE="$HOME/.stado/weles-api-capabilities.json"
+export SKARBIEC_CAPABILITY_ROUTES_FILE="$HOME/.stado/weles-api-capability-routes.json"
+export SKARBIEC_CAP_SOCKET="$HOME/.stado/run/weles-api-capability.sock"
+mkdir -p "$(dirname "$SKARBIEC_CAP_SOCKET")"
 export WELES_API_HOST="${WELES_API_HOST:-0.0.0.0}"
 export WELES_API_PORT="${WELES_API_PORT:-8788}"
-exec /opt/homebrew/bin/node "$WELES_REPO/scripts/worker/weles-api-server.mjs"
+"$HOME/.stado/bin/skarbiec" capability-serve --socket "$SKARBIEC_CAP_SOCKET" &
+capability_broker_pid=$!
+stop_capability_broker() {
+  kill "$capability_broker_pid" || true
+}
+trap stop_capability_broker EXIT HUP INT TERM
+"$NODE_BIN" "$WELES_REPO/scripts/worker/weles-api-server.mjs"

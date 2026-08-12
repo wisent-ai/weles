@@ -1,13 +1,12 @@
 #!/opt/homebrew/bin/node
 import { execFileSync } from 'node:child_process';
-import { chmodSync, constants, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
 const home = homedir();
 const skarbiec = join(home, '.local', 'bin', 'skarbiec');
+const stado = join(home, '.stado', 'bin', 'stado');
 const vaultFile = join(home, '.stado', 'skarbiec.vault.json');
-const routesFile = join(home, '.stado', 'capability-routes.json');
 const environment = {
   ...process.env,
   PATH: ['/opt/homebrew/bin', '/usr/local/bin', '/usr/bin', '/bin', '/usr/sbin', '/sbin'].join(':'),
@@ -15,31 +14,26 @@ const environment = {
 };
 const emailResource = 'origin:https://dash.cloudflare.com/email';
 const passwordResource = 'origin:https://dash.cloudflare.com/password';
-
-const routes = JSON.parse(readFileSync(routesFile, 'utf8'));
-routes[emailResource] = { item: 'platform-admin-cloudflare', field: 'username' };
-routes[passwordResource] = { item: 'platform-admin-cloudflare', field: 'password' };
-writeFileSync(routesFile, `${JSON.stringify(routes, null, '\t')}\n`);
-chmodSync(routesFile, constants.S_IRUSR | constants.S_IWUSR);
+const capabilityHelper = join(import.meta.dirname, 'issue-cloudflare-capabilities-host.sh');
 
 function runSkarbiec(args) {
   return JSON.parse(execFileSync(skarbiec, args, { encoding: 'utf8', env: environment }));
 }
 
-function issue(resource) {
-  return runSkarbiec([
-    'capability-issue',
-    '--agent', 'weles-credential-worker-local',
-    '--purpose', 'weles.browser.fill',
-    '--resource', resource,
-    '--target', 'weles',
-    '--ttl', '900',
-    '--max-uses', '1',
-  ]).capability_id;
+execFileSync(stado, [
+  'host', 'install-helper', 'charless-mac-mini', capabilityHelper,
+  'issue-cloudflare-capabilities-host', '--json',
+], { encoding: 'utf8' });
+const capabilityReport = JSON.parse(execFileSync(stado, [
+  'host', 'run-helper', 'charless-mac-mini',
+  'issue-cloudflare-capabilities-host', '--json',
+], { encoding: 'utf8' }));
+if (capabilityReport.status !== 'completed') {
+  throw new Error('remote Cloudflare capability issuance failed');
 }
-
-const emailCapability = issue(emailResource);
-const passwordCapability = issue(passwordResource);
+const capabilities = JSON.parse(capabilityReport.stdout);
+const emailCapability = capabilities.email.capability_id;
+const passwordCapability = capabilities.password.capability_id;
 const apiToken = runSkarbiec(['get', 'weles-api-operator']).fields.token;
 const reference = (capabilityId, resource) => ({
   capability_id: capabilityId,
