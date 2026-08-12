@@ -77,7 +77,7 @@ async function routeState(page) {
 }
 
 const session = await WSession.start({
-  label: 'cloudflare_tunnel_route',
+  label: 'generic_keeper_task',
   browser: 'chromium',
   proxy: 'none',
   targetHost: 'dash.cloudflare.com',
