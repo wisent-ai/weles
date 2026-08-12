@@ -41,6 +41,18 @@ export interface BanSignal { healthy: boolean; signal: string; details?: Record<
 const RECORDINGS_ROOT = process.env.RECORDINGS_ROOT ?? 'recordings';
 const LIGHT_RESULT_ACTIONS = new Set(['overleaf_version_history_scan', 'slack_provision_user_token']);
 
+// Actions that drive an authenticated Apple session and therefore need the full
+// submit-guard pipeline before spawning: an authorization claimed with a lease,
+// a capability envelope resolved for it, and the relay command verified.
+//
+// This was written as `action === 'apple_login'` when login was the only such
+// action. Adding a second one to the dispatch table is not enough -- a guarded
+// action that misses this set falls to the unguarded branch, gets no
+// APPLE_AUTH_LEASE_OWNER, and dies in the trajectory's own preconditions after
+// the row has already been claimed. The set exists so the two places that must
+// agree cannot drift again.
+const APPLE_GUARDED_ACTIONS = new Set(['apple_login', 'apple_create_developer_id']);
+
 type TrajectoryBuildRow = {
   id: string;
   tenant_id?: string | null;
@@ -669,8 +681,8 @@ export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
     if (row.action === 'apple_ads_api_setup_probe') {
       throw new Error('apple_ads_api_setup_probe is disabled because it can submit an Apple password; use an explicitly authorized apple_login action');
     }
-    if (row.action === 'apple_login') {
-      if (!row.account_id) throw new Error('apple_login requires account_id');
+    if (APPLE_GUARDED_ACTIONS.has(row.action)) {
+      if (!row.account_id) throw new Error(`${row.action} requires account_id`);
       const params = recordOrEmpty(row.params);
       const guardId = typeof params.apple_auth_guard_id === 'string' ? params.apple_auth_guard_id : '';
       const executionHost = typeof params.apple_execution_host === 'string' ? params.apple_execution_host : '';
@@ -687,7 +699,7 @@ export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
       const actualHost = os.hostname();
       const actualAgent = process.env.WELES_EXECUTION_AGENT ?? 'weles-worker';
       if (executionHost !== actualHost || executionAgent !== actualAgent) {
-        throw new Error(`apple_login execution binding mismatch (actual host=${actualHost}, agent=${actualAgent})`);
+        throw new Error(`${row.action} execution binding mismatch (actual host=${actualHost}, agent=${actualAgent})`);
       }
       const leaseOwner = `${actualAgent}:${actualHost}:${process.pid}:${row.id}`;
       await claimAppleAuthAuthorization(
@@ -711,8 +723,8 @@ export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
     let reason = `pre_spawn_authorization_failed: ${detail.slice(0, 300)}`;
-    let appleCleanupConfirmed = row.action !== 'apple_login';
-    if (row.action === 'apple_login' && row.account_id) {
+    let appleCleanupConfirmed = !APPLE_GUARDED_ACTIONS.has(row.action);
+    if (APPLE_GUARDED_ACTIONS.has(row.action) && row.account_id) {
       try {
         const params = recordOrEmpty(row.params);
         const guardId = typeof params.apple_auth_guard_id === 'string' ? params.apple_auth_guard_id : '';
@@ -742,7 +754,7 @@ export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
   }
 
   const { exitCode, stderr, cancelled } = await runTrajectory(row, trajPath, trajectoryEnv);
-  if (row.action === 'apple_login' && (exitCode !== 0 || cancelled)) {
+  if (APPLE_GUARDED_ACTIONS.has(row.action) && (cancelled || Boolean(exitCode))) {
     let failedOpenPersisted = false;
     try {
       const guard = await markAppleAuthFailedOpenByActionLog(

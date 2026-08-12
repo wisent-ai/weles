@@ -82,7 +82,11 @@ export async function sweepZombiesIfDue(): Promise<void> {
       return !Number.isFinite(t) || t < cutoffMs;
     });
     for (const row of stale) {
-      if (row.action === 'apple_login') {
+      // Every action that claims an Apple authorization must release it when its
+      // worker dies, not just login: a guarded action left running holds the one
+      // active guard its account is allowed, and the next authorization cannot
+      // even be created until this one is closed.
+      if (row.action === 'apple_login' || row.action === 'apple_create_developer_id') {
         let failedOpenPersisted = false;
         try {
           const guard = await markAppleAuthFailedOpenByActionLog(
