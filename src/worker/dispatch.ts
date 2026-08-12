@@ -91,7 +91,6 @@ const ROUTES: Record<string, (p: string) => string | null> = {
   browser_task: (p) => p === 'generic' ? 'scripts/trajectories/generic/browser_task.mjs' : null,
   saved_task: (p) => p === 'generic' ? 'scripts/trajectories/generic/saved_task.mjs' : null,
   keeper_task: (p) => p === 'generic' ? 'scripts/trajectories/generic/keeper_task.mjs' : null,
-  configure_tunnel_route: (p) => p === 'cloudflare' ? 'scripts/trajectories/cloudflare/configure_tunnel_route.mjs' : null,
   key_followup: (p) => p === 'semanticscholar' ? 'scripts/trajectories/semanticscholar/key_followup.mjs' : null,
   version_history_scan: (p) => p === 'overleaf' ? 'scripts/trajectories/overleaf/version_history_ui_phrase.mjs' : null,
   push_github: (p) => p === 'overleaf' ? 'scripts/trajectories/overleaf/push_github.mjs' : null,
@@ -386,19 +385,6 @@ export function paramsToEnv(
     if (constraints && typeof constraints === 'object') env.GENERIC_TASK_CONSTRAINTS = JSON.stringify(constraints);
     const taskEnv = params.env;
     if (taskEnv && typeof taskEnv === 'object') env.GENERIC_TASK_ENV = JSON.stringify(taskEnv);
-  }
-  if (trajPath.endsWith('/cloudflare/configure_tunnel_route.mjs')) {
-    const passthrough: Array<[string, string]> = [
-      ['account_id', 'CLOUDFLARE_ACCOUNT_ID'],
-      ['tunnel_id', 'CLOUDFLARE_TUNNEL_ID'],
-      ['hostname', 'CLOUDFLARE_HOSTNAME'],
-      ['origin_url', 'CLOUDFLARE_ORIGIN_URL'],
-      ['account_email', 'CLOUDFLARE_ACCOUNT_EMAIL'],
-    ];
-    for (const [key, envKey] of passthrough) {
-      const value = params[key];
-      if (typeof value === 'string') env[envKey] = value;
-    }
   }
   if (trajPath.endsWith('/microsoft_reset_password.mjs')
       || trajPath.endsWith('/microsoft_verify_password.mjs')

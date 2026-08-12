@@ -242,86 +242,6 @@ async function applyCredentialPrefill(activeSession, taskConstraints) {
     await activeSession.fillCredential(target, fieldClass, capability);
   }
 }
-async function dismissCookieConsent(activeSession, taskConstraints) {
-  const labels = Array.isArray(taskConstraints.cookie_consent_buttons)
-    ? taskConstraints.cookie_consent_buttons.filter((value) => typeof value === 'string' && value)
-    : [];
-  if (!labels.length) return;
-  const candidates = labels.map((name) => (
-    activeSession.page.getByRole('button', { name, exact: true }).filter({ visible: true }).first()
-  ));
-  let button = null;
-  for (let attempt = 0; attempt < 10 && !button; attempt += 1) {
-    for (const candidate of candidates) {
-      if (await candidate.isVisible().catch(() => false)) {
-        button = candidate;
-        break;
-      }
-    }
-    if (!button) await activeSession.page.waitForTimeout(500);
-  }
-  if (!button) return;
-  await button.click({ force: true });
-  for (let attempt = 0; attempt < 20; attempt += 1) {
-    const visible = await Promise.all(candidates.map((candidate) => (
-      candidate.isVisible().catch(() => false)
-    )));
-    if (!visible.some(Boolean)) return;
-    await activeSession.page.waitForTimeout(500);
-  }
-  throw new Error('cookie consent banner did not close after one deterministic click');
-}
-async function ensureCloudflareSession(activeSession, taskConstraints) {
-  if (taskConstraints.cloudflare_login !== true) return;
-  const page = activeSession.page;
-  if (!/^https:\/\/dash\.cloudflare\.com\/login(?:[/?#]|$)/i.test(page.url())) return;
-
-  const accountEmail = typeof taskConstraints.account_email === 'string'
-    ? taskConstraints.account_email.trim().toLowerCase()
-    : '';
-  if (!accountEmail) throw new Error('Cloudflare Google SSO requires an exact account email');
-  const credentials = await getGoogleSsoCreds(accountEmail);
-  if (!credentials) throw new Error(`Google SSO credentials are unavailable for ${accountEmail}`);
-
-  const context = page.context();
-  const googleButton = page.getByRole('button', { name: /continue with google/i })
-    .or(page.getByRole('link', { name: /continue with google/i }))
-    .filter({ visible: true })
-    .first();
-  if (!await googleButton.isVisible().catch(() => false)) {
-    throw new Error('Cloudflare Google sign-in control is unavailable');
-  }
-
-  const popupPromise = context.waitForEvent('page', { timeout: 10_000 }).catch(() => null);
-  await googleButton.click({ noWaitAfter: true });
-  const authPage = await popupPromise
-    ?? context.pages().find((candidate) => /accounts\.google\.com/i.test(candidate.url()))
-    ?? page;
-  const signedIn = await googleSso(activeSession, credentials, {
-    page: authPage,
-    originHost: 'dash.cloudflare.com',
-  });
-  if (!signedIn) throw new Error(`Cloudflare Google SSO failed for ${accountEmail}`);
-
-  for (let attempt = 0; attempt < 60; attempt += 1) {
-    const dashboardPage = context.pages().find((candidate) => (
-      !candidate.isClosed?.()
-      && /^https:\/\/dash\.cloudflare\.com\/(?!login(?:[/?#]|$))/i.test(candidate.url())
-    ));
-    if (dashboardPage) {
-      if (dashboardPage !== page) await dashboardPage.bringToFront().catch(() => {});
-      console.log(`[cloudflare_sso] established dashboard session at ${dashboardPage.url()}`);
-      return;
-    }
-    await page.waitForTimeout(500);
-  }
-  throw new Error(`Cloudflare Google SSO returned without a dashboard session: ${page.url()}`);
-}
-
-
-
-
-
 const url = requireHttpUrl(envString('GENERIC_TASK_URL'));
 const objective = envString('GENERIC_TASK_OBJECTIVE');
 if (!objective.trim()) throw new Error('GENERIC_TASK_OBJECTIVE is required');
@@ -368,9 +288,7 @@ try {
       : await writeWelesTrajectoryDraft({ objective });
   session = await WSession.start({ label, proxy, targetHost: new URL(url).hostname, headless, browser, platform: identityPlatformFromConstraints(constraints) || undefined, pageDiagnostics: keeperFirst ? false : undefined });
   await session.goto(url);
-  await dismissCookieConsent(session, constraints);
   await applyCredentialPrefill(session, constraints);
-  await ensureCloudflareSession(session, constraints);
   await ensureSupabaseSession(session, constraints);
   await ensureFigmaSession(session, constraints);
   const goal = [
