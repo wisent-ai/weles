@@ -16,7 +16,8 @@ else
 fi
 if [ -n "${SKARBIEC_WORKLOAD_SIGNING_KEY_FILE:-}" ] && [ -f "$SKARBIEC_WORKLOAD_SIGNING_KEY_FILE" ]; then
   algorithm='256'
-  openssl pkey -in "$SKARBIEC_WORKLOAD_SIGNING_KEY_FILE" -pubout \
+  openssl_version='openssl@3'
+  "/opt/homebrew/opt/$openssl_version/bin/openssl" pkey -in "$SKARBIEC_WORKLOAD_SIGNING_KEY_FILE" -pubout \
     | shasum -a "$algorithm" \
     | sed 's/  -$/  workload-public-key/'
 fi
