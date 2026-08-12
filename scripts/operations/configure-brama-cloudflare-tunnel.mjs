@@ -23,10 +23,11 @@ const tunnelId = 'd16253a5-1d70-4d32-876a-b483a6c0004a';
 const tunnelUrl = `https://dash.cloudflare.com/${accountId}/tunnels/${tunnelId}/routes`;
 const objective = [
   `Open ${tunnelUrl} directly for the existing wisent-backend-rtx tunnel.`,
-  'Click Add route and choose the published application/public hostname route type.',
-  'Create or update hostname brama.wisent.ai with service type HTTP and origin URL 127.0.0.1:8080.',
+  'Click Add route, then choose Published application.',
+  'In the published application form, fill the Hostname input whose placeholder is www with only brama, select wisent.ai from Select domain, leave Path empty, and fill the Service URL input whose placeholder is https://localhost:8080 with http://127.0.0.1:8080.',
+  'Submit the form exactly once; do not reopen Add route after the form appears.',
   'Preserve every existing route and its service unchanged.',
-  'Save and finish only after brama.wisent.ai is visibly listed as a route to http://127.0.0.1:8080.',
+  'Finish only after brama.wisent.ai is visibly listed as a published application route to http://127.0.0.1:8080.',
   'Do not alter any other Cloudflare resource.',
 ].join(' ');
 const body = {
