@@ -8,7 +8,11 @@ const home = homedir();
 const skarbiec = join(home, '.local', 'bin', 'skarbiec');
 const vaultFile = join(home, '.stado', 'skarbiec.vault.json');
 const routesFile = join(home, '.stado', 'capability-routes.json');
-const environment = { ...process.env, SKARBIEC_VAULT_FILE: vaultFile };
+const environment = {
+  ...process.env,
+  PATH: ['/opt/homebrew/bin', '/usr/local/bin', '/usr/bin', '/bin', '/usr/sbin', '/sbin'].join(':'),
+  SKARBIEC_VAULT_FILE: vaultFile,
+};
 const emailResource = 'origin:https://dash.cloudflare.com/email';
 const passwordResource = 'origin:https://dash.cloudflare.com/password';
 
