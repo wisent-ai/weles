@@ -345,16 +345,19 @@ async function clickTryAnotherWay(page) {
     .filter({ hasText: /^\s*Try another way\s*$/i })
     .filter({ visible: true })
     .first();
-  const tryAnother = await tryAnotherController.isVisible().catch(() => false)
+  const controllerVisible = await tryAnotherController.isVisible().catch(() => false);
+  const tryAnother = controllerVisible
     ? tryAnotherController
     : await tryAnotherSemantic.isVisible().catch(() => false)
       ? tryAnotherSemantic
       : tryAnotherTextual;
   if (await tryAnother.isVisible().catch(() => false)) {
     console.log('[google_sso] clicking "Try another way"');
-    await humanClickLocator(page, tryAnother).catch(async () => {
-      await tryAnother.click({ force: true, timeout: 5000 }).catch(() => {});
-    });
+    if (controllerVisible) {
+      await tryAnother.click({ force: true, timeout: 5000 }).catch(() => humanClickLocator(page, tryAnother));
+    } else {
+      await humanClickLocator(page, tryAnother).catch(() => tryAnother.click({ force: true, timeout: 5000 }));
+    }
     await humanIdlePause('deliberate');
   } else {
     const clickedByJs = await page.evaluate(() => {
@@ -374,6 +377,12 @@ async function clickTryAnotherWay(page) {
     await humanIdlePause('deliberate');
   }
   if (await waitForTryAnotherResult()) return true;
+  if (controllerVisible) {
+    console.log('[google_sso] retrying Google secondary action controller');
+    await tryAnotherController.click({ force: true, timeout: 5000 }).catch(() => {});
+    await humanIdlePause('deliberate');
+    if (await waitForTryAnotherResult()) return true;
+  }
   const clickedByJs = await page.evaluate(() => {
     const norm = (value) => String(value || '').replace(/\s+/g, ' ').trim();
     const nodes = Array.from(document.querySelectorAll('button, [role="button"], a, [role="link"], div, span, li'));
