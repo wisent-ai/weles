@@ -118,6 +118,24 @@ async function ensureSupabaseSession(activeSession, taskConstraints) {
   if (!signedIn) throw new Error(`Google SSO failed for ${accountEmail}`);
   await page.waitForURL(/supabase\.com\/dashboard/, { timeout: 30_000 }).catch(() => {});
 }
+async function applyCredentialPrefill(activeSession, taskConstraints) {
+  const entries = Array.isArray(taskConstraints.credential_prefill)
+    ? taskConstraints.credential_prefill
+    : [];
+  for (const entry of entries) {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+      throw new Error('credential_prefill entries must be objects');
+    }
+    const target = typeof entry.target === 'string' ? entry.target : '';
+    const fieldClass = typeof entry.field_class === 'string' ? entry.field_class : '';
+    const capability = entry.capability;
+    if (!target || !fieldClass || !capability || typeof capability !== 'object' || Array.isArray(capability)) {
+      throw new Error('credential_prefill entry is incomplete');
+    }
+    await activeSession.fillCredential(target, fieldClass, capability);
+  }
+}
+
 
 
 
@@ -167,6 +185,7 @@ try {
       : await writeWelesTrajectoryDraft({ objective });
   session = await WSession.start({ label, proxy, targetHost: new URL(url).hostname, headless, browser, platform: identityPlatformFromConstraints(constraints) || undefined, pageDiagnostics: keeperFirst ? false : undefined });
   await session.goto(url);
+  await applyCredentialPrefill(session, constraints);
   await ensureSupabaseSession(session, constraints);
   const goal = [
     objective,

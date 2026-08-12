@@ -42,7 +42,7 @@ const reference = (capabilityId, resource) => ({
   target: 'weles',
 });
 const objective = [
-  'Sign in to the Cloudflare dashboard using fill_credential for the Email field with the email capability and the Password field with the password capability given in Constraints.',
+  'The Email and Password fields are already securely filled when this objective begins; submit the sign-in form.',
   'If a CAPTCHA or Turnstile appears, call solve_captcha.',
   'Open Zero Trust, then Networks, then Tunnels, and edit tunnel 17010c0f-a708-404c-b2f0-2c60eaf2f866.',
   'Preserve its bobloo.com public hostname but change that hostname service to http://100.120.25.24:3000.',
@@ -60,8 +60,18 @@ const body = {
     flow_name: 'cloudflare-stado-public-hostname',
     headless: true,
     constraints: {
-      email_capability: reference(emailCapability, emailResource),
-      password_capability: reference(passwordCapability, passwordResource),
+      credential_prefill: [
+        {
+          target: 'input[name=email]',
+          field_class: 'email',
+          capability: reference(emailCapability, emailResource),
+        },
+        {
+          target: 'input[name=password]',
+          field_class: 'password',
+          capability: reference(passwordCapability, passwordResource),
+        },
+      ],
       allowed_tunnel_id: '17010c0f-a708-404c-b2f0-2c60eaf2f866',
       allowed_hostnames: ['bobloo.com', 'stado.wisent.com'],
     },
