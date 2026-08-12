@@ -48,6 +48,7 @@ export WELES_STADO_MODEL_ROUTER_AGENT_AUTH_SECRET
 mkdir -p "$HOME/weles/var"
 export WELES_REPO="$HOME/weles"
 export WELES_AGENT_MODEL=weles/agent/primary
+export STADO_MODEL_ROUTER_URL='http://127.0.0.1:8080'
 export WELES_API_HOST="${WELES_API_HOST:-0.0.0.0}"
 export WELES_API_PORT="${WELES_API_PORT:-8788}"
 exec /opt/homebrew/bin/node "$HOME/weles/scripts/worker/weles-api-server.mjs"
