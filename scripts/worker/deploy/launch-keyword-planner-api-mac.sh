@@ -27,6 +27,7 @@ unset OXYLABS_ISP_USERNAME OXYLABS_ISP_PASSWORD
 unset OXYLABS_DEDICATED_ISP_USERNAME OXYLABS_DEDICATED_ISP_PASSWORD
 unset BRIGHTDATA_USERNAME BRIGHTDATA_PASSWORD BRIGHTDATA_ZONE BRIGHTDATA_BROWSER_WS
 unset WELES_STADO_OBJECT_API_TOKEN WELES_STADO_MODEL_ROUTER_TOKEN
+unset WELES_STADO_MODEL_ROUTER_AGENT_ID WELES_STADO_MODEL_ROUTER_AGENT_AUTH_SECRET
 unset WELES_KEYWORD_PLANNER_API_TOKEN WELES_KEYWORD_PLANNER_API_ALLOW_UNAUTH
 unset SEMANTIC_SCHOLAR_API_KEY S2_API_KEY || true
 STADO_BIN="${STADO_BIN:-/usr/local/bin/stado}"
@@ -36,6 +37,8 @@ STADO_BIN="${STADO_BIN:-/usr/local/bin/stado}"
 NODE_BIN="${NODE_BIN:-/opt/homebrew/bin/node}"
 MODEL_BOOTSTRAP_CONSUMER="weles-keyword-planner-router-bootstrap"
 API_BOOTSTRAP_CONSUMER="weles-keyword-planner-api-token-bootstrap"
+MODEL_AGENT_ID_BOOTSTRAP_CONSUMER="weles-model-agent-id-bootstrap"
+MODEL_AGENT_SECRET_BOOTSTRAP_CONSUMER="weles-model-agent-secret-bootstrap"
 SCOPE_FILE="$HOME/weles/scripts/worker/deploy/skarbiec-acquisition-scopes.conf"
 ACQUIRE_HELPER="$HOME/weles/scripts/worker/deploy/skarbiec-acquire.mjs"
 if [ ! -x "$STADO_BIN" ] || [ ! -x "$NODE_BIN" ]; then
@@ -48,22 +51,43 @@ if ! WELES_STADO_MODEL_ROUTER_TOKEN="$("$NODE_BIN" "$ACQUIRE_HELPER" \
   printf '%s\n' "one-time keyword-planner model token acquisition failed" > /dev/stderr
   false
 fi
+if ! WELES_STADO_MODEL_ROUTER_AGENT_ID="$("$NODE_BIN" "$ACQUIRE_HELPER" \
+  "$WC_SKARBIEC_URL" "$SCOPE_FILE" "$MODEL_AGENT_ID_BOOTSTRAP_CONSUMER" \
+  weles-model-agent-auth id)"; then
+  printf '%s\n' "one-time keyword-planner model agent id acquisition failed" > /dev/stderr
+  false
+fi
+if ! WELES_STADO_MODEL_ROUTER_AGENT_AUTH_SECRET="$("$NODE_BIN" "$ACQUIRE_HELPER" \
+  "$WC_SKARBIEC_URL" "$SCOPE_FILE" "$MODEL_AGENT_SECRET_BOOTSTRAP_CONSUMER" \
+  weles-model-agent-auth agent_auth_secret)"; then
+  printf '%s\n' "one-time keyword-planner model agent secret acquisition failed" > /dev/stderr
+  false
+fi
 if ! WELES_KEYWORD_PLANNER_API_TOKEN="$("$NODE_BIN" "$ACQUIRE_HELPER" \
   "$WC_SKARBIEC_URL" "$SCOPE_FILE" "$API_BOOTSTRAP_CONSUMER" \
   weles-keyword-planner-api token)"; then
   printf '%s\n' "one-time keyword-planner API token acquisition failed" > /dev/stderr
   false
 fi
-if [ -z "$WELES_STADO_MODEL_ROUTER_TOKEN" ] || [ -z "$WELES_KEYWORD_PLANNER_API_TOKEN" ] \
-  || [ "$WELES_STADO_MODEL_ROUTER_TOKEN" = "$WELES_KEYWORD_PLANNER_API_TOKEN" ]; then
-  printf '%s\n' "invalid or reused keyword-planner bearer" > /dev/stderr
+if [ -z "$WELES_STADO_MODEL_ROUTER_TOKEN" ] \
+  || [ -z "$WELES_STADO_MODEL_ROUTER_AGENT_ID" ] \
+  || [ -z "$WELES_STADO_MODEL_ROUTER_AGENT_AUTH_SECRET" ] \
+  || [ -z "$WELES_KEYWORD_PLANNER_API_TOKEN" ] \
+  || [ "$WELES_STADO_MODEL_ROUTER_TOKEN" = "$WELES_STADO_MODEL_ROUTER_AGENT_AUTH_SECRET" ] \
+  || [ "$WELES_STADO_MODEL_ROUTER_TOKEN" = "$WELES_KEYWORD_PLANNER_API_TOKEN" ] \
+  || [ "$WELES_STADO_MODEL_ROUTER_AGENT_AUTH_SECRET" = "$WELES_KEYWORD_PLANNER_API_TOKEN" ]; then
+  printf '%s\n' "invalid or reused keyword-planner credential" > /dev/stderr
   false
 fi
-export WELES_STADO_MODEL_ROUTER_TOKEN WELES_KEYWORD_PLANNER_API_TOKEN
+export WELES_STADO_MODEL_ROUTER_TOKEN
+export WELES_STADO_MODEL_ROUTER_AGENT_ID WELES_STADO_MODEL_ROUTER_AGENT_AUTH_SECRET
+export WELES_KEYWORD_PLANNER_API_TOKEN
 export WELES_SKARBIEC_URL="$WC_SKARBIEC_URL"
 export WELES_STADO_BIN="$STADO_BIN"
 unset WC_SKARBIEC_CONSUMER WC_SKARBIEC_TOKEN_FILE
 if [ -z "${STADO_MODEL_ROUTER_URL:-}" ] || [ -z "${WELES_STADO_MODEL_ROUTER_TOKEN:-}" ] \
+  || [ -z "${WELES_STADO_MODEL_ROUTER_AGENT_ID:-}" ] \
+  || [ -z "${WELES_STADO_MODEL_ROUTER_AGENT_AUTH_SECRET:-}" ] \
   || [ -z "${WELES_KEYWORD_PLANNER_API_TOKEN:-}" ]; then
   printf '%s\n' "missing required keyword-planner Brama or API configuration" > /dev/stderr
   false
