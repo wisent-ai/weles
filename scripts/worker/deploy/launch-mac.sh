@@ -79,6 +79,12 @@ if [ -z "${WC_SKARBIEC_URL:-}" ] || [ -z "${WELES_CREDENTIAL_SKARBIEC_URL:-}" ] 
   printf '%s\n' "startup and credential Skarbiec endpoints plus workload identity must be explicitly configured" > /dev/stderr
   false
 fi
+SKARBIEC_CAP_SOCKET="${SKARBIEC_CAP_SOCKET:-$HOME/.stado/run/weles-api-capability.sock}"
+if [ "${SKARBIEC_CAP_SOCKET#/}" = "$SKARBIEC_CAP_SOCKET" ] || [ ! -S "$SKARBIEC_CAP_SOCKET" ]; then
+  printf '%s\n' "Apple capability broker socket must be an available absolute Unix socket" > /dev/stderr
+  false
+fi
+export SKARBIEC_CAP_SOCKET
 if ! "$NODE_BIN" -e '
   for (const raw of process.argv.slice(Number("1"))) {
     const endpoint = new URL(raw);

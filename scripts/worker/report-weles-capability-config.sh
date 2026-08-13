@@ -23,9 +23,25 @@ if [ -n "${SKARBIEC_WORKLOAD_SIGNING_KEY_FILE:-}" ] && [ -f "$SKARBIEC_WORKLOAD_
 fi
 printf 'capability_state=%s\n' "$HOME/.stado/weles-api-capabilities.json"
 printf 'capability_routes=%s\n' "$HOME/.stado/weles-api-capability-routes.json"
-SKARBIEC_VAULT_FILE="$HOME/.stado/weles-skarbiec.vault.json" \
+SKARBIEC_VAULT_FILE="$HOME/.stado/skarbiec.vault.json" \
   "$HOME/.stado/bin/skarbiec" tokens \
-  | jq -r 'any(.[]; .consumer == "weles-credential-worker-local") | "weles_vault_workload=\(.)"'
-SKARBIEC_VAULT_FILE="$HOME/.stado/weles-skarbiec.vault.json" \
+  | /opt/homebrew/bin/node -e '
+    let input = "";
+    process.stdin.on("data", (chunk) => { input += chunk; });
+    process.stdin.on("end", () => {
+      const rows = JSON.parse(input);
+      console.log(`weles_vault_workload=${rows.some((row) => row.consumer === "weles-credential-worker-local")}`);
+    });
+  '
+SKARBIEC_VAULT_FILE="$HOME/.stado/skarbiec.vault.json" \
   "$HOME/.stado/bin/skarbiec" list \
-  | jq -r 'any(.[]; .id == "platform-admin-cloudflare" and .state == "active") | "weles_vault_cloudflare_login=\(.)"'
+  | /opt/homebrew/bin/node -e '
+    let input = "";
+    process.stdin.on("data", (chunk) => { input += chunk; });
+    process.stdin.on("end", () => {
+      const rows = JSON.parse(input);
+      const active = (id) => rows.some((row) => row.id === id && row.state === "active");
+      console.log(`weles_vault_cloudflare_login=${active("platform-admin-cloudflare")}`);
+      console.log(`weles_vault_apple_login=${active("platform-admin-appstore")}`);
+    });
+  '

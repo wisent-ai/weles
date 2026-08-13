@@ -5,11 +5,10 @@ import { readScopedSecret } from '../../../_shared/scoped-secrets.mjs';
 const KEY_ID = readScopedSecret('appleAppStoreConnectApi', 'key_id');
 const ISSUER = readScopedSecret('appleAppStoreConnectApi', 'issuer_id');
 const PEM = readScopedSecret('appleAppStoreConnectApi', 'private_key');
-const TEAM = readScopedSecret('appleAppStoreConnectApi', 'team_id');
 const BUNDLE = process.env.ASC_BUNDLE || 'ai.wisent.swiatowid';
 const NAME = process.env.ASC_APP_NAME || 'Swiatowid';
 const SKU = process.env.ASC_SKU || 'swiatowidios2026';
-if (!KEY_ID || !ISSUER || !PEM || !TEAM) {
+if (!KEY_ID || !ISSUER || !PEM) {
   console.error('Exact Weles App Store Connect API grant unavailable');
   process.exit(Number('2'));
 }
@@ -61,7 +60,7 @@ if (found) {
   console.log('bundleId exists:', bid);
 } else {
   const reg = await jpost(`${API}/v1/bundleIds`, {
-    data: { type: 'bundleIds', attributes: { identifier: BUNDLE, name: 'Swiatowid', platform: 'IOS', seedId: TEAM } },
+    data: { type: 'bundleIds', attributes: { identifier: BUNDLE, name: 'Swiatowid', platform: 'IOS' } },
   });
   if (!reg.ok) { console.error('bundleId create FAILED', reg.status, JSON.stringify(reg.j).slice(0, 500)); process.exit(1); }
   bid = reg.j.data.id;
