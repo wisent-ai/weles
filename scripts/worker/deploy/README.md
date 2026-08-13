@@ -248,6 +248,8 @@ lists, and duplicate rows fail before a proof is signed.
 | `WELES_OPERATOR_CDP_TOKEN` | `weles-operator-cdp-token-bootstrap` | `weles-operator-cdp` | `token` |
 | `WELES_ECHO_API_TOKEN` | `weles-echo-api-token-bootstrap` | `echo-weles-api` | `token` |
 | Keyword-planner `WELES_STADO_MODEL_ROUTER_TOKEN` | `weles-keyword-planner-router-bootstrap` | `weles-keyword-planner-model-router` | `token` |
+| Keyword-planner `WELES_STADO_MODEL_ROUTER_AGENT_ID` | `weles-model-agent-id-bootstrap` | `weles-model-agent-auth` | `id` |
+| Keyword-planner `WELES_STADO_MODEL_ROUTER_AGENT_AUTH_SECRET` | `weles-model-agent-secret-bootstrap` | `weles-model-agent-auth` | `agent_auth_secret` |
 
 Generate the workload identity once on the Weles host:
 
