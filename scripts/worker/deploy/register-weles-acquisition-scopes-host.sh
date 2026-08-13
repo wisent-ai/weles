@@ -5,7 +5,7 @@ umask 077
 
 home=${HOME:?HOME is required}
 bin="$home/.stado/bin/skarbiec"
-vault="$home/.stado/weles-skarbiec.vault.json"
+vault="$home/.stado/skarbiec.vault.json"
 private_key="$home/.stado/weles-credential-workload-private.pem"
 catalog="$home/.stado/build-work/weles-api-managed/scripts/worker/deploy/skarbiec-acquisition-scopes.conf"
 openssl="/opt/homebrew/opt/openssl@3/bin/openssl"
@@ -41,6 +41,18 @@ esac
 SKARBIEC_VAULT_FILE="$vault" \
   "$bin" token-register-acquisitions "$catalog" \
     --workload-public-key-file "$public_key" \
+    --replace-capabilities >/dev/null
+SKARBIEC_VAULT_FILE="$home/.stado/skarbiec.vault.json" \
+  "$bin" token-mint weles-credential-worker-local \
+    --capabilities 'acquire:platform-admin-appstore#username,acquire:platform-admin-appstore#password' \
+    --workload-public-key-file "$public_key" \
+    --ttl-seconds 31536000 \
+    --replace-capabilities >/dev/null
+SKARBIEC_VAULT_FILE="$home/.stado/skarbiec.vault.json" \
+  "$bin" token-mint weles-worker \
+    --capabilities 'acquire:platform-admin-appstore#username,acquire:platform-admin-appstore#password' \
+    --workload-public-key-file "$public_key" \
+    --ttl-seconds 31536000 \
     --replace-capabilities >/dev/null
 if [ "$candidate_key" != "$private_key" ]; then
   mv -f "$candidate_key" "$private_key"

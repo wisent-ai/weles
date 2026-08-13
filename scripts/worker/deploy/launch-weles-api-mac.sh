@@ -55,9 +55,12 @@ export WELES_AGENT_MODEL=weles/agent/primary
 export STADO_MODEL_ROUTER_URL='http://127.0.0.1:8080'
 export STADO_API_URL='https://lukaszs-macbook-pro-4007-2.tail6443b3.ts.net'
 export STADO_API_TOKEN="$WELES_STADO_OBJECT_API_TOKEN"
-export SKARBIEC_VAULT_FILE="$HOME/.stado/weles-skarbiec.vault.json"
+export SKARBIEC_VAULT_FILE="$HOME/.stado/skarbiec.vault.json"
 export SKARBIEC_CAPABILITY_FILE="$HOME/.stado/weles-api-capabilities.json"
 export SKARBIEC_CAPABILITY_ROUTES_FILE="$HOME/.stado/weles-api-capability-routes.json"
+install -m 600 \
+  "$WELES_REPO/scripts/worker/deploy/weles-capability-routes.json" \
+  "$SKARBIEC_CAPABILITY_ROUTES_FILE"
 export SKARBIEC_CAP_SOCKET="$HOME/.stado/run/weles-api-capability.sock"
 export SKARBIEC_WORKLOAD_ID='weles-credential-worker-local'
 mkdir -p "$(dirname "$SKARBIEC_CAP_SOCKET")"
