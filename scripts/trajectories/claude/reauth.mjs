@@ -22,6 +22,13 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import {
+  loadFromSkarbiec,
+  persistToSkarbiec,
+  reachableRouterUrl,
+  resolveBearer,
+  supabaseConfigured,
+} from '../_shared/reauth_config.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const STATE_DIR = process.env.WELES_STATE_DIR
@@ -30,13 +37,13 @@ const STATE_DIR = process.env.WELES_STATE_DIR
   || join(process.env.HOME || tmpdir(), '.local', 'state', 'weles');
 const LOGIN_MJS = join(HERE, 'login.mjs');
 
+// The Supabase project this was written against is gone; exiting on its absence
+// meant the job died before it could look at the subscription. Skarbiec holds
+// the same configuration row, so read whichever store this host actually has.
 const SUPABASE_URL = process.env.SUPABASE_URL ?? '';
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
-if (!SUPABASE_URL || !SUPABASE_KEY) {
-  console.error('FATAL: SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not in env (source worker.env)');
-  process.exit(1);
-}
 const SB_HEADERS = { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` };
+const CONFIG_ITEM = 'claude-reauth-config';
 
 const BURNOUT_SUBSTR = [
   'hit your limit', 'authentication_error', 'invalid authentication',
@@ -49,19 +56,46 @@ async function sbGet(path) {
   return r.json();
 }
 
+function configFromSkarbiec(reason) {
+  // The identity keys belong to the wisent-app agent rather than to one
+  // provider, and this row carries none of them: borrow them from the sibling
+  // row instead of keeping a second copy of the same secret anywhere.
+  const cfg = loadFromSkarbiec(CONFIG_ITEM, 'codex-reauth-config');
+  cfg.bearer = resolveBearer(cfg.agentId);
+  console.error(
+    `config from skarbiec ${CONFIG_ITEM} (${reason}); router ${cfg.routerUrl}; `
+    + `bearer ${cfg.bearer ? 'present' : 'absent'}`,
+  );
+  return cfg;
+}
+
 async function loadConfig() {
-  const rows = await sbGet(
-    'service_credentials?id=eq.claude-reauth-config&select=metadata');
+  if (!supabaseConfigured()) return configFromSkarbiec('no supabase in env');
+  // Configured is not the same as answering. This launcher acquires Supabase
+  // credentials from the vault, so the runner believed the store was there and
+  // died on `fetch failed` against a project that no longer exists. A store
+  // that cannot be read is a store that is absent.
+  let rows;
+  try {
+    rows = await sbGet('service_credentials?id=eq.claude-reauth-config&select=metadata');
+  } catch (error) {
+    return configFromSkarbiec(`supabase unreachable: ${error.message}`);
+  }
   if (!rows.length || !rows[0].metadata) {
-    throw new Error("no service_credentials row id='claude-reauth-config'");
+    return configFromSkarbiec("no supabase row id='claude-reauth-config'");
   }
   const m = rows[0].metadata;
   for (const k of ['MODEL_ROUTER_URL', 'WISENT_APP_AGENT_ID',
     'WISENT_APP_AGENT_AUTH_SECRET', 'WISENT_DONOR_USER_ID']) {
     if (!m[k]) throw new Error(`claude-reauth-config.metadata missing ${k}`);
   }
+  const routerUrl = String(m.MODEL_ROUTER_URL).replace(/\/+$/, '');
+  // Which store answered decides where a refreshed credential goes, so say it.
+  console.error(`config from supabase ${CONFIG_ITEM}; router ${routerUrl}`);
   return {
-    routerUrl: m.MODEL_ROUTER_URL.replace(/\/+$/, ''),
+    store: 'supabase',
+    item: CONFIG_ITEM,
+    routerUrl,
     agentId: m.WISENT_APP_AGENT_ID,
     hmacSecret: m.WISENT_APP_AGENT_AUTH_SECRET,
     donorUserId: m.WISENT_DONOR_USER_ID,
@@ -76,12 +110,20 @@ function blobExpiresAt(b) { // expiry (unix ms) from a {"claudeAiOauth":{...}} b
 
 // Record the minted token's expiry on the reauth-config row so the NEXT tick
 // refreshes BEFORE it dies. MERGE — a bare {metadata} would clobber config keys.
-async function persistActiveExpiry(rawMeta, expiresAtMs) {
+async function persistActiveExpiry(cfg, expiresAtMs) {
+  if (cfg.store === 'skarbiec') {
+    try {
+      persistToSkarbiec(cfg, { active_token_expires_at: expiresAtMs });
+    } catch (error) {
+      console.error(`persist expiry to skarbiec failed: ${error.message}`);
+    }
+    return;
+  }
   const r = await fetch(
     `${SUPABASE_URL}/rest/v1/service_credentials?id=eq.claude-reauth-config`,
     { method: 'PATCH',
       headers: { ...SB_HEADERS, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
-      body: JSON.stringify({ metadata: { ...rawMeta, active_token_expires_at: expiresAtMs } }) });
+      body: JSON.stringify({ metadata: { ...cfg.rawMeta, active_token_expires_at: expiresAtMs } }) });
   if (r.status >= 400) console.error(`persist expiry PATCH ${r.status}: ${await r.text()}`);
 }
 
@@ -150,6 +192,15 @@ async function pickLruRow() {
   // login_method=google_sso, and the api_key_only config row
   // 'claude-reauth-config' would match display_name ILIKE 'Claude%'
   // — the two filters together select exactly the 3 accounts.
+  // Only a fresh browser login needs a donor row, and the row lives in the
+  // store that went away. Say which credential is missing rather than failing
+  // on a fetch to an empty URL.
+  if (!supabaseConfigured()) {
+    throw new Error(
+      'a fresh login needs a donor credential row, and no credential store is '
+      + 'configured on this host',
+    );
+  }
   const rows = await sbGet(
     'service_credentials?display_name=ilike.Claude%25'
     + '&login_method=eq.google_sso'
@@ -164,6 +215,10 @@ async function pickLruRow() {
 // forever and the whole pipeline stalls). When errMsg is set, it is
 // also recorded in metadata.last_login_error / .at for diagnosis.
 async function markRowAttempted(rowId, errMsg) {
+  if (!supabaseConfigured()) {
+    console.error('mark_row_attempted: no credential store configured; not recorded');
+    return;
+  }
   const patch = { updated_at: new Date().toISOString() };
   if (errMsg) {
     // MERGE existing metadata first — a bare {metadata} PATCH clobbers
@@ -189,10 +244,12 @@ async function markRowAttempted(rowId, errMsg) {
 }
 
 async function donate(cfg, blobJson, label) {
+  // Brama's donate contract is `{provider, label, api_key}` and rejects unknown
+  // fields outright. `user_id` belonged to the Cloud Run router that went away:
+  // the donor is now the authenticated caller, not a field.
   const body = {
-    user_id: cfg.donorUserId,
     provider: 'claude_code',
-    label: label || `reauth-macmini ${new Date().toISOString()}`, // model-router reads `label`, not key_label
+    label: label || `reauth-macmini ${new Date().toISOString()}`, // the router reads `label`, not key_label
     api_key: blobJson,
   };
   const payload = JSON.stringify(body);
@@ -207,7 +264,7 @@ async function donate(cfg, blobJson, label) {
 }
 
 async function deleteSubscription(cfg, subId) {
-  const payload = JSON.stringify({ user_id: cfg.donorUserId, subscription_id: subId });
+  const payload = JSON.stringify({ subscription_id: subId });
   const r = await fetch(`${cfg.routerUrl}/v1/subscriptions/${cfg.agentId}`, {
     method: 'DELETE',
     headers: sign(cfg, payload),
@@ -287,6 +344,8 @@ function runLogin(displayName) {
 
 async function main() {
   const cfg = await loadConfig();
+  // The row's address is a memory; the listener is the fact.
+  cfg.routerUrl = await reachableRouterUrl(cfg.routerUrl);
   const poolBefore = await listSubscriptions(cfg);
   const probe = await probePool(cfg);
   const burnt = isBurnout(probe);
@@ -337,7 +396,7 @@ async function main() {
   console.log(`[reauth] donated new sub id=${newSub.id ?? '?'}`);
   await markRowAttempted(row.id);
   const newExp = blobExpiresAt(blob);
-  if (newExp > 0) await persistActiveExpiry(cfg.rawMeta, newExp);
+  if (newExp > 0) await persistActiveExpiry(cfg, newExp);
 
   // Revoke only THIS account's prior rows (+ legacy unlabeled reauth rows),
   // never another account's active subscription — lets a multi-account pool
@@ -358,6 +417,14 @@ async function main() {
 }
 
 main().catch((e) => {
-  console.error(`[reauth] FAILED: ${e.message}`);
+  // `fetch failed` is undici's outer message and carries no address; the reason
+  // and the host live on `cause`, and without them this job spent a day saying
+  // nothing about which endpoint it could not reach.
+  const cause = e.cause ?? {};
+  const where = [cause.code, cause.message, cause.hostname, cause.address, cause.port]
+    .filter(Boolean)
+    .join(' ');
+  console.error(`[reauth] FAILED: ${e.message}${where ? ` (${where})` : ''}`);
+  console.error(`[reauth] where: ${(e.stack || '').split('\n').slice(0, 3).join(' | ')}`);
   process.exit(1);
 });

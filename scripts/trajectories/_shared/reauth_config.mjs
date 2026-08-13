@@ -123,9 +123,42 @@ export function persistToSkarbiec(cfg, patch) {
   skarbiec(['set-json', cfg.item], JSON.stringify(document));
 }
 
-// The gateway resolves the caller's client identity from a bearer and only then
-// checks that the signed agent belongs to that client, so a request carrying the
-// HMAC trio and no bearer is refused as a bare `401` that names neither half.
+// Prefer the router that answers over the one a row remembers.
+// A configuration row pointed at `http://100.120.25.24:8080` -- the gateway's
+// tailnet address, which it does not bind, because it listens on loopback and is
+// reached through stable local adapters. The runner failed with `fetch failed`
+// and no address for a day. A declaration that the world contradicts is worth
+// exactly what the world says, so this checks and substitutes the loopback of
+// the same port when the configured host refuses.
+export async function reachableRouterUrl(configured) {
+  const candidates = [configured];
+  try {
+    const url = new URL(configured);
+    if (url.hostname !== '127.0.0.1' && url.hostname !== 'localhost') {
+      candidates.push(`${url.protocol}//127.0.0.1:${url.port || '8080'}`);
+    }
+  } catch {
+    // An unparseable address is left exactly as configured.
+  }
+  for (const candidate of candidates) {
+    try {
+      const answer = await fetch(`${candidate}/health`, {
+        signal: AbortSignal.timeout(Number('4000')),
+      });
+      // Any answer proves a listener; authorization is decided per route later.
+      if (answer.status) {
+        if (candidate !== configured) {
+          console.error(`router ${configured} refused; using ${candidate}`);
+        }
+        return candidate;
+      }
+    } catch (error) {
+      console.error(`router ${candidate} unreachable: ${error.cause?.code ?? error.message}`);
+    }
+  }
+  return configured;
+}
+
 // The client token lives beside every other credential on this fleet, under
 // `<client>-model-router`, so read it from there when the environment is silent.
 export function resolveBearer(agentId) {
