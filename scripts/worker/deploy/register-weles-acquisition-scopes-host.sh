@@ -5,7 +5,7 @@ umask 077
 
 home=${HOME:?HOME is required}
 bin="$home/.stado/bin/skarbiec"
-vault="$home/.stado/weles-skarbiec.vault.json"
+vault="$home/.stado/skarbiec.vault.json"
 private_key="$home/.stado/weles-credential-workload-private.pem"
 catalog="$home/.stado/build-work/weles-api-managed/scripts/worker/deploy/skarbiec-acquisition-scopes.conf"
 openssl="/opt/homebrew/opt/openssl@3/bin/openssl"
