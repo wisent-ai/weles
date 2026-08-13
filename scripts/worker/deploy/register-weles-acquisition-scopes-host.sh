@@ -42,6 +42,18 @@ SKARBIEC_VAULT_FILE="$vault" \
   "$bin" token-register-acquisitions "$catalog" \
     --workload-public-key-file "$public_key" \
     --replace-capabilities >/dev/null
+SKARBIEC_VAULT_FILE="$home/.stado/skarbiec.vault.json" \
+  "$bin" token-mint weles-credential-worker-local \
+    --capabilities 'acquire:platform-admin-appstore#username,acquire:platform-admin-appstore#password' \
+    --workload-public-key-file "$public_key" \
+    --ttl-seconds 31536000 \
+    --replace-capabilities >/dev/null
+SKARBIEC_VAULT_FILE="$home/.stado/skarbiec.vault.json" \
+  "$bin" token-mint weles-worker \
+    --capabilities 'acquire:platform-admin-appstore#username,acquire:platform-admin-appstore#password' \
+    --workload-public-key-file "$public_key" \
+    --ttl-seconds 31536000 \
+    --replace-capabilities >/dev/null
 if [ "$candidate_key" != "$private_key" ]; then
   mv -f "$candidate_key" "$private_key"
   new_private_key=
