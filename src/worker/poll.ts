@@ -3,7 +3,7 @@
 // orchestration — trajectories own their own WSession + Capture.
 import { spawn, execSync } from 'node:child_process';
 import { readFile, writeFile, readdir, unlink, stat } from 'node:fs/promises';
-import { isAbsolute, join } from 'node:path';
+import { join } from 'node:path';
 import { createHmac } from 'node:crypto';
 import os from 'node:os';
 import { putPrivateWelesObject, uploadArtifacts } from './upload-artifacts.js';
@@ -42,8 +42,9 @@ const RECORDINGS_ROOT = process.env.RECORDINGS_ROOT ?? 'recordings';
 const LIGHT_RESULT_ACTIONS = new Set(['overleaf_version_history_scan', 'slack_provision_user_token']);
 
 // Actions that drive an authenticated Apple session and therefore need the full
-// submit-guard pipeline before spawning: an authorization claimed with a lease,
-// a capability envelope resolved for it, and the relay command verified.
+// submit-guard pipeline before spawning: an authorization claimed with a lease
+// and a capability envelope resolved for it. The trajectory resolves any native
+// 2FA relay from the account placement recorded in Stado.
 //
 // This was written as `action === 'apple_login'` when login was the only such
 // action. Adding a second one to the dispatch table is not enough -- a guarded
@@ -701,15 +702,6 @@ export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
       const guardId = typeof params.apple_auth_guard_id === 'string' ? params.apple_auth_guard_id : '';
       const executionHost = typeof params.apple_execution_host === 'string' ? params.apple_execution_host : '';
       const executionAgent = typeof params.apple_execution_agent === 'string' ? params.apple_execution_agent : '';
-      const relayCommand = process.env.APPLE_2FA_RELAY_COMMAND?.trim() ?? '';
-      if (!relayCommand || !isAbsolute(relayCommand)) {
-        throw new Error('capability-backed Apple 2FA requires APPLE_2FA_RELAY_COMMAND');
-      }
-      const relayStat = await stat(relayCommand);
-      if (!relayStat.isFile() || (relayStat.mode & 0o100) === 0 || (relayStat.mode & 0o022) !== 0
-          || (typeof process.getuid === 'function' && relayStat.uid !== process.getuid())) {
-        throw new Error('APPLE_2FA_RELAY_COMMAND is not a worker-owned non-writable file');
-      }
       const actualHost = os.hostname();
       const actualAgent = process.env.WELES_EXECUTION_AGENT ?? 'weles-worker';
       if (executionHost !== actualHost || executionAgent !== actualAgent) {
