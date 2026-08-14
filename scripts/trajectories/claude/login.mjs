@@ -33,6 +33,7 @@ import { humanIdlePause, humanClickLocator } from '../../../dist/human/mouse.js'
 import { humanFill, humanType } from '../../../dist/human/keyboard.js';
 import { startWatchdog, makeShutdown } from './diag.mjs';
 import { doGoogleSso } from './google_sso.mjs';
+import { requireGraphicalSession } from '../_shared/reauth_config.mjs';
 
 // Text logs are forbidden for troubleshooting: every console.* line
 // emits ONLY the mandated phrase. The token result uses
@@ -210,6 +211,9 @@ try {
 process.stderr.write(`AUTHZURL ${authorizeUrl}\n`);
 
 // 2. Drive ONLY the browser half in weles.
+// Name the missing session here rather than letting Chromium reach its first
+// window in a session that has no WindowServer and die without an address.
+requireGraphicalSession('the Claude Google login');
 const proxySel = process.env.CLAUDE_LOGIN_PROXY ?? 'residential us';
 const s = await WSession.start({
   label: 'claude_login',

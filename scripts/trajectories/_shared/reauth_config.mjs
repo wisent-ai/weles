@@ -34,6 +34,35 @@ const REQUIRED = [
 export const supabaseConfigured = () =>
   Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
 
+// Whether this process can own a window.
+//
+// A headed browser is a client of the WindowServer, and whether one exists is
+// decided by the launchd session the process belongs to: `Aqua` is a logged-in
+// graphical session and has one, `Background` -- what a LaunchDaemon and an SSH
+// command both get -- does not. Chromium started there does reach the network
+// and does render pages, so every content probe passes; it dies when it creates
+// its first window, and Playwright reports only that the browser disconnected.
+//
+// The check exists so a login says which session it needed, instead of leaving
+// that to be re-derived from a segfault in `ScopedCGWindowID::~ScopedCGWindowID`.
+export function launchdSession() {
+  try {
+    return execFileSync('/bin/launchctl', ['managername'], { encoding: 'utf8' }).trim();
+  } catch {
+    return 'unknown';
+  }
+}
+
+export function requireGraphicalSession(what) {
+  const session = launchdSession();
+  if (session === 'Aqua') return session;
+  throw new Error(
+    `${what} needs a browser window and this process is in the launchd '${session}' session, `
+    + 'which has no WindowServer. Run it from a logged-in graphical session: a LaunchAgent in '
+    + `gui/${process.getuid?.() ?? '<uid>'}, not a LaunchDaemon and not a bare SSH command.`,
+  );
+}
+
 function skarbiec(args, input) {
   return execFileSync(SKARBIEC, args, {
     input,
