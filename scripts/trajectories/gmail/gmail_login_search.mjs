@@ -118,11 +118,12 @@ try {
 
   const gmailNeedsLogin = await needsGoogleLogin(s.page);
   if (gmailNeedsLogin) {
-    log('opening Gmail sign-in for', creds.email);
-    const signInUrl = 'https://accounts.google.com/ServiceLogin?service=mail&Email='
-      + encodeURIComponent(creds.email) + '&continue=' + encodeURIComponent(inboxUrl);
-    await s.page.goto(signInUrl, { waitUntil: 'commit', timeout: 30_000 });
-    await humanIdlePause('deliberate');
+    const useAnotherAccount = s.page.getByText(/^Use another account$/i).first();
+    if (await visible(useAnotherAccount)) {
+      log('choosing another Google account');
+      await humanClickLocator(s.page, useAnotherAccount);
+      await humanIdlePause('deliberate');
+    }
   }
   if (gmailNeedsLogin) {
     log('logged out — running googleSso for', creds.email);
