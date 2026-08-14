@@ -40,6 +40,10 @@ function resolveKimiBin() {
   }
   const candidates = [
     join(process.env.HOME || '', '.local', 'bin', 'kimi'),
+    // Where the native Kimi Code installer puts it on macOS, and where both
+    // hosts on this fleet actually have it: without this the resolver fell
+    // through to installing a second copy under a read-only release directory.
+    join(process.env.HOME || '', '.kimi-code', 'bin', 'kimi'),
     '/opt/homebrew/bin/kimi',
   ];
   const existing = candidates.find((candidate) => existsSync(candidate));
