@@ -50,6 +50,13 @@ export const supabaseConfigured = () =>
 // runner, so no scheduler, no placement decision and no operator could see it.
 // It now comes from `scripts/trajectories/requirements.json`, the same file
 // placement reads, and this function is only its reader on the host that runs.
+//
+// Two readers, deliberately: placement reads the whole file to choose a host, and
+// this one runs inside the trajectory. The reauth runners declare `display`
+// because their burnt-pool path spawns a login that opens a browser, yet they do
+// not call this function at their own start: a reauth that can donate an existing
+// token needs no window, and refusing it on a display-less host would break the
+// cheap path to protect the expensive one. The login it spawns checks for itself.
 const REQUIREMENTS_FILE = process.env.WELES_TRAJECTORY_REQUIREMENTS_FILE
   ?? path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'requirements.json');
 const REQUIREMENTS_SCHEMA = 'wisent.trajectory-requirements.v1';
