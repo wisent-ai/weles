@@ -1,14 +1,16 @@
 // Safely add ONE host record to a Namecheap-managed domain. Namecheap's only
 // DNS write API (setHosts) replaces the whole zone, so this reads every record
 // via getHosts, appends the new one (if absent), re-sends all records, and
-// verifies the count grew by exactly one. Creds come from weles/.env.
+// verifies the count grew by exactly one. Credentials come from injected
+// environment variables, with weles/.env retained only as a local fallback.
 //
 // Env/args: SLD (default wisent), TLD (default com), NEW_HOST (e.g. oko),
 //   NEW_TYPE (default A), NEW_ADDRESS (default 76.76.21.21), NEW_TTL (1800).
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 
-const env = readFileSync(new URL('../../../.env', import.meta.url), 'utf8');
-const cfg = (k) => (env.match(new RegExp('^' + k + '=(.*)$', 'm'))?.[1] || '').trim().replace(/^"|"$/g, '');
+const envUrl = new URL('../../../.env', import.meta.url);
+const env = existsSync(envUrl) ? readFileSync(envUrl, 'utf8') : '';
+const cfg = (k) => (process.env[k] || env.match(new RegExp('^' + k + '=(.*)$', 'm'))?.[1] || '').trim().replace(/^"|"$/g, '');
 const AK = cfg('NAMECHEAP_API_KEY'), AU = cfg('NAMECHEAP_API_USER'), UN = cfg('NAMECHEAP_USERNAME'), IP = cfg('NAMECHEAP_CLIENT_IP');
 if (!AK || !AU || !UN || !IP) { console.log('FAIL: missing Namecheap creds'); process.exit(1); }
 
