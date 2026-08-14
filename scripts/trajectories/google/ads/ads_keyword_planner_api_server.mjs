@@ -10,6 +10,8 @@
 //   SESSION                         optional, default google_ads
 //   STADO_MODEL_ROUTER_URL          required model-router endpoint
 //   WELES_STADO_MODEL_ROUTER_TOKEN  required server-side model-router bearer
+//   WELES_STADO_MODEL_ROUTER_AGENT_ID required Brama caller identity
+//   WELES_STADO_MODEL_ROUTER_AGENT_AUTH_SECRET required Brama request-signing secret
 //
 // Example on Mac mini:
 //   cd ~/Documents/CodingProjects/Wisent/weles
@@ -17,6 +19,7 @@
 //   WELES_KEYWORD_PLANNER_API_TOKEN="$WELES_CONSOLE_API_TOKEN" \
 //   node scripts/trajectories/google/ads/ads_keyword_planner_api_server.mjs
 
+import { createHash, createHmac } from 'node:crypto';
 import http from 'node:http';
 import net from 'node:net';
 import { spawn } from 'node:child_process';
@@ -283,21 +286,41 @@ function loadModelRouterConfig() {
   if (routerConfig) return routerConfig;
   const routerUrl = String(process.env.STADO_MODEL_ROUTER_URL || '').trim().replace(/\/+$/, '');
   const routerToken = String(process.env.WELES_STADO_MODEL_ROUTER_TOKEN || '').trim();
+  const agentId = String(process.env.WELES_STADO_MODEL_ROUTER_AGENT_ID || '').trim();
+  const agentAuthSecret = String(process.env.WELES_STADO_MODEL_ROUTER_AGENT_AUTH_SECRET || '');
   if (!routerUrl) throw new Error('missing required STADO_MODEL_ROUTER_URL');
   if (!routerToken) throw new Error('missing required WELES_STADO_MODEL_ROUTER_TOKEN');
+  if (!agentId) throw new Error('missing required WELES_STADO_MODEL_ROUTER_AGENT_ID');
+  if (!agentAuthSecret) throw new Error('missing required WELES_STADO_MODEL_ROUTER_AGENT_AUTH_SECRET');
+  if (agentAuthSecret.trim() !== agentAuthSecret || /\s/.test(agentAuthSecret)) {
+    throw new Error('WELES_STADO_MODEL_ROUTER_AGENT_AUTH_SECRET must be one exact non-whitespace credential');
+  }
+  if (routerToken === agentAuthSecret) {
+    throw new Error('keyword-planner Brama bearer and agent HMAC secret must be distinct');
+  }
   routerConfig = {
     routerUrl,
     routerToken,
+    agentId,
+    agentAuthSecret,
     model: String(process.env.WELES_AGENT_MODEL || process.env.MODEL_ROUTER_MODEL || 'any').trim(),
     configId: 'stado-env',
   };
   return routerConfig;
 }
 
-function routerHeaders(cfg) {
+function routerHeaders(cfg, body) {
+  const timestamp = String(Date.now());
+  const bodyHash = createHash('sha256').update(body, 'utf8').digest('hex');
+  const signature = createHmac('sha256', cfg.agentAuthSecret)
+    .update(`${cfg.agentId}:${timestamp}:${bodyHash}`, 'utf8')
+    .digest('hex');
   return {
     Authorization: `Bearer ${cfg.routerToken}`,
     'content-type': 'application/json',
+    'x-agent-id': cfg.agentId,
+    'x-agent-timestamp': timestamp,
+    'x-agent-signature': signature,
   };
 }
 
@@ -375,7 +398,7 @@ async function generateKeywordsWithRouter(input, state = null) {
   try {
     const res = await fetch(`${cfg.routerUrl}/v1/chat/completions`, {
       method: 'POST',
-      headers: routerHeaders(cfg),
+      headers: routerHeaders(cfg, body),
       body,
       signal: ac.signal,
     });

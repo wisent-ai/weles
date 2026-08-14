@@ -14,18 +14,25 @@ import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import {
+  loadFromSkarbiec,
+  persistToSkarbiec,
+  resolveBearer,
+  supabaseConfigured,
+} from '../_shared/reauth_config.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const LOGIN_MJS = join(HERE, 'login.mjs');
 const CODEX_AUTH_PATH = process.env.CODEX_AUTH_PATH || join(homedir(), '.codex', 'auth.json');
 
+// The Supabase project this was written against is gone, and exiting on its
+// absence meant an expired subscription was never refreshed -- the accounts are
+// alive, only the token is not. Skarbiec holds the same configuration row, so
+// the runner reads whichever store this host actually has.
 const SUPABASE_URL = process.env.SUPABASE_URL ?? '';
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
-if (!SUPABASE_URL || !SUPABASE_KEY) {
-  console.error('FATAL: SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not in env');
-  process.exit(1);
-}
 const SB_HEADERS = { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` };
+const CONFIG_ITEM = 'codex-reauth-config';
 
 const BURNOUT_SUBSTR = [
   'refresh token was revoked',
@@ -45,6 +52,15 @@ async function sbGet(path) {
 }
 
 async function loadConfig() {
+  if (!supabaseConfigured()) {
+    const cfg = loadFromSkarbiec(CONFIG_ITEM);
+    cfg.bearer = resolveBearer(cfg.agentId);
+    console.error(
+      `config from skarbiec ${CONFIG_ITEM}; router ${cfg.routerUrl}; `
+      + `bearer ${cfg.bearer ? 'present' : 'absent'}`,
+    );
+    return cfg;
+  }
   const rows = await sbGet(
     "service_credentials?id=eq.codex-reauth-config&select=metadata");
   if (!rows.length || !rows[0].metadata) {
@@ -56,6 +72,8 @@ async function loadConfig() {
     if (!m[k]) throw new Error(`codex-reauth-config.metadata missing ${k}`);
   }
   return {
+    store: 'supabase',
+    item: CONFIG_ITEM,
     routerUrl: m.MODEL_ROUTER_URL.replace(/\/+$/, ''),
     agentId: m.WISENT_APP_AGENT_ID,
     hmacSecret: m.WISENT_APP_AGENT_AUTH_SECRET,
@@ -92,32 +110,53 @@ function readExistingAuthJson() {
   return null;
 }
 
-async function persistActiveExpiry(rawMeta, expiresAtMs) {
+async function persistActiveExpiry(cfg, expiresAtMs) {
+  // Recording the new expiry is what makes the NEXT tick refresh before the
+  // token dies rather than after, so it follows the store the config came from.
+  if (cfg.store === 'skarbiec') {
+    try {
+      persistToSkarbiec(cfg, { active_token_expires_at: expiresAtMs });
+    } catch (error) {
+      console.error(`persist expiry to skarbiec failed: ${error.message}`);
+    }
+    return;
+  }
   const r = await fetch(
     `${SUPABASE_URL}/rest/v1/service_credentials?id=eq.codex-reauth-config`,
     {
       method: 'PATCH',
       headers: { ...SB_HEADERS, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
-      body: JSON.stringify({ metadata: { ...rawMeta, active_token_expires_at: expiresAtMs } }),
+      body: JSON.stringify({ metadata: { ...cfg.rawMeta, active_token_expires_at: expiresAtMs } }),
     });
   if (r.status >= 400) console.error(`persist expiry PATCH ${r.status}: ${await r.text()}`);
 }
 
 function sign(cfg, body) {
   const ts = String(Math.floor(Date.now() / 1000));
-  const bodyHash = crypto.createHash('sha256').update(body).digest('hex');
+  // The verifier hashes an absent body to the empty string, not to the digest of
+  // no bytes, so a GET signed with sha256('') never matches.
+  const bodyHash = body ? crypto.createHash('sha256').update(body).digest('hex') : '';
   const msg = `${cfg.agentId}:${ts}:${bodyHash}`;
   const sig = crypto.createHmac('sha256', cfg.hmacSecret).update(msg).digest('hex');
-  return {
+  const headers = {
     'x-agent-id': cfg.agentId,
     'x-agent-timestamp': ts,
     'x-agent-signature': sig,
     'content-type': 'application/json',
   };
+  // The gateway reads the client identity from the bearer first and only then
+  // checks that this signed agent belongs to it, so the trio alone is refused
+  // with a bare 401 that names neither half.
+  if (cfg.bearer) headers.authorization = `Bearer ${cfg.bearer}`;
+  return headers;
 }
 
 async function listSubscriptions(cfg) {
-  const r = await fetch(`${cfg.routerUrl}/v1/subscriptions/${cfg.agentId}`);
+  // Signed and bearing like every other call: an unsigned read was refused
+  // before the route was reached, which read as a missing endpoint from here.
+  const r = await fetch(`${cfg.routerUrl}/v1/subscriptions/${cfg.agentId}`, {
+    headers: sign(cfg, ''),
+  });
   if (!r.ok) throw new Error(`list subscriptions -> ${r.status}`);
   const subs = (await r.json()).subscriptions ?? [];
   return subs.filter((sub) => sub.provider === 'codex');
@@ -132,8 +171,13 @@ function accountOfLabel(lbl) {
 }
 
 async function probePool(cfg) {
+  // `codex-subscription` was a pool alias on the router that went away. Brama
+  // takes a canonical `provider/model` route or one of its selectors, and a
+  // canonical codex route is what this probe is actually asking about: an
+  // unknown name answered 400 and read as burnout on every tick, so the runner
+  // donated a fresh credential each run whether or not anything was wrong.
   const body = JSON.stringify({
-    model: 'codex-subscription',
+    model: process.env.CODEX_PROBE_MODEL || 'codex/gpt-5.5',
     messages: [{ role: 'user', content: 'Reply with the single word PROBE.' }],
     max_tokens: 10,
   });
@@ -151,6 +195,15 @@ function isBurnout(probe) {
 }
 
 async function pickLruRow() {
+  // Only a fresh browser login needs a donor row, and the row lives in the
+  // store that went away. Say so plainly instead of failing on a fetch to an
+  // empty URL: reusing this host's own auth.json needs no donor at all.
+  if (!supabaseConfigured()) {
+    throw new Error(
+      'a fresh login needs a donor credential row, and no credential store is '
+      + 'configured on this host; reuse of a local auth.json is the only path left',
+    );
+  }
   const rows = await sbGet(
     "service_credentials?display_name=ilike.Codex%25"
     + '&or=(login_method.eq.email_password,login_method.eq.google_sso)'
@@ -160,6 +213,10 @@ async function pickLruRow() {
 }
 
 async function markRowAttempted(rowId, errMsg) {
+  if (!supabaseConfigured()) {
+    console.error('mark_row_attempted: no credential store configured; not recorded');
+    return;
+  }
   const patch = { updated_at: new Date().toISOString() };
   if (errMsg) {
     // MERGE existing metadata first — a bare {metadata} PATCH clobbers
@@ -185,16 +242,22 @@ async function markRowAttempted(rowId, errMsg) {
 }
 
 async function donate(cfg, authJson, label) {
+  // Brama's donate contract is `{provider, label, api_key}` and rejects
+  // anything else outright. `user_id` belonged to the Cloud Run router that
+  // went away: the donor is now the authenticated caller, not a field.
   const body = {
-    user_id: cfg.donorUserId,
     provider: 'codex',
     label: label || `reauth-macmini ${new Date().toISOString()}`,
     api_key: authJson,
   };
+  // Signed and bearing, like the read: an unsigned POST is refused as
+  // `unauthenticated` before the donation is looked at, which reads as a
+  // rejected credential rather than a rejected caller.
+  const payload = JSON.stringify(body);
   const r = await fetch(`${cfg.routerUrl}/v1/subscriptions/${cfg.agentId}`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(body),
+    headers: sign(cfg, payload),
+    body: payload,
   });
   if (!r.ok) throw new Error(`donate -> ${r.status} ${await r.text()}`);
   const j = await r.json();
@@ -334,7 +397,7 @@ async function main() {
   const newSub = await donate(cfg, authJson, donateLabel);
   console.log(`[codex reauth] donated new sub id=${newSub.id ?? '?'}`);
   const newExp = authExpiresAt(authJson);
-  if (newExp > 0) await persistActiveExpiry(cfg.rawMeta, newExp);
+  if (newExp > 0) await persistActiveExpiry(cfg, newExp);
 
   // Revoke only THIS account's prior rows (+ legacy unlabeled reauth rows),
   // never another account's active subscription. This is what lets a
