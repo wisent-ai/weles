@@ -376,7 +376,15 @@ async function driveKimiAuthorize(authorizeUrl, login, home) {
           await humanIdlePause('long');
           continue;
         }
-        const continueBtn = page.getByRole('button', { name: /^(continue|allow|authorize|confirm|next|dalej)$/i })
+        // The device page's approve control reads "Current Login" -- recorded
+        // DOM: "Allow this account to log in? … Current Login | Cancel | Switch
+        // account". The old list had every synonym except the one on the page,
+        // so the loop watched an approvable screen for three minutes and timed
+        // out. `Cancel` and `Switch account` stay unmatched on purpose.
+        const continueBtn = page
+          .getByRole('button', {
+            name: /^(current login|continue|allow|authorize|approve|confirm|next|dalej|zaloguj)$/i,
+          })
           .filter({ visible: true })
           .first();
         if (await continueBtn.isVisible().catch(() => false)) {
@@ -387,7 +395,17 @@ async function driveKimiAuthorize(authorizeUrl, login, home) {
       }
       await s.page.waitForTimeout(500);
     }
-    throw new Error(`Kimi browser authorization did not complete; url=${s.page.url()}`);
+    // Name what the screen offered: a label that changed is the usual reason a
+    // page that a human could approve was never approved here.
+    const offered = await s.page
+      .locator('button, [role="button"], a')
+      .filter({ visible: true })
+      .allInnerTexts()
+      .catch(() => []);
+    throw new Error(
+      `Kimi browser authorization did not complete; url=${s.page.url()}; `
+      + `visible controls=${JSON.stringify(offered.map((t) => t.trim()).filter(Boolean).slice(0, 12))}`,
+    );
   } finally {
     s.page.context().off('page', onPage);
   }
