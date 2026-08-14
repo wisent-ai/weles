@@ -68,5 +68,8 @@ if [ -z "${WISENT_APP_MODEL_ROUTER_TOKEN:-}" ]; then
   }
   export WISENT_APP_MODEL_ROUTER_TOKEN
 fi
-exec /usr/bin/caffeinate -dimsu /opt/homebrew/bin/node \
-  "$WELES_DIR/scripts/trajectories/claude/reauth.mjs"
+# The env this launcher assembles is the only place the login helper can run
+# with what it needs, so the entry point is overridable: exercising `login.mjs`
+# on its own is how its failure gets a reason instead of a stack.
+REAUTH_ENTRY="${REAUTH_ENTRY:-$WELES_DIR/scripts/trajectories/claude/reauth.mjs}"
+exec /usr/bin/caffeinate -dimsu /opt/homebrew/bin/node "$REAUTH_ENTRY"

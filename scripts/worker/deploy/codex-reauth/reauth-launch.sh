@@ -19,6 +19,9 @@ set -a
 . "$WELES_WORKER_ENV_FILE"
 set +a
 unset SEMANTIC_SCHOLAR_API_KEY S2_API_KEY || true
-mkdir -p "$WELES_DIR/var"
-exec /usr/bin/caffeinate -dimsu /opt/homebrew/bin/node \
-  "$WELES_DIR/scripts/trajectories/codex/reauth.mjs"
+WELES_STATE_DIR="${WELES_STATE_DIR:-$HOME/.local/state/weles}"
+export WELES_STATE_DIR
+mkdir -p "$WELES_STATE_DIR"
+# Exercising one step on its own is how a failure inside it gets a reason.
+REAUTH_ENTRY="${REAUTH_ENTRY:-$WELES_DIR/scripts/trajectories/codex/reauth.mjs}"
+exec /usr/bin/caffeinate -dimsu /opt/homebrew/bin/node "$REAUTH_ENTRY"

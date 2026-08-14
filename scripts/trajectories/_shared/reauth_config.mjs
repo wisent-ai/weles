@@ -122,6 +122,28 @@ export function persistToSkarbiec(cfg, patch) {
   document.fields.value = parsed;
   skarbiec(['set-json', cfg.item], JSON.stringify(document));
 }
+// Account material for a provider login, from the vault item that holds it.
+//
+// The login helpers read these rows out of the Weles database; the same
+// accounts are in Skarbiec as `login` items with `username` and `password`
+// fields and the method in their context. A helper that only knows the database
+// fails with "no login row" while the credential sits one read away.
+export function loginFromSkarbiec(item) {
+  const document = JSON.parse(skarbiec(['get', item]));
+  const fields = document?.fields ?? {};
+  const email = fields.username ?? fields.email;
+  const password = fields.password;
+  if (typeof email !== 'string' || typeof password !== 'string' || !email || !password) {
+    throw new Error(`${item} carries no username/password in Skarbiec`);
+  }
+  return {
+    id: item,
+    displayName: document?.context?.account_ref ?? item,
+    email,
+    password,
+    loginMethod: document?.context?.login_method ?? 'google_sso',
+  };
+}
 
 // Prefer the router that answers over the one a row remembers.
 // A configuration row pointed at `http://100.120.25.24:8080` -- the gateway's
