@@ -19,14 +19,21 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = join(HERE, '..', '..', '..');
 const VAR = join(REPO, 'var');
 const LOGIN_MJS = join(HERE, 'login.mjs');
+import {
+  loadFromSkarbiec,
+  persistToSkarbiec,
+  reachableRouterUrl,
+  resolveBearer,
+  supabaseConfigured,
+} from '../_shared/reauth_config.mjs';
 
+// The Supabase project this was written against is not configured on this host,
+// and exiting on its absence meant the job never looked at the subscription.
+// Skarbiec holds the same configuration row.
 const SUPABASE_URL = process.env.SUPABASE_URL ?? '';
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
-if (!SUPABASE_URL || !SUPABASE_KEY) {
-  console.error('FATAL: SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not in env');
-  process.exit(1);
-}
 const SB_HEADERS = { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` };
+const CONFIG_ITEM = 'kimi-reauth-config';
 
 const AUTH_BURNOUT_SUBSTR = [
   'no active',
@@ -53,20 +60,49 @@ async function sbGet(path) {
   return r.json();
 }
 
+function configFromSkarbiec(reason) {
+  // The identity keys belong to the wisent-app agent, not to one provider, so a
+  // row that lacks them borrows from the sibling row rather than keeping a
+  // second copy of the same secret. Brama answers the broker and the router
+  // surface at one address.
+  const cfg = loadFromSkarbiec(CONFIG_ITEM, 'codex-reauth-config');
+  cfg.configId = CONFIG_ITEM;
+  cfg.brokerUrl = cfg.routerUrl;
+  cfg.bearer = resolveBearer(cfg.agentId);
+  console.error(
+    `config from skarbiec ${CONFIG_ITEM} (${reason}); router ${cfg.routerUrl}; `
+    + `bearer ${cfg.bearer ? 'present' : 'absent'}`,
+  );
+  return cfg;
+}
+
 async function loadConfig() {
+  if (!supabaseConfigured()) return configFromSkarbiec('no supabase in env');
   const rows = await sbGet(
     "service_credentials?id=in.(kimi-reauth-config,codex-reauth-config,claude-reauth-config)&select=id,metadata",
   );
   const byId = new Map(rows.map((row) => [row.id, row.metadata || {}]));
   const m = byId.get('kimi-reauth-config') || byId.get('codex-reauth-config') || byId.get('claude-reauth-config');
   if (!m) throw new Error('missing kimi/codex/claude reauth config metadata');
-  for (const k of ['MODEL_ROUTER_URL', 'BRAMA_SUBSCRIPTION_BROKER_URL', 'WISENT_APP_AGENT_ID', 'WISENT_APP_AGENT_AUTH_SECRET', 'WISENT_DONOR_USER_ID']) {
-    if (!m[k]) throw new Error(`reauth config metadata missing ${k}`);
+  // The broker address is no longer a separate deployment: Brama answers the
+  // subscription surface and the chat surface at one place, and a row that
+  // still carries the split address points at a host that answers 404 to the
+  // subscriptions route. Requiring the key refused to run at all.
+  // Identity belongs to the agent, not to a provider row, and this row carries
+  // none of it. Rather than fail, take the configuration Skarbiec holds: it has
+  // the agent id, the router Brama answers on, and a secret that is current.
+  const missing = ['MODEL_ROUTER_URL', 'WISENT_APP_AGENT_ID', 'WISENT_APP_AGENT_AUTH_SECRET', 'WISENT_DONOR_USER_ID']
+    .filter((key) => !m[key]);
+  if (missing.length) {
+    return configFromSkarbiec(`supabase row lacks ${missing.join(', ')}`);
   }
+  const routerUrl = String(m.MODEL_ROUTER_URL).replace(/\/+$/, '');
+  console.error(`config from supabase; router ${routerUrl}`);
   return {
+    store: 'supabase',
     configId: byId.has('kimi-reauth-config') ? 'kimi-reauth-config' : (byId.has('codex-reauth-config') ? 'codex-reauth-config' : 'claude-reauth-config'),
-    routerUrl: String(m.MODEL_ROUTER_URL).replace(/\/+$/, ''),
-    brokerUrl: String(m.BRAMA_SUBSCRIPTION_BROKER_URL).replace(/\/+$/, ''),
+    routerUrl,
+    brokerUrl: routerUrl,
     agentId: String(m.WISENT_APP_AGENT_ID),
     hmacSecret: String(m.WISENT_APP_AGENT_AUTH_SECRET),
     donorUserId: String(m.WISENT_DONOR_USER_ID),
@@ -77,19 +113,28 @@ async function loadConfig() {
 
 function sign(cfg, body) {
   const ts = String(Math.floor(Date.now() / 1000));
-  const bodyHash = crypto.createHash('sha256').update(body).digest('hex');
+  // The verifier hashes an absent body to the empty string, not to the digest of
+  // no bytes, so a GET signed with sha256('') never matches.
+  const bodyHash = body ? crypto.createHash('sha256').update(body).digest('hex') : '';
   const msg = `${cfg.agentId}:${ts}:${bodyHash}`;
   const sig = crypto.createHmac('sha256', cfg.hmacSecret).update(msg).digest('hex');
-  return {
+  const headers = {
     'x-agent-id': cfg.agentId,
     'x-agent-timestamp': ts,
     'x-agent-signature': sig,
     'content-type': 'application/json',
   };
+  // Without the bearer the gateway refuses before the signature is looked at.
+  if (cfg.bearer) headers.authorization = `Bearer ${cfg.bearer}`;
+  return headers;
 }
 
 async function listSubscriptions(cfg) {
-  const r = await fetch(`${cfg.brokerUrl}/v1/subscriptions/${cfg.agentId}`);
+  // Signed and bearing like every other call: an unsigned read is refused
+  // before the route is reached, which reads as a missing endpoint from here.
+  const r = await fetch(`${cfg.brokerUrl}/v1/subscriptions/${cfg.agentId}`, {
+    headers: sign(cfg, ''),
+  });
   if (!r.ok) throw new Error(`list subscriptions -> ${r.status} ${await r.text()}`);
   const subs = (await r.json()).subscriptions ?? [];
   return subs.filter((sub) => sub.provider === 'kimi');
@@ -97,7 +142,9 @@ async function listSubscriptions(cfg) {
 
 async function probePool(cfg) {
   const body = JSON.stringify({
-    model: 'kimi-subscription',
+    // `kimi-subscription` was a pool alias on the router that went away; Brama
+    // takes a canonical `provider/model` route or one of its selectors.
+    model: process.env.KIMI_PROBE_MODEL || 'kimi/kimi-for-coding',
     messages: [{ role: 'user', content: 'Reply with exactly PROBE.' }],
     max_tokens: 10,
     temperature: 0,
@@ -149,6 +196,17 @@ function credentialHasTokens(raw) {
 
 async function persistActiveExpiry(cfg, expiresAtMs) {
   if (!expiresAtMs) return;
+  if (cfg.store === 'skarbiec') {
+    try {
+      persistToSkarbiec(cfg, {
+        kimi_active_token_expires_at: expiresAtMs,
+        kimi_active_token_expires_at_iso: new Date(expiresAtMs).toISOString(),
+      });
+    } catch (error) {
+      console.error(`persist expiry to skarbiec failed: ${error.message}`);
+    }
+    return;
+  }
   const patch = {
     metadata: {
       ...cfg.rawMeta,
@@ -165,16 +223,19 @@ async function persistActiveExpiry(cfg, expiresAtMs) {
 }
 
 async function donate(cfg, credentialsJson) {
+  // Brama's donate contract is `{provider, label, api_key}` and rejects unknown
+  // fields; `user_id` belonged to the router that went away, and the donation
+  // must be signed or it is refused before the credential is looked at.
   const body = {
-    user_id: cfg.donorUserId,
     provider: 'kimi',
     label: `reauth-macmini kimi credentials-json ${new Date().toISOString()}`,
     api_key: credentialsJson,
   };
+  const payload = JSON.stringify(body);
   const r = await fetch(`${cfg.brokerUrl}/v1/subscriptions/${cfg.agentId}`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(body),
+    headers: sign(cfg, payload),
+    body: payload,
   });
   if (!r.ok) throw new Error(`donate -> ${r.status} ${await r.text()}`);
   const j = await r.json();
@@ -182,10 +243,11 @@ async function donate(cfg, credentialsJson) {
 }
 
 async function deleteSubscription(cfg, sub) {
+  const payload = JSON.stringify({ subscription_id: sub.id });
   const r = await fetch(`${cfg.brokerUrl}/v1/subscriptions/${cfg.agentId}`, {
     method: 'DELETE',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ user_id: sub.donor_id || cfg.donorUserId, subscription_id: sub.id }),
+    headers: sign(cfg, payload),
+    body: payload,
   });
   return r.status < 400;
 }
@@ -249,6 +311,9 @@ function runLogin() {
 
 async function main() {
   const cfg = await loadConfig();
+  // The row's address is a memory; the listener is the fact.
+  cfg.routerUrl = await reachableRouterUrl(cfg.routerUrl);
+  cfg.brokerUrl = await reachableRouterUrl(cfg.brokerUrl);
   const poolBefore = await listSubscriptions(cfg);
   const probe = await probePool(cfg);
   const expMs = cfg.activeTokenExpiresAt;

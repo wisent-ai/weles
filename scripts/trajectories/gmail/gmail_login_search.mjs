@@ -32,9 +32,10 @@ const DEFAULT_QUERY =
 const QUERY = process.env.GM_QUERY || DEFAULT_QUERY;
 const OPEN_BODIES = process.env.GM_OPEN !== '0';
 const MAX_OPEN = parseInt(process.env.GM_MAX || '6', 10);
-const INBOX_URL = 'https://mail.google.com/mail/u/0/?tab=rm&ogbl&authuser=jakub@wisent.ai#inbox';
-const SEARCH_URL =
-  'https://mail.google.com/mail/u/0/?tab=rm&ogbl&authuser=jakub@wisent.ai#search/' + encodeURIComponent(QUERY);
+function gmailUrl(email, fragment) {
+  return 'https://mail.google.com/mail/u/0/?tab=rm&ogbl&authuser='
+    + encodeURIComponent(email) + '#' + fragment;
+}
 
 function log(...a) { console.log('[gmail_login_search]', ...a); }
 
@@ -101,13 +102,15 @@ async function needsGoogleLogin(page) {
 }
 
 const creds = await resolveCreds();
+const inboxUrl = gmailUrl(creds.email, 'inbox');
+const searchUrl = gmailUrl(creds.email, 'search/' + encodeURIComponent(QUERY));
 const s = await WSession.start({
   label: 'gmail_login_search',
   browser: process.env.BROWSER || undefined,
 });
 try {
   log('engine:', s.personaConfig?.browser ?? 'unknown', '| query:', QUERY);
-  await s.page.goto(INBOX_URL, { waitUntil: 'domcontentloaded' });
+  await s.page.goto(inboxUrl, { waitUntil: 'domcontentloaded' });
   await humanIdlePause('deliberate');
 
   const gmailNeedsLogin = await needsGoogleLogin(s.page);
@@ -130,10 +133,8 @@ try {
     log('already signed in (existing session)');
   }
 
-  const searchBox = s.page.locator('input[placeholder="Search mail"], input[name="q"]').first();
-  await searchBox.waitFor({ state: 'visible', timeout: 30_000 });
-  await searchBox.fill(QUERY);
-  await searchBox.press('Enter');
+  await s.page.goto(searchUrl, { waitUntil: 'domcontentloaded' });
+  await humanIdlePause('deliberate');
   const status = await detectSession(s.page);
   if (status !== 'in') {
     log('FAIL: search did not render (status=' + status + ', url='
