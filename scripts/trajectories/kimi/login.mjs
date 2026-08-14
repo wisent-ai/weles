@@ -26,6 +26,7 @@ import { humanFill, humanType } from '../../../dist/human/keyboard.js';
 import { humanClickLocator, humanIdlePause } from '../../../dist/human/mouse.js';
 import { googleSso } from '../_shared/services/google_sso.mjs';
 import { establishGoogleSession, waitForEnabledThenClick } from '../codex/google_sso.mjs';
+import { loginFromSkarbiec } from '../_shared/reauth_config.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, '..', '..', '..');
@@ -117,7 +118,15 @@ function noOpenEnv(home) {
 async function loadLogin() {
   const supabaseUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
-  if (!supabaseUrl || !supabaseKey) throw new Error('SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY missing');
+  // The database row and the vault item describe the same account. When the
+  // database has no row -- which is the state on this fleet -- the login used to
+  // stop at "no Kimi login row" while the credential sat in Skarbiec under the
+  // same name.
+  if (!supabaseUrl || !supabaseKey) {
+    const login = loginFromSkarbiec(SERVICE_CREDENTIAL_ID);
+    process.stderr.write(`login from skarbiec ${SERVICE_CREDENTIAL_ID} (${login.displayName})\n`);
+    return login;
+  }
   const headers = { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` };
 
   const byId = await fetch(
@@ -136,7 +145,15 @@ async function loadLogin() {
     row = rows[0];
   }
 
-  if (!row?.login_email) throw new Error(`no Kimi login row (${SERVICE_CREDENTIAL_ID} / ${DISPLAY_NAME})`);
+  if (!row?.login_email) {
+    // The database is reachable and simply has no row for this account; the
+    // vault does. Failing here left a login that could have run.
+    const login = loginFromSkarbiec(SERVICE_CREDENTIAL_ID);
+    process.stderr.write(
+      `login from skarbiec ${SERVICE_CREDENTIAL_ID} (${login.displayName}); no database row\n`,
+    );
+    return login;
+  }
   if (row.login_password) {
     return {
       id: row.id,

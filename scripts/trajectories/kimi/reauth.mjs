@@ -60,39 +60,49 @@ async function sbGet(path) {
   return r.json();
 }
 
+function configFromSkarbiec(reason) {
+  // The identity keys belong to the wisent-app agent, not to one provider, so a
+  // row that lacks them borrows from the sibling row rather than keeping a
+  // second copy of the same secret. Brama answers the broker and the router
+  // surface at one address.
+  const cfg = loadFromSkarbiec(CONFIG_ITEM, 'codex-reauth-config');
+  cfg.configId = CONFIG_ITEM;
+  cfg.brokerUrl = cfg.routerUrl;
+  cfg.bearer = resolveBearer(cfg.agentId);
+  console.error(
+    `config from skarbiec ${CONFIG_ITEM} (${reason}); router ${cfg.routerUrl}; `
+    + `bearer ${cfg.bearer ? 'present' : 'absent'}`,
+  );
+  return cfg;
+}
+
 async function loadConfig() {
-  if (!supabaseConfigured()) {
-    // The identity keys belong to the wisent-app agent, not to one provider, so
-    // a row that lacks them borrows from the sibling row rather than keeping a
-    // second copy of the same secret. Brama answers the broker and the router
-    // surface at one address, so an absent broker url is the router's.
-    const cfg = loadFromSkarbiec(CONFIG_ITEM, 'codex-reauth-config');
-    cfg.configId = CONFIG_ITEM;
-    // Brama answers the subscription surface and the chat surface at one
-    // address. `BRAMA_SUBSCRIPTION_BROKER_URL` in the row still names the split
-    // deployment that went away, and that host answers 404 HTML to the
-    // subscriptions route -- worse than refusing, because it looks alive.
-    cfg.brokerUrl = cfg.routerUrl;
-    cfg.bearer = resolveBearer(cfg.agentId);
-    console.error(
-      `config from skarbiec ${CONFIG_ITEM}; router ${cfg.routerUrl}; `
-      + `broker ${cfg.brokerUrl}; bearer ${cfg.bearer ? 'present' : 'absent'}`,
-    );
-    return cfg;
-  }
+  if (!supabaseConfigured()) return configFromSkarbiec('no supabase in env');
   const rows = await sbGet(
     "service_credentials?id=in.(kimi-reauth-config,codex-reauth-config,claude-reauth-config)&select=id,metadata",
   );
   const byId = new Map(rows.map((row) => [row.id, row.metadata || {}]));
   const m = byId.get('kimi-reauth-config') || byId.get('codex-reauth-config') || byId.get('claude-reauth-config');
   if (!m) throw new Error('missing kimi/codex/claude reauth config metadata');
-  for (const k of ['MODEL_ROUTER_URL', 'BRAMA_SUBSCRIPTION_BROKER_URL', 'WISENT_APP_AGENT_ID', 'WISENT_APP_AGENT_AUTH_SECRET', 'WISENT_DONOR_USER_ID']) {
-    if (!m[k]) throw new Error(`reauth config metadata missing ${k}`);
+  // The broker address is no longer a separate deployment: Brama answers the
+  // subscription surface and the chat surface at one place, and a row that
+  // still carries the split address points at a host that answers 404 to the
+  // subscriptions route. Requiring the key refused to run at all.
+  // Identity belongs to the agent, not to a provider row, and this row carries
+  // none of it. Rather than fail, take the configuration Skarbiec holds: it has
+  // the agent id, the router Brama answers on, and a secret that is current.
+  const missing = ['MODEL_ROUTER_URL', 'WISENT_APP_AGENT_ID', 'WISENT_APP_AGENT_AUTH_SECRET', 'WISENT_DONOR_USER_ID']
+    .filter((key) => !m[key]);
+  if (missing.length) {
+    return configFromSkarbiec(`supabase row lacks ${missing.join(', ')}`);
   }
+  const routerUrl = String(m.MODEL_ROUTER_URL).replace(/\/+$/, '');
+  console.error(`config from supabase; router ${routerUrl}`);
   return {
+    store: 'supabase',
     configId: byId.has('kimi-reauth-config') ? 'kimi-reauth-config' : (byId.has('codex-reauth-config') ? 'codex-reauth-config' : 'claude-reauth-config'),
-    routerUrl: String(m.MODEL_ROUTER_URL).replace(/\/+$/, ''),
-    brokerUrl: String(m.BRAMA_SUBSCRIPTION_BROKER_URL).replace(/\/+$/, ''),
+    routerUrl,
+    brokerUrl: routerUrl,
     agentId: String(m.WISENT_APP_AGENT_ID),
     hmacSecret: String(m.WISENT_APP_AGENT_AUTH_SECRET),
     donorUserId: String(m.WISENT_DONOR_USER_ID),

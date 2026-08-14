@@ -19,6 +19,49 @@ set -a
 . "$WELES_WORKER_ENV_FILE"
 set +a
 unset SEMANTIC_SCHOLAR_API_KEY S2_API_KEY || true
-mkdir -p "$WELES_DIR/var"
-exec /usr/bin/caffeinate -dimsu /opt/homebrew/bin/node \
-  "$WELES_DIR/scripts/trajectories/kimi/reauth.mjs"
+# An immutable release directory is read-only by design, so state goes where the
+# deployer already keeps its own.
+WELES_STATE_DIR="${WELES_STATE_DIR:-$HOME/.local/state/weles}"
+export WELES_STATE_DIR
+mkdir -p "$WELES_STATE_DIR"
+
+# The login helper reads its account material out of the Weles database, and the
+# deployment env deliberately carries no service-role key. The claude launcher
+# acquires the same two values from the same scoped consumers; without this the
+# kimi login died with "SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY missing" while
+# every credential it needed sat in Skarbiec.
+NODE_BIN="${NODE_BIN:-/opt/homebrew/bin/node}"
+acquire_helper="$WELES_DIR/scripts/worker/deploy/skarbiec-acquire.mjs"
+acquire_scopes="$WELES_DIR/scripts/worker/deploy/skarbiec-acquisition-scopes.conf"
+acquire_url="${WC_SKARBIEC_URL:-${WELES_CREDENTIAL_SKARBIEC_URL:-}}"
+if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ]; then
+  if [ ! -f "$acquire_helper" ] || [ -z "$acquire_url" ]; then
+    printf '%s\n' "no Skarbiec acquisition client or URL, so the Weles database cannot be reached" >/dev/stderr
+    exit 1
+  fi
+  SUPABASE_URL="$("$NODE_BIN" "$acquire_helper" "$acquire_url" "$acquire_scopes" \
+    weles-database-url-bootstrap weles-database url)" || {
+    printf '%s\n' "Skarbiec acquisition failed for weles-database/url" >/dev/stderr
+    exit 1
+  }
+  SUPABASE_SERVICE_ROLE_KEY="$("$NODE_BIN" "$acquire_helper" "$acquire_url" "$acquire_scopes" \
+    weles-database-service-role-bootstrap weles-database service_role_key)" || {
+    printf '%s\n' "Skarbiec acquisition failed for weles-database/service_role_key" >/dev/stderr
+    exit 1
+  }
+  export SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY
+fi
+
+# The gateway reads the client identity from a bearer before it looks at the
+# signed agent trio, so the trio alone is refused with a bare 401.
+if [ -z "${WISENT_APP_MODEL_ROUTER_TOKEN:-}" ]; then
+  WISENT_APP_MODEL_ROUTER_TOKEN="$("$NODE_BIN" "$acquire_helper" "$acquire_url" "$acquire_scopes" \
+    weles-wisent-app-router-token-bootstrap wisent-app-model-router token)" || {
+    printf '%s\n' "Skarbiec acquisition failed for wisent-app-model-router/token" >/dev/stderr
+    exit 1
+  }
+  export WISENT_APP_MODEL_ROUTER_TOKEN
+fi
+
+REAUTH_ENTRY="${REAUTH_ENTRY:-$WELES_DIR/scripts/trajectories/kimi/reauth.mjs}"
+exec /usr/bin/caffeinate -dimsu /opt/homebrew/bin/node "$REAUTH_ENTRY"
