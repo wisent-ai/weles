@@ -24,11 +24,29 @@ WC=/usr/bin/wc
 
 if [ "${WELES_DISPLAY_MEASURE_INNER:-0}" != "1" ]; then
   printf '== mechanism\n'
-  if ! command -v xvfb-run > /dev/null 2>&1; then
-    printf 'xvfb-run absent; run install-virtual-display-linux first\n' > /dev/stderr
+  # Prefer the display the host holds as a unit over starting one for this
+  # measurement. They are not the same claim: a display this script starts proves
+  # only that this script can start one, while the unit's display is what a
+  # capability probe measures and what every trajectory the fleet starts will get.
+  HOST_DISPLAY=""
+  for socket in /tmp/.X11-unix/X*; do
+    [ -e "$socket" ] || continue
+    candidate=":${socket##*/X}"
+    if DISPLAY="$candidate" xdpyinfo > /dev/null 2>&1; then
+      HOST_DISPLAY="$candidate"
+      break
+    fi
+  done
+  if [ -n "$HOST_DISPLAY" ]; then
+    printf 'host display %s, held by %s\n' "$HOST_DISPLAY" \
+      "$(systemctl is-active weles-virtual-display.service 2> /dev/null | head -n 1 | sed 's/^/weles-virtual-display.service /' || printf 'something outside systemd')"
+  elif ! command -v xvfb-run > /dev/null 2>&1; then
+    printf 'no reachable display and xvfb-run absent; run install-virtual-display-linux first\n' > /dev/stderr
     exit 1
+  else
+    printf 'no host display; this measurement will start its own with xvfb-run %s, screen %s\n' \
+      "$(command -v xvfb-run)" "$SCREEN"
   fi
-  printf 'xvfb-run %s, screen %s\n' "$(command -v xvfb-run)" "$SCREEN"
 
   # xwininfo proves a window exists; xwd is how the screen becomes a byte count.
   # They are measuring instruments, not part of the deployment, so they are
@@ -85,7 +103,11 @@ if [ "${WELES_DISPLAY_MEASURE_INNER:-0}" != "1" ]; then
 
   export WELES_MEASURED_BROWSER="$BROWSER"
   export WELES_DISPLAY_MEASURE_INNER=1
-  printf '\n== under the virtual display\n'
+  if [ -n "$HOST_DISPLAY" ]; then
+    printf '\n== on the display this host holds\n'
+    DISPLAY="$HOST_DISPLAY" exec "$0"
+  fi
+  printf '\n== under a display started for this measurement\n'
   exec xvfb-run -a --server-args="-screen 0 $SCREEN" "$0"
 fi
 

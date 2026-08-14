@@ -55,8 +55,23 @@ else
 fi
 
 printf '\n== unit state\n'
-systemctl --user is-active weles-worker 2>/dev/null || true
-systemctl is-active weles-worker 2>/dev/null || true
+for unit in weles-worker weles-virtual-display; do
+  printf '%-22s system=%s user=%s enabled=%s\n' "$unit" \
+    "$(systemctl is-active "$unit" 2>/dev/null || printf 'unknown')" \
+    "$(systemctl --user is-active "$unit" 2>/dev/null || printf 'unknown')" \
+    "$(systemctl is-enabled "$unit" 2>/dev/null || printf 'unknown')"
+done
+
+# Which account the display must belong to. An X server's authority file is
+# readable by one user, so a display started for the wrong account is a display
+# the worker cannot use even while its socket exists.
+printf '\n== accounts that could run the worker\n'
+for candidate in lukaszbartoszcze ubuntu weles; do
+  entry="$(getent passwd "$candidate" 2>/dev/null || true)"
+  printf '%-20s %s\n' "$candidate" "${entry:-absent}"
+done
+printf 'wisent service units and their users:\n'
+systemctl show -p User -p Id 'com.wisent.compute.service.*' --value 2>/dev/null | paste -sd' ' - | sed 's/^/  /'
 
 printf '\n== chromium the worker would use\n'
 for candidate in "$HOME/weles/var/chromium/chrome-linux/chrome" "$HOME/.cache/ms-playwright"; do

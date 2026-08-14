@@ -1,0 +1,47 @@
+[Unit]
+# A display that belongs to the machine, not to a person.
+#
+# Weles browser trajectories declare `display` in
+# scripts/trajectories/requirements.json and refuse to start without it, and
+# placement only sends them to a host whose published capability object measures
+# it true. A headless Linux server provides none: there is no console session, so
+# /tmp/.X11-unix stays empty and the host is permanently ineligible for every
+# browser login.
+#
+# The worker's launcher can start its own display with `xvfb-run`, and that is
+# enough for the process tree it starts -- but it vanishes with that process, so no
+# capability probe can measure it and nothing outside that tree can use it. This
+# unit makes the display a property of the host: it starts at boot, restarts if it
+# dies, and is there to be measured whether or not a worker is running.
+#
+# WELES_DISPLAY_USER, WELES_DISPLAY_NUMBER and WELES_DISPLAY_SCREEN are
+# substituted at install time by install-virtual-display-linux.sh, which measures
+# the account the deployment actually uses on the host instead of asserting one
+# here: a unit naming a user the host does not have is exactly the kind of
+# declaration this fleet stopped tolerating.
+Description=Weles virtual display (Xvfb :WELES_DISPLAY_NUMBER) for headless browser trajectories
+Before=weles-worker.service
+
+[Service]
+Type=simple
+User=WELES_DISPLAY_USER
+Environment=DISPLAY=:WELES_DISPLAY_NUMBER
+# X access control is off, and that is a decision with a measured reason rather
+# than a convenience. The capability has to be verifiable by whatever process the
+# fleet starts next -- the host-capability probe runs as root through the Stado
+# host agent, a worker may run as another account -- and a MIT-MAGIC-COOKIE turns
+# a property of the machine into a credential that every prospective reader must
+# be handed first, which is how "the host can draw" becomes unmeasurable again.
+# `-nolisten tcp` keeps the server on its Unix socket, so the exposure is exactly
+# the local accounts of this host, all of which are fleet accounts.
+ExecStart=/usr/bin/Xvfb :WELES_DISPLAY_NUMBER -screen 0 WELES_DISPLAY_SCREEN -nolisten tcp -ac
+Restart=always
+RestartSec=2
+NoNewPrivileges=yes
+# PrivateTmp must stay off: the X server publishes its socket in /tmp/.X11-unix
+# and every client on the host -- the worker, and any capability probe -- reaches
+# the display through exactly that path.
+PrivateTmp=no
+
+[Install]
+WantedBy=multi-user.target
