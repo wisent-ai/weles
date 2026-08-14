@@ -121,7 +121,7 @@ try {
     log('opening Gmail sign-in for', creds.email);
     const signInUrl = 'https://accounts.google.com/ServiceLogin?service=mail&Email='
       + encodeURIComponent(creds.email) + '&continue=' + encodeURIComponent(inboxUrl);
-    await s.page.goto(signInUrl, { waitUntil: 'domcontentloaded' });
+    await s.page.goto(signInUrl, { waitUntil: 'commit', timeout: 30_000 });
     await humanIdlePause('deliberate');
   }
   if (gmailNeedsLogin) {
