@@ -117,9 +117,11 @@ try {
   await humanIdlePause('deliberate');
 
   const gmailNeedsLogin = await needsGoogleLogin(s.page);
-  if (gmailNeedsLogin && !/accounts\.google\.com/.test(s.page.url())) {
-    log('opening Gmail sign-in');
-    await s.page.goto('https://accounts.google.com/ServiceLogin?service=mail', { waitUntil: 'domcontentloaded' });
+  if (gmailNeedsLogin) {
+    log('opening Gmail sign-in for', creds.email);
+    const signInUrl = 'https://accounts.google.com/ServiceLogin?service=mail&Email='
+      + encodeURIComponent(creds.email) + '&continue=' + encodeURIComponent(inboxUrl);
+    await s.page.goto(signInUrl, { waitUntil: 'domcontentloaded' });
     await humanIdlePause('deliberate');
   }
   if (gmailNeedsLogin) {
