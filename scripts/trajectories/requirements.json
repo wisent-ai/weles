@@ -1,0 +1,11 @@
+{
+  "schema": "wisent.trajectory-requirements.v1",
+  "trajectories": {
+    "kimi/login": ["display", "browser-render"],
+    "claude/login": ["display", "browser-render"],
+    "codex/login": ["display", "browser-render"],
+    "kimi/reauth": ["display", "browser-render"],
+    "claude/reauth": ["display", "browser-render"],
+    "codex/reauth": []
+  }
+}

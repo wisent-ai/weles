@@ -26,7 +26,7 @@ import { humanFill, humanType } from '../../../dist/human/keyboard.js';
 import { humanClickLocator, humanIdlePause } from '../../../dist/human/mouse.js';
 import { googleSso } from '../_shared/services/google_sso.mjs';
 import { establishGoogleSession, waitForEnabledThenClick } from '../codex/google_sso.mjs';
-import { loginFromSkarbiec, requireGraphicalSession } from '../_shared/reauth_config.mjs';
+import { loginFromSkarbiec, requireCapabilities } from '../_shared/reauth_config.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, '..', '..', '..');
@@ -461,10 +461,13 @@ const killer = setTimeout(() => {
 }, OVERALL_SEC * 1000);
 
 try {
-  // Before the Kimi CLI is spawned and a browser is asked for a window: this
-  // run needs a graphical session, and saying so here costs three minutes less
-  // than discovering it when Google's popup takes the browser down with it.
-  if (process.env.KIMI_LOGIN_HEADLESS !== '1') requireGraphicalSession('the Kimi login');
+  // Before the Kimi CLI is spawned and a browser is asked for a window: the
+  // capabilities this trajectory declares in scripts/trajectories/requirements.json
+  // are verified here, which costs three minutes less than discovering the
+  // missing one when Google's popup takes the browser down with it. A headless
+  // run needs no window, so it is exempt by the same env switch that makes it
+  // headless.
+  if (process.env.KIMI_LOGIN_HEADLESS !== '1') requireCapabilities('kimi/login');
   mkdirSync(VAR, { recursive: true });
   prepareKimiHome(LOGIN_HOME);
   const login = await loadLogin();

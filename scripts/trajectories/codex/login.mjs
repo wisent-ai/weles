@@ -20,6 +20,7 @@ import { WSession } from '../../../dist/session/wsession.js';
 import { doGoogleSso } from './google_sso.mjs';
 import { humanFill, humanType } from '../../../dist/human/keyboard.js';
 import { humanClickLocator, humanIdlePause } from '../../../dist/human/mouse.js';
+import { requireCapabilities } from '../_shared/reauth_config.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const CODEX_AUTH_PATH = join(homedir(), '.codex', 'auth.json');
@@ -195,6 +196,12 @@ async function doOpenAiLogin(session, login) {
 
   await completeOpenAiConsent(session);
 }
+
+// Before the Codex CLI is spawned and before WSession starts a headed Chromium:
+// this trajectory declares its capabilities in scripts/trajectories/requirements.json,
+// and a host that cannot give a window says so here rather than in a browser
+// crash with no address in it.
+requireCapabilities('codex/login');
 
 const login = await getServiceLogin(DISPLAY_NAME);
 if (!login) { process.stderr.write(`FAIL: no '${DISPLAY_NAME}' row in service_credentials\n`); process.exit(1); }
