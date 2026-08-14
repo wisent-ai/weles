@@ -400,6 +400,10 @@ export function paramsToEnv(
   if (trajPath.endsWith('/gmail/gmail_login_search.mjs')) {
     const query = params.query ?? params.q;
     if (typeof query === 'string') env.GM_QUERY = query;
+    const credentialService = params.credential_service;
+    if (credentialService === 'gmail' || credentialService === 'googleSso') {
+      env.GM_CREDENTIAL_SERVICE = credentialService;
+    }
     const max = params.max;
     if (typeof max === 'number' || typeof max === 'string') env.GM_MAX = String(max);
     if (params.open === false || params.open === 0 || params.open === '0') env.GM_OPEN = '0';

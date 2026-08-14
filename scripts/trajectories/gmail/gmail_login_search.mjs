@@ -32,6 +32,9 @@ const DEFAULT_QUERY =
 const QUERY = process.env.GM_QUERY || DEFAULT_QUERY;
 const OPEN_BODIES = process.env.GM_OPEN !== '0';
 const MAX_OPEN = parseInt(process.env.GM_MAX || '6', 10);
+const CREDENTIAL_SERVICE = process.env.GM_CREDENTIAL_SERVICE === 'googleSso'
+  ? 'googleSso'
+  : 'gmail';
 function gmailUrl(email, fragment) {
   return 'https://mail.google.com/mail/u/0/?tab=rm&ogbl&authuser='
     + encodeURIComponent(email) + '#' + fragment;
@@ -52,7 +55,7 @@ async function visible(loc) {
 }
 
 async function resolveCreds() {
-  return readScopedLogin('gmail');
+  return readScopedLogin(CREDENTIAL_SERVICE);
 }
 
 // Some accounts hit a post-login "speedbump" (passkey enrolment, recovery
