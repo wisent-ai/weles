@@ -1,11 +1,12 @@
-// Safely add ONE host record to a Namecheap-managed domain. Namecheap's only
-// DNS write API (setHosts) replaces the whole zone, so this reads every record
-// via getHosts, appends the new one (if absent), re-sends all records, and
-// verifies the count grew by exactly one. Credentials come from injected
+// Safely add or remove ONE exact host record on a Namecheap-managed domain.
+// Namecheap's only DNS write API (setHosts) replaces the whole zone, so this
+// reads every record, changes one exact record, re-sends all records, and
+// verifies the count changed by exactly one. Credentials come from injected
 // environment variables, with weles/.env retained only as a local fallback.
 //
-// Env/args: SLD (default wisent), TLD (default com), NEW_HOST (e.g. oko),
-//   NEW_TYPE (default A), NEW_ADDRESS (default 76.76.21.21), NEW_TTL (1800).
+// Env/args: DNS_ACTION (add, the default, or remove), SLD (default wisent),
+//   TLD (default com), NEW_HOST (e.g. oko), NEW_TYPE (default A),
+//   NEW_ADDRESS (default 76.76.21.21), NEW_TTL (1800).
 import { existsSync, readFileSync } from 'node:fs';
 
 const envUrl = new URL('../../../.env', import.meta.url);
@@ -17,6 +18,8 @@ if (!AK || !AU || !UN || !IP) { console.log('FAIL: missing Namecheap creds'); pr
 const SLD = process.env.SLD || 'wisent';
 const TLD = process.env.TLD || 'com';
 const NEW = { Name: process.env.NEW_HOST || 'oko', Type: process.env.NEW_TYPE || 'A', Address: process.env.NEW_ADDRESS || '76.76.21.21', TTL: process.env.NEW_TTL || '1800', MXPref: '10' };
+const ACTION = process.env.DNS_ACTION || 'add';
+if (!['add', 'remove'].includes(ACTION)) { console.log('FAIL: DNS_ACTION must be add or remove'); process.exit(1); }
 const BASE = 'https://api.namecheap.com/xml.response';
 
 async function getHosts() {
@@ -34,10 +37,12 @@ async function getHosts() {
 
 const before = await getHosts();
 console.log(`getHosts: ${before.hosts.length} records, EmailType=${before.emailType}`);
-const exists = before.hosts.some((h) => h.Name === NEW.Name && h.Type === NEW.Type && h.Address.replace(/\.$/, '') === NEW.Address.replace(/\.$/, ''));
-if (exists) { console.log(`NOOP: ${NEW.Name} ${NEW.Type} ${NEW.Address} already present`); process.exit(0); }
+const matches = (h) => h.Name === NEW.Name && h.Type === NEW.Type && h.Address.replace(/\.$/, '') === NEW.Address.replace(/\.$/, '');
+const exists = before.hosts.some(matches);
+if (ACTION === 'add' && exists) { console.log(`NOOP: ${NEW.Name} ${NEW.Type} ${NEW.Address} already present`); process.exit(0); }
+if (ACTION === 'remove' && !exists) { console.log(`NOOP: ${NEW.Name} ${NEW.Type} ${NEW.Address} already absent`); process.exit(0); }
 
-const all = [...before.hosts, NEW];
+const all = ACTION === 'add' ? [...before.hosts, NEW] : before.hosts.filter((host) => !matches(host));
 const body = new URLSearchParams({ ApiUser: AU, ApiKey: AK, UserName: UN, Command: 'namecheap.domains.dns.setHosts', ClientIp: IP, SLD, TLD, EmailType: before.emailType });
 all.forEach((h, i) => {
   const n = i + 1;
@@ -47,13 +52,15 @@ all.forEach((h, i) => {
   body.set(`TTL${n}`, h.TTL);
   if (h.Type === 'MX') body.set(`MXPref${n}`, h.MXPref);
 });
-console.log(`setHosts: sending ${all.length} records (adding ${NEW.Name} ${NEW.Type} ${NEW.Address})`);
+console.log(`setHosts: sending ${all.length} records (${ACTION === 'add' ? 'adding' : 'removing'} ${NEW.Name} ${NEW.Type} ${NEW.Address})`);
 const resXml = await (await fetch(BASE, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString() })).text();
 const ok = /<DomainDNSSetHostsResult[^>]*IsSuccess="true"/.test(resXml) || /Status="OK"/.test(resXml);
 if (!ok) { console.log('FAIL setHosts: ' + (resXml.match(/<Error[^>]*>([^<]*)/)?.[1] || resXml.slice(0, 300))); process.exit(1); }
 
 const after = await getHosts();
-const present = after.hosts.some((h) => h.Name === NEW.Name && h.Type === NEW.Type);
-console.log(`verify: ${after.hosts.length} records (was ${before.hosts.length}); ${NEW.Name} present=${present}`);
-if (after.hosts.length === before.hosts.length + 1 && present) console.log('PASS');
+const present = after.hosts.some(matches);
+const expectedCount = before.hosts.length + (ACTION === 'add' ? 1 : -1);
+const expectedPresence = ACTION === 'add';
+console.log(`verify: ${after.hosts.length} records (was ${before.hosts.length}); exact record present=${present}`);
+if (after.hosts.length === expectedCount && present === expectedPresence) console.log('PASS');
 else { console.log('WARN: unexpected record count/state — check zone'); process.exit(1); }
