@@ -26,32 +26,34 @@ if [ -f "$HOME/.stado/weles-model.env" ]; then
 fi
 set +a
 unset SEMANTIC_SCHOLAR_API_KEY S2_API_KEY || true
-# The vault endpoint is discovered, not assumed. This was pinned to 8787, which
-# on the always-on host is held by another Node service, so every startup
-# acquisition failed with ECONNREFUSED and the wrapper carried on with empty
-# values: `empty Skarbiec field weles-object-api/token` in the log, and a service
-# that believes it holds tokens it never read.
-WC_SKARBIEC_URL=''
-for candidate_port in 8787 8895 19095; do
-  if /usr/bin/nc -z 127.0.0.1 "$candidate_port" >/dev/null 2>&1; then
-    WC_SKARBIEC_URL="http://127.0.0.1:$candidate_port"
-    break
-  fi
-done
-if [ -z "$WC_SKARBIEC_URL" ]; then
-  printf '%s\n' 'no local Skarbiec is listening; startup secrets cannot be read' >&2
-fi
-export WC_SKARBIEC_URL
+# The vault endpoint is established by reading through it, not by probing a port.
+# It was pinned to 8787, which on the always-on host is held by another Node
+# service, so every acquisition failed with ECONNREFUSED and the wrapper carried
+# on with empty values: `empty Skarbiec field weles-object-api/token` in the log
+# from a service presenting itself as configured. A port probe was not enough --
+# something answers on 8787 and refuses the protocol -- so each candidate is
+# tried with the real read and the first that returns a value wins.
+SKARBIEC_ENDPOINTS='http://127.0.0.1:8787 http://127.0.0.1:8895 http://127.0.0.1:19095'
+WC_SKARBIEC_URL="${WC_SKARBIEC_URL:-}"
 export WELES_REPO="$HOME/.stado/build-work/weles-api-managed"
 NODE_BIN=/opt/homebrew/bin/node
 acquire_startup_field() {
   local consumer="$1" item="$2" field="$3"
   local scopes="$WELES_REPO/scripts/worker/deploy/skarbiec-acquisition-scopes.conf"
   local helper="$WELES_REPO/scripts/worker/deploy/skarbiec-acquire.mjs"
-  local value
-  value="$("$NODE_BIN" "$helper" "$WC_SKARBIEC_URL" "$scopes" "$consumer" "$item" "$field")"
-  [ -n "$value" ] || { printf '%s\n' "empty Skarbiec field $item/$field" >&2; return 1; }
-  printf '%s' "$value"
+  local value endpoint
+  for endpoint in ${WC_SKARBIEC_URL:-$SKARBIEC_ENDPOINTS}; do
+    value="$("$NODE_BIN" "$helper" "$endpoint" "$scopes" "$consumer" "$item" "$field" 2>/dev/null)" \
+      || value=''
+    if [ -n "$value" ]; then
+      WC_SKARBIEC_URL="$endpoint"
+      export WC_SKARBIEC_URL
+      printf '%s' "$value"
+      return 0
+    fi
+  done
+  printf '%s\n' "empty Skarbiec field $item/$field through: ${WC_SKARBIEC_URL:-$SKARBIEC_ENDPOINTS}" >&2
+  return 1
 }
 if [ -z "${WELES_STADO_OBJECT_API_TOKEN:-}" ]; then
   WELES_STADO_OBJECT_API_TOKEN="$(acquire_startup_field weles-object-token-bootstrap weles-object-api token)"
