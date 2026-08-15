@@ -245,7 +245,14 @@ const ROUTES: Record<string, (p: string) => string | null> = {
     return `scripts/trajectories/${p}_register.mjs`;
   },
   login: (p) => {
-    if (p === 'apple' || p === 'microsoft') return `scripts/trajectories/${p}/login.mjs`;
+    // codex and claude keep their login beside their reauth, in a directory, and
+    // the flat fallback below looked for `<plat>_login.mjs` and found nothing.
+    // Nothing could start the one trajectory that renews those subscriptions:
+    // the reauth path declines to log in on a burnt tick by design, so a
+    // dispatcher that cannot reach the login left no automatic way back at all.
+    if (p === 'apple' || p === 'microsoft' || p === 'codex' || p === 'claude') {
+      return `scripts/trajectories/${p}/login.mjs`;
+    }
     if (p === 'facebook' || p === 'threads') return `scripts/trajectories/meta/${p}_login.mjs`;
     return `scripts/trajectories/${p}_login.mjs`;
   },
