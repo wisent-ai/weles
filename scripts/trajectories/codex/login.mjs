@@ -24,7 +24,19 @@ import { humanClickLocator, humanIdlePause } from '../../../dist/human/mouse.js'
 const HERE = dirname(fileURLToPath(import.meta.url));
 const CODEX_AUTH_PATH = join(homedir(), '.codex', 'auth.json');
 const DISPLAY_NAME = process.env.CODEX_DISPLAY_NAME || 'Codex';
-const CODEX_BIN = process.env.CODEX_BIN || 'codex';
+// node-pty spawns through posix_spawnp, which resolves a bare name against the
+// PATH of the environment it is handed. Under launchd that PATH is not the
+// operator's, and the failure surfaces as `posix_spawnp failed` from inside
+// node-pty with no file name in it: a message that says nothing about Codex,
+// which was installed and executable the whole time. Resolve it here.
+const CODEX_BIN_CANDIDATES = [
+  '/opt/homebrew/bin/codex',
+  '/usr/local/bin/codex',
+  join(homedir(), '.local/bin/codex'),
+  join(homedir(), 'bin/codex'),
+];
+const CODEX_BIN =
+  process.env.CODEX_BIN || CODEX_BIN_CANDIDATES.find((path) => existsSync(path)) || 'codex';
 
 // Keep all console channels real during trajectory debugging; WSession step logs
 // and Playwright errors are essential for diagnosing login failures.
@@ -47,7 +59,13 @@ function spawnDeviceAuth() {
     name: 'xterm-256color',
     cols: 200,
     rows: 40,
-    env: process.env,
+    // The Codex CLI itself shells out; a launchd environment can arrive without
+    // a PATH worth having, so give the child one that includes where Homebrew
+    // puts things.
+    env: {
+      ...process.env,
+      PATH: `/opt/homebrew/bin:/usr/local/bin:${process.env.PATH || '/usr/bin:/bin'}`,
+    },
   });
   let buf = '';
   proc.onData((d) => { buf += d; });
