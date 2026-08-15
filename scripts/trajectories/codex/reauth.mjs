@@ -76,6 +76,13 @@ async function loadConfig() {
     item: CONFIG_ITEM,
     routerUrl: m.MODEL_ROUTER_URL.replace(/\/+$/, ''),
     agentId: m.WISENT_APP_AGENT_ID,
+    // The gateway refuses a signed trio with a bare 401 when no bearer carries
+    // the client identity, as the header builder below says. Only the Skarbiec
+    // branch resolved one, so on a host whose database configuration is present
+    // -- the branch that is meant to be the normal one -- every run reached the
+    // gateway and was refused for a credential nobody had asked for. Claude's
+    // trajectory resolves it outside the branches; this one now agrees.
+    bearer: resolveBearer(m.WISENT_APP_AGENT_ID),
     hmacSecret: m.WISENT_APP_AGENT_AUTH_SECRET,
     donorUserId: m.WISENT_DONOR_USER_ID,
     rawMeta: m,
