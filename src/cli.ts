@@ -18,8 +18,8 @@ const HELP = `Weles CLI
 Usage:
   weles onboarding [status|next|verify|reset] [--subject <stable-id>]
   weles onboarding verify --receipt <receipt.json> --keys <receipt-keys.json> [--subject <stable-id>]
-  weles open <url> [--headless] [--browser chromium|firefox] [--text] [--screenshot <file>] [--timeout <ms>]
-  weles screenshot <url> <file> [--headless] [--browser chromium|firefox] [--timeout <ms>]
+  weles open <url> [--headless] [--browser chromium|firefox] [--wait-for-text <text>] [--text] [--screenshot <file>] [--timeout <ms>]
+  weles screenshot <url> <file> [--headless] [--browser chromium|firefox] [--wait-for-text <text>] [--timeout <ms>]
   weles mcp
   weles doctor
   weles version
@@ -38,6 +38,7 @@ Options:
   --proxy <url>           Proxy server URL.
   --text                  Print document body text after navigation.
   --screenshot <file>     Save a screenshot after navigation.
+  --wait-for-text <text>  Wait for matching visible text before reading or capturing.
   --timeout <ms>          Navigation timeout in milliseconds.
 
 Onboarding explains the authorization boundary and approved host execution. It
@@ -105,7 +106,7 @@ function normalizeCommand(command?: string): CliCommand {
 }
 
 function optionTakesValue(key: string): boolean {
-  return ['browser', 'os', 'locale', 'chromium-path', 'user-data-dir', 'proxy', 'screenshot', 'timeout', 'subject', 'receipt', 'keys', 'state-dir'].includes(key);
+  return ['browser', 'os', 'locale', 'chromium-path', 'user-data-dir', 'proxy', 'screenshot', 'wait-for-text', 'timeout', 'subject', 'receipt', 'keys', 'state-dir'].includes(key);
 }
 
 function cliOptionsToBrowserOptions(options: Record<string, string | boolean>): AsyncNewBrowserOptions {
@@ -138,6 +139,12 @@ async function runOpen(parsed: ParsedCli): Promise<void> {
   try {
     const page = await context.newPage();
     const response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: parseTimeout(parsed.options) });
+    if (typeof parsed.options['wait-for-text'] === 'string') {
+      await page.getByText(parsed.options['wait-for-text'], { exact: false }).first().waitFor({
+        state: 'visible',
+        timeout: parseTimeout(parsed.options),
+      });
+    }
     const title = await page.title().catch(() => '');
     const out: Record<string, unknown> = {
       ok: true,
