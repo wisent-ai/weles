@@ -65,6 +65,22 @@ function identityPlatformFromConstraints(value) {
   return '';
 }
 
+function sessionPlatformFromConstraints(value) {
+  const identityPlatform = identityPlatformFromConstraints(value);
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return identityPlatform;
+  const explicit = typeof value.session_platform === 'string'
+    ? value.session_platform.trim().toLowerCase()
+    : '';
+  if (!explicit) return identityPlatform;
+  if (!process.env.ACCOUNT_ID?.trim()) {
+    throw new Error('constraints.session_platform requires an account-bound task');
+  }
+  if (!/^[a-z0-9][a-z0-9_-]{0,39}$/.test(explicit)) {
+    throw new Error('constraints.session_platform is invalid');
+  }
+  return explicit;
+}
+
 function identityInstructions(platform) {
   if (!platform) return [];
   const prefix = platform.toUpperCase().replace(/[^A-Z0-9]+/g, '_');
@@ -286,7 +302,7 @@ try {
         steps: [],
       }
       : await writeWelesTrajectoryDraft({ objective });
-  session = await WSession.start({ label, proxy, targetHost: new URL(url).hostname, headless, browser, platform: identityPlatformFromConstraints(constraints) || undefined, pageDiagnostics: keeperFirst ? false : undefined });
+  session = await WSession.start({ label, proxy, targetHost: new URL(url).hostname, headless, browser, platform: sessionPlatformFromConstraints(constraints) || undefined, pageDiagnostics: keeperFirst ? false : undefined });
   await session.goto(url);
   await applyCredentialPrefill(session, constraints);
   await ensureSupabaseSession(session, constraints);
