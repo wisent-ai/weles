@@ -42,7 +42,20 @@ import { randomUUID } from 'node:crypto';
 import { homedir } from 'node:os';
 import { dirname, resolve, join, extname, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createReadStream, readFileSync, readdirSync, statSync, existsSync, lstatSync, realpathSync } from 'node:fs';
+import {
+  createReadStream,
+  readFileSync,
+  readdirSync,
+  statSync,
+  existsSync,
+  lstatSync,
+  realpathSync,
+  writeFileSync,
+  mkdirSync,
+} from 'node:fs';
+// Where a detached run records what happened, outside the repository so a
+// rebuild cannot delete the answer.
+const RUN_RESULTS_DIR = join(homedir(), '.stado', 'weles-detached-runs');
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(__dirname, '../..');
@@ -687,6 +700,44 @@ const server = http.createServer(async (req, res) => {
     const params = body.params && typeof body.params === 'object' ? body.params : {};
     const accountId = typeof body.account_id === 'string' ? body.account_id : null;
     const timeoutMs = Number(body.timeout_ms) > 0 ? Number(body.timeout_ms) : TIMEOUT_MS;
+    // A browser login runs for minutes. Every operator transport that can reach
+    // this route closes long before that, and a request whose socket goes takes
+    // the run with it, so the one action that renews a burnt subscription could
+    // only be started by a client willing to wait -- which is to say, not by the
+    // software. `detached: true` starts the run, answers with its id, and writes
+    // the result where it can be read afterwards.
+    if (body.detached === true) {
+      const detachedId = randomUUID();
+      const resultPath = join(RUN_RESULTS_DIR, `${detachedId}.json`);
+      mkdirSync(RUN_RESULTS_DIR, { recursive: true, mode: 0o700 });
+      writeFileSync(
+        resultPath,
+        JSON.stringify({ ok: null, action, status: 'running', started_at: new Date().toISOString() }),
+        { mode: 0o600 },
+      );
+      runTrajectory(action, params, accountId, timeoutMs)
+        .then((result) => {
+          writeFileSync(
+            resultPath,
+            JSON.stringify({ ...result, action, status: 'finished' }),
+            { mode: 0o600 },
+          );
+        })
+        .catch((error) => {
+          writeFileSync(
+            resultPath,
+            JSON.stringify({
+              ok: false,
+              action,
+              status: 'failed',
+              error: String(error && error.message ? error.message : error).slice(0, 300),
+            }),
+            { mode: 0o600 },
+          );
+        });
+      json(res, 202, { ok: true, action, detached_run: detachedId, result_path: resultPath });
+      return;
+    }
     const out = await runTrajectory(action, params, accountId, timeoutMs);
 
     if (out.error === 'no_trajectory') { json(res, 404, out); return; }
