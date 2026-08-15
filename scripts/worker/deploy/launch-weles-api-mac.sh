@@ -26,7 +26,22 @@ if [ -f "$HOME/.stado/weles-model.env" ]; then
 fi
 set +a
 unset SEMANTIC_SCHOLAR_API_KEY S2_API_KEY || true
-export WC_SKARBIEC_URL='http://127.0.0.1:8787'
+# The vault endpoint is discovered, not assumed. This was pinned to 8787, which
+# on the always-on host is held by another Node service, so every startup
+# acquisition failed with ECONNREFUSED and the wrapper carried on with empty
+# values: `empty Skarbiec field weles-object-api/token` in the log, and a service
+# that believes it holds tokens it never read.
+WC_SKARBIEC_URL=''
+for candidate_port in 8787 8895 19095; do
+  if /usr/bin/nc -z 127.0.0.1 "$candidate_port" >/dev/null 2>&1; then
+    WC_SKARBIEC_URL="http://127.0.0.1:$candidate_port"
+    break
+  fi
+done
+if [ -z "$WC_SKARBIEC_URL" ]; then
+  printf '%s\n' 'no local Skarbiec is listening; startup secrets cannot be read' >&2
+fi
+export WC_SKARBIEC_URL
 export WELES_REPO="$HOME/.stado/build-work/weles-api-managed"
 NODE_BIN=/opt/homebrew/bin/node
 acquire_startup_field() {
