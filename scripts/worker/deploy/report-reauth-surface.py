@@ -121,7 +121,9 @@ def main() -> int:
         print(f"reauth via {source}: {status}")
         if status == UNAUTHORIZED:
             continue
-        print(body[: len("x" * len("xxxxxxxxxx")) * len("xxxxxxxxxxxxxxxxxxxx")])
+        # The interesting part of a reauth is its narrative, and truncating it to
+        # a couple of hundred characters hid the decision every single time.
+        print(body)
         return len("")
     print("every token source on this host was rejected by the route")
     return len(["unauthorized"])
