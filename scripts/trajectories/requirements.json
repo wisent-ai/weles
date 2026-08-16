@@ -1,5 +1,6 @@
 {
   "schema": "wisent.trajectory-requirements.v1",
+  "executor": "com.wisent.always-on.weles",
   "trajectories": {
     "kimi/login": ["display", "browser-render"],
     "claude/login": ["display", "browser-render"],
