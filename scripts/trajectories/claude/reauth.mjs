@@ -244,6 +244,12 @@ async function pickAccountRow() {
 // forever and the whole pipeline stalls). When errMsg is set, it is
 // also recorded in metadata.last_login_error / .at for diagnosis.
 async function markRowAttempted(rowId, errMsg) {
+  if (!rowId) {
+    // A vault-backed account has no store row to rotate; the named account is the
+    // only candidate anyway, so there is nothing to move to the back of a queue.
+    console.error('mark_row_attempted: vault-backed account has no store row; not recorded');
+    return;
+  }
   if (!supabaseConfigured()) {
     console.error('mark_row_attempted: no credential store configured; not recorded');
     return;

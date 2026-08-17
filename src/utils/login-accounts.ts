@@ -129,6 +129,14 @@ export function chooseCredentialRow<T extends CredentialRowLike>(
   const wanted = (selector.displayName ?? '').trim();
   if (wanted) {
     const named = rows.find((r) => (r.display_name ?? '').trim().toLowerCase() === wanted.toLowerCase());
+    if (!named && LOGIN_ACCOUNTS.some((a) => a.displayName.toLowerCase() === wanted.toLowerCase())) {
+      // The account is one this build knows and its login lives in the vault, so
+      // the absence of a store row is not the absence of an account: the store row
+      // only carries metadata, and inventing one would add a second registry of
+      // accounts without adding a single fact. The caller gets a row that names
+      // the account and no id, and callers that record attempts skip it.
+      return { display_name: wanted } as T;
+    }
     if (!named) {
       throw new LoginAccountSelectionError(
         'account_not_found',
