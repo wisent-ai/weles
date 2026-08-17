@@ -245,7 +245,7 @@ s.page.on('requestfailed', (r) => {
 
 try {
   mark('google_sso');
-  await doGoogleSso({
+  const authorizationPage = await doGoogleSso({
     page: s.page,
     login,
     authorizeUrl,
@@ -257,7 +257,7 @@ try {
   });
 
   mark('read_displayed_code');
-  const code = await readDisplayedCode(s.page);
+  const code = await readDisplayedCode(authorizationPage);
   clearTimeout(wd);
 
   if (exited !== null) throw new Error(`auth login exited early (code ${exited}) before code paste`);
