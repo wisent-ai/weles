@@ -28,6 +28,7 @@ import { mkdirSync, symlinkSync, rmSync, existsSync, writeFileSync } from 'node:
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { getServiceLogin } from '../../../dist/utils/credentials.js';
+import { selectLoginAccount } from '../../../dist/utils/login-accounts.js';
 import { WSession } from '../../../dist/session/wsession.js';
 import { humanIdlePause, humanClickLocator } from '../../../dist/human/mouse.js';
 import { humanFill, humanType } from '../../../dist/human/keyboard.js';
@@ -55,7 +56,20 @@ process.on('unhandledRejection', (e) => { process.stderr.write(`FAIL: unhandled 
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const VAR = join(HERE, '..', '..', '..', 'var');
-const DISPLAY_NAME = process.env.CLAUDE_DISPLAY_NAME || 'Claude';
+// Which account this login is for. CLAUDE_DISPLAY_NAME names the
+// service_credentials row directly (what reauth sets); WELES_LOGIN_ITEM names the
+// vault login item, which is the identifier the rest of the fleet carries. With
+// neither, the account is implied only while claude has exactly one registered
+// account — otherwise this refuses, because a login that guesses signs into the
+// wrong Google account and mints a credential for the wrong subscription.
+let DISPLAY_NAME;
+try {
+  DISPLAY_NAME = (process.env.CLAUDE_DISPLAY_NAME || '').trim()
+    || selectLoginAccount('claude', process.env.WELES_LOGIN_ITEM).displayName;
+} catch (e) {
+  process.stderr.write(`FAIL: ${e.message}\n`);
+  process.exit(1);
+}
 
 // node-pty's posix_spawnp does not inherit a login PATH, so a bare
 // 'claude' fails with "posix_spawnp failed" (observed). Resolve the

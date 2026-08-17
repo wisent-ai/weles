@@ -49,6 +49,10 @@ const REPO = resolve(__dirname, '../..');
 
 const { resolveTrajectory, paramsToEnv } = await import(`${REPO}/dist/worker/dispatch.js`);
 const { buildDeploymentVersionValue } = await import(`${REPO}/dist/worker/deployment_version.js`);
+// Account selection is one table shared with the queued path and the
+// trajectories, so /reauth, /run and a hand-run trajectory all resolve the same
+// vault login item id to the same account.
+const { LOGIN_ACCOUNTS, selectLoginAccount } = await import(`${REPO}/dist/utils/login-accounts.js`);
 
 const HOST = process.env.WELES_API_HOST || '127.0.0.1';
 const PORT = Number(process.env.WELES_API_PORT || 8788);
@@ -378,14 +382,28 @@ function runTrajectory(action, params, accountId, timeoutMs) {
 // and only the run status leaves the process.
 const REAUTH_PROVIDERS = new Set(['codex', 'claude', 'kimi']);
 
-function runReauth(provider, timeoutMs) {
+// `account` is the row this run must sign in, already resolved from the caller's
+// login_item. It reaches the trajectory as <PROVIDER>_DISPLAY_NAME, which is the
+// selector every reauth/login trajectory already honours, plus WELES_LOGIN_ITEM
+// so the run and its report agree on which account was asked for.
+function runReauth(provider, timeoutMs, account) {
   return new Promise((resolveRun) => {
     const trajPath = resolve(REPO, 'scripts/trajectories', provider, 'reauth.mjs');
     if (!existsSync(trajPath)) { resolveRun({ ok: false, error: 'no_reauth_trajectory', provider }); return; }
     const runId = randomUUID();
     const child = spawn('node', [trajPath], {
       cwd: REPO,
-      env: { ...process.env, ACTION_LOG_ID: runId, ACTION: `${provider}_reauth` },
+      env: {
+        ...process.env,
+        ACTION_LOG_ID: runId,
+        ACTION: `${provider}_reauth`,
+        ...(account
+          ? {
+            WELES_LOGIN_ITEM: account.loginItem,
+            [`${provider.toUpperCase()}_DISPLAY_NAME`]: account.displayName,
+          }
+          : {}),
+      },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
     let stdout = ''; let stderr = ''; let killed = false;
@@ -403,6 +421,10 @@ function runReauth(provider, timeoutMs) {
         ok: exitCode === 0,
         exitCode,
         provider,
+        // Which account this run was pointed at, so a caller can attribute the
+        // minted credential instead of inferring it.
+        login_item: account ? account.loginItem : null,
+        display_name: account ? account.displayName : null,
         run_id: runId,
         stdout_tail: stdout.slice(-4000),
         stderr_tail: stderr.slice(-2000),
@@ -536,6 +558,12 @@ const server = http.createServer(async (req, res) => {
         authConfigured: Boolean(TOKEN || ALLOW_UNAUTH),
         rawCredsAllowed: ALLOW_RAW_CREDS,
         routes: ['GET /healthz', 'GET /worker/version', 'GET /worker/status', 'POST /worker/start', 'POST /worker/restart', 'POST /run', 'GET /diagnostics/:run_id', 'GET /diagnostics/:run_id/file?path=', 'POST /weles-builder', 'POST /reauth'],
+        // A caller that must name an account has to know, without spawning a
+        // run, whether this build understands login_item at all: a build that
+        // does not would ignore the field and sign in to whichever row it picked
+        // itself, burning a real login on an unknown account.
+        features: ['login_item'],
+        login_items: LOGIN_ACCOUNTS.map((a) => ({ login_item: a.loginItem, provider: a.provider, display_name: a.displayName })),
       });
       return;
     }
@@ -604,8 +632,10 @@ const server = http.createServer(async (req, res) => {
       return;
     }
     // reauth: run a provider's reauth trajectory ON THE HOST. Body:
-    // { provider: "codex"|"claude"|"kimi", timeout_ms? }. Returns run status
-    // only.
+    // { provider: "codex"|"claude"|"kimi", login_item?, timeout_ms? }. Returns
+    // run status only. `login_item` is the vault login item id of the account to
+    // sign in; it is validated here so a caller learns that it named an unknown
+    // or wrong-provider account BEFORE a browser login is spent on it.
     if (req.method === 'POST' && url.pathname === '/reauth') {
       if (!authorized(req)) {
         json(res, TOKEN || ALLOW_UNAUTH ? 401 : 500, { ok: false, error: TOKEN || ALLOW_UNAUTH ? 'unauthorized' : 'missing_WELES_API_TOKEN' });
@@ -616,8 +646,17 @@ const server = http.createServer(async (req, res) => {
       catch (e) { json(res, 400, { ok: false, error: e.message }); return; }
       const provider = typeof body.provider === 'string' ? body.provider.trim().toLowerCase() : '';
       if (!REAUTH_PROVIDERS.has(provider)) { json(res, 400, { ok: false, error: 'provider must be codex|claude|kimi' }); return; }
+      const loginItem = typeof body.login_item === 'string' ? body.login_item.trim() : '';
+      let account = null;
+      if (loginItem) {
+        try { account = selectLoginAccount(provider, loginItem); }
+        catch (e) {
+          json(res, 400, { ok: false, error: e.code || 'login_item_unresolved', message: e.message, ...(e.detail || {}) });
+          return;
+        }
+      }
       const timeoutMs = Number(body.timeout_ms) > 0 ? Number(body.timeout_ms) : TIMEOUT_MS;
-      const out = await runReauth(provider, timeoutMs);
+      const out = await runReauth(provider, timeoutMs, account);
       if (out.error === 'no_reauth_trajectory') { json(res, 404, out); return; }
       json(res, out.ok ? 200 : 502, { ...out, refreshed: out.ok });
       return;
