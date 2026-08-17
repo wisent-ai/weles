@@ -17,6 +17,7 @@
 // return null and the queued row will be silently skipped at the claim step.
 
 import { parseAppleLoginCapabilities } from '../utils/apple-login-capabilities.js';
+import { selectLoginAccount } from '../utils/login-accounts.js';
 
 const benignPath = 'scripts/trajectories/_shared/benign.mjs';
 const analyticsServicePath = 'scripts/trajectories/_shared/analytics-service.mjs';
@@ -250,7 +251,9 @@ const ROUTES: Record<string, (p: string) => string | null> = {
     // Nothing could start the one trajectory that renews those subscriptions:
     // the reauth path declines to log in on a burnt tick by design, so a
     // dispatcher that cannot reach the login left no automatic way back at all.
-    if (p === 'apple' || p === 'microsoft' || p === 'codex' || p === 'claude') {
+    // kimi's login has the same shape and takes the same login_item selector, so
+    // it belongs in the same branch.
+    if (p === 'apple' || p === 'microsoft' || p === 'codex' || p === 'claude' || p === 'kimi') {
       return `scripts/trajectories/${p}/login.mjs`;
     }
     if (p === 'facebook' || p === 'threads') return `scripts/trajectories/meta/${p}_login.mjs`;
@@ -357,6 +360,25 @@ export function paramsToEnv(
   trajPath: string,
 ): Record<string, string> {
   const env: Record<string, string> = {};
+  // Subscription login/reauth runs act on ONE account, and the caller names it
+  // by its vault login item id — the identifier the rest of the fleet already
+  // carries. It is translated here into <PROVIDER>_DISPLAY_NAME, the selector
+  // those trajectories already honour, plus WELES_LOGIN_ITEM so the run reports
+  // the account it was asked for. An unknown id or one belonging to another
+  // provider throws, exactly as a malformed apple_login payload does: a request
+  // that names the wrong account must never become a real sign-in.
+  const subscriptionLogin = trajPath.match(/\/(claude|codex|kimi)\/(login|reauth)\.mjs$/);
+  if (subscriptionLogin) {
+    const requested = params.login_item ?? params.vault_login_item;
+    if (requested !== undefined && typeof requested !== 'string') {
+      throw new Error('login_item must be a vault login item id string');
+    }
+    if (typeof requested === 'string' && requested.trim()) {
+      const account = selectLoginAccount(subscriptionLogin[1], requested);
+      env.WELES_LOGIN_ITEM = account.loginItem;
+      env[`${account.provider.toUpperCase()}_DISPLAY_NAME`] = account.displayName;
+    }
+  }
   if (trajPath.endsWith('/_shared/benign.mjs')) {
     const underscore = action.indexOf('_');
     if (underscore > 0) {

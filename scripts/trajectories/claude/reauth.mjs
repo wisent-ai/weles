@@ -9,11 +9,13 @@
 //      SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY which bootstrap the read.
 //   2. HMAC-probe the model-router claude-code-subscription pool.
 //   3. if healthy: exit 0.
-//   4. if burnt: pick the LRU google_sso Claude credential row, run
-//      login.mjs LOCALLY (real Chromium, mac-mini's trusted residential
-//      IP — Google does NOT bot-block it, so no proxy/VM/xvfb), capture
-//      the {"claudeAiOauth":...} blob, donate it to model-router, mark
-//      the row used, and revoke every previously-active row.
+//   4. if burnt: sign in the named google_sso Claude credential row — named by
+//      the caller's vault login item id, which weles-api hands over as
+//      CLAUDE_DISPLAY_NAME + WELES_LOGIN_ITEM, and inferred only when a single
+//      row could match — by running login.mjs LOCALLY (real Chromium,
+//      mac-mini's trusted residential IP — Google does NOT bot-block it, so no
+//      proxy/VM/xvfb), capture the {"claudeAiOauth":...} blob, donate it to
+//      model-router, mark the row used, and revoke every previously-active row.
 //
 // No GCE VM, no GCS, no proxy, no Resend, no email-code path.
 import crypto from 'node:crypto';
@@ -26,9 +28,11 @@ import {
   loadFromSkarbiec,
   persistToSkarbiec,
   reachableRouterUrl,
+  resolveAgentSecret,
   resolveBearer,
   supabaseConfigured,
 } from '../_shared/reauth_config.mjs';
+import { chooseCredentialRow } from '../../../dist/utils/login-accounts.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const STATE_DIR = process.env.WELES_STATE_DIR
@@ -86,18 +90,31 @@ async function loadConfig() {
   }
   const m = rows[0].metadata;
   for (const k of ['MODEL_ROUTER_URL', 'WISENT_APP_AGENT_ID',
-    'WISENT_APP_AGENT_AUTH_SECRET', 'WISENT_DONOR_USER_ID']) {
+    'WISENT_DONOR_USER_ID']) {
     if (!m[k]) throw new Error(`claude-reauth-config.metadata missing ${k}`);
   }
+  const hmacSecret = resolveAgentSecret(m.WISENT_APP_AGENT_ID)
+    || m.WISENT_APP_AGENT_AUTH_SECRET;
+  if (!hmacSecret) {
+    throw new Error(
+      `agent:${m.WISENT_APP_AGENT_ID} and claude-reauth-config.metadata both lack the signing secret`,
+    );
+  }
   const routerUrl = String(m.MODEL_ROUTER_URL).replace(/\/+$/, '');
+  const bearer = resolveBearer(m.WISENT_APP_AGENT_ID);
   // Which store answered decides where a refreshed credential goes, so say it.
-  console.error(`config from supabase ${CONFIG_ITEM}; router ${routerUrl}`);
+  console.error(
+    `config from supabase ${CONFIG_ITEM}; router ${routerUrl}; `
+    + `agent secret ${hmacSecret === m.WISENT_APP_AGENT_AUTH_SECRET ? 'legacy-row' : 'agent-item'}; `
+    + `bearer ${bearer ? 'present' : 'absent'}`,
+  );
   return {
     store: 'supabase',
     item: CONFIG_ITEM,
     routerUrl,
     agentId: m.WISENT_APP_AGENT_ID,
-    hmacSecret: m.WISENT_APP_AGENT_AUTH_SECRET,
+    hmacSecret,
+    bearer,
     donorUserId: m.WISENT_DONOR_USER_ID,
     rawMeta: m, // carried through to MERGE expiry back without clobbering keys
     activeTokenExpiresAt: Number(m.active_token_expires_at) || 0, // unix ms, 0 until first run
@@ -144,7 +161,7 @@ function sign(cfg, body) {
   // checks that this signed agent belongs to it. Without the bearer the request is
   // refused before the signature is looked at, and the answer is a bare
   // `unauthorized` that names neither half.
-  const bearer = process.env.WISENT_APP_MODEL_ROUTER_TOKEN;
+  const bearer = cfg.bearer || process.env.WISENT_APP_MODEL_ROUTER_TOKEN;
   if (bearer) headers.authorization = `Bearer ${bearer}`;
   return headers;
 }
@@ -185,13 +202,20 @@ function isBurnout(probe) {
   return BURNOUT_SUBSTR.some((sub) => s.includes(sub));
 }
 
-async function pickLruRow() {
-  // The 3 Max rows are display_name ILIKE 'Claude%' AND
-  // login_method=google_sso. The display_name filter is essential:
-  // other rows (e.g. 'Oxylabs Residential') also carry
-  // login_method=google_sso, and the api_key_only config row
-  // 'claude-reauth-config' would match display_name ILIKE 'Claude%'
-  // — the two filters together select exactly the 3 accounts.
+// Which credential row this tick must sign in.
+//
+// A caller names the account with the vault login item id (weles-api translates
+// it into CLAUDE_DISPLAY_NAME + WELES_LOGIN_ITEM before spawning this file), and
+// that name selects the row exactly. With no name, the previous behaviour —
+// take the least-recently-updated candidate — is kept ONLY while there is a
+// single candidate: with more than one, picking silently signs into a different
+// Google account and mints a credential for a different subscription, so the
+// tick refuses and names the candidates instead.
+async function pickAccountRow() {
+  // The Max rows are display_name ILIKE 'Claude%' AND login_method=google_sso.
+  // The display_name filter alone is not enough: other rows (e.g. 'Oxylabs
+  // Residential') also carry login_method=google_sso, and the api_key_only
+  // config row 'claude-reauth-config' matches display_name ILIKE 'Claude%'.
   // Only a fresh browser login needs a donor row, and the row lives in the
   // store that went away. Say which credential is missing rather than failing
   // on a fetch to an empty URL.
@@ -204,9 +228,14 @@ async function pickLruRow() {
   const rows = await sbGet(
     'service_credentials?display_name=ilike.Claude%25'
     + '&login_method=eq.google_sso'
-    + '&select=id,display_name,updated_at&order=updated_at.asc&limit=1');
-  if (!rows.length) throw new Error('no Claude google_sso credential row');
-  return rows[0];
+    + '&select=id,display_name,updated_at&order=updated_at.asc');
+  // The choice itself is the shared one, so this tick, a queued run and the API
+  // refuse and select identically.
+  return chooseCredentialRow(rows, {
+    provider: 'claude',
+    displayName: process.env.CLAUDE_DISPLAY_NAME,
+    loginItem: process.env.WELES_LOGIN_ITEM,
+  });
 }
 
 // Bumps updated_at unconditionally so a failing row rotates to the
@@ -364,9 +393,12 @@ async function main() {
   }
   if (!reason) { console.log('[reauth] healthy & not near expiry — nothing to do'); return; }
 
-  const row = await pickLruRow();
+  const row = await pickAccountRow();
   const account = row.display_name || 'Claude';
-  console.log(`[reauth] ${reason} — reauthing LRU row ${row.display_name} (updated ${row.updated_at})`);
+  // Name the account and where the name came from, so a report can say which
+  // subscription this credential belongs to instead of inferring it.
+  const askedFor = process.env.WELES_LOGIN_ITEM || process.env.CLAUDE_DISPLAY_NAME || 'sole candidate';
+  console.log(`[reauth] ${reason} — reauthing ${row.display_name} for ${askedFor} (updated ${row.updated_at})`);
   let blob;
   // Google's "browser may not be secure" block is intermittent per launch
   // (fingerprint rolls each launch). Retry on BROWSER_NOT_SECURE so a tick
