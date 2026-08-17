@@ -245,7 +245,17 @@ async function waitForOutput(getOut, re, label, attempts) {
 }
 
 const login = await getServiceLogin(DISPLAY_NAME);
-if (!login) { console.log(`FAIL: no '${DISPLAY_NAME}' row`); process.exit(1); }
+if (!login) {
+  // console.* is muted in this file, so this refusal was previously invisible and
+  // reauth reported a bare stack instead. Say which account, which selector and
+  // which store were tried, on the channel the fatal handlers use.
+  process.stderr.write(
+    `FAIL: no login material for '${DISPLAY_NAME}'`
+    + `${process.env.WELES_LOGIN_ITEM ? ` (login item ${process.env.WELES_LOGIN_ITEM})` : ''}`
+    + ': the credential store has no row and the scoped vault contract returned nothing\n',
+  );
+  process.exit(1);
+}
 if (login.loginMethod !== 'google_sso') {
   process.stderr.write(`FAIL: '${DISPLAY_NAME}' loginMethod=${login.loginMethod}, expected google_sso\n`);
   process.exit(1);

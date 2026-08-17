@@ -22,7 +22,7 @@ import crypto from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import {
   loadFromSkarbiec,
@@ -312,6 +312,29 @@ async function deleteSubscription(cfg, subId) {
 // worker.env) and pins CLAUDE_LOGIN_PROXY=none — the mac mini's own
 // residential IP is trusted by Google, the entire reason this moved off
 // GCE. login.mjs writes the {"claudeAiOauth":...} blob to stdout.
+// The paths a failed login left behind: the PTY transcript it names in its own
+// FAIL line, plus the DOM snapshots and per-page dumps under this run's
+// recordings directory. Named in the rejection so the next diagnosis starts from
+// what the page and the CLI actually said.
+function loginArtifacts(saidLines) {
+  const paths = [];
+  for (const line of saidLines) {
+    const m = line.match(/pty transcript: (\S+)/);
+    if (m) paths.push(m[1]);
+  }
+  const runId = process.env.ACTION_LOG_ID || process.env.WELES_RUN_ID || 'local';
+  const base = process.env.WELES_RECORDINGS_ROOT || join(process.cwd(), 'recordings');
+  for (const label of [process.env.ACTION || 'claude_reauth', 'claude_login']) {
+    const dir = join(base, runId, label);
+    let names = [];
+    try { names = readdirSync(dir); } catch { continue; }
+    for (const name of names) {
+      if (/^(gis_unhandled_|session_dom_|authlogin_pty_)/.test(name)) paths.push(join(dir, name));
+    }
+  }
+  return [...new Set(paths)];
+}
+
 function runLogin(displayName) {
   return new Promise((resolve, reject) => {
     // The interpreter running this file is the one to run the login with: spawning
@@ -371,8 +394,21 @@ function runLogin(displayName) {
         const t = line.trim();
         if (t.startsWith('{"claudeAiOauth"')) { resolve(t); return; }
       }
-      const tail = (out + '\n' + err).split('\n').slice(-3).join(' | ').slice(0, 300);
-      reject(new Error(`login.mjs exit ${code}, no claudeAiOauth blob; tail=${tail}`));
+      // What the trajectory SAID beats where its stack ended: a caller that
+      // receives "at async onImport.tracePromise" learns nothing, while the FAIL
+      // and STEP lines name the step and the reason, and the artifacts show the
+      // page and the CLI transcript. Stack frames are dropped from the summary;
+      // the full stream is still on disk in manual-seed-claude.err.
+      const lines = (out + '\n' + err).split('\n').map((l) => l.trim()).filter(Boolean);
+      const said = lines.filter((l) => /^(FAIL|CREDENTIAL_SOURCE|AUTHZURL)\b/.test(l) || l.startsWith('STEP '));
+      const spoken = said.length
+        ? `${said.filter((l) => l.startsWith('STEP ')).slice(-1).join('')} ${said.filter((l) => !l.startsWith('STEP ')).slice(-2).join(' | ')}`.trim()
+        : lines.filter((l) => !/^at\s/.test(l)).slice(-2).join(' | ');
+      const artifacts = loginArtifacts(said);
+      reject(new Error(
+        `login.mjs exit ${code}, no claudeAiOauth blob; said=${spoken.slice(0, 400)}`
+        + `; artifacts=${artifacts.length ? artifacts.join(', ') : 'none written'}`,
+      ));
     });
   });
 }
