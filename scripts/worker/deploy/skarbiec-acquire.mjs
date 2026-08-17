@@ -110,7 +110,14 @@ async function refusal(stage, response, consumer, item, field) {
   }
   return new Error(
     `Skarbiec ${stage} refused ${consumer} for ${item}#${field}: HTTP ${response.status}`
-    + `${detail ? ` ${detail}` : ''}`,
+    + `${detail ? ` ${detail}` : ''}`
+    // The issue call carries no bearer: the authority authorizes the tuple
+    // (X-Consumer, item, field, workload_id, timestamp, nonce, Ed25519 signature).
+    // A 401 therefore means the authority holds no token whose consumer, capability
+    // and workload binding cover that tuple, so the workload identity this client
+    // asserted has to be visible next to the refusal — it is a name, not a secret,
+    // and without it the only unchecked half of the comparison stays invisible.
+    + ` [asserted workload_id=${workloadId}, proof over ${consumer}\0${item}\0${field}]`,
   );
 }
 
