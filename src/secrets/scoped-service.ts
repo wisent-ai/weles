@@ -260,7 +260,7 @@ function readScopedField(
   const result = spawnSync(binary, ['secrets', 'get', item, '--field', field], {
     encoding: 'buffer',
     maxBuffer: Number('65536'),
-    stdio: ['ignore', 'pipe', 'ignore'],
+    stdio: ['ignore', 'pipe', 'pipe'],
     env: {
       HOME: homedir(),
       PATH: process.env.PATH || '/usr/local/bin:/usr/bin:/bin',
@@ -337,7 +337,7 @@ function readAcquiredField(
   ], {
     encoding: 'buffer',
     maxBuffer: Number('65536'),
-    stdio: ['ignore', 'pipe', 'ignore'],
+    stdio: ['ignore', 'pipe', 'pipe'],
     env: {
       HOME: homedir(),
       PATH: process.env.PATH || '/usr/local/bin:/usr/bin:/bin',
@@ -348,7 +348,20 @@ function readAcquiredField(
   const output = Buffer.isBuffer(result.stdout) ? result.stdout : Buffer.alloc(Number('0'));
   try {
     if (result.error || result.status !== Number('0')) {
-      throw new Error(`workload-bound Skarbiec acquisition failed for ${item}/${field}`);
+      // Repeat the authority's own words. Collapsing every refusal into one
+      // sentence made an unregistered consumer, an out-of-window grant and a
+      // missing scope line indistinguishable, and each needs a different fix.
+      const diagnosis = (Buffer.isBuffer(result.stderr) ? result.stderr.toString('utf8') : '')
+        .split('\n')
+        .map((line) => line.trim())
+        .filter((line) => line && !/^\s*at\s/.test(line))
+        .slice(-Number('2'))
+        .join(' | ')
+        .slice(Number('0'), Number('600'));
+      throw new Error(
+        `workload-bound Skarbiec acquisition failed for ${item}/${field} as consumer ${consumer}`
+        + `${diagnosis ? `: ${diagnosis}` : `: helper exited ${result.status ?? 'without status'} with no diagnosis`}`,
+      );
     }
     const value = output.toString('utf8').replace(/[\r\n]+$/, '');
     if (!value || /[\r\n]/.test(value) || value.includes('\0')) {
