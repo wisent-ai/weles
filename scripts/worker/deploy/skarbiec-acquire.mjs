@@ -86,6 +86,28 @@ if (workloadSignature.length !== Number('128') || !validHex) {
   throw new Error('invalid Skarbiec workload proof signature');
 }
 
+// The authority's refusal is the diagnosis: a bare "HTTP 403" cannot tell an
+// unregistered consumer from a grant whose action, audience or window does not
+// cover this read, and the caller collapsed even that into one sentence. The body
+// of a refusal carries the authority's reason and never carries a field value —
+// a successful read is the only response that does, and it is not routed here —
+// but any `value` key is dropped anyway before the text is repeated.
+async function refusal(stage, response, consumer, item, field) {
+  let detail = '';
+  try {
+    const text = (await response.text()).slice(Number('0'), Number('2048'));
+    detail = text.replace(/"value"\s*:\s*"(?:[^"\\]|\\.)*"/g, '"value":"<redacted>"')
+      .replace(/\s+/g, ' ')
+      .trim();
+  } catch {
+    detail = '<body unreadable>';
+  }
+  return new Error(
+    `Skarbiec ${stage} refused ${consumer} for ${item}#${field}: HTTP ${response.status}`
+    + `${detail ? ` ${detail}` : ''}`,
+  );
+}
+
 const body = JSON.stringify({ id: item, field });
 const issueBody = JSON.stringify({
   id: item,
@@ -105,7 +127,7 @@ const issueResponse = await fetch(new URL('/v1/acquisitions', endpoint), {
   body: issueBody,
 });
 if (!issueResponse.ok) {
-  throw new Error(`Skarbiec acquisition request rejected for ${consumer}/${item}/${field}: HTTP ${issueResponse.status}`);
+  throw await refusal('acquisition issue', issueResponse, consumer, item, field);
 }
 const issued = await issueResponse.json();
 const issuedKeys = ['consumer', 'expires_at', 'field', 'item', 'token'];
@@ -122,7 +144,7 @@ const readResponse = await fetch(new URL('/v1/acquisitions/read', endpoint), {
   body,
 });
 if (!readResponse.ok) {
-  throw new Error(`Skarbiec one-time read rejected for ${consumer}/${item}/${field}: HTTP ${readResponse.status}`);
+  throw await refusal('one-time read', readResponse, consumer, item, field);
 }
 const result = await readResponse.json();
 const expectedKeys = ['consumer', 'field', 'item', 'value'];
