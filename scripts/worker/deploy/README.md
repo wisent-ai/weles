@@ -281,7 +281,11 @@ The model identity item must contain exact `id=weles`. `callJeden` maps its
 startup fields only in the child environment to `STADO_MODEL_ROUTER_TOKEN`,
 `WISENT_APP_AGENT_ID`, and `WISENT_APP_AGENT_AUTH_SECRET`. Ambient provider keys
 and ambient child credential names are not inherited. The only accepted Weles
-agent alias is `weles/agent/primary`.
+agent alias is `-best`, Brama's subscription route: the agent's HMAC identity
+selects the subscription that pays. Every other Brama alias is bound to a
+provider Brama holds a direct credential for, so `-best` is the only alias that
+reaches a subscription-funded model, and it keeps Weles independent of whether
+any local GPU deployment is up.
 
 Apple password login is disabled unless an operator first issues a one-attempt
 authorization with `scripts/auth/authorize-apple-login.mjs`. The worker needs
