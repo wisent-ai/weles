@@ -17,6 +17,11 @@ const SERVICE_CONTRACTS = Object.freeze({
   // would sign into a different Google account and mint a credential for the
   // wrong subscription.
   claudeControlYourAi: Object.freeze({ consumer: 'weles-claude-controlyourai-client', item: 'claude_controlyourai', fields: LOGIN_FIELDS }),
+  // The account the fleet names claude-wisent-google-sso: the three live claude
+  // subscriptions were minted by it, and its login lives in its own vault item.
+  // Same field shape as the item above, which is the shape the entitlement
+  // catalogue grants for a claude login (username, password).
+  claudeWisentGoogleSso: Object.freeze({ consumer: 'weles-claude-wisent-google-sso-client', item: 'claude-wisent-google-sso', fields: LOGIN_FIELDS }),
   googleWorkspaceAdmin: Object.freeze({ consumer: 'weles-google-workspace-admin-client', item: 'weles-google-workspace-admin-login', fields: LOGIN_WITH_TOTP_FIELDS }),
   brightdataDashboard: Object.freeze({ consumer: 'weles-brightdata-dashboard-client', item: 'weles-brightdata-dashboard-login', fields: LOGIN_WITH_TOTP_FIELDS }),
   oxylabsDashboard: Object.freeze({ consumer: 'weles-oxylabs-dashboard-client', item: 'weles-oxylabs-dashboard-login', fields: LOGIN_WITH_TOTP_FIELDS }),
