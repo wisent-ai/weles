@@ -161,7 +161,11 @@ const SERVICE_LOGIN_CONTRACTS: Readonly<Record<string, ServiceLoginContract>> = 
   'bright data': { service: 'brightdataDashboard', loginMethod: 'google_sso' },
   umami: { service: 'umamiDashboard', loginMethod: 'email_password' },
   'google analytics': { service: 'googleSso', loginMethod: 'google_sso' },
-  claude: { service: 'googleSso', loginMethod: 'google_sso' },
+  // display_name 'Claude' is the vault's claude-wisent-google-sso account (see
+  // LOGIN_ACCOUNTS in ./login-accounts.ts). Its login is read from that item
+  // directly: the credential store holds no row for it, and copying the secret
+  // into one would create a second source of truth for the same password.
+  claude: { service: 'claudeWisentGoogleSso', loginMethod: 'google_sso' },
   // The pool row carries the account in its name, and its credentials live in
   // their own vault item rather than the shared Google SSO one.
   claude_controlyourai: { service: 'claudeControlYourAi', loginMethod: 'google_sso' },
