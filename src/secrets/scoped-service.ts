@@ -342,9 +342,13 @@ function readAcquiredField(
   const helper = process.env.SKARBIEC_WELES_READER_ACQUIRE_COMMAND?.trim()
     || deployedFile('skarbiec-acquire.mjs');
   const scopeFile = acquisitionScopesFile(tenantId);
+  // Which authority this read is aimed at, named here so a refusal can say it: the
+  // fleet runs more than one, and the fifth declaration-versus-world defect of the
+  // day was a launcher exporting an authority URL nobody serves.
+  const endpoint = skarbiecEndpoint(tenantId);
   const result = spawnSync(process.execPath, [
     helper,
-    skarbiecEndpoint(tenantId),
+    endpoint,
     scopeFile,
     consumer,
     item,
@@ -375,6 +379,7 @@ function readAcquiredField(
         .slice(Number('0'), Number('600'));
       throw new Error(
         `workload-bound Skarbiec acquisition failed for ${item}/${field} as consumer ${consumer}`
+        + ` against ${endpoint}`
         + `${diagnosis ? `: ${diagnosis}` : `: helper exited ${result.status ?? 'without status'} with no diagnosis`}`,
       );
     }

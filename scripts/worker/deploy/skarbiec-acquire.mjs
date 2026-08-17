@@ -109,7 +109,7 @@ async function refusal(stage, response, consumer, item, field) {
     detail = '<body unreadable>';
   }
   return new Error(
-    `Skarbiec ${stage} refused ${consumer} for ${item}#${field}: HTTP ${response.status}`
+    `Skarbiec ${stage} at ${endpoint.origin} refused ${consumer} for ${item}#${field}: HTTP ${response.status}`
     + `${detail ? ` ${detail}` : ''}`
     // The issue call carries no bearer: the authority authorizes the tuple
     // (X-Consumer, item, field, workload_id, timestamp, nonce, Ed25519 signature).
@@ -134,11 +134,23 @@ const commonHeaders = {
   'Content-Type': 'application/json',
   'X-Consumer': consumer,
 };
-const issueResponse = await fetch(new URL('/v1/acquisitions', endpoint), {
-  method: 'POST',
-  headers: commonHeaders,
-  body: issueBody,
-});
+// A dead endpoint and a refusing endpoint are different faults and were reported
+// the same way: the launcher can export an authority nobody serves, and the caller
+// then read "unauthorized" from whichever other authority answered, or an opaque
+// fetch error. Name the endpoint and the reason it could not be reached.
+async function post(path, headers, payload) {
+  const target = new URL(path, endpoint);
+  try {
+    return await fetch(target, { method: 'POST', headers, body: payload });
+  } catch (cause) {
+    throw new Error(
+      `Skarbiec at ${endpoint.origin} is unreachable for ${consumer} on ${item}#${field}`
+      + ` (${path}): ${cause?.cause?.code ?? cause?.code ?? cause?.message ?? 'connection failed'}`,
+    );
+  }
+}
+
+const issueResponse = await post('/v1/acquisitions', commonHeaders, issueBody);
 if (!issueResponse.ok) {
   throw await refusal('acquisition issue', issueResponse, consumer, item, field);
 }
@@ -151,11 +163,11 @@ if (!issued || issued.consumer !== consumer || issued.item !== item || issued.fi
   throw new Error('Skarbiec returned an invalid field-bound acquisition bearer');
 }
 
-const readResponse = await fetch(new URL('/v1/acquisitions/read', endpoint), {
-  method: 'POST',
-  headers: { ...commonHeaders, Authorization: `Bearer ${issued.token}` },
+const readResponse = await post(
+  '/v1/acquisitions/read',
+  { ...commonHeaders, Authorization: `Bearer ${issued.token}` },
   body,
-});
+);
 if (!readResponse.ok) {
   throw await refusal('one-time read', readResponse, consumer, item, field);
 }
