@@ -283,6 +283,21 @@ function readScopedField(
     output.fill(Number('0'));
   }
 }
+// A deploy-side file of THIS revision. The scope table and the code that checks
+// against it are one declaration split across two files, so they must come from one
+// tree: the previous default resolved them under ~/weles, which is a symlink into
+// whichever release is currently activated, while the trajectory itself ran from a
+// different checkout. Updating the table in the checkout that runs therefore left the
+// activated release's older table in force, and the read failed on the helper's own
+// scope check with "undeclared Skarbiec acquisition scope" while the authority was
+// never even asked (observed 2026-08-17 for claude-wisent-google-sso/username; the
+// host carried copies with 4, 2 and 0 claude lines). Resolving relative to this
+// module keeps the table and its reader in the same revision by construction; the
+// two environment variables still override for deployments that relocate them.
+function deployedFile(name: string): string {
+  return join(__dirname, '..', '..', 'scripts', 'worker', 'deploy', name);
+}
+
 function acquisitionScopesFile(tenantId?: string | null): string {
   if (tenantId) {
     return checkedTenantFile(
@@ -291,7 +306,7 @@ function acquisitionScopesFile(tenantId?: string | null): string {
     );
   }
   return process.env.SKARBIEC_WELES_ACQUISITION_SCOPES_FILE?.trim()
-    || join(homedir(), 'weles', 'scripts', 'worker', 'deploy', 'skarbiec-acquisition-scopes.conf');
+    || deployedFile('skarbiec-acquisition-scopes.conf');
 }
 
 export function hasWelesManagedCredentialReader(
@@ -325,7 +340,7 @@ function readAcquiredField(
   if (!workloadId || !signingKeyFile) return undefined;
   const consumer = `${consumerBase}-${field}`;
   const helper = process.env.SKARBIEC_WELES_READER_ACQUIRE_COMMAND?.trim()
-    || join(homedir(), 'weles', 'scripts', 'worker', 'deploy', 'skarbiec-acquire.mjs');
+    || deployedFile('skarbiec-acquire.mjs');
   const scopeFile = acquisitionScopesFile(tenantId);
   const result = spawnSync(process.execPath, [
     helper,

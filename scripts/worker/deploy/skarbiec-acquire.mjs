@@ -31,7 +31,13 @@ if (!scopeKeys.length || new Set(scopeKeys).size !== scopeKeys.length) {
   throw new Error('Skarbiec bootstrap scope catalog must be nonempty and duplicate-free');
 }
 if (!scopeKeys.includes([consumer, item, field].join('|'))) {
-  throw new Error(`undeclared Skarbiec acquisition scope for ${consumer}`);
+  // Name the table that was read and how big it is: this refusal is produced
+  // before the authority is contacted, so when it fires the interesting fact is
+  // WHICH copy of the catalogue is in force, not the grant.
+  throw new Error(
+    `undeclared Skarbiec acquisition scope for ${consumer} on ${item}#${field}`
+    + ` in ${scopeFile} (${scopeKeys.length} declared scopes)`,
+  );
 }
 
 const endpoint = new URL(endpointText);
