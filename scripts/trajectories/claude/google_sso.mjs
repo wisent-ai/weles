@@ -299,7 +299,7 @@ const GIS_VARIANT_PRIORITY = [
   'google_chooser_without_account',
   'google_identifier',
   'google_password',
-  'google_scope_consent',
+  'google_confirm_continue',
   'google_challenge',
   'google_other',
   'claude_gis_gate',
@@ -324,61 +324,112 @@ export function gisVariantRank(variant) {
 // live run uses — this surface is diagnosed from recorded DOM, so the reading of
 // that DOM must not be a second implementation.
 export const readGisState = (arg) => {
-  const centre = (el) => {
-    const r = el.getBoundingClientRect();
-    return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
-  };
+  const rect = (el) => el.getBoundingClientRect();
   const shown = (el) => {
-    const r = el.getBoundingClientRect();
+    const r = rect(el);
     return r.width >= arg.minBox && r.height >= arg.minBox;
   };
   const live = (el) => !(el.disabled
     || el.getAttribute('aria-disabled') === 'true'
     || el.getAttribute('disabled') !== null);
-  const pick = (selector, re) => {
+  const label = (el) => (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+  // Tag the element the state machine will act on, so the click re-finds exactly
+  // this element (after scrolling it into view) instead of trusting a coordinate
+  // read one poll earlier. Tags from the previous poll are cleared first.
+  for (const stale of Array.from(document.querySelectorAll('[data-weles-gis]'))) stale.removeAttribute('data-weles-gis');
+  const point = (el, kind) => {
+    el.setAttribute('data-weles-gis', kind);
+    const r = rect(el);
+    return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+  };
+  const pick = (selector, kind, re) => {
     for (const el of Array.from(document.querySelectorAll(selector))) {
       if (!shown(el) || !live(el)) continue;
-      if (re && !re.test((el.innerText || el.textContent || '').trim())) continue;
-      return centre(el);
+      if (re && !re.test(label(el))) continue;
+      return point(el, kind);
     }
     return null;
   };
 
-  // The account row is a div[role=link] carrying data-identifier="<email>"
-  // (proven by the recorded chooser document); the label beside it is not
-  // usable, the page renders in the account's own language.
-  const rows = Array.from(document.querySelectorAll('[role="link"][jsname], [data-identifier]'))
-    .filter((el) => shown(el));
-  const identified = rows.filter((el) => el.getAttribute('data-identifier'));
-  const mine = identified.find((el) => el.getAttribute('data-identifier') === arg.email)
-    // Fallback for a chooser that renders the address as text only.
-    || rows.find((el) => (el.innerText || el.textContent || '').includes(arg.email));
-  const others = rows.filter((el) => el !== mine && !el.getAttribute('data-identifier'));
+  // A selectable account row is an element carrying data-identifier="<email>"
+  // (proven by the recorded chooser document). Elements that merely mention the
+  // address are NOT rows: on Google's "you will sign in to Claude again" screen
+  // the only such element is the switcher
+  // <div role="link" jsname="af8ijd" aria-label="Wybrane konto: <email>. Przełącz konto">,
+  // and treating it as a row made the step click "switch account" once per
+  // debounce window for the whole deadline (run cbf8fb03, 2026-08-17T20:48Z).
+  const rows = Array.from(document.querySelectorAll('[data-identifier]')).filter((el) => shown(el));
+  const wanted = (arg.email || '').trim().toLowerCase();
+  const mine = wanted
+    ? rows.find((el) => (el.getAttribute('data-identifier') || '').trim().toLowerCase() === wanted)
+    : null;
+  // With no identifier to match and a single row offered, that row is the only
+  // thing it could be. Several rows and no match is never a guess.
+  const soleRow = !mine && rows.length === 1 ? rows[0] : null;
+  const others = rows.filter((el) => el !== mine);
 
-  return {
+  // Google's affirmative control. Wording first, because that is the only thing
+  // that separates it from "Anuluj"/"Cancel" beside it (both are
+  // button[jsname="LgbsSe"] with identical classes on the confirm screen), and a
+  // negative label is never clicked. #submit_approve_access is Google's own id on
+  // the older scope screen and wins when present.
+  const affirmative = /^(continue|next|allow|confirm|agree|i agree|kontynuuj|dalej|zezwól|potwierdź|zgadzam się)$/i;
+  const negative = /^(cancel|back|not now|no thanks|deny|anuluj|wstecz|nie teraz|odmów)$/i;
+  const affirmativeButton = () => {
+    const structural = pick('#submit_approve_access button, #submit_approve_access, [data-primary-action-label] button', 'primary');
+    if (structural) return structural;
+    const buttons = Array.from(document.querySelectorAll('button, [role="button"]'))
+      .filter((el) => shown(el) && live(el) && !negative.test(label(el)));
+    const named = buttons.find((el) => affirmative.test(label(el)));
+    return named ? point(named, 'primary') : null;
+  };
+
+  const state = {
     ok: true,
     url: location.href.slice(0, arg.maxUrl),
     host: location.host,
     pathname: location.pathname,
     title: (document.title || '').slice(0, arg.maxTitle),
     rowCount: rows.length,
-    accountRow: mine ? centre(mine) : null,
-    otherAccountRow: others.length ? centre(others[0]) : null,
+    rowIdentifiers: rows.map((el) => (el.getAttribute('data-identifier') || '').slice(0, arg.maxTitle)),
+    accountRow: mine ? point(mine, 'account_row') : (soleRow ? point(soleRow, 'account_row') : null),
+    accountRowMatchedBy: mine ? 'data_identifier' : (soleRow ? 'sole_row' : null),
+    otherAccountRow: others.length ? point(others[0], 'other_account') : null,
     // claude.ai's own grant screen.
-    consent: pick('button,[role="button"]', /^(authorize|allow)$/i),
-    // Google's scope screen. Its primary control is identified structurally
-    // first (#submit_approve_access is Google's own id) and only then by
-    // wording, because the surface is localized.
-    googlePrimary: pick('#submit_approve_access button, #submit_approve_access, [data-primary-action-label] button')
-      || pick('button,[role="button"]', /^(continue|allow|confirm|next|kontynuuj|zezwól|potwierdź|dalej)$/i),
-    gisButton: pick('button,[role="button"]', /continue with google|^google$/i),
-    // The same identifier-field variants enterGoogleCredentials types into, so
-    // the state read and the action cannot disagree about which page this is.
+    consent: pick('button,[role="button"]', 'consent', /^(authorize|allow)$/i),
+    gisButton: pick('button,[role="button"]', 'gis_button', /continue with google|^google$/i),
     identifierField: Boolean(document.querySelector('input[type="text"][autocomplete*="username"], input#identifierId, input[name="identifier"], input[type="email"]')),
     passwordField: Boolean(document.querySelector('input[type="password"]')),
     bodyText: (document.body?.innerText || '').replace(/\s+/g, ' ').slice(0, arg.maxBody),
   };
+  // Only look for the affirmative button once no row is waiting to be picked:
+  // picking the account always precedes confirming it.
+  state.googlePrimary = state.accountRow ? null : affirmativeButton();
+  return state;
 };
+
+// Click the element the last probe tagged: scroll it into the middle of the
+// viewport, re-read its box there, refuse when something else owns that point,
+// and only then move the pointer onto it. The coordinate a probe read before a
+// scroll or a re-render is not where the affordance is now.
+async function clickGisTarget(page, kind) {
+  const spot = await navEval(page, (k) => {
+    const el = document.querySelector(`[data-weles-gis="${k}"]`);
+    if (!el) return null;
+    el.scrollIntoView({ block: 'center', inline: 'center' });
+    const r = el.getBoundingClientRect();
+    if (r.width < 1 || r.height < 1) return null;
+    const x = r.x + r.width / 2;
+    const y = r.y + r.height / 2;
+    const hit = document.elementFromPoint(x, y);
+    const reachable = Boolean(hit) && (hit === el || el.contains(hit) || hit.contains(el));
+    return { x, y, reachable, hit: hit ? `${hit.tagName}.${(hit.className || '').toString().slice(0, 40)}` : null };
+  }, null, kind);
+  if (!spot) return { clicked: false, reason: `no element tagged ${kind}` };
+  if (!spot.reachable) return { clicked: false, reason: `${kind} covered by ${spot.hit}` };
+  await humanClick(page, Math.round(spot.x), Math.round(spot.y));
+  return { clicked: true, reason: null };
+}
 
 // Read one live page through that probe. A navigation mid-read means "not ready,
 // look again", which navEval already turns into the null default.
@@ -409,7 +460,13 @@ export function classifyGisState(st) {
     // this step does not drive — it is named in the failure instead of guessed.
     if (st.identifierField) return 'google_identifier';
     if (st.passwordField) return 'google_password';
-    if (/\/signin\/(oauth|consent)|\/o\/oauth2\//.test(st.pathname) && st.googlePrimary) return 'google_scope_consent';
+    // Account already chosen, Google asking to confirm it: the state run cbf8fb03
+    // sat in for 300s. It is /v3/signin/accountchooser with NO data-identifier
+    // row at all, the heading "Zalogujesz się ponownie w usłudze Claude", the
+    // selected-account switcher, and "Anuluj"/"Dalej" — the affirmative button is
+    // the whole action. The older scope screen (/signin/oauth, /o/oauth2) is the
+    // same decision, so both resolve here.
+    if (st.googlePrimary) return 'google_confirm_continue';
     if (/\/signin\/(v2\/)?challenge/.test(st.pathname)) return 'google_challenge';
     return 'google_other';
   }
@@ -487,11 +544,21 @@ export async function doGoogleSso({
   let lastAction = { key: '', at: 0 };
   let gateSince = 0;
   let views = [];
+  // Why the last attempted click did not land, when it did not: an affordance
+  // that is present but unreachable (covered by a veil, moved by a re-render) is
+  // a different fault from an unrecognised page, and the failure has to say which.
+  let lastSkip = null;
   try {
     while (Date.now() < deadline) {
       views = [];
       for (const p of page.context().pages()) {
         if (p.isClosed()) continue;
+        // login.email is this account's own login field, resolved by
+        // getServiceLogin from the display name the caller's vault login item id
+        // selected, and it is the value Google puts in the row's data-identifier
+        // (proven: the recorded chooser row for Claude_controlyourai carries
+        // data-identifier="controlyourai@gmail.com"). That is what makes the row
+        // selectable by identity rather than by position or localized label.
         const st = await observeGisPage(p, login.email);
         views.push({ p, st, variant: classifyGisState(st) });
       }
@@ -518,7 +585,9 @@ export async function doGoogleSso({
         if (Date.now() - gateSince >= GIS_GATE_SETTLE_MS && fresh) {
           claim();
           mark('gis_click_continue');
-          await humanClick(active, Math.round(st.gisButton.x), Math.round(st.gisButton.y));
+          const hit = await clickGisTarget(active, 'gis_button');
+          if (!hit.clicked) console.log(`[google_sso] gate click skipped: ${hit.reason}`);
+          lastSkip = hit.clicked ? null : `${variant}: ${hit.reason}`;
           await humanIdlePause('deliberate');
         } else {
           await active.waitForTimeout(GIS_POLL_MS); // allow-raw-playwright: settle poll
@@ -537,7 +606,11 @@ export async function doGoogleSso({
       if (variant === 'google_account_chooser') {
         claim();
         mark('gis_account_chooser');
-        await humanClick(active, Math.round(st.accountRow.x), Math.round(st.accountRow.y));
+        // Which row, and why that row: an exact data-identifier match, or the
+        // single row a chooser offered when no identifier is known.
+        console.log(`[google_sso] selecting account row by ${st.accountRowMatchedBy} (${st.rowIdentifiers.join(', ')})`);
+        const hit = await clickGisTarget(active, 'account_row');
+        lastSkip = hit.clicked ? null : `${variant}: ${hit.reason}`;
         await humanIdlePause('long');
         continue;
       }
@@ -549,7 +622,8 @@ export async function doGoogleSso({
         if (!st.otherAccountRow) { await active.waitForTimeout(GIS_POLL_MS); continue; } // allow-raw-playwright: state poll
         claim();
         mark('gis_use_another_account');
-        await humanClick(active, Math.round(st.otherAccountRow.x), Math.round(st.otherAccountRow.y));
+        const hit = await clickGisTarget(active, 'other_account');
+        lastSkip = hit.clicked ? null : `${variant}: ${hit.reason}`;
         await humanIdlePause('long');
         continue;
       }
@@ -568,10 +642,11 @@ export async function doGoogleSso({
         continue;
       }
 
-      if (variant === 'google_scope_consent') {
+      if (variant === 'google_confirm_continue') {
         claim();
-        mark('gis_scope_consent');
-        await humanClick(active, Math.round(st.googlePrimary.x), Math.round(st.googlePrimary.y));
+        mark('gis_confirm_continue');
+        const hit = await clickGisTarget(active, 'primary');
+        lastSkip = hit.clicked ? null : `${variant}: ${hit.reason}`;
         await humanIdlePause('long');
         continue;
       }
@@ -579,7 +654,8 @@ export async function doGoogleSso({
       if (variant === 'oauth_consent') {
         claim();
         mark('oauth_consent_click');
-        await humanClick(active, Math.round(st.consent.x), Math.round(st.consent.y));
+        const hit = await clickGisTarget(active, 'consent');
+        lastSkip = hit.clicked ? null : `${variant}: ${hit.reason}`;
         // The SPA POSTs /v1/oauth/.../authorize (slow in headless, renders a
         // spinner) and then redirects to platform.claude.com. That redirect is
         // just another state this same loop observes, so there is no separate
@@ -599,7 +675,8 @@ export async function doGoogleSso({
     const dump = await dumpGisFailureDom(views, variant);
     const where = stuck?.st ? `${stuck.st.host}${stuck.st.pathname} title="${stuck.st.title}"` : 'no live page';
     const evidence = dump.written.map((w) => w.path).join(', ') || dump.indexPath;
-    throw new Error(`gis_continue: unhandled variant '${variant}' at ${where} after ${Math.round(GIS_DEADLINE_MS / 1000)}s; live pages=${views.map((v) => v.variant).join('+') || 'none'}; DOM snapshot: ${evidence}`);
+    const rows = stuck?.st?.rowIdentifiers?.length ? ` rows=[${stuck.st.rowIdentifiers.join(', ')}]` : '';
+    throw new Error(`gis_continue: unhandled variant '${variant}' at ${where}${rows} after ${Math.round(GIS_DEADLINE_MS / 1000)}s; live pages=${views.map((v) => v.variant).join('+') || 'none'}${lastSkip ? `; last click not delivered — ${lastSkip}` : ''}; DOM snapshot: ${evidence}`);
   } finally {
     page.context().off('page', onPopup);
   }
