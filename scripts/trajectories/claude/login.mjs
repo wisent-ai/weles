@@ -24,11 +24,12 @@
 // Run: node scripts/trajectories/claude/login.mjs
 import { spawn as ptySpawn } from 'node-pty';
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, symlinkSync, rmSync, existsSync, writeFileSync } from 'node:fs';
+import { mkdirSync, symlinkSync, rmSync, existsSync, writeFileSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { getServiceLogin } from '../../../dist/utils/credentials.js';
 import { selectLoginAccount } from '../../../dist/utils/login-accounts.js';
+import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
 import { WSession } from '../../../dist/session/wsession.js';
 import { humanIdlePause, humanClickLocator } from '../../../dist/human/mouse.js';
 import { humanFill, humanType } from '../../../dist/human/keyboard.js';
@@ -153,9 +154,18 @@ function spawnAuthLogin() {
   return { proc, getOut, writeCode };
 }
 
-// macOS Keychain "Claude Code-credentials" — where the auth flow
-// writes the full refreshable claudeAiOauth blob.
+// Where `claude auth login --claudeai` leaves the refreshable claudeAiOauth blob.
+// TWO stores exist and the CLI decides which one it uses. Claude Code 2.1.144 on
+// charless-mac-mini wrote ~/.claude/.credentials.json (mode 0600, keys
+// claudeAiOauth/{accessToken,refreshToken,expiresAt,subscriptionType,rateLimitTier})
+// at 14:17:05 while its PTY printed "Login successful.", and
+// `security find-generic-password -s 'Claude Code-credentials'` answered "could
+// not be found" without any prompt (a nonexistent-service probe exits 44, so the
+// keychain was reachable and simply had no item). Watching only the keychain is
+// what produced "did not update within 180s" on a login that had already
+// succeeded. Both stores are read, and whichever one changes is the answer.
 const KC_SVC = 'Claude Code-credentials';
+const CRED_FILE = join(process.env.CLAUDE_CONFIG_DIR || join(HOME, '.claude'), '.credentials.json');
 // Bound every `security` call. If the login keychain auto-locks mid-run,
 // `security` blocks on a GUI unlock prompt that never returns in the headless
 // launchd session — that indefinite block (observed: ~3 poll lines then a
@@ -174,13 +184,54 @@ function writeKC(payload) {
 function deleteKC() {
   try { execFileSync('security', ['delete-generic-password', '-s', KC_SVC], { stdio: 'ignore', timeout: KC_WRITE_MS }); } catch {}
 }
-async function waitForKCChange(prev, maxSec) {
+function readCredFile() {
+  try {
+    const raw = readFileSync(CRED_FILE, 'utf8').trim();
+    return raw && raw.includes('claudeAiOauth') ? raw : null;
+  } catch { return null; }
+}
+function writeCredFile(payload) {
+  mkdirSync(dirname(CRED_FILE), { recursive: true });
+  // 0600: the same mode the CLI writes it with. A donated subscription blob must
+  // not become readable to another local account because we restored it.
+  writeFileSync(CRED_FILE, payload, { mode: 0o600 });
+}
+function deleteCredFile() {
+  try { rmSync(CRED_FILE, { force: true }); } catch { /* nothing to restore to */ }
+}
+// Snapshot of both stores, so "changed" is decided per store.
+function readCredentialStores() {
+  return { keychain: readKC(), file: readCredFile() };
+}
+async function waitForCredentialChange(prev, maxSec) {
   for (let i = 0; i < maxSec * 2; i += 1) {
-    const cur = readKC();
-    if (cur && cur !== prev) return cur;
+    const cur = readCredentialStores();
+    if (cur.file && cur.file !== prev.file) return { payload: cur.file, source: `file ${CRED_FILE}` };
+    if (cur.keychain && cur.keychain !== prev.keychain) return { payload: cur.keychain, source: `keychain "${KC_SVC}"` };
     await new Promise((r) => setTimeout(r, 500));
   }
-  throw new Error(`auth login: Keychain "${KC_SVC}" did not update within ${maxSec}s`);
+  throw new Error(`auth login: neither the keychain "${KC_SVC}" nor ${CRED_FILE} gained a claudeAiOauth blob within ${maxSec}s`);
+}
+
+// The PTY buffer is the only witness to what `claude auth login` did with the
+// code, and reporting its byte count threw that witness away: the 573-byte buffer
+// of the 2026-08-17 21:20Z run read "Paste code here if prompted > Login
+// successful.", which is what proved the CLI had succeeded and the watcher was
+// looking at the wrong store. It is written beside the run's DOM snapshots,
+// owner-only, with the single-use code redacted if the terminal echoed it.
+function dumpPtyBuffer(full, code) {
+  const dir = runRecordingsDir(process.env.ACTION || 'claude_login');
+  const path = join(dir, `authlogin_pty_${new Date().toISOString().replace(/[:.]/g, '-')}.log`);
+  let text = String(full ?? '');
+  if (code) text = text.split(code).join('<CODE-REDACTED>');
+  // Any other <code>#<state> pair the CLI printed goes the same way.
+  text = text.replace(/[A-Za-z0-9_-]{20,}#[A-Za-z0-9_-]{6,}/g, '<CODE-REDACTED>');
+  try {
+    writeFileSync(path, text, { mode: 0o600 });
+    return path;
+  } catch (e) {
+    return `unwritable (${e.message.slice(0, 80)})`;
+  }
 }
 
 // Wait until `re` matches the typescript <out>, return match[0].
@@ -200,9 +251,10 @@ if (login.loginMethod !== 'google_sso') {
   process.exit(1);
 }
 
-// 1. Save the operator's existing Keychain blob (if any) so we can
-//    restore it after donation — `claude auth login` overwrites it.
-const PRIOR_KC = readKC();
+// 1. Save the operator's existing credential in BOTH stores (either may be
+//    absent) so we can restore it after donation — `claude auth login`
+//    overwrites whichever one it uses, and on this host that is the file.
+const PRIOR_CRED = readCredentialStores();
 
 // 2. Spawn `claude auth login --claudeai`; capture the authorize URL.
 let proc; let getOut; let writeCode; let authorizeUrl;
@@ -274,34 +326,36 @@ try {
   writeFileSync(join(VAR, 'authlogin-code.shape'), codeShape);
   await writeCode(code);
 
-  // 4. auth login writes the full refreshable blob to the Keychain.
-  //    Poll until the Keychain entry differs from PRIOR_KC (or appears
-  //    when there was none). Dump the full PTY buffer on failure.
-  let newKC;
+  // 4. auth login writes the full refreshable blob to whichever store it uses.
+  //    Poll both until one differs from its prior value. On failure the PTY
+  //    buffer is the only witness to what the CLI did with the code, so it is
+  //    kept with the run's other artifacts and named in the failure line.
+  let minted;
   try {
-    newKC = await waitForKCChange(PRIOR_KC, 180);
+    minted = await waitForCredentialChange(PRIOR_CRED, 180);
   } catch (e) {
-    const full = getOut();
-    writeFileSync(join(VAR, 'authlogin-pty-full.dump'), full);
-    process.stderr.write(`FAIL: ${e.message}; codeShape=${codeShape}; pty_full_bytes=${full.length}\n`);
+    const ptyLog = dumpPtyBuffer(getOut(), code);
+    process.stderr.write(`FAIL: ${e.message}; codeShape=${codeShape}; pty transcript: ${ptyLog}\n`);
     try { proc.kill(); } catch {}
     await shutdown(1);
     process.exit(1);
   }
   try { proc.kill(); } catch {}
 
-  // 5. Restore the prior Keychain blob so the operator's own session
-  //    is unaffected by the donation — `claude auth login` overwrote
-  //    their entry in step 4. Always done, even when the prior state
-  //    was no entry (delete in that case).
-  if (PRIOR_KC) writeKC(PRIOR_KC);
+  // 5. Restore the operator's prior credential in both stores so this donation
+  //    leaves their own Claude Code login as it was. Always done, including when
+  //    the prior state was "absent" (delete in that case).
+  if (PRIOR_CRED.keychain) writeKC(PRIOR_CRED.keychain);
   else deleteKC();
+  if (PRIOR_CRED.file) writeCredFile(PRIOR_CRED.file);
+  else deleteCredFile();
 
   // 6. Emit the captured blob verbatim — it already has the full
   //    {claudeAiOauth: {accessToken, refreshToken, expiresAt, scopes,
   //    subscriptionType, ...}} shape reauth.mjs donates.
   console.log('[claude-login] auth login produced refreshable blob');
-  process.stdout.write(`${newKC}\n`);
+  process.stderr.write(`CREDENTIAL_SOURCE ${minted.source}\n`);
+  process.stdout.write(`${minted.payload}\n`);
   // Blob emitted. Exit now: the PTY child + browser session keep the event loop
   // alive, so the process never exits, reauth's 'close' never fires, and its
   // 720s killer rejects despite the blob already being in stdout.
@@ -310,7 +364,8 @@ try {
   process.exit(0);
 } catch (e) {
   try { proc.kill(); } catch {}
-  if (PRIOR_KC) { try { writeKC(PRIOR_KC); } catch {} }
+  if (PRIOR_CRED.keychain) { try { writeKC(PRIOR_CRED.keychain); } catch {} }
+  if (PRIOR_CRED.file) { try { writeCredFile(PRIOR_CRED.file); } catch {} }
   process.stderr.write(`FAIL: ${e.message}\n`);
   await shutdown(1);
 } finally {
