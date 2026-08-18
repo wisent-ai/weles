@@ -23,6 +23,7 @@ TARGET_VAULT = pathlib.Path(os.environ.get("TARGET_VAULT", HOME / ".stado/weles-
 WORKLOAD_KEY = pathlib.Path(
     os.environ.get("WELES_WORKLOAD_PUBLIC_KEY_FILE", HOME / ".stado/weles-credential-workload-public.pem")
 )
+RUNTIME_PATH = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 
 SEATS = (
     ("codex-lukasz-google-sso", "weles-codex-lukasz-gmail-client", "Codex_lukasz_gmail", "lukasz.bartoszcze@gmail.com"),
@@ -66,7 +67,11 @@ def skarbiec_binary() -> pathlib.Path:
 
 
 def run_skarbiec(binary: pathlib.Path, vault: pathlib.Path, arguments: list[str], *, stdin: str | None = None) -> str:
-    environment = {**os.environ, "SKARBIEC_VAULT_FILE": str(vault)}
+    environment = {
+        **os.environ,
+        "PATH": RUNTIME_PATH,
+        "SKARBIEC_VAULT_FILE": str(vault),
+    }
     result = subprocess.run(
         [str(binary), *arguments],
         input=stdin,
