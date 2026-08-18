@@ -5,13 +5,25 @@ import { runRecordingsDir } from '../session/run-recordings.js';
 
 // `best` is Brama's subscription route: the agent's HMAC identity selects the
 // subscription that pays. Drafting browser trajectories needs a frontier
-// instruction-following model, and every other Brama alias is bound to a
-// provider Brama holds a direct credential for, so `best` is the only alias
-// that reaches a subscription-funded model. It also removes the dependency on
-// a local deployment being up: `weles/agent/primary` resolved to the
-// `chat-primary` GPU host, so Weles stopped working whenever that box did.
+// instruction-following model, so `best` stays the first choice.
+//
+// It cannot be the only choice. When both credentials in that subscription pool
+// burnt, every browser job died on `429 subscription_unavailable` -- and the
+// provider login that would renew the pool is itself a browser job, so nothing
+// could recover without an operator. `weles/agent/primary` is the second route
+// Brama grants this client; it answers from a deployment Brama holds a direct
+// credential for, which is exactly what a burnt subscription needs.
 const WELES_AGENT_MODEL = 'best';
+const WELES_AGENT_FALLBACK_MODEL = 'weles/agent/primary';
 const WELES_AGENT_ID = 'weles';
+
+/// A refusal that another alias could still serve: the pool this alias draws
+/// on is empty or throttled, not the request malformed or the client unknown.
+function isSubscriptionExhausted(message: string): boolean {
+  return message.includes('subscription_unavailable')
+    || message.includes('capacity_error')
+    || message.includes('model router 429');
+}
 
 type ModelRouterConfig = {
   routerUrl: string;
@@ -49,8 +61,10 @@ function exactCredential(name: string): string | null {
 }
 
 function canonicalModel(value: string): string {
-  if (value !== WELES_AGENT_MODEL) {
-    throw new Error(`WELES_AGENT_MODEL must be the exact supported Brama alias ${WELES_AGENT_MODEL}`);
+  if (value !== WELES_AGENT_MODEL && value !== WELES_AGENT_FALLBACK_MODEL) {
+    throw new Error(
+      `WELES_AGENT_MODEL must be one of the supported Brama aliases ${WELES_AGENT_MODEL}, ${WELES_AGENT_FALLBACK_MODEL}`,
+    );
   }
   return value;
 }
@@ -155,18 +169,21 @@ export async function callJeden(prompt: string, options: JedenCallOptions = {}):
   const sessionRoot = nonEmpty(process.env.WELES_JEDEN_SESSION_ROOT)
     ?? join(runRecordingsDir('jeden'), 'sessions');
   mkdirSync(sessionRoot, { recursive: true });
-  const args = [
-    'run',
-    prompt,
-    '--json',
-    '--model',
-    cfg.model,
-    '--max-steps',
-    String(options.maxSteps ?? 1),
-    '--cwd',
-    process.cwd(),
-  ];
-  if (options.modelOnly !== false) args.splice(3, 0, '--model-only');
+  const argsFor = (model: string): string[] => {
+    const built = [
+      'run',
+      prompt,
+      '--json',
+      '--model',
+      model,
+      '--max-steps',
+      String(options.maxSteps ?? 1),
+      '--cwd',
+      process.cwd(),
+    ];
+    if (options.modelOnly !== false) built.splice(3, 0, '--model-only');
+    return built;
+  };
   // Give the child only process mechanics plus the dedicated Brama
   // model-routing capability. Browser-session, provider, and sibling Stado
   // credentials must never become ambient CLI environment.
@@ -188,7 +205,7 @@ export async function callJeden(prompt: string, options: JedenCallOptions = {}):
     const value = process.env[envName];
     if (value) jedenEnv[envName] = value;
   }
-  const { stdout } = await runJedenProcess(binary, args, {
+  const childEnv = {
     ...jedenEnv,
     STADO_MODEL_ROUTER_URL: cfg.routerUrl,
     STADO_MODEL_ROUTER_TOKEN: cfg.routerToken,
@@ -197,16 +214,43 @@ export async function callJeden(prompt: string, options: JedenCallOptions = {}):
     WISENT_APP_AGENT_ID: cfg.agentId,
     WISENT_APP_AGENT_AUTH_SECRET: cfg.agentAuthSecret,
     JEDEN_SESSION_ROOT: sessionRoot,
-  }, timeoutMs);
-  let envelope: { ok?: boolean; text?: unknown; originalError?: unknown };
-  try {
-    envelope = JSON.parse(stdout) as typeof envelope;
-  } catch {
-    throw new Error(`Jeden returned invalid JSON: ${stdout.trim().slice(0, 500)}`);
+  };
+  // The configured alias first, then the one Brama grants this client as a
+  // second route. Only an exhausted-pool refusal moves on: any other failure
+  // is reported as itself rather than retried into a different model.
+  const attempts = cfg.model === WELES_AGENT_FALLBACK_MODEL
+    ? [cfg.model]
+    : [cfg.model, WELES_AGENT_FALLBACK_MODEL];
+  let lastError: Error | null = null;
+  for (const model of attempts) {
+    let stdout: string;
+    try {
+      ({ stdout } = await runJedenProcess(binary, argsFor(model), childEnv, timeoutMs));
+    } catch (error) {
+      const failure = error instanceof Error ? error : new Error(String(error));
+      lastError = failure;
+      if (model !== attempts[attempts.length - Number('1')] && isSubscriptionExhausted(failure.message)) {
+        continue;
+      }
+      throw failure;
+    }
+    let envelope: { ok?: boolean; text?: unknown; originalError?: unknown };
+    try {
+      envelope = JSON.parse(stdout) as typeof envelope;
+    } catch {
+      throw new Error(`Jeden returned invalid JSON: ${stdout.trim().slice(0, 500)}`);
+    }
+    const raw = typeof envelope.text === 'string' ? envelope.text.trim() : '';
+    if (envelope.ok !== true || !raw) {
+      const detail = JSON.stringify(envelope).slice(0, 500);
+      const failure = new Error(`Jeden returned no model output: ${detail}`);
+      lastError = failure;
+      if (model !== attempts[attempts.length - Number('1')] && isSubscriptionExhausted(detail)) {
+        continue;
+      }
+      throw failure;
+    }
+    return { raw, model, routerUrl: cfg.routerUrl };
   }
-  const raw = typeof envelope.text === 'string' ? envelope.text.trim() : '';
-  if (envelope.ok !== true || !raw) {
-    throw new Error(`Jeden returned no model output: ${JSON.stringify(envelope).slice(0, 500)}`);
-  }
-  return { raw, model: cfg.model, routerUrl: cfg.routerUrl };
+  throw lastError ?? new Error('Jeden produced no attempt');
 }
