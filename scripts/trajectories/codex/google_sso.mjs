@@ -61,6 +61,33 @@ async function clickUseAnotherAccount(page) {
   await humanClick(page, Math.round(hit.x), Math.round(hit.y));
 }
 
+async function clickVisibleText(page, pattern) {
+  const source = pattern.source;
+  let hit = null;
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    hit = await navEval(page, (patternSource) => {
+      const matcher = new RegExp(patternSource, 'i');
+      let best = null;
+      for (const element of Array.from(document.querySelectorAll('button,[role="button"],a,[role="link"],li,div,span'))) {
+        const text = (element.innerText || element.textContent || '').trim();
+        if (!text || text.length > 80 || !matcher.test(text)) continue;
+        const box = element.getBoundingClientRect();
+        if (box.width < 8 || box.height < 8) continue;
+        const area = box.width * box.height;
+        if (!best || area < best.area) {
+          best = { x: box.x + box.width / 2, y: box.y + box.height / 2, area, text: text.slice(0, 60) };
+        }
+      }
+      return best;
+    }, null, source);
+    if (hit) break;
+    await page.waitForTimeout(100);
+  }
+  if (!hit) throw new Error(`no visible control matching /${source}/i`);
+  await humanClick(page, Math.round(hit.x), Math.round(hit.y));
+  return hit.text;
+}
+
 // On a Google 2FA challenge, switch to the authenticator-app (TOTP) method:
 // click "Try another way", then the authenticator option. Returns true if a
 // method switch was performed, false if no method-chooser is present (e.g. the
@@ -306,14 +333,25 @@ async function enterGoogleCredentials({
   const gPwIn = page.locator('input[type="password"]').filter({ visible: true }).first();
   const blocked = page.getByText(/Couldn.?t sign you in|may not be secure/i).first();
   let sawPw = false;
-  for (let i = 0; i < 40; i += 1) {
+  let passkeyBypassed = false;
+  for (let i = 0; i < 80; i += 1) {
     if (await gPwIn.isVisible().catch(() => false)) { sawPw = true; break; }
     if (await blocked.isVisible().catch(() => false)) {
       const e = new Error('BROWSER_NOT_SECURE: Google blocked this exit at sign-in');
       e.code = 'BROWSER_NOT_SECURE';
       throw e;
     }
-    await page.waitForTimeout(500); // allow-raw-playwright: password-or-block poll, not a humanized action
+    const passkeyVisible = await navEval(page, () =>
+      /use your passkey|uzyj klucza dostepu/i.test(document.body?.innerText || ''), false);
+    if (passkeyVisible && !passkeyBypassed) {
+      passkeyBypassed = true;
+      await clickVisibleText(page, /try another way|wyprobuj inny sposob/i);
+      await page.waitForTimeout(800);
+      await clickVisibleText(page, /enter your password|use (?:your )?password|haslo/i);
+      await page.waitForTimeout(800);
+      continue;
+    }
+    await page.waitForTimeout(500);
   }
   if (!sawPw) throw new Error('google_password: neither password field nor block page appeared');
   await fillAndVerify(page, gPwIn, login.password, humanClickLocator, humanType);
