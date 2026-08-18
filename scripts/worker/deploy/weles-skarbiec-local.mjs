@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { lstatSync, readFileSync } from 'node:fs';
+import { homedir } from 'node:os';
 
 const WIRE_VERSION = 'skarbiec.credential-operation.v3';
 const ENTRA_PROVIDER = 'microsoft_entra';
@@ -14,6 +15,7 @@ const LOWER_UUID = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/;
 const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 const DIAGNOSTIC_CODE = /^[A-Z][A-Z0-9_]{0,63}$/;
 const CONTROL_CHARACTERS = /[\u0000-\u001f\u007f]+/g;
+const CODEX_LOGIN_ITEM = /^codex-[a-z0-9](?:[a-z0-9-]{0,100}[a-z0-9])?-google-sso$/;
 const PHASES = Object.freeze([
   'admission',
   'placement',
@@ -56,6 +58,64 @@ try {
 }
 if (!request || typeof request !== 'object' || Array.isArray(request)) {
   throw new Error('invalid Entra credential lifecycle request');
+}
+
+const isCodexReauth = request.provider === 'codex' && request.operation === 'reauth';
+if (isCodexReauth) {
+  if (request.version !== WIRE_VERSION
+      || !/^[a-f\d]{64}$/i.test(request.request_id ?? '')
+      || !CODEX_LOGIN_ITEM.test(request.credential_id ?? '')
+      || request.field !== 'password'
+      || request.account_email !== null
+      || request.directory !== null
+      || request.mode !== 'submit') {
+    throw new Error('invalid Codex subscription reauth request');
+  }
+  if (request.dry_run === true) {
+    process.stdout.write(`${JSON.stringify({
+      status: 'operation_plan',
+      operation: 'reauth',
+      provider: 'codex',
+      provider_effect: 'none',
+      message: `Weles would reauthenticate ${request.credential_id}`,
+    })}\n`);
+    process.exit(Number('0'));
+  }
+  // The worker's own launcher environment already holds this token. Reading it
+  // there keeps one source of truth; a copy in a second file would be a second
+  // credential to rotate and to get wrong.
+  const apiToken = welesApiToken();
+  const response = await fetch('http://127.0.0.1:8788/reauth', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      provider: 'codex',
+      login_item: request.credential_id,
+      timeout_ms: Number('900000'),
+    }),
+    signal: AbortSignal.timeout(Number('1200000')),
+  });
+  const answer = await response.json();
+  if (!response.ok || answer.ok !== true
+      || answer.login_item !== request.credential_id) {
+    throw new Error(
+      `Weles Codex reauth failed: HTTP ${response.status} `
+      + sanitizedText(answer.stderr_tail || answer.error || 'unknown failure', Number('512')),
+    );
+  }
+  process.stdout.write(`${JSON.stringify({
+    status: 'operation_completed',
+    operation: 'reauth',
+    provider: 'codex',
+    provider_effect: 'none',
+    rollback_status: 'none',
+    execution_host: homedir(),
+    message: `Weles reauthenticated ${request.credential_id}; Skarbiec verified the named subscription on status`,
+  })}\n`);
+  process.exit(Number('0'));
 }
 // The directory identity is the item's own contract, so the request carries the
 // whole canonical block or none of it, and nothing outside it names the identity.
@@ -119,6 +179,39 @@ function safeOwnedFile(path, label) {
       || (metadata.mode & Number.parseInt('077', Number('8'))) !== Number('0')) {
     throw new Error(`unsafe ${label}`);
   }
+}
+
+// The worker API bearer, read from the launcher's own owner-only environment
+// files in the order the launcher sources them: the later file wins, exactly as
+// the shell wrapper resolves it. Nothing is copied to a second location.
+function welesApiToken() {
+  const candidates = process.env.WELES_WORKER_ENV_FILES
+    ? process.env.WELES_WORKER_ENV_FILES.split(':').filter(Boolean)
+    : [
+      `${homedir()}/weles/var/worker-content.env`,
+      `${homedir()}/.config/weles/worker.env`,
+      `${homedir()}/.weles/secrets.env`,
+      `${homedir()}/.stado/weles-model.env`,
+    ];
+  let token = process.env.WELES_API_TOKEN?.trim() ?? '';
+  for (const path of candidates) {
+    let body;
+    try {
+      safeOwnedFile(path, 'Weles worker environment file');
+      body = readFileSync(path, 'utf8');
+    } catch {
+      continue;
+    }
+    for (const raw of body.split('\n')) {
+      const line = raw.trim();
+      if (!line.startsWith('WELES_API_TOKEN=')) continue;
+      token = line.slice('WELES_API_TOKEN='.length).trim().replace(/^["']|["']$/g, '');
+    }
+  }
+  if (!token || /[\r\n]/.test(token)) {
+    throw new Error('the Weles worker environment holds no usable WELES_API_TOKEN');
+  }
+  return token;
 }
 
 function sanitizedText(value, limit) {
