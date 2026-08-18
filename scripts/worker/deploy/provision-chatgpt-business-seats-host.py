@@ -15,6 +15,7 @@ import pathlib
 import subprocess
 import tempfile
 import urllib.parse
+import urllib.error
 import urllib.request
 
 HOME = pathlib.Path.home()
@@ -90,10 +91,18 @@ def upsert_selector_rows(environment: dict[str, str]) -> None:
     token = environment.get("WELES_DATABASE_TOKEN") or environment.get("SUPABASE_SERVICE_ROLE_KEY")
     if not base or not token:
         raise SystemExit("Weles database URL/token are absent from the launcher environment")
+    auth_headers = {
+        "apikey": token,
+        "Authorization": f"Bearer {token}",
+    }
+    # Existing human sign-in rows (`Claude_controlyourai`, Google SSO) use the
+    # schema's `auth` category. Provider/product names are display metadata, not
+    # new category values.
+    category = "auth"
     rows = [
         {
             "id": item,
-            "category": "ai_cli",
+            "category": category,
             "display_name": display_name,
             "login_method": "google_sso",
             "login_email": email,
@@ -113,8 +122,7 @@ def upsert_selector_rows(environment: dict[str, str]) -> None:
         data=json.dumps(rows).encode("utf-8"),
         method="POST",
         headers={
-            "apikey": token,
-            "Authorization": f"Bearer {token}",
+            **auth_headers,
             "Content-Type": "application/json",
             "Prefer": "resolution=merge-duplicates,return=minimal",
         },
@@ -123,6 +131,11 @@ def upsert_selector_rows(environment: dict[str, str]) -> None:
         with urllib.request.urlopen(request, timeout=30) as response:
             if response.status >= 300:
                 raise SystemExit(f"selector row upsert returned HTTP {response.status}")
+    except urllib.error.HTTPError as error:
+        detail = error.read().decode("utf-8", errors="replace").replace("\n", " ")[:600]
+        raise SystemExit(
+            f"cannot upsert Weles selector rows: HTTP {error.code}: {detail}"
+        ) from error
     except Exception as error:
         raise SystemExit(f"cannot upsert Weles selector rows: {error}") from error
     print(f"selector rows: {len(rows)}")
