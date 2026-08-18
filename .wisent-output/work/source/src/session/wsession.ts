@@ -1,0 +1,693 @@
+/**
+ * WSession — unified high-level API for weles browser automation.
+ * Every method uses shared modules. Agent tools map 1:1 to these methods.
+ */
+
+import { type BrowserContext, chromium } from 'playwright'; import { AsyncNewBrowser, type AsyncNewBrowserOptions } from '../async_api.js';
+import { type Persona, generatePersona } from '../browser/persona.js';
+import { SessionStore } from './store.js';
+import { Capture } from '../capture/capture.js';
+import { findClickTarget, askPage, checkPage, type ScreenshottablePage } from '../vision/analyze.js';
+import { humanClick, humanClickLocator } from '../human/mouse.js';
+import { humanType } from '../human/keyboard.js';
+import { selectOption } from '../human/select.js';
+import { waitCloudflare } from '../cloudflare/challenge.js';
+import { solvePageCaptcha } from '../captcha/detect.js';
+import { CaptchaSolver } from '../captcha/solver.js';
+import { generateIdentity as genId, type Identity } from '../utils/identity.js';
+import { markSignupSuccess } from '../utils/email/domain.js';
+import { snapshotSanitizedEnvironment } from '../utils/sanitize-env.js';
+import { getNumber, pollCode, type SmsNumber } from '../utils/sms.js';
+import { writeFileSync, mkdirSync, copyFileSync, existsSync, chmodSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { startInstrumentation } from './wsession-helpers/net_record.js';
+import { join } from 'node:path';
+import { userInfo } from 'node:os';
+import { resolveProxy } from '../proxy/config.js';
+import { seedHumanTiming } from '../utils/timing.js';
+import { getEmailApiKey } from '../utils/credentials.js';
+import { findCustomBrowser } from './find_browser.js';
+import { costTracker } from '../utils/cost.js';
+import { loadOperatorCdpConfig } from './operator-cdp.js';
+import { enforceWelesServicePlacement } from './service-placement.js';
+
+import { installAtoms } from './wsession_atoms.js';  // installAtoms() is invoked at file end after WSession is declared
+import { runRecordingsDir, runRecordingsRoot } from './run-recordings.js';
+import { wsClick, wsFill, wsFillCredential, wsFillIdentity } from './wsession-helpers/finalize.js';
+import { isSkarbiecCredentialTask, wsAutoStoreCredential, wsStoreCredential } from './wsession-helpers/credential-store.js';
+import type { CapabilityRef } from '../utils/capability.js';
+import { assertNonCredentialInput } from '../utils/capability.js';
+// G17: artifacts live under recordings/<run_uuid>/<label-or-action>/ — keyed by
+// the account_action_logs row id (ACTION_LOG_ID) so they map to the run 1:1.
+function recordingsDir(label?: string): string { return label ? runRecordingsDir(label) : runRecordingsRoot(); }
+
+// G2: effective behavior-changing env vars snapshotted at session start. The
+// list is intentionally generous — any flag that alters input path, browser
+// selection/registration, instrumentation, recording, diagnostics, LinkedIn
+// egress policy, or proxy-pool wiring. Reads process.env directly so the value
+// reflects the live process at session start; unset flags surface as undefined.
+const ENV_FLAG_KEYS = [
+  'WELES_INPUT', 'WELES_INSTANT_INPUT', 'WELES_REGISTER_BROWSER',
+  'WELES_ENABLE_CHROME147_STUBS', 'WELES_DISABLE_HTTP2',
+  'WELES_NO_INSTRUMENT', 'WELES_FULL_DIAGNOSTICS', 'WELES_PCAP_DIAGNOSTICS',
+  'WELES_DISABLE_RECORDING', 'WELES_ALLOW_LINKEDIN_DIRECT', 'WELES_ALLOW_LINKEDIN_RESIDENTIAL',
+  'WELES_ALLOW_LINKEDIN_UNDECLARED_PROXY', 'LINKEDIN_REGISTER_PREWARM_URLS',
+  'DECODO_ISP_PORTS', 'DECODO_ISP_PORT', 'DECODO_ISP_HOST',
+  'WELES_FORCE_PROXY',
+  'WELES_CAPTURE_RESPONSE_BODIES', 'WELES_HOST_DIAGNOSTICS', 'WELES_STORAGE_DIAGNOSTICS',
+  'WELES_CDP_DIAGNOSTICS', 'WELES_CDP_FIREHOSE', 'WELES_CHROMIUM_NETLOG',
+  'WELES_PROXY_DIAGNOSTICS_LABEL', 'WELES_NOPECHA_EXT', 'WELES_USER_DATA_DIR',
+  'WELES_BROWSER_PROFILE_ROOT', 'WELES_CACHE_DIR', 'WELES_CHROMIUM_PROFILE_DIRECTORY',
+  'WELES_USE_NATIVE_KEYCHAIN',
+] as const;
+function snapshotEnvFlags(): Record<string, string | undefined> {
+  const out: Record<string, string | undefined> = {};
+  for (const k of ENV_FLAG_KEYS) out[k] = process.env[k];
+  return out;
+}
+
+// Keep the complete runner key set for reproducibility, but never persist
+// passwords, tokens, capability identifiers, cookies, or credential URLs.
+function snapshotFullEnv(): Record<string, string> {
+  return snapshotSanitizedEnvironment();
+}
+
+export interface WSessionOptions {
+  label?: string;
+  proxy?: string;
+  chromiumPath?: string;
+  userDataDir?: string;
+  headless?: boolean;
+  record?: boolean;
+  operatorCdp?: boolean;
+  targetHost?: string;
+  os?: string;
+  locale?: string;
+  persona?: Persona;
+  browser?: string;
+  pageDiagnostics?: boolean;
+  userAgent?: string;
+  // When set, WSession.start auto-invokes generateIdentity(platform) and
+  // attaches the result to ws.identity. Register trajectories should pass
+  // their platform here instead of importing generateIdentity themselves.
+  platform?: string;
+}
+
+
+
+function redactProxyForLog(proxy: unknown): string {
+  if (!proxy) return 'undefined';
+  if (typeof proxy === 'string') {
+    try {
+      const u = new URL(proxy);
+      if (u.username) u.username = `${decodeURIComponent(u.username).slice(0, 18)}...`;
+      if (u.password) u.password = '***';
+      return u.toString();
+    } catch {
+      return '[proxy]';
+    }
+  }
+  if (typeof proxy === 'object') {
+    const p = proxy as { server?: string; username?: string; password?: string };
+    return JSON.stringify({
+      server: p.server,
+      username: p.username ? `${p.username.slice(0, 18)}...` : undefined,
+      password: p.password ? '***' : undefined,
+    });
+  }
+  return String(proxy);
+}
+
+function hashDiagnosticValue(value: unknown): string | null {
+  if (typeof value !== 'string' || value.length === 0) return null;
+  return createHash('sha256').update(value).digest('hex').slice(0, 16);
+}
+
+function countryHintFromProxyRequest(proxy: unknown): string | undefined {
+  if (typeof proxy !== 'string' || proxy.startsWith('http') || proxy.startsWith('socks')) return undefined;
+  const countryTokens = new Set(['us', 'uk', 'gb', 'br', 'de', 'fr', 'nl', 'ca', 'au']);
+  const tokens = proxy.toLowerCase().match(/\b[a-z]{2}\b/g) ?? [];
+  const cc = tokens.find(t => countryTokens.has(t));
+  return cc?.toUpperCase();
+}
+
+
+function shouldCaptureResponseBody(res: any): boolean {
+  try {
+    if (process.env.WELES_CAPTURE_RESPONSE_BODIES !== '1') return false;
+    const req = res.request?.();
+    const resourceType = req?.resourceType?.();
+    if (['image', 'media', 'font', 'stylesheet'].includes(resourceType)) return false;
+    const headers = res.headers?.() ?? {};
+    const contentType = String(headers['content-type'] ?? '').toLowerCase();
+    if (contentType && !/json|text|javascript|xml|html|x-www-form-urlencoded/.test(contentType)) return false;
+    const len = Number(headers['content-length'] ?? 0);
+    return !len || len <= 256 * 1024;
+  } catch {
+    return false;
+  }
+}
+
+const asV = (p: any) => p as unknown as ScreenshottablePage;
+
+export class WSession {
+  readonly page: any;
+  readonly ctx: BrowserContext;
+  readonly label: string;
+  private _cap: Capture;
+  private _store: SessionStore;
+  private _solver: CaptchaSolver;
+  private _env: Record<string, string> = {};
+
+  private _step = 0;
+  captchaResponse: any = null;
+  captchaFormData: any = null;
+  authBlocked: string | null = null;
+  captchaHeaders: Record<string, string> = {};
+  captchaEndpoint: string = '';
+  proxyConfig: { server: string; username?: string; password?: string; country?: string; exit_ip?: string; platform?: string } | undefined;
+  personaConfig: Persona | undefined;
+  // Identity assigned by WSession.start when opts.platform is set; eliminates
+  // per-trajectory generateIdentity + field-rename boilerplate.
+  identity: { firstName: string; lastName: string; username: string; email: string; password: string; birthMonth: string; birthDay: string; birthYear: string } | undefined;
+  capturedResponses: Array<{ ts: number; method: string; url: string; status: number; headers: Record<string, string>; body: string }> = [];
+  private _smsOrder: SmsNumber | null = null;
+  private _proxyBytes = 0;
+  private _cdp: any = null;
+  private _secureCredentialTask = false;
+  private _storedCredentialReceipt: string | null = null;
+
+  private constructor(ctx: BrowserContext, page: any, label: string, cap: Capture) {
+    this.ctx = ctx; this.page = page; this.label = label; this._cap = cap;
+    this._store = new SessionStore(); this._solver = new CaptchaSolver();
+    this._secureCredentialTask = isSkarbiecCredentialTask();
+    // Intercept API responses to capture captcha data (Discord register + login)
+    const authPaths = ['/auth/register', '/auth/login'];
+    page.on?.('request', (req: any) => { try { const u = req.url(); if (authPaths.some(p => u.includes(p)) && req.method() === 'POST') { this.captchaFormData = JSON.parse(req.postData() ?? '{}'); this.captchaEndpoint = u; const h = req.headers(); this.captchaHeaders = {}; for (const k of Object.keys(h)) { if (k.startsWith('x-')) this.captchaHeaders[k] = h[k]; } } } catch {} });
+    page.on?.('response', async (res: any) => { try { const u = res.url(); if (authPaths.some(p => u.includes(p)) && res.status() >= 400) { const d = await res.json(); if (d.captcha_key !== undefined) { this.captchaResponse = d; console.log(`[wsession] Captured captcha data: sitekey=${d.captcha_sitekey?.slice(0, 12)}`); } const errs = d?.errors?.login?._errors ?? d?.errors?.email?._errors ?? []; const code = errs[0]?.code; if (code === 'ACCOUNT_PERMANENTLY_DISABLED' || code === 'ACCOUNT_DISABLED' || code === 'ACCOUNT_LOGIN_BLOCKED') { this.authBlocked = code; console.log(`[wsession] Auth blocked by platform: ${code}`); } } } catch {} });
+    ctx.on?.('response', (res: any) => {
+      try {
+        if (this.capturedResponses.length >= 500) this.capturedResponses.shift();
+        const entry = { ts: Date.now(), method: res.request()?.method?.() ?? 'GET', url: res.url(), status: res.status(), headers: res.headers(), body: '' };
+        this.capturedResponses.push(entry);
+        if (this._secureCredentialTask || !shouldCaptureResponseBody(res)) return;
+        void res.text().then((text: string) => { entry.body = text.slice(0, 8192); }, () => {});
+      } catch {}
+    });
+    // CDP Network.dataReceived — accumulates bytes flowing through the proxy
+    // upstream so we can compute per-trajectory egress cost in close().
+    void (async () => {
+      try {
+        if (typeof ctx.newCDPSession !== 'function') return;
+        this._cdp = await ctx.newCDPSession(page);
+        await this._cdp.send('Network.enable').catch(() => {});
+        this._cdp.on('Network.dataReceived', (e: any) => {
+          // encodedDataLength is on-the-wire bytes (post-compression). Falls
+          // back to dataLength for older Chromium revisions.
+          const n = Number(e?.encodedDataLength ?? e?.dataLength ?? 0);
+          if (n > 0) this._proxyBytes += n;
+        });
+      } catch (e: any) { console.log(`[wsession] CDP attach err: ${e.message?.slice(0, 120)}`); }
+    })();
+  }
+
+  async runStep<T>(name: string, fn: () => Promise<T>): Promise<T> {
+    const n = String(this._step++).padStart(3, '0');
+    const label = `${n}_${name.replace(/[^a-z0-9]/gi, '_').slice(0, 30)}`;
+    const url = (typeof this.page.url === 'function' ? this.page.url() : '') ?? '';
+    const closed = this.page.isClosed?.() ?? false;
+    const vs = this.page.viewportSize?.() ?? {};
+    console.log(`[wsession] ${label} START url=${url.slice(0, 80)} closed=${closed} viewport=${vs.width}x${vs.height}`);
+    if (!this._secureCredentialTask) {
+      await this._cap.screenshot(this.page, `before_${label}`).catch(() => {});
+      await this._saveDom(`before_${label}`);
+    }
+    try {
+      const result = await fn();
+      if (this._secureCredentialTask) {
+        const stored = await wsAutoStoreCredential(this);
+        if (stored) this._storedCredentialReceipt = stored;
+      }
+      console.log(`[wsession] ${label} OK result=${String(result).slice(0, 100)}`);
+      if (!this._secureCredentialTask) {
+        await this._cap.screenshot(this.page, `after_${label}`).catch(() => {});
+        await this._saveDom(`after_${label}`);
+      }
+      return result;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.log(`[wsession] ${label} ERROR ${message.slice(0, 300)}`);
+      if (!this._secureCredentialTask) {
+        await this._cap.screenshot(this.page, `error_${label}`).catch(() => {});
+        await this._saveDom(`error_${label}`);
+      }
+      throw error;
+    }
+  }
+
+  takeStoredCredentialReceipt(): string | null {
+    const receipt = this._storedCredentialReceipt;
+    this._storedCredentialReceipt = null;
+    return receipt;
+  }
+
+  private async _saveDom(label: string): Promise<void> { const html = await this.page.content?.().catch(() => null); if (html) writeFileSync(join(recordingsDir(this.label || undefined), `${label}_dom.html`), html); }
+
+  private static automaticUserDataDir(opts: WSessionOptions, browser: string): string | undefined {
+    const accountId = process.env.ACCOUNT_ID?.trim();
+    if (!accountId) return undefined;
+    const action = process.env.ACTION?.trim() ?? '';
+    const inferredPlatform = opts.platform?.trim()
+      || action.split('_').at(Number(false))?.trim()
+      || opts.targetHost?.trim()
+      || 'unknown';
+    const safePlatform = inferredPlatform.toLowerCase().replace(/[^\w.-]+/g, '-');
+    const safeBrowser = browser.toLowerCase().replace(/[^\w.-]+/g, '-');
+    const accountKey = createHash('sha256').update(accountId).digest('hex');
+    const root = process.env.WELES_BROWSER_PROFILE_ROOT?.trim()
+      || join(userInfo().homedir, '.local', 'state', 'weles', 'browser-profiles');
+    const directory = join(root, safePlatform, safeBrowser, accountKey);
+    const ownerOnly = Number.parseInt('700', Number('8'));
+    mkdirSync(directory, { recursive: true, mode: ownerOnly });
+    chmodSync(directory, ownerOnly);
+    return directory;
+  }
+
+  static async start(opts: WSessionOptions = {}): Promise<WSession> {
+    enforceWelesServicePlacement('WSession.start');
+    const label = opts.label ?? '';
+    const secureCredentialTask = isSkarbiecCredentialTask();
+    // G9: one per-run human-timing seed, generated at session start and routed
+    // into the shared seeded PRNG so every human mouse/typing jitter draw this
+    // run is reproducible from the recorded seed. Unseeded code paths fall back
+    // to Math.random, so this only makes behavior reproducible — it does not
+    // change the statistical distribution. Recorded into session_meta as a
+    // required non-null number (result.run.timing_seed).
+    const timingSeed = (Math.floor(Math.random() * 0xffffffff) >>> 0);
+    seedHumanTiming(timingSeed);
+    const operatorCdp = opts.operatorCdp ? loadOperatorCdpConfig() : null;
+    console.log(`[wsession] start() label=${label} operatorCdp=${Boolean(operatorCdp)} proxy=${redactProxyForLog(opts.proxy)}`);
+    if (label && !secureCredentialTask) process.env.WELES_LABEL = label;
+    if (operatorCdp) {
+      const browser = await chromium.connectOverCDP(operatorCdp.endpoint, {
+        headers: { Authorization: `Bearer ${operatorCdp.token}` },
+      });
+      const ctx = browser.contexts().at(Number(false)) || await browser.newContext({ locale: 'en-US' });
+      const page = ctx.pages().at(Number(false)) || await ctx.newPage();
+      return new WSession(ctx, page, label, new Capture({ newPage: async () => page } as any, label ? recordingsDir(label) : undefined));
+    }
+    const proxyRequested = !!opts.proxy && !['none', 'direct'].includes(String(opts.proxy).toLowerCase());
+    // WELES_FORCE_BROWSER pins the persona's browser engine globally (e.g. on a
+    // host that only has the patched Chromium installed, not Firefox). Explicit
+    // opts.browser still wins; unset rolls naturally (60/40 chromium/firefox).
+    const persona: Persona = opts.persona ?? generatePersona({ country: countryHintFromProxyRequest(opts.proxy), os: opts.os as Persona['os'] | undefined, browser: (opts.browser ?? process.env.WELES_FORCE_BROWSER) as Persona['browser'] | undefined });
+    const proxy = proxyRequested ? await resolveProxy(opts.proxy!, opts.targetHost, persona) : undefined;
+    // G19: shared per-run provenance writer — called EARLY (pre-launch) and again
+    // AFTER launch with the realized values. The early call guarantees that a
+    // pre-launch failure (proxy_unavailable, missing browser binary, launch
+    // crash) still leaves queryable provenance — persona, the proxy request and
+    // its resolution, the env snapshot, timing seed — instead of a black-hole row
+    // the diagnostics platform can't explain. realized_fingerprint / exit_ip /
+    // identity are null until the browser is up; the late call fills them in.
+    // Same builder both times so early and late writes can't drift on the keys
+    // the worker importer reads. session_meta lands in the ACTION dir (poll.ts
+    // imports + uploads from there), falling back to label for standalone runs.
+    const writeRunMeta = (proxyObj: any, realizedFp: Record<string, unknown> | null, browserProv: unknown, identity: Identity | undefined): void => {
+      if (!label) return;
+      try {
+        const pu = proxyObj?.server ? new URL(proxyObj.server) : null;
+        const meta = {
+          proxy_host: pu?.hostname, proxy_port: pu?.port,
+          proxy_user_present: !!proxyObj?.username, proxy_user_hash: hashDiagnosticValue(proxyObj?.username),
+          exit_ip: proxyObj?.exit_ip, platform: proxyObj?.platform, provider: proxyObj?.provider,
+          browser_provenance: browserProv, persona, realized_fingerprint: realizedFp,
+          proxy_requested: opts.proxy ?? null,
+          env_flags: snapshotEnvFlags(), env_all: snapshotFullEnv(),
+          sticky_session_id: proxyObj?.sticky_session_id, sticky_hash: proxyObj?.sticky_hash,
+          exit_reputation: proxyObj?.exit_reputation, identity,
+          timing_seed: timingSeed, started_at: new Date().toISOString(),
+        };
+        writeFileSync(join(recordingsDir(process.env.ACTION || label), 'session_meta.json'), JSON.stringify(meta, null, 2));
+      } catch { /* provenance is best-effort */ }
+    };
+    writeRunMeta(proxy, null, null, undefined);   // pre-launch envelope; overwritten with realized data after launch
+    if (proxyRequested && !proxy) {
+      throw new Error(`proxy_unavailable: requested ${opts.proxy} for ${opts.targetHost ?? 'unknown target'}`);
+    }
+    // WELES_PAGE_DIAGNOSTICS=0 force-disables in-page instrumentation (property-trap,
+    // input-recorder) as a clean-room control for signup A/B tests. (Tested on
+    // reddit: toggling it changed nothing — the verify-init gate is exit-IP
+    // reputation, not in-page instrumentation. Kept as a knob regardless.)
+    const pageDiagnostics = secureCredentialTask || process.env.WELES_PAGE_DIAGNOSTICS === '0'
+      ? false
+      : (opts.pageDiagnostics ?? (label !== 'linkedin_register'));
+    const userDataDir = opts.userDataDir ?? process.env.WELES_USER_DATA_DIR ?? WSession.automaticUserDataDir(opts, persona.browser);
+    const bOpts: AsyncNewBrowserOptions = { os: persona.os, browser: persona.browser, headless: opts.headless ?? (process.env.WELES_HEADLESS === '1'), recordVideo: secureCredentialTask ? false : (opts.record ?? (process.env.WELES_DISABLE_RECORDING !== '1')), locale: opts.locale, persona, proxy, pageDiagnostics, userAgent: opts.userAgent, userDataDir };
+    if (opts.chromiumPath || process.env.CHROMIUM_PATH) {
+      throw new Error('Explicit browser path overrides are retired; configure the exact Stado browser release version and SHA-256');
+    }
+    const cp = findCustomBrowser(bOpts.browser);
+    if (!cp) throw new Error(`Verified ${bOpts.browser} release not found`);
+    if (secureCredentialTask) {
+      delete process.env.SSLKEYLOGFILE;
+      delete process.env.WELES_LABEL;
+    } else if (label) {
+      process.env.SSLKEYLOGFILE = join(recordingsDir(label), 'sslkey.log');
+      process.env.WELES_LABEL = label;
+    }
+    const ctx = await AsyncNewBrowser(bOpts);
+    const page = ctx.pages()[0] || await ctx.newPage();
+    const cap = new Capture({ newPage: async () => page } as any, label ? recordingsDir(label) : undefined);
+    if (label) { const s = new SessionStore(); await s.injectPlaywright(ctx, label).catch(() => {}); }
+    const ws = new WSession(ctx, page, label, cap); ws.proxyConfig = bOpts.proxy; ws.personaConfig = persona; (ws as any)._browserProvenance = (ctx as any)._welesBrowserProvenance ?? null;
+    // G17g: on a worker SIGTERM (graceful timeout), close the context so
+    // Playwright seals the HAR + video before the process is hard-killed.
+    process.once('SIGTERM', () => { try { void (ctx as any).close?.(); } catch { /* noop */ } });
+    if (opts.platform) { ws.identity = await ws.generateIdentity(opts.platform); console.log(`[wsession] identity generated platform=${opts.platform} username_hash=${hashDiagnosticValue(ws.identity.username)}`); }
+    if (bOpts.proxy?.server) {
+      try {
+        const r = await ctx.request.get('https://api.ipify.org', { timeout: 10_000 });
+        if (r.ok()) { const t = (await r.text()).trim(); if (/^[0-9a-fA-F.:]+$/.test(t)) (bOpts.proxy as any).exit_ip = t; }
+      } catch {}
+    }
+    // G14: write provenance for EVERY labelled run, proxied or not. The whole
+    // block used to be gated on bOpts.proxy?.server, so direct (no-proxy)
+    // browser runs recorded none of it. Proxy-derived fields are now optional.
+    if (label) {
+      try {
+        const u = bOpts.proxy?.server ? new URL(bOpts.proxy.server) : null;
+        // Full per-run fingerprint provenance (G1): the randomized source
+        // persona AND the realized fingerprint actually presented (UA, full
+        // UA-CH brand list, navigator/screen/webgl), copied verbatim into
+        // account_action_logs.result.session by the worker importer.
+        // persona + realized_fingerprint are typed REQUIRED + non-null so a
+        // future edit cannot silently drop them to null: persona is always
+        // generated, and async_api always attaches a realized fingerprint.
+        const meta: {
+          proxy_host?: string; proxy_port?: string; proxy_user_present: boolean;
+          proxy_user_hash: unknown; exit_ip: unknown; platform: unknown; provider: unknown;
+          browser_provenance: unknown; persona: Persona; realized_fingerprint: Record<string, unknown>;
+          proxy_requested: unknown;
+          env_flags: Record<string, string | undefined>;
+          env_all: Record<string, string>;
+          sticky_session_id?: string; sticky_hash?: string;
+          exit_reputation?: import('../proxy/policy.js').ExitReputation;
+          identity?: Identity;
+          timing_seed: number;
+          started_at: string;
+        } = {
+          proxy_host: u?.hostname,
+          proxy_port: u?.port,
+          proxy_user_present: !!bOpts.proxy?.username,
+          proxy_user_hash: hashDiagnosticValue(bOpts.proxy?.username),
+          exit_ip: bOpts.proxy?.exit_ip,
+          platform: bOpts.proxy?.platform,
+          provider: (bOpts.proxy as any)?.provider,
+          browser_provenance: (ws as any)._browserProvenance,
+          persona,
+          realized_fingerprint: (ctx as any)._welesFingerprintConfig,
+          proxy_requested: opts.proxy ?? null,
+          // G2: snapshot the effective behavior-changing env vars at session
+          // start so a run's exact mode (input path, browser registration,
+          // diagnostics, LinkedIn egress policy, proxy pool wiring) is queryable.
+          // Required Record (never null); individual flags are undefined when
+          // unset — that absence is itself meaningful provenance.
+          env_flags: snapshotEnvFlags(),
+          // G15: the COMPLETE runner env (all keys), secret values redacted.
+          env_all: snapshotFullEnv(),
+          // G4: which sticky exit this session pinned to. Undefined for
+          // non-sticky / url-form proxies (legitimately — only sticky-capable
+          // providers populate it), so it is NOT forced non-null.
+          sticky_session_id: (bOpts.proxy as any)?.sticky_session_id,
+          sticky_hash: (bOpts.proxy as any)?.sticky_hash,
+          // G11: full ip-api enrichment of the winning exit IP (ASN, ISP/org,
+          // reverse-DNS, region/city/geo, proxy/hosting/mobile flags). Optional
+          // — ip-api can fail or the run may have no exit IP.
+          exit_reputation: (bOpts.proxy as any)?.exit_reputation,
+          // G6: full raw generated identity (first/last/username/email/password/
+          // DOB) for EVERY run that has one — not just register. Raw values in
+          // the row are explicitly approved. Present whenever a platform was
+          // given (ws.identity is generated then); session_meta.json doubles as
+          // the storage backup for non-register runs that never call saveAccount.
+          identity: ws.identity,
+          // G9: per-run human-timing seed (required non-null) — makes this run's
+          // mouse/typing jitter reproducible from the row.
+          timing_seed: timingSeed,
+          started_at: new Date().toISOString(),
+        };
+        // G12: write provenance into the worker's ACTION dir (set by poll.ts on
+        // every spawned trajectory) so it lands where poll.ts imports + uploads
+        // from — even when this WSession's label differs from the dispatch action
+        // (health _in/_out, register _<attempt>, reddit submit, ticker scrapers).
+        // Falls back to label for standalone (non-worker) runs.
+        writeFileSync(join(recordingsDir(process.env.ACTION || label), 'session_meta.json'), JSON.stringify(meta, null, 2));
+      } catch {}
+    }
+    // Complete-record network capture: NO domain filter, NO body truncation.
+    // Captures every request/response (utf8 + base64), WebSocket frames in both
+    // directions, TCP serverAddr, TLS securityDetails. Runs on every WSession —
+    // keepers and trajectories — without exception. See net_record.ts.
+    if (!ws._secureCredentialTask && process.env.WELES_NO_INSTRUMENT !== '1') startInstrumentation(ws, ctx, label);
+    return ws;
+  }
+
+  async goto(url: string): Promise<string> {
+    return this.runStep(`goto_${url.split('/').pop()?.slice(0,20)}`, async () => {
+      await this.page.goto(url, { waitUntil: 'domcontentloaded' });
+      await waitCloudflare(asV(this.page)).catch(() => {});
+      return `navigated to ${this.page.url?.() ?? url}`;
+    });
+  }
+
+  // Method bodies extracted to ./wsession-helpers/finalize.ts to fit the
+  // 300-line per-file cap. wsClose has the BD provider classifier fix.
+  async click(target: string): Promise<string> { return wsClick(this, target); }
+  async fill(target: string, value: string): Promise<string> { return wsFill(this, target, value); }
+  async fillCredential(
+    target: string,
+    fieldClass: 'password' | 'email' | 'username' | 'token' | 'api-key',
+    capability: CapabilityRef,
+  ): Promise<string> { return wsFillCredential(this, target, fieldClass, capability); }
+  async fillIdentity(
+    target: string,
+    field: 'email' | 'password' | 'username' | 'first_name' | 'last_name' | 'birth_month' | 'birth_day' | 'birth_year',
+  ): Promise<string> {
+    const identity = this.identity;
+    if (!identity) throw new Error('generated identity is unavailable');
+    switch (field) {
+      case 'email': return wsFillIdentity(this, target, field, identity.email);
+      case 'password': return wsFillIdentity(this, target, field, identity.password);
+      case 'username': return wsFillIdentity(this, target, field, identity.username);
+      case 'first_name': return wsFillIdentity(this, target, field, identity.firstName);
+      case 'last_name': return wsFillIdentity(this, target, field, identity.lastName);
+      case 'birth_month': return wsFillIdentity(this, target, field, identity.birthMonth);
+      case 'birth_day': return wsFillIdentity(this, target, field, identity.birthDay);
+      case 'birth_year': return wsFillIdentity(this, target, field, identity.birthYear);
+    }
+  }
+  async storeCredential(target: string, fieldClass: 'token' | 'api-key'): Promise<string> {
+    return wsStoreCredential(this, target, fieldClass);
+  }
+
+
+  async focus(selector: string): Promise<string> {
+    return this.runStep(`focus_${selector}`, async () => {
+      const simple = selector.split(' ').pop()?.toLowerCase().replace(/['"[\]]/g, '') ?? '';
+      const sels = [selector, `input[name="${selector}"]`, `input[type="${selector}"]`, `input[placeholder*="${selector}" i]`];
+      if (simple && simple !== selector) sels.push(`input[name="${simple}"]`, `input[placeholder*="${simple}" i]`);
+      for (const s of sels) { try { const b = await this.page.locator?.(s)?.first?.()?.boundingBox?.(); if (b) { await humanClick(this.page, b.x + b.width / 2, b.y + b.height / 2); return `focused: ${s}`; } } catch {} }
+      return 'no-element-found';
+    });
+  }
+
+  async jsClick(selector?: string, text?: string): Promise<string> {
+    return this.runStep(`jsClick_${text ?? selector}`, async () => {
+      const sel = JSON.stringify(selector ?? ''), txt = JSON.stringify((text ?? '').toLowerCase());
+      const sr = await this.page.evaluate(`(()=>{var t=${txt};function F(r){var a=[];r.querySelectorAll('*').forEach(function(e){if(e.shadowRoot){var sr=e.shadowRoot;a=a.concat(Array.from(sr.querySelectorAll('[data-post-click-location] button')));a=a.concat(F(sr))}});return a}var bs=F(document);if(t&&t.indexOf('upvote')>=0&&bs.length>0){bs[0].click();return'clicked upvote (shadow)'}if(t&&t.indexOf('downvote')>=0&&bs.length>1){bs[1].click();return'clicked downvote (shadow)'}return null})()`).catch(() => null);
+      if (sr) return sr;
+      for (const frame of this.page.frames?.() ?? []) {
+        if (frame === this.page.mainFrame?.()) continue;
+        if (selector) {
+          try {
+            const loc = frame.locator(selector).first();
+            if (await loc.count()) { await loc.click(); return `clicked frame: ${selector.slice(0, 60)}`; }
+          } catch { /* try frame eval */ }
+        }
+        if (text) {
+          try {
+            const loc = frame.getByText(new RegExp(text, 'i')).first();
+            if (await loc.count() && await loc.isVisible({ timeout: 1500 }).catch(() => false)) {
+              await humanClickLocator(this.page, loc);
+              return `clicked frame text: ${text.slice(0, 60)}`;
+            }
+          } catch { /* try frame eval */ }
+        }
+        const frameHit = await frame.evaluate(`(()=>{function F(r,s){var a=Array.from(r.querySelectorAll(s));r.querySelectorAll('*').forEach(function(e){if(e.shadowRoot)a=a.concat(F(e.shadowRoot,s))});return a}var s=${sel},t=${txt};function fire(e){e.click();if((e instanceof HTMLInputElement)&&(e.type==='checkbox'||e.type==='radio')){e.checked=true;e.dispatchEvent(new Event('input',{bubbles:true}));e.dispatchEvent(new Event('change',{bubbles:true}))}}if(s){try{var e=F(document,s)[0];if(e){fire(e);return'clicked-frame-untrusted: '+s}}catch(e){}}if(t){var els=F(document,'label,button,a,[role="button"],[role="checkbox"],[role="radio"],input[type="checkbox"],input[type="radio"]');for(var i=0;i<els.length;i++){var x=((els[i].textContent||'')+(els[i].getAttribute('aria-label')||'')+(els[i].getAttribute('name')||'')).toLowerCase();if(x.indexOf(t)>=0){fire(els[i]);var forId=els[i].getAttribute&&els[i].getAttribute('for');if(forId){var input=document.getElementById(forId);if(input)fire(input)}return'clicked-frame-untrusted: '+x.trim().slice(0,40)}}}return null})()`).catch(() => null);
+        if (frameHit) return frameHit;
+      }
+      if (selector) { try { const loc = this.page.locator(selector).first(); if (await loc.count()) { await loc.click(); return `clicked: ${selector.slice(0, 60)}`; } } catch { /* try eval */ } }
+      if (text) { try { const loc = this.page.getByRole('button', { name: new RegExp(text, 'i') }).first(); if (await loc.count()) { await loc.click(); return `clicked text: ${text.slice(0, 60)}`; } } catch { /* try eval */ } }
+      const r = await this.page.evaluate(`(()=>{function F(r,s){var a=Array.from(r.querySelectorAll(s));r.querySelectorAll('*').forEach(function(e){if(e.shadowRoot)a=a.concat(F(e.shadowRoot,s))});return a}var s=${sel},t=${txt};if(s){try{var e=F(document,s)[0];if(e){e.click();return'clicked-untrusted: '+s}}catch(e){}}if(t){var els=F(document,'button,a,[role="button"],[class*="vote"],[class*="like"],[class*="star"],[class*="follow"]');for(var i=0;i<els.length;i++){var x=((els[i].textContent||'')+(els[i].getAttribute('aria-label')||'')).toLowerCase();if(x.indexOf(t)>=0){els[i].click();return'clicked-untrusted: '+(els[i].getAttribute('aria-label')||els[i].textContent||'').trim().slice(0,40)}}}return null})()`).catch(() => null);
+      return r ?? 'no-element-found';
+    });
+  }
+
+  async clickSelector(selector: string): Promise<string> { return this.runStep(`clickSel_${selector.slice(0,30)}`, async () => { const loc = this.page.locator(selector).first(); if (!(await loc.count())) return 'no-element-found'; const { humanClickLocator } = await import('../human/mouse.js'); await humanClickLocator(this.page, loc); return `clicked ${selector.slice(0,60)}`; }); }
+  async type(value: string): Promise<string> {
+    const literal = assertNonCredentialInput(value);
+    return this.runStep('type', async () => { await humanType(this.page, literal); return 'typed'; });
+  }
+  async press(key: string): Promise<string> { return this.runStep(`press_${key}`, async () => { await this.page.keyboard.press(key); return `pressed ${key}`; }); }
+  async select(target: string, value: string): Promise<string> { return this.runStep(`select_${target}_${value}`, async () => { const result = await selectOption(this.page, target, this.resolveEnv(value)); return result ? `selected: ${result}` : 'no-select-found'; }); }
+
+  async setControl(selector: string, value?: unknown, checked?: unknown): Promise<string> {
+    return this.runStep(`setControl_${selector.slice(0, 60)}`, async () => {
+      if (!selector.trim()) return 'no-selector';
+      const resolvedValue = typeof value === 'string' ? this.resolveEnv(value) : value;
+      const desiredChecked = typeof checked === 'boolean' ? checked : undefined;
+      const frames = [this.page.mainFrame?.(), ...(this.page.frames?.() ?? [])]
+        .filter((frame, index, all) => frame && all.indexOf(frame) === index);
+      for (const frame of frames) {
+        const result = await frame.evaluate((args: { selector: string; value: unknown; checked?: boolean }) => {
+          const { selector, value, checked } = args;
+          const el = document.querySelector(selector) as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement | null;
+          if (!el) return null;
+          el.scrollIntoView?.({ block: 'center', inline: 'center' });
+          const tag = el.tagName.toLowerCase();
+          const input = el as HTMLInputElement;
+          const fire = () => {
+            el.dispatchEvent(new Event('input', { bubbles: true }));
+            el.dispatchEvent(new Event('change', { bubbles: true }));
+            el.dispatchEvent(new Event('blur', { bubbles: true }));
+          };
+          if (tag === 'select') {
+            const select = el as HTMLSelectElement;
+            const wanted = String(value ?? '').toLowerCase();
+            let matched = false;
+            for (const option of Array.from(select.options)) {
+              const text = option.text.toLowerCase();
+              const optionValue = option.value.toLowerCase();
+              if (text === wanted || optionValue === wanted || text.includes(wanted) || optionValue.includes(wanted)) {
+                select.value = option.value;
+                matched = true;
+                break;
+              }
+            }
+            if (!matched && value != null) select.value = String(value);
+            fire();
+          } else if (input.type === 'checkbox' || input.type === 'radio') {
+            input.checked = typeof checked === 'boolean' ? checked : true;
+            fire();
+          } else {
+            const v = String(value ?? '');
+            const proto = input instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+            const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+            if (setter) setter.call(el, v);
+            else (el as HTMLInputElement | HTMLTextAreaElement).value = v;
+            fire();
+          }
+          const selectedText = tag === 'select'
+            ? ((el as HTMLSelectElement).selectedOptions[0]?.text ?? '')
+            : '';
+          const validation = Array.from(document.querySelectorAll('.hs-error-msg, .hs-error-msgs label, [role="alert"], .error, .invalid, .field-error'))
+            .map((node) => (node.textContent ?? '').replace(/\s+/g, ' ').trim())
+            .filter(Boolean)
+            .slice(0, 6);
+          return {
+            tag,
+            type: input.type || '',
+            name: input.name || '',
+            valuePresent: 'value' in input ? Boolean(input.value) : false,
+            valueLength: 'value' in input ? String(input.value ?? '').length : 0,
+            selectedText,
+            checked: typeof input.checked === 'boolean' ? input.checked : undefined,
+            validation,
+          };
+        }, { selector, value: resolvedValue, checked: desiredChecked }).catch((error: Error) => ({ error: error.message.slice(0, 160) }));
+        if (result) return `set_control ${JSON.stringify(result).slice(0, 500)}`;
+      }
+      return 'no-element-found';
+    });
+  }
+
+  async scroll(direction: string, amount?: number): Promise<string> {
+    return this.runStep(`scroll_${direction}`, async () => {
+      const delta = (direction === 'up' ? -(amount ?? 400) : (amount ?? 400));
+      await this.page.evaluate(`window.scrollBy(0, ${delta})`);
+      return `scrolled ${direction} ${amount ?? 400}`;
+    });
+  }
+
+  async wait(seconds: number): Promise<string> { await new Promise(r => setTimeout(r, seconds * 1000)); return `waited ${seconds}s`; }  // allow-raw-playwright: review — context-dependent timer
+  async read(question: string): Promise<string> { return await askPage(asV(this.page), question) ?? 'NONE'; }
+  async solveCaptcha(): Promise<string> {
+    return this.runStep('solveCaptcha', async () => {
+      const result = await solvePageCaptcha(this.page, this._solver, this);
+      if (result === null) return 'no supported captcha detected';
+      return result ? 'captcha solved' : 'captcha failed';
+    });
+  }
+
+  async checkEmail(email: string, sender: string): Promise<string> { const { wsCheckEmail } = await import('./wsession-helpers/finalize.js'); return wsCheckEmail(this, email, sender); }
+  async checkSms(service: string, country = 'UK'): Promise<string> { this._smsOrder = await getNumber(service, country); if (!this._smsOrder) return 'error: no SMS number available'; this._env[`${service.toUpperCase()}_NEW_PHONE`] = this._smsOrder.phone; return `phone: ${this._smsOrder.phone}`; }
+  async pollSmsCode(): Promise<string> { if (!this._smsOrder) return 'error: no SMS order'; return (await pollCode(this._smsOrder.orderId, this._smsOrder.provider)) ?? 'no code received'; }
+
+  async generateIdentity(platform: string): Promise<Identity> {
+    const id = await genId(platform);
+    const k = platform.toUpperCase();
+    this._env[`${k}_NEW_USERNAME`] = id.username;
+    this._env[`${k}_NEW_EMAIL`] = id.email;
+    this._env[`${k}_NEW_PASSWORD`] = id.password;
+    this._env[`${k}_NEW_FIRSTNAME`] = id.firstName;
+    this._env[`${k}_NEW_LASTNAME`] = id.lastName;
+    this._env[`${k}_NEW_BIRTHMONTH`] = id.birthMonth;
+    this._env[`${k}_NEW_BIRTHDAY`] = id.birthDay;
+    this._env[`${k}_NEW_BIRTHYEAR`] = id.birthYear;
+    return id;
+  }
+
+  async saveCookies(): Promise<string> { if (!this.label) return 'no label'; await this._store.capturePlaywright(this.ctx, this.label); return 'cookies saved'; }
+  async needsLogin(): Promise<boolean> { return await checkPage(asV(this.page), 'Is this a login page?'); }
+  async screenshot(label: string): Promise<string> { return await this._cap.screenshot(this.page, label); }
+
+  async saveAccount(platform: string, data: { username: string; email: string; password: string; name?: string; status?: string }): Promise<string> { const { wsSaveAccount } = await import('./wsession-helpers/finalize.js'); return wsSaveAccount(this, platform, data); }
+  async close(): Promise<void> { const { wsClose } = await import('./wsession-helpers/finalize.js'); return wsClose(this); }
+
+  resolveEnv(v: string): string {
+    const out = v.replace(/\$\{?([A-Z_][A-Z0-9_]*)\}?/g, (_, k) => this._env[k] ?? process.env[k] ?? `$${k}`);
+    if (/\$\{?[A-Z_][A-Z0-9_]*_NEW_[A-Z0-9_]*\}?/.test(out)) throw new Error('unresolved generated identity placeholder');
+    return out;
+  }
+
+  /** Derive a stable proxy signature for cookie-jar binding (mirrors cookie-freshness.mjs). */
+  private _proxySignature(): string | null {
+    const cfg = this.proxyConfig;
+    if (!cfg) return null;
+    if (typeof cfg === 'object' && (cfg as any).host) {
+      const port = (cfg as any).port ? String((cfg as any).port) : '';
+      return `${(cfg as any).host}:${port}`.replace(/:$/, '');
+    }
+    if (typeof cfg === 'string') {
+      try { const u = new URL(cfg); return `${u.hostname}:${u.port || ''}`.replace(/:$/, ''); } catch { return null; }
+    }
+    return null;
+  }
+
+  /** Derive a stable persona signature for cookie-jar binding (mirrors cookie-freshness.mjs). */
+  private _personaSignature(): string | null {
+    const p = this.personaConfig as any;
+    if (!p) return null;
+    if (p.canvasSeed != null) return `cs:${p.canvasSeed}`;
+    const s = `${p.userAgentOs ?? ''}|${p.gpu?.renderer ?? ''}|${p.timezone ?? ''}|${p.language ?? ''}`;
+    let h = 5381;
+    for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+    return `h:${h}`;
+  }
+}
+
+function profileUrl(platform: string, username: string, name?: string): string {
+  const urls: Record<string, string> = { reddit: `https://reddit.com/u/${username}`, tiktok: `https://tiktok.com/@${username}`, github: `https://github.com/${username}`, discord: `https://discord.com/users/${username}`, linkedin: `https://linkedin.com/in/${(name ?? username).toLowerCase().replace(/\s+/g, '-')}`, instagram: `https://instagram.com/${username}`, twitter: `https://x.com/${username}` };
+  return urls[platform] ?? '';
+}
+
+installAtoms(WSession);

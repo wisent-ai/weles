@@ -1,0 +1,10 @@
+#!/bin/sh
+set -eu
+
+dirty="$(git status --porcelain --untracked-files=all)"
+if [ -n "$dirty" ]; then
+  printf '%s\n' "pre-push blocked: worktree has uncommitted or untracked files."
+  printf '%s\n' "Package source changes into commits and ignore generated artifacts before pushing."
+  printf '%s\n' "$dirty"
+  exit 1
+fi

@@ -1,0 +1,15 @@
+[automation]
+managed = true
+source_fingerprint = "a374198225b4ee54"
+category = "agent"
+
+[banner]
+title = "Weles acts. Work keeps moving."
+description = "Browser Use Harness. Your AI Agents Can Now Use Internet. Cutting Token Use by 99% by caching trajectories. A harness to stimulate bypassing captchas and accessing all parts of the"
+product = "Wisent"
+url = "wisent.ai"
+theme = "dark"
+layout = "orbit-left"
+art_seed = "weles"
+width = 1584
+height = 396

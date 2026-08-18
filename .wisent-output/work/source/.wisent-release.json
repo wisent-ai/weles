@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "product": "weles-worker",
+  "releases": true,
+  "version_source": {
+    "kind": "json",
+    "path": "package.json",
+    "pointer": "/version"
+  },
+  "platforms": {
+    "darwin-arm64": {
+      "runner_platform": "darwin-arm64",
+      "quality": [],
+      "build": {
+        "argv": [
+          "bash",
+          "release/stado-build.sh"
+        ]
+      },
+      "stage": {
+        ".wisent-output/payload/weles-worker.tar.gz": "payload/weles-worker.tar.gz",
+        ".wisent-output/bin/start": "bin/start",
+        ".wisent-output/evidence/DIGESTS": "evidence/DIGESTS"
+      }
+    }
+  },
+  "inputs": {
+    "weles-client-bundle": {
+      "uri": "stado://sources/weles-client/60d19e769a742cff377d5e5b59762b3696e2ea1403d8e578f52f681a8a6a350a/weles-client.bundle",
+      "sha256": "60d19e769a742cff377d5e5b59762b3696e2ea1403d8e578f52f681a8a6a350a",
+      "mount": "weles-client.bundle",
+      "extract": false
+    },
+    "wisent-cost-tracker-bundle": {
+      "uri": "stado://sources/wisent-cost-tracker/a29a3b94cbfb3ad9765664684d9fa8911f25aaeb95d7518f0a5047c1a49f02b6/wisent-cost-tracker.bundle",
+      "sha256": "a29a3b94cbfb3ad9765664684d9fa8911f25aaeb95d7518f0a5047c1a49f02b6",
+      "mount": "wisent-cost-tracker.bundle",
+      "extract": false
+    }
+  },
+  "promotion": {
+    "channels": [
+      "candidate",
+      "stable"
+    ],
+    "reconcile": false
+  }
+}

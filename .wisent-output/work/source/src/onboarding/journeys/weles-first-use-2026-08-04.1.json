@@ -1,0 +1,95 @@
+{
+  "schema_version": 1,
+  "product_id": "weles",
+  "journey_id": "first-use",
+  "journey_version": "2026-08-04.1",
+  "entry_screen_id": "authorization-boundary",
+  "first_success_fact": "authorized_browser_workflow_completed",
+  "published_at": "2026-08-04T00:00:00.000Z",
+  "source_revision": "3b0a9c05c6e242efe2d7df1decd10bad61f070fe",
+  "screens": [
+    {
+      "screen_id": "authorization-boundary",
+      "screen_kind": "explanation",
+      "title_key": "authorization_boundary.title",
+      "body_key": "authorization_boundary.body",
+      "required": true,
+      "actions": ["next"],
+      "transitions": [
+        {
+          "next_screen_id": "host-execution",
+          "reason_code": "authorization_boundary_understood",
+          "priority": 10
+        }
+      ],
+      "presentation": { "surface": "operator_cli" }
+    },
+    {
+      "screen_id": "host-execution",
+      "screen_kind": "explanation",
+      "title_key": "host_execution.title",
+      "body_key": "host_execution.body",
+      "required": true,
+      "actions": ["next"],
+      "transitions": [
+        {
+          "next_screen_id": "receipt-verification",
+          "reason_code": "host_execution_understood",
+          "priority": 10
+        }
+      ],
+      "presentation": { "surface": "operator_cli" }
+    },
+    {
+      "screen_id": "receipt-verification",
+      "screen_kind": "first_success",
+      "title_key": "receipt_verification.title",
+      "body_key": "receipt_verification.body",
+      "required": true,
+      "completion_evidence": {
+        "kind": "fact",
+        "fact": "authorized_browser_workflow_completed",
+        "operator": "eq",
+        "value": true
+      },
+      "actions": ["verify"],
+      "transitions": [],
+      "presentation": { "surface": "operator_cli" }
+    }
+  ],
+  "analytics_contract": {
+    "contract_version": "1",
+    "surface": "operator_cli",
+    "exposure_event": "onboarding_step_viewed",
+    "primary_action_event": "onboarding_first_action_completed",
+    "completion_event": "onboarding_completed",
+    "first_success_event": "onboarding_first_success_observed"
+  },
+  "experiment_contract": {
+    "experiment_id": "weles_first_use_2026_08_04_1",
+    "control_variant_id": "canonical",
+    "eligible_variant_ids": ["canonical"],
+    "variant_configs": {
+      "canonical": {
+        "authorization_presentation": "explicit_boundary",
+        "execution_presentation": "approved_host",
+        "proof_presentation": "signed_receipt"
+      }
+    },
+    "assignment_unit": "device",
+    "reward_event": "onboarding_first_success_observed",
+    "reward_window_hours": 168,
+    "guardrails": [
+      {
+        "event_name": "onboarding_abandoned",
+        "direction": "max",
+        "bound": 0.25,
+        "window_hours": 168
+      }
+    ],
+    "minimum_exposure_per_variant": 50,
+    "exploration_floor": 0.05,
+    "owner": "weles",
+    "kill_switch": false
+  }
+}

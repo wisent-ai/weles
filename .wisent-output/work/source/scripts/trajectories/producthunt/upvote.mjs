@@ -1,0 +1,227 @@
+import { WSession } from '../../../dist/session/wsession.js';
+import { markCookiesStale } from '../../../dist/utils/credentials.js';
+import { assertAuthed, AuthProbeError } from '../_shared/auth-probe.mjs';
+import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../_shared/cookie-freshness.mjs';
+import { loginViaTwitter } from './_session.mjs';
+
+// Upvote a Product Hunt product. Pass PRODUCTHUNT_URL=https://www.producthunt.com/products/<slug>
+// to vote on a specific product; otherwise the trajectory upvotes the first product
+// card on the homepage.
+
+const TARGET_URL = process.env.PRODUCTHUNT_URL || 'https://www.producthunt.com/';
+const proxy = process.env.PROXY_URL || 'none';
+const sleep = (s) => new Promise(r => setTimeout(r, s * 1000));  // allow-raw-playwright: utility sleep shim — usages should migrate to humanIdlePause
+
+async function findProductHuntAccount() {
+  const databaseUrl = process.env.WELES_DATABASE_URL ?? '';
+  const databaseToken = process.env.WELES_DATABASE_TOKEN ?? '';
+  if (!databaseUrl || !databaseToken) return null;
+  const res = await fetch(
+    `${databaseUrl}/rest/v1/social_accounts?platform=eq.producthunt&is_active=eq.true&select=id,platform,username,metadata&order=created_at.desc&limit=20`,
+    { headers: { apikey: databaseToken, Authorization: `Bearer ${databaseToken}` } },
+  );
+  if (!res.ok) return null;
+  const rows = await res.json();
+  for (const a of rows) {
+    if (Array.isArray(a.metadata?.cookies) && a.metadata.cookies.length >= 1) return a;
+  }
+  return rows[0] ?? null;
+}
+
+async function injectPHCookies(s, cookies) {
+  const normalized = cookies
+    .filter(c => c.name && c.value)
+    .map(c => ({
+      name: c.name,
+      value: c.value,
+      domain: c.domain?.includes('producthunt.com') ? c.domain : '.producthunt.com',
+      path: c.path || '/',
+      secure: c.secure ?? true,
+      httpOnly: c.httpOnly ?? false,
+      sameSite: c.sameSite || 'Lax',
+      ...(c.expires && c.expires > 0 ? { expires: c.expires } : {}),
+    }));
+  await s.ctx.addCookies(normalized);
+  console.log(`[ph-vote] injected ${normalized.length} producthunt cookies`);
+}
+
+async function readPage(s) {
+  return (await s.page.evaluate(`(() => (document.body?.innerText ?? '').substring(0, 2000))()`).catch(() => '')).toLowerCase();
+}
+
+async function navigateToFirstProduct(s) {
+  // From the homepage, find the first product card link and follow it.
+  // PH uses /products/<slug> for current launches; older URLs are /posts/<slug>.
+  // Filter out footer reference links (?ref=footer) since those go to product hubs not the launch page.
+  const href = await s.page.evaluate(`(() => {
+    var as = Array.from(document.querySelectorAll('a[href*="/products/"], a[href*="/posts/"]'));
+    for (var a of as) {
+      var h = a.getAttribute('href') || '';
+      if (h.includes('?ref=footer')) continue;
+      if (h.includes('/reviews')) continue;
+      var slug = (h.match(/\\/products\\/([^/?#]+)/) || h.match(/\\/posts\\/([^/?#]+)/) || [])[1];
+      if (slug) return h;
+    }
+    return null;
+  })()`).catch(() => null);
+  if (!href) return false;
+  const url = href.startsWith('http') ? href : new URL(href, 'https://www.producthunt.com').toString();
+  console.log(`[ph-vote] following first product: ${url}`);
+  await s.goto(url);
+  await sleep(4);
+  return true;
+}
+
+async function findVoteButton(s) {
+  // PH has two distinct vote button shapes:
+  //   * data-test="vote-button"            — inline launch leaderboard (clickable, increments)
+  //   * data-test="action-bar-vote-button" — product hub (one per historical launch, navigates)
+  // Prefer the launch leaderboard button. Skip product-hub buttons (text "Upvote (N)").
+  return await s.page.evaluate(`(() => {
+    function rect(el) { var r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0 ? { x: r.x + r.width/2, y: r.y + r.height/2, w: r.width, h: r.height } : null; }
+    var preferred = [
+      'button[data-test="vote-button"]',
+      'button[data-test*="vote-button"]:not([data-test*="action-bar"]):not([data-test*="thread"])',
+      'button[aria-label*="Upvote" i]',
+      'button[aria-label*="Vote" i]',
+    ];
+    for (var sel of preferred) {
+      var b = document.querySelector(sel);
+      if (b) { var r = rect(b); if (r) return { ...r, sel: sel, label: (b.getAttribute('aria-label') || b.textContent || '').slice(0, 60) }; }
+    }
+    // Last resort: action-bar (product hub — won't increment but at least confirms we found something)
+    var ab = document.querySelector('button[data-test="action-bar-vote-button"]');
+    if (ab) { var r2 = rect(ab); if (r2) return { ...r2, sel: 'action-bar-vote-button', label: (ab.textContent || '').slice(0, 60) }; }
+    return null;
+  })()`).catch(() => null);
+}
+
+async function readVoteState(s) {
+  return await s.page.evaluate(`(() => {
+    var b = document.querySelector('button[data-test="vote-button"], button[aria-label*="Upvote" i], button[aria-label*="Vote" i], button[data-test="action-bar-vote-button"]');
+    if (!b) return null;
+    return {
+      pressed: b.getAttribute('aria-pressed'),
+      label: b.getAttribute('aria-label') || b.getAttribute('area-label'),
+      text: (b.textContent || '').replace(/\\s+/g, ' ').slice(0, 80),
+      // Capture the count number from the text so we can compare even if button stays visually identical
+      count: ((b.textContent || '').match(/\\d+/) || [null])[0],
+    };
+  })()`).catch(() => null);
+}
+
+async function vote(s) {
+  const acct = await findProductHuntAccount();
+  if (!acct) throw new Error('no_producthunt_account_in_db');
+
+  // Cookie-jar freshness gate — see _shared/cookie-freshness.mjs. On stale,
+  // skip injection and route through loginViaTwitter SSO recovery, matching
+  // the same recovery shape profile.mjs and comment.mjs already use.
+  let cookies = [];
+  try {
+    cookies = loadFreshCookieJarOrFail(acct, { platform: 'producthunt', label: 'producthunt_upvote', currentProxyUrl: proxy === 'none' ? null : proxy, currentPersona: acct.metadata?.persona });
+  } catch (jarErr) {
+    if (!(jarErr instanceof CookieJarStaleError)) throw jarErr;
+    console.log(`[ph-vote] ${jarErr.message} — invoking SSO recovery`);
+    cookies = [];
+  }
+  console.log(`[ph-vote] using account: ${acct.username} (${cookies.length} cookies)`);
+  if (cookies.length) {
+    await injectPHCookies(s, cookies);
+  } else {
+    console.log('[ph-vote] no fresh cookies — invoking loginViaTwitter');
+    try {
+      await loginViaTwitter(s);
+    } catch (e) {
+      try { await markCookiesStale(acct.id); } catch {}
+      throw new Error(`sso_recovery_failed: ${e.message?.slice(0, 200)}`);
+    }
+  }
+  // PH's homepage SSR cache sometimes serves the logged-out shell to a
+  // freshly-SSO'd session, so probing on the homepage is unreliable
+  // immediately post-SSO (verified 2026-05-06: comment.mjs PASSED on the
+  // same SSO source while upvote.mjs FAILed at homepage assertAuthed).
+  // Probe on /products/<slug> first — that page always renders the authed
+  // topbar avatar — then navigate to the homepage feed with a ?bc=1
+  // cache-buster so we land on a freshly-rendered authed homepage where
+  // the inline vote button is.
+  await s.goto('https://www.producthunt.com/products/feather-18');
+  await sleep(3);
+  try { await assertAuthed('producthunt', s, { label: 'producthunt_upvote' }); }
+  catch (probeErr) { if (probeErr instanceof AuthProbeError) { throw new Error(`auth_probe_failed: ${probeErr.message}`); } throw probeErr; }
+  const cacheBustedHome = TARGET_URL.includes('?') ? `${TARGET_URL}&bc=1` : `${TARGET_URL}?bc=1`;
+  await s.goto(cacheBustedHome);
+  await sleep(4);
+
+  // Dismiss cookie consent banner if present
+  const t0 = await readPage(s);
+  if (t0.includes('cookies') || t0.includes('cookie preferences')) {
+    await s.click('Accept all').catch(() => {});
+    await s.click('Accept cookies').catch(() => {});
+    await sleep(2);
+  }
+
+  // The homepage feed exposes inline launch vote buttons (data-test="vote-button")
+  // — those record a real vote. Product hub pages (/products/<slug>) only carry
+  // action-bar-vote-button which navigates away. So unless the user explicitly
+  // gave us a /posts/ launch URL, we vote on the homepage feed directly.
+  const cur = s.page.url();
+  if (cur.includes('/products/') && !TARGET_URL.includes('/products/')) {
+    console.log('[ph-vote] redirected to product hub — going back to homepage');
+    await s.goto('https://www.producthunt.com/');
+    await sleep(3);
+  }
+
+  const beforeState = await readVoteState(s);
+  console.log(`[ph-vote] before: ${JSON.stringify(beforeState)}`);
+
+  let btn = await findVoteButton(s);
+  if (!btn) throw new Error('vote_button_not_found');
+  console.log(`[ph-vote] vote button found: ${btn.sel} label="${btn.label}" at (${Math.round(btn.x)},${Math.round(btn.y)})`);
+
+  // Scroll button into view, then re-measure (post-scroll viewport coords differ)
+  await s.page.evaluate(`(() => {
+    var b = document.querySelector('button[data-test*="vote"], button[aria-label*="Upvote" i], button[aria-label*="Vote" i], button[data-sentry-component*="VoteButton" i]');
+    if (b) b.scrollIntoView({ block: 'center', behavior: 'instant' });
+  })()`).catch(() => {});
+  await sleep(1);
+  btn = await findVoteButton(s);
+  if (!btn) throw new Error('vote_button_lost_after_scroll');
+  console.log(`[ph-vote] post-scroll coords: (${Math.round(btn.x)},${Math.round(btn.y)})`);
+
+  // mouse.click routes through CDP → SetTrusted(true) — required for PH's vote handler
+  await s.page.mouse.click(btn.x, btn.y).catch(() => {});
+  await sleep(3);
+
+  const afterState = await readVoteState(s);
+  console.log(`[ph-vote] after: ${JSON.stringify(afterState)}`);
+
+  const flipped = beforeState && afterState &&
+    (beforeState.pressed !== afterState.pressed ||
+     beforeState.label !== afterState.label ||
+     (beforeState.count || '') !== (afterState.count || '') ||
+     (beforeState.text || '') !== (afterState.text || ''));
+  if (!flipped) {
+    const url = s.page.url();
+    if (url.includes('/login') || url.includes('/sign-in')) throw new Error('redirected_to_login');
+    throw new Error(`vote_state_unchanged: ${JSON.stringify(afterState)}`);
+  }
+
+  console.log(`[ph-vote] vote registered`);
+  return acct.username;
+}
+
+// Force chromium — Firefox persona produces NS_ERROR_ABORT on goto and
+// fails the CDP mouse path (verified 2026-05-06 on this trajectory and
+// previously in register.mjs commit 8c7c20b).
+const s = await WSession.start({ label: 'producthunt_upvote', proxy, browser: 'chromium' });
+try {
+  const username = await vote(s);
+  console.log(`PASS: ${username} upvoted ${TARGET_URL}`);
+  await s.close();
+  process.exit(0);
+} catch (e) {
+  console.log(`FAIL: ${e.message?.slice(0, 200)}`);
+  await s.close().catch(() => {});
+  process.exit(1);
+}

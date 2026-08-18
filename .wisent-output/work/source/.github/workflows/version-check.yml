@@ -1,0 +1,77 @@
+name: version-check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  version:
+    runs-on: [self-hosted, Linux, X64, stado-precheck]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22.23.2
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Extract candidate surface
+        run: node scripts/release/surface.mjs > "$RUNNER_TEMP/candidate-surface.json"
+      - name: Install and identify AutoVersion
+        run: |
+          set -euo pipefail
+          python3 -m venv "$RUNNER_TEMP/autoversion"
+          "$RUNNER_TEMP/autoversion/bin/python" -m pip install --quiet \
+            "git+https://github.com/lbartoszcze/AutoVersion@v0.1.0"
+          echo "$RUNNER_TEMP/autoversion/bin" >> "$GITHUB_PATH"
+          export PATH="$RUNNER_TEMP/autoversion/bin:$PATH"
+          resolved="$(command -v autoversion || true)"
+          case "$resolved" in
+            "$RUNNER_TEMP/autoversion/bin/"*) ;;
+            *) echo "::error::autoversion resolves to '${resolved:-nothing}', outside the venv"; false ;;
+          esac
+      - name: Prove AutoVersion classification controls
+        run: |
+          set -euo pipefail
+          printf '%s\n' '{"surface":["a","b"]}' > "$RUNNER_TEMP/control-published.json"
+          printf '%s\n' '{"surface":["a","b"]}' > "$RUNNER_TEMP/control-identical.json"
+          printf '%s\n' '{"surface":["a"]}' > "$RUNNER_TEMP/control-removed.json"
+          autoversion decide --current 0.1.0 \
+            --published-surface "$RUNNER_TEMP/control-published.json" \
+            --candidate-surface "$RUNNER_TEMP/control-identical.json" --json \
+            | jq --exit-status '.change == "internal" and .next == "0.1.1"' >/dev/null
+          autoversion decide --current 0.1.0 \
+            --published-surface "$RUNNER_TEMP/control-published.json" \
+            --candidate-surface "$RUNNER_TEMP/control-removed.json" --json \
+            | jq --exit-status '.change == "breaking" and .next == "0.2.0"' >/dev/null
+      - name: Enforce declared version
+        run: |
+          set -euo pipefail
+          breaking=()
+          if jq --exit-status '.breaking == true' release/version-change.json >/dev/null; then
+            breaking+=(--breaking)
+          fi
+          autoversion decide \
+            --current "$(jq --raw-output .current release/version-change.json)" \
+            --published-surface released-surface.json \
+            --candidate-surface "$RUNNER_TEMP/candidate-surface.json" \
+            "${breaking[@]}" --json > "$RUNNER_TEMP/version-decision.json"
+          node scripts/release/enforce-version.mjs \
+            --decision "$RUNNER_TEMP/version-decision.json" \
+            --baseline released-surface.json \
+            --declaration release/version-change.json \
+            --manifest package.json
+          jq '.candidate = "9.9.9"' release/version-change.json > "$RUNNER_TEMP/invalid-declaration.json"
+          if node scripts/release/enforce-version.mjs \
+            --decision "$RUNNER_TEMP/version-decision.json" \
+            --baseline released-surface.json \
+            --declaration "$RUNNER_TEMP/invalid-declaration.json" \
+            --manifest package.json; then
+            echo "::error::version gate accepted a deliberately false declaration"
+            exit 1
+          fi

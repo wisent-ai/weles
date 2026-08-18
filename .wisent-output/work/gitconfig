@@ -1,0 +1,6 @@
+[url "file:///Users/lukaszbartoszcze/.stado/local-backup/ecosystem/sources/weles-client/60d19e769a742cff377d5e5b59762b3696e2ea1403d8e578f52f681a8a6a350a/weles-client.bundle"]
+	insteadOf = ssh://git@github.com/wisent-ai/weles-client.git
+	insteadOf = git@github.com:wisent-ai/weles-client.git
+[url "file:///Users/lukaszbartoszcze/.stado/local-backup/ecosystem/sources/wisent-cost-tracker/a29a3b94cbfb3ad9765664684d9fa8911f25aaeb95d7518f0a5047c1a49f02b6/wisent-cost-tracker.bundle"]
+	insteadOf = ssh://git@github.com/wisent-ai/wisent-cost-tracker.git
+	insteadOf = git@github.com:wisent-ai/wisent-cost-tracker.git

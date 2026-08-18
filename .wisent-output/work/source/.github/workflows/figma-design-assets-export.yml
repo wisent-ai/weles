@@ -1,0 +1,31 @@
+name: Figma design assets export
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: figma-design-assets-export
+  cancel-in-progress: false
+
+jobs:
+  export:
+    runs-on: [self-hosted, macOS, charless-mac-mini]
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build worker bundle
+        run: npm ci && npm run build
+      - name: Install exporter payload
+        run: |
+          tar -czf /tmp/weles-figma-exporter.tar.gz \
+            scripts/operations/export-figma-design-assets-host.mjs \
+            scripts/operations/parse-json-file-host.py \
+            scripts/worker/deploy/skarbiec-acquire.mjs \
+            scripts/worker/deploy/skarbiec-acquisition-scopes.conf
+          stado host install-file charless-mac-mini /tmp/weles-figma-exporter.tar.gz weles-figma-exporter.tar.gz --json
+          stado host install-helper charless-mac-mini scripts/operations/run-export-figma-design-assets-host.sh run-export-figma-design-assets-host --json
+      - name: Export and publish
+        run: stado host run-helper charless-mac-mini run-export-figma-design-assets-host --json

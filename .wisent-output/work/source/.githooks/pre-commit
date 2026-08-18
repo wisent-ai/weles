@@ -1,0 +1,53 @@
+#!/bin/sh
+set -eu
+
+if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  exit 0
+fi
+
+unstaged="$(git diff --name-only -- .)"
+untracked="$(git ls-files --others --exclude-standard)"
+
+if [ -n "$unstaged" ] || [ -n "$untracked" ]; then
+  printf '%s\n' "pre-commit blocked: worktree has unstaged or untracked files."
+  printf '%s\n' "Package every source change into this commit, or ignore generated artifacts, before committing."
+  if [ -n "$unstaged" ]; then
+    printf '%s\n' ""
+    printf '%s\n' "unstaged tracked files:"
+    printf '%s\n' "$unstaged"
+  fi
+  if [ -n "$untracked" ]; then
+    printf '%s\n' ""
+    printf '%s\n' "untracked files:"
+    printf '%s\n' "$untracked"
+  fi
+  exit 1
+fi
+
+# Block accidental Supabase CLI invocations from being committed.
+# Remote DDL and project management must be intentional, never buried in scripts.
+if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  staged_files="$(git diff --cached --name-only --diff-filter=ACMR)"
+  if [ -n "$staged_files" ]; then
+    matches="$(printf '%s' "$staged_files" | xargs -I{} git show :{} 2>/dev/null | grep -nE 'supabase[[:space:]]+(db|link|login|logout|projects|start|stop|status|migration|inspect|gen|types|sso|orgs|secrets|functions|storage|realtime|vectors|db|dump|pull|push|reset|lint|diff|test|bench|seed|snapshots|branches|completion|help)' || true)"
+    if [ -n "$matches" ]; then
+      printf '%s\n' "pre-commit blocked: staged files contain Supabase CLI usage."
+      printf '%s\n' "Remote database operations must be run intentionally, never committed as scripts."
+      printf '%s\n' "Matches:"
+      printf '%s\n' "$matches"
+      exit 1
+    fi
+  fi
+fi
+
+# Static guardrail for staged scripts: browser tasks must use Weles through the
+# Weles API on the Mac mini, not local Playwright/Chrome launches. Existing
+# legacy/debug launchers are being migrated separately; this hook blocks new or
+# modified staged violations without freezing unrelated commits on the baseline.
+# Runtime/eval cells are outside git-hook scope and need a harness-level block.
+if [ -f scripts/lint/check_browser_boundary.mjs ]; then
+  staged_browser_files="$(git diff --cached --name-only --diff-filter=ACMR | grep -E '\\.(mjs|js|cjs|ts|tsx)$' || true)"
+  if [ -n "$staged_browser_files" ]; then
+    node scripts/lint/check_browser_boundary.mjs $staged_browser_files
+  fi
+fi

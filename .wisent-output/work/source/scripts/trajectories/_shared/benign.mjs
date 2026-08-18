@@ -1,0 +1,220 @@
+/**
+ * Universal benign-activity trajectory. One file handles dwell /
+ * notifications / search / profile_view across supported platforms.
+ *
+ * Worker invokes with PLATFORM + VERB env vars; the config table below
+ * picks the URL, scroll count, and dwell time per (platform, verb) pair.
+ * Every run writes recordings/<platform>_<verb>/ban_signal.json via the
+ * platform's ban detector so the worker can detect silent bans.
+ */
+import { getSocialAccount, resolveAccountSession, markCookiesStale } from '../../../dist/utils/credentials.js';
+import { WSession } from '../../../dist/session/wsession.js';
+import { writeFileSync, mkdirSync } from 'node:fs';
+import { join } from 'node:path';
+
+import { detectRedditBanSignals }    from '../../../dist/platforms/reddit/ban_signals.js';
+import { detectTwitterBanSignals }   from '../../../dist/platforms/twitter/ban_signals.js';
+import { detectInstagramBanSignals } from '../../../dist/platforms/instagram/ban_signals.js';
+import { detectTikTokBanSignals }    from '../../../dist/platforms/tiktok/ban_signals.js';
+import { detectLinkedInBanSignals }  from '../../../dist/platforms/linkedin/ban_signals.js';
+import { detectDiscordBanSignals }   from '../../../dist/platforms/discord/ban_signals.js';
+import { detectGitHubBanSignals }    from '../../../dist/platforms/github/ban_signals.js';
+import { detectProductHuntBanSignals } from '../../../dist/platforms/producthunt/ban_signals.js';
+import { detectPangramBanSignals } from '../../../dist/platforms/pangram/ban_signals.js';
+import { humanIdlePause, humanScroll } from '../../../dist/human/mouse.js';
+import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
+
+const DETECTORS = {
+  reddit: detectRedditBanSignals, twitter: detectTwitterBanSignals,
+  instagram: detectInstagramBanSignals, tiktok: detectTikTokBanSignals,
+  linkedin: detectLinkedInBanSignals, discord: detectDiscordBanSignals,
+  github: detectGitHubBanSignals, producthunt: detectProductHuntBanSignals,
+  pangram: detectPangramBanSignals,
+};
+
+function baseUrl(raw, fallback) {
+  return String(raw || fallback).replace(/\/+$/, '');
+}
+
+function pangramUrl(path = '/') {
+  const base = baseUrl(process.env.PANGRAM_BASE_URL || process.env.PANGRAM_URL, 'https://www.pangram.com');
+  const suffix = path.startsWith('/') ? path : `/${path}`;
+  return `${base}${suffix}`;
+}
+
+// Per (platform, verb) config. `url` is the landing URL (static or a function
+// of the account's username/search query). `scrolls` is the number of scroll
+// ticks. `dwellMs` is the idle read time between scrolls (range picked
+// randomly). For verbs without a direct feed (e.g. notifications), url
+// points at the specific tab.
+const CONFIG = {
+  reddit: {
+    dwell:         { url: 'https://www.reddit.com/',                          scrolls: 10, dwellMs: [1800, 3500] },
+    notifications: { url: 'https://www.reddit.com/notifications/',             scrolls: 3,  dwellMs: [1500, 2500] },
+    search:        { url: (_, q) => `https://www.reddit.com/search/?q=${encodeURIComponent(q)}`, scrolls: 6,  dwellMs: [1500, 2500] },
+    profile_view:  { url: (u) => `https://www.reddit.com/user/${encodeURIComponent(u)}/`, scrolls: 4, dwellMs: [1500, 2500] },
+  },
+  twitter: {
+    dwell:         { url: 'https://x.com/home',                                scrolls: 10, dwellMs: [2000, 4000] },
+    notifications: { url: 'https://x.com/notifications',                       scrolls: 3,  dwellMs: [1500, 2500] },
+    search:        { url: (_, q) => `https://x.com/search?q=${encodeURIComponent(q)}&src=typed_query`, scrolls: 6, dwellMs: [1500, 2500] },
+    profile_view:  { url: (u) => `https://x.com/${encodeURIComponent(u)}`,      scrolls: 4, dwellMs: [1800, 3500] },
+  },
+  instagram: {
+    dwell:         { url: 'https://www.instagram.com/',                        scrolls: 10, dwellMs: [2000, 4000] },
+    notifications: { url: 'https://www.instagram.com/',                        scrolls: 0,  dwellMs: [500, 1500], extra: 'notifications_bell' },
+    search:        { url: (_, q) => `https://www.instagram.com/explore/search/keyword/?q=${encodeURIComponent(q)}`, scrolls: 5, dwellMs: [1500, 2500] },
+    profile_view:  { url: (u) => `https://www.instagram.com/${encodeURIComponent(u)}/`, scrolls: 5, dwellMs: [1800, 3000] },
+  },
+  tiktok: {
+    dwell:         { url: 'https://www.tiktok.com/foryou',                     scrolls: 14, dwellMs: [3000, 6000] },
+    notifications: { url: 'https://www.tiktok.com/messages',                   scrolls: 3,  dwellMs: [1500, 2500] },
+    search:        { url: (_, q) => `https://www.tiktok.com/search?q=${encodeURIComponent(q)}`, scrolls: 6, dwellMs: [1800, 3500] },
+    profile_view:  { url: (u) => `https://www.tiktok.com/@${encodeURIComponent(u)}`, scrolls: 4, dwellMs: [1500, 2500] },
+  },
+  linkedin: {
+    dwell:         { url: 'https://www.linkedin.com/feed/',                    scrolls: 8,  dwellMs: [2500, 4500] },
+    notifications: { url: 'https://www.linkedin.com/notifications/',           scrolls: 3,  dwellMs: [1500, 2500] },
+    search:        { url: (_, q) => `https://www.linkedin.com/search/results/all/?keywords=${encodeURIComponent(q)}`, scrolls: 5, dwellMs: [1500, 2500] },
+    profile_view:  { url: (u) => `https://www.linkedin.com/in/${encodeURIComponent(u)}/`, scrolls: 4, dwellMs: [1800, 3000] },
+  },
+  discord: {
+    dwell:         { url: 'https://discord.com/channels/@me',                  scrolls: 4,  dwellMs: [2000, 4000] },
+    notifications: { url: 'https://discord.com/channels/@me',                  scrolls: 2,  dwellMs: [1500, 2500] },
+    search:        { url: 'https://discord.com/channels/@me',                  scrolls: 2,  dwellMs: [1500, 2500] },
+    profile_view:  { url: 'https://discord.com/channels/@me',                  scrolls: 2,  dwellMs: [1500, 2500] },
+  },
+  github: {
+    dwell:         { url: 'https://github.com/',                               scrolls: 6,  dwellMs: [2000, 3500] },
+    notifications: { url: 'https://github.com/notifications',                  scrolls: 3,  dwellMs: [1500, 2500] },
+    search:        { url: (_, q) => `https://github.com/search?q=${encodeURIComponent(q)}&type=repositories`, scrolls: 6, dwellMs: [1500, 2500] },
+    profile_view:  { url: (u) => `https://github.com/${encodeURIComponent(u)}`, scrolls: 4, dwellMs: [1500, 2500] },
+  },
+  producthunt: {
+    dwell:         { url: 'https://www.producthunt.com/',                      scrolls: 6,  dwellMs: [2000, 3500] },
+    notifications: { url: 'https://www.producthunt.com/notifications',         scrolls: 2,  dwellMs: [1500, 2500] },
+    search:        { url: (_, q) => `https://www.producthunt.com/search?q=${encodeURIComponent(q)}`, scrolls: 5, dwellMs: [1500, 2500] },
+    profile_view:  { url: (u) => `https://www.producthunt.com/@${encodeURIComponent(u)}`, scrolls: 4, dwellMs: [1500, 2500] },
+  },
+  pangram: {
+    dwell:         { url: () => pangramUrl('/'),                                scrolls: 6,  dwellMs: [2000, 3500] },
+    notifications: { url: () => pangramUrl('/notifications'),                   scrolls: 2,  dwellMs: [1500, 2500] },
+    search:        { url: (_, q) => pangramUrl(`/search?q=${encodeURIComponent(q)}`), scrolls: 5, dwellMs: [1500, 2500] },
+    profile_view:  { url: (u) => pangramUrl(`/@${encodeURIComponent(u)}`),       scrolls: 4,  dwellMs: [1500, 2500] },
+  },
+};
+
+const PLATFORM = process.env.PLATFORM;
+const VERB = process.env.VERB;
+const QUERY = process.env.SEARCH_QUERY || process.env.QUERY || 'tips';
+const TARGET_USER = process.env.TARGET_USER || '';
+
+if (!PLATFORM || !VERB) { console.log('FAIL: PLATFORM and VERB env required'); process.exit(1); }
+const platformCfg = CONFIG[PLATFORM];
+if (!platformCfg) { console.log(`FAIL: no config for platform=${PLATFORM}`); process.exit(1); }
+const verbCfg = platformCfg[VERB];
+if (!verbCfg) { console.log(`FAIL: no config for ${PLATFORM}.${VERB}`); process.exit(1); }
+const detector = DETECTORS[PLATFORM];
+if (!detector) { console.log(`FAIL: no ban detector for ${PLATFORM}`); process.exit(1); }
+
+const label = `${PLATFORM}_${VERB}`;
+let acct = null;
+let s = null;
+let selfHandle = '';
+let banSignal = null;
+try {
+  acct = await getSocialAccount(PLATFORM);
+  if (!acct) {
+    banSignal = { signal: 'no_account', healthy: false, details: { stage: 'pre-WSession', reason: `no active ${PLATFORM} account` } };
+    throw new Error(`no active ${PLATFORM} account`);
+  }
+  selfHandle = acct.username;
+  const targetUser = TARGET_USER || selfHandle;
+  const url = typeof verbCfg.url === 'function' ? verbCfg.url(targetUser, QUERY) : verbCfg.url;
+  console.log(`[benign] ${PLATFORM}/${VERB} acct=${acct.username} url=${url}`);
+
+  const { proxyUrl, persona } = await resolveAccountSession(acct);
+  s = await WSession.start({ label, proxy: proxyUrl, persona });
+  await s.goto(url);
+  const [minMs, maxMs] = verbCfg.dwellMs;
+  for (let i = 0; i < verbCfg.scrolls; i++) {
+    await humanScroll(s.page, 1200, 3);
+    await humanIdlePause();
+  }
+  // If no scrolls requested (e.g. Instagram notifications — click the bell instead)
+  if (verbCfg.scrolls === 0) {
+    await humanIdlePause();
+  }
+  banSignal = await detector(s.page, s.capturedResponses).catch(() => null);
+  // Reclassify the same way action-runner does — if the page is on the
+  // platform's login wall, the ban detector might say healthy or
+  // captcha_challenge (PerimeterX iframe loads on every login page) but the
+  // real story is cookies-stale. Override to checkpoint so retry pipelines
+  // know to refresh the session, not invoke a captcha solver.
+  const finalUrl = s.page.url?.() ?? banSignal?.details?.final_url ?? '';
+  const bodySample = banSignal?.details?.body_text_sample ?? '';
+  const onAuthWall = /\/(login|signin|sessions\/new|uas\/login|checkpoint|accounts\/login)\b/.test(finalUrl) || /\/login\?/.test(finalUrl);
+  if (banSignal && onAuthWall && (banSignal.signal === 'healthy' || banSignal.signal === 'captcha_challenge')) {
+    banSignal = { signal: 'checkpoint', healthy: false, details: { final_url: finalUrl, reason: `reclassified from ${banSignal.signal} — page on auth wall after benign loop`, prev_signal: banSignal.signal } };
+  } else if (banSignal && finalUrl.startsWith('chrome-error://') && (banSignal.signal === 'healthy' || banSignal.signal === 'unknown')) {
+    const sig = /HTTP ERROR 407|ERR_PROXY_AUTH/i.test(bodySample) ? 'proxy_auth_failed' : /HTTP ERROR 4|ERR_HTTP_RESPONSE_CODE/i.test(bodySample) ? 'ip_blocked' : 'proxy_failed';
+    banSignal = { signal: sig, healthy: false, details: { final_url: finalUrl, reason: `reclassified from ${banSignal.signal} — chrome-error page (body: ${bodySample.slice(0, 80)})`, prev_signal: banSignal.signal } };
+  } else if (banSignal && banSignal.signal === 'healthy') {
+    // 404 + logged-out shell reclassifier. Per-platform detectors only key
+    // off /login URL patterns; a profile-view that 404s on the platform's
+    // own 404 page (URL stays on /@username, body contains "404" + a Sign in
+    // CTA) sneaks through as healthy. For profile_view of the account's own
+    // handle that's a strong signal the account never finalized signup or
+    // was silently deleted; for any other verb it's at least cookies-stale.
+    const has404 = /\b404\b|page not found|we seem to have lost this page|this page (doesn't|does not) exist/i.test(bodySample);
+    const hasLoggedOutCta = /\bsign[\s-]?in\b|\blog[\s-]?in\b/i.test(bodySample);
+    if (has404 && hasLoggedOutCta) {
+      const sig = VERB === 'profile_view' && finalUrl.toLowerCase().includes(selfHandle.toLowerCase()) ? 'account_missing' : 'checkpoint';
+      banSignal = { signal: sig, healthy: false, details: { final_url: finalUrl, reason: `reclassified from healthy — body shows 404 + logged-out CTA (sample: "${bodySample.slice(0, 120)}")`, prev_signal: 'healthy' } };
+    }
+  }
+  console.log(`[ban-signal] ${banSignal?.signal}`);
+  console.log(`PASS: ${PLATFORM}_${VERB} ${verbCfg.scrolls}x scrolls`);
+} catch (e) {
+  if (s) {
+    let detResult;
+    try { detResult = await detector(s.page, s.capturedResponses); }
+    catch (derr) { console.log('[detector] err in catch:', derr?.message?.slice(0, 100)); }
+    banSignal = detResult;
+    const eFinalUrl = s.page.url?.() ?? banSignal?.details?.final_url ?? '';
+    const eBodySample = banSignal?.details?.body_text_sample ?? '';
+    const eOnAuthWall = /\/(login|signin|sessions\/new|uas\/login|checkpoint|accounts\/login)\b/.test(eFinalUrl) || /\/login\?/.test(eFinalUrl);
+    if (banSignal && eOnAuthWall && (banSignal.signal === 'healthy' || banSignal.signal === 'captcha_challenge')) {
+      banSignal = { signal: 'checkpoint', healthy: false, details: { final_url: eFinalUrl, reason: `reclassified from ${banSignal.signal} — page on auth wall after benign loop crash`, prev_signal: banSignal.signal } };
+    } else if (banSignal && eFinalUrl.startsWith('chrome-error://') && (banSignal.signal === 'healthy' || banSignal.signal === 'unknown')) {
+      const sig = /HTTP ERROR 407|ERR_PROXY_AUTH/i.test(eBodySample) ? 'proxy_auth_failed' : /HTTP ERROR 4|ERR_HTTP_RESPONSE_CODE/i.test(eBodySample) ? 'ip_blocked' : 'proxy_failed';
+      banSignal = { signal: sig, healthy: false, details: { final_url: eFinalUrl, reason: `reclassified from ${banSignal.signal} — chrome-error page after benign crash`, prev_signal: banSignal.signal } };
+    }
+  } else if (!banSignal) {
+    // s never opened — getSocialAccount, resolveAccountSession, or WSession.start threw.
+    // Classify by exception message so the worker writes a real ban_signal instead of
+    // bubbling exit-1 with no diagnostic (the 'unknown_error' baseline on z0earw45dw1p).
+    const msg = e?.message?.slice(0, 200) ?? 'unknown';
+    const sig = /no_isp_proxy|no isp proxy|no_proxy_resolved/i.test(msg) ? 'no_proxy_resolved' :
+                /no active.*account|no_account/i.test(msg) ? 'no_account' :
+                /ERR_PROXY_AUTH|HTTP 407/i.test(msg) ? 'proxy_auth_failed' :
+                'session_boot_failed';
+    banSignal = { signal: sig, healthy: false, details: { stage: 'pre-WSession', reason: msg } };
+  }
+  if (banSignal) console.log(`[ban-signal] ${banSignal.signal}`);
+  console.log('FAIL:', e.message?.slice(0, 200));
+  process.exitCode = 1;
+} finally {
+  if (banSignal) {
+    try {
+      const dir = runRecordingsDir(label);
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(join(dir, 'ban_signal.json'), JSON.stringify({ account_id: acct?.id ?? null, username: acct?.username ?? null, action: label, ...banSignal, ts: new Date().toISOString() }, null, 2));
+    } catch (e) { console.log('[ban-signal] persist err:', e.message); }
+    if (banSignal.signal === 'checkpoint' && acct?.id) {
+      try { await markCookiesStale(acct.id); }
+      catch (mse) { console.log('[mark-stale] err:', mse?.message?.slice(0, 80)); }
+    }
+  }
+  if (s) await s.close();
+}

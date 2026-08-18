@@ -1,0 +1,24 @@
+__pycache__/
+*.pyc
+*.egg-info/
+dist/
+build/
+.eggs/
+*.so
+.venv/
+.env
+recordings/
+node_modules/
+.work/
+var/
+login_page_*.png
+*_trajectory_evidence.txt
+scripts/lib/cgevent_postpid
+.worktrees/
+.tmp/
+.jeden/
+.tama-disabled
+# Database DDL lives only in wisent-ai/wisent-supabase-echo. A local
+# `supabase`-CLI link or init must never reintroduce schema files or
+# .temp/linked-project.json into this repo.
+supabase/
