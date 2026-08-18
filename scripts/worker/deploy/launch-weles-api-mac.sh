@@ -35,7 +35,7 @@ unset SEMANTIC_SCHOLAR_API_KEY S2_API_KEY || true
 # tried with the real read and the first that returns a value wins.
 SKARBIEC_ENDPOINTS='http://127.0.0.1:8787 http://127.0.0.1:8895 http://127.0.0.1:19095'
 WC_SKARBIEC_URL="${WC_SKARBIEC_URL:-}"
-export WELES_REPO="$HOME/.stado/build-work/weles-api-managed"
+export WELES_REPO="$HOME/weles"
 NODE_BIN=/opt/homebrew/bin/node
 acquire_startup_field() {
   local consumer="$1" item="$2" field="$3"
