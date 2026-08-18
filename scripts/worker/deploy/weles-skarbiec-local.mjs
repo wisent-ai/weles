@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import { request as httpRequest } from 'node:http';
 import { lstatSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 
@@ -85,25 +86,53 @@ if (isCodexReauth) {
   // there keeps one source of truth; a copy in a second file would be a second
   // credential to rotate and to get wrong.
   const apiToken = welesApiToken();
-  const response = await fetch('http://127.0.0.1:8788/reauth', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiToken}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
+  // A real browser sign-in answers in minutes, and fetch's undici default kills
+  // a request whose headers have not arrived in 300 seconds. This waits on the
+  // socket instead, so a slow but healthy run is not reported as a failure.
+  const answer = await new Promise((resolve, reject) => {
+    const payload = JSON.stringify({
       provider: 'codex',
       login_item: request.credential_id,
       timeout_ms: Number('900000'),
-    }),
-    signal: AbortSignal.timeout(Number('1200000')),
+    });
+    const call = httpRequest(
+      {
+        host: '127.0.0.1',
+        port: Number('8788'),
+        path: '/reauth',
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiToken}`,
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(payload),
+        },
+      },
+      (response) => {
+        const parts = [];
+        response.on('data', (part) => parts.push(part));
+        response.on('end', () => {
+          try {
+            resolve({ status: response.statusCode, body: JSON.parse(Buffer.concat(parts).toString('utf8')) });
+          } catch (error) {
+            reject(new Error(`Weles answered unparseable JSON: ${error.message}`));
+          }
+        });
+      },
+    );
+    call.setTimeout(Number('1200000'), () => {
+      call.destroy(new Error('Weles Codex reauth exceeded 1200s'));
+    });
+    call.on('error', reject);
+    call.end(payload);
   });
-  const answer = await response.json();
-  if (!response.ok || answer.ok !== true
-      || answer.login_item !== request.credential_id) {
+  if (answer.status !== Number('200') || answer.body?.ok !== true
+      || answer.body?.login_item !== request.credential_id) {
     throw new Error(
-      `Weles Codex reauth failed: HTTP ${response.status} `
-      + sanitizedText(answer.stderr_tail || answer.error || 'unknown failure', Number('512')),
+      `Weles Codex reauth failed: HTTP ${answer.status} `
+      + sanitizedText(
+        answer.body?.stderr_tail || answer.body?.error || 'unknown failure',
+        Number('512'),
+      ),
     );
   }
   process.stdout.write(`${JSON.stringify({
