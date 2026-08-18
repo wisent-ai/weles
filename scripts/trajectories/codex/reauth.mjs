@@ -347,8 +347,8 @@ function runLogin(displayName) {
   });
 }
 
-async function runLoginWithRetries(row) {
-  const maxTries = Number(process.env.CODEX_REAUTH_LOGIN_TRIES || 3);
+async function runLoginWithRetries(row, attempts) {
+  const maxTries = attempts ?? Number(process.env.CODEX_REAUTH_LOGIN_TRIES || 3);
   for (let attempt = 1; ; attempt += 1) {
     try {
       const authJson = await runLogin(row.display_name);
@@ -425,7 +425,7 @@ async function main() {
   if (requestedDisplayName) {
     const row = await pickNamedRow(requestedDisplayName);
     console.log(`[codex reauth] requested fresh login for ${row.display_name}`);
-    const authJson = await runLoginWithRetries(row);
+    const authJson = await runLoginWithRetries(row, 1);
     console.log(`[codex reauth] got requested auth.json len=${authJson.length}`);
     const item = bankNamedAuth(authJson);
     console.log(`[codex reauth] banked requested credential as ${item}`);
