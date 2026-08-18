@@ -102,14 +102,32 @@ type InternalAcquiredSecretContract = {
   writerConsumer: string;
   writerTokenFile: string;
   readerConsumer?: string;
-  sourceOrigin: string;
+  // Null exactly when no table pins the site: an unenumerated provider has no
+  // origin anyone could enumerate, so the signup origin Skarbiec recorded for the
+  // acquire operation travels with the job and is checked at capture time.
+  sourceOrigin: string | null;
   shape: string;
 };
 export type WelesAcquiredSecretContract = {
   item: string;
   field: string;
-  sourceOrigin: string;
+  sourceOrigin: string | null;
 };
+
+// One spelling of the signup origin, shared with the `signup_origin` record
+// Skarbiec keeps for a generic acquire and with the bridge that carries it: an
+// absolute HTTPS origin and nothing else, so a path, query, fragment, userinfo,
+// trailing slash, or upper-case host is a different string and is refused rather
+// than normalized into one.
+export function isWelesAcquiredSourceOrigin(value: string): boolean {
+  if (!value || value.length > Number('512')) return false;
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' && url.origin === value;
+  } catch {
+    return false;
+  }
+}
 
 const MICROSOFT_PASSWORD_ID = /^weles-microsoft-[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?-password$/;
 // Entra work accounts are a different provider surface from consumer Microsoft
@@ -124,20 +142,43 @@ const MICROSOFT_ENTRA_PASSWORD_IDS: ReadonlySet<string> = new Set([
 const MICROSOFT_ENTRA_ORIGIN = 'https://login.microsoftonline.com';
 const MICROSOFT_CONSUMER_ORIGIN = 'https://account.live.com';
 
+const GENERIC_ACQUIRED_ITEM = /^[a-z\d](?:[a-z\d-]{1,38}[a-z\d])$/;
+
 function resolvedAcquiredSecretContract(secret: string): InternalAcquiredSecretContract | null {
   const fixed = (ACQUIRED_SECRET_CONTRACTS as Readonly<Record<string, InternalAcquiredSecretContract>>)[secret];
   if (fixed) return fixed;
-  if (!MICROSOFT_PASSWORD_ID.test(secret)) return null;
+  if (MICROSOFT_PASSWORD_ID.test(secret)) {
+    return {
+      item: secret,
+      field: 'password',
+      writerConsumer: `${secret}-writer`,
+      writerTokenFile: `${secret}-writer-skarbiec-token`,
+      readerConsumer: `${secret}-reader`,
+      sourceOrigin: MICROSOFT_ENTRA_PASSWORD_IDS.has(secret)
+        ? MICROSOFT_ENTRA_ORIGIN
+        : MICROSOFT_CONSUMER_ORIGIN,
+      shape: 'password',
+    };
+  }
+  // An item nobody enumerated still gets exactly one derived contract: its own
+  // scoped writer and its own writer token file, so that operator-owned file
+  // stays the only authority that can enable it — there is no fallback to
+  // another consumer or token, and no reader consumer, so the derived contract
+  // can never be read back. An item another contract already owns is refused
+  // here: a derived contract must never reach a table item's or a scoped service
+  // item's fields.
+  if (!GENERIC_ACQUIRED_ITEM.test(secret)
+    || Object.values(SERVICE_CONTRACTS).some((service) => service.item === secret)
+    || Object.values(ACQUIRED_SECRET_CONTRACTS).some((contract) => contract.item === secret)) {
+    return null;
+  }
   return {
     item: secret,
-    field: 'password',
+    field: 'api_key',
     writerConsumer: `${secret}-writer`,
     writerTokenFile: `${secret}-writer-skarbiec-token`,
-    readerConsumer: `${secret}-reader`,
-    sourceOrigin: MICROSOFT_ENTRA_PASSWORD_IDS.has(secret)
-      ? MICROSOFT_ENTRA_ORIGIN
-      : MICROSOFT_CONSUMER_ORIGIN,
-    shape: 'password',
+    sourceOrigin: null,
+    shape: 'opaque-token',
   };
 }
 
@@ -526,7 +567,13 @@ export function writeWelesAcquiredSecret(
   field: string,
   secret: Buffer,
   tenantId?: string | null,
-  context: { accountEmail?: string; requestId?: string; operation?: string } = {},
+  context: {
+    accountEmail?: string;
+    requestId?: string;
+    operation?: string;
+    sourceOrigin?: string;
+    declaredOrigin?: string;
+  } = {},
 ): void {
   const contract = resolvedAcquiredSecretContract(secretName);
   if (!contract || field !== contract.field) {
@@ -553,8 +600,24 @@ export function writeWelesAcquiredSecret(
   if (!isUtf8(secret)) {
     throw new Error(`credential value must be valid UTF-8 text: ${secretName}`);
   }
+  // The provenance this write claims is the origin the value was captured on. A
+  // table contract pins it; a derived contract has none to pin, so the caller
+  // must state the captured origin and it must be one absolute https origin —
+  // Skarbiec matches it against the signup origin recorded for the operation.
+  const capturedOrigin = contract.sourceOrigin ?? context.sourceOrigin ?? '';
+  if (!isWelesAcquiredSourceOrigin(capturedOrigin)) {
+    throw new Error(`credential write requires one exact captured https origin for ${secretName}`);
+  }
+  // Skarbiec records the signup origin a generic acquire declared and refuses the
+  // managed write unless the body echoes exactly that string; it equally refuses a
+  // capture origin presented for an operation that declared none, so the key
+  // travels only when one was declared and only as the exact recorded value.
+  const declaredOrigin = context.declaredOrigin ?? '';
+  if (declaredOrigin && declaredOrigin !== capturedOrigin) {
+    throw new Error(`captured origin does not match the declared signup origin for ${secretName}`);
+  }
   const contextValue = {
-    provider: contract.sourceOrigin,
+    provider: capturedOrigin,
     account_ref: context.accountEmail?.trim().toLowerCase() || requestId,
     request_id: requestId,
     operation,
@@ -582,6 +645,7 @@ export function writeWelesAcquiredSecret(
     kind,
     fields,
     context: contextValue,
+    ...(declaredOrigin ? { capture_origin: declaredOrigin } : {}),
   }), 'utf8');
   try {
     const helper = process.env.SKARBIEC_WELES_WRITER_COMMAND?.trim()
