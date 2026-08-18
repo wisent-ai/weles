@@ -394,6 +394,12 @@ export async function doGoogleSso({
   page, login, authorizeUrl, mark,
   humanFill, humanClickLocator, humanIdlePause, humanType,
 }) {
+  // WSession may reuse a provider profile. A pre-existing Google session can
+  // make GIS silently authorize its default account even after we authenticated
+  // the requested email in another tab. Start with no provider cookies so the
+  // only Google identity available to the handoff is `login.email`.
+  await page.context().clearCookies();
+  mark('google_session_cleared');
   await establishGoogleSession({ page, login, mark, humanFill, humanClickLocator, humanIdlePause, humanType });
 
   mark('goto_authorize');

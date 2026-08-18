@@ -11,7 +11,7 @@
 //      blob on stdout for reauth.mjs to donate.
 
 import { spawn as ptySpawn } from 'node-pty';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -47,6 +47,20 @@ process.on('unhandledRejection', (e) => { process.stderr.write(`FAIL: unhandled 
 async function readAuthJson() {
   if (!existsSync(CODEX_AUTH_PATH)) return null;
   try { return readFileSync(CODEX_AUTH_PATH, 'utf8'); } catch { return null; }
+}
+
+function authIdentityEmail(authJson) {
+  const document = JSON.parse(authJson);
+  const token = document?.tokens?.id_token;
+  if (typeof token !== 'string') throw new Error('Codex auth.json has no id_token');
+  const parts = token.split('.');
+  if (parts.length !== 3) throw new Error('Codex id_token is not a JWT');
+  const claims = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
+  const email = claims.email || claims['https://api.openai.com/profile']?.email;
+  if (typeof email !== 'string' || !email.trim()) {
+    throw new Error('Codex id_token has no account email');
+  }
+  return email.trim();
 }
 
 function spawnDeviceAuth() {
@@ -238,14 +252,21 @@ try {
   await session.goto(url);
   await doOpenAiLogin(session, login);
 
-  // Wait for auth.json to be written/updated.
+  // Wait for auth.json to be written/updated, then prove that the provider
+  // minted it for the requested login. A successful OAuth page is not enough:
+  // GIS can silently reuse another Google account already present in a profile.
   const authJson = await waitForAuthJson(priorAuth);
+  const mintedEmail = authIdentityEmail(authJson);
+  if (mintedEmail.toLowerCase() !== login.email.trim().toLowerCase()) {
+    if (priorAuth) writeFileSync(CODEX_AUTH_PATH, priorAuth);
+    else {
+      try { unlinkSync(CODEX_AUTH_PATH); } catch { /* absent is already restored */ }
+    }
+    throw new Error(`Codex identity mismatch: requested ${login.email}, minted ${mintedEmail}`);
+  }
+  writeFileSync(`${CODEX_AUTH_PATH}.account`, DISPLAY_NAME);
   process.stdout.write(authJson);
-  process.stderr.write('[codex login] auth.json emitted\n');
-  // Sidecar: record which account this auth.json belongs to so reauth can
-  // label a donated on-disk token by its true account (not a generic
-  // default), keeping scoped-revoke collision-safe across accounts.
-  try { writeFileSync(`${CODEX_AUTH_PATH}.account`, DISPLAY_NAME); } catch { /* best-effort */ }
+  process.stderr.write(`[codex login] auth.json emitted for ${mintedEmail}\n`);
 } catch (e) {
   if (e?.code === 'CODEX_DEVICE_AUTH_DISABLED') {
     process.stderr.write(`FAIL: ${e.message}\nTo fix this, enable "Device code authorization for Codex" in ChatGPT Security Settings (https://chatgpt.com/#settings/security) while signed in as ${login.email}.\n`);
