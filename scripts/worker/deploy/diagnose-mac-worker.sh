@@ -22,7 +22,8 @@ done
 
 for label in \
   com.wisent.always-on.weles \
-  com.wisent.always-on.skarbiec
+  com.wisent.always-on.skarbiec \
+  com.wisent.always-on.skarbiec-weles
 do
   printf '\n== launchd system/%s ==\n' "$label"
   if ! /bin/launchctl print "system/$label" 2>&1 | /usr/bin/sed -n '1,120p'; then
