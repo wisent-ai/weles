@@ -126,6 +126,18 @@ function readExistingAuthJson() {
   return null;
 }
 
+function isFreshCodexAuth(authJson) {
+  try {
+    const document = JSON.parse(authJson);
+    const tokens = document?.tokens;
+    return typeof tokens?.access_token === 'string' && tokens.access_token.length > 0
+      && typeof tokens?.id_token === 'string' && tokens.id_token.length > 0
+      && typeof tokens?.account_id === 'string' && tokens.account_id.length > 0;
+  } catch {
+    return false;
+  }
+}
+
 async function persistActiveExpiry(cfg, expiresAtMs) {
   // Recording the new expiry is what makes the NEXT tick refresh before the
   // token dies rather than after, so it follows the store the config came from.
@@ -324,23 +336,15 @@ function runLogin(displayName) {
     child.on('close', (code) => {
       clearTimeout(killer);
       console.log(`[codex reauth] login.mjs closed code=${code} out_len=${out.length} err_len=${err.length}`);
-      try {
-        // login.mjs emits the raw auth.json on stdout, but WSession internals
-        // can also write to stdout afterwards. Find the first '{' and walk
-        // backwards from the last '}' until JSON.parse succeeds.
-        const first = out.indexOf('{');
-        if (first !== -1) {
-          let last = out.length;
-          while ((last = out.lastIndexOf('}', last - 1)) > first) {
-            const candidate = out.slice(first, last + 1);
-            try {
-              JSON.parse(candidate); // validate
-              resolve(candidate);
-              return;
-            } catch {}
+      if (code === 0) {
+        try {
+          const authJson = readFileSync(CODEX_AUTH_PATH, 'utf8');
+          if (isFreshCodexAuth(authJson)) {
+            resolve(authJson);
+            return;
           }
-        }
-      } catch {}
+        } catch { /* the failure below names the missing fresh auth contract */ }
+      }
       const tail = (out + '\n' + err).split('\n').slice(-5).join(' | ').slice(0, 400);
       reject(new Error(`login.mjs exit ${code}, no valid auth.json; tail=${tail}`));
     });
@@ -364,6 +368,9 @@ async function runLoginWithRetries(row, attempts) {
 }
 
 function bankNamedAuth(authJson) {
+  if (!isFreshCodexAuth(authJson)) {
+    throw new Error('refusing named Codex payload without access_token, id_token, and account_id');
+  }
   const loginItem = process.env.WELES_LOGIN_ITEM?.trim();
   const suffix = NAMED_SUBSCRIPTION_SUFFIX.get(loginItem);
   if (!loginItem || !suffix) {
