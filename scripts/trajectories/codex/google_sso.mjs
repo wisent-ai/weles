@@ -328,6 +328,19 @@ async function enterGoogleCredentials({
   await humanIdlePause('short');
   await waitForEnabledThenClick(page, /next|sign in|continue|dalej/i);
   await humanIdlePause('long');
+  const passwordRejected = await navEval(page, () => {
+    const visiblePassword = Array.from(document.querySelectorAll('input[type="password"]'))
+      .some((input) => {
+        const box = input.getBoundingClientRect();
+        return box.width > 4 && box.height > 4;
+      });
+    return visiblePassword && /\/challenge\/pwd/.test(location.pathname);
+  }, false);
+  if (passwordRejected) {
+    const error = new Error('GOOGLE_PASSWORD_REJECTED: Google kept the account on its password challenge');
+    error.code = 'GOOGLE_PASSWORD_REJECTED';
+    throw error;
+  }
 
   mark('google_2fa_check');
   const otpSel = 'input[type="tel"][autocomplete="one-time-code"], input[name="totpPin"], input[autocomplete="one-time-code"]';
