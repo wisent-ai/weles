@@ -20,7 +20,17 @@ import urllib.request
 
 HOME = pathlib.Path.home()
 SOURCE_VAULT = pathlib.Path(os.environ.get("SOURCE_VAULT", HOME / ".stado/skarbiec.vault.json"))
-TARGET_VAULT = pathlib.Path(os.environ.get("TARGET_VAULT", HOME / ".stado/weles-skarbiec.vault.json"))
+# Which authority vault Weles actually resolves logins from. It is delivered as
+# data because the answer has moved: a hand-started authority served the Weles
+# vault until that file left the host, and the worker environment now names the
+# fleet authority. A path baked in here would keep provisioning grants into a
+# vault nothing reads.
+_TARGET_MARKER = HOME / ".stado/weles-authority-vault"
+TARGET_VAULT = pathlib.Path(
+    os.environ.get("TARGET_VAULT")
+    or (_TARGET_MARKER.read_text(encoding="utf-8").strip() if _TARGET_MARKER.is_file() else "")
+    or HOME / ".stado/weles-skarbiec.vault.json"
+)
 WORKLOAD_KEY = pathlib.Path(
     os.environ.get("WELES_WORKLOAD_PUBLIC_KEY_FILE", HOME / ".stado/weles-credential-workload-public.pem")
 )

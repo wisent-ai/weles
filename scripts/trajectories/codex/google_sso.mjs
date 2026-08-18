@@ -162,6 +162,77 @@ async function acceptPendingWorkspaceInvite(page, login, mark) {
   return landed;
 }
 
+// Finish OpenAI's email verification from the same mailbox.
+//
+// Accepting a workspace invitation can leave the account one step short: OpenAI
+// mails a verification link (or a six-digit code) and parks on
+// /email-verification until it is used. The mail arrives in the account this
+// session is already signed in as, so the step needs no phone, no second
+// credential and no operator. Bounded and once per run.
+async function completeEmailVerification(page, login, mark) {
+  mark('email_verification_lookup');
+  const query = encodeURIComponent('from:openai.com (verify OR verification OR code)');
+  await page.goto(`https://mail.google.com/mail/u/0/#search/${query}`, { waitUntil: 'commit' });
+  let opened = false;
+  for (let attempt = 0; attempt < 90; attempt += 1) {
+    const row = await navEval(page, () => {
+      for (const element of Array.from(document.querySelectorAll('tr.zA, div[role="listitem"]'))) {
+        const text = (element.innerText || '').replace(/\s+/g, ' ').trim();
+        if (!/verif|code/i.test(text)) continue;
+        const box = element.getBoundingClientRect();
+        if (box.width < 20 || box.height < 8) continue;
+        return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+      }
+      return null;
+    }, null);
+    if (row) {
+      await humanClick(page, Math.round(row.x), Math.round(row.y));
+      opened = true;
+      break;
+    }
+    await page.waitForTimeout(1000); // allow-raw-playwright: verification mail delivery poll
+  }
+  if (!opened) {
+    console.log(`[google_sso] no OpenAI verification mail in the mailbox of ${login.email}`);
+    return null;
+  }
+  mark('email_verification_opened');
+  const found = await navEval(page, () => {
+    const wanted = /(auth\.openai\.com|chatgpt\.com)\/[^"']*(verify|verification|confirm)/i;
+    for (const anchor of Array.from(document.querySelectorAll('a[href]'))) {
+      const href = anchor.getAttribute('href') || '';
+      if (wanted.test(href)) return { link: href };
+    }
+    const body = (document.body?.innerText || '').replace(/\s+/g, ' ');
+    const code = body.match(/\b(\d{6})\b/);
+    return code ? { code: code[1] } : null;
+  }, null);
+  if (!found) {
+    console.log('[google_sso] verification mail carries neither a link nor a code');
+    return null;
+  }
+  if (found.link) {
+    await page.goto(found.link, { waitUntil: 'commit' });
+    await pause('deliberate');
+    mark('email_verification_link_used');
+  } else {
+    await page.goBack({ waitUntil: 'commit' }).catch(() => {});
+    const field = page
+      .locator('input[autocomplete="one-time-code"], input[name="code"], input[type="tel"], input[type="text"]')
+      .filter({ visible: true })
+      .first();
+    await field.waitFor({ state: 'visible' });
+    await field.click();
+    await field.fill(found.code);
+    mark('email_verification_code_entered');
+    try { await clickVisibleText(page, /^(continue|verify|submit|next)$/i); } catch { /* some forms submit on entry */ }
+    await pause('long');
+  }
+  const landed = await navEval(page, () => location.href, '?');
+  console.log(`[google_sso] email verification ended at ${landed}`);
+  return landed;
+}
+
 // On a Google 2FA challenge, switch to the authenticator-app (TOTP) method:
 // click "Try another way", then the authenticator option. Returns true if a
 // method switch was performed, false if no method-chooser is present (e.g. the
@@ -596,7 +667,10 @@ export async function doGoogleSso({
             && st.host === 'auth.openai.com'
             && /\/add-phone|\/create-account|\/log-in\/password/.test(st.pathname)) {
           inviteTried = true;
-          await acceptPendingWorkspaceInvite(page, login, mark);
+          const landed = await acceptPendingWorkspaceInvite(page, login, mark);
+          if (typeof landed === 'string' && /email-verification|verify-email/i.test(landed)) {
+            await completeEmailVerification(page, login, mark);
+          }
           await page.goto(authorizeUrl, { waitUntil: 'commit' });
           await humanIdlePause('deliberate');
           continue;
