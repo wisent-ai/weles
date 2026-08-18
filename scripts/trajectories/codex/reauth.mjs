@@ -345,7 +345,14 @@ function runLogin(displayName) {
           }
         } catch { /* the failure below names the missing fresh auth contract */ }
       }
-      const tail = (out + '\n' + err).split('\n').slice(-5).join(' | ').slice(0, 400);
+      // The message is on the FIRST lines of a Node failure and the stack on the
+      // last, so keeping only the last five kept the least useful half and hid
+      // every real cause behind identical loader frames.
+      const said = (out + '\n' + err)
+        .split('\n')
+        .map((line) => line.trim())
+        .filter((line) => line && !/^at\s/.test(line));
+      const tail = [...said.slice(0, 4), ...said.slice(-2)].join(' | ').slice(0, 600);
       reject(new Error(`login.mjs exit ${code}, no valid auth.json; tail=${tail}`));
     });
   });

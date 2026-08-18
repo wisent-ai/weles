@@ -130,8 +130,10 @@ if (isCodexReauth) {
     throw new Error(
       `Weles Codex reauth failed: HTTP ${answer.status} `
       + sanitizedText(
-        answer.body?.stderr_tail || answer.body?.error || 'unknown failure',
-        Number('512'),
+        [answer.body?.error, answer.body?.stderr_tail, answer.body?.stdout_tail]
+          .filter(Boolean)
+          .join(' | ') || 'unknown failure',
+        Number('1200'),
       ),
     );
   }
