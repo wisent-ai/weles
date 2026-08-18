@@ -82,7 +82,9 @@ export SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY
 export WELES_STADO_OBJECT_API_TOKEN WELES_STADO_MODEL_ROUTER_TOKEN
 export WELES_STADO_MODEL_ROUTER_AGENT_ID WELES_STADO_MODEL_ROUTER_AGENT_AUTH_SECRET
 mkdir -p "$HOME/weles/var"
-export WELES_AGENT_MODEL=weles/agent/primary
+# Set unconditionally: the unit's plist injects this variable, so a default
+# expression would never win. This is the alias Brama serves.
+export WELES_AGENT_MODEL=best
 export STADO_MODEL_ROUTER_URL='http://127.0.0.1:8080'
 export STADO_API_URL='https://lukaszs-macbook-pro-4007-2.tail6443b3.ts.net'
 export STADO_API_TOKEN="$WELES_STADO_OBJECT_API_TOKEN"
