@@ -16,12 +16,19 @@ const SERVICE_CONTRACTS = Object.freeze({
   // its own vault item, so it must not borrow the shared googleSso login: that
   // would sign into a different Google account and mint a credential for the
   // wrong subscription.
-  claudeControlYourAi: Object.freeze({ consumer: 'weles-claude-controlyourai-client', item: 'claude_controlyourai', fields: LOGIN_FIELDS }),
+  // Google challenges these accounts for a second factor on a host it has not
+  // seen before, and a sign-in that stops at that prompt cannot be finished by a
+  // schedule. The seed stays optional: readOptionalWelesServiceLogin fetches
+  // totp_secret only when the contract declares it and omits it when the vault
+  // item carries none, so an account holding username and password alone behaves
+  // exactly as it did before this line changed.
+  claudeControlYourAi: Object.freeze({ consumer: 'weles-claude-controlyourai-client', item: 'claude_controlyourai', fields: LOGIN_WITH_TOTP_FIELDS }),
   // The account the fleet names claude-wisent-google-sso: the three live claude
   // subscriptions were minted by it, and its login lives in its own vault item.
-  // Same field shape as the item above, which is the shape the entitlement
-  // catalogue grants for a claude login (username, password).
-  claudeWisentGoogleSso: Object.freeze({ consumer: 'weles-claude-wisent-google-sso-client', item: 'claude-wisent-google-sso', fields: LOGIN_FIELDS }),
+  // Same optional-seed shape as the item above: a live sign-in for this account
+  // reached Google's second-factor prompt on 2026-08-17 and stopped there, so the
+  // contract has to be able to carry a seed once the vault item holds one.
+  claudeWisentGoogleSso: Object.freeze({ consumer: 'weles-claude-wisent-google-sso-client', item: 'claude-wisent-google-sso', fields: LOGIN_WITH_TOTP_FIELDS }),
   googleWorkspaceAdmin: Object.freeze({ consumer: 'weles-google-workspace-admin-client', item: 'weles-google-workspace-admin-login', fields: LOGIN_WITH_TOTP_FIELDS }),
   brightdataDashboard: Object.freeze({ consumer: 'weles-brightdata-dashboard-client', item: 'weles-brightdata-dashboard-login', fields: LOGIN_WITH_TOTP_FIELDS }),
   oxylabsDashboard: Object.freeze({ consumer: 'weles-oxylabs-dashboard-client', item: 'weles-oxylabs-dashboard-login', fields: LOGIN_WITH_TOTP_FIELDS }),
