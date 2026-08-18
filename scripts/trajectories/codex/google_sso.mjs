@@ -5,7 +5,7 @@
 // accounts list is empty." and does nothing. So we establish a Google session
 // at accounts.google.com FIRST, then reload the OpenAI device-auth URL — GIS
 // then has an account and the handoff completes.
-import { humanClick } from '../../../dist/human/mouse.js';
+import { humanClick, humanIdlePause as pause } from '../../../dist/human/mouse.js';
 import crypto from 'node:crypto';
 
 // RFC 6238 TOTP (SHA1, 6-digit, 30s) from a base32 secret. Verified against the
@@ -86,6 +86,80 @@ async function clickVisibleText(page, pattern) {
   if (!hit) throw new Error(`no visible control matching /${source}/i`);
   await humanClick(page, Math.round(hit.x), Math.round(hit.y));
   return hit.text;
+}
+
+// Accept the ChatGPT workspace invitation waiting in this account's own mailbox.
+//
+// A Google identity with no ChatGPT account is pushed into personal signup, and
+// personal signup asks for a phone number. An invited seat does not need one:
+// its account is created by accepting the invitation, and that invitation is in
+// the mailbox of the very account this session is already signed in as, so no
+// second credential is read and no phone number is involved.
+//
+// Bounded, once per run. The link is followed by href rather than by clicking
+// through a new tab, because a background tab is a second page to track for no
+// gain. Returns the URL the flow ended at, or null when there is no invitation.
+async function acceptPendingWorkspaceInvite(page, login, mark) {
+  mark('workspace_invite_lookup');
+  const query = encodeURIComponent('from:openai.com (invite OR invitation OR workspace)');
+  await page.goto(`https://mail.google.com/mail/u/0/#search/${query}`, { waitUntil: 'commit' });
+  let opened = false;
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    const row = await navEval(page, () => {
+      for (const element of Array.from(document.querySelectorAll('tr.zA, div[role="listitem"]'))) {
+        const text = (element.innerText || '').replace(/\s+/g, ' ').trim();
+        if (!/invit/i.test(text)) continue;
+        const box = element.getBoundingClientRect();
+        if (box.width < 20 || box.height < 8) continue;
+        return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+      }
+      return null;
+    }, null);
+    if (row) {
+      await humanClick(page, Math.round(row.x), Math.round(row.y));
+      opened = true;
+      break;
+    }
+    await page.waitForTimeout(500); // allow-raw-playwright: mail list render poll
+  }
+  if (!opened) {
+    console.log(`[google_sso] no ChatGPT invitation in the mailbox of ${login.email}`);
+    return null;
+  }
+  mark('workspace_invite_opened');
+  let target = null;
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    target = await navEval(page, () => {
+      const wanted = /(chatgpt\.com|chat\.openai\.com|auth\.openai\.com)\/[^"']*(invit|join|accept)/i;
+      for (const anchor of Array.from(document.querySelectorAll('a[href]'))) {
+        const href = anchor.getAttribute('href') || '';
+        if (wanted.test(href)) return href;
+      }
+      return null;
+    }, null);
+    if (target) break;
+    await page.waitForTimeout(500); // allow-raw-playwright: message body render poll
+  }
+  if (!target) {
+    console.log('[google_sso] the invitation mail carries no workspace acceptance link');
+    return null;
+  }
+  await page.goto(target, { waitUntil: 'commit' });
+  await pause('deliberate');
+  try {
+    const clicked = await clickVisibleText(
+      page,
+      /^(accept invite|accept invitation|accept|join workspace|join|continue)$/i,
+    );
+    mark('workspace_invite_accepted');
+    console.log(`[google_sso] clicked the workspace acceptance control "${clicked}"`);
+  } catch (e) {
+    console.log(`[google_sso] no acceptance control on the invitation page: ${e.message.slice(0, 120)}`);
+  }
+  await pause('long');
+  const landed = await navEval(page, () => location.href, '?');
+  console.log(`[google_sso] the workspace invitation flow ended at ${landed}`);
+  return landed;
 }
 
 // On a Google 2FA challenge, switch to the authenticator-app (TOTP) method:
@@ -464,6 +538,7 @@ export async function doGoogleSso({
   // retry-allowed: bounded recovery for the non-deterministic claude.ai GIS handoff, not a flaky retry.
   let popupPage = null;
   let chooserFreshTried = false;
+  let inviteTried = false;
   const onPopup = (p) => { if (!popupPage) popupPage = p; };
   page.context().on('page', onPopup);
   try {
@@ -511,6 +586,21 @@ export async function doGoogleSso({
         }, { host: '', pathname: '', href: '', consent: false });
         if (await handleCodexConsentPage(page, mark)) { mark('openai_callback'); return page; }
         if (isTerminalHost(st.host, st.href)) { mark('openai_callback'); return page; }
+        // OpenAI issues Codex credentials only to an identity that already has a
+        // ChatGPT account, and says otherwise by parking on personal signup:
+        // /add-phone, an account-creation page, or a password page for a
+        // password this account never had. An invited seat gets its account by
+        // accepting the invitation, so accept it once and retry the authorize
+        // URL instead of reloading a page that cannot proceed.
+        if (!inviteTried
+            && st.host === 'auth.openai.com'
+            && /\/add-phone|\/create-account|\/log-in\/password/.test(st.pathname)) {
+          inviteTried = true;
+          await acceptPendingWorkspaceInvite(page, login, mark);
+          await page.goto(authorizeUrl, { waitUntil: 'commit' });
+          await humanIdlePause('deliberate');
+          continue;
+        }
         // In-page Google account chooser (happens when GIS has a session but
         // needs the user to pick the account). Select the configured email,
         // then click Continue to reach the OAuth consent page.
