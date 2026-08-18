@@ -468,6 +468,27 @@ export async function doGoogleSso({
   page.context().on('page', onPopup);
   try {
     for (let attempt = 0; attempt < 4; attempt += 1) {
+      // "Continue with Google" is a GIS button: when it has no usable session
+      // in this context it silently does nothing, and reloading the authorize
+      // URL repeats that. Naming the account in OpenAI's own email field makes
+      // the handoff explicit, and the Google session established above then
+      // completes it without a chooser.
+      if (attempt > 0) {
+        const emailField = page
+          .locator('input[type="email"], input[name="username"], input[name="email"], input[autocomplete="username"]')
+          .filter({ visible: true })
+          .first();
+        if (await emailField.count() > 0 && await emailField.isVisible().catch(() => false)) {
+          mark('openai_email_first');
+          try {
+            await fillAndVerify(page, emailField, login.email, humanClickLocator, humanType);
+            await waitForEnabledThenClick(page, /^(continue|next|dalej)$/i);
+            await humanIdlePause('long');
+          } catch (e) {
+            console.log(`[google_sso] email-first entry failed: ${e.message.slice(0, 120)}`);
+          }
+        }
+      }
       try { await waitForEnabledThenClick(page, /continue with google|^google$/i); }
       catch (e) { console.log(`[google_sso] no continue-with-google a${attempt}: ${e.message.slice(0, 50)}`); }
       let popupHandled = false;
@@ -538,7 +559,8 @@ export async function doGoogleSso({
         }
         await page.waitForTimeout(100); // allow-raw-playwright: terminal-state poll
       }
-      console.log(`[google_sso] no terminal state a${attempt}; reloading authorizeUrl`);
+      const where = await navEval(page, () => location.href, '?');
+      console.log(`[google_sso] no terminal state a${attempt} at ${where}; reloading authorizeUrl`);
       await page.goto(authorizeUrl, { waitUntil: 'commit' });
       await humanIdlePause('deliberate');
     }
