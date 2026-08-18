@@ -22,6 +22,7 @@ const HOUR_MS = Number('3600000');
 const DAY_MS = Number('86400000');
 const DEFAULT_PORT = Number('8794');
 const SERVER_HOST = '127.0.0.1';
+const LOOPBACK_HOSTS: Record<string, true> = { '127.0.0.1': true, '::1': true, localhost: true };
 const ALLOWED_ACCOUNT_STATUS: Record<string, true> = {
   active: true, banned: true, suspended: true, locked: true, login_required: true,
   flagged: true, shadowbanned: true, auto_disabled_login_failures: true,
@@ -105,6 +106,17 @@ function authorized(request: IncomingMessage, expectedHash: Buffer): boolean {
   const header = request.headers.authorization ?? '';
   if (!header.startsWith('Bearer ')) return false;
   return timingSafeEqual(hashToken(header.slice('Bearer '.length)), expectedHash);
+}
+
+function admissionTokenHash(host: string): Buffer | undefined {
+  const token = process.env.WELES_ADMISSION_TOKEN?.trim() ?? '';
+  if (!token) {
+    if (!LOOPBACK_HOSTS[host]) throw new Error('WELES_ADMISSION_TOKEN is required when the admission API is not bound to loopback');
+    return undefined;
+  }
+  if (Buffer.byteLength(token) < MIN_TOKEN_BYTES) throw new Error('WELES_ADMISSION_TOKEN must be at least 32 bytes');
+  if (token === process.env.WELES_DATABASE_TOKEN?.trim()) throw new Error('WELES_ADMISSION_TOKEN must be distinct from the Weles database token');
+  return hashToken(token);
 }
 
 function text(value: unknown, name: string, max = MAX_STRING): string {
@@ -848,16 +860,13 @@ async function scheduleCampaign(body: JsonObject, catalog: Record<string, true>)
   return { enqueued, skipped };
 }
 
-export function startEchoApiServer() {
-  const token = requiredEnv('WELES_ECHO_API_TOKEN');
-  if (Buffer.byteLength(token) < MIN_TOKEN_BYTES) throw new Error('WELES_ECHO_API_TOKEN must be at least 32 bytes');
-  if (token === process.env.WELES_DATABASE_TOKEN?.trim()) throw new Error('WELES_ECHO_API_TOKEN must be distinct from the Weles database token');
-  const expectedHash = hashToken(token);
+export function startAdmissionApiServer() {
+  const expectedHash = admissionTokenHash(SERVER_HOST);
   const routes = handlers(actionCatalog());
-  const port = process.env.WELES_ECHO_API_PORT ? Number(process.env.WELES_ECHO_API_PORT) : DEFAULT_PORT;
-  if (!Number.isInteger(port) || port <= ZERO || port > Number('65535')) throw new Error('WELES_ECHO_API_PORT is invalid');
+  const port = process.env.WELES_ADMISSION_PORT ? Number(process.env.WELES_ADMISSION_PORT) : DEFAULT_PORT;
+  if (!Number.isInteger(port) || port <= ZERO || port > Number('65535')) throw new Error('WELES_ADMISSION_PORT is invalid');
   const server = createServer(async (request, response) => {
-    if (!authorized(request, expectedHash)) { send(response, Number('401'), { error: 'unauthorized' }); return; }
+    if (expectedHash !== undefined && !authorized(request, expectedHash)) { send(response, Number('401'), { error: 'unauthorized' }); return; }
     if (request.method !== 'POST') { send(response, Number('405'), { error: 'method_not_allowed' }); return; }
     const path = new URL(request.url ?? '/', 'http://localhost').pathname;
     const handler = routes[path];
@@ -868,8 +877,10 @@ export function startEchoApiServer() {
       send(response, Number('400'), { ok: false, error: sanitizeOutput(message) });
     }
   });
-  server.listen(port, SERVER_HOST, () => console.log(`[weles-echo-api] listening on authenticated loopback ${SERVER_HOST}:${port}`));
+  const admission = expectedHash === undefined ? 'unauthenticated' : 'authenticated';
+  const bind = LOOPBACK_HOSTS[SERVER_HOST] ? 'loopback' : 'exposed';
+  server.listen(port, SERVER_HOST, () => console.log(`[weles-admission-api] listening on ${admission} ${bind} ${SERVER_HOST}:${port}`));
   return server;
 }
 
-if (require.main === module) startEchoApiServer();
+if (require.main === module) startAdmissionApiServer();

@@ -55,8 +55,6 @@ WELES_DATABASE_URL="$(acquire_startup_field \
   weles-database-url-bootstrap weles-database url)"
 WELES_DATABASE_TOKEN="$(acquire_startup_field \
   weles-database-service-role-bootstrap weles-database service_role_key)"
-WELES_ECHO_API_TOKEN="$(acquire_startup_field \
-  weles-echo-api-token-bootstrap echo-weles-api token)"
 
 WELES_ACTION_ALLOWLIST_FILE="$HOME/weles/scripts/worker/deploy/weles-action-allowlist.txt"
 WELES_ACTION_ALLOWLIST="$("$NODE_BIN" -e '
@@ -67,25 +65,20 @@ WELES_ACTION_ALLOWLIST="$("$NODE_BIN" -e '
   process.stdout.write(actions.join(","));
 ' "$WELES_ACTION_ALLOWLIST_FILE")"
 
-if ! printf '%s\n%s\n%s\n' "$WELES_DATABASE_URL" "$WELES_ECHO_API_TOKEN" "$WELES_DATABASE_TOKEN" | "$NODE_BIN" -e '
-  const values = require("node:fs").readFileSync(Number("0"), "utf8").split("\n");
-  const endpoint = new URL(values.at(Number("0")));
-  const token = values.at(Number("1")) ?? "";
-  const databaseToken = values.at(Number("2")) ?? "";
+if ! printf '%s\n' "$WELES_DATABASE_URL" | "$NODE_BIN" -e '
+  const endpoint = new URL(require("node:fs").readFileSync(Number("0"), "utf8").trim());
   const loopback = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]).has(endpoint.hostname);
   if ((endpoint.protocol !== "https:" && !(endpoint.protocol === "http:" && loopback))
       || endpoint.username || endpoint.password || endpoint.search || endpoint.hash
-      || (endpoint.pathname !== "/" && endpoint.pathname !== "")
-      || Buffer.byteLength(token) < Number("32")
-      || token === databaseToken) process.exitCode = Number("1");
+      || (endpoint.pathname !== "/" && endpoint.pathname !== "")) process.exitCode = Number("1");
 '; then
-  printf '%s\n' "invalid Weles database endpoint or Echo API token" > /dev/stderr
+  printf '%s\n' "invalid Weles database endpoint" > /dev/stderr
   false
 fi
 
-export WELES_DATABASE_URL WELES_DATABASE_TOKEN WELES_ECHO_API_TOKEN WELES_ACTION_ALLOWLIST
-export WELES_ECHO_API_PORT="${WELES_ECHO_API_PORT:-8794}"
+export WELES_DATABASE_URL WELES_DATABASE_TOKEN WELES_ACTION_ALLOWLIST
+export WELES_ADMISSION_PORT="${WELES_ADMISSION_PORT:-8794}"
 unset WC_SKARBIEC_URL
 unset -f acquire_startup_field
 
-exec "$NODE_BIN" "$HOME/weles/dist/api/echo-server.js"
+exec "$NODE_BIN" "$HOME/weles/dist/api/admission-server.js"
