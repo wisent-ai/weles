@@ -338,22 +338,52 @@ function runLogin(displayName) {
   });
 }
 
+async function runLoginWithRetries(row) {
+  const maxTries = Number(process.env.CODEX_REAUTH_LOGIN_TRIES || 3);
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      const authJson = await runLogin(row.display_name);
+      await markRowAttempted(row.id);
+      return authJson;
+    } catch (e) {
+      console.log(`[codex reauth] login attempt ${attempt}/${maxTries} failed: ${e.message?.slice(0, 100)}`);
+      if (attempt < maxTries) continue;
+      await markRowAttempted(row.id, e.message);
+      throw e;
+    }
+  }
+}
+
 async function main() {
   const cfg = await loadConfig();
+  const requestedDisplayName = process.env.CODEX_DISPLAY_NAME?.trim();
+  if (requestedDisplayName) {
+    const row = await pickNamedRow(requestedDisplayName);
+    console.log(`[codex reauth] requested fresh login for ${row.display_name}`);
+    const authJson = await runLoginWithRetries(row);
+    console.log(`[codex reauth] got requested auth.json len=${authJson.length}`);
+    const newSub = await donate(
+      cfg,
+      authJson,
+      `codex-reauth ${row.display_name} ${new Date().toISOString()}`,
+    );
+    console.log(`[codex reauth] donated requested sub id=${newSub.id ?? '?'}`);
+    const newExp = authExpiresAt(authJson);
+    if (newExp > 0) await persistActiveExpiry(cfg, newExp);
+    return;
+  }
   const poolBefore = await listSubscriptions(cfg);
   const probe = await probePool(cfg);
   const burnt = isBurnout(probe);
-  const requestedDisplayName = process.env.CODEX_DISPLAY_NAME?.trim();
   const marginMs = Number(process.env.CODEX_REAUTH_REFRESH_MARGIN_SEC || 10800) * 1000;
   const expMs = cfg.activeTokenExpiresAt;
-  const reason = requestedDisplayName ? 'requested'
-    : burnt ? 'burnt'
+  const reason = burnt ? 'burnt'
     : (expMs > 0 && Date.now() >= expMs - marginMs ? 'expiring-soon' : null);
   console.log(`[codex reauth] pool=${poolBefore.length} probe=${probe.status} burnt=${burnt} exp_ms=${expMs} reason=${reason ?? 'none'}`);
   if (probe.status !== 200) console.error(`[codex reauth] probe_body ${JSON.stringify(probe.body).slice(0, 1500)}`);
   const probeStr = JSON.stringify(probe.body ?? {}).toLowerCase();
   const quotaBurnt = probe.status !== 200 && (probeStr.includes('usage limit') || probeStr.includes('weekly limit'));
-  if (quotaBurnt && !requestedDisplayName) {
+  if (quotaBurnt) {
     // Quota is spent on the pool's current account. Re-logging THAT account
     // cannot restore it. But if a fresh auth.json is already on disk (a
     // different account was just logged in), donate it to onboard that account
@@ -371,8 +401,8 @@ async function main() {
   if (!reason) { console.log('[codex reauth] healthy & not near expiry — nothing to do'); return; }
 
   let authJson;
-  let account = process.env.CODEX_DISPLAY_NAME || 'Codex';
-  const existingAuth = requestedDisplayName ? null : readExistingAuthJson();
+  let account = 'Codex';
+  const existingAuth = readExistingAuthJson();
   if (existingAuth) {
     authJson = existingAuth;
     // Prefer the sidecar account written by login.mjs so an onboarded on-disk
@@ -397,24 +427,10 @@ async function main() {
       }
     }
   } else {
-    const row = requestedDisplayName
-      ? await pickNamedRow(requestedDisplayName)
-      : await pickLruRow();
+    const row = await pickLruRow();
     account = row.display_name || account;
-    console.log(`[codex reauth] ${reason} — reauthing ${requestedDisplayName ? 'requested' : 'LRU'} row ${row.display_name}`);
-    const maxTries = Number(process.env.CODEX_REAUTH_LOGIN_TRIES || 3);
-    for (let attempt = 1; ; attempt += 1) {
-      try {
-        authJson = await runLogin(row.display_name);
-        break;
-      } catch (e) {
-        console.log(`[codex reauth] login attempt ${attempt}/${maxTries} failed: ${e.message?.slice(0, 100)}`);
-        if (attempt < maxTries) continue;
-        await markRowAttempted(row.id, e.message);
-        throw e;
-      }
-    }
-    await markRowAttempted(row.id);
+    console.log(`[codex reauth] ${reason} — reauthing LRU row ${row.display_name}`);
+    authJson = await runLoginWithRetries(row);
   }
   console.log(`[codex reauth] got auth.json len=${authJson.length}`);
 
