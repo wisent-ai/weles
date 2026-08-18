@@ -343,15 +343,17 @@ async function main() {
   const poolBefore = await listSubscriptions(cfg);
   const probe = await probePool(cfg);
   const burnt = isBurnout(probe);
+  const requestedDisplayName = process.env.CODEX_DISPLAY_NAME?.trim();
   const marginMs = Number(process.env.CODEX_REAUTH_REFRESH_MARGIN_SEC || 10800) * 1000;
   const expMs = cfg.activeTokenExpiresAt;
-  const reason = burnt ? 'burnt'
+  const reason = requestedDisplayName ? 'requested'
+    : burnt ? 'burnt'
     : (expMs > 0 && Date.now() >= expMs - marginMs ? 'expiring-soon' : null);
   console.log(`[codex reauth] pool=${poolBefore.length} probe=${probe.status} burnt=${burnt} exp_ms=${expMs} reason=${reason ?? 'none'}`);
   if (probe.status !== 200) console.error(`[codex reauth] probe_body ${JSON.stringify(probe.body).slice(0, 1500)}`);
   const probeStr = JSON.stringify(probe.body ?? {}).toLowerCase();
   const quotaBurnt = probe.status !== 200 && (probeStr.includes('usage limit') || probeStr.includes('weekly limit'));
-  if (quotaBurnt) {
+  if (quotaBurnt && !requestedDisplayName) {
     // Quota is spent on the pool's current account. Re-logging THAT account
     // cannot restore it. But if a fresh auth.json is already on disk (a
     // different account was just logged in), donate it to onboard that account
@@ -370,7 +372,7 @@ async function main() {
 
   let authJson;
   let account = process.env.CODEX_DISPLAY_NAME || 'Codex';
-  const existingAuth = readExistingAuthJson();
+  const existingAuth = requestedDisplayName ? null : readExistingAuthJson();
   if (existingAuth) {
     authJson = existingAuth;
     // Prefer the sidecar account written by login.mjs so an onboarded on-disk
@@ -395,7 +397,6 @@ async function main() {
       }
     }
   } else {
-    const requestedDisplayName = process.env.CODEX_DISPLAY_NAME?.trim();
     const row = requestedDisplayName
       ? await pickNamedRow(requestedDisplayName)
       : await pickLruRow();
