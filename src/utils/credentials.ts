@@ -170,6 +170,12 @@ const SERVICE_LOGIN_CONTRACTS: Readonly<Record<string, ServiceLoginContract>> = 
   // their own vault item rather than the shared Google SSO one.
   claude_controlyourai: { service: 'claudeControlYourAi', loginMethod: 'google_sso' },
   codex: { service: 'googleSso', loginMethod: 'google_sso' },
+  codex_lukasz_gmail: { service: 'codexLukaszGmail', loginMethod: 'google_sso' },
+  codex_controlyourai: { service: 'codexControlYourAi', loginMethod: 'google_sso' },
+  codex_bartlomiej_wisent: { service: 'codexBartlomiejWisent', loginMethod: 'google_sso' },
+  codex_jakub_wisent: { service: 'codexJakubWisent', loginMethod: 'google_sso' },
+  codex_zuzanna_gmail: { service: 'codexZuzannaGmail', loginMethod: 'google_sso' },
+  codex_lukasz_wisent_com: { service: 'codexLukaszWisentCom', loginMethod: 'google_sso' },
   linear: { service: 'linearDashboard', loginMethod: 'email_password' },
   supabase: { service: 'supabaseDashboard', loginMethod: 'email_password' },
   oxylabs: { service: 'oxylabsDashboard', loginMethod: 'google_sso' },

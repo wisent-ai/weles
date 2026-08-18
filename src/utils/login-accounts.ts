@@ -30,6 +30,12 @@ export const LOGIN_ACCOUNTS: readonly LoginAccount[] = Object.freeze([
   // derived from the provider.
   Object.freeze({ loginItem: 'claude_controlyourai', provider: 'claude', displayName: 'Claude_controlyourai' }),
   Object.freeze({ loginItem: 'codex-wisent-google-sso', provider: 'codex', displayName: 'Codex' }),
+  Object.freeze({ loginItem: 'codex-lukasz-google-sso', provider: 'codex', displayName: 'Codex_lukasz_gmail' }),
+  Object.freeze({ loginItem: 'codex-controlyourai-google-sso', provider: 'codex', displayName: 'Codex_controlyourai' }),
+  Object.freeze({ loginItem: 'codex-bartlomiej-wisent-google-sso', provider: 'codex', displayName: 'Codex_bartlomiej_wisent' }),
+  Object.freeze({ loginItem: 'codex-jakub-wisent-google-sso', provider: 'codex', displayName: 'Codex_jakub_wisent' }),
+  Object.freeze({ loginItem: 'codex-zuzanna-google-sso', provider: 'codex', displayName: 'Codex_zuzanna_gmail' }),
+  Object.freeze({ loginItem: 'codex-lukasz-wisent-com-google-sso', provider: 'codex', displayName: 'Codex_lukasz_wisent_com' }),
   Object.freeze({ loginItem: 'kimi-lukasz-google-sso', provider: 'kimi', displayName: 'Kimi' }),
 ] as const);
 

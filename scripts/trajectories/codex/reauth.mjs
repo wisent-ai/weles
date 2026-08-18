@@ -219,6 +219,20 @@ async function pickLruRow() {
   return rows[0];
 }
 
+async function pickNamedRow(displayName) {
+  if (!supabaseConfigured()) {
+    throw new Error('a named fresh login needs the configured credential store');
+  }
+  const rows = await sbGet(
+    `service_credentials?display_name=eq.${encodeURIComponent(displayName)}`
+    + '&or=(login_method.eq.email_password,login_method.eq.google_sso)'
+    + '&select=id,display_name,updated_at,login_method&limit=1');
+  if (!rows.length) {
+    throw new Error(`no Codex credential row named ${displayName}`);
+  }
+  return rows[0];
+}
+
 async function markRowAttempted(rowId, errMsg) {
   if (!supabaseConfigured()) {
     console.error('mark_row_attempted: no credential store configured; not recorded');
@@ -381,9 +395,12 @@ async function main() {
       }
     }
   } else {
-    const row = await pickLruRow();
+    const requestedDisplayName = process.env.CODEX_DISPLAY_NAME?.trim();
+    const row = requestedDisplayName
+      ? await pickNamedRow(requestedDisplayName)
+      : await pickLruRow();
     account = row.display_name || account;
-    console.log(`[codex reauth] ${reason} — reauthing LRU row ${row.display_name}`);
+    console.log(`[codex reauth] ${reason} — reauthing ${requestedDisplayName ? 'requested' : 'LRU'} row ${row.display_name}`);
     const maxTries = Number(process.env.CODEX_REAUTH_LOGIN_TRIES || 3);
     for (let attempt = 1; ; attempt += 1) {
       try {

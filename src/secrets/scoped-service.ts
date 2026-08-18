@@ -29,6 +29,15 @@ const SERVICE_CONTRACTS = Object.freeze({
   // reached Google's second-factor prompt on 2026-08-17 and stopped there, so the
   // contract has to be able to carry a seed once the vault item holds one.
   claudeWisentGoogleSso: Object.freeze({ consumer: 'weles-claude-wisent-google-sso-client', item: 'claude-wisent-google-sso', fields: LOGIN_WITH_TOTP_FIELDS }),
+  // Every ChatGPT Business seat has its own login contract. Sharing googleSso
+  // here would make a named Codex reauth mint the currently selected Google
+  // account's credential instead of the account the caller requested.
+  codexLukaszGmail: Object.freeze({ consumer: 'weles-codex-lukasz-gmail-client', item: 'codex-lukasz-google-sso', fields: LOGIN_FIELDS }),
+  codexControlYourAi: Object.freeze({ consumer: 'weles-codex-controlyourai-client', item: 'codex-controlyourai-google-sso', fields: LOGIN_FIELDS }),
+  codexBartlomiejWisent: Object.freeze({ consumer: 'weles-codex-bartlomiej-wisent-client', item: 'codex-bartlomiej-wisent-google-sso', fields: LOGIN_FIELDS }),
+  codexJakubWisent: Object.freeze({ consumer: 'weles-codex-jakub-wisent-client', item: 'codex-jakub-wisent-google-sso', fields: LOGIN_FIELDS }),
+  codexZuzannaGmail: Object.freeze({ consumer: 'weles-codex-zuzanna-gmail-client', item: 'codex-zuzanna-google-sso', fields: LOGIN_FIELDS }),
+  codexLukaszWisentCom: Object.freeze({ consumer: 'weles-codex-lukasz-wisent-com-client', item: 'codex-lukasz-wisent-com-google-sso', fields: LOGIN_FIELDS }),
   googleWorkspaceAdmin: Object.freeze({ consumer: 'weles-google-workspace-admin-client', item: 'weles-google-workspace-admin-login', fields: LOGIN_WITH_TOTP_FIELDS }),
   brightdataDashboard: Object.freeze({ consumer: 'weles-brightdata-dashboard-client', item: 'weles-brightdata-dashboard-login', fields: LOGIN_WITH_TOTP_FIELDS }),
   oxylabsDashboard: Object.freeze({ consumer: 'weles-oxylabs-dashboard-client', item: 'weles-oxylabs-dashboard-login', fields: LOGIN_WITH_TOTP_FIELDS }),
