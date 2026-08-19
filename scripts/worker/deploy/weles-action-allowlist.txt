@@ -36,7 +36,9 @@ discord_upvote
 discord_watch_repo
 discord_watch_through
 fivesim_balance
+generic_accessibility_audit
 generic_browser_task
+generic_capture
 generic_keeper_task
 generic_saved_task
 gmail_login_search

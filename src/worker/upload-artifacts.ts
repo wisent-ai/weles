@@ -17,6 +17,11 @@ import type { ArtifactLocatorSet } from './artifact-delivery.js'
 
 const RECORDINGS_ROOT = process.env.WELES_RECORDINGS_ROOT ?? process.env.RECORDINGS_ROOT ?? 'recordings'
 const OBJECT_NAMESPACE = 'weles'
+// Product objects Weles may write. `weles` holds the per-run recordings tree;
+// `weles-captures` holds the batch capture artifacts (stills, video, sidecars,
+// accessibility results) that generic_capture and generic_accessibility_audit
+// produce, which are addressed by batch/site/axis rather than by run id.
+const OBJECT_NAMESPACES: Record<string, true> = { weles: true, 'weles-captures': true }
 const ARTIFACT_PREFIX = 'recordings'
 const UPLOAD_PROOF_NAME = '.uploaded.json'
 
@@ -75,23 +80,28 @@ function requireStadoObjectConfig(): { apiUrl: string; token: string } {
   return stadoObjectConfig
 }
 
-function privateWelesUri(key: string): string {
+function privateStadoUri(namespace: string, key: string): string {
+  if (!OBJECT_NAMESPACES[namespace]) throw new Error(`invalid Weles object namespace: ${namespace}`)
   const parts = key.split('/')
   if (!key || key.startsWith('/') || key.endsWith('/') || key.includes('\\') || key.includes('\0') || key.includes('?') || key.includes('#')
     || [...key].some(character => character.charCodeAt(Number(false)) < Number('32'))
     || parts.some(part => !part || part === '.' || part === '..')) {
     throw new Error(`invalid Weles object key: ${key}`)
   }
-  return `stado://${OBJECT_NAMESPACE}/${key}`
+  return `stado://${namespace}/${key}`
 }
 
-export async function putPrivateWelesObject(
+// namespace is explicit at every call site: the recordings uploader writes into
+// `weles`, the capture actions into `weles-captures`, and nothing may invent a
+// third namespace without adding it to OBJECT_NAMESPACES above.
+export async function putPrivateStadoObject(
+  namespace: string,
   key: string,
   body: Uint8Array | string,
   contentType: string,
 ): Promise<string> {
   const config = requireStadoObjectConfig()
-  const uri = privateWelesUri(key)
+  const uri = privateStadoUri(namespace, key)
   const bytes = typeof body === 'string' ? Buffer.from(body, 'utf8') : body
   const response = await fetch(`${config.apiUrl}/api/object?uri=${encodeURIComponent(uri)}`, {
     method: 'PUT',
@@ -119,7 +129,7 @@ export async function putPrivateWelesObject(
 
 async function uploadOne(localPath: string, objectKey: string, contentType: string): Promise<string> {
   const body = await readFile(localPath)
-  return putPrivateWelesObject(objectKey, body, contentType)
+  return putPrivateStadoObject(OBJECT_NAMESPACE, objectKey, body, contentType)
 }
 
 function contentTypeFor(ext: string): string {
@@ -208,7 +218,7 @@ async function writeUploadProof(
     file_count: files.length,
     total_bytes: totalBytes,
     sha256: createHash('sha256').update(manifest.join('\n')).digest('hex'),
-    destination: `${privateWelesUri(`${ARTIFACT_PREFIX}/${logId}`)}/`,
+    destination: `${privateStadoUri(OBJECT_NAMESPACE, `${ARTIFACT_PREFIX}/${logId}`)}/`,
   }
   await writeFile(join(runDir, UPLOAD_PROOF_NAME), `${JSON.stringify(proof, null, 2)}\n`, 'utf8')
 }
