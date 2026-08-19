@@ -6,7 +6,7 @@ import { readFile, writeFile, readdir, unlink, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { createHmac } from 'node:crypto';
 import os from 'node:os';
-import { putPrivateWelesObject, uploadArtifacts } from './upload-artifacts.js';
+import { putPrivateStadoObject, uploadArtifacts } from './upload-artifacts.js';
 import { paramsToEnv, resolveTrajectory } from './dispatch.js';
 import { claimOne, reportClaimDenial, POLICY_DISABLED_REASON } from './claim.js';
 import { DATABASE_TOKEN, DATABASE_URL, headers, sweepZombiesIfDue } from './stale.js';
@@ -591,7 +591,8 @@ async function diagnosticsUploadable(): Promise<{ ok: boolean; reason: string }>
   let storageReason = '';
   try {
     const markerHost = (os.hostname() || 'worker').replace(/[^\w.-]/g, '-');
-    await putPrivateWelesObject(
+    await putPrivateStadoObject(
+      'weles',
       `recordings/_preflight/${markerHost}.txt`,
       `worker preflight ${new Date().toISOString()}`,
       'text/plain',
@@ -863,6 +864,14 @@ export async function pollOnce(): Promise<'claimed' | 'idle' | 'error'> {
   {
     const serviceAction = await readJsonInRun(row.id, 'service_action_result.json');
     if (serviceAction) result.service_action = serviceAction;
+  }
+  {
+    const capture = await readJsonInRun(row.id, 'capture_result.json');
+    if (capture) result.capture = capture;
+  }
+  {
+    const accessibilityAudit = await readJsonInRun(row.id, 'accessibility_audit_result.json');
+    if (accessibilityAudit) result.accessibility_audit = accessibilityAudit;
   }
   const pendingPath = await findInRun(row.id, 'pending_review.json');
   let pending: Record<string, unknown> | null = null;

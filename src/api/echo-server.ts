@@ -28,6 +28,8 @@ const ALLOWED_ACCOUNT_STATUS: Record<string, true> = {
 };
 const ACCOUNTLESS_ACTION: Record<string, true> = {
   generic_browser_task: true,
+  generic_capture: true,
+  generic_accessibility_audit: true,
   pangram_analyze_text: true,
   slack_post_message: true,
   slack_provision_user_token: true,
