@@ -18,6 +18,7 @@
 
 import { parseAppleLoginCapabilities } from '../utils/apple-login-capabilities.js';
 import { selectLoginAccount } from '../utils/login-accounts.js';
+import { parseAccessibilityAuditParams, parseCaptureParams } from './capture-params.js';
 
 const benignPath = 'scripts/trajectories/_shared/benign.mjs';
 const analyticsServicePath = 'scripts/trajectories/_shared/analytics-service.mjs';
@@ -92,6 +93,11 @@ const ROUTES: Record<string, (p: string) => string | null> = {
   browser_task: (p) => p === 'generic' ? 'scripts/trajectories/generic/browser_task.mjs' : null,
   saved_task: (p) => p === 'generic' ? 'scripts/trajectories/generic/saved_task.mjs' : null,
   keeper_task: (p) => p === 'generic' ? 'scripts/trajectories/generic/keeper_task.mjs' : null,
+  // Evidence capture: stills/video of a product surface, and an axe-core
+  // accessibility audit of the same page, both driven by explicit params
+  // instead of a model. Artifacts land in stado://weles-captures/.
+  capture: (p) => p === 'generic' ? 'scripts/trajectories/generic/capture.mjs' : null,
+  accessibility_audit: (p) => p === 'generic' ? 'scripts/trajectories/generic/accessibility_audit.mjs' : null,
   key_followup: (p) => p === 'semanticscholar' ? 'scripts/trajectories/semanticscholar/key_followup.mjs' : null,
   version_history_scan: (p) => p === 'overleaf' ? 'scripts/trajectories/overleaf/version_history_ui_phrase.mjs' : null,
   push_github: (p) => p === 'overleaf' ? 'scripts/trajectories/overleaf/push_github.mjs' : null,
@@ -441,6 +447,16 @@ export function paramsToEnv(
   if (trajPath.endsWith('/generic/saved_task.mjs')) {
     const trajectoryId = params.trajectory_id;
     if (typeof trajectoryId === 'string') env.GENERIC_SAVED_TRAJECTORY_ID = trajectoryId;
+  }
+  // The capture actions carry their whole instruction in params, so the
+  // contract is parsed HERE: a malformed row fails at dispatch with the exact
+  // refusal sentence instead of launching a browser to discover the problem.
+  // The trajectory parses the same JSON again from this env var.
+  if (trajPath.endsWith('/generic/capture.mjs')) {
+    env.GENERIC_CAPTURE_PLAN = JSON.stringify(parseCaptureParams(params));
+  }
+  if (trajPath.endsWith('/generic/accessibility_audit.mjs')) {
+    env.GENERIC_ACCESSIBILITY_AUDIT_PLAN = JSON.stringify(parseAccessibilityAuditParams(params));
   }
   if (trajPath.endsWith('/semanticscholar/key_followup.mjs')) {
     const sourceActionLogId = params.source_action_log_id;
