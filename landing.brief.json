@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "product": "Weles",
+  "audience": "Teams building AI agents that must use real websites reliably, repeatably, and within explicit authorization boundaries.",
+  "problem": "Browser agents repeatedly rediscover the same sites, expose automation signals, hit CAPTCHAs and bans, leak credentials into prompts, and leave weak evidence when a run fails.",
+  "promise": "Your AI agents deserve to explore the entire internet.",
+  "primaryAction": {"label": "Get Weles", "kind": "url", "target": "https://weles.wisent.com"},
+  "secondaryAction": {"label": "View the source", "purpose": "Inspect the public executor, API contract, and release process.", "target": "https://github.com/wisent-ai/weles"},
+  "approvedClaims": [
+    {"claim": "Weles turns authorized internet workflows into an API for AI agents.", "evidence": "README.md#Weles: Undetectable Browser for Perfect AI Agent Internet Use"},
+    {"claim": "Weles uses custom C++-patched Chromium and Firefox builds with rotating fingerprints.", "evidence": "README.md opening and What your agents can do"},
+    {"claim": "The first run can map a website into a trajectory and later approved runs can replay the cached route.", "evidence": "README.md#What your agents can do"},
+    {"claim": "Failed runs retain recordings showing the point of failure.", "evidence": "README.md opening and See Weles work"},
+    {"claim": "Every production action names an exact origin, action, justification, and idempotency key.", "evidence": "README.md#How it works"},
+    {"claim": "Credentials resolve through scoped Skarbiec grants and are not placed in prompts or logs.", "evidence": "README.md#What your agents can do"},
+    {"claim": "Runs close with terminal state and deployments can issue signed receipts with evidence digests verified offline by weles-client.", "evidence": "README.md#Request access"},
+    {"claim": "Weles, weles-client, weles-chromium, and weles-firefox are public source repositories.", "evidence": "GitHub repository visibility and README.md#Compatibility and status"},
+    {"claim": "Weles does not grant authorization to automate a target; authorization remains with the operator.", "evidence": "README.md#How it works"}
+  ],
+  "requiredProof": [
+    "The public GitHub, Reddit, and LinkedIn production-run recordings linked from the Weles README.",
+    "The exact submission contract: origin, action, justification, idempotency key, credential references, and evidence policy.",
+    "The public source repositories for the executor, client, Chromium patches, Firefox patches, and benchmark.",
+    "The signed receipt and evidence-digest verification path through weles-client."
+  ],
+  "brand": {
+    "canonicalAssets": ["assets/readme-banner.webp", "assets/demos/github-login.gif", "assets/demos/reddit-login.gif", "assets/demos/linkedin-login.gif"],
+    "rules": [
+      "Use Wisent design tokens and the canonical Weles green-on-black visual language.",
+      "Lead with internet access for AI agents, then explain trajectories, patched browsers, authorization, and evidence.",
+      "Use real Weles recordings as proof; never invent customer logos, performance numbers, or browser screenshots.",
+      "Keep one primary action: Get Weles."
+    ],
+    "forbidden": [
+      "Generic AI gradients, floating glass cards, and decorative dashboards.",
+      "Claims that Weles authorizes automation of a target.",
+      "Invented success rates, customer counts, token savings, or CAPTCHA bypass rates.",
+      "Placeholder screenshots or fictional terminal output.",
+      "Multiple equal-weight primary actions."
+    ]
+  },
+  "analyticsOwner": "Wisent product and design maintainers",
+  "notes": [
+    "Weles is both public source and an operated service; do not describe the executor as private.",
+    "The landing page is the public product explanation. The existing weles-web root remains the operations dashboard entry point until domain cutover."
+  ]
+}
