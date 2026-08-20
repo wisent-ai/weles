@@ -1,11 +1,13 @@
 [automation]
 managed = true
-source_fingerprint = "94f25298276156ea"
+source_fingerprint = "abd99e02bc6186ab"
 category = "agent"
+copy_status = "approved"
+approved_in = "019fe3db-84a1-7000-bf79-c5455aefd43f@2026-08-09T23:59:29Z"
 
 [banner]
-title = "Weles acts. Work keeps moving."
-description = "Browser Use Harness. Your AI Agents Can Now Use Internet. Cutting Token Use by 99% by caching trajectories. A harness to stimulate bypassing captchas and accessing all parts of the"
+title = "Weles: Undetectable Browser for Perfect AI Agent Internet Use"
+description = ""
 product = "Wisent"
 url = "wisent.com"
 theme = "dark"
