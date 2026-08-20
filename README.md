@@ -116,9 +116,12 @@ with an explicit terminal state. When receipt issuance is configured, the
 client verifies the signed outcome and evidence digest offline without reading
 worker logs.
 
-The client repository is public development source. A source checkout does not
-promise a hosted endpoint, an approved trajectory, evidence retention, or an
-SLA; those exist only when they are provisioned for an organization.
+Both the Weles executor and
+[`weles-client`](https://github.com/wisent-ai/weles-client) are public,
+MIT-licensed source. You can inspect, build, and operate your own deployment.
+A source checkout does not include a hosted endpoint, approved trajectories,
+managed credentials, evidence retention, or an SLA; those are provisioned
+separately for each organization.
 
 ## Enterprise
 
@@ -131,8 +134,8 @@ credentials and retained evidence to the organization.
 The scope can include trajectory design and review, deployment-ring policy,
 credential lifecycle integration, evidence-retention policy, and operational
 support for the agreed workflows. It does not grant blanket authorization to
-automate a website, and it does not turn the private executor into a
-self-hostable community edition.
+automate a website. The source remains available without an enterprise
+engagement; Enterprise provides the managed deployment and operating service.
 
 [Book an enterprise implementation call](https://calendly.com/lbartoszcze).
 
@@ -184,9 +187,8 @@ run does not establish that the target permits automation.
   hosted-endpoint promise until an operator provisions them.
 - **API:** versioned task, cancellation, status, and receipt schemas expose
   stable `current` aliases.
-- **Executor:** the private operated worker ships as immutable `worker-v*`
-  artifacts promoted through candidate, development, canary, and production
-  rings.
+- **Executor:** the open-source worker ships as immutable `worker-v*` artifacts
+  promoted through candidate, development, canary, and production rings.
 - **Browsers:** Chromium and Firefox launch only when the local receipt matches
   the exact Stado release coordinate and checksum selected for the worker.
 
