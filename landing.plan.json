@@ -1,0 +1,91 @@
+{
+  "schemaVersion": 1,
+  "hero": {
+    "eyebrow": "Undetectable browser use for AI agents",
+    "headline": "Give your AI the keys to the internet.",
+    "lede": "Weles turns authorized browser workflows into an API. It combines patched Chromium and Firefox builds, rotating fingerprints, cached trajectories, scoped credentials, recordings, and signed receipts.",
+    "metaDescription": "Weles gives AI agents reliable, authorized browser access with patched browsers, cached trajectories, scoped credentials, recordings, and signed receipts.",
+    "proofStrip": ["Patched Chromium + Firefox", "Cached trajectories", "Scoped credentials", "Signed receipts", "Public source"]
+  },
+  "sections": [
+    {
+      "kind": "recognition",
+      "id": "why-browser-agents-fail",
+      "heading": "AI can write your software. It still gets stuck at the login page.",
+      "lede": "Ordinary browser agents expose automation signals, rediscover the same interface on every run, lose sessions, and leave you guessing when a workflow fails.",
+      "claimRefs": [0,1,2,3],
+      "items": [
+        {"title": "Detected", "text": "Stock automation surfaces announce the agent before it reaches the work."},
+        {"title": "Slow", "text": "The same navigation is rediscovered and paid for again on every run."},
+        {"title": "Unclear", "text": "A failed action without a recording or terminal state gives you no exact point to repair."}
+      ]
+    },
+    {
+      "kind": "mechanism",
+      "id": "how-it-works",
+      "heading": "One authorized action. One reviewed path. One recorded result.",
+      "lede": "Weles separates authorization, execution, credentials, and evidence so a browser workflow can become a production capability instead of an unowned script.",
+      "claimRefs": [2,4,5,6],
+      "items": [
+        {"step": "01", "title": "Authorize", "text": "Submit the exact origin, action, justification, idempotency key, and credential references."},
+        {"step": "02", "title": "Resolve", "text": "Weles selects the reviewed trajectory and the verified Chromium or Firefox artifact."},
+        {"step": "03", "title": "Execute", "text": "The worker replays the route with a coherent browser identity and scoped credentials from Skarbiec."},
+        {"step": "04", "title": "Prove", "text": "The action closes with terminal state, retained evidence, and—when configured—a signed receipt verified offline."}
+      ]
+    },
+    {
+      "kind": "proof",
+      "id": "real-runs",
+      "heading": "Real runs, not a browser mockup",
+      "lede": "The public Weles repository includes redacted recordings from production actions on GitHub, Reddit, and LinkedIn.",
+      "claimRefs": [3],
+      "artifact": {
+        "type": "table",
+        "caption": "Public proof available in the Weles README.",
+        "columns": ["Target", "Action", "Recorded result"],
+        "rows": [
+          ["GitHub", "Sign in", "Authenticated dashboard reached"],
+          ["Reddit", "Credential flow", "Stored session later confirmed healthy"],
+          ["LinkedIn", "Sign in", "Authenticated home feed reached"]
+        ]
+      }
+    },
+    {
+      "kind": "proof",
+      "id": "open-system",
+      "heading": "Inspect the executor, the browsers, the client, and the benchmark",
+      "lede": "The Weles executor, client, Chromium patch series, Firefox patch series, and comparison benchmark are public repositories.",
+      "claimRefs": [7],
+      "artifact": {
+        "type": "table",
+        "caption": "Public Weles source boundaries.",
+        "columns": ["Repository", "Owns"],
+        "rows": [
+          ["weles", "Executor, trajectories, worker and admission API"],
+          ["weles-client", "Submission client and signed receipt verification"],
+          ["weles-chromium", "Chromium patches, build instructions and published artifact"],
+          ["weles-firefox", "Firefox patches, build instructions and published artifact"],
+          ["weles-benchmark", "Versioned comparison against other browser-agent systems"]
+        ]
+      }
+    },
+    {
+      "kind": "objection",
+      "id": "boundaries",
+      "heading": "The browser can reach a page. That does not grant permission to automate it.",
+      "claimRefs": [4,5,8],
+      "items": [
+        {"question": "Does Weles authorize automation of a target?", "answer": "No. Authorization remains with the operator and every production submission must name its exact origin, action, and justification."},
+        {"question": "Do passwords enter the agent prompt?", "answer": "No. Credentials resolve through scoped Skarbiec grants and are kept out of prompts and logs."},
+        {"question": "Is the source public or only the client?", "answer": "The executor, client, patched-browser repositories, and benchmark are public. The operated service adds provisioning, reviewed trajectories, evidence retention, and support."}
+      ]
+    },
+    {
+      "kind": "decision",
+      "id": "get-weles",
+      "heading": "Turn the next browser workflow into an API.",
+      "lede": "Start with one exact origin and one exact action. Weles turns the approved journey into a repeatable trajectory with bounded credentials and recorded evidence.",
+      "claimRefs": [0,4,6]
+    }
+  ]
+}
