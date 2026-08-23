@@ -81,4 +81,8 @@ export WELES_ADMISSION_PORT="${WELES_ADMISSION_PORT:-8794}"
 unset WC_SKARBIEC_URL
 unset -f acquire_startup_field
 
+# Exactly one admission server may hold the port: clear instances left by
+# earlier launches before exec replaces this shell.
+. "$HOME/weles/scripts/lib/single-instance.sh"
+weles_kill_previous_instances "dist/api/admission-server.js"
 exec "$NODE_BIN" "$HOME/weles/dist/api/admission-server.js"

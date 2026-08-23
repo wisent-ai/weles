@@ -346,4 +346,8 @@ fi
 
 
 cd "$HOME/weles"
+# Exactly one worker may run on this host: clear instances left by earlier
+# launches (or orphaned by a killed session) before exec replaces this shell.
+. "$HOME/weles/scripts/lib/single-instance.sh"
+weles_kill_previous_instances "weles/scripts/worker/run.mjs"
 exec /usr/bin/caffeinate -dimsu /opt/homebrew/bin/node "$HOME/weles/scripts/worker/run.mjs"
