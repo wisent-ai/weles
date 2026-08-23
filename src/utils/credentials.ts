@@ -177,7 +177,6 @@ const SERVICE_LOGIN_CONTRACTS: Readonly<Record<string, ServiceLoginContract>> = 
   codex_zuzanna_gmail: { service: 'codexZuzannaGmail', loginMethod: 'google_sso' },
   codex_lukasz_wisent_com: { service: 'codexLukaszWisentCom', loginMethod: 'google_sso' },
   linear: { service: 'linearDashboard', loginMethod: 'email_password' },
-  supabase: { service: 'supabaseDashboard', loginMethod: 'email_password' },
   oxylabs: { service: 'oxylabsDashboard', loginMethod: 'google_sso' },
   vast: { service: 'vastDashboard', loginMethod: 'email_password' },
   'vast.ai': { service: 'vastDashboard', loginMethod: 'email_password' },

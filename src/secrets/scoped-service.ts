@@ -44,7 +44,6 @@ const SERVICE_CONTRACTS = Object.freeze({
   umamiDashboard: Object.freeze({ consumer: 'weles-umami-dashboard-client', item: 'weles-umami-dashboard-login', fields: LOGIN_WITH_TOTP_FIELDS }),
   linearDashboard: Object.freeze({ consumer: 'weles-linear-dashboard-client', item: 'weles-linear-dashboard-login', fields: LOGIN_WITH_TOTP_FIELDS }),
   vastDashboard: Object.freeze({ consumer: 'weles-vast-dashboard-client', item: 'weles-vast-dashboard-login', fields: LOGIN_FIELDS }),
-  supabaseDashboard: Object.freeze({ consumer: 'weles-supabase-dashboard-client', item: 'weles-supabase-dashboard-login', fields: LOGIN_FIELDS }),
   antiCaptcha: Object.freeze({ consumer: 'weles-anti-captcha-client', item: 'weles-anti-captcha-api', fields: API_KEY_FIELD }),
   twoCaptcha: Object.freeze({ consumer: 'weles-two-captcha-client', item: 'weles-two-captcha-api', fields: API_KEY_FIELD }),
   capsolver: Object.freeze({ consumer: 'weles-capsolver-client', item: 'weles-capsolver-api', fields: API_KEY_FIELD }),
@@ -84,14 +83,6 @@ const ACQUIRED_SECRET_CONTRACTS = Object.freeze({
     writerTokenFile: 'weles-github-admin-org-token-writer-skarbiec-token',
     sourceOrigin: 'https://github.com',
     shape: 'github',
-  }),
-  'supabase.personal_access_token': Object.freeze({
-    item: 'weles-supabase-personal-access-token',
-    field: 'api_key',
-    writerConsumer: 'weles-supabase-personal-access-token-writer',
-    writerTokenFile: 'weles-supabase-personal-access-token-writer-skarbiec-token',
-    sourceOrigin: 'https://supabase.com',
-    shape: 'supabase',
   }),
   'figma.personal_access_token': Object.freeze({
     item: 'weles-figma-personal-access-token',

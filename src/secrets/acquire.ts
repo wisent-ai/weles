@@ -226,25 +226,6 @@ const GITHUB_ADMIN_TOKEN: SecretDefinition = {
   headless: false,
   storeSecretTarget: 'skarbiec',
 };
-
-const SUPABASE_PERSONAL_ACCESS_TOKEN: SecretDefinition = {
-  secret: 'supabase.personal_access_token',
-  provider: 'supabase',
-  displayName: 'Supabase Personal Access Token',
-  envVars: ['SUPABASE_ACCESS_TOKEN'],
-  defaultPurpose: 'supabase-management',
-  formUrl: 'https://supabase.com/dashboard/account/tokens',
-  flowName: 'supabase-personal-access-token-acquisition',
-  endpoints: ['/v1/projects'],
-  usageText: 'We use the Supabase Management API to inspect and administer projects owned by the requested account. The token is stored directly in Skarbiec and is never returned in the Weles result.',
-  dailyRequests: '100',
-  requestedScopes: [],
-  capabilities: ['project_management_api'],
-  runtimeInstall: false,
-  headless: false,
-  storeSecretTarget: 'skarbiec',
-};
-
 const FIGMA_PERSONAL_ACCESS_TOKEN: SecretDefinition = {
   secret: 'figma.personal_access_token',
   provider: 'figma',
@@ -301,10 +282,6 @@ const SECRET_REGISTRY: Record<string, SecretDefinition> = {
   github_admin_org_token: GITHUB_ADMIN_TOKEN,
   github_admin_token: GITHUB_ADMIN_TOKEN,
   github_org_admin_token: GITHUB_ADMIN_TOKEN,
-  [SUPABASE_PERSONAL_ACCESS_TOKEN.secret]: SUPABASE_PERSONAL_ACCESS_TOKEN,
-  supabase_personal_access_token: SUPABASE_PERSONAL_ACCESS_TOKEN,
-  supabase_api_key: SUPABASE_PERSONAL_ACCESS_TOKEN,
-  supabase_token: SUPABASE_PERSONAL_ACCESS_TOKEN,
   [FIGMA_PERSONAL_ACCESS_TOKEN.secret]: FIGMA_PERSONAL_ACCESS_TOKEN,
   figma_personal_access_token: FIGMA_PERSONAL_ACCESS_TOKEN,
   figma_access_token: FIGMA_PERSONAL_ACCESS_TOKEN,
@@ -328,7 +305,6 @@ function normalizeSecret(request: AcquireSecretRequest): string {
     return GITHUB_ADMIN_TOKEN.secret;
   }
   if (goal.includes('supabase') && (goal.includes('api') || goal.includes('key') || goal.includes('token') || goal.includes('klucz'))) {
-    return SUPABASE_PERSONAL_ACCESS_TOKEN.secret;
   }
   if (goal.includes('figma') && (goal.includes('api') || goal.includes('token') || goal.includes('asset') || goal.includes('design'))) {
     return FIGMA_PERSONAL_ACCESS_TOKEN.secret;
