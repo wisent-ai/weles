@@ -1,10 +1,6 @@
-// Reauth configuration, read from whichever store this host actually has.
-//
-// The orchestrators were written against a Supabase project that is gone: they
-// exit on the first line when SUPABASE_URL is unset, so a subscription whose
-// token expired is never refreshed and reads as a dead account. The same
-// configuration rows exist in Skarbiec, which is where every other credential
-// on this fleet already lives, so read them from there when Supabase is absent.
+// Reauth configuration, read from and written to Skarbiec — the one credential
+// store this fleet has. The Supabase project these orchestrators were written
+// against is gone; nothing here reads a database.
 //
 // Two facts about the shape, both learned from the rows themselves:
 //   - `fields.value.metadata` carries the map the runners read, and it is a JSON
@@ -32,8 +28,6 @@ const REQUIRED = [
   'WISENT_DONOR_USER_ID',
 ];
 
-export const supabaseConfigured = () =>
-  Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
 
 // Where Brama is, answered by Stado. The launcher-injected
 // STADO_MODEL_ROUTER_URL wins where a unit carries it; a bare unit (the

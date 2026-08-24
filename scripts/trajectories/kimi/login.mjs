@@ -66,7 +66,6 @@ function resolveKimiBin() {
 }
 
 const KIMI_BIN = resolveKimiBin();
-const DISPLAY_NAME = process.env.KIMI_DISPLAY_NAME || 'Kimi';
 const SERVICE_CREDENTIAL_ID = process.env.KIMI_SERVICE_CREDENTIAL_ID || 'kimi-lukasz-google-sso';
 const LOGIN_HOME = process.env.KIMI_LOGIN_HOME || mkdtempSync(join(VAR, 'kimi-login-'));
 const OVERALL_SEC = Number(process.env.KIMI_LOGIN_OVERALL_SEC || 420);
@@ -119,68 +118,12 @@ function noOpenEnv(home) {
   };
 }
 
-async function loadLogin() {
-  const supabaseUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
-  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
-  // The database row and the vault item describe the same account. When the
-  // database has no row -- which is the state on this fleet -- the login used to
-  // stop at "no Kimi login row" while the credential sat in Skarbiec under the
-  // same name.
-  if (!supabaseUrl || !supabaseKey) {
-    const login = loginFromSkarbiec(SERVICE_CREDENTIAL_ID);
-    process.stderr.write(`login from skarbiec ${SERVICE_CREDENTIAL_ID} (${login.displayName})\n`);
-    return login;
-  }
-  const headers = { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` };
-
-  const byId = await fetch(
-    `${supabaseUrl}/rest/v1/service_credentials?id=eq.${encodeURIComponent(SERVICE_CREDENTIAL_ID)}&select=id,display_name,login_email,login_password,login_method&limit=1`,
-    { headers },
-  );
-  const idRows = byId.ok ? await byId.json() : [];
-  let row = idRows[0];
-
-  if (!row) {
-    const byName = await fetch(
-      `${supabaseUrl}/rest/v1/service_credentials?display_name=ilike.%25${encodeURIComponent(DISPLAY_NAME)}%25&select=id,display_name,login_email,login_password,login_method&limit=1`,
-      { headers },
-    );
-    const rows = byName.ok ? await byName.json() : [];
-    row = rows[0];
-  }
-
-  if (!row?.login_email) {
-    // The database is reachable and simply has no row for this account; the
-    // vault does. Failing here left a login that could have run.
-    const login = loginFromSkarbiec(SERVICE_CREDENTIAL_ID);
-    process.stderr.write(
-      `login from skarbiec ${SERVICE_CREDENTIAL_ID} (${login.displayName}); no database row\n`,
-    );
-    return login;
-  }
-  if (row.login_password) {
-    return {
-      id: row.id,
-      displayName: row.display_name,
-      email: row.login_email,
-      password: row.login_password,
-      loginMethod: row.login_method || 'google_sso',
-    };
-  }
-
-  const shared = await fetch(
-    `${supabaseUrl}/rest/v1/service_credentials?login_email=eq.${encodeURIComponent(row.login_email)}&login_password=not.is.null&select=login_email,login_password&limit=1`,
-    { headers },
-  );
-  const sharedRows = shared.ok ? await shared.json() : [];
-  if (!sharedRows[0]?.login_password) throw new Error(`Kimi login row ${row.id} has no password and no shared password row`);
-  return {
-    id: row.id,
-    displayName: row.display_name,
-    email: row.login_email,
-    password: sharedRows[0].login_password,
-    loginMethod: row.login_method || 'google_sso',
-  };
+function loadLogin() {
+  // The credential lives in Skarbiec under the same name the database row once
+  // had; the vault is the only store this fleet keeps logins in.
+  const login = loginFromSkarbiec(SERVICE_CREDENTIAL_ID);
+  process.stderr.write(`login from skarbiec ${SERVICE_CREDENTIAL_ID} (${login.displayName})\n`);
+  return login;
 }
 
 function spawnKimiLogin(home) {

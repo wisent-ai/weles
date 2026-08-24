@@ -25,15 +25,9 @@ import {
   reachableRouterUrl,
   resolveBearer,
   stadoRouterUrl,
-  supabaseConfigured,
 } from '../_shared/reauth_config.mjs';
 
-// The Supabase project this was written against is not configured on this host,
-// and exiting on its absence meant the job never looked at the subscription.
-// Skarbiec holds the same configuration row.
-const SUPABASE_URL = process.env.SUPABASE_URL ?? '';
-const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
-const SB_HEADERS = { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` };
+// Skarbiec holds the configuration row for this host.
 const CONFIG_ITEM = 'kimi-reauth-config';
 
 const AUTH_BURNOUT_SUBSTR = [
@@ -55,12 +49,6 @@ const QUOTA_SUBSTR = [
   'rate_limit',
 ];
 
-async function sbGet(path) {
-  const r = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, { headers: SB_HEADERS });
-  if (!r.ok) throw new Error(`supabase GET ${path} -> ${r.status} ${await r.text()}`);
-  return r.json();
-}
-
 function configFromSkarbiec(reason) {
   // The identity keys belong to the wisent-app agent, not to one provider, so a
   // row that lacks them borrows from the sibling row rather than keeping a
@@ -77,35 +65,7 @@ function configFromSkarbiec(reason) {
 }
 
 async function loadConfig() {
-  if (!supabaseConfigured()) return configFromSkarbiec('no supabase in env');
-  const rows = await sbGet(
-    "service_credentials?id=in.(kimi-reauth-config,codex-reauth-config,claude-reauth-config)&select=id,metadata",
-  );
-  const byId = new Map(rows.map((row) => [row.id, row.metadata || {}]));
-  const m = byId.get('kimi-reauth-config') || byId.get('codex-reauth-config') || byId.get('claude-reauth-config');
-  if (!m) throw new Error('missing kimi/codex/claude reauth config metadata');
-  // The broker address is no longer a separate deployment: Brama answers the
-  // subscription surface and the chat surface at one place, and a row that
-  // still carries the split address points at a host that answers 404 to the
-  // subscriptions route. Requiring the key refused to run at all.
-  // Identity belongs to the agent, not to a provider row, and this row carries
-  // none of it. Rather than fail, take the configuration Skarbiec holds: it has
-  // the agent id, the router Brama answers on, and a secret that is current.
-  const missing = ['WISENT_APP_AGENT_ID', 'WISENT_APP_AGENT_AUTH_SECRET', 'WISENT_DONOR_USER_ID']
-    .filter((key) => !m[key]);
-  if (missing.length) {
-    return configFromSkarbiec(`supabase row lacks ${missing.join(', ')}`);
-  }
-  console.error('config from supabase');
-  return {
-    store: 'supabase',
-    configId: byId.has('kimi-reauth-config') ? 'kimi-reauth-config' : (byId.has('codex-reauth-config') ? 'codex-reauth-config' : 'claude-reauth-config'),
-    agentId: String(m.WISENT_APP_AGENT_ID),
-    hmacSecret: String(m.WISENT_APP_AGENT_AUTH_SECRET),
-    donorUserId: String(m.WISENT_DONOR_USER_ID),
-    rawMeta: m,
-    activeTokenExpiresAt: Number(m.kimi_active_token_expires_at || m.active_kimi_token_expires_at || 0) || 0,
-  };
+  return configFromSkarbiec('skarbiec store');
 }
 
 function sign(cfg, body) {
@@ -193,30 +153,14 @@ function credentialHasTokens(raw) {
 
 async function persistActiveExpiry(cfg, expiresAtMs) {
   if (!expiresAtMs) return;
-  if (cfg.store === 'skarbiec') {
-    try {
-      persistToSkarbiec(cfg, {
-        kimi_active_token_expires_at: expiresAtMs,
-        kimi_active_token_expires_at_iso: new Date(expiresAtMs).toISOString(),
-      });
-    } catch (error) {
-      console.error(`persist expiry to skarbiec failed: ${error.message}`);
-    }
-    return;
-  }
-  const patch = {
-    metadata: {
-      ...cfg.rawMeta,
+  try {
+    persistToSkarbiec(cfg, {
       kimi_active_token_expires_at: expiresAtMs,
       kimi_active_token_expires_at_iso: new Date(expiresAtMs).toISOString(),
-    },
-  };
-  const r = await fetch(`${SUPABASE_URL}/rest/v1/service_credentials?id=eq.${encodeURIComponent(cfg.configId)}`, {
-    method: 'PATCH',
-    headers: { ...SB_HEADERS, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
-    body: JSON.stringify(patch),
-  });
-  if (r.status >= 400) console.error(`persist expiry PATCH ${r.status}: ${await r.text()}`);
+    });
+  } catch (error) {
+    console.error(`persist expiry to skarbiec failed: ${error.message}`);
+  }
 }
 
 async function donate(cfg, credentialsJson) {
