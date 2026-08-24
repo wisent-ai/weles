@@ -3,7 +3,7 @@ import { readFileSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
 import { basename, isAbsolute, join } from 'node:path';
 
 import { getSocialAccount, resolveAccountSession } from '../../../dist/utils/credentials.js';
-import { optionalWelesDatabase, welesDatabaseHeaders } from '../../../dist/utils/weles-database.js';
+import { updateAccount } from '../../../dist/state/skarbiec-records.js';
 import {
   readWelesManagedCredential,
   writeWelesAcquiredSecret,
@@ -429,20 +429,15 @@ function pendingReview(reason, page) {
   }, null, Number('2')));
 }
 
-async function updateAccountReference(account, credentialId, tenantId) {
-  if (!account.id) throw new Error('Microsoft account has no stable id');
-  const database = optionalWelesDatabase();
-  if (!database) throw new Error('Weles database is unavailable for credential-reference commit');
+function updateAccountReference(account, credentialId, tenantId) {
+  if (!account.id) throw new Error('Microsoft account has no stable Skarbiec id');
   const metadata = { ...(account.metadata ?? {}), skarbiec_credential_id: credentialId };
   delete metadata.password;
   if (tenantId) metadata.skarbiec_tenant_id = tenantId;
   else delete metadata.skarbiec_tenant_id;
-  const response = await fetch(`${database.url}/rest/v1/social_accounts?id=eq.${encodeURIComponent(account.id)}`, {
-    method: 'PATCH',
-    headers: welesDatabaseHeaders(database, { 'Content-Type': 'application/json', Prefer: 'return=minimal' }),
-    body: JSON.stringify({ metadata }),
-  });
-  if (!response.ok) throw new Error(`Microsoft account credential-reference update failed: HTTP ${response.status}`);
+  if (!updateAccount(account.id, { metadata })) {
+    throw new Error('Microsoft account credential-reference update failed');
+  }
 }
 
 async function openSession(account, label) {
