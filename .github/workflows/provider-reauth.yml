@@ -1,0 +1,57 @@
+name: provider-reauth
+
+# The codex, claude-code and kimi subscription pools burn out when a provider
+# refresh token dies, and each has a checked-in reauth runner designed to run
+# hourly on charless-mac-mini (scripts/worker/deploy/<provider>-reauth/
+# reauth-launch.sh). Their launchd scheduling is gone from the mini, so the
+# pools stay burnt until an operator notices a model call failing. This
+# workflow restores the tick: it runs the same launchers on the same host — the
+# stado-release runner is the mini itself — on an hourly schedule.
+#
+# Every runner is self-guarding: it probes its pool first, exits 0 when healthy,
+# never triggers a fresh browser login on a quota-burnt tick, and only donates
+# or logs in through the credentials its own Skarbiec items describe. A green
+# run therefore costs nothing, and a red one names the pool that needs an
+# operator.
+
+on:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+    inputs:
+      providers:
+        description: "Comma-separated subset of pools to run (default: all)"
+        required: false
+        default: "codex,claude,kimi"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: provider-reauth
+  cancel-in-progress: false
+
+jobs:
+  reauth:
+    runs-on: [self-hosted, macOS, ARM64, stado-release]
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        provider: [codex, claude, kimi]
+    steps:
+      - name: Check out the pinned runner revision
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Skip providers not requested in this dispatch
+        if: >-
+          ${{ github.event_name == 'workflow_dispatch' &&
+              !contains(format(',{0},', github.event.inputs.providers),
+                        format(',{0},', matrix.provider)) }}
+        run: echo "skipped=1" >> "$GITHUB_ENV"
+      - name: Run the ${{ matrix.provider }} reauth launcher
+        if: env.skipped != '1'
+        env:
+          REAUTH_ENTRY: ${{ github.workspace }}/scripts/trajectories/${{ matrix.provider }}/reauth.mjs
+        run: bash scripts/worker/deploy/${{ matrix.provider }}-reauth/reauth-launch.sh
