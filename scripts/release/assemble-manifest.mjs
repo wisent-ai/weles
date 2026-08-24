@@ -7,25 +7,23 @@ import { parseArgs, requiredArg, validateManifest, writeAtomic } from './lib.mjs
 
 const args = parseArgs();
 const output = resolve(requiredArg(args, 'output'));
-const fragmentNames = ['worker', 'web', 'database', 'client', 'chromium', 'firefox', 'compatibility'];
+const fragmentNames = ['worker', 'web', 'client', 'chromium', 'firefox'];
 const fragments = Object.fromEntries(await Promise.all(fragmentNames.map(async (name) => {
   const path = resolve(requiredArg(args, name));
   return [name, JSON.parse(await readFile(path, 'utf8'))];
 })));
 const manifest = validateManifest({
-  schema: 'weles.deployment.v1',
+  schema: 'weles.deployment.v2',
   deploymentId: requiredArg(args, 'deployment-id'),
   createdAt: requiredArg(args, 'created-at'),
   sourceRevision: requiredArg(args, 'source-revision'),
   worker: fragments.worker,
   web: fragments.web,
-  database: fragments.database,
   client: fragments.client,
   browsers: {
     chromium: fragments.chromium,
     firefox: fragments.firefox,
   },
-  compatibility: fragments.compatibility,
 });
 const bytes = Buffer.from(`${JSON.stringify(manifest, null, 2)}\n`);
 await writeAtomic(output, bytes, 0o600);

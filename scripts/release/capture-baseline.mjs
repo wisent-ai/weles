@@ -114,9 +114,6 @@ const baseline = {
   deployment: {
     mode: deploymentMode,
     webDeploymentId: args.get("web-deployment-id") ?? null,
-    databaseSchemaVersion: args.has("database-schema-version")
-      ? Number(args.get("database-schema-version"))
-      : null,
   },
   rollbackArchive,
   browsers: {

@@ -215,22 +215,13 @@ async function signArtifact(repositoryRoot, deliveryKind, locator) {
 
 async function listManagedRuns(repositoryRoot) {
   const env = await loadEnvironment(repositoryRoot);
-  const baseUrl = (env.WELES_DATABASE_URL ?? '').replace(/\/$/, '');
-  const token = env.WELES_DATABASE_TOKEN ?? '';
-  if (!baseUrl || !token) throw new Error('Weles managed-run credentials are unavailable');
-  const columns = 'id,action,platform,status,result,started_at,completed_at,claimed_at,claimed_by,scheduled_at';
-  const endpoint = new URL(`${baseUrl}/rest/v1/account_action_logs`);
-  endpoint.searchParams.set('select', columns);
-  endpoint.searchParams.set('order', 'claimed_at.desc.nullslast');
-  endpoint.searchParams.set('limit', String(LIMIT));
-  const response = await fetch(endpoint, {
-    headers: { apikey: token, Authorization: `Bearer ${token}` },
-    signal: AbortSignal.timeout(15_000),
+  const stado = env.WELES_STADO_BIN || join(homedir(), '.stado', 'bin', 'stado');
+  const { stdout } = await execFileAsync(stado, ['status'], { env: { ...process.env, ...env } });
+  const runs = String(stdout).split(/\r?\n/).slice(1).filter((line) => line.trim()).slice(0, LIMIT).map((line) => {
+    const [id = '', status = '', host = '', ...command] = line.trim().split(/\s+/);
+    return sanitizeRow({ id, status, claimed_by: host, action: command.join(' ') });
   });
-  if (!response.ok) throw new Error(`Weles managed-run read failed (${response.status})`);
-  const rows = await response.json();
-  if (!Array.isArray(rows)) throw new Error('Weles managed-run response is not an array');
-  process.stdout.write(`${JSON.stringify({ source: 'managed_queue', runs: rows.map(sanitizeRow) })}\n`);
+  process.stdout.write(`${JSON.stringify({ source: 'stado', runs })}\n`);
 }
 
 if (process.argv[2] === '--sign') {

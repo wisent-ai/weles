@@ -41,10 +41,6 @@ const firefoxArtifact = selectArtifact(manifest.browsers.firefox, platform);
 for (const component of Object.values(installation.components)) await access(component.entrypoint);
 
 
-const compatibility = manifest.compatibility.workerDatabase;
-if (manifest.database.schemaVersion < compatibility.minimum || manifest.database.schemaVersion > compatibility.maximum) {
-  throw new Error(`manifest database schema ${manifest.database.schemaVersion} is outside worker range ${compatibility.minimum}..${compatibility.maximum}`);
-}
 
 await mkdir(ringState, { recursive: true, mode: 0o700 });
 await mkdir(join(state, 'locks'), { recursive: true, mode: 0o700 });
@@ -121,9 +117,6 @@ const environment = {
   WELES_FIREFOX_RELEASE: manifest.browsers.firefox.release,
   WELES_FIREFOX_SHA256: firefoxArtifact.sha256,
   WELES_FIREFOX_BIN: installation.components.firefox.entrypoint,
-  WELES_DATABASE_SCHEMA_VERSION: String(manifest.database.schemaVersion),
-  WELES_DATABASE_SCHEMA_MINIMUM: String(compatibility.minimum),
-  WELES_DATABASE_SCHEMA_MAXIMUM: String(compatibility.maximum),
   WELES_API_SCHEMAS: apiSchemas,
   WELES_RELEASE_STATE_ROOT: ringState,
   WELES_DRAIN_FILE: drainPath,
@@ -218,7 +211,6 @@ async function recordReceipt(status, evidence, previousManifestSha256 = null) {
     firefox_release: manifest.browsers.firefox.release,
     firefox_artifact_sha256: firefoxArtifact.sha256,
     client_minimum_version: manifest.client.minimumVersion,
-    database_schema_version: manifest.database.schemaVersion,
     status,
     previous_manifest_sha256: previousManifestSha256,
     evidence,

@@ -4,7 +4,7 @@
 
 import { checkDomain } from './provision.js';
 import { callJeden } from '../../agent/jeden.js';
-import { optionalWelesDatabase } from '../weles-database.js';
+import { readDomainRows } from './domain.js';
 
 const DOMAIN_TOPICS = [
   'Wisent (the European bison species, nature conservation)',
@@ -43,19 +43,7 @@ function parseNamesFromLlm(raw: string): string[] {
 }
 
 async function listExistingDomains(): Promise<string[]> {
-  const url = optionalWelesDatabase()?.url ?? '';
-  const key = optionalWelesDatabase()?.token ?? '';
-  if (!url || !key) return [];
-  try {
-    const res = await fetch(`${url}/rest/v1/inbound_email_domains?select=domain`, {
-      headers: { apikey: key, Authorization: `Bearer ${key}` },
-    });
-    if (!res.ok) return [];
-    const rows = (await res.json()) as Array<{ domain: string }>;
-    return rows.map(r => r.domain);
-  } catch {
-    return [];
-  }
+  return readDomainRows().map((row) => row.domain);
 }
 
 /**

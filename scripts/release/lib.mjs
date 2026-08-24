@@ -208,9 +208,9 @@ function versionRange(value, name) {
 export function validateManifest(value) {
   const manifest = exactProperties(value, [
     'schema', 'deploymentId', 'createdAt', 'sourceRevision', 'worker', 'web',
-    'database', 'client', 'browsers', 'compatibility',
+    'client', 'browsers',
   ], 'manifest');
-  if (manifest.schema !== 'weles.deployment.v1') throw new Error('unsupported deployment manifest schema');
+  if (manifest.schema !== 'weles.deployment.v2') throw new Error('unsupported deployment manifest schema');
   if (!/^\d{4}-\d{2}-\d{2}\.[1-9]\d*$/.test(text(manifest.deploymentId, 'deploymentId'))) throw new Error('deploymentId is invalid');
   const createdAt = text(manifest.createdAt, 'createdAt');
   if (!Number.isFinite(Date.parse(createdAt))) throw new Error('createdAt must be an ISO date-time');
@@ -243,15 +243,6 @@ export function validateManifest(value) {
     if (new Set(browser.artifacts.map((item) => item.platform)).size !== browser.artifacts.length) throw new Error(`browsers.${family}.artifacts contains duplicate platforms`);
   }
 
-  const database = exactProperties(manifest.database, ['schemaVersion', 'migrationSetSha256'], 'database');
-  const schemaVersion = Number(database.schemaVersion);
-  if (!Number.isInteger(schemaVersion) || schemaVersion < 1) throw new Error('database.schemaVersion must be a positive integer');
-  exactSha(database.migrationSetSha256, 'database.migrationSetSha256');
-  const compatibility = exactProperties(manifest.compatibility, ['workerDatabase', 'webDatabase'], 'compatibility');
-  const workerRange = versionRange(compatibility.workerDatabase, 'compatibility.workerDatabase');
-  const webRange = versionRange(compatibility.webDatabase, 'compatibility.webDatabase');
-  if (schemaVersion < workerRange.minimum || schemaVersion > workerRange.maximum) throw new Error('database schema is outside worker compatibility');
-  if (schemaVersion < webRange.minimum || schemaVersion > webRange.maximum) throw new Error('database schema is outside web compatibility');
   return manifest;
 }
 

@@ -1,10 +1,9 @@
 #!/bin/bash
 # macOS launchd wrapper for the Weles HTTP API server.
-# Runs trajectories synchronously over HTTP (shoot-at-server) instead of the
-# Supabase enqueue -> poll queue. Reuses the worker's resolveTrajectory/paramsToEnv.
+# Runs trajectories synchronously over HTTP; Stado owns queued execution.
 export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
 set -a
-# base worker runtime (proxy, chromium path, captcha keys, supabase creds)
+# base worker runtime (proxy and browser configuration)
 if [ -f "$HOME/weles/var/worker.env" ]; then
   . "$HOME/weles/var/worker.env"
 fi
@@ -65,20 +64,6 @@ if [ -z "${WELES_STADO_MODEL_ROUTER_TOKEN:-}" ] \
   WELES_STADO_MODEL_ROUTER_AGENT_ID="$(acquire_startup_field weles-model-agent-id-bootstrap weles-model-agent-auth id)"
   WELES_STADO_MODEL_ROUTER_AGENT_AUTH_SECRET="$(acquire_startup_field weles-model-agent-secret-bootstrap weles-model-agent-auth agent_auth_secret)"
 fi
-# Every trajectory that reads or writes the Weles database needs these two, and
-# the reauth trajectories are trajectories: without them `POST /reauth` accepts
-# the request, starts the run and dies with
-# `FATAL: SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not in env`, which reads like
-# a broken provider rather than a service started without its database. The
-# scopes for both have existed in skarbiec-acquisition-scopes.conf all along;
-# only the acquisition was missing.
-if [ -z "${SUPABASE_URL:-}" ]; then
-  SUPABASE_URL="$(acquire_startup_field weles-database-url-bootstrap weles-database url)"
-fi
-if [ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ]; then
-  SUPABASE_SERVICE_ROLE_KEY="$(acquire_startup_field weles-database-service-role-bootstrap weles-database service_role_key)"
-fi
-export SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY
 export WELES_STADO_OBJECT_API_TOKEN WELES_STADO_MODEL_ROUTER_TOKEN
 export WELES_STADO_MODEL_ROUTER_AGENT_ID WELES_STADO_MODEL_ROUTER_AGENT_AUTH_SECRET
 mkdir -p "$HOME/weles/var"

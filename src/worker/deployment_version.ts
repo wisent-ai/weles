@@ -10,7 +10,7 @@ type FetchLike = typeof fetch;
 type EnvLike = Record<string, string | undefined>;
 
 export type ImmutableReleaseIdentity = {
-  schema: 'weles.release-identity.v1';
+  schema: 'weles.release-identity.v2';
   worker_version: string;
   source_revision: string;
   artifact_sha256: string;
@@ -22,7 +22,6 @@ export type ImmutableReleaseIdentity = {
   chromium_sha256: string;
   firefox_release: string;
   firefox_sha256: string;
-  database_schema_version: number;
   api_schemas: string[];
 };
 
@@ -73,7 +72,6 @@ function immutableReleaseIdentity(env: EnvLike): ImmutableReleaseIdentity | unde
   const chromiumSha256 = envValue(env, 'WELES_CHROMIUM_SHA256');
   const firefoxRelease = envValue(env, 'WELES_FIREFOX_RELEASE');
   const firefoxSha256 = envValue(env, 'WELES_FIREFOX_SHA256');
-  const databaseSchema = envValue(env, 'WELES_DATABASE_SCHEMA_VERSION');
   const apiSchemas = envValue(env, 'WELES_API_SCHEMAS');
   const values = [
     workerVersion,
@@ -87,16 +85,11 @@ function immutableReleaseIdentity(env: EnvLike): ImmutableReleaseIdentity | unde
     chromiumSha256,
     firefoxRelease,
     firefoxSha256,
-    databaseSchema,
     apiSchemas,
   ];
   if (values.every((value) => !value)) return undefined;
   if (values.some((value) => !value)) {
     throw new Error('immutable release identity is partially configured');
-  }
-  const databaseSchemaVersion = Number(databaseSchema);
-  if (!Number.isInteger(databaseSchemaVersion) || databaseSchemaVersion < 1) {
-    throw new Error('WELES_DATABASE_SCHEMA_VERSION must be a positive integer');
   }
   if (!['candidate', 'development', 'canary', 'production'].includes(ring)) {
     throw new Error('WELES_DEPLOYMENT_RING must name a release ring');
@@ -106,7 +99,7 @@ function immutableReleaseIdentity(env: EnvLike): ImmutableReleaseIdentity | unde
     throw new Error('only the production release ring may claim queued work');
   }
   return {
-    schema: 'weles.release-identity.v1',
+    schema: 'weles.release-identity.v2',
     worker_version: workerVersion,
     source_revision: sourceRevision,
     artifact_sha256: artifactSha256,
@@ -118,7 +111,6 @@ function immutableReleaseIdentity(env: EnvLike): ImmutableReleaseIdentity | unde
     chromium_sha256: chromiumSha256,
     firefox_release: firefoxRelease,
     firefox_sha256: firefoxSha256,
-    database_schema_version: databaseSchemaVersion,
     api_schemas: apiSchemas.split(',').map((value) => value.trim()).filter(Boolean),
   };
 }

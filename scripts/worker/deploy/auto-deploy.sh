@@ -130,7 +130,6 @@ fi
 release_ready=false
 if [[ -f "$RECEIPT" ]] && [[ "$(cat "$RECEIPT")" == "$EXPECTED_RECEIPT" ]] \
   && [[ -d "$INSTALL_DIR/node_modules" ]] \
-  && [[ -f "$INSTALL_DIR/scripts/worker/deploy/launch-echo-api-mac.sh" ]] \
   && [[ -f "$INSTALL_DIR/scripts/worker/deploy/launch-keyword-planner-api-mac.sh" ]] \
   && [[ -f "$INSTALL_DIR/scripts/worker/deploy/skarbiec-acquire.mjs" ]] \
   && [[ -f "$INSTALL_DIR/scripts/worker/deploy/skarbiec-acquisition-scopes.conf" ]]; then
@@ -167,8 +166,6 @@ if ! $release_ready; then
     || fail "verified worker archive is missing its Skarbiec acquisition client"
   [[ -f "$STAGED/scripts/worker/deploy/skarbiec-acquisition-scopes.conf" ]] \
     || fail "verified worker archive is missing its exact Skarbiec acquisition scope catalog"
-  [[ -f "$STAGED/scripts/worker/deploy/launch-echo-api-mac.sh" ]] \
-    || fail "verified worker archive is missing its Echo API launch helper"
   [[ -f "$STAGED/scripts/worker/deploy/launch-keyword-planner-api-mac.sh" ]] \
     || fail "verified worker archive is missing its keyword-planner launch helper"
   [[ -d "$STAGED/node_modules" ]] \
@@ -233,7 +230,7 @@ chmod u+x "$INSTALL_DIR"/scripts/worker/deploy/launch-*.sh
 mkdir -p "$HOME/Library/LaunchAgents"
 UID_NUM="$(id -u)"
 AGENT_DOMAIN="user/$UID_NUM"
-for label in weles-api weles-keyword-planner-api weles-echo-api; do
+for label in weles-api weles-keyword-planner-api; do
   src="$INSTALL_DIR/scripts/worker/deploy/com.wisent.$label.plist"
   dst="$HOME/Library/LaunchAgents/com.wisent.$label.plist"
   if [[ ! -f "$src" ]]; then
