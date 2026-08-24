@@ -15,6 +15,7 @@
 import { WSession } from '../../../../../dist/session/wsession.js';
 import { humanClickLocator, humanIdlePause } from '../../../../../dist/human/mouse.js';
 import { getSocialAccount, resolveAccountSession } from '../../../../../dist/utils/credentials.js';
+import { updateAccountMetadata } from '../../../_shared/skarbiec_accounts.mjs';
 
 const ACCT_USERNAME = process.env.ACCOUNT_USERNAME;
 const ACCEPT_LIMIT = parseInt(process.env.ACCEPT_LIMIT || '3', 10);
@@ -75,19 +76,13 @@ try {
   }
   if (accepted.length === 0) { console.log(`PASS: ${acct.username} no pending requests to accept`); process.exit(0); }
 
-  const supaUrl = process.env.WELES_DATABASE_URL;
-  const supaKey = process.env.WELES_DATABASE_TOKEN;
-  if (supaUrl && supaKey) {
-    const cur = await (await fetch(`${supaUrl}/rest/v1/social_accounts?platform=eq.discord&username=eq.${encodeURIComponent(acct.username)}&select=id,metadata`, { headers: { apikey: supaKey, Authorization: `Bearer ${supaKey}` } })).json();
-    if (cur && cur[0]) {
-      const prev = cur[0].metadata && typeof cur[0].metadata === 'object' ? cur[0].metadata : {};
-      const list = Array.isArray(prev.friend_requests_accepted) ? prev.friend_requests_accepted : [];
-      list.push(...accepted);
-      const merged = { ...prev, friend_requests_accepted: list };
-      await fetch(`${supaUrl}/rest/v1/social_accounts?id=eq.${cur[0].id}`, { method: 'PATCH', headers: { apikey: supaKey, Authorization: `Bearer ${supaKey}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' }, body: JSON.stringify({ metadata: merged }) });
-      console.log('[accept_friend] persisted metadata.friend_requests_accepted[]');
-    }
-  }
+  if (!acct.id) throw new Error('Discord account has no stable Skarbiec id');
+  const list = Array.isArray(acct.metadata?.friend_requests_accepted)
+    ? [...acct.metadata.friend_requests_accepted]
+    : [];
+  list.push(...accepted);
+  updateAccountMetadata(acct.id, { friend_requests_accepted: list });
+  console.log('[accept_friend] persisted metadata.friend_requests_accepted[] in Skarbiec');
   console.log(`PASS: ${acct.username} accepted ${accepted.length} request(s)`);
 } catch (e) {
   console.log(`FAIL: ${e.message?.slice(0, 200)}`);

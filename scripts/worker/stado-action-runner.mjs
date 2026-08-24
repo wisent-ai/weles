@@ -20,6 +20,10 @@ if (!trajectory) throw new Error(`no Weles trajectory for ${payload.action}`);
 const params = payload.accountItem
   ? { ...payload.params, login_item: payload.accountItem }
   : payload.params;
+const delayMs = Number(params.delay_ms ?? 0);
+if (Number.isFinite(delayMs) && delayMs > 0) {
+  await new Promise((resolveDelay) => setTimeout(resolveDelay, Math.min(delayMs, 24 * 60 * 60 * 1000)));
+}
 
 const env = {
   ...process.env,

@@ -2,29 +2,23 @@
 // Prints no secrets and never opens a browser.
 
 import { getSocialAccount } from '../../../dist/utils/credentials.js';
+import { listServiceMetadata } from '../../../dist/state/skarbiec-records.js';
 
 async function serviceCredentialProbe() {
-  const databaseUrl = process.env.WELES_DATABASE_URL ?? '';
-  const databaseToken = process.env.WELES_DATABASE_TOKEN ?? '';
-  if (!databaseUrl || !databaseToken) return { available: false, reason: 'missing_supabase_env' };
-  const url = `${databaseUrl}/rest/v1/service_credentials?display_name=ilike.*pangram*&select=display_name,login_email,login_password,login_method`;
-  const res = await fetch(url, { headers: { apikey: databaseToken, Authorization: `Bearer ${databaseToken}` } });
-  if (!res.ok) return { available: false, reason: `fetch_failed_${res.status}` };
-  const rows = await res.json();
+  const rows = listServiceMetadata().filter((row) =>
+    String(row.display_name ?? row.id ?? '').toLowerCase().includes('pangram'));
   return {
     available: rows.length > 0,
-    rows: rows.map((r) => ({
-      display_name: r.display_name,
-      has_login_email: Boolean(r.login_email),
-      has_login_password: Boolean(r.login_password),
-      login_method: r.login_method ?? null,
+    rows: rows.map((row) => ({
+      display_name: row.display_name ?? row.id,
+      source: 'skarbiec',
     })),
   };
 }
 
 const acct = await getSocialAccount('pangram');
 if (!acct) {
-  console.log(JSON.stringify({ platform: 'pangram', account: null, reason: 'no active account or missing Supabase env', service_credentials: await serviceCredentialProbe() }, null, 2));
+  console.log(JSON.stringify({ platform: 'pangram', account: null, reason: 'no active Skarbiec account', service_credentials: await serviceCredentialProbe() }, null, 2));
   process.exit(1);
 }
 

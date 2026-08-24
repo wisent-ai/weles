@@ -13,7 +13,6 @@ const RUN_LINKEDIN = process.env.WELES_EVIDENCE_RUN_LINKEDIN === '1';
 const FORCE_LINKEDIN = process.env.WELES_EVIDENCE_FORCE_LINKEDIN === '1';
 const SKIP_BROWSER = process.env.WELES_EVIDENCE_SKIP_BROWSER === '1';
 const SKIP_GITHUB = process.env.WELES_EVIDENCE_SKIP_GITHUB === '1';
-const SKIP_RECENT = process.env.WELES_EVIDENCE_SKIP_RECENT_RUNS === '1';
 const FORCE_VALIDATE_LOCAL = process.env.WELES_EVIDENCE_VALIDATE_LOCAL === '1';
 
 const proxySpec = process.argv[2]
@@ -189,16 +188,6 @@ if ((RUN_LINKEDIN && !linkedinAttemptBlockedByPreflight) || FORCE_VALIDATE_LOCAL
   });
 }
 
-if (!SKIP_RECENT && (process.env.WELES_SUPABASE_URL) && process.env.WELES_SUPABASE_SERVICE_ROLE_KEY) {
-  commands.push({
-    name: 'recent_runs',
-    script: 'scripts/debug/linkedin_recent_runs_audit.mjs',
-    args: [
-      process.env.WELES_EVIDENCE_RECENT_LIMIT ?? '120',
-      process.env.WELES_EVIDENCE_RECENT_DAYS ?? '14',
-    ],
-  });
-}
 
 commands.push({
   name: 'requirements_matrix',
@@ -215,7 +204,6 @@ for (const command of commands) {
   results.push({ name: command.name, ...commandResult(result) });
 }
 
-const recent = results.find((result) => result.name === 'recent_runs')?.parsed;
 const matrix = results.find((result) => result.name === 'requirements_matrix')?.parsed;
 const matrixReport = matrix?.outPath ? (readJson(matrix.outPath) ?? matrix) : matrix;
 const matrixCompletion = matrixReport?.completion ?? matrix;
@@ -239,7 +227,6 @@ const report = {
   skipped: {
     browser_checks: SKIP_BROWSER,
     github_checks: SKIP_GITHUB,
-    recent_runs: SKIP_RECENT || !(process.env.WELES_SUPABASE_URL) || !process.env.WELES_SUPABASE_SERVICE_ROLE_KEY,
     linkedin_attempt: linkedinAttemptBlockedByPreflight ? 'preflight_not_operationally_ready' : null,
   },
   redaction: {
@@ -260,9 +247,6 @@ const report = {
     dedicated_proxy_declared: dedicatedProxyDeclared,
     preflight_deferred_attribution_risks: preflight?.deferred_attribution_risks ?? [],
     preflight_attribution_blockers: preflight?.attribution_blockers ?? [],
-    recent_ready_rows: recent?.coverage?.post_hardening_evidence_ready_rows
-      ?? recent?.summary?.post_hardening_evidence_ready_rows
-      ?? null,
     matrix_complete: matrixCompletion?.complete ?? null,
     matrix_status_counts: matrixCompletion?.status_counts ?? null,
     matrix_proved: matrixCompletion?.proved ?? [],
@@ -286,10 +270,6 @@ const report = {
     preflight?.operationally_ready_for_linkedin_attempt === false ? 'Fix preflight operational blockers before spending another LinkedIn attempt.' : null,
     !dedicatedProxyDeclared ? 'Declare the exact proxy as dedicated/static with LINKEDIN_PROXY_KIND=dedicated or WELES_LINKEDIN_PROXY_KIND=dedicated before spending a LinkedIn attempt.' : null,
     preflight?.clean_enough_for_root_cause_attribution === false ? 'Attribution blockers or deferred native risks remain; do not blame proxy alone from a failed replay.' : null,
-    !recent ? 'Run recent-runs audit with Supabase credentials after the controlled attempt finishes.' : null,
-    (recent?.summary?.post_hardening_evidence_ready_rows ?? recent?.coverage?.post_hardening_evidence_ready_rows ?? 0) < 1
-      ? 'Require at least one real production row with session, ban_signal, proxy_quality, startup probe, complete_network, action diagnostics, and actual process tree.'
-      : null,
   ].filter(Boolean),
   results,
 };

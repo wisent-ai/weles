@@ -1,9 +1,10 @@
-// One-off SadCaptcha registration. Creates an account with a generated
-// password and persists it to service_credentials. Run once.
+// SadCaptcha registration. Creates an account with a generated password and
+// persists it to Skarbiec.
 import { randomBytes } from 'node:crypto';
 import { WSession } from '../../../dist/session/wsession.js';
 import { CaptchaSolver } from '../../../dist/captcha/solver.js';
 import { humanIdlePause } from '../../../dist/human/mouse.js';
+import { writeServiceCredentials } from '../_shared/skarbiec_accounts.mjs';
 
 // SadCaptcha rejects gmail aliases; use a fresh wisentmedia.com mailbox instead.
 const EMAIL = `svc.sad.${randomBytes(3).toString('hex')}@wisentmedia.com`;
@@ -51,15 +52,8 @@ try {
     process.exit(1);
   }
 
-  const databaseUrl = process.env.WELES_DATABASE_URL ?? '';
-  const key = process.env.WELES_DATABASE_TOKEN ?? '';
-  const r = await fetch(`${databaseUrl}/rest/v1/service_credentials?display_name=eq.SadCaptcha`, {
-    method: 'PATCH',
-    headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
-    body: JSON.stringify({ login_email: EMAIL, login_password: password, updated_at: new Date().toISOString() }),
-  });
-  if (!r.ok) { console.log('FAIL: PATCH service_credentials returned', r.status); process.exit(1); }
-  console.log(`PASS: registered ${EMAIL}; creds persisted to service_credentials.SadCaptcha`);
+  const item = writeServiceCredentials('SadCaptcha', { username: EMAIL, password });
+  console.log(`PASS: registered ${EMAIL}; credentials persisted to ${item}`);
 } catch (e) {
   console.log('FAIL:', e.message?.slice(0, 200));
   process.exit(1);

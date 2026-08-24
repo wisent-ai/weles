@@ -18,6 +18,7 @@
 //      tracking redirect and matching one that lands on
 //      discord.com/verify#token=...
 //   7. Navigate the WSession to the verify URL.
+import { updateAccountMetadata } from '../../_shared/skarbiec_accounts.mjs';
 //   8. Wait for the "Email Verified!" text on the page.
 //   9. Persist metadata.email_verified_at = ISO timestamp.
 
@@ -132,17 +133,9 @@ try {
   if (!verifiedText) { console.log('FAIL: "Email Verified" text not found on verify page'); process.exit(1); }
   console.log(`[email_verify] page shows: ${verifiedText}`);
 
-  const supaUrl = process.env.WELES_DATABASE_URL;
-  const supaKey = process.env.WELES_DATABASE_TOKEN;
-  if (supaUrl && supaKey) {
-    const cur = await (await fetch(`${supaUrl}/rest/v1/social_accounts?platform=eq.discord&username=eq.${encodeURIComponent(acct.username)}&select=id,metadata`, { headers: { apikey: supaKey, Authorization: `Bearer ${supaKey}` } })).json();
-    if (cur && cur[0]) {
-      const prev = cur[0].metadata && typeof cur[0].metadata === 'object' ? cur[0].metadata : {};
-      const merged = { ...prev, email_verified_at: new Date().toISOString() };
-      await fetch(`${supaUrl}/rest/v1/social_accounts?id=eq.${cur[0].id}`, { method: 'PATCH', headers: { apikey: supaKey, Authorization: `Bearer ${supaKey}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' }, body: JSON.stringify({ metadata: merged }) });
-      console.log('[email_verify] persisted metadata.email_verified_at');
-    }
-  }
+  if (!acct.id) throw new Error('Discord account has no stable Skarbiec id');
+  updateAccountMetadata(acct.id, { email_verified_at: new Date().toISOString() });
+  console.log('[email_verify] persisted account metadata in Skarbiec');
   console.log(`PASS: ${acct.username} email verified`);
 } catch (e) {
   console.log(`FAIL: ${e.message?.slice(0, 200)}`);

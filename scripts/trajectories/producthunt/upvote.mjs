@@ -3,6 +3,7 @@ import { markCookiesStale } from '../../../dist/utils/credentials.js';
 import { assertAuthed, AuthProbeError } from '../_shared/auth-probe.mjs';
 import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../_shared/cookie-freshness.mjs';
 import { loginViaTwitter } from './_session.mjs';
+import { listAccounts } from '../_shared/skarbiec_accounts.mjs';
 
 // Upvote a Product Hunt product. Pass PRODUCTHUNT_URL=https://www.producthunt.com/products/<slug>
 // to vote on a specific product; otherwise the trajectory upvotes the first product
@@ -13,19 +14,10 @@ const proxy = process.env.PROXY_URL || 'none';
 const sleep = (s) => new Promise(r => setTimeout(r, s * 1000));  // allow-raw-playwright: utility sleep shim — usages should migrate to humanIdlePause
 
 async function findProductHuntAccount() {
-  const databaseUrl = process.env.WELES_DATABASE_URL ?? '';
-  const databaseToken = process.env.WELES_DATABASE_TOKEN ?? '';
-  if (!databaseUrl || !databaseToken) return null;
-  const res = await fetch(
-    `${databaseUrl}/rest/v1/social_accounts?platform=eq.producthunt&is_active=eq.true&select=id,platform,username,metadata&order=created_at.desc&limit=20`,
-    { headers: { apikey: databaseToken, Authorization: `Bearer ${databaseToken}` } },
-  );
-  if (!res.ok) return null;
-  const rows = await res.json();
-  for (const a of rows) {
-    if (Array.isArray(a.metadata?.cookies) && a.metadata.cookies.length >= 1) return a;
-  }
-  return rows[0] ?? null;
+  const rows = listAccounts('producthunt');
+  return rows.find((account) => Array.isArray(account.metadata?.cookies) && account.metadata.cookies.length >= 1)
+    ?? rows[0]
+    ?? null;
 }
 
 async function injectPHCookies(s, cookies) {

@@ -2,6 +2,7 @@ import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
+import { readSetting } from '../state/skarbiec-records.js';
 
 const SIGN_PATH = '/v1/artifacts/sign';
 const OBJECT_PATH = '/v1/artifacts/object';
@@ -46,8 +47,6 @@ export type ArtifactDeliveryConfig = {
   stadoApiToken: string;
   allowedOrigin: string | null;
   subscriptionsToken: string;
-  databaseUrl: string;
-  databaseToken: string;
 };
 
 class RequestFailure extends Error {
@@ -105,7 +104,6 @@ export function loadArtifactDeliveryConfig(env: NodeJS.ProcessEnv = process.env)
   const signingSecret = requiredEnv(env, 'WELES_ARTIFACT_SIGNING_SECRET');
   const stadoApiToken = requiredEnv(env, 'WELES_STADO_OBJECT_API_TOKEN');
   const subscriptionsToken = requiredEnv(env, 'OKO_WELES_SUBSCRIPTIONS_TOKEN');
-  const databaseToken = requiredEnv(env, 'WELES_DATABASE_TOKEN');
   if (Buffer.byteLength(clientToken) < MIN_SECRET_BYTES) {
     throw new Error('WELES_ARTIFACT_DELIVERY_TOKEN must contain at least 32 bytes');
   }
@@ -120,10 +118,9 @@ export function loadArtifactDeliveryConfig(env: NodeJS.ProcessEnv = process.env)
     signingSecret,
     stadoApiToken,
     subscriptionsToken,
-    databaseToken,
   ];
   if (new Set(serviceCredentials).size !== serviceCredentials.length) {
-    throw new Error('Weles artifact, subscription, Stado, and database credentials must be distinct');
+    throw new Error('Weles artifact, subscription, and Stado credentials must be distinct');
   }
   for (const siblingName of ['WELES_STADO_MODEL_ROUTER_TOKEN', 'WELES_STADO_MEDIA_ROUTER_TOKEN']) {
     const sibling = String(env[siblingName] ?? '').trim();
@@ -143,8 +140,6 @@ export function loadArtifactDeliveryConfig(env: NodeJS.ProcessEnv = process.env)
     stadoApiUrl: parseSecureBaseUrl(requiredEnv(env, 'STADO_API_URL'), 'STADO_API_URL'),
     stadoApiToken,
     subscriptionsToken,
-    databaseUrl: parseSecureBaseUrl(requiredEnv(env, 'WELES_DATABASE_URL'), 'WELES_DATABASE_URL'),
-    databaseToken,
     allowedOrigin: allowedOriginRaw ? parseSecureBaseUrl(allowedOriginRaw, 'WELES_ARTIFACT_ALLOWED_ORIGIN') : null,
   };
 }
@@ -397,32 +392,12 @@ function publicSubscriptionRow(value: unknown): Record<string, unknown> {
   };
 }
 
-async function listServiceSubscriptions(config: ArtifactDeliveryConfig): Promise<Record<string, unknown>[]> {
-  const query = new URLSearchParams({
-    select: 'id,service_name,provider,account_identifier,status,plan,monthly_cost_usd,expires_at,last_verified_at,metadata',
-    order: 'service_name.asc',
-    limit: String(MAX_SUBSCRIPTION_COUNT),
-  });
-  const upstream = await fetch(
-    `${config.databaseUrl}/rest/v1/service_subscriptions?${query.toString()}`,
-    {
-      method: 'GET',
-      headers: {
-        apikey: config.databaseToken,
-        Authorization: `Bearer ${config.databaseToken}`,
-      },
-      redirect: 'error',
-      signal: AbortSignal.timeout(Number('10000')),
-    },
-  );
-  if (!upstream.ok) {
-    throw new RequestFailure(Number('502'), 'Weles subscription store unavailable');
-  }
-  const body: unknown = await upstream.json();
-  if (!Array.isArray(body)) {
-    throw new RequestFailure(Number('502'), 'Weles subscription store returned an invalid response');
-  }
-  return body.map(publicSubscriptionRow);
+async function listServiceSubscriptions(_config: ArtifactDeliveryConfig): Promise<Record<string, unknown>[]> {
+  const rows = readSetting<unknown[]>('service_subscriptions', []);
+  if (!Array.isArray(rows)) throw new RequestFailure(Number('502'), 'Weles subscription store returned an invalid response');
+  return rows.slice(0, MAX_SUBSCRIPTION_COUNT)
+    .map(publicSubscriptionRow)
+    .sort((left, right) => String(left.service_name).localeCompare(String(right.service_name)));
 }
 
 export async function handleArtifactDeliveryRequest(

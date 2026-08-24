@@ -5,10 +5,11 @@ import { humanClickLocator } from '../../../dist/human/mouse.js';
 import { autoBindCharacter } from '../lib/character-bind.mjs';
 import { findUsableTwitterAccount, stampLinkedTwitter, extractPhHandle } from './_session.mjs';
 import { assertAuthed, AuthProbeError } from '../_shared/auth-probe.mjs';
+import { findAccount } from '../_shared/skarbiec_accounts.mjs';
 
 // ProductHunt does not offer email/password signup — only OAuth via Twitter,
 // Google, Facebook, AngelList. This trajectory uses an existing Twitter account
-// from the social_accounts table (inject cookies → OAuth through → onboard).
+// from the Twitter account pool in Skarbiec (inject cookies → OAuth through → onboard).
 
 const URL = 'https://www.producthunt.com/';
 const proxy = process.env.PROXY_URL || 'none';
@@ -245,17 +246,10 @@ async function signup(s) {
   // re-authenticates the same PH user when the Twitter account already
   // has a linked PH identity, so a re-run of register.mjs against the same
   // Twitter would otherwise produce N rows pointing at the same PH user.
-  const databaseUrl = process.env.WELES_DATABASE_URL ?? '';
-  const databaseToken = process.env.WELES_DATABASE_TOKEN ?? '';
-  if (databaseUrl && databaseToken) {
-    const exists = await fetch(
-      `${databaseUrl}/rest/v1/social_accounts?platform=eq.producthunt&username=eq.${encodeURIComponent(phUsername)}&is_active=eq.true&select=id,username`,
-      { headers: { apikey: databaseToken, Authorization: `Bearer ${databaseToken}` } },
-    ).then(r => r.ok ? r.json() : []).catch(() => []);
-    if (exists.length > 0) {
-      console.log(`[ph] active PH row already exists for username="${phUsername}" id=${exists[0].id} — skipping saveAccount (would dup)`);
-      return phUsername;
-    }
+  const existing = findAccount('producthunt', phUsername);
+  if (existing) {
+    console.log(`[ph] active PH account already exists for username="${phUsername}" id=${existing.id} — skipping saveAccount`);
+    return phUsername;
   }
 
   const result = await s.saveAccount('producthunt', {

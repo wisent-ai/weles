@@ -6,15 +6,8 @@ import { chromium } from 'playwright';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { humanIdlePause } from '../../../dist/human/mouse.js';
+import { listAccounts } from '../../trajectories/_shared/skarbiec_accounts.mjs';
 
-const supaUrl = process.env.WELES_SUPABASE_URL ?? '';
-const supaKey = process.env.WELES_SUPABASE_SERVICE_ROLE_KEY ?? '';
-
-async function getAccount(platform) {
-  const r = await fetch(`${supaUrl}/rest/v1/social_accounts?platform=eq.${platform}&is_active=eq.true&select=username,metadata&order=created_at.desc&limit=1`,
-    { headers: { apikey: supaKey, Authorization: `Bearer ${supaKey}` } }).then(r => r.json());
-  return r?.[0];
-}
 
 const home = process.env.HOME ?? '';
 const exe = [
@@ -61,8 +54,8 @@ if (proc) {
 const ctx = await browser.newContext();
 
 
-const tw = await getAccount('twitter');
-const ph = await getAccount('producthunt');
+const tw = listAccounts('twitter')[0] ?? null;
+const ph = listAccounts('producthunt')[0] ?? null;
 const twNorm = (tw?.metadata?.cookies ?? []).filter(c => c.name && c.value).map(c => ({
   name: c.name, value: c.value,
   domain: c.domain?.startsWith('.') ? c.domain : (c.domain || '.x.com'),

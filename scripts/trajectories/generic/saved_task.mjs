@@ -1,10 +1,6 @@
-const DATABASE_URL = process.env.WELES_DATABASE_URL || '';
-const DATABASE_TOKEN = process.env.WELES_DATABASE_TOKEN || '';
-const trajectoryId = process.env.GENERIC_SAVED_TRAJECTORY_ID || '';
+import { readWelesRecord } from '../_shared/skarbiec_accounts.mjs';
 
-function headers() {
-  return { apikey: DATABASE_TOKEN, Authorization: `Bearer ${DATABASE_TOKEN}`, 'content-type': 'application/json' };
-}
+const trajectoryItem = process.env.GENERIC_SAVED_TRAJECTORY_ITEM || '';
 
 function isObject(value) {
   return value && typeof value === 'object' && !Array.isArray(value);
@@ -28,14 +24,17 @@ function replaySteps(definition) {
   return steps;
 }
 
-if (!DATABASE_URL || !DATABASE_TOKEN) throw new Error('WELES_DATABASE_URL and WELES_DATABASE_TOKEN required');
-if (!trajectoryId) throw new Error('GENERIC_SAVED_TRAJECTORY_ID required');
-
-const res = await fetch(`${DATABASE_URL}/rest/v1/weles_trajectories?id=eq.${encodeURIComponent(trajectoryId)}&status=eq.active&select=id,name,action,url,objective,definition`, { headers: headers() });
-if (!res.ok) throw new Error(`load saved trajectory HTTP ${res.status}: ${await res.text()}`);
-const rows = await res.json();
-const row = rows[0];
-if (!row) throw new Error(`saved trajectory not found: ${trajectoryId}`);
+if (!trajectoryItem) throw new Error('GENERIC_SAVED_TRAJECTORY_ITEM required');
+const document = readWelesRecord(trajectoryItem);
+if (document.context?.status !== 'active') throw new Error(`saved trajectory is not active: ${trajectoryItem}`);
+const fields = document.fields ?? {};
+const row = {
+  id: trajectoryItem,
+  name: document.context?.display_name ?? trajectoryItem,
+  url: fields.url ?? '',
+  objective: fields.objective ?? '',
+  definition: fields.definition_json ? JSON.parse(fields.definition_json) : {},
+};
 const definition = isObject(row.definition) ? row.definition : {};
 
 process.env.GENERIC_TASK_LABEL = 'generic_saved_task';
@@ -48,7 +47,7 @@ if (definition.headless === true) process.env.GENERIC_TASK_HEADLESS = '1';
 setJsonEnv('GENERIC_TASK_CONSTRAINTS', definition.constraints);
 setJsonEnv('GENERIC_TASK_ENV', definition.env);
 const replay = replaySteps(definition);
-if (replay.length === 0) throw new Error(`saved trajectory ${trajectoryId} has no replay steps`);
+if (replay.length === 0) throw new Error(`saved trajectory ${trajectoryItem} has no replay steps`);
 process.env.GENERIC_TASK_REPLAY = JSON.stringify(replay);
 process.env.GENERIC_TASK_REPLAY_ONLY = '1';
 process.env.GENERIC_TASK_SKIP_SAVED_FLOW_REPLAY = '1';

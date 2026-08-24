@@ -1,34 +1,25 @@
-// Canonical Apple ID login. One durable authorization permits one real password submit.
-// Any unconfirmed post-submit cleanup remains failed_open and blocks future attempts.
-// Flow: load ASC login document -> idmsa iframe -> email -> password -> native trusted-device 2FA -> trusted.
+// Canonical Apple ID login. Three one-use Skarbiec capabilities permit the
+// email, password and 2FA operations; Stado owns execution and placement.
 
 import { spawnSync } from 'node:child_process';
 import { statSync } from 'node:fs';
-import { isAbsolute } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { WSession } from '../../../dist/session/wsession.js';
 import { cancelCapability, withCapability, withCapabilityPendingRetry } from '../../../dist/utils/capability.js';
 import { parseAppleLoginCapabilities } from '../../../dist/utils/apple-login-capabilities.js';
 import { completeAppleNativeTwoFactorChallenge } from './native_2fa/native_2fa.mjs';
-import {
-  assertAppleAuthChallengeOpen,
-  beginAppleAuthClosing,
-  cancelAppleAuthAuthorization,
-  closeAppleAuthAuthorization,
-  consumeAppleAuthAuthorization,
-  markAppleAuthChallengeOpen,
-  markAppleAuthFailedOpen,
-  recordAppleAuthChallengeRedeemed,
-} from '../../../dist/auth/apple-submit-guard.js';
+import { getSocialAccount } from '../../../dist/utils/credentials.js';
+import { appleChallengeRelayTarget } from '../../auth/apple-account-placement.mjs';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const JOB_PATTERN = /^[0-9a-f]{8}$/i;
+const ACCOUNT_PATTERN = /^weles-apple-[a-z0-9][a-z0-9-]{0,126}-account$/;
 const guardId = (process.env.APPLE_AUTH_GUARD_ID?.trim() ?? '').toLowerCase();
-const accountId = process.env.ACCOUNT_ID?.trim() ?? '';
+const accountId = process.env.WELES_LOGIN_ITEM?.trim() ?? '';
 const actionLogId = process.env.ACTION_LOG_ID?.trim() ?? '';
-const leaseOwner = process.env.APPLE_AUTH_LEASE_OWNER?.trim() ?? '';
-for (const [name, value] of [['APPLE_AUTH_GUARD_ID', guardId], ['ACCOUNT_ID', accountId], ['ACTION_LOG_ID', actionLogId]]) {
-  if (!UUID_PATTERN.test(value)) throw new Error(`[apple-login] ${name} must be a valid UUID; refusing to launch`);
-}
-if (!leaseOwner || leaseOwner.length > 500) throw new Error('[apple-login] APPLE_AUTH_LEASE_OWNER is required');
+if (!UUID_PATTERN.test(guardId)) throw new Error('[apple-login] APPLE_AUTH_GUARD_ID must be a valid UUID');
+if (!ACCOUNT_PATTERN.test(accountId)) throw new Error('[apple-login] WELES_LOGIN_ITEM must name an Apple account');
+if (!JOB_PATTERN.test(actionLogId)) throw new Error('[apple-login] ACTION_LOG_ID must be a Stado job id');
 
 const LOGIN_URL = 'https://appstoreconnect.apple.com/login?targetUrl=%2Fapps&authResult=FAILED';
 const challengeResource = `challenge:apple/${guardId}`;
@@ -71,16 +62,14 @@ async function cancelSessionCapabilities() {
 }
 
 function requestTrustedMacChallengeRelay() {
-  const command = process.env.APPLE_2FA_RELAY_COMMAND?.trim() ?? '';
-  if (!command || !isAbsolute(command)) {
-    throw new Error('APPLE_2FA_RELAY_COMMAND must be a configured absolute executable for capability-backed 2FA');
-  }
+  const command = fileURLToPath(new URL('../../auth/request-apple-challenge-relay.mjs', import.meta.url));
   const stat = statSync(command);
-  if (!stat.isFile() || (stat.mode & 0o100) === 0 || (stat.mode & 0o022) !== 0
+  if (!stat.isFile() || (stat.mode & 0o022) !== 0
       || (typeof process.getuid === 'function' && stat.uid !== process.getuid())) {
-    throw new Error('APPLE_2FA_RELAY_COMMAND must be a non-writable executable owned by the worker');
+    throw new Error('the Apple challenge relay must be a non-writable file owned by the worker');
   }
-  const result = spawnSync(command, [
+  const result = spawnSync(process.execPath, [
+    command,
     '--guard-id', guardId,
     '--account-id', accountId,
     '--action-log-id', actionLogId,
@@ -92,9 +81,7 @@ function requestTrustedMacChallengeRelay() {
     maxBuffer: 64 * 1024,
     stdio: ['ignore', 'pipe', 'pipe'],
   });
-  if (result.error || result.status !== 0) {
-    throw new Error('Trusted Mac Apple challenge relay failed closed');
-  }
+  if (result.error || result.status !== 0) throw new Error('Trusted Mac Apple challenge relay failed closed');
   let acknowledgement;
   try { acknowledgement = JSON.parse(result.stdout); } catch {
     throw new Error('Trusted Mac Apple challenge relay returned invalid acknowledgement');
@@ -235,7 +222,6 @@ try {
   }, null, { timeout: 10_000 }).then(() => true).catch(() => false);
   if (!signInEnabled) throw new Error('Apple password form stayed disabled after credential entry');
 
-  await consumeAppleAuthAuthorization(guardId, accountId, actionLogId, leaseOwner);
   passwordSubmitted = true;
   // Playwright's actionability-checked click hangs on Apple's Angular-bound
   // Sign In control, so submit the validated form with a DOM click.
@@ -247,25 +233,23 @@ try {
   if (postPasswordState === 'timeout') throw new Error('Timed out waiting for Apple dashboard or 2FA challenge');
 
   if (postPasswordState === 'two_factor') {
-    await markAppleAuthChallengeOpen(guardId, actionLogId);
-    await assertAppleAuthChallengeOpen(guardId, accountId, actionLogId);
-    const twoFactorCapability = capabilities.two_factor.capability;
+    const account = await getSocialAccount('apple');
+    const relayTarget = appleChallengeRelayTarget((account?.metadata?.email ?? account?.username ?? '').trim());
     const twoFactorOptions = {
       logPrefix: '[apple-login]',
-      nativeOnly: true,
-      withCode: (consume) => withCapabilityPendingRetry(twoFactorCapability, {
-        purpose: 'weles.apple.2fa',
-        resource: challengeResource,
-        authorization_id: guardId,
-      }, async (code) => {
-        await recordAppleAuthChallengeRedeemed(guardId, actionLogId);
-        return consume(code);
-      }, {
-        timeoutMs: Number(process.env.WELES_APPLE_2FA_PENDING_TIMEOUT_MS ?? '120000'),
-        intervalMs: Number(process.env.WELES_APPLE_2FA_PENDING_INTERVAL_MS ?? '1000'),
-      }),
+      ...(relayTarget ? {
+        nativeOnly: true,
+        withCode: (consume) => withCapabilityPendingRetry(capabilities.two_factor.capability, {
+          purpose: 'weles.apple.2fa',
+          resource: challengeResource,
+          authorization_id: guardId,
+        }, async (code) => consume(code), {
+          timeoutMs: Number(process.env.WELES_APPLE_2FA_PENDING_TIMEOUT_MS ?? '120000'),
+          intervalMs: Number(process.env.WELES_APPLE_2FA_PENDING_INTERVAL_MS ?? '1000'),
+        }),
+      } : {}),
     };
-    requestTrustedMacChallengeRelay();
+    if (relayTarget) requestTrustedMacChallengeRelay();
     const twoFactor = await completeAppleNativeTwoFactorChallenge(s, frame, twoFactorOptions);
     if (!twoFactor.ok) throw new Error(`Apple 2FA did not complete (${twoFactor.source || 'unknown source'})`);
   }
@@ -279,28 +263,15 @@ try {
   const dashboardUrl = new URL(s.page.url?.() ?? '');
   dashboardPostcondition = `Authenticated App Store Connect dashboard observed at origin=${dashboardUrl.origin} pathname=${dashboardUrl.pathname}; URL excluded /login and idmsa`;
 
-  await beginAppleAuthClosing(guardId, actionLogId);
   await s.close();
   sessionClosed = true;
   await cancelSessionCapabilities();
-  await closeAppleAuthAuthorization(
-    guardId,
-    actionLogId,
-    `${dashboardPostcondition}; all session capabilities cancelled; WSession browser closed`,
-  );
   authorizationClosed = true;
   console.log(`PASS: ${dashboardPostcondition}`);
   process.exitCode = 0;
 } catch (error) {
   const detail = error instanceof Error ? error.message.slice(0, 500) : String(error).slice(0, 500);
   const cleanupFailures = [];
-  if (passwordSubmitted && !authorizationClosed) {
-    try {
-      await markAppleAuthFailedOpen(guardId, actionLogId, `Post-submit outcome or cleanup unconfirmed: ${detail}`);
-    } catch (persistError) {
-      cleanupFailures.push(`failed_open persistence failed: ${persistError instanceof Error ? persistError.message : String(persistError)}`);
-    }
-  }
   if (!sessionClosed && s) {
     try { await s.close(); sessionClosed = true; } catch (closeError) {
       cleanupFailures.push(`browser close failed: ${closeError instanceof Error ? closeError.message : String(closeError)}`);
@@ -308,14 +279,6 @@ try {
   }
   try { await cancelSessionCapabilities(); } catch (cleanupError) {
     cleanupFailures.push(cleanupError instanceof Error ? cleanupError.message : String(cleanupError));
-  }
-  if (!passwordSubmitted && cleanupFailures.length === 0) {
-    try {
-      await cancelAppleAuthAuthorization(guardId, `Pre-submit failure cleaned up: ${detail}`);
-      authorizationClosed = true;
-    } catch (cancelError) {
-      cleanupFailures.push(`guard cancellation failed: ${cancelError instanceof Error ? cancelError.message : String(cancelError)}`);
-    }
   }
   console.log('FAIL:', detail);
   for (const failure of cleanupFailures) console.log('[apple-login] cleanup:', failure);

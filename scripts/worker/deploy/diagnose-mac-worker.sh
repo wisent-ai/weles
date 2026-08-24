@@ -54,7 +54,7 @@ printf '\n== launcher path ==\n'
 
 printf '\n== worker routing settings ==\n'
 if [ -f "$HOME/.config/weles/worker.env" ]; then
-  /usr/bin/grep -E '^(SUPABASE_URL|NEXT_PUBLIC_SUPABASE_URL|WELES_DATABASE_URL|WELES_PLACEMENT_MODE|WELES_PLACEMENT_POLICY_FILE)=' \
+  /usr/bin/grep -E '^(WELES_PLACEMENT_MODE|WELES_PLACEMENT_POLICY_FILE|WC_SKARBIEC_URL)=' \
     "$HOME/.config/weles/worker.env" || true
 else
   printf 'missing: %s\n' "$HOME/.config/weles/worker.env"

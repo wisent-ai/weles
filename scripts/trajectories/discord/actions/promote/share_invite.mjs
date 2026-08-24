@@ -18,6 +18,7 @@
 //      send the invite URL as the DM body.
 //   6. Persist invite URL + targets to metadata.invites_sent[].
 
+import { updateAccountMetadata } from '../../../_shared/skarbiec_accounts.mjs';
 import { WSession } from '../../../../../dist/session/wsession.js';
 import { humanClickLocator, humanIdlePause } from '../../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../../dist/human/keyboard.js';
@@ -95,19 +96,13 @@ try {
     console.log(`[share_invite] DM'd ${target}`);
   }
 
-  const supaUrl = process.env.WELES_DATABASE_URL;
-  const supaKey = process.env.WELES_DATABASE_TOKEN;
-  if (supaUrl && supaKey) {
-    const cur = await (await fetch(`${supaUrl}/rest/v1/social_accounts?platform=eq.discord&username=eq.${encodeURIComponent(acct.username)}&select=id,metadata`, { headers: { apikey: supaKey, Authorization: `Bearer ${supaKey}` } })).json();
-    if (cur && cur[0]) {
-      const prev = cur[0].metadata && typeof cur[0].metadata === 'object' ? cur[0].metadata : {};
-      const list = Array.isArray(prev.invites_sent) ? prev.invites_sent : [];
-      list.push({ channel: CHANNEL, url: inviteUrl, at: new Date().toISOString(), dm_targets: sent });
-      const merged = { ...prev, invites_sent: list };
-      await fetch(`${supaUrl}/rest/v1/social_accounts?id=eq.${cur[0].id}`, { method: 'PATCH', headers: { apikey: supaKey, Authorization: `Bearer ${supaKey}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' }, body: JSON.stringify({ metadata: merged }) });
-      console.log('[share_invite] persisted metadata.invites_sent[]');
-    }
-  }
+  if (!acct.id) throw new Error('Discord account has no stable Skarbiec id');
+  const list = Array.isArray(acct.metadata?.invites_sent)
+    ? [...acct.metadata.invites_sent]
+    : [];
+  list.push({ channel: CHANNEL, url: inviteUrl, at: new Date().toISOString(), dm_targets: sent });
+  updateAccountMetadata(acct.id, { invites_sent: list });
+  console.log('[share_invite] persisted metadata.invites_sent[] in Skarbiec');
   console.log(`PASS: ${acct.username} shared invite ${inviteUrl} (DM'd ${sent.length} target(s))`);
 } catch (e) {
   console.log(`FAIL: ${e.message?.slice(0, 200)}`);

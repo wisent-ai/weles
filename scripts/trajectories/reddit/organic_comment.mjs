@@ -17,6 +17,7 @@ import { probeCommentVisibility, probeShadowban } from '../../../dist/platforms/
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
+import { updateAccountMetadata } from '../_shared/skarbiec_accounts.mjs';
 
 // Newbie-tolerant subs — high comment volume, light AutoMod, no karma gate.
 // The default 'popular' lands on mega-threads where comments are routinely
@@ -44,20 +45,8 @@ const DEFER_VERIFY_MS = Number(process.env.DEFER_VERIFY_MS ?? 300_000); // 5 min
 const acct = await getSocialAccount('reddit');
 if (!acct) { console.log('FAIL: no active reddit account'); process.exit(1); }
 
-async function fetchCharacter(accountId) {
-  const url = process.env.WELES_DATABASE_URL ?? '';
-  const key = process.env.WELES_DATABASE_TOKEN ?? '';
-  if (!url || !key || !accountId) return null;
-  const r = await fetch(`${url}/rest/v1/character_social_accounts?social_account_id=eq.${accountId}&select=characters(name,bio,personality,niche,handle)&limit=1`, {
-    headers: { apikey: key, Authorization: `Bearer ${key}` },
-  });
-  if (!r.ok) return null;
-  const rows = await r.json();
-  return rows[0]?.characters ?? null;
-}
-
-const character = await fetchCharacter(acct.id);
-if (!character) { console.log('FAIL: no character linked to account'); process.exit(1); }
+const character = acct.metadata?.character;
+if (!character || typeof character !== 'object') { console.log('FAIL: no character stored for account'); process.exit(1); }
 console.log(`[comment] acct=${acct.username} character=${character.name} sub=${SUBREDDIT}`);
 
 const { proxyUrl, persona } = await resolveAccountSession(acct);
@@ -158,17 +147,8 @@ try {
       console.log(`[deferred-verify] verdict=${probe.verdict}`);
       if (probe.verdict === 'shadowbanned') {
         banSignal = { signal: 'shadowbanned', healthy: false, details: { real_handle: realHandle, reason: 'multi-vantage about.json 404 after deferred verify', vantages: probe.vantages } };
-        // Auto-flag: pull from rotation.
-        const databaseUrl = process.env.WELES_DATABASE_URL ?? '';
-        const key = process.env.WELES_DATABASE_TOKEN ?? '';
-        if (databaseUrl && key && acct.id) {
-          await fetch(`${databaseUrl}/rest/v1/social_accounts?id=eq.${acct.id}`, {
-            method: 'PATCH',
-            headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
-            body: JSON.stringify({ status: 'shadowbanned' }),
-          }).catch(() => {});
-          console.log(`[deferred-verify] auto-flagged ${acct.username} status=shadowbanned`);
-        }
+        updateAccountMetadata(acct.id, { status: 'shadowbanned' });
+        console.log(`[deferred-verify] auto-flagged ${acct.username} status=shadowbanned in Skarbiec`);
         throw new Error(`account shadowbanned (deferred verify, ${probe.vantages.filter(v => v.status === 404).length}/${probe.vantages.length} vantages 404)`);
       }
     }

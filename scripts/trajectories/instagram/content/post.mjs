@@ -19,30 +19,23 @@ import { writeFileSync, mkdirSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { checkReachable } from '../../_shared/action-runner.mjs';
 import { runRecordingsDir } from '../../../../dist/session/run-recordings.js';
+import { accountCharacter, findAccount, findProduct } from '../../_shared/skarbiec_accounts.mjs';
 
 const ACTION = process.env.POST_PROMOTE === '1' ? 'post_promote' : 'post';
 
-async function fetchSupabase(path) {
-  const url = process.env.WELES_DATABASE_URL ?? '';
-  const key = process.env.WELES_DATABASE_TOKEN ?? '';
-  if (!url || !key) return null;
-  const r = await fetch(`${url}/rest/v1/${path}`, { headers: { apikey: key, Authorization: `Bearer ${key}` } });
-  return r.ok ? r.json() : null;
-}
 
 const acct = await getSocialAccount('instagram');
 if (!acct) { console.log('FAIL: no active instagram account'); process.exit(1); }
 
-const rows = await fetchSupabase(`character_social_accounts?social_account_id=eq.${acct.id}&select=characters(id,name,bio,personality,niche,promoted_product_id,promotion_config)&limit=1`);
-const character = rows?.[0]?.characters;
+const vaultAccount = findAccount('instagram', acct.username);
+const character = accountCharacter(vaultAccount);
 if (!character) { console.log('FAIL: no character linked'); process.exit(1); }
 
 let product = null;
 if (ACTION === 'post_promote') {
   const productId = process.env.PRODUCT_ID || character.promoted_product_id;
   if (!productId) { console.log('FAIL: no product configured for post_promote'); process.exit(1); }
-  const pr = await fetchSupabase(`products?id=eq.${productId}&select=name,description,url&limit=1`);
-  product = pr?.[0] ?? null;
+  product = findProduct(productId);
   if (!product) { console.log('FAIL: product not found'); process.exit(1); }
 }
 

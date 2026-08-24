@@ -24,7 +24,6 @@ function loadContentDiagnosticsConfig() {
     throw new Error('CONTENT_DIAGNOSTICS_API_TOKEN must contain at least 32 bytes');
   }
   for (const siblingName of [
-    'WELES_DATABASE_TOKEN',
     'WELES_STADO_OBJECT_API_TOKEN',
     'WELES_STADO_MODEL_ROUTER_TOKEN',
     'WELES_ARTIFACT_DELIVERY_TOKEN',

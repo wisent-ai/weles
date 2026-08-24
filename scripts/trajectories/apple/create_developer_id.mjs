@@ -1,16 +1,6 @@
 // Apple Developer ID Application certificate creation.
-// Authenticates to developer.apple.com using the same guard/capability/relay
-// 2FA infrastructure as login.mjs, then uploads a CSR and downloads the cert.
-//
-// Env:
-//   APPLE_AUTH_GUARD_ID         — submit-guard authorization UUID
-//   ACCOUNT_ID                  — Apple social account UUID
-//   ACTION_LOG_ID               — this trajectory's action log UUID
-//   APPLE_AUTH_LEASE_OWNER      — lease owner identifier
-//   APPLE_LOGIN_CAPABILITIES_JSON — capability envelope (email, password, 2FA)
-//   APPLE_CSR_PATH              — absolute path to the CSR PEM
-//   APPLE_CERTIFICATE_PATH      — absolute path for the downloaded .cer
-//   WELES_HEADLESS              — "1" for headless
+// One-use Skarbiec capabilities authorize email, password and 2FA; Stado owns
+// execution and placement.
 
 import { spawnSync } from 'node:child_process';
 import { statSync } from 'node:fs';
@@ -22,26 +12,16 @@ import { parseAppleLoginCapabilities } from '../../../dist/utils/apple-login-cap
 import { completeAppleNativeTwoFactorChallenge } from './native_2fa/native_2fa.mjs';
 import { getSocialAccount } from '../../../dist/utils/credentials.js';
 import { appleChallengeRelayTarget } from '../../auth/apple-account-placement.mjs';
-import {
-  assertAppleAuthChallengeOpen,
-  beginAppleAuthClosing,
-  cancelAppleAuthAuthorization,
-  closeAppleAuthAuthorization,
-  consumeAppleAuthAuthorization,
-  markAppleAuthChallengeOpen,
-  markAppleAuthFailedOpen,
-  recordAppleAuthChallengeRedeemed,
-} from '../../../dist/auth/apple-submit-guard.js';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const JOB = /^[0-9a-f]{8}$/i;
+const ACCOUNT = /^weles-apple-[a-z0-9][a-z0-9-]{0,126}-account$/;
 const guardId = (process.env.APPLE_AUTH_GUARD_ID?.trim() ?? '').toLowerCase();
-const accountId = process.env.ACCOUNT_ID?.trim() ?? '';
+const accountId = process.env.WELES_LOGIN_ITEM?.trim() ?? '';
 const actionLogId = process.env.ACTION_LOG_ID?.trim() ?? '';
-const leaseOwner = process.env.APPLE_AUTH_LEASE_OWNER?.trim() ?? '';
-for (const [name, value] of [['APPLE_AUTH_GUARD_ID', guardId], ['ACCOUNT_ID', accountId], ['ACTION_LOG_ID', actionLogId]]) {
-  if (!UUID.test(value)) throw new Error(`[apple-create-developer-id] ${name} must be a valid UUID`);
-}
-if (!leaseOwner || leaseOwner.length > 500) throw new Error('[apple-create-developer-id] APPLE_AUTH_LEASE_OWNER is required');
+if (!UUID.test(guardId)) throw new Error('[apple-create-developer-id] invalid guard id');
+if (!ACCOUNT.test(accountId)) throw new Error('[apple-create-developer-id] invalid Apple account item');
+if (!JOB.test(actionLogId)) throw new Error('[apple-create-developer-id] invalid Stado job id');
 
 const csrPath = process.env.APPLE_CSR_PATH?.trim() ?? '';
 const certificatePath = process.env.APPLE_CERTIFICATE_PATH?.trim() ?? '';
@@ -218,7 +198,6 @@ try {
   }, null, { timeout: 10_000 }).then(() => true).catch(() => false);
   if (!signInEnabled) throw new Error('Apple password form stayed disabled after credential entry');
 
-  await consumeAppleAuthAuthorization(guardId, accountId, actionLogId, leaseOwner);
   passwordSubmitted = true;
   await frame.locator('#sign-in').click();
   console.log('[apple-create-developer-id] submitted one authorized password attempt');
@@ -228,8 +207,6 @@ try {
   if (postPasswordState === 'timeout') throw new Error('Timed out waiting for developer portal or 2FA challenge');
 
   if (postPasswordState === 'two_factor') {
-    await markAppleAuthChallengeOpen(guardId, actionLogId);
-    await assertAppleAuthChallengeOpen(guardId, accountId, actionLogId);
     // Whether this prompt needs relaying is a fact about the fleet, not a setting, so
     // it is asked rather than configured: the registry knows which host is signed into
     // this account and which host this is. A `relayConfigured` flag in one host's env
@@ -242,10 +219,7 @@ try {
         nativeOnly: true,
         withCode: (consume) => withCapabilityPendingRetry(capabilities.two_factor.capability, {
           purpose: 'weles.apple.2fa', resource: challengeResource, authorization_id: guardId,
-        }, async (code) => {
-          await recordAppleAuthChallengeRedeemed(guardId, actionLogId);
-          return consume(code);
-        }, {
+        }, async (code) => consume(code), {
           timeoutMs: Number(process.env.WELES_APPLE_2FA_PENDING_TIMEOUT_MS ?? '120000'),
           intervalMs: Number(process.env.WELES_APPLE_2FA_PENDING_INTERVAL_MS ?? '1000'),
         }),
@@ -294,22 +268,12 @@ try {
   await download.saveAs(certificatePath);
   console.log(`[apple-create-developer-id] CERTIFICATE_SAVED=${certificatePath}`);
 
-  await beginAppleAuthClosing(guardId, actionLogId);
   authorizationClosed = true;
 } catch (error) {
   console.error(`FAIL=${error instanceof Error ? error.message.slice(0, 1200) : String(error).slice(0, 1200)}`);
-  if (passwordSubmitted && !authorizationClosed) {
-    try { await markAppleAuthFailedOpen(guardId, accountId, actionLogId, leaseOwner); } catch {}
-  }
-  if (!passwordSubmitted) {
-    try { await cancelAppleAuthAuthorization(guardId, accountId, actionLogId, leaseOwner); } catch {}
-  }
   try { await cancelSessionCapabilities(); } catch {}
   process.exitCode = 1;
 } finally {
   if (s && !sessionClosed) { await s.close().catch(() => {}); sessionClosed = true; }
-  if (authorizationClosed) {
-    try { await closeAppleAuthAuthorization(guardId, accountId, actionLogId, leaseOwner); } catch {}
-  }
 }
 process.exit(process.exitCode ?? 0);

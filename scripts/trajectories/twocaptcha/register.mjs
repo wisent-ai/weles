@@ -1,8 +1,9 @@
-// One-off 2Captcha registration via native form. Bypasses the wCaptcha-gated
-// Google button by using the native registration flow instead.
+// 2Captcha registration via native form. Bypasses the wCaptcha-gated Google
+// button by using the native registration flow instead.
 import { randomBytes } from 'node:crypto';
 import { WSession } from '../../../dist/session/wsession.js';
 import { humanIdlePause } from '../../../dist/human/mouse.js';
+import { writeServiceCredentials } from '../_shared/skarbiec_accounts.mjs';
 
 const REGISTER_URL = 'https://2captcha.com/auth/register';
 const RECAPTCHA_SITEKEY = '6Lfo9qojAAAAAPqqMn9QlAY2RBSVuEW63vDJ442M';
@@ -60,15 +61,8 @@ try {
     process.exit(1);
   }
 
-  const databaseUrl = process.env.WELES_DATABASE_URL ?? '';
-  const key = process.env.WELES_DATABASE_TOKEN ?? '';
-  const r = await fetch(`${databaseUrl}/rest/v1/service_credentials?display_name=eq.2Captcha`, {
-    method: 'PATCH',
-    headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
-    body: JSON.stringify({ login_email: EMAIL, login_password: password, updated_at: new Date().toISOString() }),
-  });
-  if (!r.ok) { console.log('FAIL: PATCH service_credentials returned', r.status); process.exit(1); }
-  console.log(`PASS: registered ${EMAIL}; creds persisted to service_credentials.2Captcha`);
+  const item = writeServiceCredentials('2Captcha', { username: EMAIL, password });
+  console.log(`PASS: registered ${EMAIL}; credentials persisted to ${item}`);
 } catch (e) {
   console.log('FAIL:', e.message?.slice(0, 200));
   process.exit(1);

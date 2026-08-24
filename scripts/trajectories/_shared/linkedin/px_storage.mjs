@@ -17,6 +17,8 @@
 //   rc::*         — reCAPTCHA Enterprise client state
 //   _grecaptcha   — grecaptcha enterprise marker
 
+import { updateAccountMetadata } from '../skarbiec_accounts.mjs';
+
 const PX_LS_KEY_RE = /^(PXdOjV695v_|_pxvid|pxsid|_?px_|rc::|_grecaptcha)/;
 
 export async function captureLinkedinPxStorage(s, acct) {
@@ -36,16 +38,8 @@ export async function captureLinkedinPxStorage(s, acct) {
     const keyCount = Object.keys(items).length;
     if (!keyCount) { console.log('[linkedin_login] no PX localStorage to persist'); return { ok: false, reason: 'empty' }; }
     console.log(`[linkedin_login] persisting ${keyCount} PX localStorage keys`);
-    const url = process.env.WELES_DATABASE_URL ?? '';
-    const key = process.env.WELES_DATABASE_TOKEN ?? '';
-    if (!url || !key) return { ok: false, reason: 'no_supabase_env' };
     const merged = { ...((acct.metadata ?? {})), linkedin_px_storage: items, linkedin_px_storage_at: new Date().toISOString() };
-    const res = await fetch(`${url}/rest/v1/social_accounts?id=eq.${acct.id}`, {
-      method: 'PATCH',
-      headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
-      body: JSON.stringify({ metadata: merged }),
-    });
-    if (!res.ok) return { ok: false, reason: `patch_${res.status}` };
+    updateAccountMetadata(acct.id, merged);
     acct.metadata = merged;
     return { ok: true, count: keyCount };
   } catch (e) { console.log('[linkedin_login] capture px-ls err:', e.message); return { ok: false, reason: e.message }; }
