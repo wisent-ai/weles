@@ -164,3 +164,17 @@ export function writeSetting<T>(key: string, value: T): void {
   };
   writeDocument(id, document);
 }
+
+function runItemId(runId: string): string {
+  if (!/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,126}$/.test(runId)) throw new Error('invalid Weles run id');
+  return `weles-run-${runId.toLowerCase()}`;
+}
+
+export function readRunRecord<T>(runId: string): T | null {
+  try {
+    const raw = readDocument(runItemId(runId)).fields?.value_json;
+    return raw ? JSON.parse(String(raw)) as T : null;
+  } catch {
+    return null;
+  }
+}
