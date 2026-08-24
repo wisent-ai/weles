@@ -13,8 +13,7 @@
 // auto-topup decisions on EFFECTIVE balance, not aspirational balance.
 
 import net from 'node:net';
-import tls from 'node:tls';
-import { readScopedProxy, readScopedSecret } from '../../../_shared/scoped-secrets.mjs';
+import { findProxyByDisplayName, persistProxyContext } from '../skarbiec_proxies.mjs';
 
 // CONNECT a known endpoint (api.ipify.org:443) through the proxy and report
 // the proxy's response code. 200 = auth accepted; 407 = auth rejected (no
@@ -46,51 +45,24 @@ export async function probeProxyAuth({ host, port, username, password, timeoutMs
   });
 }
 
-// Resolve upstream proxy creds from env vars per provider.
+// Resolve upstream proxy credentials and endpoint from its exact Skarbiec item.
 export async function probeCredsFor(displayName) {
-  switch (displayName) {
-    case 'Bright Data': {
-      const creds = readScopedProxy('brightdataProxy');
-      const zone = readScopedSecret('brightdataProxy', 'zone');
-      return {
-        host: 'brd.superproxy.io',
-        port: Number('22225'),
-        username: creds.username.startsWith('brd-customer-')
-          ? creds.username
-          : `brd-customer-${creds.username}-zone-${zone}`,
-        password: creds.password,
-      };
+  const proxy = findProxyByDisplayName(displayName);
+  if (!proxy?.host || !proxy?.port || !proxy?.username || !proxy?.password) return null;
+  let username = proxy.username;
+  if (displayName === 'Bright Data') {
+    const zone = proxy.context.zone ?? proxy.metadata.zone;
+    if (zone && !username.startsWith('brd-customer-')) {
+      username = `brd-customer-${username}-zone-${zone}`;
     }
-    case 'Oxylabs Residential': {
-      const creds = readScopedProxy('oxylabsResidential');
-      return { host: 'pr.oxylabs.io', port: Number('7777'), ...creds };
-    }
-    case 'Oxylabs Mobile': {
-      const creds = readScopedProxy('oxylabsMobile');
-      return { host: 'pr.oxylabs.io', port: Number('7777'), ...creds };
-    }
-    case 'PacketStream': {
-      const e = process.env;
-      return e.PACKETSTREAM_USERNAME && e.PACKETSTREAM_PASSWORD
-        ? { host: 'proxy.packetstream.io', port: Number('31112'), username: e.PACKETSTREAM_USERNAME, password: e.PACKETSTREAM_PASSWORD }
-        : null;
-    }
-    case 'IPRoyal Residential':
-    case 'IPRoyal Mobile': {
-      const e = process.env;
-      return e.IPROYAL_USERNAME && e.IPROYAL_PASSWORD
-        ? { host: 'geo.iproyal.com', port: Number('12321'), username: e.IPROYAL_USERNAME, password: e.IPROYAL_PASSWORD }
-        : null;
-    }
-    case 'Pingproxies': {
-      const e = process.env;
-      return e.PINGPROXIES_USERNAME && e.PINGPROXIES_PASSWORD
-        ? { host: 'residential.pingproxies.com', port: Number('8000'), username: e.PINGPROXIES_USERNAME, password: e.PINGPROXIES_PASSWORD }
-        : null;
-    }
-    default:
-      return null;
   }
+  return {
+    id: proxy.id,
+    host: proxy.host,
+    port: proxy.port,
+    username,
+    password: proxy.password,
+  };
 }
 
 // Persist BOTH dashboard balance and probe outcome. If probe returned 407
@@ -98,9 +70,6 @@ export async function probeCredsFor(displayName) {
 // the operator can see the discrepancy. The cron's topup decision is then
 // driven by EFFECTIVE balance (= 0 when unusable), not dashboard claim.
 export async function patchEffectiveBalance(displayName, dashboardBalance) {
-  const databaseUrl = process.env.WELES_DATABASE_URL ?? '';
-  const key = process.env.WELES_DATABASE_TOKEN ?? '';
-  if (!databaseUrl || !key) return false;
 
   const creds = await probeCredsFor(displayName);
   let probe = null;
@@ -122,31 +91,24 @@ export async function patchEffectiveBalance(displayName, dashboardBalance) {
     else note = `Effective balance $0: upstream returned ${probe.code} ${probe.reason ?? ''}`.trim();
   }
 
-  const update = {
-    last_balance_check: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
+  const now = new Date().toISOString();
+  const patch = {
     balance_usd: effective,
+    last_balance_check: now,
+    updated_at: now,
   };
-  // Read-modify-write notes so we don't clobber procurement context the
-  // operator may have written. Only update notes when we just observed a
-  // probe failure (positive signal) — successful probe leaves notes alone.
-  if (note) {
-    const r0 = await fetch(`${databaseUrl}/rest/v1/service_credentials?display_name=eq.${encodeURIComponent(displayName)}&select=notes`, {
-      headers: { apikey: key, Authorization: `Bearer ${key}` },
-    });
-    if (r0.ok) {
-      const rows = await r0.json();
-      const existing = (rows[0]?.notes ?? '').replace(/(\s|^)Effective balance \$0:[^.]*\.?/g, '').trim();
-      update.notes = existing ? `${existing} | ${note}` : note;
-    }
+  if (probe) {
+    patch.last_probe = {
+      at: now,
+      ok: probe.ok,
+      code: probe.code,
+      ...(probe.reason ? { reason: probe.reason } : {}),
+      ...(probe.error ? { error: probe.error } : {}),
+    };
   }
-
-  const r = await fetch(`${databaseUrl}/rest/v1/service_credentials?display_name=eq.${encodeURIComponent(displayName)}`, {
-    method: 'PATCH',
-    headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
-    body: JSON.stringify(update),
-  });
-
+  if (note) patch.notes = note;
+  if (!creds?.id) return false;
+  const persisted = persistProxyContext(creds.id, patch);
   console.log(`[probe] ${displayName} dashboard=$${dashboardBalance} probe=${probe ? `${probe.code} ${probe.ok ? 'OK' : (probe.error ?? probe.reason)}` : 'no-creds'} effective=$${effective}`);
-  return r.ok;
+  return persisted;
 }

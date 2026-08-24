@@ -15,6 +15,7 @@ import { humanFill } from '../../../../dist/human/keyboard.js';
 import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
 import { getLinkedinChallengeSignal } from '../../_shared/linkedin/register_guard.mjs';
 import { verifyExitCountry, verifyExitReputation } from '../../../../dist/proxy/policy.js';
+import { listProxies } from '../../_shared/skarbiec_proxies.mjs';
 
 const OUT = runRecordingsDir('linkedin_rotating_weles_probe');
 const WORK = join(process.cwd(), '.work', 'linkedin_rotating_weles_probe');
@@ -36,9 +37,6 @@ function hash(value) {
   return text ? createHash('sha256').update(text).digest('hex').slice(0, 16) : '';
 }
 
-function envPassName(userEnv = '') {
-  return userEnv.replace('USERNAME', 'PASSWORD').replace('API_KEY', 'PASSWORD');
-}
 
 function includeRow(row) {
   const name = String(row.display_name || '').toLowerCase();
@@ -106,14 +104,18 @@ function sampleExitIp(proxyUrl) {
   }
 }
 
-async function fetchRows() {
-  const databaseUrl = process.env.WELES_DATABASE_URL ?? '';
-  const databaseToken = process.env.WELES_DATABASE_TOKEN ?? '';
-  if (!databaseUrl || !databaseToken) throw new Error('missing Supabase env');
-  const url = `${databaseUrl}/rest/v1/service_credentials?category=eq.proxy&proxy_host=not.is.null&select=display_name,proxy_host,proxy_port,api_key_env_var,metadata&order=display_name.asc`;
-  const res = await fetch(url, { headers: { apikey: databaseToken, Authorization: `Bearer ${databaseToken}` } });
-  if (!res.ok) throw new Error(`service_credentials fetch failed: ${res.status}`);
-  return await res.json();
+function fetchRows() {
+  return listProxies()
+    .filter((proxy) => proxy.host && proxy.port && proxy.username && proxy.password)
+    .map((proxy) => ({
+      id: proxy.id,
+      display_name: proxy.displayName,
+      proxy_host: proxy.host,
+      proxy_port: proxy.port,
+      username: proxy.username,
+      password: proxy.password,
+      metadata: proxy.metadata,
+    }));
 }
 
 async function summarizeSignup(page) {
@@ -304,7 +306,7 @@ async function submitSignupCandidate(session) {
   return out;
 }
 
-const rows = (await fetchRows()).filter(includeRow);
+const rows = fetchRows().filter(includeRow);
 const startedAt = new Date().toISOString();
 const results = [];
 let submitted = false;
@@ -313,20 +315,8 @@ console.log(`[wprobe] providers=${rows.length} samples=${SAMPLES_PER_PROVIDER} c
 
 for (const row of rows) {
   if (submitted && STOP_AFTER_SUBMIT) break;
-  const userEnv = row.api_key_env_var || '';
-  const passEnv = envPassName(userEnv);
-  const baseUser = process.env[userEnv] || '';
-  const basePass = process.env[passEnv] || '';
-  if (!baseUser || !basePass) {
-    results.push({
-      provider: providerKey(row),
-      display_name: row.display_name,
-      skipped: true,
-      reason: 'missing_env',
-      endpoint: { host: row.proxy_host, port: String(row.proxy_port) },
-    });
-    continue;
-  }
+  const baseUser = row.username;
+  const basePass = row.password;
 
   for (let i = 0; i < SAMPLES_PER_PROVIDER; i++) {
     if (submitted && STOP_AFTER_SUBMIT) break;

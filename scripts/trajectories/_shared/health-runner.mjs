@@ -15,6 +15,7 @@ import { WSession } from '../../../dist/session/wsession.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
+import { enqueueWelesAction } from '../../_shared/stado-action-queue.mjs';
 
 const HEADLESS = process.env.HEADLESS === '1' || process.env.WELES_HEADLESS === '1';
 
@@ -144,10 +145,9 @@ export async function runHealthProbe(cfg) {
   writeFileSync(filePath, JSON.stringify(snapshot, null, 2));
   console.log(`[health:${cfg.platform}] signal=${signal} karma=${extracted.karma} shadowbanned=${shadowbanned}`);
   console.log(`[health:${cfg.platform}] snapshot -> ${filePath}`);
-  // Self-heal: when the probe detects checkpoint (cookies stale), enqueue
-  // a {platform}_login row for THIS account so the next worker tick refreshes
-  // cookies. Apple authentication always requires an explicit owner action, so
-  // health probes report the required action without recreating apple_login.
+  // Self-heal: when the probe detects checkpoint (cookies stale), submit the
+  // exact login trajectory to Stado for this account. Apple authentication
+  // always requires an explicit owner action, so health probes only report it.
   // BUT: skip auto-recovery for accounts whose registration never completed.
   // metadata.status in {captcha_blocked, unverified, needs_verification,
   // captcha_signup_failed} means the saveAccount stub got written but the
@@ -162,17 +162,14 @@ export async function runHealthProbe(cfg) {
     console.log(`[health:${cfg.platform}] OWNER_ACTION_REQUIRED: Apple cookies are stale; apple_login was not auto-enqueued for ${acct.username}`);
   } else if (signal === 'checkpoint' && acct.id && !brokenRegistration) {
     try {
-      const url = process.env.WELES_DATABASE_URL ?? '';
-      const key = process.env.WELES_DATABASE_TOKEN ?? '';
-      // Don't re-enqueue if a login was attempted for this account in the
-      // past hour — gives the previous attempt time to land before piling on.
-      const since = new Date(Date.now() - 3600_000).toISOString();
-      const r = await fetch(`${url}/rest/v1/account_action_logs?account_id=eq.${acct.id}&action=eq.${cfg.platform}_login&scheduled_at=gte.${since}&select=id&limit=1`, { headers: { apikey: key, Authorization: `Bearer ${key}` } });
-      const recent = await r.json().catch(() => []);
-      if (Array.isArray(recent) && recent.length === 0) {
-        await fetch(`${url}/rest/v1/account_action_logs`, { method: 'POST', headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' }, body: JSON.stringify({ account_id: acct.id, platform: cfg.platform, action: `${cfg.platform}_login`, status: 'queued', params: { reason: 'auto-recovery from checkpoint health signal' }, scheduled_at: new Date().toISOString() }) });
-        console.log(`[health:${cfg.platform}] auto-enqueued ${cfg.platform}_login for ${acct.username} (cookies stale → recover)`);
-      }
+      const accountItem = String(acct.metadata?.login_item || acct.metadata?.vault_login_item || '');
+      if (!accountItem) throw new Error('account has no exact Skarbiec login item');
+      const jobId = enqueueWelesAction({
+        action: `${cfg.platform}_login`,
+        accountItem,
+        params: { reason: 'auto-recovery from checkpoint health signal' },
+      });
+      console.log(`[health:${cfg.platform}] submitted ${cfg.platform}_login to Stado job=${jobId}`);
     } catch (e) { console.log(`[health:${cfg.platform}] auto-recovery enqueue err: ${e.message?.slice(0, 100)}`); }
   } else if (signal === 'checkpoint' && brokenRegistration) {
     console.log(`[health:${cfg.platform}] skip auto-recovery: ${acct.username} metadata.status=${acctStatus} (registration never completed; login can't recover)`);

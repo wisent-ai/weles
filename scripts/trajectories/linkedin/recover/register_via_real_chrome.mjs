@@ -16,10 +16,8 @@ import { CaptchaSolver } from '../../../../dist/captcha/solver.js';
 import { humanFill, humanType } from '../../../../dist/human/keyboard.js';
 import { humanClickLocator, humanIdlePause, humanScroll } from '../../../../dist/human/mouse.js';
 import { readScopedProxy } from '../../../_shared/scoped-secrets.mjs';
+import { accountItemId, writeAccount } from '../../_shared/skarbiec_accounts.mjs';
 
-const DATABASE_URL = process.env.WELES_DATABASE_URL ?? '';
-const DATABASE_TOKEN = process.env.WELES_DATABASE_TOKEN ?? '';
-if (!DATABASE_URL || !DATABASE_TOKEN) { console.error('FAIL: SUPABASE env required'); process.exit(2); }
 const AGENT_DOMAIN = process.env.AGENT_DOMAIN ?? 'wisentmedia.com';
 const CHROME_BIN = process.env.CHROME_BIN || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 if (!existsSync(CHROME_BIN)) { console.error(`FAIL: chrome binary missing at ${CHROME_BIN}`); process.exit(2); }
@@ -284,11 +282,13 @@ const metadata = {
   cookies, cookies_minted_at: now, cookies_updated_at: now, cookies_minted_persona: 'real-chrome-macos',
   linkedin_px_storage: lsItems, linkedin_px_storage_at: now,
 };
-const insertRes = await fetch(`${DATABASE_URL}/rest/v1/social_accounts`, {
-  method: 'POST',
-  headers: { apikey: DATABASE_TOKEN, Authorization: `Bearer ${DATABASE_TOKEN}`, 'Content-Type': 'application/json', Prefer: 'return=representation' },
-  body: JSON.stringify({ platform: 'linkedin', username: id.handle, display_name: `${id.first} ${id.last}`, is_active: true, metadata }),
+const item = accountItemId('linkedin', id.handle);
+writeAccount({
+  id: item,
+  platform: 'linkedin',
+  username: id.handle,
+  password: id.password,
+  metadata,
+  displayName: `${id.first} ${id.last}`,
 });
-if (!insertRes.ok) { console.error(`FAIL: INSERT returned ${insertRes.status}: ${(await insertRes.text()).slice(0, 200)}`); process.exit(1); }
-const inserted = await insertRes.json();
-console.log(`PASS: registered ${id.handle} (id=${inserted[0]?.id?.slice(0, 8)}) with li_at + ${Object.keys(lsItems).length} PX keys`);
+console.log(`PASS: registered ${id.handle} in Skarbiec item=${item} with li_at + ${Object.keys(lsItems).length} PX keys`);

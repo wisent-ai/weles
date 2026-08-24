@@ -1,0 +1,75 @@
+import { execFileSync } from 'node:child_process';
+import os from 'node:os';
+import path from 'node:path';
+
+const HOME = os.homedir();
+const SKARBIEC = process.env.SKARBIEC_BIN ?? path.join(HOME, '.stado', 'bin', 'skarbiec');
+const VAULT = process.env.SKARBIEC_VAULT_FILE ?? path.join(HOME, '.stado', 'skarbiec.vault.json');
+const SAFE_ITEM = /^weles-[a-z0-9][a-z0-9-]{0,126}-account$/;
+
+function run(args, input) {
+  return execFileSync(SKARBIEC, args, {
+    input,
+    encoding: 'utf8',
+    env: { ...process.env, SKARBIEC_VAULT_FILE: VAULT },
+  });
+}
+
+function requireItem(id) {
+  if (!SAFE_ITEM.test(String(id))) throw new Error('invalid Weles account item id');
+  return String(id);
+}
+
+export function accountItemId(platform, username) {
+  const slug = String(username).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  return requireItem(`weles-${String(platform).toLowerCase()}-${slug}-account`);
+}
+
+export function readAccount(id) {
+  const document = JSON.parse(run(['get', requireItem(id)]));
+  const fields = document.fields ?? {};
+  return {
+    id,
+    platform: document.context?.platform ?? '',
+    username: fields.username ?? '',
+    password: fields.password ?? '',
+    metadata: fields.metadata_json ? JSON.parse(fields.metadata_json) : {},
+    document,
+  };
+}
+
+export function writeAccount({ id, platform, username, password, metadata, displayName = '' }) {
+  const item = requireItem(id);
+  const fields = [
+    `username=${String(username)}`,
+    `password=${String(password)}`,
+    `metadata_json=${JSON.stringify(metadata ?? {})}`,
+  ];
+  run(['set', item, '--type', 'bundle', ...fields]);
+  const document = JSON.parse(run(['get', item]));
+  document.context = {
+    ...(document.context ?? {}),
+    owner: 'weles',
+    record_kind: 'trajectory-account',
+    platform: String(platform),
+    display_name: String(displayName || username),
+  };
+  run(['set-json', item], JSON.stringify(document));
+  return item;
+}
+
+export function updateAccountMetadata(id, update) {
+  const account = readAccount(id);
+  const metadata = typeof update === 'function'
+    ? update(account.metadata)
+    : { ...account.metadata, ...(update ?? {}) };
+  writeAccount({
+    id: account.id,
+    platform: account.platform,
+    username: account.username,
+    password: account.password,
+    metadata,
+    displayName: account.document.context?.display_name,
+  });
+  return metadata;
+}
