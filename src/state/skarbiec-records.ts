@@ -136,3 +136,31 @@ export function enqueueAction(action: string, accountItem: string, params: Recor
   if (!id) throw new Error(`Stado returned no job id for ${action}`);
   return id;
 }
+
+function settingItemId(key: string): string {
+  if (!/^[a-z][a-z0-9_]{0,126}$/.test(key)) throw new Error(`invalid Weles setting: ${key}`);
+  return `weles-setting-${key.replaceAll('_', '-')}`;
+}
+
+export function readSetting<T>(key: string, fallback: T): T {
+  try {
+    const document = readDocument(settingItemId(key));
+    const raw = document.fields?.value_json;
+    return raw ? JSON.parse(String(raw)) as T : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+export function writeSetting<T>(key: string, value: T): void {
+  const id = settingItemId(key);
+  skarbiec(['set', id, '--type', 'bundle', `value_json=${JSON.stringify(value)}`]);
+  const document = readDocument(id);
+  document.context = {
+    ...(document.context ?? {}),
+    owner: 'weles',
+    record_kind: 'runtime-setting',
+    setting_key: key,
+  };
+  writeDocument(id, document);
+}

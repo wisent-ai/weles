@@ -1,8 +1,7 @@
-import { optionalWelesDatabase } from '../utils/weles-database.js';
+import { readSetting, writeSetting } from '../state/skarbiec-records.js';
 
 /**
- * Burned-proxy registry. Stored on the existing system_settings table at
- * key 'burned_proxies' so no schema migration is required.
+ * Burned-proxy registry stored as one Weles runtime-setting item in Skarbiec.
  *
  * Schema of the JSONB value:
  *   { hosts: { [host: string]: BurnedEntry } }
@@ -22,34 +21,20 @@ interface BurnedEntry {
 }
 interface BurnedValue { hosts: Record<string, BurnedEntry> }
 
-const DATABASE_URL = optionalWelesDatabase()?.url ?? '';
-const DATABASE_TOKEN = optionalWelesDatabase()?.token ?? '';
 
 let cache: { value: BurnedValue; loadedAt: number } | null = null;
 const CACHE_TTL_MS = 60_000;
 
 async function load(): Promise<BurnedValue> {
   if (cache && Date.now() - cache.loadedAt < CACHE_TTL_MS) return cache.value;
-  if (!DATABASE_URL || !DATABASE_TOKEN) return { hosts: {} };
-  try {
-    const res = await fetch(`${DATABASE_URL}/rest/v1/system_settings?key=eq.burned_proxies&select=value`, { headers: { apikey: DATABASE_TOKEN, Authorization: `Bearer ${DATABASE_TOKEN}` } });
-    const rows = await res.json() as { value: BurnedValue }[];
-    const value = rows?.[0]?.value ?? { hosts: {} };
-    cache = { value, loadedAt: Date.now() };
-    return value;
-  } catch { return { hosts: {} }; }
+  const value = readSetting<BurnedValue>('burned_proxies', { hosts: {} });
+  cache = { value, loadedAt: Date.now() };
+  return value;
 }
 
 async function save(value: BurnedValue): Promise<void> {
-  if (!DATABASE_URL || !DATABASE_TOKEN) return;
-  try {
-    await fetch(`${DATABASE_URL}/rest/v1/system_settings?on_conflict=key`, {
-      method: 'POST',
-      headers: { apikey: DATABASE_TOKEN, Authorization: `Bearer ${DATABASE_TOKEN}`, 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates,return=minimal' },
-      body: JSON.stringify({ key: 'burned_proxies', value }),
-    });
-    cache = { value, loadedAt: Date.now() };
-  } catch { /* best-effort */ }
+  writeSetting('burned_proxies', value);
+  cache = { value, loadedAt: Date.now() };
 }
 
 export async function isBurned(host: string, platform?: string): Promise<boolean> {
