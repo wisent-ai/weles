@@ -146,6 +146,8 @@ async function topbarHandle(s) {
   }).catch(() => null);
 }
 
+import { findAccount, listAccounts, updateAccountMetadata } from '../_shared/skarbiec_accounts.mjs';
+
 // Pick a Twitter account suitable for SSO into a fresh PH registration.
 // Prefers Twitter accounts whose username is NOT already linked to any PH
 // row — running OAuth from an already-linked Twitter just re-authenticates
@@ -153,67 +155,34 @@ async function topbarHandle(s) {
 // via PH row metadata.linked_twitter_username (set by stampLinkedTwitter
 // below) AND a legacy match on PH row username for pre-handle-fix rows.
 export async function findUsableTwitterAccount() {
-  const databaseUrl = process.env.WELES_DATABASE_URL ?? '';
-  const databaseToken = process.env.WELES_DATABASE_TOKEN ?? '';
-  if (!databaseUrl || !databaseToken) return null;
-  const headers = { apikey: databaseToken, Authorization: `Bearer ${databaseToken}` };
+  const productHunt = listAccounts('producthunt');
   const linkedTwitter = new Set();
-  try {
-    const phRows = await fetch(
-      `${databaseUrl}/rest/v1/social_accounts?platform=eq.producthunt&select=username,metadata`,
-      { headers },
-    ).then(r => r.ok ? r.json() : []);
-    for (const ph of phRows) {
-      const lt = ph?.metadata?.linked_twitter_username;
-      if (typeof lt === 'string' && lt) linkedTwitter.add(lt.toLowerCase());
-      if (typeof ph?.username === 'string') linkedTwitter.add(ph.username.toLowerCase());
-    }
-  } catch {}
-  const res = await fetch(
-    `${databaseUrl}/rest/v1/social_accounts?platform=eq.twitter&is_active=eq.true&select=id,platform,username,metadata&order=created_at.desc&limit=50`,
-    { headers },
-  );
-  if (!res.ok) return null;
-  const rows = await res.json();
-  const isUnlinked = (a) => !linkedTwitter.has(String(a.username || '').toLowerCase());
-  for (const a of rows) {
-    const hasCookies = Array.isArray(a.metadata?.cookies) && a.metadata.cookies.length >= 2;
-    const suspended = String(a.metadata?.status ?? '').toLowerCase().includes('suspend');
-    const locked = String(a.metadata?.status ?? '').toLowerCase().includes('lock');
-    if (hasCookies && !suspended && !locked && isUnlinked(a)) return a;
+  for (const account of productHunt) {
+    const linked = account.metadata?.linked_twitter_username;
+    if (typeof linked === 'string' && linked) linkedTwitter.add(linked.toLowerCase());
+    linkedTwitter.add(account.username.toLowerCase());
   }
-  for (const a of rows) {
-    if (Array.isArray(a.metadata?.cookies) && a.metadata.cookies.length >= 2 && isUnlinked(a)) return a;
-  }
-  for (const a of rows) {
-    const hasCookies = Array.isArray(a.metadata?.cookies) && a.metadata.cookies.length >= 2;
-    const suspended = String(a.metadata?.status ?? '').toLowerCase().includes('suspend');
-    const locked = String(a.metadata?.status ?? '').toLowerCase().includes('lock');
-    if (hasCookies && !suspended && !locked) return a;
-  }
-  return rows[0] ?? null;
+  const rows = listAccounts('twitter');
+  const isUnlinked = (account) => !linkedTwitter.has(account.username.toLowerCase());
+  const usable = (account) => {
+    const hasCookies = Array.isArray(account.metadata?.cookies) && account.metadata.cookies.length >= 2;
+    const status = String(account.metadata?.status ?? '').toLowerCase();
+    return hasCookies && !status.includes('suspend') && !status.includes('lock');
+  };
+  return rows.find((account) => usable(account) && isUnlinked(account))
+    ?? rows.find((account) => Array.isArray(account.metadata?.cookies) && account.metadata.cookies.length >= 2 && isUnlinked(account))
+    ?? rows.find(usable)
+    ?? rows[0]
+    ?? null;
 }
 
 // Stamp linked_twitter_username on the PH row that saveAccount just inserted,
 // so future findUsableTwitterAccount() calls can skip this Twitter.
 export async function stampLinkedTwitter(phUsername, twUsername) {
-  const databaseUrl = process.env.WELES_DATABASE_URL ?? '';
-  const databaseToken = process.env.WELES_DATABASE_TOKEN ?? '';
-  if (!databaseUrl || !databaseToken) return;
-  const headers = { apikey: databaseToken, Authorization: `Bearer ${databaseToken}`, 'Content-Type': 'application/json' };
-  const res = await fetch(
-    `${databaseUrl}/rest/v1/social_accounts?platform=eq.producthunt&username=eq.${encodeURIComponent(phUsername)}&select=id,metadata`,
-    { headers },
-  );
-  if (!res.ok) return;
-  const rows = await res.json();
-  if (!rows[0]) return;
-  const merged = { ...(rows[0].metadata ?? {}), linked_twitter_username: twUsername };
-  await fetch(
-    `${databaseUrl}/rest/v1/social_accounts?id=eq.${rows[0].id}`,
-    { method: 'PATCH', headers: { ...headers, Prefer: 'return=minimal' }, body: JSON.stringify({ metadata: merged }) },
-  ).catch(() => {});
-  console.log(`[ph] stamped linked_twitter_username="${twUsername}" on PH row id=${rows[0].id}`);
+  const account = findAccount('producthunt', phUsername);
+  if (!account) return;
+  updateAccountMetadata(account.id, { linked_twitter_username: twUsername });
+  console.log(`[ph] stamped linked_twitter_username="${twUsername}" on ${account.id}`);
 }
 
 // Drive the PH-specific Twitter SSO click sequence. All cross-platform

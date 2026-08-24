@@ -50,6 +50,24 @@ export function findWelesRecordId(predicate) {
   }
   return null;
 }
+export function listAccounts(platform = '') {
+  const rows = JSON.parse(run(['list']));
+  return rows
+    .filter((row) => !row.deleted)
+    .map((row) => String(row.name ?? row.id ?? ''))
+    .filter((id) => SAFE_ITEM.test(id))
+    .map((id) => readAccount(id))
+    .filter((account) => {
+      const active = account.document.context?.active !== false;
+      return active && (!platform || account.platform === platform);
+    });
+}
+
+export function findAccount(platform, username) {
+  const normalized = String(username ?? '').trim().toLowerCase();
+  return listAccounts(platform).find((account) =>
+    account.username.trim().toLowerCase() === normalized) ?? null;
+}
 
 export function readAccount(id) {
   const document = JSON.parse(run(['get', requireItem(id)]));
