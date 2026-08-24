@@ -1,27 +1,10 @@
 // Read-only Pangram account pool diagnostic. Prints non-secret account metadata only.
+import { listAccounts } from '../_shared/skarbiec_accounts.mjs';
 
-const url = (process.env.WELES_DATABASE_URL || '').replace(/\/+$/, '');
-const key = process.env.WELES_DATABASE_TOKEN || '';
-
-if (!url || !key) {
-  console.log(JSON.stringify({ error: 'missing_supabase_env' }, null, 2));
-  process.exit(1);
-}
-
-const query = 'platform=eq.pangram&is_active=eq.true&select=id,username,created_at&order=created_at.asc';
-const res = await fetch(`${url}/rest/v1/social_accounts?${query}`, {
-  headers: { apikey: key, Authorization: `Bearer ${key}` },
-});
-
-if (!res.ok) {
-  console.log(JSON.stringify({ error: `supabase_${res.status}` }, null, 2));
-  process.exit(1);
-}
-
-const rows = await res.json().catch(() => []);
-console.log(JSON.stringify((Array.isArray(rows) ? rows : []).map((r, i) => ({
+const rows = listAccounts('pangram');
+console.log(JSON.stringify(rows.map((account, i) => ({
   i,
-  id: r.id,
-  username: r.username,
-  created_at: r.created_at,
+  id: account.id,
+  username: account.username,
+  created_at: account.document.context?.created_at ?? null,
 })), null, 2));
