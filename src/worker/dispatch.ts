@@ -917,6 +917,10 @@ export function paramsToEnv(
     env.PROXY_URL = params.proxy_url_override;
     env.PROXY_URL_FORCE = '1';
   }
+  if (typeof params.proxy_filter === 'string') {
+    env.PROXY_URL = params.proxy_filter;
+    env.PROXY_URL_FORCE = '1';
+  }
   // Pin the email-domain rotator output to a specific domain — used by
   // domain-burn isolation experiments where the same trajectory runs N
   // times with the same IP and different domains so the matcher can

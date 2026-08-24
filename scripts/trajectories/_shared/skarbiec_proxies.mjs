@@ -1,8 +1,6 @@
 // The proxy fleet, read from and written to Skarbiec — the one credential
-// store. Each `weles-*-proxy` item carries the credentials in its fields and
-// everything nonsecret (host, port, provider notes, balance, probe results) in
-// its free-form context; `scripts/worker/deploy/migrate-proxy-rows-to-skarbiec.mjs`
-// is what put the database rows' attributes there.
+// store. Each `weles-*-proxy` item carries credentials in its fields and all
+// non-secret configuration and observed state in its context.
 //
 // Nothing here prints a secret.
 

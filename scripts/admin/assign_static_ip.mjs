@@ -1,23 +1,15 @@
-// Assign a static-IP proxy URL to a social_accounts row.
-//
-// Usage:
-//   node scripts/admin/assign_static_ip.mjs <account_id> <proxy_url>
-//
-// Behavior:
-//   - Reads the row, looks at metadata.character_id (if set).
-//   - If character_id is set: writes the same proxy_url into
-//     metadata.proxy.exit_ip_url for THIS row AND every other row whose
-//     metadata.character_id matches. One identity = one IP across platforms.
-//   - If character_id is NOT set: writes only to this row. No accidental
-//     fan-out to unrelated accounts.
-//   - Refuses to overwrite an existing exit_ip_url unless --force is passed,
-//     so a cross-identity collision (same character_id but different IPs
-//     already assigned) surfaces loudly.
+// Assign a static-IP proxy URL to a Weles account in Skarbiec.
+// Usage: node scripts/admin/assign_static_ip.mjs <account_item> <proxy_url> [--force]
+import {
+  listAccounts,
+  readAccount,
+  updateAccountMetadata,
+} from '../trajectories/_shared/skarbiec_accounts.mjs';
 
 const [, , ACCOUNT_ID, PROXY_URL, ...rest] = process.argv;
 const FORCE = rest.includes('--force');
 if (!ACCOUNT_ID || !PROXY_URL) {
-  console.error('usage: assign_static_ip.mjs <account_id> <proxy_url> [--force]');
+  console.error('usage: assign_static_ip.mjs <account_item> <proxy_url> [--force]');
   process.exit(2);
 }
 if (!/^https?:\/\//.test(PROXY_URL)) {
@@ -25,45 +17,13 @@ if (!/^https?:\/\//.test(PROXY_URL)) {
   process.exit(2);
 }
 
-const DATABASE_URL = process.env.WELES_DATABASE_URL;
-const DATABASE_TOKEN = process.env.WELES_DATABASE_TOKEN;
-if (!DATABASE_URL || !DATABASE_TOKEN) {
-  console.error('WELES_DATABASE_URL and WELES_DATABASE_TOKEN required');
-  process.exit(2);
-}
 
-const headers = {
-  apikey: DATABASE_TOKEN,
-  Authorization: `Bearer ${DATABASE_TOKEN}`,
-  'Content-Type': 'application/json',
-  Prefer: 'return=representation',
-};
-
-async function fetchRow(id) {
-  const r = await fetch(`${DATABASE_URL}/rest/v1/social_accounts?id=eq.${id}&select=id,platform,username,metadata`, { headers });
-  if (!r.ok) throw new Error(`fetch ${id}: ${r.status} ${await r.text()}`);
-  const rows = await r.json();
-  return rows[0] ?? null;
-}
-
-async function fetchByCharacter(characterId) {
-  const r = await fetch(`${DATABASE_URL}/rest/v1/social_accounts?metadata->>character_id=eq.${characterId}&select=id,platform,username,metadata`, { headers });
-  if (!r.ok) throw new Error(`fetch character ${characterId}: ${r.status} ${await r.text()}`);
-  return await r.json();
-}
-
-async function patchRow(id, newMeta) {
-  const r = await fetch(`${DATABASE_URL}/rest/v1/social_accounts?id=eq.${id}`, {
-    method: 'PATCH', headers, body: JSON.stringify({ metadata: newMeta }),
-  });
-  if (!r.ok) throw new Error(`patch ${id}: ${r.status} ${await r.text()}`);
-  return (await r.json())[0];
-}
-
-const seed = await fetchRow(ACCOUNT_ID);
-if (!seed) { console.error(`no row with id=${ACCOUNT_ID}`); process.exit(1); }
-const characterId = seed.metadata?.character_id ?? null;
-const targets = characterId ? await fetchByCharacter(characterId) : [seed];
+const seed = readAccount(ACCOUNT_ID);
+const characterId = seed.metadata?.character_id ?? seed.metadata?.character?.id ?? null;
+const targets = characterId
+  ? listAccounts().filter((account) =>
+      (account.metadata?.character_id ?? account.metadata?.character?.id) === characterId)
+  : [seed];
 console.log(`[assign_static_ip] seed=${seed.platform}/${seed.username} character_id=${characterId ?? '(none)'} → ${targets.length} target row(s)`);
 
 for (const row of targets) {
@@ -75,15 +35,13 @@ for (const row of targets) {
 }
 
 for (const row of targets) {
-  const newMeta = {
-    ...(row.metadata ?? {}),
+  updateAccountMetadata(row.id, {
     proxy: {
       ...((row.metadata ?? {}).proxy ?? {}),
       exit_ip_url: PROXY_URL,
       exit_ip_assigned_at: new Date().toISOString(),
     },
-  };
-  const patched = await patchRow(row.id, newMeta);
-  console.log(`  ✓ ${patched.platform}/${patched.username}  exit_ip_url=${PROXY_URL.replace(/\/\/[^@]*@/, '//***@')}`);
+  });
+  console.log(`  ✓ ${row.platform}/${row.username}  exit_ip_url=${PROXY_URL.replace(/\/\/[^@]*@/, '//***@')}`);
 }
 console.log(`[assign_static_ip] done — ${targets.length} row(s) bound to single static IP`);
