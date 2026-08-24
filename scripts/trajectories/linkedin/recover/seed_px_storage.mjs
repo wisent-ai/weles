@@ -1,10 +1,6 @@
-// One-shot operator script. Opens real Chrome on linkedin.com/login, lets the
-// human drive the flow (type creds, solve any checkpoint captcha by hand, land
-// on /feed). On browser close, extracts:
-//   - localStorage PerimeterX + reCAPTCHA keys (PXdOjV695v_*, _pxvid, pxsid,
-//     px_*, _px_*, rc::*, _grecaptcha)
-//   - All linkedin.com cookies (li_at, JSESSIONID, _px_, etc.)
-// PATCHes both into social_accounts.metadata for the target account.
+// Operator-assisted LinkedIn recovery. Opens real Chrome, lets the operator
+// complete any checkpoint, then stores PerimeterX localStorage and cookies in
+// the exact LinkedIn account item in Skarbiec.
 //
 // Why: weles automation cannot clear /checkpoint on a cold-start session
 // because PerimeterX challenges every brand-new visitor on a residential
@@ -16,38 +12,34 @@
 // the returning visitor.
 //
 // Usage:
-//   ACCOUNT_ID=<uuid> node scripts/trajectories/linkedin/recover/seed_px_storage.mjs
-//   USERNAME=<dbusername> node scripts/trajectories/linkedin/recover/seed_px_storage.mjs
+//   ACCOUNT_ITEM=weles-linkedin-<username>-account node scripts/trajectories/linkedin/recover/seed_px_storage.mjs
+//   USERNAME=<linkedin-username> node scripts/trajectories/linkedin/recover/seed_px_storage.mjs
 
 import { chromium } from 'playwright';
-import { existsSync, mkdtempSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { existsSync, mkdirSync, mkdtempSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { humanClickLocator } from '../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../dist/human/keyboard.js';
+import { findAccount, readAccount, updateAccountMetadata } from '../../_shared/skarbiec_accounts.mjs';
 
-const DATABASE_URL = process.env.WELES_DATABASE_URL ?? '';
-const DATABASE_TOKEN = process.env.WELES_DATABASE_TOKEN ?? '';
-if (!DATABASE_URL || !DATABASE_TOKEN) { console.error('FAIL: WELES_DATABASE_URL + WELES_DATABASE_TOKEN required'); process.exit(Number('2')); }
 
-const ACCOUNT_ID = process.env.ACCOUNT_ID ?? '';
+const ACCOUNT_ITEM = process.env.ACCOUNT_ITEM ?? '';
 const USERNAME = process.env.USERNAME ?? '';
-if (!ACCOUNT_ID && !USERNAME) { console.error('FAIL: set ACCOUNT_ID=<uuid> or USERNAME=<linkedin-username>'); process.exit(2); }
+if (!ACCOUNT_ITEM && !USERNAME) { console.error('FAIL: set ACCOUNT_ITEM=<skarbiec-item> or USERNAME=<linkedin-username>'); process.exit(2); }
 
 const CHROME_BIN = process.env.CHROME_BIN || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 if (!existsSync(CHROME_BIN)) { console.error(`FAIL: chrome binary missing at ${CHROME_BIN}`); process.exit(2); }
 
-// Resolve the account row up-front so we fail fast on bad ID/username.
-const idFilter = ACCOUNT_ID ? `id=eq.${ACCOUNT_ID}` : `platform=eq.linkedin&username=eq.${encodeURIComponent(USERNAME)}`;
-const acctRes = await fetch(`${DATABASE_URL}/rest/v1/social_accounts?${idFilter}&select=id,username,metadata`, { headers: { apikey: DATABASE_TOKEN, Authorization: `Bearer ${DATABASE_TOKEN}` } });
-const accts = await acctRes.json();
-if (!accts?.[0]?.id) { console.error(`FAIL: no social_accounts row for ${ACCOUNT_ID || USERNAME}`); process.exit(2); }
-const acct = accts[0];
-console.log(`[seed-px] target: ${acct.username} (id=${acct.id.slice(0,8)})`);
+const acct = ACCOUNT_ITEM ? readAccount(ACCOUNT_ITEM) : findAccount('linkedin', USERNAME);
+if (!acct) { console.error(`FAIL: no LinkedIn account in Skarbiec for ${ACCOUNT_ITEM || USERNAME}`); process.exit(2); }
+console.log(`[seed-px] target: ${acct.username} (item=${acct.id})`);
 
 // Persistent context — Chrome keeps cookies/localStorage between requests so
 // PX can write its state and we can scrape it on close.
-const userDataDir = mkdtempSync(join(tmpdir(), 'seed-px-'));
+const workRoot = join(homedir(), '.stado', 'work');
+mkdirSync(workRoot, { recursive: true });
+const userDataDir = mkdtempSync(join(workRoot, 'seed-px-'));
 const browser = await chromium.launchPersistentContext(userDataDir, {
   executablePath: CHROME_BIN,
   channel: 'chrome',
@@ -61,9 +53,9 @@ console.log('[seed-px] navigating to linkedin.com/login (real Chrome, fingerprin
 try { await page.goto('https://www.linkedin.com/login', { waitUntil: 'domcontentloaded', timeout: 30000 }); }
 catch (e) { console.log(`[seed-px] goto err: ${e.message?.slice(0, 120)}`); }
 
-// Auto-fill from DB metadata if AUTO_LOGIN=1 + creds present.
-const email = acct.metadata?.email;
-const password = acct.metadata?.password;
+// Auto-fill from Skarbiec if AUTO_LOGIN=1 and credentials are present.
+const email = acct.metadata?.email ?? acct.username;
+const password = acct.password;
 if (process.env.AUTO_LOGIN === '1' && email && password) {
   try {
     const userInput = page.locator('input#username, input[name="session_key"], input[type="email"][autocomplete*="username"], input[type="email"]').filter({ visible: true }).first();
@@ -112,7 +104,7 @@ try {
 const lsCount = Object.keys(lsItems).length;
 console.log(`[seed-px] captured ${lsCount} PX localStorage keys`);
 if (lsCount === 0) {
-  console.error('FAIL: no PX keys captured. Closed before reaching /feed (or wrong creds blocked login). Refusing to PATCH empty storage.');
+  console.error('FAIL: no PX keys captured. Closed before reaching /feed (or wrong credentials blocked login). Refusing to write empty storage.');
   await browser.close().catch(() => {});
   process.exit(1);
 }
@@ -126,23 +118,17 @@ console.log(`[seed-px] captured ${cookies.length} linkedin.com cookies (li_at=${
 
 await browser.close().catch(() => {});
 
-// PATCH metadata.linkedin_px_storage + cookies.
+// Persist metadata.linkedin_px_storage + cookies in Skarbiec.
 const now = new Date().toISOString();
-const merged = {
-  ...(acct.metadata ?? {}),
+const patch = {
   linkedin_px_storage: lsItems,
   linkedin_px_storage_at: now,
 };
 if (cookies.length) {
-  merged.cookies = cookies;
-  merged.cookies_updated_at = now;
-  merged.cookies_minted_at = now;
-  delete merged.cookies_stale_at;
+  patch.cookies = cookies;
+  patch.cookies_updated_at = now;
+  patch.cookies_minted_at = now;
+  patch.cookies_stale_at = null;
 }
-const patchRes = await fetch(`${DATABASE_URL}/rest/v1/social_accounts?id=eq.${acct.id}`, {
-  method: 'PATCH',
-  headers: { apikey: DATABASE_TOKEN, Authorization: `Bearer ${DATABASE_TOKEN}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
-  body: JSON.stringify({ metadata: merged }),
-});
-if (!patchRes.ok) { console.error(`FAIL: PATCH returned ${patchRes.status}: ${(await patchRes.text()).slice(0, 200)}`); process.exit(1); }
+updateAccountMetadata(acct.id, patch);
 console.log(`PASS: seeded metadata.linkedin_px_storage (${lsCount} keys) + cookies (${cookies.length}) for ${acct.username}`);

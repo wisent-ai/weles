@@ -13,6 +13,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { getNumber, pollCode, cancelOrder } from '../../../dist/utils/sms.js';
+import { findAccount, updateAccountMetadata } from '../_shared/skarbiec_accounts.mjs';
 
 const DEFAULT_INVITES = 'python,discord-developers,reactjs,nextjs,rust-lang,godotengine,unity-developer-community';
 
@@ -207,16 +208,13 @@ async function harvestChannelAuthors(token, channelId, want, seen) {
   return authors;
 }
 
-async function persistTokenAndPhone(username, newToken, phone) {
-  const supaUrl = process.env.WELES_DATABASE_URL;
-  const supaKey = process.env.WELES_DATABASE_TOKEN;
-  if (!supaUrl || !supaKey) return;
-  const cur = await (await fetch(`${supaUrl}/rest/v1/social_accounts?platform=eq.discord&username=eq.${encodeURIComponent(username)}&select=id,metadata`, { headers: { apikey: supaKey, Authorization: `Bearer ${supaKey}` } })).json();
-  if (!cur || !cur[0]) return;
-  const merged = { ...(cur[0].metadata || {}) };
-  if (newToken) merged.discord_token = newToken;
-  if (phone) merged.phone_verified = phone;
-  await fetch(`${supaUrl}/rest/v1/social_accounts?id=eq.${cur[0].id}`, { method: 'PATCH', headers: { apikey: supaKey, Authorization: `Bearer ${supaKey}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' }, body: JSON.stringify({ metadata: merged }) });
+function persistTokenAndPhone(username, newToken, phone) {
+  const account = findAccount('discord', username);
+  if (!account) throw new Error(`Discord account ${username} is absent from Skarbiec`);
+  updateAccountMetadata(account.id, {
+    ...(newToken ? { discord_token: newToken } : {}),
+    ...(phone ? { phone_verified: phone } : {}),
+  });
 }
 
 export async function harvestAfterRegister(s, opts = {}) {

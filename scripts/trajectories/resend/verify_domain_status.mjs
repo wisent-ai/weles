@@ -1,4 +1,4 @@
-// resend_verify_domain_status — email-domain health + auto-repair (no browser; pure Resend/Supabase API).
+// resend_verify_domain_status — email-domain health + auto-repair (no browser; Resend API + Skarbiec state).
 //
 // Runs on a whitelisted mac-mini runner (enqueued by wisent-compute cron). It:
 //   0. IP GATE — refuses to run unless the runner's egress IP is whitelisted.
@@ -6,21 +6,21 @@
 //      bug that silently kills receiving — a re-verify trigger flips it back).
 //   2. CONFIRMS REAL RECEIVING (status labels lie): one live probe per domain from a
 //      verified sender, then a single batched inbox poll. Landed = healthy.
-//   3. reconciles inbound_email_domains (active / mx_broken).
-//   4. emits a Slack-ready summary to MESSAGE_FILE for Swiatowid to post.
+//   3. reconciles per-domain status in Skarbiec (active / mx_broken).
+//   4. emits a Slack-ready summary and queues delivery through Stado.
 //
 // Exit: 0 all healthy · 3 a domain needs a human · 4 IP not whitelisted · 2 misconfig.
-// Env: WELES_DATABASE_URL, WELES_DATABASE_TOKEN, WHITELISTED_IPS,
-//      SEND_FROM, MESSAGE_FILE, ALLOW_ANY_IP=1 (test escape hatch).
+// Env: WHITELISTED_IPS, SEND_FROM, MESSAGE_FILE,
+//      ALLOW_ANY_IP=1 (test escape hatch).
 
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { promises as dnsp } from 'node:dns';
+import { enqueueWelesAction } from '../../_shared/stado-action-queue.mjs';
+import { writeDomainStatus } from '../_shared/skarbiec_accounts.mjs';
 
 const RK = process.env.RESEND_API_KEY || '';
 const RRK = process.env.RESEND_RECEIVING_API_KEY || RK;
-const SUPA = process.env.WELES_DATABASE_URL || '';
-const SK = process.env.WELES_DATABASE_TOKEN || '';
 const SEND_FROM = process.env.SEND_FROM || 'noreply@wisent.com';
 // Absolute so the chained slack_post_message job (separate process) can read it.
 const MESSAGE_FILE = resolve(process.env.MESSAGE_FILE || '.work/resend-domains-status.txt');
@@ -57,11 +57,8 @@ async function reverify(id) {
   for (let i = 0; i < 6; i++) { await sleep(20_000); const d = (await rj('GET', `/domains/${id}`)).body; if (d.status === 'verified') return true; }
   return false;
 }
-async function updateRow(domain, status) {
-  await fetch(`${SUPA}/rest/v1/inbound_email_domains?domain=eq.${encodeURIComponent(domain)}`, {
-    method: 'PATCH', headers: { apikey: SK, Authorization: `Bearer ${SK}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
-    body: JSON.stringify({ status, updated_at: new Date().toISOString() }),
-  }).catch(() => {});
+function updateRow(domain, status) {
+  writeDomainStatus(domain, status);
 }
 
 // Why is a domain not receiving? A live DNS lookup names the actual cause so the
@@ -86,7 +83,7 @@ async function diagnoseBroken(domain) {
 }
 
 const main = async () => {
-  if (!RK || !SUPA || !SK) { console.error('missing RESEND_API_KEY / SUPABASE creds'); process.exit(2); }
+  if (!RK) { console.error('missing RESEND_API_KEY'); process.exit(2); }
   await ipGate();
 
   const domains = (((await rj('GET', '/domains?limit=100')).body) || {}).data || [];
@@ -174,16 +171,12 @@ const main = async () => {
   // job (the worker runs the browser Slack post). Messages SLACK_CHANNEL ('jakub').
   // SLACK_NOTIFY_ALWAYS=1 posts even when all-healthy (e.g. a daily heartbeat).
   const shouldNotify = out.broken.length > 0 || process.env.SLACK_NOTIFY_ALWAYS === '1';
-  if (shouldNotify && SUPA && SK) {
-    const ok = await fetch(`${SUPA}/rest/v1/account_action_logs`, {
-      method: 'POST',
-      headers: { apikey: SK, Authorization: `Bearer ${SK}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
-      // Inline `message` so the Slack job can run on any host (the worker that
-      // posts may not be this machine); message_file stays as a same-host fallback.
-      body: JSON.stringify({ action: 'slack_post_message', status: 'queued', scheduled_at: new Date().toISOString(),
-        params: { message: msg, message_file: MESSAGE_FILE, slack_channel: SLACK_CHANNEL } }),
-    }).then(r => r.ok).catch(() => false);
-    console.log(`[slack] enqueued slack_post_message (channel=${SLACK_CHANNEL}) -> ${ok ? 'queued ✓' : 'FAILED'}`);
+  if (shouldNotify) {
+    const jobId = enqueueWelesAction({
+      action: 'slack_post_message',
+      params: { message: msg, message_file: MESSAGE_FILE, slack_channel: SLACK_CHANNEL },
+    });
+    console.log(`[slack] submitted slack_post_message to Stado (channel=${SLACK_CHANNEL}) job=${jobId}`);
   }
 
   console.log('\n=== SUMMARY ===\n' + JSON.stringify(out, null, 1));

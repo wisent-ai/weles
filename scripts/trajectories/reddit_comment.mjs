@@ -7,6 +7,7 @@ import { probeCommentVisibility, probeShadowban } from '../../dist/platforms/red
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { runRecordingsDir } from '../../dist/session/run-recordings.js';
+import { findAccount, updateAccountMetadata } from './_shared/skarbiec_accounts.mjs';
 
 // Use old.reddit.com — comment composer is a plain visible <textarea name="text">
 // inside a normal form. New reddit.com puts the composer inside <shreddit-composer>'s
@@ -34,7 +35,7 @@ const DEFER_VERIFY_MS = Number(process.env.DEFER_VERIFY_MS ?? 300_000);
 const COMMENT_BODY = process.env.COMMENT_BODY || 'thanks for sharing';
 
 const acct = await getSocialAccount('reddit');
-if (!acct) { console.log('FAIL: no active reddit account in DB'); process.exitCode = 1; }
+if (!acct) { console.log('FAIL: no active reddit account in Skarbiec'); process.exitCode = 1; }
 console.log(`[trajectory] Using account: ${acct.username}`);
 
 const { proxyUrl, persona } = await resolveAccountSession(acct);
@@ -384,15 +385,9 @@ try {
           reason: 'comment was publicly visible immediately after submit, but missing from a clean-session probe ' + Math.round(DEFER_VERIFY_MS / 1000) + 's later — async classifier shadowban',
         },
       };
-      // Auto-flag in social_accounts to pull from rotation.
-      const databaseUrl = process.env.WELES_DATABASE_URL ?? '';
-      const key = process.env.WELES_DATABASE_TOKEN ?? '';
-      if (databaseUrl && key && acct.id) {
-        await fetch(`${databaseUrl}/rest/v1/social_accounts?id=eq.${acct.id}`, {
-          method: 'PATCH',
-          headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
-          body: JSON.stringify({ status: 'shadowbanned' }),
-        }).catch(() => {});
+      const vaultAccount = findAccount('reddit', acct.username);
+      if (vaultAccount) {
+        updateAccountMetadata(vaultAccount.id, { status: 'shadowbanned', active: false });
         console.log(`[deferred-verify] auto-flagged ${acct.username} status=shadowbanned`);
       }
       throw new Error('deferred clean-session probe: comment removed within ' + Math.round(DEFER_VERIFY_MS / 1000) + 's of submit');

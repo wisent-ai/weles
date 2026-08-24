@@ -50,6 +50,65 @@ export function findWelesRecordId(predicate) {
   }
   return null;
 }
+
+function recordPayload(document, fieldName) {
+  const raw = document.fields?.[fieldName] ?? document.fields?.value_json;
+  return raw ? JSON.parse(String(raw)) : { ...(document.context ?? {}) };
+}
+
+export function accountCharacter(account) {
+  const embedded = account?.metadata?.character;
+  if (embedded && typeof embedded === 'object') return embedded;
+  const characterId = String(account?.metadata?.character_id ?? '');
+  if (!characterId) return null;
+  const document = readWelesRecord(characterId);
+  return { id: characterId, ...recordPayload(document, 'character_json') };
+}
+
+export function findProduct(productId) {
+  const wanted = String(productId ?? '').trim();
+  if (!wanted) return null;
+  const id = findWelesRecordId((document, recordId) => {
+    const context = document.context ?? {};
+    return context.record_kind === 'product'
+      && (recordId === wanted || String(context.product_id ?? '') === wanted);
+  });
+  if (!id) return null;
+  const document = readWelesRecord(id);
+  return { id, ...recordPayload(document, 'product_json') };
+}
+
+export function writeServiceCredentials(service, { username, password }) {
+  const slug = String(service).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  const id = `weles-${slug}-service`;
+  if (!/^weles-[a-z0-9][a-z0-9-]{0,190}$/.test(id)) throw new Error('invalid Weles service item id');
+  run(['set', id, '--type', 'login', `username=${String(username)}`, `password=${String(password)}`]);
+  const document = readWelesRecord(id);
+  document.context = {
+    ...(document.context ?? {}),
+    owner: 'weles',
+    record_kind: 'service-credential',
+    service: String(service),
+  };
+  run(['set-json', id], JSON.stringify(document));
+  return id;
+}
+
+export function writeDomainStatus(domain, status) {
+  const slug = String(domain).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  const id = `weles-resend-domain-${slug}`;
+  if (!/^weles-[a-z0-9][a-z0-9-]{0,190}$/.test(id)) throw new Error('invalid Weles domain item id');
+  run(['set', id, '--type', 'bundle', `domain=${String(domain)}`, `status=${String(status)}`]);
+  const document = readWelesRecord(id);
+  document.context = {
+    ...(document.context ?? {}),
+    owner: 'weles',
+    record_kind: 'email-domain-status',
+    updated_at: new Date().toISOString(),
+  };
+  run(['set-json', id], JSON.stringify(document));
+  return id;
+}
 export function listAccounts(platform = '') {
   const rows = JSON.parse(run(['list']));
   return rows
