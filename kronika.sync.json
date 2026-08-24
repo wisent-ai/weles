@@ -1,15 +1,85 @@
 {
   "schemaVersion": 1,
-  "documents": {
-    "docs/what-is-weles.md": {},
-    "docs/quick-start.md": {},
-    "docs/cli.md": {},
-    "docs/authorization.md": {},
-    "docs/workflows.md": {},
-    "docs/receipts.md": {},
-    "docs/worker-lifecycle.md": {},
-    "docs/configuration.md": {}
-  },
-  "sources": ["src/", "scripts/", "release/", "README.md"],
-  "instruction": "The docs must stay true to the Weles source: every command, flag, schema, gate, and default they name must exist in src/, scripts/, release/, or the README, and the authorization, worker, and receipt semantics must match the code."
+  "documents": [
+    {
+      "output": "docs/what-is-weles.md",
+      "sources": [
+        "src",
+        "scripts",
+        "release",
+        "README.md"
+      ],
+      "instruction": "The docs must stay true to the Weles source: every command, flag, schema, gate, and default they name must exist in src/, scripts/, release/, or the README, and the authorization, worker, and receipt semantics must match the code."
+    },
+    {
+      "output": "docs/quick-start.md",
+      "sources": [
+        "src",
+        "scripts",
+        "release",
+        "README.md"
+      ],
+      "instruction": "The docs must stay true to the Weles source: every command, flag, schema, gate, and default they name must exist in src/, scripts/, release/, or the README, and the authorization, worker, and receipt semantics must match the code."
+    },
+    {
+      "output": "docs/cli.md",
+      "sources": [
+        "src",
+        "scripts",
+        "release",
+        "README.md"
+      ],
+      "instruction": "The docs must stay true to the Weles source: every command, flag, schema, gate, and default they name must exist in src/, scripts/, release/, or the README, and the authorization, worker, and receipt semantics must match the code."
+    },
+    {
+      "output": "docs/authorization.md",
+      "sources": [
+        "src",
+        "scripts",
+        "release",
+        "README.md"
+      ],
+      "instruction": "The docs must stay true to the Weles source: every command, flag, schema, gate, and default they name must exist in src/, scripts/, release/, or the README, and the authorization, worker, and receipt semantics must match the code."
+    },
+    {
+      "output": "docs/workflows.md",
+      "sources": [
+        "src",
+        "scripts",
+        "release",
+        "README.md"
+      ],
+      "instruction": "The docs must stay true to the Weles source: every command, flag, schema, gate, and default they name must exist in src/, scripts/, release/, or the README, and the authorization, worker, and receipt semantics must match the code."
+    },
+    {
+      "output": "docs/receipts.md",
+      "sources": [
+        "src",
+        "scripts",
+        "release",
+        "README.md"
+      ],
+      "instruction": "The docs must stay true to the Weles source: every command, flag, schema, gate, and default they name must exist in src/, scripts/, release/, or the README, and the authorization, worker, and receipt semantics must match the code."
+    },
+    {
+      "output": "docs/worker-lifecycle.md",
+      "sources": [
+        "src",
+        "scripts",
+        "release",
+        "README.md"
+      ],
+      "instruction": "The docs must stay true to the Weles source: every command, flag, schema, gate, and default they name must exist in src/, scripts/, release/, or the README, and the authorization, worker, and receipt semantics must match the code."
+    },
+    {
+      "output": "docs/configuration.md",
+      "sources": [
+        "src",
+        "scripts",
+        "release",
+        "README.md"
+      ],
+      "instruction": "The docs must stay true to the Weles source: every command, flag, schema, gate, and default they name must exist in src/, scripts/, release/, or the README, and the authorization, worker, and receipt semantics must match the code."
+    }
+  ]
 }
