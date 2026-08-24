@@ -1,3 +1,7 @@
+import { execFileSync } from 'node:child_process';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
+
 import { acquireSecret } from '../../dist/secrets/acquire.js';
 
 function arg(name) {
@@ -19,39 +23,22 @@ function numberArg(name) {
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
-async function waitForAction(actionLogId) {
-  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(actionLogId)) {
-    throw new Error('invalid Weles action id');
-  }
-  const baseURL = (process.env.WELES_DATABASE_URL || '').replace(/\/$/, '');
-  const serviceKey = process.env.WELES_DATABASE_TOKEN || '';
-  if (!baseURL || !serviceKey) throw new Error('Weles status service is unavailable');
+async function waitForAction(jobId) {
+  if (!/^[0-9a-f]{8}$/i.test(jobId)) throw new Error('invalid Stado job id');
+  const stado = process.env.WELES_STADO_BIN || join(homedir(), '.stado', 'bin', 'stado');
   const deadline = Date.now() + 20 * 60 * 1000;
-  const terminalFailures = new Set(['failed', 'cancelled', 'pending_review', 'needs_human_approval']);
   while (Date.now() < deadline) {
-    const response = await fetch(
-      `${baseURL}/rest/v1/account_action_logs?id=eq.${encodeURIComponent(actionLogId)}&select=id,status`,
-      {
-        headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` },
-        signal: AbortSignal.timeout(15_000),
-      },
-    );
-    if (!response.ok) throw new Error('Weles status request failed');
-    const rows = await response.json();
-    const row = Array.isArray(rows) ? rows[0] : null;
-    if (!row) throw new Error('Weles action was not found');
-    if (row.status === 'completed') {
-      return {
-        status: 'completed',
-        actionLogId,
-        message: 'Credential encrypted in Skarbiec and synchronized.',
-      };
+    const output = execFileSync(stado, ['status', jobId], { encoding: 'utf8' });
+    const normalized = output.toLowerCase();
+    if (/\b(completed|succeeded|success)\b/.test(normalized)) {
+      return { status: 'completed', jobId, message: 'Credential encrypted in Skarbiec and synchronized.' };
     }
-    if (terminalFailures.has(row.status)) {
+    const failure = normalized.match(/\b(failed|cancelled|canceled|pending_review|needs_human_approval)\b/)?.[1];
+    if (failure) {
       return {
-        status: row.status,
-        actionLogId,
-        message: row.status === 'needs_human_approval' || row.status === 'pending_review'
+        status: failure,
+        jobId,
+        message: failure === 'needs_human_approval' || failure === 'pending_review'
           ? 'Weles requires human review before the credential can be stored.'
           : 'Weles could not complete the credential request.',
       };
@@ -60,8 +47,8 @@ async function waitForAction(actionLogId) {
   }
   return {
     status: 'timed_out',
-    actionLogId,
-    message: 'Weles did not finish the credential request within 20 minutes.',
+    jobId,
+    message: 'Stado did not finish the credential request within 20 minutes.',
   };
 }
 

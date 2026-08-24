@@ -68,6 +68,21 @@ export function findAccount(platform, username) {
   return listAccounts(platform).find((account) =>
     account.username.trim().toLowerCase() === normalized) ?? null;
 }
+export function writeRunRecord(runId, value) {
+  const clean = String(runId);
+  if (!/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,126}$/.test(clean)) throw new Error('invalid Weles run id');
+  const id = `weles-run-${clean.toLowerCase()}`;
+  run(['set', id, '--type', 'bundle', `value_json=${JSON.stringify(value)}`]);
+  const document = readWelesRecord(id);
+  document.context = {
+    ...(document.context ?? {}),
+    owner: 'weles',
+    record_kind: 'trajectory-run',
+    run_id: clean,
+  };
+  run(['set-json', id], JSON.stringify(document));
+  return id;
+}
 
 export function readAccount(id) {
   const document = JSON.parse(run(['get', requireItem(id)]));

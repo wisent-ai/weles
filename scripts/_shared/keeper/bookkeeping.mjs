@@ -1,49 +1,12 @@
-// Database bookkeeping for keeper-driven flows.
-//
-// The keeper today writes nothing to account_action_logs. Successful flows
-// leave a side-effect (social_accounts row via save_account); failed flows
-// leave no trace at all, so keeper attempts are uncountable and the
-// burn-attribution matcher can't pair them against worker rows.
-//
-// This module emits account_action_logs rows that match the worker schema:
-//   - setupKeeperFlow inserts status='running' at keeper start, registers
-//     SIGINT/SIGTERM handlers that PATCH the row to status='failed', and
-//     returns a `close(status, banSignal, savedAccountId)` helper for the
-//     keeper to call from save_account / mark_failed dispatches.
-//
-// The returned `close` writes the same result.{session,ban_signal,artifacts,
-// versions,account_id} shape the worker emits, so keeper rows are
-// pair-eligible by the burn-attribution matcher.
+// Keeper run bookkeeping is stored in Skarbiec under the Stado job id.
 
 import { readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
+import { randomUUID } from 'node:crypto';
+import { writeRunRecord } from '../../trajectories/_shared/skarbiec_accounts.mjs';
 
-const DATABASE_URL = process.env.WELES_DATABASE_URL || '';
-const DATABASE_TOKEN = process.env.WELES_DATABASE_TOKEN || '';
 const RECORDINGS_ROOT = process.env.RECORDINGS_ROOT || 'recordings';
 
-function headers() {
-  return { apikey: DATABASE_TOKEN, Authorization: `Bearer ${DATABASE_TOKEN}`, 'Content-Type': 'application/json' };
-}
-
-async function insertOpen(body) {
-  if (!DATABASE_URL || !DATABASE_TOKEN) return null;
-  const res = await fetch(`${DATABASE_URL}/rest/v1/account_action_logs`, {
-    method: 'POST', headers: { ...headers(), Prefer: 'return=representation' }, body: JSON.stringify(body),
-  });
-  if (!res.ok) { console.log(`[keeper-bookkeeping] open INSERT failed http=${res.status}`); return null; }
-  const row = (await res.json())[0];
-  return row?.id ?? null;
-}
-
-async function patchClose(rowId, body) {
-  if (!DATABASE_URL || !DATABASE_TOKEN || !rowId) return false;
-  const res = await fetch(`${DATABASE_URL}/rest/v1/account_action_logs?id=eq.${rowId}`, {
-    method: 'PATCH', headers: { ...headers(), Prefer: 'return=minimal' }, body: JSON.stringify(body),
-  });
-  if (!res.ok) { console.log(`[keeper-bookkeeping] close PATCH failed http=${res.status}`); return false; }
-  return true;
-}
 
 
 async function findInRun(rowId, filename) {
@@ -108,12 +71,14 @@ export async function setupKeeperFlow({ session, platform, action, accountId, pr
       },
     }
     : {};
-  const flowRowId = await insertOpen({
+  const flowRowId = process.env.ACTION_LOG_ID || process.env.WC_JOB_ID || randomUUID();
+  const flowRecord = {
     account_id: accountId ?? null, action, platform: platform ?? null,
-    status: 'running', started_at: runStart.toISOString(), scheduled_at: runStart.toISOString(),
+    status: 'running', started_at: runStart.toISOString(),
     params: { keeper: true, keeper_session: session, proxy_url_override: proxyUrl ?? null, keeper_started_versions: versionsAtStart, ...diagnosticParams },
     result: { session: sessionMetaInitial, ban_signal: { healthy: null, signal: 'keeper_running' } },
-  });
+  };
+  writeRunRecord(flowRowId, flowRecord);
   let closed = false;
   async function close(status, banSignal, savedAccountId) {
     if (closed || !flowRowId) return;
@@ -152,8 +117,8 @@ export async function setupKeeperFlow({ session, platform, action, accountId, pr
       try { const co = await challengeOutcomeFn(flowRowId); if (co) result.challenge_outcome = co; }
       catch (e) { console.log(`[keeper-bookkeeping] challenge_outcome threw: ${e?.message?.slice(0, 100) ?? String(e).slice(0, 100)}`); }
     }
-    await patchClose(flowRowId, { status, completed_at: new Date().toISOString(), result });
-    console.log(`[keeper-bookkeeping] closed row=${flowRowId.slice(0, 8)} status=${status}`);
+    writeRunRecord(flowRowId, { ...flowRecord, status, completed_at: new Date().toISOString(), result });
+    console.log(`[keeper-bookkeeping] closed run=${flowRowId.slice(0, 8)} status=${status}`);
   }
   for (const sig of ['SIGINT', 'SIGTERM']) {
     process.on(sig, async () => {
