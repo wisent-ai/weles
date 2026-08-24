@@ -117,6 +117,18 @@ export function writeAccount({ id, platform, username, password, metadata, displ
   return item;
 }
 
+export function replaceAccountMetadata(id, metadata) {
+  const account = readAccount(id);
+  writeAccount({
+    id: account.id,
+    platform: account.platform,
+    username: account.username,
+    password: account.password,
+    metadata,
+    displayName: account.document.context?.display_name,
+  });
+}
+
 export function updateAccountMetadata(id, update) {
   const account = readAccount(id);
   const metadata = typeof update === 'function'
