@@ -7,7 +7,7 @@ import { runRecordingsDir } from '../../dist/session/run-recordings.js';
 const URL = 'https://discord.com/login';
 
 const acct = await getSocialAccount('discord');
-if (!acct) { console.log('FAIL: no active discord account in DB'); process.exitCode = 1; }
+if (!acct) { console.log('FAIL: no active discord account in Skarbiec'); process.exitCode = 1; }
 if (!acct.metadata.password) { console.log(`FAIL: account ${acct.username} has no password`); process.exitCode = 1; }
 process.env.SVC_EMAIL = acct.metadata.email ?? acct.username;
 process.env.SVC_PASSWORD = acct.metadata.password;
@@ -132,21 +132,9 @@ try {
         if (result?.status === 200 && result?.data?.token) {
           console.log(`[login] SUCCESS — token received`);
           await s.page.evaluate(`localStorage.setItem("token", JSON.stringify(${JSON.stringify(result.data.token)}))`).catch(() => {});
-          // Persist the token into metadata.discord_token alongside cookies so
-          // the health probe (and future action trajectories) can re-inject it.
-          // Cookies alone don't auth Discord — the token lives in localStorage,
-          // and without it every /channels/@me nav bounces to /login.
-          if (acct.id && process.env.WELES_DATABASE_URL && process.env.WELES_DATABASE_TOKEN) {
-            const key = process.env.WELES_DATABASE_TOKEN;
-            const url = process.env.WELES_DATABASE_URL;
-            fetch(`${url}/rest/v1/social_accounts?id=eq.${acct.id}&select=metadata`, { headers: { apikey: key, Authorization: `Bearer ${key}` } })
-              .then(r => r.json())
-              .then(rows => fetch(`${url}/rest/v1/social_accounts?id=eq.${acct.id}`, {
-                method: 'PATCH',
-                headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
-                body: JSON.stringify({ metadata: { ...(rows?.[0]?.metadata ?? {}), discord_token: result.data.token } }),
-              })).catch(() => {});
-          }
+          // Discord auth lives in localStorage, so persist it beside the account
+          // cookies in the same Skarbiec item.
+          if (acct.id) await s.patchAccount(acct.id, { metadata: { discord_token: result.data.token } });
           await s.goto('https://discord.com/channels/@me');
           await s.wait(5);
           console.log(`PASS: logged in as ${acct.username} — ${s.page.url?.()}`);
@@ -212,16 +200,7 @@ try {
           if (retryResult?.status === 200 && retryResult?.data?.token) {
             console.log(`[login] SUCCESS — token received after IP authorize`);
             await s.page.evaluate(`localStorage.setItem("token", JSON.stringify(${JSON.stringify(retryResult.data.token)}))`).catch(() => {});
-            if (acct.id && process.env.WELES_DATABASE_URL && process.env.WELES_DATABASE_TOKEN) {
-              const key = process.env.WELES_DATABASE_TOKEN;
-              const supaUrl = process.env.WELES_DATABASE_URL;
-              const md = await (await fetch(`${supaUrl}/rest/v1/social_accounts?id=eq.${acct.id}&select=metadata`, { headers: { apikey: key, Authorization: `Bearer ${key}` } })).json();
-              await fetch(`${supaUrl}/rest/v1/social_accounts?id=eq.${acct.id}`, {
-                method: 'PATCH',
-                headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
-                body: JSON.stringify({ metadata: { ...(md?.[0]?.metadata ?? {}), discord_token: retryResult.data.token } }),
-              }).catch(() => {});
-            }
+            if (acct.id) await s.patchAccount(acct.id, { metadata: { discord_token: retryResult.data.token } });
             await s.goto('https://discord.com/channels/@me').catch(() => {});
             await s.wait(5);
             console.log(`PASS: logged in as ${acct.username} — ${s.page.url?.()}`);

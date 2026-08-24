@@ -2,6 +2,7 @@ import { WSession } from '../../dist/session/wsession.js';
 import { humanClickLocator } from '../../dist/human/mouse.js';
 import { autoBindCharacter } from './lib/character-bind.mjs';
 import { harvestAfterRegister } from './lib/discord_harvest.mjs';
+import { accountItemId } from './_shared/skarbiec_accounts.mjs';
 // burned.js is CommonJS; default-import then destructure (named ESM import
 // of a CJS export is fragile across rebuilds). This lineage exposes
 // markBurned(host,signal,platform) — no multi-level markBurnedIp.
@@ -209,22 +210,11 @@ try {
             console.log(`[test] Navigated to: ${s.page.url?.()}`);
             registered = true;
             await s.saveAccount('discord', { username: id.username, email: id.email, password: id.password });
-            // Persist the localStorage auth token to metadata.discord_token.
-            // saveAccount stores creds+cookies, but Discord auth IS the
-            // localStorage token and scrape_discord injects
-            // metadata.discord_token — without this every downstream Discord
-            // run must re-login. Mirrors discord_login.mjs.
-            try {
-              const supaUrl = process.env.WELES_DATABASE_URL;
-              const supaKey = process.env.WELES_DATABASE_TOKEN;
-              if (supaUrl && supaKey) {
-                const cur = await (await fetch(`${supaUrl}/rest/v1/social_accounts?platform=eq.discord&username=eq.${encodeURIComponent(id.username)}&select=id,metadata`, { headers: { apikey: supaKey, Authorization: `Bearer ${supaKey}` } })).json();
-                if (cur && cur[0]) {
-                  await fetch(`${supaUrl}/rest/v1/social_accounts?id=eq.${cur[0].id}`, { method: 'PATCH', headers: { apikey: supaKey, Authorization: `Bearer ${supaKey}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' }, body: JSON.stringify({ metadata: { ...(cur[0].metadata || {}), discord_token: authToken } }) });
-                  console.log('[test] persisted metadata.discord_token');
-                }
-              }
-            } catch (e) { console.log(`[test] discord_token persist err: ${e.message?.slice(0, 80)}`); }
+            // saveAccount creates the Skarbiec item; add Discord's localStorage
+            // token to that exact item because cookies alone do not authenticate.
+            const item = accountItemId('discord', id.username);
+            await s.patchAccount(item, { metadata: { discord_token: authToken } });
+            console.log('[test] persisted metadata.discord_token to Skarbiec');
             await autoBindCharacter(id.username, 'discord').then(r => console.log(`[bind] ${JSON.stringify(r)}`)).catch((e) => console.log(`[bind] err: ${e.message?.slice(0, 80)}`));
             console.log(`PASS: ${id.username}`);
 

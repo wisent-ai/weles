@@ -11,7 +11,7 @@ import type { WSession } from './wsession.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { runRecordingsDir } from './run-recordings.js';
-import { optionalWelesDatabase } from '../utils/weles-database.js';
+import { updateAccount } from '../state/skarbiec-records.js';
 
 declare module './wsession.js' {
   interface WSession {
@@ -106,21 +106,13 @@ W.prototype.dwell = async function (scrolls, dwellMsRange) {
 };
 
 W.prototype.patchAccount = async function (accountId, patch) {
-  const url = optionalWelesDatabase()?.url ?? '';
-  const key = optionalWelesDatabase()?.token ?? '';
-  if (!url || !key || !accountId) return false;
+  if (!accountId) return false;
   try {
-    const getRes = await fetch(`${url}/rest/v1/social_accounts?id=eq.${accountId}&select=metadata`, { headers: { apikey: key, Authorization: `Bearer ${key}` } });
-    const rows = await getRes.json() as any[];
-    const currentMeta = rows?.[0]?.metadata ?? {};
-    const mergedMeta = 'metadata' in patch ? { ...currentMeta, ...(patch.metadata as Record<string, unknown>) } : currentMeta;
-    const body = { ...patch, ...('metadata' in patch ? { metadata: mergedMeta } : {}) };
-    const res = await fetch(`${url}/rest/v1/social_accounts?id=eq.${accountId}`, {
-      method: 'PATCH',
-      headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
-      body: JSON.stringify(body),
-    });
-    return res.ok;
+    const metadata = patch.metadata && typeof patch.metadata === 'object'
+      ? patch.metadata as Record<string, unknown>
+      : undefined;
+    const active = typeof patch.is_active === 'boolean' ? patch.is_active : undefined;
+    return updateAccount(accountId, { metadata, active });
   } catch { return false; }
 };
 

@@ -1,4 +1,4 @@
-import { optionalWelesDatabase } from '../utils/weles-database.js';
+import { enqueueAction } from '../state/skarbiec-records.js';
 
 // Provider-platform toxicity policy. Lifted from credentials.ts so the
 // check can fire from both the per-account path (resolveAccountSession)
@@ -10,9 +10,8 @@ import { optionalWelesDatabase } from '../utils/weles-database.js';
 // proxy_capability_matrix in src/proxy/capability.ts. Hard exclusions
 // stay here because they're CLAUDE.md auto-rules, not statistical
 // observations. PacketStream + LinkedIn is one such rule: PacketStream's
-// residential range is flagged by LinkedIn anti-bot; signups from those
-// IPs land on /checkpoint immediately and account_action_logs has zero
-// linkedin_login successes via PacketStream.
+// residential range is flagged by LinkedIn anti-bot; signups consistently land
+// on /checkpoint, so the pair remains a hard exclusion.
 const PROVIDER_PLATFORM_BLOCK: Record<string, string[]> = {
   packetstream: ['linkedin'],
 };
@@ -457,35 +456,19 @@ export async function enqueueProviderTopup(displayName: string): Promise<{ ok: b
   if (_enqueuedTopupThisProcess.has(displayName)) return { ok: false, reason: 'already_enqueued_this_process' };
   const slug = _TOPUP_SLUG[displayName];
   if (!slug) return { ok: false, reason: 'no_slug' };
-  const url = optionalWelesDatabase()?.url ?? '';
-  const key = optionalWelesDatabase()?.token ?? '';
-  if (!url || !key) return { ok: false, reason: 'no_supabase_env' };
-  let accountId = '';
   try {
-    const r = await fetch(`${url}/rest/v1/social_accounts?platform=eq.github&is_active=eq.true&select=id&limit=1`, { headers: { apikey: key, Authorization: `Bearer ${key}` } });
-    const rows = await r.json() as Array<{ id: string }>;
-    accountId = rows[0]?.id ?? '';
-  } catch {}
-  if (!accountId) return { ok: false, reason: 'no_service_account' };
-  try {
-    const f = await fetch(`${url}/rest/v1/system_settings?key=eq.workers_enabled&select=value`, { headers: { apikey: key, Authorization: `Bearer ${key}` } });
-    const flagRows = await f.json() as Array<{ value: { enabled?: boolean } }>;
-    if (flagRows[0]?.value?.enabled === false) return { ok: false, reason: 'workers_disabled' };
-  } catch {}
-  try {
-    const since = new Date(Date.now() - 3600 * 1000).toISOString();
-    const r = await fetch(`${url}/rest/v1/account_action_logs?action=eq.${slug}_topup&status=eq.queued&started_at=gte.${since}&select=id&limit=1`, { headers: { apikey: key, Authorization: `Bearer ${key}` } });
-    const rows = await r.json() as Array<{ id: string }>;
-    if (rows.length > 0) { _enqueuedTopupThisProcess.add(displayName); return { ok: false, reason: 'already_queued_in_db' }; }
-  } catch {}
-  const body = { account_id: accountId, platform: slug, action: `${slug}_topup`, status: 'queued', scheduled_at: new Date().toISOString(), params: { topup_usd: 30, topup_confirm: true, batch: 'auto-407-recovery' } };
-  try {
-    const r = await fetch(`${url}/rest/v1/account_action_logs`, { method: 'POST', headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' }, body: JSON.stringify(body) });
-    if (!r.ok) return { ok: false, reason: `insert_${r.status}` };
+    const jobId = enqueueAction(`${slug}_topup`, '', {
+      topup_usd: 30,
+      topup_confirm: true,
+      batch: 'auto-407-recovery',
+    });
     _enqueuedTopupThisProcess.add(displayName);
-    console.log(`[topup-recovery] 407 on ${displayName} -> enqueued ${slug}_topup`);
+    console.log(`[topup-recovery] 407 on ${displayName} -> Stado job ${jobId}`);
     return { ok: true };
-  } catch (e: any) {
-    return { ok: false, reason: e.message?.slice(0, 80) ?? 'err' };
+  } catch (error) {
+    return {
+      ok: false,
+      reason: error instanceof Error ? error.message.slice(0, 80) : String(error).slice(0, 80),
+    };
   }
 }

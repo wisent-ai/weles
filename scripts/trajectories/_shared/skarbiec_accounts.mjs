@@ -25,6 +25,21 @@ export function accountItemId(platform, username) {
   return requireItem(`weles-${String(platform).toLowerCase()}-${slug}-account`);
 }
 
+export function readWelesRecord(id) {
+  if (!/^weles-[a-z0-9][a-z0-9-]{0,190}$/.test(String(id))) {
+    throw new Error('invalid Weles Skarbiec record id');
+  }
+  return JSON.parse(run(['get', String(id)]));
+}
+
+export function updateWelesRecord(id, contextPatch = {}, fieldPatch = {}) {
+  const document = readWelesRecord(id);
+  document.context = { ...(document.context ?? {}), ...contextPatch };
+  document.fields = { ...(document.fields ?? {}), ...fieldPatch };
+  run(['set-json', String(id)], JSON.stringify(document));
+  return true;
+}
+
 export function readAccount(id) {
   const document = JSON.parse(run(['get', requireItem(id)]));
   const fields = document.fields ?? {};
@@ -72,4 +87,16 @@ export function updateAccountMetadata(id, update) {
     displayName: account.document.context?.display_name,
   });
   return metadata;
+}
+
+export function updateAccountPassword(id, password, metadataPatch = {}) {
+  const account = readAccount(id);
+  writeAccount({
+    id: account.id,
+    platform: account.platform,
+    username: account.username,
+    password,
+    metadata: { ...account.metadata, ...metadataPatch },
+    displayName: account.document.context?.display_name,
+  });
 }
