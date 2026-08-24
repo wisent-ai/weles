@@ -24,6 +24,7 @@ import {
   persistToSkarbiec,
   reachableRouterUrl,
   resolveBearer,
+  stadoRouterUrl,
   supabaseConfigured,
 } from '../_shared/reauth_config.mjs';
 
@@ -67,10 +68,9 @@ function configFromSkarbiec(reason) {
   // surface at one address.
   const cfg = loadFromSkarbiec(CONFIG_ITEM, 'codex-reauth-config');
   cfg.configId = CONFIG_ITEM;
-  cfg.brokerUrl = cfg.routerUrl;
   cfg.bearer = resolveBearer(cfg.agentId);
   console.error(
-    `config from skarbiec ${CONFIG_ITEM} (${reason}); router ${cfg.routerUrl}; `
+    `config from skarbiec ${CONFIG_ITEM} (${reason}); `
     + `bearer ${cfg.bearer ? 'present' : 'absent'}`,
   );
   return cfg;
@@ -91,18 +91,15 @@ async function loadConfig() {
   // Identity belongs to the agent, not to a provider row, and this row carries
   // none of it. Rather than fail, take the configuration Skarbiec holds: it has
   // the agent id, the router Brama answers on, and a secret that is current.
-  const missing = ['MODEL_ROUTER_URL', 'WISENT_APP_AGENT_ID', 'WISENT_APP_AGENT_AUTH_SECRET', 'WISENT_DONOR_USER_ID']
+  const missing = ['WISENT_APP_AGENT_ID', 'WISENT_APP_AGENT_AUTH_SECRET', 'WISENT_DONOR_USER_ID']
     .filter((key) => !m[key]);
   if (missing.length) {
     return configFromSkarbiec(`supabase row lacks ${missing.join(', ')}`);
   }
-  const routerUrl = String(m.MODEL_ROUTER_URL).replace(/\/+$/, '');
-  console.error(`config from supabase; router ${routerUrl}`);
+  console.error('config from supabase');
   return {
     store: 'supabase',
     configId: byId.has('kimi-reauth-config') ? 'kimi-reauth-config' : (byId.has('codex-reauth-config') ? 'codex-reauth-config' : 'claude-reauth-config'),
-    routerUrl,
-    brokerUrl: routerUrl,
     agentId: String(m.WISENT_APP_AGENT_ID),
     hmacSecret: String(m.WISENT_APP_AGENT_AUTH_SECRET),
     donorUserId: String(m.WISENT_DONOR_USER_ID),
@@ -311,9 +308,10 @@ function runLogin() {
 
 async function main() {
   const cfg = await loadConfig();
-  // The row's address is a memory; the listener is the fact.
-  cfg.routerUrl = await reachableRouterUrl(cfg.routerUrl);
-  cfg.brokerUrl = await reachableRouterUrl(cfg.brokerUrl);
+  // Stado says where Brama is; the listener check keeps the answer honest.
+  // Brama answers the broker and the router surface at one address.
+  cfg.routerUrl = await reachableRouterUrl(stadoRouterUrl());
+  cfg.brokerUrl = cfg.routerUrl;
   const poolBefore = await listSubscriptions(cfg);
   const probe = await probePool(cfg);
   const expMs = cfg.activeTokenExpiresAt;

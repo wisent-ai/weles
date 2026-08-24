@@ -13,7 +13,8 @@
 //     not to one provider, so a row that lacks them may borrow them from a
 //     sibling row rather than keeping a second copy of the same secret.
 //
-// Nothing here prints a secret. `MODEL_ROUTER_URL` is an address and is logged.
+// Nothing here prints a secret. The router address never comes from a row: it
+// is resolved through Stado, and it is logged.
 
 import { execFileSync } from 'node:child_process';
 import os from 'node:os';
@@ -22,17 +23,37 @@ import path from 'node:path';
 const HOME = os.homedir();
 const SKARBIEC = process.env.SKARBIEC_BIN ?? path.join(HOME, '.stado', 'bin', 'skarbiec');
 const VAULT = process.env.SKARBIEC_VAULT_FILE ?? path.join(HOME, '.stado', 'skarbiec.vault.json');
+const STADO = process.env.STADO_BIN ?? path.join(HOME, '.stado', 'bin', 'stado');
 // What a row must carry. The signing secret is deliberately not here: it belongs
 // to the agent's own item, the copies in these rows had drifted, and requiring a
 // copy would mean requiring the trap to stay in place.
 const REQUIRED = [
-  'MODEL_ROUTER_URL',
   'WISENT_APP_AGENT_ID',
   'WISENT_DONOR_USER_ID',
 ];
 
 export const supabaseConfigured = () =>
   Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
+
+// Where Brama is, answered by Stado. The launcher-injected
+// STADO_MODEL_ROUTER_URL wins where a unit carries it; a bare unit (the
+// launchd reauth jobs get only HOME and PATH) asks this host's Stado service
+// directory. The address belongs to placement, and placement is Stado's — a
+// configuration row remembers identity, never a route.
+export function stadoRouterUrl() {
+  const fromEnv = String(process.env.STADO_MODEL_ROUTER_URL || '').trim();
+  if (fromEnv) return fromEnv.replace(/\/+$/, '');
+  const raw = execFileSync(STADO, ['service', 'directory', 'endpoint', 'brama', '--json'], {
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      PATH: `/opt/homebrew/bin:/usr/local/bin:${process.env.PATH ?? '/usr/bin:/bin'}`,
+    },
+  });
+  const url = String(JSON.parse(raw)?.url ?? '').trim();
+  if (!url) throw new Error('Stado answered no endpoint for brama');
+  return url.replace(/\/+$/, '');
+}
 
 function skarbiec(args, input) {
   return execFileSync(SKARBIEC, args, {
@@ -89,7 +110,6 @@ export function loadFromSkarbiec(item, fallbackItem) {
     store: 'skarbiec',
     item,
     metadataWasText: own.metadataWasText,
-    routerUrl: String(metadata.MODEL_ROUTER_URL).replace(/\/+$/, ''),
     agentId,
     hmacSecret: own_secret || metadata.WISENT_APP_AGENT_AUTH_SECRET,
     donorUserId: metadata.WISENT_DONOR_USER_ID,

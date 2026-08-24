@@ -30,6 +30,7 @@ import {
   reachableRouterUrl,
   resolveAgentSecret,
   resolveBearer,
+  stadoRouterUrl,
   supabaseConfigured,
 } from '../_shared/reauth_config.mjs';
 import { chooseCredentialRow } from '../../../dist/utils/login-accounts.js';
@@ -67,7 +68,7 @@ function configFromSkarbiec(reason) {
   const cfg = loadFromSkarbiec(CONFIG_ITEM, 'codex-reauth-config');
   cfg.bearer = resolveBearer(cfg.agentId);
   console.error(
-    `config from skarbiec ${CONFIG_ITEM} (${reason}); router ${cfg.routerUrl}; `
+    `config from skarbiec ${CONFIG_ITEM} (${reason}); `
     + `bearer ${cfg.bearer ? 'present' : 'absent'}`,
   );
   return cfg;
@@ -89,8 +90,7 @@ async function loadConfig() {
     return configFromSkarbiec("no supabase row id='claude-reauth-config'");
   }
   const m = rows[0].metadata;
-  for (const k of ['MODEL_ROUTER_URL', 'WISENT_APP_AGENT_ID',
-    'WISENT_DONOR_USER_ID']) {
+  for (const k of ['WISENT_APP_AGENT_ID', 'WISENT_DONOR_USER_ID']) {
     if (!m[k]) throw new Error(`claude-reauth-config.metadata missing ${k}`);
   }
   const hmacSecret = resolveAgentSecret(m.WISENT_APP_AGENT_ID)
@@ -100,18 +100,16 @@ async function loadConfig() {
       `agent:${m.WISENT_APP_AGENT_ID} and claude-reauth-config.metadata both lack the signing secret`,
     );
   }
-  const routerUrl = String(m.MODEL_ROUTER_URL).replace(/\/+$/, '');
   const bearer = resolveBearer(m.WISENT_APP_AGENT_ID);
   // Which store answered decides where a refreshed credential goes, so say it.
   console.error(
-    `config from supabase ${CONFIG_ITEM}; router ${routerUrl}; `
+    `config from supabase ${CONFIG_ITEM}; `
     + `agent secret ${hmacSecret === m.WISENT_APP_AGENT_AUTH_SECRET ? 'legacy-row' : 'agent-item'}; `
     + `bearer ${bearer ? 'present' : 'absent'}`,
   );
   return {
     store: 'supabase',
     item: CONFIG_ITEM,
-    routerUrl,
     agentId: m.WISENT_APP_AGENT_ID,
     hmacSecret,
     bearer,
@@ -415,8 +413,8 @@ function runLogin(displayName) {
 
 async function main() {
   const cfg = await loadConfig();
-  // The row's address is a memory; the listener is the fact.
-  cfg.routerUrl = await reachableRouterUrl(cfg.routerUrl);
+  // Stado says where Brama is; the listener check keeps the answer honest.
+  cfg.routerUrl = await reachableRouterUrl(stadoRouterUrl());
   const poolBefore = await listSubscriptions(cfg);
   const probe = await probePool(cfg);
   const burnt = isBurnout(probe);

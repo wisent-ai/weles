@@ -17,7 +17,9 @@ import { dirname, join } from 'node:path';
 import {
   loadFromSkarbiec,
   persistToSkarbiec,
+  reachableRouterUrl,
   resolveBearer,
+  stadoRouterUrl,
   supabaseConfigured,
 } from '../_shared/reauth_config.mjs';
 
@@ -65,7 +67,7 @@ async function loadConfig() {
     const cfg = loadFromSkarbiec(CONFIG_ITEM);
     cfg.bearer = resolveBearer(cfg.agentId);
     console.error(
-      `config from skarbiec ${CONFIG_ITEM}; router ${cfg.routerUrl}; `
+      `config from skarbiec ${CONFIG_ITEM}; `
       + `bearer ${cfg.bearer ? 'present' : 'absent'}`,
     );
     return cfg;
@@ -76,14 +78,13 @@ async function loadConfig() {
     throw new Error("no service_credentials row id='codex-reauth-config'");
   }
   const m = rows[0].metadata;
-  for (const k of ['MODEL_ROUTER_URL', 'WISENT_APP_AGENT_ID',
+  for (const k of ['WISENT_APP_AGENT_ID',
     'WISENT_APP_AGENT_AUTH_SECRET', 'WISENT_DONOR_USER_ID']) {
     if (!m[k]) throw new Error(`codex-reauth-config.metadata missing ${k}`);
   }
   return {
     store: 'supabase',
     item: CONFIG_ITEM,
-    routerUrl: m.MODEL_ROUTER_URL.replace(/\/+$/, ''),
     agentId: m.WISENT_APP_AGENT_ID,
     // The gateway refuses a signed trio with a bare 401 when no bearer carries
     // the client identity, as the header builder below says. Only the Skarbiec
@@ -435,6 +436,8 @@ function bankNamedAuth(authJson) {
 
 async function main() {
   const cfg = await loadConfig();
+  // Stado says where Brama is; the listener check keeps the answer honest.
+  cfg.routerUrl = await reachableRouterUrl(stadoRouterUrl());
   const requestedDisplayName = process.env.CODEX_DISPLAY_NAME?.trim();
   if (requestedDisplayName) {
     const row = await pickNamedRow(requestedDisplayName);
