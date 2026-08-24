@@ -8,6 +8,7 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { createHmac } from 'node:crypto';
 import { readScopedLogin } from '../../../_shared/scoped-secrets.mjs';
+import { findWelesRecordId, updateWelesRecord } from '../skarbiec_accounts.mjs';
 
 async function logGooglePageDiag(page, label) {
   const diag = await page.evaluate(() => {
@@ -773,14 +774,14 @@ export async function getScopedGoogleLogin(serviceName) {
 }
 
 export async function patchServiceBalance(displayName, balance) {
-  const databaseUrl = process.env.WELES_DATABASE_URL ?? '';
-  const key = process.env.WELES_DATABASE_TOKEN ?? '';
-  if (!databaseUrl || !key) return false;
+  const id = findWelesRecordId((document) =>
+    document.context?.owner === 'weles'
+      && String(document.context?.display_name ?? '').toLowerCase() === String(displayName).toLowerCase());
+  if (!id) return false;
   const now = new Date().toISOString();
-  const r = await fetch(`${databaseUrl}/rest/v1/service_credentials?display_name=eq.${encodeURIComponent(displayName)}`, {
-    method: 'PATCH',
-    headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
-    body: JSON.stringify({ balance_usd: balance, last_balance_check: now, updated_at: now }),
+  return updateWelesRecord(id, {
+    balance_usd: balance,
+    last_balance_check: now,
+    updated_at: now,
   });
-  return r.ok;
 }

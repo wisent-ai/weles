@@ -39,6 +39,17 @@ export function updateWelesRecord(id, contextPatch = {}, fieldPatch = {}) {
   run(['set-json', String(id)], JSON.stringify(document));
   return true;
 }
+export function findWelesRecordId(predicate) {
+  const rows = JSON.parse(run(['list']));
+  for (const row of rows) {
+    if (row.deleted) continue;
+    const id = String(row.name ?? row.id ?? '');
+    if (!id) continue;
+    const document = readWelesRecord(id);
+    if (predicate(document, id)) return id;
+  }
+  return null;
+}
 
 export function readAccount(id) {
   const document = JSON.parse(run(['get', requireItem(id)]));
