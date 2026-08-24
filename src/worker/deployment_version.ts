@@ -1,5 +1,6 @@
 import os from 'node:os';
 import { captureVersions } from '../diagnostics/versions.js';
+import { writeSetting } from '../state/skarbiec-records.js';
 
 const PRODUCTION_SETTING_KEY = 'weles_deployment_version';
 const DEFAULT_HEARTBEAT_MS = 60_000;
@@ -167,31 +168,15 @@ export async function writeDeploymentVersion(options: {
   now?: Date;
   versions?: Record<string, any>;
   instanceId?: string;
-} = {}): Promise<{ ok: boolean; skipped?: string; error?: string; status?: number; value?: DeploymentVersionValue }> {
+} = {}): Promise<{ ok: boolean; error?: string; value?: DeploymentVersionValue }> {
   const env = options.env ?? process.env;
-  const supabaseUrl = envValue(env, 'CONTENT_PLATFORM_SUPABASE_URL', 'SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_URL');
-  const supabaseKey = envValue(env, 'CONTENT_PLATFORM_SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_SERVICE_ROLE_KEY');
-  if (!supabaseUrl || !supabaseKey) return { ok: false, skipped: 'missing_supabase_config' };
-
   const instanceId = options.instanceId ?? deploymentInstanceId(env);
   const ring = envValue(env, 'WELES_DEPLOYMENT_RING') || 'production';
-  const settingKey = ring === 'production' ? PRODUCTION_SETTING_KEY : `${PRODUCTION_SETTING_KEY}:${ring}:${instanceId}`;
+  const settingKey = ring === 'production' ? PRODUCTION_SETTING_KEY : `${PRODUCTION_SETTING_KEY}_${ring}_${instanceId}`;
   const value = buildDeploymentVersionValue(options.versions ?? captureVersions(null), options.now ?? new Date(), instanceId, env);
-  const fetchImpl = options.fetchImpl ?? fetch;
-  const url = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/system_settings?on_conflict=key`;
   try {
-    const response = await fetchImpl(url, {
-      method: 'POST',
-      headers: {
-        apikey: supabaseKey,
-        Authorization: `Bearer ${supabaseKey}`,
-        'Content-Type': 'application/json',
-        Prefer: 'resolution=merge-duplicates',
-      },
-      body: JSON.stringify({ key: settingKey, value, updated_at: value.updated_at }),
-    });
-    if (!response.ok) return { ok: false, status: response.status, error: await response.text().catch(() => response.statusText), value };
-    return { ok: true, status: response.status, value };
+    writeSetting(settingKey, value);
+    return { ok: true, value };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : String(error), value };
   }
@@ -209,8 +194,7 @@ export function startDeploymentVersionHeartbeat(options: {
   const write = async () => {
     const result = await writeDeploymentVersion({ env, fetchImpl: options.fetchImpl });
     if (result.ok) logger.log(`[deployment-version] wrote ${result.value?.release?.source_revision.slice(0, 8) ?? result.value?.deployment.weles_commit_short ?? 'unknown'} instance=${result.value?.instance_id}`);
-    else if (result.skipped) logger.log(`[deployment-version] skipped: ${result.skipped}`);
-    else logger.error(`[deployment-version] failed: ${result.status ?? ''} ${result.error ?? 'unknown_error'}`.trim());
+    else logger.error(`[deployment-version] failed: ${result.error ?? 'unknown_error'}`);
   };
   void write();
   if (!Number.isFinite(intervalMs) || intervalMs <= 0) return null;
