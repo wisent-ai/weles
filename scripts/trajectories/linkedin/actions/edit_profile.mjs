@@ -11,20 +11,14 @@ import { nativeSelectAllAndDelete } from '../../../../dist/human/mouse-native.js
 import { assertAuthed, AuthProbeError } from '../../_shared/auth-probe.mjs';
 import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../../_shared/cookie-freshness.mjs';
 import { loadAvatarFile } from '../../_shared/runner/avatar-loader.mjs';
+import { updateAccountMetadata } from '../../_shared/skarbiec_accounts.mjs';
 
-const DATABASE_URL = process.env.WELES_DATABASE_URL ?? '';
-const DATABASE_TOKEN = process.env.WELES_DATABASE_TOKEN ?? '';
 
 const acct = await getSocialAccount('linkedin');
-if (!acct) { console.log('FAIL: no active linkedin account in DB'); process.exit(1); }
+if (!acct) { console.log('FAIL: no active linkedin account in Skarbiec'); process.exit(1); }
 console.log(`[li-profile] using account: ${acct.username}`);
-
-const linkRes = await fetch(
-  `${DATABASE_URL}/rest/v1/character_social_accounts?social_account_id=eq.${acct.id}&select=characters(id,name,bio,niche,occupation,avatar_url,training_images)`,
-  { headers: { apikey: DATABASE_TOKEN, Authorization: `Bearer ${DATABASE_TOKEN}` } },
-).then(r => r.ok ? r.json() : []);
-const character = linkRes?.[0]?.characters;
-if (!character) { console.log(`FAIL: no character linked to linkedin/${acct.username}`); process.exit(1); }
+const character = acct.metadata?.character;
+if (!character || typeof character !== 'object') { console.log(`FAIL: no character stored for linkedin/${acct.username}`); process.exit(1); }
 console.log(`[li-profile] character: ${character.name} (niche=${character.niche})`);
 const avatarUrl = character.avatar_url
   || (Array.isArray(character.training_images) ? character.training_images[Number('0')] : null);
@@ -267,14 +261,13 @@ try {
     }
   }
 
-  // Mirror to social_accounts.
-  await fetch(`${DATABASE_URL}/rest/v1/social_accounts?id=eq.${acct.id}`, {
-    method: 'PATCH',
-    headers: { apikey: DATABASE_TOKEN, Authorization: `Bearer ${DATABASE_TOKEN}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
-    body: JSON.stringify({ display_name: targetName || null, profile_url: `https://www.linkedin.com/in/${acct.username}/`, updated_at: new Date().toISOString() }),
-  }).catch(() => {});
+  updateAccountMetadata(acct.id, {
+    display_name: targetName || null,
+    profile_url: `https://www.linkedin.com/in/${acct.username}/`,
+    updated_at: new Date().toISOString(),
+  });
 
-  if (!writes.length) { console.log('PASS: no-op (form values already match character; DB synced)'); process.exit(0); }
+  if (!writes.length) { console.log('PASS: no-op (form values already match character; Skarbiec synced)'); process.exit(0); }
   console.log(`PASS: ${acct.username} profile updated to ${character.name}`);
 } catch (e) {
   console.log('FAIL:', e.message?.slice(0, 200));
