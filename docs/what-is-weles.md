@@ -3,14 +3,14 @@
 What is Weles, and what is the mental model for reading everything else in
 these docs? Weles is a browser-workflow executor that runs only explicitly
 authorized work and closes every run with recorded evidence. The whole product
-is three moving parts: authorization admits a workflow, an approved worker
+is three moving parts: authorization admits a workflow, an approved host
 executes it, and evidence — up to a cryptographically signed receipt — proves
 what happened.
 
 ## Authorization admits the work
 
 Nothing runs because somebody asked; something runs because an admitted,
-allowlisted row exists. A caller submits through the public
+allowlisted workflow exists. A caller submits through the public
 [`@wisent-ai/weles-client`](https://github.com/wisent-ai/weles-client), and
 every submission names, explicitly:
 
@@ -31,33 +31,39 @@ the target permits automation; authorization for the target remains with the
 caller. The full model, including how credential-lifecycle operations enter
 the system, is in [authorization](authorization.md).
 
-## Approved workers execute
+## Approved hosts execute
 
-Admitted work lands as rows in an action log; workers claim rows, never
-receive pushes. A worker claims a row only when every independent gate passes:
-its launcher action allowlist (`WELES_ACTION_ALLOWLIST`), the registry-derived
-host placement policy (refused entirely unless stamped by
-`stado host publish-placement-policy`), the production deployment lease
-(`WELES_DEPLOYMENT_ID` + `WELES_DEPLOYMENT_GENERATION`), and a preflight that
-proves evidence storage is writable — a worker must never run a workflow it
-cannot record (`src/worker/claim.ts`, `src/worker/poll.ts`).
+Admitted work becomes a Stado job, never a push: `enqueueAction` encodes
+`{action, accountItem, params}` as one base64url payload and submits
+`node scripts/worker/stado-action-runner.mjs <payload>` through `stado submit`
+(`src/state/skarbiec-records.ts`). On the host, the runner re-validates the
+payload from scratch — action shape, Skarbiec account-item shape, plain-object
+params — and refuses anything that does not resolve to a checked-in
+trajectory: `no Weles trajectory for <action>`
+(`scripts/worker/stado-action-runner.mjs`). An operator can also run the same
+trajectory synchronously through the localhost Weles HTTP API
+(`scripts/worker/weles-api-server.mjs`), which demands `WELES_API_TOKEN` and
+reuses the identical dispatch functions, so both paths run byte-identically.
 
-The claimed action resolves to a checked-in trajectory
+The action resolves to a checked-in trajectory
 (`src/worker/dispatch.ts`) and executes in a browser build that launches only
 when its local install receipt matches the exact immutable release coordinate
 and checksum selected for the deployment (`src/session/find_browser.ts`).
-There is no stock-browser fallback. See [workflows](workflows.md) and
-[worker lifecycle](worker-lifecycle.md).
+There is no stock-browser fallback. See [workflows](workflows.md) and the
+[execution model](worker-lifecycle.md).
 
 ## Evidence closes the run
 
-Every run ends in exactly one terminal state — `completed`, `failed`,
-`pending_review`, or `cancelled` — and the worker uploads the complete run
-tree (recordings, session provenance, captcha events, ban signal) to private
-storage before publishing any result locator (`src/worker/poll.ts`). Runs
-flagged for verification get a model verdict of `pass`, `fail`, or
-`uncertain`; anything but a confident pass parks the row as `pending_review`
-(`src/worker/verification.ts`).
+Every run leaves a complete evidence tree under `recordings/<run-id>/` —
+session provenance (`session_meta.json`), the captcha event log, the ban
+signal, recordings — written by the trajectory's own session
+(`src/session/wsession.ts`). `uploadArtifacts` mirrors that whole tree to
+private Stado objects, and a result locator may be published only after Stado
+acknowledges the exact canonical URI of every object
+(`src/worker/upload-artifacts.ts`). The queued runner propagates the
+trajectory's exit code and re-raises its fatal signal, so the Stado job's
+terminal status is the trajectory's own
+(`scripts/worker/stado-action-runner.mjs`).
 
 Deployments with receipt issuance close the loop cryptographically: the
 terminal response carries a receipt whose signed payload binds task,
@@ -70,11 +76,12 @@ unknown key fails closed. See [receipts](receipts.md).
 Weles is not a hosted endpoint you get from a source checkout: the executor
 and client are public MIT/Apache-licensed source, but approved trajectories,
 managed credentials, evidence retention, and an SLA are provisioned per
-organization (README). Weles is not a secret store: the worker launcher
-accepts no database service-role, provider API key, or platform password from
-its env file; every credential read is a workload-bound Skarbiec acquisition
-signed by an owner-only key, with no standing bearer
-(`scripts/worker/deploy/README.md`). And Weles is not an authorization
+organization (README). Weles is not a secret store: accounts, runtime
+settings, and run records are Skarbiec vault items
+(`src/state/skarbiec-records.ts`), and every credential operation is queued
+against an exact Skarbiec acquisition contract that fails closed when the
+scoped writer or reader grant is missing
+(`src/secrets/acquire.ts`). And Weles is not an authorization
 authority for third-party sites: draft discovery can map a journey, but it
 does not authorize that journey as a production action.
 
