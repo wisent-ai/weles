@@ -25,7 +25,9 @@ jobs:
           set -a
           . "$HOME/.config/weles/worker.env"
           set +a
-          export WELES_CREDENTIAL_SKARBIEC_URL="${WELES_CREDENTIAL_SKARBIEC_URL:-http://127.0.0.1:8895}"
+          # The acquisition authority is a fixed loopback service. worker.env
+          # may retain the retired random port from an older worker release.
+          export WELES_CREDENTIAL_SKARBIEC_URL="http://127.0.0.1:8895"
           export SKARBIEC_WELES_READER_COMMAND="$GITHUB_WORKSPACE/scripts/worker/deploy/skarbiec-acquire.mjs"
           export SKARBIEC_WELES_ACQUISITION_SCOPES_FILE="$GITHUB_WORKSPACE/scripts/worker/deploy/skarbiec-acquisition-scopes.conf"
           export FIGMA_JSON_PARSER="$GITHUB_WORKSPACE/scripts/operations/parse-json-file-host.py"
