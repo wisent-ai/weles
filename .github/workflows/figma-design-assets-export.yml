@@ -12,10 +12,10 @@ concurrency:
 
 jobs:
   export:
-    runs-on: [self-hosted, macOS, stado-publisher]
+    runs-on: [self-hosted, macOS, charless-mac-mini]
     timeout-minutes: 120
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/checkout@v4
       - name: Build worker bundle
         run: npm ci && npm run build
       - name: Export and publish
