@@ -405,7 +405,7 @@ the currently active release untouched and aborts the deployment.
 
 After every artifact is verified, `~/weles` is atomically repointed to the exact
 worker release. The tracked worker, Weles API, content-worker, keyword-planner,
-and Echo LaunchAgents are then copied from that immutable release and restarted;
+and admission LaunchAgents are then copied from that immutable release and restarted;
 the content worker is installed only on a host that carries its own scoped
 `var/worker-content.env`. No GitHub CLI, Git credential helper, ambient provider
 token, source checkout, package install, or host-side build participates in

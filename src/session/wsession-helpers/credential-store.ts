@@ -2,6 +2,7 @@ import type { WSession } from '../wsession.js';
 import {
   acquiredSecretContract,
   isWelesAcquiredSecretValue,
+  isWelesAcquiredSourceOrigin,
   writeWelesAcquiredSecret,
   type WelesAcquiredSecret,
 } from '../../secrets/scoped-service.js';
@@ -13,6 +14,10 @@ type StoreConstraints = {
   itemId: string;
   field: string;
   fieldClass: CredentialFieldClass;
+  // Non-empty exactly when Skarbiec recorded a signup origin for this operation:
+  // the managed write must then echo that string back, and must not send one when
+  // the operation declared none.
+  declaredOrigin: string;
   sourceOrigin: string;
   tenantId: string | null;
   accountEmail: string;
@@ -94,10 +99,17 @@ function storeConstraints(): StoreConstraints {
   const requestId = typeof record.request_id === 'string' ? record.request_id : '';
   const operation = typeof record.operation === 'string' ? record.operation : '';
   const contract = acquiredSecretContract(secretName);
+  // A table contract pins the capture origin. A derived contract has none to pin:
+  // Skarbiec records the signup origin declared for the acquire operation and
+  // echoes it here, so that recorded value is the pin when there is one, and the
+  // live page origin becomes the recorded provenance when the caller declared
+  // none. The item and the field stay bound to the contract either way.
   if (!contract
     || itemId !== contract.item
     || field !== contract.field
-    || sourceOrigin !== contract.sourceOrigin) {
+    || (contract.sourceOrigin === null
+      ? Boolean(sourceOrigin) && !isWelesAcquiredSourceOrigin(sourceOrigin)
+      : sourceOrigin !== contract.sourceOrigin)) {
     throw new Error('credential storage target is not in the exact Weles acquisition allowlist');
   }
   const fieldClass: CredentialFieldClass = field === 'api_key'
@@ -118,6 +130,7 @@ function storeConstraints(): StoreConstraints {
     field,
     fieldClass,
     sourceOrigin,
+    declaredOrigin: contract.sourceOrigin === null ? sourceOrigin : '',
     tenantId,
     accountEmail,
     requestId,
@@ -203,7 +216,12 @@ export async function wsStoreCredential(
     throw new Error('credential field class does not match the exact Weles acquisition allowlist');
   }
 
-  const secret = await captureCandidate(session, target, constraints.secretName, constraints.sourceOrigin);
+  const captureOrigin = constraints.sourceOrigin
+    || new URL((session.page as CredentialPage).url()).origin;
+  if (!isWelesAcquiredSourceOrigin(captureOrigin)) {
+    throw new Error('credential capture origin is not one absolute https origin');
+  }
+  const secret = await captureCandidate(session, target, constraints.secretName, captureOrigin);
   try {
     writeWelesAcquiredSecret(
       constraints.secretName,
@@ -214,6 +232,8 @@ export async function wsStoreCredential(
         accountEmail: constraints.accountEmail,
         requestId: constraints.requestId,
         operation: constraints.operation,
+        sourceOrigin: captureOrigin,
+        declaredOrigin: constraints.declaredOrigin,
       },
     );
   } finally {

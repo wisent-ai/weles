@@ -50,6 +50,19 @@ try {
       || !Object.prototype.hasOwnProperty.call(payload.fields, field)) {
     throw new Error('credential write must contain one canonical payload with the exact field');
   }
+  // A generic acquire declared its signup origin to Skarbiec, and Skarbiec
+  // refuses the write unless the body echoes exactly that origin. It equally
+  // refuses an origin presented for an operation that declared none, so the key
+  // is forwarded only when the payload carries one and only as an exact origin.
+  const captureOrigin = payload.capture_origin ?? null;
+  if (captureOrigin !== null
+      && (typeof captureOrigin !== 'string'
+        || captureOrigin.length > Number('512')
+        || !URL.canParse(captureOrigin)
+        || new URL(captureOrigin).protocol !== 'https:'
+        || new URL(captureOrigin).origin !== captureOrigin)) {
+    throw new Error('credential write capture origin must be one absolute https origin');
+  }
   const bearer = token.toString('utf8');
   if (!bearer || /\s/.test(bearer)) throw new Error('invalid Skarbiec writer token');
   const mode = operation === 'acquire' ? 'acquire' : 'stage';
@@ -68,6 +81,7 @@ try {
       mode,
       operation_id: operationId,
       provider_verified: true,
+      ...(captureOrigin ? { capture_origin: captureOrigin } : {}),
     }),
   });
   const responseText = await response.text();

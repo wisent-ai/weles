@@ -130,6 +130,7 @@ fi
 release_ready=false
 if [[ -f "$RECEIPT" ]] && [[ "$(cat "$RECEIPT")" == "$EXPECTED_RECEIPT" ]] \
   && [[ -d "$INSTALL_DIR/node_modules" ]] \
+
   && [[ -f "$INSTALL_DIR/scripts/worker/deploy/launch-keyword-planner-api-mac.sh" ]] \
   && [[ -f "$INSTALL_DIR/scripts/worker/deploy/skarbiec-acquire.mjs" ]] \
   && [[ -f "$INSTALL_DIR/scripts/worker/deploy/skarbiec-acquisition-scopes.conf" ]]; then
@@ -166,6 +167,7 @@ if ! $release_ready; then
     || fail "verified worker archive is missing its Skarbiec acquisition client"
   [[ -f "$STAGED/scripts/worker/deploy/skarbiec-acquisition-scopes.conf" ]] \
     || fail "verified worker archive is missing its exact Skarbiec acquisition scope catalog"
+
   [[ -f "$STAGED/scripts/worker/deploy/launch-keyword-planner-api-mac.sh" ]] \
     || fail "verified worker archive is missing its keyword-planner launch helper"
   [[ -d "$STAGED/node_modules" ]] \

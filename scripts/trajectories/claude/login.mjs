@@ -35,6 +35,7 @@ import { humanIdlePause, humanClickLocator } from '../../../dist/human/mouse.js'
 import { humanFill, humanType } from '../../../dist/human/keyboard.js';
 import { startWatchdog, makeShutdown } from './diag.mjs';
 import { doGoogleSso } from './google_sso.mjs';
+import { requireCapabilities } from '../_shared/reauth_config.mjs';
 
 // Text logs are forbidden for troubleshooting: every console.* line
 // emits ONLY the mandated phrase. The token result uses
@@ -243,6 +244,12 @@ async function waitForOutput(getOut, re, label, attempts) {
   }
   throw new Error(`auth login: ${label} not seen in ${(attempts * 500) / 1000}s`);
 }
+
+// Before `claude auth login` is spawned and before the browser half starts: the
+// capabilities this trajectory declares in scripts/trajectories/requirements.json
+// are verified here, so a host without a window server says so in one line
+// instead of letting Chromium reach its first window and die without an address.
+requireCapabilities('claude/login');
 
 const login = await getServiceLogin(DISPLAY_NAME);
 if (!login) {
