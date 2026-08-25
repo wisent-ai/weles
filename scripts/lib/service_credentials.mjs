@@ -1,77 +1,52 @@
-// REST helper for Weles service_credentials through the launcher-resolved
-// exact weles-database item/client.
-
+// Weles service credential administration through Skarbiec.
+import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 import { randomBytes, sign } from 'node:crypto';
 
-// Consolidated credential source: entitlements-router is the single source of
-// truth. When WELES_SERVICE_CREDENTIALS_JSON (inline JSON array) or
-// WELES_SERVICE_CREDENTIALS_FILE (path to one) is set, reads resolve from the
-// same rows the router holds — so a credential added there is usable here with
-// no Supabase read. Unconfigured -> null (caller uses Supabase). Configured but
-// unreadable/malformed -> throws (a misconfig must be loud, never silent).
-let _consolidated;
-function consolidatedRows() {
-  if (_consolidated !== undefined) return _consolidated;
-  const inline = process.env.WELES_SERVICE_CREDENTIALS_JSON;
-  const file = process.env.WELES_SERVICE_CREDENTIALS_FILE;
-  let raw = null;
-  if (inline && inline.trim()) raw = inline;
-  else if (file) raw = readFileSync(file, 'utf8');
-  if (!raw) { _consolidated = null; return null; }
-  let parsed;
-  try {
-    parsed = JSON.parse(raw);
-  } catch (error) {
-    throw new Error(`WELES_SERVICE_CREDENTIALS_* is configured but not valid JSON: ${error.message}`);
-  }
-  if (!Array.isArray(parsed)) throw new Error('WELES_SERVICE_CREDENTIALS_* is configured but is not a JSON array');
-  _consolidated = parsed;
-  return parsed;
-}
+const SKARBIEC_BIN = process.env.SKARBIEC_BIN ?? join(homedir(), '.stado', 'bin', 'skarbiec');
+const SKARBIEC_VAULT_FILE = process.env.SKARBIEC_VAULT_FILE ?? join(homedir(), '.stado', 'skarbiec.vault.json');
 
-export function consolidatedById(id) {
-  const rows = consolidatedRows();
-  if (!rows) return null;
-  return rows.find((row) => row && row.id === id) ?? null;
-}
-
-export function consolidatedByEmailWithPassword(email) {
-  const rows = consolidatedRows();
-  if (!rows) return null;
-  const needle = String(email).toLowerCase();
-  return rows.find((row) => row && String(row.login_email ?? '').toLowerCase() === needle && Boolean(row.login_password)) ?? null;
-}
-
-const DATABASE_URL = process.env.WELES_DATABASE_URL;
-const DATABASE_TOKEN = process.env.WELES_DATABASE_TOKEN;
-
-function checkEnv() {
-  if (!DATABASE_URL || !DATABASE_TOKEN) {
-    throw new Error('Set WELES_DATABASE_URL and WELES_DATABASE_TOKEN');
-  }
-}
-
-function headers(extra = {}) {
-  return {
-    apikey: DATABASE_TOKEN,
-    Authorization: `Bearer ${DATABASE_TOKEN}`,
-    'Content-Type': 'application/json',
-    ...extra,
-  };
-}
-
-async function request(path, init = {}) {
-  checkEnv();
-  const res = await fetch(`${DATABASE_URL}/rest/v1/${path}`, {
-    ...init,
-    headers: headers(init.headers || {}),
+function skarbiec(args, input) {
+  return execFileSync(SKARBIEC_BIN, args, {
+    input,
+    encoding: 'utf8',
+    env: { ...process.env, SKARBIEC_VAULT_FILE },
   });
-  const text = await res.text();
-  if (!res.ok) {
-    throw new Error(`${init.method || 'GET'} ${path} -> ${res.status} ${text}`);
-  }
-  return text ? JSON.parse(text) : null;
+}
+
+function readItem(id) {
+  return JSON.parse(skarbiec(['get', String(id)]));
+}
+
+function allCredentialItems() {
+  return JSON.parse(skarbiec(['list']))
+    .filter((row) => !row.deleted)
+    .map((row) => String(row.name ?? row.id ?? ''))
+    .filter(Boolean)
+    .map((id) => {
+      try { return { id, document: readItem(id) }; } catch { return null; }
+    })
+    .filter(({ document } = {}) => {
+      const kind = String(document?.context?.record_kind ?? '');
+      return kind === 'service-credential' || kind === 'service-login';
+    });
+}
+
+function rowFromItem(id, document) {
+  const fields = document.fields ?? {};
+  const context = document.context ?? {};
+  return {
+    id,
+    category: context.category ?? '',
+    display_name: context.display_name ?? context.service ?? id,
+    login_method: context.login_method ?? 'email_password',
+    login_email: fields.username ?? fields.email ?? null,
+    login_password: fields.password ?? null,
+    metadata: context.metadata ?? {},
+    updated_at: context.updated_at ?? null,
+  };
 }
 
 function redacted(row) {
@@ -89,42 +64,57 @@ function redacted(row) {
 }
 
 export async function listCredentialSummaries({ search } = {}) {
-  const query = new URLSearchParams();
-  query.set('select', 'id,category,display_name,login_method,login_email,updated_at,metadata');
-  query.set('order', 'display_name.asc');
-  if (search) {
-    query.set(
-      'or',
-      `(${search.split(',').map((term) => `display_name.ilike.*${term.trim()}*`).join(',')})`
-    );
-  }
-  const rows = await request(`service_credentials?${query.toString()}`);
-  return rows.map(redacted);
+  const terms = String(search ?? '').toLowerCase().split(',').map((term) => term.trim()).filter(Boolean);
+  return allCredentialItems()
+    .map(({ id, document }) => rowFromItem(id, document))
+    .filter((row) => !terms.length || terms.some((term) => row.display_name.toLowerCase().includes(term)))
+    .sort((left, right) => left.display_name.localeCompare(right.display_name))
+    .map(redacted);
 }
 
 export async function getCredential(id) {
-  const consolidated = consolidatedById(id);
-  if (consolidated) return consolidated;
-  const rows = await request(
-    `service_credentials?id=eq.${encodeURIComponent(id)}&select=*`
-  );
-  return rows[0] || null;
+  try { return rowFromItem(String(id), readItem(id)); } catch { return null; }
 }
 
 export async function patchCredential(id, patch) {
-  return request(`service_credentials?id=eq.${encodeURIComponent(id)}`, {
-    method: 'PATCH',
-    headers: { Prefer: 'return=representation' },
-    body: JSON.stringify(patch),
-  });
+  const document = readItem(id);
+  document.fields = { ...(document.fields ?? {}) };
+  document.context = { ...(document.context ?? {}) };
+  if (Object.hasOwn(patch, 'login_email')) document.fields.username = patch.login_email;
+  if (Object.hasOwn(patch, 'login_password')) document.fields.password = patch.login_password;
+  for (const key of ['category', 'display_name', 'login_method', 'metadata']) {
+    if (Object.hasOwn(patch, key)) document.context[key] = patch[key];
+  }
+  document.context.updated_at = new Date().toISOString();
+  skarbiec(['set-json', String(id)], JSON.stringify(document));
+  return [rowFromItem(String(id), document)];
 }
 
 export async function upsertCredential(row) {
-  return request('service_credentials?on_conflict=id', {
-    method: 'POST',
-    headers: { Prefer: 'resolution=merge-duplicates,return=representation' },
-    body: JSON.stringify(row),
-  });
+  const id = String(row.id ?? '');
+  if (!/^[a-zA-Z0-9][a-zA-Z0-9:._-]{0,190}$/.test(id)) throw new Error('invalid Skarbiec credential item id');
+  let document;
+  try { document = readItem(id); } catch {
+    skarbiec(['set', id, '--type', 'login', `username=${String(row.login_email ?? '')}`, `password=${String(row.login_password ?? '')}`]);
+    document = readItem(id);
+  }
+  document.fields = {
+    ...(document.fields ?? {}),
+    username: String(row.login_email ?? document.fields?.username ?? ''),
+    password: String(row.login_password ?? document.fields?.password ?? ''),
+  };
+  document.context = {
+    ...(document.context ?? {}),
+    owner: 'weles',
+    record_kind: 'service-credential',
+    category: row.category ?? '',
+    display_name: row.display_name ?? id,
+    login_method: row.login_method ?? 'email_password',
+    metadata: row.metadata ?? {},
+    updated_at: new Date().toISOString(),
+  };
+  skarbiec(['set-json', id], JSON.stringify(document));
+  return [rowFromItem(id, document)];
 }
 
 export async function ensureKimiGoogleSso({
@@ -133,13 +123,13 @@ export async function ensureKimiGoogleSso({
   sourceCredentialId,
 } = {}) {
   const source = sourceCredentialId ? await getCredential(sourceCredentialId) : null;
-  const row = {
+  return upsertCredential({
     id,
     category: 'ai_cli',
     display_name: 'Kimi',
     login_method: 'google_sso',
     login_email: email,
-    login_password: source?.login_password || null,
+    login_password: source?.login_password || '',
     metadata: {
       account_identifier: email,
       configured_for: 'kimi-code',
@@ -147,8 +137,7 @@ export async function ensureKimiGoogleSso({
       updated_by: 'scripts/lib/service_credentials.mjs ensure-kimi-google-sso',
       updated_at: new Date().toISOString(),
     },
-  };
-  return upsertCredential(row);
+  });
 }
 
 function skarbiecConfig() {

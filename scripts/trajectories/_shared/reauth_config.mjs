@@ -1,10 +1,6 @@
-// Reauth configuration, read from whichever store this host actually has.
-//
-// The orchestrators were written against a Supabase project that is gone: they
-// exit on the first line when SUPABASE_URL is unset, so a subscription whose
-// token expired is never refreshed and reads as a dead account. The same
-// configuration rows exist in Skarbiec, which is where every other credential
-// on this fleet already lives, so read them from there when Supabase is absent.
+// Reauth configuration, read from and written to Skarbiec — the one credential
+// store this fleet has. The Supabase project these orchestrators were written
+// against is gone; nothing here reads a database.
 //
 // Two facts about the shape, both learned from the rows themselves:
 //   - `fields.value.metadata` carries the map the runners read, and it is a JSON
@@ -13,7 +9,8 @@
 //     not to one provider, so a row that lacks them may borrow them from a
 //     sibling row rather than keeping a second copy of the same secret.
 //
-// Nothing here prints a secret. `MODEL_ROUTER_URL` is an address and is logged.
+// Nothing here prints a secret. The router address never comes from a row: it
+// is resolved through Stado, and it is logged.
 
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
@@ -24,17 +21,35 @@ import { fileURLToPath } from 'node:url';
 const HOME = os.homedir();
 const SKARBIEC = process.env.SKARBIEC_BIN ?? path.join(HOME, '.stado', 'bin', 'skarbiec');
 const VAULT = process.env.SKARBIEC_VAULT_FILE ?? path.join(HOME, '.stado', 'skarbiec.vault.json');
+const STADO = process.env.STADO_BIN ?? path.join(HOME, '.stado', 'bin', 'stado');
 // What a row must carry. The signing secret is deliberately not here: it belongs
 // to the agent's own item, the copies in these rows had drifted, and requiring a
 // copy would mean requiring the trap to stay in place.
 const REQUIRED = [
-  'MODEL_ROUTER_URL',
   'WISENT_APP_AGENT_ID',
   'WISENT_DONOR_USER_ID',
 ];
 
-export const supabaseConfigured = () =>
-  Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
+
+// Where Brama is, answered by Stado. The launcher-injected
+// STADO_MODEL_ROUTER_URL wins where a unit carries it; a bare unit (the
+// launchd reauth jobs get only HOME and PATH) asks this host's Stado service
+// directory. The address belongs to placement, and placement is Stado's — a
+// configuration row remembers identity, never a route.
+export function stadoRouterUrl() {
+  const fromEnv = String(process.env.STADO_MODEL_ROUTER_URL || '').trim();
+  if (fromEnv) return fromEnv.replace(/\/+$/, '');
+  const raw = execFileSync(STADO, ['service', 'directory', 'endpoint', 'brama', '--json'], {
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      PATH: `/opt/homebrew/bin:/usr/local/bin:${process.env.PATH ?? '/usr/bin:/bin'}`,
+    },
+  });
+  const url = String(JSON.parse(raw)?.url ?? '').trim();
+  if (!url) throw new Error('Stado answered no endpoint for brama');
+  return url.replace(/\/+$/, '');
+}
 
 // The capabilities a trajectory needs, declared in one file and verified here.
 //
@@ -250,7 +265,6 @@ export function loadFromSkarbiec(item, fallbackItem) {
     store: 'skarbiec',
     item,
     metadataWasText: own.metadataWasText,
-    routerUrl: String(metadata.MODEL_ROUTER_URL).replace(/\/+$/, ''),
     agentId,
     hmacSecret: own_secret || metadata.WISENT_APP_AGENT_AUTH_SECRET,
     donorUserId: metadata.WISENT_DONOR_USER_ID,
@@ -323,18 +337,30 @@ export async function reachableRouterUrl(configured) {
   } catch {
     // An unparseable address is left exactly as configured.
   }
-  for (const candidate of candidates) {
+  // Brama binds loopback; the canonical listener is the last resort behind
+  // every stale row and proxy alias.
+  candidates.push('http://127.0.0.1:8080');
+  for (const candidate of [...new Set(candidates)]) {
     try {
-      const answer = await fetch(`${candidate}/health`, {
+      // Probe a route only the model router answers. `/health` is not one: a
+      // stale address can now belong to anyone's site, and on 2026-08-25 it
+      // did — the row's host returned a 404 page for /health, this helper
+      // accepted it, and the runner died one request later with
+      // `list subscriptions -> 404` against a server that never was Brama.
+      // The catalogue refuses an unsigned caller with 401 and serves a
+      // signed one with 200; both answers carry the router's identity.
+      const answer = await fetch(`${candidate}/v1/models`, {
         signal: AbortSignal.timeout(Number('4000')),
       });
-      // Any answer proves a listener; authorization is decided per route later.
-      if (answer.status) {
+      if (answer.status === 401 || answer.status === 200) {
         if (candidate !== configured) {
           console.error(`router ${configured} refused; using ${candidate}`);
         }
         return candidate;
       }
+      console.error(
+        `router ${candidate} answered /v1/models ${answer.status}; not the model router`,
+      );
     } catch (error) {
       console.error(`router ${candidate} unreachable: ${error.cause?.code ?? error.message}`);
     }

@@ -10,20 +10,14 @@ import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.
 import { assertAuthed, AuthProbeError } from '../../_shared/auth-probe.mjs';
 import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../../_shared/cookie-freshness.mjs';
 import { loadAvatarFile } from '../../_shared/runner/avatar-loader.mjs';
+import { updateAccountMetadata } from '../../_shared/skarbiec_accounts.mjs';
 
-const DATABASE_URL = process.env.WELES_DATABASE_URL ?? '';
-const DATABASE_TOKEN = process.env.WELES_DATABASE_TOKEN ?? '';
 
 const acct = await getSocialAccount('twitter');
-if (!acct) { console.log('FAIL: no active twitter account in DB'); process.exit(1); }
+if (!acct) { console.log('FAIL: no active twitter account in Skarbiec'); process.exit(1); }
 console.log(`[tw-profile] using account: ${acct.username}`);
-
-const linkRes = await fetch(
-  `${DATABASE_URL}/rest/v1/character_social_accounts?social_account_id=eq.${acct.id}&select=characters(id,name,bio,niche,avatar_url,training_images)`,
-  { headers: { apikey: DATABASE_TOKEN, Authorization: `Bearer ${DATABASE_TOKEN}` } },
-).then(r => r.ok ? r.json() : []);
-const character = linkRes?.[0]?.characters;
-if (!character) { console.log(`FAIL: no character linked to twitter/${acct.username}`); process.exit(1); }
+const character = acct.metadata?.character;
+if (!character || typeof character !== 'object') { console.log(`FAIL: no character stored for twitter/${acct.username}`); process.exit(1); }
 console.log(`[tw-profile] character: ${character.name} (niche=${character.niche})`);
 const avatarUrl = character.avatar_url
   || (Array.isArray(character.training_images) ? character.training_images[Number('0')] : null);
@@ -103,12 +97,11 @@ try {
     }
   }
 
-  // Mirror to social_accounts.
-  await fetch(`${DATABASE_URL}/rest/v1/social_accounts?id=eq.${acct.id}`, {
-    method: 'PATCH',
-    headers: { apikey: DATABASE_TOKEN, Authorization: `Bearer ${DATABASE_TOKEN}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
-    body: JSON.stringify({ display_name: targetName || null, profile_url: `https://x.com/${acct.username}`, updated_at: new Date().toISOString() }),
-  }).catch(() => {});
+  updateAccountMetadata(acct.id, {
+    display_name: targetName || null,
+    profile_url: `https://x.com/${acct.username}`,
+    updated_at: new Date().toISOString(),
+  });
 
   // Avatar upload — both Edit and Set-up flows expose
   // input[data-testid="fileInput"] (probe-verified 2026-05-07). Twitter's
@@ -132,7 +125,7 @@ try {
     }
   }
 
-  if (!writes.length) { console.log('PASS: no-op (form values already match character; DB synced)'); process.exit(0); }
+  if (!writes.length) { console.log('PASS: no-op (form values already match character; Skarbiec synced)'); process.exit(0); }
   console.log(`[tw-profile] writes: ${writes.join('; ')}`);
 
   // Save: Profile_Save_Button (Edit flow) or Next/Done (setup flow).

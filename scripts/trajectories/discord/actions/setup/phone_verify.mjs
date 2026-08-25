@@ -115,18 +115,15 @@ try {
   }
   console.log('[phone_verify] phone visible on My Account — verify complete');
 
-  // Persist.
-  const supaUrl = process.env.WELES_DATABASE_URL;
-  const supaKey = process.env.WELES_DATABASE_TOKEN;
-  if (supaUrl && supaKey) {
-    const cur = await (await fetch(`${supaUrl}/rest/v1/social_accounts?platform=eq.discord&username=eq.${encodeURIComponent(acct.username)}&select=id,metadata`, { headers: { apikey: supaKey, Authorization: `Bearer ${supaKey}` } })).json();
-    if (cur && cur[0]) {
-      const prev = cur[0].metadata && typeof cur[0].metadata === 'object' ? cur[0].metadata : {};
-      const merged = { ...prev, phone: num.phone, phone_verified_at: new Date().toISOString(), phone_country: COUNTRY };
-      await fetch(`${supaUrl}/rest/v1/social_accounts?id=eq.${cur[0].id}`, { method: 'PATCH', headers: { apikey: supaKey, Authorization: `Bearer ${supaKey}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' }, body: JSON.stringify({ metadata: merged }) });
-      console.log('[phone_verify] persisted metadata.phone + phone_verified_at');
-    }
-  }
+  if (!acct.id) throw new Error('Discord account has no Skarbiec item id');
+  await s.patchAccount(acct.id, {
+    metadata: {
+      phone: num.phone,
+      phone_verified_at: new Date().toISOString(),
+      phone_country: COUNTRY,
+    },
+  });
+  console.log('[phone_verify] persisted phone state to Skarbiec');
   console.log(`PASS: ${acct.username} phone verified ${num.phone}`);
 } catch (e) {
   console.log(`FAIL: ${e.message?.slice(0, 200)}`);

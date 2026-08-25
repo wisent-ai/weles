@@ -7,7 +7,6 @@ import { homedir, hostname } from 'node:os';
 import { join, resolve } from 'node:path';
 import {
   assertPromotionTransition,
-  createDatabaseCredentials,
   hostPlatform,
   loadManifest,
   parseArgs,
@@ -15,8 +14,10 @@ import {
   ringStateRoot,
   selectArtifact,
   stateRoot,
+  readReleaseState,
   writeAtomic,
   waitForDrain,
+  writeReleaseState,
 } from './lib.mjs';
 
 const args = parseArgs();
@@ -39,28 +40,7 @@ const chromiumArtifact = selectArtifact(manifest.browsers.chromium, platform);
 const firefoxArtifact = selectArtifact(manifest.browsers.firefox, platform);
 for (const component of Object.values(installation.components)) await access(component.entrypoint);
 
-const workerCredentialHelper = resolve(
-  installation.components.worker.entrypoint,
-  '../deploy/skarbiec-acquire.mjs',
-);
-const workerCredentialScopes = resolve(
-  installation.components.worker.entrypoint,
-  '../deploy/skarbiec-acquisition-scopes.conf',
-);
-await access(workerCredentialHelper);
-await access(workerCredentialScopes);
 
-// Resolved lazily, cached in memory for the lifetime of this activation, and deliberately kept out
-// of process.env so no child process, log line, or receipt can observe the service role key.
-const databaseCredentials = createDatabaseCredentials({
-  helper: workerCredentialHelper,
-  scopeFile: workerCredentialScopes,
-});
-
-const compatibility = manifest.compatibility.workerDatabase;
-if (manifest.database.schemaVersion < compatibility.minimum || manifest.database.schemaVersion > compatibility.maximum) {
-  throw new Error(`manifest database schema ${manifest.database.schemaVersion} is outside worker range ${compatibility.minimum}..${compatibility.maximum}`);
-}
 
 await mkdir(ringState, { recursive: true, mode: 0o700 });
 await mkdir(join(state, 'locks'), { recursive: true, mode: 0o700 });
@@ -137,9 +117,6 @@ const environment = {
   WELES_FIREFOX_RELEASE: manifest.browsers.firefox.release,
   WELES_FIREFOX_SHA256: firefoxArtifact.sha256,
   WELES_FIREFOX_BIN: installation.components.firefox.entrypoint,
-  WELES_DATABASE_SCHEMA_VERSION: String(manifest.database.schemaVersion),
-  WELES_DATABASE_SCHEMA_MINIMUM: String(compatibility.minimum),
-  WELES_DATABASE_SCHEMA_MAXIMUM: String(compatibility.maximum),
   WELES_API_SCHEMAS: apiSchemas,
   WELES_RELEASE_STATE_ROOT: ringState,
   WELES_DRAIN_FILE: drainPath,
@@ -169,12 +146,6 @@ if [ -z "$NODE_BIN" ] || [ ! -x "$NODE_BIN" ]; then
   echo "Weles worker Node runtime is missing" >&2
   exit 1
 fi
-if [ -z "\${SUPABASE_URL:-}" ]; then
-  export SUPABASE_URL="$("$NODE_BIN" ${shellQuote(workerCredentialHelper)} "\${WC_SKARBIEC_URL:?WC_SKARBIEC_URL is required}" ${shellQuote(workerCredentialScopes)} weles-database-url-bootstrap weles-database url)"
-fi
-if [ -z "\${SUPABASE_SERVICE_ROLE_KEY:-}" ]; then
-  export SUPABASE_SERVICE_ROLE_KEY="$("$NODE_BIN" ${shellQuote(workerCredentialHelper)} "\${WC_SKARBIEC_URL:?WC_SKARBIEC_URL is required}" ${shellQuote(workerCredentialScopes)} weles-database-service-role-bootstrap weles-database service_role_key)"
-fi
 exec "$NODE_BIN" ${shellQuote(installation.components.worker.entrypoint)}
 `;
 await writeAtomic(wrapperPath, wrapper, 0o700);
@@ -197,41 +168,28 @@ function deploy(path) {
   return { retired, deployed };
 }
 async function setActiveLease(deploymentId, generation, activeManifestSha256) {
-  const { baseUrl, serviceKey } = databaseCredentials();
-  const response = await fetch(`${baseUrl}/rest/v1/system_settings?on_conflict=key`, {
-    method: 'POST',
-    headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates,return=minimal' },
-    body: JSON.stringify({
-      key: 'weles_active_worker_lease',
-      value: { schema: 'weles.worker-lease.v1', deploymentId, generation, manifestSha256: activeManifestSha256, updatedAt: new Date().toISOString() },
-      updated_at: new Date().toISOString(),
-    }),
+  writeReleaseState('weles_active_worker_lease', {
+    schema: 'weles.worker-lease.v1',
+    deploymentId,
+    generation,
+    manifestSha256: activeManifestSha256,
+    updatedAt: new Date().toISOString(),
   });
-  if (!response.ok) throw new Error(`failed to set active worker lease (${response.status})`);
 }
 async function clearActiveLease() {
-  const { baseUrl, serviceKey } = databaseCredentials();
-  const response = await fetch(`${baseUrl}/rest/v1/system_settings?key=eq.weles_active_worker_lease`, {
-    method: 'DELETE',
-    headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, Prefer: 'return=minimal' },
-  });
-  if (!response.ok) throw new Error(`failed to clear active worker lease (${response.status})`);
+  writeReleaseState('weles_active_worker_lease', null);
 }
 
-const heartbeatKey = ring === 'production' ? 'weles_deployment_version' : `weles_deployment_version:${ring}:${activationInstanceId}`;
+const heartbeatKey = ring === 'production'
+  ? 'weles_deployment_version'
+  : `weles_deployment_version_${ring}_${activationInstanceId}`;
 async function waitForHeartbeat(expectedSha256, expectedInstanceId) {
-  const { baseUrl, serviceKey } = databaseCredentials();
   const timeout = Number(args.get('health-timeout-ms') ?? 120_000);
   const healthDeadline = Date.now() + timeout;
   while (Date.now() < healthDeadline) {
-    const response = await fetch(`${baseUrl}/rest/v1/system_settings?key=eq.${encodeURIComponent(heartbeatKey)}&select=value`, {
-      headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, Accept: 'application/json' },
-    });
-    if (response.ok) {
-      const rows = await response.json();
-      if (rows[0]?.value?.release?.deployment_manifest_sha256 === expectedSha256
-          && rows[0]?.value?.instance_id === expectedInstanceId) return rows[0].value;
-    }
+    const value = readReleaseState(heartbeatKey);
+    if (value?.release?.deployment_manifest_sha256 === expectedSha256
+        && value?.instance_id === expectedInstanceId) return value;
     await new Promise((resolveDelay) => setTimeout(resolveDelay, 2000));
   }
   throw new Error(`worker heartbeat did not report manifest ${expectedSha256} from instance ${expectedInstanceId}`);
@@ -253,20 +211,13 @@ async function recordReceipt(status, evidence, previousManifestSha256 = null) {
     firefox_release: manifest.browsers.firefox.release,
     firefox_artifact_sha256: firefoxArtifact.sha256,
     client_minimum_version: manifest.client.minimumVersion,
-    database_schema_version: manifest.database.schemaVersion,
     status,
     previous_manifest_sha256: previousManifestSha256,
     evidence,
     recorded_at: new Date().toISOString(),
   };
   await writeAtomic(join(state, 'receipts', ring, host, `${Date.now()}-${manifestSha256}-${status}.json`), `${JSON.stringify(receipt, null, 2)}\n`);
-  const { baseUrl, serviceKey } = databaseCredentials();
-  const response = await fetch(`${baseUrl}/rest/v1/weles_deployment_receipts`, {
-    method: 'POST',
-    headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
-    body: JSON.stringify(receipt),
-  });
-  if (!response.ok) throw new Error(`failed to persist deployment receipt (${response.status})`);
+  writeReleaseState(`weles_deployment_receipt_${ring}_${host.replaceAll(/[^A-Za-z0-9_]/g, '_')}`, receipt);
   return receipt;
 }
 

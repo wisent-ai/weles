@@ -7,7 +7,7 @@ import { runRecordingsDir } from '../session/run-recordings.js';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { ExitReputation, LinkedInProbePersona } from './policy.js';
-import { optionalWelesDatabase } from '../utils/weles-database.js';
+import { listServiceMetadata } from '../state/skarbiec-records.js';
 import { readOptionalPinnedProxyCredential, readOptionalWelesServiceSecret } from '../secrets/scoped-service.js';
 import type { WelesServiceSecret } from '../secrets/scoped-service.js';
 import { providerFromHost } from './policy.js';
@@ -300,26 +300,25 @@ export async function resolveProxy(proxy: string, targetHost?: string, preflight
     return { server: `${u.protocol}//${u.hostname}:${u.port}`, username: decodeURIComponent(u.username), password: decodeURIComponent(u.password), platform: platformForBlock, provider: provFromUrl, proxy_type: 'url_unclassified' };
   }
 
-  const databaseUrl = optionalWelesDatabase()?.url ?? '';
-  const databaseToken = optionalWelesDatabase()?.token ?? '';
-  if (!databaseUrl || !databaseToken) {
-    console.log('[proxy] No weles-database launcher configuration — cannot fetch providers');
-    return undefined;
-  }
-
-  // Don't gate on balance_usd > 0. The balance is auto-refreshed by the
-  // *_balance.mjs trajectories which themselves break (Oxylabs dashboard
-  // captcha, etc.) — stale 0 balance kicks otherwise-working providers out
-  // of rotation. Exact per-provider Skarbiec grants plus proxy_host are the
-  // liveness gate; an empty balance trigger falls through when provider auth
-  // is rejected.
-  const res = await fetch(
-    `${databaseUrl}/rest/v1/service_credentials?category=eq.proxy&proxy_host=not.is.null&select=display_name,proxy_host,proxy_port,balance_usd,metadata&order=balance_usd.desc.nullslast`,
-    { headers: { apikey: databaseToken, Authorization: `Bearer ${databaseToken}` } },
-  );
-  if (!res.ok) { console.log(`[proxy] Failed to fetch providers: ${res.status}`); return undefined; }
-  type Row = { display_name: string; proxy_host: string; proxy_port: string; secret_service?: WelesServiceSecret; balance_usd: number; metadata?: { country?: string } };
-  const providers = await res.json() as Row[];
+  type Row = {
+    display_name: string;
+    proxy_host: string;
+    proxy_port: string;
+    secret_service?: WelesServiceSecret;
+    balance_usd: number;
+    metadata?: { country?: string };
+  };
+  const providers: Row[] = listServiceMetadata('proxy')
+    .filter((record) => record.host && record.port)
+    .map((record): Row => ({
+      display_name: String(record.display_name ?? record.id),
+      proxy_host: String(record.host),
+      proxy_port: String(record.port),
+      balance_usd: typeof record.balance_usd === 'number' ? record.balance_usd : 0,
+      metadata: record.metadata && typeof record.metadata === 'object'
+        ? record.metadata as { country?: string }
+        : undefined,
+    }));
   // Decodo first — canonical static ISP (real residential ASNs). Skip-shuffle
   // branch below keeps this order deterministic for isIsp filters.
   const { maybeOxylabsIspRow, maybeOxylabsDedicatedIspRow, maybeDecodoIspRows } = await import('./sources/isp_row.js');

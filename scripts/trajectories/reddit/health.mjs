@@ -13,9 +13,10 @@ import { detectRedditBanSignals } from '../../../dist/platforms/reddit/ban_signa
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
+import { replaceAccountMetadata } from '../_shared/skarbiec_accounts.mjs';
 
 const acct = await getSocialAccount('reddit');
-if (!acct) { console.log('FAIL: no active reddit account in DB'); process.exit(1); }
+if (!acct) { console.log('FAIL: no active reddit account in Skarbiec'); process.exit(1); }
 console.log(`[health] Probing account: ${acct.username}`);
 
 const { proxyUrl, persona } = await resolveAccountSession(acct);
@@ -113,22 +114,9 @@ console.log(`[health] snapshot -> ${filePath}`);
 // proxy so the next probe/login rolls a fresh one. Without this, every retry
 // reuses the same burned IP and stays blocked.
 if (signal === 'ip_blocked' && acct.id) {
-  const databaseUrl = process.env.WELES_DATABASE_URL ?? '';
-  const key = process.env.WELES_DATABASE_TOKEN ?? '';
-  if (databaseUrl && key) {
-    try {
-      const r = await fetch(`${databaseUrl}/rest/v1/social_accounts?id=eq.${acct.id}&select=metadata`, { headers: { apikey: key, Authorization: `Bearer ${key}` } });
-      const rows = await r.json();
-      const meta = rows?.[0]?.metadata ?? {};
-      const { proxy: _drop, ...rest } = meta;
-      await fetch(`${databaseUrl}/rest/v1/social_accounts?id=eq.${acct.id}`, {
-        method: 'PATCH',
-        headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
-        body: JSON.stringify({ metadata: rest }),
-      });
-      console.log(`[proxy-rotate] cleared stored proxy for account ${acct.id} — next run will re-roll`);
-    } catch (e) { console.log('[proxy-rotate] err:', e.message); }
-  }
+  const { proxy: _drop, ...metadata } = acct.metadata ?? {};
+  replaceAccountMetadata(acct.id, metadata);
+  console.log(`[proxy-rotate] cleared stored proxy for account ${acct.id} — next run will re-roll`);
 }
 
 // Exit 0 for every actionable signal — suspended / shadowbanned / ip_blocked

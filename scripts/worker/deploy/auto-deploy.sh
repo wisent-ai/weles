@@ -129,12 +129,8 @@ fi
 
 release_ready=false
 if [[ -f "$RECEIPT" ]] && [[ "$(cat "$RECEIPT")" == "$EXPECTED_RECEIPT" ]] \
-  && [[ -f "$INSTALL_DIR/scripts/worker/run.mjs" ]] \
-  && [[ -f "$INSTALL_DIR/dist/worker/poll.js" ]] \
   && [[ -d "$INSTALL_DIR/node_modules" ]] \
-  && [[ -f "$INSTALL_DIR/scripts/worker/deploy/com.wisent.weles-worker.plist" ]] \
-  && [[ -f "$INSTALL_DIR/scripts/worker/deploy/launch-mac.sh" ]] \
-  && [[ -f "$INSTALL_DIR/scripts/worker/deploy/launch-admission-api-mac.sh" ]] \
+
   && [[ -f "$INSTALL_DIR/scripts/worker/deploy/launch-keyword-planner-api-mac.sh" ]] \
   && [[ -f "$INSTALL_DIR/scripts/worker/deploy/skarbiec-acquire.mjs" ]] \
   && [[ -f "$INSTALL_DIR/scripts/worker/deploy/skarbiec-acquisition-scopes.conf" ]]; then
@@ -167,24 +163,15 @@ if ! $release_ready; then
   STAGED="$TMP/install"
   mkdir -p "$STAGED"
   tar -xzf "$TMP/$ASSET" -C "$STAGED"
-  [[ -f "$STAGED/scripts/worker/run.mjs" ]] \
-    || fail "verified worker archive is missing scripts/worker/run.mjs"
-  [[ -f "$STAGED/scripts/worker/deploy/launch-mac.sh" ]] \
-    || fail "verified worker archive is missing scripts/worker/deploy/launch-mac.sh"
   [[ -f "$STAGED/scripts/worker/deploy/skarbiec-acquire.mjs" ]] \
     || fail "verified worker archive is missing its Skarbiec acquisition client"
   [[ -f "$STAGED/scripts/worker/deploy/skarbiec-acquisition-scopes.conf" ]] \
     || fail "verified worker archive is missing its exact Skarbiec acquisition scope catalog"
-  [[ -f "$STAGED/scripts/worker/deploy/launch-admission-api-mac.sh" ]] \
-    || fail "verified worker archive is missing its admission API launch helper"
+
   [[ -f "$STAGED/scripts/worker/deploy/launch-keyword-planner-api-mac.sh" ]] \
     || fail "verified worker archive is missing its keyword-planner launch helper"
-  [[ -f "$STAGED/dist/worker/poll.js" ]] \
-    || fail "verified worker archive is missing built dist/worker/poll.js"
   [[ -d "$STAGED/node_modules" ]] \
     || fail "verified worker archive is missing its runtime dependency tree"
-  [[ -f "$STAGED/scripts/worker/deploy/com.wisent.weles-worker.plist" ]] \
-    || fail "verified worker archive is missing its worker service definition"
   [[ -f "$STAGED/scripts/chromium/download.sh" ]] \
     || fail "verified worker archive is missing scripts/chromium/download.sh"
   [[ -f "$STAGED/scripts/firefox/download.sh" ]] \
@@ -205,7 +192,7 @@ if ! $release_ready; then
 fi
 
 # Browser installers fail closed on absent coordinates, release objects, or
-# checksum mismatches. Do not activate or restart the worker unless both exact
+# checksum mismatches. Do not activate the API services unless both exact
 # browser releases are present with matching receipts.
 CHROMIUM_BIN="$(bash "$INSTALL_DIR/scripts/chromium/download.sh")" \
   || fail "required Weles Chromium release is unavailable or invalid"
@@ -245,14 +232,10 @@ chmod u+x "$INSTALL_DIR"/scripts/worker/deploy/launch-*.sh
 mkdir -p "$HOME/Library/LaunchAgents"
 UID_NUM="$(id -u)"
 AGENT_DOMAIN="user/$UID_NUM"
-for label in weles-worker weles-api weles-content-worker weles-keyword-planner-api weles-admission-api; do
+for label in weles-api weles-keyword-planner-api; do
   src="$INSTALL_DIR/scripts/worker/deploy/com.wisent.$label.plist"
   dst="$HOME/Library/LaunchAgents/com.wisent.$label.plist"
   if [[ ! -f "$src" ]]; then
-    continue
-  fi
-  # The content worker only exists on hosts that carry its own scoped env file.
-  if [[ "$label" == "weles-content-worker" && ! -f "$CURRENT_LINK/var/worker-content.env" ]]; then
     continue
   fi
   # A previous manual verification run may still own the API port; clear it so

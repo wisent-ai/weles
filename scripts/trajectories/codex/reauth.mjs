@@ -1,7 +1,7 @@
 // Mac-mini Codex subscription-pool reauth runner.
 //
 // Mirrors scripts/trajectories/claude/reauth.mjs:
-//   1. Load config from service_credentials id='codex-reauth-config'.
+//   1. Load config from the Skarbiec item 'codex-reauth-config'.
 //   2. HMAC-probe the model-router codex-subscription pool.
 //   3. If healthy: exit 0.
 //   4. If burnt: donate the existing ~/.codex/auth.json when available.
@@ -17,21 +17,17 @@ import { dirname, join } from 'node:path';
 import {
   loadFromSkarbiec,
   persistToSkarbiec,
+  reachableRouterUrl,
   resolveBearer,
-  supabaseConfigured,
+  stadoRouterUrl,
 } from '../_shared/reauth_config.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const LOGIN_MJS = join(HERE, 'login.mjs');
 const CODEX_AUTH_PATH = process.env.CODEX_AUTH_PATH || join(homedir(), '.codex', 'auth.json');
 
-// The Supabase project this was written against is gone, and exiting on its
-// absence meant an expired subscription was never refreshed -- the accounts are
-// alive, only the token is not. Skarbiec holds the same configuration row, so
-// the runner reads whichever store this host actually has.
-const SUPABASE_URL = process.env.SUPABASE_URL ?? '';
-const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
-const SB_HEADERS = { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` };
+// An expired subscription must still be refreshed -- the accounts are alive,
+// only the token is not. Skarbiec holds the configuration row this runner reads.
 const CONFIG_ITEM = 'codex-reauth-config';
 
 const NAMED_SUBSCRIPTION_SUFFIX = new Map([
@@ -54,49 +50,14 @@ const BURNOUT_SUBSTR = [
   'rate_limit',
 ];
 
-async function sbGet(path) {
-  const r = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, { headers: SB_HEADERS });
-  if (!r.ok) throw new Error(`supabase GET ${path} -> ${r.status} ${await r.text()}`);
-  return r.json();
-}
-
 async function loadConfig() {
-  if (!supabaseConfigured()) {
-    const cfg = loadFromSkarbiec(CONFIG_ITEM);
-    cfg.bearer = resolveBearer(cfg.agentId);
-    console.error(
-      `config from skarbiec ${CONFIG_ITEM}; router ${cfg.routerUrl}; `
-      + `bearer ${cfg.bearer ? 'present' : 'absent'}`,
-    );
-    return cfg;
-  }
-  const rows = await sbGet(
-    "service_credentials?id=eq.codex-reauth-config&select=metadata");
-  if (!rows.length || !rows[0].metadata) {
-    throw new Error("no service_credentials row id='codex-reauth-config'");
-  }
-  const m = rows[0].metadata;
-  for (const k of ['MODEL_ROUTER_URL', 'WISENT_APP_AGENT_ID',
-    'WISENT_APP_AGENT_AUTH_SECRET', 'WISENT_DONOR_USER_ID']) {
-    if (!m[k]) throw new Error(`codex-reauth-config.metadata missing ${k}`);
-  }
-  return {
-    store: 'supabase',
-    item: CONFIG_ITEM,
-    routerUrl: m.MODEL_ROUTER_URL.replace(/\/+$/, ''),
-    agentId: m.WISENT_APP_AGENT_ID,
-    // The gateway refuses a signed trio with a bare 401 when no bearer carries
-    // the client identity, as the header builder below says. Only the Skarbiec
-    // branch resolved one, so on a host whose database configuration is present
-    // -- the branch that is meant to be the normal one -- every run reached the
-    // gateway and was refused for a credential nobody had asked for. Claude's
-    // trajectory resolves it outside the branches; this one now agrees.
-    bearer: resolveBearer(m.WISENT_APP_AGENT_ID),
-    hmacSecret: m.WISENT_APP_AGENT_AUTH_SECRET,
-    donorUserId: m.WISENT_DONOR_USER_ID,
-    rawMeta: m,
-    activeTokenExpiresAt: Number(m.active_token_expires_at) || 0,
-  };
+  const cfg = loadFromSkarbiec(CONFIG_ITEM);
+  cfg.bearer = resolveBearer(cfg.agentId);
+  console.error(
+    `config from skarbiec ${CONFIG_ITEM}; `
+    + `bearer ${cfg.bearer ? 'present' : 'absent'}`,
+  );
+  return cfg;
 }
 
 function authExpiresAt(authJson) {
@@ -140,23 +101,12 @@ function isFreshCodexAuth(authJson) {
 
 async function persistActiveExpiry(cfg, expiresAtMs) {
   // Recording the new expiry is what makes the NEXT tick refresh before the
-  // token dies rather than after, so it follows the store the config came from.
-  if (cfg.store === 'skarbiec') {
-    try {
-      persistToSkarbiec(cfg, { active_token_expires_at: expiresAtMs });
-    } catch (error) {
-      console.error(`persist expiry to skarbiec failed: ${error.message}`);
-    }
-    return;
+  // token dies rather than after.
+  try {
+    persistToSkarbiec(cfg, { active_token_expires_at: expiresAtMs });
+  } catch (error) {
+    console.error(`persist expiry to skarbiec failed: ${error.message}`);
   }
-  const r = await fetch(
-    `${SUPABASE_URL}/rest/v1/service_credentials?id=eq.codex-reauth-config`,
-    {
-      method: 'PATCH',
-      headers: { ...SB_HEADERS, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
-      body: JSON.stringify({ metadata: { ...cfg.rawMeta, active_token_expires_at: expiresAtMs } }),
-    });
-  if (r.status >= 400) console.error(`persist expiry PATCH ${r.status}: ${await r.text()}`);
 }
 
 function sign(cfg, body) {
@@ -223,64 +173,25 @@ function isBurnout(probe) {
 }
 
 async function pickLruRow() {
-  // Only a fresh browser login needs a donor row, and the row lives in the
-  // store that went away. Say so plainly instead of failing on a fetch to an
-  // empty URL: reusing this host's own auth.json needs no donor at all.
-  if (!supabaseConfigured()) {
-    throw new Error(
-      'a fresh login needs a donor credential row, and no credential store is '
-      + 'configured on this host; reuse of a local auth.json is the only path left',
-    );
-  }
-  const rows = await sbGet(
-    "service_credentials?display_name=ilike.Codex%25"
-    + '&or=(login_method.eq.email_password,login_method.eq.google_sso)'
-    + '&select=id,display_name,updated_at,login_method&order=updated_at.asc&limit=1');
-  if (!rows.length) throw new Error('no Codex email_password/google_sso credential row');
-  return rows[0];
+  // Only a fresh browser login needs a donor row, and Skarbiec keeps no LRU
+  // queue of donor accounts. Say so plainly: reusing this host's own auth.json
+  // needs no donor at all.
+  throw new Error(
+    'a fresh login needs a donor credential row, and no credential store is '
+    + 'configured on this host; reuse of a local auth.json is the only path left',
+  );
 }
 
 async function pickNamedRow(displayName) {
-  if (!supabaseConfigured()) {
-    throw new Error('a named fresh login needs the configured credential store');
-  }
-  const rows = await sbGet(
-    `service_credentials?display_name=eq.${encodeURIComponent(displayName)}`
-    + '&or=(login_method.eq.email_password,login_method.eq.google_sso)'
-    + '&select=id,display_name,updated_at,login_method&limit=1');
-  if (!rows.length) {
-    throw new Error(`no Codex credential row named ${displayName}`);
-  }
-  return rows[0];
+  throw new Error(
+    `a named fresh login for ${displayName} needs the configured credential store`,
+  );
 }
 
-async function markRowAttempted(rowId, errMsg) {
-  if (!supabaseConfigured()) {
-    console.error('mark_row_attempted: no credential store configured; not recorded');
-    return;
-  }
-  const patch = { updated_at: new Date().toISOString() };
-  if (errMsg) {
-    // MERGE existing metadata first — a bare {metadata} PATCH clobbers
-    // google_totp_secret and every other key (real data-loss bug). If the
-    // read fails, skip the metadata write entirely (fail closed) rather than
-    // risk clobbering with an empty base — only updated_at is touched then.
-    try {
-      const cur = await sbGet(`service_credentials?id=eq.${encodeURIComponent(rowId)}&select=metadata`);
-      const existingMeta = (cur[0] && cur[0].metadata) || {};
-      patch.metadata = { ...existingMeta, last_login_error: String(errMsg).slice(0, 500), last_login_error_at: patch.updated_at };
-    } catch (e) {
-      console.error(`mark_row_attempted: metadata read failed, skipping metadata write to avoid clobber: ${e.message}`);
-    }
-  }
-  const r = await fetch(
-    `${SUPABASE_URL}/rest/v1/service_credentials?id=eq.${encodeURIComponent(rowId)}`,
-    {
-      method: 'PATCH',
-      headers: { ...SB_HEADERS, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
-      body: JSON.stringify(patch),
-    });
-  if (r.status >= 400) console.error(`mark_row_attempted PATCH ${r.status}: ${await r.text()}`);
+async function markRowAttempted() {
+  // Skarbiec keeps no per-row attempt bookkeeping; the rotation timestamps and
+  // last_login_error notes lived on the credential rows that went away.
+  console.error('mark_row_attempted: no credential store configured; not recorded');
 }
 
 async function donate(cfg, authJson, label) {
@@ -435,6 +346,8 @@ function bankNamedAuth(authJson) {
 
 async function main() {
   const cfg = await loadConfig();
+  // Stado says where Brama is; the listener check keeps the answer honest.
+  cfg.routerUrl = await reachableRouterUrl(stadoRouterUrl());
   const requestedDisplayName = process.env.CODEX_DISPLAY_NAME?.trim();
   if (requestedDisplayName) {
     const row = await pickNamedRow(requestedDisplayName);

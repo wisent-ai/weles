@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
-"""Provision the six named ChatGPT Business seat logins on the Weles host.
+"""Provision the six named ChatGPT Business seat logins in Skarbiec.
 
-The fleet vault is the password source of truth. This helper copies each login
-into Weles's local authority, grants only its username/password acquisitions,
-and upserts the non-secret selector row used by the Codex reauth trajectory.
-No password, token, or encrypted payload is printed.
+The fleet vault remains the password source of truth. This helper copies each
+login into Weles's authority and grants only its username/password acquisitions.
 """
 
 from __future__ import annotations
@@ -13,10 +11,6 @@ import json
 import os
 import pathlib
 import subprocess
-import tempfile
-import urllib.parse
-import urllib.error
-import urllib.request
 
 HOME = pathlib.Path.home()
 SOURCE_VAULT = pathlib.Path(os.environ.get("SOURCE_VAULT", HOME / ".stado/skarbiec.vault.json"))
@@ -96,59 +90,6 @@ def run_skarbiec(binary: pathlib.Path, vault: pathlib.Path, arguments: list[str]
     return result.stdout
 
 
-def upsert_selector_rows(environment: dict[str, str]) -> None:
-    base = environment.get("WELES_DATABASE_URL") or environment.get("SUPABASE_URL")
-    token = environment.get("WELES_DATABASE_TOKEN") or environment.get("SUPABASE_SERVICE_ROLE_KEY")
-    if not base or not token:
-        raise SystemExit("Weles database URL/token are absent from the launcher environment")
-    auth_headers = {
-        "apikey": token,
-        "Authorization": f"Bearer {token}",
-    }
-    # Existing human sign-in rows (`Claude_controlyourai`, Google SSO) use the
-    # schema's `auth` category. Provider/product names are display metadata, not
-    # new category values.
-    category = "auth"
-    rows = [
-        {
-            "id": item,
-            "category": category,
-            "display_name": display_name,
-            "login_method": "google_sso",
-            "login_email": email,
-            "login_password": None,
-            "metadata": {
-                "account_identifier": email,
-                "configured_for": "codex",
-                "secret_source": item,
-                "updated_by": "provision-chatgpt-business-seats-host.py",
-            },
-        }
-        for item, _consumer, display_name, email in SEATS
-    ]
-    url = base.rstrip("/") + "/rest/v1/service_credentials?on_conflict=id"
-    request = urllib.request.Request(
-        url,
-        data=json.dumps(rows).encode("utf-8"),
-        method="POST",
-        headers={
-            **auth_headers,
-            "Content-Type": "application/json",
-            "Prefer": "resolution=merge-duplicates,return=minimal",
-        },
-    )
-    try:
-        with urllib.request.urlopen(request, timeout=30) as response:
-            if response.status >= 300:
-                raise SystemExit(f"selector row upsert returned HTTP {response.status}")
-    except urllib.error.HTTPError as error:
-        detail = error.read().decode("utf-8", errors="replace").replace("\n", " ")[:600]
-        raise SystemExit(
-            f"cannot upsert Weles selector rows: HTTP {error.code}: {detail}"
-        ) from error
-    except Exception as error:
-        raise SystemExit(f"cannot upsert Weles selector rows: {error}") from error
-    print(f"selector rows: {len(rows)}")
 
 
 def main() -> None:
@@ -156,32 +97,31 @@ def main() -> None:
         if not path.is_file():
             raise SystemExit(f"required file is absent: {path}")
     binary = skarbiec_binary()
-    with tempfile.TemporaryDirectory(prefix="weles-chatgpt-seats."):
-        for item, consumer_prefix, display_name, email in SEATS:
-            payload_text = run_skarbiec(binary, SOURCE_VAULT, ["get", item])
-            payload = json.loads(payload_text)
-            fields = payload.get("fields") if isinstance(payload, dict) else None
-            if not isinstance(fields, dict) or not fields.get("username") or not fields.get("password"):
-                raise SystemExit(f"source item is incomplete: {item}")
-            if fields["username"].strip().lower() != email.lower():
-                raise SystemExit(f"source account does not match its declared seat: {item}")
-            run_skarbiec(binary, TARGET_VAULT, ["set-json", item, "--type", "login"], stdin=payload_text)
-            for field in ("username", "password"):
-                consumer = f"{consumer_prefix}-{field}"
-                run_skarbiec(
-                    binary,
-                    TARGET_VAULT,
-                    [
-                        "token-mint",
-                        consumer,
-                        "--capabilities",
-                        f"acquire:{item}#{field}",
-                        "--workload-public-key-file",
-                        str(WORKLOAD_KEY),
-                    ],
-                )
-            print(f"provisioned: {item} -> {display_name} ({email})")
-    upsert_selector_rows(load_environment())
+    for item, consumer_prefix, display_name, email in SEATS:
+        payload_text = run_skarbiec(binary, SOURCE_VAULT, ["get", item])
+        payload = json.loads(payload_text)
+        fields = payload.get("fields") if isinstance(payload, dict) else None
+        if not isinstance(fields, dict) or not fields.get("username") or not fields.get("password"):
+            raise SystemExit(f"source item is incomplete: {item}")
+        if fields["username"].strip().lower() != email.lower():
+            raise SystemExit(f"source account does not match its declared seat: {item}")
+        run_skarbiec(binary, TARGET_VAULT, ["set-json", item, "--type", "login"], stdin=payload_text)
+        for field in ("username", "password"):
+            consumer = f"{consumer_prefix}-{field}"
+            run_skarbiec(
+                binary,
+                TARGET_VAULT,
+                [
+                    "token-mint",
+                    consumer,
+                    "--capabilities",
+                    f"acquire:{item}#{field}",
+                    "--workload-public-key-file",
+                    str(WORKLOAD_KEY),
+                ],
+            )
+        print(f"provisioned: {item} -> {display_name} ({email})")
+    print(f"provisioned seats: {len(SEATS)}")
 
 
 if __name__ == "__main__":

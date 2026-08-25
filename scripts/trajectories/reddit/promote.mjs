@@ -18,6 +18,7 @@ import { detectRedditBanSignals } from '../../../dist/platforms/reddit/ban_signa
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
+import { accountCharacter, findAccount, findProduct } from '../_shared/skarbiec_accounts.mjs';
 
 const SUBREDDIT = process.env.SUBREDDIT || 'popular';
 const TARGET_URL = process.env.TARGET_URL || '';        // if set, skip listing pick
@@ -29,19 +30,10 @@ if (!PRODUCT_ID) { console.log('FAIL: PRODUCT_ID required'); process.exit(1); }
 const acct = await getSocialAccount('reddit');
 if (!acct) { console.log('FAIL: no active reddit account'); process.exit(1); }
 
-async function fetchSupabase(path) {
-  const url = process.env.WELES_DATABASE_URL ?? '';
-  const key = process.env.WELES_DATABASE_TOKEN ?? '';
-  if (!url || !key) return null;
-  const r = await fetch(`${url}/rest/v1/${path}`, { headers: { apikey: key, Authorization: `Bearer ${key}` } });
-  if (!r.ok) return null;
-  return r.json();
-}
 
-const charRows = await fetchSupabase(`character_social_accounts?social_account_id=eq.${acct.id}&select=characters(name,bio,personality,niche,handle)&limit=1`);
-const character = charRows?.[0]?.characters;
-const productRows = await fetchSupabase(`products?id=eq.${PRODUCT_ID}&select=name,description&limit=1`);
-const product = productRows?.[0];
+const vaultAccount = findAccount('reddit', acct.username);
+const character = accountCharacter(vaultAccount);
+const product = findProduct(PRODUCT_ID);
 if (!character) { console.log('FAIL: no character linked'); process.exit(1); }
 if (!product) { console.log('FAIL: product not found'); process.exit(1); }
 console.log(`[promote] acct=${acct.username} character=${character.name} product=${product.name} variant=${VARIANT}`);

@@ -1,5 +1,6 @@
 import os from 'node:os';
 import { captureVersions } from '../diagnostics/versions.js';
+import { writeSetting } from '../state/skarbiec-records.js';
 
 const PRODUCTION_SETTING_KEY = 'weles_deployment_version';
 const DEFAULT_HEARTBEAT_MS = 60_000;
@@ -9,7 +10,7 @@ type FetchLike = typeof fetch;
 type EnvLike = Record<string, string | undefined>;
 
 export type ImmutableReleaseIdentity = {
-  schema: 'weles.release-identity.v1';
+  schema: 'weles.release-identity.v2';
   worker_version: string;
   source_revision: string;
   artifact_sha256: string;
@@ -21,7 +22,6 @@ export type ImmutableReleaseIdentity = {
   chromium_sha256: string;
   firefox_release: string;
   firefox_sha256: string;
-  database_schema_version: number;
   api_schemas: string[];
 };
 
@@ -72,7 +72,6 @@ function immutableReleaseIdentity(env: EnvLike): ImmutableReleaseIdentity | unde
   const chromiumSha256 = envValue(env, 'WELES_CHROMIUM_SHA256');
   const firefoxRelease = envValue(env, 'WELES_FIREFOX_RELEASE');
   const firefoxSha256 = envValue(env, 'WELES_FIREFOX_SHA256');
-  const databaseSchema = envValue(env, 'WELES_DATABASE_SCHEMA_VERSION');
   const apiSchemas = envValue(env, 'WELES_API_SCHEMAS');
   const values = [
     workerVersion,
@@ -86,16 +85,11 @@ function immutableReleaseIdentity(env: EnvLike): ImmutableReleaseIdentity | unde
     chromiumSha256,
     firefoxRelease,
     firefoxSha256,
-    databaseSchema,
     apiSchemas,
   ];
   if (values.every((value) => !value)) return undefined;
   if (values.some((value) => !value)) {
     throw new Error('immutable release identity is partially configured');
-  }
-  const databaseSchemaVersion = Number(databaseSchema);
-  if (!Number.isInteger(databaseSchemaVersion) || databaseSchemaVersion < 1) {
-    throw new Error('WELES_DATABASE_SCHEMA_VERSION must be a positive integer');
   }
   if (!['candidate', 'development', 'canary', 'production'].includes(ring)) {
     throw new Error('WELES_DEPLOYMENT_RING must name a release ring');
@@ -105,7 +99,7 @@ function immutableReleaseIdentity(env: EnvLike): ImmutableReleaseIdentity | unde
     throw new Error('only the production release ring may claim queued work');
   }
   return {
-    schema: 'weles.release-identity.v1',
+    schema: 'weles.release-identity.v2',
     worker_version: workerVersion,
     source_revision: sourceRevision,
     artifact_sha256: artifactSha256,
@@ -117,7 +111,6 @@ function immutableReleaseIdentity(env: EnvLike): ImmutableReleaseIdentity | unde
     chromium_sha256: chromiumSha256,
     firefox_release: firefoxRelease,
     firefox_sha256: firefoxSha256,
-    database_schema_version: databaseSchemaVersion,
     api_schemas: apiSchemas.split(',').map((value) => value.trim()).filter(Boolean),
   };
 }
@@ -167,31 +160,15 @@ export async function writeDeploymentVersion(options: {
   now?: Date;
   versions?: Record<string, any>;
   instanceId?: string;
-} = {}): Promise<{ ok: boolean; skipped?: string; error?: string; status?: number; value?: DeploymentVersionValue }> {
+} = {}): Promise<{ ok: boolean; error?: string; value?: DeploymentVersionValue }> {
   const env = options.env ?? process.env;
-  const supabaseUrl = envValue(env, 'CONTENT_PLATFORM_SUPABASE_URL', 'SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_URL');
-  const supabaseKey = envValue(env, 'CONTENT_PLATFORM_SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_SERVICE_ROLE_KEY');
-  if (!supabaseUrl || !supabaseKey) return { ok: false, skipped: 'missing_supabase_config' };
-
   const instanceId = options.instanceId ?? deploymentInstanceId(env);
   const ring = envValue(env, 'WELES_DEPLOYMENT_RING') || 'production';
-  const settingKey = ring === 'production' ? PRODUCTION_SETTING_KEY : `${PRODUCTION_SETTING_KEY}:${ring}:${instanceId}`;
+  const settingKey = ring === 'production' ? PRODUCTION_SETTING_KEY : `${PRODUCTION_SETTING_KEY}_${ring}_${instanceId}`;
   const value = buildDeploymentVersionValue(options.versions ?? captureVersions(null), options.now ?? new Date(), instanceId, env);
-  const fetchImpl = options.fetchImpl ?? fetch;
-  const url = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/system_settings?on_conflict=key`;
   try {
-    const response = await fetchImpl(url, {
-      method: 'POST',
-      headers: {
-        apikey: supabaseKey,
-        Authorization: `Bearer ${supabaseKey}`,
-        'Content-Type': 'application/json',
-        Prefer: 'resolution=merge-duplicates',
-      },
-      body: JSON.stringify({ key: settingKey, value, updated_at: value.updated_at }),
-    });
-    if (!response.ok) return { ok: false, status: response.status, error: await response.text().catch(() => response.statusText), value };
-    return { ok: true, status: response.status, value };
+    writeSetting(settingKey, value);
+    return { ok: true, value };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : String(error), value };
   }
@@ -209,8 +186,7 @@ export function startDeploymentVersionHeartbeat(options: {
   const write = async () => {
     const result = await writeDeploymentVersion({ env, fetchImpl: options.fetchImpl });
     if (result.ok) logger.log(`[deployment-version] wrote ${result.value?.release?.source_revision.slice(0, 8) ?? result.value?.deployment.weles_commit_short ?? 'unknown'} instance=${result.value?.instance_id}`);
-    else if (result.skipped) logger.log(`[deployment-version] skipped: ${result.skipped}`);
-    else logger.error(`[deployment-version] failed: ${result.status ?? ''} ${result.error ?? 'unknown_error'}`.trim());
+    else logger.error(`[deployment-version] failed: ${result.error ?? 'unknown_error'}`);
   };
   void write();
   if (!Number.isFinite(intervalMs) || intervalMs <= 0) return null;

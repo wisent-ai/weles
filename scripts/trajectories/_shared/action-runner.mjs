@@ -11,7 +11,7 @@
  *   submitComment:  async (s, text) => void — deterministic Playwright path for comment/promote
  *   submitPost:     async (s, text) => void — deterministic Playwright path for post/post_promote
  *
- * Reads character + product context from the DB as needed. Writes
+ * Reads character + product context from Skarbiec as needed. Writes
  * recordings/<platform>_<action>/ban_signal.json.
  */
 import { getSocialAccount, resolveAccountSession, markCookiesStale } from '../../../dist/utils/credentials.js';
@@ -21,6 +21,7 @@ import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { humanIdlePause } from '../../../dist/human/mouse.js';
 import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
+import { accountCharacter, findAccount, findProduct } from './skarbiec_accounts.mjs';
 
 const HEADLESS = process.env.HEADLESS === '1' || process.env.WELES_HEADLESS === '1';
 
@@ -49,26 +50,17 @@ export function checkReachable(s, platform) {
   }
 }
 
-async function fetchSupabase(path) {
-  const url = process.env.WELES_DATABASE_URL ?? '';
-  const key = process.env.WELES_DATABASE_TOKEN ?? '';
-  if (!url || !key) return null;
-  const r = await fetch(`${url}/rest/v1/${path}`, { headers: { apikey: key, Authorization: `Bearer ${key}` } });
-  if (!r.ok) return null;
-  return r.json();
-}
 
 export async function runAction(cfg) {
   const acct = await getSocialAccount(cfg.platform);
   if (!acct) { console.log(`FAIL: no active ${cfg.platform} account`); process.exit(1); }
 
   let character = null, product = null;
+  const vaultAccount = findAccount(cfg.platform, acct.username);
   const preapprovedTextProbe = process.env.SVC_TEXT || '';
   if (cfg.action !== 'browse') {
-    const rows = await fetchSupabase(`character_social_accounts?social_account_id=eq.${acct.id}&select=characters(name,bio,personality,niche,handle,promoted_product_id,promotion_config)&limit=1`);
-    character = rows?.[0]?.characters ?? null;
-    // Accept a character-less post when SVC_TEXT is operator-supplied —
-    // lets the UI path be verified without a character+product in prod DB.
+    character = accountCharacter(vaultAccount);
+    // Accept a character-less post when SVC_TEXT is operator-supplied.
     if (!character && !preapprovedTextProbe) {
       console.log('FAIL: no character linked'); process.exit(1);
     }
@@ -76,8 +68,7 @@ export async function runAction(cfg) {
   if (cfg.action === 'promote' || cfg.action === 'post_promote') {
     const productId = process.env.PRODUCT_ID || character?.promoted_product_id;
     if (!productId) { console.log('FAIL: no product configured'); process.exit(1); }
-    const pr = await fetchSupabase(`products?id=eq.${productId}&select=name,description&limit=1`);
-    product = pr?.[0] ?? null;
+    product = findProduct(productId);
     if (!product) { console.log('FAIL: product not found'); process.exit(1); }
   }
   console.log(`[${cfg.platform}:${cfg.action}] acct=${acct.username}${character ? ` character=${character.name}` : ''}${product ? ` product=${product.name}` : ''}`);

@@ -1,60 +1,20 @@
 #!/usr/bin/env node
-// Cancel provider topup rows auto-enqueued by proxy 407 recovery during local
-// diagnostic scans. Does not delete rows; marks them failed with a clear error.
+// Cancel exact Stado jobs created by an accidental diagnostic top-up request.
+// Usage: node scripts/debug/cancel_recent_auto_topups.mjs <job-id>...
+import { spawnSync } from 'node:child_process';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 
-import { existsSync, readFileSync } from 'node:fs';
 
-function loadDotEnv(path = '.env') {
-  if (!existsSync(path)) return;
-  const text = readFileSync(path, 'utf8');
-  for (const line of text.split(/\n/)) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith('#')) continue;
-    const m = trimmed.match(/^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/);
-    if (!m || process.env[m[1]] !== undefined) continue;
-    let value = m[2].trim();
-    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) value = value.slice(1, -1);
-    process.env[m[1]] = value;
-  }
-}
-
-loadDotEnv();
-
-const url = process.env.WELES_SUPABASE_URL || '';
-const key = process.env.WELES_SUPABASE_SERVICE_ROLE_KEY || '';
-if (!url || !key) throw new Error('Supabase env missing');
-
-const actions = process.argv.slice(2).filter(Boolean);
-const targetActions = actions.length ? actions : ['iproyal_topup', 'pingproxies_topup', 'brightdata_topup'];
-const headers = { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' };
-
+const jobIds = process.argv.slice(2).filter((id) => /^[0-9a-f]{8}$/i.test(id));
+if (!jobIds.length) throw new Error('at least one exact Stado job id is required');
+const stado = process.env.WELES_STADO_BIN || join(homedir(), '.stado', 'bin', 'stado');
 const cancelled = [];
-for (const action of targetActions) {
-  const rowsRes = await fetch(`${url}/rest/v1/account_action_logs?action=eq.${encodeURIComponent(action)}&status=eq.queued&select=id,action,status,started_at,scheduled_at,params&order=scheduled_at.desc&limit=25`, { headers });
-  if (!rowsRes.ok) throw new Error(`${action} list HTTP ${rowsRes.status}: ${await rowsRes.text()}`);
-  const rows = await rowsRes.json();
-  for (const row of rows) {
-    const params = row.params && typeof row.params === 'object' ? row.params : {};
-    const batch = String(params.batch || '');
-    if (batch !== 'auto-407-recovery') continue;
-    const patch = {
-      status: 'failed',
-      completed_at: new Date().toISOString(),
-      error: 'cancelled local diagnostic auto-407 topup enqueue; user did not approve purchase',
-      result: {
-        cancelled: true,
-        cancelled_by: 'scripts/debug/cancel_recent_auto_topups.mjs',
-        reason: 'local diagnostic scan side effect',
-      },
-    };
-    const patchRes = await fetch(`${url}/rest/v1/account_action_logs?id=eq.${encodeURIComponent(row.id)}`, {
-      method: 'PATCH',
-      headers: { ...headers, Prefer: 'return=minimal' },
-      body: JSON.stringify(patch),
-    });
-    if (!patchRes.ok) throw new Error(`${row.id} patch HTTP ${patchRes.status}: ${await patchRes.text()}`);
-    cancelled.push({ id: row.id, action: row.action, started_at: row.started_at, scheduled_at: row.scheduled_at });
+for (const id of jobIds) {
+  const result = spawnSync(stado, ['cancel', id], { encoding: 'utf8' });
+  if (result.error || result.status !== 0) {
+    throw new Error(`Stado refused cancellation of ${id}: ${(result.stderr || result.error?.message || '').trim()}`);
   }
+  cancelled.push(id);
 }
-
 console.log(JSON.stringify({ ok: true, cancelled }, null, 2));

@@ -3,13 +3,14 @@
  *   1. /register → fill email → Continue
  *   2. checkEmail polls for 6-digit verification code → fill code → Continue
  *   3. Fill username + password → Sign Up
- *   4. Persist to social_accounts with cookies (saveAccount)
- *   5. Verify DB row + reddit_session cookie before printing PASS
+ *   4. Persist to Skarbiec with cookies (saveAccount)
+ *   5. Verify the Skarbiec record and reddit_session cookie before printing PASS
  */
 import { WSession } from '../../dist/session/wsession.js';
 import { humanType } from '../../dist/human/keyboard.js';
 import { humanMove, humanIdlePause, humanClickLocator } from '../../dist/human/mouse.js';
 import { autoBindCharacter } from './lib/character-bind.mjs';
+import { findAccount } from './_shared/skarbiec_accounts.mjs';
 
 const URL = 'https://www.reddit.com/register';
 
@@ -163,18 +164,13 @@ try {
   console.log(`[register] saveAccount: ${result}`);
   await autoBindCharacter(id.username, 'reddit').then(r => console.log(`[bind] ${JSON.stringify(r)}`)).catch((e) => console.log(`[bind] err: ${e.message?.slice(0, 80)}`));
 
-  const databaseUrl = process.env.WELES_DATABASE_URL ?? '';
-  const key = process.env.WELES_DATABASE_TOKEN ?? '';
-  if (databaseUrl && key) {
-    const r = await fetch(`${databaseUrl}/rest/v1/social_accounts?platform=eq.reddit&username=eq.${encodeURIComponent(id.username)}&select=id,metadata`, { headers: { apikey: key, Authorization: `Bearer ${key}` } });
-    const rows = await r.json();
-    if (!rows?.[0]) { console.log(`FAIL: saveAccount returned ok but no DB row for ${id.username}`); process.exitCode = 1; }
-    const cookies = rows[0].metadata?.cookies ?? [];
+  const saved = findAccount('reddit', id.username);
+  if (!saved) { console.log(`FAIL: saveAccount returned ok but no Skarbiec item for ${id.username}`); process.exitCode = 1; }
+  else {
+    const cookies = saved.metadata?.cookies ?? [];
     const hasSession = cookies.some?.(c => /reddit_session|token_v2/.test(c?.name ?? ''));
-    if (!hasSession) { console.log(`FAIL: row ${rows[0].id} saved but no reddit_session cookie — signup didn't authenticate`); process.exitCode = 1; }
-    console.log(`PASS: ${id.username} (db_row=${rows[0].id} cookies=${cookies.length} reddit_session=yes)`);
-  } else {
-    console.log(`PASS: ${id.username} (no DB verification — WELES_DATABASE_URL not set)`);
+    if (!hasSession) { console.log(`FAIL: item ${saved.id} saved but no reddit_session cookie — signup didn't authenticate`); process.exitCode = 1; }
+    else console.log(`PASS: ${id.username} (skarbiec_item=${saved.id} cookies=${cookies.length} reddit_session=yes)`);
   }
 } catch (e) {
   console.log('FAIL:', e.message?.slice(0, 300));

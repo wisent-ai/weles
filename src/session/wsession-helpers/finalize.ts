@@ -26,7 +26,7 @@ import { humanFill, humanType } from '../../human/keyboard.js';
 import { findClickTarget, type ScreenshottablePage } from '../../vision/analyze.js';
 import type { WSession } from '../wsession.js';
 import { runRecordingsDir, runRecordingsRoot } from '../run-recordings.js';
-import { optionalWelesDatabase } from '../../utils/weles-database.js';
+import { putAccount } from '../../state/skarbiec-records.js';
 
 const VISIBILITY_PROBE_MS = 1500;
 
@@ -296,45 +296,41 @@ export async function wsSaveAccount(
   platform: string,
   data: { username: string; email: string; password: string; name?: string; status?: string },
 ): Promise<string> {
-  const url = optionalWelesDatabase()?.url ?? '';
-  const key = optionalWelesDatabase()?.token ?? '';
-  if (!url || !key) return 'error: missing weles-database launcher configuration';
+  // The account item is the durable result of this trajectory.
   const username = s.resolveEnv(data.username);
   const email = s.resolveEnv(data.email);
   const password = s.resolveEnv(data.password);
   const name = data.name ? s.resolveEnv(data.name) : undefined;
   const storageState = await s.ctx.storageState().catch(() => ({ cookies: [] as any[], origins: [] as any[] }));
   const cookies = (storageState as any).cookies ?? [];
-  const row = {
-    platform,
-    username,
-    display_name: name,
+  const metadata = {
+    email,
+    status: data.status ?? 'created',
+    created_via: 'weles',
+    cookies,
+    storage_state: storageState,
+    cookies_updated_at: new Date().toISOString(),
+    cookies_minted_at: new Date().toISOString(),
+    cookies_minted_proxy: (s as any)._proxySignature(),
+    cookies_minted_persona: (s as any)._personaSignature(),
+    proxy: s.proxyConfig ?? null,
+    persona: (s as any).personaConfig ?? null,
     profile_url: profileUrl(platform, username, name),
-    metadata: {
-      email, password, status: data.status ?? 'created', created_via: 'weles',
-      cookies, storage_state: storageState,
-      cookies_updated_at: new Date().toISOString(),
-      cookies_minted_at: new Date().toISOString(),
-      cookies_minted_proxy: (s as any)._proxySignature(),
-      cookies_minted_persona: (s as any)._personaSignature(),
-      proxy: s.proxyConfig ?? null,
-      persona: (s as any).personaConfig ?? null,
-    },
-    is_active: true,
-    created_by: 'weles',
   };
-  const res = await fetch(`${url}/rest/v1/social_accounts`, {
-    method: 'POST',
-    headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', Prefer: 'return=representation' },
-    body: JSON.stringify(row),
-  });
-  if (!res.ok) return `error: ${res.status} ${await res.text().catch(() => '')}`;
   try {
-    const r = await res.json();
-    writeFileSync(join(recordingsDir(s.label || undefined), 'account.json'), JSON.stringify(Array.isArray(r) ? r[0] : r, null, 2));
-  } catch {}
-  await markSignupSuccess(email, platform).catch(() => {});
-  return `account saved: ${platform}/${username}`;
+    const item = putAccount({
+      platform,
+      username,
+      password,
+      metadata,
+      displayName: name,
+    });
+    writeFileSync(join(recordingsDir(s.label || undefined), 'account.json'), JSON.stringify({ item, platform, username }, null, 2));
+    await markSignupSuccess(email, platform).catch(() => {});
+    return `account saved: ${item}`;
+  } catch (error) {
+    return `error: ${error instanceof Error ? error.message : String(error)}`;
+  }
 }
 
 async function wsCaptureFingerprint(s: WSession): Promise<void> {

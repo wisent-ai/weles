@@ -6,28 +6,24 @@
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { runRecordingsDir } from '../../../../dist/session/run-recordings.js';
+import { readAccount, updateAccountMetadata } from '../../_shared/skarbiec_accounts.mjs';
 
-const SUPA_URL = process.env.WELES_DATABASE_URL ?? '';
-const SUPA_KEY = process.env.WELES_DATABASE_TOKEN ?? '';
-if (!SUPA_URL || !SUPA_KEY) { console.log('FAIL: supabase env missing'); process.exit(1); }
-
-const ACCOUNT_ID = process.env.ACCOUNT_ID;
-if (!ACCOUNT_ID) { console.log('FAIL: ACCOUNT_ID required'); process.exit(1); }
+const ACCOUNT_ITEM = process.env.WELES_LOGIN_ITEM || process.env.ACCOUNT_ITEM;
+if (!ACCOUNT_ITEM) { console.log('FAIL: WELES_LOGIN_ITEM required'); process.exit(1); }
 
 function writeBan(signal, details) {
   try {
     const dir = runRecordingsDir('linkedin_cookie_refresh');
     mkdirSync(dir, { recursive: true });
-    writeFileSync(join(dir, 'ban_signal.json'), JSON.stringify({ account_id: ACCOUNT_ID, action: 'linkedin_cookie_refresh', signal, healthy: signal === 'healthy', details: details ?? {}, ts: new Date().toISOString() }, null, 2));
+    writeFileSync(join(dir, 'ban_signal.json'), JSON.stringify({ account_item: ACCOUNT_ITEM, action: 'linkedin_cookie_refresh', signal, healthy: signal === 'healthy', details: details ?? {}, ts: new Date().toISOString() }, null, 2));
   } catch {}
 }
 
-const r = await fetch(`${SUPA_URL}/rest/v1/social_accounts?id=eq.${ACCOUNT_ID}&select=username,metadata`, { headers: { apikey: SUPA_KEY, Authorization: `Bearer ${SUPA_KEY}` } });
-const acct = (await r.json())[0];
-if (!acct) { writeBan('account_not_found', {}); console.log('FAIL: account not found'); process.exit(1); }
+const acct = readAccount(ACCOUNT_ITEM);
+if (!acct?.username) { writeBan('account_not_found', {}); console.log('FAIL: account not found'); process.exit(1); }
 const meta = acct.metadata ?? {};
 const email = meta.email ?? acct.username;
-const password = meta.password ?? '';
+const password = acct.password ?? '';
 const storedCookies = (meta.cookies ?? []).filter(c => /\.linkedin\.com|\.www\.linkedin\.com/.test(c.domain ?? ''));
 if (!password) { writeBan('no_password', {}); console.log('FAIL: no stored password'); process.exit(1); }
 
@@ -69,7 +65,7 @@ if (liAt) {
   const newCookies = [...setCookieMap.entries()].map(([name, value]) => ({ name, value, domain: '.www.linkedin.com', path: '/', secure: true, httpOnly: true, sameSite: 'None' }));
   const merged = { ...meta, cookies: newCookies };
   delete merged.cookies_stale_at;
-  await fetch(`${SUPA_URL}/rest/v1/social_accounts?id=eq.${ACCOUNT_ID}`, { method: 'PATCH', headers: { apikey: SUPA_KEY, Authorization: `Bearer ${SUPA_KEY}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' }, body: JSON.stringify({ metadata: merged }) });
+  updateAccountMetadata(ACCOUNT_ITEM, merged);
   writeBan('healthy', { status: submit.status, location, li_at_prefix: liAt.slice(0, 16) });
   console.log(`PASS: li_at refreshed for ${acct.username}`);
 } else {

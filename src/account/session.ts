@@ -1,8 +1,7 @@
 // Per-account session identity: restore proxy + persona so register and
 // login look like the same device. Reuses ProxyConfig/proxyUrl from the shared
-// src/proxy/config.ts module (matching schema the Python signup side writes to
-// social_accounts.metadata.proxy). If the account has no persona yet (pre-V1
-// rows), generate one keyed to the stored proxy country and backfill metadata.
+// src/proxy/config.ts module. Account state is a Skarbiec record; if an older
+// item has no persona yet, generate one and persist it back to that item.
 //
 // Extracted from src/utils/credentials.ts on 2026-05-03; that file crossed
 // the 300-line cap. credentials.ts re-exports resolveAccountSession +
@@ -16,7 +15,7 @@ import { isBurned } from '../proxy/burned.js';
 import { selectByCapability, taskNetworkRequirements } from '../proxy/capability.js';
 import { refreshStickyIfDead } from '../proxy/sticky.js';
 import type { SocialAccount } from '../utils/credentials.js';
-import { optionalWelesDatabase } from '../utils/weles-database.js';
+import { updateAccount } from '../state/skarbiec-records.js';
 
 export interface AccountSession { proxyUrl?: string; persona?: Persona; }
 
@@ -257,16 +256,8 @@ async function clearDeadProxy(acct: SocialAccount, reason: string): Promise<void
   (acct as any).metadata = metadata;
 
   if (!acct.id) return;
-  const url = optionalWelesDatabase()?.url ?? '';
-  const key = optionalWelesDatabase()?.token ?? '';
-  if (!url || !key) return;
   try {
-    const response = await fetch(`${url}/rest/v1/social_accounts?id=eq.${acct.id}`, {
-      method: 'PATCH',
-      headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
-      body: JSON.stringify({ metadata }),
-    });
-    if (!response.ok) console.error(`[identity] clearDeadProxy failed: HTTP ${response.status}`);
+    updateAccount(acct.id, { metadata });
   } catch (e) {
     console.error('[identity] clearDeadProxy failed:', (e as Error).message);
   }
@@ -274,9 +265,6 @@ async function clearDeadProxy(acct: SocialAccount, reason: string): Promise<void
 
 async function backfillProxy(acct: SocialAccount, cfg: ProxyConfig): Promise<void> {
   if (!acct.id) return;
-  const url = optionalWelesDatabase()?.url ?? '';
-  const key = optionalWelesDatabase()?.token ?? '';
-  if (!url || !key) return;
   // Registration-time endpoints stay pinned until an authenticated CONNECT
   // preflight proves the route is dead and clearDeadProxy records the failover.
   const existingHost = (acct.metadata as any)?.proxy?.host;
@@ -290,24 +278,15 @@ async function backfillProxy(acct: SocialAccount, cfg: ProxyConfig): Promise<voi
   delete pin.password;
   const merged = { ...(acct.metadata ?? {}), proxy: pin };
   try {
-    await fetch(`${url}/rest/v1/social_accounts?id=eq.${acct.id}`, {
-      method: 'PATCH',
-      headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
-      body: JSON.stringify({ metadata: merged }),
-    });
+    updateAccount(acct.id, { metadata: merged });
   } catch (e) {
     console.error('[identity] backfillProxy failed:', (e as Error).message);
   }
 }
 
-// Mark an account inactive when its pinned proxy pool retires. The next
-// routine tick that queries social_accounts.is_active=true skips it; ops
-// dashboards surface the retired_reason for reassignment.
+// Mark an account inactive when its pinned proxy pool retires.
 async function burnAccount(acct: SocialAccount, reason: string): Promise<void> {
   if (!acct.id) return;
-  const url = optionalWelesDatabase()?.url ?? '';
-  const key = optionalWelesDatabase()?.token ?? '';
-  if (!url || !key) return;
   const meta = (acct.metadata ?? {}) as Record<string, unknown>;
   const merged = {
     ...meta,
@@ -315,11 +294,7 @@ async function burnAccount(acct: SocialAccount, reason: string): Promise<void> {
     retired_reason: reason,
   };
   try {
-    await fetch(`${url}/rest/v1/social_accounts?id=eq.${acct.id}`, {
-      method: 'PATCH',
-      headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
-      body: JSON.stringify({ is_active: false, metadata: merged }),
-    });
+    updateAccount(acct.id, { active: false, metadata: merged });
   } catch (e) {
     console.error('[identity] burnAccount failed:', (e as Error).message);
   }
@@ -327,16 +302,9 @@ async function burnAccount(acct: SocialAccount, reason: string): Promise<void> {
 
 async function backfillPersona(acct: SocialAccount, persona: Persona): Promise<void> {
   if (!acct.id) return;
-  const url = optionalWelesDatabase()?.url ?? '';
-  const key = optionalWelesDatabase()?.token ?? '';
-  if (!url || !key) return;
   const merged = { ...((acct.metadata ?? {}) as any), persona };
   try {
-    await fetch(`${url}/rest/v1/social_accounts?id=eq.${acct.id}`, {
-      method: 'PATCH',
-      headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
-      body: JSON.stringify({ metadata: merged }),
-    });
+    updateAccount(acct.id, { metadata: merged });
   } catch (e) {
     console.error('[identity] backfillPersona failed:', (e as Error).message);
   }

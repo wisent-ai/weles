@@ -1,3 +1,5 @@
+import { updateAccountMetadata } from './skarbiec_accounts.mjs';
+
 /**
  * Cookie-jar freshness gate — second line of defense after auth-probe.mjs.
  *
@@ -229,9 +231,8 @@ export function loadFreshCookieJarOrFail(acct, { platform, label, currentProxyUr
 }
 
 /**
- * Persist a freshly-minted cookie jar back to the social_accounts row.
- * Stamps both cookies_updated_at (legacy field, write-once-per-touch) and
- * cookies_minted_at (the freshness-gate field, write-on-verified-login-only).
+ * Persist a freshly-minted cookie jar back to the account's Skarbiec record.
+ * Stamps both cookies_updated_at and cookies_minted_at.
  *
  * Callers MUST have just verified the session is genuinely authed (e.g.
  * passed assertAuthed or otherwise confirmed real login). Calling this
@@ -240,11 +241,7 @@ export function loadFreshCookieJarOrFail(acct, { platform, label, currentProxyUr
  * happened, not just that some cookies got copied around.
  */
 export async function persistFreshCookieJar(acct, cookies, { currentProxyUrl, currentPersona, persistProxy = false } = {}) {
-  const url = process.env.WELES_DATABASE_URL ?? '';
-  const key = process.env.WELES_DATABASE_TOKEN ?? '';
-  if (!url || !key || !acct?.id) {
-    return { ok: false, reason: 'no_supabase_env_or_acct_id' };
-  }
+  if (!acct?.id) return { ok: false, reason: 'no_skarbiec_account_id' };
   const now = new Date().toISOString();
   // Stamp proxy + persona at minting time so loadFreshCookieJarOrFail can
   // refuse jars replayed from a different egress identity.
@@ -268,19 +265,10 @@ export async function persistFreshCookieJar(acct, cookies, { currentProxyUrl, cu
   // even though the account has successfully re-logged-in. Same pattern as
   // linkedin/recover/cookie_refresh.mjs:70 which explicitly clears it.
   delete nextMetadata.cookies_stale_at;
-  const res = await fetch(`${url}/rest/v1/social_accounts?id=eq.${acct.id}`, {
-    method: 'PATCH',
-    headers: {
-      apikey: key,
-      Authorization: `Bearer ${key}`,
-      'Content-Type': 'application/json',
-      Prefer: 'return=minimal',
-    },
-    body: JSON.stringify({ metadata: nextMetadata }),
-  });
-  if (!res.ok) {
-    const txt = await res.text().catch(() => '');
-    return { ok: false, reason: `patch_${res.status}`, body: txt.slice(0, 200) };
+  try {
+    updateAccountMetadata(acct.id, nextMetadata);
+  } catch (error) {
+    return { ok: false, reason: 'skarbiec_write_failed', body: String(error?.message ?? error).slice(0, 200) };
   }
   // Mutate the in-memory acct so subsequent code in the same process sees
   // the fresh stamp without an extra DB round-trip.

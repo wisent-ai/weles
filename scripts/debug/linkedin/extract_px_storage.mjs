@@ -1,22 +1,17 @@
-// Extract PerimeterX localStorage from a real-Chrome bootstrap on
-// https://www.linkedin.com/login and save it to a target social_accounts
-// row's metadata.linkedin_px_storage. Solves the cold-start problem where
-// weles's Chromium binary fails PX's runtime trust handshake (per diff
-// harness 2026-05-04T03:33Z) by giving the next weles session a cached
-// _pxvid + px_fp pair that PX accepts as "returning visitor" without
-// re-running the broken bootstrap.
-//
-// Usage: ACCOUNT_ID=<uuid> node scripts/debug/linkedin/extract_px_storage.mjs
+// Extract PerimeterX storage from a real-Chrome bootstrap and persist it to a
+// LinkedIn account item in Skarbiec.
+// Usage: ACCOUNT_ITEM=weles-linkedin-<username>-account node scripts/debug/linkedin/extract_px_storage.mjs
 
 import { chromium } from 'playwright';
 import { humanIdlePause } from '../../../dist/human/mouse.js';
+import { mkdirSync, mkdtempSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
+import { readAccount, updateAccountMetadata } from '../../trajectories/_shared/skarbiec_accounts.mjs';
 
-const ACCOUNT_ID = process.env.ACCOUNT_ID;
-if (!ACCOUNT_ID) { console.error('ACCOUNT_ID env required'); process.exit(2); }
-
-const supabaseUrl = process.env.WELES_SUPABASE_URL ?? '';
-const supabaseKey = process.env.WELES_SUPABASE_SERVICE_ROLE_KEY ?? '';
-if (!supabaseUrl || !supabaseKey) { console.error('SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY required'); process.exit(2); }
+const ACCOUNT_ITEM = process.env.ACCOUNT_ITEM;
+if (!ACCOUNT_ITEM) { console.error('ACCOUNT_ITEM env required'); process.exit(2); }
+const account = readAccount(ACCOUNT_ITEM);
 
 const PX_LS_KEY_RE = /^(PXdOjV695v_|_pxvid|pxsid|_?px_|rc::|_grecaptcha)/;
 
@@ -25,7 +20,9 @@ const PX_LS_KEY_RE = /^(PXdOjV695v_|_pxvid|pxsid|_?px_|rc::|_grecaptcha)/;
 // --disable-blink-features=AutomationControlled removes the additional
 // automation flag PX reads. Without these, playwright's chromium reports as
 // automation and PX bails before writing localStorage.
-const userDataDir = `/tmp/px-extract-${Date.now()}`;
+const scratchRoot = join(homedir(), '.stado', 'work');
+mkdirSync(scratchRoot, { recursive: true });
+const userDataDir = mkdtempSync(join(scratchRoot, 'px-extract-'));
 const ctx = await chromium.launchPersistentContext(userDataDir, {
   channel: 'chrome',
   headless: false,
@@ -76,21 +73,10 @@ for (const [origin, v] of Object.entries(items)) {
 }
 console.log(`  cookies: ${pxCookies.map((c) => `${c.name}@${c.domain}`).join(', ')}`);
 
-const lookup = await fetch(`${supabaseUrl}/rest/v1/social_accounts?id=eq.${ACCOUNT_ID}&select=metadata`, {
-  headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` },
-});
-const rows = await lookup.json();
-if (!rows[0]) { console.error('account row not found'); process.exit(3); }
-const merged = {
-  ...(rows[0].metadata ?? {}),
+updateAccountMetadata(account.id, {
   linkedin_px_storage: items,
   linkedin_px_storage_at: new Date().toISOString(),
   linkedin_px_cookies: pxCookies,
-};
-const patch = await fetch(`${supabaseUrl}/rest/v1/social_accounts?id=eq.${ACCOUNT_ID}`, {
-  method: 'PATCH',
-  headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
-  body: JSON.stringify({ metadata: merged }),
 });
-console.log(`[px-extract] PATCH status=${patch.status}`);
+console.log(`[px-extract] persisted to ${account.id}`);
 await ctx.close();

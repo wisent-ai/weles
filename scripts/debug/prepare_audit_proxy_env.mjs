@@ -6,6 +6,7 @@ import { chmodSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
+import { listProxies } from '../trajectories/_shared/skarbiec_proxies.mjs';
 
 const providerToken = String(process.argv[2] || process.env.AUDIT_PROXY_PROVIDER || 'packetstream').toLowerCase();
 const targetCc = String(process.env.AUDIT_PROXY_COUNTRY || 'US').toUpperCase();
@@ -19,9 +20,6 @@ function shellQuote(value) {
   return `'${String(value).replace(/'/g, `'\\''`)}'`;
 }
 
-function envPassName(userEnv = '') {
-  return userEnv.replace('USERNAME', 'PASSWORD').replace('API_KEY', 'PASSWORD');
-}
 
 function rowMatches(row) {
   const haystack = `${row.display_name || ''} ${row.proxy_host || ''}`.toLowerCase();
@@ -79,24 +77,24 @@ function sampleExit(proxyUrl) {
   }
 }
 
-async function fetchRows() {
-  const supabaseUrl = process.env.WELES_SUPABASE_URL ?? '';
-  const supabaseKey = process.env.WELES_SUPABASE_SERVICE_ROLE_KEY ?? '';
-  if (!supabaseUrl || !supabaseKey) throw new Error('missing Supabase env');
-  const url = `${supabaseUrl}/rest/v1/service_credentials?category=eq.proxy&proxy_host=not.is.null&select=display_name,proxy_host,proxy_port,api_key_env_var,metadata&order=display_name.asc`;
-  const res = await fetch(url, { headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` } });
-  if (!res.ok) throw new Error(`service_credentials fetch failed: ${res.status}`);
-  return await res.json();
+function fetchRows() {
+  return listProxies().map((proxy) => ({
+    id: proxy.id,
+    display_name: proxy.displayName,
+    proxy_host: proxy.host,
+    proxy_port: proxy.port,
+    username: proxy.username,
+    password: proxy.password,
+    metadata: proxy.metadata,
+  }));
 }
 
-const rows = (await fetchRows()).filter(rowMatches);
+const rows = fetchRows().filter(rowMatches);
 const row = rows[0];
-if (!row) throw new Error(`no proxy service_credentials row matched ${providerToken}`);
-const userEnv = row.api_key_env_var || '';
-const passEnv = envPassName(userEnv);
-const baseUser = process.env[userEnv] || '';
-const basePass = process.env[passEnv] || '';
-if (!baseUser || !basePass) throw new Error(`missing env for ${row.display_name}: ${userEnv}/${passEnv}`);
+if (!row) throw new Error(`no Skarbiec proxy item matched ${providerToken}`);
+const baseUser = row.username || '';
+const basePass = row.password || '';
+if (!baseUser || !basePass) throw new Error(`Skarbiec proxy item is incomplete: ${row.id}`);
 
 const sessId = process.env.AUDIT_PROXY_SESSION || String(Math.floor(Math.random() * 9000000 + 1000000));
 const auth = buildStickyAuth(row, baseUser, basePass, sessId, targetCc);

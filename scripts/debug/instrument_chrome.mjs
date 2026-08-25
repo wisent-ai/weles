@@ -10,17 +10,19 @@
 // can be diffed directly against any weles WELES_INSTRUMENT=1 dump.
 //
 // Usage:
-//   PLATFORM=reddit USERNAME=<dbusername> TARGET_URL=<url> node instrument_chrome.mjs
+//   PLATFORM=reddit USERNAME=<username> TARGET_URL=<url> node instrument_chrome.mjs
 //   PLATFORM=tiktok TARGET_URL=https://www.tiktok.com/signup/... node instrument_chrome.mjs
 //
 // Output: .work/inst/chrome_<platform>_<ts>.json (matches weles format)
 
 import { chromium } from 'playwright';
-import { mkdirSync, existsSync, writeFileSync, readFileSync } from 'node:fs';
+import { mkdirSync, existsSync, writeFileSync, readFileSync, mkdtempSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { humanIdlePause } from '../../dist/human/mouse.js';
 import { runRecordingsDir } from '../../dist/session/run-recordings.js';
+import { findAccount } from '../trajectories/_shared/skarbiec_accounts.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const WELES_ROOT = join(__dirname, '..', '..');
@@ -37,8 +39,6 @@ const TARGET_URL = process.env.TARGET_URL || (
 if (!TARGET_URL) throw new Error('TARGET_URL env required (no default for platform=' + PLATFORM + ')');
 
 const USERNAME = process.env.USERNAME || process.env.REDDIT_USERNAME || '';
-const SUPABASE_URL = process.env.WELES_SUPABASE_URL ?? '';
-const SUPABASE_KEY = process.env.WELES_SUPABASE_SERVICE_ROLE_KEY ?? '';
 
 const CHROME_BIN = process.env.CHROME_BIN || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 if (!existsSync(CHROME_BIN)) throw new Error(`chrome binary missing: ${CHROME_BIN}`);
@@ -61,7 +61,9 @@ writeFileSync(join(OUT_DIR, 'real_chrome_session.json'), JSON.stringify({
   launched_at: new Date().toISOString(),
 }, null, 2));
 
-const userDataDir = `/tmp/inst-chrome-${PLATFORM}-${Date.now()}`;
+const scratchRoot = join(homedir(), '.stado', 'work');
+mkdirSync(scratchRoot, { recursive: true });
+const userDataDir = mkdtempSync(join(scratchRoot, `inst-chrome-${PLATFORM}-`));
 const PROXY_URL = process.env.PROXY_URL || '';
 let proxyOpt;
 if (PROXY_URL) {
@@ -81,11 +83,9 @@ const browser = await chromium.launchPersistentContext(userDataDir, {
 });
 
 if (USERNAME) {
-  if (!SUPABASE_URL || !SUPABASE_KEY) throw new Error('USERNAME set but SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY missing');
-  const acctRes = await fetch(`${SUPABASE_URL}/rest/v1/social_accounts?platform=eq.${PLATFORM}&username=eq.${encodeURIComponent(USERNAME)}&select=metadata`, { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } });
-  const rows = await acctRes.json();
-  if (!rows?.[0]) throw new Error(`no DB row for platform=${PLATFORM} username=${USERNAME}`);
-  const cookies = (rows[0].metadata?.cookies ?? []).filter(c => c?.name && c?.value && c?.domain).map(c => ({ ...c, path: c.path || '/' }));
+  const account = findAccount(PLATFORM, USERNAME);
+  if (!account) throw new Error(`no Skarbiec account for platform=${PLATFORM} username=${USERNAME}`);
+  const cookies = (account.metadata?.cookies ?? []).filter(c => c?.name && c?.value && c?.domain).map(c => ({ ...c, path: c.path || '/' }));
   if (cookies.length) await browser.addCookies(cookies);
   console.log(`[inst-chrome] injected ${cookies.length} cookies`);
 }
