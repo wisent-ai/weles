@@ -12,7 +12,7 @@ concurrency:
 
 jobs:
   export:
-    runs-on: [self-hosted, macOS, stado-publisher]
+    runs-on: [self-hosted, macOS, ARM64, weles-builder]
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
