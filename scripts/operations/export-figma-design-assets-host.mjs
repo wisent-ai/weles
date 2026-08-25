@@ -172,12 +172,36 @@ function collectNodes(document) {
 }
 
 async function renderNodes(fileKey, nodes, destination, format, scale = 1) {
-  return nodes.map((node) => ({
-    ...node,
-    status: 'declared',
-    format,
-    scale,
-  }));
+  const rendered = [];
+  const batches = [];
+  for (let index = 0; index < nodes.length; index += 80) {
+    batches.push(nodes.slice(index, index + 80));
+  }
+  for (const batch of batches) {
+    const ids = batch.map((node) => node.id).join(',');
+    const payload = await figmaJson(
+      `/v1/images/${fileKey}?ids=${encodeURIComponent(ids)}&format=${encodeURIComponent(format)}&scale=${scale}`,
+    );
+    for (const node of batch) {
+      const url = payload.images?.[node.id];
+      if (!url) {
+        rendered.push({ ...node, status: 'unavailable', format, scale });
+        continue;
+      }
+      const extension = format === 'jpg' ? '.jpg' : `.${format}`;
+      const path = join(destination, `${slugify(node.name)}-${node.id.replace(/[^a-z0-9]/gi, '-')}${extension}`);
+      const artifact = await download(url, path);
+      rendered.push({
+        ...node,
+        status: 'downloaded',
+        format,
+        scale,
+        path,
+        ...artifact,
+      });
+    }
+  }
+  return rendered;
 }
 
 try {
