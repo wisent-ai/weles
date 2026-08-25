@@ -1,4 +1,9 @@
-import { acquiredSecretContract, hasWelesAcquiredSecretWriter, hasWelesManagedCredentialReader } from './scoped-service.js';
+import {
+  acquiredSecretContract,
+  hasWelesAcquiredSecretWriter,
+  hasWelesManagedCredentialReader,
+  isWelesAcquiredSourceOrigin,
+} from './scoped-service.js';
 import { enqueueAction, listAccounts } from '../state/skarbiec-records.js';
 
 type SecretDefinition = {

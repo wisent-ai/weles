@@ -38,7 +38,7 @@
 
 import http from 'node:http';
 import { spawn, execFile } from 'node:child_process';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { homedir } from 'node:os';
 import { dirname, resolve, join, extname, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -74,6 +74,48 @@ const ALLOW_UNAUTH = process.env.WELES_API_ALLOW_UNAUTH === '1';
 const ALLOW_RAW_CREDS = (process.env.WELES_API_ALLOW_RAW_CREDS ?? '1') === '1';
 const TIMEOUT_MS = Number(process.env.WELES_API_TIMEOUT_MS || 15 * 60 * 1000);
 const BODY_LIMIT = Number(process.env.WELES_API_BODY_LIMIT_BYTES || 256 * 1024);
+const RUN_DEDUPLICATION_TTL_MS = Number(process.env.WELES_API_RUN_DEDUPLICATION_TTL_MS || 60_000);
+const coalescedRuns = new Map();
+
+function runAdmissionKey(kind, identity) {
+  return `${kind}:${createHash('sha256').update(JSON.stringify(identity)).digest('hex')}`;
+}
+
+function coalesceRun(key, start, metadata = {}) {
+  const now = Date.now();
+  const existing = coalescedRuns.get(key);
+  if (existing && (existing.completedAt === null || now - existing.completedAt <= RUN_DEDUPLICATION_TTL_MS)) {
+    return { entry: existing, joined: true };
+  }
+  const entry = { promise: null, completedAt: null, metadata };
+  entry.promise = Promise.resolve()
+    .then(start)
+    .finally(() => {
+      entry.completedAt = Date.now();
+      const timer = setTimeout(() => {
+        if (coalescedRuns.get(key) === entry) coalescedRuns.delete(key);
+      }, RUN_DEDUPLICATION_TTL_MS);
+      timer.unref();
+    });
+  coalescedRuns.set(key, entry);
+  return { entry, joined: false };
+}
+
+function isCredentialTrajectory(action) {
+  return /(?:^|_)(?:login|reauth|register)$/.test(action);
+}
+
+function signalRunProcess(child, signal) {
+  if (process.platform !== 'win32' && child.pid) {
+    try {
+      process.kill(-child.pid, signal);
+      return;
+    } catch {
+      // The group may already be gone while the direct child still exits.
+    }
+  }
+  try { child.kill(signal); } catch { /* already exited */ }
+}
 const BUILDER_BOOTSTRAP_URL = process.env.WELES_BUILDER_BOOTSTRAP_URL || 'https://duckduckgo.com/';
 // Prepended to the caller's instructions so the agent self-navigates: the
 // caller supplies NO url, only the goal. The agent lands on a neutral
@@ -361,21 +403,44 @@ function runTrajectory(action, params, accountId, timeoutMs) {
       ACTION_LOG_ID: runId,
       ACTION: action,
     };
-    const child = spawn('node', [trajPath], { cwd: REPO, env, stdio: ['ignore', 'pipe', 'pipe'] });
-    let stdout = ''; let stderr = ''; let killed = false;
+    const child = spawn('node', [trajPath], {
+      cwd: REPO,
+      env,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      detached: process.platform !== 'win32',
+    });
+    let stdout = ''; let stderr = ''; let killed = false; let settled = false;
+    const finish = (result) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolveRun(result);
+    };
     const timer = setTimeout(() => {
       killed = true;
-      try { child.kill('SIGTERM'); } catch { /* noop */ }
-      setTimeout(() => { try { child.kill('SIGKILL'); } catch { /* noop */ } }, 8000);
+      signalRunProcess(child, 'SIGTERM');
+      const hardKill = setTimeout(() => signalRunProcess(child, 'SIGKILL'), 8000);
+      hardKill.unref();
     }, timeoutMs);
+    timer.unref();
     child.stdout.on('data', (c) => { stdout += c.toString(); });
     child.stderr.on('data', (c) => { stderr += c.toString(); });
+    child.once('error', (error) => {
+      finish({
+        ok: false,
+        exitCode: -1,
+        action,
+        run_id: runId,
+        result: null,
+        stdout_tail: stdout.slice(-4000),
+        stderr_tail: `${stderr}\n${String(error?.message || error)}`.slice(-2000),
+        timed_out: false,
+      });
+    });
     child.on('close', (code) => {
-      clearTimeout(timer);
       const exitCode = killed ? 137 : (code ?? -1);
-      // Prefer stdout JSON; fall back to the run's result file on disk.
       const result = lastJsonLine(stdout) ?? findResultDoc(runId);
-      resolveRun({
+      finish({
         ok: exitCode === 0,
         exitCode,
         action,
@@ -418,24 +483,43 @@ function runReauth(provider, timeoutMs, account) {
           : {}),
       },
       stdio: ['ignore', 'pipe', 'pipe'],
+      detached: process.platform !== 'win32',
     });
-    let stdout = ''; let stderr = ''; let killed = false;
+    let stdout = ''; let stderr = ''; let killed = false; let settled = false;
+    const finish = (result) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolveRun(result);
+    };
     const timer = setTimeout(() => {
       killed = true;
-      try { child.kill('SIGTERM'); } catch { /* noop */ }
-      setTimeout(() => { try { child.kill('SIGKILL'); } catch { /* noop */ } }, 8000);
+      signalRunProcess(child, 'SIGTERM');
+      const hardKill = setTimeout(() => signalRunProcess(child, 'SIGKILL'), 8000);
+      hardKill.unref();
     }, timeoutMs);
+    timer.unref();
     child.stdout.on('data', (c) => { stdout += c.toString(); });
     child.stderr.on('data', (c) => { stderr += c.toString(); });
+    child.once('error', (error) => {
+      finish({
+        ok: false,
+        exitCode: -1,
+        provider,
+        login_item: account ? account.loginItem : null,
+        display_name: account ? account.displayName : null,
+        run_id: runId,
+        stdout_tail: stdout.slice(-4000),
+        stderr_tail: `${stderr}\n${String(error?.message || error)}`.slice(-2000),
+        timed_out: false,
+      });
+    });
     child.on('close', (code) => {
-      clearTimeout(timer);
       const exitCode = killed ? 137 : (code ?? -1);
-      resolveRun({
+      finish({
         ok: exitCode === 0,
         exitCode,
         provider,
-        // Which account this run was pointed at, so a caller can attribute the
-        // minted credential instead of inferring it.
         login_item: account ? account.loginItem : null,
         display_name: account ? account.displayName : null,
         run_id: runId,
@@ -669,9 +753,13 @@ const server = http.createServer(async (req, res) => {
         }
       }
       const timeoutMs = Number(body.timeout_ms) > 0 ? Number(body.timeout_ms) : TIMEOUT_MS;
-      const out = await runReauth(provider, timeoutMs, account);
+      const admission = coalesceRun(
+        runAdmissionKey('reauth', { provider, login_item: account?.loginItem ?? loginItem }),
+        () => runReauth(provider, timeoutMs, account),
+      );
+      const out = await admission.entry.promise;
       if (out.error === 'no_reauth_trajectory') { json(res, 404, out); return; }
-      json(res, out.ok ? 200 : 502, { ...out, refreshed: out.ok });
+      json(res, out.ok ? 200 : 502, { ...out, refreshed: out.ok, coalesced: admission.joined });
       return;
     }
     // weles-builder: instructions-only. Body = the goal string (text/plain;
@@ -746,38 +834,72 @@ const server = http.createServer(async (req, res) => {
     // software. `detached: true` starts the run, answers with its id, and writes
     // the result where it can be read afterwards.
     if (body.detached === true) {
+      const coalesced = isCredentialTrajectory(action);
+      const admissionKey = coalesced
+        ? runAdmissionKey('trajectory', { action, account_id: accountId, params })
+        : null;
       const detachedId = randomUUID();
       const resultPath = join(RUN_RESULTS_DIR, `${detachedId}.json`);
-      mkdirSync(RUN_RESULTS_DIR, { recursive: true, mode: 0o700 });
-      writeFileSync(
-        resultPath,
-        JSON.stringify({ ok: null, action, status: 'running', started_at: new Date().toISOString() }),
-        { mode: 0o600 },
-      );
-      runTrajectory(action, params, accountId, timeoutMs)
-        .then((result) => {
-          writeFileSync(
-            resultPath,
-            JSON.stringify({ ...result, action, status: 'finished' }),
-            { mode: 0o600 },
-          );
-        })
-        .catch((error) => {
-          writeFileSync(
-            resultPath,
-            JSON.stringify({
-              ok: false,
-              action,
-              status: 'failed',
-              error: String(error && error.message ? error.message : error).slice(0, 300),
-            }),
-            { mode: 0o600 },
-          );
-        });
-      json(res, 202, { ok: true, action, detached_run: detachedId, result_path: resultPath });
+      const admission = admissionKey
+        ? coalesceRun(
+          admissionKey,
+          () => runTrajectory(action, params, accountId, timeoutMs),
+          { detachedId, resultPath },
+        )
+        : {
+          entry: {
+            promise: runTrajectory(action, params, accountId, timeoutMs),
+            metadata: { detachedId, resultPath },
+          },
+          joined: false,
+        };
+      const admittedId = admission.entry.metadata.detachedId;
+      const admittedPath = admission.entry.metadata.resultPath;
+      if (!admission.joined) {
+        mkdirSync(RUN_RESULTS_DIR, { recursive: true, mode: 0o700 });
+        writeFileSync(
+          admittedPath,
+          JSON.stringify({ ok: null, action, status: 'running', started_at: new Date().toISOString() }),
+          { mode: 0o600 },
+        );
+        admission.entry.promise
+          .then((result) => {
+            writeFileSync(
+              admittedPath,
+              JSON.stringify({ ...result, action, status: 'finished', completed_at: new Date().toISOString() }),
+              { mode: 0o600 },
+            );
+          })
+          .catch((error) => {
+            writeFileSync(
+              admittedPath,
+              JSON.stringify({
+                ok: false,
+                action,
+                status: 'failed',
+                error: String(error && error.message ? error.message : error).slice(0, 300),
+                completed_at: new Date().toISOString(),
+              }),
+              { mode: 0o600 },
+            );
+          });
+      }
+      json(res, 202, {
+        ok: true,
+        action,
+        detached_run: admittedId,
+        result_path: admittedPath,
+        coalesced: admission.joined,
+      });
       return;
     }
-    const out = await runTrajectory(action, params, accountId, timeoutMs);
+    const admission = isCredentialTrajectory(action)
+      ? coalesceRun(
+        runAdmissionKey('trajectory', { action, account_id: accountId, params }),
+        () => runTrajectory(action, params, accountId, timeoutMs),
+      )
+      : { entry: { promise: runTrajectory(action, params, accountId, timeoutMs) }, joined: false };
+    const out = await admission.entry.promise;
 
     if (out.error === 'no_trajectory') { json(res, 404, out); return; }
 
@@ -789,12 +911,12 @@ const server = http.createServer(async (req, res) => {
       let ref;
       try { ref = await storeCredential(action, params, creds, out.run_id); }
       catch (e) { json(res, 502, { ok: false, action, run_id: out.run_id, error: `store_failed: ${String(e && e.message ? e.message : e).slice(0, 200)}` }); return; }
-      json(res, 200, { ok: true, action, run_id: out.run_id, credential: ref });
+      json(res, 200, { ok: true, action, run_id: out.run_id, credential: ref, coalesced: admission.joined });
       return;
     }
 
     // raw mode: return unredacted (creds in the response); redact mode: default.
-    json(res, out.ok ? 200 : 502, out, { redact: credsMode !== 'raw' });
+    json(res, out.ok ? 200 : 502, { ...out, coalesced: admission.joined }, { redact: credsMode !== 'raw' });
   } catch (error) {
     json(res, 500, { ok: false, error: String(error && error.message ? error.message : error).slice(0, 300) });
   }
