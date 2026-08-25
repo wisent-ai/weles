@@ -25,6 +25,10 @@ if [ -f "$HOME/.stado/weles-model.env" ]; then
   . "$HOME/.stado/weles-model.env"
 fi
 set +a
+# Secret acquisition authenticates the workload itself. Set the stable identity
+# before the first acquisition rather than only before starting the capability
+# broker below.
+export SKARBIEC_WORKLOAD_ID="${SKARBIEC_WORKLOAD_ID:-weles-credential-worker-local}"
 unset SEMANTIC_SCHOLAR_API_KEY S2_API_KEY || true
 # The vault endpoint is established by reading through it, not by probing a port.
 # It was pinned to 8787, which on the always-on host is held by another Node
@@ -78,6 +82,19 @@ fi
 if [ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ]; then
   SUPABASE_SERVICE_ROLE_KEY="$(acquire_startup_field weles-database-service-role-bootstrap weles-database service_role_key)"
 fi
+for required_secret in \
+  WELES_STADO_OBJECT_API_TOKEN \
+  WELES_STADO_MODEL_ROUTER_TOKEN \
+  WELES_STADO_MODEL_ROUTER_AGENT_ID \
+  WELES_STADO_MODEL_ROUTER_AGENT_AUTH_SECRET \
+  SUPABASE_URL \
+  SUPABASE_SERVICE_ROLE_KEY
+do
+  if [ -z "${!required_secret:-}" ]; then
+    printf 'required startup secret %s is unavailable\n' "$required_secret" >&2
+    exit 1
+  fi
+done
 export SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY
 export WELES_STADO_OBJECT_API_TOKEN WELES_STADO_MODEL_ROUTER_TOKEN
 export WELES_STADO_MODEL_ROUTER_AGENT_ID WELES_STADO_MODEL_ROUTER_AGENT_AUTH_SECRET
@@ -95,7 +112,6 @@ install -m 600 \
   "$WELES_REPO/scripts/worker/deploy/weles-capability-routes.json" \
   "$SKARBIEC_CAPABILITY_ROUTES_FILE"
 export SKARBIEC_CAP_SOCKET="$HOME/.stado/run/weles-api-capability.sock"
-export SKARBIEC_WORKLOAD_ID='weles-credential-worker-local'
 mkdir -p "$(dirname "$SKARBIEC_CAP_SOCKET")"
 export WELES_API_HOST="${WELES_API_HOST:-0.0.0.0}"
 export WELES_API_PORT="${WELES_API_PORT:-8788}"
