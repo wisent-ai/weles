@@ -18,14 +18,15 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build worker bundle
         run: npm ci && npm run build
-      - name: Install exporter payload
-        run: |
-          tar -czf /tmp/weles-figma-exporter.tar.gz \
-            scripts/operations/export-figma-design-assets-host.mjs \
-            scripts/operations/parse-json-file-host.py \
-            scripts/worker/deploy/skarbiec-acquire.mjs \
-            scripts/worker/deploy/skarbiec-acquisition-scopes.conf
-          stado host install-file charless-mac-mini /tmp/weles-figma-exporter.tar.gz weles-figma-exporter.tar.gz --json
-          stado host install-helper charless-mac-mini scripts/operations/run-export-figma-design-assets-host.sh run-export-figma-design-assets-host --json
       - name: Export and publish
-        run: stado host run-helper charless-mac-mini run-export-figma-design-assets-host --json
+        shell: bash
+        run: |
+          set -euo pipefail
+          set -a
+          . "$HOME/.config/weles/worker.env"
+          set +a
+          export WELES_CREDENTIAL_SKARBIEC_URL="${WELES_CREDENTIAL_SKARBIEC_URL:-http://127.0.0.1:8895}"
+          export SKARBIEC_WELES_READER_COMMAND="$GITHUB_WORKSPACE/scripts/worker/deploy/skarbiec-acquire.mjs"
+          export SKARBIEC_WELES_ACQUISITION_SCOPES_FILE="$GITHUB_WORKSPACE/scripts/worker/deploy/skarbiec-acquisition-scopes.conf"
+          export FIGMA_JSON_PARSER="$GITHUB_WORKSPACE/scripts/operations/parse-json-file-host.py"
+          /opt/homebrew/bin/node "$GITHUB_WORKSPACE/scripts/operations/export-figma-design-assets-host.mjs"
