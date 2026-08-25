@@ -5,8 +5,36 @@
 import { spawnSync } from 'node:child_process';
 
 const CAPABILITY_ID_PATTERN = /^[0-9a-f]{64}$/;
-const url = process.env.WELES_DATABASE_URL ?? '';
-const token = process.env.WELES_DATABASE_TOKEN ?? '';
+const home = process.env.HOME ?? '';
+const skarbiecUrl = process.env.WC_SKARBIEC_URL ?? 'http://127.0.0.1:8895';
+const acquisitionScopes = process.env.SKARBIEC_ACQUISITION_SCOPES_FILE
+  ?? `${home}/weles/scripts/worker/deploy/skarbiec-acquisition-scopes.conf`;
+const acquisitionHelper = process.env.SKARBIEC_ACQUIRE_HELPER
+  ?? `${home}/weles/scripts/worker/deploy/skarbiec-acquire.mjs`;
+
+function acquireStartupField(consumer, item, field) {
+  const result = spawnSync(process.execPath, [
+    acquisitionHelper, skarbiecUrl, acquisitionScopes, consumer, item, field,
+  ], {
+    cwd: home,
+    encoding: 'utf8',
+    timeout: 15_000,
+    maxBuffer: 64 * 1024,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  if (result.error || result.status !== 0) {
+    const detail = result.error?.message ?? result.stderr.trim().slice(0, 300) ?? `exit ${result.status}`;
+    throw new Error(`Skarbiec acquisition failed for ${item}/${field}: ${detail}`);
+  }
+  const value = result.stdout.trim();
+  if (!value) throw new Error(`Skarbiec returned an empty ${item}/${field}`);
+  return value;
+}
+
+const url = process.env.WELES_DATABASE_URL
+  ?? acquireStartupField('weles-database-url-bootstrap', 'weles-database', 'url');
+const token = process.env.WELES_DATABASE_TOKEN
+  ?? acquireStartupField('weles-database-service-role-bootstrap', 'weles-database', 'service_role_key');
 const accountId = process.env.APPLE_ACCOUNT_ID ?? '';
 const csrPath = process.env.APPLE_CSR_PATH ?? '';
 const certificatePath = process.env.APPLE_CERTIFICATE_PATH ?? '';
@@ -14,7 +42,6 @@ const executionHost = process.env.APPLE_EXECUTION_HOST ?? '';
 const executionAgent = process.env.APPLE_EXECUTION_AGENT ?? 'weles-worker';
 const reason = process.env.APPLE_AUTH_REASON ?? 'Developer ID Application certificate for Wisent desktop distribution';
 const createdBy = process.env.APPLE_AUTH_CREATED_BY ?? 'lukasz.bartoszcze@wisent.ai';
-const home = process.env.HOME ?? '';
 const skarbiecBin = process.env.SKARBIEC_BIN ?? `${home}/.stado/bin/skarbiec`;
 
 for (const [name, value] of [
