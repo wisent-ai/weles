@@ -176,18 +176,30 @@ export async function reachableRouterUrl(configured) {
   } catch {
     // An unparseable address is left exactly as configured.
   }
-  for (const candidate of candidates) {
+  // Brama binds loopback; the canonical listener is the last resort behind
+  // every stale row and proxy alias.
+  candidates.push('http://127.0.0.1:8080');
+  for (const candidate of [...new Set(candidates)]) {
     try {
-      const answer = await fetch(`${candidate}/health`, {
+      // Probe a route only the model router answers. `/health` is not one: a
+      // stale address can now belong to anyone's site, and on 2026-08-25 it
+      // did — the row's host returned a 404 page for /health, this helper
+      // accepted it, and the runner died one request later with
+      // `list subscriptions -> 404` against a server that never was Brama.
+      // The catalogue refuses an unsigned caller with 401 and serves a
+      // signed one with 200; both answers carry the router's identity.
+      const answer = await fetch(`${candidate}/v1/models`, {
         signal: AbortSignal.timeout(Number('4000')),
       });
-      // Any answer proves a listener; authorization is decided per route later.
-      if (answer.status) {
+      if (answer.status === 401 || answer.status === 200) {
         if (candidate !== configured) {
           console.error(`router ${configured} refused; using ${candidate}`);
         }
         return candidate;
       }
+      console.error(
+        `router ${candidate} answered /v1/models ${answer.status}; not the model router`,
+      );
     } catch (error) {
       console.error(`router ${candidate} unreachable: ${error.cause?.code ?? error.message}`);
     }
