@@ -18,6 +18,7 @@ scripts/lib/cgevent_postpid
 .tmp/
 .jeden/
 .tama-disabled
+.wisent-output/inputs/
 # Database DDL lives only in wisent-ai/wisent-supabase-echo. A local
 # `supabase`-CLI link or init must never reintroduce schema files or
 # .temp/linked-project.json into this repo.

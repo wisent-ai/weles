@@ -2,13 +2,15 @@
 set -euo pipefail
 : "${WISENT_SOURCE_DIR:?WISENT_SOURCE_DIR is required}"; : "${WISENT_OUTPUT_DIR:?WISENT_OUTPUT_DIR is required}"
 : "${WISENT_INPUT_WELES_CLIENT_BUNDLE_DIR:?WISENT_INPUT_WELES_CLIENT_BUNDLE_DIR is required}"; : "${WISENT_INPUT_WISENT_COST_TRACKER_BUNDLE_DIR:?WISENT_INPUT_WISENT_COST_TRACKER_BUNDLE_DIR is required}"
-work="$WISENT_OUTPUT_DIR/work"; source="$work/source"; rm -rf "$work"; mkdir -p "$source" "$WISENT_OUTPUT_DIR/payload" "$WISENT_OUTPUT_DIR/bin" "$WISENT_OUTPUT_DIR/evidence"
+work="$WISENT_OUTPUT_DIR/work"; source="$work/source"; rm -rf "$work"; mkdir -p "$source" "$WISENT_OUTPUT_DIR/payload" "$WISENT_OUTPUT_DIR/bin" "$WISENT_OUTPUT_DIR/evidence" "$WISENT_OUTPUT_DIR/inputs"
 rsync -a --exclude .git --exclude node_modules --exclude dist --exclude .wisent-output --exclude recordings --exclude .work --exclude .tmp --exclude var "$WISENT_SOURCE_DIR/" "$source/"
 export GIT_CONFIG_GLOBAL="$work/gitconfig"
 git config --global url."file://$WISENT_INPUT_WELES_CLIENT_BUNDLE_DIR".insteadOf "ssh://git@github.com/wisent-ai/weles-client.git"
 git config --global --add url."file://$WISENT_INPUT_WELES_CLIENT_BUNDLE_DIR".insteadOf "git@github.com:wisent-ai/weles-client.git"
 git config --global url."file://$WISENT_INPUT_WISENT_COST_TRACKER_BUNDLE_DIR".insteadOf "ssh://git@github.com/wisent-ai/wisent-cost-tracker.git"
 git config --global --add url."file://$WISENT_INPUT_WISENT_COST_TRACKER_BUNDLE_DIR".insteadOf "git@github.com:wisent-ai/wisent-cost-tracker.git"
+install -m 0644 "$WISENT_INPUT_WELES_CLIENT_BUNDLE_DIR" "$WISENT_OUTPUT_DIR/inputs/weles-client.bundle"
+install -m 0644 "$WISENT_INPUT_WISENT_COST_TRACKER_BUNDLE_DIR" "$WISENT_OUTPUT_DIR/inputs/wisent-cost-tracker.bundle"
 cd "$source"
 PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm ci --ignore-scripts
 chmod 0755 node_modules/node-pty/prebuilds/*/spawn-helper
