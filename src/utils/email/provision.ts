@@ -1,4 +1,4 @@
-import { optionalWelesDatabase } from '../weles-database.js';
+import { readDomainRows, writeDomainRows } from './domain.js';
 import { readOptionalWelesServiceSecret } from '../../secrets/scoped-service.js';
 
 /**
@@ -151,26 +151,24 @@ export async function verifyResendDomain(domainId: string, pollSeconds = 20, max
 }
 
 export async function insertRotatorRow(domain: string, resendId: string, chargedUsd: number, status: 'pending' | 'active' = 'active'): Promise<void> {
-  const url = optionalWelesDatabase()?.url ?? '';
-  const key = optionalWelesDatabase()?.token ?? '';
-  if (!url || !key) throw new Error('Missing Supabase creds');
+  const rows = readDomainRows();
   const now = new Date().toISOString();
-  const row = {
+  const next = {
     domain,
     status,
     provider: 'namecheap',
+    signup_count: 0,
+    block_count: 0,
     registered_at: now,
     mx_configured_at: now,
     resend_verified_at: status === 'active' ? now : null,
     metadata: { resend_id: resendId, charged_usd: chargedUsd },
     updated_at: now,
   };
-  const res = await fetch(`${url}/rest/v1/inbound_email_domains`, {
-    method: 'POST',
-    headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', Prefer: 'return=minimal,resolution=merge-duplicates' },
-    body: JSON.stringify(row),
-  });
-  if (!res.ok) throw new Error(`Supabase upsert: ${res.status} ${await res.text()}`);
+  const index = rows.findIndex((row) => row.domain === domain);
+  if (index >= 0) rows[index] = { ...rows[index], ...next };
+  else rows.push(next);
+  writeDomainRows(rows);
 }
 
 export async function provisionDomain(domain: string, opts: { years?: number; region?: string } = {}): Promise<{ chargedUsd: number; resendId: string; verified: boolean }> {

@@ -1,4 +1,4 @@
-import { optionalWelesDatabase } from '../utils/weles-database.js';
+import { readSetting, writeSetting } from '../state/skarbiec-records.js';
 
 /**
  * Cost × capability proxy selection.
@@ -8,11 +8,8 @@ import { optionalWelesDatabase } from '../utils/weles-database.js';
  *
  *   matrix[provider][action] = 'pass' | 'fail' | 'unknown'
  *
- * "Pass" cells are eligible. Among eligible providers we pick the cheapest
- * by $/GB (rate cards). When zero providers pass for a given platform, we
- * raise the circuit breaker via system_settings.platform_routine_paused
- * so generic-routine refuses to enqueue actions until at least one provider
- * comes back.
+ * When zero providers pass for a given platform, we persist the pause in
+ * Skarbiec so generic-routine refuses new actions until a provider recovers.
  *
  * The matrix is populated from real production outcomes:
  *   pass = status=completed AND signal IN healthy-set
@@ -20,16 +17,14 @@ import { optionalWelesDatabase } from '../utils/weles-database.js';
  *                     shadowbanned, proxy_auth_failed}
  *   no update = anything else (script error etc.)
  *
- * Storage: system_settings rows
- *   - proxy_capability_matrix : { matrix: { [provider]: { [action]: { result, at } } } }
- *   - proxy_rate_cards        : { rates:  { [provider]: { per_gb } } }     (defaults below if missing)
- *   - platform_routine_paused : { [platform]: { paused_at, reason } }       (default empty)
+ * Storage: Weles runtime-setting items in Skarbiec:
+ *   - proxy_capability_matrix
+ *   - proxy_rate_cards
+ *   - platform_routine_paused
  */
 
-const DATABASE_URL = optionalWelesDatabase()?.url ?? '';
-const DATABASE_TOKEN = optionalWelesDatabase()?.token ?? '';
 
-// Rate cards. DB row at system_settings.proxy_rate_cards overrides.
+// Defaults are overridden by the proxy_rate_cards Skarbiec setting.
 // Verified 2026-04-29 from each provider's pricing page. PacketStream is
 // pay-as-you-go residential, Pingproxies/IPRoyal residential pools.
 // Update if any provider's published rate changes.
@@ -76,29 +71,13 @@ let _matrixCache: { v: MatrixValue; at: number } | null = null;
 let _ratesCache: { v: RatesValue; at: number } | null = null;
 let _pausedCache: { v: PausedValue; at: number } | null = null;
 
-function headers(): Record<string, string> {
-  return { apikey: DATABASE_TOKEN, Authorization: `Bearer ${DATABASE_TOKEN}` };
-}
 
 async function loadSetting<T>(key: string, fallback: T): Promise<T> {
-  if (!DATABASE_URL || !DATABASE_TOKEN) return fallback;
-  try {
-    const res = await fetch(`${DATABASE_URL}/rest/v1/system_settings?key=eq.${key}&select=value`, { headers: headers() });
-    if (!res.ok) return fallback;
-    const rows = await res.json() as { value: T }[];
-    return rows[0]?.value ?? fallback;
-  } catch { return fallback; }
+  return readSetting<T>(key, fallback);
 }
 
 async function saveSetting<T>(key: string, value: T): Promise<void> {
-  if (!DATABASE_URL || !DATABASE_TOKEN) return;
-  try {
-    await fetch(`${DATABASE_URL}/rest/v1/system_settings?on_conflict=key`, {
-      method: 'POST',
-      headers: { ...headers(), 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates,return=minimal' },
-      body: JSON.stringify({ key, value }),
-    });
-  } catch { /* best-effort */ }
+  writeSetting(key, value);
 }
 
 async function loadMatrix(): Promise<MatrixValue> {
@@ -111,7 +90,7 @@ async function loadMatrix(): Promise<MatrixValue> {
 async function loadRates(): Promise<RatesValue> {
   if (_ratesCache && Date.now() - _ratesCache.at < CACHE_TTL_MS) return _ratesCache.v;
   const v = await loadSetting<RatesValue>('proxy_rate_cards', { rates: {} });
-  // Merge DB overrides on top of defaults so a half-populated DB row still
+  // Merge Skarbiec overrides on top of defaults so a partial setting still
   // returns a complete rate card.
   const rates = { ...DEFAULT_RATES, ...(v.rates ?? {}) };
   const merged = { rates };

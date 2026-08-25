@@ -400,8 +400,8 @@ export class CaptchaSolver {
   /**
    * PerimeterX (HUMAN Security) — used by LinkedIn checkpointV2 / NewYorkTimes /
    * Zillow. Solved via nocaptcha.io wanda/perimeterx/universal which returns the
-   * _px3/_pxde/pxcts cookies that satisfy the challenge. Set NOCAPTCHA_API_KEY
-   * (or service_credentials row 'NoCaptcha'). Returns Playwright-shaped cookies
+   * _px3/_pxde/pxcts cookies that satisfy the challenge. The NoCaptcha key is
+   * acquired from its exact Skarbiec item. Returns Playwright-shaped cookies
    * ready for ctx.addCookies(); caller then re-navigates and proceeds.
    */
   async solvePerimeterX(url: string, userAgent: string, cookies?: Array<{ name: string; value: string; domain?: string }>, proxy?: string): Promise<Array<{ name: string; value: string; domain: string; path: string }> | null> {

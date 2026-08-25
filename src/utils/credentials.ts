@@ -1,11 +1,18 @@
-// Non-secret service metadata remains in Weles DB; all login and API secret
-// material resolves only through exact scoped Skarbiec contracts.
+// Weles credentials and trajectory account state live in Skarbiec. Stado owns
+// action placement and queueing; this module never opens a database connection.
 import {
   readOptionalWelesServiceLogin,
   readOptionalWelesServiceSecret,
   type WelesServiceSecret,
 } from '../secrets/scoped-service.js';
-import { optionalWelesDatabase } from './weles-database.js';
+import {
+  enqueueAction,
+  getAccount,
+  listAccounts,
+  listServiceMetadata,
+  updateAccount,
+} from '../state/skarbiec-records.js';
+
 interface ServiceCredential {
   display_name: string;
   category: string;
@@ -16,31 +23,16 @@ interface ServiceCredential {
   notes: string | null;
 }
 
-let _cache: ServiceCredential[] | null = null;
-let _cacheTime = 0;
-const CACHE_TTL = 60_000;
-
-async function fetchAll(): Promise<ServiceCredential[]> {
-  if (_cache && Date.now() - _cacheTime < CACHE_TTL) return _cache;
-  const database = optionalWelesDatabase();
-  if (!database) {
-    console.log('[credentials] No weles-database launcher configuration');
-    return [];
-  }
-  const databaseUrl = database.url;
-  const databaseToken = database.token;
-  const res = await fetch(
-    `${databaseUrl}/rest/v1/service_credentials?select=display_name,category,proxy_host,proxy_port,api_key_env_var,balance_usd,notes`,
-    { headers: { apikey: databaseToken, Authorization: `Bearer ${databaseToken}` } },
-  );
-  if (!res.ok) { console.log(`[credentials] Fetch failed: ${res.status}`); return []; }
-  _cache = await res.json() as ServiceCredential[];
-  _cacheTime = Date.now();
-  return _cache;
-}
-
 export async function getByCategory(category: string): Promise<ServiceCredential[]> {
-  return (await fetchAll()).filter(c => c.category === category);
+  return listServiceMetadata(category).map((record) => ({
+    display_name: String(record.display_name ?? record.id),
+    category: String(record.category ?? ''),
+    proxy_host: record.host ? String(record.host) : null,
+    proxy_port: record.port ? String(record.port) : null,
+    api_key_env_var: record.api_key_env_var ? String(record.api_key_env_var) : null,
+    balance_usd: typeof record.balance_usd === 'number' ? record.balance_usd : null,
+    notes: record.notes ? String(record.notes) : null,
+  }));
 }
 
 export async function getCaptchaCredentials(): Promise<{ anticaptcha?: string; twocaptcha?: string; capsolver?: string; capmonster?: string; nocaptcha?: string; nopecha?: string }> {
@@ -60,96 +52,57 @@ export async function getEmailApiKey(): Promise<string | undefined> {
   return readOptionalWelesServiceSecret('resendReceiving', 'api_key');
 }
 
-interface SocialAccount {
+export interface SocialAccount {
   id?: string;
   platform: string;
   username: string;
-  metadata: { email?: string; password?: string; skarbiec_credential_id?: string; cookies?: unknown[]; status?: string; proxy?: unknown };
+  metadata: {
+    email?: string;
+    password?: string;
+    skarbiec_credential_id?: string;
+    cookies?: unknown[];
+    status?: string;
+    proxy?: unknown;
+    [key: string]: unknown;
+  };
 }
 
-/**
- * Get an active social account for a platform from the social_accounts table.
- *
- * When the worker spawns a trajectory it sets ACCOUNT_ID in env — that is the
- * specific account the scheduler's claim landed on. Honor it so the trajectory
- * acts on the queued-for account, not whatever `latest active` returns. Falls
- * back to "most recent active" when ACCOUNT_ID is absent (manual invocations).
- */
 export async function getSocialAccount(platform: string): Promise<SocialAccount | null> {
-  const databaseUrl = optionalWelesDatabase()?.url ?? '';
-  const databaseToken = optionalWelesDatabase()?.token ?? '';
-  if (!databaseUrl || !databaseToken) return null;
-  const accountId = process.env.ACCOUNT_ID;
-  if (accountId) {
-    // is_active=true so ACCOUNT_ID rows for deactivated accounts (queued
-    // pre-deactivation) bail immediately rather than running pointlessly.
-    const res = await fetch(
-      `${databaseUrl}/rest/v1/social_accounts?id=eq.${accountId}&platform=eq.${platform}&is_active=eq.true&select=id,platform,username,metadata&limit=1`,
-      { headers: { apikey: databaseToken, Authorization: `Bearer ${databaseToken}` } },
-    );
-    if (!res.ok) return null;
-    const rows = await res.json() as SocialAccount[];
-    return rows[0] ?? null;
-  }
-  // Skip accounts cookies-stale within 24h, unless a newer cookies_minted_at
-  // shows a successful re-login already happened. PostgREST can't compare two
-  // columns within a row, so fetch top N candidates and filter in JS.
+  const requested = process.env.WELES_LOGIN_ITEM || process.env.ACCOUNT_ITEM || '';
+  const candidates = requested
+    ? [getAccount(requested)].filter(Boolean)
+    : listAccounts(platform);
+  const accounts = candidates.filter((account) => account?.platform === platform);
+  if (!accounts.length) return null;
   const cutoffMs = Date.now() - 24 * 3600 * 1000;
-  const res = await fetch(
-    `${databaseUrl}/rest/v1/social_accounts?platform=eq.${platform}&is_active=eq.true&select=id,platform,username,metadata&order=created_at.desc&limit=10`,
-    { headers: { apikey: databaseToken, Authorization: `Bearer ${databaseToken}` } },
-  );
-  if (!res.ok) return null;
-  const rowsAll = await res.json() as SocialAccount[];
-  const rows = rowsAll.filter((r) => {
-    const m = (r as any).metadata ?? {};
-    const staleMs = Date.parse(m.cookies_stale_at ?? '');
-    const mintMs = Date.parse(m.cookies_minted_at ?? '');
-    if (!Number.isFinite(staleMs)) return true;
-    if (staleMs < cutoffMs) return true;
-    if (Number.isFinite(mintMs) && mintMs >= staleMs) return true;
-    return false;
-  });
-  if (rows[0]) return rows[0];
-  // Last-resort: no fresh account exists for this platform. Use the most-recent
-  // one even if marked stale, so the trajectory at least runs and surfaces a
-  // useful checkpoint signal (rather than failing at "no active account").
-  const lastResortRes = await fetch(
-    `${databaseUrl}/rest/v1/social_accounts?platform=eq.${platform}&is_active=eq.true&select=id,platform,username,metadata&order=created_at.desc&limit=1`,
-    { headers: { apikey: databaseToken, Authorization: `Bearer ${databaseToken}` } },
-  );
-  if (!lastResortRes.ok) return null;
-  const lastResortRows = await lastResortRes.json() as SocialAccount[];
-  return lastResortRows[0] ?? null;
+  const fresh = accounts.find((account) => {
+    const staleMs = Date.parse(String(account?.metadata.cookies_stale_at ?? ''));
+    const mintMs = Date.parse(String(account?.metadata.cookies_minted_at ?? ''));
+    return !Number.isFinite(staleMs)
+      || staleMs < cutoffMs
+      || (Number.isFinite(mintMs) && mintMs >= staleMs);
+  }) ?? accounts[0];
+  if (!fresh) return null;
+  return {
+    id: fresh.id,
+    platform: fresh.platform,
+    username: fresh.username,
+    metadata: { ...fresh.metadata, password: fresh.password },
+  };
 }
 
-/** Mark cookies stale + auto-enqueue {platform}_login to refresh, except Apple. */
+/** Mark cookies stale and submit the corresponding login action to Stado. */
 export async function markCookiesStale(accountId: string): Promise<void> {
-  if (!accountId) return;
-  const databaseUrl = optionalWelesDatabase()?.url ?? '';
-  const databaseToken = optionalWelesDatabase()?.token ?? '';
-  if (!databaseUrl || !databaseToken) return;
-  try {
-    const r = await fetch(`${databaseUrl}/rest/v1/social_accounts?id=eq.${accountId}&select=metadata,platform`, { headers: { apikey: databaseToken, Authorization: `Bearer ${databaseToken}` } });
-    if (!r.ok) return;
-    const rows = await r.json() as { metadata: Record<string, unknown> | null; platform?: string }[];
-    const merged = { ...(rows[0]?.metadata ?? {}), cookies_stale_at: new Date().toISOString() };
-    await fetch(`${databaseUrl}/rest/v1/social_accounts?id=eq.${accountId}`, { method: 'PATCH', headers: { apikey: databaseToken, Authorization: `Bearer ${databaseToken}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' }, body: JSON.stringify({ metadata: merged }) });
-    const plat = rows[0]?.platform;
-    if (!plat) return;
-    if (plat.toLowerCase() === 'apple') {
-      console.warn('[credentials] OWNER_ACTION_REQUIRED: Apple cookies are stale; apple_login was not auto-enqueued');
-      return;
-    }
-    const flagRes = await fetch(`${databaseUrl}/rest/v1/system_settings?key=eq.workers_enabled&select=value`, { headers: { apikey: databaseToken, Authorization: `Bearer ${databaseToken}` } });
-    if (flagRes.ok) {
-      const flagRows = await flagRes.json() as Array<{ value?: { enabled?: boolean } }>;
-      if (flagRows[0]?.value?.enabled === false) return;
-    }
-    const since = new Date(Date.now() - 3600_000).toISOString();
-    const recent = await fetch(`${databaseUrl}/rest/v1/account_action_logs?account_id=eq.${accountId}&action=eq.${plat}_login&scheduled_at=gte.${since}&select=id&limit=1`, { headers: { apikey: databaseToken, Authorization: `Bearer ${databaseToken}` } }).then(r => r.ok ? r.json() : []).catch(() => []);
-    if (Array.isArray(recent) && recent.length === 0) await fetch(`${databaseUrl}/rest/v1/account_action_logs`, { method: 'POST', headers: { apikey: databaseToken, Authorization: `Bearer ${databaseToken}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' }, body: JSON.stringify({ account_id: accountId, platform: plat, action: `${plat}_login`, status: 'queued', params: { reason: 'auto-recovery from cookies-stale' }, scheduled_at: new Date().toISOString() }) });
-  } catch { /* noop */ }
+  const account = getAccount(accountId);
+  if (!account) return;
+  updateAccount(accountId, { metadata: { cookies_stale_at: new Date().toISOString() } });
+  if (account.platform.toLowerCase() === 'apple') {
+    console.warn('[credentials] OWNER_ACTION_REQUIRED: Apple cookies are stale; apple_login was not submitted');
+    return;
+  }
+  enqueueAction(`${account.platform}_login`, account.id, {
+    reason: 'auto-recovery from cookies-stale',
+  });
 }
 
 type ServiceLoginContract = {
@@ -221,7 +174,7 @@ export async function platformAdminSessionReady(credentialId: string): Promise<{
   }
 }
 
-export type { ServiceCredential, SocialAccount };
+export type { ServiceCredential };
 
 // resolveAccountSession + AccountSession moved to src/account/session.ts on
 // 2026-05-03 (file-size cap). Re-exported here so callers using the legacy

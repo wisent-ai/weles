@@ -1,11 +1,9 @@
 // Which subscription account a login or reauth run is for.
 //
-// The fleet identifies an account by its vault login item id — the same string
-// Brama carries as the `brama:login:<id>` tag on a subscription bundle — while
-// Weles selects an account by the display name of its service_credentials row,
-// which in turn resolves the scoped vault contract holding that account's
-// secrets (SERVICE_LOGIN_CONTRACTS in ./credentials.ts). Those names are the
-// same fact in two namespaces, so the correspondence is stated once here.
+// The fleet identifies an account by its vault login item id, which Brama
+// carries as the `brama:login:<id>` tag on a subscription bundle. Weles selects
+// the exact scoped Skarbiec contract by display name. The correspondence lives
+// here because both names identify the same account.
 //
 // Without this table a caller cannot ask for an account at all: reauth took the
 // least-recently-updated row matching the provider, so an automatic renewal loop
@@ -19,7 +17,7 @@ export interface LoginAccount {
   /** Vault login item id; the identifier the rest of the fleet uses. */
   loginItem: string;
   provider: LoginAccountProvider;
-  /** service_credentials.display_name of this account's row. */
+  /** Display name resolved by SERVICE_LOGIN_CONTRACTS. */
   displayName: string;
 }
 

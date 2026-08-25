@@ -7,47 +7,33 @@ the counterfactual, the failure is logged but no burn is written.
 
 ## Components
 
-| Where | What |
-|---|---|
-| `content-platform/src/lib/burn-attribution/runner.ts` | The matcher. Reads recent `_register` rows from `account_action_logs`, finds paired rows differing in exactly one factor (domain or exit_ip), and writes the burn against the differing factor. Singleton failures with no pair produce nothing. |
-| `content-platform/src/app/api/(infra)/(jobs)/cron/(automation)/burn-attribution/route.ts` | Cron handler. Vercel schedule `17 */4 * * *` (every four hours). |
-| `weles/scripts/debug/paired/run.mjs` | Test-row queuer CLI. Inserts N paired rows into `account_action_logs` with the right `params.proxy_url_override` + `params.force_email_domain` for the desired isolation experiment. |
-| `weles/scripts/debug/instrument_chrome.mjs` | Human-reference capture. Accepts `PROXY_URL` so the chrome reference runs from the same IP as the weles trajectory under test — required for isolating browser-context delta from IP delta. |
-| `weles/src/worker/dispatch.ts` | Translates `params.force_email_domain` → `FORCE_EMAIL_DOMAIN` env var, consumed by `pickDomain()` so the trajectory respects the pinned domain. |
-| `weles/src/session/wsession.ts` | Probes the actual exit IP via `ctx.request.get(api.ipify.org)` at session start; writes into `result.session.exit_ip`. The matcher uses this field to identify the IP factor. |
+Weles submits every diagnostic trajectory through Stado. Each submission carries
+an exact Skarbiec account item and non-secret experiment parameters; proxy
+credentials resolve only on the selected worker. Run output is retained by
+Stado rather than copied into a Weles database queue.
+
+`scripts/debug/instrument_chrome.mjs` remains the human-reference capture for
+browser-context comparisons. It reads account cookies from Skarbiec and writes
+the capture below the run recording directory or `~/.stado/work`.
 
 ## Data flow
 
-1. CLI inserts N rows. All rows share `account_id` so the worker's per-account in-flight lock serializes them — personas/timings/captcha state vary as little as the worker allows.
-2. Worker claims each row in turn, runs the trajectory, records `result.session.exit_ip` + `result.ban_signal` + `result.artifacts` on completion.
-3. Next cron tick: matcher reads recent failed rows. For each failed row R, finds paired row P with same platform, opposite outcome, exactly one factor differing. Writes burn against the differing factor + stamps `result.attribution` on both rows so the pair isn't re-scored.
-4. Future trajectory's `pickDomain` / `isBurned` reads consume the burn writes.
+1. Submit each comparison action through Stado with the same account item.
+2. Stado serializes and places the jobs; Weles records exit IP and ban signals.
+3. Compare the retained Stado results while changing exactly one of domain or
+   exit IP.
 
-## Writers (the only sources of new burns)
+## Writers
 
-- `system_settings.burned_proxies.hosts[host].platforms` — written by `burn-attribution` cron when `exit_ip` is the differing factor
-- `inbound_email_domains.metadata.platform_blocks[platform]` — written by `burn-attribution` cron when `domain` is the differing factor
+Weles does not write burn state or synthetic diagnostic rows to a database.
+Any consumer that derives burn policy from completed runs must consume the
+Stado result records.
 
-Nothing else writes to these. The legacy `poll.ts:237` singleton-failure burn writer was removed in `weles@3073b3c`. The legacy `_register` burn writer in `poll.ts` was reverted in `weles@4cd2eb4`.
+## Running an isolation comparison
 
-## Running an isolation test
-
-```sh
-# Vary the IP, hold the domain constant — does which IP differ change the outcome?
-node scripts/debug/paired/run.mjs \
-  --platform=linkedin --action=linkedin_register \
-  --vary=ip --hold-domain=mailpost847.com \
-  --pools=decodo,oxylabs-dedicated-isp
-
-# Vary the domain, hold the IP constant — does which domain differ change the outcome?
-node scripts/debug/paired/run.mjs \
-  --platform=linkedin --action=linkedin_register \
-  --vary=domain --hold-ip=isp.decodo.com:10001 \
-  --domains=inboxmail659.com,mailpost847.com,pilatesguild.com
-```
-
-The CLI prints a `tag namespace` like `paired_ip_<ts>` — query
-`account_action_logs` later via `params->>source=like.<tag>%` to see results.
+Submit the real Weles actions through `stado submit` or a checked-in producer
+using `scripts/_shared/stado-action-queue.mjs`, then inspect each exact job with
+`stado status <job-id>` and `stado results <job-id>`.
 
 ## Same-IP chrome reference (browser-context isolation)
 

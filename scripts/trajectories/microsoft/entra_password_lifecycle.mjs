@@ -35,7 +35,7 @@ import { hostname } from 'node:os';
 import { join } from 'node:path';
 
 import { getSocialAccount, resolveAccountSession } from '../../../dist/utils/credentials.js';
-import { optionalWelesDatabase, welesDatabaseHeaders } from '../../../dist/utils/weles-database.js';
+import { updateAccount } from '../../../dist/state/skarbiec-records.js';
 import {
   readWelesManagedCredential,
   writeWelesAcquiredSecret,
@@ -648,10 +648,8 @@ async function submitResetPasswordForm(session, nextPassword) {
   return await visible(page.locator('input[type="password"]')) ? 'rejected' : 'ambiguous';
 }
 
-async function updateAccountReference(account, contract) {
-  if (!account.id) throw new Error('Entra account has no stable id');
-  const database = optionalWelesDatabase();
-  if (!database) throw new Error('Weles database is unavailable for credential-reference commit');
+function updateAccountReference(account, contract) {
+  if (!account.id) throw new Error('Entra account has no stable Skarbiec id');
   const metadata = {
     ...(account.metadata ?? {}),
     skarbiec_credential_id: contract.credentialId,
@@ -662,12 +660,9 @@ async function updateAccountReference(account, contract) {
   delete metadata.password;
   if (contract.skarbiecTenantId) metadata.skarbiec_tenant_id = contract.skarbiecTenantId;
   else delete metadata.skarbiec_tenant_id;
-  const response = await fetch(`${database.url}/rest/v1/social_accounts?id=eq.${encodeURIComponent(account.id)}`, {
-    method: 'PATCH',
-    headers: welesDatabaseHeaders(database, { 'Content-Type': 'application/json', Prefer: 'return=minimal' }),
-    body: JSON.stringify({ metadata }),
-  });
-  if (!response.ok) throw new Error(`Entra account credential-reference update failed: HTTP ${response.status}`);
+  if (!updateAccount(account.id, { metadata })) {
+    throw new Error('Entra account credential-reference update failed');
+  }
 }
 
 // Skarbiec write provenance keeps the exact operation: 'rotate' for a rotation,

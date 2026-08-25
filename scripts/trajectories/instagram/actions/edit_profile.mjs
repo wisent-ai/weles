@@ -15,22 +15,14 @@ import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.
 import { assertAuthed, AuthProbeError } from '../../_shared/auth-probe.mjs';
 import { loadFreshCookieJarOrFail, CookieJarStaleError } from '../../_shared/cookie-freshness.mjs';
 import { loadAvatarFile } from '../../_shared/runner/avatar-loader.mjs';
+import { updateAccountMetadata } from '../../_shared/skarbiec_accounts.mjs';
 
-const DATABASE_URL = process.env.WELES_DATABASE_URL ?? '';
-const DATABASE_TOKEN = process.env.WELES_DATABASE_TOKEN ?? '';
 
 const acct = await getSocialAccount('instagram');
-if (!acct) { console.log('FAIL: no active instagram account in DB'); process.exit(1); }
+if (!acct) { console.log('FAIL: no active instagram account in Skarbiec'); process.exit(1); }
 console.log(`[ig-profile] using account: ${acct.username}`);
-
-// Pull the linked character's persona data. Without a link, there's nothing
-// to write — exit cleanly so the worker doesn't retry.
-const linkRes = await fetch(
-  `${DATABASE_URL}/rest/v1/character_social_accounts?social_account_id=eq.${acct.id}&select=characters(id,name,bio,niche,occupation,home_city,avatar_url,training_images)`,
-  { headers: { apikey: DATABASE_TOKEN, Authorization: `Bearer ${DATABASE_TOKEN}` } },
-).then(r => r.ok ? r.json() : []);
-const character = linkRes?.[0]?.characters;
-if (!character) { console.log(`FAIL: no character linked to instagram/${acct.username}`); process.exit(1); }
+const character = acct.metadata?.character;
+if (!character || typeof character !== 'object') { console.log(`FAIL: no character stored for instagram/${acct.username}`); process.exit(1); }
 console.log(`[ig-profile] character: ${character.name} (niche=${character.niche})`);
 const avatarUrl = character.avatar_url
   || (Array.isArray(character.training_images) ? character.training_images[Number('0')] : null);
@@ -129,15 +121,13 @@ try {
     }
   }
 
-  // Mirror to social_accounts even on no-op so dashboards reflect the
-  // platform-side state regardless of whether this run wrote anything.
-  await fetch(`${DATABASE_URL}/rest/v1/social_accounts?id=eq.${acct.id}`, {
-    method: 'PATCH',
-    headers: { apikey: DATABASE_TOKEN, Authorization: `Bearer ${DATABASE_TOKEN}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
-    body: JSON.stringify({ display_name: targetName || null, profile_url: `https://www.instagram.com/${acct.username}/`, updated_at: new Date().toISOString() }),
-  }).catch(() => {});
+  updateAccountMetadata(acct.id, {
+    display_name: targetName || null,
+    profile_url: `https://www.instagram.com/${acct.username}/`,
+    updated_at: new Date().toISOString(),
+  });
 
-  if (!writes.length) { console.log('PASS: no-op (form values already match character; DB synced)'); process.exit(0); }
+  if (!writes.length) { console.log('PASS: no-op (form values already match character; Skarbiec synced)'); process.exit(0); }
   console.log(`[ig-profile] writes: ${writes.join('; ')}`);
 
   // Submit. Instagram's submit on this page is a <div role="button"> reading

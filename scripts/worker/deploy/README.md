@@ -51,25 +51,10 @@ channels; none of those releases independently changes the running worker.
      --deployment-id 2026-08-04.1 \
      --created-at 2026-08-04T12:00:00Z \
      --source-revision <weles-full-sha> \
-     --worker worker.json --web web.json --database database.json \
-     --client client.json --chromium chromium.json --firefox firefox.json \
-     --compatibility compatibility.json --output deployment.json
+    --worker worker.json --web web.json --client client.json \
+    --chromium chromium.json --firefox firefox.json --output deployment.json
    ```
 
-   `database.json` is not produced from this repository. Its `schemaVersion` is
-   the highest `version` present in the `weles_schema_migrations` ledger after
-   the corresponding pull request has merged in
-   [`wisent-ai/wisent-supabase-echo`](https://github.com/wisent-ai/wisent-supabase-echo),
-   and its `migrationSetSha256` is the SHA-256 of that merged migration file's
-   exact bytes:
-
-   ```bash
-   shasum -a 256 supabase/migrations/<merged-migration>.sql
-   ```
-
-   Take both from the merged commit, never from a local working copy or an
-   unmerged branch: a manifest that claims a schema version the deployed
-   database does not have will fail every worker's startup compatibility check.
 
 3. Publish the exact manifest as a prerelease candidate:
 
@@ -232,8 +217,6 @@ lists, and duplicate rows fail before a proof is signed.
 
 | Process variable | Acquisition consumer | Item | Field |
 | --- | --- | --- | --- |
-| `WELES_DATABASE_URL` | `weles-database-url-bootstrap` | `weles-database` | `url` |
-| `WELES_DATABASE_TOKEN` | `weles-database-service-role-bootstrap` | `weles-database` | `service_role_key` |
 | `WELES_STADO_OBJECT_API_TOKEN` | `weles-object-token-bootstrap` | `weles-object-api` | `token` |
 | `WELES_STADO_MODEL_ROUTER_TOKEN` | `weles-model-router-token-bootstrap` | `weles-model-router` | `token` |
 | `WELES_STADO_MODEL_ROUTER_AGENT_ID` | `weles-model-agent-id-bootstrap` | `weles-model-agent-auth` | `id` |
@@ -246,7 +229,6 @@ lists, and duplicate rows fail before a proof is signed.
 | `TRADING_TOOLS_INGEST_HMAC_SECRET` | `weles-trading-ingest-hmac-bootstrap` | `weles-trading-tools-ingest` | `hmac_secret` |
 | `WELES_OPERATOR_CDP_URL` | `weles-operator-cdp-url-bootstrap` | `weles-operator-cdp` | `url` |
 | `WELES_OPERATOR_CDP_TOKEN` | `weles-operator-cdp-token-bootstrap` | `weles-operator-cdp` | `token` |
-| `WELES_ECHO_API_TOKEN` | `weles-echo-api-token-bootstrap` | `echo-weles-api` | `token` |
 | Keyword-planner `WELES_STADO_MODEL_ROUTER_TOKEN` | `weles-keyword-planner-router-bootstrap` | `weles-keyword-planner-model-router` | `token` |
 | Keyword-planner `WELES_STADO_MODEL_ROUTER_AGENT_ID` | `weles-model-agent-id-bootstrap` | `weles-model-agent-auth` | `id` |
 | Keyword-planner `WELES_STADO_MODEL_ROUTER_AGENT_AUTH_SECRET` | `weles-model-agent-secret-bootstrap` | `weles-model-agent-auth` | `agent_auth_secret` |

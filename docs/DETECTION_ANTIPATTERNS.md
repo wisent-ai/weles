@@ -204,7 +204,9 @@ primitives with the anti-patterns above. Audited 2026-04-24:
 | `meta/facebook_register.mjs` | **no — not routed** | — |
 | `meta/threads_register.mjs` | **no — not routed** | — |
 
-Router (src/worker/poll.ts:54):
+Router at the time of this audit (`src/worker/poll.ts:54`; the verb router now
+lives in `src/worker/dispatch.ts`, where `register` routes github, producthunt,
+microsoft, apple, meta, and the canonical google/youtube Gmail flow explicitly):
 ```ts
 register: (p) => p === 'github' || p === 'youtube'
   ? `scripts/trajectories/${p}/register.mjs`

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://weles.wisent.com/schemas/deployment-manifest.v1.json",
+  "$id": "https://weles.wisent.com/schemas/deployment-manifest.v2.json",
   "title": "Weles immutable deployment manifest",
   "type": "object",
   "additionalProperties": false,
@@ -11,13 +11,11 @@
     "sourceRevision",
     "worker",
     "web",
-    "database",
     "client",
-    "browsers",
-    "compatibility"
+    "browsers"
   ],
   "properties": {
-    "schema": { "const": "weles.deployment.v1" },
+    "schema": { "const": "weles.deployment.v2" },
     "deploymentId": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}\\.[1-9][0-9]*$" },
     "createdAt": { "type": "string", "format": "date-time" },
     "sourceRevision": { "$ref": "#/$defs/gitSha" },
@@ -50,15 +48,6 @@
         }
       }
     },
-    "database": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["schemaVersion", "migrationSetSha256"],
-      "properties": {
-        "schemaVersion": { "type": "integer", "minimum": 1 },
-        "migrationSetSha256": { "$ref": "#/$defs/sha256" }
-      }
-    },
     "client": {
       "type": "object",
       "additionalProperties": false,
@@ -80,15 +69,6 @@
       "properties": {
         "chromium": { "$ref": "#/$defs/browserRelease" },
         "firefox": { "$ref": "#/$defs/browserRelease" }
-      }
-    },
-    "compatibility": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["workerDatabase", "webDatabase"],
-      "properties": {
-        "workerDatabase": { "$ref": "#/$defs/versionRange" },
-        "webDatabase": { "$ref": "#/$defs/versionRange" }
       }
     }
   },

@@ -1,11 +1,7 @@
 /**
  * Recover a locked-out GitHub account: trigger GitHub's password-reset flow,
- * claim the reset link via Resend inbound email, set a new password, persist
- * to social_accounts.metadata.password.
- *
- * Needed because the 2026-04-17 signup batch wrote passwords into metadata
- * that do not authenticate — every github_login for those accounts lands
- * back at /login silently. Manual password reset fixes this per-account.
+ * claim the reset link via Resend inbound email, set a new password, and write
+ * the new credential back to the account's Skarbiec item.
  *
  * Uses direct egress (same reasoning as github_login) unless an override
  * env is set.
@@ -17,6 +13,7 @@ import { writeFileSync, mkdirSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import { join } from 'node:path';
 import { runRecordingsDir } from '../../../../dist/session/run-recordings.js';
+import { updateAccountPassword } from '../../_shared/skarbiec_accounts.mjs';
 
 const acct = await getSocialAccount('github');
 if (!acct) { console.log('FAIL: no active github account'); process.exit(1); }
@@ -124,17 +121,11 @@ try {
   if (!onSuccess && errText) throw new Error(`password change rejected: ${errText}`);
   console.log(`[reset] After change: ${finalUrl}`);
 
-  const url = process.env.WELES_DATABASE_URL ?? '';
-  const key = process.env.WELES_DATABASE_TOKEN ?? '';
-  if (url && key && acct.id) {
-    const merged = { ...acct.metadata, password: newPassword, password_recorded_at: new Date().toISOString(), reset_via: 'github_reset_password' };
-    const res = await fetch(`${url}/rest/v1/social_accounts?id=eq.${acct.id}`, {
-      method: 'PATCH',
-      headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
-      body: JSON.stringify({ metadata: merged }),
-    });
-    if (!res.ok) throw new Error(`metadata patch ${res.status}`);
-  }
+  if (!acct.id) throw new Error('GitHub account has no Skarbiec item id');
+  updateAccountPassword(acct.id, newPassword, {
+    password_recorded_at: new Date().toISOString(),
+    reset_via: 'github_reset_password',
+  });
   console.log(`PASS: password reset for ${acct.username}`);
 } catch (e) {
   const dir = runRecordingsDir('github_reset_password');

@@ -3,7 +3,7 @@
 import { execFileSync } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { createDatabaseCredentials, parseArgs, requiredArg, ringStateRoot, stateRoot } from './lib.mjs';
+import { parseArgs, readReleaseState, requiredArg, ringStateRoot, stateRoot } from './lib.mjs';
 
 const args = parseArgs();
 const host = requiredArg(args, 'host');
@@ -27,30 +27,18 @@ try {
 } catch (error) {
   stado = { error: error instanceof Error ? error.message : String(error) };
 }
-const databaseCredentials = createDatabaseCredentials();
 let heartbeat = null;
 let activeLease = null;
-let databaseError = null;
-let credentials = null;
+let storageError = null;
 if (current?.instanceId) {
-  // Status is diagnostic, so an unreachable Skarbiec degrades the report instead of aborting it,
-  // but the reason is always stated rather than reported as an absent heartbeat.
-  try { credentials = databaseCredentials(); } catch (error) {
-    databaseError = error instanceof Error ? error.message : String(error);
-  }
-}
-if (credentials) {
-  const { baseUrl, serviceKey } = credentials;
-  const key = ring === 'production' ? 'weles_deployment_version' : `weles_deployment_version:${ring}:${current.instanceId}`;
-  const heartbeatResponse = await fetch(`${baseUrl}/rest/v1/system_settings?key=eq.${encodeURIComponent(key)}&select=value`, {
-    headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, Accept: 'application/json' },
-  });
-  if (heartbeatResponse.ok) heartbeat = (await heartbeatResponse.json())[0]?.value ?? null;
-  if (ring === 'production') {
-    const leaseResponse = await fetch(`${baseUrl}/rest/v1/system_settings?key=eq.weles_active_worker_lease&select=value`, {
-      headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, Accept: 'application/json' },
-    });
-    if (leaseResponse.ok) activeLease = (await leaseResponse.json())[0]?.value ?? null;
+  try {
+    const key = ring === 'production'
+      ? 'weles_deployment_version'
+      : `weles_deployment_version_${ring}_${current.instanceId}`;
+    heartbeat = readReleaseState(key);
+    if (ring === 'production') activeLease = readReleaseState('weles_active_worker_lease');
+  } catch (error) {
+    storageError = error instanceof Error ? error.message : String(error);
   }
 }
 process.stdout.write(`${JSON.stringify({
@@ -63,6 +51,6 @@ process.stdout.write(`${JSON.stringify({
   drainTarget: await optionalText(join(ringState, 'drain-target')),
   heartbeat,
   activeLease,
-  databaseError,
+  storageError,
   stado,
 }, null, 2)}\n`);

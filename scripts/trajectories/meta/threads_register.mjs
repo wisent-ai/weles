@@ -1,27 +1,17 @@
 import { WSession } from '../../../dist/session/wsession.js';
 import { injectProviderCookies } from '../../../dist/platforms/_shared/cross_platform_oauth.js';
+import { listAccounts } from '../_shared/skarbiec_accounts.mjs';
 
 async function findUsableInstagramAccount() {
-  const databaseUrl = process.env.WELES_DATABASE_URL ?? '';
-  const databaseToken = process.env.WELES_DATABASE_TOKEN ?? '';
-  if (!databaseUrl || !databaseToken) return null;
-  const res = await fetch(
-    `${databaseUrl}/rest/v1/social_accounts?platform=eq.instagram&is_active=eq.true&select=id,platform,username,metadata&order=created_at.desc&limit=20`,
-    { headers: { apikey: databaseToken, Authorization: `Bearer ${databaseToken}` } },
-  );
-  if (!res.ok) return null;
-  const rows = await res.json();
-  // Prefer accounts that (a) have cookies, (b) aren't marked suspended
-  for (const a of rows) {
-    const hasCookies = Array.isArray(a.metadata?.cookies) && a.metadata.cookies.length >= 2;
-    const suspended = String(a.metadata?.status ?? '').toLowerCase().includes('suspend');
-    if (hasCookies && !suspended) return a;
+  const rows = listAccounts('instagram');
+  for (const account of rows) {
+    const hasCookies = Array.isArray(account.metadata?.cookies) && account.metadata.cookies.length >= 2;
+    const suspended = String(account.metadata?.status ?? '').toLowerCase().includes('suspend');
+    if (hasCookies && !suspended) return account;
   }
-  // Otherwise any with cookies
-  for (const a of rows) {
-    if (Array.isArray(a.metadata?.cookies) && a.metadata.cookies.length >= 2) return a;
-  }
-  return rows[0] ?? null;
+  return rows.find((account) => Array.isArray(account.metadata?.cookies) && account.metadata.cookies.length >= 2)
+    ?? rows[0]
+    ?? null;
 }
 
 const URL = 'https://www.threads.net/login';

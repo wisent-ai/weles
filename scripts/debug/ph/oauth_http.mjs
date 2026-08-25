@@ -9,9 +9,8 @@ import { chromium } from 'playwright';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { humanIdlePause } from '../../../dist/human/mouse.js';
+import { listAccounts } from '../../trajectories/_shared/skarbiec_accounts.mjs';
 
-const supaUrl = process.env.WELES_SUPABASE_URL ?? '';
-const supaKey = process.env.WELES_SUPABASE_SERVICE_ROLE_KEY ?? '';
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36';
 
 async function warmCloudflare() {
@@ -35,10 +34,8 @@ async function warmCloudflare() {
   }
 }
 
-async function getAccount(platform) {
-  const r = await fetch(`${supaUrl}/rest/v1/social_accounts?platform=eq.${platform}&is_active=eq.true&select=username,metadata&order=created_at.desc&limit=1`,
-    { headers: { apikey: supaKey, Authorization: `Bearer ${supaKey}` } }).then(r => r.json());
-  return r?.[0];
+function getAccount(platform) {
+  return listAccounts(platform)[0] ?? null;
 }
 
 function cookieJarFrom(cookies) {

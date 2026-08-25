@@ -21,6 +21,7 @@ import { probeShadowban } from '../../../dist/platforms/reddit/shadowban_probe.j
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
+import { updateAccountMetadata } from '../_shared/skarbiec_accounts.mjs';
 
 const acct = await getSocialAccount('reddit');
 if (!acct) { console.log('FAIL: no active reddit account'); process.exit(1); }
@@ -62,23 +63,10 @@ const outPath = join(dir, `${acct.username}_${new Date().toISOString().replace(/
 writeFileSync(outPath, JSON.stringify({ account_id: acct.id, username: acct.username, real_handle: realHandle, ...result }, null, 2));
 console.log(`[shadowban_check] snapshot -> ${outPath}`);
 
-// Auto-flag in social_accounts when verdict is shadowbanned. Pull from rotation
-// by setting status='shadowbanned' so the routine cron skips this account.
+// Pull shadowbanned accounts from rotation in their Skarbiec record.
 if (result.verdict === 'shadowbanned' && acct.id) {
-  const databaseUrl = process.env.WELES_DATABASE_URL ?? '';
-  const key = process.env.WELES_DATABASE_TOKEN ?? '';
-  if (databaseUrl && key) {
-    try {
-      const r = await fetch(`${databaseUrl}/rest/v1/social_accounts?id=eq.${acct.id}`, {
-        method: 'PATCH',
-        headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
-        body: JSON.stringify({ status: 'shadowbanned' }),
-      });
-      console.log(`[shadowban_check] auto-flag PATCH status=${r.status}`);
-    } catch (e) {
-      console.log(`[shadowban_check] auto-flag err: ${e.message?.slice(0, 120)}`);
-    }
-  }
+  updateAccountMetadata(acct.id, { status: 'shadowbanned' });
+  console.log('[shadowban_check] stored status=shadowbanned in Skarbiec');
 }
 
 // Non-zero exit on indeterminate — gives the routine cron a chance to retry.

@@ -3,10 +3,9 @@
 // Replaces the deleted GCP Cloud Run `wisent-claude-reauth` service.
 // Runs on the mac mini under a launchd LaunchAgent
 // (com.wisent.claude-reauth). Each tick:
-//   1. read config from weles supabase service_credentials
-//      id='claude-reauth-config' (model-router URL, agent id, HMAC
-//      secret, donor user id) — no secrets on disk beyond worker.env's
-//      SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY which bootstrap the read.
+//   1. read config from the Skarbiec item 'claude-reauth-config'
+//      (model-router URL, agent id, HMAC secret, donor user id) — no
+//      secrets on disk; the vault read bootstraps everything.
 //   2. HMAC-probe the model-router claude-code-subscription pool.
 //   3. if healthy: exit 0.
 //   4. if burnt: sign in the named google_sso Claude credential row — named by
@@ -28,11 +27,10 @@ import {
   loadFromSkarbiec,
   persistToSkarbiec,
   reachableRouterUrl,
-  resolveAgentSecret,
   resolveBearer,
-  supabaseConfigured,
+  stadoRouterUrl,
 } from '../_shared/reauth_config.mjs';
-import { chooseCredentialRow } from '../../../dist/utils/login-accounts.js';
+import { LOGIN_ACCOUNTS, chooseCredentialRow } from '../../../dist/utils/login-accounts.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const STATE_DIR = process.env.WELES_STATE_DIR
@@ -41,12 +39,6 @@ const STATE_DIR = process.env.WELES_STATE_DIR
   || join(process.env.HOME || tmpdir(), '.local', 'state', 'weles');
 const LOGIN_MJS = join(HERE, 'login.mjs');
 
-// The Supabase project this was written against is gone; exiting on its absence
-// meant the job died before it could look at the subscription. Skarbiec holds
-// the same configuration row, so read whichever store this host actually has.
-const SUPABASE_URL = process.env.SUPABASE_URL ?? '';
-const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
-const SB_HEADERS = { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` };
 const CONFIG_ITEM = 'claude-reauth-config';
 
 const BURNOUT_SUBSTR = [
@@ -54,71 +46,17 @@ const BURNOUT_SUBSTR = [
   'rate_limit', 'no active',
 ];
 
-async function sbGet(path) {
-  const r = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, { headers: SB_HEADERS });
-  if (!r.ok) throw new Error(`supabase GET ${path} -> ${r.status} ${await r.text()}`);
-  return r.json();
-}
-
-function configFromSkarbiec(reason) {
+function loadConfig() {
   // The identity keys belong to the wisent-app agent rather than to one
   // provider, and this row carries none of them: borrow them from the sibling
   // row instead of keeping a second copy of the same secret anywhere.
   const cfg = loadFromSkarbiec(CONFIG_ITEM, 'codex-reauth-config');
   cfg.bearer = resolveBearer(cfg.agentId);
   console.error(
-    `config from skarbiec ${CONFIG_ITEM} (${reason}); router ${cfg.routerUrl}; `
+    `config from skarbiec ${CONFIG_ITEM}; `
     + `bearer ${cfg.bearer ? 'present' : 'absent'}`,
   );
   return cfg;
-}
-
-async function loadConfig() {
-  if (!supabaseConfigured()) return configFromSkarbiec('no supabase in env');
-  // Configured is not the same as answering. This launcher acquires Supabase
-  // credentials from the vault, so the runner believed the store was there and
-  // died on `fetch failed` against a project that no longer exists. A store
-  // that cannot be read is a store that is absent.
-  let rows;
-  try {
-    rows = await sbGet('service_credentials?id=eq.claude-reauth-config&select=metadata');
-  } catch (error) {
-    return configFromSkarbiec(`supabase unreachable: ${error.message}`);
-  }
-  if (!rows.length || !rows[0].metadata) {
-    return configFromSkarbiec("no supabase row id='claude-reauth-config'");
-  }
-  const m = rows[0].metadata;
-  for (const k of ['MODEL_ROUTER_URL', 'WISENT_APP_AGENT_ID',
-    'WISENT_DONOR_USER_ID']) {
-    if (!m[k]) throw new Error(`claude-reauth-config.metadata missing ${k}`);
-  }
-  const hmacSecret = resolveAgentSecret(m.WISENT_APP_AGENT_ID)
-    || m.WISENT_APP_AGENT_AUTH_SECRET;
-  if (!hmacSecret) {
-    throw new Error(
-      `agent:${m.WISENT_APP_AGENT_ID} and claude-reauth-config.metadata both lack the signing secret`,
-    );
-  }
-  const routerUrl = String(m.MODEL_ROUTER_URL).replace(/\/+$/, '');
-  const bearer = resolveBearer(m.WISENT_APP_AGENT_ID);
-  // Which store answered decides where a refreshed credential goes, so say it.
-  console.error(
-    `config from supabase ${CONFIG_ITEM}; router ${routerUrl}; `
-    + `agent secret ${hmacSecret === m.WISENT_APP_AGENT_AUTH_SECRET ? 'legacy-row' : 'agent-item'}; `
-    + `bearer ${bearer ? 'present' : 'absent'}`,
-  );
-  return {
-    store: 'supabase',
-    item: CONFIG_ITEM,
-    routerUrl,
-    agentId: m.WISENT_APP_AGENT_ID,
-    hmacSecret,
-    bearer,
-    donorUserId: m.WISENT_DONOR_USER_ID,
-    rawMeta: m, // carried through to MERGE expiry back without clobbering keys
-    activeTokenExpiresAt: Number(m.active_token_expires_at) || 0, // unix ms, 0 until first run
-  };
 }
 
 function blobExpiresAt(b) { // expiry (unix ms) from a {"claudeAiOauth":{...}} blob; 0 if unparseable
@@ -127,21 +65,12 @@ function blobExpiresAt(b) { // expiry (unix ms) from a {"claudeAiOauth":{...}} b
 
 // Record the minted token's expiry on the reauth-config row so the NEXT tick
 // refreshes BEFORE it dies. MERGE — a bare {metadata} would clobber config keys.
-async function persistActiveExpiry(cfg, expiresAtMs) {
-  if (cfg.store === 'skarbiec') {
-    try {
-      persistToSkarbiec(cfg, { active_token_expires_at: expiresAtMs });
-    } catch (error) {
-      console.error(`persist expiry to skarbiec failed: ${error.message}`);
-    }
-    return;
+function persistActiveExpiry(cfg, expiresAtMs) {
+  try {
+    persistToSkarbiec(cfg, { active_token_expires_at: expiresAtMs });
+  } catch (error) {
+    console.error(`persist expiry to skarbiec failed: ${error.message}`);
   }
-  const r = await fetch(
-    `${SUPABASE_URL}/rest/v1/service_credentials?id=eq.claude-reauth-config`,
-    { method: 'PATCH',
-      headers: { ...SB_HEADERS, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
-      body: JSON.stringify({ metadata: { ...cfg.rawMeta, active_token_expires_at: expiresAtMs } }) });
-  if (r.status >= 400) console.error(`persist expiry PATCH ${r.status}: ${await r.text()}`);
 }
 
 function sign(cfg, body) {
@@ -206,29 +135,18 @@ function isBurnout(probe) {
 //
 // A caller names the account with the vault login item id (weles-api translates
 // it into CLAUDE_DISPLAY_NAME + WELES_LOGIN_ITEM before spawning this file), and
-// that name selects the row exactly. With no name, the previous behaviour —
-// take the least-recently-updated candidate — is kept ONLY while there is a
-// single candidate: with more than one, picking silently signs into a different
-// Google account and mints a credential for a different subscription, so the
-// tick refuses and names the candidates instead.
-async function pickAccountRow() {
-  // The Max rows are display_name ILIKE 'Claude%' AND login_method=google_sso.
-  // The display_name filter alone is not enough: other rows (e.g. 'Oxylabs
-  // Residential') also carry login_method=google_sso, and the api_key_only
-  // config row 'claude-reauth-config' matches display_name ILIKE 'Claude%'.
-  // Only a fresh browser login needs a donor row, and the row lives in the
-  // store that went away. Say which credential is missing rather than failing
-  // on a fetch to an empty URL.
-  if (!supabaseConfigured()) {
-    throw new Error(
-      'a fresh login needs a donor credential row, and no credential store is '
-      + 'configured on this host',
-    );
-  }
-  const rows = await sbGet(
-    'service_credentials?display_name=ilike.Claude%25'
-    + '&login_method=eq.google_sso'
-    + '&select=id,display_name,updated_at&order=updated_at.asc');
+// that name selects the row exactly. With no name, the sole candidate is taken
+// ONLY while there is a single one: with more than one, picking silently signs
+// into a different Google account and mints a credential for a different
+// subscription, so the tick refuses and names the candidates instead.
+function pickAccountRow() {
+  // The Max accounts are the `claude` entries of the fleet's account registry
+  // (LOGIN_ACCOUNTS): their login material lives in Skarbiec as vault login
+  // items, so there is no metadata row to read and no id to rotate — the
+  // candidates are the registered accounts themselves.
+  const rows = LOGIN_ACCOUNTS
+    .filter((a) => a.provider === 'claude')
+    .map((a) => ({ display_name: a.displayName }));
   // The choice itself is the shared one, so this tick, a queued run and the API
   // refuse and select identically.
   return chooseCredentialRow(rows, {
@@ -238,44 +156,12 @@ async function pickAccountRow() {
   });
 }
 
-// Bumps updated_at unconditionally so a failing row rotates to the
-// back of the LRU and the next-LRU row is tried on the next tick
-// (without this, a permanently broken row keeps getting re-picked
-// forever and the whole pipeline stalls). When errMsg is set, it is
-// also recorded in metadata.last_login_error / .at for diagnosis.
-async function markRowAttempted(rowId, errMsg) {
-  if (!rowId) {
-    // A vault-backed account has no store row to rotate; the named account is the
-    // only candidate anyway, so there is nothing to move to the back of a queue.
-    console.error('mark_row_attempted: vault-backed account has no store row; not recorded');
-    return;
-  }
-  if (!supabaseConfigured()) {
-    console.error('mark_row_attempted: no credential store configured; not recorded');
-    return;
-  }
-  const patch = { updated_at: new Date().toISOString() };
-  if (errMsg) {
-    // MERGE existing metadata first — a bare {metadata} PATCH clobbers
-    // google_totp_secret and every other key (real data-loss bug). If the
-    // read fails, skip the metadata write entirely (fail closed) rather than
-    // risk clobbering with an empty base — only updated_at is touched then.
-    try {
-      const cur = await sbGet(`service_credentials?id=eq.${encodeURIComponent(rowId)}&select=metadata`);
-      const existingMeta = (cur[0] && cur[0].metadata) || {};
-      patch.metadata = { ...existingMeta, last_login_error: String(errMsg).slice(0, 500), last_login_error_at: patch.updated_at };
-    } catch (e) {
-      console.error(`mark_row_attempted: metadata read failed, skipping metadata write to avoid clobber: ${e.message}`);
-    }
-  }
-  const r = await fetch(
-    `${SUPABASE_URL}/rest/v1/service_credentials?id=eq.${encodeURIComponent(rowId)}`,
-    {
-      method: 'PATCH',
-      headers: { ...SB_HEADERS, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
-      body: JSON.stringify(patch),
-    });
-  if (r.status >= 400) console.error(`mark_row_attempted PATCH ${r.status}: ${await r.text()}`);
+// Vault-backed accounts have no LRU store row to bump: the account is named (or
+// is the sole candidate) and its login material lives in Skarbiec, so there is
+// nothing to rotate to the back of a queue and nowhere to record errMsg — the
+// failure still reaches the log through the thrown error itself.
+function markRowAttempted() {
+  console.error('mark_row_attempted: vault-backed account has no store row; not recorded');
 }
 
 async function donate(cfg, blobJson, label) {
@@ -308,7 +194,7 @@ async function deleteSubscription(cfg, subId) {
   return r.status < 400;
 }
 
-// Run login.mjs locally. Inherits env (SUPABASE_*, CHROMIUM_PATH from
+// Run login.mjs locally. Inherits env (CHROMIUM_PATH from
 // worker.env) and pins CLAUDE_LOGIN_PROXY=none — the mac mini's own
 // residential IP is trusted by Google, the entire reason this moved off
 // GCE. login.mjs writes the {"claudeAiOauth":...} blob to stdout.
@@ -415,8 +301,8 @@ function runLogin(displayName) {
 
 async function main() {
   const cfg = await loadConfig();
-  // The row's address is a memory; the listener is the fact.
-  cfg.routerUrl = await reachableRouterUrl(cfg.routerUrl);
+  // Stado says where Brama is; the listener check keeps the answer honest.
+  cfg.routerUrl = await reachableRouterUrl(stadoRouterUrl());
   const poolBefore = await listSubscriptions(cfg);
   const probe = await probePool(cfg);
   const burnt = isBurnout(probe);
@@ -440,7 +326,7 @@ async function main() {
   // Name the account and where the name came from, so a report can say which
   // subscription this credential belongs to instead of inferring it.
   const askedFor = process.env.WELES_LOGIN_ITEM || process.env.CLAUDE_DISPLAY_NAME || 'sole candidate';
-  console.log(`[reauth] ${reason} — reauthing ${row.display_name} for ${askedFor} (updated ${row.updated_at})`);
+  console.log(`[reauth] ${reason} — reauthing ${row.display_name} for ${askedFor}`);
   let blob;
   // Google's "browser may not be secure" block is intermittent per launch
   // (fingerprint rolls each launch). Retry on BROWSER_NOT_SECURE so a tick
@@ -455,11 +341,9 @@ async function main() {
       const blocked = /BROWSER_NOT_SECURE/.test(msg);
       console.log(`[reauth] login attempt ${attempt}/${maxTries} failed${blocked ? ' (browser-not-secure)' : ''}`);
       if (blocked && attempt < maxTries) continue;
-      // ALWAYS mark the row attempted (with the error) so a row that
-      // permanently can't authenticate rotates to the back of the LRU
-      // — otherwise the picker re-selects the same broken row forever
-      // and the donation pipeline stalls across the whole fleet.
-      await markRowAttempted(row.id, msg);
+      // Still say the attempt happened: a vault-backed account has no store
+      // row to record it on, and the note keeps that fact visible in the log.
+      markRowAttempted();
       throw e;
     }
   }
@@ -468,7 +352,7 @@ async function main() {
   const donateLabel = `claude-reauth ${account} ${new Date().toISOString()}`;
   const newSub = await donate(cfg, blob, donateLabel);
   console.log(`[reauth] donated new sub id=${newSub.id ?? '?'}`);
-  await markRowAttempted(row.id);
+  markRowAttempted();
   const newExp = blobExpiresAt(blob);
   if (newExp > 0) await persistActiveExpiry(cfg, newExp);
 

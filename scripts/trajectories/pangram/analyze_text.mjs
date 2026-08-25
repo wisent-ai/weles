@@ -18,6 +18,7 @@ import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
 import { humanClickLocator, humanMove } from '../../../dist/human/mouse.js';
 import { humanType } from '../../../dist/human/keyboard.js';
 import { CookieJarStaleError, loadFreshCookieJarOrFail } from '../_shared/cookie-freshness.mjs';
+import { listAccounts } from '../_shared/skarbiec_accounts.mjs';
 
 const LABEL = 'pangram_analyze_text';
 const RESULT_FILE = 'pangram_result.json';
@@ -56,12 +57,6 @@ function writeJson(name, value) {
   writeFileSync(join(dir, name), JSON.stringify(value, null, 2));
 }
 
-function supabaseEnv() {
-  const url = process.env.WELES_DATABASE_URL ?? '';
-  const key = process.env.WELES_DATABASE_TOKEN ?? '';
-  if (!url || !key) return null;
-  return { url: url.replace(/\/+$/, ''), key };
-}
 
 function todayKey() {
   return new Date().toISOString().slice(0, 10);
@@ -270,18 +265,17 @@ function domainSummary(accounts) {
 }
 
 async function fetchActivePangramAccounts() {
-  const env = supabaseEnv();
-  if (!env) return { accounts: [], reason: 'missing_supabase_env' };
-  const headers = { apikey: env.key, Authorization: `Bearer ${env.key}` };
-  const selected = 'id,platform,username,metadata,created_at';
+  const accounts = listAccounts('pangram');
   const accountId = process.env.ACCOUNT_ID?.trim();
-  const query = accountId
-    ? `id=eq.${encodeURIComponent(accountId)}&platform=eq.pangram&is_active=eq.true&select=${selected}&limit=1`
-    : `platform=eq.pangram&is_active=eq.true&select=${selected}&order=created_at.asc&limit=${encodeURIComponent(process.env.PANGRAM_ACCOUNT_POOL_LIMIT || '100')}`;
-  const res = await fetch(`${env.url}/rest/v1/social_accounts?${query}`, { headers });
-  if (!res.ok) return { accounts: [], reason: `supabase_${res.status}` };
-  const accounts = await res.json().catch(() => []);
-  return { accounts: Array.isArray(accounts) ? accounts : [], reason: accounts?.length ? null : 'no_account' };
+  const selected = accountId ? accounts.filter((account) => account.id === accountId) : accounts;
+  const limit = Math.max(1, Number(process.env.PANGRAM_ACCOUNT_POOL_LIMIT || '100'));
+  return {
+    accounts: selected.slice(0, limit).map((account) => ({
+      ...account,
+      created_at: account.document.context?.created_at ?? null,
+    })),
+    reason: selected.length ? null : 'no_account',
+  };
 }
 
 function sortCandidatesByUsage(accounts, ledger) {

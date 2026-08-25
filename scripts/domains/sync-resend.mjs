@@ -1,55 +1,33 @@
 #!/usr/bin/env node
-// Sync receiving-enabled domains from Resend into the rotator table.
-// Inserts as status=pending so you can review + verify selectively.
+// Sync receiving-enabled Resend domains into Weles state in Skarbiec.
 import { readScopedSecret } from '../_shared/scoped-secrets.mjs';
+const { readDomainRows, writeDomainRows } = await import('../../dist/utils/email/domain.js');
 
 const resendKey = readScopedSecret('resendManagement', 'api_key');
-const sbUrl = process.env.WELES_DATABASE_URL;
-const sbKey = process.env.WELES_DATABASE_TOKEN;
-if (!resendKey || !sbUrl || !sbKey) { console.error('Missing exact Resend management grant or Weles database configuration'); process.exit(Number('1')); }
-
-const res = await fetch('https://api.resend.com/domains', { headers: { Authorization: `Bearer ${resendKey}` } });
-if (!res.ok) { console.error(`Resend list failed: ${res.status}`); process.exit(1); }
-const { data: domains = [] } = await res.json();
-
-const receiving = domains.filter(d => d.capabilities?.receiving === 'enabled' && d.status === 'verified');
-console.log(`Resend has ${domains.length} total domains, ${receiving.length} receiving-enabled and verified`);
-
-const hdr = { apikey: sbKey, Authorization: `Bearer ${sbKey}`, 'Content-Type': 'application/json' };
-const base = `${sbUrl}/rest/v1/inbound_email_domains`;
-let added = 0, existing = 0, failed = 0;
-
-for (const d of receiving) {
-  const check = await fetch(`${base}?domain=eq.${encodeURIComponent(d.name)}&select=domain,status`, { headers: hdr });
-  const rows = await check.json();
-  if (rows.length) {
-    console.log(`  ${d.name.padEnd(40)} (already in table, status=${rows[0].status})`);
-    existing++;
-    continue;
-  }
-  const now = new Date().toISOString();
-  const body = {
-    domain: d.name,
+if (!resendKey) throw new Error('Missing exact Resend management grant');
+const response = await fetch('https://api.resend.com/domains', { headers: { Authorization: `Bearer ${resendKey}` } });
+if (!response.ok) throw new Error(`Resend list failed: ${response.status}`);
+const { data: domains = [] } = await response.json();
+const receiving = domains.filter((domain) => domain.capabilities?.receiving === 'enabled' && domain.status === 'verified');
+const rows = readDomainRows();
+let added = 0;
+let existing = 0;
+for (const domain of receiving) {
+  if (rows.some((row) => row.domain === domain.name)) { existing += 1; continue; }
+  const timestamp = new Date().toISOString();
+  rows.push({
+    domain: domain.name,
     status: 'pending',
     provider: 'resend',
-    mx_configured_at: now,
-    resend_verified_at: now,
-    registered_at: d.created_at,
-    metadata: { resend_id: d.id, region: d.region },
-    updated_at: now,
-  };
-  const ins = await fetch(base, {
-    method: 'POST',
-    headers: { ...hdr, Prefer: 'return=minimal' },
-    body: JSON.stringify(body),
+    signup_count: 0,
+    block_count: 0,
+    mx_configured_at: timestamp,
+    resend_verified_at: timestamp,
+    registered_at: domain.created_at,
+    metadata: { resend_id: domain.id, region: domain.region },
+    updated_at: timestamp,
   });
-  if (ins.ok) {
-    console.log(`  ${d.name.padEnd(40)} added (status=pending) — run "verify ${d.name}" to activate`);
-    added++;
-  } else {
-    console.log(`  ${d.name.padEnd(40)} FAILED: ${ins.status} ${await ins.text()}`);
-    failed++;
-  }
+  added += 1;
 }
-
-console.log(`\nSummary: ${added} added, ${existing} already present, ${failed} failed`);
+writeDomainRows(rows);
+console.log(`Resend domains synchronized: ${added} added, ${existing} already present`);

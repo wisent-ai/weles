@@ -25,7 +25,7 @@
 //   WELES_API_TIMEOUT_MS  default 900000
 //   WELES_API_BODY_LIMIT_BYTES default 262144
 //   WELES_API_ALLOW_RAW_CREDS  default "1"
-//   plus the usual worker env (SUPABASE_URL/KEY, CHROMIUM_PATH, proxy creds, ...)
+//   plus the worker browser, proxy, Stado, and Skarbiec configuration
 //
 // Routes:
 //   GET  /healthz                         -> liveness + config summary

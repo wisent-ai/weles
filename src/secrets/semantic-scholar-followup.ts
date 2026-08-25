@@ -1,8 +1,5 @@
-import { optionalWelesDatabase, requireWelesDatabase, welesDatabaseHeaders } from '../utils/weles-database.js';
+import { enqueueAction, readRunRecord, readSetting, writeSetting } from '../state/skarbiec-records.js';
 import { acquiredSecretContract, readOptionalWelesServiceSecret, writeWelesAcquiredSecret } from './scoped-service.js';
-const ONE = 'x'.length;
-const TWENTY = 'xxxxxxxxxxxxxxxxxxxx'.length;
-const FIFTY = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'.length;
 function resendReceivingKey(): string | undefined {
   return readOptionalWelesServiceSecret('resendReceiving', 'api_key');
 }
@@ -64,13 +61,6 @@ const FOLLOWUP_PLATFORM = 'semanticscholar';
 const VALIDATION_URL = 'https://api.semanticscholar.org/graph/v1/paper/search?query=test&limit=1&fields=title';
 
 
-function databaseUrl(): string {
-  return requireWelesDatabase().url;
-}
-
-function headers(): Record<string, string> {
-  return welesDatabaseHeaders(requireWelesDatabase(), { 'Content-Type': 'application/json' });
-}
 
 function record(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
@@ -110,34 +100,12 @@ function identityEmail(row: ActionLogRow): string {
     .find(Boolean) ?? '';
 }
 
-async function restGet<T>(pathAndQuery: string): Promise<T> {
-  const response = await fetch(`${databaseUrl()}/rest/v1/${pathAndQuery}`, { headers: headers() });
-  if (!response.ok) throw new Error(`Weles database GET failed HTTP ${response.status}`);
-  return await response.json() as T;
-}
-
-
-async function restPost<T>(tableAndQuery: string, body: Record<string, unknown>): Promise<T> {
-  const response = await fetch(`${databaseUrl()}/rest/v1/${tableAndQuery}`, {
-    method: 'POST',
-    headers: { ...headers(), Prefer: 'return=representation' },
-    body: JSON.stringify(body),
-  });
-  if (!response.ok) throw new Error(`Weles database POST failed HTTP ${response.status}`);
-  return await response.json() as T;
-}
-
 async function loadSourceSubmission(sourceActionLogId: string | undefined, tenantId: string | null): Promise<ActionLogRow | null> {
-  const tenantFilter = tenantId
-    ? `tenant_id=eq.${encodeURIComponent(tenantId)}`
-    : 'tenant_id=is.null';
-  if (sourceActionLogId) {
-    const rows = await restGet<ActionLogRow[]>(`account_action_logs?id=eq.${encodeURIComponent(sourceActionLogId)}&${tenantFilter}&select=id,status,started_at,completed_at,tenant_id,params,result&limit=${ONE}`);
-    const row = rows[0];
-    return row && isSemanticSubmission(row) ? row : null;
-  }
-  const rows = await restGet<ActionLogRow[]>(`account_action_logs?action=eq.generic_keeper_task&platform=eq.generic&status=eq.completed&${tenantFilter}&select=id,status,started_at,completed_at,tenant_id,params,result&order=completed_at.desc&limit=${TWENTY}`);
-  return rows.find(isSemanticSubmission) ?? null;
+  if (!sourceActionLogId) return null;
+  const row = readRunRecord<ActionLogRow>(sourceActionLogId);
+  if (!row) return null;
+  const normalized = { ...row, id: row.id || sourceActionLogId };
+  return isSemanticSubmission(normalized) && (normalized.tenant_id ?? null) === tenantId ? normalized : null;
 }
 
 function messageRecipients(message: ResendMessage): string[] {
@@ -249,39 +217,21 @@ async function scanMailboxForValidKey(source: ActionLogRow): Promise<{ stored: t
   }
   return { stored: false, emailsScanned, matchedEmails };
 }
-async function queuedFollowupId(sourceActionLogId: string, tenantId?: string | null): Promise<string | null> {
-  const currentActionLogId = process.env.ACTION_LOG_ID?.trim() ?? '';
-  const tenantFilter = tenantId
-    ? `&tenant_id=eq.${encodeURIComponent(tenantId)}`
-    : '&tenant_id=is.null';
-  const rows = await restGet<ActionLogRow[]>(`account_action_logs?action=eq.${FOLLOWUP_ACTION}&status=in.(queued,running)&select=id,tenant_id,params&limit=${FIFTY}${tenantFilter}`);
-  return rows.find((row) => row.id !== currentActionLogId
-    && text(record(row.params).source_action_log_id) === sourceActionLogId)?.id ?? null;
-}
-
-export async function queueSemanticScholarFollowup(sourceActionLogId: string, delayMs = ''.length, attempt = ''.length, tenantId?: string | null): Promise<{ queued: boolean; action_log_id: string; scheduled_at?: string }> {
-  const existing = await queuedFollowupId(sourceActionLogId, tenantId);
+export async function queueSemanticScholarFollowup(sourceActionLogId: string, delayMs = 0, attempt = 0, tenantId?: string | null): Promise<{ queued: boolean; action_log_id: string; scheduled_at?: string }> {
+  const key = `semantic_followup_${sourceActionLogId}_${attempt}`.replace(/[^a-z0-9_]/gi, '_').toLowerCase();
+  const existing = readSetting<string | null>(key, null);
   if (existing) return { queued: false, action_log_id: existing };
   const scheduledAt = new Date(Date.now() + delayMs).toISOString();
-  const rows = await restPost<Array<{ id?: string | null }>>('account_action_logs?select=id', {
-    action: FOLLOWUP_ACTION,
-    platform: FOLLOWUP_PLATFORM,
-    status: 'queued',
-    scheduled_at: scheduledAt,
-    priority: 25,
-    queued_by: 'secret-acquisition-followup',
+  const jobId = enqueueAction(FOLLOWUP_ACTION, '', {
+    source_action_log_id: sourceActionLogId,
+    attempt,
+    delay_ms: delayMs,
+    secret: SEMANTIC_SECRET,
+    purpose: 'lem',
     tenant_id: tenantId ?? null,
-    params: {
-      source_action_log_id: sourceActionLogId,
-      attempt,
-      secret: SEMANTIC_SECRET,
-      purpose: 'lem',
-      tenant_id: tenantId ?? null,
-    },
   });
-  const actionLogId = rows[0]?.id;
-  if (!actionLogId) throw new Error('Semantic Scholar follow-up insert did not return an action log id');
-  return { queued: true, action_log_id: actionLogId, scheduled_at: scheduledAt };
+  writeSetting(key, jobId);
+  return { queued: true, action_log_id: jobId, scheduled_at: scheduledAt };
 }
 
 function nextBackoffMs(attempt: number): number {
@@ -290,9 +240,6 @@ function nextBackoffMs(attempt: number): number {
 }
 
 export async function runSemanticScholarKeyFollowup(sourceActionLogId?: string, attemptArg?: number, tenantId: string | null = null): Promise<ScannerResult> {
-  if (!optionalWelesDatabase()) {
-    return { status: 'needs_configuration', validated: false, reason: 'missing weles-database launcher configuration', next_scheduled_at: null };
-  }
   if (!resendReceivingKey()) {
     return { status: 'needs_configuration', validated: false, reason: 'missing exact Weles Resend receiving grant', next_scheduled_at: null };
   }
@@ -320,6 +267,6 @@ export async function runSemanticScholarKeyFollowup(sourceActionLogId?: string, 
   if (attempt + 1 >= maxAttempts) {
     return { status: 'expired', validated: false, reason: 'no Semantic Scholar key email found before follow-up expiry', source_action_log_id: source.id, emails_scanned: scan.emailsScanned, matched_emails: scan.matchedEmails, next_scheduled_at: null };
   }
-  const queued = await queueSemanticScholarFollowup(source.id, nextBackoffMs(attempt), attempt + ONE, tenantId);
+  const queued = await queueSemanticScholarFollowup(source.id, nextBackoffMs(attempt), attempt + 1, tenantId);
   return { status: 'pending', validated: false, reason: 'no Semantic Scholar key email found yet', source_action_log_id: source.id, next_action_log_id: queued.action_log_id, emails_scanned: scan.emailsScanned, matched_emails: scan.matchedEmails, next_scheduled_at: queued.scheduled_at ?? null };
 }

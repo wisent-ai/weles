@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 
+import { spawnSync } from 'node:child_process';
 import { request as httpRequest } from 'node:http';
 import { lstatSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
+import { join } from 'node:path';
 
 const WIRE_VERSION = 'skarbiec.credential-operation.v3';
 const ENTRA_PROVIDER = 'microsoft_entra';
@@ -40,7 +42,7 @@ const APPROVAL_ID = /^[A-Za-z\d._-]{1,64}$/;
 const RESUME_TOKEN = /^[A-Za-z\d._-]{1,128}$/;
 const ISO_TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?Z$/;
 const HEX_64 = /^[a-f\d]{64}$/i;
-const ACTION_LOG_ID = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i;
+const ACTION_LOG_ID = /^[\da-f]{8}$/i;
 
 const chunks = [];
 let received = Number('0');
@@ -194,14 +196,6 @@ const accountEmail = typeof request.account_email === 'string'
   ? request.account_email.trim().toLowerCase()
   : '';
 
-const databaseUrl = process.env.WELES_DATABASE_URL?.replace(/\/+$/, '') ?? '';
-const databaseToken = process.env.WELES_DATABASE_TOKEN ?? '';
-if (!databaseUrl || !databaseToken) throw new Error('Weles database configuration is required');
-const databaseHeaders = {
-  apikey: databaseToken,
-  Authorization: `Bearer ${databaseToken}`,
-  'Content-Type': 'application/json',
-};
 
 function safeOwnedFile(path, label) {
   const metadata = lstatSync(path);
@@ -374,31 +368,19 @@ if (request.mode === 'submit' || request.mode === 'resume') {
     throw new Error(`missing exact ${isEntra ? 'Entra' : 'Microsoft'} credential reader scope`);
   }
 
-  const accountsResponse = await fetch(
-    `${databaseUrl}/rest/v1/social_accounts?platform=eq.microsoft&select=id,username,is_active,metadata&limit=500`,
-    { headers: databaseHeaders, signal: AbortSignal.timeout(Number('30000')) },
-  );
-  if (!accountsResponse.ok) throw new Error(`Microsoft account lookup failed: HTTP ${accountsResponse.status}`);
-  const matches = (await accountsResponse.json()).filter((row) => {
-    const metadata = objectOrEmpty(row?.metadata);
-    const email = String(metadata.email ?? row.username ?? '').trim().toLowerCase();
-    if (isMicrosoft) {
-      return row.is_active === true
-        && email === accountEmail
-        && metadata.skarbiec_credential_id === request.credential_id
-        && (metadata.skarbiec_tenant_id ?? null) === null;
-    }
-    return row.is_active === true
-      && String(metadata.entra_upn ?? '').trim().toLowerCase() === accountUpn
-      && (email === accountUpn || (Boolean(accountEmail) && email === accountEmail))
-      && String(metadata.entra_tenant_id ?? '').trim().toLowerCase() === tenantId
-      && String(metadata.entra_principal_object_id ?? '').trim().toLowerCase() === principalObjectId
-      && metadata.skarbiec_credential_id === request.credential_id
-      && (metadata.skarbiec_tenant_id ?? null) === null;
+  const skarbiec = process.env.SKARBIEC_BIN || join(homedir(), '.stado', 'bin', 'skarbiec');
+  const accountRead = spawnSync(skarbiec, ['get', request.credential_id], {
+    encoding: 'utf8',
+    env: process.env,
   });
-  if (matches.length !== Number('1') || !matches[Number('0')]?.id) {
-    throw new Error(`no account row is uniquely bound to the requested ${isEntra ? 'Entra' : 'Microsoft'} identity and managed credential`);
+  if (accountRead.error || accountRead.status !== 0) throw new Error('managed Microsoft credential is absent from Skarbiec');
+  const accountDocument = JSON.parse(accountRead.stdout);
+  const storedEmail = String(accountDocument.fields?.username ?? '').trim().toLowerCase();
+  if ((isMicrosoft && storedEmail !== accountEmail)
+      || (isEntra && storedEmail !== accountUpn && storedEmail !== accountEmail)) {
+    throw new Error(`Skarbiec credential is not bound to the requested ${isEntra ? 'Entra' : 'Microsoft'} identity`);
   }
+  const accountItem = `weles-microsoft-${storedEmail.replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}-account`;
   const constraints = isEntra
     ? {
         secret: request.credential_id,
@@ -452,41 +434,31 @@ if (request.mode === 'submit' || request.mode === 'resume') {
       : request.operation === 'adopt'
         ? 'microsoft_entra_adopt_password'
         : 'microsoft_entra_reset_password';
-  const insertResponse = await fetch(`${databaseUrl}/rest/v1/account_action_logs?select=id`, {
-    method: 'POST',
-    headers: { ...databaseHeaders, Prefer: 'return=representation' },
-    body: JSON.stringify({
-      account_id: matches[Number('0')].id,
-      action,
-      platform: 'microsoft',
-      status: 'queued',
-      scheduled_at: new Date().toISOString(),
-      priority: Number('1000'),
-      params: {
-        url: isEntra ? ENTRA_ORIGIN : MICROSOFT_ORIGIN,
-        objective: request.operation === 'adopt'
-          ? isEntra
-            ? 'adopt the exact Microsoft Entra directory password already staged in Skarbiec: prove it with a fresh sign-in and the full tenant, principal object id, and UPN assertion, and never change it in the directory.'
-            : 'adopt the exact Microsoft account password already staged in Skarbiec: prove it with a fresh sign-in and never change it at the provider.'
-          : isEntra
-            ? `${request.operation} the exact Microsoft Entra directory password and commit it only after the signed-in tenant, principal object id, and UPN are confirmed by a fresh login.`
-            : `${request.operation} the exact Microsoft account password and commit it only after a fresh login with the resulting password succeeds.`,
-        flow_name: isEntra ? FLOW_NAME : MICROSOFT_FLOW_NAME,
-        execution_mode: 'keeper_first',
-        proxy: 'none',
-        headless: false,
-        auto_promote_trajectory: true,
-        constraints,
-        env: {},
-      },
-      tenant_id: null,
-      queued_by: 'skarbiec-credential-operation',
-    }),
-    signal: AbortSignal.timeout(Number('30000')),
+  const payload = Buffer.from(JSON.stringify({ action, accountItem, params: {
+    url: isEntra ? ENTRA_ORIGIN : MICROSOFT_ORIGIN,
+    objective: request.operation === 'adopt'
+      ? isEntra
+        ? 'adopt the exact Microsoft Entra directory password already staged in Skarbiec: prove it with a fresh sign-in and the full tenant, principal object id, and UPN assertion, and never change it in the directory.'
+        : 'adopt the exact Microsoft account password already staged in Skarbiec: prove it with a fresh sign-in and never change it at the provider.'
+      : isEntra
+        ? `${request.operation} the exact Microsoft Entra directory password and commit it only after the signed-in tenant, principal object id, and UPN are confirmed by a fresh login.`
+        : `${request.operation} the exact Microsoft account password and commit it only after a fresh login with the resulting password succeeds.`,
+    flow_name: isEntra ? FLOW_NAME : MICROSOFT_FLOW_NAME,
+    execution_mode: 'keeper_first',
+    proxy: 'none',
+    headless: false,
+    auto_promote_trajectory: true,
+    constraints,
+  } }), 'utf8').toString('base64url');
+  const runner = join(homedir(), 'weles', 'scripts', 'worker', 'stado-action-runner.mjs');
+  const stado = process.env.WELES_STADO_BIN || join(homedir(), '.stado', 'bin', 'stado');
+  const queued = spawnSync(stado, ['submit', `${process.execPath} ${runner} ${payload}`, '--priority', '1000'], {
+    encoding: 'utf8',
+    env: process.env,
   });
-  if (!insertResponse.ok) throw new Error(`Microsoft credential queue failed: HTTP ${insertResponse.status}`);
-  const actionLogId = (await insertResponse.json())[Number('0')]?.id;
-  if (!/^[a-f\d-]{36}$/i.test(actionLogId ?? '')) throw new Error('Weles queue returned an invalid action id');
+  if (queued.error || queued.status !== 0) throw new Error(`Stado refused Microsoft credential operation: ${(queued.stderr || '').trim()}`);
+  const actionLogId = String(queued.stdout).match(/\b[0-9a-f]{8}\b/i)?.[0];
+  if (!actionLogId) throw new Error('Stado returned an invalid action id');
   output = {
     status: 'operation_queued',
     operation: request.operation,
@@ -498,24 +470,21 @@ if (request.mode === 'submit' || request.mode === 'resume') {
     message: `${isEntra ? 'Entra' : 'Microsoft'} password ${request.operation} queued`,
   };
 } else {
-  if (!/^[a-f\d-]{36}$/i.test(request.action_log_id ?? '')) {
-    throw new Error('status mode requires one exact action log id');
+  if (!ACTION_LOG_ID.test(request.action_log_id ?? '')) {
+    throw new Error('status mode requires one exact Stado job id');
   }
-  const response = await fetch(
-    `${databaseUrl}/rest/v1/account_action_logs?id=eq.${encodeURIComponent(request.action_log_id)}&select=id,status,result,error&limit=1`,
-    { headers: databaseHeaders, signal: AbortSignal.timeout(Number('30000')) },
-  );
-  if (!response.ok) throw new Error(`Weles status lookup failed: HTTP ${response.status}`);
-  const row = (await response.json())[Number('0')];
-  if (!row || row.id !== request.action_log_id) throw new Error('Weles action log was not found');
-  const status = ['queued', 'claimed', 'running', 'accepted', 'pending'].includes(row.status)
-    ? 'operation_queued'
-    : row.status === 'completed'
-      ? 'operation_completed'
-      : ['pending_review', 'needs_human_approval'].includes(row.status)
-        ? 'needs_human_approval'
-        : 'operation_failed';
-  const reported = diagnostics(row.result);
+  const stado = process.env.WELES_STADO_BIN || join(homedir(), '.stado', 'bin', 'stado');
+  const statusResult = spawnSync(stado, ['status', request.action_log_id], {
+    encoding: 'utf8',
+    env: process.env,
+  });
+  if (statusResult.error || statusResult.status !== 0) throw new Error('Stado job status is unavailable');
+  const text = String(statusResult.stdout);
+  const status = /\b(completed|uploaded)\b/i.test(text)
+    ? 'operation_completed'
+    : /\b(failed|cancelled)\b/i.test(text)
+      ? 'operation_failed'
+      : 'operation_queued';
   output = {
     status,
     operation: request.operation,
@@ -524,10 +493,7 @@ if (request.mode === 'submit' || request.mode === 'resume') {
     vaultItemId: request.credential_id,
     flowName: isEntra ? FLOW_NAME : MICROSOFT_FLOW_NAME,
     ...(isEntra ? { tenantId, principalObjectId } : {}),
-    ...reported,
-    message: reported.message
-      || sanitizedText(row.error, Number('512'))
-      || `Weles credential operation is ${row.status}`,
+    message: `Weles credential operation is ${status.replace('operation_', '')}`,
   };
 }
 process.stdout.write(`${JSON.stringify(output)}\n`);

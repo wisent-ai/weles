@@ -18,6 +18,7 @@
 
 import { WSession } from '../../../../dist/session/wsession.js';
 import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
+import { updateAccountMetadata } from '../../_shared/skarbiec_accounts.mjs';
 import { humanFill } from '../../../../dist/human/keyboard.js';
 import { getSocialAccount, resolveAccountSession } from '../../../../dist/utils/credentials.js';
 
@@ -73,19 +74,13 @@ try {
   const success = outcome.includes('sent');
   console.log(`[friend_request] outcome=${outcome.slice(0, 120)}`);
 
-  const supaUrl = process.env.WELES_DATABASE_URL;
-  const supaKey = process.env.WELES_DATABASE_TOKEN;
-  if (supaUrl && supaKey) {
-    const cur = await (await fetch(`${supaUrl}/rest/v1/social_accounts?platform=eq.discord&username=eq.${encodeURIComponent(acct.username)}&select=id,metadata`, { headers: { apikey: supaKey, Authorization: `Bearer ${supaKey}` } })).json();
-    if (cur && cur[0]) {
-      const prev = cur[0].metadata && typeof cur[0].metadata === 'object' ? cur[0].metadata : {};
-      const list = Array.isArray(prev.friend_requests_sent) ? prev.friend_requests_sent : [];
-      list.push({ target: TARGET, at: new Date().toISOString(), success, outcome: outcome.slice(0, 200) });
-      const merged = { ...prev, friend_requests_sent: list };
-      await fetch(`${supaUrl}/rest/v1/social_accounts?id=eq.${cur[0].id}`, { method: 'PATCH', headers: { apikey: supaKey, Authorization: `Bearer ${supaKey}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' }, body: JSON.stringify({ metadata: merged }) });
-      console.log('[friend_request] persisted metadata.friend_requests_sent[]');
-    }
-  }
+  if (!acct.id) throw new Error('Discord account has no stable Skarbiec id');
+  const list = Array.isArray(acct.metadata?.friend_requests_sent)
+    ? [...acct.metadata.friend_requests_sent]
+    : [];
+  list.push({ target: TARGET, at: new Date().toISOString(), success, outcome: outcome.slice(0, 200) });
+  updateAccountMetadata(acct.id, { friend_requests_sent: list });
+  console.log('[friend_request] persisted metadata.friend_requests_sent[] in Skarbiec');
   if (!success) { console.log(`FAIL: ${outcome.slice(0, 80)}`); process.exit(1); }
   console.log(`PASS: ${acct.username} sent friend request to ${TARGET}`);
 } catch (e) {

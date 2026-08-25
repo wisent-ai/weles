@@ -1,6 +1,5 @@
-import { queueSemanticScholarFollowup } from './semantic-scholar-followup.js';
 import { acquiredSecretContract, hasWelesAcquiredSecretWriter, hasWelesManagedCredentialReader } from './scoped-service.js';
-import { optionalWelesDatabase, requireWelesDatabase, welesDatabaseHeaders } from '../utils/weles-database.js';
+import { enqueueAction, listAccounts } from '../state/skarbiec-records.js';
 
 type SecretDefinition = {
 	secret: string;
@@ -21,7 +20,6 @@ type SecretDefinition = {
   operations?: string[];
 };
 
-type InsertedId = { id: string };
 
 
 export type CredentialOperation = 'acquire' | 'adopt' | 'rotate' | 'verify' | 'remove' | 'reset';
@@ -326,10 +324,6 @@ function definitionFor(request: AcquireSecretRequest): SecretDefinition | null {
   return SECRET_REGISTRY[normalized] ?? SECRET_REGISTRY[normalized.replace(/\./g, '_')] ?? null;
 }
 
-function headers(): Record<string, string> {
-  const database = requireWelesDatabase();
-  return welesDatabaseHeaders(database, { 'Content-Type': 'application/json' });
-}
 
 
 
@@ -476,57 +470,37 @@ function paramsFor(def: SecretDefinition, request: AcquireSecretRequest): Record
   };
 }
 
-async function insertReturning(table: string, row: Record<string, unknown>): Promise<string> {
-  const database = requireWelesDatabase();
-  const res = await fetch(`${database.url}/rest/v1/${table}?select=id`, {
-    method: 'POST',
-    headers: { ...headers(), Prefer: 'return=representation' },
-    body: JSON.stringify(row),
-  });
-  if (!res.ok) throw new Error(`${table} insert failed: HTTP ${res.status} ${await res.text().catch(() => '')}`.slice(0, 500));
-  const rows = await res.json() as InsertedId[];
-  const id = rows[0]?.id;
-  if (!id) throw new Error(`${table} insert did not return id`);
-  return id;
+function queueAction(action: string, accountItem: string, params: Record<string, unknown>, priority = 0): string {
+  return enqueueAction(action, accountItem, { ...params, priority });
 }
 
 type MicrosoftAccountRow = {
-  id?: string;
-  username?: string;
-  is_active?: boolean;
-  metadata?: { email?: string; skarbiec_credential_id?: string; skarbiec_tenant_id?: string };
+  id: string;
+  username: string;
+  active: boolean;
+  metadata: { email?: string; skarbiec_credential_id?: string; skarbiec_tenant_id?: string };
 };
 
-async function microsoftAccountBinding(
+function microsoftAccountBinding(
   accountEmail: string,
   credentialId: string,
   tenantId?: string | null,
-): Promise<{ accountId: string | null; error?: string }> {
-  const database = optionalWelesDatabase();
-  if (!database) return { accountId: null };
-  const response = await fetch(
-    `${database.url}/rest/v1/social_accounts?platform=eq.microsoft&select=id,username,is_active,metadata&limit=${Number('500')}`,
-    { headers: headers() },
-  );
-  if (!response.ok) throw new Error(`Microsoft account lookup failed: HTTP ${response.status}`);
-  const rows = await response.json() as MicrosoftAccountRow[];
+): { accountId: string | null; error?: string } {
+  const rows = listAccounts('microsoft') as MicrosoftAccountRow[];
   const normalized = accountEmail.trim().toLowerCase();
   const requestedTenant = tenantId ?? null;
   const tenantRows = rows.filter((row) =>
     (row.metadata?.skarbiec_tenant_id ?? null) === requestedTenant);
   const matches = tenantRows.filter((row) => {
-    const username = row.username?.trim().toLowerCase() ?? '';
+    const username = row.username.trim().toLowerCase();
     const email = row.metadata?.email?.trim().toLowerCase() ?? '';
-    return row.is_active === true && (username === normalized || email === normalized);
+    return row.active && (username === normalized || email === normalized);
   });
   const account = matches[0];
-  const accountId = account?.id;
-  if (matches.length !== Number('1') || !accountId) return { accountId: null };
+  if (matches.length !== 1 || !account) return { accountId: null };
   const otherOwner = tenantRows.find((row) => row.id !== account.id
     && row.metadata?.skarbiec_credential_id === credentialId);
-  if (otherOwner) {
-    return { accountId: null, error: 'credential item is already bound to another Microsoft account' };
-  }
+  if (otherOwner) return { accountId: null, error: 'credential item is already bound to another Microsoft account' };
   const boundCredential = account.metadata?.skarbiec_credential_id;
   if (boundCredential && boundCredential !== credentialId) {
     return { accountId: null, error: 'Microsoft account is already bound to another credential item' };
@@ -534,7 +508,7 @@ async function microsoftAccountBinding(
   if (boundCredential !== credentialId) {
     return { accountId: null, error: 'Microsoft account is not bound to the requested managed credential' };
   }
-  return { accountId };
+  return { accountId: account.id };
 }
 
 async function queueMicrosoftPasswordOperation(
@@ -563,13 +537,9 @@ async function queueMicrosoftPasswordOperation(
       message: 'Microsoft password operations require one exact account email',
     };
   }
-  const database = optionalWelesDatabase();
-  const binding = database
-    ? await microsoftAccountBinding(accountEmail, def.secret, request.tenantId)
-    : { accountId: null };
+  const binding = microsoftAccountBinding(accountEmail, def.secret, request.tenantId);
   const accountId = binding.accountId;
   const missing = [
-    ...(!database ? ['weles-database launcher configuration'] : []),
     ...(!/^[a-f0-9]{64}$/i.test(request.requestId ?? '') ? ['one exact credential operation request id'] : []),
     ...(!accountId && !binding.error ? ['one uniquely matching active Microsoft account'] : []),
     ...(binding.error ? [binding.error] : []),
@@ -597,17 +567,7 @@ async function queueMicrosoftPasswordOperation(
     : operation === 'verify'
       ? 'microsoft_verify_password'
       : 'microsoft_reset_password';
-  const actionLogId = await insertReturning('account_action_logs', {
-    account_id: accountId,
-    action,
-    platform: 'microsoft',
-    status: 'queued',
-    scheduled_at: new Date().toISOString(),
-    priority: request.priority ?? Number('10'),
-    params,
-    tenant_id: request.tenantId ?? null,
-    queued_by: 'skarbiec-credential-operation',
-  });
+  const actionLogId = queueAction(action, accountId!, params, request.priority ?? 10);
   return {
     status: 'operation_queued',
     operation,
@@ -621,65 +581,44 @@ async function queueMicrosoftPasswordOperation(
   };
 }
 
-type EntraAccountRow = {
-  id?: string;
-  username?: string;
-  is_active?: boolean;
-  metadata?: {
-    email?: string;
-    skarbiec_credential_id?: string;
-    skarbiec_tenant_id?: string;
+type EntraAccountRow = MicrosoftAccountRow & {
+  metadata: MicrosoftAccountRow['metadata'] & {
     entra_upn?: string;
     entra_tenant_id?: string;
     entra_principal_object_id?: string;
   };
 };
 
-// An Entra directory identity is only bindable when the account row states the
-// exact directory coordinates. A row that merely shares the mailbox address is
-// rejected with the reason, never silently treated as a zero-match.
-async function entraAccountBinding(
+function entraAccountBinding(
   accountUpn: string,
   credentialId: string,
   tenantId: string,
   principalObjectId: string,
   skarbiecTenantId: string | null,
-): Promise<{ accountId: string | null; error?: string }> {
-  const database = optionalWelesDatabase();
-  if (!database) return { accountId: null };
-  const response = await fetch(
-    `${database.url}/rest/v1/social_accounts?platform=eq.microsoft&select=id,username,is_active,metadata&limit=${Number('500')}`,
-    { headers: headers() },
-  );
-  if (!response.ok) throw new Error(`Entra account lookup failed: HTTP ${response.status}`);
-  const rows = await response.json() as EntraAccountRow[];
+): { accountId: string | null; error?: string } {
+  const rows = listAccounts('microsoft') as EntraAccountRow[];
   const scoped = rows.filter((row) => (row.metadata?.skarbiec_tenant_id ?? null) === skarbiecTenantId);
   const named = scoped.filter((row) => {
     const upn = row.metadata?.entra_upn?.trim().toLowerCase() ?? '';
-    const email = row.metadata?.email?.trim().toLowerCase() ?? row.username?.trim().toLowerCase() ?? '';
-    return row.is_active === true && (upn === accountUpn || email === accountUpn);
+    const email = row.metadata?.email?.trim().toLowerCase() ?? row.username.trim().toLowerCase();
+    return row.active && (upn === accountUpn || email === accountUpn);
   });
-  if (named.length > Number('1')) {
-    return { accountId: null, error: 'more than one active account claims the requested Entra UPN' };
-  }
-  const account = named[Number('0')];
-  const accountId = account?.id;
-  if (!account || !accountId) return { accountId: null };
+  if (named.length > 1) return { accountId: null, error: 'more than one active account claims the requested Entra UPN' };
+  const account = named[0];
+  if (!account) return { accountId: null };
   const metadata = account.metadata ?? {};
   if (metadata.entra_upn?.trim().toLowerCase() !== accountUpn) {
-    return { accountId: null, error: `account row is missing metadata entra_upn ${accountUpn}` };
+    return { accountId: null, error: `account record is missing metadata entra_upn ${accountUpn}` };
   }
   if (metadata.entra_tenant_id?.trim().toLowerCase() !== tenantId) {
-    return { accountId: null, error: `account row is missing metadata entra_tenant_id ${tenantId}` };
+    return { accountId: null, error: `account record is missing metadata entra_tenant_id ${tenantId}` };
   }
   if (metadata.entra_principal_object_id?.trim().toLowerCase() !== principalObjectId) {
-    return { accountId: null, error: `account row is missing metadata entra_principal_object_id ${principalObjectId}` };
+    return { accountId: null, error: `account record is missing metadata entra_principal_object_id ${principalObjectId}` };
   }
-  const otherOwner = scoped.find((row) => row.id !== accountId
+  const otherOwner = scoped.find((row) => row.id !== account.id
     && row.metadata?.skarbiec_credential_id === credentialId);
-  if (otherOwner) {
-    return { accountId: null, error: 'credential item is already bound to another Entra account' };
-  }
+  if (otherOwner) return { accountId: null, error: 'credential item is already bound to another Entra account' };
   const boundCredential = metadata.skarbiec_credential_id;
   if (boundCredential && boundCredential !== credentialId) {
     return { accountId: null, error: 'Entra account is already bound to another credential item' };
@@ -687,7 +626,7 @@ async function entraAccountBinding(
   if (boundCredential !== credentialId) {
     return { accountId: null, error: 'Entra account is not bound to the requested managed credential' };
   }
-  return { accountId };
+  return { accountId: account.id };
 }
 
 async function queueEntraPasswordOperation(
@@ -713,12 +652,10 @@ async function queueEntraPasswordOperation(
   const coordinatesReady = ENTRA_UPN.test(accountUpn)
     && LOWER_UUID.test(tenantId)
     && LOWER_UUID.test(principalObjectId);
-  const database = optionalWelesDatabase();
-  const binding = database && coordinatesReady
-    ? await entraAccountBinding(accountUpn, def.secret, tenantId, principalObjectId, skarbiecTenantId)
+  const binding = coordinatesReady
+    ? entraAccountBinding(accountUpn, def.secret, tenantId, principalObjectId, skarbiecTenantId)
     : { accountId: null } as { accountId: string | null; error?: string };
   const missing = [
-    ...(!database ? ['weles-database launcher configuration'] : []),
     ...(!/^[a-f0-9]{64}$/i.test(request.requestId ?? '') ? ['one exact credential operation request id'] : []),
     ...(!ENTRA_UPN.test(accountUpn) ? ['one exact Entra account UPN'] : []),
     ...(!LOWER_UUID.test(tenantId) ? ['one exact lowercase Entra tenant id'] : []),
@@ -757,17 +694,7 @@ async function queueEntraPasswordOperation(
     : operation === 'adopt'
       ? 'microsoft_entra_adopt_password'
       : 'microsoft_entra_reset_password';
-  const actionLogId = await insertReturning('account_action_logs', {
-    account_id: binding.accountId,
-    action,
-    platform: 'microsoft',
-    status: 'queued',
-    scheduled_at: new Date().toISOString(),
-    priority: request.priority ?? Number('10'),
-    params,
-    tenant_id: skarbiecTenantId,
-    queued_by: 'skarbiec-credential-operation',
-  });
+  const actionLogId = queueAction(action, binding.accountId!, params, request.priority ?? 10);
   return {
     status: 'operation_queued',
     operation,
@@ -779,40 +706,6 @@ async function queueEntraPasswordOperation(
     vaultItemId: def.secret,
     message: `Entra password ${operation} queued; Skarbiec remains pending until the fresh-login identity assertion rewrites the managed item`,
   };
-}
-function semanticSubmissionFromRow(row: ActionLogLike, def: SecretDefinition, requestId: string): boolean {
-  const params = row.params && typeof row.params === 'object' ? row.params as Record<string, unknown> : {};
-  const constraints = params.constraints && typeof params.constraints === 'object' ? params.constraints as Record<string, unknown> : {};
-  if (constraints.request_id !== requestId) return false;
-  if (constraints.secret !== def.secret) return false;
-  const contract = acquiredSecretContract(def.secret);
-  if (!contract
-    || constraints.provider !== def.provider
-    || constraints.operation !== 'acquire'
-    || constraints.vault_item_id !== contract.item) return false;
-  const result = row.result && typeof row.result === 'object' ? row.result as Record<string, unknown> : {};
-  const generic = result.generic_browser_task && typeof result.generic_browser_task === 'object' ? result.generic_browser_task as Record<string, unknown> : {};
-  const value = generic.value && typeof generic.value === 'object' ? generic.value as Record<string, unknown> : {};
-  return value.status === 'submitted' && /Semantic Scholar/i.test(`${value.confirmation ?? ''} ${value.next_steps ?? ''}`);
-}
-
-type ActionLogLike = { id?: string | null; params?: unknown; result?: unknown };
-
-async function latestSubmittedSemanticScholarRun(
-  def: SecretDefinition,
-  requestId: string,
-  tenantId?: string | null,
-): Promise<string | null> {
-  const database = optionalWelesDatabase();
-  if (!database) return null;
-  const tenantFilter = tenantId
-    ? `&tenant_id=eq.${encodeURIComponent(tenantId)}`
-    : '&tenant_id=is.null';
-  const limit = 'xxxxxxxxxxxxxxxxxxxx'.length;
-  const res = await fetch(`${database.url}/rest/v1/account_action_logs?action=eq.generic_keeper_task&platform=eq.generic&status=eq.completed&select=id,params,result&order=completed_at.desc&limit=${limit}${tenantFilter}`, { headers: headers() });
-  if (!res.ok) return null;
-  const rows = await res.json() as ActionLogLike[];
-  return rows.find((row) => row.id && semanticSubmissionFromRow(row, def, requestId))?.id ?? null;
 }
 
 async function queueAcquisition(def: SecretDefinition, request: AcquireSecretRequest): Promise<AcquireSecretResult> {
@@ -835,9 +728,7 @@ async function queueAcquisition(def: SecretDefinition, request: AcquireSecretReq
     };
   }
 
-  const database = optionalWelesDatabase();
   const missing = [
-    ...(!database ? ['weles-database launcher configuration'] : []),
     ...(!hasWelesAcquiredSecretWriter(def.secret, request.tenantId) ? [`scoped Skarbiec writer for ${def.secret}`] : []),
     ...(!/^[a-f0-9]{64}$/i.test(request.requestId ?? '') ? ['one exact credential operation request id'] : []),
   ];
@@ -852,50 +743,13 @@ async function queueAcquisition(def: SecretDefinition, request: AcquireSecretReq
     };
   }
 
-  const submittedRunId = def.secret === SEMANTIC_SCHOLAR.secret && request.requestId
-    ? await latestSubmittedSemanticScholarRun(def, request.requestId, request.tenantId)
-    : null;
-  if (submittedRunId) {
-    const followup = await queueSemanticScholarFollowup(submittedRunId, ''.length, ''.length, request.tenantId);
-    return {
-      status: 'operation_queued',
-      operation: 'acquire',
-      vaultItemId: vaultItemId ?? def.secret,
-      secret: def.secret,
-      provider: def.provider,
-      sourceActionLogId: submittedRunId,
-      actionLogId: followup.action_log_id,
-      action: 'semanticscholar_key_followup',
-      flowName: 'semantic-scholar-key-followup',
-      scheduledAt: followup.scheduled_at,
-      alreadyQueued: !followup.queued,
-      message: followup.queued
-        ? `${def.displayName} API key mailbox follow-up queued`
-        : `${def.displayName} API key mailbox follow-up is already queued or running`,
-    };
-  }
-
-  const buildId = await insertReturning('weles_trajectory_builds', {
-    tenant_id: request.tenantId ?? null,
-    name: `${def.displayName} API key acquisition`,
-    platform: 'generic',
-    url: def.formUrl,
-    objective: String(params.objective),
-    constraints: params.constraints,
-    env: params.env,
-    status: 'queued',
-  });
-
-  const actionLogId = await insertReturning('account_action_logs', {
-    action: 'generic_keeper_task',
-    platform: 'generic',
-    status: 'queued',
-    scheduled_at: new Date().toISOString(),
-    priority: request.priority ?? 10,
-    params: { ...params, trajectory_build_id: buildId },
-    tenant_id: request.tenantId ?? null,
-    queued_by: 'secret-acquisition',
-  });
+  const buildId = request.requestId!;
+  const actionLogId = queueAction(
+    'generic_keeper_task',
+    '',
+    { ...params, trajectory_build_id: buildId },
+    request.priority ?? 10,
+  );
 
   return {
     status: 'operation_queued',
