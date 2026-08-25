@@ -246,7 +246,6 @@ lists, and duplicate rows fail before a proof is signed.
 | `TRADING_TOOLS_INGEST_HMAC_SECRET` | `weles-trading-ingest-hmac-bootstrap` | `weles-trading-tools-ingest` | `hmac_secret` |
 | `WELES_OPERATOR_CDP_URL` | `weles-operator-cdp-url-bootstrap` | `weles-operator-cdp` | `url` |
 | `WELES_OPERATOR_CDP_TOKEN` | `weles-operator-cdp-token-bootstrap` | `weles-operator-cdp` | `token` |
-| `WELES_ECHO_API_TOKEN` | `weles-echo-api-token-bootstrap` | `echo-weles-api` | `token` |
 | Keyword-planner `WELES_STADO_MODEL_ROUTER_TOKEN` | `weles-keyword-planner-router-bootstrap` | `weles-keyword-planner-model-router` | `token` |
 | Keyword-planner `WELES_STADO_MODEL_ROUTER_AGENT_ID` | `weles-model-agent-id-bootstrap` | `weles-model-agent-auth` | `id` |
 | Keyword-planner `WELES_STADO_MODEL_ROUTER_AGENT_AUTH_SECRET` | `weles-model-agent-secret-bootstrap` | `weles-model-agent-auth` | `agent_auth_secret` |
@@ -423,7 +422,7 @@ the currently active release untouched and aborts the deployment.
 
 After every artifact is verified, `~/weles` is atomically repointed to the exact
 worker release. The tracked worker, Weles API, content-worker, keyword-planner,
-and Echo LaunchAgents are then copied from that immutable release and restarted;
+and admission LaunchAgents are then copied from that immutable release and restarted;
 the content worker is installed only on a host that carries its own scoped
 `var/worker-content.env`. No GitHub CLI, Git credential helper, ambient provider
 token, source checkout, package install, or host-side build participates in

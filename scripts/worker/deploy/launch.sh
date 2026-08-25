@@ -256,6 +256,33 @@ if ! bash "$HOME/weles/scripts/firefox/download.sh" > /dev/null; then
   false
 fi
 
-
+# The display this worker lends to every browser trajectory it spawns.
+#
+# A trajectory that opens a browser declares `display` in
+# scripts/trajectories/requirements.json and refuses to start without it, and on
+# Linux a display is not something a logged-in human has to provide: `xvfb-run`
+# starts an X server for this process tree, so the capability belongs to the
+# deployment and survives every reboot with nobody at the machine.
+#
+# Two things had to become explicit here. Which display is in use, because a host
+# with a real one (an operator's desktop session) should use it rather than have a
+# second server started underneath it; and whether the mechanism exists at all,
+# because an absent `xvfb-run` fails at exec inside systemd and reads as the
+# worker crash-looping rather than as a missing package.
+WELES_DISPLAY_SCREEN="${WELES_DISPLAY_SCREEN:-1920x1080x24}"
+display_reachable=false
+if [ -n "${DISPLAY:-}" ] && command -v xdpyinfo > /dev/null 2>&1 \
+  && xdpyinfo -display "$DISPLAY" > /dev/null 2>&1; then
+  display_reachable=true
+fi
 cd "$HOME/weles"
-exec /usr/bin/xvfb-run -a --server-args="-screen 0 1920x1080x24" "$NODE_BIN" "$HOME/weles/scripts/worker/run.mjs"
+if [ "$display_reachable" = true ]; then
+  printf '%s\n' "display: using the reachable DISPLAY=$DISPLAY this host already has"
+  exec "$NODE_BIN" "$HOME/weles/scripts/worker/run.mjs"
+fi
+if ! command -v xvfb-run > /dev/null 2>&1; then
+  printf '%s\n' "no reachable DISPLAY and no xvfb-run, so this host cannot hold the 'display' capability every browser trajectory declares; install it with scripts/worker/deploy/install-virtual-display-linux.sh" > /dev/stderr
+  exit 1
+fi
+printf '%s\n' "display: starting a virtual one, xvfb-run screen $WELES_DISPLAY_SCREEN"
+exec xvfb-run -a --server-args="-screen 0 $WELES_DISPLAY_SCREEN" "$NODE_BIN" "$HOME/weles/scripts/worker/run.mjs"

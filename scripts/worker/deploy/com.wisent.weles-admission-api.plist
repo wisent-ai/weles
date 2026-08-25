@@ -1,0 +1,14 @@
+{
+  Label = "com.wisent.weles-admission-api";
+  ProgramArguments = (
+    "/Users/charles/weles/scripts/worker/deploy/launch-admission-api-mac.sh"
+  );
+  WorkingDirectory = "/Users/charles/weles";
+  RunAtLoad = true;
+  KeepAlive = {
+    SuccessfulExit = false;
+    Crashed = true;
+  };
+  StandardOutPath = "/Users/charles/weles/var/admission-api.log";
+  StandardErrorPath = "/Users/charles/weles/var/admission-api.log";
+}

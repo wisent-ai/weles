@@ -1,5 +1,10 @@
 import { queueSemanticScholarFollowup } from './semantic-scholar-followup.js';
-import { acquiredSecretContract, hasWelesAcquiredSecretWriter, hasWelesManagedCredentialReader } from './scoped-service.js';
+import {
+  acquiredSecretContract,
+  hasWelesAcquiredSecretWriter,
+  hasWelesManagedCredentialReader,
+  isWelesAcquiredSourceOrigin,
+} from './scoped-service.js';
 import { optionalWelesDatabase, requireWelesDatabase, welesDatabaseHeaders } from '../utils/weles-database.js';
 
 type SecretDefinition = {
@@ -19,6 +24,11 @@ type SecretDefinition = {
 	headless: boolean;
   storeSecretTarget: 'skarbiec';
   operations?: string[];
+  // Only a derived generic definition carries this: it is the site the caller
+  // declared for an unenumerated provider, empty when none was declared. A
+  // registered definition leaves it absent and keeps the origin its exact
+  // Skarbiec contract pins.
+  sourceOrigin?: string;
 };
 
 type InsertedId = { id: string };
@@ -43,6 +53,7 @@ export type AcquireSecretRequest = {
   accountEmail?: string;
   accountUpn?: string;
   principalObjectId?: string;
+  signupOrigin?: string;
 };
 
 export type AcquireSecretResult =
@@ -291,6 +302,59 @@ const SECRET_REGISTRY: Record<string, SecretDefinition> = {
   snapchat_api_token: SNAPCHAT_SNAP_KIT_API_TOKEN,
 };
 
+// A provider nobody registered above is still acquirable. The shared credential
+// contract fixes the slug shape, the api_key field, and acquire as the only
+// operation; Skarbiec names the item (the slug, unless the caller passed an
+// explicit credential id). Everything else is the registered path unchanged: the
+// same scoped-writer gate, the same store_credential contract, the same
+// capture-origin check.
+const GENERIC_SLUG = /^[a-z\d](?:[a-z\d-]{1,38}[a-z\d])$/;
+const GENERIC_FIELD = 'api_key';
+const GENERIC_FLOW = 'generic-provider-api-key-acquisition';
+// A slug names no site, so a request that declares no signup origin starts the
+// browser job at exactly this discovery origin and finds the provider's own
+// API-key signup page from there instead of guessing a hostname from the slug.
+const GENERIC_DISCOVERY_ORIGIN = 'https://duckduckgo.com';
+
+function genericDefinition(request: AcquireSecretRequest): SecretDefinition | null {
+  const provider = request.provider?.trim().toLowerCase() ?? '';
+  if (!GENERIC_SLUG.test(provider)
+      || provider === 'microsoft'
+      || provider === ENTRA_PROVIDER
+      || Object.values(SECRET_REGISTRY).some((definition) => definition.provider === provider)) {
+    return null;
+  }
+  const item = request.credentialId?.trim().toLowerCase() || provider;
+  // The derived Skarbiec contract decides whether this item may be acquired at
+  // all: it refuses a registered item, a managed password id, and a scoped
+  // service item, so a generic request can never land on another contract's item.
+  const contract = acquiredSecretContract(item);
+  if (!contract || contract.item !== item || contract.field !== GENERIC_FIELD) return null;
+  const declaredOrigin = request.signupOrigin?.trim() ?? '';
+  const displayName = provider.replace(/-/g, ' ');
+  return {
+    secret: item,
+    provider,
+    displayName,
+    envVars: [],
+    defaultPurpose: `${provider}-api-access`,
+    formUrl: isWelesAcquiredSourceOrigin(declaredOrigin)
+      ? declaredOrigin
+      : `${GENERIC_DISCOVERY_ORIGIN}/?q=${encodeURIComponent(`${displayName} API key sign up`)}`,
+    flowName: GENERIC_FLOW,
+    endpoints: [`${displayName} API`],
+    usageText: `We register one Wisent-owned account with ${displayName} and generate a single API key for programmatic access from our own services. The key is written straight into the encrypted Skarbiec item and never appears in task results, logs, or tool arguments.`,
+    dailyRequests: '100',
+    requestedScopes: [],
+    capabilities: ['account_signup', 'api_key_generation'],
+    runtimeInstall: false,
+    headless: false,
+    storeSecretTarget: 'skarbiec',
+    operations: ['acquire'],
+    sourceOrigin: declaredOrigin,
+  };
+}
+
 
 function normalizeSecret(request: AcquireSecretRequest): string {
   const credentialId = request.credentialId?.trim().toLowerCase() ?? '';
@@ -317,13 +381,15 @@ function normalizeSecret(request: AcquireSecretRequest): string {
 
 function definitionFor(request: AcquireSecretRequest): SecretDefinition | null {
   const normalized = normalizeSecret(request);
-  if (!normalized) return null;
   if (MICROSOFT_PASSWORD_ID.test(normalized)) {
     return request.provider === ENTRA_PROVIDER
       ? entraPasswordDefinition(normalized)
       : microsoftPasswordDefinition(normalized);
   }
-  return SECRET_REGISTRY[normalized] ?? SECRET_REGISTRY[normalized.replace(/\./g, '_')] ?? null;
+  const registered = normalized
+    ? SECRET_REGISTRY[normalized] ?? SECRET_REGISTRY[normalized.replace(/\./g, '_')] ?? null
+    : null;
+  return registered ?? genericDefinition(request);
 }
 
 function headers(): Record<string, string> {
@@ -408,6 +474,11 @@ function objectiveFor(def: SecretDefinition, request: AcquireSecretRequest, acco
   return [
     `Acquire ${def.displayName} API access for ${purpose}.`,
     accountInstruction,
+    def.sourceOrigin === undefined
+      ? ''
+      : def.sourceOrigin
+        ? `The provider site is exactly ${def.sourceOrigin}: complete the sign-up and the key generation there, and capture the credential on that origin only.`
+        : `No provider site was declared: from this discovery page find the official ${def.displayName} developer site, open the provider's own origin, and complete the sign-up and the key generation there.`,
     `Use case: ${def.usageText}`,
     `Requested endpoints: ${def.endpoints.join(', ')}.`,
     `Expected daily requests: ${def.dailyRequests}.`,
@@ -440,7 +511,10 @@ function paramsFor(def: SecretDefinition, request: AcquireSecretRequest): Record
       store_secret_target: def.storeSecretTarget,
       vault_item_id: contract.item,
       vault_field: contract.field,
-      secret_source_origin: contract.sourceOrigin,
+      // A registered item pins its source origin in the Skarbiec contract. A
+      // generic item has none to pin, so the declared signup origin travels with
+      // the job and the worker checks the capture page against exactly it.
+      secret_source_origin: contract.sourceOrigin ?? def.sourceOrigin ?? '',
       // For microsoft_entra the directory block below is the only source of the
       // identity, so the flat binding tenant stays empty for that provider.
       tenant_id: def.provider === ENTRA_PROVIDER ? undefined : (request.tenantId ?? undefined),
@@ -838,7 +912,12 @@ async function queueAcquisition(def: SecretDefinition, request: AcquireSecretReq
   const database = optionalWelesDatabase();
   const missing = [
     ...(!database ? ['weles-database launcher configuration'] : []),
-    ...(!hasWelesAcquiredSecretWriter(def.secret, request.tenantId) ? [`scoped Skarbiec writer for ${def.secret}`] : []),
+    ...(!hasWelesAcquiredSecretWriter(def.secret, request.tenantId)
+      ? [`scoped Skarbiec writer token file ${def.secret}-writer-skarbiec-token`]
+      : []),
+    ...(def.sourceOrigin && !isWelesAcquiredSourceOrigin(def.sourceOrigin)
+      ? ['one exact absolute https signup origin']
+      : []),
     ...(!/^[a-f0-9]{64}$/i.test(request.requestId ?? '') ? ['one exact credential operation request id'] : []),
   ];
   if (missing.length) {
@@ -1001,6 +1080,20 @@ export function buildSecretAcquisitionPlan(request: AcquireSecretRequest): Acqui
         message: `Cannot plan ${operation} for ${def.secret} without ${missing.join(', ')}`,
       };
     }
+  }
+  // A declared signup origin that is not one absolute https origin would send the
+  // browser job to a target nobody named and could never match the capture
+  // origin, so it is a configuration error, not a plan.
+  if (def.sourceOrigin && !isWelesAcquiredSourceOrigin(def.sourceOrigin)) {
+    return {
+      status: 'needs_configuration',
+      operation,
+      secret: def.secret,
+      vaultItemId: def.secret,
+      provider: def.provider,
+      missing: ['one exact absolute https signup origin'],
+      message: `Cannot plan ${operation} for ${def.secret} without one exact absolute https signup origin`,
+    };
   }
   const params = paramsFor(def, { ...request, dryRun: true });
   return {
