@@ -36,7 +36,11 @@ const acquired = spawnSync(process.execPath, [
   'weles-figma-personal-access-token',
   'api_key',
 ], { encoding: 'buffer', env: process.env, maxBuffer: 65536 });
-if (acquired.status !== 0) throw new Error('Figma token acquisition failed');
+if (acquired.status !== 0) {
+  throw new Error(
+    `Figma token acquisition failed: ${acquired.stderr?.toString('utf8').trim() || `exit ${acquired.status}`}`,
+  );
+}
 const tokenBuffer = acquired.stdout;
 
 function slugify(value) {
