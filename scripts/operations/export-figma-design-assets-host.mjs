@@ -171,6 +171,13 @@ function collectNodes(document) {
   return { nodes, imageRefs, exportNodes, topLevelNodes };
 }
 
+function componentNodes(nodes) {
+  // Render reusable Figma library definitions, not frames that happen to use
+  // them. COMPONENT_SET is included because variants are one reusable
+  // component surface even when the file does not declare export settings.
+  return nodes.filter((node) => node.type === 'COMPONENT' || node.type === 'COMPONENT_SET');
+}
+
 async function renderNodes(fileKey, nodes, destination, format, scale = 1) {
   const rendered = [];
   const batches = [];
@@ -240,6 +247,7 @@ try {
       topLevelNodes: documentResponse.summary.topLevelNodes,
       exportNodes: documentResponse.summary.exportNodes,
     };
+    const components = componentNodes(collected.nodes);
     const compressedPath = join(fileRoot, 'document.json.gz');
     await gzipFile(documentResponse.cachePath, compressedPath);
 
@@ -271,6 +279,13 @@ try {
       if (entry.path) entry.path = entry.path.slice(fileRoot.length + 1);
     }
 
+    console.error(`exporting ${file.name}: reusable components`);
+    const componentRoot = join(fileRoot, 'assets', 'components');
+    const componentManifest = await renderNodes(file.key, components, componentRoot, 'svg', 1);
+    for (const entry of componentManifest) {
+      if (entry.path) entry.path = entry.path.slice(fileRoot.length + 1);
+    }
+
     const explicitManifest = collected.exportNodes.map((node) => ({
       id: node.id,
       name: node.name,
@@ -295,8 +310,15 @@ try {
       sourceImageCount: imageManifest.length,
       previewCount: previewManifest.filter((entry) => entry.status === 'downloaded').length,
       explicitExportCount: explicitManifest.length,
+      reusableComponentCount: components.length,
+      componentRenderCount: componentManifest.filter((entry) => entry.status === 'downloaded').length,
     };
-    writeFileSync(join(fileRoot, 'assets.json'), `${JSON.stringify({ images: imageManifest, previews: previewManifest, exports: explicitManifest }, null, 2)}\n`);
+    writeFileSync(join(fileRoot, 'assets.json'), `${JSON.stringify({
+      images: imageManifest,
+      previews: previewManifest,
+      components: componentManifest,
+      exports: explicitManifest,
+    }, null, 2)}\n`);
     writeFileSync(join(fileRoot, 'metadata.json'), `${JSON.stringify(metadata, null, 2)}\n`);
     exportSummary.push({ folder, ...metadata });
   }
@@ -322,6 +344,8 @@ try {
       nodes: file.nodeCount,
       sourceImages: file.sourceImageCount,
       previews: file.previewCount,
+      reusableComponents: file.reusableComponentCount,
+      componentRenders: file.componentRenderCount,
       exports: file.explicitExportCount,
     })),
   }));
