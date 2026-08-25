@@ -17,5 +17,5 @@
     "LICENSE": "LICENSE"
   },
   "binary": "dist/cli.js",
-  "launcher": "scripts/worker/deploy/launch-mac.sh"
+  "launcher": "release/stado-crawler-launcher.sh"
 }

@@ -20,6 +20,7 @@
       "stage": {
         "payload/weles-worker.tar.gz": "payload/weles-worker.tar.gz",
         "bin/start": "bin/start",
+        "bin/crawler": "bin/crawler",
         "evidence/DIGESTS": "evidence/DIGESTS"
       }
     }
