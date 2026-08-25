@@ -18,9 +18,9 @@
         ]
       },
       "stage": {
-        ".wisent-output/payload/weles-worker.tar.gz": "payload/weles-worker.tar.gz",
-        ".wisent-output/bin/start": "bin/start",
-        ".wisent-output/evidence/DIGESTS": "evidence/DIGESTS"
+        "payload/weles-worker.tar.gz": "payload/weles-worker.tar.gz",
+        "bin/start": "bin/start",
+        "evidence/DIGESTS": "evidence/DIGESTS"
       }
     }
   },
