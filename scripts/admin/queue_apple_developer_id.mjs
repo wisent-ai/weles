@@ -81,13 +81,14 @@ async function rpc(name, body) {
 }
 
 function runCapabilityCommand(args) {
+  const vaultFile = process.env.SKARBIEC_VAULT_FILE ?? `${home}/.stado/skarbiec.vault.json`;
   const result = spawnSync(skarbiecBin, args, {
     cwd: home,
     env: {
       ...process.env,
-      SKARBIEC_VAULT_FILE: process.env.SKARBIEC_VAULT_FILE ?? `${home}/.stado/skarbiec.vault.json`,
-      SKARBIEC_CAPABILITY_FILE: process.env.SKARBIEC_CAPABILITY_FILE ?? `${home}/.stado/weles-api-capabilities.json`,
-      SKARBIEC_CAPABILITY_ROUTES_FILE: process.env.SKARBIEC_CAPABILITY_ROUTES_FILE ?? `${home}/.stado/weles-api-capability-routes.json`,
+      SKARBIEC_VAULT_FILE: vaultFile,
+      SKARBIEC_CAPABILITY_FILE: process.env.SKARBIEC_CAPABILITY_FILE ?? `${vaultFile}.capabilities.json`,
+      SKARBIEC_CAPABILITY_ROUTES_FILE: process.env.SKARBIEC_CAPABILITY_ROUTES_FILE ?? `${home}/.stado/capability-routes.json`,
     },
     encoding: 'utf8',
     timeout: 15_000,
