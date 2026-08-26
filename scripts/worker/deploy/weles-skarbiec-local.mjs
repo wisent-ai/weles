@@ -4,7 +4,8 @@ import { spawnSync } from 'node:child_process';
 import { request as httpRequest } from 'node:http';
 import { lstatSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const WIRE_VERSION = 'skarbiec.credential-operation.v3';
 const ENTRA_PROVIDER = 'microsoft_entra';
@@ -147,6 +148,75 @@ if (isCodexReauth) {
     rollback_status: 'none',
     execution_host: homedir(),
     message: `Weles reauthenticated ${request.credential_id}; Skarbiec verified the named subscription on status`,
+  })}\n`);
+  process.exit(Number('0'));
+}
+
+const isFigmaAcquire = request.provider === 'figma' && request.operation === 'acquire';
+if (isFigmaAcquire) {
+  if (request.version !== WIRE_VERSION
+      || !/^[a-f\d]{64}$/i.test(request.request_id ?? '')
+      || request.credential_id !== 'weles-figma-personal-access-token'
+      || request.field !== 'api_key'
+      || !EMAIL.test(request.account_email ?? '')
+      || request.signup_origin !== 'https://www.figma.com'
+      || request.mode !== 'submit'
+      || request.dry_run !== false) {
+    throw new Error('invalid Figma credential acquisition request');
+  }
+  const runtimeRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
+  const finalizer = join(
+    runtimeRoot,
+    'scripts',
+    'operations',
+    'finalize-figma-token-host.mjs',
+  );
+  const writer = join(
+    runtimeRoot,
+    'scripts',
+    'operations',
+    'skarbiec-figma-owner-write-host.mjs',
+  );
+  const completed = spawnSync(process.execPath, [finalizer], {
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      FIGMA_ACCOUNT_EMAIL: request.account_email.trim().toLowerCase(),
+      WELES_CREDENTIAL_REQUEST_ID: request.request_id.toLowerCase(),
+      WELES_USER_DATA_DIR: process.env.WELES_USER_DATA_DIR
+        || join(homedir(), '.local/state/weles/browser-profiles/figma-token'),
+      WC_SKARBIEC_URL: process.env.WC_SKARBIEC_URL || 'http://127.0.0.1:8895',
+      WELES_SKARBIEC_URL: process.env.WELES_SKARBIEC_URL
+        || process.env.WC_SKARBIEC_URL
+        || 'http://127.0.0.1:8895',
+      SKARBIEC_WELES_WRITER_COMMAND: process.env.SKARBIEC_WELES_WRITER_COMMAND || writer,
+    },
+    maxBuffer: Number('1048576'),
+    timeout: Number('900000'),
+  });
+  if (completed.error || completed.status !== Number('0')) {
+    const reason = sanitizedText(completed.stderr, Number('240')) || 'unknown failure';
+    throw new Error(`Weles Figma credential acquisition failed: ${reason}`);
+  }
+  const stored = String(completed.stdout).trim().split(/\r?\n/).at(-1);
+  let receipt;
+  try {
+    receipt = JSON.parse(stored);
+  } catch {
+    throw new Error('Weles Figma credential acquisition returned no storage receipt');
+  }
+  if (receipt?.status !== 'stored') {
+    throw new Error('Weles Figma credential acquisition did not store the credential');
+  }
+  process.stdout.write(`${JSON.stringify({
+    status: 'operation_completed',
+    operation: 'acquire',
+    provider: 'figma',
+    provider_effect: 'changed',
+    rollback_status: 'none',
+    execution_host: homedir(),
+    vaultItemId: request.credential_id,
+    message: `Weles acquired ${request.credential_id} and stored it in Skarbiec`,
   })}\n`);
   process.exit(Number('0'));
 }

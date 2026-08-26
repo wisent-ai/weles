@@ -6,7 +6,15 @@ process.env.WELES_SECURE_CREDENTIAL_TASK = '1';
 process.env.WELES_NO_INSTRUMENT = '1';
 process.env.WELES_DISABLE_RECORDING = '1';
 process.env.WELES_PAGE_DIAGNOSTICS = '0';
-const requestId = randomBytes(32).toString('hex');
+const accountEmail = process.env.FIGMA_ACCOUNT_EMAIL?.trim().toLowerCase();
+if (!accountEmail || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(accountEmail)) {
+  throw new Error('FIGMA_ACCOUNT_EMAIL must be one exact account email');
+}
+const requestId = process.env.WELES_CREDENTIAL_REQUEST_ID?.trim()
+  || randomBytes(32).toString('hex');
+if (!/^[a-f0-9]{64}$/i.test(requestId)) {
+  throw new Error('WELES_CREDENTIAL_REQUEST_ID must be one exact credential operation id');
+}
 process.env.WELES_CREDENTIAL_CONSTRAINTS = JSON.stringify({
   secret: 'figma.personal_access_token',
   operation: 'acquire',
@@ -14,7 +22,7 @@ process.env.WELES_CREDENTIAL_CONSTRAINTS = JSON.stringify({
   vault_item_id: 'weles-figma-personal-access-token',
   vault_field: 'api_key',
   secret_source_origin: 'https://www.figma.com',
-  account_email: 'lukasz.bartoszcze@gmail.com',
+  account_email: accountEmail,
   request_id: requestId,
 });
 
