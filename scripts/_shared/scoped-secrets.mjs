@@ -40,6 +40,7 @@ const SERVICES = Object.freeze({
   juicySms: Object.freeze({ consumer: 'weles-juicysms-client', item: 'weles-juicysms-api', tokenFile: 'weles-juicysms-client-skarbiec-token', fields: API_KEY_FIELDS }),
   smsActivate: Object.freeze({ consumer: 'weles-sms-activate-client', item: 'weles-sms-activate-api', tokenFile: 'weles-sms-activate-client-skarbiec-token', fields: API_KEY_FIELDS }),
   discordBot: Object.freeze({ consumer: 'weles-discord-bot-client', item: 'weles-discord-bot', tokenFile: 'weles-discord-bot-client-skarbiec-token', fields: API_KEY_FIELDS }),
+  stripeIncident: Object.freeze({ consumer: 'weles-stripe-incident-client', item: 'weles-stripe-incident-secret-key', tokenFile: 'weles-stripe-incident-client-skarbiec-token', fields: API_KEY_FIELDS }),
 });
 
 function checkedEndpoint() {
