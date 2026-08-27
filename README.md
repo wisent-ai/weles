@@ -179,6 +179,33 @@ map a new journey, but it does not authorize that journey as a production
 action. Authorization for the target remains with you: a technically successful
 run does not establish that the target permits automation.
 
+## Wisent Integrations
+
+**Brama.** Brama repairs provider-disowned Claude Code, Codex, and Kimi
+subscriptions by calling Weles `POST /reauth`. Weles runs the provider's real
+login trajectory on its approved browser host, returns only the run status and
+the exact `login_item`, and leaves the new credential in Skarbiec. Brama then
+refreshes the provider grant and accepts the repair only when that refresh
+returns a usable credential.
+
+The connection is service-owned rather than host-owned. Brama and Weles each
+acquire `brama-weles-reauth/token` from Skarbiec with their own workload
+identity at service startup. Brama presents the resulting
+`BRAMA_WELES_REAUTH_TOKEN` only to `POST /reauth`; Weles accepts that bearer
+only on this route. They share no environment file, helper, copied token, or
+operator shell. `BRAMA_WELES_URL` names the Weles endpoint and defaults to
+loopback when both services run on the same approved host.
+
+**Skarbiec.** Weles acquires API credentials, browser logins, and the Brama
+admission bearer through exact `consumer|item|field` scopes. Credentials enter
+trajectory processes only for the approved action and never enter an API
+request, prompt, receipt, or log.
+
+**Stado.** Stado selects and operates the approved Weles worker host, owns
+queued execution, and verifies the browser release coordinate used by that
+host. The synchronous reauthentication call uses the same checked-in
+trajectory as queued execution; it does not create a second login path.
+
 ## Compatibility and status
 
 - **Client contract:** the public
