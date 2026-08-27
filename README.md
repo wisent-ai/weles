@@ -193,8 +193,11 @@ acquire `brama-weles-reauth/token` from Skarbiec with their own workload
 identity at service startup. Brama presents the resulting
 `BRAMA_WELES_REAUTH_TOKEN` only to `POST /reauth`; Weles accepts that bearer
 only on this route. They share no environment file, helper, copied token, or
-operator shell. `BRAMA_WELES_URL` names the Weles endpoint and defaults to
-loopback when both services run on the same approved host.
+operator shell. Both services resolve the canonical Skarbiec endpoint from
+`resolved.agent_skarbiec_url` in the fleet Stado configuration; neither scans
+local ports or falls back to another vault. `BRAMA_WELES_URL` names the Weles
+endpoint and defaults to loopback when both services run on the same approved
+host.
 
 **Skarbiec.** Weles acquires API credentials, browser logins, and the Brama
 admission bearer through exact `consumer|item|field` scopes. Credentials enter

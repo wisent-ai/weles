@@ -29,34 +29,38 @@ set +a
 # broker below.
 export SKARBIEC_WORKLOAD_ID="${SKARBIEC_WORKLOAD_ID:-weles-credential-worker-local}"
 unset SEMANTIC_SCHOLAR_API_KEY S2_API_KEY || true
-# The vault endpoint is established by reading through it, not by probing a port.
-# It was pinned to 8787, which on the always-on host is held by another Node
-# service, so every acquisition failed with ECONNREFUSED and the wrapper carried
-# on with empty values: `empty Skarbiec field weles-object-api/token` in the log
-# from a service presenting itself as configured. A port probe was not enough --
-# something answers on 8787 and refuses the protocol -- so each candidate is
-# tried with the real read and the first that returns a value wins.
-SKARBIEC_ENDPOINTS='http://127.0.0.1:8787 http://127.0.0.1:8895 http://127.0.0.1:19095'
-WC_SKARBIEC_URL="${WC_SKARBIEC_URL:-}"
+# The fleet Stado config owns the canonical Skarbiec authority. Reading several
+# local ports silently selected an obsolete vault when more than one broker was
+# present, so Brama and Weles acquired different values for the same item.
+STADO_BIN="${STADO_BIN:-$HOME/.stado/bin/stado}"
+if [ ! -x "$STADO_BIN" ]; then
+  printf 'required Stado binary is unavailable: %s\n' "$STADO_BIN" >&2
+  exit 1
+fi
+JQ_BIN="${JQ_BIN:-/opt/homebrew/bin/jq}"
+if [ ! -x "$JQ_BIN" ]; then
+  printf 'required jq binary is unavailable: %s\n' "$JQ_BIN" >&2
+  exit 1
+fi
+WC_SKARBIEC_URL="$("$STADO_BIN" config show | "$JQ_BIN" -er '.resolved.agent_skarbiec_url | select(type == "string" and length > 0)')"
+if [ -z "$WC_SKARBIEC_URL" ]; then
+  printf 'fleet Stado config has no agent_skarbiec_url\n' >&2
+  exit 1
+fi
+export WC_SKARBIEC_URL
 export WELES_REPO="$HOME/weles"
 NODE_BIN=/opt/homebrew/bin/node
 acquire_startup_field() {
   local consumer="$1" item="$2" field="$3"
   local scopes="$WELES_REPO/scripts/worker/deploy/skarbiec-acquisition-scopes.conf"
   local helper="$WELES_REPO/scripts/worker/deploy/skarbiec-acquire.mjs"
-  local value endpoint
-  for endpoint in ${WC_SKARBIEC_URL:-$SKARBIEC_ENDPOINTS}; do
-    value="$("$NODE_BIN" "$helper" "$endpoint" "$scopes" "$consumer" "$item" "$field" 2>/dev/null)" \
-      || value=''
-    if [ -n "$value" ]; then
-      WC_SKARBIEC_URL="$endpoint"
-      export WC_SKARBIEC_URL
-      printf '%s' "$value"
-      return 0
-    fi
-  done
-  printf '%s\n' "empty Skarbiec field $item/$field through: ${WC_SKARBIEC_URL:-$SKARBIEC_ENDPOINTS}" >&2
-  return 1
+  local value
+  value="$("$NODE_BIN" "$helper" "$WC_SKARBIEC_URL" "$scopes" "$consumer" "$item" "$field")"
+  if [ -z "$value" ]; then
+    printf '%s\n' "empty Skarbiec field $item/$field through: $WC_SKARBIEC_URL" >&2
+    return 1
+  fi
+  printf '%s' "$value"
 }
 # The synchronous API and every Stado caller share one Skarbiec-owned bearer.
 # Never retain a host-local token from secrets.env as a second authority.
