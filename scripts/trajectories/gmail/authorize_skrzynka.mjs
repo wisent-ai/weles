@@ -11,9 +11,13 @@ if (authorizationUrl.protocol !== 'https:' || authorizationUrl.hostname !== 'acc
   throw new Error('AUTHORIZATION_URL must use https://accounts.google.com');
 }
 const redirectUrl = new URL(authorizationUrl.searchParams.get('redirect_uri') || '');
-if (redirectUrl.protocol !== 'http:' || redirectUrl.hostname !== '127.0.0.1'
-    || redirectUrl.port !== '8788' || redirectUrl.pathname !== '/v1/gmail/oauth/callback') {
-  throw new Error('AUTHORIZATION_URL must target Skrzynka loopback callback');
+const loopbackCallback = redirectUrl.protocol === 'http:' && redirectUrl.hostname === '127.0.0.1'
+  && redirectUrl.port === '8788' && redirectUrl.pathname === '/v1/gmail/oauth/callback';
+const enterpriseCallback = redirectUrl.protocol === 'https:'
+  && redirectUrl.hostname === 'auth.enterprise.wisent.com'
+  && redirectUrl.pathname === '/auth/v1/callback';
+if (!loopbackCallback && !enterpriseCallback) {
+  throw new Error('AUTHORIZATION_URL must target a registered Skrzynka callback');
 }
 
 const creds = await getGoogleSsoCreds(authorizationUrl.searchParams.get('login_hint') || undefined);
@@ -25,20 +29,27 @@ const s = await WSession.start({
   userDataDir: process.env.WELES_USER_DATA_DIR,
 });
 
+let capturedCallback = null;
+s.page.on('request', (request) => {
+  const requested = request.url();
+  if (requested.startsWith(redirectUrl.toString())) capturedCallback = requested;
+});
+
 try {
   await s.page.goto(authorizationUrl.toString(), { waitUntil: 'domcontentloaded', timeout: 60_000 });
-  const completed = await googleSso(s, creds, { originHost: '127.0.0.1:8788' }).catch(() => false);
+  const completed = await googleSso(s, creds, { originHost: redirectUrl.host }).catch(() => false);
   for (let attempt = 0; attempt < 60; attempt += 1) {
     const current = s.page.url();
-    if (current.startsWith(redirectUrl.toString())) {
-      console.log(JSON.stringify({ ok: true, callback_url: current }));
+    const callbackUrl = capturedCallback || (current.startsWith(redirectUrl.toString()) ? current : null);
+    if (callbackUrl) {
+      console.log(JSON.stringify({ ok: true, callback_url: callbackUrl }));
       process.exitCode = 0;
       break;
     }
     if (!completed && !current.includes('accounts.google.com')) break;
     await s.wait(1).catch(() => {});
   }
-  if (!s.page.url().startsWith(redirectUrl.toString())) {
+  if (!capturedCallback && !s.page.url().startsWith(redirectUrl.toString())) {
     console.log(JSON.stringify({ ok: false, reason: 'google_oauth_did_not_return', url: s.page.url() }));
     process.exitCode = 2;
   }
