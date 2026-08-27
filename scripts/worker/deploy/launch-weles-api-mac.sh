@@ -61,6 +61,7 @@ acquire_startup_field() {
 # The synchronous API and every Stado caller share one Skarbiec-owned bearer.
 # Never retain a host-local token from secrets.env as a second authority.
 WELES_API_TOKEN="$(acquire_startup_field weles-echo-api-token-bootstrap echo-weles-api token)"
+BRAMA_WELES_REAUTH_TOKEN="$(acquire_startup_field weles-brama-reauth-token-bootstrap brama-weles-reauth token)"
 if [ -z "${WELES_STADO_OBJECT_API_TOKEN:-}" ]; then
   WELES_STADO_OBJECT_API_TOKEN="$(acquire_startup_field weles-object-token-bootstrap weles-object-api token)"
 fi
@@ -73,6 +74,7 @@ if [ -z "${WELES_STADO_MODEL_ROUTER_TOKEN:-}" ] \
 fi
 for required_secret in \
   WELES_API_TOKEN \
+  BRAMA_WELES_REAUTH_TOKEN \
   WELES_STADO_OBJECT_API_TOKEN \
   WELES_STADO_MODEL_ROUTER_TOKEN \
   WELES_STADO_MODEL_ROUTER_AGENT_ID \
@@ -83,7 +85,7 @@ do
     exit 1
   fi
 done
-export WELES_API_TOKEN WELES_STADO_OBJECT_API_TOKEN WELES_STADO_MODEL_ROUTER_TOKEN
+export WELES_API_TOKEN BRAMA_WELES_REAUTH_TOKEN WELES_STADO_OBJECT_API_TOKEN WELES_STADO_MODEL_ROUTER_TOKEN
 export WELES_STADO_MODEL_ROUTER_AGENT_ID WELES_STADO_MODEL_ROUTER_AGENT_AUTH_SECRET
 mkdir -p "$HOME/weles/var"
 # Set unconditionally: the unit's plist injects this variable, so a default
