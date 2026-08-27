@@ -18,8 +18,8 @@
 //                reference { credential_id, provider, login_email, has_password }
 //                — no raw run output leaves the process.
 //
-// Env:
-//   WELES_API_TOKEN  (or WELES_CONSOLE_API_TOKEN)  required unless WELES_API_ALLOW_UNAUTH=1
+//   WELES_API_TOKEN  (or WELES_CONSOLE_API_TOKEN) required for the general API
+//   BRAMA_WELES_REAUTH_TOKEN required for Brama's POST /reauth admission
 //   WELES_API_HOST   default 127.0.0.1  (set 0.0.0.0 to expose on the LAN/Tailscale)
 //   WELES_API_PORT   default 8788       (keyword-planner-api already owns 8787)
 //   WELES_API_TIMEOUT_MS  default 900000
@@ -70,6 +70,7 @@ const { LOGIN_ACCOUNTS, selectLoginAccount } = await import(`${REPO}/dist/utils/
 const HOST = process.env.WELES_API_HOST || '127.0.0.1';
 const PORT = Number(process.env.WELES_API_PORT || 8788);
 const TOKEN = process.env.WELES_API_TOKEN || process.env.WELES_CONSOLE_API_TOKEN || '';
+const BRAMA_REAUTH_TOKEN = process.env.BRAMA_WELES_REAUTH_TOKEN || '';
 const ALLOW_UNAUTH = process.env.WELES_API_ALLOW_UNAUTH === '1';
 const ALLOW_RAW_CREDS = (process.env.WELES_API_ALLOW_RAW_CREDS ?? '1') === '1';
 const TIMEOUT_MS = Number(process.env.WELES_API_TIMEOUT_MS || 15 * 60 * 1000);
@@ -133,6 +134,13 @@ function tokenAuthorized(req) {
   if (!TOKEN) return false;
   if (String(req.headers.authorization || '') === `Bearer ${TOKEN}`) return true;
   return String(req.headers['x-api-key'] || '') === TOKEN;
+}
+
+function reauthAuthorized(req) {
+  return Boolean(
+    BRAMA_REAUTH_TOKEN
+      && String(req.headers.authorization || '') === `Bearer ${BRAMA_REAUTH_TOKEN}`,
+  );
 }
 
 function authorized(req) {
@@ -734,8 +742,11 @@ const server = http.createServer(async (req, res) => {
     // sign in; it is validated here so a caller learns that it named an unknown
     // or wrong-provider account BEFORE a browser login is spent on it.
     if (req.method === 'POST' && url.pathname === '/reauth') {
-      if (!authorized(req)) {
-        json(res, TOKEN || ALLOW_UNAUTH ? 401 : 500, { ok: false, error: TOKEN || ALLOW_UNAUTH ? 'unauthorized' : 'missing_WELES_API_TOKEN' });
+      if (!reauthAuthorized(req)) {
+        json(res, BRAMA_REAUTH_TOKEN ? 401 : 500, {
+          ok: false,
+          error: BRAMA_REAUTH_TOKEN ? 'unauthorized' : 'missing_BRAMA_WELES_REAUTH_TOKEN',
+        });
         return;
       }
       let body;
