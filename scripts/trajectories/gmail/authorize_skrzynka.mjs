@@ -20,7 +20,17 @@ if (!loopbackCallback && !enterpriseCallback) {
   throw new Error('AUTHORIZATION_URL must target a registered Skrzynka callback');
 }
 
-const creds = await getGoogleSsoCreds(authorizationUrl.searchParams.get('login_hint') || undefined);
+const loginHint = authorizationUrl.searchParams.get('login_hint') || undefined;
+const creds = process.env.GOOGLE_EMAIL && process.env.GOOGLE_PASSWORD
+  ? {
+      email: process.env.GOOGLE_EMAIL,
+      password: process.env.GOOGLE_PASSWORD,
+      totpSecret: process.env.GOOGLE_TOTP_SECRET || undefined,
+    }
+  : await getGoogleSsoCreds(loginHint);
+if (loginHint && creds.email.toLowerCase() !== loginHint.toLowerCase()) {
+  throw new Error('Google credential does not match OAuth login_hint');
+}
 const s = await WSession.start({
   label: 'skrzynka_gmail_oauth',
   browser: 'chromium',
