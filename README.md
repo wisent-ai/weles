@@ -206,6 +206,80 @@ queued execution, and verifies the browser release coordinate used by that
 host. The synchronous reauthentication call uses the same checked-in
 trajectory as queued execution; it does not create a second login path.
 
+### Mobile egress managed by Stado
+
+Weles may use a phone's mobile connection as its browser exit. Stado owns the
+long-running proxy process on the approved Weles host; Weles still owns proxy
+selection, target policy, browser use, and quality evidence. This split avoids
+an unmanaged proxy daemon and does not turn Stado into a second Weles router.
+
+Use USB tethering where possible. It is more stable than joining the phone's
+Wi-Fi hotspot and leaves the host's normal network available for Stado control
+traffic. On macOS, enable Personal Hotspot on the phone, connect and trust it,
+then identify the new device:
+
+```sh
+networksetup -listallhardwareports
+```
+
+The interface name is host-specific; examples such as `en7` are not defaults.
+First run the data path in the foreground:
+
+```sh
+stado egress mobile serve --interface en7 --port 8781
+weles open https://example.com --proxy http://127.0.0.1:8781
+```
+
+`stado egress mobile serve` listens only on loopback and binds each upstream
+TCP connection to the phone interface. The browser and proxy must therefore
+run on the same approved host. The command refuses a non-loopback listener and
+an interface without a usable IPv4 address.
+
+Make that process persistent with the existing Stado service contract:
+
+```sh
+stado service ensure weles-mobile-egress \
+  --host <weles-host> \
+  --from /Users/<service-account>/.stado/bin/stado \
+  --arg egress \
+  --arg mobile \
+  --arg serve \
+  --arg=--interface \
+  --arg en7 \
+  --arg=--port \
+  --arg 8781 \
+  --reason "Weles mobile egress"
+
+stado service status weles-mobile-egress
+```
+
+Use the target host's real installed Stado path. `service ensure` records the
+unit in the registry, installs it if absent, and starts it through the approved
+host channel. Later status, logs, restart, and retirement use the normal
+`stado service` commands. Trajectories pass
+`proxy: 'http://127.0.0.1:8781'` to `WSession.start`; the public CLI uses the
+equivalent `--proxy` flag.
+
+Phone egress is useful when a target distrusts datacenter ASNs or when a
+carrier-grade mobile identity is the expected user context. It is slower,
+less stable, may rotate unexpectedly, and can be behind carrier NAT. Use a
+dedicated ISP/static residential proxy when account continuity and a stable IP
+matter; use a rotating residential pool for broad geographic coverage; use
+datacenter egress for low-cost, high-throughput targets that accept cloud
+networks. The type is an input, never proof of quality: assess the realized
+public IP, ASN/organization, `mobile`, `hosting`, public-proxy flag, geography,
+DNS/WebRTC coherence, latency, and target response before assigning it to an
+identity.
+
+The repository carries the real-device acceptance trajectory at
+`stado-rs/tests/egress/`. Probierz runs it only on a Stado-selected host with
+`STADO_MOBILE_EGRESS_INTERFACE` naming a trusted phone tether. The test starts
+the built `stado` binary, sends a real request through its proxy, and requires
+public IP intelligence to report `mobile=true`, `hosting=false`, and
+`proxy=false`; it uses no simulated proxy or network fixture. No passing
+verdict exists when the phone is disconnected or the public classifier does
+not identify the exit as mobile.
+
 ## Compatibility and status
 
 - **Client contract:** the public
