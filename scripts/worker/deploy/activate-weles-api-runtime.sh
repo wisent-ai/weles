@@ -6,8 +6,10 @@ export PATH
 
 home=${HOME:?HOME is required}
 label='com.wisent.always-on.weles-api'
+runtime_root="$home/.stado/build-work/weles-api-managed"
+launcher_source="$runtime_root/scripts/worker/deploy/launch-weles-api-mac.sh"
 launcher="$home/.stado/bin/weles-api-launcher"
-runtime="$home/.stado/build-work/weles-api-managed/scripts/worker/weles-api-server.mjs"
+runtime="$runtime_root/scripts/worker/weles-api-server.mjs"
 vault="$home/.stado/weles-skarbiec.vault.json"
 signing_key="$home/.stado/weles-credential-workload-private.pem"
 plist="/Library/LaunchDaemons/$label.plist"
@@ -17,13 +19,15 @@ cleanup() {
 }
 trap cleanup EXIT HUP INT TERM
 
-for file in "$launcher" "$runtime" "$vault" "$signing_key"; do
+for file in "$launcher_source" "$runtime" "$vault" "$signing_key"; do
   [ -f "$file" ] || {
     printf 'required file is missing: %s\n' "$file" >&2
     exit 1
   }
 done
-[ -x "$launcher" ] || chmod u+x "$launcher"
+# Keep the long-lived launcher's code on the same revision as the server it starts.
+mkdir -p "$(dirname "$launcher")"
+install -m 755 "$launcher_source" "$launcher"
 
 cat > "$template" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
