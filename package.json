@@ -15,7 +15,8 @@
     "lint-browser-boundary": "node scripts/lint/check_browser_boundary.mjs",
     "lint": "npm run lint-trust && npm run lint-humanization && npm run lint-modules",
     "lint-modules": "node scripts/lint/check_module_load.mjs",
-    "diag:run-request": "node scripts/diag/run_diagnostic_request.mjs",
+    "test": "node scripts/worker/deploy/endpoint-resolution.test.mjs && tap tests/**/*.test.ts",
+    "test:endpoints": "node scripts/worker/deploy/endpoint-resolution.test.mjs",
     "dev": "tsc --watch",
     "secrets:acquire": "node scripts/secrets/acquire.mjs"
   },
@@ -36,7 +37,9 @@
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
+    "@types/tap": "^18.0.0",
     "@types/ws": "^8.5.0",
+    "tap": "^18.0.0",
     "typescript": "^5.7.0"
   }
 }

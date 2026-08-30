@@ -33,7 +33,7 @@ acquire_url="${WC_SKARBIEC_URL:-${WELES_CREDENTIAL_SKARBIEC_URL:-}}"
 # The gateway reads the client identity from a bearer before it looks at the
 # signed agent trio, so the trio alone is refused with a bare 401.
 if [ -z "${WISENT_APP_MODEL_ROUTER_TOKEN:-}" ]; then
-  WISENT_APP_MODEL_ROUTER_TOKEN="$("$NODE_BIN" "$acquire_helper" "$acquire_url" "$acquire_scopes" \
+  WISENT_APP_MODEL_ROUTER_TOKEN="$("$NODE_BIN" "$acquire_helper" "$acquire_scopes" \
     weles-wisent-app-router-token-bootstrap wisent-app-model-router token)" || {
     printf '%s\n' "Skarbiec acquisition failed for wisent-app-model-router/token" >/dev/stderr
     exit 1

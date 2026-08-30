@@ -48,14 +48,16 @@ if [ -z "$WC_SKARBIEC_URL" ]; then
   exit 1
 fi
 export WC_SKARBIEC_URL
-export WELES_REPO="$HOME/weles"
+# The API server and its trajectories must come from one managed revision.
+# $HOME/weles is the independently staged worker release and can legitimately lag.
+export WELES_REPO="$HOME/.stado/build-work/weles-api-managed"
 NODE_BIN=/opt/homebrew/bin/node
 acquire_startup_field() {
   local consumer="$1" item="$2" field="$3"
   local scopes="$WELES_REPO/scripts/worker/deploy/skarbiec-acquisition-scopes.conf"
   local helper="$WELES_REPO/scripts/worker/deploy/skarbiec-acquire.mjs"
   local value
-  value="$("$NODE_BIN" "$helper" "$WC_SKARBIEC_URL" "$scopes" "$consumer" "$item" "$field")"
+  value="$("$NODE_BIN" "$helper" "$scopes" "$consumer" "$item" "$field")"
   if [ -z "$value" ]; then
     printf '%s\n' "empty Skarbiec field $item/$field through: $WC_SKARBIEC_URL" >&2
     return 1

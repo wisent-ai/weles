@@ -32,7 +32,7 @@ mkdir -p "$WELES_STATE_DIR"
 # signature is read — `401 unauthorized`, which says none of that. The donating
 # agent's own router token is what makes the two agree.
 if [ -z "${WISENT_APP_MODEL_ROUTER_TOKEN:-}" ]; then
-  WISENT_APP_MODEL_ROUTER_TOKEN="$("$NODE_BIN" "$acquire_helper" "$acquire_url" "$acquire_scopes" \
+  WISENT_APP_MODEL_ROUTER_TOKEN="$("$NODE_BIN" "$acquire_helper" "$acquire_scopes" \
     weles-wisent-app-router-token-bootstrap wisent-app-model-router token)" || {
     printf '%s\n' "Skarbiec acquisition failed for wisent-app-model-router/token" >/dev/stderr
     false

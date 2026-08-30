@@ -149,7 +149,6 @@ async function artifactDeliveryToken(repositoryRoot, env) {
   const scopes = join(repositoryRoot, 'scripts', 'worker', 'deploy', 'skarbiec-acquisition-scopes.conf');
   const { stdout } = await execFileAsync(process.execPath, [
     helper,
-    endpoint,
     scopes,
     'weles-artifact-delivery-token-bootstrap',
     'weles-artifact-delivery',
@@ -159,6 +158,7 @@ async function artifactDeliveryToken(repositoryRoot, env) {
     env: {
       SKARBIEC_WORKLOAD_ID: workloadId,
       SKARBIEC_WORKLOAD_SIGNING_KEY_FILE: signingKeyFile,
+      WELES_SKARBIEC_URL: endpoint,
     },
     maxBuffer: 8_192,
     timeout: 15_000,

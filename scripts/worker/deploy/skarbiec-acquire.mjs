@@ -3,12 +3,64 @@
 import { randomBytes, sign } from 'node:crypto';
 import { readFileSync, lstatSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
+import { resolveSkarbiecEndpoint, formatEndpointErrorMessage } from './endpoint-resolution.mjs';
 
-const [endpointText, scopeFile, consumer, item, field] =
-  process.argv.slice(Number('2'));
-if ([endpointText, scopeFile, consumer, item, field].some((value) => !value)) {
-  throw new Error('usage: skarbiec-acquire.mjs <endpoint> <scope-file> <consumer> <item> <field>');
+// Parse arguments: support both legacy 5-arg and new 4-arg forms
+// Legacy: <endpoint> <scope-file> <consumer> <item> <field>
+// New:    <scope-file> <consumer> <item> <field>
+// Detection: if first arg is http(s) URL, treat as legacy endpoint
+const allArgs = process.argv.slice(Number('2'));
+let scopeFile, consumer, item, field, legacyEndpoint;
+
+const isHttpUrl = (s) => {
+  try {
+    const url = new URL(s);
+    return url.protocol === 'http:' || url.protocol === 'https:';
+  } catch {
+    return false;
+  }
+};
+
+if (allArgs.length === 5 && isHttpUrl(allArgs[0])) {
+  // Legacy 5-argument form with explicit endpoint
+  [legacyEndpoint, scopeFile, consumer, item, field] = allArgs;
+} else if (allArgs.length === 4) {
+  // New 4-argument form, resolve endpoint internally
+  [scopeFile, consumer, item, field] = allArgs;
+  legacyEndpoint = null;
+} else {
+  throw new Error('usage: skarbiec-acquire.mjs [<endpoint>] <scope-file> <consumer> <item> <field>');
 }
+
+if ([scopeFile, consumer, item, field].some((value) => !value)) {
+  throw new Error('usage: skarbiec-acquire.mjs [<endpoint>] <scope-file> <consumer> <item> <field>');
+}
+
+// Resolve endpoint: legacy explicit takes priority, then env vars, then markers, then default
+let endpointInfo;
+if (legacyEndpoint) {
+  // Legacy endpoint passed as 5th arg - treat as explicit authoritative override
+  const { isEndpointListening } = await import('./endpoint-resolution.mjs');
+  const listening = await isEndpointListening(legacyEndpoint);
+  endpointInfo = {
+    url: legacyEndpoint,
+    source: 'legacy-argument',
+    sourceDetail: 'positional endpoint argument (legacy 5-arg form)',
+    isListening: listening,
+  };
+  // Explicit legacy endpoint must work or fail loudly
+  if (!listening) {
+    throw new Error(formatEndpointErrorMessage(endpointInfo));
+  }
+} else {
+  // New form: resolve endpoint through standard order (env, markers, default)
+  const { resolved } = await resolveSkarbiecEndpoint();
+  if (!resolved) {
+    throw new Error('Failed to resolve Skarbiec endpoint: no candidates evaluated');
+  }
+  endpointInfo = resolved;
+}
+const endpointText = endpointInfo.url;
 
 const exactName = /^[A-Za-z\d._-]+$/;
 if (![consumer, item, field].every((value) => exactName.test(value))) {
@@ -46,6 +98,11 @@ if (endpoint.username || endpoint.password || endpoint.search || endpoint.hash
     || (endpoint.pathname !== '/' && endpoint.pathname !== '')
     || (endpoint.protocol !== 'https:' && !(endpoint.protocol === 'http:' && loopback))) {
   throw new Error('Skarbiec endpoint must be an HTTPS origin or loopback HTTP origin');
+}
+
+// Verify endpoint is listening; fail with detailed error if not
+if (!endpointInfo.isListening) {
+  throw new Error(formatEndpointErrorMessage(endpointInfo));
 }
 
 
