@@ -33,7 +33,7 @@ acquire_startup_field() {
   item="$2"
   field="$3"
   /opt/homebrew/bin/node "$runtime/scripts/worker/deploy/skarbiec-acquire.mjs" \
-    "$WC_SKARBIEC_URL" "$runtime/scripts/worker/deploy/skarbiec-acquisition-scopes.conf" \
+    "$runtime/scripts/worker/deploy/skarbiec-acquisition-scopes.conf" \
     "$consumer" "$item" "$field"
 }
 

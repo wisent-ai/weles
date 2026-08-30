@@ -107,9 +107,10 @@ export function readScopedSecret(serviceName, field) {
   const consumer = `${service.consumer}-${field}`;
   const { helper, scopes } = acquisitionPaths();
   const { workloadId, signingKeyFile } = workloadEnvironment();
+  // Validate that explicit endpoint is configured (will be used by skarbiec-acquire.mjs for resolution)
+  const endpoint = checkedEndpoint();
   const result = spawnSync(process.execPath, [
     helper,
-    checkedEndpoint(),
     scopes,
     consumer,
     service.item,
@@ -123,6 +124,7 @@ export function readScopedSecret(serviceName, field) {
       PATH: process.env.PATH || '/usr/local/bin:/usr/bin:/bin',
       SKARBIEC_WORKLOAD_ID: workloadId,
       SKARBIEC_WORKLOAD_SIGNING_KEY_FILE: signingKeyFile,
+      WELES_SKARBIEC_URL: endpoint,
     },
   });
   const output = Buffer.isBuffer(result.stdout) ? result.stdout : Buffer.alloc(Number('0'));

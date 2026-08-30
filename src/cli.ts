@@ -2,6 +2,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { runWelesOnboarding } from './onboarding.js';
+import { resolveSkarbiecEndpoint } from './utils/endpoint-resolution.js';
 import type { WelesOnboardingInput } from './onboarding.js';
 import type { AsyncNewBrowserOptions } from './async_api.js';
 
@@ -174,9 +175,10 @@ async function runScreenshot(parsed: ParsedCli): Promise<void> {
   await runOpen(parsed);
 }
 
-function runDoctor(): void {
+async function runDoctor(): Promise<void> {
+
   const pkg = readPackageJson();
-  const report = {
+  const report: Record<string, unknown> = {
     ok: true,
     version: pkg.version ?? null,
     node: process.version,
@@ -185,8 +187,39 @@ function runDoctor(): void {
       CHROMIUM_PATH: process.env.CHROMIUM_PATH ? 'set' : 'unset',
       WELES_USE_STOCK_CHROMIUM: process.env.WELES_USE_STOCK_CHROMIUM ? 'set' : 'unset',
     },
+    dependencies: {
+      skarbiec: null as unknown,
+    },
   };
+
+  try {
+    const skarbiecResult = await resolveSkarbiecEndpoint();
+    if (skarbiecResult.resolved) {
+      report.dependencies = {
+        skarbiec: {
+          resolved: skarbiecResult.resolved.url,
+          source: skarbiecResult.resolved.source,
+          sourceDetail: skarbiecResult.resolved.sourceDetail,
+          isListening: skarbiecResult.resolved.isListening,
+        },
+      };
+      if (!skarbiecResult.resolved.isListening) {
+        report.ok = false;
+      }
+    }
+  } catch (error) {
+    report.dependencies = {
+      skarbiec: {
+        error: error instanceof Error ? error.message : String(error),
+      },
+    };
+    report.ok = false;
+  }
+
   process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
+  if (!report.ok) {
+    process.exitCode = 1;
+  }
 }
 
 function readJsonFile(path: string, label: string): unknown {
@@ -254,7 +287,7 @@ export async function runCli(argv = process.argv.slice(2)): Promise<void> {
     return;
   }
   if (parsed.command === 'doctor') {
-    runDoctor();
+    await runDoctor();
     return;
   }
   if (parsed.command === 'open') {
