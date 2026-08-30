@@ -1,7 +1,7 @@
 {
   "schema": "weles.version-change.v1",
-  "current": "0.4.0",
-  "candidate": "0.5.0",
-  "breaking": true,
-  "reason": "The immutable worker distribution replaces the mutable-checkout deployment contract and adds versioned task, cancellation, receipt, status, and service-version schemas."
+  "current": "0.5.28",
+  "candidate": "0.5.28",
+  "breaking": false,
+  "reason": "released-surface.json had been left at 0.4.0 with 90 entries while 0.5.0 through 0.5.28 shipped, so every pull request was measured against a baseline 26 entries out of date and the declaration still named the 0.4.0 -> 0.5.0 cutover. The baseline is now the surface of the tree package.json declares, and the surface has not moved: the 116 entries at 5cb655ed, at main and on the open branches are identical, so the declared version stays 0.5.28."
 }
