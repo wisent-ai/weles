@@ -24,41 +24,27 @@
 
 ---
 
-## 2. Launcher Gate Stricter Than Downstream Consumers and Host Configuration
+## 2. The Deleted Launcher Carries an Outdated Gate, But HEAD Already Corrected It
 
 **Date discovered:** 2026-08-30
 
-**Issue:** Line 301 of `scripts/worker/deploy/launch-mac.sh` enforces a gate requiring `STADO_RELEASE_API_URL` unconditionally:
+**The issue on the host:** The pre-f792637b `launch-mac.sh` on charless-mac-mini carries a strict gate requiring `STADO_RELEASE_API_URL` unconditionally, which blocks worker startup when the host runs in `STADO_RELEASE_LOCAL_ROOT` mode.
+
+**Verification of current state:** This gate defect does NOT exist in weles HEAD. `git grep -n 'z "${STADO_RELEASE_API_URL' HEAD -- scripts/` returns nothing. The current pattern in HEAD (`scripts/worker/deploy/auto-deploy.sh` lines 74-75) correctly accepts either release source:
 
 ```bash
-|| [ -z "${STADO_RELEASE_API_URL:-}" ] \
+if [[ -z "${STADO_RELEASE_LOCAL_ROOT:-}" ]]; then
+  require STADO_RELEASE_API_URL
+fi
 ```
 
-**But:**
+The strict gate exists only in:
+- The pre-f792637b `launch-mac.sh` on charless-mac-mini (restored repeatedly by the crash-loop)
+- Committed snapshot artifacts in `.wisent-output/work/source/scripts/worker/deploy/` (build output, not source)
 
-- The browser downloaders (`scripts/chromium/download.sh` and `scripts/firefox/download.sh`) that this gate exists for already accept **either** source and prefer the local root:
-  ```bash
-  if [[ -z "${STADO_RELEASE_LOCAL_ROOT:-}" ]]; then
-    require STADO_RELEASE_API_URL
-  fi
-  ```
+**Impact:** The host cannot converge to the corrected code because `weles-release-cutover` keeps restoring the deleted launcher. This is purely a host-side issue. **No Weles repository change is required.**
 
-- Their header comments state: "STADO_RELEASE_LOCAL_ROOT or STADO_RELEASE_API_URL"
-
-- The host is configured for **local release root** mode (via `weles-release-cutover` setting `STADO_RELEASE_LOCAL_ROOT=$HOME/.stado/releases` and deleting `STADO_RELEASE_API_URL` on every tick)
-
-**Impact:** The gate is stricter than:
-- The thing it gates for (downloaders accept either)
-- The host's declared configuration (local root mode)
-- The reconciler's intent (delete the API URL every tick)
-
-**Current blocker:** `com.wisent.always-on.weles` and `com.wisent.weles-api` crash-loop failing this gate even though `STADO_RELEASE_LOCAL_ROOT` is set and usable. The Skarbiec 8785 fault and its acquisitions are resolved; this gate is the remaining blocker.
-
-**Code fix required:** Update launcher line 301 to require `STADO_RELEASE_API_URL` only when `STADO_RELEASE_LOCAL_ROOT` is empty, matching the downloaders:
-
-```bash
-|| ([ -z "${STADO_RELEASE_API_URL:-}" ] && [ -z "${STADO_RELEASE_LOCAL_ROOT:-}" ]) \
-```
+**The real blocker is item 1 (the crash-loop).** Once that loop is stopped or fixed, the host will deploy the current code that already accepts either release source.
 
 ---
 
