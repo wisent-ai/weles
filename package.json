@@ -17,7 +17,8 @@
     "lint-modules": "node scripts/lint/check_module_load.mjs",
     "diag:run-request": "node scripts/diag/run_diagnostic_request.mjs",
     "dev": "tsc --watch",
-    "secrets:acquire": "node scripts/secrets/acquire.mjs"
+    "secrets:acquire": "node scripts/secrets/acquire.mjs",
+    "test": "tap tests/**/*.test.ts"
   },
   "dependencies": {
     "@faker-js/faker": "^10.4.0",
@@ -36,7 +37,9 @@
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
+    "@types/tap": "^18.0.0",
     "@types/ws": "^8.5.0",
+    "tap": "^18.0.0",
     "typescript": "^5.7.0"
   }
 }
