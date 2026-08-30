@@ -107,6 +107,26 @@ await test('resolveSkarbiecEndpoint: no explicit includes built-in default as la
   assert.strictEqual(result.wasExplicitOverride, false);
 });
 
+await test('resolveSkarbiecEndpoint: WC_SKARBIEC_URL env var is actually resolved', async () => {
+  const server = await startTestServer(9008);
+  const originalEnv = process.env.WC_SKARBIEC_URL;
+  try {
+    // Verify that setting WC_SKARBIEC_URL actually gets resolved and used
+    process.env.WC_SKARBIEC_URL = 'http://127.0.0.1:9008';
+    delete process.env.WELES_CREDENTIAL_SKARBIEC_URL;
+    
+    const result = await resolveSkarbiecEndpoint();
+    assert.ok(result.resolved);
+    assert.strictEqual(result.resolved.url, 'http://127.0.0.1:9008', 'must use exact env var value');
+    assert.strictEqual(result.resolved.source, 'environment', 'must report env as source');
+    assert.strictEqual(result.resolved.isListening, true, 'must detect listening');
+  } finally {
+    if (originalEnv) process.env.WC_SKARBIEC_URL = originalEnv;
+    else delete process.env.WC_SKARBIEC_URL;
+    await stopTestServer(server);
+  }
+});
+
 await test('formatEndpointErrorMessage: formats correctly', async () => {
   const info = {
     url: 'http://127.0.0.1:8785',

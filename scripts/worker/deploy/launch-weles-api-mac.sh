@@ -55,7 +55,7 @@ acquire_startup_field() {
   local scopes="$WELES_REPO/scripts/worker/deploy/skarbiec-acquisition-scopes.conf"
   local helper="$WELES_REPO/scripts/worker/deploy/skarbiec-acquire.mjs"
   local value
-  value="$("$NODE_BIN" "$helper" "$WC_SKARBIEC_URL" "$scopes" "$consumer" "$item" "$field")"
+  value="$("$NODE_BIN" "$helper" "$scopes" "$consumer" "$item" "$field")"
   if [ -z "$value" ]; then
     printf '%s\n' "empty Skarbiec field $item/$field through: $WC_SKARBIEC_URL" >&2
     return 1

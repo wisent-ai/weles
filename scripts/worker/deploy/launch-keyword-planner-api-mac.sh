@@ -46,25 +46,25 @@ if [ ! -x "$STADO_BIN" ] || [ ! -x "$NODE_BIN" ]; then
   false
 fi
 if ! WELES_STADO_MODEL_ROUTER_TOKEN="$("$NODE_BIN" "$ACQUIRE_HELPER" \
-  "$WC_SKARBIEC_URL" "$SCOPE_FILE" "$MODEL_BOOTSTRAP_CONSUMER" \
+  "$SCOPE_FILE" "$MODEL_BOOTSTRAP_CONSUMER" \
   weles-keyword-planner-model-router token)"; then
   printf '%s\n' "one-time keyword-planner model token acquisition failed" > /dev/stderr
   false
 fi
 if ! WELES_STADO_MODEL_ROUTER_AGENT_ID="$("$NODE_BIN" "$ACQUIRE_HELPER" \
-  "$WC_SKARBIEC_URL" "$SCOPE_FILE" "$MODEL_AGENT_ID_BOOTSTRAP_CONSUMER" \
+  "$SCOPE_FILE" "$MODEL_AGENT_ID_BOOTSTRAP_CONSUMER" \
   weles-model-agent-auth id)"; then
   printf '%s\n' "one-time keyword-planner model agent id acquisition failed" > /dev/stderr
   false
 fi
 if ! WELES_STADO_MODEL_ROUTER_AGENT_AUTH_SECRET="$("$NODE_BIN" "$ACQUIRE_HELPER" \
-  "$WC_SKARBIEC_URL" "$SCOPE_FILE" "$MODEL_AGENT_SECRET_BOOTSTRAP_CONSUMER" \
+  "$SCOPE_FILE" "$MODEL_AGENT_SECRET_BOOTSTRAP_CONSUMER" \
   weles-model-agent-auth agent_auth_secret)"; then
   printf '%s\n' "one-time keyword-planner model agent secret acquisition failed" > /dev/stderr
   false
 fi
 if ! WELES_KEYWORD_PLANNER_API_TOKEN="$("$NODE_BIN" "$ACQUIRE_HELPER" \
-  "$WC_SKARBIEC_URL" "$SCOPE_FILE" "$API_BOOTSTRAP_CONSUMER" \
+  "$SCOPE_FILE" "$API_BOOTSTRAP_CONSUMER" \
   weles-keyword-planner-api token)"; then
   printf '%s\n' "one-time keyword-planner API token acquisition failed" > /dev/stderr
   false
