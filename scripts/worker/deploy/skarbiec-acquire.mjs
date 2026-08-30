@@ -3,11 +3,19 @@
 import { randomBytes, sign } from 'node:crypto';
 import { readFileSync, lstatSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
+import { resolveSkarbiecEndpoint, formatEndpointErrorMessage } from './endpoint-resolution.mjs';
 
-const [endpointText, scopeFile, consumer, item, field] =
+// Resolve the endpoint using multi-source logic with liveness detection
+const { resolved: endpointInfo, candidates } = await resolveSkarbiecEndpoint();
+if (!endpointInfo) {
+  throw new Error('Failed to resolve Skarbiec endpoint: no candidates evaluated');
+}
+const endpointText = endpointInfo.url;
+
+const [, scopeFile, consumer, item, field] =
   process.argv.slice(Number('2'));
-if ([endpointText, scopeFile, consumer, item, field].some((value) => !value)) {
-  throw new Error('usage: skarbiec-acquire.mjs <endpoint> <scope-file> <consumer> <item> <field>');
+if ([scopeFile, consumer, item, field].some((value) => !value)) {
+  throw new Error('usage: skarbiec-acquire.mjs <scope-file> <consumer> <item> <field>');
 }
 
 const exactName = /^[A-Za-z\d._-]+$/;
@@ -46,6 +54,11 @@ if (endpoint.username || endpoint.password || endpoint.search || endpoint.hash
     || (endpoint.pathname !== '/' && endpoint.pathname !== '')
     || (endpoint.protocol !== 'https:' && !(endpoint.protocol === 'http:' && loopback))) {
   throw new Error('Skarbiec endpoint must be an HTTPS origin or loopback HTTP origin');
+}
+
+// Verify endpoint is listening; fail with detailed error if not
+if (!endpointInfo.isListening) {
+  throw new Error(formatEndpointErrorMessage(endpointInfo));
 }
 
 
