@@ -13,6 +13,7 @@ export interface EndpointInfo {
 export interface EndpointResolutionResult {
   resolved: EndpointInfo | null;
   candidates: EndpointInfo[];
+  wasExplicitOverride: boolean;
 }
 
 /**
@@ -80,21 +81,26 @@ function readForwardMarker(markerName: string): string | null {
 }
 
 /**
- * Resolve Skarbiec endpoint from multiple sources in priority order:
- * 1. WC_SKARBIEC_URL environment variable
- * 2. WELES_CREDENTIAL_SKARBIEC_URL environment variable
- * 3. Forward markers in ~/.stado/forwards/ (tried in order: skarbiec-weles.local, skarbiec.local, skarbiec-weles.url, skarbiec.url, mini-skarbiec-8895.url)
- * 4. Built-in default (http://127.0.0.1:8895)
+ * Resolve Skarbiec endpoint from multiple sources with authoritative explicit overrides.
  *
- * Prefers a candidate that is actually listening over one that is not.
- * @returns Promise<EndpointResolutionResult> containing resolved endpoint and all candidates tried
+ * Resolution order:
+ * 1. Explicit environment variable (WC_SKARBIEC_URL or WELES_CREDENTIAL_SKARBIEC_URL)
+ *    - If set, MUST be used and MUST be listening; fails with clear error if not
+ * 2. Forward markers in ~/.stado/forwards/ (discover alternatives)
+ *    - Checks these in order, uses first listening one found
+ * 3. Built-in default (http://127.0.0.1:8895)
+ *    - Falls back only if no explicit override and no listening markers
+ *
+ * @returns Promise<EndpointResolutionResult> containing resolved endpoint, all candidates, and whether an explicit override was given
  */
 export async function resolveSkarbiecEndpoint(): Promise<EndpointResolutionResult> {
   const candidates: EndpointInfo[] = [];
+  let wasExplicitOverride = false;
 
-  // 1. Environment overrides (highest priority)
+  // 1. Explicit environment override (authoritative if present)
   const envUrl = process.env.WC_SKARBIEC_URL?.trim() || process.env.WELES_CREDENTIAL_SKARBIEC_URL?.trim();
   if (envUrl) {
+    wasExplicitOverride = true;
     const isListening = await isEndpointListening(envUrl);
     candidates.push({
       url: envUrl,
@@ -104,9 +110,14 @@ export async function resolveSkarbiecEndpoint(): Promise<EndpointResolutionResul
         : 'WELES_CREDENTIAL_SKARBIEC_URL environment variable',
       isListening,
     });
+    // Explicit override must succeed; if not listening, return it as resolved (will trigger error in caller)
+    if (!isListening) {
+      return { resolved: candidates[0], candidates, wasExplicitOverride };
+    }
+    return { resolved: candidates[0], candidates, wasExplicitOverride };
   }
 
-  // 2. Forward markers (medium priority)
+  // 2. Forward markers (discover alternatives, prefer listening)
   const markerNames = [
     'skarbiec-weles.local',
     'skarbiec.local',
@@ -137,10 +148,10 @@ export async function resolveSkarbiecEndpoint(): Promise<EndpointResolutionResul
     isListening,
   });
 
-  // Return the first listening endpoint, or the first one tried if none are listening
+  // Among discovered candidates (no explicit override), prefer listening over non-listening
   const resolved = candidates.find((c) => c.isListening) || candidates[0] || null;
 
-  return { resolved, candidates };
+  return { resolved, candidates, wasExplicitOverride };
 }
 
 /**

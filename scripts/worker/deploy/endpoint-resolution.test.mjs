@@ -52,7 +52,7 @@ await test('isEndpointListening: handles invalid URLs gracefully', async () => {
   assert.strictEqual(result, false);
 });
 
-await test('resolveSkarbiecEndpoint: respects WC_SKARBIEC_URL', async () => {
+await test('resolveSkarbiecEndpoint: explicit alive override is used', async () => {
   const server = await startTestServer(9003);
   const originalEnv = process.env.WC_SKARBIEC_URL;
   try {
@@ -64,6 +64,7 @@ await test('resolveSkarbiecEndpoint: respects WC_SKARBIEC_URL', async () => {
     assert.strictEqual(result.resolved.url, 'http://127.0.0.1:9003');
     assert.strictEqual(result.resolved.source, 'environment');
     assert.strictEqual(result.resolved.isListening, true);
+    assert.strictEqual(result.wasExplicitOverride, true);
   } finally {
     if (originalEnv) process.env.WC_SKARBIEC_URL = originalEnv;
     else delete process.env.WC_SKARBIEC_URL;
@@ -71,7 +72,27 @@ await test('resolveSkarbiecEndpoint: respects WC_SKARBIEC_URL', async () => {
   }
 });
 
-await test('resolveSkarbiecEndpoint: includes built-in default', async () => {
+await test('resolveSkarbiecEndpoint: explicit dead override returned (not silently redirected)', async () => {
+  const originalEnv = process.env.WC_SKARBIEC_URL;
+  try {
+    // Set explicit override to dead port - should NOT fall back
+    process.env.WC_SKARBIEC_URL = 'http://127.0.0.1:9999';
+    delete process.env.WELES_CREDENTIAL_SKARBIEC_URL;
+    
+    const result = await resolveSkarbiecEndpoint();
+    // Should resolve to the dead endpoint (not fall back to marker or default)
+    assert.ok(result.resolved);
+    assert.strictEqual(result.resolved.url, 'http://127.0.0.1:9999');
+    assert.strictEqual(result.resolved.source, 'environment');
+    assert.strictEqual(result.resolved.isListening, false);
+    assert.strictEqual(result.wasExplicitOverride, true);
+  } finally {
+    if (originalEnv) process.env.WC_SKARBIEC_URL = originalEnv;
+    else delete process.env.WC_SKARBIEC_URL;
+  }
+});
+
+await test('resolveSkarbiecEndpoint: no explicit includes built-in default as last resort', async () => {
   delete process.env.WC_SKARBIEC_URL;
   delete process.env.WELES_CREDENTIAL_SKARBIEC_URL;
   
@@ -83,6 +104,7 @@ await test('resolveSkarbiecEndpoint: includes built-in default', async () => {
     'http://127.0.0.1:8895',
     'default should be last'
   );
+  assert.strictEqual(result.wasExplicitOverride, false);
 });
 
 await test('formatEndpointErrorMessage: formats correctly', async () => {

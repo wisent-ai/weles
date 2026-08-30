@@ -5,14 +5,15 @@ import { readFileSync, lstatSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
 import { resolveSkarbiecEndpoint, formatEndpointErrorMessage } from './endpoint-resolution.mjs';
 
-// Resolve the endpoint using multi-source logic with liveness detection
-const { resolved: endpointInfo, candidates } = await resolveSkarbiecEndpoint();
+// Resolve the endpoint using multi-source logic with liveness detection.
+// Explicit environment overrides are authoritative; if set and not listening, fail loudly.
+const { resolved: endpointInfo } = await resolveSkarbiecEndpoint();
 if (!endpointInfo) {
   throw new Error('Failed to resolve Skarbiec endpoint: no candidates evaluated');
 }
 const endpointText = endpointInfo.url;
 
-const [, scopeFile, consumer, item, field] =
+const [scopeFile, consumer, item, field] =
   process.argv.slice(Number('2'));
 if ([scopeFile, consumer, item, field].some((value) => !value)) {
   throw new Error('usage: skarbiec-acquire.mjs <scope-file> <consumer> <item> <field>');
