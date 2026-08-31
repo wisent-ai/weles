@@ -1,7 +1,7 @@
 {
   "schema": "weles.version-change.v1",
-  "current": "0.5.39",
-  "candidate": "0.5.40",
+  "current": "0.5.40",
+  "candidate": "0.5.41",
   "breaking": false,
-  "reason": "0.5.40 enters an available logged-in macOS GUI bootstrap before a system-hosted API spawns a trajectory. The trajectory logic, CLI, and library surface are unchanged."
+  "reason": "0.5.41 declines a credential prefill for a field that is not on the page instead of redeeming first, so a two-step sign-in no longer burns its password capability on the identifier page. Trajectory logic, CLI and library surface are unchanged."
 }
