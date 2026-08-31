@@ -1,6 +1,7 @@
 #!/usr/bin/env node
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, readFileSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { dirname, join } from 'node:path';
 import { runWelesOnboarding } from './onboarding.js';
 import { resolveSkarbiecEndpoint } from './utils/endpoint-resolution.js';
 import type { WelesOnboardingInput } from './onboarding.js';
@@ -189,6 +190,7 @@ async function runDoctor(): Promise<void> {
     },
     dependencies: {
       skarbiec: null as unknown,
+      browserRuntime: null as unknown,
     },
   };
 
@@ -216,10 +218,106 @@ async function runDoctor(): Promise<void> {
     report.ok = false;
   }
 
+  // A worker that will die on its first browser task should say so here
+  // rather than at the fourth failed job. `browserContext.newPage` needs the
+  // recording dependency before it will open a page at all, so an absent
+  // ffmpeg is not a degraded run, it is every browser task on the host
+  // failing -- and it reported itself only as a run failure hours later.
+  const runtime = inspectBrowserRuntime();
+  report.dependencies = {
+    ...(report.dependencies as Record<string, unknown>),
+    browserRuntime: runtime,
+  };
+  if (!runtime.ok) {
+    report.ok = false;
+  }
+
   process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
   if (!report.ok) {
     process.exitCode = 1;
   }
+}
+
+/// The components this worker takes from Playwright's own cache.
+///
+/// Not every browser Playwright pins: the worker launches its own Chromium
+/// and Firefox releases, pinned by digest, so Playwright's bundled browsers
+/// are absent on a healthy host. `ffmpeg` is what the recording path uses and
+/// what its absence breaks.
+const REQUIRED_PLAYWRIGHT_COMPONENTS = ['ffmpeg'] as const;
+
+type BrowserRuntimeReport = {
+  ok: boolean;
+  components?: Array<{ name: string; revision: string; expectedPath: string; present: boolean }>;
+  error?: string;
+};
+
+/// Whether the browser runtime this release pins is actually on disk.
+///
+/// The revisions are read from the Playwright the release itself carries,
+/// never hardcoded: the cache directory is `<name>-<revision>` with
+/// underscores for hyphenated names, so a constant would check the wrong path
+/// the moment the dependency moved. Presence is Playwright's own
+/// `INSTALLATION_COMPLETE` marker, so a directory left behind by an
+/// interrupted download is reported missing rather than present.
+function inspectBrowserRuntime(): BrowserRuntimeReport {
+  let declared: Array<{ name: string; revision: string }>;
+  try {
+    // Resolved through the package's main entry and then walked up to the
+    // manifest beside it. `require.resolve('playwright-core/browsers.json')`
+    // is refused: the package's `exports` map does not publish that subpath,
+    // even though the file is what Playwright itself reads for its revisions.
+    // Asking the resolver for the entry point and walking from there uses the
+    // same copy the runtime will load, which a hardcoded node_modules path
+    // would not.
+    const manifestPath = findPlaywrightManifest();
+    const parsed = JSON.parse(readFileSync(manifestPath, 'utf8')) as {
+      browsers?: Array<{ name?: string; revision?: string }>;
+    };
+    declared = (parsed.browsers ?? [])
+      .filter((entry): entry is { name: string; revision: string } =>
+        typeof entry.name === 'string' && typeof entry.revision === 'string')
+      .map((entry) => ({ name: entry.name, revision: entry.revision }));
+  } catch (error) {
+    return {
+      ok: false,
+      error: `cannot read playwright-core/browsers.json, so the browser runtime this release needs is unknown: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    };
+  }
+
+  const cacheRoot = playwrightCacheRoot();
+  const components = REQUIRED_PLAYWRIGHT_COMPONENTS.map((name) => {
+    const found = declared.find((entry) => entry.name === name);
+    const revision = found?.revision ?? 'unknown';
+    const expectedPath = join(cacheRoot, `${name.replace(/-/g, '_')}-${revision}`, 'INSTALLATION_COMPLETE');
+    return { name, revision, expectedPath, present: found ? existsSync(expectedPath) : false };
+  });
+  return { ok: components.every((component) => component.present), components };
+}
+
+/// The `browsers.json` beside the resolved `playwright-core`.
+function findPlaywrightManifest(): string {
+  let directory = dirname(require.resolve('playwright-core'));
+  for (let depth = 0; depth < 6; depth += 1) {
+    const candidate = join(directory, 'browsers.json');
+    if (existsSync(candidate)) return candidate;
+    const parent = dirname(directory);
+    if (parent === directory) break;
+    directory = parent;
+  }
+  throw new Error('no browsers.json beside the resolved playwright-core');
+}
+
+/// Where Playwright keeps its downloads on this platform.
+function playwrightCacheRoot(): string {
+  const override = process.env.PLAYWRIGHT_BROWSERS_PATH?.trim();
+  if (override) return override;
+  const home = homedir();
+  if (process.platform === 'darwin') return join(home, 'Library', 'Caches', 'ms-playwright');
+  if (process.platform === 'win32') return join(home, 'AppData', 'Local', 'ms-playwright');
+  return join(home, '.cache', 'ms-playwright');
 }
 
 function readJsonFile(path: string, label: string): unknown {
