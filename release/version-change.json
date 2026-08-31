@@ -1,7 +1,7 @@
 {
   "schema": "weles.version-change.v1",
-  "current": "0.5.34",
-  "candidate": "0.5.35",
+  "current": "0.5.35",
+  "candidate": "0.5.36",
   "breaking": false,
-  "reason": "0.5.35 reports its exact canonical release identity from /healthz, allowing Stado to reject a stale launchd definition instead of accepting any process already listening on the readiness port. The released CLI and library surface is unchanged."
+  "reason": "0.5.36 removes the launcher's undeclared jq runtime dependency and reads Stado's JSON config with the Node runtime the Weles API already requires. The released CLI and library surface is unchanged."
 }

@@ -43,12 +43,17 @@ if [ ! -x "$STADO_BIN" ]; then
   printf 'required Stado binary is unavailable: %s\n' "$STADO_BIN" >&2
   exit 1
 fi
-JQ_BIN="${JQ_BIN:-/opt/homebrew/bin/jq}"
-if [ ! -x "$JQ_BIN" ]; then
-  printf 'required jq binary is unavailable: %s\n' "$JQ_BIN" >&2
+NODE_BIN="${NODE_BIN:-/opt/homebrew/bin/node}"
+if [ ! -x "$NODE_BIN" ]; then
+  printf 'required Node runtime is unavailable: %s\n' "$NODE_BIN" >&2
   exit 1
 fi
-WC_SKARBIEC_URL="$("$STADO_BIN" config show | "$JQ_BIN" -er '.resolved.agent_skarbiec_url | select(type == "string" and length > 0)')"
+WC_SKARBIEC_URL="$("$STADO_BIN" config show | "$NODE_BIN" -e '
+  const config = JSON.parse(require("node:fs").readFileSync(0, "utf8"));
+  const value = config?.resolved?.agent_skarbiec_url;
+  if (typeof value !== "string" || value.length === 0) process.exit(1);
+  process.stdout.write(value);
+')"
 if [ -z "$WC_SKARBIEC_URL" ]; then
   printf 'fleet Stado config has no agent_skarbiec_url\n' >&2
   exit 1
@@ -59,7 +64,6 @@ export WC_SKARBIEC_URL
 # release that launchd had activated.
 WELES_REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd -P)"
 export WELES_REPO
-NODE_BIN=/opt/homebrew/bin/node
 WELES_ACTION_ALLOWLIST="$("$NODE_BIN" -e '
   const actions = require("node:fs").readFileSync(process.argv[1], "utf8")
     .split(/\r?\n/).map((action) => action.trim()).filter(Boolean);

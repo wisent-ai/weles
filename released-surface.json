@@ -1,6 +1,6 @@
 {
-  "version": "0.5.34",
-  "source": "head:ae9c524b declares 0.5.34, the version published as worker-v0.5.34 and therefore the baseline 0.5.35 is measured against; regenerated with scripts/release/surface.mjs. Identical entry-for-entry to 0.5.34: this release adds canonical identity to the Weles API health response, not the CLI or library surface.",
+  "version": "0.5.35",
+  "source": "head:3cef4c0a declares 0.5.35, the version published as worker-v0.5.35 and therefore the baseline 0.5.36 is measured against; regenerated with scripts/release/surface.mjs. Identical entry-for-entry to 0.5.35: this release removes an undeclared jq dependency from the macOS API launcher, not the CLI or library surface.",
   "surface": [
     "cmd:weles",
     "cmd:weles doctor",
