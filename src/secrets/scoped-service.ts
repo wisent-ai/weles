@@ -16,13 +16,11 @@ const SERVICE_CONTRACTS = Object.freeze({
   // its own vault item, so it must not borrow the shared googleSso login: that
   // would sign into a different Google account and mint a credential for the
   // wrong subscription.
-  // Google challenges these accounts for a second factor on a host it has not
-  // seen before, and a sign-in that stops at that prompt cannot be finished by a
-  // schedule. The seed stays optional: readOptionalWelesServiceLogin fetches
-  // totp_secret only when the contract declares it and omits it when the vault
-  // item carries none, so an account holding username and password alone behaves
-  // exactly as it did before this line changed.
-  claudeControlYourAi: Object.freeze({ consumer: 'weles-claude-controlyourai-client', item: 'claude_controlyourai', fields: LOGIN_WITH_TOTP_FIELDS }),
+  // This item currently declares username and password only. Asking Skarbiec
+  // for an undeclared TOTP field makes the whole login fail before Chromium
+  // starts, so the executable contract must match the item rather than carry a
+  // field that might be added later.
+  claudeControlYourAi: Object.freeze({ consumer: 'weles-claude-controlyourai-client', item: 'claude_controlyourai', fields: LOGIN_FIELDS }),
   // The account the fleet names claude-wisent-google-sso: the three live claude
   // subscriptions were minted by it, and its login lives in its own vault item.
   // Same optional-seed shape as the item above: a live sign-in for this account
