@@ -1,6 +1,7 @@
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { WSession } from '../../../dist/session/wsession.js';
+import { CREDENTIAL_FIELD_ABSENT } from '../../../dist/session/wsession-helpers/finalize.js';
 import { execute, AgentFailure } from '../../../dist/agent/index.js';
 import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
 import { writeWelesTrajectoryDraft } from '../../../dist/trajectories/writer.js';
@@ -255,7 +256,13 @@ async function applyCredentialPrefill(activeSession, taskConstraints) {
     if (!target || !fieldClass || !capability || typeof capability !== 'object' || Array.isArray(capability)) {
       throw new Error('credential_prefill entry is incomplete');
     }
-    await activeSession.fillCredential(target, fieldClass, capability);
+    // A field that is not on this page leaves its capability unspent, for the
+    // agent to fill when the flow reaches it. Said out loud: the alternative
+    // reading of a silent skip is that the credential was refused.
+    const outcome = await activeSession.fillCredential(target, fieldClass, capability);
+    if (outcome === CREDENTIAL_FIELD_ABSENT) {
+      console.log(`[generic] prefill deferred: no ${fieldClass} field on this page; its capability is unspent`);
+    }
   }
 }
 const url = requireHttpUrl(envString('GENERIC_TASK_URL'));
