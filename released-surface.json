@@ -1,6 +1,4 @@
 {
-  "version": "0.5.39",
-  "source": "head:042a7f35 declares 0.5.39, tagged as worker-v0.5.39 and therefore the baseline 0.5.40 is measured against; regenerated with scripts/release/surface.mjs. Identical entry-for-entry to 0.5.39: this release enters an available macOS GUI bootstrap before spawning trajectories, not the CLI or library surface.",
   "surface": [
     "cmd:weles",
     "cmd:weles doctor",
@@ -118,5 +116,6 @@
     "task-status:queued",
     "task-status:running",
     "task-status:succeeded"
-  ]
+  ],
+  "version": "0.5.40"
 }
