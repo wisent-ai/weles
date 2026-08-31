@@ -1,7 +1,7 @@
 {
   "schema": "weles.version-change.v1",
   "current": "0.5.29",
-  "candidate": "0.5.29",
+  "candidate": "0.5.30",
   "breaking": false,
-  "reason": "0.5.29 changes only release input storage paths: both immutable dependency bundles now live under the existing weles-worker publisher prefix required by Stado. The released CLI and library surface remains identical to 0.5.28."
+  "reason": "0.5.30 removes the deleted Supabase directory from the canonical release payload; runtime behavior and the released CLI and library surface remain identical to 0.5.29."
 }
