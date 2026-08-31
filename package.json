@@ -1,6 +1,6 @@
 {
   "name": "weles",
-  "version": "0.5.41",
+  "version": "0.5.42",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
