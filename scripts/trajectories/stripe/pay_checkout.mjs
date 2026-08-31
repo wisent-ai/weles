@@ -12,6 +12,7 @@
 //   STRIPE_PAY_CONFIRM=1  required: this spends real money
 //   TOPUP_CARD_*          card, sourced from the host's topup_card.env
 //   STRIPE_PAY_NAME       optional cardholder name override
+//   STRIPE_PAY_EMAIL      contact email the hosted page requires
 //
 // Output: PASS-CHARGED with the final URL, or FAIL with the reason Stripe or
 // the page gave. Screenshots land in the session directory at every decision
@@ -76,6 +77,44 @@ try {
     await withoutLink.click().catch(() => {});
     await humanIdlePause('short');
   }
+
+  // A checkout for a European account opens on a payment-method chooser -
+  // Card, iDEAL, Bancontact, EPS - and renders no card fields until Card is
+  // selected. It also asks for an email before it will submit, and pre-checks
+  // "Save my information for faster checkout", which turns the flow into Link
+  // and demands a phone number. Answer all three before looking for a card
+  // form, or the page looks like it has none.
+  const email = process.env.STRIPE_PAY_EMAIL?.trim();
+  if (email) {
+    const emailIn = s.page.locator('input[name="email"], input#email, input[type="email"]').filter({ visible: true }).first();
+    if (await emailIn.isVisible().catch(() => false)) {
+      await emailIn.click();
+      await humanType(s.page, email, { delay: 40 });
+      console.log('[stripe-checkout] contact email filled');
+    }
+  }
+
+  const cardOption = s.page
+    .locator('[data-testid="card-accordion-item-button"], [data-testid="card-tab"], input[value="card"], label:has-text("Card")')
+    .filter({ visible: true })
+    .first();
+  if (await cardOption.isVisible().catch(() => false)) {
+    await cardOption.click().catch(() => {});
+    console.log('[stripe-checkout] selected the Card method');
+    await humanIdlePause('short');
+  }
+
+  // Link saves the card to a phone number nobody can confirm from here.
+  const saveInfo = s.page.locator('input[type="checkbox"]').filter({ visible: true });
+  const saveCount = await saveInfo.count().catch(() => 0);
+  for (let i = 0; i < saveCount; i++) {
+    const box = saveInfo.nth(i);
+    if (await box.isChecked().catch(() => false)) {
+      await box.uncheck({ force: true }).catch(() => {});
+      console.log('[stripe-checkout] declined "save my information"');
+    }
+  }
+  await s.screenshot('method_selected');
 
   // A hosted checkout comes in two layouts and the difference is invisible in
   // a log: the older one puts card inputs on the page, the current one puts
