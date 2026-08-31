@@ -5,8 +5,9 @@
 // enqueue->poll roundtrip. It reuses the worker's OWN resolveTrajectory +
 // paramsToEnv (from dist/) so a job runs byte-identically to the queued path.
 //
-// This is a transport wrapper only. It spawns the same `node <trajectory>`
-// child the worker spawns; it does not reimplement trajectory logic.
+// It spawns the same trajectory child the worker spawns. On macOS, when the
+// API is a system LaunchDaemon and a GUI login exists, that child enters the
+// user's GUI bootstrap before it starts. Trajectory logic stays unchanged.
 //
 // Credential modes (POST /run field "creds", default "redact"):
 //   "redact"  -> result passes through the secret-shape redactor (default;
@@ -37,7 +38,7 @@
 //   POST /worker/restart                  -> authenticated forced restart
 
 import http from 'node:http';
-import { spawn, execFile } from 'node:child_process';
+import { spawn, execFile, execFileSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import { homedir } from 'node:os';
 import { dirname, resolve, join, extname, sep } from 'node:path';
@@ -446,6 +447,32 @@ async function storeCredential(action, params, creds, runId) {
   };
 }
 
+function trajectoryProcess(trajPath) {
+  const direct = { command: process.execPath, args: [trajPath] };
+  if (process.platform !== 'darwin') return direct;
+
+  let session = 'unknown';
+  try {
+    session = execFileSync('/bin/launchctl', ['managername'], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+  } catch { /* use the direct process below */ }
+  if (session === 'Aqua') return direct;
+
+  const uid = process.getuid?.();
+  if (!Number.isSafeInteger(uid) || uid < 0) return direct;
+  try {
+    execFileSync('/bin/launchctl', ['print', `gui/${uid}`], { stdio: 'ignore' });
+  } catch {
+    return direct;
+  }
+  return {
+    command: '/bin/launchctl',
+    args: ['asuser', String(uid), process.execPath, trajPath],
+  };
+}
+
 function runTrajectory(action, params, accountId, freshProfile, timeoutMs) {
   return new Promise((resolveRun) => {
     const trajPath = resolveTrajectory(action);
@@ -460,7 +487,8 @@ function runTrajectory(action, params, accountId, freshProfile, timeoutMs) {
       ACTION_LOG_ID: runId,
       ACTION: action,
     };
-    const child = spawn('node', [trajPath], {
+    const processSpec = trajectoryProcess(trajPath);
+    const child = spawn(processSpec.command, processSpec.args, {
       cwd: REPO,
       env,
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -526,7 +554,8 @@ function runReauth(provider, timeoutMs, account) {
     const trajPath = resolve(REPO, 'scripts/trajectories', provider, 'reauth.mjs');
     if (!existsSync(trajPath)) { resolveRun({ ok: false, error: 'no_reauth_trajectory', provider }); return; }
     const runId = randomUUID();
-    const child = spawn('node', [trajPath], {
+    const processSpec = trajectoryProcess(trajPath);
+    const child = spawn(processSpec.command, processSpec.args, {
       cwd: REPO,
       env: {
         ...process.env,
