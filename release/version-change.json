@@ -1,7 +1,7 @@
 {
   "schema": "weles.version-change.v1",
-  "current": "0.5.29",
-  "candidate": "0.5.30",
+  "current": "0.5.30",
+  "candidate": "0.5.31",
   "breaking": false,
-  "reason": "0.5.30 removes the deleted Supabase directory from the canonical release payload; runtime behavior and the released CLI and library surface remain identical to 0.5.29."
+  "reason": "0.5.31 makes the stage map relative to WISENT_OUTPUT_DIR, matching Stado's canonical release contract; runtime behavior and the released CLI and library surface remain identical to 0.5.30."
 }
