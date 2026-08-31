@@ -398,7 +398,7 @@ async function storeCredential(action, params, creds, runId) {
   };
 }
 
-function runTrajectory(action, params, accountId, timeoutMs) {
+function runTrajectory(action, params, accountId, freshProfile, timeoutMs) {
   return new Promise((resolveRun) => {
     const trajPath = resolveTrajectory(action);
     if (!trajPath) { resolveRun({ ok: false, error: 'no_trajectory', action }); return; }
@@ -408,6 +408,7 @@ function runTrajectory(action, params, accountId, timeoutMs) {
       WELES_FULL_DIAGNOSTICS: process.env.WELES_FULL_DIAGNOSTICS ?? '1',
       ...paramsToEnv(params || {}, action, trajPath),
       ...(accountId ? { ACCOUNT_ID: String(accountId) } : {}),
+      ...(freshProfile ? { WELES_FRESH_PROFILE: '1' } : {}),
       ACTION_LOG_ID: runId,
       ACTION: action,
     };
@@ -791,7 +792,7 @@ const server = http.createServer(async (req, res) => {
       }
       if (!instructions) { json(res, 400, { ok: false, error: 'missing_instructions' }); return; }
       const objective = `${BUILDER_PREAMBLE}\n\nTASK:\n${instructions}`;
-      const out = await runTrajectory('generic_browser_task', { url: BUILDER_BOOTSTRAP_URL, objective }, null, TIMEOUT_MS);
+      const out = await runTrajectory('generic_browser_task', { url: BUILDER_BOOTSTRAP_URL, objective }, null, false, TIMEOUT_MS);
       if (out.error === 'no_trajectory') { json(res, 500, { ok: false, error: 'builder_trajectory_missing' }); return; }
       const doc = out.result && typeof out.result === 'object' ? out.result : {};
       const payload = {
@@ -837,6 +838,11 @@ const server = http.createServer(async (req, res) => {
     }
     const params = body.params && typeof body.params === 'object' ? body.params : {};
     const accountId = typeof body.account_id === 'string' ? body.account_id : null;
+    const freshProfile = body.fresh_profile === true;
+    if (freshProfile && !accountId) {
+      json(res, 400, { ok: false, error: 'fresh_profile_requires_account_id' });
+      return;
+    }
     const timeoutMs = Number(body.timeout_ms) > 0 ? Number(body.timeout_ms) : TIMEOUT_MS;
     // A browser login runs for minutes. Every operator transport that can reach
     // this route closes long before that, and a request whose socket goes takes
@@ -847,19 +853,19 @@ const server = http.createServer(async (req, res) => {
     if (body.detached === true) {
       const coalesced = isCredentialTrajectory(action);
       const admissionKey = coalesced
-        ? runAdmissionKey('trajectory', { action, account_id: accountId, params })
+        ? runAdmissionKey('trajectory', { action, account_id: accountId, fresh_profile: freshProfile, params })
         : null;
       const detachedId = randomUUID();
       const resultPath = join(RUN_RESULTS_DIR, `${detachedId}.json`);
       const admission = admissionKey
         ? coalesceRun(
           admissionKey,
-          () => runTrajectory(action, params, accountId, timeoutMs),
+          () => runTrajectory(action, params, accountId, freshProfile, timeoutMs),
           { detachedId, resultPath },
         )
         : {
           entry: {
-            promise: runTrajectory(action, params, accountId, timeoutMs),
+            promise: runTrajectory(action, params, accountId, freshProfile, timeoutMs),
             metadata: { detachedId, resultPath },
           },
           joined: false,
@@ -906,10 +912,10 @@ const server = http.createServer(async (req, res) => {
     }
     const admission = isCredentialTrajectory(action)
       ? coalesceRun(
-        runAdmissionKey('trajectory', { action, account_id: accountId, params }),
-        () => runTrajectory(action, params, accountId, timeoutMs),
+        runAdmissionKey('trajectory', { action, account_id: accountId, fresh_profile: freshProfile, params }),
+        () => runTrajectory(action, params, accountId, freshProfile, timeoutMs),
       )
-      : { entry: { promise: runTrajectory(action, params, accountId, timeoutMs) }, joined: false };
+      : { entry: { promise: runTrajectory(action, params, accountId, freshProfile, timeoutMs) }, joined: false };
     const out = await admission.entry.promise;
 
     if (out.error === 'no_trajectory') { json(res, 404, out); return; }

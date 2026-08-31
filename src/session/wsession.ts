@@ -266,9 +266,22 @@ export class WSession {
     const accountKey = createHash('sha256').update(accountId).digest('hex');
     const root = process.env.WELES_BROWSER_PROFILE_ROOT?.trim()
       || join(userInfo().homedir, '.local', 'state', 'weles', 'browser-profiles');
-    const directory = join(root, safePlatform, safeBrowser, accountKey);
+    const parent = join(root, safePlatform, safeBrowser);
+    const directory = join(parent, accountKey);
     const ownerOnly = Number.parseInt('700', Number('8'));
-    mkdirSync(directory, { recursive: true, mode: ownerOnly });
+    mkdirSync(parent, { recursive: true, mode: ownerOnly });
+    if (process.env.WELES_FRESH_PROFILE === '1') {
+      try {
+        mkdirSync(directory, { mode: ownerOnly });
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'EEXIST') {
+          throw new Error('fresh browser profile directory already exists');
+        }
+        throw error;
+      }
+    } else {
+      mkdirSync(directory, { recursive: true, mode: ownerOnly });
+    }
     chmodSync(directory, ownerOnly);
     return directory;
   }
