@@ -1,6 +1,6 @@
 {
-  "version": "0.5.28",
-  "source": "head:c8bed74d the tree main declares as 0.5.28; regenerated with scripts/release/surface.mjs. Identical entry-for-entry to the surface of 5cb655ed (Release Weles worker 0.5.26), so no unreleased surface is recorded here.",
+  "version": "0.5.29",
+  "source": "head:11ba1ee4 declares 0.5.29. The released CLI and library surface is identical to 0.5.28; only immutable release input storage paths changed.",
   "surface": [
     "cmd:weles",
     "cmd:weles doctor",
