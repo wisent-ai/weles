@@ -1,4 +1,12 @@
 {
+  "origin:https://accounts.google.com/email": {
+    "item": "weles-google-sso-login",
+    "field": "username"
+  },
+  "origin:https://accounts.google.com/password": {
+    "item": "weles-google-sso-login",
+    "field": "password"
+  },
   "origin:https://dash.cloudflare.com/email": {
     "item": "platform-admin-cloudflare",
     "field": "username"
