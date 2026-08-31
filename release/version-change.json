@@ -1,7 +1,7 @@
 {
   "schema": "weles.version-change.v1",
-  "current": "0.5.41",
-  "candidate": "0.5.42",
+  "current": "0.5.42",
+  "candidate": "0.5.43",
   "breaking": false,
-  "reason": "0.5.42 matches the Claude_controlyourai acquisition contract to the username and password fields the vault item actually carries, so a fresh login reaches Chromium instead of failing on an undeclared TOTP read. CLI and library surface are unchanged."
+  "reason": "0.5.43 makes auto-deploy.sh parse again - 0.5.40 shipped a blank line inside a backslash continuation, which stopped the release activator on every cycle and left hosts unable to install anything - and fails the build when a shipped shell script cannot be parsed. Trajectory logic, CLI and library surface are unchanged."
 }
