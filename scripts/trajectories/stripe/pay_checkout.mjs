@@ -10,34 +10,21 @@
 // Inputs:
 //   STRIPE_CHECKOUT_URL   the https://checkout.stripe.com/c/pay/cs_... page
 //   STRIPE_PAY_CONFIRM=1  required: this spends real money
-//   TOPUP_CARD_*          card, sourced from ~/.weles/topup_card.env
+//   TOPUP_CARD_*          card, sourced from the host's topup_card.env
 //   STRIPE_PAY_NAME       optional cardholder name override
 //
 // Output: PASS-CHARGED with the final URL, or FAIL with the reason Stripe or
 // the page gave. Screenshots land in the session directory at every decision
 // point, because a refused card and a refused form look identical in a log.
 
-import { readFileSync, existsSync } from 'node:fs';
-import { homedir } from 'node:os';
-import { join } from 'node:path';
 import { WSession } from '../../../dist/session/wsession.js';
+import { loadTopupCardEnv, TOPUP_ENV_FILES } from '../_shared/services/topup_common.mjs';
 import { humanIdlePause } from '../../../dist/human/mouse.js';
 import { humanType } from '../../../dist/human/keyboard.js';
 
-// Same file every other purchase trajectory reads, same precedence: an
-// explicit environment variable wins over the file.
-const TOPUP_ENV_FILE = join(homedir(), '.weles', 'topup_card.env');
-if (existsSync(TOPUP_ENV_FILE)) {
-  for (const raw of readFileSync(TOPUP_ENV_FILE, 'utf8').split('\n')) {
-    const line = raw.trim();
-    if (!line || line.startsWith('#')) continue;
-    const eq = line.indexOf('=');
-    if (eq < 0) continue;
-    const k = line.slice(0, eq).trim();
-    const v = line.slice(eq + 1).trim().replace(/^["']|["']$/g, '');
-    if (k && v && !process.env[k]) process.env[k] = v;
-  }
-}
+// One loader, so this works on a host that keeps the card under ~/.weles and
+// on a host that keeps it under ~/.stado.
+const cardFile = loadTopupCardEnv();
 
 const url = process.env.STRIPE_CHECKOUT_URL ?? '';
 if (!/^https:\/\/checkout\.stripe\.com\//.test(url)) {
@@ -56,7 +43,7 @@ const card = {
   name: process.env.STRIPE_PAY_NAME ?? process.env.TOPUP_CARD_NAME ?? '',
 };
 if (!card.num || !card.exp || !card.cvc) {
-  console.log(`FAIL: TOPUP_CARD_NUMBER/EXP/CVC missing (looked in env and ${TOPUP_ENV_FILE})`);
+  console.log(`FAIL: TOPUP_CARD_NUMBER/EXP/CVC missing (card file: ${cardFile ?? 'none of ' + TOPUP_ENV_FILES.join(', ')})`);
   process.exit(2);
 }
 

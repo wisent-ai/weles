@@ -21,25 +21,14 @@
 // sentinel). Real Playwright errors propagate to the outer handler.
 import { WSession } from '../../../dist/session/wsession.js';
 import { googleSso, getGoogleSsoCreds } from '../_shared/services/google_sso.mjs';
-import { fillStripeElements } from '../_shared/services/topup_common.mjs';
+import { fillStripeElements, loadTopupCardEnv } from '../_shared/services/topup_common.mjs';
 import { mkdirSync, writeFileSync, readFileSync, existsSync, appendFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { humanIdlePause, humanClickLocator } from '../../../dist/human/mouse.js';
 import { humanType } from '../../../dist/human/keyboard.js';
 
-const TOPUP_ENV_FILE = join(homedir(), '.weles', 'topup_card.env');
-if (existsSync(TOPUP_ENV_FILE)) {
-  for (const raw of readFileSync(TOPUP_ENV_FILE, 'utf8').split('\n')) {
-    const line = raw.trim();
-    if (!line || line.startsWith('#')) continue;
-    const eq = line.indexOf('=');
-    if (eq < 0) continue;
-    const k = line.slice(0, eq).trim();
-    const v = line.slice(eq + 1).trim().replace(/^["']|["']$/g, '');
-    if (k && v && !process.env[k]) process.env[k] = v;
-  }
-}
+loadTopupCardEnv();
 
 const CONFIRM = process.env.DECODO_BUY_CONFIRM === '1';
 const OUT_DIR = '.work/keeper/decodo_isp_buy';
