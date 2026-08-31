@@ -1,7 +1,7 @@
 {
   "schema": "weles.version-change.v1",
-  "current": "0.5.31",
-  "candidate": "0.5.32",
+  "current": "0.5.32",
+  "candidate": "0.5.33",
   "breaking": false,
-  "reason": "0.5.32 ships the Google sign-in capability routes in scripts/worker/deploy/weles-capability-routes.json, which the API launcher installs over ~/.stado/weles-api-capability-routes.json at every start. A route declared on a host is reconciled away within seconds, so the released payload is the only durable carrier. No runtime behaviour and no released CLI or library surface changes."
+  "reason": "0.5.33 makes the canonical Stado artifact the managed Weles API runtime, resolves the API server and trajectories from that same immutable release, and admits the named Claude login trajectory used for fresh-profile verification. The released CLI and library surface is unchanged."
 }

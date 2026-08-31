@@ -925,6 +925,22 @@ const server = http.createServer(async (req, res) => {
       json(res, 200, { ok: true, action, run_id: out.run_id, credential: ref, coalesced: admission.joined });
       return;
     }
+    // Credential trajectories print the minted credential to stdout so their
+    // parent reauth flow can donate it to Skarbiec. In redact mode no part of
+    // that stdout, parsed result, or stderr may cross the API boundary.
+    if (isCredentialTrajectory(action) && credsMode !== 'raw') {
+      json(res, out.ok ? 200 : 502, {
+        ok: out.ok,
+        exitCode: out.exitCode,
+        action,
+        run_id: out.run_id,
+        result: { credential_produced: out.ok && out.result !== null },
+        timed_out: out.timed_out,
+        coalesced: admission.joined,
+      });
+      return;
+    }
+
 
     // raw mode: return unredacted (creds in the response); redact mode: default.
     json(res, out.ok ? 200 : 502, { ...out, coalesced: admission.joined }, { redact: credsMode !== 'raw' });

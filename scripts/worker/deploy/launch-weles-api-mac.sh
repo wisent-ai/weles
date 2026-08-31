@@ -2,6 +2,8 @@
 # macOS launchd wrapper for the Weles HTTP API server.
 # Runs trajectories synchronously over HTTP; Stado owns queued execution.
 export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
+managed_worker_version="${WELES_WORKER_RELEASE_VERSION:-}"
+managed_worker_sha256="${WELES_WORKER_RELEASE_SHA256:-}"
 set -a
 # base worker runtime (proxy and browser configuration)
 if [ -f "$HOME/weles/var/worker.env" ]; then
@@ -24,6 +26,10 @@ if [ -f "$HOME/.stado/weles-model.env" ]; then
   . "$HOME/.stado/weles-model.env"
 fi
 set +a
+if [ -n "$managed_worker_version" ] && [ -n "$managed_worker_sha256" ]; then
+  export WELES_WORKER_RELEASE_VERSION="$managed_worker_version"
+  export WELES_WORKER_RELEASE_SHA256="$managed_worker_sha256"
+fi
 # Secret acquisition authenticates the workload itself. Set the stable identity
 # before the first acquisition rather than only before starting the capability
 # broker below.
@@ -48,10 +54,23 @@ if [ -z "$WC_SKARBIEC_URL" ]; then
   exit 1
 fi
 export WC_SKARBIEC_URL
-# The API server and its trajectories must come from one managed revision.
-# $HOME/weles is the independently staged worker release and can legitimately lag.
-export WELES_REPO="$HOME/.stado/build-work/weles-api-managed"
+# Resolve the repository from this launcher's immutable release tree. Keeping a
+# second build-work copy made the API server and its trajectories lag the
+# release that launchd had activated.
+WELES_REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd -P)"
+export WELES_REPO
 NODE_BIN=/opt/homebrew/bin/node
+WELES_ACTION_ALLOWLIST="$("$NODE_BIN" -e '
+  const actions = require("node:fs").readFileSync(process.argv[1], "utf8")
+    .split(/\r?\n/).map((action) => action.trim()).filter(Boolean);
+  if (!actions.length
+      || new Set(actions).size !== actions.length
+      || actions.some((action) => !/^[a-z_]+$/.test(action))) {
+    throw new Error("invalid exact Weles action catalog");
+  }
+  process.stdout.write(actions.join(","));
+' "$WELES_REPO/scripts/worker/deploy/weles-action-allowlist.txt")"
+export WELES_ACTION_ALLOWLIST
 acquire_startup_field() {
   local consumer="$1" item="$2" field="$3"
   local scopes="$WELES_REPO/scripts/worker/deploy/skarbiec-acquisition-scopes.conf"
@@ -97,8 +116,8 @@ mkdir -p "$HOME/weles/var"
 # Set unconditionally: the unit's plist injects this variable, so a default
 # expression would never win. This is the alias Brama serves.
 export WELES_AGENT_MODEL=best
-export STADO_MODEL_ROUTER_URL='http://127.0.0.1:8080'
-export STADO_API_URL='https://lukaszs-macbook-pro-4007-2.tail6443b3.ts.net'
+export STADO_MODEL_ROUTER_URL='http://127.0.0.1:17601'
+export STADO_API_URL='http://127.0.0.1:17603'
 export STADO_API_TOKEN="$WELES_STADO_OBJECT_API_TOKEN"
 export SKARBIEC_VAULT_FILE="$HOME/.stado/skarbiec.vault.json"
 export SKARBIEC_CAPABILITY_FILE="$HOME/.stado/weles-api-capabilities.json"

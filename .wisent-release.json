@@ -20,9 +20,18 @@
       "stage": {
         "payload/weles-worker.tar.gz": "payload/weles-worker.tar.gz",
         "bin/start": "bin/start",
+        "weles-api-launcher": "weles-api-launcher",
         "evidence/DIGESTS": "evidence/DIGESTS"
       }
     }
+  },
+  "runtime": {
+    "binary": "payload/weles-worker.tar.gz",
+    "launcher": "weles-api-launcher",
+    "config_schema": 1,
+    "state_schema": 1,
+    "minimum_stado_version": "0.9.5",
+    "rollback_compatible_with": []
   },
   "inputs": {
     "weles-client-bundle": {
@@ -43,6 +52,6 @@
       "candidate",
       "stable"
     ],
-    "reconcile": false
+    "reconcile": true
   }
 }
