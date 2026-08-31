@@ -1,7 +1,7 @@
 {
   "schema": "weles.version-change.v1",
-  "current": "0.5.30",
-  "candidate": "0.5.31",
+  "current": "0.5.31",
+  "candidate": "0.5.32",
   "breaking": false,
-  "reason": "0.5.31 makes the stage map relative to WISENT_OUTPUT_DIR, matching Stado's canonical release contract; runtime behavior and the released CLI and library surface remain identical to 0.5.30."
+  "reason": "0.5.32 ships the Google sign-in capability routes in scripts/worker/deploy/weles-capability-routes.json, which the API launcher installs over ~/.stado/weles-api-capability-routes.json at every start. A route declared on a host is reconciled away within seconds, so the released payload is the only durable carrier. No runtime behaviour and no released CLI or library surface changes."
 }
