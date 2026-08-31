@@ -379,6 +379,66 @@ function acquisitionScopesFile(tenantId?: string | null): string {
     || deployedFile('skarbiec-acquisition-scopes.conf');
 }
 
+// The deployed catalog and the contract table at the head of this file are one
+// declaration split across two files, and nothing re-syncs the copies a host
+// accumulates: this workstation carries four, at four different revisions of the
+// same authored file, and a Skarbiec-side serving-path doctor already had to be
+// corrected for reading the wrong one. So the copy actually in force is parsed in
+// exactly one place, here, and both the reader gate and the read path below speak
+// from it: two spellings of this grammar is how the copies drifted unnoticed.
+// Returns every field the catalog grants this contract's own reader identity on
+// this contract's item.
+function managedReaderGrantedFields(
+  contract: InternalAcquiredSecretContract,
+  tenantId?: string | null,
+): string[] {
+  const readerConsumer = contract.readerConsumer;
+  if (!readerConsumer) return [];
+  const granted: string[] = [];
+  for (const line of readFileSync(acquisitionScopesFile(tenantId), 'utf8').split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const columns = trimmed.split('|');
+    if (columns.length !== Number('3')) continue;
+    const [consumer, item, field] = columns;
+    // The consumer column carries the field too, so a row counts only when it
+    // names exactly this contract's reader for exactly the field it grants.
+    if (item === contract.item && consumer === `${readerConsumer}-${field}`) granted.push(field);
+  }
+  return granted;
+}
+
+// A catalog that grants this item to its reader on a DIFFERENT field than the
+// contract declares is the drift that costs the most to diagnose. Every symptom
+// downstream is a credential that cannot be read, and both the reader gate and
+// the acquisition helper report it as though nothing were granted at all: the
+// helper names the field the contract asked for, so the row that does exist never
+// appears in the refusal. Name the disagreement instead, and name the copy that is
+// in force, because which catalog was read is the fact that resolves it. Null when
+// there is nothing to say: an absent row and an unreadable file are different
+// failures that already carry their own messages.
+export function welesManagedCredentialReaderMismatch(
+  secretName: string,
+  field: string,
+  tenantId?: string | null,
+): string | null {
+  const contract = resolvedAcquiredSecretContract(secretName);
+  if (!contract || contract.field !== field || !contract.readerConsumer) return null;
+  let catalog: string;
+  let granted: string[];
+  try {
+    catalog = acquisitionScopesFile(tenantId);
+    granted = managedReaderGrantedFields(contract, tenantId);
+  } catch {
+    return null;
+  }
+  if (!granted.length || granted.includes(field)) return null;
+  return `deployed Skarbiec acquisition catalog ${catalog} grants ${contract.item}`
+    + ` to its reader on ${granted.join(', ')}, but this revision's Weles credential`
+    + ` contract declares field ${field}: the catalog copy in force is not the one`
+    + ` this revision was built against`;
+}
+
 export function hasWelesManagedCredentialReader(
   secretName: string,
   field: string,
@@ -387,12 +447,7 @@ export function hasWelesManagedCredentialReader(
   const contract = resolvedAcquiredSecretContract(secretName);
   if (!contract || contract.field !== field || !contract.readerConsumer) return false;
   try {
-    const consumer = `${contract.readerConsumer}-${field}`;
-    const expected = `${consumer}|${contract.item}|${field}`;
-    return readFileSync(acquisitionScopesFile(tenantId), 'utf8')
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .some((line) => line === expected);
+    return managedReaderGrantedFields(contract, tenantId).includes(field);
   } catch {
     return false;
   }
@@ -480,6 +535,11 @@ export function readWelesManagedCredential(
   if (!contract || contract.field !== field || !contract.readerConsumer) {
     throw new Error(`field is not in an exact readable Weles credential contract: ${secretName}/${field}`);
   }
+  // Before the helper is spawned, because its refusal names only the field this
+  // contract asked for and so reads as "nothing is granted" when the catalog in
+  // force grants the same item on another field.
+  const mismatch = welesManagedCredentialReaderMismatch(secretName, field, tenantId);
+  if (mismatch) throw new Error(mismatch);
   return readAcquiredField(contract.readerConsumer, contract.item, field, tenantId);
 }
 

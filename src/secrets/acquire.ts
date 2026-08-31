@@ -3,6 +3,7 @@ import {
   hasWelesAcquiredSecretWriter,
   hasWelesManagedCredentialReader,
   isWelesAcquiredSourceOrigin,
+  welesManagedCredentialReaderMismatch,
 } from './scoped-service.js';
 import { enqueueAction, listAccounts } from '../state/skarbiec-records.js';
 
@@ -620,8 +621,12 @@ async function queueMicrosoftPasswordOperation(
     ...(!hasWelesAcquiredSecretWriter(def.secret, request.tenantId)
       ? [`scoped Skarbiec writer for ${def.secret}`]
       : []),
+    // A reader that is missing because the deployed catalog grants the item on
+    // another field is a different fix from a reader nobody declared, so say
+    // which one it is rather than reporting both as an absent grant.
     ...(!hasWelesManagedCredentialReader(def.secret, 'password', request.tenantId)
-      ? [`tenant-scoped Skarbiec reader for ${def.secret}/password`]
+      ? [welesManagedCredentialReaderMismatch(def.secret, 'password', request.tenantId)
+        ?? `tenant-scoped Skarbiec reader for ${def.secret}/password`]
       : []),
   ];
   if (missing.length) {
@@ -748,7 +753,8 @@ async function queueEntraPasswordOperation(
       ? [`scoped Skarbiec writer for ${def.secret}`]
       : []),
     ...(operation !== 'reset' && !hasWelesManagedCredentialReader(def.secret, 'password', skarbiecTenantId)
-      ? [`scoped Skarbiec reader for ${def.secret}/password`]
+      ? [welesManagedCredentialReaderMismatch(def.secret, 'password', skarbiecTenantId)
+        ?? `scoped Skarbiec reader for ${def.secret}/password`]
       : []),
   ];
   if (missing.length) {
