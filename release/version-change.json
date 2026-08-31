@@ -1,7 +1,7 @@
 {
   "schema": "weles.version-change.v1",
-  "current": "0.5.37",
-  "candidate": "0.5.38",
+  "current": "0.5.38",
+  "candidate": "0.5.39",
   "breaking": false,
-  "reason": "0.5.38 stops setup-node from saving the npm cache after a self-hosted darwin-arm64 release had already uploaded its worker artifact but remained blocked in that post-step for 49 minutes. Release bytes, the CLI, and the library surface are unchanged."
+  "reason": "0.5.39 returns structured secret-free failure identifiers when redacted credential trajectories fail. Raw trajectory output, the CLI, and the library surface are unchanged."
 }

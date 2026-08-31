@@ -168,6 +168,54 @@ function redactSecrets(obj) {
   try { return JSON.parse(s); } catch { return obj; }
 }
 
+function credentialFailure(out) {
+  const stderr = String(out.stderr_tail || '');
+  const stages = [...stderr.matchAll(/^STEP ([a-z][a-z0-9_-]{0,63})$/gm)];
+  const stage = stages.length ? stages[stages.length - 1][1] : undefined;
+  const withStage = (failure) => (stage ? { ...failure, stage } : failure);
+
+  if (out.timed_out) return withStage({ code: 'trajectory_timeout' });
+
+  let match = stderr.match(
+    /workload-bound Skarbiec acquisition failed for ([A-Za-z0-9._-]+)\/([A-Za-z0-9._-]+) as consumer ([A-Za-z0-9._-]+)/,
+  );
+  if (match) {
+    return withStage({
+      code: 'skarbiec_acquisition_failed',
+      item: match[1],
+      field: match[2],
+      consumer: match[3],
+    });
+  }
+
+  if (/no login material for '/.test(stderr)) {
+    return withStage({ code: 'login_material_unavailable' });
+  }
+  if (/claude binary not at /.test(stderr)) {
+    return withStage({ code: 'claude_binary_missing' });
+  }
+
+  match = stderr.match(/needs capability '([A-Za-z0-9._-]+)'/);
+  if (match) {
+    return withStage({ code: 'capability_unavailable', capability: match[1] });
+  }
+  if (/loginMethod=.*expected google_sso/.test(stderr)) {
+    return withStage({ code: 'login_method_mismatch' });
+  }
+  if (/authorization code never displayed/.test(stderr)) {
+    return withStage({ code: 'authorization_code_unavailable' });
+  }
+  if (/auth login: .* not seen in /.test(stderr)) {
+    return withStage({ code: 'claude_auth_prompt_unavailable' });
+  }
+
+  match = stderr.match(/auth login exited early \(code (-?\d+)\)/);
+  if (match) {
+    return withStage({ code: 'claude_auth_exited_early', exit_code: Number(match[1]) });
+  }
+  return withStage({ code: 'trajectory_failed' });
+}
+
 const SAFE_RUN_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/;
 
 function diagnosticsContentType(path) {
@@ -934,15 +982,18 @@ const server = http.createServer(async (req, res) => {
       return;
     }
     // Credential trajectories print the minted credential to stdout so their
-    // parent reauth flow can donate it to Skarbiec. In redact mode no part of
-    // that stdout, parsed result, or stderr may cross the API boundary.
+    // parent reauth flow can donate it to Skarbiec. Redact mode returns only
+    // credential presence and allowlisted failure identifiers parsed from
+    // stderr; raw output and arbitrary failure text stay inside Weles.
     if (isCredentialTrajectory(action) && credsMode !== 'raw') {
+      const result = { credential_produced: out.ok && out.result !== null };
+      if (!out.ok) result.failure = credentialFailure(out);
       json(res, out.ok ? 200 : 502, {
         ok: out.ok,
         exitCode: out.exitCode,
         action,
         run_id: out.run_id,
-        result: { credential_produced: out.ok && out.result !== null },
+        result,
         timed_out: out.timed_out,
         coalesced: admission.joined,
       });
