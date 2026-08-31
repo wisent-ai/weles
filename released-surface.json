@@ -1,6 +1,6 @@
 {
-  "version": "0.5.30",
-  "source": "head:d32aa2fa declares 0.5.30, the version merged in #61 and the baseline the 0.5.31 declaration is measured against; regenerated with scripts/release/surface.mjs. Identical entry-for-entry to the surface recorded for 0.5.29, so 0.5.30 and 0.5.31 are internal releases carrying no CLI or library surface change.",
+  "version": "0.5.31",
+  "source": "head:1b1673cf declares 0.5.31, the version published as stado://releases/weles-worker/0.5.31/darwin-arm64 and therefore the baseline 0.5.32 is measured against; regenerated with scripts/release/surface.mjs. Identical entry-for-entry to 0.5.30 and 0.5.29: these releases carry input, deployment and capability-route changes, not CLI or library surface changes.",
   "surface": [
     "cmd:weles",
     "cmd:weles doctor",
