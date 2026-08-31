@@ -1,6 +1,6 @@
 {
-  "version": "0.5.29",
-  "source": "head:11ba1ee4 declares 0.5.29. The released CLI and library surface is identical to 0.5.28; only immutable release input storage paths changed.",
+  "version": "0.5.30",
+  "source": "head:d32aa2fa declares 0.5.30, the version merged in #61 and the baseline the 0.5.31 declaration is measured against; regenerated with scripts/release/surface.mjs. Identical entry-for-entry to the surface recorded for 0.5.29, so 0.5.30 and 0.5.31 are internal releases carrying no CLI or library surface change.",
   "surface": [
     "cmd:weles",
     "cmd:weles doctor",
