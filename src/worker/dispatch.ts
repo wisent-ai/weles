@@ -19,7 +19,6 @@
 import { parseAppleLoginCapabilities } from '../utils/apple-login-capabilities.js';
 import { selectLoginAccount } from '../utils/login-accounts.js';
 import { parseAccessibilityAuditParams, parseCaptureParams } from './capture-params.js';
-import { parseStripeExpireSecretKeyParams } from './stripe-expire-params.js';
 
 const benignPath = 'scripts/trajectories/_shared/benign.mjs';
 const analyticsServicePath = 'scripts/trajectories/_shared/analytics-service.mjs';
@@ -100,7 +99,6 @@ const ROUTES: Record<string, (p: string) => string | null> = {
   capture: (p) => p === 'generic' ? 'scripts/trajectories/generic/capture.mjs' : null,
   accessibility_audit: (p) => p === 'generic' ? 'scripts/trajectories/generic/accessibility_audit.mjs' : null,
   key_followup: (p) => p === 'semanticscholar' ? 'scripts/trajectories/semanticscholar/key_followup.mjs' : null,
-  expire_secret_key: (p) => p === 'stripe' ? 'scripts/trajectories/stripe/expire_secret_key.mjs' : null,
   version_history_scan: (p) => p === 'overleaf' ? 'scripts/trajectories/overleaf/version_history_ui_phrase.mjs' : null,
   push_github: (p) => p === 'overleaf' ? 'scripts/trajectories/overleaf/push_github.mjs' : null,
   pull_github: (p) => p === 'overleaf' ? 'scripts/trajectories/overleaf/pull_github.mjs' : null,
@@ -393,9 +391,6 @@ export function paramsToEnv(
       env.PLATFORM = action.slice(0, underscore);
       env.VERB = action.slice(underscore + 1);
     }
-  }
-  if (trajPath.endsWith('/stripe/expire_secret_key.mjs')) {
-    env.WELES_STRIPE_EXPIRE_PLAN = JSON.stringify(parseStripeExpireSecretKeyParams(params));
   }
   if (trajPath.endsWith('/generic/browser_task.mjs') || trajPath.endsWith('/generic/keeper_task.mjs')) {
     const passthrough: Array<[string, string]> = [
