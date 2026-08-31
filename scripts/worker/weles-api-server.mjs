@@ -663,12 +663,14 @@ const server = http.createServer(async (req, res) => {
         source: 'weles_api',
         authConfigured: Boolean(TOKEN || ALLOW_UNAUTH),
         rawCredsAllowed: ALLOW_RAW_CREDS,
+        releaseVersion: process.env.WELES_WORKER_RELEASE_VERSION || null,
+        releaseSha256: process.env.WELES_WORKER_RELEASE_SHA256 || null,
         routes: ['GET /healthz', 'GET /worker/version', 'GET /worker/status', 'POST /worker/start', 'POST /worker/restart', 'POST /run', 'GET /diagnostics/:run_id', 'GET /diagnostics/:run_id/file?path=', 'POST /weles-builder', 'POST /reauth'],
         // A caller that must name an account has to know, without spawning a
         // run, whether this build understands login_item at all: a build that
         // does not would ignore the field and sign in to whichever row it picked
         // itself, burning a real login on an unknown account.
-        features: ['login_item'],
+        features: ['login_item', 'fresh_profile'],
         login_items: LOGIN_ACCOUNTS.map((a) => ({ login_item: a.loginItem, provider: a.provider, display_name: a.displayName })),
       });
       return;
