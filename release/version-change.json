@@ -1,7 +1,7 @@
 {
   "schema": "weles.version-change.v1",
-  "current": "0.5.35",
-  "candidate": "0.5.36",
+  "current": "0.5.36",
+  "candidate": "0.5.37",
   "breaking": false,
-  "reason": "0.5.36 removes the launcher's undeclared jq runtime dependency and reads Stado's JSON config with the Node runtime the Weles API already requires. The released CLI and library surface is unchanged."
+  "reason": "0.5.37 removes the completed one-time Stripe incident trajectory and the acquisition scope for its trashed credential so the authoritative Weles scope catalog remains registerable. The released CLI and library surface is unchanged."
 }
