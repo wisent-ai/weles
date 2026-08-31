@@ -39,8 +39,15 @@ MODEL_BOOTSTRAP_CONSUMER="weles-keyword-planner-router-bootstrap"
 API_BOOTSTRAP_CONSUMER="weles-keyword-planner-api-token-bootstrap"
 MODEL_AGENT_ID_BOOTSTRAP_CONSUMER="weles-model-agent-id-bootstrap"
 MODEL_AGENT_SECRET_BOOTSTRAP_CONSUMER="weles-model-agent-secret-bootstrap"
-SCOPE_FILE="$HOME/weles/scripts/worker/deploy/skarbiec-acquisition-scopes.conf"
-ACQUIRE_HELPER="$HOME/weles/scripts/worker/deploy/skarbiec-acquire.mjs"
+# Resolve the catalog and the helper from this launcher's own release tree, the
+# rule launch-weles-api-mac.sh:57-60 already applies and scoped-service.ts
+# applies through deployedFile. $HOME/weles is whichever release is currently
+# activated, and on a host where it is a checkout instead of the operator's
+# symlink it is simply another copy: this workstation's is 22 rows behind the
+# authority, so the launcher and the code it launches read different tables.
+DEPLOY_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+SCOPE_FILE="$DEPLOY_DIR/skarbiec-acquisition-scopes.conf"
+ACQUIRE_HELPER="$DEPLOY_DIR/skarbiec-acquire.mjs"
 if [ ! -x "$STADO_BIN" ] || [ ! -x "$NODE_BIN" ]; then
   printf '%s\n' "missing Stado or Node for keyword-planner acquisition" > /dev/stderr
   false
