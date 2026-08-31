@@ -5,6 +5,7 @@ brightdata_balance
 brightdata_topup
 capmonster_balance
 capsolver_balance
+claude_login
 discord_bookmark
 discord_browse
 discord_comment
