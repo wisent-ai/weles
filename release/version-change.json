@@ -1,7 +1,7 @@
 {
   "schema": "weles.version-change.v1",
-  "current": "0.5.36",
-  "candidate": "0.5.37",
+  "current": "0.5.37",
+  "candidate": "0.5.38",
   "breaking": false,
-  "reason": "0.5.37 removes the completed one-time Stripe incident trajectory and the acquisition scope for its trashed credential so the authoritative Weles scope catalog remains registerable. The released CLI and library surface is unchanged."
+  "reason": "0.5.38 stops setup-node from saving the npm cache after a self-hosted darwin-arm64 release had already uploaded its worker artifact but remained blocked in that post-step for 49 minutes. Release bytes, the CLI, and the library surface are unchanged."
 }
