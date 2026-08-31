@@ -98,6 +98,53 @@ const ACQUIRED_SECRET_CONTRACTS = Object.freeze({
     sourceOrigin: 'https://kit.snapchat.com',
     shape: 'opaque-token',
   }),
+  // Managed Microsoft account passwords. Each item declares its own provider
+  // surface here, because nothing in the id may be trusted to imply one: an item
+  // id is a mutable human-chosen vault name, so a rename has to miss an explicit
+  // declaration and fail visibly instead of silently inheriting another account's
+  // password lifecycle. These three are reached by the item id itself, not by a
+  // logical name like the entries above: every caller addresses a managed password
+  // through `def.secret`, which acquire.ts sets to the credential id
+  // (microsoftPasswordDefinition, entraPasswordDefinition).
+  //
+  // Consumer Microsoft account: adopt, rotate and verify run at account.live.com
+  // (scripts/trajectories/microsoft/password_lifecycle.mjs).
+  'weles-microsoft-primary-password': Object.freeze({
+    item: 'weles-microsoft-primary-password',
+    field: 'password',
+    writerConsumer: 'weles-microsoft-primary-password-writer',
+    writerTokenFile: 'weles-microsoft-primary-password-writer-skarbiec-token',
+    readerConsumer: 'weles-microsoft-primary-password-reader',
+    sourceOrigin: 'https://account.live.com',
+    shape: 'password',
+  }),
+  // Entra directory identity: the directory owns this password and its lifecycle
+  // runs at login.microsoftonline.com, never at account.live.com. The Entra
+  // trajectory refuses any job whose secret_source_origin is not exactly that
+  // origin (scripts/trajectories/microsoft/entra_password_lifecycle.mjs).
+  'weles-microsoft-jakub-wisent-ai-password': Object.freeze({
+    item: 'weles-microsoft-jakub-wisent-ai-password',
+    field: 'password',
+    writerConsumer: 'weles-microsoft-jakub-wisent-ai-password-writer',
+    writerTokenFile: 'weles-microsoft-jakub-wisent-ai-password-writer-skarbiec-token',
+    readerConsumer: 'weles-microsoft-jakub-wisent-ai-password-reader',
+    sourceOrigin: 'https://login.microsoftonline.com',
+    shape: 'password',
+  }),
+  // A personal Microsoft account that only guests in the Entra tenant: the id
+  // token for that principal names the Microsoft consumer tenant as its identity
+  // provider and the directory does not hold its password, so its lifecycle is
+  // the consumer one at account.live.com
+  // (scripts/worker/deploy/skarbiec-acquisition-scopes.conf:103-111).
+  'weles-microsoft-lukasz-wisent-com-password': Object.freeze({
+    item: 'weles-microsoft-lukasz-wisent-com-password',
+    field: 'password',
+    writerConsumer: 'weles-microsoft-lukasz-wisent-com-password-writer',
+    writerTokenFile: 'weles-microsoft-lukasz-wisent-com-password-writer-skarbiec-token',
+    readerConsumer: 'weles-microsoft-lukasz-wisent-com-password-reader',
+    sourceOrigin: 'https://account.live.com',
+    shape: 'password',
+  }),
 } as const);
 
 export type WelesAcquiredSecret = string;
@@ -134,44 +181,21 @@ export function isWelesAcquiredSourceOrigin(value: string): boolean {
   }
 }
 
-const MICROSOFT_PASSWORD_ID = /^weles-microsoft-[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?-password$/;
-// Entra work accounts are a different provider surface from consumer Microsoft
-// accounts: their password lifecycle runs at login.microsoftonline.com, never at
-// account.live.com. The exact ids are enumerated so a new id cannot silently
-// inherit the consumer origin. weles-microsoft-lukasz-wisent-com-password is a
-// personal Microsoft account that only guests in the Entra tenant, so its
-// lifecycle is the consumer one and it stays off this list.
-const MICROSOFT_ENTRA_PASSWORD_IDS: ReadonlySet<string> = new Set([
-  'weles-microsoft-jakub-wisent-ai-password',
-]);
-const MICROSOFT_ENTRA_ORIGIN = 'https://login.microsoftonline.com';
-const MICROSOFT_CONSUMER_ORIGIN = 'https://account.live.com';
-
 const GENERIC_ACQUIRED_ITEM = /^[a-z\d](?:[a-z\d-]{1,38}[a-z\d])$/;
 
 function resolvedAcquiredSecretContract(secret: string): InternalAcquiredSecretContract | null {
   const fixed = (ACQUIRED_SECRET_CONTRACTS as Readonly<Record<string, InternalAcquiredSecretContract>>)[secret];
   if (fixed) return fixed;
-  if (MICROSOFT_PASSWORD_ID.test(secret)) {
-    return {
-      item: secret,
-      field: 'password',
-      writerConsumer: `${secret}-writer`,
-      writerTokenFile: `${secret}-writer-skarbiec-token`,
-      readerConsumer: `${secret}-reader`,
-      sourceOrigin: MICROSOFT_ENTRA_PASSWORD_IDS.has(secret)
-        ? MICROSOFT_ENTRA_ORIGIN
-        : MICROSOFT_CONSUMER_ORIGIN,
-      shape: 'password',
-    };
-  }
   // An item nobody enumerated still gets exactly one derived contract: its own
   // scoped writer and its own writer token file, so that operator-owned file
   // stays the only authority that can enable it — there is no fallback to
   // another consumer or token, and no reader consumer, so the derived contract
   // can never be read back. An item another contract already owns is refused
   // here: a derived contract must never reach a table item's or a scoped service
-  // item's fields.
+  // item's fields. An id that merely looks like a managed password lands here
+  // too, with no source origin and no reader: only the table above may hand out
+  // a provider surface, so a renamed or unenumerated item fails visibly at the
+  // reader and shape gates instead of silently inheriting Microsoft's.
   if (!GENERIC_ACQUIRED_ITEM.test(secret)
     || Object.values(SERVICE_CONTRACTS).some((service) => service.item === secret)
     || Object.values(ACQUIRED_SECRET_CONTRACTS).some((contract) => contract.item === secret)) {
