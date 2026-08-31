@@ -220,6 +220,21 @@ export function acquiredSecretContract(secret: string): WelesAcquiredSecretContr
     : null;
 }
 
+// Whether one exact declared contract owns this id and that contract is a managed
+// password. Only the table at the head of this file can answer yes: a derived
+// contract is always shape 'opaque-token', so a password shape means a human wrote
+// the declaration for that exact id.
+//
+// This is the gate that decides the managed-password lifecycle applies at all, and
+// it is deliberately a lookup rather than a pattern over the id. An id is a mutable
+// human-chosen vault name: a rename that stops matching a pattern silently routes
+// the item down some other path, while a rename that misses a declaration fails
+// visibly and is fixed by editing the declaration.
+export function isWelesManagedPasswordItem(secret: string): boolean {
+  const contract = resolvedAcquiredSecretContract(secret);
+  return contract?.shape === 'password';
+}
+
 const TENANT_HEX_RE = /^[a-f\d-]+$/i;
 const TENANT_PART_LENGTHS = Object.freeze([
   'xxxxxxxx'.length,
