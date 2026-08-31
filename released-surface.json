@@ -1,6 +1,6 @@
 {
-  "version": "0.5.37",
-  "source": "head:4200467c declares 0.5.37, tagged as worker-v0.5.37 and therefore the baseline 0.5.38 is measured against; regenerated with scripts/release/surface.mjs. Identical entry-for-entry to 0.5.37: this release removes the release worker's stalled npm cache post-step, not the CLI or library surface.",
+  "version": "0.5.38",
+  "source": "head:0745867e declares 0.5.38, tagged as worker-v0.5.38 and therefore the baseline 0.5.39 is measured against; regenerated with scripts/release/surface.mjs. Identical entry-for-entry to 0.5.38: this release adds structured secret-free failure identifiers to the Weles worker API, not the CLI or library surface.",
   "surface": [
     "cmd:weles",
     "cmd:weles doctor",
