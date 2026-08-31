@@ -1,6 +1,6 @@
 {
-  "version": "0.5.32",
-  "source": "head:6efffb2b declares 0.5.32, the version published as stado://releases/weles-worker/0.5.32/darwin-arm64 and therefore the baseline 0.5.33 is measured against; regenerated with scripts/release/surface.mjs. Identical entry-for-entry to 0.5.31: this release changes deployment and credential-login runtime behavior, not the CLI or library surface.",
+  "version": "0.5.33",
+  "source": "head:d1285971 declares 0.5.33, the version published as worker-v0.5.33 and therefore the baseline 0.5.34 is measured against; regenerated with scripts/release/surface.mjs. Identical entry-for-entry to 0.5.33: this release corrects the canonical rollout policy's logical service name, not the CLI or library surface.",
   "surface": [
     "cmd:weles",
     "cmd:weles doctor",

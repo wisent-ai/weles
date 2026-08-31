@@ -1,7 +1,7 @@
 {
   "product": "weles-worker",
   "policy": {
-    "service": "com.wisent.always-on.weles-api",
+    "service": "weles-admission",
     "config_schema": 1,
     "state_schema": 1,
     "install_root": "/Users/charles/.stado/services/com.wisent.always-on.weles-api",
