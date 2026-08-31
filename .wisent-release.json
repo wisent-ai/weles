@@ -26,13 +26,13 @@
   },
   "inputs": {
     "weles-client-bundle": {
-      "uri": "stado://sources/weles-client/60d19e769a742cff377d5e5b59762b3696e2ea1403d8e578f52f681a8a6a350a/weles-client.bundle",
+      "uri": "stado://sources/weles-worker/weles-client/60d19e769a742cff377d5e5b59762b3696e2ea1403d8e578f52f681a8a6a350a/weles-client.bundle",
       "sha256": "60d19e769a742cff377d5e5b59762b3696e2ea1403d8e578f52f681a8a6a350a",
       "mount": "weles-client.bundle",
       "extract": false
     },
     "wisent-cost-tracker-bundle": {
-      "uri": "stado://sources/wisent-cost-tracker/a29a3b94cbfb3ad9765664684d9fa8911f25aaeb95d7518f0a5047c1a49f02b6/wisent-cost-tracker.bundle",
+      "uri": "stado://sources/weles-worker/wisent-cost-tracker/a29a3b94cbfb3ad9765664684d9fa8911f25aaeb95d7518f0a5047c1a49f02b6/wisent-cost-tracker.bundle",
       "sha256": "a29a3b94cbfb3ad9765664684d9fa8911f25aaeb95d7518f0a5047c1a49f02b6",
       "mount": "wisent-cost-tracker.bundle",
       "extract": false
