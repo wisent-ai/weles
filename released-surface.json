@@ -1,6 +1,6 @@
 {
-  "version": "0.5.36",
-  "source": "head:8186f4d0 declares 0.5.36, the version published as worker-v0.5.36 and therefore the baseline 0.5.37 is measured against; regenerated with scripts/release/surface.mjs. Identical entry-for-entry to 0.5.36: this release retires a completed one-time Stripe incident trajectory and its trashed credential scope, not the CLI or library surface.",
+  "version": "0.5.37",
+  "source": "head:4200467c declares 0.5.37, tagged as worker-v0.5.37 and therefore the baseline 0.5.38 is measured against; regenerated with scripts/release/surface.mjs. Identical entry-for-entry to 0.5.37: this release removes the release worker's stalled npm cache post-step, not the CLI or library surface.",
   "surface": [
     "cmd:weles",
     "cmd:weles doctor",
