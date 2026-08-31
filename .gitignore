@@ -22,3 +22,9 @@ scripts/lib/cgevent_postpid
 # `supabase`-CLI link or init must never reintroduce schema files or
 # .temp/linked-project.json into this repo.
 supabase/
+
+# Build output written by release/stado-build.sh (WISENT_OUTPUT_DIR).
+# stado-build.sh:6 already excludes it from the release source, and a
+# committed copy of .wisent-release.json inside it made every
+# `stado release catalog sync` refuse this repository.
+.wisent-output/
