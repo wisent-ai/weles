@@ -18,7 +18,7 @@
 // point, because a refused card and a refused form look identical in a log.
 
 import { WSession } from '../../../dist/session/wsession.js';
-import { loadTopupCardEnv, TOPUP_ENV_FILES } from '../_shared/services/topup_common.mjs';
+import { fillStripeElements, loadTopupCardEnv, TOPUP_ENV_FILES } from '../_shared/services/topup_common.mjs';
 import { humanIdlePause } from '../../../dist/human/mouse.js';
 import { humanType } from '../../../dist/human/keyboard.js';
 
@@ -77,32 +77,67 @@ try {
     await humanIdlePause('short');
   }
 
+  // A hosted checkout comes in two layouts and the difference is invisible in
+  // a log: the older one puts card inputs on the page, the current one puts
+  // each field in its own Stripe iframe. Try the page first, then the frames
+  // through the shared Elements filler every other purchase trajectory uses.
   console.log(`[stripe-checkout] filling ****${card.num.slice(-4)} exp=${card.exp}`);
   const cardIn = s.page.locator('input[name="cardNumber"], input#cardNumber').filter({ visible: true }).first();
-  await cardIn.waitFor({ state: 'visible' });
-  await cardIn.click();
-  await humanType(s.page, card.num, { delay: 50 });
-
-  const expIn = s.page.locator('input[name="cardExpiry"], input#cardExpiry').filter({ visible: true }).first();
-  await expIn.click();
-  await humanType(s.page, card.exp, { delay: 50 });
-
-  const cvcIn = s.page.locator('input[name="cardCvc"], input#cardCvc').filter({ visible: true }).first();
-  await cvcIn.click();
-  await humanType(s.page, card.cvc, { delay: 50 });
-
-  const nameIn = s.page.locator('input[name="billingName"], input#billingName').filter({ visible: true }).first();
-  if (card.name && (await nameIn.isVisible().catch(() => false))) {
-    await nameIn.click();
-    await humanType(s.page, card.name, { delay: 50 });
+  let onPage = false;
+  for (let i = 0; i < 20; i++) {
+    onPage = await cardIn.isVisible().catch(() => false);
+    if (onPage) break;
+    const inFrame = s.page.frames().some((f) => /stripe\.com|m\.stripe\.network/.test(f.url()));
+    if (inFrame && i > 4) break;
+    await humanIdlePause('short');
   }
-  const zipIn = s.page
-    .locator('input[name="billingPostalCode"], input#billingPostalCode')
-    .filter({ visible: true })
-    .first();
-  if (card.zip && (await zipIn.isVisible().catch(() => false))) {
-    await zipIn.click();
-    await humanType(s.page, card.zip, { delay: 50 });
+
+  if (onPage) {
+    await cardIn.click();
+    await humanType(s.page, card.num, { delay: 50 });
+    const expIn = s.page.locator('input[name="cardExpiry"], input#cardExpiry').filter({ visible: true }).first();
+    await expIn.click();
+    await humanType(s.page, card.exp, { delay: 50 });
+    const cvcIn = s.page.locator('input[name="cardCvc"], input#cardCvc').filter({ visible: true }).first();
+    await cvcIn.click();
+    await humanType(s.page, card.cvc, { delay: 50 });
+    const nameIn = s.page.locator('input[name="billingName"], input#billingName').filter({ visible: true }).first();
+    if (card.name && (await nameIn.isVisible().catch(() => false))) {
+      await nameIn.click();
+      await humanType(s.page, card.name, { delay: 50 });
+    }
+    const zipIn = s.page
+      .locator('input[name="billingPostalCode"], input#billingPostalCode')
+      .filter({ visible: true })
+      .first();
+    if (card.zip && (await zipIn.isVisible().catch(() => false))) {
+      await zipIn.click();
+      await humanType(s.page, card.zip, { delay: 50 });
+    }
+    console.log('[stripe-checkout] filled the page form');
+  } else {
+    const filled = await fillStripeElements(s.page, {
+      num: card.num, exp: card.exp, cvc: card.cvc, zip: card.zip,
+    });
+    console.log(`[stripe-checkout] elements fill: ${JSON.stringify(filled)}`);
+    if (!filled.ok) {
+      await s.screenshot('card_form_not_found');
+      const offered = await s.page.locator('button, [role="button"]').allInnerTexts().catch(() => []);
+      console.log(`FAIL: no card form to fill (${filled.reason ?? 'partial'}); the page offered: ${offered.filter(Boolean).slice(0, 8).join(' | ').slice(0, 200)}`);
+      process.exit(1);
+    }
+    // The hosted page keeps name and postal code outside the Elements frames.
+    for (const [selector, value] of [
+      ['input[name="billingName"], input#billingName', card.name],
+      ['input[name="billingPostalCode"], input#billingPostalCode', card.zip],
+    ]) {
+      if (!value) continue;
+      const input = s.page.locator(selector).filter({ visible: true }).first();
+      if (await input.isVisible().catch(() => false)) {
+        await input.click();
+        await humanType(s.page, value, { delay: 50 });
+      }
+    }
   }
   await s.screenshot('before_submit');
 
