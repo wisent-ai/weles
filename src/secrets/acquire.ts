@@ -3,6 +3,8 @@ import {
   hasWelesAcquiredSecretWriter,
   hasWelesManagedCredentialReader,
   isWelesAcquiredSourceOrigin,
+  isWelesManagedPasswordItem,
+  welesManagedCredentialReaderMismatch,
 } from './scoped-service.js';
 import { enqueueAction, listAccounts } from '../state/skarbiec-records.js';
 
@@ -148,8 +150,6 @@ export type AcquireSecretResult =
       message: string;
     };
 
-const MICROSOFT_PASSWORD_ID = /^weles-microsoft-[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?-password$/;
-
 function microsoftPasswordDefinition(credentialId: string): SecretDefinition {
   return {
     secret: credentialId,
@@ -176,10 +176,11 @@ const ENTRA_ORIGIN = 'https://login.microsoftonline.com';
 const ENTRA_UPN = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 const LOWER_UUID = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/;
 
-// Entra directory items share the managed-password credential id shape with
-// consumer Microsoft accounts (MICROSOFT_PASSWORD_ID); the requested provider
-// selects which lifecycle owns the item, so a directory identity is never
-// administered through a consumer-account surface.
+// Entra directory items and consumer Microsoft accounts are both declared managed
+// passwords (isWelesManagedPasswordItem); the requested provider selects which
+// lifecycle owns the item, so a directory identity is never administered through a
+// consumer-account surface. The provider is the caller declaring which lifecycle it
+// wants, not a fact read out of the id.
 function entraPasswordDefinition(credentialId: string): SecretDefinition {
   return {
     secret: credentialId,
@@ -323,9 +324,12 @@ function genericDefinition(request: AcquireSecretRequest): SecretDefinition | nu
     return null;
   }
   const item = request.credentialId?.trim().toLowerCase() || provider;
-  // The derived Skarbiec contract decides whether this item may be acquired at
-  // all: it refuses a registered item, a managed password id, and a scoped
-  // service item, so a generic request can never land on another contract's item.
+  // The Skarbiec contract decides whether this item may be acquired at all: the
+  // field must be the generic one, which refuses a registered item, a declared
+  // managed password (field `password`), and a scoped service item, so a generic
+  // request can never land on another contract's item. An id nobody declared has
+  // no managed lifecycle to divert, and reaching this point still requires the
+  // caller to have declared a generic provider slug of its own.
   const contract = acquiredSecretContract(item);
   if (!contract || contract.item !== item || contract.field !== GENERIC_FIELD) return null;
   const declaredOrigin = request.signupOrigin?.trim() ?? '';
@@ -356,17 +360,21 @@ function genericDefinition(request: AcquireSecretRequest): SecretDefinition | nu
 
 function normalizeSecret(request: AcquireSecretRequest): string {
   const credentialId = request.credentialId?.trim().toLowerCase() ?? '';
-  if (MICROSOFT_PASSWORD_ID.test(credentialId)) return credentialId;
+  // A declared managed password is addressed by its own item id, so it passes
+  // through unchanged. The declaration table decides that, never the id's spelling.
+  if (isWelesManagedPasswordItem(credentialId)) return credentialId;
   const explicit = request.secret?.trim().toLowerCase().replace(/[\s-]+/g, '_');
-  if (explicit) return explicit.includes('.') ? explicit.replace(/_/g, '_') : explicit;
+  // Both branches of the conditional this replaced returned the same string: it was
+  // born inert in 5734aff2 as `explicit.includes('.') ? explicit.replace(/_/g, '_')
+  // : explicit`, so no behaviour is lost. Dotted registry keys are already matched
+  // against their underscore spelling at lookup time in definitionFor below.
+  if (explicit) return explicit;
   const goal = request.goal?.toLowerCase() ?? '';
   if ((goal.includes('semantic') && goal.includes('scholar')) || goal.includes('semanticscholar') || goal.includes('s2')) {
     return SEMANTIC_SCHOLAR.secret;
   }
   if (goal.includes('github') && (goal.includes('admin') || goal.includes('org') || goal.includes('token'))) {
     return GITHUB_ADMIN_TOKEN.secret;
-  }
-  if (goal.includes('supabase') && (goal.includes('api') || goal.includes('key') || goal.includes('token') || goal.includes('klucz'))) {
   }
   if (goal.includes('figma') && (goal.includes('api') || goal.includes('token') || goal.includes('asset') || goal.includes('design'))) {
     return FIGMA_PERSONAL_ACCESS_TOKEN.secret;
@@ -379,7 +387,7 @@ function normalizeSecret(request: AcquireSecretRequest): string {
 
 function definitionFor(request: AcquireSecretRequest): SecretDefinition | null {
   const normalized = normalizeSecret(request);
-  if (MICROSOFT_PASSWORD_ID.test(normalized)) {
+  if (isWelesManagedPasswordItem(normalized)) {
     return request.provider === ENTRA_PROVIDER
       ? entraPasswordDefinition(normalized)
       : microsoftPasswordDefinition(normalized);
@@ -620,8 +628,12 @@ async function queueMicrosoftPasswordOperation(
     ...(!hasWelesAcquiredSecretWriter(def.secret, request.tenantId)
       ? [`scoped Skarbiec writer for ${def.secret}`]
       : []),
+    // A reader that is missing because the deployed catalog grants the item on
+    // another field is a different fix from a reader nobody declared, so say
+    // which one it is rather than reporting both as an absent grant.
     ...(!hasWelesManagedCredentialReader(def.secret, 'password', request.tenantId)
-      ? [`tenant-scoped Skarbiec reader for ${def.secret}/password`]
+      ? [welesManagedCredentialReaderMismatch(def.secret, 'password', request.tenantId)
+        ?? `tenant-scoped Skarbiec reader for ${def.secret}/password`]
       : []),
   ];
   if (missing.length) {
@@ -748,7 +760,8 @@ async function queueEntraPasswordOperation(
       ? [`scoped Skarbiec writer for ${def.secret}`]
       : []),
     ...(operation !== 'reset' && !hasWelesManagedCredentialReader(def.secret, 'password', skarbiecTenantId)
-      ? [`scoped Skarbiec reader for ${def.secret}/password`]
+      ? [welesManagedCredentialReaderMismatch(def.secret, 'password', skarbiecTenantId)
+        ?? `scoped Skarbiec reader for ${def.secret}/password`]
       : []),
   ];
   if (missing.length) {
@@ -842,7 +855,12 @@ async function queueAcquisition(def: SecretDefinition, request: AcquireSecretReq
 export async function acquireSecret(request: AcquireSecretRequest): Promise<AcquireSecretResult> {
   const def = definitionFor(request);
   if (!def) {
-    const secret = normalizeSecret(request) || 'unknown';
+    // Name what the caller asked for. An id that matches no declaration
+    // normalizes to nothing, and a refusal reading "unknown" hides the very fact
+    // that resolves it: which id has no declared contract.
+    const secret = normalizeSecret(request)
+      || request.credentialId?.trim().toLowerCase()
+      || 'unknown';
     return { status: 'unsupported_secret', secret, message: `No secret acquisition registry entry for ${secret}` };
   }
   if (request.provider && request.provider !== def.provider) {
@@ -885,7 +903,9 @@ export async function acquireSecret(request: AcquireSecretRequest): Promise<Acqu
 export function buildSecretAcquisitionPlan(request: AcquireSecretRequest): AcquireSecretResult {
   const def = definitionFor(request);
   if (!def) {
-    const secret = normalizeSecret(request) || 'unknown';
+    const secret = normalizeSecret(request)
+      || request.credentialId?.trim().toLowerCase()
+      || 'unknown';
     return { status: 'unsupported_secret', secret, message: `No secret acquisition registry entry for ${secret}` };
   }
   if (request.provider && request.provider !== def.provider) {

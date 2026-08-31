@@ -450,7 +450,19 @@ if (request.mode === 'submit' || request.mode === 'resume') {
       || (isEntra && storedEmail !== accountUpn && storedEmail !== accountEmail)) {
     throw new Error(`Skarbiec credential is not bound to the requested ${isEntra ? 'Entra' : 'Microsoft'} identity`);
   }
-  const accountItem = `weles-microsoft-${storedEmail.replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}-account`;
+  // No account item id is derived from the stored email any more. This line used
+  // to build `weles-microsoft-<slugged email>-account` and send it as the
+  // payload's accountItem; a Skarbiec item id is a mutable, human-chosen name,
+  // so a rename of the real account item silently produced an id belonging to
+  // nothing -- or, worse, to some other item that happened to take the name.
+  // Nothing needed it: `stado-action-runner.mjs` forwards accountItem only as
+  // `params.login_item`, and `paramsToEnv` honours `login_item` for the
+  // claude/codex/kimi login and reauth trajectories alone, so the Microsoft and
+  // Entra password-lifecycle flows never saw it. What they do read is
+  // `constraints.secret` -- `request.credential_id`, the exact literal id the
+  // caller named, already verified above against the identity the item itself
+  // declares in `fields.username`. A rename of that item fails loudly on the
+  // `skarbiec get` above.
   const constraints = isEntra
     ? {
         secret: request.credential_id,
@@ -504,7 +516,7 @@ if (request.mode === 'submit' || request.mode === 'resume') {
       : request.operation === 'adopt'
         ? 'microsoft_entra_adopt_password'
         : 'microsoft_entra_reset_password';
-  const payload = Buffer.from(JSON.stringify({ action, accountItem, params: {
+  const payload = Buffer.from(JSON.stringify({ action, params: {
     url: isEntra ? ENTRA_ORIGIN : MICROSOFT_ORIGIN,
     objective: request.operation === 'adopt'
       ? isEntra

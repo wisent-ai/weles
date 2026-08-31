@@ -98,6 +98,53 @@ const ACQUIRED_SECRET_CONTRACTS = Object.freeze({
     sourceOrigin: 'https://kit.snapchat.com',
     shape: 'opaque-token',
   }),
+  // Managed Microsoft account passwords. Each item declares its own provider
+  // surface here, because nothing in the id may be trusted to imply one: an item
+  // id is a mutable human-chosen vault name, so a rename has to miss an explicit
+  // declaration and fail visibly instead of silently inheriting another account's
+  // password lifecycle. These three are reached by the item id itself, not by a
+  // logical name like the entries above: every caller addresses a managed password
+  // through `def.secret`, which acquire.ts sets to the credential id
+  // (microsoftPasswordDefinition, entraPasswordDefinition).
+  //
+  // Consumer Microsoft account: adopt, rotate and verify run at account.live.com
+  // (scripts/trajectories/microsoft/password_lifecycle.mjs).
+  'weles-microsoft-primary-password': Object.freeze({
+    item: 'weles-microsoft-primary-password',
+    field: 'password',
+    writerConsumer: 'weles-microsoft-primary-password-writer',
+    writerTokenFile: 'weles-microsoft-primary-password-writer-skarbiec-token',
+    readerConsumer: 'weles-microsoft-primary-password-reader',
+    sourceOrigin: 'https://account.live.com',
+    shape: 'password',
+  }),
+  // Entra directory identity: the directory owns this password and its lifecycle
+  // runs at login.microsoftonline.com, never at account.live.com. The Entra
+  // trajectory refuses any job whose secret_source_origin is not exactly that
+  // origin (scripts/trajectories/microsoft/entra_password_lifecycle.mjs).
+  'weles-microsoft-jakub-wisent-ai-password': Object.freeze({
+    item: 'weles-microsoft-jakub-wisent-ai-password',
+    field: 'password',
+    writerConsumer: 'weles-microsoft-jakub-wisent-ai-password-writer',
+    writerTokenFile: 'weles-microsoft-jakub-wisent-ai-password-writer-skarbiec-token',
+    readerConsumer: 'weles-microsoft-jakub-wisent-ai-password-reader',
+    sourceOrigin: 'https://login.microsoftonline.com',
+    shape: 'password',
+  }),
+  // A personal Microsoft account that only guests in the Entra tenant: the id
+  // token for that principal names the Microsoft consumer tenant as its identity
+  // provider and the directory does not hold its password, so its lifecycle is
+  // the consumer one at account.live.com
+  // (scripts/worker/deploy/skarbiec-acquisition-scopes.conf:103-111).
+  'weles-microsoft-lukasz-wisent-com-password': Object.freeze({
+    item: 'weles-microsoft-lukasz-wisent-com-password',
+    field: 'password',
+    writerConsumer: 'weles-microsoft-lukasz-wisent-com-password-writer',
+    writerTokenFile: 'weles-microsoft-lukasz-wisent-com-password-writer-skarbiec-token',
+    readerConsumer: 'weles-microsoft-lukasz-wisent-com-password-reader',
+    sourceOrigin: 'https://account.live.com',
+    shape: 'password',
+  }),
 } as const);
 
 export type WelesAcquiredSecret = string;
@@ -134,44 +181,21 @@ export function isWelesAcquiredSourceOrigin(value: string): boolean {
   }
 }
 
-const MICROSOFT_PASSWORD_ID = /^weles-microsoft-[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?-password$/;
-// Entra work accounts are a different provider surface from consumer Microsoft
-// accounts: their password lifecycle runs at login.microsoftonline.com, never at
-// account.live.com. The exact ids are enumerated so a new id cannot silently
-// inherit the consumer origin. weles-microsoft-lukasz-wisent-com-password is a
-// personal Microsoft account that only guests in the Entra tenant, so its
-// lifecycle is the consumer one and it stays off this list.
-const MICROSOFT_ENTRA_PASSWORD_IDS: ReadonlySet<string> = new Set([
-  'weles-microsoft-jakub-wisent-ai-password',
-]);
-const MICROSOFT_ENTRA_ORIGIN = 'https://login.microsoftonline.com';
-const MICROSOFT_CONSUMER_ORIGIN = 'https://account.live.com';
-
 const GENERIC_ACQUIRED_ITEM = /^[a-z\d](?:[a-z\d-]{1,38}[a-z\d])$/;
 
 function resolvedAcquiredSecretContract(secret: string): InternalAcquiredSecretContract | null {
   const fixed = (ACQUIRED_SECRET_CONTRACTS as Readonly<Record<string, InternalAcquiredSecretContract>>)[secret];
   if (fixed) return fixed;
-  if (MICROSOFT_PASSWORD_ID.test(secret)) {
-    return {
-      item: secret,
-      field: 'password',
-      writerConsumer: `${secret}-writer`,
-      writerTokenFile: `${secret}-writer-skarbiec-token`,
-      readerConsumer: `${secret}-reader`,
-      sourceOrigin: MICROSOFT_ENTRA_PASSWORD_IDS.has(secret)
-        ? MICROSOFT_ENTRA_ORIGIN
-        : MICROSOFT_CONSUMER_ORIGIN,
-      shape: 'password',
-    };
-  }
   // An item nobody enumerated still gets exactly one derived contract: its own
   // scoped writer and its own writer token file, so that operator-owned file
   // stays the only authority that can enable it — there is no fallback to
   // another consumer or token, and no reader consumer, so the derived contract
   // can never be read back. An item another contract already owns is refused
   // here: a derived contract must never reach a table item's or a scoped service
-  // item's fields.
+  // item's fields. An id that merely looks like a managed password lands here
+  // too, with no source origin and no reader: only the table above may hand out
+  // a provider surface, so a renamed or unenumerated item fails visibly at the
+  // reader and shape gates instead of silently inheriting Microsoft's.
   if (!GENERIC_ACQUIRED_ITEM.test(secret)
     || Object.values(SERVICE_CONTRACTS).some((service) => service.item === secret)
     || Object.values(ACQUIRED_SECRET_CONTRACTS).some((contract) => contract.item === secret)) {
@@ -192,6 +216,21 @@ export function acquiredSecretContract(secret: string): WelesAcquiredSecretContr
   return contract
     ? { item: contract.item, field: contract.field, sourceOrigin: contract.sourceOrigin }
     : null;
+}
+
+// Whether one exact declared contract owns this id and that contract is a managed
+// password. Only the table at the head of this file can answer yes: a derived
+// contract is always shape 'opaque-token', so a password shape means a human wrote
+// the declaration for that exact id.
+//
+// This is the gate that decides the managed-password lifecycle applies at all, and
+// it is deliberately a lookup rather than a pattern over the id. An id is a mutable
+// human-chosen vault name: a rename that stops matching a pattern silently routes
+// the item down some other path, while a rename that misses a declaration fails
+// visibly and is fixed by editing the declaration.
+export function isWelesManagedPasswordItem(secret: string): boolean {
+  const contract = resolvedAcquiredSecretContract(secret);
+  return contract?.shape === 'password';
 }
 
 const TENANT_HEX_RE = /^[a-f\d-]+$/i;
@@ -355,6 +394,66 @@ function acquisitionScopesFile(tenantId?: string | null): string {
     || deployedFile('skarbiec-acquisition-scopes.conf');
 }
 
+// The deployed catalog and the contract table at the head of this file are one
+// declaration split across two files, and nothing re-syncs the copies a host
+// accumulates: this workstation carries four, at four different revisions of the
+// same authored file, and a Skarbiec-side serving-path doctor already had to be
+// corrected for reading the wrong one. So the copy actually in force is parsed in
+// exactly one place, here, and both the reader gate and the read path below speak
+// from it: two spellings of this grammar is how the copies drifted unnoticed.
+// Returns every field the catalog grants this contract's own reader identity on
+// this contract's item.
+function managedReaderGrantedFields(
+  contract: InternalAcquiredSecretContract,
+  tenantId?: string | null,
+): string[] {
+  const readerConsumer = contract.readerConsumer;
+  if (!readerConsumer) return [];
+  const granted: string[] = [];
+  for (const line of readFileSync(acquisitionScopesFile(tenantId), 'utf8').split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const columns = trimmed.split('|');
+    if (columns.length !== Number('3')) continue;
+    const [consumer, item, field] = columns;
+    // The consumer column carries the field too, so a row counts only when it
+    // names exactly this contract's reader for exactly the field it grants.
+    if (item === contract.item && consumer === `${readerConsumer}-${field}`) granted.push(field);
+  }
+  return granted;
+}
+
+// A catalog that grants this item to its reader on a DIFFERENT field than the
+// contract declares is the drift that costs the most to diagnose. Every symptom
+// downstream is a credential that cannot be read, and both the reader gate and
+// the acquisition helper report it as though nothing were granted at all: the
+// helper names the field the contract asked for, so the row that does exist never
+// appears in the refusal. Name the disagreement instead, and name the copy that is
+// in force, because which catalog was read is the fact that resolves it. Null when
+// there is nothing to say: an absent row and an unreadable file are different
+// failures that already carry their own messages.
+export function welesManagedCredentialReaderMismatch(
+  secretName: string,
+  field: string,
+  tenantId?: string | null,
+): string | null {
+  const contract = resolvedAcquiredSecretContract(secretName);
+  if (!contract || contract.field !== field || !contract.readerConsumer) return null;
+  let catalog: string;
+  let granted: string[];
+  try {
+    catalog = acquisitionScopesFile(tenantId);
+    granted = managedReaderGrantedFields(contract, tenantId);
+  } catch {
+    return null;
+  }
+  if (!granted.length || granted.includes(field)) return null;
+  return `deployed Skarbiec acquisition catalog ${catalog} grants ${contract.item}`
+    + ` to its reader on ${granted.join(', ')}, but this revision's Weles credential`
+    + ` contract declares field ${field}: the catalog copy in force is not the one`
+    + ` this revision was built against`;
+}
+
 export function hasWelesManagedCredentialReader(
   secretName: string,
   field: string,
@@ -363,12 +462,7 @@ export function hasWelesManagedCredentialReader(
   const contract = resolvedAcquiredSecretContract(secretName);
   if (!contract || contract.field !== field || !contract.readerConsumer) return false;
   try {
-    const consumer = `${contract.readerConsumer}-${field}`;
-    const expected = `${consumer}|${contract.item}|${field}`;
-    return readFileSync(acquisitionScopesFile(tenantId), 'utf8')
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .some((line) => line === expected);
+    return managedReaderGrantedFields(contract, tenantId).includes(field);
   } catch {
     return false;
   }
@@ -456,6 +550,11 @@ export function readWelesManagedCredential(
   if (!contract || contract.field !== field || !contract.readerConsumer) {
     throw new Error(`field is not in an exact readable Weles credential contract: ${secretName}/${field}`);
   }
+  // Before the helper is spawned, because its refusal names only the field this
+  // contract asked for and so reads as "nothing is granted" when the catalog in
+  // force grants the same item on another field.
+  const mismatch = welesManagedCredentialReaderMismatch(secretName, field, tenantId);
+  if (mismatch) throw new Error(mismatch);
   return readAcquiredField(contract.readerConsumer, contract.item, field, tenantId);
 }
 
