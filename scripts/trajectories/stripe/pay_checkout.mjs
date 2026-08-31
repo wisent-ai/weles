@@ -94,14 +94,38 @@ try {
     }
   }
 
-  const cardOption = s.page
-    .locator('[data-testid="card-accordion-item-button"], [data-testid="card-tab"], input[value="card"], label:has-text("Card")')
-    .filter({ visible: true })
-    .first();
-  if (await cardOption.isVisible().catch(() => false)) {
-    await cardOption.click().catch(() => {});
-    console.log('[stripe-checkout] selected the Card method');
-    await humanIdlePause('short');
+  // Selecting a payment method has to be verified by its effect. The first
+  // attempt clicked a locator that matched and changed nothing: the radio stayed
+  // empty, the card fields never rendered, and the page reported having no card
+  // form. Try the ways a person could click that row, and stop at the one that
+  // makes a card field appear.
+  const cardField = s.page.locator('input[name="cardNumber"], input#cardNumber').filter({ visible: true }).first();
+  const cardVisible = async () => cardField.isVisible().catch(() => false);
+  if (!(await cardVisible())) {
+    const attempts = [
+      ['hidden radio', async () => {
+        const radios = s.page.locator('input[type="radio"]');
+        if ((await radios.count().catch(() => 0)) > 0) await radios.first().check({ force: true });
+      }],
+      ['row text', async () => {
+        await s.page.getByText('Card', { exact: true }).first().click({ force: true });
+      }],
+      ['accordion button', async () => {
+        await s.page.locator('[data-testid*="card"], [id*="card-tab"]').filter({ visible: true }).first().click({ force: true });
+      }],
+    ];
+    for (const [name, attempt] of attempts) {
+      await attempt().catch(() => {});
+      for (let i = 0; i < 10; i++) {
+        if (await cardVisible()) break;
+        await humanIdlePause('short');
+      }
+      if (await cardVisible()) {
+        console.log(`[stripe-checkout] card method selected by ${name}`);
+        break;
+      }
+      console.log(`[stripe-checkout] ${name} did not open the card form`);
+    }
   }
 
   // Link saves the card to a phone number nobody can confirm from here.
