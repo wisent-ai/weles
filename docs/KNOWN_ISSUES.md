@@ -68,6 +68,38 @@ Resolution order (new form):
 
 ---
 
+## 5. Stado's Declared Service Runtime Owns `$HOME/weles`, So auto-deploy Cannot Hold an Activation
+
+**Status:** Root cause of #4, measured 2026-08-31 with a repaired installer in hand.
+
+**Issue:** `auto-deploy.sh` activates a release by pointing `$HOME/weles` at the
+unpacked tree. On charless-mac-mini that link is also owned by Stado's service
+management, which reconciles it to the release declared for
+`com.wisent.always-on.weles-api`. The two write the same path and the declared
+state wins, correctly.
+
+**Evidence:** `stado host activate-staged-release` ran 0.5.43's own installer
+from the staged archive. The installer completed and logged
+`deploy ok: activated immutable stado://releases/weles-worker/0.5.43/darwin-arm64/weles-worker.tar.gz`,
+and the link read
+`/Users/charles/.local/share/weles-worker/0.5.43/darwin-arm64` immediately
+afterwards. Thirty seconds later the same link read
+`/Users/charles/.stado/services/com.wisent.always-on.weles-api/sha256-87ced1c9d349/darwin-arm/runtime`.
+The release stays installed and staged; only the runtime link is taken back.
+
+**Consequence:** every weles-side delivery mechanism on this host is advisory.
+A release reaches the machine, verifies, unpacks and activates, and is then
+reverted within a cycle. That is why 0.5.32, 0.5.41, 0.5.42 and 0.5.43 all sat
+installed while the running tree stayed where Stado's declaration put it.
+
+**What this needs:** the declared release for `com.wisent.always-on.weles-api`
+has to move, rather than the symlink. `stado service release` refuses today —
+weles-worker is absent from `registry.release_control`, and `stado host release`
+wants a canonical per-platform manifest no weles version has ever published.
+Authoring that policy is a deployment decision (strategy, ports, readiness path,
+install root, run-as user), not a repair, so it is written down here rather than
+invented.
+
 ## 4. No Adoption Path Delivers a Published Worker Release to charless-mac-mini
 
 **Status:** Open. Measured 2026-08-31 with a published release in hand.
