@@ -328,11 +328,35 @@ function diagnosticsRoot(runId) {
   return null;
 }
 
+function runResultFile(runId) {
+  const candidate = join(RUN_RESULTS_DIR, `${runId}.json`);
+  try {
+    const resultsRoot = realpathSync(RUN_RESULTS_DIR);
+    const lstat = lstatSync(candidate);
+    if (lstat.isSymbolicLink() || !lstat.isFile()) return null;
+    const path = realpathSync(candidate);
+    if (!path.startsWith(`${resultsRoot}${sep}`)) return null;
+    return { path, stat: statSync(path) };
+  } catch {
+    return null;
+  }
+}
+
 function diagnosticsManifest(runId) {
   const root = diagnosticsRoot(runId);
-  if (!root) return null;
+  const result = runResultFile(runId);
+  if (!root && !result) return null;
   const files = [];
-  const stack = [{ dir: root, rel: '' }];
+  if (result) {
+    files.push({
+      path: 'run-result.json',
+      bytes: result.stat.size,
+      modified_at: result.stat.mtime.toISOString(),
+      content_type: 'application/json',
+      download_url: `/diagnostics/${encodeURIComponent(runId)}/file?path=run-result.json`,
+    });
+  }
+  const stack = root ? [{ dir: root, rel: '' }] : [];
   while (stack.length) {
     const current = stack.pop();
     let entries;
@@ -361,6 +385,7 @@ function diagnosticsManifest(runId) {
   return {
     ok: true,
     run_id: runId,
+    recordings_root: root,
     total_files: files.length,
     total_bytes: files.reduce((sum, file) => sum + file.bytes, 0),
     files,
@@ -369,6 +394,7 @@ function diagnosticsManifest(runId) {
 
 function diagnosticFile(runId, requestedPath) {
   if (typeof requestedPath !== 'string' || requestedPath.length === 0 || requestedPath.includes('\0')) return null;
+  if (requestedPath === 'run-result.json') return runResultFile(runId);
   const root = diagnosticsRoot(runId);
   if (!root) return null;
   const candidate = resolve(root, requestedPath);
