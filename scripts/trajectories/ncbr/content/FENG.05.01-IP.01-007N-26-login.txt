@@ -1,0 +1,10 @@
+Sign in to LSI2 and reach project 7ee80d9a-67dd-4d99-becd-8dda407221c1 section 71acd162-e35d-4aff-88a6-ea2fe179a259.
+
+The email credential is prefilled before this objective runs. Do not fill the email field and do not redeem the email capability again.
+1. On https://lsi2.ncbr.gov.pl/logowanie, call fill_credential with target exactly "password", field_class exactly "password", and the deferred capability whose resource ends in /password.
+2. Check the required isStatuteAccepted checkbox once.
+3. Click "Zaloguj się" once.
+4. Wait for navigation. If the application section is not opened automatically after successful sign-in, navigate to https://lsi2.ncbr.gov.pl/projekt/7ee80d9a-67dd-4d99-becd-8dda407221c1/projekt_step/71acd162-e35d-4aff-88a6-ea2fe179a259.
+5. Finish only when the final URL is inside that project and the application title containing "Duże modele językowe oparte na reprezentacjach" is visible.
+
+Do not edit any application field, do not save the application, and do not use any final-submit control. Never include credentials, tokens, passwords, or secrets in the final response.
