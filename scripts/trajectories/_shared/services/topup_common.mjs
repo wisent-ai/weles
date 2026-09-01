@@ -136,7 +136,12 @@ export async function fillStripeElements(page, card = null) {
   return { ok, filled };
 }
 
-// The purchase card is one fact kept in one file, but not at one path: hosts
+// The purchase card reaches a host two ways: as a file, at one of the paths
+// below, or as one JSON value injected from Skarbiec by Stado
+// (--secret-env TOPUP_CARD_JSON=topup-card#value), which is how a card gets to
+// a host without ever appearing in a command line or a job log.
+//
+// As a file it is one fact kept in one file, but not at one path: hosts
 // provisioned through Weles carry it at ~/.weles/topup_card.env, and hosts
 // provisioned through Stado carry it at ~/.stado/topup_card.env. Every
 // trajectory that spends money used to hardcode the first, so the same
@@ -155,6 +160,32 @@ const TOPUP_PROVIDERS = ['iproyal', 'oxylabs', 'pingproxies', 'brightdata'];
 /// report which one answered. An environment variable already set always wins,
 /// so a caller can override a single field without editing any file.
 export function loadTopupCardEnv() {
+  // A host that gets the card from the vault gets it as one JSON value, because
+  // Stado injects a job secret as a single environment variable and redacts
+  // exactly that value from the job's output. Expanding it here means the file
+  // path and the vault path feed identical code, and no trajectory has to know
+  // which one answered.
+  const bundled = process.env.TOPUP_CARD_JSON?.trim();
+  if (bundled) {
+    try {
+      const card = JSON.parse(bundled);
+      const mapping = {
+        TOPUP_CARD_NUMBER: card.number,
+        TOPUP_CARD_EXP: card.exp,
+        TOPUP_CARD_CVC: card.cvc,
+        TOPUP_CARD_ZIP: card.zip,
+        TOPUP_CARD_NAME: card.name,
+      };
+      for (const [key, value] of Object.entries(mapping)) {
+        if (value && !process.env[key]) process.env[key] = String(value);
+      }
+      if (mapping.TOPUP_CARD_NUMBER) return 'TOPUP_CARD_JSON';
+    } catch {
+      // A malformed bundle is worth saying out loud: the alternative is a
+      // trajectory reporting "no card" while a card was supplied.
+      console.log('[topup] TOPUP_CARD_JSON is set but is not JSON; ignoring it');
+    }
+  }
   for (const path of TOPUP_ENV_FILES) {
     if (!existsSync(path)) continue;
     for (const raw of readFileSync(path, 'utf8').split('\n')) {
