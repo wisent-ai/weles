@@ -28,3 +28,6 @@ supabase/
 # committed copy of .wisent-release.json inside it made every
 # `stado release catalog sync` refuse this repository.
 .wisent-output/
+
+# Test-runner scratch: run records and TAP output, never source.
+.tap/
