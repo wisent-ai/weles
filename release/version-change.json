@@ -3,5 +3,5 @@
   "current": "0.5.51",
   "candidate": "0.5.52",
   "breaking": false,
-  "reason": "0.5.52 makes the reusable NCBR login objective click the exact visible statute checkbox and exact login button, and refuses to report an unsuccessful sign-in as success. CLI and library surfaces are unchanged."
+  "reason": "0.5.52 waits for click-triggered field adornment updates before refocusing and typing, and makes the reusable NCBR login objective use the exact visible statute checkbox and login button without reporting failed authentication as success. CLI and library surfaces are unchanged."
 }
