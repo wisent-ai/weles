@@ -216,8 +216,11 @@ request, prompt, receipt, or log.
 
 **Stado.** Stado selects and operates the approved Weles worker host, owns
 queued execution, and verifies the browser release coordinate used by that
-host. The synchronous reauthentication call uses the same checked-in
-trajectory as queued execution; it does not create a second login path.
+host. A successful product release also advances the service directory's
+immutable source and places `weles-admission` in launchd's system domain on an
+always-on Mac; no release-local migration script owns either state. The
+synchronous reauthentication call uses the same checked-in trajectory as
+queued execution; it does not create a second login path.
 
 ### Mobile egress managed by Stado
 
