@@ -8,7 +8,7 @@
 
 import { nativeType, nativeSelectAllAndDelete } from './mouse-native.js';
 import { cdpInput, humanClickLocator } from './mouse.js';
-import { humanRandom } from '../utils/timing.js';
+import { humanRandom, waitMs } from '../utils/timing.js';
 interface HumanKeyboardPage {
   keyboard: {
     press(key: string): Promise<void>;
@@ -44,10 +44,10 @@ export async function humanType(page: HumanKeyboardPage, text: string): Promise<
 
 /**
  * Locator-aware humanized fill — clicks the field through the humanized
- * mouse pipeline (humanClickLocator → OS event queue), focuses that exact
- * locator so an overlapping adornment cannot leave the previous field active,
- * clears any pre-filled value via OS-event Cmd+A then Delete, then types the
- * value via nativeType.
+ * mouse pipeline (humanClickLocator → OS event queue), waits for any
+ * click-triggered adornment update, then focuses that exact locator so a
+ * re-render cannot leave the previous field active. It clears any pre-filled
+ * value via OS-event Cmd+A then Delete, then types the value via nativeType.
  *
  * Banned alternatives: locator.fill(v) writes via DOM with no keystrokes;
  * locator.pressSequentially with fixed delay produces uniform inter-key
@@ -55,6 +55,7 @@ export async function humanType(page: HumanKeyboardPage, text: string): Promise<
  */
 export async function humanFill(page: HumanKeyboardPage, locator: FocusableLocator, text: string): Promise<void> {
   await humanClickLocator(page, locator);
+  await waitMs(150);
   await locator.focus();
   if (cdpInput()) {
     await page.keyboard.press('ControlOrMeta+A');  // allow-raw-playwright: implementation file — defines the humanized atom's cdp transport
