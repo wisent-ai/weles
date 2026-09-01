@@ -18,6 +18,8 @@ active="${bridge_dir}/active"
 declaration="${script_dir}/weles-admission-service.json"
 work_dir="${HOME}/.stado/work/weles-admission-migration"
 bridge_archive="${work_dir}/weles-admission-bootstrap.tar.gz"
+standby_staged="${work_dir}/standby"
+active_staged="${work_dir}/active"
 remote_launcher="/Users/charles/.stado/files/weles-api-launcher"
 remote_marker="/Users/charles/.stado/files/weles-admission-standby"
 
@@ -32,6 +34,8 @@ if /usr/bin/printf '%s' "${release_status}" \
 fi
 
 /bin/mkdir -p "${work_dir}"
+/usr/bin/install -m 600 "${standby}" "${standby_staged}"
+/usr/bin/install -m 600 "${active}" "${active_staged}"
 
 if ! "${stado_bin}" service show "${logical_service}" --host "${host}" --json >/dev/null 2>&1; then
   "${stado_bin}" service file-sync "${legacy_service}" \
@@ -41,7 +45,7 @@ if ! "${stado_bin}" service show "${logical_service}" --host "${host}" --json >/
     --executable
   "${stado_bin}" service file-sync "${legacy_service}" \
     --host "${host}" \
-    --source-file "${standby}" \
+    --source-file "${standby_staged}" \
     --target-file "${remote_marker}"
   "${stado_bin}" service declare --file "${declaration}"
   "${stado_bin}" service deploy "${logical_service}" \
@@ -62,7 +66,7 @@ fi
 
 "${stado_bin}" service file-sync "${logical_service}" \
   --host "${host}" \
-  --source-file "${active}" \
+  --source-file "${active_staged}" \
   --target-file "${remote_marker}"
 
 if "${stado_bin}" service show "${legacy_service}" --host "${host}" --json >/dev/null 2>&1; then
