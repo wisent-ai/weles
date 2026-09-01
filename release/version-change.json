@@ -1,7 +1,7 @@
 {
   "schema": "weles.version-change.v1",
-  "current": "0.5.49",
-  "candidate": "0.5.50",
+  "current": "0.5.50",
+  "candidate": "0.5.51",
   "breaking": false,
-  "reason": "0.5.50 reports the canonical weles-admission launchd job in both the system domain and the active login-session domain, while retaining the retired label during migration. CLI and library surfaces are unchanged."
+  "reason": "0.5.51 refocuses the exact locator before humanized typing, preventing an overlapping field adornment from leaving the prior credential field active during complete-prefill login flows. CLI and library surfaces are unchanged."
 }
