@@ -15,6 +15,14 @@
     "item": "platform-admin-cloudflare",
     "field": "password"
   },
+  "origin:https://lsi2.ncbr.gov.pl/email": {
+    "item": "platform-admin-ncbr",
+    "field": "username"
+  },
+  "origin:https://lsi2.ncbr.gov.pl/password": {
+    "item": "platform-admin-ncbr",
+    "field": "password"
+  },
   "origin:https://idmsa.apple.com/email": {
     "item": "platform-admin-appstore",
     "field": "username"
