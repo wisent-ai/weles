@@ -21,7 +21,7 @@ bridge_archive="${work_dir}/weles-admission-bootstrap.tar.gz"
 remote_launcher="/Users/charles/.stado/files/weles-api-launcher"
 remote_marker="/Users/charles/.stado/files/weles-admission-standby"
 
-release_status=$("${stado_bin}" release status "${product}" --json)
+release_status=$("${stado_bin}" release status "${product}" --json || true)
 if /usr/bin/printf '%s' "${release_status}" \
   | /usr/bin/jq -e \
       --arg host "${host}" \
