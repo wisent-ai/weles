@@ -1,7 +1,7 @@
 {
   "schema": "weles.version-change.v1",
-  "current": "0.5.45",
-  "candidate": "0.5.46",
+  "current": "0.5.46",
+  "candidate": "0.5.47",
   "breaking": false,
-  "reason": "0.5.46 adds guarded, idempotent apply and verify actions for declared NCBR LSI correction plans. The worker checks project identity and correction status, writes only declared fields and collection rows, reads every value back after save, records hashes and lengths, and blocks final submission controls. CLI and library surface are unchanged."
+  "reason": "0.5.47 makes NCBR LSI username and password fills durable by routing the exact https://lsi2.ncbr.gov.pl resources to the platform-admin-ncbr vault item in the checked-in Weles broker table. The worker still fills secrets only through single-use capabilities; CLI and library surfaces are unchanged."
 }
