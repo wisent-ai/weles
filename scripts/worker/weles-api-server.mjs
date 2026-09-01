@@ -57,6 +57,10 @@ import {
 // Where a detached run records what happened, outside the repository so a
 // rebuild cannot delete the answer.
 const RUN_RESULTS_DIR = join(homedir(), '.stado', 'weles-detached-runs');
+const RUN_RELEASE_IDENTITY = Object.freeze({
+  release_version: process.env.WELES_WORKER_RELEASE_VERSION || null,
+  release_sha256: process.env.WELES_WORKER_RELEASE_SHA256 || null,
+});
 
 function persistRunResult(path, document) {
   mkdirSync(RUN_RESULTS_DIR, { recursive: true, mode: 0o700 });
@@ -591,6 +595,7 @@ function runTrajectory(action, params, accountId, freshProfile, timeoutMs) {
     try {
       persistRunResult(runResultPath, {
         ok: null,
+        ...RUN_RELEASE_IDENTITY,
         action,
         run_id: runId,
         status: 'running',
@@ -630,6 +635,7 @@ function runTrajectory(action, params, accountId, freshProfile, timeoutMs) {
       try {
         persistRunResult(runResultPath, {
           ...result,
+          ...RUN_RELEASE_IDENTITY,
           action,
           run_id: runId,
           status: 'finished',
@@ -702,6 +708,7 @@ function runReauth(provider, timeoutMs, account) {
     const runResultPath = join(RUN_RESULTS_DIR, `${runId}.json`);
     try {
       persistRunResult(runResultPath, {
+        ...RUN_RELEASE_IDENTITY,
         action,
         run_id: runId,
         status: 'running',
@@ -744,6 +751,7 @@ function runReauth(provider, timeoutMs, account) {
       try {
         persistRunResult(runResultPath, {
           ...result,
+          ...RUN_RELEASE_IDENTITY,
           action,
           run_id: runId,
           status: 'finished',

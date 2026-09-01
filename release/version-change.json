@@ -1,7 +1,7 @@
 {
   "schema": "weles.version-change.v1",
-  "current": "0.5.53",
-  "candidate": "0.5.54",
+  "current": "0.5.54",
+  "candidate": "0.5.55",
   "breaking": false,
-  "reason": "0.5.54 removes the retired one-off admission migration; Stado's release path now owns the immutable service source and always-on launchd domain. CLI and library surfaces are unchanged."
+  "reason": "0.5.55 records the immutable Weles release identity in every detached run result so post-release activity and diagnostics attribute pre-browser failures to the exact worker. CLI and library surfaces are unchanged."
 }
