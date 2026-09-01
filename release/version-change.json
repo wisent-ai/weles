@@ -1,7 +1,7 @@
 {
   "schema": "weles.version-change.v1",
-  "current": "0.5.44",
-  "candidate": "0.5.45",
+  "current": "0.5.45",
+  "candidate": "0.5.46",
   "breaking": false,
-  "reason": "0.5.45 ships the trajectory that pays a Stripe-hosted checkout with the workspace card, because Stripe refuses raw card numbers over its API and a hosted session can only be completed in a browser; it also makes two purchase paths portable across hosts - one loader finds the card whether the host keeps it under ~/.weles or ~/.stado, and the placement guard every session passes through resolves the Stado binary under .stado/bin as well as .local/bin, which is why every browser trajectory on the always-on mini died with 'cannot verify Weles placement through Stado'. CLI and library surface are unchanged."
+  "reason": "0.5.46 adds guarded, idempotent apply and verify actions for declared NCBR LSI correction plans. The worker checks project identity and correction status, writes only declared fields and collection rows, reads every value back after save, records hashes and lengths, and blocks final submission controls. CLI and library surface are unchanged."
 }
