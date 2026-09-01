@@ -1,9 +1,8 @@
 // Weles HTTP API — synchronous trajectory runner.
 //
-// Purpose: "shoot at a server" to run a Weles trajectory and get the result
-// back in the HTTP response, WITHOUT the Supabase account_action_logs
-// enqueue->poll roundtrip. It reuses the worker's OWN resolveTrajectory +
-// paramsToEnv (from dist/) so a job runs byte-identically to the queued path.
+// Purpose: run a Weles trajectory synchronously and return its result without
+// an external queue roundtrip. It reuses the worker's own resolveTrajectory and
+// paramsToEnv implementation so the action is identical to the queued path.
 //
 // It spawns the same trajectory child the worker spawns. On macOS, when the
 // API is a system LaunchDaemon and a GUI login exists, that child enters the
@@ -53,10 +52,18 @@ import {
   realpathSync,
   writeFileSync,
   mkdirSync,
+  renameSync,
 } from 'node:fs';
 // Where a detached run records what happened, outside the repository so a
 // rebuild cannot delete the answer.
 const RUN_RESULTS_DIR = join(homedir(), '.stado', 'weles-detached-runs');
+
+function persistRunResult(path, document) {
+  mkdirSync(RUN_RESULTS_DIR, { recursive: true, mode: 0o700 });
+  const temporary = `${path}.${process.pid}.tmp`;
+  writeFileSync(temporary, JSON.stringify(document), { mode: 0o600 });
+  renameSync(temporary, path);
+}
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(__dirname, '../..');
@@ -492,6 +499,26 @@ function runTrajectory(action, params, accountId, freshProfile, timeoutMs) {
     const trajPath = resolveTrajectory(action);
     if (!trajPath) { resolveRun({ ok: false, error: 'no_trajectory', action }); return; }
     const runId = randomUUID();
+    const startedAt = new Date().toISOString();
+    const runResultPath = join(RUN_RESULTS_DIR, `${runId}.json`);
+    try {
+      persistRunResult(runResultPath, {
+        ok: null,
+        action,
+        run_id: runId,
+        status: 'running',
+        started_at: startedAt,
+      });
+    } catch (error) {
+      resolveRun({
+        ok: false,
+        error: 'run_metadata_unavailable',
+        action,
+        run_id: runId,
+        stderr_tail: String(error?.message || error).slice(0, 300),
+      });
+      return;
+    }
     const env = {
       ...process.env,
       WELES_FULL_DIAGNOSTICS: process.env.WELES_FULL_DIAGNOSTICS ?? '1',
@@ -513,6 +540,21 @@ function runTrajectory(action, params, accountId, freshProfile, timeoutMs) {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
+      try {
+        persistRunResult(runResultPath, {
+          ...result,
+          action,
+          run_id: runId,
+          status: 'finished',
+          started_at: startedAt,
+          completed_at: new Date().toISOString(),
+        });
+      } catch (error) {
+        result = {
+          ...result,
+          metadata_error: `run metadata could not be completed: ${String(error?.message || error).slice(0, 240)}`,
+        };
+      }
       resolveRun(result);
     };
     const timer = setTimeout(() => {
@@ -568,13 +610,33 @@ function runReauth(provider, timeoutMs, account) {
     const trajPath = resolve(REPO, 'scripts/trajectories', provider, 'reauth.mjs');
     if (!existsSync(trajPath)) { resolveRun({ ok: false, error: 'no_reauth_trajectory', provider }); return; }
     const runId = randomUUID();
+    const action = `${provider}_reauth`;
+    const startedAt = new Date().toISOString();
+    const runResultPath = join(RUN_RESULTS_DIR, `${runId}.json`);
+    try {
+      persistRunResult(runResultPath, {
+        action,
+        run_id: runId,
+        status: 'running',
+        started_at: startedAt,
+        completed_at: null,
+      });
+    } catch (error) {
+      resolveRun({
+        ok: false,
+        error: 'run_metadata_unavailable',
+        detail: String(error?.message || error).slice(0, 240),
+        provider,
+      });
+      return;
+    }
     const processSpec = trajectoryProcess(trajPath);
     const child = spawn(processSpec.command, processSpec.args, {
       cwd: REPO,
       env: {
         ...process.env,
         ACTION_LOG_ID: runId,
-        ACTION: `${provider}_reauth`,
+        ACTION: action,
         ...(account
           ? {
             WELES_LOGIN_ITEM: account.loginItem,
@@ -590,6 +652,21 @@ function runReauth(provider, timeoutMs, account) {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
+      try {
+        persistRunResult(runResultPath, {
+          ...result,
+          action,
+          run_id: runId,
+          status: 'finished',
+          started_at: startedAt,
+          completed_at: new Date().toISOString(),
+        });
+      } catch (error) {
+        result = {
+          ...result,
+          metadata_error: `run metadata could not be completed: ${String(error?.message || error).slice(0, 240)}`,
+        };
+      }
       resolveRun(result);
     };
     const timer = setTimeout(() => {
@@ -966,31 +1043,27 @@ const server = http.createServer(async (req, res) => {
       const admittedId = admission.entry.metadata.detachedId;
       const admittedPath = admission.entry.metadata.resultPath;
       if (!admission.joined) {
-        mkdirSync(RUN_RESULTS_DIR, { recursive: true, mode: 0o700 });
-        writeFileSync(
+        persistRunResult(
           admittedPath,
-          JSON.stringify({ ok: null, action, status: 'running', started_at: new Date().toISOString() }),
-          { mode: 0o600 },
+          { ok: null, action, status: 'running', started_at: new Date().toISOString() },
         );
         admission.entry.promise
           .then((result) => {
-            writeFileSync(
+            persistRunResult(
               admittedPath,
-              JSON.stringify({ ...result, action, status: 'finished', completed_at: new Date().toISOString() }),
-              { mode: 0o600 },
+              { ...result, action, status: 'finished', completed_at: new Date().toISOString() },
             );
           })
           .catch((error) => {
-            writeFileSync(
+            persistRunResult(
               admittedPath,
-              JSON.stringify({
+              {
                 ok: false,
                 action,
                 status: 'failed',
                 error: String(error && error.message ? error.message : error).slice(0, 300),
                 completed_at: new Date().toISOString(),
-              }),
-              { mode: 0o600 },
+              },
             );
           });
       }
