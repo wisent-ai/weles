@@ -55,14 +55,11 @@ if ! "${stado_bin}" service show "${logical_service}" --host "${host}" --json >/
     --as-launch-agent
 fi
 
-managed_definition="$("${stado_bin}" service show "${logical_service}" --host "${host}" --json)"
-if [[ "${managed_definition}" != *"/services/"* ]]; then
-  /usr/bin/tar -czf "${bridge_archive}" -C "${bridge_dir}" darwin-arm
-  "${stado_bin}" service update "${logical_service}" \
-    --host "${host}" \
-    --from-archive "${bridge_archive}" \
-    --json
-fi
+/usr/bin/tar -czf "${bridge_archive}" -C "${bridge_dir}" darwin-arm
+"${stado_bin}" service update "${logical_service}" \
+  --host "${host}" \
+  --from-archive "${bridge_archive}" \
+  --json
 
 "${stado_bin}" service file-sync "${logical_service}" \
   --host "${host}" \
