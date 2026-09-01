@@ -50,6 +50,12 @@ payload_sha256="${payload_sha256%% *}"
 ln -sfn "$runtime" "$HOME/weles"
 export WELES_WORKER_RELEASE_VERSION="$version"
 export WELES_WORKER_RELEASE_SHA256="$payload_sha256"
+# Recordings are runtime state, not release payload. Keeping them under the
+# immutable release directory made the authenticated diagnostics endpoint lose
+# every run as soon as Stado advanced `current`.
+export WELES_RECORDINGS_ROOT="${WELES_RECORDINGS_ROOT:-$HOME/.stado/var/weles/recordings}"
+mkdir -p "$WELES_RECORDINGS_ROOT"
+chmod 700 "$WELES_RECORDINGS_ROOT"
 printf 'release_uri=stado://releases/weles-worker/%s/darwin-arm64/release.tar.gz
 archive_sha256=%s
 platform=darwin-arm64

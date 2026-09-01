@@ -19,22 +19,44 @@ export interface LoginAccount {
   provider: LoginAccountProvider;
   /** Display name resolved by SERVICE_LOGIN_CONTRACTS. */
   displayName: string;
+  /** Canonical account for a provider's stable `-primary` subscription. */
+  primary?: boolean;
+  /** Stable Brama subscription this row renews, when it owns one. */
+  subscriptionId?: string;
 }
 
 export const LOGIN_ACCOUNTS: readonly LoginAccount[] = Object.freeze([
-  Object.freeze({ loginItem: 'claude-wisent-google-sso', provider: 'claude', displayName: 'Claude' }),
+  Object.freeze({
+    loginItem: 'claude-wisent-google-sso',
+    provider: 'claude',
+    displayName: 'Claude',
+    primary: true,
+    subscriptionId: 'brama-sub-wisent-app-claude-primary',
+  }),
   // This pool row has its own vault item rather than the shared Google SSO one,
   // which is why account identity must travel with the request instead of being
   // derived from the provider.
   Object.freeze({ loginItem: 'claude_controlyourai', provider: 'claude', displayName: 'Claude_controlyourai' }),
-  Object.freeze({ loginItem: 'codex-wisent-google-sso', provider: 'codex', displayName: 'Codex' }),
+  Object.freeze({
+    loginItem: 'codex-wisent-google-sso',
+    provider: 'codex',
+    displayName: 'Codex',
+    primary: true,
+    subscriptionId: 'brama-sub-wisent-app-codex-primary',
+  }),
   Object.freeze({ loginItem: 'codex-lukasz-google-sso', provider: 'codex', displayName: 'Codex_lukasz_gmail' }),
   Object.freeze({ loginItem: 'codex-controlyourai-google-sso', provider: 'codex', displayName: 'Codex_controlyourai' }),
   Object.freeze({ loginItem: 'codex-bartlomiej-wisent-google-sso', provider: 'codex', displayName: 'Codex_bartlomiej_wisent' }),
   Object.freeze({ loginItem: 'codex-jakub-wisent-google-sso', provider: 'codex', displayName: 'Codex_jakub_wisent' }),
   Object.freeze({ loginItem: 'codex-zuzanna-google-sso', provider: 'codex', displayName: 'Codex_zuzanna_gmail' }),
   Object.freeze({ loginItem: 'codex-lukasz-wisent-com-google-sso', provider: 'codex', displayName: 'Codex_lukasz_wisent_com' }),
-  Object.freeze({ loginItem: 'kimi-lukasz-google-sso', provider: 'kimi', displayName: 'Kimi' }),
+  Object.freeze({
+    loginItem: 'kimi-lukasz-google-sso',
+    provider: 'kimi',
+    displayName: 'Kimi',
+    primary: true,
+    subscriptionId: 'brama-sub-wisent-app-kimi-primary',
+  }),
 ] as const);
 
 export type LoginAccountSelectionCode =
@@ -87,18 +109,21 @@ export function selectLoginAccount(provider: string, loginItem?: string | null):
     }
     return account;
   }
-  const candidates = LOGIN_ACCOUNTS.filter((a) => a.provider === provider);
+  const candidates = LOGIN_ACCOUNTS.filter((account) => account.provider === provider);
   if (candidates.length === 1) return candidates[0];
+  const primary = candidates.filter((account) => account.primary);
+  if (primary.length === 1) return primary[0];
   throw new LoginAccountSelectionError(
     'ambiguous_account_selection',
     candidates.length === 0
       ? `ambiguous_account_selection: no account is registered for provider ${provider}`
-      : `ambiguous_account_selection: ${provider} has ${candidates.length} accounts `
-        + `(${candidates.map((a) => a.loginItem).join(', ')}); pass login_item`,
+      : `ambiguous_account_selection: ${provider} has ${candidates.length} accounts and `
+        + `${primary.length} primary accounts (${candidates.map((a) => a.loginItem).join(', ')}); pass login_item`,
     {
       provider,
       candidates: candidates.map((a) => a.loginItem),
       display_names: candidates.map((a) => a.displayName),
+      primary: primary.map((a) => a.loginItem),
       hint: 'pass login_item',
     },
   );

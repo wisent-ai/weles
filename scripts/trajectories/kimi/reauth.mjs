@@ -163,14 +163,13 @@ async function persistActiveExpiry(cfg, expiresAtMs) {
   }
 }
 
-async function donate(cfg, credentialsJson) {
-  // Brama's donate contract is `{provider, label, api_key}` and rejects unknown
-  // fields; `user_id` belonged to the router that went away, and the donation
-  // must be signed or it is refused before the credential is looked at.
+async function donate(cfg, credentialsJson, loginItem) {
   const body = {
     provider: 'kimi',
     label: `reauth-macmini kimi credentials-json ${new Date().toISOString()}`,
     api_key: credentialsJson,
+    ...(loginItem ? { login_item: loginItem } : {}),
+    ...(process.env.BRAMA_SUBSCRIPTION_ID ? { subscription_id: process.env.BRAMA_SUBSCRIPTION_ID } : {}),
   };
   const payload = JSON.stringify(body);
   const r = await fetch(`${cfg.brokerUrl}/v1/subscriptions/${cfg.agentId}`, {
@@ -244,8 +243,9 @@ function runLogin() {
           err,
         ].join('\n'));
       } catch {}
-      const tail = `${out}\n${err}`.split('\n').slice(-8).join(' | ').slice(0, 900);
-      reject(new Error(`kimi login.mjs exit code=${code} signal=${signal || ''}, no usable credentials JSON; tail=${tail}`));
+      const said = `${out}\n${err}`.split('\n').map((line) => line.trim()).filter(Boolean);
+      const detail = [...said.slice(0, 4), ...said.slice(-4)].join(' | ').slice(0, 1200);
+      reject(new Error(`kimi login.mjs exit code=${code} signal=${signal || ''}, no usable credentials JSON; detail=${detail}`));
     });
   });
 }
@@ -261,34 +261,34 @@ async function main() {
   const expMs = cfg.activeTokenExpiresAt;
   const marginMs = Number(process.env.KIMI_REAUTH_REFRESH_MARGIN_SEC || 3600) * 1000;
   const expiring = expMs > 0 && Date.now() >= expMs - marginMs;
+  const loginItem = process.env.WELES_LOGIN_ITEM?.trim() || '';
+  const requested = Boolean(loginItem);
 
-  console.log(`[kimi reauth] pool=${poolBefore.length} probe=${probe.status} authBurnout=${isAuthBurnout(probe)} quota=${isQuotaLimited(probe)} exp_ms=${expMs}`);
+  console.log(`[kimi reauth] pool=${poolBefore.length} probe=${probe.status} authBurnout=${isAuthBurnout(probe)} quota=${isQuotaLimited(probe)} exp_ms=${expMs} requested=${requested}`);
 
-  if (probe.status === 200) {
-    // Kimi's OAuth JSON contains a short-lived access_token expiry
-    // (observed expires_in=900). The CLI/runtime can refresh through the
-    // refresh_token, so a successful signed probe is authoritative. Do not
-    // force a browser login just because the access token is inside the
-    // generic refresh margin.
+  if (!requested && probe.status === 200) {
+    // Kimi's short-lived access token refreshes through its refresh token. A
+    // named Brama request is different: it asks to replace one refused grant,
+    // so another healthy row must not make this trajectory return early.
     console.log('[kimi reauth] healthy — nothing to do');
     return;
   }
-  if (isQuotaLimited(probe) && !isAuthBurnout(probe)) {
+  if (!requested && isQuotaLimited(probe) && !isAuthBurnout(probe)) {
     console.log('[kimi reauth] quota/usage limited — not an auth problem; leaving pool unchanged');
     return;
   }
-  if (!isAuthBurnout(probe) && !expiring && poolBefore.length > 0) {
+  if (!requested && !isAuthBurnout(probe) && !expiring && poolBefore.length > 0) {
     throw new Error(`kimi probe failed but not recognized as auth burnout: ${JSON.stringify(probe.body).slice(0, 600)}`);
   }
 
   const credentialsJson = await runLogin();
-  const newSub = await donate(cfg, credentialsJson);
+  const newSub = await donate(cfg, credentialsJson, loginItem);
   console.log(`[kimi reauth] donated new sub id=${newSub.id ?? '?'}`);
   await persistActiveExpiry(cfg, credentialExpiresAt(credentialsJson));
 
   let deleted = 0;
   for (const old of poolBefore) {
-    if (await deleteSubscription(cfg, old)) deleted += 1;
+    if (old.id !== newSub.id && await deleteSubscription(cfg, old)) deleted += 1;
   }
   console.log(`[kimi reauth] revoked ${deleted}/${poolBefore.length} stale rows — rotation complete`);
 }
