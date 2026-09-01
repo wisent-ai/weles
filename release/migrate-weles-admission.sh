@@ -23,13 +23,17 @@ active_staged="${work_dir}/active"
 remote_launcher="/Users/charles/.stado/files/weles-api-launcher"
 remote_marker="/Users/charles/.stado/files/weles-admission-standby"
 
+release_is_committed() {
+  /usr/bin/printf '%s' "$1" \
+    | /usr/bin/jq -e \
+        --arg host "${host}" \
+        --arg version "${version}" \
+        '.targets[] | select(.target == $host) | .observed.phase == "committed" and .observed.active_version == $version and .observed.rollout_generation == .desired.rollout_generation' \
+        >/dev/null
+}
+
 release_status=$("${stado_bin}" release status "${product}" --json || true)
-if /usr/bin/printf '%s' "${release_status}" \
-  | /usr/bin/jq -e \
-      --arg host "${host}" \
-      --arg version "${version}" \
-      '.targets[] | select(.target == $host) | .observed.phase == "committed" and .observed.active_version == $version and .observed.rollout_generation == .desired.rollout_generation' \
-      >/dev/null; then
+if release_is_committed "${release_status}"; then
   exit 0
 fi
 
@@ -98,4 +102,6 @@ if "${stado_bin}" service show "${legacy_service}" --host "${host}" --json >/dev
   "${stado_bin}" service retire "${legacy_service}" --host "${host}" --json
 fi
 
-"${stado_bin}" release status "${product}" --json
+final_status=$("${stado_bin}" release status "${product}" --json || true)
+/usr/bin/printf '%s\n' "${final_status}"
+release_is_committed "${final_status}"
