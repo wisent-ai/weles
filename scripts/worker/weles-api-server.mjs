@@ -268,16 +268,64 @@ function decodeRunId(raw) {
   }
 }
 
-function diagnosticsRoot(runId) {
-  let recordingsRoot;
-  let runRoot;
+function diagnosticsCandidates() {
+  const candidates = [];
+  const seen = new Set();
+  const add = (candidate) => {
+    if (!candidate || seen.has(candidate)) return;
+    seen.add(candidate);
+    candidates.push(candidate);
+  };
+
+  // New releases write outside their immutable runtime so an activation cannot
+  // strand the previous release's evidence.
+  add(process.env.WELES_RECORDINGS_ROOT);
+  add(join(REPO, 'recordings'));
+
+  // Managed releases before the stable recordings root wrote beside their
+  // unpacked runtime. Keep those runs diagnosable after `current` advances.
+  const managed = join(homedir(), '.stado', 'services', 'weles-admission');
   try {
-    recordingsRoot = realpathSync(join(REPO, 'recordings'));
-    runRoot = realpathSync(join(recordingsRoot, runId));
-  } catch {
-    return null;
+    for (const release of readdirSync(managed, { withFileTypes: true })) {
+      if (!release.isDirectory()) continue;
+      const releaseRoot = join(managed, release.name);
+      for (const platform of readdirSync(releaseRoot, { withFileTypes: true })) {
+        if (!platform.isDirectory()) continue;
+        add(join(releaseRoot, platform.name, 'runtime', 'recordings'));
+      }
+    }
+  } catch {}
+
+  // The retired per-version installer is still where runs made by 0.5.44 and
+  // earlier live. Stado's activity reader already counts these exact roots; the
+  // authenticated diagnostics route must be able to open the run it reports.
+  const legacy = join(homedir(), '.local', 'share', 'weles-worker');
+  try {
+    for (const release of readdirSync(legacy, { withFileTypes: true })) {
+      if (!release.isDirectory()) continue;
+      const releaseRoot = join(legacy, release.name);
+      for (const platform of readdirSync(releaseRoot, { withFileTypes: true })) {
+        if (!platform.isDirectory()) continue;
+        add(join(releaseRoot, platform.name, 'recordings'));
+      }
+    }
+  } catch {}
+  return candidates;
+}
+
+function diagnosticsRoot(runId) {
+  for (const candidate of diagnosticsCandidates()) {
+    let recordingsRoot;
+    let runRoot;
+    try {
+      recordingsRoot = realpathSync(candidate);
+      runRoot = realpathSync(join(recordingsRoot, runId));
+    } catch {
+      continue;
+    }
+    if (runRoot.startsWith(`${recordingsRoot}${sep}`)) return runRoot;
   }
-  return runRoot.startsWith(`${recordingsRoot}${sep}`) ? runRoot : null;
+  return null;
 }
 
 function diagnosticsManifest(runId) {
@@ -648,12 +696,14 @@ function runReauth(provider, timeoutMs, account) {
       cwd: REPO,
       env: {
         ...process.env,
+        WELES_FULL_DIAGNOSTICS: process.env.WELES_FULL_DIAGNOSTICS ?? '1',
         ACTION_LOG_ID: runId,
         ACTION: action,
         ...(account
           ? {
             WELES_LOGIN_ITEM: account.loginItem,
             [`${provider.toUpperCase()}_DISPLAY_NAME`]: account.displayName,
+            ...(account.subscriptionId ? { BRAMA_SUBSCRIPTION_ID: account.subscriptionId } : {}),
           }
           : {}),
       },
@@ -698,6 +748,7 @@ function runReauth(provider, timeoutMs, account) {
         provider,
         login_item: account ? account.loginItem : null,
         display_name: account ? account.displayName : null,
+        subscription_id: account ? (account.subscriptionId || null) : null,
         run_id: runId,
         stdout_tail: stdout.slice(-4000),
         stderr_tail: `${stderr}\n${String(error?.message || error)}`.slice(-2000),
@@ -712,6 +763,7 @@ function runReauth(provider, timeoutMs, account) {
         provider,
         login_item: account ? account.loginItem : null,
         display_name: account ? account.displayName : null,
+        subscription_id: account ? (account.subscriptionId || null) : null,
         run_id: runId,
         stdout_tail: stdout.slice(-4000),
         stderr_tail: stderr.slice(-2000),
@@ -852,7 +904,13 @@ const server = http.createServer(async (req, res) => {
         // does not would ignore the field and sign in to whichever row it picked
         // itself, burning a real login on an unknown account.
         features: ['login_item', 'fresh_profile'],
-        login_items: LOGIN_ACCOUNTS.map((a) => ({ login_item: a.loginItem, provider: a.provider, display_name: a.displayName })),
+        login_items: LOGIN_ACCOUNTS.map((a) => ({
+          login_item: a.loginItem,
+          provider: a.provider,
+          display_name: a.displayName,
+          primary: Boolean(a.primary),
+          subscription_id: a.subscriptionId || null,
+        })),
       });
       return;
     }
@@ -921,10 +979,10 @@ const server = http.createServer(async (req, res) => {
       return;
     }
     // reauth: run a provider's reauth trajectory ON THE HOST. Body:
-    // { provider: "codex"|"claude"|"kimi", login_item?, timeout_ms? }. Returns
-    // run status only. `login_item` is the vault login item id of the account to
-    // sign in; it is validated here so a caller learns that it named an unknown
-    // or wrong-provider account BEFORE a browser login is spent on it.
+    // { provider: "codex"|"claude"|"kimi", login_item?, subscription_id?,
+    //   timeout_ms? }. `login_item` selects an exact row; when omitted, Weles
+    // uses the one it explicitly declares primary. A supplied subscription id
+    // must match that row before a browser login is spent on it.
     if (req.method === 'POST' && url.pathname === '/reauth') {
       if (!reauthAuthorized(req)) {
         json(res, BRAMA_REAUTH_TOKEN ? 401 : 500, {
@@ -939,17 +997,30 @@ const server = http.createServer(async (req, res) => {
       const provider = typeof body.provider === 'string' ? body.provider.trim().toLowerCase() : '';
       if (!REAUTH_PROVIDERS.has(provider)) { json(res, 400, { ok: false, error: 'provider must be codex|claude|kimi' }); return; }
       const loginItem = typeof body.login_item === 'string' ? body.login_item.trim() : '';
-      let account = null;
-      if (loginItem) {
-        try { account = selectLoginAccount(provider, loginItem); }
-        catch (e) {
-          json(res, 400, { ok: false, error: e.code || 'login_item_unresolved', message: e.message, ...(e.detail || {}) });
-          return;
-        }
+      let account;
+      try { account = selectLoginAccount(provider, loginItem || undefined); }
+      catch (e) {
+        json(res, 400, { ok: false, error: e.code || 'login_item_unresolved', message: e.message, ...(e.detail || {}) });
+        return;
+      }
+      const subscriptionId = typeof body.subscription_id === 'string' ? body.subscription_id.trim() : '';
+      if (subscriptionId && account.subscriptionId && subscriptionId !== account.subscriptionId) {
+        json(res, 409, {
+          ok: false,
+          error: 'subscription_account_mismatch',
+          message: `${account.loginItem} renews ${account.subscriptionId}, not ${subscriptionId}`,
+          login_item: account.loginItem,
+          subscription_id: account.subscriptionId,
+        });
+        return;
       }
       const timeoutMs = Number(body.timeout_ms) > 0 ? Number(body.timeout_ms) : TIMEOUT_MS;
       const admission = coalesceRun(
-        runAdmissionKey('reauth', { provider, login_item: account?.loginItem ?? loginItem }),
+        runAdmissionKey('reauth', {
+          provider,
+          login_item: account.loginItem,
+          subscription_id: subscriptionId || account.subscriptionId || null,
+        }),
         () => runReauth(provider, timeoutMs, account),
       );
       const out = await admission.entry.promise;

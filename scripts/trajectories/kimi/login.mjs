@@ -66,7 +66,9 @@ function resolveKimiBin() {
 }
 
 const KIMI_BIN = resolveKimiBin();
-const SERVICE_CREDENTIAL_ID = process.env.KIMI_SERVICE_CREDENTIAL_ID || 'kimi-lukasz-google-sso';
+const SERVICE_CREDENTIAL_ID = process.env.WELES_LOGIN_ITEM
+  || process.env.KIMI_SERVICE_CREDENTIAL_ID
+  || 'kimi-lukasz-google-sso';
 const LOGIN_HOME = process.env.KIMI_LOGIN_HOME || mkdtempSync(join(VAR, 'kimi-login-'));
 const OVERALL_SEC = Number(process.env.KIMI_LOGIN_OVERALL_SEC || 420);
 
