@@ -169,6 +169,18 @@ function redactSecrets(obj) {
   try { return JSON.parse(s); } catch { return obj; }
 }
 
+function skarbiecAcquisitionFailureReason(stderr) {
+  if (/acquisition field does not exist on item|canonical item has no field:/.test(stderr)) {
+    return 'field_not_present';
+  }
+  if (/undeclared Skarbiec acquisition scope/.test(stderr)) return 'scope_not_declared';
+  if (/Skarbiec .* is unreachable|endpoint .* is not listening/.test(stderr)) {
+    return 'authority_unreachable';
+  }
+  if (/\bHTTP 401\b/.test(stderr)) return 'workload_not_authorized';
+  return undefined;
+}
+
 function credentialFailure(out) {
   const stderr = String(out.stderr_tail || '');
   const stages = [...stderr.matchAll(/^STEP ([a-z][a-z0-9_-]{0,63})$/gm)];
@@ -181,11 +193,13 @@ function credentialFailure(out) {
     /workload-bound Skarbiec acquisition failed for ([A-Za-z0-9._-]+)\/([A-Za-z0-9._-]+) as consumer ([A-Za-z0-9._-]+)/,
   );
   if (match) {
+    const reason = skarbiecAcquisitionFailureReason(stderr);
     return withStage({
       code: 'skarbiec_acquisition_failed',
       item: match[1],
       field: match[2],
       consumer: match[3],
+      ...(reason ? { reason } : {}),
     });
   }
 

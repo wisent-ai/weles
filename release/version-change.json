@@ -1,7 +1,7 @@
 {
   "schema": "weles.version-change.v1",
-  "current": "0.5.42",
-  "candidate": "0.5.43",
+  "current": "0.5.43",
+  "candidate": "0.5.44",
   "breaking": false,
-  "reason": "0.5.43 makes auto-deploy.sh parse again - 0.5.40 shipped a blank line inside a backslash continuation, which stopped the release activator on every cycle and left hosts unable to install anything - and fails the build when a shipped shell script cannot be parsed. Trajectory logic, CLI and library surface are unchanged."
+  "reason": "0.5.44 lets a Google SSO login continue when its explicitly optional TOTP field is absent, while authorization, workload identity, and authority failures still stop before the browser opens. Browser-task failures now include only a fixed, nonsecret Skarbiec acquisition reason identifier; CLI and library surface are unchanged."
 }
