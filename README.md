@@ -204,10 +204,12 @@ from Stado's service directory as the declared `brama` consumer with the
 endpoint override.
 
 Reauthentication diagnostics survive release replacement under
-`$HOME/.stado/var/weles/recordings`. The authenticated
-`GET /diagnostics/<run_id>` API also searches managed and legacy release roots,
-so Stado can retrieve the exact DOM, video, and trajectory logs for a failed
-run instead of reducing it to an exit code.
+`$HOME/.stado/var/weles/recordings`; detached run verdicts live under
+`$HOME/.stado/weles-detached-runs`. The authenticated
+`GET /diagnostics/<run_id>` API searches managed and legacy recording roots and
+always lists `run-result.json` when the worker accepted the run. Stado can
+therefore retrieve the exact stderr and exit status even when a preflight failed
+before a browser existed, plus the DOM, video, and trajectory logs when it did.
 
 **Skarbiec.** Weles acquires API credentials, browser logins, and the Brama
 admission bearer through exact `consumer|item|field` scopes. Credentials enter
