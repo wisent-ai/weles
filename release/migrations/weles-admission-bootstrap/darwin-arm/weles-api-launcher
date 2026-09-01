@@ -1,0 +1,9 @@
+#!/bin/bash
+set -euo pipefail
+
+standby_marker="${HOME}/.stado/files/weles-admission-standby"
+if [ -s "${standby_marker}" ]; then
+  exec /bin/sleep 604800
+fi
+
+exec /bin/bash "${HOME}/weles/scripts/worker/deploy/launch-weles-api-mac.sh"
