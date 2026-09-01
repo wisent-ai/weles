@@ -30,6 +30,7 @@
         "state_dir": "/Users/charles/.stado/release-state",
         "runtime_root": "/Users/charles/.stado/run",
         "logs_root": "/Users/charles/.stado/logs",
+        "readiness_path": "/healthz",
         "legacy_launchd_label": "com.wisent.always-on.weles-api",
         "legacy_launchd_plist": "/Library/LaunchDaemons/com.wisent.always-on.weles-api.plist"
       }
