@@ -39,7 +39,7 @@
 import http from 'node:http';
 import { spawn, execFile, execFileSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
-import { homedir } from 'node:os';
+import { homedir, userInfo } from 'node:os';
 import { dirname, resolve, join, extname, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
@@ -488,9 +488,22 @@ function trajectoryProcess(trajPath) {
   } catch {
     return direct;
   }
+  const username = userInfo().username;
+  if (!username) return direct;
   return {
-    command: '/bin/launchctl',
-    args: ['asuser', String(uid), process.execPath, trajPath],
+    // `launchctl asuser` needs root to enter another bootstrap/audit session.
+    // The API daemon deliberately runs as the account that owns Weles state,
+    // so use its passwordless host grant only for that transition, then drop
+    // straight back to the same account before Node sees the task. `-E`
+    // carries the capability references and runtime coordinates without
+    // publishing any secret in argv.
+    command: '/usr/bin/sudo',
+    args: [
+      '-n', '-E',
+      '/bin/launchctl', 'asuser', String(uid),
+      '/usr/bin/sudo', '-n', '-E', '-u', username,
+      process.execPath, trajPath,
+    ],
   };
 }
 
