@@ -333,6 +333,8 @@ const ROUTES: Record<string, (p: string) => string | null> = {
   topup: (p) => PROXY_PROVIDERS.has(p) ? `scripts/trajectories/${p}/topup.mjs` : null,
   analyze_text: (p) => p === 'pangram' ? 'scripts/trajectories/pangram/analyze_text.mjs' : null,
   pangram_audit_new_wniosek: (p) => p === 'ncbr' ? 'scripts/trajectories/ncbr/pangram_audit_new_wniosek.mjs' : null,
+  apply_correction: (p) => p === 'ncbr' ? 'scripts/trajectories/ncbr/apply_correction.mjs' : null,
+  verify_correction: (p) => p === 'ncbr' ? 'scripts/trajectories/ncbr/apply_correction.mjs' : null,
   // On-demand ticker scrape: wisent-app inserts an account_action_logs row
   // with action='unusualwhales_scrape' or 'volumeleaders_scrape' and
   // params={ticker, page}; the worker spawns the existing scrape script.
@@ -671,6 +673,10 @@ export function paramsToEnv(
     if (typeof params.pangram_analyze_timeout_ms === 'string') env.PANGRAM_ANALYZE_TIMEOUT_MS = params.pangram_analyze_timeout_ms;
     if (typeof params.pangram_section_timeout_ms === 'number') env.PANGRAM_SECTION_TIMEOUT_MS = String(params.pangram_section_timeout_ms);
     if (typeof params.pangram_section_timeout_ms === 'string') env.PANGRAM_SECTION_TIMEOUT_MS = params.pangram_section_timeout_ms;
+  }
+  if (trajPath.endsWith('/ncbr/apply_correction.mjs')) {
+    if (typeof params.objective === 'string') env.NCBR_CORRECTION_PLAN = params.objective;
+    env.NCBR_CORRECTION_MODE = action === 'ncbr_apply_correction' ? 'apply' : 'verify';
   }
   // slack_post_message params: message body + where (default channel 'jakub').
   // Inline `message` is machine-independent (survives cross-host enqueue);

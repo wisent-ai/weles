@@ -142,7 +142,9 @@ microsoft_entra_reset_password
 microsoft_entra_verify_password
 microsoft_reset_password
 microsoft_verify_password
+ncbr_apply_correction
 ncbr_pangram_audit_new_wniosek
+ncbr_verify_correction
 nopecha_balance
 oxylabs_balance
 oxylabs_topup
