@@ -51,6 +51,17 @@ try {
   });
   console.log(JSON.stringify({ status: 'queued', guard_id: guardId, job_id: jobId, account_item: accountItem }));
 } catch (error) {
-  for (const capabilityId of issued) spawnSync(skarbiec, ['capability-cancel', '--agent', executionAgent, '--capability-id', capabilityId, '--authorization-id', guardId]);
+  // `capability-cancel` is not a Skarbiec command and never was, so this loop
+  // spawned an unknown binary and dropped the failure: the rollback has never
+  // withdrawn anything. What actually bounds an issued capability is the TTL and
+  // max-uses it carries, so report what is outstanding rather than claim a
+  // withdrawal that did not happen.
+  if (issued.length) {
+    console.error(JSON.stringify({
+      status: 'failed', guard_id: guardId, outstanding_capabilities: issued.length,
+      bound_by: `ttl ${expiryMinutes * 60}s, max-uses 1 each`,
+      note: 'nothing was enqueued; each capability expires on its own',
+    }));
+  }
   throw error;
 }
