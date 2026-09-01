@@ -1,7 +1,7 @@
 {
   "schema": "weles.version-change.v1",
-  "current": "0.5.47",
-  "candidate": "0.5.48",
+  "current": "0.5.48",
+  "candidate": "0.5.49",
   "breaking": false,
-  "reason": "0.5.48 registers the Weles workload identities that may redeem platform-admin-ncbr username and password fills. The exact NCBR vault coordinates are now present in both the checked-in route table and acquisition-scope catalog; CLI and library surfaces are unchanged."
+  "reason": "0.5.49 lets the always-on Weles API daemon enter the logged-in account's Aqua bootstrap before launching a browser trajectory, then drops back to that account before Node starts. This fixes headful browser tasks from a managed system LaunchDaemon without moving secrets to argv; CLI and library surfaces are unchanged."
 }
