@@ -10,7 +10,8 @@
 //   2. /isp/pricing, screenshot+dump each step (evidence, not blind guesses).
 //   3. Pick USA, walk buy -> checkout. Never Stripe Link: if the Link OTP
 //      modal shows, click "Pay without Link" then fillStripeElements with the
-//      card from ~/.weles/topup_card.env.
+//      card the shared loader sourced (a file under ~/.weles or ~/.stado, or
+//      one TOPUP_CARD_JSON value injected from Skarbiec).
 //   4. Commit, scrape host/port/user/pass, persist + wire .env.
 //
 // Purchase is gated behind DECODO_BUY_CONFIRM=1; screenshots are written

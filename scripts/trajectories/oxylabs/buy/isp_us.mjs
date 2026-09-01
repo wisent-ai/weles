@@ -2,7 +2,7 @@
 
 import { WSession } from '../../../../dist/session/wsession.js';
 import { googleSso, getScopedGoogleLogin } from '../../_shared/services/google_sso.mjs'
-import { fillStripeElements, loadTopupCardEnv } from '../../_shared/services/topup_common.mjs';
+import { fillStripeElements, loadTopupCardEnv, TOPUP_ENV_FILES } from '../../_shared/services/topup_common.mjs';
 import { mkdirSync, writeFileSync, existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
@@ -159,7 +159,7 @@ try {
       const cardName = process.env.TOPUP_CARD_NAME;
       if (!cardName) { console.log('FAIL: TOPUP_CARD_NAME missing'); process.exit(2); }
       if (!process.env.TOPUP_CARD_NUMBER || !process.env.TOPUP_CARD_EXP || !process.env.TOPUP_CARD_CVC || !process.env.TOPUP_CARD_ZIP) {
-        console.log('FAIL: TOPUP_CARD_NUMBER/EXP/CVC/ZIP missing in ~/.weles/topup_card.env');
+        console.log(`FAIL: TOPUP_CARD_NUMBER/EXP/CVC/ZIP missing; the loader looked in ${TOPUP_ENV_FILES.join(', ')} and at TOPUP_CARD_JSON`);
         process.exit(2);
       }
       await humanFill(s.page, s.page.locator('input[name="cardNumber"]'), process.env.TOPUP_CARD_NUMBER);

@@ -19,7 +19,7 @@ import { join } from 'node:path';
 import { humanIdlePause, humanClickLocator } from '../../../dist/human/mouse.js';
 import { humanType } from '../../../dist/human/keyboard.js';
 
-// Load ~/.weles/topup_card.env (same file the topup orchestrator uses).
+// Source the card the same way every purchase trajectory does.
 loadTopupCardEnv();
 
 if (process.env.ISP_BUY_CONFIRM !== '1') { console.log('FAIL: ISP_BUY_CONFIRM=1 required before subscribing'); process.exit(2); }
@@ -158,7 +158,7 @@ try {
     // Stripe Link OTP modal detection: 6 single-digit cells.
     // EXPLICIT: We do NOT use Link. If the modal appears, click "Pay without
     // Link" to drop to manual card entry, then fillStripeElements with creds
-    // from ~/.weles/topup_card.env / TOPUP_CARD_* env.
+    // from whichever source the shared loader answered with / TOPUP_CARD_* env.
     const linkOtpVisible = await s.page.evaluate(() => {
       const cells = Array.from(document.querySelectorAll('input[maxlength="1"], input[inputmode="numeric"]')).filter(i => i.offsetParent !== null);
       return cells.length >= 6;
