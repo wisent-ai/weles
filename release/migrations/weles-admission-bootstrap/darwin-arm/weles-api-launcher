@@ -2,7 +2,11 @@
 set -euo pipefail
 
 standby_marker="${HOME}/.stado/files/weles-admission-standby"
-if [ -s "${standby_marker}" ]; then
+marker_state=""
+if [ -r "${standby_marker}" ]; then
+  IFS= read -r marker_state < "${standby_marker}" || true
+fi
+if [ "${marker_state}" = "standby" ]; then
   exec /bin/sleep 604800
 fi
 
