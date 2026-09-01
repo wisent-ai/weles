@@ -136,25 +136,46 @@ export async function fillStripeElements(page, card = null) {
   return { ok, filled };
 }
 
-// Orchestrator: source ~/.weles/topup_card.env, validate vars, spawn provider trajectory.
-const TOPUP_ENV_FILE = join(homedir(), '.weles', 'topup_card.env');
+// The purchase card is one fact kept in one file, but not at one path: hosts
+// provisioned through Weles carry it at ~/.weles/topup_card.env, and hosts
+// provisioned through Stado carry it at ~/.stado/topup_card.env. Every
+// trajectory that spends money used to hardcode the first, so the same
+// purchase worked on a laptop and failed on the always-on mini with nothing
+// but "no card". One loader, searched in a fixed order, is what makes a
+// purchase trajectory portable.
+export const TOPUP_ENV_FILES = [
+  join(homedir(), '.weles', 'topup_card.env'),
+  join(homedir(), '.stado', 'topup_card.env'),
+];
+const TOPUP_ENV_FILE = TOPUP_ENV_FILES[0];
 const TOPUP_REQUIRED = ['TOPUP_CARD_NUMBER', 'TOPUP_CARD_EXP', 'TOPUP_CARD_CVC'];
 const TOPUP_PROVIDERS = ['iproyal', 'oxylabs', 'pingproxies', 'brightdata'];
 
-function loadCardEnvFile() {
-  if (!existsSync(TOPUP_ENV_FILE)) {
-    console.log(`BLOCKER: ${TOPUP_ENV_FILE} does not exist. Copy ${TOPUP_ENV_FILE}.template, paste card values from Rho dashboard, chmod 600.`);
-    return false;
+/// Source the card into process.env from the first file that carries it, and
+/// report which one answered. An environment variable already set always wins,
+/// so a caller can override a single field without editing any file.
+export function loadTopupCardEnv() {
+  for (const path of TOPUP_ENV_FILES) {
+    if (!existsSync(path)) continue;
+    for (const raw of readFileSync(path, 'utf8').split('\n')) {
+      const line = raw.trim();
+      if (!line || line.startsWith('#')) continue;
+      const eq = line.indexOf('=');
+      if (eq < 0) continue;
+      const k = line.slice(0, eq).trim();
+      const v = line.slice(eq + 1).trim().replace(/^["']|["']$/g, '');
+      if (k && v && !process.env[k]) process.env[k] = v;
+    }
+    return path;
   }
-  const text = readFileSync(TOPUP_ENV_FILE, 'utf8');
-  for (const raw of text.split('\n')) {
-    const line = raw.trim();
-    if (!line || line.startsWith('#')) continue;
-    const eq = line.indexOf('=');
-    if (eq < 0) continue;
-    const k = line.slice(0, eq).trim();
-    const v = line.slice(eq + 1).trim().replace(/^["']|["']$/g, '');
-    if (k && v && !process.env[k]) process.env[k] = v;
+  return null;
+}
+
+function loadCardEnvFile() {
+  const found = loadTopupCardEnv();
+  if (!found) {
+    console.log(`BLOCKER: no card file at ${TOPUP_ENV_FILES.join(' or ')}. Copy ${TOPUP_ENV_FILE}.template, paste card values from Rho dashboard, chmod 600.`);
+    return false;
   }
   return true;
 }

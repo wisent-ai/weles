@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
@@ -8,8 +9,30 @@ type ServiceStatusRow = {
   host?: unknown;
 };
 
+// Stado lives under `.stado/bin` on the fleet's Macs and under `.local/bin` on
+// hosts that installed it the other way, so one hard-coded default is wrong on
+// part of the estate. The always-on mini has no `.local/bin/stado` at all, and
+// the failure that produced read as "cannot verify Weles placement through
+// Stado: spawnSync ENOENT" — which sounds like the registry is unreachable
+// rather than like a path is wrong, and stops every browser trajectory on the
+// one host they are supposed to run on. `scripts/auth/apple-account-placement`
+// already resolved this; the guard every session goes through did not.
+// STADO_BIN still wins, for a host that keeps it somewhere else again.
+function stadoBinary(): string {
+  const configured = process.env.STADO_BIN?.trim();
+  if (configured) return configured;
+  const home = process.env.HOME ?? homedir();
+  for (const candidate of [
+    join(home, '.stado', 'bin', 'stado'),
+    join(home, '.local', 'bin', 'stado'),
+  ]) {
+    if (existsSync(candidate)) return candidate;
+  }
+  throw new Error('no Stado binary on this host; set STADO_BIN');
+}
+
 function stado(arguments_: string[]): string {
-  const binary = process.env.STADO_BIN?.trim() || join(homedir(), '.local', 'bin', 'stado');
+  const binary = stadoBinary();
   const environment: NodeJS.ProcessEnv = {
     ...process.env,
     STADO_CONFIG: join(homedir(), '.stado', 'local-placement-config.absent'),

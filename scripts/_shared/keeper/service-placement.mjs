@@ -1,11 +1,27 @@
 import { execFileSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
 const WELES_SERVICE = 'com.wisent.always-on.weles';
 
+// Stado lives under `.stado/bin` on the fleet's Macs and under `.local/bin` on
+// hosts that installed it the other way. STADO_BIN still wins.
+function stadoBinary() {
+  const configured = process.env.STADO_BIN?.trim();
+  if (configured) return configured;
+  const home = process.env.HOME ?? homedir();
+  for (const candidate of [
+    join(home, '.stado', 'bin', 'stado'),
+    join(home, '.local', 'bin', 'stado'),
+  ]) {
+    if (existsSync(candidate)) return candidate;
+  }
+  throw new Error('no Stado binary on this host; set STADO_BIN');
+}
+
 function stado(arguments_) {
-  const binary = process.env.STADO_BIN?.trim() || join(homedir(), '.local', 'bin', 'stado');
+  const binary = stadoBinary();
   return execFileSync(binary, arguments_, {
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
