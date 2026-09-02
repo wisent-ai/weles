@@ -175,7 +175,8 @@ async function requestCapability(
     let total = 0;
     let ended = false;
     let settled = false;
-    const socket = createConnection({ path: brokerSocket() });
+    const socketPath = brokerSocket();
+    const socket = createConnection({ path: socketPath });
     socket.setTimeout(10_000);
     const wipe = () => {
       request.fill(0);
@@ -196,7 +197,15 @@ async function requestCapability(
       chunks.push(chunk);
     });
     socket.once('timeout', () => fail(new Error('broker response missing EOF')));
-    socket.once('error', () => fail(new Error('broker transport failure')));
+    // The cause used to be discarded here, and `broker transport failure`
+    // cannot be acted on: ENOENT means no broker ever bound this path,
+    // ECONNREFUSED means the file outlived the process that bound it, and
+    // EACCES means the socket belongs to another account. Three different
+    // repairs behind one sentence, which is how a Developer ID run spent an
+    // afternoon being diagnosed as the wrong problem.
+    socket.once('error', (error: NodeJS.ErrnoException) => fail(
+      new Error(`broker transport failure: ${error.code ?? error.message} at ${socketPath}`),
+    ));
     socket.once('end', () => { ended = true; });
     socket.once('close', (hadError) => {
       if (settled || hadError) return;

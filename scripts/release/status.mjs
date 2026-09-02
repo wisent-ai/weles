@@ -19,11 +19,23 @@ async function optionalText(path) {
 const current = await optionalJson(join(ringState, 'current.json'));
 const previous = await optionalJson(join(ringState, 'previous.json'));
 const promotion = current?.manifestSha256 ? await optionalJson(join(state, 'promotions', `${current.manifestSha256}.json`)) : null;
+// The registry name, which carries the reverse-domain prefix every managed unit
+// carries. Asking for the bare `weles-worker` answered "no registry-managed
+// service named weles-worker", so this report has never seen the worker.
+const WORKER_SERVICE = process.env.WELES_WORKER_SERVICE ?? 'com.wisent.weles-worker';
 let stado;
 try {
-  stado = JSON.parse(execFileSync(process.env.STADO_BIN ?? 'stado', ['service', 'status', 'weles-worker', '--host', host, '--json'], {
+  // `stado service status <name> [--json]`. The `--host` flag was removed from
+  // that command — one service's state is reported everywhere it is managed — so
+  // this call had been failing with "unexpected argument '--host'" and the ring
+  // status reported a Stado error instead of the worker's state. The host is
+  // still what this report is about, so it is matched from the rows rather than
+  // asked for in the query.
+  const all = JSON.parse(execFileSync(process.env.STADO_BIN ?? 'stado', ['service', 'status', WORKER_SERVICE, '--json'], {
     encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
   }));
+  const rows = Array.isArray(all) ? all : (Array.isArray(all?.rows) ? all.rows : [all]);
+  stado = rows.find((row) => row?.host === host) ?? { host, absent: true };
 } catch (error) {
   stado = { error: error instanceof Error ? error.message : String(error) };
 }
