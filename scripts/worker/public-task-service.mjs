@@ -646,6 +646,15 @@ async function collectEvidenceFiles(root) {
         throw new EvidenceRetentionError('evidence-file-count-exceeded', 'evidence file count exceeds the limit');
       }
       const hashed = await hashStableFile(fullPath);
+      if (hashed.bytes < 1) {
+        // The Spis bridge requires a positive byte count on every inventory
+        // entry, so an empty retained file would make the signed receipt
+        // permanently unverifiable. Fail retention instead of signing it.
+        throw new EvidenceRetentionError(
+          'evidence-file-empty',
+          `retained evidence file is empty: ${relativePath}`,
+        );
+      }
       totalBytes += hashed.bytes;
       if (totalBytes > MAX_EVIDENCE_TOTAL_BYTES) {
         throw new EvidenceRetentionError('evidence-total-too-large', 'evidence bytes exceed the total limit');
@@ -761,11 +770,20 @@ function terminalCompletion(output, aborted, _redact, requestedUrl = null) {
   return { ...completion, resultDigest: digest(canonicalJson(completion.result)) };
 }
 
+// The Spis bridge binds each reserved kind to one exact recording URI:
+// `screenshot` must be `artifacts/browser_evidence_final.png` and
+// `accessibility_tree` must be `artifacts/browser_evidence_accessibility_tree.txt`.
+// Keying these off the basename would label a same-named file in any other
+// directory as the reserved kind and sign an inventory the bridge is certain to
+// reject, so the reserved kinds match the exact retained relative path and every
+// other file stays an `artifact:{relative-path}` entry.
+const RESERVED_EVIDENCE_KINDS = new Map([
+  ['artifacts/browser_evidence_final.png', 'screenshot'],
+  ['artifacts/browser_evidence_accessibility_tree.txt', 'accessibility_tree'],
+]);
+
 function publicEvidenceKind(path) {
-  const name = basename(path);
-  if (name === 'browser_evidence_final.png') return 'screenshot';
-  if (name === 'browser_evidence_accessibility_tree.txt') return 'accessibility_tree';
-  return `artifact:${path}`;
+  return RESERVED_EVIDENCE_KINDS.get(path) ?? `artifact:${path}`;
 }
 
 function publicEvidenceInventory(files, taskId) {
