@@ -4,8 +4,12 @@ set -euo pipefail
 : "${WISENT_INPUT_WELES_CLIENT_BUNDLE_DIR:?WISENT_INPUT_WELES_CLIENT_BUNDLE_DIR is required}"; : "${WISENT_INPUT_WISENT_COST_TRACKER_BUNDLE_DIR:?WISENT_INPUT_WISENT_COST_TRACKER_BUNDLE_DIR is required}"
 work="$WISENT_OUTPUT_DIR/work"; source="$work/source"; rm -rf "$work"; mkdir -p "$source" "$WISENT_OUTPUT_DIR/payload" "$WISENT_OUTPUT_DIR/bin" "$WISENT_OUTPUT_DIR/evidence"
 rsync -a --exclude .git --exclude node_modules --exclude dist --exclude .wisent-output --exclude recordings --exclude .work --exclude .tmp --exclude var "$WISENT_SOURCE_DIR/" "$source/"
-source_revision="$(git -C "$WISENT_SOURCE_DIR" rev-parse HEAD)"
-[ -z "$(git -C "$WISENT_SOURCE_DIR" status --porcelain --untracked-files=all)" ] || { echo "Weles release source must be an exact clean commit" >&2; exit 1; }
+# The snapshot's own identity, from the pipeline that made it. Asking git here
+# died with `fatal: not a git repository`: the release worker unpacks a `git
+# archive`, and `stado release submit` has already refused any source tree that
+# is not an exact clean commit, so there is nothing left for this script to
+# verify and nothing here to verify it against.
+source_revision="${WISENT_SOURCE_COMMIT:?WISENT_SOURCE_COMMIT is required: the release pipeline exports the snapshot commit it built from}"
 case "$source_revision" in *[!0-9a-f]*|'') echo "source revision must be the full lowercase Git commit" >&2; exit 1;; esac
 [ "${#source_revision}" -eq 40 ] || { echo "source revision must contain exactly 40 hexadecimal characters" >&2; exit 1; }
 release_version="$(node -p "require('$source/package.json').version")"
