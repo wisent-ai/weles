@@ -83,11 +83,15 @@
     "export:toPlaywright",
     "export:vision",
     "export:waitCloudflare",
+    "http:GET /api/v1/tasks/:task_id",
+    "http:GET /api/v1/version",
     "http:GET /diagnostics/:run_id",
     "http:GET /diagnostics/:run_id/file?path=",
     "http:GET /healthz",
     "http:GET /worker/status",
     "http:GET /worker/version",
+    "http:POST /api/v1/tasks",
+    "http:POST /api/v1/tasks/:task_id/cancel",
     "http:POST /reauth",
     "http:POST /run",
     "http:POST /weles-builder",
@@ -102,6 +106,9 @@
     "mcp:weles_page_new",
     "mcp:weles_page_screenshot",
     "mcp:weles_page_text",
+    "schema:weles.browser-evidence-manifest.v1",
+    "schema:weles.browser-evidence-policy.v1",
+    "schema:weles.browser-evidence-withheld-edge.v1",
     "schema:weles.cancellation.current",
     "schema:weles.cancellation.v1",
     "schema:weles.receipt.current",
@@ -117,5 +124,5 @@
     "task-status:running",
     "task-status:succeeded"
   ],
-  "version": "0.5.51"
+  "version": "0.5.56"
 }

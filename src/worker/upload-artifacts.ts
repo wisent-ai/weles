@@ -117,14 +117,62 @@ export async function putPrivateStadoObject(
   if (!response.ok) {
     throw new Error(`Stado object upload failed (HTTP ${response.status}): ${responseText.slice(Number(false), Number('300'))}`)
   }
-  let payload: { uri?: unknown }
-  try { payload = JSON.parse(responseText) as { uri?: unknown } } catch {
+  let payload: Record<string, unknown>
+  try { payload = JSON.parse(responseText) as Record<string, unknown> } catch {
     throw new Error('Stado object upload returned invalid JSON')
   }
-  if (payload.uri !== uri) {
-    throw new Error(`Stado object upload returned unexpected URI: ${String(payload.uri ?? 'missing')}`)
+  const expectedSha256 = createHash('sha256').update(bytes).digest('hex')
+  const keys = Object.keys(payload).sort().join(',')
+  if (keys !== 'bytes,content_type,created,schema,sha256,state,uri'
+    || payload.schema !== 'stado.storage-put-receipt.v1'
+    || (payload.state !== 'stored' && payload.state !== 'replayed')
+    || payload.uri !== uri
+    || payload.sha256 !== expectedSha256
+    || payload.bytes !== bytes.byteLength
+    || payload.content_type !== contentType
+    || typeof payload.created !== 'boolean'
+    || payload.created !== (payload.state === 'stored')) {
+    throw new Error('Stado object upload returned an invalid exact storage receipt')
   }
   return uri
+}
+export async function readPrivateStadoObjectIdentity(
+  uri: string,
+  maximumBytes: number,
+): Promise<{ bytes: number; sha256: string }> {
+  if (!Number.isSafeInteger(maximumBytes) || maximumBytes < Number('1')) {
+    throw new Error('Stado object readback requires a positive safe byte limit')
+  }
+  let parsed: URL
+  try { parsed = new URL(uri) } catch { throw new Error('Stado object readback URI is invalid') }
+  if (parsed.protocol !== 'stado:' || parsed.username || parsed.password || parsed.search || parsed.hash
+    || privateStadoUri(parsed.hostname, parsed.pathname.slice(Number('1'))) !== uri) {
+    throw new Error('Stado object readback URI is not canonical')
+  }
+  const config = requireStadoObjectConfig()
+  const response = await fetch(`${config.apiUrl}/api/object?uri=${encodeURIComponent(uri)}`, {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${config.token}` },
+    signal: AbortSignal.timeout(Number('60000')),
+  })
+  if (!response.ok || !response.body) {
+    const message = await response.text().catch(() => '')
+    throw new Error(`Stado object readback failed (HTTP ${response.status}): ${message.slice(Number('0'), Number('300'))}`)
+  }
+  const hash = createHash('sha256')
+  const reader = response.body.getReader()
+  let bytes = 0
+  while (true) {
+    const chunk = await reader.read()
+    if (chunk.done) break
+    bytes += chunk.value.byteLength
+    if (bytes > maximumBytes) {
+      await reader.cancel()
+      throw new Error('Stado object readback exceeded its exact byte limit')
+    }
+    hash.update(chunk.value)
+  }
+  return { bytes, sha256: hash.digest('hex') }
 }
 
 async function uploadOne(localPath: string, objectKey: string, contentType: string): Promise<string> {

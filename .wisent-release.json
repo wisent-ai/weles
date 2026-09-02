@@ -31,7 +31,7 @@
     "config_schema": 1,
     "state_schema": 1,
     "minimum_stado_version": "0.9.5",
-    "rollback_compatible_with": ["0.5.54", "0.5.53"]
+    "rollback_compatible_with": ["0.5.55", "0.5.54"]
   },
   "inputs": {
     "weles-client-bundle": {

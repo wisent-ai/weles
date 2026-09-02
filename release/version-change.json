@@ -1,7 +1,7 @@
 {
   "schema": "weles.version-change.v1",
-  "current": "0.5.54",
-  "candidate": "0.5.55",
+  "current": "0.5.55",
+  "candidate": "0.5.56",
   "breaking": false,
-  "reason": "0.5.55 records the immutable Weles release identity in every detached run result so post-release activity and diagnostics attribute pre-browser failures to the exact worker. CLI and library surfaces are unchanged."
+  "reason": "0.5.56 adds the authenticated Spis browser-evidence task contract, durable evidence manifests, policy-bound Ed25519 receipts, idempotent cancellation, and health-gated Weles admission readiness."
 }

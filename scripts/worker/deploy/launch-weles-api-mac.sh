@@ -101,13 +101,25 @@ if [ -z "${WELES_STADO_MODEL_ROUTER_TOKEN:-}" ] \
   WELES_STADO_MODEL_ROUTER_AGENT_ID="$(acquire_startup_field weles-model-agent-id-bootstrap weles-model-agent-auth id)"
   WELES_STADO_MODEL_ROUTER_AGENT_AUTH_SECRET="$(acquire_startup_field weles-model-agent-secret-bootstrap weles-model-agent-auth agent_auth_secret)"
 fi
+WELES_PUBLIC_API_BEARER="$(acquire_startup_field weles-spis-public-bearer-bootstrap weles-spis-public-admission token)"
+WELES_PUBLIC_API_ORGANIZATION_ID="$(acquire_startup_field weles-spis-public-organization-bootstrap weles-spis-public-admission organization_id)"
+WELES_RECEIPT_KEY_ID="$(acquire_startup_field weles-spis-receipt-key-id-bootstrap weles-spis-public-admission receipt_key_id)"
+WELES_RECEIPT_KEY_SET_VERSION="$(acquire_startup_field weles-spis-receipt-key-set-version-bootstrap weles-spis-public-admission receipt_key_set_version)"
+WELES_RECEIPT_PRIVATE_KEY="$(acquire_startup_field weles-spis-receipt-private-key-bootstrap weles-spis-public-admission receipt_private_key)"
+WELES_RECEIPT_PUBLIC_KEYS_JSON="$(acquire_startup_field weles-spis-receipt-public-keys-bootstrap weles-spis-public-admission receipt_public_keys_json)"
 for required_secret in \
   WELES_API_TOKEN \
   BRAMA_WELES_REAUTH_TOKEN \
   WELES_STADO_OBJECT_API_TOKEN \
   WELES_STADO_MODEL_ROUTER_TOKEN \
   WELES_STADO_MODEL_ROUTER_AGENT_ID \
-  WELES_STADO_MODEL_ROUTER_AGENT_AUTH_SECRET
+  WELES_STADO_MODEL_ROUTER_AGENT_AUTH_SECRET \
+  WELES_PUBLIC_API_BEARER \
+  WELES_PUBLIC_API_ORGANIZATION_ID \
+  WELES_RECEIPT_KEY_ID \
+  WELES_RECEIPT_KEY_SET_VERSION \
+  WELES_RECEIPT_PRIVATE_KEY \
+  WELES_RECEIPT_PUBLIC_KEYS_JSON
 do
   if [ -z "${!required_secret:-}" ]; then
     printf 'required startup secret %s is unavailable\n' "$required_secret" >&2
@@ -116,6 +128,9 @@ do
 done
 export WELES_API_TOKEN BRAMA_WELES_REAUTH_TOKEN WELES_STADO_OBJECT_API_TOKEN WELES_STADO_MODEL_ROUTER_TOKEN
 export WELES_STADO_MODEL_ROUTER_AGENT_ID WELES_STADO_MODEL_ROUTER_AGENT_AUTH_SECRET
+export WELES_PUBLIC_API_BEARER WELES_PUBLIC_API_ORGANIZATION_ID WELES_RECEIPT_KEY_ID
+export WELES_RECEIPT_KEY_SET_VERSION WELES_RECEIPT_PRIVATE_KEY WELES_RECEIPT_PUBLIC_KEYS_JSON
+export WELES_PUBLIC_API_ALLOWED_ORIGINS='*'
 mkdir -p "$HOME/weles/var"
 # Set unconditionally: the unit's plist injects this variable, so a default
 # expression would never win. This is the alias Brama serves.

@@ -88,8 +88,8 @@ function parseJsonFrom(raw: string): Record<string, any> {
 
 type ModelDecisionProvider = (prompt: string) => Promise<{ raw: string; model: string; routerUrl: string }>;
 
-async function askLlm(goal: string, state: string, screenshotPath: string, step: number, label?: string, modelDecision: ModelDecisionProvider = callJeden): Promise<Record<string, any>> {
-  const dir = visionDir(label);
+async function askLlm(goal: string, state: string, screenshotPath: string | null, step: number, label?: string, modelDecision: ModelDecisionProvider = callJeden, disableArtifacts = false): Promise<Record<string, any>> {
+  const dir = disableArtifacts ? null : visionDir(label);
   const imgBlock = screenshotPath ? `The current screenshot is saved locally at ${screenshotPath}; use the page observation below if image access is unavailable.\n\n` : '';
   const prompt = `${SYSTEM_PROMPT}\n\nGOAL: ${goal}\n\n${state}\n${imgBlock}Respond with ONLY the JSON object.`;
 
@@ -110,9 +110,11 @@ async function askLlm(goal: string, state: string, screenshotPath: string, step:
   }
   if (!raw) raw = JSON.stringify({ tool: 'give_up', args: { reason: `Jeden/Brama error after retries: ${lastRouterError}` } });
 
-  const logPath = join(dir, `loop_step${step}.json`);
   const decision = parseJsonFrom(raw);
-  try { writeFileSync(logPath, JSON.stringify({ step, raw, parsed: decision, router: routerMeta }, null, 2)); } catch { /* skip */ }
+  if (dir) {
+    const logPath = join(dir, `loop_step${step}.json`);
+    try { writeFileSync(logPath, JSON.stringify({ step, raw, parsed: decision, router: routerMeta }, null, 2)); } catch { /* skip */ }
+  }
   return decision;
 }
 
@@ -187,7 +189,7 @@ async function buildState(page: any, history: ToolCall[], envHints: Record<strin
 export async function execute(
   session: WSession,
   goal: string,
-  options?: { envHints?: Record<string, string>; replay?: ToolCall[]; flowName?: string; replayOnly?: boolean; skipSavedFlowReplay?: boolean; modelDecision?: ModelDecisionProvider; maxSteps?: number },
+  options?: { envHints?: Record<string, string>; replay?: ToolCall[]; flowName?: string; replayOnly?: boolean; skipSavedFlowReplay?: boolean; disableFlowPersistence?: boolean; disableArtifacts?: boolean; modelDecision?: ModelDecisionProvider; maxSteps?: number },
 ): Promise<LoopResult> {
   const history: ToolCall[] = [];
   const envHints = options?.envHints ?? {};
@@ -201,7 +203,7 @@ export async function execute(
   // Try replaying a saved flow before using the LLM unless this is an explicit
   // keeper/discovery run. Keeper-first runs must map the live success path, not
   // silently reuse a stale local cache entry under the same flow name.
-  if (flowName && !replay && !options?.skipSavedFlowReplay) {
+  if (flowName && !replay && !options?.skipSavedFlowReplay && !options?.disableFlowPersistence) {
     const saved = loadFlow(flowName);
     if (saved) {
       console.log(`[loop] Replaying saved flow: ${flowName} (${saved.steps.length} steps)`);
@@ -235,20 +237,19 @@ export async function execute(
     } else if (replay && options?.replayOnly && step >= replay.length) {
       throw new AgentFailure('replay completed without done', history);
     } else {
-      let screenshot: Buffer;
-      try {
-        screenshot = await activePage.screenshot({ scale: 'css', animations: 'disabled' });
-      } catch {
-        activePage = getActivePage(activePage);
-        try { await activePage.waitForLoadState?.('domcontentloaded'); } catch { /* skip */ }
-        try { screenshot = await activePage.screenshot({ scale: 'css', animations: 'disabled' }); }
-        catch { screenshot = Buffer.from(''); }
-      }
-      const imgPath = await capture.screenshot(activePage, `loop_step${step}`).catch(() => {
-        const p = join(visionDir(session.label), `loop_step${step}.png`); writeFileSync(p, screenshot); return p;
-      });
+      const imgPath = options?.disableArtifacts
+        ? null
+        : await capture.screenshot(activePage, `loop_step${step}`).catch(() => null);
       const state = await buildState(activePage, history, envHints);
-      decision = await askLlm(goal, state, imgPath, step, session.label, options?.modelDecision);
+      decision = await askLlm(
+        goal,
+        state,
+        imgPath,
+        step,
+        session.label,
+        options?.modelDecision,
+        options?.disableArtifacts,
+      );
     }
 
     const call: ToolCall = {
@@ -262,7 +263,7 @@ export async function execute(
     if (call.tool === 'done') {
       call.result = 'done';
       history.push(call);
-      if (flowName) {
+      if (flowName && !options?.disableFlowPersistence) {
         const steps = history.map(h => ({ tool: h.tool, args: h.args, result: h.result }));
         saveFlow(flowName, steps);
         console.log(`[loop] Flow saved: ${flowName} (${steps.length} steps)`);
