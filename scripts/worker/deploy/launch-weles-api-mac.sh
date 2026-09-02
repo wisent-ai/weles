@@ -133,8 +133,28 @@ export SKARBIEC_CAP_SOCKET="$HOME/.stado/run/weles-api-capability.sock"
 mkdir -p "$(dirname "$SKARBIEC_CAP_SOCKET")"
 export WELES_API_HOST="${WELES_API_HOST:-0.0.0.0}"
 export WELES_API_PORT="${WELES_API_PORT:-8788}"
+# A unix socket outlives the process that bound it. Every restart of this
+# unit used to inherit the previous broker's file: `bind` then answered
+# EADDRINUSE, the broker exited, and the file stayed behind pointing at
+# nothing - so trajectories reached a path that connect() refused. The
+# socket is this launcher's to own, so the launcher clears it.
+rm -f "$SKARBIEC_CAP_SOCKET"
 "$HOME/.stado/bin/skarbiec" capability-serve --socket "$SKARBIEC_CAP_SOCKET" &
 capability_broker_pid=$!
+# Starting the API server before the broker accepts is a race the API loses
+# once, silently, on the first trajectory that asks for a credential.
+broker_ready=no
+for _ in $(seq 1 50); do
+  if [ -S "$SKARBIEC_CAP_SOCKET" ]; then broker_ready=yes; break; fi
+  if ! kill -0 "$capability_broker_pid" 2>/dev/null; then break; fi
+  sleep 0.2
+done
+if [ "$broker_ready" != yes ]; then
+  echo "capability broker never bound $SKARBIEC_CAP_SOCKET" >&2
+  kill "$capability_broker_pid" 2>/dev/null || true
+  exit 1
+fi
+echo "capability broker listening on $SKARBIEC_CAP_SOCKET"
 stop_capability_broker() {
   kill "$capability_broker_pid" || true
 }
