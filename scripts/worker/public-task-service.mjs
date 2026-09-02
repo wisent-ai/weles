@@ -74,6 +74,20 @@ function isObject(value) {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
+function containsLoneSurrogate(value) {
+  for (let index = 0; index < value.length; index += 1) {
+    const unit = value.charCodeAt(index);
+    if (unit >= 0xd800 && unit <= 0xdbff) {
+      const next = value.charCodeAt(index + 1);
+      if (!(next >= 0xdc00 && next <= 0xdfff)) return true;
+      index += 1;
+    } else if (unit >= 0xdc00 && unit <= 0xdfff) {
+      return true;
+    }
+  }
+  return false;
+}
+
 // Exact request/receipt digest intersection: RFC 8785 JSON ordering and
 // serialization, restricted to null, booleans, strings, safe integers, arrays,
 // and plain objects. IEEE-754 fractional values are deliberately outside the
@@ -82,9 +96,16 @@ function canonicalJson(value) {
   if (typeof value === 'number' && !Number.isSafeInteger(value)) {
     throw new PublicTaskError(400, 'invalid-json-number', 'canonical public JSON permits safe integers only');
   }
+  if (typeof value === 'string' && containsLoneSurrogate(value)) {
+    throw new PublicTaskError(400, 'invalid-json-string', 'canonical public JSON rejects lone UTF-16 surrogates');
+  }
   if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
   if (isObject(value)) {
-    return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`).join(',')}}`;
+    const keys = Object.keys(value).sort();
+    if (keys.some(containsLoneSurrogate)) {
+      throw new PublicTaskError(400, 'invalid-json-string', 'canonical public JSON rejects lone UTF-16 surrogates');
+    }
+    return `{${keys.map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`).join(',')}}`;
   }
   const encoded = JSON.stringify(value);
   if (encoded === undefined) throw new PublicTaskError(400, 'invalid-json', 'request contains a non-JSON value');
@@ -167,6 +188,9 @@ function assertBoundedJson(value, path = 'input', depth = 0) {
   if (typeof value === 'string' && value.length > MAX_TEXT) {
     throw new PublicTaskError(400, 'invalid-input', `${path} exceeds ${MAX_TEXT} characters`);
   }
+  if (typeof value === 'string' && containsLoneSurrogate(value)) {
+    throw new PublicTaskError(400, 'invalid-input', `${path} rejects lone UTF-16 surrogates`);
+  }
   if (typeof value === 'number' && !Number.isSafeInteger(value)) {
     throw new PublicTaskError(400, 'invalid-input', `${path} permits safe integers only`);
   }
@@ -179,6 +203,9 @@ function assertBoundedJson(value, path = 'input', depth = 0) {
   const entries = Object.entries(value);
   if (entries.length > MAX_OBJECT_KEYS) throw new PublicTaskError(400, 'invalid-input', `${path} has too many keys`);
   for (const [key, entry] of entries) {
+    if (containsLoneSurrogate(key)) {
+      throw new PublicTaskError(400, 'invalid-input', `${path} contains a key with a lone UTF-16 surrogate`);
+    }
     if (SENSITIVE_KEY_RE.test(key)) {
       throw new PublicTaskError(400, 'sensitive-input-denied', `plaintext secret-shaped field denied at ${path}.${key}`);
     }
@@ -362,6 +389,7 @@ function parseTaskRequest(body, config) {
   if (!isObject(body) || body.schema !== TASK_SCHEMA) {
     throw new PublicTaskError(400, 'unsupported-task-schema', 'unsupported task schema');
   }
+  assertBoundedJson(body, 'task');
   const allowedKeys = Object.freeze({
     action: true,
     credentialRefs: true,
@@ -451,6 +479,7 @@ function parseCancellation(body, config) {
   if (!isObject(body) || body.schema !== CANCELLATION_SCHEMA) {
     throw new PublicTaskError(400, 'unsupported-cancellation-schema', 'unsupported cancellation schema');
   }
+  assertBoundedJson(body, 'cancellation');
   const allowedKeys = Object.freeze({ organizationId: true, reason: true, schema: true });
   if (Object.keys(body).some((key) => !Object.hasOwn(allowedKeys, key)) || Object.keys(body).length !== 3) {
     throw new PublicTaskError(400, 'invalid-cancellation', 'cancellation has missing or unknown fields');
@@ -671,6 +700,9 @@ function receiptFor(task, evidenceDigest, config) {
   return {
     schema: RECEIPT_SCHEMA,
     ...coreClaims,
+    requestDigest: task.requestDigest,
+    resultDigest: task.completion.resultDigest,
+    spisBinding: task.spisBinding,
     keyId: config.keyId,
     signature,
     signedPayload,
@@ -745,8 +777,8 @@ export function createPublicTaskService(options) {
   const taskLocks = new Map();
   const identity = options.releaseIdentity;
   const expectedReleaseId = `weles-worker@${identity.release_version ?? ''}`;
-  if (!Number.isSafeInteger(options.concurrency) || options.concurrency < 1 || options.concurrency > 8) {
-    throw new Error('public task concurrency must be an integer from 1 through 8');
+  if (options.concurrency !== 1) {
+    throw new Error('public task concurrency must be exactly 1');
   }
   if (!Number.isSafeInteger(options.taskTimeoutMs)
       || options.taskTimeoutMs < 15 * 60 * 1_000

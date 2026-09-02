@@ -118,7 +118,7 @@ const PUBLIC_TASK_CONCURRENCY = boundedIntegerEnvironment(
   'WELES_PUBLIC_TASK_CONCURRENCY',
   1,
   1,
-  8,
+  1,
 );
 const BODY_LIMIT = Number(process.env.WELES_API_BODY_LIMIT_BYTES || 256 * 1024);
 const RUN_DEDUPLICATION_TTL_MS = Number(process.env.WELES_API_RUN_DEDUPLICATION_TTL_MS || 60_000);
