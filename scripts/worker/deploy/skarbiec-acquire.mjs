@@ -231,7 +231,10 @@ if (!readResponse.ok) {
 const result = await readResponse.json();
 // The bound field, plus the one statement the item makes about itself that a
 // caller needs to know which flow a credential belongs to: `provider`, present
-// only when the item declares one (skarbiec 5864a54, 2026-08-31). Anything
+// only when the item declares one (skarbiec 5864a54, 2026-08-31); its value is
+// whatever the item's context.provider holds — an identifier or an origin such
+// as https://www.figma.com — so it is bounded by length and control characters,
+// not by a shape this side would have to invent. Anything
 // else is not a single-field response. Demanding the exact four keys here is
 // what made every acquisition of a provider-declaring item fail as "invalid
 // single-field response" once that release reached the fleet.
@@ -242,7 +245,9 @@ if (!result || result.consumer !== consumer || result.item !== item || result.fi
     || requiredKeys.some((key) => !keys.includes(key))
     || keys.some((key) => !requiredKeys.includes(key) && !optionalKeys.includes(key))
     || typeof result.value !== 'string' || !result.value
-    || (result.provider !== undefined && (typeof result.provider !== 'string' || !/^[A-Za-z0-9._-]{1,128}$/.test(result.provider)))) {
-  throw new Error('Skarbiec returned an invalid single-field response');
+    || (result.provider !== undefined && (typeof result.provider !== 'string' || !result.provider || result.provider.length > 512 || /[\u0000-\u001f\u007f]/.test(result.provider)))) {
+  const shape = keys.sort().map((key) => `${key}:${typeof result[key]}`).join(', ');
+  const provider = result && result.provider !== undefined ? ` provider=${JSON.stringify(String(result.provider)).slice(0, 40)}` : '';
+  throw new Error(`Skarbiec returned an invalid single-field response (keys ${shape || 'none'};${provider} expected ${requiredKeys.join(', ')} and optionally provider)`);
 }
 process.stdout.write(result.value);
