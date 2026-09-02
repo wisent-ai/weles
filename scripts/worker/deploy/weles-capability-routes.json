@@ -24,11 +24,11 @@
     "field": "password"
   },
   "origin:https://idmsa.apple.com/email": {
-    "item": "platform-admin-appstore",
-    "field": "username"
+    "item": "weles-apple-control-account",
+    "field": "email"
   },
   "origin:https://idmsa.apple.com/password": {
-    "item": "platform-admin-appstore",
+    "item": "weles-apple-control-account",
     "field": "password"
   }
 }
