@@ -289,9 +289,21 @@ function runLogin(displayName) {
       // the full stream is still on disk in manual-seed-claude.err.
       const lines = (out + '\n' + err).split('\n').map((l) => l.trim()).filter(Boolean);
       const said = lines.filter((l) => /^(FAIL|CREDENTIAL_SOURCE|AUTHZURL)\b/.test(l) || l.startsWith('STEP '));
-      const spoken = said.length
-        ? `${said.filter((l) => l.startsWith('STEP ')).slice(-1).join('')} ${said.filter((l) => !l.startsWith('STEP ')).slice(-2).join(' | ')}`.trim()
-        : lines.filter((l) => !/^at\s/.test(l)).slice(-2).join(' | ');
+      // The reason first, its step next, and never an AUTHZURL in front of
+      // either: that line is four hundred characters of query string, it is
+      // already in the artifacts, and leading with it is what truncated the
+      // reason away. A run that stopped at Google's second factor could only
+      // say `STEP google_2fa_check AUTHZURL https://claude.com/cai/oauth/...`,
+      // so three rounds of diagnosis could not tell a missing authenticator
+      // seed from a method that could not be selected.
+      const reasons = said.filter((l) => /^FAIL\b/.test(l));
+      const step = said.filter((l) => l.startsWith('STEP ')).slice(-1);
+      const spoken = reasons.length || step.length
+        ? [...reasons.slice(-2), ...step].join(' | ')
+        : lines
+          .filter((l) => !/^at\s/.test(l) && !/^AUTHZURL\b/.test(l))
+          .slice(-2)
+          .join(' | ');
       const artifacts = loginArtifacts(said);
       reject(new Error(
         `login.mjs exit ${code}, no claudeAiOauth blob; said=${spoken.slice(0, 400)}`
