@@ -17,6 +17,7 @@
   },
   "evidence": {
     "manifest_schema": "weles.browser-evidence-manifest.v1",
+    "non_success_manifest_schema": "weles.browser-evidence-manifest.v2",
     "storage_prefix": "stado://weles/recordings/{task_id}/",
     "required_artifacts": [
       "artifacts/browser_evidence_final.png",

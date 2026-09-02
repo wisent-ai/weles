@@ -938,6 +938,8 @@ async function controlWorker(action) {
 }
 const PUBLIC_PLACEMENT_POLICY_FILE = process.env.WELES_PLACEMENT_POLICY_FILE
   || join(homedir(), '.config', 'weles', 'placement-policy.json');
+const PUBLIC_SERVICE_DIRECTORY_FILE = process.env.WELES_PUBLIC_SERVICE_DIRECTORY_FILE
+  || join(homedir(), '.stado', 'forwards', 'weles-admission.directory.json');
 const PUBLIC_ADMISSION_ENDPOINT_FILE = process.env.WELES_ADMISSION_ENDPOINT_FILE
   || join(homedir(), '.stado', 'forwards', 'weles-admission.local');
 
@@ -951,9 +953,11 @@ function readBoundedRegularText(path, maximumBytes) {
 
 function readPublicServiceIdentity() {
   const placement = JSON.parse(readBoundedRegularText(PUBLIC_PLACEMENT_POLICY_FILE, 64 * 1024));
+  const placementGeneration = placement?._source?.registry_generation;
   if (placement?.schema_version !== 1
-      || !Number.isSafeInteger(placement?._source?.registry_generation)
-      || placement._source.registry_generation < 0
+      || (typeof placementGeneration !== 'string'
+        && !Number.isSafeInteger(placementGeneration))
+      || String(placementGeneration).length === 0
       || placement?._source?.by !== 'stado host publish-placement-policy'
       || !Array.isArray(placement.hosts)) {
     throw new Error('Stado-published Weles placement policy has an unsupported identity');
@@ -968,17 +972,45 @@ function readPublicServiceIdentity() {
   if (admittedHosts.length !== 1) {
     throw new Error('Stado-published Weles placement policy does not authorize one exact public host');
   }
-  const endpoint = readBoundedRegularText(PUBLIC_ADMISSION_ENDPOINT_FILE, 2 * 1024).trim();
+
+  const published = JSON.parse(readBoundedRegularText(PUBLIC_SERVICE_DIRECTORY_FILE, 64 * 1024));
+  const service = published?.service;
+  if (published?.schema !== 'weles.public-service-directory.v1'
+      || Object.keys(published).length !== 3
+      || !Number.isSafeInteger(published?.directory_generation)
+      || !service || typeof service !== 'object' || Array.isArray(service)
+      || Object.keys(service).length !== 6
+      || service.name !== 'weles-admission'
+      || service.active_host !== admittedHosts[0].hostname
+      || service.action !== 'generic_browser_task'
+      || service.release_id !== `weles-worker@${RUN_RELEASE_IDENTITY.version}`
+      || service.source_revision !== RUN_RELEASE_IDENTITY.source_revision
+      || typeof service.endpoint !== 'string') {
+    throw new Error('published Weles service-directory snapshot has an unsupported identity');
+  }
+  const publishedEndpoint = new URL(service.endpoint);
+  if (!['http:', 'https:'].includes(publishedEndpoint.protocol)
+      || publishedEndpoint.username || publishedEndpoint.password
+      || publishedEndpoint.search || publishedEndpoint.hash
+      || publishedEndpoint.pathname !== '/api/v1'
+      || publishedEndpoint.toString() !== service.endpoint) {
+    throw new Error('published Weles service-directory endpoint is invalid');
+  }
+  const transportText = readBoundedRegularText(PUBLIC_ADMISSION_ENDPOINT_FILE, 2 * 1024).trim();
+  const transportEndpoint = new URL(transportText);
+  if (transportEndpoint.toString() !== service.endpoint) {
+    throw new Error('local Weles admission transport differs from the published service directory');
+  }
   return {
-    name: 'weles-admission',
-    generation: placement._source.registry_generation,
+    name: service.name,
+    generation: published.directory_generation,
     consumer: 'spis',
     capability: 'browser-evidence',
-    active_host: admittedHosts[0].hostname,
-    endpoint,
-    action: 'generic_browser_task',
-    release_id: `weles-worker@${RUN_RELEASE_IDENTITY.version}`,
-    source_revision: RUN_RELEASE_IDENTITY.source_revision,
+    active_host: service.active_host,
+    endpoint: service.endpoint,
+    action: service.action,
+    release_id: service.release_id,
+    source_revision: service.source_revision,
   };
 }
 

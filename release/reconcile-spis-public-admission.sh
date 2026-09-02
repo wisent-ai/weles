@@ -57,6 +57,7 @@ temporary="$work_root/$(date -u +%Y%m%dT%H%M%SZ)-$$"
 (umask 077; mkdir "$temporary")
 cleanup() { rm -rf "$temporary"; }
 trap cleanup EXIT HUP INT TERM
+service_snapshot="${WELES_PUBLIC_SERVICE_DIRECTORY_FILE:-$HOME/.stado/forwards/weles-admission.directory.json}"
 
 "$stado" credentials ls --json >"$temporary/credentials.json"
 credential_present=0
@@ -130,22 +131,36 @@ done
   exit 1
 }
 "$stado" registry pull >"$temporary/registry-before-admission.json"
-
-# `stado registry push` is the registry authority's validated, versioned
-# compare-and-swap operation. Build one candidate from one snapshot and invoke
-# it once: a storage-generation conflict must abort activation instead of being
-# retried against an unreviewed concurrent registry revision.
-"$stado" registry pull >"$temporary/registry-current.json"
 "$node" "$reconciler" registry \
-  "$temporary/registry-current.json" "$temporary/registry-candidate.json" \
+  "$temporary/registry-before-admission.json" "$temporary/registry-candidate.json" \
   "$host" "$version" "$source_revision" >"$temporary/registry-plan.json"
 "$stado" registry validate "$temporary/registry-candidate.json" >/dev/null
-"$stado" registry push "$temporary/registry-candidate.json" >"$temporary/registry-cas-receipt.txt"
-"$stado" registry pull >"$temporary/registry-committed.json"
-"$node" "$reconciler" same "$temporary/registry-candidate.json" "$temporary/registry-committed.json" || {
-  printf '%s\n' 'registry CAS verification returned different bytes' >&2
-  exit 1
-}
+registry_changed=0
+if "$node" "$reconciler" plan-changed "$temporary/registry-plan.json"; then
+  # Stado exposes its real registry CAS only to Rust callers
+  # (`push_document_if`); `stado registry push` performs a fresh internal read
+  # and cannot accept this snapshot's version. Narrow the unsupported CLI race:
+  # refuse every observed change since the candidate's exact input, write once,
+  # then verify the whole document. This is optimistic snapshot protection, not
+  # an atomic compare-and-swap.
+  "$stado" registry pull >"$temporary/registry-prewrite.json"
+  "$node" "$reconciler" same \
+    "$temporary/registry-before-admission.json" "$temporary/registry-prewrite.json" || {
+    printf '%s\n' 'registry changed after admission planning; refusing overwrite' >&2
+    exit 1
+  }
+  "$stado" registry push "$temporary/registry-candidate.json" >"$temporary/registry-write-receipt.txt"
+  "$stado" registry pull >"$temporary/registry-committed.json"
+  "$node" "$reconciler" same "$temporary/registry-candidate.json" "$temporary/registry-committed.json" || {
+    printf '%s\n' 'registry post-write verification returned different bytes' >&2
+    exit 1
+  }
+  registry_changed=1
+else
+  result=$?
+  [ "$result" -eq 3 ] || exit "$result"
+  /bin/cp "$temporary/registry-before-admission.json" "$temporary/registry-committed.json"
+fi
 endpoint="$("$node" -e '
   const fs = require("node:fs");
   const value = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
@@ -154,7 +169,9 @@ endpoint="$("$node" -e '
 ' "$temporary/registry-plan.json")"
 post_registry_ready=0
 if "$stado" host publish-placement-policy "$host" --json >"$temporary/placement-policy.json" \
-    && "$stado" directory publish weles-admission --target "$host" --json >"$temporary/directory-publication.json"; then
+    && "$stado" directory publish weles-admission --target "$host" --json >"$temporary/directory-publication.json" \
+    && "$node" "$reconciler" publish-service \
+      "$temporary/registry-committed.json" "$service_snapshot" "$host"; then
   for attempt in $(seq 1 60); do
     if "$curl" --silent --show-error --fail --max-time 5 \
         "${endpoint%/api/v1}/api/v1/version" >"$temporary/public-version.json" \
@@ -167,25 +184,43 @@ if "$stado" host publish-placement-policy "$host" --json >"$temporary/placement-
   done
 fi
 if [ "$post_registry_ready" -ne 1 ]; then
-  "$stado" registry pull >"$temporary/registry-rollback-current.json"
-  "$node" "$reconciler" same "$temporary/registry-committed.json" "$temporary/registry-rollback-current.json" || {
-    printf '%s\n' 'registry advanced after activation CAS; refusing destructive rollback overwrite' >&2
-    exit 1
-  }
-  # Rollback uses the same Stado version-preconditioned registry CAS. A
-  # conflict fails closed and deliberately prevents release rollback from
-  # making runtime state disagree with a newer registry owner.
-  "$stado" registry validate "$temporary/registry-before-admission.json" >/dev/null
-  "$stado" registry push "$temporary/registry-before-admission.json" >"$temporary/registry-rollback-cas-receipt.txt"
-  "$stado" registry pull >"$temporary/registry-rollback-verify.json"
-  "$node" "$reconciler" same "$temporary/registry-before-admission.json" "$temporary/registry-rollback-verify.json" || {
-    printf '%s\n' 'registry rollback CAS verification returned different bytes' >&2
-    exit 1
-  }
+  if [ "$registry_changed" -eq 1 ]; then
+    "$stado" registry pull >"$temporary/registry-rollback-current.json"
+    "$node" "$reconciler" same \
+      "$temporary/registry-committed.json" "$temporary/registry-rollback-current.json" || {
+      printf '%s\n' 'registry advanced after activation write; refusing destructive rollback overwrite' >&2
+      exit 1
+    }
+    # Rollback is a forward directory revision: restore the old content on top
+    # of the committed generation, never push the captured lower generation.
+    "$node" "$reconciler" rollback-registry \
+      "$temporary/registry-before-admission.json" \
+      "$temporary/registry-committed.json" \
+      "$temporary/registry-rollback-candidate.json"
+    "$stado" registry validate "$temporary/registry-rollback-candidate.json" >/dev/null
+    "$stado" registry pull >"$temporary/registry-rollback-prewrite.json"
+    "$node" "$reconciler" same \
+      "$temporary/registry-committed.json" "$temporary/registry-rollback-prewrite.json" || {
+      printf '%s\n' 'registry changed during rollback planning; refusing overwrite' >&2
+      exit 1
+    }
+    "$stado" registry push "$temporary/registry-rollback-candidate.json" \
+      >"$temporary/registry-rollback-write-receipt.txt"
+    "$stado" registry pull >"$temporary/registry-rollback-verify.json"
+    "$node" "$reconciler" same \
+      "$temporary/registry-rollback-candidate.json" "$temporary/registry-rollback-verify.json" || {
+      printf '%s\n' 'registry rollback verification returned different bytes' >&2
+      exit 1
+    }
+  else
+    /bin/cp "$temporary/registry-committed.json" "$temporary/registry-rollback-verify.json"
+  fi
   "$stado" host publish-placement-policy "$host" --json >"$temporary/rollback-placement-policy.json" || true
   "$stado" directory publish weles-admission --target "$host" --json >"$temporary/rollback-directory-publication.json" || true
+  "$node" "$reconciler" publish-service \
+    "$temporary/registry-rollback-verify.json" "$service_snapshot" "$host" || true
   "$stado" release rollback weles-worker --json >"$temporary/release-rollback.json" || true
-  printf '%s\n' 'post-registry readiness failed; CAS restoration and managed release rollback were requested' >&2
+  printf '%s\n' 'post-registry readiness failed; forward registry restoration and managed release rollback were requested' >&2
   exit 1
 fi
 printf 'activated weles-worker %s (%s) on %s with the exact Spis browser-evidence binding\n' \

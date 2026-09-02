@@ -1,5 +1,15 @@
 #!/usr/bin/env node
-import { readFileSync, writeFileSync } from 'node:fs';
+import {
+  closeSync,
+  fsyncSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
+import { dirname } from 'node:path';
 
 const mode = process.argv[2];
 
@@ -9,8 +19,28 @@ function readJson(path) {
 
 function writeJson(path, value) {
   const document = `${JSON.stringify(value, null, 2)}\n`;
-  if (path === '-') process.stdout.write(document);
-  else writeFileSync(path, document, { encoding: 'utf8', mode: 0o600 });
+  if (path === '-') {
+    process.stdout.write(document);
+    return;
+  }
+  const parent = dirname(path);
+  mkdirSync(parent, { recursive: true, mode: 0o700 });
+  const temporary = `${path}.${process.pid}.new`;
+  let descriptor;
+  try {
+    descriptor = openSync(temporary, 'wx', 0o600);
+    writeFileSync(descriptor, document, 'utf8');
+    fsyncSync(descriptor);
+    closeSync(descriptor);
+    descriptor = undefined;
+    renameSync(temporary, path);
+    const directory = openSync(parent, 'r');
+    try { fsyncSync(directory); } finally { closeSync(directory); }
+  } catch (error) {
+    if (descriptor !== undefined) closeSync(descriptor);
+    rmSync(temporary, { force: true });
+    throw error;
+  }
 }
 
 function objectAt(value, name) {
@@ -92,6 +122,62 @@ function reconcileRegistry(source, destination, expectedHost, version, sourceRev
   if (changed) directory.generation += 1;
   writeJson(destination, registry);
   process.stdout.write(`${JSON.stringify({ changed, generation: directory.generation, activeHost: service.active_host, endpoint: endpoint.url })}\n`);
+}
+
+function planChanged(path) {
+  const plan = objectAt(readJson(path), 'registry plan');
+  if (typeof plan.changed !== 'boolean') throw new Error('registry plan has no boolean changed field');
+  if (!plan.changed) process.exit(3);
+}
+
+function rollbackRegistry(beforePath, committedPath, destination) {
+  const before = objectAt(readJson(beforePath), 'pre-activation registry');
+  const committed = objectAt(readJson(committedPath), 'committed registry');
+  const beforeDirectory = objectAt(before.service_directory, 'pre-activation service_directory');
+  const committedDirectory = objectAt(committed.service_directory, 'committed service_directory');
+  if (!Number.isSafeInteger(beforeDirectory.generation) || beforeDirectory.generation < 0
+      || !Number.isSafeInteger(committedDirectory.generation) || committedDirectory.generation < 0
+      || committedDirectory.generation === Number.MAX_SAFE_INTEGER) {
+    throw new Error('registry rollback requires valid forward service-directory generations');
+  }
+  beforeDirectory.generation = committedDirectory.generation + 1;
+  writeJson(destination, before);
+}
+
+function publishServiceSnapshot(registryPath, destination, expectedHost) {
+  const registry = objectAt(readJson(registryPath), 'published registry');
+  const directory = objectAt(registry.service_directory, 'service_directory');
+  if (!Number.isSafeInteger(directory.generation) || directory.generation < 0) {
+    throw new Error('service_directory.generation must be a non-negative safe integer');
+  }
+  const services = objectAt(directory.services, 'service_directory.services');
+  const service = objectAt(services['weles-admission'], 'weles-admission service');
+  if (service.active_host !== expectedHost) {
+    throw new Error(`weles-admission active_host is not ${expectedHost}`);
+  }
+  const endpoints = objectAt(service.endpoints, 'weles-admission.endpoints');
+  const endpoint = objectAt(endpoints[expectedHost], `weles-admission endpoint ${expectedHost}`);
+  const url = new URL(endpoint.url);
+  if (!['http:', 'https:'].includes(url.protocol)
+      || url.username || url.password || url.search || url.hash
+      || url.pathname !== '/api/v1' || url.toString() !== endpoint.url) {
+    throw new Error('published weles-admission endpoint must be the exact /api/v1 base URL');
+  }
+  if (typeof service.release_id !== 'string' || typeof service.source_revision !== 'string') {
+    throw new Error('published weles-admission release identity is incomplete');
+  }
+  writeJson(destination, {
+    schema: 'weles.public-service-directory.v1',
+    directory_generation: directory.generation,
+    service: {
+      name: 'weles-admission',
+      active_host: expectedHost,
+      endpoint: endpoint.url,
+      action: 'generic_browser_task',
+      release_id: service.release_id,
+      source_revision: service.source_revision,
+    },
+  });
 }
 
 function credentialPresent(path) {
@@ -196,6 +282,18 @@ switch (mode) {
     if (!/^[0-9a-f]{40}$/.test(process.argv[7])) throw new Error('source revision must be a full lowercase Git commit');
     reconcileRegistry(process.argv[3], process.argv[4], process.argv[5], process.argv[6], process.argv[7]);
     break;
+  case 'plan-changed':
+    if (process.argv.length !== 4) throw new Error('usage: ... plan-changed PLAN');
+    planChanged(process.argv[3]);
+    break;
+  case 'rollback-registry':
+    if (process.argv.length !== 6) throw new Error('usage: ... rollback-registry BEFORE COMMITTED DESTINATION');
+    rollbackRegistry(process.argv[3], process.argv[4], process.argv[5]);
+    break;
+  case 'publish-service':
+    if (process.argv.length !== 6) throw new Error('usage: ... publish-service REGISTRY DESTINATION HOST');
+    publishServiceSnapshot(process.argv[3], process.argv[4], process.argv[5]);
+    break;
   case 'credential-present':
     if (process.argv.length !== 4) throw new Error('usage: ... credential-present CREDENTIALS_JSON');
     credentialPresent(process.argv[3]);
@@ -217,5 +315,5 @@ switch (mode) {
     renderTrust(process.argv[3], process.argv[4], process.argv[5], process.argv[6]);
     break;
   default:
-    throw new Error('mode must be registry|credential-present|same|release-settled|version-ready|render-trust');
+    throw new Error('unsupported reconciliation mode');
 }

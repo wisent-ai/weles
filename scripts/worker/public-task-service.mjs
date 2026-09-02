@@ -26,6 +26,8 @@ const STATUS_SCHEMA = 'weles.task-status.v1';
 const RECEIPT_SCHEMA = 'weles.receipt.current';
 const VERSION_SCHEMA = 'weles.version.v1';
 const EVIDENCE_SCHEMA = 'weles.browser-evidence-manifest.v1';
+const NON_SUCCESS_EVIDENCE_SCHEMA = 'weles.browser-evidence-manifest.v2';
+const EVIDENCE_PATH_COMPONENT_RE = /^[A-Za-z0-9._-]+$/;
 const PUBLIC_ACTION = 'generic_browser_task';
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const IDEMPOTENCY_RE = /^[a-zA-Z0-9._:-]{1,128}$/;
@@ -625,6 +627,12 @@ async function collectEvidenceFiles(root) {
     const current = stack.pop();
     const entries = await readdir(current.directory, { withFileTypes: true });
     for (const entry of entries) {
+      if (!EVIDENCE_PATH_COMPONENT_RE.test(entry.name)) {
+        throw new EvidenceRetentionError(
+          'evidence-path-unsafe',
+          `evidence path component is not portable: ${entry.name}`,
+        );
+      }
       if (entry.isSymbolicLink()) throw new EvidenceRetentionError('evidence-symlink', `symlink is forbidden in evidence: ${entry.name}`);
       const fullPath = join(current.directory, entry.name);
       const relativePath = current.relative ? `${current.relative}/${entry.name}` : entry.name;
@@ -1062,19 +1070,22 @@ export function createPublicTaskService(options) {
       throw new EvidenceRetentionError('evidence-identity-duplicate', 'evidence inventory kind and URI identities must be unique');
     }
     const withheldEdges = await retainedWithheldEdges(files);
+    const successful = task.completion.status === 'succeeded';
     const manifest = {
-      schema: EVIDENCE_SCHEMA,
+      schema: successful ? EVIDENCE_SCHEMA : NON_SUCCESS_EVIDENCE_SCHEMA,
       taskId: task.id,
       organizationId: task.request.organizationId,
       origin: task.request.origin,
       action: task.request.action,
-      outcome: task.completion.status === 'succeeded' ? 'completed' : task.completion.status,
+      outcome: successful ? 'completed' : task.completion.status,
       requestDigest: task.requestDigest,
       resultDigest: task.completion.resultDigest,
       spisBinding: task.spisBinding,
       requestedUrl: task.executionInput.url,
-      effectiveUrl: task.completion.capture?.effectiveUrl ?? null,
-      finalUrl: task.completion.capture?.finalUrl ?? null,
+      ...(successful ? {
+        effectiveUrl: task.completion.capture.effectiveUrl,
+        finalUrl: task.completion.capture.finalUrl,
+      } : {}),
       evidenceInventory,
     };
     const manifestBytes = Buffer.from(`${canonicalJson(manifest)}\n`, 'utf8');
