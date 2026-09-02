@@ -133,6 +133,23 @@ export SKARBIEC_CAP_SOCKET="$HOME/.stado/run/weles-api-capability.sock"
 mkdir -p "$(dirname "$SKARBIEC_CAP_SOCKET")"
 export WELES_API_HOST="${WELES_API_HOST:-0.0.0.0}"
 export WELES_API_PORT="${WELES_API_PORT:-8788}"
+# The API port is the only thing that says which instance is the live one.
+# Clearing the socket below is safe only for the instance that owns the
+# port: a restart that cleared it first took the path from the instance
+# still serving, its own API server then failed EADDRINUSE, and the trap
+# further down killed the broker it had just installed - leaving the live
+# server pointed at a socket with nothing behind it. Every trajectory that
+# asked for a credential from then on read ECONNREFUSED, reported as
+# `broker transport failure`, and no restart could repair it because each
+# retry repeated the theft. So the port is claimed before anything shared
+# is touched, and a losing instance stands by having changed nothing.
+lsof_bin=lsof
+[ -x /usr/sbin/lsof ] && lsof_bin=/usr/sbin/lsof
+if "$lsof_bin" -nP -iTCP:"$WELES_API_PORT" -sTCP:LISTEN >/dev/null 2>&1; then
+  echo "weles api port $WELES_API_PORT is already served: standing by, $SKARBIEC_CAP_SOCKET untouched" >&2
+  sleep 30
+  exit 0
+fi
 # A unix socket outlives the process that bound it. Every restart of this
 # unit used to inherit the previous broker's file: `bind` then answered
 # EADDRINUSE, the broker exited, and the file stayed behind pointing at
