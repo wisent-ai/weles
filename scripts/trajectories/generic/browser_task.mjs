@@ -1,11 +1,19 @@
 import { closeSync, fsyncSync, mkdirSync, openSync, writeFileSync, writeSync } from 'node:fs';
 import { join } from 'node:path';
 import { WSession } from '../../../dist/session/wsession.js';
-import { CREDENTIAL_FIELD_ABSENT } from '../../../dist/session/wsession-helpers/finalize.js';
+import finalizeHelpers from '../../../dist/session/wsession-helpers/finalize.js';
 import { execute, AgentFailure } from '../../../dist/agent/index.js';
 import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
 import { writeWelesTrajectoryDraft } from '../../../dist/trajectories/writer.js';
 import { getGoogleSsoCreds, googleSso } from '../_shared/services/google_sso.mjs';
+
+// finalize.js is compiled CommonJS whose exports are assigned after a
+// `void 0` placeholder, so Node's static analysis of a named ESM import does
+// not see the binding on the Node 25 the fleet hosts run: "Named export
+// 'CREDENTIAL_FIELD_ABSENT' not found", which is how every Figma token
+// acquisition on charless-mac-mini died on 2026-09-02 before opening a page.
+// The default import is the live `module.exports` object and always carries it.
+const { CREDENTIAL_FIELD_ABSENT } = finalizeHelpers;
 
 const label = process.env.GENERIC_TASK_LABEL || 'generic_browser_task';
 
