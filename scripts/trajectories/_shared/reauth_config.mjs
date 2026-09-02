@@ -320,6 +320,29 @@ export function loginFromSkarbiec(item) {
   };
 }
 
+// Whether an answer to `/v1/models` came from the model router itself.
+//
+// Brama serves the catalogue as `{"object":"list","data":[...]}` and refuses an
+// unauthenticated caller with the gateway's error envelope, which always names
+// a `type` and a `code`. Nothing else on this host answers in either shape,
+// while a bare 401 is what every credential-guarded server on earth answers --
+// so a status can confirm a stranger, and once did: on 2026-08-25 a 404 page
+// was accepted here for the same reason, that the check read the status and
+// never the answer.
+async function answersAsRouter(answer) {
+  let body;
+  try {
+    body = await answer.json();
+  } catch {
+    return false;
+  }
+  if (answer.status === 200) {
+    return body?.object === 'list' && Array.isArray(body?.data);
+  }
+  const error = body?.error;
+  return typeof error?.type === 'string' && typeof error?.code === 'string';
+}
+
 // Prefer the router that answers over the one a row remembers.
 // A configuration row pointed at `http://100.120.25.24:8080` -- the gateway's
 // tailnet address, which it does not bind, because it listens on loopback and is
@@ -352,14 +375,18 @@ export async function reachableRouterUrl(configured) {
       const answer = await fetch(`${candidate}/v1/models`, {
         signal: AbortSignal.timeout(Number('4000')),
       });
-      if (answer.status === 401 || answer.status === 200) {
+      const acceptable = answer.status === 401 || answer.status === 200;
+      if (acceptable && await answersAsRouter(answer)) {
         if (candidate !== configured) {
           console.error(`router ${configured} refused; using ${candidate}`);
         }
         return candidate;
       }
       console.error(
-        `router ${candidate} answered /v1/models ${answer.status}; not the model router`,
+        acceptable
+          ? `router ${candidate} answered /v1/models ${answer.status} in a shape the model `
+            + 'router never sends'
+          : `router ${candidate} answered /v1/models ${answer.status}; not the model router`,
       );
     } catch (error) {
       console.error(`router ${candidate} unreachable: ${error.cause?.code ?? error.message}`);
