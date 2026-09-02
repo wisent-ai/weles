@@ -14,7 +14,10 @@ import { getSocialAccount } from '../../../dist/utils/credentials.js';
 import { appleChallengeRelayTarget } from '../../auth/apple-account-placement.mjs';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const JOB = /^[0-9a-f]{8}$/i;
+// Eight hex from the Stado queue, or the UUID the Weles API assigns and then
+// forces into ACTION_LOG_ID. Both name one run; refusing the second one meant
+// refusing every run Stado dispatches.
+const JOB = /^(?:[0-9a-f]{8}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
 const ACCOUNT = /^weles-apple-[a-z0-9][a-z0-9-]{0,126}-account$/;
 const guardId = (process.env.APPLE_AUTH_GUARD_ID?.trim() ?? '').toLowerCase();
 const accountId = process.env.WELES_LOGIN_ITEM?.trim() ?? '';

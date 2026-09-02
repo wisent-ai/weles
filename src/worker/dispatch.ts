@@ -599,6 +599,19 @@ export function paramsToEnv(
     if (params.apple_login_capabilities === undefined) {
       throw new Error('apple_login_capabilities are required for apple_login');
     }
+    // The account the run signs in as. Both Apple trajectories refuse without
+    // it — `WELES_LOGIN_ITEM must name an Apple account` — and nothing set it
+    // for them: the only two places that assign WELES_LOGIN_ITEM are the
+    // subscription-login paths for claude, codex and kimi. So neither
+    // apple/login.mjs nor apple/create_developer_id.mjs has ever been able to
+    // start, on the queue path or through the API, however correct the caller
+    // was. Stado has been sending the item all along under `account_item`,
+    // which nothing read.
+    const appleAccount = params.login_item ?? params.account_item;
+    if (typeof appleAccount !== 'string' || !/^weles-apple-[a-z0-9][a-z0-9-]{0,126}-account$/.test(appleAccount)) {
+      throw new Error('login_item must name an Apple Skarbiec account item for an apple trajectory');
+    }
+    env.WELES_LOGIN_ITEM = appleAccount;
     env.APPLE_AUTH_GUARD_ID = guardId;
     env.APPLE_EXECUTION_HOST = executionHost;
     env.APPLE_EXECUTION_AGENT = executionAgent;
