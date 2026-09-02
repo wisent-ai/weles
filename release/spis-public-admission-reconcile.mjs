@@ -130,6 +130,63 @@ function planChanged(path) {
   if (!plan.changed) process.exit(3);
 }
 
+function nonemptyText(value, name) {
+  if (typeof value !== 'string' || value.length === 0) throw new Error(`${name} must be a nonempty string`);
+  return value;
+}
+
+// `stado registry pull --with-generation` answers with one
+// `stado.registry-pull-receipt.v1`: the document and the token that makes that
+// exact document writable back. Splitting the receipt here is what keeps the
+// two together - a generation read apart from its document is a token for a
+// document nobody looked at, which is the lost update `--if-generation` exists
+// to refuse. The document is written out for the transform and the token is
+// printed for the conditional push.
+function pullReceipt(receiptPath, destination) {
+  const receipt = objectAt(readJson(receiptPath), 'registry pull receipt');
+  if (receipt.schema !== 'stado.registry-pull-receipt.v1') {
+    throw new Error('registry pull receipt schema is unsupported');
+  }
+  nonemptyText(receipt.location, 'registry pull receipt location');
+  const generation = nonemptyText(receipt.generation, 'registry pull receipt generation');
+  const document = objectAt(receipt.document, 'registry pull receipt document');
+  writeJson(destination, document);
+  process.stdout.write(`${generation}\n`);
+}
+
+// `stado registry push --json` answers with one
+// `stado.registry-push-receipt.v1` for both outcomes, so neither the write nor
+// the refusal has to be scraped out of a sentence. A `pushed` receipt must name
+// the token this caller spent and the generation it produced; a `conflict`
+// receipt must name the same spent token and carry no new generation.
+function pushReceipt(receiptPath, expectedState, expectedGeneration) {
+  const receipt = objectAt(readJson(receiptPath), 'registry push receipt');
+  if (receipt.schema !== 'stado.registry-push-receipt.v1') {
+    throw new Error('registry push receipt schema is unsupported');
+  }
+  nonemptyText(receipt.location, 'registry push receipt location');
+  if (receipt.state !== expectedState) {
+    throw new Error(`registry push receipt state is ${receipt.state}, not ${expectedState}`);
+  }
+  if (receipt.expected_generation !== expectedGeneration) {
+    throw new Error('registry push receipt names a different conditional generation');
+  }
+  if (expectedState === 'pushed') {
+    if (receipt.actual_generation !== null) {
+      throw new Error('a pushed registry receipt must not name a conflicting generation');
+    }
+    process.stdout.write(`${nonemptyText(receipt.generation, 'registry push receipt generation')}\n`);
+    return;
+  }
+  if (expectedState !== 'conflict') throw new Error('registry push receipt state is not a supported outcome');
+  if (receipt.generation !== null || receipt.replaced !== null) {
+    throw new Error('a conflicting registry receipt must not name a written generation');
+  }
+  if (receipt.actual_generation !== null) {
+    nonemptyText(receipt.actual_generation, 'registry push receipt actual generation');
+  }
+}
+
 function rollbackRegistry(beforePath, committedPath, destination) {
   const before = objectAt(readJson(beforePath), 'pre-activation registry');
   const committed = objectAt(readJson(committedPath), 'committed registry');
@@ -285,6 +342,14 @@ switch (mode) {
   case 'plan-changed':
     if (process.argv.length !== 4) throw new Error('usage: ... plan-changed PLAN');
     planChanged(process.argv[3]);
+    break;
+  case 'pull-receipt':
+    if (process.argv.length !== 5) throw new Error('usage: ... pull-receipt RECEIPT DOCUMENT');
+    pullReceipt(process.argv[3], process.argv[4]);
+    break;
+  case 'push-receipt':
+    if (process.argv.length !== 6) throw new Error('usage: ... push-receipt RECEIPT STATE GENERATION');
+    pushReceipt(process.argv[3], process.argv[4], process.argv[5]);
     break;
   case 'rollback-registry':
     if (process.argv.length !== 6) throw new Error('usage: ... rollback-registry BEFORE COMMITTED DESTINATION');

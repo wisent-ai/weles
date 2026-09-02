@@ -130,36 +130,74 @@ done
   printf '%s\n' 'managed release did not converge to the exact healthy version, source, and digest' >&2
   exit 1
 }
-"$stado" registry pull >"$temporary/registry-before-admission.json"
-"$node" "$reconciler" registry \
-  "$temporary/registry-before-admission.json" "$temporary/registry-candidate.json" \
-  "$host" "$version" "$source_revision" >"$temporary/registry-plan.json"
-"$stado" registry validate "$temporary/registry-candidate.json" >/dev/null
+# `stado registry push --if-generation` is the registry authority's real
+# compare-and-swap: it refuses a write whose document has moved since the read
+# that produced the token, with exit 75 and a typed `conflict` receipt. Read the
+# document and its token from ONE `pull --with-generation` receipt, transform
+# that exact document, and let the authority arbitrate. A refused attempt is
+# re-planned against the document that is actually there rather than retried
+# against the stale one.
 registry_changed=0
-if "$node" "$reconciler" plan-changed "$temporary/registry-plan.json"; then
-  # Stado exposes its real registry CAS only to Rust callers
-  # (`push_document_if`); `stado registry push` performs a fresh internal read
-  # and cannot accept this snapshot's version. Narrow the unsupported CLI race:
-  # refuse every observed change since the candidate's exact input, write once,
-  # then verify the whole document. This is optimistic snapshot protection, not
-  # an atomic compare-and-swap.
-  "$stado" registry pull >"$temporary/registry-prewrite.json"
-  "$node" "$reconciler" same \
-    "$temporary/registry-before-admission.json" "$temporary/registry-prewrite.json" || {
-    printf '%s\n' 'registry changed after admission planning; refusing overwrite' >&2
+registry_settled=0
+committed_generation=""
+for attempt in $(seq 1 5); do
+  snapshot="$temporary/registry-snapshot-$attempt.json"
+  document="$temporary/registry-document-$attempt.json"
+  candidate="$temporary/registry-candidate-$attempt.json"
+  plan="$temporary/registry-plan-$attempt.json"
+  receipt="$temporary/registry-push-receipt-$attempt.json"
+  "$stado" registry pull --with-generation >"$snapshot"
+  generation="$("$node" "$reconciler" pull-receipt "$snapshot" "$document")"
+  "$node" "$reconciler" registry \
+    "$document" "$candidate" "$host" "$version" "$source_revision" >"$plan"
+  if "$node" "$reconciler" plan-changed "$plan"; then
+    "$stado" registry validate "$candidate" >/dev/null
+    push_status=0
+    "$stado" registry push "$candidate" --if-generation "$generation" --json >"$receipt" \
+      || push_status=$?
+    if [ "$push_status" -eq 0 ]; then
+      committed_generation="$("$node" "$reconciler" push-receipt "$receipt" pushed "$generation")"
+      /bin/cp "$document" "$temporary/registry-before-admission.json"
+      /bin/cp "$candidate" "$temporary/registry-candidate.json"
+      /bin/cp "$plan" "$temporary/registry-plan.json"
+      registry_changed=1
+      registry_settled=1
+      break
+    fi
+    # Only a lost update is 75. A validation refusal or a storage failure is not
+    # a conflict and must not be retried.
+    [ "$push_status" -eq 75 ] || exit "$push_status"
+    "$node" "$reconciler" push-receipt "$receipt" conflict "$generation" >/dev/null
+  else
+    result=$?
+    [ "$result" -eq 3 ] || exit "$result"
+    /bin/cp "$document" "$temporary/registry-before-admission.json"
+    /bin/cp "$document" "$temporary/registry-committed.json"
+    /bin/cp "$plan" "$temporary/registry-plan.json"
+    registry_settled=1
+    break
+  fi
+done
+[ "$registry_settled" -eq 1 ] || {
+  printf '%s\n' 'registry conditional write kept losing to concurrent owners; refusing to activate' >&2
+  exit 1
+}
+if [ "$registry_changed" -eq 1 ]; then
+  # The receipt already proves the write landed at the token it spent. This
+  # re-read proves the bytes the authority now serves are the bytes that were
+  # built, and the generation check keeps that comparison about this write.
+  "$stado" registry pull --with-generation >"$temporary/registry-committed-snapshot.json"
+  verify_generation="$("$node" "$reconciler" pull-receipt \
+    "$temporary/registry-committed-snapshot.json" "$temporary/registry-committed.json")"
+  [ "$verify_generation" = "$committed_generation" ] || {
+    printf '%s\n' 'registry advanced immediately after the conditional write; refusing to continue against a newer owner' >&2
     exit 1
   }
-  "$stado" registry push "$temporary/registry-candidate.json" >"$temporary/registry-write-receipt.txt"
-  "$stado" registry pull >"$temporary/registry-committed.json"
-  "$node" "$reconciler" same "$temporary/registry-candidate.json" "$temporary/registry-committed.json" || {
+  "$node" "$reconciler" same \
+    "$temporary/registry-candidate.json" "$temporary/registry-committed.json" || {
     printf '%s\n' 'registry post-write verification returned different bytes' >&2
     exit 1
   }
-  registry_changed=1
-else
-  result=$?
-  [ "$result" -eq 3 ] || exit "$result"
-  /bin/cp "$temporary/registry-before-admission.json" "$temporary/registry-committed.json"
 fi
 endpoint="$("$node" -e '
   const fs = require("node:fs");
@@ -185,12 +223,6 @@ if "$stado" host publish-placement-policy "$host" --json >"$temporary/placement-
 fi
 if [ "$post_registry_ready" -ne 1 ]; then
   if [ "$registry_changed" -eq 1 ]; then
-    "$stado" registry pull >"$temporary/registry-rollback-current.json"
-    "$node" "$reconciler" same \
-      "$temporary/registry-committed.json" "$temporary/registry-rollback-current.json" || {
-      printf '%s\n' 'registry advanced after activation write; refusing destructive rollback overwrite' >&2
-      exit 1
-    }
     # Rollback is a forward directory revision: restore the old content on top
     # of the committed generation, never push the captured lower generation.
     "$node" "$reconciler" rollback-registry \
@@ -198,15 +230,31 @@ if [ "$post_registry_ready" -ne 1 ]; then
       "$temporary/registry-committed.json" \
       "$temporary/registry-rollback-candidate.json"
     "$stado" registry validate "$temporary/registry-rollback-candidate.json" >/dev/null
-    "$stado" registry pull >"$temporary/registry-rollback-prewrite.json"
-    "$node" "$reconciler" same \
-      "$temporary/registry-committed.json" "$temporary/registry-rollback-prewrite.json" || {
-      printf '%s\n' 'registry changed during rollback planning; refusing overwrite' >&2
+    # Conditional on the generation this run's own write produced. The authority
+    # refuses with 75 if anyone published after it, which is exactly the
+    # "do not clobber a newer owner" precondition - and unlike the activation
+    # write this one is deliberately never retried, because re-planning a
+    # rollback onto a newer document would erase that owner's change.
+    rollback_status=0
+    "$stado" registry push "$temporary/registry-rollback-candidate.json" \
+      --if-generation "$committed_generation" --json \
+      >"$temporary/registry-rollback-receipt.json" || rollback_status=$?
+    if [ "$rollback_status" -eq 75 ]; then
+      "$node" "$reconciler" push-receipt \
+        "$temporary/registry-rollback-receipt.json" conflict "$committed_generation" >/dev/null
+      printf '%s\n' 'registry advanced after the activation write; refusing destructive rollback overwrite' >&2
+      exit 1
+    fi
+    [ "$rollback_status" -eq 0 ] || exit "$rollback_status"
+    rollback_generation="$("$node" "$reconciler" push-receipt \
+      "$temporary/registry-rollback-receipt.json" pushed "$committed_generation")"
+    "$stado" registry pull --with-generation >"$temporary/registry-rollback-verify-snapshot.json"
+    verify_rollback_generation="$("$node" "$reconciler" pull-receipt \
+      "$temporary/registry-rollback-verify-snapshot.json" "$temporary/registry-rollback-verify.json")"
+    [ "$verify_rollback_generation" = "$rollback_generation" ] || {
+      printf '%s\n' 'registry advanced immediately after the rollback write; refusing to report a settled rollback' >&2
       exit 1
     }
-    "$stado" registry push "$temporary/registry-rollback-candidate.json" \
-      >"$temporary/registry-rollback-write-receipt.txt"
-    "$stado" registry pull >"$temporary/registry-rollback-verify.json"
     "$node" "$reconciler" same \
       "$temporary/registry-rollback-candidate.json" "$temporary/registry-rollback-verify.json" || {
       printf '%s\n' 'registry rollback verification returned different bytes' >&2
