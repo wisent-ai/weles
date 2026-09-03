@@ -48,7 +48,10 @@ curl="${CURL_BIN:-/usr/bin/curl}"
 [ -x "$curl" ] || { printf 'required curl is unavailable: %s\n' "$curl" >&2; exit 1; }
 reconciler="$source_root/release/spis-public-admission-reconcile.mjs"
 generator="$source_root/release/generate-spis-public-admission-credential.mjs"
-[ -f "$reconciler" ] && [ -f "$generator" ] || { printf '%s\n' 'Weles onboarding artifacts are incomplete' >&2; exit 1; }
+renderer="$source_root/release/spis-public-admission-host-render.mjs"
+binding="$source_root/release/spis-public-admission-binding.json"
+[ -f "$reconciler" ] && [ -f "$generator" ] && [ -f "$renderer" ] && [ -f "$binding" ] \
+  || { printf '%s\n' 'Weles onboarding artifacts are incomplete' >&2; exit 1; }
 
 work_root="$HOME/.stado/work/weles/spis-public-admission"
 mkdir -p "$work_root"
@@ -59,9 +62,24 @@ cleanup() { rm -rf "$temporary"; }
 trap cleanup EXIT HUP INT TERM
 service_snapshot="${WELES_PUBLIC_SERVICE_DIRECTORY_FILE:-$HOME/.stado/forwards/weles-admission.directory.json}"
 
-"$stado" credentials ls --json >"$temporary/credentials.json"
+# Presence and the trust document are both read from the vault that is actually
+# written. `stado host vault-item-put` writes the OWNER VAULT OF `$host`, while
+# `stado credentials` reads the store of whatever machine this script runs on --
+# the same store only when this runs on `$host`, and it runs from an operator
+# station. Judging presence locally reported "absent" for an item already on the
+# host, one line above the branch that mints a new authority.
+host_vault_present() {
+  "$stado" credentials inspect-vault --host "$host" --match weles-spis-public-admission --json \
+    >"$temporary/host-vault.json"
+  "$node" "$reconciler" host-credential-present "$temporary/host-vault.json"
+}
+
+# The renderer and the binding are two declarations of one set of Skarbiec
+# coordinates. Refuse before touching the host if they have drifted.
+"$node" "$reconciler" binding-refs-match "$binding" "$renderer"
+
 credential_present=0
-if "$node" "$reconciler" credential-present "$temporary/credentials.json"; then
+if host_vault_present; then
   credential_present=1
 else
   result=$?
@@ -71,18 +89,16 @@ if [ "$credential_present" -eq 0 ]; then
   "$node" "$generator" \
     | "$stado" host vault-item-put "$host" weles-spis-public-admission --type internal-authority --json \
       >"$temporary/vault-put.json"
-  "$stado" credentials ls --json >"$temporary/credentials-after.json"
-  "$node" "$reconciler" credential-present "$temporary/credentials-after.json"
+  host_vault_present
 fi
 
-"$stado" credentials get weles-spis-public-admission --field organization_id >"$temporary/organization-id"
-"$stado" credentials get weles-spis-public-admission --field receipt_key_set_version >"$temporary/key-set-version"
-"$stado" credentials get weles-spis-public-admission --field receipt_public_keys_json >"$temporary/public-keys.json"
-"$node" "$reconciler" render-trust \
-  "$temporary/organization-id" \
-  "$temporary/key-set-version" \
-  "$temporary/public-keys.json" \
-  "$temporary/receipt-trust.json"
+# The document is assembled ON `$host`, by the renderer, out of `$host`'s own
+# live Skarbiec. No field value -- not the four public ones, and above all not
+# `receipt_private_key` beside them -- is ever pulled to this station; only the
+# finished five-field public document crosses, and `accept-trust` judges it here
+# by the same rules its consumers apply.
+"$stado" host render-spis-admission-trust "$host" "$renderer" >"$temporary/rendered-trust.json"
+"$node" "$reconciler" accept-trust "$temporary/rendered-trust.json" "$temporary/receipt-trust.json"
 
 if [ "$mode" = "prepare" ]; then
   [ ! -L "$trust_file" ] || { printf 'refusing symlinked Spis trust file: %s\n' "$trust_file" >&2; exit 1; }

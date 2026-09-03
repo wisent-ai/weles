@@ -17,8 +17,10 @@ function readJson(path) {
   return JSON.parse(path === '-' ? readFileSync(0, 'utf8') : readFileSync(path, 'utf8'));
 }
 
-function writeJson(path, value) {
-  const document = `${JSON.stringify(value, null, 2)}\n`;
+// Atomic, fsynced, owner-only-until-renamed. Split out from `writeJson` so a
+// document that must reach disk byte-for-byte -- one built elsewhere and only
+// judged here -- gets the same durability without being re-serialized.
+function writeBytes(path, document) {
   if (path === '-') {
     process.stdout.write(document);
     return;
@@ -41,6 +43,10 @@ function writeJson(path, value) {
     rmSync(temporary, { force: true });
     throw error;
   }
+}
+
+function writeJson(path, value) {
+  writeBytes(path, `${JSON.stringify(value, null, 2)}\n`);
 }
 
 function objectAt(value, name) {
@@ -237,14 +243,25 @@ function publishServiceSnapshot(registryPath, destination, expectedHost) {
   });
 }
 
-function credentialPresent(path) {
-  const rows = readJson(path);
-  if (!Array.isArray(rows)) throw new Error('credential list must be an array');
-  const matches = rows.filter((item) => item?.id === 'weles-spis-public-admission');
-  if (matches.length > 1) throw new Error('credential metadata contains duplicate weles-spis-public-admission items');
+// `stado credentials` reads the credential store of the machine this runs on,
+// while the authority lives in the OWNER VAULT OF THE ADMISSION HOST. Those are
+// the same store only when the reconcile runs on that host, and it runs from an
+// operator station. Judging presence against the local store made a cross-host
+// run report "absent" for an item that was already there -- which, on the very
+// next line of the script, is the difference between skipping generation and
+// minting a second authority over a live one. Presence is therefore read from
+// the vault that is actually written, through
+// `stado credentials inspect-vault --host`: names, kinds and states only, which
+// is the only read that answers "does THAT host hold this item" without moving
+// an encrypted vault.
+function hostCredentialPresent(path) {
+  const report = objectAt(readJson(path), 'host vault report');
+  const items = arrayAt(report.items, 'host vault report items');
+  const matches = items.filter((item) => item?.name === 'weles-spis-public-admission');
+  if (matches.length > 1) throw new Error('host vault contains duplicate weles-spis-public-admission items');
   if (matches.length === 0) process.exit(3);
-  const type = matches[0].item_type ?? matches[0].itemType ?? matches[0].kind;
-  if (type !== 'internal-authority') throw new Error('weles-spis-public-admission has the wrong item type');
+  if (matches[0].kind !== 'internal-authority') throw new Error('weles-spis-public-admission has the wrong item type');
+  if (matches[0].state !== 'active') throw new Error('weles-spis-public-admission is not active in the host vault');
 }
 
 function registrySame(leftPath, rightPath) {
@@ -286,25 +303,69 @@ function releaseSettled(path, target, version, sourceRevision) {
   })}\n`);
 }
 
-function renderTrust(organizationPath, keySetVersionPath, publicKeysPath, destination) {
-  const organizationId = readFileSync(organizationPath, 'utf8').trim();
-  const keySetVersion = readFileSync(keySetVersionPath, 'utf8').trim();
-  const receiptKeys = JSON.parse(readFileSync(publicKeysPath, 'utf8'));
-  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(organizationId)) {
+// The document is BUILT on the host that holds the vault, by
+// `release/spis-public-admission-host-render.mjs`, and delivered here by
+// `stado host render-spis-admission-trust`. The station therefore validates
+// what arrived instead of assembling a second copy from field values it would
+// have had to pull to itself -- and the four public fields it would have pulled
+// sit one field away from `receipt_private_key`.
+//
+// The bytes are written through verbatim. This document is committed to a
+// public repository and compared byte-for-byte at activation
+// (`reconcile-spis-public-admission.sh activate`), so re-serializing it here
+// would make this script a second author of it.
+function acceptTrust(renderedPath, destination) {
+  const bytes = readFileSync(renderedPath, 'utf8');
+  const trust = objectAt(JSON.parse(bytes), 'rendered receipt trust');
+  const fields = Object.keys(trust).sort();
+  const expected = ['allowedAction', 'keySetVersion', 'organizationId', 'receiptKeys', 'schema'];
+  if (fields.length !== expected.length || fields.some((name, index) => name !== expected[index])) {
+    throw new Error(`receipt trust must carry exactly ${expected.join(', ')}`);
+  }
+  if (trust.schema !== 'wisent.spis-weles-receipt-trust.v1') {
+    throw new Error('receipt trust schema is unsupported');
+  }
+  if (trust.allowedAction !== 'generic_browser_task') {
+    throw new Error('receipt trust allowedAction is not the Spis browser action');
+  }
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(trust.organizationId)) {
     throw new Error('receipt trust organizationId must be a UUID');
   }
-  if (!keySetVersion || !receiptKeys || typeof receiptKeys !== 'object' || Array.isArray(receiptKeys)
+  const receiptKeys = trust.receiptKeys;
+  if (typeof trust.keySetVersion !== 'string' || !trust.keySetVersion.trim()
+      || !receiptKeys || typeof receiptKeys !== 'object' || Array.isArray(receiptKeys)
       || Object.keys(receiptKeys).length === 0
+      || Object.keys(receiptKeys).some((identifier) => !identifier.trim())
       || Object.values(receiptKeys).some((value) => typeof value !== 'string' || !value.includes('PUBLIC KEY'))) {
     throw new Error('receipt trust key set is invalid');
   }
-  writeJson(destination, {
-    schema: 'wisent.spis-weles-receipt-trust.v1',
-    organizationId,
-    allowedAction: 'generic_browser_task',
-    receiptKeys,
-    keySetVersion,
-  });
+  if (bytes.includes('PRIVATE KEY')) throw new Error('rendered receipt trust carries private key material');
+  writeBytes(destination, bytes);
+}
+
+// The renderer names its Skarbiec coordinates as constants, because nothing may
+// reach a remote command line from an operator's words. That makes the binding
+// file and the renderer two declarations of one fact, so they are compared here
+// rather than left to drift.
+function bindingRefsMatch(bindingPath, rendererPath) {
+  const binding = objectAt(readJson(bindingPath), 'admission binding');
+  const receipt = objectAt(binding.receipt, 'admission binding receipt');
+  const renderer = readFileSync(rendererPath, 'utf8');
+  for (const reference of [
+    binding.organization_ref,
+    receipt.key_id_ref,
+    receipt.key_set_version_ref,
+    receipt.public_keys_ref,
+  ]) {
+    if (typeof reference !== 'string' || !reference) throw new Error('admission binding is missing a Skarbiec reference');
+    if (!renderer.includes(`'${reference}'`)) {
+      throw new Error(`the host renderer does not read the bound reference ${reference}`);
+    }
+  }
+  // The private half is bound too, and the renderer must never name it.
+  if (renderer.includes(receipt.private_key_ref)) {
+    throw new Error('the host renderer names the private key reference');
+  }
 }
 
 function versionReady(path, target, version, sourceRevision) {
@@ -359,9 +420,9 @@ switch (mode) {
     if (process.argv.length !== 6) throw new Error('usage: ... publish-service REGISTRY DESTINATION HOST');
     publishServiceSnapshot(process.argv[3], process.argv[4], process.argv[5]);
     break;
-  case 'credential-present':
-    if (process.argv.length !== 4) throw new Error('usage: ... credential-present CREDENTIALS_JSON');
-    credentialPresent(process.argv[3]);
+  case 'host-credential-present':
+    if (process.argv.length !== 4) throw new Error('usage: ... host-credential-present HOST_VAULT_JSON');
+    hostCredentialPresent(process.argv[3]);
     break;
   case 'same':
     if (process.argv.length !== 5) throw new Error('usage: ... same LEFT RIGHT');
@@ -375,9 +436,13 @@ switch (mode) {
     if (process.argv.length !== 7) throw new Error('usage: ... version-ready VERSION_JSON TARGET VERSION SOURCE_REVISION');
     versionReady(process.argv[3], process.argv[4], process.argv[5], process.argv[6]);
     break;
-  case 'render-trust':
-    if (process.argv.length !== 7) throw new Error('usage: ... render-trust ORGANIZATION KEYSET KEYS OUTPUT');
-    renderTrust(process.argv[3], process.argv[4], process.argv[5], process.argv[6]);
+  case 'accept-trust':
+    if (process.argv.length !== 5) throw new Error('usage: ... accept-trust RENDERED OUTPUT');
+    acceptTrust(process.argv[3], process.argv[4]);
+    break;
+  case 'binding-refs-match':
+    if (process.argv.length !== 5) throw new Error('usage: ... binding-refs-match BINDING RENDERER');
+    bindingRefsMatch(process.argv[3], process.argv[4]);
     break;
   default:
     throw new Error('unsupported reconciliation mode');
