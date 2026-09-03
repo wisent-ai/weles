@@ -155,8 +155,46 @@ case "$source_revision" in *[!0-9a-f]*|'') printf '%s\n' 'source revision is not
   printf '%s\n' 'activation requires an exact clean committed Weles source tree' >&2
   exit 1
 }
-"$stado" release submit --source "$source_root" --version "$version" --channel stable --json \
-  >"$temporary/release-submit.json"
+# An immutable coordinate that is already published is not re-published.
+#
+# This step used to submit unconditionally, and on 2026-09-03 that is what
+# stopped the activation twice in a row: 0.5.62 was already published from a
+# revision without the key-set fix, 0.5.63 from `main`'s revision, and
+# `release submit` refused both -- correctly, because release objects are
+# immutable and one version can never mean two builds. The activation does not
+# need to be the publisher; it needs the coordinate it activates to be
+# published from a revision this tree actually contains, which is a weaker and
+# truer requirement. So: publish when the coordinate is empty, adopt when it is
+# already filled from an ancestor of this checkout, and refuse only when it is
+# filled from a revision this tree does not contain -- the one case where
+# activating would attest a build nobody here can account for.
+published_revision=""
+if "$stado" storage get "stado://releases/weles-worker/$version/darwin-arm64/release.json" \
+    "$temporary/published-release.json" >/dev/null 2>&1; then
+  published_revision="$("$node" -e '
+    const fs = require("node:fs");
+    const value = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+    const revision = value.source_revision ?? value.sourceRevision ?? "";
+    if (!/^[0-9a-f]{40}$/.test(revision)) process.exit(1);
+    process.stdout.write(revision);
+  ' "$temporary/published-release.json")" || published_revision=""
+fi
+if [ -n "$published_revision" ]; then
+  if [ "$published_revision" = "$source_revision" ]; then
+    printf 'weles-worker %s is already published from this exact revision; adopting it\n' "$version"
+  elif git -C "$source_root" merge-base --is-ancestor "$published_revision" "$source_revision"; then
+    printf 'weles-worker %s is already published from %s, which this tree contains; adopting it\n' \
+      "$version" "$published_revision"
+    source_revision="$published_revision"
+  else
+    printf 'weles-worker %s is published from %s, which this tree does not contain; publish a new version instead\n' \
+      "$version" "$published_revision" >&2
+    exit 1
+  fi
+else
+  "$stado" release submit --source "$source_root" --version "$version" --channel stable --json \
+    >"$temporary/release-submit.json"
+fi
 release_ready=0
 for attempt in $(seq 1 120); do
   if "$stado" release status weles-worker --json >"$temporary/release-status.json" \
