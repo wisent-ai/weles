@@ -1,7 +1,7 @@
 {
   "schema": "weles.version-change.v1",
-  "current": "0.5.55",
-  "candidate": "0.5.56",
+  "current": "0.5.61",
+  "candidate": "0.5.62",
   "breaking": false,
-  "reason": "0.5.56 adds the authenticated Spis browser-evidence task contract, durable evidence manifests, policy-bound Ed25519 receipts, idempotent cancellation, and health-gated Weles admission readiness."
+  "reason": "0.5.62 fixes the public task service's receipt key-set check, which threw ERR_CRYPTO_INVALID_KEY_OBJECT_TYPE on every start and left the admission API unable to bind its port once a real key set existed."
 }

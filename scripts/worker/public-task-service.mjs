@@ -155,8 +155,15 @@ function parseAllowedOrigins(raw) {
   return new Set(origins);
 }
 
+// Both sides of the key-set comparison below reach this: one is a PEM out of
+// the trusted key set, the other is a public KeyObject already derived from the
+// signing key. `createPublicKey` accepts a PEM and a PRIVATE KeyObject, but
+// handed a PUBLIC one it throws ERR_CRYPTO_INVALID_KEY_OBJECT_TYPE rather than
+// returning it unchanged -- so the service threw on every single start the
+// moment it was given a real key set, and never bound its port.
 function normalizePublicKey(value) {
-  return createPublicKey(value).export({ format: 'der', type: 'spki' }).toString('base64');
+  const key = value?.type === 'public' ? value : createPublicKey(value);
+  return key.export({ format: 'der', type: 'spki' }).toString('base64');
 }
 
 function loadConfig(environment, policy) {
