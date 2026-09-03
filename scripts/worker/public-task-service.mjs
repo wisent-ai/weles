@@ -2,6 +2,7 @@ import {
   createHash,
   createPrivateKey,
   createPublicKey,
+  KeyObject,
   randomUUID,
   sign as signPayload,
   timingSafeEqual,
@@ -155,8 +156,17 @@ function parseAllowedOrigins(raw) {
   return new Set(origins);
 }
 
+// `createPublicKey` takes key material or a PRIVATE `KeyObject`; handed a
+// public one it throws `ERR_CRYPTO_INVALID_KEY_OBJECT_TYPE`. The comparison
+// below calls this with both a PEM string from the key set and the KeyObject
+// derived from the private key, so the second call always threw and this
+// service could never start once its credential existed. Nothing caught it
+// because the credential did not exist: the launcher failed earlier, on an
+// empty Skarbiec field, and the first host to be provisioned found this
+// instead of a working public API.
 function normalizePublicKey(value) {
-  return createPublicKey(value).export({ format: 'der', type: 'spki' }).toString('base64');
+  const key = value instanceof KeyObject && value.type === 'public' ? value : createPublicKey(value);
+  return key.export({ format: 'der', type: 'spki' }).toString('base64');
 }
 
 function loadConfig(environment, policy) {
