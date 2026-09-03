@@ -32,6 +32,7 @@
     "state_schema": 1,
     "minimum_stado_version": "0.9.5",
     "rollback_compatible_with": [
+      "0.5.62",
       "0.5.60",
       "0.5.59",
       "0.5.58",
