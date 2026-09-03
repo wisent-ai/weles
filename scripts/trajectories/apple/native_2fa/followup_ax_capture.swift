@@ -270,6 +270,17 @@ func sixDigitCodes(_ text: String) -> Set<String> {
   return candidates
 }
 
+// What a window said, with every digit replaced by `#`. A failed capture used to
+// report only "found none", which is indistinguishable from "the prompt was never
+// shown" and from "the prompt was shown in a shape this helper does not match".
+// The masked text tells those apart and cannot carry the code itself.
+func maskedPreview(_ text: String) -> String {
+  let masked = String(text.map { $0.isNumber ? "#" : $0 })
+    .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+    .trimmingCharacters(in: .whitespacesAndNewlines)
+  return String(masked.prefix(240))
+}
+
 var processSummaries: [[String: Any]] = []
 
 func promptSnapshots() -> [PromptSnapshot] {
@@ -298,6 +309,7 @@ func promptSnapshots() -> [PromptSnapshot] {
         "source": target.source,
         "windowIndex": windowIndex,
         "nodes": rows.count,
+        "textPreview": maskedPreview(snapshot.text),
       ])
     }
   }

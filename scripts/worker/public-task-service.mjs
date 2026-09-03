@@ -2,6 +2,7 @@ import {
   createHash,
   createPrivateKey,
   createPublicKey,
+  KeyObject,
   randomUUID,
   sign as signPayload,
   timingSafeEqual,
@@ -155,14 +156,16 @@ function parseAllowedOrigins(raw) {
   return new Set(origins);
 }
 
-// Both sides of the key-set comparison below reach this: one is a PEM out of
-// the trusted key set, the other is a public KeyObject already derived from the
-// signing key. `createPublicKey` accepts a PEM and a PRIVATE KeyObject, but
-// handed a PUBLIC one it throws ERR_CRYPTO_INVALID_KEY_OBJECT_TYPE rather than
-// returning it unchanged -- so the service threw on every single start the
-// moment it was given a real key set, and never bound its port.
+// `createPublicKey` takes key material or a PRIVATE `KeyObject`; handed a
+// public one it throws `ERR_CRYPTO_INVALID_KEY_OBJECT_TYPE`. The comparison
+// below calls this with both a PEM string from the key set and the KeyObject
+// derived from the private key, so the second call always threw and this
+// service could never start once its credential existed. Nothing caught it
+// because the credential did not exist: the launcher failed earlier, on an
+// empty Skarbiec field, and the first host to be provisioned found this
+// instead of a working public API.
 function normalizePublicKey(value) {
-  const key = value?.type === 'public' ? value : createPublicKey(value);
+  const key = value instanceof KeyObject && value.type === 'public' ? value : createPublicKey(value);
   return key.export({ format: 'der', type: 'spki' }).toString('base64');
 }
 

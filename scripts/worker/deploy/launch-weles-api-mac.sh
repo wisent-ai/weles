@@ -187,8 +187,28 @@ if [ "$broker_ready" != yes ]; then
   exit 1
 fi
 echo "capability broker listening on $SKARBIEC_CAP_SOCKET"
-stop_capability_broker() {
-  kill "$capability_broker_pid" || true
+"$NODE_BIN" "$WELES_REPO/scripts/worker/weles-api-server.mjs" &
+api_server_pid=$!
+
+# launchd replaces this job with `launchctl kickstart -k`, which signals the job
+# and immediately starts its successor. The API server used to be an
+# unsupervised child of this script, so the job's own process was this shell
+# while the listening socket belonged to the server: the signal ended the shell,
+# the server was orphaned still holding the API port, and the successor found it
+# taken. That is the `listen EADDRINUSE 0.0.0.0:8788` the unit log filled with,
+# and why 0.5.57, 0.5.59 and 0.5.60 each timed out readiness against a port
+# their predecessor still owned. Shutting down therefore means ending BOTH
+# children and waiting for them, so the port and the broker socket are released
+# before the successor tries to claim them.
+shutdown_children() {
+  trap - EXIT HUP INT TERM
+  kill "$api_server_pid" "$capability_broker_pid" 2>/dev/null || true
+  wait "$api_server_pid" 2>/dev/null || true
+  wait "$capability_broker_pid" 2>/dev/null || true
 }
-trap stop_capability_broker EXIT HUP INT TERM
-"$NODE_BIN" "$WELES_REPO/scripts/worker/weles-api-server.mjs"
+trap shutdown_children EXIT HUP INT TERM
+
+wait "$api_server_pid"
+api_server_status=$?
+shutdown_children
+exit "$api_server_status"
