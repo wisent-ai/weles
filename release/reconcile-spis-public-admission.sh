@@ -78,6 +78,32 @@ host_vault_present() {
 # coordinates. Refuse before touching the host if they have drifted.
 "$node" "$reconciler" binding-refs-match "$binding" "$renderer"
 
+# Every Stado verb this script spends must exist in the Stado that is installed.
+# `stado directory publish` was written here, was never a real command, and sat
+# unnoticed because nothing confronted the spelling with the binary until an
+# activation reached line 226 -- after the release was built and the registry
+# was already written. `--help` resolves a subcommand path without running it,
+# so the whole vocabulary is checked here, before anything is built or changed.
+for verb in \
+  "credentials inspect-vault" \
+  "host vault-item-put" \
+  "host render-spis-admission-trust" \
+  "host publish-placement-policy" \
+  "service directory publish" \
+  "release submit" \
+  "release status" \
+  "release rollback" \
+  "registry pull" \
+  "registry push" \
+  "registry validate"
+do
+  # shellcheck disable=SC2086
+  if ! "$stado" $verb --help >/dev/null 2>&1; then
+    printf 'installed Stado has no `stado %s`; this script cannot run against it\n' "$verb" >&2
+    exit 1
+  fi
+done
+
 credential_present=0
 if host_vault_present; then
   credential_present=1
@@ -223,7 +249,7 @@ endpoint="$("$node" -e '
 ' "$temporary/registry-plan.json")"
 post_registry_ready=0
 if "$stado" host publish-placement-policy "$host" --json >"$temporary/placement-policy.json" \
-    && "$stado" directory publish weles-admission --target "$host" --json >"$temporary/directory-publication.json" \
+    && "$stado" service directory publish --service weles-admission --target "$host" --json >"$temporary/directory-publication.json" \
     && "$node" "$reconciler" publish-service \
       "$temporary/registry-committed.json" "$service_snapshot" "$host"; then
   for attempt in $(seq 1 60); do
@@ -280,7 +306,7 @@ if [ "$post_registry_ready" -ne 1 ]; then
     /bin/cp "$temporary/registry-committed.json" "$temporary/registry-rollback-verify.json"
   fi
   "$stado" host publish-placement-policy "$host" --json >"$temporary/rollback-placement-policy.json" || true
-  "$stado" directory publish weles-admission --target "$host" --json >"$temporary/rollback-directory-publication.json" || true
+  "$stado" service directory publish --service weles-admission --target "$host" --json >"$temporary/rollback-directory-publication.json" || true
   "$node" "$reconciler" publish-service \
     "$temporary/registry-rollback-verify.json" "$service_snapshot" "$host" || true
   "$stado" release rollback weles-worker --json >"$temporary/release-rollback.json" || true
