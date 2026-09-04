@@ -239,7 +239,7 @@ endpoint="$("$node" -e '
 ' "$temporary/registry-plan.json")"
 post_registry_ready=0
 if "$stado" host publish-placement-policy "$host" --json >"$temporary/placement-policy.json" \
-    && "$stado" directory publish weles-admission --target "$host" --json >"$temporary/directory-publication.json" \
+    && "$stado" service directory publish --service weles-admission --target "$host" --json >"$temporary/directory-publication.json" \
     && "$node" "$reconciler" publish-service \
       "$temporary/registry-committed.json" "$service_snapshot" "$host"; then
   for attempt in $(seq 1 60); do
@@ -296,7 +296,7 @@ if [ "$post_registry_ready" -ne 1 ]; then
     /bin/cp "$temporary/registry-committed.json" "$temporary/registry-rollback-verify.json"
   fi
   "$stado" host publish-placement-policy "$host" --json >"$temporary/rollback-placement-policy.json" || true
-  "$stado" directory publish weles-admission --target "$host" --json >"$temporary/rollback-directory-publication.json" || true
+  "$stado" service directory publish --service weles-admission --target "$host" --json >"$temporary/rollback-directory-publication.json" || true
   "$node" "$reconciler" publish-service \
     "$temporary/registry-rollback-verify.json" "$service_snapshot" "$host" || true
   "$stado" release rollback weles-worker --json >"$temporary/release-rollback.json" || true

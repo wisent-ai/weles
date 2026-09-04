@@ -66,24 +66,35 @@ function reconcileRegistry(source, destination, expectedHost, version, sourceRev
   const endpoint = objectAt(endpoints[service.active_host], `weles-admission endpoint ${service.active_host}`);
   if (typeof endpoint.url !== 'string') throw new Error('weles-admission endpoint has no URL');
   const endpointUrl = new URL(endpoint.url);
-  if (!['', '/', '/api/v1'].includes(endpointUrl.pathname) || endpointUrl.search || endpointUrl.hash) {
-    throw new Error('weles-admission endpoint must be an origin or end exactly in /api/v1');
+  if (!['http:', 'https:'].includes(endpointUrl.protocol)
+      || endpointUrl.username || endpointUrl.password || endpointUrl.search || endpointUrl.hash
+      || !['', '/', '/api/v1'].includes(endpointUrl.pathname)) {
+    throw new Error('weles-admission endpoint must be an HTTP origin or end exactly in /api/v1');
   }
 
   let changed = false;
-  if (endpointUrl.pathname !== '/api/v1') {
-    endpointUrl.pathname = '/api/v1';
-    endpoint.url = endpointUrl.toString().replace(/\/$/, '');
+  if (endpoint.url !== endpointUrl.origin) {
+    endpoint.url = endpointUrl.origin;
+    changed = true;
+  }
+  if (endpoint.base_path !== '/api/v1') {
+    endpoint.base_path = '/api/v1';
     changed = true;
   }
   const releaseId = `weles-worker@${version}`;
-  if (service.release_id !== releaseId) {
-    service.release_id = releaseId;
+  if (endpoint.release_id !== releaseId) {
+    endpoint.release_id = releaseId;
     changed = true;
   }
-  if (service.source_revision !== sourceRevision) {
-    service.source_revision = sourceRevision;
+  if (endpoint.source_revision !== sourceRevision) {
+    endpoint.source_revision = sourceRevision;
     changed = true;
+  }
+  for (const obsolete of ['release_id', 'source_revision']) {
+    if (Object.hasOwn(service, obsolete)) {
+      delete service[obsolete];
+      changed = true;
+    }
   }
   if (!service.consumers) {
     service.consumers = {};
@@ -121,7 +132,12 @@ function reconcileRegistry(source, destination, expectedHost, version, sourceRev
 
   if (changed) directory.generation += 1;
   writeJson(destination, registry);
-  process.stdout.write(`${JSON.stringify({ changed, generation: directory.generation, activeHost: service.active_host, endpoint: endpoint.url })}\n`);
+  process.stdout.write(`${JSON.stringify({
+    changed,
+    generation: directory.generation,
+    activeHost: service.active_host,
+    endpoint: `${endpoint.url}${endpoint.base_path}`,
+  })}\n`);
 }
 
 function planChanged(path) {
@@ -217,22 +233,24 @@ function publishServiceSnapshot(registryPath, destination, expectedHost) {
   const url = new URL(endpoint.url);
   if (!['http:', 'https:'].includes(url.protocol)
       || url.username || url.password || url.search || url.hash
-      || url.pathname !== '/api/v1' || url.toString() !== endpoint.url) {
-    throw new Error('published weles-admission endpoint must be the exact /api/v1 base URL');
+      || url.pathname !== '/' || url.origin !== endpoint.url
+      || endpoint.base_path !== '/api/v1') {
+    throw new Error('published weles-admission endpoint must declare an exact origin and /api/v1 base path');
   }
-  if (typeof service.release_id !== 'string' || typeof service.source_revision !== 'string') {
-    throw new Error('published weles-admission release identity is incomplete');
+  if (typeof endpoint.release_id !== 'string' || typeof endpoint.source_revision !== 'string') {
+    throw new Error('published weles-admission endpoint release identity is incomplete');
   }
+  const publicEndpoint = `${endpoint.url}${endpoint.base_path}`;
   writeJson(destination, {
     schema: 'weles.public-service-directory.v1',
     directory_generation: directory.generation,
     service: {
       name: 'weles-admission',
       active_host: expectedHost,
-      endpoint: endpoint.url,
+      endpoint: publicEndpoint,
       action: 'generic_browser_task',
-      release_id: service.release_id,
-      source_revision: service.source_revision,
+      release_id: endpoint.release_id,
+      source_revision: endpoint.source_revision,
     },
   });
 }
