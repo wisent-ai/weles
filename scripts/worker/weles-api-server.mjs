@@ -983,7 +983,7 @@ function readPublicServiceIdentity() {
       || service.name !== 'weles-admission'
       || service.active_host !== admittedHosts[0].hostname
       || service.action !== 'generic_browser_task'
-      || service.release_id !== `weles-worker@${RUN_RELEASE_IDENTITY.version}`
+      || service.release_id !== `weles-worker@${RUN_RELEASE_IDENTITY.release_version}`
       || service.source_revision !== RUN_RELEASE_IDENTITY.source_revision
       || typeof service.endpoint !== 'string') {
     throw new Error('published Weles service-directory snapshot has an unsupported identity');
