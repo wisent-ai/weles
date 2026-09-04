@@ -72,14 +72,21 @@ function reconcileRegistry(source, destination, expectedHost, version, sourceRev
   const endpoint = objectAt(endpoints[service.active_host], `weles-admission endpoint ${service.active_host}`);
   if (typeof endpoint.url !== 'string') throw new Error('weles-admission endpoint has no URL');
   const endpointUrl = new URL(endpoint.url);
-  if (!['', '/', '/api/v1'].includes(endpointUrl.pathname) || endpointUrl.search || endpointUrl.hash) {
-    throw new Error('weles-admission endpoint must be an origin or end exactly in /api/v1');
+  if (!['', '/'].includes(endpointUrl.pathname) || endpointUrl.search || endpointUrl.hash) {
+    throw new Error('weles-admission endpoint must be a bare origin');
   }
 
   let changed = false;
-  if (endpointUrl.pathname !== '/api/v1') {
-    endpointUrl.pathname = '/api/v1';
-    endpoint.url = endpointUrl.toString().replace(/\/$/, '');
+  // The canonical base is published BESIDE the origin, not inside it.
+  //
+  // Rewriting `url` to end in /api/v1 is what this script used to do, and the
+  // registry authority refused it: an endpoint URL must be host-relative
+  // loopback with a known port and no path, because every resolver reader
+  // composes its own paths onto that origin. The versioned base is still a
+  // fact a consumer must be told rather than guess, so it lives in
+  // `base_path`, and the two compose textually into the address Spis calls.
+  if (endpoint.base_path !== '/api/v1') {
+    endpoint.base_path = '/api/v1';
     changed = true;
   }
   // Release identity belongs to the ENDPOINT, not to the service.
@@ -139,7 +146,7 @@ function reconcileRegistry(source, destination, expectedHost, version, sourceRev
 
   if (changed) directory.generation += 1;
   writeJson(destination, registry);
-  process.stdout.write(`${JSON.stringify({ changed, generation: directory.generation, activeHost: service.active_host, endpoint: endpoint.url })}\n`);
+  process.stdout.write(`${JSON.stringify({ changed, generation: directory.generation, activeHost: service.active_host, endpoint: `${endpointUrl.origin}/api/v1` })}\n`);
 }
 
 function planChanged(path) {
@@ -233,11 +240,19 @@ function publishServiceSnapshot(registryPath, destination, expectedHost) {
   const endpoints = objectAt(service.endpoints, 'weles-admission.endpoints');
   const endpoint = objectAt(endpoints[expectedHost], `weles-admission endpoint ${expectedHost}`);
   const url = new URL(endpoint.url);
+  // The published address is the origin composed with the canonical base the
+  // directory states separately -- the registry authority requires the
+  // endpoint URL itself to be a bare loopback origin, so the /api/v1 half
+  // lives in `base_path` and is asserted here rather than assumed.
   if (!['http:', 'https:'].includes(url.protocol)
       || url.username || url.password || url.search || url.hash
-      || url.pathname !== '/api/v1' || url.toString() !== endpoint.url) {
-    throw new Error('published weles-admission endpoint must be the exact /api/v1 base URL');
+      || !['', '/'].includes(url.pathname)) {
+    throw new Error('published weles-admission endpoint must be a bare origin');
   }
+  if (endpoint.base_path !== '/api/v1') {
+    throw new Error('published weles-admission endpoint does not state the /api/v1 canonical base');
+  }
+  const canonicalBase = `${url.origin}/api/v1`;
   // Same place the plan writes it: on the endpoint, which is where the
   // registry schema keeps per-address facts.
   if (typeof endpoint.release_id !== 'string' || typeof endpoint.source_revision !== 'string') {
@@ -249,7 +264,7 @@ function publishServiceSnapshot(registryPath, destination, expectedHost) {
     service: {
       name: 'weles-admission',
       active_host: expectedHost,
-      endpoint: endpoint.url,
+      endpoint: canonicalBase,
       action: 'generic_browser_task',
       release_id: endpoint.release_id,
       source_revision: endpoint.source_revision,
