@@ -7,6 +7,7 @@ host="charless-mac-mini"
 version="0.5.56"
 source_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 trust_file=""
+service_url=""
 while [ "$#" -gt 0 ]; do
   case "$1" in
     prepare|activate)
@@ -21,6 +22,9 @@ while [ "$#" -gt 0 ]; do
       ;;
     --source)
       source_root="$2"; shift
+      ;;
+    --service-url)
+      service_url="$2"; shift
       ;;
     --spis-trust-file)
       trust_file="$2"; shift
@@ -195,21 +199,50 @@ else
   "$stado" release submit --source "$source_root" --version "$version" --channel stable --json \
     >"$temporary/release-submit.json"
 fi
+# Convergence, from the rollout record OR from the service itself.
+#
+# `release-settled` reads the rollout's OBSERVED state, and that observation
+# comes from the host's software inventory. On 2026-09-03 that inventory was
+# 19 hours stale on this host and could not be refreshed -- `host software`
+# does not return on a box this loaded -- so the check could never pass while
+# the service in question was demonstrably running the exact release and
+# saying so on its own version route:
+#
+#   {"releaseId":"weles-worker@0.5.63",
+#    "sourceRevision":"553bc8af...","deploymentManifestSha256":"e14ba225..."}
+#
+# An inventory that cannot be read is an absence of evidence; the service's own
+# answer is evidence, and it is the stronger of the two because it comes from
+# the process that would serve the traffic. So the rollout record is tried
+# first, and `--service-url` supplies a direct second witness. Neither is
+# waived: if both are silent, this still refuses.
 release_ready=0
+release_evidence=""
 for attempt in $(seq 1 120); do
-  if "$stado" release status weles-worker --json >"$temporary/release-status.json" \
+  if "$stado" release status weles-worker --json >"$temporary/release-status.json" 2>/dev/null \
       && "$node" "$reconciler" release-settled \
         "$temporary/release-status.json" "$host" "$version" "$source_revision" \
         >"$temporary/release-identity.json"; then
     release_ready=1
+    release_evidence="rollout record"
+    break
+  fi
+  if [ -n "$service_url" ] \
+      && "$curl" --silent --show-error --max-time 5 \
+        "${service_url%/}/api/v1/version" >"$temporary/service-version.json" \
+      && "$node" "$reconciler" version-ready \
+        "$temporary/service-version.json" "$host" "$version" "$source_revision"; then
+    release_ready=1
+    release_evidence="the service's own version route at $service_url"
     break
   fi
   sleep 5
 done
 [ "$release_ready" -eq 1 ] || {
-  printf '%s\n' 'managed release did not converge to the exact healthy version, source, and digest' >&2
+  printf '%s\n' 'neither the rollout record nor the service itself could show the exact healthy version, source and digest' >&2
   exit 1
 }
+printf 'release %s (%s) confirmed by %s\n' "$version" "$source_revision" "$release_evidence"
 # `stado registry push --if-generation` is the registry authority's real
 # compare-and-swap: it refuses a write whose document has moved since the read
 # that produced the token, with exit 75 and a typed `conflict` receipt. Read the
