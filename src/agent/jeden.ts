@@ -3,11 +3,14 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { runRecordingsDir } from '../session/run-recordings.js';
 
-// Weles asks Brama for its product alias, not for one provider or account.
-// The registry keeps the local OpenAI-compatible model first and `best` as its
-// subscription fallback, so a provider reauthorization does not stop browser
-// control and a local-model outage still reaches the subscribed pool.
-const WELES_AGENT_MODEL = 'weles/agent/primary';
+// `best` is Brama's subscription route: the agent's HMAC identity selects the
+// subscription that pays. Drafting browser trajectories needs a frontier
+// instruction-following model, and every other Brama alias is bound to a
+// provider Brama holds a direct credential for, so `best` is the only alias
+// that reaches a subscription-funded model. It also removes the dependency on
+// a local deployment being up: `weles/agent/primary` resolved to the
+// `chat-primary` GPU host, so Weles stopped working whenever that box did.
+const WELES_AGENT_MODEL = 'best';
 const WELES_AGENT_ID = 'weles';
 
 type ModelRouterConfig = {

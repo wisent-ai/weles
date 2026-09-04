@@ -616,7 +616,7 @@ function publicTaskChildEnvironment(policy, networkTarget) {
   }
   return {
     ...environment,
-    WELES_AGENT_MODEL: 'weles/agent/primary',
+    WELES_AGENT_MODEL: 'best',
     WELES_BROWSER_EVIDENCE_POLICY: policy.version,
     WELES_BROWSER_EVIDENCE_POLICY_JSON: JSON.stringify(policy),
     WELES_BROWSER_EVIDENCE_TARGET_ORIGIN: networkTarget.origin,
