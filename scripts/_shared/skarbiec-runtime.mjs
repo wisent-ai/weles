@@ -21,7 +21,18 @@ function executable(path, label, allowSymlink = false) {
 
 export function stadoBinary() {
   const configured = String(process.env.WELES_STADO_BIN || process.env.STADO_BIN || '').trim();
-  return executable(configured || join(homedir(), '.stado', 'bin', 'stado'), 'Stado binary', true);
+  if (configured) return executable(configured, 'Stado binary', true);
+  for (const candidate of [
+    join(homedir(), '.stado', 'bin', 'stado'),
+    join(homedir(), '.local', 'bin', 'stado'),
+  ]) {
+    try {
+      return executable(candidate, 'Stado binary', true);
+    } catch {
+      // Keep looking: Stado has two supported per-user install locations.
+    }
+  }
+  throw new Error('Stado binary is unavailable or not executable');
 }
 
 function stadoJson(args, operation) {

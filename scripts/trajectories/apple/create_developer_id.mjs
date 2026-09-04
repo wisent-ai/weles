@@ -2,13 +2,21 @@
 // One-use Skarbiec capabilities authorize email, password and 2FA; Stado owns
 // execution and placement.
 
-import { isAbsolute } from 'node:path';
+import { homedir } from 'node:os';
+import { isAbsolute, join } from 'node:path';
 import { WSession } from '../../../dist/session/wsession.js';
-import { withCapability, cancelCapability } from '../../../dist/utils/capability.js';
+import {
+  withCapability,
+  withCapabilityPendingRetry,
+  cancelCapability,
+} from '../../../dist/utils/capability.js';
 import { parseAppleLoginCapabilities } from '../../../dist/utils/apple-login-capabilities.js';
-import { completeAppleNativeTwoFactorChallenge } from './native_2fa/native_2fa.mjs';
+import { completeAppleTwoFactorChallenge } from './two_factor.mjs';
 import { getSocialAccount } from '../../../dist/utils/credentials.js';
-import { appleChallengeRelayTarget } from '../../auth/apple-account-placement.mjs';
+import {
+  preflightAppleChallengeRelay,
+  relayAppleChallenge,
+} from '../../auth/apple-account-placement.mjs';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 // Eight hex from the Stado queue, or the UUID the Weles API assigns and then
@@ -23,10 +31,20 @@ if (!UUID.test(guardId)) throw new Error('[apple-create-developer-id] invalid gu
 if (!ACCOUNT.test(accountId)) throw new Error('[apple-create-developer-id] invalid Apple account item');
 if (!JOB.test(actionLogId)) throw new Error('[apple-create-developer-id] invalid Stado job id');
 
-const csrPath = process.env.APPLE_CSR_PATH?.trim() ?? '';
-const certificatePath = process.env.APPLE_CERTIFICATE_PATH?.trim() ?? '';
-if (!isAbsolute(csrPath)) throw new Error('[apple-create-developer-id] APPLE_CSR_PATH must be absolute');
-if (!isAbsolute(certificatePath)) throw new Error('[apple-create-developer-id] APPLE_CERTIFICATE_PATH must be absolute');
+function absoluteWorkerPath(raw, variable) {
+  const value = String(raw ?? '').trim();
+  const expanded = value.startsWith('~/') ? join(homedir(), value.slice(2)) : value;
+  if (!isAbsolute(expanded)) {
+    throw new Error(`[apple-create-developer-id] ${variable} must be absolute or start with ~/`);
+  }
+  return expanded;
+}
+
+const csrPath = absoluteWorkerPath(process.env.APPLE_CSR_PATH, 'APPLE_CSR_PATH');
+const certificatePath = absoluteWorkerPath(
+  process.env.APPLE_CERTIFICATE_PATH,
+  'APPLE_CERTIFICATE_PATH',
+);
 
 const ADD_URL = 'https://developer.apple.com/account/resources/certificates/add';
 let capabilities = null;
@@ -95,34 +113,26 @@ async function clickButton(page, pattern) {
 // --- Main flow ---
 
 console.log(`[apple-create-developer-id] account ${accountId}, CSR ${csrPath}`);
-let passwordSubmitted = false;
-let authorizationClosed = false;
 let sessionClosed = true;
 let s = null;
 try {
   capabilities = parseAppleLoginCapabilities(process.env.APPLE_LOGIN_CAPABILITIES_JSON, guardId);
-  capabilityRefs = [capabilities.email, capabilities.password, capabilities.two_factor.capability];
-
-  // Decided before Apple is asked anything, for the reason spelled out in login.mjs:
-  // the six digits are delivered into the session of the macOS user signed into the
-  // account, the cross-host hand-off that used to carry them was removed from Stado on
-  // 2026-08-18 (f1e6c081), and finding that out at the 2FA step means the password has
-  // already been submitted. A submitted attempt that cannot be completed is how this
-  // account gets locked, and this trajectory is the one that has to survive being run
-  // on a schedule.
+  capabilityRefs = [
+    capabilities.email,
+    capabilities.password,
+    capabilities.two_factor.capability,
+  ];
+  // Resolve the holder, its exact GUI user, this worker's broker and the
+  // installed relay before opening a browser or spending a password attempt.
+  // The preflight reads state only and opens no native prompt.
   const preflightAccount = await getSocialAccount('apple');
-  const preflightIdentity = (preflightAccount?.metadata?.email ?? preflightAccount?.username ?? '').trim();
-  const preflightRelay = appleChallengeRelayTarget(preflightIdentity);
-  if (preflightRelay) {
-    throw new Error(
-      `[apple-create-developer-id] ${preflightIdentity} is signed in on ${preflightRelay}, `
-      + `not on the host running this trajectory, and no channel carries a two-factor `
-      + `code between hosts since Stado removed the host helper channel on 2026-08-18 `
-      + `(f1e6c081). Place this run on ${preflightRelay}, whose GUI session `
-      + `\`stado identity verify --kind apple-account --identity ${preflightIdentity}\` `
-      + `must report as drivable. Refusing before submitting a password.`,
-    );
-  }
+  const preflightIdentity =
+    (preflightAccount?.metadata?.email ?? preflightAccount?.username ?? '').trim();
+  const challengeRoute = preflightAppleChallengeRelay(preflightIdentity, guardId);
+  console.log(
+    `[apple-create-developer-id] Apple challenge route `
+    + `${challengeRoute.holder}/${challengeRoute.user} -> ${challengeRoute.destination}`,
+  );
 
   s = await WSession.start({ label: 'apple_create_developer_id', headless: process.env.WELES_HEADLESS === '1' });
   sessionClosed = false;
@@ -205,7 +215,6 @@ try {
     } catch { /* a response that cannot be read is not a verdict */ }
   });
 
-  passwordSubmitted = true;
   await frame.locator('#sign-in').click();
   console.log('[apple-create-developer-id] submitted one authorized password attempt');
 
@@ -222,14 +231,23 @@ try {
   if (postPasswordState === 'timeout') throw new Error('Timed out waiting for developer portal or 2FA challenge');
 
   if (postPasswordState === 'two_factor') {
-    // Reached only on the host that holds the account, because the preflight above
-    // refuses every other placement before a password is submitted. The prompt is
-    // therefore this machine's own, captured natively; the relayed-code branch that
-    // used to be chosen here waited on a channel that no longer exists.
-    const twoFactor = await completeAppleNativeTwoFactorChallenge(s, frame, {
+    relayAppleChallenge(preflightIdentity, guardId);
+    const twoFactor = await completeAppleTwoFactorChallenge(s, frame, {
       logPrefix: '[apple-create-developer-id]',
+      withCode: (consume) => withCapabilityPendingRetry(
+        capabilities.two_factor.capability,
+        {
+          purpose: 'weles.apple.2fa',
+          resource: `challenge:apple/${guardId}`,
+          authorization_id: guardId,
+        },
+        consume,
+        { timeoutMs: 120_000, intervalMs: 500 },
+      ),
     });
-    if (!twoFactor.ok) throw new Error(`Apple 2FA did not complete (${twoFactor.source || 'unknown source'})`);
+    if (!twoFactor.ok) {
+      throw new Error(`Apple 2FA did not complete (${twoFactor.source || 'unknown source'})`);
+    }
   }
 
   // --- Developer portal: navigate to certificate add page ---
@@ -270,7 +288,6 @@ try {
   await download.saveAs(certificatePath);
   console.log(`[apple-create-developer-id] CERTIFICATE_SAVED=${certificatePath}`);
 
-  authorizationClosed = true;
 } catch (error) {
   console.error(`FAIL=${error instanceof Error ? error.message.slice(0, 1200) : String(error).slice(0, 1200)}`);
   try { await cancelSessionCapabilities(); } catch {}
