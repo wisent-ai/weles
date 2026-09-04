@@ -2,7 +2,6 @@
 
 import assert from 'node:assert';
 import * as net from 'node:net';
-import { homedir } from 'node:os';
 import { isEndpointListening, resolveSkarbiecEndpoint, formatEndpointErrorMessage } from './endpoint-resolution.mjs';
 
 let testsPassed = 0;
@@ -57,7 +56,6 @@ await test('resolveSkarbiecEndpoint: explicit alive override is used', async () 
   const originalEnv = process.env.WC_SKARBIEC_URL;
   try {
     process.env.WC_SKARBIEC_URL = 'http://127.0.0.1:9003';
-    delete process.env.WELES_CREDENTIAL_SKARBIEC_URL;
     
     const result = await resolveSkarbiecEndpoint();
     assert.ok(result.resolved);
@@ -77,7 +75,6 @@ await test('resolveSkarbiecEndpoint: explicit dead override returned (not silent
   try {
     // Set explicit override to dead port - should NOT fall back
     process.env.WC_SKARBIEC_URL = 'http://127.0.0.1:9999';
-    delete process.env.WELES_CREDENTIAL_SKARBIEC_URL;
     
     const result = await resolveSkarbiecEndpoint();
     // Should resolve to the dead endpoint (not fall back to marker or default)
@@ -92,18 +89,12 @@ await test('resolveSkarbiecEndpoint: explicit dead override returned (not silent
   }
 });
 
-await test('resolveSkarbiecEndpoint: no explicit includes built-in default as last resort', async () => {
+await test('resolveSkarbiecEndpoint: no explicit endpoint refuses implicit routing', async () => {
   delete process.env.WC_SKARBIEC_URL;
-  delete process.env.WELES_CREDENTIAL_SKARBIEC_URL;
-  
+
   const result = await resolveSkarbiecEndpoint();
-  const hasDefault = result.candidates.some(c => c.url === 'http://127.0.0.1:8895');
-  assert.ok(hasDefault, 'should include built-in default');
-  assert.strictEqual(
-    result.candidates[result.candidates.length - 1].url,
-    'http://127.0.0.1:8895',
-    'default should be last'
-  );
+  assert.strictEqual(result.resolved, null);
+  assert.deepStrictEqual(result.candidates, []);
   assert.strictEqual(result.wasExplicitOverride, false);
 });
 
@@ -113,7 +104,6 @@ await test('resolveSkarbiecEndpoint: WC_SKARBIEC_URL env var is actually resolve
   try {
     // Verify that setting WC_SKARBIEC_URL actually gets resolved and used
     process.env.WC_SKARBIEC_URL = 'http://127.0.0.1:9008';
-    delete process.env.WELES_CREDENTIAL_SKARBIEC_URL;
     
     const result = await resolveSkarbiecEndpoint();
     assert.ok(result.resolved);

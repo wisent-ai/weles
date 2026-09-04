@@ -177,6 +177,10 @@ if (isFigmaAcquire) {
     'operations',
     'skarbiec-figma-owner-write-host.mjs',
   );
+  const skarbiecUrl = process.env.WC_SKARBIEC_URL?.trim();
+  if (!skarbiecUrl) {
+    throw new Error('WC_SKARBIEC_URL must come from the Stado service directory');
+  }
   const completed = spawnSync(process.execPath, [finalizer], {
     encoding: 'utf8',
     env: {
@@ -185,10 +189,8 @@ if (isFigmaAcquire) {
       WELES_CREDENTIAL_REQUEST_ID: request.request_id.toLowerCase(),
       WELES_USER_DATA_DIR: process.env.WELES_USER_DATA_DIR
         || join(homedir(), '.local/state/weles/browser-profiles/figma-token'),
-      WC_SKARBIEC_URL: process.env.WC_SKARBIEC_URL || 'http://127.0.0.1:8895',
-      WELES_SKARBIEC_URL: process.env.WELES_SKARBIEC_URL
-        || process.env.WC_SKARBIEC_URL
-        || 'http://127.0.0.1:8895',
+      WC_SKARBIEC_URL: skarbiecUrl,
+      WELES_SKARBIEC_URL: skarbiecUrl,
       SKARBIEC_WELES_WRITER_COMMAND: process.env.SKARBIEC_WELES_WRITER_COMMAND || writer,
     },
     maxBuffer: Number('1048576'),
@@ -438,7 +440,10 @@ if (request.mode === 'submit' || request.mode === 'resume') {
     throw new Error(`missing exact ${isEntra ? 'Entra' : 'Microsoft'} credential reader scope`);
   }
 
-  const skarbiec = process.env.SKARBIEC_BIN || join(homedir(), '.stado', 'bin', 'skarbiec');
+  const skarbiec = process.env.SKARBIEC_BIN?.trim();
+  if (!skarbiec) {
+    throw new Error('SKARBIEC_BIN must be Stado active-binary output');
+  }
   const accountRead = spawnSync(skarbiec, ['get', request.credential_id], {
     encoding: 'utf8',
     env: process.env,

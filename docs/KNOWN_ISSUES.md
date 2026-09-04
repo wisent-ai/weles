@@ -48,23 +48,19 @@ The strict gate exists only in:
 
 ---
 
-## 3. Endpoint Resolution with Liveness Detection
+## 3. Skarbiec Routing Is Directory-Owned
 
-**Date:** Implemented 2026-08-30, merged PR #57 to main.
+**Status:** Resolved in 0.5.65.
 
-**Feature:** `skarbiec-acquire.mjs` now supports dual-shape argument parsing to tolerate version skew:
+Weles startup resolves its exact Skarbiec endpoint from Stado's service
+directory and exports it as `WC_SKARBIEC_URL`. Acquisition accepts only that
+four-argument, environment-bound route. It does not scan forward markers,
+assume a loopback port, accept a positional legacy endpoint, or redirect to a
+second authority.
 
-- **Legacy 5-argument:** `<endpoint> <scope-file> <consumer> <item> <field>` (endpoint auto-detected as http/https URL)
-- **New 4-argument:** `<scope-file> <consumer> <item> <field>` (endpoint resolved internally)
-
-Both paths treat explicit endpoints authoritatively — if set and not listening, fail loudly with the exact endpoint and source, never silently redirect.
-
-Resolution order (new form):
-1. Explicit env var (`WC_SKARBIEC_URL` / `WELES_CREDENTIAL_SKARBIEC_URL`) — must work or fail
-2. Forward markers from `~/.stado/forwards/` — prefer listening one
-3. Built-in default `http://127.0.0.1:8895` — fallback
-
-**Mitigation for launcher version skew:** The host's deleted launcher (still running 5-arg form) will work correctly with released artifacts (0.5.21+) through this dual-shape parsing. No downtime required during launcher update.
+The local capability broker is started only from the executable returned by
+`stado release active-binary skarbiec --json`; a missing or non-executable
+attested path fails startup.
 
 ---
 

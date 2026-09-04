@@ -28,7 +28,6 @@ mkdir -p "$WELES_STATE_DIR"
 NODE_BIN="${NODE_BIN:-/opt/homebrew/bin/node}"
 acquire_helper="$WELES_DIR/scripts/worker/deploy/skarbiec-acquire.mjs"
 acquire_scopes="$WELES_DIR/scripts/worker/deploy/skarbiec-acquisition-scopes.conf"
-acquire_url="${WC_SKARBIEC_URL:-${WELES_CREDENTIAL_SKARBIEC_URL:-}}"
 
 # The gateway reads the client identity from a bearer before it looks at the
 # signed agent trio, so the trio alone is refused with a bare 401.

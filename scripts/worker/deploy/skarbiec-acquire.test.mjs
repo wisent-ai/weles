@@ -44,7 +44,7 @@ function cleanupScopeFile(tmpDir) {
   rmSync(tmpDir, { recursive: true, force: true });
 }
 
-// Tests for dual-shape parsing
+// The acquisition helper accepts only the directory-resolved four-argument form.
 await test('skarbiec-acquire: new 4-arg form parsed correctly (no usage error)', async () => {
   const server = await startTestServer(9010);
   const { tmpDir, scopeFile } = createTestScopeFile();
@@ -76,54 +76,6 @@ await test('skarbiec-acquire: new 4-arg form parsed correctly (no usage error)',
   }
 });
 
-await test('skarbiec-acquire: legacy 5-arg form parsed correctly (no usage error)', async () => {
-  const server = await startTestServer(9011);
-  const { tmpDir, scopeFile } = createTestScopeFile();
-  
-  try {
-    const result = spawnSync('node', [
-      'scripts/worker/deploy/skarbiec-acquire.mjs',
-      'http://127.0.0.1:9011',
-      scopeFile,
-      'test-consumer',
-      'test-item',
-      'test-field'
-    ], {
-      cwd: '/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles',
-      encoding: 'utf8'
-    });
-    
-    // Should NOT have usage error - 5-arg form should be recognized
-    const output = (result.stderr || result.stdout || '');
-    assert.ok(!output.includes('usage:'), `Should parse 5-arg form, got: ${output}`);
-  } finally {
-    await stopTestServer(server);
-    cleanupScopeFile(tmpDir);
-  }
-});
-
-await test('skarbiec-acquire: legacy 5-arg with dead endpoint fails with clear message', async () => {
-  const { tmpDir, scopeFile } = createTestScopeFile();
-  
-  const result = spawnSync('node', [
-    'scripts/worker/deploy/skarbiec-acquire.mjs',
-    'http://127.0.0.1:9999',
-    scopeFile,
-    'test-consumer',
-    'test-item',
-    'test-field'
-  ], {
-    cwd: '/Users/lukaszbartoszcze/Documents/CodingProjects/Wisent/weles',
-    encoding: 'utf8'
-  });
-  
-  const output = result.stderr || result.stdout || '';
-  assert.match(output, /Skarbiec endpoint at http:\/\/127\.0\.0\.1:9999/, `Should report dead endpoint, got: ${output}`);
-  assert.match(output, /not listening/, `Should report not listening, got: ${output}`);
-  assert.ok(!output.includes('silently'), 'Should NOT silently redirect');
-  
-  cleanupScopeFile(tmpDir);
-});
 
 await test('skarbiec-acquire: rejects invalid arg counts', async () => {
   const result = spawnSync('node', [

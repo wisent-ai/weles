@@ -138,7 +138,7 @@ async function artifactDeliveryToken(repositoryRoot, env) {
   const configured = String(env.WELES_ARTIFACT_DELIVERY_TOKEN ?? '').trim();
   if (configured) return configured;
 
-  const endpoint = env.WC_SKARBIEC_URL ?? env.WELES_CREDENTIAL_SKARBIEC_URL;
+  const endpoint = env.WC_SKARBIEC_URL;
   const workloadId = env.SKARBIEC_WORKLOAD_ID;
   const signingKeyFile = env.SKARBIEC_WORKLOAD_SIGNING_KEY_FILE;
   if (!endpoint || !workloadId || !signingKeyFile) {
@@ -158,7 +158,7 @@ async function artifactDeliveryToken(repositoryRoot, env) {
     env: {
       SKARBIEC_WORKLOAD_ID: workloadId,
       SKARBIEC_WORKLOAD_SIGNING_KEY_FILE: signingKeyFile,
-      WELES_SKARBIEC_URL: endpoint,
+      WC_SKARBIEC_URL: endpoint,
     },
     maxBuffer: 8_192,
     timeout: 15_000,

@@ -13,7 +13,6 @@ set +a
 export STADO_RESOLVER_API_URL=http://127.0.0.1:17600
 export STADO_SKARBIEC_URI=stado://service/skarbiec
 export STADO_BRAMA_URI=stado://service/brama
-export WC_SKARBIEC_URL=http://127.0.0.1:17602
 export STADO_MODEL_ROUTER_URL=http://127.0.0.1:17601
 mkdir -p "$HOME/.local/state/weles" "$HOME/weles/var" "$HOME/.weles/browser_profiles/google_ads"
 # Password, MFA, and proxy material is never sourced from worker.env. The API
@@ -30,8 +29,7 @@ unset WELES_STADO_OBJECT_API_TOKEN WELES_STADO_MODEL_ROUTER_TOKEN
 unset WELES_STADO_MODEL_ROUTER_AGENT_ID WELES_STADO_MODEL_ROUTER_AGENT_AUTH_SECRET
 unset WELES_KEYWORD_PLANNER_API_TOKEN WELES_KEYWORD_PLANNER_API_ALLOW_UNAUTH
 unset SEMANTIC_SCHOLAR_API_KEY S2_API_KEY || true
-STADO_BIN="${STADO_BIN:-/usr/local/bin/stado}"
-: "${WC_SKARBIEC_URL:?WC_SKARBIEC_URL must be explicitly configured}"
+STADO_BIN="${STADO_BIN:-$HOME/.stado/bin/stado}"
 : "${SKARBIEC_WORKLOAD_ID:?SKARBIEC_WORKLOAD_ID must be explicitly configured}"
 : "${SKARBIEC_WORKLOAD_SIGNING_KEY_FILE:?SKARBIEC_WORKLOAD_SIGNING_KEY_FILE must be explicitly configured}"
 NODE_BIN="${NODE_BIN:-/opt/homebrew/bin/node}"
@@ -52,6 +50,16 @@ if [ ! -x "$STADO_BIN" ] || [ ! -x "$NODE_BIN" ]; then
   printf '%s\n' "missing Stado or Node for keyword-planner acquisition" > /dev/stderr
   false
 fi
+if ! WC_SKARBIEC_URL="$("$STADO_BIN" service directory endpoint skarbiec --json | "$NODE_BIN" -e '
+  const endpoint = JSON.parse(require("node:fs").readFileSync(0, "utf8"));
+  const value = endpoint?.url;
+  if (typeof value !== "string" || value.length === 0) process.exit(1);
+  process.stdout.write(value);
+')"; then
+  printf '%s\n' "fleet service directory has no Skarbiec endpoint for this host" > /dev/stderr
+  false
+fi
+export WC_SKARBIEC_URL
 if ! WELES_STADO_MODEL_ROUTER_TOKEN="$("$NODE_BIN" "$ACQUIRE_HELPER" \
   "$SCOPE_FILE" "$MODEL_BOOTSTRAP_CONSUMER" \
   weles-keyword-planner-model-router token)"; then

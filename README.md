@@ -197,9 +197,10 @@ identity at service startup. Brama presents the resulting
 `BRAMA_WELES_REAUTH_TOKEN` only to `POST /reauth`; Weles accepts that bearer
 only on this route. They share no environment file, helper, copied token, or
 operator shell. Both services resolve the canonical Skarbiec endpoint from
-Stado's service directory for their own target; neither scans local ports,
-routes a same-host workload through agent ingress, or falls back to another
-vault. Brama resolves `weles-admission`
+Stado's service directory for their own target and start any local capability
+broker from Stado's attested active Skarbiec release. Neither scans local ports,
+routes a same-host workload through agent ingress, falls back to another vault,
+or starts a second authority. Brama resolves `weles-admission`
 from Stado's service directory as the declared `brama` consumer with the
 `credential-lifecycle` capability; `BRAMA_WELES_URL` remains an explicit
 endpoint override.

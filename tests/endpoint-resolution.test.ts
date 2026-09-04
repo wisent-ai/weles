@@ -1,7 +1,6 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert';
 import * as net from 'node:net';
-import { homedir } from 'node:os';
 
 import {
   isEndpointListening,
@@ -82,90 +81,40 @@ test('resolveSkarbiecEndpoint: respects WC_SKARBIEC_URL environment variable', a
   }
 });
 
-test('resolveSkarbiecEndpoint: prefers WELES_CREDENTIAL_SKARBIEC_URL over default', async () => {
-  const server = await startTestServer(9004);
-  const originalEnv = process.env.WELES_CREDENTIAL_SKARBIEC_URL;
+
+test('resolveSkarbiecEndpoint: refuses implicit routing when no directory endpoint is exported', async () => {
+  const originalWcUrl = process.env.WC_SKARBIEC_URL;
 
   try {
     delete process.env.WC_SKARBIEC_URL;
-    process.env.WELES_CREDENTIAL_SKARBIEC_URL = 'http://127.0.0.1:9004';
 
     const result = await resolveSkarbiecEndpoint();
-    assert.ok(result.resolved, 'should resolve an endpoint');
-    assert.strictEqual(result.resolved?.url, 'http://127.0.0.1:9004', 'should use WELES_CREDENTIAL_SKARBIEC_URL');
-    assert.strictEqual(result.resolved?.source, 'environment', 'should mark as from environment');
+    assert.strictEqual(result.resolved, null);
+    assert.deepStrictEqual(result.candidates, []);
+    assert.strictEqual(result.wasExplicitOverride, false);
   } finally {
-    if (originalEnv) {
-      process.env.WELES_CREDENTIAL_SKARBIEC_URL = originalEnv;
-    } else {
-      delete process.env.WELES_CREDENTIAL_SKARBIEC_URL;
-    }
-    await stopTestServer(server);
-  }
-});
-
-test('resolveSkarbiecEndpoint: includes built-in default as fallback', async () => {
-  const originalEnv = process.env.WC_SKARBIEC_URL;
-
-  try {
-    delete process.env.WC_SKARBIEC_URL;
-    delete process.env.WELES_CREDENTIAL_SKARBIEC_URL;
-
-    const result = await resolveSkarbiecEndpoint();
-    assert.ok(result.candidates.some((c) => c.url === 'http://127.0.0.1:8895'),
-      'should include built-in default in candidates');
-    assert.strictEqual(
-      result.candidates[result.candidates.length - 1].url,
-      'http://127.0.0.1:8895',
-      'built-in default should be last in candidates'
-    );
-  } finally {
-    if (originalEnv) {
-      process.env.WC_SKARBIEC_URL = originalEnv;
+    if (originalWcUrl) {
+      process.env.WC_SKARBIEC_URL = originalWcUrl;
     }
   }
 });
 
-test('resolveSkarbiecEndpoint: prefers listening endpoint over dead one', async () => {
+test('resolveSkarbiecEndpoint: retains the declared endpoint when it is unavailable', async () => {
   const originalEnv = process.env.WC_SKARBIEC_URL;
 
   try {
     process.env.WC_SKARBIEC_URL = 'http://127.0.0.1:9999';
-    delete process.env.WELES_CREDENTIAL_SKARBIEC_URL;
-
-    const defaultServer = await startTestServer(8895);
-
-    try {
-      const result = await resolveSkarbiecEndpoint();
-      assert.ok(result.resolved, 'should resolve an endpoint');
-      assert.strictEqual(result.resolved?.url, 'http://127.0.0.1:8895',
-        'should prefer listening default over dead env endpoint');
-      assert.ok(result.resolved?.isListening, 'resolved endpoint should be listening');
-    } finally {
-      await stopTestServer(defaultServer);
-    }
-  } finally {
-    if (originalEnv) {
-      process.env.WC_SKARBIEC_URL = originalEnv;
-    }
-  }
-});
-
-test('resolveSkarbiecEndpoint: returns first candidate if none listening', async () => {
-  const originalEnv = process.env.WC_SKARBIEC_URL;
-
-  try {
-    process.env.WC_SKARBIEC_URL = 'http://127.0.0.1:9999';
-    delete process.env.WELES_CREDENTIAL_SKARBIEC_URL;
 
     const result = await resolveSkarbiecEndpoint();
-    assert.ok(result.resolved, 'should still resolve even if nothing is listening');
+    assert.ok(result.resolved, 'should retain the declared endpoint');
     assert.strictEqual(result.resolved?.url, 'http://127.0.0.1:9999',
-      'should return first candidate when none listening');
+      'should retain the exact directory-derived endpoint');
     assert.ok(!result.resolved?.isListening, 'should indicate that endpoint is not listening');
   } finally {
     if (originalEnv) {
       process.env.WC_SKARBIEC_URL = originalEnv;
+    } else {
+      delete process.env.WC_SKARBIEC_URL;
     }
   }
 });
@@ -184,25 +133,12 @@ test('formatEndpointErrorMessage: formats environment source correctly', async (
   assert.match(message, /not listening/, 'should indicate listening status');
 });
 
-test('formatEndpointErrorMessage: formats forward marker source correctly', async () => {
-  const info: EndpointInfo = {
-    url: 'http://127.0.0.1:8895',
-    source: 'forward-marker',
-    sourceDetail: `${homedir()}/.stado/forwards/skarbiec.local`,
-    isListening: false,
-  };
-
-  const message = formatEndpointErrorMessage(info);
-  assert.match(message, /Skarbiec endpoint/, 'should indicate Skarbiec endpoint');
-  assert.match(message, /forward marker/, 'should indicate forward marker source');
-  assert.match(message, /\.stado\/forwards/, 'should include path');
-});
 
 test('formatEndpointErrorMessage: indicates listening status', async () => {
   const listeningInfo: EndpointInfo = {
-    url: 'http://127.0.0.1:8895',
-    source: 'default',
-    sourceDetail: 'built-in default',
+    url: 'http://127.0.0.1:8785',
+    source: 'environment',
+    sourceDetail: 'WC_SKARBIEC_URL environment variable',
     isListening: true,
   };
 
@@ -211,8 +147,8 @@ test('formatEndpointErrorMessage: indicates listening status', async () => {
 
   const deadInfo: EndpointInfo = {
     url: 'http://127.0.0.1:8785',
-    source: 'default',
-    sourceDetail: 'built-in default',
+    source: 'environment',
+    sourceDetail: 'WC_SKARBIEC_URL environment variable',
     isListening: false,
   };
 

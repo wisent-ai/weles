@@ -17,9 +17,30 @@ set -a
 . "$ENV_FILE"
 set +a
 
-SKARBIEC_BIN="${SKARBIEC_BIN:-$HOME/.weles-secrets/skarbiec-entitlements-router}"
-if [[ "$SKARBIEC_BIN" != /* || ! -x "$SKARBIEC_BIN" ]]; then
-  echo "missing executable absolute SKARBIEC_BIN" >&2
+STADO_BIN="${STADO_BIN:-$HOME/.stado/bin/stado}"
+NODE_BIN="${NODE_BIN:-/opt/homebrew/bin/node}"
+if [[ ! -x "$STADO_BIN" || ! -x "$NODE_BIN" ]]; then
+  echo "missing Stado or Node for attested Skarbiec resolution" >&2
+  exit 1
+fi
+if ! skarbiec_release="$("$STADO_BIN" release active-binary skarbiec --json)"; then
+  echo "Stado has no attested active Skarbiec binary for this host" >&2
+  exit 1
+fi
+if ! SKARBIEC_BIN="$(printf '%s' "$skarbiec_release" | "$NODE_BIN" -e '
+  const active = JSON.parse(require("node:fs").readFileSync(0, "utf8"));
+  const value = active?.path;
+  if (active?.state !== "active" || typeof value !== "string" || !value.startsWith("/")) {
+    process.exit(1);
+  }
+  process.stdout.write(value);
+')"; then
+  echo "Stado returned an invalid active Skarbiec release record" >&2
+  exit 1
+fi
+unset skarbiec_release
+if [[ ! -x "$SKARBIEC_BIN" ]]; then
+  echo "attested active Skarbiec binary is not executable" >&2
   exit 1
 fi
 
