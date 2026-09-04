@@ -19,10 +19,18 @@
 
 import { randomUUID } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { homedir, tmpdir } from 'node:os';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
+import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { activeSkarbiecBinary } from '../_shared/skarbiec-runtime.mjs';
+import { stadoBinary } from '../_shared/skarbiec-runtime.mjs';
+import { issueAppleLoginCapabilities } from './apple-account-placement.mjs';
 
 const CONFIRMATION_PHRASE = 'AUTHORIZE ONE APPLE DEVELOPER ID';
 const ACTION = 'create_developer_id';
@@ -59,17 +67,19 @@ if (!Number.isInteger(expiryMinutes) || expiryMinutes < 1 || expiryMinutes > 60)
 if (!keyOut.startsWith('/') || !certOut.startsWith('/')) {
   throw new Error('--private-key-out and --certificate-out must be absolute paths on this machine');
 }
+if (existsSync(keyOut) || existsSync(certOut)) {
+  throw new Error('refusing to replace an existing private key or certificate');
+}
 
 const guardId = randomUUID();
-const skarbiec = activeSkarbiecBinary();
-const stado = process.env.WELES_STADO_BIN || join(homedir(), '.stado', 'bin', 'stado');
-// Left unexpanded on purpose. The command runs on the worker under the worker's
-// own account, so embedding this machine's home directory would point the job at
-// a path that does not exist there. `enqueueWelesAction` interpolates the
-// submitter's home; that only works when the submitter is the worker.
+const stado = stadoBinary();
+// The shell expands this path on the pinned worker. The trajectory receives
+// the equivalent `~/...` form and resolves it against that worker's home.
 const runner = '"$HOME"/weles/scripts/worker/stado-action-runner.mjs';
-const remoteBase = '"$HOME"/weles/var/developer-id-' + guardId;
-const issued = [];
+const remoteRelative = `weles/var/developer-id-${guardId}`;
+const remoteBase = `"$HOME"/${remoteRelative}`;
+const remoteTrajectoryBase = `~/${remoteRelative}`;
+let capabilities = null;
 
 function openssl(argv, input) {
   const result = spawnSync('openssl', argv, { input, encoding: 'utf8', maxBuffer: 4 * 1024 * 1024 });
@@ -79,35 +89,128 @@ function openssl(argv, input) {
   return result.stdout;
 }
 
-function capability(purpose, resource) {
-  const result = spawnSync(skarbiec, [
-    'capability-issue', '--agent', executionAgent, '--purpose', purpose,
-    '--resource', resource, '--target', 'weles', '--ttl', String(expiryMinutes * 60),
-    '--max-uses', '1', '--authorization-id', guardId,
-  ], { encoding: 'utf8', env: process.env });
-  if (result.error || result.status !== 0) {
-    throw new Error(`Skarbiec refused Apple capability: ${(result.stderr || result.error?.message || '').trim()}`);
+function stadoMachine(argv) {
+  const result = spawnSync(stado, ['machine', ...argv], {
+    encoding: 'utf8',
+    maxBuffer: 8 * 1024 * 1024,
+    env: { ...process.env, HOME: homedir() },
+  });
+  let envelope = null;
+  try {
+    envelope = JSON.parse(String(result.stdout || ''));
+  } catch {
+    // The transport error below is more useful than a second JSON error.
   }
-  const payload = JSON.parse(result.stdout);
-  if (!/^[0-9a-f]{64}$/.test(String(payload.capability_id ?? ''))) {
-    throw new Error('Skarbiec returned an invalid capability id');
+  if (result.error || result.status !== 0 || envelope?.ok !== true) {
+    const detail = envelope?.error?.message
+      || String(result.stderr || result.error?.message || '').trim()
+      || `exit ${result.status}`;
+    throw new Error(`Stado machine ${argv[0]} failed: ${detail}`);
   }
-  issued.push(payload.capability_id);
-  return { capability_id: payload.capability_id, purpose, resource, target: 'weles', authorization_id: guardId };
+  return envelope.result;
 }
 
-const scratch = mkdtempSync(join(tmpdir(), 'developer-id-csr-'));
+class TerminalJobError extends Error {}
+
+async function waitForStadoJob(jobId, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  let lastError = null;
+  while (Date.now() < deadline) {
+    try {
+      const report = stadoMachine(['status', jobId]);
+      const state = report?.job?.state;
+      if (state === 'completed' || state === 'uploaded') return state;
+      if (state === 'failed' || state === 'cancelled') {
+        throw new TerminalJobError(
+          `Stado job ${jobId} ${state}: ${report?.job?.error || 'no reason recorded'}`,
+        );
+      }
+      lastError = null;
+    } catch (error) {
+      if (error instanceof TerminalJobError) throw error;
+      lastError = error;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 2_000));
+  }
+  try {
+    stadoMachine(['cancel', jobId]);
+  } catch {
+    // The timeout remains the useful failure when cancellation cannot be confirmed.
+  }
+  const suffix = lastError instanceof Error ? `; last status error: ${lastError.message}` : '';
+  throw new Error(`Stado job ${jobId} did not finish before its authorization expired${suffix}`);
+}
+
+function readStadoJobLog(jobId) {
+  const pageSize = 1024 * 1024;
+  const maxBytes = 8 * pageSize;
+  let cursor = 0;
+  let text = '';
+  while (true) {
+    const page = stadoMachine([
+      'logs',
+      jobId,
+      '--cursor',
+      String(cursor),
+      '--limit',
+      String(pageSize),
+    ]);
+    if (page?.cursor !== cursor || !Number.isSafeInteger(page?.next_cursor)
+        || page.next_cursor < cursor || typeof page?.text !== 'string') {
+      throw new Error(`Stado returned an invalid log page for ${jobId}`);
+    }
+    text += page.text;
+    if (Buffer.byteLength(text, 'utf8') > maxBytes) {
+      throw new Error(`Stado job ${jobId} output exceeded ${maxBytes} bytes`);
+    }
+    if (page.eof === true) return text;
+    if (page.next_cursor === cursor) {
+      throw new Error(`Stado job ${jobId} log cursor did not advance`);
+    }
+    cursor = page.next_cursor;
+  }
+}
+
+function certificateFromJobLog(jobId) {
+  const matches = [...readStadoJobLog(jobId).matchAll(/^CERTIFICATE_BASE64=([A-Za-z0-9+/]+={0,2})$/gm)];
+  if (matches.length !== 1 || matches[0][1].length % 4 !== 0) {
+    throw new Error(`Stado job ${jobId} did not return exactly one certificate`);
+  }
+  const encoded = matches[0][1];
+  const certificate = Buffer.from(encoded, 'base64');
+  if (certificate.length === 0 || certificate.toString('base64') !== encoded) {
+    throw new Error(`Stado job ${jobId} returned invalid certificate encoding`);
+  }
+  const validation = spawnSync('openssl', ['x509', '-inform', 'DER', '-noout'], {
+    input: certificate,
+    encoding: 'utf8',
+    maxBuffer: 1024 * 1024,
+  });
+  if (validation.error || validation.status !== 0) {
+    throw new Error(`Stado job ${jobId} returned a file that is not a DER X.509 certificate`);
+  }
+  return certificate;
+}
+
+const workRoot = join(homedir(), '.stado', 'work');
+mkdirSync(workRoot, { recursive: true, mode: 0o700 });
+const scratch = mkdtempSync(join(workRoot, 'developer-id-csr-'));
 let queued = null;
+let keyWritten = false;
 try {
   // Keypair and request here; only the request travels.
   const keyPath = join(scratch, 'key.pem');
   openssl(['genrsa', '-out', keyPath, '2048']);
   const csr = openssl(['req', '-new', '-key', keyPath, '-subj', subject]);
-  writeFileSync(keyOut, readFileSync(keyPath), { mode: 0o600 });
+  writeFileSync(keyOut, readFileSync(keyPath), { mode: 0o600, flag: 'wx' });
+  keyWritten = true;
 
-  const email = capability('weles.browser.fill', 'origin:https://idmsa.apple.com/email');
-  const password = capability('weles.browser.fill', 'origin:https://idmsa.apple.com/password');
-  const twoFactor = capability('weles.apple.2fa', `challenge:apple/${guardId}`);
+  capabilities = issueAppleLoginCapabilities({
+    executionHost,
+    executionAgent,
+    authorizationId: guardId,
+    ttlSeconds: expiryMinutes * 60,
+  });
 
   const payload = Buffer.from(JSON.stringify({
     action: ACTION,
@@ -116,9 +219,9 @@ try {
       apple_auth_guard_id: guardId,
       apple_execution_host: executionHost,
       apple_execution_agent: executionAgent,
-      apple_login_capabilities: { email, password, two_factor: { mode: 'capability', capability: twoFactor } },
-      apple_csr_path: `${remoteBase}/request.csr`,
-      apple_certificate_path: `${remoteBase}/certificate.cer`,
+      apple_login_capabilities: capabilities,
+      apple_csr_path: `${remoteTrajectoryBase}/request.csr`,
+      apple_certificate_path: `${remoteTrajectoryBase}/certificate.cer`,
     },
   }), 'utf8').toString('base64url');
 
@@ -127,12 +230,13 @@ try {
   // travels through Stado's own job output and the worker keeps no copy.
   const command = [
     'set -eu',
-    `umask 077`,
-    `mkdir -p ${remoteBase}`,
+    'umask 077',
+    `cleanup_dir=${remoteBase}`,
+    'trap \'rm -rf "$cleanup_dir"\' EXIT',
+    'mkdir -p "$cleanup_dir"',
     `printf %s ${Buffer.from(csr, 'utf8').toString('base64')} | base64 -d > ${remoteBase}/request.csr`,
     `node ${runner} ${payload}`,
     `printf 'CERTIFICATE_BASE64='; base64 < ${remoteBase}/certificate.cer | tr -d '\\n'; printf '\\n'`,
-    `rm -rf ${remoteBase}`,
   ].join('; ');
 
   const submit = spawnSync(stado, [
@@ -146,30 +250,31 @@ try {
   if (!match) throw new Error(`Stado accepted ${ACTION} but returned no job id`);
   queued = match[0];
 
+  const terminalState = await waitForStadoJob(queued, expiryMinutes * 60_000);
+  const certificate = certificateFromJobLog(queued);
+  writeFileSync(certOut, certificate, { mode: 0o644, flag: 'wx' });
   console.log(JSON.stringify({
-    status: 'queued',
+    status: terminalState,
     action: ACTION,
     job_id: queued,
     guard_id: guardId,
     account_item: accountItem,
     execution_host: executionHost,
     private_key: keyOut,
-    certificate_out: certOut,
-    next: `stado status ${queued}; then write the CERTIFICATE_BASE64 line from the job output to ${certOut}`,
+    certificate: certOut,
   }, null, 2));
 } catch (error) {
-  // Not `capability-cancel`: no such command exists. The sibling login
-  // authorizer calls it and ignores the failure, so its rollback has never
-  // undone anything — which matters less than it sounds, because the only real
-  // bound on an issued capability is the one it was issued with. Say what is
-  // outstanding instead of pretending to withdraw it.
-  if (issued.length) {
+  if (keyWritten && queued === null) {
+    rmSync(keyOut, { force: true });
+  }
+  if (capabilities) {
     console.error(JSON.stringify({
       status: 'failed',
       guard_id: guardId,
-      outstanding_capabilities: issued.length,
+      execution_host: executionHost,
+      issued_capabilities: 3,
       bound_by: `ttl ${expiryMinutes * 60}s, max-uses 1 each`,
-      note: 'each capability expires on its own and can be redeemed once; nothing was enqueued',
+      note: 'the execution host expires any capability that the trajectory did not consume',
     }));
   }
   throw error;

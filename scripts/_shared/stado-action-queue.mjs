@@ -1,12 +1,9 @@
 import { spawnSync } from 'node:child_process';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { stadoBinary } from './skarbiec-runtime.mjs';
 
 const SAFE_ACTION = /^[a-z][a-z0-9_]{0,127}$/;
-
-function stadoBinary() {
-  return process.env.WELES_STADO_BIN || join(homedir(), '.stado', 'bin', 'stado');
-}
 
 function runnerPath() {
   return join(homedir(), 'weles', 'scripts', 'worker', 'stado-action-runner.mjs');

@@ -222,7 +222,6 @@ const ROUTES: Record<string, (p: string) => string | null> = {
   ads_rejection_reasons: (p) => p === 'apple' ? 'scripts/trajectories/apple/ads/run.mjs' : null,
   ads_rejection_reason_view: (p) => p === 'apple' ? 'scripts/trajectories/apple/ads/run.mjs' : null,
   ads_api_request: (p) => p === 'apple' ? 'scripts/trajectories/apple/ads/run.mjs' : null,
-  native_2fa: (_p) => null,
   appstore_submit: (p) => p === 'apple' ? 'scripts/trajectories/apple/asc/asc_submit.mjs'
     : p === 'google' ? 'scripts/trajectories/google/play/play_submit.mjs'
     : null,
@@ -631,11 +630,6 @@ export function paramsToEnv(
       if (typeof params.apple_csr_path === 'string') env.APPLE_CSR_PATH = params.apple_csr_path;
       if (typeof params.apple_certificate_path === 'string') env.APPLE_CERTIFICATE_PATH = params.apple_certificate_path;
     }
-  }
-  if (trajPath.endsWith('/apple/native_2fa/run.mjs')) {
-    if (typeof params.apple_2fa_code_file === 'string') env.APPLE_2FA_CODE_FILE = params.apple_2fa_code_file;
-    if (typeof params.apple_2fa_wait_ms === 'number') env.APPLE_2FA_WAIT_MS = String(params.apple_2fa_wait_ms);
-    if (typeof params.apple_2fa_wait_ms === 'string') env.APPLE_2FA_WAIT_MS = params.apple_2fa_wait_ms;
   }
   // Ticker-scrape parameters for the unusualwhales/volumeleaders/tradingview
   // scrape verb. Read by scrape.mjs scripts when invoked from the queue (no argv).

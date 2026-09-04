@@ -2,11 +2,18 @@
 // email, password and 2FA operations; Stado owns execution and placement.
 
 import { WSession } from '../../../dist/session/wsession.js';
-import { cancelCapability, withCapability } from '../../../dist/utils/capability.js';
+import {
+  cancelCapability,
+  withCapability,
+  withCapabilityPendingRetry,
+} from '../../../dist/utils/capability.js';
 import { parseAppleLoginCapabilities } from '../../../dist/utils/apple-login-capabilities.js';
-import { completeAppleNativeTwoFactorChallenge } from './native_2fa/native_2fa.mjs';
+import { completeAppleTwoFactorChallenge } from './two_factor.mjs';
 import { getSocialAccount } from '../../../dist/utils/credentials.js';
-import { appleChallengeRelayTarget } from '../../auth/apple-account-placement.mjs';
+import {
+  preflightAppleChallengeRelay,
+  relayAppleChallenge,
+} from '../../auth/apple-account-placement.mjs';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 // A Stado queue job id is eight hex characters; the Weles API names a run with
@@ -63,40 +70,27 @@ async function cancelSessionCapabilities() {
 
 
 console.log(`[apple-login] canonical one-attempt login for account ${accountId}`);
-let passwordSubmitted = false;
-let authorizationClosed = false;
 let sessionClosed = true;
 let dashboardPostcondition = '';
 let s = null;
 try {
   capabilities = parseAppleLoginCapabilities(process.env.APPLE_LOGIN_CAPABILITIES_JSON, guardId);
-  // Whether this run can finish is decided before Apple is asked anything.
-  //
-  // The six digits are delivered into the session of the macOS user signed into the
-  // account, so a run placed anywhere else has to be handed them by another machine.
-  // Stado carried that hand-off as `host run-helper` and removed it on 2026-08-18 in
-  // f1e6c081; nothing replaced it. Discovering that at the 2FA step is too late: the
-  // password has been submitted by then, and a submitted attempt that cannot be
-  // completed is exactly the sequence that gets an Apple ID locked.
-  const preflightAccount = await getSocialAccount('apple');
-  const preflightIdentity = (preflightAccount?.metadata?.email ?? preflightAccount?.username ?? '').trim();
-  const preflightRelay = appleChallengeRelayTarget(preflightIdentity);
-  if (preflightRelay) {
-    throw new Error(
-      `[apple-login] ${preflightIdentity} is signed in on ${preflightRelay}, not on the host `
-      + `running this trajectory, and no channel carries a two-factor code between hosts `
-      + `since Stado removed the host helper channel on 2026-08-18 (f1e6c081). Place this `
-      + `run on ${preflightRelay}, whose GUI session `
-      + `\`stado identity verify --kind apple-account --identity ${preflightIdentity}\` `
-      + `must report as drivable. Refusing before submitting a password, because a `
-      + `sign-in attempt that cannot be completed is how this account gets locked.`,
-    );
-  }
   capabilityRefs = [
     capabilities.email,
     capabilities.password,
     capabilities.two_factor.capability,
   ];
+  // Resolve the live holder, its exact macOS user, this worker's broker and
+  // the installed Stado relay before opening a browser or spending a password
+  // attempt. This preflight reads state only and opens no native prompt.
+  const preflightAccount = await getSocialAccount('apple');
+  const preflightIdentity =
+    (preflightAccount?.metadata?.email ?? preflightAccount?.username ?? '').trim();
+  const challengeRoute = preflightAppleChallengeRelay(preflightIdentity, guardId);
+  console.log(
+    `[apple-login] Apple challenge route ${challengeRoute.holder}/${challengeRoute.user} `
+    + `-> ${challengeRoute.destination}`,
+  );
   s = await WSession.start({ label: 'apple_login', headless: process.env.WELES_HEADLESS === '1' });
   sessionClosed = false;
   // The unauthenticated root shell references protected /access/static assets.
@@ -213,7 +207,6 @@ try {
   }, null, { timeout: 10_000 }).then(() => true).catch(() => false);
   if (!signInEnabled) throw new Error('Apple password form stayed disabled after credential entry');
 
-  passwordSubmitted = true;
   // Playwright's actionability-checked click hangs on Apple's Angular-bound
   // Sign In control, so submit the validated form with a DOM click.
   await frame.locator('#sign-in').evaluate((button) => button.click());
@@ -224,15 +217,26 @@ try {
   if (postPasswordState === 'timeout') throw new Error('Timed out waiting for Apple dashboard or 2FA challenge');
 
   if (postPasswordState === 'two_factor') {
-    // Reached only on the host that holds the account: the preflight above refuses
-    // every other placement before a password is submitted. So the code is captured
-    // from this machine's own notification, and there is no relayed-code branch to
-    // choose between -- the one that used to be here waited on a channel that no
-    // longer exists.
-    const twoFactor = await completeAppleNativeTwoFactorChallenge(s, frame, {
+    // Stado captures in the verified account holder's Aqua session and writes
+    // the digits straight into this worker's already-authorized broker resource.
+    // Weles sees only the one-use capability value and clears it after filling.
+    relayAppleChallenge(preflightIdentity, guardId);
+    const twoFactor = await completeAppleTwoFactorChallenge(s, frame, {
       logPrefix: '[apple-login]',
+      withCode: (consume) => withCapabilityPendingRetry(
+        capabilities.two_factor.capability,
+        {
+          purpose: 'weles.apple.2fa',
+          resource: `challenge:apple/${guardId}`,
+          authorization_id: guardId,
+        },
+        consume,
+        { timeoutMs: 120_000, intervalMs: 500 },
+      ),
     });
-    if (!twoFactor.ok) throw new Error(`Apple 2FA did not complete (${twoFactor.source || 'unknown source'})`);
+    if (!twoFactor.ok) {
+      throw new Error(`Apple 2FA did not complete (${twoFactor.source || 'unknown source'})`);
+    }
   }
 
   let dashboardObserved = postPasswordState === 'dashboard';
@@ -247,7 +251,6 @@ try {
   await s.close();
   sessionClosed = true;
   await cancelSessionCapabilities();
-  authorizationClosed = true;
   console.log(`PASS: ${dashboardPostcondition}`);
   process.exitCode = 0;
 } catch (error) {
