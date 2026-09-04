@@ -195,7 +195,9 @@ export async function runTopupOrchestrator(provider, usd, currentFileUrl) {
     process.exit(1);
   }
   console.log(`[orchestrator] provider=${provider} usd=$${usdNum} card=****${process.env.TOPUP_CARD_NUMBER.slice(-4)}`);
-  const child = spawn('node', [trajectory], {
+  // `process.execPath`, not `'node'`: this also runs under the launchd worker,
+  // whose unit carries no PATH. See `../../codex/reauth.mjs`.
+  const child = spawn(process.execPath, [trajectory], {
     env: { ...process.env, TOPUP_USD: String(usdNum), TOPUP_CONFIRM: '1' },
     stdio: 'inherit',
   });

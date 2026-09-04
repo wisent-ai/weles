@@ -12,7 +12,7 @@ const SECTIONS = [
 ];
 
 function action(args, timeout = 120000, optional = false) {
-  const result = spawnSync('node', ['scripts/_shared/keeper/action.mjs', ...args], {
+  const result = spawnSync(process.execPath, ['scripts/_shared/keeper/action.mjs', ...args], {
     cwd: WELES,
     env: { ...process.env, SESSION },
     encoding: 'utf8',

@@ -37,7 +37,7 @@ const eu = competitorRows('## Oferta konkurencji wewnątrz UE', '## Oferta konku
 const nonEu = competitorRows('## Oferta konkurencji spoza UE', '## Rynek docelowy');
 
 function action(args, timeout = 120000, optional = false) {
-  const out = spawnSync('node', ['scripts/_shared/keeper/action.mjs', ...args], {
+  const out = spawnSync(process.execPath, ['scripts/_shared/keeper/action.mjs', ...args], {
     cwd: WELES,
     env: { ...process.env, SESSION },
     encoding: 'utf8',

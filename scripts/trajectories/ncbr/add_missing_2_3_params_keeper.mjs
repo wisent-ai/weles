@@ -36,7 +36,7 @@ const rows = block.split(/^### Parametr \d+\s*$/m).slice(1).map((part) => {
 }).filter((row) => row.name);
 
 function action(args, timeout = 120000) {
-  const result = spawnSync('node', ['scripts/_shared/keeper/action.mjs', ...args], {
+  const result = spawnSync(process.execPath, ['scripts/_shared/keeper/action.mjs', ...args], {
     cwd: WELES,
     env: { ...process.env, SESSION },
     encoding: 'utf8',

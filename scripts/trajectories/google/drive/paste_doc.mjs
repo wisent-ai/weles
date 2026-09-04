@@ -42,7 +42,7 @@ const HTML_PATH = OUT_DIR + '/last_upload.html';
 mkdirSync(OUT_DIR, { recursive: true });
 
 console.log('[paste_doc] md -> html: ' + CONTENT_PATH);
-const conv = spawnSync('node', [MD_TO_HTML, CONTENT_PATH, HTML_PATH], { encoding: 'utf8' });
+const conv = spawnSync(process.execPath, [MD_TO_HTML, CONTENT_PATH, HTML_PATH], { encoding: 'utf8' });
 process.stdout.write(conv.stdout || '');
 if (conv.status !== 0) {
   console.log('FAIL: md_to_html exit=' + conv.status + ' stderr=' + (conv.stderr || ''));

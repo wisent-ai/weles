@@ -9,7 +9,7 @@ const results = [];
 for (const port of ports) {
   console.log(`\n=== sweeping dedicated ISP port ${port} ===`);
   const env = { ...process.env, OXYLABS_DEDICATED_ISP_PORT: String(port), AB_HEADLESS: '1', LINKEDIN_REGISTER_PROXY: 'isp oxylabs us' };
-  const res = spawnSync('node', ['--env-file=.env', 'scripts/debug/linkedin_ab_diagnosis.mjs'], { env, cwd: process.cwd(), encoding: 'utf8', timeout: 240000 });
+  const res = spawnSync(process.execPath, ['--env-file=.env', 'scripts/debug/linkedin_ab_diagnosis.mjs'], { env, cwd: process.cwd(), encoding: 'utf8', timeout: 240000 });
   console.log(res.stdout.slice(-800));
   if (res.stderr) console.log(res.stderr.slice(-400));
 

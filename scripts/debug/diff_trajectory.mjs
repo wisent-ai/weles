@@ -114,7 +114,7 @@ if (process.env.SKIP_RUN === '1') {
 } else {
   console.log(`[diff_trajectory] running trajectory with WELES_INSTRUMENT=1 ...`);
   const exitCode = await new Promise((resolve) => {
-    const child = spawn('node', [TRAJECTORY], {
+    const child = spawn(process.execPath, [TRAJECTORY], {
       env: { ...process.env, WELES_INSTRUMENT: '1' },
       cwd: WELES_ROOT,
       stdio: 'inherit',
@@ -142,7 +142,7 @@ console.log(`[diff_trajectory] weles dump: ${welesFile.f}`);
 const ts = new Date().toISOString().replace(/[:.]/g, '-');
 const reportPath = join(INST_DIR, `${TRAJ_NAME}_diff_${ts}.md`);
 const diffStdout = await new Promise((resolve, reject) => {
-  const child = spawn('node', [
+  const child = spawn(process.execPath, [
     join(__dirname, 'instrument_diff.mjs'),
     newestChrome.full,
     welesFile.full,

@@ -37,7 +37,7 @@ const ownIndicators = ownBlock.split(/^### /m).slice(1).map((raw) => {
 }).filter((x) => x.name && !/HarmBench|attack success rate/i.test(x.name));
 
 function action(args, timeout = 120000, optional = false) {
-  const result = spawnSync('node', ['scripts/_shared/keeper/action.mjs', ...args], {
+  const result = spawnSync(process.execPath, ['scripts/_shared/keeper/action.mjs', ...args], {
     cwd: WELES,
     env: { ...process.env, SESSION },
     encoding: 'utf8',

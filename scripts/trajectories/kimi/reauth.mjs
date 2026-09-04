@@ -195,7 +195,10 @@ async function deleteSubscription(cfg, sub) {
 
 function runLogin() {
   return new Promise((resolve, reject) => {
-    const child = spawn('node', [LOGIN_MJS], {
+    // `process.execPath`, not `'node'`: under the launchd worker there is no
+    // PATH, so a bare `node` is ENOENT and the reauthorization dies before the
+    // browser opens. See the same fix in `../codex/reauth.mjs`.
+    const child = spawn(process.execPath, [LOGIN_MJS], {
       env: {
         ...process.env,
         KIMI_LOGIN_PROXY: process.env.KIMI_LOGIN_PROXY || 'none',

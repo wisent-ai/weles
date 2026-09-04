@@ -228,7 +228,16 @@ async function deleteSubscription(cfg, sub) {
 
 function runLogin(displayName) {
   return new Promise((resolve, reject) => {
-    const child = spawn('node', [LOGIN_MJS], {
+    // `process.execPath`, not `'node'`: this runs as a child of the launchd
+    // worker, whose unit carries no PATH, so a bare `node` is ENOENT and the
+    // whole reauthorization dies before the browser opens. On 2026-09-03 that
+    // held every codex and kimi subscription in `awaiting_signin` while Brama
+    // recorded "a browser sign-in has already been driven against this exact
+    // stored credential" and left them to an operator -- the drive had run and
+    // crashed on spawn. `src/secrets/scoped-service.ts` already spawns this
+    // way; the node running this file is by definition the node that can run
+    // the next one.
+    const child = spawn(process.execPath, [LOGIN_MJS], {
       env: {
         ...process.env,
         CODEX_DISPLAY_NAME: displayName,
