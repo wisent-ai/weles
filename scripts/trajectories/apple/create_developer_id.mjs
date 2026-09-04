@@ -2,12 +2,9 @@
 // One-use Skarbiec capabilities authorize email, password and 2FA; Stado owns
 // execution and placement.
 
-import { spawnSync } from 'node:child_process';
-import { statSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { WSession } from '../../../dist/session/wsession.js';
-import { withCapability, withCapabilityPendingRetry, cancelCapability } from '../../../dist/utils/capability.js';
+import { withCapability, cancelCapability } from '../../../dist/utils/capability.js';
 import { parseAppleLoginCapabilities } from '../../../dist/utils/apple-login-capabilities.js';
 import { completeAppleNativeTwoFactorChallenge } from './native_2fa/native_2fa.mjs';
 import { getSocialAccount } from '../../../dist/utils/credentials.js';
@@ -32,7 +29,6 @@ if (!isAbsolute(csrPath)) throw new Error('[apple-create-developer-id] APPLE_CSR
 if (!isAbsolute(certificatePath)) throw new Error('[apple-create-developer-id] APPLE_CERTIFICATE_PATH must be absolute');
 
 const ADD_URL = 'https://developer.apple.com/account/resources/certificates/add';
-const challengeResource = `challenge:apple/${guardId}`;
 let capabilities = null;
 let capabilityRefs = [];
 
@@ -75,38 +71,6 @@ async function cancelSessionCapabilities() {
   if (failures.length > 0) throw new Error(`capability cleanup unconfirmed: ${failures.join('; ')}`);
 }
 
-// Ask the machine that holds the account to catch the prompt and put the digits in
-// Skarbiec. Nothing comes back through here: this returns once the code is stored.
-//
-// The program is the one shipped beside this trajectory, found relative to this
-// module rather than named by an environment variable. APPLE_2FA_RELAY_COMMAND was
-// an absolute path written into one host's configuration, which is a second way of
-// saying where this installation is -- and the way that goes stale when the release
-// symlink moves. Resolving it from `import.meta.url` cannot point outside the release
-// currently running, which is a stronger guarantee than the mode bits it replaced.
-function requestTrustedMacChallengeRelay() {
-  const command = fileURLToPath(new URL('../../auth/request-apple-challenge-relay.mjs', import.meta.url));
-  const stat = statSync(command);
-  if (!stat.isFile() || (stat.mode & 0o022) !== 0
-      || (typeof process.getuid === 'function' && stat.uid !== process.getuid())) {
-    throw new Error('the Apple challenge relay must be a non-writable file owned by the worker');
-  }
-  // Run it through this same interpreter. Spawning the file directly would also
-  // require an executable bit to survive packaging, which is a property of how the
-  // release was built rather than of whether the relay is intact.
-  const result = spawnSync(process.execPath, [command, '--guard-id', guardId, '--account-id', accountId, '--action-log-id', actionLogId], {
-    cwd: process.cwd(), env: process.env, encoding: 'utf8',
-    timeout: Number(process.env.WELES_APPLE_2FA_RELAY_TIMEOUT_MS ?? '75000'),
-    maxBuffer: 64 * 1024, stdio: ['ignore', 'pipe', 'pipe'],
-  });
-  if (result.error || result.status !== 0) throw new Error('Trusted Mac Apple challenge relay failed closed');
-  let ack;
-  try { ack = JSON.parse(result.stdout); } catch { throw new Error('Relay returned invalid acknowledgement'); }
-  if (!ack || ack.status !== 'stored' || ack.resource !== challengeResource) {
-    throw new Error('Relay did not confirm the active authorization resource');
-  }
-}
-
 // --- Cert creation helpers ---
 
 async function clickChoice(page, pattern) {
@@ -138,6 +102,27 @@ let s = null;
 try {
   capabilities = parseAppleLoginCapabilities(process.env.APPLE_LOGIN_CAPABILITIES_JSON, guardId);
   capabilityRefs = [capabilities.email, capabilities.password, capabilities.two_factor.capability];
+
+  // Decided before Apple is asked anything, for the reason spelled out in login.mjs:
+  // the six digits are delivered into the session of the macOS user signed into the
+  // account, the cross-host hand-off that used to carry them was removed from Stado on
+  // 2026-08-18 (f1e6c081), and finding that out at the 2FA step means the password has
+  // already been submitted. A submitted attempt that cannot be completed is how this
+  // account gets locked, and this trajectory is the one that has to survive being run
+  // on a schedule.
+  const preflightAccount = await getSocialAccount('apple');
+  const preflightIdentity = (preflightAccount?.metadata?.email ?? preflightAccount?.username ?? '').trim();
+  const preflightRelay = appleChallengeRelayTarget(preflightIdentity);
+  if (preflightRelay) {
+    throw new Error(
+      `[apple-create-developer-id] ${preflightIdentity} is signed in on ${preflightRelay}, `
+      + `not on the host running this trajectory, and no channel carries a two-factor `
+      + `code between hosts since Stado removed the host helper channel on 2026-08-18 `
+      + `(f1e6c081). Place this run on ${preflightRelay}, whose GUI session `
+      + `\`stado identity verify --kind apple-account --identity ${preflightIdentity}\` `
+      + `must report as drivable. Refusing before submitting a password.`,
+    );
+  }
 
   s = await WSession.start({ label: 'apple_create_developer_id', headless: process.env.WELES_HEADLESS === '1' });
   sessionClosed = false;
@@ -237,26 +222,13 @@ try {
   if (postPasswordState === 'timeout') throw new Error('Timed out waiting for developer portal or 2FA challenge');
 
   if (postPasswordState === 'two_factor') {
-    // Whether this prompt needs relaying is a fact about the fleet, not a setting, so
-    // it is asked rather than configured: the registry knows which host is signed into
-    // this account and which host this is. A `relayConfigured` flag in one host's env
-    // said the same thing by hand, and kept saying it after the answer changed.
-    const account = await getSocialAccount('apple');
-    const relayTarget = appleChallengeRelayTarget((account?.metadata?.email ?? account?.username ?? '').trim());
-    const twoFactorOptions = {
+    // Reached only on the host that holds the account, because the preflight above
+    // refuses every other placement before a password is submitted. The prompt is
+    // therefore this machine's own, captured natively; the relayed-code branch that
+    // used to be chosen here waited on a channel that no longer exists.
+    const twoFactor = await completeAppleNativeTwoFactorChallenge(s, frame, {
       logPrefix: '[apple-create-developer-id]',
-      ...(relayTarget ? {
-        nativeOnly: true,
-        withCode: (consume) => withCapabilityPendingRetry(capabilities.two_factor.capability, {
-          purpose: 'weles.apple.2fa', resource: challengeResource, authorization_id: guardId,
-        }, async (code) => consume(code), {
-          timeoutMs: Number(process.env.WELES_APPLE_2FA_PENDING_TIMEOUT_MS ?? '120000'),
-          intervalMs: Number(process.env.WELES_APPLE_2FA_PENDING_INTERVAL_MS ?? '1000'),
-        }),
-      } : {}),
-    };
-    if (relayTarget) requestTrustedMacChallengeRelay();
-    const twoFactor = await completeAppleNativeTwoFactorChallenge(s, frame, twoFactorOptions);
+    });
     if (!twoFactor.ok) throw new Error(`Apple 2FA did not complete (${twoFactor.source || 'unknown source'})`);
   }
 
