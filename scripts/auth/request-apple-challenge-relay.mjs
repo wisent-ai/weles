@@ -1,13 +1,12 @@
 #!/usr/bin/env node
 
-// Runs on the authorized external Weles host. It asks Stado which machine currently
-// holds the Apple account, then runs one installed helper there through the registry
-// channel; that helper captures the active Apple 2FA notification and relays the six
-// digits directly to Skarbiec. No code returns through this process or stdout.
+// Runs on the authorized external Weles host, and refuses. It asks Stado which machine
+// holds the Apple account, and when that machine is not the one executing, there is no
+// longer any channel that can carry the captured digits between the two: it says so,
+// naming both hosts and the commit that removed the channel.
 
-import { spawnSync } from 'node:child_process';
-import { assertAppleAuthChallengeOpen, recordAppleAuthChallengeCaptured } from '../../dist/auth/apple-submit-guard.js';
-import { appleAccountHolder, stadoBinary } from './apple-account-placement.mjs';
+import { assertAppleAuthChallengeOpen } from '../../dist/auth/apple-submit-guard.js';
+import { appleAccountHolder, thisRegistryHost } from './apple-account-placement.mjs';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const ALLOWED_FLAGS = new Set(['--guard-id', '--account-id', '--action-log-id']);
@@ -40,46 +39,41 @@ for (const [name, value] of [['--guard-id', guardId], ['--account-id', accountId
   if (!UUID_PATTERN.test(value)) throw new Error(`${name} must be a valid UUID`);
 }
 
-// Reaching the holder is Stado's job, not this script's.
+// Reaching the holder was Stado's job, and the job no longer exists.
 //
-// This used to open its own ssh connection, carrying a private key file, a private
-// known_hosts, a port and an absolute remote path -- six environment variables
-// describing a channel that exists nowhere in the registry. That is the same action
-// with the audit trail removed: nothing recorded who reached which machine to capture
-// a two-factor code, and the hand-written address is exactly what went stale. `stado
-// host run-helper` reaches the same machine through the channel the fleet already
-// authenticates, logs and owns.
+// This script once opened its own ssh connection, carrying a private key file, a
+// private known_hosts, a port and an absolute remote path -- six environment variables
+// describing a channel that exists nowhere in the registry. That was the same action
+// with the audit trail removed, so it was replaced by `stado host run-helper`, which
+// the fleet authenticated, logged and owned. That subcommand was then removed, on
+// 2026-08-18, by commit f1e6c081, "Remove the host helper channel".
 //
-// The helper is a basename under the target's owner-only Stado directory and the
-// guard id travels as a UUID, which is the only argument shape that channel carries.
-// Nothing here can name a path on the remote machine any more. The deadline is left
-// to Stado, which already bounds the helper: two timeouts for one call would only
-// disagree about which of them ended it.
+// Every host in the fleet now runs a Stado built after that date, so the relay did not
+// degrade: it exited with `unrecognized subcommand 'run-helper'` while reporting a
+// helper that had never been asked anything. Neither predecessor is coming back here.
+// A hand-rolled ssh path is what the registry exists to prevent, and a retired
+// subcommand cannot be called.
 //
-// The helper basename and the target name are validated by Stado, which owns both:
-// it resolves the target against the registry and refuses a helper name that is not a
-// safe basename. Re-checking them here would be a second opinion that can only drift
-// from the one actually enforced.
-const helper = process.env.APPLE_2FA_RELAY_HELPER ?? 'apple-challenge-capture';
+// What survives is placement. The prompt appears on the machines Apple trusts, and it
+// can only be read by a process inside the GUI session those machines are logged into.
+// So the capture runs where the account is signed in, or it does not run: this script
+// is reached only when the holder is some OTHER host than the one executing, and that
+// arrangement has no way to move the six digits between the two.
+//
+// Refuse with both names, because the pair is the whole diagnosis: an operator who
+// knows which host holds the account and which host is running can either sign the
+// account into the running host's automated session, or place the trajectory on the
+// holder. A generic failure sentence sends them to read this file instead.
 const host = appleAccountHolder(process.env.APPLE_2FA_ACCOUNT_IDENTITY ?? '');
 
 await assertAppleAuthChallengeOpen(guardId, accountId, actionLogId);
 
-const stado = stadoBinary();
-const result = spawnSync(stado, [
-  'host', 'run-helper', host, helper, '--uuid', guardId, '--json',
-], { cwd: process.cwd(), env: process.env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
-if (result.error || result.status) throw new Error('Trusted Mac relay command failed closed');
-let report;
-try { report = JSON.parse(result.stdout); } catch { throw new Error('Stado returned an unreadable relay report'); }
-if (!report || report.status !== 'completed') {
-  throw new Error('Stado reported the trusted Mac relay helper did not complete');
-}
-let acknowledgement;
-try { acknowledgement = JSON.parse(report.stdout); } catch { throw new Error('Trusted Mac relay returned invalid acknowledgement'); }
-if (!acknowledgement || acknowledgement.status !== 'stored'
-    || acknowledgement.resource !== `challenge:apple/${guardId}`) {
-  throw new Error('Trusted Mac relay did not confirm the exact Apple challenge resource');
-}
-await recordAppleAuthChallengeCaptured(guardId, actionLogId);
-console.log(JSON.stringify({ status: 'stored', resource: acknowledgement.resource }));
+throw new Error(
+  `Apple two-factor capture must run on the host that holds the account. `
+  + `${host} holds ${process.env.APPLE_2FA_ACCOUNT_IDENTITY ?? '(no identity given)'} `
+  + `and this trajectory is running on ${thisRegistryHost()}. `
+  + `Stado's host helper channel, which used to carry the capture between them, was `
+  + `removed on 2026-08-18 in commit f1e6c081; nothing replaced it. Either place this `
+  + `trajectory on ${host}, or sign the account into the automated GUI session of the `
+  + `host that runs it.`,
+);
