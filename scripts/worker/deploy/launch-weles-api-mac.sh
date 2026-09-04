@@ -35,9 +35,11 @@ fi
 # broker below.
 export SKARBIEC_WORKLOAD_ID="${SKARBIEC_WORKLOAD_ID:-weles-credential-worker-local}"
 unset SEMANTIC_SCHOLAR_API_KEY S2_API_KEY || true
-# The fleet Stado config owns the canonical Skarbiec authority. Reading several
-# local ports silently selected an obsolete vault when more than one broker was
-# present, so Brama and Weles acquired different values for the same item.
+# The fleet service directory owns the canonical Skarbiec authority. Reading an
+# agent-ingress URL here sent a same-host workload out through Caddy and made
+# the Weles startup path disagree with every local Stado verifier. Resolve this
+# caller's declared endpoint instead; it is the stable release proxy and never
+# a scan or fallback to a second vault.
 STADO_BIN="${STADO_BIN:-$HOME/.stado/bin/stado}"
 if [ ! -x "$STADO_BIN" ]; then
   printf 'required Stado binary is unavailable: %s\n' "$STADO_BIN" >&2
@@ -48,14 +50,14 @@ if [ ! -x "$NODE_BIN" ]; then
   printf 'required Node runtime is unavailable: %s\n' "$NODE_BIN" >&2
   exit 1
 fi
-WC_SKARBIEC_URL="$("$STADO_BIN" config show | "$NODE_BIN" -e '
-  const config = JSON.parse(require("node:fs").readFileSync(0, "utf8"));
-  const value = config?.resolved?.agent_skarbiec_url;
+WC_SKARBIEC_URL="$("$STADO_BIN" service directory endpoint skarbiec --json | "$NODE_BIN" -e '
+  const endpoint = JSON.parse(require("node:fs").readFileSync(0, "utf8"));
+  const value = endpoint?.url;
   if (typeof value !== "string" || value.length === 0) process.exit(1);
   process.stdout.write(value);
 ')"
 if [ -z "$WC_SKARBIEC_URL" ]; then
-  printf 'fleet Stado config has no agent_skarbiec_url\n' >&2
+  printf 'fleet service directory has no Skarbiec endpoint for this host\n' >&2
   exit 1
 fi
 export WC_SKARBIEC_URL
@@ -171,7 +173,7 @@ fi
 # nothing - so trajectories reached a path that connect() refused. The
 # socket is this launcher's to own, so the launcher clears it.
 rm -f "$SKARBIEC_CAP_SOCKET"
-"$HOME/.stado/bin/skarbiec" capability-serve --socket "$SKARBIEC_CAP_SOCKET" &
+"${SKARBIEC_BIN:-$HOME/.stado/bin/skarbiec}" capability-serve --socket "$SKARBIEC_CAP_SOCKET" &
 capability_broker_pid=$!
 # Starting the API server before the broker accepts is a race the API loses
 # once, silently, on the first trajectory that asks for a credential.
