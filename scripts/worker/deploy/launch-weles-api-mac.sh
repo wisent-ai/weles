@@ -61,6 +61,30 @@ if [ -z "$WC_SKARBIEC_URL" ]; then
   exit 1
 fi
 export WC_SKARBIEC_URL
+# The capability broker must come from the same signed release state Stado
+# already committed for this host. Refuse startup rather than falling back to a
+# mutable convenience path that can belong to a different Skarbiec generation.
+if ! skarbiec_release="$("$STADO_BIN" release active-binary skarbiec --json)"; then
+  printf 'Stado has no attested active Skarbiec binary for this host\n' >&2
+  exit 1
+fi
+if ! SKARBIEC_BIN="$(printf '%s' "$skarbiec_release" | "$NODE_BIN" -e '
+  const active = JSON.parse(require("node:fs").readFileSync(0, "utf8"));
+  const value = active?.path;
+  if (active?.state !== "active" || typeof value !== "string" || !value.startsWith("/")) {
+    process.exit(1);
+  }
+  process.stdout.write(value);
+')"; then
+  printf 'Stado returned an invalid active Skarbiec release record\n' >&2
+  exit 1
+fi
+unset skarbiec_release
+if [ ! -x "$SKARBIEC_BIN" ]; then
+  printf 'attested active Skarbiec binary is not executable: %s\n' "$SKARBIEC_BIN" >&2
+  exit 1
+fi
+export SKARBIEC_BIN
 # Resolve the repository from this launcher's immutable release tree. Keeping a
 # second build-work copy made the API server and its trajectories lag the
 # release that launchd had activated.
@@ -173,7 +197,7 @@ fi
 # nothing - so trajectories reached a path that connect() refused. The
 # socket is this launcher's to own, so the launcher clears it.
 rm -f "$SKARBIEC_CAP_SOCKET"
-"${SKARBIEC_BIN:-$HOME/.stado/bin/skarbiec}" capability-serve --socket "$SKARBIEC_CAP_SOCKET" &
+"$SKARBIEC_BIN" capability-serve --socket "$SKARBIEC_CAP_SOCKET" &
 capability_broker_pid=$!
 # Starting the API server before the broker accepts is a race the API loses
 # once, silently, on the first trajectory that asks for a credential.
