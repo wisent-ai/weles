@@ -1,11 +1,8 @@
 // Canonical Apple ID login. Three one-use Skarbiec capabilities permit the
 // email, password and 2FA operations; Stado owns execution and placement.
 
-import { spawnSync } from 'node:child_process';
-import { statSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
 import { WSession } from '../../../dist/session/wsession.js';
-import { cancelCapability, withCapability, withCapabilityPendingRetry } from '../../../dist/utils/capability.js';
+import { cancelCapability, withCapability } from '../../../dist/utils/capability.js';
 import { parseAppleLoginCapabilities } from '../../../dist/utils/apple-login-capabilities.js';
 import { completeAppleNativeTwoFactorChallenge } from './native_2fa/native_2fa.mjs';
 import { getSocialAccount } from '../../../dist/utils/credentials.js';
@@ -26,7 +23,6 @@ if (!ACCOUNT_PATTERN.test(accountId)) throw new Error('[apple-login] WELES_LOGIN
 if (!JOB_PATTERN.test(actionLogId)) throw new Error('[apple-login] ACTION_LOG_ID must be a Stado job id');
 
 const LOGIN_URL = 'https://appstoreconnect.apple.com/login?targetUrl=%2Fapps&authResult=FAILED';
-const challengeResource = `challenge:apple/${guardId}`;
 let capabilities = null;
 let capabilityRefs = [];
 
@@ -65,37 +61,6 @@ async function cancelSessionCapabilities() {
   if (failures.length > 0) throw new Error(`capability cleanup unconfirmed: ${failures.join('; ')}`);
 }
 
-function requestTrustedMacChallengeRelay() {
-  const command = fileURLToPath(new URL('../../auth/request-apple-challenge-relay.mjs', import.meta.url));
-  const stat = statSync(command);
-  if (!stat.isFile() || (stat.mode & 0o022) !== 0
-      || (typeof process.getuid === 'function' && stat.uid !== process.getuid())) {
-    throw new Error('the Apple challenge relay must be a non-writable file owned by the worker');
-  }
-  const result = spawnSync(process.execPath, [
-    command,
-    '--guard-id', guardId,
-    '--account-id', accountId,
-    '--action-log-id', actionLogId,
-  ], {
-    cwd: process.cwd(),
-    env: process.env,
-    encoding: 'utf8',
-    timeout: Number(process.env.WELES_APPLE_2FA_RELAY_TIMEOUT_MS ?? '75000'),
-    maxBuffer: 64 * 1024,
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
-  if (result.error || result.status !== 0) throw new Error('Trusted Mac Apple challenge relay failed closed');
-  let acknowledgement;
-  try { acknowledgement = JSON.parse(result.stdout); } catch {
-    throw new Error('Trusted Mac Apple challenge relay returned invalid acknowledgement');
-  }
-  if (!acknowledgement || acknowledgement.status !== 'stored'
-      || acknowledgement.resource !== `challenge:apple/${guardId}`) {
-    throw new Error('Trusted Mac Apple challenge relay did not confirm the active authorization resource');
-  }
-}
-
 
 console.log(`[apple-login] canonical one-attempt login for account ${accountId}`);
 let passwordSubmitted = false;
@@ -105,6 +70,28 @@ let dashboardPostcondition = '';
 let s = null;
 try {
   capabilities = parseAppleLoginCapabilities(process.env.APPLE_LOGIN_CAPABILITIES_JSON, guardId);
+  // Whether this run can finish is decided before Apple is asked anything.
+  //
+  // The six digits are delivered into the session of the macOS user signed into the
+  // account, so a run placed anywhere else has to be handed them by another machine.
+  // Stado carried that hand-off as `host run-helper` and removed it on 2026-08-18 in
+  // f1e6c081; nothing replaced it. Discovering that at the 2FA step is too late: the
+  // password has been submitted by then, and a submitted attempt that cannot be
+  // completed is exactly the sequence that gets an Apple ID locked.
+  const preflightAccount = await getSocialAccount('apple');
+  const preflightIdentity = (preflightAccount?.metadata?.email ?? preflightAccount?.username ?? '').trim();
+  const preflightRelay = appleChallengeRelayTarget(preflightIdentity);
+  if (preflightRelay) {
+    throw new Error(
+      `[apple-login] ${preflightIdentity} is signed in on ${preflightRelay}, not on the host `
+      + `running this trajectory, and no channel carries a two-factor code between hosts `
+      + `since Stado removed the host helper channel on 2026-08-18 (f1e6c081). Place this `
+      + `run on ${preflightRelay}, whose GUI session `
+      + `\`stado identity verify --kind apple-account --identity ${preflightIdentity}\` `
+      + `must report as drivable. Refusing before submitting a password, because a `
+      + `sign-in attempt that cannot be completed is how this account gets locked.`,
+    );
+  }
   capabilityRefs = [
     capabilities.email,
     capabilities.password,
@@ -237,24 +224,14 @@ try {
   if (postPasswordState === 'timeout') throw new Error('Timed out waiting for Apple dashboard or 2FA challenge');
 
   if (postPasswordState === 'two_factor') {
-    const account = await getSocialAccount('apple');
-    const relayTarget = appleChallengeRelayTarget((account?.metadata?.email ?? account?.username ?? '').trim());
-    const twoFactorOptions = {
+    // Reached only on the host that holds the account: the preflight above refuses
+    // every other placement before a password is submitted. So the code is captured
+    // from this machine's own notification, and there is no relayed-code branch to
+    // choose between -- the one that used to be here waited on a channel that no
+    // longer exists.
+    const twoFactor = await completeAppleNativeTwoFactorChallenge(s, frame, {
       logPrefix: '[apple-login]',
-      ...(relayTarget ? {
-        nativeOnly: true,
-        withCode: (consume) => withCapabilityPendingRetry(capabilities.two_factor.capability, {
-          purpose: 'weles.apple.2fa',
-          resource: challengeResource,
-          authorization_id: guardId,
-        }, async (code) => consume(code), {
-          timeoutMs: Number(process.env.WELES_APPLE_2FA_PENDING_TIMEOUT_MS ?? '120000'),
-          intervalMs: Number(process.env.WELES_APPLE_2FA_PENDING_INTERVAL_MS ?? '1000'),
-        }),
-      } : {}),
-    };
-    if (relayTarget) requestTrustedMacChallengeRelay();
-    const twoFactor = await completeAppleNativeTwoFactorChallenge(s, frame, twoFactorOptions);
+    });
     if (!twoFactor.ok) throw new Error(`Apple 2FA did not complete (${twoFactor.source || 'unknown source'})`);
   }
 
