@@ -7,6 +7,7 @@ host="charless-mac-mini"
 version="0.5.56"
 source_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 trust_file=""
+generate_credential=no
 while [ "$#" -gt 0 ]; do
   case "$1" in
     prepare|activate)
@@ -25,6 +26,9 @@ while [ "$#" -gt 0 ]; do
     --spis-trust-file)
       trust_file="$2"; shift
       ;;
+    --generate-credential)
+      generate_credential=yes
+      ;;
     *)
       printf 'unknown argument: %s\n' "$1" >&2
       exit 2
@@ -33,7 +37,7 @@ while [ "$#" -gt 0 ]; do
   shift
 done
 [ "$mode" = "prepare" ] || [ "$mode" = "activate" ] || {
-  printf 'usage: %s prepare|activate --spis-trust-file PATH [--host HOST] [--version VERSION] [--source WELES_CHECKOUT]\n' "$0" >&2
+  printf 'usage: %s prepare|activate --spis-trust-file PATH [--host HOST] [--version VERSION] [--source WELES_CHECKOUT] [--generate-credential]\n' "$0" >&2
   exit 2
 }
 [ -n "$trust_file" ] || { printf '%s\n' '--spis-trust-file is required' >&2; exit 2; }
@@ -59,6 +63,19 @@ cleanup() { rm -rf "$temporary"; }
 trap cleanup EXIT HUP INT TERM
 service_snapshot="${WELES_PUBLIC_SERVICE_DIRECTORY_FILE:-$HOME/.stado/forwards/weles-admission.directory.json}"
 
+# This reads the credential store of the machine running the script and writes
+# to TARGET's vault, which are the same store only when the two are the same
+# machine. Run from an operator laptop against charless-mac-mini on 2026-09-03
+# the listing was empty, the generator ran, and `vault-item-put` carried a
+# freshly minted authority to the host - `skarbiec set-json`, so a new revision
+# over whatever was there. That first run was the provisioning this fleet
+# needed; the second would silently replace a key set Spis had been told to
+# trust, and receipts signed under the old one would verify against nothing.
+#
+# Absence in a store that is not the target's proves nothing, so generating is
+# refused unless the operator says the target has no credential, in one word,
+# on the command line.
+self_target="$("$stado" registry self 2>/dev/null | /usr/bin/awk 'NR==1 {print $1}')"
 "$stado" credentials ls --json >"$temporary/credentials.json"
 credential_present=0
 if "$node" "$reconciler" credential-present "$temporary/credentials.json"; then
@@ -67,12 +84,23 @@ else
   result=$?
   [ "$result" -eq 3 ] || exit "$result"
 fi
+if [ "$credential_present" -eq 0 ] && [ "$self_target" != "$host" ] && [ "$generate_credential" != yes ]; then
+  printf 'weles-spis-public-admission is absent from this machine'"'"'s credential store, which is not %s'"'"'s vault.\n' "$host" >&2
+  printf 'Generating now would write a new authority over whatever %s already holds. Re-run with --generate-credential\n' "$host" >&2
+  printf 'only if that host has none, or run this script on %s where the store it reads is the store it writes.\n' "$host" >&2
+  exit 2
+fi
 if [ "$credential_present" -eq 0 ]; then
   "$node" "$generator" \
     | "$stado" host vault-item-put "$host" weles-spis-public-admission --type internal-authority --json \
       >"$temporary/vault-put.json"
-  "$stado" credentials ls --json >"$temporary/credentials-after.json"
-  "$node" "$reconciler" credential-present "$temporary/credentials-after.json"
+  # Not re-read through the local listing: on a foreign target that listing
+  # cannot see the write, and calling a completed provisioning a failure is how
+  # this script exited 3 after doing exactly what it was asked to do.
+  if [ "$self_target" = "$host" ]; then
+    "$stado" credentials ls --json >"$temporary/credentials-after.json"
+    "$node" "$reconciler" credential-present "$temporary/credentials-after.json"
+  fi
 fi
 
 "$stado" credentials get weles-spis-public-admission --field organization_id >"$temporary/organization-id"
