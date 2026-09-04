@@ -89,6 +89,10 @@ function openssl(argv, input) {
   return result.stdout;
 }
 
+function shellQuote(value) {
+  return `'${String(value).replaceAll("'", "'\\''")}'`;
+}
+
 function stadoMachine(argv) {
   const result = spawnSync(stado, ['machine', ...argv], {
     encoding: 'utf8',
@@ -197,6 +201,7 @@ mkdirSync(workRoot, { recursive: true, mode: 0o700 });
 const scratch = mkdtempSync(join(workRoot, 'developer-id-csr-'));
 let queued = null;
 let keyWritten = false;
+let submissionStarted = false;
 try {
   // Keypair and request here; only the request travels.
   const keyPath = join(scratch, 'key.pem');
@@ -239,8 +244,9 @@ try {
     `printf 'CERTIFICATE_BASE64='; base64 < ${remoteBase}/certificate.cer | tr -d '\\n'; printf '\\n'`,
   ].join('; ');
 
+  submissionStarted = true;
   const submit = spawnSync(stado, [
-    'submit', `sh -lc ${JSON.stringify(command)}`,
+    'submit', `sh -lc ${shellQuote(command)}`,
     '--priority', '0', '--pinned-host', executionHost,
   ], { encoding: 'utf8', maxBuffer: 1024 * 1024, env: { ...process.env, HOME: homedir() } });
   if (submit.error || submit.status !== 0) {
@@ -264,7 +270,7 @@ try {
     certificate: certOut,
   }, null, 2));
 } catch (error) {
-  if (keyWritten && queued === null) {
+  if (keyWritten && !submissionStarted) {
     rmSync(keyOut, { force: true });
   }
   if (capabilities) {
