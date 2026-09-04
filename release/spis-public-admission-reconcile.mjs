@@ -82,15 +82,27 @@ function reconcileRegistry(source, destination, expectedHost, version, sourceRev
     endpoint.url = endpointUrl.toString().replace(/\/$/, '');
     changed = true;
   }
+  // Release identity belongs to the ENDPOINT, not to the service.
+  //
+  // `registry validate` refused these two fields at service level -- the
+  // schema's `ServiceDirectoryEntry` names exactly `placement_profile`,
+  // `managed_service`, `active_host`, `endpoints`, `standby`, `consumers`,
+  // `verify` and `declaration` -- while `ServiceEndpoint` carries `url` plus a
+  // flattened extra map. So the schema already says where this goes, and it
+  // says the right thing: what is running is a property of the address a
+  // consumer is handed, and a service with a standby endpoint would otherwise
+  // have one release id for two different processes.
   const releaseId = `weles-worker@${version}`;
-  if (service.release_id !== releaseId) {
-    service.release_id = releaseId;
+  if (endpoint.release_id !== releaseId) {
+    endpoint.release_id = releaseId;
     changed = true;
   }
-  if (service.source_revision !== sourceRevision) {
-    service.source_revision = sourceRevision;
+  if (endpoint.source_revision !== sourceRevision) {
+    endpoint.source_revision = sourceRevision;
     changed = true;
   }
+  delete service.release_id;
+  delete service.source_revision;
   if (!service.consumers) {
     service.consumers = {};
     changed = true;
@@ -226,7 +238,9 @@ function publishServiceSnapshot(registryPath, destination, expectedHost) {
       || url.pathname !== '/api/v1' || url.toString() !== endpoint.url) {
     throw new Error('published weles-admission endpoint must be the exact /api/v1 base URL');
   }
-  if (typeof service.release_id !== 'string' || typeof service.source_revision !== 'string') {
+  // Same place the plan writes it: on the endpoint, which is where the
+  // registry schema keeps per-address facts.
+  if (typeof endpoint.release_id !== 'string' || typeof endpoint.source_revision !== 'string') {
     throw new Error('published weles-admission release identity is incomplete');
   }
   writeJson(destination, {
@@ -237,8 +251,8 @@ function publishServiceSnapshot(registryPath, destination, expectedHost) {
       active_host: expectedHost,
       endpoint: endpoint.url,
       action: 'generic_browser_task',
-      release_id: service.release_id,
-      source_revision: service.source_revision,
+      release_id: endpoint.release_id,
+      source_revision: endpoint.source_revision,
     },
   });
 }
