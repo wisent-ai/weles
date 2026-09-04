@@ -1,7 +1,7 @@
 {
   "schema": "weles.version-change.v1",
-  "current": "0.5.66",
-  "candidate": "0.5.67",
+  "current": "0.5.67",
+  "candidate": "0.5.68",
   "breaking": false,
-  "reason": "0.5.67 routes Weles agent control through the registry-owned weles/agent/primary alias so local inference can carry browser work when subscription providers require reauthorization."
+  "reason": "0.5.68 routes Weles agent control through the registry-owned weles/agent/primary alias; 0.5.67 was already reserved by a different immutable source coordinate."
 }
