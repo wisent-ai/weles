@@ -38,6 +38,16 @@ if [[ "${WELES_AUTO_DEPLOY_ENABLED:-true}" != "true" ]]; then
   exit 0
 fi
 
+# A host that has adopted the Stado-managed admission service has one release
+# owner already. The legacy deployer used to rewrite $HOME/weles back to its
+# older pin and kill the managed process on port 8788 on every launchd
+# KeepAlive tick, so two healthy jobs manufactured a continuous outage.
+managed_admission_current="$HOME/.stado/services/weles-admission/current"
+if [[ -L "$managed_admission_current" || -d "$managed_admission_current" ]]; then
+  log "superseded: Stado-managed weles-admission owns $managed_admission_current"
+  exit 0
+fi
+
 # Legacy Semantic Scholar follow-up versions copied API keys into the GUI
 # launchd environment. Remove both aliases before any worker bootstrap so
 # third-party credentials cannot be inherited by unrelated long-lived jobs.

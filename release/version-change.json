@@ -1,7 +1,7 @@
 {
   "schema": "weles.version-change.v1",
-  "current": "0.5.64",
-  "candidate": "0.5.67",
+  "current": "0.5.68",
+  "candidate": "0.5.69",
   "breaking": false,
-  "reason": "0.5.67 cuts every Weles Skarbiec caller over to Stado's service directory and attested active release, removes alternate authorities and obsolete launch paths, and preserves the public API surface; 0.5.65 and 0.5.66 were already spent by concurrent release attempts."
+  "reason": "0.5.69 combines the 0.5.68 registry-owned weles/agent/primary routing change with the managed Skarbiec authority cutover from 0.5.67, preserving both immutable source histories while advancing beyond the spent coordinates."
 }

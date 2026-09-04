@@ -144,7 +144,7 @@ export WELES_PUBLIC_API_ALLOWED_ORIGINS='*'
 mkdir -p "$HOME/weles/var"
 # Set unconditionally: the unit's plist injects this variable, so a default
 # expression would never win. This is the alias Brama serves.
-export WELES_AGENT_MODEL=best
+export WELES_AGENT_MODEL=weles/agent/primary
 export STADO_MODEL_ROUTER_URL='http://127.0.0.1:17601'
 export STADO_API_URL='http://127.0.0.1:17603'
 export STADO_API_TOKEN="$WELES_STADO_OBJECT_API_TOKEN"
