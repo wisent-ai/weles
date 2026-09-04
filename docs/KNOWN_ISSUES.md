@@ -50,7 +50,8 @@ The strict gate exists only in:
 
 ## 3. Skarbiec Routing Is Directory-Owned
 
-**Status:** Resolved in 0.5.65.
+**Status:** Source-fixed for the 0.5.67 candidate; host cutover remains pending
+activation under the corrected signed Stado release.
 
 Weles startup resolves its exact Skarbiec endpoint from Stado's service
 directory and exports it as `WC_SKARBIEC_URL`. Acquisition accepts only that

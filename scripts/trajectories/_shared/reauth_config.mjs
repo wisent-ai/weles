@@ -17,9 +17,10 @@ import { existsSync, readFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { activeSkarbiecBinary } from '../../_shared/skarbiec-runtime.mjs';
 
 const HOME = os.homedir();
-const SKARBIEC = process.env.SKARBIEC_BIN ?? path.join(HOME, '.stado', 'bin', 'skarbiec');
+const SKARBIEC = activeSkarbiecBinary();
 const VAULT = process.env.SKARBIEC_VAULT_FILE ?? path.join(HOME, '.stado', 'skarbiec.vault.json');
 const STADO = process.env.STADO_BIN ?? path.join(HOME, '.stado', 'bin', 'stado');
 // What a row must carry. The signing secret is deliberately not here: it belongs

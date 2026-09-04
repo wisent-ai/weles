@@ -1,9 +1,8 @@
 #!/usr/bin/env node
 import { randomUUID } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
-import { homedir } from 'node:os';
-import { join } from 'node:path';
 import { enqueueWelesAction } from '../_shared/stado-action-queue.mjs';
+import { activeSkarbiecBinary } from '../_shared/skarbiec-runtime.mjs';
 
 const accountItem = process.env.APPLE_ACCOUNT_ITEM ?? '';
 const csrPath = process.env.APPLE_CSR_PATH ?? '';
@@ -15,7 +14,7 @@ for (const [name, value] of [['APPLE_CSR_PATH', csrPath], ['APPLE_CERTIFICATE_PA
   if (!value) throw new Error(`${name} is required`);
 }
 const guardId = randomUUID();
-const skarbiec = process.env.SKARBIEC_BIN || join(homedir(), '.stado', 'bin', 'skarbiec');
+const skarbiec = activeSkarbiecBinary();
 const issued = [];
 function capability(purpose, resource) {
   const result = spawnSync(skarbiec, ['capability-issue', '--agent', executionAgent, '--purpose', purpose, '--resource', resource, '--target', 'weles', '--ttl', '3600', '--max-uses', '1', '--authorization-id', guardId], { encoding: 'utf8', env: process.env });

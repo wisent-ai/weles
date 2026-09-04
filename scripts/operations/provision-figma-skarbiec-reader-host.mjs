@@ -2,6 +2,7 @@
 import { spawnSync } from 'node:child_process';
 import { chmodSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
+import { activeSkarbiecBinary } from '../_shared/skarbiec-runtime.mjs';
 
 const consumer = 'weles-figma-design-assets-exporter';
 const capability = 'acquire:weles-figma-personal-access-token#api_key';
@@ -9,7 +10,7 @@ const privateKey = process.env.SKARBIEC_WORKLOAD_SIGNING_KEY_FILE;
 if (!privateKey) throw new Error('Skarbiec workload signing key is missing');
 const publicKey = join(process.env.HOME, '.stado', `figma-export-workload-public-${process.pid}.pem`);
 const openssl = '/opt/homebrew/opt/openssl@3/bin/openssl';
-const skarbiec = join(process.env.HOME, '.stado', 'bin', 'skarbiec');
+const skarbiec = activeSkarbiecBinary();
 try {
   const publicResult = spawnSync(openssl, [
     'pkey', '-in', privateKey, '-pubout', '-out', publicKey,

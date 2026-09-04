@@ -19,28 +19,14 @@ set +a
 
 STADO_BIN="${STADO_BIN:-$HOME/.stado/bin/stado}"
 NODE_BIN="${NODE_BIN:-/opt/homebrew/bin/node}"
+export STADO_BIN
 if [[ ! -x "$STADO_BIN" || ! -x "$NODE_BIN" ]]; then
   echo "missing Stado or Node for attested Skarbiec resolution" >&2
   exit 1
 fi
-if ! skarbiec_release="$("$STADO_BIN" release active-binary skarbiec --json)"; then
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+if ! SKARBIEC_BIN="$("$NODE_BIN" "$script_dir/../../_shared/skarbiec-runtime.mjs" active-binary)"; then
   echo "Stado has no attested active Skarbiec binary for this host" >&2
-  exit 1
-fi
-if ! SKARBIEC_BIN="$(printf '%s' "$skarbiec_release" | "$NODE_BIN" -e '
-  const active = JSON.parse(require("node:fs").readFileSync(0, "utf8"));
-  const value = active?.path;
-  if (active?.state !== "active" || typeof value !== "string" || !value.startsWith("/")) {
-    process.exit(1);
-  }
-  process.stdout.write(value);
-')"; then
-  echo "Stado returned an invalid active Skarbiec release record" >&2
-  exit 1
-fi
-unset skarbiec_release
-if [[ ! -x "$SKARBIEC_BIN" ]]; then
-  echo "attested active Skarbiec binary is not executable" >&2
   exit 1
 fi
 

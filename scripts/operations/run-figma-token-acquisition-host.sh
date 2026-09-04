@@ -18,9 +18,8 @@ fi
 set -a
 . "$worker_env"
 set +a
-export WC_SKARBIEC_URL="${WC_SKARBIEC_URL:-http://127.0.0.1:17602}"
-export WELES_CREDENTIAL_SKARBIEC_URL="${WELES_CREDENTIAL_SKARBIEC_URL:-$WC_SKARBIEC_URL}"
-export WELES_SKARBIEC_URL="$WELES_CREDENTIAL_SKARBIEC_URL"
+WC_SKARBIEC_URL=$(/opt/homebrew/bin/node "$runtime/scripts/_shared/skarbiec-runtime.mjs" endpoint)
+export WC_SKARBIEC_URL
 export SKARBIEC_WELES_READER_ACQUIRE_COMMAND="$runtime/scripts/worker/deploy/skarbiec-acquire.mjs"
 export SKARBIEC_WELES_ACQUISITION_SCOPES_FILE="$runtime/scripts/worker/deploy/skarbiec-acquisition-scopes.conf"
 export SKARBIEC_WELES_WRITER_COMMAND="$runtime/scripts/worker/deploy/skarbiec-write.mjs"

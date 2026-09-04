@@ -47,21 +47,20 @@ export async function isEndpointListening(urlString, timeoutMs = 1000) {
  * built-in address: a missing declaration is a startup error, not permission to
  * select a second authority.
  *
- * @returns {Promise<{resolved: {url, source, sourceDetail, isListening}|null, candidates: Array, wasExplicitOverride: boolean}>}
+ * @returns {Promise<{resolved: {url, isListening}|null}>}
  */
 export async function resolveSkarbiecEndpoint() {
   const envUrl = process.env.WC_SKARBIEC_URL?.trim();
   if (!envUrl) {
-    return { resolved: null, candidates: [], wasExplicitOverride: false };
+    return { resolved: null };
   }
 
-  const resolved = {
-    url: envUrl,
-    source: 'environment',
-    sourceDetail: 'WC_SKARBIEC_URL environment variable',
-    isListening: await isEndpointListening(envUrl),
+  return {
+    resolved: {
+      url: envUrl,
+      isListening: await isEndpointListening(envUrl),
+    },
   };
-  return { resolved, candidates: [resolved], wasExplicitOverride: true };
 }
 
 /**
@@ -70,9 +69,5 @@ export async function resolveSkarbiecEndpoint() {
  * @returns {string} Formatted error message
  */
 export function formatEndpointErrorMessage(info) {
-  const sourceLabel = `environment variable (${info.sourceDetail.split(' ')[0]})`;
-
-  const listeningStatus = info.isListening ? 'listening' : 'not listening';
-
-  return `Skarbiec endpoint at ${info.url} (from ${sourceLabel}) is ${listeningStatus}`;
+  return `Skarbiec endpoint at ${info.url} (from Stado service directory via WC_SKARBIEC_URL) is ${info.isListening ? 'listening' : 'not listening'}`;
 }

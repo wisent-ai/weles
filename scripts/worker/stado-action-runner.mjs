@@ -3,6 +3,7 @@
 import { spawn } from 'node:child_process';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { skarbiecDirectoryEndpoint } from '../_shared/skarbiec-runtime.mjs';
 
 const encoded = process.argv[2] || '';
 if (!/^[A-Za-z0-9_-]+$/.test(encoded)) throw new Error('one base64url action payload is required');
@@ -30,6 +31,7 @@ const env = {
   ...paramsToEnv(params, payload.action, trajectory),
   WSESSION_LABEL: payload.action,
   ACTION_LOG_ID: process.env.WC_JOB_ID || process.env.STADO_JOB_ID || '',
+  WC_SKARBIEC_URL: skarbiecDirectoryEndpoint(),
 };
 const child = spawn(process.execPath, [trajectory], { cwd: repo, env, stdio: 'inherit' });
 const signal = (name) => {

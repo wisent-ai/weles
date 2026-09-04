@@ -3,11 +3,12 @@ import { execFile } from 'node:child_process';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { promisify } from 'node:util';
+import { activeSkarbiecBinary } from '../../scripts/_shared/skarbiec-runtime.mjs';
 
 const exec = promisify(execFile);
 const repo = resolve(process.env.WELES_TEST_REPO || process.cwd());
 const home = homedir();
-const skarbiec = join(home, '.stado/bin/skarbiec');
+const skarbiec = activeSkarbiecBinary();
 const stado = join(home, '.stado/bin/stado');
 const vault = join(home, '.stado/skarbiec.vault.json');
 const bridge = join(repo, 'scripts/worker/deploy/weles-skarbiec-local.mjs');

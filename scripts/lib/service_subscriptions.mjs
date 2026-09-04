@@ -2,8 +2,9 @@
 import { execFileSync } from 'node:child_process';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { activeSkarbiecBinary } from '../_shared/skarbiec-runtime.mjs';
 
-const SKARBIEC = process.env.SKARBIEC_BIN ?? join(homedir(), '.stado', 'bin', 'skarbiec');
+const SKARBIEC = activeSkarbiecBinary();
 const VAULT = process.env.SKARBIEC_VAULT_FILE ?? join(homedir(), '.stado', 'skarbiec.vault.json');
 const run = (args, input) => execFileSync(SKARBIEC, args, {
   input,

@@ -3,17 +3,23 @@
 import { lstatSync, readFileSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
 
-const [endpointText, consumer, item, field, tokenFile, operation, operationId] =
+const [consumer, item, field, tokenFile, operation, operationId, ...extraArgs] =
   process.argv.slice(Number('2'));
 const exactName = /^[A-Za-z\d._-]+$/;
-if (!endpointText || !consumer || !item || !field || !tokenFile || !operation || !operationId
+if (extraArgs.length > Number('0')
+    || !consumer || !item || !field || !tokenFile || !operation || !operationId
     || !exactName.test(consumer) || !exactName.test(item) || !exactName.test(field)
     || !['acquire', 'adopt', 'rotate', 'reset', 'verify', 'rollback'].includes(operation)
     || !/^[a-f\d]{64}$/i.test(operationId) || !isAbsolute(tokenFile)) {
   throw new Error(
-    'usage: skarbiec-write.mjs <endpoint> <consumer> <item> <field> <absolute-token-file> <operation> <operation-id>'
+    'usage: skarbiec-write.mjs <consumer> <item> <field> <absolute-token-file> <operation> <operation-id>'
   );
 }
+const endpointText = process.env.WC_SKARBIEC_URL?.trim();
+if (!endpointText) {
+  throw new Error('WC_SKARBIEC_URL is required from the Stado service directory');
+}
+
 
 const endpoint = new URL(endpointText);
 const loopback = new Set(['localhost', '127.0.0.1', '::1', '[::1]']).has(endpoint.hostname);

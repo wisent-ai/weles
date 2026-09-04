@@ -22,9 +22,10 @@ if [ -n "${SKARBIEC_WORKLOAD_SIGNING_KEY_FILE:-}" ] && [ -f "$SKARBIEC_WORKLOAD_
     | sed 's/  -$/  workload-public-key/'
 fi
 printf 'capability_state=%s\n' "$HOME/.stado/weles-api-capabilities.json"
+skarbiec=$(/opt/homebrew/bin/node "$HOME/weles/scripts/_shared/skarbiec-runtime.mjs" active-binary)
 printf 'capability_routes=%s\n' "$HOME/.stado/weles-api-capability-routes.json"
 SKARBIEC_VAULT_FILE="$HOME/.stado/skarbiec.vault.json" \
-  "$HOME/.stado/bin/skarbiec" tokens \
+  "$skarbiec" tokens \
   | /opt/homebrew/bin/node -e '
     let input = "";
     process.stdin.on("data", (chunk) => { input += chunk; });
@@ -34,7 +35,7 @@ SKARBIEC_VAULT_FILE="$HOME/.stado/skarbiec.vault.json" \
     });
   '
 SKARBIEC_VAULT_FILE="$HOME/.stado/skarbiec.vault.json" \
-  "$HOME/.stado/bin/skarbiec" list \
+  "$skarbiec" list \
   | /opt/homebrew/bin/node -e '
     let input = "";
     process.stdin.on("data", (chunk) => { input += chunk; });

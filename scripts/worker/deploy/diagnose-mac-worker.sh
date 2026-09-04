@@ -47,9 +47,9 @@ do
 done
 
 printf '\n== launcher path ==\n'
-/bin/ls -ld "$HOME/weles" "$HOME/weles/scripts/worker/deploy/launch-mac.sh" 2>&1
-/usr/bin/grep -E '(WC_SKARBIEC_URL|WELES_CREDENTIAL_SKARBIEC_URL|STADO_(RESOLVER_API_URL|OBJECT_API_URI|API_URL))=' \
-  "$HOME/weles/scripts/worker/deploy/launch-mac.sh" || true
+/bin/ls -ld "$HOME/weles" "$HOME/weles/scripts/worker/deploy/launch-weles-api-mac.sh" 2>&1
+/usr/bin/grep -E '(WC_SKARBIEC_URL|STADO_(RESOLVER_API_URL|OBJECT_API_URI|API_URL))=' \
+  "$HOME/weles/scripts/worker/deploy/launch-weles-api-mac.sh" || true
 
 printf '\n== worker routing settings ==\n'
 if [ -f "$HOME/.config/weles/worker.env" ]; then

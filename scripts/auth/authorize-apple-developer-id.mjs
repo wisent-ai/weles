@@ -22,6 +22,7 @@ import { spawnSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { activeSkarbiecBinary } from '../_shared/skarbiec-runtime.mjs';
 
 const CONFIRMATION_PHRASE = 'AUTHORIZE ONE APPLE DEVELOPER ID';
 const ACTION = 'create_developer_id';
@@ -60,7 +61,7 @@ if (!keyOut.startsWith('/') || !certOut.startsWith('/')) {
 }
 
 const guardId = randomUUID();
-const skarbiec = process.env.SKARBIEC_BIN || join(homedir(), '.stado', 'bin', 'skarbiec');
+const skarbiec = activeSkarbiecBinary();
 const stado = process.env.WELES_STADO_BIN || join(homedir(), '.stado', 'bin', 'stado');
 // Left unexpanded on purpose. The command runs on the worker under the worker's
 // own account, so embedding this machine's home directory would point the job at

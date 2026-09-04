@@ -90,4 +90,11 @@ for (const status of ['queued', 'leased', 'running', 'succeeded', 'failed', 'can
   surface.add(`task-status:${status}`);
 }
 
-process.stdout.write(`${JSON.stringify({ surface: [...surface].sort() }, null, 2)}\n`);
+const versionChange = JSON.parse(await readFile(join(root, 'release/version-change.json'), 'utf8'));
+if (typeof versionChange.current !== 'string' || !versionChange.current) {
+  throw new Error('release version-change declaration has no current version');
+}
+process.stdout.write(`${JSON.stringify({
+  surface: [...surface].sort(),
+  version: versionChange.current,
+}, null, 2)}\n`);

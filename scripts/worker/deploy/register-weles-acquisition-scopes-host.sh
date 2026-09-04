@@ -6,35 +6,22 @@ umask 077
 home=${HOME:?HOME is required}
 stado="${STADO_BIN:-$home/.stado/bin/stado}"
 node="${NODE_BIN:-/opt/homebrew/bin/node}"
+export STADO_BIN="$stado"
 for executable in "$stado" "$node"; do
   [ -x "$executable" ] || {
     printf 'required executable is unavailable: %s\n' "$executable" >&2
     exit 1
   }
 done
-if ! active_release=$("$stado" release active-binary skarbiec --json); then
+runtime_root="$(cd "$(dirname "$0")/../../.." && pwd -P)"
+resolver="$runtime_root/scripts/_shared/skarbiec-runtime.mjs"
+if ! bin=$("$node" "$resolver" active-binary); then
   printf 'Stado has no attested active Skarbiec binary for this host\n' >&2
-  exit 1
-fi
-if ! bin=$(printf '%s' "$active_release" | "$node" -e '
-  const active = JSON.parse(require("node:fs").readFileSync(0, "utf8"));
-  const value = active?.path;
-  if (active?.state !== "active" || typeof value !== "string" || !value.startsWith("/")) {
-    process.exit(1);
-  }
-  process.stdout.write(value);
-'); then
-  printf 'Stado returned an invalid active Skarbiec release record\n' >&2
-  exit 1
-fi
-unset active_release
-if [ ! -x "$bin" ]; then
-  printf 'attested active Skarbiec binary is not executable: %s\n' "$bin" >&2
   exit 1
 fi
 vault="$home/.stado/skarbiec.vault.json"
 private_key="$home/.stado/weles-credential-workload-private.pem"
-catalog="$home/.stado/build-work/weles-api-managed/scripts/worker/deploy/skarbiec-acquisition-scopes.conf"
+catalog="$runtime_root/scripts/worker/deploy/skarbiec-acquisition-scopes.conf"
 openssl="/opt/homebrew/opt/openssl@3/bin/openssl"
 PATH="/opt/homebrew/opt/openssl@3/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 export PATH

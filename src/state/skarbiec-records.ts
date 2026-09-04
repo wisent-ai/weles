@@ -1,6 +1,6 @@
 import { execFileSync, spawnSync } from 'node:child_process';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { isAbsolute, join } from 'node:path';
 
 export interface WelesAccountRecord {
   id: string;
@@ -12,7 +12,16 @@ export interface WelesAccountRecord {
   context: Record<string, any>;
 }
 
-const SKARBIEC = process.env.SKARBIEC_BIN || join(homedir(), '.stado', 'bin', 'skarbiec');
+const SKARBIEC_RESOLVER = join(__dirname, '..', '..', 'scripts', '_shared', 'skarbiec-runtime.mjs');
+const activeBinary = spawnSync(process.execPath, [SKARBIEC_RESOLVER, 'active-binary'], {
+  encoding: 'utf8',
+  env: process.env,
+  maxBuffer: 1024 * 1024,
+});
+const SKARBIEC = String(activeBinary.stdout ?? '').trim();
+if (activeBinary.error || activeBinary.status !== 0 || !isAbsolute(SKARBIEC)) {
+  throw new Error('Stado returned no attested active Skarbiec binary');
+}
 const VAULT = process.env.SKARBIEC_VAULT_FILE || join(homedir(), '.stado', 'skarbiec.vault.json');
 const STADO = process.env.WELES_STADO_BIN || join(homedir(), '.stado', 'bin', 'stado');
 const ACCOUNT_ID = /^weles-[a-z0-9][a-z0-9-]{0,126}-account$/;

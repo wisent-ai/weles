@@ -3,9 +3,10 @@ import { execFileSync } from 'node:child_process';
 import http from 'node:http';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { activeSkarbiecBinary } from '../_shared/skarbiec-runtime.mjs';
 
 const home = homedir();
-const skarbiec = join(home, '.local', 'bin', 'skarbiec');
+const skarbiec = activeSkarbiecBinary();
 const stado = join(home, '.stado', 'bin', 'stado');
 const vaultFile = join(home, '.stado', 'skarbiec.vault.json');
 const environment = {

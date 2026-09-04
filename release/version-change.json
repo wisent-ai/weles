@@ -1,7 +1,7 @@
 {
   "schema": "weles.version-change.v1",
-  "current": "0.5.55",
-  "candidate": "0.5.56",
+  "current": "0.5.64",
+  "candidate": "0.5.67",
   "breaking": false,
-  "reason": "0.5.56 adds the authenticated Spis browser-evidence task contract, durable evidence manifests, policy-bound Ed25519 receipts, idempotent cancellation, and health-gated Weles admission readiness."
+  "reason": "0.5.67 cuts every Weles Skarbiec caller over to Stado's service directory and attested active release, removes alternate authorities and obsolete launch paths, and preserves the public API surface; 0.5.65 and 0.5.66 were already spent by concurrent release attempts."
 }

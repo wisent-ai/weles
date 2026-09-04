@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 import { spawnSync } from 'node:child_process';
-import { join } from 'node:path';
+import { activeSkarbiecBinary } from '../_shared/skarbiec-runtime.mjs';
 
-const skarbiec = process.env.SKARBIEC_BIN || join(process.env.HOME, '.stado', 'bin', 'skarbiec');
+const skarbiec = activeSkarbiecBinary();
 const result = spawnSync(skarbiec, ['list', '--output', 'json'], {
   encoding: 'utf8',
   env: process.env,
@@ -98,10 +98,7 @@ console.log(JSON.stringify({
   writerConsumer,
   writerTokenPresent: Boolean(writerToken),
   writerTokenState: writerToken?.state || null,
-  endpoints: {
-    wcSkarbiec: process.env.WC_SKARBIEC_URL || null,
-    credentialSkarbiec: process.env.WELES_CREDENTIAL_SKARBIEC_URL || null,
-  },
+  endpoint: process.env.WC_SKARBIEC_URL || null,
   figmaAudit,
   comparableItemMetadata,
   comparableWriters,

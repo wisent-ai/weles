@@ -22,6 +22,9 @@ unset SEMANTIC_SCHOLAR_API_KEY S2_API_KEY || true
 WELES_STATE_DIR="${WELES_STATE_DIR:-$HOME/.local/state/weles}"
 export WELES_STATE_DIR
 mkdir -p "$WELES_STATE_DIR"
+NODE_BIN="${NODE_BIN:-/opt/homebrew/bin/node}"
+WC_SKARBIEC_URL="$("$NODE_BIN" "$WELES_DIR/scripts/_shared/skarbiec-runtime.mjs" endpoint)"
+export WC_SKARBIEC_URL
 # Exercising one step on its own is how a failure inside it gets a reason.
 REAUTH_ENTRY="${REAUTH_ENTRY:-$WELES_DIR/scripts/trajectories/codex/reauth.mjs}"
 exec /usr/bin/caffeinate -dimsu /opt/homebrew/bin/node "$REAUTH_ENTRY"

@@ -5,7 +5,7 @@ import { createReadStream, createWriteStream, existsSync, mkdirSync, readFileSyn
 import { basename, dirname, extname, join } from 'node:path';
 import { createGzip } from 'node:zlib';
 
-const endpoint = process.env.WELES_CREDENTIAL_SKARBIEC_URL || process.env.WC_SKARBIEC_URL;
+const endpoint = process.env.WC_SKARBIEC_URL;
 const acquireScript = process.env.SKARBIEC_WELES_READER_COMMAND;
 const scopeFile = process.env.SKARBIEC_WELES_ACQUISITION_SCOPES_FILE;
 const repository = 'git@github.com:wisent-ai/design-assets.git';
@@ -30,7 +30,6 @@ function run(command, args, options = {}) {
 
 const acquired = spawnSync(process.execPath, [
   acquireScript,
-  endpoint,
   scopeFile,
   'weles-figma-design-assets-exporter',
   'weles-figma-personal-access-token',

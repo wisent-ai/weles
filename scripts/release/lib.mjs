@@ -18,6 +18,7 @@ import { homedir } from 'node:os';
 import { basename, dirname, join, resolve, sep } from 'node:path';
 import { pipeline } from 'node:stream/promises';
 import { Readable } from 'node:stream';
+import { activeSkarbiecBinary } from '../_shared/skarbiec-runtime.mjs';
 
 const SHA256 = /^[0-9a-f]{64}$/;
 const REVISION = /^[0-9a-f]{40}$/;
@@ -85,7 +86,7 @@ export function hostPlatform() {
 const RELEASE_STATE_KEY = /^[a-z][a-z0-9_]{0,126}$/;
 
 function skarbiecBinary() {
-  return process.env.SKARBIEC_BIN ?? join(homedir(), '.stado', 'bin', 'skarbiec');
+  return activeSkarbiecBinary();
 }
 
 function releaseStateItem(key) {

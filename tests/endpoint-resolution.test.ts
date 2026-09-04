@@ -64,7 +64,6 @@ test('resolveSkarbiecEndpoint: respects WC_SKARBIEC_URL environment variable', a
 
   try {
     process.env.WC_SKARBIEC_URL = 'http://127.0.0.1:9003';
-    delete process.env.WELES_CREDENTIAL_SKARBIEC_URL;
 
     const result = await resolveSkarbiecEndpoint();
     assert.ok(result.resolved, 'should resolve an endpoint');

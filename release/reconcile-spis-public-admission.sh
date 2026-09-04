@@ -4,8 +4,8 @@ umask 077
 
 mode=""
 host="charless-mac-mini"
-version="0.5.56"
 source_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+version=""
 trust_file=""
 generate_credential=no
 while [ "$#" -gt 0 ]; do
@@ -42,6 +42,7 @@ done
 }
 [ -n "$trust_file" ] || { printf '%s\n' '--spis-trust-file is required' >&2; exit 2; }
 [ -d "$source_root" ] || { printf 'Weles source directory is unavailable: %s\n' "$source_root" >&2; exit 2; }
+source_root="$(cd "$source_root" && pwd -P)"
 [ -d "$(dirname "$trust_file")" ] || { printf 'Spis trust-file parent is unavailable: %s\n' "$(dirname "$trust_file")" >&2; exit 2; }
 
 stado="${STADO_BIN:-$HOME/.stado/bin/stado}"
@@ -50,6 +51,9 @@ curl="${CURL_BIN:-/usr/bin/curl}"
 [ -x "$stado" ] || { printf 'required Stado binary is unavailable: %s\n' "$stado" >&2; exit 1; }
 [ -x "$node" ] || { printf 'required Node runtime is unavailable: %s\n' "$node" >&2; exit 1; }
 [ -x "$curl" ] || { printf 'required curl is unavailable: %s\n' "$curl" >&2; exit 1; }
+if [ -z "$version" ]; then
+  version="$("$node" -p 'require(process.argv[1]).version' "$source_root/package.json")"
+fi
 reconciler="$source_root/release/spis-public-admission-reconcile.mjs"
 generator="$source_root/release/generate-spis-public-admission-credential.mjs"
 [ -f "$reconciler" ] && [ -f "$generator" ] || { printf '%s\n' 'Weles onboarding artifacts are incomplete' >&2; exit 1; }

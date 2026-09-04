@@ -1,9 +1,8 @@
 #!/usr/bin/env node
 import { randomUUID } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
-import { homedir } from 'node:os';
-import { join } from 'node:path';
 import { enqueueWelesAction } from '../_shared/stado-action-queue.mjs';
+import { activeSkarbiecBinary } from '../_shared/skarbiec-runtime.mjs';
 
 const CONFIRMATION_PHRASE = 'AUTHORIZE ONE APPLE LOGIN';
 const args = Object.fromEntries(process.argv.slice(2).reduce((pairs, value, index, all) => {
@@ -21,7 +20,7 @@ if (!executionHost || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,252}$/.test(executionHost))
 if (!Number.isInteger(expiryMinutes) || expiryMinutes < 1 || expiryMinutes > 60) throw new Error('--expires-in-minutes must be 1..60');
 
 const guardId = randomUUID();
-const skarbiec = process.env.SKARBIEC_BIN || join(homedir(), '.stado', 'bin', 'skarbiec');
+const skarbiec = activeSkarbiecBinary();
 const issued = [];
 function capability(purpose, resource) {
   const result = spawnSync(skarbiec, [

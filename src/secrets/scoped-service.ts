@@ -272,14 +272,6 @@ function checkedTenantFile(path: string, label: string): string {
   return path;
 }
 
-function tenantEndpoint(tenantId: string): string {
-  const path = checkedTenantFile(join(checkedTenantDirectory(tenantId), 'skarbiec-url'), 'endpoint file');
-  const value = readFileSync(path, 'utf8').trim();
-  if (!value || /[\r\n]/.test(value) || value.includes(String.fromCharCode(''.length))) {
-    throw new Error(`invalid tenant Skarbiec endpoint for ${tenantId}`);
-  }
-  return value;
-}
 
 export function hasWelesAcquiredSecretWriter(secret: string, tenantId?: string | null): boolean {
   const contract = resolvedAcquiredSecretContract(secret);
@@ -294,22 +286,23 @@ export function hasWelesAcquiredSecretWriter(secret: string, tenantId?: string |
 
 export type WelesServiceSecret = keyof typeof SERVICE_CONTRACTS;
 
-function skarbiecEndpoint(tenantId?: string | null): string {
-  const raw = tenantId ? tenantEndpoint(tenantId) : process.env.WELES_SKARBIEC_URL?.trim() ?? '';
-  if (!raw) throw new Error('WELES_SKARBIEC_URL is required for exact Weles service secret resolution');
+function skarbiecEndpoint(_tenantId?: string | null): string {
+  const raw = process.env.WC_SKARBIEC_URL?.trim() ?? '';
+  if (!raw) throw new Error('WC_SKARBIEC_URL is required from the Stado service directory');
   let endpoint: URL;
   try {
     endpoint = new URL(raw);
   } catch {
-    throw new Error('WELES_SKARBIEC_URL is invalid');
+    throw new Error('WC_SKARBIEC_URL is invalid');
   }
   const loopback = endpoint.hostname === 'localhost' || endpoint.hostname === '127.0.0.1'
     || endpoint.hostname === '::1' || endpoint.hostname === '[::1]';
   if (endpoint.protocol !== 'https:' && !(loopback && endpoint.protocol === 'http:')) {
-    throw new Error('WELES_SKARBIEC_URL must use HTTPS or authenticated loopback HTTP');
+    throw new Error('WC_SKARBIEC_URL must use HTTPS or authenticated loopback HTTP');
   }
-  if (endpoint.username || endpoint.password || endpoint.search || endpoint.hash) {
-    throw new Error('WELES_SKARBIEC_URL must not contain credentials, query, or fragment');
+  if (endpoint.username || endpoint.password || endpoint.search || endpoint.hash
+      || (endpoint.pathname !== '/' && endpoint.pathname !== '')) {
+    throw new Error('WC_SKARBIEC_URL must be an origin without credentials, query, or fragment');
   }
   return endpoint.toString().replace(/\/$/, '');
 }
@@ -482,13 +475,11 @@ function readAcquiredField(
   const helper = process.env.SKARBIEC_WELES_READER_ACQUIRE_COMMAND?.trim()
     || deployedFile('skarbiec-acquire.mjs');
   const scopeFile = acquisitionScopesFile(tenantId);
-  // Which authority this read is aimed at, named here so a refusal can say it: the
-  // fleet runs more than one, and the fifth declaration-versus-world defect of the
-  // day was a launcher exporting an authority URL nobody serves.
+  // Resolve the authority once and pass that exact directory-owned endpoint to
+  // the acquisition subprocess.
   const endpoint = skarbiecEndpoint(tenantId);
   const result = spawnSync(process.execPath, [
     helper,
-    endpoint,
     scopeFile,
     consumer,
     item,
@@ -502,6 +493,7 @@ function readAcquiredField(
       PATH: process.env.PATH || '/usr/local/bin:/usr/bin:/bin',
       SKARBIEC_WORKLOAD_ID: workloadId,
       SKARBIEC_WORKLOAD_SIGNING_KEY_FILE: signingKeyFile,
+      WC_SKARBIEC_URL: endpoint,
     },
   });
   const output = Buffer.isBuffer(result.stdout) ? result.stdout : Buffer.alloc(Number('0'));
@@ -770,7 +762,6 @@ export function writeWelesAcquiredSecret(
       || join(homedir(), 'weles', 'scripts', 'worker', 'deploy', 'skarbiec-write.mjs');
     const result = spawnSync(process.execPath, [
       helper,
-      skarbiecEndpoint(tenantId),
       contract.writerConsumer,
       contract.item,
       contract.field,
@@ -784,6 +775,7 @@ export function writeWelesAcquiredSecret(
       env: {
         HOME: homedir(),
         PATH: process.env.PATH || '/usr/local/bin:/usr/bin:/bin',
+        WC_SKARBIEC_URL: skarbiecEndpoint(tenantId),
       },
     });
     if (result.error || result.status !== Number('0')) {

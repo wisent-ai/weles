@@ -2,8 +2,8 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-const endpoint = process.env.WELES_CREDENTIAL_SKARBIEC_URL || process.env.WC_SKARBIEC_URL;
-if (!endpoint) throw new Error('Skarbiec endpoint is missing');
+const endpoint = process.env.WC_SKARBIEC_URL;
+if (!endpoint) throw new Error('WC_SKARBIEC_URL is missing');
 const token = readFileSync(join(
   process.env.HOME,
   '.stado',

@@ -51,7 +51,7 @@ await test('isEndpointListening: handles invalid URLs gracefully', async () => {
   assert.strictEqual(result, false);
 });
 
-await test('resolveSkarbiecEndpoint: explicit alive override is used', async () => {
+await test('resolveSkarbiecEndpoint: live directory endpoint is used', async () => {
   const server = await startTestServer(9003);
   const originalEnv = process.env.WC_SKARBIEC_URL;
   try {
@@ -60,9 +60,7 @@ await test('resolveSkarbiecEndpoint: explicit alive override is used', async () 
     const result = await resolveSkarbiecEndpoint();
     assert.ok(result.resolved);
     assert.strictEqual(result.resolved.url, 'http://127.0.0.1:9003');
-    assert.strictEqual(result.resolved.source, 'environment');
     assert.strictEqual(result.resolved.isListening, true);
-    assert.strictEqual(result.wasExplicitOverride, true);
   } finally {
     if (originalEnv) process.env.WC_SKARBIEC_URL = originalEnv;
     else delete process.env.WC_SKARBIEC_URL;
@@ -70,45 +68,40 @@ await test('resolveSkarbiecEndpoint: explicit alive override is used', async () 
   }
 });
 
-await test('resolveSkarbiecEndpoint: explicit dead override returned (not silently redirected)', async () => {
+await test('resolveSkarbiecEndpoint: dead directory endpoint is not redirected', async () => {
   const originalEnv = process.env.WC_SKARBIEC_URL;
   try {
-    // Set explicit override to dead port - should NOT fall back
+    // A dead directory endpoint must remain the only endpoint.
     process.env.WC_SKARBIEC_URL = 'http://127.0.0.1:9999';
     
     const result = await resolveSkarbiecEndpoint();
-    // Should resolve to the dead endpoint (not fall back to marker or default)
+    // It must not fall back to any marker or built-in address.
     assert.ok(result.resolved);
     assert.strictEqual(result.resolved.url, 'http://127.0.0.1:9999');
-    assert.strictEqual(result.resolved.source, 'environment');
     assert.strictEqual(result.resolved.isListening, false);
-    assert.strictEqual(result.wasExplicitOverride, true);
   } finally {
     if (originalEnv) process.env.WC_SKARBIEC_URL = originalEnv;
     else delete process.env.WC_SKARBIEC_URL;
   }
 });
 
-await test('resolveSkarbiecEndpoint: no explicit endpoint refuses implicit routing', async () => {
+await test('resolveSkarbiecEndpoint: missing directory endpoint refuses implicit routing', async () => {
   delete process.env.WC_SKARBIEC_URL;
 
   const result = await resolveSkarbiecEndpoint();
   assert.strictEqual(result.resolved, null);
-  assert.deepStrictEqual(result.candidates, []);
-  assert.strictEqual(result.wasExplicitOverride, false);
 });
 
-await test('resolveSkarbiecEndpoint: WC_SKARBIEC_URL env var is actually resolved', async () => {
+await test('resolveSkarbiecEndpoint: directory-supplied WC_SKARBIEC_URL is resolved', async () => {
   const server = await startTestServer(9008);
   const originalEnv = process.env.WC_SKARBIEC_URL;
   try {
-    // Verify that setting WC_SKARBIEC_URL actually gets resolved and used
+    // The exact directory-supplied value is the only candidate.
     process.env.WC_SKARBIEC_URL = 'http://127.0.0.1:9008';
     
     const result = await resolveSkarbiecEndpoint();
     assert.ok(result.resolved);
-    assert.strictEqual(result.resolved.url, 'http://127.0.0.1:9008', 'must use exact env var value');
-    assert.strictEqual(result.resolved.source, 'environment', 'must report env as source');
+    assert.strictEqual(result.resolved.url, 'http://127.0.0.1:9008', 'must use exact directory value');
     assert.strictEqual(result.resolved.isListening, true, 'must detect listening');
   } finally {
     if (originalEnv) process.env.WC_SKARBIEC_URL = originalEnv;
@@ -120,14 +113,12 @@ await test('resolveSkarbiecEndpoint: WC_SKARBIEC_URL env var is actually resolve
 await test('formatEndpointErrorMessage: formats correctly', async () => {
   const info = {
     url: 'http://127.0.0.1:8785',
-    source: 'environment',
-    sourceDetail: 'WC_SKARBIEC_URL environment variable',
     isListening: false,
   };
   
   const msg = formatEndpointErrorMessage(info);
   assert.match(msg, /Skarbiec endpoint at http:\/\/127\.0\.0\.1:8785/);
-  assert.match(msg, /environment variable/);
+  assert.match(msg, /Stado service directory/);
   assert.match(msg, /not listening/);
 });
 

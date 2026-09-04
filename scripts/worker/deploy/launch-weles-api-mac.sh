@@ -40,7 +40,10 @@ unset SEMANTIC_SCHOLAR_API_KEY S2_API_KEY || true
 # the Weles startup path disagree with every local Stado verifier. Resolve this
 # caller's declared endpoint instead; it is the stable release proxy and never
 # a scan or fallback to a second vault.
+WELES_REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd -P)"
+export WELES_REPO
 STADO_BIN="${STADO_BIN:-$HOME/.stado/bin/stado}"
+export STADO_BIN
 if [ ! -x "$STADO_BIN" ]; then
   printf 'required Stado binary is unavailable: %s\n' "$STADO_BIN" >&2
   exit 1
@@ -50,12 +53,11 @@ if [ ! -x "$NODE_BIN" ]; then
   printf 'required Node runtime is unavailable: %s\n' "$NODE_BIN" >&2
   exit 1
 fi
-WC_SKARBIEC_URL="$("$STADO_BIN" service directory endpoint skarbiec --json | "$NODE_BIN" -e '
-  const endpoint = JSON.parse(require("node:fs").readFileSync(0, "utf8"));
-  const value = endpoint?.url;
-  if (typeof value !== "string" || value.length === 0) process.exit(1);
-  process.stdout.write(value);
-')"
+runtime_resolver="$WELES_REPO/scripts/_shared/skarbiec-runtime.mjs"
+if ! WC_SKARBIEC_URL="$("$NODE_BIN" "$runtime_resolver" endpoint)"; then
+  printf 'Stado service-directory Skarbiec resolution failed\n' >&2
+  exit 1
+fi
 if [ -z "$WC_SKARBIEC_URL" ]; then
   printf 'fleet service directory has no Skarbiec endpoint for this host\n' >&2
   exit 1
@@ -64,32 +66,14 @@ export WC_SKARBIEC_URL
 # The capability broker must come from the same signed release state Stado
 # already committed for this host. Refuse startup rather than falling back to a
 # mutable convenience path that can belong to a different Skarbiec generation.
-if ! skarbiec_release="$("$STADO_BIN" release active-binary skarbiec --json)"; then
+if ! SKARBIEC_BIN="$("$NODE_BIN" "$runtime_resolver" active-binary)"; then
   printf 'Stado has no attested active Skarbiec binary for this host\n' >&2
-  exit 1
-fi
-if ! SKARBIEC_BIN="$(printf '%s' "$skarbiec_release" | "$NODE_BIN" -e '
-  const active = JSON.parse(require("node:fs").readFileSync(0, "utf8"));
-  const value = active?.path;
-  if (active?.state !== "active" || typeof value !== "string" || !value.startsWith("/")) {
-    process.exit(1);
-  }
-  process.stdout.write(value);
-')"; then
-  printf 'Stado returned an invalid active Skarbiec release record\n' >&2
-  exit 1
-fi
-unset skarbiec_release
-if [ ! -x "$SKARBIEC_BIN" ]; then
-  printf 'attested active Skarbiec binary is not executable: %s\n' "$SKARBIEC_BIN" >&2
   exit 1
 fi
 export SKARBIEC_BIN
 # Resolve the repository from this launcher's immutable release tree. Keeping a
 # second build-work copy made the API server and its trajectories lag the
 # release that launchd had activated.
-WELES_REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd -P)"
-export WELES_REPO
 WELES_ACTION_ALLOWLIST="$("$NODE_BIN" -e '
   const actions = require("node:fs").readFileSync(process.argv[1], "utf8")
     .split(/\r?\n/).map((action) => action.trim()).filter(Boolean);

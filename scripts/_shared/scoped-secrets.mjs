@@ -3,6 +3,7 @@ import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { lstatSync } from 'node:fs';
+import { stadoBinary } from './skarbiec-runtime.mjs';
 
 const LOGIN_FIELDS = Object.freeze({ username: true, password: true });
 const LOGIN_WITH_TOTP_FIELDS = Object.freeze({ username: true, password: true, totp_secret: true });
@@ -43,20 +44,21 @@ const SERVICES = Object.freeze({
 });
 
 function checkedEndpoint() {
-  const raw = String(process.env.WELES_SKARBIEC_URL || '').trim();
-  if (!raw) throw new Error('WELES_SKARBIEC_URL is required for scoped secret resolution');
+  const raw = String(process.env.WC_SKARBIEC_URL || '').trim();
+  if (!raw) throw new Error('WC_SKARBIEC_URL is required from the Stado service directory');
   let endpoint;
   try {
     endpoint = new URL(raw);
   } catch {
-    throw new Error('WELES_SKARBIEC_URL is invalid');
+    throw new Error('WC_SKARBIEC_URL is invalid');
   }
   const loopback = new Set(['localhost', '127.0.0.1', '::1', '[::1]']).has(endpoint.hostname);
   if (endpoint.protocol !== 'https:' && !(loopback && endpoint.protocol === 'http:')) {
-    throw new Error('WELES_SKARBIEC_URL must use HTTPS or authenticated loopback HTTP');
+    throw new Error('WC_SKARBIEC_URL must use HTTPS or authenticated loopback HTTP');
   }
-  if (endpoint.username || endpoint.password || endpoint.search || endpoint.hash) {
-    throw new Error('WELES_SKARBIEC_URL must not contain credentials, query, or fragment');
+  if (endpoint.username || endpoint.password || endpoint.search || endpoint.hash
+      || (endpoint.pathname !== '/' && endpoint.pathname !== '')) {
+    throw new Error('WC_SKARBIEC_URL must be an origin without credentials, query, or fragment');
   }
   return endpoint.toString().replace(/\/$/, '');
 }
@@ -76,9 +78,6 @@ function checkedTokenFile(fileName) {
   return path;
 }
 
-function stadoBinary() {
-  return process.env.WELES_STADO_BIN || join(homedir(), '.stado', 'bin', 'stado');
-}
 
 const SCRIPT_ROOT = dirname(fileURLToPath(import.meta.url));
 
@@ -106,7 +105,7 @@ export function readScopedSecret(serviceName, field) {
   const consumer = `${service.consumer}-${field}`;
   const { helper, scopes } = acquisitionPaths();
   const { workloadId, signingKeyFile } = workloadEnvironment();
-  // Validate that explicit endpoint is configured (will be used by skarbiec-acquire.mjs for resolution)
+  // Pass the exact directory-owned endpoint to the acquisition subprocess.
   const endpoint = checkedEndpoint();
   const result = spawnSync(process.execPath, [
     helper,
@@ -123,7 +122,7 @@ export function readScopedSecret(serviceName, field) {
       PATH: process.env.PATH || '/usr/local/bin:/usr/bin:/bin',
       SKARBIEC_WORKLOAD_ID: workloadId,
       SKARBIEC_WORKLOAD_SIGNING_KEY_FILE: signingKeyFile,
-      WELES_SKARBIEC_URL: endpoint,
+      WC_SKARBIEC_URL: endpoint,
     },
   });
   const output = Buffer.isBuffer(result.stdout) ? result.stdout : Buffer.alloc(Number('0'));

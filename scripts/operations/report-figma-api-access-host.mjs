@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { spawnSync } from 'node:child_process';
 
-const endpoint = process.env.WELES_CREDENTIAL_SKARBIEC_URL || process.env.WC_SKARBIEC_URL;
+const endpoint = process.env.WC_SKARBIEC_URL;
 const acquireScript = process.env.SKARBIEC_WELES_READER_COMMAND;
 const scopeFile = process.env.SKARBIEC_WELES_ACQUISITION_SCOPES_FILE;
 if (!endpoint || !acquireScript || !scopeFile) throw new Error('Figma API reader coordinates are incomplete');
@@ -9,7 +9,7 @@ const consumer = 'weles-figma-design-assets-exporter';
 const item = 'weles-figma-personal-access-token';
 const field = 'api_key';
 const acquired = spawnSync(process.execPath, [
-  acquireScript, endpoint, scopeFile, consumer, item, field,
+  acquireScript, scopeFile, consumer, item, field,
 ], { encoding: 'buffer', env: process.env, maxBuffer: 65536 });
 if (acquired.status !== 0) throw new Error('Figma token acquisition failed');
 const token = acquired.stdout;

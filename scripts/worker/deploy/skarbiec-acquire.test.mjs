@@ -52,7 +52,6 @@ await test('skarbiec-acquire: new 4-arg form parsed correctly (no usage error)',
   
   try {
     process.env.WC_SKARBIEC_URL = 'http://127.0.0.1:9010';
-    delete process.env.WELES_CREDENTIAL_SKARBIEC_URL;
     
     const result = spawnSync('node', [
       'scripts/worker/deploy/skarbiec-acquire.mjs',

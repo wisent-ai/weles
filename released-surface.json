@@ -106,13 +106,8 @@
     "mcp:weles_page_new",
     "mcp:weles_page_screenshot",
     "mcp:weles_page_text",
-    "schema:weles.browser-evidence-manifest.v1",
-    "schema:weles.browser-evidence-manifest.v2",
-    "schema:weles.browser-evidence-policy.v1",
-    "schema:weles.browser-evidence-withheld-edge.v1",
     "schema:weles.cancellation.current",
     "schema:weles.cancellation.v1",
-    "schema:weles.public-service-directory.v1",
     "schema:weles.receipt.current",
     "schema:weles.receipt.v1",
     "schema:weles.task-status.v1",
@@ -126,5 +121,5 @@
     "task-status:running",
     "task-status:succeeded"
   ],
-  "version": "0.5.56"
+  "version": "0.5.64"
 }

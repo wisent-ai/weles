@@ -1,11 +1,10 @@
 // Weles service credential administration through Skarbiec.
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { randomBytes, sign } from 'node:crypto';
+import { activeSkarbiecBinary } from '../_shared/skarbiec-runtime.mjs';
 
-const SKARBIEC_BIN = process.env.SKARBIEC_BIN ?? join(homedir(), '.stado', 'bin', 'skarbiec');
+const SKARBIEC_BIN = activeSkarbiecBinary();
 const SKARBIEC_VAULT_FILE = process.env.SKARBIEC_VAULT_FILE ?? join(homedir(), '.stado', 'skarbiec.vault.json');
 
 function skarbiec(args, input) {
@@ -140,88 +139,6 @@ export async function ensureKimiGoogleSso({
   });
 }
 
-function skarbiecConfig() {
-  const url = process.env.SKARBIEC_URL;
-  const consumer = process.env.SKARBIEC_CONSUMER;
-  const workloadId = process.env.SKARBIEC_WORKLOAD_ID;
-  const privateKeyFile = process.env.SKARBIEC_WORKLOAD_PRIVATE_KEY_FILE;
-  if (!url || !consumer || !workloadId || !privateKeyFile) {
-    throw new Error(
-      'Skarbiec acquisition requires SKARBIEC_URL, SKARBIEC_CONSUMER, SKARBIEC_WORKLOAD_ID, and SKARBIEC_WORKLOAD_PRIVATE_KEY_FILE'
-    );
-  }
-  return {
-    url: url.replace(/\/$/, ''),
-    consumer,
-    workloadId,
-    privateKey: readFileSync(privateKeyFile),
-  };
-}
-
-async function acquireSkarbiecField(item, field, { optional = false } = {}) {
-  const cfg = skarbiecConfig();
-  const timestamp = Math.floor(Date.now() / 1000);
-  const nonce = randomBytes(24).toString('hex');
-  const proof = JSON.stringify([cfg.consumer, item, field, cfg.workloadId, timestamp, nonce]);
-  const signature = sign(null, Buffer.from(proof), cfg.privateKey).toString('hex');
-  const issue = await fetch(`${cfg.url}/v1/acquisitions`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Consumer': cfg.consumer },
-    body: JSON.stringify({
-      id: item,
-      field,
-      workload_id: cfg.workloadId,
-      workload_timestamp: timestamp,
-      workload_nonce: nonce,
-      workload_signature: signature,
-    }),
-  });
-  if (!issue.ok) {
-    if (optional && (issue.status === 401 || issue.status === 404)) return null;
-    throw new Error(`Skarbiec acquisition issue ${item}#${field} -> ${issue.status}`);
-  }
-  const issued = await issue.json();
-  const consume = await fetch(`${cfg.url}/v1/acquisitions/read`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Consumer': cfg.consumer,
-      Authorization: `Bearer ${issued.token}`,
-    },
-    body: JSON.stringify({ id: item, field }),
-  });
-  if (!consume.ok) {
-    if (optional && (consume.status === 401 || consume.status === 404)) return null;
-    throw new Error(`Skarbiec acquisition read ${item}#${field} -> ${consume.status}`);
-  }
-  return (await consume.json()).value;
-}
-
-// Resolves a canonical Skarbiec login through workload-bound, exact-field,
-// single-use acquisitions. No database credential row or bearer grant enters
-// the browser process.
-export async function resolveAdminSecrets(credentialId) {
-  const [username, password, totp, context] = await Promise.all([
-    acquireSkarbiecField(credentialId, 'username'),
-    acquireSkarbiecField(credentialId, 'password'),
-    acquireSkarbiecField(credentialId, 'totp_secret', { optional: true }),
-    acquireSkarbiecField(credentialId, 'context', { optional: true }),
-  ]);
-  if (typeof username !== 'string' || typeof password !== 'string') {
-    throw new Error(`Skarbiec login ${credentialId} returned non-text username or password`);
-  }
-  const secrets = { ADMIN_EMAIL: username, ADMIN_PASSWORD: password };
-  if (typeof totp === 'string' && totp) secrets.ADMIN_TOTP = totp;
-  const sessionLabel =
-    context && typeof context === 'object' && typeof context.session_label === 'string'
-      ? context.session_label
-      : null;
-  return {
-    session_label: sessionLabel,
-    placeholders: Object.keys(secrets),
-    secrets,
-  };
-}
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   const cmd = process.argv[2];

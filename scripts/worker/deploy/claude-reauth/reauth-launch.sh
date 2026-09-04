@@ -26,7 +26,11 @@ WELES_STATE_DIR="${WELES_STATE_DIR:-$HOME/.local/state/weles}"
 export WELES_STATE_DIR
 mkdir -p "$WELES_STATE_DIR"
 
-
+NODE_BIN="${NODE_BIN:-/opt/homebrew/bin/node}"
+acquire_helper="$WELES_DIR/scripts/worker/deploy/skarbiec-acquire.mjs"
+acquire_scopes="$WELES_DIR/scripts/worker/deploy/skarbiec-acquisition-scopes.conf"
+WC_SKARBIEC_URL="$("$NODE_BIN" "$WELES_DIR/scripts/_shared/skarbiec-runtime.mjs" endpoint)"
+export WC_SKARBIEC_URL
 # The gateway resolves the caller's client identity from a bearer and only then
 # checks the signed agent trio against it, so the trio alone is refused before the
 # signature is read — `401 unauthorized`, which says none of that. The donating

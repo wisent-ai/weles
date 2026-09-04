@@ -6,6 +6,7 @@ import { lstatSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { activeSkarbiecBinary } from '../../_shared/skarbiec-runtime.mjs';
 
 const WIRE_VERSION = 'skarbiec.credential-operation.v3';
 const ENTRA_PROVIDER = 'microsoft_entra';
@@ -174,8 +175,9 @@ if (isFigmaAcquire) {
   const writer = join(
     runtimeRoot,
     'scripts',
-    'operations',
-    'skarbiec-figma-owner-write-host.mjs',
+    'worker',
+    'deploy',
+    'skarbiec-write.mjs',
   );
   const skarbiecUrl = process.env.WC_SKARBIEC_URL?.trim();
   if (!skarbiecUrl) {
@@ -190,7 +192,6 @@ if (isFigmaAcquire) {
       WELES_USER_DATA_DIR: process.env.WELES_USER_DATA_DIR
         || join(homedir(), '.local/state/weles/browser-profiles/figma-token'),
       WC_SKARBIEC_URL: skarbiecUrl,
-      WELES_SKARBIEC_URL: skarbiecUrl,
       SKARBIEC_WELES_WRITER_COMMAND: process.env.SKARBIEC_WELES_WRITER_COMMAND || writer,
     },
     maxBuffer: Number('1048576'),
@@ -440,10 +441,7 @@ if (request.mode === 'submit' || request.mode === 'resume') {
     throw new Error(`missing exact ${isEntra ? 'Entra' : 'Microsoft'} credential reader scope`);
   }
 
-  const skarbiec = process.env.SKARBIEC_BIN?.trim();
-  if (!skarbiec) {
-    throw new Error('SKARBIEC_BIN must be Stado active-binary output');
-  }
+  const skarbiec = activeSkarbiecBinary();
   const accountRead = spawnSync(skarbiec, ['get', request.credential_id], {
     encoding: 'utf8',
     env: process.env,

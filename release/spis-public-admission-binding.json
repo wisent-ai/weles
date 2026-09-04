@@ -42,7 +42,7 @@
   },
   "rollout": {
     "product": "weles-worker",
-    "version": "0.5.56",
+    "version": "0.5.67",
     "strategy": "prepare-activate-cas",
     "rollout_health_path": "/healthz",
     "admission_readiness_path": "/api/v1/version",

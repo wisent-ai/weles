@@ -2,10 +2,11 @@
 import { spawnSync } from 'node:child_process';
 import { chmodSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { activeSkarbiecBinary } from '../_shared/skarbiec-runtime.mjs';
 
 const consumer = 'weles-figma-personal-access-token-writer';
 const capability = 'stage:weles-figma-personal-access-token#api_key';
-const skarbiec = process.env.SKARBIEC_BIN || join(process.env.HOME, '.stado', 'bin', 'skarbiec');
+const skarbiec = activeSkarbiecBinary();
 const destination = join(
   process.env.HOME,
   '.stado',

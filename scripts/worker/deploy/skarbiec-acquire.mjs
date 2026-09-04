@@ -57,10 +57,6 @@ if (endpoint.username || endpoint.password || endpoint.search || endpoint.hash
   throw new Error('Skarbiec endpoint must be an HTTPS origin or loopback HTTP origin');
 }
 
-// Verify endpoint is listening; fail with detailed error if not
-if (!endpointInfo.isListening) {
-  throw new Error(formatEndpointErrorMessage(endpointInfo));
-}
 
 
 const unsafeBits = Number.parseInt('077', Number('8'));
