@@ -227,11 +227,33 @@ for attempt in $(seq 1 120); do
     release_evidence="rollout record"
     break
   fi
+  # Identity only, deliberately NOT readiness. `version-ready` demands the
+  # service's `serviceIdentity` object, which is precisely what the registry
+  # entry below supplies -- asking for it here would be asking the service to
+  # already be what this run is about to make it. What convergence needs from
+  # the service is narrower and available now: that the process answering is
+  # this exact release, revision and manifest digest.
   if [ -n "$service_url" ] \
       && "$curl" --silent --show-error --max-time 5 \
         "${service_url%/}/api/v1/version" >"$temporary/service-version.json" \
-      && "$node" "$reconciler" version-ready \
-        "$temporary/service-version.json" "$host" "$version" "$source_revision"; then
+      && "$node" -e '
+        const fs = require("node:fs");
+        const seen = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+        const [, , version, revision] = process.argv;
+        const releaseId = String(seen.releaseId ?? "");
+        if (releaseId !== `weles-worker@${version}`) {
+          process.stderr.write(`service reports releaseId ${releaseId}, expected weles-worker@${version}\n`);
+          process.exit(1);
+        }
+        if (String(seen.sourceRevision ?? "") !== revision) {
+          process.stderr.write(`service reports sourceRevision ${seen.sourceRevision}, expected ${revision}\n`);
+          process.exit(1);
+        }
+        if (!/^[0-9a-f]{64}$/.test(String(seen.deploymentManifestSha256 ?? ""))) {
+          process.stderr.write("service reports no deployment manifest digest\n");
+          process.exit(1);
+        }
+      ' "$temporary/service-version.json" "$version" "$source_revision"; then
     release_ready=1
     release_evidence="the service's own version route at $service_url"
     break
