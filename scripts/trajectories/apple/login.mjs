@@ -12,7 +12,11 @@ import { getSocialAccount } from '../../../dist/utils/credentials.js';
 import { appleChallengeRelayTarget } from '../../auth/apple-account-placement.mjs';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const JOB_PATTERN = /^[0-9a-f]{8}$/i;
+// A Stado queue job id is eight hex characters; the Weles API names a run with
+// a UUID and overwrites ACTION_LOG_ID with it after params are mapped, so a
+// caller cannot choose. Accept either — both identify exactly one run — rather
+// than refuse the only dispatch path Stado actually uses.
+const JOB_PATTERN = /^(?:[0-9a-f]{8}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
 const ACCOUNT_PATTERN = /^weles-apple-[a-z0-9][a-z0-9-]{0,126}-account$/;
 const guardId = (process.env.APPLE_AUTH_GUARD_ID?.trim() ?? '').toLowerCase();
 const accountId = process.env.WELES_LOGIN_ITEM?.trim() ?? '';

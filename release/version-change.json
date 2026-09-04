@@ -1,7 +1,7 @@
 {
   "schema": "weles.version-change.v1",
-  "current": "0.5.42",
-  "candidate": "0.5.43",
+  "current": "0.5.55",
+  "candidate": "0.5.56",
   "breaking": false,
-  "reason": "0.5.43 makes auto-deploy.sh parse again - 0.5.40 shipped a blank line inside a backslash continuation, which stopped the release activator on every cycle and left hosts unable to install anything - and fails the build when a shipped shell script cannot be parsed. Trajectory logic, CLI and library surface are unchanged."
+  "reason": "0.5.56 adds the authenticated Spis browser-evidence task contract, durable evidence manifests, policy-bound Ed25519 receipts, idempotent cancellation, and health-gated Weles admission readiness."
 }

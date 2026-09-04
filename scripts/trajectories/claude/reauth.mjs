@@ -164,14 +164,16 @@ function markRowAttempted() {
   console.error('mark_row_attempted: vault-backed account has no store row; not recorded');
 }
 
-async function donate(cfg, blobJson, label) {
-  // Brama's donate contract is `{provider, label, api_key}` and rejects unknown
-  // fields outright. `user_id` belonged to the Cloud Run router that went away:
-  // the donor is now the authenticated caller, not a field.
+async function donate(cfg, blobJson, label, loginItem) {
+  // The vault login item is the account identity Brama needs when this
+  // credential is refused later. Carry it with the donation instead of leaving
+  // a helper to reconstruct ownership from a provider name.
   const body = {
     provider: 'claude_code',
-    label: label || `reauth-macmini ${new Date().toISOString()}`, // the router reads `label`, not key_label
+    label: label || `reauth-macmini ${new Date().toISOString()}`,
     api_key: blobJson,
+    ...(loginItem ? { login_item: loginItem } : {}),
+    ...(process.env.BRAMA_SUBSCRIPTION_ID ? { subscription_id: process.env.BRAMA_SUBSCRIPTION_ID } : {}),
   };
   const payload = JSON.stringify(body);
   const r = await fetch(`${cfg.routerUrl}/v1/subscriptions/${cfg.agentId}`, {
@@ -287,9 +289,21 @@ function runLogin(displayName) {
       // the full stream is still on disk in manual-seed-claude.err.
       const lines = (out + '\n' + err).split('\n').map((l) => l.trim()).filter(Boolean);
       const said = lines.filter((l) => /^(FAIL|CREDENTIAL_SOURCE|AUTHZURL)\b/.test(l) || l.startsWith('STEP '));
-      const spoken = said.length
-        ? `${said.filter((l) => l.startsWith('STEP ')).slice(-1).join('')} ${said.filter((l) => !l.startsWith('STEP ')).slice(-2).join(' | ')}`.trim()
-        : lines.filter((l) => !/^at\s/.test(l)).slice(-2).join(' | ');
+      // The reason first, its step next, and never an AUTHZURL in front of
+      // either: that line is four hundred characters of query string, it is
+      // already in the artifacts, and leading with it is what truncated the
+      // reason away. A run that stopped at Google's second factor could only
+      // say `STEP google_2fa_check AUTHZURL https://claude.com/cai/oauth/...`,
+      // so three rounds of diagnosis could not tell a missing authenticator
+      // seed from a method that could not be selected.
+      const reasons = said.filter((l) => /^FAIL\b/.test(l));
+      const step = said.filter((l) => l.startsWith('STEP ')).slice(-1);
+      const spoken = reasons.length || step.length
+        ? [...reasons.slice(-2), ...step].join(' | ')
+        : lines
+          .filter((l) => !/^at\s/.test(l) && !/^AUTHZURL\b/.test(l))
+          .slice(-2)
+          .join(' | ');
       const artifacts = loginArtifacts(said);
       reject(new Error(
         `login.mjs exit ${code}, no claudeAiOauth blob; said=${spoken.slice(0, 400)}`
@@ -310,12 +324,15 @@ async function main() {
   // instead of waiting for isBurnout (a 401 from an already-dead token = downtime).
   const marginMs = Number(process.env.CLAUDE_REAUTH_REFRESH_MARGIN_SEC || 10800) * 1000;
   const expMs = cfg.activeTokenExpiresAt;
-  const reason = burnt ? 'burnt'
-    : (expMs > 0 && Date.now() >= expMs - marginMs ? 'expiring-soon' : null);
+  const loginItem = process.env.WELES_LOGIN_ITEM?.trim() || '';
+  const requested = Boolean(loginItem);
+  const reason = requested ? 'requested'
+    : (burnt ? 'burnt'
+      : (expMs > 0 && Date.now() >= expMs - marginMs ? 'expiring-soon' : null));
   console.log(`[reauth] pool=${poolBefore.length} probe=${probe.status} burnt=${burnt} exp_ms=${expMs} reason=${reason ?? 'none'}`);
   if (probe.status !== 200) console.error(`[reauth] probe_body ${JSON.stringify(probe.body).slice(0, 1500)}`);
   const probeStr = JSON.stringify(probe.body ?? {}).toLowerCase();
-  if (probe.status !== 200 && (probeStr.includes('usage limit') || probeStr.includes('weekly limit'))) {
+  if (!requested && probe.status !== 200 && (probeStr.includes('usage limit') || probeStr.includes('weekly limit'))) {
     console.log('[reauth] account quota exhausted — auth is valid, only quota is spent; re-login cannot restore it, skipping');
     return;
   }
@@ -350,7 +367,7 @@ async function main() {
   console.log(`[reauth] got OAuth blob len=${blob.length} for ${row.display_name}`);
 
   const donateLabel = `claude-reauth ${account} ${new Date().toISOString()}`;
-  const newSub = await donate(cfg, blob, donateLabel);
+  const newSub = await donate(cfg, blob, donateLabel, loginItem);
   console.log(`[reauth] donated new sub id=${newSub.id ?? '?'}`);
   markRowAttempted();
   const newExp = blobExpiresAt(blob);
@@ -365,7 +382,9 @@ async function main() {
   let kept = 0;
   for (const old of poolBefore) {
     const lbl = old.key_label || '';
-    if (lbl.startsWith(accountPrefix) || lbl.startsWith('reauth-macmini ')) {
+    if (old.id === newSub.id) {
+      kept += 1;
+    } else if (lbl.startsWith(accountPrefix) || lbl.startsWith('reauth-macmini ')) {
       if (await deleteSubscription(cfg, old.id)) deleted += 1;
     } else {
       kept += 1;

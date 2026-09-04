@@ -229,10 +229,20 @@ if (!readResponse.ok) {
   throw await refusal('one-time read', readResponse, consumer, item, field);
 }
 const result = await readResponse.json();
-const expectedKeys = ['consumer', 'field', 'item', 'value'];
+// The bound field, plus the one statement the item makes about itself that a
+// caller needs to know which flow a credential belongs to: `provider`, present
+// only when the item declares one (skarbiec 5864a54, 2026-08-31). Anything
+// else is not a single-field response. Demanding the exact four keys here is
+// what made every acquisition of a provider-declaring item fail as "invalid
+// single-field response" once that release reached the fleet.
+const requiredKeys = ['consumer', 'field', 'item', 'value'];
+const optionalKeys = ['provider'];
+const keys = Object.keys(result || {});
 if (!result || result.consumer !== consumer || result.item !== item || result.field !== field
-    || Object.keys(result).sort().join('|') !== expectedKeys.join('|')
-    || typeof result.value !== 'string' || !result.value) {
+    || requiredKeys.some((key) => !keys.includes(key))
+    || keys.some((key) => !requiredKeys.includes(key) && !optionalKeys.includes(key))
+    || typeof result.value !== 'string' || !result.value
+    || (result.provider !== undefined && (typeof result.provider !== 'string' || !/^[A-Za-z0-9._-]{1,128}$/.test(result.provider)))) {
   throw new Error('Skarbiec returned an invalid single-field response');
 }
 process.stdout.write(result.value);

@@ -1,0 +1,54 @@
+{
+  "schema": "weles.spis-public-admission-binding.v1",
+  "service": "weles-admission",
+  "consumer": "spis",
+  "capability": "browser-evidence",
+  "action": "generic_browser_task",
+  "endpoint_path": "/api/v1",
+  "organization_ref": "weles-spis-public-admission#organization_id",
+  "bearer_ref": "weles-spis-public-admission#token",
+  "receipt": {
+    "schema": "weles.receipt.current",
+    "algorithm": "Ed25519",
+    "key_id_ref": "weles-spis-public-admission#receipt_key_id",
+    "key_set_version_ref": "weles-spis-public-admission#receipt_key_set_version",
+    "private_key_ref": "weles-spis-public-admission#receipt_private_key",
+    "public_keys_ref": "weles-spis-public-admission#receipt_public_keys_json"
+  },
+  "evidence": {
+    "manifest_schema": "weles.browser-evidence-manifest.v1",
+    "non_success_manifest_schema": "weles.browser-evidence-manifest.v2",
+    "storage_prefix": "stado://weles/recordings/{task_id}/",
+    "required_artifacts": [
+      "artifacts/browser_evidence_final.png",
+      "artifacts/browser_evidence_accessibility_tree.txt"
+    ],
+    "manifest_max_bytes": 4194304,
+    "inventory_max_bytes": 8388608,
+    "file_max_bytes": 8388608,
+    "terminal_after_manifest_and_inventory_readback": true,
+    "policy_version": "spis-browser-evidence.1",
+    "withhold": [
+      "permission-and-notification-apis-and-controls",
+      "downloads-opening-system-ui",
+      "sign-in-signup-recovery-submit",
+      "mfa-2fa-and-trusted-device-flows",
+      "forms-capable-of-messaging",
+      "purchase-subscribe-payment",
+      "final-destructive-confirmation"
+    ],
+    "retain_withheld_edges": true,
+    "bind_policy_and_withheld_edges_into_receipt_digest": true
+  },
+  "rollout": {
+    "product": "weles-worker",
+    "version": "0.5.56",
+    "strategy": "prepare-activate-cas",
+    "rollout_health_path": "/healthz",
+    "admission_readiness_path": "/api/v1/version",
+    "maximum_task_duration_ms": 7200000,
+    "concurrency": 1,
+    "automatic_rollback": true,
+    "direct_service_restart_allowed": false
+  }
+}

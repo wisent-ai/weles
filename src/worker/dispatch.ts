@@ -333,6 +333,8 @@ const ROUTES: Record<string, (p: string) => string | null> = {
   topup: (p) => PROXY_PROVIDERS.has(p) ? `scripts/trajectories/${p}/topup.mjs` : null,
   analyze_text: (p) => p === 'pangram' ? 'scripts/trajectories/pangram/analyze_text.mjs' : null,
   pangram_audit_new_wniosek: (p) => p === 'ncbr' ? 'scripts/trajectories/ncbr/pangram_audit_new_wniosek.mjs' : null,
+  apply_correction: (p) => p === 'ncbr' ? 'scripts/trajectories/ncbr/apply_correction.mjs' : null,
+  verify_correction: (p) => p === 'ncbr' ? 'scripts/trajectories/ncbr/apply_correction.mjs' : null,
   // On-demand ticker scrape: wisent-app inserts an account_action_logs row
   // with action='unusualwhales_scrape' or 'volumeleaders_scrape' and
   // params={ticker, page}; the worker spawns the existing scrape script.
@@ -398,6 +400,7 @@ export function paramsToEnv(
       ['objective', 'GENERIC_TASK_OBJECTIVE'],
       ['flow_name', 'GENERIC_TASK_FLOW_NAME'],
       ['proxy', 'GENERIC_TASK_PROXY'],
+      ['browser', 'GENERIC_TASK_BROWSER'],
             ['session_label', 'GENERIC_TASK_LABEL'],
             ['admin_credential_id', 'GENERIC_TASK_ADMIN_CREDENTIAL_ID'],
     ];
@@ -597,6 +600,19 @@ export function paramsToEnv(
     if (params.apple_login_capabilities === undefined) {
       throw new Error('apple_login_capabilities are required for apple_login');
     }
+    // The account the run signs in as. Both Apple trajectories refuse without
+    // it — `WELES_LOGIN_ITEM must name an Apple account` — and nothing set it
+    // for them: the only two places that assign WELES_LOGIN_ITEM are the
+    // subscription-login paths for claude, codex and kimi. So neither
+    // apple/login.mjs nor apple/create_developer_id.mjs has ever been able to
+    // start, on the queue path or through the API, however correct the caller
+    // was. Stado has been sending the item all along under `account_item`,
+    // which nothing read.
+    const appleAccount = params.login_item ?? params.account_item;
+    if (typeof appleAccount !== 'string' || !/^weles-apple-[a-z0-9][a-z0-9-]{0,126}-account$/.test(appleAccount)) {
+      throw new Error('login_item must name an Apple Skarbiec account item for an apple trajectory');
+    }
+    env.WELES_LOGIN_ITEM = appleAccount;
     env.APPLE_AUTH_GUARD_ID = guardId;
     env.APPLE_EXECUTION_HOST = executionHost;
     env.APPLE_EXECUTION_AGENT = executionAgent;
@@ -671,6 +687,10 @@ export function paramsToEnv(
     if (typeof params.pangram_analyze_timeout_ms === 'string') env.PANGRAM_ANALYZE_TIMEOUT_MS = params.pangram_analyze_timeout_ms;
     if (typeof params.pangram_section_timeout_ms === 'number') env.PANGRAM_SECTION_TIMEOUT_MS = String(params.pangram_section_timeout_ms);
     if (typeof params.pangram_section_timeout_ms === 'string') env.PANGRAM_SECTION_TIMEOUT_MS = params.pangram_section_timeout_ms;
+  }
+  if (trajPath.endsWith('/ncbr/apply_correction.mjs')) {
+    if (typeof params.objective === 'string') env.NCBR_CORRECTION_PLAN = params.objective;
+    env.NCBR_CORRECTION_MODE = action === 'ncbr_apply_correction' ? 'apply' : 'verify';
   }
   // slack_post_message params: message body + where (default channel 'jakub').
   // Inline `message` is machine-independent (survives cross-host enqueue);

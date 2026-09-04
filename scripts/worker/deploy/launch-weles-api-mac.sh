@@ -35,9 +35,11 @@ fi
 # broker below.
 export SKARBIEC_WORKLOAD_ID="${SKARBIEC_WORKLOAD_ID:-weles-credential-worker-local}"
 unset SEMANTIC_SCHOLAR_API_KEY S2_API_KEY || true
-# The fleet Stado config owns the canonical Skarbiec authority. Reading several
-# local ports silently selected an obsolete vault when more than one broker was
-# present, so Brama and Weles acquired different values for the same item.
+# The fleet service directory owns the canonical Skarbiec authority. Reading an
+# agent-ingress URL here sent a same-host workload out through Caddy and made
+# the Weles startup path disagree with every local Stado verifier. Resolve this
+# caller's declared endpoint instead; it is the stable release proxy and never
+# a scan or fallback to a second vault.
 STADO_BIN="${STADO_BIN:-$HOME/.stado/bin/stado}"
 if [ ! -x "$STADO_BIN" ]; then
   printf 'required Stado binary is unavailable: %s\n' "$STADO_BIN" >&2
@@ -48,17 +50,41 @@ if [ ! -x "$NODE_BIN" ]; then
   printf 'required Node runtime is unavailable: %s\n' "$NODE_BIN" >&2
   exit 1
 fi
-WC_SKARBIEC_URL="$("$STADO_BIN" config show | "$NODE_BIN" -e '
-  const config = JSON.parse(require("node:fs").readFileSync(0, "utf8"));
-  const value = config?.resolved?.agent_skarbiec_url;
+WC_SKARBIEC_URL="$("$STADO_BIN" service directory endpoint skarbiec --json | "$NODE_BIN" -e '
+  const endpoint = JSON.parse(require("node:fs").readFileSync(0, "utf8"));
+  const value = endpoint?.url;
   if (typeof value !== "string" || value.length === 0) process.exit(1);
   process.stdout.write(value);
 ')"
 if [ -z "$WC_SKARBIEC_URL" ]; then
-  printf 'fleet Stado config has no agent_skarbiec_url\n' >&2
+  printf 'fleet service directory has no Skarbiec endpoint for this host\n' >&2
   exit 1
 fi
 export WC_SKARBIEC_URL
+# The capability broker must come from the same signed release state Stado
+# already committed for this host. Refuse startup rather than falling back to a
+# mutable convenience path that can belong to a different Skarbiec generation.
+if ! skarbiec_release="$("$STADO_BIN" release active-binary skarbiec --json)"; then
+  printf 'Stado has no attested active Skarbiec binary for this host\n' >&2
+  exit 1
+fi
+if ! SKARBIEC_BIN="$(printf '%s' "$skarbiec_release" | "$NODE_BIN" -e '
+  const active = JSON.parse(require("node:fs").readFileSync(0, "utf8"));
+  const value = active?.path;
+  if (active?.state !== "active" || typeof value !== "string" || !value.startsWith("/")) {
+    process.exit(1);
+  }
+  process.stdout.write(value);
+')"; then
+  printf 'Stado returned an invalid active Skarbiec release record\n' >&2
+  exit 1
+fi
+unset skarbiec_release
+if [ ! -x "$SKARBIEC_BIN" ]; then
+  printf 'attested active Skarbiec binary is not executable: %s\n' "$SKARBIEC_BIN" >&2
+  exit 1
+fi
+export SKARBIEC_BIN
 # Resolve the repository from this launcher's immutable release tree. Keeping a
 # second build-work copy made the API server and its trajectories lag the
 # release that launchd had activated.
@@ -101,13 +127,25 @@ if [ -z "${WELES_STADO_MODEL_ROUTER_TOKEN:-}" ] \
   WELES_STADO_MODEL_ROUTER_AGENT_ID="$(acquire_startup_field weles-model-agent-id-bootstrap weles-model-agent-auth id)"
   WELES_STADO_MODEL_ROUTER_AGENT_AUTH_SECRET="$(acquire_startup_field weles-model-agent-secret-bootstrap weles-model-agent-auth agent_auth_secret)"
 fi
+WELES_PUBLIC_API_BEARER="$(acquire_startup_field weles-spis-public-bearer-bootstrap weles-spis-public-admission token)"
+WELES_PUBLIC_API_ORGANIZATION_ID="$(acquire_startup_field weles-spis-public-organization-bootstrap weles-spis-public-admission organization_id)"
+WELES_RECEIPT_KEY_ID="$(acquire_startup_field weles-spis-receipt-key-id-bootstrap weles-spis-public-admission receipt_key_id)"
+WELES_RECEIPT_KEY_SET_VERSION="$(acquire_startup_field weles-spis-receipt-key-set-version-bootstrap weles-spis-public-admission receipt_key_set_version)"
+WELES_RECEIPT_PRIVATE_KEY="$(acquire_startup_field weles-spis-receipt-private-key-bootstrap weles-spis-public-admission receipt_private_key)"
+WELES_RECEIPT_PUBLIC_KEYS_JSON="$(acquire_startup_field weles-spis-receipt-public-keys-bootstrap weles-spis-public-admission receipt_public_keys_json)"
 for required_secret in \
   WELES_API_TOKEN \
   BRAMA_WELES_REAUTH_TOKEN \
   WELES_STADO_OBJECT_API_TOKEN \
   WELES_STADO_MODEL_ROUTER_TOKEN \
   WELES_STADO_MODEL_ROUTER_AGENT_ID \
-  WELES_STADO_MODEL_ROUTER_AGENT_AUTH_SECRET
+  WELES_STADO_MODEL_ROUTER_AGENT_AUTH_SECRET \
+  WELES_PUBLIC_API_BEARER \
+  WELES_PUBLIC_API_ORGANIZATION_ID \
+  WELES_RECEIPT_KEY_ID \
+  WELES_RECEIPT_KEY_SET_VERSION \
+  WELES_RECEIPT_PRIVATE_KEY \
+  WELES_RECEIPT_PUBLIC_KEYS_JSON
 do
   if [ -z "${!required_secret:-}" ]; then
     printf 'required startup secret %s is unavailable\n' "$required_secret" >&2
@@ -116,6 +154,9 @@ do
 done
 export WELES_API_TOKEN BRAMA_WELES_REAUTH_TOKEN WELES_STADO_OBJECT_API_TOKEN WELES_STADO_MODEL_ROUTER_TOKEN
 export WELES_STADO_MODEL_ROUTER_AGENT_ID WELES_STADO_MODEL_ROUTER_AGENT_AUTH_SECRET
+export WELES_PUBLIC_API_BEARER WELES_PUBLIC_API_ORGANIZATION_ID WELES_RECEIPT_KEY_ID
+export WELES_RECEIPT_KEY_SET_VERSION WELES_RECEIPT_PRIVATE_KEY WELES_RECEIPT_PUBLIC_KEYS_JSON
+export WELES_PUBLIC_API_ALLOWED_ORIGINS='*'
 mkdir -p "$HOME/weles/var"
 # Set unconditionally: the unit's plist injects this variable, so a default
 # expression would never win. This is the alias Brama serves.
@@ -133,10 +174,67 @@ export SKARBIEC_CAP_SOCKET="$HOME/.stado/run/weles-api-capability.sock"
 mkdir -p "$(dirname "$SKARBIEC_CAP_SOCKET")"
 export WELES_API_HOST="${WELES_API_HOST:-0.0.0.0}"
 export WELES_API_PORT="${WELES_API_PORT:-8788}"
-"$HOME/.stado/bin/skarbiec" capability-serve --socket "$SKARBIEC_CAP_SOCKET" &
+# The API port is the only thing that says which instance is the live one.
+# Clearing the socket below is safe only for the instance that owns the
+# port: a restart that cleared it first took the path from the instance
+# still serving, its own API server then failed EADDRINUSE, and the trap
+# further down killed the broker it had just installed - leaving the live
+# server pointed at a socket with nothing behind it. Every trajectory that
+# asked for a credential from then on read ECONNREFUSED, reported as
+# `broker transport failure`, and no restart could repair it because each
+# retry repeated the theft. So the port is claimed before anything shared
+# is touched, and a losing instance stands by having changed nothing.
+lsof_bin=lsof
+[ -x /usr/sbin/lsof ] && lsof_bin=/usr/sbin/lsof
+if "$lsof_bin" -nP -iTCP:"$WELES_API_PORT" -sTCP:LISTEN >/dev/null 2>&1; then
+  echo "weles api port $WELES_API_PORT is already served: standing by, $SKARBIEC_CAP_SOCKET untouched" >&2
+  sleep 30
+  exit 0
+fi
+# A unix socket outlives the process that bound it. Every restart of this
+# unit used to inherit the previous broker's file: `bind` then answered
+# EADDRINUSE, the broker exited, and the file stayed behind pointing at
+# nothing - so trajectories reached a path that connect() refused. The
+# socket is this launcher's to own, so the launcher clears it.
+rm -f "$SKARBIEC_CAP_SOCKET"
+"$SKARBIEC_BIN" capability-serve --socket "$SKARBIEC_CAP_SOCKET" &
 capability_broker_pid=$!
-stop_capability_broker() {
-  kill "$capability_broker_pid" || true
+# Starting the API server before the broker accepts is a race the API loses
+# once, silently, on the first trajectory that asks for a credential.
+broker_ready=no
+for _ in $(seq 1 50); do
+  if [ -S "$SKARBIEC_CAP_SOCKET" ]; then broker_ready=yes; break; fi
+  if ! kill -0 "$capability_broker_pid" 2>/dev/null; then break; fi
+  sleep 0.2
+done
+if [ "$broker_ready" != yes ]; then
+  echo "capability broker never bound $SKARBIEC_CAP_SOCKET" >&2
+  kill "$capability_broker_pid" 2>/dev/null || true
+  exit 1
+fi
+echo "capability broker listening on $SKARBIEC_CAP_SOCKET"
+"$NODE_BIN" "$WELES_REPO/scripts/worker/weles-api-server.mjs" &
+api_server_pid=$!
+
+# launchd replaces this job with `launchctl kickstart -k`, which signals the job
+# and immediately starts its successor. The API server used to be an
+# unsupervised child of this script, so the job's own process was this shell
+# while the listening socket belonged to the server: the signal ended the shell,
+# the server was orphaned still holding the API port, and the successor found it
+# taken. That is the `listen EADDRINUSE 0.0.0.0:8788` the unit log filled with,
+# and why 0.5.57, 0.5.59 and 0.5.60 each timed out readiness against a port
+# their predecessor still owned. Shutting down therefore means ending BOTH
+# children and waiting for them, so the port and the broker socket are released
+# before the successor tries to claim them.
+shutdown_children() {
+  trap - EXIT HUP INT TERM
+  kill "$api_server_pid" "$capability_broker_pid" 2>/dev/null || true
+  wait "$api_server_pid" 2>/dev/null || true
+  wait "$capability_broker_pid" 2>/dev/null || true
 }
-trap stop_capability_broker EXIT HUP INT TERM
-"$NODE_BIN" "$WELES_REPO/scripts/worker/weles-api-server.mjs"
+trap shutdown_children EXIT HUP INT TERM
+
+wait "$api_server_pid"
+api_server_status=$?
+shutdown_children
+exit "$api_server_status"

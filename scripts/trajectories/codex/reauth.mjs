@@ -9,7 +9,7 @@
 //   5. Revoke stale rows after the replacement token is accepted.
 
 import crypto from 'node:crypto';
-import { spawn, spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -30,14 +30,6 @@ const CODEX_AUTH_PATH = process.env.CODEX_AUTH_PATH || join(homedir(), '.codex',
 // only the token is not. Skarbiec holds the configuration row this runner reads.
 const CONFIG_ITEM = 'codex-reauth-config';
 
-const NAMED_SUBSCRIPTION_SUFFIX = new Map([
-  ['codex-lukasz-google-sso', 'lukasz-gmail'],
-  ['codex-controlyourai-google-sso', 'controlyourai'],
-  ['codex-bartlomiej-wisent-google-sso', 'bartlomiej'],
-  ['codex-jakub-wisent-google-sso', 'jakub'],
-  ['codex-zuzanna-google-sso', 'zuzanna'],
-  ['codex-lukasz-wisent-com-google-sso', 'lukasz-wisent-com'],
-]);
 
 const BURNOUT_SUBSTR = [
   'refresh token was revoked',
@@ -173,19 +165,20 @@ function isBurnout(probe) {
 }
 
 async function pickLruRow() {
-  // Only a fresh browser login needs a donor row, and Skarbiec keeps no LRU
-  // queue of donor accounts. Say so plainly: reusing this host's own auth.json
-  // needs no donor at all.
+  // Only a fresh browser login needs a donor row. Automatic Brama renewal
+  // always names one account; a standalone untargeted run must not guess.
   throw new Error(
-    'a fresh login needs a donor credential row, and no credential store is '
-    + 'configured on this host; reuse of a local auth.json is the only path left',
+    'a fresh login must name a Codex account through WELES_LOGIN_ITEM or CODEX_DISPLAY_NAME',
   );
 }
 
 async function pickNamedRow(displayName) {
-  throw new Error(
-    `a named fresh login for ${displayName} needs the configured credential store`,
-  );
+  const named = displayName?.trim();
+  if (!named) throw new Error('a named Codex login needs a display name');
+  // login.mjs resolves this name through Weles's canonical service-login
+  // contracts and refuses if the vault does not hold it. Duplicating those
+  // credentials or their row registry here was the bug.
+  return { display_name: named };
 }
 
 async function markRowAttempted() {
@@ -194,18 +187,14 @@ async function markRowAttempted() {
   console.error('mark_row_attempted: no credential store configured; not recorded');
 }
 
-async function donate(cfg, authJson, label) {
-  // Brama's donate contract is `{provider, label, api_key}` and rejects
-  // anything else outright. `user_id` belonged to the Cloud Run router that
-  // went away: the donor is now the authenticated caller, not a field.
+async function donate(cfg, authJson, label, loginItem) {
   const body = {
     provider: 'codex',
     label: label || `reauth-macmini ${new Date().toISOString()}`,
     api_key: authJson,
+    ...(loginItem ? { login_item: loginItem } : {}),
+    ...(process.env.BRAMA_SUBSCRIPTION_ID ? { subscription_id: process.env.BRAMA_SUBSCRIPTION_ID } : {}),
   };
-  // Signed and bearing, like the read: an unsigned POST is refused as
-  // `unauthenticated` before the donation is looked at, which reads as a
-  // rejected credential rather than a rejected caller.
   const payload = JSON.stringify(body);
   const r = await fetch(`${cfg.routerUrl}/v1/subscriptions/${cfg.agentId}`, {
     method: 'POST',
@@ -218,10 +207,11 @@ async function donate(cfg, authJson, label) {
 }
 
 async function deleteSubscription(cfg, sub) {
+  const payload = JSON.stringify({ subscription_id: sub.id });
   const r = await fetch(`${cfg.routerUrl}/v1/subscriptions/${cfg.agentId}`, {
     method: 'DELETE',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ user_id: sub.donor_id || cfg.donorUserId, subscription_id: sub.id }),
+    headers: sign(cfg, payload),
+    body: payload,
   });
   return r.status < 400;
 }
@@ -294,64 +284,6 @@ async function runLoginWithRetries(row, attempts) {
   }
 }
 
-function bankNamedAuth(authJson) {
-  if (!isFreshCodexAuth(authJson)) {
-    throw new Error('refusing named Codex payload without access_token, id_token, and account_id');
-  }
-  const loginItem = process.env.WELES_LOGIN_ITEM?.trim();
-  const suffix = NAMED_SUBSCRIPTION_SUFFIX.get(loginItem);
-  if (!loginItem || !suffix) {
-    throw new Error(`no named Codex subscription mapping for ${loginItem || 'absent login item'}`);
-  }
-  const subscriptionId = `brama-sub-wisent-app-codex-${suffix}`;
-  const item = `provider:codex:${subscriptionId}`;
-  const document = {
-    schema: 'skarbiec.item.v2',
-    kind: 'bundle',
-    fields: { value: authJson },
-    context: { source: 'codex-auth.json', login_item: loginItem },
-  };
-  const tags = [
-    'brama:subscription',
-    'brama:agent:wisent-app',
-    'brama:provider:codex',
-    `brama:id:${subscriptionId}`,
-    `brama:login:${loginItem}`,
-  ];
-  const binary = process.env.SKARBIEC_BIN?.trim() || join(homedir(), '.stado', 'bin', 'skarbiec');
-  const environment = {
-    ...process.env,
-    PATH: '/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin',
-    SKARBIEC_VAULT_FILE: process.env.SKARBIEC_VAULT_FILE || join(homedir(), '.stado', 'skarbiec.vault.json'),
-  };
-  const written = spawnSync(
-    binary,
-    ['set-json', item, '--type', 'bundle', '--tags', tags.join(',')],
-    {
-      input: JSON.stringify(document),
-      encoding: 'utf8',
-      maxBuffer: 64 * 1024,
-      env: environment,
-    },
-  );
-  if (written.error || written.status !== 0) {
-    const detail = String(written.stderr || written.error?.message || '').split('\n').filter(Boolean).slice(-2).join(' ');
-    throw new Error(`cannot bank ${item}: ${detail || `skarbiec exited ${written.status}`}`);
-  }
-  const checked = spawnSync(binary, ['get', item], {
-    encoding: 'utf8',
-    maxBuffer: 128 * 1024,
-    env: environment,
-  });
-  if (checked.error || checked.status !== 0) {
-    throw new Error(`banked item ${item} is unreadable`);
-  }
-  const stored = JSON.parse(checked.stdout);
-  if (stored?.fields?.value !== authJson) {
-    throw new Error(`banked item ${item} does not contain the minted credential`);
-  }
-  return item;
-}
 
 async function main() {
   const cfg = await loadConfig();
@@ -363,8 +295,14 @@ async function main() {
     console.log(`[codex reauth] requested fresh login for ${row.display_name}`);
     const authJson = await runLoginWithRetries(row, 1);
     console.log(`[codex reauth] got requested auth.json len=${authJson.length}`);
-    const item = bankNamedAuth(authJson);
-    console.log(`[codex reauth] banked requested credential as ${item}`);
+    const loginItem = process.env.WELES_LOGIN_ITEM?.trim() || '';
+    const newSub = await donate(
+      cfg,
+      authJson,
+      `codex-reauth ${row.display_name} ${new Date().toISOString()}`,
+      loginItem,
+    );
+    console.log(`[codex reauth] donated requested credential as ${newSub.id ?? '?'}`);
     return;
   }
   const poolBefore = await listSubscriptions(cfg);
@@ -430,7 +368,7 @@ async function main() {
   console.log(`[codex reauth] got auth.json len=${authJson.length}`);
 
   const donateLabel = `codex-reauth ${account} ${new Date().toISOString()}`;
-  const newSub = await donate(cfg, authJson, donateLabel);
+  const newSub = await donate(cfg, authJson, donateLabel, '');
   console.log(`[codex reauth] donated new sub id=${newSub.id ?? '?'}`);
   const newExp = authExpiresAt(authJson);
   if (newExp > 0) await persistActiveExpiry(cfg, newExp);
@@ -444,7 +382,9 @@ async function main() {
   let kept = 0;
   for (const old of poolBefore) {
     const lbl = old.key_label || '';
-    if (accountOfLabel(lbl) === account || lbl.startsWith('reauth-macmini ')) {
+    if (old.id === newSub.id) {
+      kept += 1;
+    } else if (accountOfLabel(lbl) === account || lbl.startsWith('reauth-macmini ')) {
       if (await deleteSubscription(cfg, old)) deleted += 1;
     } else {
       kept += 1;

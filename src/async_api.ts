@@ -297,6 +297,10 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
     deviceScaleFactor: dpr,
     ...(persona?.acceptLanguage ? { extraHTTPHeaders: { 'accept-language': persona.acceptLanguage } } : {}),
   };
+  if (process.env.WELES_BROWSER_EVIDENCE_POLICY === 'spis-browser-evidence.1') {
+    ctxOpts.acceptDownloads = false;
+    ctxOpts.serviceWorkers = 'block';
+  }
   if (options.proxy) {
     ctxOpts.proxy = options.proxy;
     if (isChromium) ctxOpts.ignoreHTTPSErrors = true;
@@ -325,6 +329,35 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
   const args = [...CHROMIUM_ARGS];
   if (process.env.WELES_CHROMIUM_PROFILE_DIRECTORY) {
     args.push(`--profile-directory=${process.env.WELES_CHROMIUM_PROFILE_DIRECTORY}`);
+  }
+  if (process.env.WELES_BROWSER_EVIDENCE_POLICY === 'spis-browser-evidence.1') {
+    const targetHost = String(process.env.WELES_BROWSER_EVIDENCE_TARGET_HOST ?? '');
+    let targetAddresses: unknown;
+    try { targetAddresses = JSON.parse(process.env.WELES_BROWSER_EVIDENCE_TARGET_ADDRESSES_JSON ?? 'null'); } catch {}
+    if (!/^[A-Za-z0-9.-]+$/.test(targetHost)
+        || !Array.isArray(targetAddresses)
+        || targetAddresses.length === 0
+        || typeof targetAddresses[0] !== 'string'
+        || !/^[0-9A-Fa-f:.]+$/.test(targetAddresses[0])) {
+      throw new Error('browser-evidence target resolver binding is invalid');
+    }
+    const pinnedAddress = targetAddresses[0].includes(':') ? `[${targetAddresses[0]}]` : targetAddresses[0];
+    args.push(`--host-resolver-rules=MAP ${targetHost} ${pinnedAddress},MAP * ~NOTFOUND`);
+    args.push(
+      '--disable-background-networking',
+      '--disable-client-side-phishing-detection',
+      '--disable-component-update',
+      '--disable-default-apps',
+      '--disable-domain-reliability',
+      '--disable-extensions',
+      '--disable-notifications',
+      '--disable-sync',
+      '--no-pings',
+      '--safebrowsing-disable-auto-update',
+      '--block-new-web-contents',
+      '--disable-external-intent-requests',
+      '--disable-features=AutoLaunchProtocolsFromOrigins,EncryptedClientHello,PreconnectOnNavigation,Prerender2,SpeculationRulesPrefetch,ServiceWorkerStaticRouter,BackgroundFetch,PushMessaging,NotificationTriggers,DownloadBubble',
+    );
   }
 
   // Language + timezone as binary-level signals (real Chrome behavior), not CDP emulation.
@@ -410,6 +443,8 @@ export async function AsyncNewBrowser(options: AsyncNewBrowserOptions = {}): Pro
     if (ctxOpts.proxy) { customCtxOpts.proxy = ctxOpts.proxy; customCtxOpts.ignoreHTTPSErrors = true; }
     if (ctxOpts.recordVideo) customCtxOpts.recordVideo = ctxOpts.recordVideo;
     if (ctxOpts.extraHTTPHeaders) customCtxOpts.extraHTTPHeaders = ctxOpts.extraHTTPHeaders;
+    if (ctxOpts.acceptDownloads === false) customCtxOpts.acceptDownloads = false;
+    if (ctxOpts.serviceWorkers === 'block') customCtxOpts.serviceWorkers = 'block';
     if (captureHar && process.env.WELES_LABEL) customCtxOpts.recordHar = { path: join(runRecordingsDir(process.env.WELES_LABEL), 'session.har'), content: 'embed', mode: 'full' }; // G17: recordings/<run_uuid>/<label>/session.har — sealed at context.close. Decoupled from pageDiagnostics: HAR is CDP-level, not page-visible.
     console.log(`[async_api] Context opts: ${JSON.stringify(redactContextOpts({ ...customCtxOpts, ...(persistentProfile ? { userDataDir: persistentProfile } : {}) }))}`);
     const context = persistentProfile

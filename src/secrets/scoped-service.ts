@@ -583,6 +583,12 @@ export function readOptionalPinnedProxyCredential(reference: string): PinnedProx
   return username && password ? { username, password } : undefined;
 }
 
+function isMissingOptionalAcquisitionField(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.includes('acquisition field does not exist on item')
+    || message.includes('canonical item has no field:');
+}
+
 export function readOptionalWelesServiceLogin(serviceName: WelesServiceSecret): { email: string; password: string; totpSecret?: string } | null {
   const service = SERVICE_CONTRACTS[serviceName];
   if (!Object.prototype.hasOwnProperty.call(service.fields, 'username')
@@ -592,9 +598,17 @@ export function readOptionalWelesServiceLogin(serviceName: WelesServiceSecret): 
   const email = readOptionalWelesServiceSecret(serviceName, 'username');
   const password = readOptionalWelesServiceSecret(serviceName, 'password');
   if (!email || !password) return null;
-  const totpSecret = Object.prototype.hasOwnProperty.call(service.fields, 'totp_secret')
-    ? readOptionalWelesServiceSecret(serviceName, 'totp_secret')
-    : undefined;
+  let totpSecret: string | undefined;
+  if (Object.prototype.hasOwnProperty.call(service.fields, 'totp_secret')) {
+    try {
+      totpSecret = readOptionalWelesServiceSecret(serviceName, 'totp_secret');
+    } catch (error) {
+      // TOTP is optional login material. Only a definitive answer that this
+      // item's field does not exist may omit it; grant, identity and authority
+      // failures still stop before a browser opens.
+      if (!isMissingOptionalAcquisitionField(error)) throw error;
+    }
+  }
   return { email, password, ...(totpSecret ? { totpSecret } : {}) };
 }
 

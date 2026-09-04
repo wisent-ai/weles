@@ -183,10 +183,13 @@ run does not establish that the target permits automation.
 
 **Brama.** Brama repairs provider-disowned Claude Code, Codex, and Kimi
 subscriptions by calling Weles `POST /reauth`. Weles runs the provider's real
-login trajectory on its approved browser host, returns only the run status and
-the exact `login_item`, and leaves the new credential in Skarbiec. Brama then
-refreshes the provider grant and accepts the repair only when that refresh
-returns a usable credential.
+login trajectory on its approved browser host, returns the run status, exact
+`login_item`, and declared subscription id, and leaves the new credential in
+Skarbiec. Each provider declares one primary account; that declaration lets
+Brama repair historical subscription items whose login tag is absent without
+guessing between accounts. Brama accepts the repair only when Weles's mapping
+matches the exact subscription and the following refresh returns a usable
+credential.
 
 The connection is service-owned rather than host-owned. Brama and Weles each
 acquire `brama-weles-reauth/token` from Skarbiec with their own workload
@@ -194,10 +197,20 @@ identity at service startup. Brama presents the resulting
 `BRAMA_WELES_REAUTH_TOKEN` only to `POST /reauth`; Weles accepts that bearer
 only on this route. They share no environment file, helper, copied token, or
 operator shell. Both services resolve the canonical Skarbiec endpoint from
-`resolved.agent_skarbiec_url` in the fleet Stado configuration; neither scans
-local ports or falls back to another vault. `BRAMA_WELES_URL` names the Weles
-endpoint and defaults to loopback when both services run on the same approved
-host.
+Stado's service directory for their own target; neither scans local ports,
+routes a same-host workload through agent ingress, or falls back to another
+vault. Brama resolves `weles-admission`
+from Stado's service directory as the declared `brama` consumer with the
+`credential-lifecycle` capability; `BRAMA_WELES_URL` remains an explicit
+endpoint override.
+
+Reauthentication diagnostics survive release replacement under
+`$HOME/.stado/var/weles/recordings`; detached run verdicts live under
+`$HOME/.stado/weles-detached-runs`. The authenticated
+`GET /diagnostics/<run_id>` API searches managed and legacy recording roots and
+always lists `run-result.json` when the worker accepted the run. Stado can
+therefore retrieve the exact stderr and exit status even when a preflight failed
+before a browser existed, plus the DOM, video, and trajectory logs when it did.
 
 **Skarbiec.** Weles acquires API credentials, browser logins, and the Brama
 admission bearer through exact `consumer|item|field` scopes. Credentials enter
@@ -206,8 +219,11 @@ request, prompt, receipt, or log.
 
 **Stado.** Stado selects and operates the approved Weles worker host, owns
 queued execution, and verifies the browser release coordinate used by that
-host. The synchronous reauthentication call uses the same checked-in
-trajectory as queued execution; it does not create a second login path.
+host. A successful product release also advances the service directory's
+immutable source and places `weles-admission` in launchd's system domain on an
+always-on Mac; no release-local migration script owns either state. The
+synchronous reauthentication call uses the same checked-in trajectory as
+queued execution; it does not create a second login path.
 
 ### Mobile egress managed by Stado
 

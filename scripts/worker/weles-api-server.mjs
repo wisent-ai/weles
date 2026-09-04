@@ -1,9 +1,8 @@
 // Weles HTTP API — synchronous trajectory runner.
 //
-// Purpose: "shoot at a server" to run a Weles trajectory and get the result
-// back in the HTTP response, WITHOUT the Supabase account_action_logs
-// enqueue->poll roundtrip. It reuses the worker's OWN resolveTrajectory +
-// paramsToEnv (from dist/) so a job runs byte-identically to the queued path.
+// Purpose: run a Weles trajectory synchronously and return its result without
+// an external queue roundtrip. It reuses the worker's own resolveTrajectory and
+// paramsToEnv implementation so the action is identical to the queued path.
 //
 // It spawns the same trajectory child the worker spawns. On macOS, when the
 // API is a system LaunchDaemon and a GUI login exists, that child enters the
@@ -40,7 +39,7 @@
 import http from 'node:http';
 import { spawn, execFile, execFileSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
-import { homedir } from 'node:os';
+import { homedir, userInfo } from 'node:os';
 import { dirname, resolve, join, extname, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
@@ -53,13 +52,35 @@ import {
   realpathSync,
   writeFileSync,
   mkdirSync,
+  renameSync,
 } from 'node:fs';
 // Where a detached run records what happened, outside the repository so a
 // rebuild cannot delete the answer.
 const RUN_RESULTS_DIR = join(homedir(), '.stado', 'weles-detached-runs');
+const RECORDINGS_ROOT = process.env.WELES_RECORDINGS_ROOT || join(homedir(), '.stado', 'var', 'weles', 'recordings');
+
+function persistRunResult(path, document) {
+  mkdirSync(RUN_RESULTS_DIR, { recursive: true, mode: 0o700 });
+  const temporary = `${path}.${process.pid}.tmp`;
+  writeFileSync(temporary, JSON.stringify(document), { mode: 0o600 });
+  renameSync(temporary, path);
+}
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(__dirname, '../..');
+const SOURCE_IDENTITY = JSON.parse(readFileSync(join(REPO, 'release', 'source-identity.json'), 'utf8'));
+if (SOURCE_IDENTITY.schema !== 'weles.source-identity.v1'
+    || SOURCE_IDENTITY.product !== 'weles-worker'
+    || SOURCE_IDENTITY.version !== process.env.WELES_WORKER_RELEASE_VERSION
+    || typeof SOURCE_IDENTITY.source_revision !== 'string'
+    || !/^[0-9a-f]{40}$/.test(SOURCE_IDENTITY.source_revision)) {
+  throw new Error('embedded Weles source identity does not match the deployed release');
+}
+const RUN_RELEASE_IDENTITY = Object.freeze({
+  release_version: process.env.WELES_WORKER_RELEASE_VERSION || null,
+  release_sha256: process.env.WELES_WORKER_RELEASE_SHA256 || null,
+  source_revision: SOURCE_IDENTITY.source_revision,
+});
 
 const { resolveTrajectory, paramsToEnv } = await import(`${REPO}/dist/worker/dispatch.js`);
 const { buildDeploymentVersionValue } = await import(`${REPO}/dist/worker/deployment_version.js`);
@@ -67,7 +88,19 @@ const { buildDeploymentVersionValue } = await import(`${REPO}/dist/worker/deploy
 // trajectories, so /reauth, /run and a hand-run trajectory all resolve the same
 // vault login item id to the same account.
 const { LOGIN_ACCOUNTS, selectLoginAccount } = await import(`${REPO}/dist/utils/login-accounts.js`);
+const { readPrivateStadoObjectIdentity, uploadArtifacts } = await import(`${REPO}/dist/worker/upload-artifacts.js`);
+const { resolveBrowserEvidenceTarget, SPIS_BROWSER_EVIDENCE_POLICY } = await import(`${REPO}/dist/agent/browser-evidence-policy.js`);
+const { createPublicTaskService, publicTaskErrorResponse } = await import('./public-task-service.mjs');
 
+function boundedIntegerEnvironment(name, fallback, minimum, maximum) {
+  const raw = String(process.env[name] ?? fallback);
+  if (!/^[1-9][0-9]*$/.test(raw)) throw new Error(`${name} must be a positive base-10 integer`);
+  const value = Number(raw);
+  if (!Number.isSafeInteger(value) || value < minimum || value > maximum) {
+    throw new Error(`${name} must be between ${minimum} and ${maximum}`);
+  }
+  return value;
+}
 const HOST = process.env.WELES_API_HOST || '127.0.0.1';
 const PORT = Number(process.env.WELES_API_PORT || 8788);
 const TOKEN = process.env.WELES_API_TOKEN || process.env.WELES_CONSOLE_API_TOKEN || '';
@@ -75,6 +108,18 @@ const BRAMA_REAUTH_TOKEN = process.env.BRAMA_WELES_REAUTH_TOKEN || '';
 const ALLOW_UNAUTH = process.env.WELES_API_ALLOW_UNAUTH === '1';
 const ALLOW_RAW_CREDS = (process.env.WELES_API_ALLOW_RAW_CREDS ?? '1') === '1';
 const TIMEOUT_MS = Number(process.env.WELES_API_TIMEOUT_MS || 15 * 60 * 1000);
+const PUBLIC_TASK_TIMEOUT_MS = boundedIntegerEnvironment(
+  'WELES_PUBLIC_TASK_TIMEOUT_MS',
+  2 * 60 * 60 * 1_000,
+  15 * 60 * 1_000,
+  6 * 60 * 60 * 1_000,
+);
+const PUBLIC_TASK_CONCURRENCY = boundedIntegerEnvironment(
+  'WELES_PUBLIC_TASK_CONCURRENCY',
+  1,
+  1,
+  1,
+);
 const BODY_LIMIT = Number(process.env.WELES_API_BODY_LIMIT_BYTES || 256 * 1024);
 const RUN_DEDUPLICATION_TTL_MS = Number(process.env.WELES_API_RUN_DEDUPLICATION_TTL_MS || 60_000);
 const coalescedRuns = new Map();
@@ -169,6 +214,18 @@ function redactSecrets(obj) {
   try { return JSON.parse(s); } catch { return obj; }
 }
 
+function skarbiecAcquisitionFailureReason(stderr) {
+  if (/acquisition field does not exist on item|canonical item has no field:/.test(stderr)) {
+    return 'field_not_present';
+  }
+  if (/undeclared Skarbiec acquisition scope/.test(stderr)) return 'scope_not_declared';
+  if (/Skarbiec .* is unreachable|endpoint .* is not listening/.test(stderr)) {
+    return 'authority_unreachable';
+  }
+  if (/\bHTTP 401\b/.test(stderr)) return 'workload_not_authorized';
+  return undefined;
+}
+
 function credentialFailure(out) {
   const stderr = String(out.stderr_tail || '');
   const stages = [...stderr.matchAll(/^STEP ([a-z][a-z0-9_-]{0,63})$/gm)];
@@ -181,11 +238,13 @@ function credentialFailure(out) {
     /workload-bound Skarbiec acquisition failed for ([A-Za-z0-9._-]+)\/([A-Za-z0-9._-]+) as consumer ([A-Za-z0-9._-]+)/,
   );
   if (match) {
+    const reason = skarbiecAcquisitionFailureReason(stderr);
     return withStage({
       code: 'skarbiec_acquisition_failed',
       item: match[1],
       field: match[2],
       consumer: match[3],
+      ...(reason ? { reason } : {}),
     });
   }
 
@@ -247,23 +306,95 @@ function decodeRunId(raw) {
   }
 }
 
-function diagnosticsRoot(runId) {
-  let recordingsRoot;
-  let runRoot;
+function diagnosticsCandidates() {
+  const candidates = [];
+  const seen = new Set();
+  const add = (candidate) => {
+    if (!candidate || seen.has(candidate)) return;
+    seen.add(candidate);
+    candidates.push(candidate);
+  };
+
+  // New releases write outside their immutable runtime so an activation cannot
+  // strand the previous release's evidence.
+  add(process.env.WELES_RECORDINGS_ROOT);
+  add(join(REPO, 'recordings'));
+
+  // Managed releases before the stable recordings root wrote beside their
+  // unpacked runtime. Keep those runs diagnosable after `current` advances.
+  const managed = join(homedir(), '.stado', 'services', 'weles-admission');
   try {
-    recordingsRoot = realpathSync(join(REPO, 'recordings'));
-    runRoot = realpathSync(join(recordingsRoot, runId));
+    for (const release of readdirSync(managed, { withFileTypes: true })) {
+      if (!release.isDirectory()) continue;
+      const releaseRoot = join(managed, release.name);
+      for (const platform of readdirSync(releaseRoot, { withFileTypes: true })) {
+        if (!platform.isDirectory()) continue;
+        add(join(releaseRoot, platform.name, 'runtime', 'recordings'));
+      }
+    }
+  } catch {}
+
+  // The retired per-version installer is still where runs made by 0.5.44 and
+  // earlier live. Stado's activity reader already counts these exact roots; the
+  // authenticated diagnostics route must be able to open the run it reports.
+  const legacy = join(homedir(), '.local', 'share', 'weles-worker');
+  try {
+    for (const release of readdirSync(legacy, { withFileTypes: true })) {
+      if (!release.isDirectory()) continue;
+      const releaseRoot = join(legacy, release.name);
+      for (const platform of readdirSync(releaseRoot, { withFileTypes: true })) {
+        if (!platform.isDirectory()) continue;
+        add(join(releaseRoot, platform.name, 'recordings'));
+      }
+    }
+  } catch {}
+  return candidates;
+}
+
+function diagnosticsRoot(runId) {
+  for (const candidate of diagnosticsCandidates()) {
+    let recordingsRoot;
+    let runRoot;
+    try {
+      recordingsRoot = realpathSync(candidate);
+      runRoot = realpathSync(join(recordingsRoot, runId));
+    } catch {
+      continue;
+    }
+    if (runRoot.startsWith(`${recordingsRoot}${sep}`)) return runRoot;
+  }
+  return null;
+}
+
+function runResultFile(runId) {
+  const candidate = join(RUN_RESULTS_DIR, `${runId}.json`);
+  try {
+    const resultsRoot = realpathSync(RUN_RESULTS_DIR);
+    const lstat = lstatSync(candidate);
+    if (lstat.isSymbolicLink() || !lstat.isFile()) return null;
+    const path = realpathSync(candidate);
+    if (!path.startsWith(`${resultsRoot}${sep}`)) return null;
+    return { path, stat: statSync(path) };
   } catch {
     return null;
   }
-  return runRoot.startsWith(`${recordingsRoot}${sep}`) ? runRoot : null;
 }
 
 function diagnosticsManifest(runId) {
   const root = diagnosticsRoot(runId);
-  if (!root) return null;
+  const result = runResultFile(runId);
+  if (!root && !result) return null;
   const files = [];
-  const stack = [{ dir: root, rel: '' }];
+  if (result) {
+    files.push({
+      path: 'run-result.json',
+      bytes: result.stat.size,
+      modified_at: result.stat.mtime.toISOString(),
+      content_type: 'application/json',
+      download_url: `/diagnostics/${encodeURIComponent(runId)}/file?path=run-result.json`,
+    });
+  }
+  const stack = root ? [{ dir: root, rel: '' }] : [];
   while (stack.length) {
     const current = stack.pop();
     let entries;
@@ -292,6 +423,7 @@ function diagnosticsManifest(runId) {
   return {
     ok: true,
     run_id: runId,
+    recordings_root: root,
     total_files: files.length,
     total_bytes: files.reduce((sum, file) => sum + file.bytes, 0),
     files,
@@ -300,6 +432,7 @@ function diagnosticsManifest(runId) {
 
 function diagnosticFile(runId, requestedPath) {
   if (typeof requestedPath !== 'string' || requestedPath.length === 0 || requestedPath.includes('\0')) return null;
+  if (requestedPath === 'run-result.json') return runResultFile(runId);
   const root = diagnosticsRoot(runId);
   if (!root) return null;
   const candidate = resolve(root, requestedPath);
@@ -364,26 +497,27 @@ function lastJsonLine(stdout) {
   return null;
 }
 
-// Many trajectories (generic browser_task, register flows) write their result
-// to recordings/<run_id>/<...>/generic_task_result.json (or result.json) rather
-// than stdout. Walk the run's recordings tree and return the first result doc.
 function findResultDoc(runId) {
-  const root = join(REPO, 'recordings', runId);
-  const wanted = new Set(['generic_task_result.json', 'result.json']);
-  const stack = [root];
-  while (stack.length) {
-    const dir = stack.pop();
-    let entries;
-    try { entries = readdirSync(dir, { withFileTypes: true }); } catch { continue; }
-    for (const e of entries) {
-      const full = join(dir, e.name);
-      if (e.isDirectory()) { stack.push(full); continue; }
-      if (wanted.has(e.name)) {
-        try { return JSON.parse(readFileSync(full, 'utf8')); } catch { /* keep scanning */ }
-      }
+  const runRoot = join(RECORDINGS_ROOT, runId);
+  const actionRoot = join(runRoot, 'generic_browser_task');
+  const resultPath = join(actionRoot, 'generic_task_result.json');
+  try {
+    const runMetadata = lstatSync(runRoot);
+    const actionMetadata = lstatSync(actionRoot);
+    const resultMetadata = lstatSync(resultPath);
+    if (!runMetadata.isDirectory() || runMetadata.isSymbolicLink()
+        || !actionMetadata.isDirectory() || actionMetadata.isSymbolicLink()
+        || !resultMetadata.isFile() || resultMetadata.isSymbolicLink()
+        || resultMetadata.size < 1 || resultMetadata.size > 1024 * 1024) {
+      return null;
     }
+    const realRunRoot = realpathSync(runRoot);
+    const realResult = realpathSync(resultPath);
+    if (!realResult.startsWith(`${realRunRoot}${sep}`)) return null;
+    return JSON.parse(readFileSync(resultPath, 'utf8'));
+  } catch {
+    return null;
   }
-  return null;
 }
 
 // Pull a credential tuple out of a trajectory result value. Tolerant of nesting
@@ -450,91 +584,122 @@ async function storeCredential(action, params, creds, runId) {
 function trajectoryProcess(trajPath) {
   const direct = { command: process.execPath, args: [trajPath] };
   if (process.platform !== 'darwin') return direct;
-
   let session = 'unknown';
   try {
-    session = execFileSync('/bin/launchctl', ['managername'], {
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'ignore'],
-    }).trim();
-  } catch { /* use the direct process below */ }
+    session = execFileSync('/bin/launchctl', ['managername'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+  } catch { /* use direct */ }
   if (session === 'Aqua') return direct;
-
   const uid = process.getuid?.();
   if (!Number.isSafeInteger(uid) || uid < 0) return direct;
-  try {
-    execFileSync('/bin/launchctl', ['print', `gui/${uid}`], { stdio: 'ignore' });
-  } catch {
-    return direct;
-  }
+  try { execFileSync('/bin/launchctl', ['print', `gui/${uid}`], { stdio: 'ignore' }); } catch { return direct; }
+  const username = userInfo().username;
+  if (!username) return direct;
   return {
-    command: '/bin/launchctl',
-    args: ['asuser', String(uid), process.execPath, trajPath],
+    command: '/usr/bin/sudo',
+    args: ['-n', '-E', '/bin/launchctl', 'asuser', String(uid), '/usr/bin/sudo', '-n', '-E', '-u', username, process.execPath, trajPath],
   };
 }
 
-function runTrajectory(action, params, accountId, freshProfile, timeoutMs) {
+const PUBLIC_TASK_ENV_ALLOWLIST = Object.freeze([
+  'HOME', 'LANG', 'LC_ALL', 'LC_CTYPE', 'PATH', 'PLAYWRIGHT_BROWSERS_PATH',
+  'SSL_CERT_DIR', 'SSL_CERT_FILE', 'STADO_BIN', 'STADO_MODEL_ROUTER_URL',
+  'TMPDIR', 'WELES_CHROMIUM_DIR', 'WELES_CHROMIUM_RELEASE_SHA256',
+  'WELES_CHROMIUM_RELEASE_VERSION', 'WELES_JEDEN_BIN', 'WELES_RECORDINGS_ROOT',
+  'WELES_STADO_MODEL_ROUTER_AGENT_AUTH_SECRET', 'WELES_STADO_MODEL_ROUTER_AGENT_ID',
+  'WELES_STADO_MODEL_ROUTER_TOKEN', 'XDG_CONFIG_HOME',
+]);
+
+function publicTaskChildEnvironment(policy, networkTarget) {
+  const environment = {};
+  for (const name of PUBLIC_TASK_ENV_ALLOWLIST) {
+    if (typeof process.env[name] === 'string' && process.env[name].length > 0) environment[name] = process.env[name];
+  }
+  return {
+    ...environment,
+    WELES_AGENT_MODEL: 'best',
+    WELES_BROWSER_EVIDENCE_POLICY: policy.version,
+    WELES_BROWSER_EVIDENCE_POLICY_JSON: JSON.stringify(policy),
+    WELES_BROWSER_EVIDENCE_TARGET_ORIGIN: networkTarget.origin,
+    WELES_BROWSER_EVIDENCE_TARGET_HOST: networkTarget.hostname,
+    WELES_BROWSER_EVIDENCE_TARGET_ADDRESSES_JSON: JSON.stringify(networkTarget.addresses),
+    WELES_DISABLE_RECORDING: '1',
+    WELES_NO_INSTRUMENT: '1',
+    GENERIC_TASK_SKIP_SAVED_FLOW_REPLAY: '1',
+  };
+}
+
+function boundedOutputTail(current, chunk, maximumCharacters) {
+  const next = `${current}${chunk.toString()}`;
+  return next.length <= maximumCharacters ? next : next.slice(-maximumCharacters);
+}
+
+function runTrajectory(action, params, accountId, freshProfile, timeoutMs, runOptions = {}) {
   return new Promise((resolveRun) => {
     const trajPath = resolveTrajectory(action);
     if (!trajPath) { resolveRun({ ok: false, error: 'no_trajectory', action }); return; }
-    const runId = randomUUID();
+    const runId = runOptions.runId || randomUUID();
+    if (!SAFE_RUN_ID.test(runId)) { resolveRun({ ok: false, error: 'invalid_run_id', action }); return; }
+    const startedAt = new Date().toISOString();
+    const runResultPath = join(RUN_RESULTS_DIR, `${runId}.json`);
+    try {
+      persistRunResult(runResultPath, { ok: null, ...RUN_RELEASE_IDENTITY, action, run_id: runId, status: 'running', started_at: startedAt });
+    } catch (error) {
+      resolveRun({ ok: false, error: 'run_metadata_unavailable', action, run_id: runId, stderr_tail: String(error?.message || error).slice(0, 300) });
+      return;
+    }
     const env = {
-      ...process.env,
-      WELES_FULL_DIAGNOSTICS: process.env.WELES_FULL_DIAGNOSTICS ?? '1',
+      ...(runOptions.childEnvironment ?? process.env),
+      ...(runOptions.childEnvironment ? {} : { WELES_FULL_DIAGNOSTICS: process.env.WELES_FULL_DIAGNOSTICS ?? '1' }),
       ...paramsToEnv(params || {}, action, trajPath),
       ...(accountId ? { ACCOUNT_ID: String(accountId) } : {}),
       ...(freshProfile ? { WELES_FRESH_PROFILE: '1' } : {}),
+      ...(runOptions.extraEnv || {}),
       ACTION_LOG_ID: runId,
       ACTION: action,
     };
     const processSpec = trajectoryProcess(trajPath);
-    const child = spawn(processSpec.command, processSpec.args, {
-      cwd: REPO,
-      env,
-      stdio: ['ignore', 'pipe', 'pipe'],
-      detached: process.platform !== 'win32',
-    });
-    let stdout = ''; let stderr = ''; let killed = false; let settled = false;
+    const child = spawn(processSpec.command, processSpec.args, { cwd: REPO, env, stdio: ['ignore', 'pipe', 'pipe'], detached: process.platform !== 'win32' });
+    let stdout = '';
+    let stderr = '';
+    let timedOut = false;
+    let cancelled = false;
+    let settled = false;
+    const abortRun = () => {
+      cancelled = true;
+      signalRunProcess(child, 'SIGTERM');
+      const hardKill = setTimeout(() => signalRunProcess(child, 'SIGKILL'), 8000);
+      hardKill.unref();
+    };
     const finish = (result) => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
+      runOptions.signal?.removeEventListener('abort', abortRun);
+      try {
+        persistRunResult(runResultPath, { ...result, ...RUN_RELEASE_IDENTITY, action, run_id: runId, status: 'finished', started_at: startedAt, completed_at: new Date().toISOString() });
+      } catch (error) {
+        result = { ...result, metadata_error: `run metadata could not be completed: ${String(error?.message || error).slice(0, 240)}` };
+      }
       resolveRun(result);
     };
     const timer = setTimeout(() => {
-      killed = true;
+      timedOut = true;
       signalRunProcess(child, 'SIGTERM');
       const hardKill = setTimeout(() => signalRunProcess(child, 'SIGKILL'), 8000);
       hardKill.unref();
     }, timeoutMs);
     timer.unref();
-    child.stdout.on('data', (c) => { stdout += c.toString(); });
-    child.stderr.on('data', (c) => { stderr += c.toString(); });
+    if (runOptions.signal?.aborted) abortRun();
+    else runOptions.signal?.addEventListener('abort', abortRun, { once: true });
+    child.stdout.on('data', (chunk) => { stdout = boundedOutputTail(stdout, chunk, 2 * 1024 * 1024); });
+    child.stderr.on('data', (chunk) => { stderr = boundedOutputTail(stderr, chunk, 512 * 1024); });
     child.once('error', (error) => {
-      finish({
-        ok: false,
-        exitCode: -1,
-        action,
-        run_id: runId,
-        result: null,
-        stdout_tail: stdout.slice(-4000),
-        stderr_tail: `${stderr}\n${String(error?.message || error)}`.slice(-2000),
-        timed_out: false,
-      });
+      finish({ ok: false, exitCode: -1, action, run_id: runId, result: null, stdout_tail: stdout.slice(-4000), stderr_tail: `${stderr}\n${String(error?.message || error)}`.slice(-2000), timed_out: false, cancelled });
     });
     child.on('close', (code) => {
-      const exitCode = killed ? 137 : (code ?? -1);
+      const exitCode = timedOut || cancelled ? 137 : (code ?? -1);
       const result = lastJsonLine(stdout) ?? findResultDoc(runId);
-      finish({
-        ok: exitCode === 0,
-        exitCode,
-        action,
-        run_id: runId,
-        result,
-        stdout_tail: stdout.slice(-4000),
-        stderr_tail: stderr.slice(-2000),
-        timed_out: killed,
-      });
+      finish({ ok: exitCode === 0, exitCode, action, run_id: runId, result, stdout_tail: stdout.slice(-4000), stderr_tail: stderr.slice(-2000), timed_out: timedOut, cancelled });
     });
   });
 }
@@ -554,17 +719,40 @@ function runReauth(provider, timeoutMs, account) {
     const trajPath = resolve(REPO, 'scripts/trajectories', provider, 'reauth.mjs');
     if (!existsSync(trajPath)) { resolveRun({ ok: false, error: 'no_reauth_trajectory', provider }); return; }
     const runId = randomUUID();
+    const action = `${provider}_reauth`;
+    const startedAt = new Date().toISOString();
+    const runResultPath = join(RUN_RESULTS_DIR, `${runId}.json`);
+    try {
+      persistRunResult(runResultPath, {
+        ...RUN_RELEASE_IDENTITY,
+        action,
+        run_id: runId,
+        status: 'running',
+        started_at: startedAt,
+        completed_at: null,
+      });
+    } catch (error) {
+      resolveRun({
+        ok: false,
+        error: 'run_metadata_unavailable',
+        detail: String(error?.message || error).slice(0, 240),
+        provider,
+      });
+      return;
+    }
     const processSpec = trajectoryProcess(trajPath);
     const child = spawn(processSpec.command, processSpec.args, {
       cwd: REPO,
       env: {
         ...process.env,
+        WELES_FULL_DIAGNOSTICS: process.env.WELES_FULL_DIAGNOSTICS ?? '1',
         ACTION_LOG_ID: runId,
-        ACTION: `${provider}_reauth`,
+        ACTION: action,
         ...(account
           ? {
             WELES_LOGIN_ITEM: account.loginItem,
             [`${provider.toUpperCase()}_DISPLAY_NAME`]: account.displayName,
+            ...(account.subscriptionId ? { BRAMA_SUBSCRIPTION_ID: account.subscriptionId } : {}),
           }
           : {}),
       },
@@ -576,6 +764,22 @@ function runReauth(provider, timeoutMs, account) {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
+      try {
+        persistRunResult(runResultPath, {
+          ...result,
+          ...RUN_RELEASE_IDENTITY,
+          action,
+          run_id: runId,
+          status: 'finished',
+          started_at: startedAt,
+          completed_at: new Date().toISOString(),
+        });
+      } catch (error) {
+        result = {
+          ...result,
+          metadata_error: `run metadata could not be completed: ${String(error?.message || error).slice(0, 240)}`,
+        };
+      }
       resolveRun(result);
     };
     const timer = setTimeout(() => {
@@ -594,6 +798,7 @@ function runReauth(provider, timeoutMs, account) {
         provider,
         login_item: account ? account.loginItem : null,
         display_name: account ? account.displayName : null,
+        subscription_id: account ? (account.subscriptionId || null) : null,
         run_id: runId,
         stdout_tail: stdout.slice(-4000),
         stderr_tail: `${stderr}\n${String(error?.message || error)}`.slice(-2000),
@@ -608,6 +813,7 @@ function runReauth(provider, timeoutMs, account) {
         provider,
         login_item: account ? account.loginItem : null,
         display_name: account ? account.displayName : null,
+        subscription_id: account ? (account.subscriptionId || null) : null,
         run_id: runId,
         stdout_tail: stdout.slice(-4000),
         stderr_tail: stderr.slice(-2000),
@@ -730,6 +936,118 @@ async function controlWorker(action) {
     after,
   };
 }
+const PUBLIC_PLACEMENT_POLICY_FILE = process.env.WELES_PLACEMENT_POLICY_FILE
+  || join(homedir(), '.config', 'weles', 'placement-policy.json');
+const PUBLIC_SERVICE_DIRECTORY_FILE = process.env.WELES_PUBLIC_SERVICE_DIRECTORY_FILE
+  || join(homedir(), '.stado', 'forwards', 'weles-admission.directory.json');
+const PUBLIC_ADMISSION_ENDPOINT_FILE = process.env.WELES_ADMISSION_ENDPOINT_FILE
+  || join(homedir(), '.stado', 'forwards', 'weles-admission.local');
+
+function readBoundedRegularText(path, maximumBytes) {
+  const metadata = lstatSync(path);
+  if (!metadata.isFile() || metadata.isSymbolicLink() || metadata.size < 1 || metadata.size > maximumBytes) {
+    throw new Error(`Stado-published local document is unsafe: ${path}`);
+  }
+  return readFileSync(path, 'utf8');
+}
+
+function readPublicServiceIdentity() {
+  const placement = JSON.parse(readBoundedRegularText(PUBLIC_PLACEMENT_POLICY_FILE, 64 * 1024));
+  const placementGeneration = placement?._source?.registry_generation;
+  if (placement?.schema_version !== 1
+      || (typeof placementGeneration !== 'string'
+        && !Number.isSafeInteger(placementGeneration))
+      || String(placementGeneration).length === 0
+      || placement?._source?.by !== 'stado host publish-placement-policy'
+      || !Array.isArray(placement.hosts)) {
+    throw new Error('Stado-published Weles placement policy has an unsupported identity');
+  }
+  const admittedHosts = placement.hosts.filter((host) => (
+    host && typeof host === 'object'
+      && host.enabled === true
+      && typeof host.hostname === 'string'
+      && Array.isArray(host.actions)
+      && host.actions.includes('generic_browser_task')
+  ));
+  if (admittedHosts.length !== 1) {
+    throw new Error('Stado-published Weles placement policy does not authorize one exact public host');
+  }
+
+  const published = JSON.parse(readBoundedRegularText(PUBLIC_SERVICE_DIRECTORY_FILE, 64 * 1024));
+  const service = published?.service;
+  if (published?.schema !== 'weles.public-service-directory.v1'
+      || Object.keys(published).length !== 3
+      || !Number.isSafeInteger(published?.directory_generation)
+      || !service || typeof service !== 'object' || Array.isArray(service)
+      || Object.keys(service).length !== 6
+      || service.name !== 'weles-admission'
+      || service.active_host !== admittedHosts[0].hostname
+      || service.action !== 'generic_browser_task'
+      || service.release_id !== `weles-worker@${RUN_RELEASE_IDENTITY.version}`
+      || service.source_revision !== RUN_RELEASE_IDENTITY.source_revision
+      || typeof service.endpoint !== 'string') {
+    throw new Error('published Weles service-directory snapshot has an unsupported identity');
+  }
+  const publishedEndpoint = new URL(service.endpoint);
+  if (!['http:', 'https:'].includes(publishedEndpoint.protocol)
+      || publishedEndpoint.username || publishedEndpoint.password
+      || publishedEndpoint.search || publishedEndpoint.hash
+      || publishedEndpoint.pathname !== '/api/v1'
+      || publishedEndpoint.toString() !== service.endpoint) {
+    throw new Error('published Weles service-directory endpoint is invalid');
+  }
+  const transportText = readBoundedRegularText(PUBLIC_ADMISSION_ENDPOINT_FILE, 2 * 1024).trim();
+  const transportEndpoint = new URL(transportText);
+  if (transportEndpoint.toString() !== service.endpoint) {
+    throw new Error('local Weles admission transport differs from the published service directory');
+  }
+  return {
+    name: service.name,
+    generation: published.directory_generation,
+    consumer: 'spis',
+    capability: 'browser-evidence',
+    active_host: service.active_host,
+    endpoint: service.endpoint,
+    action: service.action,
+    release_id: service.release_id,
+    source_revision: service.source_revision,
+  };
+}
+
+const publicTaskService = createPublicTaskService({
+  environment: process.env,
+  policy: SPIS_BROWSER_EVIDENCE_POLICY,
+  runResultsRoot: RUN_RESULTS_DIR,
+  recordingsRoot: RECORDINGS_ROOT,
+  releaseIdentity: RUN_RELEASE_IDENTITY,
+  uploadArtifacts,
+  readArtifactIdentity: readPrivateStadoObjectIdentity,
+  redact: redactSecrets,
+  concurrency: PUBLIC_TASK_CONCURRENCY,
+  taskTimeoutMs: PUBLIC_TASK_TIMEOUT_MS,
+  trajectoryReady: Boolean(resolveTrajectory('generic_browser_task')),
+  artifactRetentionReady: Boolean(
+    process.env.STADO_API_URL
+      && process.env.WELES_STADO_OBJECT_API_TOKEN
+      && Buffer.byteLength(process.env.WELES_STADO_OBJECT_API_TOKEN) >= 32
+  ),
+  readServiceIdentity: readPublicServiceIdentity,
+  resolveTarget: resolveBrowserEvidenceTarget,
+  runTrajectory: ({ action, params, runId, signal, policy, networkTarget }) => runTrajectory(
+    action,
+    params,
+    null,
+    true,
+    PUBLIC_TASK_TIMEOUT_MS,
+    {
+      runId,
+      signal,
+      childEnvironment: publicTaskChildEnvironment(policy, networkTarget),
+    },
+  ),
+});
+await publicTaskService.recover();
+
 
 const server = http.createServer(async (req, res) => {
   try {
@@ -742,14 +1060,37 @@ const server = http.createServer(async (req, res) => {
         rawCredsAllowed: ALLOW_RAW_CREDS,
         releaseVersion: process.env.WELES_WORKER_RELEASE_VERSION || null,
         releaseSha256: process.env.WELES_WORKER_RELEASE_SHA256 || null,
-        routes: ['GET /healthz', 'GET /worker/version', 'GET /worker/status', 'POST /worker/start', 'POST /worker/restart', 'POST /run', 'GET /diagnostics/:run_id', 'GET /diagnostics/:run_id/file?path=', 'POST /weles-builder', 'POST /reauth'],
+        routes: ['GET /healthz', 'GET /api/v1/version', 'POST /api/v1/tasks', 'GET /api/v1/tasks/:task_id', 'POST /api/v1/tasks/:task_id/cancel', 'GET /worker/version', 'GET /worker/status', 'POST /worker/start', 'POST /worker/restart', 'POST /run', 'GET /diagnostics/:run_id', 'GET /diagnostics/:run_id/file?path=', 'POST /weles-builder', 'POST /reauth'],
+        publicTask: publicTaskService.health,
         // A caller that must name an account has to know, without spawning a
         // run, whether this build understands login_item at all: a build that
         // does not would ignore the field and sign in to whichever row it picked
         // itself, burning a real login on an unknown account.
         features: ['login_item', 'fresh_profile'],
-        login_items: LOGIN_ACCOUNTS.map((a) => ({ login_item: a.loginItem, provider: a.provider, display_name: a.displayName })),
+        login_items: LOGIN_ACCOUNTS.map((a) => ({
+          login_item: a.loginItem,
+          provider: a.provider,
+          display_name: a.displayName,
+          primary: Boolean(a.primary),
+          subscription_id: a.subscriptionId || null,
+        })),
       });
+      return;
+    }
+    try {
+      const publicResponse = await publicTaskService.handle(req, url, readBody);
+      if (publicResponse) {
+        json(res, publicResponse.status, publicResponse.payload, { redact: false });
+        return;
+      }
+    } catch (error) {
+      const publicError = publicTaskErrorResponse(error);
+      json(
+        res,
+        publicError?.status ?? 500,
+        publicError?.payload ?? { error: 'internal-error', message: 'public task operation failed' },
+        { redact: false },
+      );
       return;
     }
     if (req.method === 'GET' && url.pathname === '/worker/version') {
@@ -817,10 +1158,10 @@ const server = http.createServer(async (req, res) => {
       return;
     }
     // reauth: run a provider's reauth trajectory ON THE HOST. Body:
-    // { provider: "codex"|"claude"|"kimi", login_item?, timeout_ms? }. Returns
-    // run status only. `login_item` is the vault login item id of the account to
-    // sign in; it is validated here so a caller learns that it named an unknown
-    // or wrong-provider account BEFORE a browser login is spent on it.
+    // { provider: "codex"|"claude"|"kimi", login_item?, subscription_id?,
+    //   timeout_ms? }. `login_item` selects an exact row; when omitted, Weles
+    // uses the one it explicitly declares primary. A supplied subscription id
+    // must match that row before a browser login is spent on it.
     if (req.method === 'POST' && url.pathname === '/reauth') {
       if (!reauthAuthorized(req)) {
         json(res, BRAMA_REAUTH_TOKEN ? 401 : 500, {
@@ -835,17 +1176,30 @@ const server = http.createServer(async (req, res) => {
       const provider = typeof body.provider === 'string' ? body.provider.trim().toLowerCase() : '';
       if (!REAUTH_PROVIDERS.has(provider)) { json(res, 400, { ok: false, error: 'provider must be codex|claude|kimi' }); return; }
       const loginItem = typeof body.login_item === 'string' ? body.login_item.trim() : '';
-      let account = null;
-      if (loginItem) {
-        try { account = selectLoginAccount(provider, loginItem); }
-        catch (e) {
-          json(res, 400, { ok: false, error: e.code || 'login_item_unresolved', message: e.message, ...(e.detail || {}) });
-          return;
-        }
+      let account;
+      try { account = selectLoginAccount(provider, loginItem || undefined); }
+      catch (e) {
+        json(res, 400, { ok: false, error: e.code || 'login_item_unresolved', message: e.message, ...(e.detail || {}) });
+        return;
+      }
+      const subscriptionId = typeof body.subscription_id === 'string' ? body.subscription_id.trim() : '';
+      if (subscriptionId && account.subscriptionId && subscriptionId !== account.subscriptionId) {
+        json(res, 409, {
+          ok: false,
+          error: 'subscription_account_mismatch',
+          message: `${account.loginItem} renews ${account.subscriptionId}, not ${subscriptionId}`,
+          login_item: account.loginItem,
+          subscription_id: account.subscriptionId,
+        });
+        return;
       }
       const timeoutMs = Number(body.timeout_ms) > 0 ? Number(body.timeout_ms) : TIMEOUT_MS;
       const admission = coalesceRun(
-        runAdmissionKey('reauth', { provider, login_item: account?.loginItem ?? loginItem }),
+        runAdmissionKey('reauth', {
+          provider,
+          login_item: account.loginItem,
+          subscription_id: subscriptionId || account.subscriptionId || null,
+        }),
         () => runReauth(provider, timeoutMs, account),
       );
       const out = await admission.entry.promise;
@@ -952,31 +1306,27 @@ const server = http.createServer(async (req, res) => {
       const admittedId = admission.entry.metadata.detachedId;
       const admittedPath = admission.entry.metadata.resultPath;
       if (!admission.joined) {
-        mkdirSync(RUN_RESULTS_DIR, { recursive: true, mode: 0o700 });
-        writeFileSync(
+        persistRunResult(
           admittedPath,
-          JSON.stringify({ ok: null, action, status: 'running', started_at: new Date().toISOString() }),
-          { mode: 0o600 },
+          { ok: null, action, status: 'running', started_at: new Date().toISOString() },
         );
         admission.entry.promise
           .then((result) => {
-            writeFileSync(
+            persistRunResult(
               admittedPath,
-              JSON.stringify({ ...result, action, status: 'finished', completed_at: new Date().toISOString() }),
-              { mode: 0o600 },
+              { ...result, action, status: 'finished', completed_at: new Date().toISOString() },
             );
           })
           .catch((error) => {
-            writeFileSync(
+            persistRunResult(
               admittedPath,
-              JSON.stringify({
+              {
                 ok: false,
                 action,
                 status: 'failed',
                 error: String(error && error.message ? error.message : error).slice(0, 300),
                 completed_at: new Date().toISOString(),
-              }),
-              { mode: 0o600 },
+              },
             );
           });
       }
@@ -1040,3 +1390,18 @@ const server = http.createServer(async (req, res) => {
 server.listen(PORT, HOST, () => {
   console.log(`[weles-api] listening http://${HOST}:${PORT} auth=${Boolean(TOKEN || ALLOW_UNAUTH)} rawCreds=${ALLOW_RAW_CREDS}`);
 });
+
+let shutdownStarted = false;
+async function shutdownApi(signal) {
+  if (shutdownStarted) return;
+  shutdownStarted = true;
+  console.log(`[weles-api] draining public tasks after ${signal}`);
+  server.close();
+  const forcedExit = setTimeout(() => process.exit(1), 30_000);
+  forcedExit.unref();
+  await publicTaskService.shutdown();
+  clearTimeout(forcedExit);
+  process.exit(0);
+}
+process.on('SIGTERM', () => { void shutdownApi('SIGTERM'); });
+process.on('SIGINT', () => { void shutdownApi('SIGINT'); });

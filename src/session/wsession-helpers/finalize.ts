@@ -150,6 +150,9 @@ async function fillPage(s: WSession, target: string, value: string, allowedOrigi
   const description = explicitSelector ? target.slice(explicitSelector.length) : target;
   const kws = description.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(w => w.length > 2);
   const sels = kws.flatMap(k => ['input','textarea','[contenteditable]'].flatMap(t => [`${t}[name*="${k}"]`,`${t}[placeholder*="${k}" i]`,`${t}[aria-label*="${k}" i]`]));
+  if (/\b(email|e-mail)\b/i.test(target)) {
+    sels.unshift('input[type="email"], input[name*="email" i], input[name*="mail" i], input[autocomplete*="email" i]');
+  }
   for (const frame of childFrames(s, allowedOrigin)) {
     if (explicitSelector) {
       try {
@@ -158,11 +161,6 @@ async function fillPage(s: WSession, target: string, value: string, allowedOrigi
       } catch {}
     }
     try { const lbl = await firstVisible(frame.getByLabel?.(target, { exact: false })); if (lbl) { await humanFill(s.page, lbl, v); return 'filled frame label'; } } catch {}
-    const emailHint = /\b(email|e-mail)\b/i.test(target);
-    if (emailHint) {
-      const emailInput = await firstVisible(frame.locator?.('input[type="email"], input[name*="email" i], input[autocomplete*="email" i]'));
-      if (emailInput) { await humanFill(s.page, emailInput, v); return 'filled frame email'; }
-    }
     for (const sel of sels) {
       try { const el = await firstVisible(frame.locator?.(sel)); if (el) { await humanFill(s.page, el, v); return `filled frame ${sel}`; } } catch {}
     }
@@ -243,7 +241,7 @@ async function credentialFieldPresent(
   const kws = description.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(w => w.length > 2);
   const sels = kws.flatMap(k => ['input', 'textarea', '[contenteditable]'].flatMap(t => [`${t}[name*="${k}"]`, `${t}[placeholder*="${k}" i]`, `${t}[aria-label*="${k}" i]`]));
   if (/\b(email|e-mail)\b/i.test(target)) {
-    sels.unshift('input[type="email"], input[name*="email" i], input[autocomplete*="email" i]');
+    sels.unshift('input[type="email"], input[name*="email" i], input[name*="mail" i], input[autocomplete*="email" i]');
   }
   if (/password|passcode|secret/i.test(target)) {
     sels.unshift('input[type="password"], input[name*="password" i], input[autocomplete*="current-password" i]');

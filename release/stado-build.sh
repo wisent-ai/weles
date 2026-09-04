@@ -4,6 +4,45 @@ set -euo pipefail
 : "${WISENT_INPUT_WELES_CLIENT_BUNDLE_DIR:?WISENT_INPUT_WELES_CLIENT_BUNDLE_DIR is required}"; : "${WISENT_INPUT_WISENT_COST_TRACKER_BUNDLE_DIR:?WISENT_INPUT_WISENT_COST_TRACKER_BUNDLE_DIR is required}"
 work="$WISENT_OUTPUT_DIR/work"; source="$work/source"; rm -rf "$work"; mkdir -p "$source" "$WISENT_OUTPUT_DIR/payload" "$WISENT_OUTPUT_DIR/bin" "$WISENT_OUTPUT_DIR/evidence"
 rsync -a --exclude .git --exclude node_modules --exclude dist --exclude .wisent-output --exclude recordings --exclude .work --exclude .tmp --exclude var "$WISENT_SOURCE_DIR/" "$source/"
+# The snapshot's own identity, in this order: what the pipeline exported, then
+# a checkout if this tree happens to be one, then the commit the snapshot
+# carries in `release/source-commit`.
+#
+# A release worker is handed an extracted snapshot, never a checkout: `release
+# submit` snapshots with `git archive HEAD` and the worker unpacks it. So every
+# git question here answered `fatal: not a git repository` the moment a build
+# was dispatched to a machine other than the one that submitted it, and it
+# exited 128 before installing a single dependency, while the same script kept
+# working by accident whenever the builder happened to be the submitter.
+#
+# Stado 0.13.48 answers the question directly with the commit it snapshotted
+# and signed the release against, so that is preferred; the other two branches
+# remain for a builder still running an older Stado. All three are the same
+# 40-character commit, deliberately: 0.5.59 tried a content digest for the
+# third case and would not start, because the server's own gate, the public
+# receipt writer and onboarding each require the field to be a commit.
+if [ -n "${WISENT_SOURCE_COMMIT:-}" ]; then
+  source_revision="$WISENT_SOURCE_COMMIT"
+  case "$source_revision" in *[!0-9a-f]*|'') echo "exported source commit must be lowercase hexadecimal" >&2; exit 1;; esac
+  [ "${#source_revision}" -eq 40 ] || { echo "exported source commit must contain exactly 40 hexadecimal characters" >&2; exit 1; }
+  source_identity_kind=git-commit
+elif git -C "$WISENT_SOURCE_DIR" rev-parse --git-dir >/dev/null 2>&1; then
+  source_revision="$(git -C "$WISENT_SOURCE_DIR" rev-parse HEAD)"
+  [ -z "$(git -C "$WISENT_SOURCE_DIR" status --porcelain --untracked-files=all)" ] || { echo "Weles release source must be an exact clean commit" >&2; exit 1; }
+  source_identity_kind=git-commit
+else
+  carried="$source/release/source-commit"
+  [ -f "$carried" ] || { echo "snapshot carries no release/source-commit, so the build cannot state which commit it is" >&2; exit 1; }
+  source_revision="$(tr -d ' \t\r\n' < "$carried")"
+  source_identity_kind=git-archive-subst
+  case "$source_revision" in
+    '$Format:'*) echo "release/source-commit was never substituted: this tree did not come from git archive" >&2; exit 1;;
+  esac
+fi
+case "$source_revision" in *[!0-9a-f]*|'') echo "source revision must be the full lowercase Git commit" >&2; exit 1;; esac
+[ "${#source_revision}" -eq 40 ] || { echo "source revision must contain exactly 40 hexadecimal characters" >&2; exit 1; }
+release_version="$(node -p "require('$source/package.json').version")"
+printf '{"schema":"weles.source-identity.v1","product":"weles-worker","version":"%s","source_revision":"%s","source_identity_kind":"%s"}\n' "$release_version" "$source_revision" "$source_identity_kind" > "$source/release/source-identity.json"
 export GIT_CONFIG_GLOBAL="$work/gitconfig"
 git config --global url."file://$WISENT_INPUT_WELES_CLIENT_BUNDLE_DIR".insteadOf "ssh://git@github.com/wisent-ai/weles-client.git"
 git config --global --add url."file://$WISENT_INPUT_WELES_CLIENT_BUNDLE_DIR".insteadOf "git@github.com:wisent-ai/weles-client.git"

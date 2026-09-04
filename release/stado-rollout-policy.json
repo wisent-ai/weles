@@ -10,6 +10,7 @@
     "binary_env": "WELES_WORKER_ARCHIVE",
     "port_env": "WELES_API_PORT",
     "runtime_env": "WELES_REPO",
+    "readiness_path": "/healthz",
     "environment": {
       "WELES_WORKER_ENV_FILE": "{home}/.config/weles/worker.env"
     },

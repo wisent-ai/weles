@@ -1,4 +1,4 @@
-import { writeFileSync, mkdirSync } from 'node:fs';
+import { closeSync, fsyncSync, mkdirSync, openSync, writeFileSync, writeSync } from 'node:fs';
 import { join } from 'node:path';
 import { WSession } from '../../../dist/session/wsession.js';
 import { CREDENTIAL_FIELD_ABSENT } from '../../../dist/session/wsession-helpers/finalize.js';
@@ -31,6 +31,32 @@ function writeJson(name, value) {
   const dir = runRecordingsDir(label);
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, name), JSON.stringify(value, null, 2));
+}
+
+async function captureRequiredBrowserEvidence(activeSession) {
+  const directory = runRecordingsDir('artifacts');
+  mkdirSync(directory, { recursive: true });
+  const screenshot = await activeSession.page.screenshot({
+    fullPage: false,
+    type: 'png',
+  });
+  const accessibilityTree = await activeSession.page.locator('body').ariaSnapshot();
+  const treeBytes = Buffer.from(accessibilityTree, 'utf8');
+  for (const [name, bytes] of [
+    ['browser_evidence_final.png', screenshot],
+    ['browser_evidence_accessibility_tree.txt', treeBytes],
+  ]) {
+    if (!Buffer.isBuffer(bytes) || bytes.byteLength === 0 || bytes.byteLength > 8 * 1024 * 1024) {
+      throw new Error(`required browser-evidence artifact ${name} is empty or exceeds 8 MiB`);
+    }
+    const descriptor = openSync(join(directory, name), 'wx', 0o600);
+    try {
+      writeSync(descriptor, bytes);
+      fsyncSync(descriptor);
+    } finally {
+      closeSync(descriptor);
+    }
+  }
 }
 
 function safeStringMap(value) {
@@ -270,12 +296,20 @@ const objective = envString('GENERIC_TASK_OBJECTIVE');
 if (!objective.trim()) throw new Error('GENERIC_TASK_OBJECTIVE is required');
 
 const constraints = parseJsonEnv('GENERIC_TASK_CONSTRAINTS', {});
+const browserEvidencePolicy = parseJsonEnv('WELES_BROWSER_EVIDENCE_POLICY_JSON', null);
+const browserEvidencePolicyActive = envString('WELES_BROWSER_EVIDENCE_POLICY') === 'spis-browser-evidence.1';
+if (browserEvidencePolicyActive && (!browserEvidencePolicy || browserEvidencePolicy.version !== 'spis-browser-evidence.1')) {
+  throw new Error('Spis browser-evidence policy document is missing or inconsistent');
+}
 const storesCredentialInSkarbiec = constraints.store_secret_target === 'skarbiec';
 if (storesCredentialInSkarbiec) {
   process.env.WELES_SECURE_CREDENTIAL_TASK = '1';
   process.env.WELES_NO_INSTRUMENT = '1';
   process.env.WELES_DISABLE_RECORDING = '1';
   process.env.WELES_PAGE_DIAGNOSTICS = '0';
+}
+if (browserEvidencePolicyActive && storesCredentialInSkarbiec) {
+  throw new Error('Spis browser-evidence tasks cannot acquire or store credentials');
 }
 const envHints = safeStringMap(parseJsonEnv('GENERIC_TASK_ENV', {}));
 for (const [key, value] of Object.entries(envHints)) process.env[key] = value;
@@ -323,18 +357,36 @@ try {
     '',
     'Initial URL: ' + url,
     'Constraints: ' + JSON.stringify(constraints),
+    ...(browserEvidencePolicyActive ? [
+      'The Weles service enforces the attached browser-evidence policy before every interactive tool and inside page permission APIs. Treat policy_withheld results as retained evidence and continue only with non-interactive observation.',
+      'Browser-evidence policy: ' + JSON.stringify(browserEvidencePolicy),
+    ] : []),
     'Do not make purchases, submit payments, delete data, or perform irreversible/destructive actions.',
     storesCredentialInSkarbiec
       ? 'Do not call done with extracted credential data. Finish only after store_credential has confirmed encrypted storage; return only its non-secret receipt.'
       : 'When finished, call done(value) with a concise JSON-serializable summary and any extracted data.',
   ].join('\n');
-  result = await execute(session, goal, { envHints, flowName, replay, replayOnly, skipSavedFlowReplay });
-  const payload = {
+  result = await execute(session, goal, {
+    envHints,
+    flowName,
+    replay,
+    replayOnly,
+    skipSavedFlowReplay,
+    disableFlowPersistence: browserEvidencePolicyActive,
+    disableArtifacts: browserEvidencePolicyActive,
+  });
+  if (browserEvidencePolicyActive) await captureRequiredBrowserEvidence(session);
+  const payload = browserEvidencePolicyActive ? {
+    ok: true,
+    url,
+    final_url: session.page.url?.() ?? null,
+    step_count: result.history.length,
+    completed_at: new Date().toISOString(),
+  } : {
     ok: true,
     url,
     final_url: session.page.url?.() ?? null,
     value: result.value ?? null,
-    history: result.history,
     trajectory_draft: trajectoryDraft ? { source: trajectoryDraft.source, model: trajectoryDraft.model, steps: trajectoryDraft.steps, error: trajectoryDraft.error } : null,
     completed_at: new Date().toISOString(),
   };
@@ -352,7 +404,14 @@ try {
   const history = error instanceof AgentFailure ? error.history : result?.history ?? [];
   const finalUrl = session?.page?.url?.() ?? null;
   const needsHumanApproval = /needs_human_approval/i.test(message) || history.some((step) => /needs_human_approval/i.test(String(step?.args?.reason ?? '')));
-  writeJson('generic_task_result.json', {
+  writeJson('generic_task_result.json', browserEvidencePolicyActive ? {
+    ok: false,
+    url,
+    final_url: finalUrl,
+    error: message.slice(0, 1_000),
+    history_steps: history.length,
+    completed_at: new Date().toISOString(),
+  } : {
     ok: false,
     url,
     final_url: finalUrl,
@@ -365,13 +424,13 @@ try {
     action: label,
     healthy: false,
     signal: 'task_failed',
-    details: { final_url: finalUrl, error: message, steps: history.length },
+    details: { final_url: finalUrl, error: message.slice(0, 1_000), steps: history.length },
     ts: new Date().toISOString(),
   });
   if (needsHumanApproval) {
     writeJson('pending_review.json', {
       status: 'needs_human_approval',
-      reason: message,
+      reason: message.slice(0, 1_000),
       final_url: finalUrl,
       history_steps: history.length,
       completed_at: new Date().toISOString(),

@@ -2,7 +2,7 @@
 
 import { WSession } from '../../../../dist/session/wsession.js';
 import { googleSso, getScopedGoogleLogin } from '../../_shared/services/google_sso.mjs'
-import { fillStripeElements } from '../../_shared/services/topup_common.mjs';
+import { fillStripeElements, loadTopupCardEnv, TOPUP_ENV_FILES } from '../../_shared/services/topup_common.mjs';
 import { mkdirSync, writeFileSync, existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
@@ -10,9 +10,7 @@ import { humanIdlePause, humanClickLocator } from '../../../../dist/human/mouse.
 import { humanFill } from '../../../../dist/human/keyboard.js';
 import { COMMIT_BUTTON_SELECTORS } from './selectors.mjs';
 
-// Source ~/.weles/topup_card.env so fillStripeElements has TOPUP_CARD_* env.
-const TOPUP_ENV_FILE = join(homedir(), '.weles', 'topup_card.env');
-if (existsSync(TOPUP_ENV_FILE)) for (const raw of readFileSync(TOPUP_ENV_FILE, 'utf8').split('\n')) { const line = raw.trim(); if (!line || line.startsWith('#')) continue; const eq = line.indexOf('='); if (eq < 0) continue; const k = line.slice(0, eq).trim(); const v = line.slice(eq + 1).trim().replace(/^["']|["']$/g, ''); if (k && v && !process.env[k]) process.env[k] = v; }
+loadTopupCardEnv();
 
 if (process.env.ISP_BUY_CONFIRM !== '1') { console.log('FAIL: ISP_BUY_CONFIRM=1 required before buying ISP proxies'); process.exit(2); }
 const OUT_DIR = '.work/keeper/oxylabs_isp_buy_us';
@@ -161,7 +159,7 @@ try {
       const cardName = process.env.TOPUP_CARD_NAME;
       if (!cardName) { console.log('FAIL: TOPUP_CARD_NAME missing'); process.exit(2); }
       if (!process.env.TOPUP_CARD_NUMBER || !process.env.TOPUP_CARD_EXP || !process.env.TOPUP_CARD_CVC || !process.env.TOPUP_CARD_ZIP) {
-        console.log('FAIL: TOPUP_CARD_NUMBER/EXP/CVC/ZIP missing in ~/.weles/topup_card.env');
+        console.log(`FAIL: TOPUP_CARD_NUMBER/EXP/CVC/ZIP missing; the loader looked in ${TOPUP_ENV_FILES.join(', ')} and at TOPUP_CARD_JSON`);
         process.exit(2);
       }
       await humanFill(s.page, s.page.locator('input[name="cardNumber"]'), process.env.TOPUP_CARD_NUMBER);

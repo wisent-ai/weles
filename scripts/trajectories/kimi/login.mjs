@@ -32,28 +32,62 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, '..', '..', '..');
 const VAR = join(REPO, 'var');
 mkdirSync(VAR, { recursive: true });
+const KIMI_CLI_PIN = '1.49.0';
+
+// What a candidate binary says it is, or null when it will not say.
+function kimiVersion(candidate) {
+  const probe = spawnSync(candidate, ['--version'], { encoding: 'utf8', timeout: 30_000 });
+  if (probe.status !== 0) return null;
+  const found = /(\d+\.\d+\.\d+)/.exec(`${probe.stdout || ''}${probe.stderr || ''}`);
+  return found ? found[1] : null;
+}
+
+// The pinned CLI, or the pin installed.
+//
+// This preferred whatever `kimi` already sat on the host and installed the pin
+// only when nothing did, so the pin governed the one case it was never needed
+// in. charless-mac-mini carries an older native Kimi Code build, and this
+// resolver handed it `login --json`: the CLI answered
+// `error: unknown option '--json'`, no authorize URL ever appeared, and every
+// kimi renewal failed at `waitForAuthorizeUrl` while the pin that would have
+// worked was one install away. A version is now asked for and compared, so a
+// candidate is used because it is the declared CLI rather than because it
+// exists.
 function resolveKimiBin() {
   const configured = process.env.KIMI_BIN;
   if (configured) {
-    if (existsSync(configured)) return configured;
-    throw new Error(`KIMI_BIN does not exist: ${configured}`);
+    if (!existsSync(configured)) throw new Error(`KIMI_BIN does not exist: ${configured}`);
+    const version = kimiVersion(configured);
+    if (version !== KIMI_CLI_PIN) {
+      process.stderr.write(
+        `[kimi login] KIMI_BIN ${configured} reports ${version || 'no version'}, `
+        + `not the pinned ${KIMI_CLI_PIN}; using it because it was named explicitly\n`,
+      );
+    }
+    return configured;
   }
   const candidates = [
     join(process.env.HOME || '', '.local', 'bin', 'kimi'),
     // Where the native Kimi Code installer puts it on macOS, and where both
-    // hosts on this fleet actually have it: without this the resolver fell
-    // through to installing a second copy under a read-only release directory.
+    // hosts on this fleet actually have it.
     join(process.env.HOME || '', '.kimi-code', 'bin', 'kimi'),
     '/opt/homebrew/bin/kimi',
   ];
-  const existing = candidates.find((candidate) => existsSync(candidate));
-  if (existing) return existing;
+  for (const candidate of candidates) {
+    if (!existsSync(candidate)) continue;
+    const version = kimiVersion(candidate);
+    if (version === KIMI_CLI_PIN) return candidate;
+    process.stderr.write(
+      `[kimi login] skipping ${candidate}: reports ${version || 'no version'}, `
+      + `and this trajectory drives the ${KIMI_CLI_PIN} interface\n`,
+    );
+  }
   const uv = ['/opt/homebrew/bin/uv', '/usr/local/bin/uv']
     .find((candidate) => existsSync(candidate));
-  if (!uv) throw new Error('Kimi CLI is missing and uv is unavailable');
+  if (!uv) throw new Error(`Kimi CLI ${KIMI_CLI_PIN} is not installed and uv is unavailable`);
   const binDir = join(VAR, 'bin');
   mkdirSync(binDir, { recursive: true });
-  const install = spawnSync(uv, ['tool', 'install', '--force', 'kimi-cli==1.49.0'], {
+  const install = spawnSync(uv, ['tool', 'install', '--force', `kimi-cli==${KIMI_CLI_PIN}`], {
     encoding: 'utf8',
     env: { ...process.env, UV_TOOL_BIN_DIR: binDir },
     timeout: 120_000,
@@ -66,7 +100,9 @@ function resolveKimiBin() {
 }
 
 const KIMI_BIN = resolveKimiBin();
-const SERVICE_CREDENTIAL_ID = process.env.KIMI_SERVICE_CREDENTIAL_ID || 'kimi-lukasz-google-sso';
+const SERVICE_CREDENTIAL_ID = process.env.WELES_LOGIN_ITEM
+  || process.env.KIMI_SERVICE_CREDENTIAL_ID
+  || 'kimi-lukasz-google-sso';
 const LOGIN_HOME = process.env.KIMI_LOGIN_HOME || mkdtempSync(join(VAR, 'kimi-login-'));
 const OVERALL_SEC = Number(process.env.KIMI_LOGIN_OVERALL_SEC || 420);
 

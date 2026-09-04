@@ -37,6 +37,7 @@ import { wsClick, wsFill, wsFillCredential, wsFillIdentity } from './wsession-he
 import { isSkarbiecCredentialTask, wsAutoStoreCredential, wsStoreCredential } from './wsession-helpers/credential-store.js';
 import type { CapabilityRef } from '../utils/capability.js';
 import { assertNonCredentialInput } from '../utils/capability.js';
+import { installBrowserEvidencePolicy } from '../agent/browser-evidence-policy.js';
 // G17: artifacts live under recordings/<run_uuid>/<label-or-action>/ — keyed by
 // the account_action_logs row id (ACTION_LOG_ID) so they map to the run 1:1.
 function recordingsDir(label?: string): string { return label ? runRecordingsDir(label) : runRecordingsRoot(); }
@@ -217,8 +218,11 @@ export class WSession {
     const url = (typeof this.page.url === 'function' ? this.page.url() : '') ?? '';
     const closed = this.page.isClosed?.() ?? false;
     const vs = this.page.viewportSize?.() ?? {};
+    const retainStepArtifacts = !this._secureCredentialTask
+      && process.env.WELES_NO_INSTRUMENT !== '1'
+      && process.env.WELES_BROWSER_EVIDENCE_POLICY !== 'spis-browser-evidence.1';
     console.log(`[wsession] ${label} START url=${url.slice(0, 80)} closed=${closed} viewport=${vs.width}x${vs.height}`);
-    if (!this._secureCredentialTask) {
+    if (retainStepArtifacts) {
       await this._cap.screenshot(this.page, `before_${label}`).catch(() => {});
       await this._saveDom(`before_${label}`);
     }
@@ -229,7 +233,7 @@ export class WSession {
         if (stored) this._storedCredentialReceipt = stored;
       }
       console.log(`[wsession] ${label} OK result=${String(result).slice(0, 100)}`);
-      if (!this._secureCredentialTask) {
+      if (retainStepArtifacts) {
         await this._cap.screenshot(this.page, `after_${label}`).catch(() => {});
         await this._saveDom(`after_${label}`);
       }
@@ -237,7 +241,7 @@ export class WSession {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       console.log(`[wsession] ${label} ERROR ${message.slice(0, 300)}`);
-      if (!this._secureCredentialTask) {
+      if (retainStepArtifacts) {
         await this._cap.screenshot(this.page, `error_${label}`).catch(() => {});
         await this._saveDom(`error_${label}`);
       }
@@ -305,7 +309,13 @@ export class WSession {
       const browser = await chromium.connectOverCDP(operatorCdp.endpoint, {
         headers: { Authorization: `Bearer ${operatorCdp.token}` },
       });
-      const ctx = browser.contexts().at(Number(false)) || await browser.newContext({ locale: 'en-US' });
+      const ctx = browser.contexts().at(Number(false)) || await browser.newContext({
+        locale: 'en-US',
+        ...(process.env.WELES_BROWSER_EVIDENCE_POLICY === 'spis-browser-evidence.1'
+          ? { acceptDownloads: false, serviceWorkers: 'block' as const }
+          : {}),
+      });
+      await installBrowserEvidencePolicy(ctx, label);
       const page = ctx.pages().at(Number(false)) || await ctx.newPage();
       return new WSession(ctx, page, label, new Capture({ newPage: async () => page } as any, label ? recordingsDir(label) : undefined));
     }
@@ -351,7 +361,9 @@ export class WSession {
     // input-recorder) as a clean-room control for signup A/B tests. (Tested on
     // reddit: toggling it changed nothing — the verify-init gate is exit-IP
     // reputation, not in-page instrumentation. Kept as a knob regardless.)
-    const pageDiagnostics = secureCredentialTask || process.env.WELES_PAGE_DIAGNOSTICS === '0'
+    const instrumentationDisabled = process.env.WELES_NO_INSTRUMENT === '1'
+      || process.env.WELES_BROWSER_EVIDENCE_POLICY === 'spis-browser-evidence.1';
+    const pageDiagnostics = secureCredentialTask || instrumentationDisabled || process.env.WELES_PAGE_DIAGNOSTICS === '0'
       ? false
       : (opts.pageDiagnostics ?? (label !== 'linkedin_register'));
     const userDataDir = opts.userDataDir ?? process.env.WELES_USER_DATA_DIR ?? WSession.automaticUserDataDir(opts, persona.browser);
@@ -364,14 +376,17 @@ export class WSession {
     if (secureCredentialTask) {
       delete process.env.SSLKEYLOGFILE;
       delete process.env.WELES_LABEL;
-    } else if (label) {
+    } else if (label && !instrumentationDisabled) {
       process.env.SSLKEYLOGFILE = join(recordingsDir(label), 'sslkey.log');
       process.env.WELES_LABEL = label;
+    } else {
+      delete process.env.SSLKEYLOGFILE;
     }
     const ctx = await AsyncNewBrowser(bOpts);
+    await installBrowserEvidencePolicy(ctx, label);
     const page = ctx.pages()[0] || await ctx.newPage();
     const cap = new Capture({ newPage: async () => page } as any, label ? recordingsDir(label) : undefined);
-    if (label) { const s = new SessionStore(); await s.injectPlaywright(ctx, label).catch(() => {}); }
+    if (label && !instrumentationDisabled) { const s = new SessionStore(); await s.injectPlaywright(ctx, label).catch(() => {}); }
     const ws = new WSession(ctx, page, label, cap); ws.proxyConfig = bOpts.proxy; ws.personaConfig = persona; (ws as any)._browserProvenance = (ctx as any)._welesBrowserProvenance ?? null;
     // G17g: on a worker SIGTERM (graceful timeout), close the context so
     // Playwright seals the HAR + video before the process is hard-killed.

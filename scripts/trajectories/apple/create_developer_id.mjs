@@ -14,7 +14,10 @@ import { getSocialAccount } from '../../../dist/utils/credentials.js';
 import { appleChallengeRelayTarget } from '../../auth/apple-account-placement.mjs';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const JOB = /^[0-9a-f]{8}$/i;
+// Eight hex from the Stado queue, or the UUID the Weles API assigns and then
+// forces into ACTION_LOG_ID. Both name one run; refusing the second one meant
+// refusing every run Stado dispatches.
+const JOB = /^(?:[0-9a-f]{8}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
 const ACCOUNT = /^weles-apple-[a-z0-9][a-z0-9-]{0,126}-account$/;
 const guardId = (process.env.APPLE_AUTH_GUARD_ID?.trim() ?? '').toLowerCase();
 const accountId = process.env.WELES_LOGIN_ITEM?.trim() ?? '';
@@ -37,13 +40,22 @@ function isDevPortalUrl(url) {
   return /developer\.apple\.com\/account/.test(url) && !/idmsa|\/login/.test(url);
 }
 
-async function waitForPostPasswordState(session, frame, attempts = 30) {
+// `signInStatus` reads the status Apple answered `signin/complete` with. The DOM
+// was the only witness here and it is the weaker one: Apple renders the refusal
+// inside the widget iframe, and in a headless context the text this loop looks
+// for was never `isVisible`, so a rejected password was reported as
+// `Timed out waiting for developer portal or 2FA challenge` - a sentence that
+// sent four separate investigations at the relay, the broker and the socket
+// while the answer had been 401 within a second of the click.
+async function waitForPostPasswordState(session, frame, signInStatus, attempts = 30) {
   const twoFactorSelector = 'input[aria-label*="digit"], input[aria-label*="Digit"], input[id*="char"], input[type="tel"][maxlength="1"]';
   const explicitFailure = /incorrect|verification failed|account (?:is |has been )?locked|unable to sign in|sign[ -]?in failed/i;
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     if (isDevPortalUrl(session.page.url?.() ?? '')) return 'dashboard';
     const twoFactorVisible = await frame.locator(twoFactorSelector).first().isVisible().catch(() => false)
       || await session.page.getByText(/Two-Factor Authentication|verification code sent to your Apple devices/i).first().isVisible().catch(() => false);
+    const status = signInStatus();
+    if (status === 401 || status === 403) return 'rejected';
     if (twoFactorVisible) return 'two_factor';
     const failureVisible = await frame.getByText(explicitFailure).first().isVisible().catch(() => false)
       || await session.page.getByText(explicitFailure).first().isVisible().catch(() => false);
@@ -198,12 +210,30 @@ try {
   }, null, { timeout: 10_000 }).then(() => true).catch(() => false);
   if (!signInEnabled) throw new Error('Apple password form stayed disabled after credential entry');
 
+  // Attached before the click, because the answer can arrive before the first
+  // poll. Only the status is kept: no header, no body, nothing that could carry
+  // the credential into a log.
+  let signInStatus = null;
+  s.page.on('response', (response) => {
+    try {
+      if (response.url().includes('/appleauth/auth/signin/complete')) signInStatus = response.status();
+    } catch { /* a response that cannot be read is not a verdict */ }
+  });
+
   passwordSubmitted = true;
   await frame.locator('#sign-in').click();
   console.log('[apple-create-developer-id] submitted one authorized password attempt');
 
-  const postPasswordState = await waitForPostPasswordState(s, frame);
+  const postPasswordState = await waitForPostPasswordState(s, frame, () => signInStatus);
   if (postPasswordState === 'failed') throw new Error('Apple rejected the guarded login attempt');
+  if (postPasswordState === 'rejected') {
+    throw new Error(
+      `Apple refused the sign-in with HTTP ${signInStatus}: the secret the broker resolved for `
+      + 'origin:https://idmsa.apple.com/password is not this account\'s current password. '
+      + 'The route names which vault field was read; nothing here can tell whether it is stale '
+      + 'or wrong, and a second attempt spends another of Apple\'s few before it locks.',
+    );
+  }
   if (postPasswordState === 'timeout') throw new Error('Timed out waiting for developer portal or 2FA challenge');
 
   if (postPasswordState === 'two_factor') {

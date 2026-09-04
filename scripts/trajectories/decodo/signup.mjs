@@ -10,7 +10,8 @@
 //   2. /isp/pricing, screenshot+dump each step (evidence, not blind guesses).
 //   3. Pick USA, walk buy -> checkout. Never Stripe Link: if the Link OTP
 //      modal shows, click "Pay without Link" then fillStripeElements with the
-//      card from ~/.weles/topup_card.env.
+//      card the shared loader sourced (a file under ~/.weles or ~/.stado, or
+//      one TOPUP_CARD_JSON value injected from Skarbiec).
 //   4. Commit, scrape host/port/user/pass, persist + wire .env.
 //
 // Purchase is gated behind DECODO_BUY_CONFIRM=1; screenshots are written
@@ -21,25 +22,14 @@
 // sentinel). Real Playwright errors propagate to the outer handler.
 import { WSession } from '../../../dist/session/wsession.js';
 import { googleSso, getGoogleSsoCreds } from '../_shared/services/google_sso.mjs';
-import { fillStripeElements } from '../_shared/services/topup_common.mjs';
+import { fillStripeElements, loadTopupCardEnv } from '../_shared/services/topup_common.mjs';
 import { mkdirSync, writeFileSync, readFileSync, existsSync, appendFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { humanIdlePause, humanClickLocator } from '../../../dist/human/mouse.js';
 import { humanType } from '../../../dist/human/keyboard.js';
 
-const TOPUP_ENV_FILE = join(homedir(), '.weles', 'topup_card.env');
-if (existsSync(TOPUP_ENV_FILE)) {
-  for (const raw of readFileSync(TOPUP_ENV_FILE, 'utf8').split('\n')) {
-    const line = raw.trim();
-    if (!line || line.startsWith('#')) continue;
-    const eq = line.indexOf('=');
-    if (eq < 0) continue;
-    const k = line.slice(0, eq).trim();
-    const v = line.slice(eq + 1).trim().replace(/^["']|["']$/g, '');
-    if (k && v && !process.env[k]) process.env[k] = v;
-  }
-}
+loadTopupCardEnv();
 
 const CONFIRM = process.env.DECODO_BUY_CONFIRM === '1';
 const OUT_DIR = '.work/keeper/decodo_isp_buy';

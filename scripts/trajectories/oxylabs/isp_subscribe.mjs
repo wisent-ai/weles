@@ -12,26 +12,15 @@
 
 import { WSession } from '../../../dist/session/wsession.js';
 import { googleSso, getScopedGoogleLogin } from '../_shared/services/google_sso.mjs'
-import { fillStripeElements } from '../_shared/services/topup_common.mjs';
+import { fillStripeElements, loadTopupCardEnv } from '../_shared/services/topup_common.mjs';
 import { mkdirSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { humanIdlePause, humanClickLocator } from '../../../dist/human/mouse.js';
 import { humanType } from '../../../dist/human/keyboard.js';
 
-// Load ~/.weles/topup_card.env (same file the topup orchestrator uses).
-const TOPUP_ENV_FILE = join(homedir(), '.weles', 'topup_card.env');
-if (existsSync(TOPUP_ENV_FILE)) {
-  for (const raw of readFileSync(TOPUP_ENV_FILE, 'utf8').split('\n')) {
-    const line = raw.trim();
-    if (!line || line.startsWith('#')) continue;
-    const eq = line.indexOf('=');
-    if (eq < 0) continue;
-    const k = line.slice(0, eq).trim();
-    const v = line.slice(eq + 1).trim().replace(/^["']|["']$/g, '');
-    if (k && v && !process.env[k]) process.env[k] = v;
-  }
-}
+// Source the card the same way every purchase trajectory does.
+loadTopupCardEnv();
 
 if (process.env.ISP_BUY_CONFIRM !== '1') { console.log('FAIL: ISP_BUY_CONFIRM=1 required before subscribing'); process.exit(2); }
 const OUT_DIR = '.work/keeper/oxylabs_isp_buy';
@@ -169,7 +158,7 @@ try {
     // Stripe Link OTP modal detection: 6 single-digit cells.
     // EXPLICIT: We do NOT use Link. If the modal appears, click "Pay without
     // Link" to drop to manual card entry, then fillStripeElements with creds
-    // from ~/.weles/topup_card.env / TOPUP_CARD_* env.
+    // from whichever source the shared loader answered with / TOPUP_CARD_* env.
     const linkOtpVisible = await s.page.evaluate(() => {
       const cells = Array.from(document.querySelectorAll('input[maxlength="1"], input[inputmode="numeric"]')).filter(i => i.offsetParent !== null);
       return cells.length >= 6;
