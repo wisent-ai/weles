@@ -265,13 +265,6 @@ try {
     if (!portalObserved) await s.wait(1);
   }
   if (!portalObserved) throw new Error(`did not reach developer portal, still at ${s.page.url()}`);
-  if (twoFactorReceipt) {
-    // Reaching the authenticated portal, not filling the code, proves acceptance.
-    console.log(`APPLE_TWO_FACTOR_RECEIPT=${JSON.stringify({
-      ...twoFactorReceipt,
-      provider_accepted: true,
-    })}`);
-  }
 
   await s.page.goto(ADD_URL, { waitUntil: 'domcontentloaded', timeout: Number(process.env.WELES_APPLE_NAV_TIMEOUT_MS ?? '60000') });
   await s.wait(6);
@@ -302,6 +295,13 @@ try {
   const download = await downloadPromise;
   await download.saveAs(certificatePath);
   console.log(`[apple-create-developer-id] CERTIFICATE_SAVED=${certificatePath}`);
+  if (twoFactorReceipt) {
+    // Certificate issuance, not filling the code, proves provider acceptance.
+    console.log(`APPLE_TWO_FACTOR_RECEIPT=${JSON.stringify({
+      ...twoFactorReceipt,
+      provider_accepted: true,
+    })}`);
+  }
 
 } catch (error) {
   console.error(`FAIL=${error instanceof Error ? error.message.slice(0, 1200) : String(error).slice(0, 1200)}`);
