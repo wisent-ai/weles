@@ -1,7 +1,7 @@
 {
   "schema": "weles.version-change.v1",
-  "current": "0.5.68",
-  "candidate": "0.5.69",
+  "current": "0.5.70",
+  "candidate": "0.5.71",
   "breaking": false,
-  "reason": "0.5.69 combines the 0.5.68 registry-owned weles/agent/primary routing change with the managed Skarbiec authority cutover from 0.5.67, preserving both immutable source histories while advancing beyond the spent coordinates."
+  "reason": "0.5.71 routes Weles agents through the registry-owned Brama inference alias and carries the source-bound Apple Developer ID journey without changing the released public surface."
 }

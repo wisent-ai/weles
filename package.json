@@ -18,6 +18,7 @@
     "test": "node scripts/worker/deploy/endpoint-resolution.test.mjs && tap tests/**/*.test.ts",
     "test:endpoints": "node scripts/worker/deploy/endpoint-resolution.test.mjs",
     "dev": "tsc --watch",
+    "version": "node scripts/release/sync-version-metadata.mjs",
     "secrets:acquire": "node scripts/secrets/acquire.mjs"
   },
   "dependencies": {

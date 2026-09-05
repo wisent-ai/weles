@@ -13,21 +13,36 @@ export interface WelesAccountRecord {
 }
 
 const SKARBIEC_RESOLVER = join(__dirname, '..', '..', 'scripts', '_shared', 'skarbiec-runtime.mjs');
-const activeBinary = spawnSync(process.execPath, [SKARBIEC_RESOLVER, 'active-binary'], {
-  encoding: 'utf8',
-  env: process.env,
-  maxBuffer: 1024 * 1024,
-});
-const SKARBIEC = String(activeBinary.stdout ?? '').trim();
-if (activeBinary.error || activeBinary.status !== 0 || !isAbsolute(SKARBIEC)) {
-  throw new Error('Stado returned no attested active Skarbiec binary');
+let resolvedSkarbiecBinary: string | undefined;
+
+function activeSkarbiecBinary(operation: string): string {
+  if (resolvedSkarbiecBinary) return resolvedSkarbiecBinary;
+  const result = spawnSync(process.execPath, [SKARBIEC_RESOLVER, 'active-binary'], {
+    encoding: 'utf8',
+    env: process.env,
+    maxBuffer: 1024 * 1024,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  const binary = String(result.stdout ?? '').trim();
+  if (result.error || result.status !== 0 || !isAbsolute(binary)) {
+    const detail = result.error?.message
+      || String(result.stderr ?? '').trim()
+      || (result.status !== 0
+        ? `resolver exited with status ${result.status ?? 'unknown'}`
+        : binary
+          ? 'resolver returned a non-absolute path'
+          : 'resolver returned no path');
+    throw new Error(`cannot ${operation}: Stado returned no attested active Skarbiec binary: ${detail}`);
+  }
+  resolvedSkarbiecBinary = binary;
+  return binary;
 }
 const VAULT = process.env.SKARBIEC_VAULT_FILE || join(homedir(), '.stado', 'skarbiec.vault.json');
 const STADO = process.env.WELES_STADO_BIN || join(homedir(), '.stado', 'bin', 'stado');
 const ACCOUNT_ID = /^weles-[a-z0-9][a-z0-9-]{0,126}-account$/;
 
 function skarbiec(args: string[], input?: string): string {
-  return execFileSync(SKARBIEC, args, {
+  return execFileSync(activeSkarbiecBinary(`run Skarbiec ${args[0] ?? 'operation'}`), args, {
     input,
     encoding: 'utf8',
     maxBuffer: 4 * 1024 * 1024,
