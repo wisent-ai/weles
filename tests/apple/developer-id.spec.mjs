@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { createHash, createPrivateKey, X509Certificate } from 'node:crypto';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
-import { homedir } from 'node:os';
+import { homedir, hostname } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -58,11 +58,14 @@ try {
   assert.match(accountItem || '', /^weles-apple-[a-z0-9][a-z0-9-]{0,126}-account$/, 'WELES_APPLE_ACCOUNT_ITEM must identify a real registered Apple Account Holder');
   const executionHost = process.env.WELES_APPLE_EXECUTION_HOST;
   assert.equal(executionHost, 'charless-mac-mini', 'This journey executes the browser only on the dedicated Mac mini');
+  assert.equal(hostname().toLowerCase(), 'charless-mac-mini.local', 'The Probierz journey itself must be placed on the dedicated Mac mini');
   const stado = process.env.WELES_STADO_BIN || successful(command('/usr/bin/which', ['stado']), 'locating Stado').trim();
   const childEnv = { ...process.env, WELES_STADO_BIN: stado };
   trace.stadoVersion = successful(command(stado, ['--version']), 'reading Stado source identity').trim();
   trace.stadoSha256 = digest(readFileSync(stado));
   trace.skarbiecRelease = JSON.parse(successful(command(stado, ['release', 'active-binary', 'skarbiec', '--json']), 'reading the active Skarbiec release'));
+  successful(command('npm', ['ci', '--no-audit', '--no-fund'], { cwd: repo, timeout: 300_000 }), 'installing the pinned Weles dependencies');
+  successful(command('npm', ['run', 'build'], { cwd: repo, timeout: 300_000 }), 'building the pinned Weles source');
   const workRoot = join(homedir(), '.stado', 'work');
   mkdirSync(workRoot, { recursive: true, mode: 0o700 });
   const work = mkdtempSync(join(workRoot, 'weles-apple-developer-id-'));
@@ -71,7 +74,7 @@ try {
   trace.retainedWork = work;
   retainTrace();
   const authorizer = join(repo, 'scripts', 'auth', 'authorize-apple-developer-id.mjs');
-  const args = [authorizer, '--account-item', accountItem, '--confirm', 'AUTHORIZE ONE APPLE DEVELOPER ID', '--execution-host', executionHost, '--execution-agent', 'weles-worker', '--expires-in-minutes', '15', '--private-key-out', keyPath, '--certificate-out', certificatePath];
+  const args = [authorizer, '--account-item', accountItem, '--confirm', 'AUTHORIZE ONE APPLE DEVELOPER ID', '--execution-host', executionHost, '--execution-agent', 'weles-worker', '--execution-runner', join(repo, 'scripts', 'worker', 'stado-action-runner.mjs'), '--expires-in-minutes', '15', '--private-key-out', keyPath, '--certificate-out', certificatePath];
 
   const malformed = [...args];
   malformed[2] = 'not-an-apple-account';

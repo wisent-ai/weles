@@ -44,6 +44,7 @@ const accountItem = String(args['--account-item'] ?? '');
 const confirmation = String(args['--confirm'] ?? '');
 const executionHost = String(args['--execution-host'] ?? '');
 const executionAgent = String(args['--execution-agent'] ?? 'weles-worker');
+const executionRunner = String(args['--execution-runner'] ?? '');
 const expiryMinutes = Number(args['--expires-in-minutes'] ?? '15');
 const keyOut = String(args['--private-key-out'] ?? '');
 const certOut = String(args['--certificate-out'] ?? '');
@@ -57,6 +58,9 @@ if (confirmation !== CONFIRMATION_PHRASE) {
 }
 if (!executionHost || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,252}$/.test(executionHost)) {
   throw new Error('--execution-host is invalid');
+}
+if (executionRunner && !executionRunner.startsWith('/')) {
+  throw new Error('--execution-runner must be an absolute path on the execution host');
 }
 if (!Number.isInteger(expiryMinutes) || expiryMinutes < 1 || expiryMinutes > 60) {
   throw new Error('--expires-in-minutes must be a whole number between 1 and 60');
@@ -75,7 +79,9 @@ const guardId = randomUUID();
 const stado = stadoBinary();
 // The shell expands this path on the pinned worker. The trajectory receives
 // the equivalent `~/...` form and resolves it against that worker's home.
-const runner = '"$HOME"/weles/scripts/worker/stado-action-runner.mjs';
+const runner = executionRunner
+  ? shellQuote(executionRunner)
+  : '"$HOME"/weles/scripts/worker/stado-action-runner.mjs';
 const remoteRelative = `weles/var/developer-id-${guardId}`;
 const remoteBase = `"$HOME"/${remoteRelative}`;
 const remoteTrajectoryBase = `~/${remoteRelative}`;
