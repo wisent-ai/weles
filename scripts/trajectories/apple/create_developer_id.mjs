@@ -115,6 +115,7 @@ async function clickButton(page, pattern) {
 console.log(`[apple-create-developer-id] account ${accountId}, CSR ${csrPath}`);
 let sessionClosed = true;
 let s = null;
+let twoFactorReceipt = null;
 try {
   capabilities = parseAppleLoginCapabilities(process.env.APPLE_LOGIN_CAPABILITIES_JSON, guardId);
   capabilityRefs = [
@@ -231,7 +232,7 @@ try {
   if (postPasswordState === 'timeout') throw new Error('Timed out waiting for developer portal or 2FA challenge');
 
   if (postPasswordState === 'two_factor') {
-    relayAppleChallenge(preflightIdentity, guardId);
+    const relay = relayAppleChallenge(preflightIdentity, guardId);
     const twoFactor = await completeAppleTwoFactorChallenge(s, frame, {
       logPrefix: '[apple-create-developer-id]',
       withCode: (consume) => withCapabilityPendingRetry(
@@ -248,6 +249,13 @@ try {
     if (!twoFactor.ok) {
       throw new Error(`Apple 2FA did not complete (${twoFactor.source || 'unknown source'})`);
     }
+    twoFactorReceipt = {
+      authorization_id: guardId,
+      holder: relay.holder,
+      user: relay.user,
+      destination: relay.destination,
+      source: twoFactor.source,
+    };
   }
 
   // --- Developer portal: navigate to certificate add page ---
@@ -257,6 +265,13 @@ try {
     if (!portalObserved) await s.wait(1);
   }
   if (!portalObserved) throw new Error(`did not reach developer portal, still at ${s.page.url()}`);
+  if (twoFactorReceipt) {
+    // Reaching the authenticated portal, not filling the code, proves acceptance.
+    console.log(`APPLE_TWO_FACTOR_RECEIPT=${JSON.stringify({
+      ...twoFactorReceipt,
+      provider_accepted: true,
+    })}`);
+  }
 
   await s.page.goto(ADD_URL, { waitUntil: 'domcontentloaded', timeout: Number(process.env.WELES_APPLE_NAV_TIMEOUT_MS ?? '60000') });
   await s.wait(6);
