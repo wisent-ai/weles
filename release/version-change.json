@@ -1,7 +1,7 @@
 {
   "schema": "weles.version-change.v1",
-  "current": "0.5.70",
-  "candidate": "0.5.71",
+  "current": "0.5.72",
+  "candidate": "0.5.73",
   "breaking": false,
-  "reason": "0.5.71 routes Weles agents through the registry-owned Brama inference alias and carries the source-bound Apple Developer ID journey without changing the released public surface."
+  "reason": "0.5.73 carries the source-bound Apple Developer ID issuance journey and defers Apple credential resolution until the exact worker source executes, without changing the released public surface."
 }
