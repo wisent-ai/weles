@@ -3,14 +3,15 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { runRecordingsDir } from '../session/run-recordings.js';
 
-// `best` is Brama's subscription route: the agent's HMAC identity selects the
-// subscription that pays. Drafting browser trajectories needs a frontier
-// instruction-following model, and every other Brama alias is bound to a
-// provider Brama holds a direct credential for, so `best` is the only alias
-// that reaches a subscription-funded model. It also removes the dependency on
-// a local deployment being up: `weles/agent/primary` resolved to the
-// `chat-primary` GPU host, so Weles stopped working whenever that box did.
-const WELES_AGENT_MODEL = 'best';
+// Weles asks Brama for its own alias, `weles`. Which model that is — a local
+// deployment, a subscription route, a frontier provider — is the route
+// table's decision and is read with `brama aliases` or `GET /v1/aliases`; it
+// is not encoded in this name. The previous name, `weles/agent/primary`,
+// carried a purpose and a rank that both changed underneath it while the
+// string stayed, and callers were told it was "not in the catalog" whenever
+// the route behind it could not be served. Brama now answers with the alias's
+// state and reason instead, so this caller can report that sentence verbatim.
+const WELES_AGENT_MODEL = 'weles';
 const WELES_AGENT_ID = 'weles';
 
 type ModelRouterConfig = {
