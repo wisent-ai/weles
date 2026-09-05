@@ -218,7 +218,27 @@ shutdown_children() {
 }
 trap shutdown_children EXIT HUP INT TERM
 
-wait "$api_server_pid"
-api_server_status=$?
+# The job used to wait on the API server alone. Measured on charless-mac-mini
+# on 2026-09-05: the broker had exited within two minutes of a clean start, the
+# API kept answering on 8788 for a day, launchd reported the unit active, and
+# every trajectory that asked for a credential read `ECONNREFUSED` at the
+# socket — including the Developer ID run, which died at its first capability
+# fill. A unit whose credential half is dead is down, so the first child to
+# exit ends the job, and launchd's KeepAlive starts a fresh pair.
+#
+# Polled rather than `wait -n`: launchd starts this script through whichever
+# `bash` is first on PATH, and on the always-on Mac that is /bin/bash 3.2,
+# which has no `wait -n`.
+while kill -0 "$api_server_pid" 2>/dev/null && kill -0 "$capability_broker_pid" 2>/dev/null; do
+  sleep 2
+done
+exit_status=0
+if kill -0 "$api_server_pid" 2>/dev/null; then
+  wait "$capability_broker_pid" 2>/dev/null || exit_status=$?
+  echo "capability broker exited with status $exit_status; ending the API server so launchd restarts both" >&2
+else
+  wait "$api_server_pid" 2>/dev/null || exit_status=$?
+  echo "weles api server exited with status $exit_status" >&2
+fi
 shutdown_children
-exit "$api_server_status"
+exit "$exit_status"
