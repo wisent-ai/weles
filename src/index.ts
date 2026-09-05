@@ -38,3 +38,5 @@ export type { ArtifactLocatorSet, SignedArtifactResponse } from './worker/artifa
 
 export { FileJourneyStorage, runWelesOnboarding, WELES_FIRST_USE_FALLBACK } from './onboarding.js';
 export type { WelesOnboardingInput, WelesOnboardingView } from './onboarding.js';
+export { importWelesTrajectoryDocument, importWelesTrajectoryFile } from './import.js';
+export type { WelesImportClientOptions, WelesImportItem, WelesImportReport } from './import.js';

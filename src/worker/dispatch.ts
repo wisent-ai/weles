@@ -400,6 +400,8 @@ export function paramsToEnv(
       ['flow_name', 'GENERIC_TASK_FLOW_NAME'],
       ['proxy', 'GENERIC_TASK_PROXY'],
       ['browser', 'GENERIC_TASK_BROWSER'],
+      ['os', 'GENERIC_TASK_OS'],
+      ['locale', 'GENERIC_TASK_LOCALE'],
             ['session_label', 'GENERIC_TASK_LABEL'],
             ['admin_credential_id', 'GENERIC_TASK_ADMIN_CREDENTIAL_ID'],
     ];

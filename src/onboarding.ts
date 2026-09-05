@@ -2,7 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { homedir, hostname, userInfo } from 'node:os';
 import { join } from 'node:path';
-import journeyDefinition from './onboarding/journeys/weles-first-use-2026-08-04.1.json';
+import journeyDefinition from './onboarding/journeys/weles-first-use-2026-09-05.1.json';
 import {
   JourneyClient,
   StadoJourneyTransport,
@@ -18,13 +18,13 @@ import {
 
 const PRODUCT_ID = 'weles';
 const JOURNEY_ID = 'first-use';
-const JOURNEY_VERSION = '2026-08-04.1';
-const JOURNEY_VERSION_ID = '3a2ba59e-8a7e-4da4-9a76-bb4abf286e6d';
+const JOURNEY_VERSION = '2026-09-05.1';
+const JOURNEY_VERSION_ID = 'a707bb29-3848-4b1d-a868-84fc7ae3978e';
 const SOURCE_REVISION_PATTERN = /^[0-9a-f]{40}$/;
 const TOKEN_ENVIRONMENT_KEY = 'WELES_STADO_INTEGRATION_TOKEN';
 const SHA256 = /^[0-9a-f]{64}$/i;
 
-type OnboardingAction = 'status' | 'next' | 'verify' | 'reset';
+type OnboardingAction = 'status' | 'next' | 'import' | 'verify' | 'reset';
 
 type ReceiptClaims = {
   taskId: string;
@@ -44,6 +44,7 @@ export type WelesOnboardingInput = {
   receiptKeys?: Readonly<Record<string, string>>;
   environment?: NodeJS.ProcessEnv;
   fetch?: typeof fetch;
+  importReport?: Readonly<{ imported: number; unchanged: number; refused: number }>;
 };
 
 export type WelesOnboardingView = {
@@ -100,6 +101,10 @@ const CONTENT: Readonly<Record<string, Readonly<{ title: string; body: string }>
     title: 'Confirm the authorization boundary',
     body: 'Weles executes only an already-authorized, allowlisted workflow. Possessing credentials does not authorize a new origin or action; organization, origin, action, credential references, justification, idempotency, and evidence policy must be admitted through the safe Weles client before this host runs anything.',
   },
+  'existing-data': {
+    title: 'Bring your existing Weles workflows',
+    body: 'Optional: run weles onboarding import <trajectory-export.json> --host <managed-worker-hostname>. Weles validates the complete API export, preserves existing rows, and stores accepted definitions as host-bound drafts. It never starts a workflow, scans or copies a browser profile, or grants a new action. Run onboarding next to keep an empty usable setup.',
+  },
   'host-execution': {
     title: 'Run on the approved Weles host',
     body: 'The scheduler owns task admission and terminal state, the supervised host runs the reviewed trajectory with deployment-selected browsers, and the secret boundary resolves only scoped credential references. Do not start browser automation from onboarding; submit the real approved workflow through @wisent-ai/weles-client and wait for its terminal service response.',
@@ -119,24 +124,32 @@ class OfflineJourneyTransport implements JourneyTransport {
   }
 }
 
+function hasPinnedProductSurface(bundle: JourneyBundle): boolean {
+  const screenIds = bundle.definition.screens.map((screen) => screen.screen_id).sort();
+  const expectedScreenIds = Object.keys(CONTENT).sort();
+  const actionsMatch = bundle.definition.screens.every((screen) => {
+    if (screen.screen_id === 'receipt-verification') {
+      return screen.actions.length === 1 && screen.actions[0] === 'verify';
+    }
+    if (screen.screen_id === 'existing-data') {
+      return screen.actions.length === 2 && screen.actions[0] === 'import' && screen.actions[1] === 'next';
+    }
+    return screen.actions.length === 1 && screen.actions[0] === 'next';
+  });
+  return bundle.definition.journey_version === JOURNEY_VERSION
+    && bundle.definition.first_success_fact === 'authorized_browser_workflow_completed'
+    && bundle.definition.entry_screen_id === definition.entry_screen_id
+    && screenIds.length === expectedScreenIds.length
+    && screenIds.every((screenId, index) => screenId === expectedScreenIds[index])
+    && actionsMatch;
+}
+
 class VersionPinnedTransport implements JourneyTransport {
   constructor(private readonly transport: JourneyTransport) {}
 
   async readBundle(productId: string, journeyId: string): Promise<JourneyBundle> {
     const bundle = await this.transport.readBundle(productId, journeyId, JOURNEY_VERSION);
-    if (!isStoredBundle(bundle)) throw new Error('central Weles journey bundle is malformed');
-    const screenIds = bundle.definition.screens.map((screen) => screen.screen_id).sort();
-    const expectedScreenIds = Object.keys(CONTENT).sort();
-    const productSurfaceMatches = screenIds.length === expectedScreenIds.length
-      && screenIds.every((screenId, index) => screenId === expectedScreenIds[index])
-      && bundle.definition.screens.every((screen) => {
-        const expectedAction = screen.screen_id === 'receipt-verification' ? 'verify' : 'next';
-        return screen.actions.length === 1 && screen.actions[0] === expectedAction;
-      });
-    if (bundle.definition.journey_version !== JOURNEY_VERSION
-      || bundle.definition.first_success_fact !== 'authorized_browser_workflow_completed'
-      || bundle.definition.entry_screen_id !== definition.entry_screen_id
-      || !productSurfaceMatches) {
+    if (!isStoredBundle(bundle) || !hasPinnedProductSurface(bundle)) {
       throw new Error('central Weles journey identity or product surface is invalid');
     }
     return bundle;
@@ -243,7 +256,7 @@ export class FileJourneyStorage implements JourneyStorage {
 
   async loadBundle(productId: string, journeyId: string): Promise<JourneyBundle | null> {
     const bundle = await this.load(this.bundlePath(productId, journeyId));
-    return isStoredBundle(bundle) ? bundle : null;
+    return isStoredBundle(bundle) && hasPinnedProductSurface(bundle) ? bundle : null;
   }
 
   saveBundle(bundle: JourneyBundle): Promise<void> {
@@ -350,7 +363,7 @@ function render(client: { progress: JourneyProgress | null; screen: { screen_id:
 
 export async function runWelesOnboarding(input: WelesOnboardingInput = {}): Promise<WelesOnboardingView> {
   const action = input.action ?? 'status';
-  if (!['status', 'next', 'verify', 'reset'].includes(action)) throw new Error(`unknown onboarding action: ${action}`);
+  if (!['status', 'next', 'import', 'verify', 'reset'].includes(action)) throw new Error(`unknown onboarding action: ${action}`);
 
   const environment = input.environment ?? process.env;
   const subject = stableSubject(input, environment);
@@ -420,6 +433,27 @@ export async function runWelesOnboarding(input: WelesOnboardingInput = {}): Prom
     if (firstAction) {
       await client.emit('onboarding_first_action_completed', {}, evidenceRevision, decision, definition.entry_screen_id);
     }
+    await client.expose(evidenceRevision);
+    return render(client, connected);
+  }
+
+  if (action === 'import') {
+    if (client.screen?.screen_id !== 'existing-data') {
+      throw new Error('complete the authorization-boundary step before recording an import');
+    }
+    const report = input.importReport;
+    if (!report
+      || !Number.isInteger(report.imported)
+      || !Number.isInteger(report.unchanged)
+      || !Number.isInteger(report.refused)
+      || report.imported < 0
+      || report.unchanged < 0
+      || report.refused < 0
+      || report.imported + report.unchanged === 0) {
+      throw new Error('onboarding import requires a persisted Weles import result');
+    }
+    const decision = await client.advance({ existing_data_imported: true }, evidenceRevision);
+    if (!decision) throw new Error('the existing-data onboarding step cannot advance');
     await client.expose(evidenceRevision);
     return render(client, connected);
   }

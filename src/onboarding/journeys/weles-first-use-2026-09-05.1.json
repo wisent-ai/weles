@@ -2,11 +2,11 @@
   "schema_version": 1,
   "product_id": "weles",
   "journey_id": "first-use",
-  "journey_version": "2026-08-04.1",
+  "journey_version": "2026-09-05.1",
   "entry_screen_id": "authorization-boundary",
   "first_success_fact": "authorized_browser_workflow_completed",
-  "published_at": "2026-08-04T00:00:00.000Z",
-  "source_revision": "3b0a9c05c6e242efe2d7df1decd10bad61f070fe",
+  "published_at": "2026-09-05T00:00:00.000Z",
+  "source_revision": "8d99b321a875b88149f5a8149d3db86718a66e25",
   "screens": [
     {
       "screen_id": "authorization-boundary",
@@ -17,8 +17,24 @@
       "actions": ["next"],
       "transitions": [
         {
-          "next_screen_id": "host-execution",
+          "next_screen_id": "existing-data",
           "reason_code": "authorization_boundary_understood",
+          "priority": 10
+        }
+      ],
+      "presentation": { "surface": "operator_cli" }
+    },
+    {
+      "screen_id": "existing-data",
+      "screen_kind": "seed",
+      "title_key": "existing_data.title",
+      "body_key": "existing_data.body",
+      "required": false,
+      "actions": ["import", "next"],
+      "transitions": [
+        {
+          "next_screen_id": "host-execution",
+          "reason_code": "existing_data_offered",
           "priority": 10
         }
       ],
@@ -66,7 +82,7 @@
     "first_success_event": "onboarding_first_success_observed"
   },
   "experiment_contract": {
-    "experiment_id": "weles_first_use_2026_08_04_1",
+    "experiment_id": "weles_first_use_2026_09_05_1",
     "control_variant_id": "canonical",
     "eligible_variant_ids": ["canonical"],
     "variant_configs": {

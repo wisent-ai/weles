@@ -2,12 +2,14 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
+import { importWelesTrajectoryFile } from './import.js';
 import { runWelesOnboarding } from './onboarding.js';
 import { resolveSkarbiecEndpoint } from './utils/endpoint-resolution.js';
 import type { WelesOnboardingInput } from './onboarding.js';
 import type { AsyncNewBrowserOptions } from './async_api.js';
+import type { WelesImportReport } from './import.js';
 
-type CliCommand = 'help' | 'version' | 'doctor' | 'open' | 'screenshot' | 'mcp' | 'onboarding';
+type CliCommand = 'help' | 'version' | 'doctor' | 'open' | 'screenshot' | 'mcp' | 'onboarding' | 'import';
 
 type ParsedCli = {
   command: CliCommand;
@@ -18,8 +20,10 @@ type ParsedCli = {
 const HELP = `Weles CLI
 
 Usage:
-  weles onboarding [status|next|verify|reset] [--subject <stable-id>]
+  weles onboarding [status|next|import|verify|reset] [--subject <stable-id>]
+  weles onboarding import <trajectory-export.json> --host <managed-worker-hostname> [--subject <stable-id>]
   weles onboarding verify --receipt <receipt.json> --keys <receipt-keys.json> [--subject <stable-id>]
+  weles import <trajectory-export.json> --host <managed-worker-hostname>
   weles open <url> [--headless] [--browser chromium|firefox] [--wait-for-text <text>] [--text] [--screenshot <file>] [--timeout <ms>]
   weles screenshot <url> <file> [--headless] [--browser chromium|firefox] [--wait-for-text <text>] [--timeout <ms>]
   weles mcp
@@ -31,6 +35,7 @@ Options:
   --receipt <file>        Real terminal Weles service receipt JSON to verify.
   --keys <file>           JSON map of trusted receipt key IDs to PEM public keys.
   --state-dir <dir>       Override the durable onboarding state directory.
+  --host <hostname>       Exact managed Weles worker hostname for imported definitions.
   --headless              Launch without a visible browser window.
   --browser <name>        Browser engine passed to AsyncNewBrowser (default: chromium).
   --os <name>             Persona OS passed to AsyncNewBrowser (default: macos).
@@ -43,9 +48,11 @@ Options:
   --wait-for-text <text>  Wait for matching visible text before reading or capturing.
   --timeout <ms>          Navigation timeout in milliseconds.
 
-Onboarding explains the authorization boundary and approved host execution. It
-does not launch browser automation. Completion requires cryptographic verification
-of a real workflow receipt and its bound evidence digest.
+Onboarding explains the authorization boundary, optionally imports existing Weles
+trajectory API exports, and explains approved host execution. Importing writes
+host-bound drafts but does not launch browser automation or grant a new action.
+Completion still requires cryptographic verification of a real workflow receipt
+and its bound evidence digest.
 `;
 
 function readPackageJson(): { version?: string; bin?: unknown } {
@@ -103,12 +110,12 @@ export function parseCliArgs(argv: string[]): ParsedCli {
 function normalizeCommand(command?: string): CliCommand {
   if (!command || command === '--help' || command === '-h' || command === 'help') return 'help';
   if (command === '--version' || command === '-v' || command === 'version') return 'version';
-  if (command === 'doctor' || command === 'open' || command === 'screenshot' || command === 'mcp' || command === 'onboarding') return command;
+  if (command === 'doctor' || command === 'open' || command === 'screenshot' || command === 'mcp' || command === 'onboarding' || command === 'import') return command;
   throw new Error(`unknown command: ${command}`);
 }
 
 function optionTakesValue(key: string): boolean {
-  return ['browser', 'os', 'locale', 'chromium-path', 'user-data-dir', 'proxy', 'screenshot', 'wait-for-text', 'timeout', 'subject', 'receipt', 'keys', 'state-dir'].includes(key);
+  return ['browser', 'os', 'locale', 'chromium-path', 'user-data-dir', 'proxy', 'screenshot', 'wait-for-text', 'timeout', 'subject', 'receipt', 'keys', 'state-dir', 'host'].includes(key);
 }
 
 function cliOptionsToBrowserOptions(options: Record<string, string | boolean>): AsyncNewBrowserOptions {
@@ -346,14 +353,49 @@ function readReceiptKeys(path: string): Readonly<Record<string, string>> {
   return keys;
 }
 
+async function executeImport(parsed: ParsedCli): Promise<WelesImportReport> {
+  const [path] = parsed.positional;
+  if (!path || parsed.positional.length !== 1) throw new Error('import requires <trajectory-export.json>');
+  if (typeof parsed.options.host !== 'string') throw new Error('import requires --host <managed-worker-hostname>');
+  const report = await importWelesTrajectoryFile(path, parsed.options.host);
+  if (report.refused > 0) process.exitCode = 2;
+  return report;
+}
+
+async function runImport(parsed: ParsedCli): Promise<void> {
+  const report = await executeImport(parsed);
+  process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
+}
+
 function isOnboardingAction(value: string): value is NonNullable<WelesOnboardingInput['action']> {
   return value === 'status' || value === 'next' || value === 'verify' || value === 'reset';
 }
 
 async function runOnboarding(parsed: ParsedCli): Promise<void> {
   const action = parsed.positional[0] ?? 'status';
+  if (action === 'import') {
+    if (parsed.positional.length !== 2) {
+      throw new Error('onboarding import requires <trajectory-export.json>');
+    }
+    const common = {
+      subject: typeof parsed.options.subject === 'string' ? parsed.options.subject : undefined,
+      stateDirectory: typeof parsed.options['state-dir'] === 'string' ? parsed.options['state-dir'] : undefined,
+    };
+    const before = await runWelesOnboarding({ action: 'status', ...common });
+    if (before.screen.id !== 'existing-data') {
+      throw new Error('complete the authorization-boundary step before importing existing data');
+    }
+    const report = await executeImport({ ...parsed, command: 'import', positional: parsed.positional.slice(1) });
+    if (report.imported + report.unchanged === 0) {
+      process.stdout.write(`${JSON.stringify({ import: report, onboarding: before }, null, 2)}\n`);
+      return;
+    }
+    const view = await runWelesOnboarding({ action: 'import', importReport: report, ...common });
+    process.stdout.write(`${JSON.stringify({ import: report, onboarding: view }, null, 2)}\n`);
+    return;
+  }
   if (!isOnboardingAction(action) || parsed.positional.length > 1) {
-    throw new Error('onboarding action must be status, next, verify, or reset');
+    throw new Error('onboarding action must be status, next, import, verify, or reset');
   }
   const receiptPath = parsed.options.receipt;
   const keysPath = parsed.options.keys;
@@ -394,6 +436,10 @@ export async function runCli(argv = process.argv.slice(2)): Promise<void> {
   }
   if (parsed.command === 'screenshot') {
     await runScreenshot(parsed);
+    return;
+  }
+  if (parsed.command === 'import') {
+    await runImport(parsed);
     return;
   }
   if (parsed.command === 'onboarding') {

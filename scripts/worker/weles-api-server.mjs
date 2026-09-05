@@ -25,11 +25,13 @@
 //   WELES_API_TIMEOUT_MS  default 900000
 //   WELES_API_BODY_LIMIT_BYTES default 262144
 //   WELES_API_ALLOW_RAW_CREDS  default "1"
+//   WELES_API_BASE, WELES_TOKEN, WISENT_ORGANIZATION_ID for destination imports
 //   plus the worker browser, proxy, Stado, and Skarbiec configuration
 //
 // Routes:
 //   GET  /healthz                         -> liveness + config summary
 //   POST /run                             -> synchronous trajectory execution
+//   POST /imports                         -> validate and persist host-bound draft trajectories
 //   GET  /diagnostics/:run_id             -> authenticated artifact manifest
 //   GET  /diagnostics/:run_id/file?path=  -> authenticated artifact download
 //   GET  /worker/status                   -> authenticated launchd worker state
@@ -91,6 +93,7 @@ const { LOGIN_ACCOUNTS, selectLoginAccount } = await import(`${REPO}/dist/utils/
 const { readPrivateStadoObjectIdentity, uploadArtifacts } = await import(`${REPO}/dist/worker/upload-artifacts.js`);
 const { resolveBrowserEvidenceTarget, SPIS_BROWSER_EVIDENCE_POLICY } = await import(`${REPO}/dist/agent/browser-evidence-policy.js`);
 const { createPublicTaskService, publicTaskErrorResponse } = await import('./public-task-service.mjs');
+const { importWelesTrajectoryDocument } = await import(`${REPO}/dist/import.js`);
 
 function boundedIntegerEnvironment(name, fallback, minimum, maximum) {
   const raw = String(process.env[name] ?? fallback);
@@ -163,6 +166,7 @@ function signalRunProcess(child, signal) {
   }
   try { child.kill(signal); } catch { /* already exited */ }
 }
+const IMPORT_BODY_LIMIT = 2 * 1024 * 1024 + 4 * 1024;
 const BUILDER_BOOTSTRAP_URL = process.env.WELES_BUILDER_BOOTSTRAP_URL || 'https://duckduckgo.com/';
 // Prepended to the caller's instructions so the agent self-navigates: the
 // caller supplies NO url, only the goal. The agent lands on a neutral
@@ -455,12 +459,12 @@ function requireTokenAuthorization(req, res) {
   return false;
 }
 
-function readBody(req) {
+function readBody(req, limit = BODY_LIMIT) {
   return new Promise((resolveBody, reject) => {
     let size = 0; const chunks = [];
     req.on('data', (c) => {
       size += c.length;
-      if (size > BODY_LIMIT) { reject(new Error('body_too_large')); req.destroy(); return; }
+      if (size > limit) { reject(new Error('body_too_large')); req.destroy(); return; }
       chunks.push(c);
     });
     req.on('end', () => {
@@ -1157,6 +1161,20 @@ const server = http.createServer(async (req, res) => {
       json(res, 200, manifest);
       return;
     }
+    if (req.method === 'POST' && url.pathname === '/imports') {
+      if (!requireTokenAuthorization(req, res)) return;
+      let body;
+      try { body = await readBody(req, IMPORT_BODY_LIMIT); }
+      catch (e) { json(res, 400, { ok: false, error: e.message }); return; }
+      try {
+        const report = await importWelesTrajectoryDocument(body.source, body.target_host);
+        json(res, report.imported > 0 ? 201 : 200, report);
+      } catch (e) {
+        json(res, 400, { ok: false, error: String(e && e.message ? e.message : e).slice(0, 300) });
+      }
+      return;
+    }
+
     // reauth: run a provider's reauth trajectory ON THE HOST. Body:
     // { provider: "codex"|"claude"|"kimi", login_item?, subscription_id?,
     //   timeout_ms? }. `login_item` selects an exact row; when omitted, Weles
