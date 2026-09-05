@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 const repo = resolve(process.env.PROBIERZ_APP_SOURCE || fileURLToPath(new URL('../../', import.meta.url)));
 const artifacts = resolve(process.env.PROBIERZ_ARTIFACTS);
 const tracePath = join(artifacts, 'apple-developer-id.trace.json');
-const trace = { schemaVersion: 1, startedAt: new Date().toISOString(), state: 'running', commands: [] };
+const trace = { schemaVersion: 1, kind: 'probierz-apple-developer-id', startedAt: new Date().toISOString(), status: 'running', commands: [] };
 mkdirSync(artifacts, { recursive: true });
 
 function retainTrace() {
@@ -112,13 +112,14 @@ try {
   assert.match(duplicate.stderr, /refusing to replace an existing private key or certificate/);
   assert.equal(digest(readFileSync(keyPath)), digest(keyBytes), 'A duplicate issuance request must preserve the private key');
   assert.equal(digest(readFileSync(certificatePath)), digest(certificateBytes), 'A duplicate issuance request must preserve the issued certificate');
-  trace.state = 'passed';
+  trace.status = 'completed';
   console.log(JSON.stringify({ jobId: result.job_id, certificateSha256: trace.certificate.sha256, twoFactor: result.two_factor, retainedWork: work }));
 } catch (error) {
-  trace.state = 'failed';
+  trace.status = 'failed';
   trace.error = error instanceof Error ? error.message : String(error);
   throw error;
 } finally {
   trace.completedAt = new Date().toISOString();
+  trace.observation = { reply: trace.error || `Apple accepted the Skarbiec-backed second factor and issued ${trace.certificate.fingerprint256}` };
   retainTrace();
 }
