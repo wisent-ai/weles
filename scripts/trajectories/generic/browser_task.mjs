@@ -261,6 +261,8 @@ const flowName = envString('GENERIC_TASK_FLOW_NAME') || `generic:${new URL(url).
 const proxy = envString('GENERIC_TASK_PROXY', process.env.PROXY_URL_OVERRIDE || 'none');
 const headless = envString('GENERIC_TASK_HEADLESS') === '1';
 const browser = envString('GENERIC_TASK_BROWSER', 'chromium');
+const os = envString('GENERIC_TASK_OS', 'macos');
+const locale = envString('GENERIC_TASK_LOCALE') || undefined;
 const keeperFirst = envString('GENERIC_TASK_KEEPER_FIRST') === '1';
 const replay = normalizedReplay(parseJsonEnv('GENERIC_TASK_REPLAY', null));
 const replayOnly = envString('GENERIC_TASK_REPLAY_ONLY') === '1';
@@ -286,7 +288,7 @@ try {
         steps: [],
       }
       : await writeWelesTrajectoryDraft({ objective });
-  session = await WSession.start({ label, proxy, targetHost: new URL(url).hostname, headless, browser, platform: identityPlatformFromConstraints(constraints) || undefined, pageDiagnostics: keeperFirst ? false : undefined });
+  session = await WSession.start({ label, proxy, targetHost: new URL(url).hostname, headless, browser, os, locale, platform: identityPlatformFromConstraints(constraints) || undefined, pageDiagnostics: keeperFirst ? false : undefined });
   await session.goto(url);
   await applyCredentialPrefill(session, constraints);
   await ensureSupabaseSession(session, constraints);

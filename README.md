@@ -87,6 +87,41 @@ export WISENT_ORGANIZATION_ID=<organization-uuid>
 export WELES_TOKEN=<organization-scoped-token>
 ```
 
+## Import existing Weles workflows
+
+First setup can adopt the JSON returned by `GET /api/v1/trajectories` instead
+of starting empty. After the authorization-boundary screen, run:
+
+```sh
+weles onboarding next
+weles onboarding import <trajectory-export.json> --host <managed-worker-hostname>
+```
+
+The reusable command outside onboarding is:
+
+```sh
+weles import <trajectory-export.json> --host <managed-worker-hostname>
+```
+
+Both commands call the deployment's `POST /api/v1/imports` operation using
+`WELES_API_BASE`, `WISENT_ORGANIZATION_ID`, and `WELES_TOKEN`. The operation
+validates the complete export before a write, requires its tenant to match the
+authenticated organization, preserves existing rows, and returns an
+`imported` / `unchanged` / `refused` result for every source trajectory.
+Accepted definitions are stored as `draft`, retain their source identity and
+digest, and are bound to the exact managed worker hostname supplied with the
+request. An imported draft is not an authorized action.
+
+The local Weles HTTP service also exposes authenticated `POST /imports` as a
+transport wrapper around that same client operation. It requires its local
+`WELES_API_TOKEN` even when other local routes allow unauthenticated access;
+the destination call still uses `WELES_TOKEN`.
+
+Weles imports definitions and supported execution configuration
+(`browser`, `os`, `locale`, `headless`, `proxy`, and `session_label`). It never
+scans or copies a browser profile, cookies, or credentials; `session_label`
+only refers to state that already exists on the selected managed host.
+
 From there your agents submit authorized workflows through the public
 [`@wisent-ai/weles-client`](https://github.com/wisent-ai/weles-client):
 
