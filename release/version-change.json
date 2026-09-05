@@ -1,7 +1,7 @@
 {
   "schema": "weles.version-change.v1",
-  "current": "0.5.71",
-  "candidate": "0.5.72",
+  "current": "0.5.72",
+  "candidate": "0.5.73",
   "breaking": false,
-  "reason": "0.5.72 ends the worker unit when the skarbiec capability broker exits, so launchd restarts the pair instead of serving an API whose credential socket is dead; 0.5.69, 0.5.70 and 0.5.71 are already published immutable coordinates."
+  "reason": "0.5.73 carries the source-bound Apple Developer ID issuance journey and defers Apple credential resolution until the exact worker source executes, without changing the released public surface."
 }

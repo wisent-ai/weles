@@ -44,6 +44,7 @@ const accountItem = String(args['--account-item'] ?? '');
 const confirmation = String(args['--confirm'] ?? '');
 const executionHost = String(args['--execution-host'] ?? '');
 const executionAgent = String(args['--execution-agent'] ?? 'weles-worker');
+const executionRunner = String(args['--execution-runner'] ?? '');
 const expiryMinutes = Number(args['--expires-in-minutes'] ?? '15');
 const keyOut = String(args['--private-key-out'] ?? '');
 const certOut = String(args['--certificate-out'] ?? '');
@@ -57,6 +58,9 @@ if (confirmation !== CONFIRMATION_PHRASE) {
 }
 if (!executionHost || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,252}$/.test(executionHost)) {
   throw new Error('--execution-host is invalid');
+}
+if (executionRunner && !executionRunner.startsWith('/')) {
+  throw new Error('--execution-runner must be an absolute path on the execution host');
 }
 if (!Number.isInteger(expiryMinutes) || expiryMinutes < 1 || expiryMinutes > 60) {
   throw new Error('--expires-in-minutes must be a whole number between 1 and 60');
@@ -75,7 +79,9 @@ const guardId = randomUUID();
 const stado = stadoBinary();
 // The shell expands this path on the pinned worker. The trajectory receives
 // the equivalent `~/...` form and resolves it against that worker's home.
-const runner = '"$HOME"/weles/scripts/worker/stado-action-runner.mjs';
+const runner = executionRunner
+  ? shellQuote(executionRunner)
+  : '"$HOME"/weles/scripts/worker/stado-action-runner.mjs';
 const remoteRelative = `weles/var/developer-id-${guardId}`;
 const remoteBase = `"$HOME"/${remoteRelative}`;
 const remoteTrajectoryBase = `~/${remoteRelative}`;
@@ -175,8 +181,9 @@ function readStadoJobLog(jobId) {
   }
 }
 
-function certificateFromJobLog(jobId) {
-  const matches = [...readStadoJobLog(jobId).matchAll(/^CERTIFICATE_BASE64=([A-Za-z0-9+/]+={0,2})$/gm)];
+function resultFromJobLog(jobId, authorizationId) {
+  const log = readStadoJobLog(jobId);
+  const matches = [...log.matchAll(/^CERTIFICATE_BASE64=([A-Za-z0-9+/]+={0,2})$/gm)];
   if (matches.length !== 1 || matches[0][1].length % 4 !== 0) {
     throw new Error(`Stado job ${jobId} did not return exactly one certificate`);
   }
@@ -193,7 +200,19 @@ function certificateFromJobLog(jobId) {
   if (validation.error || validation.status !== 0) {
     throw new Error(`Stado job ${jobId} returned a file that is not a DER X.509 certificate`);
   }
-  return certificate;
+  const receipts = [...log.matchAll(/^APPLE_TWO_FACTOR_RECEIPT=(.+)$/gm)];
+  if (receipts.length > 1) throw new Error(`Stado job ${jobId} returned multiple Apple 2FA receipts`);
+  const twoFactor = receipts.length === 1 ? JSON.parse(receipts[0][1]) : null;
+  if (twoFactor && (
+    twoFactor.authorization_id !== authorizationId
+    || twoFactor.source !== 'capability'
+    || twoFactor.provider_accepted !== true
+    || !['holder', 'user', 'destination'].every((field) =>
+      typeof twoFactor[field] === 'string' && twoFactor[field].length > 0)
+  )) {
+    throw new Error(`Stado job ${jobId} returned an invalid Apple 2FA receipt`);
+  }
+  return { certificate, twoFactor };
 }
 
 const workRoot = join(homedir(), '.stado', 'work');
@@ -257,7 +276,7 @@ try {
   queued = match[0];
 
   const terminalState = await waitForStadoJob(queued, expiryMinutes * 60_000);
-  const certificate = certificateFromJobLog(queued);
+  const { certificate, twoFactor } = resultFromJobLog(queued, guardId);
   writeFileSync(certOut, certificate, { mode: 0o644, flag: 'wx' });
   console.log(JSON.stringify({
     status: terminalState,
@@ -266,6 +285,7 @@ try {
     guard_id: guardId,
     account_item: accountItem,
     execution_host: executionHost,
+    two_factor: twoFactor,
     private_key: keyOut,
     certificate: certOut,
   }, null, 2));
