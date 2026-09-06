@@ -182,20 +182,21 @@ if (!readResponse.ok) {
   throw await refusal('one-time read', readResponse, consumer, item, field);
 }
 const result = await readResponse.json();
-// The bound field, plus the one statement the item makes about itself that a
-// caller needs to know which flow a credential belongs to: `provider`, present
-// only when the item declares one (skarbiec 5864a54, 2026-08-31). Anything
-// else is not a single-field response. Demanding the exact four keys here is
-// what made every acquisition of a provider-declaring item fail as "invalid
-// single-field response" once that release reached the fleet.
+// Skarbiec returns the bound field and optional declared provider metadata.
+// Its schema::exact_token permits nonempty text up to 128 UTF-8 bytes without
+// NUL/CR/LF. This metadata is not restricted to route-name characters.
 const requiredKeys = ['consumer', 'field', 'item', 'value'];
 const optionalKeys = ['provider'];
 const keys = Object.keys(result || {});
+const declaredProvider = result?.provider;
+const providerByteLength = typeof declaredProvider === 'string' ? Buffer.byteLength(declaredProvider, 'utf8') : null;
+const providerValid = declaredProvider === undefined || (typeof declaredProvider === 'string'
+  && providerByteLength > 0 && providerByteLength <= 128 && !/[\u0000\r\n]/.test(declaredProvider));
 if (!result || result.consumer !== consumer || result.item !== item || result.field !== field
     || requiredKeys.some((key) => !keys.includes(key))
     || keys.some((key) => !requiredKeys.includes(key) && !optionalKeys.includes(key))
     || typeof result.value !== 'string' || !result.value
-    || (result.provider !== undefined && (typeof result.provider !== 'string' || !/^[A-Za-z0-9._-]{1,128}$/.test(result.provider)))) {
+    || !providerValid) {
   const shape = {
     keys,
     consumerMatches: result?.consumer === consumer,
@@ -205,6 +206,8 @@ if (!result || result.consumer !== consumer || result.item !== item || result.fi
     valueLength: typeof result?.value === 'string' ? result.value.length : null,
     providerType: typeof result?.provider,
     providerLength: typeof result?.provider === 'string' ? result.provider.length : null,
+    providerBytes: providerByteLength,
+    providerValid,
   };
   throw new Error(
     `Skarbiec returned an invalid single-field response at ${endpoint.origin}`
