@@ -196,6 +196,19 @@ if (!result || result.consumer !== consumer || result.item !== item || result.fi
     || keys.some((key) => !requiredKeys.includes(key) && !optionalKeys.includes(key))
     || typeof result.value !== 'string' || !result.value
     || (result.provider !== undefined && (typeof result.provider !== 'string' || !/^[A-Za-z0-9._-]{1,128}$/.test(result.provider)))) {
-  throw new Error('Skarbiec returned an invalid single-field response');
+  const shape = {
+    keys,
+    consumerMatches: result?.consumer === consumer,
+    itemMatches: result?.item === item,
+    fieldMatches: result?.field === field,
+    valueType: result?.value === null ? 'null' : Array.isArray(result?.value) ? 'array' : typeof result?.value,
+    valueLength: typeof result?.value === 'string' ? result.value.length : null,
+    providerType: typeof result?.provider,
+    providerLength: typeof result?.provider === 'string' ? result.provider.length : null,
+  };
+  throw new Error(
+    `Skarbiec returned an invalid single-field response at ${endpoint.origin}`
+    + ` for ${consumer} on ${item}#${field}: ${JSON.stringify(shape)}`,
+  );
 }
 process.stdout.write(result.value);
