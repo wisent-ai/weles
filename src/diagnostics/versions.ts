@@ -11,7 +11,7 @@ import { createHash } from 'node:crypto';
 import { hostname, userInfo, release, cpus, totalmem, networkInterfaces } from 'node:os';
 import { isAbsolute, join, relative } from 'node:path';
 
-// Worker entry (scripts/worker/run.mjs) is invoked with cwd=weles repo root,
+// Worker entry (src/worker/run.mjs) is invoked with cwd=weles repo root,
 // so process.cwd() is a stable anchor here. We capture it at module load so
 // later chdir cannot move the trajectory-resolution base.
 const WELES_ROOT = process.cwd();
@@ -78,7 +78,7 @@ function readPkgVersion(): string | null {
 // Walk a directory and hash every file's (relative path + bytes) into one
 // deterministic digest. Sorted by relative path so output is independent of
 // filesystem-walk order. Used to fingerprint both dist/ (compiled helpers)
-// and scripts/trajectories/ (the .mjs trajectory tree which lives outside
+// and src/trajectories/ (the .mjs trajectory tree which lives outside
 // dist/ and is NOT covered by weles_dist_sha256).
 function hashTree(root: string): { digest: string; file_count: number; total_bytes: number } | null {
   try { statSync(root); } catch { return null; }
@@ -105,9 +105,9 @@ function hashTree(root: string): { digest: string; file_count: number; total_byt
   return { digest: h.digest('hex'), file_count: files.length, total_bytes: total };
 }
 
-// G3: hash the worker launcher(s) — every .mjs directly under scripts/worker/
+// G3: hash the worker launcher(s) — every .mjs directly under src/worker/
 // (run.mjs and any sibling launcher). This is the actual process entrypoint the
-// worker is started with; it lives outside dist/ and outside scripts/trajectories/
+// worker is started with; it lives outside dist/ and outside src/trajectories/
 // so neither existing digest covers it. A change to the launcher (env wiring,
 // import path, run loop) flips runner_entry_sha256. Hash is over sorted
 // (relative-name + bytes) pairs so the single-file and multi-file cases are
@@ -157,7 +157,7 @@ const STATIC = (() => {
     weles_dist_sha256: dist?.digest ?? null,
     weles_dist_files: dist?.file_count ?? null,
     weles_dist_bytes: dist?.total_bytes ?? null,
-    // trajectories_tree_sha256 hashes every file under scripts/trajectories/
+    // trajectories_tree_sha256 hashes every file under src/trajectories/
     // — the .mjs files weles actually executes. dist/ doesn't cover them
     // because they live outside src/. A change to ANY trajectory or its
     // siblings (steps/, _shared/, helpers) flips this digest.
@@ -165,8 +165,8 @@ const STATIC = (() => {
     trajectories_tree_files: trajTree?.file_count ?? null,
     trajectories_tree_bytes: trajTree?.total_bytes ?? null,
     // runner_entry_sha256 fingerprints the worker launcher(s) under
-    // scripts/worker/ (run.mjs + any sibling .mjs) — the exact process
-    // entrypoint, outside dist/ and outside scripts/trajectories/.
+    // src/worker/ (run.mjs + any sibling .mjs) — the exact process
+    // entrypoint, outside dist/ and outside src/trajectories/.
     runner_entry_sha256: runnerEntry?.digest ?? null,
     runner_entry_files: runnerEntry?.file_count ?? null,
     runner_entry_bytes: runnerEntry?.total_bytes ?? null,

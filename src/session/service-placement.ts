@@ -15,7 +15,7 @@ type ServiceStatusRow = {
 // the failure that produced read as "cannot verify Weles placement through
 // Stado: spawnSync ENOENT" — which sounds like the registry is unreachable
 // rather than like a path is wrong, and stops every browser trajectory on the
-// one host they are supposed to run on. `scripts/auth/apple-account-placement`
+// one host they are supposed to run on. `src/auth/apple-account-placement`
 // already resolved this; the guard every session goes through did not.
 // STADO_BIN still wins, for a host that keeps it somewhere else again.
 function stadoBinary(): string {

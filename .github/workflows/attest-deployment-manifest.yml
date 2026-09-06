@@ -46,7 +46,7 @@ jobs:
           gh release download "$TAG" --repo "$GITHUB_REPOSITORY" \
             --pattern deployment-manifest.json \
             --pattern deployment-manifest.json.sha256
-          node scripts/release/validate-candidate-manifest.mjs \
+          npm run build && node dist/cli.js release validate-manifest \
             --manifest deployment-manifest.json \
             --source-revision "$TARGET" \
             --candidate-tag "$TAG"

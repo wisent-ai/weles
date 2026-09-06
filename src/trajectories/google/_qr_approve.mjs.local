@@ -1,0 +1,123 @@
+// Auto-approve Google's "Verify this device" QR challenge at signup Step 6.
+// Strategy: screenshot the QR -> decode -> open URL in a 2nd ctx with your
+// personal cookies -> click approve -> original signup continues.
+import { chromium } from 'playwright';
+import { readFileSync, existsSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
+import jsQR from 'jsqr';
+import { PNG } from 'pngjs';
+
+const COOKIE_PATH = join(homedir(), '.weles', 'google_approver_cookies.json');
+// Label candidates for the approve button on Google's device-approval page.
+// Google rotates the wording across locales and A/B tests, so try several.
+// Do NOT auto-click "Send SMS" on the consent page — that would text the
+// approver's personal phone and tie the new account to your number. Just
+// navigating to the consent URL is the device-trust signal Google needs;
+// the signup page then advances to /mophoneverification which we handle
+// via JuicySMS in register.mjs.
+const APPROVE_LABELS = 'Yes, continue|Yes, this is me|Continue|It’s me|It\'s me|Allow|Approve|Confirm|Tak|Yes';
+const sleep = (s) => new Promise(r => setTimeout(r, s * 1000));
+
+async function findQrElement(page) {
+  const handle = await page.evaluateHandle(`(() => {
+    var imgs = Array.from(document.querySelectorAll('img'));
+    var match = imgs.find(i => {
+      var r = i.getBoundingClientRect();
+      if (r.width < 100 || r.height < 100) return false;
+      if (Math.abs(r.width - r.height) > 20) return false;
+      var src = (i.src || '').toLowerCase();
+      return /data:image|chart\\.googleapis|google\\.com\\/pa|qr|accounts\\.google/.test(src) || r.width > 180;
+    });
+    if (match) return match;
+    var canvases = Array.from(document.querySelectorAll('canvas'));
+    return canvases.find(c => {
+      var r = c.getBoundingClientRect();
+      return r.width >= 150 && Math.abs(r.width - r.height) < 20;
+    }) || null;
+  })()`);
+  const el = handle.asElement();
+  return el && (await el.isVisible().catch(() => false)) ? el : null;
+}
+
+function decodePng(buffer) {
+  const png = PNG.sync.read(buffer);
+  const code = jsQR(new Uint8ClampedArray(png.data), png.width, png.height);
+  return code?.data ?? null;
+}
+
+async function loadApproverCookies() {
+  if (!existsSync(COOKIE_PATH)) throw new Error('approver_cookies_missing: run src/trajectories/google/_export_cookies.mjs first');
+  const raw = JSON.parse(readFileSync(COOKIE_PATH, 'utf8'));
+  const now = Math.floor(Date.now() / 1000);
+  return raw.filter(c => !c.expires || c.expires === -1 || c.expires > now);
+}
+
+async function clickApprove(page) {
+  const labels = APPROVE_LABELS.split('|');
+  // Dump every visible clickable — helps diagnose new label variants.
+  const dump = await page.evaluate(`(() => {
+    var els = Array.from(document.querySelectorAll('button, a, [role="button"], [role="link"], input[type="submit"]'));
+    return els.filter(e => e.offsetParent !== null).map(e => ({
+      tag: e.tagName.toLowerCase(),
+      role: e.getAttribute('role') || '',
+      text: ((e.innerText || e.textContent || '').trim() || e.getAttribute('aria-label') || '').slice(0, 40),
+    }));
+  })()`).catch(() => []);
+  console.log(`[qr] consent clickables: ${JSON.stringify(dump).slice(0, 400)}`);
+  for (const label of labels) {
+    const rx = new RegExp(`^\\s*${label.replace(/[^a-z]/ig, '.?')}\\s*$`, 'i');
+    for (const role of ['button', 'link']) {
+      const el = page.getByRole(role, { name: rx });
+      if (await el.count().catch(() => 0)) {
+        await el.first().click({ force: true }).catch(() => {});
+        return label;
+      }
+    }
+    // Text-content match: any clickable whose innerText matches the label regex.
+    const hit = await page.evaluate(`(() => {
+      var rx = new RegExp('^\\\\s*${label.replace(/[^a-z]/ig, '.?')}\\\\s*$', 'i');
+      var els = Array.from(document.querySelectorAll('button, a, [role="button"], [role="link"]'));
+      var el = els.find(e => e.offsetParent !== null && rx.test((e.innerText || e.textContent || '').trim()));
+      if (el) { el.click(); return true; }
+      return false;
+    })()`).catch(() => false);
+    if (hit) return label + '(textmatch)';
+  }
+  return null;
+}
+
+export async function approveQr(signupPage) {
+  const qr = await findQrElement(signupPage);
+  if (!qr) throw new Error('qr_element_not_found');
+  const shot = await qr.screenshot();
+  const url = decodePng(shot);
+  if (!url) throw new Error('qr_decode_failed');
+  console.log(`[qr] decoded: ${url.slice(0, 120)}`);
+
+  const cookies = await loadApproverCookies();
+  console.log(`[qr] loaded ${cookies.length} approver cookies`);
+
+  const browser = await chromium.launch({ headless: false });
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  await ctx.addCookies(cookies);
+  const ap = await ctx.newPage();
+  try {
+    await ap.goto(url, { waitUntil: 'domcontentloaded' });
+    await sleep(3);
+    console.log(`[qr] approver landed at ${ap.url()}`);
+    const clicked = await clickApprove(ap);
+    console.log(`[qr] approver clicked: ${clicked ?? '(no button found)'}`);
+    await sleep(4);
+    console.log(`[qr] approver final url: ${ap.url()}`);
+  } finally {
+    await browser.close().catch(() => {});
+  }
+
+  for (let i = 0; i < 30; i++) {
+    const u = signupPage.url();
+    if (!/verify|device|qr/i.test(u)) { console.log(`[qr] signup advanced to ${u.slice(0, 80)}`); return; }
+    await sleep(2);
+  }
+  throw new Error('signup_did_not_advance_after_approval');
+}

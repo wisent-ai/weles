@@ -3,7 +3,7 @@
  *
  * Background: Reddit's edge tier has documented false positives where
  * /user/<u>/about.json returns 404 for a healthy account when the request
- * routes through certain residential proxy IPs (see scripts/trajectories/
+ * routes through certain residential proxy IPs (see src/trajectories/
  * reddit/health.mjs and DETECTION_ANTIPATTERNS.md). A single about.json
  * 404 is therefore unreliable as a shadowban verdict.
  *
@@ -15,9 +15,9 @@
  *   - mix or all 403/429/timeout             -> 'indeterminate'
  *
  * Used by:
- *   - scripts/trajectories/reddit/shadowban_check.mjs (standalone trajectory)
- *   - scripts/trajectories/reddit/organic_comment.mjs (post-submit verify)
- *   - scripts/trajectories/reddit_comment.mjs (post-submit verify)
+ *   - src/trajectories/reddit/shadowban_check.mjs (standalone trajectory)
+ *   - src/trajectories/reddit/organic_comment.mjs (post-submit verify)
+ *   - src/trajectories/reddit_comment.mjs (post-submit verify)
  */
 
 import { WSession } from '../../session/wsession.js';

@@ -205,7 +205,7 @@ export async function humanClickLocator(page: any, locator: any): Promise<void> 
  *   Bots that nav -> click -> type -> submit never trigger the ~600ms
  *   hovercard delay; flagging them post-submit is reliable.
  *
- *   This same pattern is duplicated in scripts/trajectories/reddit/
+ *   This same pattern is duplicated in src/trajectories/reddit/
  *   organic_comment.mjs (raw page.mouse.move + humanIdlePause). One atom,
  *   one place to tune timings.
  *

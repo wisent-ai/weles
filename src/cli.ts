@@ -10,7 +10,7 @@ import type { WelesOnboardingInput } from './onboarding.js';
 import type { AsyncNewBrowserOptions } from './async_api.js';
 import type { WelesImportReport } from './import.js';
 
-type CliCommand = 'help' | 'version' | 'doctor' | 'open' | 'screenshot' | 'mcp' | 'onboarding' | 'import';
+type CliCommand = 'help' | 'version' | 'doctor' | 'open' | 'screenshot' | 'mcp' | 'onboarding' | 'import' | 'release' | 'figma';
 
 type ParsedCli = {
   command: CliCommand;
@@ -28,6 +28,10 @@ Usage:
   weles open <url> [--headless] [--browser chromium|firefox] [--wait-for-text <text>] [--text] [--screenshot <file>] [--timeout <ms>]
   weles screenshot <url> <file> [--headless] [--browser chromium|firefox] [--wait-for-text <text>] [--timeout <ms>]
   weles mcp
+  weles release surface
+  weles release enforce-version --decision <file> --baseline <file> --declaration <file> --manifest <file>
+  weles release validate-manifest --manifest <file> --source-revision <sha> --candidate-tag <tag>
+  weles figma export-design-assets
   weles doctor
   weles version
 
@@ -111,12 +115,12 @@ export function parseCliArgs(argv: string[]): ParsedCli {
 function normalizeCommand(command?: string): CliCommand {
   if (!command || command === '--help' || command === '-h' || command === 'help') return 'help';
   if (command === '--version' || command === '-v' || command === 'version') return 'version';
-  if (command === 'doctor' || command === 'open' || command === 'screenshot' || command === 'mcp' || command === 'onboarding' || command === 'import') return command;
+  if (command === 'doctor' || command === 'open' || command === 'screenshot' || command === 'mcp' || command === 'onboarding' || command === 'import' || command === 'release' || command === 'figma') return command;
   throw new Error(`unknown command: ${command}`);
 }
 
 function optionTakesValue(key: string): boolean {
-  return ['browser', 'os', 'locale', 'chromium-path', 'user-data-dir', 'proxy', 'screenshot', 'wait-for-text', 'timeout', 'subject', 'receipt', 'keys', 'state-dir', 'host'].includes(key);
+  return ['browser', 'os', 'locale', 'chromium-path', 'user-data-dir', 'proxy', 'screenshot', 'wait-for-text', 'timeout', 'subject', 'receipt', 'keys', 'state-dir', 'host', 'decision', 'baseline', 'declaration', 'manifest', 'source-revision', 'candidate-tag'].includes(key);
 }
 
 function cliOptionsToBrowserOptions(options: Record<string, string | boolean>): AsyncNewBrowserOptions {
@@ -502,6 +506,64 @@ async function runOnboarding(parsed: ParsedCli): Promise<void> {
   process.stdout.write(`${JSON.stringify(view, null, 2)}\n`);
 }
 
+/**
+ * `weles release <surface|enforce-version|validate-manifest>` — the three
+ * judgements the release pipeline asks this product to make about itself.
+ */
+async function runRelease(parsed: ParsedCli): Promise<void> {
+  // The release judgements are ES modules and this CLI compiles to CommonJS,
+  // which cannot static-import ESM: `await import()` is the only load that
+  // works, not a preference.
+  const release = await import('./release/index.mjs');
+  const [action] = parsed.positional;
+  const option = (name: string): string => {
+    const value = parsed.options[name];
+    if (typeof value !== 'string' || !value.trim()) throw new Error(`--${name} is required`);
+    return value;
+  };
+  if (action === 'surface') {
+    process.stdout.write(`${JSON.stringify(await release.surface(), null, 2)}\n`);
+    return;
+  }
+  if (action === 'enforce-version') {
+    const inputs = await release.readVersionInputs({
+      decision: option('decision'),
+      baseline: option('baseline'),
+      declaration: option('declaration'),
+      manifest: option('manifest'),
+    });
+    process.stdout.write(`${JSON.stringify(release.enforceVersion(inputs), null, 2)}\n`);
+    return;
+  }
+  if (action === 'validate-manifest') {
+    const verdict = await release.validateCandidateManifest({
+      manifestPath: option('manifest'),
+      sourceRevision: option('source-revision'),
+      candidateTag: option('candidate-tag'),
+    });
+    process.stdout.write(`${JSON.stringify(verdict, null, 2)}\n`);
+    return;
+  }
+  throw new Error(`weles release takes surface, enforce-version or validate-manifest, not ${action ?? '<nothing>'}`);
+}
+
+/**
+ * `weles figma export-design-assets` — export the Figma design files this
+ * organization owns and publish them to the design-assets repository. The
+ * exporter reads its Figma credential through the fleet's Skarbiec endpoint,
+ * which is why `WC_SKARBIEC_URL` is the one coordinate it still takes from the
+ * environment.
+ */
+async function runFigma(parsed: ParsedCli): Promise<void> {
+  const [action] = parsed.positional;
+  if (action !== 'export-design-assets') {
+    throw new Error(`weles figma takes export-design-assets, not ${action ?? '<nothing>'}`);
+  }
+  // The exporter is an ES module and this CLI compiles to CommonJS, which
+  // cannot static-import ESM.
+  await import('./figma/export-design-assets.mjs');
+}
+
 export async function runCli(argv = process.argv.slice(2)): Promise<void> {
   const parsed = parseCliArgs(argv);
   if (parsed.command === 'help') {
@@ -530,6 +592,14 @@ export async function runCli(argv = process.argv.slice(2)): Promise<void> {
   }
   if (parsed.command === 'onboarding') {
     await runOnboarding(parsed);
+    return;
+  }
+  if (parsed.command === 'release') {
+    await runRelease(parsed);
+    return;
+  }
+  if (parsed.command === 'figma') {
+    await runFigma(parsed);
     return;
   }
   if (parsed.command === 'mcp') {

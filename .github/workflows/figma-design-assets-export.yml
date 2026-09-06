@@ -25,8 +25,7 @@ jobs:
           set -a
           . "$HOME/.config/weles/worker.env"
           set +a
-          export WC_SKARBIEC_URL="$(/opt/homebrew/bin/node "$GITHUB_WORKSPACE/scripts/_shared/skarbiec-runtime.mjs" endpoint)"
-          export SKARBIEC_WELES_READER_COMMAND="$GITHUB_WORKSPACE/scripts/worker/deploy/skarbiec-acquire.mjs"
-          export SKARBIEC_WELES_ACQUISITION_SCOPES_FILE="$GITHUB_WORKSPACE/scripts/worker/deploy/skarbiec-acquisition-scopes.conf"
-          export FIGMA_JSON_PARSER="$GITHUB_WORKSPACE/scripts/operations/parse-json-file-host.py"
-          /opt/homebrew/bin/node "$GITHUB_WORKSPACE/scripts/operations/export-figma-design-assets-host.mjs"
+          export WC_SKARBIEC_URL="$(/opt/homebrew/bin/node "$GITHUB_WORKSPACE/src/_shared/skarbiec-runtime.mjs" endpoint)"
+          export SKARBIEC_WELES_READER_COMMAND="$GITHUB_WORKSPACE/src/worker/deploy/skarbiec-acquire.mjs"
+          export SKARBIEC_WELES_ACQUISITION_SCOPES_FILE="$GITHUB_WORKSPACE/src/worker/deploy/skarbiec-acquisition-scopes.conf"
+          /opt/homebrew/bin/node "$GITHUB_WORKSPACE/dist/cli.js" figma export-design-assets

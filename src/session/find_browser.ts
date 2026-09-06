@@ -96,7 +96,7 @@ export function customBrowserSearchHint(browser: string = 'chromium'): string {
   if (!layout) return `unknown browser family "${browser}"`;
   const candidate = exactReleaseCandidate(browser);
   if (!candidate) {
-    return `set ${layout.envVersion} and ${layout.envSha256}, then install the exact Stado release with scripts/${browser}/download.sh`;
+    return `set ${layout.envVersion} and ${layout.envSha256}, then install the exact Stado release for ${browser} through Stado`;
   }
   return `verified executable not found for the configured release; expected ${candidate.binary} with matching ${candidate.receipt}`;
 }

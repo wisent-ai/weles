@@ -18,7 +18,7 @@ import { join } from 'node:path';
 // to load as ESM, which tap's loader cannot require.
 const repoRoot = process.cwd();
 const launcherPath = join(repoRoot, 'release/stado-launcher.sh');
-const serverPath = join(repoRoot, 'scripts/worker/weles-api-server.mjs');
+const serverPath = join(repoRoot, 'src/worker/weles-api-server.mjs');
 
 // The entries listed in the launcher's `runtime_required` array.
 function guardedEntries(): string[] {
@@ -58,8 +58,8 @@ test('the launcher requires the payload entries it execs and reads', () => {
   const guarded = guardedEntries();
   for (const entry of [
     'package.json',
-    'scripts/worker/deploy/launch-weles-api-mac.sh',
-    'scripts/worker/weles-api-server.mjs',
+    'src/worker/deploy/launch-weles-api-mac.sh',
+    'src/worker/weles-api-server.mjs',
   ]) {
     assert.ok(guarded.includes(entry), `release/stado-launcher.sh does not require ${entry}`);
   }
@@ -88,7 +88,7 @@ test('a runtime marked ready without a required module is re-derived', () => {
     # The launcher execs this as its final step; make it announce itself and
     # stop rather than start a real API server.
     printf '%s\\n' '#!/bin/bash' 'printf launched\\\\n' \\
-      > "$build/scripts/worker/deploy/launch-weles-api-mac.sh"
+      > "$build/src/worker/deploy/launch-weles-api-mac.sh"
     tar -czf "$root/payload/weles-worker.tar.gz" -C "$build" .
     # A runtime that is complete, marked ready, and has lost exactly one
     # compiled module: the shape charless-mac-mini was pinned in.

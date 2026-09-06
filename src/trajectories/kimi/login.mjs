@@ -1,0 +1,478 @@
+// Kimi Code OAuth login trajectory.
+//
+// This never opens the operator's browser. `kimi login` runs in an isolated
+// HOME with PATH-front open/xdg-open shims and BROWSER pointing at the same
+// shim. The shim records the authorize URL; WSession drives that URL in its
+// own isolated Chromium profile, then this script waits for Kimi CLI to write
+// .kimi/credentials/kimi-code.json, validates `kimi -p`, and emits the
+// credential JSON on stdout for reauth.mjs to donate.
+
+import { spawn, spawnSync } from 'node:child_process';
+import {
+  chmodSync,
+  existsSync,
+  mkdtempSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+import { WSession } from '../../../dist/session/wsession.js';
+import { humanFill, humanType } from '../../../dist/human/keyboard.js';
+import { humanClickLocator, humanIdlePause } from '../../../dist/human/mouse.js';
+import { googleSso } from '../_shared/services/google_sso.mjs';
+import { establishGoogleSession, waitForEnabledThenClick } from '../codex/google_sso.mjs';
+import { loginFromSkarbiec, requireCapabilities } from '../_shared/reauth_config.mjs';
+
+const HERE = dirname(fileURLToPath(import.meta.url));
+const REPO = resolve(HERE, '..', '..', '..');
+const VAR = join(REPO, 'var');
+mkdirSync(VAR, { recursive: true });
+const KIMI_CLI_PIN = '1.49.0';
+
+// What a candidate binary says it is, or null when it will not say.
+function kimiVersion(candidate) {
+  const probe = spawnSync(candidate, ['--version'], { encoding: 'utf8', timeout: 30_000 });
+  if (probe.status !== 0) return null;
+  const found = /(\d+\.\d+\.\d+)/.exec(`${probe.stdout || ''}${probe.stderr || ''}`);
+  return found ? found[1] : null;
+}
+
+// The pinned CLI, or the pin installed.
+//
+// This preferred whatever `kimi` already sat on the host and installed the pin
+// only when nothing did, so the pin governed the one case it was never needed
+// in. charless-mac-mini carries an older native Kimi Code build, and this
+// resolver handed it `login --json`: the CLI answered
+// `error: unknown option '--json'`, no authorize URL ever appeared, and every
+// kimi renewal failed at `waitForAuthorizeUrl` while the pin that would have
+// worked was one install away. A version is now asked for and compared, so a
+// candidate is used because it is the declared CLI rather than because it
+// exists.
+function resolveKimiBin() {
+  const configured = process.env.KIMI_BIN;
+  if (configured) {
+    if (!existsSync(configured)) throw new Error(`KIMI_BIN does not exist: ${configured}`);
+    const version = kimiVersion(configured);
+    if (version !== KIMI_CLI_PIN) {
+      process.stderr.write(
+        `[kimi login] KIMI_BIN ${configured} reports ${version || 'no version'}, `
+        + `not the pinned ${KIMI_CLI_PIN}; using it because it was named explicitly\n`,
+      );
+    }
+    return configured;
+  }
+  const candidates = [
+    join(process.env.HOME || '', '.local', 'bin', 'kimi'),
+    // Where the native Kimi Code installer puts it on macOS, and where both
+    // hosts on this fleet actually have it.
+    join(process.env.HOME || '', '.kimi-code', 'bin', 'kimi'),
+    '/opt/homebrew/bin/kimi',
+  ];
+  for (const candidate of candidates) {
+    if (!existsSync(candidate)) continue;
+    const version = kimiVersion(candidate);
+    if (version === KIMI_CLI_PIN) return candidate;
+    process.stderr.write(
+      `[kimi login] skipping ${candidate}: reports ${version || 'no version'}, `
+      + `and this trajectory drives the ${KIMI_CLI_PIN} interface\n`,
+    );
+  }
+  const uv = ['/opt/homebrew/bin/uv', '/usr/local/bin/uv']
+    .find((candidate) => existsSync(candidate));
+  if (!uv) throw new Error(`Kimi CLI ${KIMI_CLI_PIN} is not installed and uv is unavailable`);
+  const binDir = join(VAR, 'bin');
+  mkdirSync(binDir, { recursive: true });
+  const install = spawnSync(uv, ['tool', 'install', '--force', `kimi-cli==${KIMI_CLI_PIN}`], {
+    encoding: 'utf8',
+    env: { ...process.env, UV_TOOL_BIN_DIR: binDir },
+    timeout: 120_000,
+  });
+  const installed = join(binDir, 'kimi');
+  if (install.status !== 0 || !existsSync(installed)) {
+    throw new Error(`Kimi CLI install failed status=${install.status} stderr=${String(install.stderr || '').slice(0, 800)}`);
+  }
+  return installed;
+}
+
+const KIMI_BIN = resolveKimiBin();
+const SERVICE_CREDENTIAL_ID = process.env.WELES_LOGIN_ITEM
+  || process.env.KIMI_SERVICE_CREDENTIAL_ID
+  || 'kimi-lukasz-google-sso';
+const LOGIN_HOME = process.env.KIMI_LOGIN_HOME || mkdtempSync(join(VAR, 'kimi-login-'));
+const OVERALL_SEC = Number(process.env.KIMI_LOGIN_OVERALL_SEC || 420);
+
+let SESSION = null;
+let CHILD = null;
+
+process.on('uncaughtException', (e) => {
+  process.stderr.write(`FAIL: uncaught ${e?.message || e}\n`);
+  cleanupAndExit(1);
+});
+process.on('unhandledRejection', (e) => {
+  process.stderr.write(`FAIL: unhandled ${e?.message || e}\n`);
+  cleanupAndExit(1);
+});
+
+function cleanupAndExit(code) {
+  try { CHILD?.kill(); } catch {}
+  Promise.resolve(SESSION?.close?.()).finally(() => process.exit(code));
+}
+
+
+function prepareKimiHome(home) {
+  if (resolve(home) === resolve(process.env.HOME || '')) {
+    throw new Error('refusing to run kimi login in the operator HOME');
+  }
+  mkdirSync(join(home, '.kimi'), { recursive: true });
+}
+
+function noOpenEnv(home) {
+  const dir = join(home, '.noopen');
+  const urlFile = join(dir, 'browser-urls.txt');
+  mkdirSync(dir, { recursive: true });
+  const shim = join(dir, 'browser-shim.sh');
+  writeFileSync(shim, `#!/usr/bin/env bash\nprintf '%s\\n' "$@" >> ${JSON.stringify(urlFile)}\nexit 0\n`, { mode: 0o755 });
+  for (const name of ['open', 'xdg-open']) {
+    const target = join(dir, name);
+    try { rmSync(target); } catch {}
+    symlinkSync(shim, target);
+  }
+  return {
+    env: {
+      ...process.env,
+      HOME: home,
+      BROWSER: shim,
+      PATH: `${dir}:${process.env.PATH || ''}`,
+      KIMI_LOGIN_BROWSER_SHIM: shim,
+    },
+    urlFile,
+  };
+}
+
+function loadLogin() {
+  // The credential lives in Skarbiec under the same name the database row once
+  // had; the vault is the only store this fleet keeps logins in.
+  const login = loginFromSkarbiec(SERVICE_CREDENTIAL_ID);
+  process.stderr.write(`login from skarbiec ${SERVICE_CREDENTIAL_ID} (${login.displayName})\n`);
+  return login;
+}
+
+function spawnKimiLogin(home) {
+  const { env, urlFile } = noOpenEnv(home);
+  const proc = spawn(KIMI_BIN, ['login', '--json'], {
+    env,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  CHILD = proc;
+  let out = '';
+  proc.stdout.on('data', (data) => { out += data.toString(); });
+  proc.stderr.on('data', (data) => { out += data.toString(); });
+  return { proc, getOut: () => out, urlFile };
+}
+
+function stripAnsi(s) {
+  return String(s || '').replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '');
+}
+
+function firstLoginUrl(text) {
+  const clean = stripAnsi(text);
+  for (const line of clean.split(/\r?\n/).reverse()) {
+    try {
+      const event = JSON.parse(line);
+      const url = event?.data?.verification_url;
+      if (event?.type === 'verification_url' && typeof url === 'string' && /^https:\/\//.test(url)) {
+        return url;
+      }
+    } catch {}
+  }
+  const matches = clean.match(/https?:\/\/[^\s"'<>]+/g) || [];
+  return matches.find((url) => /(?:kimi\.com\/code\?[^#\s]*track_id=|auth\.kimi\.com\/authorize_device\?)/i.test(url)) || null;
+}
+
+async function waitForAuthorizeUrl(getOut, urlFile, timeoutSec = 90) {
+  for (let i = 0; i < timeoutSec * 2; i += 1) {
+    const fromFile = existsSync(urlFile) ? readFileSync(urlFile, 'utf8') : '';
+    const url = firstLoginUrl(`${fromFile}\n${getOut()}`);
+    if (url) return url;
+    await new Promise((r) => setTimeout(r, 500));
+  }
+  throw new Error(`kimi login did not expose an authorize URL; out_tail=${JSON.stringify(stripAnsi(getOut()).slice(-800))}`);
+}
+
+function credentialsPath(home) {
+  return join(home, '.kimi', 'credentials', 'kimi-code.json');
+}
+
+function readCredentials(home) {
+  const path = credentialsPath(home);
+  if (!existsSync(path)) return null;
+  try {
+    const raw = readFileSync(path, 'utf8');
+    const parsed = JSON.parse(raw);
+    const accessLen = typeof parsed.access_token === 'string' ? parsed.access_token.length : 0;
+    const refreshLen = typeof parsed.refresh_token === 'string' ? parsed.refresh_token.length : 0;
+    if (accessLen > 32 && refreshLen > 32) return raw;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+async function waitForCredentials(home, timeoutSec = 180) {
+  for (let i = 0; i < timeoutSec * 2; i += 1) {
+    const raw = readCredentials(home);
+    if (raw) return raw;
+    await new Promise((r) => setTimeout(r, 500));
+  }
+  throw new Error('Kimi credentials did not materialize with non-empty OAuth tokens');
+}
+
+async function waitForLoginSuccess(proc, getOut, timeoutSec = 180) {
+  for (let i = 0; i < timeoutSec * 2; i += 1) {
+    for (const line of stripAnsi(getOut()).split(/\r?\n/).reverse()) {
+      try {
+        const event = JSON.parse(line);
+        if (event?.type === 'success') return true;
+        if (event?.type === 'error') {
+          const message = String(event.message || line);
+          if (/Failed to get models: 402\b/.test(message)) return false;
+          throw new Error(`Kimi login failed: ${message}`);
+        }
+      } catch (error) {
+        if (error instanceof SyntaxError) continue;
+        throw error;
+      }
+    }
+    if (proc.exitCode !== null) {
+      throw new Error(`Kimi login exited before success status=${proc.exitCode}; out_tail=${JSON.stringify(stripAnsi(getOut()).slice(-800))}`);
+    }
+    await new Promise((r) => setTimeout(r, 500));
+  }
+  throw new Error(`Kimi login did not finish after authorization; out_tail=${JSON.stringify(stripAnsi(getOut()).slice(-800))}`);
+}
+
+async function clickEmailRow(page, email) {
+  let hit = null;
+  for (let i = 0; i < 100; i += 1) {
+    hit = await page.evaluate((wanted) => {
+      for (const el of Array.from(document.querySelectorAll('*'))) {
+        const txt = (el.innerText || el.textContent || '').trim();
+        if (!txt.includes(wanted)) continue;
+        const childMatches = Array.from(el.children || []).some((c) => (c.innerText || c.textContent || '').includes(wanted));
+        if (childMatches) continue;
+        const r = el.getBoundingClientRect();
+        if (r.width < 20 || r.height < 20) continue;
+        let target = el;
+        for (let p = el; p; p = p.parentElement) {
+          const role = p.getAttribute?.('role');
+          if (role === 'button' || role === 'link' || p.tagName === 'A' || p.tagName === 'BUTTON' || p.getAttribute?.('data-identifier')) {
+            target = p;
+            break;
+          }
+        }
+        const tr = target.getBoundingClientRect();
+        return { x: tr.x + tr.width / 2, y: tr.y + tr.height / 2 };
+      }
+      return null;
+    }, email).catch(() => null);
+    if (hit) break;
+    await page.waitForTimeout(100);
+  }
+  if (!hit) throw new Error(`no Google account row matching ${email}`);
+  await page.mouse.click(Math.round(hit.x), Math.round(hit.y));
+}
+
+async function handleGoogleSurface(session, page, login) {
+  if (!/accounts\.google\.com/.test(page.url())) return false;
+  if (await page.locator('input[type="email"], input[name="identifier"], input#identifierId').filter({ visible: true }).first().isVisible().catch(() => false)) {
+    const ok = await googleSso({ page }, { email: login.email, password: login.password }, { originHost: 'kimi.com' });
+    if (!ok) throw new Error('Google SSO helper failed on Kimi login');
+    return true;
+  }
+  const text = await page.evaluate(() => document.body?.innerText || '').catch(() => '');
+  if (text.includes(login.email)) {
+    await clickEmailRow(page, login.email);
+    await humanIdlePause('long');
+    return true;
+  }
+  const btn = page.getByRole('button', { name: /^(continue|allow|next|dalej)$/i }).filter({ visible: true }).first();
+  if (await btn.isVisible().catch(() => false)) {
+    await humanClickLocator(page, btn);
+    await humanIdlePause('long');
+    return true;
+  }
+  return false;
+}
+
+async function driveKimiAuthorize(authorizeUrl, login, home) {
+  const s = await WSession.start({
+    label: 'kimi_login',
+    browser: 'chromium',
+    proxy: process.env.KIMI_LOGIN_PROXY === 'none' ? undefined : (process.env.KIMI_LOGIN_PROXY || undefined),
+    headless: process.env.KIMI_LOGIN_HEADLESS === '1',
+  });
+  SESSION = s;
+
+  let popup = null;
+  const onPage = (p) => { if (!popup) popup = p; };
+  s.page.context().on('page', onPage);
+  try {
+    if ((login.loginMethod || '').includes('google')) {
+      await establishGoogleSession({
+        page: s.page,
+        login,
+        mark: (m) => process.stderr.write(`[kimi login] ${m}\n`),
+        humanFill,
+        humanClickLocator,
+        humanIdlePause,
+        humanType,
+      });
+    }
+
+    await s.page.goto(authorizeUrl, { waitUntil: 'commit' });
+    await humanIdlePause('deliberate');
+
+    const deadline = Date.now() + 180_000;
+    while (Date.now() < deadline) {
+      if (readCredentials(home)) return;
+
+      const targets = [s.page];
+      if (popup && !popup.isClosed()) targets.push(popup);
+      for (const page of targets) {
+        if (readCredentials(home)) return;
+        const url = page.url();
+        if (/accounts\.google\.com/.test(url)) {
+          await handleGoogleSurface(s, page, login);
+          continue;
+        }
+        const googleBtn = page.locator('.google-login-btn, button, [role="button"], a')
+          .filter({ hasText: /google|continue with google|sign in with google|log in with google/i })
+          .filter({ visible: true })
+          .first();
+        if (await googleBtn.isVisible().catch(() => false)) {
+          await humanClickLocator(page, googleBtn);
+          await humanIdlePause('long');
+          continue;
+        }
+        // The device page's approve control reads "Current Login" -- recorded
+        // DOM: "Allow this account to log in? … Current Login | Cancel | Switch
+        // account". The old list had every synonym except the one on the page,
+        // so the loop watched an approvable screen for three minutes and timed
+        // out. `Cancel` and `Switch account` stay unmatched on purpose.
+        const continueBtn = page
+          .getByRole('button', {
+            name: /^(current login|continue|allow|authorize|approve|confirm|next|dalej|zaloguj)$/i,
+          })
+          .filter({ visible: true })
+          .first();
+        if (await continueBtn.isVisible().catch(() => false)) {
+          await humanClickLocator(page, continueBtn);
+          await humanIdlePause('long');
+          continue;
+        }
+      }
+      await s.page.waitForTimeout(500);
+    }
+    // Name what the screen offered: a label that changed is the usual reason a
+    // page that a human could approve was never approved here.
+    const offered = await s.page
+      .locator('button, [role="button"], a')
+      .filter({ visible: true })
+      .allInnerTexts()
+      .catch(() => []);
+    throw new Error(
+      `Kimi browser authorization did not complete; url=${s.page.url()}; `
+      + `visible controls=${JSON.stringify(offered.map((t) => t.trim()).filter(Boolean).slice(0, 12))}`,
+    );
+  } finally {
+    s.page.context().off('page', onPage);
+  }
+}
+
+async function verifyKimiCredential(home, credentialsJson, modelCatalogReady) {
+  if (!modelCatalogReady) {
+    const credentials = JSON.parse(credentialsJson);
+    const response = await fetch('https://api.kimi.com/coding/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${credentials.access_token}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'kimi-for-coding',
+        messages: [{ role: 'user', content: 'Reply with exactly OK.' }],
+        max_tokens: 16,
+        stream: false,
+      }),
+    });
+    const text = await response.text();
+    if (!response.ok) {
+      throw new Error(`Kimi credential verification failed HTTP ${response.status}: ${text.slice(0, 800)}`);
+    }
+    if (!/OK/i.test(text)) {
+      throw new Error(`Kimi credential verification returned unexpected output: ${text.slice(0, 800)}`);
+    }
+    return;
+  }
+
+  const res = spawnSync(KIMI_BIN, ['--print', '-p', 'Reply with exactly OK.', '--output-format', 'stream-json'], {
+    cwd: home,
+    env: { ...process.env, HOME: home },
+    encoding: 'utf8',
+    timeout: 60_000,
+  });
+  if (res.status !== 0) {
+    throw new Error(`kimi credential verification failed status=${res.status} stderr=${String(res.stderr || '').slice(0, 800)} stdout=${String(res.stdout || '').slice(0, 800)}`);
+  }
+  if (!/OK/i.test(`${res.stdout}\n${res.stderr}`)) {
+    throw new Error(`kimi credential verification returned unexpected output: ${String(res.stdout || '').slice(0, 800)}`);
+  }
+}
+
+const killer = setTimeout(() => {
+  process.stderr.write(`FAIL: Kimi login overall timeout ${OVERALL_SEC}s\n`);
+  cleanupAndExit(1);
+}, OVERALL_SEC * 1000);
+
+try {
+  // Before the Kimi CLI is spawned and a browser is asked for a window: the
+  // capabilities this trajectory declares in src/trajectories/requirements.json
+  // are verified here, which costs three minutes less than discovering the
+  // missing one when Google's popup takes the browser down with it. A headless
+  // run needs no window, so it is exempt by the same env switch that makes it
+  // headless.
+  if (process.env.KIMI_LOGIN_HEADLESS !== '1') requireCapabilities('kimi/login');
+  mkdirSync(VAR, { recursive: true });
+  prepareKimiHome(LOGIN_HOME);
+  const login = await loadLogin();
+  process.stderr.write(`[kimi login] starting for ${login.email} using isolated HOME=${LOGIN_HOME}\n`);
+
+  const { proc, getOut, urlFile } = spawnKimiLogin(LOGIN_HOME);
+  const authorizeUrl = await waitForAuthorizeUrl(getOut, urlFile);
+  process.stderr.write(`[kimi login] authorize URL captured host=${new URL(authorizeUrl).host}\n`);
+
+  await driveKimiAuthorize(authorizeUrl, login, LOGIN_HOME);
+  const modelCatalogReady = await waitForLoginSuccess(proc, getOut);
+  const creds = await waitForCredentials(LOGIN_HOME);
+  await verifyKimiCredential(LOGIN_HOME, creds, modelCatalogReady);
+
+  clearTimeout(killer);
+  try { proc.kill(); } catch {}
+  await SESSION?.close?.();
+  process.stdout.write(`\n__KIMI_CREDENTIALS_JSON_B64__${Buffer.from(creds, 'utf8').toString('base64')}\n`);
+  process.stderr.write('[kimi login] credentials emitted after verification\n');
+  process.exit(0);
+} catch (e) {
+  clearTimeout(killer);
+  process.stderr.write(`FAIL: ${e?.stack || e}\n`);
+  try {
+    const p = join(VAR, 'kimi-login-home-last.txt');
+    writeFileSync(p, `${LOGIN_HOME}\n`);
+  } catch {}
+  cleanupAndExit(1);
+}

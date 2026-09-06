@@ -77,14 +77,14 @@ jobs:
       - name: Minimal Playwright launch (no weles wrapper)
         env:
           MOZ_DISABLE_CONTENT_SANDBOX: "1"
-        run: node scripts/firefox/minimal_test.mjs
+        run: node tests/firefox/launch-without-recording.test.mjs
 
       - name: Run integration test
         env:
           MOZ_DISABLE_CONTENT_SANDBOX: "1"
         run: |
           mkdir -p recordings
-          node scripts/firefox/integration_test.mjs
+          node tests/firefox/session-persona.test.mjs
 
       - name: Upload recordings on failure
         if: failure()

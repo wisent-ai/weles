@@ -82,12 +82,12 @@ function buildFixture(): { home: string; script: string; work: string } {
     Buffer.byteLength(socket) < SUN_PATH_LIMIT,
     `the broker socket path is ${Buffer.byteLength(socket)} bytes, over the ${SUN_PATH_LIMIT}-byte unix socket limit: ${socket}`,
   );
-  const deploy = join(repo, 'scripts/worker/deploy');
+  const deploy = join(repo, 'src/worker/deploy');
   mkdirSync(deploy, { recursive: true });
   mkdirSync(join(home, '.stado/bin'), { recursive: true });
 
   copyFileSync(
-    join(repoRoot, 'scripts/worker/deploy/launch-weles-api-mac.sh'),
+    join(repoRoot, 'src/worker/deploy/launch-weles-api-mac.sh'),
     join(deploy, 'launch-weles-api-mac.sh'),
   );
   writeFileSync(join(deploy, 'weles-action-allowlist.txt'), 'generic_capture\nkimi_reauth\n');
@@ -101,7 +101,7 @@ function buildFixture(): { home: string; script: string; work: string } {
   // Stands in for the API server: binds the port the launcher hands it and
   // stays up until it is signalled, which is what the real server does.
   writeFileSync(
-    join(repo, 'scripts/worker/weles-api-server.mjs'),
+    join(repo, 'src/worker/weles-api-server.mjs'),
     [
       'import { createServer } from "node:http";',
       'const server = createServer((_request, response) => response.end("ok"));',

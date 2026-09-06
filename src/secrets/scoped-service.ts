@@ -108,7 +108,7 @@ const ACQUIRED_SECRET_CONTRACTS = Object.freeze({
   // (microsoftPasswordDefinition, entraPasswordDefinition).
   //
   // Consumer Microsoft account: adopt, rotate and verify run at account.live.com
-  // (scripts/trajectories/microsoft/password_lifecycle.mjs).
+  // (src/trajectories/microsoft/password_lifecycle.mjs).
   'weles-microsoft-primary-password': Object.freeze({
     item: 'weles-microsoft-primary-password',
     field: 'password',
@@ -121,7 +121,7 @@ const ACQUIRED_SECRET_CONTRACTS = Object.freeze({
   // Entra directory identity: the directory owns this password and its lifecycle
   // runs at login.microsoftonline.com, never at account.live.com. The Entra
   // trajectory refuses any job whose secret_source_origin is not exactly that
-  // origin (scripts/trajectories/microsoft/entra_password_lifecycle.mjs).
+  // origin (src/trajectories/microsoft/entra_password_lifecycle.mjs).
   'weles-microsoft-jakub-wisent-ai-password': Object.freeze({
     item: 'weles-microsoft-jakub-wisent-ai-password',
     field: 'password',
@@ -135,7 +135,7 @@ const ACQUIRED_SECRET_CONTRACTS = Object.freeze({
   // token for that principal names the Microsoft consumer tenant as its identity
   // provider and the directory does not hold its password, so its lifecycle is
   // the consumer one at account.live.com
-  // (scripts/worker/deploy/skarbiec-acquisition-scopes.conf:103-111).
+  // (src/worker/deploy/skarbiec-acquisition-scopes.conf:103-111).
   'weles-microsoft-lukasz-wisent-com-password': Object.freeze({
     item: 'weles-microsoft-lukasz-wisent-com-password',
     field: 'password',
