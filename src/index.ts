@@ -9,7 +9,7 @@ export { CDPLocator } from './cdp/dom/locator.js';
 export { CDPBrowserContext } from './browser/context.js';
 export { CDPWeles, cdpNewBrowser } from './browser/api.js';
 export { generate, toConfig, toCppConfig } from './fingerprint.js';
-export { buildInitScript } from './scripts/loader.js';
+export { buildInitScript } from './page-init/loader.js';
 export { askPage, checkPage, identifyPage, findClickTarget, VisionRefusedError } from './vision/analyze.js';
 export { pruneRecordings } from './prune.js';
 export { waitCloudflare, bypassCloudflare, isChallenged } from './cloudflare/challenge.js';

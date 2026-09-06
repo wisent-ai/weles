@@ -11,7 +11,7 @@ import { tmpdir } from 'node:os';
 import { chromium, type BrowserContext, type Browser } from 'playwright';
 import { generate, toConfig, toCppConfig } from './fingerprint.js';
 import { hostHardware, honestHostEnabled } from './host_hardware.js';
-import { buildInitScript } from './scripts/loader.js';
+import { buildInitScript } from './page-init/loader.js';
 import { pruneRecordings } from './prune.js';
 import { launchWelesFirefox } from './browser/firefox_launch.js';
 import { runRecordingsDir } from './session/run-recordings.js';

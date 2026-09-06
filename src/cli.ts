@@ -2,6 +2,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
+import { WELES_AGENT_MODEL } from './agent/jeden.js';
 import { importWelesTrajectoryFile } from './import.js';
 import { runWelesOnboarding } from './onboarding.js';
 import { resolveSkarbiecEndpoint } from './utils/endpoint-resolution.js';
@@ -239,9 +240,94 @@ async function runDoctor(): Promise<void> {
     report.ok = false;
   }
 
+  // Which revision this host actually built, against the revision the
+  // deployment declares, and the Brama alias that revision will ask for. On
+  // 2026-09-06 the managed runtime was three weeks behind its own repository
+  // and asked Brama for `best`, a subscription route whose credentials had
+  // lapsed, so every browser task on the host failed while the host's own
+  // bearer was being served. Nothing reported the gap: `doctor` said the
+  // version in `package.json`, which is the repository's, not the runtime's.
+  const managed = inspectManagedRuntime();
+  report.managedRuntime = managed;
+  if (!managed.ok) {
+    report.ok = false;
+  }
+
   process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
   if (!report.ok) {
     process.exitCode = 1;
+  }
+}
+
+type ManagedRuntimeReport = {
+  ok: boolean;
+  root: string;
+  builtRevision: string | null;
+  declaredRevision: string | null;
+  agentModelAlias: string;
+  detail?: string;
+};
+
+/// What the managed Weles API runtime on this host was built from, and which
+/// Brama alias it will ask for.
+///
+/// The runtime is one checkout under `~/.stado/build-work/weles-api-managed`
+/// whose revision the deployment records in `.weles-api-revision`, and
+/// `stado host weles-api-runtime` is what moves it. The declared revision is
+/// the one the deployment left in `WELES_API_DECLARED_REVISION` on the unit;
+/// when the two disagree, the host is serving code nobody declared, which is
+/// how a 2026-08-30 build kept asking Brama for `best` a week after the fix
+/// that renamed the alias — every browser task on the host failed while the
+/// host's own bearer was being served, and `doctor` reported the repository's
+/// `package.json` version, which is not the runtime's.
+function inspectManagedRuntime(): ManagedRuntimeReport {
+  const root = join(homedir(), '.stado', 'build-work', 'weles-api-managed');
+  const alias = process.env.WELES_AGENT_MODEL?.trim() || WELES_AGENT_MODEL;
+  const builtRevision = readRevisionMarker(join(root, '.weles-api-revision'));
+  const declaredRevision = revision(process.env.WELES_API_DECLARED_REVISION);
+  if (!builtRevision) {
+    return {
+      ok: true,
+      root,
+      builtRevision: null,
+      declaredRevision,
+      agentModelAlias: alias,
+      detail: 'this host runs no managed Weles API runtime',
+    };
+  }
+  if (!declaredRevision) {
+    return {
+      ok: true,
+      root,
+      builtRevision,
+      declaredRevision: null,
+      agentModelAlias: alias,
+      detail: 'the unit declares no revision, so this reports what is installed and compares nothing',
+    };
+  }
+  if (builtRevision !== declaredRevision) {
+    return {
+      ok: false,
+      root,
+      builtRevision,
+      declaredRevision,
+      agentModelAlias: alias,
+      detail: `the installed runtime is ${builtRevision.slice(0, 12)} and the unit declares ${declaredRevision.slice(0, 12)}; move it with \`stado host weles-api-runtime <host> --revision ${declaredRevision.slice(0, 12)}\``,
+    };
+  }
+  return { ok: true, root, builtRevision, declaredRevision, agentModelAlias: alias };
+}
+
+function revision(value: string | undefined): string | null {
+  const trimmed = value?.trim() ?? '';
+  return /^[0-9a-f]{40}$/.test(trimmed) ? trimmed : null;
+}
+
+function readRevisionMarker(path: string): string | null {
+  try {
+    return revision(readFileSync(path, 'utf8'));
+  } catch {
+    return null;
   }
 }
 

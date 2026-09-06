@@ -11,7 +11,7 @@ import { runRecordingsDir } from '../session/run-recordings.js';
 // string stayed, and callers were told it was "not in the catalog" whenever
 // the route behind it could not be served. Brama now answers with the alias's
 // state and reason instead, so this caller can report that sentence verbatim.
-const WELES_AGENT_MODEL = 'weles';
+export const WELES_AGENT_MODEL = 'weles';
 const WELES_AGENT_ID = 'weles';
 
 type ModelRouterConfig = {

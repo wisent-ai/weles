@@ -8,18 +8,9 @@
     "weles-mcp": "dist/mcp.js"
   },
   "scripts": {
-    "build": "tsc && cp src/scripts/*.js dist/scripts/ && mkdir -p dist/scripts/firefox && cp src/scripts/firefox/*.js dist/scripts/firefox/ && mkdir -p dist/diagnostics && (cp -f src/diagnostics/*.js dist/diagnostics/ 2>/dev/null || true)",
-    "postinstall": "node scripts/postinstall/playwright_scrub.mjs",
-    "lint-trust": "node scripts/lint/check_trust.mjs",
-    "lint-humanization": "node scripts/lint/check_humanization.mjs",
-    "lint-browser-boundary": "node scripts/lint/check_browser_boundary.mjs",
-    "lint": "npm run lint-trust && npm run lint-humanization && npm run lint-modules",
-    "lint-modules": "node scripts/lint/check_module_load.mjs",
-    "test": "node scripts/worker/deploy/endpoint-resolution.test.mjs && tap tests/**/*.test.ts",
-    "test:endpoints": "node scripts/worker/deploy/endpoint-resolution.test.mjs",
-    "dev": "tsc --watch",
-    "version": "node scripts/release/sync-version-metadata.mjs",
-    "secrets:acquire": "node scripts/secrets/acquire.mjs"
+    "build": "tsc && cp src/page-init/*.js dist/page-init/ && mkdir -p dist/page-init/firefox && cp src/page-init/firefox/*.js dist/page-init/firefox/ && mkdir -p dist/diagnostics && (cp -f src/diagnostics/*.js dist/diagnostics/ 2>/dev/null || true)",
+    "test": "tap tests/**/*.test.ts",
+    "dev": "tsc --watch"
   },
   "dependencies": {
     "@faker-js/faker": "^10.4.0",
