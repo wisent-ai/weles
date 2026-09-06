@@ -1,9 +1,0 @@
-Sign in to LSI2 and reach project 7ee80d9a-67dd-4d99-becd-8dda407221c1 section 71acd162-e35d-4aff-88a6-ea2fe179a259.
-
-The email and password credentials are prefilled before this objective runs. Do not fill either credential field and do not redeem any credential capability again.
-1. On https://lsi2.ncbr.gov.pl/logowanie, call click with target exactly `[class*="MuiCheckbox-root"]` once. Do not use set_control or js_click. Confirm the isStatuteAccepted checkbox is checked.
-2. Call click with target exactly `button[label="Zaloguj się"]` once. Do not use js_click and do not click any other button.
-3. Wait for navigation. If the application section is not opened automatically after successful sign-in, navigate once to https://lsi2.ncbr.gov.pl/projekt/7ee80d9a-67dd-4d99-becd-8dda407221c1/projekt_step/71acd162-e35d-4aff-88a6-ea2fe179a259.
-4. Finish with success only when the final URL is inside that project and the application title containing "Duże modele językowe oparte na reprezentacjach" is visible. Otherwise call give_up; never report a blocked or failed login as success.
-
-Do not edit any application field, do not save the application, and do not use any final-submit control. Never include credentials, tokens, passwords, or secrets in the final response.
