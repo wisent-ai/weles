@@ -214,6 +214,38 @@ map a new journey, but it does not authorize that journey as a production
 action. Authorization for the target remains with you: a technically successful
 run does not establish that the target permits automation.
 
+### Declared engagement
+
+An interaction on a site — a like, a follow, a comment, a DM, a post, a star —
+is a **declared engagement**, not an action verb of its own.
+`src/worker/deploy/weles-engagement-declaration.json` names each engagement
+with its platform, its verb and the reviewed trajectory it replays, and
+`generic_saved_task` consumes that declaration:
+
+```json
+{ "action": "generic_saved_task",
+  "input": { "engagement": "twitter.like", "target_url": "https://x.com/wisent_ai/status/1" } }
+```
+
+Admission authorizes the engagement by name. An engagement nobody declared is
+refused before anything is spawned — `engagement twitter.smash is not declared
+in src/worker/deploy/weles-engagement-declaration.json` — and a declaration
+naming a reviewed trajectory that is not in the tree is refused when it is
+loaded, which the API launcher does before it serves. A new site is a row in
+that file, never a new verb.
+
+This replaced 154 admitted actions: 22 interaction verbs spelled once per site
+across reddit, discord, github, instagram, linkedin, tiktok and twitter, each
+with a resolver branch of its own, and 108 of them resolved to a trajectory
+file nobody had written. Those action names no longer exist — `twitter_like`
+resolves to nothing — and `src/worker/deploy/weles-action-allowlist.txt` admits
+101 actions where it used to admit 255. To see what a real dispatch computes
+for one engagement, run:
+
+```sh
+node docs/examples/resolve-action.mjs generic_saved_task twitter.like
+```
+
 ## Wisent Integrations
 
 **Brama.** Brama repairs provider-disowned Claude Code, Codex, and Kimi
