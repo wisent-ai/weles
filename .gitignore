@@ -26,7 +26,14 @@ scripts/lib/cgevent_postpid
 # Database DDL lives only in wisent-ai/wisent-supabase-echo. A local
 # `supabase`-CLI link or init must never reintroduce schema files or
 # .temp/linked-project.json into this repo.
-supabase/
+#
+# Root-only, like /build/ above. Written as `supabase/` this pattern also
+# matched `src/trajectories/supabase/`, so two real trajectories — login.mjs
+# and list_projects.mjs — could never be committed: git hid them, the
+# published trajectory catalog counted 429 files on a checkout that carried
+# 431, and main could not rebuild either number. A rule aimed at the
+# CLI-created root directory must name it.
+/supabase/
 
 # Build output written by release/stado-build.sh (WISENT_OUTPUT_DIR).
 # stado-build.sh:6 already excludes it from the release source, and a
