@@ -20,12 +20,17 @@ async function genComment({ character, product, variant, surfaceLabel, postTitle
   return generateOrganicComment({ persona, post });
 }
 
+// cfg.dwellMs is the declared observation's dwell budget: the idle read time
+// between scroll bursts, in milliseconds. Absent it, the reaction-shaped
+// default applies, which is what every engagement browse loop used before a
+// declaration existed to say otherwise.
 export async function handleBrowse(s, cfg) {
-  for (let i = 0; i < (cfg.scrolls ?? 6); i++) {
+  const scrolls = cfg.scrolls ?? 6;
+  for (let i = 0; i < scrolls; i++) {
     await humanScroll(s.page, 1200, 3);
-    await humanIdlePause();
+    await humanIdlePause(cfg.dwellMs ?? 'deliberate');
   }
-  return `scrolled ${cfg.scrolls ?? 6}x`;
+  return `scrolled ${scrolls}x`;
 }
 
 export async function handlePost(s, cfg, ctx) {

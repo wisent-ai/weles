@@ -26,6 +26,17 @@
 // src/worker/deploy/weles-engagement-declaration.json; it is never a branch
 // here.
 //
+// Benign-activity verbs are not in this table either. browse, dwell,
+// notifications, profile_view and search were five branches covering nine
+// sites — 37 of the 101 actions this build used to admit, and 30 of those
+// rows resolved to the same single file, src/trajectories/_shared/benign.mjs.
+// They are one capability now: ./observations.ts reads the declaration that
+// names each observation with its platform, its verb, the origin it reads,
+// what it must read there, its dwell budget and its reviewed trajectory, and
+// `generic_keeper_task` runs it. A new site is a row in
+// src/worker/deploy/weles-observation-declaration.json; it is never a branch
+// here.
+//
 // A verb that survives here MUST add a branch; otherwise resolveTrajectory
 // returns null and the queued row is silently skipped at the claim step.
 
@@ -36,7 +47,6 @@ import { ANALYTICS_SERVICE_ACTIONS } from './analytics-actions.js';
 // runner and the published measurement import.
 export { paramsToEnv } from './params-to-env.js';
 
-const benignPath = 'src/trajectories/_shared/benign.mjs';
 const analyticsServicePath = 'src/trajectories/_shared/analytics-service.mjs';
 
 const PROXY_PROVIDERS = new Set([
@@ -46,10 +56,11 @@ const PROXY_PROVIDERS = new Set([
 ]);
 
 const ROUTES: Record<string, (p: string) => string | null> = {
-  // Generic surface ticks dispatch to the benign runner which reads PLATFORM/VERB env.
-  dwell: () => benignPath, notifications: () => benignPath, search: () => benignPath, profile_view: () => benignPath,
   browser_task: (p) => p === 'generic' ? 'src/trajectories/generic/browser_task.mjs' : null,
   saved_task: (p) => p === 'generic' ? 'src/trajectories/generic/saved_task.mjs' : null,
+  // generic_keeper_task runs either a declared observation, resolved in
+  // ./observations.ts before anything is spawned, or the keeper objective the
+  // submission carries.
   keeper_task: (p) => p === 'generic' ? 'src/trajectories/generic/keeper_task.mjs' : null,
   // Evidence capture: stills/video of a product surface, and an axe-core
   // accessibility audit of the same page, both driven by explicit params
@@ -61,7 +72,6 @@ const ROUTES: Record<string, (p: string) => string | null> = {
   push_github: (p) => p === 'overleaf' ? 'src/trajectories/overleaf/push_github.mjs' : null,
   pull_github: (p) => p === 'overleaf' ? 'src/trajectories/overleaf/pull_github.mjs' : null,
 
-  browse: (p) => p === 'github' ? 'src/trajectories/github/actions/browse.mjs' : `src/trajectories/${p}/browse.mjs`,
   health: (p) => p === 'github' ? 'src/trajectories/github/health/run.mjs' : `src/trajectories/${p}/health.mjs`,
   // Infra maintenance verbs (not social-account actions): resend_verify_domain_status
   // re-verifies stale inbound domains + confirms real receiving (no browser).

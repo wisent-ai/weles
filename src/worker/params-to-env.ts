@@ -9,18 +9,18 @@
 import { parseAppleLoginCapabilities } from '../utils/apple-login-capabilities.js';
 import { selectLoginAccount } from '../utils/login-accounts.js';
 import { parseAccessibilityAuditParams, parseCaptureParams } from './capture-params.js';
-import { applySavedTaskEnv } from './engagements.js';
+import { applyDeclaredEnv } from './declarations.js';
 
 // Translate the per-row params JSON from account_action_logs into the env vars
 // that the spawned trajectory subprocess reads.
 //
-// This is also where a submission is admitted or refused: a payload that names
-// the wrong account, a malformed capture plan or an undeclared engagement
-// throws HERE, before anything is spawned, so the caller gets the exact
-// refusal sentence instead of a browser launched to discover the problem.
-//
-// No shared state, and the only read is the engagement declaration — release
-// content, loaded once per process by ./engagements.ts.
+// This is also where a submission is admitted or refused: a payload naming
+// the wrong account, a malformed capture plan, an undeclared engagement or an
+// undeclared observation throws HERE, before anything is spawned, so the
+// caller gets the exact refusal sentence instead of a browser launched to
+// discover the problem. No shared state, and the only reads are the
+// engagement and observation declarations — release content, loaded once per
+// process by ./declarations.ts.
 export function paramsToEnv(
   params: Record<string, unknown>,
   action: string,
@@ -44,13 +44,6 @@ export function paramsToEnv(
       const account = selectLoginAccount(subscriptionLogin[1], requested);
       env.WELES_LOGIN_ITEM = account.loginItem;
       env[`${account.provider.toUpperCase()}_DISPLAY_NAME`] = account.displayName;
-    }
-  }
-  if (trajPath.endsWith('/_shared/benign.mjs')) {
-    const underscore = action.indexOf('_');
-    if (underscore > 0) {
-      env.PLATFORM = action.slice(0, underscore);
-      env.VERB = action.slice(underscore + 1);
     }
   }
   if (trajPath.endsWith('/generic/browser_task.mjs') || trajPath.endsWith('/generic/keeper_task.mjs')) {
@@ -108,7 +101,7 @@ export function paramsToEnv(
     if (params.open === false || params.open === 0 || params.open === '0') env.GM_OPEN = '0';
     else env.GM_OPEN = '1';
   }
-  applySavedTaskEnv(params, trajPath, env);
+  applyDeclaredEnv(params, trajPath, env);
   // The capture actions carry their whole instruction in params, so the
   // contract is parsed HERE: a malformed row fails at dispatch with the exact
   // refusal sentence instead of launching a browser to discover the problem.
@@ -304,8 +297,6 @@ export function paramsToEnv(
   if (typeof params.variant === 'string') env.VARIANT = params.variant;
   if (typeof params.issue_url === 'string') env.ISSUE_URL = params.issue_url;
   if (typeof params.server_channel_path === 'string') env.SERVER_CHANNEL_PATH = params.server_channel_path;
-  if (typeof params.scrolls === 'number') env.SCROLL_COUNT = String(params.scrolls);
-  if (typeof params.posts_to_browse === 'number') env.SCROLL_COUNT = String(params.posts_to_browse);
   if (typeof params.search_query === 'string') env.SEARCH_QUERY = params.search_query;
   if (typeof params.pangram_text === 'string') env.PANGRAM_TEXT = params.pangram_text;
   if (typeof params.pangram_text_file === 'string') env.PANGRAM_TEXT_FILE = params.pangram_text_file;
