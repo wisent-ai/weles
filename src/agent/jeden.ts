@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process';
+import { createHash, createHmac } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { runRecordingsDir } from '../session/run-recordings.js';
@@ -141,6 +142,63 @@ function runJedenProcess(
   return promise;
 }
 
+/**
+ * One completion from Brama, asked for directly.
+ *
+ * A single-turn decision needs no agent runtime: it needs the alias, the
+ * bearer and the signature this caller already holds. Spawning `jeden` for it
+ * put an unmanaged binary from the host's PATH on the browser loop's critical
+ * path, and on 2026-09-07 that binary asked Brama for a subscription instead
+ * of this alias: every browser task on the dedicated host died with
+ * `subscription_unavailable`, while the same alias through the same resolver
+ * answered on the first try. Multi-step calls still go to the agent runtime,
+ * which is what reads files and drives tools.
+ */
+async function completeThroughRouter(
+  cfg: ModelRouterConfig,
+  prompt: string,
+  timeoutMs: number,
+): Promise<string> {
+  const body = JSON.stringify({
+    model: cfg.model,
+    messages: [{ role: 'user', content: prompt }],
+  });
+  const timestamp = Math.floor(Date.now() / Number('1000')).toString();
+  const bodyHash = createHash('sha256').update(body).digest('hex');
+  const signature = createHmac('sha256', cfg.agentAuthSecret)
+    .update(`${cfg.agentId}:${timestamp}:${bodyHash}`)
+    .digest('hex');
+  const response = await fetch(`${cfg.routerUrl.replace(/\/+$/, '')}/v1/chat/completions`, {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${cfg.routerToken}`,
+      'content-type': 'application/json',
+      'x-agent-id': cfg.agentId,
+      'x-agent-timestamp': timestamp,
+      'x-agent-body-sha256': bodyHash,
+      'x-agent-signature': signature,
+    },
+    body,
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+  const text = await response.text();
+  if (!response.ok) {
+    throw new Error(`model router ${response.status} for ${cfg.model}: ${text.slice(0, 500)}`);
+  }
+  let payload: { choices?: Array<{ message?: { content?: unknown } }> };
+  try {
+    payload = JSON.parse(text) as typeof payload;
+  } catch {
+    throw new Error(`model router returned invalid JSON: ${text.slice(0, 500)}`);
+  }
+  const content = payload.choices?.[0]?.message?.content;
+  const answer = typeof content === 'string' ? content.trim() : '';
+  if (!answer) {
+    throw new Error(`model router returned no content for ${cfg.model}: ${text.slice(0, 500)}`);
+  }
+  return answer;
+}
+
 export async function callJeden(prompt: string, options: JedenCallOptions = {}): Promise<JedenResult> {
   const cfg = loadModelRouterConfig();
   const configuredTimeout = Number.parseInt(process.env.WELES_JEDEN_TIMEOUT_MS ?? '', Number('10'));
@@ -151,6 +209,13 @@ export async function callJeden(prompt: string, options: JedenCallOptions = {}):
   );
   if (!Number.isSafeInteger(timeoutMs) || timeoutMs <= Number('0')) {
     throw new Error('Jeden timeout must be a positive integer number of milliseconds');
+  }
+  // The default is one turn, which is the browser loop's decision call: ask
+  // Brama and be done. Only a caller that explicitly wants the agent runtime's
+  // tools (`modelOnly: false`) spawns it.
+  if (options.modelOnly !== false) {
+    const raw = await completeThroughRouter(cfg, prompt, timeoutMs);
+    return { raw, model: cfg.model, routerUrl: cfg.routerUrl };
   }
   const binary = nonEmpty(process.env.WELES_JEDEN_BIN) ?? 'jeden';
   const sessionRoot = nonEmpty(process.env.WELES_JEDEN_SESSION_ROOT)
@@ -167,7 +232,6 @@ export async function callJeden(prompt: string, options: JedenCallOptions = {}):
     '--cwd',
     process.cwd(),
   ];
-  if (options.modelOnly !== false) args.splice(3, 0, '--model-only');
   // Give the child only process mechanics plus the dedicated Brama
   // model-routing capability. Browser-session, provider, and sibling Stado
   // credentials must never become ambient CLI environment.

@@ -9,7 +9,7 @@
   },
   "scripts": {
     "build": "tsc && cp src/page-init/*.js dist/page-init/ && mkdir -p dist/page-init/firefox && cp src/page-init/firefox/*.js dist/page-init/firefox/ && mkdir -p dist/release && cp src/release/*.mjs dist/release/ && mkdir -p dist/figma && cp src/figma/export-design-assets.mjs src/figma/parse-figma-document.py dist/figma/ && mkdir -p dist/diagnostics && (cp -f src/diagnostics/*.js dist/diagnostics/ 2>/dev/null || true)",
-    "test": "tap tests/**/*.test.ts && node --test tests/worker/*.test.mjs tests/release/*.test.mjs",
+    "test": "tap tests/**/*.test.ts && node --test tests/worker/*.test.mjs tests/release/*.test.mjs tests/agent/*.test.mjs",
     "dev": "tsc --watch"
   },
   "dependencies": {
