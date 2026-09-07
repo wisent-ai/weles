@@ -2,7 +2,12 @@ __pycache__/
 *.pyc
 *.egg-info/
 dist/
-build/
+# Build output at the root, and only there. As `build/` this pattern also
+# matched `tests/build/`, so `tests/build/module-load.test.mjs` — the check
+# `.github/workflows/build-check.yml` runs on every push — could never be
+# committed: the workflow named a path git was silently refusing to add, and
+# build-check failed on main for a file nobody could see was missing.
+/build/
 .eggs/
 *.so
 .venv/
