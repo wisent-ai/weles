@@ -44,10 +44,26 @@ const REGISTRY = {
 };
 
 const SECTION = process.env.SECTION || '2.1';
-const cfg = REGISTRY[SECTION];
-if (!cfg) throw new Error(`no registry entry for SECTION=${SECTION}`);
+const PLAN_FILE = process.env.NCBR_CORRECTION_PLAN_FILE || '';
 
-const md = readFileSync(SRC + cfg.md, 'utf8').split('\n');
+// A correction plan (weles.ncbr.correction-plan.v1) is the single source of truth for
+// fields it declares: value and character limit come from the plan, not from markdown.
+function planSection(file, label) {
+  const plan = JSON.parse(readFileSync(file, 'utf8'));
+  const section = (plan.sections || []).find((s) => s.label === label);
+  if (!section) throw new Error(`plan ${file} has no section labelled ${label}`);
+  const fields = section.fields || [];
+  if (!fields.length) throw new Error(`plan section ${label} declares no scalar fields`);
+  return {
+    sectionId: section.id,
+    fields: fields.map((f) => ({ sel: `textarea[name$="${f.name}"]`, label: f.name, value: f.value, max: f.maxLength })),
+  };
+}
+
+const cfg = PLAN_FILE ? planSection(PLAN_FILE, SECTION) : REGISTRY[SECTION];
+if (!cfg) throw new Error(`no registry entry and no plan section for SECTION=${SECTION}`);
+
+const md = cfg.md ? readFileSync(SRC + cfg.md, 'utf8').split('\n') : [];
 const plain = (s) => s
   .replace(/\s*<!--[\s\S]*?-->\s*/g, ' ')
   .replace(/\*\*([^*]+)\*\*/g, '$1')
@@ -70,8 +86,10 @@ function tableValueOf(key) {
   throw new Error(`table row not found: ${key}`);
 }
 for (const f of cfg.fields) {
-  f.label = f.header || f.tableKey;
-  f.value = f.tableKey ? tableValueOf(f.tableKey) : valueOf(f.header);
+  if (typeof f.value !== 'string') {
+    f.label = f.header || f.tableKey;
+    f.value = f.tableKey ? tableValueOf(f.tableKey) : valueOf(f.header);
+  }
   if (f.value.length > f.max) throw new Error(`${f.label} over limit: ${f.value.length}/${f.max}`);
 }
 
@@ -117,5 +135,12 @@ catch (e) { saveResult = `NOT SAVED: ${String(e?.message || e).slice(0, 70)}`; }
 
 const readback = await page.evaluate((sels) => sels.map((s) => { const el = document.querySelector(s); return el ? (el.value || '').length : null; }), cfg.fields.map((f) => f.sel));
 
-console.log(JSON.stringify({ section: SECTION, url: page.url(), filled, saveResult, readbackLengths: readback }, null, 2));
+await page.reload({ waitUntil: 'domcontentloaded' });
+await humanIdlePause('long');
+await page.waitForSelector(cfg.fields[0].sel);
+await humanIdlePause('short');
+const persistedLengths = await page.evaluate((sels) => sels.map((s) => { const el = document.querySelector(s); return el ? (el.value || '').length : null; }), cfg.fields.map((f) => f.sel));
+const persisted = cfg.fields.map((f, i) => `${f.label}: ${persistedLengths[i] === f.value.length ? 'persisted' : `NOT PERSISTED (${persistedLengths[i]} vs ${f.value.length})`}`);
+
+console.log(JSON.stringify({ section: SECTION, url: page.url(), filled, saveResult, readbackLengths: readback, persisted }, null, Number('2')));
 process.exit(0);

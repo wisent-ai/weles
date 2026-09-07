@@ -31,3 +31,6 @@ supabase/
 
 # Test-runner scratch: run records and TAP output, never source.
 .tap/
+
+# macOS Finder metadata: written by the OS on any folder view, never source.
+.DS_Store
