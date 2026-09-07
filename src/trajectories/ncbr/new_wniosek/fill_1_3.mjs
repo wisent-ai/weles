@@ -2,7 +2,8 @@
 // Replicates the working Kimi reference cdp_fill_1_3.py. Never closes the page.
 
 import { chromium } from 'playwright';
-import { humanIdlePause } from '../../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
+import { humanFill } from '../../../../dist/human/keyboard.js';
 
 const endpoint = process.env.NCBR_CDP_ENDPOINT || ['ht', 'tp://127.0.0.1:9223'].join('');
 const SECTION_URL = ['https://', 'lsi2.ncbr.gov.pl/projekt/7ee80d9a-67dd-4d99-becd-8dda407221c1/projekt_step/317a21dd-e798-4115-ab53-6ab5a2912fb0'].join('');
@@ -14,19 +15,16 @@ const page = browser.contexts()[0]?.pages()[0];
 if (!page) { console.log(JSON.stringify({ error: 'NO_PAGE' })); process.exit(0); }
 
 async function clickDodaj(nth) {
-  await page.evaluate((n) => {
-    const btns = Array.from(document.querySelectorAll('button')).filter((b) => b.innerText.trim() === 'Dodaj');
-    if (!btns[n]) throw new Error(`Dodaj #${n} not found`);
-    btns[n].dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window })); // allow-raw-playwright: synthetic Dodaj click (Kimi reference) bypasses overlay interception
-  }, nth);
+  const button = page.getByRole('button', { name: 'Dodaj', exact: true }).nth(nth);
+  if (await button.count() === 0) throw new Error(`Dodaj #${nth} not found`);
+  await humanClickLocator(page, button);
   await humanIdlePause('long');
 }
 async function saveForm() {
-  await page.evaluate(() => {
-    const s = Array.from(document.querySelectorAll('button')).filter((b) => b.innerText.trim() === 'Zapisz' && !b.disabled);
-    if (!s.length) throw new Error('no enabled Zapisz');
-    s[s.length - 1].dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window })); // allow-raw-playwright: synthetic save on the enabled Zapisz (Kimi reference)
-  });
+  const saves = page.getByRole('button', { name: 'Zapisz', exact: true }).filter({ visible: true });
+  const count = await saves.count();
+  if (!count) throw new Error('no enabled Zapisz');
+  await humanClickLocator(page, saves.nth(count - 1));
   await humanIdlePause('long');
   await humanIdlePause('deliberate');
 }
@@ -35,14 +33,12 @@ async function radio(value) {
   await humanIdlePause('short');
 }
 async function text(name, value) {
-  await page.locator(`[name="${name}"]`).first().fill(value); // allow-raw-playwright: LSI gov form, no anti-bot
+  await humanFill(page, page.locator(`[name="${name}"]`).first(), value);
   await humanIdlePause('short');
 }
 async function setAuto(name, value) {
   const inp = page.locator(`input[name="${name}"]`).first();
-  await inp.click(); // allow-raw-playwright: open combobox
-  await inp.fill(''); // allow-raw-playwright: clear
-  await inp.fill(value); // allow-raw-playwright: set value, triggers LSI dictionary filter
+  await humanFill(page, inp, value);
   await humanIdlePause('deliberate');
   const opts = page.locator("[role='listbox'] [role='option']");
   if (await opts.count() === 0) throw new Error(`1.3 no options: ${name} -> ${value}`);

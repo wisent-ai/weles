@@ -108,20 +108,16 @@ try {
             const fc = await fcPromise;
             await fc.setFiles(tmpAvatar);
             await humanIdlePause('long');
-            // Save lives in shadow DOM; pierce + click the enabled one
-            const saved = await s.page.evaluate(() => {
-              function walk(root) {
-                for (const el of root.querySelectorAll('button')) {
-                  if ((el.textContent || '').trim() === 'Save' && !el.hasAttribute('disabled') && el.getBoundingClientRect().width > 0) {
-                    el.click();
-                    return true;
-                  }
-                }
-                for (const el of root.querySelectorAll('*')) if (el.shadowRoot) { if (walk(el.shadowRoot)) return true; }
-                return false;
-              }
-              return walk(document);
-            });
+            // Save lives in shadow DOM; Playwright locators pierce open shadow roots.
+            const saveCandidates = s.page.getByRole('button', { name: 'Save', exact: true }).filter({ visible: true });
+            let saved = false;
+            for (let index = 0; index < await saveCandidates.count(); index += 1) {
+              const candidate = saveCandidates.nth(index);
+              if (!await candidate.isEnabled().catch(() => false)) continue;
+              await humanClickLocator(s.page, candidate);
+              saved = true;
+              break;
+            }
             if (saved) {
               await humanIdlePause('long');
               writes.push('avatar uploaded');

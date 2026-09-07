@@ -1,3 +1,6 @@
+import { humanClickLocator } from '../../../dist/human/mouse.js';
+import { humanFill, humanType } from '../../../dist/human/keyboard.js';
+
 export async function fillAppleTwoFactorCode(scope, page, code) {
   const inputs = await scope.locator([
     'input[aria-label*="digit"]',
@@ -9,15 +12,15 @@ export async function fillAppleTwoFactorCode(scope, page, code) {
   ].join(', ')).filter({ visible: true }).all();
 
   if (inputs.length >= 6) {
-    for (let index = 0; index < 6; index += 1) await inputs[index].fill(code[index]);
+    for (let index = 0; index < 6; index += 1) await humanFill(page, inputs[index], code[index]);
     return { ok: true, mode: 'six_inputs', count: inputs.length };
   }
   if (inputs.length === 1) {
-    await inputs[0].fill(code);
+    await humanFill(page, inputs[0], code);
     return { ok: true, mode: 'single_input', count: 1 };
   }
   if (page?.keyboard) {
-    await page.keyboard.type(code);
+    await humanType(page, code);
     return { ok: true, mode: 'keyboard', count: inputs.length };
   }
   return { ok: false, mode: 'no_inputs', count: inputs.length };
@@ -28,30 +31,11 @@ async function clickExactText(scope, pattern, timeoutMs) {
   while (Date.now() < deadline) {
     const locator = scope.getByText(pattern).filter({ visible: true }).first();
     if (await locator.isVisible().catch(() => false)) {
-      await locator.click();
+      await humanClickLocator(page, locator);
       return true;
     }
-    const clicked = await scope.evaluate((source, flags) => {
-      const expression = new RegExp(source, flags);
-      const normalize = (value) => String(value || '').replace(/\s+/g, ' ').trim();
-      const candidates = Array.from(document.querySelectorAll('button, [role="button"], a'))
-        .map((element) => ({
-          element,
-          text: normalize(
-            element.innerText || element.textContent || element.getAttribute('aria-label'),
-          ),
-        }))
-        .filter(({ element, text }) => text && expression.test(text)
-          && Boolean(element.offsetWidth || element.offsetHeight || element.getClientRects().length));
-      candidates.sort((left, right) => left.text.length - right.text.length);
-      const target = candidates[0]?.element;
-      if (!target) return false;
-      target.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
-      target.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
-      target.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
-      target.click();
-      return true;
-    }, pattern.source, pattern.flags).catch(() => false);
+    const fallback = scope.locator('button, [role="button"], a').filter({ hasText: pattern }).filter({ visible: true }).first();
+    const clicked = await humanClickLocator(page, fallback).then(() => true).catch(() => false);
     if (clicked) return true;
     await new Promise((resolve) => setTimeout(resolve, 500));
   }

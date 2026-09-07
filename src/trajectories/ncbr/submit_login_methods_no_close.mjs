@@ -1,4 +1,6 @@
 import { chromium } from 'playwright';
+import { humanFill } from '../../../dist/human/keyboard.js';
+import { humanClickLocator } from '../../../dist/human/mouse.js';
 
 const endpoint = process.env.NCBR_BROWSER_ENDPOINT || 'http://127.0.0.1:9223';
 const email = process.env.NCBR_EMAIL;
@@ -49,14 +51,14 @@ async function authStatus() {
 async function fillForm() {
   await page.goto('https://lsi2.ncbr.gov.pl/logowanie', { waitUntil: 'domcontentloaded', timeout: 120000 });
   await page.waitForSelector('#mail', { timeout: 30000 });
-  await page.locator('#mail').fill('');
+  await humanFill(page, page.locator('#mail'), '');
   await page.locator('#mail').type(email, { delay: 15 });
-  await page.locator('#password').fill('');
+  await humanFill(page, page.locator('#password'), '');
   await page.locator('#password').type(password, { delay: 15 });
   const checkbox = page.locator('#isStatuteAccepted').first();
   if (!(await checkbox.isChecked().catch(() => false))) {
-    await page.locator('label:has(#isStatuteAccepted)').click({ force: true }).catch(async () => {
-      await checkbox.click({ force: true });
+    await humanClickLocator(page, page.locator('label:has(#isStatuteAccepted)')).catch(async () => {
+      await humanClickLocator(page, checkbox);
     });
   }
   await page.waitForTimeout(500);
@@ -87,7 +89,7 @@ await fillForm();
 const methods = [];
 
 methods.push(await tryMethod('locator-click', async () => {
-  await page.locator('#login-btn').click({ timeout: 30000, force: true });
+  await humanClickLocator(page, page.locator('#login-btn'));
 }));
 if (methods.at(-1).auth.status === 200) {
   console.log(JSON.stringify({ methods, events }, null, 2));

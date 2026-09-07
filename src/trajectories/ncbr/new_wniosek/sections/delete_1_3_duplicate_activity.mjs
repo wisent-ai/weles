@@ -2,7 +2,8 @@
 // UI-only. Never closes the page and never submits.
 
 import { chromium } from 'playwright';
-import { humanIdlePause } from '../../../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../../../dist/human/mouse.js';
+import { humanFill } from '../../../../../dist/human/keyboard.js';
 
 const endpoint = process.env.NCBR_CDP_ENDPOINT || 'http://127.0.0.1:9223';
 const SECTION_URL = 'https://lsi2.ncbr.gov.pl/projekt/7ee80d9a-67dd-4d99-becd-8dda407221c1/projekt_step/317a21dd-e798-4115-ab53-6ab5a2912fb0';
@@ -35,30 +36,17 @@ if (before.length <= 1) {
   process.exit(0);
 }
 
-await page.evaluate(() => {
-  const table = document.querySelectorAll('table')[2];
-  if (!table) throw new Error('activity table not found');
-  const rows = Array.from(table.querySelectorAll('tbody tr')).filter((r) => r.querySelector('button[aria-label="overflow-options"]'));
-  const row = rows[1];
-  if (!row) throw new Error('second activity row not found');
-  row.querySelector('button[aria-label="overflow-options"]').dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-}); // allow-raw-playwright: open overflow menu for the second duplicate row
+const activityTable = page.locator('table').nth(2);
+const duplicateRow = activityTable.locator('tbody tr').filter({ has: page.locator('button[aria-label="overflow-options"]') }).nth(1);
+await humanClickLocator(page, duplicateRow.locator('button[aria-label="overflow-options"]'));
 await humanIdlePause('deliberate');
 
-await page.evaluate(() => {
-  const item = Array.from(document.querySelectorAll('[role="menuitem"], .MuiMenuItem-root'))
-    .find((e) => /usuń|usun/i.test(e.textContent || ''));
-  if (!item) throw new Error('delete menu item not found');
-  item.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-}); // allow-raw-playwright: choose delete action
+const deleteItem = page.locator('[role="menuitem"], .MuiMenuItem-root').filter({ hasText: /usuń|usun/i }).first();
+await humanClickLocator(page, deleteItem);
 await humanIdlePause('deliberate');
 
-await page.evaluate(() => {
-  const buttons = Array.from(document.querySelectorAll('button')).filter((b) =>
-    /usuń|usun|tak|potwierdź|potwierdz/i.test(b.innerText || '') && !b.disabled && b.getClientRects().length);
-  if (!buttons.length) throw new Error('delete confirmation button not found');
-  buttons[buttons.length - 1].dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-}); // allow-raw-playwright: confirm deletion dialog
+const confirmDelete = page.getByRole('button', { name: /usuń|usun|tak|potwierdź|potwierdz/i }).filter({ visible: true }).last();
+await humanClickLocator(page, confirmDelete);
 await humanIdlePause('long');
 
 console.log(JSON.stringify({ before, deleted: true, after: await activityRows() }, null, 2));

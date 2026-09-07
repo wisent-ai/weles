@@ -3,7 +3,8 @@
 
 import { readFileSync } from 'node:fs';
 import { chromium } from 'playwright';
-import { humanIdlePause } from '../../../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../../../dist/human/mouse.js';
+import { humanFill } from '../../../../../dist/human/keyboard.js';
 
 const endpoint = process.env.NCBR_CDP_ENDPOINT || 'http://127.0.0.1:9223';
 const PROJ = 'https://lsi2.ncbr.gov.pl/projekt/7ee80d9a-67dd-4d99-becd-8dda407221c1/projekt_step/';
@@ -72,8 +73,8 @@ if (process.env.DIAG) {
     })).filter((x) => x.name.includes('rodzaj_innowacji') || x.name.includes('nazwa_skrocona')),
   }));
   const kind = page.locator('input[name$="rodzaj_innowacji"]').first();
-  await kind.click(); // allow-raw-playwright: open kind diag
-  await kind.fill('Innowacja produktowa'); // allow-raw-playwright: filter kind diag
+  await humanClickLocator(page, kind); // allow-raw-playwright: open kind diag
+  await humanFill(page, kind, 'Innowacja produktowa'); // allow-raw-playwright: filter kind diag
   await humanIdlePause('deliberate');
   const options = await page.evaluate(() => Array.from(document.querySelectorAll('[role="option"]')).map((o) => o.textContent.trim()).filter(Boolean));
   console.log(JSON.stringify({ before, options }, null, 2));
@@ -115,13 +116,9 @@ if (process.env.DIAG_APP) {
 }
 
 async function setApplicant() {
-  await page.evaluate((suffix) => {
-    const inp = Array.from(document.querySelectorAll('input')).find((i) => i.name.endsWith(suffix));
-    const root = inp && inp.closest('.MuiInputBase-root');
-    const select = root && root.querySelector('.MuiSelect-select, [role="combobox"], input');
-    if (!select) throw new Error('applicant select not found');
-    for (const t of ['pointerdown', 'mousedown', 'mouseup', 'click']) select.dispatchEvent(new MouseEvent(t, { bubbles: true, cancelable: true, view: window }));
-  }, 'nazwa_skrocona_wnioskodawcy_samodzielnego_lidera_konsorcjum_konsorcjanta'); // allow-raw-playwright: open applicant select
+  const applicant = page.locator('input[name*="nazwa_skrocona"]').first();
+  const applicantSelect = applicant.locator('xpath=ancestor::*[contains(@class, "MuiInputBase-root")][1]').locator('.MuiSelect-select, [role="combobox"]').first();
+  if (await applicantSelect.count()) await humanClickLocator(page, applicantSelect);
   await humanIdlePause('deliberate');
   const opt = page.getByRole('option', { name: 'Wisent Polska', exact: true }).first();
   if (await opt.count() === 0) throw new Error('Wisent Polska option not found');
@@ -131,12 +128,12 @@ async function setApplicant() {
 
 async function setInnovationKind() {
   const inp = page.locator('input[name$="rodzaj_innowacji"]').first();
-  await inp.click(); // allow-raw-playwright: open innovation kind combobox
-  await inp.fill('Innowacja produktowa'); // allow-raw-playwright: filter to product innovation
+  await humanClickLocator(page, inp); // allow-raw-playwright: open innovation kind combobox
+  await humanFill(page, inp, 'Innowacja produktowa'); // allow-raw-playwright: filter to product innovation
   await humanIdlePause('deliberate');
   const opt = page.getByRole('option', { name: 'Innowacja produktowa', exact: true }).first();
   if (await opt.count() === 0) throw new Error('Innowacja produktowa option not found');
-  await opt.click({ force: true }); // allow-raw-playwright: select innovation kind
+  await humanClickLocator(page, opt); // allow-raw-playwright: select innovation kind
   await humanIdlePause('deliberate');
 }
 
@@ -145,11 +142,8 @@ if (process.env.APPLICANT_ONLY) {
   await humanIdlePause('deliberate');
   await humanIdlePause('deliberate');
   let saveResult = 'saved';
-  await page.evaluate(() => {
-    const s = Array.from(document.querySelectorAll('button')).filter((b) => b.innerText.trim() === 'Zapisz' && !b.disabled);
-    if (!s.length) throw new Error('no enabled Zapisz');
-    s[s.length - 1].dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-  }).catch((e) => { saveResult = `NOT SAVED: ${String(e?.message || e).slice(0, 60)}`; }); // allow-raw-playwright: save applicant-only edit
+  await humanClickLocator(page, page.getByRole('button', { name: 'Zapisz', exact: true }).filter({ visible: true }).last())
+    .catch((e) => { saveResult = `NOT SAVED: ${String(e?.message || e).slice(0, 60)}`; }); // allow-raw-playwright: save applicant-only edit
   await humanIdlePause('long');
   const applicant = await page.evaluate(() => Array.from(document.querySelectorAll('input'))
     .find((i) => i.name.includes('nazwa_skrocona_wnioskodawcy'))?.value || null);
@@ -169,7 +163,7 @@ for (const f of cfg.fields) {
   await ta.waitFor({ state: 'visible' });
   const max = Number(await ta.getAttribute('maxlength')) || f.value.length;
   if (f.value.length > max) throw new Error(`${f.suffix} over limit: ${f.value.length}/${max}`);
-  await ta.fill(f.value); // allow-raw-playwright: LSI text
+  await humanFill(page, ta, f.value); // allow-raw-playwright: LSI text
   await humanIdlePause('short');
   filled.push(`${f.suffix} (${f.value.length}/${max})`);
 }
@@ -177,11 +171,8 @@ for (const f of cfg.fields) {
 await humanIdlePause('deliberate');
 await humanIdlePause('deliberate');
 let saveResult = 'saved';
-await page.evaluate(() => {
-  const s = Array.from(document.querySelectorAll('button')).filter((b) => b.innerText.trim() === 'Zapisz' && !b.disabled);
-  if (!s.length) throw new Error('no enabled Zapisz');
-  s[s.length - 1].dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window })); // allow-raw-playwright: save
-}).catch((e) => { saveResult = `NOT SAVED: ${String(e?.message || e).slice(0, 60)}`; });
+await humanClickLocator(page, page.getByRole('button', { name: 'Zapisz', exact: true }).filter({ visible: true }).last())
+  .catch((e) => { saveResult = `NOT SAVED: ${String(e?.message || e).slice(0, 60)}`; });
 await humanIdlePause('long');
 
 const readback = await page.evaluate((sufs) => sufs.map((s) => { const e = document.querySelector(`textarea[name$="${s}"], input[name$="${s}"]`); return e ? e.value.length : null; }), cfg.fields.map((f) => f.suffix));

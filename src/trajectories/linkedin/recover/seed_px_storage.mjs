@@ -15,13 +15,13 @@
 //   ACCOUNT_ITEM=weles-linkedin-<username>-account node src/trajectories/linkedin/recover/seed_px_storage.mjs
 //   USERNAME=<linkedin-username> node src/trajectories/linkedin/recover/seed_px_storage.mjs
 
-import { chromium } from 'playwright';
 import { existsSync, mkdirSync, mkdtempSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { humanClickLocator } from '../../../../dist/human/mouse.js';
 import { humanFill } from '../../../../dist/human/keyboard.js';
 import { findAccount, readAccount, updateAccountMetadata } from '../../_shared/skarbiec_accounts.mjs';
+import { launchProfileChrome } from '../../../browser/real_chrome.mjs';
 
 
 const ACCOUNT_ITEM = process.env.ACCOUNT_ITEM ?? '';
@@ -40,14 +40,9 @@ console.log(`[seed-px] target: ${acct.username} (item=${acct.id})`);
 const workRoot = join(homedir(), '.stado', 'work');
 mkdirSync(workRoot, { recursive: true });
 const userDataDir = mkdtempSync(join(workRoot, 'seed-px-'));
-const browser = await chromium.launchPersistentContext(userDataDir, {
-  executablePath: CHROME_BIN,
-  channel: 'chrome',
-  headless: false,
-  viewport: { width: 1280, height: 800 },
-  args: ['--no-sandbox', '--disable-blink-features=AutomationControlled', '--disable-infobars'],
-  ignoreDefaultArgs: ['--enable-automation', '--disable-breakpad'],
-});
+// The launch lives in the reviewed browser boundary; the argument set is the
+// one this operator-assisted recovery was verified with.
+const browser = await launchProfileChrome({ userDataDir, executablePath: CHROME_BIN });
 const page = browser.pages()[0] || await browser.newPage();
 console.log('[seed-px] navigating to linkedin.com/login (real Chrome, fingerprint genuine)');
 try { await page.goto('https://www.linkedin.com/login', { waitUntil: 'domcontentloaded', timeout: 30000 }); }

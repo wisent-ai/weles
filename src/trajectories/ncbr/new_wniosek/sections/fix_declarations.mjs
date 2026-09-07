@@ -1,7 +1,7 @@
 // Fill required declaration controls in Dokumenty/oswiadczenia. UI-only; never submits.
 
 import { chromium } from 'playwright';
-import { humanIdlePause } from '../../../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../../../dist/human/mouse.js';
 
 const endpoint = process.env.NCBR_CDP_ENDPOINT || 'http://127.0.0.1:9223';
 const SECTION_URL = 'https://lsi2.ncbr.gov.pl/projekt/7ee80d9a-67dd-4d99-becd-8dda407221c1/projekt_step/73fcdecb-c325-4447-9b09-6945f080a5ac';
@@ -48,26 +48,38 @@ if (process.env.DIAG) {
   process.exit(0);
 }
 
-const clicked = await page.evaluate((names) => {
-  const out = [];
-  for (const suffix of names) {
-    const candidates = Array.from(document.querySelectorAll(`input[name$="${suffix}"]`));
-    const target = candidates.find((i) => ['true', 'Tak', 'tak', '1', 'on'].includes(i.value)) || candidates[0];
-    if (!target) { out.push({ suffix, status: 'missing' }); continue; }
-    if (!target.checked) target.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-    out.push({ suffix, type: target.type, value: target.value, checked: target.checked });
+const clicked = [];
+for (const suffix of REQUIRED) {
+  const candidates = page.locator(`input[name$="${suffix}"]`);
+  const count = await candidates.count();
+  let target = null;
+  for (let index = 0; index < count; index += 1) {
+    const candidate = candidates.nth(index);
+    if (['true', 'Tak', 'tak', '1', 'on'].includes(await candidate.inputValue())) {
+      target = candidate;
+      break;
+    }
   }
-  return out;
-}, REQUIRED); // allow-raw-playwright: select required declaration controls
+  target ??= count > 0 ? candidates.first() : null;
+  if (!target) {
+    clicked.push({ suffix, status: 'missing' });
+    continue;
+  }
+  if (!await target.isChecked()) await humanClickLocator(page, target);
+  clicked.push({
+    suffix,
+    type: await target.getAttribute('type'),
+    value: await target.inputValue(),
+    checked: await target.isChecked(),
+  });
+}
 await humanIdlePause('deliberate');
 
 let saveResult = 'saved';
 try {
-  await page.evaluate(() => {
-    const saves = Array.from(document.querySelectorAll('button')).filter((b) => b.innerText.trim() === 'Zapisz' && !b.disabled);
-    if (!saves.length) throw new Error('no enabled Zapisz');
-    saves[saves.length - 1].dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-  }); // allow-raw-playwright: save declaration section
+  const save = page.locator('button:not([disabled])').filter({ hasText: /^Zapisz$/ }).filter({ visible: true }).last();
+  if (await save.count() === 0) throw new Error('no enabled Zapisz');
+  await humanClickLocator(page, save);
   await humanIdlePause('long');
 } catch (e) {
   saveResult = `NOT SAVED: ${String(e?.message || e).slice(0, 80)}`;

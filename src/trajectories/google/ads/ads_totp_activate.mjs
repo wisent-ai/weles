@@ -132,27 +132,8 @@ async function clickByText(page, pattern, label) {
     return true;
   }
 
-  const clickedByJs = await page.evaluate((source) => {
-    const re = new RegExp(source, 'i');
-    const norm = (value) => String(value || '').replace(/\s+/g, ' ').trim();
-    const nodes = Array.from(document.querySelectorAll('button, [role="button"], a, [role="link"], li, div[role="option"], span, div'));
-    const textNode = nodes.find((el) => re.test(norm(el.innerText || el.textContent || el.getAttribute('aria-label') || '')));
-    if (!textNode) return false;
-    let target = textNode;
-    while (target && target !== document.body) {
-      const tag = target.tagName.toLowerCase();
-      const role = target.getAttribute('role');
-      if (tag === 'button' || tag === 'a' || tag === 'li' || role === 'button' || role === 'link' || role === 'option') break;
-      target = target.parentElement;
-    }
-    if (!target) target = textNode;
-    target.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
-    target.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
-    target.dispatchEvent(new PointerEvent('pointerup', { bubbles: true }));
-    target.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
-    target.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    return true;
-  }, pattern.source).catch(() => false);
+  const fallback = page.locator('button, [role="button"], a, [role="link"], li, [role="option"]').filter({ hasText: pattern }).filter({ visible: true }).first();
+  const clickedByJs = await humanClickLocator(page, fallback).then(() => true).catch(() => false);
   if (clickedByJs) {
     console.log(`[google-totp-activate] clicking ${label} via JS`);
     await humanIdlePause('deliberate');
@@ -206,25 +187,8 @@ async function switchToCorrectGoogleAccount(s, creds, continueUrl = 'https://mya
   const preferred = s.page.getByText(creds.email || EMAIL, { exact: false }).filter({ visible: true }).first();
   if (await preferred.isVisible().catch(() => false)) {
     console.log(`[google-totp-activate] selecting account ${creds.email || EMAIL}`);
-    const clicked = await s.page.evaluate((email) => {
-      const nodes = Array.from(document.querySelectorAll('div[role="link"], li, [data-identifier], [data-email]'));
-      const target = nodes.find((el) => (el.innerText || el.textContent || el.getAttribute('data-identifier') || el.getAttribute('data-email') || '').includes(email));
-      if (!target) return false;
-      let clickable = target;
-      while (clickable && clickable !== document.body) {
-        const role = clickable.getAttribute('role');
-        const tag = clickable.tagName.toLowerCase();
-        if (role === 'link' || role === 'button' || tag === 'li' || tag === 'button' || tag === 'a') break;
-        clickable = clickable.parentElement;
-      }
-      if (!clickable) clickable = target;
-      clickable.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
-      clickable.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
-      clickable.dispatchEvent(new PointerEvent('pointerup', { bubbles: true }));
-      clickable.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
-      clickable.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-      return true;
-    }, creds.email || EMAIL).catch(() => false);
+    const account = s.page.locator('div[role="link"], li, [data-identifier], [data-email]').filter({ hasText: creds.email || EMAIL }).filter({ visible: true }).first();
+    const clicked = await humanClickLocator(s.page, account).then(() => true).catch(() => false);
     if (!clicked) await humanClickLocator(s.page, preferred);
     await humanIdlePause('deliberate');
     for (let i = 0; i < 20; i++) {
@@ -443,7 +407,7 @@ async function activateAuthenticator(s, creds) {
   for (let attempt = 1; attempt <= 3; attempt++) {
     const code = await waitForNewTotpCode(secret, lastCode);
     lastCode = code;
-    await input.fill('').catch(() => {});
+    await humanFill(s.page, input, '').catch(() => {});
     await humanFill(s.page, input, code);
     console.log(`[google-totp-activate] filled activation code attempt=${attempt}`);
     await clickByText(s.page, /^(Next|Verify|Turn on|Done)$/i, 'submit activation code');

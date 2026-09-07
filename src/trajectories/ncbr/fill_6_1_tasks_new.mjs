@@ -3,7 +3,8 @@
 
 import { readFileSync } from 'node:fs';
 import { chromium } from 'playwright';
-import { humanIdlePause } from '../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../dist/human/mouse.js';
+import { humanFill } from '../../../dist/human/keyboard.js';
 
 const endpoint = process.env.NCBR_CDP_ENDPOINT || 'http://127.0.0.1:9223';
 const SECTION_URL = 'https://lsi2.ncbr.gov.pl/projekt/7ee80d9a-67dd-4d99-becd-8dda407221c1/projekt_step/566c735c-8ad0-406f-a948-f3ea921c2cc7';
@@ -89,22 +90,14 @@ if (process.env.PARSE) {
 }
 
 async function clickDodaj() {
-  await page.evaluate(() => {
-    const btn = Array.from(document.querySelectorAll('button')).find((b) => b.innerText.trim() === 'Dodaj' && b.getClientRects().length);
-    if (!btn) throw new Error('Dodaj not found');
-    btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-  }); // allow-raw-playwright: open collection row
+  await humanClickLocator(page, page.locator('button:visible').filter({ hasText: /^Dodaj$/ }).first()) // allow-raw-playwright: open collection row
   await humanIdlePause('long');
 }
 
 if (process.env.DIAG) {
   await clickDodaj();
   if (process.env.MILESTONE) {
-    await page.evaluate(() => {
-      const btn = Array.from(document.querySelectorAll('button')).find((b) => b.innerText.trim() === 'Dodaj kolejny');
-      if (!btn) throw new Error('Dodaj kolejny not found');
-      btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-    }); // allow-raw-playwright: open milestone nested row
+    await humanClickLocator(page, page.locator('button:visible').filter({ hasText: /^Dodaj kolejny$/ }).first()) // allow-raw-playwright: open milestone nested row
     await humanIdlePause('long');
   }
   const fields = await page.evaluate(() => Array.from(document.querySelectorAll('input, textarea')).map((i) => {
@@ -177,19 +170,14 @@ async function radio(value) {
 async function setApplicant() {
   const visible = page.locator('#nazwa_skrocona_wnioskodawcy_samodzielnego_lidera_konsorcjum_konsorcjanta').first();
   if (await visible.count() > 0) {
-    await visible.click({ force: true }); // allow-raw-playwright: open visible MUI Select
+    await humanClickLocator(page, visible); // allow-raw-playwright: open visible MUI Select
   } else {
-    await page.evaluate(() => {
-      const inp = document.querySelector("input[name='nazwa_skrocona_wnioskodawcy_samodzielnego_lidera_konsorcjum_konsorcjanta']");
-      const root = inp && inp.closest('.MuiInputBase-root');
-      const select = root && root.querySelector('.MuiSelect-select, [role="combobox"]');
-      if (!select) return;
-      for (const t of ['pointerdown', 'mousedown', 'mouseup', 'click']) select.dispatchEvent(new MouseEvent(t, { bubbles: true, cancelable: true, view: window }));
-    }); // allow-raw-playwright: open applicant select
+    const select = page.locator(`input[name="nazwa_skrocona_wnioskodawcy_samodzielnego_lidera_konsorcjum_konsorcjanta"]`).first().locator('xpath=ancestor::*[contains(@class,"MuiInputBase-root")][1]').locator('.MuiSelect-select, [role="combobox"]').first();
+    if (await select.count() > 0) await humanClickLocator(page, select) // allow-raw-playwright: open applicant select
   }
   await humanIdlePause('deliberate');
   const opt = page.getByRole('option', { name: 'Wisent Polska', exact: true }).first();
-  if (await opt.count() > 0) await opt.click({ force: true }); // allow-raw-playwright: select applicant
+  if (await opt.count() > 0) await humanClickLocator(page, opt); // allow-raw-playwright: select applicant
   else throw new Error('Wisent Polska applicant option not found');
   await humanIdlePause('short');
 }
@@ -197,29 +185,16 @@ async function setApplicant() {
 async function saveForm() {
   await humanIdlePause('deliberate');
   await humanIdlePause('deliberate');
-  await page.evaluate(() => {
-    const saves = Array.from(document.querySelectorAll('button')).filter((b) => b.innerText.trim() === 'Zapisz' && !b.disabled);
-    if (!saves.length) throw new Error('no enabled Zapisz');
-    saves[saves.length - 1].dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-  }); // allow-raw-playwright: save task sub-form
+  await humanClickLocator(page, page.locator('button:not([disabled])').filter({ hasText: /^Zapisz$/ }).last()) // allow-raw-playwright: save task sub-form
   await humanIdlePause('long');
 }
 
 async function editTaskRow(nr) {
   await page.goto(SECTION_URL, { waitUntil: 'domcontentloaded' });
   await humanIdlePause('long');
-  await page.evaluate((n) => {
-    const rows = Array.from(document.querySelectorAll('table tbody tr'));
-    const row = rows.find((r) => {
-      const first = r.querySelector('td');
-      const text = (first?.getAttribute('title') || first?.textContent || '').trim();
-      return text.startsWith(`${n}. `);
-    });
-    if (!row) throw new Error(`task row not found: ${n}`);
-    const btn = row.querySelector('button[aria-label="overflow-options"]');
-    if (!btn) throw new Error(`task row menu not found: ${n}`);
-    btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-  }, String(nr)); // allow-raw-playwright: open exact task row menu by first-cell prefix
+  const row = page.locator('table tbody tr').filter({ hasText: new RegExp(`^${String(nr)}\. `) }).first();
+  if (await row.count() === 0) throw new Error(`task row not found: ${nr}`);
+  await humanClickLocator(page, row.locator('button[aria-label="overflow-options"]')) // allow-raw-playwright: open exact task row menu by first-cell prefix
   await humanIdlePause('deliberate');
   await page.getByRole('menuitem', { name: 'Edytuj', exact: true }).first().dispatchEvent('click'); // allow-raw-playwright: edit existing task row
   await humanIdlePause('long');
@@ -229,14 +204,10 @@ async function editTaskRow(nr) {
 if (process.env.DIAG_EDIT) {
   await editTaskRow(process.env.DIAG_EDIT);
   if (process.env.APP_HTML) {
-    const app = await page.evaluate(() => {
-      const inp = document.querySelector("input[name='nazwa_skrocona_wnioskodawcy_samodzielnego_lidera_konsorcjum_konsorcjanta']");
-      const fc = inp?.closest('.MuiFormControl-root');
-      const root = inp?.closest('.MuiInputBase-root');
-      const select = root?.querySelector('.MuiSelect-select, [role="combobox"]');
-      if (select) for (const t of ['mousedown', 'mouseup', 'click']) select.dispatchEvent(new MouseEvent(t, { bubbles: true, cancelable: true, view: window }));
-      return { inputValue: inp?.value || '', formControl: fc?.outerHTML.slice(0, 1600) || null };
-    }); // allow-raw-playwright: open applicant select for diagnosis
+    const inp = page.locator(`input[name="nazwa_skrocona_wnioskodawcy_samodzielnego_lidera_konsorcjum_konsorcjanta"]`).first();
+    const select = inp.locator('xpath=ancestor::*[contains(@class,"MuiInputBase-root")][1]').locator('.MuiSelect-select, [role="combobox"]').first();
+    if (await select.count() > 0) await humanClickLocator(page, select);
+    const app = { inputValue: await inp.inputValue().catch(() => ''), formControl: null }; // allow-raw-playwright: open applicant select for diagnosis
     await humanIdlePause('deliberate');
     const options = await page.evaluate(() => Array.from(document.querySelectorAll("[role='option'], li")).map((o) => o.textContent.trim()).filter(Boolean).slice(0, 30));
     console.log(JSON.stringify({ task: process.env.DIAG_EDIT, app, options }, null, 2));
@@ -282,10 +253,8 @@ if (process.env.VERIFY_MILESTONES) {
         weryfikacjaStart: m.weryfikacja.slice(0, 220),
       })),
     });
-    await page.evaluate(() => {
-      const btn = Array.from(document.querySelectorAll('button')).find((b) => b.innerText.trim() === 'Anuluj');
-      if (btn) btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-    }); // allow-raw-playwright: close task row without saving
+    const cancel = page.locator('button').filter({ hasText: /^Anuluj$/ }).first();
+    if (await cancel.count() > 0) await humanClickLocator(page, cancel) // allow-raw-playwright: close task row without saving
     await humanIdlePause('long');
   }
   console.log(JSON.stringify({ verified }, null, 2));
@@ -337,11 +306,7 @@ async function fillAllMilestones(t) {
 }
 
 async function addMilestone(t, idx = 0) {
-  await page.evaluate(() => {
-    const btn = Array.from(document.querySelectorAll('button')).find((b) => b.innerText.trim() === 'Dodaj kolejny');
-    if (!btn) throw new Error('Dodaj kolejny not found');
-    btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-  }); // allow-raw-playwright: add nested milestone row
+  await humanClickLocator(page, page.locator('button:visible').filter({ hasText: /^Dodaj kolejny$/ }).first()) // allow-raw-playwright: add nested milestone row
   await humanIdlePause('long');
   const m = t.milestones[idx] || extraMilestone(t, idx);
   await fillSelector(`[name="kamienie_milowe_kolekcja[${idx}].kamienie_milowe_nazwa"]`, m.nazwa);
@@ -472,11 +437,7 @@ for (const t of parsed) {
   await fillByName('zakres_planowanych_prac_br', t.zakres);
   await fillByName('szczegolowy_opis_prac', t.szczegolowy);
   for (let i = 0; i < t.milestones.length; i++) {
-    await page.evaluate(() => {
-      const btn = Array.from(document.querySelectorAll('button')).find((b) => b.innerText.trim() === 'Dodaj kolejny');
-      if (!btn) throw new Error('Dodaj kolejny not found');
-      btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-    }); // allow-raw-playwright: add nested milestone row
+    await humanClickLocator(page, page.locator('button:visible').filter({ hasText: /^Dodaj kolejny$/ }).first()); // allow-raw-playwright: add nested milestone row
     await humanIdlePause('long');
     const m = t.milestones[i];
     await fillSelector(`[name="kamienie_milowe_kolekcja[${i}].kamienie_milowe_nazwa"]`, m.nazwa);

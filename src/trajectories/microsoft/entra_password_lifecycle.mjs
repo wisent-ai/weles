@@ -42,7 +42,7 @@ import {
 } from '../../../dist/secrets/scoped-service.js';
 import { WSession } from '../../../dist/session/wsession.js';
 import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
-import { humanType } from '../../../dist/human/keyboard.js';
+import { humanFill, humanType } from '../../../dist/human/keyboard.js';
 import { humanClickLocator, humanIdlePause } from '../../../dist/human/mouse.js';
 import { persistFreshCookieJar } from '../_shared/cookie-freshness.mjs';
 
@@ -286,9 +286,7 @@ async function visible(locator) {
 
 async function fill(page, locator, value) {
   await locator.waitFor({ state: 'visible', timeout: Number('30000') });
-  await humanClickLocator(page, locator);
-  await locator.fill('');
-  await humanType(page, value);
+  await humanFill(page, locator, value);
 }
 
 // The converged control re-renders during hydration and can silently drop
@@ -320,7 +318,7 @@ async function choosePasswordSignIn(page) {
     if (await visible(passwordInput)) return;
     const passwordChoice = page.getByText(/^Use (?:your )?password$/i).first();
     if (await visible(passwordChoice)) {
-      await passwordChoice.click();
+      await humanClickLocator(page, passwordChoice);
       await page.waitForTimeout(Number('1000'));
       return;
     }
@@ -331,7 +329,7 @@ async function choosePasswordSignIn(page) {
     if (await visible(passkeyFailed)) {
       const otherWays = page.getByText(/Other ways to sign in|Use another way/i).first();
       if (await visible(otherWays)) {
-        await otherWays.click();
+        await humanClickLocator(page, otherWays);
         await page.waitForTimeout(Number('1000'));
         continue;
       }
@@ -344,20 +342,20 @@ async function choosePasswordSignIn(page) {
     if (await visible(bareChooser)) {
       const back = page.locator('#idBtn_Back, button[aria-label="Back"]').first();
       if (!await visible(back)) return;
-      await back.click();
+      await humanClickLocator(page, back);
       await page.waitForTimeout(Number('1000'));
       continue;
     }
     if (await visible(emailInput)) {
       const next = page.locator('input[type="submit"]#idSIButton9, button[type="submit"]').first();
       if (!await visible(next)) return;
-      await next.click();
+      await humanClickLocator(page, next);
       await page.waitForTimeout(Number('2500'));
       continue;
     }
     const otherWays = page.getByText(/Other ways to sign in|Use another way/i).first();
     if (!await visible(otherWays)) return;
-    await otherWays.click();
+    await humanClickLocator(page, otherWays);
     await page.waitForTimeout(Number('1000'));
   }
 }
@@ -683,7 +681,7 @@ function commitPassword(contract, password, writeOperation) {
       },
     );
   } finally {
-    secret.fill(Number('0'));
+    for (let index = Number('0'); index < secret.length; index += Number('1')) secret[index] = Number('0');
   }
 }
 

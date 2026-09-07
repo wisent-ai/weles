@@ -2,7 +2,8 @@
 
 import { readFileSync } from 'node:fs';
 import { chromium } from 'playwright';
-import { humanIdlePause } from '../../../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../../../dist/human/mouse.js';
+import { humanFill } from '../../../../../dist/human/keyboard.js';
 
 const endpoint = process.env.NCBR_CDP_ENDPOINT || 'http://127.0.0.1:9223';
 const SECTION_URL = 'https://lsi2.ncbr.gov.pl/projekt/7ee80d9a-67dd-4d99-becd-8dda407221c1/projekt_step/e5bd23d7-9d4d-4f2e-948a-97c95041ef18';
@@ -34,11 +35,9 @@ await page.evaluate(() => {
 }); // allow-raw-playwright: neutralise cookie banner
 
 async function clickDodaj() {
-  await page.evaluate(() => {
-    const btn = Array.from(document.querySelectorAll('button')).find((b) => b.innerText.trim() === 'Dodaj' && b.getClientRects().length);
-    if (!btn) throw new Error('Dodaj not found');
-    btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-  }); // allow-raw-playwright: open collection sub-form
+  const button = page.getByRole('button', { name: 'Dodaj', exact: true }).filter({ visible: true }).first();
+  if (await button.count() === 0) throw new Error('Dodaj not found');
+  await humanClickLocator(page, button);
   await humanIdlePause('long');
 }
 
@@ -66,11 +65,9 @@ if (process.env.DIAG) {
 async function saveForm() {
   await humanIdlePause('deliberate');
   await humanIdlePause('deliberate');
-  await page.evaluate(() => {
-    const saves = Array.from(document.querySelectorAll('button')).filter((b) => b.innerText.trim() === 'Zapisz' && !b.disabled);
-    if (!saves.length) throw new Error('no enabled Zapisz');
-    saves[saves.length - 1].dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-  }); // allow-raw-playwright: save sub-form
+  const saves = page.getByRole('button', { name: 'Zapisz', exact: true }).filter({ visible: true });
+  if (await saves.count() === 0) throw new Error('no enabled Zapisz');
+  await humanClickLocator(page, saves.last());
   await humanIdlePause('long');
 }
 
@@ -80,15 +77,15 @@ async function fillText(name, value) {
   const max = Number(await loc.getAttribute('maxlength')) || value.length;
   let v = value;
   if (v.length > max) v = v.slice(0, max).replace(/\s+\S*$/, '');
-  await loc.fill(v); // allow-raw-playwright: LSI collection text field
+  await humanFill(page, loc, v);
   await humanIdlePause('short');
   return `${name} ${v.length}/${max}`;
 }
 
 async function setAuto(name, value) {
   const inp = page.locator(`input[name="${name}"]`).first();
-  await inp.click(); // allow-raw-playwright: open MUI autocomplete
-  await inp.fill(value); // allow-raw-playwright: filter to exact impact
+  await humanClickLocator(page, inp);
+  await humanFill(page, inp, value);
   await humanIdlePause('deliberate');
   const opt = page.locator("[role='listbox'] [role='option']").filter({ hasText: value }).first();
   if (await opt.count() === 0) throw new Error(`no option: ${name} -> ${value}`);

@@ -3,7 +3,8 @@
 
 import { readFileSync } from 'node:fs';
 import { chromium } from 'playwright';
-import { humanIdlePause } from '../../../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../../../dist/human/mouse.js';
+import { humanFill } from '../../../../../dist/human/keyboard.js';
 
 const endpoint = process.env.NCBR_CDP_ENDPOINT || 'http://127.0.0.1:9223';
 const SECTION_URL = 'https://lsi2.ncbr.gov.pl/projekt/7ee80d9a-67dd-4d99-becd-8dda407221c1/projekt_step/80ebca16-a9dd-4798-a334-5ac007cecbf7';
@@ -66,22 +67,18 @@ await page.evaluate(() => {
 }); // allow-raw-playwright: neutralise cookie banner
 
 async function clickDodaj(nth = 0) {
-  await page.evaluate((n) => {
-    const btns = Array.from(document.querySelectorAll('button')).filter((b) => b.innerText.trim() === 'Dodaj' && b.getClientRects().length);
-    if (!btns[n]) throw new Error(`Dodaj #${n} not found; count=${btns.length}`);
-    btns[n].dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-  }, nth); // allow-raw-playwright: open collection subform
+  const buttons = page.getByRole('button', { name: 'Dodaj', exact: true }).filter({ visible: true });
+  if (await buttons.count() <= nth) throw new Error(`Dodaj #${nth} not found; count=${await buttons.count()}`);
+  await humanClickLocator(page, buttons.nth(nth));
   await humanIdlePause('long');
 }
 
 async function saveForm() {
   await humanIdlePause('deliberate');
   await humanIdlePause('deliberate');
-  await page.evaluate(() => {
-    const saves = Array.from(document.querySelectorAll('button')).filter((b) => b.innerText.trim() === 'Zapisz' && !b.disabled);
-    if (!saves.length) throw new Error('no enabled Zapisz');
-    saves[saves.length - 1].dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-  }); // allow-raw-playwright: save subform
+  const saves = page.getByRole('button', { name: 'Zapisz', exact: true }).filter({ visible: true });
+  if (await saves.count() === 0) throw new Error('no enabled Zapisz');
+  await humanClickLocator(page, saves.last());
   await humanIdlePause('long');
 }
 
@@ -91,7 +88,7 @@ async function fillBySuffix(suffix, value) {
   const max = Number(await loc.getAttribute('maxlength')) || String(value).length;
   let v = String(value || '');
   if (v.length > max) v = v.slice(0, max).replace(/\s+\S*$/, '');
-  await loc.fill(v); // allow-raw-playwright: 2.2 collection text field
+  await humanFill(page, loc, v);
   await humanIdlePause('short');
   return `${suffix} ${v.length}/${max}`;
 }
@@ -102,20 +99,20 @@ async function fillByName(name, value) {
   const max = Number(await loc.getAttribute('maxlength')) || String(value).length;
   let v = String(value || '');
   if (v.length > max) v = v.slice(0, max).replace(/\s+\S*$/, '');
-  await loc.fill(v); // allow-raw-playwright: 2.2 collection field by name
+  await humanFill(page, loc, v);
   await humanIdlePause('short');
   return `${name} ${v.length}/${max}`;
 }
 
 async function setAutoByName(name, search) {
   const inp = page.locator(`input[name="${name}"]`).first();
-  await inp.click(); // allow-raw-playwright: open autocomplete
-  await inp.fill(search); // allow-raw-playwright: filter option
+  await humanClickLocator(page, inp);
+  await humanFill(page, inp, search);
   await humanIdlePause('deliberate');
   const opt = page.locator('[role="option"]').first();
   if (await opt.count() === 0) throw new Error(`no option for ${name}: ${search}`);
   const picked = (await opt.textContent())?.trim();
-  await opt.click({ force: true }); // allow-raw-playwright: select option
+  await humanClickLocator(page, opt);
   await humanIdlePause('short');
   return picked;
 }
@@ -127,15 +124,15 @@ async function pickFactors() {
     'pozytywnych skutków transgranicznych',
   ]) {
     const inp = page.locator('input[name$="rezultat_prac_br_spelnia_nastepujace_czynniki"]').first();
-    await inp.click(); // allow-raw-playwright: open factors multi
-    await inp.fill(''); // allow-raw-playwright: clear previous factor filter
+    await humanClickLocator(page, inp);
+    await humanFill(page, inp, '');
     await humanIdlePause('deliberate');
     const opt = page.locator('[role="option"]').filter({ hasText: label }).first();
     if (await opt.count() === 0) {
       const seen = await page.evaluate(() => Array.from(document.querySelectorAll('[role="option"]')).map((o) => o.textContent.trim()).filter(Boolean));
       throw new Error(`factor option not found: ${label}; seen=${seen.join(' | ')}`);
     }
-    await opt.click({ force: true }); // allow-raw-playwright: pick factor
+    await humanClickLocator(page, opt);
     picked.push(label);
     await humanIdlePause('short');
   }
@@ -172,7 +169,7 @@ if (process.env.DIAG_FACTOR_DODAJ) {
 
 if (process.env.DIAG_FACTORS) {
   const inp = page.locator('input[name$="rezultat_prac_br_spelnia_nastepujace_czynniki"]').first();
-  await inp.click(); // allow-raw-playwright: open factors multi
+  await humanClickLocator(page, inp);
   await humanIdlePause('deliberate');
   const options = await page.evaluate(() => Array.from(document.querySelectorAll('[role="option"]')).map((o) => o.textContent.trim()).filter(Boolean));
   console.log(JSON.stringify({ options }, null, 2));
@@ -199,12 +196,9 @@ if (process.env.CLEAR_POW) {
   }); // allow-raw-playwright: clear forbidden field and inspect save state
   await humanIdlePause('deliberate');
   let saveResult = 'not-clicked';
-  const clicked = await page.evaluate(() => {
-    const saves = Array.from(document.querySelectorAll('button')).filter((b) => b.innerText.trim() === 'Zapisz' && !b.disabled && b.getClientRects().length);
-    if (!saves.length) return false;
-    saves[saves.length - 1].dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-    return true;
-  }); // allow-raw-playwright: save main section after clearing forbidden field
+  const saves = page.getByRole('button', { name: 'Zapisz', exact: true }).filter({ visible: true });
+  const clicked = await saves.count() > 0;
+  if (clicked) await humanClickLocator(page, saves.last());
   if (clicked) { saveResult = 'clicked'; await humanIdlePause('long'); }
   const readback = await page.evaluate(() => ({
     powLen: document.querySelector('textarea[name$="innowacja_produktowa_powiazanie_rezultatu_prac_br_z_lancuchem_wartosci"]')?.value.length ?? null,
@@ -217,7 +211,7 @@ if (process.env.CLEAR_POW) {
 if (process.env.CLEAR_POW_KEYS) {
   const loc = page.locator('textarea[name$="innowacja_produktowa_powiazanie_rezultatu_prac_br_z_lancuchem_wartosci"]').first();
   const before = await loc.inputValue();
-  await loc.click(); // allow-raw-playwright: focus the field that validation requires empty
+  await humanClickLocator(page, loc);
   await loc.press(process.platform === 'darwin' ? 'Meta+A' : 'Control+A'); // allow-raw-playwright: select current value
   await loc.press('Backspace'); // allow-raw-playwright: remove current value through field keyboard handler
   await loc.press('Tab'); // allow-raw-playwright: blur so form validation runs
@@ -225,12 +219,9 @@ if (process.env.CLEAR_POW_KEYS) {
   const after = await loc.inputValue();
   const savesBefore = await page.evaluate(() => Array.from(document.querySelectorAll('button')).filter((b) => b.innerText.trim() === 'Zapisz').map((b) => b.disabled));
   let saveResult = 'not-clicked';
-  const clicked = await page.evaluate(() => {
-    const saves = Array.from(document.querySelectorAll('button')).filter((b) => b.innerText.trim() === 'Zapisz' && !b.disabled && b.getClientRects().length);
-    if (!saves.length) return false;
-    saves[saves.length - 1].dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-    return true;
-  }); // allow-raw-playwright: save main section after keyboard-driven clear
+  const saves = page.getByRole('button', { name: 'Zapisz', exact: true }).filter({ visible: true });
+  const clicked = await saves.count() > 0;
+  if (clicked) await humanClickLocator(page, saves.last());
   if (clicked) { saveResult = 'clicked'; await humanIdlePause('long'); }
   console.log(JSON.stringify({ beforeLen: before.length, afterLen: after.length, savesBefore, saveResult }, null, 2));
   process.exit(0);
@@ -238,8 +229,8 @@ if (process.env.CLEAR_POW_KEYS) {
 
 if (process.env.DIAG_SET_KIND) {
   const inp = page.locator('input[name$="rodzaj_innowacji"]').first();
-  await inp.click(); // allow-raw-playwright: open kind combobox
-  await inp.fill('Innowacja produktowa'); // allow-raw-playwright: set kind text
+  await humanClickLocator(page, inp);
+  await humanFill(page, inp, 'Innowacja produktowa');
   await humanIdlePause('deliberate');
   await inp.press('ArrowDown'); // allow-raw-playwright: highlight option
   await inp.press('Enter'); // allow-raw-playwright: accept highlighted option
@@ -294,13 +285,11 @@ await page.goto(SECTION_URL, { waitUntil: 'domcontentloaded' });
 await humanIdlePause('long');
 const pow = page.locator('textarea[name$="innowacja_produktowa_powiazanie_rezultatu_prac_br_z_lancuchem_wartosci"]').first();
 if (await pow.count() > 0 && (await pow.inputValue()).length > 0) {
-  await pow.fill(''); // allow-raw-playwright: validation requires this field empty for selected 1.2 project type
+  await humanFill(page, pow, '');
   await humanIdlePause('short');
-  await page.evaluate(() => {
-    const s = Array.from(document.querySelectorAll('button')).filter((b) => b.innerText.trim() === 'Zapisz' && !b.disabled);
-    if (!s.length) throw new Error('no enabled main Zapisz');
-    s[s.length - 1].dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-  }); // allow-raw-playwright: save main section after clearing chain-value field
+  const saves = page.getByRole('button', { name: 'Zapisz', exact: true }).filter({ visible: true });
+  if (await saves.count() === 0) throw new Error('no enabled main Zapisz');
+  await humanClickLocator(page, saves.last());
   await humanIdlePause('long');
   done.push({ field: 'powiazanie_lancuch_wartosci', value: '' });
 }

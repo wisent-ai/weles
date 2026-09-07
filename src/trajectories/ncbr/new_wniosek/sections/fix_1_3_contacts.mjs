@@ -1,7 +1,8 @@
 // Repair section 1.3 contact-person collection. UI-only; never closes page.
 
 import { chromium } from 'playwright';
-import { humanIdlePause } from '../../../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../../../dist/human/mouse.js';
+import { humanFill } from '../../../../../dist/human/keyboard.js';
 
 const endpoint = process.env.NCBR_CDP_ENDPOINT || 'http://127.0.0.1:9223';
 const SECTION_URL = 'https://lsi2.ncbr.gov.pl/projekt/7ee80d9a-67dd-4d99-becd-8dda407221c1/projekt_step/317a21dd-e798-4115-ab53-6ab5a2912fb0';
@@ -36,11 +37,9 @@ await page.evaluate(() => {
 }); // allow-raw-playwright: neutralise cookie banner
 
 async function clickDodajContact() {
-  await page.evaluate(() => {
-    const btns = Array.from(document.querySelectorAll('button')).filter((b) => b.innerText.trim() === 'Dodaj' && b.getClientRects().length);
-    if (!btns[1]) throw new Error(`contact Dodaj not found; count=${btns.length}`);
-    btns[1].dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-  }); // allow-raw-playwright: open contact collection sub-form
+  const buttons = page.getByRole('button', { name: 'Dodaj', exact: true }).filter({ visible: true });
+  if (await buttons.count() <= 1) throw new Error(`contact Dodaj not found; count=${await buttons.count()}`);
+  await humanClickLocator(page, buttons.nth(1));
   await humanIdlePause('long');
 }
 
@@ -74,7 +73,7 @@ async function fillAny(names, value) {
     const max = Number(await loc.getAttribute('maxlength')) || value.length;
     let v = value;
     if (v.length > max) v = v.slice(0, max).replace(/\s+\S*$/, '');
-    await loc.fill(v); // allow-raw-playwright: contact text field
+    await humanFill(page, loc, v);
     await humanIdlePause('short');
     return `${name} ${v.length}/${max}`;
   }
@@ -84,11 +83,9 @@ async function fillAny(names, value) {
 async function saveForm() {
   await humanIdlePause('deliberate');
   await humanIdlePause('deliberate');
-  await page.evaluate(() => {
-    const saves = Array.from(document.querySelectorAll('button')).filter((b) => b.innerText.trim() === 'Zapisz' && !b.disabled);
-    if (!saves.length) throw new Error('no enabled Zapisz');
-    saves[saves.length - 1].dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-  }); // allow-raw-playwright: save contact row
+  const save = page.locator('button:not([disabled])').filter({ hasText: /^Zapisz$/ }).filter({ visible: true }).last();
+  if (await save.count() === 0) throw new Error('no enabled Zapisz');
+  await humanClickLocator(page, save);
   await humanIdlePause('long');
 }
 
@@ -96,11 +93,14 @@ async function deleteRowsContaining(needle) {
   const deleted = [];
   while (await page.evaluate((text) => Array.from(document.querySelectorAll('table tbody tr')).some((r) => (r.innerText || '').includes(text)), needle)) {
     await page.evaluate((text) => {
-      const row = Array.from(document.querySelectorAll('table tbody tr')).find((r) => (r.innerText || '').includes(text));
+      const row = Array.from(document.querySelectorAll('table tbody tr')).find((candidate) => (candidate.innerText || '').includes(text));
       const btn = row?.querySelector('button[aria-label="overflow-options"]');
       if (!btn) throw new Error(`row menu not found for ${text}`);
-      btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-    }, needle); // allow-raw-playwright: open visible stale contact row menu
+      btn.setAttribute('data-weles-human-target', 'stale-contact-row-menu');
+    }, needle); // allow-raw-playwright: locate visible stale contact row menu
+    const menuButton = page.locator('[data-weles-human-target="stale-contact-row-menu"]').first();
+    await humanClickLocator(page, menuButton);
+    await menuButton.evaluate((element) => element.removeAttribute('data-weles-human-target'));
     await humanIdlePause('deliberate');
     const del = page.locator('[role="menuitem"], .MuiMenuItem-root').filter({ hasText: /Usuń|Usun|Delete/ }).first();
     if (await del.count() === 0) throw new Error(`delete menu item not found for ${needle}`);
@@ -134,13 +134,12 @@ async function fillEdoreczeniaIfPresent() {
     return { found: true, filled: true, name: hit.name || null, id: hit.id || null };
   }, EDORECZENIA); // allow-raw-playwright: fill visible e-Doreczenia field if present
   if (result.filled) {
-    const clicked = await page.evaluate(() => {
-      const saves = Array.from(document.querySelectorAll('button')).filter((b) => b.innerText.trim() === 'Zapisz' && !b.disabled && b.getClientRects().length);
-      if (!saves.length) return false;
-      saves[saves.length - 1].dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-      return true;
-    }); // allow-raw-playwright: save main 1.3 form if e-Doreczenia was editable
-    if (clicked) await humanIdlePause('long');
+    const save = page.locator('button:not([disabled])').filter({ hasText: /^Zapisz$/ }).filter({ visible: true }).last();
+    const clicked = await save.count() > 0;
+    if (clicked) {
+      await humanClickLocator(page, save);
+      await humanIdlePause('long');
+    }
   }
   return result;
 }

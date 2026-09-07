@@ -5,6 +5,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { generatePersona } from '../../../dist/browser/persona.js';
 import { WSession } from '../../../dist/session/wsession.js';
+import { humanType } from '../../../dist/human/keyboard.js';
 
 const USER_DATA_DIR = process.env.WELES_USER_DATA_DIR || process.env.ADS_PROFILE_DIR || join(homedir(), '.weles', 'browser_profiles', 'meta_ads');
 const BUSINESS_ID = process.env.META_BUSINESS_ID || process.env.BUSINESS_ID || '885982240795843';
@@ -141,7 +142,7 @@ async function fillAdAccountId(page) {
   const y = Number(process.env.META_AD_ACCOUNT_FIELD_Y || 337);
   await page.mouse.click(x, y, { delay: 50 });
   await page.keyboard.press('ControlOrMeta+A').catch(() => {});
-  await page.keyboard.type(AD_ACCOUNT_ID, { delay: 20 }).catch(async () => {
+  await humanType(page, AD_ACCOUNT_ID).catch(async () => {
     await page.keyboard.insertText(AD_ACCOUNT_ID).catch(() => {});
   });
   console.log(JSON.stringify({ stage: 'filled_ad_account_id', adAccountId: AD_ACCOUNT_ID, x, y }));

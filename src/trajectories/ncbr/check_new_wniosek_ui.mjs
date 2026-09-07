@@ -2,7 +2,7 @@
 // Never submits and never closes the browser page.
 
 import { chromium } from 'playwright';
-import { humanIdlePause } from '../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../dist/human/mouse.js';
 
 const endpoint = process.env.NCBR_CDP_ENDPOINT || 'http://127.0.0.1:9223';
 const PROJECT_URL = 'https://lsi2.ncbr.gov.pl/projekt/7ee80d9a-67dd-4d99-becd-8dda407221c1';
@@ -27,11 +27,9 @@ await page.goto(PROJECT_URL, { waitUntil: 'domcontentloaded' });
 await humanIdlePause('long');
 await page.evaluate(() => { const b = Array.from(document.querySelectorAll('div')).find((d) => (d.innerText || '').includes('pliki cookies')); if (b) b.style.pointerEvents = 'none'; }); // allow-raw-playwright: cookie banner
 
-await page.evaluate(() => {
-  const btn = Array.from(document.querySelectorAll('button')).find((b) => b.innerText.trim() === 'Sprawdź wniosek' && b.getClientRects().length);
-  if (!btn) throw new Error('Sprawdź wniosek button not found');
-  btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-}); // allow-raw-playwright: trigger validation only, not submission
+const validateButton = page.getByRole('button', { name: 'Sprawdź wniosek', exact: true }).filter({ visible: true }).first();
+if (await validateButton.count() === 0) throw new Error('Sprawdź wniosek button not found');
+await humanClickLocator(page, validateButton);
 
 await humanIdlePause('long');
 await humanIdlePause('long');
@@ -51,16 +49,10 @@ if (process.env.ACK) {
     console.log(JSON.stringify({ ackCandidates: candidates }, null, 2));
     process.exit(0);
   }
-  await page.evaluate(() => {
-    const buttons = Array.from(document.querySelectorAll('button')).filter((b) =>
-      b.innerText.trim() === 'Potwierdzam zapoznanie ze wszystkimi informacjami'
-      && !b.disabled
-      && b.getClientRects().length
-      && getComputedStyle(b).visibility !== 'hidden'
-      && !b.closest('[aria-hidden="true"], .MuiModal-hidden')
-    );
-    if (buttons.length) buttons[buttons.length - 1].dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-  }); // allow-raw-playwright: acknowledge visible validation result modal only
+  const buttons = page.getByRole('button', { name: 'Potwierdzam zapoznanie ze wszystkimi informacjami', exact: true })
+    .filter({ visible: true });
+  const count = await buttons.count();
+  if (count > 0) await humanClickLocator(page, buttons.nth(count - 1));
   await humanIdlePause('long');
 }
 

@@ -2,7 +2,8 @@
 // Collection row: applicant + address dictionaries + street/number. Never closes page.
 
 import { chromium } from 'playwright';
-import { humanIdlePause } from '../../../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../../../dist/human/mouse.js';
+import { humanFill } from '../../../../../dist/human/keyboard.js';
 
 const endpoint = process.env.NCBR_CDP_ENDPOINT || 'http://127.0.0.1:9223';
 const SECTION_URL = 'https://lsi2.ncbr.gov.pl/projekt/7ee80d9a-67dd-4d99-becd-8dda407221c1/projekt_step/3b7656d2-f2d7-44df-af43-4f4b58b4101f';
@@ -12,39 +13,35 @@ const page = browser.contexts()[0]?.pages()[0];
 if (!page) { console.log(JSON.stringify({ error: 'NO_PAGE' })); process.exit(0); }
 
 async function clickDodaj(nth) {
-  await page.evaluate((n) => {
-    const btns = Array.from(document.querySelectorAll('button')).filter((b) => b.innerText.trim() === 'Dodaj');
-    if (!btns[n]) throw new Error(`Dodaj #${n} not found`);
-    btns[n].dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window })); // allow-raw-playwright: synthetic Dodaj click (Kimi reference)
-  }, nth);
+  const button = page.getByRole('button', { name: 'Dodaj', exact: true }).nth(nth);
+  if (await button.count() === 0) throw new Error(`Dodaj #${nth} not found`);
+  await humanClickLocator(page, button);
   await humanIdlePause('long');
 }
 async function saveForm() {
-  await page.evaluate(() => {
-    const s = Array.from(document.querySelectorAll('button')).filter((b) => b.innerText.trim() === 'Zapisz' && !b.disabled);
-    if (!s.length) throw new Error('no enabled Zapisz');
-    s[s.length - 1].dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window })); // allow-raw-playwright: synthetic save (Kimi reference)
-  });
+  const saves = page.getByRole('button', { name: 'Zapisz', exact: true }).filter({ visible: true });
+  const enabled = saves.filter({ hasNot: page.locator('[disabled]') });
+  if (await enabled.count() === 0) throw new Error('no enabled Zapisz');
+  await humanClickLocator(page, enabled.last());
   await humanIdlePause('long');
   await humanIdlePause('deliberate');
 }
 async function setApplicant() {
-  await page.evaluate((nm) => {
-    const inp = document.querySelector(`input[name="${nm}"]`);
-    const sel = inp && inp.closest('.MuiInputBase-root')?.querySelector('.MuiSelect-select, [role="combobox"]');
-    if (sel) { for (const t of ['mousedown', 'mouseup', 'click']) sel.dispatchEvent(new MouseEvent(t, { bubbles: true, cancelable: true, view: window })); } // allow-raw-playwright: open applicant MUI select
-  }, 'nazwa_skrocona_wnioskodawcy_samodzielnego_lidera_konsorcjum_konsorcjanta');
+  const applicant = page.locator('input[name="nazwa_skrocona_wnioskodawcy_samodzielnego_lidera_konsorcjum_konsorcjanta"]')
+    .locator('xpath=ancestor::*[contains(@class, "MuiInputBase-root")][1]')
+    .locator('.MuiSelect-select, [role="combobox"]').first();
+  if (await applicant.count() > 0) await humanClickLocator(page, applicant);
   await humanIdlePause('deliberate');
   const opt = page.getByRole('option', { name: 'Wisent Polska', exact: true }).first();
   await opt.waitFor({ state: 'visible' });
-  await opt.click({ force: true }); // allow-raw-playwright: select Wisent applicant
+  await humanClickLocator(page, opt);
   await humanIdlePause('short');
 }
 async function setAuto(name, value) {
   const inp = page.locator(`input[name$="${name}"]`).first();
-  await inp.click(); // allow-raw-playwright: open combobox
-  await inp.fill(''); // allow-raw-playwright: clear
-  await inp.fill(value); // allow-raw-playwright: filter
+  await humanClickLocator(page, inp);
+  await humanFill(page, inp, '');
+  await humanFill(page, inp, value);
   await humanIdlePause('deliberate');
   const opts = page.locator("[role='listbox'] [role='option']");
   if (await opts.count() === 0) throw new Error(`no options: ${name} -> ${value}`);
@@ -71,7 +68,7 @@ await setAuto('miejsce_realizacji_powiat', 'Lublin');
 await setAuto('miejsce_realizacji_gmina', 'Lublin');
 await setAuto('miejsce_realizacji_miejscowosc', 'Lublin');
 await setAuto('miejsce_realizacji_ulica', 'Frezerów');
-await page.locator("[name$='miejsce_realizacji_nr_budynku']").first().fill('3'); // allow-raw-playwright: text
+await humanFill(page, page.locator("[name$='miejsce_realizacji_nr_budynku']").first(), '3');
 await humanIdlePause('deliberate');
 await humanIdlePause('deliberate');
 let saveResult = 'saved';

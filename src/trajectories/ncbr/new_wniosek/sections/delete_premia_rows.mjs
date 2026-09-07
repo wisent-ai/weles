@@ -2,7 +2,7 @@
 // UI-only, no direct API writes. Never submits and never closes the page.
 
 import { chromium } from 'playwright';
-import { humanIdlePause } from '../../../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../../../dist/human/mouse.js';
 
 const endpoint = process.env.NCBR_CDP_ENDPOINT || 'http://127.0.0.1:9223';
 const PROJ = 'https://lsi2.ncbr.gov.pl/projekt/7ee80d9a-67dd-4d99-becd-8dda407221c1/projekt_step/';
@@ -32,12 +32,13 @@ async function rowCount() {
 }
 
 async function openFirstRowMenu() {
-  await page.evaluate(() => {
-    const rows = Array.from(document.querySelectorAll('table tbody tr'));
-    const row = rows.find((r) => r.querySelector('button[aria-label="overflow-options"]'));
-    if (!row) throw new Error('no data row');
-    row.querySelector('button[aria-label="overflow-options"]').dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-  }); // allow-raw-playwright: open row menu
+  const menu = page.locator('table tbody tr')
+    .filter({ has: page.locator('button[aria-label="overflow-options"]') })
+    .first()
+    .locator('button[aria-label="overflow-options"]')
+    .first();
+  if (await menu.count() === 0) throw new Error('no data row');
+  await humanClickLocator(page, menu);
   await humanIdlePause('deliberate');
 }
 
@@ -52,20 +53,15 @@ if (process.env.DIAG) {
 const deleted = [];
 while (await rowCount() > 0) {
   await openFirstRowMenu();
-  const clicked = await page.evaluate(() => {
-    const item = Array.from(document.querySelectorAll('[role="menuitem"], .MuiMenuItem-root'))
-      .find((e) => /usuń|usun/i.test(e.textContent || ''));
-    if (!item) return false;
-    item.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-    return true;
-  }); // allow-raw-playwright: choose delete action from row menu
+  const item = page.getByRole('menuitem', { name: /usuń|usun/i }).first();
+  const clicked = await item.count() > 0;
+  if (clicked) await humanClickLocator(page, item);
   if (!clicked) throw new Error('delete menu item not found');
   await humanIdlePause('deliberate');
-  await page.evaluate(() => {
-    const buttons = Array.from(document.querySelectorAll('button')).filter((b) =>
-      /usuń|usun|tak|potwierdź|potwierdz/i.test(b.innerText || '') && !b.disabled && b.getClientRects().length);
-    if (buttons.length) buttons[buttons.length - 1].dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-  }); // allow-raw-playwright: confirm deletion dialog
+  const buttons = page.getByRole('button', { name: /^(usuń|usun|tak|potwierdź|potwierdz)$/i })
+    .filter({ visible: true });
+  const count = await buttons.count();
+  if (count > 0) await humanClickLocator(page, buttons.nth(count - 1));
   await humanIdlePause('long');
   deleted.push(SECTION);
 }

@@ -203,7 +203,7 @@ async function loginWithGoogleSso() {
   const popupPromise = s.page.waitForEvent('popup', { timeout: 15000 }).catch(() => null);
   const pagePromise = s.page.context().waitForEvent('page', { timeout: 15000 }).catch(() => null);
   try {
-    await best.btn.click({ force: true, timeout: 5000 });
+    await humanClickLocator(s.page, best.btn);
   } catch (e) {
     console.log(`[linkedin_login] frame button click failed, falling back to humanClickLocator: ${e.message?.slice(0, 120)}`);
     await humanClickLocator(s.page, best.btn);

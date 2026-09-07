@@ -2,7 +2,8 @@
 // DIAG=1 only lists matching call cards/buttons. Never submits or withdraws.
 
 import { chromium } from 'playwright';
-import { humanIdlePause } from '../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../dist/human/mouse.js';
+import { humanFill } from '../../../dist/human/keyboard.js';
 
 const endpoint = process.env.NCBR_CDP_ENDPOINT || 'http://127.0.0.1:9223';
 const CALL = 'FENG.05.01-IP.01-003/26';
@@ -70,17 +71,9 @@ if (process.env.DIAG) {
 }
 
 async function clickCall() {
-  const clicked = await page.evaluate((call) => {
-    const links = Array.from(document.querySelectorAll('a')).filter((a) =>
-      (a.innerText || '').includes(call)
-      && a.getClientRects().length
-      && getComputedStyle(a).visibility !== 'hidden'
-    );
-    const target = links[0];
-    if (!target) return false;
-    target.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-    return true;
-  }, CALL); // allow-raw-playwright: open exact call details from list
+  const callLink = page.locator('a').filter({ hasText: CALL }).filter({ visible: true }).first();
+  const clicked = await callLink.count() > 0;
+  if (clicked) await humanClickLocator(page, callLink);
   if (!clicked) throw new Error(`call link not found: ${CALL}`);
   await humanIdlePause('long');
   await page.waitForLoadState('networkidle', { timeout: 20000 }).catch(() => null);
@@ -88,20 +81,9 @@ async function clickCall() {
 }
 
 async function clickApplyLikeButton() {
-  const clicked = await page.evaluate(() => {
-    const words = ['Aplikuj', 'Rozpocznij', 'Utwórz', 'Złóż wniosek o dofinansowanie'];
-    const btns = Array.from(document.querySelectorAll('button, a')).filter((b) => {
-      const text = (b.innerText || b.getAttribute('aria-label') || b.title || '').trim();
-      return words.some((w) => text.includes(w))
-        && !b.disabled
-        && b.getClientRects().length
-        && getComputedStyle(b).visibility !== 'hidden';
-    });
-    const target = btns.find((b) => (b.innerText || '').includes('Aplikuj')) || btns[0];
-    if (!target) return false;
-    target.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-    return true;
-  }); // allow-raw-playwright: click visible call application/start button
+  const target = page.getByRole('button', { name: /Aplikuj|Rozpocznij|Utwórz|Złóż wniosek o dofinansowanie/i }).or(page.getByRole('link', { name: /Aplikuj|Rozpocznij|Utwórz|Złóż wniosek o dofinansowanie/i })).filter({ visible: true }).first();
+  const clicked = await target.count() > 0;
+  if (clicked) await humanClickLocator(page, target);
   if (!clicked) throw new Error('apply/start button not found');
   await humanIdlePause('long');
   await page.waitForLoadState('networkidle', { timeout: 30000 }).catch(() => null);
@@ -115,23 +97,9 @@ await clickApplyLikeButton();
 // Some LSI flows show an additional variant/confirmation modal before creating a draft.
 let extraClicks = [];
 for (let i = 0; i < 3; i++) {
-  const clicked = await page.evaluate(() => {
-    const labels = ['Utwórz projekt', 'Rozpocznij', 'Aplikuj', 'Dalej', 'Potwierdzam'];
-    const btns = Array.from(document.querySelectorAll('button, a')).filter((b) => {
-      const text = (b.innerText || b.getAttribute('aria-label') || b.title || '').trim();
-      return labels.some((l) => text === l || text.includes(l))
-        && !b.disabled
-        && b.getClientRects().length
-        && getComputedStyle(b).visibility !== 'hidden'
-        && !text.includes('Złóż wniosek')
-        && !text.includes('Wycofanie');
-    });
-    const target = btns[0];
-    if (!target) return null;
-    const text = (target.innerText || target.getAttribute('aria-label') || target.title || '').trim();
-    target.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-    return text;
-  }); // allow-raw-playwright: advance project creation modal only, never submit/withdraw
+  const target = page.getByRole('button', { name: /Utwórz projekt|Rozpocznij|Aplikuj|Dalej|Potwierdzam/i }).or(page.getByRole('link', { name: /Utwórz projekt|Rozpocznij|Aplikuj|Dalej|Potwierdzam/i })).filter({ visible: true }).first();
+  const clicked = await target.textContent().catch(() => '');
+  if (clicked) await humanClickLocator(page, target);
   if (!clicked) break;
   extraClicks.push(clicked);
   await humanIdlePause('long');

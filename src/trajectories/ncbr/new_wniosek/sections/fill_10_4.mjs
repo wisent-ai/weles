@@ -2,7 +2,8 @@
 
 import { readFileSync } from 'node:fs';
 import { chromium } from 'playwright';
-import { humanIdlePause } from '../../../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../../../dist/human/mouse.js';
+import { humanFill } from '../../../../../dist/human/keyboard.js';
 
 const endpoint = process.env.NCBR_CDP_ENDPOINT || ['ht', 'tp://127.0.0.1:9223'].join('');
 const SECTION_URL = ['https://', 'lsi2.ncbr.gov.pl/projekt/7ee80d9a-67dd-4d99-becd-8dda407221c1/projekt_step/4e260fae-c455-41ce-bba3-d0df2a8767fd'].join('');
@@ -27,7 +28,7 @@ await page.evaluate(() => { const b = Array.from(document.querySelectorAll('div'
 
 async function pickFirst(suffix, search) {
   const inp = page.locator(`input[name$="${suffix}"]`).first();
-  await inp.click(); if (search) await inp.fill(search); // allow-raw-playwright: filter
+  await humanClickLocator(page, inp); if (search) await humanFill(page, inp, search);
   await humanIdlePause('deliberate');
   const opts = page.locator("[role='listbox'] [role='option']");
   const txt = (await opts.count()) > 0 ? (await opts.first().textContent())?.trim() : null;
@@ -39,18 +40,17 @@ async function pickFirst(suffix, search) {
 async function saveEnabled(label = 'save') {
   await humanIdlePause('deliberate');
   await humanIdlePause('deliberate');
-  await page.evaluate(() => {
-    const s = Array.from(document.querySelectorAll('button')).filter((b) => b.innerText.trim() === 'Zapisz' && !b.disabled);
-    if (!s.length) throw new Error('no enabled Zapisz');
-    s[s.length - 1].dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-  }); // allow-raw-playwright: save enabled form
+  const saves = page.getByRole('button', { name: 'Zapisz', exact: true }).filter({ visible: true });
+  const saveCount = await saves.count();
+  if (!saveCount) throw new Error('no enabled Zapisz');
+  await humanClickLocator(page, saves.nth(saveCount - 1));
   await humanIdlePause('long');
   return label;
 }
 
 if (process.env.DIAG) {
   const zr = page.locator('input[name$="zasady_szesc_r"]').first();
-  await zr.click(); await humanIdlePause('deliberate'); // allow-raw-playwright: open
+  await humanClickLocator(page, zr); await humanIdlePause('deliberate');
   const opts = await page.evaluate(() => Array.from(document.querySelectorAll("[role='listbox'] [role='option']")).map((o) => o.textContent.trim()));
   await opts.length && await page.locator("[role='listbox'] [role='option']").first().dispatchEvent('click'); // allow-raw-playwright: pick first to reveal
   await humanIdlePause('long');
@@ -60,15 +60,13 @@ if (process.env.DIAG) {
 }
 
 if (process.env.DIAG_ACT) {
-  await page.evaluate(() => {
-    const btn = Array.from(document.querySelectorAll('button')).find((b) => b.innerText.trim() === 'Dodaj' && b.getClientRects().length);
-    if (!btn) throw new Error('Dodaj not found');
-    btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-  }); // allow-raw-playwright: open legal-act collection row for diagnosis
+  const addButton = page.getByRole('button', { name: 'Dodaj', exact: true }).filter({ visible: true }).first();
+  if (!await addButton.count()) throw new Error('Dodaj not found');
+  await humanClickLocator(page, addButton);
   await humanIdlePause('long');
   if (process.env.ACT_SEARCH) {
     const inp = page.locator('input[name="akt_prawny"]').first();
-    await inp.click(); await inp.fill(process.env.ACT_SEARCH); // allow-raw-playwright: filter act dictionary for diagnosis
+    await humanClickLocator(page, inp); await humanFill(page, inp, process.env.ACT_SEARCH);
     await humanIdlePause('deliberate');
   }
   const fields = await page.evaluate(() => Array.from(document.querySelectorAll('input,textarea')).map((i) => {
@@ -100,12 +98,8 @@ if (process.env.DIAG_WSK) {
       rootHTML: root ? root.outerHTML.slice(0, 1600) : null,
     };
   }); // allow-raw-playwright: read 10.4 wskazniki control structure
-  await page.evaluate(() => {
-    const inp = document.querySelector('input[name$="zasady_szesc_r_wskazniki"]');
-    const root = inp && inp.closest('.MuiInputBase-root');
-    const target = root && (root.querySelector('.MuiSelect-select') || root.querySelector('[role="combobox"]') || root);
-    if (target) for (const t of ['mousedown', 'mouseup', 'click']) target.dispatchEvent(new MouseEvent(t, { bubbles: true, cancelable: true, view: window }));
-  }); // allow-raw-playwright: open 10.4 wskazniki MUI select for diagnosis
+  const wskaznikiSelect = page.locator('.MuiInputBase-root:has(input[name$="zasady_szesc_r_wskazniki"])').locator('.MuiSelect-select, [role="combobox"] , .MuiInputBase-root').first();
+  if (await wskaznikiSelect.count()) await humanClickLocator(page, wskaznikiSelect);
   await humanIdlePause('deliberate');
   const options = await page.evaluate(() => Array.from(document.querySelectorAll("[role='listbox'] [role='option'], [role='option']")).map((o) => o.textContent.trim()).filter(Boolean));
   console.log(JSON.stringify({ info, options }, null, 2));
@@ -116,7 +110,7 @@ async function multiInto(suffix, searches) {
   const picked = [];
   for (const s of searches) {
     const inp = page.locator(`input[name$="${suffix}"]`).first();
-    await inp.click(); await inp.fill(s); // allow-raw-playwright: filter
+    await humanClickLocator(page, inp); await humanFill(page, inp, s);
     await humanIdlePause('deliberate');
     const opt = page.locator("[role='listbox'] [role='option']").first();
     if (await opt.count() > 0) { picked.push((await opt.textContent())?.trim()?.slice(0, 40)); await opt.dispatchEvent('click'); } // allow-raw-playwright: pick
@@ -126,15 +120,9 @@ async function multiInto(suffix, searches) {
 }
 
 async function openMuiSelectBySuffix(suffix) {
-  await page.evaluate((suffix) => {
-    const input = document.querySelector(`input[name$="${suffix}"]`);
-    const root = input && input.closest('.MuiInputBase-root');
-    const select = root && root.querySelector('.MuiSelect-select, [role="combobox"]');
-    if (!select) throw new Error(`MUI select not found: ${suffix}`);
-    for (const t of ['mousedown', 'mouseup', 'click']) {
-      select.dispatchEvent(new MouseEvent(t, { bubbles: true, cancelable: true, view: window }));
-    }
-  }, suffix); // allow-raw-playwright: open MUI Select visible control, hidden input cannot be clicked
+  const select = page.locator(`.MuiInputBase-root:has(input[name$="${suffix}"])`).locator('.MuiSelect-select, [role="combobox"]').first();
+  if (!await select.count()) throw new Error(`MUI select not found: ${suffix}`);
+  await humanClickLocator(page, select);
   await humanIdlePause('deliberate');
 }
 
@@ -213,7 +201,7 @@ await humanIdlePause('deliberate');
 const projekt = await selectPrinciples(['ogranicz', 'zastanów']);
 const ta6r = page.locator('textarea[name$="opis_zasady_szesc_r"]').first();
 let v6 = OPIS_6R; if (v6.length > 4000) v6 = v6.slice(0, 4000).replace(/\s+\S*$/, '');
-await ta6r.fill(v6); // allow-raw-playwright: text
+await humanFill(page, ta6r, v6);
 await humanIdlePause('short');
 let wOpts = [];
 try {
@@ -230,14 +218,12 @@ if (saveResult === 'saved') {
   await page.goto(SECTION_URL, { waitUntil: 'domcontentloaded' });
   await humanIdlePause('long');
   if (!(await page.evaluate((name) => (document.body.innerText || '').includes(name), ACT.name))) {
-    await page.evaluate(() => {
-      const btn = Array.from(document.querySelectorAll('button')).find((b) => b.innerText.trim() === 'Dodaj' && b.getClientRects().length);
-      if (!btn) throw new Error('Dodaj not found');
-      btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-    }); // allow-raw-playwright: open legal-act sub-form
+    const addButton = page.getByRole('button', { name: 'Dodaj', exact: true }).filter({ visible: true }).first();
+    if (!await addButton.count()) throw new Error('Dodaj not found');
+    await humanClickLocator(page, addButton);
     await humanIdlePause('long');
     const act = page.locator('input[name="akt_prawny"]').first();
-    await act.click(); await act.fill('Inne'); // allow-raw-playwright: filter legal act option
+    await humanClickLocator(page, act); await humanFill(page, act, 'Inne');
     await humanIdlePause('deliberate');
     const opt = page.locator("[role='listbox'] [role='option']").first();
     if (await opt.count() > 0) await opt.dispatchEvent('click'); // allow-raw-playwright: pick "inne"
@@ -245,7 +231,7 @@ if (saveResult === 'saved') {
     const uz = page.locator('textarea[name="uzasadnienie"]').first();
     const max = Number(await uz.getAttribute('maxlength')) || 1000;
     let u = ACT.justification; if (u.length > max) u = u.slice(0, max).replace(/\s+\S*$/, '');
-    await uz.fill(u); // allow-raw-playwright: legal act justification
+    await humanFill(page, uz, u);
     await humanIdlePause('short');
     await saveEnabled('act');
     actResult = `saved ${u.length}/${max}`;

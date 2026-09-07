@@ -34,7 +34,7 @@ async function fillFirst(page, selectors, value) {
     const loc = page.locator(selector).filter({ visible: true }).first();
     if (await loc.count() && await loc.isVisible({ timeout: 1500 }).catch(() => false)) {
       await humanClickLocator(page, loc);
-      await loc.fill('').catch(() => {});
+      await humanFill(page, loc, '').catch(() => {});
       await humanType(page, value);
       return true;
     }
@@ -100,7 +100,7 @@ async function maybeHandlePhone(s) {
   if (phone.startsWith('error')) throw new Error(`yahoo_sms_unavailable: ${phone}`);
   const digits = s.resolveEnv('$YAHOO_NEW_PHONE').replace(/^\+?1/, '').replace(/\D/g, '');
   await humanClickLocator(page, phoneInput);
-  await phoneInput.fill('').catch(() => {});
+  await humanFill(page, phoneInput, '').catch(() => {});
   await humanType(page, digits);
   await submitNext(page);
   await humanIdlePause('long');
@@ -121,7 +121,7 @@ async function maybeHandleCode(s, id) {
     if (!code || /^no code|^error/i.test(code)) throw new Error(`yahoo_sms_otp_failed: ${code}`);
   }
   await humanClickLocator(page, codeInput);
-  await codeInput.fill('').catch(() => {});
+  await humanFill(page, codeInput, '').catch(() => {});
   await humanType(page, code);
   await submitNext(page);
   await humanIdlePause('long');
@@ -132,12 +132,12 @@ async function maybeHandlePassword(page, password) {
   const passwordInput = page.locator('input[name="password"], input[type="password"], input[id*="password" i]').filter({ visible: true }).first();
   if (!(await passwordInput.count()) || !(await passwordInput.isVisible({ timeout: 1500 }).catch(() => false))) return false;
   await humanClickLocator(page, passwordInput);
-  await passwordInput.fill('').catch(() => {});
+  await humanFill(page, passwordInput, '').catch(() => {});
   await humanType(page, password);
   const confirm = page.locator('input[name*="confirm" i], input[id*="confirm" i]').filter({ visible: true }).first();
   if (await confirm.count() && await confirm.isVisible({ timeout: 1000 }).catch(() => false)) {
     await humanClickLocator(page, confirm);
-    await confirm.fill('').catch(() => {});
+    await humanFill(page, confirm, '').catch(() => {});
     await humanType(page, password);
   }
   await submitNext(page);

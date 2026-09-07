@@ -2,7 +2,8 @@
 // Never submits; never calls LSI APIs directly.
 
 import { chromium } from 'playwright';
-import { humanIdlePause } from '../../../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../../../dist/human/mouse.js';
+import { humanFill } from '../../../../../dist/human/keyboard.js';
 
 const endpoint = process.env.NCBR_CDP_ENDPOINT || ['ht', 'tp://127.0.0.1:9223'].join('');
 const SECTION_URL = ['https://', 'lsi2.ncbr.gov.pl/projekt/7ee80d9a-67dd-4d99-becd-8dda407221c1/projekt_step/e95d0c23-8a39-4d56-96fa-ace3e4f0d23a'].join('');
@@ -37,11 +38,8 @@ if (already) {
 }
 
 async function clickDodaj() {
-  await page.evaluate(() => {
-    const btn = Array.from(document.querySelectorAll('button')).find((b) => b.innerText.trim() === 'Dodaj' && !b.disabled && b.getClientRects().length);
-    if (!btn) throw new Error('enabled Dodaj not found');
-    btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-  }); // allow-raw-playwright: open own indicator subform through visible UI
+  const add = page.getByRole('button', { name: 'Dodaj', exact: true }).filter({ visible: true }).first();
+  await humanClickLocator(page, add);
   await humanIdlePause('long');
 }
 
@@ -51,7 +49,7 @@ async function fillSuffix(suffix, value) {
   const max = Number(await loc.getAttribute('maxlength')) || String(value).length;
   let v = String(value);
   if (v.length > max) v = v.slice(0, max).replace(/\s+\S*$/, '');
-  await loc.fill(v); // allow-raw-playwright: fill 9.2 own indicator field
+  await humanFill(page, loc, v); // allow-raw-playwright: fill 9.2 own indicator field
   await loc.dispatchEvent('input'); // allow-raw-playwright: mark React field dirty
   await loc.dispatchEvent('change'); // allow-raw-playwright: mark React field changed
   await humanIdlePause('short');
@@ -61,11 +59,8 @@ async function fillSuffix(suffix, value) {
 async function saveForm() {
   await humanIdlePause('deliberate');
   await humanIdlePause('deliberate');
-  await page.evaluate(() => {
-    const saves = Array.from(document.querySelectorAll('button')).filter((b) => b.innerText.trim() === 'Zapisz' && !b.disabled && b.getClientRects().length);
-    if (!saves.length) throw new Error('no enabled Zapisz');
-    saves[saves.length - 1].dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-  }); // allow-raw-playwright: save 9.2 own indicator row
+  const save = page.getByRole('button', { name: 'Zapisz', exact: true }).filter({ visible: true }).last();
+  await humanClickLocator(page, save);
   await humanIdlePause('long');
 }
 

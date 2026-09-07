@@ -2,7 +2,8 @@
 // UI-only; never submits.
 
 import { chromium } from 'playwright';
-import { humanIdlePause } from '../../../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../../../dist/human/mouse.js';
+import { humanFill } from '../../../../../dist/human/keyboard.js';
 
 const endpoint = process.env.NCBR_CDP_ENDPOINT || ['ht', 'tp://127.0.0.1:9223'].join('');
 const SECTION_URL = ['https://', 'lsi2.ncbr.gov.pl/projekt/7ee80d9a-67dd-4d99-becd-8dda407221c1/projekt_step/e95d0c23-8a39-4d56-96fa-ace3e4f0d23a'].join('');
@@ -21,21 +22,21 @@ await page.evaluate(() => {
 }); // allow-raw-playwright: neutralise cookie banner only
 
 async function openRow() {
-  await page.evaluate((needle) => {
-    const table = document.querySelector('table');
-    if (!table) throw new Error('9.2 table not found');
-    const row = Array.from(table.querySelectorAll('tbody tr'))
-      .find((r) => (r.innerText || '').includes(needle) && r.querySelector('button[aria-label="overflow-options"]'));
-    if (!row) throw new Error(`target green indicator row not found: ${needle}`);
-    row.querySelector('button[aria-label="overflow-options"]').dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-  }, NEEDLE); // allow-raw-playwright: open row menu for exact green indicator
+  const rows = page.locator('table tbody tr');
+  let menuButton = null;
+  for (let index = 0; index < await rows.count(); index += 1) {
+    const row = rows.nth(index);
+    if (!(await row.innerText()).includes(NEEDLE)) continue;
+    const candidate = row.locator('button[aria-label="overflow-options"]').first();
+    if (await candidate.count()) menuButton = candidate;
+    break;
+  }
+  if (!menuButton) throw new Error(`target green indicator row not found: ${NEEDLE}`);
+  await humanClickLocator(page, menuButton);
   await humanIdlePause('deliberate');
-  await page.evaluate(() => {
-    const item = Array.from(document.querySelectorAll('[role="menuitem"], .MuiMenuItem-root'))
-      .find((e) => /edytuj/i.test(e.textContent || ''));
-    if (!item) throw new Error('edit menu item not found');
-    item.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-  }); // allow-raw-playwright: choose edit action
+  const item = page.getByRole('menuitem', { name: /edytuj/i }).first();
+  if (await item.count() === 0) throw new Error('edit menu item not found');
+  await humanClickLocator(page, item);
   await humanIdlePause('long');
 }
 
@@ -60,9 +61,7 @@ async function setSuffix(suffix, value) {
   if (await loc.count() === 0) return { suffix, status: 'missing' };
   const flags = await loc.evaluate((el) => ({ readOnly: el.readOnly, disabled: el.disabled })); // allow-raw-playwright: read field flags
   if (flags.readOnly || flags.disabled) return { suffix, status: 'locked', flags, value: await loc.inputValue().catch(() => null) };
-  await loc.fill(value); // allow-raw-playwright: fill editable year field
-  await loc.dispatchEvent('input'); // allow-raw-playwright: mark React field dirty
-  await loc.dispatchEvent('change'); // allow-raw-playwright: mark React field changed
+  await humanFill(page, loc, value);
   await humanIdlePause('short');
   return { suffix, status: 'set', value };
 }
@@ -70,11 +69,10 @@ async function setSuffix(suffix, value) {
 async function saveForm() {
   await humanIdlePause('deliberate');
   await humanIdlePause('deliberate');
-  await page.evaluate(() => {
-    const saves = Array.from(document.querySelectorAll('button')).filter((b) => b.innerText.trim() === 'Zapisz' && !b.disabled && b.getClientRects().length);
-    if (!saves.length) throw new Error('no enabled Zapisz');
-    saves[saves.length - 1].dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-  }); // allow-raw-playwright: save edited row
+  const saves = page.getByRole('button', { name: 'Zapisz', exact: true }).filter({ visible: true });
+  const count = await saves.count();
+  if (!count) throw new Error('no enabled Zapisz');
+  await humanClickLocator(page, saves.nth(count - 1));
   await humanIdlePause('long');
 }
 

@@ -12,8 +12,8 @@
 import { chromium } from 'playwright';
 import { writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { humanClickLocator } from '../../../../dist/human/mouse.js';
-import { humanFill } from '../../../../dist/human/keyboard.js';
+import { humanClickLocator } from '../../dist/human/mouse.js';
+import { humanFill } from '../../dist/human/keyboard.js';
 
 const CDP = 'http://localhost:9223';
 const OUT = '.work/keeper';

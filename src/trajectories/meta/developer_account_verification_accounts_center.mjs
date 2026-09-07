@@ -8,6 +8,8 @@ import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { generatePersona } from '../../../dist/browser/persona.js';
 import { WSession } from '../../../dist/session/wsession.js';
+import { humanClickLocator } from '../../../dist/human/mouse.js';
+import { humanFill, humanType } from '../../../dist/human/keyboard.js';
 
 const USER_DATA_DIR = process.env.WELES_USER_DATA_DIR || process.env.ADS_PROFILE_DIR || join(homedir(), '.weles', 'browser_profiles', 'meta_ads');
 const WAIT_MS = Number(process.env.WAIT_MS || 3000);
@@ -171,7 +173,7 @@ async function selectCountryForPhone(page, phone) {
   if (!opened) return false;
   let selected = await clickVisibleText(page, 'country_poland', /Poland\s*\(\+48\)|Polska\s*\(\+48\)/i, true);
   if (!selected) {
-    await page.keyboard.type('Poland', { delay: 20 }).catch(() => {});
+    await humanType(page, 'Poland').catch(() => {});
     await page.waitForTimeout(1000).catch(() => {});
     selected = await clickVisibleText(page, 'country_poland_after_search', /Poland\s*\(\+48\)|Polska\s*\(\+48\)/i, true);
   }
@@ -260,8 +262,8 @@ async function fillPhoneAndSend(page) {
   if (rect) await page.mouse.click(rect.x + rect.width / 2, rect.y + rect.height / 2, { delay: 50 }).catch(() => {});
   await input.focus().catch(() => {});
   await page.keyboard.press('ControlOrMeta+A').catch(() => {});
-  await page.keyboard.type(inputValue, { delay: 30 }).catch(async () => {
-    await input.fill(inputValue).catch(() => {});
+  await humanType(page, inputValue).catch(async () => {
+    await humanFill(page, input, inputValue).catch(() => {});
   });
   await input.dispatchEvent('input').catch(() => {});
   await input.dispatchEvent('change').catch(() => {});
@@ -365,9 +367,9 @@ async function fillCodeAndContinue(page) {
   if (!VERIFY_CODE) return { filled: false, clicked: false };
   const input = page.locator('input').filter({ visible: true }).last();
   if (!await input.isVisible().catch(() => false)) return { filled: false, clicked: false };
-  await input.click({ delay: 50 }).catch(() => {});
+  await humanClickLocator(page, input).catch(() => {});
   await page.keyboard.press('ControlOrMeta+A').catch(() => {});
-  await page.keyboard.type(VERIFY_CODE, { delay: 20 }).catch(async () => {
+  await humanType(page, VERIFY_CODE).catch(async () => {
     await page.keyboard.insertText(VERIFY_CODE).catch(() => {});
   });
   await page.waitForTimeout(1000).catch(() => {});

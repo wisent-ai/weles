@@ -7,7 +7,7 @@ import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { chromium } from 'playwright';
-import { humanIdlePause } from '../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../dist/human/mouse.js';
 import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
 
 const endpoint = process.env.NCBR_CDP_ENDPOINT || ['ht', 'tp://127.0.0.1:9223'].join('');
@@ -115,14 +115,10 @@ async function rowCount(page) {
 }
 
 async function openRowForRead(page, index) {
-  const opened = await page.evaluate((index) => {
-    const rows = Array.from(document.querySelectorAll('table tbody tr'))
-      .filter((r) => r.querySelector('button[aria-label="overflow-options"]'));
-    const btn = rows[index]?.querySelector('button[aria-label="overflow-options"]');
-    if (!btn) return false;
-    btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-    return true;
-  }, index); // allow-raw-playwright: open existing row overflow menu for read-only extraction
+  const rows = page.locator('table tbody tr').filter({ has: page.locator('button[aria-label="overflow-options"]') });
+  const btn = rows.nth(index).locator('button[aria-label="overflow-options"]').first();
+  const opened = await btn.count() > 0;
+  if (opened) await humanClickLocator(page, btn);
   if (!opened) return false;
   await humanIdlePause('deliberate');
   const edit = page.getByRole('menuitem', { name: 'Edytuj', exact: true }).first();
@@ -136,11 +132,9 @@ async function openRowForRead(page, index) {
 }
 
 async function closeRow(page) {
-  await page.evaluate(() => {
-    const buttons = Array.from(document.querySelectorAll('button')).filter((b) =>
-      b.innerText.trim() === 'Anuluj' && b.getClientRects().length && !b.disabled);
-    if (buttons.length) buttons[buttons.length - 1].dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-  }); // allow-raw-playwright: close read-only row form without saving
+  const buttons = page.getByRole('button', { name: 'Anuluj', exact: true }).filter({ visible: true });
+  const count = await buttons.count();
+  if (count) await humanClickLocator(page, buttons.nth(count - 1));
   await humanIdlePause('long');
 }
 

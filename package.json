@@ -8,9 +8,13 @@
     "weles-mcp": "dist/mcp.js"
   },
   "scripts": {
-    "build": "tsc && cp src/page-init/*.js dist/page-init/ && mkdir -p dist/page-init/firefox && cp src/page-init/firefox/*.js dist/page-init/firefox/ && mkdir -p dist/release && cp src/release/*.mjs dist/release/ && mkdir -p dist/figma && cp src/figma/export-design-assets.mjs src/figma/parse-figma-document.py dist/figma/ && mkdir -p dist/diagnostics && (cp -f src/diagnostics/*.js dist/diagnostics/ 2>/dev/null || true)",
-    "test": "tap tests/**/*.test.ts && node --test tests/worker/*.test.mjs tests/release/*.test.mjs tests/agent/*.test.mjs",
-    "dev": "tsc --watch"
+    "build": "tsc && cp src/page-init/*.js dist/page-init/ && mkdir -p dist/page-init/firefox && cp src/page-init/firefox/*.js dist/page-init/firefox/ && mkdir -p dist/release && cp src/release/*.mjs dist/release/ && mkdir -p dist/figma && cp src/figma/export-design-assets.mjs src/figma/parse-figma-document.py dist/figma/ && mkdir -p dist/diagnostics && (cp -f src/diagnostics/*.js dist/diagnostics/ 2>/dev/null || true) && chmod u+x,go+x dist/cli.js dist/mcp.js",
+    "test": "tap tests/**/*.test.ts && node --test tests/build/*.test.mjs tests/worker/*.test.mjs tests/release/*.test.mjs tests/agent/*.test.mjs",
+    "dev": "tsc --watch",
+    "lint:trusted-events": "node tests/policy/trusted-events.check.mjs",
+    "lint:humanization": "node tests/policy/humanization.check.mjs",
+    "lint:browser-boundary": "node tests/policy/browser-boundary.check.mjs",
+    "lint": "npm run lint:trusted-events && npm run lint:humanization && npm run lint:browser-boundary"
   },
   "dependencies": {
     "@faker-js/faker": "^10.4.0",

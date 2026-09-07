@@ -2,7 +2,8 @@
 
 import { readFileSync } from 'node:fs';
 import { chromium } from 'playwright';
-import { humanIdlePause } from '../../../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../../../dist/human/mouse.js';
+import { humanFill } from '../../../../../dist/human/keyboard.js';
 
 const endpoint = process.env.NCBR_CDP_ENDPOINT || 'http://127.0.0.1:9223';
 const SECTION_URL = 'https://lsi2.ncbr.gov.pl/projekt/7ee80d9a-67dd-4d99-becd-8dda407221c1/projekt_step/80ebca16-a9dd-4798-a334-5ac007cecbf7';
@@ -29,7 +30,7 @@ if (!page) { console.log(JSON.stringify({ error: 'NO_PAGE' })); process.exit(0);
 
 async function setAuto(name, value) {
   const inp = page.locator(`input[name="${NB}${name}"]`).first();
-  await inp.click(); await inp.fill(''); await inp.fill(value); // allow-raw-playwright: filter combobox
+  await humanClickLocator(page, inp); await humanFill(page, inp, ''); await humanFill(page, inp, value);
   await humanIdlePause('deliberate');
   const opts = page.locator("[role='listbox'] [role='option']");
   if (await opts.count() === 0) throw new Error(`no options: ${name}`);
@@ -40,7 +41,7 @@ async function fillCapped(name, value) {
   const ta = page.locator(`textarea[name="${NB}${name}"]`).first();
   const max = Number(await ta.getAttribute('maxlength')) || value.length;
   if (value.length > max) throw new Error(`${name} over limit: ${value.length}/${max}`);
-  await ta.fill(value); // allow-raw-playwright: LSI text, no anti-bot
+  await humanFill(page, ta, value);
   await humanIdlePause('short');
   return { max, len: value.length };
 }
@@ -53,7 +54,7 @@ await setAuto('rodzaj_innowacji', 'Innowacja produktowa');
 await page.waitForSelector(`input[name="${NB}innowacja_produktowa_nazwa"]`);
 await humanIdlePause('short');
 
-await page.locator(`input[name="${NB}innowacja_produktowa_nazwa"]`).first().fill(NAZWA); // allow-raw-playwright: text
+await humanFill(page, page.locator(`input[name="${NB}innowacja_produktowa_nazwa"]`).first(), NAZWA);
 await humanIdlePause('short');
 const opisR = await fillCapped('innowacja_produktowa_opis_rezultatu_prac_br', OPIS);
 
@@ -67,7 +68,7 @@ const factorLabels = [
   'skutkuje promowaniem pozytywnych skutków transgranicznych na rynku wewnętrznym',
 ];
 for (const label of factorLabels) {
-  await page.locator(czName).first().click(); // allow-raw-playwright: open czynniki multi
+  await humanClickLocator(page, page.locator(czName).first());
   await humanIdlePause('deliberate');
   const opt = page.locator("[role='listbox'] [role='option']").filter({ hasText: label }).first();
   if (await opt.count() > 0) { const t = (await opt.textContent())?.trim()?.slice(0, 70); await opt.dispatchEvent('click'); czynniki.push(t); } // allow-raw-playwright: pick factor by exact label
@@ -80,11 +81,11 @@ const powR = await fillCapped('innowacja_produktowa_powiazanie_rezultatu_prac_br
 await humanIdlePause('deliberate');
 await humanIdlePause('deliberate');
 let saveResult = 'saved';
-await page.evaluate(() => {
-  const s = Array.from(document.querySelectorAll('button')).filter((b) => b.innerText.trim() === 'Zapisz' && !b.disabled);
-  if (!s.length) throw new Error('no enabled Zapisz');
-  s[s.length - 1].dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window })); // allow-raw-playwright: synthetic save
-}).catch((e) => { saveResult = `NOT SAVED: ${String(e?.message || e).slice(0, 60)}`; });
+await (async () => {
+  const saves = page.getByRole('button', { name: 'Zapisz', exact: true }).filter({ visible: true });
+  if (await saves.count() === 0) throw new Error('no enabled Zapisz');
+  await humanClickLocator(page, saves.last());
+})().catch((e) => { saveResult = `NOT SAVED: ${String(e?.message || e).slice(0, 60)}`; });
 await humanIdlePause('long');
 
 const readback = await page.evaluate((nb) => {

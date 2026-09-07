@@ -2,7 +2,7 @@
 
 import assert from 'node:assert';
 import * as net from 'node:net';
-import { isEndpointListening, resolveSkarbiecEndpoint, formatEndpointErrorMessage } from './endpoint-resolution.mjs';
+import { isEndpointListening, resolveSkarbiecEndpoint, formatEndpointErrorMessage } from '../../src/worker/deploy/endpoint-resolution.mjs';
 
 let testsPassed = 0;
 let testsFailed = 0;

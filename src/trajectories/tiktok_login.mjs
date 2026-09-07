@@ -376,14 +376,9 @@ try {
         if (attempt > 0) {
           // Click captcha refresh button to get a new puzzle. The icon is a
           // circular arrow at the bottom-right of the modal footer.
-          const refreshed = await s.page.evaluate(() => {
-            const modal = document.querySelector('.captcha-verify-container, .captcha_verify_container, [class*="captcha-"]');
-            if (!modal) return false;
-            const btns = Array.from(modal.querySelectorAll('button, [role="button"], svg, [class*="refresh" i], [class*="reload" i]'));
-            const refresh = btns.find(b => /refresh|reload/i.test((b.className || '').toString()) || /refresh|reload/i.test(b.getAttribute?.('aria-label') || ''));
-            if (refresh) { refresh.click(); return true; }
-            return false;
-          }).catch(() => false);
+          const refresh = s.page.locator('.captcha-verify-container, .captcha_verify_container, [class*="captcha-"]').locator('button, [role="button"], [class*="refresh" i], [class*="reload" i]').filter({ visible: true }).first();
+          const refreshed = await refresh.count() > 0;
+          if (refreshed) await humanClickLocator(s.page, refresh);
           console.log(`[tiktok_login] captcha retry ${attempt} refresh-clicked=${refreshed}`);
           await humanIdlePause('short');
         }

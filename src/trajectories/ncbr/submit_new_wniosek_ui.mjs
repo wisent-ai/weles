@@ -2,7 +2,8 @@
 // Assumes live validation has already returned clean status. Never closes page.
 
 import { chromium } from 'playwright';
-import { humanIdlePause } from '../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../dist/human/mouse.js';
+import { humanFill } from '../../../dist/human/keyboard.js';
 
 const endpoint = process.env.NCBR_CDP_ENDPOINT || 'http://127.0.0.1:9223';
 const PROJECT_URL = 'https://lsi2.ncbr.gov.pl/projekt/8bab411b-170f-438d-a148-f71eb0ab2c9f';
@@ -30,18 +31,9 @@ await page.evaluate(() => {
 }); // allow-raw-playwright: neutralize cookie banner only
 
 async function clickVisibleButton(text) {
-  const clicked = await page.evaluate((text) => {
-    const btns = Array.from(document.querySelectorAll('button')).filter((b) =>
-      b.innerText.trim() === text
-      && !b.disabled
-      && b.getClientRects().length
-      && getComputedStyle(b).visibility !== 'hidden'
-      && !b.closest('[aria-hidden="true"], .MuiModal-hidden')
-    );
-    if (!btns.length) return false;
-    btns[btns.length - 1].dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-    return true;
-  }, text); // allow-raw-playwright: click exact visible enabled UI button
+  const button = page.getByRole('button', { name: text, exact: true }).filter({ visible: true }).last();
+  const clicked = await button.isEnabled().catch(() => false);
+  if (clicked) await humanClickLocator(page, button);
   if (clicked) await humanIdlePause('long');
   return clicked;
 }

@@ -1,7 +1,7 @@
 // Generic Tak/Nie collection filler for 4.3, 5.3 and 5.4 in the replacement draft. Never submits.
 
 import { chromium } from 'playwright';
-import { humanIdlePause } from '../../../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../../../dist/human/mouse.js';
 
 const endpoint = process.env.NCBR_CDP_ENDPOINT || 'http://127.0.0.1:9223';
 const PROJ = 'https://lsi2.ncbr.gov.pl/projekt/7ee80d9a-67dd-4d99-becd-8dda407221c1/projekt_step/';
@@ -34,30 +34,23 @@ async function dataRowCount() {
 
 async function openForm() {
   if (await dataRowCount() > 0) {
-    await page.evaluate(() => {
-      const row = Array.from(document.querySelectorAll('table tbody tr')).find((r) => r.querySelector('button[aria-label="overflow-options"]'));
-      row.querySelector('button[aria-label="overflow-options"]').dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-    }); // allow-raw-playwright: open row menu
+    const menu = page.locator('table tbody tr button[aria-label="overflow-options"]').first();
+    await humanClickLocator(page, menu);
     await humanIdlePause('deliberate');
     await page.getByRole('menuitem', { name: 'Edytuj', exact: true }).first().dispatchEvent('click'); // allow-raw-playwright: edit existing row
   } else {
-    await page.evaluate(() => {
-      const btn = Array.from(document.querySelectorAll('button')).find((b) => b.innerText.trim() === 'Dodaj' && b.getClientRects().length);
-      if (!btn) throw new Error('Dodaj not found');
-      btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-    }); // allow-raw-playwright: open new row
+    const button = page.getByRole('button', { name: 'Dodaj', exact: true }).filter({ visible: true }).first();
+    if (await button.count() === 0) throw new Error('Dodaj not found');
+    await humanClickLocator(page, button);
   }
   await humanIdlePause('long');
 }
 
 async function setApplicant() {
-  await page.evaluate(() => {
-    const inp = Array.from(document.querySelectorAll('input')).find((i) => /nazwa_skrocona_wnioskodawcy/.test(i.name || ''));
-    const root = inp && inp.closest('.MuiInputBase-root');
-    const select = root && root.querySelector('.MuiSelect-select, [role="combobox"]');
-    if (!select) return;
-    for (const t of ['mousedown', 'mouseup', 'click']) select.dispatchEvent(new MouseEvent(t, { bubbles: true, cancelable: true, view: window }));
-  }); // allow-raw-playwright: open applicant select
+  const applicant = page.locator('input[name*="nazwa_skrocona_wnioskodawcy"]')
+    .locator('xpath=ancestor::*[contains(@class, "MuiInputBase-root")][1]')
+    .locator('.MuiSelect-select, [role="combobox"]').first();
+  if (await applicant.count() > 0) await humanClickLocator(page, applicant);
   await humanIdlePause('deliberate');
   const opt = page.getByRole('option', { name: 'Wisent Polska', exact: true }).first();
   if (await opt.count() > 0) await opt.dispatchEvent('click'); // allow-raw-playwright: select applicant
@@ -67,11 +60,9 @@ async function setApplicant() {
 async function saveEnabled() {
   await humanIdlePause('deliberate');
   await humanIdlePause('deliberate');
-  await page.evaluate(() => {
-    const saves = Array.from(document.querySelectorAll('button')).filter((b) => b.innerText.trim() === 'Zapisz' && !b.disabled && b.getClientRects().length);
-    if (!saves.length) throw new Error('no enabled Zapisz');
-    saves[saves.length - 1].dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-  }); // allow-raw-playwright: save Tak/Nie collection row
+  const saves = page.getByRole('button', { name: 'Zapisz', exact: true }).filter({ visible: true });
+  if (await saves.count() === 0) throw new Error('no enabled Zapisz');
+  await humanClickLocator(page, saves.last());
   await humanIdlePause('long');
 }
 

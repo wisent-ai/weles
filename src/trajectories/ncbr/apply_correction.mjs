@@ -4,7 +4,8 @@
 import { createHash } from 'node:crypto';
 import { writeFileSync } from 'node:fs';
 import { chromium } from 'playwright';
-import { humanIdlePause } from '../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../dist/human/mouse.js';
+import { humanFill } from '../../../dist/human/keyboard.js';
 import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
 
 const LSI_ORIGIN = 'https://lsi2.ncbr.gov.pl';
@@ -196,9 +197,9 @@ async function assertFieldCapacity(locator, field, scope, requireEditable = fals
   return state;
 }
 
-async function fillField(locator, field, scope) {
+async function fillField(page, locator, field, scope) {
   await assertFieldCapacity(locator, field, scope, true);
-  await locator.fill(field.value); // allow-raw-playwright: fill one declared correction field through the visible control
+  await humanFill(page, locator, field.value);
   await locator.dispatchEvent('blur'); // allow-raw-playwright: commit the visible React-controlled field value
   await humanIdlePause('short');
   const current = await locator.inputValue();
@@ -219,7 +220,7 @@ async function clickExactSafe(page, role, text) {
   const locator = page.getByRole(role, { name: text, exact: true });
   const visible = locator.filter({ visible: true });
   if (await visible.count() === 0) throw new Error(`visible ${role} not found: ${text}`);
-  await visible.last().click(); // allow-raw-playwright: click an exact, non-submission LSI control
+  await humanClickLocator(page, visible.last());
   await humanIdlePause('deliberate');
 }
 
@@ -231,7 +232,7 @@ async function saveVisibleForm(page) {
 async function closeVisibleForm(page) {
   const cancel = page.getByRole('button', { name: 'Anuluj', exact: true }).filter({ visible: true });
   if (await cancel.count() > 0) {
-    await cancel.last().click(); // allow-raw-playwright: close a row form without any submission action
+    await humanClickLocator(page, cancel.last());
     await humanIdlePause('long');
   }
 }
@@ -239,7 +240,7 @@ async function closeVisibleForm(page) {
 async function applyScalarSection(page, section) {
   await gotoSafe(page, section.url);
   if (mode === 'apply') {
-    for (const field of section.fields) await fillField(await oneField(page, field.name), field, section.label);
+    for (const field of section.fields) await fillField(page, await oneField(page, field.name), field, section.label);
     await saveVisibleForm(page);
   }
   await gotoSafe(page, section.url);
@@ -256,10 +257,13 @@ async function openCollectionRow(page, collection, row) {
       return norm(cells).includes(needle);
     });
     if (matches.length !== 1) return { count: matches.length };
-    matches[0].querySelector('button[aria-label="overflow-options"]').dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+    matches[0].querySelector('button[aria-label="overflow-options"]').setAttribute('data-weles-human-target', 'collection-row-menu');
     return { count: 1 };
-  }, row.rowNeedle); // allow-raw-playwright: open the one table row named by the correction plan
+  }, row.rowNeedle); // allow-raw-playwright: locate the one table row named by the correction plan
   if (found.count !== 1) throw new Error(`${collection.label} row needle resolved to ${found.count}: ${row.rowNeedle}`);
+  const menuButton = page.locator('[data-weles-human-target="collection-row-menu"]').first();
+  await humanClickLocator(page, menuButton);
+  await menuButton.evaluate((element) => element.removeAttribute('data-weles-human-target'));
   await humanIdlePause('deliberate');
   await clickExactSafe(page, 'menuitem', 'Edytuj');
   await page.waitForSelector(`[name$="${row.matchField}"]`, { timeout: 30_000 }); // allow-raw-playwright: wait for the selected row form
@@ -287,11 +291,11 @@ async function nestedPrefix(page, nested) {
 async function applyCollectionRow(page, collection, row) {
   await openCollectionRow(page, collection, row);
   if (mode === 'apply') {
-    for (const field of row.fields || []) await fillField(await oneField(page, field.name), field, collection.label);
+    for (const field of row.fields || []) await fillField(page, await oneField(page, field.name), field, collection.label);
     if (row.nested) {
       const prefix = await nestedPrefix(page, row.nested);
       for (const field of row.nested.fields || []) {
-        await fillField(await oneField(page, `${prefix}${field.nameSuffix}`), { ...field, name: `${prefix}${field.nameSuffix}` }, collection.label);
+        await fillField(page, await oneField(page, `${prefix}${field.nameSuffix}`), { ...field, name: `${prefix}${field.nameSuffix}` }, collection.label);
       }
     }
     await saveVisibleForm(page);
@@ -346,17 +350,22 @@ async function exposeCriterionForm(page) {
       const menu = container?.querySelector('button[aria-label="overflow-options"]');
       const edit = Array.from(container?.querySelectorAll('button, [role="button"]') || []).find((button) => norm(button.textContent) === 'Edytuj');
       const target = menu || edit || heading;
-      target?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+      target?.setAttribute('data-weles-human-target', 'criterion-expose');
       return { found: true, clicked: Boolean(target), usedMenu: Boolean(menu) };
     }
     return { found: true, clicked: false, usedMenu: false };
-  }, plan.correctionCard.headingNeedle); // allow-raw-playwright: expose only the exact criterion 2 form or row menu
+  }, plan.correctionCard.headingNeedle); // allow-raw-playwright: locate only the exact criterion 2 form or row menu
   if (!state.found) throw new Error('criterion 2 container not found');
-  if (state.clicked) await humanIdlePause('long');
+  if (state.clicked) {
+    const target = page.locator('[data-weles-human-target="criterion-expose"]').first();
+    await humanClickLocator(page, target);
+    await target.evaluate((element) => element.removeAttribute('data-weles-human-target'));
+    await humanIdlePause('long');
+  }
   if (state.usedMenu) {
     const edit = page.getByRole('menuitem', { name: 'Edytuj', exact: true }).filter({ visible: true });
     if (await edit.count() > 0) {
-      await edit.first().click(); // allow-raw-playwright: edit only the previously selected criterion 2 row
+      await humanClickLocator(page, edit.first());
       await humanIdlePause('long');
     }
   }
@@ -395,7 +404,7 @@ async function applyCorrectionCard(page) {
   let control = await criterionControl(page);
   const field = { name: 'criterion-2-answer', value: plan.correctionCard.value, maxLength: plan.correctionCard.maxLength };
   if (mode === 'apply') {
-    await fillField(control, field, 'KPW');
+    await fillField(page, control, field, 'KPW');
     await saveVisibleForm(page);
   } else {
     await closeVisibleForm(page);

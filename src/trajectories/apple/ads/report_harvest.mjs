@@ -9,6 +9,7 @@ import { join } from 'node:path';
 import { getSocialAccount, resolveAccountSession } from '../../../../dist/utils/credentials.js';
 import { WSession } from '../../../../dist/session/wsession.js';
 import { generatePersona } from '../../../../dist/browser/persona.js';
+import { humanClickLocator } from '../../../../dist/human/mouse.js';
 
 const USER_DATA_DIR = process.env.WELES_USER_DATA_DIR || process.env.ADS_PROFILE_DIR || join(homedir(), '.weles', 'browser_profiles', 'apple_ads');
 const DIAG_DIR = process.env.APPLE_ADS_DIAG_DIR || '.work/apple-ads-report-harvest';
@@ -289,56 +290,34 @@ async function collectPageState(page) {
 }
 
 async function clickDatePreset(page, label) {
-  return await page.evaluate(async (targetLabel) => {
-    const norm = (value) => String(value || '').replace(/\s+/g, ' ').trim();
-    const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-    const clickElement = (el) => {
-      if (!el) return false;
-      el.dispatchEvent(new MouseEvent('mouseover', { bubbles: true, cancelable: true, view: window }));
-      el.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, view: window }));
-      el.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true, view: window }));
-      el.click();
-      return true;
-    };
-    const visible = (el) => {
-      const style = window.getComputedStyle(el);
-      return style && style.visibility !== 'hidden' && style.display !== 'none'
-        && Boolean(el.offsetWidth || el.offsetHeight || el.getClientRects().length);
-    };
-    const allDeep = (root = document) => {
-      const out = [];
-      for (const el of Array.from(root.querySelectorAll('*'))) {
-        out.push(el);
-        if (el.shadowRoot) out.push(...allDeep(el.shadowRoot));
-      }
-      return out;
-    };
+  try {
+    const opener = page.locator([
+      'apui-wc-date-range-picker .date-range-picker__main-content',
+      'apui-wc-date-range-picker .form-input--date-range-picker',
+      'apui-wc-date-range-picker .date-range-picker',
+      '.table-toolbar__date',
+      '.date-range-picker',
+    ].join(', ')).filter({ visible: true }).first();
+    if (await opener.count() === 0) return { ok: false, stage: 'open', reason: 'date picker opener not found' };
+    await humanClickLocator(page, opener);
+    await page.waitForTimeout(500);
 
-    const picker = document.querySelector('apui-wc-date-range-picker');
-    const opener = picker?.querySelector('.date-range-picker__main-content, .form-input--date-range-picker, .date-range-picker')
-      || document.querySelector('.table-toolbar__date, .date-range-picker');
-    if (!clickElement(opener)) return { ok: false, stage: 'open', reason: 'date picker opener not found' };
-    await sleep(500);
-
-    const candidates = allDeep()
-      .filter((el) => norm(el.innerText || el.textContent) === targetLabel)
-      .sort((a, b) => Number(visible(b)) - Number(visible(a)) || a.tagName.length - b.tagName.length);
-    const item = candidates.find((el) => /^(LI|BUTTON|DIV|SPAN|A)$/i.test(el.tagName)) || candidates[0];
-    if (!item) return { ok: false, stage: 'select', reason: `preset not found: ${targetLabel}` };
-    const clickable = item.closest('li, button, [role="button"], a') || item;
-    const clicked = clickElement(clickable);
-    await sleep(1500);
-    return {
-      ok: clicked,
-      stage: 'select',
-      label: targetLabel,
-      tag: clickable.tagName,
-      text: norm(clickable.innerText || clickable.textContent),
-      className: String(clickable.className || ''),
-      visible: visible(clickable),
+    const item = page.getByText(label, { exact: true }).filter({ visible: true }).first();
+    if (await item.count() === 0) return { ok: false, stage: 'select', reason: `preset not found: ${label}` };
+    const clickable = item.locator('xpath=ancestor-or-self::*[self::li or self::button or self::a or @role="button"][1]').or(item).first();
+    await humanClickLocator(page, clickable);
+    await page.waitForTimeout(1500);
+    const detail = await clickable.evaluate((el) => ({
+      tag: el.tagName,
+      text: String(el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim(),
+      className: String(el.className || ''),
+      visible: Boolean(el.offsetWidth || el.offsetHeight || el.getClientRects().length),
       url: location.href,
-    };
-  }, label).catch((error) => ({ ok: false, stage: 'exception', reason: error.message }));
+    }));
+    return { ok: true, stage: 'select', label, ...detail };
+  } catch (error) {
+    return { ok: false, stage: 'exception', reason: error.message };
+  }
 }
 
 function responseIsRelevant(response) {

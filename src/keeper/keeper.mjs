@@ -1,7 +1,7 @@
 // Persistent Tencent HY 3D Global session — opens once, never closes.
 // Subsequent helper invocations attach via CDP and drive the same page.
 //
-// Run: node src/trajectories/tencent/keeper/keeper.mjs
+// Run: node src/keeper/keeper.mjs
 // CDP: http://localhost:9223
 
 import { chromium } from 'playwright';
@@ -43,7 +43,7 @@ await page.goto(PORTAL_URL, { waitUntil: 'domcontentloaded' }).catch((e) => cons
 console.log(`[keeper] current URL: ${page.url()}`);
 
 console.log('[keeper] === BROWSER STAYS OPEN ===');
-console.log('[keeper] Drive via: node src/trajectories/tencent/keeper/action.mjs <action> [args]');
+console.log('[keeper] Drive via: node src/keeper/action.mjs <action> [args]');
 console.log('[keeper] Actions: dump | click <sel> | fill <sel> <text> | nav <url> | screenshot | eval <js>');
 
 // Idle forever. Never close.

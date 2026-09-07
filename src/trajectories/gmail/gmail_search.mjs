@@ -16,7 +16,7 @@
 // Run:  node src/trajectories/gmail/gmail_search.mjs
 // Env:  GM_QUERY  overrides the Gmail search query
 //       GM_OPEN=0 skips opening thread bodies (list only)
-import { launchRealChrome } from '../_shared/services/real_chrome.mjs';
+import { launchRealChrome } from '../../browser/real_chrome.mjs';
 import { humanIdlePause, humanClickLocator } from '../../../dist/human/mouse.js';
 
 const QUERY = process.env.GM_QUERY || 'newer_than:1y in:anywhere';

@@ -282,7 +282,7 @@ async function fillAnyReliable(s, selectors, value, label) {
       console.log(`[meta-ads] already filled: ${label}`);
       return true;
     }
-    await loc.fill(String(value), { timeout: 5000 }).catch(() => {});
+    await humanFill(s.page, loc, String(value)).catch(() => {});
     await humanIdlePause('short');
     const directFirst = await loc.evaluate((el) => el.value ?? el.innerText ?? el.textContent ?? '').catch(() => '');
     if (String(directFirst).trim() === String(value).trim()) {
@@ -316,7 +316,7 @@ async function fillAnyReliable(s, selectors, value, label) {
     await s.page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
     await s.page.keyboard.press(process.platform === 'darwin' ? 'Meta+A' : 'Control+A').catch(() => {});
     await s.page.keyboard.press('Backspace').catch(() => {});
-    await s.page.keyboard.type(String(value), { delay: 45 });
+    await humanType(s.page, String(value));
     await humanIdlePause('short');
     const typed = await loc.evaluate((el) => el.value ?? el.innerText ?? el.textContent ?? '').catch(() => '');
     if (String(typed).trim() === String(value).trim()) {

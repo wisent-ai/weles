@@ -2,7 +2,8 @@
 
 import { readFileSync } from 'node:fs';
 import { chromium } from 'playwright';
-import { humanIdlePause } from '../../../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../../../dist/human/mouse.js';
+import { humanFill } from '../../../../../dist/human/keyboard.js';
 
 const endpoint = process.env.NCBR_CDP_ENDPOINT || 'http://127.0.0.1:9223';
 const SECTION_URL = 'https://lsi2.ncbr.gov.pl/projekt/7ee80d9a-67dd-4d99-becd-8dda407221c1/projekt_step/c5dbdc83-5baf-4866-b3d8-4da3ae553865';
@@ -33,7 +34,7 @@ if (!page) { console.log(JSON.stringify({ error: 'NO_PAGE' })); process.exit(0);
 
 async function setAuto(suffix, value) {
   const inp = page.locator(`input[name$="${suffix}"]`).first();
-  await inp.click(); await inp.fill(''); await inp.fill(value); // allow-raw-playwright: filter combobox
+  await humanFill(page, inp, value);
   await humanIdlePause('deliberate');
   const opts = page.locator("[role='listbox'] [role='option']");
   if (await opts.count() === 0) throw new Error(`no options: ${suffix}`);
@@ -44,40 +45,36 @@ async function fillCapped(suffix, value) {
   const ta = page.locator(`textarea[name$="${suffix}"]`).first();
   const max = Number(await ta.getAttribute('maxlength')) || value.length;
   if (value.length > max) throw new Error(`${suffix} over limit: ${value.length}/${max}`);
-  await ta.fill(value); // allow-raw-playwright: LSI text
+  await humanFill(page, ta, value);
   await humanIdlePause('short');
   return { max, len: value.length };
 }
 async function setApplicant() {
-  await page.evaluate(() => {
-    const inp = Array.from(document.querySelectorAll('input')).find((i) => /nazwa_skrocona_wnioskodawcy/.test(i.name || ''));
-    const root = inp && (inp.closest('.MuiFormControl-root') || inp.closest('.MuiInputBase-root'));
-    const sel = root && root.querySelector('.MuiSelect-select, [role="combobox"]');
-    if (!sel) throw new Error('applicant select not found');
-    for (const t of ['mousedown', 'mouseup', 'click']) sel.dispatchEvent(new MouseEvent(t, { bubbles: true, cancelable: true, view: window }));
-  }); // allow-raw-playwright: open 2.3 applicant select
+  const input = page.locator('input[name*="nazwa_skrocona_wnioskodawcy"]').first();
+  const root = page.locator('.MuiFormControl-root, .MuiInputBase-root').filter({ has: input }).first();
+  const select = root.locator('.MuiSelect-select, [role="combobox"]').first();
+  if (await select.count() === 0) throw new Error('applicant select not found');
+  await humanClickLocator(page, select);
   await humanIdlePause('deliberate');
   const opt = page.getByRole('option', { name: 'Wisent Polska', exact: true }).first();
   await opt.waitFor({ state: 'visible' });
-  await opt.click({ force: true }); // allow-raw-playwright: select Wisent applicant
+  await humanClickLocator(page, opt);
   await humanIdlePause('short');
 }
 async function saveMain() {
   await humanIdlePause('deliberate');
   await humanIdlePause('deliberate');
-  await page.evaluate(() => {
-    const s = Array.from(document.querySelectorAll('button')).filter((b) => b.innerText.trim() === 'Zapisz' && !b.disabled);
-    if (!s.length) throw new Error('no enabled Zapisz');
-    s[s.length - 1].dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-  }); // allow-raw-playwright: save 2.3 main section
+  const saves = page.getByRole('button', { name: 'Zapisz', exact: true })
+    .filter({ visible: true });
+  const count = await saves.count();
+  if (!count) throw new Error('no enabled Zapisz');
+  await humanClickLocator(page, saves.nth(count - 1));
   await humanIdlePause('long');
 }
 async function clickDodaj(nth) {
-  await page.evaluate((n) => {
-    const btns = Array.from(document.querySelectorAll('button')).filter((b) => b.innerText.trim() === 'Dodaj' && b.getClientRects().length);
-    if (!btns[n]) throw new Error(`Dodaj #${n} not found; count=${btns.length}`);
-    btns[n].dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-  }, nth); // allow-raw-playwright: open 2.3 competitor collection row
+  const buttons = page.getByRole('button', { name: 'Dodaj', exact: true }).filter({ visible: true });
+  if (await buttons.count() <= nth) throw new Error(`Dodaj #${nth} not found; count=${await buttons.count()}`);
+  await humanClickLocator(page, buttons.nth(nth));
   await humanIdlePause('long');
 }
 async function fillNamed(name, value) {
@@ -85,18 +82,18 @@ async function fillNamed(name, value) {
   await loc.waitFor({ state: 'visible' });
   const max = Number(await loc.getAttribute('maxlength')) || value.length;
   if (value.length > max) throw new Error(`${name} over limit: ${value.length}/${max}`);
-  await loc.fill(value); // allow-raw-playwright: fill 2.3 competitor text field
+  await humanFill(page, loc, value);
   await humanIdlePause('short');
   return `${name} ${value.length}/${max}`;
 }
 async function saveSubform() {
   await humanIdlePause('deliberate');
   await humanIdlePause('deliberate');
-  await page.evaluate(() => {
-    const s = Array.from(document.querySelectorAll('button')).filter((b) => b.innerText.trim() === 'Zapisz' && !b.disabled && b.getClientRects().length);
-    if (!s.length) throw new Error('no enabled Zapisz');
-    s[s.length - 1].dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-  }); // allow-raw-playwright: save 2.3 competitor row
+  const saves = page.getByRole('button', { name: 'Zapisz', exact: true })
+    .filter({ visible: true });
+  const count = await saves.count();
+  if (!count) throw new Error('no enabled Zapisz');
+  await humanClickLocator(page, saves.nth(count - 1));
   await humanIdlePause('long');
 }
 async function addCompetitor(nth, row) {
@@ -132,11 +129,9 @@ if (process.env.APPLICANT_ONLY) {
 
 if (process.env.DIAG_DODAJ) {
   const nth = Number(process.env.DIAG_DODAJ) || 0;
-  await page.evaluate((n) => {
-    const btns = Array.from(document.querySelectorAll('button')).filter((b) => b.innerText.trim() === 'Dodaj' && b.getClientRects().length);
-    if (!btns[n]) throw new Error(`Dodaj #${n} not found; count=${btns.length}`);
-    btns[n].dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-  }, nth); // allow-raw-playwright: open 2.3 collection subform for diagnostics
+  const buttons = page.getByRole('button', { name: 'Dodaj', exact: true }).filter({ visible: true });
+  if (await buttons.count() <= nth) throw new Error(`Dodaj #${nth} not found; count=${await buttons.count()}`);
+  await humanClickLocator(page, buttons.nth(nth));
   await humanIdlePause('long');
   const out = await page.evaluate(() => ({
     fields: Array.from(document.querySelectorAll('input, textarea')).map((el) => {
@@ -175,7 +170,7 @@ if (process.env.DIAG) {
   process.exit(0);
 }
 
-await page.locator(`input[name$="innowacja_produktowa_nazwa"]`).first().fill(NAZWA); // allow-raw-playwright: text
+await humanFill(page, page.locator(`input[name$="innowacja_produktowa_nazwa"]`).first(), NAZWA);
 await humanIdlePause('short');
 const rynekR = await fillCapped('innowacja_produktowa_rynek_docelowy', RYNEK);
 const potR = await fillCapped('innowacja_produktowa_znaczacy_potencjal_gospodarczy_innowacji', POTENCJAL);

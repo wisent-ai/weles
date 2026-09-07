@@ -16,6 +16,7 @@
 import { WSession } from '../../../dist/session/wsession.js';
 import { googleSso, getGoogleSsoCreds } from '../_shared/services/google_sso.mjs';
 import { humanIdlePause, humanClickLocator } from '../../../dist/human/mouse.js';
+import { humanFill } from '../../../dist/human/keyboard.js';
 import { mkdirSync, writeFileSync } from 'node:fs';
 
 let PROJECT = process.argv[2];
@@ -241,7 +242,7 @@ try {
       const msgBox = s.page.getByPlaceholder(/commit message for changes made in overleaf/i)
         .or(s.page.locator('.modal-dialog textarea')).filter({ visible: true }).first();
       await msgBox.waitFor({ state: 'visible' });
-      await msgBox.fill(process.env.OVERLEAF_COMMIT_MESSAGE || 'Sync Overleaf edits to GitHub');
+      await humanFill(s.page, msgBox, process.env.OVERLEAF_COMMIT_MESSAGE || 'Sync Overleaf edits to GitHub');
       await shot(s, `commit_dialog_${tag8}`);
       const syncBtn = s.page.getByRole('button', { name: /^\s*sync\s*$/i }).filter({ visible: true }).first();
       await syncBtn.waitFor({ state: 'visible' });

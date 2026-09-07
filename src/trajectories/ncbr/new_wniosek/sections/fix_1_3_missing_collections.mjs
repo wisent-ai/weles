@@ -3,7 +3,8 @@
 
 import { readFileSync } from 'node:fs';
 import { chromium } from 'playwright';
-import { humanIdlePause } from '../../../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../../../dist/human/mouse.js';
+import { humanFill } from '../../../../../dist/human/keyboard.js';
 
 const endpoint = process.env.NCBR_CDP_ENDPOINT || 'http://127.0.0.1:9223';
 const SECTION_URL = 'https://lsi2.ncbr.gov.pl/projekt/7ee80d9a-67dd-4d99-becd-8dda407221c1/projekt_step/317a21dd-e798-4115-ab53-6ab5a2912fb0';
@@ -33,22 +34,17 @@ await page.evaluate(() => {
 }); // allow-raw-playwright: neutralise cookie banner
 
 async function clickDodaj(nth) {
-  await page.evaluate((n) => {
-    const btns = Array.from(document.querySelectorAll('button')).filter((b) => b.innerText.trim() === 'Dodaj' && b.getClientRects().length);
-    if (!btns[n]) throw new Error(`Dodaj #${n} not found; count=${btns.length}`);
-    btns[n].dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-  }, nth); // allow-raw-playwright: open exact 1.3 collection subform
+  const buttons = page.getByRole('button', { name: 'Dodaj', exact: true }).filter({ visible: true });
+  const count = await buttons.count();
+  if (nth >= count) throw new Error(`Dodaj #${nth} not found; count=${count}`);
+  await humanClickLocator(page, buttons.nth(nth));
   await humanIdlePause('long');
 }
 
 async function setApplicant() {
-  await page.evaluate(() => {
-    const inp = document.querySelector("input[name='nazwa_skrocona_wnioskodawcy_samodzielnego_lidera_konsorcjum_konsorcjanta']");
-    const root = inp && inp.closest('.MuiInputBase-root');
-    const select = root && root.querySelector('.MuiSelect-select, [role="combobox"]');
-    if (select) for (const t of ['pointerdown', 'mousedown', 'mouseup', 'click']) select.dispatchEvent(new MouseEvent(t, { bubbles: true, cancelable: true, view: window }));
-    else if (inp) inp.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-  }); // allow-raw-playwright: open applicant select
+  const inp = page.locator("input[name='nazwa_skrocona_wnioskodawcy_samodzielnego_lidera_konsorcjum_konsorcjanta']").first();
+  const select = page.locator('.MuiInputBase-root:has(input[name="nazwa_skrocona_wnioskodawcy_samodzielnego_lidera_konsorcjum_konsorcjanta"])').locator('.MuiSelect-select, [role="combobox"]').first();
+  await humanClickLocator(page, await select.count() ? select : inp);
   await humanIdlePause('deliberate');
   const opt = page.getByRole('option', { name: 'Wisent Polska', exact: true }).first();
   if (await opt.count() > 0) await opt.dispatchEvent('click'); // allow-raw-playwright: select applicant
@@ -61,7 +57,7 @@ async function fillFirstTextArea(value) {
   const max = Number(await loc.getAttribute('maxlength')) || value.length;
   let v = value;
   if (v.length > max) v = v.slice(0, max).replace(/\s+\S*$/, '');
-  await loc.fill(v); // allow-raw-playwright: activity description text
+  await humanFill(page, loc, v);
   await humanIdlePause('short');
   return v.length;
 }
@@ -69,11 +65,10 @@ async function fillFirstTextArea(value) {
 async function saveForm() {
   await humanIdlePause('deliberate');
   await humanIdlePause('deliberate');
-  await page.evaluate(() => {
-    const saves = Array.from(document.querySelectorAll('button')).filter((b) => b.innerText.trim() === 'Zapisz' && !b.disabled);
-    if (!saves.length) throw new Error('no enabled Zapisz');
-    saves[saves.length - 1].dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-  }); // allow-raw-playwright: save subform
+  const saves = page.getByRole('button', { name: 'Zapisz', exact: true }).filter({ visible: true });
+  const count = await saves.count();
+  if (!count) throw new Error('no enabled Zapisz');
+  await humanClickLocator(page, saves.nth(count - 1));
   await humanIdlePause('long');
 }
 

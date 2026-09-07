@@ -2,7 +2,8 @@
 // Never submits the application.
 
 import { chromium } from 'playwright';
-import { humanIdlePause } from '../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../dist/human/mouse.js';
+import { humanFill } from '../../../dist/human/keyboard.js';
 
 const endpoint = process.env.NCBR_CDP_ENDPOINT || ['ht', 'tp://127.0.0.1:9223'].join('');
 const projectId = process.env.NCBR_PROJECT_ID || '7ee80d9a-67dd-4d99-becd-8dda407221c1';
@@ -37,11 +38,8 @@ page.setDefaultTimeout(15000);
 
 async function saveVisible() {
   await humanIdlePause('deliberate');
-  await page.evaluate(() => {
-    const saves = Array.from(document.querySelectorAll('button')).filter((b) => b.innerText.trim() === 'Zapisz' && !b.disabled && b.getClientRects().length);
-    if (!saves.length) throw new Error('no enabled Zapisz');
-    saves[saves.length - 1].dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-  }); // allow-raw-playwright: save changed textarea through visible UI
+  const save = page.getByRole('button', { name: 'Zapisz', exact: true }).filter({ visible: true }).last();
+  await humanClickLocator(page, save);
   await humanIdlePause('long');
 }
 
@@ -59,7 +57,7 @@ for (const r of repairs) {
   const max = Number(await loc.getAttribute('maxlength')) || after.length;
   if (after.length > max) throw new Error(`${r.section} repair too long: ${after.length}/${max}`);
   if (after !== before) {
-    await loc.fill(after); // allow-raw-playwright: repair truncated ending only
+    await humanFill(page, loc, after); // allow-raw-playwright: repair truncated ending only
     await saveVisible();
   }
   await page.goto(r.url, { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: readback after save

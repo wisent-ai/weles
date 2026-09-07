@@ -86,15 +86,8 @@ async function clickAny(s, selectors, label, timeoutMs = 5000) {
       if (await withTimeout(loc.isVisible(), 1500, false).catch(() => false)) {
         const clicked = await withTimeout(humanClickLocator(s.page, loc), 5000, false).catch(() => false);
         if (!clicked) {
-          const jsClicked = await loc.evaluate((el) => {
-            const clickable = el.closest('button,[role="button"],material-button,material-list-item,material-radio,div[role="radio"]') || el;
-            clickable.click();
-            return true;
-          }).catch(() => false);
-          if (!jsClicked) {
-            console.log(`[google-ads] WARN: click timed out: ${label} (${sel})`);
-            continue;
-          }
+          console.log(`[google-ads] WARN: click timed out: ${label} (${sel})`);
+          continue;
         }
         console.log(`[google-ads] clicked: ${label}`);
         await humanIdlePause('short');
@@ -114,23 +107,15 @@ async function clickText(s, text, label = text, timeoutMs = 5000) {
     `material-list-item:has-text("${escaped}")`,
   ], label, timeoutMs);
   if (clicked) return true;
-  const jsClicked = await s.page.evaluate((needle) => {
-    const norm = (value) => String(value || '').replace(/\s+/g, ' ').trim();
-    const candidates = Array.from(document.querySelectorAll('button,[role="button"],[role="radio"],material-radio,material-list-item,div'))
-      .map((el) => ({ el, text: norm(el.innerText || el.textContent) }))
-      .filter(({ el, text }) => text.includes(needle) && !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length));
-    candidates.sort((a, b) => a.text.length - b.text.length);
-    const target = candidates[0]?.el;
-    if (!target) return false;
-    const clickable = target.closest('button,[role="button"],[role="radio"],material-radio,material-list-item') || target;
-    clickable.click();
-    return true;
-  }, text).catch(() => false);
-  if (jsClicked) {
+  const fallback = s.page.locator('button,[role="button"],[role="radio"],material-radio,material-list-item')
+    .filter({ hasText: text, visible: true }).first();
+  if (await fallback.count() === 0) return false;
+  const fallbackClicked = await withTimeout(humanClickLocator(s.page, fallback), 5000, false).catch(() => false);
+  if (fallbackClicked) {
     console.log(`[google-ads] clicked: ${label}`);
     await humanIdlePause('short');
   }
-  return jsClicked;
+  return fallbackClicked;
 }
 
 async function fillAny(s, selectors, value, label) {

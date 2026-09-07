@@ -5,6 +5,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { generatePersona } from '../../../dist/browser/persona.js';
 import { WSession } from '../../../dist/session/wsession.js';
+import { humanClickLocator } from '../../../dist/human/mouse.js';
 
 const USER_DATA_DIR = process.env.WELES_USER_DATA_DIR || process.env.ADS_PROFILE_DIR || join(homedir(), '.weles', 'browser_profiles', 'meta_ads');
 const BUSINESS_ID = process.env.META_BUSINESS_ID || process.env.BUSINESS_ID || '';
@@ -38,23 +39,19 @@ function sanitizedUrl(rawUrl) {
 }
 
 async function clickSafeContinue(page) {
-  return page.evaluate(() => {
-    const textOf = (el) => (el.innerText || el.textContent || el.getAttribute('aria-label') || '').replace(/\s+/g, ' ').trim();
-    const visible = (el) => {
-      const style = window.getComputedStyle(el);
-      const rect = el.getBoundingClientRect();
-      return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
-    };
-    const allow = /^(continue|kontynuuj|dalej|next|ok|confirm|potwierdź)$/i;
-    const deny = /create|utwórz|delete|usuń|remove|cancel|anuluj/i;
-    const target = Array.from(document.querySelectorAll('button, [role="button"], a'))
-      .filter(visible)
-      .map((el) => ({ el, text: textOf(el) }))
-      .find(({ text }) => allow.test(text) && !deny.test(text));
-    if (!target) return null;
-    target.el.click();
-    return target.text;
-  }).catch(() => null);
+  const allow = /^(continue|kontynuuj|dalej|next|ok|confirm|potwierdź)$/i;
+  const deny = /create|utwórz|delete|usuń|remove|cancel|anuluj/i;
+  const candidates = page.locator('button, [role="button"], a').filter({ visible: true });
+  const count = await candidates.count().catch(() => 0);
+  for (let index = 0; index < count; index += 1) {
+    const candidate = candidates.nth(index);
+    const text = String(await candidate.innerText().catch(async () =>
+      candidate.getAttribute('aria-label').catch(() => ''))).replace(/\s+/g, ' ').trim();
+    if (!allow.test(text) || deny.test(text)) continue;
+    await humanClickLocator(page, candidate);
+    return text;
+  }
+  return null;
 }
 
 async function snapshot(page, label) {

@@ -6,6 +6,8 @@ import { execute, AgentFailure } from '../../../dist/agent/index.js';
 import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
 import { writeWelesTrajectoryDraft } from '../../../dist/trajectories/writer.js';
 import { getGoogleSsoCreds, googleSso } from '../_shared/services/google_sso.mjs';
+import { humanClickLocator } from '../../../dist/human/mouse.js';
+import { humanFill } from '../../../dist/human/keyboard.js';
 
 const label = process.env.GENERIC_TASK_LABEL || 'generic_browser_task';
 
@@ -152,7 +154,7 @@ async function ensureSupabaseSession(activeSession, taskConstraints) {
       throw new Error('Supabase Google sign-in control is unavailable');
     }
     const popupPromise = page.context().waitForEvent('page', { timeout: 10_000 }).catch(() => null);
-    await googleButton.click();
+    await humanClickLocator(page, googleButton);
     authPage = await popupPromise
       ?? page.context().pages().find((candidate) => /accounts\.google\.com/i.test(candidate.url()))
       ?? page;
@@ -195,18 +197,18 @@ async function ensureFigmaSession(activeSession, taskConstraints) {
 
   const emailInput = page.locator('input[type="email"], input[name="email"]').filter({ visible: true }).first();
   if (await emailInput.isVisible().catch(() => false)) {
-    await emailInput.fill(credentials.email);
+    await humanFill(page, emailInput, credentials.email);
     const continueButton = page.getByRole('button', { name: /^(continue|log in)$/i })
       .filter({ visible: true })
       .first();
     if (await continueButton.isVisible().catch(() => false)) {
-      await continueButton.click();
+      await humanClickLocator(page, continueButton);
       const passwordInput = page.locator('input[type="password"], input[name="password"]')
         .filter({ visible: true })
         .first();
       await passwordInput.waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {});
       if (await passwordInput.isVisible().catch(() => false)) {
-        await passwordInput.fill(credentials.password);
+        await humanFill(page, passwordInput, credentials.password);
         await page.keyboard.press('Enter');
         await page.waitForURL((current) => !/figma\.com\/login(?:[/?#]|$)/i.test(current.href), {
           timeout: 15_000,
@@ -232,7 +234,7 @@ async function ensureFigmaSession(activeSession, taskConstraints) {
     })).catch(() => ({ tag: 'unknown', href: '', target: '' }));
     console.log(`[figma_sso] Google control=${JSON.stringify(buttonMetadata)}`);
     let clickError = null;
-    await googleButton.click({ noWaitAfter: true }).catch((error) => {
+    await humanClickLocator(page, googleButton).catch((error) => {
       clickError = error;
     });
     authPage = await popupPromise

@@ -3,7 +3,8 @@
 
 import { readFileSync } from 'node:fs';
 import { chromium } from 'playwright';
-import { humanIdlePause } from '../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../dist/human/mouse.js';
+import { humanFill } from '../../../dist/human/keyboard.js';
 
 const endpoint = process.env.NCBR_CDP_ENDPOINT || 'http://127.0.0.1:9223';
 const projectId = process.env.NCBR_PROJECT_ID || '7ee80d9a-67dd-4d99-becd-8dda407221c1';
@@ -78,46 +79,47 @@ async function openRow(index) {
 async function openRowByNeedles(needles) {
   await page.goto(SECTION_URL, { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: refresh section table
   await humanIdlePause('long');
-  await page.evaluate((items) => {
-    const rows = Array.from(document.querySelectorAll('table tbody tr'));
-    const row = rows.find((r) => items.some((needle) => (r.innerText || '').includes(needle)));
-    if (!row) throw new Error(`row not found: ${items.join(' / ')}`);
-    const btn = row.querySelector('button[aria-label="overflow-options"]');
-    if (!btn) throw new Error(`row menu not found: ${items.join(' / ')}`);
-    btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-  }, needles); // allow-raw-playwright: open exact 9.2 row menu by visible table text
+  const rows = page.locator('table tbody tr');
+  let menuButton = null;
+  for (let index = 0; index < await rows.count(); index += 1) {
+    const row = rows.nth(index);
+    const text = await row.innerText().catch(() => '');
+    if (!needles.some((needle) => text.includes(needle))) continue;
+    menuButton = row.locator('button[aria-label="overflow-options"]').first();
+    break;
+  }
+  if (!menuButton || await menuButton.count() === 0) throw new Error(`row not found: ${needles.join(' / ')}`);
+  await humanClickLocator(page, menuButton);
   await humanIdlePause('deliberate');
   await page.getByRole('menuitem', { name: 'Edytuj', exact: true }).first().dispatchEvent('click'); // allow-raw-playwright: edit matched row
   await humanIdlePause('long');
 }
 
 async function clickAdd() {
-  await page.evaluate(() => {
-    const btn = Array.from(document.querySelectorAll('button')).find((b) => b.innerText.trim() === 'Dodaj' && !b.disabled);
-    if (!btn) throw new Error('enabled Dodaj not found');
-    btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-  }); // allow-raw-playwright: open add indicator form
+  const button = page.getByRole('button', { name: 'Dodaj', exact: true })
+    .filter({ visible: true })
+    .first();
+  if (await button.count() === 0) throw new Error('enabled Dodaj not found');
+  await humanClickLocator(page, button);
   await humanIdlePause('long');
 }
 
 async function saveForm() {
   await humanIdlePause('deliberate');
   await humanIdlePause('deliberate');
-  const state = await page.evaluate(() => {
-    const saves = Array.from(document.querySelectorAll('button')).filter((b) => b.innerText.trim() === 'Zapisz' && !b.disabled);
-    if (!saves.length) {
-      const errors = Array.from(document.querySelectorAll('[aria-invalid="true"], .Mui-error')).map((e) => (e.getAttribute('name') || e.textContent || '').trim().slice(0, 80)).filter(Boolean).slice(0, 12);
-      return { status: 'no-enabled-save', errors };
-    }
-    saves[saves.length - 1].dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-    return { status: 'saved', errors: [] };
-  }); // allow-raw-playwright: save row through UI
+  const saves = page.getByRole('button', { name: 'Zapisz', exact: true }).filter({ visible: true });
+  const saveCount = await saves.count();
+  const state = saveCount > 0
+    ? { status: 'saved', errors: [] }
+    : {
+        status: 'no-enabled-save',
+        errors: await page.locator('[aria-invalid="true"], .Mui-error').allTextContents(),
+      };
+  if (saveCount > 0) await humanClickLocator(page, saves.nth(saveCount - 1));
   await humanIdlePause('long');
   if (state.status !== 'saved') {
-    await page.evaluate(() => {
-      const btn = Array.from(document.querySelectorAll('button')).find((b) => b.innerText.trim() === 'Anuluj');
-      if (btn) btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-    }); // allow-raw-playwright: close unchanged or invalid row without saving
+    const cancel = page.getByRole('button', { name: 'Anuluj', exact: true }).filter({ visible: true }).first();
+    if (await cancel.count() > 0) await humanClickLocator(page, cancel);
     await humanIdlePause('long');
   }
   return state;
@@ -134,9 +136,7 @@ async function fillField(suffix, value, { preserve = false } = {}) {
   const max = Number(await loc.getAttribute('maxlength')) || String(value || '').length;
   let v = String(value || '');
   if (v.length > max) v = v.slice(0, max).replace(/\s+\S*$/, '');
-  await loc.fill(v); // allow-raw-playwright: fill visible LSI field
-  await loc.dispatchEvent('input'); // allow-raw-playwright: React dirty state
-  await loc.dispatchEvent('change'); // allow-raw-playwright: React change state
+  await humanFill(page, loc, v);
   await humanIdlePause('short');
   return `${suffix}:${v.length}/${max}`;
 }
@@ -145,8 +145,7 @@ async function pickName(value) {
   const input = page.locator('input[name$="nazwa_wskaznika"]').first();
   if (await input.count() === 0) return null;
   if (await input.evaluate((el) => el.readOnly || el.disabled).catch(() => true)) return null; // allow-raw-playwright: check field mutability
-  await input.click(); // allow-raw-playwright: open indicator combobox
-  await input.fill(value); // allow-raw-playwright: filter indicator name
+  await humanFill(page, input, value);
   await humanIdlePause('deliberate');
   const opt = page.getByRole('option', { name: value, exact: true }).first();
   if (await opt.count() > 0) await opt.dispatchEvent('click'); // allow-raw-playwright: select exact indicator option
@@ -178,10 +177,8 @@ if (process.env.VERIFY_DETAILS) {
       const val = (suffix) => Array.from(document.querySelectorAll('input, textarea')).find((el) => (el.name || '').endsWith(suffix))?.value || '';
       return { name: val('nazwa_wskaznika'), methodologyLen: val('opis_metodologii').length, verificationLen: val('opis_sposobu_weryfikacji').length };
     })); // allow-raw-playwright: read visible row fields
-    await page.evaluate(() => {
-      const btn = Array.from(document.querySelectorAll('button')).find((b) => b.innerText.trim() === 'Anuluj');
-      if (btn) btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-    }); // allow-raw-playwright: close row without saving
+    const cancel = page.getByRole('button', { name: 'Anuluj', exact: true }).filter({ visible: true }).first();
+    if (await cancel.count() > 0) await humanClickLocator(page, cancel);
     await humanIdlePause('long');
   }
   console.log(JSON.stringify({ count, rows }, null, 2));

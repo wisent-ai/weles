@@ -6,7 +6,8 @@
 
 import { readFileSync } from 'node:fs';
 import { chromium } from 'playwright';
-import { humanIdlePause } from '../../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
+import { humanFill } from '../../../../dist/human/keyboard.js';
 
 const endpoint = process.env.NCBR_CDP_ENDPOINT || 'http://127.0.0.1:9223';
 const SECTION_URL = 'https://lsi2.ncbr.gov.pl/projekt/7ee80d9a-67dd-4d99-becd-8dda407221c1/projekt_step/0ca77e3d-373e-464f-9e9d-a35f5193864d';
@@ -53,8 +54,8 @@ if (!page) { console.log(JSON.stringify({ error: 'NO_PAGE' })); process.exit(0);
 
 async function pickOption(name, search, value) {
   const loc = page.locator(`input[name="${NB}${name}"]`).first();
-  await loc.click(); // allow-raw-playwright: open combobox
-  await loc.fill(search); // allow-raw-playwright: comma-free prefix triggers LSI dictionary filter
+  await humanClickLocator(page, loc);
+  await humanFill(page, loc, search);
   await humanIdlePause('deliberate');
   const opt = page.getByRole('option', { name: value, exact: true }).first();
   if (await opt.count() === 0) throw new Error(`option not found: ${name} -> ${value}`);
@@ -81,9 +82,9 @@ for (const a of autocompletes) {
 }
 
 const kw = page.locator(`input[name="${NB}slowa_kluczowe"]`).first();
-await kw.click(); // allow-raw-playwright: open multi-select once
+await humanClickLocator(page, kw);
 for (const s of slowa) {
-  await kw.fill(s); // allow-raw-playwright: keyword search
+  await humanFill(page, kw, s);
   await humanIdlePause('deliberate');
   const opt = page.getByRole('option', { name: s, exact: true }).first();
   if (await opt.count() > 0) { await opt.dispatchEvent('click'); log.slowa.push(s); } // allow-raw-playwright: add keyword tag
@@ -92,13 +93,13 @@ for (const s of slowa) {
 }
 
 for (const t of texts) {
-  await page.locator(t.sel).first().fill(t.value); // allow-raw-playwright: LSI gov form, no anti-bot; instant fill
+  await humanFill(page, page.locator(t.sel).first(), t.value);
   await humanIdlePause('short');
   log.texts.push(`${t.key} (${t.value.length})`);
 }
 
 let saveResult = 'clicked';
-try { await page.locator('button:has-text("Zapisz")').first().click(); await humanIdlePause('long'); } // allow-raw-playwright: save via UI
+try { await humanClickLocator(page, page.locator('button:has-text("Zapisz")').first()); await humanIdlePause('long'); }
 catch (e) { saveResult = `NOT SAVED: ${String(e?.message || e).slice(0, 70)}`; }
 
 const readback = await page.evaluate((nb) => {

@@ -63,39 +63,30 @@ try {
   await shot(s, 'overview_isp');
 
   // Dismiss "Get fully dedicated IPs from premium providers" upsell promo (covers click area).
-  const dismissPromo = await s.page.evaluate(() => {
-    // Find the promo bar by text and click its close X.
-    const bars = Array.from(document.querySelectorAll('div, section, aside')).filter(el => /Get fully dedicated IPs/i.test(el.textContent || ''));
-    for (const b of bars) {
-      const x = b.querySelector('button[aria-label="Close" i], button:has(svg)');
-      if (x) { (x).click(); return true; }
-    }
-    return false;
-  }).catch(() => false);
+  const promoClose = s.page.locator('div, section, aside')
+    .filter({ hasText: /Get fully dedicated IPs/i })
+    .locator('button[aria-label="Close" i], button:has(svg)')
+    .filter({ visible: true })
+    .first();
+  const dismissPromo = await promoClose.isVisible().catch(() => false);
+  if (dismissPromo) await humanClickLocator(s.page, promoClose);
   console.log(`[trajectory] promo dismissed=${dismissPromo}`);
   await humanIdlePause('short');
 
-  // Click "Create proxy user" CTA. Try DOM-direct click first (bypasses overlay
-  // capture), then fall back to Playwright's locator click.
-  const domClickResult = await s.page.evaluate(() => {
-    const btns = Array.from(document.querySelectorAll('button, a')).filter(el => /create proxy user/i.test((el.textContent || '').trim()));
-    if (!btns.length) return { ok: false, count: 0 };
-    btns[0].scrollIntoView({ block: 'center' });
-    btns[0].click();
-    return { ok: true, count: btns.length, txt: (btns[0].textContent || '').trim() };
-  }).catch((e) => ({ ok: false, err: e.message?.slice(0, 60) }));
-  console.log(`[trajectory] dom-click createBtn: ${JSON.stringify(domClickResult)}`);
-  if (!domClickResult.ok) {
-    const createBtn = s.page.locator('button:has-text("Create proxy user"), a:has-text("Create proxy user")').filter({ visible: true }).first();
-    if (!(await createBtn.isVisible().catch(() => false))) {
-      console.log('FAIL: "Create proxy user" button not visible — may already exist');
-      await shot(s, 'no_create_btn');
-      const txt = await s.page.evaluate(() => (document.body && document.body.innerText || '').slice(0, 4000));
-      writeFileSync(`${OUT_DIR}/${stamp()}_overview_text.txt`, txt);
-      process.exit(2);
-    }
-    await createBtn.click({ force: true }).catch(() => {});
+  // Click "Create proxy user" CTA through the humanized pointer pipeline.
+  const createBtn = s.page.locator('button:has-text("Create proxy user"), a:has-text("Create proxy user")')
+    .filter({ visible: true })
+    .first();
+  if (!(await createBtn.isVisible().catch(() => false))) {
+    console.log('FAIL: "Create proxy user" button not visible — may already exist');
+    await shot(s, 'no_create_btn');
+    const txt = await s.page.evaluate(() => (document.body && document.body.innerText || '').slice(0, 4000));
+    writeFileSync(`${OUT_DIR}/${stamp()}_overview_text.txt`, txt);
+    process.exit(2);
   }
+  const createButtonCount = await s.page.locator('button:has-text("Create proxy user"), a:has-text("Create proxy user")').count();
+  await humanClickLocator(s.page, createBtn);
+  console.log(`[trajectory] clicked createBtn: ${JSON.stringify({ ok: true, count: createButtonCount, txt: (await createBtn.innerText()).trim() })}`);
   // Click sometimes opens a slide-in form rather than navigating. Poll until
   // a username-like input appears, up to 25s.
   let inputs = [];

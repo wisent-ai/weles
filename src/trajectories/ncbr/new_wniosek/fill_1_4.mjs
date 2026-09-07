@@ -2,7 +2,8 @@
 // Data from the working Kimi reference save_1_4_collection.py. Never closes page.
 
 import { chromium } from 'playwright';
-import { humanIdlePause } from '../../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
+import { humanFill } from '../../../../dist/human/keyboard.js';
 
 const endpoint = process.env.NCBR_CDP_ENDPOINT || 'http://127.0.0.1:9223';
 const SECTION_URL = 'https://lsi2.ncbr.gov.pl/projekt/7ee80d9a-67dd-4d99-becd-8dda407221c1/projekt_step/4a6e9d5d-10e7-4436-8fd8-728a8e8b8ddc';
@@ -20,19 +21,15 @@ const page = browser.contexts()[0]?.pages()[0];
 if (!page) { console.log(JSON.stringify({ error: 'NO_PAGE' })); process.exit(0); }
 
 async function clickDodaj(nth) {
-  await page.evaluate((n) => {
-    const btns = Array.from(document.querySelectorAll('button')).filter((b) => b.innerText.trim() === 'Dodaj');
-    if (!btns[n]) throw new Error(`Dodaj #${n} not found`);
-    btns[n].dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window })); // allow-raw-playwright: synthetic Dodaj click (Kimi reference)
-  }, nth);
+  const button = page.getByRole('button', { name: 'Dodaj', exact: true }).filter({ visible: true }).nth(nth);
+  if (await button.count() === 0) throw new Error(`Dodaj #${nth} not found`);
+  await humanClickLocator(page, button);
   await humanIdlePause('long');
 }
 async function saveForm() {
-  await page.evaluate(() => {
-    const s = Array.from(document.querySelectorAll('button')).filter((b) => b.innerText.trim() === 'Zapisz' && !b.disabled);
-    if (!s.length) throw new Error('no enabled Zapisz');
-    s[s.length - 1].dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window })); // allow-raw-playwright: synthetic save (Kimi reference)
-  });
+  const save = page.locator('button:not([disabled])').filter({ hasText: /^Zapisz$/ }).filter({ visible: true }).last();
+  if (await save.count() === 0) throw new Error('no enabled Zapisz');
+  await humanClickLocator(page, save);
   await humanIdlePause('long');
   await humanIdlePause('deliberate');
 }
@@ -53,15 +50,15 @@ await humanIdlePause('long');
 await page.evaluate(() => { const b = Array.from(document.querySelectorAll('div')).find((d) => (d.innerText || '').includes('pliki cookies')); if (b) b.style.pointerEvents = 'none'; }); // allow-raw-playwright: neutralise cookie banner (Kimi reference)
 
 async function setApplicant() {
-  await page.evaluate((nm) => {
-    const inp = document.querySelector(`input[name="${nm}"]`);
-    const sel = inp && inp.closest('.MuiInputBase-root')?.querySelector('.MuiSelect-select, [role="combobox"]');
-    if (sel) { for (const t of ['mousedown', 'mouseup', 'click']) sel.dispatchEvent(new MouseEvent(t, { bubbles: true, cancelable: true, view: window })); } // allow-raw-playwright: open applicant MUI select
-  }, 'nazwa_skrocona_wnioskodawcy_samodzielnego_lidera_konsorcjum_konsorcjanta');
+  const name = 'nazwa_skrocona_wnioskodawcy_samodzielnego_lidera_konsorcjum_konsorcjanta';
+  const input = page.locator(`input[name="${name}"]`).first();
+  const select = page.locator('.MuiInputBase-root').filter({ has: input })
+    .locator('.MuiSelect-select, [role="combobox"]').first();
+  await humanClickLocator(page, select);
   await humanIdlePause('deliberate');
   const opt = page.getByRole('option', { name: 'Wisent Polska', exact: true }).first();
   await opt.waitFor({ state: 'visible' });
-  await opt.click({ force: true }); // allow-raw-playwright: select Wisent applicant
+  await humanClickLocator(page, opt);
   await humanIdlePause('short');
 }
 
@@ -69,9 +66,9 @@ if (process.env.DIAG) {
   await clickDodaj(0);
   await page.waitForSelector("[name='nazwa_podmiotu_konkurencyjnego']");
   await setApplicant();
-  await page.locator("[name='nazwa_podmiotu_konkurencyjnego']").first().fill('TEST'); // allow-raw-playwright: diag
-  await page.locator("[name='nip']").first().fill('0000000000'); // allow-raw-playwright: diag
-  await page.locator("[name='opis']").first().fill('opis testowy diag'); // allow-raw-playwright: diag
+  await humanFill(page, page.locator("[name='nazwa_podmiotu_konkurencyjnego']").first(), 'TEST');
+  await humanFill(page, page.locator("[name='nip']").first(), '0000000000');
+  await humanFill(page, page.locator("[name='opis']").first(), 'opis testowy diag');
   await humanIdlePause('deliberate');
   const state = await page.evaluate(() => {
     const inp = document.querySelector("input[name='nazwa_skrocona_wnioskodawcy_samodzielnego_lidera_konsorcjum_konsorcjanta']");
@@ -96,9 +93,9 @@ if (process.env.REPAIR) {
     const r = ROWS[i];
     await editDataRow(i);
     try { await setApplicant(); } catch (e) { /* applicant may already be bound */ }
-    await page.locator("[name='nazwa_podmiotu_konkurencyjnego']").first().fill(r.nazwa); // allow-raw-playwright: repair text
-    await page.locator("[name='nip']").first().fill(r.nip); // allow-raw-playwright: repair text
-    await page.locator("[name='opis']").first().fill(r.opis); // allow-raw-playwright: repair text
+    await humanFill(page, page.locator("[name='nazwa_podmiotu_konkurencyjnego']").first(), r.nazwa);
+    await humanFill(page, page.locator("[name='nip']").first(), r.nip);
+    await humanFill(page, page.locator("[name='opis']").first(), r.opis);
     await humanIdlePause('deliberate');
     await humanIdlePause('deliberate');
     await saveForm();
@@ -112,9 +109,9 @@ if (process.env.REPAIR) {
     await clickDodaj(0);
     await page.waitForSelector("[name='nazwa_podmiotu_konkurencyjnego']");
     try { await setApplicant(); } catch (e) { /* applicant may auto bind */ }
-    await page.locator("[name='nazwa_podmiotu_konkurencyjnego']").first().fill(r.nazwa); // allow-raw-playwright: add missing competitor
-    await page.locator("[name='nip']").first().fill(r.nip); // allow-raw-playwright: add missing competitor
-    await page.locator("[name='opis']").first().fill(r.opis); // allow-raw-playwright: add missing competitor
+    await humanFill(page, page.locator("[name='nazwa_podmiotu_konkurencyjnego']").first(), r.nazwa);
+    await humanFill(page, page.locator("[name='nip']").first(), r.nip);
+    await humanFill(page, page.locator("[name='opis']").first(), r.opis);
     await humanIdlePause('deliberate');
     await humanIdlePause('deliberate');
     await saveForm();
@@ -137,9 +134,9 @@ for (const r of ROWS) {
   await page.waitForSelector("[name='nazwa_podmiotu_konkurencyjnego']");
   await humanIdlePause('short');
   try { await setApplicant(); } catch (e) { /* applicant is auto-assigned for a single applicant */ }
-  await page.locator("[name='nazwa_podmiotu_konkurencyjnego']").first().fill(r.nazwa); // allow-raw-playwright: text
-  await page.locator("[name='nip']").first().fill(r.nip); // allow-raw-playwright: text
-  await page.locator("[name='opis']").first().fill(r.opis); // allow-raw-playwright: text
+  await humanFill(page, page.locator("[name='nazwa_podmiotu_konkurencyjnego']").first(), r.nazwa);
+  await humanFill(page, page.locator("[name='nip']").first(), r.nip);
+  await humanFill(page, page.locator("[name='opis']").first(), r.opis);
   await humanIdlePause('deliberate');
   await humanIdlePause('deliberate');
   await saveForm();

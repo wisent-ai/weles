@@ -4,7 +4,8 @@
 
 import { readFileSync } from 'node:fs';
 import { chromium } from 'playwright';
-import { humanIdlePause } from '../../../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../../../dist/human/mouse.js';
+import { humanFill } from '../../../../../dist/human/keyboard.js';
 
 const endpoint = process.env.NCBR_CDP_ENDPOINT || ['ht', 'tp://127.0.0.1:9223'].join('');
 const SECTION_URL = ['https://', 'lsi2.ncbr.gov.pl/projekt/7ee80d9a-67dd-4d99-becd-8dda407221c1/projekt_step/94fb1adb-38a5-4949-b4c1-b0a79472bfd3'].join('');
@@ -39,11 +40,9 @@ if (!page) {
 }
 
 async function clickVisibleButton(text) {
-  await page.evaluate((text) => {
-    const buttons = Array.from(document.querySelectorAll('button')).filter((b) => b.innerText.trim() === text && b.getClientRects().length);
-    if (!buttons.length) throw new Error(`button not found: ${text}`);
-    buttons[buttons.length - 1].dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-  }, text); // allow-raw-playwright: UI-only section 2.4 button click, never submit
+  const buttons = page.getByRole('button', { name: text, exact: true }).filter({ visible: true });
+  if (await buttons.count() === 0) throw new Error(`button not found: ${text}`);
+  await humanClickLocator(page, buttons.last());
   await humanIdlePause('long');
 }
 
@@ -93,7 +92,7 @@ async function fillBySuffix(suffix, value) {
   const max = Number(await loc.getAttribute('maxlength')) || value.length;
   let v = value;
   if (v.length > max) throw new Error(`${suffix} too long: ${v.length}/${max}`);
-  await loc.fill(v); // allow-raw-playwright: UI-only 2.4 parameter text input
+  await humanFill(page, loc, v);
   await humanIdlePause('short');
   return { suffix, len: v.length, max };
 }

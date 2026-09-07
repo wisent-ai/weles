@@ -5,6 +5,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { generatePersona } from '../../../dist/browser/persona.js';
 import { WSession } from '../../../dist/session/wsession.js';
+import { humanType } from '../../../dist/human/keyboard.js';
 
 const USER_DATA_DIR = process.env.WELES_USER_DATA_DIR || process.env.ADS_PROFILE_DIR || join(homedir(), '.weles', 'browser_profiles', 'meta_ads');
 const BUSINESS_ID = process.env.META_BUSINESS_ID || process.env.BUSINESS_ID || '885982240795843';
@@ -131,9 +132,7 @@ async function fillAppId(page) {
   const y = Number(process.env.META_APP_ID_FIELD_Y || 430);
   await page.mouse.click(x, y, { delay: 50 });
   await page.keyboard.press('ControlOrMeta+A').catch(() => {});
-  await page.keyboard.type(APP_ID, { delay: 20 }).catch(async () => {
-    await page.keyboard.insertText(APP_ID).catch(() => {});
-  });
+  await humanType(page, APP_ID);
   console.log(JSON.stringify({ stage: 'filled_app_id', appId: APP_ID, x, y }));
   await page.waitForTimeout(1200).catch(() => {});
   return true;

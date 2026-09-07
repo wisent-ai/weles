@@ -1,7 +1,7 @@
 // Read-only inspector for replacement NCBR draft Dokumenty tab. Never uploads or submits.
 
 import { chromium } from 'playwright';
-import { humanIdlePause } from '../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../dist/human/mouse.js';
 
 const endpoint = process.env.NCBR_CDP_ENDPOINT || 'http://127.0.0.1:9223';
 const projectId = process.env.NCBR_PROJECT_ID || '7ee80d9a-67dd-4d99-becd-8dda407221c1';
@@ -22,30 +22,20 @@ await page.evaluate(() => {
   if (b) b.style.pointerEvents = 'none';
 }); // allow-raw-playwright: neutralise cookie overlay for read-only inspection
 
-await page.evaluate(() => {
-  const btn = Array.from(document.querySelectorAll('button, a, [role="button"]')).find((e) => (e.textContent || '').trim() === 'Dokumenty');
-  if (!btn) throw new Error('Dokumenty control not found');
-  btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-}); // allow-raw-playwright: open Dokumenty tab for read-only inspection
+const documents = page.getByText('Dokumenty', { exact: true }).filter({ visible: true }).first();
+if (await documents.count() === 0) throw new Error('Dokumenty control not found');
+await humanClickLocator(page, documents);
 await humanIdlePause('long');
 
 if (process.env.OPEN_FIRST_ROW_MENU) {
-  await page.evaluate(() => {
-    const menu = Array.from(document.querySelectorAll('button, [role="button"]')).find((e) =>
-      (e.textContent || e.getAttribute('aria-label') || '').trim().includes('overflow-options')
-    );
-    if (!menu) throw new Error('no row overflow menu found');
-    menu.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-  }); // allow-raw-playwright: open saved document-row menu for inspection
+  const menu = page.locator('button[aria-label*="overflow-options"], [role="button"][aria-label*="overflow-options"]').first();
+  if (await menu.count() === 0) throw new Error('no row overflow menu found');
+  await humanClickLocator(page, menu);
   await humanIdlePause('deliberate');
   if (process.env.OPEN_EDIT) {
-    await page.evaluate(() => {
-      const item = Array.from(document.querySelectorAll('li, button, [role="menuitem"]')).find((e) =>
-        /edytuj|szczegó|podgląd|otwórz/i.test((e.textContent || '').trim())
-      );
-      if (!item) throw new Error('no edit/detail menu item found');
-      item.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-    }); // allow-raw-playwright: open saved document-row details for inspection
+    const item = page.locator('li, button, [role="menuitem"]').filter({ hasText: /edytuj|szczegó|podgląd|otwórz/i }).first();
+    if (await item.count() === 0) throw new Error('no edit/detail menu item found');
+    await humanClickLocator(page, item);
     await humanIdlePause('long');
   }
 }

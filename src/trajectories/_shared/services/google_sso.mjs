@@ -181,25 +181,8 @@ async function clickGoogleAuthenticatorOption(page) {
       return true;
     }
 
-    const clickedByJs = await page.evaluate((source) => {
-      const re = new RegExp(source, 'i');
-      const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false);
-      let node;
-      while ((node = walker.nextNode())) {
-        if (!re.test(node.textContent || '')) continue;
-        let el = node.parentElement;
-        while (el && el !== document.body) {
-          const tag = el.tagName.toLowerCase();
-          const role = el.getAttribute('role');
-          if (tag === 'button' || tag === 'a' || role === 'button' || role === 'option' || tag === 'li') {
-            el.click();
-            return true;
-          }
-          el = el.parentElement;
-        }
-      }
-      return false;
-    }, pattern.source).catch(() => false);
+    const fallback = page.locator('button, [role="button"], a, [role="link"], li, [role="option"]').filter({ hasText: pattern }).filter({ visible: true }).first();
+    const clickedByJs = await humanClickLocator(page, fallback).then(() => true).catch(() => false);
     if (clickedByJs) {
       console.log(`[google_sso] selected Google Authenticator option via JS ancestor (${pattern.source})`);
       await humanIdlePause('deliberate');
@@ -276,7 +259,7 @@ async function fillGoogleAuthenticatorTotp(page, creds) {
           await humanIdlePause('short');
         }
       }
-      await input.fill('').catch(() => {});
+      await humanFill(page, input, '').catch(() => {});
       await humanFill(page, input, code);
       console.log('[google_sso] filled Google Authenticator TOTP code from the exact scoped secret');
       await submitGoogleSecondFactor(page);
@@ -355,25 +338,14 @@ async function clickTryAnotherWay(page) {
     if (!await candidate.isVisible().catch(() => false)) continue;
     console.log(`[google_sso] clicking "Try another way" via ${name}`);
     await humanClickLocator(page, candidate)
-      .catch(() => candidate.click({ force: true, timeout: 5000 }))
+      .catch(() => humanClickLocator(page, candidate))
       .catch(() => {});
     await humanIdlePause('deliberate');
     if (await transitioned()) return true;
   }
 
-  const clickedByJs = await page.evaluate(() => {
-    const norm = (value) => String(value || '').replace(/\s+/g, ' ').trim();
-    const owner = document.querySelector('[data-secondary-action-label="Try another way"]');
-    const textNode = Array.from(
-      document.querySelectorAll('button, [role="button"], a, [role="link"], div, span, li'),
-    ).find((element) => /^Try another way$/i.test(norm(element.innerText || element.textContent || '')));
-    const target = owner?.querySelector('[jsaction*="click:"]')
-      || owner
-      || textNode?.closest('[jsaction*="click:"], button, [role="button"], a, [role="link"], li');
-    if (!target || target === document.body) return false;
-    target.click();
-    return true;
-  }).catch(() => false);
+  const fallback = page.locator('[data-secondary-action-label="Try another way"], button, [role="button"], a, [role="link"], li').filter({ hasText: /^\s*Try another way\s*$/i }).filter({ visible: true }).first();
+  const clickedByJs = await humanClickLocator(page, fallback).then(() => true).catch(() => false);
   if (!clickedByJs) return false;
   console.log('[google_sso] clicked "Try another way" through the Google action controller');
   await humanIdlePause('deliberate');
@@ -524,25 +496,8 @@ export async function googleSso(session, creds, opts = {}) {
           break;
         }
         // Last resort: find the text node and click its nearest clickable ancestor.
-        const foundByJs = await page.evaluate((text) => {
-          const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false);
-          let n;
-          while ((n = walker.nextNode())) {
-            if (n.textContent.match(new RegExp(text, 'i'))) {
-              let el = n.parentElement;
-              while (el && el !== document.body) {
-                const tag = el.tagName.toLowerCase();
-                const role = el.getAttribute('role');
-                if (tag === 'button' || tag === 'a' || role === 'button' || role === 'option' || tag === 'li') {
-                  el.click();
-                  return true;
-                }
-                el = el.parentElement;
-              }
-            }
-          }
-          return false;
-        }, nameRe.source);
+        const fallback = page.locator('button, [role="button"], a, [role="link"], li, [role="option"]').filter({ hasText: nameRe }).filter({ visible: true }).first();
+        const foundByJs = await humanClickLocator(page, fallback).then(() => true).catch(() => false);
         if (foundByJs) {
           console.log(`[google_sso] clicked password option via JS ancestor (${nameRe.source})`);
           clickedChoice = true;
@@ -604,7 +559,7 @@ export async function googleSso(session, creds, opts = {}) {
       if (await candidate.isVisible().catch(() => false)) { nextBtn = candidate; break; }
     }
     if (nextBtn) {
-      await nextBtn.click({ force: true, timeout: 5000 }).catch(async () => {
+      await humanClickLocator(page, nextBtn).catch(async () => {
         console.log('[google_sso] native click failed, trying human click');
         await humanClickLocator(page, nextBtn);
       });

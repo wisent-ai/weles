@@ -3,7 +3,8 @@
 
 import { readFileSync } from 'node:fs';
 import { chromium } from 'playwright';
-import { humanIdlePause } from '../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../dist/human/mouse.js';
+import { humanFill } from '../../../dist/human/keyboard.js';
 
 const endpoint = process.env.NCBR_CDP_ENDPOINT || 'http://127.0.0.1:9223';
 const SECTION_URL = 'https://lsi2.ncbr.gov.pl/projekt/7ee80d9a-67dd-4d99-becd-8dda407221c1/projekt_step/5af236aa-03b2-4650-b5a2-95c299dfeeaf';
@@ -68,11 +69,9 @@ if (process.env.PARSE) {
 }
 
 async function clickDodaj() {
-  await page.evaluate(() => {
-    const btn = Array.from(document.querySelectorAll('button')).find((b) => b.innerText.trim() === 'Dodaj');
-    if (!btn) throw new Error('Dodaj not found');
-    btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-  }); // allow-raw-playwright: open team member sub-form
+  const button = page.getByRole('button', { name: 'Dodaj', exact: true }).first();
+  if (await button.count() === 0) throw new Error('Dodaj not found');
+  await humanClickLocator(page, button);
   await humanIdlePause('long');
 }
 
@@ -93,15 +92,15 @@ async function fillByName(name, value) {
   const max = Number(await loc.getAttribute('maxlength')) || value.length;
   let v = value || '';
   if (v.length > max) v = v.slice(0, max).replace(/\s+\S*$/, '');
-  await loc.fill(v); // allow-raw-playwright: LSI form text field
+  await humanFill(page, loc, v);
   await humanIdlePause('short');
   return `${name} ${v.length}/${max}`;
 }
 
 async function setAuto(name, search) {
   const inp = page.locator(`input[name="${name}"]`).first();
-  await inp.click(); // allow-raw-playwright: open MUI autocomplete
-  await inp.fill(search); // allow-raw-playwright: filter
+  await humanClickLocator(page, inp);
+  await humanFill(page, inp, search);
   await humanIdlePause('deliberate');
   const opt = page.locator("[role='listbox'] [role='option']").first();
   if (await opt.count() === 0) throw new Error(`no option for ${name} -> ${search}`);
@@ -112,13 +111,11 @@ async function setAuto(name, search) {
 }
 
 async function setApplicant() {
-  await page.evaluate(() => {
-    const inp = document.querySelector("input[name='nazwa_skrocona_wnioskodawcy_samodzielnego_lidera_konsorcjum_konsorcjanta']");
-    const root = inp && inp.closest('.MuiInputBase-root');
-    const select = root && root.querySelector('.MuiSelect-select, [role="combobox"]');
-    if (!select) throw new Error('applicant select not found');
-    for (const t of ['mousedown', 'mouseup', 'click']) select.dispatchEvent(new MouseEvent(t, { bubbles: true, cancelable: true, view: window }));
-  }); // allow-raw-playwright: open applicant MUI select
+  const applicant = page.locator("input[name='nazwa_skrocona_wnioskodawcy_samodzielnego_lidera_konsorcjum_konsorcjanta']")
+    .locator('xpath=ancestor::*[contains(@class, "MuiInputBase-root")][1]')
+    .locator('.MuiSelect-select, [role="combobox"]').first();
+  if (await applicant.count() === 0) throw new Error('applicant select not found');
+  await humanClickLocator(page, applicant);
   await humanIdlePause('deliberate');
   const opt = page.getByRole('option', { name: 'Wisent Polska', exact: true }).first();
   if (await opt.count() > 0) await opt.dispatchEvent('click'); // allow-raw-playwright: select applicant
@@ -134,20 +131,16 @@ async function setStatus() {
 async function saveForm() {
   await humanIdlePause('deliberate');
   await humanIdlePause('deliberate');
-  await page.evaluate(() => {
-    const saves = Array.from(document.querySelectorAll('button')).filter((b) => b.innerText.trim() === 'Zapisz' && !b.disabled);
-    if (!saves.length) throw new Error('no enabled Zapisz');
-    saves[saves.length - 1].dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-  }); // allow-raw-playwright: save sub-form
+  const saves = page.getByRole('button', { name: 'Zapisz', exact: true }).filter({ visible: true });
+  if (await saves.count() === 0) throw new Error('no enabled Zapisz');
+  await humanClickLocator(page, saves.last());
   await humanIdlePause('long');
 }
 
 async function fillProjectSubrow(project, addIdx = 0) {
-  await page.evaluate((idx) => {
-    const adds = Array.from(document.querySelectorAll('button')).filter((b) => b.innerText.trim() === 'Dodaj kolejny' && !b.disabled);
-    if (!adds[idx]) throw new Error(`Dodaj kolejny ${idx} not found`);
-    adds[idx].dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-  }, addIdx); // allow-raw-playwright: open nested realized-project row
+  const adds = page.getByRole('button', { name: 'Dodaj kolejny', exact: true }).filter({ visible: true });
+  if (await adds.count() <= addIdx) throw new Error(`Dodaj kolejny ${addIdx} not found`);
+  await humanClickLocator(page, adds.nth(addIdx));
   await humanIdlePause('long');
 
   const fillNested = async (suffix, value) => {
@@ -156,7 +149,7 @@ async function fillProjectSubrow(project, addIdx = 0) {
     const max = Number(await loc.getAttribute('maxlength')) || String(value || '').length;
     let v = String(value || '');
     if (v.length > max) v = v.slice(0, max).replace(/\s+\S*$/, '');
-    await loc.fill(v); // allow-raw-playwright: nested realized-project text field
+    await humanFill(page, loc, v);
     await humanIdlePause('short');
   };
 
@@ -235,11 +228,9 @@ if (process.env.DIAG_SUB !== undefined) {
   const rowIdx = Number(rowIdxRaw);
   const addIdx = Number(addIdxRaw || 0);
   await editMemberRow(rowIdx);
-  await page.evaluate((idx) => {
-    const adds = Array.from(document.querySelectorAll('button')).filter((b) => b.innerText.trim() === 'Dodaj kolejny' && !b.disabled);
-    if (!adds[idx]) throw new Error(`Dodaj kolejny ${idx} not found`);
-    adds[idx].dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-  }, addIdx); // allow-raw-playwright: open nested collection row for diagnostics
+  const adds = page.getByRole('button', { name: 'Dodaj kolejny', exact: true }).filter({ visible: true });
+  if (await adds.count() <= addIdx) throw new Error(`Dodaj kolejny ${addIdx} not found`);
+  await humanClickLocator(page, adds.nth(addIdx));
   await humanIdlePause('long');
   const dump = await page.evaluate(() => ({
     fields: Array.from(document.querySelectorAll('input, textarea')).map((i) => ({
@@ -268,7 +259,7 @@ if (process.env.DIAG_FILL !== undefined) {
   let v = m.doswiadczenie;
   const max = Number(await loc.getAttribute('maxlength')) || v.length;
   if (v.length > max) v = v.slice(0, max).replace(/\s+\S*$/, '');
-  await loc.fill(v); // allow-raw-playwright: diagnostic fill existing member experience
+  await humanFill(page, loc, v);
   await loc.dispatchEvent('input'); // allow-raw-playwright: force React dirty/input state after fill
   await loc.dispatchEvent('change'); // allow-raw-playwright: force React dirty/change state after fill
   await humanIdlePause('deliberate');

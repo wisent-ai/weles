@@ -4,7 +4,8 @@
 
 import { readFileSync } from 'node:fs';
 import { chromium } from 'playwright';
-import { humanIdlePause } from '../../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
+import { humanFill } from '../../../../dist/human/keyboard.js';
 
 const endpoint = process.env.NCBR_CDP_ENDPOINT || 'http://127.0.0.1:9223';
 const BASE = 'https://lsi2.ncbr.gov.pl/projekt/7ee80d9a-67dd-4d99-becd-8dda407221c1/projekt_step/';
@@ -80,7 +81,7 @@ if (!page) { console.log(JSON.stringify({ error: 'NO_PAGE' })); process.exit(0);
 
 async function clickEl(loc) {
   await loc.evaluate((el) => el.scrollIntoView({ block: 'center', inline: 'center' })); // allow-raw-playwright: center to dodge sticky-header interception
-  await loc.click(); // allow-raw-playwright: LSI click, no anti-bot
+  await humanClickLocator(page, loc); // allow-raw-playwright: LSI click, no anti-bot
 }
 
 await page.goto(BASE + cfg.sectionId, { waitUntil: 'domcontentloaded' });
@@ -90,7 +91,7 @@ await humanIdlePause('short');
 
 const filled = [];
 for (const f of cfg.fields) {
-  await page.locator(f.sel).first().fill(f.value); // allow-raw-playwright: LSI gov form, no anti-bot; instant fill
+  await humanFill(page, page.locator(f.sel).first(), f.value); // allow-raw-playwright: LSI gov form, no anti-bot; instant fill
   await humanIdlePause('short');
   filled.push(`${f.label} (${f.value.length}/${f.max})`);
 }
@@ -98,7 +99,7 @@ for (const f of cfg.fields) {
 if (SECTION === '3.5') {
   const dateInput = page.locator('input[placeholder*="rrrr"], input[placeholder*="yyyy"]').first();
   if (await dateInput.count() > 0) {
-    await dateInput.fill('01.06.2026'); // allow-raw-playwright: prior-art search date from prepared content
+    await humanFill(page, dateInput, '01.06.2026'); // allow-raw-playwright: prior-art search date from prepared content
     await humanIdlePause('short');
     filled.push('Data badania (01.06.2026)');
   }

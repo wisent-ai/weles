@@ -65,7 +65,7 @@ if (!RESULT_FILE) {
 }
 
 const { WSession } = await import(`${WELES}/dist/session/wsession.js`);
-const { humanFill } = await import(`${WELES}/dist/human/keyboard.js`);
+const { humanFill, humanType } = await import(`${WELES}/dist/human/keyboard.js`);
 const { humanClickLocator, humanIdlePause } = await import(`${WELES}/dist/human/mouse.js`);
 
 const headless = process.env.HEADLESS === '1';
@@ -89,8 +89,8 @@ async function fillPasswordWhenAvailable() {
   const pwd = s.page.locator('input[type="password"]:not([aria-hidden="true"])').first();
   if (await pwd.count() === 0) return false;
   await pwd.waitFor({ state: 'visible', timeout: 10000 });
-  await pwd.click({ timeout: 10000 });
-  await s.page.keyboard.type(SLACK_PASS, { delay: 12 });
+  await humanClickLocator(s.page, pwd);
+  await humanType(s.page, SLACK_PASS);
   await s.page.keyboard.press('Enter');
   await humanIdlePause('long');
   return true;

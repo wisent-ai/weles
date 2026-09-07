@@ -2,7 +2,8 @@
 // Never submits the application.
 
 import { chromium } from 'playwright';
-import { humanIdlePause } from '../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../dist/human/mouse.js';
+import { humanFill } from '../../../dist/human/keyboard.js';
 
 const endpoint = process.env.NCBR_CDP_ENDPOINT || ['ht', 'tp://127.0.0.1:9223'].join('');
 const projectId = process.env.NCBR_PROJECT_ID || '7ee80d9a-67dd-4d99-becd-8dda407221c1';
@@ -72,13 +73,9 @@ for (const target of targets) {
     throw new Error(`${target.section} cleanup too long: ${after.length}/${max}`);
   }
   if (before !== after) {
-    await loc.fill(after); // allow-raw-playwright: replace Markdown syntax with plain text in LSI textarea
+    await humanFill(page, loc, after); // allow-raw-playwright: replace Markdown syntax with plain text in LSI textarea
     await humanIdlePause('deliberate');
-    await page.evaluate(() => {
-      const saves = Array.from(document.querySelectorAll('button')).filter((b) => b.innerText.trim() === 'Zapisz' && !b.disabled && b.getClientRects().length);
-      if (!saves.length) throw new Error('no enabled Zapisz');
-      saves[saves.length - 1].dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-    }); // allow-raw-playwright: save changed section through visible UI
+    await humanClickLocator(page, page.locator('button:visible').filter({ hasText: /^Zapisz$/ }).filter({ hasNot: page.locator('[disabled]') }).last()); // allow-raw-playwright: save changed section through visible UI
     await humanIdlePause('long');
   }
   await page.goto(target.url, { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: readback after save

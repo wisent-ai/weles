@@ -7,7 +7,6 @@
 //
 // Usage:
 //   AGENT_DOMAIN=wisentmedia.com node src/trajectories/linkedin/recover/register_via_real_chrome.mjs
-import { chromium } from 'playwright';
 import { existsSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -16,6 +15,7 @@ import { CaptchaSolver } from '../../../../dist/captcha/solver.js';
 import { humanFill, humanType } from '../../../../dist/human/keyboard.js';
 import { humanClickLocator, humanIdlePause, humanScroll } from '../../../../dist/human/mouse.js';
 import { readScopedProxy } from '../../../_shared/scoped-secrets.mjs';
+import { launchGenuineChrome } from '../../../browser/real_chrome.mjs';
 import { accountItemId, writeAccount } from '../../_shared/skarbiec_accounts.mjs';
 
 const AGENT_DOMAIN = process.env.AGENT_DOMAIN ?? 'wisentmedia.com';
@@ -49,23 +49,16 @@ const proxyOpt = {
   password: oxylabsMobile.password,
 };
 console.log(`[reg-real] using Oxylabs Mobile sticky=${proxySession}`);
-const browser = await chromium.launchPersistentContext(userDataDir, {
+// The launch itself lives in the reviewed browser boundary, with the exact
+// argument set this flow was verified with: Chrome's yellow "unsupported
+// command-line flag" bar is what LinkedIn's risk engine reads to reject a
+// signup (2026-05-06 screenshots), so the flags that raise it are removed
+// from Chrome's defaults rather than added.
+const browser = await launchGenuineChrome({
+  userDataDir,
   executablePath: CHROME_BIN,
-  channel: 'chrome',
-  headless: false,
-  viewport: { width: 1280, height: 800 },
-  // Both --no-sandbox AND --disable-blink-features=AutomationControlled
-  // trigger Chrome's yellow "unsupported command-line flag" warning bar,
-  // which LinkedIn's risk engine detects and uses to reject signups
-  // (cited 2026-05-06 screenshots .work/chrome-no-sandbox-small.jpg and
-  // .work/chrome-sandbox-fixed-small.jpg). Suppress both. With
-  // --enable-automation also in ignoreDefaultArgs, navigator.webdriver
-  // stays false without needing --disable-blink-features.
-  args: ['--disable-infobars',
-    ...(existsSync(NOPECHA_EXT_DIR) ? [`--disable-extensions-except=${NOPECHA_EXT_DIR}`, `--load-extension=${NOPECHA_EXT_DIR}`] : []),
-  ],
-  ignoreDefaultArgs: ['--enable-automation', '--disable-breakpad', '--no-sandbox', '--disable-blink-features=AutomationControlled'],
-  ...(proxyOpt ? { proxy: proxyOpt } : {}),
+  proxy: proxyOpt,
+  extensionDir: NOPECHA_EXT_DIR,
 });
 const page = browser.pages()[0] || await browser.newPage();
 

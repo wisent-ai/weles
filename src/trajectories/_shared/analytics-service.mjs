@@ -188,7 +188,7 @@ async function clickLocator(page, loc, timeoutMs = 10000) {
     await humanClickLocator(page, loc, { timeoutMs });
   } catch {
     try {
-      await loc.click({ timeout: timeoutMs });
+      await humanClickLocator(page, loc);
     } catch {
       return false;
     }
@@ -208,11 +208,7 @@ async function clickDirectLocator(page, loc, timeoutMs = 10000) {
   )).catch(() => false);
   if (disabled) return false;
   await target.scrollIntoViewIfNeeded({ timeout: Math.min(timeoutMs, 5000) }).catch(() => {});
-  try {
-    await target.click({ timeout: timeoutMs });
-  } catch {
-    await target.click({ timeout: timeoutMs, force: true });
-  }
+  await humanClickLocator(page, target);
   await humanIdlePause('deliberate');
   return true;
 }
@@ -227,36 +223,12 @@ async function clickAnyLocator(page, locators, description = '') {
 
 async function clickDomElement(page, selectors, textPattern = null) {
   const pattern = textPattern ? { source: textPattern.source, flags: textPattern.flags } : null;
-  const clicked = await page.evaluate(({ selectors: selectorList, pattern: patternSpec }) => {
-    const matcher = patternSpec ? new RegExp(patternSpec.source, patternSpec.flags) : null;
-    const visible = (node) => {
-      const style = window.getComputedStyle(node);
-      const box = node.getBoundingClientRect();
-      return style.visibility !== 'hidden'
-        && style.display !== 'none'
-        && box.width > 0
-        && box.height > 0
-        && !node.hasAttribute('disabled')
-        && node.getAttribute('aria-disabled') !== 'true'
-        && !node.classList.contains('mat-mdc-button-disabled')
-        && !node.classList.contains('mat-button-disabled');
-    };
-    const nodes = selectorList.flatMap((selector) => Array.from(document.querySelectorAll(selector)));
-    const target = nodes.find((node) => {
-      if (!visible(node)) return false;
-      if (!matcher) return true;
-      const label = `${node.textContent || ''} ${node.getAttribute('aria-label') || ''}`.replace(/\s+/g, ' ').trim();
-      return matcher.test(label);
-    });
-    if (!target) return false;
-    target.scrollIntoView({ block: 'center', inline: 'center' });
-    target.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true }));
-    target.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
-    target.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true }));
-    target.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
-    target.click();
-    return true;
-  }, { selectors, pattern }).catch(() => false);
+  let target = page.locator(selectors.join(',')).filter({ visible: true });
+  if (textPattern) target = target.filter({ hasText: textPattern });
+  target = target.first();
+  const clicked = await target.isVisible().catch(() => false)
+    && !await target.isDisabled().catch(() => true)
+    && await humanClickLocator(page, target).then(() => true).catch(() => false);
   if (clicked) await humanIdlePause('deliberate');
   return clicked;
 }
@@ -635,7 +607,7 @@ async function umamiCreateWebsite(s) {
   if (!await addButton.isVisible().catch(() => false)) throw new Error('Umami Add website button was not visible');
   try {
     await addButton.scrollIntoViewIfNeeded({ timeout: 5000 });
-    await addButton.click({ timeout: 10000 });
+    await humanClickLocator(s.page, addButton);
     await humanIdlePause('deliberate');
   } catch {
     if (!await clickLocator(s.page, addButton)) throw new Error('Umami Add website button was not clickable');
@@ -646,7 +618,7 @@ async function umamiCreateWebsite(s) {
     await humanIdlePause('short');
   }
   if (!await dialog.isVisible().catch(() => false)) {
-    await addButton.click({ timeout: 10000, force: true }).catch(() => {});
+    await humanClickLocator(s.page, addButton).catch(() => {});
     await humanIdlePause('deliberate');
     for (let i = 0; i < 20 && !await dialog.isVisible().catch(() => false); i++) {
       await humanIdlePause('short');
@@ -679,7 +651,7 @@ async function umamiCreateWebsite(s) {
     response.request().method() === 'POST'
       && /gateway-us\.umami\.is\/api\/.*websites|cloud\.umami\.is\/analytics\/us\/api\/.*websites/i.test(response.url())
   ), { timeout: 15000 }).catch(() => null);
-  await saveButton.click({ timeout: 10000 });
+  await humanClickLocator(s.page, saveButton);
   const response = await saveResponse;
   if (response && response.status() >= 400) {
     await humanIdlePause('short');
@@ -911,7 +883,7 @@ async function openGoogleAnalyticsCreatedStreamDetail(s, values) {
     if (await row.isVisible().catch(() => false)) {
       const streamId = await row.locator('[debug-id="stream-entity-id"]').first().innerText({ timeout: 2000 }).catch(() => '');
       const arrow = row.locator('button[aria-label="Select stream"], button').filter({ visible: true }).last();
-      if (!await clickAnyLocator(s.page, [arrow]).catch(() => false)) await row.click({ timeout: 5000, force: true }).catch(() => {});
+      if (!await clickAnyLocator(s.page, [arrow]).catch(() => false)) await humanClickLocator(s.page, row).catch(() => {});
       for (let j = 0; j < 30; j++) {
         const detailText = await bodyText(s.page);
         if (/Measurement ID|View tag instructions|Tag instructions|Stream details/i.test(detailText)) {

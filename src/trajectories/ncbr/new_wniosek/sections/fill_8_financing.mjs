@@ -2,7 +2,8 @@
 // UI-only. Never closes the page and never submits.
 
 import { chromium } from 'playwright';
-import { humanIdlePause } from '../../../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../../../dist/human/mouse.js';
+import { humanFill } from '../../../../../dist/human/keyboard.js';
 
 const endpoint = process.env.NCBR_CDP_ENDPOINT || 'http://127.0.0.1:9223';
 const SECTION_URL = 'https://lsi2.ncbr.gov.pl/projekt/7ee80d9a-67dd-4d99-becd-8dda407221c1/projekt_step/d31b6d68-33b7-45a0-a032-0f5f02b5aed8';
@@ -33,30 +34,25 @@ await page.evaluate(() => {
 }); // allow-raw-playwright: neutralise cookie banner overlay only
 
 async function clickDodaj() {
-  await page.evaluate(() => {
-    const btn = Array.from(document.querySelectorAll('button')).find((b) => b.innerText.trim() === 'Dodaj' && b.getClientRects().length);
-    if (!btn) throw new Error('Dodaj not found');
-    btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-  }); // allow-raw-playwright: open section 8 collection subform
+  const add = page.getByRole('button', { name: 'Dodaj', exact: true }).filter({ visible: true }).first();
+  await humanClickLocator(page, add);
   await humanIdlePause('long');
 }
 
 async function setApplicant() {
-  await page.evaluate(() => {
-    const inp = Array.from(document.querySelectorAll('input')).find((i) => /nazwa_skrocona/.test(i.name || ''));
-    const sel = inp && inp.closest('.MuiInputBase-root')?.querySelector('.MuiSelect-select, [role="combobox"]');
-    if (sel) for (const t of ['mousedown', 'mouseup', 'click']) sel.dispatchEvent(new MouseEvent(t, { bubbles: true, cancelable: true, view: window }));
-  }); // allow-raw-playwright: open applicant select
+  const applicant = page.locator('input[name*="nazwa_skrocona"]').first();
+  const applicantSelect = applicant.locator('xpath=ancestor::*[contains(@class, "MuiInputBase-root")][1]').locator('.MuiSelect-select, [role="combobox"]').first();
+  if (await applicantSelect.count()) await humanClickLocator(page, applicantSelect);
   await humanIdlePause('deliberate');
   const opt = page.getByRole('option', { name: 'Wisent Polska', exact: true }).first();
-  if (await opt.count() > 0) await opt.click({ force: true }); // allow-raw-playwright: select Wisent applicant
+  if (await opt.count() > 0) await humanClickLocator(page, opt); // allow-raw-playwright: select Wisent applicant
   await humanIdlePause('short');
 }
 
 async function fillBySuffix(fragment, value) {
   const loc = page.locator(`input[name*="${fragment}"], textarea[name*="${fragment}"]`).first();
   await loc.waitFor({ state: 'visible' });
-  await loc.fill(value); // allow-raw-playwright: fill section 8 amount field
+  await humanFill(page, loc, value); // allow-raw-playwright: fill section 8 amount field
   await humanIdlePause('short');
   return { fragment, value };
 }
@@ -64,11 +60,8 @@ async function fillBySuffix(fragment, value) {
 async function saveForm() {
   await humanIdlePause('deliberate');
   await humanIdlePause('deliberate');
-  await page.evaluate(() => {
-    const saves = Array.from(document.querySelectorAll('button')).filter((b) => b.innerText.trim() === 'Zapisz' && !b.disabled && b.getClientRects().length);
-    if (!saves.length) throw new Error('no enabled Zapisz');
-    saves[saves.length - 1].dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-  }); // allow-raw-playwright: save section 8 row
+  const save = page.getByRole('button', { name: 'Zapisz', exact: true }).filter({ visible: true }).last();
+  await humanClickLocator(page, save);
   await humanIdlePause('long');
 }
 

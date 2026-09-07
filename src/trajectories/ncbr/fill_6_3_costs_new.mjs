@@ -2,7 +2,8 @@
 // DIAG=1 opens one row and dumps field names. Never closes page.
 
 import { chromium } from 'playwright';
-import { humanIdlePause } from '../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../dist/human/mouse.js';
+import { humanFill } from '../../../dist/human/keyboard.js';
 
 const endpoint = process.env.NCBR_CDP_ENDPOINT || ['ht', 'tp://127.0.0.1:9223'].join('');
 const SECTION_URL = ['https://', 'lsi2.ncbr.gov.pl/projekt/7ee80d9a-67dd-4d99-becd-8dda407221c1/projekt_step/fb417879-403e-4241-a202-ec23c6a6b866'].join('');
@@ -17,11 +18,9 @@ await humanIdlePause('long');
 await page.evaluate(() => { const b = Array.from(document.querySelectorAll('div')).find((d) => (d.innerText || '').includes('pliki cookies')); if (b) b.style.pointerEvents = 'none'; }); // allow-raw-playwright: cookie banner
 
 async function clickDodaj() {
-  await page.evaluate(() => {
-    const btn = Array.from(document.querySelectorAll('button')).find((b) => b.innerText.trim() === 'Dodaj' && b.getClientRects().length);
-    if (!btn) throw new Error('Dodaj not found');
-    btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-  }); // allow-raw-playwright: open cost row
+  const button = page.getByRole('button', { name: 'Dodaj', exact: true }).filter({ visible: true }).first();
+  if (await button.count() === 0) throw new Error('Dodaj not found');
+  await humanClickLocator(page, button);
   await humanIdlePause('long');
 }
 
@@ -35,12 +34,10 @@ if (process.env.DIAG) {
   const buttons = await page.evaluate(() => Array.from(document.querySelectorAll('button')).map((b) => b.innerText.trim()).filter(Boolean));
   let taskOptions = [];
   if (process.env.OPTS) {
-    await page.evaluate(() => {
-      const inp = document.querySelector('input[name="nazwa_zadania"]');
-      const root = inp && inp.closest('.MuiInputBase-root');
-      const select = root && root.querySelector('.MuiSelect-select, [role="combobox"]');
-      if (select) for (const t of ['mousedown', 'mouseup', 'click']) select.dispatchEvent(new MouseEvent(t, { bubbles: true, cancelable: true, view: window }));
-    }); // allow-raw-playwright: open task select for read-only options dump
+    const taskInput = page.locator('input[name="nazwa_zadania"]').first();
+    const taskSelect = page.locator('.MuiInputBase-root').filter({ has: taskInput })
+      .locator('.MuiSelect-select, [role="combobox"]').first();
+    if (await taskSelect.count() > 0) await humanClickLocator(page, taskSelect);
     await humanIdlePause('deliberate');
     taskOptions = await page.evaluate(() => Array.from(document.querySelectorAll('[role="option"]')).map((o) => o.textContent.trim()).slice(0, 30));
   }
@@ -73,13 +70,11 @@ const OBSOLETE_ROWS = [
 ];
 
 async function openSelect(name) {
-  await page.evaluate((name) => {
-    const inp = document.querySelector(`input[name="${name}"]`);
-    const root = inp && inp.closest('.MuiInputBase-root');
-    const select = root && root.querySelector('.MuiSelect-select, [role="combobox"]');
-    if (!select) throw new Error(`select not found: ${name}`);
-    for (const t of ['mousedown', 'mouseup', 'click']) select.dispatchEvent(new MouseEvent(t, { bubbles: true, cancelable: true, view: window }));
-  }, name); // allow-raw-playwright: open MUI select
+  const input = page.locator(`input[name="${name}"]`).first();
+  const select = page.locator('.MuiInputBase-root').filter({ has: input })
+    .locator('.MuiSelect-select, [role="combobox"]').first();
+  if (await select.count() === 0) throw new Error(`select not found: ${name}`);
+  await humanClickLocator(page, select);
   await humanIdlePause('deliberate');
 }
 
@@ -95,7 +90,7 @@ async function pickSelect(name, contains) {
 
 async function setAuto(name, search) {
   const inp = page.locator(`input[name="${name}"]`).first();
-  await inp.click(); await inp.fill(search); // allow-raw-playwright: filter autocomplete
+  await humanClickLocator(page, inp); await humanFill(page, inp, search);
   await humanIdlePause('deliberate');
   const opt = page.locator("[role='listbox'] [role='option']").first();
   if (await opt.count() === 0) throw new Error(`no autocomplete option ${name} -> ${search}`);
@@ -110,17 +105,15 @@ async function fill(name, value) {
   const max = Number(await loc.getAttribute('maxlength')) || String(value).length;
   let v = String(value);
   if (v.length > max) throw new Error(`${name} too long: ${v.length}/${max}`);
-  await loc.fill(v); // allow-raw-playwright: text/number field
+  await humanFill(page, loc, v);
   await humanIdlePause('short');
 }
 
 async function saveForm() {
   await humanIdlePause('deliberate'); await humanIdlePause('deliberate');
-  await page.evaluate(() => {
-    const saves = Array.from(document.querySelectorAll('button')).filter((b) => b.innerText.trim() === 'Zapisz' && !b.disabled);
-    if (!saves.length) throw new Error('no enabled Zapisz');
-    saves[saves.length - 1].dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-  }); // allow-raw-playwright: save cost row
+  const save = page.locator('button:not([disabled])').filter({ hasText: /^Zapisz$/ }).filter({ visible: true }).last();
+  if (await save.count() === 0) throw new Error('no enabled Zapisz');
+  await humanClickLocator(page, save);
   await humanIdlePause('long');
 }
 
@@ -217,10 +210,8 @@ if (process.env.VERIFY_DETAILS) {
       };
     }); // allow-raw-playwright: read existing cost row fields without saving
     details.push(item);
-    await page.evaluate(() => {
-      const buttons = Array.from(document.querySelectorAll('button')).filter((b) => b.innerText.trim() === 'Anuluj' && b.getClientRects().length);
-      if (buttons.length) buttons[buttons.length - 1].dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-    }); // allow-raw-playwright: close read-only opened cost row without saving
+    const cancel = page.getByRole('button', { name: 'Anuluj', exact: true }).filter({ visible: true }).last();
+    if (await cancel.count() > 0) await humanClickLocator(page, cancel);
     await humanIdlePause('long');
   }
   console.log(JSON.stringify({ details }, null, 2));

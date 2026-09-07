@@ -2,7 +2,7 @@
 // DIAG=1 opens the criterion-1 subform and dumps controls without uploading.
 
 import { chromium } from 'playwright';
-import { humanIdlePause } from '../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../dist/human/mouse.js';
 
 const endpoint = process.env.NCBR_CDP_ENDPOINT || 'http://127.0.0.1:9223';
 const projectId = process.env.NCBR_PROJECT_ID || '7ee80d9a-67dd-4d99-becd-8dda407221c1';
@@ -25,52 +25,35 @@ await page.evaluate(() => {
   if (b) b.style.pointerEvents = 'none';
 }); // allow-raw-playwright: neutralise cookie overlay
 
-await page.evaluate(() => {
-  const btn = Array.from(document.querySelectorAll('button, a, [role="button"]')).find((e) => (e.textContent || '').trim() === 'Dokumenty');
-  if (!btn) throw new Error('Dokumenty control not found');
-  btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-}); // allow-raw-playwright: open Dokumenty tab
+const documentsButton = page.getByText('Dokumenty', { exact: true }).filter({ visible: true }).first();
+if (!await documentsButton.count()) throw new Error('Dokumenty control not found');
+await humanClickLocator(page, documentsButton);
 await humanIdlePause('long');
 
 async function openExistingCriterion1Edit() {
-  await page.evaluate(() => {
-    const menu = Array.from(document.querySelectorAll('button, [role="button"]')).find((e) =>
-      (e.textContent || e.getAttribute('aria-label') || '').trim().includes('overflow-options')
-    );
-    if (!menu) throw new Error('no existing criterion-1 row menu found');
-    menu.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-  }); // allow-raw-playwright: open saved criterion-1 row menu
+  const menu = page.locator('button[aria-label*="overflow-options"], [role="button"][aria-label*="overflow-options"]').filter({ visible: true }).first();
+  if (!await menu.count()) throw new Error('no existing criterion-1 row menu found');
+  await humanClickLocator(page, menu);
   await humanIdlePause('short');
-  await page.evaluate(() => {
-    const item = Array.from(document.querySelectorAll('li, button, [role="menuitem"]')).find((e) =>
-      /^Edytuj$/i.test((e.textContent || '').trim())
-    );
-    if (!item) throw new Error('Edytuj menu item not found');
-    item.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-  }); // allow-raw-playwright: edit saved criterion-1 row
+  const item = page.getByText(/^Edytuj$/i, { exact: true }).filter({ visible: true }).first();
+  if (!await item.count()) throw new Error('Edytuj menu item not found');
+  await humanClickLocator(page, item);
   await humanIdlePause('long');
 }
 
 async function openCriterion1Add() {
-  await page.evaluate((needle) => {
-    const labels = Array.from(document.querySelectorAll('h1,h2,h3,h4,h5,h6,p,span,div'))
-      .filter((e) => e.offsetParent && (e.innerText || e.textContent || '').includes(needle))
-      .map((e) => ({ e, text: (e.innerText || e.textContent || '').trim(), top: e.getBoundingClientRect().top }))
-      .filter((x) => x.text.length < 500)
-      .sort((a, b) => a.top - b.top);
-    const label = labels[0];
-    if (!label) throw new Error('criterion-1 label not found');
-    const buttons = Array.from(document.querySelectorAll('button'))
-      .filter((b) => (b.innerText || '').trim() === 'Dodaj' && !b.disabled)
-      .map((b) => ({ b, top: b.getBoundingClientRect().top }))
-      .filter((x) => x.top > label.top)
-      .sort((a, b) => a.top - b.top);
-    if (buttons[0]) {
-      buttons[0].b.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-      return;
-    }
-    throw new Error('criterion-1 Dodaj not found');
-  }, criterionNeedle); // allow-raw-playwright: open the exact criterion-1 attachment row
+  const label = page.getByText(criterionNeedle, { exact: false }).filter({ visible: true }).first();
+  if (!await label.count()) throw new Error('criterion-1 label not found');
+  const labelBox = await label.boundingBox();
+  const addButtons = page.getByRole('button', { name: 'Dodaj', exact: true }).filter({ visible: true });
+  let addButton = null;
+  for (let i = 0; i < await addButtons.count(); i += 1) {
+    const candidate = addButtons.nth(i);
+    const box = await candidate.boundingBox();
+    if (box && labelBox && box.y > labelBox.y) { addButton = candidate; break; }
+  }
+  if (!addButton) throw new Error('criterion-1 Dodaj not found');
+  await humanClickLocator(page, addButton);
   await humanIdlePause('long');
 }
 
@@ -108,11 +91,8 @@ if (process.env.DIAG) {
 async function selectApplicant() {
   const input = page.locator("input[name*='nazwa_skrocona']").first();
   if (await input.count() === 0) return 'no applicant input';
-  await page.evaluate(() => {
-    const inp = document.querySelector("input[name*='nazwa_skrocona']");
-    const sel = inp && inp.closest('.MuiInputBase-root')?.querySelector('.MuiSelect-select, [role="combobox"]');
-    if (sel) for (const t of ['mousedown', 'mouseup', 'click']) sel.dispatchEvent(new MouseEvent(t, { bubbles: true, cancelable: true, view: window }));
-  }); // allow-raw-playwright: open applicant select
+  const applicantSelect = page.locator('.MuiInputBase-root:has(input[name*="nazwa_skrocona"])').locator('.MuiSelect-select, [role="combobox"]').first();
+  if (await applicantSelect.count()) await humanClickLocator(page, applicantSelect);
   await humanIdlePause('deliberate');
   const opt = page.getByRole('option', { name: 'Wisent Polska', exact: true }).first();
   if (await opt.count() === 0) return 'no Wisent Polska option';
@@ -127,7 +107,7 @@ async function attachPdf() {
   const zoneCount = await zones.count();
   if (zoneCount > 0) {
     const chooserPromise = page.waitForEvent('filechooser', { timeout: 5000 }).catch(() => null);
-    await zones.nth(zoneCount - 1).click({ force: true }); // allow-raw-playwright: open LSI upload control
+    await humanClickLocator(page, zones.nth(zoneCount - 1));
     const chooser = await chooserPromise;
     if (chooser) {
       await chooser.setFiles(pdfPath); // allow-raw-playwright: attach vetted criterion-1 PDF through chooser
@@ -158,11 +138,10 @@ if (!uploadState.hasOneOfTen && !uploadState.hasFileName) {
 }
 
 let saveResult = 'saved';
-await page.evaluate(() => {
-  const saves = Array.from(document.querySelectorAll('button')).filter((b) => (b.innerText || '').trim() === 'Zapisz' && !b.disabled);
-  if (!saves.length) throw new Error('no enabled Zapisz');
-  saves[saves.length - 1].dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-}).catch((e) => { saveResult = `NOT SAVED: ${String(e?.message || e).slice(0, 90)}`; }); // allow-raw-playwright: save attachment row
+const saves = page.getByRole('button', { name: 'Zapisz', exact: true }).filter({ visible: true });
+const saveCount = await saves.count();
+if (!saveCount) saveResult = 'NOT SAVED: no enabled Zapisz';
+else await humanClickLocator(page, saves.nth(saveCount - 1)).catch((e) => { saveResult = `NOT SAVED: ${String(e?.message || e).slice(0, 90)}`; });
 await humanIdlePause('long');
 
 const readback = await page.evaluate((needle) => {

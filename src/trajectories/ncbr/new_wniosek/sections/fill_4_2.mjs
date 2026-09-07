@@ -2,7 +2,8 @@
 
 import { readFileSync } from 'node:fs';
 import { chromium } from 'playwright';
-import { humanIdlePause } from '../../../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../../../dist/human/mouse.js';
+import { humanFill } from '../../../../../dist/human/keyboard.js';
 
 const endpoint = process.env.NCBR_CDP_ENDPOINT || 'http://127.0.0.1:9223';
 const SECTION_URL = 'https://lsi2.ncbr.gov.pl/projekt/7ee80d9a-67dd-4d99-becd-8dda407221c1/projekt_step/95a9b43d-b789-479a-a60d-159b975af74d';
@@ -35,22 +36,15 @@ await page.evaluate(() => {
 }); // allow-raw-playwright: neutralise cookie banner
 
 async function clickDodaj() {
-  await page.evaluate(() => {
-    const btn = Array.from(document.querySelectorAll('button')).find((b) => b.innerText.trim() === 'Dodaj' && b.getClientRects().length);
-    if (!btn) throw new Error('Dodaj not found');
-    btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-  }); // allow-raw-playwright: open resource subform
+  const add = page.getByRole('button', { name: 'Dodaj', exact: true }).filter({ visible: true }).first();
+  await humanClickLocator(page, add);
   await humanIdlePause('long');
 }
 
 async function setApplicant() {
-  await page.evaluate(() => {
-    const inp = Array.from(document.querySelectorAll('input')).find((i) => /nazwa_skrocona_wnioskodawcy/.test(i.name || ''));
-    const root = inp && inp.closest('.MuiInputBase-root');
-    const select = root && root.querySelector('.MuiSelect-select, [role="combobox"]');
-    if (!select) return;
-    for (const t of ['mousedown', 'mouseup', 'click']) select.dispatchEvent(new MouseEvent(t, { bubbles: true, cancelable: true, view: window }));
-  }); // allow-raw-playwright: open applicant select
+  const applicant = page.locator('input[name*="nazwa_skrocona"]').first();
+  const applicantSelect = applicant.locator('xpath=ancestor::*[contains(@class, "MuiInputBase-root")][1]').locator('.MuiSelect-select, [role="combobox"]').first();
+  if (await applicantSelect.count()) await humanClickLocator(page, applicantSelect);
   await humanIdlePause('deliberate');
   const opt = page.getByRole('option', { name: 'Wisent Polska', exact: true }).first();
   if (await opt.count() > 0) await opt.dispatchEvent('click'); // allow-raw-playwright: select applicant
@@ -60,8 +54,8 @@ async function setApplicant() {
 async function setAuto(suffix, value) {
   const prefix = value.split(',')[0].trim();
   const inp = page.locator(`input[name$="${suffix}"]`).first();
-  await inp.click(); // allow-raw-playwright: open type autocomplete
-  await inp.fill(prefix); // allow-raw-playwright: comma-free prefix filter
+  await humanClickLocator(page, inp); // allow-raw-playwright: open type autocomplete
+  await humanFill(page, inp, prefix); // allow-raw-playwright: comma-free prefix filter
   await humanIdlePause('deliberate');
   const opt = page.locator("[role='listbox'] [role='option'], [role='option']").filter({ hasText: prefix }).first();
   if (await opt.count() === 0) throw new Error(`no option for ${suffix}: ${prefix}`);
@@ -77,7 +71,7 @@ async function fillSuffix(suffix, value) {
   const max = Number(await loc.getAttribute('maxlength')) || String(value).length;
   let v = String(value || '');
   if (v.length > max) v = v.slice(0, max).replace(/\s+\S*$/, '');
-  await loc.fill(v); // allow-raw-playwright: resource text field
+  await humanFill(page, loc, v); // allow-raw-playwright: resource text field
   await humanIdlePause('short');
   return `${suffix} ${v.length}/${max}`;
 }
@@ -85,11 +79,8 @@ async function fillSuffix(suffix, value) {
 async function saveEnabled() {
   await humanIdlePause('deliberate');
   await humanIdlePause('deliberate');
-  await page.evaluate(() => {
-    const saves = Array.from(document.querySelectorAll('button')).filter((b) => b.innerText.trim() === 'Zapisz' && !b.disabled && b.getClientRects().length);
-    if (!saves.length) throw new Error('no enabled Zapisz');
-    saves[saves.length - 1].dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-  }); // allow-raw-playwright: save resource subform
+  const save = page.getByRole('button', { name: 'Zapisz', exact: true }).filter({ visible: true }).last();
+  await humanClickLocator(page, save);
   await humanIdlePause('long');
 }
 

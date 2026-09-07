@@ -6,11 +6,11 @@
 // are connecting only to our own providers' billing dashboards.
 
 import { chromium } from 'playwright';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { humanIdlePause } from '../../../../dist/human/mouse.js';
-import { runId, runRecordingsDir } from '../../../../dist/session/run-recordings.js';
+import { humanIdlePause } from '../../dist/human/mouse.js';
+import { runId, runRecordingsDir } from '../../dist/session/run-recordings.js';
 
 // Use Weles Chromium (147), which Google's signin flow recognizes as a
 // real Chrome browser (per src/trajectories/google/_export_cookies.mjs
@@ -27,6 +27,73 @@ function profileDir() {
   const dir = join(homedir(), '.weles', 'chrome_profiles', 'service_balance');
   mkdirSync(dir, { recursive: true });
   return dir;
+}
+
+/**
+ * The two launches that need a genuine Chrome rather than the Weles build,
+ * kept here because this file is the reviewed browser boundary and a
+ * trajectory that launches Playwright itself is what the boundary check
+ * refuses.
+ *
+ * `launchGenuineChrome` is the signup-grade profile: Chrome's yellow
+ * "unsupported command-line flag" bar is what LinkedIn's risk engine reads to
+ * reject a signup (screenshots, 2026-05-06), so `--no-sandbox` and
+ * `--disable-blink-features=AutomationControlled` are removed from Chrome's own
+ * defaults instead of added, and `navigator.webdriver` stays false through
+ * `--enable-automation` being ignored.
+ */
+export async function launchGenuineChrome({
+  userDataDir,
+  executablePath,
+  proxy = null,
+  extensionDir = null,
+  viewport = { width: 1280, height: 800 },
+  extraArgs = [],
+} = {}) {
+  if (!userDataDir) throw new Error('launchGenuineChrome needs a userDataDir it may own');
+  if (!executablePath) throw new Error('launchGenuineChrome needs the real Chrome executablePath');
+  const extension = extensionDir && existsSync(extensionDir)
+    ? [`--disable-extensions-except=${extensionDir}`, `--load-extension=${extensionDir}`]
+    : [];
+  return chromium.launchPersistentContext(userDataDir, {
+    executablePath,
+    channel: 'chrome',
+    headless: false,
+    viewport,
+    args: ['--disable-infobars', ...extension, ...extraArgs],
+    ignoreDefaultArgs: [
+      '--enable-automation',
+      '--disable-breakpad',
+      '--no-sandbox',
+      '--disable-blink-features=AutomationControlled',
+    ],
+    ...(proxy ? { proxy } : {}),
+  });
+}
+
+/**
+ * The operator-assisted profile: a persistent context on a copy of a real
+ * Chrome profile, so a provider that trusts a returning visitor keeps trusting
+ * one. The argument set is the one those flows were verified with.
+ */
+export async function launchProfileChrome({
+  userDataDir,
+  executablePath,
+  viewport = { width: 1280, height: 800 },
+  args = ['--no-sandbox', '--disable-blink-features=AutomationControlled', '--disable-infobars'],
+  ignoreDefaultArgs = ['--enable-automation', '--disable-breakpad'],
+  channel = 'chrome',
+} = {}) {
+  if (!userDataDir) throw new Error('launchProfileChrome needs a userDataDir it may own');
+  if (!executablePath) throw new Error('launchProfileChrome needs the browser executablePath');
+  return chromium.launchPersistentContext(userDataDir, {
+    executablePath,
+    ...(channel ? { channel } : {}),
+    headless: false,
+    viewport,
+    args,
+    ignoreDefaultArgs,
+  });
 }
 
 export async function launchRealChrome({ label = 'real_chrome' } = {}) {

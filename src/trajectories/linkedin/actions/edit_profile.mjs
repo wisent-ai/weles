@@ -176,14 +176,9 @@ try {
       // zero mutation POSTs across multiple runs. RSC forms commonly
       // submit via form.requestSubmit(button) not button.click(); call
       // that directly so the right onSubmit/action handler fires.
-      const dispatchResult = await s.page.evaluate(() => {
-        const btn = Array.from(document.querySelectorAll('button')).find(b => /^save$/i.test(b.textContent?.trim() ?? '') && !b.disabled && b.getBoundingClientRect().width > 0);
-        if (!btn) return 'no-save-button';
-        const form = btn.closest('form');
-        if (form?.requestSubmit) { form.requestSubmit(btn); return 'requestSubmit'; }
-        btn.click();
-        return 'btn.click';
-      }).catch((e) => `err:${e.message?.slice(0, 60)}`);
+      const dispatchResult = await humanClickLocator(s.page, saveBtn)
+        .then(() => 'humanClickLocator')
+        .catch((e) => `err:${e.message?.slice(0, 60)}`);
       console.log(`[li-profile] save dispatch: ${dispatchResult}`);
       const apiRes = await savePost;
       const postClickBody = await s.page.evaluate(() => (document.body?.innerText || '').slice(0, 600).replace(/\n/g, ' / ')).catch(() => '');

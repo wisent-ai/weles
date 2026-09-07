@@ -5,6 +5,7 @@
 import { readFileSync } from 'node:fs';
 import { chromium } from 'playwright';
 import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
+import { humanFill } from '../../../../dist/human/keyboard.js';
 
 const endpoint = process.env.NCBR_CDP_ENDPOINT || ['ht', 'tp://127.0.0.1:9223'].join('');
 const SECTION_LABEL = process.env.SECTION_LABEL || '1.1.';
@@ -42,8 +43,8 @@ if (process.env.FIX_10_4) {
 
   async function pickCombo(suffix, search) {
     const input = page.locator(`input[name$="${suffix}"]`).first();
-    await input.click(); // allow-raw-playwright: controlled 10.4 UI repair
-    if (search) await input.fill(search); // allow-raw-playwright: controlled 10.4 UI repair
+    await humanClickLocator(page, input); // allow-raw-playwright: controlled 10.4 UI repair
+    if (search) await humanFill(page, input, search); // allow-raw-playwright: controlled 10.4 UI repair
     await humanIdlePause('deliberate');
     const option = page.locator("[role='listbox'] [role='option'], [role='option']").first();
     if (await option.count() === 0) throw new Error(`no option for ${suffix}`);
@@ -54,13 +55,9 @@ if (process.env.FIX_10_4) {
   }
 
   async function openSelect(suffix) {
-    await page.evaluate((suffix) => {
-      const input = document.querySelector(`input[name$="${suffix}"]`);
-      const root = input && input.closest('.MuiInputBase-root');
-      const target = root && (root.querySelector('.MuiSelect-select') || root.querySelector('[role="combobox"]') || root);
-      if (!target) throw new Error(`select not found: ${suffix}`);
-      for (const type of ['mousedown', 'mouseup', 'click']) target.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, view: window }));
-    }, suffix); // allow-raw-playwright: controlled 10.4 UI repair
+    const target = page.locator(`input[name$="${suffix}"]`).first().locator('xpath=ancestor::*[contains(@class,"MuiInputBase-root")][1]').locator('.MuiSelect-select, [role="combobox"]').first();
+    if (await target.count() === 0) throw new Error(`select not found: ${suffix}`);
+    await humanClickLocator(page, target); // allow-raw-playwright: controlled 10.4 UI repair
     await humanIdlePause('deliberate');
   }
 
@@ -114,7 +111,7 @@ if (process.env.FIX_10_4) {
   const ta = page.locator('textarea[name$="opis_zasady_szesc_r"]').first();
   const max = Number(await ta.getAttribute('maxlength')) || opis6r.length;
   if (opis6r.length > max) opis6r = opis6r.slice(0, max).replace(/\s+\S*$/, '');
-  await ta.fill(opis6r); // allow-raw-playwright: controlled 10.4 UI repair
+  await humanFill(page, ta, opis6r); // allow-raw-playwright: controlled 10.4 UI repair
   repair.opis6r = opis6r.length;
 
   await openSelect('zasady_szesc_r_wskazniki');
@@ -129,21 +126,13 @@ if (process.env.FIX_10_4) {
 
   await humanIdlePause('deliberate');
   await humanIdlePause('deliberate');
-  await page.evaluate(() => {
-    const saves = Array.from(document.querySelectorAll('button')).filter((b) => b.innerText.trim() === 'Zapisz' && !b.disabled && b.getClientRects().length);
-    if (!saves.length) throw new Error('no enabled Zapisz');
-    saves[saves.length - 1].dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-  }); // allow-raw-playwright: controlled 10.4 UI save
+  await humanClickLocator(page, page.locator('button:visible:not([disabled])').filter({ hasText: /^Zapisz$/ }).last()); // allow-raw-playwright: controlled 10.4 UI save
   await humanIdlePause('long');
   navInfo.fix10_4 = repair;
 }
 
 if (process.env.CHECK_ONLY) {
-  await page.evaluate(() => {
-    const button = Array.from(document.querySelectorAll('button')).find((b) => b.innerText.trim() === 'Sprawdź wniosek' && b.getClientRects().length);
-    if (!button) throw new Error('Sprawdź wniosek not found');
-    button.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-  }); // allow-raw-playwright: validation click only, never submit
+  await humanClickLocator(page, page.locator('button:visible').filter({ hasText: /^Sprawdź wniosek$/ }).first()); // allow-raw-playwright: validation click only, never submit
   await humanIdlePause('long');
   await humanIdlePause('long');
   await humanIdlePause('long');

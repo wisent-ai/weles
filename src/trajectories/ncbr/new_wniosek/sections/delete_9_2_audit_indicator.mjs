@@ -2,7 +2,7 @@
 // UI-only; never submits.
 
 import { chromium } from 'playwright';
-import { humanIdlePause } from '../../../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../../../dist/human/mouse.js';
 
 const endpoint = process.env.NCBR_CDP_ENDPOINT || ['ht', 'tp://127.0.0.1:9223'].join('');
 const SECTION_URL = ['https://', 'lsi2.ncbr.gov.pl/projekt/7ee80d9a-67dd-4d99-becd-8dda407221c1/projekt_step/e95d0c23-8a39-4d56-96fa-ace3e4f0d23a'].join('');
@@ -41,30 +41,25 @@ if (!targetBefore) {
   process.exit(0);
 }
 
-await page.evaluate((needles) => {
-  const table = document.querySelector('table');
-  if (!table) throw new Error('9.2 table not found');
-  const row = Array.from(table.querySelectorAll('tbody tr'))
-    .find((r) => needles.some((needle) => (r.innerText || '').includes(needle)) && r.querySelector('button[aria-label="overflow-options"]'));
-  if (!row) throw new Error('target audit indicator row not found');
-  row.querySelector('button[aria-label="overflow-options"]').dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-}, NEEDLES); // allow-raw-playwright: open overflow menu for exact 9.2 row
+const targetRow = page.locator('table tbody tr')
+  .filter({ has: page.locator('button[aria-label="overflow-options"]') })
+  .filter({ hasText: new RegExp(NEEDLES.map((needle) => needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')) })
+  .first();
+if (await targetRow.count() === 0) throw new Error('target audit indicator row not found');
+await humanClickLocator(page, targetRow.locator('button[aria-label="overflow-options"]').first());
 await humanIdlePause('deliberate');
 
-await page.evaluate(() => {
-  const item = Array.from(document.querySelectorAll('[role="menuitem"], .MuiMenuItem-root'))
-    .find((e) => /usuń|usun/i.test(e.textContent || ''));
-  if (!item) throw new Error('delete menu item not found');
-  item.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-}); // allow-raw-playwright: choose delete action
+const deleteItem = page.locator('[role="menuitem"], .MuiMenuItem-root')
+  .filter({ hasText: /usuń|usun/i }).filter({ visible: true }).first();
+if (await deleteItem.count() === 0) throw new Error('delete menu item not found');
+await humanClickLocator(page, deleteItem);
 await humanIdlePause('deliberate');
 
-await page.evaluate(() => {
-  const buttons = Array.from(document.querySelectorAll('button')).filter((b) =>
-    /usuń|usun|tak|potwierdź|potwierdz/i.test(b.innerText || '') && !b.disabled && b.getClientRects().length);
-  if (!buttons.length) throw new Error('delete confirmation button not found');
-  buttons[buttons.length - 1].dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-}); // allow-raw-playwright: confirm deletion
+const confirm = page.locator('button:not([disabled])')
+  .filter({ hasText: /usuń|usun|tak|potwierdź|potwierdz/i })
+  .filter({ visible: true }).last();
+if (await confirm.count() === 0) throw new Error('delete confirmation button not found');
+await humanClickLocator(page, confirm);
 await humanIdlePause('long');
 
 const after = await rows();

@@ -7,7 +7,7 @@
 // needed, solves it, and returns control to the normal post-createAccount flow.
 
 import { CaptchaSolver } from '../../../../dist/captcha/solver.js';
-import { humanIdlePause } from '../../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
 import { getCaptchaCredentials } from '../../../../dist/utils/credentials.js';
 import { solveLinkedinPhoneChallenge } from './phone_verify.mjs';
 
@@ -271,7 +271,7 @@ async function submitLinkedinCaptchaForm(page, token, sitekey, dataS) {
     const btn = frame.locator(sel).filter({ visible: true }).first();
     if (await btn.count() && await btn.isEnabled().catch(() => false)) {
       console.log(`[create_account_challenge] clicking captcha submit button: ${sel}`);
-      await btn.click({ delay: 80 });
+      await humanClickLocator(page, btn);
       return { ok: true };
     }
   }

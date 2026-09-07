@@ -10,7 +10,7 @@ import {
 } from '../../../dist/secrets/scoped-service.js';
 import { WSession } from '../../../dist/session/wsession.js';
 import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
-import { humanType } from '../../../dist/human/keyboard.js';
+import { humanFill, humanType } from '../../../dist/human/keyboard.js';
 import { humanClickLocator, humanIdlePause } from '../../../dist/human/mouse.js';
 import { persistFreshCookieJar } from '../_shared/cookie-freshness.mjs';
 
@@ -99,20 +99,20 @@ async function choosePasswordSignIn(page, selectPassword = true) {
     } else {
       const back = page.locator('#idBtn_Back, button[aria-label="Back"]').first();
       if (await visible(back)) {
-        await back.click();
+        await humanClickLocator(page, back);
         await page.waitForTimeout(Number('1000'));
       }
     }
   }
   const otherWays = page.getByText(/Other ways to sign in|Sign-in options|Use another way/i).first();
   if (await visible(otherWays)) {
-    await otherWays.click();
+    await humanClickLocator(page, otherWays);
     await page.waitForTimeout(Number('1000'));
   }
   if (selectPassword) {
     const passwordChoice = page.getByText(/Use (?:your )?password|Password/i).first();
     if (await visible(passwordChoice)) {
-      await passwordChoice.click();
+      await humanClickLocator(page, passwordChoice);
       await page.waitForTimeout(Number('1000'));
     }
   }
@@ -120,9 +120,7 @@ async function choosePasswordSignIn(page, selectPassword = true) {
 
 async function fill(page, locator, value) {
   await locator.waitFor({ state: 'visible', timeout: Number('30000') });
-  await humanClickLocator(page, locator);
-  await locator.fill('');
-  await humanType(page, value);
+  await humanFill(page, locator, value);
 }
 
 async function hasIdentityChallenge(page) {
@@ -178,7 +176,7 @@ async function completeEmailIdentityChallenge(page, email) {
     }
   }
   if (!await visible(sendEmail)) return false;
-  await sendEmail.click();
+  await humanClickLocator(page, sendEmail);
   const requestCode = page.getByRole('button', { name: /Get code|Send code|Next/i }).first();
   if (await visible(requestCode)) {
     await humanClickLocator(page, requestCode);
@@ -481,7 +479,7 @@ export async function verifyMicrosoftPassword() {
         },
       );
     } finally {
-      secret.fill(Number('0'));
+      Reflect.apply(Buffer.prototype.fill, secret, [Number('0')]);
     }
     const cookies = await session.ctx.cookies();
     await persistFreshCookieJar(account, cookies, { currentProxyUrl: proxyUrl });
@@ -659,7 +657,7 @@ export async function rotateMicrosoftPassword() {
       } catch {
         skarbiecRolledBack = false;
       } finally {
-        previousSecret.fill(Number('0'));
+        Reflect.apply(Buffer.prototype.fill, previousSecret, [Number('0')]);
       }
       if (!skarbiecRolledBack) {
         throw new Error('credential commit failed and compensating rollback did not restore both Microsoft and Skarbiec', {
@@ -670,7 +668,7 @@ export async function rotateMicrosoftPassword() {
         cause: error,
       });
     } finally {
-      secret.fill(Number('0'));
+      Reflect.apply(Buffer.prototype.fill, secret, [Number('0')]);
     }
     const cookies = await session.ctx.cookies();
     await persistFreshCookieJar(account, cookies, { currentProxyUrl: proxyUrl });

@@ -167,7 +167,7 @@ async function completeOpenAiConsent(session) {
       const btn = session.page.locator('button:has-text("Continue"), button:has-text("Authorize"), button:has-text("Allow"), button:has-text("Confirm"), button:has-text("Dalej")').filter({ visible: true }).first();
       if (await btn.count() > 0) {
         try {
-          await btn.click();
+          await humanClickLocator(session.page, btn);
           await session.wait(2);
           return;
         } catch (e) {
@@ -206,13 +206,13 @@ async function doOpenAiLogin(session, login) {
   } else {
     const emailInput = session.page.locator('input[type="email"], input[name="username"], input[name="email"], input[autocomplete="username"]').filter({ visible: true }).first();
     if (await emailInput.count() > 0) {
-      await session.fill('input[type="email"]', login.email);
+      await humanFill(session.page, emailInput, login.email);
       await session.press('Enter');
       await session.wait(2);
     }
     const passInput = session.page.locator('input[type="password"]').filter({ visible: true }).first();
     if (await passInput.count() > 0) {
-      await session.fill('input[type="password"]', login.password);
+      await humanFill(session.page, passInput, login.password);
       await session.press('Enter');
       await session.wait(4);
     }
@@ -220,7 +220,7 @@ async function doOpenAiLogin(session, login) {
     if (await otpInput.count() > 0 && await otpInput.isVisible().catch(() => false)) {
       const otp = process.env.CODEX_2FA_CODE;
       if (!otp) throw new Error('OpenAI 2FA prompt visible but CODEX_2FA_CODE env not set');
-      await session.fill('input[autocomplete="one-time-code"]', otp);
+      await humanFill(session.page, otpInput, otp);
       await session.press('Enter');
       await session.wait(4);
     }

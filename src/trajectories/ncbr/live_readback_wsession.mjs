@@ -2,7 +2,8 @@
 // Logs in from env vars, reads state, optionally validates. Never submits.
 
 import { WSession } from '../../../dist/index.js';
-import { humanIdlePause } from '../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../dist/human/mouse.js';
+import { humanFill } from '../../../dist/human/keyboard.js';
 
 const PROJECT_URL = process.env.NCBR_PROJECT_URL || 'https://lsi2.ncbr.gov.pl/projekt/7ee80d9a-67dd-4d99-becd-8dda407221c1';
 const email = process.env.NCBR_EMAIL;
@@ -27,14 +28,7 @@ async function visibleText(limit = 2000) {
 
 async function setReactInputValue(locator, value) {
   await locator.waitFor({ state: 'visible' });
-  await locator.evaluate((el, v) => {
-    const proto = el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
-    const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
-    if (!setter) throw new Error('native value setter not found');
-    setter.call(el, v);
-    el.dispatchEvent(new Event('input', { bubbles: true }));
-    el.dispatchEvent(new Event('change', { bubbles: true }));
-  }, value); // allow-raw-playwright: set controlled React/MUI login input inside Weles session
+  await humanFill(page, locator, value);
   await humanIdlePause('short');
 }
 
@@ -51,20 +45,8 @@ const checkbox = page.locator('#isStatuteAccepted, input[name="isStatuteAccepted
 if (await checkbox.count()) {
   const checked = await checkbox.isChecked().catch(() => false);
   if (!checked) {
-    await page.evaluate(() => {
-      const input = document.querySelector('#isStatuteAccepted, input[name="isStatuteAccepted"]');
-      const target = input?.closest('label') || input?.closest('.MuiFormControlLabel-root') || input?.closest('.MuiCheckbox-root') || input;
-      if (!target) throw new Error('statute checkbox target not found');
-      for (const type of ['pointerdown', 'mousedown', 'mouseup', 'click']) {
-        target.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, view: window }));
-      }
-      if (!input.checked) {
-        const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'checked')?.set;
-        setter?.call(input, true);
-        input.dispatchEvent(new Event('input', { bubbles: true }));
-        input.dispatchEvent(new Event('change', { bubbles: true }));
-      }
-    }); // allow-raw-playwright: click visible MUI checkbox wrapper in Weles session
+    const checkboxTarget = checkbox.locator('xpath=ancestor::label[1]').or(page.locator('label:has(#isStatuteAccepted), label:has(input[name="isStatuteAccepted"])')).first();
+    await humanClickLocator(page, await checkboxTarget.count() ? checkboxTarget : checkbox);
     await humanIdlePause('short');
   }
 }
@@ -74,7 +56,7 @@ await page.waitForFunction(() => {
   const btn = document.querySelector('#login-btn') || Array.from(document.querySelectorAll('button')).find((b) => b.innerText.trim() === 'Zaloguj');
   return !!btn && !btn.disabled;
 }, null, { timeout: 10000 }).catch(() => null); // allow-raw-playwright: wait for MUI login validation
-await loginButton.click({ force: true }); // allow-raw-playwright: submit visible login form only
+await humanClickLocator(page, loginButton);
 await page.waitForLoadState('networkidle', { timeout: 30000 }).catch(() => null);
 await humanIdlePause('long');
 
@@ -99,12 +81,13 @@ page.on('response', async (res) => {
 
 let validationClick = null;
 if (process.env.VALIDATE === '1') {
-  validationClick = await page.evaluate(() => {
-    const btn = Array.from(document.querySelectorAll('button')).find((b) => b.innerText.trim() === 'Sprawdź wniosek' && !b.disabled);
-    if (!btn) return { clicked: false, reason: 'enabled Sprawdz wniosek button not found' };
-    btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-    return { clicked: true };
-  }); // allow-raw-playwright: validation-only button, never submit
+  const validateButton = page.getByRole('button', { name: 'Sprawdź wniosek', exact: true }).filter({ visible: true }).first();
+  if (await validateButton.count() && !await validateButton.isDisabled()) {
+    await humanClickLocator(page, validateButton);
+    validationClick = { clicked: true };
+  } else {
+    validationClick = { clicked: false, reason: 'enabled Sprawdz wniosek button not found' };
+  }
   if (validationClick.clicked) {
     await humanIdlePause('long');
     await humanIdlePause('long');

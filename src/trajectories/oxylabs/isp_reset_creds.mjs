@@ -42,13 +42,12 @@ try {
   console.log(`[trajectory] visible input descriptors: ${JSON.stringify(inputs)}`);
 
   // 2. Click "Generate new password" or similar to refresh credentials.
-  const genResult = await s.page.evaluate(() => {
-    const btns = Array.from(document.querySelectorAll('button, a')).filter(el => /generate|reset|new password|change password/i.test((el.textContent || '').trim()));
-    if (!btns.length) return { ok: false, count: 0 };
-    btns[0].scrollIntoView({ block: 'center' });
-    btns[0].click();
-    return { ok: true, count: btns.length, txt: (btns[0].textContent || '').trim() };
-  }).catch(() => ({ ok: false }));
+  const genButtons = s.page.locator('button, a').filter({ hasText: /generate|reset|new password|change password/i });
+  const genCount = await genButtons.count().catch(() => 0);
+  const genButton = genButtons.first();
+  const genText = genCount ? (await genButton.textContent().catch(() => '') || '').trim() : '';
+  const genClicked = genCount ? await humanClickLocator(s.page, genButton).then(() => true).catch(() => false) : false;
+  const genResult = { ok: genClicked, count: genCount, txt: genText };
   console.log(`[trajectory] gen-password click: ${JSON.stringify(genResult)}`);
   await humanIdlePause('deliberate');
 

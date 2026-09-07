@@ -3,7 +3,8 @@
 
 import { readFileSync, writeFileSync } from 'node:fs';
 import { WSession } from '../../../dist/index.js';
-import { humanIdlePause } from '../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../dist/human/mouse.js';
+import { humanFill } from '../../../dist/human/keyboard.js';
 
 const PROJECT_ID = process.env.NCBR_PROJECT_ID || '7ee80d9a-67dd-4d99-becd-8dda407221c1';
 const PROJECT_URL = `https://lsi2.ncbr.gov.pl/projekt/${PROJECT_ID}`;
@@ -87,14 +88,14 @@ function progress(message) {
 
 async function setReactInputValue(locator, value) {
   await locator.waitFor({ state: 'visible' });
-  await locator.click({ force: true }); // allow-raw-playwright: focus visible LSI input
+  await humanClickLocator(page, locator); // allow-raw-playwright: focus visible LSI input
   const max = Number(await locator.getAttribute('maxlength')) || String(value || '').length;
   let next = String(value || '');
   if (next.length > max) next = next.slice(0, max).replace(/\s+\S*$/, '');
   const locked = await locator.evaluate((el) => Boolean(el.readOnly || el.disabled)); // allow-raw-playwright: inspect visible field mutability
   if (!locked) {
-    await locator.fill(''); // allow-raw-playwright: clear editable LSI field
-    await locator.fill(next); // allow-raw-playwright: fill editable LSI field
+    await humanFill(page, locator, ''); // allow-raw-playwright: clear editable LSI field
+    await humanFill(page, locator, next); // allow-raw-playwright: fill editable LSI field
   }
   await locator.evaluate((el, v) => {
     const proto = el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
@@ -115,24 +116,15 @@ async function login() {
   await humanIdlePause('long');
   await setReactInputValue(page.locator('#mail, input[name="mail"]').first(), email);
   await setReactInputValue(page.locator('#password, input[name="password"]').first(), password);
-  await page.evaluate(() => {
-    const input = document.querySelector('#isStatuteAccepted, input[name="isStatuteAccepted"]');
-    if (!input || input.checked) return;
-    const target = input.closest('label') || input.closest('.MuiFormControlLabel-root') || input.closest('.MuiCheckbox-root') || input;
-    for (const type of ['pointerdown', 'mousedown', 'mouseup', 'click']) target.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, view: window }));
-    if (!input.checked) {
-      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'checked')?.set?.call(input, true);
-      input.dispatchEvent(new Event('input', { bubbles: true }));
-      input.dispatchEvent(new Event('change', { bubbles: true }));
-    }
-  }); // allow-raw-playwright: accept visible statute checkbox for login only
+  const checkbox = page.locator('#isStatuteAccepted, input[name="isStatuteAccepted"]').first();
+  if (!(await checkbox.isChecked().catch(() => false))) await humanClickLocator(page, checkbox) // allow-raw-playwright: accept visible statute checkbox for login only
   await humanIdlePause('short');
   await page.waitForFunction(() => {
     const btn = document.querySelector('#login-btn') || Array.from(document.querySelectorAll('button')).find((b) => b.innerText.trim() === 'Zaloguj');
     return !!btn && !btn.disabled;
   }, null, { timeout: 10000 }).catch(() => null); // allow-raw-playwright: wait for login validation
   for (let attempt = 1; attempt <= 3 && page.url().includes('/logowanie'); attempt += 1) {
-    await page.locator('#login-btn, button:has-text("Zaloguj")').first().click({ force: true }); // allow-raw-playwright: click visible login button
+    await session.clickSelector('#login-btn, button:has-text("Zaloguj")'); // allow-raw-playwright: click visible login button
     await page.waitForLoadState('networkidle', { timeout: 30000 }).catch(() => null);
     await humanIdlePause('long');
   }
@@ -141,11 +133,9 @@ async function login() {
 }
 
 async function clickVisibleButton(text, nth = 0) {
-  await page.evaluate(({ buttonText, index }) => {
-    const buttons = Array.from(document.querySelectorAll('button')).filter((b) => b.innerText.trim() === buttonText && b.getClientRects().length);
-    if (!buttons[index]) throw new Error(`${buttonText} #${index} not found; visible count=${buttons.length}`);
-    buttons[index].dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-  }, { buttonText: text, index: nth }); // allow-raw-playwright: click visible LSI button
+  const buttons = page.locator('button:visible').filter({ hasText: new RegExp(`^${text}$`) });
+  if (await buttons.count() <= nth) throw new Error(`${text} #${nth} not found`);
+  await humanClickLocator(page, buttons.nth(nth)) // allow-raw-playwright: click visible LSI button
   await humanIdlePause('long');
 }
 
@@ -153,11 +143,7 @@ async function saveVisibleForm() {
   await humanIdlePause('deliberate');
   await humanIdlePause('deliberate');
   await page.waitForFunction(() => Array.from(document.querySelectorAll('button')).some((b) => b.innerText.trim() === 'Zapisz' && !b.disabled && b.getClientRects().length), null, { timeout: 25000 }).catch(() => null); // allow-raw-playwright: wait for enabled LSI save
-  await page.evaluate(() => {
-    const saves = Array.from(document.querySelectorAll('button')).filter((b) => b.innerText.trim() === 'Zapisz' && !b.disabled && b.getClientRects().length);
-    if (!saves.length) throw new Error('no enabled visible Zapisz');
-    saves[saves.length - 1].dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-  }); // allow-raw-playwright: save visible row/form only
+  await humanClickLocator(page, page.locator('button:visible:not([disabled])').filter({ hasText: /^Zapisz$/ }).last()) // allow-raw-playwright: save visible row/form only
   await humanIdlePause('long');
 }
 
@@ -182,13 +168,8 @@ async function deleteRowsContaining(needle) {
     return Array.from(document.querySelectorAll('table tbody tr')).some((r) => norm(r.innerText).includes(text));
   }, needle)) {
     progress(`1.3:delete:${needle}`);
-    await page.evaluate((text) => {
-      const norm = (s) => String(s || '').replace(/\s+/g, ' ').trim();
-      const row = Array.from(document.querySelectorAll('table tbody tr')).find((r) => norm(r.innerText).includes(text));
-      const btn = row?.querySelector('button[aria-label="overflow-options"]');
-      if (!btn) throw new Error(`row menu not found for ${text}`);
-      btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-    }, needle); // allow-raw-playwright: open stale visible row menu
+    const row = page.locator('table tbody tr').filter({ hasText: needle }).first();
+    await humanClickLocator(page, row.locator('button[aria-label="overflow-options"]')) // allow-raw-playwright: open stale visible row menu
     await humanIdlePause('deliberate');
     const del = page.locator('[role="menuitem"], .MuiMenuItem-root').filter({ hasText: /Usuń|Usun|Delete/ }).first();
     if (await del.count() === 0) throw new Error(`delete menu item not found for ${needle}`);
@@ -235,13 +216,8 @@ async function repair13() {
   if (!hasZuzanna) {
     const hasWeronika = await page.evaluate(() => (document.body.innerText || '').replace(/\s+/g, ' ').includes('Weronika Pernak')); // allow-raw-playwright: inspect current contact rows
     if (!hasWeronika) throw new Error('neither Zuzanna nor Weronika contact row is visible in 1.3 edit form');
-    await page.evaluate(() => {
-      const norm = (s) => String(s || '').replace(/\s+/g, ' ').trim();
-      const row = Array.from(document.querySelectorAll('table tbody tr')).find((r) => norm(r.innerText).includes('Weronika Pernak'));
-      const btn = row?.querySelector('button[aria-label="overflow-options"]');
-      if (!btn) throw new Error('Weronika row menu not found inside entity edit');
-      btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-    }); // allow-raw-playwright: open visible stale contact row menu
+    const row = page.locator('table tbody tr').filter({ hasText: 'Weronika Pernak' }).first();
+    await humanClickLocator(page, row.locator('button[aria-label="overflow-options"]')) // allow-raw-playwright: open visible stale contact row menu
     await humanIdlePause('deliberate');
     await page.getByRole('menuitem', { name: 'Edytuj', exact: true }).first().dispatchEvent('click'); // allow-raw-playwright: edit visible stale contact row
     await humanIdlePause('long');
@@ -287,13 +263,9 @@ async function diag13() {
 }
 
 async function openFirstRowEdit(rowNeedle) {
-  await page.evaluate((needle) => {
-    const row = Array.from(document.querySelectorAll('table tbody tr')).find((r) => (r.innerText || '').includes(needle));
-    if (!row) throw new Error(`row not found for edit: ${needle}`);
-    const btn = row.querySelector('button[aria-label="overflow-options"]');
-    if (!btn) throw new Error(`row menu not found for edit: ${needle}`);
-    btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-  }, rowNeedle); // allow-raw-playwright: open visible row menu for diagnostic/edit
+  const row = page.locator('table tbody tr').filter({ hasText: rowNeedle }).first();
+  if (await row.count() === 0) throw new Error(`row not found for edit: ${rowNeedle}`);
+  await humanClickLocator(page, row.locator('button[aria-label="overflow-options"]')) // allow-raw-playwright: open visible row menu for diagnostic/edit
   await humanIdlePause('deliberate');
   await page.getByRole('menuitem', { name: 'Edytuj', exact: true }).first().dispatchEvent('click'); // allow-raw-playwright: choose visible edit menu item
   await humanIdlePause('long');
@@ -319,11 +291,9 @@ async function diag13Edit() {
     await page.goto(URLS['1.3'], { waitUntil: 'domcontentloaded', timeout: 120000 }); // allow-raw-playwright: reset 1.3 edit diagnostic
     await humanIdlePause('long');
     await openFirstRowEdit('Wisent Polska');
-    await page.evaluate((index) => {
-      const buttons = Array.from(document.querySelectorAll('button')).filter((b) => b.innerText.trim() === 'Dodaj kolejny' && !b.disabled && b.getClientRects().length);
-      if (!buttons[index]) throw new Error(`Dodaj kolejny #${index} not found; count=${buttons.length}`);
-      buttons[index].dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-    }, i); // allow-raw-playwright: open visible nested collection diagnostic row
+    const buttons = page.locator('button:visible:not([disabled])').filter({ hasText: /^Dodaj kolejny$/ });
+    if (await buttons.count() <= i) throw new Error(`Dodaj kolejny #${i} not found`);
+    await humanClickLocator(page, buttons.nth(i)) // allow-raw-playwright: open visible nested collection diagnostic row
     await humanIdlePause('long');
     const fields = await page.evaluate(() => Array.from(document.querySelectorAll('input, textarea')).map((el) => {
       const id = el.id || '';
@@ -340,14 +310,8 @@ async function diag13ContactEdit() {
   await page.goto(URLS['1.3'], { waitUntil: 'domcontentloaded', timeout: 120000 }); // allow-raw-playwright: section 1.3 contact diagnostic navigation
   await humanIdlePause('long');
   await openFirstRowEdit('Wisent Polska');
-  await page.evaluate(() => {
-    const norm = (s) => String(s || '').replace(/\s+/g, ' ').trim();
-    const row = Array.from(document.querySelectorAll('table tbody tr')).find((r) => norm(r.innerText).includes('Weronika Pernak'));
-    if (!row) throw new Error('Weronika row not found inside entity edit');
-    const btn = row.querySelector('button[aria-label="overflow-options"]');
-    if (!btn) throw new Error('Weronika row menu not found inside entity edit');
-    btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-  }); // allow-raw-playwright: open visible nested contact row menu
+  const row = page.locator('table tbody tr').filter({ hasText: 'Weronika Pernak' }).first();
+  await humanClickLocator(page, row.locator('button[aria-label="overflow-options"]')) // allow-raw-playwright: open visible nested contact row menu
   await humanIdlePause('deliberate');
   await page.getByRole('menuitem', { name: 'Edytuj', exact: true }).first().dispatchEvent('click'); // allow-raw-playwright: edit visible nested contact row
   await humanIdlePause('long');
@@ -365,8 +329,8 @@ async function diag13ContactEdit() {
 async function setAutoByName(name, search) {
   const inp = page.locator(`input[name="${name}"]:visible`).first();
   await inp.waitFor({ state: 'visible' });
-  await inp.click({ force: true }); // allow-raw-playwright: open visible autocomplete
-  await inp.fill(search); // allow-raw-playwright: filter visible autocomplete
+  await humanClickLocator(page, inp); // allow-raw-playwright: open visible autocomplete
+  await humanFill(page, inp, search); // allow-raw-playwright: filter visible autocomplete
   await humanIdlePause('deliberate');
   const opt = page.locator('[role="option"]').filter({ hasText: search.slice(0, 30) }).first();
   if (await opt.count() > 0) {

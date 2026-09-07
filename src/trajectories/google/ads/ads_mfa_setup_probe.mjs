@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { generatePersona } from '../../../../dist/browser/persona.js';
 import { WSession } from '../../../../dist/session/wsession.js';
 import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
+import { humanFill } from '../../../../dist/human/keyboard.js';
 import { readScopedLogin } from '../../../_shared/scoped-secrets.mjs';
 import { assertGoogleAdsProfileNotAlreadyOpen, closeAllowedByEnv } from './_profile_guard.mjs';
 const GOOGLE_ADS_LOGIN = readScopedLogin('googleAds');
@@ -96,7 +97,7 @@ async function handleReauth(page) {
   const password = await loadPassword();
   const passwordInput = page.locator('input[type="password"], input[name="Passwd"]').filter({ visible: true }).first();
   if (password && await passwordInput.isVisible().catch(() => false)) {
-    await passwordInput.fill(password);
+    await humanFill(page, passwordInput, password);
     const next = page.locator('#passwordNext button, button:has-text("Next")').filter({ visible: true }).first();
     await humanClickLocator(page, next);
     await humanIdlePause('deliberate');

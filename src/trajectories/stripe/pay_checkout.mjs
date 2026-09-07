@@ -20,7 +20,7 @@
 
 import { WSession } from '../../../dist/session/wsession.js';
 import { fillStripeElements, loadTopupCardEnv, TOPUP_ENV_FILES } from '../_shared/services/topup_common.mjs';
-import { humanIdlePause } from '../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../dist/human/mouse.js';
 import { humanType } from '../../../dist/human/keyboard.js';
 
 // One loader, so this works on a host that keeps the card under ~/.weles and
@@ -74,7 +74,7 @@ try {
     .first();
   if (await withoutLink.isVisible().catch(() => false)) {
     console.log('[stripe-checkout] declining Link, entering the card by hand');
-    await withoutLink.click().catch(() => {});
+    await humanClickLocator(s.page, withoutLink).catch(() => {});
     await humanIdlePause('short');
   }
 
@@ -88,7 +88,7 @@ try {
   if (email) {
     const emailIn = s.page.locator('input[name="email"], input#email, input[type="email"]').filter({ visible: true }).first();
     if (await emailIn.isVisible().catch(() => false)) {
-      await emailIn.click();
+      await humanClickLocator(s.page, emailIn);
       await humanType(s.page, email, { delay: 40 });
       console.log('[stripe-checkout] contact email filled');
     }
@@ -108,10 +108,10 @@ try {
         if ((await radios.count().catch(() => 0)) > 0) await radios.first().check({ force: true });
       }],
       ['row text', async () => {
-        await s.page.getByText('Card', { exact: true }).first().click({ force: true });
+        await humanClickLocator(s.page, s.page.getByText('Card', { exact: true }).first());
       }],
       ['accordion button', async () => {
-        await s.page.locator('[data-testid*="card"], [id*="card-tab"]').filter({ visible: true }).first().click({ force: true });
+        await humanClickLocator(s.page, s.page.locator('[data-testid*="card"], [id*="card-tab"]').filter({ visible: true }).first());
       }],
     ];
     for (const [name, attempt] of attempts) {
@@ -156,17 +156,17 @@ try {
   }
 
   if (onPage) {
-    await cardIn.click();
+    await humanClickLocator(s.page, cardIn);
     await humanType(s.page, card.num, { delay: 50 });
     const expIn = s.page.locator('input[name="cardExpiry"], input#cardExpiry').filter({ visible: true }).first();
-    await expIn.click();
+    await humanClickLocator(s.page, expIn);
     await humanType(s.page, card.exp, { delay: 50 });
     const cvcIn = s.page.locator('input[name="cardCvc"], input#cardCvc').filter({ visible: true }).first();
-    await cvcIn.click();
+    await humanClickLocator(s.page, cvcIn);
     await humanType(s.page, card.cvc, { delay: 50 });
     const nameIn = s.page.locator('input[name="billingName"], input#billingName').filter({ visible: true }).first();
     if (card.name && (await nameIn.isVisible().catch(() => false))) {
-      await nameIn.click();
+      await humanClickLocator(s.page, nameIn);
       await humanType(s.page, card.name, { delay: 50 });
     }
     const zipIn = s.page
@@ -174,7 +174,7 @@ try {
       .filter({ visible: true })
       .first();
     if (card.zip && (await zipIn.isVisible().catch(() => false))) {
-      await zipIn.click();
+      await humanClickLocator(s.page, zipIn);
       await humanType(s.page, card.zip, { delay: 50 });
     }
     console.log('[stripe-checkout] filled the page form');
@@ -197,7 +197,7 @@ try {
       if (!value) continue;
       const input = s.page.locator(selector).filter({ visible: true }).first();
       if (await input.isVisible().catch(() => false)) {
-        await input.click();
+        await humanClickLocator(s.page, input);
         await humanType(s.page, value, { delay: 50 });
       }
     }
@@ -205,7 +205,7 @@ try {
   await s.screenshot('before_submit');
 
   const payBtn = s.page.locator('button[type="submit"]').filter({ visible: true }).last();
-  await payBtn.click();
+  await humanClickLocator(s.page, payBtn);
   console.log('[stripe-checkout] submitted');
 
   // Three things can happen: the page redirects to the success URL, the issuer

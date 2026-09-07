@@ -9,6 +9,7 @@
 
 import { googleSso, getGoogleSsoCreds } from '../_shared/services/google_sso.mjs';
 import { humanIdlePause, humanClickLocator } from '../../../dist/human/mouse.js';
+import { humanType } from '../../../dist/human/keyboard.js';
 import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -71,24 +72,17 @@ async function dump(s, tag) {
 }
 
 async function clickText(page, re) {
-  const clicked = await page.evaluate((rxSource) => {
-    const rx = new RegExp(rxSource, 'i');
-    const els = Array.from(document.querySelectorAll('button,a,[role="button"],[role="menuitem"]'));
-    const visible = (el) => {
-      const rect = el.getBoundingClientRect();
-      const style = window.getComputedStyle(el);
-      return rect.width > 0 && rect.height > 0 && style.visibility !== 'hidden' && style.display !== 'none';
-    };
-    const hit = els.find((el) => visible(el) && rx.test(((el.getAttribute('aria-label') || '') + ' ' + (el.textContent || '')).trim()));
-    if (!hit) return null;
-    hit.click();
-    return {
-      text: (hit.textContent || '').trim(),
-      aria: hit.getAttribute('aria-label') || '',
-      id: hit.id || '',
-      cls: hit.className || '',
-    };
-  }, re.source);
+  const hit = page.locator('button,a,[role="button"],[role="menuitem"]')
+    .filter({ hasText: re, visible: true })
+    .or(page.getByLabel(re).filter({ visible: true })).first();
+  if (await hit.count() === 0) return null;
+  const clicked = await hit.evaluate((el) => ({
+    text: (el.textContent || '').trim(),
+    aria: el.getAttribute('aria-label') || '',
+    id: el.id || '',
+    cls: el.className || '',
+  }));
+  await humanClickLocator(page, hit);
   return clicked;
 }
 
@@ -398,7 +392,7 @@ async function revealQueryInEditor(page, queryText) {
     try {
       await page.keyboard.press(shortcut);
       await page.waitForTimeout(300);
-      await page.keyboard.type(wanted, { delay: 1 });
+      await humanType(page, wanted);
       await page.waitForTimeout(700);
       await page.keyboard.press('Enter').catch(() => {});
       await page.waitForTimeout(700);
@@ -450,39 +444,17 @@ async function clickVisibleText(page, text, tag, exact = false) {
     return { tag, text, clicked: true, method: 'locator' };
   }
 
-  const clicked = await page.evaluate(({ wanted, exact }) => {
-    const normalize = (s) => String(s || '').replace(/\s+/g, ' ').trim();
-    const target = normalize(wanted);
-    const visible = (el) => {
-      const rect = el.getBoundingClientRect();
-      const style = window.getComputedStyle(el);
-      return rect.width > 0 && rect.height > 0 && style.visibility !== 'hidden' && style.display !== 'none';
-    };
-    const candidates = Array.from(document.querySelectorAll('button,a,[role="button"],[role="treeitem"],li,div,span'))
-      .filter(visible)
-      .filter((el) => {
-        const txt = normalize(el.textContent || '');
-        return exact ? txt === target : txt.includes(target);
-      });
-    const hit = candidates[0];
-    if (!hit) return null;
-    let el = hit;
-    while (el && el !== document.body) {
-      const role = el.getAttribute('role');
-      const tag = el.tagName.toLowerCase();
-      if (tag === 'button' || tag === 'a' || role === 'button' || role === 'treeitem') break;
-      el = el.parentElement;
-    }
-    (el || hit).click();
-    return {
-      text: normalize(hit.textContent || '').slice(0, 300),
-      tagName: hit.tagName,
-      role: hit.getAttribute('role') || '',
-    };
-  }, { wanted: text, exact });
-  if (!clicked) return { tag, text, clicked: false, method: null };
+  const fallback = page.locator('button,a,[role="button"],[role="treeitem"],li')
+    .filter({ hasText: text, visible: true }).first();
+  if (await fallback.count() === 0) return { tag, text, clicked: false, method: null };
+  const detail = await fallback.evaluate((el) => ({
+    text: String(el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 300),
+    tagName: el.tagName,
+    role: el.getAttribute('role') || '',
+  }));
+  await humanClickLocator(page, fallback);
   await page.waitForTimeout(1500);
-  return { tag, text, clicked: true, method: 'dom', clicked };
+  return { tag, text, clicked: true, method: 'locator-fallback', clicked: detail };
 }
 
 async function probeHistoryState(s, tag, queryText, reveal = false) {

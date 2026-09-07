@@ -13,6 +13,7 @@ import { join } from 'node:path';
 import { generatePersona } from '../../../../dist/browser/persona.js';
 import { WSession } from '../../../../dist/session/wsession.js';
 import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
+import { humanFill } from '../../../../dist/human/keyboard.js';
 import { googleSso } from '../../_shared/services/google_sso.mjs';
 import { assertGoogleAdsProfileNotAlreadyOpen, closeAllowedByEnv } from './_profile_guard.mjs';
 import { readScopedLogin } from '../../../_shared/scoped-secrets.mjs';
@@ -513,10 +514,7 @@ async function fillKeywordInput(page) {
     .filter({ visible: true })
     .first();
   if (await fallback.isVisible().catch(() => false)) {
-    await fallback.fill(text).catch(async () => {
-      await fallback.click().catch(() => {});
-      await page.keyboard.insertText(text);
-    });
+    await humanFill(page, fallback, text);
     await humanIdlePause('deliberate');
     return { ok: true, descriptor: 'playwright_fallback' };
   }

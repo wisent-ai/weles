@@ -164,18 +164,11 @@ async function openGithubPanel(s) {
     await humanClickLocator(s.page, ghEntry);
     clickedGithubEntry = true;
   } else {
-    clickedGithubEntry = await s.page.evaluate(() => {
-      const pane = document.querySelector('#ide-rail-tabs-tabpane-integrations');
-      if (!pane) return false;
-      const buttons = Array.from(pane.querySelectorAll('button'));
-      const btn = buttons.find((b) => {
-        const txt = b.innerText || '';
-        return txt.includes('GitHub') && txt.includes('Sync with a GitHub repository');
-      });
-      if (!btn) return false;
-      btn.click();
-      return true;
-    });
+    const fallback = s.page.locator('#ide-rail-tabs-tabpane-integrations button')
+      .filter({ hasText: /GitHub[\s\S]*Sync with a GitHub repository|Sync with a GitHub repository[\s\S]*GitHub/ })
+      .filter({ visible: true }).first();
+    clickedGithubEntry = await fallback.count() > 0;
+    if (clickedGithubEntry) await humanClickLocator(s.page, fallback);
   }
   if (clickedGithubEntry) {
     await humanIdlePause('short');

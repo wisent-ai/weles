@@ -2,7 +2,7 @@
 // Never submits and never closes the page.
 
 import { chromium } from 'playwright';
-import { humanIdlePause } from '../../../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../../../dist/human/mouse.js';
 
 const endpoint = process.env.NCBR_CDP_ENDPOINT || 'http://127.0.0.1:9223';
 const PROJ = 'https://lsi2.ncbr.gov.pl/projekt/7ee80d9a-67dd-4d99-becd-8dda407221c1/projekt_step/';
@@ -29,12 +29,7 @@ await page.evaluate(() => {
 }); // allow-raw-playwright: neutralise cookie banner
 
 async function openFirstRowEdit() {
-  await page.evaluate(() => {
-    const rows = Array.from(document.querySelectorAll('table tbody tr'));
-    const row = rows.find((r) => r.querySelector('button[aria-label="overflow-options"]'));
-    if (!row) throw new Error('no data row');
-    row.querySelector('button[aria-label="overflow-options"]').dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-  }); // allow-raw-playwright: open premium row menu
+  await humanClickLocator(page, page.locator('table tbody tr button[aria-label="overflow-options"]').first()); // allow-raw-playwright: open premium row menu
   await humanIdlePause('deliberate');
   await page.getByRole('menuitem', { name: 'Edytuj', exact: true }).first().dispatchEvent('click'); // allow-raw-playwright: edit premium row
   await humanIdlePause('long');
@@ -43,11 +38,7 @@ async function openFirstRowEdit() {
 async function saveForm() {
   await humanIdlePause('deliberate');
   await humanIdlePause('deliberate');
-  await page.evaluate(() => {
-    const saves = Array.from(document.querySelectorAll('button')).filter((b) => b.innerText.trim() === 'Zapisz' && !b.disabled);
-    if (!saves.length) throw new Error('no enabled Zapisz');
-    saves[saves.length - 1].dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-  }); // allow-raw-playwright: save premium row
+  await humanClickLocator(page, page.locator('button:not([disabled])').filter({ hasText: /^Zapisz$/ }).last()); // allow-raw-playwright: save premium row
   await humanIdlePause('long');
 }
 
@@ -70,13 +61,11 @@ if (process.env.DIAG) {
 }
 
 if (SECTION === '5.3' && ANSWER === 'Tak') {
-  await page.evaluate(() => {
-    const radios = Array.from(document.querySelectorAll('input[type="radio"]'));
-    for (const idx of [0, 2, 5]) {
-      if (!radios[idx]) throw new Error(`radio index ${idx} missing`);
-      radios[idx].dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-    }
-  }); // allow-raw-playwright: 5.3 = Tak, wojewodztwa a) Tak for Lubelskie, b) Nie
+  for (const idx of [0, 2, 5]) {
+    const radio = page.locator('input[type="radio"]').nth(idx);
+    if (await radio.count() === 0) throw new Error(`radio index ${idx} missing`);
+    await humanClickLocator(page, radio);
+  } // allow-raw-playwright: 5.3 = Tak, wojewodztwa a) Tak for Lubelskie, b) Nie
 } else {
   await page.locator(`input[type="radio"][value="${ANSWER}"]`).first().dispatchEvent('click'); // allow-raw-playwright: set premium yes/no answer
 }

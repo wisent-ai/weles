@@ -4,7 +4,8 @@
 
 import { readFileSync } from 'node:fs';
 import { chromium } from 'playwright';
-import { humanIdlePause } from '../../../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../../../dist/human/mouse.js';
+import { humanFill } from '../../../../../dist/human/keyboard.js';
 
 const endpoint = process.env.NCBR_CDP_ENDPOINT || 'http://127.0.0.1:9223';
 const SECTION_URL = 'https://lsi2.ncbr.gov.pl/projekt/7ee80d9a-67dd-4d99-becd-8dda407221c1/projekt_step/e95d0c23-8a39-4d56-96fa-ace3e4f0d23a';
@@ -63,22 +64,18 @@ async function openExistingRow(index) {
 }
 
 async function clickDodaj() {
-  await page.evaluate(() => {
-    const btn = Array.from(document.querySelectorAll('button')).find((b) => b.innerText.trim() === 'Dodaj' && !b.disabled);
-    if (!btn) throw new Error('enabled Dodaj not found');
-    btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-  }); // allow-raw-playwright: open new own-indicator row
+  const button = page.locator('button:not([disabled])').filter({ hasText: /^Dodaj$/ }).filter({ visible: true }).first();
+  if (await button.count() === 0) throw new Error('enabled Dodaj not found');
+  await humanClickLocator(page, button);
   await humanIdlePause('long');
 }
 
 async function saveForm() {
   await humanIdlePause('deliberate');
   await humanIdlePause('deliberate');
-  await page.evaluate(() => {
-    const saves = Array.from(document.querySelectorAll('button')).filter((b) => b.innerText.trim() === 'Zapisz' && !b.disabled);
-    if (!saves.length) throw new Error('no enabled Zapisz');
-    saves[saves.length - 1].dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-  }); // allow-raw-playwright: save row
+  const save = page.locator('button:not([disabled])').filter({ hasText: /^Zapisz$/ }).filter({ visible: true }).last();
+  if (await save.count() === 0) throw new Error('no enabled Zapisz');
+  await humanClickLocator(page, save);
   await humanIdlePause('long');
 }
 
@@ -89,7 +86,7 @@ async function fillField(suffix, value) {
   const max = Number(await loc.getAttribute('maxlength')) || String(value || '').length;
   const v = String(value || '');
   if (v.length > max) throw new Error(`${suffix} over limit: ${v.length}/${max}`);
-  await loc.fill(v); // allow-raw-playwright: LSI indicator field
+  await humanFill(page, loc, v);
   await loc.dispatchEvent('input'); // allow-raw-playwright: force React dirty/input state
   await loc.dispatchEvent('change'); // allow-raw-playwright: force React dirty/change state
   await humanIdlePause('short');
@@ -99,8 +96,8 @@ async function fillField(suffix, value) {
 async function pickAutoByName(suffix, value) {
   const inp = page.locator(`input[name$="${suffix}"]`).first();
   if (await inp.count() === 0) return null;
-  await inp.click(); // allow-raw-playwright: open autocomplete
-  await inp.fill(value); // allow-raw-playwright: filter exact value
+  await humanClickLocator(page, inp);
+  await humanFill(page, inp, value);
   await humanIdlePause('deliberate');
   const opt = page.getByRole('option', { name: value, exact: true }).first();
   if (await opt.count() > 0) {
@@ -196,10 +193,8 @@ if (process.env.VERIFY_DETAILS) {
       };
     }); // allow-raw-playwright: read existing 9.2 row fields without saving
     details.push(item);
-    await page.evaluate(() => {
-      const buttons = Array.from(document.querySelectorAll('button')).filter((b) => b.innerText.trim() === 'Anuluj' && b.getClientRects().length);
-      if (buttons.length) buttons[buttons.length - 1].dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-    }); // allow-raw-playwright: close opened row without saving
+    const cancel = page.getByRole('button', { name: 'Anuluj', exact: true }).filter({ visible: true }).last();
+    if (await cancel.count() > 0) await humanClickLocator(page, cancel);
     await humanIdlePause('long');
   }
   console.log(JSON.stringify({ count, details }, null, 2));

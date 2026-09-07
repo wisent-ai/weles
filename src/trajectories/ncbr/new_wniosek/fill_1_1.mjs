@@ -2,7 +2,8 @@
 
 import { readFileSync } from 'node:fs';
 import { chromium } from 'playwright';
-import { humanIdlePause } from '../../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../../dist/human/mouse.js';
+import { humanFill } from '../../../../dist/human/keyboard.js';
 
 const endpoint = process.env.NCBR_CDP_ENDPOINT || 'http://127.0.0.1:9223';
 const PROJECT_ID = process.env.NCBR_PROJECT_ID || '7ee80d9a-67dd-4d99-becd-8dda407221c1';
@@ -35,24 +36,23 @@ await page.waitForSelector(`textarea[name="${NB}tytul_projektu"]`);
 
 await page.locator('input[type="radio"][value="samodzielnie"]').first().dispatchEvent('click'); // allow-raw-playwright: select single applicant mode
 await humanIdlePause('short');
-await page.locator(`textarea[name="${NB}tytul_projektu"]`).first().fill(title); // allow-raw-playwright: text
+await humanFill(page, page.locator(`textarea[name="${NB}tytul_projektu"]`).first(), title);
 await humanIdlePause('short');
-await page.locator(`input[name="${NB}data_rozpoczecia_realizacji_projektu"]`).first().fill('01.09.2026'); // allow-raw-playwright: date
+await humanFill(page, page.locator(`input[name="${NB}data_rozpoczecia_realizacji_projektu"]`).first(), '01.09.2026');
 await humanIdlePause('short');
-await page.locator(`input[name="${NB}data_zakonczenia_realizacji_projektu"]`).first().fill('31.08.2029'); // allow-raw-playwright: date
+await humanFill(page, page.locator(`input[name="${NB}data_zakonczenia_realizacji_projektu"]`).first(), '31.08.2029');
 await humanIdlePause('short');
-await page.locator(`textarea[name="${NB}streszczenie_projektu"]`).first().fill(summary); // allow-raw-playwright: text
+await humanFill(page, page.locator(`textarea[name="${NB}streszczenie_projektu"]`).first(), summary);
 await humanIdlePause('short');
 await page.locator('input[type="radio"][value="Nie"]').last().dispatchEvent('click'); // allow-raw-playwright: resubmission answer
 await humanIdlePause('deliberate');
 
 let saveResult = 'saved';
 try {
-  await page.evaluate(() => {
-    const saves = Array.from(document.querySelectorAll('button')).filter((b) => b.innerText.trim() === 'Zapisz' && !b.disabled);
-    if (!saves.length) throw new Error('no enabled Zapisz');
-    saves[saves.length - 1].dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-  }); // allow-raw-playwright: save section
+  const saves = page.getByRole('button', { name: 'Zapisz', exact: true }).filter({ visible: true });
+  const count = await saves.count();
+  if (!count) throw new Error('no enabled Zapisz');
+  await humanClickLocator(page, saves.nth(count - 1));
   await humanIdlePause('long');
 } catch (e) {
   saveResult = `NOT SAVED: ${String(e?.message || e).slice(0, 80)}`;

@@ -2,6 +2,8 @@
 // Uses env vars NCBR_EMAIL and NCBR_PASSWORD. Does not close the attached page.
 
 import { chromium } from 'playwright';
+import { humanClickLocator } from '../../../dist/human/mouse.js';
+import { humanFill } from '../../../dist/human/keyboard.js';
 
 const endpoint = process.env.NCBR_BROWSER_ENDPOINT || 'http://127.0.0.1:9223';
 const email = process.env.NCBR_EMAIL;
@@ -76,16 +78,15 @@ async function authStatus() {
 await page.goto('https://lsi2.ncbr.gov.pl/logowanie', { waitUntil: 'domcontentloaded', timeout: 120000 });
 await page.waitForSelector('#mail, input[name="mail"]', { timeout: 30000 });
 
-await page.locator('#mail, input[name="mail"]').first().fill(email);
-await page.locator('#password, input[name="password"]').first().fill(password);
+await humanFill(page, page.locator('#mail, input[name="mail"]').first(), email);
+await humanFill(page, page.locator('#password, input[name="password"]').first(), password);
 
 const checkbox = page.locator('#isStatuteAccepted, input[name="isStatuteAccepted"]').first();
 if (await checkbox.count()) {
   const checked = await checkbox.isChecked().catch(() => false);
   if (!checked) {
-    await checkbox.click({ force: true }).catch(async () => {
-      await checkbox.check({ force: true });
-    });
+    const label = page.locator('label:has(#isStatuteAccepted), label:has(input[name="isStatuteAccepted"])').filter({ visible: true }).first();
+    await humanClickLocator(page, await label.count() > 0 ? label : checkbox);
   }
 }
 
@@ -105,9 +106,7 @@ const before = {
   loginButtonDisabled: await button.evaluate((el) => el.disabled).catch(() => null),
 };
 
-await button.click({ timeout: 30000 }).catch(async () => {
-  await page.evaluate(() => document.querySelector('#login-btn')?.click());
-});
+await humanClickLocator(page, button);
 
 await page.waitForLoadState('networkidle', { timeout: 20000 }).catch(() => null);
 await page.waitForTimeout(4000);

@@ -4,7 +4,7 @@
 import { randomBytes } from 'node:crypto';
 import { WSession } from '../../../dist/session/wsession.js';
 import { humanClickLocator, humanIdlePause } from '../../../dist/human/mouse.js';
-import { humanType } from '../../../dist/human/keyboard.js';
+import { humanFill, humanType } from '../../../dist/human/keyboard.js';
 import { generatePersona } from '../../../dist/browser/persona.js';
 
 function pickEmailDomain() {
@@ -163,7 +163,7 @@ async function fillFirst(page, locators, value) {
     if (!await loc.isVisible().catch(() => false)) continue;
     await humanClickLocator(page, loc);
     await humanIdlePause('short');
-    await loc.fill(''); // allow-raw-playwright: clear controlled signup field before human typing
+    await humanFill(page, loc, '');
     await humanType(page, value);
     return true;
   }
@@ -278,7 +278,7 @@ try {
     const confirm = passwordFields.nth(1);
     if (await confirm.isVisible().catch(() => false)) {
       await humanClickLocator(s.page, confirm);
-      await confirm.fill(''); // allow-raw-playwright: clear confirmation field
+      await humanFill(s.page, confirm, '');
       await humanType(s.page, PASSWORD);
     }
   }
@@ -296,26 +296,23 @@ try {
     s.page.locator('input[placeholder*="last" i]'),
   ], LAST_NAME);
 
-  const termsResult = await s.page.evaluate(() => {
-    const visible = (el) => {
-      const r = el.getBoundingClientRect();
-      return r.width > 0 && r.height > 0;
-    };
-    const boxes = Array.from(document.querySelectorAll('input[type="checkbox"]')).filter(visible);
-    for (const box of boxes) {
-      const context = [
-        box.closest('label')?.innerText,
-        box.parentElement?.innerText,
-        box.closest('div')?.innerText,
-        box.closest('form')?.innerText,
-      ].filter(Boolean).join(' ').toLowerCase();
-      if (/terms|conditions|privacy/.test(context) && !box.checked) {
-        box.click();
-        return { clicked: true, context: context.slice(0, 120) };
-      }
+  const boxes = s.page.locator('input[type="checkbox"]').filter({ visible: true });
+  const visibleCount = await boxes.count();
+  let termsResult = { clicked: false, visibleCount };
+  for (let index = 0; index < visibleCount; index += 1) {
+    const box = boxes.nth(index);
+    const context = await box.evaluate((el) => [
+      el.closest('label')?.innerText,
+      el.parentElement?.innerText,
+      el.closest('div')?.innerText,
+      el.closest('form')?.innerText,
+    ].filter(Boolean).join(' ').toLowerCase());
+    if (/terms|conditions|privacy/.test(context) && !await box.isChecked()) {
+      await humanClickLocator(s.page, box);
+      termsResult = { clicked: true, context: context.slice(0, 120) };
+      break;
     }
-    return { clicked: false, visibleCount: boxes.length };
-  }); // allow-raw-playwright: click the terms checkbox selected by its adjacent terms/privacy text
+  }
   console.log(`[pangram_register] terms=${JSON.stringify(termsResult)}`);
   await humanIdlePause('short');
 

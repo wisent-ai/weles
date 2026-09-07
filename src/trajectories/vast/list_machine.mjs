@@ -1,4 +1,4 @@
-import { chromium } from 'playwright';
+import { launchProfileChrome } from '../../browser/real_chrome.mjs';
 import { findProfileByEmail } from '../../../dist/chrome/cookies.js';
 import { cpSync, mkdirSync, rmSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
@@ -18,8 +18,16 @@ try { cpSync(join(homedir(), 'Library/Application Support/Google/Chrome/Local St
 const CHROMIUM = process.env.CHROMIUM_PATH;
 if (!CHROMIUM) { console.log('FAIL: CHROMIUM_PATH'); process.exit(1); }
 
-const ctx = await chromium.launchPersistentContext(scratch, {
-  executablePath: CHROMIUM, headless: false, viewport: { width: 1920, height: 1080 },
+// The launch lives in the reviewed browser boundary. This flow runs on a copy
+// of the operator's real Chrome profile, so the provider keeps treating it as
+// the returning visitor it already trusts.
+const ctx = await launchProfileChrome({
+  userDataDir: scratch,
+  executablePath: CHROMIUM,
+  viewport: { width: 1920, height: 1080 },
+  args: [],
+  ignoreDefaultArgs: [],
+  channel: null,
 });
 const page = ctx.pages()[0] ?? await ctx.newPage();
 const wait = (s) => new Promise(r => setTimeout(r, s * 1000));  // allow-raw-playwright: utility sleep shim — usages should migrate to humanIdlePause

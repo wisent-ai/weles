@@ -3,7 +3,8 @@
 
 import { readFileSync } from 'node:fs';
 import { chromium } from 'playwright';
-import { humanIdlePause } from '../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../dist/human/mouse.js';
+import { humanFill } from '../../../dist/human/keyboard.js';
 
 const endpoint = process.env.NCBR_CDP_ENDPOINT || 'http://127.0.0.1:9223';
 const projectId = process.env.NCBR_PROJECT_ID || '7ee80d9a-67dd-4d99-becd-8dda407221c1';
@@ -79,67 +80,76 @@ async function tableState() {
 }
 
 async function openOutdatedRow() {
-  const opened = await page.evaluate(() => {
-    const rows = Array.from(document.querySelectorAll('table tbody tr'));
-    const row = rows.find((candidate) => {
-      const text = candidate.innerText || '';
-      return /2010\/75|emisji przemys|BAT|efektywno/i.test(text);
-    });
-    if (!row) return { opened: false, reason: 'target row not found', rows: rows.map((r) => (r.innerText || '').trim().replace(/\s+/g, ' ').slice(0, 300)) };
-    const button = row.querySelector('button[aria-label="overflow-options"], button, [role="button"]');
-    if (!button) return { opened: false, reason: 'row menu not found', row: row.innerText.trim().replace(/\s+/g, ' ') };
-    button.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-    return { opened: true, row: row.innerText.trim().replace(/\s+/g, ' ').slice(0, 600) };
-  }); // allow-raw-playwright: open legal-act row menu by visible table text
+  const rows = page.locator('table tbody tr');
+  let targetRow = null;
+  for (let index = 0; index < await rows.count(); index += 1) {
+    const candidate = rows.nth(index);
+    if (/2010\/75|emisji przemys|BAT|efektywno/i.test(await candidate.innerText().catch(() => ''))) {
+      targetRow = candidate;
+      break;
+    }
+  }
+  if (!targetRow) {
+    const rowTexts = await rows.allTextContents();
+    throw new Error(JSON.stringify({ opened: false, reason: 'target row not found', rows: rowTexts.map((text) => text.trim().replace(/\s+/g, ' ').slice(0, 300)) }));
+  }
+  const button = targetRow.locator('button[aria-label="overflow-options"], button, [role="button"]').first();
+  if (await button.count() === 0) throw new Error(JSON.stringify({ opened: false, reason: 'row menu not found', row: (await targetRow.innerText()).trim().replace(/\s+/g, ' ') }));
+  const row = (await targetRow.innerText()).trim().replace(/\s+/g, ' ').slice(0, 600);
+  await humanClickLocator(page, button);
   await humanIdlePause('deliberate');
-  if (!opened.opened) throw new Error(JSON.stringify(opened));
   const edit = page.getByRole('menuitem', { name: 'Edytuj', exact: true }).first();
   if (await edit.count() === 0) {
     const menu = await page.evaluate(() => Array.from(document.querySelectorAll('[role="menuitem"], li, button')).map((e) => (e.textContent || '').trim()).filter(Boolean).slice(0, 30)); // allow-raw-playwright: read visible menu labels
     throw new Error(`edit menu item not found: ${menu.join(' | ')}`);
   }
-  await edit.dispatchEvent('click'); // allow-raw-playwright: open row edit form
+  await humanClickLocator(page, edit);
   await humanIdlePause('long');
-  return opened;
+  return { opened: true, row };
 }
 
 async function openRowByNeedle(needles) {
   const items = Array.isArray(needles) ? needles : [needles];
-  const opened = await page.evaluate((items) => {
-    const rows = Array.from(document.querySelectorAll('table tbody tr'));
-    const row = rows.find((candidate) => {
-      const text = candidate.innerText || '';
-      return items.some((needle) => text.includes(needle));
-    });
-    if (!row) return { opened: false, reason: 'target row not found', needles: items, rows: rows.map((r) => (r.innerText || '').trim().replace(/\s+/g, ' ').slice(0, 300)) };
-    const button = row.querySelector('button[aria-label="overflow-options"], button, [role="button"]');
-    if (!button) return { opened: false, reason: 'row menu not found', row: row.innerText.trim().replace(/\s+/g, ' ') };
-    button.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-    return { opened: true, row: row.innerText.trim().replace(/\s+/g, ' ').slice(0, 600) };
-  }, items); // allow-raw-playwright: open legal-act row menu by visible table text
+  const rows = page.locator('table tbody tr');
+  let targetRow = null;
+  for (let index = 0; index < await rows.count(); index += 1) {
+    const candidate = rows.nth(index);
+    const text = await candidate.innerText().catch(() => '');
+    if (items.some((needle) => text.includes(needle))) {
+      targetRow = candidate;
+      break;
+    }
+  }
+  if (!targetRow) {
+    const rowTexts = await rows.allTextContents();
+    throw new Error(JSON.stringify({ opened: false, reason: 'target row not found', needles: items, rows: rowTexts.map((text) => text.trim().replace(/\s+/g, ' ').slice(0, 300)) }));
+  }
+  const button = targetRow.locator('button[aria-label="overflow-options"], button, [role="button"]').first();
+  if (await button.count() === 0) throw new Error(JSON.stringify({ opened: false, reason: 'row menu not found', row: (await targetRow.innerText()).trim().replace(/\s+/g, ' ') }));
+  const row = (await targetRow.innerText()).trim().replace(/\s+/g, ' ').slice(0, 600);
+  await humanClickLocator(page, button);
   await humanIdlePause('deliberate');
-  if (!opened.opened) throw new Error(JSON.stringify(opened));
-  await page.getByRole('menuitem', { name: 'Edytuj', exact: true }).first().dispatchEvent('click'); // allow-raw-playwright: edit matched row
+  await humanClickLocator(page, page.getByRole('menuitem', { name: 'Edytuj', exact: true }).first());
   await humanIdlePause('long');
-  return opened;
+  return { opened: true, row };
 }
 
 async function openMenuByNeedle(needles) {
   const items = Array.isArray(needles) ? needles : [needles];
-  const opened = await page.evaluate((items) => {
-    const rows = Array.from(document.querySelectorAll('table tbody tr'));
-    const row = rows.find((candidate) => {
-      const text = candidate.innerText || '';
-      return items.some((needle) => text.includes(needle));
-    });
-    if (!row) return { opened: false, reason: 'target row not found', needles: items };
-    const button = row.querySelector('button[aria-label="overflow-options"], button, [role="button"]');
-    if (!button) return { opened: false, reason: 'row menu not found', row: row.innerText.trim().replace(/\s+/g, ' ') };
-    button.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-    return { opened: true, row: row.innerText.trim().replace(/\s+/g, ' ').slice(0, 600) };
-  }, items); // allow-raw-playwright: open legal-act row menu by visible table text
-  await humanIdlePause('deliberate');
-  return opened;
+  const rows = page.locator('table tbody tr');
+  for (let index = 0; index < await rows.count(); index += 1) {
+    const row = rows.nth(index);
+    const text = await row.innerText().catch(() => '');
+    if (!items.some((needle) => text.includes(needle))) continue;
+    const button = row.locator('button[aria-label="overflow-options"], button, [role="button"]').first();
+    if (await button.count() === 0) {
+      return { opened: false, reason: 'row menu not found', row: text.trim().replace(/\s+/g, ' ') };
+    }
+    await humanClickLocator(page, button);
+    await humanIdlePause('deliberate');
+    return { opened: true, row: text.trim().replace(/\s+/g, ' ').slice(0, 600) };
+  }
+  return { opened: false, reason: 'target row not found', needles: items };
 }
 
 async function deleteRowByNeedle(needles) {
@@ -151,25 +161,23 @@ async function deleteRowByNeedle(needles) {
     .slice(0, 40)); // allow-raw-playwright: read visible menu labels
   const del = page.getByRole('menuitem', { name: /usuń|usun/i }).first();
   if (await del.count() === 0) return { opened, error: `delete menu item not found: ${labels.join(' | ')}` };
-  await del.dispatchEvent('click'); // allow-raw-playwright: choose delete from legal-act row menu
+  await humanClickLocator(page, del);
   await humanIdlePause('deliberate');
-  const confirmed = await page.evaluate(() => {
-    const buttons = Array.from(document.querySelectorAll('button')).filter((button) => button.getClientRects().length && !button.disabled);
-    const button = buttons.reverse().find((candidate) => /^(Usuń|Usun|Tak|Potwierdź|Potwierdz)$/i.test(candidate.innerText.trim()));
-    if (!button) return { confirmed: false, labels: buttons.map((b) => b.innerText.trim()).filter(Boolean).slice(0, 20) };
-    button.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-    return { confirmed: true, label: button.innerText.trim() };
-  }); // allow-raw-playwright: confirm deletion in LSI dialog
+  const buttons = page.getByRole('button', { name: /^(Usuń|Usun|Tak|Potwierdź|Potwierdz)$/i })
+    .filter({ visible: true });
+  const count = await buttons.count();
+  const confirmed = count > 0
+    ? { confirmed: true, label: (await buttons.nth(count - 1).innerText()).trim() }
+    : { confirmed: false, labels: await page.locator('button').filter({ visible: true }).allTextContents() };
+  if (count > 0) await humanClickLocator(page, buttons.nth(count - 1));
   await humanIdlePause('long');
   return { opened, labels, confirmed };
 }
 
 async function clickAdd() {
-  await page.evaluate(() => {
-    const button = Array.from(document.querySelectorAll('button')).find((candidate) => candidate.innerText.trim() === 'Dodaj' && !candidate.disabled);
-    if (!button) throw new Error('enabled Dodaj not found');
-    button.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-  }); // allow-raw-playwright: open legal-act add form through UI
+  const button = page.getByRole('button', { name: 'Dodaj', exact: true }).filter({ visible: true }).first();
+  if (await button.count() === 0) throw new Error('enabled Dodaj not found');
+  await humanClickLocator(page, button);
   await humanIdlePause('long');
 }
 
@@ -226,8 +234,7 @@ async function setActTypeIfPresent() {
   const name = await input.getAttribute('name');
   const value = await input.inputValue().catch(() => '');
   if (!/akt|prawn|rodzaj|typ|przepis/i.test(name || value)) return { skipped: `combobox not obviously act field: ${name || ''}` };
-  await input.click(); // allow-raw-playwright: open legal-act combobox
-  await input.fill('Pozostałe inne'); // allow-raw-playwright: filter legal-act option
+  await humanFill(page, input, 'Pozostałe inne');
   await humanIdlePause('deliberate');
   const option = page.locator("[role='listbox'] [role='option'], [role='option']").filter({ hasText: 'Pozostałe inne' }).first();
   if (await option.count() === 0) return { skipped: 'Pozostałe inne option not found' };
@@ -258,9 +265,7 @@ async function setLegalAct(row) {
   let option = null;
   let seen = [];
   for (const search of searches) {
-    await input.click(); // allow-raw-playwright: open legal-act combobox
-    await input.fill('');
-    await input.fill(search); // allow-raw-playwright: filter legal-act option by verified prefix/needle
+    await humanFill(page, input, search);
     await humanIdlePause('deliberate');
     seen = await page.evaluate(() => Array.from(document.querySelectorAll("[role='listbox'] [role='option'], [role='option']"))
       .map((o) => o.textContent.trim())
@@ -285,15 +290,15 @@ async function setLegalAct(row) {
 async function saveRow() {
   await humanIdlePause('deliberate');
   await humanIdlePause('deliberate');
-  const state = await page.evaluate(() => {
-    const buttons = Array.from(document.querySelectorAll('button')).filter((button) => button.innerText.trim() === 'Zapisz' && !button.disabled && button.getClientRects().length);
-    if (!buttons.length) {
-      const errors = Array.from(document.querySelectorAll('[aria-invalid="true"], .Mui-error')).map((el) => (el.getAttribute('name') || el.textContent || '').trim().slice(0, 120)).filter(Boolean).slice(0, 12);
-      return { status: 'no-enabled-save', errors };
-    }
-    buttons[buttons.length - 1].dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-    return { status: 'saved', errors: [] };
-  }); // allow-raw-playwright: save legal-act row through UI
+  const buttons = page.getByRole('button', { name: 'Zapisz', exact: true }).filter({ visible: true });
+  const count = await buttons.count();
+  const state = count > 0
+    ? { status: 'saved', errors: [] }
+    : {
+        status: 'no-enabled-save',
+        errors: await page.locator('[aria-invalid="true"], .Mui-error').allTextContents(),
+      };
+  if (count > 0) await humanClickLocator(page, buttons.nth(count - 1));
   await humanIdlePause('long');
   return state;
 }
@@ -317,9 +322,7 @@ if (process.env.DIAG_ADD) {
     .filter(Boolean);
   const results = [];
   for (const search of searches) {
-    await input.click(); // allow-raw-playwright: open legal-act combobox diag
-    await input.fill('');
-    await input.fill(search); // allow-raw-playwright: filter legal-act combobox diag
+    await humanFill(page, input, search);
     await humanIdlePause('deliberate');
     const options = await page.evaluate(() => Array.from(document.querySelectorAll("[role='listbox'] [role='option'], [role='option']"))
       .map((o) => o.textContent.trim())
@@ -430,11 +433,10 @@ await humanIdlePause('deliberate');
 await humanIdlePause('deliberate');
 let saveResult = 'saved';
 try {
-  await page.evaluate(() => {
-    const buttons = Array.from(document.querySelectorAll('button')).filter((button) => button.innerText.trim() === 'Zapisz' && !button.disabled && button.getClientRects().length);
-    if (!buttons.length) throw new Error('no enabled Zapisz');
-    buttons[buttons.length - 1].dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-  }); // allow-raw-playwright: save edited legal-act row through UI
+  const buttons = page.getByRole('button', { name: 'Zapisz', exact: true }).filter({ visible: true });
+  const count = await buttons.count();
+  if (!count) throw new Error('no enabled Zapisz');
+  await humanClickLocator(page, buttons.nth(count - 1));
   await humanIdlePause('long');
 } catch (error) {
   saveResult = `NOT SAVED: ${String(error?.message || error).slice(0, 140)}`;

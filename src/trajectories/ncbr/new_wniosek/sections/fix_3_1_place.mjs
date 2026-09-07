@@ -1,7 +1,8 @@
 // Repair section 3.1 existing implementation row: fill required implementation place. UI-only.
 
 import { chromium } from 'playwright';
-import { humanIdlePause } from '../../../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../../../dist/human/mouse.js';
+import { humanFill } from '../../../../../dist/human/keyboard.js';
 
 const endpoint = process.env.NCBR_CDP_ENDPOINT || 'http://127.0.0.1:9223';
 const SECTION_URL = 'https://lsi2.ncbr.gov.pl/projekt/7ee80d9a-67dd-4d99-becd-8dda407221c1/projekt_step/574f07ed-d631-4536-bfd0-e1f7e469415c';
@@ -32,7 +33,7 @@ await page.waitForSelector('input, textarea');
 if (process.env.DIAG) {
   const input = page.locator('input[name$="miejsce_wdrozenia_wynikow_projektu"]').first();
   if (await input.count() > 0) {
-    await input.click(); // allow-raw-playwright: open place autocomplete for diagnosis
+    await humanClickLocator(page, input);
     await humanIdlePause('deliberate');
   }
   const dump = await page.evaluate(() => ({
@@ -53,8 +54,8 @@ if (process.env.DIAG) {
 
 async function pickPlace(search) {
   const input = page.locator('input[name$="miejsce_wdrozenia_wynikow_projektu"]').first();
-  await input.click(); // allow-raw-playwright: open multi-autocomplete
-  await input.fill(search); // allow-raw-playwright: filter place dictionary
+  await humanClickLocator(page, input);
+  await humanFill(page, input, search);
   await humanIdlePause('deliberate');
   const opt = page.locator("[role='listbox'] [role='option']").first();
   if (await opt.count() === 0) throw new Error(`no place option for ${search}`);
@@ -71,11 +72,10 @@ await humanIdlePause('deliberate');
 await humanIdlePause('deliberate');
 let saveResult = 'saved';
 try {
-  await page.evaluate(() => {
-    const saves = Array.from(document.querySelectorAll('button')).filter((b) => b.innerText.trim() === 'Zapisz' && !b.disabled);
-    if (!saves.length) throw new Error('no enabled Zapisz');
-    saves[saves.length - 1].dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-  }); // allow-raw-playwright: save edited row
+  const saves = page.getByRole('button', { name: 'Zapisz', exact: true }).filter({ visible: true });
+  const saveCount = await saves.count();
+  if (!saveCount) throw new Error('no enabled Zapisz');
+  await humanClickLocator(page, saves.nth(saveCount - 1));
   await humanIdlePause('long');
 } catch (e) {
   saveResult = `NOT SAVED: ${String(e?.message || e).slice(0, 80)}`;

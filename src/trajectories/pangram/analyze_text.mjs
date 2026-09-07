@@ -16,7 +16,7 @@ import { getSocialAccount, markCookiesStale, resolveAccountSession } from '../..
 import { detectPangramBanSignals } from '../../../dist/platforms/pangram/ban_signals.js';
 import { runRecordingsDir } from '../../../dist/session/run-recordings.js';
 import { humanClickLocator, humanMove } from '../../../dist/human/mouse.js';
-import { humanType } from '../../../dist/human/keyboard.js';
+import { humanFill, humanType } from '../../../dist/human/keyboard.js';
 import { CookieJarStaleError, loadFreshCookieJarOrFail } from '../_shared/cookie-freshness.mjs';
 import { listAccounts } from '../_shared/skarbiec_accounts.mjs';
 
@@ -646,16 +646,16 @@ async function fillInput(page, text) {
   const hit = await waitForWritableLocator(page);
   await hit.locator.scrollIntoViewIfNeeded().catch(() => {});
   if (process.env.PANGRAM_NO_ACCOUNT === '1') {
-    await hit.locator.click({ timeout: 5000 }).catch(() => hit.locator.evaluate((el) => el.focus())); // allow-raw-playwright: public checker focus; avoids orphaned human mouse promise during Turnstile waits
+    await withTimeout(humanClickLocator(page, hit.locator), 5000).catch(() => hit.locator.focus());
   } else {
-    await humanClickLocator(page, hit.locator).catch(() => hit.locator.click({ timeout: 5000 }).catch(() => hit.locator.evaluate((el) => el.focus()))); // allow-raw-playwright: focus fallback if humanized click cannot resolve
+    await humanClickLocator(page, hit.locator).catch(() => hit.locator.focus());
   }
   if (process.env.PANGRAM_NO_ACCOUNT === '1') {
     const warmupChars = Math.max(0, Number(process.env.PANGRAM_PUBLIC_HUMAN_WARMUP_CHARS || 0));
     const warmup = text.slice(0, warmupChars);
     if (warmup) await withTimeout(humanType(page, warmup), Number(process.env.PANGRAM_PUBLIC_HUMAN_WARMUP_TIMEOUT_MS || 30_000));
   }
-  await hit.locator.fill(text, { timeout: 30_000 }); // allow-raw-playwright: after public checker warmup, paste full long section text without spending minutes typing
+  await humanFill(page, hit.locator, text);
   const valueLength = await hit.locator.evaluate((el) => {
     if ('value' in el) return String(el.value || '').length;
     return String(el.innerText || el.textContent || '').length;
@@ -673,9 +673,9 @@ async function dismissCookieBanner(page) {
     const disabled = await btn.isDisabled().catch(() => true);
     if (visible && !disabled) {
       if (process.env.PANGRAM_NO_ACCOUNT === '1') {
-        await btn.click({ timeout: 5000 }).catch(() => btn.evaluate((el) => el.click())); // allow-raw-playwright: public checker cookie click; avoids orphaned human mouse promise
+        await withTimeout(humanClickLocator(page, btn), 5000);
       } else {
-        await humanClickLocator(page, btn).catch(() => btn.click({ timeout: 5000 }).catch(() => btn.evaluate((el) => el.click()))); // allow-raw-playwright: cookie fallback if humanized click cannot resolve
+        await humanClickLocator(page, btn);
       }
       await page.waitForTimeout(500).catch(() => {});
       return 'clicked';
@@ -722,36 +722,23 @@ async function clickAnalyze(page) {
   if (usableCandidates.length) {
     await usableCandidates[0].btn.scrollIntoViewIfNeeded().catch(() => {});
     if (process.env.PANGRAM_NO_ACCOUNT === '1') {
-      await usableCandidates[0].btn.click({ timeout: 5000 }).catch(() => usableCandidates[0].btn.evaluate((el) => el.click())); // allow-raw-playwright: public checker submit; avoids orphaned human mouse promise
+      await withTimeout(humanClickLocator(page, usableCandidates[0].btn), 5000);
     } else {
-      await humanClickLocator(page, usableCandidates[0].btn).catch(() => usableCandidates[0].btn.click({ timeout: 5000 }).catch(() => usableCandidates[0].btn.evaluate((el) => el.click()))); // allow-raw-playwright: scan fallback if humanized click cannot resolve
+      await humanClickLocator(page, usableCandidates[0].btn);
     }
     return `role:button:${usableCandidates[0].name.slice(0, 80)}`;
   }
-  const clicked = await page.evaluate(() => {
-    const labels = /scan|check|analy[sz]e|submit|run/i;
-    const primaryLabels = /^(scan|check)\s+for\s+ai$/i;
-    const skip = /scan for ai content|input your text|view results|access past records|detect ai assistance|accuracy|verified|free checks|upload|try it|partner|contact|login|allow/i;
-    const buttons = Array.from(document.querySelectorAll('button,[role="button"],input[type="submit"]'));
-    const hits = buttons.filter((el) => {
-      const text = `${el.textContent || ''} ${el.getAttribute('aria-label') || ''} ${el.getAttribute('value') || ''}`;
-      return labels.test(text) && !skip.test(text) && !el.disabled && el.getAttribute('aria-disabled') !== 'true';
-    });
-    const scoped = hits.filter((el) => primaryLabels.test((el.textContent || el.getAttribute('aria-label') || el.getAttribute('value') || '').trim()));
-    const list = scoped.length ? scoped : hits;
-    const score = (el) => {
-      const text = `${el.textContent || ''} ${el.getAttribute('aria-label') || ''} ${el.getAttribute('value') || ''}`;
-      if (/scan\s*for\s*ai/i.test(text)) return 0;
-      if (/scan/i.test(text)) return 1;
-      if (/check/i.test(text)) return 2;
-      return 3;
-    };
-    list.sort((a, b) => score(a) - score(b));
-    const hit = list[0];
-    if (!hit) return null;
-    hit.click();
-    return (hit.textContent || hit.getAttribute('aria-label') || hit.getAttribute('value') || '').trim().slice(0, 80);
-  }).catch(() => null);
+  const fallbackButtons = page.locator('button,[role="button"],input[type="submit"]').filter({ visible: true });
+  let clicked = null;
+  for (let i = 0; i < await fallbackButtons.count(); i += 1) {
+    const button = fallbackButtons.nth(i);
+    const text = `${await button.textContent().catch(() => '')} ${await button.getAttribute('aria-label').catch(() => '')} ${await button.getAttribute('value').catch(() => '')}`.trim();
+    if (labels.test(text) && !skip.test(text) && !await button.isDisabled().catch(() => true)) {
+      await humanClickLocator(page, button);
+      clicked = text.slice(0, 80);
+      break;
+    }
+  }
   if (!clicked) throw new Error('pangram_analyze_button_not_found');
   return `dom:${clicked}`;
 }
@@ -905,7 +892,7 @@ async function clickPublicTurnstileIfPresent(page) {
           const candidateBox = await candidate.boundingBox().catch(() => null);
           if (!visibleCandidate || !candidateBox) continue;
           await withTimeout(humanClickLocator(page, candidate), 8000)
-            .catch(() => candidate.click({ timeout: 5000 }).catch(() => null)); // allow-raw-playwright: fallback for Turnstile iframe checkbox after bounded human click
+            .catch(() => null);
           await page.waitForTimeout(3000).catch(() => {});
           return { clicked: true, method: 'frame_locator', tried };
         }

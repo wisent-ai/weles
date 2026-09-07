@@ -2,7 +2,8 @@
 
 import { readFileSync } from 'node:fs';
 import { chromium } from 'playwright';
-import { humanIdlePause } from '../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../dist/human/mouse.js';
+import { humanFill } from '../../../dist/human/keyboard.js';
 
 const endpoint = process.env.NCBR_CDP_ENDPOINT || ['ht', 'tp://127.0.0.1:9223'].join('');
 const projectId = process.env.NCBR_PROJECT_ID || '7ee80d9a-67dd-4d99-becd-8dda407221c1';
@@ -39,20 +40,8 @@ await page.evaluate(() => {
 async function clickFirstOption(inputSuffix, search = '') {
   const input = page.locator(`input[name$="${inputSuffix}"]`).first();
   await input.waitFor({ state: 'visible' });
-  await input.evaluate((el, value) => {
-    el.scrollIntoView({ block: 'center', inline: 'center' });
-    el.focus();
-    for (const type of ['pointerdown', 'mousedown', 'mouseup', 'click']) {
-      el.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, view: window }));
-    }
-    if (value) {
-      const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), 'value')?.set;
-      if (setter) setter.call(el, value);
-      else el.value = value;
-      el.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: value }));
-      el.dispatchEvent(new Event('change', { bubbles: true }));
-    }
-  }, search); // allow-raw-playwright: open/filter LSI autocomplete despite body pointer interception
+  await humanClickLocator(page, input);
+  if (search) await humanFill(page, input, search); // allow-raw-playwright: open/filter LSI autocomplete despite body pointer interception
   await humanIdlePause('deliberate');
   const option = page.locator("[role='listbox'] [role='option'], [role='option']").first();
   if (await option.count() === 0) throw new Error(`no option for ${inputSuffix}`);
@@ -71,15 +60,9 @@ async function multiPick(inputSuffix, searches) {
 }
 
 async function openMuiSelect(inputSuffix) {
-  await page.evaluate((suffix) => {
-    const input = document.querySelector(`input[name$="${suffix}"]`);
-    const root = input && input.closest('.MuiInputBase-root');
-    const target = root && (root.querySelector('.MuiSelect-select') || root.querySelector('[role="combobox"]') || root);
-    if (!target) throw new Error(`select not found: ${suffix}`);
-    for (const type of ['mousedown', 'mouseup', 'click']) {
-      target.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, view: window }));
-    }
-  }, inputSuffix); // allow-raw-playwright: open visible MUI select control
+  const target = page.locator(`input[name$="${inputSuffix}"]`).first().locator('xpath=ancestor::*[contains(@class,"MuiInputBase-root")][1]').locator('.MuiSelect-select, [role="combobox"]').first();
+  if (await target.count() === 0) throw new Error(`select not found: ${inputSuffix}`);
+  await humanClickLocator(page, target); // allow-raw-playwright: open visible MUI select control
   await humanIdlePause('deliberate');
 }
 
@@ -138,7 +121,7 @@ async function fillTextarea(selector, value) {
   const max = Number(await loc.getAttribute('maxlength')) || value.length;
   let v = value;
   if (v.length > max) v = v.slice(0, max).replace(/\s+\S*$/, '');
-  await loc.fill(v); // allow-raw-playwright: fill LSI textarea
+  await humanFill(page, loc, v); // allow-raw-playwright: fill LSI textarea
   await humanIdlePause('short');
   return v.length;
 }
@@ -154,11 +137,7 @@ await humanIdlePause('deliberate');
 await humanIdlePause('deliberate');
 let saveResult = 'saved';
 try {
-  await page.evaluate(() => {
-    const saves = Array.from(document.querySelectorAll('button')).filter((b) => b.innerText.trim() === 'Zapisz' && !b.disabled && b.getClientRects().length);
-    if (!saves.length) throw new Error('no enabled Zapisz');
-    saves[saves.length - 1].dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-  }); // allow-raw-playwright: save section through visible UI
+  await humanClickLocator(page, page.locator('button:visible:not([disabled])').filter({ hasText: /^Zapisz$/ }).last()); // allow-raw-playwright: save section through visible UI
   await humanIdlePause('long');
 } catch (e) {
   saveResult = `NOT SAVED: ${String(e?.message || e).slice(0, 100)}`;

@@ -8,6 +8,8 @@ import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { generatePersona } from '../../../dist/browser/persona.js';
 import { WSession } from '../../../dist/session/wsession.js';
+import { humanClickLocator } from '../../../dist/human/mouse.js';
+import { humanType } from '../../../dist/human/keyboard.js';
 
 const USER_DATA_DIR = process.env.WELES_USER_DATA_DIR || process.env.ADS_PROFILE_DIR || join(homedir(), '.weles', 'browser_profiles', 'meta_ads');
 const WAIT_MS = Number(process.env.WAIT_MS || 3000);
@@ -165,9 +167,9 @@ async function waitAndClickFirst(page, label, allow, deny, attempts = 8) {
 async function fillPhone(page) {
   const input = await page.locator('input[type="tel"], input[placeholder*="phone" i], input[aria-label*="phone" i], input[placeholder*="telefon" i], input[aria-label*="telefon" i], input[type="text"]').filter({ visible: true }).last();
   if (!await input.isVisible().catch(() => false)) return false;
-  await input.click({ delay: 50 }).catch(() => {});
+  await humanClickLocator(page, input).catch(() => {});
   await page.keyboard.press('ControlOrMeta+A').catch(() => {});
-  await page.keyboard.type(VERIFY_PHONE, { delay: 20 }).catch(async () => {
+  await humanType(page, VERIFY_PHONE).catch(async () => {
     await page.keyboard.insertText(VERIFY_PHONE).catch(() => {});
   });
   await page.waitForTimeout(1000).catch(() => {});
@@ -179,9 +181,9 @@ async function fillCode(page) {
   if (!VERIFY_CODE) return false;
   const input = page.locator('input').filter({ visible: true }).last();
   if (!await input.isVisible().catch(() => false)) return false;
-  await input.click({ delay: 50 }).catch(() => {});
+  await humanClickLocator(page, input).catch(() => {});
   await page.keyboard.press('ControlOrMeta+A').catch(() => {});
-  await page.keyboard.type(VERIFY_CODE, { delay: 20 }).catch(async () => {
+  await humanType(page, VERIFY_CODE).catch(async () => {
     await page.keyboard.insertText(VERIFY_CODE).catch(() => {});
   });
   await page.waitForTimeout(1000).catch(() => {});

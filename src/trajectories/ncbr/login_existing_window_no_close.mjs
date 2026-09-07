@@ -3,6 +3,8 @@
 // Does not close the attached browser/page.
 
 import { chromium } from 'playwright';
+import { humanClickLocator } from '../../../dist/human/mouse.js';
+import { humanFill } from '../../../dist/human/keyboard.js';
 
 const endpoint = process.env.NCBR_BROWSER_ENDPOINT || 'http://127.0.0.1:9223';
 const email = process.env.NCBR_EMAIL;
@@ -34,8 +36,8 @@ async function authStatus() {
 
 await page.goto('https://lsi2.ncbr.gov.pl/logowanie', { waitUntil: 'domcontentloaded', timeout: 120000 });
 await page.waitForSelector('input[name="mail"], #mail', { timeout: 30000 });
-await page.fill('input[name="mail"], #mail', email);
-await page.fill('input[name="password"], #password', password);
+await humanFill(page, page.locator('input[name="mail"], #mail').first(), email);
+await humanFill(page, page.locator('input[name="password"], #password').first(), password);
 
 const checkbox = page.locator('input[name="isStatuteAccepted"], #isStatuteAccepted').first();
 if (await checkbox.count()) {
@@ -46,7 +48,7 @@ if (await checkbox.count()) {
 const beforeUrl = page.url();
 await Promise.all([
   page.waitForLoadState('networkidle', { timeout: 30000 }).catch(() => null),
-  page.getByRole('button', { name: /zaloguj/i }).click({ timeout: 30000 }),
+  humanClickLocator(page, page.getByRole('button', { name: /zaloguj/i })),
 ]);
 
 await page.waitForTimeout(2500);

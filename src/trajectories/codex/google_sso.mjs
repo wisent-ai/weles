@@ -5,7 +5,8 @@
 // accounts list is empty." and does nothing. So we establish a Google session
 // at accounts.google.com FIRST, then reload the OpenAI device-auth URL — GIS
 // then has an account and the handoff completes.
-import { humanClick, humanIdlePause as pause } from '../../../dist/human/mouse.js';
+import { humanClick, humanClickLocator, humanIdlePause as pause } from '../../../dist/human/mouse.js';
+import { humanFill } from '../../../dist/human/keyboard.js';
 import crypto from 'node:crypto';
 
 // RFC 6238 TOTP (SHA1, 6-digit, 30s) from a base32 secret. Verified against the
@@ -222,8 +223,8 @@ async function completeEmailVerification(page, login, mark) {
       .filter({ visible: true })
       .first();
     await field.waitFor({ state: 'visible' });
-    await field.click();
-    await field.fill(found.code);
+    await humanClickLocator(page, field);
+    await humanFill(page, field, found.code);
     mark('email_verification_code_entered');
     try { await clickVisibleText(page, /^(continue|verify|submit|next)$/i); } catch { /* some forms submit on entry */ }
     await pause('long');

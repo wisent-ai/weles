@@ -66,7 +66,7 @@ function rowCount() {
   return read(`(() => Array.from(document.querySelectorAll('table')).map((t) => t.querySelectorAll('tbody tr').length))()`, 60000);
 }
 
-function fill(name, value) {
+function fieldFill(name, value) {
   const js = `(() => {
     const el = document.querySelector(${JSON.stringify(`[name="${name}"]`)});
     if (!el) return { ok: false, error: 'missing field' };
@@ -90,14 +90,7 @@ function fill(name, value) {
 }
 
 function save() {
-  return read(`(() => {
-    const saves = Array.from(document.querySelectorAll('button')).filter((b) => b.innerText.trim() === 'Zapisz' && !b.disabled && b.getClientRects().length);
-    if (!saves.length) return { ok: false, reason: 'no enabled save' };
-    const btn = saves[saves.length - 1];
-    const fire = btn['dis' + 'patchEv' + 'ent'].bind(btn);
-    for (const type of ['pointerdown', 'mousedown', 'mouseup', 'click']) fire(new MouseEvent(type, { bubbles: true, cancelable: true, view: window }));
-    return { ok: true };
-  })()`, 60000);
+  return action(['click', 'button:has-text("Zapisz")'], 60000);
 }
 
 const added = [];
@@ -120,7 +113,7 @@ for (const ind of ownIndicators) {
     ['wartosc_docelowa', ind.targetValue],
     ['opis_metodologii', ind.methodology],
     ['opis_sposobu_weryfikacji', ind.verification],
-  ].map(([name, value]) => ({ name, ...fill(name, value) }));
+  ].map(([name, value]) => ({ name, ...fieldFill(name, value) }));
   idle('deliberate');
   const saved = save();
   idle('long');

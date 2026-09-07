@@ -3,7 +3,8 @@
 
 import { writeFileSync } from 'node:fs';
 import { WSession } from '../../../dist/index.js';
-import { humanIdlePause } from '../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../dist/human/mouse.js';
+import { humanFill } from '../../../dist/human/keyboard.js';
 
 const PROJECT_ID = process.env.NCBR_PROJECT_ID || '7ee80d9a-67dd-4d99-becd-8dda407221c1';
 const PROJECT_URL = process.env.NCBR_PROJECT_URL || `https://lsi2.ncbr.gov.pl/projekt/${PROJECT_ID}`;
@@ -54,14 +55,7 @@ const known = [
 
 async function setReactInputValue(locator, value) {
   await locator.waitFor({ state: 'visible' });
-  await locator.evaluate((el, v) => {
-    const proto = el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
-    const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
-    if (!setter) throw new Error('native value setter not found');
-    setter.call(el, v);
-    el.dispatchEvent(new Event('input', { bubbles: true }));
-    el.dispatchEvent(new Event('change', { bubbles: true }));
-  }, value); // allow-raw-playwright: set controlled React/MUI login input inside Weles session
+  await humanFill(page, locator, value);
   await humanIdlePause('short');
 }
 
@@ -88,32 +82,21 @@ await page.goto('https://lsi2.ncbr.gov.pl/logowanie', { waitUntil: 'domcontentlo
 await humanIdlePause('long');
 await setReactInputValue(page.locator('#mail, input[name="mail"]').first(), email);
 await setReactInputValue(page.locator('#password, input[name="password"]').first(), password);
-await page.evaluate(() => {
-  const input = document.querySelector('#isStatuteAccepted, input[name="isStatuteAccepted"]');
-  if (!input || input.checked) return;
-  const target = input.closest('label') || input.closest('.MuiFormControlLabel-root') || input.closest('.MuiCheckbox-root') || input;
-  for (const type of ['pointerdown', 'mousedown', 'mouseup', 'click']) target.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, view: window }));
-  if (!input.checked) {
-    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'checked')?.set?.call(input, true);
-    input.dispatchEvent(new Event('input', { bubbles: true }));
-    input.dispatchEvent(new Event('change', { bubbles: true }));
-  }
-}); // allow-raw-playwright: accept visible statute checkbox to log in only
+const statute = page.locator('#isStatuteAccepted, input[name="isStatuteAccepted"]').first();
+if (await statute.count() > 0 && !await statute.isChecked()) {
+  const statuteLabel = page.locator('label, .MuiFormControlLabel-root, .MuiCheckbox-root')
+    .filter({ has: statute }).filter({ visible: true }).first();
+  await humanClickLocator(page, await statuteLabel.count() > 0 ? statuteLabel : statute);
+}
 await humanIdlePause('short');
 await page.waitForFunction(() => {
   const btn = document.querySelector('#login-btn') || Array.from(document.querySelectorAll('button')).find((b) => b.innerText.trim() === 'Zaloguj');
   return !!btn && !btn.disabled;
 }, null, { timeout: 10000 }).catch(() => null); // allow-raw-playwright: wait for MUI login validation
 for (let attempt = 1; attempt <= 3 && page.url().includes('/logowanie'); attempt += 1) {
-  if (attempt === 1) {
-    await page.locator('#login-btn, button:has-text("Zaloguj")').first().click({ force: true }); // allow-raw-playwright: submit visible login form only
-  } else {
-    await page.evaluate(() => {
-      const btn = document.querySelector('#login-btn') || Array.from(document.querySelectorAll('button')).find((b) => b.innerText.includes('Zaloguj'));
-      if (!btn) throw new Error('login button not found for retry');
-      for (const type of ['pointerdown', 'mousedown', 'mouseup', 'click']) btn.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, view: window }));
-    }); // allow-raw-playwright: retry visible login button dispatch
-  }
+  const loginButton = page.locator('#login-btn, button:has-text("Zaloguj")').filter({ visible: true }).first();
+  if (await loginButton.count() === 0) throw new Error('login button not found for retry');
+  await humanClickLocator(page, loginButton);
   await page.waitForLoadState('networkidle', { timeout: 30000 }).catch(() => null);
   await humanIdlePause('long');
 }

@@ -2,7 +2,8 @@
 // UI-only, no direct API writes. Never closes page.
 
 import { chromium } from 'playwright';
-import { humanIdlePause } from '../../../dist/human/mouse.js';
+import { humanClickLocator, humanIdlePause } from '../../../dist/human/mouse.js';
+import { humanFill } from '../../../dist/human/keyboard.js';
 
 const endpoint = process.env.NCBR_CDP_ENDPOINT || 'http://127.0.0.1:9223';
 const SECTION_URL = 'https://lsi2.ncbr.gov.pl/projekt/7ee80d9a-67dd-4d99-becd-8dda407221c1/projekt_step/bdb2c7b3-92d9-4778-9ecc-b4c5bda7d32b';
@@ -40,22 +41,14 @@ await humanIdlePause('long');
 await page.evaluate(() => { const b = Array.from(document.querySelectorAll('div')).find((d) => (d.innerText || '').includes('pliki cookies')); if (b) b.style.pointerEvents = 'none'; }); // allow-raw-playwright: cookie banner
 
 async function clickDodaj() {
-  await page.evaluate(() => {
-    const btn = Array.from(document.querySelectorAll('button')).find((b) => b.innerText.trim() === 'Dodaj' && b.getClientRects().length);
-    if (!btn) throw new Error('Dodaj not found');
-    btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-  }); // allow-raw-playwright: open indirect-cost row
+  await humanClickLocator(page, page.locator('button:visible').filter({ hasText: /^Dodaj$/ }).first()) // allow-raw-playwright: open indirect-cost row
   await humanIdlePause('long');
 }
 
 async function openSelect(name) {
-  await page.evaluate((name) => {
-    const inp = document.querySelector(`input[name="${name}"]`);
-    const root = inp && inp.closest('.MuiInputBase-root');
-    const select = root && root.querySelector('.MuiSelect-select, [role="combobox"]');
-    if (!select) throw new Error(`select not found: ${name}`);
-    for (const t of ['mousedown', 'mouseup', 'click']) select.dispatchEvent(new MouseEvent(t, { bubbles: true, cancelable: true, view: window }));
-  }, name); // allow-raw-playwright: open MUI select
+  const target = page.locator(`input[name="${name}"]`).first().locator('xpath=ancestor::*[contains(@class,"MuiInputBase-root")][1]').locator('.MuiSelect-select, [role="combobox"]').first();
+  if (await target.count() === 0) throw new Error(`select not found: ${name}`);
+  await humanClickLocator(page, target) // allow-raw-playwright: open MUI select
   await humanIdlePause('deliberate');
 }
 
@@ -73,16 +66,12 @@ async function setAuto(name, search) {
   const inp = page.locator(`input[name="${name}"]`).first();
   const readonly = await inp.getAttribute('readonly');
   if (readonly === null) {
-    await inp.click(); // allow-raw-playwright: open editable autocomplete
-    await inp.fill(search); // allow-raw-playwright: filter editable autocomplete
+    await humanClickLocator(page, inp); // allow-raw-playwright: open editable autocomplete
+    await humanFill(page, inp, search); // allow-raw-playwright: filter editable autocomplete
   } else {
-    await page.evaluate((name) => {
-      const input = document.querySelector(`input[name="${name}"]`);
-      const root = input && (input.closest('.MuiAutocomplete-root') || input.closest('.MuiFormControl-root'));
-      const target = root && (root.querySelector('.MuiAutocomplete-popupIndicator') || root.querySelector('button') || input);
-      if (!target) throw new Error(`autocomplete opener not found: ${name}`);
-      for (const t of ['mousedown', 'mouseup', 'click']) target.dispatchEvent(new MouseEvent(t, { bubbles: true, cancelable: true, view: window }));
-    }, name); // allow-raw-playwright: open readonly autocomplete through MUI popup indicator
+    const target = page.locator(`input[name="${name}"]`).first().locator('xpath=ancestor::*[contains(@class,"MuiAutocomplete-root") or contains(@class,"MuiFormControl-root")][1]').locator('.MuiAutocomplete-popupIndicator, button').first();
+    if (await target.count() === 0) throw new Error(`autocomplete opener not found: ${name}`);
+    await humanClickLocator(page, target) // allow-raw-playwright: open readonly autocomplete through MUI popup indicator
   }
   await humanIdlePause('deliberate');
   let opt = page.locator("[role='listbox'] [role='option']").filter({ hasText: search }).first();
@@ -104,17 +93,13 @@ async function fill(name, value) {
   const max = Number(await loc.getAttribute('maxlength')) || String(value).length;
   let v = String(value);
   if (v.length > max) throw new Error(`${name} too long: ${v.length}/${max}`);
-  await loc.fill(v); // allow-raw-playwright: text/number field
+  await humanFill(page, loc, v); // allow-raw-playwright: text/number field
   await humanIdlePause('short');
 }
 
 async function saveForm() {
   await humanIdlePause('deliberate'); await humanIdlePause('deliberate');
-  await page.evaluate(() => {
-    const saves = Array.from(document.querySelectorAll('button')).filter((b) => b.innerText.trim() === 'Zapisz' && !b.disabled);
-    if (!saves.length) throw new Error('no enabled Zapisz');
-    saves[saves.length - 1].dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-  }); // allow-raw-playwright: save indirect-cost row
+  await humanClickLocator(page, page.locator('button:not([disabled])').filter({ hasText: /^Zapisz$/ }).last()) // allow-raw-playwright: save indirect-cost row
   await humanIdlePause('long');
 }
 
