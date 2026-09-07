@@ -238,12 +238,58 @@ This replaced 154 admitted actions: 22 interaction verbs spelled once per site
 across reddit, discord, github, instagram, linkedin, tiktok and twitter, each
 with a resolver branch of its own, and 108 of them resolved to a trajectory
 file nobody had written. Those action names no longer exist — `twitter_like`
-resolves to nothing — and `src/worker/deploy/weles-action-allowlist.txt` admits
-101 actions where it used to admit 255. To see what a real dispatch computes
-for one engagement, run:
+resolves to nothing.
+
+To see what a real dispatch computes for one engagement, run:
 
 ```sh
 node docs/examples/resolve-action.mjs generic_saved_task twitter.like
+```
+
+### Declared observation
+
+Reading a site — a feed, a notifications tab, a page of search results, a
+profile — is a **declared observation**, not an action verb of its own.
+`src/worker/deploy/weles-observation-declaration.json` names each observation
+with its platform, its verb, the origin it reads, what it must read there, the
+dwell budget it spends and the reviewed trajectory, and `generic_keeper_task`
+consumes that declaration:
+
+```json
+{ "action": "generic_keeper_task",
+  "input": { "observation": "reddit.search", "query": "representation engineering" } }
+```
+
+Admission authorizes the observation by name and fills the origin's
+placeholders from the submission. An observation nobody declared is refused
+before anything is spawned — `observation reddit.doomscroll is not declared in
+src/worker/deploy/weles-observation-declaration.json` — a submission that also
+names the origin or the budget itself is refused as two answers to the same
+question, and a declaration naming a reviewed trajectory that is not in the
+tree is refused when it is loaded, which the API launcher does before it
+serves. A new site is a row in that file, never a new verb.
+
+This replaced 37 admitted actions: `browse`, `dwell`, `notifications`,
+`profile_view` and `search` across nine platforms, and 30 of them resolved to
+the same single file, `src/trajectories/_shared/benign.mjs` — thirty public
+names for one behaviour, whose origins and dwell budgets sat in a table inside
+that file where no caller could read them, and whose dwell ranges the loop
+never applied. Those action names no longer exist — `twitter_dwell` resolves
+to nothing — and 33 observations are declared. Four of the 37 are not, because
+no origin could have made them observe what they named: `discord_search` and
+`discord_profile_view` both resolved to `https://discord.com/channels/@me`,
+which shows neither, so submit `discord.dwell`, which is what they did;
+`instagram_notifications` opened the home feed with a scroll budget of zero and
+a bell marker nothing ever read, so submit `instagram.dwell`; and
+`youtube_dwell` reached a shared trajectory carrying no youtube origin and no
+youtube ban detector, so it could only ever fail.
+
+Together the two landed capabilities took
+`src/worker/deploy/weles-action-allowlist.txt` from 255 admitted actions to 64.
+To see what a real dispatch computes for one observation, run:
+
+```sh
+node docs/examples/resolve-action.mjs generic_keeper_task reddit.search
 ```
 
 ## Wisent Integrations

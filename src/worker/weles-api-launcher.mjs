@@ -100,21 +100,22 @@ function actionAllowlist() {
 }
 
 /**
- * The engagements this build may replay, by name.
+ * What this build may run by name: the declared engagements, and the declared
+ * observations.
  *
- * One loader for the whole product: this is the module admission uses, so a
+ * One loader per family, and each is the module admission itself uses, so a
  * declaration naming a reviewed trajectory that is not in this tree refuses
  * the unit here — before it serves — instead of failing the first caller who
- * happens to name that engagement. The names are exported so the desktop
- * console can state what the host is authorized to run.
+ * happens to name that engagement or that observation. The names are exported
+ * so the desktop console can state what the host is authorized to run.
  */
-async function engagementDeclaration() {
-  const module = join(REPO, 'dist/worker/engagements.js');
+async function declaredNames(relativeModule, loader) {
+  const module = join(REPO, relativeModule);
   let load;
   try {
-    ({ loadDeclaredEngagements: load } = await import(module));
+    ({ [loader]: load } = await import(module));
   } catch (error) {
-    refuse(`declared engagements are unavailable: ${module}: ${error.message}`);
+    refuse(`${loader} is unavailable: ${module}: ${error.message}`);
   }
   try {
     return [...load(REPO).keys()].join(',');
@@ -184,7 +185,10 @@ async function startup() {
   if (!skarbiecBin) refuse('Stado has no attested active Skarbiec binary for this host');
   process.env.SKARBIEC_BIN = skarbiecBin;
   process.env.WELES_ACTION_ALLOWLIST = actionAllowlist();
-  process.env.WELES_ENGAGEMENT_DECLARATION = await engagementDeclaration();
+  process.env.WELES_ENGAGEMENT_DECLARATION =
+    await declaredNames('dist/worker/engagements.js', 'loadDeclaredEngagements');
+  process.env.WELES_OBSERVATION_DECLARATION =
+    await declaredNames('dist/worker/observations.js', 'loadDeclaredObservations');
 
   const acquireHelper = join(REPO, 'src/worker/deploy/skarbiec-acquire.mjs');
   const acquireScopes = join(REPO, 'src/worker/deploy/skarbiec-acquisition-scopes.conf');

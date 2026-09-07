@@ -36,8 +36,17 @@ function sampleReactionMs(): number {
   return randomBetween(250, 500);
 }
 
-export async function humanIdlePause(kind: 'short' | 'deliberate' | 'long' = 'deliberate'): Promise<void> {
-  const ms = kind === 'short' ? randomBetween(180, 400)
+/**
+ * The three named kinds are the reaction-shaped defaults. A `[min, max]` pair
+ * is a dwell budget somebody declared — a declared observation carries its own
+ * millisecond range, and passing it here is what makes that column real rather
+ * than a number in a file nobody applied.
+ */
+export type IdlePause = 'short' | 'deliberate' | 'long' | readonly [number, number];
+
+export async function humanIdlePause(kind: IdlePause = 'deliberate'): Promise<void> {
+  const ms = typeof kind !== 'string' ? randomBetween(kind[0], kind[1])
+    : kind === 'short' ? randomBetween(180, 400)
     : kind === 'long' ? randomBetween(5000, 11000)
     : randomBetween(2500, 5500);
   await waitMs(ms);
