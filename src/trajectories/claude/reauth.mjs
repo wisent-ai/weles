@@ -21,6 +21,7 @@ import crypto from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { bankBody, listPool, retireBody, writePool } from '../_shared/subscription_pool.mjs';
 import { mkdirSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import {
@@ -99,9 +100,9 @@ async function listSubscriptions(cfg) {
   // Signed like every other call: the gateway resolves the caller's identity from
   // this trio, and an unsigned request is refused before the route is reached —
   // which reads as a missing endpoint from out here.
-  const r = await fetch(`${cfg.routerUrl}/v1/subscriptions/${cfg.agentId}`, {
-    headers: sign(cfg, ''),
-  });
+  // The pool narrows its answer to the agent this signature proves, so the
+  // agent id is no longer in the path and must not be sent in a body either.
+  const r = await listPool(cfg.routerUrl, sign(cfg, ''));
   if (!r.ok) throw new Error(`list subscriptions -> ${r.status}`);
   return (await r.json()).subscriptions ?? [];
 }
@@ -175,24 +176,16 @@ async function donate(cfg, blobJson, label, loginItem) {
     ...(loginItem ? { login_item: loginItem } : {}),
     ...(process.env.BRAMA_SUBSCRIPTION_ID ? { subscription_id: process.env.BRAMA_SUBSCRIPTION_ID } : {}),
   };
-  const payload = JSON.stringify(body);
-  const r = await fetch(`${cfg.routerUrl}/v1/subscriptions/${cfg.agentId}`, {
-    method: 'POST',
-    headers: sign(cfg, payload),
-    body: payload,
-  });
+  const payload = bankBody(body);
+  const r = await writePool(cfg.routerUrl, sign(cfg, payload), payload);
   if (!r.ok) throw new Error(`donate -> ${r.status} ${await r.text()}`);
   const j = await r.json();
   return j.subscription ?? j;
 }
 
-async function deleteSubscription(cfg, subId) {
-  const payload = JSON.stringify({ subscription_id: subId });
-  const r = await fetch(`${cfg.routerUrl}/v1/subscriptions/${cfg.agentId}`, {
-    method: 'DELETE',
-    headers: sign(cfg, payload),
-    body: payload,
-  });
+async function retireSubscription(cfg, subId) {
+  const payload = retireBody(subId);
+  const r = await writePool(cfg.routerUrl, sign(cfg, payload), payload);
   return r.status < 400;
 }
 
@@ -385,7 +378,7 @@ async function main() {
     if (old.id === newSub.id) {
       kept += 1;
     } else if (lbl.startsWith(accountPrefix) || lbl.startsWith('reauth-macmini ')) {
-      if (await deleteSubscription(cfg, old.id)) deleted += 1;
+      if (await retireSubscription(cfg, old.id)) deleted += 1;
     } else {
       kept += 1;
     }

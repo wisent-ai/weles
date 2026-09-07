@@ -12,10 +12,17 @@
  * `npm run lint-modules`. The script is gone and the check is a test, where a
  * check belongs.
  *
+ * It also refuses a checkout where git is hiding source the build reads. A
+ * bare directory pattern in .gitignore matches that directory at every depth:
+ * `build/` hid this very file, and `supabase/` hid two real trajectories, so
+ * the published trajectory catalog counted a tree nobody could clone. Ignored
+ * source is worse than missing source, because every local check passes.
+ *
  * Run: node --test tests/build/module-load.test.mjs
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { join, resolve } from 'node:path';
@@ -63,4 +70,48 @@ test('every compiled module in dist/ loads without throwing', () => {
     }
   }
   assert.deepEqual(failures, [], `modules that failed to load:\n  ${failures.join('\n  ')}`);
+});
+
+/** Whatever git reports for one of its own listings, as lines. */
+function gitLines(argv) {
+  return execFileSync('git', ['-C', REPO, ...argv], { encoding: 'utf8' })
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+test('no source this repository builds from is ignored by git', () => {
+  // Every directory whose contents are source. A file here that git ignores
+  // exists for whoever wrote it and for nobody else: the build works on that
+  // machine, the published counts describe that machine, and main cannot
+  // reproduce either.
+  for (const directory of ['src', 'tests', 'release', 'docs', '.github']) {
+    assert.deepEqual(
+      gitLines(['ls-files', '--others', '--ignored', '--exclude-standard', '--', directory]),
+      [],
+      `${directory} carries ignored source; a bare directory pattern in .gitignore matches every depth, `
+      + 'so name the path from the root (/build/, /supabase/) instead',
+    );
+  }
+});
+
+test('every trajectory file the catalog publishes is tracked', () => {
+  // The published trajectory count is a walk of src/trajectories on disk, so
+  // an untracked file there is a number no clone can reproduce.
+  const walked = [];
+  const walk = (directory) => {
+    for (const name of readdirSync(join(REPO, directory))) {
+      const path = `${directory}/${name}`;
+      if (statSync(join(REPO, path)).isDirectory()) walk(path);
+      else walked.push(path);
+    }
+  };
+  walk('src/trajectories');
+  const tracked = new Set(gitLines(['ls-files', '--', 'src/trajectories']));
+  assert.deepEqual(
+    walked.filter((path) => !tracked.has(path)).sort(),
+    [],
+    'these trajectory files are on disk but not in the repository, so the published catalog counts a tree '
+    + 'nobody else has',
+  );
 });

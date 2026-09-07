@@ -26,6 +26,7 @@ import {
   resolveBearer,
   stadoRouterUrl,
 } from '../_shared/reauth_config.mjs';
+import { bankBody, listPool, retireBody, writePool } from '../_shared/subscription_pool.mjs';
 
 // Skarbiec holds the configuration row for this host.
 const CONFIG_ITEM = 'kimi-reauth-config';
@@ -89,9 +90,9 @@ function sign(cfg, body) {
 async function listSubscriptions(cfg) {
   // Signed and bearing like every other call: an unsigned read is refused
   // before the route is reached, which reads as a missing endpoint from here.
-  const r = await fetch(`${cfg.brokerUrl}/v1/subscriptions/${cfg.agentId}`, {
-    headers: sign(cfg, ''),
-  });
+  // The pool narrows its answer to the agent this signature proves, so the
+  // agent id is no longer in the path and must not be sent in a body either.
+  const r = await listPool(cfg.brokerUrl, sign(cfg, ''));
   if (!r.ok) throw new Error(`list subscriptions -> ${r.status} ${await r.text()}`);
   const subs = (await r.json()).subscriptions ?? [];
   return subs.filter((sub) => sub.provider === 'kimi');
@@ -171,24 +172,16 @@ async function donate(cfg, credentialsJson, loginItem) {
     ...(loginItem ? { login_item: loginItem } : {}),
     ...(process.env.BRAMA_SUBSCRIPTION_ID ? { subscription_id: process.env.BRAMA_SUBSCRIPTION_ID } : {}),
   };
-  const payload = JSON.stringify(body);
-  const r = await fetch(`${cfg.brokerUrl}/v1/subscriptions/${cfg.agentId}`, {
-    method: 'POST',
-    headers: sign(cfg, payload),
-    body: payload,
-  });
+  const payload = bankBody(body);
+  const r = await writePool(cfg.brokerUrl, sign(cfg, payload), payload);
   if (!r.ok) throw new Error(`donate -> ${r.status} ${await r.text()}`);
   const j = await r.json();
   return j.subscription ?? j;
 }
 
-async function deleteSubscription(cfg, sub) {
-  const payload = JSON.stringify({ subscription_id: sub.id });
-  const r = await fetch(`${cfg.brokerUrl}/v1/subscriptions/${cfg.agentId}`, {
-    method: 'DELETE',
-    headers: sign(cfg, payload),
-    body: payload,
-  });
+async function retireSubscription(cfg, sub) {
+  const payload = retireBody(sub.id);
+  const r = await writePool(cfg.brokerUrl, sign(cfg, payload), payload);
   return r.status < 400;
 }
 
@@ -291,7 +284,7 @@ async function main() {
 
   let deleted = 0;
   for (const old of poolBefore) {
-    if (old.id !== newSub.id && await deleteSubscription(cfg, old)) deleted += 1;
+    if (old.id !== newSub.id && await retireSubscription(cfg, old)) deleted += 1;
   }
   console.log(`[kimi reauth] revoked ${deleted}/${poolBefore.length} stale rows — rotation complete`);
 }
