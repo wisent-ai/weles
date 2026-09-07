@@ -22,14 +22,17 @@ fi
 
 # Everything scripts/worker/weles-api-server.mjs loads out of the runtime root
 # before it binds its port. `dist/` is the part that matters: the server
-# resolves `${REPO}/dist/worker/dispatch.js` and two more compiled modules at
-# import time, so a tree without them cannot serve, however complete the rest
-# of it looks.
+# resolves `${REPO}/dist/worker/dispatch.js` and the modules that module
+# re-exports at import time, so a tree without them cannot serve, however
+# complete the rest of it looks.
 runtime_required=(
   package.json
   scripts/worker/deploy/launch-weles-api-mac.sh
   scripts/worker/weles-api-server.mjs
   dist/worker/dispatch.js
+  dist/worker/params-to-env.js
+  dist/worker/engagements.js
+  dist/worker/analytics-actions.js
   dist/worker/deployment_version.js
   dist/utils/login-accounts.js
 )
