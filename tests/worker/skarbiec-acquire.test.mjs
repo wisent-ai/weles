@@ -62,6 +62,22 @@ function skarbiecBinary() {
   );
 }
 
+/**
+ * The parent environment with every inherited `SKARBIEC_` variable removed.
+ * Each resolves to a path below `HOME` when unset, so redirecting `HOME`
+ * covers those; dropping the prefix covers the other half. An operator shell
+ * exporting `SKARBIEC_UNLOCK`, `SKARBIEC_WORKLOAD_ID` or
+ * `SKARBIEC_CAPABILITY_ROUTES_FILE` would otherwise hand this fixture the
+ * real passphrase, the real workload identity and the real routes table.
+ */
+function withoutInheritedVault() {
+  const environment = { ...process.env };
+  for (const key of Object.keys(environment)) {
+    if (key.startsWith('SKARBIEC_')) delete environment[key];
+  }
+  return environment;
+}
+
 async function reservePort() {
   const server = createServer();
   const bound = Promise.withResolvers();
@@ -98,7 +114,7 @@ before(async () => {
   rmSync(ROOT, { recursive: true, force: true });
   mkdirSync(join(ROOT, 'gnupg'), { recursive: true, mode: 0o700 });
   const vaultEnv = {
-    ...process.env,
+    ...withoutInheritedVault(),
     HOME: ROOT,
     GNUPGHOME: join(ROOT, 'gnupg'),
     SKARBIEC_VAULT_FILE: join(ROOT, 'vault.json'),
@@ -142,7 +158,7 @@ before(async () => {
   const { privateKey } = generateKeyPairSync('ed25519');
   writeFileSync(key, privateKey.export({ type: 'pkcs8', format: 'pem' }), { mode: 0o600 });
   helperEnv = {
-    ...process.env,
+    ...withoutInheritedVault(),
     WC_SKARBIEC_URL: broker.url,
     SKARBIEC_WORKLOAD_ID: 'weles-acquire-tests',
     SKARBIEC_WORKLOAD_SIGNING_KEY_FILE: key,
