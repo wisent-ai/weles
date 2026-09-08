@@ -1,5 +1,7 @@
-// Generic free-text section filler for the NEW NCBR wniosek (project 7ee80d9a).
-// SECTION env selects a registry entry. Raw CDP fill (LSI has no anti-bot).
+// Plan-driven text filler and verifier for the NCBR wniosek (project 7ee80d9a).
+// SECTION selects a plan section, a plan collection label, or a markdown registry entry.
+// MODE=read compares live values with the plan and never types or saves; plan collections
+// are verify-only here, writing their rows stays in apply_correction.mjs.
 // Never closes the page.
 
 import { readFileSync } from 'node:fs';
@@ -45,6 +47,7 @@ const REGISTRY = {
 
 const SECTION = process.env.SECTION || '2.1';
 const PLAN_FILE = process.env.NCBR_CORRECTION_PLAN_FILE || '';
+const MODE = process.env.MODE || 'apply';
 
 // A correction plan (weles.ncbr.correction-plan.v1) is the single source of truth for
 // fields it declares: value and character limit come from the plan, not from markdown.
@@ -60,10 +63,18 @@ function planSection(file, label) {
   };
 }
 
-const cfg = PLAN_FILE ? planSection(PLAN_FILE, SECTION) : REGISTRY[SECTION];
-if (!cfg) throw new Error(`no registry entry and no plan section for SECTION=${SECTION}`);
+function planCollection(file, label) {
+  const plan = JSON.parse(readFileSync(file, 'utf8'));
+  return (plan.collections || []).find((c) => c.label === label) || null;
+}
 
-const md = cfg.md ? readFileSync(SRC + cfg.md, 'utf8').split('\n') : [];
+const collection = PLAN_FILE ? planCollection(PLAN_FILE, SECTION) : null;
+const cfg = collection ? null : (PLAN_FILE ? planSection(PLAN_FILE, SECTION) : REGISTRY[SECTION]);
+if (!cfg && !collection) throw new Error(`no registry entry, plan section or plan collection for SECTION=${SECTION}`);
+if (MODE === 'read' && !PLAN_FILE) throw new Error('MODE=read compares against a plan: set NCBR_CORRECTION_PLAN_FILE');
+if (collection && MODE !== 'read') throw new Error(`${SECTION} is a plan collection: this runner verifies its rows with MODE=read`);
+
+const md = cfg?.md ? readFileSync(SRC + cfg.md, 'utf8').split('\n') : [];
 const plain = (s) => s
   .replace(/\s*<!--[\s\S]*?-->\s*/g, ' ')
   .replace(/\*\*([^*]+)\*\*/g, '$1')
@@ -85,7 +96,7 @@ function tableValueOf(key) {
   }
   throw new Error(`table row not found: ${key}`);
 }
-for (const f of cfg.fields) {
+for (const f of cfg?.fields || []) {
   if (typeof f.value !== 'string') {
     f.label = f.header || f.tableKey;
     f.value = f.tableKey ? tableValueOf(f.tableKey) : valueOf(f.header);
@@ -102,10 +113,114 @@ async function clickEl(loc) {
   await humanClickLocator(page, loc); // allow-raw-playwright: LSI click, no anti-bot
 }
 
+async function readDeclared(name, value, scope) {
+  const locator = page.locator(`[name$="${name}"]`).first();
+  await locator.waitFor({ state: 'visible' });
+  const actual = await locator.inputValue();
+  return `${scope} ${name}: ${actual === value ? 'zgodne' : `ROZBIEZNE (${actual.length} vs ${value.length})`}`;
+}
+
+// LSI2 drops an expired session onto /logowanie, where every field selector times out.
+// Say that instead of reporting an empty section.
+async function assertRendered(scope, selector) {
+  try {
+    await page.waitForSelector(selector, { state: 'attached', timeout: Number('45000') });
+  } catch (error) {
+    const url = page.url();
+    if (url.includes('/logowanie')) {
+      throw new Error(`${scope}: sesja LSI2 wygasla i przegladarka jest na ${url}; zaloguj sie ponownie w tym oknie i powtorz przebieg`);
+    }
+    throw new Error(`${scope}: strona nie wyrenderowala "${selector}" (${String(error?.message || error).slice(0, Number('80'))}); adres ${url}`);
+  }
+}
+
+async function openRow(row) {
+  await page.goto(collection.url, { waitUntil: 'domcontentloaded' });
+  await humanIdlePause('long');
+  await assertRendered(collection.label, 'textarea, table, [role="row"]');
+  const ROWS = 'table tbody tr, [role="row"], .MuiDataGrid-row, li[role="listitem"]';
+  const seen = await page.evaluate(({ needle, rowSelector }) => {
+    const norm = (v) => String(v || '').replace(/\s+/g, ' ').trim();
+    const menuOf = (node) => node.querySelector('button[aria-label="overflow-options"], button[title="overflow-options"], [role="button"][aria-label*="overflow"], [aria-label*="overflow"]');
+    const textOf = (node) => norm(Array.from(node.querySelectorAll('td, [role="cell"], [role="gridcell"]')).map((cell) => `${cell.getAttribute('title') || ''} ${cell.textContent || ''}`).join(' ') || node.textContent);
+    const all = Array.from(document.querySelectorAll(rowSelector));
+    const described = all.map((node) => ({ tag: node.tagName.toLowerCase(), menu: Boolean(menuOf(node)), text: textOf(node).slice(0, Number('110')) }));
+    const rows = all.filter((node) => textOf(node).includes(norm(needle)));
+    const inventory = {
+      url: location.href,
+      title: document.title,
+      widok: norm(document.body ? document.body.innerText : '').slice(0, Number('160')),
+      tables: document.querySelectorAll('table').length,
+      tableRows: document.querySelectorAll('table tbody tr').length,
+      roleRows: document.querySelectorAll('[role="row"]').length,
+      overflowButtons: document.querySelectorAll('[aria-label*="overflow"]').length,
+      textareas: document.querySelectorAll('textarea').length,
+    };
+    if (rows.length === Number('1')) {
+      const menu = menuOf(rows[Number('0')]);
+      if (menu) menu.setAttribute('data-weles-row-menu', 'open');
+      return { count: Number('1'), menu: Boolean(menu), inventory, described };
+    }
+    return { count: rows.length, menu: false, inventory, described };
+  }, { needle: row.rowNeedle, rowSelector: ROWS }); // allow-raw-playwright: locate the one row named by the plan and report what the page shows
+  if (seen.count !== Number('1') || !seen.menu) {
+    throw new Error(`${collection.label}: needle "${row.rowNeedle}" matched ${seen.count} rows, menu found: ${seen.menu}; stan strony ${JSON.stringify(seen.inventory)}; wiersze ${JSON.stringify(seen.described)}`);
+  }
+  const menuButton = page.locator('[data-weles-row-menu="open"]').first();
+  await clickEl(menuButton);
+  await menuButton.evaluate((el) => el.removeAttribute('data-weles-row-menu')); // allow-raw-playwright: drop the marker used for the humanized click
+  const edit = page.getByRole('menuitem', { name: 'Edytuj', exact: true }).filter({ visible: true }).first();
+  await edit.waitFor({ state: 'visible' });
+  await clickEl(edit);
+  await page.waitForSelector(`[name$="${row.matchField}"]`);
+  await humanIdlePause('short');
+}
+
+async function nestedPrefix(nested) {
+  const names = await page.locator(`[name$="${nested.matchFieldSuffix}"]`).evaluateAll(
+    (els, needle) => els
+      .filter((el) => String(el.value || '').replace(/\s+/g, ' ').trim().includes(needle))
+      .map((el) => el.getAttribute('name')),
+    nested.matchNeedle,
+  ); // allow-raw-playwright: resolve the nested row prefix from its declared name field
+  if (names.length !== Number('1')) throw new Error(`nested needle matched ${names.length} rows: ${nested.matchNeedle}`);
+  return names[0].slice(0, -nested.matchFieldSuffix.length);
+}
+
+async function closeDrawer() {
+  const cancel = page.getByRole('button', { name: 'Anuluj', exact: true }).filter({ visible: true });
+  if (await cancel.count() > 0) {
+    await clickEl(cancel.last());
+    await humanIdlePause('long');
+  }
+}
+
+if (collection) {
+  const checks = [];
+  for (const row of collection.rows || []) {
+    await openRow(row);
+    for (const f of row.fields || []) checks.push(await readDeclared(f.name, f.value, collection.label));
+    if (row.nested) {
+      const prefix = await nestedPrefix(row.nested);
+      for (const f of row.nested.fields || []) checks.push(await readDeclared(`${prefix}${f.nameSuffix}`, f.value, collection.label));
+    }
+    await closeDrawer();
+  }
+  console.log(JSON.stringify({ collection: SECTION, url: page.url(), checks }, null, Number('2')));
+  process.exit(0);
+}
+
 await page.goto(BASE + cfg.sectionId, { waitUntil: 'domcontentloaded' });
 await humanIdlePause('long');
-await page.waitForSelector(cfg.fields[0].sel);
+await assertRendered(SECTION, cfg.fields[0].sel);
 await humanIdlePause('short');
+
+if (MODE === 'read') {
+  const checks = [];
+  for (const f of cfg.fields) checks.push(await readDeclared(f.label, f.value, SECTION));
+  console.log(JSON.stringify({ section: SECTION, url: page.url(), mode: MODE, checks }, null, Number('2')));
+  process.exit(0);
+}
 
 const filled = [];
 for (const f of cfg.fields) {
