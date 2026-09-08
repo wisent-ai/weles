@@ -1,6 +1,5 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert';
-import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -14,6 +13,22 @@ import { join } from 'node:path';
 // marker kept asserting the runtime was fine. The guard and the server's own
 // startup imports have to stay the same set, so an import added to the server
 // cannot silently fall outside what the launcher verifies.
+//
+// A third case used to live here and it was a fake: it built a payload out of
+// `printf 'x'` placeholder files and overwrote the API launcher with a script
+// that printed `launched`, so the launcher execed a stand-in for the product
+// and the placeholders stood in for the compiled modules whose absence is the
+// entire regression. It is deleted rather than converted. The real form —
+// build the payload from this repository's own `npm run build` output and let
+// the launcher exec the real API launcher — cannot be written today, because
+// no payload this repository can produce satisfies the guard: `runtime_required`
+// names `scripts/worker/deploy/launch-weles-api-mac.sh` and
+// `scripts/worker/weles-api-server.mjs`, `.github/workflows/release-worker.yml`
+// copies `scripts` into the payload, and this repository has no `scripts/`
+// directory at all. That is release work with its own owner. The two cases
+// below are the detectors of exactly that drift, and they are expected to fail
+// until it is repaired.
+//
 // The runner's cwd is the repository root; `import.meta` would force this file
 // to load as ESM, which tap's loader cannot require.
 const repoRoot = process.cwd();
@@ -63,68 +78,4 @@ test('the launcher requires the payload entries it execs and reads', () => {
   ]) {
     assert.ok(guarded.includes(entry), `release/stado-launcher.sh does not require ${entry}`);
   }
-});
-
-test('a runtime marked ready without a required module is re-derived', () => {
-  // The regression itself: `.ready` present, one required module absent. The
-  // launcher must report the missing entry and unpack again rather than exec a
-  // tree that cannot serve. Driven through the real script with a payload built
-  // here, so the assertion is about the shipped launcher's behaviour.
-  const guarded = guardedEntries();
-  const script = `
-    set -eu
-    work="$1"
-    launcher="$2"
-    root="$work/release"
-    mkdir -p "$root/payload"
-    # A payload carrying every entry the guard requires.
-    build="$work/build"
-    mkdir -p "$build"
-    for entry in ${guarded.map((entry) => `'${entry}'`).join(' ')}; do
-      mkdir -p "$build/$(dirname "$entry")"
-      printf '%s\\n' 'x' > "$build/$entry"
-    done
-    printf '%s\\n' '{"version":"9.9.9"}' > "$build/package.json"
-    # The launcher execs this as its final step; make it announce itself and
-    # stop rather than start a real API server.
-    printf '%s\\n' '#!/bin/bash' 'printf launched\\\\n' \\
-      > "$build/src/worker/deploy/launch-weles-api-mac.sh"
-    tar -czf "$root/payload/weles-worker.tar.gz" -C "$build" .
-    # A runtime that is complete, marked ready, and has lost exactly one
-    # compiled module: the shape charless-mac-mini was pinned in.
-    cp -R "$build" "$root/runtime"
-    rm -f "$root/runtime/dist/worker/dispatch.js"
-    touch "$root/runtime/.ready"
-    cp "$launcher" "$root/weles-api-launcher"
-    chmod 0755 "$root/weles-api-launcher"
-    HOME="$work/home" NODE_BIN="$(command -v node)" \\
-      bash "$root/weles-api-launcher" 2>"$work/err" >"$work/out" || true
-    printf 'STDERR<%s>\\n' "$(cat "$work/err")"
-    printf 'STDOUT<%s>\\n' "$(cat "$work/out")"
-    printf 'DISPATCH<%s>\\n' "$([ -f "$root/runtime/dist/worker/dispatch.js" ] && echo present || echo absent)"
-  `;
-  const work = execFileSync('mktemp', ['-d', join(repoRoot, '.work', 'runtime-guard.XXXXXX')], {
-    encoding: 'utf8',
-  }).trim();
-  let output = '';
-  try {
-    execFileSync('mkdir', ['-p', join(work, 'home')]);
-    output = execFileSync('bash', ['-c', script, 'runtime-guard', work, launcherPath], {
-      cwd: repoRoot,
-      encoding: 'utf8',
-    });
-  } finally {
-    execFileSync('rm', ['-rf', work]);
-  }
-  assert.match(
-    output,
-    /is marked ready but has no dist\/worker\/dispatch\.js/,
-    `the launcher did not report the missing module:\n${output}`,
-  );
-  assert.match(
-    output,
-    /DISPATCH<present>/,
-    `the launcher left the incomplete runtime in place instead of re-deriving it:\n${output}`,
-  );
-  assert.match(output, /STDOUT<launched>/, `the launcher did not reach the API launcher:\n${output}`);
 });
