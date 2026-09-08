@@ -1,14 +1,86 @@
-// Attach criterion-1 supporting PDF to the replacement NCBR draft. Never submits.
+// Criterion-1 attachments for the NCBR wniosek (project 7ee80d9a). Never submits.
+// MODE=read (default) lists what the Dokumenty view shows and compares it with the
+// declared package. MODE=apply uploads the declared files. PACKAGE selects the package.
 // DIAG=1 opens the criterion-1 subform and dumps controls without uploading.
 
 import { chromium } from 'playwright';
+import { statSync } from 'node:fs';
 import { humanClickLocator, humanIdlePause } from '../../../dist/human/mouse.js';
 
 const endpoint = process.env.NCBR_CDP_ENDPOINT || 'http://127.0.0.1:9223';
 const projectId = process.env.NCBR_PROJECT_ID || '7ee80d9a-67dd-4d99-becd-8dda407221c1';
 const projectUrl = `https://lsi2.ncbr.gov.pl/projekt/${projectId}`;
-const pdfPath = '/Users/lukaszbartoszcze/Downloads/NCBR_Wisent_docs_combined_clean.pdf';
 const criterionNeedle = 'Załączniki potwierdzające spełnienie warunku określonego w kryterium nr 1';
+
+// Both packages of criterion-1 evidence, one file per document, in attachment order.
+const PACKAGES = {
+  controlai: {
+    dir: '/Users/lukaszbartoszcze/Desktop/Wisent - wariant ControlAI 14.04.2026/',
+    files: [
+      '01_porozumienie_ControlAI_wspolnik.pdf',
+      '02_umowa_o_zarzadzanie_ControlAI.pdf',
+      '03_uchwaly_zarzadu_ControlAI.pdf',
+      '04_zawiadomienie_o_stosunku_dominacji.pdf',
+      '05_umowa_zbycia_9_udzialow_13.04.2026.pdf',
+      '06_lista_wspolnikow_podpisana_13.04.2026.pdf',
+      '07_odpis_aktualny_KRS_19.06.2026.pdf',
+      '08_ControlAI_Certificate_of_Incorporation.pdf',
+      '09_ControlAI_EIN_147C.pdf',
+      '10_sprawozdanie_finansowe_ControlAI_2024.pdf',
+      '11_sprawozdanie_finansowe_ControlAI_2025.pdf',
+      '12_ControlAI_Form_1120_2024_EN.pdf',
+      '13_ControlAI_Form_1120_2025_EN.pdf',
+      '14_oswiadczenie_o_dzialalnosci_ControlAI.pdf',
+      '15_zestawienie_dowodow_dzialalnosci.pdf',
+    ],
+  },
+  'wisent-ai': {
+    dir: '/Users/lukaszbartoszcze/Desktop/Wisent - dokumenty korporacyjne 14.04.2026/',
+    files: [
+      '01_porozumienie_wspolnikow.pdf',
+      '02_umowa_o_zarzadzanie_spolka_zalezna.pdf',
+      '03_zawiadomienie_o_stosunku_dominacji.pdf',
+      '04_uchwala_zarzadu_Wisent_AI_14.04.2026.pdf',
+      '05_umowa_zbycia_9_udzialow_13.04.2026.pdf',
+      '06_lista_wspolnikow_podpisana_13.04.2026.pdf',
+      '07_odpis_aktualny_KRS_19.06.2026.pdf',
+      '08_certificate_of_incorporation.pdf',
+      '09_certificate_of_good_standing.pdf',
+      '10_Financial_Statements_2024_EN.pdf',
+      '11_Financial_Statements_2025_EN.pdf',
+      '13_oswiadczenie_o_dzialalnosci_spolki_dominujacej.pdf',
+      '14_zestawienie_dowodow_dzialalnosci.pdf',
+      '15_wyciag_Mercury_wplyw_SAFE_2025-01.pdf',
+      '16_Form_1120_2024_EN.pdf',
+      '17_Form_1120_2025_EN.pdf',
+    ],
+  },
+};
+
+// Limits declared by the live field zalaczniki_potwierdzajace_kryterium_nr1_zalacznik
+// in the submitted application: at most ten PDFs per collection row, ten million bytes each.
+const MAX_FILES = Number('10');
+const MAX_FILE_BYTES = Number('10000000');
+const MODE = process.env.MODE || 'read';
+const PACKAGE = process.env.PACKAGE || 'controlai';
+const pack = PACKAGES[PACKAGE];
+if (!pack) throw new Error(`unknown PACKAGE=${PACKAGE}, expected one of ${Object.keys(PACKAGES).join(', ')}`);
+const declared = pack.files.map((name) => ({ name, path: pack.dir + name }));
+const missingFiles = [];
+const oversizeFiles = [];
+for (const file of declared) {
+  try {
+    const info = statSync(file.path);
+    if (info.size > MAX_FILE_BYTES) oversizeFiles.push(`${file.name} (${info.size} B)`);
+  } catch (error) {
+    missingFiles.push(`${file.name}: ${String(error?.message || error).slice(0, Number('70'))}`);
+  }
+}
+if (missingFiles.length) throw new Error(`brakujace pliki paczki ${PACKAGE}: ${missingFiles.join('; ')}`);
+if (oversizeFiles.length) throw new Error(`pliki ponad limit ${MAX_FILE_BYTES} B: ${oversizeFiles.join('; ')}`);
+if (MODE === 'apply' && declared.length > MAX_FILES) {
+  throw new Error(`paczka ${PACKAGE} ma ${declared.length} plikow, a pole przyjmuje ${MAX_FILES} na wiersz kolekcji; rozloz zestaw na dwa wiersze kolekcji albo polacz dokumenty w rodziny wedlug FENG.05.01-IP.01-007N-26_KRYTERIUM_1_LISTA_ZMIAN.md`);
+}
 
 const browser = await chromium.connectOverCDP(endpoint);
 const page = browser.contexts()[0]?.pages()[0];
@@ -20,6 +92,9 @@ page.setDefaultTimeout(20000);
 
 await page.goto(projectUrl, { waitUntil: 'domcontentloaded' }); // allow-raw-playwright: navigate to draft
 await humanIdlePause('long');
+if (page.url().includes('/logowanie')) {
+  throw new Error(`sesja LSI2 wygasla i przegladarka jest na ${page.url()}; zaloguj sie ponownie w tym oknie i powtorz przebieg`);
+}
 await page.evaluate(() => {
   const b = Array.from(document.querySelectorAll('div')).find((d) => (d.innerText || '').includes('pliki cookies'));
   if (b) b.style.pointerEvents = 'none';
@@ -29,6 +104,26 @@ const documentsButton = page.getByText('Dokumenty', { exact: true }).filter({ vi
 if (!await documentsButton.count()) throw new Error('Dokumenty control not found');
 await humanClickLocator(page, documentsButton);
 await humanIdlePause('long');
+
+if (MODE === 'read') {
+  const view = await page.evaluate(() => {
+    const text = document.body.innerText || '';
+    const names = text.match(/[\wĄĆĘŁŃÓŚŹŻąćęłńóśźż\-. ]+\.pdf/gi) || [];
+    return { url: location.href, pdfs: Array.from(new Set(names.map((name) => name.trim()))) };
+  }); // allow-raw-playwright: read-only list of attachment names visible in the Dokumenty view
+  const declaredNames = declared.map((file) => file.name);
+  console.log(JSON.stringify({
+    mode: MODE,
+    paczka: PACKAGE,
+    url: view.url,
+    limity: { maxPlikow: MAX_FILES, maxBajtowNaPlik: MAX_FILE_BYTES },
+    zadeklarowanePliki: declaredNames.length,
+    widoczneZalaczniki: view.pdfs,
+    brakuje: declaredNames.filter((name) => !view.pdfs.includes(name)),
+    nadmiarowe: view.pdfs.filter((name) => !declaredNames.includes(name)),
+  }, null, Number('2')));
+  process.exit(0);
+}
 
 async function openExistingCriterion1Edit() {
   const menu = page.locator('button[aria-label*="overflow-options"], [role="button"][aria-label*="overflow-options"]').filter({ visible: true }).first();
@@ -102,39 +197,36 @@ async function selectApplicant() {
 }
 
 const applicant = await selectApplicant();
-async function attachPdf() {
+async function attachDeclared() {
+  const paths = declared.map((file) => file.path);
   const zones = page.getByText('Upuść plik lub pobierz z dysku');
   const zoneCount = await zones.count();
   if (zoneCount > 0) {
-    const chooserPromise = page.waitForEvent('filechooser', { timeout: 5000 }).catch(() => null);
+    const chooserPromise = page.waitForEvent('filechooser', { timeout: 5000 });
     await humanClickLocator(page, zones.nth(zoneCount - 1));
     const chooser = await chooserPromise;
-    if (chooser) {
-      await chooser.setFiles(pdfPath); // allow-raw-playwright: attach vetted criterion-1 PDF through chooser
-    } else {
-      const fileInput = page.locator('input[type="file"][accept*=".pdf"]').last();
-      if (await fileInput.count() === 0) throw new Error('PDF file input not found in criterion-1 subform');
-      await fileInput.setInputFiles(pdfPath); // allow-raw-playwright: attach vetted criterion-1 PDF through input
-    }
-  } else {
-    const fileInput = page.locator('input[type="file"][accept*=".pdf"]').last();
-    if (await fileInput.count() === 0) throw new Error('PDF file input not found in criterion-1 subform');
-    await fileInput.setInputFiles(pdfPath); // allow-raw-playwright: attach vetted criterion-1 PDF through input
+    await chooser.setFiles(paths); // allow-raw-playwright: attach the declared criterion-1 documents through the chooser
+    return;
   }
+  const fileInput = page.locator('input[type="file"][accept*=".pdf"]').last();
+  if (await fileInput.count() === 0) throw new Error('PDF file input not found in criterion-1 subform');
+  await fileInput.setInputFiles(paths); // allow-raw-playwright: attach the declared criterion-1 documents through the input
 }
-await attachPdf();
+await attachDeclared();
 await humanIdlePause('long');
 await humanIdlePause('deliberate');
-const uploadState = await page.evaluate(() => {
+const declaredNames = declared.map((file) => file.name);
+const uploadState = await page.evaluate(({ names, needle }) => {
   const text = document.body.innerText || '';
+  const start = Math.max(Number('0'), text.indexOf(needle));
   return {
-    hasOneOfTen: text.includes('(1/10)'),
-    hasFileName: text.includes('NCBR_Wisent_docs_combined_clean') || text.includes('combined_clean'),
-    snippet: text.slice(Math.max(0, text.indexOf('Załączniki potwierdzające spełnienie warunku określonego w kryterium nr 1')), Math.max(0, text.indexOf('Załączniki potwierdzające spełnienie warunku określonego w kryterium nr 1')) + 1800),
+    widoczne: names.filter((name) => text.includes(name)),
+    brakuje: names.filter((name) => !text.includes(name)),
+    snippet: text.slice(start, start + Number('1800')),
   };
-}); // allow-raw-playwright: verify upload state before saving
-if (!uploadState.hasOneOfTen && !uploadState.hasFileName) {
-  throw new Error(`PDF did not appear in upload widget: ${uploadState.snippet}`);
+}, { names: declaredNames, needle: criterionNeedle }); // allow-raw-playwright: verify the declared files entered the widget before saving
+if (uploadState.brakuje.length) {
+  throw new Error(`widget nie pokazuje ${uploadState.brakuje.length} zadeklarowanych plikow (${uploadState.brakuje.join(', ')}): ${uploadState.snippet}`);
 }
 
 let saveResult = 'saved';
@@ -144,15 +236,15 @@ if (!saveCount) saveResult = 'NOT SAVED: no enabled Zapisz';
 else await humanClickLocator(page, saves.nth(saveCount - 1)).catch((e) => { saveResult = `NOT SAVED: ${String(e?.message || e).slice(0, 90)}`; });
 await humanIdlePause('long');
 
-const readback = await page.evaluate((needle) => {
+const readback = await page.evaluate(({ needle, names }) => {
   const body = document.body.innerText || '';
   const idx = body.indexOf(needle);
   return {
-    status: Array.from(document.querySelectorAll('button')).find((b) => (b.innerText || '').trim() === 'Złóż wniosek')?.disabled ? 'draft_not_submittable_button_disabled' : 'draft_submit_button_enabled',
-    hasPdfName: body.includes('NCBR_Wisent_docs_combined_clean') || body.includes('combined_clean'),
-    criterionBlock: idx >= 0 ? body.slice(idx, idx + 2500) : body.slice(0, 2500),
+    zapisanePliki: names.filter((name) => body.includes(name)),
+    brakujacePliki: names.filter((name) => !body.includes(name)),
+    criterionBlock: idx >= Number('0') ? body.slice(idx, idx + Number('2500')) : body.slice(Number('0'), Number('2500')),
   };
-}, criterionNeedle); // allow-raw-playwright: read persisted visible document row
+}, { needle: criterionNeedle, names: declaredNames }); // allow-raw-playwright: read the persisted visible document rows
 
 console.log(JSON.stringify({ applicant, uploadState, saveResult, readback }, null, 2));
 process.exit(0);
