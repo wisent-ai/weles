@@ -64,6 +64,22 @@ function skarbiecBinary() {
   );
 }
 
+/**
+ * The parent environment with every inherited `SKARBIEC_` variable removed.
+ *
+ * Each one resolves to a path below `HOME` when unset, so redirecting `HOME`
+ * covers those; dropping the prefix covers the other half. An operator shell
+ * exporting `SKARBIEC_UNLOCK` or `SKARBIEC_CAPABILITY_ROUTES_FILE` would
+ * otherwise hand this fixture the real passphrase and the real routes table.
+ */
+function withoutInheritedVault() {
+  const environment = { ...process.env };
+  for (const key of Object.keys(environment)) {
+    if (key.startsWith('SKARBIEC_')) delete environment[key];
+  }
+  return environment;
+}
+
 /** A loopback port the kernel just handed out and immediately released. */
 async function reservePort() {
   const server = createServer();
@@ -99,7 +115,7 @@ before(async () => {
   rmSync(ROOT, { recursive: true, force: true });
   mkdirSync(join(ROOT, 'gnupg'), { recursive: true, mode: 0o700 });
   const env = {
-    ...process.env,
+    ...withoutInheritedVault(),
     HOME: ROOT,
     GNUPGHOME: join(ROOT, 'gnupg'),
     SKARBIEC_VAULT_FILE: join(ROOT, 'vault.json'),
