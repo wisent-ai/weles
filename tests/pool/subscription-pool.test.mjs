@@ -1,23 +1,13 @@
 /**
  * The subscription pool, against a real Brama gateway.
  *
- * Brama replaced eleven per-audience inventory invocations with one capability
- * and deleted the routes the replaced ones served, so the three reauth runners
- * were calling GET, POST and DELETE /v1/subscriptions/:agent_id at a gateway
- * that answers none of them. This drives the real client the runners now use —
- * src/trajectories/_shared/subscription_pool.mjs, imported by codex, claude and
- * kimi — over real HTTP against a real `brama serve`, and the assertions read
- * what the gateway answered and what it wrote to its own journal, never a
- * recording of the request this file sent.
- *
- * Nothing here is stubbed. The gateway is the real released binary, its
- * entitlements router is the real `skarbiec` binary, and what is isolated is
- * the data behind them: a vault this test created with `skarbiec init`, a
- * state directory this test owns, and a loopback port the kernel reserved.
- * Isolate the data, never the component. What this still does not drive is a
- * whole reauth tick: that reads the operator's vault and, on a burnt pool,
- * opens a provider sign-in in a browser, which belongs to Weles on the
- * Stado-selected host and never to this machine.
+ * Drives the client the three reauth runners share —
+ * src/trajectories/_shared/subscription_pool.mjs, imported by codex, claude
+ * and kimi — against a real `brama serve` whose entitlements router is the
+ * real `skarbiec` binary, over a vault, a state directory and a port this test
+ * owns, reading the gateway's own answer and journal rather than a recording
+ * of the request sent. The reauth tick's browser half belongs to Weles on the
+ * Stado-selected host and is not driven here.
  *
  * Run: node --test tests/pool/subscription-pool.test.mjs
  */
@@ -38,13 +28,10 @@ import {
   writePool,
 } from '../../src/trajectories/_shared/subscription_pool.mjs';
 
-/** The agent this gateway proves, and the secret it signs with. */
 const AGENT = 'weles';
 const SIGNING_SECRET = 'weles-pool-capability-signing-secret';
 const AGENT_BEARER = 'weles-pool-agent-bearer';
 const CONSOLE_BEARER = 'weles-pool-console-bearer';
-
-/** A fixture root below the fleet scratch path: short, and never beside real state. */
 const ROOT = join(homedir(), '.stado', 'work', 'wl', `pool-${process.pid.toString(16)}`);
 
 function isExecutable(path) {
@@ -57,11 +44,10 @@ function isExecutable(path) {
 }
 
 /**
- * A sibling product's real binary, in one fixed resolution order: its own
- * variable, then PATH, then the Stado install directory — three places one
- * binary is installed, not three interchangeable answers. When none holds it
- * the test fails by name and never substitutes a script, because a suite that
- * goes green for want of a dependency is the defect being removed here.
+ * A sibling product's real binary, in one fixed order: its own variable, then
+ * PATH, then the Stado install directory — three places one binary is
+ * installed, not three interchangeable answers. When none holds it the test
+ * fails by name and never substitutes a script.
  */
 function productBinary(name, variable, howToGet) {
   const configured = String(process.env[variable] ?? '').trim();
@@ -70,35 +56,43 @@ function productBinary(name, variable, howToGet) {
     return configured;
   }
   const located = spawnSync('/usr/bin/env', ['sh', '-c', `command -v ${name}`], { encoding: 'utf8' });
-  const onPath = located.status === 0 ? located.stdout.trim() : '';
-  if (onPath) return onPath;
+  if (located.status === 0 && located.stdout.trim()) return located.stdout.trim();
   const installed = join(homedir(), '.stado', 'bin', name);
   if (isExecutable(installed)) return installed;
-  throw new Error(
-    `the real ${name} binary is required and was not found: ${variable} is unset,`
-    + ` ${name} is not on PATH, and ${installed} does not exist. Get it with \`${howToGet}\`.`,
-  );
+  throw new Error(`the real ${name} binary is required and was not found: ${variable} is unset,`
+    + ` ${name} is not on PATH, and ${installed} does not exist. Get it with \`${howToGet}\`.`);
 }
 
-/** A loopback port the kernel just handed out and immediately released. */
+/**
+ * The parent environment without its inherited `SKARBIEC_` variables: an
+ * operator shell exporting an unlock passphrase or a capability routes table
+ * would otherwise hand this fixture the real ones.
+ */
+function withoutInheritedVault() {
+  const environment = { ...process.env };
+  for (const key of Object.keys(environment)) {
+    if (key.startsWith('SKARBIEC_')) delete environment[key];
+  }
+  return environment;
+}
+
 async function reservePort() {
   const server = createServer();
-  await new Promise((listening, failed) => {
-    server.once('error', failed);
-    server.listen(0, '127.0.0.1', listening);
-  });
+  const bound = Promise.withResolvers();
+  server.once('error', bound.reject);
+  server.listen(0, '127.0.0.1', () => bound.resolve());
+  await bound.promise;
   const { port } = server.address();
-  await new Promise((closed) => server.close(closed));
+  const closed = Promise.withResolvers();
+  server.close(() => closed.resolve());
+  await closed.promise;
   return port;
 }
 
 function accepting(port) {
   const { promise, resolve } = Promise.withResolvers();
   const socket = connect({ host: '127.0.0.1', port });
-  const settle = (state) => {
-    socket.destroy();
-    resolve(state);
-  };
+  const settle = (state) => { socket.destroy(); resolve(state); };
   socket.setTimeout(200);
   socket.once('connect', () => settle(true));
   socket.once('timeout', () => settle(false));
@@ -108,14 +102,8 @@ function accepting(port) {
 
 /** The route registry key naming the providers consulted when no route matches. */
 const NO_ROUTES = { deployments: [], routes: {}, [['fall', 'backs'].join('')]: {} };
-
 let gateway = null;
 
-/**
- * One real gateway over data this test owns. It resolves its own bearers,
- * verifies the HMAC trio with its own signing code and writes its own journal;
- * the vault behind it is a real Skarbiec the gateway shells for `list`.
- */
 async function startGateway() {
   const brama = productBinary('brama', 'BRAMA_BIN',
     'cargo build --release --bin brama in a checkout of wisent-ai/brama');
@@ -132,20 +120,22 @@ async function startGateway() {
   };
   const initialized = spawnSync(skarbiec, ['init', 'weles-pool-tests'], {
     encoding: 'utf8',
-    env: { ...process.env, ...vaultEnv },
+    env: { ...withoutInheritedVault(), ...vaultEnv },
   });
   assert.equal(initialized.status, 0,
     `real skarbiec could not create the isolated vault: ${initialized.stderr || initialized.stdout}`);
-
   // The gateway refuses a route registry group or other can read.
   const routes = join(ROOT, 'routes.json');
   writeFileSync(routes, JSON.stringify(NO_ROUTES), { mode: 0o600 });
 
   const port = await reservePort();
+  // The vault environment goes on the gateway, because the gateway passes its
+  // own environment down to the router child: that isolates the child's vault
+  // without isolating the child.
   const child = spawn(brama, ['serve', '--port', String(port), '--local-credentials-stdin'], {
     stdio: ['pipe', 'pipe', 'pipe'],
     env: {
-      ...process.env,
+      ...withoutInheritedVault(),
       ...vaultEnv,
       HOME: join(ROOT, 'home'),
       ENTITLEMENTS_ROUTER_BIN: skarbiec,
@@ -178,7 +168,9 @@ async function startGateway() {
     assert.equal(child.exitCode, null,
       `the real brama gateway exited with ${child.exitCode} before binding: ${output}`);
     assert.ok(Date.now() < deadline, `the real brama gateway never bound ${baseUrl}: ${output}`);
-    await new Promise((tick) => setTimeout(tick, 50));
+    const tick = Promise.withResolvers();
+    setTimeout(() => tick.resolve(), 50);
+    await tick.promise;
   }
   const health = await fetch(`${baseUrl}/health`);
   assert.ok(health.ok, `the real brama gateway answered ${health.status} on /health: ${output}`);
@@ -186,10 +178,9 @@ async function startGateway() {
 }
 
 /**
- * The headers a reauth runner presents: the bearer it was issued, and the HMAC
- * trio over the exact bytes it is about to send. The signed message is
- * `<agent>:<unix seconds>:<sha256 of the body, hex, empty when there is none>`,
- * which is what `brama::crypto::hmac_auth::compute_signature` verifies.
+ * The bearer a reauth runner was issued, and the HMAC trio over the exact
+ * bytes it is about to send: `<agent>:<unix seconds>:<sha256 of the body, hex,
+ * empty when there is none>`, which is what the gateway verifies.
  */
 function signed(body) {
   const timestamp = String(Math.floor(Date.now() / 1000));
@@ -211,7 +202,6 @@ async function refusal(response) {
 }
 
 before(async () => { gateway = await startGateway(); });
-
 after(() => {
   gateway?.child.kill('SIGKILL');
   spawnSync('gpgconf', ['--kill', 'all'], { env: { ...process.env, GNUPGHOME: join(ROOT, 'gnupg') } });
@@ -241,9 +231,9 @@ test('the pool answers the agent about the account it banked, on the pool path',
   assert.equal(SUBSCRIPTION_POOL_PATH, '/v1/subscription-pool');
   // The pool must not claim success while carrying a failure, and against an
   // isolated vault it carries exactly one: reading a provider's own usage
-  // report needs that provider, and a test must not reach OpenAI. That
-  // failure is named, pointed at the row banked above, and it does not remove
-  // the row — a second failure here would be a real defect.
+  // report needs that provider, and a test must not reach OpenAI. That failure
+  // is named, pointed at the row banked above, and it does not remove the row
+  // — a second failure here would be a real defect.
   assert.equal(document.ok, false, `the pool claimed success: ${JSON.stringify(document)}`);
   assert.deepEqual(
     document.errors.map((failure) => [failure.failure_point, failure.context.subscription]),

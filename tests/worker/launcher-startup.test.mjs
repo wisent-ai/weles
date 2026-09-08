@@ -62,6 +62,21 @@ function productBinary(name, variable) {
   );
 }
 
+/**
+ * The parent environment with every inherited `SKARBIEC_` variable removed.
+ * Each resolves to a path below `HOME` when unset, so redirecting `HOME`
+ * covers those; dropping the prefix covers the other half. An operator shell
+ * exporting `SKARBIEC_UNLOCK` or `SKARBIEC_CAPABILITY_ROUTES_FILE` would
+ * otherwise hand this fixture the real passphrase and the real routes table.
+ */
+function withoutInheritedVault() {
+  const environment = { ...process.env };
+  for (const key of Object.keys(environment)) {
+    if (key.startsWith('SKARBIEC_')) delete environment[key];
+  }
+  return environment;
+}
+
 async function reservePort() {
   const server = createServer();
   const bound = Promise.withResolvers();
@@ -163,7 +178,7 @@ test('a launcher that loses the port stands by and leaves the broker socket alon
   const gnupg = join(home, 'gnupg');
   mkdirSync(gnupg, { recursive: true, mode: 0o700 });
   const brokerEnv = {
-    ...process.env,
+    ...withoutInheritedVault(),
     HOME: home,
     GNUPGHOME: gnupg,
     SKARBIEC_VAULT_FILE: join(home, 'vault.json'),
